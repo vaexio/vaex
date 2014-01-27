@@ -1,4 +1,4 @@
-
+# Makefile by hand
 
 OBJECTS = ShortVolume.o SimpleShortVolume.o MTfor3D_forC.o avs_io.o MaxTree3d.o
 CPPFLAGS=-g
