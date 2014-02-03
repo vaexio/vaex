@@ -30,11 +30,16 @@
     
    F. Murtagh, Munich, 6 June 1989                                   */   
 /*********************************************************************/
+#if HAVE_CONFIG_H
+#include <config.h>
+#endif
 
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#ifdef HAVE_MALLOC_H // if it doesn't exists, stdlib.h should get all we need
 #include <malloc.h>
+#endif
 #include <stdlib.h>
 
 #define SIGN(a, b) ( (b) < 0 ? -fabs(a) : fabs(a) )
@@ -48,7 +53,7 @@ double **matrix(), **symmat, **symmat2, *vector(), *evals, *interm;
 void free_matrix(), free_vector(), corcol(), covcol(), scpcol();
 void tred2(), tqli();
 double in_value;
-char  option='R',*strncpy();
+char  option='R'; //,*strncpy();
 
    printf("No. of rows: %d, no. of columns: %d.\n",n,m);
    //printf("Input file: %s.\n",argv[1]);

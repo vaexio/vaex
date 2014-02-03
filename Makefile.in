@@ -1,0 +1,56 @@
+
+package = @PACKAGE_NAME@
+version = @PACKAGE_VERSION@
+tarname = @PACKAGE_TARNAME@
+distdir = $(tarname)-$(version)
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+
+srcdir	= @srcdir@
+VPATH	= @srcdir@
+
+all clean check install uninstall:
+	${MAKE} -C src $@
+
+
+dist: $(distdir).tar.gz
+
+$(distdir).tar.gz: FORCE $(distdir)
+	tar chof - $(distdir) | gzip -9 -c >$(distdir).tar.gz
+	rm -rf $(distdir)
+
+distcheck: $(distdir).tar.gz
+	tar zxfv $+
+	cd $(distdir); ./configure
+	$(MAKE) -C $(distdir) all check clean
+	rm -rf $(distdir)
+	@echo "Package $(distdir).tar.gz looks ok to be shipped"
+
+$(distdir):
+	mkdir -p $(distdir)/src
+	cp $(srcdir)/configure $(distdir)
+	cp $(srcdir)/Makefile.in $(distdir)
+	cp $(srcdir)/config.h.in $(distdir)
+	cp $(srcdir)/src/Makefile.in $(distdir)/src
+
+	cp $(srcdir)/src/*.c $(srcdir)/src/*.cpp $(srcdir)/src/*.h $(distdir)/src
+
+Makefile: $(srcdir)/Makefile.in $(srcdir)/src/Makefile.in config.status
+	./config.status $@
+	#./config.status src/$@
+	make -C src $@
+
+
+
+
+config.status: configure
+	./config.status --recheck
+
+FORCE:
+	-rm $(distdir).tar.gz
+	-rm -rf $(distdir)
+
+.PHONY: FORCE all clean dist distcheck check install uninstall
+

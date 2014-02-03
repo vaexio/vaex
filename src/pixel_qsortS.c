@@ -5,8 +5,14 @@
    Job      :   sort out the array of pixels
    Notice   :   optimized implementation, unreadable.
  ---------------------------------------------------------------------------*/
+#if HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include <string.h>
+#ifdef HAVE_MALLOC_H // if it doesn't exists, stdlib.h should get all we need
 #include <malloc.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 
