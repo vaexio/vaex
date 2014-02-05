@@ -6,6 +6,8 @@
  
 */
 
+
+
 typedef struct { double 
 		   x_min,      /* minima and maxima in x, y, and z */
 		   x_max, 
@@ -162,3 +164,18 @@ void init_contours ( contour_rec *contours,
                      int         max_col       );
 
 
+
+
+
+// added below: MB
+void add_one_point_epan ( double       x_val,
+                          double       y_val,
+                          map2d       *d,
+                          double       hx,
+                          double       hy    );
+
+void add_one_point_epan2 ( double       x_val,
+                           double       y_val,
+                           map2d       *d,
+                           double       hx,
+                           double       hy    );
