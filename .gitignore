@@ -1,5 +1,14 @@
 *.o
 Makefile.in
+Makefile
+config.guess
+config.sub
+libtool
+ltmain.sh
+m4/libtool.m4
+m4/ltoptions.m4
+m4/ltversion.m4
+m4/lt~obsolete.m4
 aclocal.m4
 autom4te.cache
 config.h
@@ -11,7 +20,9 @@ depcomp
 install-sh
 missing
 src/.deps/
+src/.libs
 src/Makefile
 src/Makefile.in
 src/libsubfind.a
 subspacefind*.tar.gz
+src/subspacefind?la*
