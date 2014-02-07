@@ -1,6 +1,11 @@
-bin_PROGRAMS = kdForSpaces_usingV2scott
+bin_PROGRAMS = kdForSpaces_usingV2scott kerneldensity
 kdForSpaces_usingV2scott_SOURCES = kdForSpaces_usingV2scott.c
 kdForSpaces_usingV2scott_LDADD = libsubfind.a -lstdc++
+
+#kerneldensity_SOURCSE = avs_io.
+kerneldensity_LDADD = -lm libsubfind.a
+
+
 #kdForSpaces_usingV2scott_LINK = $(CXX)
 noinst_HEADERS = ShortVolume.h SimpleShortVolume.h definitions.h avs_io.h MaxTree3d.h MTAuxData.h Queue.h kerneldensity.h
 lib_LIBRARIES = libsubfind.a
@@ -10,4 +15,5 @@ libsubfind_a_SOURCES = ShortVolume.cpp SimpleShortVolume.cpp MTfor3D_forC.cpp av
 pyexec_LTLIBRARIES = subspacefind.la
 subspacefind_la_SOURCES = python_binding.cpp kerneldensity.c
 subspacefind_la_CPPFLAGS = $(PYTHON_CPPFLAGS) ${CPPFLAGS} -I${NUMPY_INCLUDEDIR}
-subspacefind_la_LDFLAGS = -avoid-version -module  $(PYTHON_LDFLAGS) -l${BOOST_PYTHON_LIB} libsubfind.a
+subspacefind_la_LDFLAGS = -avoid-version -module  $(PYTHON_LDFLAGS) -l${BOOST_PYTHON_LIB}
+#libsubfind.a
