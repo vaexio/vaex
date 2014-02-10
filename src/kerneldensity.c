@@ -996,6 +996,30 @@ void findminmax(int numdata, double *data, double *min, double *max){
   }
 }
 
+int ImagePGMBinWrite1D(map1d *map, char *fname)
+{
+   FILE *outfile;
+   int k,l,i;
+   unsigned char *buf = malloc(map->bins*sizeof(unsigned char));
+
+   outfile = fopen(fname, "wb");
+   if (outfile==NULL) {
+      fprintf (stderr, "Error: Can't write the image: %s !", fname);
+      return(0);
+   }
+   fprintf(outfile, "P5\n%d %d\n255\n", map->bins,1);
+ 
+   i=0;
+   //for(l=map->y_bins - 1;l>=0;l--)
+     for (k=0;k<map->bins;k++,i++)
+       buf[i] = (unsigned char) ((255.0*sqrt(map->map[k]))/sqrt(map->data_max)); 
+   fwrite(buf, 1, (size_t)(map->bins), outfile);
+ 
+   fclose(outfile);
+   free(buf);
+   return(1);
+} /* ImagePGMBinWrite */
+
 
 int ImagePGMBinWrite(map2d *map, char *fname)
 {
@@ -1071,6 +1095,7 @@ int main(int argc, char *argv[]){
   double **data;
   double *minima,*maxima, *prob;
   double gmean,hscale;
+  map1d density1d;
   map2d density;
   map3d density3;
   clock_t start;
@@ -1118,7 +1143,17 @@ int main(int argc, char *argv[]){
     printf("mimimum[%d] = %f,maximum[%d] = %f \n ",j, minima[j], j, maxima[j] );
   }
 
-  if (dims==2){
+	if(dims == 1) {
+		init_map1d(&density1d,minima[k],maxima[k],512);
+		double sx1 = 2.0*(maxima[k]-minima[k])/cbrt(numdata);
+
+		gmean = comp_data_probs_1d(&density1d, sx1, numdata, data[k], prob);
+		adaptive_dens_1d(&density1d, sx1, gmean, numdata, data[k], prob);
+
+
+		ImagePGMBinWrite1D(&density1d,"density1.pgm");
+	}
+  else if (dims==2){
     init_map2d(&density,minima[k]-0.06125*(maxima[k]-minima[k]),
 	       maxima[k]+0.06125*(maxima[k]-minima[k]),512,
 	       minima[l]-0.06125*(maxima[l]-minima[l]),

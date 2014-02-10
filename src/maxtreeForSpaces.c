@@ -1144,7 +1144,6 @@ quality=0.0;
 return quality;
 }
 
-
 double MaxTreeforSpaces(char *imname,int CONNECTIVITY,int *nLeaves)
 {
    ImageGray *img, *template, *out;
@@ -1232,3 +1231,17 @@ double MaxTreeforSpaces(char *imname,int CONNECTIVITY,int *nLeaves)
 
    return (quality/NumLeaves);
 } /* main */
+
+int main(int argc, char** argv) {
+	int numLeaves;
+	double quality;
+	if(argc == 2) {
+		quality = MaxTreeforSpaces(argv[1], 2, &numLeaves);
+		printf("quality: %f\n", quality);
+		printf("numLeaves: %d\n", numLeaves);
+	} else {
+		fprintf(stderr, "usage: %s <filename>\n", argv[0]);
+		return 1;
+	}
+}
+
