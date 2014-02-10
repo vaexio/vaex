@@ -1,10 +1,14 @@
-bin_PROGRAMS = kdForSpaces_usingV2scott kerneldensity
-kdForSpaces_usingV2scott_SOURCES = kdForSpaces_usingV2scott.c
-kdForSpaces_usingV2scott_LDADD = libsubfind.a -lstdc++
+bin_PROGRAMS =  kerneldensity maxtreeForSpaces
+#kdForSpaces_usingV2scott
+#kdForSpaces_usingV2scott_SOURCES = kdForSpaces_usingV2scott.c
+#kdForSpaces_usingV2scott_LDADD = libsubfind.a -lstdc++
 
+maxtreeForSpaces_SOURCES = maxtreeForSpaces.c
 #kerneldensity_SOURCSE = avs_io.
 kerneldensity_LDADD = -lm libsubfind.a
 
+maxtreeForSpaces_LDADD = -lm 
+#libsubfind.a
 
 #kdForSpaces_usingV2scott_LINK = $(CXX)
 noinst_HEADERS = ShortVolume.h SimpleShortVolume.h definitions.h avs_io.h MaxTree3d.h MTAuxData.h Queue.h kerneldensity.h
