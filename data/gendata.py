@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import sys
 from optparse import OptionParser
+import h5py
 
 from numpy import *
 
@@ -31,8 +32,9 @@ parser.add_option("-u", "--uniform",
                   help="percentage of uniform noise [default=%default]", default="0.1", type=float)
 parser.add_option("-b", "--bounds",
                   help="bounds of space for bounding box[default=%default]", default="0.0,1.0", type=str)
+                  
 parser.add_option("-v", "--verbose", action="store_true", default=False, help="give verbose output")
-
+parser.add_option("-o", "--output")
 (options, args) = parser.parse_args()
 
 N = options.number
@@ -83,9 +85,24 @@ info("means: %r", mean_list)
 #maxcount 
 
 
-def output(row):
-	print " ".join(map(str, row))
+if options.output:
+	h5output = h5py.File(options.output, "w", driver="core")
+	dataset = h5output.create_dataset("data", (dim,N), dtype='f64')
+else:
+	h5output = None
 	
+index = 0
+
+def output(row):
+	global index
+	if h5output:
+		dataset[:,index] = array(row)
+	else:
+		print " ".join(map(str, row))
+	index += 1
+	
+	
+random.seed(1)
 for part in range(parts):
 	info("part %d out of %d" % (part+1, parts))
 	Ngaussian = int(N/parts * (1-options.uniform))
