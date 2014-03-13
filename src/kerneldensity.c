@@ -15,6 +15,8 @@
 #include <unistd.h>
 #include "avs_io.h"
 #include "kerneldensity.h"
+#include <getopt.h>
+#include <string.h>
 
 #define PI 3.141592654
 
@@ -1087,6 +1089,140 @@ void AVSdens3dwrite(int scaling,
    fclose(outfile); 
 }
 
+
+int option_do_help = 0;
+int option_do_bounds = 0;
+int program_flag_debug = 0;
+int program_flag_bounds = 0;
+
+
+int read_line_to_doubles(FILE* input, int line_number, char* line_buf, int max_line_length, double* values, int max_values, int *columns) {
+	if(fgets(line_buf, max_line_length, input) == NULL) {
+		return 1; // we are done, EOF
+	} else {
+		if(line_buf[strlen(line_buf)-1] != '\n') {
+			fprintf(stderr, "line buffer is too small, increase it (needs recompilation)\n");
+			exit(1);
+		} else {
+			line_buf[strlen(line_buf)-1] = 0;
+			if(program_flag_debug)
+				printf("got the line [%s]\n", line_buf);
+			double value;
+			int length = 0;
+			int index = 0;
+			while(sscanf(line_buf, "%lf %n", &value, &length) >= 1) { // %n shouldn't count as an element, but sometimes does (bug?), so >=1 will do
+				if(program_flag_debug)
+					printf("value = %lf %d\n", value);
+				line_buf += length; // just move the pointer forwards so we skip the current value
+				if(index == max_values) {
+					fprintf(stderr, "number of columns (%d) bigger than maximum (%d), increase it (needs recompilation)\n", index, max_values);
+					exit(2);
+				}
+				values[index] = value;
+				index++;
+				if(program_flag_debug)
+					printf("line left [%s]\n", line_buf);
+			}
+			*columns = index;
+			if(program_flag_debug)
+				printf("done with line\n", value);
+			return 0;
+		}
+	}
+}
+
+
+
+struct option options[] = {
+	{"help", no_argument, 0, 'h'},
+	{"bounds", no_argument, 0, 'b'},
+	{"debug", no_argument, 0, 'd'},
+	{0},
+	{"grid", no_argument, 0, 'g'},
+	{"initialize", no_argument, 0, 'i'},
+	{"optimize", no_argument, 0, 't'},
+	{"dimension", required_argument, 0, 'd'},
+	{"limit-level-difference", required_argument, 0, 'l'},
+	{"subdivides", required_argument, 0, 's'},
+	{"output", required_argument, 0, 'o'},
+	{"input", optional_argument, 0, 'n'},
+	{0}
+};
+
+int main__(int argc, char* const *argv) {
+	int c;
+	int indexptr;
+	int max_dim = 100;
+	int max_line_length = 10000;
+	char* line_buf;
+	
+	FILE* input;
+	
+	input = stdin; // by default read from stdin
+	
+	while((c = getopt_long(argc, argv, "hbd", &options[0], &indexptr)) != -1) {
+		switch(c) {
+			case 'h':
+				printf("usage: %s -d <dim> [options]\n", argv[0]);
+				break;
+			case 'b':
+				program_flag_bounds = 1;
+				break;
+			case 'd':
+				program_flag_debug = 1;
+				break;
+				
+		}
+	}
+
+	double* row = calloc(max_dim, sizeof(double));
+	line_buf = calloc(max_line_length, sizeof(char));
+	int line_number = 1;
+	int columns = 0;
+	int row_elements = 0;
+	if(program_flag_bounds) {
+		double* max_values = calloc(max_dim, sizeof(double));
+		double* min_values = calloc(max_dim, sizeof(double));
+		while( read_line_to_doubles(input, line_number, line_buf, max_line_length, row, max_dim, &row_elements) == 0) {
+			if(line_number == 1) {
+				columns = row_elements;
+				for(int i = 0; i < row_elements; i++) {
+					max_values[i] = row[i];
+					min_values[i] = row[i];
+				}
+			} else {
+				if(row_elements != columns) {
+					fprintf(stderr, "data doesn't make sense, expected %d elements in row/line %d, got %d", columns, line_number, row_elements);
+					exit(3);
+				}
+				for(int i = 0; i < row_elements; i++) {
+					if(row[i] > max_values[i])
+						max_values[i] = row[i];
+					if(row[i] < min_values[i])
+						min_values[i] = row[i];
+				}
+			}
+			line_number++;
+		}
+		if(program_flag_debug) {
+			printf("read %d number of lines\n", line_number-1);
+		}
+		printf("min");
+		for(int i = 0; i < row_elements; i++) {
+			printf(" %g", min_values[i]);
+		}
+		printf("\n");
+		printf("max");
+		for(int i = 0; i < row_elements; i++) {
+			printf(" %g", max_values[i]);
+		}
+		printf("\n");
+		//fscanf(input, " %lf",data[j]+i);
+		//fscanf(infile," \n");
+		//line_number++;
+		
+	}
+}
 
 int main(int argc, char *argv[]){
   char *infilename=argv[3];

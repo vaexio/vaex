@@ -7,6 +7,8 @@ maxtreeForSpaces_SOURCES = maxtreeForSpaces.c
 #kerneldensity_SOURCSE = avs_io.
 kerneldensity_LDADD = -lm libsubfind.a
 
+kerneldensity_CFLAGS = -std=c99
+
 maxtreeForSpaces_LDADD = -lm 
 #libsubfind.a
 
@@ -17,7 +19,8 @@ libsubfind_a_SOURCES = ShortVolume.cpp SimpleShortVolume.cpp MTfor3D_forC.cpp av
 
 
 pyexec_LTLIBRARIES = subspacefind.la
-subspacefind_la_SOURCES = python_binding.cpp kerneldensity.c
+subspacefind_la_SOURCES = python_binding.cpp kerneldensity.c avs_io.c 
+subspacefind_la_CFLAGS = -std=c99
 subspacefind_la_CPPFLAGS = $(PYTHON_CPPFLAGS) ${CPPFLAGS} -I${NUMPY_INCLUDEDIR}
 subspacefind_la_LDFLAGS = -avoid-version -module  $(PYTHON_LDFLAGS) -l${BOOST_PYTHON_LIB}
 #libsubfind.a

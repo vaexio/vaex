@@ -6,6 +6,7 @@
 
 extern "C" {
 #include "kerneldensity.h"
+int ImagePGMBinWrite(map2d *map, char *fname);
 }
 //#include <boost/numpy.hpp>
 #include <numpy/arrayobject.h>
@@ -55,6 +56,10 @@ public:
 		init_map2d(&map, xmin, xmax, xbins, ymin, ymax, ybins);
 	}
 	
+	void pgm_write(char* filename) {
+		ImagePGMBinWrite(&map, filename);
+	}
+	
 	void test(boost::python::object a) {
 		PyObject *obj = a.ptr();
 		printf("obj: %p\n", obj);
@@ -85,7 +90,7 @@ public:
 			for(int y=0; y < map.y_bins; y++) {
 				//printf("x,y = %d,%d\n", x, y);
 				image[x+y*map.x_bins] = map.map[y][x];
-				printf("%f ", map.map[y][x]);
+				//printf("%f ", map.map[y][x]);
 			}
 		}
 	}
@@ -227,6 +232,7 @@ BOOST_PYTHON_MODULE(subspacefind)
 	boost::python::numeric::array::set_module_and_type("numpy", "ndarray");
 	def("hello", hello);
 	class_<DensityMap2d >("DensityMap2d", init<double, double, int, double, double, int>())
+		.def("pgm_write", &DensityMap2d::pgm_write)
 		.def("test", &DensityMap2d::test)
 		.def("fill", &DensityMap2d::_fill)
 		.def("comp_data_probs_2d", &DensityMap2d::_comp_data_probs_2d)
