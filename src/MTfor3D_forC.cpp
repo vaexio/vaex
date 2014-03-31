@@ -30,6 +30,7 @@ quality=mt->getLeaves();
 
 
 printf("Quality:%lf\n",quality);
+printf("mean Quality:%lf\n",quality/nrOfLeaveNodes);
 return 0;
 //return quality;
 }

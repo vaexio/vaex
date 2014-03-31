@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import sys
 from optparse import OptionParser
-import h5py
 
 from numpy import *
 
@@ -28,6 +27,9 @@ parser.add_option("-s", "--sigma",
                   help="default sigma(s) [default=%default]", default="0.01", type=str)
 parser.add_option("-m", "--mean",
                   help="default mean(s) [default=%default]", default="0.4", type=str)
+parser.add_option("-n", "--names",
+                  help="column names [default=%default]", default="x,y", type=str)
+                  
 parser.add_option("-u", "--uniform",
                   help="percentage of uniform noise [default=%default]", default="0.1", type=float)
 parser.add_option("-b", "--bounds",
@@ -70,6 +72,10 @@ if len(bounds_list) == 1:
 	bounds_list = bounds_list * dim
 if len(bounds_list) != dim:
 	exit("lenght of bound list should equal the number of dimensions (%d), or 1, not %d" % (dim, len(bounds_list)))
+	
+column_names = options.names.split(",")
+if len(column_names) != dim:
+	exit("number of column names should equal the number of dimensions (%d), not %d" % (dim, len(column_names)))
 		
 if len(mean_list) != len(sigma_list):
 	exit("number of means provided (%d) doesn't match number of sigmas provided (%d)" % (len(mean_list), len(sigma_list)))
@@ -86,20 +92,31 @@ info("means: %r", mean_list)
 
 
 if options.output:
+	import h5py
 	h5output = h5py.File(options.output, "w", driver="core")
-	dataset = h5output.create_dataset("data", (dim,N), dtype='f64')
+	#dataset = h5output.create_dataset("data", (dim,N), dtype='f64')
+	dataset = h5output.create_group("data")
+	h5columns = []
+	for d in range(dim):
+		print column_names[d]
+		h5columns.append(dataset.create_dataset(column_names[d], (N,), dtype='f64'))
 else:
 	h5output = None
 	
 index = 0
+temp = zeros((dim, N))
 
-def output(row):
+def write(data):
 	global index
+	size = len(data)
 	if h5output:
-		dataset[:,index] = array(row)
+		for d in range(dim):
+			h5columns[d][index:index+size] = data[:,d]
 	else:
-		print " ".join(map(str, row))
-	index += 1
+		for i in range(size):
+			print " ".join(map(str, data[i]))
+			#print " ".join(["%.80e" % k for k in data[i]])
+	index += size
 	
 	
 random.seed(1)
@@ -126,7 +143,7 @@ for part in range(parts):
 		info("%d of %d sampled" % (Ngaussian_total, Ngaussian), indent=1)
 		#for i in range(len(gaussian)):
 		#	output(gaussian[i])
-		map(output, gaussian)
+		write(gaussian)
 	
 	Nuniform_total = 0
 	Nuniform_sample = min(10000, max(Nuniform/4, 100))
@@ -145,8 +162,11 @@ for part in range(parts):
 		info("%d of %d sampled" % (Nuniform_total, Nuniform), indent=1)
 		#for i in range(len(uniform)):
 		#	output(uniform[i])
-		map(output, uniform)
-	
+		write(uniform)
+#for d in range(dim):
+#	for i in range(len(temp[d])):
+#		h5columns[d][i] = temp[d][i]
+#h5output.close()
 if 0:
 	x = random.normal(0.5, 0.015, N/2)
 	y = random.normal(0.2, 0.01, N/2)

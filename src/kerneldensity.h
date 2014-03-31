@@ -1,4 +1,4 @@
-
+#pragma once
 
 /* 
    3D density map type, essentially a volume data type with double 
@@ -95,6 +95,16 @@ typedef struct { int     num_contours;
                } contour_rec;
 
 
+void init_map3d ( map3d *map,
+                  double x_min,
+		  double x_max,
+                  int   x_bins,
+                  double y_min,
+		  double y_max,
+                  int   y_bins,
+                  double z_min,
+		  double z_max,
+                  int   z_bins);
 void init_map2d ( map2d *map,
                   double x_min,
 		  double x_max,
@@ -179,3 +189,58 @@ void add_one_point_epan2 ( double       x_val,
                            map2d       *d,
                            double       hx,
                            double       hy    );
+
+						   
+double comp_data_probs_3d ( map3d  *density,
+                            double xwidth,
+                            double ywidth,
+                            double zwidth,
+                            int    num_data,
+			    double *xdata,
+			    double *ydata,
+			    double *zdata,
+			    double *prob);
+						   
+void comp_density_3d ( map3d  *density,
+		       double xwidth,
+		       double ywidth,
+		       double zwidth,
+		       double gmean,
+		       int    num_data,
+		       double *xdata,
+		       double *ydata,
+		       double *zdata,
+		       double *prob);
+			   
+void AVSdens3dwrite(int scaling,
+		    map3d *map,
+		    char *fname);
+
+			
+			
+double comp_data_probs_1d ( map1d  *density,
+                            double win_width,
+                            int    num_data,
+			    double *xdata,
+			    double *prob);
+			
+void adaptive_dens_1d(map1d *density, 
+		      double win_width,
+		      double gmean,
+		      int num_data,
+		      double *xdata,
+		      double *prob);
+				
+double comp_data_probs_2d ( map2d  *density,
+                            double xwidth,
+                            double ywidth,
+                            int    num_data,
+			    double *xdata,
+			    double *ydata,
+			    double *prob);
+double prob_from_map2d(  map2d *map,
+                         double x,
+                         double y,
+                         double xstep,
+                         double ystep);
+			  

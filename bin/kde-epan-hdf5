@@ -1,74 +1,345 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import sys
+import time
+import os
 
 from optparse import OptionParser
 import subspacefind
 import h5py
 import numpy as np
-
+import itertools
 parser = OptionParser()
 
 parser.add_option("-n", "--name",
                   help="dataset name [default=%default]", default="data", type=str)
+parser.add_option("-a", "--all", action="store_true", default=False, help="compute all densities")
+parser.add_option("-l", "--link", action="store_true", default=False, help="link to original datatsets")
+parser.add_option("-o", "--output",
+                  help="output hdf5 file, default the same as input", default=None, type=str)
 (options, args) = parser.parse_args()
 
 #h5file = h5py.File(args[0], "r", driver="core")
-print "opening:", args[0]
-h5file = h5py.File(args[0])#, driver="core")
-
+h5filename = os.path.abspath(args[0])
+print "opening:", h5filename
+h5file = h5py.File(h5filename) #, driver="core")
 if options.name not in h5file:
 	print "doesn't exist", options.name
 	sys.exit(1)
 data = h5file[options.name]
-minima = np.max(data, axis=1)
-maxima = np.min(data, axis=1)
-dimension = data.shape[0]
-N = data.shape[1]
-
-print ["%.10e" % k for k in maxima]
-print "%.10e" % np.max(data[0])
-print "%.10e" % np.max(data[1])
-
-print ["%.10e" % k for k in minima]
-print "%.10e" % np.min(data[0])
-print "%.10e" % np.min(data[1])
-
-#data = data[:10000,:]
-#N = 10000
-prob = np.zeros(N, dtype=np.float64)
-
-#data = ((np.transpose(data) * 1.)[::,::-1]) * 1.
-
-if dimension == 1:
-	print "1d not supported"
-	sys.exit(1)
-elif dimension == 2:
-	k, l = 0, 1
-	map = subspacefind.DensityMap2d(
-			minima[k]-0.06125*(maxima[k]-minima[k]),
-			maxima[k]+0.06125*(maxima[k]-minima[k]),512,
-			minima[l]-0.06125*(maxima[l]-minima[l]),
-			maxima[l]+0.06125*(maxima[l]-minima[l]),512);
-	hscale = 6.0/np.sqrt(N);
-	gmean = map.comp_data_probs_2d(hscale*(maxima[k]-minima[k]),
-			       hscale*(maxima[l]-minima[l]),
-			       data[k], data[l], prob);
-    
-    
-	map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,data[k],data[l],prob);
-	map.pgm_write("density2d-py.pgm")
-	image = np.zeros((512,512), dtype=np.float64)
-	map.fill(image)
-	import matplotlib.pyplot as plt
-	plt.imshow(image)
-	#plt.title("Quality: %.2f" % quality[i][j])
-	plt.show()
+if options.output is not None:
+	h5file_output = h5py.File(options.output)
 else:
-	print ">2d not supported"
+	h5file_output = h5file
+	
+
+Nkde = 32
+Nkde3d = 32
+
+def kde(column_names, data, h5density):
+	columns = [data[k] for k in column_names]
+	minima = [column.attrs["minimum"] for column in columns]
+	maxima = [column.attrs["maximum"] for column in columns]
+	dimension = len(columns)
+	N = len(columns[0])
+	for i, column in enumerate(columns[1:]):
+		if len(column) != N:
+			print "column %d contains %d entry, while first has %d" % (i+2, len(column), N)
+			sys.exit(1)
+
+	prob = np.zeros(N, dtype=np.float64)
+
+	if dimension == 1:
+		k = 0
+		#print "bla1", minima[k], maxima[k], Nkde
+		map = subspacefind.DensityMap1d(minima[k], maxima[k], Nkde);
+		#print "bla1b"
+		#dsa
+		sx1 = 2.0*(maxima[k]-minima[k])/N**(1./3);
+		print "bla2"
+		gmean = map.comp_data_probs(sx1, columns[k], prob);
+		print gmean
+		map.adaptive_density(sx1, gmean, columns[k], prob);
+		image = np.zeros((Nkde,), dtype=np.float64)
+		map.fill(image)
+		
+		basename = "density1d-%s" % tuple(column_names)
+		filename = basename + ".pgm"
+		print "writing out", filename
+		map.pgm_write(filename)
+		
+		
+		h5group = h5density.require_group(column_names[0])
+		if "density" in h5group:
+			del h5group["density"]
+		h5group.attrs.modify("min", minima[k])
+		h5group.attrs.modify("max", maxima[k])
+		h5group.attrs.modify("column1_name", column_names[0])
+		h5group.create_dataset("density", data=image)
+
+		if options.link:
+			if h5file == h5file_output:
+				# create a hard link
+				h5group.attrs.modify("column1", columns[0])
+			else:
+				#import pdb
+				#pdb.set_trace()
+				if "column1" in h5group.keys():
+					print "remove column1"
+					del h5group["column1"]
+				h5group["column1"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[0])
+		
+		if 0:
+			print image
+			import kaplot
+			kaplot.box()
+			kaplot.graph(image)
+			kaplot.draw()
+			print "done"
+		#ImagePGMBinWrite1D(&density1d,"density1.pgm");
+	elif dimension == 2:
+		k, l = 0, 1
+		map = subspacefind.DensityMap2d(
+				minima[k]-0.06125*(maxima[k]-minima[k]),
+				maxima[k]+0.06125*(maxima[k]-minima[k]),Nkde,
+				minima[l]-0.06125*(maxima[l]-minima[l]),
+				maxima[l]+0.06125*(maxima[l]-minima[l]),Nkde);
+		hscale = 6.0/np.sqrt(N);
+		print columns[k].shape
+		t0 = time.time()
+		gmean = map.comp_data_probs_2d(hscale*(maxima[k]-minima[k]),
+					hscale*(maxima[l]-minima[l]),
+					columns[k], columns[l], prob);
+		t1 = time.time()
+		print "gmean", gmean
+		print "step 1 completed", (t1-t0), "seconds"
+		
+		map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,columns[k],columns[l],prob);
+		t2 = time.time()
+		print "step 2 completed", (t2-t1), "seconds"
+		print "step 1+2 completed", (t2-t0), "seconds"
+		#map.pgm_write("density2d-py.pgm")
+		basename = "density2d-%s-%s" % tuple(column_names)
+		filename = basename + ".pgm"
+		print "writing out", filename
+		map.pgm_write(filename)
+		image = np.zeros((Nkde,Nkde), dtype=np.float64)
+		map.fill(image)
+		
+		h5group = h5density.require_group("-vs-".join(column_names))
+		#h5group = h5density
+		#for column_name in column_names:
+		#	h5group = h5group.require_group(join(column_names[0]))
+		if column_names[0] in h5density:
+			del h5density[column_names[0]]
+		if "density" in h5group:
+			del h5group["density"]
+		h5group.create_dataset("density", data=image)
+		h5group.attrs.modify("min", minima)
+		h5group.attrs.modify("max", maxima)
+		h5group.attrs.modify("column1_name", column_names[0])
+		h5group.attrs.modify("column2_name", column_names[1])
+		if options.link:
+			if h5file == h5file_output:
+				# create a hard link
+				h5group.require_group("column1", columns[0])
+				h5group.require_group("column2", columns[1])
+			else:
+				#import pdb
+				#pdb.set_trace()
+				if "column1" in h5group.keys():
+					print "remove column1"
+					del h5group["column1"]
+				if "column2" in h5group.keys():
+					print "remove column2"
+					del h5group["column2"]
+				h5group["column1"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[0])
+				h5group["column2"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[1])
+		
+		if 0:
+			import matplotlib.pyplot as plt
+			I = image
+			#I = np.log10(image)
+			#I -= I.max()
+			#I[I<-4] = -4
+			plt.imshow(I, origin="upper", extent=[minima[0], maxima[0], minima[1], maxima[1]])
+			plt.xlabel(column_names[0])
+			plt.ylabel(column_names[1])
+			#plt.title("Quality: %.2f" % quality[i][j])
+			plt.savefig(basename +".png", bbox_inches='tight')
+			plt.savefig(basename +".eps", bbox_inches='tight')
+			
+			from vtk import *
+			dx = 2.0
+			grid = vtkStructuredPoints()
+			grid.SetOrigin(0, 0, 0) # default values
+			grid.SetSpacing(dx, dx, dx)
+			grid.SetDimensions(512, 512, 1) # number of points in each direction
+			grid.SetNumberOfScalarComponents(1);
+			# print grid.GetNumberOfPoints()
+			# print grid.GetNumberOfCells()
+			#array = vtkDoubleArray()
+			#array.SetNumberOfComponents(1) # this is 3 for a vector
+			#array.SetNumberOfTuples(grid.GetNumberOfPoints())
+			#for i in range(grid.GetNumberOfPoints()):
+			#	array.SetValue(i, 1)
+			for x in range(512):
+				for y in range(512):
+					grid.SetScalarComponentFromDouble(x, y, 0, 0, image[x][y])
+			#grid.GetPointData().AddArray(array)
+			# print grid.GetPointData().GetNumberOfArrays()
+			#array.SetName("unit array")	
+			vtkfilename = basename + ".vtk"
+			print "writing vtk file", vtkfilename
+			writer = vtkStructuredPointsWriter()
+			writer.SetInput(grid)
+			writer.SetFileName(vtkfilename)
+			#writer.SetFileDimensionality(2)
+			#writer.SetFileTypeToASCII()
+			writer.Write()
+			
+			#plt.show()
+	elif dimension == 3:
+		print "3d"
+		k, l, m = 0, 1, 2
+		map = subspacefind.DensityMap3d(minima[k]-0.06125*(maxima[k]-minima[k]),
+			maxima[k]+0.06125*(maxima[k]-minima[k]),Nkde3d,
+			minima[l]-0.06125*(maxima[l]-minima[l]),
+			maxima[l]+0.06125*(maxima[l]-minima[l]),Nkde3d,
+			minima[m]-0.06125*(maxima[m]-minima[m]),
+			maxima[m]+0.06125*(maxima[m]-minima[m]),Nkde3d);
+			
+		hscale = 8.0/np.sqrt(N);
+		
+		print columns[0]
+		gmean = map.comp_data_probs_3d(
+						hscale*(maxima[k]-minima[k]),
+						hscale*(maxima[l]-minima[l]),
+						hscale*(maxima[m]-minima[m]),
+						columns[k], columns[l], columns[m], prob);
+			
+			
+		map.comp_density_3d(hscale*(maxima[k]-minima[k]),
+				hscale*(maxima[l]-minima[l]),
+				hscale*(maxima[m]-minima[m]),
+				gmean, columns[k],columns[l],columns[m],prob);
+		basename = "density3d-%s-%s-%s" % tuple(column_names)
+		avs_filename = basename + ".fld"
+		print "writing", avs_filename
+		map.avs_write(4095, str(avs_filename))
+		print "filling"
+		image = np.zeros((Nkde3d, Nkde3d, Nkde3d), dtype=np.float64)
+		map.fill(image)
+		print "filling done"
+		#sys.exit(0)
+		
+		
+		h5group = h5density.require_group("-vs-".join(column_names))
+		#h5group = h5density
+		#for column_name in column_names:
+		#	h5group = h5group.require_group(join(column_names[0]))
+		if column_names[0] in h5density:
+			del h5density[column_names[0]]
+		if "density" in h5group:
+			del h5group["density"]
+		h5group.create_dataset("density", data=image)
+		h5group.attrs.modify("min", minima)
+		h5group.attrs.modify("max", maxima)
+		h5group.attrs.modify("column1_name", str(column_names[0]))
+		h5group.attrs.modify("column2_name", str(column_names[1]))
+		h5group.attrs.modify("column3_name", str(column_names[2]))
+		if options.link:
+			if h5file == h5file_output:
+				# create a hard link
+				h5group.attrs.modify("column1", columns[0])
+				h5group.attrs.modify("column2", columns[1])
+				h5group.attrs.modify("column3", columns[2])
+			else:
+				#import pdb
+				#pdb.set_trace()
+				if "column1" in h5group.keys():
+					print "remove column1"
+					del h5group["column1"]
+				if "column2" in h5group.keys():
+					print "remove column2"
+					del h5group["column2"]
+				h5group["column1"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[0])
+				h5group["column2"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[1])
+				h5group["column3"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[3])
+		
+		
+		if 1:
+			from vtk import *
+			dx = 2.0
+			grid = vtkStructuredPoints()
+			grid.SetOrigin(0, 0, 0) # default values
+			grid.SetSpacing(dx, dx, dx)
+			grid.SetDimensions(Nkde3d, Nkde3d, Nkde3d) # number of points in each direction
+			grid.SetNumberOfScalarComponents(1);
+			for x in range(Nkde3d):
+				for y in range(Nkde3d):
+					for z in range(Nkde3d):
+						grid.SetScalarComponentFromDouble(x, y, z, 0, image[x][y][z])
+			#grid.GetPointData().AddArray(array)
+			# print grid.GetPointData().GetNumberOfArrays()
+			#array.SetName("unit array")	
+			vtkfilename = basename + ".vtk"
+			print "writing vtk file", vtkfilename
+			writer = vtkStructuredPointsWriter()
+			writer.SetInput(grid)
+			writer.SetFileName(vtkfilename)
+			#writer.SetFileDimensionality(2)
+			#writer.SetFileTypeToASCII()
+			writer.Write()
+	else:
+		print ">3d not supported"
+		sys.exit(1)	
+
+
+def compute_min_max(data, column_names=None):
+	if column_names is None:
+		column_names = data.keys()
+	for column_name in column_names:
+		column = data[column_name]
+		if "minimum" not in column.attrs:
+			print "adding minimum"
+			column.attrs["minimum"] = np.min(column)
+		if "maximum" not in column.attrs:
+			print "adding maximum"
+			column.attrs["maximum"] = np.max(column)
+if options.all:
+	compute_min_max(data)
+	column_names = data.keys()
+	
+	h5densities = h5file_output.require_group("densities")
+	h5densities1d = h5densities.require_group("1d")
+	
+	
+	for column_name in column_names:
+		print "doing 1d kde for", column_name
+		kde([column_name], data, h5densities1d)
+	
+	h5densities3d = h5densities.require_group("3d")
+	for column_names_pair in itertools.combinations(column_names, 3):
+		print "doing 3d kde for", column_names_pair
+		kde(column_names_pair, data, h5densities3d)
+
+	h5densities2d = h5densities.require_group("2d")
+	for column_names_pair in itertools.combinations(column_names, 2):
+		print "doing 2d kde for", column_names_pair
+		kde(column_names_pair, data, h5densities2d)
+	#print columns
+elif (len(args) == 1) and not options.all:
+	print "add column names after filename"
+	print "possible column names: [%s]:" % ",".join([str(k) for k in data])
 	sys.exit(1)
-	
-	
+else:
+	column_names = args[1:]
+	compute_min_max(data, column_names)
+
+
+		
+		
 
 #Nx = 50
 #Ny = 50

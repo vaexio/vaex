@@ -1,4 +1,12 @@
 *.o
+*.png
+*.eps
+*.hdf5
+*.pgm
+*.pdf
+*.fld
+*.vtk
+InterestingSubspacesNew.txt
 Makefile.in
 Makefile
 config.guess

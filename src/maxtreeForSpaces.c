@@ -29,12 +29,14 @@
  *     Vol.1, Pages 688-691, 2004.
  */
 
+#include "maxtreeForSpaces.h"
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 //#include <strings.h>
+#include "pgm.h"
 
 
 
@@ -49,24 +51,12 @@ typedef short bool;
 #define false 0
 #define true  1
 
-typedef unsigned char ubyte;
-typedef unsigned int uint;
-typedef unsigned long ulong;
 
 
 #define MIN(a,b)  ((a<=b) ? (a) : (b))
 #define MAX(a,b)  ((a>=b) ? (a) : (b))
 
 
-
-typedef struct ImageGray ImageGray;
-
-struct ImageGray
-{
-   ulong Width;
-   ulong Height;
-   ubyte *Pixmap;
-};
 
 
 
@@ -505,7 +495,7 @@ ImageGray *ImagePGMRead(char *fname)
 
 
 
-int ImagePGMBinWrite(ImageGray *img, char *fname)
+int ImagePGMBinWrite_depr(ImageGray *img, char *fname)
 {
    FILE *outfile;
 
@@ -1081,7 +1071,7 @@ MaxNode *node;
 
       }
     }
-printf("NumLeaves:%d\n",numLeaves);
+//printf("NumLeaves:%d\n",numLeaves);
 return numLeaves;
 }
 
@@ -1167,6 +1157,82 @@ double MaxTreeforSpaces(char *imname,int CONNECTIVITY,int *nLeaves)
       fprintf(stderr, "Can't read image '%s'\n", imgfname);
       return(-1);
    }
+   template = GetTemplate(templatefname, img);
+   if (template==NULL)
+   {
+      fprintf(stderr, "Can't create template\n");
+      ImageGrayDelete(img);
+      return(-1);
+   }
+  // printf("Filtering image '%s' using attribute '%s' with lambda=%f\n", imgfname, Attribs[attrib].Name, lambda);
+  // printf("Decision rule: %s   Template: ", Decisions[decision].Name);
+   //if (templatefname==NULL)//  printf("<not used>\n");
+   //else  printf("%s\n", templatefname);
+   //printf("Image: Width=%ld Height=%ld\n", img->Width, img->Height);
+   out = ImageGrayCreate(img->Width, img->Height);
+   if (out==NULL)
+   {
+      fprintf(stderr, "Can't create output image\n");
+      ImageGrayDelete(template);
+      ImageGrayDelete(img);
+      return(-1);
+   }
+   mt = MaxTreeCreate(img, template, Attribs[attrib].NewAuxData, Attribs[attrib].AddToAuxData, Attribs[attrib].MergeAuxData, Attribs[attrib].PostAuxData, Attribs[attrib].DeleteAuxData,CONNECTIVITY);
+   if (mt==NULL)
+   {
+      fprintf(stderr, "Can't create Max-tree\n");
+      ImageGrayDelete(out);
+      ImageGrayDelete(template);
+      ImageGrayDelete(img);
+      return(-1);
+   }
+   NumLeaves=NumberOfLeaves(mt);
+   nLeaves[0]=NumLeaves;
+   dyn = (double *)calloc(NumLeaves,sizeof(double));
+   AreaOfInfluence= (ulong *)calloc(NumLeaves,sizeof(ulong));
+   ElongationOfInflunceZone= (double *)calloc(NumLeaves,sizeof(double));
+   Xextent=(double *)calloc(NumLeaves,sizeof(double));
+   Yextent=(double *)calloc(NumLeaves,sizeof(double));
+   quality=CalcDynamic(mt,NumLeaves,dyn,AreaOfInfluence,ElongationOfInflunceZone,Xextent,Yextent,Attribs[attrib].Attribute);
+   
+   FILE *outfile = fopen("InterestingSubspacesNew.txt","a");
+
+  // pixel_qsort (dyn,NumLeaves);
+  fprintf(outfile,"NumberOfLocalMaxima:%d\nQuality:%lf\n",NumLeaves,quality);
+  fprintf(outfile,"%s\n","Dynamics,AreaOfInfluence,ElongatonOfInfluenceArea,X-extent,Y-extent");
+   for (i=NumLeaves-1;i>=0;i--)
+      fprintf(outfile,"%lf,%u,%lf,%lf,%lf\n",dyn[i],AreaOfInfluence[i],ElongationOfInflunceZone[i],Xextent[i],Yextent[i]);
+
+   Decisions[decision].Filter(mt, img, template, out, Attribs[attrib].Attribute, lambda);
+  //PrintFilterStatistics(mt, Attribs[attrib].Attribute, img, out);
+   MaxTreeDelete(mt);
+   r = ImagePGMBinWrite(out, outfname);
+  // if (r)  fprintf(stderr, "Error writing image '%s'\n", outfname);
+   //else  printf("Filtered image written to '%s'\n", outfname);
+   fclose(outfile);
+   ImageGrayDelete(out);
+   ImageGrayDelete(template);
+   ImageGrayDelete(img);
+   free(AreaOfInfluence);
+   free(ElongationOfInflunceZone);
+   free(Xextent);
+   free(Yextent);
+   free(dyn);
+
+   return (quality/NumLeaves);
+} /* main */
+
+double MaxTreeforSpacesNoFile(ImageGray *img, int CONNECTIVITY,int *nLeaves)
+{
+   ImageGray *template, *out;
+   MaxTree *mt;
+   char *imgfname, *templatefname = NULL, *outfname = "out.pgm";
+   double lambda=2;
+   int attrib=2, decision=3, r,NumLeaves,i;
+   double *dyn,*ElongationOfInflunceZone,*Xextent,*Yextent,quality;
+   ulong *AreaOfInfluence;
+
+ 
    template = GetTemplate(templatefname, img);
    if (template==NULL)
    {
