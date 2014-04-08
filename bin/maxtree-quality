@@ -74,7 +74,8 @@ if options.all:
 				
 			if h5file == h5file_output:
 				# create a hard link
-				h5quality.modify("density", h5density)
+				if "density" in h5quality: del h5quality["density"]
+				h5quality["density"] = h5density
 			else:
 				if "density" in h5quality.keys():
 					print "remove density"

@@ -33,8 +33,8 @@ else:
 	h5file_output = h5file
 	
 
-Nkde = 32
-Nkde3d = 32
+Nkde = 64
+Nkde3d = 64
 
 def kde(column_names, data, h5density):
 	columns = [data[k] for k in column_names]
@@ -56,9 +56,9 @@ def kde(column_names, data, h5density):
 		#print "bla1b"
 		#dsa
 		sx1 = 2.0*(maxima[k]-minima[k])/N**(1./3);
-		print "bla2"
+		#print "bla2"
 		gmean = map.comp_data_probs(sx1, columns[k], prob);
-		print gmean
+		#print gmean
 		map.adaptive_density(sx1, gmean, columns[k], prob);
 		image = np.zeros((Nkde,), dtype=np.float64)
 		map.fill(image)
@@ -105,19 +105,19 @@ def kde(column_names, data, h5density):
 				minima[l]-0.06125*(maxima[l]-minima[l]),
 				maxima[l]+0.06125*(maxima[l]-minima[l]),Nkde);
 		hscale = 6.0/np.sqrt(N);
-		print columns[k].shape
+		#print columns[k].shape
 		t0 = time.time()
 		gmean = map.comp_data_probs_2d(hscale*(maxima[k]-minima[k]),
 					hscale*(maxima[l]-minima[l]),
 					columns[k], columns[l], prob);
 		t1 = time.time()
-		print "gmean", gmean
-		print "step 1 completed", (t1-t0), "seconds"
+		#print "gmean", gmean
+		#print "step 1 completed", (t1-t0), "seconds"
 		
 		map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,columns[k],columns[l],prob);
 		t2 = time.time()
-		print "step 2 completed", (t2-t1), "seconds"
-		print "step 1+2 completed", (t2-t0), "seconds"
+		#print "step 2 completed", (t2-t1), "seconds"
+		#print "step 1+2 completed", (t2-t0), "seconds"
 		#map.pgm_write("density2d-py.pgm")
 		basename = "density2d-%s-%s" % tuple(column_names)
 		filename = basename + ".pgm"
@@ -200,7 +200,7 @@ def kde(column_names, data, h5density):
 			
 			#plt.show()
 	elif dimension == 3:
-		print "3d"
+		#print "3d"
 		k, l, m = 0, 1, 2
 		map = subspacefind.DensityMap3d(minima[k]-0.06125*(maxima[k]-minima[k]),
 			maxima[k]+0.06125*(maxima[k]-minima[k]),Nkde3d,
@@ -211,7 +211,7 @@ def kde(column_names, data, h5density):
 			
 		hscale = 8.0/np.sqrt(N);
 		
-		print columns[0]
+		#print columns[0]
 		gmean = map.comp_data_probs_3d(
 						hscale*(maxima[k]-minima[k]),
 						hscale*(maxima[l]-minima[l]),
@@ -224,13 +224,13 @@ def kde(column_names, data, h5density):
 				hscale*(maxima[m]-minima[m]),
 				gmean, columns[k],columns[l],columns[m],prob);
 		basename = "density3d-%s-%s-%s" % tuple(column_names)
-		avs_filename = basename + ".fld"
-		print "writing", avs_filename
-		map.avs_write(4095, str(avs_filename))
-		print "filling"
+		#avs_filename = basename + ".fld"
+		#print "writing", avs_filename
+		#map.avs_write(4095, str(avs_filename))
+		#print "filling"
 		image = np.zeros((Nkde3d, Nkde3d, Nkde3d), dtype=np.float64)
 		map.fill(image)
-		print "filling done"
+		#print "filling done"
 		#sys.exit(0)
 		
 		
@@ -268,7 +268,7 @@ def kde(column_names, data, h5density):
 				h5group["column3"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[3])
 		
 		
-		if 1:
+		if 0:
 			from vtk import *
 			dx = 2.0
 			grid = vtkStructuredPoints()
@@ -311,24 +311,7 @@ if options.all:
 	compute_min_max(data)
 	column_names = data.keys()
 	
-	h5densities = h5file_output.require_group("densities")
-	h5densities1d = h5densities.require_group("1d")
 	
-	
-	for column_name in column_names:
-		print "doing 1d kde for", column_name
-		kde([column_name], data, h5densities1d)
-	
-	h5densities3d = h5densities.require_group("3d")
-	for column_names_pair in itertools.combinations(column_names, 3):
-		print "doing 3d kde for", column_names_pair
-		kde(column_names_pair, data, h5densities3d)
-
-	h5densities2d = h5densities.require_group("2d")
-	for column_names_pair in itertools.combinations(column_names, 2):
-		print "doing 2d kde for", column_names_pair
-		kde(column_names_pair, data, h5densities2d)
-	#print columns
 elif (len(args) == 1) and not options.all:
 	print "add column names after filename"
 	print "possible column names: [%s]:" % ",".join([str(k) for k in data])
@@ -338,8 +321,30 @@ else:
 	compute_min_max(data, column_names)
 
 
+h5densities = h5file_output.require_group("densities")
+
 		
-		
+h5densities1d = h5densities.require_group("1d")
+for column_name in column_names:
+	print "doing 1d kde for", column_name
+	kde([column_name], data, h5densities1d)
+
+h5densities2d = h5densities.require_group("2d")
+for column_names_pair in itertools.combinations(column_names, 2):
+	print "doing 2d kde for", column_names_pair
+	kde(column_names_pair, data, h5densities2d)
+
+h5densities3d = h5densities.require_group("3d")
+pairs = list(itertools.combinations(column_names, 3))
+
+if 1:
+	i = 0
+	for column_names_pair in pairs:
+		print "doing 3d kde for", column_names_pair, (i+1), "out of", len(pairs)
+		kde(column_names_pair, data, h5densities3d)
+		i += 1
+
+#print columns
 
 #Nx = 50
 #Ny = 50

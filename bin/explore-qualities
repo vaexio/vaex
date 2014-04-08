@@ -317,6 +317,7 @@ class MainFrame(wx.Frame):
 			I[I<-4] = -4
 			print minima
 			self.axes.imshow(I, origin="upper", extent=[minima[0], maxima[0], minima[1], maxima[1]])
+			self.axes.set_aspect('auto')
 			column_names = [h5density.attrs["column1_name"], h5density.attrs["column2_name"]]
 			self.axes.set_xlabel(column_names[0])
 			self.axes.set_ylabel(column_names[1])
