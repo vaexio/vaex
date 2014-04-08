@@ -65,8 +65,8 @@ def kde(column_names, data, h5density):
 		
 		basename = "density1d-%s" % tuple(column_names)
 		filename = basename + ".pgm"
-		print "writing out", filename
-		map.pgm_write(filename)
+		print "writing out", `filename`
+		map.pgm_write(str(filename))
 		
 		
 		h5group = h5density.require_group(column_names[0])
@@ -74,7 +74,7 @@ def kde(column_names, data, h5density):
 			del h5group["density"]
 		h5group.attrs.modify("min", minima[k])
 		h5group.attrs.modify("max", maxima[k])
-		h5group.attrs.modify("column1_name", column_names[0])
+		h5group.attrs.modify("column1_name", str(column_names[0]))
 		h5group.create_dataset("density", data=image)
 
 		if options.link:
@@ -122,7 +122,7 @@ def kde(column_names, data, h5density):
 		basename = "density2d-%s-%s" % tuple(column_names)
 		filename = basename + ".pgm"
 		print "writing out", filename
-		map.pgm_write(filename)
+		map.pgm_write(str(filename))
 		image = np.zeros((Nkde,Nkde), dtype=np.float64)
 		map.fill(image)
 		
@@ -268,7 +268,7 @@ def kde(column_names, data, h5density):
 				h5group["column3"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[3])
 		
 		
-		if 1:
+		if 0:
 			from vtk import *
 			dx = 2.0
 			grid = vtkStructuredPoints()

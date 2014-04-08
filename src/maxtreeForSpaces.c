@@ -90,7 +90,6 @@ struct MaxNode
 #define ST_NotAnalyzed  -1
 #define ST_InTheQueue   -2
 
-typedef struct MaxTree MaxTree;
 
 struct MaxTree
 {
@@ -107,7 +106,6 @@ struct MaxTree
 
 
 
-void MaxTreeDelete(MaxTree *mt);
 
 
 
@@ -1009,21 +1007,6 @@ ImageGray *GetTemplate(char *templatefname, ImageGray *img)
 } /* GetTemplate */
 
 
-typedef struct AttribStruct AttribStruct;
-
-struct AttribStruct
-{
-   char *Name;
-   void *(*NewAuxData)(ulong, ulong, int, ulong *, ImageGray *);
-   void (*DeleteAuxData)(void *);
-   void (*AddToAuxData)(void *, ulong, ulong, int, ulong *, ImageGray *);
-   void (*MergeAuxData)(void *, void *);
-   void (*PostAuxData)(void *, ubyte);
-   double (*Attribute)(void *);
-};
-
-#define NUMATTR 7
-
 AttribStruct Attribs[NUMATTR] =
 {
   {"Area", NewAreaData, DeleteAreaData, AddToAreaData, MergeAreaData, PostEmptyData, AreaAttribute},
@@ -1036,15 +1019,6 @@ AttribStruct Attribs[NUMATTR] =
 };
 
 
-typedef struct DecisionStruct DecisionStruct;
-
-struct DecisionStruct
-{
-   char *Name;
-   void (*Filter)(MaxTree *, ImageGray *, ImageGray *, ImageGray *, double (*attribute)(void *), double);
-};
-
-#define NUMDECISIONS 4
 
 DecisionStruct Decisions[NUMDECISIONS] =
 {
@@ -1124,7 +1098,7 @@ double sumD=0,mean,var=0,quality=0.0;
     }
 if(d<2)
 {
-quality=0.0;
+//quality=0.0; EDIT: why set quality to 0.0 ????
 //printf("Quality:%lf\n",quality);
 }
 //else

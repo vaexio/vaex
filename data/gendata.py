@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import sys
 from optparse import OptionParser
-
+import numpy as np
 from numpy import *
 
 def exit(msg, errorcode=1):
@@ -99,7 +99,7 @@ if options.output:
 	h5columns = []
 	for d in range(dim):
 		print column_names[d]
-		h5columns.append(dataset.create_dataset(column_names[d], (N,), dtype='f64'))
+		h5columns.append(dataset.create_dataset(column_names[d], (N,), dtype=np.float))
 else:
 	h5output = None
 	

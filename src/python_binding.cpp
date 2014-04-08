@@ -242,7 +242,7 @@ public:
 				}
 			}
 			#pragma omp barrier // wait till above finishes (although omp single is auto barrier'ed)
-			#pragma omp for schedule(auto)
+			#pragma omp for
 			for (int q=0; q<num_data; q++) {
 				add_one_point_epan(xdata[q],ydata[q],&maps[tid],xwidth,ywidth);
 			}
@@ -330,7 +330,7 @@ public:
 				}
 			}
 			#pragma omp barrier // wait till above finishes (although omp single is auto barrier'ed)
-			#pragma omp for schedule(auto)
+			#pragma omp for
 			for (int q=0; q<num_data; q++) {
 				add_one_point_epan2(xdata[q],ydata[q],
 						&maps[tid],
@@ -782,6 +782,134 @@ double maxtree3d_quality(object volume, double scaling)
 	
 }
 
+PyObject* maxtree1d_and_2d_dynamics(ImageGray *img);
+
+PyObject* maxtree1d_dynamics(object xdata)
+{
+	int num_data = -1;
+	double *xdata_ptr = NULL;
+	object_to_numpy1d(xdata_ptr, xdata, num_data);
+	int width = num_data, height = 1;
+	double datamin = xdata_ptr[0];
+	double datamax = xdata_ptr[0];
+	for(int i = 0; i < num_data; i++) {
+		if(xdata_ptr[i] < datamin)
+			datamin = xdata_ptr[i];
+		if(xdata_ptr[i] > datamax)
+			datamax = xdata_ptr[i];
+	}
+	ImageGray *img = ImageGrayCreate(width, height);
+	//printf("datamax: %f\n", datamax);
+	for(int i = 0; i < num_data; i++) {
+		//img->Pixmap[i] = (unsigned char)((xdata_ptr[i] - datamin)/(datamax - datamin) * 255.);
+		img->Pixmap[i] = (unsigned char)(sqrt(xdata_ptr[i])/sqrt(datamax) * 255.);
+		//printf("%d %d\n", i, img->Pixmap[i]);
+	}
+	return maxtree1d_and_2d_dynamics(img);
+}
+
+PyObject* maxtree2d_dynamics(object image)
+{
+	int size1 = -1, size2 = -1;
+	double *image_ptr = NULL;
+	object_to_numpy2d(image_ptr, image, size1, size2);
+	double datamin = image_ptr[0];
+	double datamax = image_ptr[0];
+	for(int i = 0; i < (size1*size2); i++) {
+		if(image_ptr[i] < datamin)
+			datamin = image_ptr[i];
+		if(image_ptr[i] > datamax)
+			datamax = image_ptr[i];
+	}
+	ImageGray *img = ImageGrayCreate(size1, size2); // TODO: free it, memleak
+	for(int i = 0; i < (size1*size2); i++) {
+		img->Pixmap[i] = (unsigned char)(sqrt(image_ptr[i])/sqrt(datamax) * 255.);
+	}
+	return maxtree1d_and_2d_dynamics(img);
+}
+
+PyObject* maxtree1d_and_2d_dynamics(ImageGray *img)
+{
+	int CONNECTIVITY = 4;
+	
+	ImageGray *template_, *out;
+	MaxTree *mt;
+	char *imgfname, *template_fname = NULL, *outfname = "out.pgm";
+	double lambda=2;
+	int attrib=2, decision=3, r,NumLeaves,i;
+	double *dyn,*ElongationOfInflunceZone,*Xextent,*Yextent,quality;
+	ulong *AreaOfInfluence;
+
+
+	template_ = GetTemplate(template_fname, img);
+	if (template_==NULL)
+	{
+		fprintf(stderr, "Can't create template_\n");
+		ImageGrayDelete(img);
+		return NULL;
+	}
+
+	out = ImageGrayCreate(img->Width, img->Height);
+	if (out==NULL)
+	{
+		fprintf(stderr, "Can't create output image\n");
+		ImageGrayDelete(template_);
+		ImageGrayDelete(img);
+		return NULL;
+	}
+	mt = MaxTreeCreate(img, template_, Attribs[attrib].NewAuxData, Attribs[attrib].AddToAuxData, Attribs[attrib].MergeAuxData, Attribs[attrib].PostAuxData, Attribs[attrib].DeleteAuxData,CONNECTIVITY);
+	if (mt==NULL)
+	{
+		fprintf(stderr, "Can't create Max-tree\n");
+		ImageGrayDelete(out);
+		ImageGrayDelete(template_);
+		ImageGrayDelete(img);
+		return NULL;
+	}
+	NumLeaves=NumberOfLeaves(mt);
+	//nLeaves[0]=NumLeaves;
+	dyn = (double *)calloc(NumLeaves,sizeof(double));
+	AreaOfInfluence= (ulong *)calloc(NumLeaves,sizeof(ulong));
+	ElongationOfInflunceZone= (double *)calloc(NumLeaves,sizeof(double));
+	Xextent=(double *)calloc(NumLeaves,sizeof(double));
+	Yextent=(double *)calloc(NumLeaves,sizeof(double));
+	quality=CalcDynamic(mt,NumLeaves,dyn,AreaOfInfluence,ElongationOfInflunceZone,Xextent,Yextent,Attribs[attrib].Attribute);
+
+	//FILE *outfile = fopen("InterestingSubspacesNew.txt","a");
+
+	// pixel_qsort (dyn,NumLeaves);
+	//fprintf(outfile,"NumberOfLocalMaxima:%d\nQuality:%lf\n",NumLeaves,quality);
+	//fprintf(outfile,"%s\n","Dynamics,AreaOfInfluence,ElongatonOfInfluenceArea,X-extent,Y-extent");
+	PyObject* dynamics = PyList_New(NumLeaves);
+	PyObject* x = PyList_New(NumLeaves);
+	PyObject* y = PyList_New(NumLeaves);
+	for (i=NumLeaves-1;i>=0;i--) {
+		//printf("%lf,%u,%lf,%lf,%lf\n",dyn[i],AreaOfInfluence[i],ElongationOfInflunceZone[i],Xextent[i],Yextent[i]);
+		PyList_SetItem(dynamics, i, PyFloat_FromDouble(dyn[i]));
+		PyList_SetItem(x, i, PyFloat_FromDouble(Xextent[i]));
+		PyList_SetItem(y, i, PyFloat_FromDouble(Yextent[i]));
+	}
+
+	Decisions[decision].Filter(mt, img, template_, out, Attribs[attrib].Attribute, lambda);
+	//PrintFilterStatistics(mt, Attribs[attrib].Attribute, img, out);
+	MaxTreeDelete(mt);
+	r = ImagePGMBinWrite(out, outfname);
+	// if (r)  fprintf(stderr, "Error writing image '%s'\n", outfname);
+	//else  printf("Filtered image written to '%s'\n", outfname);
+	//fclose(outfile);
+	ImageGrayDelete(out);
+	ImageGrayDelete(template_);
+	ImageGrayDelete(img);
+	free(AreaOfInfluence);
+	free(ElongationOfInflunceZone);
+	free(Xextent);
+	free(Yextent);
+	free(dyn);
+
+	return Py_BuildValue("NNN", dynamics, x, y);
+}
+
+
 BOOST_PYTHON_MODULE(subspacefind)
 {
 	namespace bp = boost::python;
@@ -799,6 +927,9 @@ BOOST_PYTHON_MODULE(subspacefind)
 	def("maxtree2d_quality", maxtree2d_quality);
 	def("maxtree3d_quality", maxtree3d_quality);
 	
+	def("maxtree1d_dynamics", maxtree1d_dynamics);
+	def("maxtree2d_dynamics", maxtree2d_dynamics);
+
 	class_<DensityMap1d >("DensityMap1d", init<double, double, int>())
 		//.def("pgm_write", &DensityMap2d::pgm_write)
 		//.def("test", &DensityMap2d::test)
