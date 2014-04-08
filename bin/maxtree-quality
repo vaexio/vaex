@@ -57,21 +57,27 @@ if options.all:
 		for h5density_name in h5densities_dim.keys():
 			h5density = h5densities_dim[h5density_name]
 			h5quality = h5qualities_dim.require_group(h5density_name)
+			dynamics, x, y = [], [], []
 			if dim == 1:
 				print "\t1d", h5density_name, "quality:\t",
 				density = h5density["density"]
 				#print density
 				quality = subspacefind.maxtree1d_quality(density)
+				dynamics, x, y = subspacefind.maxtree1d_dynamics(density)
+				#print dynamics
+				h5quality.attrs.modify("dynamics-x", x)
 			if dim == 2:
 				print "\t2d", h5density_name, "quality\t",
 				density = h5density["density"]
 				#print density
 				quality = subspacefind.maxtree2d_quality(np.array(density) * 1.)
+				dynamics, x, y = subspacefind.maxtree2d_dynamics(density)
+				h5quality.attrs.modify("dynamics-x", x)
+				h5quality.attrs.modify("dynamics-y", y)
 			if dim == 3:
 				print "\t3d", h5density_name, "quality\t",
 				density = h5density["density"]
 				quality = subspacefind.maxtree3d_quality(np.array(density) * 1., 4095)
-				
 			if h5file == h5file_output:
 				# create a hard link
 				if "density" in h5quality: del h5quality["density"]
@@ -83,4 +89,7 @@ if options.all:
 				h5quality["density"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" +name + "/"+ h5density_name)
 				
 			print "quality", quality
+			print "mean quality", np.mean(dynamics)
+			print "dynamics", dynamics
 			h5quality.attrs.modify("quality", quality)
+			h5quality.attrs.modify("dynamics", dynamics)

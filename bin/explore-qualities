@@ -8,128 +8,157 @@ print wx.__version__
 import matplotlib
 matplotlib.use('WXAgg')
 import numpy as np
-from mayavi import mlab
+
+app = wx.App(True, filename="output.txt")  # Create a new app, don't redirect stdout/stderr to a window.
+
+import gavi
+import gavi.settings
+settings = gavi.settings.Settings("settings_classes.ini")
+settings.load()
+print settings.files.open
 
 
-from traits.api import HasTraits, Range, Instance, \
-                    on_trait_change
-from traitsui.api import View, Item, HGroup
-from tvtk.pyface.scene_editor import SceneEditor
-from mayavi.tools.mlab_scene_model import \
-                    MlabSceneModel
-from mayavi.core.ui.mayavi_scene import MayaviScene
+import sys
+sys.path.append(".")
+import user_qualities
+import inspect
 
-from numpy import *
+members = inspect.getmembers(user_qualities)
+def our_function_filter(name, function):
+	print function
+	return inspect.isfunction(function)
+quality_functions = filter(lambda x: our_function_filter(*x), members)
+print quality_functions, inspect.isfunction(user_qualities.max_quality)
+
+#sys.exit(0)
+
+
+if 0:
+
+	#from mayavi import mlab
+	from traits.api import HasTraits, Range, Instance, \
+						on_trait_change
+	from traitsui.api import View, Item, HGroup
+	from tvtk.pyface.scene_editor import SceneEditor
+	from mayavi.tools.mlab_scene_model import \
+						MlabSceneModel
+	from mayavi.core.ui.mayavi_scene import MayaviScene
+
+	from numpy import *
 
 
 
 
-from numpy import ogrid, sin
+	from numpy import ogrid, sin
+	from traits.api import HasTraits, Instance
+	from traitsui.api import View, Item
 
-from traits.api import HasTraits, Instance
-from traitsui.api import View, Item
+	from mayavi.sources.api import ArraySource
+	from mayavi.modules.api import IsoSurface, Outline
 
-from mayavi.sources.api import ArraySource
-from mayavi.modules.api import IsoSurface, Outline
+	from mayavi.core.ui.api import SceneEditor, MlabSceneModel
 
-from mayavi.core.ui.api import SceneEditor, MlabSceneModel
+	class MayaviView(HasTraits):
 
-class MayaviView(HasTraits):
+		scene = Instance(MlabSceneModel, ())
 
-	scene = Instance(MlabSceneModel, ())
+		# The layout of the panel created by Traits
+		view = View(Item('scene', editor=SceneEditor(), resizable=True,
+						show_label=False),
+						resizable=True)
 
-	# The layout of the panel created by Traits
-	view = View(Item('scene', editor=SceneEditor(), resizable=True,
-					show_label=False),
-					resizable=True)
+		def __init__(self):
+			HasTraits.__init__(self)
+			# Create some data, and plot it using the embedded scene's engine
+			x, y, z = ogrid[-10:10:100j, -10:10:100j, -10:10:100j]
+			scalars = sin(x*y*z)/(x*y*z)
+			#src = ArraySource(scalar_data=scalars)
+			#self.scene.engine.add_source(src)
+			#src.add_module(IsoSurface())
+			
+		def plot(self, h5density):
+			print h5density.name
+			#x, y, z = ogrid[-10:10:100j, -10:10:100j, -10:10:100j]
+			#scalars = sin(x*y*z)/(x*y*z)**2
+			data = np.array(h5density["density"])
+			print data
+			print data.shape
+			src = ArraySource(scalar_data=data)
+			self.scene.engine.add_source(src)
+			iso = IsoSurface()
+			#iso.contour.contours = list(np.linspace(data.min(), data.max(), 3, endpoint=False))
+			mu = np.mean(data)
+			std = np.std(data)
+			src.add_module(iso)
+			iso.contour.contours = [200]
+			iso.actor.property.opacity = 0.5
+			iso.actor.property.color = 1.,0.,0.
+			iso.module_manager.scalar_lut_manager.show_scalar_bar = True
+			iso.actor.mapper.scalar_mode = 'use_field_data'
+			
+			iso2 = IsoSurface()
+			src.add_module(iso2)
+			
+			iso2.contour.contours = [2]
+			iso2.actor.property.color = 0.,1.,0.
+			iso2.actor.mapper.scalar_mode = 'use_field_data'
+			iso2.actor.property.opacity = 0.3
 
-	def __init__(self):
-		HasTraits.__init__(self)
-		# Create some data, and plot it using the embedded scene's engine
-		x, y, z = ogrid[-10:10:100j, -10:10:100j, -10:10:100j]
-		scalars = sin(x*y*z)/(x*y*z)
-		#src = ArraySource(scalar_data=scalars)
-		#self.scene.engine.add_source(src)
-		#src.add_module(IsoSurface())
+			iso3 = IsoSurface()
+			src.add_module(iso3)
+			
+			iso3.contour.contours = [0.7]
+			iso3.actor.property.color = 0.,0.,1.
+			iso3.actor.mapper.scalar_mode = 'use_field_data'
+			iso3.actor.property.opacity = 0.3
+
+			
+			o = Outline()
+			src.add_module(o)
+			o.actor.property.color = 1, 0, 0 # red color.
+			#src.add_module(IsoSurface())
 		
-	def plot(self, h5density):
-		print h5density.name
-		#x, y, z = ogrid[-10:10:100j, -10:10:100j, -10:10:100j]
-		#scalars = sin(x*y*z)/(x*y*z)**2
-		data = np.array(h5density["density"])
-		print data
-		print data.shape
-		src = ArraySource(scalar_data=data)
-		self.scene.engine.add_source(src)
-		iso = IsoSurface()
-		#iso.contour.contours = list(np.linspace(data.min(), data.max(), 3, endpoint=False))
-		mu = np.mean(data)
-		std = np.std(data)
-		src.add_module(iso)
-		iso.contour.contours = [200]
-		iso.actor.property.opacity = 0.5
-		iso.actor.property.color = 1.,0.,0.
-		iso.module_manager.scalar_lut_manager.show_scalar_bar = True
-		iso.actor.mapper.scalar_mode = 'use_field_data'
-		
-		iso2 = IsoSurface()
-		src.add_module(iso2)
-		
-		iso2.contour.contours = [2]
-		iso2.actor.property.color = 0.,1.,0.
-		iso2.actor.mapper.scalar_mode = 'use_field_data'
-		iso2.actor.property.opacity = 0.3
 
-		iso3 = IsoSurface()
-		src.add_module(iso3)
-		
-		iso3.contour.contours = [0.7]
-		iso3.actor.property.color = 0.,0.,1.
-		iso3.actor.mapper.scalar_mode = 'use_field_data'
-		iso3.actor.property.opacity = 0.3
-
-		
-		o = Outline()
-		src.add_module(o)
-		o.actor.property.color = 1, 0, 0 # red color.
-		#src.add_module(IsoSurface())
-      
-
-#from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
-#from matplotlib.backends.backend_wx import NavigationToolbar2Wx
-from backend_wxagg import FigureCanvasWxAgg as FigureCanvas
-from backend_wx import NavigationToolbar2Wx
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+from matplotlib.backends.backend_wx import NavigationToolbar2Wx
+#from backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+#from backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
 
 import  wx.gizmos   as  gizmos
-
+import wx.html
 
 from optparse import OptionParser
 import subspacefind
+import sys
+base = os.path.dirname(__file__)
+print "base", base
+sys.path.append(base)
 import h5py
 import numpy as np
 import itertools
-parser = OptionParser()
+if 0:
+	parser = OptionParser()
+	parser.add_option("-n", "--name",
+					help="dataset name [default=%default]", default="qualities", type=str)
+	parser.add_option("-a", "--all", action="store_true", default=False, help="compute all densities")
+	parser.add_option("-l", "--link", action="store_true", default=False, help="link to original datatsets")
+	parser.add_option("-o", "--output",
+					help="output hdf5 file, default the same as input", default=None, type=str)
+	(options, args) = parser.parse_args()
 
-parser.add_option("-n", "--name",
-                  help="dataset name [default=%default]", default="qualities", type=str)
-parser.add_option("-a", "--all", action="store_true", default=False, help="compute all densities")
-parser.add_option("-l", "--link", action="store_true", default=False, help="link to original datatsets")
-parser.add_option("-o", "--output",
-                  help="output hdf5 file, default the same as input", default=None, type=str)
-(options, args) = parser.parse_args()
-
-h5filename = os.path.abspath(args[0])
-print "opening:", h5filename
-h5file = h5py.File(h5filename) #, driver="core")
-if options.name not in h5file:
-	print "doesn't exist", options.name
-	sys.exit(1)
-h5qualities = h5file[options.name]
-if options.output is not None:
-	h5file_output = h5py.File(options.output)
-else:
-	h5file_output = h5file
+	h5filename = os.path.abspath(args[0])
+	print "opening:", h5filename
+	h5file = h5py.File(h5filename) #, driver="core")
+	if options.name not in h5file:
+		print "doesn't exist", options.name
+		sys.exit(1)
+	h5qualities = h5file[options.name]
+	if options.output is not None:
+		h5file_output = h5py.File(options.output)
+	else:
+		h5file_output = h5file
+		
 
 class MainFrame(wx.Frame):
 	def __init__(self, parent, title):
@@ -151,11 +180,15 @@ class MainFrame(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnAbout, menuAbout)
 		
 		
+		self.mainTab = wx.Notebook(self)
+		self.mainTabSizer = wx.BoxSizer()
+		self.mainTabSizer.Add(self.mainTab)
 		
-		
-		
-		self.splitter = wx.SplitterWindow(self)
-		
+		self.scriptWindow = wx.Panel(self.mainTab, -1)
+		self.splitter = wx.SplitterWindow(self.mainTab)
+		self.mainTab.AddPage(self.splitter, "Data explorer")
+		self.mainTab.AddPage(self.scriptWindow, "User scripts")
+
 		self.tree = gizmos.TreeListCtrl(self.splitter, -1, style =
 										wx.TR_DEFAULT_STYLE
 										#| wx.TR_HAS_BUTTONS
@@ -167,26 +200,45 @@ class MainFrame(wx.Frame):
 										)
 										
 		style = wx.BORDER_SUNKEN
-		self.info = wx.Panel(self.splitter, style=style)
-		wx.StaticText(self.info, -1, "Double click an item on the left...")
-		self.splitter.SplitVertically(self.tree, self.info, 300)
+		self.infoPanel = wx.Panel(self.splitter, style=style)
+		self.defaultText = wx.StaticText(self.infoPanel, -1, "Click an item on the left...")
+		self.splitter.SplitVertically(self.tree, self.infoPanel, 300)
 		self.splitter.SetSashGravity(0.3)
-		self.info.SetMinSize((600, 200))
+		self.infoPanel.SetMinSize((600, 200))
 		
+		
+		# infoPanel contains only defaultText when nothing is shown
+		# when a selection is made, the defaultText is hidden and 
+		# the infoTab is shown
+		# depending on 1,2 or 3d, the canvas2d or a 3d canvas should
+		# be shown on the plotPanel (which is a tab page)
+		self.infoTab = wx.Notebook(self.infoPanel)
+		self.plotPanel = wx.Panel(self.infoTab, -1)
+		
+
+		#self.moreInfoPanel = wx.richtext.RichTextCtrl(self.infoTab, -1)
+		self.moreInfoPanel = wx.html.HtmlWindow(self.infoTab, -1)
+		self.infoTab.AddPage(self.plotPanel, "Plot")
+		self.infoTab.AddPage(self.moreInfoPanel, "More information")
+		#self.infoTab.Hide()
+
 		self.figure = Figure()
 		self.axes = self.figure.add_subplot(111)
-		self.canvas = FigureCanvas(self.info, -1, self.figure)
+		self.canvas2d = FigureCanvas(self.plotPanel, -1, self.figure)
 		self.sizerInfo = wx.BoxSizer(wx.HORIZONTAL)
+		self.canvas2d.Hide()
 		
-		self.mayavi_view = MayaviView()
-		self.control = self.mayavi_view.edit_traits(
-						parent=self.info,
-						kind='subpanel').control
+		if 0:
+			self.mayavi_view = MayaviView()
+			self.control = self.mayavi_view.edit_traits(
+							parent=self.infoPanel,
+							kind='subpanel').control
 
-
-		self.sizerInfo.Add(self.control, 1, wx.LEFT | wx.TOP | wx.GROW)
-		self.sizerInfo.Add(self.canvas, 1, wx.LEFT | wx.TOP | wx.GROW)
-		self.info.SetSizer(self.sizerInfo)
+			self.control.Hide()
+		#self.sizerInfo.Add(self.defaultText, 1,  wx.LEFT | wx.TOP | wx.GROW)
+		#self.sizerInfo.Add(self.control, 1, wx.LEFT | wx.TOP | wx.GROW)
+		self.sizerInfo.Add(self.infoTab, 1, wx.LEFT | wx.TOP | wx.GROW)
+		self.infoPanel.SetSizer(self.sizerInfo)
 		
 		
 		t = np.arange(0.0, 3.0, 0.01)
@@ -207,27 +259,17 @@ class MainFrame(wx.Frame):
 		
 		self.tree.AddColumn("Name")
 		self.tree.AddColumn("Avg Quality")
-		self.tree.AddColumn("Quality")
+		for name, quality_function in quality_functions:
+			self.tree.AddColumn(name)
+		#self.tree.AddColumn("Quality")
 		self.tree.SetMainColumn(0) # the one with the tree in it...
 		self.tree.SetColumnWidth(0, 175)
 		
 		
-		self.treeItemRoot = self.tree.AddRoot(os.path.basename(h5filename))
-		id = 1
-		self.idToh5 = {}
-		for dim in range(1,4):
-			h5dim = h5qualities[str(dim) + "d"]
-			#child = 
-			self.treeItemDimRoot = self.tree.AppendItem(self.treeItemRoot, str(dim) + "d")
-			self.tree.SetItemPyData(self.treeItemDimRoot, h5dim)
-			for group_name in h5dim:
-				h5group = h5dim[group_name]
-				self.treeItemDim = self.tree.AppendItem(self.treeItemDimRoot, group_name)
-				#self.idToh5[self.treeItemDim.GetId()] = h5group
-				self.tree.SetItemPyData(self.treeItemDim, h5group)
-				quality = h5group.attrs["quality"]
-				self.tree.SetItemText(self.treeItemDim , str(quality), 1)
-			self.tree.Expand(self.treeItemDimRoot)
+		self.treeItemRoot = self.tree.AddRoot("datasets/files")
+		self.references = [] # irrelevant objects that only need a ref count to avoid GC
+		for filename in settings.files.open:
+			self.addH5File(filename)
 		self.tree.Expand(self.treeItemRoot)
 		#self.tree.SetItemText(self.root, "col 2 root", 2)
 		#self.tree.SetItemImage(self.root, fldridx, which = wx.TreeItemIcon_Normal)
@@ -253,11 +295,11 @@ class MainFrame(wx.Frame):
 			self.sizer.Add(self.sizer2, 0, wx.EXPAND)
 			self.sizer.Add(self.control, 1, wx.EXPAND)
 
-		self.tree.SetMinSize((400, 800))
+		self.tree.SetMinSize((600, 800))
 		
 		
 		self.sizer.Add(self.splitter, 1, wx.EXPAND)
-		self.SetSizer(self.sizer)
+		self.SetSizer(self.mainTabSizer)
 		self.SetAutoLayout(1)
 		#self.sizer.Fit(self)
 		
@@ -268,8 +310,10 @@ class MainFrame(wx.Frame):
 		#import pdb
 		#pdb.set_trace()
 		h5dim = h5group = self.tree.GetPyData(event.GetItem())
+		#import pdb
+		#pdb.set_trace()
 		if h5dim != None:
-			if h5dim.parent == h5file["/qualities"]:
+			if h5dim.parent.name == "/qualities":
 				print h5dim.name
 				if h5dim.name == "/qualities/1d":
 					names = []
@@ -282,20 +326,27 @@ class MainFrame(wx.Frame):
 						
 					print names
 					self.axes.set_xlabel(", ".join(names))
-					self.canvas.draw()
+					self.canvas2d.draw()
 					
 			elif "density" in h5group.keys():
 				h5density = h5group["density"]
-				self.plotDensity(h5density)
+				self.plotDensity(h5group)
 			
 			
-	def plotDensity(self, h5density, clear=True):
+	def plotDensity(self, h5group, clear=True):
+		h5density = h5group["density"]
 		print h5density["density"]
 		data = np.array(h5density["density"])
 		rank = np.rank(data)
 		if clear:
 			self.axes.cla()
+		plotted = False
+		moreInfoText = """<html><body>"""
 		if rank == 1:
+			plotted = True
+			self.defaultText.Hide()
+			self.canvas2d.Show()
+			#self.control.Hide()
 			minimum = h5density.attrs["min"]
 			maximum = h5density.attrs["max"]
 			N = len(data)
@@ -306,8 +357,21 @@ class MainFrame(wx.Frame):
 			column_name = h5density.attrs["column1_name"]
 			self.axes.set_xlabel(column_name)
 			self.axes.set_ylabel("density")
-
+			print h5group.attrs["dynamics"]
+			xpixel = h5group.attrs["dynamics-x"]
+			print "xpixel", xpixel, N, xpixel/N
+			x = (xpixel+0.5) / N * (maximum - minimum) + minimum
+			print x
+			print xpixel
+			for xi in x:
+				self.axes.axvline(xi)
+				print xi
+				
+				
 		if rank == 2:
+			plotted = True
+			self.canvas2d.Show()
+			#self.control.Hide()
 			minima = h5density.attrs["min"]
 			maxima = h5density.attrs["max"]
 			data = np.array(h5density["density"])
@@ -321,9 +385,46 @@ class MainFrame(wx.Frame):
 			column_names = [h5density.attrs["column1_name"], h5density.attrs["column2_name"]]
 			self.axes.set_xlabel(column_names[0])
 			self.axes.set_ylabel(column_names[1])
+			
 		if rank == 3:
-			self.mayavi_view.plot(h5density)
-		self.canvas.draw()
+			if 0:
+				plotted = True
+				self.defaultText.Hide()
+				self.canvas2d.Hide()
+				self.control.Show()
+				#self.sizerInfo.Fit(self.infoPanel)
+				self.mayavi_view.plot(h5density)
+		if plotted:
+			#self.defaultText.Hide()
+			self.infoTab.Show()
+			
+			moreInfoText += "<h2>h5 group: %s</h2>" % h5group.name
+			moreInfoText += "<pre>shape: %r\n</pre>" % (h5density["density"].shape,)
+			moreInfoText += "<pre>data type: %r\n</pre>" % (h5density["density"].dtype.name)
+			moreInfoText += "<pre>data type: %r\n</pre>" % (h5density["density"].dtype.name)
+			moreInfoText += "<h2>Quality information</h2>"
+			mean_quality = h5group.attrs["quality"]
+			moreInfoText += "<p>quality = %f</p>" % mean_quality
+			
+			dynamics = h5group.attrs["dynamics"]
+			moreInfoText += "<h3>Dynamics:</h3><pre>"
+			for i, dynamic in enumerate(dynamics):
+				moreInfoText += "dynamics[%d] = %f\n" % (i, dynamic) 
+			moreInfoText += "</pre>"
+			
+			moreInfoText += "<h3>User qualities:</h3><pre>"
+			for name, quality_function in quality_functions:
+				if len(dynamics) > 0:
+					value = quality_function(dynamics)
+					# TODO: sanity check on value ?
+					moreInfoText += "%s = %f\n" % (name, value)
+			moreInfoText += "</pre>"
+			
+		moreInfoText += "</body></html>"
+		self.moreInfoPanel.SetPage(moreInfoText)
+		print moreInfoText
+		self.mainTabSizer.Layout()
+		self.canvas2d.draw()
 			
 		
 
@@ -338,16 +439,52 @@ class MainFrame(wx.Frame):
 
 	def OnOpen(self,e):
 		""" Open a file"""
-		dlg = wx.FileDialog(self, "Choose a file", self.dirname, "", "*.*", wx.OPEN)
+		dlg = wx.FileDialog(self, "Choose a file", self.dirname, "", "*.hdf5", wx.OPEN)
 		if dlg.ShowModal() == wx.ID_OK:
 			self.filename = dlg.GetFilename()
 			self.dirname = dlg.GetDirectory()
-			f = open(os.path.join(self.dirname, self.filename), 'r')
-			self.control.SetValue(f.read())
-			f.close()
+			filename = os.path.join(self.dirname, self.filename)
+			self.addH5File(filename)
+			#f = open(os.path.join(self.dirname, self.filename), 'r')
+			#self.control.SetValue(f.read())
+			#f.close()
 		dlg.Destroy()
+		
+	def addH5File(self, filename):
+		self.treeItemFile = self.tree.AppendItem(self.treeItemRoot, filename)
+		h5file = h5py.File(filename)
+		h5qualities = h5file["qualities"]
+		self.references.append(self.treeItemFile)
+		self.references.append(h5file)
+		
+		self.idToh5 = {}
+		for dim in range(1,4):
+			h5dim = h5qualities[str(dim) + "d"]
+			#child = 
+			self.treeItemDimRoot = self.tree.AppendItem(self.treeItemFile, str(dim) + "d")
+			self.tree.SetItemPyData(self.treeItemDimRoot, h5dim)
+			self.references.append(self.treeItemDimRoot)
+			for group_name in h5dim:
+				h5group = h5dim[group_name]
+				self.treeItemDim = self.tree.AppendItem(self.treeItemDimRoot, group_name)
+				self.references.append(self.treeItemDim)
+				#self.idToh5[self.treeItemDim.GetId()] = h5group
+				self.tree.SetItemPyData(self.treeItemDim, h5group)
+				quality = h5group.attrs["quality"]
+				self.tree.SetItemText(self.treeItemDim , str(quality), 1)
+				index = 2
+				dynamics = h5group.attrs["dynamics"]
+				for name, quality_function in quality_functions:
+					if len(dynamics) > 0:
+						value = quality_function(dynamics)
+						# TODO: sanity check on value ?
+						self.tree.SetItemText(self.treeItemDim , str(value), index)
+					index += 1
+
+			self.tree.Expand(self.treeItemDimRoot)
+		self.tree.Expand(self.treeItemFile)
+		
         
-app = wx.App(False)  # Create a new app, don't redirect stdout/stderr to a window.
 frame = MainFrame(None, "GAIA subspace explorer") # A Frame is a top-level window.
 frame.Show(True)     # Show the frame.
 app.MainLoop()
