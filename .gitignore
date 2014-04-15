@@ -34,3 +34,4 @@ src/Makefile.in
 src/libsubfind.a
 subspacefind*.tar.gz
 src/subspacefind?la*
+/**/*.pyc
