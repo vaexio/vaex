@@ -8,8 +8,14 @@ print wx.__version__
 import matplotlib
 matplotlib.use('WXAgg')
 import numpy as np
+import traceback
 
-app = wx.App(True, filename="output.txt")  # Create a new app, don't redirect stdout/stderr to a window.
+# for frozen (standalone) app, we prefer the stdout to be redirected to a file
+isfrozen = hasattr(sys, "frozen")
+if isfrozen:
+	app = wx.App(True, filename="output.txt")
+else:
+	app = wx.App(False, filename=None)
 
 import gavi
 import gavi.settings
@@ -25,7 +31,7 @@ import inspect
 
 members = inspect.getmembers(user_qualities)
 def our_function_filter(name, function):
-	print function
+	#print function
 	return inspect.isfunction(function)
 quality_functions = filter(lambda x: our_function_filter(*x), members)
 print quality_functions, inspect.isfunction(user_qualities.max_quality)
@@ -119,10 +125,15 @@ if 0:
 			#src.add_module(IsoSurface())
 		
 
-from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
-from matplotlib.backends.backend_wx import NavigationToolbar2Wx
-#from backend_wxagg import FigureCanvasWxAgg as FigureCanvas
-#from backend_wx import NavigationToolbar2Wx
+# local fix 
+maartenfix = os.environ["USER"] == "breddels"
+
+if maartenfix:
+	from backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+	from backend_wx import NavigationToolbar2Wx
+else:
+	from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+	from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
 
 import  wx.gizmos   as  gizmos
@@ -164,7 +175,7 @@ class MainFrame(wx.Frame):
 	def __init__(self, parent, title):
 		self.dirname = os.path.abspath(".")
 		wx.Frame.__init__(self, parent, title=title, size=(1200,800), pos=(-1,-1))
-		self.control = wx.TextCtrl(self, style=wx.TE_MULTILINE)
+		#self.control = wx.TextCtrl(self, style=wx.TE_MULTILINE)
 		self.CreateStatusBar()
 		
 		filemenu= wx.Menu()
@@ -181,14 +192,14 @@ class MainFrame(wx.Frame):
 		
 		
 		self.mainTab = wx.Notebook(self)
-		self.mainTabSizer = wx.BoxSizer()
-		self.mainTabSizer.Add(self.mainTab)
+		self.mainTabSizer = wx.BoxSizer(wx.VERTICAL)
+		self.mainTabSizer.Add(self.mainTab,  1, wx.LEFT | wx.TOP | wx.GROW)
 		
 		self.scriptWindow = wx.Panel(self.mainTab, -1)
 		self.splitter = wx.SplitterWindow(self.mainTab)
 		self.mainTab.AddPage(self.splitter, "Data explorer")
 		self.mainTab.AddPage(self.scriptWindow, "User scripts")
-
+		
 		self.tree = gizmos.TreeListCtrl(self.splitter, -1, style =
 										wx.TR_DEFAULT_STYLE
 										#| wx.TR_HAS_BUTTONS
@@ -197,6 +208,7 @@ class MainFrame(wx.Frame):
 										| wx.TR_COLUMN_LINES
 										#| wx.TR_NO_LINES 
 										| wx.TR_FULL_ROW_HIGHLIGHT
+										| wx.COL_SORTABLE
 										)
 										
 		style = wx.BORDER_SUNKEN
@@ -246,7 +258,7 @@ class MainFrame(wx.Frame):
 		self.axes.plot(t, s)
 
 		
-                                        
+										
 		isz = (16,16)
 		il = wx.ImageList(isz[0], isz[1])
 		fldridx     = il.Add(wx.ArtProvider_GetBitmap(wx.ART_FOLDER,      wx.ART_OTHER, isz))
@@ -296,9 +308,10 @@ class MainFrame(wx.Frame):
 			self.sizer.Add(self.control, 1, wx.EXPAND)
 
 		self.tree.SetMinSize((600, 800))
+			
 		
-		
-		self.sizer.Add(self.splitter, 1, wx.EXPAND)
+		#self.sizer.Add(self.splitter, 1, wx.EXPAND)
+		#self.sizer.Add(self.mainTabSizer, 1, wx.EXPAND)
 		self.SetSizer(self.mainTabSizer)
 		self.SetAutoLayout(1)
 		#self.sizer.Fit(self)
@@ -451,38 +464,52 @@ class MainFrame(wx.Frame):
 		dlg.Destroy()
 		
 	def addH5File(self, filename):
+		print "opening hdf5 file", filename
 		self.treeItemFile = self.tree.AppendItem(self.treeItemRoot, filename)
+		if not os.path.exists(filename):
+			self.references.append(self.tree.AppendItem(self.treeItemFile, "file not found"))
+			return
+			
 		h5file = h5py.File(filename)
+		if "qualities" not in h5file:
+			self.references.append(self.tree.AppendItem(self.treeItemFile, "qualities missing from file"))
+			return
 		h5qualities = h5file["qualities"]
 		self.references.append(self.treeItemFile)
 		self.references.append(h5file)
 		
-		self.idToh5 = {}
-		for dim in range(1,4):
-			h5dim = h5qualities[str(dim) + "d"]
-			#child = 
-			self.treeItemDimRoot = self.tree.AppendItem(self.treeItemFile, str(dim) + "d")
-			self.tree.SetItemPyData(self.treeItemDimRoot, h5dim)
-			self.references.append(self.treeItemDimRoot)
-			for group_name in h5dim:
-				h5group = h5dim[group_name]
-				self.treeItemDim = self.tree.AppendItem(self.treeItemDimRoot, group_name)
-				self.references.append(self.treeItemDim)
-				#self.idToh5[self.treeItemDim.GetId()] = h5group
-				self.tree.SetItemPyData(self.treeItemDim, h5group)
-				quality = h5group.attrs["quality"]
-				self.tree.SetItemText(self.treeItemDim , str(quality), 1)
-				index = 2
-				dynamics = h5group.attrs["dynamics"]
-				for name, quality_function in quality_functions:
-					if len(dynamics) > 0:
-						value = quality_function(dynamics)
-						# TODO: sanity check on value ?
-						self.tree.SetItemText(self.treeItemDim , str(value), index)
-					index += 1
+		try:
+			#dsa
+			self.idToh5 = {}
+			for dim in range(1,4):
+				h5dim = h5qualities[str(dim) + "d"]
+				#child = 
+				self.treeItemDimRoot = self.tree.AppendItem(self.treeItemFile, str(dim) + "d")
+				self.tree.SetItemPyData(self.treeItemDimRoot, h5dim)
+				self.references.append(self.treeItemDimRoot)
+				for group_name in h5dim:
+					h5group = h5dim[group_name]
+					self.treeItemDim = self.tree.AppendItem(self.treeItemDimRoot, group_name)
+					self.references.append(self.treeItemDim)
+					#self.idToh5[self.treeItemDim.GetId()] = h5group
+					self.tree.SetItemPyData(self.treeItemDim, h5group)
+					quality = h5group.attrs["quality"]
+					self.tree.SetItemText(self.treeItemDim , str(quality), 1)
+					index = 2
+					dynamics = h5group.attrs["dynamics"]
+					for name, quality_function in quality_functions:
+						if len(dynamics) > 0:
+							value = quality_function(dynamics)
+							# TODO: sanity check on value ?
+							self.tree.SetItemText(self.treeItemDim , str(value), index)
+						index += 1
 
-			self.tree.Expand(self.treeItemDimRoot)
-		self.tree.Expand(self.treeItemFile)
+				self.tree.Expand(self.treeItemDimRoot)
+			self.tree.Expand(self.treeItemFile)
+		except:
+			traceback.print_exc()
+			self.references.append(self.tree.AppendItem(self.treeItemFile, "unknown error"))
+			
 		
         
 frame = MainFrame(None, "GAIA subspace explorer") # A Frame is a top-level window.
