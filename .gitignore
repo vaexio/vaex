@@ -6,6 +6,7 @@
 *.pdf
 *.fld
 *.vtk
+*/**/*.pyc
 InterestingSubspacesNew.txt
 Makefile.in
 Makefile

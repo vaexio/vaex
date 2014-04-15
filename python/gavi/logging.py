@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #from .... import logging
 from __future__ import absolute_import
 import logging
@@ -5,7 +6,7 @@ import logging.handlers
 from logging import getLogger
 
 logging.basicConfig(level=logging.ERROR)
-rootlogger = logging.getLogger('g')
+rootlogger = logging.getLogger('gavi')
 rootlogger.setLevel(logging.INFO)
 
 LEVELS = {'debug': logging.DEBUG,
