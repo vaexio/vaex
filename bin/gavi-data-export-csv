@@ -1,0 +1,68 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import numpy as np
+import h5py
+from optparse import OptionParser
+import os
+import sys
+
+
+
+usage = """
+Convert comma seperate value format to hdf5 format:
+
+Example:
+
+gavi-data-csv2hdf5 $GAVI_DATA/rave_internal_300808.v1g.TJK.uniform.final.post.csv -o rave.hdf5
+
+"""
+parser = OptionParser(usage=usage)
+
+#parser.add_option("-n", "--name",
+ #                 help="dataset name [default=%default]", default="data", type=str)
+parser.add_option("-o", "--output",
+                 help="dataset output filename [by default the suffix of input filename will be replaced by hdf5]", default=None, type=str)
+(options, args) = parser.parse_args()
+
+#h5file = h5py.File(args[0], "r", driver="core")
+if len(args) != 1:
+	print >>sys.stderr, "program takes filename as argument"
+	sys.exit(1)
+	
+h5filename = args[0]
+if options.output is None:
+	basename = os.path.splitext(h5filename)[0]
+	csvfilename = basename + ".csv"
+else:
+	hdf5filename = options.output
+	
+print >>sys.stderr, "opening:", h5filename
+h5file = h5py.File(h5filename, "r", driver="core")
+
+
+#data = np.genfromtxt(csvfilename, delimiter=',', dtype=None, names=True)
+#print "columns:", data.dtype.names
+#print np.mean(data["Vr"])
+                     
+print >>sys.stderr, "writing to:", csvfilename
+
+f = file(csvfilename, "w")
+
+columns = h5file["data"].keys()
+print >>f, ",".join(columns)
+
+N = len(h5file["data"][columns[0]])
+print >>sys.stderr, "number of rows: %d" % N
+
+datamap = dict([(column, np.array(h5file["data"][column])) for column in columns])
+
+for i in range(N):
+	values = [datamap[column][i] for column in columns]
+	print >>f, ",".join(map(str,values))
+#datagroup = h5file.create_group("data")
+#for name, group in h5file["data"]
+	
+	#if name not in "OBJECT_ID":
+	#if data[name].dtype.kind == "f":
+	#	datagroup.create_dataset(name, data=data[name])
+		

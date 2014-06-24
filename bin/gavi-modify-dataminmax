@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from optparse import OptionParser
+import sys
+import os
+import numpy as np
+import h5py
+
+
+parser = OptionParser()
+
+parser.add_option("-n", "--name",
+                  help="dataset name [default=%default]", default="data", type=str)
+parser.add_option("-a", "--all", action="store_true", default=False, help="")
+parser.add_option("--histogram", default=None, type=float, help="")
+#parser.add_option("-l", "--link", action="store_true", default=False, help="link to original datatsets")
+#parser.add_option("-o", "--output",
+#                 help="output hdf5 file, default the same as input", default=None, type=str)
+(options, args) = parser.parse_args()
+
+if len(args) < 1:
+	print "missing filename as argument"
+	sys.exit(1)
+if len(args) < 2 and not options.all:
+	print "no column names given or the --all flag used"
+	sys.exit(2)
+	
+	
+
+h5filename = os.path.abspath(args[0])
+print "opening:", h5filename
+h5file = h5py.File(h5filename) #, driver="core")
+data = h5file[options.name]
+
+if options.histogram is not None:
+	print "histogram"
+	if options.all:
+		column_names = data.keys()
+	else:
+		column_names = args[1:]
+	print column_names
+		
+	for column_name in column_names:
+		column = data[column_name]
+		indices = np.argsort(column)
+		N = len(column)
+		index1 = int(N * options.histogram/100.)
+		index2 = int(N * (1.-options.histogram/100.))
+		print column_name
+		print "\t", N, index1, index2
+		print "\tmin", column[indices[0]], column[indices[index1]] #, column[indices[index1-1]]
+		print "\tmax", column[indices[-1]], column[indices[index2]]#, column[indices[index2+1]]
+		
+		column.attrs["minimum"] = (column[indices[index1]]+column[indices[index1]])/2
+		column.attrs["maximum"] = (column[indices[index2]]+column[indices[index2]])/2
+	
