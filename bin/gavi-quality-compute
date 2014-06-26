@@ -73,7 +73,7 @@ if options.all:
 					h5quality.attrs.modify("dynamics-x", x)
 			if dim == 2:
 				print "\t2d", h5density_name, "quality\t",
-				density = h5density["density"]
+				density = h5density["density-shuffled"]
 				#print density
 				quality = subspacefind.maxtree2d_quality(np.array(density) * 1.)
 				dynamics, x, y = subspacefind.maxtree2d_dynamics(density)
