@@ -9,6 +9,7 @@ import matplotlib
 matplotlib.use('WXAgg')
 import numpy as np
 import traceback
+from optparse import OptionParser
 
 # for frozen (standalone) app, we prefer the stdout to be redirected to a file
 isfrozen = hasattr(sys, "frozen")
@@ -171,6 +172,13 @@ if 0:
 	else:
 		h5file_output = h5file
 		
+parser = OptionParser()
+parser.add_option("-s", "--shuffle", action="store_true", default=True, help="include shuffled density")
+(options, args) = parser.parse_args()
+
+#h5file = h5py.File(args[0], "r", driver="core")
+h5filename = os.path.abspath(args[0])		
+		
 
 class MainFrame(wx.Frame):
 	def __init__(self, parent, title):
@@ -227,11 +235,13 @@ class MainFrame(wx.Frame):
 		# be shown on the plotPanel (which is a tab page)
 		self.infoTab = wx.Notebook(self.infoPanel)
 		self.plotPanel = wx.Panel(self.infoTab, -1)
+		self.plotPanelShuffled = wx.Panel(self.infoTab, -1)
 		
 
 		#self.moreInfoPanel = wx.richtext.RichTextCtrl(self.infoTab, -1)
 		self.moreInfoPanel = wx.html.HtmlWindow(self.infoTab, -1)
 		self.infoTab.AddPage(self.plotPanel, "Plot")
+		self.infoTab.AddPage(self.plotPanelShuffled, "Plot-shuffled")
 		self.infoTab.AddPage(self.moreInfoPanel, "More information")
 		#self.infoTab.Hide()
 
@@ -240,7 +250,14 @@ class MainFrame(wx.Frame):
 		self.canvas2d = FigureCanvas(self.plotPanel, -1, self.figure)
 		self.sizerInfo = wx.BoxSizer(wx.HORIZONTAL)
 		self.canvas2d.Hide()
-		
+
+
+		self.figure_shuffled = Figure()
+		self.axes_shuffled = self.figure_shuffled.add_subplot(111)
+		self.canvas2d_shuffled = FigureCanvas(self.plotPanelShuffled, -1, self.figure_shuffled)
+		#self.sizerInfo = wx.BoxSizer(wx.HORIZONTAL)
+		self.canvas2d_shuffled.Hide()
+
 		if 0:
 			self.mayavi_view = MayaviView()
 			self.control = self.mayavi_view.edit_traits(
@@ -271,6 +288,7 @@ class MainFrame(wx.Frame):
 		self.il = il
 		
 		self.tree.AddColumn("Name")
+		self.tree.AddColumn("D_kl")
 		self.tree.AddColumn("Avg Quality")
 		for name, quality_function in quality_functions:
 			self.tree.AddColumn(name)
@@ -352,10 +370,11 @@ class MainFrame(wx.Frame):
 	def plotDensity(self, h5group, clear=True):
 		h5density = h5group["density"]
 		print h5density["density"]
-		data = np.array(h5density["density-shuffled"])
+		data = np.array(h5density["density"])
 		rank = np.rank(data)
 		if clear:
 			self.axes.cla()
+			self.axes_shuffled.cla()
 		plotted = False
 		moreInfoText = """<html><body>"""
 		if rank == 1:
@@ -390,7 +409,7 @@ class MainFrame(wx.Frame):
 			#self.control.Hide()
 			minima = h5density.attrs["min"]
 			maxima = h5density.attrs["max"]
-			data = np.array(h5density["density-shuffled"])
+			data = np.array(h5density["density"])
 			#I = data
 			I = np.log10(data)
 			I -= I.max()
@@ -401,6 +420,23 @@ class MainFrame(wx.Frame):
 			column_names = [h5density.attrs["column1_name"], h5density.attrs["column2_name"]]
 			self.axes.set_xlabel(column_names[0])
 			self.axes.set_ylabel(column_names[1])
+			
+			if "density-shuffled" in h5density:
+				self.canvas2d_shuffled.Show()
+				#self.control.Hide()
+				minima = h5density.attrs["min"]
+				maxima = h5density.attrs["max"]
+				data = np.array(h5density["density-shuffled"])
+				#I = data
+				I = np.log10(data)
+				I -= I.max()
+				I[I<-4] = -4
+				print minima
+				self.axes_shuffled.imshow(I, origin="lower", extent=[minima[0], maxima[0], minima[1], maxima[1]])
+				self.axes_shuffled.set_aspect('auto')
+				column_names = [h5density.attrs["column1_name"], h5density.attrs["column2_name"]]
+				self.axes_shuffled.set_xlabel(column_names[0])
+				self.axes_shuffled.set_ylabel(column_names[1])
 			
 		if rank == 3:
 			if 0:
@@ -418,29 +454,32 @@ class MainFrame(wx.Frame):
 			moreInfoText += "<pre>shape: %r\n</pre>" % (h5density["density"].shape,)
 			moreInfoText += "<pre>data type: %r\n</pre>" % (h5density["density"].dtype.name)
 			moreInfoText += "<pre>data type: %r\n</pre>" % (h5density["density"].dtype.name)
-			moreInfoText += "<h2>Quality information</h2>"
-			mean_quality = h5group.attrs["quality"]
-			moreInfoText += "<p>quality = %f</p>" % mean_quality
+			if "quality" in h5group.attrs:
+				moreInfoText += "<h2>Quality information</h2>"
+				mean_quality = h5group.attrs["quality"]
+				moreInfoText += "<p>quality = %f</p>" % mean_quality
 			
-			dynamics = h5group.attrs["dynamics"]
-			moreInfoText += "<h3>Dynamics:</h3><pre>"
-			for i, dynamic in enumerate(dynamics):
-				moreInfoText += "dynamics[%d] = %f\n" % (i, dynamic) 
-			moreInfoText += "</pre>"
-			
-			moreInfoText += "<h3>User qualities:</h3><pre>"
-			for name, quality_function in quality_functions:
-				if len(dynamics) > 0:
-					value = quality_function(dynamics)
-					# TODO: sanity check on value ?
-					moreInfoText += "%s = %f\n" % (name, value)
-			moreInfoText += "</pre>"
+			if "dynamics" in h5group.attrs:
+				dynamics = h5group.attrs["dynamics"]
+				moreInfoText += "<h3>Dynamics:</h3><pre>"
+				for i, dynamic in enumerate(dynamics):
+					moreInfoText += "dynamics[%d] = %f\n" % (i, dynamic) 
+				moreInfoText += "</pre>"
+				
+				moreInfoText += "<h3>User qualities:</h3><pre>"
+				for name, quality_function in quality_functions:
+					if len(dynamics) > 0:
+						value = quality_function(dynamics)
+						# TODO: sanity check on value ?
+						moreInfoText += "%s = %f\n" % (name, value)
+				moreInfoText += "</pre>"
 			
 		moreInfoText += "</body></html>"
 		self.moreInfoPanel.SetPage(moreInfoText)
 		print moreInfoText
 		self.mainTabSizer.Layout()
 		self.canvas2d.draw()
+		self.canvas2d_shuffled.draw()
 			
 		
 
@@ -485,29 +524,34 @@ class MainFrame(wx.Frame):
 			#dsa
 			self.idToh5 = {}
 			for dim in range(1,4):
-				h5dim = h5qualities[str(dim) + "d"]
-				#child = 
-				self.treeItemDimRoot = self.tree.AppendItem(self.treeItemFile, str(dim) + "d")
-				self.tree.SetItemPyData(self.treeItemDimRoot, h5dim)
-				self.references.append(self.treeItemDimRoot)
-				for group_name in h5dim:
-					h5group = h5dim[group_name]
-					self.treeItemDim = self.tree.AppendItem(self.treeItemDimRoot, group_name)
-					self.references.append(self.treeItemDim)
-					#self.idToh5[self.treeItemDim.GetId()] = h5group
-					self.tree.SetItemPyData(self.treeItemDim, h5group)
-					quality = h5group.attrs["quality"]
-					self.tree.SetItemText(self.treeItemDim , str(quality), 1)
-					index = 2
-					dynamics = h5group.attrs["dynamics"]
-					for name, quality_function in quality_functions:
-						if len(dynamics) > 0:
-							value = quality_function(dynamics)
-							# TODO: sanity check on value ?
-							self.tree.SetItemText(self.treeItemDim , str(value), index)
-						index += 1
+				name = str(dim) + "d"
+				if name in h5qualities:
+					h5dim = h5qualities[name]
+					#child = 
+					self.treeItemDimRoot = self.tree.AppendItem(self.treeItemFile, str(dim) + "d")
+					self.tree.SetItemPyData(self.treeItemDimRoot, h5dim)
+					self.references.append(self.treeItemDimRoot)
+					for group_name in h5dim:
+						h5group = h5dim[group_name]
+						self.treeItemDim = self.tree.AppendItem(self.treeItemDimRoot, group_name)
+						self.references.append(self.treeItemDim)
+						#self.idToh5[self.treeItemDim.GetId()] = h5group
+						self.tree.SetItemPyData(self.treeItemDim, h5group)
+						if "D_kl" in h5group.attrs:
+							self.tree.SetItemText(self.treeItemDim , str(h5group.attrs["D_kl"]), 1)
+						if "quality" in h5group.attrs:
+							quality = h5group.attrs["quality"]
+							self.tree.SetItemText(self.treeItemDim , str(quality), 2)
+							index = 3
+							dynamics = h5group.attrs["dynamics"]
+							for name, quality_function in quality_functions:
+								if len(dynamics) > 0:
+									value = quality_function(dynamics)
+									# TODO: sanity check on value ?
+									self.tree.SetItemText(self.treeItemDim , str(value), index)
+								index += 1
 
-				self.tree.Expand(self.treeItemDimRoot)
+					self.tree.Expand(self.treeItemDimRoot)
 			self.tree.Expand(self.treeItemFile)
 		except:
 			traceback.print_exc()

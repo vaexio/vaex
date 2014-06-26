@@ -186,7 +186,8 @@ public:
 			    double *prob)
 	{
 		map2d *density = &map; // alias
-		/*//return ::comp_data_probs_2d(density, xwidth, ywidth, num_data, xdata, ydata, prob);
+		return ::comp_data_probs_2d(density, xwidth, ywidth, num_data, xdata, ydata, prob);
+		/*
   int i,k,l;
   double normalization = 1/( (double)num_data*xwidth*ywidth*M_PI/2.0 ), 
          gmean = 0.0;
@@ -222,7 +223,7 @@ public:
   return exp(gmean/num_data);		*/
 		//return ::comp_data_probs_2d(density, xwidth, ywidth, num_data, xdata, ydata, prob);
 		//?int i,k,l;
-		double normalization = 1/( (double)num_data*xwidth*ywidth*M_PI/2.0 ), 
+		/*double normalization = 1/( (double)num_data*xwidth*ywidth*M_PI/2.0 ), 
 		gmean = 0.0;
 		double xstep = (density->x_max-density->x_min)/(double)(density->x_bins - 1);
 		double ystep = (density->y_max-density->y_min)/(double)(density->y_bins - 1);
@@ -265,11 +266,11 @@ public:
 			
 		}
 		/*/
-		for (i=0; i<num_data; i++)
+		/*for (i=0; i<num_data; i++)
 			add_one_point_epan(xdata[i],ydata[i],density,xwidth,ywidth);
 		//*/
 
-		density->data_max  =density->map[0][0]*normalization;
+		/*density->data_max  =density->map[0][0]*normalization;
 		density->data_min = density->map[0][0]*normalization;
 		for (int k=0; k<density->y_bins; k++) {
 			for (int l=0; l<density->x_bins; l++) {
@@ -293,7 +294,7 @@ public:
 			for (int l=0; l<density->x_bins; l++)
 				density->map[k][l]=0;
 			
-			return exp(gmean/num_data);
+			return exp(gmean/num_data);*/
 	}
 	
 	void _comp_density_2d (double xwidth, double ywidth, double gmean, object xdata, object ydata, object prob) {
@@ -332,6 +333,9 @@ public:
 			#pragma omp barrier // wait till above finishes (although omp single is auto barrier'ed)
 			#pragma omp for
 			for (int q=0; q<num_data; q++) {
+				if( (xdata[q] >= density->x_min) && (xdata[q] <= density->x_max) &&
+					(ydata[q] >= density->y_min) && (ydata[q] <= density->y_max)
+					)
 				add_one_point_epan2(xdata[q],ydata[q],
 						&maps[tid],
 						xwidth/sqrt(prob[q]/gmean),

@@ -705,7 +705,10 @@ double comp_data_probs_1d ( map1d  *density,
          gmean = 0.0;
   double xstep = (density->x_max - density->x_min)/(double)(density->bins - 1);
   for (i=0; i<num_data; i++)
-    add_one_point_1d(xdata[i],density,win_width);
+	  if((xdata[i] >= density->x_min) && (xdata[i] <= density->x_max))
+		add_one_point_1d(xdata[i],density,win_width);
+	  else
+		  num_data--;
   density->data_max  =density->map[0]*normalization;
   density->data_min = density->map[0]*normalization;
   for (k=0; k<density->bins; k++)
@@ -720,8 +723,10 @@ double comp_data_probs_1d ( map1d  *density,
 
   for (i=0; i<num_data; i++)
     {
-      prob[i]=prob_from_map1d(density,xdata[i],xstep);
-      gmean += log(prob[i]);
+		if((xdata[i] >= density->x_min) && (xdata[i] <= density->x_max)) {
+			prob[i]=prob_from_map1d(density,xdata[i],xstep);
+			gmean += log(prob[i]);
+		}
     }
 
   for (k=0; k<density->bins; k++)
@@ -831,9 +836,18 @@ double comp_data_probs_2d ( map2d  *density,
   double xstep = (density->x_max-density->x_min)/(double)(density->x_bins - 1);
   double ystep = (density->y_max-density->y_min)/(double)(density->y_bins - 1);
 
-
-  for (i=0; i<num_data; i++)
-    add_one_point_epan(xdata[i],ydata[i],density,xwidth,ywidth);
+  float *p = NULL;
+//	printf(" nnnoooo way\n");
+//  printf("%f %f %d!\n", density->x_min, density->x_max, num_data);
+  for (i=0; i<num_data; i++) {
+	  if( (xdata[i] >= density->x_min) && (xdata[i] <= density->x_max) &&
+		  (ydata[i] >= density->y_min) && (ydata[i] <= density->y_max)
+		  )
+		add_one_point_epan(xdata[i],ydata[i],density,xwidth,ywidth);
+	  else
+		  num_data--;
+  }
+//  printf("%f %f %d\n", density->y_min, density->y_max, num_data);
   density->data_max  =density->map[0][0]*normalization;
   density->data_min = density->map[0][0]*normalization;
   for (k=0; k<density->y_bins; k++)
@@ -841,16 +855,24 @@ double comp_data_probs_2d ( map2d  *density,
       {
 	density->map[k][l] = density->map[k][l]*normalization;
 	if (density->map[k][l]>density->data_max) 
-	  density->data_max=density->map[k][l];
+	  density->data_max=density->map[k][l]; // BUG: shouldn't this have a *normalization like above
 	else
 	  if (density->map[k][l]< density->data_min)
-	    density->data_min = density->map[k][l];
+	    density->data_min = density->map[k][l]; // BUG: shouldn't this have a *normalization like above
       }
 
   for (i=0; i<num_data; i++)
     {
-      prob[i]=prob_from_map2d(density,xdata[i],ydata[i],xstep,ystep);
-      gmean += log(prob[i]);
+	  if( (xdata[i] >= density->x_min) && (xdata[i] <= density->x_max) &&
+		  (ydata[i] >= density->y_min) && (ydata[i] <= density->y_max)
+		 ) {
+		prob[i]=prob_from_map2d(density,xdata[i],ydata[i],xstep,ystep);
+		if(prob[i] != 0)
+			gmean += log(prob[i]);
+		//else
+			//printf("%e %d %e %e %e %e\n", prob[i], i, xdata[i],ydata[i], xstep, ystep);
+			
+	  }
     }
 
   for (k=0; k<density->y_bins; k++)
@@ -901,15 +923,26 @@ double comp_data_probs_3d ( map3d  *density,
 
 
   for (i=0; i<num_data; i++){
-    add_one_point_epan_3d(xdata[i],ydata[i],zdata[i],
-			  density,xwidth,ywidth,zwidth);
+		if( (xdata[i] >= density->x_min) && (xdata[i] <= density->x_max) &&
+		  (ydata[i] >= density->y_min) && (ydata[i] <= density->y_max) &&
+		  (zdata[i] >= density->z_min) && (zdata[i] <= density->z_max)
+		  )
+			add_one_point_epan_3d(xdata[i],ydata[i],zdata[i],
+				density,xwidth,ywidth,zwidth);
+		else
+			num_data--;
+		
   }
 
   map3d_normalize( density, normalization );
 
   for (i=0; i<num_data; i++)
     {
-      prob[i]=prob_from_map3d(density,
+		if( (xdata[i] >= density->x_min) && (xdata[i] <= density->x_max) &&
+		  (ydata[i] >= density->y_min) && (ydata[i] <= density->y_max) &&
+		  (zdata[i] >= density->z_min) && (zdata[i] <= density->z_max)
+		  )
+			prob[i]=prob_from_map3d(density,
 			      xdata[i],ydata[i],zdata[i],
 			      xstep,ystep,zstep);
       gmean += log(prob[i]);
@@ -940,7 +973,10 @@ void comp_density_2d ( map2d  *density,
   double normalization = 1/( (double)num_data*PI/2.0 );
 
   for (i=0; i<num_data; i++)
-    add_one_point_epan2(xdata[i],ydata[i],
+	if( (xdata[i] >= density->x_min) && (xdata[i] <= density->x_max) &&
+		  (ydata[i] >= density->y_min) && (ydata[i] <= density->y_max)
+		  )
+		add_one_point_epan2(xdata[i],ydata[i],
 			density,
 			xwidth/sqrt(prob[i]/gmean),
 			ywidth/sqrt(prob[i]/gmean));

@@ -22,22 +22,36 @@ parser = OptionParser(usage=usage)
  #                 help="dataset name [default=%default]", default="data", type=str)
 parser.add_option("-o", "--output",
                  help="dataset output filename [by default the suffix of input filename will be replaced by hdf5]", default=None, type=str)
+parser.add_option("-s", "--seperator",
+                 help="column seperator [default=%default", default=",", type=str)
+parser.add_option("-a", "--all", action="store_true", default=False, help="export all columns")
+parser.add_option("--no-header", dest="header", action="store_false", default=False, help="do not write out a column")
 (options, args) = parser.parse_args()
 
-#h5file = h5py.File(args[0], "r", driver="core")
-if len(args) != 1:
-	print >>sys.stderr, "program takes filename as argument"
-	sys.exit(1)
+	
+	
 	
 h5filename = args[0]
 if options.output is None:
 	basename = os.path.splitext(h5filename)[0]
 	csvfilename = basename + ".csv"
 else:
-	hdf5filename = options.output
+	csvfilename = options.output
 	
 print >>sys.stderr, "opening:", h5filename
 h5file = h5py.File(h5filename, "r", driver="core")
+data = h5file["data"]
+
+if options.all:
+	compute_min_max(data)
+	column_names = data.keys()
+elif (len(args) == 1) and not options.all:
+	print "add column names after filename or use -a/--all for all"
+	print "possible column names: [%s]:" % ",".join([str(k) for k in data])
+	sys.exit(1)
+else:
+	column_names = map(str, args[1:])
+
 
 
 #data = np.genfromtxt(csvfilename, delimiter=',', dtype=None, names=True)
@@ -48,17 +62,18 @@ print >>sys.stderr, "writing to:", csvfilename
 
 f = file(csvfilename, "w")
 
-columns = h5file["data"].keys()
-print >>f, ",".join(columns)
+#column_names = data.keys()
+if options.header:
+	print >>f, options.seperator.join(column_names)
 
-N = len(h5file["data"][columns[0]])
+N = len(h5file["data"][column_names[0]])
 print >>sys.stderr, "number of rows: %d" % N
 
-datamap = dict([(column, np.array(h5file["data"][column])) for column in columns])
+datamap = dict([(column_name, np.array(h5file["data"][column_name])) for column_name in column_names])
 
 for i in range(N):
-	values = [datamap[column][i] for column in columns]
-	print >>f, ",".join(map(str,values))
+	values = [datamap[column_name][i] for column_name in column_names]
+	print >>f, options.seperator.join(map(str,values))
 #datagroup = h5file.create_group("data")
 #for name, group in h5file["data"]
 	

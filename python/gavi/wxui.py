@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import wx
 import matplotlib
@@ -57,7 +58,7 @@ class PlotWindow1d(wx.Panel):
 		I -= I.max()
 		I[I<-4] = -4
 		#print minima
-		self.axes.imshow(I, origin="upper", extent=[minima[0], maxima[0], minima[1], maxima[1]])
+		self.axes.imshow(I, origin="lower", extent=[minima[0], maxima[0], minima[1], maxima[1]])
 		self.axes.set_aspect('auto')
 		self.axes.set_xlabel(xlabel)
 		self.axes.set_ylabel(ylabel)

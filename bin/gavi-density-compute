@@ -43,7 +43,7 @@ data = h5file["data"]
 
 Nkde = 64*2
 Nkde = 512
-#Nkde = 64*2
+Nkde = 64*2
 Nkde3d = 64
 
 def kde(column_names, data, h5density):
@@ -193,6 +193,8 @@ def kde(column_names, data, h5density):
 			map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,newcolumns[k],newcolumns[l],prob);
 			image2 = np.zeros((Nkde,Nkde), dtype=np.float64)
 			map.fill(image2)
+			if "density-shuffled" in h5group:
+				del h5group["density-shuffled"]
 			h5group.create_dataset("density-shuffled", data=image2)
 			
 		if 0:

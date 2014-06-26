@@ -6,7 +6,7 @@ from optparse import OptionParser
 import os
 import sys
 import astropy.io.votable
-
+import thread
 
 from gavi.samp import Samp
 
@@ -55,7 +55,9 @@ def load(url):
 		if type.kind  == "f": # only store float
 			datagroup.create_dataset(name, data=table.array[name])
 	print "storing data done"
-	sys.exit(0)
+	#thread.interrupt_main()
+	#sys.exit(0)
+	os._exit(0)
 
 #load("http://jansky.intra.astro.rug.nl:39006/dynamic/1/t1.vot")
 

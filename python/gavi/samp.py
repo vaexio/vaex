@@ -9,7 +9,7 @@ logger = logging_.getLogger("gavi.samp")
 
 
 class Samp(object):
-	def __init__(self):
+	def __init__(self, daemon=True):
 		self.client = sampy.SAMPIntegratedClient(metadata = {"samp.name":"Client 1",
 										"samp.description.text":"Test Client 1",
 										"gavi.samp.version":"0.01"}, callable=True)
@@ -21,7 +21,8 @@ class Samp(object):
 			if self.client.client._callable:
 				self.client.client._thread = threading.Thread(target = self.client.client._serve_forever)
 				self.client.client._thread.start()
-		self.client.client._run_client = _myrun_client
+		if daemon:
+			self.client.client._run_client = _myrun_client
 		connected = False
 		try:
 			self.client.connect()
