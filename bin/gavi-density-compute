@@ -41,6 +41,8 @@ if options.name not in h5file:
 data = h5file["data"]
 
 Nkde = 64*2
+Nkde = 512
+#Nkde = 64*2
 Nkde3d = 64
 
 def kde(column_names, data, h5density):
@@ -318,7 +320,7 @@ def compute_min_max(data, column_names=None):
 			column.attrs["maximum"] = np.max(column)
 if options.all:
 	compute_min_max(data)
-	column_names = data.keys()
+	column_names = map(str, data.keys())
 
 	
 elif (len(args) == 1) and not options.all:
@@ -326,7 +328,7 @@ elif (len(args) == 1) and not options.all:
 	print "possible column names: [%s]:" % ",".join([str(k) for k in data])
 	sys.exit(1)
 else:
-	column_names = args[1:]
+	column_names = map(str, args[1:])
 	compute_min_max(data, column_names)
 
 print "columns:", column_names
