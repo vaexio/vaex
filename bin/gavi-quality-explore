@@ -127,7 +127,7 @@ if 0:
 
 # local fix 
 maartenfix = os.environ["USER"] == "breddels"
-maartenfix = True
+maartenfix = sys.platform != "darwin"
 
 if maartenfix:
 	from backend_wxagg import FigureCanvasWxAgg as FigureCanvas
@@ -352,7 +352,7 @@ class MainFrame(wx.Frame):
 	def plotDensity(self, h5group, clear=True):
 		h5density = h5group["density"]
 		print h5density["density"]
-		data = np.array(h5density["density"])
+		data = np.array(h5density["density-shuffled"])
 		rank = np.rank(data)
 		if clear:
 			self.axes.cla()
@@ -390,7 +390,7 @@ class MainFrame(wx.Frame):
 			#self.control.Hide()
 			minima = h5density.attrs["min"]
 			maxima = h5density.attrs["max"]
-			data = np.array(h5density["density"])
+			data = np.array(h5density["density-shuffled"])
 			#I = data
 			I = np.log10(data)
 			I -= I.max()
