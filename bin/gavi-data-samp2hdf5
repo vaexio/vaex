@@ -57,7 +57,9 @@ def load(url):
 	print "storing data done"
 	#thread.interrupt_main()
 	#sys.exit(0)
-	os._exit(0)
+	h5file.close()
+	samp.client.disconnect()
+	#os._exit(0)
 
 #load("http://jansky.intra.astro.rug.nl:39006/dynamic/1/t1.vot")
 
