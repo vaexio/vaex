@@ -85,13 +85,15 @@ if options.all:
 				quality = subspacefind.maxtree3d_quality(np.array(density) * 1., 4095)
 			if h5file == h5file_output:
 				# create a hard link
-				if "density" in h5quality: del h5quality["density"]
-				h5quality["density"] = h5density
+				#if "density" in h5quality: del h5quality["density"]
+				#h5quality["density"] = h5density
+				pass
 			else:
-				if "density" in h5quality.keys():
-					print "remove density"
-					del h5quality["density"]
-				h5quality["density"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" +name + "/"+ h5density_name)
+				#if "density" in h5quality.keys():
+				#	print "remove density"
+				#	del h5quality["density"]
+				#h5quality["density"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" +name + "/"+ h5density_name)
+				pass
 				
 			if "quality" in h5quality.attrs.keys(): del h5quality.attrs["quality"]
 			if "dynamics" in h5quality.attrs.keys(): del h5quality.attrs["dynamics"]
@@ -103,3 +105,12 @@ if options.all:
 				h5quality.attrs["dynamics"] = dynamics
 			else:
 				print "unable to compute dynamics"
+		names = h5densities_dim.keys()
+		print names
+		#import pdb
+		#pdb.set_trace()
+		quality = [h5qualities_dim[name].attrs["quality"] for name in names]
+		indices = np.argsort(quality)
+		print "ranking"
+		for i in indices:
+			print "%s\t%.3f" % (names[i], quality[i])
