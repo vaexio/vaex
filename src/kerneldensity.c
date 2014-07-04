@@ -945,6 +945,7 @@ double comp_data_probs_3d ( map3d  *density,
 			prob[i]=prob_from_map3d(density,
 			      xdata[i],ydata[i],zdata[i],
 			      xstep,ystep,zstep);
+		if(prob[i] != 0)
       gmean += log(prob[i]);
     }
 
