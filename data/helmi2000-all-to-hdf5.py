@@ -4,12 +4,19 @@ import os
 import numpy as np
 import h5py
 
+from optparse import OptionParser
+parser = OptionParser()
+
+parser.add_option("--seed",
+                 help="seed for RNG", default=0, type=int)
+(options, args) = parser.parse_args()
+
 dir1 = '/net/maury/data/users/ahelmi/DATA/gaia_jbh/IntegralsOfMotion/'
 
 Nhalos = 33
 Nparticles = 100000
 
-hdf5filename = sys.argv[1]
+hdf5filename = args[0]
 
 h5file = h5py.File(hdf5filename, "w", driver="core")
 datagroup = h5file.create_group("data")
@@ -22,6 +29,7 @@ group_vz = datagroup.create_dataset("vz", shape=(Nparticles * Nhalos,), dtype=np
 group_E = datagroup.create_dataset("E", shape=(Nparticles * Nhalos,), dtype=np.float64)
 group_Lz = datagroup.create_dataset("Lz", shape=(Nparticles * Nhalos,), dtype=np.float64)
 group_L = datagroup.create_dataset("L", shape=(Nparticles * Nhalos,), dtype=np.float64)
+group_FeH = datagroup.create_dataset("FeH", shape=(Nparticles * Nhalos,), dtype=np.float64)
 
 x = np.zeros(Nparticles, dtype=np.float64)
 y = np.zeros(Nparticles, dtype=np.float64)
@@ -29,6 +37,9 @@ z = np.zeros(Nparticles, dtype=np.float64)
 vx = np.zeros(Nparticles, dtype=np.float64)
 vy = np.zeros(Nparticles, dtype=np.float64)
 vz = np.zeros(Nparticles, dtype=np.float64)
+
+print "setting seed to: %d" % options.seed
+np.random.seed(options.seed)
 
 for halo_index in range(Nhalos):
 	filename_EL = os.path.join(dir1, "en_angmom_f_000.%02d" %  halo_index)
@@ -73,5 +84,13 @@ for halo_index in range(Nhalos):
 	group_vx[halo_index*Nparticles:(halo_index+1)*Nparticles] = vx
 	group_vy[halo_index*Nparticles:(halo_index+1)*Nparticles] = vy
 	group_vz[halo_index*Nparticles:(halo_index+1)*Nparticles] = vz
+	
+	group_vz[halo_index*Nparticles:(halo_index+1)*Nparticles] = vz
+	
+	FeH_mean = np.random.normal(-1.7, 0.45)
+	FeH_sigma = 0.13 + 0.05 * (np.random.random() - 0.5)*2
+	FeH = np.random.normal(FeH_mean, FeH_sigma, Nparticles)
+	print "FeH: %4.2f+/-%4.2f" % (FeH_mean, FeH_sigma)
+	group_FeH[halo_index*Nparticles:(halo_index+1)*Nparticles] = FeH
 	
 	
