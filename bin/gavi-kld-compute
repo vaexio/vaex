@@ -45,7 +45,7 @@ if len(args) == 1:
 basename = os.path.splitext(os.path.basename(h5filename))[0]
 	
 if options.all:
-	for dim in [2]:
+	for dim in [2,3]:
 		name = str(dim) + "d"
 		print "dim", name
 		h5qualities_dim = h5qualities.require_group(name)
@@ -59,7 +59,7 @@ if options.all:
 			h5density = h5densities_dim[h5density_name]
 			h5quality = h5qualities_dim.require_group(h5density_name)
 			dynamics, x, y = [], [], []
-			if dim == 2:
+			if dim in [2,3]:
 				print "\t2d", h5density_name, "D_kl\t",
 				density = np.array(h5density["density"])
 				density_shuffled = np.array(h5density["density-shuffled"])
@@ -87,8 +87,9 @@ if options.all:
 				quality = subspacefind.maxtree3d_quality(np.array(density) * 1., 4095)
 			if h5file == h5file_output:
 				# create a hard link
-				if "density" in h5quality: del h5quality["density"]
-				h5quality["density"] = h5density
+				#if "density" in h5density: del h5quality["density"]
+				#h5density["density"] = h5density
+				pass
 			else:
 				if "density" in h5quality.keys():
 					print "remove density"
@@ -98,3 +99,15 @@ if options.all:
 			if "D_kl" in h5quality.attrs.keys(): del h5quality.attrs["D_kl"]
 			print D_kl
 			h5quality.attrs["D_kl"] = D_kl
+		names = h5densities_dim.keys()
+		print names
+		print h5qualities_dim
+		#print h5quality
+		quality = [h5qualities_dim[name].attrs["D_kl"] for name in names] # if name in h5quality[name].attrs]
+		indices = np.argsort(quality)
+		print "ranking"
+		for i in indices:
+			print "%s\t%.3f" % (names[i], quality[i])
+		
+
+
