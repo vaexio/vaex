@@ -45,7 +45,7 @@ if len(args) == 1:
 basename = os.path.splitext(os.path.basename(h5filename))[0]
 	
 if options.all:
-	for dim in [2]:
+	for dim in [2,3]:
 		name = str(dim) + "d"
 		print "dim", name
 		h5qualities_dim = h5qualities.require_group(name)
@@ -84,7 +84,23 @@ if options.all:
 			if dim == 3:
 				print "\t3d", h5density_name, "quality\t",
 				density = h5density["density"]
-				quality = subspacefind.maxtree3d_quality(np.array(density) * 1., 4095)
+				#quality = subspacefind.maxtree3d_quality(np.array(density) * 1., 4095)
+				
+				density_shuffled = np.array(h5density["density-shuffled"])
+				import pdb
+				#pdb.set_trace()
+				mask = (density_shuffled > 0) & (density>0)
+				deltax = [h5density.attrs["max"][d] - h5density.attrs["min"][d] for d in range(dim)]
+				dx = np.array([deltax[d]/density.shape[d] for d in range(dim)])
+				#print np.sum(density) * np.sum(dx),  np.sum(density_shuffled) * np.sum(dx)
+				density /= np.sum(density) * np.sum(dx)
+				density_shuffled /= np.sum(density_shuffled) * np.sum(dx)
+				#print np.sum(density) * np.sum(dx),  np.sum(density_shuffled) * np.sum(dx)
+				
+				
+				D_kl = np.sum(density[mask] * np.log(density[mask]/density_shuffled[mask])) * np.sum(dx)
+				
+				
 			if h5file == h5file_output:
 				# create a hard link
 				if "density" in h5quality: del h5quality["density"]
