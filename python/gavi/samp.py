@@ -20,6 +20,7 @@ class Samp(object):
 		def _myrun_client():
 			if self.client.client._callable:
 				self.client.client._thread = threading.Thread(target = self.client.client._serve_forever)
+				self.client.client._thread.setDaemon(True)
 				self.client.client._thread.start()
 		if daemon:
 			self.client.client._run_client = _myrun_client
