@@ -1,0 +1,591 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import numpy as np
+import h5py
+from optparse import OptionParser
+import os
+import sys
+import astropy.io.votable
+import thread
+import threading
+import time
+
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+from PySide import QtGui, QtCore
+
+from gavi.samp import Samp
+
+usage = """
+Convert VO table from SAMP to hdf5 format:
+
+Example:
+
+gavi-data-samp2hdf5 -o photometry.hdf5
+
+Now open topcat:
+topcat -f csv $GAVI_DATA/scl_photo.csv
+
+...
+
+"""
+parser = OptionParser(usage=usage)
+
+#parser.add_option("-n", "--name",
+ #                 help="dataset name [default=%default]", default="data", type=str)
+#parser.add_option("-o", "--output",
+#                 help="dataset output filename [by default the suffix of input filename will be replaced by hdf5]", default=None, type=str)
+(options, args) = parser.parse_args()
+
+#if len(args) != 1:
+#	print "Program requires output filename as argument"
+#	sys.exit(1)
+
+
+import h5py
+import mmap
+
+def error(title, msg):
+	print "Error", title, msg
+
+class MemoryMapped(object):
+	def __init__(self, filename):
+		self.filename = filename
+		self.name = self.filename
+		self.file = file(self.filename, "r")
+		self.fileno = self.file.fileno()
+		self.mapping = mmap.mmap(self.fileno, 0, prot=mmap.PROT_READ)
+		self._length = None
+		self.nColumns = 0
+		self.columns = {}
+		self.column_names = []
+		
+	def addColumn(self, name, offset, length, dtype=np.float64, stride=None):
+		if self._length is not None and length != self._length:
+			error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
+		else:
+			self._length = length
+			mmapped_array = np.frombuffer(self.mapping, dtype=dtype, count=length if stride is None else length * 3, offset=offset)
+			if stride:
+				#import pdb
+				#pdb.set_trace()
+				mmapped_array = mmapped_array[::stride]
+			self.columns[name] = mmapped_array
+			self.column_names.append(name)
+			self.column_names.sort()
+			self.nColumns += 1
+			self.nRows = self._length
+
+class Hdf5MemoryMapped(MemoryMapped):
+	def __init__(self, filename):
+		super(Hdf5MemoryMapped, self).__init__(filename)
+		h5file = h5py.File(self.filename)
+		data = h5file["/data"]
+		for column_name in data:
+			column = data[column_name]
+			offset = column.id.get_offset() 
+			self.addColumn(column_name, offset, len(column), dtype=column.dtype)
+
+class Hdf5MemoryMappedGadget(MemoryMapped):
+	def __init__(self, filename):
+		super(Hdf5MemoryMappedGadget, self).__init__(filename)
+		h5file = h5py.File(self.filename)
+		for i in range(1,4):
+			name = "/PartType%d/Coordinates" % i
+			if name in h5file:
+				data = h5file[name]
+				offset = data.id.get_offset() 
+				self.addColumn("p%d_x" % i, offset, data.shape[0], dtype=data.dtype, stride=3)
+				self.addColumn("p%d_y" % i, offset+4, data.shape[0], dtype=data.dtype, stride=3)
+				self.addColumn("p%d_z" % i, offset+8, data.shape[0], dtype=data.dtype, stride=3)
+		
+
+class DataList(QtGui.QListWidget):
+	def __init__(self, parent):
+		super(DataList, self).__init__(parent)
+		self.icon = QtGui.QIcon('icons/png/24x24/devices/memory.png')
+		#self.items 
+		
+	def testfill(self):
+		self.addHdf5("/home/data/gavi/gaussian3d-1e8-b.hdf5")
+		self.addHdf5("/home/data/gavi/gaussian3d-1e9-b.hdf5")
+		self.addHdf5("/home/data/gavi/rave/rave-dr5.hdf5")
+		self.addHdf5("/home/data/gavi/helmi2000-FeH-s2.hdf5")
+		
+		self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_nfw_soft/output/snapshot_213.hdf5")
+		self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_einasto_2kpc_fornax/IC.hdf5")
+		self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/hernquist/gadget/hernquist_half/output/snapshot_000.hdf5")
+		
+	
+	def addGadgetHdf5(self, filename):
+		
+		self.hdf5file = Hdf5MemoryMappedGadget(filename)
+		item = QtGui.QListWidgetItem(self)
+		item.setText(self.hdf5file.name)
+		#self.icon = QIcon.fromTheme('document-open')
+		item.setIcon(self.icon)
+		item.setData(QtCore.Qt.UserRole, self.hdf5file)
+		self.setCurrentItem(item)
+	
+	def addHdf5(self, filename):
+		
+		self.hdf5file = Hdf5MemoryMapped(filename)
+		item = QtGui.QListWidgetItem(self)
+		item.setText(self.hdf5file.name)
+		#self.icon = QIcon.fromTheme('document-open')
+		item.setIcon(self.icon)
+		item.setData(QtCore.Qt.UserRole, self.hdf5file)
+		self.setCurrentItem(item)
+		#self.setCurrentRow(0)
+		
+	def _addHdf5(filename, columns):
+		h5file = h5py.File(filename)
+		
+		
+		print f
+		print fileno
+		mapping = mmap.mmap(fileno, 0, prot=mmap.PROT_READ)
+		
+
+class Worker(QtCore.QThread):
+	def __init__(self, parent, name, func, *args, **kwargs):
+		QtCore.QThread.__init__(self, parent=None)
+		self.func = func
+		self.args = args
+		self.kwargs = kwargs
+		self.name = name
+		self.signal = QtCore.SIGNAL("signal")
+	
+	def run(self):
+		time.sleep(0.1)
+		print "in thread", self.currentThreadId()
+		self.result = self.func(*self.args, **self.kwargs)
+		print "result:", self.result
+		#self.emit(self.signal, self.result)
+		#self.exec_()
+import multiprocessing
+
+def MyStats(object):
+	def __init__(self, data):
+		self.data = data
+		
+	def __call___(self, args):
+		print args
+		#stat_name, column_name = args
+		#print "do", stat_name, "on", column_name
+		return 1
+		#f = stats[stat_name]
+		#return column_name, stat_name, f(self.data.columns[column_name])
+
+stats = {"minimum": lambda x: str(np.nanmin(x)), "maximum": lambda x: str(np.nanmax(x)), "mean": lambda x: str(np.mean(x)), "std": lambda x: str(np.std(x)), "median": lambda x: str(np.median(x))}
+def statsrun(args):
+	columns, stat_name, column_name = args
+	f = stats[stat_name]
+	#print args
+	return 1
+
+class StatWorker(QtCore.QThread):
+	def __init__(self, parent, data):
+		QtCore.QThread.__init__(self, parent=parent)
+		self.data = data
+
+	def run(self):
+		time.sleep(0.1)
+		print "in thread", self.currentThreadId()
+		jobs = [(stat_name, column_name) for stat_name in stats.keys() for column_name in self.data.columns.keys()]
+		@parallelize(cores=QtCore.QThread.idealThreadCount())
+		def dostats(args, data=self.data):
+			stat_name, column_name = args
+			columns = data.columns
+			f = stats[stat_name]
+			result = f(columns[column_name])
+			print result
+			return result
+		values = dostats(jobs)
+		self.results = {}
+		for job, value in zip(jobs, values):
+			stat_name, column_name = job
+			if stat_name not in self.results:
+				self.results[stat_name] = {}
+			self.results[stat_name][column_name] = value
+		print "results", self.results
+		
+		
+		
+
+from mab.parallelize import parallelize
+        
+       
+class StatisticsDialog(QtGui.QDialog):
+	def __init__(self, parent, data):
+		super(StatisticsDialog, self).__init__(parent)
+		self.data = data
+		
+		#self.form_layout = QtGui.QFormLayout()
+		#self.min = QtGui.QLabel('...computing...', self)
+		#self.form_layout.addRow('Minimum:', self.min)
+		#self.setLayout(self.form_layout)
+		
+		self.boxlist = QtGui.QHBoxLayout(self)
+		
+		self.headers = ['minimum', 'maximum', 'mean', 'std', 'median']
+		
+		#WorkerMinimum = lambda parent, data, column_name: Worker(parent, 'minimum', lambda data, column_name: str(min(data.columns[column_name])), data=data, column_name=column_name)
+		#WorkerMaximum = lambda parent, data, column_name: Worker(parent, 'maximum', lambda data, column_name: str(max(data.columns[column_name])), data=data, column_name=column_name)
+		#self.workers = {'minimum':WorkerMinimum, 'maximum': WorkerMaximum}
+		
+		self.table = QtGui.QTableWidget(data.nColumns, len(self.headers), self)
+		self.table.setHorizontalHeaderLabels(self.headers)
+		self.table.setVerticalHeaderLabels(self.data.columns.keys())
+		
+		
+		
+		
+		#pool = multiprocessing.Pool() #processes=QtCore.QThread.idealThreadCount())
+		#print "jobs:", jobs
+		worker = StatWorker(self, self.data)
+		def onFinish(worker=worker):
+			for column, stat in enumerate(self.headers):
+				for row, column_name in enumerate(self.data.columns.keys()):
+					value = worker.results[stat][column_name]
+					item = QtGui.QTableWidgetItem(value)
+					self.table.setItem(row, column, item)
+					
+			
+		worker.finished.connect(onFinish)
+		worker.start()
+		#for name in self.header:
+		#for column_name in self.data.colums.keys():
+		#	self.table.set
+		#worker.finished.connect(onFinish)
+		if 0:
+			self.worker_list = [] # keep references
+			def onFinish():
+				for column, stat in enumerate(self.headers):
+					for row, column_name in enumerate(self.data.columns.keys()):
+						value = worker.results[stat][column_name]
+						item = QtGui.QTableWidgetItem(worker.result)
+						self.table.setItem(row, column, item)
+			for column, stat in enumerate(self.headers):
+				for row, column_name in enumerate(self.data.columns.keys()):
+					worker = self.workers[stat](parent, data, column_name)
+					def onFinish(worker=worker, row=row, column=column):
+						print "finished running", worker.result
+						item = QtGui.QTableWidgetItem(worker.result)
+						self.table.setItem(row, column, item)
+					worker.finished.connect(onFinish)
+					print "starting", row, column
+					worker.start(QtCore.QThread.IdlePriority)
+					self.worker_list.append(worker) # keeps reference to avoid GC
+		
+		
+		self.boxlist.addWidget(self.table)
+		self.setLayout(self.boxlist)
+		
+		
+		
+		
+		if 0:
+			#w1 = Worker(self, lambda data: str(min(data.columns.items()[0])), self.data)
+			self.w1 = Worker(self, self.test, self.data)
+			#self.connect(self.w1, self.w1.signal, self.setmin)
+			def setmin():
+				print self.min.setText(self.w1.result)
+			self.w1.finished.connect(setmin)
+			self.w1.start()
+
+	def test(self, data):
+		print "test"
+		data = data.columns.values()[0]
+		return str(min(data))
+		#return "test"
+	def onFinish(self, worker):
+		print "worker", worker
+		#print "setting", result
+		#self.min = str
+		
+		
+class InfoPanel(QtGui.QFrame):
+	def __init__(self, parent):
+		super(InfoPanel, self).__init__(parent)
+		self.form_layout = QtGui.QFormLayout()
+		
+		self.name = QtGui.QLabel('', self)
+		self.form_layout.addRow('Name:', self.name)
+		
+		self.columns = QtGui.QLabel('', self)
+		self.form_layout.addRow('Columns:', self.columns)
+		
+		self.length = QtGui.QLabel('', self)
+		self.form_layout.addRow('Length:', self.length)
+		
+		self.scatter = QtGui.QPushButton('Open', self)
+		self.form_layout.addRow('Scatter plot:', self.scatter)
+		
+		self.statistics = QtGui.QPushButton('Open', self)
+		self.form_layout.addRow('Statistics:', self.statistics)
+		
+		self.statistics.clicked.connect(self.onOpenStatistics)
+		self.scatter.clicked.connect(self.onOpenScatter)
+		
+		self.setLayout(self.form_layout)
+		self.currentData = None
+		
+	def onOpenStatistics(self):
+		print "open", self.currentData
+		if self.currentData is not None:
+			dialog = StatisticsDialog(self, self.currentData)
+			dialog.show()
+			print "show"
+		
+	def onOpenScatter(self):
+		print "open", self.currentData
+		if self.currentData is not None:
+			dialog = ScatterPlotDialog(self, self.currentData)
+			dialog.show()
+			print "show"
+		
+	def onDataSelected(self, data_item, previous):
+		print "previous:", previous
+		if data_item is not None:
+			data = data_item.data(QtCore.Qt.UserRole)
+			self.currentData = data
+			self.name.setText(data.name)
+			self.columns.setText(str(len(data.columns)))
+			self.length.setText(str(data._length))
+			print self.currentData
+			
+from numba import jit
+import numba
+print numba.__version__
+import math
+@jit('(f4[:],f4[:], i4[:,:], f4, f4, f4, f4)')
+#@jit
+def histo2d(x, y, counts, dataminx, datamaxx, dataminy, datamaxy):
+	length = len(x)
+	#counts = np.zeros((bincountx, bincounty), dtype=np.int32)
+	bincountx, bincounty = counts.shape
+	#print length
+	#return bindata#
+	for i in range(length):
+		binNox = int(math.floor( ((x[i] - dataminx) / (float(datamaxx) - dataminx)) * float(bincountx)))
+		binNoy = int(math.floor( ((y[i] - dataminy) / (float(datamaxy) - dataminy)) * float(bincounty)))
+		if binNox >= 0 and binNox < bincountx and binNoy >= 0 and binNoy < bincounty:
+			counts[binNox, binNoy] += 1
+	#step = float(datamax-datamin)/bincount
+	#return numpy.arange(datamin, datamax+step/2, step), binData
+	return counts
+	#for i in range(N):
+	#	offset = data[
+
+import mab.utils.numpy
+class ScatterPlotDialog(QtGui.QDialog):
+	def __init__(self, parent, data, width=5, height=4, dpi=100):
+		super(ScatterPlotDialog, self).__init__(parent)
+		self.resize(500,500)
+		self.data = data
+		
+		self.fig = Figure(figsize=(width, height), dpi=dpi)
+		self.axes = self.fig.add_subplot(111)
+		self.axes.hold(False)
+		
+		self.currentXIndex = 0
+		self.currentYIndex = 1
+		
+		
+		self.canvas =  FigureCanvas(self.fig)
+		self.canvas.setParent(self)
+
+		self.plot()
+		FigureCanvas.setSizePolicy(self,
+									QtGui.QSizePolicy.Expanding,
+									QtGui.QSizePolicy.Expanding)
+		FigureCanvas.updateGeometry(self)
+
+		self.boxlist = QtGui.QVBoxLayout(self)
+		
+		self.form_layout = QtGui.QFormLayout()
+		
+		self.xname = QtGui.QComboBox(self)
+		self.form_layout.addRow('X-axis:', self.xname)
+		self.xname.addItems(self.data.column_names)
+		self.xname.currentIndexChanged.connect(self.onX)
+		
+		self.yname = QtGui.QComboBox(self)
+		self.form_layout.addRow('Y-axis:', self.yname)
+		self.yname.addItems(self.data.column_names)
+		self.yname.setCurrentIndex(1)
+		self.yname.currentIndexChanged.connect(self.onY)
+		
+		self.boxlist.addWidget(self.canvas, 1)
+		self.boxlist.addLayout(self.form_layout, 0)
+		self.setLayout(self.boxlist)
+		
+	def onX(self, index):
+		print "x changed", index
+		self.currentXIndex = index
+		self.plot()
+	
+	def onY(self, index):
+		print "y changed", index
+		self.currentYIndex = index
+		self.plot()
+
+
+	def plot(self):
+		self.axes.cla()
+		#x = np.arange(0,10,0.01)
+		#y = x**x
+		
+		x = self.data.column_names[self.currentXIndex]
+		y = self.data.column_names[self.currentYIndex]
+
+		datax = self.data.columns[x]
+		datay = self.data.columns[y]
+		ranges = np.nanmin(datax), np.nanmax(datax), np.nanmin(datay), np.nanmax(datay)
+		t0 = time.time()
+		if 1:
+			parts = 1
+			Iparts = np.zeros((parts, 128, 128))
+			Iparts = mab.utils.numpy.mmapzeros((parts, 128, 128), dtype=np.int32)
+			@parallelize(cores=QtCore.QThread.idealThreadCount())
+			def histo2d_par(part):
+				N = self.data._length
+				i1 = (N / parts) * part
+				i2 = (N / parts) * (part+1)
+				#print i1, i2
+				histo2d(datax[i1:i2], datay[i1:i2], Iparts[part], *ranges)
+				#histo2d(datax[part::parts], datay[part::parts], Iparts[part], np.min(datax), np.max(datax), np.min(datay), np.max(datay))
+			histo2d_par(range(parts))
+			I = np.sum(Iparts, axis=0)
+		else:
+			I = np.zeros((parts, 128, 128), dtype=np.int32)
+			histo2d(datax, datay, Iparts, np.min(datax), np.max(datax), np.min(datay), np.max(datay))
+			I = np.sum(I, axis=0)
+		print "it took", time.time()-t0
+		
+		#I, x, y = np.histogram2d(self.data.columns[x], self.data.columns[y], bins=128)
+		#print res
+		#I = res
+		
+		self.axes.imshow(np.log10(I), origin="lower", extent=ranges)
+		#self.axes.imshow((I), origin="lower", extent=ranges)
+		self.axes.set_aspect('auto')
+		self.canvas.draw()
+
+
+
+class Example(QtGui.QMainWindow):
+	def __init__(self):
+		super(Example, self).__init__()
+		
+		self.initUI()
+		
+	def initUI(self):
+		
+		QtGui.QToolTip.setFont(QtGui.QFont('SansSerif', 10))
+		
+		self.setToolTip('This is a <b>QWidget</b> widget')
+		
+		
+		if 0:
+			qbtn = QtGui.QPushButton('Quit', self)
+			qbtn.clicked.connect(QtCore.QCoreApplication.instance().quit)
+			qbtn.resize(qbtn.sizeHint())
+			qbtn.move(150, 150) 
+			
+			btn = QtGui.QPushButton('Button', self)
+			btn.setToolTip('This is a <b>QPushButton</b> widget')
+			btn.resize(btn.sizeHint())
+			btn.move(50, 50)       
+		
+		#self.setGeometry(300, 300, 250, 150)
+		self.resize(700,500)
+		self.center()
+		self.setWindowTitle('Gavi samp test')    
+		#self.statusBar().showMessage('Ready')
+		
+		
+		
+		self.left = QtGui.QFrame(self)
+		self.left.setFrameShape(QtGui.QFrame.StyledPanel)
+		
+		self.right = InfoPanel(self) #QtGui.QFrame(self)
+		self.right.setFrameShape(QtGui.QFrame.StyledPanel)
+		
+		self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
+		self.splitter.addWidget(self.left)
+		self.splitter.addWidget(self.right)
+		
+		#self.hbox = QtGui.QHBoxLayout(self)
+		#self.hbox.addWidget(self.splitter)
+		self.setCentralWidget(self.splitter)
+		#self.setLayout(self.hbox)
+
+        
+        
+		self.list = DataList(self.left) 
+		
+		self.boxlist = QtGui.QHBoxLayout(self)
+		self.boxlist.addWidget(self.list)
+		self.left.setLayout(self.boxlist)
+		
+		#self.list.currentItemChanged.connect(self.infoPanel.onDataSelected)
+		self.list.currentItemChanged.connect(self.right.onDataSelected)
+		self.list.testfill()
+		#self.list.itemSelectionChanged.connect(self.right.onDataSelected)
+		
+		
+		
+		
+		exitAction = QtGui.QAction(QtGui.QIcon('icons/png/24x24/actions/application-exit-2.png'), '&Exit', self)        
+		exitAction.setShortcut('Ctrl+Q')
+		exitAction.setStatusTip('Exit application')
+		exitAction.triggered.connect(QtGui.qApp.quit)
+		
+		menubar = self.menuBar()
+		fileMenu = menubar.addMenu('&File')
+		fileMenu.addAction(exitAction)
+		
+		#self.toolbar = self.addToolBar('Exit')
+		#self.toolbar.addAction(exitAction)
+		
+        
+		self.show()
+		
+		
+	def center(self):
+		
+		qr = self.frameGeometry()
+		cp = QtGui.QDesktopWidget().availableGeometry().center()
+		qr.moveCenter(cp)
+		self.move(qr.topLeft())		
+		
+	def _closeEvent(self, event):
+		
+		reply = QtGui.QMessageBox.question(self, 'Message',
+			"Are you sure to quit?", QtGui.QMessageBox.Yes | 
+			QtGui.QMessageBox.No, QtGui.QMessageBox.No)
+
+		if reply == QtGui.QMessageBox.Yes:
+			event.accept()
+		else:
+			event.ignore()               
+        
+
+def main():
+	app = QtGui.QApplication(sys.argv)
+
+	ex = Example()
+	#w = QtGui.QWidget()
+	#w.resize(250, 150)
+	#w.move(300, 300)
+	#w.setWindowTitle('Simple')
+	#w.show()
+
+	sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()
