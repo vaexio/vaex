@@ -15,7 +15,8 @@ parser.add_option("-n", "--name",
                   help="dataset name [default=%default]", default="data", type=str)
 parser.add_option("-a", "--all", action="store_true", default=False, help="compute all densities")
 parser.add_option("-l", "--link", action="store_true", default=False, help="link to original datatsets")
-parser.add_option("-s", "--shuffle", action="store_true", default=True, help="include shuffled density")
+parser.add_option("-s", "--shuffled", action="store_true", default=True, help="include shuffled density")
+parser.add_option("-d", "--dimensions", default="12", help="which dimensions: options are 1 2 3 or 12 13 etc [default=%default]", type=str)
 parser.add_option("-o", "--output",
                   help="output hdf5 file, default the same as input", default=None, type=str)
 (options, args) = parser.parse_args()
@@ -44,7 +45,7 @@ data = h5file["data"]
 Nkde = 64*2
 Nkde = 512
 Nkde = 64*2
-Nkde3d = 64
+Nkde3d = 64 #128
 
 def kde(column_names, data, h5density):
 	columns = [data[k] for k in column_names]
@@ -168,7 +169,7 @@ def kde(column_names, data, h5density):
 				h5group["column1"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[0])
 				h5group["column2"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[1])
 		
-		if options.shuffle:
+		if options.shuffled:
 			map = subspacefind.DensityMap2d(
 					minima[k]-0.06125*(maxima[k]-minima[k]),
 					maxima[k]+0.06125*(maxima[k]-minima[k]),Nkde,
@@ -176,21 +177,16 @@ def kde(column_names, data, h5density):
 					maxima[l]+0.06125*(maxima[l]-minima[l]),Nkde);
 			hscale = 6.0/np.sqrt(N);
 			#print columns[k].shape
+			
 			t0 = time.time()
 			gmean = map.comp_data_probs_2d(hscale*(maxima[k]-minima[k]),
 						hscale*(maxima[l]-minima[l]),
-						columns[k], columns[l], prob);
+						shuffled_columns[column_names[k]], shuffled_columns[column_names[l]], prob);
 			
 			t1 = time.time()
 			#print "gmean", gmean
 			#print "step 1 completed", (t1-t0), "seconds"
-			def shuffled(column):
-				column = np.array(column) * 1. # copy
-				np.random.shuffle(column)
-				return column
-			newcolumns = [columns[i] if i == 0 else shuffled(columns[i]) for i in range(len(columns))]
-			
-			map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,newcolumns[k],newcolumns[l],prob);
+			map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,shuffled_columns[column_names[k]],shuffled_columns[column_names[l]],prob);
 			image2 = np.zeros((Nkde,Nkde), dtype=np.float64)
 			map.fill(image2)
 			if "density-shuffled" in h5group:
@@ -260,6 +256,7 @@ def kde(column_names, data, h5density):
 						columns[k], columns[l], columns[m], prob);
 			
 			
+		print "gmean 3d", gmean
 		map.comp_density_3d(hscale*(maxima[k]-minima[k]),
 				hscale*(maxima[l]-minima[l]),
 				hscale*(maxima[m]-minima[m]),
@@ -307,8 +304,8 @@ def kde(column_names, data, h5density):
 				h5group["column1"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[0])
 				h5group["column2"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[1])
 				h5group["column3"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[3])
-		
-
+				
+				
 		if options.shuffle:
 			map = subspacefind.DensityMap3d(minima[k]-0.06125*(maxima[k]-minima[k]),
 				maxima[k]+0.06125*(maxima[k]-minima[k]),Nkde3d,
@@ -320,18 +317,17 @@ def kde(column_names, data, h5density):
 			hscale = 8.0/np.sqrt(N);
 			
 			#print columns[0]
-			newcolumns = [shuffled_columns[name] for name in column_names]
 			gmean = map.comp_data_probs_3d(
 							hscale*(maxima[k]-minima[k]),
 							hscale*(maxima[l]-minima[l]),
 							hscale*(maxima[m]-minima[m]),
-							newcolumns[k], newcolumns[l], newcolumns[m], prob);
+							shuffled_columns[column_names[k]], shuffled_columns[column_names[l]], shuffled_columns[column_names[m]], prob);
 				
 				
 			map.comp_density_3d(hscale*(maxima[k]-minima[k]),
 					hscale*(maxima[l]-minima[l]),
 					hscale*(maxima[m]-minima[m]),
-					gmean, newcolumns[k],newcolumns[l],newcolumns[m],prob);
+					gmean, shuffled_columns[column_names[k]],shuffled_columns[column_names[l]],shuffled_columns[column_names[m]],prob);
 
 
 			image_shuffled = np.zeros((Nkde3d, Nkde3d, Nkde3d), dtype=np.float64)
@@ -391,16 +387,11 @@ elif (len(args) == 1) and not options.all:
 	sys.exit(1)
 else:
 	column_names = map(str, args[1:])
-	compute_min_max(data, column_names)
 
 print "columns:", column_names
+compute_min_max(data, column_names)
 
 h5densities = h5file_output.require_group("densities")
-
-		
-h5densities3d = h5densities.require_group("3d")
-pairs = list(itertools.combinations(column_names, 3))
-
 
 def shuffled(column):
 	column = np.array(column) * 1. # copy
@@ -408,25 +399,32 @@ def shuffled(column):
 	return column
 shuffled_columns = dict([(name, shuffled(data[name])) for name in column_names])
 
+for d in options.dimensions:
+	dim = int(d)
+	print "dimension: %d" % dim
+	if dim == 3:
+		h5densities3d = h5densities.require_group("3d")
+		pairs = list(itertools.combinations(column_names, 3))
+		i = 0
+		for column_names_pair in pairs:
+			print "doing 3d kde for", column_names_pair, (i+1), "out of", len(pairs)
+			kde(column_names_pair, data, h5densities3d)
+			i += 1
 
-if 1:
-	i = 0
-	for column_names_pair in pairs:
-		print "doing 3d kde for", column_names_pair, (i+1), "out of", len(pairs)
-		kde(column_names_pair, data, h5densities3d)
-		i += 1
+	if dim == 1:
+		h5densities1d = h5densities.require_group("1d")
+		for column_name in column_names:
+			print "doing 1d kde for", column_name
+			kde([column_name], data, h5densities1d)
 
-h5densities1d = h5densities.require_group("1d")
-for column_name in column_names:
-	print "doing 1d kde for", column_name
-	kde([column_name], data, h5densities1d)
+	if dim == 2:
+		h5densities2d = h5densities.require_group("2d")
+		pairs = list(itertools.combinations(column_names, 2))
+		print "doing a kde for %d pairs" % len(pairs)
+		for column_names_pair in pairs:
+			print "doing 2d kde for", column_names_pair
+			kde(column_names_pair, data, h5densities2d)
 
-h5densities2d = h5densities.require_group("2d")
-pairs = list(itertools.combinations(column_names, 2))
-print "doing a kde for %d pairs" % len(pairs)
-for column_names_pair in pairs:
-	print "doing 2d kde for", column_names_pair
-	kde(column_names_pair, data, h5densities2d)
 
 #print columns
 
