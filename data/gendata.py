@@ -99,7 +99,7 @@ if options.output:
 	h5columns = []
 	for d in range(dim):
 		print column_names[d]
-		h5columns.append(dataset.create_dataset(column_names[d], (N,), dtype=np.float))
+		h5columns.append(dataset.create_dataset(column_names[d], (N,), dtype=np.float64))
 else:
 	h5output = None
 	
