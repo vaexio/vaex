@@ -7,6 +7,8 @@ import os
 import sys
 import astropy.io.votable
 import thread
+import threading
+import time
 
 from gavi.samp import Samp
 
@@ -37,6 +39,8 @@ if len(args) != 1:
 
 hdf5filename = args[0]
 
+semaphore = threading.Semaphore(0)
+
 def load(url):
 	print "parsing table..."
 	table = astropy.io.votable.parse_single_table(url)
@@ -58,7 +62,8 @@ def load(url):
 	#thread.interrupt_main()
 	#sys.exit(0)
 	h5file.close()
-	samp.client.disconnect()
+	semaphore.release()
+	#samp.client.disconnect()
 	#os._exit(0)
 
 #load("http://jansky.intra.astro.rug.nl:39006/dynamic/1/t1.vot")
@@ -75,4 +80,14 @@ def on_load_table(url, table_id, name):
 
 samp.tableLoadCallbacks.append(on_load_table)
 print "waiting for VOtable..."
-samp.client.client._thread.join(1)
+if 1:
+	done = False
+	while not done:
+		samp.client.client._thread.join(0.1)
+		if semaphore.acquire(False):
+			done = True
+	#samp.client.client._thread.join(100)
+	time.sleep(2.1)
+	samp.client.disconnect()
+#except:
+#	pass
