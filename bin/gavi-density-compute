@@ -10,12 +10,14 @@ import h5py
 import numpy as np
 import itertools
 parser = OptionParser()
+import mmap
 
 parser.add_option("-n", "--name",
                   help="dataset name [default=%default]", default="data", type=str)
 parser.add_option("-a", "--all", action="store_true", default=False, help="compute all densities")
 parser.add_option("-l", "--link", action="store_true", default=False, help="link to original datatsets")
-parser.add_option("-s", "--shuffled", action="store_true", default=True, help="include shuffled density")
+parser.add_option("-s", "--shuffled", action="store_true", default=False, help="include shuffled density")
+parser.add_option("-m", "--mmap", action="store_true", default=False, help="do memory mapping")
 parser.add_option("-d", "--dimensions", default="12", help="which dimensions: options are 1 2 3 or 12 13 etc [default=%default]", type=str)
 parser.add_option("-o", "--output",
                   help="output hdf5 file, default the same as input", default=None, type=str)
@@ -34,7 +36,7 @@ if h5filename == h5filename_output:
 	h5file_output = h5file # h5py.File(h5filename_output)
 	data = h5file[options.name]
 else:
-	h5file = h5py.File(h5filename, "r") #, driver="core")
+	h5file = h5py.File(h5filename, "r")#, driver="core")
 	h5file_output = h5py.File(h5filename_output) #, driver="core")
 if options.name not in h5file:
 	print "doesn't exist", options.name
@@ -42,17 +44,161 @@ if options.name not in h5file:
 	
 data = h5file["data"]
 
+mmapped_data = {}
+
+
 Nkde = 64*2
 Nkde = 512
 Nkde = 64*2
 Nkde3d = 64 #128
 
+
+class Timer(object):
+    def __init__(self, name=None):
+        self.name = name
+
+    def __enter__(self):
+        self.tstart = time.time()
+
+    def __exit__(self, type, value, traceback):
+        if self.name:
+            print '[%s]' % self.name,
+        print 'Elapsed: %s' % (time.time() - self.tstart)
+        
+from numba import jit
+import numba
+import math
+print numba.__version__
+
+@jit('i4[:](f8[:])')
+def histo(data, bincount, datamin, datamax):
+	length = len(data)
+	counts = np.zeros(bincount, dtype=np.int32)
+	#return bindata#
+	for i in range(length):
+		binNo = int(math.floor( ((data[i] - datamin) / (float(datamax) - datamin)) * float(bincount)))
+		if binNo >= 0 and binNo < bincount:
+			counts[binNo] += 1
+		elif binNo == bincount:
+			counts[binNo-1] += 1
+	#step = float(datamax-datamin)/bincount
+	#return numpy.arange(datamin, datamax+step/2, step), binData
+	return counts
+	#for i in range(N):
+	#	offset = data[
+		
+from numpy import arange, zeros
+@jit('c8(f8[:])', nopython=True)
+def _minmax(data):
+	#ar = np.zeros(2, dtype=np.float64)
+	length = len(data)
+	xmin = data[0]
+	xmax = data[0]
+	for i in range(length):
+		#xmin = data[i] if data[i] < xmin else xmin
+		#xmax = data[i] if data[i] > xmax else xmax
+		if data[i] < xmin:
+			xmin = data[i]
+		if data[i] > xmax:
+			xmax = data[i]
+	#ar[0] = xmin
+	#ar[1] = xmax
+	#return ar
+	return xmin + 1j*xmax
+	
+def minmax(data):
+	z = _minmax(data)
+	return z.real, z.imag
+        
+if options.mmap:
+	print "using memory mapping"
+	#h5file.close()
+	print h5filename
+	f = file(h5filename, "r")
+	fileno = f.fileno()
+	print f
+	print fileno
+	mapping = mmap.mmap(fileno, 0, prot=mmap.PROT_READ)
+	#import pdb
+	#pdb.set_trace()
+	#mmap = mmap.
+	
+	for column_name in data:
+		column = data[column_name]
+		print `column`
+		# offset within file
+		offset = column.id.get_offset() 
+		
+		#sizeof_type = numpy.zeros(1, dtype=column.dtype).nbytes
+		mmapped_array = np.frombuffer(mapping, dtype=column.dtype, count=len(column), offset=offset)
+		#	ar = ar.reshape(shape)
+		mmapped_data[column_name] = mmapped_array
+	md = mmapped_data
+	if 1:
+		with Timer('reading'):
+			x = md["x"]
+			print "len x =", len(x)
+			y = md["y"]
+			#print "len x =", len(y)
+		print x #, y
+		with Timer('min/max'):
+			#if 1:
+			minx, maxx = np.min(x), np.max(x)
+			#minx, maxx = minmax(x)
+			#miny, maxy = np.min(y), np.max(y)
+			print "min x =", minx
+			#print "min x =", miny
+			minima = [minx]#, miny]
+			maxima = [maxx]#, maxy]
+			k = 0
+		
+		with Timer('histogram'):
+			#h = np.histogram(x, bins=Nkde, range=(minx, maxx))
+			counts = histo(x, Nkde, minx, maxx)
+			import matplotlib.pyplot as plt
+			#plt.plot(counts)
+			#plt.show()
+			#import kaplot
+			#kaplot.graph(counts)
+			#kaplot.draw()
+		sys.exit(0)
+		with Timer('kde'):
+			map = subspacefind.DensityMap1d(minx, maxx, Nkde);
+			#mask = ~np.isnan(columns_data[k])
+			N = len(x)
+			sx1 = 2.0*(maxx-minx)/N**(1./3);
+			#print "bla2"
+			#print minima[k], maxima[k]	
+			if maxima[k] == minima[k]:
+					maxima[k] = minima[k] + 1
+			print "calculating gmean"
+			prob = x * 0
+			gmean = map.comp_data_probs(sx1, x, prob);
+			print "gmean", gmean, minima[k], maxima[k]#n
+			print "calculating density..."
+			map.adaptive_density(sx1, gmean, x, prob);
+			print "calculating density done"
+		image = np.zeros((Nkde,), dtype=np.float64)
+		map.fill(image)
+	import pdb
+	pdb.set_trace()
+	sys.exit(0)
+	
+	
+		
+		
+
 def kde(column_names, data, h5density):
 	columns = [data[k] for k in column_names]
+	if options.mmap:
+		mmapped_columns = [data[k] for k in column_names]
+		columns_data = mmapped_columns
+	else:
+		columns_data = columns
 	minima = [column.attrs["minimum"] for column in columns]
 	maxima = [column.attrs["maximum"] for column in columns]
 	dimension = len(columns)
-	N = len(columns[0])
+	N = len(columns_data[0])
 	for i, column in enumerate(columns[1:]):
 		if len(column) != N:
 			print "column %d contains %d entry, while first has %d" % (i+2, len(column), N)
@@ -66,11 +212,15 @@ def kde(column_names, data, h5density):
 		map = subspacefind.DensityMap1d(minima[k], maxima[k], Nkde);
 		#print "bla1b"
 		#dsa
+		mask = ~np.isnan(columns_data[k])
 		sx1 = 2.0*(maxima[k]-minima[k])/N**(1./3);
 		#print "bla2"
-		gmean = map.comp_data_probs(sx1, columns[k], prob);
-		#print gmean
-		map.adaptive_density(sx1, gmean, columns[k], prob);
+		print minima[k], maxima[k]	
+		if maxima[k] == minima[k]:
+				maxima[k] = minima[k] + 1
+		gmean = map.comp_data_probs(sx1, columns_data[k], prob);
+		print gmean, minima[k], maxima[k]#n
+		map.adaptive_density(sx1, gmean, columns_data[k], prob);
 		image = np.zeros((Nkde,), dtype=np.float64)
 		map.fill(image)
 		
@@ -116,17 +266,17 @@ def kde(column_names, data, h5density):
 				minima[l]-0.06125*(maxima[l]-minima[l]),
 				maxima[l]+0.06125*(maxima[l]-minima[l]),Nkde);
 		hscale = 6.0/np.sqrt(N);
-		#print columns[k].shape
+		#print columns_data[k].shape
 		t0 = time.time()
 		gmean = map.comp_data_probs_2d(hscale*(maxima[k]-minima[k]),
 					hscale*(maxima[l]-minima[l]),
-					columns[k], columns[l], prob);
+					columns_data[k], columns_data[l], prob);
 		
 		t1 = time.time()
 		#print "gmean", gmean
 		#print "step 1 completed", (t1-t0), "seconds"
 		
-		map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,columns[k],columns[l],prob);
+		map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,columns_data[k],columns_data[l],prob);
 		t2 = time.time()
 		#print "step 2 completed", (t2-t1), "seconds"
 		#print "step 1+2 completed", (t2-t0), "seconds"
@@ -176,22 +326,22 @@ def kde(column_names, data, h5density):
 					minima[l]-0.06125*(maxima[l]-minima[l]),
 					maxima[l]+0.06125*(maxima[l]-minima[l]),Nkde);
 			hscale = 6.0/np.sqrt(N);
-			#print columns[k].shape
+			#print columns_data[k].shape
 			def shuffled(column):
 				column = np.array(column) * 1. # copy
 				np.random.shuffle(column)
 				return column
-			newcolumns = [columns[i] if i == 0 else shuffled(columns[i]) for i in range(len(columns))]
+			newcolumns = [columns_data[i] if i == 0 else shuffled(columns_data[i]) for i in range(len(columns))]
 			
 			t0 = time.time()
 			gmean = map.comp_data_probs_2d(hscale*(maxima[k]-minima[k]),
 						hscale*(maxima[l]-minima[l]),
-						newcolumns[k], newcolumns[l], prob);
+						newcolumns_data[k], newcolumns_data[l], prob);
 			
 			t1 = time.time()
 			#print "gmean", gmean
 			#print "step 1 completed", (t1-t0), "seconds"
-			map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,newcolumns[k],newcolumns[l],prob);
+			map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,newcolumns_data[k],newcolumns_data[l],prob);
 			image2 = np.zeros((Nkde,Nkde), dtype=np.float64)
 			map.fill(image2)
 			if "density-shuffled" in h5group:
@@ -253,19 +403,19 @@ def kde(column_names, data, h5density):
 			
 		hscale = 8.0/np.sqrt(N);
 		
-		#print columns[0]
+		#print columns_data[0]
 		gmean = map.comp_data_probs_3d(
 						hscale*(maxima[k]-minima[k]),
 						hscale*(maxima[l]-minima[l]),
 						hscale*(maxima[m]-minima[m]),
-						columns[k], columns[l], columns[m], prob);
+						columns_data[k], columns_data[l], columns_data[m], prob);
 			
 			
 		print "gmean 3d", gmean
 		map.comp_density_3d(hscale*(maxima[k]-minima[k]),
 				hscale*(maxima[l]-minima[l]),
 				hscale*(maxima[m]-minima[m]),
-				gmean, columns[k],columns[l],columns[m],prob);
+				gmean, columns_data[k],columns_data[l],columns_data[m],prob);
 		basename = "density3d-%s-%s-%s" % tuple(column_names)
 		#avs_filename = basename + ".fld"
 		#print "writing", avs_filename
@@ -294,7 +444,7 @@ def kde(column_names, data, h5density):
 		if options.link:
 			if h5file == h5file_output:
 				# create a hard link
-				h5group.attrs.modify("column1", columns[0])
+				h5group.attrs.modify("column1", columns_data[0])
 				h5group.attrs.modify("column2", columns[1])
 				h5group.attrs.modify("column3", columns[2])
 			else:
@@ -379,7 +529,11 @@ def kde(column_names, data, h5density):
 def compute_min_max(data, column_names=None):
 	if column_names is None:
 		column_names = data.keys()
+		
 	for column_name in column_names:
+		if column_name not in data.keys(): #)
+			print column_name, "doesn't exist", data.keys() #"
+			sys.exit(0)
 		column = data[column_name]
 		if "minimum" not in column.attrs:
 			print "adding minimum"
@@ -387,6 +541,7 @@ def compute_min_max(data, column_names=None):
 		if "maximum" not in column.attrs:
 			print "adding maximum"
 			column.attrs["maximum"] = np.max(column)
+#for name in column_names:
 if options.all:
 	compute_min_max(data)
 	column_names = map(str, data.keys())
@@ -394,7 +549,7 @@ if options.all:
 	
 elif (len(args) == 1) and not options.all:
 	print "add column names after filename or use -a/--all for all"
-	print "possible column names: [%s]:" % ",".join([str(k) for k in data])
+	print "possible column names: [%s]:" % " ".join([str(k) for k in data])
 	sys.exit(1)
 else:
 	column_names = map(str, args[1:])
