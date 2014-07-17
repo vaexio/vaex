@@ -41,16 +41,19 @@ if options.histogram is not None:
 	print column_names
 		
 	for column_name in column_names:
-		column = data[column_name]
-		indices = np.argsort(column)
-		N = len(column)
+		column = data[column_name]#]
+		column_data = np.array(column)	
+		column_data = column[~np.isnan(column)]	
+		indices = np.argsort(column_data)
+		N = len(column_data)
 		index1 = int(N * options.histogram/100.)
 		index2 = int(N * (1.-options.histogram/100.))
 		print column_name
 		print "\t", N, index1, index2
-		print "\tmin", column[indices[0]], column[indices[index1]] #, column[indices[index1-1]]
-		print "\tmax", column[indices[-1]], column[indices[index2]]#, column[indices[index2+1]]
+		print "\tmin", column_data[indices[0]], column_data[indices[index1]] #, column[indices[index1-1]]
+		print "\tmax", column_data[indices[-1]], column_data[indices[index2]]#, column[indices[index2+1]]
 		
-		column.attrs["minimum"] = (column[indices[index1]]+column[indices[index1]])/2
-		column.attrs["maximum"] = (column[indices[index2]]+column[indices[index2]])/2
-	
+		column.attrs["minimum"] = (column_data[indices[index1]]+column_data[indices[index1]])/2
+		column.attrs["maximum"] = (column_data[indices[index2]]+column_data[indices[index2]])/2
+		if column.attrs["minimum"] == column.attrs["maximum"]:
+				column.attrs["maximum"] += 1
