@@ -9,11 +9,13 @@ import astropy.io.votable
 import thread
 import threading
 import time
+import itertools
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-from PySide import QtGui, QtCore
+#from PySide import QtGui, QtCore
+from PyQt4 import QtGui, QtCore
 
 from gavi.samp import Samp
 
@@ -73,7 +75,7 @@ class MemoryMapped(object):
 				mmapped_array = mmapped_array[::stride]
 			self.columns[name] = mmapped_array
 			self.column_names.append(name)
-			self.column_names.sort()
+			#self.column_names.sort()
 			self.nColumns += 1
 			self.nRows = self._length
 
@@ -117,9 +119,12 @@ class DataList(QtGui.QListWidget):
 		self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_einasto_2kpc_fornax/IC.hdf5")
 		self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/hernquist/gadget/hernquist_half/output/snapshot_000.hdf5")
 		
+		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
+		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
 	
 	def addGadgetHdf5(self, filename):
-		
+		if not os.path.exists(filename):
+			return
 		self.hdf5file = Hdf5MemoryMappedGadget(filename)
 		item = QtGui.QListWidgetItem(self)
 		item.setText(self.hdf5file.name)
@@ -129,6 +134,8 @@ class DataList(QtGui.QListWidget):
 		self.setCurrentItem(item)
 	
 	def addHdf5(self, filename):
+		if not os.path.exists(filename):
+			return
 		
 		self.hdf5file = Hdf5MemoryMapped(filename)
 		item = QtGui.QListWidgetItem(self)
@@ -304,8 +311,181 @@ class StatisticsDialog(QtGui.QDialog):
 		print "worker", worker
 		#print "setting", result
 		#self.min = str
+
+import 	operator
+import random
+class RankingTableModel(QtCore.QAbstractTableModel): 
+	def __init__(self, data, dim=1, parent=None, *args): 
+		QtCore.QAbstractTableModel.__init__(self, parent, *args) 
+		self.data = data
+		
+		self.pairs = list(itertools.combinations(self.data.column_names, dim))
+		self.ranking = [None for pair in self.pairs]
+		self.headers = ["subspace", "ranking", 'selected']
+		self.indices = range(len(self.pairs))
+	
+	def rowCount(self, parent): 
+		return len(self.pairs)
+
+	def columnCount(self, parent): 
+		return len(self.headers)
+
+	def data(self, index, role): 
+		if not index.isValid(): 
+			return QtGui.QVariant() 
+		elif role != QtCore.Qt.DisplayRole: 
+			return QtCore.QVariant()
+		column = index.column()
+		index = self.indices[index.row()] # use sorted index
+		if column == 0:
+			return QtCore.QVariant("-vs".join(self.pairs[index]))
+		if column == 1:
+			rank = self.ranking[index]
+			return QtCore.QVariant("" if rank is None else str(rank))
+		if column == 2:
+			rank = self.ranking[index]
+			return QtCore.QVariant(False if random.random() < 0.5 else True)
+
+	def headerData(self, index, orientation, role):
+		if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+			return QtCore.QVariant(self.headers[index])
+		if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
+			return QtCore.QVariant(str(index+1))
+		return QtCore.QVariant()
+
+	def sort(self, Ncol, order):
+		"""Sort table by given column number.
+		"""
+		self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
+		if Ncol == 0:
+			print "by name"
+			# get indices, sorted by pair name
+			sortlist = zip(self.pairs, range(len(self.pairs)))
+			print sortlist
+			sortlist.sort(key=operator.itemgetter(0))
+			print sortlist
+			self.indices = map(operator.itemgetter(1), sortlist)
+			print self.indices
+		if Ncol == 1:
+			# get indices, sorted by ranking, or no sorting
+			if None not in self.ranking:
+				sortlist = zip(self.ranking, range(len(self.pairs)))
+				sortlist.sort(key=operator.itemgetter(0))
+				self.indices = map(operator.itemgetter(1), sortlist)
+			else:
+				self.indices = range(len(self.pairs))
+			print self.indices
+		if order == QtCore.Qt.DescendingOrder:
+			self.indices.reverse()
+		print self.indices
+		self.emit(QtCore.SIGNAL("layoutChanged()"))
+
+class RankingTable(QtGui.QTableWidget):
+	def __init__(self, parent, data, dim=1):
+		self.headers = ['', 'space', 'ranking']
+		self.data = data
+		self.pairs = list(itertools.combinations(self.data.column_names, dim))
+		QtGui.QTableWidget.__init__(self, len(self.pairs), len(self.headers), parent)
+		#self.tableModel = RankingTableModel(self.data, dim, parent)
+		#self.setModel(self.tableModel)
+		#self.sortByColumn(0, QtCore.Qt.AscendingOrder)
+		#self.setSortingEnabled(True)
+		if 1:
+			#self.ranking = [None for pair in self.pairs]
+			self.dim = dim
+			self.setHorizontalHeaderLabels(self.headers)
+			self.setVerticalHeaderLabels(map(str, range(len(self.pairs))))
+			self.checkboxes = []
+			for i in range(len(self.pairs)):
+				text = "-vs-".join(map(str, self.pairs[i]))
+				item = QtGui.QTableWidgetItem(text)
+				self.setItem(i, 1, item)
+				#item = QtGui.QTableWidgetItem()
+				#item.setData(QtCore.Qt.DisplayRole, QtCore.QVariant(True))
+				#item.setFlags(QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
+				checkbox = QtGui.QCheckBox(self)
+				checkbox.setCheckState(QtCore.Qt.Checked)
+				self.checkboxes.append(checkbox)
+				self.setCellWidget(i, 0, checkbox)
+				#self.setItem(i, 1, item)
+			self.setSortingEnabled(True)
+		
+	
+class RankDialog(QtGui.QDialog):
+	def __init__(self, parent, data):
+		super(RankDialog, self).__init__(parent)
+		self.data = data
+		
+		self.table1d = RankingTable(self, self.data, 1)
+		self.resize(700,500)
+		
+		if 0:
+			for name in self.data.column_names:
+				item = QtGui.QListWidgetItem(self.list1d)
+				item.setText(name)
+				item.setCheckState(False)
+				#self.list1d.
+
+
+		self.boxlayout = QtGui.QHBoxLayout(self)
+		self.boxlayout.addWidget(self.table1d)
+		self.boxlayout.addWidget(self.rankButton)
+		#self.setCentralWidget(self.splitter)
+		self.setLayout(self.boxlayout)
 		
 		
+class FullTableModel(QtCore.QAbstractTableModel): 
+	def __init__(self, data, parent=None, *args): 
+		QtCore.QAbstractTableModel.__init__(self, parent, *args) 
+		self.data = data
+	
+	def rowCount(self, parent): 
+		return self.data._length
+
+	def columnCount(self, parent): 
+		return len(self.data.column_names) 
+
+	def data(self, index, role): 
+		if not index.isValid(): 
+			return QtGui.QVariant() 
+		elif role != QtCore.Qt.DisplayRole: 
+			return QtCore.QVariant()
+		column = self.data.columns[self.data.column_names[index.column()]]
+		return QtCore.QVariant(str(column[index.row()]))
+
+	def headerData(self, index, orientation, role):
+		if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+			return QtCore.QVariant(self.data.column_names[index])
+		if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
+			return QtCore.QVariant(str(index+1))
+		return QtCore.QVariant()
+
+class TableDialog(QtGui.QDialog):
+	def __init__(self, parent, data):
+		super(TableDialog, self).__init__(parent)
+		self.data = data
+		
+		self.resize(700, 500)
+		self.tableView = QtGui.QTableView()
+		self.header = self.data.column_names
+		self.tableModel = FullTableModel(self.data, self)
+		self.tableView.setModel(self.tableModel)
+		
+		if 0:
+			for name in self.data.column_names:
+				item = QtGui.QListWidgetItem(self.list1d)
+				item.setText(name)
+				item.setCheckState(False)
+				#self.list1d.
+
+
+		self.boxlayout = QtGui.QHBoxLayout(self)
+		self.boxlayout.addWidget(self.tableView)
+		#self.setCentralWidget(self.splitter)
+		self.setLayout(self.boxlayout)
+		
+		
+
 class InfoPanel(QtGui.QFrame):
 	def __init__(self, parent):
 		super(InfoPanel, self).__init__(parent)
@@ -326,8 +506,16 @@ class InfoPanel(QtGui.QFrame):
 		self.statistics = QtGui.QPushButton('Open', self)
 		self.form_layout.addRow('Statistics:', self.statistics)
 		
+		self.rank = QtGui.QPushButton('Rank subspaces', self)
+		self.form_layout.addRow('', self.rank)
+		
+		self.table = QtGui.QPushButton('Open table', self)
+		self.form_layout.addRow('', self.table)
+		
 		self.statistics.clicked.connect(self.onOpenStatistics)
 		self.scatter.clicked.connect(self.onOpenScatter)
+		self.rank.clicked.connect(self.onOpenRank)
+		self.table.clicked.connect(self.onOpenTable)
 		
 		self.setLayout(self.form_layout)
 		self.currentData = None
@@ -346,10 +534,24 @@ class InfoPanel(QtGui.QFrame):
 			dialog.show()
 			print "show"
 		
+	def onOpenRank(self):
+		print "open", self.currentData
+		if self.currentData is not None:
+			dialog = RankDialog(self, self.currentData)
+			dialog.show()
+		
+	def onOpenTable(self):
+		print "open", self.currentData
+		if self.currentData is not None:
+			dialog = TableDialog(self, self.currentData)
+			dialog.show()
+		
 	def onDataSelected(self, data_item, previous):
 		print "previous:", previous
 		if data_item is not None:
 			data = data_item.data(QtCore.Qt.UserRole)
+			if hasattr(data, "toPyObject"):
+				data = data.toPyObject()
 			self.currentData = data
 			self.name.setText(data.name)
 			self.columns.setText(str(len(data.columns)))
@@ -360,8 +562,8 @@ from numba import jit
 import numba
 print numba.__version__
 import math
-@jit('(f4[:],f4[:], i4[:,:], f4, f4, f4, f4)')
-#@jit
+#@jit('(f4[:],f4[:], i4[:,:], f4, f4, f4, f4)')
+@jit
 def histo2d(x, y, counts, dataminx, datamaxx, dataminy, datamaxy):
 	length = len(x)
 	#counts = np.zeros((bincountx, bincounty), dtype=np.int32)
@@ -525,7 +727,9 @@ class Example(QtGui.QMainWindow):
 
         
         
-		self.list = DataList(self.left) 
+		self.list = DataList(self.left)
+		self.list.setMinimumWidth(300)
+		#self.list.resize(30
 		
 		self.boxlist = QtGui.QHBoxLayout(self)
 		self.boxlist.addWidget(self.list)
@@ -576,8 +780,8 @@ class Example(QtGui.QMainWindow):
 
 def main():
 	app = QtGui.QApplication(sys.argv)
-
 	ex = Example()
+	ex.raise_()
 	#w = QtGui.QWidget()
 	#w.resize(250, 150)
 	#w.move(300, 300)
