@@ -53,7 +53,7 @@ def load(url):
 		name = data.dtype.names[i]
 		type = data.dtype[i]
 		if type.kind  == "f": # only store float
-			datagroup.create_dataset(name, data=table.array[name])
+			datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
 	print "storing data done"
 	#thread.interrupt_main()
 	#sys.exit(0)
