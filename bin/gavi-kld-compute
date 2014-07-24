@@ -81,10 +81,7 @@ if options.all:
 				#dynamics, x, y = subspacefind.maxtree2d_dynamics(density)
 				#h5quality.attrs.modify("dynamics-x", x)
 				#h5quality.attrs.modify("dynamics-y", y)
-			if dim == 3:
-				print "\t3d", h5density_name, "quality\t",
-				density = h5density["density"]
-				quality = subspacefind.maxtree3d_quality(np.array(density) * 1., 4095)
+				
 			if h5file == h5file_output:
 				# create a hard link
 				#if "density" in h5density: del h5quality["density"]

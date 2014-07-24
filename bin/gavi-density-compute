@@ -326,22 +326,15 @@ def kde(column_names, data, h5density):
 					minima[l]-0.06125*(maxima[l]-minima[l]),
 					maxima[l]+0.06125*(maxima[l]-minima[l]),Nkde);
 			hscale = 6.0/np.sqrt(N);
-			#print columns_data[k].shape
-			def shuffled(column):
-				column = np.array(column) * 1. # copy
-				np.random.shuffle(column)
-				return column
-			newcolumns = [columns_data[i] if i == 0 else shuffled(columns_data[i]) for i in range(len(columns))]
-			
 			t0 = time.time()
 			gmean = map.comp_data_probs_2d(hscale*(maxima[k]-minima[k]),
 						hscale*(maxima[l]-minima[l]),
-						newcolumns_data[k], newcolumns_data[l], prob);
+						shuffled_columns[column_names[k]], shuffled_columns[column_names[l]], prob);
 			
 			t1 = time.time()
 			#print "gmean", gmean
 			#print "step 1 completed", (t1-t0), "seconds"
-			map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,newcolumns_data[k],newcolumns_data[l],prob);
+			map.comp_density_2d (hscale*(maxima[k]-minima[k]), hscale*(maxima[l]-minima[l]), gmean,shuffled_columns[column_names[k]],shuffled_columns[column_names[l]],prob);
 			image2 = np.zeros((Nkde,Nkde), dtype=np.float64)
 			map.fill(image2)
 			if "density-shuffled" in h5group:
@@ -461,42 +454,36 @@ def kde(column_names, data, h5density):
 				h5group["column3"] = h5py.ExternalLink(h5filename, "/" + options.name + "/" + column_names[3])
 				
 				
-		if options.shuffled:
+		if options.shuffle:
 			map = subspacefind.DensityMap3d(minima[k]-0.06125*(maxima[k]-minima[k]),
 				maxima[k]+0.06125*(maxima[k]-minima[k]),Nkde3d,
 				minima[l]-0.06125*(maxima[l]-minima[l]),
 				maxima[l]+0.06125*(maxima[l]-minima[l]),Nkde3d,
 				minima[m]-0.06125*(maxima[m]-minima[m]),
 				maxima[m]+0.06125*(maxima[m]-minima[m]),Nkde3d);
+				
 			hscale = 8.0/np.sqrt(N);
 			
-			def shuffled(column):
-				column = np.array(column) * 1. # copy
-				np.random.shuffle(column)
-				return column
-			newcolumns = [columns[i] if i == 0 else shuffled(columns[i]) for i in range(len(columns))]
 			#print columns[0]
 			gmean = map.comp_data_probs_3d(
 							hscale*(maxima[k]-minima[k]),
 							hscale*(maxima[l]-minima[l]),
 							hscale*(maxima[m]-minima[m]),
-							newcolumns[k], newcolumns[l], newcolumns[m], prob);
+							shuffled_columns[column_names[k]], shuffled_columns[column_names[l]], shuffled_columns[column_names[m]], prob);
 				
-			
-			print "gmean 3d", gmean
-			#print "step 1 completed", (t1-t0), "seconds"
+				
 			map.comp_density_3d(hscale*(maxima[k]-minima[k]),
 					hscale*(maxima[l]-minima[l]),
 					hscale*(maxima[m]-minima[m]),
-					gmean, newcolumns[k],newcolumns[l],newcolumns[m],prob);
-			
-			image2 = np.zeros((Nkde3d,Nkde3d,Nkde3d), dtype=np.float64)
-			map.fill(image2)
+					gmean, shuffled_columns[column_names[k]],shuffled_columns[column_names[l]],shuffled_columns[column_names[m]],prob);
+
+
+			image_shuffled = np.zeros((Nkde3d, Nkde3d, Nkde3d), dtype=np.float64)
+			map.fill(image_shuffled)
+
 			if "density-shuffled" in h5group:
 				del h5group["density-shuffled"]
-			h5group.create_dataset("density-shuffled", data=image2)
-				
-		
+			h5group.create_dataset("density-shuffled", data=image_shuffled)
 		
 		if 0:
 			#from vtk import *
@@ -559,7 +546,11 @@ compute_min_max(data, column_names)
 
 h5densities = h5file_output.require_group("densities")
 
-
+def shuffled(column):
+	column = np.array(column) * 1. # copy
+	np.random.shuffle(column)
+	return column
+shuffled_columns = dict([(name, shuffled(data[name])) for name in column_names])
 
 for d in options.dimensions:
 	dim = int(d)

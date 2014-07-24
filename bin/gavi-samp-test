@@ -9,11 +9,24 @@ import astropy.io.votable
 import thread
 import threading
 import time
+import itertools
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-from PySide import QtGui, QtCore
+#from PySide import QtGui, QtCore
+try:
+	from PyQt4 import QtGui, QtCore
+	import sip
+	sip.setapi('QVariant', 1)
+except ImportError, e1:
+	try:
+		from PySide import QtGui, QtCore
+	except ImportError, e2:
+		print >>sys.stderr, "could not import PyQt4 or PySide, please install"
+		print >>sys.stderr, "errors: ", repr(e1), repr(e2)
+		sys.exit(1)
+	
 
 from gavi.samp import Samp
 
@@ -49,57 +62,11 @@ import mmap
 def error(title, msg):
 	print "Error", title, msg
 
-class MemoryMapped(object):
-	def __init__(self, filename):
-		self.filename = filename
-		self.name = self.filename
-		self.file = file(self.filename, "r")
-		self.fileno = self.file.fileno()
-		self.mapping = mmap.mmap(self.fileno, 0, prot=mmap.PROT_READ)
-		self._length = None
-		self.nColumns = 0
-		self.columns = {}
-		self.column_names = []
+from gavi.dataset import *
 		
-	def addColumn(self, name, offset, length, dtype=np.float64, stride=None):
-		if self._length is not None and length != self._length:
-			error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
-		else:
-			self._length = length
-			mmapped_array = np.frombuffer(self.mapping, dtype=dtype, count=length if stride is None else length * 3, offset=offset)
-			if stride:
-				#import pdb
-				#pdb.set_trace()
-				mmapped_array = mmapped_array[::stride]
-			self.columns[name] = mmapped_array
-			self.column_names.append(name)
-			self.column_names.sort()
-			self.nColumns += 1
-			self.nRows = self._length
-
-class Hdf5MemoryMapped(MemoryMapped):
-	def __init__(self, filename):
-		super(Hdf5MemoryMapped, self).__init__(filename)
-		h5file = h5py.File(self.filename)
-		data = h5file["/data"]
-		for column_name in data:
-			column = data[column_name]
-			offset = column.id.get_offset() 
-			self.addColumn(column_name, offset, len(column), dtype=column.dtype)
-
-class Hdf5MemoryMappedGadget(MemoryMapped):
-	def __init__(self, filename):
-		super(Hdf5MemoryMappedGadget, self).__init__(filename)
-		h5file = h5py.File(self.filename)
-		for i in range(1,4):
-			name = "/PartType%d/Coordinates" % i
-			if name in h5file:
-				data = h5file[name]
-				offset = data.id.get_offset() 
-				self.addColumn("p%d_x" % i, offset, data.shape[0], dtype=data.dtype, stride=3)
-				self.addColumn("p%d_y" % i, offset+4, data.shape[0], dtype=data.dtype, stride=3)
-				self.addColumn("p%d_z" % i, offset+8, data.shape[0], dtype=data.dtype, stride=3)
-		
+possibleFractions = [10**base * f for base in [-3,-2,-1,0] for f in [0.25, 0.5, 0.75, 1.]]
+possibleFractions.insert(0,10**-4)
+print possibleFractions
 
 class DataList(QtGui.QListWidget):
 	def __init__(self, parent):
@@ -117,10 +84,55 @@ class DataList(QtGui.QListWidget):
 		self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_einasto_2kpc_fornax/IC.hdf5")
 		self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/hernquist/gadget/hernquist_half/output/snapshot_000.hdf5")
 		
+		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
+		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
+		
+		self.addGadget2("/home/data/gavi/egpbos/snap_008")
+		self.addHdf5("/Users/users/breddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
+		
+		hmmap = HansMemoryMapped("/net/pannekoek/data/users/buist/Research/2014 Simulation Data/12Orbits/Integration/Orbitorb9.ac8.10000.100.5.orb.bin")
+		self.addDataset(hmmap)
+		
+		
+	def setBestFraction(self, dataset):
+		Nmax = 1000*1000*10
+		for fraction in possibleFractions[::-1]:
+			N  = dataset.current_slice[1] - dataset.current_slice[0]
+			if N > Nmax:
+				dataset.setFraction(fraction)
+			else:
+				break
+			
+
+	def addDataset(self, dataset):
+		self.setBestFraction(dataset)
+		item = QtGui.QListWidgetItem(self)
+		item.setText(dataset.name)
+		#self.icon = QIcon.fromTheme('document-open')
+		item.setIcon(self.icon)
+		item.setData(QtCore.Qt.UserRole, dataset)
+		self.setCurrentItem(item)
+
+	def addGadget2(self, filename):
+		if not os.path.exists(filename):
+			return
+			
+		self.hdf5file = MemoryMappedGadget(filename)
+		self.setBestFraction(self.hdf5file)
+		item = QtGui.QListWidgetItem(self)
+		item.setText(self.hdf5file.name)
+		#self.icon = QIcon.fromTheme('document-open')
+		item.setIcon(self.icon)
+		item.setData(QtCore.Qt.UserRole, self.hdf5file)
+		self.setCurrentItem(item)
+			
+		
 	
 	def addGadgetHdf5(self, filename):
-		
+		if not os.path.exists(filename):
+			return
 		self.hdf5file = Hdf5MemoryMappedGadget(filename)
+		self.setBestFraction(self.hdf5file)
 		item = QtGui.QListWidgetItem(self)
 		item.setText(self.hdf5file.name)
 		#self.icon = QIcon.fromTheme('document-open')
@@ -129,8 +141,11 @@ class DataList(QtGui.QListWidget):
 		self.setCurrentItem(item)
 	
 	def addHdf5(self, filename):
+		if not os.path.exists(filename):
+			return
 		
 		self.hdf5file = Hdf5MemoryMapped(filename)
+		self.setBestFraction(self.hdf5file)
 		item = QtGui.QListWidgetItem(self)
 		item.setText(self.hdf5file.name)
 		#self.icon = QIcon.fromTheme('document-open')
@@ -178,7 +193,8 @@ def MyStats(object):
 		#f = stats[stat_name]
 		#return column_name, stat_name, f(self.data.columns[column_name])
 
-stats = {"minimum": lambda x: str(np.nanmin(x)), "maximum": lambda x: str(np.nanmax(x)), "mean": lambda x: str(np.mean(x)), "std": lambda x: str(np.std(x)), "median": lambda x: str(np.median(x))}
+#stats = {"minimum": lambda x: str(np.nanmin(x)), "maximum": lambda x: str(np.nanmax(x)), "mean": lambda x: str(np.mean(x)), "std": lambda x: str(np.std(x)), "median": lambda x: str(np.median(x))}
+stats = {"minimum": lambda x: str(np.nanmin(x)), "maximum": lambda x: str(np.nanmax(x)), "mean": lambda x: str(np.mean(x)), "std": lambda x: str(np.std(x))}
 def statsrun(args):
 	columns, stat_name, column_name = args
 	f = stats[stat_name]
@@ -199,7 +215,7 @@ class StatWorker(QtCore.QThread):
 			stat_name, column_name = args
 			columns = data.columns
 			f = stats[stat_name]
-			result = f(columns[column_name])
+			result = f(columns[column_name][slice(*data.current_slice)])
 			print result
 			return result
 		values = dostats(jobs)
@@ -229,7 +245,7 @@ class StatisticsDialog(QtGui.QDialog):
 		
 		self.boxlist = QtGui.QHBoxLayout(self)
 		
-		self.headers = ['minimum', 'maximum', 'mean', 'std', 'median']
+		self.headers = ['minimum', 'maximum', 'mean', 'std']
 		
 		#WorkerMinimum = lambda parent, data, column_name: Worker(parent, 'minimum', lambda data, column_name: str(min(data.columns[column_name])), data=data, column_name=column_name)
 		#WorkerMaximum = lambda parent, data, column_name: Worker(parent, 'maximum', lambda data, column_name: str(max(data.columns[column_name])), data=data, column_name=column_name)
@@ -304,11 +320,294 @@ class StatisticsDialog(QtGui.QDialog):
 		print "worker", worker
 		#print "setting", result
 		#self.min = str
+
+import 	operator
+import random
+class RankingTableModel(QtCore.QAbstractTableModel): 
+	def __init__(self, data, dim=1, parent=None, *args): 
+		QtCore.QAbstractTableModel.__init__(self, parent, *args) 
+		self.data = data
+		
+		self.pairs = list(itertools.combinations(self.data.column_names, dim))
+		self.ranking = [None for pair in self.pairs]
+		self.headers = ["subspace", "ranking", 'selected']
+		self.indices = range(len(self.pairs))
+	
+	def rowCount(self, parent): 
+		return len(self.pairs)
+
+	def columnCount(self, parent): 
+		return len(self.headers)
+
+	def data(self, index, role): 
+		if not index.isValid(): 
+			return None
+		elif role != QtCore.Qt.DisplayRole: 
+			return None
+		column = index.column()
+		index = self.indices[index.row()] # use sorted index
+		if column == 0:
+			return "-vs".join(self.pairs[index])
+		if column == 1:
+			rank = self.ranking[index]
+			return "" if rank is None else str(rank)
+		if column == 2:
+			rank = self.ranking[index]
+			return False if random.random() < 0.5 else True
+
+	def headerData(self, index, orientation, role):
+		if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+			return self.headers[index]
+		if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
+			return str(index+1)
+		return None
+
+	def sort(self, Ncol, order):
+		"""Sort table by given column number.
+		"""
+		self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
+		if Ncol == 0:
+			print "by name"
+			# get indices, sorted by pair name
+			sortlist = zip(self.pairs, range(len(self.pairs)))
+			print sortlist
+			sortlist.sort(key=operator.itemgetter(0))
+			print sortlist
+			self.indices = map(operator.itemgetter(1), sortlist)
+			print self.indices
+		if Ncol == 1:
+			# get indices, sorted by ranking, or no sorting
+			if None not in self.ranking:
+				sortlist = zip(self.ranking, range(len(self.pairs)))
+				sortlist.sort(key=operator.itemgetter(0))
+				self.indices = map(operator.itemgetter(1), sortlist)
+			else:
+				self.indices = range(len(self.pairs))
+			print self.indices
+		if order == QtCore.Qt.DescendingOrder:
+			self.indices.reverse()
+		print self.indices
+		self.emit(QtCore.SIGNAL("layoutChanged()"))
+
+class SubspaceTable(QtGui.QTableWidget):
+	def __init__(self, parent, data, pairs, dim=1):
+		self.headers = ['', 'space', 'ranking']
+		self.data = data
+		self.pairs = pairs #list(itertools.combinations(self.data.column_names, dim))
+		QtGui.QTableWidget.__init__(self, len(self.pairs), len(self.headers), parent)
+		#self.tableModel = RankingTableModel(self.data, dim, parent)
+		#self.setModel(self.tableModel)
+		#self.sortByColumn(0, QtCore.Qt.AscendingOrder)
+		#self.setSortingEnabled(True)
+		if 1:
+			#self.ranking = [None for pair in self.pairs]
+			self.dim = dim
+			self.setHorizontalHeaderLabels(self.headers)
+			self.setVerticalHeaderLabels(map(str, range(len(self.pairs))))
+			self.checkboxes = []
+			for i in range(len(self.pairs)):
+				text = " ".join(map(str, self.pairs[i]))
+				item = QtGui.QTableWidgetItem(text)
+				self.setItem(i, 1, item)
+				#item = QtGui.QTableWidgetItem()
+				#item.setData(QtCore.Qt.DisplayRole, QtCore.QVariant(True))
+				#item.setFlags(QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
+				checkbox = QtGui.QCheckBox(self)
+				checkbox.setCheckState(QtCore.Qt.Checked)
+				self.checkboxes.append(checkbox)
+				self.setCellWidget(i, 0, checkbox)
+				#self.setItem(i, 1, item)
+			self.setSortingEnabled(True)
+			
+	def getSelected(self):
+		selection = [checkbox.checkState() == QtCore.Qt.Checked for checkbox in self.checkboxes]
+		selected_pairs = [pair for pair, selected in zip(self.pairs, selection) if selected]
+		return selected_pairs
+		
+	def setPairs(self, pairs):
+		self.pairs = pairs
+		selection = [checkbox.checkState() == QtCore.Qt.Checked for checkbox in self.checkboxes]
+		non_selected_pairs = [pair for pair, selected in zip(self.pairs, selection) if not selected]
+		self.checkboxes = []
+		self.setRowCount(len(self.pairs))
+		self.setVerticalHeaderLabels(map(str, range(len(self.pairs))))
+		for i in range(len(self.pairs)):
+			text = " ".join(map(str, self.pairs[i]))
+			print text
+			item = QtGui.QTableWidgetItem(text)
+			self.setItem(i, 1, item)
+			checkbox = QtGui.QCheckBox(self)
+			if not (self.pairs[i] in non_selected_pairs):
+				checkbox.setCheckState(QtCore.Qt.Checked)
+			self.checkboxes.append(checkbox)
+			self.setCellWidget(i, 0, checkbox)
+		print self.checkboxes
+		
+import functools
+
+def joinpairs(pairs1d, pairsNd):
+	previous = []
+	for pair1d in pairs1d:
+		subspacename = pair1d[0] # tuple only has one element
+		for pairNd in pairsNd:
+			if subspacename not in pairNd:
+				pair = pair1d + pairNd
+				if sorted(pair) not in previous:
+					previous.append(sorted(pair))
+					print previous
+					yield pair
+
+class RankDialog(QtGui.QDialog):
+	def __init__(self, parent, data):
+		super(RankDialog, self).__init__(parent)
+		self.data = data
+		
+		self.tabs = QtGui.QTabWidget(self)
+		
+		self.tab1d = QtGui.QWidget(self.tabs)
+		self.table1d = SubspaceTable(self.tab1d, self.data,  list(itertools.combinations(self.data.column_names, 1)),  1)
+		
+		self.subspaceTables = {}
+		self.subspaceTabs = {}
+		self.subspaceTables[1] = self.table1d
+		self.subspaceTabs[1] = self.tab1d
+		
+		self.subspace2d = QtGui.QPushButton("create 2d subspaces", self.tab1d)
+		
+		def onclick(dim=2):
+			pairs1d = self.subspaceTables[1].getSelected()
+			pairsprevd = self.subspaceTables[dim-1].getSelected()
+			print pairs1d
+			print pairsprevd
+			newpairs = list(joinpairs(pairs1d, pairsprevd))
+			print "newpairs", newpairs
+			if dim not in self.subspaceTables:
+				self.tabNd = QtGui.QWidget(self.tabs)
+				self.tableNd = SubspaceTable(self.tabNd, self.data, newpairs, dim)
+				self.tabNdlayout = QtGui.QVBoxLayout(self)
+				self.subspaceNd = QtGui.QPushButton("create %dd subspaces" % (dim+1), self.tab1d)
+				self.rankNd = QtGui.QPushButton("rank subspaces")
+				if dim == len(self.data.column_names):
+					self.subspaceNd.setDisabled(True)
+				self.tabNdlayout.addWidget(self.subspaceNd)
+				self.tabNdlayout.addWidget(self.rankNd)
+				self.subspaceNd.clicked.connect(functools.partial(onclick, dim=dim+1))
+				self.rankNd.clicked.connect(functools.partial(self.rankSubspaces, table=self.tableNd))
+				self.tabNdlayout.addWidget(self.tableNd)
+				#self.tab1dlayout.addWidget(self.rankButton)
+				#self.setCentralWidget(self.splitter)
+				self.tabNd.setLayout(self.tabNdlayout)
+				self.subspaceTables[dim] = self.tableNd
+				self.subspaceTabs[dim] = self.tabNd
+				
+				self.tabs.addTab(self.tabNd, "%dd" % dim)
+				self.tabs.setCurrentWidget(self.tabNd)
+			else:
+				self.subspaceTables[dim].setPairs(newpairs)
+				self.tabs.setCurrentWidget(self.subspaceTabs[dim])
+			
+			
+		self.subspace2d.clicked.connect(onclick)
+		
+		
+		self.tab1dlayout = QtGui.QVBoxLayout(self)
+		self.tab1dlayout.addWidget(self.subspace2d)
+		self.tab1dlayout.addWidget(self.table1d)
+		#self.tab1dlayout.addWidget(self.rankButton)
+		#self.setCentralWidget(self.splitter)
+		self.tab1d.setLayout(self.tab1dlayout)
+		
+		self.tabs.addTab(self.tab1d, "1d")
+		
+		self.resize(700,500)
+		
+		if 0:
+			for name in self.data.column_names:
+				item = QtGui.QListWidgetItem(self.list1d)
+				item.setText(name)
+				item.setCheckState(False)
+				#self.list1d.
+
+
+		self.boxlayout = QtGui.QHBoxLayout(self)
+		self.boxlayout.addWidget(self.tabs)
+		#self.boxlayout.addWidget(self.rankButton)
+		#self.setCentralWidget(self.splitter)
+		self.setLayout(self.boxlayout)
+		
+	def rankSubspaces(self, table):
+		print table
+		
+		
+class FullTableModel(QtCore.QAbstractTableModel): 
+	def __init__(self, data, parent=None, *args): 
+		QtCore.QAbstractTableModel.__init__(self, parent, *args) 
+		self.data_ = data
+	
+	def rowCount(self, parent): 
+		#print self.data_._length
+		return int(self.data_._length)
+
+	def columnCount(self, parent): 
+		return len(self.data_.all_column_names)
+
+	def data(self, index, role):
+		#return ""
+		if not index.isValid(): 
+			return None
+		elif role != QtCore.Qt.DisplayRole: 
+			return None
+		column = self.data_.all_columns[self.data_.all_column_names[index.column()]]
+		if len(column.shape) == 1:
+			return str(column[index.row()])
+		else:
+			
+			return "%s %s" % (column.dtype.name, column.shape)
+
+	def headerData(self, index, orientation, role):
+		#print index
+		if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+			return self.data_.all_column_names[index]
+		if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
+			return str(index+1)
+		return None
+
+class TableDialog(QtGui.QDialog):
+	def __init__(self, parent, data):
+		super(TableDialog, self).__init__(parent)
+		self.data = data
+		
+		self.resize(700, 500)
+		self.tableView = QtGui.QTableView()
+		self.header = self.data.column_names
+		self.tableModel = FullTableModel(self.data)
+		self.tableView.setModel(self.tableModel)
+		self.tableView.pressed.connect(self.onSelectRow)
+		
+		if 0:
+			for name in self.data.column_names:
+				item = QtGui.QListWidgetItem(self.list1d)
+				item.setText(name)
+				item.setCheckState(False)
+				#self.list1d.
+
+
+		self.boxlayout = QtGui.QHBoxLayout(self)
+		self.boxlayout.addWidget(self.tableView)
+		#self.setCentralWidget(self.splitter)
+		self.setLayout(self.boxlayout)
+		
+	def onSelectRow(self, model):
+		row_index = model.row()
+		self.data.selectRow(row_index)
 		
 		
 class InfoPanel(QtGui.QFrame):
 	def __init__(self, parent):
 		super(InfoPanel, self).__init__(parent)
+
+		self.currentData = None
+
 		self.form_layout = QtGui.QFormLayout()
 		
 		self.name = QtGui.QLabel('', self)
@@ -320,17 +619,56 @@ class InfoPanel(QtGui.QFrame):
 		self.length = QtGui.QLabel('', self)
 		self.form_layout.addRow('Length:', self.length)
 		
-		self.scatter = QtGui.QPushButton('Open', self)
-		self.form_layout.addRow('Scatter plot:', self.scatter)
+		self.scatter = QtGui.QPushButton('x/y density', self)
+		self.form_layout.addRow('Plotting:', self.scatter)
 		
-		self.statistics = QtGui.QPushButton('Open', self)
-		self.form_layout.addRow('Statistics:', self.statistics)
+		self.scatter2dSeries = QtGui.QPushButton('x/y series', self)
+		self.form_layout.addRow('', self.scatter2dSeries)
+		
+		self.scatter1dSeries = QtGui.QPushButton('series', self)
+		self.form_layout.addRow('', self.scatter1dSeries)
+		
+		self.serieSlice = QtGui.QPushButton('serie slice', self)
+		self.form_layout.addRow('', self.serieSlice)
+		
+		self.statistics = QtGui.QPushButton('Statistics', self)
+		self.form_layout.addRow('Data:', self.statistics)
+		
+		self.rank = QtGui.QPushButton('Rank subspaces', self)
+		self.form_layout.addRow('', self.rank)
+		
+		self.table = QtGui.QPushButton('Open table', self)
+		self.form_layout.addRow('', self.table)
+		
+		self.fractionLabel = QtGui.QLabel('Fraction used: ...')
+		self.fractionWidget = QtGui.QWidget(self)
+		self.fractionLayout = QtGui.QHBoxLayout(self.fractionWidget)
+		self.fractionSlider = QtGui.QSlider(QtCore.Qt.Horizontal, self)
+		self.fractionSlider.setMinimum(0)
+		self.fractionSlider.setMaximum(len(possibleFractions)-1)
+		self.numberLabel = QtGui.QLabel('')
+
+		self.fractionLayout.addWidget(self.fractionSlider)
+		self.fractionLayout.addWidget(self.numberLabel)
+		self.fractionWidget.setLayout(self.fractionLayout)
+		#self.fractionSlider.setTickInterval(len(possibleFractions))
+		self.form_layout.addRow(self.fractionLabel, self.fractionWidget)
+		
+		
+		
+		self.fractionSlider.valueChanged.connect(self.onValueChanged)
+		self.onValueChanged(0)
+		
 		
 		self.statistics.clicked.connect(self.onOpenStatistics)
 		self.scatter.clicked.connect(self.onOpenScatter)
+		self.scatter1dSeries.clicked.connect(self.onOpenScatter1dSeries)
+		self.scatter2dSeries.clicked.connect(self.onOpenScatter2dSeries)
+		self.serieSlice.clicked.connect(self.onOpenSerieSlice)
+		self.rank.clicked.connect(self.onOpenRank)
+		self.table.clicked.connect(self.onOpenTable)
 		
 		self.setLayout(self.form_layout)
-		self.currentData = None
 		
 	def onOpenStatistics(self):
 		print "open", self.currentData
@@ -346,22 +684,73 @@ class InfoPanel(QtGui.QFrame):
 			dialog.show()
 			print "show"
 		
+	def onOpenSerieSlice(self):
+		print "open", self.currentData
+		if self.currentData is not None:
+			dialog = SerieSlicePlotDialog(self, self.currentData)
+			dialog.show()
+			print "show"
+		
+	def onOpenScatter1dSeries(self):
+		print "open", self.currentData
+		if self.currentData is not None:
+			dialog = ScatterSeries1dPlotDialog(self, self.currentData)
+			dialog.show()
+			print "show"
+		
+	def onOpenScatter2dSeries(self):
+		print "open", self.currentData
+		if self.currentData is not None:
+			dialog = ScatterSeries2dPlotDialog(self, self.currentData)
+			dialog.show()
+			print "show"
+		
+	def onOpenRank(self):
+		print "open", self.currentData
+		if self.currentData is not None:
+			dialog = RankDialog(self, self.currentData)
+			dialog.show()
+		
+	def onOpenTable(self):
+		print "open", self.currentData
+		if self.currentData is not None:
+			dialog = TableDialog(self, self.currentData)
+			dialog.show()
+			
+	def onValueChanged(self, index):
+		print index, len(possibleFractions)
+		fraction = possibleFractions[index]
+		text = 'Fraction used: %9.4f%%' % (fraction*100)
+		self.fractionLabel.setText(text)
+		if self.currentData:
+			self.currentData.setFraction(fraction)
+			N  = self.currentData.current_slice[1] - self.currentData.current_slice[0]
+			print N
+			self.numberLabel.setText("% 10d" % N)
+		
 	def onDataSelected(self, data_item, previous):
 		print "previous:", previous
 		if data_item is not None:
-			data = data_item.data(QtCore.Qt.UserRole)
+			data = data_item.data(QtCore.Qt.UserRole)	
+			if hasattr(data, "toPyObject"):
+				data = data.toPyObject()
 			self.currentData = data
 			self.name.setText(data.name)
 			self.columns.setText(str(len(data.columns)))
 			self.length.setText(str(data._length))
 			print self.currentData
+			fraction = self.currentData.fraction
+			distances = np.abs(np.array(possibleFractions) - fraction)
+			index = np.argsort(distances)[0]
+			print "best index:", index
+			self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
 			
 from numba import jit
 import numba
 print numba.__version__
 import math
-@jit('(f4[:],f4[:], i4[:,:], f4, f4, f4, f4)')
-#@jit
+#@jit('(f4[:],f4[:], i4[:,:], f4, f4, f4, f4)')
+@jit
 def histo2d(x, y, counts, dataminx, datamaxx, dataminy, datamaxy):
 	length = len(x)
 	#counts = np.zeros((bincountx, bincounty), dtype=np.int32)
@@ -379,6 +768,32 @@ def histo2d(x, y, counts, dataminx, datamaxx, dataminy, datamaxy):
 	#for i in range(N):
 	#	offset = data[
 
+@jit(nopython=True)
+def find_nearest_index(datax, datay, x, y):
+	N = len(datax)
+	index = 0
+	mindistance = math.sqrt((datax[0]-x)**2 + (datay[0]-y)**2)
+	for i in range(1,N):
+		distance = math.sqrt((datax[i]-x)**2 + (datay[i]-y)**2)
+		if distance < mindistance:
+			mindistance = distance
+			index = i
+	return index
+		
+@jit(nopython=True)
+def find_nearest_index1d(datax, x):
+	N = len(datax)
+	index = 0
+	mindistance = math.sqrt((datax[0]-x)**2)
+	for i in range(1,N):
+		distance = math.sqrt((datax[i]-x)**2)
+		if distance < mindistance:
+			mindistance = distance
+			index = i
+	return index
+		
+
+
 import mab.utils.numpy
 class ScatterPlotDialog(QtGui.QDialog):
 	def __init__(self, parent, data, width=5, height=4, dpi=100):
@@ -388,14 +803,22 @@ class ScatterPlotDialog(QtGui.QDialog):
 		
 		self.fig = Figure(figsize=(width, height), dpi=dpi)
 		self.axes = self.fig.add_subplot(111)
-		self.axes.hold(False)
+		self.axes.hold(True)
 		
 		self.currentXIndex = 0
 		self.currentYIndex = 1
 		
+		x = self.data.column_names[self.currentXIndex]
+		y = self.data.column_names[self.currentYIndex]
+		self.datax = self.data.columns[x][slice(*self.data.current_slice)]
+		self.datay = self.data.columns[y][slice(*self.data.current_slice)]
+		
+		
 		
 		self.canvas =  FigureCanvas(self.fig)
 		self.canvas.setParent(self)
+		
+		self.selected_row = None
 
 		self.plot()
 		FigureCanvas.setSizePolicy(self,
@@ -422,15 +845,51 @@ class ScatterPlotDialog(QtGui.QDialog):
 		self.boxlist.addLayout(self.form_layout, 0)
 		self.setLayout(self.boxlist)
 		
+		self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+		self.data.row_selection_listeners.append(self.onRowSelect)
+		import matplotlib.widgets
+		#self.lasso = matplotlib.widgets.LassoSelector(self.axes, self.onLassoSelect)
+		#self.rectselect = matplotlib.widgets.RectangleSelector(self.axes, self.onLassoSelect)
+		#self.spanselect = matplotlib.widgets.SpanSelector(self.axes, self.onLassoSelect, 'horizontal')
+		
+	def onLassoSelect(self, *args):
+		print args
+		
+	def onclick(self, event):
+		print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'% (event.button, event.x, event.y, event.xdata, event.ydata)
+		px, py = event.xdata, event.ydata
+		x = self.data.column_names[self.currentXIndex]
+		self.datax = self.data.columns[x][slice(*self.data.current_slice)]
+		y = self.data.column_names[self.currentYIndex]
+		self.datay = self.data.columns[y][slice(*self.data.current_slice)]
+		print self.datax, self.datay
+		selected_row = find_nearest_index(self.datax, self.datay, px, py)
+		print "nearest row", selected_row, self.datax[selected_row], self.datay[selected_row]
+		self.data.selectRow(selected_row)
+		
+	def onRowSelect(self, row):
+		print "row selected", row
+		self.selected_row = row
+		x = self.data.column_names[self.currentXIndex]
+		self.datax = self.data.columns[x][slice(*self.data.current_slice)]
+		y = self.data.column_names[self.currentYIndex]
+		self.datay = self.data.columns[y][slice(*self.data.current_slice)]
+		self.plot()
+		
 	def onX(self, index):
 		print "x changed", index
 		self.currentXIndex = index
+		x = self.data.column_names[self.currentXIndex]
+		self.datax = self.data.columns[x][slice(*self.data.current_slice)]
 		self.plot()
 	
 	def onY(self, index):
 		print "y changed", index
 		self.currentYIndex = index
+		y = self.data.column_names[self.currentYIndex]
+		self.datay = self.data.columns[y][slice(*self.data.current_slice)]
 		self.plot()
+		
 
 
 	def plot(self):
@@ -438,15 +897,15 @@ class ScatterPlotDialog(QtGui.QDialog):
 		#x = np.arange(0,10,0.01)
 		#y = x**x
 		
-		x = self.data.column_names[self.currentXIndex]
-		y = self.data.column_names[self.currentYIndex]
+		#x = self.data.column_names[self.currentXIndex]
+		#y = self.data.column_names[self.currentYIndex]
 
-		datax = self.data.columns[x]
-		datay = self.data.columns[y]
+		datax = self.datax 
+		datay = self.datay 
 		ranges = np.nanmin(datax), np.nanmax(datax), np.nanmin(datay), np.nanmax(datay)
 		t0 = time.time()
 		if 1:
-			parts = 1
+			parts = 20
 			Iparts = np.zeros((parts, 128, 128))
 			Iparts = mab.utils.numpy.mmapzeros((parts, 128, 128), dtype=np.int32)
 			@parallelize(cores=QtCore.QThread.idealThreadCount())
@@ -469,9 +928,419 @@ class ScatterPlotDialog(QtGui.QDialog):
 		#print res
 		#I = res
 		
-		self.axes.imshow(np.log10(I), origin="lower", extent=ranges)
+		self.axes.imshow(np.log10(I.T), origin="lower", extent=ranges)
 		#self.axes.imshow((I), origin="lower", extent=ranges)
 		self.axes.set_aspect('auto')
+		if self.selected_row is not None:
+			#self.axes.autoscale(False)
+			x, y = self.datax[self.selected_row],  self.datay[self.selected_row]
+			print "drawing selected point at", x, y
+			self.axes.scatter([x], [y], color='red') #, scalex=False, scaley=False)
+		self.canvas.draw()
+		
+		
+class SerieSlicePlotDialog(QtGui.QDialog):
+	def __init__(self, parent, data, width=5, height=4, dpi=100):
+		super(SerieSlicePlotDialog, self).__init__(parent)
+		self.resize(500,500)
+		self.data = data
+		
+		self.fig = Figure(figsize=(width, height), dpi=dpi)
+		self.axes = self.fig.add_subplot(111)
+		self.axes.hold(True)
+		
+		self.currentXIndex = 0
+		self.currentYIndex = 1
+		
+		self.serieIndex = 0
+		
+		x = self.data.rank1names[self.currentXIndex]
+		y = self.data.rank1names[self.currentYIndex]
+		self.datax = self.data.rank1s[x][self.serieIndex,slice(*self.data.current_slice)]
+		self.datay = self.data.rank1s[y][self.serieIndex,slice(*self.data.current_slice)]
+		
+		
+		
+		self.canvas =  FigureCanvas(self.fig)
+		self.canvas.setParent(self)
+		
+		self.selected_row = None
+
+		self.plot()
+		FigureCanvas.setSizePolicy(self,
+									QtGui.QSizePolicy.Expanding,
+									QtGui.QSizePolicy.Expanding)
+		FigureCanvas.updateGeometry(self)
+
+		self.boxlist = QtGui.QVBoxLayout(self)
+		
+		self.form_layout = QtGui.QFormLayout()
+		
+		self.xname = QtGui.QComboBox(self)
+		self.form_layout.addRow('X-axis:', self.xname)
+		self.xname.addItems(self.data.column_names)
+		self.xname.currentIndexChanged.connect(self.onX)
+		
+		self.yname = QtGui.QComboBox(self)
+		self.form_layout.addRow('Y-axis:', self.yname)
+		self.yname.addItems(self.data.column_names)
+		self.yname.setCurrentIndex(1)
+		self.yname.currentIndexChanged.connect(self.onY)
+		
+		self.boxlist.addWidget(self.canvas, 1)
+		self.boxlist.addLayout(self.form_layout, 0)
+		self.setLayout(self.boxlist)
+		
+		self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+		self.data.row_selection_listeners.append(self.onRowSelect)
+		self.data.serie_index_selection_listeners.append(self.onSerieIndexSelect)
+		
+	def onclick(self, event):
+		print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'% (event.button, event.x, event.y, event.xdata, event.ydata)
+		x, y = event.xdata, event.ydata
+		selected_row = find_nearest_index(self.datax, self.datay, x, y)
+		print "nearest row", selected_row, self.datax[selected_row], self.datay[selected_row]
+		self.data.selectRow(selected_row)
+		
+	def onRowSelect(self, row):
+		print "row selected", row
+		self.selected_row = row
+		self.plot()
+		
+	def onSerieIndexSelect(self, serie_index):
+		print "series index selected", serie_index
+		self.serieIndex = serie_index
+		x = self.data.rank1names[self.currentXIndex]
+		y = self.data.rank1names[self.currentYIndex]
+		self.datax = self.data.rank1s[x][self.serieIndex,slice(*self.data.current_slice)]
+		self.datay = self.data.rank1s[y][self.serieIndex,slice(*self.data.current_slice)]
+		
+		self.plot()
+		
+	def onX(self, index):
+		print "x changed", index
+		self.currentXIndex = index
+		x = self.data.rank1names[self.currentXIndex]
+		self.datax = self.data.rank1s[x][self.serieIndex,slice(*self.data.current_slice)]
+		self.plot()
+	
+	def onY(self, index):
+		print "y changed", index
+		self.currentYIndex = index
+		y = self.data.column_names[self.currentYIndex]
+		y = self.data.rank1names[self.currentYIndex]
+		self.datay = self.data.rank1s[y][self.serieIndex,slice(*self.data.current_slice)]
+		self.plot()
+		
+
+
+	def plot(self):
+		self.axes.cla()
+		#x = np.arange(0,10,0.01)
+		#y = x**x
+		
+		#x = self.data.column_names[self.currentXIndex]
+		#y = self.data.column_names[self.currentYIndex]
+
+		datax = self.datax 
+		datay = self.datay 
+		ranges = np.nanmin(datax), np.nanmax(datax), np.nanmin(datay), np.nanmax(datay)
+		t0 = time.time()
+		if 1:
+			parts = 20
+			Iparts = np.zeros((parts, 128, 128))
+			Iparts = mab.utils.numpy.mmapzeros((parts, 128, 128), dtype=np.int32)
+			@parallelize(cores=QtCore.QThread.idealThreadCount())
+			def histo2d_par(part):
+				N = self.data._length
+				i1 = (N / parts) * part
+				i2 = (N / parts) * (part+1)
+				#print i1, i2
+				histo2d(datax[i1:i2], datay[i1:i2], Iparts[part], *ranges)
+				#histo2d(datax[part::parts], datay[part::parts], Iparts[part], np.min(datax), np.max(datax), np.min(datay), np.max(datay))
+			histo2d_par(range(parts))
+			I = np.sum(Iparts, axis=0)
+		else:
+			I = np.zeros((parts, 128, 128), dtype=np.int32)
+			histo2d(datax, datay, Iparts, np.min(datax), np.max(datax), np.min(datay), np.max(datay))
+			I = np.sum(I, axis=0)
+		print "it took", time.time()-t0
+		
+		#I, x, y = np.histogram2d(self.data.columns[x], self.data.columns[y], bins=128)
+		#print res
+		#I = res
+		
+		self.axes.imshow(np.log10(I.T), origin="lower", extent=ranges)
+		#self.axes.imshow((I), origin="lower", extent=ranges)
+		self.axes.set_aspect('auto')
+		if self.selected_row is not None:
+			#self.axes.autoscale(False)
+			x, y = self.datax[self.selected_row],  self.datay[self.selected_row]
+			print "drawing selected point at", x, y
+			self.axes.scatter([x], [y], color='red') #, scalex=False, scaley=False)
+		self.canvas.draw()		
+
+class ScatterSeries2dPlotDialog(QtGui.QDialog):
+	def __init__(self, parent, data, width=5, height=4, dpi=100):
+		super(ScatterSeries2dPlotDialog, self).__init__(parent)
+		self.resize(500,500)
+		self.data = data
+		
+		self.fig = Figure(figsize=(width, height), dpi=dpi)
+		self.axes = self.fig.add_subplot(111)
+		self.axes.hold(True)
+		
+		self.currentXIndex = 0
+		self.currentYIndex = 1
+		
+		x = self.data.rank1names[self.currentXIndex]
+		y = self.data.rank1names[self.currentYIndex]
+		self.selected_serie_index = None
+		
+		xseries = self.data.rank1s[x]
+		yseries = self.data.rank1s[y]
+		
+		self.datax = xseries[:,self.data.selected_row_index]
+		self.datay = yseries[:,self.data.selected_row_index]
+
+		
+		self.canvas =  FigureCanvas(self.fig)
+		self.canvas.setParent(self)
+
+		self.plot()
+		FigureCanvas.setSizePolicy(self,
+									QtGui.QSizePolicy.Expanding,
+									QtGui.QSizePolicy.Expanding)
+		FigureCanvas.updateGeometry(self)
+
+		self.boxlist = QtGui.QVBoxLayout(self)
+		
+		self.form_layout = QtGui.QFormLayout()
+		
+		self.xname = QtGui.QComboBox(self)
+		self.form_layout.addRow('X-axis:', self.xname)
+		self.xname.addItems(self.data.rank1names)
+		self.xname.currentIndexChanged.connect(self.onX)
+		
+		self.yname = QtGui.QComboBox(self)
+		self.form_layout.addRow('Y-axis:', self.yname)
+		self.yname.addItems(self.data.rank1names)
+		self.yname.setCurrentIndex(1)
+		self.yname.currentIndexChanged.connect(self.onY)
+		
+		self.boxlist.addWidget(self.canvas, 1)
+		self.boxlist.addLayout(self.form_layout, 0)
+		self.setLayout(self.boxlist)
+		self.data.row_selection_listeners.append(self.onRowSelect)
+		
+		self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+		self.data.row_selection_listeners.append(self.onRowSelect)
+		self.data.serie_index_selection_listeners.append(self.onSerieSelect)
+		
+	def onclick(self, event):
+		print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'% (event.button, event.x, event.y, event.xdata, event.ydata)
+		x, y = event.xdata, event.ydata
+		selected_index = find_nearest_index(self.datax, self.datay, x, y)
+		print "nearest selected_index", selected_index, self.datax[selected_index], self.datay[selected_index]
+		self.data.selectSerieIndex(selected_index)
+		
+	def onSerieSelect(self, serie_index):
+		self.selected_serie_index = serie_index
+		self.plot()
+		
+	def onRowSelect(self, row):
+		x = self.data.rank1names[self.currentXIndex]
+		y = self.data.rank1names[self.currentYIndex]
+		xseries = self.data.rank1s[x]
+		yseries = self.data.rank1s[y]
+		self.datax = xseries[:,self.data.selected_row_index]
+		self.datay = yseries[:,self.data.selected_row_index]
+		self.plot()
+		
+	def onX(self, index):
+		print "x changed", index
+		self.currentXIndex = index
+		x = self.data.rank1names[self.currentXIndex]
+		xseries = self.data.rank1s[x]
+		self.datax = xseries[:,self.data.selected_row_index]
+
+		self.plot()
+	
+	def onY(self, index):
+		print "y changed", index
+		self.currentYIndex = index
+		y = self.data.rank1names[self.currentYIndex]
+		yseries = self.data.rank1s[y]
+		self.datay = yseries[:,self.data.selected_row_index]
+		self.plot()
+
+
+	def plot(self):
+		self.axes.cla()
+		#x = np.arange(0,10,0.01)
+		#y = x**x
+		
+
+		self.axes.plot(self.datax, self.datay)
+		#self.axes.imshow(xseries, origin="lower") #, extent=ranges)
+		#self.axes.set_aspect('auto')
+		if 0:
+			#datax = self.data.columns[x][slice(*self.data.current_slice)]
+			#datay = self.data.columns[y][slice(*self.data.current_slice)]
+			#ranges = np.nanmin(datax), np.nanmax(datax), np.nanmin(datay), np.nanmax(datay)
+			t0 = time.time()
+			if 1:
+				parts = 20
+				Iparts = np.zeros((parts, 128, 128))
+				Iparts = mab.utils.numpy.mmapzeros((parts, 128, 128), dtype=np.int32)
+				@parallelize(cores=QtCore.QThread.idealThreadCount())
+				def histo2d_par(part):
+					N = self.data._length
+					i1 = (N / parts) * part
+					i2 = (N / parts) * (part+1)
+					#print i1, i2
+					histo2d(datax[i1:i2], datay[i1:i2], Iparts[part], *ranges)
+					#histo2d(datax[part::parts], datay[part::parts], Iparts[part], np.min(datax), np.max(datax), np.min(datay), np.max(datay))
+				histo2d_par(range(parts))
+				I = np.sum(Iparts, axis=0)
+			else:
+				I = np.zeros((parts, 128, 128), dtype=np.int32)
+				histo2d(datax, datay, Iparts, np.min(datax), np.max(datax), np.min(datay), np.max(datay))
+				I = np.sum(I, axis=0)
+			print "it took", time.time()-t0
+			
+			#I, x, y = np.histogram2d(self.data.columns[x], self.data.columns[y], bins=128)
+			#print res
+			#I = res
+			
+			#self.axes.imshow(np.log10(I), origin="lower", extent=ranges)
+			self.axes.imshow((I), origin="lower", extent=ranges)
+			self.axes.set_aspect('auto')
+		if self.selected_serie_index is not None:
+			#self.axes.autoscale(False)
+			x, y = self.datax[self.selected_serie_index],  self.datay[self.selected_serie_index]
+			print "drawing selected point at", x, y
+			self.axes.scatter([x], [y], color='red') #, scalex=False, scaley=False)
+		self.canvas.draw()
+
+
+class ScatterSeries1dPlotDialog(QtGui.QDialog):
+	def __init__(self, parent, data, width=5, height=4, dpi=100):
+		super(ScatterSeries1dPlotDialog, self).__init__(parent)
+		self.resize(500,500)
+		self.data = data
+		
+		self.fig = Figure(figsize=(width, height), dpi=dpi)
+		self.axes = self.fig.add_subplot(111)
+		self.axes.hold(True)
+		
+		self.currentYIndex = 1
+		self.selected_serie_index = None
+		y = self.data.rank1names[self.currentYIndex]
+		yseries = self.data.rank1s[y]
+		self.datay = yseries[:,self.data.selected_row_index]
+		
+		
+		self.canvas =  FigureCanvas(self.fig)
+		self.canvas.setParent(self)
+
+		self.plot()
+		FigureCanvas.setSizePolicy(self,
+									QtGui.QSizePolicy.Expanding,
+									QtGui.QSizePolicy.Expanding)
+		FigureCanvas.updateGeometry(self)
+
+		self.boxlist = QtGui.QVBoxLayout(self)
+		
+		self.form_layout = QtGui.QFormLayout()
+		
+		self.yname = QtGui.QComboBox(self)
+		self.form_layout.addRow('Y-axis:', self.yname)
+		self.yname.addItems(self.data.rank1names)
+		self.yname.setCurrentIndex(1)
+		self.yname.currentIndexChanged.connect(self.onY)
+		
+		self.boxlist.addWidget(self.canvas, 1)
+		self.boxlist.addLayout(self.form_layout, 0)
+		self.setLayout(self.boxlist)
+		self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+		self.data.row_selection_listeners.append(self.onRowSelect)
+		self.data.serie_index_selection_listeners.append(self.onSerieIndexSelect)
+
+	def onclick(self, event):
+		print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'% (event.button, event.x, event.y, event.xdata, event.ydata)
+		x, y = event.xdata, event.ydata
+		#selected_index = find_nearest_index1d(self.datay, y)
+		selected_index = int(x)
+		print "nearest selected_index", selected_index, self.datay[selected_index]
+		self.data.selectSerieIndex(selected_index)
+		
+	def onRowSelect(self, row):
+		y = self.data.rank1names[self.currentYIndex]
+		yseries = self.data.rank1s[y]
+		self.datay = yseries[:,self.data.selected_row_index]
+		self.plot()
+		
+	def onSerieIndexSelect(self, serie_index):
+		self.selected_serie_index = serie_index
+		self.plot()
+		
+	def onY(self, index):
+		print "y changed", index
+		self.currentYIndex = index
+		y = self.data.rank1names[self.currentYIndex]
+		yseries = self.data.rank1s[y]
+		self.datay = yseries[:,self.data.selected_row_index]
+		self.plot()
+
+
+	def plot(self):
+		self.axes.cla()
+		#x = np.arange(0,10,0.01)
+		#y = x**x
+		
+
+
+		self.axes.plot(self.datay)
+		#self.axes.imshow(xseries, origin="lower") #, extent=ranges)
+		#self.axes.set_aspect('auto')
+		if 0:
+			#datax = self.data.columns[x][slice(*self.data.current_slice)]
+			#datay = self.data.columns[y][slice(*self.data.current_slice)]
+			#ranges = np.nanmin(datax), np.nanmax(datax), np.nanmin(datay), np.nanmax(datay)
+			t0 = time.time()
+			if 1:
+				parts = 20
+				Iparts = np.zeros((parts, 128, 128))
+				Iparts = mab.utils.numpy.mmapzeros((parts, 128, 128), dtype=np.int32)
+				@parallelize(cores=QtCore.QThread.idealThreadCount())
+				def histo2d_par(part):
+					N = self.data._length
+					i1 = (N / parts) * part
+					i2 = (N / parts) * (part+1)
+					#print i1, i2
+					histo2d(datax[i1:i2], datay[i1:i2], Iparts[part], *ranges)
+					#histo2d(datax[part::parts], datay[part::parts], Iparts[part], np.min(datax), np.max(datax), np.min(datay), np.max(datay))
+				histo2d_par(range(parts))
+				I = np.sum(Iparts, axis=0)
+			else:
+				I = np.zeros((parts, 128, 128), dtype=np.int32)
+				histo2d(datax, datay, Iparts, np.min(datax), np.max(datax), np.min(datay), np.max(datay))
+				I = np.sum(I, axis=0)
+			print "it took", time.time()-t0
+			
+			#I, x, y = np.histogram2d(self.data.columns[x], self.data.columns[y], bins=128)
+			#print res
+			#I = res
+			
+			#self.axes.imshow(np.log10(I), origin="lower", extent=ranges)
+			self.axes.imshow((I), origin="lower", extent=ranges)
+			self.axes.set_aspect('auto')
+		if self.selected_serie_index is not None:
+			x, y = self.selected_serie_index, self.datay[self.selected_serie_index]
+			print "drawing selected point at", x, y
+			self.axes.scatter([x], [y], color='red') #, scalex=False, scaley=False)
+			
 		self.canvas.draw()
 
 
@@ -525,7 +1394,9 @@ class Example(QtGui.QMainWindow):
 
         
         
-		self.list = DataList(self.left) 
+		self.list = DataList(self.left)
+		self.list.setMinimumWidth(300)
+		#self.list.resize(30
 		
 		self.boxlist = QtGui.QHBoxLayout(self)
 		self.boxlist.addWidget(self.list)
@@ -576,8 +1447,8 @@ class Example(QtGui.QMainWindow):
 
 def main():
 	app = QtGui.QApplication(sys.argv)
-
 	ex = Example()
+	ex.raise_()
 	#w = QtGui.QWidget()
 	#w.resize(250, 150)
 	#w.move(300, 300)

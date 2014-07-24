@@ -5,9 +5,10 @@ import logging
 import logging.handlers
 from logging import getLogger
 
+#logging.basicConfig(level=logging.ERROR)
 logging.basicConfig(level=logging.ERROR)
 rootlogger = logging.getLogger('gavi')
-rootlogger.setLevel(logging.INFO)
+rootlogger.setLevel(logging.DEBUG)
 
 LEVELS = {'debug': logging.DEBUG,
           'info': logging.INFO,

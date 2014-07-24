@@ -43,7 +43,6 @@ h5file = h5py.File(h5filename, "r", driver="core")
 data = h5file["data"]
 
 if options.all:
-	#compute_min_max(data)
 	column_names = data.keys()
 elif (len(args) == 1) and not options.all:
 	print "add column names after filename or use -a/--all for all"
