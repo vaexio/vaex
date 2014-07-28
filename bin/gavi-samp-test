@@ -12,8 +12,110 @@ import time
 import itertools
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbarQt
 from matplotlib.figure import Figure
+import matplotlib
+from matplotlib.widgets import Lasso, LassoSelector
+import gavi.selection
 
+class NavigationToolbar(NavigationToolbarQt):
+	def __init__(self, canvas, axes, parent):
+		self.toolitems = [k for k in self.toolitems if (k[0] is None) or (k[0].lower() in "home pan zoom")]
+		#self.toolitems.append()
+		super(NavigationToolbar, self).__init__(canvas, parent)
+		self.parent = parent
+		self.axes = axes
+		#self.basedir = os.path.join(matplotlib.rcParams[ 'datapath' ],'images')
+		#print self.basedir
+		self.extra_toolitems = [
+			('Select', 'Select point', 'filesave', 'select_point'),
+			('Lasso', 'Lasso select', 'matplotlib', 'select_lasso'),
+						  ]
+		for text, tooltip_text, image_file, callback in self.extra_toolitems:
+			a = self.addAction(self._icon(image_file + '.png'), text, getattr(self, callback))
+			a.setCheckable(True)
+			self._actions[callback] = a
+			if tooltip_text is not None:
+				a.setToolTip(tooltip_text)
+		self._idPress = None
+		self._idRelease = None
+		self.lasso = None
+		
+	def sync_buttons(self):
+		self._actions['select_point'].setChecked(self._active == 'SELECT_POINT')
+		self._actions['select_lasso'].setChecked(self._active == 'SELECT_LASSO')
+
+	def select_point(self, *args):
+		print self._active
+		name = 'SELECT_POINT'
+		self._active = None if self._active == name else name
+		self.sync_buttons()
+		if self._idPress is not None:
+			self._idPress = self.canvas.mpl_disconnect(self._idPress)
+			self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
+
+		if self.lasso:
+			self.lasso.active = False
+			self.lasso.disconnect_events()
+			self.lasso = None
+			
+		if self._active == name:
+			self._idPress = self.canvas.mpl_connect(
+                'button_press_event', self.parent.press_select_point)
+			self.canvas.widgetlock(self)
+			self.set_message('select point')
+		else:
+			self.canvas.widgetlock.release(self)
+			self.set_message('')
+	
+	def select_lasso(self, *args):
+		print self._active
+		name = 'SELECT_LASSO'
+		self._active = None if self._active == name else name
+		self.sync_buttons()
+		if self._idPress is not None:
+			self._idPress = self.canvas.mpl_disconnect(self._idPress)
+			self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
+            
+		if self._active == name:
+			#self._idPress = self.canvas.mpl_connect('button_press_event', self.press_select_lasso)
+			#self._idPress = self.canvas.mpl_connect('button_release_event', self.release_select_lasso)
+			#self.canvas.widgetlock(self)
+			#self.lasso = LassoSelector(evt.inaxes, (evt.xdata, evt.ydata), self.lasso_callback)
+			self.lasso = LassoSelector(self.axes, self.lasso_callback)
+			self.canvas.draw()
+			self.set_message('lasso select point')
+		else:
+			#self.canvas.widgetlock.release(self)
+			#self.set_message('')
+			self.lasso.active = False
+			self.lasso.disconnect_events()
+			self.lasso = None
+
+	def press_select_lasso(self, evt):
+		print "lasso", self.canvas.widgetlock.locked()
+		self.canvas.draw()
+		if not self.canvas.widgetlock.locked():
+			self.canvas.widgetlock(self.lasso)
+
+	def release_select_lasso(self, evt):
+		if self.lasso:
+			self.canvas.widgetlock.release(self.lasso)
+			self.lasso = None
+		self.canvas.draw()
+			
+		
+	def lasso_callback(self, vertices):
+		print vertices
+		x, y = np.array(vertices).T
+		mask = np.zeros(len(self.parent.datax), dtype=np.uint8)
+		meanx = x.mean()
+		meany = y.mean()
+		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
+		print (x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
+		gavi.selection.pnpoly(x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
+		self.parent.set_mask(mask)
+	
 #from PySide import QtGui, QtCore
 try:
 	from PyQt4 import QtGui, QtCore
@@ -90,7 +192,8 @@ class DataList(QtGui.QListWidget):
 		self.addGadget2("/home/data/gavi/egpbos/snap_008")
 		self.addHdf5("/Users/users/breddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
 		
-		hmmap = HansMemoryMapped("/net/pannekoek/data/users/buist/Research/2014 Simulation Data/12Orbits/Integration/Orbitorb9.ac8.10000.100.5.orb.bin")
+		
+		hmmap = HansMemoryMapped("data/Orbitorb9.ac8.10000.100.5.orb.bin")
 		self.addDataset(hmmap)
 		
 		
@@ -749,8 +852,8 @@ from numba import jit
 import numba
 print numba.__version__
 import math
-#@jit('(f4[:],f4[:], i4[:,:], f4, f4, f4, f4)')
-@jit
+@jit('(f8[:],f8[:], i4[:,:], f8, f8, f8, f8)')
+#@jit
 def histo2d(x, y, counts, dataminx, datamaxx, dataminy, datamaxy):
 	length = len(x)
 	#counts = np.zeros((bincountx, bincounty), dtype=np.int32)
@@ -798,7 +901,7 @@ import mab.utils.numpy
 class ScatterPlotDialog(QtGui.QDialog):
 	def __init__(self, parent, data, width=5, height=4, dpi=100):
 		super(ScatterPlotDialog, self).__init__(parent)
-		self.resize(500,500)
+		self.resize(700,700)
 		self.data = data
 		
 		self.fig = Figure(figsize=(width, height), dpi=dpi)
@@ -820,11 +923,14 @@ class ScatterPlotDialog(QtGui.QDialog):
 		
 		self.selected_row = None
 
+		self.mask = None
 		self.plot()
 		FigureCanvas.setSizePolicy(self,
 									QtGui.QSizePolicy.Expanding,
 									QtGui.QSizePolicy.Expanding)
 		FigureCanvas.updateGeometry(self)
+		
+		self.mpl_toolbar = NavigationToolbar(self.canvas, self.axes, self)
 
 		self.boxlist = QtGui.QVBoxLayout(self)
 		
@@ -842,20 +948,29 @@ class ScatterPlotDialog(QtGui.QDialog):
 		self.yname.currentIndexChanged.connect(self.onY)
 		
 		self.boxlist.addWidget(self.canvas, 1)
+		self.boxlist.addWidget(self.mpl_toolbar, 1)
 		self.boxlist.addLayout(self.form_layout, 0)
 		self.setLayout(self.boxlist)
 		
-		self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+		#self.fig.canvas.mpl_connect('button_press_event', self.onclick)
 		self.data.row_selection_listeners.append(self.onRowSelect)
 		import matplotlib.widgets
 		#self.lasso = matplotlib.widgets.LassoSelector(self.axes, self.onLassoSelect)
 		#self.rectselect = matplotlib.widgets.RectangleSelector(self.axes, self.onLassoSelect)
 		#self.spanselect = matplotlib.widgets.SpanSelector(self.axes, self.onLassoSelect, 'horizontal')
+		self.data.mask_listeners.append(self.onMaskSelect)
+		
+	def onMaskSelect(self, mask):
+		self.mask = mask
+		self.plot()
+
+	def set_mask(self, mask):
+		self.data.selectMask(mask)
 		
 	def onLassoSelect(self, *args):
 		print args
 		
-	def onclick(self, event):
+	def press_select_point(self, event):
 		print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'% (event.button, event.x, event.y, event.xdata, event.ydata)
 		px, py = event.xdata, event.ydata
 		x = self.data.column_names[self.currentXIndex]
@@ -900,8 +1015,17 @@ class ScatterPlotDialog(QtGui.QDialog):
 		#x = self.data.column_names[self.currentXIndex]
 		#y = self.data.column_names[self.currentYIndex]
 
+		dataxsel, dataysel = None, None
 		datax = self.datax 
-		datay = self.datay 
+		datay = self.datay
+		if self.mask is not None:
+			print self.mask
+			print sum(self.mask)
+			dataxsel = datax[self.mask==1]
+			dataysel = datay[self.mask==1]
+			print dataxsel
+			print len(dataxsel)
+		
 		ranges = np.nanmin(datax), np.nanmax(datax), np.nanmin(datay), np.nanmax(datay)
 		t0 = time.time()
 		if 1:
@@ -910,10 +1034,10 @@ class ScatterPlotDialog(QtGui.QDialog):
 			Iparts = mab.utils.numpy.mmapzeros((parts, 128, 128), dtype=np.int32)
 			@parallelize(cores=QtCore.QThread.idealThreadCount())
 			def histo2d_par(part):
-				N = self.data._length
+				N = len(datax)
 				i1 = (N / parts) * part
 				i2 = (N / parts) * (part+1)
-				#print i1, i2
+				print i1, i2,datax[i1:i2],datay[i1:i2], Iparts[part], ranges
 				histo2d(datax[i1:i2], datay[i1:i2], Iparts[part], *ranges)
 				#histo2d(datax[part::parts], datay[part::parts], Iparts[part], np.min(datax), np.max(datax), np.min(datay), np.max(datay))
 			histo2d_par(range(parts))
@@ -923,12 +1047,28 @@ class ScatterPlotDialog(QtGui.QDialog):
 			histo2d(datax, datay, Iparts, np.min(datax), np.max(datax), np.min(datay), np.max(datay))
 			I = np.sum(I, axis=0)
 		print "it took", time.time()-t0
+		if dataxsel is not None:
+			parts = 20
+			Iparts = np.zeros((parts, 128, 128))
+			Iparts = mab.utils.numpy.mmapzeros((parts, 128, 128), dtype=np.int32)
+			@parallelize(cores=QtCore.QThread.idealThreadCount())
+			def histo2d_par(part):
+				N = len(dataxsel)
+				i1 = (N / parts) * part
+				i2 = (N / parts) * (part+1)
+				print i1, i2,dataxsel[i1:i2],dataysel[i1:i2], Iparts[part], ranges
+				histo2d(dataxsel[i1:i2], dataysel[i1:i2], Iparts[part], *ranges)
+				#histo2d(datax[part::parts], datay[part::parts], Iparts[part], np.min(datax), np.max(datax), np.min(datay), np.max(datay))
+			histo2d_par(range(parts))
+			Is = np.sum(Iparts, axis=0)
 		
 		#I, x, y = np.histogram2d(self.data.columns[x], self.data.columns[y], bins=128)
 		#print res
 		#I = res
 		
-		self.axes.imshow(np.log10(I.T), origin="lower", extent=ranges)
+		self.axes.imshow(np.log10(I.T), origin="lower", extent=ranges, alpha=1 if dataxsel is None else 0.4)
+		if dataxsel is not None:
+			self.axes.imshow(np.log10(Is.T), origin="lower", extent=ranges, alpha=1)
 		#self.axes.imshow((I), origin="lower", extent=ranges)
 		self.axes.set_aspect('auto')
 		if self.selected_row is not None:
@@ -936,6 +1076,8 @@ class ScatterPlotDialog(QtGui.QDialog):
 			x, y = self.datax[self.selected_row],  self.datay[self.selected_row]
 			print "drawing selected point at", x, y
 			self.axes.scatter([x], [y], color='red') #, scalex=False, scaley=False)
+		#if dataxsel is not None:
+		#	self.axes.scatter(dataxsel, dataysel)
 		self.canvas.draw()
 		
 		
