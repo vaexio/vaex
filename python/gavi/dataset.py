@@ -25,9 +25,15 @@ class MemoryMapped(object):
 		self.selected_row_index = 0
 		self.row_selection_listeners = []
 		self.serie_index_selection_listeners = []
+		self.mask_listeners = []
 		self.all_columns = {}
 		self.all_column_names = []
-		
+		self.mask = None
+
+	def selectMask(self, mask):
+		self.mask = mask
+		for mask_listener in self.mask_listeners:
+			mask_listener(mask)
 		
 		
 	def selectRow(self, index):
