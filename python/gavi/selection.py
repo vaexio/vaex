@@ -1,10 +1,11 @@
+# -*- coding: utf-8 -*-
 # from http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html		
 
 from numba import jit
 
 #@jit('(f4[:], f4[:], f4[:], f4[:], u1[:], f8, f8, f8)', nopython=True)
-@jit('(f8[:], f8[:], f8[:], f8[:], u1[:], f8, f8, f8)', nopython=True)
-#@jit(nopython=True)
+#@jit('(f8[:], f8[:], f8[:], f8[:], u1[:], f8, f8, f8)', nopython=True)
+@jit(nopython=True)
 def pnpoly(vertx, verty, testx, testy, inside, meanx, meany, radius):
 	nvert = len(vertx)
 	ntest = len(testx)

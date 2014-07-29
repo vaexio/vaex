@@ -2,6 +2,7 @@
 import h5py
 import mmap
 import numpy as np
+import os
 
 def error(title, msg):
 	print "Error", title, msg
@@ -10,7 +11,8 @@ def error(title, msg):
 class MemoryMapped(object):
 	def __init__(self, filename, write=False):
 		self.filename = filename
-		self.name = self.filename
+		self.write = write
+		self.name = os.path.basename(self.filename)
 		self.file = file(self.filename, "r+" if write else "r")
 		self.fileno = self.file.fileno()
 		self.mapping = mmap.mmap(self.fileno, 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
@@ -22,13 +24,22 @@ class MemoryMapped(object):
 		self.fraction = 1.0
 		self.rank1s = {}
 		self.rank1names = []
-		self.selected_row_index = 0
+		self.selected_row_index = None
 		self.row_selection_listeners = []
 		self.serie_index_selection_listeners = []
 		self.mask_listeners = []
 		self.all_columns = {}
 		self.all_column_names = []
 		self.mask = None
+		self.file_map = {filename: self.file}
+		self.fileno_map = {filename: self.fileno}
+		self.mapping_map = {filename: self.mapping}
+		
+	def addFile(self, filename, write=False):
+		self.file_map[filename] = file(filename, "r+" if write else "r")
+		self.fileno_map[filename] = self.file_map[filename].fileno()
+		self.mapping_map[filename] = mmap.mmap(self.fileno_map[filename], 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
+
 
 	def selectMask(self, mask):
 		self.mask = mask
@@ -54,8 +65,13 @@ class MemoryMapped(object):
 	def setFraction(self, fraction):
 		self.fraction = fraction
 		self.current_slice = (0, int(self._length * fraction))
+		self.selectMask(None)
+		self.selectRow(None)
 		
-	def addColumn(self, name, offset, length, dtype=np.float64, stride=None):
+	def addColumn(self, name, offset, length, dtype=np.float64, stride=None, filename=None):
+		if filename is None:
+			filename = self.filename
+		mapping = self.mapping_map[filename]
 		if self._length is not None and length != self._length:
 			error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
 		else:
@@ -64,7 +80,7 @@ class MemoryMapped(object):
 				self.fraction = 1.
 			self._length = length
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
-			mmapped_array = np.frombuffer(self.mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
+			mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
 			if stride:
 				#import pdb
 				#pdb.set_trace()
@@ -77,7 +93,10 @@ class MemoryMapped(object):
 			self.nColumns += 1
 			self.nRows = self._length
 			
-	def addRank1(self, name, offset, length, length1, dtype=np.float64, stride=1, stride1=1):
+	def addRank1(self, name, offset, length, length1, dtype=np.float64, stride=1, stride1=1, filename=None):
+		if filename is None:
+			filename = self.filename
+		mapping = self.mapping_map[filename]
 		if self._length is not None and length != self._length:
 			error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
 		else:
@@ -93,7 +112,7 @@ class MemoryMapped(object):
 			print rawlength * 8, offset, self.mapping.size()
 			#import pdb
 			#pdb.set_trace()
-			mmapped_array = np.frombuffer(self.mapping, dtype=dtype, count=rawlength, offset=offset)
+			mmapped_array = np.frombuffer(mapping, dtype=dtype, count=rawlength, offset=offset)
 			mmapped_array = mmapped_array.reshape((length1*stride1, length*stride))
 			mmapped_array = mmapped_array[::stride1,::stride]
 			self.rank1s[name] = mmapped_array
@@ -108,7 +127,7 @@ class MemoryMapped(object):
 import struct
 class HansMemoryMapped(MemoryMapped):
 	
-	def __init__(self, filename):
+	def __init__(self, filename, filename_extra=None):
 		super(HansMemoryMapped, self).__init__(filename)
 		self.pageSize, \
 		self.formatSize, \
@@ -119,7 +138,7 @@ class HansMemoryMapped(MemoryMapped):
 		self.dataOffset, \
 		self.dataHeaderSize = struct.unpack("Q"*8, self.mapping[:8*8])
 		print "offset", self.dataOffset, self.formatSize, self.numberParticles, self.numberTimes
-		offset = self.dataOffset
+		zerooffset = offset = self.dataOffset
 		length = self.numberParticles+1
 		stride = self.formatSize/8 # stride in units of the size of the element (float64)
 		
@@ -128,29 +147,50 @@ class HansMemoryMapped(MemoryMapped):
 		t_index = 3
 		names = "x y z vx vy vz".split()
 		midoffset = offset + (self.numberParticles+1)*self.formatSize*t_index
+		names = "x y z vx vy vz".split()
 
+		for i, name in enumerate(names):
+			self.addColumn(name+"_0", offset+8*i, length, dtype=np.float64, stride=stride)
+			
 		for i, name in enumerate(names):
 			self.addColumn(name+"_last", lastoffset+8*i, length, dtype=np.float64, stride=stride)
 		
-		for i, name in enumerate(names):
-			self.addColumn(name+"_mid", midoffset+8*i, length, dtype=np.float64, stride=stride)
+		#for i, name in enumerate(names):
+		#	self.addColumn(name+"_mid", midoffset+8*i, length, dtype=np.float64, stride=stride)
+		
 
 		names = "x y z vx vy vz".split()
-		for i, name in enumerate(names):
-			self.addColumn(name+"0", offset+8*i, length, dtype=np.float64, stride=stride)
-			
-		names = "x y z vx vy vz".split()
-		import pdb
+		#import pdb
 		#pdb.set_trace()
 		if 1:
 			stride = self.formatSize/8 
-			stride1 = self.numberTimes #*self.formatSize/8 
+			#stride1 = self.numberTimes #*self.formatSize/8 
 			#print (self.numberParticles+1)
-			print stride, stride1
+			#print stride, stride1
 			for i, name in enumerate(names):
 				print name, offset
 				# TODO: ask Hans for the self.numberTimes-1
 				self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1)
+				
+		if filename_extra is not None:
+			self.addFile(filename_extra)
+			mapping = self.mapping_map[filename_extra]
+			names = "J_r J_theta J_phi Theta_r Theta_theta Theta_phi Omega_r Omega_theta Omega_phi r_apo r_peri".split()
+			offset = 0
+			stride = 11
+			#import pdb
+			#pdb.set_trace()
+			for i, name in enumerate(names):
+				print name, offset
+				# TODO: ask Hans for the self.numberTimes-1
+				self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
+				print "min/max", np.min(self.rank1s[name]), np.max(self.rank1s[name]), offset+8*i, self.rank1s[name][0][0]
+				#for i, name in enumerate(names):
+				
+				self.addColumn(name+"_0", offset+8*i, length, dtype=np.float64, stride=stride, filename=filename_extra)
+				self.addColumn(name+"_last", offset+8*i + (self.numberParticles+1)*(self.numberTimes-2)*11*8, length, dtype=np.float64, stride=stride, filename=filename_extra)
+			
+			
 
 		#for i, name in enumerate(names):
 		#	self.addColumn(name+"_last", offset+8*i + (self.formatSize*(self.numberTimes-1)), length, dtype=np.float64, stride=stride)
