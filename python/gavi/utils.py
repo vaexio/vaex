@@ -8,7 +8,7 @@ class Timer(object):
 		self.name = name
 
 	def __enter__(self):
-		print '[%s starting]...' % self.name,
+		print '[%s starting]...' % self.name
 		self.tstart = time.time()
 
 	def __exit__(self, type, value, traceback):

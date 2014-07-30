@@ -191,12 +191,14 @@ class DataList(QtGui.QListWidget):
 		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
 		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
 		
-		self.addGadget2("/home/data/gavi/egpbos/snap_008")
+		#self.addGadget2("/home/data/gavi/egpbos/snap_008")
 		self.addHdf5("/Users/users/breddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
 		
 		
 		hmmap = HansMemoryMapped("data/Orbitorb9.ac8.10000.100.5.orb.bin", "data/Orbitorb9.ac8.10000.100.5.orb.omega2")
 		self.addDataset(hmmap)
+		
+		self.addHdf5('/home/data/gavi/Aq-A-2-999-shuffled.hdf5')
 		
 		
 	def setBestFraction(self, dataset):
@@ -1025,6 +1027,8 @@ class PlotDialog(QtGui.QDialog):
 
 		self.boxlayout = QtGui.QVBoxLayout(self)
 
+		self.xmin_show, self.xmax_show = None, None
+		self.ymin_show, self.ymax_show = None, None
 		self.xmin, self.xmax = None, None
 		self.ymin, self.ymax = None, None
 		self.currentMode = None
@@ -1044,6 +1048,13 @@ class PlotDialog(QtGui.QDialog):
 		self.currentMode = None
 		self.dataset.mask_listeners.append(self.onSelectMask)
 		self.dataset.row_selection_listeners.append(self.onSelectRow)
+		
+	def closeEvent(self, event):
+		print "close event"
+		self.dataset.mask_listeners.remove(self.onSelectMask)
+		self.dataset.row_selection_listeners.remove(self.onSelectRow)
+		
+		super(PlotDialog, self).closeEvent(event)
 			
 	def onSelectMask(self, mask):
 		self.compute()
@@ -1160,14 +1171,14 @@ class PlotDialog(QtGui.QDialog):
 	def onZoomX(self, xmin, xmax):
 		#print "zoom x", xmin, xmax
 		#self.
-		self.xmin, self.xmax = xmin, xmax
+		self.xmin_show, self.xmax_show = xmin, xmax
 		#self.axes.set_xlim(self.xmin, self.xmax)
 		#self.canvas.draw()
 		self.plot()
 		
 	def onZoomY(self, ymin, ymax):
-		self.ymin, self.ymax = ymin, ymax
-		self.axes.set_ylim(self.ymin, self.ymax)
+		self.ymin_show, self.ymax_show = ymin, ymax
+		self.axes.set_ylim(self.ymin_show, self.ymax_show)
 		#self.canvas.draw()
 		self.plot()
 		
@@ -1177,32 +1188,41 @@ class PlotDialog(QtGui.QDialog):
 		x = [x1, x2]
 		y = [y1, y2]
 		
-		self.xmin, self.xmax = min(x), max(x)
-		self.ymin, self.ymax = min(y), max(y)
+		self.xmin_show, self.xmax_show = min(x), max(x)
+		self.ymin_show, self.ymax_show = min(y), max(y)
 		
-		self.axes.set_xlim(self.xmin, self.xmax)
-		self.axes.set_ylim(self.ymin, self.ymax)
+		self.axes.set_xlim(self.xmin_show, self.xmax_show)
+		self.axes.set_ylim(self.ymin_show, self.ymax_show)
 		#self.canvas.draw()
 		self.plot()
 		
 	def onZoomOut(self, *args):
 		xmin, xmax = self.axes.get_xlim()
 		width = xmax - xmin
-		self.xmin, self.xmax = xmin - width , xmax + width
-		self.axes.set_xlim(self.xmin, self.xmax)
+		self.xmin_show, self.xmax_show = xmin - width , xmax + width
+		self.axes.set_xlim(self.xmin_show, self.xmax_show)
 		ymin, ymax = self.axes.get_ylim()
 		height = ymax - ymin
-		self.ymin, self.ymax = ymin - height, ymax + height
-		self.axes.set_ylim(self.ymin, self.ymax)
+		self.ymin_show, self.ymax_show = ymin - height, ymax + height
+		self.axes.set_ylim(self.ymin_show, self.ymax_show)
 		#self.canvas.draw()
 		self.plot()
 		
 	def onZoomFit(self, *args):
-		self.xmin, self.xmax = self.getxrange()
-		self.ymin, self.ymax = self.getyrange()
-		self.axes.set_xlim(self.xmin, self.xmax)
-		self.axes.set_ylim(self.ymin, self.ymax)
+		self.xmin_show, self.xmax_show = self.getxrange()
+		self.ymin_show, self.ymax_show = self.getyrange()
+		self.axes.set_xlim(self.xmin_show, self.xmax_show)
+		self.axes.set_ylim(self.ymin_show, self.ymax_show)
 		#self.canvas.draw()
+		self.plot()
+		
+	def onZoomUse(self, *args):
+		self.xmin, self.xmax = self.xmin_show, self.xmax_show
+		self.ymin, self.ymax = self.ymin_show, self.ymax_show
+		#self.axes.set_xlim(self.xmin, self.xmax)
+		#self.axes.set_ylim(self.ymin, self.ymax)
+		#self.canvas.draw()
+		self.compute()
 		self.plot()
 		
 	def addToolbar(self, layout, pick=True, xselect=True, yselect=True, lasso=True):
@@ -1222,6 +1242,7 @@ class PlotDialog(QtGui.QDialog):
 		self.action_zoom_y = QtGui.QAction(QtGui.QIcon(iconfile('glue_zoom_to_rect')), '&Zoom y', self)        
 		self.action_zoom_out = QtGui.QAction(QtGui.QIcon(iconfile('glue_zoom_to_rect')), '&Zoom out', self)        
 		self.action_zoom_fit = QtGui.QAction(QtGui.QIcon(iconfile('glue_move')), '&Zoom to fit', self)        
+		self.action_zoom_use = QtGui.QAction(QtGui.QIcon(iconfile('glue_move')), '&Use zoom area', self)        
 
 		#self.zoomButton = QtGui.QToolButton(self, )
 		#$self.zoomButton.setIcon(QtGui.QIcon(iconfile('glue_zoom_to_rect')))
@@ -1271,6 +1292,7 @@ class PlotDialog(QtGui.QDialog):
 		self.actionGroup.triggered.connect(self.setMode)
 		self.action_zoom_out.triggered.connect(self.onZoomOut)
 		self.action_zoom_fit.triggered.connect(self.onZoomFit)
+		self.action_zoom_use.triggered.connect(self.onZoomUse)
 		#action_zoom_out
 		self.action_pick.setCheckable(True)
 		self.action_pick.setChecked(True)
@@ -1962,8 +1984,8 @@ class ScatterSeries2dPlotDialog(QtGui.QDialog):
 		xseries = self.data.rank1s[x]
 		yseries = self.data.rank1s[y]
 		
-		self.datax = xseries[:,self.data.selected_row_index]
-		self.datay = yseries[:,self.data.selected_row_index]
+		self.datax = xseries[:,0 if self.data.selected_row_index is None else self.data.selected_row_index]
+		self.datay = yseries[:,0 if self.data.selected_row_index is None else self.data.selected_row_index]
 
 		
 		self.canvas =  FigureCanvas(self.fig)
@@ -2101,7 +2123,7 @@ class ScatterSeries1dPlotDialog(QtGui.QDialog):
 		self.selected_serie_index = None
 		y = self.data.rank1names[self.currentYIndex]
 		yseries = self.data.rank1s[y]
-		self.datay = yseries[:,self.data.selected_row_index]
+		self.datay = yseries[:,0 if self.data.selected_row_index is None else self.data.selected_row_index]
 		
 		
 		self.canvas =  FigureCanvas(self.fig)
