@@ -194,10 +194,11 @@ class DataList(QtGui.QListWidget):
 		self.addGadget2("/home/data/gavi/egpbos/snap_008")
 		self.addHdf5("/Users/users/breddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
 		
-		
-		hmmap = HansMemoryMapped("data/Orbitorb9.ac8.10000.100.5.orb.bin", "data/Orbitorb9.ac8.10000.100.5.orb.omega2")
-		self.addDataset(hmmap)
-		
+		try:
+			hmmap = HansMemoryMapped("data/Orbitorb9.ac8.10000.100.5.orb.bin", "data/Orbitorb9.ac8.10000.100.5.orb.omega2")
+			self.addDataset(hmmap)
+		except:
+			print "oops"
 		
 	def setBestFraction(self, dataset):
 		Nmax = 1000*1000*10
@@ -662,7 +663,7 @@ class RankDialog(QtGui.QDialog):
 				self.tabs.setCurrentWidget(self.subspaceTabs[dim])
 			
 			
-		self.subspace2d.clicked.connect(onclick)
+		self.subspace2d.clicked.connect(functools.partial(onclick, dim=2))
 		
 		
 		self.tab1dlayout = QtGui.QVBoxLayout(self)
