@@ -19,6 +19,55 @@ from matplotlib.widgets import Lasso, LassoSelector
 import matplotlib.widgets 
 import gavi.selection
 import gavi.kld
+import gavi.utils
+
+import subspacefind
+import ctypes
+import numexpr as ne
+
+if 0:
+	N = 1e9
+	array = np.arange(N)
+	counts = np.zeros(10, dtype=np.float64)
+	if 0:
+		#ptr = array.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+		col_a = subspacefind.make_column(array)
+		#col_b = subspacefind.make_column(array)
+		col_b = subspacefind.SquareColumn(col_a)
+		col_b2 = subspacefind.SquareColumn(col_b)
+		col_b3 = subspacefind.SquareColumn(col_b2)
+		col_b4 = subspacefind.SquareColumn(col_b3)
+		col_c = subspacefind.DivConstColumn(col_b4, N**2)
+
+		print col_a.get(10)
+		#array[:] = array**2/N**2
+		print col_a.get(10)
+		print col_c.get(10)
+		print sum(counts)
+
+		with gavi.utils.Timer("hist"):
+			subspacefind.histogram1d(col_c, counts, 0., 1.)
+	else:
+		step = 1000
+		res = array[:len(array)/step] * 0.0
+		Nstep = len(res)
+		col_c = subspacefind.make_column(res)
+		#ne.set_num_threads(10)
+		vmax = None
+		with gavi.utils.Timer("hist"):
+			for i in range(step):
+				a = array[i*Nstep:(i+1)*Nstep]
+				#ne.evaluate("log(a)**2/N**2", out=res)
+				ne.evaluate("sqrt(a**2+a**3)", out=res)
+				if vmax is None:
+					vmax = res.max()
+				else:
+					vmax = max(vmax, res.max())
+				subspacefind.histogram1d(col_c, counts, 0., 1.)
+		print  vmax
+	print counts
+	#col_a = subspacefind.DoubleColumn(array)
+	sys.exit(0)
 
 class NavigationToolbar(NavigationToolbarQt):
 	def __init__(self, canvas, axes, parent):
@@ -184,9 +233,9 @@ class DataList(QtGui.QListWidget):
 		self.addHdf5("/home/data/gavi/rave/rave-dr5-shuffled.hdf5")
 		self.addHdf5("/home/data/gavi/helmi2000-FeH-s2.hdf5")
 		
-		self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_nfw_soft/output/snapshot_213.hdf5")
-		self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_einasto_2kpc_fornax/IC.hdf5")
-		self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/hernquist/gadget/hernquist_half/output/snapshot_000.hdf5")
+		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_nfw_soft/output/snapshot_213.hdf5")
+		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_einasto_2kpc_fornax/IC.hdf5")
+		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/hernquist/gadget/hernquist_half/output/snapshot_000.hdf5")
 		
 		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
 		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
@@ -199,7 +248,19 @@ class DataList(QtGui.QListWidget):
 			self.addDataset(hmmap)
 		except:
 			print "oops"
-		#self.addHdf5('/home/data/gavi/Aq-A-2-999-shuffled.hdf5')
+		self.addHdf5('/home/data/gavi/Aq-A-2-999-shuffled.hdf5')
+		
+		#self.addGadgetHdf5('/home/data/gavi/snap_800.hdf5')
+		# 0 - gas
+		# 1 - halo
+		# 2 disk
+		# 4 new stars
+		# 5 sat
+		
+		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
+			self.addGadgetHdf5('/home/data/gavi/disk2nv_N6N5_z0.1h_RfAs0.5H_no_H1_0.5_nH01_vw5s_ml50_st-snap_800.hdf5', name, index)
+		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
+			self.addGadgetHdf5('/home/data/gavi/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5', name, index)
 		
 	def setBestFraction(self, dataset):
 		Nmax = 1000*1000*10
@@ -237,10 +298,13 @@ class DataList(QtGui.QListWidget):
 			
 		
 	
-	def addGadgetHdf5(self, filename):
+	def addGadgetHdf5(self, filename, name, particleType):
 		if not os.path.exists(filename):
 			return
-		self.hdf5file = Hdf5MemoryMappedGadget(filename)
+		try:
+			self.hdf5file = Hdf5MemoryMappedGadget(filename, name, particleType)
+		except KeyError:
+			return
 		self.setBestFraction(self.hdf5file)
 		item = QtGui.QListWidgetItem(self)
 		item.setText(self.hdf5file.name)
@@ -1125,7 +1189,7 @@ class PlotDialog(QtGui.QDialog):
 				hasx = hasattr(self, "getdatax")
 				print "pick", hasx, hasy
 				axes_list = self.getAxesList()
-				self.currentModes = [matplotlib.widgets.Cursor(axes, hasy, hasx, color="red", linestyle="dashed", useblit=True) for axes in axes_list]
+				self.currentModes = [matplotlib.widgets.Cursor(axes, hasy, hasx, color="red", linestyle="dashed") for axes in axes_list]
 				if hasx and hasy:
 					for mode in self.currentModes:
 						mode.connect_event('button_press_event', self.onPickXY)
@@ -1136,21 +1200,21 @@ class PlotDialog(QtGui.QDialog):
 					for mode in self.currentModes:
 						mode.connect_event('button_press_event', self.onPickY)
 			if action == self.action_xrange:
-				self.currentMode = matplotlib.widgets.SpanSelector(self.axes, self.onSelectX, 'horizontal')
+				self.currentModes = [matplotlib.widgets.SpanSelector(self.axes, self.onSelectX, 'horizontal')]
 			if action == self.action_yrange:
-				self.currentMode = matplotlib.widgets.SpanSelector(self.axes, self.onSelectY, 'vertical')
+				self.currentModes = [matplotlib.widgets.SpanSelector(self.axes, self.onSelectY, 'vertical')]
 			if action == self.action_lasso:
-				self.currentMode = matplotlib.widgets.LassoSelector(self.axes, self.onSelectLasso)
+				self.currentModes =[ matplotlib.widgets.LassoSelector(self.axes, self.onSelectLasso)]
 				self.canvas.draw() # bug fix for LassoSelector
 			if action == self.action_zoom_x:
 				print "xrange"
-				self.currentMode = matplotlib.widgets.SpanSelector(self.axes, self.onZoomX, 'horizontal') #, rectprops={"color":"blue"})
+				self.currentModes = [matplotlib.widgets.SpanSelector(self.axes, self.onZoomX, 'horizontal')] #, rectprops={"color":"blue"})
 			if action == self.action_zoom_y:
 				print "yrange"
-				self.currentMode = matplotlib.widgets.SpanSelector(self.axes, self.onZoomY, 'vertical') #, rectprops={"color":"blue"})
+				self.currentModes = [matplotlib.widgets.SpanSelector(self.axes, self.onZoomY, 'vertical')] #, rectprops={"color":"blue"})
 			if action == self.action_zoom_rect:
 				print "rect"
-				self.currentMode = matplotlib.widgets.RectangleSelector(self.axes, self.onZoomRect) #, rectprops={"color":"blue"})
+				self.currentModes = [matplotlib.widgets.RectangleSelector(self.axes, self.onZoomRect)] #, rectprops={"color":"blue"})
 				
 		#if self.action_lasso
 		#pass
@@ -1184,6 +1248,9 @@ class PlotDialog(QtGui.QDialog):
 		data = self.getdatax()
 		x = [xmin, xmax]
 		xmin, xmax = min(x), max(x)
+		print "selectx", xmin, xmax
+		xmin = xmin if not self.useLogx() else 10**xmin
+		xmax = xmax if not self.useLogx() else 10**xmax
 		mask = (data >= xmin) & (data < xmax)
 		print "selectx", xmin, xmax, "selected", np.sum(mask)
 		self.dataset.selectMask(mask)
@@ -1586,8 +1653,24 @@ class PlotDialog1d(PlotDialog):
 		self.axisbox.setCurrentIndex(self.currentAxis)
 		self.axisbox.currentIndexChanged.connect(self.onAxis)
 		
+		self.logcheckbox = QtGui.QCheckBox(self)
+		self.logcheckbox.hide()
+		#self.form_layout.addRow('log10 ' +self.axisname, self.logcheckbox)
+		self.logcheckbox.stateChanged.connect(self.onChangeLog)
+
+
 		layout.addWidget(self.mpl_toolbar, 1)
 		layout.addLayout(self.form_layout, 0)
+		
+	def useLog(self):
+		return self.logcheckbox.checkState() == QtCore.Qt.Checked
+		
+	def useLogx(self):
+		return self.useLog()
+		
+	def onChangeLog(self):
+		self.compute()
+		self.plot()
 
 	def onAxis(self, index):
 		self.currentAxis = index
@@ -1609,6 +1692,13 @@ class HistogramPlotDialog(PlotDialog1d):
 		
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)
+		
+	def onChangeLog(self):
+		self.xmin, self.xmax = None, None
+		self.ymin, self.ymax = None, None
+		self.xmin_show, self.xmax_show = None, None
+		self.ymin_show, self.ymax_show = None, None
+		super(HistogramPlotDialog, self).onChangeLog()
 		
 	def onDataSelected(self, data):
 		self.xmin, self.xmax = None, None
@@ -1641,7 +1731,7 @@ class HistogramPlotDialog(PlotDialog1d):
 		t0 = time.time()
 		data = self.getdatax()
 		data_length = len(data)
-		if 1:
+		if 0:
 			parts = 20
 			#count_parts = np.zeros((parts, 128), dtype=np.float64)
 			counts_parts = mab.utils.numpy.mmapzeros((parts, 128), dtype=np.float64)
@@ -1658,26 +1748,16 @@ class HistogramPlotDialog(PlotDialog1d):
 			self.counts = np.sum(counts_parts, axis=0)
 		else:
 			self.counts = np.zeros(128, dtype=np.float64)
-			gavi.histogram.hist1d(self.data, self.counts, self.xmin, self.xmax)
+			gavi.histogram.hist1d(self.data, self.counts, self.xmin, self.xmax, self.useLog())
 			#I = np.zeros((parts, 128, 128), dtype=np.int32)
 			#histo2d(datax, datay, Iparts, np.min(datax), np.max(datax), np.min(datay), np.max(datay))
 			#I = np.sum(I, axis=0)
 			
 		if self.dataset.mask is not None:
-			#print len(data_masked), len(self.dataset.mask)
 			data_masked = data[self.dataset.mask]
 			data_length = len(data_masked)
-			parts = 20
-			#count_parts = np.zeros((parts, 128), dtype=np.float64)
-			counts_parts = mab.utils.numpy.mmapzeros((parts, 128), dtype=np.float64)
-			@parallelize(cores=QtCore.QThread.idealThreadCount())
-			def histo1d_par(part):
-				#N = len(datax)
-				i1 = (data_length / parts) * part
-				i2 = (data_length / parts) * (part+1)
-				gavi.histogram.hist1d(data_masked[i1:i2], counts_parts[part], self.xmin, self.xmax)
-			histo1d_par(range(parts))
-			self.counts_mask = np.sum(counts_parts, axis=0)
+			self.counts_mask = mab.utils.numpy.mmapzeros((128), dtype=np.float64)
+			gavi.histogram.hist1d(data_masked, self.counts_mask, self.xmin, self.xmax, self.useLog())
 		else:
 			self.counts_mask = None
 		if self.ymin is None or self.ymax is None:
@@ -1840,8 +1920,12 @@ class ScatterPlotDialog(PlotDialog2d):
 	def compute(self):
 		if self.xmin is None or self.xmax is None:
 			self.xmin, self.xmax = self.getxrange()
+			if self.xmin == self.xmax:
+				self.xmax += 1
 		if self.ymin is None or self.ymax is None:
 			self.ymin, self.ymax = self.getyrange()
+			if self.ymin == self.ymax:
+				self.ymax += 1
 		if self.xmin_show is None or self.xmax_show is None:
 			self.xmin_show, self.xmax_show = self.xmin, self.xmax
 		if self.ymin_show is None or self.ymax_show is None:
@@ -1884,7 +1968,11 @@ class ScatterPlotDialog(PlotDialog2d):
 			I = np.sum(Iparts, axis=0)
 		else:
 			I = np.zeros((128, 128), dtype=np.int32)
-			histo2d(datax, datay, I, *self.ranges)
+			try:
+				histo2d(datax, datay, I, *self.ranges)
+			except:
+				import pdb
+				pdb.set_trace()
 			#histo2d(datax, datay, Iparts, np.min(datax), np.max(datax), np.min(datay), np.max(datay))
 			#I = np.sum(I, axis=0)
 		print "it took", time.time()-t0
@@ -2539,7 +2627,10 @@ class ScatterSeries1dPlotDialog(QtGui.QDialog):
 		self.currentYIndex = index
 		y = self.data.rank1names[self.currentYIndex]
 		yseries = self.data.rank1s[y]
-		self.datay = yseries[:,self.data.selected_row_index]
+		self.datay = yseries[:,0 if self.data.selected_row_index is None else self.data.selected_row_index]
+		print ">", self.datay.shape, self.data.selected_row_index
+		print yseries.shape
+		print yseries[:,self.data.selected_row_index].shape
 		self.plot()
 
 

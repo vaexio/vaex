@@ -5,12 +5,18 @@ import numba
 #print numba.__version__
 import math
 
-@jit
-def hist1d(x, counts, dataminx, datamaxx):
+@jit(nopython=True)
+def hist1d(x, counts, dataminx, datamaxx, uselog):
 	length = len(x)
 	bincountx  = len(counts)
+	if uselog:
+		dataminx = math.log10(dataminx)
+		datamaxx = math.log10(datamaxx)
 	for i in range(length):
-		binNox = int(math.floor( ((x[i] - dataminx) / (float(datamaxx) - dataminx)) * float(bincountx)))
+		xvalue = x[i]
+		if uselog:
+			xvalue = math.log10(xvalue)
+		binNox = int(math.floor( ((xvalue - dataminx) / (float(datamaxx) - dataminx)) * float(bincountx)))
 		if binNox >= 0 and binNox < bincountx:
 			counts[binNox] += 1
 

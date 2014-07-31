@@ -109,8 +109,8 @@ class MemoryMapped(object):
 			rawlength = length * length1
 			rawlength *= stride
 			rawlength *= stride1
-			print rawlength, offset
-			print rawlength * 8, offset, self.mapping.size()
+			#print rawlength, offset
+			#print rawlength * 8, offset, self.mapping.size()
 			#import pdb
 			#pdb.set_trace()
 			mmapped_array = np.frombuffer(mapping, dtype=dtype, count=rawlength, offset=offset)
@@ -169,7 +169,7 @@ class HansMemoryMapped(MemoryMapped):
 			#print (self.numberParticles+1)
 			#print stride, stride1
 			for i, name in enumerate(names):
-				print name, offset
+				#print name, offset
 				# TODO: ask Hans for the self.numberTimes-1
 				self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1)
 				
@@ -182,10 +182,10 @@ class HansMemoryMapped(MemoryMapped):
 			#import pdb
 			#pdb.set_trace()
 			for i, name in enumerate(names):
-				print name, offset
+				#print name, offset
 				# TODO: ask Hans for the self.numberTimes-1
 				self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
-				print "min/max", np.min(self.rank1s[name]), np.max(self.rank1s[name]), offset+8*i, self.rank1s[name][0][0]
+				#print "min/max", np.min(self.rank1s[name]), np.max(self.rank1s[name]), offset+8*i, self.rank1s[name][0][0]
 				#for i, name in enumerate(names):
 				
 				self.addColumn(name+"_0", offset+8*i, length, dtype=np.float64, stride=stride, filename=filename_extra)
@@ -241,17 +241,41 @@ class Hdf5MemoryMapped(MemoryMapped):
 		self.addColumn(column_name, offset, len(array), dtype=array.dtype)
 
 class Hdf5MemoryMappedGadget(MemoryMapped):
-	def __init__(self, filename):
+	def __init__(self, filename, particleName, particleType):
 		super(Hdf5MemoryMappedGadget, self).__init__(filename)
+		self.particleType = particleType
+		self.particleName = particleName
+		self.name = self.name + "-" + self.particleName
 		h5file = h5py.File(self.filename)
-		for i in range(1,4):
-			name = "/PartType%d/Coordinates" % i
-			if name in h5file:
-				data = h5file[name]
-				offset = data.id.get_offset() 
-				self.addColumn("p%d_x" % i, offset, data.shape[0], dtype=data.dtype, stride=3)
-				self.addColumn("p%d_y" % i, offset+4, data.shape[0], dtype=data.dtype, stride=3)
-				self.addColumn("p%d_z" % i, offset+8, data.shape[0], dtype=data.dtype, stride=3)
+		#for i in range(1,4):
+		key = "/PartType%d" % self.particleType
+		if key not in h5file:
+			raise KeyError, "%s does not exist" % key
+		particles = h5file[key]
+		for name in particles.keys():
+			print name
+			#name = "/PartType%d/Coordinates" % i
+			data = particles[name]
+			if isinstance(data, h5py.highlevel.Dataset): #array.shape
+				array = data
+				print array.shape, array.dtype
+				shape = array.shape
+				if len(shape) == 1:
+					offset = array.id.get_offset() 
+					self.addColumn(name, offset, data.shape[0], dtype=data.dtype)
+				else:
+					if name == "Coordinates":
+						offset = data.id.get_offset() 
+						self.addColumn("x", offset, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("y", offset+4, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("z", offset+8, data.shape[0], dtype=data.dtype, stride=3)
+					elif name == "Velocity":
+						offset = data.id.get_offset() 
+						self.addColumn("vx", offset, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("vy", offset+4, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("vz", offset+8, data.shape[0], dtype=data.dtype, stride=3)
+					else:
+						print "unsupported column: %r of shape %r" % (name, array.shape)
 		
 
 class MemoryMappedGadget(MemoryMapped):
