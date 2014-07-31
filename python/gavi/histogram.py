@@ -30,7 +30,7 @@ def hist2d(x, y, counts, dataminx, datamaxx, dataminy, datamaxy):
 	#return numpy.arange(datamin, datamax+step/2, step), binData
 	return counts
 
-@jit
+@jit(nopython=True)
 def hist3d(x, y, z, counts, dataminx, datamaxx, dataminy, datamaxy, dataminz, datamaxz):
 	length = len(x)
 	#counts = np.zeros((bincountx, bincounty), dtype=np.int32)

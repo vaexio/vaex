@@ -25,6 +25,7 @@ class MemoryMapped(object):
 		self.rank1s = {}
 		self.rank1names = []
 		self.selected_row_index = None
+		self.selected_serie_index = None
 		self.row_selection_listeners = []
 		self.serie_index_selection_listeners = []
 		self.mask_listeners = []
@@ -258,7 +259,7 @@ class MemoryMappedGadget(MemoryMapped):
 		super(MemoryMappedGadget, self).__init__(filename)
 		#h5file = h5py.File(self.filename)
 		import gavi.file.gadget
-		length, posoffset, veloffset = gavi.file.gadget.getinfo(filename)
+		length, posoffset, veloffset, header = gavi.file.gadget.getinfo(filename)
 		print length, posoffset, posoffset
 		print posoffset, hex(posoffset)
 		self.addColumn("x", posoffset, length, dtype=np.float32, stride=3)
