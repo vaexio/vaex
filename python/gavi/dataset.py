@@ -3,11 +3,181 @@ import h5py
 import mmap
 import numpy as np
 import os
+import numexpr as ne
+import math
+from gavi.utils import Timer
+
+import gavi.vaex.expressions as expr
 
 def error(title, msg):
 	print "Error", title, msg
 
 
+buffer_size = 1e6
+
+import gavi.logging
+logger = gavi.logging.getLogger("gavi.vaex")
+
+
+class FakeLogger(object):
+	def info(self, *args):
+		pass
+	def debug(self, *args):
+		pass
+	def error(self, *args):
+		pass
+	def exception(self, *args):
+		pass
+
+#logger = FakeLogger()
+
+class Job(object):
+	def __init__(self, callback, expressions):
+		pass
+		
+class JobsManager(object):
+	def __init__(self):
+		#self.datasets = datasets
+		self.jobs = []
+		self.order_numbers = []
+		self.after_execute = []
+		
+	def addJob(self, order, callback, dataset, *expressions, **variables):
+		args = order, callback, dataset, expressions
+		logger.info("job: %r" % (args,))
+		if order not in self.order_numbers:
+			self.order_numbers.append(order)
+		self.jobs.append((order, callback, dataset, expressions, variables))
+		
+	def execute(self):
+		try:
+			with Timer("init"):
+				self.order_numbers.sort()
+				
+				all_expressions_set = set()
+				for order, callback, dataset, expressions, variables in self.jobs:
+					for expression in expressions:
+						all_expressions_set.add((dataset, expression))
+				# for each expresssion keep an array for intermediate storage
+				expression_outputs = dict([(key, np.zeros(buffer_size, dtype=np.float64)) for key in all_expressions_set])
+			
+			class Info(object):
+				pass
+			
+			# multiple passes, in order
+			with Timer("passes"):
+				for order in self.order_numbers:
+					logger.debug("jobs, order: %r" % order)
+					jobs_order = [job for job in self.jobs if job[0] == order]
+					datasets = set([job[2] for job in self.jobs])
+					# TODO: maybe per dataset a seperate variable dict
+					variables = {}
+					for job in jobs_order:
+						variables_job = job[-1]
+						for key, value in variables_job.items():
+							if key in variables:
+								if variables[key] != value:
+									raise ValueError, "variable %r cannot have both value %r and %r" % (key, value, variables[key])
+							variables[key] = value
+					logger.debug("variables: %r" % (variables,))
+					# group per dataset
+					for dataset in datasets:
+						logger.debug("dataset: %r" % dataset.name)
+						jobs_dataset = [job for job in jobs_order if job[2] == dataset]
+						# keep a set of expressions, duplicate expressions will only be calculated once
+						expressions_dataset = set()
+						for order, callback, dataset, expressions, variables in jobs_dataset:
+							for expression in expressions:
+								expressions_dataset.add((dataset, expression))
+						logger.debug("expressions: %r" % expressions_dataset)
+						# TODO: implement fractions/slices
+						n_blocks = int(math.ceil(dataset._length *1.0 / buffer_size))
+						logger.debug("blocks: %r %r" % (n_blocks, dataset._length *1.0 / buffer_size))
+						# execute blocks for all expressions, better for Lx cache
+						for block_index in range(n_blocks):
+							i1 = block_index * buffer_size
+							i2 = (block_index +1) * buffer_size
+							last = False
+							if i2 >= dataset._length: # round off the sizes
+								i2 = dataset._length
+								last = True
+								#for i in range(len(outputs)):
+								#	outputs[i] = outputs[i][:i2-i1]
+							# local dicts has slices (not copies) of the whole dataset
+							local_dict = dict(variables)
+							for key, value in dataset.columns.items():
+								local_dict[key] = value[i1:i2]
+							for key, value in dataset.rank1s.items():
+								local_dict[key] = value[i1:i2]
+							for dataset, expression in expressions_dataset:
+								expr_noslice, slice_vars = expr.translate(expression)
+								logger.debug("replacing %r with %r" % (expression, expr_noslice))
+								for var, sliceobj in slice_vars.items():
+									logger.debug("adding slice %r as var %r (%r:%r)" % (sliceobj, var, sliceobj.var.name, sliceobj.args))
+									array = local_dict[sliceobj.var.name]
+									#print local_dict.keys()
+									slice_evaluated = eval(repr(sliceobj.args), {}, local_dict)
+									sliced_array = array[slice_evaluated]
+									logger.debug("slice is of type %r and shape %r" % (sliced_array.dtype, sliced_array.shape))
+									local_dict[var] = sliced_array
+							info = Info()
+							info.index = block_index
+							info.size = i2-i1
+							info.length = n_blocks
+							info.first = block_index == 0
+							info.last = last
+							info.i1 = i1
+							info.i2 = i2
+							info.slice = slice(i1, i2)
+							info.error = False
+							info.error_text = ""
+							results = {}
+							# put to 
+							with Timer("evaluation"):
+								for dataset, expression in expressions_dataset:
+									logger.debug("expression: %r" % expression)
+									expr_noslice, slice_vars = expr.translate(expression)
+									logger.debug("translated expression: %r" % expr_noslice)
+									if expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
+										logger.debug("avoided expression, simply a column name with float64")
+										#yield self.columns[expression][i1:i2], info
+										results[expression] = dataset.columns[expression][i1:i2]
+									else:
+										# same as above, but -i1, since the array stars at zero
+										output = expression_outputs[(dataset, expression)][i1-i1:i2-i1]
+										try:
+											ne.evaluate(repr(expr_noslice), local_dict=local_dict, out=output)
+										except SyntaxError, e:
+											info.error = True
+											info.error_text = e.message
+											logger.exception("error in expression: %s" % expression)
+											break
+										except KeyError, e:
+											info.error = True
+											info.error_text = "Unknown variable: %r" % (e.message, )
+											logger.exception("unknown variable %s in expression: %s" % (e.message, expression))
+											break
+										except TypeError, e:
+											info.error = True
+											info.error_text = e.message
+											logger.exception("error in expression: %s" % expression)
+											break
+										results[expression] = output
+							# for this order and dataset all values are calculated, now call the callback
+							with Timer("callbacks"):
+								for order, callback, dataset, expressions, variables in jobs_dataset:
+									arguments = [results.get(expression) for expression in expressions]
+									arguments.append(info)
+									callback(*arguments)
+							if info.error:
+								# if we get an error, no need to go through the whole data
+								break
+			for callback in self.after_execute:
+				callback()
+		finally:
+			self.jobs = []
+			self.order_numbers = []
+				
 class MemoryMapped(object):
 	def __init__(self, filename, write=False):
 		self.filename = filename
@@ -35,6 +205,45 @@ class MemoryMapped(object):
 		self.file_map = {filename: self.file}
 		self.fileno_map = {filename: self.fileno}
 		self.mapping_map = {filename: self.mapping}
+		
+	def evaluate(self, *expressions):
+		class Info(object):
+			pass
+		outputs = [np.zeros(buffer_size, dtype=np.float64) for _ in expressions]
+		n_blocks = int(math.ceil(self._length *1.0 / buffer_size))
+		print "blocks", n_blocks, self._length *1.0 / buffer_size
+		# execute blocks for all expressions, better for Lx cache
+		for block_index in range(n_blocks):
+			i1 = block_index * buffer_size
+			i2 = (block_index +1) * buffer_size
+			if i2 >= self._length: # round off the sizes
+				i2 = self._length
+				for i in range(len(outputs)):
+					outputs[i] = outputs[i][:i2-i1]
+			# local dicts has slices (not copies) of the whole dataset
+			local_dict = {}
+			for key, value in self.columns.items():
+				local_dict[key] = value[i1:i2]
+			info = Info()
+			info.index = block_index
+			info.size = i2-i1
+			info.length = n_blocks
+			info.first = block_index == 0
+			info.i1 = i1
+			info.i2 = i2
+			info.slice = slice(i1, i2)
+			results = []
+			for output, expression in zip(outputs, expressions):
+				if expression in self.column_names and self.columns[expression].dtype == np.float64:
+					print "avoided"
+					#yield self.columns[expression][i1:i2], info
+					results.append(self.columns[expression][i1:i2])
+				else:
+					ne.evaluate(expression, local_dict=local_dict, out=output)
+					results.append(output)
+			print results, info
+			yield tuple(results), info
+		
 		
 	def addFile(self, filename, write=False):
 		self.file_map[filename] = file(filename, "r+" if write else "r")

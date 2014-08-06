@@ -1,0 +1,1245 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import numpy as np
+import h5py
+from optparse import OptionParser
+import os
+import sys
+import astropy.io.votable
+import thread
+import threading
+import time
+import itertools
+
+import gavi.vaex.plot_windows as vp
+
+import gavi.selection
+import gavi.kld
+import gavi.utils
+
+#import subspacefind
+#import ctypes
+import numexpr as ne
+
+import imp
+
+custom = None
+path = os.path.expanduser('~/.medavaex/custom.py')
+print path
+customModule = imp.load_source('gavi.custom', path)
+custom = customModule.Custom()
+
+
+if 0:
+	N = 1e9
+	array = np.arange(N)
+	counts = np.zeros(10, dtype=np.float64)
+	if 0:
+		#ptr = array.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+		col_a = subspacefind.make_column(array)
+		#col_b = subspacefind.make_column(array)
+		col_b = subspacefind.SquareColumn(col_a)
+		col_b2 = subspacefind.SquareColumn(col_b)
+		col_b3 = subspacefind.SquareColumn(col_b2)
+		col_b4 = subspacefind.SquareColumn(col_b3)
+		col_c = subspacefind.DivConstColumn(col_b4, N**2)
+
+		print col_a.get(10)
+		#array[:] = array**2/N**2
+		print col_a.get(10)
+		print col_c.get(10)
+		print sum(counts)
+
+		with gavi.utils.Timer("hist"):
+			subspacefind.histogram1d(col_c, counts, 0., 1.)
+	else:
+		step = 1000
+		res = array[:len(array)/step] * 0.0
+		Nstep = len(res)
+		col_c = subspacefind.make_column(res)
+		#ne.set_num_threads(10)
+		vmax = None
+		with gavi.utils.Timer("hist"):
+			for i in range(step):
+				a = array[i*Nstep:(i+1)*Nstep]
+				#ne.evaluate("log(a)**2/N**2", out=res)
+				ne.evaluate("sqrt(a**2+a**3)", out=res)
+				if vmax is None:
+					vmax = res.max()
+				else:
+					vmax = max(vmax, res.max())
+				subspacefind.histogram1d(col_c, counts, 0., 1.)
+		print  vmax
+	print counts
+	#col_a = subspacefind.DoubleColumn(array)
+	sys.exit(0)
+if 0:
+	class NavigationToolbar(NavigationToolbarQt):
+		def __init__(self, canvas, axes, parent):
+			self.toolitems = [k for k in self.toolitems if (k[0] is None) or (k[0].lower() in "home pan zoom")]
+			#self.toolitems.append()
+			super(NavigationToolbar, self).__init__(canvas, parent)
+			self.parent = parent
+			self.axes = axes
+			#self.basedir = os.path.join(matplotlib.rcParams[ 'datapath' ],'images')
+			#print self.basedir
+			self.extra_toolitems = [
+				('Select', 'Select point', 'filesave', 'select_point'),
+				('Lasso', 'Lasso select', 'matplotlib', 'select_lasso'),
+							]
+			for text, tooltip_text, image_file, callback in self.extra_toolitems:
+				a = self.addAction(self._icon(image_file + '.png'), text, getattr(self, callback))
+				a.setCheckable(True)
+				self._actions[callback] = a
+				if tooltip_text is not None:
+					a.setToolTip(tooltip_text)
+			self._idPress = None
+			self._idRelease = None
+			self.lasso = None
+			
+		def sync_buttons(self):
+			self._actions['select_point'].setChecked(self._active == 'SELECT_POINT')
+			self._actions['select_lasso'].setChecked(self._active == 'SELECT_LASSO')
+
+		def select_point(self, *args):
+			print self._active
+			name = 'SELECT_POINT'
+			self._active = None if self._active == name else name
+			self.sync_buttons()
+			if self._idPress is not None:
+				self._idPress = self.canvas.mpl_disconnect(self._idPress)
+				self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
+
+			if self.lasso:
+				self.lasso.active = False
+				self.lasso.disconnect_events()
+				self.lasso = None
+				
+			if self._active == name:
+				self._idPress = self.canvas.mpl_connect(
+					'button_press_event', self.parent.press_select_point)
+				self.canvas.widgetlock(self)
+				self.set_message('select point')
+			else:
+				self.canvas.widgetlock.release(self)
+				self.set_message('')
+		
+		def select_lasso(self, *args):
+			print self._active
+			name = 'SELECT_LASSO'
+			self._active = None if self._active == name else name
+			self.sync_buttons()
+			if self._idPress is not None:
+				self._idPress = self.canvas.mpl_disconnect(self._idPress)
+				self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
+				
+			if self._active == name:
+				#self._idPress = self.canvas.mpl_connect('button_press_event', self.press_select_lasso)
+				#self._idPress = self.canvas.mpl_connect('button_release_event', self.release_select_lasso)
+				#self.canvas.widgetlock(self)
+				#self.lasso = LassoSelector(evt.inaxes, (evt.xdata, evt.ydata), self.lasso_callback)
+				self.lasso = LassoSelector(self.axes, self.lasso_callback)
+				self.canvas.draw()
+				self.set_message('lasso select point')
+			else:
+				#self.canvas.widgetlock.release(self)
+				#self.set_message('')
+				self.lasso.active = False
+				self.lasso.disconnect_events()
+				self.lasso = None
+
+		def press_select_lasso(self, evt):
+			print "lasso", self.canvas.widgetlock.locked()
+			self.canvas.draw()
+			if not self.canvas.widgetlock.locked():
+				self.canvas.widgetlock(self.lasso)
+
+		def release_select_lasso(self, evt):
+			if self.lasso:
+				self.canvas.widgetlock.release(self.lasso)
+				self.lasso = None
+			self.canvas.draw()
+				
+			
+		def lasso_callback(self, vertices):
+			#print vertices
+			x, y = np.array(vertices).T
+			mask = np.zeros(len(self.parent.datax), dtype=np.uint8)
+			meanx = x.mean()
+			meany = y.mean()
+			radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
+			#print (x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
+			gavi.selection.pnpoly(x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
+			self.parent.set_mask(mask==1)
+		
+#from PySide import QtGui, QtCore
+try:
+	from PyQt4 import QtGui, QtCore
+	import sip
+	sip.setapi('QVariant', 1)
+except ImportError, e1:
+	try:
+		from PySide import QtGui, QtCore
+	except ImportError, e2:
+		print >>sys.stderr, "could not import PyQt4 or PySide, please install"
+		print >>sys.stderr, "errors: ", repr(e1), repr(e2)
+		sys.exit(1)
+	
+
+from gavi.samp import Samp
+
+usage = """
+Convert VO table from SAMP to hdf5 format:
+
+Example:
+
+gavi-data-samp2hdf5 -o photometry.hdf5
+
+Now open topcat:
+topcat -f csv $GAVI_DATA/scl_photo.csv
+
+...
+
+"""
+parser = OptionParser(usage=usage)
+
+#parser.add_option("-n", "--name",
+ #                 help="dataset name [default=%default]", default="data", type=str)
+#parser.add_option("-o", "--output",
+#                 help="dataset output filename [by default the suffix of input filename will be replaced by hdf5]", default=None, type=str)
+(options, args) = parser.parse_args()
+
+#if len(args) != 1:
+#	print "Program requires output filename as argument"
+#	sys.exit(1)
+
+
+import h5py
+import mmap
+
+def error(title, msg):
+	print "Error", title, msg
+
+from gavi.dataset import *
+		
+possibleFractions = [10**base * f for base in [-3,-2,-1,0] for f in [0.25, 0.5, 0.75, 1.]]
+possibleFractions.insert(0,10**-4)
+print possibleFractions
+
+class DataList(QtGui.QListWidget):
+	def __init__(self, parent):
+		super(DataList, self).__init__(parent)
+		self.icon = QtGui.QIcon('icons/png/24x24/devices/memory.png')
+		#self.items 
+		
+	def __testfill(self):
+		self.addHdf5("/home/data/gavi/gaussian3d-1e8-b.hdf5")
+		self.addHdf5("/home/data/gavi/gaussian3d-1e9-b.hdf5")
+		self.addHdf5("/home/data/gavi/rave/rave-dr5-shuffled.hdf5")
+		self.addHdf5("/home/data/gavi/helmi2000-FeH-s2.hdf5")
+		
+		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_nfw_soft/output/snapshot_213.hdf5")
+		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_einasto_2kpc_fornax/IC.hdf5")
+		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/hernquist/gadget/hernquist_half/output/snapshot_000.hdf5")
+		
+		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
+		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
+		
+		#self.addGadget2("/home/data/gavi/egpbos/snap_008")
+		self.addHdf5("/Users/users/breddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
+		
+		try:
+			hmmap = HansMemoryMapped("data/Orbitorb9.ac8.10000.100.5.orb.bin", "data/Orbitorb9.ac8.10000.100.5.orb.omega2")
+			self.addDataset(hmmap)
+		except:
+			print "oops"
+		self.addHdf5('/home/data/gavi/Aq-A-2-999-shuffled.hdf5')
+		
+		#self.addGadgetHdf5('/home/data/gavi/snap_800.hdf5')
+		# 0 - gas
+		# 1 - halo
+		# 2 disk
+		# 4 new stars
+		# 5 sat
+		
+		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
+			self.addGadgetHdf5('data/disk2nv_N6N5_z0.1h_RfAs0.5H_no_H1_0.5_nH01_vw5s_ml50_st-snap_800.hdf5', name, index)
+		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
+			self.addGadgetHdf5('/home/data/gavi/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5', name, index)
+		
+	def setBestFraction(self, dataset):
+		Nmax = 1000*1000*10
+		for fraction in possibleFractions[::-1]:
+			N  = dataset.current_slice[1] - dataset.current_slice[0]
+			if N > Nmax:
+				dataset.setFraction(fraction)
+			else:
+				break
+			
+
+	def addDataset(self, dataset):
+		self.setBestFraction(dataset)
+		item = QtGui.QListWidgetItem(self)
+		item.setText(dataset.name)
+		#self.icon = QIcon.fromTheme('document-open')
+		item.setIcon(self.icon)
+		item.setToolTip("file: " +dataset.filename)
+		item.setData(QtCore.Qt.UserRole, dataset)
+		self.setCurrentItem(item)
+
+	def addGadget2(self, filename):
+		if not os.path.exists(filename):
+			return
+			
+		self.hdf5file = MemoryMappedGadget(filename)
+		self.setBestFraction(self.hdf5file)
+		item = QtGui.QListWidgetItem(self)
+		item.setText(self.hdf5file.name)
+		item.setToolTip("file: " +self.hdf5file.filename)
+		#self.icon = QIcon.fromTheme('document-open')
+		item.setIcon(self.icon)
+		item.setData(QtCore.Qt.UserRole, self.hdf5file)
+		self.setCurrentItem(item)
+			
+		
+	
+	def addGadgetHdf5(self, filename, name, particleType):
+		if not os.path.exists(filename):
+			return
+		try:
+			self.hdf5file = Hdf5MemoryMappedGadget(filename, name, particleType)
+		except KeyError:
+			return
+		self.setBestFraction(self.hdf5file)
+		item = QtGui.QListWidgetItem(self)
+		item.setText(self.hdf5file.name)
+		#self.icon = QIcon.fromTheme('document-open')
+		item.setToolTip("file: " +self.hdf5file.filename)
+		item.setIcon(self.icon)
+		item.setData(QtCore.Qt.UserRole, self.hdf5file)
+		self.setCurrentItem(item)
+	
+	def addHdf5(self, filename):
+		if not os.path.exists(filename):
+			return
+		
+		self.hdf5file = Hdf5MemoryMapped(filename)
+		self.setBestFraction(self.hdf5file)
+		item = QtGui.QListWidgetItem(self)
+		item.setText(self.hdf5file.name)
+		item.setToolTip("file: " +self.hdf5file.filename)
+		#self.icon = QIcon.fromTheme('document-open')
+		item.setIcon(self.icon)
+		item.setData(QtCore.Qt.UserRole, self.hdf5file)
+		self.setCurrentItem(item)
+		#self.setCurrentRow(0)
+		
+	def _addHdf5(filename, columns):
+		h5file = h5py.File(filename)
+		
+		
+		print f
+		print fileno
+		mapping = mmap.mmap(fileno, 0, prot=mmap.PROT_READ)
+		
+
+class Worker(QtCore.QThread):
+	def __init__(self, parent, name, func, *args, **kwargs):
+		QtCore.QThread.__init__(self, parent=None)
+		self.func = func
+		self.args = args
+		self.kwargs = kwargs
+		self.name = name
+		self.signal = QtCore.SIGNAL("signal")
+	
+	def run(self):
+		time.sleep(0.1)
+		print "in thread", self.currentThreadId()
+		self.result = self.func(*self.args, **self.kwargs)
+		print "result:", self.result
+		#self.emit(self.signal, self.result)
+		#self.exec_()
+import multiprocessing
+
+def MyStats(object):
+	def __init__(self, data):
+		self.data = data
+		
+	def __call___(self, args):
+		print args
+		#stat_name, column_name = args
+		#print "do", stat_name, "on", column_name
+		return 1
+		#f = stats[stat_name]
+		#return column_name, stat_name, f(self.data.columns[column_name])
+
+#stats = {"minimum": lambda x: str(np.nanmin(x)), "maximum": lambda x: str(np.nanmax(x)), "mean": lambda x: str(np.mean(x)), "std": lambda x: str(np.std(x)), "median": lambda x: str(np.median(x))}
+stats = {"minimum": lambda x: str(np.nanmin(x)), "maximum": lambda x: str(np.nanmax(x)), "mean": lambda x: str(np.mean(x)), "std": lambda x: str(np.std(x))}
+def statsrun(args):
+	columns, stat_name, column_name = args
+	f = stats[stat_name]
+	#print args
+	return 1
+
+class StatWorker(QtCore.QThread):
+	def __init__(self, parent, data):
+		QtCore.QThread.__init__(self, parent=parent)
+		self.data = data
+
+	def run(self):
+		time.sleep(0.1)
+		print "in thread", self.currentThreadId()
+		jobs = [(stat_name, column_name) for stat_name in stats.keys() for column_name in self.data.columns.keys()]
+		@parallelize(cores=QtCore.QThread.idealThreadCount())
+		def dostats(args, data=self.data):
+			stat_name, column_name = args
+			columns = data.columns
+			f = stats[stat_name]
+			result = f(columns[column_name][slice(*data.current_slice)])
+			print result
+			return result
+		values = dostats(jobs)
+		self.results = {}
+		for job, value in zip(jobs, values):
+			stat_name, column_name = job
+			if stat_name not in self.results:
+				self.results[stat_name] = {}
+			self.results[stat_name][column_name] = value
+		print "results", self.results
+		
+		
+		
+
+from mab.parallelize import parallelize
+        
+       
+class StatisticsDialog(QtGui.QDialog):
+	def __init__(self, parent, data):
+		super(StatisticsDialog, self).__init__(parent)
+		self.data = data
+		
+		#self.form_layout = QtGui.QFormLayout()
+		#self.min = QtGui.QLabel('...computing...', self)
+		#self.form_layout.addRow('Minimum:', self.min)
+		#self.setLayout(self.form_layout)
+		
+		self.boxlist = QtGui.QHBoxLayout(self)
+		
+		self.headers = ['minimum', 'maximum', 'mean', 'std']
+		
+		#WorkerMinimum = lambda parent, data, column_name: Worker(parent, 'minimum', lambda data, column_name: str(min(data.columns[column_name])), data=data, column_name=column_name)
+		#WorkerMaximum = lambda parent, data, column_name: Worker(parent, 'maximum', lambda data, column_name: str(max(data.columns[column_name])), data=data, column_name=column_name)
+		#self.workers = {'minimum':WorkerMinimum, 'maximum': WorkerMaximum}
+		
+		self.table = QtGui.QTableWidget(data.nColumns, len(self.headers), self)
+		self.table.setHorizontalHeaderLabels(self.headers)
+		self.table.setVerticalHeaderLabels(self.data.columns.keys())
+		
+		
+		
+		
+		#pool = multiprocessing.Pool() #processes=QtCore.QThread.idealThreadCount())
+		#print "jobs:", jobs
+		worker = StatWorker(self, self.data)
+		def onFinish(worker=worker):
+			for column, stat in enumerate(self.headers):
+				for row, column_name in enumerate(self.data.columns.keys()):
+					value = worker.results[stat][column_name]
+					item = QtGui.QTableWidgetItem(value)
+					self.table.setItem(row, column, item)
+					
+			
+		worker.finished.connect(onFinish)
+		worker.start()
+		#for name in self.header:
+		#for column_name in self.data.colums.keys():
+		#	self.table.set
+		#worker.finished.connect(onFinish)
+		if 0:
+			self.worker_list = [] # keep references
+			def onFinish():
+				for column, stat in enumerate(self.headers):
+					for row, column_name in enumerate(self.data.columns.keys()):
+						value = worker.results[stat][column_name]
+						item = QtGui.QTableWidgetItem(worker.result)
+						self.table.setItem(row, column, item)
+			for column, stat in enumerate(self.headers):
+				for row, column_name in enumerate(self.data.columns.keys()):
+					worker = self.workers[stat](parent, data, column_name)
+					def onFinish(worker=worker, row=row, column=column):
+						print "finished running", worker.result
+						item = QtGui.QTableWidgetItem(worker.result)
+						self.table.setItem(row, column, item)
+					worker.finished.connect(onFinish)
+					print "starting", row, column
+					worker.start(QtCore.QThread.IdlePriority)
+					self.worker_list.append(worker) # keeps reference to avoid GC
+		
+		
+		self.boxlist.addWidget(self.table)
+		self.setLayout(self.boxlist)
+		
+		
+		
+		
+		if 0:
+			#w1 = Worker(self, lambda data: str(min(data.columns.items()[0])), self.data)
+			self.w1 = Worker(self, self.test, self.data)
+			#self.connect(self.w1, self.w1.signal, self.setmin)
+			def setmin():
+				print self.min.setText(self.w1.result)
+			self.w1.finished.connect(setmin)
+			self.w1.start()
+
+	def test(self, data):
+		print "test"
+		data = data.columns.values()[0]
+		return str(min(data))
+		#return "test"
+	def onFinish(self, worker):
+		print "worker", worker
+		#print "setting", result
+		#self.min = str
+
+import 	operator
+import random
+class RankingTableModel(QtCore.QAbstractTableModel): 
+	def __init__(self, data, dim=1, parent=None, *args): 
+		QtCore.QAbstractTableModel.__init__(self, parent, *args) 
+		self.data = data
+		
+		self.pairs = list(itertools.combinations(self.data.column_names, dim))
+		self.ranking = [None for pair in self.pairs]
+		self.headers = ["subspace", "ranking", 'selected']
+		self.indices = range(len(self.pairs))
+	
+	def rowCount(self, parent): 
+		return len(self.pairs)
+
+	def columnCount(self, parent): 
+		return len(self.headers)
+
+	def data(self, index, role): 
+		if not index.isValid(): 
+			return None
+		elif role != QtCore.Qt.DisplayRole: 
+			return None
+		column = index.column()
+		index = self.indices[index.row()] # use sorted index
+		if column == 0:
+			return "-vs".join(self.pairs[index])
+		if column == 1:
+			rank = self.ranking[index]
+			return "" if rank is None else str(rank)
+		if column == 2:
+			rank = self.ranking[index]
+			return False if random.random() < 0.5 else True
+
+	def headerData(self, index, orientation, role):
+		if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+			return self.headers[index]
+		if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
+			return str(index+1)
+		return None
+
+	def sort(self, Ncol, order):
+		"""Sort table by given column number.
+		"""
+		self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
+		if Ncol == 0:
+			print "by name"
+			# get indices, sorted by pair name
+			sortlist = zip(self.pairs, range(len(self.pairs)))
+			print sortlist
+			sortlist.sort(key=operator.itemgetter(0))
+			print sortlist
+			self.indices = map(operator.itemgetter(1), sortlist)
+			print self.indices
+		if Ncol == 1:
+			# get indices, sorted by ranking, or no sorting
+			if None not in self.ranking:
+				sortlist = zip(self.ranking, range(len(self.pairs)))
+				sortlist.sort(key=operator.itemgetter(0))
+				self.indices = map(operator.itemgetter(1), sortlist)
+			else:
+				self.indices = range(len(self.pairs))
+			print self.indices
+		if order == QtCore.Qt.DescendingOrder:
+			self.indices.reverse()
+		print self.indices
+		self.emit(QtCore.SIGNAL("layoutChanged()"))
+
+class SubspaceTable(QtGui.QTableWidget):
+	def __init__(self, parent, mainPanel, data, pairs, dim=1):
+		self.headers = ['', 'space', 'ranking', 'plot']
+		self.data = data
+		self.mainPanel = mainPanel
+		self.pairs = pairs #list(itertools.combinations(self.data.column_names, dim))
+		QtGui.QTableWidget.__init__(self, len(self.pairs), len(self.headers), parent)
+		self.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows);
+		#self.tableModel = RankingTableModel(self.data, dim, parent)
+		#self.setModel(self.tableModel)
+		#self.sortByColumn(0, QtCore.Qt.AscendingOrder)
+		#self.setSortingEnabled(True)
+		#self.pair_to_item = {}
+		self.defaultFlags = QtCore.Qt.ItemIsSelectable|QtCore.Qt.ItemIsEnabled
+		if 1:
+			#self.ranking = [None for pair in self.pairs]
+			self.dim = dim
+			self.setHorizontalHeaderLabels(self.headers)
+			self.setVerticalHeaderLabels(map(str, range(len(self.pairs))))
+			self.checkboxes = []
+			for i in range(len(self.pairs)):
+				pair = self.pairs[i]
+				text = " ".join(map(str, self.pairs[i]))
+				item = QtGui.QTableWidgetItem(text)
+				self.setItem(i, 1, item)
+				item.setFlags(self.defaultFlags)
+				#item = QtGui.QTableWidgetItem()
+				#item.setData(QtCore.Qt.DisplayRole, QtCore.QVariant(True))
+				#item.setFlags(QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
+				checkbox = QtGui.QCheckBox(self)
+				checkbox.setCheckState(QtCore.Qt.Checked)
+				self.checkboxes.append(checkbox)
+				self.setCellWidget(i, 0, checkbox)
+				
+				if dim == 1:
+					button = QtGui.QPushButton("histogram: " + text, self)
+					def plot(pair=pair):
+						self.mainPanel.histogram(*pair)
+					button.clicked.connect(plot)
+					self.setCellWidget(i, 3, button)
+				if dim == 2:
+					button = QtGui.QPushButton("plotxy: " + text, self)
+					def plot(pair=pair):
+						self.mainPanel.plotxy(*pair)
+					button.clicked.connect(plot)
+					self.setCellWidget(i, 3, button)
+				#self.setItem(i, 1, item)
+			self.setSortingEnabled(True)
+			
+	def getSelected(self):
+		selection = [checkbox.checkState() == QtCore.Qt.Checked for checkbox in self.checkboxes]
+		selected_pairs = [pair for pair, selected in zip(self.pairs, selection) if selected]
+		return selected_pairs
+		
+	def setQualities(self, pairs, qualities):
+		for quality, pair in zip(qualities, pairs):
+			#item = self.pair_to_item[pair]
+			print "quality", quality, qualities
+			row = self.pairs.index(pair)
+			item = QtGui.QTableWidgetItem()#"%s"  % quality)
+			item.setText("%s"  % quality)
+			item.setData(QtCore.Qt.DisplayRole, float(quality))
+			item.setFlags(self.defaultFlags)
+			self.setItem(row, 2, item)
+			
+			
+		
+	def setPairs(self, pairs):
+		self.pairs = pairs
+		selection = [checkbox.checkState() == QtCore.Qt.Checked for checkbox in self.checkboxes]
+		non_selected_pairs = [pair for pair, selected in zip(self.pairs, selection) if not selected]
+		self.checkboxes = []
+		self.setRowCount(len(self.pairs))
+		self.setVerticalHeaderLabels(map(str, range(len(self.pairs))))
+		for i in range(len(self.pairs)):
+			text = " ".join(map(str, self.pairs[i]))
+			print text
+			item = QtGui.QTableWidgetItem(text)
+			item.setFlags(self.defaultFlags)
+			self.setItem(i, 1, item)
+			checkbox = QtGui.QCheckBox(self)
+			if not (self.pairs[i] in non_selected_pairs):
+				checkbox.setCheckState(QtCore.Qt.Checked)
+			self.checkboxes.append(checkbox)
+			self.setCellWidget(i, 0, checkbox)
+		print self.checkboxes
+		
+import functools
+
+def joinpairs(pairs1d, pairsNd):
+	previous = []
+	for pair1d in pairs1d:
+		subspacename = pair1d[0] # tuple only has one element
+		for pairNd in pairsNd:
+			if subspacename not in pairNd:
+				pair = pair1d + pairNd
+				if sorted(pair) not in previous:
+					previous.append(sorted(pair))
+					print previous
+					yield pair
+
+class RankDialog(QtGui.QDialog):
+	def __init__(self, parent, mainPanel, data):
+		super(RankDialog, self).__init__(parent)
+		self.data = data
+		self.mainPanel = mainPanel
+		
+		self.tabs = QtGui.QTabWidget(self)
+		
+		self.tab1d = QtGui.QWidget(self.tabs)
+		self.table1d = SubspaceTable(self.tab1d, mainPanel, self.data,  list(itertools.combinations(self.data.column_names, 1)),  1)
+		
+		self.subspaceTables = {}
+		self.subspaceTabs = {}
+		self.subspaceTables[1] = self.table1d
+		self.subspaceTabs[1] = self.tab1d
+		
+		self.subspace2d = QtGui.QPushButton("create 2d subspaces", self.tab1d)
+		
+		def onclick(dim=2):
+			pairs1d = self.subspaceTables[1].getSelected()
+			pairsprevd = self.subspaceTables[dim-1].getSelected()
+			print pairs1d
+			print pairsprevd
+			newpairs = list(joinpairs(pairs1d, pairsprevd))
+			print "newpairs", newpairs
+			if dim not in self.subspaceTables:
+				self.tabNd = QtGui.QWidget(self.tabs)
+				self.tableNd = SubspaceTable(self.tabNd, self.mainPanel, self.data, newpairs, dim)
+				self.tabNdlayout = QtGui.QVBoxLayout(self)
+				self.subspaceNd = QtGui.QPushButton("create %dd subspaces" % (dim+1), self.tab1d)
+				self.rankNd = QtGui.QPushButton("rank subspaces")
+				if dim == len(self.data.column_names):
+					self.subspaceNd.setDisabled(True)
+				self.tabNdlayout.addWidget(self.subspaceNd)
+				self.tabNdlayout.addWidget(self.rankNd)
+				self.subspaceNd.clicked.connect(functools.partial(onclick, dim=dim+1))
+				self.rankNd.clicked.connect(functools.partial(self.rankSubspaces, table=self.tableNd))
+				
+				def func(index, name=""):
+					print name, index.row(), index.column()
+				self.tableNd.pressed.connect(functools.partial(func, name="pressed"))
+				self.tableNd.entered.connect(functools.partial(func, name="entered"))
+				self.tableNd.clicked.connect(functools.partial(func, name="clicked"))
+				self.tableNd.activated.connect(functools.partial(func, name="activated"))
+				def func(index, previous, name=""):
+					print name, index.row(), index.column(), previous.row(), previous.column()
+				self.selectionModel = self.tableNd.selectionModel()
+				self.selectionModel.currentChanged.connect(functools.partial(func, name="currentChanged"))
+				
+				self.tabNdlayout.addWidget(self.tableNd)
+				#self.tab1dlayout.addWidget(self.rankButton)
+				#self.setCentralWidget(self.splitter)
+				self.tabNd.setLayout(self.tabNdlayout)
+				self.subspaceTables[dim] = self.tableNd
+				self.subspaceTabs[dim] = self.tabNd
+				
+				self.tabs.addTab(self.tabNd, "%dd" % dim)
+				self.tabs.setCurrentWidget(self.tabNd)
+			else:
+				self.subspaceTables[dim].setPairs(newpairs)
+				self.tabs.setCurrentWidget(self.subspaceTabs[dim])
+			
+			
+		self.subspace2d.clicked.connect(functools.partial(onclick, dim=2))
+		
+		
+		self.tab1dlayout = QtGui.QVBoxLayout(self)
+		self.tab1dlayout.addWidget(self.subspace2d)
+		self.tab1dlayout.addWidget(self.table1d)
+		#self.tab1dlayout.addWidget(self.rankButton)
+		#self.setCentralWidget(self.splitter)
+		self.tab1d.setLayout(self.tab1dlayout)
+		
+		self.tabs.addTab(self.tab1d, "1d")
+		
+		self.resize(700,500)
+		
+		if 0:
+			for name in self.data.column_names:
+				item = QtGui.QListWidgetItem(self.list1d)
+				item.setText(name)
+				item.setCheckState(False)
+				#self.list1d.
+
+
+		self.boxlayout = QtGui.QHBoxLayout(self)
+		self.boxlayout.addWidget(self.tabs)
+		#self.boxlayout.addWidget(self.rankButton)
+		#self.setCentralWidget(self.splitter)
+		self.setLayout(self.boxlayout)
+		
+	def rankSubspaces(self, table):
+		print table
+		qualities = []
+		pairs = table.getSelected()
+		for pair in pairs:
+			dim = len(pair)
+			#if dim == 2:
+			columns = [self.data.columns[name] for name in pair]
+			print pair
+			information = gavi.kld.kld_shuffled(columns)
+			qualities.append(information)
+			#print pair
+		print qualities
+		table.setQualities(pairs, qualities)
+		
+		
+class FullTableModel(QtCore.QAbstractTableModel): 
+	def __init__(self, data, parent=None, *args): 
+		QtCore.QAbstractTableModel.__init__(self, parent, *args) 
+		self.data_ = data
+	
+	def rowCount(self, parent): 
+		#print self.data_._length
+		return int(self.data_._length)
+
+	def columnCount(self, parent): 
+		return len(self.data_.all_column_names)
+
+	def data(self, index, role):
+		#return ""
+		if not index.isValid(): 
+			return None
+		elif role != QtCore.Qt.DisplayRole: 
+			return None
+		column = self.data_.all_columns[self.data_.all_column_names[index.column()]]
+		if len(column.shape) == 1:
+			return str(column[index.row()])
+		else:
+			
+			return "%s %s" % (column.dtype.name, column.shape)
+
+	def headerData(self, index, orientation, role):
+		#print index
+		if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+			return self.data_.all_column_names[index]
+		if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
+			return str(index+1)
+		return None
+
+class TableDialog(QtGui.QDialog):
+	def __init__(self, parent, data):
+		super(TableDialog, self).__init__(parent)
+		self.data = data
+		
+		self.resize(700, 500)
+		self.tableView = QtGui.QTableView()
+		self.header = self.data.column_names
+		self.tableModel = FullTableModel(self.data)
+		self.tableView.setModel(self.tableModel)
+		self.tableView.pressed.connect(self.onSelectRow)
+		
+		if 0:
+			for name in self.data.column_names:
+				item = QtGui.QListWidgetItem(self.list1d)
+				item.setText(name)
+				item.setCheckState(False)
+				#self.list1d.
+
+
+		self.boxlayout = QtGui.QHBoxLayout(self)
+		self.boxlayout.addWidget(self.tableView)
+		#self.setCentralWidget(self.splitter)
+		self.setLayout(self.boxlayout)
+		
+	def onSelectRow(self, model):
+		row_index = model.row()
+		self.data.selectRow(row_index)
+		
+		
+class MainPanel(QtGui.QFrame):
+	def __init__(self, parent):
+		super(MainPanel, self).__init__(parent)
+		
+		self.jobsManager = gavi.dataset.JobsManager()
+		self.dataset = None
+
+		self.form_layout = QtGui.QFormLayout()
+		
+		self.name = QtGui.QLabel('', self)
+		self.form_layout.addRow('Name:', self.name)
+		
+		self.columns = QtGui.QLabel('', self)
+		self.form_layout.addRow('Columns:', self.columns)
+		
+		self.length = QtGui.QLabel('', self)
+		self.form_layout.addRow('Length:', self.length)
+		
+		#self.histogramButton = QtGui.QPushButton('histogram (1d)', self)
+		self.histogramButton = QtGui.QToolButton(self)
+		self.histogramButton.setText('histogram (1d)')
+		self.form_layout.addRow('Plotting:', self.histogramButton)
+
+		self.scatterButton = QtGui.QToolButton(self)
+		self.scatterButton.setText('x/y density')
+		self.form_layout.addRow('', self.scatterButton)
+		
+		self.scatter3dButton = QtGui.QToolButton(self)
+		self.scatter3dButton.setText('x/y/z density')
+		self.form_layout.addRow('', self.scatter3dButton)
+		
+		
+		self.scatter1dSeries = QtGui.QPushButton('series', self)
+		self.form_layout.addRow('', self.scatter1dSeries)
+		
+		self.scatter2dSeries = QtGui.QPushButton('x/y series', self)
+		self.form_layout.addRow('', self.scatter2dSeries)
+		
+		self.serieSlice = QtGui.QToolButton(self)
+		self.serieSlice.setText('serie slice')
+		self.form_layout.addRow('', self.serieSlice)
+		
+		self.statistics = QtGui.QPushButton('Statistics', self)
+		self.form_layout.addRow('Data:', self.statistics)
+		
+		self.rank = QtGui.QPushButton('Rank subspaces', self)
+		self.form_layout.addRow('', self.rank)
+		
+		self.table = QtGui.QPushButton('Open table', self)
+		self.form_layout.addRow('', self.table)
+		
+		self.fractionLabel = QtGui.QLabel('Fraction used: ...')
+		self.fractionWidget = QtGui.QWidget(self)
+		self.fractionLayout = QtGui.QHBoxLayout(self.fractionWidget)
+		self.fractionSlider = QtGui.QSlider(QtCore.Qt.Horizontal, self)
+		self.fractionSlider.setMinimum(0)
+		self.fractionSlider.setMaximum(len(possibleFractions)-1)
+		self.numberLabel = QtGui.QLabel('')
+
+		self.fractionLayout.addWidget(self.fractionSlider)
+		self.fractionLayout.addWidget(self.numberLabel)
+		self.fractionWidget.setLayout(self.fractionLayout)
+		#self.fractionSlider.setTickInterval(len(possibleFractions))
+		self.form_layout.addRow(self.fractionLabel, self.fractionWidget)
+		
+		
+		
+		self.fractionSlider.valueChanged.connect(self.onValueChanged)
+		self.onValueChanged(0)
+		
+		
+		self.histogramButton.clicked.connect(self.onOpenHistogram)
+		self.statistics.clicked.connect(self.onOpenStatistics)
+		self.scatterButton.clicked.connect(self.onOpenScatter)
+		self.scatter3dButton.clicked.connect(self.onOpenScatter3d)
+		self.scatter1dSeries.clicked.connect(self.onOpenScatter1dSeries)
+		self.scatter2dSeries.clicked.connect(self.onOpenScatter2dSeries)
+		self.serieSlice.clicked.connect(self.onOpenSerieSlice)
+		self.rank.clicked.connect(self.onOpenRank)
+		self.table.clicked.connect(self.onOpenTable)
+		
+		self.setLayout(self.form_layout)
+		
+	def onOpenStatistics(self):
+		print "open", self.dataset
+		if self.dataset is not None:
+			dialog = StatisticsDialog(self, self.dataset)
+			dialog.show()
+			print "show"
+		
+	def onOpenScatter(self):
+		print "open", self.dataset
+		if self.dataset is not None:
+			xname, yname = self.dataset.column_names[:2]
+			self.plotxy(xname, yname)
+		
+	def onOpenScatter3d(self):
+		if self.dataset is not None:
+			xname, yname, zname = self.dataset.column_names[:3]
+			self.plotxyz(xname, yname, zname)
+		
+	def onOpenSerieSlice(self):
+		if self.dataset is not None:
+			xname, yname = self.dataset.rank1names[:2]
+			self.plotseriexy(xname, yname)
+			
+	def onOpenScatter1dSeries(self):
+		print "open", self.dataset
+		if self.dataset is not None:
+			dialog = vp.ScatterSeries1dPlotDialog(self, self.dataset)
+			dialog.show()
+			print "show"
+		
+	def onOpenScatter2dSeries(self):
+		print "open", self.dataset
+		if self.dataset is not None:
+			dialog = vp.ScatterSeries2dPlotDialog(self, self.dataset)
+			dialog.show()
+			print "show"
+			
+	def onOpenHistogram(self):
+		if self.dataset is not None:
+			xname = self.dataset.column_names[0]
+			self.histogram(xname)
+			
+	def plotxy(self, xname, yname):
+		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, xname, yname)
+		self.jobsManager.execute()
+		dialog.show()
+		print "show"
+			
+	def plotxyz(self, xname, yname, zname):
+		dialog = vp.PlotDialog3d(self, self.dataset, xname, yname, zname)
+		dialog.show()
+		print "show"
+		
+	def histogram(self, xname):
+		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, xname)
+		self.jobsManager.execute()
+		dialog.show()
+		
+		
+	def onOpenRank(self):
+		print "open", self.dataset
+		if self.dataset is not None:
+			dialog = RankDialog(self, self, self.dataset)
+			dialog.show()
+		
+	def onOpenTable(self):
+		print "open", self.dataset
+		if self.dataset is not None:
+			dialog = TableDialog(self, self.dataset)
+			dialog.show()
+			
+	def onValueChanged(self, index):
+		print index, len(possibleFractions)
+		fraction = possibleFractions[index]
+		text = 'Fraction used: %9.4f%%' % (fraction*100)
+		self.fractionLabel.setText(text)
+		if self.dataset:
+			self.dataset.setFraction(fraction)
+			N  = self.dataset.current_slice[1] - self.dataset.current_slice[0]
+			print N
+			self.numberLabel.setText("% 10d" % N)
+		
+	def onDataSelected(self, data_item, previous):
+		print "previous:", previous
+		if data_item is not None:
+			data = data_item.data(QtCore.Qt.UserRole)	
+			if hasattr(data, "toPyObject"):
+				data = data.toPyObject()
+			self.dataset = data
+			self.dataset = data
+			self.name.setText(data.name)
+			self.columns.setText(str(len(data.columns)))
+			self.length.setText(str(data._length))
+			print self.dataset
+			fraction = self.dataset.fraction
+			distances = np.abs(np.array(possibleFractions) - fraction)
+			index = np.argsort(distances)[0]
+			print "best index:", index
+			self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
+			self.scatterButton.setEnabled(len(self.dataset.columns) > 0)
+			self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
+			self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
+			self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
+			
+			self.histogramMenu = QtGui.QMenu(self)
+			for column_name in self.dataset.column_names:
+				#action = QtGui.QAction
+				#QtGui.QAction(QtGui.QIcon(iconfile('glue_cross')), '&Pick', self)
+				action = QtGui.QAction(column_name, self)
+				action.triggered.connect(functools.partial(self.histogram, xname=column_name))
+				self.histogramMenu.addAction(action)
+			self.histogramButton.setMenu(self.histogramMenu)
+			
+			self.scatterMenu = QtGui.QMenu(self)
+			for column_name1 in self.dataset.column_names:
+				#action1 = QtGui.QAction(column_name, self)
+				submenu = self.scatterMenu.addMenu(column_name1)
+				for column_name2 in self.dataset.column_names:
+					action = QtGui.QAction(column_name2, self)
+					action.triggered.connect(functools.partial(self.plotxy, xname=column_name1, yname=column_name2))
+					submenu.addAction(action)
+			self.scatterButton.setMenu(self.scatterMenu)
+			
+			self.serieSliceMenu = QtGui.QMenu(self)
+			for column_name1 in self.dataset.rank1names:
+				#action1 = QtGui.QAction(column_name, self)
+				submenu = self.serieSliceMenu.addMenu(column_name1)
+				for column_name2 in self.dataset.rank1names:
+					action = QtGui.QAction(column_name2, self)
+					action.triggered.connect(functools.partial(self.plotseriexy, xname=column_name1, yname=column_name2))
+					submenu.addAction(action)
+			self.serieSlice.setMenu(self.serieSliceMenu)
+			
+	def plotseriexy(self, xname, yname):
+		if self.dataset is not None:
+			dialog = vp.Rank1ScatterPlotDialog(self, self.jobsManager, self.dataset, xname+"[index]", yname+"[index]")
+			self.jobsManager.execute()
+			dialog.show()
+			print "show"
+			
+			
+from numba import jit
+import numba
+print numba.__version__
+import math
+#@jit('(f8[:],f8[:], i4[:,:], f8, f8, f8, f8)')
+@jit(nopython=True)
+def histo2d(x, y, counts, dataminx, datamaxx, dataminy, datamaxy):
+	length = len(x)
+	#counts = np.zeros((bincountx, bincounty), dtype=np.int32)
+	bincountx, bincounty = counts.shape
+	#print length
+	#return bindata#
+	for i in range(length):
+		binNox = int(math.floor( ((float(x[i]) - dataminx) / (float(datamaxx) - dataminx)) * float(bincountx)))
+		binNoy = int(math.floor( ((float(y[i]) - dataminy) / (float(datamaxy) - dataminy)) * float(bincounty)))
+		if binNox >= 0 and binNox < bincountx and binNoy >= 0 and binNoy < bincounty:
+			counts[binNox, binNoy] += 1
+	#step = float(datamax-datamin)/bincount
+	#return numpy.arange(datamin, datamax+step/2, step), binData
+	return counts
+	#for i in range(N):
+	#	offset = data[
+
+@jit(nopython=True)
+def find_nearest_index(datax, datay, x, y, wx, wy):
+	N = len(datax)
+	index = 0
+	mindistance = math.sqrt((datax[0]-x)**2/wx**2 + (datay[0]-y)**2/wy**2)
+	for i in range(1,N):
+		distance = math.sqrt((datax[i]-x)**2/wx**2 + (datay[i]-y)**2/wy**2)
+		if distance < mindistance:
+			mindistance = distance
+			index = i
+	return index
+		
+@jit(nopython=True)
+def find_nearest_index1d(datax, x):
+	N = len(datax)
+	index = 0
+	mindistance = math.sqrt((datax[0]-x)**2)
+	for i in range(1,N):
+		distance = math.sqrt((datax[i]-x)**2)
+		if distance < mindistance:
+			mindistance = distance
+			index = i
+	return index
+		
+
+
+import mab.utils.numpy
+
+		
+		
+
+
+class Example(QtGui.QMainWindow):
+	def __init__(self):
+		super(Example, self).__init__()
+		
+		self.initUI()
+		
+	def initUI(self):
+		
+		QtGui.QToolTip.setFont(QtGui.QFont('SansSerif', 10))
+		
+		self.setToolTip('This is a <b>QWidget</b> widget')
+		
+		
+		if 0:
+			qbtn = QtGui.QPushButton('Quit', self)
+			qbtn.clicked.connect(QtCore.QCoreApplication.instance().quit)
+			qbtn.resize(qbtn.sizeHint())
+			qbtn.move(150, 150) 
+			
+			btn = QtGui.QPushButton('Button', self)
+			btn.setToolTip('This is a <b>QPushButton</b> widget')
+			btn.resize(btn.sizeHint())
+			btn.move(50, 50)       
+		
+		#self.setGeometry(300, 300, 250, 150)
+		self.resize(700,500)
+		self.center()
+		#self.setWindowTitle('Gavi samp test')    
+		self.setWindowTitle(u'MedaV\xe6X')    
+		#self.statusBar().showMessage('Ready')
+		
+		
+		
+		self.left = QtGui.QFrame(self)
+		self.left.setFrameShape(QtGui.QFrame.StyledPanel)
+		
+		self.right = MainPanel(self) #QtGui.QFrame(self)
+		self.right.setFrameShape(QtGui.QFrame.StyledPanel)
+		
+		self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
+		self.splitter.addWidget(self.left)
+		self.splitter.addWidget(self.right)
+		
+		#self.hbox = QtGui.QHBoxLayout(self)
+		#self.hbox.addWidget(self.splitter)
+		self.setCentralWidget(self.splitter)
+		#self.setLayout(self.hbox)
+
+        
+        
+		self.list = DataList(self.left)
+		self.list.setMinimumWidth(300)
+		#self.list.resize(30
+		
+		self.boxlist = QtGui.QHBoxLayout(self)
+		self.boxlist.addWidget(self.list)
+		self.left.setLayout(self.boxlist)
+		
+		#self.list.currentItemChanged.connect(self.infoPanel.onDataSelected)
+		self.list.currentItemChanged.connect(self.right.onDataSelected)
+		#self.list.testfill()
+		print custom
+		if custom is not None:
+			custom.loadDatasets(self.list)
+		#self.list.itemSelectionChanged.connect(self.right.onDataSelected)
+		
+		
+		
+		
+		exitAction = QtGui.QAction(QtGui.QIcon('icons/png/24x24/actions/application-exit-2.png'), '&Exit', self)        
+		exitAction.setShortcut('Ctrl+Q')
+		exitAction.setStatusTip('Exit application')
+		exitAction.triggered.connect(QtGui.qApp.quit)
+		
+		menubar = self.menuBar()
+		fileMenu = menubar.addMenu('&File')
+		fileMenu.addAction(exitAction)
+		
+		#self.toolbar = self.addToolBar('Exit')
+		#self.toolbar.addAction(exitAction)
+		
+        
+		self.show()
+		
+		
+	def center(self):
+		
+		qr = self.frameGeometry()
+		cp = QtGui.QDesktopWidget().availableGeometry().center()
+		qr.moveCenter(cp)
+		self.move(qr.topLeft())		
+		
+	def _closeEvent(self, event):
+		
+		reply = QtGui.QMessageBox.question(self, 'Message',
+			"Are you sure to quit?", QtGui.QMessageBox.Yes | 
+			QtGui.QMessageBox.No, QtGui.QMessageBox.No)
+
+		if reply == QtGui.QMessageBox.Yes:
+			event.accept()
+		else:
+			event.ignore()               
+        
+
+def main():
+	app = QtGui.QApplication(sys.argv)
+	#import gavi.vaex.ipkernel_qtapp
+	#ipython_window = gavi.vaex.ipkernel_qtapp.SimpleWindow(app)
+	
+	
+	ex = Example()
+	ex.raise_()
+	#w = QtGui.QWidget()
+	#w.resize(250, 150)
+	#w.move(300, 300)
+	#w.setWindowTitle('Simple')
+	#w.show()
+	#ipython_window.show()
+	#ipython_window.ipkernel.start()
+	sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()
