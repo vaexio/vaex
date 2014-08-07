@@ -15,3 +15,5 @@ class Timer(object):
 		if self.name:
 			print '[%s]' % self.name,
 		print 'Elapsed: %s' % (time.time() - self.tstart)
+		print type, value, traceback
+		return False

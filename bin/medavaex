@@ -26,8 +26,12 @@ import imp
 custom = None
 path = os.path.expanduser('~/.medavaex/custom.py')
 print path
-customModule = imp.load_source('gavi.custom', path)
-custom = customModule.Custom()
+if os.path.exists(path):
+	customModule = imp.load_source('gavi.custom', path)
+	custom = customModule.Custom()
+else:
+	custom = None
+	print >>sys.stderr, path, "does not exist"
 
 
 if 0:
@@ -266,6 +270,8 @@ class DataList(QtGui.QListWidget):
 			self.addGadgetHdf5('data/disk2nv_N6N5_z0.1h_RfAs0.5H_no_H1_0.5_nH01_vw5s_ml50_st-snap_800.hdf5', name, index)
 		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 			self.addGadgetHdf5('/home/data/gavi/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5', name, index)
+			
+			
 		
 	def setBestFraction(self, dataset):
 		Nmax = 1000*1000*10
@@ -949,8 +955,9 @@ class MainPanel(QtGui.QFrame):
 	def onOpenScatter1dSeries(self):
 		print "open", self.dataset
 		if self.dataset is not None:
-			dialog = vp.ScatterSeries1dPlotDialog(self, self.dataset)
+			dialog = vp.SequencePlot(self, self.jobsManager, self.dataset)
 			dialog.show()
+			self.jobsManager.execute()
 			print "show"
 		
 	def onOpenScatter2dSeries(self):
@@ -1004,6 +1011,7 @@ class MainPanel(QtGui.QFrame):
 			N  = self.dataset.current_slice[1] - self.dataset.current_slice[0]
 			print N
 			self.numberLabel.setText("% 10d" % N)
+			self.jobsManager.execute()
 		
 	def onDataSelected(self, data_item, previous):
 		print "previous:", previous

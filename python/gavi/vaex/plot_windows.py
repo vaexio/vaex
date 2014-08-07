@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbarQt
 from matplotlib.figure import Figure
@@ -70,6 +71,91 @@ def find_nearest_index1d(datax, x):
 	distance = math.sqrt((datax[index]-x)**2)
 	return index, distance
 		
+		
+		
+class LinkButton(QtGui.QToolButton):
+	def __init__(self, title, dataset, axisIndex, parent):
+		super(LinkButton, self).__init__(parent)
+		self.plot = parent
+		self.dataset = dataset
+		self.axisIndex = axisIndex
+		self.setText(title)
+		self.setAcceptDrops(True)
+		self.disconnect_icon = QtGui.QIcon(iconfile('network-disconnect-2'))
+		self.connect_icon = QtGui.QIcon(iconfile('network-connect-3'))
+		self.setIcon(self.disconnect_icon)
+		
+		self.action_link_global = QtGui.QAction(self.connect_icon, '&Global link', self)
+		self.action_unlink = QtGui.QAction(self.connect_icon, '&Unlink', self)
+		self.menu = QtGui.QMenu()
+		self.menu.addAction(self.action_link_global)
+		self.menu.addAction(self.action_unlink)
+		self.action_link_global.triggered.connect(self.onLinkGlobal)
+		self.setMenu(self.menu)
+		self.setDefaultAction(self.action_link_global)
+		self.link = None
+		
+	def onLinkGlobal(self):
+		self.link = self.dataset.link(self.plot.expressions[self.axisIndex], self)
+		logger.debug("made global link: %r" % self.link)
+		#self.parent.links[self.axisIndex] = self.linkHandle
+		
+	def onChangeRangeShow(self, range_):
+		self.plot.ranges_show[self.axisIndex] = range_
+		
+	def onChangeRange(self, range_):
+		self.plot.ranges[self.axisIndex] = range_
+		
+	def onCompute(self):
+		self.plot.compute()
+	
+	def onPlot(self):
+		self.plot.plot()
+	
+	def onLinkLimits(self, min, max):
+		self.plot.expressions[self.axisIndex] = expression
+	
+	def onChangeExpression(self, expression):
+		self.plot.expressions[self.axisIndex] = expression
+		
+		
+
+	def _dragEnterEvent(self, e):
+		print e.mimeData()
+		print e.mimeData().text()
+		if e.mimeData().hasFormat('text/plain'):
+			e.accept()
+			
+		else:
+			e.ignore() 
+			
+	def dropEvent(self, e):
+		position = e.pos()        
+		#self.button.move(position)
+		print "do", e.mimeData().text()
+		e.setDropAction(QtCore.Qt.MoveAction)
+		e.accept()
+
+	def _mousePressEvent(self, e):
+		
+			super(LinkButton, self).mousePressEvent(e)
+			
+			if e.button() == QtCore.Qt.LeftButton:
+				print 'press'			
+
+	def _mouseMoveEvent(self, e):
+		if e.buttons() != QtCore.Qt.LeftButton:
+			return
+
+		mimeData = QtCore.QMimeData()
+
+		drag = QtGui.QDrag(self)
+		drag.setMimeData(mimeData)
+		drag.setHotSpot(e.pos() - self.rect().topLeft())
+		mimeData.setText("blaat")
+
+		dropAction = drag.start(QtCore.Qt.MoveAction)
+
 
 
 class PlotDialog(QtGui.QDialog):
@@ -148,10 +234,30 @@ class PlotDialog(QtGui.QDialog):
 		self.axisboxes = []
 		self.onExpressionChangedPartials = []
 		axisIndex = 0
+		
+		self.grid_layout = QtGui.QGridLayout(self)
+		#row = 0
+		self.linkButtons = []
 		for axisname in self.axisnames:
+			row = axisIndex
 			axisbox = QtGui.QComboBox(self)
 			axisbox.setEditable(True)
-			self.form_layout.addRow(axisname + '-axis:', axisbox)
+			#self.form_layout.addRow(axisname + '-axis:', axisbox)
+			self.grid_layout.addWidget(QtGui.QLabel(axisname + '-axis:', self), row, 0)
+			self.grid_layout.addWidget(axisbox, row, 1, QtCore.Qt.AlignLeft)
+			functionButton = QtGui.QToolButton(self)
+			linkButton = LinkButton("link", self.dataset, axisIndex, self)
+			self.linkButtons.append(linkButton)
+			
+			menu = QtGui.QMenu()
+			functionButton.setMenu(menu)
+			functionButton.setPopupMode(QtGui.QToolButton.InstantPopup)
+			link_action = QtGui.QAction(QtGui.QIcon(iconfile('network-connect-3')), '&Link axis', self)
+			unlink_action = QtGui.QAction(QtGui.QIcon(iconfile('network-disconnect-2')), '&Unlink axis', self)
+			menu.addAction(link_action)
+			menu.addAction(unlink_action)
+			self.grid_layout.addWidget(functionButton, row, 2)
+			self.grid_layout.addWidget(linkButton, row, 3)
 			axisbox.addItems(self.getExpressionList())
 			#axisbox.setCurrentIndex(self.expressions[axisIndex])
 			#axisbox.currentIndexChanged.connect(functools.partial(self.onAxis, axisIndex=axisIndex))
@@ -161,15 +267,37 @@ class PlotDialog(QtGui.QDialog):
 			axisbox.lineEdit().editingFinished.connect(self.onExpressionChangedPartials[axisIndex])
 			axisIndex += 1
 			self.axisboxes.append(axisbox)
+		
+		layout.addLayout(self.grid_layout, 0)
 		layout.addLayout(self.form_layout, 0)
 
 		self.amplitude_box = QtGui.QComboBox(self)
 		self.amplitude_box.setEditable(True)
 		self.amplitude_box.addItems(["log(counts)", "counts", "counts**2", "sqrt(counts)"])
+		self.amplitude_box.setMinimumContentsLength(40)
 		self.form_layout.addRow("amplitude=", self.amplitude_box)
 		self.amplitude_box.lineEdit().editingFinished.connect(self.onAmplitudeExpr)
 		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
 		
+		self.weight_box = QtGui.QComboBox(self)
+		self.weight_box.setEditable(True)
+		self.weight_box.addItems(["", "vx"])
+		self.weight_box.setMinimumContentsLength(40)
+		self.form_layout.addRow("weight=", self.weight_box)
+		self.weight_box.lineEdit().editingFinished.connect(self.onWeightExpr)
+		self.weight_expression = str(self.weight_box.lineEdit().text())
+		
+		
+		
+	def onWeightExpr(self):
+		self.weight_expression = str(self.weight_box.lineEdit().text())
+		print self.weight_expression
+		if self.weight_expression.strip() == "":
+			self.weight_expression = None
+		self.ranges_level[0] = None
+		self.compute()
+		self.jobsManager.execute()
+		self.plot()
 	
 	def onAmplitudeExpr(self):
 		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
@@ -190,13 +318,22 @@ class PlotDialog(QtGui.QDialog):
 		# TODO: range reset as option?
 		self.ranges[axisIndex] = None
 		self.ranges_show[axisIndex] = None
-		
+		linkButton = self.linkButtons[axisIndex]
+		link = linkButton.link
+		if link:
+			logger.debug("sending link messages")
+			link.sendRanges(self.ranges[axisIndex], linkButton)
+			link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
+			link.sendExpression(self.expressions[axisIndex], linkButton)
+			link.sendCompute(linkButton)
+		else:
+			logger.debug("not linked")
 		self.compute()
 		self.jobsManager.execute()
 
 
 	def compute(self):
-		def calculate_range(block, info, axisIndex):
+		def calculate_range(info, block, axisIndex):
 			#print "block", info.index, info.size, block
 			if info.error:
 				print "error", info.error_text
@@ -210,7 +347,11 @@ class PlotDialog(QtGui.QDialog):
 		for axisIndex in range(self.dimensions):
 			if self.ranges[axisIndex] is None:
 				self.jobsManager.addJob(0, functools.partial(calculate_range, axisIndex=axisIndex), self.dataset, self.expressions[axisIndex], **self.getVariableDict())
-		self.jobsManager.addJob(1, self.calculate_visuals, self.dataset, *self.expressions, **self.getVariableDict())
+		if self.weight_expression is None or len(self.weight_expression.strip()) == 0:
+			self.jobsManager.addJob(1, self.calculate_visuals, self.dataset, *self.expressions, **self.getVariableDict())
+		else:
+			all_expressions = self.expressions + [self.weight_expression]
+			self.jobsManager.addJob(1, self.calculate_visuals, self.dataset, *all_expressions, **self.getVariableDict())
 	
 	def getVariableDict(self):
 		return {}
@@ -293,58 +434,74 @@ class PlotDialog(QtGui.QDialog):
 		
 	def onPickX(self, event):
 		x, y = event.xdata, event.ydata
-		# TODO: new system
-		
 		self.selected_point = None
-		index = None
-		distance = None
-		for (block,), info in self.dataset.evaluate(self.expressions[0]):
+		class Scope(object):
+			pass
+		# temp scope object
+		scope = Scope()
+		scope.index = None
+		scope.distance = None
+		def pick(block, info, scope=scope):
 			if info.first:
-				index, distance = find_nearest_index1d(block, x)
+				scope.index, scope.distance = find_nearest_index1d(block, x)
 			else:
-				block_index, block_distance = find_nearest_index1d(block, x)
-				if block_distance < distance:
-					index = block_index
+				scope.block_index, scope.block_distance = find_nearest_index1d(block, x)
+				if scope.block_distance < scope.distance:
+					scope.index = scope.block_index
+		self.dataset.evaluate(pick, self.expressions[0], **self.getVariableDict())
+		index, distance = scope.index, scope.distance
 		print "nearest row", index, distance
 		self.dataset.selectRow(index)
-		self.setMode(self.lastAction)
+		self.setMode(self.lastAction)		
 		
 	def onPickY(self, event):
 		x, y = event.xdata, event.ydata
-		# TODO: new system
-
 		self.selected_point = None
-		index = None
-		distance = None
-		for (block,), info in self.dataset.evaluate(self.expressions[1]):
+		class Scope(object):
+			pass
+		# temp scope object
+		scope = Scope()
+		scope.index = None
+		scope.distance = None
+		def pick(block, info, scope=scope):
 			if info.first:
-				index, distance = find_nearest_index1d(block, y)
+				scope.index, scope.distance = find_nearest_index1d(block, y)
 			else:
-				block_index, block_distance = find_nearest_index1d(block, y)
-				if block_distance < distance:
-					index = block_index
+				scope.block_index, scope.block_distance = find_nearest_index1d(block, y)
+				if scope.block_distance < scope.distance:
+					scope.index = scope.block_index
+		self.dataset.evaluate(pick, self.expressions[1], **self.getVariableDict())
+		index, distance = scope.index, scope.distance
 		print "nearest row", index, distance
 		self.dataset.selectRow(index)
-		self.setMode(self.lastAction)
+		self.setMode(self.lastAction)		
+		
+
 		
 	def onPickXY(self, event):
 		x, y = event.xdata, event.ydata
-		# TODO: new system
 		wx = self.ranges_show[0][1] - self.ranges_show[0][0]
 		wy = self.ranges_show[1][1] - self.ranges_show[1][0]
 		
-		index = None
-		distance = None
-		for (blockx, blocky), info in self.dataset.evaluate(*self.expressions[:2]):
+		self.selected_point = None
+		class Scope(object):
+			pass
+		# temp scope object
+		scope = Scope()
+		scope.index = None
+		scope.distance = None
+		def pick(blockx, blocky, info, scope=scope):
 			if info.first:
-				index, distance = find_nearest_index(blockx, blocky, x, y, wx, wy)
+				scope.index, scope.distance = find_nearest_index(blockx, blocky, x, y, wx, wy)
 			else:
-				block_index, block_distance = find_nearest_index(blockx, blocky, x, y, wx, wy)
-				if block_distance < distance:
-					index = block_index
+				scope.block_index, scope.block_distance = find_nearest_index(blockx, blocky, x, y, wx, wy)
+				if scope.block_distance < scope.distance:
+					scope.index = scope.block_index
+		self.dataset.evaluate(pick, *self.expressions[:2], **self.getVariableDict())
+		index, distance = scope.index, scope.distance
 		print "nearest row", index, distance
 		self.dataset.selectRow(index)
-		self.setMode(self.lastAction)
+		self.setMode(self.lastAction)		
 		
 		
 	def onSelectX(self, xmin, xmax):
@@ -354,9 +511,16 @@ class PlotDialog(QtGui.QDialog):
 		print "selectx", xmin, xmax
 		#xmin = xmin if not self.useLogx() else 10**xmin
 		#xmax = xmax if not self.useLogx() else 10**xmax
-		mask = np.zeros(self.dataset._length, dtype=np.bool)
-		for block, info in self.dataset.evaluate(self.expressions[0]):
-			mask[info.i1:info.i2] = (block >= xmin) & (block < xmax)
+		#mask = np.zeros(self.dataset._length, dtype=np.bool)
+		length = self.dataset.current_slice[1] - self.dataset.current_slice[0]
+		mask = np.zeros(length, dtype=np.bool)
+		#for block, info in self.dataset.evaluate(self.expressions[0]):
+		#	mask[info.i1:info.i2] = (block >= xmin) & (block < xmax)
+		#	print ">>>>>>>>>>>>>>> block", info.i1,info.i2, "selected", sum(mask[info.i1:info.i2])
+		def putmask(info, block):
+			print ">>>>>>>>>>>>>>> block", info.i1,info.i2, "selected", sum(mask[info.i1:info.i2])
+			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], (block >= xmin) & (block < xmax))
+		self.dataset.evaluate(putmask, self.expressions[0], **self.getVariableDict())
 		
 		print "selectx", xmin, xmax, "selected", np.sum(mask)
 		self.dataset.selectMask(mask)
@@ -368,8 +532,11 @@ class PlotDialog(QtGui.QDialog):
 		ymin, ymax = min(y), max(y)
 		#mask = (data >= ymin) & (data < ymax)
 		mask = np.zeros(self.dataset._length, dtype=np.bool)
-		for block, info in self.dataset.evaluate(self.expressions[1]):
-			mask[info.i1:info.i2] = (block >= ymin) & (block < ymax)
+		def putmask(info, block):
+			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], (block >= ymin) & (block < ymax))
+		self.dataset.evaluate(putmask, self.expressions[1], **self.getVariableDict())
+		#for block, info in self.dataset.evaluate(self.expressions[1]):
+		#	mask[info.i1:info.i2] = (block >= ymin) & (block < ymax)
 		print "selecty", ymin, ymax, "selected", np.sum(mask)
 		self.dataset.selectMask(mask)
 		self.jobsManager.execute()
@@ -381,13 +548,16 @@ class PlotDialog(QtGui.QDialog):
 		x = np.ascontiguousarray(x, dtype=np.float64)
 		y = np.ascontiguousarray(y, dtype=np.float64)
 		#mask = np.zeros(len(self.dataset._length), dtype=np.uint8)
-		mask = np.zeros(self.dataset._length, dtype=np.bool)
+		mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
 		meanx = x.mean()
 		meany = y.mean()
 		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
 		#print (x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
-		for (blockx, blocky), info in self.dataset.evaluate(*self.expressions[:2]):
+		#for (blockx, blocky), info in self.dataset.evaluate(*self.expressions[:2]):
+		def select(info, blockx, blocky):
 			gavi.selection.pnpoly(x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius)
+			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], mask[info.i1:info.i2])
+		self.dataset.evaluate(select, *self.expressions[:2], **self.getVariableDict())
 		if 0:
 			try:
 				gavi.selection.pnpoly(x, y, self.getdatax(), self.getdatay(), mask, meanx, meany, radius)
@@ -404,6 +574,15 @@ class PlotDialog(QtGui.QDialog):
 		
 	def onZoomX(self, xmin, xmax):
 		self.ranges_show[0] = xmin, xmax
+		
+		axisIndex = 0
+		linkButton = self.linkButtons[axisIndex]
+		link = linkButton.link
+		if link:
+			logger.debug("sending link messages")
+			link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
+			link.sendPlot(linkButton)
+		
 		self.plot()
 		
 	def onZoomY(self, ymin, ymax):
@@ -418,6 +597,9 @@ class PlotDialog(QtGui.QDialog):
 		x2, y2 = (erelease.xdata, erelease.ydata)
 		x = [x1, x2]
 		y = [y1, y2]
+
+		
+		
 		
 		xmin_show, xmax_show = min(x), max(x)
 		ymin_show, ymax_show = min(y), max(y)
@@ -428,6 +610,14 @@ class PlotDialog(QtGui.QDialog):
 			logger.debug("range refers to level: %r" % (self.ranges_level[0],))
 		else:
 			self.ranges_show[1] = ymin_show, ymax_show
+		
+		for axisIndex in range(self.dimensions):
+			linkButton = self.linkButtons[axisIndex]
+			link = linkButton.link
+			if link:
+				logger.debug("sending link messages")
+				link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
+				link.sendPlot(linkButton)
 		
 		#self.axes.set_xlim(self.xmin_show, self.xmax_show)
 		#self.axes.set_ylim(self.ymin_show, self.ymax_show)
@@ -445,8 +635,15 @@ class PlotDialog(QtGui.QDialog):
 		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
 			self.ranges_level[0] = ymin_show, ymax_show
 		else:
-			self.ranges_show[1] = xmin_show, xmax_show
+			self.ranges_show[1] = ymin_show, ymax_show
 		
+		for axisIndex in range(self.dimensions):
+			linkButton = self.linkButtons[axisIndex]
+			link = linkButton.link
+			if link:
+				logger.debug("sending link messages")
+				link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
+				link.sendPlot(linkButton)
 		#self.axes.set_ylim(self.ymin_show, self.ymax_show)
 		#self.canvas.draw()
 		self.plot()
@@ -456,6 +653,18 @@ class PlotDialog(QtGui.QDialog):
 			self.ranges[i] = None
 			self.ranges_show[i] = None
 			self.ranges_level[i] = None
+		sendCompute = False
+		for axisIndex in range(self.dimensions):
+			linkButton = self.linkButtons[axisIndex]
+			link = linkButton.link
+			if link:
+				logger.debug("sending link messages")
+				link.sendRanges(self.ranges[axisIndex], linkButton)
+				link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
+				if not sendCompute: # only send once
+					link.sendCompute(linkButton)
+					sendCompute  = True
+
 		self.compute()
 		self.jobsManager.execute()
 		
@@ -463,6 +672,17 @@ class PlotDialog(QtGui.QDialog):
 		for i in range(self.dimensions):
 			self.ranges[i] = self.ranges_show[i]
 			self.ranges_level[i] = None
+		sendCompute = False
+		for axisIndex in range(self.dimensions):
+			linkButton = self.linkButtons[axisIndex]
+			link = linkButton.link
+			if link:
+				logger.debug("sending link messages")
+				link.sendRanges(self.ranges[axisIndex], linkButton)
+				link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
+				if not sendCompute: # only send once
+					link.sendCompute(linkButton)
+					sendCompute  = True
 		self.compute()
 		self.jobsManager.execute()
 		
@@ -471,11 +691,19 @@ class PlotDialog(QtGui.QDialog):
 		self.toolbar = QtGui.QToolBar(self)
 		self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
 		self.actionGroup = QtGui.QActionGroup(self)
+		self.actionGroupSelectMode = QtGui.QActionGroup(self)
 		self.action_pick = QtGui.QAction(QtGui.QIcon(iconfile('glue_cross')), '&Pick', self)
+		
 		self.action_select = QtGui.QAction(QtGui.QIcon(iconfile('glue_lasso')), '&Select(you should not read this)', self)
 		self.action_xrange = QtGui.QAction(QtGui.QIcon(iconfile('glue_xrange_select')), '&x-range', self)
 		self.action_yrange = QtGui.QAction(QtGui.QIcon(iconfile('glue_yrange_select')), '&y-range', self)
 		self.action_lasso = QtGui.QAction(QtGui.QIcon(iconfile('glue_lasso')), '&Lasso', self)
+		self.action_select_none = QtGui.QAction(QtGui.QIcon(iconfile('dialog-cancel-3')), '&No selection', self)
+
+		self.action_select_mode_replace = QtGui.QAction(QtGui.QIcon(iconfile('glue_replace')), '&Replace', self)
+		self.action_select_mode_and = QtGui.QAction(QtGui.QIcon(iconfile('glue_and')), '&And', self)
+		self.action_select_mode_or = QtGui.QAction(QtGui.QIcon(iconfile('glue_or')), '&Or', self)
+		
 		self.action_zoom_rect = QtGui.QAction(QtGui.QIcon(iconfile('glue_zoom_to_rect')), '&Zoom to rect', self)
 		#self.action_zoom_rect.setIconText("rect")
 
@@ -504,6 +732,10 @@ class PlotDialog(QtGui.QDialog):
 
 		#self.actionGroup.setToggleAction(True)
 		#self.actionGroup.setExclusive(True)
+		self.actionGroupSelectMode.addAction(self.action_select_mode_replace)
+		self.actionGroupSelectMode.addAction(self.action_select_mode_and)
+		self.actionGroupSelectMode.addAction(self.action_select_mode_or)
+		
 		self.actionGroup.addAction(self.action_pick)
 		self.actionGroup.addAction(self.action_xrange)
 		self.actionGroup.addAction(self.action_yrange)
@@ -534,6 +766,24 @@ class PlotDialog(QtGui.QDialog):
 			self.select_menu.addAction(self.action_lasso)
 			if self.dimensions > 1:
 				self.lastActionSelect = self.action_lasso
+		self.select_menu.addSeparator()
+		self.select_menu.addAction(self.action_select_none)
+		self.select_menu.addSeparator()
+		
+		
+		self.select_mode_button = QtGui.QToolButton()
+		self.select_mode_button.setPopupMode(QtGui.QToolButton.InstantPopup)
+		#self.select_mode_button.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
+		self.select_mode_button_menu = QtGui.QMenu()
+		self.select_mode_button.setMenu(self.select_mode_button_menu)
+		
+		self.select_mode_button_menu.addAction(self.action_select_mode_replace)
+		self.select_mode_button_menu.addAction(self.action_select_mode_or)
+		self.select_mode_button_menu.addAction(self.action_select_mode_and)
+		self.select_mode_button.setDefaultAction(self.action_select_mode_replace)
+		self.toolbar.addWidget(self.select_mode_button)
+		
+		#self.toolbar.addAction(action_select_mode)
 		
 		self.toolbar.addAction(self.action_zoom)
 		self.zoom_menu = QtGui.QMenu()
@@ -556,12 +806,19 @@ class PlotDialog(QtGui.QDialog):
 		
 		
 		self.actionGroup.triggered.connect(self.setMode)
+		self.actionGroupSelectMode.triggered.connect(self.setSelectMode)
 		self.action_select.triggered.connect(self.onActionSelect)
 		self.action_zoom.triggered.connect(self.onActionZoom)
 		self.action_zoom_out.triggered.connect(self.onZoomOut)
 		self.action_zoom_fit.triggered.connect(self.onZoomFit)
 		self.action_zoom_use.triggered.connect(self.onZoomUse)
+		self.action_select_none.triggered.connect(self.onActionSelectNone)
 		#action_zoom_out
+		
+		self.action_select_mode_replace.setCheckable(True)
+		self.action_select_mode_and.setCheckable(True)
+		self.action_select_mode_or.setCheckable(True)
+		
 		self.action_pick.setCheckable(True)
 		self.action_pick.setChecked(True)
 		self.action_select.setCheckable(True)
@@ -577,7 +834,31 @@ class PlotDialog(QtGui.QDialog):
 		
 		#action = self.toolbar.addAction(icon
 		self.syncToolbar()
+		self.action_select_mode_replace.setChecked(True)
+		self.select_mode = self.select_replace
 		layout.addWidget(self.toolbar)
+
+	def setSelectMode(self, action):
+		self.select_mode_button.setDefaultAction(action)
+		if action == self.action_select_mode_replace:
+			self.select_mode = self.select_replace
+		if action == self.action_select_mode_and:
+			self.select_mode = self.select_and
+		if action == self.action_select_mode_or:
+			self.select_mode = self.select_or
+			
+	def select_replace(self, maskold, masknew):
+		return masknew
+		
+	def select_and(self, maskold, masknew):
+		return masknew if maskold is None else maskold & masknew
+		
+	def select_or(self, maskold, masknew):
+		return masknew if maskold is None else maskold | masknew
+		
+	def onActionSelectNone(self):
+		self.dataset.selectMask(None)
+		self.jobsManager.execute()
 		
 	def onActionSelect(self):
 		self.lastActionSelect.setChecked(True)
@@ -619,7 +900,7 @@ class HistogramPlotDialog(PlotDialog):
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)
 		
-	def calculate_visuals(self, block, info):
+	def calculate_visuals(self, info, block, weights_block=None):
 		self.expression_error = False
 		#return
 		xmin, xmax = self.ranges[0]
@@ -630,10 +911,19 @@ class HistogramPlotDialog(PlotDialog):
 		if info.first:
 			self.selected_point = None
 			self.counts = np.zeros(N, dtype=np.float64)
+			if weights_block is not None:
+				self.counts_weights = np.zeros(N, dtype=np.float64)
+			else:
+				self.counts_weights = None
 			if mask is not None:
 				self.counts_mask = np.zeros(N, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
+				if weights_block is not None:
+					self.counts_mask_weights = np.zeros(N, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
+				else:
+					self.counts_mask_weights = None
 			else:
 				self.counts_mask = None
+				self.counts_mask_weights = None
 		
 		if info.error:
 			print "error", info.error_text
@@ -643,13 +933,19 @@ class HistogramPlotDialog(PlotDialog):
 		#print repr(self.data), repr(self.counts), repr(xmin), repr(xmax)
 		t0 = time.time()
 		try:
+			args = (block, self.counts, xmin, xmax)
 			gavi.histogram.hist1d(block, self.counts, xmin, xmax)
+			if weights_block is not None:
+				args = (block, self.counts, xmin, xmax, weights_block)
+				gavi.histogram.hist1d_weights(block, self.counts_weights, weights_block, xmin, xmax)
 		except:
-			args = (block, self.counts, xmin, xmax, self.useLog())
-			logging.exception("error with hist1d, arguments: %r" % (args,))
+			logger.exception("error with hist1d, arguments: %r" % (args,))
 		if mask is not None:
 			subset = block[mask[info.i1:info.i2]]
 			gavi.histogram.hist1d(subset, self.counts_mask, xmin, xmax)
+			if weights_block is not None:
+				subset_weights = weights_block[mask[info.i1:info.i2]]
+				gavi.histogram.hist1d_weights(subset, self.counts_mask_weights, subset_weights, xmin, xmax)
 		print "it took", time.time()-t0
 		
 		index = self.dataset.selected_row_index
@@ -672,12 +968,15 @@ class HistogramPlotDialog(PlotDialog):
 		amplitude = self.counts
 		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 		if self.amplitude_expression is not None:
-			locals = {"counts":self.counts}
+			locals = {"counts":self.counts, "counts_weights":self.counts_weights}
 			globals = np.__dict__
 			amplitude = eval(self.amplitude_expression, globals, locals)
 
 		if self.ranges_level[0] is None:
-			self.ranges_level[0] = 0, amplitude.max() * 1.1
+			if self.weight_expression:
+				self.ranges_level[0] = np.nanmin(amplitude) * 1.1, np.nanmax(amplitude) * 1.1
+			else:
+				self.ranges_level[0] = 0, np.nanmax(amplitude) * 1.1
 
 
 		if self.counts_mask is None:
@@ -694,9 +993,11 @@ class HistogramPlotDialog(PlotDialog):
 		if index is not None and self.selected_point is None:
 			logger.debug("point selected but after computation")
 			# TODO: optimize
-			for (block, ), info in self.dataset.evaluate(*self.expressions):
+			# TODO: optimize
+			def find_selected_point(info, block):
 				if index >= info.i1 and index < info.i2: # selected point is in this block
 					self.selected_point = block[index-info.i1]
+			self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
 		
 		if self.selected_point is not None:
 			#x = self.getdatax()[self.dataset.selected_row_index]
@@ -712,12 +1013,21 @@ class HistogramPlotDialog(PlotDialog):
 		self.axes.set_ylim(ymin_show, ymax_show)
 		self.canvas.draw()
 
+cols = []
+for x in np.linspace(0,1, 256):
+	rcol = 0.237 - 2.13*x + 26.92*x**2 - 65.5*x**3 + 63.5*x**4 - 22.36*x**5
+	gcol = ((0.572 + 1.524*x - 1.811*x**2)/(1 - 0.291*x + 0.1574*x**2))**2
+	bcol = 1/(1.579 - 4.03*x + 12.92*x**2 - 31.4*x**3 + 48.6*x**4 - 23.36*x**5)
+	cols.append((rcol, gcol, bcol))
+
+cm_plusmin = matplotlib.colors.LinearSegmentedColormap.from_list("PaulT_plusmin", cols)
+
 
 class ScatterPlotDialog(PlotDialog):
 	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None):
 		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname], "X Y".split())
 		
-	def calculate_visuals(self, blockx, blocky, info):
+	def calculate_visuals(self, info, blockx, blocky, weights_block=None):
 		self.expression_error = False
 
 		xmin, xmax = self.ranges[0]
@@ -730,11 +1040,19 @@ class ScatterPlotDialog(PlotDialog):
 		mask = self.dataset.mask
 		if info.first:
 			self.counts = np.zeros((N,) * self.dimensions, dtype=np.float64)
+			self.counts_weights = self.counts
+			if weights_block is not None:
+				self.counts_weights = np.zeros((N,) * self.dimensions, dtype=np.float64)
+			
 			self.selected_point = None
 			if mask is not None:
 				self.counts_mask = np.zeros((N,) * self.dimensions, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
+				self.counts_weights_mask = self.counts_mask
+				if weights_block is not None:
+					self.counts_weights_mask = np.zeros((N,) * self.dimensions, dtype=np.float64)
 			else:
 				self.counts_mask = None
+				self.counts_weights_mask = None
 		
 		if info.error:
 			print "error", info.error_text
@@ -755,9 +1073,12 @@ class ScatterPlotDialog(PlotDialog):
 				maximum += 1
 			ranges.append(maximum)
 		try:
-			gavi.histogram.hist2d(blockx, blocky, self.counts, *ranges)
-		except:
 			args = blockx, blocky, self.counts, ranges
+			gavi.histogram.hist2d(blockx, blocky, self.counts, *ranges)
+			if weights_block is not None:
+				args = blockx, blocky, weights_block, self.counts, ranges
+				gavi.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
+		except:
 			print "args", args	
 			print blockx.shape, blockx.dtype
 			print blocky.shape, blocky.dtype
@@ -771,6 +1092,9 @@ class ScatterPlotDialog(PlotDialog):
 			#print subx, suby, mask[info.i1:info.i2]
 			#histo2d(subsetx, subsety, self.counts_mask, *self.ranges)
 			gavi.histogram.hist2d(subsetx, subsety, self.counts_mask, *ranges)
+			if weights_block is not None:
+				subset_weights = weights_block[mask[info.i1:info.i2]]
+				gavi.histogram.hist2d_weights(subsetx, subsety, self.counts_weights_mask, subset_weights, *ranges)
 		
 		
 	def plot(self):
@@ -785,32 +1109,35 @@ class ScatterPlotDialog(PlotDialog):
 		amplitude = self.counts
 		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 		if self.amplitude_expression is not None:
-			locals = {"counts":self.counts}
+			locals = {"counts":self.counts_weights, "counts1": self.counts}
 			globals = np.__dict__
 			amplitude = eval(self.amplitude_expression, globals, locals)
-
+		print "amplitude", np.nanmin(amplitude), np.nanmax(amplitude)
 		#if self.ranges_level[0] is None:
 		#	self.ranges_level[0] = 0, amplitude.max() * 1.1
 
 			
-		self.axes.imshow(amplitude.T, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4)
-		if self.counts_mask is not None:
-			if self.amplitude_expression is not None:
-				locals = {"counts":self.counts_mask}
-				globals = np.__dict__
-				amplitude_mask = eval(self.amplitude_expression, globals, locals)
-			self.axes.imshow(amplitude_mask.T, origin="lower", extent=ranges, alpha=1)
-		#self.axes.imshow((I), origin="lower", extent=ranges)
+		self.axes.imshow(amplitude.T, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)
+		if 1:
+			if self.counts_mask is not None:
+				if self.amplitude_expression is not None:
+					#locals = {"counts":self.counts_mask}
+					locals = {"counts":self.counts_weights_mask, "counts1": self.counts_mask}
+					globals = np.__dict__
+					amplitude_mask = eval(self.amplitude_expression, globals, locals)
+				self.axes.imshow(amplitude_mask.T, origin="lower", extent=ranges, alpha=1, cmap=cm_plusmin)
+			#self.axes.imshow((I), origin="lower", extent=ranges)
 		self.axes.set_aspect('auto')
-		#if self.dataset.selected_row_index is not None:
-			#self.axes.autoscale(False)
+			#if self.dataset.selected_row_index is not None:
+				#self.axes.autoscale(False)
 		index = self.dataset.selected_row_index
 		if index is not None and self.selected_point is None:
 			logger.debug("point selected but after computation")
 			# TODO: optimize
-			for (blockx, blocky), info in self.dataset.evaluate(*self.expressions):
+			def find_selected_point(info, blockx, blocky):
 				if index >= info.i1 and index < info.i2: # selected point is in this block
 					self.selected_point = blockx[index-info.i1], blocky[index-info.i1]
+			self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
 			
 
 		if self.selected_point:
@@ -912,6 +1239,122 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 			self.jobsManager.execute()
 
 
+class SequencePlot(PlotDialog):
+	def __init__(self, parent, jobsManager, dataset, expression="x[:,index]"):
+		self.index = 0
+		super(SequencePlot, self).__init__(parent, jobsManager, dataset, [expression], ["X"])
+		
+	def beforeCanvas(self, layout):
+		self.addToolbar(layout, xselect=True, lasso=False)
+		
+	def getExpressionList(self):
+		names = []
+		for rank1name in self.dataset.rank1names:
+			names.append(rank1name + "[:,index]")
+		return names
+	
+	def getVariableDict(self):
+		return {"index": self.index}
+
+	def calculate_visuals(self, info, block):
+		#print "nothing to calculate"
+		print block, block.shape
+	
+	def _calculate_visuals(self, info, block):
+		self.expression_error = False
+		#return
+		xmin, xmax = self.ranges[0]
+		if self.ranges_show[0] is None:
+			self.ranges_show[0] = xmin, xmax
+		N = 128
+		mask = self.dataset.mask
+		if info.first:
+			self.selected_point = None
+			self.counts = np.zeros(N, dtype=np.float64)
+			if mask is not None:
+				self.counts_mask = np.zeros(N, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
+			else:
+				self.counts_mask = None
+		
+		if info.error:
+			print "error", info.error_text
+			self.expression_error = True
+			return
+		#totalxmin, totalxmax = self.gettotalxrange()
+		#print repr(self.data), repr(self.counts), repr(xmin), repr(xmax)
+		t0 = time.time()
+		try:
+			gavi.histogram.hist1d(block, self.counts, xmin, xmax)
+		except:
+			args = (block, self.counts, xmin, xmax, self.useLog())
+			logging.exception("error with hist1d, arguments: %r" % (args,))
+		if mask is not None:
+			subset = block[mask[info.i1:info.i2]]
+			gavi.histogram.hist1d(subset, self.counts_mask, xmin, xmax)
+		print "it took", time.time()-t0
+		
+		index = self.dataset.selected_row_index
+		if index is not None:
+			if index >= info.i1 and index < info.i2: # selected point is in this block
+				self.selected_point = block[index-info.i1]
+
+		self.delta = (xmax - xmin) / N
+		self.centers = np.arange(N) * self.delta + xmin
+		#print xmin, xmax, self.centers
+		
+		
+	def plot(self):
+		self.axes.cla()
+		self.axes.autoscale(False)
+		if self.expression_error:
+			return
+		#P.hist(x, 50, normed=1, histtype='stepfilled')
+		#values = 
+		amplitude = self.counts
+		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
+		if self.amplitude_expression is not None:
+			locals = {"counts":self.counts}
+			globals = np.__dict__
+			amplitude = eval(self.amplitude_expression, globals, locals)
+
+		if self.ranges_level[0] is None:
+			self.ranges_level[0] = 0, amplitude.max() * 1.1
+
+
+		if self.counts_mask is None:
+			self.axes.bar(self.centers, amplitude, width=self.delta, align='center')
+		else:
+			if self.amplitude_expression is not None:
+				locals = {"counts":self.counts_mask}
+				globals = np.__dict__
+				amplitude_mask = eval(self.amplitude_expression, globals, locals)
+			self.axes.bar(self.centers, amplitude, width=self.delta, align='center', alpha=0.5)
+			self.axes.bar(self.centers, amplitude_mask, width=self.delta, align='center', color="red")
+		
+		index = self.dataset.selected_row_index
+		if index is not None and self.selected_point is None:
+			logger.debug("point selected but after computation")
+			# TODO: optimize
+			# TODO: optimize
+			def find_selected_point(info, block):
+				if index >= info.i1 and index < info.i2: # selected point is in this block
+					self.selected_point = block[index-info.i1]
+			self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
+		
+		if self.selected_point is not None:
+			#x = self.getdatax()[self.dataset.selected_row_index]
+			print "drawing vline at", self.selected_point
+			self.axes.axvline(self.selected_point, color="red")
+		
+		self.axes.set_xlabel(self.expressions[0])
+		xmin_show, xmax_show = self.ranges_show[0]
+		print "plot limits:", xmin_show, xmax_show
+		self.axes.set_xlim(xmin_show, xmax_show)
+		ymin_show, ymax_show = self.ranges_level[0]
+		print "level limits:", ymin_show, ymax_show
+		self.axes.set_ylim(ymin_show, ymax_show)
+		self.canvas.draw()
+	
 		
 class PlotDialogNd(PlotDialog):
 	def __init__(self, parent, dataset, names, axisnames):
@@ -1253,7 +1696,7 @@ class HistogramPlotDialog_old(PlotDialog1d):
 	#def calculate_xrange(self, blockx, info):
 
 	def compute(self):
-		def calculate_xrange(block, info):
+		def calculate_xrange(info, block):
 			#print "block", info.index, info.size, block
 			if info.error:
 				print "error", info.error_text

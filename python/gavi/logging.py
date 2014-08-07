@@ -6,7 +6,7 @@ import logging.handlers
 from logging import getLogger
 
 #logging.basicConfig(level=logging.ERROR)
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.DEBUG)
 rootlogger = logging.getLogger('gavi')
 rootlogger.setLevel(logging.DEBUG)
 

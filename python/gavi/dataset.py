@@ -43,7 +43,7 @@ class JobsManager(object):
 		self.after_execute = []
 		
 	def addJob(self, order, callback, dataset, *expressions, **variables):
-		args = order, callback, dataset, expressions
+		args = order, callback, dataset, expressions, variables
 		logger.info("job: %r" % (args,))
 		if order not in self.order_numbers:
 			self.order_numbers.append(order)
@@ -82,35 +82,49 @@ class JobsManager(object):
 					logger.debug("variables: %r" % (variables,))
 					# group per dataset
 					for dataset in datasets:
+						if dataset.current_slice is None:
+							index_start = 0
+							index_stop = dataset._length
+						else:
+							index_start, index_stop = dataset.current_slice
+						
+						dataset_length = index_stop - index_start
 						logger.debug("dataset: %r" % dataset.name)
 						jobs_dataset = [job for job in jobs_order if job[2] == dataset]
 						# keep a set of expressions, duplicate expressions will only be calculated once
 						expressions_dataset = set()
-						for order, callback, dataset, expressions, variables in jobs_dataset:
+						expressions_translated = dict()
+						for order, callback, dataset, expressions, _variables in jobs_dataset:
 							for expression in expressions:
 								expressions_dataset.add((dataset, expression))
+								
+								expr_noslice, slice_vars = expr.translate(expression)
+								expressions_translated[(dataset, expression)] = (expr_noslice, slice_vars)
+						
 						logger.debug("expressions: %r" % expressions_dataset)
 						# TODO: implement fractions/slices
-						n_blocks = int(math.ceil(dataset._length *1.0 / buffer_size))
-						logger.debug("blocks: %r %r" % (n_blocks, dataset._length *1.0 / buffer_size))
+						n_blocks = int(math.ceil(dataset_length *1.0 / buffer_size))
+						logger.debug("blocks: %r %r" % (n_blocks, dataset_length *1.0 / buffer_size))
 						# execute blocks for all expressions, better for Lx cache
 						for block_index in range(n_blocks):
 							i1 = block_index * buffer_size
 							i2 = (block_index +1) * buffer_size
 							last = False
-							if i2 >= dataset._length: # round off the sizes
-								i2 = dataset._length
+							if i2 >= dataset_length: # round off the sizes
+								i2 = dataset_length
 								last = True
+								logger.debug("last block")
 								#for i in range(len(outputs)):
 								#	outputs[i] = outputs[i][:i2-i1]
 							# local dicts has slices (not copies) of the whole dataset
+							logger.debug("block: %r to %r" % (i1, i2))
 							local_dict = dict(variables)
 							for key, value in dataset.columns.items():
 								local_dict[key] = value[i1:i2]
 							for key, value in dataset.rank1s.items():
 								local_dict[key] = value[i1:i2]
 							for dataset, expression in expressions_dataset:
-								expr_noslice, slice_vars = expr.translate(expression)
+								expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #expr.translate(expression)
 								logger.debug("replacing %r with %r" % (expression, expr_noslice))
 								for var, sliceobj in slice_vars.items():
 									logger.debug("adding slice %r as var %r (%r:%r)" % (sliceobj, var, sliceobj.var.name, sliceobj.args))
@@ -136,7 +150,8 @@ class JobsManager(object):
 							with Timer("evaluation"):
 								for dataset, expression in expressions_dataset:
 									logger.debug("expression: %r" % expression)
-									expr_noslice, slice_vars = expr.translate(expression)
+									#expr_noslice, slice_vars = expr.translate(expression)
+									expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #
 									logger.debug("translated expression: %r" % expr_noslice)
 									if expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
 										logger.debug("avoided expression, simply a column name with float64")
@@ -146,7 +161,7 @@ class JobsManager(object):
 										# same as above, but -i1, since the array stars at zero
 										output = expression_outputs[(dataset, expression)][i1-i1:i2-i1]
 										try:
-											ne.evaluate(repr(expr_noslice), local_dict=local_dict, out=output)
+											ne.evaluate(repr(expr_noslice), local_dict=local_dict, out=output, casting="unsafe")
 										except SyntaxError, e:
 											info.error = True
 											info.error_text = e.message
@@ -162,12 +177,16 @@ class JobsManager(object):
 											info.error_text = e.message
 											logger.exception("error in expression: %s" % expression)
 											break
-										results[expression] = output
+										
+										results[expression] = output[0:i2-i1]
 							# for this order and dataset all values are calculated, now call the callback
+							for key, value in results.items():
+								logger.debug("output[%r]: %r, %r" % (key, value.shape, value.dtype))
 							with Timer("callbacks"):
-								for order, callback, dataset, expressions, variables in jobs_dataset:
-									arguments = [results.get(expression) for expression in expressions]
-									arguments.append(info)
+								for _order, callback, dataset, expressions, _variables in jobs_dataset:
+									logger.debug("callback: %r" % (callback))
+									arguments = [info]
+									arguments += [results.get(expression) for expression in expressions]
 									callback(*arguments)
 							if info.error:
 								# if we get an error, no need to go through the whole data
@@ -177,8 +196,56 @@ class JobsManager(object):
 		finally:
 			self.jobs = []
 			self.order_numbers = []
+
+
+class Link(object):
+	def __init__(self, dataset):
+		self.dataset = dataset
+		self.listeners = []
+		
+	def sendExpression(self, expression, receiver):
+		for listener in self.listeners:
+			if listener != receiver:
+				listener.onChangeExpression(expression)
 				
+	def sendRanges(self, range_, receiver):
+		for listener in self.listeners:
+			if listener != receiver:
+				listener.onChangeRange(range_)
+
+	def sendRangesShow(self, range_, receiver):
+		for listener in self.listeners:
+			if listener != receiver:
+				listener.onChangeRangeShow(range_)
+				
+	def sendCompute(self, receiver):
+		for listener in self.listeners:
+			if listener != receiver:
+				listener.onCompute()
+				
+	def sendPlot(self, receiver):
+		for listener in self.listeners:
+			if listener != receiver:
+				listener.onPlot()
+				
+				
+		
+		
+	
 class MemoryMapped(object):
+	def link(self, expression, listener):
+		if expression not in self.global_links:
+			self.global_links[expression] = Link(self)
+			logger.debug("creating link object: %r" % self.global_links[expression])
+		else:
+			
+			logger.debug("reusing link object: %r" % self.global_links[expression])
+
+			
+		link = self.global_links[expression]
+		link.listeners.append(listener)
+		return link
+		
 	def __init__(self, filename, write=False):
 		self.filename = filename
 		self.write = write
@@ -187,6 +254,7 @@ class MemoryMapped(object):
 		self.fileno = self.file.fileno()
 		self.mapping = mmap.mmap(self.fileno, 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
 		self._length = None
+		self._fraction_length = None
 		self.nColumns = 0
 		self.columns = {}
 		self.column_names = []
@@ -205,8 +273,17 @@ class MemoryMapped(object):
 		self.file_map = {filename: self.file}
 		self.fileno_map = {filename: self.fileno}
 		self.mapping_map = {filename: self.mapping}
+		self.global_links = {}
 		
-	def evaluate(self, *expressions):
+	def evaluate(self, callback, *expressions, **variables):
+		jobManager = JobsManager()
+		logger.debug("evalulate: %r %r" % (expressions,variables))
+		jobManager.addJob(0, callback, self, *expressions, **variables)
+		jobManager.execute()
+		return
+		
+		
+	def old(self):
 		class Info(object):
 			pass
 		outputs = [np.zeros(buffer_size, dtype=np.float64) for _ in expressions]
@@ -239,7 +316,7 @@ class MemoryMapped(object):
 					#yield self.columns[expression][i1:i2], info
 					results.append(self.columns[expression][i1:i2])
 				else:
-					ne.evaluate(expression, local_dict=local_dict, out=output)
+					ne.evaluate(expression, local_dict=local_dict, out=output, casting="unsafe")
 					results.append(output)
 			print results, info
 			yield tuple(results), info
@@ -275,7 +352,9 @@ class MemoryMapped(object):
 	def setFraction(self, fraction):
 		self.fraction = fraction
 		self.current_slice = (0, int(self._length * fraction))
+		self._fraction_length = self.current_slice[1]
 		self.selectMask(None)
+		# TODO: if row in slice, we don't have to remove it
 		self.selectRow(None)
 		
 	def addColumn(self, name, offset, length, dtype=np.float64, stride=None, filename=None):
@@ -288,6 +367,7 @@ class MemoryMapped(object):
 			if self.current_slice is None:
 				self.current_slice = (0, length)
 				self.fraction = 1.
+				self._fraction_length = length
 			self._length = length
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
@@ -423,10 +503,19 @@ class Hdf5MemoryMapped(MemoryMapped):
 	def __init__(self, filename, write=False):
 		super(Hdf5MemoryMapped, self).__init__(filename, write=write)
 		self.h5file = h5py.File(self.filename, "r+" if write else "r")
+		self.load()
+		
+	def load(self):
 		if "data" in self.h5file:
-			self.h5data = self.h5file["/data"]
-			for column_name in self.h5data:
-				column = self.h5data[column_name]
+			self.load_columns(self.h5file["/data"])
+			
+	def load_columns(self, h5data):
+		print h5data
+		for column_name in h5data:
+			print type(column_name)
+			column = h5data[column_name]
+			if hasattr(column, "dtype"):
+				print column
 				offset = column.id.get_offset() 
 				self.addColumn(column_name, offset, len(column), dtype=column.dtype)
 			
@@ -448,6 +537,25 @@ class Hdf5MemoryMapped(MemoryMapped):
 		self.h5file.flush()
 		self.remap()
 		self.addColumn(column_name, offset, len(array), dtype=array.dtype)
+
+class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
+	def __init__(self, filename, write=False):
+		super(AmuseHdf5MemoryMapped, self).__init__(filename, write=write)
+		
+	def load(self):
+		particles = self.h5file["/particles"]
+		print "amuse", particles
+		for group_name in particles:
+			#print group
+			#import pdb
+			#pdb.set_trace()
+			group = particles[group_name]
+			self.load_columns(group["attributes"])
+			
+			column_name = "keys"
+			column = group[column_name]
+			offset = column.id.get_offset() 
+			self.addColumn(column_name, offset, len(column), dtype=column.dtype)
 
 class Hdf5MemoryMappedGadget(MemoryMapped):
 	def __init__(self, filename, particleName, particleType):
