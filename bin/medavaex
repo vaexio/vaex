@@ -912,7 +912,7 @@ class MainPanel(QtGui.QFrame):
 		self.form_layout.addRow(self.fractionLabel, self.fractionWidget)
 		
 		
-		
+		self.fractionSlider.sliderReleased.connect(self.onFractionSet)
 		self.fractionSlider.valueChanged.connect(self.onValueChanged)
 		self.onValueChanged(0)
 		
@@ -974,9 +974,17 @@ class MainPanel(QtGui.QFrame):
 			
 	def plotxy(self, xname, yname):
 		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, xname, yname)
-		self.jobsManager.execute()
 		dialog.show()
+		self.jobsManager.execute()
 		print "show"
+		return dialog
+	
+	def plotmatrix(self, *expressions):
+		dialog = vp.ScatterPlotMatrixDialog(self, self.jobsManager, self.dataset, expressions)
+		dialog.show()
+		self.jobsManager.execute()
+		print "show matrix"
+		return dialog
 			
 	def plotxyz(self, xname, yname, zname):
 		dialog = vp.PlotDialog3d(self, self.dataset, xname, yname, zname)
@@ -985,8 +993,8 @@ class MainPanel(QtGui.QFrame):
 		
 	def histogram(self, xname):
 		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, xname)
-		self.jobsManager.execute()
 		dialog.show()
+		self.jobsManager.execute()
 		
 		
 	def onOpenRank(self):
@@ -1001,17 +1009,21 @@ class MainPanel(QtGui.QFrame):
 			dialog = TableDialog(self, self.dataset)
 			dialog.show()
 			
-	def onValueChanged(self, index):
-		print index, len(possibleFractions)
+	def onFractionSet(self):
+		index = self.fractionSlider.value()
 		fraction = possibleFractions[index]
-		text = 'Fraction used: %9.4f%%' % (fraction*100)
-		self.fractionLabel.setText(text)
 		if self.dataset:
 			self.dataset.setFraction(fraction)
 			N  = self.dataset.current_slice[1] - self.dataset.current_slice[0]
 			print N
 			self.numberLabel.setText("% 10d" % N)
 			self.jobsManager.execute()
+
+	def onValueChanged(self, index):
+		print index, len(possibleFractions)
+		fraction = possibleFractions[index]
+		text = 'Fraction used: %9.4f%%' % (fraction*100)
+		self.fractionLabel.setText(text)
 		
 	def onDataSelected(self, data_item, previous):
 		print "previous:", previous
@@ -1189,8 +1201,6 @@ class Example(QtGui.QMainWindow):
 		self.list.currentItemChanged.connect(self.right.onDataSelected)
 		#self.list.testfill()
 		print custom
-		if custom is not None:
-			custom.loadDatasets(self.list)
 		#self.list.itemSelectionChanged.connect(self.right.onDataSelected)
 		
 		
@@ -1210,6 +1220,10 @@ class Example(QtGui.QMainWindow):
 		
         
 		self.show()
+		self.raise_()
+		if custom is not None:
+			custom.loadDatasets(self.list)
+			custom.openPlots(self.right)
 		
 		
 	def center(self):
@@ -1238,7 +1252,6 @@ def main():
 	
 	
 	ex = Example()
-	ex.raise_()
 	#w = QtGui.QWidget()
 	#w.resize(250, 150)
 	#w.move(300, 300)

@@ -66,6 +66,23 @@ def hist3d(x, y, z, counts, dataminx, datamaxx, dataminy, datamaxy, dataminz, da
 	#return numpy.arange(datamin, datamax+step/2, step), binData
 	return counts
 
+@jit(nopython=True)
+def hist3d_weights(x, y, z, counts, weights, dataminx, datamaxx, dataminy, datamaxy, dataminz, datamaxz):
+	length = len(x)
+	#counts = np.zeros((bincountx, bincounty), dtype=np.int32)
+	bincountx, bincounty, bincountz = counts.shape
+	#print length
+	#return bindata#
+	for i in range(length):
+		binNox = int(math.floor( ((x[i] - dataminx) / (float(datamaxx) - dataminx)) * float(bincountx)))
+		binNoy = int(math.floor( ((y[i] - dataminy) / (float(datamaxy) - dataminy)) * float(bincounty)))
+		binNoz = int(math.floor( ((z[i] - dataminz) / (float(datamaxz) - dataminz)) * float(bincountz)))
+		if binNox >= 0 and binNox < bincountx and binNoy >= 0 and binNoy < bincounty and binNoz < bincountz:
+			counts[binNox, binNoy, binNoz] += weights[i]
+	#step = float(datamax-datamin)/bincount
+	#return numpy.arange(datamin, datamax+step/2, step), binData
+	return counts
+
 
 @jit
 def hist2d_and_shuffled(x, y, counts, counts_shuffled, dataminx, datamaxx, dataminy, datamaxy, offset):

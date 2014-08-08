@@ -6,6 +6,8 @@ import os
 import numexpr as ne
 import math
 from gavi.utils import Timer
+import time
+import itertools
 
 import gavi.vaex.expressions as expr
 
@@ -97,15 +99,20 @@ class JobsManager(object):
 						for order, callback, dataset, expressions, _variables in jobs_dataset:
 							for expression in expressions:
 								expressions_dataset.add((dataset, expression))
-								
-								expr_noslice, slice_vars = expr.translate(expression)
-								expressions_translated[(dataset, expression)] = (expr_noslice, slice_vars)
+								try:
+									expr_noslice, slice_vars = expr.translate(expression)
+								except:
+									logger.error("translating expression: %r" % expression)
+									expressions_translated[(dataset, expression)] = (expression, {}) # just pass expression, code below will handle errors
+								else:
+									expressions_translated[(dataset, expression)] = (expr_noslice, slice_vars)
 						
 						logger.debug("expressions: %r" % expressions_dataset)
 						# TODO: implement fractions/slices
 						n_blocks = int(math.ceil(dataset_length *1.0 / buffer_size))
 						logger.debug("blocks: %r %r" % (n_blocks, dataset_length *1.0 / buffer_size))
 						# execute blocks for all expressions, better for Lx cache
+						t0 = time.time()
 						for block_index in range(n_blocks):
 							i1 = block_index * buffer_size
 							i2 = (block_index +1) * buffer_size
@@ -137,14 +144,17 @@ class JobsManager(object):
 							info = Info()
 							info.index = block_index
 							info.size = i2-i1
+							info.total_size = dataset_length
 							info.length = n_blocks
 							info.first = block_index == 0
 							info.last = last
 							info.i1 = i1
 							info.i2 = i2
+							info.percentage = i2 * 100. / info.total_size
 							info.slice = slice(i1, i2)
 							info.error = False
 							info.error_text = ""
+							info.time_start = t0
 							results = {}
 							# put to 
 							with Timer("evaluation"):
@@ -177,6 +187,11 @@ class JobsManager(object):
 											info.error_text = e.message
 											logger.exception("error in expression: %s" % expression)
 											break
+										except Exception, e:
+											info.error = True
+											info.error_text = e.message
+											logger.exception("error in expression: %s" % expression)
+											break
 										
 										results[expression] = output[0:i2-i1]
 							# for this order and dataset all values are calculated, now call the callback
@@ -192,7 +207,10 @@ class JobsManager(object):
 								# if we get an error, no need to go through the whole data
 								break
 			for callback in self.after_execute:
-				callback()
+				try:
+					callback()
+				except:
+					logger.exception("error in post processing callback")
 		finally:
 			self.jobs = []
 			self.order_numbers = []
@@ -207,6 +225,22 @@ class Link(object):
 		for listener in self.listeners:
 			if listener != receiver:
 				listener.onChangeExpression(expression)
+		if expression in self.dataset.global_links:
+			# merge the listeners of this link to the other link
+			logger.debug("merging with link %r" % expression)
+			merging_link = self.dataset.global_links[expression]
+			for receiver in merging_link.listeners:
+				self.listeners.append(receiver)
+		else:
+			# add new mapping
+			logger.debug("renamed link %r" % expression)
+			self.dataset.global_links[expression] = self
+		# remove old mapping
+		for key, link in self.dataset.global_links.items():
+			logger.debug("link[%r] = %r" % (key, link))
+			if (link == self) and key != expression: # remove dangling links
+				logger.debug("removing link %r" % key)
+				del self.dataset.global_links[key]
 				
 	def sendRanges(self, range_, receiver):
 		for listener in self.listeners:
@@ -217,10 +251,14 @@ class Link(object):
 		for listener in self.listeners:
 			if listener != receiver:
 				listener.onChangeRangeShow(range_)
-				
-	def sendCompute(self, receiver):
-		for listener in self.listeners:
-			if listener != receiver:
+
+	#
+	@staticmethod
+	def sendCompute(links, receivers):
+		listener_set = set(list(itertools.chain.from_iterable([link.listeners for link in links])))
+
+		for listener in listener_set:
+			if listener not in receivers:
 				listener.onCompute()
 				
 	def sendPlot(self, receiver):
@@ -245,6 +283,11 @@ class MemoryMapped(object):
 		link = self.global_links[expression]
 		link.listeners.append(listener)
 		return link
+	
+	def unlink(self, link, receiver):
+		link.listeners.remove(receiver)
+		
+		
 		
 	def __init__(self, filename, write=False):
 		self.filename = filename
