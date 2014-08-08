@@ -1,10 +1,12 @@
-bin_PROGRAMS =  kerneldensity maxtreeForSpaces maxtree3d
+bin_PROGRAMS =  kerneldensity maxtreeForSpaces maxtree3d 
 #kdForSpaces_usingV2scott
 #kdForSpaces_usingV2scott_SOURCES = kdForSpaces_usingV2scott.c
 #kdForSpaces_usingV2scott_LDADD = libsubfind.a -lstdc++
 
 
 maxtree3d_SOURCES = MTfor3D_forC.cpp MaxTree3d.cpp ShortVolume.cpp SimpleShortVolume.cpp avs_io.c
+
+#histogram_SOURCES = histogram.cpp
 
 maxtreeForSpaces_SOURCES = maxtreeForSpaces.c pgm.c
 kerneldensity_SOURCES = kerneldensity_program.c kerneldensity.c avs_io.c pgm.c
@@ -22,8 +24,8 @@ maxtreeForSpaces_LDADD = -lm
 
 
 pyexec_LTLIBRARIES = subspacefind.la
-subspacefind_la_SOURCES = python_binding.cpp kerneldensity.c avs_io.c maxtreeForSpaces.c pgm.c MaxTree3d.cpp ShortVolume.cpp SimpleShortVolume.cpp 
-subspacefind_la_CFLAGS = -std=c99  -fopenmp -g -O0 -Wall
-subspacefind_la_CXXFLAGS = -fopenmp -g -O0 -Wall
+subspacefind_la_SOURCES = python_binding.cpp kerneldensity.c avs_io.c maxtreeForSpaces.c pgm.c MaxTree3d.cpp ShortVolume.cpp SimpleShortVolume.cpp histogram.cpp
+subspacefind_la_CFLAGS = -std=c99  -fopenmp -g -Wall -Ofast -flto -march=native -funroll-loops
+subspacefind_la_CXXFLAGS = -fopenmp -g -Wall -mfpmath=sse -Ofast -flto -march=native -funroll-loops
 subspacefind_la_CPPFLAGS = $(PYTHON_CPPFLAGS) ${CPPFLAGS} -I${NUMPY_INCLUDEDIR}
 subspacefind_la_LDFLAGS = -lstdc++ -avoid-version -module  $(PYTHON_LDFLAGS) -l${BOOST_PYTHON_LIB} -lgomp

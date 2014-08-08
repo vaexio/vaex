@@ -325,12 +325,13 @@ class DataList(QtGui.QListWidget):
 		item.setData(QtCore.Qt.UserRole, self.hdf5file)
 		self.setCurrentItem(item)
 	
-	def addHdf5(self, filename):
+	def addHdf5(self, filename, auto_fraction=True):
 		if not os.path.exists(filename):
 			return
 		
 		self.hdf5file = Hdf5MemoryMapped(filename)
-		self.setBestFraction(self.hdf5file)
+		if auto_fraction:
+			self.setBestFraction(self.hdf5file)
 		item = QtGui.QListWidgetItem(self)
 		item.setText(self.hdf5file.name)
 		item.setToolTip("file: " +self.hdf5file.filename)

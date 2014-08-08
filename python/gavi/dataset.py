@@ -31,7 +31,7 @@ class FakeLogger(object):
 	def exception(self, *args):
 		pass
 
-#logger = FakeLogger()
+logger = FakeLogger()
 
 class Job(object):
 	def __init__(self, callback, expressions):
