@@ -5,7 +5,7 @@ import h5py
 from optparse import OptionParser
 import os
 import sys
-import astropy.io.votable
+##import astropy.io.votable
 import thread
 import threading
 import time
@@ -205,13 +205,13 @@ topcat -f csv $GAVI_DATA/scl_photo.csv
 ...
 
 """
-parser = OptionParser(usage=usage)
+#parser = OptionParser(usage=usage)
 
 #parser.add_option("-n", "--name",
  #                 help="dataset name [default=%default]", default="data", type=str)
 #parser.add_option("-o", "--output",
 #                 help="dataset output filename [by default the suffix of input filename will be replaced by hdf5]", default=None, type=str)
-(options, args) = parser.parse_args()
+#(options, args) = parser.parse_args()
 
 #if len(args) != 1:
 #	print "Program requires output filename as argument"
@@ -821,6 +821,8 @@ class TableDialog(QtGui.QDialog):
 	def __init__(self, parent, data):
 		super(TableDialog, self).__init__(parent)
 		self.data = data
+		#self.setModal(False)
+		#self.setWindowFlags(QtCore.Qt#.FramelessWindowHint)
 		
 		self.resize(700, 500)
 		self.tableView = QtGui.QTableView()
@@ -1225,7 +1227,9 @@ class Example(QtGui.QMainWindow):
 		if custom is not None:
 			custom.loadDatasets(self.list)
 			custom.openPlots(self.right)
-		
+		else:
+			for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
+				self.list.addGadgetHdf5('data/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5', name, index)
 		
 	def center(self):
 		
@@ -1264,4 +1268,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+	#sys.stdout = open("stdout.txt", "w")
+	#sys.stderr = open("stderr.txt", "w")
+	main()
