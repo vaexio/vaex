@@ -22,9 +22,9 @@ logger = gavi.logging.getLogger("gavi.vaex")
 
 
 class FakeLogger(object):
-	def info(self, *args):
-		pass
 	def debug(self, *args):
+		pass
+	def info(self, *args):
 		pass
 	def error(self, *args):
 		pass
@@ -129,7 +129,7 @@ class JobsManager(object):
 							for key, value in dataset.columns.items():
 								local_dict[key] = value[i1:i2]
 							for key, value in dataset.rank1s.items():
-								local_dict[key] = value[i1:i2]
+								local_dict[key] = value[:,i1:i2]
 							for dataset, expression in expressions_dataset:
 								if expression is None:
 									expr_noslice, slice_vars = None, {}
@@ -141,9 +141,10 @@ class JobsManager(object):
 										array = local_dict[sliceobj.var.name]
 										#print local_dict.keys()
 										slice_evaluated = eval(repr(sliceobj.args), {}, local_dict)
+										logger.debug("slicing array of shape %r  with slice %r" % (array.shape, slice_evaluated))
 										sliced_array = array[slice_evaluated]
 										logger.debug("slice is of type %r and shape %r" % (sliced_array.dtype, sliced_array.shape))
-										local_dict[var] = sliced_array
+										local_dict[var] = sliced_array[i1:i2]
 							info = Info()
 							info.index = block_index
 							info.size = i2-i1
@@ -591,16 +592,32 @@ class Hdf5MemoryMapped(MemoryMapped):
 	def load(self):
 		if "data" in self.h5file:
 			self.load_columns(self.h5file["/data"])
+		if "columns" in self.h5file:
+			self.load_columns(self.h5file["/columns"])
 			
 	def load_columns(self, h5data):
 		print h5data
-		for column_name in h5data:
-			print type(column_name)
-			column = h5data[column_name]
-			if hasattr(column, "dtype"):
-				print column
-				offset = column.id.get_offset() 
-				self.addColumn(column_name, offset, len(column), dtype=column.dtype)
+		# make sure x y x etc are first
+		first = "x y z vx vy vz".split()
+		finished = set()
+		for column_name in first + list(h5data):
+			if column_name in h5data and column_name not in finished:
+				print type(column_name)
+				column = h5data[column_name]
+				if hasattr(column, "dtype"):
+					print column
+					offset = column.id.get_offset() 
+					shape = column.shape
+					if len(shape) == 1:
+						self.addColumn(column_name, offset, len(column), dtype=column.dtype)
+					else:
+						print "rank 1 array", shape
+						self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1)
+						#self.addColumn(column_name+"_0", offset, shape[1], dtype=column.dtype)
+						print column.dtype.itemsize
+						self.addColumn(column_name+"_last", offset+shape[0]*column.dtype.itemsize, shape[1], dtype=column.dtype)
+						#self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
+			finished.add(column_name)
 			
 	def close(self):
 		super(Hdf5MemoryMapped, self).close()
