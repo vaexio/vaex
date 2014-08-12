@@ -49,7 +49,7 @@ class JobsManager(object):
 		logger.info("job: %r" % (args,))
 		if order not in self.order_numbers:
 			self.order_numbers.append(order)
-		self.jobs.append((order, callback, dataset, expressions, variables))
+		self.jobs.append((order, callback, dataset, [None if e is None or len(e) == 0 else e for e in expressions], variables))
 		
 	def execute(self):
 		try:
@@ -131,16 +131,19 @@ class JobsManager(object):
 							for key, value in dataset.rank1s.items():
 								local_dict[key] = value[i1:i2]
 							for dataset, expression in expressions_dataset:
-								expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #expr.translate(expression)
-								logger.debug("replacing %r with %r" % (expression, expr_noslice))
-								for var, sliceobj in slice_vars.items():
-									logger.debug("adding slice %r as var %r (%r:%r)" % (sliceobj, var, sliceobj.var.name, sliceobj.args))
-									array = local_dict[sliceobj.var.name]
-									#print local_dict.keys()
-									slice_evaluated = eval(repr(sliceobj.args), {}, local_dict)
-									sliced_array = array[slice_evaluated]
-									logger.debug("slice is of type %r and shape %r" % (sliced_array.dtype, sliced_array.shape))
-									local_dict[var] = sliced_array
+								if expression is None:
+									expr_noslice, slice_vars = None, {}
+								else:
+									expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #expr.translate(expression)
+									logger.debug("replacing %r with %r" % (expression, expr_noslice))
+									for var, sliceobj in slice_vars.items():
+										logger.debug("adding slice %r as var %r (%r:%r)" % (sliceobj, var, sliceobj.var.name, sliceobj.args))
+										array = local_dict[sliceobj.var.name]
+										#print local_dict.keys()
+										slice_evaluated = eval(repr(sliceobj.args), {}, local_dict)
+										sliced_array = array[slice_evaluated]
+										logger.debug("slice is of type %r and shape %r" % (sliced_array.dtype, sliced_array.shape))
+										local_dict[var] = sliced_array
 							info = Info()
 							info.index = block_index
 							info.size = i2-i1
@@ -163,7 +166,10 @@ class JobsManager(object):
 									#expr_noslice, slice_vars = expr.translate(expression)
 									expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #
 									logger.debug("translated expression: %r" % expr_noslice)
-									if expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
+									if expr_noslice is None:
+										results[expression] = None
+									#elif expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
+									elif 0: # above condition can be reimplemented when gavifast implements strides != 1
 										logger.debug("avoided expression, simply a column name with float64")
 										#yield self.columns[expression][i1:i2], info
 										results[expression] = dataset.columns[expression][i1:i2]
@@ -196,7 +202,10 @@ class JobsManager(object):
 										results[expression] = output[0:i2-i1]
 							# for this order and dataset all values are calculated, now call the callback
 							for key, value in results.items():
-								logger.debug("output[%r]: %r, %r" % (key, value.shape, value.dtype))
+								if value is None:
+									logger.debug("output[%r]: None" % (key,))
+								else:
+									logger.debug("output[%r]: %r, %r" % (key, value.shape, value.dtype))
 							with Timer("callbacks"):
 								for _order, callback, dataset, expressions, _variables in jobs_dataset:
 									logger.debug("callback: %r" % (callback))
@@ -290,13 +299,22 @@ class MemoryMapped(object):
 		
 		
 		
-	def __init__(self, filename, write=False):
+	# nommap is a hack to get in memory datasets working
+	def __init__(self, filename, write=False, nommap=False):
 		self.filename = filename
 		self.write = write
 		self.name = os.path.basename(self.filename)
-		self.file = file(self.filename, "r+" if write else "r")
-		self.fileno = self.file.fileno()
-		self.mapping = mmap.mmap(self.fileno, 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
+		if not nommap:
+			self.file = file(self.filename, "r+" if write else "r")
+			self.fileno = self.file.fileno()
+			self.mapping = mmap.mmap(self.fileno, 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
+			self.file_map = {filename: self.file}
+			self.fileno_map = {filename: self.fileno}
+			self.mapping_map = {filename: self.mapping}
+		else:
+			self.file_map = {}
+			self.fileno_map = {}
+			self.mapping_map = {}
 		self._length = None
 		self._fraction_length = None
 		self.nColumns = 0
@@ -314,10 +332,11 @@ class MemoryMapped(object):
 		self.all_columns = {}
 		self.all_column_names = []
 		self.mask = None
-		self.file_map = {filename: self.file}
-		self.fileno_map = {filename: self.fileno}
-		self.mapping_map = {filename: self.mapping}
 		self.global_links = {}
+		self.offsets = {}
+		self.strides = {}
+		self.filenames = {}
+		self.dtypes = {}
 		
 	def evaluate(self, callback, *expressions, **variables):
 		jobManager = JobsManager()
@@ -401,7 +420,23 @@ class MemoryMapped(object):
 		# TODO: if row in slice, we don't have to remove it
 		self.selectRow(None)
 		
-	def addColumn(self, name, offset, length, dtype=np.float64, stride=None, filename=None):
+	def addMemoryColumn(self, name, column):
+		length = len(column)
+		if self.current_slice is None:
+			self.current_slice = (0, length)
+			self.fraction = 1.
+			self._fraction_length = length
+		self._length = length
+		#print self.mapping, dtype, length if stride is None else length * stride, offset
+		self.columns[name] = column
+		self.column_names.append(name)
+		self.all_columns[name] = column
+		self.all_column_names.append(name)
+		#self.column_names.sort()
+		self.nColumns += 1
+		self.nRows = self._length
+		
+	def addColumn(self, name, offset, length, dtype=np.float64, stride=1, filename=None):
 		if filename is None:
 			filename = self.filename
 		mapping = self.mapping_map[filename]
@@ -426,6 +461,10 @@ class MemoryMapped(object):
 			#self.column_names.sort()
 			self.nColumns += 1
 			self.nRows = self._length
+			self.offsets[name] = offset
+			self.strides[name] = stride
+			self.filenames[name] = os.path.abspath(filename)
+			self.dtypes[name] = dtype
 			
 	def addRank1(self, name, offset, length, length1, dtype=np.float64, stride=1, stride1=1, filename=None):
 		if filename is None:
@@ -607,7 +646,7 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 		self.particleType = particleType
 		self.particleName = particleName
 		self.name = self.name + "-" + self.particleName
-		h5file = h5py.File(self.filename)
+		h5file = h5py.File(self.filename, 'r')
 		#for i in range(1,4):
 		key = "/PartType%d" % self.particleType
 		if key not in h5file:

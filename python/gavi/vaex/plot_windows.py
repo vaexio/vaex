@@ -1099,9 +1099,67 @@ class PlotDialog(QtGui.QDialog):
 			gavi.dataset.Link.sendCompute(links, linked_buttons)
 		self.compute()
 		self.jobsManager.execute()
-		
+
 	def autoRecalculate(self):
 		return True
+
+	def addToolbar2(self, layout):
+		self.toolbar2 = QtGui.QToolBar(self)
+		self.toolbar2.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
+
+		self.action_group_constrast = QtGui.QActionGroup(self)
+		self.action_image_contrast = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
+		self.action_image_contrast_auto = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
+		self.toolbar2.addAction(self.action_image_contrast)
+		
+		self.action_image_contrast.triggered.connect(self.onActionContrast)
+
+		self.toolbar2.setIconSize(QtCore.QSize(16, 16))
+		layout.addWidget(self.toolbar2)
+		self.contrast = self.contrast_none
+		self.contrast_list = [self.contrast_none, functools.partial(self.contrast_none_auto, percentage=0.1) , functools.partial(self.contrast_none_auto, percentage=1), functools.partial(self.contrast_none_auto, percentage=5)]
+		
+		self.slider_gamma = QtGui.QSlider(self)
+		self.toolbar2.addWidget(self.slider_gamma)
+		self.slider_gamma.setRange(-100, 100)
+		self.slider_gamma.valueChanged.connect(self.onGammaChange)
+		self.slider_gamma.setValue(0)
+		self.slider_gamma.setOrientation(QtCore.Qt.Horizontal)
+		self.slider_gamma.setMaximumWidth(100)
+		self.image_gamma = 1.
+		
+	def onGammaChange(self, gamma_index):
+		self.image_gamma = 10**(gamma_index / 100./2)
+		print "Gamma", self.image_gamma
+		self.plot()
+		
+	def normalize(self, array):
+		#return (array - np.nanmin(array)) / (np.nanmax(array) - np.nanmin(array))
+		return array
+	
+	def contrast_none(self, array):
+		return self.normalize(array)**(self.image_gamma)
+
+	def contrast_none_auto(self, array, percentage=1.):
+		values = array.reshape(-1)
+		mask = np.isinf(values)
+		values = values[~mask]
+		indices = np.argsort(values)
+		min, max = np.nanmin(values), np.nanmax(values)
+		N = len(values)
+		i1, i2 = int(N * percentage / 100), int(N-N * percentage / 100) 
+		v1, v2 = values[indices[i1]], values[indices[i2]]
+		print "contrast[%f%%]" % percentage, "from[%f-%f] to [%f-%f]" % (min, max, v1, v2) 
+		print i1, i2, N
+		return self.normalize(np.clip(array, v1, v2))**self.image_gamma
+	
+	def onActionContrast(self):
+		index = self.contrast_list.index(self.contrast)
+		next_index = (index + 1) % len(self.contrast_list)
+		self.contrast = self.contrast_list[next_index]
+		print self.contrast
+		self.plot()
+		
 		
 	def addToolbar(self, layout, pick=True, xselect=True, yselect=True, lasso=True):
 		
@@ -1316,7 +1374,7 @@ class PlotDialog(QtGui.QDialog):
 		#self.action_select_mode_replace.setChecked(True)
 		self.select_mode = self.select_replace
 		self.setMode(self.action_move)
-		self.toolbar.setIconSize(QtCore.QSize(24, 24))
+		self.toolbar.setIconSize(QtCore.QSize(16, 16))
 		layout.addWidget(self.toolbar)
 		
 	def onActionDisplay(self, action):
@@ -1704,6 +1762,10 @@ class ScatterPlotDialog(PlotDialog):
 			self.message("visual computation done (%f seconds)" % (elapsed))
 		
 		
+	def afterCanvas(self, layout):
+		self.addToolbar2(layout)
+		super(ScatterPlotDialog, self).afterCanvas(layout)
+
 	def plot(self):
 		self.axes.cla()
 		#extent = 
@@ -1746,14 +1808,14 @@ class ScatterPlotDialog(PlotDialog):
 					amplitude_mask = eval(self.amplitude_expression, globals, locals)
 
 		if self.action_display_current == self.action_display_mode_both:
-			self.axes.imshow(amplitude.T, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=self.colormap)
+			self.axes.imshow(self.contrast(amplitude.T), origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)
 			if self.counts_mask is not None:
-				self.axes.imshow(amplitude_mask.T, origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
+				self.axes.imshow(self.contrast(amplitude_mask.T), origin="lower", extent=ranges, alpha=1, cmap=cm_plusmin)
 		if self.action_display_current == self.action_display_mode_full:
-			self.axes.imshow(amplitude.T, origin="lower", extent=ranges, cmap=self.colormap)
+			self.axes.imshow(self.contrast(amplitude.T), origin="lower", extent=ranges, cmap=self.colormap)
 		if self.action_display_current == self.action_display_mode_selection:
 			if self.counts_mask is not None:
-				self.axes.imshow(amplitude_mask.T, origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
+				self.axes.imshow(self.contrast(amplitude_mask.T), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
 		print "aap"
 		if self.counts_x_weights is not None and self.counts_y_weights is not None:
 			#x = np.linspace(ranges[0], ranges[1], 128/4)
@@ -1767,8 +1829,8 @@ class ScatterPlotDialog(PlotDialog):
 			#x = x.reshape(-1)
 			#y = y.reshape(-1)
 			print "noot"
-			print x
-			print y
+			#print x
+			#print y
 			U = (self.counts_x_weights/self.counts_xy).T #.reshape(-1) #/counts_xy.T
 			V = (self.counts_y_weights/self.counts_xy).T #.reshape(-1) #/counts_xy.T
 			mask = self.counts_xy.T > 0
