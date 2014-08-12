@@ -282,6 +282,7 @@ void pnpoly(double *vertx, double *verty, int nvert, const double* const blockx,
 
 static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 //object x, object y, object blockx, object blocky, object mask, double meanx, double meany, double radius)
+	PyObject* result = NULL;
 	PyObject *x, *y, *blockx, *blocky, *mask;
 	double meanx, meany, radius;
 	if(PyArg_ParseTuple(args, "OOOOOddd", &x, &y, &blockx, &blocky, &mask, &meanx, &meany, &radius)) {
@@ -297,7 +298,10 @@ static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 		object_to_numpy1d_nocopy(blocky_ptr, blocky, length);
 		object_to_numpy1d_nocopy(mask_ptr, mask, length, NPY_BOOL);
 		pnpoly(x_ptr, y_ptr, polygon_length, blockx_ptr, blocky_ptr, mask_ptr, length, meanx, meany, radius);
+		Py_INCREF(Py_None);
+		result = Py_None;
 	}
+	return result;
 }
 
 
