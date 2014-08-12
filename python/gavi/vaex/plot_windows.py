@@ -14,6 +14,7 @@ import time
 import gavi.logging
 import numexpr as ne
 
+
 from numba import jit
 
 #import subspacefind
@@ -40,8 +41,16 @@ except ImportError, e1:
 		print >>sys.stderr, "errors: ", repr(e1), repr(e2)
 		sys.exit(1)
 
+import sys
+
+if getattr(sys, 'frozen', False):
+    application_path = os.path.dirname(sys.executable)
+elif __file__:
+    application_path = os.path.dirname(__file__)
+
+print "application path", application_path
 def iconfile(name):
-	for dirname in ["./python/gavi", ".", os.path.dirname(gavi.__file__)]:
+	for dirname in ["./python/gavi", ".", os.path.dirname(gavi.__file__), os.path.join(application_path), os.path.join(application_path, "..")] :
 		path = os.path.join(dirname, "icons", name+".png")
 		if os.path.exists(path):
 			print "icon path:", path
@@ -126,7 +135,7 @@ class Mover(object):
 	
 	def mouse_move(self, event):
 		#print event.xdata, event.ydata, event.button
-		print event.key
+		#print event.key
 		if self.begin_x:
 			if self.last_x is not None and event.xdata is not None:
 				dx = self.begin_x - event.xdata
@@ -398,6 +407,8 @@ class PlotDialog(QtGui.QDialog):
 			# keep a list to be able to disconnect
 			self.onExpressionChangedPartials.append(functools.partial(self.onExpressionChanged, axisIndex=axisIndex))
 			axisbox.lineEdit().editingFinished.connect(self.onExpressionChangedPartials[axisIndex])
+			# if the combox pulldown is clicked, execute the same command
+			axisbox.currentIndexChanged.connect(lambda _, axisIndex=axisIndex: self.onExpressionChangedPartials[axisIndex]())
 			axisIndex += 1
 			self.axisboxes.append(axisbox)
 		
@@ -408,35 +419,48 @@ class PlotDialog(QtGui.QDialog):
 
 		self.amplitude_box = QtGui.QComboBox(self)
 		self.amplitude_box.setEditable(True)
-		self.amplitude_box.addItems(["log(counts)", "counts", "counts**2", "sqrt(counts)"])
+		self.amplitude_box.addItems(["log(counts) if weighted is None else average", "counts", "counts**2", "sqrt(counts)"])
 		self.amplitude_box.setMinimumContentsLength(40)
 		self.form_layout.addRow("amplitude=", self.amplitude_box)
 		self.amplitude_box.lineEdit().editingFinished.connect(self.onAmplitudeExpr)
+		self.amplitude_box.currentIndexChanged.connect(lambda _: self.onAmplitudeExpr())
 		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
 		
 		self.weight_box = QtGui.QComboBox(self)
 		self.weight_box.setEditable(True)
-		self.weight_box.addItems(["vx*0+1", "vx"])
+		self.weight_box.addItems([""] + self.getExpressionList())
 		self.weight_box.setMinimumContentsLength(40)
 		self.form_layout.addRow("weight=", self.weight_box)
 		self.weight_box.lineEdit().editingFinished.connect(self.onWeightExpr)
+		self.weight_box.currentIndexChanged.connect(lambda _: self.onWeightExpr())
 		self.weight_expression = str(self.weight_box.lineEdit().text())
 		
 		self.weight_x_box = QtGui.QComboBox(self)
 		self.weight_x_box.setEditable(True)
-		self.weight_x_box.addItems(["vx/20", "vx"])
+		self.weight_x_box.addItems([""] + self.getExpressionList())
 		self.weight_x_box.setMinimumContentsLength(40)
 		self.form_layout.addRow("weight_x=", self.weight_x_box)
 		self.weight_x_box.lineEdit().editingFinished.connect(self.onWeightXExpr)
+		self.weight_x_box.currentIndexChanged.connect(lambda _: self.onWeightXExpr())
 		self.weight_x_expression = str(self.weight_x_box.lineEdit().text())
 		
 		self.weight_y_box = QtGui.QComboBox(self)
 		self.weight_y_box.setEditable(True)
-		self.weight_y_box.addItems(["vy/20", "vy"])
+		self.weight_y_box.addItems([""] + self.getExpressionList())
 		self.weight_y_box.setMinimumContentsLength(40)
 		self.form_layout.addRow("weight_y=", self.weight_y_box)
 		self.weight_y_box.lineEdit().editingFinished.connect(self.onWeightYExpr)
+		self.weight_y_box.currentIndexChanged.connect(lambda _: self.onWeightYExpr())
 		self.weight_y_expression = str(self.weight_y_box.lineEdit().text())
+		
+		self.weight_xy_box = QtGui.QComboBox(self)
+		self.weight_xy_box.setEditable(True)
+		self.weight_xy_box.addItems([""] + self.getExpressionList())
+		self.weight_xy_box.setMinimumContentsLength(40)
+		self.form_layout.addRow("weight_xy=", self.weight_xy_box)
+		self.weight_xy_box.lineEdit().editingFinished.connect(self.onWeightXYExpr)
+		self.weight_xy_box.currentIndexChanged.connect(lambda _: self.onWeightXYExpr())
+		self.weight_xy_expression = str(self.weight_xy_box.lineEdit().text())
 		
 
 
@@ -573,6 +597,21 @@ class PlotDialog(QtGui.QDialog):
 		self.jobsManager.execute()
 		self.plot()
 	
+	def onWeightXYExpr(self):
+		text = str(self.weight_xy_box.lineEdit().text())
+		print "############", self.weight_xy_expression, text
+		if (text == self.weight_xy_expression) or (text == "" and self.weight_xy_expression == None):
+			logger.debug("same weight_xy expression, will not update")
+			return
+		self.weight_xy_expression = text
+		print self.weight_xy_expression
+		if self.weight_xy_expression.strip() == "":
+			self.weight_xy_expression = None
+		self.ranges_level[0] = None
+		self.compute()
+		self.jobsManager.execute()
+		self.plot()
+	
 	def onAmplitudeExpr(self):
 		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
 		print self.amplitude_expression
@@ -634,7 +673,7 @@ class PlotDialog(QtGui.QDialog):
 		#if self.weight_expression is None or len(self.weight_expression.strip()) == 0:
 		#	self.jobsManager.addJob(1, self.calculate_visuals, self.dataset, *self.expressions, **self.getVariableDict())
 		#else:
-		all_expressions = self.expressions + [self.weight_expression, self.weight_x_expression, self.weight_y_expression]
+		all_expressions = self.expressions + [self.weight_expression, self.weight_x_expression, self.weight_y_expression, self.weight_xy_expression]
 		self.jobsManager.addJob(1, self.calculate_visuals, self.dataset, *all_expressions, **self.getVariableDict())
 	
 	def getVariableDict(self):
@@ -878,7 +917,13 @@ class PlotDialog(QtGui.QDialog):
 			self.message("selection at %.1f%% (elapsed %.1fs)" % (info.percentage, time.time() - t0), index=40)
 			QtCore.QCoreApplication.instance().processEvents()
 			#gavi.selection.pnpoly(x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius)
+			print "start pnpoly"
+			print x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius
+			args = (x, y, blockx, blocky, mask[info.i1:info.i2])
+			for arg in args:
+				print arg.shape, arg.dtype
 			subspacefind.pnpoly(x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius)
+			print "now doing logical op"
 			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], mask[info.i1:info.i2])
 			if info.last:
 				self.message("selection took %.1fs" % (time.time() - t0), index=40)
@@ -1395,7 +1440,7 @@ class HistogramPlotDialog(PlotDialog):
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)
 		
-	def calculate_visuals(self, info, block, weights_block=None):
+	def calculate_visuals(self, info, block, weights_block, weights_x_block, weights_y_block, weights_xy_block):
 		elapsed = time.time() - info.time_start
 		self.message("visual computation at %.1f%% (%f seconds)" % (info.percentage, elapsed), index=20)
 		QtCore.QCoreApplication.instance().processEvents()
@@ -1409,11 +1454,11 @@ class HistogramPlotDialog(PlotDialog):
 			if weights_block is not None:
 				self.counts_weights = np.zeros(N, dtype=np.float64)
 			else:
-				self.counts_weights = self.counts
+				self.counts_weights = None
 			
 			if mask is not None:
 				self.counts_mask = np.zeros(N, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
-				self.counts_weights_mask = self.counts_mask
+				self.counts_weights_mask = None
 				if weights_block is not None:
 					self.counts_weights_mask = np.zeros(N, dtype=np.float64)
 			else:
@@ -1475,7 +1520,11 @@ class HistogramPlotDialog(PlotDialog):
 		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 		if self.amplitude_expression is not None:
 			#locals = {"counts":self.counts, "counts_weights":self.counts_weights}
-			locals = {"counts":self.counts_weights, "counts1": self.counts}
+			locals = {"counts": self.counts, "weighted": self.counts_weights}
+			if self.counts_weights is not None:
+				locals["average"] = self.counts_weights/self.counts
+			else:
+				locals["average"] = None
 			globals = np.__dict__
 			amplitude = eval(self.amplitude_expression, globals, locals)
 
@@ -1491,11 +1540,16 @@ class HistogramPlotDialog(PlotDialog):
 		else:
 			if self.amplitude_expression is not None:
 				#locals = {"counts":self.counts_mask}
-				locals = {"counts":self.counts_weights_mask, "counts1": self.counts_mask}
+				locals = {"counts": self.counts_mask, "weighted": self.counts_weights_mask}
+				if self.counts_weights_mask is not None:
+					locals["average"] = self.counts_weights_mask/self.counts_mask
+				else:
+					locals["average"] = None
+				
 				globals = np.__dict__
 				amplitude_mask = eval(self.amplitude_expression, globals, locals)
-			self.axes.bar(self.centers, amplitude, width=self.delta, align='center', alpha=0.5)
-			self.axes.bar(self.centers, amplitude_mask, width=self.delta, align='center', color="red")
+			self.axes.bar(self.centers, amplitude, width=self.delta, align='center')
+			self.axes.bar(self.centers, amplitude_mask, width=self.delta, align='center', color="red", alpha=0.8)
 		
 		index = self.dataset.selected_row_index
 		if index is not None and self.selected_point is None:
@@ -1536,7 +1590,7 @@ class ScatterPlotDialog(PlotDialog):
 	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None):
 		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname], "X Y".split())
 		
-	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block):
+	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block):
 		elapsed = time.time() - info.time_start
 		self.message("visual computation at %.1f%% (%f seconds)" % (info.percentage, elapsed))
 		QtCore.QCoreApplication.instance().processEvents()
@@ -1546,9 +1600,10 @@ class ScatterPlotDialog(PlotDialog):
 		mask = self.dataset.mask
 		if info.first:
 			self.counts = np.zeros((N,) * self.dimensions, dtype=np.float64)
-			self.counts_weights = self.counts
+			self.counts_weights = None
 			self.counts_x_weights = None
 			self.counts_y_weights = None
+			self.counts_xy_weights = None
 			self.counts_xy = None
 			if weights_block is not None:
 				self.counts_weights = np.zeros((N,) * self.dimensions, dtype=np.float64)
@@ -1556,13 +1611,15 @@ class ScatterPlotDialog(PlotDialog):
 				self.counts_x_weights = np.zeros((N/4,) * self.dimensions, dtype=np.float64)
 			if weights_y_block is not None:
 				self.counts_y_weights = np.zeros((N/4,) * self.dimensions, dtype=np.float64)
+			if weights_xy_block is not None:
+				self.counts_xy_weights = np.zeros((N/4,) * self.dimensions, dtype=np.float64)
 			if weights_x_block is not None or weights_y_block is not None:
 				self.counts_xy = np.zeros((N/4,) * self.dimensions, dtype=np.float64)
 			
 			self.selected_point = None
 			if mask is not None:
 				self.counts_mask = np.zeros((N,) * self.dimensions, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
-				self.counts_weights_mask = self.counts_mask
+				self.counts_weights_mask = None
 				if weights_block is not None:
 					self.counts_weights_mask = np.zeros((N,) * self.dimensions, dtype=np.float64)
 			else:
@@ -1605,10 +1662,13 @@ class ScatterPlotDialog(PlotDialog):
 				args = blockx, blocky, weights_block, self.counts, ranges
 				#gavi.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
 				subspacefind.histogram2d(blockx, blocky, weights_block, self.counts_weights, *ranges)
-			if weights_x_block is not None:
-				subspacefind.histogram2d(blockx, blocky, weights_x_block, self.counts_x_weights, *ranges)
-			if weights_y_block is not None:
-				subspacefind.histogram2d(blockx, blocky, weights_y_block, self.counts_y_weights, *ranges)
+			if mask is None:
+				if weights_x_block is not None:
+					subspacefind.histogram2d(blockx, blocky, weights_x_block, self.counts_x_weights, *ranges)
+				if weights_y_block is not None:
+					subspacefind.histogram2d(blockx, blocky, weights_y_block, self.counts_y_weights, *ranges)
+				if weights_xy_block is not None:
+					subspacefind.histogram2d(blockx, blocky, weights_xy_block, self.counts_xy_weights, *ranges)
 		except:
 			print "args", args	
 			print blockx.shape, blockx.dtype
@@ -1618,7 +1678,8 @@ class ScatterPlotDialog(PlotDialog):
 		print "it took", time.time()-t0
 
 		if weights_x_block is not None or weights_y_block is not None:
-			subspacefind.histogram2d(blockx, blocky, None, self.counts_xy, *ranges)
+			if mask is None:
+				subspacefind.histogram2d(blockx, blocky, None, self.counts_xy, *ranges)
 		if mask is not None:
 			subsetx = blockx[mask[info.i1:info.i2]]
 			subsety = blocky[mask[info.i1:info.i2]]
@@ -1630,6 +1691,14 @@ class ScatterPlotDialog(PlotDialog):
 				subset_weights = weights_block[mask[info.i1:info.i2]]
 				#gavi.histogram.hist2d_weights(subsetx, subsety, subset_weights, self.counts_weights_mask, *ranges)
 				subspacefind.histogram2d(subsetx, subsety, subset_weights, self.counts_weights_mask, *ranges)
+			if weights_x_block is not None:
+				subspacefind.histogram2d(subsetx, subsety, weights_x_block[mask[info.i1:info.i2]], self.counts_x_weights, *ranges)
+			if weights_y_block is not None:
+				subspacefind.histogram2d(subsetx, subsety, weights_y_block[mask[info.i1:info.i2]], self.counts_y_weights, *ranges)
+			if weights_xy_block is not None:
+				subspacefind.histogram2d(subsetx, subsety, weights_xy_block[mask[info.i1:info.i2]], self.counts_xy_weights, *ranges)
+			if weights_x_block is not None or weights_y_block is not None:
+				subspacefind.histogram2d(subsetx, subsety, None, self.counts_xy, *ranges)
 		if info.last:
 			elapsed = time.time() - info.time_start
 			self.message("visual computation done (%f seconds)" % (elapsed))
@@ -1648,35 +1717,52 @@ class ScatterPlotDialog(PlotDialog):
 		amplitude = self.counts
 		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 		if self.amplitude_expression is not None:
-			locals = {"counts":self.counts_weights, "counts1": self.counts}
+			locals = {"counts":self.counts, "weighted": self.counts_weights}
+			if self.counts_weights is None:
+				locals["average"] = None
+			else:
+				locals["average"] = self.counts_weights/self.counts
 			globals = np.__dict__
 			amplitude = eval(self.amplitude_expression, globals, locals)
 		print "amplitude", np.nanmin(amplitude), np.nanmax(amplitude)
 		#if self.ranges_level[0] is None:
 		#	self.ranges_level[0] = 0, amplitude.max() * 1.1
+		self.colormap = cm_plusmin #"binary"
+		self.colormap_vector = "binary"
 
+		self.colormap = cm_plusmin #"binary"
+		self.colormap_vector = "binary"
 			
 		if 1:
 			if self.counts_mask is not None:
 				if self.amplitude_expression is not None:
 					#locals = {"counts":self.counts_mask}
-					locals = {"counts":self.counts_weights_mask, "counts1": self.counts_mask}
+					locals = {"counts":self.counts_mask, "weighted": self.counts_weights_mask}
+					if self.counts_weights is None:
+						locals["average"] = None
+					else:
+						locals["average"] = self.counts_weights_mask/self.counts_mask
 					globals = np.__dict__
 					amplitude_mask = eval(self.amplitude_expression, globals, locals)
 
 		if self.action_display_current == self.action_display_mode_both:
-			self.axes.imshow(amplitude.T, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)
+			self.axes.imshow(amplitude.T, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=self.colormap)
 			if self.counts_mask is not None:
-				self.axes.imshow(amplitude_mask.T, origin="lower", extent=ranges, alpha=1, cmap=cm_plusmin)
+				self.axes.imshow(amplitude_mask.T, origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
 		if self.action_display_current == self.action_display_mode_full:
-			self.axes.imshow(amplitude.T, origin="lower", extent=ranges, cmap=cm_plusmin)
+			self.axes.imshow(amplitude.T, origin="lower", extent=ranges, cmap=self.colormap)
 		if self.action_display_current == self.action_display_mode_selection:
 			if self.counts_mask is not None:
-				self.axes.imshow(amplitude_mask.T, origin="lower", extent=ranges, alpha=1, cmap=cm_plusmin)
+				self.axes.imshow(amplitude_mask.T, origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
 		print "aap"
 		if self.counts_x_weights is not None and self.counts_y_weights is not None:
-			x = np.linspace(ranges[0], ranges[1], 128/4)
-			y = np.linspace(ranges[2], ranges[3], 128/4)
+			#x = np.linspace(ranges[0], ranges[1], 128/4)
+			#y = np.linspace(ranges[2], ranges[3], 128/4)
+			width = ranges[1] - ranges[0]
+			height = ranges[3] - ranges[2]
+			Nvector = 128/4
+			x = np.arange(0, Nvector)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.) 
+			y = np.arange(0, Nvector)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
 			x, y = np.meshgrid(x, y)
 			#x = x.reshape(-1)
 			#y = y.reshape(-1)
@@ -1686,11 +1772,21 @@ class ScatterPlotDialog(PlotDialog):
 			U = (self.counts_x_weights/self.counts_xy).T #.reshape(-1) #/counts_xy.T
 			V = (self.counts_y_weights/self.counts_xy).T #.reshape(-1) #/counts_xy.T
 			mask = self.counts_xy.T > 0
+			#print "QUIVER" * 100
+			print "mean", U[mask].mean(), V[mask].mean()
+			#U -= U[mask].mean()
+			#V -= V[mask].mean()
 			print "mies"
-			print "mask", mask
-			print U[mask]
-			self.axes.quiver(x[mask], y[mask], U[mask], V[mask], scale=1)
-			print "QUIVER" * 100
+			#print "mask", mask
+			#print U[mask]
+			if self.counts_xy_weights is not None:
+				colors = (self.counts_xy_weights/self.counts_xy).T
+				self.axes.quiver(x[mask], y[mask], U[mask], V[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
+			else:
+				self.axes.quiver(x[mask], y[mask], U[mask], V[mask])
+				colors = None
+			print "min", U[mask].min(), V[mask].min()
+			print "max", U[mask].max(), V[mask].max()
 			#self.axes.quiver(x, y, U, V)
 		if self.action_display_current == self.action_display_mode_both_contour:
 			#self.axes.imshow(amplitude.T, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)
