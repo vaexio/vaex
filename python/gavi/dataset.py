@@ -304,7 +304,7 @@ class MemoryMapped(object):
 	def __init__(self, filename, write=False, nommap=False):
 		self.filename = filename
 		self.write = write
-		self.name = os.path.basename(self.filename)
+		self.name = os.path.splitext(os.path.basename(self.filename))[0]
 		if not nommap:
 			self.file = file(self.filename, "r+" if write else "r")
 			self.fileno = self.file.fileno()

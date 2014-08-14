@@ -6,7 +6,7 @@ from optparse import OptionParser
 import os
 import sys
 
-if 1: # astropy not working :s
+if 0: # astropy not working :s
 	import pdb
 	#pdb.set_trace()
 	# fix from Chris Beaumont 
@@ -19,6 +19,8 @@ import thread
 import threading
 import time
 import itertools
+import platform
+
 
 import gavi.vaex.plot_windows as vp
 import gavi.vaex.undo
@@ -43,7 +45,7 @@ import encodings
 
 print "DEFAULT ENCODING is: %s"%(sys.getdefaultencoding())
 print "FILE SYSTEM ENCODING is: %s"%(sys.getfilesystemencoding())
-if 0:
+if "darwin" not in platform.system():
 	if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstaller?
 		def getfilesystemencoding_wrapper():
 			return "UTF-8"
@@ -73,7 +75,8 @@ elif __file__:
     application_path = os.path.dirname(__file__)
 
 # for osx
-application_path = os.path.abspath(".")
+if "darwin" in platform.system():
+	application_path = os.path.abspath(".")
 
 if 0:
 	N = 1e9
@@ -1278,7 +1281,7 @@ class Example(QtGui.QMainWindow):
 		#fileMenu.addAction(self.action_open)
 		fileMenu.addAction(exitAction)
 
-		use_toolbar = False
+		use_toolbar = "darwin" not in platform.system()
 		if use_toolbar:
 			self.toolbar = self.addToolBar('Exit')
 		#self.toolbar.addAction(exitAction)

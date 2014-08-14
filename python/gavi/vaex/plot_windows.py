@@ -121,7 +121,7 @@ name = 'PaulT_plusmin'
 cm_plusmin = matplotlib.colors.LinearSegmentedColormap.from_list(name, cols)
 matplotlib.cm.register_cmap(name=name, cmap=cm_plusmin)
 
-
+refs = []
 def process_colormaps():
 	global colormaps_processed
 	if colormaps_processed:
@@ -157,10 +157,17 @@ def process_colormaps():
 			print rgba.shape, rgba.min(), rgba.max()
 			
 			#image = pixmap.toImage()
-			rgba = np.ascontiguousarray((rgba*255.).astype(np.uint8))
-			image = QtGui.QImage(rgba.tostring(), Nx, Ny, Nx*4, QtGui.QImage.Format_RGB32)
+			rgba = np.ascontiguousarray((rgba*255.).astype(np.uint8)).astype(np.uint8)
+			stringdata = rgba.tostring()
+			image = QtGui.QImage(stringdata, Nx, Ny, Nx*4, QtGui.QImage.Format_RGB32)
+			#image = QtGui.QImage(rgba.tostring(), Nx, Ny, Nx*4, QtGui.QImage.Format_BGR32)
+			#refs.append(rgba)
+			#refs.append(image)
+			#refs.append(pixmap)
+			refs.append(stringdata)
 			pixmap.convertFromImage(image)
 			colormap_pixmap[colormap_name] = pixmap
+	
 		
 		
 class Mover(object):
@@ -492,7 +499,7 @@ class PlotDialog(QtGui.QDialog):
 					
 				for template in templates:
 					action = QtGui.QAction(template % "...", self)
-					def add(checked, axis_index=axisIndex, template=template):
+					def add(checked=None, axis_index=axisIndex, template=template):
 						logger.debug("adding template %r to axis %r" % (template, axis_index))
 						expression = self.expressions[axis_index].strip()
 						if "#" in expression:
@@ -560,6 +567,9 @@ class PlotDialog(QtGui.QDialog):
 		self.amplitude_box.addItems(["log(counts/sum_columns)"])
 		self.amplitude_box.addItems(["log(counts/peak_rows)"])
 		self.amplitude_box.addItems(["log(counts/sum_rows)"])
+		self.amplitude_box.addItems(["abs(fft.fftshift(fft.fft2(counts))) # 2d fft"])
+		self.amplitude_box.addItems(["abs(fft.fft(counts, axis=1)) # ffts along y axis"])
+		self.amplitude_box.addItems(["abs(fft.fft(counts, axis=0)) # ffts along x axis"])
 		self.amplitude_box.setMinimumContentsLength(40)
 		self.grid_layout.addWidget(QtGui.QLabel("amplitude="), row, 1)
 		self.grid_layout.addWidget(self.amplitude_box, row, 2, QtCore.Qt.AlignLeft)
@@ -1397,6 +1407,40 @@ class PlotDialog(QtGui.QDialog):
 
 	def autoRecalculate(self):
 		return True
+		
+		
+	def onActionSaveFigure(self, *ignore_args):
+		filetypes = self.fig.canvas.get_supported_filetypes()
+		filetypes = [value + "(*.%s)" % key for (key, value) in filetypes.items()]
+		import string
+		def make_save(expr):
+			save_expr = ""
+			for char in expr:
+				if char not in string.whitespace:
+					if char in string.ascii_letters or char in string.digits or char in "._":
+						save_expr += char
+					else:
+						save_expr += "_"
+			return save_expr
+		save_expressions = map(make_save, self.expressions)
+		type = "histogram" if self.dimensions == 1 else "density"
+		filename = self.dataset.name +"_%s_" % type  +"-vs-".join(save_expressions) + ".png"
+		filename = QtGui.QFileDialog.getSaveFileName(self, "Export to figure", filename, ";;".join(filetypes))
+		if isinstance(filename, tuple):
+			filename = filename[0]
+		filename = str(filename)
+		if filename:
+			logger.debug("saving to figure: %s" % filename)
+			self.fig.savefig(filename)
+			self.filename_figure_last = filename
+			self.action_save_figure_again.setEnabled(True)
+
+	def onActionSaveFigureAgain(self, *ignore_args):
+		logger.debug("saving to figure: %s" % self.filename_figure_last)
+		self.fig.savefig(self.filename_figure_last)
+		
+		
+		
 
 	def addToolbar2(self, layout, contrast=True, gamma=True):
 		self.toolbar2 = QtGui.QToolBar(self)
@@ -1404,6 +1448,18 @@ class PlotDialog(QtGui.QDialog):
 		self.toolbar2.setIconSize(QtCore.QSize(16, 16))
 
 		layout.addWidget(self.toolbar2)
+		
+		
+		self.action_save_figure = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Export figure', self)
+		self.action_save_figure_again = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Export figure again', self)
+		self.menu_save = QtGui.QMenu(self)
+		self.action_save_figure.setMenu(self.menu_save)
+		self.menu_save.addAction(self.action_save_figure_again)
+		self.toolbar2.addAction(self.action_save_figure)
+		
+		self.action_save_figure.triggered.connect(self.onActionSaveFigure)
+		self.action_save_figure_again.triggered.connect(self.onActionSaveFigureAgain)
+		self.action_save_figure_again.setEnabled(False)
 
 		if contrast:
 			self.action_group_constrast = QtGui.QActionGroup(self)
@@ -1634,7 +1690,7 @@ class PlotDialog(QtGui.QDialog):
 		self.toolbar.addSeparator()
 		self.toolbar.addAction(self.action_zoom_out)
 		self.toolbar.addAction(self.action_zoom_fit)
-		self.toolbar.addAction(self.action_zoom_use)
+		#self.toolbar.addAction(self.action_zoom_use)
 		
 		#self.zoomButton.setPopupMode(QtCore.QToolButton.DelayedPopup)
 		
@@ -1952,6 +2008,10 @@ class HistogramPlotDialog(PlotDialog):
 		self.axes.set_xlim(xmin_show, xmax_show)
 		ymin_show, ymax_show = self.range_level
 		print "level limits:", ymin_show, ymax_show
+		if not self.weight_expression:
+			self.axes.set_ylabel("counts")
+		else:
+			self.axes.set_ylabel(self.weight_expression)
 		self.axes.set_ylim(ymin_show, ymax_show)
 		self.canvas.draw()
 		self.message("plot time: %f" % (time.time() - t0), index=100)
