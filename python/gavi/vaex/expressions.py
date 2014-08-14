@@ -32,7 +32,7 @@ class Const(Base):
 		return repr(self.value)
 
 def check_const(value):
-	if isinstance(value, int):
+	if isinstance(value, (int, float)):
 		return Const(value)
 	else:
 		return value
@@ -124,7 +124,7 @@ class Slice(Base):
 	def tovar(self):
 		parts = [self.var.name]
 		for arg in self.args:
-			if isinstance(arg, int):
+			if isinstance(arg, (int, float)):
 				parts.append(repr(arg).replace("-", "_min_"))
 			elif isinstance(arg, Var):
 				parts.append(arg.name)
@@ -145,7 +145,7 @@ class Slice(Base):
 		parts = []
 		#logger.debug("args: %r" % self.args)
 		for arg in self.args:
-			if isinstance(arg, int):
+			if isinstance(arg, (int, float)):
 				parts.append(repr(arg))
 			elif isinstance(arg, Var):
 				parts.append(arg.name)
@@ -212,7 +212,7 @@ def distance(args):
 			result = Add(result, arg**2)
 		result = Sqrt(result)
 	return result
-macros = {"d": distance}
+macros = {"l2": distance}
 def translate(expression):
 	scope = Scope(None)
 	newvars = {}
@@ -246,7 +246,7 @@ if __name__ == "__main__":
 
 	expr1 = "log(a[:,index]) + index"
 	expr1 = "log(a[index]) + index"
-	expr1 = "log(a[-1]) - index + 1 + 1**2 + index**index + d(a,b)"
+	expr1 = "log(a[-1]) - index + 1 + 1**2 + index**index + d(a,b) + 1.2"
 	scope = Scope(None)
 	result = eval(expr1, {}, scope)
 	print "expression", expr1

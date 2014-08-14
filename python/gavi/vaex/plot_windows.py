@@ -5,6 +5,8 @@ from matplotlib.figure import Figure
 import matplotlib
 from matplotlib.widgets import Lasso, LassoSelector
 import matplotlib.widgets 
+import matplotlib.cm
+
 import os
 import gavi
 import numpy as np
@@ -12,6 +14,7 @@ import functools
 import time
 
 import gavi.logging
+import gavi.vaex.undo as undo
 import numexpr as ne
 
 
@@ -102,6 +105,62 @@ def find_nearest_index1d(datax, x):
 	distance = math.sqrt((datax[index]-x)**2)
 	return index, distance
 		
+		
+	
+colormaps = []
+colormap_pixmap = {}
+colormaps_processed = False
+cols = []
+for x in np.linspace(0,1, 256):
+	rcol = 0.237 - 2.13*x + 26.92*x**2 - 65.5*x**3 + 63.5*x**4 - 22.36*x**5
+	gcol = ((0.572 + 1.524*x - 1.811*x**2)/(1 - 0.291*x + 0.1574*x**2))**2
+	bcol = 1/(1.579 - 4.03*x + 12.92*x**2 - 31.4*x**3 + 48.6*x**4 - 23.36*x**5)
+	cols.append((rcol, gcol, bcol))
+
+name = 'PaulT_plusmin'
+cm_plusmin = matplotlib.colors.LinearSegmentedColormap.from_list(name, cols)
+matplotlib.cm.register_cmap(name=name, cmap=cm_plusmin)
+
+
+def process_colormaps():
+	global colormaps_processed
+	if colormaps_processed:
+		return
+	colormaps_processed = True
+	cmaps = [	('Extra', ['PaulT_plusmin']),
+				('Sequential',     ['binary', 'Blues', 'BuGn', 'BuPu', 'gist_yarg',
+								'GnBu', 'Greens', 'Greys', 'Oranges', 'OrRd',
+								'PuBu', 'PuBuGn', 'PuRd', 'Purples', 'RdPu',
+								'Reds', 'YlGn', 'YlGnBu', 'YlOrBr', 'YlOrRd']),
+			('Sequential (2)', ['afmhot', 'autumn', 'bone', 'cool', 'copper',
+								'gist_gray', 'gist_heat', 'gray', 'hot', 'pink',
+								'spring', 'summer', 'winter']),
+			('Diverging',      ['BrBG', 'bwr', 'coolwarm', 'PiYG', 'PRGn', 'PuOr',
+								'RdBu', 'RdGy', 'RdYlBu', 'RdYlGn', 'seismic']),
+			('Qualitative',    ['Accent', 'Dark2', 'hsv', 'Paired', 'Pastel1',
+								'Pastel2', 'Set1', 'Set2', 'Set3', 'spectral']),
+			('Miscellaneous',  ['gist_earth', 'gist_ncar', 'gist_rainbow',
+								'gist_stern', 'jet', 'brg', 'CMRmap', 'cubehelix',
+								'gnuplot', 'gnuplot2', 'ocean', 'rainbow',
+								'terrain', 'flag', 'prism'])]
+	for cmap_category, cmap_list in cmaps:
+		for colormap_name in cmap_list:
+			colormaps.append(colormap_name)
+			colormap = matplotlib.cm.get_cmap(colormap_name)
+			mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
+			Nx, Ny = 32, 16
+			pixmap = QtGui.QPixmap(32*2, 32)
+			x = np.arange(Nx)
+			x = np.vstack([x]*Ny)
+			
+			rgba = mapping.to_rgba(x)
+			print rgba.shape, rgba.min(), rgba.max()
+			
+			#image = pixmap.toImage()
+			rgba = np.ascontiguousarray((rgba*255.).astype(np.uint8))
+			image = QtGui.QImage(rgba.tostring(), Nx, Ny, Nx*4, QtGui.QImage.Format_RGB32)
+			pixmap.convertFromImage(image)
+			colormap_pixmap[colormap_name] = pixmap
 		
 		
 class Mover(object):
@@ -298,6 +357,8 @@ class PlotDialog(QtGui.QDialog):
 		super(PlotDialog, self).__init__(parent)
 		self.resize(700,700)
 		print "aap"
+		
+		self.undoManager = parent.undoManager
 		self.setWindowTitle(dataset.name + "-test")
 		self.jobsManager = jobsManager
 		self.dataset = dataset
@@ -305,6 +366,12 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.expressions = expressions
 		self.dimensions = len(self.expressions)
+
+		self.colormap = cm_plusmin #"binary"
+		self.colormap_vector = "binary"
+
+		self.colormap = cm_plusmin #"binary"
+		self.colormap_vector = "binary"
 
 		self.fig = Figure(figsize=(width, height), dpi=dpi)
 		self.addAxes()
@@ -316,7 +383,7 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.ranges = [None for _ in range(self.dimensions)] # min/max for the data
 		self.ranges_show = [None for _ in range(self.dimensions)] # min/max for the plots
-		self.ranges_level = [None for _ in range(self.dimensions)] # min/max for the histogram/densities
+		self.range_level = None
 		#self.xmin_show, self.xmax_show = None, None
 		#self.ymin_show, self.ymax_show = None, None
 		#self.xmin, self.xmax = None, None
@@ -369,6 +436,29 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.form_layout = QtGui.QFormLayout(self.bottomFrame)
 
+		self.button_layout = QtGui.QHBoxLayout(self)
+		if self.dimensions > 1:
+			self.buttonFlipXY = QtGui.QPushButton("x<->y")
+			def flipXY():
+				self.expressions.reverse()
+				for box, expr in zip(self.axisboxes, self.expressions):
+					box.lineEdit().setText(expr)
+				self.compute()
+				self.jobsManager.execute()
+			self.buttonFlipXY.clicked.connect(flipXY)
+			self.button_layout.addWidget(self.buttonFlipXY)
+			self.buttonFlipXY.setAutoDefault(False)
+			self.button_flip_colormap = QtGui.QPushButton("<->colormaps")
+			def flip_colormap():
+				index1 = self.colormap_box.currentIndex()
+				index2 = self.colormap_vector_box.currentIndex()
+				self.colormap_box.setCurrentIndex(index2)
+				self.colormap_vector_box.setCurrentIndex(index1)
+			self.button_flip_colormap.clicked.connect(flip_colormap)
+			self.button_layout.addWidget(self.button_flip_colormap)
+			self.button_flip_colormap.setAutoDefault(False)
+		self.bottom_layout.addLayout(self.button_layout, 0)
+
 		self.axisboxes = []
 		self.onExpressionChangedPartials = []
 		axisIndex = 0
@@ -387,20 +477,62 @@ class PlotDialog(QtGui.QDialog):
 			linkButton = LinkButton("link", self.dataset, axisIndex, self)
 			self.linkButtons.append(linkButton)
 			linkButton.setChecked(True)
+			linkButton.setVisible(False)
 			# obove doesn't fire event, do manually
 			#linkButton.onToggleLink()
-			if 0:
+			if 1:
 				functionButton = QtGui.QToolButton(self)
+				functionButton.setIcon(QtGui.QIcon(iconfile('edit-mathematics')))
 				menu = QtGui.QMenu()
 				functionButton.setMenu(menu)
 				functionButton.setPopupMode(QtGui.QToolButton.InstantPopup)
-				link_action = QtGui.QAction(QtGui.QIcon(iconfile('network-connect-3')), '&Link axis', self)
-				unlink_action = QtGui.QAction(QtGui.QIcon(iconfile('network-disconnect-2')), '&Unlink axis', self)
-				menu.addAction(link_action)
-				menu.addAction(unlink_action)
+				#link_action = QtGui.QAction(QtGui.QIcon(iconfile('network-connect-3')), '&Link axis', self)
+				#unlink_action = QtGui.QAction(QtGui.QIcon(iconfile('network-disconnect-2')), '&Unlink axis', self)
+				templates = ["log(%s)", "sqrt(%s)", "1/(%s)", "abs(%s)"] 
+					
+				for template in templates:
+					action = QtGui.QAction(template % "...", self)
+					def add(checked, axis_index=axisIndex, template=template):
+						logger.debug("adding template %r to axis %r" % (template, axis_index))
+						expression = self.expressions[axis_index].strip()
+						if "#" in expression:
+							expression = expression[:expression.index("#")].strip()
+						self.expressions[axis_index] = template % expression
+						self.axisboxes[axis_index].lineEdit().setText(self.expressions[axis_index])
+						self.ranges[axis_index] = None
+						self.ranges_show[axis_index] = None
+						self.compute()
+						self.jobsManager.execute()
+					action.triggered.connect(add)
+					menu.addAction(action)
+				self.grid_layout.addWidget(functionButton, row, 3, QtCore.Qt.AlignLeft)
+				#menu.addAction(unlink_action)
 				#self.grid_layout.addWidget(functionButton, row, 2)
 			self.grid_layout.addWidget(linkButton, row, 0)
-			axisbox.addItems(self.getExpressionList())
+			#if axisIndex == 0:
+			extra_expressions = []
+			expressionList = self.getExpressionList()
+			for prefix in ["", "v", "v_"]:
+				names = "x y z".split()
+				allin = True
+				for name in names:
+					if prefix + name not in expressionList:
+						allin = False
+				# if all items found, add it
+				if allin:
+					expression = "l2(%s) # l2 norm" % (",".join([prefix+name for name in names]))
+					extra_expressions.append(expression)
+
+				if 0: # this gives too much clutter
+					for name1 in names:
+						for name2 in names:
+							if name1 != name2:
+								if name1 in expressionList and name2 in expressionList:
+									expression = "d(%s)" % (",".join([prefix+name for name in [name1, name2]]))
+									extra_expressions.append(expression)
+
+
+			axisbox.addItems(extra_expressions + self.getExpressionList())
 			#axisbox.setCurrentIndex(self.expressions[axisIndex])
 			#axisbox.currentIndexChanged.connect(functools.partial(self.onAxis, axisIndex=axisIndex))
 			axisbox.lineEdit().setText(self.expressions[axisIndex])
@@ -411,58 +543,137 @@ class PlotDialog(QtGui.QDialog):
 			axisbox.currentIndexChanged.connect(lambda _, axisIndex=axisIndex: self.onExpressionChangedPartials[axisIndex]())
 			axisIndex += 1
 			self.axisboxes.append(axisbox)
-		
+		row += 1
 		self.bottom_layout.addLayout(self.grid_layout, 0)
 		self.bottom_layout.addLayout(self.form_layout, 0)
 		
 		layout.addWidget(self.bottomFrame, 0)
-
+		
 		self.amplitude_box = QtGui.QComboBox(self)
 		self.amplitude_box.setEditable(True)
 		self.amplitude_box.addItems(["log(counts) if weighted is None else average", "counts", "counts**2", "sqrt(counts)"])
+		self.amplitude_box.addItems(["counts/peak_columns # divide by peak value in every row"])
+		self.amplitude_box.addItems(["counts/sum_columns # normalize columns"])
+		self.amplitude_box.addItems(["counts/peak_rows # divide by peak value in every row"])
+		self.amplitude_box.addItems(["counts/sum_rows # normalize rows"])
+		self.amplitude_box.addItems(["log(counts/peak_columns)"])
+		self.amplitude_box.addItems(["log(counts/sum_columns)"])
+		self.amplitude_box.addItems(["log(counts/peak_rows)"])
+		self.amplitude_box.addItems(["log(counts/sum_rows)"])
 		self.amplitude_box.setMinimumContentsLength(40)
-		self.form_layout.addRow("amplitude=", self.amplitude_box)
+		self.grid_layout.addWidget(QtGui.QLabel("amplitude="), row, 1)
+		self.grid_layout.addWidget(self.amplitude_box, row, 2, QtCore.Qt.AlignLeft)
 		self.amplitude_box.lineEdit().editingFinished.connect(self.onAmplitudeExpr)
 		self.amplitude_box.currentIndexChanged.connect(lambda _: self.onAmplitudeExpr())
 		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
 		
+		if self.dimensions > 1:
+			process_colormaps()
+			self.colormap_box = QtGui.QComboBox(self)
+			self.colormap_box.setIconSize(QtCore.QSize(16, 16))
+			model = QtGui.QStandardItemModel(self.colormap_box)
+			for colormap_name in colormaps:
+				colormap = matplotlib.cm.get_cmap(colormap_name)
+				pixmap = colormap_pixmap[colormap_name]
+				icon = QtGui.QIcon(pixmap)
+				item = QtGui.QStandardItem(icon, colormap_name)
+				model.appendRow(item)
+			self.colormap_box.setModel(model);
+			#self.form_layout.addRow("colormap=", self.colormap_box)
+			self.grid_layout.addWidget(self.colormap_box, row, 3, QtCore.Qt.AlignLeft)
+			def onColorMap(index):
+				colormap_name = str(self.colormap_box.itemText(index))
+				logger.debug("selected colormap: %r" % colormap_name)
+				self.colormap = colormap_name
+				self.plot()
+			self.colormap_box.currentIndexChanged.connect(onColorMap)
+			self.colormap_box.setCurrentIndex(0)
+			
+		row += 1
+		
 		self.weight_box = QtGui.QComboBox(self)
 		self.weight_box.setEditable(True)
 		self.weight_box.addItems([""] + self.getExpressionList())
-		self.weight_box.setMinimumContentsLength(40)
-		self.form_layout.addRow("weight=", self.weight_box)
+		self.weight_box.setMinimumContentsLength(30)
+		self.grid_layout.addWidget(QtGui.QLabel("weight="), row, 1)
+		self.grid_layout.addWidget(self.weight_box, row, 2)
 		self.weight_box.lineEdit().editingFinished.connect(self.onWeightExpr)
 		self.weight_box.currentIndexChanged.connect(lambda _: self.onWeightExpr())
 		self.weight_expression = str(self.weight_box.lineEdit().text())
 		
-		self.weight_x_box = QtGui.QComboBox(self)
-		self.weight_x_box.setEditable(True)
-		self.weight_x_box.addItems([""] + self.getExpressionList())
-		self.weight_x_box.setMinimumContentsLength(40)
-		self.form_layout.addRow("weight_x=", self.weight_x_box)
-		self.weight_x_box.lineEdit().editingFinished.connect(self.onWeightXExpr)
-		self.weight_x_box.currentIndexChanged.connect(lambda _: self.onWeightXExpr())
-		self.weight_x_expression = str(self.weight_x_box.lineEdit().text())
+		row += 1
 		
-		self.weight_y_box = QtGui.QComboBox(self)
-		self.weight_y_box.setEditable(True)
-		self.weight_y_box.addItems([""] + self.getExpressionList())
-		self.weight_y_box.setMinimumContentsLength(40)
-		self.form_layout.addRow("weight_y=", self.weight_y_box)
-		self.weight_y_box.lineEdit().editingFinished.connect(self.onWeightYExpr)
-		self.weight_y_box.currentIndexChanged.connect(lambda _: self.onWeightYExpr())
-		self.weight_y_expression = str(self.weight_y_box.lineEdit().text())
-		
-		self.weight_xy_box = QtGui.QComboBox(self)
-		self.weight_xy_box.setEditable(True)
-		self.weight_xy_box.addItems([""] + self.getExpressionList())
-		self.weight_xy_box.setMinimumContentsLength(40)
-		self.form_layout.addRow("weight_xy=", self.weight_xy_box)
-		self.weight_xy_box.lineEdit().editingFinished.connect(self.onWeightXYExpr)
-		self.weight_xy_box.currentIndexChanged.connect(lambda _: self.onWeightXYExpr())
-		self.weight_xy_expression = str(self.weight_xy_box.lineEdit().text())
-		
+		if self.dimensions > -1:
+			self.weight_x_box = QtGui.QComboBox(self)
+			self.weight_x_box.setEditable(True)
+			self.weight_x_box.addItems([""] + self.getExpressionList())
+			self.weight_x_box.setMinimumContentsLength(30)
+			self.grid_layout.addWidget(QtGui.QLabel("weight_x="), row, 1)
+			self.grid_layout.addWidget(self.weight_x_box, row, 2)
+			self.weight_x_box.lineEdit().editingFinished.connect(self.onWeightXExpr)
+			self.weight_x_box.currentIndexChanged.connect(lambda _: self.onWeightXExpr())
+			self.weight_x_expression = str(self.weight_x_box.lineEdit().text())
+			for name in "x y z".split():
+				if name in self.expressions[0]:
+					for prefix in "v v_".split():
+						expression = (prefix+name)
+						if expression in self.getExpressionList():
+							self.weight_x_box.lineEdit().setText(expression)
+							self.weight_x_expression = expression
+			
+			row += 1
 
+			self.weight_y_box = QtGui.QComboBox(self)
+			self.weight_y_box.setEditable(True)
+			self.weight_y_box.addItems([""] + self.getExpressionList())
+			self.weight_y_box.setMinimumContentsLength(30)
+			self.grid_layout.addWidget(QtGui.QLabel("weight_y="), row, 1)
+			self.grid_layout.addWidget(self.weight_y_box, row, 2)
+			self.weight_y_box.lineEdit().editingFinished.connect(self.onWeightYExpr)
+			self.weight_y_box.currentIndexChanged.connect(lambda _: self.onWeightYExpr())
+			self.weight_y_expression = str(self.weight_y_box.lineEdit().text())
+			for name in "x y z".split():
+				if self.dimensions > 1:
+					if name in self.expressions[1]:
+						for prefix in "v v_".split():
+							expression = (prefix+name)
+							if expression in self.getExpressionList():
+								self.weight_y_box.lineEdit().setText(expression)
+								self.weight_y_expression = expression
+			
+			row += 1
+
+			self.weight_xy_box = QtGui.QComboBox(self)
+			self.weight_xy_box.setEditable(True)
+			self.weight_xy_box.addItems([""] + self.getExpressionList())
+			self.weight_xy_box.setMinimumContentsLength(40)
+			self.grid_layout.addWidget(QtGui.QLabel("weight_xy="), row, 1)
+			self.grid_layout.addWidget(self.weight_xy_box, row, 2)
+			self.weight_xy_box.lineEdit().editingFinished.connect(self.onWeightXYExpr)
+			self.weight_xy_box.currentIndexChanged.connect(lambda _: self.onWeightXYExpr())
+			self.weight_xy_expression = str(self.weight_xy_box.lineEdit().text())
+			
+			self.colormap_vector_box = QtGui.QComboBox(self)
+			self.colormap_vector_box.setIconSize(QtCore.QSize(16, 16))
+			model = QtGui.QStandardItemModel(self.colormap_vector_box)
+			for colormap_name in colormaps:
+				colormap = matplotlib.cm.get_cmap(colormap_name)
+				pixmap = colormap_pixmap[colormap_name]
+				icon = QtGui.QIcon(pixmap)
+				item = QtGui.QStandardItem(icon, colormap_name)
+				model.appendRow(item)
+			self.colormap_vector_box.setModel(model);
+			#self.form_layout.addRow("colormap=", self.colormap_vector_box)
+			self.grid_layout.addWidget(self.colormap_vector_box, row, 3, QtCore.Qt.AlignLeft)
+			def onColorMap(index):
+				colormap_name = str(self.colormap_vector_box.itemText(index))
+				logger.debug("selected colormap for vector: %r" % colormap_name)
+				self.colormap_vector = colormap_name
+				self.plot()
+			self.colormap_vector_box.currentIndexChanged.connect(onColorMap)
+			self.colormap_vector_box.setCurrentIndex(1)
+			
+			row += 1
 
 		self.status_bar = QtGui.QStatusBar(self)
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
@@ -483,10 +694,11 @@ class PlotDialog(QtGui.QDialog):
 			return call
 		self.shortcuts = []
 		def addShortCut(action, key):
-			print "key", key
-			shortcut = QtGui.QShortcut(QtGui.QKeySequence(key), self)
-			shortcut.activated.connect(trigger(action))
-			self.shortcuts.append(shortcut)
+			if action.isEnabled():
+				print "key", key
+				shortcut = QtGui.QShortcut(QtGui.QKeySequence(key), self)
+				shortcut.activated.connect(trigger(action))
+				self.shortcuts.append(shortcut)
 		addShortCut(self.action_move, "M")
 		addShortCut(self.action_pick, "P")
 		addShortCut(self.action_mini_mode_normal, "C")
@@ -504,11 +716,33 @@ class PlotDialog(QtGui.QDialog):
 		addShortCut(self.action_zoom_out,"-")
 		addShortCut(self.action_zoom_fit, "0")
 
+		addShortCut(self.action_undo, "Ctrl+Z")
+		addShortCut(self.action_redo, "Alt+Y")
 
 		addShortCut(self.action_display_mode_both, "1")
 		addShortCut(self.action_display_mode_full, "2")
 		addShortCut(self.action_display_mode_selection, "3")
 		addShortCut(self.action_display_mode_both_contour, "4")
+		self.checkUndoRedo()
+		
+	def checkUndoRedo(self):
+		self.action_undo.setEnabled(self.undoManager.can_undo())
+		if self.undoManager.can_undo():
+			self.action_undo.setToolTip("Undo: "+self.undoManager.actions_undo[-1].description())
+			
+		self.action_redo.setEnabled(self.undoManager.can_redo())
+		if self.undoManager.can_redo():
+			self.action_redo.setToolTip("Redo: "+self.undoManager.actions_redo[0].description())
+
+	def onActionUndo(self):
+		logger.debug("undo")
+		self.undoManager.undo()
+		self.checkUndoRedo()
+
+	def onActionRedo(self):
+		logger.debug("redo")
+		self.undoManager.redo()
+		self.checkUndoRedo()
 
 	def onMouseMove(self, event):
 		x, y = event.xdata, event.ydata
@@ -560,10 +794,10 @@ class PlotDialog(QtGui.QDialog):
 		print self.weight_expression
 		if self.weight_expression.strip() == "":
 			self.weight_expression = None
-		self.ranges_level[0] = None
+		self.range_level = None
 		self.compute()
 		self.jobsManager.execute()
-		self.plot()
+		#self.plot()
 	
 		
 	def onWeightXExpr(self):
@@ -576,7 +810,7 @@ class PlotDialog(QtGui.QDialog):
 		print self.weight_x_expression
 		if self.weight_x_expression.strip() == "":
 			self.weight_x_expression = None
-		self.ranges_level[0] = None
+		self.range_level = None
 		self.compute()
 		self.jobsManager.execute()
 		self.plot()
@@ -592,7 +826,7 @@ class PlotDialog(QtGui.QDialog):
 		print self.weight_y_expression
 		if self.weight_y_expression.strip() == "":
 			self.weight_y_expression = None
-		self.ranges_level[0] = None
+		self.range_level = None
 		self.compute()
 		self.jobsManager.execute()
 		self.plot()
@@ -607,7 +841,7 @@ class PlotDialog(QtGui.QDialog):
 		print self.weight_xy_expression
 		if self.weight_xy_expression.strip() == "":
 			self.weight_xy_expression = None
-		self.ranges_level[0] = None
+		self.range_level = None
 		self.compute()
 		self.jobsManager.execute()
 		self.plot()
@@ -615,7 +849,7 @@ class PlotDialog(QtGui.QDialog):
 	def onAmplitudeExpr(self):
 		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
 		print self.amplitude_expression
-		self.ranges_level[0] = None
+		self.range_level = None
 		self.plot()
 
 	def beforeCanvas(self, layout):
@@ -701,6 +935,10 @@ class PlotDialog(QtGui.QDialog):
 	def setMode(self, action, force=False):
 		print "set mode", action, action.text(), action.isChecked()
 		#if not (action.isChecked() or force):
+		if not action.isEnabled():
+			logger.error("action selected that was disabled: %r" % action)
+			self.setMode(self.lastAction)
+			return
 		if not (action.isChecked()):
 			print "ignore action"
 		else:
@@ -878,10 +1116,16 @@ class PlotDialog(QtGui.QDialog):
 			if info.last:
 				self.message("selection computation took %.1fs" % (time.time() - t0), index=40)
 				
+		print "selectx", xmin, xmax, "selected", np.sum(mask), "for axis index", axes.xaxis_index
+
 		# xaxis is stored in the matplotlib object
 		self.dataset.evaluate(putmask, self.expressions[axes.xaxis_index], **self.getVariableDict())
+
+		action = undo.ActionMask(self.undoManager, "select x range[%f,%f]" % (xmin, xmax), mask, self.applyMask)
+		action.do()
+		self.checkUndoRedo()
 		
-		print "selectx", xmin, xmax, "selected", np.sum(mask), "for axis index", axes.xaxis_index
+	def applyMask(self, mask):
 		self.dataset.selectMask(mask)
 		self.jobsManager.execute()
 		self.setMode(self.lastAction)
@@ -897,9 +1141,12 @@ class PlotDialog(QtGui.QDialog):
 		#for block, info in self.dataset.evaluate(self.expressions[1]):
 		#	mask[info.i1:info.i2] = (block >= ymin) & (block < ymax)
 		print "selecty", ymin, ymax, "selected", np.sum(mask)
-		self.dataset.selectMask(mask)
-		self.jobsManager.execute()
-		self.setMode(self.lastAction)
+		#self.dataset.selectMask(mask)
+		#self.jobsManager.execute()
+		#self.setMode(self.lastAction)
+		action = undo.ActionMask(self.undoManager, "select y range[%f,%f]" % (ymin, ymax), mask, self.applyMask)
+		action.do()
+		self.checkUndoRedo()
 		
 	def onSelectLasso(self, vertices, axes):
 		x, y = np.array(vertices).T
@@ -939,21 +1186,49 @@ class PlotDialog(QtGui.QDialog):
 				for i, arg in enumerate(args):
 					print i, repr(arg), arg.dtype if hasattr(arg, "dtype") else ""
 				raise
-		self.dataset.selectMask(mask)
-		self.jobsManager.execute()
-		self.setMode(self.lastAction)
+		action = undo.ActionMask(self.undoManager, "lasso around [%f,%f]" % (meanx, meany), mask, self.applyMask)
+		action.do()
+		self.checkUndoRedo()
+		#self.dataset.selectMask(mask)
+		#self.jobsManager.execute()
+		#self.setMode(self.lastAction)
 		
 	def onZoomX(self, xmin, xmax, axes):
 		
 		axisIndex = axes.xaxis_index
-		self.ranges_show[axisIndex] = xmin, xmax
+		#self.ranges_show[axisIndex] = xmin, xmax
+		# move the link code to the set ranges
 		linkButton = self.linkButtons[axisIndex]
 		link = linkButton.link
 		if link:
 			logger.debug("sending link messages")
 			link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
 			link.sendPlot(linkButton)
+		action = undo.ActionZoom(self.undoManager, "zoom x [%f,%f]" % (xmin, xmax), self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show,  self.range_level, [axisIndex], ranges_show=[[xmin, xmax]])
+		action.do()
+		self.checkUndoRedo()
+			
+			
+	def set_ranges(self, axis_indices, ranges=None, ranges_show=None, range_level=None):
+		logger.debug("set axis/ranges/ranges_show: %r / %r / %r" % (axis_indices, ranges, ranges_show))
+		if axis_indices is None: # signals a 'reset'
+			for axis_index in range(self.dimensions):
+				self.ranges_show[axis_index] = None
+				self.ranges[axis_index] = None
+		else:
+			print axis_indices, self.ranges_show, ranges_show
+			for i, axis_index in enumerate(axis_indices):
+				if ranges_show:
+					self.ranges_show[axis_index] = ranges_show[i]
+				if ranges:
+					self.ranges[axis_index] = ranges[i]
+		logger.debug("set range_level: %r" % (range_level, ))
+		self.range_level = range_level
+
 		if self.autoRecalculate():
+			for i in range(self.dimensions):
+				self.ranges[i] = self.ranges_show[i]
+			#self.range_level = None
 			self.compute()
 			self.jobsManager.execute()
 		else:
@@ -961,34 +1236,39 @@ class PlotDialog(QtGui.QDialog):
 		
 	def onZoomY(self, ymin, ymax, axes):
 		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
-			self.ranges_level[axes.xaxis_index] = ymin, ymax
+			#self.range_level = ymin, ymax
+			action = undo.ActionZoom(self.undoManager, "change level [%f,%f]" % (ymin, ymax), self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show, self.range_level, [], range_level=[ymin, ymax])
 		else:
-			self.ranges_show[axes.yaxis_index] = ymin, ymax
-		if self.autoRecalculate():
-			self.compute()
-			self.jobsManager.execute()
-		else:
-			self.plot()
-		
+			#self.ranges_show[axes.yaxis_index] = ymin, ymax
+			action = undo.ActionZoom(self.undoManager, "zoom y [%f,%f]" % (ymin, ymax), self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show, self.range_level, [axes.yaxis_index], ranges_show=[[ymin, ymax]])
+			
+		action.do()
+		self.checkUndoRedo()
+			
 	def onZoomRect(self, eclick, erelease, axes):
 		x1, y1 = (eclick.xdata, eclick.ydata)
 		x2, y2 = (erelease.xdata, erelease.ydata)
 		x = [x1, x2]
 		y = [y1, y2]
 
-		
-		
-		
+		range_level = None
+		ranges_show = []
+		ranges = []
+		axis_indices = []
 		xmin_show, xmax_show = min(x), max(x)
 		ymin_show, ymax_show = min(y), max(y)
-		self.ranges_show[axes.xaxis_index] = xmin_show, xmax_show
-
+		#self.ranges_show[axes.xaxis_index] = xmin_show, xmax_show
+		axis_indices.append(axes.xaxis_index)
+		ranges_show.append([xmin_show, xmax_show])
 		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
-			self.ranges_level[axes.xaxis_index] = ymin_show, ymax_show
-			logger.debug("range refers to level: %r" % (self.ranges_level[0],))
+			#self.range_level = ymin_show, ymax_show
+			range_level =  ymin_show, ymax_show
+			logger.debug("range refers to level: %r" % (self.range_level,))
 		else:
-			self.ranges_show[axes.yaxis_index] = ymin_show, ymax_show
-		
+			#self.ranges_show[axes.yaxis_index] = ymin_show, ymax_show
+			axis_indices.append(axes.yaxis_index)
+			ranges_show.append([ymin_show, ymax_show])
+
 		for axisIndex in range(self.dimensions):
 			linkButton = self.linkButtons[axisIndex]
 			link = linkButton.link
@@ -1000,14 +1280,19 @@ class PlotDialog(QtGui.QDialog):
 		#self.axes.set_xlim(self.xmin_show, self.xmax_show)
 		#self.axes.set_ylim(self.ymin_show, self.ymax_show)
 		#self.canvas.draw()
-		if self.autoRecalculate():
-			for i in range(self.dimensions):
-				self.ranges[i] = self.ranges_show[i]
-				self.ranges_level[i] = None
-			self.compute()
-			self.jobsManager.execute()
-		else:
-			self.plot()
+		action = undo.ActionZoom(self.undoManager, "zoom to rect", self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
+		action.do()
+		self.checkUndoRedo()
+
+		if 0:
+			if self.autoRecalculate():
+				for i in range(self.dimensions):
+					self.ranges[i] = self.ranges_show[i]
+					self.range_level = None
+				self.compute()
+				self.jobsManager.execute()
+			else:
+				self.plot()
 		
 	def onZoomOut(self, *args):
 		self.zoom(2.)
@@ -1023,7 +1308,13 @@ class PlotDialog(QtGui.QDialog):
 		if x is None:
 			x = xmin + width/2
 		
-		self.ranges_show[0] = x - width/2*factor , x + width/2*factor
+		range_level = None
+		ranges_show = []
+		ranges = []
+		axis_indices = []
+
+		ranges_show.append((x - width/2*factor , x + width/2*factor))
+		axis_indices.append(0)
 
 		ymin, ymax = self.axes.get_ylim()
 		height = ymax - ymin
@@ -1031,9 +1322,10 @@ class PlotDialog(QtGui.QDialog):
 			y = ymin + height/2
 		ymin_show, ymax_show = y - height/2*factor, y + height/2*factor
 		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
-			self.ranges_level[0] = ymin_show, ymax_show
+			range_level = ymin_show, ymax_show
 		else:
-			self.ranges_show[1] = ymin_show, ymax_show
+			ranges_show.append((ymin_show, ymax_show))
+			axis_indices.append(1)
 		
 		for axisIndex in range(self.dimensions):
 			linkButton = self.linkButtons[axisIndex]
@@ -1042,49 +1334,52 @@ class PlotDialog(QtGui.QDialog):
 				logger.debug("sending link messages")
 				link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
 				link.sendPlot(linkButton)
-		#self.axes.set_ylim(self.ymin_show, self.ymax_show)
-		#self.canvas.draw()
-		if self.autoRecalculate():
-			for i in range(self.dimensions):
-				self.ranges[i] = self.ranges_show[i]
-				self.ranges_level[i] = None
-			self.compute()
-			self.jobsManager.execute()
-		else:
-			self.plot()
+
 		
+		action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"), self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
+		action.do()
+		self.checkUndoRedo()
 		
 	def onZoomFit(self, *args):
-		for i in range(self.dimensions):
-			self.ranges[i] = None
-			self.ranges_show[i] = None
-			self.ranges_level[i] = None
-		for axisIndex in range(self.dimensions):
-			linkButton = self.linkButtons[axisIndex]
-			link = linkButton.link
-			if link:
-				logger.debug("sending link messages")
-				link.sendRanges(self.ranges[axisIndex], linkButton)
-				link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
+		#for i in range(self.dimensions):
+		#	self.ranges[i] = None
+		#	self.ranges_show[i] = None
+		#	self.range_level = None
+		if 0:
+			for axisIndex in range(self.dimensions):
+				linkButton = self.linkButtons[axisIndex]
+				link = linkButton.link
+				if link:
+					logger.debug("sending link messages")
+					link.sendRanges(self.ranges[axisIndex], linkButton)
+					link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
 				
-		linked_buttons = [button for button in self.linkButtons if button.link is not None]
-		links = [button.link for button in linked_buttons]
-		if len(linked_buttons) > 0:
-			logger.debug("sending compute message")
-			gavi.dataset.Link.sendCompute(links, linked_buttons)
+		
+		action = undo.ActionZoom(self.undoManager, "zoom to fit", self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show,  self.range_level,
+						   range(self.dimensions), ranges=[None] * self.dimensions, ranges_show=[None] * self.dimensions, range_level=None)
+		action.do()
+		self.checkUndoRedo()
+		
+		if 0:
+			linked_buttons = [button for button in self.linkButtons if button.link is not None]
+			links = [button.link for button in linked_buttons]
+			if len(linked_buttons) > 0:
+				logger.debug("sending compute message")
+				gavi.dataset.Link.sendCompute(links, linked_buttons)
 			#linked_buttons[0].sendCompute(blacklist)
 		#if linkButtonLast: # only send once
 		#	link = linkButtonLast.link
 		#	logger.debug("sending compute message")
 		#	link.sendCompute(linkButton)
 
-		self.compute()
-		self.jobsManager.execute()
+		#self.compute()
+		#self.jobsManager.execute()
 		
 	def onZoomUse(self, *args):
+		# TODO: when this will be an option again, implement this as action
 		for i in range(self.dimensions):
 			self.ranges[i] = self.ranges_show[i]
-			self.ranges_level[i] = None
+		self.range_level = None
 		for axisIndex in range(self.dimensions):
 			linkButton = self.linkButtons[axisIndex]
 			link = linkButton.link
@@ -1103,30 +1398,43 @@ class PlotDialog(QtGui.QDialog):
 	def autoRecalculate(self):
 		return True
 
-	def addToolbar2(self, layout):
+	def addToolbar2(self, layout, contrast=True, gamma=True):
 		self.toolbar2 = QtGui.QToolBar(self)
 		self.toolbar2.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
-
-		self.action_group_constrast = QtGui.QActionGroup(self)
-		self.action_image_contrast = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
-		self.action_image_contrast_auto = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
-		self.toolbar2.addAction(self.action_image_contrast)
-		
-		self.action_image_contrast.triggered.connect(self.onActionContrast)
-
 		self.toolbar2.setIconSize(QtCore.QSize(16, 16))
+
 		layout.addWidget(self.toolbar2)
+
+		if contrast:
+			self.action_group_constrast = QtGui.QActionGroup(self)
+			self.action_image_contrast = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
+			self.action_image_contrast_auto = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
+			self.toolbar2.addAction(self.action_image_contrast)
+			
+			self.action_image_contrast.triggered.connect(self.onActionContrast)
 		self.contrast = self.contrast_none
 		self.contrast_list = [self.contrast_none, functools.partial(self.contrast_none_auto, percentage=0.1) , functools.partial(self.contrast_none_auto, percentage=1), functools.partial(self.contrast_none_auto, percentage=5)]
-		
-		self.slider_gamma = QtGui.QSlider(self)
-		self.toolbar2.addWidget(self.slider_gamma)
-		self.slider_gamma.setRange(-100, 100)
-		self.slider_gamma.valueChanged.connect(self.onGammaChange)
-		self.slider_gamma.setValue(0)
-		self.slider_gamma.setOrientation(QtCore.Qt.Horizontal)
-		self.slider_gamma.setMaximumWidth(100)
+
+		if gamma:
+			self.slider_gamma = QtGui.QSlider(self)
+			self.toolbar2.addWidget(self.slider_gamma)
+			self.slider_gamma.setRange(-100, 100)
+			self.slider_gamma.valueChanged.connect(self.onGammaChange)
+			self.slider_gamma.setValue(0)
+			self.slider_gamma.setOrientation(QtCore.Qt.Horizontal)
+			self.slider_gamma.setMaximumWidth(100)
 		self.image_gamma = 1.
+
+
+		self.action_undo = QtGui.QAction(QtGui.QIcon(iconfile('arrow-curve-180-left')), 'Undo', self)
+		self.action_redo = QtGui.QAction(QtGui.QIcon(iconfile('arrow-curve-000-left')), 'Redo', self)
+		
+		self.toolbar2.addAction(self.action_undo)
+		self.toolbar2.addAction(self.action_redo)
+		self.action_undo.triggered.connect(self.onActionUndo)
+		self.action_redo.triggered.connect(self.onActionRedo)
+		
+
 		
 	def onGammaChange(self, gamma_index):
 		self.image_gamma = 10**(gamma_index / 100./2)
@@ -1211,6 +1519,7 @@ class PlotDialog(QtGui.QDialog):
 		self.action_display_mode_full = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show full', self)
 		self.action_display_mode_selection = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show selection', self)
 		self.action_display_mode_both_contour = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show contour', self)
+
 		
 		self.actions_display = [self.action_display_mode_both, self.action_display_mode_full, self.action_display_mode_selection, self.action_display_mode_both_contour]
 		for action in self.actions_display:
@@ -1275,6 +1584,13 @@ class PlotDialog(QtGui.QDialog):
 		self.toolbar.addAction(self.action_select)
 		self.select_menu = QtGui.QMenu()
 		self.action_select.setMenu(self.select_menu)
+		self.select_menu.addAction(self.action_lasso)
+		if lasso:
+			#self.toolbar.addAction(self.action_lasso)
+			if self.dimensions > 1:
+				self.lastActionSelect = self.action_lasso
+		else:
+			self.action_lasso.setEnabled(False)
 		if xselect:
 			#self.toolbar.addAction(self.action_xrange)
 			self.select_menu.addAction(self.action_xrange)
@@ -1284,11 +1600,6 @@ class PlotDialog(QtGui.QDialog):
 			self.select_menu.addAction(self.action_yrange)
 			if self.dimensions > 1:
 				self.lastActionSelect = self.action_yrange
-		if lasso:
-			#self.toolbar.addAction(self.action_lasso)
-			self.select_menu.addAction(self.action_lasso)
-			if self.dimensions > 1:
-				self.lastActionSelect = self.action_lasso
 		self.select_menu.addSeparator()
 		self.select_menu.addAction(self.action_select_none)
 		self.select_menu.addSeparator()
@@ -1324,7 +1635,6 @@ class PlotDialog(QtGui.QDialog):
 		self.toolbar.addAction(self.action_zoom_out)
 		self.toolbar.addAction(self.action_zoom_fit)
 		self.toolbar.addAction(self.action_zoom_use)
-		
 		
 		#self.zoomButton.setPopupMode(QtCore.QToolButton.DelayedPopup)
 		
@@ -1455,8 +1765,11 @@ class PlotDialog(QtGui.QDialog):
 		return masknew if maskold is None else maskold | masknew
 		
 	def onActionSelectNone(self):
-		self.dataset.selectMask(None)
-		self.jobsManager.execute()
+		#self.dataset.selectMask(None)
+		#self.jobsManager.execute()
+		action = undo.ActionMask(self.undoManager, "clear selection", None, self.applyMask)
+		action.do()
+		self.checkUndoRedo()
 		
 	def onActionSelect(self):
 		self.lastActionSelect.setChecked(True)
@@ -1498,6 +1811,10 @@ class HistogramPlotDialog(PlotDialog):
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)
 		
+	def afterCanvas(self, layout):
+		self.addToolbar2(layout, contrast=False, gamma=False)
+		super(HistogramPlotDialog, self).afterCanvas(layout)
+
 	def calculate_visuals(self, info, block, weights_block, weights_x_block, weights_y_block, weights_xy_block):
 		elapsed = time.time() - info.time_start
 		self.message("visual computation at %.1f%% (%f seconds)" % (info.percentage, elapsed), index=20)
@@ -1574,11 +1891,16 @@ class HistogramPlotDialog(PlotDialog):
 			return
 		#P.hist(x, 50, normed=1, histtype='stepfilled')
 		#values = 
+		Nvector = 128
+		width = self.ranges[0][1] - self.ranges[0][0]
+		x = np.arange(0, Nvector)/float(Nvector) * width + self.ranges[0][0]# + width/(Nvector/2.) 
+
 		amplitude = self.counts
 		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 		if self.amplitude_expression is not None:
 			#locals = {"counts":self.counts, "counts_weights":self.counts_weights}
 			locals = {"counts": self.counts, "weighted": self.counts_weights}
+			locals["x"] = x
 			if self.counts_weights is not None:
 				locals["average"] = self.counts_weights/self.counts
 			else:
@@ -1586,11 +1908,11 @@ class HistogramPlotDialog(PlotDialog):
 			globals = np.__dict__
 			amplitude = eval(self.amplitude_expression, globals, locals)
 
-		if self.ranges_level[0] is None:
+		if self.range_level is None:
 			if self.weight_expression:
-				self.ranges_level[0] = np.nanmin(amplitude) * 1.1, np.nanmax(amplitude) * 1.1
+				self.range_level = np.nanmin(amplitude) * 1.1, np.nanmax(amplitude) * 1.1
 			else:
-				self.ranges_level[0] = 0, np.nanmax(amplitude) * 1.1
+				self.range_level = 0, np.nanmax(amplitude) * 1.1
 
 
 		if self.counts_mask is None:
@@ -1628,20 +1950,11 @@ class HistogramPlotDialog(PlotDialog):
 		xmin_show, xmax_show = self.ranges_show[0]
 		print "plot limits:", xmin_show, xmax_show
 		self.axes.set_xlim(xmin_show, xmax_show)
-		ymin_show, ymax_show = self.ranges_level[0]
+		ymin_show, ymax_show = self.range_level
 		print "level limits:", ymin_show, ymax_show
 		self.axes.set_ylim(ymin_show, ymax_show)
 		self.canvas.draw()
 		self.message("plot time: %f" % (time.time() - t0), index=100)
-
-cols = []
-for x in np.linspace(0,1, 256):
-	rcol = 0.237 - 2.13*x + 26.92*x**2 - 65.5*x**3 + 63.5*x**4 - 22.36*x**5
-	gcol = ((0.572 + 1.524*x - 1.811*x**2)/(1 - 0.291*x + 0.1574*x**2))**2
-	bcol = 1/(1.579 - 4.03*x + 12.92*x**2 - 31.4*x**3 + 48.6*x**4 - 23.36*x**5)
-	cols.append((rcol, gcol, bcol))
-
-cm_plusmin = matplotlib.colors.LinearSegmentedColormap.from_list("PaulT_plusmin", cols)
 
 
 class ScatterPlotDialog(PlotDialog):
@@ -1776,10 +2089,39 @@ class ScatterPlotDialog(PlotDialog):
 			ranges.append(minimum)
 			ranges.append(maximum)
 			
+		Nvector = 128
+		width = ranges[1] - ranges[0]
+		height = ranges[3] - ranges[2]
+		x = np.arange(0, Nvector)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.) 
+		y = np.arange(0, Nvector)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
+		x, y = np.meshgrid(x, y)
 		amplitude = self.counts
 		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 		if self.amplitude_expression is not None:
 			locals = {"counts":self.counts, "weighted": self.counts_weights}
+			peak_columns = np.apply_along_axis(np.nanmax, 1, self.counts)
+			peak_columns[peak_columns==0] = 1.
+			peak_columns = peak_columns.reshape((1, -1)).T
+			locals["peak_columns"] = peak_columns
+
+			sum_columns = np.apply_along_axis(np.nansum, 1, self.counts)
+			sum_columns[sum_columns==0] = 1.
+			sum_columns = sum_columns.reshape((1, -1)).T
+			locals["sum_columns"] = sum_columns
+
+			peak_rows = np.apply_along_axis(np.nanmax, 0, self.counts)
+			peak_rows[peak_rows==0] = 1.
+			peak_rows = peak_rows.reshape((-1, 1)).T
+			locals["peak_rows"] = peak_rows
+
+			sum_rows = np.apply_along_axis(np.nansum, 0, self.counts)
+			sum_rows[sum_rows==0] = 1.
+			sum_rows = sum_rows.reshape((-1, 1)).T
+			locals["sum_rows"] = sum_rows
+			
+			locals["x"] = x.T
+			locals["y"] = y.T
+
 			if self.counts_weights is None:
 				locals["average"] = None
 			else:
@@ -1789,17 +2131,38 @@ class ScatterPlotDialog(PlotDialog):
 		print "amplitude", np.nanmin(amplitude), np.nanmax(amplitude)
 		#if self.ranges_level[0] is None:
 		#	self.ranges_level[0] = 0, amplitude.max() * 1.1
-		self.colormap = cm_plusmin #"binary"
-		self.colormap_vector = "binary"
-
-		self.colormap = cm_plusmin #"binary"
-		self.colormap_vector = "binary"
 			
 		if 1:
 			if self.counts_mask is not None:
 				if self.amplitude_expression is not None:
 					#locals = {"counts":self.counts_mask}
 					locals = {"counts":self.counts_mask, "weighted": self.counts_weights_mask}
+					
+					#locals = {"counts":self.counts, "weighted": self.counts_weights}
+					peak_columns = np.apply_along_axis(np.nanmax, 1, self.counts_mask)
+					peak_columns[peak_columns==0] = 1.
+					peak_columns = peak_columns.reshape((1, -1)).T
+					locals["peak_columns"] = peak_columns
+
+					sum_columns = np.apply_along_axis(np.nansum, 1, self.counts_mask)
+					sum_columns[sum_columns==0] = 1.
+					sum_columns = sum_columns.reshape((1, -1)).T
+					locals["sum_columns"] = sum_columns
+
+					peak_rows = np.apply_along_axis(np.nanmax, 0, self.counts_mask)
+					peak_rows[peak_rows==0] = 1.
+					peak_rows = peak_rows.reshape((-1, 1)).T
+					locals["peak_rows"] = peak_rows
+
+					sum_rows = np.apply_along_axis(np.nansum, 0, self.counts_mask)
+					sum_rows[sum_rows==0] = 1.
+					sum_rows = sum_rows.reshape((-1, 1)).T
+					locals["sum_rows"] = sum_rows
+					
+					locals["x"] = x.T
+					locals["y"] = y.T
+					
+					
 					if self.counts_weights is None:
 						locals["average"] = None
 					else:
@@ -1808,9 +2171,9 @@ class ScatterPlotDialog(PlotDialog):
 					amplitude_mask = eval(self.amplitude_expression, globals, locals)
 
 		if self.action_display_current == self.action_display_mode_both:
-			self.axes.imshow(self.contrast(amplitude.T), origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)
+			self.axes.imshow(self.contrast(amplitude.T), origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=self.colormap)
 			if self.counts_mask is not None:
-				self.axes.imshow(self.contrast(amplitude_mask.T), origin="lower", extent=ranges, alpha=1, cmap=cm_plusmin)
+				self.axes.imshow(self.contrast(amplitude_mask.T), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
 		if self.action_display_current == self.action_display_mode_full:
 			self.axes.imshow(self.contrast(amplitude.T), origin="lower", extent=ranges, cmap=self.colormap)
 		if self.action_display_current == self.action_display_mode_selection:
@@ -1820,8 +2183,6 @@ class ScatterPlotDialog(PlotDialog):
 		if self.counts_x_weights is not None and self.counts_y_weights is not None:
 			#x = np.linspace(ranges[0], ranges[1], 128/4)
 			#y = np.linspace(ranges[2], ranges[3], 128/4)
-			width = ranges[1] - ranges[0]
-			height = ranges[3] - ranges[2]
 			Nvector = 128/4
 			x = np.arange(0, Nvector)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.) 
 			y = np.arange(0, Nvector)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
