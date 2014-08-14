@@ -1410,8 +1410,10 @@ class PlotDialog(QtGui.QDialog):
 		
 		
 	def onActionSaveFigure(self, *ignore_args):
-		filetypes = self.fig.canvas.get_supported_filetypes()
-		filetypes = [value + "(*.%s)" % key for (key, value) in filetypes.items()]
+		filetypes = dict(self.fig.canvas.get_supported_filetypes()) # copy, otherwise we lose png support :)
+		pngtype = [("png", filetypes["png"])]
+		del filetypes["png"]
+		filetypes = [value + "(*.%s)" % key for (key, value) in pngtype + filetypes.items()]
 		import string
 		def make_save(expr):
 			save_expr = ""

@@ -75,7 +75,7 @@ elif __file__:
     application_path = os.path.dirname(__file__)
 
 # for osx
-if "darwin" in platform.system():
+if "darwin" in platform.system().lower():
 	application_path = os.path.abspath(".")
 
 if 0:
@@ -1281,8 +1281,9 @@ class Example(QtGui.QMainWindow):
 		#fileMenu.addAction(self.action_open)
 		fileMenu.addAction(exitAction)
 
-		use_toolbar = "darwin" not in platform.system()
+		use_toolbar = "darwin" not in platform.system().lower()
 		if use_toolbar:
+			print "using toolbar!"
 			self.toolbar = self.addToolBar('Exit')
 		#self.toolbar.addAction(exitAction)
 		
