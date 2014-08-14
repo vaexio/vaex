@@ -15,7 +15,7 @@ def error(title, msg):
 	print "Error", title, msg
 
 
-buffer_size = 1e6
+buffer_size = 1e7
 
 import gavi.logging
 logger = gavi.logging.getLogger("gavi.vaex")

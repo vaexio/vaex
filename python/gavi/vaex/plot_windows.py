@@ -240,6 +240,7 @@ class Mover(object):
 class LinkButton(QtGui.QToolButton):
 	def __init__(self, title, dataset, axisIndex, parent):
 		super(LinkButton, self).__init__(parent)
+		self.setToolTip("link this axes with others (experimental and unstable)")
 		self.plot = parent
 		self.dataset = dataset
 		self.axisIndex = axisIndex
@@ -379,6 +380,10 @@ class PlotDialog(QtGui.QDialog):
 
 		self.colormap = cm_plusmin #"binary"
 		self.colormap_vector = "binary"
+		
+		self.aspect = None
+		
+		self.gridsize = 512#4
 
 		self.fig = Figure(figsize=(width, height), dpi=dpi)
 		self.addAxes()
@@ -483,8 +488,8 @@ class PlotDialog(QtGui.QDialog):
 			self.grid_layout.addWidget(axisbox, row, 2, QtCore.Qt.AlignLeft)
 			linkButton = LinkButton("link", self.dataset, axisIndex, self)
 			self.linkButtons.append(linkButton)
-			linkButton.setChecked(True)
-			linkButton.setVisible(False)
+			#linkButton.setChecked(True)
+			#linkButton.setVisible(False)
 			# obove doesn't fire event, do manually
 			#linkButton.onToggleLink()
 			if 1:
@@ -1337,17 +1342,29 @@ class PlotDialog(QtGui.QDialog):
 			ranges_show.append((ymin_show, ymax_show))
 			axis_indices.append(1)
 		
+		
+		action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"), self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
+		action.do()
+		
 		for axisIndex in range(self.dimensions):
 			linkButton = self.linkButtons[axisIndex]
 			link = linkButton.link
 			if link:
 				logger.debug("sending link messages")
 				link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
-				link.sendPlot(linkButton)
+				#link.sendPlot(linkButton)
+		
+		linked_buttons = [button for button in self.linkButtons if button.link is not None]
+		links = [button.link for button in linked_buttons]
+		if len(linked_buttons) > 0:
+			logger.debug("sending compute message")
+			gavi.dataset.Link.sendCompute(links, linked_buttons)
+		#self.compute()
+		logger.debug("now execute")
+		self.jobsManager.execute()
+		logger.debug("execute finished")
 
 		
-		action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"), self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
-		action.do()
 		self.checkUndoRedo()
 		
 	def onZoomFit(self, *args):
@@ -1442,6 +1459,25 @@ class PlotDialog(QtGui.QDialog):
 		self.fig.savefig(self.filename_figure_last)
 		
 		
+	def get_aspect(self):
+		xmin, xmax = self.axes.get_xlim()
+		ymin, ymax = self.axes.get_ylim()
+		height = ymax - ymin
+		width = xmax - xmin
+		return 1 #width/height
+		
+	def onActionAspectLockOne(self, *ignore_args):
+		self.aspect = self.get_aspect() if self.action_aspect_lock_one.isChecked() else None
+		logger.debug("set aspect to: %r" % self.aspect)
+		self.compute()
+		self.jobsManager.execute()
+		#self.plot()
+	
+	def _onActionAspectLockOne(self, *ignore_args):
+		self.aspect = 1 #self.get_aspect() if self.action_aspect_lock.isEnabled() else None
+		logger.debug("set aspect to: %r" % self.aspect)
+		
+		
 		
 
 	def addToolbar2(self, layout, contrast=True, gamma=True):
@@ -1463,6 +1499,20 @@ class PlotDialog(QtGui.QDialog):
 		self.action_save_figure_again.triggered.connect(self.onActionSaveFigureAgain)
 		self.action_save_figure_again.setEnabled(False)
 
+		
+		self.action_aspect_lock_one = QtGui.QAction(QtGui.QIcon(iconfile('control-stop-square')), 'Aspect=1', self)
+		#self.action_aspect_lock_one = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Set aspect to one', self)
+		#self.menu_aspect = QtGui.QMenu(self)
+		#self.action_aspect_lock.setMenu(self.menu_aspect)
+		#self.menu_aspect.addAction(self.action_aspect_lock_one)
+		self.toolbar2.addAction(self.action_aspect_lock_one)
+		
+		#self.action_aspect_lock.triggered.connect(self.onActionAspectLock)
+		self.action_aspect_lock_one.setCheckable(True)
+		self.action_aspect_lock_one.triggered.connect(self.onActionAspectLockOne)
+		#self.action_save_figure_again.setEnabled(False)
+
+		
 		if contrast:
 			self.action_group_constrast = QtGui.QActionGroup(self)
 			self.action_image_contrast = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
@@ -1643,21 +1693,21 @@ class PlotDialog(QtGui.QDialog):
 		self.select_menu = QtGui.QMenu()
 		self.action_select.setMenu(self.select_menu)
 		self.select_menu.addAction(self.action_lasso)
+		if yselect:
+			#self.toolbar.addAction(self.action_yrange)
+			self.select_menu.addAction(self.action_yrange)
+			if self.dimensions > 1:
+				self.lastActionSelect = self.action_yrange
+		if xselect:
+			#self.toolbar.addAction(self.action_xrange)
+			self.select_menu.addAction(self.action_xrange)
+			self.lastActionSelect = self.action_xrange
 		if lasso:
 			#self.toolbar.addAction(self.action_lasso)
 			if self.dimensions > 1:
 				self.lastActionSelect = self.action_lasso
 		else:
 			self.action_lasso.setEnabled(False)
-		if xselect:
-			#self.toolbar.addAction(self.action_xrange)
-			self.select_menu.addAction(self.action_xrange)
-			self.lastActionSelect = self.action_xrange
-		if yselect:
-			#self.toolbar.addAction(self.action_yrange)
-			self.select_menu.addAction(self.action_yrange)
-			if self.dimensions > 1:
-				self.lastActionSelect = self.action_yrange
 		self.select_menu.addSeparator()
 		self.select_menu.addAction(self.action_select_none)
 		self.select_menu.addSeparator()
@@ -1879,7 +1929,7 @@ class HistogramPlotDialog(PlotDialog):
 		QtCore.QCoreApplication.instance().processEvents()
 		
 		self.expression_error = False
-		N = 128
+		N = self.gridsize
 		mask = self.dataset.mask
 		if info.first:
 			self.selected_point = None
@@ -1949,7 +1999,7 @@ class HistogramPlotDialog(PlotDialog):
 			return
 		#P.hist(x, 50, normed=1, histtype='stepfilled')
 		#values = 
-		Nvector = 128
+		Nvector = self.gridsize
 		width = self.ranges[0][1] - self.ranges[0][0]
 		x = np.arange(0, Nvector)/float(Nvector) * width + self.ranges[0][0]# + width/(Nvector/2.) 
 
@@ -2029,7 +2079,7 @@ class ScatterPlotDialog(PlotDialog):
 		QtCore.QCoreApplication.instance().processEvents()
 		self.expression_error = False
 
-		N = 128
+		N = self.gridsize
 		mask = self.dataset.mask
 		if info.first:
 			self.counts = np.zeros((N,) * self.dimensions, dtype=np.float64)
@@ -2040,14 +2090,15 @@ class ScatterPlotDialog(PlotDialog):
 			self.counts_xy = None
 			if weights_block is not None:
 				self.counts_weights = np.zeros((N,) * self.dimensions, dtype=np.float64)
+			Nvector = 32
 			if weights_x_block is not None:
-				self.counts_x_weights = np.zeros((N/4,) * self.dimensions, dtype=np.float64)
+				self.counts_x_weights = np.zeros((Nvector,) * self.dimensions, dtype=np.float64)
 			if weights_y_block is not None:
-				self.counts_y_weights = np.zeros((N/4,) * self.dimensions, dtype=np.float64)
+				self.counts_y_weights = np.zeros((Nvector,) * self.dimensions, dtype=np.float64)
 			if weights_xy_block is not None:
-				self.counts_xy_weights = np.zeros((N/4,) * self.dimensions, dtype=np.float64)
+				self.counts_xy_weights = np.zeros((Nvector,) * self.dimensions, dtype=np.float64)
 			if weights_x_block is not None or weights_y_block is not None:
-				self.counts_xy = np.zeros((N/4,) * self.dimensions, dtype=np.float64)
+				self.counts_xy = np.zeros((Nvector,) * self.dimensions, dtype=np.float64)
 			
 			self.selected_point = None
 			if mask is not None:
@@ -2064,6 +2115,26 @@ class ScatterPlotDialog(PlotDialog):
 			self.expression_error = True
 			self.message(info.error_text)
 			return
+		
+		
+		if self.aspect is not None:
+			centers = [(range_[1] + range_[0])/2 for range_ in self.ranges_show]
+			widths = [abs(range_[1] - range_[0]) for range_ in self.ranges_show] # TODO: should we use abs with flipped axes
+			width, height = widths[:2]
+			current_aspect = width/height
+			#if current_aspect > self.aspect:
+			logger.debug("ranges_show were: %r (width/height=%r/%r)"  % (self.ranges_show, width, height))
+			#if current_aspect < 1:
+			height = width/self.aspect
+			#else:
+			#width = self.aspect * height
+			#else:
+			self.ranges_show[0] = centers[0]-width/2,centers[0]+width/2
+			self.ranges_show[1] = centers[1]-height/2,centers[1]+height/2
+			self.ranges = [list(k) for k in self.ranges_show]
+			logger.debug("ranges_show are: %r (width/height=%r/%r)"  % (self.ranges_show, width, height))
+				
+			
 		
 
 		xmin, xmax = self.ranges[0]
@@ -2151,7 +2222,7 @@ class ScatterPlotDialog(PlotDialog):
 			ranges.append(minimum)
 			ranges.append(maximum)
 			
-		Nvector = 128
+		Nvector = self.gridsize
 		width = ranges[1] - ranges[0]
 		height = ranges[3] - ranges[2]
 		x = np.arange(0, Nvector)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.) 
@@ -2245,7 +2316,7 @@ class ScatterPlotDialog(PlotDialog):
 		if self.counts_x_weights is not None and self.counts_y_weights is not None:
 			#x = np.linspace(ranges[0], ranges[1], 128/4)
 			#y = np.linspace(ranges[2], ranges[3], 128/4)
-			Nvector = 128/4
+			Nvector = 32 #self.gridsize/4
 			x = np.arange(0, Nvector)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.) 
 			y = np.arange(0, Nvector)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
 			x, y = np.meshgrid(x, y)
@@ -2285,7 +2356,10 @@ class ScatterPlotDialog(PlotDialog):
 				#self.axes.imshow(amplitude_mask.T, origin="lower", extent=ranges, alpha=1, cmap=cm_plusmin)
 				self.axes.contour(amplitude_mask.T, origin="lower", extent=ranges, levels=levels, linewidths=2, colors="red")
 
-		self.axes.set_aspect('auto')
+		if self.aspect is None:
+			self.axes.set_aspect('auto')
+		else:
+			self.axes.set_aspect(self.aspect)
 			#if self.dataset.selected_row_index is not None:
 				#self.axes.autoscale(False)
 		index = self.dataset.selected_row_index
@@ -2358,7 +2432,7 @@ class ScatterPlotMatrixDialog(PlotDialog):
 		QtCore.QCoreApplication.instance().processEvents()
 		self.expression_error = False
 
-		N = 128
+		N = self.gridsize
 		mask = self.dataset.mask
 		if info.first:
 			self.counts = np.zeros((N,) * self.dimensions, dtype=np.float64)

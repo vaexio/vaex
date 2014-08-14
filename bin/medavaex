@@ -223,11 +223,14 @@ if 0:
 #from PySide import QtGui, QtCore
 try:
 	from PyQt4 import QtGui, QtCore
+	from PyQt4.QtWebKit import QWebView
+
 	import sip
 	sip.setapi('QVariant', 1)
 except ImportError, e1:
 	try:
 		from PySide import QtGui, QtCore
+		from PySide.QtWebKit import QWebView
 	except ImportError, e2:
 		print >>sys.stderr, "could not import PyQt4 or PySide, please install"
 		print >>sys.stderr, "errors: ", repr(e1), repr(e2)
@@ -1322,7 +1325,35 @@ class Example(QtGui.QMainWindow):
 		self.open_generators = [] # for reference counts
 		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "*.hdf5"))
 		self.action_open_hdf5_gavi.triggered.connect(self.openGenerator(self.gaia_hdf5, "*.hdf5"))
-		return
+		self.help_menu = menubar.addMenu('&Help')
+		
+		self.action_help = QtGui.QAction("Help", self)
+		self.action_credits = QtGui.QAction("Credits", self)
+		self.help_menu.addAction(self.action_help)
+		self.help_menu.addAction(self.action_credits)
+		
+		self.action_help.triggered.connect(self.onActionHelp)
+		self.action_credits.triggered.connect(self.onActionCredits)
+		
+	def onActionHelp(self):
+		self.webDialog("html/help_index.html")
+		
+	def onActionCredits(self):
+		self.webDialog("html/credits.html")
+		
+	def webDialog(self, url):
+		view = QWebView()
+		view.load(QtCore.QUrl(url))
+		dialog = QtGui.QDialog(self)
+		layout = QtGui.QVBoxLayout()
+		dialog.setLayout(layout)
+		text = file("html/credits.html").read()
+		print text
+		#label = QtGui.QLabel(text, dialog)
+		#layout.addWidget(label)
+		layout.addWidget(view)
+		dialog.resize(300, 300)
+		dialog.show()
 		
 	def onSaveTable(self):
 		dataset = self.right.dataset
