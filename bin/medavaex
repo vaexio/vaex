@@ -1308,7 +1308,7 @@ class Example(QtGui.QMainWindow):
 		else:
 			for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 				self.list.addGadgetHdf5(os.path.join(application_path, 'data/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5'), name, index)
-				self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
+			self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
 		
 		self.open_generators = [] # for reference counts
 		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "*.hdf5"))
