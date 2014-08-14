@@ -6,9 +6,9 @@ from optparse import OptionParser
 import os
 import sys
 
-if 0: # astropy not working :s
+if 1: # astropy not working :s
 	import pdb
-	pdb.set_trace()
+	#pdb.set_trace()
 	# fix from Chris Beaumont 
 	import astropy.logger
 	astropy.logger.log.disable_warnings_logging()
@@ -21,7 +21,7 @@ import time
 import itertools
 
 import gavi.vaex.plot_windows as vp
-
+import gavi.vaex.undo
 import gavi.selection
 import gavi.kld
 import gavi.utils
@@ -43,11 +43,11 @@ import encodings
 
 print "DEFAULT ENCODING is: %s"%(sys.getdefaultencoding())
 print "FILE SYSTEM ENCODING is: %s"%(sys.getfilesystemencoding())
-
-if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstaller?
-	def getfilesystemencoding_wrapper():
-		return "UTF-8"
-	sys.getfilesystemencoding = getfilesystemencoding_wrapper
+if 0:
+	if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstaller?
+		def getfilesystemencoding_wrapper():
+			return "UTF-8"
+		sys.getfilesystemencoding = getfilesystemencoding_wrapper
 
 # samp stuff
 #import astropy.io.votable
@@ -72,7 +72,8 @@ if getattr(sys, 'frozen', False):
 elif __file__:
     application_path = os.path.dirname(__file__)
 
-
+# for osx
+application_path = os.path.abspath(".")
 
 if 0:
 	N = 1e9
@@ -896,6 +897,8 @@ class MainPanel(QtGui.QFrame):
 		
 		self.jobsManager = gavi.dataset.JobsManager()
 		self.dataset = None
+		
+		self.undoManager = gavi.vaex.undo.UndoManager()
 
 		self.form_layout = QtGui.QFormLayout()
 		
@@ -1020,7 +1023,6 @@ class MainPanel(QtGui.QFrame):
 		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, xname, yname)
 		dialog.show()
 		self.jobsManager.execute()
-		print "show"
 		return dialog
 	
 	def plotmatrix(self, *expressions):
@@ -1039,7 +1041,7 @@ class MainPanel(QtGui.QFrame):
 		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, xname)
 		dialog.show()
 		self.jobsManager.execute()
-		
+		return dialog
 		
 	def onOpenRank(self):
 		print "open", self.dataset
@@ -1245,8 +1247,9 @@ class Example(QtGui.QMainWindow):
 		self.list.currentItemChanged.connect(self.right.onDataSelected)
 		#self.list.testfill()
 		print custom
+		self.show()
+		self.raise_()
 		#self.list.itemSelectionChanged.connect(self.right.onDataSelected)
-		
 		
 		
 		
@@ -1263,8 +1266,6 @@ class Example(QtGui.QMainWindow):
 		exitAction.setShortcut('Alt+Q')
 		exitAction.setStatusTip('Exit application')
 		exitAction.triggered.connect(QtGui.qApp.quit)
-		self.show()
-		self.raise_()
 		self.samp = None
 		
 		
@@ -1276,18 +1277,22 @@ class Example(QtGui.QMainWindow):
 		fileMenu.addAction(self.action_save_hdf5)
 		#fileMenu.addAction(self.action_open)
 		fileMenu.addAction(exitAction)
-		
-		self.toolbar = self.addToolBar('Exit')
+
+		use_toolbar = False
+		if use_toolbar:
+			self.toolbar = self.addToolBar('Exit')
 		#self.toolbar.addAction(exitAction)
 		
 		self.action_samp_connect = QtGui.QAction(QtGui.QIcon(vp.iconfile('application_link')), 'Connect to SAMP server', self)
 		self.action_samp_connect.setShortcut('Alt+S')
-		self.toolbar.addAction(self.action_samp_connect)
+		if use_toolbar:
+			self.toolbar.addAction(self.action_samp_connect)
 		self.action_samp_connect.triggered.connect(self.onSampConnect)
 		
 		self.action_samp_table_send = QtGui.QAction(QtGui.QIcon(vp.iconfile('table_go')), 'Send active dataset via SAMP', self)
 		self.action_samp_table_send.setShortcut('Alt+T')
-		self.toolbar.addAction(self.action_samp_table_send)
+		if use_toolbar:
+			self.toolbar.addAction(self.action_samp_table_send)
 		self.action_samp_table_send.triggered.connect(self.onSampSend)
 		
 		self.action_save_hdf5.triggered.connect(self.onSaveTable)
@@ -1297,11 +1302,11 @@ class Example(QtGui.QMainWindow):
 		self.sampMenu.addAction(self.action_samp_table_send)
 		
 		
-		self.toolbar.addAction(self.action_open_hdf5_gadget)
-		self.toolbar.addAction(self.action_open_hdf5_gavi)
-		self.toolbar.addAction(self.action_save_hdf5)
+		if use_toolbar:
+			self.toolbar.addAction(self.action_open_hdf5_gadget)
+			self.toolbar.addAction(self.action_open_hdf5_gavi)
+			self.toolbar.addAction(self.action_save_hdf5)
 		
-        
 		if custom is not None:
 			custom.loadDatasets(self.list)
 			custom.openPlots(self.right)
@@ -1318,7 +1323,9 @@ class Example(QtGui.QMainWindow):
 	def onSaveTable(self):
 		dataset = self.right.dataset
 		name = dataset.name + "-mysubset.hdf5" 
-		filename, pattern = QtGui.QFileDialog.getSaveFileName(self, "Save to HDF5", name, "HDF5 *.hdf5")
+		filename = QtGui.QFileDialog.getSaveFileName(self, "Save to HDF5", name, "HDF5 *.hdf5")
+		#print args
+		filename = str(filename)
 		if filename:
 			print filename
 			
