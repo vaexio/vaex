@@ -170,7 +170,7 @@ class JobsManager(object):
 									if expr_noslice is None:
 										results[expression] = None
 									#elif expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
-									elif 0: # above condition can be reimplemented when gavifast implements strides != 1
+									elif expression in dataset.column_names and dataset.columns[expression].dtype==np.float64 and dataset.columns[expression].strides[0] == 8:
 										logger.debug("avoided expression, simply a column name with float64")
 										#yield self.columns[expression][i1:i2], info
 										results[expression] = dataset.columns[expression][i1:i2]

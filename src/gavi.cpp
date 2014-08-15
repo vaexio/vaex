@@ -35,16 +35,16 @@ void object_to_numpy2d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y
 			throw std::runtime_error("cannot convert to numpy array");
 		if((int)PyArray_NDIM(obj) != 2)
 			throw std::runtime_error("array is not 2d");
-		int size_x = PyArray_DIMS(obj)[0];
+		int size_x = PyArray_DIMS(obj)[1];
 		if((count_x >= 0) && (size_x != count_x))
 			throw std::runtime_error("arrays not of equal size");
-		int size_y = PyArray_DIMS(obj)[1];
+		int size_y = PyArray_DIMS(obj)[0];
 		if((count_y >= 0) && (size_y != count_y))
 			throw std::runtime_error("arrays not of equal size");
 		if(PyArray_TYPE(obj) != type)
 			throw std::runtime_error("is not of proper type");
 		npy_intp* strides =  PyArray_STRIDES(obj);
-		printf("strides: %d %d (%d %d)\n", strides[0],strides[1], size_x, size_y);
+		//printf("strides: %d %d (%d %d)\n", strides[0],strides[1], size_x, size_y);
 		if(strides[1] != PyArray_ITEMSIZE(obj)) {
 			throw std::runtime_error("stride[0] is not 1");
 		}
@@ -55,6 +55,41 @@ void object_to_numpy2d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y
 		ptr = (T*)PyArray_DATA(obj);
 		count_x = size_x;
 		count_y = size_y;
+}
+
+template<typename T>
+void object_to_numpy3d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y, int &count_z, int type=NPY_DOUBLE) {
+		if(obj == NULL)
+			throw std::runtime_error("cannot convert to numpy array");
+		if((int)PyArray_NDIM(obj) != 3)
+			throw std::runtime_error("array is not 3d");
+		int size_x = PyArray_DIMS(obj)[2];
+		if((count_x >= 0) && (size_x != count_x))
+			throw std::runtime_error("arrays not of equal size");
+		int size_y = PyArray_DIMS(obj)[1];
+		if((count_y >= 0) && (size_y != count_y))
+			throw std::runtime_error("arrays not of equal size");
+		int size_z = PyArray_DIMS(obj)[0];
+		if((count_z >= 0) && (size_z != count_z))
+			throw std::runtime_error("arrays not of equal size");
+		if(PyArray_TYPE(obj) != type)
+			throw std::runtime_error("is not of proper type");
+		npy_intp* strides =  PyArray_STRIDES(obj);
+		//printf("strides: %d %d %d(%d %d %d)\n", strides[0], strides[1], strides[2], size_x, size_y, size_z);
+		if(strides[2] != PyArray_ITEMSIZE(obj)) {
+			throw std::runtime_error("stride[0] is not 1");
+		}
+		if(strides[1] != PyArray_ITEMSIZE(obj)*size_y) {
+			throw std::runtime_error("stride[1] is not 1");
+		}
+		if(strides[0] != PyArray_ITEMSIZE(obj)*size_y*size_x) {
+			throw std::runtime_error("stride[2] is not 1");
+		}
+		
+		ptr = (T*)PyArray_DATA(obj);
+		count_x = size_x;
+		count_y = size_y;
+		count_z = size_z;
 }
 
 
@@ -76,7 +111,9 @@ PyObject* range_check_(PyObject* self, PyObject *args) {
 		unsigned char *mask_ptr = NULL;
 		object_to_numpy1d_nocopy(block_ptr, block, length);
 		object_to_numpy1d_nocopy(mask_ptr, mask, length, NPY_BOOL);
+		Py_BEGIN_ALLOW_THREADS
 		range_check(block_ptr, mask_ptr, length, min, max);
+		Py_END_ALLOW_THREADS
 		Py_INCREF(Py_None);
 		result = Py_None;
 	}
@@ -178,7 +215,9 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 		double *block_ptr = NULL;
 		double min=0., max=1.;
 		object_to_numpy1d_nocopy(block_ptr, block, length);
+		Py_BEGIN_ALLOW_THREADS
 		find_nan_min_max(block_ptr, length, min, max);
+		Py_END_ALLOW_THREADS
 		result = Py_BuildValue("dd", min, max); 
 	}
 	return result;
@@ -211,7 +250,9 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 		if(weights != Py_None) {
 			object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
 		}
+		Py_BEGIN_ALLOW_THREADS
 		histogram1d(block_ptr, weights_ptr, block_length, counts_ptr, counts_length, min, max);
+		Py_END_ALLOW_THREADS
 		Py_INCREF(Py_None);
 		result = Py_None;
 	}
@@ -252,7 +293,119 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 		if(weights != Py_None) {
 			object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
 		}
+		Py_BEGIN_ALLOW_THREADS
 		histogram2d(blockx_ptr, blocky_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, xmin, xmax, ymin, ymax);
+		Py_END_ALLOW_THREADS
+		Py_INCREF(Py_None);
+		result = Py_None;
+	}
+	return result;
+}
+
+void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, int block_length, double* counts, int counts_length_x, int counts_length_y, int counts_length_z, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax) {
+	for(int i = 0; i < block_length; i++) {
+		double value_x = blockx[i];
+		double scaled_x = (value_x - xmin) / (xmax-xmin);
+		int index_x = (int)(scaled_x * counts_length_x);
+
+		double value_y = blocky[i];
+		double scaled_y = (value_y - ymin) / (ymax-ymin);
+		int index_y = (int)(scaled_y * counts_length_y);
+		
+		double value_z = blockz[i];
+		double scaled_z = (value_z - zmin) / (zmax-zmin);
+		int index_z = (int)(scaled_z * counts_length_z);
+		
+		if( (index_x >= 0) & (index_x < counts_length_x)  & (index_y >= 0) & (index_y < counts_length_y)  & (index_z >= 0) & (index_z < counts_length_z) )
+			//counts[index_z + counts_length_z*index_y + counts_length_z*counts_length_y*index_x] += weights == NULL ? 1 : weights[i];
+			counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights == NULL ? 1 : weights[i];
+	}
+}
+
+void project(double* cube_, const int cube_length_x, const int cube_length_y, const int cube_length_z, double* surface_, const int surface_length_x, const int surface_length_y, const double* const projection_, const double* const offset_)
+{
+	double* const surface = surface_;
+	const double* const cube = cube_;
+	const double* const projection = projection_;
+	const double* const offset = offset_;
+	for(int i = 0; i < cube_length_x; i++) {
+	for(int j = 0; j < cube_length_y; j++) {
+	for(int k = 0; k < cube_length_z; k++) {
+			const double x = projection[0]*(i+offset[0]) + projection[1]*(j+offset[1]) + projection[2]*(k+offset[2]) + projection[3];
+			const double y = projection[4]*(i+offset[0]) + projection[5]*(j+offset[1]) + projection[6]*(k+offset[2]) + projection[7];
+			const int binNox = int(x);
+			const int binNoy = int(y);
+			if( (binNox >= 0) && (binNox < surface_length_x) && (binNoy >= 0) && (binNoy < surface_length_y))
+				surface[binNox + binNoy*surface_length_x] += cube[i + cube_length_x*j + cube_length_x*cube_length_y*k];
+	}}}
+}
+
+PyObject* project_(PyObject* self, PyObject* args) {
+	//object block, object weights, object counts, double min, double max) {
+	PyObject* result = NULL;
+	PyObject* cube, *surface, *projection, *offset;
+	if(PyArg_ParseTuple(args, "OOOO", &cube, &surface, &projection, &offset)) {
+		int cube_length_x = -1;
+		int cube_length_y = -1;
+		int cube_length_z = -1;
+		double *cube_ptr = NULL;
+		
+		int surface_length_x = -1;
+		int surface_length_y = -1;
+		double *surface_ptr = NULL;
+		
+		int projection_length = -1;
+		double *projection_ptr = NULL;
+
+		int offset_length = -1;
+		double *offset_ptr = NULL;
+
+		object_to_numpy3d_nocopy(cube_ptr, cube, cube_length_x, cube_length_y, cube_length_z);
+		object_to_numpy2d_nocopy(surface_ptr, surface, surface_length_x, surface_length_y);
+		object_to_numpy1d_nocopy(projection_ptr, projection, projection_length);
+		object_to_numpy1d_nocopy(offset_ptr, offset, offset_length);
+		//if(weights != Py_None) {
+		//	object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+		//}
+		if(projection_length != 8)
+			throw std::runtime_error("projection array should be of length 8");
+		if(offset_length != 3)
+			throw std::runtime_error("center array should be of length 3");
+		Py_BEGIN_ALLOW_THREADS
+		project(cube_ptr, cube_length_x, cube_length_y, cube_length_z, surface_ptr, surface_length_x, surface_length_y, projection_ptr, offset_ptr);
+		Py_END_ALLOW_THREADS
+		Py_INCREF(Py_None);
+		result = Py_None;
+	}
+	return result;
+}
+
+
+PyObject* histogram3d_(PyObject* self, PyObject* args) {
+	//object block, object weights, object counts, double min, double max) {
+	PyObject* result = NULL;
+	PyObject* blockx, *blocky, *blockz, *weights, *counts;
+	double xmin, xmax, ymin, ymax, zmin, zmax;
+	if(PyArg_ParseTuple(args, "OOOOOdddddd", &blockx, &blocky, &blockz, &weights, &counts, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax)) {
+		int block_length = -1;
+		int counts_length_x = -1;
+		int counts_length_y = -1;
+		int counts_length_z = -1;
+		double *blockx_ptr = NULL;
+		double *blocky_ptr = NULL;
+		double *blockz_ptr = NULL;
+		double *weights_ptr = NULL;
+		double *counts_ptr = NULL;
+		object_to_numpy1d_nocopy(blockx_ptr, blockx, block_length);
+		object_to_numpy1d_nocopy(blocky_ptr, blocky, block_length);
+		object_to_numpy1d_nocopy(blockz_ptr, blockz, block_length);
+		object_to_numpy3d_nocopy(counts_ptr, counts, counts_length_x, counts_length_y, counts_length_z);
+		if(weights != Py_None) {
+			object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+		}
+		Py_BEGIN_ALLOW_THREADS
+		histogram3d(blockx_ptr, blocky_ptr, blockz_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, counts_length_z, xmin, xmax, ymin, ymax, zmin, zmax);
+		Py_END_ALLOW_THREADS
 		Py_INCREF(Py_None);
 		result = Py_None;
 	}
@@ -297,18 +450,25 @@ static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 		object_to_numpy1d_nocopy(blockx_ptr, blockx, length);
 		object_to_numpy1d_nocopy(blocky_ptr, blocky, length);
 		object_to_numpy1d_nocopy(mask_ptr, mask, length, NPY_BOOL);
+		Py_BEGIN_ALLOW_THREADS
 		pnpoly(x_ptr, y_ptr, polygon_length, blockx_ptr, blocky_ptr, mask_ptr, length, meanx, meany, radius);
+		Py_END_ALLOW_THREADS
 		Py_INCREF(Py_None);
 		result = Py_None;
 	}
+	
 	return result;
 }
+
+
 
 
 
 static PyMethodDef pygavi_functions[] = {
         {"histogram1d", (PyCFunction)histogram1d_, METH_VARARGS, ""},
         {"histogram2d", (PyCFunction)histogram2d_, METH_VARARGS, ""},
+        {"histogram3d", (PyCFunction)histogram3d_, METH_VARARGS, ""},
+        {"project", (PyCFunction)project_, METH_VARARGS, ""},
         {"find_nan_min_max", (PyCFunction)find_nan_min_max_, METH_VARARGS, ""},
         {"pnpoly", (PyCFunction)pnpoly_, METH_VARARGS, ""},
         {"range_check", (PyCFunction)range_check_, METH_VARARGS, ""},
@@ -334,3 +494,12 @@ initgavifast(void)
 	//if (c_api_object != NULL)
 	//      PyModule_AddObject(mod, "_C_API", c_api_object);
 }
+
+
+
+
+
+
+
+
+

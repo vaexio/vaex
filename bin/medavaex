@@ -6,8 +6,8 @@ from optparse import OptionParser
 import os
 import sys
 
-if 0: # astropy not working :s
-	import pdb
+if 1: # astropy not working :s
+	#import pdb
 	#pdb.set_trace()
 	# fix from Chris Beaumont 
 	import astropy.logger
@@ -1359,6 +1359,8 @@ class Example(QtGui.QMainWindow):
 		dataset = self.right.dataset
 		name = dataset.name + "-mysubset.hdf5" 
 		filename = QtGui.QFileDialog.getSaveFileName(self, "Save to HDF5", name, "HDF5 *.hdf5")
+		if isinstance(filename, tuple):
+			filename = str(filename[0])#]
 		#print args
 		filename = str(filename)
 		if filename:

@@ -6,7 +6,9 @@ import matplotlib
 from matplotlib.widgets import Lasso, LassoSelector
 import matplotlib.widgets 
 import matplotlib.cm
+from gavi.multithreading import ThreadPool
 
+import scipy.ndimage
 import os
 import gavi
 import numpy as np
@@ -372,6 +374,8 @@ class PlotDialog(QtGui.QDialog):
 		self.dataset = dataset
 		self.axisnames = axisnames
 		
+		self.pool = ThreadPool()
+		
 		self.expressions = expressions
 		self.dimensions = len(self.expressions)
 
@@ -383,7 +387,7 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.aspect = None
 		
-		self.gridsize = 512#4
+		self.gridsize = 512/2 #/2
 
 		self.fig = Figure(figsize=(width, height), dpi=dpi)
 		self.addAxes()
@@ -564,6 +568,7 @@ class PlotDialog(QtGui.QDialog):
 		self.amplitude_box = QtGui.QComboBox(self)
 		self.amplitude_box.setEditable(True)
 		self.amplitude_box.addItems(["log(counts) if weighted is None else average", "counts", "counts**2", "sqrt(counts)"])
+		self.amplitude_box.addItems(["log(counts+1)"])
 		self.amplitude_box.addItems(["counts/peak_columns # divide by peak value in every row"])
 		self.amplitude_box.addItems(["counts/sum_columns # normalize columns"])
 		self.amplitude_box.addItems(["counts/peak_rows # divide by peak value in every row"])
@@ -628,13 +633,14 @@ class PlotDialog(QtGui.QDialog):
 			self.weight_x_box.lineEdit().editingFinished.connect(self.onWeightXExpr)
 			self.weight_x_box.currentIndexChanged.connect(lambda _: self.onWeightXExpr())
 			self.weight_x_expression = str(self.weight_x_box.lineEdit().text())
-			for name in "x y z".split():
-				if name in self.expressions[0]:
-					for prefix in "v v_".split():
-						expression = (prefix+name)
-						if expression in self.getExpressionList():
-							self.weight_x_box.lineEdit().setText(expression)
-							self.weight_x_expression = expression
+			if 1:
+				for name in "x y z".split():
+					if name in self.expressions[0]:
+						for prefix in "v v_".split():
+							expression = (prefix+name)
+							if expression in self.getExpressionList():
+								self.weight_x_box.lineEdit().setText(expression)
+								self.weight_x_expression = expression
 			
 			row += 1
 
@@ -647,14 +653,15 @@ class PlotDialog(QtGui.QDialog):
 			self.weight_y_box.lineEdit().editingFinished.connect(self.onWeightYExpr)
 			self.weight_y_box.currentIndexChanged.connect(lambda _: self.onWeightYExpr())
 			self.weight_y_expression = str(self.weight_y_box.lineEdit().text())
-			for name in "x y z".split():
-				if self.dimensions > 1:
-					if name in self.expressions[1]:
-						for prefix in "v v_".split():
-							expression = (prefix+name)
-							if expression in self.getExpressionList():
-								self.weight_y_box.lineEdit().setText(expression)
-								self.weight_y_expression = expression
+			if 1:
+				for name in "x y z".split():
+					if self.dimensions > 1:
+						if name in self.expressions[1]:
+							for prefix in "v v_".split():
+								expression = (prefix+name)
+								if expression in self.getExpressionList():
+									self.weight_y_box.lineEdit().setText(expression)
+									self.weight_y_expression = expression
 			
 			row += 1
 
@@ -738,6 +745,12 @@ class PlotDialog(QtGui.QDialog):
 		addShortCut(self.action_display_mode_full, "2")
 		addShortCut(self.action_display_mode_selection, "3")
 		addShortCut(self.action_display_mode_both_contour, "4")
+		addShortCut(self.action_res_1,"Alt+1")
+		addShortCut(self.action_res_2,"Alt+2")
+		addShortCut(self.action_res_3,"Alt+3")
+		addShortCut(self.action_res_4,"Alt+4")
+		addShortCut(self.action_res_5,"Alt+5")
+
 		self.checkUndoRedo()
 		
 	def checkUndoRedo(self):
@@ -898,6 +911,14 @@ class PlotDialog(QtGui.QDialog):
 		
 		t0 = time.time()
 		def calculate_range(info, block, axisIndex):
+			subblock_size = math.ceil(len(block)/self.pool.nthreads)
+			subblock_count = math.ceil(len(block)/subblock_size)
+			def subblock(index):
+				sub_i1, sub_i2 = index * subblock_size, (index +1) * subblock_size
+				print "index", index, sub_i1, sub_i2, len(block)
+				if len(block) < sub_i2: # last one can be a bit longer
+					sub_i2 = len(block)
+				return subspacefind.find_nan_min_max(block[sub_i1:sub_i2])
 			#print "block", info.index, info.size, block
 			self.message("min/max[%d] at %.1f%% (%.1fs)" % (axisIndex, info.percentage, time.time() - info.time_start), index=50+axisIndex )
 			QtCore.QCoreApplication.instance().processEvents()
@@ -907,10 +928,15 @@ class PlotDialog(QtGui.QDialog):
 				return
 			if info.first:
 				#self.ranges[axisIndex] = [np.nanmin(block), np.nanmax(block)]
-				self.ranges[axisIndex] = tuple(subspacefind.find_nan_min_max(block))
+				#pool.execute(
+				results = self.pool.run_parallel(subblock)
+				self.ranges[axisIndex] = min([result[0] for result in results]), max([result[1] for result in results])
+				#self.ranges[axisIndex] = tuple(subspacefind.find_nan_min_max(block))
 			else:
-				xmin, xmax = tuple(subspacefind.find_nan_min_max(block))
-				self.ranges[axisIndex] = [min(self.ranges[axisIndex][0], xmin), max(self.ranges[axisIndex][1], xmax)]
+				results = self.pool.run_parallel(subblock)
+				self.ranges[axisIndex] = min([self.ranges[axisIndex][0]] + [result[0] for result in results]), max([self.ranges[axisIndex][1]] + [result[1] for result in results])
+				#xmin, xmax = tuple(subspacefind.find_nan_min_max(block))
+				#self.ranges[axisIndex] = [min(self.ranges[axisIndex][0], xmin), max(self.ranges[axisIndex][1], xmax)]
 				#self.ranges[axisIndex] = [min(self.ranges[axisIndex][0], np.nanmin(block)), max(self.ranges[axisIndex][1], np.nanmax(block)),]
 			print "min/max for axis", axisIndex, self.ranges[axisIndex]
 			if info.last:
@@ -1184,7 +1210,15 @@ class PlotDialog(QtGui.QDialog):
 			args = (x, y, blockx, blocky, mask[info.i1:info.i2])
 			for arg in args:
 				print arg.shape, arg.dtype
-			subspacefind.pnpoly(x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius)
+			
+			if 1:
+				submask = mask[info.i1:info.i2]
+				#sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
+				def subblock(index, sub_i1, sub_i2):
+					subspacefind.pnpoly(x, y, blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], submask[sub_i1:sub_i2], meanx, meany, radius)
+				self.pool.run_blocks(subblock, info.size)
+			else:
+				subspacefind.pnpoly(x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius)
 			print "now doing logical op"
 			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], mask[info.i1:info.i2])
 			if info.last:
@@ -1322,20 +1356,23 @@ class PlotDialog(QtGui.QDialog):
 		
 		if x is None:
 			x = xmin + width/2
+			
+		fraction = (x-xmin)/width
 		
 		range_level = None
 		ranges_show = []
 		ranges = []
 		axis_indices = []
 
-		ranges_show.append((x - width/2*factor , x + width/2*factor))
+		ranges_show.append((x - width *fraction *factor , x + width * (1-fraction)*factor))
 		axis_indices.append(0)
 
 		ymin, ymax = self.axes.get_ylim()
 		height = ymax - ymin
 		if y is None:
 			y = ymin + height/2
-		ymin_show, ymax_show = y - height/2*factor, y + height/2*factor
+		fraction = (y-ymin)/height
+		ymin_show, ymax_show = y - height*fraction*factor, y + height*(1-fraction)*factor
 		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
 			range_level = ymin_show, ymax_show
 		else:
@@ -1627,6 +1664,19 @@ class PlotDialog(QtGui.QDialog):
 		self.action_display_mode_full = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show full', self)
 		self.action_display_mode_selection = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show selection', self)
 		self.action_display_mode_both_contour = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show contour', self)
+
+		self.action_res_1 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 1', self)
+		self.action_res_2 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 2', self)
+		self.action_res_3 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 3', self)
+		self.action_res_4 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 4', self)
+		self.action_res_5 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 5', self)
+		
+		for res, action in zip([128, 256, 512, 1024, 2048], [self.action_res_1, self.action_res_2, self.action_res_3, self.action_res_4, self.action_res_5]):
+			def do(res=res):
+				self.gridsize = res
+				self.compute()
+				self.jobsManager.execute()
+			action.triggered.connect(do)
 
 		
 		self.actions_display = [self.action_display_mode_both, self.action_display_mode_full, self.action_display_mode_selection, self.action_display_mode_both_contour]
@@ -1963,19 +2013,46 @@ class HistogramPlotDialog(PlotDialog):
 		try:
 			args = (block, self.counts, xmin, xmax)
 			#gavi.histogram.hist1d(block, self.counts, xmin, xmax)
-			subspacefind.histogram1d(block, None, self.counts, xmin, xmax)
+			if 1:
+				
+				sub_counts = np.zeros((self.pool.nthreads, N), dtype=np.float64)
+				def subblock(index, sub_i1, sub_i2):
+					subspacefind.histogram1d(block[sub_i1:sub_i2], None, sub_counts[index], xmin, xmax)
+				self.pool.run_blocks(subblock, info.size)
+				self.counts += np.sum(sub_counts, axis=0)
+			else:
+				subspacefind.histogram1d(block, None, self.counts, xmin, xmax)
+			
 			if weights_block is not None:
 				args = (block, self.counts, xmin, xmax, weights_block)
 				#gavi.histogram.hist1d_weights(block, self.counts_weights, weights_block, xmin, xmax)
-				subspacefind.histogram1d(block, weights_block, self.counts_weights, xmin, xmax)
+				#subspacefind.histogram1d(block, weights_block, self.counts_weights, xmin, xmax)
+				sub_counts = np.zeros((self.pool.nthreads, N), dtype=np.float64)
+				def subblock(index, sub_i1, sub_i2):
+					subspacefind.histogram1d(block[sub_i1:sub_i2], weights_block[sub_i1:sub_i2], sub_counts[index], xmin, xmax)
+				self.pool.run_blocks(subblock, info.size)
+				self.counts_weights += np.sum(sub_counts, axis=0)
+				
 		except:
 			logger.exception("error with hist1d, arguments: %r" % (args,))
 		if mask is not None:
 			subset = block[mask[info.i1:info.i2]]
-			gavi.histogram.hist1d(subset, self.counts_mask, xmin, xmax)
+			#gavi.histogram.hist1d(subset, self.counts_mask, xmin, xmax)
+			sub_counts = np.zeros((self.pool.nthreads, N), dtype=np.float64)
+			def subblock(index, sub_i1, sub_i2):
+				subspacefind.histogram1d(subset[sub_i1:sub_i2], None, sub_counts[index], xmin, xmax)
+			self.pool.run_blocks(subblock, len(subset))
+			self.counts_mask += np.sum(sub_counts, axis=0)
+			
 			if weights_block is not None:
 				subset_weights = weights_block[mask[info.i1:info.i2]]
-				gavi.histogram.hist1d_weights(subset, self.counts_weights_mask, subset_weights, xmin, xmax)
+				#gavi.histogram.hist1d_weights(subset, self.counts_weights_mask, subset_weights, xmin, xmax)
+				sub_counts = np.zeros((self.pool.nthreads, N), dtype=np.float64)
+				def subblock(index, sub_i1, sub_i2):
+					subspacefind.histogram1d(subset[sub_i1:sub_i2], subset_weights[sub_i1:sub_i2], sub_counts[index], xmin, xmax)
+				self.pool.run_blocks(subblock, len(subset))
+				self.counts_mask += np.sum(sub_counts, axis=0)
+				
 		print "it took", time.time()-t0
 		
 		index = self.dataset.selected_row_index
@@ -2080,6 +2157,7 @@ class ScatterPlotDialog(PlotDialog):
 		self.expression_error = False
 
 		N = self.gridsize
+		Nvector = 32
 		mask = self.dataset.mask
 		if info.first:
 			self.counts = np.zeros((N,) * self.dimensions, dtype=np.float64)
@@ -2090,7 +2168,6 @@ class ScatterPlotDialog(PlotDialog):
 			self.counts_xy = None
 			if weights_block is not None:
 				self.counts_weights = np.zeros((N,) * self.dimensions, dtype=np.float64)
-			Nvector = 32
 			if weights_x_block is not None:
 				self.counts_x_weights = np.zeros((Nvector,) * self.dimensions, dtype=np.float64)
 			if weights_y_block is not None:
@@ -2161,18 +2238,36 @@ class ScatterPlotDialog(PlotDialog):
 			args = blockx, blocky, self.counts, ranges
 			#gavi.histogram.hist2d(blockx, blocky, self.counts, *ranges)
 			#subspacefind.histogram2d(blockx, blocky, self.counts, *ranges)
-			subspacefind.histogram2d(blockx, blocky, None, self.counts, *ranges)
+			if 1:
+				sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
+				def subblock(index, sub_i1, sub_i2):
+					subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], None, sub_counts[index], *ranges)
+				self.pool.run_blocks(subblock, info.size)
+				self.counts += np.sum(sub_counts, axis=0)
+			else:
+				subspacefind.histogram2d(blockx, blocky, None, self.counts, *ranges)
+			
+			
+			
 			if weights_block is not None:
 				args = blockx, blocky, weights_block, self.counts, ranges
 				#gavi.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
-				subspacefind.histogram2d(blockx, blocky, weights_block, self.counts_weights, *ranges)
+				if 1:
+					sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
+					def subblock(index, sub_i1, sub_i2):
+						subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], weights_block[sub_i1:sub_i2], sub_counts[index], *ranges)
+					self.pool.run_blocks(subblock, info.size)
+					self.counts_weights += np.sum(sub_counts, axis=0)
+				else:
+					subspacefind.histogram2d(blockx, blocky, weights_block, self.counts_weights, *ranges)
 			if mask is None:
-				if weights_x_block is not None:
-					subspacefind.histogram2d(blockx, blocky, weights_x_block, self.counts_x_weights, *ranges)
-				if weights_y_block is not None:
-					subspacefind.histogram2d(blockx, blocky, weights_y_block, self.counts_y_weights, *ranges)
-				if weights_xy_block is not None:
-					subspacefind.histogram2d(blockx, blocky, weights_xy_block, self.counts_xy_weights, *ranges)
+				for counts_weighted, weight_block in [(self.counts_x_weights, weights_x_block), (self.counts_y_weights, weights_y_block), (self.counts_xy_weights, weights_xy_block)]:
+					if weight_block is not None:
+						sub_counts = np.zeros((self.pool.nthreads, Nvector, Nvector), dtype=np.float64)
+						def subblock(index, sub_i1, sub_i2):
+							subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], weight_block[sub_i1:sub_i2], sub_counts[index], *ranges)
+						self.pool.run_blocks(subblock, info.size)
+						counts_weighted += np.sum(sub_counts, axis=0)
 		except:
 			print "args", args	
 			print blockx.shape, blockx.dtype
@@ -2190,19 +2285,34 @@ class ScatterPlotDialog(PlotDialog):
 			#print subx, suby, mask[info.i1:info.i2]
 			#histo2d(subsetx, subsety, self.counts_mask, *self.ranges)
 			#gavi.histogram.hist2d(subsetx, subsety, self.counts_mask, *ranges)
-			subspacefind.histogram2d(subsetx, subsety, None, self.counts_mask, *ranges)
+			
+			sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
+			def subblock(index, sub_i1, sub_i2):
+				subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], None, sub_counts[index], *ranges)
+			self.pool.run_blocks(subblock, len(subsetx))
+			self.counts_mask += np.sum(sub_counts, axis=0)
+			#else:
+			#	subspacefind.histogram2d(subsetx, subsety, None, self.counts_mask, *ranges)
+			
 			if weights_block is not None:
 				subset_weights = weights_block[mask[info.i1:info.i2]]
 				#gavi.histogram.hist2d_weights(subsetx, subsety, subset_weights, self.counts_weights_mask, *ranges)
-				subspacefind.histogram2d(subsetx, subsety, subset_weights, self.counts_weights_mask, *ranges)
-			if weights_x_block is not None:
-				subspacefind.histogram2d(subsetx, subsety, weights_x_block[mask[info.i1:info.i2]], self.counts_x_weights, *ranges)
-			if weights_y_block is not None:
-				subspacefind.histogram2d(subsetx, subsety, weights_y_block[mask[info.i1:info.i2]], self.counts_y_weights, *ranges)
-			if weights_xy_block is not None:
-				subspacefind.histogram2d(subsetx, subsety, weights_xy_block[mask[info.i1:info.i2]], self.counts_xy_weights, *ranges)
-			if weights_x_block is not None or weights_y_block is not None:
-				subspacefind.histogram2d(subsetx, subsety, None, self.counts_xy, *ranges)
+				#subspacefind.histogram2d(subsetx, subsety, subset_weights, self.counts_weights_mask, *ranges)
+				sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
+				def subblock(index, sub_i1, sub_i2):
+					subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], subset_weights, sub_counts[index], *ranges)
+				self.pool.run_blocks(subblock, len(subsetx))
+				self.counts_weights_mask += np.sum(sub_counts, axis=0)
+			
+			for counts_weighted, weight_block in [(self.counts_x_weights, weights_x_block), (self.counts_y_weights, weights_y_block), (self.counts_xy_weights, weights_xy_block)]:
+				if weight_block is not None:
+					weights_block_mask = weight_block[mask[info.i1:info.i2]]
+					sub_counts = np.zeros((self.pool.nthreads, Nvector, Nvector), dtype=np.float64)
+					def subblock(index, sub_i1, sub_i2):
+						subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], weights_block_mask[sub_i1:sub_i2], sub_counts[index], *ranges)
+					self.pool.run_blocks(subblock, len(subsetx))
+					counts_weighted += np.sum(sub_counts, axis=0)
+			
 		if info.last:
 			elapsed = time.time() - info.time_start
 			self.message("visual computation done (%f seconds)" % (elapsed))
@@ -2232,6 +2342,7 @@ class ScatterPlotDialog(PlotDialog):
 		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 		if self.amplitude_expression is not None:
 			locals = {"counts":self.counts, "weighted": self.counts_weights}
+			locals["gf"] = scipy.ndimage.gaussian_filter
 			peak_columns = np.apply_along_axis(np.nanmax, 1, self.counts)
 			peak_columns[peak_columns==0] = 1.
 			peak_columns = peak_columns.reshape((1, -1)).T
