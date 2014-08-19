@@ -10,7 +10,14 @@ import time
 import itertools
 
 import gavi.vaex.expressions as expr
-from astropy.io import fits
+
+import sys
+import platform
+frozen = getattr(sys, 'frozen', False)
+darwin = "darwin" not in platform.system()
+if (not frozen) or darwin: # astropy not working with pyinstaller
+	#from astropy.io import fits
+	pass
 
 def error(title, msg):
 	print "Error", title, msg

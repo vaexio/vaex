@@ -38,7 +38,8 @@ import encodings
 
 print "DEFAULT ENCODING is: %s"%(sys.getdefaultencoding())
 print "FILE SYSTEM ENCODING is: %s"%(sys.getfilesystemencoding())
-if "darwin" not in platform.system():
+darwin = "darwin" not in platform.system()
+if darwin:
 	if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstaller?
 		def getfilesystemencoding_wrapper():
 			return "UTF-8"
@@ -71,12 +72,13 @@ elif __file__:
     
     
 if not frozen: # astropy not working :s
+	pass
 	#import pdb
 	#pdb.set_trace()
 	# fix from Chris Beaumont 
-	import astropy.logger
-	astropy.logger.log.disable_warnings_logging()
-	import astropy.io.votable
+	#import astropy.logger
+	#astropy.logger.log.disable_warnings_logging()
+	#import astropy.io.votable
 
     
 
@@ -1312,7 +1314,8 @@ class Example(QtGui.QMainWindow):
 		self.menu_open = fileMenu.addMenu("&Open")
 		self.menu_open.addAction(self.action_open_hdf5_gadget)
 		self.menu_open.addAction(self.action_open_hdf5_gavi)
-		self.menu_open.addAction(self.action_open_fits)
+		if (not frozen) or darwin:
+			self.menu_open.addAction(self.action_open_fits)
 		fileMenu.addAction(self.action_save_hdf5)
 		#fileMenu.addAction(self.action_open)
 		fileMenu.addAction(exitAction)
@@ -1345,7 +1348,8 @@ class Example(QtGui.QMainWindow):
 		if use_toolbar:
 			self.toolbar.addAction(self.action_open_hdf5_gadget)
 			self.toolbar.addAction(self.action_open_hdf5_gavi)
-			self.toolbar.addAction(self.action_open_fits)
+			if (not frozen) or darwin:
+				self.toolbar.addAction(self.action_open_fits)
 			self.toolbar.addAction(self.action_save_hdf5)
 		
 		if custom is not None:
@@ -1359,7 +1363,8 @@ class Example(QtGui.QMainWindow):
 		self.open_generators = [] # for reference counts
 		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "Gadget HDF5 file", "*.hdf5"))
 		self.action_open_hdf5_gavi.triggered.connect(self.openGenerator(self.gaia_hdf5, "HDF5 file", "*.hdf5"))
-		self.action_open_fits.triggered.connect(self.openGenerator(self.fits, "FITS file", "*.fits"))
+		if (not frozen) or darwin:
+			self.action_open_fits.triggered.connect(self.openGenerator(self.fits, "FITS file", "*.fits"))
 		self.help_menu = menubar.addMenu('&Help')
 		
 		self.action_help = QtGui.QAction("Help", self)
@@ -1382,8 +1387,8 @@ class Example(QtGui.QMainWindow):
 		dialog = QtGui.QDialog(self)
 		layout = QtGui.QVBoxLayout()
 		dialog.setLayout(layout)
-		text = file("html/credits.html").read()
-		print text
+		#text = file("html/credits.html").read()
+		#print text
 		#label = QtGui.QLabel(text, dialog)
 		#layout.addWidget(label)
 		layout.addWidget(view)
