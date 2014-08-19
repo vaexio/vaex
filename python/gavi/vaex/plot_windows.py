@@ -922,7 +922,7 @@ class PlotDialog(QtGui.QDialog):
 					sub_i2 = len(block)
 				return subspacefind.find_nan_min_max(block[sub_i1:sub_i2])
 			#print "block", info.index, info.size, block
-			self.message("min/max[%d] at %.1f%% (%.1fs)" % (axisIndex, info.percentage, time.time() - info.time_start), index=50+axisIndex )
+			self.message("min/max[%d] at %.1f%% (%.2fs)" % (axisIndex, info.percentage, time.time() - info.time_start), index=50+axisIndex )
 			QtCore.QCoreApplication.instance().processEvents()
 			if info.error:
 				print "error", info.error_text
@@ -942,7 +942,7 @@ class PlotDialog(QtGui.QDialog):
 				#self.ranges[axisIndex] = [min(self.ranges[axisIndex][0], np.nanmin(block)), max(self.ranges[axisIndex][1], np.nanmax(block)),]
 			print "min/max for axis", axisIndex, self.ranges[axisIndex]
 			if info.last:
-				self.message("min/max[%d]:%.1fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
+				self.message("min/max[%d] %.2fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
 
 		for axisIndex in range(self.dimensions):
 			if self.ranges[axisIndex] is None:
@@ -1146,7 +1146,7 @@ class PlotDialog(QtGui.QDialog):
 		#	print ">>>>>>>>>>>>>>> block", info.i1,info.i2, "selected", sum(mask[info.i1:info.i2])
 		t0 = time.time()
 		def putmask(info, block):
-			self.message("selection computation at %.1f%% (elapsed %.1fs)" % (info.percentage, time.time() - t0), index=40 )
+			self.message("selection at %.2f%% (%.1fs)" % (info.percentage, time.time() - t0), index=40 )
 			QtCore.QCoreApplication.instance().processEvents()
 			locals = {"block":block, "xmin":xmin, "xmax:":xmax}
 			print info.__dict__
@@ -1157,7 +1157,7 @@ class PlotDialog(QtGui.QDialog):
 			print ">> block x", info.i1,info.i2, "selected", np.sum(mask[info.i1:info.i2])
 			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], mask[info.i1:info.i2])
 			if info.last:
-				self.message("selection computation took %.1fs" % (time.time() - t0), index=40)
+				self.message("selection %.2fs" % (time.time() - t0), index=40)
 				
 		print "selectx", xmin, xmax, "selected", np.sum(mask), "for axis index", axes.xaxis_index
 
@@ -1204,7 +1204,7 @@ class PlotDialog(QtGui.QDialog):
 		#for (blockx, blocky), info in self.dataset.evaluate(*self.expressions[:2]):
 		t0 = time.time()
 		def select(info, blockx, blocky):
-			self.message("selection at %.1f%% (elapsed %.1fs)" % (info.percentage, time.time() - t0), index=40)
+			self.message("selection at %.1f%% (%.2fs)" % (info.percentage, time.time() - t0), index=40)
 			QtCore.QCoreApplication.instance().processEvents()
 			#gavi.selection.pnpoly(x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius)
 			print "start pnpoly"
@@ -1224,7 +1224,7 @@ class PlotDialog(QtGui.QDialog):
 			print "now doing logical op"
 			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], mask[info.i1:info.i2])
 			if info.last:
-				self.message("selection took %.1fs" % (time.time() - t0), index=40)
+				self.message("selection %.2fs" % (time.time() - t0), index=40)
 		
 		self.dataset.evaluate(select, self.expressions[axes.xaxis_index], self.expressions[axes.yaxis_index], **self.getVariableDict())
 		if 0:
@@ -1977,7 +1977,7 @@ class HistogramPlotDialog(PlotDialog):
 
 	def calculate_visuals(self, info, block, weights_block, weights_x_block, weights_y_block, weights_xy_block):
 		elapsed = time.time() - info.time_start
-		self.message("visual computation at %.1f%% (%f seconds)" % (info.percentage, elapsed), index=20)
+		self.message("computation at %.1f%% (%.2fs)" % (info.percentage, elapsed), index=20)
 		QtCore.QCoreApplication.instance().processEvents()
 		
 		self.expression_error = False
@@ -2067,7 +2067,7 @@ class HistogramPlotDialog(PlotDialog):
 		#print xmin, xmax, self.centers
 		if info.last:
 			elapsed = time.time() - info.time_start
-			self.message("visual computation done (%f seconds)" % (elapsed), index=20)
+			self.message("computation %.2f s" % (elapsed), index=20)
 		
 		
 	def plot(self):
@@ -2145,7 +2145,7 @@ class HistogramPlotDialog(PlotDialog):
 			self.axes.set_ylabel(self.weight_expression)
 		self.axes.set_ylim(ymin_show, ymax_show)
 		self.canvas.draw()
-		self.message("plot time: %f" % (time.time() - t0), index=100)
+		self.message("plotting %.2fs" % (time.time() - t0), index=100)
 
 
 class ScatterPlotDialog(PlotDialog):
@@ -2154,7 +2154,7 @@ class ScatterPlotDialog(PlotDialog):
 		
 	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block):
 		elapsed = time.time() - info.time_start
-		self.message("visual computation at %.1f%% (%f seconds)" % (info.percentage, elapsed))
+		self.message("computation at %.2f%% (%fs)" % (info.percentage, elapsed), index=20)
 		QtCore.QCoreApplication.instance().processEvents()
 		self.expression_error = False
 
@@ -2317,7 +2317,7 @@ class ScatterPlotDialog(PlotDialog):
 			
 		if info.last:
 			elapsed = time.time() - info.time_start
-			self.message("visual computation done (%f seconds)" % (elapsed))
+			self.message("computation %.2fs" % (elapsed), index=20)
 		
 		
 	def afterCanvas(self, layout):
@@ -2541,7 +2541,7 @@ class ScatterPlotMatrixDialog(PlotDialog):
 		else:
 			weights_block = None
 		elapsed = time.time() - info.time_start
-		self.message("visual computation at %.1f%% (%f seconds)" % (info.percentage, elapsed))
+		self.message("computation %.2f%% (%f seconds)" % (info.percentage, elapsed), index=9)
 		QtCore.QCoreApplication.instance().processEvents()
 		self.expression_error = False
 
@@ -2621,7 +2621,7 @@ class ScatterPlotMatrixDialog(PlotDialog):
 					gavi.histogram.hist3d_weights(subsets[0], subsets[1], subsets[2], self.counts_weights_mask, subset_weights, *ranges)
 		if info.last:
 			elapsed = time.time() - info.time_start
-			self.message("visual computation done (%f seconds)" % (elapsed))
+			self.message("computation (%f seconds)" % (elapsed), index=9)
 		
 		
 	def plot(self):
@@ -2745,7 +2745,7 @@ class ScatterPlotMatrixDialog(PlotDialog):
 			self.axes.set_xlim(*self.ranges_show[0])
 			self.axes.set_ylim(*self.ranges_show[1])
 		self.canvas.draw()
-		self.message("plot time: %f" % (time.time() - t0))
+		self.message("ploting %f" % (time.time() - t0), index=5)
 
 class Rank1ScatterPlotDialog(ScatterPlotDialog):
 	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None):

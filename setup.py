@@ -9,6 +9,7 @@ Usage:
 import os
 from distutils.sysconfig import get_python_inc, get_python_lib
 import numpy
+import platform
 has_py2app = False
 try:
 	import py2app
@@ -33,9 +34,11 @@ include_dirs = []
 library_dirs = []
 libraries = []
 defines = []
-extra_compile_args = ["-mfpmath=sse", "-msse4", "-Ofast", "-flto", "-march=native", "-funroll-loops"]
-#extra_compile_args = ["-mfpmath=sse", "-msse4a", "-Ofast", "-funroll-loops"]
-#extra_compile_args = ["-mfpmath=sse", "-O3", "-funroll-loops"]
+if "darwin" in platform.system().lower():
+	extra_compile_args = ["-mfpmath=sse", "-O3", "-funroll-loops"]
+else:
+	extra_compile_args = ["-mfpmath=sse", "-msse4", "-Ofast", "-flto", "-march=native", "-funroll-loops"]
+	#extra_compile_args = ["-mfpmath=sse", "-msse4a", "-Ofast", "-funroll-loops"]
 include_dirs.append(os.path.join(get_python_inc(plat_specific=1), "numpy"))
 include_dirs.append(os.path.join(numdir, "core", "include"))
 
