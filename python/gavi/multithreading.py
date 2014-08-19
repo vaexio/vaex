@@ -7,7 +7,7 @@ lock = threading.Lock()
 
 class ThreadPool(object):
 	
-	def __init__(self, nthreads=32):
+	def __init__(self, nthreads=4):
 		self.nthreads = nthreads
 		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
 		#self.semaphores_in = [threading.Semaphore(0) for i in range(nthreads)]
@@ -17,22 +17,34 @@ class ThreadPool(object):
 			thread.setDaemon(True)
 			thread.start()
 			
+	def close(self):
+		self.callable = None
+		print "closing threads"
+		for index in range(self.nthreads):
+			self.queues_in[index].put(None)
+			
 	def execute(self, index):
 		print "index", index
-		while True:
+		done = False
+		while not done:
 			#print "waiting..", index
 			args = self.queues_in[index].get()
-			#print "running..", index
-			try:
-				#lock.acquire()
-				result = self.callable(index, *args)
-				#lock.release()
-			except Exception, e:
-				self.queues_out[index].put(e)
+			if self.callable is None:
+				print "ending thread.."
+				done = True
 			else:
-				self.queues_out[index].put(result)
-			#print "done..", index
-			#self.semaphore_out.release()
+				#print "running..", index
+				try:
+					#lock.acquire()
+					result = self.callable(index, *args)
+					#lock.release()
+				except Exception, e:
+					self.queues_out[index].put(e)
+				else:
+					self.queues_out[index].put(result)
+				#print "done..", index
+				#self.semaphore_outrelease()
+		print "thread closed"
 		
 	def run_parallel(self, callable, args_list=[]):
 		#lock.acquire()
