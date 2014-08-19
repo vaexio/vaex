@@ -7,7 +7,7 @@ lock = threading.Lock()
 
 class ThreadPool(object):
 	
-	def __init__(self, nthreads=32):
+	def __init__(self, nthreads=4):
 		self.nthreads = nthreads
 		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
 		#self.semaphores_in = [threading.Semaphore(0) for i in range(nthreads)]
