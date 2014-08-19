@@ -39,7 +39,7 @@ else:
 	csvfilename = options.output
 	
 print >>sys.stderr, "opening:", h5filename
-h5file = h5py.File(h5filename, "r", driver="core")
+h5file = h5py.File(h5filename, "r") #, driver="core")
 data = h5file["data"]
 
 if options.all:

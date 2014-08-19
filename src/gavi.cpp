@@ -497,9 +497,3 @@ initgavifast(void)
 
 
 
-
-
-
-
-
-

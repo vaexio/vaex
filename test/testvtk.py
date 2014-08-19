@@ -1,6 +1,10 @@
+# -*- coding: utf-8 -*-
 import sys
 import vtk
-from PyQt4 import QtCore, QtGui
+try:
+	from PyQt4 import QtCore, QtGui
+except:
+	from PySide import QtCore, QtGui
 from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 import vtk.util.numpy_support
 import numpy as np
@@ -113,7 +117,7 @@ def createImageData():
 	return t.GetOutput()
 	#imageData->ShallowCopy(t->GetOutput());
 	
-data_matrix = np.zeros([128, 128, 128], dtype=np.uint16)
+data_matrix = np.zeros([256, 256, 256], dtype=np.float64)
 #data_matrix[0:35, 0:35, 0:35] = 50
 #data_matrix[25:55, 25:55, 25:55] = 100
 #data_matrix[45:74, 45:74, 45:74] = 150
@@ -122,6 +126,8 @@ dataset = Hdf5MemoryMapped(sys.argv[1])
 x = dataset.columns[sys.argv[2]]
 y = dataset.columns[sys.argv[3]]
 z = dataset.columns[sys.argv[4]]
+Nrows = int(1e7)
+x, y, z = [col[:Nrows] for col in [x,y,z]]
 
 print "do histogram"
 
@@ -136,7 +142,11 @@ xmin, xmax = minmax(x)
 ymin, ymax = minmax(y)
 zmin, zmax = minmax(z)
 
-gavi.histogram.hist3d(x, y, z, data_matrix, xmin, xmax, ymin, ymax, zmin, zmax)
+print "done"
+import gavifast
+gavifast.histogram3d(x, y, z, None, data_matrix , xmin, xmax, ymin, ymax, zmin, zmax)
+data_matrix = np.log(data_matrix + 1)
+#gavi.histogram.hist3d(x, y, z, data_matrix, xmin, xmax, ymin, ymax, zmin, zmax)
 print "done"
 maxvalue = data_matrix.max()
 print maxvalue
@@ -150,7 +160,7 @@ grid = vtk.vtkImageData()
 grid.SetOrigin(0, 0, 0) # default values
 dx = 1
 grid.SetSpacing(dx, dx, dx)
-grid.SetDimensions(128, 128, 128)
+grid.SetDimensions(256, 256, 256)
 print grid.GetNumberOfPoints()
 grid.GetPointData().SetScalars(ar)
 
@@ -249,7 +259,7 @@ class Overlay(QtGui.QWidget):
 		painter = QtGui.QPainter(self)
 		painter.drawLine(0, 0, 100, 200)
 		
-class MainWindow(QtGui.QMainWindow):
+class MainWindow:#QtGui.QMainWindow):
 
 	def _paintEvent(self, event):
 		print event
@@ -286,47 +296,52 @@ class MainWindow(QtGui.QMainWindow):
 			#print self.lasso_screen
 
 	def __init__(self, parent = None):
-		QtGui.QMainWindow.__init__(self, parent)
+		#QtGui.QMainWindow.__init__(self, parent)
 
 		self.dragging = False
 		self.lasso_screen = [(0, 0), (100, 50)]
 		
 		
-		
-		self.frame = QtGui.QFrame()
 
-		self.vl = QtGui.QVBoxLayout()
-		self.vtkWidget = QVTKRenderWindowInteractor(self.frame)
-		# monkey patch
-		self.vtkWidget._original_mouseMoveEvent = self.vtkWidget.mouseMoveEvent
-		self.vtkWidget.mouseMoveEvent = self.mouseMoveEvent
-
-		self.vtkWidget._original_mousePressEvent = self.vtkWidget.mousePressEvent
-		self.vtkWidget.mousePressEvent = self.mousePressEvent
-
-
-		self.vtkWidget._original_mouseReleaseEvent = self.vtkWidget.mouseReleaseEvent
-		self.vtkWidget.mouseReleaseEvent = self.mouseReleaseEvent
-		
 		if 0:
-			self.vtkWidget._original_paintEvent = self.vtkWidget.paintEvent
-			self.vtkWidget.paintEvent = self.paintEvent
-			def test():
-				print QtGui.QPaintEngine.OpenGL;
-				return 0;
-			self.vtkWidget.paintEngine = test
+			self.frame = QtGui.QFrame()
 
-		self.vl.addWidget(self.vtkWidget)
-		
-		#self.overlay = Overlay(self.vtkWidget, self.frame)
-		#self.vl.addWidget(self.overlay)
-		#self.vl.addWidget(QtGui.QPushButton("test", self))
+			self.vl = QtGui.QVBoxLayout()
+			self.vtkWidget = QVTKRenderWindowInteractor(self.frame)
+			# monkey patch
+			self.vtkWidget._original_mouseMoveEvent = self.vtkWidget.mouseMoveEvent
+			self.vtkWidget.mouseMoveEvent = self.mouseMoveEvent
+
+			self.vtkWidget._original_mousePressEvent = self.vtkWidget.mousePressEvent
+			self.vtkWidget.mousePressEvent = self.mousePressEvent
+
+
+			self.vtkWidget._original_mouseReleaseEvent = self.vtkWidget.mouseReleaseEvent
+			self.vtkWidget.mouseReleaseEvent = self.mouseReleaseEvent
+			
+			if 0:
+				self.vtkWidget._original_paintEvent = self.vtkWidget.paintEvent
+				self.vtkWidget.paintEvent = self.paintEvent
+				def test():
+					print QtGui.QPaintEngine.OpenGL;
+					return 0;
+				self.vtkWidget.paintEngine = test
+
+			self.vl.addWidget(self.vtkWidget)
+			
+			#self.overlay = Overlay(self.vtkWidget, self.frame)
+			#self.vl.addWidget(self.overlay)
+			#self.vl.addWidget(QtGui.QPushButton("test", self))
+		else:
+			window = vtk.vtkXOpenGLRenderWindow()
+			window.SetOffScreenRendering(True)
+
 
 		self.ren = vtk.vtkRenderer()
-		self.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
-		self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
-		self.iren.GetInteractorStyle().SetCurrentStyleToTrackballCamera()
-		self.iren.GetInteractorStyle().AddObserver("MouseMoveEvent", self.mouseMoveEvent)
+		window.AddRenderer(self.ren)
+		#self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
+		#self.iren.GetInteractorStyle().SetCurrentStyleToTrackballCamera()
+		#self.iren.GetInteractorStyle().AddObserver("MouseMoveEvent", self.mouseMoveEvent)
 		#self.interactorStyle = MyInteractorStyle(self)
 		#self.iren.SetInteractorStyle(self.interactorStyle)
 		#import pdb
@@ -335,18 +350,18 @@ class MainWindow(QtGui.QMainWindow):
 		#source = vtk.vtkSphereSource()
 		#source.SetCenter(0, 0, 0)
 		#source.SetRadius(5.0)
-		
-		self.levelSlider = QtGui.QSlider(QtCore.Qt.Horizontal, self)
-		self.levelSlider.setRange(0, 100)
-		self.levelSlider.sliderReleased.connect(self.sliderReleased)
-		self.isoCheckbox = QtGui.QCheckBox("Show isosurface", self)
-		self.volumeCheckbox = QtGui.QCheckBox("Show volume rendering", self)
-		self.vl.addWidget(self.isoCheckbox)
-		self.vl.addWidget(self.volumeCheckbox)
-		self.vl.addWidget(self.levelSlider)
-		
-		self.isoCheckbox.setCheckState(QtCore.Qt.Checked)
-		self.volumeCheckbox.setCheckState(QtCore.Qt.Checked)
+		if 0:
+			self.levelSlider = QtGui.QSlider(QtCore.Qt.Horizontal, self)
+			self.levelSlider.setRange(0, 100)
+			self.levelSlider.sliderReleased.connect(self.sliderReleased)
+			self.isoCheckbox = QtGui.QCheckBox("Show isosurface", self)
+			self.volumeCheckbox = QtGui.QCheckBox("Show volume rendering", self)
+			self.vl.addWidget(self.isoCheckbox)
+			self.vl.addWidget(self.volumeCheckbox)
+			self.vl.addWidget(self.levelSlider)
+			
+			self.isoCheckbox.setCheckState(QtCore.Qt.Checked)
+			self.volumeCheckbox.setCheckState(QtCore.Qt.Checked)
 		
 		#self.formLayout = QtGui.QFormLayout(self)
 		#self.formLayout.addRow("show isosurface", QCheckBox
@@ -354,6 +369,7 @@ class MainWindow(QtGui.QMainWindow):
 		
 		imageData = createImageData()
 		volumeMapper = vtk.vtkSmartVolumeMapper()
+		volumeMapper = vtk.vtkVolumeTextureMapper3D()
 		volumeMapper.SetBlendModeToComposite();
 
 		#compositeFunction = vtk.vtkVolumeRayCastCompositeFunction()
@@ -369,16 +385,16 @@ class MainWindow(QtGui.QMainWindow):
 
 		compositeOpacity = vtk.vtkPiecewiseFunction()
 		compositeOpacity.AddPoint(  0., 0.0)
-		compositeOpacity.AddPoint( 50., 0.205)
-		compositeOpacity.AddPoint(100., 0.201)
-		compositeOpacity.AddPoint(150., 0.202)
+		compositeOpacity.AddPoint( 1., 0.105)
+		compositeOpacity.AddPoint(2., 0.101)
+		compositeOpacity.AddPoint(3., 0.102)
 		volumeProperty.SetScalarOpacity(compositeOpacity)
 		
 		
 		color = vtk.vtkColorTransferFunction()
-		color.AddRGBPoint(50, 1.0, 0.0, 0.0)
-		color.AddRGBPoint(100, 0.0, 1.0, 0.0)
-		color.AddRGBPoint(150, 0.0, 0.0, 1.0)
+		#color.AddRGBPoint(1, 1.0, 0.0, 0.0)
+		color.AddRGBPoint(2, 0.0, 1.0, 0.0)
+		color.AddRGBPoint(3, 0.0, 0.0, 1.0)
 		volumeProperty.SetColor(color)
 
 
@@ -400,7 +416,7 @@ class MainWindow(QtGui.QMainWindow):
 		self.lasso = Lasso(self.lasso_screen)
 		self.ren.AddActor(self.lasso.actor)
 
-		if 1:
+		if 0:
 			def onVolume(state):
 				checked = state == QtCore.Qt.Checked
 				if checked:
@@ -412,7 +428,7 @@ class MainWindow(QtGui.QMainWindow):
 		
 		#self.ren.ResetCamera()
 		
-		if 1:
+		if 0:
 			self.surface = vtk.vtkMarchingCubes()
 			self.surface.SetInput(imageData)
 			self.surface.ComputeNormalsOn();
@@ -449,9 +465,15 @@ class MainWindow(QtGui.QMainWindow):
 
 		self.ren.ResetCamera()
 
-		self.frame.setLayout(self.vl)
-		self.setCentralWidget(self.frame)
+		#self.frame.setLayout(self.vl)
+		#self.setCentralWidget(self.frame)
 		self.ren.SetBackground(1,1,1)
+		#self.ren.SetOffScreenRendering(True)
+		arr = vtk.vtkUnsignedCharArray()
+		print "size", arr.GetDataSize()
+		window.Render()
+		print window.GetPixelData(0, 0, 10, 10, 0, arr)
+		print "size", arr.GetDataSize()
 
 		self.show()
 		self.raise_()
@@ -466,13 +488,14 @@ class MainWindow(QtGui.QMainWindow):
 		print value, "of 100, corresponds to", isovalue, "of", maxvalue
 		self.surface.SetValue(0, isovalue)
 		#self.surface.Update()
-		self.vtkWidget.GetRenderWindow().Render()
+		#self.vtkWidget.GetRenderWindow().Render()
 
  
 if __name__ == "__main__":
- 
-    app = QtGui.QApplication(sys.argv)
- 
-    window = MainWindow()
- 
-    sys.exit(app.exec_())
+
+	app = QtGui.QApplication(sys.argv)
+
+	window = MainWindow()
+
+
+	sys.exit(app.exec_())

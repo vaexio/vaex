@@ -9,9 +9,9 @@ logger = logging_.getLogger("gavi.samp")
 
 
 class Samp(object):
-	def __init__(self, daemon=True):
-		self.client = sampy.SAMPIntegratedClient(metadata = {"samp.name":"Client 1",
-										"samp.description.text":"Test Client 1",
+	def __init__(self, daemon=True, name=None):
+		self.client = sampy.SAMPIntegratedClient(metadata = {"samp.name":"Gavi client" if name is None else name,
+										"samp.description.text": "Gavi client" if name is None else name,
 										"gavi.samp.version":"0.01"}, callable=True)
 
 
@@ -37,7 +37,7 @@ class Samp(object):
 			logger.info("binding events")
 			self.client.bindReceiveCall			("table.load.votable", self._onTableLoadVotable)
 			self.client.bindReceiveNotification	("table.load.votable", self._onTableLoadVotable)
-			self.client.bindReceiveNotification	("table.highlight.row", self._onSampNotification)
+			#self.client.bindReceiveNotification	("table.highlight.row", self._onSampNotification)
 			#self.client.bindReceiveMessage("table.load.votable", self._onSampCall)
 			#self.client.bindReceiveResponse("table.load.votable", self._onSampCall)
 			

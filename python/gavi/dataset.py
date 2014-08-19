@@ -10,6 +10,7 @@ import time
 import itertools
 
 import gavi.vaex.expressions as expr
+from astropy.io import fits
 
 def error(title, msg):
 	print "Error", title, msg
@@ -407,6 +408,16 @@ class MemoryMapped(object):
 		self.selected_serie_index = serie_index
 		for serie_index_selection_listener in self.serie_index_selection_listeners:
 			serie_index_selection_listener(serie_index)
+			
+	def matches_url(self, url):
+		filename = url
+		print url, self.filename
+		if filename.startswith("file:/"):
+			filename = filename[5:]
+		similar = os.path.splitext(os.path.abspath(self.filename))[0] == os.path.splitext(filename)[0]
+		logger.info("matching urls: %r == %r == %r" % (os.path.splitext(self.filename)[0], os.path.splitext(filename)[0], similar) )
+		return similar
+			
 		
 		
 	def close(self):
@@ -437,10 +448,14 @@ class MemoryMapped(object):
 		self.nColumns += 1
 		self.nRows = self._length
 		
-	def addColumn(self, name, offset, length, dtype=np.float64, stride=1, filename=None):
+	def addColumn(self, name, offset=None, length=None, dtype=np.float64, stride=1, filename=None, array=None):
 		if filename is None:
 			filename = self.filename
 		mapping = self.mapping_map[filename]
+			
+		if array is not None:
+			length = len(array)
+			
 		if self._length is not None and length != self._length:
 			error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
 		else:
@@ -450,11 +465,18 @@ class MemoryMapped(object):
 				self._fraction_length = length
 			self._length = length
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
-			mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
-			if stride:
-				#import pdb
-				#pdb.set_trace()
-				mmapped_array = mmapped_array[::stride]
+			if array is not None:
+				length = len(array)
+				mmapped_array = array
+				stride = None
+				offset = None
+				dtype = array.dtype
+			else:
+				mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
+				if stride:
+					#import pdb
+					#pdb.set_trace()
+					mmapped_array = mmapped_array[::stride]
 			self.columns[name] = mmapped_array
 			self.column_names.append(name)
 			self.all_columns[name] = mmapped_array
@@ -583,6 +605,20 @@ if __name__ == "__main__":
 
 	hmm = HansMemoryMapped(path)
 
+
+class FitsBinTable(MemoryMapped):
+	def __init__(self, filename, write=False):
+		super(FitsBinTable, self).__init__(filename, write=write)
+		fitsfile = fits.open(filename)
+		for table in fitsfile:
+			if isinstance(table, fits.BinTableHDU):
+				logger.debug("adding table: %r" % table)
+				for column in table.columns:
+					column.array[:] # 2nd time it will be a real np array
+					self.addColumn(column.name, array=column.array[:])
+		#BinTableHDU
+		
+		
 class Hdf5MemoryMapped(MemoryMapped):
 	def __init__(self, filename, write=False):
 		super(Hdf5MemoryMapped, self).__init__(filename, write=write)

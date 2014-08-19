@@ -5,14 +5,7 @@ import h5py
 from optparse import OptionParser
 import os
 import sys
-
-if 1: # astropy not working :s
-	#import pdb
-	#pdb.set_trace()
-	# fix from Chris Beaumont 
-	import astropy.logger
-	astropy.logger.log.disable_warnings_logging()
-	import astropy.io.votable
+import sampy
 
 
 import thread
@@ -69,10 +62,23 @@ else:
 	custom = None
 	print >>sys.stderr, path, "does not exist"
 
+frozen = getattr(sys, 'frozen', False)
+
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
 elif __file__:
     application_path = os.path.dirname(__file__)
+    
+    
+if not frozen: # astropy not working :s
+	#import pdb
+	#pdb.set_trace()
+	# fix from Chris Beaumont 
+	import astropy.logger
+	astropy.logger.log.disable_warnings_logging()
+	import astropy.io.votable
+
+    
 
 # for osx
 if "darwin" in platform.system().lower():
@@ -281,6 +287,7 @@ class DataList(QtGui.QListWidget):
 	def __init__(self, parent):
 		super(DataList, self).__init__(parent)
 		self.icon = QtGui.QIcon('icons/png/24x24/devices/memory.png')
+		self.datasets = []
 		#self.items 
 		
 	def __testfill(self):
@@ -372,6 +379,7 @@ class DataList(QtGui.QListWidget):
 		item.setIcon(self.icon)
 		item.setData(QtCore.Qt.UserRole, self.hdf5file)
 		self.setCurrentItem(item)
+		self.datasets.append(self.hdf5file)
 	
 	def addHdf5(self, filename, auto_fraction=True):
 		if not os.path.exists(filename):
@@ -387,6 +395,24 @@ class DataList(QtGui.QListWidget):
 		item.setIcon(self.icon)
 		item.setData(QtCore.Qt.UserRole, self.hdf5file)
 		self.setCurrentItem(item)
+		self.datasets.append(self.hdf5file)
+		#self.setCurrentRow(0)
+		
+	def addFits(self, filename, auto_fraction=True):
+		if not os.path.exists(filename):
+			return
+		
+		self.hdf5file = FitsBinTable(filename)
+		if auto_fraction:
+			self.setBestFraction(self.hdf5file)
+		item = QtGui.QListWidgetItem(self)
+		item.setText(self.hdf5file.name)
+		item.setToolTip("file: " +self.hdf5file.filename)
+		#self.icon = QIcon.fromTheme('document-open')
+		item.setIcon(self.icon)
+		item.setData(QtCore.Qt.UserRole, self.hdf5file)
+		self.setCurrentItem(item)
+		self.datasets.append(self.hdf5file)
 		#self.setCurrentRow(0)
 		
 	def _addHdf5(filename, columns):
@@ -981,6 +1007,7 @@ class MainPanel(QtGui.QFrame):
 		self.table.clicked.connect(self.onOpenTable)
 		
 		self.setLayout(self.form_layout)
+		self.plot_dialogs = []
 		
 	def onOpenStatistics(self):
 		print "open", self.dataset
@@ -1028,6 +1055,7 @@ class MainPanel(QtGui.QFrame):
 	def plotxy(self, xname, yname):
 		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, xname, yname)
 		dialog.show()
+		self.plot_dialogs.append(dialog)
 		self.jobsManager.execute()
 		return dialog
 	
@@ -1046,6 +1074,7 @@ class MainPanel(QtGui.QFrame):
 	def histogram(self, xname):
 		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, xname)
 		dialog.show()
+		self.plot_dialogs.append(dialog)
 		self.jobsManager.execute()
 		return dialog
 		
@@ -1131,6 +1160,7 @@ class MainPanel(QtGui.QFrame):
 	def plotseriexy(self, xname, yname):
 		if self.dataset is not None:
 			dialog = vp.Rank1ScatterPlotDialog(self, self.jobsManager, self.dataset, xname+"[index]", yname+"[index]")
+			self.plot_dialogs.append(dialog)
 			self.jobsManager.execute()
 			dialog.show()
 			print "show"
@@ -1229,6 +1259,7 @@ class Example(QtGui.QMainWindow):
 		
 		self.right = MainPanel(self) #QtGui.QFrame(self)
 		self.right.setFrameShape(QtGui.QFrame.StyledPanel)
+		self.main_panel = self.right
 		
 		self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
 		self.splitter.addWidget(self.left)
@@ -1263,6 +1294,7 @@ class Example(QtGui.QMainWindow):
 		#self.action_open.
 		self.action_open_hdf5_gadget = QtGui.QAction(QtGui.QIcon(vp.iconfile('quickopen-file')), '&Open gadget hdf5', self)        
 		self.action_open_hdf5_gavi = QtGui.QAction(QtGui.QIcon(vp.iconfile('quickopen-file')), '&Open GAIA hdf5', self)        
+		self.action_open_fits = QtGui.QAction(QtGui.QIcon(vp.iconfile('quickopen-file')), '&Open FITS (binary table)', self)        
 
 
 		self.action_save_hdf5 = QtGui.QAction(QtGui.QIcon(vp.iconfile('table_save')), '&Export to hdf5', self)        
@@ -1280,6 +1312,7 @@ class Example(QtGui.QMainWindow):
 		self.menu_open = fileMenu.addMenu("&Open")
 		self.menu_open.addAction(self.action_open_hdf5_gadget)
 		self.menu_open.addAction(self.action_open_hdf5_gavi)
+		self.menu_open.addAction(self.action_open_fits)
 		fileMenu.addAction(self.action_save_hdf5)
 		#fileMenu.addAction(self.action_open)
 		fileMenu.addAction(exitAction)
@@ -1287,7 +1320,7 @@ class Example(QtGui.QMainWindow):
 		use_toolbar = "darwin" not in platform.system().lower()
 		if use_toolbar:
 			print "using toolbar!"
-			self.toolbar = self.addToolBar('Exit')
+			self.toolbar = self.addToolBar('Main toolbar')
 		#self.toolbar.addAction(exitAction)
 		
 		self.action_samp_connect = QtGui.QAction(QtGui.QIcon(vp.iconfile('application_link')), 'Connect to SAMP server', self)
@@ -1312,6 +1345,7 @@ class Example(QtGui.QMainWindow):
 		if use_toolbar:
 			self.toolbar.addAction(self.action_open_hdf5_gadget)
 			self.toolbar.addAction(self.action_open_hdf5_gavi)
+			self.toolbar.addAction(self.action_open_fits)
 			self.toolbar.addAction(self.action_save_hdf5)
 		
 		if custom is not None:
@@ -1323,8 +1357,9 @@ class Example(QtGui.QMainWindow):
 			self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
 		
 		self.open_generators = [] # for reference counts
-		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "*.hdf5"))
-		self.action_open_hdf5_gavi.triggered.connect(self.openGenerator(self.gaia_hdf5, "*.hdf5"))
+		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "Gadget HDF5 file", "*.hdf5"))
+		self.action_open_hdf5_gavi.triggered.connect(self.openGenerator(self.gaia_hdf5, "HDF5 file", "*.hdf5"))
+		self.action_open_fits.triggered.connect(self.openGenerator(self.fits, "FITS file", "*.fits"))
 		self.help_menu = menubar.addMenu('&Help')
 		
 		self.action_help = QtGui.QAction("Help", self)
@@ -1399,11 +1434,13 @@ class Example(QtGui.QMainWindow):
 	def gaia_hdf5(self, filename):
 		self.list.addHdf5(str(filename))
 		
+	def fits(self, filename):
+		self.list.addFits(str(filename))
 		
 		
-	def openGenerator(self, callback, filemask):
+	def openGenerator(self, callback, description, filemask):
 		def open(callback=callback, filemask=filemask):
-			filename, pattern = QtGui.QFileDialog.getOpenFileName(self, "Open Gadget HDF5", None, filemask)
+			filename, pattern = QtGui.QFileDialog.getOpenFileName(self, description, None, filemask)
 			callback(filename)
 		self.open_generators.append(open)
 		return open
@@ -1411,14 +1448,69 @@ class Example(QtGui.QMainWindow):
 	def onSampConnect(self):
 		print "connect"
 		if self.samp is None:
-			self.samp = Samp(daemon=True)
+			self.samp = Samp(daemon=True, name="medavaex")
 			self.samp.tableLoadCallbacks.append(self.onLoadTable)
+			
+			self.samp.client.bindReceiveNotification("table.highlight.row", self._onSampHighlightRow)
+			self.samp.client.bindReceiveCall("table.select.rowList", self._onSampSelectRowList)
+			
+	def _onSampHighlightRow(self, private_key, sender_id, mtype, params, extra):
+		print "Notification select row:", `private_key`, `sender_id`, `mtype`, `params`, `extra`
+		url = params['url']
+		row = long(params['row'])
+		dataset = self._sampFindDataset(url)
+		if dataset is None:
+			self.message("dataset %r not found" % url)
+		else:
+			dataset.selectRow(row)
+			
+	def _onSampSelectRowList(self, private_key, sender_id, msg_id, mtype, params, extra):
+		print "----"
+		try:
+			url = params['url']
+			row_list = params['row-list']
+			#print row_list
+			#row_list = row_list.strip()[1:-1] # remove [ and ]
+			#row_list = np.array([int(k[1:-1]) for k in row_list.strip()[1:-1].split(", ")])
+			row_list = np.array([long(k) for k in row_list])
+			dataset = self._sampFindDataset(url)
+			if dataset is not None:
+				mask = np.zeros(dataset._fraction_length, dtype=np.bool)
+				mask[row_list] = True
+				dataset.selectMask(mask)
+				#if self.right.dataset == dataset:
+				
+				self.main_panel.jobsManager.execute()
+		except:
+			logger.exception("problem")
+		self.samp.client.ereply(msg_id, sampy.SAMP_STATUS_OK, result = {"txt": "printed"})
+
+			
+	def message(self, text, index=0):
+		print text
+		self.messages[index] = text
+		text = ""
+		keys = self.messages.keys()
+		keys.sort()
+		text_parts = [self.messages[key] for key in keys]
+		self.statusBar().showMessage(" | ".join(text_parts))
+	
+	def _sampFindDataset(self, url):
+		print self.list.datasets
+		try:
+			for dataset in self.list.datasets:
+				if dataset.matches_url(url):
+					return dataset
+		except:
+			logger.exception("problem")
+		
 			
 	def onSampSend(self):
 		if self.samp is None:
 			self.onSampConnect()
 		dataset = self.right.dataset
 		params = {"rows":str(dataset._length), "columns":{}}
+		params['id'] = dataset.filename
 		type_map = {np.float64:"F8_LE", np.float32:"F4_LE", np.int64:"I8_LE", np.int32:"I4_LE", np.uint64:"U8_LE", np.uint32:"U4_LE"}
 		print type_map
 		for column_name in dataset.column_names:
@@ -1436,7 +1528,7 @@ class Example(QtGui.QMainWindow):
 					}
 			params["columns"][column_name] = column
 		self.samp.client.callAll("send_mmap_"+dataset.name,
-					{"samp.mtype": "samp.memorymapping.send_columns",
+					{"samp.mtype": "table.load.memory_mapped_columns",
 						"samp.params": params})
 		
 	def onLoadTable(self, url, table_id, name):

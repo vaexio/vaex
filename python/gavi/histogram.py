@@ -61,7 +61,8 @@ def hist3d(x, y, z, counts, dataminx, datamaxx, dataminy, datamaxy, dataminz, da
 		binNoy = int(math.floor( ((y[i] - dataminy) / (float(datamaxy) - dataminy)) * float(bincounty)))
 		binNoz = int(math.floor( ((z[i] - dataminz) / (float(datamaxz) - dataminz)) * float(bincountz)))
 		if binNox >= 0 and binNox < bincountx and binNoy >= 0 and binNoy < bincounty and binNoz < bincountz:
-			counts[binNox, binNoy, binNoz] += 1
+			#counts[binNox, binNoy, binNoz] += 1
+			counts[binNoz, binNoy, binNox] += 1
 	#step = float(datamax-datamin)/bincount
 	#return numpy.arange(datamin, datamax+step/2, step), binData
 	return counts
@@ -100,3 +101,20 @@ def hist2d_and_shuffled(x, y, counts, counts_shuffled, dataminx, datamaxx, datam
 			if binNox >= 0 and binNox < bincountx and binNoy >= 0 and binNoy < bincounty:
 				counts_shuffled[binNox, binNoy] += 1
 	return counts
+
+@jit(nopython=True)
+def proj(cube, surface, px, py):
+	cube_countx, cube_county, cube_countz = cube.shape
+	surface_countx, surface_county = surface.shape
+	
+	for i in range(cube_countx):
+		for j in range(cube_county):
+			for k in range(cube_countz):
+				x = px[0]*i + px[1]*j + px[2]*k + px[3]
+				y = py[0]*i + py[1]*j + py[2]*k + py[3]
+				#x = matrix[0,0] * i + matrix[0,1] * j + matrix[0,2] * k + matrix[0,3]
+				binNox = int(x)
+				binNoy = int(y)
+				if binNox >= 0 and binNox < surface_countx and binNoy >= 0 and binNoy < surface_county:
+					#surface[binNox, binNoy] += cube[i,j,k]
+					surface[binNoy, binNox] += cube[k,j,i]
