@@ -1359,7 +1359,7 @@ class Example(QtGui.QMainWindow):
 		self.open_generators = [] # for reference counts
 		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "Gadget HDF5 file", "*.hdf5"))
 		self.action_open_hdf5_gavi.triggered.connect(self.openGenerator(self.gaia_hdf5, "HDF5 file", "*.hdf5"))
-		self.action_open_fits.triggered.connect(self.openGenerator(self.fits, "FITS file", "*.fits"))
+		self.action_open_fits.triggered.connect(self.openGenerator(self.open_fits, "FITS file", "*.fits"))
 		self.help_menu = menubar.addMenu('&Help')
 		
 		self.action_help = QtGui.QAction("Help", self)
@@ -1434,14 +1434,19 @@ class Example(QtGui.QMainWindow):
 	def gaia_hdf5(self, filename):
 		self.list.addHdf5(str(filename))
 		
-	def fits(self, filename):
+	def open_fits(self, filename):
 		self.list.addFits(str(filename))
 		
 		
-	def openGenerator(self, callback, description, filemask):
-		def open(callback=callback, filemask=filemask):
-			filename, pattern = QtGui.QFileDialog.getOpenFileName(self, description, None, filemask)
-			callback(filename)
+	def openGenerator(self, callback_, description, filemask):
+		print repr(callback_)
+		def open(arg=None, callback_=callback_, filemask=filemask):
+			print repr(callback_), repr(filemask)
+			filename = QtGui.QFileDialog.getOpenFileName(self, description, "", filemask)
+			if isinstance(filename, tuple):
+				filename = str(filename[0])#]
+			print repr(callback_)
+			callback_(filename)
 		self.open_generators.append(open)
 		return open
 		
