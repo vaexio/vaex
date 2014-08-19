@@ -430,6 +430,8 @@ class PlotDialog(QtGui.QDialog):
 		print "close event"
 		# disconnect this event, otherwise we get an update/redraw for nothing
 		# since closing a dialog causes this event to fire otherwise
+		self.parent().plot_dialogs.remove(self)
+		self.pool.close()
 		for axisbox, func in zip(self.axisboxes, self.onExpressionChangedPartials):
 			axisbox.lineEdit().editingFinished.disconnect(func)
 		self.dataset.mask_listeners.remove(self.onSelectMask)
@@ -633,7 +635,7 @@ class PlotDialog(QtGui.QDialog):
 			self.weight_x_box.lineEdit().editingFinished.connect(self.onWeightXExpr)
 			self.weight_x_box.currentIndexChanged.connect(lambda _: self.onWeightXExpr())
 			self.weight_x_expression = str(self.weight_x_box.lineEdit().text())
-			if 1:
+			if 0:
 				for name in "x y z".split():
 					if name in self.expressions[0]:
 						for prefix in "v v_".split():
@@ -653,7 +655,7 @@ class PlotDialog(QtGui.QDialog):
 			self.weight_y_box.lineEdit().editingFinished.connect(self.onWeightYExpr)
 			self.weight_y_box.currentIndexChanged.connect(lambda _: self.onWeightYExpr())
 			self.weight_y_expression = str(self.weight_y_box.lineEdit().text())
-			if 1:
+			if 0:
 				for name in "x y z".split():
 					if self.dimensions > 1:
 						if name in self.expressions[1]:
@@ -1698,7 +1700,7 @@ class PlotDialog(QtGui.QDialog):
 		
 		#self.action_zoom = QtGui.QAction(QtGui.QIcon(iconfile('glue_zoom_to_rect')), '&Zoom', self)        
 		#exitAction.setShortcut('Ctrl+Q')
-		#exitAction.setStatusTip('Exit application')
+		#onExAction.setStatusTip('Exit application')
 
 		#self.actionGroup.setToggleAction(True)
 		#self.actionGroup.setExclusive(True)
