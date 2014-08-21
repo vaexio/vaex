@@ -79,6 +79,7 @@ if not frozen: # astropy not working :s
 	#import astropy.logger
 	#astropy.logger.log.disable_warnings_logging()
 	#import astropy.io.votable
+	__import__("astropy.io.votable")
 
     
 
