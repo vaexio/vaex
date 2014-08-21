@@ -17,6 +17,9 @@ frozen = getattr(sys, 'frozen', False)
 darwin = "darwin" not in platform.system()
 if (not frozen) or darwin: # astropy not working with pyinstaller
 	#from astropy.io import fits
+	fits = __import__("astropy.io.fits").io.fits
+	#print dir(fits)
+	#dsa
 	pass
 
 def error(title, msg):
