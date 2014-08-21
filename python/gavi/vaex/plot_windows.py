@@ -186,6 +186,7 @@ class Mover(object):
 		self.handles.append(self.canvas.mpl_connect('button_press_event', self.mouse_down))
 		self.handles.append(self.canvas.mpl_connect('button_release_event', self.mouse_up))
 		self.begin_x, self.begin_y = None, None
+		self.moved = False
 		
 	def disconnect_events(self):
 		for handle in self.handles:
@@ -193,19 +194,27 @@ class Mover(object):
 		
 	def mouse_up(self, event):
 		self.begin_x, self.begin_y = None, None
-		self.plot.ranges = list(self.plot.ranges_show)
-		self.plot.compute()
-		self.plot.jobsManager.execute()
+		if self.moved:
+			self.plot.ranges = list(self.plot.ranges_show)
+			self.plot.compute()
+			self.plot.jobsManager.execute()
+			self.moved = False
 	
 	def mouse_down(self, event):
-		self.begin_x, self.begin_y = event.xdata, event.ydata
-		self.plot.ranges_begin = list(self.plot.ranges_show)
+		self.moved = False
+		if event.dblclick:
+			factor = 0.5
+			self.plot.zoom(factor, event.xdata, event.ydata)
+		else:
+			self.begin_x, self.begin_y = event.xdata, event.ydata
+			self.plot.ranges_begin = list(self.plot.ranges_show)
 	
 	def mouse_move(self, event):
 		#print event.xdata, event.ydata, event.button
 		#print event.key
 		if self.begin_x:
 			if self.last_x is not None and event.xdata is not None:
+				self.moved = True
 				dx = self.begin_x - event.xdata
 				dy = self.begin_y - event.ydata
 				xmin, xmax = self.plot.ranges_begin[0][0] + dx, self.plot.ranges_begin[0][1] + dx
@@ -388,6 +397,7 @@ class PlotDialog(QtGui.QDialog):
 		self.aspect = None
 		
 		self.gridsize = 512/2 #/2
+		self.xoffset, self.yoffset = 0, 0
 
 		self.fig = Figure(figsize=(width, height), dpi=dpi)
 		self.addAxes()
@@ -1580,6 +1590,16 @@ class PlotDialog(QtGui.QDialog):
 		self.toolbar2.addAction(self.action_redo)
 		self.action_undo.triggered.connect(self.onActionUndo)
 		self.action_redo.triggered.connect(self.onActionRedo)
+
+		self.action_shuffled = QtGui.QAction(QtGui.QIcon(iconfile('table-select-cells')), 'Shuffled', self)
+		self.action_shuffled.setCheckable(True)
+		self.action_shuffled.triggered.connect(self.onActionShuffled)
+		self.toolbar2.addAction(self.action_shuffled)
+
+	def onActionShuffled(self, shuffled):
+		self.xoffset = 1 if shuffled else 0
+		self.compute()
+		self.jobsManager.execute()
 		
 
 		
@@ -1666,7 +1686,7 @@ class PlotDialog(QtGui.QDialog):
 		self.action_display_mode_full = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show full', self)
 		self.action_display_mode_selection = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show selection', self)
 		self.action_display_mode_both_contour = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show contour', self)
-
+		
 		self.action_res_1 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 1', self)
 		self.action_res_2 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 2', self)
 		self.action_res_3 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 3', self)
@@ -1674,7 +1694,7 @@ class PlotDialog(QtGui.QDialog):
 		self.action_res_5 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 5', self)
 		
 		for res, action in zip([128, 256, 512, 1024, 2048], [self.action_res_1, self.action_res_2, self.action_res_3, self.action_res_4, self.action_res_5]):
-			def do(res=res):
+			def do(ignore=None, res=res):
 				self.gridsize = res
 				self.compute()
 				self.jobsManager.execute()
@@ -2243,11 +2263,11 @@ class ScatterPlotDialog(PlotDialog):
 			if 1:
 				sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
 				def subblock(index, sub_i1, sub_i2):
-					subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], None, sub_counts[index], *ranges)
+					subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], None, sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
 				self.pool.run_blocks(subblock, info.size)
 				self.counts += np.sum(sub_counts, axis=0)
 			else:
-				subspacefind.histogram2d(blockx, blocky, None, self.counts, *ranges)
+				subspacefind.histogram2d(blockx, blocky, None, self.counts, *(ranges + [self.xoffset, self.yoffset]))
 			
 			
 			
@@ -2257,17 +2277,17 @@ class ScatterPlotDialog(PlotDialog):
 				if 1:
 					sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
 					def subblock(index, sub_i1, sub_i2):
-						subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], weights_block[sub_i1:sub_i2], sub_counts[index], *ranges)
+						subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], weights_block[sub_i1:sub_i2], sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
 					self.pool.run_blocks(subblock, info.size)
 					self.counts_weights += np.sum(sub_counts, axis=0)
 				else:
-					subspacefind.histogram2d(blockx, blocky, weights_block, self.counts_weights, *ranges)
+					subspacefind.histogram2d(blockx, blocky, weights_block, self.counts_weights, *(ranges + [self.xoffset, self.yoffset]))
 			if mask is None:
 				for counts_weighted, weight_block in [(self.counts_x_weights, weights_x_block), (self.counts_y_weights, weights_y_block), (self.counts_xy_weights, weights_xy_block)]:
 					if weight_block is not None:
 						sub_counts = np.zeros((self.pool.nthreads, Nvector, Nvector), dtype=np.float64)
 						def subblock(index, sub_i1, sub_i2):
-							subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], weight_block[sub_i1:sub_i2], sub_counts[index], *ranges)
+							subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], weight_block[sub_i1:sub_i2], sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
 						self.pool.run_blocks(subblock, info.size)
 						counts_weighted += np.sum(sub_counts, axis=0)
 		except:
@@ -2280,7 +2300,7 @@ class ScatterPlotDialog(PlotDialog):
 
 		if weights_x_block is not None or weights_y_block is not None:
 			if mask is None:
-				subspacefind.histogram2d(blockx, blocky, None, self.counts_xy, *ranges)
+				subspacefind.histogram2d(blockx, blocky, None, self.counts_xy, *(ranges + [self.xoffset, self.yoffset]))
 		if mask is not None:
 			subsetx = blockx[mask[info.i1:info.i2]]
 			subsety = blocky[mask[info.i1:info.i2]]
@@ -2290,7 +2310,7 @@ class ScatterPlotDialog(PlotDialog):
 			
 			sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
 			def subblock(index, sub_i1, sub_i2):
-				subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], None, sub_counts[index], *ranges)
+				subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], None, sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
 			self.pool.run_blocks(subblock, len(subsetx))
 			self.counts_mask += np.sum(sub_counts, axis=0)
 			#else:
@@ -2302,7 +2322,7 @@ class ScatterPlotDialog(PlotDialog):
 				#subspacefind.histogram2d(subsetx, subsety, subset_weights, self.counts_weights_mask, *ranges)
 				sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
 				def subblock(index, sub_i1, sub_i2):
-					subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], subset_weights, sub_counts[index], *ranges)
+					subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], subset_weights, sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
 				self.pool.run_blocks(subblock, len(subsetx))
 				self.counts_weights_mask += np.sum(sub_counts, axis=0)
 			
@@ -2311,7 +2331,7 @@ class ScatterPlotDialog(PlotDialog):
 					weights_block_mask = weight_block[mask[info.i1:info.i2]]
 					sub_counts = np.zeros((self.pool.nthreads, Nvector, Nvector), dtype=np.float64)
 					def subblock(index, sub_i1, sub_i2):
-						subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], weights_block_mask[sub_i1:sub_i2], sub_counts[index], *ranges)
+						subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], weights_block_mask[sub_i1:sub_i2], sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
 					self.pool.run_blocks(subblock, len(subsetx))
 					counts_weighted += np.sum(sub_counts, axis=0)
 			
