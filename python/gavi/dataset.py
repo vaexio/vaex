@@ -9,6 +9,10 @@ from gavi.utils import Timer
 import time
 import itertools
 
+import gavifast
+from gavi import multithreading
+import functools
+
 import gavi.vaex.expressions as expr
 
 import sys
@@ -16,10 +20,7 @@ import platform
 frozen = getattr(sys, 'frozen', False)
 darwin = "darwin" not in platform.system()
 if (not frozen) or darwin: # astropy not working with pyinstaller
-	#from astropy.io import fits
 	fits = __import__("astropy.io.fits").io.fits
-	#print dir(fits)
-	#dsa
 	pass
 
 def error(title, msg):
@@ -61,6 +62,66 @@ class JobsManager(object):
 		if order not in self.order_numbers:
 			self.order_numbers.append(order)
 		self.jobs.append((order, callback, dataset, [None if e is None or len(e) == 0 else e for e in expressions], variables))
+		
+	def find_min_max(self, dataset, expressions, feedback=None):
+		assert len(self.jobs) == 0, "leftover jobs exist"
+		pool = multithreading.ThreadPool()
+		minima = [None] * len(expressions)
+		maxima = [None] * len(expressions)
+		#ranges = []
+		minima_per_thread = [None] * pool.nthreads
+		maxima_per_thread = [None] * pool.nthreads
+		#range_per_thread = [None] * pool.nthreads
+		N_total = len(expressions) * len(dataset)
+		class Wrapper(object):
+			pass
+		wrapper = Wrapper()
+		wrapper.N_done = 0
+		try:
+			t0 = time.time()
+			def calculate_range(info, block, index):
+				def subblock(thread_index, sub_i1, sub_i2):
+					print "^" * 60
+					result = gavifast.find_nan_min_max(block[sub_i1:sub_i2])
+					print "result", result
+					mi, ma = result
+					print ">>>", mi, ma, thread_index
+					#if sub_i1 == 0:
+					minima_per_thread[thread_index] = mi
+					maxima_per_thread[thread_index] = ma
+					#else:
+					#	minima_per_thread[thread_index] = min(mi, minima_per_thread[thread_index])
+					#	maxima_per_thread[thread_index] = min(ma, maxima_per_thread[thread_index])
+					print ">>>>>>>>", minima_per_thread, maxima_per_thread, thread_index
+				#self.message("min/max[%d] at %.1f%% (%.2fs)" % (axisIndex, info.percentage, time.time() - info.time_start), index=50+axisIndex )
+				#QtCore.QCoreApplication.instance().processEvents()
+				if info.error:
+					#print "error", info.error_text
+					#self.message(info.error_text, index=-1)
+					raise Exception, info.error_text
+				pool.run_blocks(subblock, info.size)
+				print minima_per_thread
+				if info.first:
+					minima[index] = min(minima_per_thread)
+					maxima[index] = max(maxima_per_thread)
+				else:
+					minima[index] = min(min(minima_per_thread), minima[index])
+					maxima[index] = max(max(maxima_per_thread), maxima[index])
+				print "min/max for axis", index, minima[index], maxima[index]
+				#if info.last:
+				#	self.message("min/max[%d] %.2fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
+				wrapper.N_done += len(block)
+				if feedback:
+					cancel = feedback(wrapper.N_done*100./N_total)
+					if cancel:
+						raise Exception, "cancelled"
+
+			for index in range(len(expressions)):
+				self.addJob(0, functools.partial(calculate_range, index=index), dataset, expressions[index])
+			self.execute()
+		finally:
+			pool.close()
+		return zip(minima, maxima)
 		
 	def execute(self):
 		try:
@@ -113,7 +174,7 @@ class JobsManager(object):
 								try:
 									expr_noslice, slice_vars = expr.translate(expression)
 								except:
-									logger.error("translating expression: %r" % expression)
+									logger.error("translating expression: %r" % (expression,))
 									expressions_translated[(dataset, expression)] = (expression, {}) # just pass expression, code below will handle errors
 								else:
 									expressions_translated[(dataset, expression)] = (expr_noslice, slice_vars)
@@ -174,10 +235,10 @@ class JobsManager(object):
 							# put to 
 							with Timer("evaluation"):
 								for dataset, expression in expressions_dataset:
-									logger.debug("expression: %r" % expression)
+									logger.debug("expression: %r" % (expression,))
 									#expr_noslice, slice_vars = expr.translate(expression)
 									expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #
-									logger.debug("translated expression: %r" % expr_noslice)
+									logger.debug("translated expression: %r" % (expr_noslice,))
 									if expr_noslice is None:
 										results[expression] = None
 									#elif expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
@@ -193,7 +254,7 @@ class JobsManager(object):
 										except SyntaxError, e:
 											info.error = True
 											info.error_text = e.message
-											logger.exception("error in expression: %s" % expression)
+											logger.exception("error in expression: %s" % (expression,))
 											break
 										except KeyError, e:
 											info.error = True
@@ -309,6 +370,11 @@ class MemoryMapped(object):
 	def unlink(self, link, receiver):
 		link.listeners.remove(receiver)
 		
+	def full_length(self):
+		return self._length
+		
+	def __len__(self):
+		return self._fraction_length
 		
 		
 	# nommap is a hack to get in memory datasets working

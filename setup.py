@@ -25,8 +25,8 @@ sys.setrecursionlimit(10000)
 APP = ["bin/medavaex"]
 DATA_FILES = []
 if has_py2app:
-	DATA_FILES.append(["data", ["data/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5"]])
-OPTIONS = {'argv_emulation': False, 'excludes':["scipy"], 'resources':['python/gavi/icons'], 'matplotlib_backends':'-'}
+	DATA_FILES.append(["data", ["data/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5", "data/Aq-A-2-999-shuffled-1percent.hdf5"]])
+OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/gavi/icons'], 'matplotlib_backends':'-'}
 
 
 
@@ -53,7 +53,6 @@ extensions = [
 ]
 
 setup(
-	name="gavifast",
     app=APP,
     data_files=DATA_FILES,
     options={'py2app': OPTIONS},
@@ -69,6 +68,8 @@ if has_py2app:
 	libLLVM-3.3.dylib
 	libQtGui.4.dylib
 	libQtCore.4.dylib
+	libQtWebKit.4.dylib
+	libQtNetwork.4.dylib
 	libcrypto.1.0.0.dylib
 	libssl.1.0.0.dylib
 	libpng15.15.dylib

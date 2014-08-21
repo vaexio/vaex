@@ -190,7 +190,9 @@ void find_nan_min_max(double* const block_ptr, int length, double &min_, double 
 
 	}
 	/*/
-	for(int i = 0; i < length; i++) {
+	min = block_ptr[0];
+	max = block_ptr[0];
+	for(int i = 1; i < length; i++) {
 		double value = block_ptr[i];
 		if(value == value) {  // nan checking
 			min = fmin(value, min);
@@ -260,17 +262,35 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 }
 
 
-void histogram2d(const double* const blockx, const double* const blocky, const double* const weights, int block_length, double* counts, int counts_length_x, int counts_length_y, double xmin, double xmax, double ymin, double ymax) {
-	for(int i = 0; i < block_length; i++) {
-		double value_x = blockx[i];
+
+void histogram2d(const double* const blockx, const double* const blocky, const double* const weights, const int block_length, double* const counts, const int counts_length_x, const int counts_length_y, const double xmin, const double xmax, const double ymin, const double ymax, const long long offset_x, const long long offset_y) {
+	long long i_x = offset_x + block_length;
+	long long i_y = offset_y + block_length;
+	for(long long i = 0; i < block_length; i++) {
+		//double value_x = blockx[(i+ offset_x + block_length)  % block_length];
+		//double value_x = blockx[i];
+		double value_x = blockx[i_x];
 		double scaled_x = (value_x - xmin) / (xmax-xmin);
 		int index_x = (int)(scaled_x * counts_length_x);
 
-		double value_y = blocky[i];
-		double scaled_y = (value_y - ymin) / (ymax-ymin);
-		int index_y = (int)(scaled_y * counts_length_y);
+		//double value_y = blocky[(i+ offset_y + block_length)  % block_length];
+ 		//double value_y = blocky[i];
+
+		/*
 		if( (index_x >= 0) & (index_x < counts_length_x)  & (index_y >= 0) & (index_y < counts_length_y) )
 			counts[index_y + counts_length_y*index_x] += weights == NULL ? 1 : weights[i];
+		*/
+		if( (index_x >= 0) & (index_x < counts_length_x)) {
+			double value_y = blocky[i_y];
+			
+			double scaled_y = (value_y - ymin) / (ymax-ymin);
+			int index_y = (int)(scaled_y * counts_length_y);
+			if ( (index_y >= 0) & (index_y < counts_length_y) ) {
+				counts[index_y + counts_length_y*index_x] += weights == NULL ? 1 : weights[i];
+			}
+		}
+		i_x = i_x >= block_length-1 ? 0 : i_x+1;
+		i_y = i_y >= block_length-1 ? 0 : i_y+1;
 	}
 }
 
@@ -279,7 +299,9 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 	PyObject* result = NULL;
 	PyObject* blockx, *blocky, *weights, *counts;
 	double xmin, xmax, ymin, ymax;
-	if(PyArg_ParseTuple(args, "OOOOdddd", &blockx, &blocky, &weights, &counts, &xmin, &xmax, &ymin, &ymax)) {
+	long long offset_x = 0;
+	long long offset_y = 0;
+	if(PyArg_ParseTuple(args, "OOOOdddd|LL", &blockx, &blocky, &weights, &counts, &xmin, &xmax, &ymin, &ymax, &offset_x, &offset_y)) {
 		int block_length = -1;
 		int counts_length_x = -1;
 		int counts_length_y = -1;
@@ -294,7 +316,7 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 			object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
 		}
 		Py_BEGIN_ALLOW_THREADS
-		histogram2d(blockx_ptr, blocky_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, xmin, xmax, ymin, ymax);
+		histogram2d(blockx_ptr, blocky_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, xmin, xmax, ymin, ymax, offset_x, offset_y);
 		Py_END_ALLOW_THREADS
 		Py_INCREF(Py_None);
 		result = Py_None;
@@ -302,17 +324,17 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 	return result;
 }
 
-void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, int block_length, double* counts, int counts_length_x, int counts_length_y, int counts_length_z, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax) {
+void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, int block_length, double* counts, int counts_length_x, int counts_length_y, int counts_length_z, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, long long const offset_x, long long const offset_y, long long const offset_z) {
 	for(int i = 0; i < block_length; i++) {
-		double value_x = blockx[i];
+		double value_x = blockx[(i+ offset_x + block_length)  % block_length];
 		double scaled_x = (value_x - xmin) / (xmax-xmin);
 		int index_x = (int)(scaled_x * counts_length_x);
 
-		double value_y = blocky[i];
+		double value_y = blocky[(i+ offset_y + block_length)  % block_length];
 		double scaled_y = (value_y - ymin) / (ymax-ymin);
 		int index_y = (int)(scaled_y * counts_length_y);
 		
-		double value_z = blockz[i];
+		double value_z = blockz[(i+ offset_z + block_length)  % block_length];
 		double scaled_z = (value_z - zmin) / (zmax-zmin);
 		int index_z = (int)(scaled_z * counts_length_z);
 		
@@ -386,7 +408,8 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 	PyObject* result = NULL;
 	PyObject* blockx, *blocky, *blockz, *weights, *counts;
 	double xmin, xmax, ymin, ymax, zmin, zmax;
-	if(PyArg_ParseTuple(args, "OOOOOdddddd", &blockx, &blocky, &blockz, &weights, &counts, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax)) {
+	long long offset_x = 0, offset_y = 0, offset_z = 0;
+	if(PyArg_ParseTuple(args, "OOOOOdddddd|LLL", &blockx, &blocky, &blockz, &weights, &counts, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax, &ymax, &offset_x, &offset_y, &offset_z)) {
 		int block_length = -1;
 		int counts_length_x = -1;
 		int counts_length_y = -1;
@@ -404,7 +427,7 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 			object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
 		}
 		Py_BEGIN_ALLOW_THREADS
-		histogram3d(blockx_ptr, blocky_ptr, blockz_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, counts_length_z, xmin, xmax, ymin, ymax, zmin, zmax);
+		histogram3d(blockx_ptr, blocky_ptr, blockz_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, counts_length_z, xmin, xmax, ymin, ymax, zmin, zmax, offset_x, offset_y, offset_z);
 		Py_END_ALLOW_THREADS
 		Py_INCREF(Py_None);
 		result = Py_None;
@@ -494,6 +517,7 @@ initgavifast(void)
 	//if (c_api_object != NULL)
 	//      PyModule_AddObject(mod, "_C_API", c_api_object);
 }
+
 
 
 

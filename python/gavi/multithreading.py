@@ -70,7 +70,10 @@ class ThreadPool(object):
 			if i2 > total_length: # last one can be a bit longer
 				i2 = total_length
 			args_list.append((i1, i2))
-		self.run_parallel(callable, args_list)
+		results = self.run_parallel(callable, args_list)
+		for result in results:
+			if isinstance(result, Exception):
+				raise result
 		
 		
 
