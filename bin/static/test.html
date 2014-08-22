@@ -1,0 +1,255 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>Flot Examples: Image Plots</title>
+	<link href="http://www.flotcharts.org/flot/examples/examples.css" rel="stylesheet" type="text/css">
+	<!--[if lte IE 8]><script language="javascript" type="text/javascript" src="../../excanvas.min.js"></script><![endif]-->
+	<script language="javascript" type="text/javascript" src="https://raw.githubusercontent.com/flot/flot/master/jquery.js"></script>
+	<script language="javascript" type="text/javascript" src="https://raw.githubusercontent.com/flot/flot/master/jquery.flot.js"></script>
+	<script language="javascript" type="text/javascript" src="https://raw.githubusercontent.com/flot/flot/master/jquery.flot.image.js"></script>
+	<script language="javascript" type="text/javascript" src="https://raw.githubusercontent.com/flot/flot/master/jquery.flot.selection.js"></script>
+	<script language="javascript" type="text/javascript" src="https://raw.githubusercontent.com/flot/flot/master/jquery.flot.navigate.js"></script>
+	<script type="text/javascript">
+
+	$(function() {
+
+		var dataset = 'Aq-A-2-999-shuffled-1percent';
+		var data = [[["http://localhost:5000/plot/Aq-A-2-999-shuffled-1percent/x/z?ranges=50,70,40,60", 50, 40, 70, 60]]];
+
+		var options = {
+			series: {
+				images: {
+					show: true
+				}
+			},
+			xaxis: {
+				min: 50,
+				max: 70
+			},
+			yaxis: {
+				min: 40,
+				max: 60
+			},
+			/*selection: {
+				mode: "xy"
+			},*/
+			zoom: {
+				interactive: true
+			},
+			pan: {
+				interactive: true
+			}
+		};
+
+		//$.plot.image.loadDataImages(data, options, function () {
+		//	plot = $.plot("#placeholder", data, options);
+		//});
+		
+		//var plot = $.plot("#placeholder")
+		
+		var placeholder = $("#placeholder");
+		//var plot = $.plot(placeholder, data, options);
+
+		placeholder.bind("plotselected", function (event, ranges) {
+
+			//$("#selection").text(ranges.xaxis.from.toFixed(1) + " to " + ranges.xaxis.to.toFixed(1));
+
+			//var zoom = $("#zoom").prop("checked");
+			options = $.extend(true, {}, options, {
+					xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to },
+					yaxis: { min: ranges.yaxis.from, max: ranges.yaxis.to }
+				});
+			//console.log(newoptions)
+			reload()
+
+		});
+		
+		placeholder.bind("plotzoom", function (event, plot) {
+			var axes = plot.getAxes();
+			options.xaxis = axes.xaxis;
+			options.yaxis = axes.yaxis;
+			$(".message").html("Zooming to x: "  + axes.xaxis.min.toFixed(2)
+			+ " &ndash; " + axes.xaxis.max.toFixed(2)
+			+ " and y: " + axes.yaxis.min.toFixed(2)
+			+ " &ndash; " + axes.yaxis.max.toFixed(2));
+			reload()
+		});
+		
+		placeholder.bind("plotpan", function (event, plot) {
+			var axes = plot.getAxes();
+			options.xaxis = axes.xaxis;
+			options.yaxis = axes.yaxis;
+			$(".message").html("Panning to x: "  + axes.xaxis.min.toFixed(2)
+			+ " &ndash; " + axes.xaxis.max.toFixed(2)
+			+ " and y: " + axes.yaxis.min.toFixed(2)
+			+ " &ndash; " + axes.yaxis.max.toFixed(2));
+			reload()
+		});		
+
+		// Add the Flot version string to the footer
+		
+		reload = function() {
+			var x = $('#x').val()
+			var y = $('#y').val()
+			var colormap = $('#colormap').val()
+			var dataset = $('#dataset').val()
+			var url = "http://localhost:5000/plot/" +dataset +"/" +x +"/" +y +"?ranges=" +options.xaxis.min +"," +options.xaxis.max +","+options.yaxis.min +"," +options.yaxis.max +"&colormap="+colormap;
+			console.log("url=" + url)
+			data = [[[url, options.xaxis.min, options.yaxis.min, options.xaxis.max, options.yaxis.max]]];
+			$.plot.image.loadDataImages(data, options, function () {
+				plot = $.plot("#placeholder", data, options);
+				plot.setupGrid();
+				//plot.draw();
+				//plot.clearSelection();
+				console.log("new image")
+			});
+		}
+
+		$("#footer").prepend("Flot " + $.plot.version + " &ndash; ");
+		$('#zoom-select').on('change', function() {
+			//alert( this.value ); // or $(this).val()
+			options.selection.mode = this.value;
+			$.plot("#placeholder", data, options);
+			console.log("new selection: " +this.value);
+		});
+		$('#zoom-out').on('click', function() {
+				zoomaxis = function(axis, center, factor) {
+					var width  = axis.max - axis.min;
+					var fraction = (center - axis.min)/width;
+					axis.min = center - width*fraction*factor;
+					axis.max = center + width*fraction*factor;
+				};
+				var x = (options.xaxis.max + options.xaxis.min)/2
+				var y = (options.yaxis.max + options.yaxis.min)/2
+				zoomaxis(options.xaxis, x, 2.2);
+				zoomaxis(options.yaxis, y, 2.2);
+				reload()
+				//$.plot("#placeholder", data, options);
+		});
+		
+		
+	var loaded = {
+		datasets: false,
+		colormaps: false,
+		columns: false
+	}
+	$().ready(function () {
+		$.get('/colormaps', function( json ) {
+				console.log(json)
+				$.each(json, function(i, value) {
+					$('#colormap').append($('<option>').text(value).attr('value', value));
+				});
+				loaded.colormaps = true
+				check_loaded();
+				$('#colormap').on('change', function() {
+					reload()
+				});
+				
+			}
+		);
+	});
+
+	$().ready(function () {
+		$.get('/datasets', function( json ) {
+				console.log(json)
+				$.each(json, function(i, value) {
+					$('#dataset').append($('<option>').text(value).attr('value', value));
+				});
+				loaded.datasets = true
+				check_loaded();
+				dataset = $('#dataset').val()
+				console.log("datasets loaded, now columns")
+				$('#dataset').on('change', function() {
+					console.log("dataset changed, get columns")
+					get_columns()
+					get_minmax()
+				});
+				get_columns()
+				
+			}
+		);
+	});
+	
+	get_minmax = function() {
+	}
+	
+	get_columns = function() {
+		var dataset = $('#dataset').val()
+		$.get('/columns/' + dataset, function( json ) {
+				console.log(json)
+				loaded.colormaps = true
+				$('#x').children().remove()
+				$('#y').children().remove()
+				$.each(json, function(i, value) {
+					$('#x').append($('<option>').text(value).attr('value', value));
+				});
+				$.each(json, function(i, value) {
+					$('#y').append($('<option>').text(value).attr('value', value));
+				});
+				$('#x').val(json[0])
+				$('#y').val(json[1])
+				loaded.columns = true
+				console.log("columns loaded, now plot?")
+				check_loaded();
+				$('#x').on('change', function() {
+					reload()
+				});
+				$('#y').on('change', function() {
+					reload()
+				});
+				
+			}
+		);
+	}
+	
+	check_loaded = function() {
+		if(loaded.colormaps && loaded.columns) {
+			console.log("load plot")
+			reload()
+		}
+	}
+
+
+	});
+
+	</script>
+</head>
+<body>
+
+	<div id="header">
+		<h2>Image Plots</h2>
+	</div>
+	
+	<select id="zoom-select">
+		<option value="xy">rectangle zoom</option>
+		<option value="x">zoom x</option>
+		<option value="y">zoom y</option>
+	</select>
+	<button id="zoom-out">Zoom out</button>
+	<select id="dataset">
+	</select>
+	<select id="colormap">
+	</select>
+	<select id="x">
+	</select>
+	<select id="y">
+	</select>
+
+	<div id="content">
+
+		<div class="demo-container" style="width:400px;height:400px;">
+			<div id="placeholder" class="demo-placeholder"></div>
+		</div>
+
+	</div>
+	
+	<p class="message"></p>
+	<input type="text" value="some text">
+
+	<div id="footer">
+		Copyright &copy; 2007 - 2014 IOLA and Ole Laursen
+	</div>
+
+</body>
+</html>
