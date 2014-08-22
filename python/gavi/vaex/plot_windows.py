@@ -395,6 +395,7 @@ class PlotDialog(QtGui.QDialog):
 		self.colormap_vector = "binary"
 		
 		self.aspect = None
+		self.axis_lock = False
 		
 		self.gridsize = 512/2 #/2
 		self.xoffset, self.yoffset = 0, 0
@@ -528,7 +529,8 @@ class PlotDialog(QtGui.QDialog):
 						self.expressions[axis_index] = template % expression
 						self.axisboxes[axis_index].lineEdit().setText(self.expressions[axis_index])
 						self.ranges[axis_index] = None
-						self.ranges_show[axis_index] = None
+						if not self.axis_lock:
+							self.ranges_show[axis_index] = None
 						self.compute()
 						self.jobsManager.execute()
 					action.triggered.connect(add)
@@ -621,6 +623,17 @@ class PlotDialog(QtGui.QDialog):
 			self.colormap_box.currentIndexChanged.connect(onColorMap)
 			self.colormap_box.setCurrentIndex(0)
 			
+		row += 1
+		
+		self.title_box = QtGui.QComboBox(self)
+		self.title_box.setEditable(True)
+		self.title_box.addItems([""] + self.getTitleExpressionList())
+		self.title_box.setMinimumContentsLength(30)
+		self.grid_layout.addWidget(QtGui.QLabel("title="), row, 1)
+		self.grid_layout.addWidget(self.title_box, row, 2)
+		self.title_box.lineEdit().editingFinished.connect(self.onTitleExpr)
+		self.title_box.currentIndexChanged.connect(lambda _: self.onTitleExpr())
+		self.title_expression = str(self.title_box.lineEdit().text())
 		row += 1
 		
 		self.weight_box = QtGui.QComboBox(self)
@@ -838,6 +851,14 @@ class PlotDialog(QtGui.QDialog):
 		self.compute()
 		self.jobsManager.execute()
 		#self.plot()
+		
+	def onTitleExpr(self):
+		self.title_expression = str(self.title_box.lineEdit().text())
+		self.plot()
+		
+	def getTitleExpressionList(self):
+		return []
+		
 	
 		
 	def onWeightXExpr(self):
@@ -904,7 +925,8 @@ class PlotDialog(QtGui.QDialog):
 		self.expressions[axisIndex] = text
 		# TODO: range reset as option?
 		self.ranges[axisIndex] = None
-		self.ranges_show[axisIndex] = None
+		if not self.axis_lock:
+			self.ranges_show[axisIndex] = None
 		linkButton = self.linkButtons[axisIndex]
 		link = linkButton.link
 		if link:
@@ -1528,7 +1550,6 @@ class PlotDialog(QtGui.QDialog):
 		
 		
 		
-
 	def addToolbar2(self, layout, contrast=True, gamma=True):
 		self.toolbar2 = QtGui.QToolBar(self)
 		self.toolbar2.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
@@ -1581,6 +1602,14 @@ class PlotDialog(QtGui.QDialog):
 			self.slider_gamma.setOrientation(QtCore.Qt.Horizontal)
 			self.slider_gamma.setMaximumWidth(100)
 		self.image_gamma = 1.
+		
+		self.image_invert = False
+		self.action_image_invert = QtGui.QAction(QtGui.QIcon(iconfile('direction')), 'Invert image', self)
+		self.action_image_invert.setCheckable(True)
+		self.action_image_invert.triggered.connect(self.onActionImageInvert)
+		self.toolbar2.addAction(self.action_image_invert)
+
+		
 
 
 		self.action_undo = QtGui.QAction(QtGui.QIcon(iconfile('arrow-curve-180-left')), 'Undo', self)
@@ -1596,11 +1625,23 @@ class PlotDialog(QtGui.QDialog):
 		self.action_shuffled.triggered.connect(self.onActionShuffled)
 		self.toolbar2.addAction(self.action_shuffled)
 
-	def onActionShuffled(self, ignore=_):
-		self.xoffset = 1 if self.action_shuffled.isEnabled() else 0
+		self.action_axes_lock = QtGui.QAction(QtGui.QIcon(iconfile('lock')), 'Lock axis', self)
+		self.action_axes_lock.setCheckable(True)
+		self.action_axes_lock.triggered.connect(self.onActionAxesLock)
+		self.toolbar2.addAction(self.action_axes_lock)
+
+	def onActionAxesLock(self, ignore=None):
+		self.axis_lock = self.action_axes_lock.isChecked()
+		
+	def onActionShuffled(self, ignore=None):
+		self.xoffset = 1 if self.action_shuffled.isChecked() else 0
 		self.compute()
 		self.jobsManager.execute()
+		logger.debug("xoffset = %r" % self.xoffset)
 		
+	def onActionImageInvert(self, ignore=None):
+		self.image_invert = self.action_image_invert.isChecked()
+		self.plot()
 
 		
 	def onGammaChange(self, gamma_index):
@@ -1611,9 +1652,12 @@ class PlotDialog(QtGui.QDialog):
 	def normalize(self, array):
 		#return (array - np.nanmin(array)) / (np.nanmax(array) - np.nanmin(array))
 		return array
+		
+	def image_post(self, array):
+		return -array if self.image_invert else array
 	
 	def contrast_none(self, array):
-		return self.normalize(array)**(self.image_gamma)
+		return self.image_post(self.normalize(array)**(self.image_gamma))
 
 	def contrast_none_auto(self, array, percentage=1.):
 		values = array.reshape(-1)
@@ -1626,7 +1670,7 @@ class PlotDialog(QtGui.QDialog):
 		v1, v2 = values[indices[i1]], values[indices[i2]]
 		print "contrast[%f%%]" % percentage, "from[%f-%f] to [%f-%f]" % (min, max, v1, v2) 
 		print i1, i2, N
-		return self.normalize(np.clip(array, v1, v2))**self.image_gamma
+		return self.image_post(self.normalize(np.clip(array, v1, v2))**self.image_gamma)
 	
 	def onActionContrast(self):
 		index = self.contrast_list.index(self.contrast)
@@ -2216,6 +2260,14 @@ class ScatterPlotDialog(PlotDialog):
 			return
 		
 		
+		
+
+		xmin, xmax = self.ranges[0]
+		ymin, ymax = self.ranges[1]
+		for i in range(self.dimensions):
+			if self.ranges_show[i] is None:
+				self.ranges_show[i] = self.ranges[i]
+
 		if self.aspect is not None:
 			centers = [(range_[1] + range_[0])/2 for range_ in self.ranges_show]
 			widths = [abs(range_[1] - range_[0]) for range_ in self.ranges_show] # TODO: should we use abs with flipped axes
@@ -2234,14 +2286,6 @@ class ScatterPlotDialog(PlotDialog):
 			logger.debug("ranges_show are: %r (width/height=%r/%r)"  % (self.ranges_show, width, height))
 				
 			
-		
-
-		xmin, xmax = self.ranges[0]
-		ymin, ymax = self.ranges[1]
-		for i in range(self.dimensions):
-			if self.ranges_show[i] is None:
-				self.ranges_show[i] = self.ranges[i]
-
 		
 		index = self.dataset.selected_row_index
 		if index is not None:
@@ -2367,26 +2411,26 @@ class ScatterPlotDialog(PlotDialog):
 			locals["gf"] = scipy.ndimage.gaussian_filter
 			peak_columns = np.apply_along_axis(np.nanmax, 1, self.counts)
 			peak_columns[peak_columns==0] = 1.
-			peak_columns = peak_columns.reshape((1, -1)).T
+			peak_columns = peak_columns.reshape((1, -1))#.T
 			locals["peak_columns"] = peak_columns
 
 			sum_columns = np.apply_along_axis(np.nansum, 1, self.counts)
 			sum_columns[sum_columns==0] = 1.
-			sum_columns = sum_columns.reshape((1, -1)).T
+			sum_columns = sum_columns.reshape((1, -1))#.T
 			locals["sum_columns"] = sum_columns
 
 			peak_rows = np.apply_along_axis(np.nanmax, 0, self.counts)
 			peak_rows[peak_rows==0] = 1.
-			peak_rows = peak_rows.reshape((-1, 1)).T
+			peak_rows = peak_rows.reshape((-1, 1))#.T
 			locals["peak_rows"] = peak_rows
 
 			sum_rows = np.apply_along_axis(np.nansum, 0, self.counts)
 			sum_rows[sum_rows==0] = 1.
-			sum_rows = sum_rows.reshape((-1, 1)).T
+			sum_rows = sum_rows.reshape((-1, 1))#.T
 			locals["sum_rows"] = sum_rows
 			
-			locals["x"] = x.T
-			locals["y"] = y.T
+			locals["x"] = x#.T
+			locals["y"] = y#.T
 
 			if self.counts_weights is None:
 				locals["average"] = None
@@ -2407,26 +2451,26 @@ class ScatterPlotDialog(PlotDialog):
 					#locals = {"counts":self.counts, "weighted": self.counts_weights}
 					peak_columns = np.apply_along_axis(np.nanmax, 1, self.counts_mask)
 					peak_columns[peak_columns==0] = 1.
-					peak_columns = peak_columns.reshape((1, -1)).T
+					peak_columns = peak_columns.reshape((1, -1))#.T
 					locals["peak_columns"] = peak_columns
 
 					sum_columns = np.apply_along_axis(np.nansum, 1, self.counts_mask)
 					sum_columns[sum_columns==0] = 1.
-					sum_columns = sum_columns.reshape((1, -1)).T
+					sum_columns = sum_columns.reshape((1, -1))#.T
 					locals["sum_columns"] = sum_columns
 
 					peak_rows = np.apply_along_axis(np.nanmax, 0, self.counts_mask)
 					peak_rows[peak_rows==0] = 1.
-					peak_rows = peak_rows.reshape((-1, 1)).T
+					peak_rows = peak_rows.reshape((-1, 1))#.T
 					locals["peak_rows"] = peak_rows
 
 					sum_rows = np.apply_along_axis(np.nansum, 0, self.counts_mask)
 					sum_rows[sum_rows==0] = 1.
-					sum_rows = sum_rows.reshape((-1, 1)).T
+					sum_rows = sum_rows.reshape((-1, 1))#.T
 					locals["sum_rows"] = sum_rows
 					
-					locals["x"] = x.T
-					locals["y"] = y.T
+					locals["x"] = x#.T
+					locals["y"] = y#.T
 					
 					
 					if self.counts_weights is None:
@@ -2437,14 +2481,14 @@ class ScatterPlotDialog(PlotDialog):
 					amplitude_mask = eval(self.amplitude_expression, globals, locals)
 
 		if self.action_display_current == self.action_display_mode_both:
-			self.axes.imshow(self.contrast(amplitude.T), origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=self.colormap)
+			self.axes.imshow(self.contrast(amplitude), origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=self.colormap)
 			if self.counts_mask is not None:
-				self.axes.imshow(self.contrast(amplitude_mask.T), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
+				self.axes.imshow(self.contrast(amplitude_mask), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
 		if self.action_display_current == self.action_display_mode_full:
-			self.axes.imshow(self.contrast(amplitude.T), origin="lower", extent=ranges, cmap=self.colormap)
+			self.axes.imshow(self.contrast(amplitude), origin="lower", extent=ranges, cmap=self.colormap)
 		if self.action_display_current == self.action_display_mode_selection:
 			if self.counts_mask is not None:
-				self.axes.imshow(self.contrast(amplitude_mask.T), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
+				self.axes.imshow(self.contrast(amplitude_mask), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
 		print "aap"
 		if self.counts_x_weights is not None and self.counts_y_weights is not None:
 			#x = np.linspace(ranges[0], ranges[1], 128/4)
@@ -2458,9 +2502,9 @@ class ScatterPlotDialog(PlotDialog):
 			print "noot"
 			#print x
 			#print y
-			U = (self.counts_x_weights/self.counts_xy).T #.reshape(-1) #/counts_xy.T
-			V = (self.counts_y_weights/self.counts_xy).T #.reshape(-1) #/counts_xy.T
-			mask = self.counts_xy.T > 0
+			U = (self.counts_x_weights/self.counts_xy) #.reshape(-1) #/counts_xy.T
+			V = (self.counts_y_weights/self.counts_xy) #.reshape(-1) #/counts_xy.T
+			mask = self.counts_xy > 0
 			#print "QUIVER" * 100
 			print "mean", U[mask].mean(), V[mask].mean()
 			#U -= U[mask].mean()
@@ -2469,7 +2513,7 @@ class ScatterPlotDialog(PlotDialog):
 			#print "mask", mask
 			#print U[mask]
 			if self.counts_xy_weights is not None:
-				colors = (self.counts_xy_weights/self.counts_xy).T
+				colors = (self.counts_xy_weights/self.counts_xy)
 				self.axes.quiver(x[mask], y[mask], U[mask], V[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
 			else:
 				self.axes.quiver(x[mask], y[mask], U[mask], V[mask])
@@ -2478,16 +2522,16 @@ class ScatterPlotDialog(PlotDialog):
 			print "max", U[mask].max(), V[mask].max()
 			#self.axes.quiver(x, y, U, V)
 		if self.action_display_current == self.action_display_mode_both_contour:
-			#self.axes.imshow(amplitude.T, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)
-			#self.axes.contour(amplitude.T, origin="lower", extent=ranges, levels=levels, linewidths=2, colors="red")
-			self.axes.imshow(amplitude.T, origin="lower", extent=ranges, cmap=cm_plusmin)
+			#self.axes.imshow(amplitude, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)
+			#self.axes.contour(amplitude, origin="lower", extent=ranges, levels=levels, linewidths=2, colors="red")
+			self.axes.imshow(amplitude, origin="lower", extent=ranges, cmap=cm_plusmin)
 			if self.counts_mask is not None:
 				values = amplitude_mask[~np.isinf(amplitude_mask)]
 				print values
 				levels = np.linspace(values.min(), values.max(), 5)
 				print "levels", levels
-				#self.axes.imshow(amplitude_mask.T, origin="lower", extent=ranges, alpha=1, cmap=cm_plusmin)
-				self.axes.contour(amplitude_mask.T, origin="lower", extent=ranges, levels=levels, linewidths=2, colors="red")
+				#self.axes.imshow(amplitude_mask, origin="lower", extent=ranges, alpha=1, cmap=cm_plusmin)
+				self.axes.contour(amplitude_mask, origin="lower", extent=ranges, levels=levels, linewidths=2, colors="red")
 
 		if self.aspect is None:
 			self.axes.set_aspect('auto')
@@ -2517,6 +2561,12 @@ class ScatterPlotDialog(PlotDialog):
 		print "plot limits:", self.ranges
 		self.axes.set_xlim(*self.ranges_show[0])
 		self.axes.set_ylim(*self.ranges_show[1])
+		#self.fig.texts = []
+		title_text = self.title_expression.format(**self.getVariableDict())
+		if hasattr(self, "title"):
+			self.title.set_text(title_text)
+		else:
+			self.title = self.fig.suptitle(title_text)
 		self.canvas.draw()
 		
 		
@@ -2692,11 +2742,11 @@ class ScatterPlotMatrixDialog(PlotDialog):
 					counts = multisum(self.counts, allaxes)
 					if self.counts_mask is not None:
 						counts_mask = multisum(self.counts_mask, allaxes)
-					if i < j:
+					if i > j:
 						counts = counts.T
 					axes.imshow(np.log10(counts), origin="lower", extent=ranges, alpha=1 if counts_mask is None else 0.4)
 					if counts_mask is not None:
-						if i < j:
+						if i > j:
 							counts_mask = counts_mask.T
 						axes.imshow(np.log10(counts_mask), origin="lower", extent=ranges)
 					axes.set_aspect('auto')
@@ -2771,7 +2821,38 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None):
 		self.nSlices = dataset.rank1s[dataset.rank1s.keys()[0]].shape[0]
 		self.serieIndex = dataset.selected_serie_index if dataset.selected_serie_index is not None else 0
+		self.record_frames = False
 		super(Rank1ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, xname, yname)
+
+	def getTitleExpressionList(self):
+		#return []
+		return ["%s: {%s: 4f}" % (name, name) for name in self.dataset.axis_names]
+		
+	def addToolbar2(self, layout, contrast=True, gamma=True):
+		super(Rank1ScatterPlotDialog, self).addToolbar2(layout, contrast, gamma)
+		self.action_save_frames = QtGui.QAction(QtGui.QIcon(iconfile('film')), '&Export frames', self)
+		self.menu_save.addAction(self.action_save_frames)
+		self.action_save_frames.triggered.connect(self.onActionSaveFrames)
+		
+	def onActionSaveFrames(self, ignore=None):
+		import qt
+		#directory = QtGui.QFileDialog.getExistingDirectory(self, "Choose where to save frames", "",  QtGui.QFileDialog.ShowDirsOnly | QtGui.QFileDialog.DontResolveSymlinks)
+		#print directory
+		directory = qt.getdir(self, "Choose where to save frames", "")
+		self.frame_template = os.path.join(directory, "%s_{index:05}.png" % self.dataset.name)
+		self.frame_template = qt.gettext(self, "template for frame filenames", "template:", self.frame_template)
+		self.record_frames = True
+		self.onPlayOnce()
+		
+	def plot(self):
+		super(Rank1ScatterPlotDialog, self).plot()
+		if self.record_frames:
+			index = self.serieIndex
+			path = self.frame_template.format(**locals())
+			self.fig.savefig(path)
+			if self.serieIndex == self.nSlices-1:
+				self.record_frames = False
+				
 
 	def onSerieIndexSelect(self, serie_index):
 		if serie_index != self.serieIndex: # avoid unneeded event
@@ -2792,7 +2873,12 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 		return names
 	
 	def getVariableDict(self):
-		return {"index": self.serieIndex}
+		vars = {"index": self.serieIndex}
+		for name in self.dataset.axis_names:
+			vars[name] = self.dataset.axes[name][self.serieIndex]
+		print "vars", vars
+		return vars
+		
 
 	def _getVariableDictMinMax(self):
 		return {"index": slice(None, None, None)}
@@ -2816,24 +2902,26 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 		#self.timer = QtCore.QTimer(self)
 		#self.timer.timeout.connect(self.onNextFrame)
 		self.delay = 10
-		for i in range(self.dimensions):
-			self.ranges[i] = None
-		for i in range(self.dimensions):
-			self.ranges_show[i] = None
+		if not self.axis_lock:
+			for i in range(self.dimensions):
+				self.ranges[i] = None
+			for i in range(self.dimensions):
+				self.ranges_show[i] = None
 		self.dataset.selectSerieIndex(0)
 		self.jobsManager.execute()
-		QtCore.QTimer.singleShot(self.delay, self.onNextFrame);
+		QtCore.QTimer.singleShot(self.delay if not self.record_frames else 0, self.onNextFrame);
 		
 	def onNextFrame(self, *args):
 		#print args
-		step = 15
+		step = 1
 		next = self.serieIndex +step
 		if next >= self.nSlices:
 			next = self.nSlices-1
-		for i in range(self.dimensions):
-			self.ranges[i] = None
-		for i in range(self.dimensions):
-			self.ranges_show[i] = None
+		if not self.axis_lock:
+			for i in range(self.dimensions):
+				self.ranges[i] = None
+			for i in range(self.dimensions):
+				self.ranges_show[i] = None
 		self.dataset.selectSerieIndex(next)
 		self.jobsManager.execute()
 		if self.serieIndex < self.nSlices-1 : # not last frame
@@ -2842,10 +2930,11 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 			
 	def onSerieIndex(self, index):
 		if index != self.dataset.selected_serie_index: # avoid unneeded event
-			for i in range(self.dimensions):
-				self.ranges[i] = None
-			for i in range(self.dimensions):
-				self.ranges_show[i] = None
+			if not self.axis_lock:
+				for i in range(self.dimensions):
+					self.ranges[i] = None
+				for i in range(self.dimensions):
+					self.ranges_show[i] = None
 			self.dataset.selectSerieIndex(index)
 			#self.compute()
 			self.jobsManager.execute()

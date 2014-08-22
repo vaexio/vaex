@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from gavi.vaex.qt import *
 import math
 
@@ -87,6 +88,7 @@ class TableDialog(QtGui.QDialog):
 				item.setCheckState(False)
 				#self.list1d.
 
+		print len(self.dataset)
 		pages = int(math.ceil(len(self.dataset)*1./self.tableModel.page_size))
 
 		self.boxlayout = QtGui.QVBoxLayout(self)

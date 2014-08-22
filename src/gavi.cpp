@@ -264,8 +264,8 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 
 
 void histogram2d(const double* const blockx, const double* const blocky, const double* const weights, const int block_length, double* const counts, const int counts_length_x, const int counts_length_y, const double xmin, const double xmax, const double ymin, const double ymax, const long long offset_x, const long long offset_y) {
-	long long i_x = offset_x + block_length;
-	long long i_y = offset_y + block_length;
+	long long i_x = offset_x;
+	long long i_y = offset_y;
 	for(long long i = 0; i < block_length; i++) {
 		//double value_x = blockx[(i+ offset_x + block_length)  % block_length];
 		//double value_x = blockx[i];
@@ -286,7 +286,7 @@ void histogram2d(const double* const blockx, const double* const blocky, const d
 			double scaled_y = (value_y - ymin) / (ymax-ymin);
 			int index_y = (int)(scaled_y * counts_length_y);
 			if ( (index_y >= 0) & (index_y < counts_length_y) ) {
-				counts[index_y + counts_length_y*index_x] += weights == NULL ? 1 : weights[i];
+				counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
 			}
 		}
 		i_x = i_x >= block_length-1 ? 0 : i_x+1;
@@ -324,8 +324,8 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 	return result;
 }
 
-void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, int block_length, double* counts, int counts_length_x, int counts_length_y, int counts_length_z, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, long long const offset_x, long long const offset_y, long long const offset_z) {
-	for(int i = 0; i < block_length; i++) {
+void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, double* counts, int counts_length_x, int counts_length_y, int counts_length_z, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, long long const offset_x, long long const offset_y, long long const offset_z) {
+	for(long long i = 0; i < block_length; i++) {
 		double value_x = blockx[(i+ offset_x + block_length)  % block_length];
 		double scaled_x = (value_x - xmin) / (xmax-xmin);
 		int index_x = (int)(scaled_x * counts_length_x);
@@ -342,6 +342,38 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 			//counts[index_z + counts_length_z*index_y + counts_length_z*counts_length_y*index_x] += weights == NULL ? 1 : weights[i];
 			counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights == NULL ? 1 : weights[i];
 	}
+}
+
+PyObject* histogram3d_(PyObject* self, PyObject* args) {
+	//object block, object weights, object counts, double min, double max) {
+	PyObject* result = NULL;
+	PyObject* blockx, *blocky, *blockz, *weights, *counts;
+	double xmin, xmax, ymin, ymax, zmin, zmax;
+	long long offset_x = 0, offset_y = 0, offset_z = 0;
+	if(PyArg_ParseTuple(args, "OOOOOdddddd|LLL", &blockx, &blocky, &blockz, &weights, &counts, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax, &ymax, &offset_x, &offset_y, &offset_z)) {
+		int block_length = -1;
+		int counts_length_x = -1;
+		int counts_length_y = -1;
+		int counts_length_z = -1;
+		double *blockx_ptr = NULL;
+		double *blocky_ptr = NULL;
+		double *blockz_ptr = NULL;
+		double *weights_ptr = NULL;
+		double *counts_ptr = NULL;
+		object_to_numpy1d_nocopy(blockx_ptr, blockx, block_length);
+		object_to_numpy1d_nocopy(blocky_ptr, blocky, block_length);
+		object_to_numpy1d_nocopy(blockz_ptr, blockz, block_length);
+		object_to_numpy3d_nocopy(counts_ptr, counts, counts_length_x, counts_length_y, counts_length_z);
+		if(weights != Py_None) {
+			object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+		}
+		Py_BEGIN_ALLOW_THREADS
+		histogram3d(blockx_ptr, blocky_ptr, blockz_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, counts_length_z, xmin, xmax, ymin, ymax, zmin, zmax, offset_x, offset_y, offset_z);
+		Py_END_ALLOW_THREADS
+		Py_INCREF(Py_None);
+		result = Py_None;
+	}
+	return result;
 }
 
 void project(double* cube_, const int cube_length_x, const int cube_length_y, const int cube_length_z, double* surface_, const int surface_length_x, const int surface_length_y, const double* const projection_, const double* const offset_)
@@ -395,39 +427,6 @@ PyObject* project_(PyObject* self, PyObject* args) {
 			throw std::runtime_error("center array should be of length 3");
 		Py_BEGIN_ALLOW_THREADS
 		project(cube_ptr, cube_length_x, cube_length_y, cube_length_z, surface_ptr, surface_length_x, surface_length_y, projection_ptr, offset_ptr);
-		Py_END_ALLOW_THREADS
-		Py_INCREF(Py_None);
-		result = Py_None;
-	}
-	return result;
-}
-
-
-PyObject* histogram3d_(PyObject* self, PyObject* args) {
-	//object block, object weights, object counts, double min, double max) {
-	PyObject* result = NULL;
-	PyObject* blockx, *blocky, *blockz, *weights, *counts;
-	double xmin, xmax, ymin, ymax, zmin, zmax;
-	long long offset_x = 0, offset_y = 0, offset_z = 0;
-	if(PyArg_ParseTuple(args, "OOOOOdddddd|LLL", &blockx, &blocky, &blockz, &weights, &counts, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax, &ymax, &offset_x, &offset_y, &offset_z)) {
-		int block_length = -1;
-		int counts_length_x = -1;
-		int counts_length_y = -1;
-		int counts_length_z = -1;
-		double *blockx_ptr = NULL;
-		double *blocky_ptr = NULL;
-		double *blockz_ptr = NULL;
-		double *weights_ptr = NULL;
-		double *counts_ptr = NULL;
-		object_to_numpy1d_nocopy(blockx_ptr, blockx, block_length);
-		object_to_numpy1d_nocopy(blocky_ptr, blocky, block_length);
-		object_to_numpy1d_nocopy(blockz_ptr, blockz, block_length);
-		object_to_numpy3d_nocopy(counts_ptr, counts, counts_length_x, counts_length_y, counts_length_z);
-		if(weights != Py_None) {
-			object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
-		}
-		Py_BEGIN_ALLOW_THREADS
-		histogram3d(blockx_ptr, blocky_ptr, blockz_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, counts_length_z, xmin, xmax, ymin, ymax, zmin, zmax, offset_x, offset_y, offset_z);
 		Py_END_ALLOW_THREADS
 		Py_INCREF(Py_None);
 		result = Py_None;

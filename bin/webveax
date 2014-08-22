@@ -1,0 +1,154 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import numpy as np
+from optparse import OptionParser
+import os
+import sys
+#import sampy
+
+#import thread
+#import threading
+import time
+import itertools
+import platform
+
+
+#import gavi.vaex.plot_windows as vp
+#import gavi.vaex.undo
+#import gavi.selection
+#import gavi.kld
+#import gavi.utils
+import gavi.dataset
+import imp
+
+
+#import matplotlib
+import matplotlib.pyplot as plt
+
+
+from flask import Flask, url_for, make_response, request, Response
+app = Flask(__name__)
+
+import flask
+
+
+dataset_map = {}
+
+#jobsManager 
+class DatasetList(object):
+	def __init__(self):
+		self.datasets = []
+		
+	def addDataset(self, dataset):
+		self.datasets.append(dataset)
+		
+	def addHdf5(self, filename, auto_fraction=False):
+		self.addDataset(gavi.dataset.Hdf5MemoryMapped(filename))
+		
+	def addGadgetHdf5(self, filename, name, particleType):
+		try:
+			self.addDataset(gavi.dataset.Hdf5MemoryMappedGadget(filename, name, particleType))
+		except KeyError:
+			return
+		
+	def addFits(self, filename, auto_fraction=False):
+		self.addDataset(gavi.dataset.FitsBinTable(filename))
+		
+	def addGadget2(self, filename, ignore):
+		self.addDataset(gavi.dataset.MemoryMappedGadget(filename))
+		
+
+
+datasetList = DatasetList()
+path = os.path.expanduser('~/.medavaex/custom.py')
+print path
+if os.path.exists(path):
+	customModule = imp.load_source('gavi.custom', path)
+	custom = customModule.Custom()
+else:
+	custom = None
+	print >>sys.stderr, path, "does not exist"
+	
+custom.loadDatasets(datasetList)
+datasets = datasetList.datasets
+for dataset in datasets:
+	dataset_map[dataset.name] = dataset
+
+
+@app.route('/')
+def api_root():
+    return 'Welcome <a href="/list">list</a>'
+
+import json
+@app.route('/datasets')
+def api_datasets():
+	names = []
+	for dataset in datasetList.datasets:
+		names.append(dataset.name)
+	js = json.dumps(names)
+	response= Response(js, status=200, mimetype='application/json')
+	return response
+	
+	
+import gavi.vaex.colormaps
+@app.route('/colormaps')
+def colormaps():
+	js = json.dumps(gavi.vaex.colormaps.colormaps)
+	response= Response(js, status=200, mimetype='application/json')
+	return response
+
+
+@app.route('/columns/<dataset>')
+def api_columns(dataset):
+	dataset = dataset_map[dataset]
+	js = json.dumps(dataset.column_names)
+	response= Response(js, status=200, mimetype='application/json')
+	return response
+
+
+import StringIO
+import gavifast
+
+@app.route('/plot/<name>/<x>/<y>')
+def api_density_xy(name, x, y=None):
+	fig = plt.figure()
+	fig.set_size_inches(4, 4)
+	#ax = fig.add_subplot(111)
+	ax = plt.Axes(fig, [0., 0., 1., 1.])
+	ax.set_axis_off()	
+	fig.add_axes(ax)
+	Ngrid = 256
+	counts = np.zeros((Ngrid, Ngrid), dtype=np.float64)
+	dataset = dataset_map[name]
+	blockx = dataset.columns[x]
+	blocky = dataset.columns[y]
+	sub_i1, sub_i2 = 0, dataset._length
+	ranges = [0, 100, 0, 100]
+	if "ranges" in request.args:
+		ranges = map(float, request.args["ranges"].split(","))
+	colormap = request.args.get("colormap", "jet")
+	sub_counts = [counts]
+	index = 0
+	gavifast.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], None, sub_counts[index], *ranges)
+	ax.imshow(np.log10(counts), origin="lower", extent=ranges, cmap=colormap)
+	ax.set_aspect('auto')
+	#ax.set_axis_off()
+	f = StringIO.StringIO()
+	fig.savefig(f)
+	data = f.getvalue()
+	print len(data)
+
+	response = make_response(f.getvalue())
+	response.mimetype = 'image/png'
+	return response
+	
+	#return 'Plot ' +name  +":" + x+ " / " +y
+    
+    
+    
+
+
+if __name__ == '__main__':
+	#flask.url_for('static', filename='test.html')
+	app.run()
+	#api_density_xy("Aq-A-2-999-shuffled-1percent", "x", "y")

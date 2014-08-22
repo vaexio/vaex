@@ -33,6 +33,8 @@ import gavi.logging
 logger = gavi.logging.getLogger("gavi.vaex")
 
 
+dataset_type_map = {}
+
 class FakeLogger(object):
 	def debug(self, *args):
 		pass
@@ -43,7 +45,7 @@ class FakeLogger(object):
 	def exception(self, *args):
 		pass
 
-#logger = FakeLogger()
+logger = FakeLogger()
 
 class Job(object):
 	def __init__(self, callback, expressions):
@@ -398,10 +400,19 @@ class MemoryMapped(object):
 		self.nColumns = 0
 		self.columns = {}
 		self.column_names = []
-		self.current_slice = None
-		self.fraction = 1.0
 		self.rank1s = {}
 		self.rank1names = []
+		
+		self.axes = {}
+		self.axis_names = []
+		
+		self.properties = {}
+		self.property_names = []
+
+		self.current_slice = None
+		self.fraction = 1.0
+		
+		
 		self.selected_row_index = None
 		self.selected_serie_index = None
 		self.row_selection_listeners = []
@@ -411,6 +422,7 @@ class MemoryMapped(object):
 		self.all_column_names = []
 		self.mask = None
 		self.global_links = {}
+		
 		self.offsets = {}
 		self.strides = {}
 		self.filenames = {}
@@ -524,6 +536,18 @@ class MemoryMapped(object):
 		self.nColumns += 1
 		self.nRows = self._length
 		
+
+	def addAxis(self, name, offset=None, length=None, dtype=np.float64, stride=1, filename=None):
+		if filename is None:
+			filename = self.filename
+		mapping = self.mapping_map[filename]
+		mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
+		if stride:
+			mmapped_array = mmapped_array[::stride]
+		self.axes[name] = mmapped_array
+		self.axis_names.append(name)
+	
+		
 	def addColumn(self, name, offset=None, length=None, dtype=np.float64, stride=1, filename=None, array=None):
 		if filename is None:
 			filename = self.filename
@@ -575,6 +599,7 @@ class MemoryMapped(object):
 			if self.current_slice is None:
 				self.current_slice = (0, length)
 				self.fraction = 1.
+				self._fraction_length = length
 			self._length = length
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			rawlength = length * length1
@@ -598,7 +623,6 @@ class MemoryMapped(object):
 			
 import struct
 class HansMemoryMapped(MemoryMapped):
-	
 	def __init__(self, filename, filename_extra=None):
 		super(HansMemoryMapped, self).__init__(filename)
 		self.pageSize, \
@@ -674,6 +698,7 @@ class HansMemoryMapped(MemoryMapped):
 		
 		#uint64 = np.frombuffer(self.mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
 		
+dataset_type_map["buist"] = HansMemoryMapped
 
 if __name__ == "__main__":
 	path = "/Users/users/buist/research/2014 Simulation Data/12Orbits/Sigma/Orbitorb1.ac0.10000.100.5.orb.omega2"
@@ -693,6 +718,7 @@ class FitsBinTable(MemoryMapped):
 					column.array[:] # 2nd time it will be a real np array
 					self.addColumn(column.name, array=column.array[:])
 		#BinTableHDU
+dataset_type_map["fits"] = FitsBinTable
 		
 		
 class Hdf5MemoryMapped(MemoryMapped):
@@ -706,6 +732,24 @@ class Hdf5MemoryMapped(MemoryMapped):
 			self.load_columns(self.h5file["/data"])
 		if "columns" in self.h5file:
 			self.load_columns(self.h5file["/columns"])
+		if "properties" in self.h5file:
+			self.load_properties(self.h5file["/properties"])
+		if "axes" in self.h5file:
+			self.load_axes(self.h5file["/axes"])
+			
+	#def 
+	def load_axes(self, axes_data):
+		for name in axes_data:
+			axis = axes_data[name]
+			logger.debug("loading axis %r" % name)
+			offset = axis.id.get_offset() 
+			shape = axis.shape
+			assert len(shape) == 1 # ony 1d axes
+			print name, offset, len(axis), axis.dtype
+			self.addAxis(name, offset=offset, length=len(axis), dtype=axis.dtype)
+			#self.axis_names.append(axes_data)
+			#self.axes[name] = np.array(axes_data[name])
+			
 			
 	def load_columns(self, h5data):
 		print h5data
@@ -727,7 +771,7 @@ class Hdf5MemoryMapped(MemoryMapped):
 						self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1)
 						#self.addColumn(column_name+"_0", offset, shape[1], dtype=column.dtype)
 						print column.dtype.itemsize
-						self.addColumn(column_name+"_last", offset+shape[0]*column.dtype.itemsize, shape[1], dtype=column.dtype)
+						self.addColumn(column_name+"_last", offset+(shape[0]-1)*shape[1]*column.dtype.itemsize, shape[1], dtype=column.dtype)
 						#self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
 			finished.add(column_name)
 			
@@ -750,6 +794,8 @@ class Hdf5MemoryMapped(MemoryMapped):
 		self.remap()
 		self.addColumn(column_name, offset, len(array), dtype=array.dtype)
 
+dataset_type_map["h5gavi"] = Hdf5MemoryMapped
+
 class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 	def __init__(self, filename, write=False):
 		super(AmuseHdf5MemoryMapped, self).__init__(filename, write=write)
@@ -769,6 +815,8 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 			offset = column.id.get_offset() 
 			self.addColumn(column_name, offset, len(column), dtype=column.dtype)
 
+dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
+
 class Hdf5MemoryMappedGadget(MemoryMapped):
 	def __init__(self, filename, particleName, particleType):
 		super(Hdf5MemoryMappedGadget, self).__init__(filename)
@@ -782,12 +830,12 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 			raise KeyError, "%s does not exist" % key
 		particles = h5file[key]
 		for name in particles.keys():
-			print name
+			#print name
 			#name = "/PartType%d/Coordinates" % i
 			data = particles[name]
 			if isinstance(data, h5py.highlevel.Dataset): #array.shape
 				array = data
-				print array.shape, array.dtype
+				#print array.shape, array.dtype
 				shape = array.shape
 				if len(shape) == 1:
 					offset = array.id.get_offset() 
@@ -805,6 +853,20 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 						self.addColumn("vz", offset+8, data.shape[0], dtype=data.dtype, stride=3)
 					else:
 						print "unsupported column: %r of shape %r" % (name, array.shape)
+		if "Header" in h5file:
+			for name in "Redshift Time_GYR".split():
+				value = h5file["Header"].attrs[name]
+				logger.debug("property[{name!r}] = {value}".format(**locals()))
+				self.properties[name] = value
+				self.property_names.append(name)
+		
+		name = "particle_type"
+		value = particleType
+		logger.debug("property[{name}] = {value}".format(**locals()))
+		self.properties[name] = value
+		self.property_names.append(name)
+
+dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
 		
 
 class MemoryMappedGadget(MemoryMapped):
@@ -822,4 +884,5 @@ class MemoryMappedGadget(MemoryMapped):
 		self.addColumn("vx", veloffset, length, dtype=np.float32, stride=3)
 		self.addColumn("vy", veloffset+4, length, dtype=np.float32, stride=3)
 		self.addColumn("vz", veloffset+8, length, dtype=np.float32, stride=3)
+dataset_type_map["gadget-plain"] = MemoryMappedGadget
 		
