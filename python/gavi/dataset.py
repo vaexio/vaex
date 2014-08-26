@@ -281,12 +281,13 @@ class JobsManager(object):
 									logger.debug("output[%r]: None" % (key,))
 								else:
 									logger.debug("output[%r]: %r, %r" % (key, value.shape, value.dtype))
+							cancelled = False
 							with Timer("callbacks"):
 								for _order, callback, dataset, expressions, _variables in jobs_dataset:
 									logger.debug("callback: %r" % (callback))
 									arguments = [info]
 									arguments += [results.get(expression) for expression in expressions]
-									callback(*arguments)
+									cancelled = cancelled or callback(*arguments)
 							if info.error:
 								# if we get an error, no need to go through the whole data
 								break
@@ -377,6 +378,19 @@ class MemoryMapped(object):
 		
 	def __len__(self):
 		return self._fraction_length
+		
+	def length(self, selection=False):
+		if selection:
+			return 0 if self.mask is None else np.sum(self.mask)
+		else:
+			return len(self)
+		
+	def byte_size(self, selection=False):
+		bytes_per_row = 0
+		for column in self.columns.values():
+			dtype = column.dtype
+			bytes_per_row += dtype.itemsize
+		return bytes_per_row * self.length(selection=selection)
 		
 		
 	# nommap is a hack to get in memory datasets working

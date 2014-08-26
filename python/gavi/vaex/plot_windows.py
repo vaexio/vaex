@@ -620,8 +620,8 @@ class PlotDialog(QtGui.QDialog):
 				logger.debug("selected colormap: %r" % colormap_name)
 				self.colormap = colormap_name
 				self.plot()
-			self.colormap_box.currentIndexChanged.connect(onColorMap)
 			self.colormap_box.setCurrentIndex(0)
+			self.colormap_box.currentIndexChanged.connect(onColorMap)
 			
 		row += 1
 		
@@ -717,8 +717,8 @@ class PlotDialog(QtGui.QDialog):
 				logger.debug("selected colormap for vector: %r" % colormap_name)
 				self.colormap_vector = colormap_name
 				self.plot()
-			self.colormap_vector_box.currentIndexChanged.connect(onColorMap)
 			self.colormap_vector_box.setCurrentIndex(1)
+			self.colormap_vector_box.currentIndexChanged.connect(onColorMap)
 			
 			row += 1
 
@@ -945,6 +945,10 @@ class PlotDialog(QtGui.QDialog):
 		
 		t0 = time.time()
 		def calculate_range(info, block, axisIndex):
+			if info.error:
+				print "error", info.error_text
+				self.message(info.error_text, index=-1)
+				return True
 			subblock_size = math.ceil(len(block)/self.pool.nthreads)
 			subblock_count = math.ceil(len(block)/subblock_size)
 			def subblock(index):
@@ -956,10 +960,6 @@ class PlotDialog(QtGui.QDialog):
 			#print "block", info.index, info.size, block
 			self.message("min/max[%d] at %.1f%% (%.2fs)" % (axisIndex, info.percentage, time.time() - info.time_start), index=50+axisIndex )
 			QtCore.QCoreApplication.instance().processEvents()
-			if info.error:
-				print "error", info.error_text
-				self.message(info.error_text, index=-1)
-				return
 			if info.first:
 				#self.ranges[axisIndex] = [np.nanmin(block), np.nanmax(block)]
 				#pool.execute(
@@ -975,6 +975,7 @@ class PlotDialog(QtGui.QDialog):
 			print "min/max for axis", axisIndex, self.ranges[axisIndex]
 			if info.last:
 				self.message("min/max[%d] %.2fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
+				self.message("", index=-1) # clear error msg
 
 		for axisIndex in range(self.dimensions):
 			if self.ranges[axisIndex] is None:

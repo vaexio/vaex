@@ -22,3 +22,18 @@ def getdir(parent, title, start_directory=""):
 def gettext(parent, title, label, default=""):
 	text, ok = QtGui.QInputDialog.getText(parent, title, label, QtGui.QLineEdit.Normal, default)
 	return text if ok else None
+
+
+def choose(parent, title, label, options, index=0):
+	text, ok = QtGui.QInputDialog.getItem(parent, title, label, options, index, False)
+	return options.index(text) if ok else None
+	
+	
+import traceback as tb
+def qt_exception(parent, exctype, value, traceback):
+	trace_lines = tb.format_exception(exctype, value, traceback)
+	trace = "".join(trace_lines)
+	text = """An unexpected error occured, you may press ok and continue, but the program might be unstable.
+	
+	""" + trace
+	QtGui.QMessageBox.critical(parent, "Unexpected error: %r" % (value, ), text)

@@ -907,7 +907,7 @@ class Example(QtGui.QMainWindow):
 		self.resize(700,500)
 		self.center()
 		#self.setWindowTitle('Gavi samp test')    
-		self.setWindowTitle(u'MedaV\xe6X')    
+		self.setWindowTitle(u'V\xe6X')    
 		#self.statusBar().showMessage('Ready')
 		
 		
@@ -1052,40 +1052,65 @@ class Example(QtGui.QMainWindow):
 		dialog.show()
 		
 	def onSaveTable(self):
+		def filesize_format(value):
+			for unit in ['bytes','KiB','MiB','GiB']:
+				if value < 1024.0:
+					return "%3.1f%s" % (value, unit)
+				value /= 1024.0
+			return "%3.1f%s" % (num, 'TiB')
+
+		print "aap"
 		dataset = self.right.dataset
-		name = dataset.name + "-mysubset.hdf5" 
+		name = dataset.name + "-mysubset.hdf5"
+		print "noot"
+		options = ["All: %r records, filesize: %r" % (len(dataset), filesize_format(dataset.byte_size())) ]
+		print "mies"
+		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), filesize_format(dataset.byte_size(selection=True))) ]
+		print "wim"
+			
+		index = choose(self, "What do you want to export?", "Choose what to export:", options)
+		if index is None:
+			return
+		export_selection = index == 1
+		
+		
+		
 		filename = QtGui.QFileDialog.getSaveFileName(self, "Save to HDF5", name, "HDF5 *.hdf5")
 		if isinstance(filename, tuple):
 			filename = str(filename[0])#]
 		#print args
 		filename = str(filename)
 		if filename:
-			print filename
+				print filename
+				
+				h5file_output = h5py.File(filename, "w")
+				
+				h5data_output = h5file_output.require_group("data")
+				i1, i2 = dataset.current_slice
+				N = dataset.length(selection=export_selection)
+				print "N", N
+				for column_name in dataset.column_names:
+					column = dataset.columns[column_name]
+					#dataset_output.add_column(column_name, length=len(column), dtype=column.dtype)
+					#assert N == len(column)
+					array = h5file_output.require_dataset("/data/%s" % column_name, shape=(N,), dtype=column.dtype)
+					array[0] = array[0] # make sure the array really exists
 			
-			h5file_output = h5py.File(filename, "w")
-			
-			h5data_output = h5file_output.require_group("data")
-			i1, i2 = dataset.current_slice
-			N = i2-i1
-			print "N", N
-			for column_name in dataset.column_names:
-				column = dataset.columns[column_name]
-				#dataset_output.add_column(column_name, length=len(column), dtype=column.dtype)
-				#assert N == len(column)
-				array = h5file_output.require_dataset("/data/%s" % column_name, shape=(N,), dtype=column.dtype)
-				array[0] = array[0] # make sure the array really exists
-		
-			h5file_output.close()
-			dataset_output = gavi.dataset.Hdf5MemoryMapped(filename, write=True)
-			
-			for column_name in dataset.column_names:
-				with gavi.utils.Timer("copying: %s" % column_name):
-					from_array = dataset.columns[column_name]
-					to_array = dataset_output.columns[column_name]
-					#np.take(from_array, random_index, out=to_array)
-					#print [(k.shape, k.dtype) for k in [from_array, to_array, random_index]]
-					to_array[:] = from_array[i1:i2]
-					#copy(, to_array, random_index)
+				h5file_output.close()
+				dataset_output = gavi.dataset.Hdf5MemoryMapped(filename, write=True)
+				
+				for column_name in dataset.column_names:
+					with gavi.utils.Timer("copying: %s" % column_name):
+						from_array = dataset.columns[column_name]
+						to_array = dataset_output.columns[column_name]
+						#np.take(from_array, random_index, out=to_array)
+						#print [(k.shape, k.dtype) for k in [from_array, to_array, random_index]]
+						if export_selection:
+							if dataset.mask is not None:
+								to_array[:] = from_array[i1:i2][dataset.mask]
+						else:
+							to_array[:] = from_array[i1:i2]
+						#copy(, to_array, random_index)
 		
 	def gadgethdf5(self, filename):
 		print "filename", filename, repr(filename)
@@ -1114,7 +1139,7 @@ class Example(QtGui.QMainWindow):
 	def onSampConnect(self):
 		print "connect"
 		if self.samp is None:
-			self.samp = Samp(daemon=True, name="medavaex")
+			self.samp = Samp(daemon=True, name="vaex")
 			self.samp.tableLoadCallbacks.append(self.onLoadTable)
 			
 			self.samp.client.bindReceiveNotification("table.highlight.row", self._onSampHighlightRow)
@@ -1272,6 +1297,15 @@ def main():
 	
 	
 	ex = Example()
+	
+	#sys._excepthook = sys.excepthook
+	def qt_exception_hook(exctype, value, traceback):
+		sys.__excepthook__(exctype, value, traceback)
+		qt_exception(ex, exctype, value, traceback)
+		#sys._excepthook(exctype, value, traceback)
+		#sys.exit(1)
+	sys.excepthook = qt_exception_hook
+
 	#w = QtGui.QWidget()
 	#w.resize(250, 150)
 	#w.move(300, 300)
