@@ -372,10 +372,11 @@ class PlotDialog(QtGui.QDialog):
 	def __repr__(self):
 		return "<%s at 0x%x expr=%r>" % (self.__class__.__name__, id(self), self.expressions) 
 	
-	def __init__(self, parent, jobsManager, dataset, expressions, axisnames, width=5, height=4, dpi=100):
+	def __init__(self, parent, jobsManager, dataset, expressions, axisnames, width=5, height=4, dpi=100, **kwargs):
 		super(PlotDialog, self).__init__(parent)
 		self.resize(700,700)
 		print "aap"
+		self.kwargs = kwargs
 		
 		self.undoManager = parent.undoManager
 		self.setWindowTitle(dataset.name + "-test")
@@ -581,6 +582,8 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.amplitude_box = QtGui.QComboBox(self)
 		self.amplitude_box.setEditable(True)
+		if "amplitude" in self.kwargs:
+			self.amplitude_box.addItems([self.kwargs["amplitude"]])
 		self.amplitude_box.addItems(["log(counts) if weighted is None else average", "counts", "counts**2", "sqrt(counts)"])
 		self.amplitude_box.addItems(["log(counts+1)"])
 		self.amplitude_box.addItems(["counts/peak_columns # divide by peak value in every row"])
@@ -2029,8 +2032,8 @@ class PlotDialog(QtGui.QDialog):
 
 
 class HistogramPlotDialog(PlotDialog):
-	def __init__(self, parent, jobsManager, dataset, expression):
-		super(HistogramPlotDialog, self).__init__(parent, jobsManager, dataset, [expression], ["X"])
+	def __init__(self, parent, jobsManager, dataset, expression, **kwargs):
+		super(HistogramPlotDialog, self).__init__(parent, jobsManager, dataset, [expression], ["X"], **kwargs)
 		
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)

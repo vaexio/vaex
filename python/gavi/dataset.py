@@ -721,6 +721,177 @@ class FitsBinTable(MemoryMapped):
 dataset_type_map["fits"] = FitsBinTable
 		
 		
+class InMemoryTable(MemoryMapped):
+	def __init__(self, filename, write=False):
+		super(InMemoryTable, self).__init__(filename)
+		
+		
+		
+		N = int(1e7)
+		a0 = 1.
+		t = np.linspace(0, 2 * np.pi * 5, N) + 2 * np.pi/1000 * (np.random.random() - 0.5)
+		a0 = a0 - t /t.max() * a0 * 0.5
+		a = np.zeros(N) + a0 + a0 * 0.1 * (np.random.random(N) - 0.5)
+		b = 0.2
+		x = a * (np.cos(t) + 0.2 * (np.random.random(N) - 0.5))
+		y = a * (np.sin(t) + 0.2 * (np.random.random(N) - 0.5))
+		z = b * t
+		
+		self.addColumn("x", array=x)
+		self.addColumn("y", array=y)
+		self.addColumn("z", array=z)
+		self.addColumn("a", array=a)
+		self.addColumn("t", array=t)
+		return
+
+		#for i in range(N):
+		#	a[
+		
+		
+		N = 2+4+8+16+32+64+128
+		rand = np.random.random(N-1)
+		rand_y = np.random.random(N-1)
+		#x = 
+		xlist =[]
+		ylist =[]
+		for i in range(15000*2):
+			#random.seed(0)
+			index = 0
+			level = 0
+			offset = 0
+			x1 = 0.
+			x2 = 1.
+			xs = []
+			ys = []
+			for j in range(7):
+				#level = 5 - j
+				Nlevel = 2**(level+1)
+				#offset = sum(
+				#print "\t", offset, index, Nlevel
+				u1 = np.random.random()
+				u2 = np.random.random()
+				#c = rand[offset:offset+Nlevel].min()
+				#c = 0
+				#v1 = rand[offset+index] - c
+				#v2 = rand[offset+index+1] - c
+				#assert v1 >= 0
+				#assert v2 >= 0
+				#print "\t\t", rand[offset:offset+Nlevel], v1, v2
+				cumulative = np.cumsum(rand[offset:offset+Nlevel])
+				cumulative = np.cumsum(np.arange(Nlevel))
+				cumulative = []
+				total = 0
+				for value in rand[offset:offset+Nlevel]:
+					total += value
+					cumulative.append(total)
+				cumulative = np.array(cumulative)
+				cumulative = cumulative * 1./cumulative[-1]
+				#print cumulative
+				for i, value in enumerate(cumulative):
+					if value >= u1:
+						break
+				left, mid, right = [(float(i+1+j/2.*2))/(Nlevel+1) for j in [-1,0,1]]
+				x  = np.random.triangular(left, mid, right)
+
+				cumulative = []
+				total = 0
+				for value in rand_y[offset:offset+Nlevel]:
+					total += value
+					cumulative.append(total)
+				cumulative = np.array(cumulative)
+				cumulative = cumulative * 1./cumulative[-1]
+				for i, value in enumerate(cumulative):
+					if value >= u2:
+						break
+				left, mid, right = [(float(i+1+j/2.*2))/(Nlevel+1) for j in [-1,0,1]]
+				y  = np.random.triangular(left, mid, right)
+				if 0:
+					if v1 < v2:
+						b = v1
+						c = v2-v1
+						w = (-b + np.sqrt(b**2.+4.*c*u )) /   (-b + np.sqrt(b**2.+4.*c ))
+						x = x1 + w * (x2-x1)
+					else:
+						b = v2
+						c = v1-v2
+						w = 1. - (-b + np.sqrt(b**2.+4.*c*u )) /   (-b + np.sqrt(b**2.+4.*c ))
+						x = x2 - (x2-x1)*w
+				#w = np.sqrt(r)
+				#xs.append(x1 + w * (x2-x1))
+				xs.append(x)# - (x1+x2)/2.)
+				ys.append(y)
+				if 0:
+					if w < 0.5:
+						x1, x2 = x1, x1 + (x2-x1)/2.
+						index = index * 2
+						#offset += Nlevel
+						print "left", x1, x2
+					else:
+						x1, x2 =  x1 + (x2-x1)/2., x2
+						#offset += Nlevel*2
+						index = (index+1) * 2
+						print "right", x1, x2
+				level += 1
+				offset += Nlevel
+				#if np.random.random() < 0.21:
+				#	break
+				#print "\t", offset, index, Nlevel
+			#print
+			#xs = [np.sqrt(np.random.random())]
+			amplitudes = 1./(np.arange(len(xs)) + 1)**2
+			#xlist.append( np.sum( (xs*amplitudes)/np.sum(amplitudes) )  )
+			#xlist.append( (xs[0] + xs[1] * 0.5)/1.5  )
+			#xlist.append(sum(xs * amplitudes))
+			#xlist.append(sum(xs))
+			#xlist.append(xs[4])
+			xlist.extend(xs[3:])
+			ylist.extend(ys[3:])
+			
+		#print xlist
+		#print ylist
+			
+		self.addColumn("x", array=np.array(xlist))
+		self.addColumn("y", array=np.array(ylist))
+		#self.addColumn("x", array=np.random.random(10000)**0.5)
+		
+		return
+				
+				#if random.
+				
+		
+		x = []
+		y = []
+		z = []
+		
+		for i in range(100):
+			x0, y0, z0 = 0., 0., 0.
+			vx, vy, vz = 1., 0., 0.
+			for i in range(1000):
+				x0 += vx
+				y0 += vy
+				z0 += vz
+				x.append(x0)
+				y.append(y0)
+				z.append(z0)
+				s = 0.01
+				vx += np.random.random() * s-s/2
+				vy += np.random.random() * s-s/2
+				vz += np.random.random() * s-s/2
+				if np.random.random() < 0.05:
+					s = 1.
+					vx += np.random.random() * s-s/2
+					#vz += np.random.random() * s-s/2
+					
+		x = np.array(x)
+		y = np.array(y)
+		z = np.array(z)
+		self.addColumn("x", array=x)
+		self.addColumn("y", array=y)
+		self.addColumn("z", array=z)
+			
+		
+dataset_type_map["fits"] = FitsBinTable
+		
 class Hdf5MemoryMapped(MemoryMapped):
 	def __init__(self, filename, write=False):
 		super(Hdf5MemoryMapped, self).__init__(filename, write=write)
@@ -851,14 +1022,20 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 						self.addColumn("vx", offset, data.shape[0], dtype=data.dtype, stride=3)
 						self.addColumn("vy", offset+4, data.shape[0], dtype=data.dtype, stride=3)
 						self.addColumn("vz", offset+8, data.shape[0], dtype=data.dtype, stride=3)
+					elif name == "Velocities":
+						offset = data.id.get_offset() 
+						self.addColumn("vx", offset, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("vy", offset+4, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("vz", offset+8, data.shape[0], dtype=data.dtype, stride=3)
 					else:
 						print "unsupported column: %r of shape %r" % (name, array.shape)
 		if "Header" in h5file:
 			for name in "Redshift Time_GYR".split():
-				value = h5file["Header"].attrs[name]
-				logger.debug("property[{name!r}] = {value}".format(**locals()))
-				self.properties[name] = value
-				self.property_names.append(name)
+				if name in h5file["Header"]:
+					value = h5file["Header"].attrs[name]
+					logger.debug("property[{name!r}] = {value}".format(**locals()))
+					self.properties[name] = value
+					self.property_names.append(name)
 		
 		name = "particle_type"
 		value = particleType

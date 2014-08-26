@@ -28,8 +28,9 @@ import numexpr as ne
 import imp
 
 import gavi.logging
-logger = gavi.logging.getLogger("gavi.vaex")
-
+logger = gavi.logging.getLogger("gavi")
+import logging
+logger.setLevel(logging.DEBUG)
 
 import sys
 import locale
@@ -355,10 +356,13 @@ class DataList(QtGui.QListWidget):
 	
 	def addGadgetHdf5(self, filename, name, particleType):
 		if not os.path.exists(filename):
+			print "does not exist", filename
 			return
 		try:
 			self.hdf5file = Hdf5MemoryMappedGadget(filename, name, particleType)
-		except KeyError:
+		except KeyError, e:
+			print "error", e
+			logger.exception("loading gadget hdf5")
 			return
 		self.setBestFraction(self.hdf5file)
 		item = QtGui.QListWidgetItem(self)
@@ -722,8 +726,8 @@ class MainPanel(QtGui.QFrame):
 		dialog.show()
 		print "show"
 		
-	def histogram(self, xname):
-		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, xname)
+	def histogram(self, xname, **kwargs):
+		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, xname, **kwargs)
 		dialog.show()
 		self.plot_dialogs.append(dialog)
 		self.jobsManager.execute()
