@@ -14,6 +14,7 @@ from gavi import multithreading
 import functools
 
 import gavi.vaex.expressions as expr
+import gavi.events
 
 import sys
 import platform
@@ -398,6 +399,8 @@ class MemoryMapped(object):
 		self.filename = filename
 		self.write = write
 		self.name = os.path.splitext(os.path.basename(self.filename))[0]
+		self.path = os.path.abspath(filename)
+		self.nommap = nommap
 		if not nommap:
 			self.file = file(self.filename, "r+" if write else "r")
 			self.fileno = self.file.fileno()
@@ -441,6 +444,10 @@ class MemoryMapped(object):
 		self.strides = {}
 		self.filenames = {}
 		self.dtypes = {}
+		self.samp_id = None
+		
+		self.signal_pick = gavi.events.Signal("pick")
+		
 		
 	def evaluate(self, callback, *expressions, **variables):
 		jobManager = JobsManager()
@@ -503,6 +510,8 @@ class MemoryMapped(object):
 		
 	def selectRow(self, index):
 		self.selected_row_index = index
+		logger.debug("emit pick signal: %r" % index)
+		self.signal_pick.emit(index)
 		for row_selection_listener in self.row_selection_listeners:
 			row_selection_listener(index)
 		
@@ -534,7 +543,8 @@ class MemoryMapped(object):
 		# TODO: if row in slice, we don't have to remove it
 		self.selectRow(None)
 		
-	def addMemoryColumn(self, name, column):
+	def __addMemoryColumn(self, name, column):
+		# remove, is replaced by array argument of addColumn
 		length = len(column)
 		if self.current_slice is None:
 			self.current_slice = (0, length)
@@ -565,7 +575,8 @@ class MemoryMapped(object):
 	def addColumn(self, name, offset=None, length=None, dtype=np.float64, stride=1, filename=None, array=None):
 		if filename is None:
 			filename = self.filename
-		mapping = self.mapping_map[filename]
+		if not self.nommap:
+			mapping = self.mapping_map[filename]
 			
 		if array is not None:
 			length = len(array)
@@ -635,6 +646,18 @@ class MemoryMapped(object):
 			#self.nColumns += 1
 			#self.nRows = self._length
 			
+	@classmethod
+	def can_open(cls, path):
+		return False
+	
+	@classmethod
+	def get_options(cls, path):
+		return []
+	
+	@classmethod
+	def option_to_args(cls, option):
+		return []
+
 import struct
 class HansMemoryMapped(MemoryMapped):
 	def __init__(self, filename, filename_extra=None):
@@ -732,8 +755,191 @@ class FitsBinTable(MemoryMapped):
 					column.array[:] # 2nd time it will be a real np array
 					self.addColumn(column.name, array=column.array[:])
 		#BinTableHDU
+	@classmethod
+	def can_open(cls, path):
+		return os.path.splitext(path)[1] == ".fits"
+	
+	@classmethod
+	def get_options(cls, path):
+		return [] # future: support multiple tables?
+	
+	@classmethod
+	def option_to_args(cls, option):
+		return []
+
 dataset_type_map["fits"] = FitsBinTable
 		
+		
+class InMemoryTable(MemoryMapped):
+	def __init__(self, filename, write=False):
+		super(InMemoryTable, self).__init__(filename)
+		
+		
+		
+		N = int(1e7)
+		a0 = 1.
+		t = np.linspace(0, 2 * np.pi * 5, N) + 2 * np.pi/1000 * (np.random.random() - 0.5)
+		a0 = a0 - t /t.max() * a0 * 0.5
+		a = np.zeros(N) + a0 + a0 * 0.1 * (np.random.random(N) - 0.5)
+		b = 0.2
+		x = a * (np.cos(t) + 0.2 * (np.random.random(N) - 0.5))
+		y = a * (np.sin(t) + 0.2 * (np.random.random(N) - 0.5))
+		z = b * t
+		
+		self.addColumn("x", array=x)
+		self.addColumn("y", array=y)
+		self.addColumn("z", array=z)
+		self.addColumn("a", array=a)
+		self.addColumn("t", array=t)
+		return
+
+		#for i in range(N):
+		#	a[
+		
+		
+		N = 2+4+8+16+32+64+128
+		rand = np.random.random(N-1)
+		rand_y = np.random.random(N-1)
+		#x = 
+		xlist =[]
+		ylist =[]
+		for i in range(15000*2):
+			#random.seed(0)
+			index = 0
+			level = 0
+			offset = 0
+			x1 = 0.
+			x2 = 1.
+			xs = []
+			ys = []
+			for j in range(7):
+				#level = 5 - j
+				Nlevel = 2**(level+1)
+				#offset = sum(
+				#print "\t", offset, index, Nlevel
+				u1 = np.random.random()
+				u2 = np.random.random()
+				#c = rand[offset:offset+Nlevel].min()
+				#c = 0
+				#v1 = rand[offset+index] - c
+				#v2 = rand[offset+index+1] - c
+				#assert v1 >= 0
+				#assert v2 >= 0
+				#print "\t\t", rand[offset:offset+Nlevel], v1, v2
+				cumulative = np.cumsum(rand[offset:offset+Nlevel])
+				cumulative = np.cumsum(np.arange(Nlevel))
+				cumulative = []
+				total = 0
+				for value in rand[offset:offset+Nlevel]:
+					total += value
+					cumulative.append(total)
+				cumulative = np.array(cumulative)
+				cumulative = cumulative * 1./cumulative[-1]
+				#print cumulative
+				for i, value in enumerate(cumulative):
+					if value >= u1:
+						break
+				left, mid, right = [(float(i+1+j/2.*2))/(Nlevel+1) for j in [-1,0,1]]
+				x  = np.random.triangular(left, mid, right)
+
+				cumulative = []
+				total = 0
+				for value in rand_y[offset:offset+Nlevel]:
+					total += value
+					cumulative.append(total)
+				cumulative = np.array(cumulative)
+				cumulative = cumulative * 1./cumulative[-1]
+				for i, value in enumerate(cumulative):
+					if value >= u2:
+						break
+				left, mid, right = [(float(i+1+j/2.*2))/(Nlevel+1) for j in [-1,0,1]]
+				y  = np.random.triangular(left, mid, right)
+				if 0:
+					if v1 < v2:
+						b = v1
+						c = v2-v1
+						w = (-b + np.sqrt(b**2.+4.*c*u )) /   (-b + np.sqrt(b**2.+4.*c ))
+						x = x1 + w * (x2-x1)
+					else:
+						b = v2
+						c = v1-v2
+						w = 1. - (-b + np.sqrt(b**2.+4.*c*u )) /   (-b + np.sqrt(b**2.+4.*c ))
+						x = x2 - (x2-x1)*w
+				#w = np.sqrt(r)
+				#xs.append(x1 + w * (x2-x1))
+				xs.append(x)# - (x1+x2)/2.)
+				ys.append(y)
+				if 0:
+					if w < 0.5:
+						x1, x2 = x1, x1 + (x2-x1)/2.
+						index = index * 2
+						#offset += Nlevel
+						print "left", x1, x2
+					else:
+						x1, x2 =  x1 + (x2-x1)/2., x2
+						#offset += Nlevel*2
+						index = (index+1) * 2
+						print "right", x1, x2
+				level += 1
+				offset += Nlevel
+				#if np.random.random() < 0.21:
+				#	break
+				#print "\t", offset, index, Nlevel
+			#print
+			#xs = [np.sqrt(np.random.random())]
+			amplitudes = 1./(np.arange(len(xs)) + 1)**2
+			#xlist.append( np.sum( (xs*amplitudes)/np.sum(amplitudes) )  )
+			#xlist.append( (xs[0] + xs[1] * 0.5)/1.5  )
+			#xlist.append(sum(xs * amplitudes))
+			#xlist.append(sum(xs))
+			#xlist.append(xs[4])
+			xlist.extend(xs[3:])
+			ylist.extend(ys[3:])
+			
+		#print xlist
+		#print ylist
+			
+		self.addColumn("x", array=np.array(xlist))
+		self.addColumn("y", array=np.array(ylist))
+		#self.addColumn("x", array=np.random.random(10000)**0.5)
+		
+		return
+				
+				#if random.
+				
+		
+		x = []
+		y = []
+		z = []
+		
+		for i in range(100):
+			x0, y0, z0 = 0., 0., 0.
+			vx, vy, vz = 1., 0., 0.
+			for i in range(1000):
+				x0 += vx
+				y0 += vy
+				z0 += vz
+				x.append(x0)
+				y.append(y0)
+				z.append(z0)
+				s = 0.01
+				vx += np.random.random() * s-s/2
+				vy += np.random.random() * s-s/2
+				vz += np.random.random() * s-s/2
+				if np.random.random() < 0.05:
+					s = 1.
+					vx += np.random.random() * s-s/2
+					#vz += np.random.random() * s-s/2
+					
+		x = np.array(x)
+		y = np.array(y)
+		z = np.array(z)
+		self.addColumn("x", array=x)
+		self.addColumn("y", array=y)
+		self.addColumn("z", array=z)
+			
+		
+dataset_type_map["fits"] = FitsBinTable
 		
 class Hdf5MemoryMapped(MemoryMapped):
 	def __init__(self, filename, write=False):
@@ -741,6 +947,26 @@ class Hdf5MemoryMapped(MemoryMapped):
 		self.h5file = h5py.File(self.filename, "r+" if write else "r")
 		self.load()
 		
+	@classmethod
+	def can_open(cls, path):
+		h5file = None
+		try:
+			h5file = h5py.File(path)
+		except:
+			return False
+		if h5file is not None:
+			return ("data" in h5file) or ("columns" in h5file)
+		return False
+			
+	
+	@classmethod
+	def get_options(cls, path):
+		return []
+	
+	@classmethod
+	def option_to_args(cls, option):
+		return []
+
 	def load(self):
 		if "data" in self.h5file:
 			self.load_columns(self.h5file["/data"])
@@ -772,10 +998,10 @@ class Hdf5MemoryMapped(MemoryMapped):
 		finished = set()
 		for column_name in first + list(h5data):
 			if column_name in h5data and column_name not in finished:
-				print type(column_name)
+				#print type(column_name)
 				column = h5data[column_name]
 				if hasattr(column, "dtype"):
-					print column
+					#print column
 					offset = column.id.get_offset() 
 					shape = column.shape
 					if len(shape) == 1:
@@ -814,6 +1040,17 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 	def __init__(self, filename, write=False):
 		super(AmuseHdf5MemoryMapped, self).__init__(filename, write=write)
 		
+	@classmethod
+	def can_open(cls, path):
+		h5file = None
+		try:
+			h5file = h5py.File(path)
+		except:
+			return False
+		if h5file is not None:
+			return ("particles" in h5file)# or ("columns" in h5file)
+		return False
+
 	def load(self):
 		particles = self.h5file["/particles"]
 		print "amuse", particles
@@ -865,14 +1102,20 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 						self.addColumn("vx", offset, data.shape[0], dtype=data.dtype, stride=3)
 						self.addColumn("vy", offset+4, data.shape[0], dtype=data.dtype, stride=3)
 						self.addColumn("vz", offset+8, data.shape[0], dtype=data.dtype, stride=3)
+					elif name == "Velocities":
+						offset = data.id.get_offset() 
+						self.addColumn("vx", offset, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("vy", offset+4, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("vz", offset+8, data.shape[0], dtype=data.dtype, stride=3)
 					else:
 						print "unsupported column: %r of shape %r" % (name, array.shape)
 		if "Header" in h5file:
 			for name in "Redshift Time_GYR".split():
-				value = h5file["Header"].attrs[name]
-				logger.debug("property[{name!r}] = {value}".format(**locals()))
-				self.properties[name] = value
-				self.property_names.append(name)
+				if name in h5file["Header"]:
+					value = h5file["Header"].attrs[name]
+					logger.debug("property[{name!r}] = {value}".format(**locals()))
+					self.properties[name] = value
+					self.property_names.append(name)
 		
 		name = "particle_type"
 		value = particleType
@@ -900,3 +1143,19 @@ class MemoryMappedGadget(MemoryMapped):
 		self.addColumn("vz", veloffset+8, length, dtype=np.float32, stride=3)
 dataset_type_map["gadget-plain"] = MemoryMappedGadget
 		
+		
+def can_open(path):
+	for name, class_ in dataset_type_map.items():
+		if class_.can_open(path):
+			return True
+		
+def load_file(path):
+	dataset_class = None
+	for name, class_ in gavi.dataset.dataset_type_map.items():
+		if class_.can_open(path):
+			dataset_class = class_
+			break
+	if dataset_class:
+		dataset = dataset_class(path)
+		return dataset
+	

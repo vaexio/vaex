@@ -22,10 +22,10 @@ numdir = os.path.dirname(numpy.__file__)
 import sys 
 sys.setrecursionlimit(10000)
 
-APP = ["bin/medavaex"]
+APP = ["bin/vaex"]
 DATA_FILES = []
-if has_py2app:
-	DATA_FILES.append(["data", ["data/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5", "data/Aq-A-2-999-shuffled-1percent.hdf5"]])
+#if has_py2app:
+#	DATA_FILES.append(["data", ["data/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5", "data/Aq-A-2-999-shuffled-1percent.hdf5"]])
 OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/gavi/icons'], 'matplotlib_backends':'-'}
 
 
@@ -77,7 +77,7 @@ if has_py2app:
 	""".strip().splitlines()]
 
 	libpath = "/Users/maartenbreddels/anaconda/lib"
-	targetdir = 'dist/medavaex.app/Contents/Resources/lib/'
+	targetdir = 'dist/vaex.app/Contents/Resources/lib/'
 	for filename in libs:
 		path = os.path.join(libpath, filename)
 		cmd = "cp %s %s" % (path, targetdir)

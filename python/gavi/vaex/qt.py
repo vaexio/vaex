@@ -27,7 +27,12 @@ def gettext(parent, title, label, default=""):
 def choose(parent, title, label, options, index=0):
 	text, ok = QtGui.QInputDialog.getItem(parent, title, label, options, index, False)
 	return options.index(text) if ok else None
+
+def dialog_error(parent, title, msg):	
+	QtGui.QMessageBox.warning(parent, title, msg)
 	
+def dialog_info(parent, title, msg):	
+	QtGui.QMessageBox.information(parent, title, msg)
 	
 import traceback as tb
 def qt_exception(parent, exctype, value, traceback):
@@ -37,3 +42,5 @@ def qt_exception(parent, exctype, value, traceback):
 	
 	""" + trace
 	QtGui.QMessageBox.critical(parent, "Unexpected error: %r" % (value, ), text)
+	
+	
