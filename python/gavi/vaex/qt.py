@@ -9,6 +9,8 @@ except ImportError, e1:
 	try:
 		from PySide import QtGui, QtCore, QtNetwork
 		from PySide.QtWebKit import QWebView
+		QtCore.pyqtSignal= QtCore.Signal 
+		#QtCore.Slot = QtCore.pyqtSlot
 	except ImportError, e2:
 		print >>sys.stderr, "could not import PyQt4 or PySide, please install"
 		print >>sys.stderr, "errors: ", repr(e1), repr(e2)

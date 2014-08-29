@@ -1057,7 +1057,7 @@ class Vaex(QtGui.QMainWindow):
 				self.toolbar.addAction(self.action_open_fits)
 			self.toolbar.addAction(self.action_save_hdf5)
 		
-		if 0:
+		if 1:
 			if custom is not None:
 				custom.loadDatasets(self.list)
 				custom.openPlots(self.right)

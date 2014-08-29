@@ -128,11 +128,18 @@ class JobsManager(object):
 		
 	def execute(self):
 		try:
+			# keep a local copy to support reentrant calling
+			jobs = self.jobs
+			order_numbers = self.order_numbers
+			self.jobs = []
+			self.order_numbers = []
+
+			cancelled = False
 			with Timer("init"):
-				self.order_numbers.sort()
+				order_numbers.sort()
 				
 				all_expressions_set = set()
-				for order, callback, dataset, expressions, variables in self.jobs:
+				for order, callback, dataset, expressions, variables in jobs:
 					for expression in expressions:
 						all_expressions_set.add((dataset, expression))
 				# for each expresssion keep an array for intermediate storage
@@ -143,10 +150,12 @@ class JobsManager(object):
 			
 			# multiple passes, in order
 			with Timer("passes"):
-				for order in self.order_numbers:
+				for order in order_numbers:
+					if cancelled:
+						break
 					logger.debug("jobs, order: %r" % order)
-					jobs_order = [job for job in self.jobs if job[0] == order]
-					datasets = set([job[2] for job in self.jobs])
+					jobs_order = [job for job in jobs if job[0] == order]
+					datasets = set([job[2] for job in jobs])
 					# TODO: maybe per dataset a seperate variable dict
 					variables = {}
 					for job in jobs_order:
@@ -189,6 +198,8 @@ class JobsManager(object):
 						# execute blocks for all expressions, better for Lx cache
 						t0 = time.time()
 						for block_index in range(n_blocks):
+							if cancelled:
+								break
 							i1 = block_index * buffer_size
 							i2 = (block_index +1) * buffer_size
 							last = False
@@ -206,6 +217,8 @@ class JobsManager(object):
 							for key, value in dataset.rank1s.items():
 								local_dict[key] = value[:,i1:i2]
 							for dataset, expression in expressions_dataset:
+								if cancelled:
+									break
 								if expression is None:
 									expr_noslice, slice_vars = None, {}
 								else:
@@ -282,9 +295,10 @@ class JobsManager(object):
 									logger.debug("output[%r]: None" % (key,))
 								else:
 									logger.debug("output[%r]: %r, %r" % (key, value.shape, value.dtype))
-							cancelled = False
 							with Timer("callbacks"):
 								for _order, callback, dataset, expressions, _variables in jobs_dataset:
+									if cancelled:
+										break
 									logger.debug("callback: %r" % (callback))
 									arguments = [info]
 									arguments += [results.get(expression) for expression in expressions]
@@ -292,15 +306,17 @@ class JobsManager(object):
 							if info.error:
 								# if we get an error, no need to go through the whole data
 								break
-			for callback in self.after_execute:
-				try:
-					callback()
-				except:
-					logger.exception("error in post processing callback")
+			if not cancelled:
+				for callback in self.after_execute:
+					try:
+						callback()
+					except:
+						logger.exception("error in post processing callback")
 					
 		finally:
-			self.jobs = []
-			self.order_numbers = []
+			#self.jobs = []
+			#self.order_numbers = []
+			pass
 
 
 class Link(object):
@@ -773,6 +789,33 @@ dataset_type_map["fits"] = FitsBinTable
 class InMemoryTable(MemoryMapped):
 	def __init__(self, filename, write=False):
 		super(InMemoryTable, self).__init__(filename)
+		
+		
+		eta = 5
+		max_level = 10
+		dim = 4
+		N = eta**(max_level+1)
+		array = np.zeros((dim, N), dtype=np.float64)
+		L = 2.2
+		print "size", N
+		
+		
+		def do(center, size, index, level):
+			pos = center.reshape((-1,1)) + np.random.random((dim, eta)) * size - size/2
+			#array[:,index:index+eta] = pos
+			if level == max_level:
+				#print index, index+eta, array.shape
+				array[:,index:index+eta] = pos
+				return index+eta
+			else:
+				for i in range(eta):
+					index = do(pos[:,i], size/L, index, level+1)
+				return index
+			
+		do(np.zeros(dim), 1., 0, 0)
+		for i, name in zip(range(dim), "x y z w v u".split()):
+			self.addColumn(name, array=array[i])
+		
 		
 		
 		

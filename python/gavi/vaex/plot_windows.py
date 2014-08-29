@@ -471,6 +471,7 @@ class PlotDialog(QtGui.QDialog):
 		self.afterCanvas(self.boxlayout)
 		self.setLayout(self.boxlayout)
 		
+		self.compute_counter = 1 # to avoid reentrant 'computes'
 		self.compute()
 		self.jobsManager.after_execute.append(self.plot)
 		#self.plot()
@@ -840,7 +841,7 @@ class PlotDialog(QtGui.QDialog):
 		layout.addWidget(self.status_bar)
 		#self.setStatusBar(self.status_bar)
 		#layout.setMargin(0)
-		self.grid_layout.setMargin(0)
+		#self.grid_layout.setMargin(0)
 		self.grid_layout.setHorizontalSpacing(0)
 		self.grid_layout.setVerticalSpacing(0)
 		self.grid_layout.setContentsMargins(0, 0, 0, 0)
@@ -872,6 +873,7 @@ class PlotDialog(QtGui.QDialog):
 				shortcut.activated.connect(trigger(action))
 				self.shortcuts.append(shortcut)
 		addShortCut(self.action_fullscreen, "F")
+		addShortCut(self.action_toolbar_toggle, "T")
 		addShortCut(self.action_move, "M")
 		addShortCut(self.action_pick, "P")
 		addShortCut(self.action_mini_mode_normal, "C")
@@ -1092,9 +1094,12 @@ class PlotDialog(QtGui.QDialog):
 
 
 	def compute(self):
-		
+		compute_counter = self.compute_counter = self.compute_counter + 1
 		t0 = time.time()
 		def calculate_range(info, block, axisIndex):
+			if compute_counter < self.compute_counter:
+				print "STOP " * 100
+				return True
 			if info.error:
 				print "error", info.error_text
 				self.message(info.error_text, index=-1)
@@ -1134,7 +1139,7 @@ class PlotDialog(QtGui.QDialog):
 		#	self.jobsManager.addJob(1, self.calculate_visuals, self.dataset, *self.expressions, **self.getVariableDict())
 		#else:
 		all_expressions = self.expressions + [self.weight_expression, self.weight_x_expression, self.weight_y_expression, self.weight_xy_expression]
-		self.jobsManager.addJob(1, self.calculate_visuals, self.dataset, *all_expressions, **self.getVariableDict())
+		self.jobsManager.addJob(1, functools.partial(self.calculate_visuals, compute_counter=compute_counter), self.dataset, *all_expressions, **self.getVariableDict())
 	
 	def getVariableDict(self):
 		return {}
@@ -1915,8 +1920,11 @@ class PlotDialog(QtGui.QDialog):
 
 		self.action_fullscreen = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&fullscreen', self)
 		self.action_fullscreen.setCheckable(True)
-		self.action_fullscreen.setChecked(True)
 
+		self.action_toolbar_toggle = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&toolbars', self)
+		self.action_toolbar_toggle.setCheckable(True)
+		self.action_toolbar_toggle.setChecked(True)
+		
 		self.actiongroup_mini_mode.addAction(self.action_mini_mode_normal)
 		self.actiongroup_mini_mode.addAction(self.action_mini_mode_ultra)
 		#self.actiongroup_mini_mode.addAction(self.action_fullscreen)
@@ -1933,6 +1941,9 @@ class PlotDialog(QtGui.QDialog):
 				self.setWindowState(self.windowState() ^ QtCore.Qt.WindowFullScreen);
 			
 		self.action_fullscreen.triggered.connect(toggle_fullscreen)
+		
+		
+		self.action_toolbar_toggle.triggered.connect(self.on_toolbar_toggle)
 
 		self.action_move = QtGui.QAction(QtGui.QIcon(iconfile('edit-move')), '&Move', self)
 		self.action_pick = QtGui.QAction(QtGui.QIcon(iconfile('cursor')), '&Pick', self)
@@ -2044,6 +2055,7 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.toolbar.addAction(self.action_mini_mode)
 		self.toolbar.addAction(self.action_fullscreen)
+		self.toolbar.addAction(self.action_toolbar_toggle)
 
 		self.toolbar.addAction(self.action_move)
 		if pick:
@@ -2195,8 +2207,13 @@ class PlotDialog(QtGui.QDialog):
 		else:
 			self.fig.subplots_adjust(**self.subplotpars_values)
 			self.canvas.draw()
+			
+	def on_toolbar_toggle(self, ignore=None):
+		self.action_toolbar_toggle.toggle()
+		visible = self.action_toolbar_toggle.isChecked()
+		print "toolbar visible", visible
 		for widget in [self.toolbar, self.toolbar2, self.status_bar]:
-			widget.setVisible(not (enabled_mini_mode and ultra_mode))
+			widget.setVisible(visible)
 		
 	def onActionMiniModeNormal(self, *args):
 		#self.mini_mode_button.setDefaultAction(self.action_miniscreen)
@@ -2300,7 +2317,10 @@ class HistogramPlotDialog(PlotDialog):
 		self.addToolbar2(layout, contrast=False, gamma=False)
 		super(HistogramPlotDialog, self).afterCanvas(layout)
 
-	def calculate_visuals(self, info, block, weights_block, weights_x_block, weights_y_block, weights_xy_block):
+	def calculate_visuals(self, info, block, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
+		if compute_counter < self.compute_counter:
+			print "STOP " * 100
+			return True
 		if info.error:
 			print "error", info.error_text
 			self.expression_error = True
@@ -2480,7 +2500,10 @@ class ScatterPlotDialog(PlotDialog):
 	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None, **options):
 		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname], "X Y".split(), **options)
 		
-	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block):
+	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
+		if compute_counter < self.compute_counter:
+			print "STOP " * 100
+			return True
 		if info.error:
 			self.message(info.error_text, index=-2)
 			return
