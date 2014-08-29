@@ -109,13 +109,19 @@ PyObject* range_check_(PyObject* self, PyObject *args) {
 		int length = -1;
 		double *block_ptr = NULL;
 		unsigned char *mask_ptr = NULL;
-		object_to_numpy1d_nocopy(block_ptr, block, length);
-		object_to_numpy1d_nocopy(mask_ptr, mask, length, NPY_BOOL);
-		Py_BEGIN_ALLOW_THREADS
-		range_check(block_ptr, mask_ptr, length, min, max);
-		Py_END_ALLOW_THREADS
-		Py_INCREF(Py_None);
-		result = Py_None;
+		try {
+			object_to_numpy1d_nocopy(block_ptr, block, length);
+			object_to_numpy1d_nocopy(mask_ptr, mask, length, NPY_BOOL);
+			Py_BEGIN_ALLOW_THREADS
+			range_check(block_ptr, mask_ptr, length, min, max);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		} catch(...) {
+			PyErr_SetString(PyExc_RuntimeError, "unknown exception");
+		}
 	}
 	return result;
 }
@@ -216,11 +222,15 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 		int length = -1;
 		double *block_ptr = NULL;
 		double min=0., max=1.;
-		object_to_numpy1d_nocopy(block_ptr, block, length);
-		Py_BEGIN_ALLOW_THREADS
-		find_nan_min_max(block_ptr, length, min, max);
-		Py_END_ALLOW_THREADS
-		result = Py_BuildValue("dd", min, max); 
+		try {
+			object_to_numpy1d_nocopy(block_ptr, block, length);
+			Py_BEGIN_ALLOW_THREADS
+			find_nan_min_max(block_ptr, length, min, max);
+			Py_END_ALLOW_THREADS
+			result = Py_BuildValue("dd", min, max); 
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
 	}
 	return result;
 }
@@ -247,16 +257,20 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 		double *block_ptr = NULL;
 		double *counts_ptr = NULL;
 		double *weights_ptr = NULL;
-		object_to_numpy1d_nocopy(block_ptr, block, block_length);
-		object_to_numpy1d_nocopy(counts_ptr, counts, counts_length);
-		if(weights != Py_None) {
-			object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+		try {
+			object_to_numpy1d_nocopy(block_ptr, block, block_length);
+			object_to_numpy1d_nocopy(counts_ptr, counts, counts_length);
+			if(weights != Py_None) {
+				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+			}
+			Py_BEGIN_ALLOW_THREADS
+			histogram1d(block_ptr, weights_ptr, block_length, counts_ptr, counts_length, min, max);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
-		Py_BEGIN_ALLOW_THREADS
-		histogram1d(block_ptr, weights_ptr, block_length, counts_ptr, counts_length, min, max);
-		Py_END_ALLOW_THREADS
-		Py_INCREF(Py_None);
-		result = Py_None;
 	}
 	return result;
 }
@@ -309,17 +323,21 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 		double *blocky_ptr = NULL;
 		double *weights_ptr = NULL;
 		double *counts_ptr = NULL;
-		object_to_numpy1d_nocopy(blockx_ptr, blockx, block_length);
-		object_to_numpy1d_nocopy(blocky_ptr, blocky, block_length);
-		object_to_numpy2d_nocopy(counts_ptr, counts, counts_length_x, counts_length_y);
-		if(weights != Py_None) {
-			object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+		try {
+			object_to_numpy1d_nocopy(blockx_ptr, blockx, block_length);
+			object_to_numpy1d_nocopy(blocky_ptr, blocky, block_length);
+			object_to_numpy2d_nocopy(counts_ptr, counts, counts_length_x, counts_length_y);
+			if(weights != Py_None) {
+				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+			}
+			Py_BEGIN_ALLOW_THREADS
+			histogram2d(blockx_ptr, blocky_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, xmin, xmax, ymin, ymax, offset_x, offset_y);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
-		Py_BEGIN_ALLOW_THREADS
-		histogram2d(blockx_ptr, blocky_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, xmin, xmax, ymin, ymax, offset_x, offset_y);
-		Py_END_ALLOW_THREADS
-		Py_INCREF(Py_None);
-		result = Py_None;
 	}
 	return result;
 }
@@ -360,18 +378,22 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 		double *blockz_ptr = NULL;
 		double *weights_ptr = NULL;
 		double *counts_ptr = NULL;
-		object_to_numpy1d_nocopy(blockx_ptr, blockx, block_length);
-		object_to_numpy1d_nocopy(blocky_ptr, blocky, block_length);
-		object_to_numpy1d_nocopy(blockz_ptr, blockz, block_length);
-		object_to_numpy3d_nocopy(counts_ptr, counts, counts_length_x, counts_length_y, counts_length_z);
-		if(weights != Py_None) {
-			object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+		try {
+			object_to_numpy1d_nocopy(blockx_ptr, blockx, block_length);
+			object_to_numpy1d_nocopy(blocky_ptr, blocky, block_length);
+			object_to_numpy1d_nocopy(blockz_ptr, blockz, block_length);
+			object_to_numpy3d_nocopy(counts_ptr, counts, counts_length_x, counts_length_y, counts_length_z);
+			if(weights != Py_None) {
+				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+			}
+			Py_BEGIN_ALLOW_THREADS
+			histogram3d(blockx_ptr, blocky_ptr, blockz_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, counts_length_z, xmin, xmax, ymin, ymax, zmin, zmax, offset_x, offset_y, offset_z);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
-		Py_BEGIN_ALLOW_THREADS
-		histogram3d(blockx_ptr, blocky_ptr, blockz_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, counts_length_z, xmin, xmax, ymin, ymax, zmin, zmax, offset_x, offset_y, offset_z);
-		Py_END_ALLOW_THREADS
-		Py_INCREF(Py_None);
-		result = Py_None;
 	}
 	return result;
 }
@@ -414,22 +436,26 @@ PyObject* project_(PyObject* self, PyObject* args) {
 		int offset_length = -1;
 		double *offset_ptr = NULL;
 
-		object_to_numpy3d_nocopy(cube_ptr, cube, cube_length_x, cube_length_y, cube_length_z);
-		object_to_numpy2d_nocopy(surface_ptr, surface, surface_length_x, surface_length_y);
-		object_to_numpy1d_nocopy(projection_ptr, projection, projection_length);
-		object_to_numpy1d_nocopy(offset_ptr, offset, offset_length);
-		//if(weights != Py_None) {
-		//	object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
-		//}
-		if(projection_length != 8)
-			throw std::runtime_error("projection array should be of length 8");
-		if(offset_length != 3)
-			throw std::runtime_error("center array should be of length 3");
-		Py_BEGIN_ALLOW_THREADS
-		project(cube_ptr, cube_length_x, cube_length_y, cube_length_z, surface_ptr, surface_length_x, surface_length_y, projection_ptr, offset_ptr);
-		Py_END_ALLOW_THREADS
-		Py_INCREF(Py_None);
-		result = Py_None;
+		try {
+			object_to_numpy3d_nocopy(cube_ptr, cube, cube_length_x, cube_length_y, cube_length_z);
+			object_to_numpy2d_nocopy(surface_ptr, surface, surface_length_x, surface_length_y);
+			object_to_numpy1d_nocopy(projection_ptr, projection, projection_length);
+			object_to_numpy1d_nocopy(offset_ptr, offset, offset_length);
+			//if(weights != Py_None) {
+			//	object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+			//}
+			if(projection_length != 8)
+				throw std::runtime_error("projection array should be of length 8");
+			if(offset_length != 3)
+				throw std::runtime_error("center array should be of length 3");
+			Py_BEGIN_ALLOW_THREADS
+			project(cube_ptr, cube_length_x, cube_length_y, cube_length_z, surface_ptr, surface_length_x, surface_length_y, projection_ptr, offset_ptr);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
 	}
 	return result;
 }
@@ -467,16 +493,20 @@ static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 		double *y_ptr = NULL;
 		double *blockx_ptr = NULL;
 		double *blocky_ptr = NULL;
-		object_to_numpy1d_nocopy(x_ptr, x, polygon_length);
-		object_to_numpy1d_nocopy(y_ptr, y, polygon_length);
-		object_to_numpy1d_nocopy(blockx_ptr, blockx, length);
-		object_to_numpy1d_nocopy(blocky_ptr, blocky, length);
-		object_to_numpy1d_nocopy(mask_ptr, mask, length, NPY_BOOL);
-		Py_BEGIN_ALLOW_THREADS
-		pnpoly(x_ptr, y_ptr, polygon_length, blockx_ptr, blocky_ptr, mask_ptr, length, meanx, meany, radius);
-		Py_END_ALLOW_THREADS
-		Py_INCREF(Py_None);
-		result = Py_None;
+		try {
+			object_to_numpy1d_nocopy(x_ptr, x, polygon_length);
+			object_to_numpy1d_nocopy(y_ptr, y, polygon_length);
+			object_to_numpy1d_nocopy(blockx_ptr, blockx, length);
+			object_to_numpy1d_nocopy(blocky_ptr, blocky, length);
+			object_to_numpy1d_nocopy(mask_ptr, mask, length, NPY_BOOL);
+			Py_BEGIN_ALLOW_THREADS
+			pnpoly(x_ptr, y_ptr, polygon_length, blockx_ptr, blocky_ptr, mask_ptr, length, meanx, meany, radius);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
 	}
 	
 	return result;

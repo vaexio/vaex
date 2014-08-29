@@ -14,6 +14,7 @@ from gavi import multithreading
 import functools
 
 import gavi.vaex.expressions as expr
+import gavi.events
 
 import sys
 import platform
@@ -281,12 +282,13 @@ class JobsManager(object):
 									logger.debug("output[%r]: None" % (key,))
 								else:
 									logger.debug("output[%r]: %r, %r" % (key, value.shape, value.dtype))
+							cancelled = False
 							with Timer("callbacks"):
 								for _order, callback, dataset, expressions, _variables in jobs_dataset:
 									logger.debug("callback: %r" % (callback))
 									arguments = [info]
 									arguments += [results.get(expression) for expression in expressions]
-									callback(*arguments)
+									cancelled = cancelled or callback(*arguments)
 							if info.error:
 								# if we get an error, no need to go through the whole data
 								break
@@ -378,12 +380,27 @@ class MemoryMapped(object):
 	def __len__(self):
 		return self._fraction_length
 		
+	def length(self, selection=False):
+		if selection:
+			return 0 if self.mask is None else np.sum(self.mask)
+		else:
+			return len(self)
+		
+	def byte_size(self, selection=False):
+		bytes_per_row = 0
+		for column in self.columns.values():
+			dtype = column.dtype
+			bytes_per_row += dtype.itemsize
+		return bytes_per_row * self.length(selection=selection)
+		
 		
 	# nommap is a hack to get in memory datasets working
 	def __init__(self, filename, write=False, nommap=False):
 		self.filename = filename
 		self.write = write
 		self.name = os.path.splitext(os.path.basename(self.filename))[0]
+		self.path = os.path.abspath(filename)
+		self.nommap = nommap
 		if not nommap:
 			self.file = file(self.filename, "r+" if write else "r")
 			self.fileno = self.file.fileno()
@@ -427,6 +444,10 @@ class MemoryMapped(object):
 		self.strides = {}
 		self.filenames = {}
 		self.dtypes = {}
+		self.samp_id = None
+		
+		self.signal_pick = gavi.events.Signal("pick")
+		
 		
 	def evaluate(self, callback, *expressions, **variables):
 		jobManager = JobsManager()
@@ -489,6 +510,8 @@ class MemoryMapped(object):
 		
 	def selectRow(self, index):
 		self.selected_row_index = index
+		logger.debug("emit pick signal: %r" % index)
+		self.signal_pick.emit(index)
 		for row_selection_listener in self.row_selection_listeners:
 			row_selection_listener(index)
 		
@@ -520,7 +543,8 @@ class MemoryMapped(object):
 		# TODO: if row in slice, we don't have to remove it
 		self.selectRow(None)
 		
-	def addMemoryColumn(self, name, column):
+	def __addMemoryColumn(self, name, column):
+		# remove, is replaced by array argument of addColumn
 		length = len(column)
 		if self.current_slice is None:
 			self.current_slice = (0, length)
@@ -551,7 +575,8 @@ class MemoryMapped(object):
 	def addColumn(self, name, offset=None, length=None, dtype=np.float64, stride=1, filename=None, array=None):
 		if filename is None:
 			filename = self.filename
-		mapping = self.mapping_map[filename]
+		if not self.nommap:
+			mapping = self.mapping_map[filename]
 			
 		if array is not None:
 			length = len(array)
@@ -621,6 +646,18 @@ class MemoryMapped(object):
 			#self.nColumns += 1
 			#self.nRows = self._length
 			
+	@classmethod
+	def can_open(cls, path):
+		return False
+	
+	@classmethod
+	def get_options(cls, path):
+		return []
+	
+	@classmethod
+	def option_to_args(cls, option):
+		return []
+
 import struct
 class HansMemoryMapped(MemoryMapped):
 	def __init__(self, filename, filename_extra=None):
@@ -718,6 +755,18 @@ class FitsBinTable(MemoryMapped):
 					column.array[:] # 2nd time it will be a real np array
 					self.addColumn(column.name, array=column.array[:])
 		#BinTableHDU
+	@classmethod
+	def can_open(cls, path):
+		return os.path.splitext(path)[1] == ".fits"
+	
+	@classmethod
+	def get_options(cls, path):
+		return [] # future: support multiple tables?
+	
+	@classmethod
+	def option_to_args(cls, option):
+		return []
+
 dataset_type_map["fits"] = FitsBinTable
 		
 		
@@ -898,6 +947,26 @@ class Hdf5MemoryMapped(MemoryMapped):
 		self.h5file = h5py.File(self.filename, "r+" if write else "r")
 		self.load()
 		
+	@classmethod
+	def can_open(cls, path):
+		h5file = None
+		try:
+			h5file = h5py.File(path)
+		except:
+			return False
+		if h5file is not None:
+			return ("data" in h5file) or ("columns" in h5file)
+		return False
+			
+	
+	@classmethod
+	def get_options(cls, path):
+		return []
+	
+	@classmethod
+	def option_to_args(cls, option):
+		return []
+
 	def load(self):
 		if "data" in self.h5file:
 			self.load_columns(self.h5file["/data"])
@@ -929,10 +998,10 @@ class Hdf5MemoryMapped(MemoryMapped):
 		finished = set()
 		for column_name in first + list(h5data):
 			if column_name in h5data and column_name not in finished:
-				print type(column_name)
+				#print type(column_name)
 				column = h5data[column_name]
 				if hasattr(column, "dtype"):
-					print column
+					#print column
 					offset = column.id.get_offset() 
 					shape = column.shape
 					if len(shape) == 1:
@@ -971,6 +1040,17 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 	def __init__(self, filename, write=False):
 		super(AmuseHdf5MemoryMapped, self).__init__(filename, write=write)
 		
+	@classmethod
+	def can_open(cls, path):
+		h5file = None
+		try:
+			h5file = h5py.File(path)
+		except:
+			return False
+		if h5file is not None:
+			return ("particles" in h5file)# or ("columns" in h5file)
+		return False
+
 	def load(self):
 		particles = self.h5file["/particles"]
 		print "amuse", particles
@@ -1063,3 +1143,19 @@ class MemoryMappedGadget(MemoryMapped):
 		self.addColumn("vz", veloffset+8, length, dtype=np.float32, stride=3)
 dataset_type_map["gadget-plain"] = MemoryMappedGadget
 		
+		
+def can_open(path):
+	for name, class_ in dataset_type_map.items():
+		if class_.can_open(path):
+			return True
+		
+def load_file(path):
+	dataset_class = None
+	for name, class_ in gavi.dataset.dataset_type_map.items():
+		if class_.can_open(path):
+			dataset_class = class_
+			break
+	if dataset_class:
+		dataset = dataset_class(path)
+		return dataset
+	
