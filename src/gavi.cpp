@@ -513,6 +513,64 @@ static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 }
 
 
+// from http://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
+int ipow(int base, int exp)
+{
+    int result = 1;
+    while (exp)
+    {
+        if (exp & 1)
+            result *= base;
+        exp >>= 1;
+        base *= base;
+    }
+
+    return result;
+}
+
+void soneira_peebles(double* coordinates, double center, double width, double lambda, int eta, int level, int max_level) {
+	int level_left = max_level - level;
+	int seperation = ipow(eta, level_left);
+	//printf("level: %d of %d seperation: %d\n", level, max_level, seperation);
+
+	for(int i = 0; i < eta; i++) {
+		double pos =  ((double) rand() / (RAND_MAX)) * width - width/2+ center;
+		if(level == max_level) {
+			coordinates[i] = pos;
+		} else {
+			soneira_peebles(coordinates+seperation*i, pos, width / lambda, lambda, eta, level+1, max_level);
+		}
+	}
+}
+
+
+
+static PyObject* soneira_peebles_(PyObject* self, PyObject *args) {
+//object x, object y, object blockx, object blocky, object mask, double meanx, double meany, double radius)
+	PyObject* result = NULL;
+	PyObject *coordinates;
+	double lambda, center, width;
+	int eta, max_level;
+	if(PyArg_ParseTuple(args, "Odddii", &coordinates, &center, &width, &lambda, &eta, &max_level)) {
+		int length = -1;
+		double *coordinates_ptr = NULL;
+		try {
+			object_to_numpy1d_nocopy(coordinates_ptr, coordinates, length);
+			Py_BEGIN_ALLOW_THREADS
+			if(length != pow(eta, max_level))
+				throw std::runtime_error("length of coordinates != eta**max_level");
+			soneira_peebles(coordinates_ptr, center, width, lambda, eta, 1, max_level);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
+	}
+	
+	return result;
+}
+
 
 
 
@@ -524,6 +582,7 @@ static PyMethodDef pygavi_functions[] = {
         {"find_nan_min_max", (PyCFunction)find_nan_min_max_, METH_VARARGS, ""},
         {"pnpoly", (PyCFunction)pnpoly_, METH_VARARGS, ""},
         {"range_check", (PyCFunction)range_check_, METH_VARARGS, ""},
+        {"soneira_peebles", (PyCFunction)soneira_peebles_, METH_VARARGS, ""},
     { NULL, NULL, 0 }
 };
 

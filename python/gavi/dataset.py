@@ -791,10 +791,10 @@ class InMemoryTable(MemoryMapped):
 		super(InMemoryTable, self).__init__(filename)
 		
 		
-		eta = 5
-		max_level = 10
-		dim = 4
-		N = eta**(max_level+1)
+		eta = 2
+		max_level = 26
+		dim = 2
+		N = eta**(max_level)
 		array = np.zeros((dim, N), dtype=np.float64)
 		L = 2.2
 		print "size", N
@@ -812,11 +812,13 @@ class InMemoryTable(MemoryMapped):
 					index = do(pos[:,i], size/L, index, level+1)
 				return index
 			
-		do(np.zeros(dim), 1., 0, 0)
+		#do(np.zeros(dim), 1., 0, 0)
+		for d in range(dim):
+			gavifast.soneira_peebles(array[d], 0, 1, L, eta, max_level)
 		for i, name in zip(range(dim), "x y z w v u".split()):
 			self.addColumn(name, array=array[i])
 		
-		
+		return
 		
 		
 		N = int(1e7)
