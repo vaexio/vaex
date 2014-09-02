@@ -1057,7 +1057,7 @@ class Vaex(QtGui.QMainWindow):
 				self.toolbar.addAction(self.action_open_fits)
 			self.toolbar.addAction(self.action_save_hdf5)
 		
-		if 1:
+		if 0:
 			if custom is not None:
 				custom.loadDatasets(self.list)
 				custom.openPlots(self.right)
@@ -1107,7 +1107,12 @@ class Vaex(QtGui.QMainWindow):
 			sys.exit(1)
 		while index < len(args):
 			filename = args[index]
-			dataset = gavi.dataset.load_file(filename)
+			if filename[0] == ":": # not a filename, but a classname
+				classname = filename
+				print "TODO"
+				sys.exit(0)
+			else:
+				dataset = gavi.dataset.load_file(filename)
 			if dataset is None:
 				error("cannot open file {filename}".format(**locals()))
 			index += 1

@@ -1226,6 +1226,46 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 		self.property_names.append(name)
 
 dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
+
+class InMemory(MemoryMapped):
+	def __init__(self):
+		super(InMemoryTable, self).__init__(filename=None)
+
+class SoneiraPeebles(InMemory):
+	def __init__(self, dimension, eta, max_level, L):
+		super(SoneiraPeebles, self).__init__(filename)
+		def todim(value):
+			if isinstance(value, (tuple, list)):
+				# TODO
+
+		eta = 2
+		max_level = 26
+		dim = 2
+		N = eta**(max_level)
+		array = np.zeros((dim, N), dtype=np.float64)
+		L = 2.2
+		print "size", N
+		
+		
+		def do(center, size, index, level):
+			pos = center.reshape((-1,1)) + np.random.random((dim, eta)) * size - size/2
+			#array[:,index:index+eta] = pos
+			if level == max_level:
+				#print index, index+eta, array.shape
+				array[:,index:index+eta] = pos
+				return index+eta
+			else:
+				for i in range(eta):
+					index = do(pos[:,i], size/L, index, level+1)
+				return index
+			
+		#do(np.zeros(dim), 1., 0, 0)
+		for d in range(dim):
+			gavifast.soneira_peebles(array[d], 0, 1, L, eta, max_level)
+		for i, name in zip(range(dim), "x y z w v u".split()):
+			self.addColumn(name, array=array[i])
+
+dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
 		
 
 class MemoryMappedGadget(MemoryMapped):
