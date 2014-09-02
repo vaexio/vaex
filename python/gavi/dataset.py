@@ -790,14 +790,71 @@ class InMemoryTable(MemoryMapped):
 	def __init__(self, filename, write=False):
 		super(InMemoryTable, self).__init__(filename)
 		
+		if 1:
+			
+			N = 1024
+			x = np.arange(1, N+1, dtype=np.float64)
+			x, y = np.meshgrid(x, x)
+			shape = x.shape
+			phase = np.random.random(shape)* 2 * np.pi
+			#r = (N-x)**2 + (N-y)**2
+			r = (x)**2 + (y)**2
+			amplitude = np.random.random(shape) * np.exp(-r**1.4/100**2) * np.exp( 1j * phase)
+			amplitude[0,0] = 0
+			import pylab
+			realspace = np.fft.fft2(amplitude)
+			vx = np.fft.fft2(amplitude * x).real
+			vy = np.fft.fft2(amplitude * y).real
+			x = np.arange(1, N+1, dtype=np.float64)
+			x, y = np.meshgrid(x, x)
+			scale = 0.05
+			for i in range(2):
+				x += vx * scale
+				y += vy * scale
+			
+			self.addColumn("x", array=x.reshape(-1))
+			self.addColumn("y", array=y.reshape(-1))
+			return
+				
+			if 0:
+				pass
+			pylab.imshow(realspace.real)
+			pylab.show()
+			sys.exit(0)
 		
-		eta = 2
-		max_level = 26
+			N = 512
+			d = 2
+			
+			x = np.arange(N)
+			x, y = np.meshgrid(x, x)
+			x = x.reshape(-1)
+			y = y.reshape(-1)
+			x = np.random.random(x.shape) * 0.5 + 0.5
+			y = np.random.random(x.shape) * 0.5 + 0.5
+			shape = x.shape
+			grid = np.zeros(shape, dtype=np.float64)
+			gavifast.histogram2d(x, y, None, grid, 0, N, 0, N)
+			phi_f = np.fft.fft2(grid)
+			self.addColumn("x", array=x)
+			self.addColumn("y", array=y)
+			
+			
+			
+			print x.shape, x.dtype
+			
+			#sys.exit(0)
+			
+			
+			return
+		
+		
+		eta = 4
+		max_level = 13
 		dim = 2
 		N = eta**(max_level)
 		array = np.zeros((dim, N), dtype=np.float64)
-		L = 2.2
-		print "size", N
+		L = 1.6
+		print "size {:,}".format(N)
 		
 		
 		def do(center, size, index, level):
