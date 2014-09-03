@@ -1,15 +1,22 @@
+# -*- coding: utf-8 -*-
 import gavi.logging
 import logging
 logger = gavi.logging.getLogger("expr")
 
 
 class Base(object):
+	def __neg__(self):
+		return Neg(self)
 	def __add__(self, rhs):
 		return Add(self, rhs)
 	def __sub__(self, rhs):
 		return Sub(self, rhs)
+	def __rsub__(self, lhs):
+		return Sub(lhs, self)
 	def __mul__(self, rhs):
 		return Mul(self, rhs)
+	def __rmul__(self, lhs):
+		return Mul(lhs, self)
 	def __div__(self, rhs):
 		return Div(self, rhs)
 	def __pow__(self, rhs):
@@ -36,6 +43,17 @@ def check_const(value):
 		return Const(value)
 	else:
 		return value
+
+class Neg(Base):
+	def __init__(self, obj):
+		self.obj = check_const(obj)
+		
+	def __repr__(self):
+		return "(-" +repr(self.obj) + ")"
+
+	def walk(self, f):
+		logger.debug("walk neg")
+		return f(Neg(self.obj.walk(f)))
 
 class Add(Base):
 	def __init__(self, lhs, rhs):
@@ -247,6 +265,7 @@ if __name__ == "__main__":
 	expr1 = "log(a[:,index]) + index"
 	expr1 = "log(a[index]) + index"
 	expr1 = "log(a[-1]) - index + 1 + 1**2 + index**index + d(a,b) + 1.2"
+	expr1 = "-2.5 * log10(SPECTROFLUX[:,2])"
 	scope = Scope(None)
 	result = eval(expr1, {}, scope)
 	print "expression", expr1

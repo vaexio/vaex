@@ -411,11 +411,11 @@ class MemoryMapped(object):
 		
 		
 	# nommap is a hack to get in memory datasets working
-	def __init__(self, filename, write=False, nommap=False):
-		self.filename = filename
+	def __init__(self, filename, write=False, nommap=False, name=None):
+		self.filename = filename or "no file"
 		self.write = write
-		self.name = os.path.splitext(os.path.basename(self.filename))[0]
-		self.path = os.path.abspath(filename)
+		self.name = name or os.path.splitext(os.path.basename(self.filename))[0]
+		self.path = os.path.abspath(filename) if filename is not None else None
 		self.nommap = nommap
 		if not nommap:
 			self.file = file(self.filename, "r+" if write else "r")
@@ -627,21 +627,22 @@ class MemoryMapped(object):
 			self.nRows = self._length
 			self.offsets[name] = offset
 			self.strides[name] = stride
-			self.filenames[name] = os.path.abspath(filename)
+			if filename is not None:
+				self.filenames[name] = os.path.abspath(filename)
 			self.dtypes[name] = dtype
 			
-	def addRank1(self, name, offset, length, length1, dtype=np.float64, stride=1, stride1=1, filename=None):
+	def addRank1(self, name, offset, length, length1, dtype=np.float64, stride=1, stride1=1, filename=None, transposed=False):
 		if filename is None:
 			filename = self.filename
 		mapping = self.mapping_map[filename]
-		if self._length is not None and length != self._length:
+		if (not transposed and self._length is not None and length != self._length) or (transposed and self._length is not None and length1 != self._length):
 			error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
 		else:
 			if self.current_slice is None:
-				self.current_slice = (0, length)
+				self.current_slice = (0, length if not transposed else length1)
 				self.fraction = 1.
-				self._fraction_length = length
-			self._length = length
+				self._fraction_length = length if not transposed else length1
+			self._length = length if not transposed else length1
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			rawlength = length * length1
 			rawlength *= stride
@@ -653,6 +654,9 @@ class MemoryMapped(object):
 			mmapped_array = np.frombuffer(mapping, dtype=dtype, count=rawlength, offset=offset)
 			mmapped_array = mmapped_array.reshape((length1*stride1, length*stride))
 			mmapped_array = mmapped_array[::stride1,::stride]
+			#if transposed:
+			#	mmapped_array = mmapped_array.T
+			#assert mmapped_array.shape[1] == self._length, "error {0} {1} {2} {3} {4}".format(length, length1, mmapped_array.shape, self._length, transposed)
 			self.rank1s[name] = mmapped_array
 			self.rank1names.append(name)
 			self.all_columns[name] = mmapped_array
@@ -661,6 +665,8 @@ class MemoryMapped(object):
 			#self.column_names.sort()
 			#self.nColumns += 1
 			#self.nRows = self._length
+			self.columns[name] = mmapped_array
+			self.column_names.append(name)
 			
 	@classmethod
 	def can_open(cls, path):
@@ -768,8 +774,12 @@ class FitsBinTable(MemoryMapped):
 			if isinstance(table, fits.BinTableHDU):
 				logger.debug("adding table: %r" % table)
 				for column in table.columns:
-					column.array[:] # 2nd time it will be a real np array
-					self.addColumn(column.name, array=column.array[:])
+					array = column.array[:]
+					array = column.array[:] # 2nd time it will be a real np array
+					#import pdb
+					#pdb.set_trace()
+					if array.dtype.kind in "fi":
+						self.addColumn(column.name, array=array)
 		#BinTableHDU
 	@classmethod
 	def can_open(cls, path):
@@ -1103,17 +1113,22 @@ class Hdf5MemoryMapped(MemoryMapped):
 				#print type(column_name)
 				column = h5data[column_name]
 				if hasattr(column, "dtype"):
-					#print column
+					print column, column.shape
 					offset = column.id.get_offset() 
 					shape = column.shape
 					if len(shape) == 1:
 						self.addColumn(column_name, offset, len(column), dtype=column.dtype)
 					else:
 						print "rank 1 array", shape
-						self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1)
+						
+						#transposed = self._length is None or shape[0] == self._length
+						transposed = shape[1] < shape[0]
+						self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1, transposed=transposed)
+						#if len(shape[0]) == self._length:
+						#	self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1)
 						#self.addColumn(column_name+"_0", offset, shape[1], dtype=column.dtype)
-						print column.dtype.itemsize
-						self.addColumn(column_name+"_last", offset+(shape[0]-1)*shape[1]*column.dtype.itemsize, shape[1], dtype=column.dtype)
+						#print column.dtype.itemsize
+						#self.addColumn(column_name+"_last", offset+(shape[0]-1)*shape[1]*column.dtype.itemsize, shape[1], dtype=column.dtype)
 						#self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
 			finished.add(column_name)
 			
@@ -1228,44 +1243,102 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
 
 class InMemory(MemoryMapped):
-	def __init__(self):
-		super(InMemoryTable, self).__init__(filename=None)
+	def __init__(self, name):
+		super(InMemory, self).__init__(filename=None, nommap=True, name=name)
 
 class SoneiraPeebles(InMemory):
 	def __init__(self, dimension, eta, max_level, L):
-		super(SoneiraPeebles, self).__init__(filename)
+		super(SoneiraPeebles, self).__init__(name="soneira-peebles")
+		#InMemory.__init__(self)
 		def todim(value):
 			if isinstance(value, (tuple, list)):
-				# TODO
-
-		eta = 2
-		max_level = 26
-		dim = 2
-		N = eta**(max_level)
-		array = np.zeros((dim, N), dtype=np.float64)
-		L = 2.2
-		print "size", N
-		
-		
-		def do(center, size, index, level):
-			pos = center.reshape((-1,1)) + np.random.random((dim, eta)) * size - size/2
-			#array[:,index:index+eta] = pos
-			if level == max_level:
-				#print index, index+eta, array.shape
-				array[:,index:index+eta] = pos
-				return index+eta
+				assert len(value) == dimension, "either a scalar or sequence of length equal to the dimension"
+				return value
 			else:
-				for i in range(eta):
-					index = do(pos[:,i], size/L, index, level+1)
-				return index
+				return [value] * dimension
+
+		eta = eta
+		max_level = max_level
+		N = eta**(max_level)
+		array = np.zeros((dimension, N), dtype=np.float64)
+		L = todim(L)
+		print "size {:,}".format(N)
+		
+		
+		for d in range(dimension):
+			gavifast.soneira_peebles(array[d], 0, 1, L[d], eta, max_level)
 			
-		#do(np.zeros(dim), 1., 0, 0)
-		for d in range(dim):
-			gavifast.soneira_peebles(array[d], 0, 1, L, eta, max_level)
-		for i, name in zip(range(dim), "x y z w v u".split()):
+		order = np.zeros(N, dtype=np.int64)
+		gavifast.shuffled_sequence(order);
+		for i, name in zip(range(dimension), "x y z w v u".split()):
+			np.take(array[i], order, out=array[i])
 			self.addColumn(name, array=array[i])
 
 dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
+
+class Zeldovich(InMemory):
+	def __init__(self, filename, write=False):
+		super(InMemory, self).__init__(name="zeldovich approximation")
+		
+		if 1:
+			
+			N = 1024
+			x = np.arange(1, N+1, dtype=np.float64)
+			x, y = np.meshgrid(x, x)
+			shape = x.shape
+			phase = np.random.random(shape)* 2 * np.pi
+			#r = (N-x)**2 + (N-y)**2
+			r = (x)**2 + (y)**2
+			amplitude = np.random.random(shape) * np.exp(-r**1.4/100**2) * np.exp( 1j * phase)
+			amplitude[0,0] = 0
+			import pylab
+			realspace = np.fft.fft2(amplitude)
+			vx = np.fft.fft2(amplitude * x).real
+			vy = np.fft.fft2(amplitude * y).real
+			x = np.arange(1, N+1, dtype=np.float64)
+			x, y = np.meshgrid(x, x)
+			scale = 0.05
+			for i in range(2):
+				x += vx * scale
+				y += vy * scale
+			
+			self.addColumn("x", array=x.reshape(-1))
+			self.addColumn("y", array=y.reshape(-1))
+			return
+				
+			if 0:
+				pass
+			pylab.imshow(realspace.real)
+			pylab.show()
+			sys.exit(0)
+		
+			N = 512
+			d = 2
+			
+			x = np.arange(N)
+			x, y = np.meshgrid(x, x)
+			x = x.reshape(-1)
+			y = y.reshape(-1)
+			x = np.random.random(x.shape) * 0.5 + 0.5
+			y = np.random.random(x.shape) * 0.5 + 0.5
+			shape = x.shape
+			grid = np.zeros(shape, dtype=np.float64)
+			gavifast.histogram2d(x, y, None, grid, 0, N, 0, N)
+			phi_f = np.fft.fft2(grid)
+			self.addColumn("x", array=x)
+			self.addColumn("y", array=y)
+			
+			
+			
+			print x.shape, x.dtype
+			
+			#sys.exit(0)
+			
+			
+			return
+		
+		
+
 		
 
 class MemoryMappedGadget(MemoryMapped):

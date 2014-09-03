@@ -415,8 +415,8 @@ class DataList(QtGui.QListWidget):
 		self.signal_add_dataset.emit(dataset)
 		
 	def addFits(self, filename, auto_fraction=True):
-		if not os.path.exists(filename):
-			return
+		#if not os.path.exists(filename):
+		#	return
 		
 		self.hdf5file = FitsBinTable(filename)
 		if auto_fraction:
@@ -924,7 +924,7 @@ class Vaex(QtGui.QMainWindow):
 		
 		QtGui.QToolTip.setFont(QtGui.QFont('SansSerif', 10))
 		
-		self.setToolTip('This is a <b>QWidget</b> widget')
+		#self.setToolTip('This is a <b>QWidget</b> widget')
 		
 		
 		if 0:
@@ -1012,6 +1012,19 @@ class Vaex(QtGui.QMainWindow):
 		fileMenu.addAction(self.action_save_hdf5)
 		#fileMenu.addAction(self.action_open)
 		fileMenu.addAction(exitAction)
+		
+		
+		self.menu_data = menubar.addMenu('&Data')
+		for level in [20, 25, 30, 31, 32]:
+			N = 2**level
+			action = QtGui.QAction('Generate Soneira Peebles fractal: N={:,}'.format(N), self)
+			def do(ignore=None, level=level):
+				sp = SoneiraPeebles(dimension=4, eta=2, max_level=level, L=[1.1, 1.3, 1.6, 2.])
+				self.list.addDataset(sp)
+			action.triggered.connect(do)
+			self.menu_data.addAction(action)
+			self.menu_data.addAction(action)
+		
 
 		use_toolbar = "darwin" not in platform.system().lower()
 		use_toolbar = True
@@ -1057,7 +1070,7 @@ class Vaex(QtGui.QMainWindow):
 				self.toolbar.addAction(self.action_open_fits)
 			self.toolbar.addAction(self.action_save_hdf5)
 		
-		if 0:
+		if len(sys.argv[1:]) == 0:
 			if custom is not None:
 				custom.loadDatasets(self.list)
 				custom.openPlots(self.right)
@@ -1099,6 +1112,7 @@ class Vaex(QtGui.QMainWindow):
 		self.right.signal_open_plot.connect(on_open_plot)
 		
 		self.parse_args()
+		
 	def parse_args(self):
 		args = sys.argv[1:]
 		index = 0
@@ -1171,8 +1185,12 @@ class Vaex(QtGui.QMainWindow):
 				#kwargs["url"] = "file:" + dataset.filename
 				kwargs["url"] = dataset.samp_id # 
 			else:
-				kwargs["table-id"] = "file:" + dataset.path
-				kwargs["url"] = "file:" + dataset.path
+				if dataset.path:
+					kwargs["table-id"] = "file:" + dataset.path
+					kwargs["url"] = "file:" + dataset.path
+				else:
+					kwargs["table-id"] = "file:" + dataset.name
+					kwargs["url"] = "file:" + dataset.name
 			self.samp.client.enotifyAll("table.highlight.row", **kwargs)
 			
 	def on_samp_send_table_select_rowlist(self, ignore=None, dataset=None):
@@ -1255,7 +1273,8 @@ class Vaex(QtGui.QMainWindow):
 					column = dataset.columns[column_name]
 					#dataset_output.add_column(column_name, length=len(column), dtype=column.dtype)
 					#assert N == len(column)
-					array = h5file_output.require_dataset("/data/%s" % column_name, shape=(N,), dtype=column.dtype)
+					print column_name, column.shape, column.strides
+					array = h5file_output.require_dataset("/data/%s" % column_name, shape=column.shape, dtype=column.dtype)
 					array[0] = array[0] # make sure the array really exists
 			
 				h5file_output.close()

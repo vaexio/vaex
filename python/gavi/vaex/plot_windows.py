@@ -415,7 +415,7 @@ class PlotDialog(QtGui.QDialog):
 		self.options = options
 		
 		self.undoManager = parent.undoManager
-		self.setWindowTitle(dataset.name + "-test")
+		self.setWindowTitle(dataset.name)
 		self.jobsManager = jobsManager
 		self.dataset = dataset
 		self.axisnames = axisnames

@@ -39,6 +39,7 @@ if "darwin" in platform.system().lower():
 else:
 	extra_compile_args = ["-mfpmath=sse", "-msse4", "-Ofast", "-flto", "-march=native", "-funroll-loops"]
 	extra_compile_args = ["-mfpmath=sse", "-msse4a", "-Ofast", "-funroll-loops"]
+extra_compile_args.extend(["-std=c++0x"])
 include_dirs.append(os.path.join(get_python_inc(plat_specific=1), "numpy"))
 include_dirs.append(os.path.join(numdir, "core", "include"))
 

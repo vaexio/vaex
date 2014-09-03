@@ -571,18 +571,65 @@ static PyObject* soneira_peebles_(PyObject* self, PyObject *args) {
 	return result;
 }
 
+#include <iostream>
+#include <chrono>
+#include <random>
+
+/*
+Implements:
+http://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle "The "inside-out" algorithm"
+
+Fill array of length 'length ' with a shuffled sequence of numbers between 0 and length-1.
+important to use a 64 bit rng, mt19937_64 seems to be the only one
+*/
+void shuffled_sequence_(long long * array, long long length) {
+	auto rnd = std::mt19937_64(std::random_device{}());
+	std::uniform_int_distribution<long long> dist(0, length-1); 
+	for(long long i=0; i < length; i++) {
+		uint_fast64_t r = dist(rnd);
+		uint_fast64_t j = r * i / (length-1);
+		array[i] = array[j];
+		array[j] = i;
+		//printf("r=%d\n", r);
+		//for(long long k=0; k < i+1; k++)
+		//	printf(" %d", array[k]);
+		//printf("\n");
+	}
+}
+
+static PyObject* shuffled_sequence_(PyObject* self, PyObject *args) {
+	PyObject* result = NULL;
+	PyObject *array;
+	if(PyArg_ParseTuple(args, "O", &array)) {
+		int length = -1;
+		long long *array_ptr = NULL;
+		try {
+			object_to_numpy1d_nocopy(array_ptr, array, length, NPY_INT64);
+			Py_BEGIN_ALLOW_THREADS
+			shuffled_sequence_(array_ptr, length);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
+	}
+	
+	return result;
+}
 
 
 
 static PyMethodDef pygavi_functions[] = {
+        {"range_check", (PyCFunction)range_check_, METH_VARARGS, ""},
+        {"find_nan_min_max", (PyCFunction)find_nan_min_max_, METH_VARARGS, ""},
         {"histogram1d", (PyCFunction)histogram1d_, METH_VARARGS, ""},
         {"histogram2d", (PyCFunction)histogram2d_, METH_VARARGS, ""},
         {"histogram3d", (PyCFunction)histogram3d_, METH_VARARGS, ""},
         {"project", (PyCFunction)project_, METH_VARARGS, ""},
-        {"find_nan_min_max", (PyCFunction)find_nan_min_max_, METH_VARARGS, ""},
         {"pnpoly", (PyCFunction)pnpoly_, METH_VARARGS, ""},
-        {"range_check", (PyCFunction)range_check_, METH_VARARGS, ""},
         {"soneira_peebles", (PyCFunction)soneira_peebles_, METH_VARARGS, ""},
+        {"shuffled_sequence", (PyCFunction)shuffled_sequence_, METH_VARARGS, ""},
     { NULL, NULL, 0 }
 };
 
@@ -590,20 +637,9 @@ static PyMethodDef pygavi_functions[] = {
 PyMODINIT_FUNC
 initgavifast(void)
 {
-	PyObject *mod;
-	//PyObject *c_api_object;
-
-	///import_libnumarray();
 	import_array();
 
-	mod = Py_InitModule("gavifast", pygavi_functions);
-	//INIT_TYPE(PyKaplotImage_Type);
-	//PyModule_AddObject(mod, "Image",  (PyObject *)&PyKaplotImage_Type);
-
-	//PyKaplotFont_API[0] = (void *)PyKaplot_Font_Outline;
-	//c_api_object = PyCObject_FromVoidPtr((void *)&api, NULL);
-	//if (c_api_object != NULL)
-	//      PyModule_AddObject(mod, "_C_API", c_api_object);
+	Py_InitModule("gavifast", pygavi_functions);
 }
 
 
