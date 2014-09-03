@@ -1,5 +1,5 @@
 # -*- mode: python -*-
-a = Analysis(['bin/medavaex'],
+a = Analysis(['bin/vaex'],
              pathex=['/net/theon/data/users/breddels/gavi/src/SubspaceFinding'],
              hiddenimports=["h5py.h5ac", "six"],
              hookspath=None,
@@ -8,7 +8,7 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
           exclude_binaries=True,
-          name='medavaex',
+          name='vaex',
           debug=False,
           strip=None,
           upx=True,
@@ -26,4 +26,4 @@ coll = COLLECT(exe,
                data_tree,
                strip=None,
                upx=True,
-               name='medavaex')
+               name='vaex')

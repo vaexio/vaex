@@ -2493,6 +2493,7 @@ class HistogramPlotDialog(PlotDialog):
 		if not self.action_mini_mode_ultra.isChecked():
 			self.fig.tight_layout(pad=0.0)
 		self.canvas.draw()
+		self.update()
 		self.message("plotting %.2fs" % (time.time() - t0), index=100)
 
 
