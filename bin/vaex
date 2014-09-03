@@ -14,7 +14,7 @@ import time
 import platform
 try:
 	import pdb
-	import astropy.io.fits
+	#import astropy.io.fits
 	#pdb.set_trace()
 except Exception, e:
 	print e
@@ -804,6 +804,7 @@ class MainPanel(QtGui.QFrame):
 			self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
 			self.scatterButton.setEnabled(len(self.dataset.columns) > 0)
 			self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
+			self.scatter3dButton.setEnabled(False)
 			self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
 			self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
 			

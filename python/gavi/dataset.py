@@ -1277,14 +1277,70 @@ class SoneiraPeebles(InMemory):
 dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
 
 class Zeldovich(InMemory):
-	def __init__(self, filename, write=False):
-		super(InMemory, self).__init__(name="zeldovich approximation")
+	def __init__(self):
+		super(Zeldovich, self).__init__(name="zeldovich approximation")
+		
+		
+		N = 256
+		shape = N, N, N
+		A = np.random.normal(0.0, 1.0, shape)
+		F = np.fft.fftn(A) 
+		K = np.fft.fftfreq(N, 1./(2*np.pi))[np.indices(shape)]
+		k = (K**2).sum(axis=0)
+		#pylab.imshow(abs(F), interpolation='nearest')
+		k_max = np.pi
+		print k_max, k.max(), K.max()
+		F *= np.where(np.sqrt(k) > k_max, 0, np.sqrt(k**-2.5) * np.exp(-k*4.0))
+		F.flat[0] = 0
+		print F.shape
+		#pylab.imshow(np.where(sqrt(k) > k_max, 0, np.sqrt(k**-2)), interpolation='nearest')
+		grf = np.fft.ifftn(F).real
+		
+		Q = np.indices(shape)
+		s = np.array(np.gradient(grf))
+		
+		X = np.zeros((4, 3, N, N, N))
+		for i in range(4):
+			X[i] = Q + i * s * 7
+		
+		#self.addColumn("x", array=X[:,0].reshape(4, -1))
+		#self.addColumn("y", array=X[:,1].reshape(4, -1))
+		i = 3
+		self.addColumn("x", array=X[i,0].reshape(-1))
+		self.addColumn("y", array=X[i,1].reshape(-1))
+		self.addColumn("z", array=X[i,2].reshape(-1))
+		self.addColumn("vx", array=s[0].reshape(-1))
+		self.addColumn("vy", array=s[1].reshape(-1))
+		self.addColumn("vz", array=s[2].reshape(-1))
+		self.addColumn("x0", array=Q[0].reshape(-1))
+		self.addColumn("y0", array=Q[1].reshape(-1))
+		self.addColumn("z0", array=Q[2].reshape(-1))
+		return
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
 		
 		if 1:
 			
-			N = 1024
-			x = np.arange(1, N+1, dtype=np.float64)
-			x, y = np.meshgrid(x, x)
+			N = 512
+			a = np.arange(0, N, dtype=np.float64)
+			x, y = np.meshgrid(a, a)
 			shape = x.shape
 			phase = np.random.random(shape)* 2 * np.pi
 			#r = (N-x)**2 + (N-y)**2
@@ -1295,12 +1351,17 @@ class Zeldovich(InMemory):
 			realspace = np.fft.fft2(amplitude)
 			vx = np.fft.fft2(amplitude * x).real
 			vy = np.fft.fft2(amplitude * y).real
-			x = np.arange(1, N+1, dtype=np.float64)
-			x, y = np.meshgrid(x, x)
+			
+			pylab.imshow(realspace.real)
+			pylab.show()
+			
+			
+			a = np.arange(0, N, dtype=np.float64)
+			x, y = np.meshgrid(a, a)
+			
 			scale = 0.05
-			for i in range(2):
-				x += vx * scale
-				y += vy * scale
+			x += vx * scale
+			y += vy * scale
 			
 			self.addColumn("x", array=x.reshape(-1))
 			self.addColumn("y", array=y.reshape(-1))
@@ -1308,8 +1369,6 @@ class Zeldovich(InMemory):
 				
 			if 0:
 				pass
-			pylab.imshow(realspace.real)
-			pylab.show()
 			sys.exit(0)
 		
 			N = 512
