@@ -571,9 +571,13 @@ static PyObject* soneira_peebles_(PyObject* self, PyObject *args) {
 	return result;
 }
 
+#ifdef  __APPLE__
+#else
+
 #include <iostream>
-#include <chrono>
+//#include <chrono>
 #include <random>
+#endif
 
 /*
 Implements:
@@ -583,6 +587,14 @@ Fill array of length 'length ' with a shuffled sequence of numbers between 0 and
 important to use a 64 bit rng, mt19937_64 seems to be the only one
 */
 void shuffled_sequence_(long long * array, long long length) {
+#ifdef  __APPLE__
+	for(long long i=0; i < length; i++) {
+		uint_fast64_t r = rand(); 
+		uint_fast64_t j =  r * i / RAND_MAX;
+		array[i] = array[j];
+		array[j] = i;
+	}
+#else
 	auto rnd = std::mt19937_64(std::random_device{}());
 	std::uniform_int_distribution<long long> dist(0, length-1); 
 	for(long long i=0; i < length; i++) {
@@ -595,6 +607,8 @@ void shuffled_sequence_(long long * array, long long length) {
 		//	printf(" %d", array[k]);
 		//printf("\n");
 	}
+#endif
+	
 }
 
 static PyObject* shuffled_sequence_(PyObject* self, PyObject *args) {

@@ -534,7 +534,6 @@ class PlotDialog(QtGui.QDialog):
 		
 	
 	def closeEvent(self, event):
-		print "close event"
 		# disconnect this event, otherwise we get an update/redraw for nothing
 		# since closing a dialog causes this event to fire otherwise
 		self.parent().plot_dialogs.remove(self)
@@ -546,6 +545,7 @@ class PlotDialog(QtGui.QDialog):
 		self.dataset.serie_index_selection_listeners.remove(self.onSerieIndexSelect)
 		self.jobsManager.after_execute.remove(self.plot)
 		super(PlotDialog, self).closeEvent(event)
+		print "close event"
 
 	def onSerieIndexSelect(self, serie_index):
 		pass
@@ -1467,7 +1467,7 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.update()
 		
-	def update(self):
+	def update_(self):
 		# default value
 		self.update_direct()
 		
@@ -2493,6 +2493,7 @@ class HistogramPlotDialog(PlotDialog):
 		if not self.action_mini_mode_ultra.isChecked():
 			self.fig.tight_layout(pad=0.0)
 		self.canvas.draw()
+		self.update()
 		self.message("plotting %.2fs" % (time.time() - t0), index=100)
 
 
@@ -2586,7 +2587,7 @@ class ScatterPlotDialog(PlotDialog):
 			if minimum == maximum:
 				maximum += 1
 			ranges.append(maximum)
-		try:
+		if 1:
 			args = blockx, blocky, self.counts, ranges
 			#gavi.histogram.hist2d(blockx, blocky, self.counts, *ranges)
 			#subspacefind.histogram2d(blockx, blocky, self.counts, *ranges)
@@ -2620,13 +2621,6 @@ class ScatterPlotDialog(PlotDialog):
 							subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], weight_block[sub_i1:sub_i2], sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
 						self.pool.run_blocks(subblock, info.size)
 						counts_weighted += np.sum(sub_counts, axis=0)
-		except:
-			print "args", args	
-			print blockx.shape, blockx.dtype
-			print blocky.shape, blocky.dtype
-			print self.counts.shape, self.counts.dtype
-			raise
-		print "it took", time.time()-t0
 
 		if weights_x_block is not None or weights_y_block is not None:
 			if mask is None:
@@ -2863,6 +2857,7 @@ class ScatterPlotDialog(PlotDialog):
 		if not self.action_mini_mode_ultra.isChecked():
 			self.fig.tight_layout(pad=0.0)#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 		self.canvas.draw()
+		self.update()
 		if self.first_time:
 			self.first_time = False
 			if "filename" in self.options:
