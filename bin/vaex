@@ -1064,11 +1064,12 @@ class Vaex(QtGui.QMainWindow):
 			self.toolbar.addAction(self.action_samp_connect)
 		self.action_samp_connect.triggered.connect(self.onSampConnect)
 		
-		self.action_samp_table_send = QtGui.QAction(QtGui.QIcon(vp.iconfile('table--arrow')), 'Send active dataset via SAMP', self)
-		self.action_samp_table_send.setShortcut('Alt+T')
-		if use_toolbar:
-			self.toolbar.addAction(self.action_samp_table_send)
-		self.action_samp_table_send.triggered.connect(self.onSampSend)
+		if 0:
+			self.action_samp_table_send = QtGui.QAction(QtGui.QIcon(vp.iconfile('table--arrow')), 'Send active dataset via SAMP', self)
+			self.action_samp_table_send.setShortcut('Alt+T')
+			if use_toolbar:
+				self.toolbar.addAction(self.action_samp_table_send)
+			self.action_samp_table_send.triggered.connect(self.onSampSend)
 		
 		self.action_samp_sand_table_select_row_list = QtGui.QAction(QtGui.QIcon(vp.iconfile('block--arrow')), 'Send selection via SAMP(table.select.rowlist)', self)
 		self.action_samp_sand_table_select_row_list.setShortcut('Alt+R')
@@ -1082,7 +1083,7 @@ class Vaex(QtGui.QMainWindow):
 		
 		self.sampMenu = menubar.addMenu('&Samp')
 		self.sampMenu.addAction(self.action_samp_connect)
-		self.sampMenu.addAction(self.action_samp_table_send)
+		#self.sampMenu.addAction(self.action_samp_table_send)
 		self.sampMenu.addAction(self.action_samp_sand_table_select_row_list)
 		
 		
