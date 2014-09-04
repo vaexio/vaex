@@ -435,6 +435,8 @@ class PlotDialog(QtGui.QDialog):
 		self.axis_lock = False
 		
 		self.update_counter = 0
+		self.t_0 = 0
+		self.t_last = 0
 		
 		self.gridsize = eval(self.options.get("gridsize", "512/2"))
 		self.xoffset, self.yoffset = 0, 0
@@ -488,7 +490,6 @@ class PlotDialog(QtGui.QDialog):
 		self.grabGesture(QtCore.Qt.PinchGesture);
 		self.grabGesture(QtCore.Qt.PanGesture);
 		self.grabGesture(QtCore.Qt.SwipeGesture);
-		
 		
 		self.signal_samp_send_selection = gavi.events.Signal("samp send selection")
 		
@@ -1142,7 +1143,13 @@ class PlotDialog(QtGui.QDialog):
 		self.jobsManager.addJob(1, functools.partial(self.calculate_visuals, compute_counter=compute_counter), self.dataset, *all_expressions, **self.getVariableDict())
 	
 	def getVariableDict(self):
-		return {}
+		playing = self.action_play_stop.isChecked()
+		dict = {}
+		if playing:
+			dict["time"] = self.t_last = time.time() - self.t_0
+		else:
+			dict["time"] = self.t_last
+		return dict
 			
 	def __getVariableDictMinMax(self):
 		return {}
@@ -1465,9 +1472,9 @@ class PlotDialog(QtGui.QDialog):
 		logger.debug("set range_level: %r" % (range_level, ))
 		self.range_level = range_level
 		
-		self.update()
+		self.update_plot()
 		
-	def update_(self):
+	def update_plot(self):
 		# default value
 		self.update_direct()
 		
@@ -1770,6 +1777,23 @@ class PlotDialog(QtGui.QDialog):
 	def _onActionAspectLockOne(self, *ignore_args):
 		self.aspect = 1 #self.get_aspect() if self.action_aspect_lock.isEnabled() else None
 		logger.debug("set aspect to: %r" % self.aspect)
+
+	
+	def time_step(self):
+		print "time", self.getVariableDict()
+		self.update_plot()
+		playing = self.action_play_stop.isChecked()
+		if playing:
+			QtCore.QTimer.singleShot(1, self.time_step)
+			
+		
+	def on_play_stop(self, ignore=None):
+		#self.action_play_stop.toggle()
+		play = self.action_play_stop.isChecked()
+		print "time", self.getVariableDict(), play
+		if play:
+			self.t_0 = time.time()
+			self.time_step()
 		
 		
 		
@@ -1780,6 +1804,13 @@ class PlotDialog(QtGui.QDialog):
 
 		layout.addWidget(self.toolbar2)
 		
+
+		self.action_play_stop = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Play', self)
+		self.action_play_stop.setCheckable(True)
+		
+		self.toolbar2.addAction(self.action_play_stop)
+		
+		self.action_play_stop.triggered.connect(self.on_play_stop)
 		
 		self.action_save_figure = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Export figure', self)
 		self.action_save_figure_again = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Export figure again', self)
@@ -3312,7 +3343,7 @@ class SequencePlot(PlotDialog):
 		if self.amplitude_expression is not None:
 			locals = {"counts":self.counts}
 			globals = np.__dict__
-			amplitude = eval(self.amplitude_expression, globals, locals)
+			#amplitude = eval(self.amplitude_expression, globals, locals)
 
 		if self.ranges_level[0] is None:
 			self.ranges_level[0] = 0, amplitude.max() * 1.1

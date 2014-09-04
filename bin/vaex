@@ -1123,9 +1123,13 @@ class Vaex(QtGui.QMainWindow):
 		while index < len(args):
 			filename = args[index]
 			if filename[0] == ":": # not a filename, but a classname
-				classname = filename
-				print "TODO"
-				sys.exit(0)
+				classname = filename.split(":")[1]
+				if classname not in gavi.dataset.dataset_type_map:
+					print classname, "does not exist, options are", sorted(gavi.dataset.dataset_type_map.keys())
+					sys.exit(-1)
+				class_ = gavi.dataset.dataset_type_map[classname]
+				clsargs = [eval(value) for value in filename.split(":")[2:]]
+				dataset = class_(*clsargs)
 			else:
 				dataset = gavi.dataset.load_file(filename)
 			if dataset is None:

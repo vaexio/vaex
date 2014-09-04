@@ -1276,13 +1276,13 @@ class SoneiraPeebles(InMemory):
 
 dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
 
+
 class Zeldovich(InMemory):
-	def __init__(self):
+	def __init__(self, dim=2, N=128, n=-1., t=10.):
 		super(Zeldovich, self).__init__(name="zeldovich approximation")
 		
 		
-		N = 256
-		shape = N, N, N
+		shape = (N,) * dim
 		A = np.random.normal(0.0, 1.0, shape)
 		F = np.fft.fftn(A) 
 		K = np.fft.fftfreq(N, 1./(2*np.pi))[np.indices(shape)]
@@ -1290,7 +1290,7 @@ class Zeldovich(InMemory):
 		#pylab.imshow(abs(F), interpolation='nearest')
 		k_max = np.pi
 		print k_max, k.max(), K.max()
-		F *= np.where(np.sqrt(k) > k_max, 0, np.sqrt(k**-2.5) * np.exp(-k*4.0))
+		F *= np.where(np.sqrt(k) > k_max, 0, np.sqrt(k**-n) * np.exp(-k*4.0))
 		F.flat[0] = 0
 		print F.shape
 		#pylab.imshow(np.where(sqrt(k) > k_max, 0, np.sqrt(k**-2)), interpolation='nearest')
@@ -1299,102 +1299,23 @@ class Zeldovich(InMemory):
 		Q = np.indices(shape)
 		s = np.array(np.gradient(grf))
 		
-		X = np.zeros((4, 3, N, N, N))
-		for i in range(4):
-			X[i] = Q + i * s * 7
-		
-		#self.addColumn("x", array=X[:,0].reshape(4, -1))
-		#self.addColumn("y", array=X[:,1].reshape(4, -1))
-		i = 3
-		self.addColumn("x", array=X[i,0].reshape(-1))
-		self.addColumn("y", array=X[i,1].reshape(-1))
-		self.addColumn("z", array=X[i,2].reshape(-1))
-		self.addColumn("vx", array=s[0].reshape(-1))
-		self.addColumn("vy", array=s[1].reshape(-1))
-		self.addColumn("vz", array=s[2].reshape(-1))
-		self.addColumn("x0", array=Q[0].reshape(-1))
-		self.addColumn("y0", array=Q[1].reshape(-1))
-		self.addColumn("z0", array=Q[2].reshape(-1))
+		#X = np.zeros((4, 3, N, N, N))
+		#for i in range(4):
+		X = Q + s * t
+		print dim, N, n, t
+
+		for d, name in zip(range(dim), "xyzw"):
+			self.addColumn(name, array=X[d].reshape(-1))
+		for d, name in zip(range(dim), "xyzw"):
+			self.addColumn("v"+name, array=s[d].reshape(-1))
+		for d, name in zip(range(dim), "xyzw"):
+			self.addColumn(name+"_0", array=Q[d].reshape(-1))
 		return
 		
+dataset_type_map["zeldovich"] = Zeldovich
 		
 		
 		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		if 1:
-			
-			N = 512
-			a = np.arange(0, N, dtype=np.float64)
-			x, y = np.meshgrid(a, a)
-			shape = x.shape
-			phase = np.random.random(shape)* 2 * np.pi
-			#r = (N-x)**2 + (N-y)**2
-			r = (x)**2 + (y)**2
-			amplitude = np.random.random(shape) * np.exp(-r**1.4/100**2) * np.exp( 1j * phase)
-			amplitude[0,0] = 0
-			import pylab
-			realspace = np.fft.fft2(amplitude)
-			vx = np.fft.fft2(amplitude * x).real
-			vy = np.fft.fft2(amplitude * y).real
-			
-			pylab.imshow(realspace.real)
-			pylab.show()
-			
-			
-			a = np.arange(0, N, dtype=np.float64)
-			x, y = np.meshgrid(a, a)
-			
-			scale = 0.05
-			x += vx * scale
-			y += vy * scale
-			
-			self.addColumn("x", array=x.reshape(-1))
-			self.addColumn("y", array=y.reshape(-1))
-			return
-				
-			if 0:
-				pass
-			sys.exit(0)
-		
-			N = 512
-			d = 2
-			
-			x = np.arange(N)
-			x, y = np.meshgrid(x, x)
-			x = x.reshape(-1)
-			y = y.reshape(-1)
-			x = np.random.random(x.shape) * 0.5 + 0.5
-			y = np.random.random(x.shape) * 0.5 + 0.5
-			shape = x.shape
-			grid = np.zeros(shape, dtype=np.float64)
-			gavifast.histogram2d(x, y, None, grid, 0, N, 0, N)
-			phi_f = np.fft.fft2(grid)
-			self.addColumn("x", array=x)
-			self.addColumn("y", array=y)
-			
-			
-			
-			print x.shape, x.dtype
-			
-			#sys.exit(0)
-			
-			
-			return
 		
 		
 
