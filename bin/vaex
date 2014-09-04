@@ -5,13 +5,25 @@ import h5py
 from optparse import OptionParser
 import os
 import sys
+import platform
 import sampy
+
+import encodings
+
+print "DEFAULT ENCODING is: %s"%(sys.getdefaultencoding())
+print "FILE SYSTEM ENCODING is: %s"%(sys.getfilesystemencoding())
+darwin = "darwin" not in platform.system()
+#if darwin:
+if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstaller?
+	def getfilesystemencoding_wrapper():
+		return "UTF-8"
+	sys.getfilesystemencoding = getfilesystemencoding_wrapper
+
 
 
 import thread
 import threading
 import time
-import platform
 try:
 	import pdb
 	#import astropy.io.fits
@@ -38,18 +50,8 @@ import logging
 logger.setLevel(logging.DEBUG)
 
 import sys
-import locale
-locale.setlocale(locale.LC_ALL, )
-import encodings
-
-print "DEFAULT ENCODING is: %s"%(sys.getdefaultencoding())
-print "FILE SYSTEM ENCODING is: %s"%(sys.getfilesystemencoding())
-darwin = "darwin" not in platform.system()
-if darwin:
-	if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstaller?
-		def getfilesystemencoding_wrapper():
-			return "UTF-8"
-		sys.getfilesystemencoding = getfilesystemencoding_wrapper
+#import locale
+#locale.setlocale(locale.LC_ALL, )
 
 # samp stuff
 #import astropy.io.votable
@@ -631,16 +633,17 @@ class MainPanel(QtGui.QFrame):
 		self.scatterButton.setText('x/y density')
 		self.form_layout.addRow('', self.scatterButton)
 		
-		self.scatter3dButton = QtGui.QToolButton(self)
-		self.scatter3dButton.setText('x/y/z density')
-		self.form_layout.addRow('', self.scatter3dButton)
-		
-		
-		self.scatter1dSeries = QtGui.QPushButton('series', self)
-		self.form_layout.addRow('', self.scatter1dSeries)
-		
-		self.scatter2dSeries = QtGui.QPushButton('x/y series', self)
-		self.form_layout.addRow('', self.scatter2dSeries)
+		if 0:
+			self.scatter3dButton = QtGui.QToolButton(self)
+			self.scatter3dButton.setText('x/y/z density')
+			self.form_layout.addRow('', self.scatter3dButton)
+			
+			
+			self.scatter1dSeries = QtGui.QPushButton('series', self)
+			self.form_layout.addRow('', self.scatter1dSeries)
+			
+			self.scatter2dSeries = QtGui.QPushButton('x/y series', self)
+			self.form_layout.addRow('', self.scatter2dSeries)
 		
 		self.serieSlice = QtGui.QToolButton(self)
 		self.serieSlice.setText('serie slice')
@@ -678,9 +681,9 @@ class MainPanel(QtGui.QFrame):
 		self.histogramButton.clicked.connect(self.onOpenHistogram)
 		self.statistics.clicked.connect(self.onOpenStatistics)
 		self.scatterButton.clicked.connect(self.onOpenScatter)
-		self.scatter3dButton.clicked.connect(self.onOpenScatter3d)
-		self.scatter1dSeries.clicked.connect(self.onOpenScatter1dSeries)
-		self.scatter2dSeries.clicked.connect(self.onOpenScatter2dSeries)
+		#self.scatter3dButton.clicked.connect(self.onOpenScatter3d)
+		#self.scatter1dSeries.clicked.connect(self.onOpenScatter1dSeries)
+		#self.scatter2dSeries.clicked.connect(self.onOpenScatter2dSeries)
 		self.serieSlice.clicked.connect(self.onOpenSerieSlice)
 		self.rank.clicked.connect(self.onOpenRank)
 		self.table.clicked.connect(self.onOpenTable)
@@ -803,9 +806,9 @@ class MainPanel(QtGui.QFrame):
 			print "best index:", index
 			self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
 			self.scatterButton.setEnabled(len(self.dataset.columns) > 0)
-			self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
-			self.scatter3dButton.setEnabled(False)
-			self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
+			#self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
+			#self.scatter3dButton.setEnabled(False)
+			#self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
 			self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
 			
 			self.histogramMenu = QtGui.QMenu(self)
@@ -1016,15 +1019,34 @@ class Vaex(QtGui.QMainWindow):
 		
 		
 		self.menu_data = menubar.addMenu('&Data')
-		for level in [20, 25, 30, 31, 32]:
+		for level in [20, 25, 27, 29, 30, 31, 32]:
 			N = 2**level
 			action = QtGui.QAction('Generate Soneira Peebles fractal: N={:,}'.format(N), self)
 			def do(ignore=None, level=level):
-				sp = SoneiraPeebles(dimension=4, eta=2, max_level=level, L=[1.1, 1.3, 1.6, 2.])
+				if level < 29:
+					sp = SoneiraPeebles(dimension=4, eta=2, max_level=level, L=[1.1, 1.3, 1.6, 2.])
+				else:
+					sp = SoneiraPeebles(dimension=2, eta=2, max_level=level, L=[1.6, 2.])
 				self.list.addDataset(sp)
 			action.triggered.connect(do)
 			self.menu_data.addAction(action)
-			self.menu_data.addAction(action)
+		
+		for dim in [2,3]:
+			if dim == 2:
+				res = [256, 512, 1024]
+			if dim == 2:
+				res = [512, 1024, 2048]
+			for N in res:
+				for power in [-1.5, -2.5]:
+					count = N**dim
+					name = 'Zeldovich d={dim} N={N:,}, count={count:,} powerspectrum={power:}'.format(**locals())
+					action = QtGui.QAction('Generate '+name, self)
+					def do(ignore=None, dim=dim, N=N, power=power, name=name):
+						t = 1.
+						z = gavi.dataset.Zeldovich(dim, N, power, t, name=name)
+						self.list.addDataset(z)
+					action.triggered.connect(do)
+					self.menu_data.addAction(action)
 		
 
 		use_toolbar = "darwin" not in platform.system().lower()

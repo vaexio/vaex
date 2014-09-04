@@ -545,6 +545,7 @@ class PlotDialog(QtGui.QDialog):
 		self.dataset.row_selection_listeners.remove(self.onSelectRow)
 		self.dataset.serie_index_selection_listeners.remove(self.onSerieIndexSelect)
 		self.jobsManager.after_execute.remove(self.plot)
+		#self.action_play_stop.setChecked(False)
 		super(PlotDialog, self).closeEvent(event)
 		print "close event"
 
@@ -599,6 +600,7 @@ class PlotDialog(QtGui.QDialog):
 			row = axisIndex
 			axisbox = QtGui.QComboBox(self)
 			axisbox.setEditable(True)
+			axisbox.setMinimumContentsLength(10)
 			#self.form_layout.addRow(axisname + '-axis:', axisbox)
 			self.grid_layout.addWidget(QtGui.QLabel(axisname + '-axis:', self), row, 1)
 			self.grid_layout.addWidget(axisbox, row, 2, QtCore.Qt.AlignLeft)
@@ -1607,7 +1609,9 @@ class PlotDialog(QtGui.QDialog):
 		ymin_show, ymax_show = y - height*fraction*factor, y + height*(1-fraction)*factor
 		ymin_show, ymax_show = min(ymin_show, ymax_show), max(ymin_show, ymax_show)
 		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
-			range_level = ymin_show, ymax_show
+			#range_level = ymin_show, ymax_show
+			#range_level = ymin_show, ymax_show
+			pass
 		else:
 			ranges_show.append((ymin_show, ymax_show))
 			axis_indices.append(1)
@@ -1783,8 +1787,8 @@ class PlotDialog(QtGui.QDialog):
 		print "time", self.getVariableDict()
 		self.update_plot()
 		playing = self.action_play_stop.isChecked()
-		if playing:
-			QtCore.QTimer.singleShot(1, self.time_step)
+		if playing and self.isVisible():
+			QtCore.QTimer.singleShot(10, self.time_step)
 			
 		
 	def on_play_stop(self, ignore=None):

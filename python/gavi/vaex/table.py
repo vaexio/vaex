@@ -121,6 +121,12 @@ class TableDialog(QtGui.QDialog):
 		self.tableModel.row_count_start = 0 if state == QtCore.Qt.Checked else 1
 		self._update_info()
 		self.update()
+		# hide/show to force an update
+		self.tableView.hide()
+		self.tableView.show()
+		#self.tableView.repaint()
+		#self.tableModel.update()
+		#self.resize(self.size())
 		
 	def _check_pages(self):
 		pages = int(math.ceil(len(self.dataset)*1./self.tableModel.page_size))

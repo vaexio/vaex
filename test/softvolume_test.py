@@ -89,7 +89,7 @@ matplotlib.cm.register_cmap(name=name, cmap=cm_plusmin)
 #data = dataset.Hdf5MemoryMapped("data/dist/Aq-A-2-999-shuffled-fraction.hdf5")
 data = dataset.Hdf5MemoryMapped("/home/data/gavi/Aq-A-2-999-shuffled.hdf5")
 
-Nrows = int(1e8)
+Nrows = int(1e7)
 #x, y, z = [col[:Nrows] for col in [data.columns["x"], data.columns["y"], data.columns["z"]]]
 x, y, z = [col for col in [data.columns["x"], data.columns["y"], data.columns["z"]]]
 x = x - 54 #x.mean()

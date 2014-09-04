@@ -20,9 +20,10 @@ import sys
 import platform
 frozen = getattr(sys, 'frozen', False)
 darwin = "darwin" not in platform.system()
-if (not frozen) or darwin: # astropy not working with pyinstaller
-	fits = __import__("astropy.io.fits").io.fits
-	pass
+import astropy.io.fits as fits
+#if (not frozen) or darwin: # astropy not working with pyinstaller
+#	#fits = __import__("astropy.io.fits").io.fits
+#	pass
 
 def error(title, msg):
 	print "Error", title, msg
@@ -665,8 +666,8 @@ class MemoryMapped(object):
 			#self.column_names.sort()
 			#self.nColumns += 1
 			#self.nRows = self._length
-			self.columns[name] = mmapped_array
-			self.column_names.append(name)
+			#self.columns[name] = mmapped_array
+			#self.column_names.append(name)
 			
 	@classmethod
 	def can_open(cls, path):
@@ -1246,6 +1247,17 @@ class InMemory(MemoryMapped):
 	def __init__(self, name):
 		super(InMemory, self).__init__(filename=None, nommap=True, name=name)
 
+
+from numba import jit
+
+@jit(nopython=True)
+def reorder(array_from, array_temp, order):
+	length = len(array_from)
+	for i in range(length):
+		array_temp[i] = array_from[order[i]]
+	for i in range(length):
+		array_from[i] = array_temp[i]
+
 class SoneiraPeebles(InMemory):
 	def __init__(self, dimension, eta, max_level, L):
 		super(SoneiraPeebles, self).__init__(name="soneira-peebles")
@@ -1260,44 +1272,52 @@ class SoneiraPeebles(InMemory):
 		eta = eta
 		max_level = max_level
 		N = eta**(max_level)
-		array = np.zeros((dimension, N), dtype=np.float64)
+		# array[-1] is used as a temp storage
+		array = np.zeros((dimension+1, N), dtype=np.float64)
 		L = todim(L)
 		print "size {:,}".format(N)
 		
-		
+		print "sp algo"
 		for d in range(dimension):
 			gavifast.soneira_peebles(array[d], 0, 1, L[d], eta, max_level)
-			
+		print "generating shuffled_sequence"
 		order = np.zeros(N, dtype=np.int64)
 		gavifast.shuffled_sequence(order);
+		print "shuffling"
 		for i, name in zip(range(dimension), "x y z w v u".split()):
-			np.take(array[i], order, out=array[i])
+			#np.take(array[i], order, out=array[i])
+			reorder(array[i], array[-1], order)
 			self.addColumn(name, array=array[i])
+		print "done"
 
 dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
 
 
 class Zeldovich(InMemory):
-	def __init__(self, dim=2, N=128, n=-1., t=10.):
-		super(Zeldovich, self).__init__(name="zeldovich approximation")
+	def __init__(self, dim=2, N=256, n=-2.5, t=0.1, seed=None, name="zeldovich approximation"):
+		super(Zeldovich, self).__init__(name=name)
 		
-		
+		if seed is not None:
+			np.random.seed(seed)
+		#print np.random.normal()
+		#sys.exit(0)
 		shape = (N,) * dim
 		A = np.random.normal(0.0, 1.0, shape)
 		F = np.fft.fftn(A) 
 		K = np.fft.fftfreq(N, 1./(2*np.pi))[np.indices(shape)]
 		k = (K**2).sum(axis=0)
-		#pylab.imshow(abs(F), interpolation='nearest')
 		k_max = np.pi
 		print k_max, k.max(), K.max()
-		F *= np.where(np.sqrt(k) > k_max, 0, np.sqrt(k**-n) * np.exp(-k*4.0))
+		F *= np.where(np.sqrt(k) > k_max, 0, np.sqrt(k**n) * np.exp(-k*4.0))
 		F.flat[0] = 0
 		print F.shape
 		#pylab.imshow(np.where(sqrt(k) > k_max, 0, np.sqrt(k**-2)), interpolation='nearest')
 		grf = np.fft.ifftn(F).real
-		
-		Q = np.indices(shape)
-		s = np.array(np.gradient(grf))
+		from matplotlib import pylab
+		Q = np.indices(shape) / float(N-1) - 0.5
+		s = np.array(np.gradient(grf)) / float(N)
+		#pylab.imshow(s[1], interpolation='nearest')
+		#pylab.show()
 		
 		#X = np.zeros((4, 3, N, N, N))
 		#for i in range(4):
@@ -1309,7 +1329,7 @@ class Zeldovich(InMemory):
 		for d, name in zip(range(dim), "xyzw"):
 			self.addColumn("v"+name, array=s[d].reshape(-1))
 		for d, name in zip(range(dim), "xyzw"):
-			self.addColumn(name+"_0", array=Q[d].reshape(-1))
+			self.addColumn(name+"0", array=Q[d].reshape(-1))
 		return
 		
 dataset_type_map["zeldovich"] = Zeldovich
