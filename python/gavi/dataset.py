@@ -670,7 +670,7 @@ class MemoryMapped(object):
 			#self.column_names.append(name)
 			
 	@classmethod
-	def can_open(cls, path):
+	def can_open(cls, path, *args):
 		return False
 	
 	@classmethod
@@ -783,7 +783,7 @@ class FitsBinTable(MemoryMapped):
 						self.addColumn(column.name, array=array)
 		#BinTableHDU
 	@classmethod
-	def can_open(cls, path):
+	def can_open(cls, path, *args):
 		return os.path.splitext(path)[1] == ".fits"
 	
 	@classmethod
@@ -1061,7 +1061,7 @@ class Hdf5MemoryMapped(MemoryMapped):
 		self.load()
 		
 	@classmethod
-	def can_open(cls, path):
+	def can_open(cls, path, *args):
 		h5file = None
 		try:
 			h5file = h5py.File(path)
@@ -1159,7 +1159,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 		super(AmuseHdf5MemoryMapped, self).__init__(filename, write=write)
 		
 	@classmethod
-	def can_open(cls, path):
+	def can_open(cls, path, *args):
 		h5file = None
 		try:
 			h5file = h5py.File(path)
@@ -1240,6 +1240,33 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 		logger.debug("property[{name}] = {value}".format(**locals()))
 		self.properties[name] = value
 		self.property_names.append(name)
+
+	@classmethod
+	def can_open(cls, path, *args):
+		if len(args) != 2:
+			return False
+		particleName = args[0]
+		particleType = args[1]
+		h5file = None
+		try:
+			h5file = h5py.File(path)
+		except:
+			return False
+		has_particles = False
+		for i in range(1,6):
+			key = "/PartType%d" % particleType
+			has_particles = has_particles or (key in h5file)
+		return has_particles
+			
+	
+	@classmethod
+	def get_options(cls, path):
+		return []
+	
+	@classmethod
+	def option_to_args(cls, option):
+		return []
+
 
 dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
 
@@ -1359,18 +1386,18 @@ class MemoryMappedGadget(MemoryMapped):
 dataset_type_map["gadget-plain"] = MemoryMappedGadget
 		
 		
-def can_open(path):
+def can_open(path, *args):
 	for name, class_ in dataset_type_map.items():
-		if class_.can_open(path):
+		if class_.can_open(path, *args):
 			return True
 		
-def load_file(path):
+def load_file(path, *args):
 	dataset_class = None
 	for name, class_ in gavi.dataset.dataset_type_map.items():
-		if class_.can_open(path):
+		if class_.can_open(path, *args):
 			dataset_class = class_
 			break
 	if dataset_class:
-		dataset = dataset_class(path)
+		dataset = dataset_class(path, *args)
 		return dataset
 	

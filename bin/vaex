@@ -20,6 +20,9 @@ if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstal
 	sys.getfilesystemencoding = getfilesystemencoding_wrapper
 
 
+# on osx 10.8 we sometimes get pipe errors while printing, ignore these
+import signal 
+signal.signal(signal.SIGPIPE, signal.SIG_DFL) 
 
 import thread
 import threading
@@ -1154,7 +1157,10 @@ class Vaex(QtGui.QMainWindow):
 				clsargs = [eval(value) for value in filename.split(":")[2:]]
 				dataset = class_(*clsargs)
 			else:
-				dataset = gavi.dataset.load_file(filename)
+				options = filename.split(":")
+				clsargs = [eval(value) for value in options[1:]]
+				filename = options[0]
+				dataset = gavi.dataset.load_file(filename, *clsargs)
 			if dataset is None:
 				error("cannot open file {filename}".format(**locals()))
 			index += 1
