@@ -29,7 +29,7 @@ def error(title, msg):
 	print "Error", title, msg
 
 
-buffer_size = 1e7
+buffer_size = 1e8
 
 import gavi.logging
 logger = gavi.logging.getLogger("gavi.vaex")
@@ -1105,7 +1105,7 @@ class Hdf5MemoryMapped(MemoryMapped):
 			
 			
 	def load_columns(self, h5data):
-		print h5data
+		#print h5data
 		# make sure x y x etc are first
 		first = "x y z vx vy vz".split()
 		finished = set()
@@ -1114,7 +1114,7 @@ class Hdf5MemoryMapped(MemoryMapped):
 				#print type(column_name)
 				column = h5data[column_name]
 				if hasattr(column, "dtype"):
-					print column, column.shape
+					#print column, column.shape
 					offset = column.id.get_offset() 
 					shape = column.shape
 					if len(shape) == 1:

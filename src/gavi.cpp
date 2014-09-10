@@ -7,22 +7,41 @@
 #include <numpy/arrayobject.h>
 
 
+// from http://stackoverflow.com/questions/12261915/howto-throw-stdexceptions-with-variable-messages
+struct Error : std::exception
+{
+    char text[1000];
 
+    Error(char const* fmt, ...) __attribute__((format(printf,2,3))) {
+        va_list ap;
+        va_start(ap, fmt);
+        vsnprintf(text, sizeof text, fmt, ap);
+        va_end(ap);
+    }
+
+    char const* what() const throw() { return text; }
+};
+
+int stride_default = 1;
 
 template<typename T>
-void object_to_numpy1d_nocopy(T* &ptr, PyObject* obj, int &count, int type=NPY_DOUBLE) {
+void object_to_numpy1d_nocopy(T* &ptr, PyObject* obj, long long  &count, int& stride=stride_default, int type=NPY_DOUBLE) {
 		if(obj == NULL)
 			throw std::runtime_error("cannot convert to numpy array");
 		if((int)PyArray_NDIM(obj) != 1)
 			throw std::runtime_error("array is not 1d");
-		int size = PyArray_DIMS(obj)[0];
+		long long size = PyArray_DIMS(obj)[0];
 		if((count >= 0) && (size != count))
 			throw std::runtime_error("arrays not of equal size");
 		if(PyArray_TYPE(obj) != type)
 			throw std::runtime_error("is not of proper type");
 		npy_intp* strides =  PyArray_STRIDES(obj);
-		if(strides[0] != PyArray_ITEMSIZE(obj)) {
-			throw std::runtime_error("stride is not 1");
+		if(stride == -1) {
+			stride = strides[0];
+		} else {
+			if(strides[0] != stride*PyArray_ITEMSIZE(obj)) {
+				throw Error("stride is not equal to %d", stride);
+			}
 		}
 		
 		ptr = (T*)PyArray_DATA(obj);
@@ -106,12 +125,12 @@ PyObject* range_check_(PyObject* self, PyObject *args) {
 	PyObject* block, *mask;
 	double min, max;
 	if(PyArg_ParseTuple(args, "OOdd", &block, &mask, &min, &max)) {
-		int length = -1;
+		long long length = -1;
 		double *block_ptr = NULL;
 		unsigned char *mask_ptr = NULL;
 		try {
 			object_to_numpy1d_nocopy(block_ptr, block, length);
-			object_to_numpy1d_nocopy(mask_ptr, mask, length, NPY_BOOL);
+			object_to_numpy1d_nocopy(mask_ptr, mask, length, stride_default, NPY_BOOL);
 			Py_BEGIN_ALLOW_THREADS
 			range_check(block_ptr, mask_ptr, length, min, max);
 			Py_END_ALLOW_THREADS
@@ -128,7 +147,7 @@ PyObject* range_check_(PyObject* self, PyObject *args) {
 
 
 
-void find_nan_min_max(double* const block_ptr, int length, double &min_, double &max_) {
+void find_nan_min_max(const double* const block_ptr, const long long length, double &min_, double &max_) {
 	double min = min_, max = max_;
 	//*double min = min_, max = max_; // no using the reference but a local var seems easier for the compiler to optimize
 	//printf("length: %d\n", length);
@@ -198,11 +217,19 @@ void find_nan_min_max(double* const block_ptr, int length, double &min_, double 
 	/*/
 	min = block_ptr[0];
 	max = block_ptr[0];
-	for(int i = 1; i < length; i++) {
-		double value = block_ptr[i];
-		if(value == value) {  // nan checking
-			min = fmin(value, min);
-			max = fmax(value, max);
+	for(long long i = 1; i < length; i++) {
+		const double value = block_ptr[i];
+		//if(value == value)// nan checking
+		{  
+			//min = fmin(value, min);
+			//max = fmax(value, max);
+			if(value < min) {
+				min = value;
+			} else if (value > max) {
+				max = value;
+			}
+			//min = value < min ? value : min;
+			//max = value > max ? value : max;
 		}
 	}
 	/**/
@@ -219,7 +246,7 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 	PyObject* block;
 	if(PyArg_ParseTuple(args, "O", &block)) {
 
-		int length = -1;
+		long long length = -1;
 		double *block_ptr = NULL;
 		double min=0., max=1.;
 		try {
@@ -236,15 +263,71 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 }
 
 
-void histogram1d(const double* const block, const double* const weights, int block_length, double* counts, int counts_length, double min, double max) {
-	for(int i = 0; i < block_length; i++) {
-		double value = block[i];
-		double scaled = (value - min) / (max-min);
-		int index = (int)(scaled * counts_length);
+
+
+void histogram1d(const double* const __restrict__ block, const long long block_stride, const double* const weights, const int weights_stride, long long block_length, double* __restrict__ counts, const int counts_length, const double min, const double max) {
+	const double* __restrict__ block_ptr = block;
+	
+
+	//*
+	
+	const int BLOCK_SIZE = (2<<10);
+	long long int indices[BLOCK_SIZE];
+	
+	int subblocks = int(block_length * 1./ BLOCK_SIZE + 1.);
+	for(long long b = 0; b < subblocks ; b++) {
+		long long i1 = b * BLOCK_SIZE;
+		long long i2 = (b+1) * BLOCK_SIZE;
+		if(i2 > block_length) i2 = block_length;
+		long long length = i2-i1;
+		long long index_count = 0;
+		if(weights == NULL) {
+			for(long long i = 0; i < length; i++) {
+				const double value = block[i];
+				//block_ptr += block_stride;
+				const double scaled = (value - min) / (max-min);
+				const long long index = (long long)(scaled * counts_length);
+				if( (index >= 0) & (index < counts_length) )
+					indices[index_count++] = index;
+			}
+			for(long long i = 0; i < index_count; i++) {
+				const long long index = indices[i];
+				counts[index] += 1;
+			}
+		} else {
+			for(long long i = 0; i < length; i++) {
+				const double value = block[i];
+				//block_ptr += block_stride;
+				const double scaled = (value - min) / (max-min);
+				const long long index = (long long)(scaled * counts_length);
+				indices[index_count++] = index;
+			}
+			for(long long i = 0; i < index_count; i++) {
+				const long long index = indices[i];
+				if( (index >= 0) & (index < counts_length) )
+					counts[index] += weights[i1+i];
+			}
+		}
+	}
+	/*/
+	
+	for(long long i = 0; i < block_length; i++) {
+		const double value = block[i]; //block[i*block_stride];
+		//block_ptr++;
+		//const double value = *block_ptr;
+		//block_ptr += block_stride;
+		//__builtin_prefetch(block_ptr, 1, 1); // read, and no temporal locality
+		//__builtin_prefetch(block_ptr+block_stride*10, 1, 1); // read, and no temporal locality
+		const double scaled = (value - min) / (max-min);
+		const long long index = (long long)(scaled * counts_length);
 		if( (index >= 0) & (index < counts_length) )
 			counts[index] += weights == NULL ? 1 : weights[i];
 	}
+	/**/
 }
+
+
+
 
 PyObject* histogram1d_(PyObject* self, PyObject* args) {
 	//object block, object weights, object counts, double min, double max) {
@@ -252,19 +335,22 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 	PyObject* block, *weights, *counts;
 	double min, max;
 	if(PyArg_ParseTuple(args, "OOOdd", &block, &weights, &counts, &min, &max)) {
-		int block_length = -1;
-		int counts_length = -1;
+		long long block_length = -1;
+		long long counts_length = -1;
 		double *block_ptr = NULL;
+		int block_stride = -1;
 		double *counts_ptr = NULL;
+		
 		double *weights_ptr = NULL;
+		int weights_stride = -1;
 		try {
-			object_to_numpy1d_nocopy(block_ptr, block, block_length);
-			object_to_numpy1d_nocopy(counts_ptr, counts, counts_length);
+			object_to_numpy1d_nocopy(block_ptr, block, block_length, block_stride);
+			object_to_numpy1d_nocopy(counts_ptr, counts, counts_length, weights_stride);
 			if(weights != Py_None) {
 				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
 			}
 			Py_BEGIN_ALLOW_THREADS
-			histogram1d(block_ptr, weights_ptr, block_length, counts_ptr, counts_length, min, max);
+			histogram1d(block_ptr, block_stride, weights_ptr, weights_stride, block_length, counts_ptr, counts_length, min, max);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
@@ -277,35 +363,44 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 
 
 
-void histogram2d(const double* const blockx, const double* const blocky, const double* const weights, const int block_length, double* const counts, const int counts_length_x, const int counts_length_y, const double xmin, const double xmax, const double ymin, const double ymax, const long long offset_x, const long long offset_y) {
+void histogram2d(const double* const __restrict__ blockx, const double* const __restrict__ blocky, const double* const weights, const long long block_length, double* const __restrict__ counts, const int counts_length_x, const int counts_length_y, const double xmin, const double xmax, const double ymin, const double ymax, const long long offset_x, const long long offset_y) {
 	long long i_x = offset_x;
 	long long i_y = offset_y;
-	for(long long i = 0; i < block_length; i++) {
-		//double value_x = blockx[(i+ offset_x + block_length)  % block_length];
-		//double value_x = blockx[i];
-		double value_x = blockx[i_x];
-		double scaled_x = (value_x - xmin) / (xmax-xmin);
-		int index_x = (int)(scaled_x * counts_length_x);
-
-		//double value_y = blocky[(i+ offset_y + block_length)  % block_length];
- 		//double value_y = blocky[i];
-
-		/*
-		if( (index_x >= 0) & (index_x < counts_length_x)  & (index_y >= 0) & (index_y < counts_length_y) )
-			counts[index_y + counts_length_y*index_x] += weights == NULL ? 1 : weights[i];
-		*/
-		if( (index_x >= 0) & (index_x < counts_length_x)) {
-			double value_y = blocky[i_y];
+	const double scale_x = counts_length_x/ (xmax-xmin);
+	const double scale_y = counts_length_y/ (ymax-ymin);
+	if((weights == NULL) & (offset_x == 0) & (offset_y == 0)) { // default: fasted algo
+		for(long long i = 0; i < block_length; i++) {
+			double value_x = blockx[i];
+			int index_x = (int)((value_x - xmin) * scale_x);
 			
-			double scaled_y = (value_y - ymin) / (ymax-ymin);
-			int index_y = (int)(scaled_y * counts_length_y);
-			if ( (index_y >= 0) & (index_y < counts_length_y) ) {
-				counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
+			if( (index_x >= 0) & (index_x < counts_length_x)) {
+				double value_y = blocky[i];
+				int index_y = (int)((value_y - ymin) * scale_y);
+				
+				if ( (index_y >= 0) & (index_y < counts_length_y) ) {
+					counts[index_x + counts_length_x*index_y] += 1;
+				}
 			}
 		}
-		i_x = i_x >= block_length-1 ? 0 : i_x+1;
-		i_y = i_y >= block_length-1 ? 0 : i_y+1;
+	} else {
+		for(long long i = 0; i < block_length; i++) {
+			double value_x = blockx[i_x];
+			int index_x = (int)((value_x - xmin) * scale_x);
+			
+			if( (index_x >= 0) & (index_x < counts_length_x)) {
+				double value_y = blocky[i_y];
+				int index_y = (int)((value_y - ymin) * scale_y);
+				
+				if ( (index_y >= 0) & (index_y < counts_length_y) ) {
+					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
+				}
+			}
+			
+			i_x = i_x >= block_length-1 ? 0 : i_x+1;
+			i_y = i_y >= block_length-1 ? 0 : i_y+1;
+		}
 	}
+	/**/
 }
 
 PyObject* histogram2d_(PyObject* self, PyObject* args) {
@@ -316,7 +411,7 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 	long long offset_x = 0;
 	long long offset_y = 0;
 	if(PyArg_ParseTuple(args, "OOOOdddd|LL", &blockx, &blocky, &weights, &counts, &xmin, &xmax, &ymin, &ymax, &offset_x, &offset_y)) {
-		int block_length = -1;
+		long long block_length = -1;
 		int counts_length_x = -1;
 		int counts_length_y = -1;
 		double *blockx_ptr = NULL;
@@ -369,7 +464,7 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 	double xmin, xmax, ymin, ymax, zmin, zmax;
 	long long offset_x = 0, offset_y = 0, offset_z = 0;
 	if(PyArg_ParseTuple(args, "OOOOOdddddd|LLL", &blockx, &blocky, &blockz, &weights, &counts, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax, &ymax, &offset_x, &offset_y, &offset_z)) {
-		int block_length = -1;
+		long long block_length = -1;
 		int counts_length_x = -1;
 		int counts_length_y = -1;
 		int counts_length_z = -1;
@@ -430,10 +525,10 @@ PyObject* project_(PyObject* self, PyObject* args) {
 		int surface_length_y = -1;
 		double *surface_ptr = NULL;
 		
-		int projection_length = -1;
+		long long projection_length = -1;
 		double *projection_ptr = NULL;
 
-		int offset_length = -1;
+		long long offset_length = -1;
 		double *offset_ptr = NULL;
 
 		try {
@@ -488,7 +583,7 @@ static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 	double meanx, meany, radius;
 	if(PyArg_ParseTuple(args, "OOOOOddd", &x, &y, &blockx, &blocky, &mask, &meanx, &meany, &radius)) {
 		unsigned char *mask_ptr = NULL;
-		int polygon_length = -1, length = -1;
+		long long polygon_length = -1, length = -1;
 		double *x_ptr = NULL;
 		double *y_ptr = NULL;
 		double *blockx_ptr = NULL;
@@ -498,7 +593,7 @@ static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 			object_to_numpy1d_nocopy(y_ptr, y, polygon_length);
 			object_to_numpy1d_nocopy(blockx_ptr, blockx, length);
 			object_to_numpy1d_nocopy(blocky_ptr, blocky, length);
-			object_to_numpy1d_nocopy(mask_ptr, mask, length, NPY_BOOL);
+			object_to_numpy1d_nocopy(mask_ptr, mask, length, stride_default, NPY_BOOL);
 			Py_BEGIN_ALLOW_THREADS
 			pnpoly(x_ptr, y_ptr, polygon_length, blockx_ptr, blocky_ptr, mask_ptr, length, meanx, meany, radius);
 			Py_END_ALLOW_THREADS
@@ -530,7 +625,7 @@ int ipow(int base, int exp)
 
 void soneira_peebles(double* coordinates, double center, double width, double lambda, int eta, int level, int max_level) {
 	int level_left = max_level - level;
-	int seperation = ipow(eta, level_left);
+	long long seperation = ipow(eta, level_left);
 	//printf("level: %d of %d seperation: %d\n", level, max_level, seperation);
 
 	for(int i = 0; i < eta; i++) {
@@ -552,19 +647,20 @@ static PyObject* soneira_peebles_(PyObject* self, PyObject *args) {
 	double lambda, center, width;
 	int eta, max_level;
 	if(PyArg_ParseTuple(args, "Odddii", &coordinates, &center, &width, &lambda, &eta, &max_level)) {
-		int length = -1;
+		long long length = -1;
 		double *coordinates_ptr = NULL;
 		try {
 			object_to_numpy1d_nocopy(coordinates_ptr, coordinates, length);
-			Py_BEGIN_ALLOW_THREADS
 			if(length != pow(eta, max_level))
-				throw std::runtime_error("length of coordinates != eta**max_level");
+				throw Error("length of coordinates != eta**max_level (%d != %d)", length, pow(eta, max_level));
+			Py_BEGIN_ALLOW_THREADS
 			soneira_peebles(coordinates_ptr, center, width, lambda, eta, 1, max_level);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
 		} catch(std::runtime_error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
+			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
 	}
 	
@@ -615,17 +711,18 @@ static PyObject* shuffled_sequence_(PyObject* self, PyObject *args) {
 	PyObject* result = NULL;
 	PyObject *array;
 	if(PyArg_ParseTuple(args, "O", &array)) {
-		int length = -1;
+		long long length = -1;
 		long long *array_ptr = NULL;
 		try {
-			object_to_numpy1d_nocopy(array_ptr, array, length, NPY_INT64);
+			object_to_numpy1d_nocopy(array_ptr, array, length, stride_default, NPY_INT64);
 			Py_BEGIN_ALLOW_THREADS
 			shuffled_sequence_(array_ptr, length);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
 		} catch(std::runtime_error e) {
-			PyErr_SetString(PyExc_RuntimeError, e.what());
+			//PyErr_SetString(PyExc_RuntimeError, e.what());
+			PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
 	}
 	
@@ -655,6 +752,8 @@ initgavifast(void)
 
 	Py_InitModule("gavifast", pygavi_functions);
 }
+
+
 
 
 

@@ -414,6 +414,9 @@ class PlotDialog(QtGui.QDialog):
 		print "aap"
 		self.options = options
 		
+		if "fraction" in self.options:
+			dataset.setFraction(float(self.options["fraction"]))
+		
 		self.undoManager = parent.undoManager
 		self.setWindowTitle(dataset.name)
 		self.jobsManager = jobsManager
@@ -2659,11 +2662,24 @@ class ScatterPlotDialog(PlotDialog):
 
 		if weights_x_block is not None or weights_y_block is not None:
 			if mask is None:
-				subspacefind.histogram2d(blockx, blocky, None, self.counts_xy, *(ranges + [self.xoffset, self.yoffset]))
+				#subspacefind.histogram2d(blockx, blocky, None, self.counts_xy, *(ranges + [self.xoffset, self.yoffset]))
+				sub_counts = np.zeros((self.pool.nthreads, Nvector, Nvector), dtype=np.float64)
+				def subblock(index, sub_i1, sub_i2):
+					subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], None, sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
+				self.pool.run_blocks(subblock, info.size)
+				self.counts_xy += np.sum(sub_counts, axis=0)
+				
 			else:
 				subsetx = blockx[mask[info.i1:info.i2]]
 				subsety = blocky[mask[info.i1:info.i2]]
-				subspacefind.histogram2d(subsetx, subsety, None, self.counts_xy, *(ranges + [self.xoffset, self.yoffset]))
+				#subspacefind.histogram2d(subsetx, subsety, None, self.counts_xy, *(ranges + [self.xoffset, self.yoffset]))
+				#subspacefind.histogram2d(blockx, blocky, None, self.counts_xy, *(ranges + [self.xoffset, self.yoffset]))
+				sub_counts = np.zeros((self.pool.nthreads, Nvector, Nvector), dtype=np.float64)
+				def subblock(index, sub_i1, sub_i2):
+					subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], None, sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
+				self.pool.run_blocks(subblock, len(subsetx))
+				self.counts_xy += np.sum(sub_counts, axis=0)
+				
 		if mask is not None:
 			subsetx = blockx[mask[info.i1:info.i2]]
 			subsety = blocky[mask[info.i1:info.i2]]

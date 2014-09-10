@@ -43,6 +43,9 @@ def qt_exception(parent, exctype, value, traceback):
 	text = """An unexpected error occured, you may press ok and continue, but the program might be unstable.
 	
 	""" + trace
+	dialog = QtGui.QMessageBox(parent)
+	dialog.setText("Unexpected error: %s" % (exctype, ))
+	dialog.setInformativeText(text)
 	QtGui.QMessageBox.critical(parent, "Unexpected error: %r" % (value, ), text)
 	
 	

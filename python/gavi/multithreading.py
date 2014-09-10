@@ -2,12 +2,16 @@
 import threading
 import Queue
 import math
+import multiprocessing
 
 lock = threading.Lock()
 
+thread_count_default = multiprocessing.cpu_count()
+
+
 class ThreadPool(object):
 	
-	def __init__(self, nthreads=4):
+	def __init__(self, nthreads=thread_count_default):
 		self.nthreads = nthreads
 		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
 		#self.semaphores_in = [threading.Semaphore(0) for i in range(nthreads)]
@@ -24,13 +28,13 @@ class ThreadPool(object):
 			self.queues_in[index].put(None)
 			
 	def execute(self, index):
-		print "index", index
+		#print "index", index
 		done = False
 		while not done:
 			#print "waiting..", index
 			args = self.queues_in[index].get()
 			if self.callable is None:
-				print "ending thread.."
+				#print "ending thread.."
 				done = True
 			else:
 				#print "running..", index
