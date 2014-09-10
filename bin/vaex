@@ -29,7 +29,7 @@ import threading
 import time
 try:
 	import pdb
-	#import astropy.io.fits
+	import astropy.io.fits
 	#pdb.set_trace()
 except Exception, e:
 	print e
