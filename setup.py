@@ -11,6 +11,7 @@ from distutils.sysconfig import get_python_inc, get_python_lib
 import numpy
 import platform
 has_py2app = False
+import gavi.vaex
 try:
 	import py2app
 	has_py2app = True
@@ -57,6 +58,7 @@ extensions = [
 
 setup(
     app=APP,
+    version=gavi.vaex.__version__,
     data_files=DATA_FILES,
     options={'py2app': OPTIONS},
     setup_requires=['py2app'],
@@ -90,9 +92,14 @@ if has_py2app:
 	libs = [line.strip() for line in """
 	libpng15.15.dylib
 	""".strip().splitlines()]
-	targetdir = 'dist/medavaex.app/Contents/Resources/'
+	targetdir = 'dist/vaex.app/Contents/Resources/'
 	for filename in libs:
 		#path = os.path.join(libpath, filename)
 		cmd = "cp %s %s" % (path, targetdir)
 		print cmd
 		os.system(cmd)
+	os.system("cd dist")
+	zipname = "%s-osx.zip" % gavi.vaex.__full_name__
+	os.system("cd dist;rm %s" % zipname)
+	os.system("cd dist;zip -r %s %s.app" % (zipname, gavi.vaex.__program_name__))
+	os.system("cd ..")

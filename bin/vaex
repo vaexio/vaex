@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import sys
+sys.stdout = open('vaex.stdout.txt', 'w')
+sys.stderr = open('vaex.stderr.txt', 'w')
+
+
 import numpy as np
 import h5py
 from optparse import OptionParser
@@ -22,7 +27,7 @@ if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstal
 
 # on osx 10.8 we sometimes get pipe errors while printing, ignore these
 import signal 
-signal.signal(signal.SIGPIPE, signal.SIG_DFL) 
+#signal.signal(signal.SIGPIPE, signal.SIG_DFL) 
 
 import thread
 import threading
@@ -1033,7 +1038,6 @@ class Vaex(QtGui.QMainWindow):
 		#self.hbox.addWidget(self.splitter)
 		self.setCentralWidget(self.splitter)
 		#self.setLayout(self.hbox)
-
         
         
 		self.widget_usage = WidgetUsage(self.left)
@@ -1042,7 +1046,7 @@ class Vaex(QtGui.QMainWindow):
 		self.list.setMinimumWidth(300)
 		#self.list.resize(30
 		
-		self.boxlist = QtGui.QVBoxLayout(self)
+		self.boxlist = QtGui.QVBoxLayout(self.left)
 		self.boxlist.addWidget(self.list)
 		self.boxlist.addWidget(self.widget_usage)
 		self.left.setLayout(self.boxlist)
@@ -1744,4 +1748,5 @@ if __name__ == '__main__':
 	#sys.stdout = open("stdout.txt", "w")
 	#sys.stderr = open("stderr.txt", "w")
 	print sys.argv
+	#if darwin:
 	main()

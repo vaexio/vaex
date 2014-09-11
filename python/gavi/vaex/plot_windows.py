@@ -453,7 +453,7 @@ class PlotDialog(QtGui.QDialog):
 		self.queue_update = Queue("update", 1000, self.update_direct)
 		self.queue_redraw = Queue("redraw", 5, self.canvas.draw)
 		
-		self.boxlayout = QtGui.QVBoxLayout(self)
+		self.boxlayout = QtGui.QVBoxLayout()
 		
 		self.ranges = [None for _ in range(self.dimensions)] # min/max for the data
 		self.ranges_show = [None for _ in range(self.dimensions)] # min/max for the plots
@@ -564,9 +564,9 @@ class PlotDialog(QtGui.QDialog):
 		self.bottom_layout = QtGui.QVBoxLayout()
 		self.bottomFrame.setLayout(self.bottom_layout)
 		
-		self.form_layout = QtGui.QFormLayout(self.bottomFrame)
+		self.form_layout = QtGui.QFormLayout()
 
-		self.button_layout = QtGui.QHBoxLayout(self)
+		self.button_layout = QtGui.QHBoxLayout()
 		if self.dimensions > 1:
 			self.buttonFlipXY = QtGui.QPushButton("x<->y")
 			def flipXY():
@@ -595,7 +595,7 @@ class PlotDialog(QtGui.QDialog):
 		self.onExpressionChangedPartials = []
 		axisIndex = 0
 		
-		self.grid_layout = QtGui.QGridLayout(self)
+		self.grid_layout = QtGui.QGridLayout()
 		#row = 0
 		self.linkButtons = []
 		self.grid_layout.setColumnStretch(2, 1)
@@ -3446,7 +3446,7 @@ class PlotDialogNd(PlotDialog):
 	def afterCanvas(self, layout):
 		#self.mpl_toolbar = NavigationToolbar(self.canvas, self.axes, self)
 		
-		self.form_layout = QtGui.QFormLayout(self)
+		self.form_layout = QtGui.QFormLayout()
 
 		self.axisboxes = []
 		axisIndex = 0
