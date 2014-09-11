@@ -2,7 +2,7 @@
 try:
 	from PyQt4 import QtGui, QtCore, QtNetwork
 	from PyQt4.QtWebKit import QWebView
-
+	qt_version = QtCore.PYQT_VERSION_STR
 	import sip
 	sip.setapi('QVariant', 1)
 except ImportError, e1:
@@ -10,6 +10,7 @@ except ImportError, e1:
 		from PySide import QtGui, QtCore, QtNetwork
 		from PySide.QtWebKit import QWebView
 		QtCore.pyqtSignal= QtCore.Signal 
+		qt_version = QtCore.__version__
 		#QtCore.Slot = QtCore.pyqtSlot
 	except ImportError, e2:
 		print >>sys.stderr, "could not import PyQt4 or PySide, please install"
@@ -46,22 +47,37 @@ import smtplib
 import platform
 import getpass
 import sys
-
-from email.mime.text import MIMEText
+import os
+import urllib
+#from email.mime.text import MIMEText
 
 def email(text):
+	
+	body = urllib.quote(text)
+	subject = urllib.quote('Error report for: ' +gavi.vaex.__full_name__)
+	mailto = "mailto:maartenbreddels@gmail.com?subject={subject}&body={body}".format(**locals())
+	print "open:", mailto
+	osname = platform.system().lower()
+	if osname == "darwin":
+		os.system("open \"" +mailto +"\"")
+	if osname == "linux":
+		os.system("xdg-open\" " +mailto +"\"")
+
+def old_email(text):
 	# Open a plain text file for reading.  For this example, assume that
 	msg = MIMEText(text)
 
-	msg['Subject'] = 'Error report for: ' +gavi.vaex.__version_text__
+	msg['Subject'] = 'Error report for: ' +gavi.vaex.__full_name__
 	email_from = "vaex@astro.rug.nl"
-	email_to = "breddels@astro.rug.nl"
+	#email_to = "breddels@astro.rug.nl"
+	email_to = "maartenbreddels@gmail.com"
 	msg['From'] = email_to
 	msg['To'] = email_to
 
 	# Send the message via our own SMTP server, but don't include the
 	# envelope header.
-	s = smtplib.SMTP('mailhost.astro.rug.nl')
+	#s = smtplib.SMTP('mailhost.astro.rug.nl')
+	s = smtplib.SMTP('smtp.gmail.com')
 	s.helo('fw1.astro.rug.nl')
 	s.sendmail(email_to, [email_to], msg.as_string())
 	s.quit()
@@ -74,7 +90,7 @@ def qt_exception(parent, exctype, value, traceback):
 	info += "version: %r\n" % gavi.vaex.__version__
 	info += "full name: %r\n" % gavi.vaex.__full_name__
 	info += "arguments: %r\n" % sys.argv
-	info += "Qt version: %r\n" % QtCore.__version__
+	info += "Qt version: %r\n" % qt_version
 	
 	attrs = sorted(dir(platform))
 	for attr in attrs:
