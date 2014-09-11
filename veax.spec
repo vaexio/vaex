@@ -1,4 +1,5 @@
 # -*- mode: python -*-
+import gavi.vaex
 a = Analysis(['bin/vaex'],
              pathex=['/net/theon/data/users/breddels/gavi/src/SubspaceFinding'],
              hiddenimports=["h5py.h5ac", "six"],
@@ -8,7 +9,7 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
           exclude_binaries=True,
-          name='vaex',
+          name=gavi.vaex.__program_name__,
           debug=False,
           strip=None,
           upx=True,
@@ -26,4 +27,4 @@ coll = COLLECT(exe,
                data_tree,
                strip=None,
                upx=True,
-               name='vaex')
+               name=gavi.vaex.__full_name__)
