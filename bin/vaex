@@ -1647,6 +1647,7 @@ def main():
 		#sys._excepthook(exctype, value, traceback)
 		#sys.exit(1)
 	sys.excepthook = qt_exception_hook
+	#raise RuntimeError, "blaat"
 
 	
 	vaex = Vaex()
