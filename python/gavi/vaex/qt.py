@@ -36,10 +36,17 @@ def dialog_error(parent, title, msg):
 def dialog_info(parent, title, msg):	
 	QtGui.QMessageBox.information(parent, title, msg)
 	
+def confirm(parent, title, msg):
+	QtGui.QMessageBox.information(parent, title, msg, QtGui.QMessageBox.Yes|QtGui.QMessageBox.No) == QtGui.QMessageBox.Yes
+	
 import traceback as tb
 import sys
 import gavi.vaex
 import smtplib
+import platform
+import getpass
+import sys
+
 from email.mime.text import MIMEText
 
 def email(text):
@@ -62,10 +69,29 @@ def email(text):
 def qt_exception(parent, exctype, value, traceback):
 	trace_lines = tb.format_exception(exctype, value, traceback)
 	trace = "".join(trace_lines)
+	info = "username: %r\n" % (getpass.getuser(),)
+	info += "program: %r\n" % gavi.vaex.__program_name__
+	info += "version: %r\n" % gavi.vaex.__version__
+	info += "full name: %r\n" % gavi.vaex.__full_name__
+	info += "arguments: %r\n" % sys.argv
+	info += "Qt version: %r\n" % QtCore.__version__
+	
+	attrs = sorted(dir(platform))
+	for attr in attrs:
+		if not attr.startswith("_") and attr not in ["popen", "system_alias"]:
+			f = getattr(platform, attr)
+			if callable(f):
+				try:
+					info += "%s: %r\n" % (attr, f())
+				except:
+					pass
+	#, platform.architecture(), platform.dist(), platform.linux_distribution(), 
+	
+	report = info + "\n" + trace
 	text = """An unexpected error occured, you may press ok and continue, but the program might be unstable.
 	
-	""" + trace
-	report = gavi.vaex.__version_text__ + "\n" + text 
+""" + report
+	
 	dialog = QtGui.QMessageBox(parent)
 	dialog.setText("Unexpected error: %s\nDo you want to continue" % (exctype, ))
 	#dialog.setInformativeText(text)
@@ -77,7 +103,8 @@ def qt_exception(parent, exctype, value, traceback):
 		print "exit"
 		sys.exit(1)
 	def _email(ignore=None):
-		email(report)
+		if QtGui.QMessageBox.information(dialog, "Send report", "Confirm that you want to send a report", QtGui.QMessageBox.Abort|QtGui.QMessageBox.Yes) == QtGui.QMessageBox.Yes:
+			email(report)
 	buttonQuit.clicked.connect(exit)
 	buttonSend.clicked.connect(_email)
 	dialog.addButton(buttonSend, QtGui.QMessageBox.YesRole)

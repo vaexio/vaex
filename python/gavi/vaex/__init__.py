@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
 
-__version__ = (0, 1, 7)
-__version_text__ = "Vaex v%d.%d.%d" % __version__
+__version_tuple__ = (0, 1, 7)
+__program_name__ = "Vaex"
+__version__ = "%d.%d.%d" % __version_tuple__
+__full_name__ = __program_name__ + "-" + __version__

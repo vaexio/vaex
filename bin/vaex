@@ -913,8 +913,70 @@ def find_nearest_index1d(datax, x):
 
 import mab.utils.numpy
 
+import psutil		
+		
+class WidgetUsage(QtGui.QWidget):
+	def __init__(self, parent):
+		super(WidgetUsage, self).__init__(parent)
+		self.setMinimumHeight(16)
+		self.setMinimumWidth(100)
+		self.timer = QtCore.QTimer(self)
+		self.timer.timeout.connect(self.update)
+		self.timer.start(500)
+		self.t_prev = time.time()
+		self.bytes_read_prev = psutil.disk_io_counters().read_bytes
+		
+	def paintEvent(self, event):
+		painter = QtGui.QPainter()
+		painter.begin(self)
+		painter.fillRect(event.rect(), QtGui.QBrush(QtCore.Qt.white))
+		size = self.size()
+		width, height = size.width(), size.height()
+		#print height
+		self.tool_lines = []
+		#self.tool_text = ""
+		
+		def drawbar(index, count, fraction, color=QtCore.Qt.red):
+			#print "bar", index, count, height * (index)/ count, height * (index+1)/ count
+			rect = QtCore.QRect(0, height * (index)/ count, int(width*fraction+0.5), height/count)
+			#painter.setBrush(QtGui.QBrush(QtCore.Qt.blue))
+			painter.fillRect(rect, QtGui.QBrush(color))
+		
+		cpu_fraction = psutil.cpu_percent()/100.
+		#print cpu_fraction
+		drawbar(0, 4, cpu_fraction, QtCore.Qt.green)
+		self.tool_lines.append("Cpu usage: %.1f%%" % (cpu_fraction*100,))
 		
 		
+		vmem = psutil.virtual_memory()
+		mem_fraction = (vmem.total-vmem.available) * 1./vmem.total
+		self.tool_lines.append("Virtual memory: %s used of %s (=%.1f%%)%%" % (gavi.utils.filesize_format(vmem.total-vmem.available), gavi.utils.filesize_format(vmem.total), mem_fraction*100.))
+		drawbar(1, 4, mem_fraction, QtCore.Qt.red)
+
+		swapmem = psutil.swap_memory()
+		swap_fraction = swapmem.used * 1./swapmem.total
+		drawbar(2, 4, swap_fraction, QtCore.Qt.blue)
+		self.tool_lines.append("Swap memory: %s used of %s (=%.1f%%)" % (gavi.utils.filesize_format(swapmem.used), gavi.utils.filesize_format(swapmem.total), swap_fraction*100.))
+		
+		self.t_now = time.time()
+		self.bytes_read_new = psutil.disk_io_counters().read_bytes
+		bytes_per_second = (self.bytes_read_new - self.bytes_read_prev) / (self.t_now - self.t_prev)
+		Mbytes_per_second = bytes_per_second/1024**2
+		# go from 1 mb to 10*1024 mb/s in log spacing
+		disk_fraction = np.clip(np.log2(Mbytes_per_second)/np.log2(10*1024), 0, 1)
+		drawbar(3, 4, disk_fraction, QtCore.Qt.magenta)
+		self.tool_lines.append("Reading at %.2f MiB/s" % (Mbytes_per_second,))
+		
+		
+		
+		self.t_prev = self.t_now
+		self.bytes_read_prev = self.bytes_read_new
+		
+		
+		
+		self.tool_text = "\n".join(self.tool_lines)
+		painter.end()
+		self.setToolTip(self.tool_text)
 
 
 class Vaex(QtGui.QMainWindow):
@@ -974,12 +1036,15 @@ class Vaex(QtGui.QMainWindow):
 
         
         
+		self.widget_usage = WidgetUsage(self.left)
+        
 		self.list = DataList(self.left)
 		self.list.setMinimumWidth(300)
 		#self.list.resize(30
 		
-		self.boxlist = QtGui.QHBoxLayout(self)
+		self.boxlist = QtGui.QVBoxLayout(self)
 		self.boxlist.addWidget(self.list)
+		self.boxlist.addWidget(self.widget_usage)
 		self.left.setLayout(self.boxlist)
 		
 		#self.list.currentItemChanged.connect(self.infoPanel.onDataSelected)
@@ -1022,15 +1087,28 @@ class Vaex(QtGui.QMainWindow):
 		
 		
 		self.menu_data = menubar.addMenu('&Data')
+		def check_memory(bytes):
+			if bytes > psutil.virtual_memory().available:
+				if bytes < (psutil.virtual_memory().available +psutil.swap_memory().free):
+					text = "Action requires %s, you have enough swap memory available but it will make your computer slower, do you want to continue?" % (gavi.utils.filesize_format(bytes),)
+					return confirm(self, "Memory usage issue", text)
+				else:
+					text = "Action requires %s, you do not have enough swap memory available, do you want try anyway?" % (gavi.utils.filesize_format(bytes),)
+					return confirm(self, "Memory usage issue", text)
+					
+			return True
 		for level in [20, 25, 27, 29, 30, 31, 32]:
 			N = 2**level
 			action = QtGui.QAction('Generate Soneira Peebles fractal: N={:,}'.format(N), self)
 			def do(ignore=None, level=level):
 				if level < 29:
-					sp = SoneiraPeebles(dimension=4, eta=2, max_level=level, L=[1.1, 1.3, 1.6, 2.])
+					if check_memory(4*8*2**level):
+						sp = SoneiraPeebles(dimension=4, eta=2, max_level=level, L=[1.1, 1.3, 1.6, 2.])
+						self.list.addDataset(sp)
 				else:
-					sp = SoneiraPeebles(dimension=2, eta=2, max_level=level, L=[1.6, 2.])
-				self.list.addDataset(sp)
+					if check_memory(2*8*2**level):
+						sp = SoneiraPeebles(dimension=2, eta=2, max_level=level, L=[1.6, 2.])
+						self.list.addDataset(sp)
 			action.triggered.connect(do)
 			self.menu_data.addAction(action)
 		
@@ -1266,20 +1344,13 @@ class Vaex(QtGui.QMainWindow):
 		dialog.show()
 		
 	def onSaveTable(self):
-		def filesize_format(value):
-			for unit in ['bytes','KiB','MiB','GiB']:
-				if value < 1024.0:
-					return "%3.1f%s" % (value, unit)
-				value /= 1024.0
-			return "%3.1f%s" % (num, 'TiB')
-
 		print "aap"
 		dataset = self.right.dataset
 		name = dataset.name + "-mysubset.hdf5"
 		print "noot"
-		options = ["All: %r records, filesize: %r" % (len(dataset), filesize_format(dataset.byte_size())) ]
+		options = ["All: %r records, filesize: %r" % (len(dataset), gavi.utils.filesize_format(dataset.byte_size())) ]
 		print "mies"
-		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), filesize_format(dataset.byte_size(selection=True))) ]
+		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), gavi.utils.filesize_format(dataset.byte_size(selection=True))) ]
 		print "wim"
 			
 		index = choose(self, "What do you want to export?", "Choose what to export:", options)

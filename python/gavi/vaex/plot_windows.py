@@ -1815,7 +1815,7 @@ class PlotDialog(QtGui.QDialog):
 		self.action_play_stop = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Play', self)
 		self.action_play_stop.setCheckable(True)
 		
-		self.toolbar2.addAction(self.action_play_stop)
+		#self.toolbar2.addAction(self.action_play_stop)
 		
 		self.action_play_stop.triggered.connect(self.on_play_stop)
 		
