@@ -1321,7 +1321,7 @@ dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
 
 
 class Zeldovich(InMemory):
-	def __init__(self, dim=2, N=256, n=-2.5, t=0.1, seed=None, name="zeldovich approximation"):
+	def __init__(self, dim=2, N=256, n=-2.5, t=None, seed=None, name="zeldovich approximation"):
 		super(Zeldovich, self).__init__(name=name)
 		
 		if seed is not None:
@@ -1348,6 +1348,9 @@ class Zeldovich(InMemory):
 		
 		#X = np.zeros((4, 3, N, N, N))
 		#for i in range(4):
+		if t is None:
+			s = s/s.max()
+			t = 0.07
 		X = Q + s * t
 		print dim, N, n, t
 

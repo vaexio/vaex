@@ -1,7 +1,13 @@
+# -*- coding: utf-8 -*-
 from qt import *
 
-from PyQt4 import QtGui, QtCore
-from PyQt4 import QtOpenGL
+try:
+	from PyQt4 import QtGui, QtCore
+	from PyQt4 import QtOpenGL
+except ImportError:
+	from PySide import QtGui, QtCore
+	from PySide import QtOpenGL
+import OpenGL
 from OpenGL.GL import * # import GL
 from OpenGL.GL.framebufferobjects import *
 from OpenGL.GLU import *
@@ -12,19 +18,23 @@ from OpenGL.GL import shaders
 import numpy as np
 
 import gavi.dataset
+import gavi.vaex.colormaps
 
 class VolumeRenderWidget(QtOpenGL.QGLWidget):
 	def __init__(self, parent = None):
 		super(VolumeRenderWidget, self).__init__(parent)
 		self.mouse_button_down = False
+		self.mouse_button_down_right = False
 		self.mouse_x, self.mouse_y = 0, 0
 		self.angle1 = 0
 		self.angle2 = 0
+		self.mod1 = 0
+		self.mod2 = 0
 		self.setMouseTracking(True)
 		shortcut = QtGui.QShortcut(QtGui.QKeySequence("space"), self)
 		shortcut.activated.connect(self.toggle)
-		self.texture_index = 0
-		self.texture_size = 128*4 #*8
+		self.texture_index = 2
+		self.texture_size = 512*2 #*8
 		
 	def toggle(self, ignore=None):
 		print "toggle"
@@ -43,9 +53,11 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			}""",GL_VERTEX_SHADER)
 		self.fragment_shader = shaders.compileShader("""
 			varying vec4 vertex_color;
+			uniform sampler1D texture_colormap; 
 			uniform sampler2D texture; 
 			uniform sampler3D cube; 
 			uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
+			uniform vec2 minmax;
 			void main() {
 				//gl_FragColor = vertex_color;
 				//gl_FragColor = texture2D(texture, gl_FragCoord.xy/2.);// * 0.8;
@@ -55,20 +67,31 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
 				vec3 ray_start = vertex_color.xyz;
 				float length = 0.;
-				vec3 ray_dir = ray_start - ray_end;
-				vec3 ray_delta = -ray_dir / 1000.;
-				float ray_length = length(ray_dir);
+				vec3 ray_dir = ray_end - ray_start;
+				vec3 ray_delta = ray_dir / 1000.;
+				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
 				vec3 pos = ray_start;
 				float value = 0.;
 				for (int n = 0; n < 1000; n++)  {
-					value += texture3D(cube, pos).r /100.;
+					float fraction = float(n) / float(1000);
+					float z_depth = fraction*ray_length;
+					float current_value = texture3D(cube, pos).r;
+					float s = 0.0001;
+					//value = value + current_value*exp(-(pow(pos.x - 0.5, 2)/s));//+pow(pos.y - 0.5, 2)/s+pow(pos.z - 0.5, 2)/s));
+					value = value + current_value;//*max(max(exp(-(pow(pos.x - 0.5, 2)/s)), exp(-(pow(pos.y - 0.5, 2)/s))), exp(-(pow(pos.z - 0.5, 2)/s)));
+					;//+pow(pos.y - 0.5, 2)/s+pow(pos.z - 0.5, 2)/s));
 					pos += ray_delta;
 				}
+				//value *= 10;
 				//gl_FragColor = vec4(ray_end, 1);
-				gl_FragColor = vec4(log(value + 1.), 0, 0, 1);
+				//gl_FragColor = vec4(texture1D(texture_colormap, clamp(log(value*0.0001*ray_length+1)/log(10) * 1.2 - 0.1, 0.01, 0.99)).rgb, 1);
+				//gl_FragColor = vec4(texture1D(texture_colormap, log(value*1.1+1.) ).rgb, 1);
+				float scale = log(minmax.y)/log(10.) - log(minmax.x)/log(10.);
+				float scaled = (log(value/10.+1.)/log(10.)-log(minmax.x)/log(10.)) / scale;// * 1.1 - 0.05;
+				gl_FragColor = vec4(texture1D(texture_colormap, scaled * 1.2 - 0.1).rgb, 1);
 				//gl_FragColor = texture3D(cube, vec3(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y, 0.5) );
 				//gl_FragColor = texture2D(cube, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y) );
-				//gl_FragColor = vec4(ray_length, 0, 0, 0);
+				//gl_FragColor = vec4(ray_start, 1);
 			}""",GL_FRAGMENT_SHADER)
 		return shaders.compileProgram(self.vertex_shader, self.fragment_shader)
 
@@ -131,14 +154,30 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_3D, self.texture_cube)
 			#glEnable(GL_TEXTURE_3D)
+		
+			loc = glGetUniformLocation(self.shader, "texture_colormap");
+			glUniform1i(loc, 2); # texture unit 2
+			glActiveTexture(GL_TEXTURE2);
+			index = gavi.vaex.colormaps.colormaps.index("afmhot")
+			glBindTexture(GL_TEXTURE_1D, self.textures_colormap[index])
+			glEnable(GL_TEXTURE_1D)
+
 			glActiveTexture(GL_TEXTURE0);
 		
 		size = glGetUniformLocation(self.shader,"size");
 		glUniform2f(size, self.texture_size, self.texture_size);
+		
+		minmax = glGetUniformLocation(self.shader,"minmax");
+		glUniform2f(minmax, 1*10**self.mod1, self.data2d.max()*10**self.mod2);
+		
 
 		glShadeModel(GL_SMOOTH);
 		self.cube(size=60)
 		glUseProgram(0)
+
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_1D, 0)
+		glEnable(GL_TEXTURE_2D)
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, 0)
@@ -147,6 +186,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, 0)
 		glEnable(GL_TEXTURE_2D)
+		self.cube(size=60, gl_type=GL_LINE_LOOP)
 
 		#return
 		
@@ -162,12 +202,13 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		
 		glCullFace(GL_BACK);
 
+
 		glBindTexture(GL_TEXTURE_2D, self.textures[self.texture_index % len(self.textures)])
 		#glBindTexture(GL_TEXTURE_3D, self.texture_cube)
 		glEnable(GL_TEXTURE_2D)
 		glLoadIdentity()
 		glBegin(GL_QUADS)
-		w = 45
+		w = 49
 		z = -1
 		glTexCoord2f(0,0); 
 		glVertex3f(-w, -w, z)
@@ -183,7 +224,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 		
 		
-	def cube(self, size):
+	def cube(self, size, gl_type=GL_QUADS):
 		w = size/2.
 		
 		def vertex(x, y, z):
@@ -194,53 +235,62 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		# back
 		if 1:
 			glColor3f(1, 0, 0)
-			glBegin(GL_QUADS);
+			glBegin(gl_type);
 			vertex(-w, -w, -w)
 			vertex(-w,  w, -w)
 			vertex( w,  w, -w)
 			vertex( w, -w, -w)
+			glEnd()
 
 		# front
 		if 1:
+			glBegin(gl_type);
 			glColor3f(0, 1, 0)
 			vertex(-w, -w, w)
 			vertex( w, -w, w)
 			vertex( w,  w, w)
 			vertex(-w,  w, w)
+			glEnd()
 		
 		# right
 		if 1:
+			glBegin(gl_type);
 			glColor3f(0, 0, 1)
 			vertex(w, -w,  w)
 			vertex(w, -w, -w)
 			vertex(w,  w, -w)
 			vertex(w,  w,  w)
+			glEnd()
 		
 		# left
 		if 1:
+			glBegin(gl_type);
 			glColor3f(0, 0, 1)
 			vertex(-w, -w, -w)
 			vertex(-w, -w,  w)
 			vertex(-w,  w,  w)
 			vertex(-w,  w, -w)
+			glEnd()
 		
 		# top
 		if 1:
+			glBegin(gl_type);
 			glColor3f(0, 0, 1)
 			vertex( w,  w, -w)
 			vertex(-w,  w, -w)
 			vertex(-w,  w,  w)
 			vertex( w,  w,  w)
+			glEnd()
 		
 		# bottom
 		if 1:
+			glBegin(gl_type);
 			glColor3f(0, 0, 1)
 			vertex(-w, -w, -w)
 			vertex( w, -w, -w)
 			vertex( w, -w,  w)
 			vertex(-w, -w,  w)
-		
-		glEnd()
+			glEnd()
 
 	def resizeGL(self, w, h):
 		glMatrixMode(GL_PROJECTION)
@@ -250,6 +300,40 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glViewport(0, 0, w, h)
 
 	def initializeGL(self):
+		
+		colormaps = gavi.vaex.colormaps.colormaps
+		Nx, Ny = 1024, 16
+		self.colormap_data = np.zeros((len(colormaps), Nx, 3), dtype=np.uint8)
+		
+		import matplotlib.cm
+		self.textures_colormap = glGenTextures(len(colormaps))
+		for i, colormap_name in enumerate(colormaps):
+			colormap = matplotlib.cm.get_cmap(colormap_name)
+			mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
+			#pixmap = QtGui.QPixmap(32*2, 32)
+			x = np.arange(Nx) / (Nx -1.)
+			#x = np.vstack([x]*Ny)
+			rgba = mapping.to_rgba(x,bytes=True).reshape(Nx, 4)
+			rgb = rgba[:,0:3] * 1
+			self.colormap_data[i] = rgb #(rgb*255.).astype(np.uint8)
+			if i == 0:
+				print rgb[0], rgb[-1], 
+			
+			
+			texture = self.textures_colormap[i]
+			glBindTexture(GL_TEXTURE_1D, texture)
+			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+			glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB8, Nx, 0, GL_RGB, GL_UNSIGNED_BYTE, self.colormap_data[i]);
+			#glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
+			glBindTexture(GL_TEXTURE_1D, 0)
+			
+		
+
+
 		if 0:
 			
 			f = glCreateShaderObject(GL_FRAGMENT_SHADER);
@@ -274,44 +358,53 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		for texture in [self.texture_backside, self.texture_final]:
 			glBindTexture(GL_TEXTURE_2D, texture)
 			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 			#glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
 			#glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, self.texture_size, self.texture_size, 0, GL_RGBA, GL_FLOAT, None);
-			#glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
+			#glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, self.texture_size, self.texture_size, 0, GL_RGBA, GL_FLOAT, None);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
 			glBindTexture(GL_TEXTURE_2D, 0)
 			
-		self.size3d = 128
+		self.size3d = 128 * 4
 		self.data3d = np.zeros((self.size3d, self.size3d, self.size3d)) #.astype(np.float32)
 		self.data2d = np.zeros((self.size3d, self.size3d)) #.astype(np.float32)
+		
+		self.data2d
 		
 		
 		dataset = gavi.dataset.load_file(sys.argv[1])
 		x, y, z = [dataset.columns[name] for name in sys.argv[2:]]
 		import gavifast
-		mi, ma = 40., 60.
-		gavifast.histogram3d(x, y, z, None, self.data3d, mi+5, ma+5, mi+5, ma+5, mi, ma)
+		mi, ma = 45., 55.
+		print "histo"
+		gavifast.histogram3d(x, y, z, None, self.data3d, mi+7, ma+7, mi+3, ma+3, mi, ma)
+		#mi, ma = -30., 30.
+		#gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
+		#mi, ma = -0.6, 0.6
+		#gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
+		print "histo done"
 		gavifast.histogram2d(x, y, None, self.data2d, mi, ma, mi, ma)
 		#x, y, z = np.mesgrid
 		#print self.data3d
-		#self.data3d = self.data3d.astype(np.float32)
-		#self.data2d = self.data2d.astype(np.float32)
+		self.data3d = self.data3d.astype(np.float32)
+		self.data2d = self.data2d.astype(np.float32)
+		#self.data3d -= self.data3d.min()
 		#self.data3d /= self.data3d.max()
 		#self.data3d = np.log10(self.data3d+1)
-		self.data2d = np.log10(self.data2d+1)
+		#self.data2d = np.log10(self.data2d+1)
 
-		self.data3df = self.data3d.astype(np.float32) * 1.
-		self.data2df = self.data2d * 1.
+		#self.data3df = (self.data3d * 1.).astype(np.float32)
+		#self.data2df = self.data2d * 1.0
 		
-		self.data3d -= self.data3d.min()
-		self.data3d /= self.data3d.max()
-		self.data3d = (self.data3d * 255).astype(np.uint8)
+		#self.data3d -= self.data3d.min()
+		#self.data3d /= self.data3d.max()
+		#self.data3d = (self.data3d * 255).astype(np.uint8)
 
-		self.data2d -= self.data2d.min()
-		self.data2d /= self.data2d.max()
-		self.data2d = (self.data2d * 255).astype(np.uint8)
-		print self.data3d.max()
+		#self.data2d -= self.data2d.min()
+		#self.data2d /= self.data2d.max()
+		#self.data2d = (self.data2d * 255).astype(np.uint8)
+		#print self.data3d.max()
 		
 		self.texture_cube = glGenTextures(1)
 		self.texture_square = glGenTextures(1)
@@ -334,14 +427,14 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 		print self.rgb.max()
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE8, self.size3d, self.size3d, 0,
-                        GL_LUMINANCE, GL_FLOAT, self.data2df)
+                        GL_LUMINANCE, GL_FLOAT, self.data2d)
 		
 		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 		if 0:
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
@@ -352,17 +445,17 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		
 		
 		glBindTexture(GL_TEXTURE_3D, self.texture_cube)
-		glTexImage3D(GL_TEXTURE_3D, 0, GL_LUMINANCE8, self.size3d, self.size3d, self.size3d, 0,
-                        GL_LUMINANCE, GL_FLOAT, self.data3df)
+		glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, self.size3d, self.size3d, self.size3d, 0,
+                        GL_RED, GL_FLOAT, self.data3d)
 		#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
          #               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
 		
 		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-		glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 		if 1:
-			glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
@@ -376,8 +469,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.render_buffer);
 		#glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		from matplotlib import pylab
-		#pylab.imshow(self.data3d.sum(axis=0))
+		#from matplotlib import pylab
+		#pylab.imshow(np.log((self.data3d.astype(np.float32)).sum(axis=0)+1), cmap='PaulT_plusmin', origin="lower")
 		#pylab.show()
 
 
@@ -398,28 +491,38 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		
 		
 		speed = 1.
+		speed_mod = 0.1/5
 		if self.mouse_button_down:
 			self.angle2 += dx * speed
 			self.angle1 += dy * speed
 			print self.angle1, self.angle2
+		if self.mouse_button_down_right:
+			self.mod1 += dx * speed_mod
+			self.mod2 += -dy * speed_mod
+			print self.mod1, self.mod2
+			
 		
 		self.mouse_x, self.mouse_y = x, y
-		if self.mouse_button_down:
+		if self.mouse_button_down or self.mouse_button_down_right:
 			self.update()
 		
 	def mousePressEvent(self, event):
 		if event.button() == QtCore.Qt.LeftButton:
 			self.mouse_button_down = True
+		if event.button() == QtCore.Qt.RightButton:
+			self.mouse_button_down_right = True
 
 	def mouseReleaseEvent(self, event):
 		if event.button() == QtCore.Qt.LeftButton:
 			self.mouse_button_down = False
+		if event.button() == QtCore.Qt.RightButton:
+			self.mouse_button_down_right = False
 		
 
 class TestWidget(QtGui.QMainWindow):
 	def __init__(self, parent):
 		super(TestWidget, self).__init__(parent)
-		self.resize(400, 400)
+		self.resize(700, 700)
 		self.show()
 		self.raise_()
 		shortcut = QtGui.QShortcut(QtGui.QKeySequence("Cmd+Q"), self)

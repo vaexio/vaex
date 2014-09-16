@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import platform
-darwin = "darwin" not in platform.system()
+darwin = "darwin" in platform.system()
 if darwin:
 	sys.stdout = open('vaex.stdout.txt', 'w')
 	sys.stderr = open('vaex.stderr.txt', 'w')
@@ -1118,8 +1118,8 @@ class Vaex(QtGui.QMainWindow):
 			self.menu_data.addAction(action)
 		
 		for dim in [2,3]:
-			if dim == 2:
-				res = [256, 512, 1024]
+			if dim == 3:
+				res = [128, 256, 512, 1024]
 			if dim == 2:
 				res = [512, 1024, 2048]
 			for N in res:
@@ -1128,7 +1128,7 @@ class Vaex(QtGui.QMainWindow):
 					name = 'Zeldovich d={dim} N={N:,}, count={count:,} powerspectrum={power:}'.format(**locals())
 					action = QtGui.QAction('Generate '+name, self)
 					def do(ignore=None, dim=dim, N=N, power=power, name=name):
-						t = 1.
+						t = None
 						z = gavi.dataset.Zeldovich(dim, N, power, t, name=name)
 						self.list.addDataset(z)
 					action.triggered.connect(do)
@@ -1384,7 +1384,8 @@ class Vaex(QtGui.QMainWindow):
 					#dataset_output.add_column(column_name, length=len(column), dtype=column.dtype)
 					#assert N == len(column)
 					print column_name, column.shape, column.strides
-					array = h5file_output.require_dataset("/data/%s" % column_name, shape=column.shape, dtype=column.dtype)
+					#array = h5file_output.require_dataset("/data/%s" % column_name, shape=column.shape, dtype=column.dtype)
+					array = h5file_output.require_dataset("/data/%s" % column_name, shape=(N,), dtype=column.dtype)
 					array[0] = array[0] # make sure the array really exists
 			
 				h5file_output.close()
