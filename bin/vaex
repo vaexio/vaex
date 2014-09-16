@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import sys
-sys.stdout = open('vaex.stdout.txt', 'w')
-sys.stderr = open('vaex.stderr.txt', 'w')
+import platform
+darwin = "darwin" not in platform.system()
+if darwin:
+	sys.stdout = open('vaex.stdout.txt', 'w')
+	sys.stderr = open('vaex.stderr.txt', 'w')
 
 
 import numpy as np
@@ -10,14 +13,12 @@ import h5py
 from optparse import OptionParser
 import os
 import sys
-import platform
 import sampy
 
 import encodings
 
 print "DEFAULT ENCODING is: %s"%(sys.getdefaultencoding())
 print "FILE SYSTEM ENCODING is: %s"%(sys.getfilesystemencoding())
-darwin = "darwin" not in platform.system()
 #if darwin:
 if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstaller?
 	def getfilesystemencoding_wrapper():

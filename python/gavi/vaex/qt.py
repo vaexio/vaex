@@ -61,7 +61,7 @@ def email(text):
 	if osname == "darwin":
 		os.system("open \"" +mailto +"\"")
 	if osname == "linux":
-		os.system("xdg-open\" " +mailto +"\"")
+		os.system("xdg-open \"" +mailto +"\"&")
 
 def old_email(text):
 	# Open a plain text file for reading.  For this example, assume that
