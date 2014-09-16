@@ -463,7 +463,7 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 	PyObject* blockx, *blocky, *blockz, *weights, *counts;
 	double xmin, xmax, ymin, ymax, zmin, zmax;
 	long long offset_x = 0, offset_y = 0, offset_z = 0;
-	if(PyArg_ParseTuple(args, "OOOOOdddddd|LLL", &blockx, &blocky, &blockz, &weights, &counts, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax, &ymax, &offset_x, &offset_y, &offset_z)) {
+	if(PyArg_ParseTuple(args, "OOOOOdddddd|LLL", &blockx, &blocky, &blockz, &weights, &counts, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax, &offset_x, &offset_y, &offset_z)) {
 		long long block_length = -1;
 		int counts_length_x = -1;
 		int counts_length_y = -1;
