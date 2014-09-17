@@ -437,8 +437,8 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 	return result;
 }
 
-void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, double* counts, int counts_length_x, int counts_length_y, int counts_length_z, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, long long const offset_x, long long const offset_y, long long const offset_z) {
-	for(long long i = 0; i < block_length; i++) {
+void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, double* counts, const int counts_length_x, const int counts_length_y, const int counts_length_z, const double xmin, const double xmax, const double ymin, const double ymax, const double zmin, const double zmax, long long const offset_x, long long const offset_y, long long const offset_z) {
+	/*for(long long i = 0; i < block_length; i++) {
 		double value_x = blockx[(i+ offset_x + block_length)  % block_length];
 		double scaled_x = (value_x - xmin) / (xmax-xmin);
 		int index_x = (int)(scaled_x * counts_length_x);
@@ -454,7 +454,49 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 		if( (index_x >= 0) & (index_x < counts_length_x)  & (index_y >= 0) & (index_y < counts_length_y)  & (index_z >= 0) & (index_z < counts_length_z) )
 			//counts[index_z + counts_length_z*index_y + counts_length_z*counts_length_y*index_x] += weights == NULL ? 1 : weights[i];
 			counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights == NULL ? 1 : weights[i];
-	}
+	}*/
+	long long i_x = offset_x;
+	long long i_y = offset_y;
+	long long i_z = offset_z;
+	const double scale_x = counts_length_x/ (xmax-xmin);
+	const double scale_y = counts_length_y/ (ymax-ymin);
+	const double scale_z = counts_length_z/ (zmax-zmin);
+	if((weights == NULL) & (offset_x == 0) & (offset_y == 0) & (offset_z == 0)) { // default: fasted algo
+		for(long long i = 0; i < block_length; i++) {
+			double value_x = blockx[i];
+			int index_x = (int)((value_x - xmin) * scale_x);
+			
+			if( (index_x >= 0) & (index_x < counts_length_x)) {
+				double value_y = blocky[i];
+				int index_y = (int)((value_y - ymin) * scale_y);
+				
+				if ( (index_y >= 0) & (index_y < counts_length_y) ) {
+					double value_z = blockz[i];
+					int index_z = (int)((value_z - zmin) * scale_z);
+					if ( (index_z >= 0) & (index_z < counts_length_z) ) {
+						counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += 1;
+					}
+				}
+			}
+		}
+	} else {
+		/*for(long long i = 0; i < block_length; i++) {
+			double value_x = blockx[i_x];
+			int index_x = (int)((value_x - xmin) * scale_x);
+			
+			if( (index_x >= 0) & (index_x < counts_length_x)) {
+				double value_y = blocky[i_y];
+				int index_y = (int)((value_y - ymin) * scale_y);
+				
+				if ( (index_y >= 0) & (index_y < counts_length_y) ) {
+					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
+				}
+			}
+			
+			i_x = i_x >= block_length-1 ? 0 : i_x+1;
+			i_y = i_y >= block_length-1 ? 0 : i_y+1;
+		}*/
+	}	
 }
 
 PyObject* histogram3d_(PyObject* self, PyObject* args) {

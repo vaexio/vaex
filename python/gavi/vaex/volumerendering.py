@@ -19,6 +19,8 @@ import numpy as np
 
 import gavi.dataset
 import gavi.vaex.colormaps
+print GL_R32F
+#dsa
 
 class VolumeRenderWidget(QtOpenGL.QGLWidget):
 	def __init__(self, parent = None):
@@ -30,11 +32,15 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.angle2 = 0
 		self.mod1 = 0
 		self.mod2 = 0
+		self.mod3 = 0
+		self.mod4 = 0
+		self.mod5 = 0
+		self.mod6 = 0
 		self.setMouseTracking(True)
 		shortcut = QtGui.QShortcut(QtGui.QKeySequence("space"), self)
 		shortcut.activated.connect(self.toggle)
 		self.texture_index = 2
-		self.texture_size = 512*2 #*8
+		self.texture_size = 512 #*8
 		
 	def toggle(self, ignore=None):
 		print "toggle"
@@ -42,8 +48,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.update()
 		
 	def create_shader(self):
-		self.vertex_shader = shaders.compileShader(
-			"""
+		self.vertex_shader = shaders.compileShader("""
 			varying vec4 vertex_color;
 			void main() {
 				gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
@@ -56,8 +61,17 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			uniform sampler1D texture_colormap; 
 			uniform sampler2D texture; 
 			uniform sampler3D cube; 
+			uniform sampler3D gradient;
 			uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
-			uniform vec2 minmax;
+			uniform vec2 minmax2d;
+			uniform vec2 minmax3d;
+			uniform vec2 minmax3d_total;
+			//uniform float maxvalue2d;
+			//uniform float maxvalue3d;
+			uniform float alpha_mod; // mod3
+			uniform float mod4;  // mafnifier
+			uniform float mod5; // blend color and line integral
+			uniform float mod6; 
 			void main() {
 				//gl_FragColor = vertex_color;
 				//gl_FragColor = texture2D(texture, gl_FragCoord.xy/2.);// * 0.8;
@@ -72,25 +86,77 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
 				vec3 pos = ray_start;
 				float value = 0.;
+				mat3 direction_matrix = inverse(mat3(transpose(inverse(gl_ModelViewProjectionMatrix))));
+				//vec3 light_pos = (direction_matrix * vec3(-100.,100., -100)).zyx;
+				vec3 light_pos = (direction_matrix * vec3(-5.,5., -100));
+				vec3 origin = (direction_matrix * vec3(0., 0., 0)).xyz;
+				//vec3 light_pos = (vec4(-1000., 0., -1000, 1.)).xyz;
+				//vec3 origin = (vec4(0., 0., 0., 0.)).xyz;
+				//mat3 mod = inverse(mat3(gl_ModelViewProjectionMatrix));
+				vec4 color;
+				vec3 light_dir = light_pos - origin;
+				//light_dir = vec3(-1,-1,1);
+				light_dir = light_dir / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
+				float alpha_total = 0.;
+				//float normalize = log(maxvalue);
+				float intensity_total;
 				for (int n = 0; n < 1000; n++)  {
-					float fraction = float(n) / float(1000);
-					float z_depth = fraction*ray_length;
-					float current_value = texture3D(cube, pos).r;
-					float s = 0.0001;
+					//float fraction = float(n) / float(1000);
+					//float z_depth = fraction*ray_length;
+					//float current_value = texture3D(gradient, pos).b;
+					vec3 normal = texture3D(gradient, pos).zyx;
+					normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
+					float cosangle = -dot(light_dir, normal);
+					//float s = 0.0001;
 					//value = value + current_value*exp(-(pow(pos.x - 0.5, 2)/s));//+pow(pos.y - 0.5, 2)/s+pow(pos.z - 0.5, 2)/s));
-					value = value + current_value;//*max(max(exp(-(pow(pos.x - 0.5, 2)/s)), exp(-(pow(pos.y - 0.5, 2)/s))), exp(-(pow(pos.z - 0.5, 2)/s)));
-					;//+pow(pos.y - 0.5, 2)/s+pow(pos.z - 0.5, 2)/s));
+					//value = value + current_value;
+					//*max(max(exp(-(pow(pos.x - 0.5, 2)/s)), exp(-(pow(pos.y - 0.5, 2)/s))), exp(-(pow(pos.z - 0.5, 2)/s)));
+					//+pow(pos.y - 0.5, 2)/s+pow(pos.z - 0.5, 2)/s));
+					
+					float intensity = texture3D(cube, pos).r;
+					float intensity_normalized = (log(intensity + 1.) - log(minmax3d.x)) / (log(minmax3d.y) - log(minmax3d.x));
+					
+					//intensity_normalized = clamp(cosangle, 0., 1.);
+					vec4 color_sample = texture1D(texture_colormap, intensity_normalized);// * clamp(cosangle, 0.1, 1.);
+					//color_sample = color_sample * clamp(cosangle, 0., 1.) * 15.;
+					//color_sample = texture1D(texture_colormap, cosangle * 2. - 1.);
+					float alpha_sample = 10./1000. * alpha_mod  * intensity_normalized;// * clamp(cosangle, 0.0, 1.);;
+					
+					
+					intensity_total += intensity;
+					
+					
+					color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+					alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+					
+					float border_level = log(minmax3d_total.x) + (log(minmax3d_total.y) - log(minmax3d_total.x)) * mod6 * 0.5;
+					float alpha_sample_border = exp(-pow(border_level-log(intensity),2)/0.1) * mod5;// * clamp(cosangle, 0.1, 1);
+
+					float ambient = 0.5; //atan(log(mod4)) / 3.14159 + 0.5 ;
+					vec4 color_border = vec4(1,1,1,1) * (ambient + clamp(cosangle, 0, 1.-ambient));
+					//vec4 color_border = vec4(normal.xyz, 1);// * clamp(cosangle, 0.1, 1);
+					color = color + (1.0 - alpha_total) * color_border * alpha_sample_border;
+					alpha_total = clamp(alpha_total + alpha_sample_border, 0., 1.);
+					
 					pos += ray_delta;
+					
 				}
+				gl_FragColor = vec4(color) * mod4;// / pow(0.9*alpha_total + 0.1, 1.0); // / sqrt(color.r*color.r + color.b*color.b + color.g*color.g);
 				//value *= 10;
 				//gl_FragColor = vec4(ray_end, 1);
 				//gl_FragColor = vec4(texture1D(texture_colormap, clamp(log(value*0.0001*ray_length+1)/log(10) * 1.2 - 0.1, 0.01, 0.99)).rgb, 1);
 				//gl_FragColor = vec4(texture1D(texture_colormap, log(value*1.1+1.) ).rgb, 1);
-				float scale = log(minmax.y)/log(10.) - log(minmax.x)/log(10.);
-				float scaled = (log(value/10.+1.)/log(10.)-log(minmax.x)/log(10.)) / scale;// * 1.1 - 0.05;
-				gl_FragColor = vec4(texture1D(texture_colormap, scaled * 1.2 - 0.1).rgb, 1);
+				//float scale = log(minmax2d.y)/log(10.) - log(minmax2d.x)/log(10.);
+				//float intensity_total_scaled = (log(intensity_total+1.)/log(10.)-log(minmax2d.x)/log(10.)) / scale;
+				//scaled = value / 100.;
+				//vec4 line_color = vec4(texture1D(texture_colormap, intensity_total_scaled).rgb, 1);
+				//float blend = atan(log(mod5)) / 3.14159 + 0.5 ;
+				//vec3 = gl_ModelViewProjectionMatrix
+				//gl_FragColor = vec4(light_dir, 1.);
+				//gl_FragColor = (blend * line_color + (1.-blend) * vec4(color)*mod6) * mod4;
+				//gl_FragColor = vec4(value, 0, 0, 1);
 				//gl_FragColor = texture3D(cube, vec3(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y, 0.5) );
-				//gl_FragColor = texture2D(cube, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y) );
+				//gl_FragColor = texture3D(gradient, vec3(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y, 0.5) );
 				//gl_FragColor = vec4(ray_start, 1);
 			}""",GL_FRAGMENT_SHADER)
 		return shaders.compileProgram(self.vertex_shader, self.fragment_shader)
@@ -154,12 +220,18 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_3D, self.texture_cube)
 			#glEnable(GL_TEXTURE_3D)
+
+			loc = glGetUniformLocation(self.shader, "gradient");
+			glUniform1i(loc, 3); # texture unit 1
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_3D, self.texture_gradient)
+			#glEnable(GL_TEXTURE_3D)
 		
 			loc = glGetUniformLocation(self.shader, "texture_colormap");
 			glUniform1i(loc, 2); # texture unit 2
 			glActiveTexture(GL_TEXTURE2);
 			index = gavi.vaex.colormaps.colormaps.index("afmhot")
-			glBindTexture(GL_TEXTURE_1D, self.textures_colormap[index])
+			glBindTexture(GL_TEXTURE_1D, self.textures_colormap[0])
 			glEnable(GL_TEXTURE_1D)
 
 			glActiveTexture(GL_TEXTURE0);
@@ -167,8 +239,30 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		size = glGetUniformLocation(self.shader,"size");
 		glUniform2f(size, self.texture_size, self.texture_size);
 		
-		minmax = glGetUniformLocation(self.shader,"minmax");
+		#maxvalue = glGetUniformLocation(self.shader,"maxvalue");
+		#glUniform1f(maxvalue, self.data3d.max()*10**self.mod2);
+		
+		
+		minmax = glGetUniformLocation(self.shader,"minmax2d");
 		glUniform2f(minmax, 1*10**self.mod1, self.data2d.max()*10**self.mod2);
+
+		minmax = glGetUniformLocation(self.shader,"minmax3d");
+		glUniform2f(minmax, 1*10**self.mod1, self.data3d.max()*10**self.mod2);
+		
+		minmax3d_total = glGetUniformLocation(self.shader,"minmax3d_total");
+		glUniform2f(minmax3d_total, 1, self.data3d.max());
+		
+
+		alpha_mod = glGetUniformLocation(self.shader,"alpha_mod");
+		glUniform1f(alpha_mod , 10**self.mod3);
+		
+		for i in range(4,7):
+			name = "mod" + str(i)
+			mod = glGetUniformLocation(self.shader, name)
+			glUniform1f(mod, 10**getattr(self, name));
+		
+		
+		
 		
 
 		glShadeModel(GL_SMOOTH);
@@ -331,7 +425,22 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			#glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
 			glBindTexture(GL_TEXTURE_1D, 0)
 			
-		
+
+		if 1:
+			N = 1024 * 4
+			self.surface_data =  np.zeros((N, 3), dtype=np.uint8)
+			self.texture_surface = glGenTextures(1)
+			glBindTexture(GL_TEXTURE_1D, self.texture_surface)
+			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+			glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB8, Nx, 0, GL_RGB, GL_UNSIGNED_BYTE, self.surface_data);
+			#glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
+			glBindTexture(GL_TEXTURE_1D, 0)
+			
+
 
 
 		if 0:
@@ -366,7 +475,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
 			glBindTexture(GL_TEXTURE_2D, 0)
 			
-		self.size3d = 128 * 4
+		self.size3d = 128# * 4
 		self.data3d = np.zeros((self.size3d, self.size3d, self.size3d)) #.astype(np.float32)
 		self.data2d = np.zeros((self.size3d, self.size3d)) #.astype(np.float32)
 		
@@ -377,7 +486,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		x, y, z = [dataset.columns[name] for name in sys.argv[2:]]
 		import gavifast
 		mi, ma = 45., 55.
-		print "histo"
+		#print "histo"
 		gavifast.histogram3d(x, y, z, None, self.data3d, mi+7, ma+7, mi+3, ma+3, mi, ma)
 		#mi, ma = -30., 30.
 		#gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
@@ -389,6 +498,38 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#print self.data3d
 		self.data3d = self.data3d.astype(np.float32)
 		self.data2d = self.data2d.astype(np.float32)
+
+
+		import scipy.ndimage
+		#self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 1.5)-1
+		self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 1.5)-1
+		data3ds = scipy.ndimage.gaussian_filter((self.data3d), 30.5)
+		#data3ds = data3ds.sum(axis=0)
+		self.grad3d = np.gradient(data3ds)
+		length = np.sqrt(self.grad3d[0]**2 + self.grad3d[1]**2 + self.grad3d[2]**2)
+		self.grad3d[0] = self.grad3d[0] / length
+		self.grad3d[1] = self.grad3d[1] / length
+		self.grad3d[2] = self.grad3d[2] / length
+		if 0:
+			import pylab
+			pylab.subplot(221)
+			pylab.imshow(data3ds)
+			pylab.subplot(222)
+			pylab.imshow(self.grad3d[0])
+			pylab.subplot(223)
+			pylab.imshow(self.grad3d[1])
+			pylab.show()
+		if 1:
+			self.grad3ddata = np.zeros((self.size3d, self.size3d, self.size3d, 3), dtype=np.float32)
+			self.grad3ddata[:,:,:,0] = self.grad3d[0]
+			self.grad3ddata[:,:,:,1] = self.grad3d[1]
+			self.grad3ddata[:,:,:,2] = self.grad3d[2]
+			self.grad3d = self.grad3ddata
+		
+		del self.grad3ddata
+		print self.grad3d.shape
+		
+		
 		#self.data3d -= self.data3d.min()
 		#self.data3d /= self.data3d.max()
 		#self.data3d = np.log10(self.data3d+1)
@@ -407,6 +548,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#print self.data3d.max()
 		
 		self.texture_cube = glGenTextures(1)
+		self.texture_gradient = glGenTextures(1)
 		self.texture_square = glGenTextures(1)
 		
 		#glActiveTexture(GL_TEXTURE1);
@@ -459,6 +601,26 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+			
+
+		# gradient
+		glBindTexture(GL_TEXTURE_3D, self.texture_gradient)
+		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, self.size3d, self.size3d, self.size3d, 0,
+                        GL_RGB, GL_FLOAT, self.grad3d)
+		#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
+         #               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
+		
+		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+		if 1:
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+		
+			
 		
 		
 		glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.texture_backside, 0);
@@ -497,9 +659,18 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			self.angle1 += dy * speed
 			print self.angle1, self.angle2
 		if self.mouse_button_down_right:
-			self.mod1 += dx * speed_mod
-			self.mod2 += -dy * speed_mod
-			print self.mod1, self.mod2
+			if QtGui.QApplication.keyboardModifiers() == QtCore.Qt.NoModifier:
+				self.mod1 += dx * speed_mod
+				self.mod2 += -dy * speed_mod
+				print "mod1/2", self.mod1, self.mod2
+			if QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier:
+				self.mod3 += dx * speed_mod
+				self.mod4 += -dy * speed_mod
+				print "mod3/4", self.mod3, self.mod4
+			if QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ShiftModifier:
+				self.mod5 += dx * speed_mod
+				self.mod6 += -dy * speed_mod
+				print "mod5/6", self.mod5, self.mod6
 			
 		
 		self.mouse_x, self.mouse_y = x, y
