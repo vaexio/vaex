@@ -100,13 +100,16 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				float alpha_total = 0.;
 				//float normalize = log(maxvalue);
 				float intensity_total;
-				for (int n = 0; n < 1000; n++)  {
+				for (int n = 0; n < 1500; n++)  {
 					//float fraction = float(n) / float(1000);
 					//float z_depth = fraction*ray_length;
 					//float current_value = texture3D(gradient, pos).b;
 					vec3 normal = texture3D(gradient, pos).zyx;
 					normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
 					float cosangle = -dot(light_dir, normal);
+					cosangle = 1.;
+					//cosangle = clamp(cosangle, 0.0, 1.);;
+					//float cosangle = 1.0;
 					//float s = 0.0001;
 					//value = value + current_value*exp(-(pow(pos.x - 0.5, 2)/s));//+pow(pos.y - 0.5, 2)/s+pow(pos.z - 0.5, 2)/s));
 					//value = value + current_value;
@@ -120,7 +123,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 					vec4 color_sample = texture1D(texture_colormap, intensity_normalized);// * clamp(cosangle, 0.1, 1.);
 					//color_sample = color_sample * clamp(cosangle, 0., 1.) * 15.;
 					//color_sample = texture1D(texture_colormap, cosangle * 2. - 1.);
-					float alpha_sample = 10./1000. * alpha_mod  * intensity_normalized;// * clamp(cosangle, 0.0, 1.);;
+					float alpha_sample = 10./1500. * alpha_mod  * intensity_normalized;// * clamp(cosangle+0.2, 0.0, 1.);;
+					alpha_sample = clamp(alpha_sample, 0., 1.);
 					
 					
 					intensity_total += intensity;
@@ -133,7 +137,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 					float alpha_sample_border = exp(-pow(border_level-log(intensity),2)/0.1) * mod5;// * clamp(cosangle, 0.1, 1);
 
 					float ambient = 0.5; //atan(log(mod4)) / 3.14159 + 0.5 ;
-					vec4 color_border = vec4(1,1,1,1) * (ambient + clamp(cosangle, 0, 1.-ambient));
+					vec4 color_border = vec4(1,1,1,1);// * (ambient + clamp(cosangle, 0, 1.-ambient));
 					//vec4 color_border = vec4(normal.xyz, 1);// * clamp(cosangle, 0.1, 1);
 					color = color + (1.0 - alpha_total) * color_border * alpha_sample_border;
 					alpha_total = clamp(alpha_total + alpha_sample_border, 0., 1.);
@@ -146,10 +150,11 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				//gl_FragColor = vec4(ray_end, 1);
 				//gl_FragColor = vec4(texture1D(texture_colormap, clamp(log(value*0.0001*ray_length+1)/log(10) * 1.2 - 0.1, 0.01, 0.99)).rgb, 1);
 				//gl_FragColor = vec4(texture1D(texture_colormap, log(value*1.1+1.) ).rgb, 1);
-				//float scale = log(minmax2d.y)/log(10.) - log(minmax2d.x)/log(10.);
-				//float intensity_total_scaled = (log(intensity_total+1.)/log(10.)-log(minmax2d.x)/log(10.)) / scale;
+				float scale = log(minmax2d.y)/log(10.) - log(minmax2d.x)/log(10.);
+				float intensity_total_scaled = (log(intensity_total+1.)/log(10.)-log(minmax2d.x)/log(10.)) / scale;
 				//scaled = value / 100.;
-				//vec4 line_color = vec4(texture1D(texture_colormap, intensity_total_scaled).rgb, 1);
+				vec4 line_color = vec4(texture1D(texture_colormap, intensity_total_scaled).rgb, 1);
+				//gl_FragColor = line_color;
 				//float blend = atan(log(mod5)) / 3.14159 + 0.5 ;
 				//vec3 = gl_ModelViewProjectionMatrix
 				//gl_FragColor = vec4(light_dir, 1.);
@@ -475,7 +480,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
 			glBindTexture(GL_TEXTURE_2D, 0)
 			
-		self.size3d = 128# * 4
+		self.size3d = 128 # * 4
 		self.data3d = np.zeros((self.size3d, self.size3d, self.size3d)) #.astype(np.float32)
 		self.data2d = np.zeros((self.size3d, self.size3d)) #.astype(np.float32)
 		
@@ -485,11 +490,12 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		dataset = gavi.dataset.load_file(sys.argv[1])
 		x, y, z = [dataset.columns[name] for name in sys.argv[2:]]
 		import gavifast
-		mi, ma = 45., 55.
+		#mi, ma = 45., 55.
 		#print "histo"
-		gavifast.histogram3d(x, y, z, None, self.data3d, mi+7, ma+7, mi+3, ma+3, mi, ma)
-		#mi, ma = -30., 30.
-		#gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
+		#gavifast.histogram3d(x, y, z, None, self.data3d, mi+7, ma+7, mi+3, ma+3, mi, ma)
+		mi, ma = -30., 30.
+		mi, ma = -0.5, 0.5
+		gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
 		#mi, ma = -0.6, 0.6
 		#gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
 		print "histo done"
@@ -502,8 +508,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 		import scipy.ndimage
 		#self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 1.5)-1
-		self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 1.5)-1
-		data3ds = scipy.ndimage.gaussian_filter((self.data3d), 30.5)
+		self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 0.5)-1
+		data3ds = scipy.ndimage.gaussian_filter((self.data3d), 1.5)
 		#data3ds = data3ds.sum(axis=0)
 		self.grad3d = np.gradient(data3ds)
 		length = np.sqrt(self.grad3d[0]**2 + self.grad3d[1]**2 + self.grad3d[2]**2)
