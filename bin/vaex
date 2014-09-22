@@ -752,6 +752,14 @@ class MainPanel(QtGui.QFrame):
 		self.signal_open_plot.emit(dialog)
 		return dialog
 	
+	def plotxyz(self, xname, yname, zname, **kwargs):
+		dialog = vp.VolumeRenderingPlotDialog(self, self.jobsManager, self.dataset, xname, yname, zname, **kwargs)
+		dialog.show()
+		self.plot_dialogs.append(dialog)
+		self.jobsManager.execute()
+		self.signal_open_plot.emit(dialog)
+		return dialog
+	
 	def plotmatrix(self, *expressions):
 		dialog = vp.ScatterPlotMatrixDialog(self, self.jobsManager, self.dataset, expressions)
 		dialog.show()
@@ -759,7 +767,7 @@ class MainPanel(QtGui.QFrame):
 		print "show matrix"
 		return dialog
 			
-	def plotxyz(self, xname, yname, zname):
+	def plotxyz_old(self, xname, yname, zname):
 		dialog = vp.PlotDialog3d(self, self.dataset, xname, yname, zname)
 		dialog.show()
 		print "show"
@@ -1265,6 +1273,8 @@ class Vaex(QtGui.QMainWindow):
 					self.right.histogram(columns[0], **options)
 				elif len(columns) == 2:
 					self.right.plotxy(columns[0], columns[1], **options)
+				elif len(columns) == 3:
+					self.right.plotxyz(columns[0], columns[1], columns[2], **options)
 				else:
 					error("cannot plot more than 2 columns yet: %r" % columns)
 				if index < len(args) and args[index] == "--":

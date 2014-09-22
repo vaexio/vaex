@@ -85,6 +85,7 @@ def old_email(text):
 def qt_exception(parent, exctype, value, traceback):
 	trace_lines = tb.format_exception(exctype, value, traceback)
 	trace = "".join(trace_lines)
+	print trace
 	info = "username: %r\n" % (getpass.getuser(),)
 	info += "program: %r\n" % gavi.vaex.__program_name__
 	info += "version: %r\n" % gavi.vaex.__version__

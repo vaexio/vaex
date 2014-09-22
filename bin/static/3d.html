@@ -1,0 +1,188 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>WebGL test</title>
+	<!--[if lte IE 8]><script language="javascript" type="text/javascript" src="../../excanvas.min.js"></script><![endif]-->
+	<script language="javascript" type="text/javascript" src="jquery.js"></script>
+
+	<script language="javascript" type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+	<script language="javascript" type="text/javascript" src="vaex_volumerendering.js"></script>
+	<!--<script language="javascript" type="text/javascript" src="http://rawgithub.com/toji/gl-matrix/master/src/gl-matrix/common.js"></script>
+	<script language="javascript" type="text/javascript" src="http://rawgithub.com/toji/gl-matrix/master/src/gl-matrix/mat4.js"></script>
+	-->
+<script id="shader-vertex-cube" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+	varying vec4 vertex_color;
+
+    void main(void) {
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+		vertex_color = vec4(aVertexPosition, 1);
+    }
+</script>
+
+<script id="shader-fragment-cube" type="x-shader/x-fragment">
+    precision mediump float;
+	varying vec4 vertex_color;
+
+    void main(void) {
+        gl_FragColor = vertex_color;
+    }
+</script>
+
+<script id="shader-vertex-texture" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec2 aTextureCoord;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+
+	varying vec4 vertex_color;
+	varying vec2 vTextureCoord;
+
+    void main(void) {
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+		//vertex_color = vec4(aVertexPosition, 1);
+		vTextureCoord = vec2(aVertexPosition.x/2.+0.5, aVertexPosition.y/2. + 0.5);
+    }
+</script>
+<script id="shader-fragment-texture" type="x-shader/x-fragment">
+    precision mediump float;
+	varying vec4 vertex_color;
+	varying vec2 vTextureCoord;
+	uniform sampler2D uSampler;
+
+    void main(void) {
+		vec4 textureColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+        gl_FragColor = vec4(vTextureCoord.s, vTextureCoord.t, 0, 1);
+		gl_FragColor = textureColor;
+    }
+</script>
+	<script type="text/javascript">
+
+	$(function() {
+		$( "#canvas1" ).mousedown(onmousedown);
+		$( "#canvas1" ).mouseup(onmouseup);
+		$( "#canvas1" ).mousemove(onmousemove);
+
+
+		var canvas = document.getElementById("canvas1");
+		initGL(canvas);
+		initAllShaders();
+		initBuffers();
+
+		gl.clearColor(1.0, 0.0, 0.0, 1.0);
+		gl.enable(gl.DEPTH_TEST);
+
+		drawScene();
+		console.log("lala")
+				
+	});
+	updateScene = function() {
+		gl.clearColor(0.0, 1.0, 0.0, 1.0);
+		gl.enable(gl.DEPTH_TEST);
+
+		drawScene();
+	}
+
+var angle1 = 0;
+var angle2 = 0;
+var mouse_x = 0;
+var mouse_y = 0;
+var mouse_down = false;
+onmousemove = function( event ) {
+	var msg = "Handler for .mousemove() called at ";
+	msg += event.pageX + ", " + event.pageY;
+	if(mouse_down) {
+		dx = event.pageX - mouse_x;
+		dy = event.pageY - mouse_y;
+		var speed = 0.03;
+		angle1 += dx * speed;
+		angle2 += dy * speed;
+		var msg = "change angle" + angle1 + ", " + angle2;
+		updateScene();
+	}
+	mouse_x = event.pageX;
+	mouse_y = event.pageY;
+	$( "#log" ).append( "<div>" + msg + "</div>" );
+	event.preventDefault();
+}
+onmousedown = function(event){
+	console.log("down")
+	var msg = "Handler for .mousedown() called at ";
+	msg += event.pageX + ", " + event.pageY;
+	$( "#log" ).append( "<div>" + msg + "</div>" );
+	event.preventDefault();
+	mouse_down = true;
+}
+onmouseup = function(event){
+	console.log("down")
+	var msg = "Handler for .mouseup() called at ";
+	msg += event.pageX + ", " + event.pageY;
+	$( "#log" ).append( "<div>" + msg + "</div>" );
+	event.preventDefault();
+	mouse_down = false;
+}
+
+$(function() {
+	$("#show-back").click(function() {
+		texture_show = texture_frame_buffer_back;
+		updateScene();
+	});
+	$("#show-front").click(function() {
+		texture_show = texture_frame_buffer_front;
+		updateScene();
+	});
+});
+	</script>
+</head>
+<body>
+
+	<div id="header">
+		<h2>Image Plots</h2>
+	</div>
+	<button id="show-back">Back</button>
+	<button id="show-front">Front</button>
+	
+	<select id="zoom-select">
+		<option value="xy">rectangle zoom</option>
+		<option value="x">zoom x</option>
+		<option value="y">zoom y</option>
+	</select>
+	<button id="zoom-out">Zoom out</button>
+	<select id="dataset">
+	</select>
+	<select id="colormap">
+	</select>
+	<select id="x">
+	</select>
+	<select id="y">
+	</select>
+
+	<div id="content">
+		<canvas id="canvas1" style="border: none;" width="500" height="500"></canvas>
+
+  
+
+		<div class="demo-container" style="width:400px;height:400px;">
+			<div id="placeholder" class="demo-placeholder"></div>
+		</div>
+
+	</div>
+	
+	<div id="log">
+	</div>
+
+	<p class="message"></p>
+	<input type="text" value="some text">
+
+	<div id="footer">
+	</div>
+
+	
+
+</body>
+</html>
