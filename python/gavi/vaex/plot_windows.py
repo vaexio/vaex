@@ -7,6 +7,7 @@ from matplotlib.widgets import Lasso, LassoSelector
 import matplotlib.widgets 
 import matplotlib.cm
 from gavi.multithreading import ThreadPool
+import gavi.vaex.volumerendering
 
 import scipy.ndimage
 import os
@@ -168,6 +169,7 @@ class Mover(object):
 		self.plot = plot
 		self.axes = axes
 		self.canvas = self.axes.figure.canvas
+		self.axes = None
 		
 		print "MOVER!"
 		self.canvas.mpl_connect('scroll_event', self.mpl_scroll)
@@ -208,20 +210,30 @@ class Mover(object):
 			self.plot.ranges_begin = list(self.plot.ranges_show)
 	
 	def mouse_move(self, event):
-		return
+		#return
 		#print event.xdata, event.ydata, event.button
 		#print event.key
-		if self.last_x is not None and event.xdata is not None:
+		if self.last_x is not None and event.xdata is not None and self.current_axes is not None:
+			#axes = event.inaxes
 			transform = self.current_axes.transData.inverted().transform
 			x_data, y_data = event.xdata, event.ydata
 			self.moved = True
 			dx = self.last_x - x_data
 			dy = self.last_y - y_data 
-			xmin, xmax = self.plot.ranges_show[0][0] + dx, self.plot.ranges_show[0][1] + dx
-			ymin, ymax = self.plot.ranges_show[1][0] + dy, self.plot.ranges_show[1][1] + dy
-			self.plot.ranges_show = [[xmin, xmax], [ymin, ymax]]
-			self.axes.set_xlim(*self.plot.ranges_show[0])
-			self.axes.set_ylim(*self.plot.ranges_show[1])
+			xmin, xmax = self.plot.ranges_show[self.current_axes.xaxis_index][0] + dx, self.plot.ranges_show[self.current_axes.xaxis_index][1] + dx
+			ymin, ymax = self.plot.ranges_show[self.current_axes.yaxis_index][0] + dy, self.plot.ranges_show[self.current_axes.yaxis_index][1] + dy
+			#self.plot.ranges_show = [[xmin, xmax], [ymin, ymax]]
+			self.plot.ranges_show[self.current_axes.xaxis_index] = [xmin, xmax]
+			self.plot.ranges_show[self.current_axes.yaxis_index] = [ymin, ymax]
+			for axes in self.plot.getAxesList():
+				if axes.xaxis_index == self.current_axes.xaxis_index:
+					axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
+				if axes.yaxis_index == self.current_axes.xaxis_index:
+					axes.set_ylim(*self.plot.ranges_show[self.current_axes.xaxis_index])
+				if axes.xaxis_index == self.current_axes.yaxis_index:
+					axes.set_xlim(*self.plot.ranges_show[self.current_axes.yaxis_index])
+				if axes.yaxis_index == self.current_axes.yaxis_index:
+					axes.set_ylim(*self.plot.ranges_show[self.current_axes.yaxis_index])
 
 			# transform again after we changed the axes limits
 			transform = self.current_axes.transData.inverted().transform
@@ -242,7 +254,7 @@ class Mover(object):
 			self.plot.zoom(factor, event.inaxes, event.xdata, event.ydata)
 			#self.zoom_queue.append((factor, event.xdata, event.ydata))
 		else:
-			self.plot.zoom(factor) #, event.xdata, event.ydata)
+			self.plot.zoom(factor, event.inaxes, event.xdata, event.ydata) #, event.xdata, event.ydata)
 			#self.zoom_queue.append((factor, None, None))
 		return
 		def idle_zoom(ignore=None, zoom_counter=None, axes=None):
@@ -475,7 +487,10 @@ class PlotDialog(QtGui.QDialog):
 		self.lastAction = None
 
 		self.beforeCanvas(self.boxlayout)
-		self.boxlayout.addWidget(self.canvas, 1)
+		self.layout_plot_region = QtGui.QHBoxLayout()
+		self.layout_plot_region.addWidget(self.canvas, 1)
+		
+		self.boxlayout.addLayout(self.layout_plot_region, 1)
 		self.afterCanvas(self.boxlayout)
 		self.setLayout(self.boxlayout)
 		
@@ -1479,6 +1494,8 @@ class PlotDialog(QtGui.QDialog):
 					self.ranges[axis_index] = ranges[i]
 		logger.debug("set range_level: %r" % (range_level, ))
 		self.range_level = range_level
+		if len(axis_indices) > 0:
+			self.check_aspect(axis_indices[0]) # maybe we should use the widest or smallest one
 		
 		self.update_plot()
 		
@@ -1551,6 +1568,7 @@ class PlotDialog(QtGui.QDialog):
 			#self.ranges_show = list(ranges_show)
 			self.ranges_show[axes.xaxis_index] = list(ranges_show[0])
 			self.ranges_show[axes.yaxis_index] = list(ranges_show[1])
+			self.check_aspect(1)
 			if self.dimensions == 2:
 				self.axes.set_xlim(self.ranges_show[0])
 				self.axes.set_ylim(self.ranges_show[1])
@@ -1774,15 +1792,17 @@ class PlotDialog(QtGui.QDialog):
 		
 		
 	def get_aspect(self):
-		xmin, xmax = self.axes.get_xlim()
-		ymin, ymax = self.axes.get_ylim()
-		height = ymax - ymin
-		width = xmax - xmin
+		if 0:
+			xmin, xmax = self.axes.get_xlim()
+			ymin, ymax = self.axes.get_ylim()
+			height = ymax - ymin
+			width = xmax - xmin
 		return 1 #width/height
 		
 	def onActionAspectLockOne(self, *ignore_args):
 		self.aspect = self.get_aspect() if self.action_aspect_lock_one.isChecked() else None
 		logger.debug("set aspect to: %r" % self.aspect)
+		self.check_aspect(0)
 		self.compute()
 		self.jobsManager.execute()
 		#self.plot()
@@ -2347,6 +2367,33 @@ class PlotDialog(QtGui.QDialog):
 		self.action_zoom.setIcon(self.lastActionZoom.icon())
 		#self.action_select.update()
 		
+	def check_aspect(self, axis_follow):
+		if self.aspect is not None:
+			otheraxes = range(self.dimensions)
+			allaxes = range(self.dimensions)
+			otheraxes.remove(axis_follow)
+			ranges = [self.ranges_show[i] if self.ranges_show[i] is not None else self.ranges[i] for i in otheraxes]
+			
+			width = self.ranges_show[axis_follow][1] - self.ranges_show[axis_follow][0]
+			#center = (self.ranges[axis_follow][1] + self.ranges[axis_follow][0])/2.
+			
+			widths = [ranges[i][1] - ranges[i][0] for i in range(self.dimensions-1)]
+			center = [(ranges[i][1] + ranges[i][0])/2. for i in range(self.dimensions-1)]
+			
+			
+			#xmin, xmax = self.ranges[0]
+			#ymin, ymax = self.ranges[1]
+			for i in range(self.dimensions-1):
+				axis_index = otheraxes[i]
+				#if self.ranges_show[i] is None:
+				#	self.ranges_show[i] = self.ranges[i]
+				self.ranges_show[axis_index] = [None, None]
+				self.ranges_show[axis_index][0] = center[i] - width/2
+				self.ranges_show[axis_index][1] = center[i] + width/2
+			for i in range(self.dimensions-1):
+				axis_index = otheraxes[i]
+				self.ranges[axis_index] = list(self.ranges_show[axis_index])
+			
 		
 
 
@@ -2544,6 +2591,7 @@ class HistogramPlotDialog(PlotDialog):
 class ScatterPlotDialog(PlotDialog):
 	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None, **options):
 		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname], "X Y".split(), **options)
+		
 		
 	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
 		if compute_counter < self.compute_counter:
@@ -3176,6 +3224,11 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		super(VolumeRenderingPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname, zname], "X Y Z".split(), **options)
 		
 	def afterCanvas(self, layout):
+		
+		self.widget_volume = gavi.vaex.volumerendering.VolumeRenderWidget(self)
+		self.layout_plot_region.insertWidget(0, self.widget_volume, 1)
+		
+		
 		self.addToolbar2(layout)
 		super(VolumeRenderingPlotDialog, self).afterCanvas(layout)
 
@@ -3283,7 +3336,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			if self.dimensions == 2:
 				gavi.histogram.hist2d(subsets[0], subsets[1], self.counts_weights_mask, *ranges)
 			if self.dimensions == 3:
-				gavi.histogram.hist3d(subsets[0], subsets[1], subsets[2], self.counts_weights_mask, *ranges)
+				gavi.histogram.hist3d(subsets[0], subsets[1], subsets[2], self.counts_mask, *ranges)
 			if weights_block is not None:
 				subset_weights = weights_block[mask[info.i1:info.i2]]
 				if self.dimensions == 2:
@@ -3298,6 +3351,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 	def plot(self):
 		print "Start plotting"
 		t0 = time.time()
+		self.widget_volume.setGrid(self.counts if self.counts_mask is None else self.counts_mask)
 		if 1:
 			ranges = []
 			for minimum, maximum in self.ranges:
@@ -3330,6 +3384,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			axeslist = self.getAxesList()
 			for i in range(2):
 					axes = axeslist[i]
+					
 					ranges = list(self.ranges[0]) + list(self.ranges[1+i])
 					axes.clear()
 					allaxes = range(self.dimensions)
@@ -3357,12 +3412,16 @@ class VolumeRenderingPlotDialog(PlotDialog):
 							#if i > j:
 							#	counts_mask = counts_mask.T
 							axes.imshow(np.log10(counts_mask), origin="lower", extent=ranges, cmap=self.colormap)
-						axes.set_aspect('auto')
+						#axes.set_aspect('auto')
 						if self.dataset.selected_row_index is not None:
 							#self.axes.autoscale(False)
 							x, y = self.getdatax()[self.dataset.selected_row_index],  self.getdatay()[self.dataset.selected_row_index]
 							print "drawing selected point at", x, y
 							axes.scatter([x], [y], color='red') #, scalex=False, scaley=False)
+					if self.aspect is None:
+						axes.set_aspect('auto')
+					else:
+						axes.set_aspect(self.aspect)
 						
 						j = 1 + i
 						axes.set_xlim(self.ranges_show[0][0], self.ranges_show[0][1])

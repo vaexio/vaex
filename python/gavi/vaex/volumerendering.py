@@ -19,7 +19,7 @@ import numpy as np
 
 import gavi.dataset
 import gavi.vaex.colormaps
-print GL_R32F
+#print GL_R32F
 #dsa
 
 class VolumeRenderWidget(QtOpenGL.QGLWidget):
@@ -36,11 +36,14 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.mod4 = 0
 		self.mod5 = 0
 		self.mod6 = 0
+		self.texture_cube, self.texture_gradient = None, None
 		self.setMouseTracking(True)
 		shortcut = QtGui.QShortcut(QtGui.QKeySequence("space"), self)
 		shortcut.activated.connect(self.toggle)
-		self.texture_index = 2
+		self.texture_index = 1
 		self.texture_size = 512 #*8
+		self.grid = None
+		self.post_init = lambda: 1
 		
 	def toggle(self, ignore=None):
 		print "toggle"
@@ -104,10 +107,10 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 					//float fraction = float(n) / float(1000);
 					//float z_depth = fraction*ray_length;
 					//float current_value = texture3D(gradient, pos).b;
-					vec3 normal = texture3D(gradient, pos).zyx;
-					normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
-					float cosangle = -dot(light_dir, normal);
-					cosangle = 1.;
+					//vec3 normal = texture3D(gradient, pos).zyx;
+					//normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
+					//float cosangle = -dot(light_dir, normal);
+					float cosangle = 1.;
 					//cosangle = clamp(cosangle, 0.0, 1.);;
 					//float cosangle = 1.0;
 					//float s = 0.0001;
@@ -167,18 +170,19 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		return shaders.compileProgram(self.vertex_shader, self.fragment_shader)
 
 	def paintGL(self):
-		glMatrixMode(GL_MODELVIEW)
+		if self.grid is not None:
+			glMatrixMode(GL_MODELVIEW)
 
-		glLoadIdentity()
-		glTranslated(0.0, 0.0, -15.0)
-		glRotated(self.angle1, 1.0, 0.0, 0.0)
-		glRotated(self.angle2, 0.0, 1.0, 0.0)
-		
-		
-		
-		self.draw_backside()
-		self.draw_frontside()
-		self.draw_to_screen()
+			glLoadIdentity()
+			glTranslated(0.0, 0.0, -15.0)
+			glRotated(self.angle1, 1.0, 0.0, 0.0)
+			glRotated(self.angle2, 0.0, 1.0, 0.0)
+			
+			
+			
+			self.draw_backside()
+			self.draw_frontside()
+			self.draw_to_screen()
 
 	def draw_backside(self):
 		glViewport(0, 0, self.texture_size, self.texture_size)
@@ -226,11 +230,12 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glBindTexture(GL_TEXTURE_3D, self.texture_cube)
 			#glEnable(GL_TEXTURE_3D)
 
-			loc = glGetUniformLocation(self.shader, "gradient");
-			glUniform1i(loc, 3); # texture unit 1
-			glActiveTexture(GL_TEXTURE3);
-			glBindTexture(GL_TEXTURE_3D, self.texture_gradient)
-			#glEnable(GL_TEXTURE_3D)
+			if 0:
+				loc = glGetUniformLocation(self.shader, "gradient");
+				glUniform1i(loc, 3); # texture unit 1
+				glActiveTexture(GL_TEXTURE3);
+				glBindTexture(GL_TEXTURE_3D, self.texture_gradient)
+				#glEnable(GL_TEXTURE_3D)
 		
 			loc = glGetUniformLocation(self.shader, "texture_colormap");
 			glUniform1i(loc, 2); # texture unit 2
@@ -249,13 +254,13 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		
 		
 		minmax = glGetUniformLocation(self.shader,"minmax2d");
-		glUniform2f(minmax, 1*10**self.mod1, self.data2d.max()*10**self.mod2);
+		glUniform2f(minmax, 1*10**self.mod1, self.grid2d_max*10**self.mod2);
 
 		minmax = glGetUniformLocation(self.shader,"minmax3d");
-		glUniform2f(minmax, 1*10**self.mod1, self.data3d.max()*10**self.mod2);
+		glUniform2f(minmax, 1*10**self.mod1, self.grid_max*10**self.mod2);
 		
 		minmax3d_total = glGetUniformLocation(self.shader,"minmax3d_total");
-		glUniform2f(minmax3d_total, 1, self.data3d.max());
+		glUniform2f(minmax3d_total, 1, self.grid_max);
 		
 
 		alpha_mod = glGetUniformLocation(self.shader,"alpha_mod");
@@ -319,6 +324,43 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glVertex3f(-w,  w, z)
 		glEnd()
 		glBindTexture(GL_TEXTURE_2D, 0)
+		
+		#glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+		
+	def draw_to_screen_(self):
+		w = self.width()
+		h = self.height()
+		glViewport(0, 0, w, h)
+		#glShadeModel(GL_FLAT);
+		
+		glBindFramebuffer(GL_FRAMEBUFFER, 0)
+		glClearColor(0.0, 1.0, 0.0, 1.0)
+		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+		
+		#glCullFace(GL_BACK);
+
+
+		#glBindTexture(GL_TEXTURE_2D, self.textures[self.texture_index % len(self.textures)])
+		glBindTexture(GL_TEXTURE_1D, 0)
+		glBindTexture(GL_TEXTURE_2D, 0)
+		glEnable(GL_TEXTURE_3D)
+		glBindTexture(GL_TEXTURE_3D, self.texture_cube)
+		glEnable(GL_TEXTURE_3D)
+		glColor3f(1,0,0)
+		glLoadIdentity()
+		glBegin(GL_QUADS)
+		w = 20
+		z = -1
+		glTexCoord3f(0,0, 0.5); 
+		glVertex3f(-w, -w, z)
+		glTexCoord3f(1,0, 0.5); 
+		glVertex3f( w, -w, z)
+		glTexCoord3f(1,1, 0.5); 
+		glVertex3f( w,  w, z)
+		glTexCoord3f(0,1, 0.5); 
+		glVertex3f(-w,  w, z)
+		glEnd()
+		glBindTexture(GL_TEXTURE_3D, 0)
 		
 		#glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 		
@@ -397,7 +439,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#glOrtho(-50, 50, -50, 50, -50.0, 50.0)
 		glOrtho(-50, 50, -50, 50, -150.0, 150.0)
 		glViewport(0, 0, w, h)
-
+		
 	def initializeGL(self):
 		
 		colormaps = gavi.vaex.colormaps.colormaps
@@ -480,60 +522,85 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
 			glBindTexture(GL_TEXTURE_2D, 0)
 			
-		self.size3d = 128 # * 4
-		self.data3d = np.zeros((self.size3d, self.size3d, self.size3d)) #.astype(np.float32)
-		self.data2d = np.zeros((self.size3d, self.size3d)) #.astype(np.float32)
 		
-		self.data2d
-		
-		
+		glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.texture_backside, 0);
+
+		self.render_buffer = glGenRenderbuffers(1);
+		glBindRenderbuffer(GL_RENDERBUFFER, self.render_buffer);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, self.texture_size, self.texture_size);
+
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.render_buffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		#from matplotlib import pylab
+		#pylab.imshow(np.log((self.data3d.astype(np.float32)).sum(axis=0)+1), cmap='PaulT_plusmin', origin="lower")
+		#pylab.show()
+
+
+		self.shader = self.create_shader()
+		self.post_init()
+			
+
+	# only gavi specific code?
+	def loadTable(self, args, column_names, grid_size=128):
+		import gavi.dataset
+		import gavifast
 		dataset = gavi.dataset.load_file(sys.argv[1])
 		x, y, z = [dataset.columns[name] for name in sys.argv[2:]]
-		import gavifast
-		#mi, ma = 45., 55.
-		#print "histo"
-		#gavifast.histogram3d(x, y, z, None, self.data3d, mi+7, ma+7, mi+3, ma+3, mi, ma)
-		mi, ma = -30., 30.
-		mi, ma = -0.5, 0.5
-		gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
-		#mi, ma = -0.6, 0.6
-		#gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
-		print "histo done"
-		gavifast.histogram2d(x, y, None, self.data2d, mi, ma, mi, ma)
-		#x, y, z = np.mesgrid
-		#print self.data3d
-		self.data3d = self.data3d.astype(np.float32)
-		self.data2d = self.data2d.astype(np.float32)
-
-
-		import scipy.ndimage
-		#self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 1.5)-1
-		self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 0.5)-1
-		data3ds = scipy.ndimage.gaussian_filter((self.data3d), 1.5)
-		#data3ds = data3ds.sum(axis=0)
-		self.grad3d = np.gradient(data3ds)
-		length = np.sqrt(self.grad3d[0]**2 + self.grad3d[1]**2 + self.grad3d[2]**2)
-		self.grad3d[0] = self.grad3d[0] / length
-		self.grad3d[1] = self.grad3d[1] / length
-		self.grad3d[2] = self.grad3d[2] / length
-		if 0:
-			import pylab
-			pylab.subplot(221)
-			pylab.imshow(data3ds)
-			pylab.subplot(222)
-			pylab.imshow(self.grad3d[0])
-			pylab.subplot(223)
-			pylab.imshow(self.grad3d[1])
-			pylab.show()
-		if 1:
-			self.grad3ddata = np.zeros((self.size3d, self.size3d, self.size3d, 3), dtype=np.float32)
-			self.grad3ddata[:,:,:,0] = self.grad3d[0]
-			self.grad3ddata[:,:,:,1] = self.grad3d[1]
-			self.grad3ddata[:,:,:,2] = self.grad3d[2]
-			self.grad3d = self.grad3ddata
 		
-		del self.grad3ddata
-		print self.grad3d.shape
+		
+
+		grid3d = np.zeros((grid_size, grid_size, grid_size), dtype=np.float64)
+
+		#mi, ma = -30., 30.
+		mi, ma = 0., 100.
+		#mi, ma = -0.5, 0.5
+		print "histogram3d"
+		gavifast.histogram3d(x, y, z, None, grid3d, mi, ma, mi, ma, mi, ma)
+
+		#self.data3d = self.data3d.astype(np.float32)
+		#self.data2d = self.data2d.astype(np.float32)
+		#self.size3d = 128 # * 4
+		#self.data2d = np.zeros((self.size3d, self.size3d)) #.astype(np.float32)
+		#
+		#self.data2d
+
+		#import scipy.ndimage
+		#self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 1.5)-1
+		#self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 0.5)-1
+		#data3ds = scipy.ndimage.gaussian_filter((self.data3d), 1.5)
+		
+		self.setGrid(grid3d)
+
+			
+	def setGrid(self, grid):
+		self.mod1 = 0
+		self.mod2 = 0
+		self.mod3 = 0
+		self.mod4 = 0
+		self.mod5 = 0
+		self.mod6 = 0
+		#self.grid = np.log10(grid.astype(np.float32)+1)
+		self.grid = grid.astype(np.float32)
+		self.grid_min, self.grid_max = self.grid.min(), self.grid.max()
+		grids_2d = [self.grid.sum(axis=i) for i in range(3)]
+		self.grid2d_min, self.grid2d_max = min([grid.min() for grid in grids_2d]), max([grid.max() for grid in grids_2d])
+		print "3d", self.grid_min, self.grid_max
+		print "2d", self.grid2d_min, self.grid2d_max
+		#data3ds = data3ds.sum(axis=0)
+		if 1:
+			self.grid_gradient = np.gradient(self.grid)
+			length = np.sqrt(self.grid_gradient[0]**2 + self.grid_gradient[1]**2 + self.grid_gradient[2]**2)
+			self.grid_gradient[0] = self.grid_gradient[0] / length
+			self.grid_gradient[1] = self.grid_gradient[1] / length
+			self.grid_gradient[2] = self.grid_gradient[2] / length
+
+			self.grid_gradient_data = np.zeros(self.grid.shape + (3,), dtype=np.float32)
+			self.grid_gradient_data[:,:,:,0] = self.grid_gradient[0]
+			self.grid_gradient_data[:,:,:,1] = self.grid_gradient[1]
+			self.grid_gradient_data[:,:,:,2] = self.grid_gradient[2]
+			self.grid_gradient = self.grid_gradient_data
+			del self.grid_gradient_data
+			print self.grid_gradient.shape
 		
 		
 		#self.data3d -= self.data3d.min()
@@ -552,49 +619,33 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#self.data2d /= self.data2d.max()
 		#self.data2d = (self.data2d * 255).astype(np.uint8)
 		#print self.data3d.max()
-		
+		for texture in [self.texture_cube, self.texture_gradient]:
+			if texture is not None:
+				glDeleteTextures(texture)
+
 		self.texture_cube = glGenTextures(1)
 		self.texture_gradient = glGenTextures(1)
-		self.texture_square = glGenTextures(1)
+		#self.texture_square = glGenTextures(1)
 		
 		#glActiveTexture(GL_TEXTURE1);
 		#glBindTexture(GL_TEXTURE_3D, self.texture_cube)
 		#glBindTexture(GL_TEXTURE_3D, self.texture_cube)
-		glBindTexture(GL_TEXTURE_2D, self.texture_square)
+		#glBindTexture(GL_TEXTURE_2D, self.texture_square)
 		#glTexImage3D(GL_TEXTURE_3D, 0, GL_LUMINANCE8, self.size3d, self.size3d, self.size3d, 0,
          #               GL_RED, GL_FLOAT, self.data3d)
-		self.rgb = np.zeros((self.size3d, self.size3d, 3), dtype=np.uint8)
-		self.rgb[:,:,0] = self.data2d
-		self.rgb[:,:,1] = self.data2d
-		self.rgb[:,:,2] = self.data2d
 
-		self.rgb3d = np.zeros((self.size3d, self.size3d, self.size3d, 3), dtype=np.uint8)
-		self.rgb3d[:,:,:,0] = self.data3d #.sum(axis=0)
-		self.rgb3d[:,:,:,1] = self.data3d #.sum(axis=0)
-		self.rgb3d[:,:,:,2] = self.data3d#.sum(axis=0)
-
-		print self.rgb.max()
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE8, self.size3d, self.size3d, 0,
-                        GL_LUMINANCE, GL_FLOAT, self.data2d)
-		
-		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 		if 0:
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
-		glBindTexture(GL_TEXTURE_2D, 0)
-		#glActiveTexture(GL_TEXTURE0);
-		self.textures = [self.texture_square,] + list(self.textures)
-		print "textures", self.textures
-		
-		
+			self.rgb3d = np.zeros(self.grid.shape + (3,), dtype=np.uint8)
+			self.rgb3d[:,:,:,0] = self.grid
+			self.rgb3d[:,:,:,1] = self.grid
+			self.rgb3d[:,:,:,2] = self.grid
+
 		glBindTexture(GL_TEXTURE_3D, self.texture_cube)
-		glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, self.size3d, self.size3d, self.size3d, 0,
-                        GL_RED, GL_FLOAT, self.data3d)
+		width, height, depth = self.grid.shape[::-1]
+		print "dims", width, height, depth
+		glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0,
+					GL_RED, GL_FLOAT, self.grid)
+		print self.grid, self.texture_cube
 		#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
          #               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
 		
@@ -607,43 +658,44 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+		glBindTexture(GL_TEXTURE_3D, 0)
 			
 
 		# gradient
-		glBindTexture(GL_TEXTURE_3D, self.texture_gradient)
-		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, self.size3d, self.size3d, self.size3d, 0,
-                        GL_RGB, GL_FLOAT, self.grad3d)
-		#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
-         #               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
-		
-		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-		if 1:
-			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+		if 0:
+			glBindTexture(GL_TEXTURE_3D, self.texture_gradient)
+			glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, width, height, depth, 0,
+							GL_RGB, GL_FLOAT, self.grid_gradient)
+			#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
+			#               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
+			
+			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+			if 1:
+				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+			glBindTexture(GL_TEXTURE_3D, 0)
+			
+		if 0:
+			import pylab
+			pylab.subplot(221)
+			pylab.imshow(np.log10(grids_2d[0]+1))
+			pylab.subplot(222)
+			pylab.imshow(np.log10(grids_2d[1]+1))
+			pylab.subplot(223)
+			pylab.imshow(np.log10(grids_2d[2]+1))
+			pylab.subplot(224)
+			pylab.imshow(np.log10(self.grid[128]+1))
+			pylab.show()
+		self.update()
 		
 			
 		
 		
-		glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.texture_backside, 0);
-
-		self.render_buffer = glGenRenderbuffers(1);
-		glBindRenderbuffer(GL_RENDERBUFFER, self.render_buffer);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, self.texture_size, self.texture_size);
-
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.render_buffer);
-		#glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		#from matplotlib import pylab
-		#pylab.imshow(np.log((self.data3d.astype(np.float32)).sum(axis=0)+1), cmap='PaulT_plusmin', origin="lower")
-		#pylab.show()
-
-
-		if 1:
-			self.shader = self.create_shader()
 
 			#glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE)
 
@@ -659,7 +711,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		
 		
 		speed = 1.
-		speed_mod = 0.1/5
+		speed_mod = 0.1/5./5./10.
 		if self.mouse_button_down:
 			self.angle2 += dx * speed
 			self.angle1 += dy * speed
@@ -720,4 +772,7 @@ class TestWidget(QtGui.QMainWindow):
 if __name__ == "__main__":
 	app = QtGui.QApplication(sys.argv)
 	widget = TestWidget(None)
+	def load():
+		widget.main.loadTable(sys.argv[1], sys.argv[2:])
+	widget.main.post_init = load
 	sys.exit(app.exec_())
