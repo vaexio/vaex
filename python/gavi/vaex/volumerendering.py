@@ -39,6 +39,10 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.setMouseTracking(True)
 		shortcut = QtGui.QShortcut(QtGui.QKeySequence("space"), self)
 		shortcut.activated.connect(self.toggle)
+
+		shortcut = QtGui.QShortcut(QtGui.QKeySequence("w"), self)
+		shortcut.activated.connect(self.write)
+
 		self.texture_index = 2
 		self.texture_size = 512 #*8
 		
@@ -491,17 +495,17 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		dataset = gavi.dataset.load_file(sys.argv[1])
 		x, y, z = [dataset.columns[name] for name in sys.argv[2:]]
 		import gavifast
-		#mi, ma = 45., 55.
+		mi, ma = 45., 55.
 		#print "histo"
-		#gavifast.histogram3d(x, y, z, None, self.data3d, mi+7, ma+7, mi+3, ma+3, mi, ma)
+		gavifast.histogram3d(x, y, z, None, self.data3d, mi+7, ma+7, mi+3, ma+3, mi, ma)
 		mi, ma = -30., 30.
 		mi, ma = -0.5, 0.5
-		gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
+		#gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
 		#mi, ma = -0.6, 0.6
-		mi, ma = -30., 30.
+		#mi, ma = -30., 30.
 		#gavifast.histogram3d(x, y, z, None, self.data3d, x.min(), x.max(), y.min(), y.max(), z.min(), z.max())
 		#mi, ma = -30., 30.
-		gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
+		#gavifast.histogram3d(x, y, z, None, self.data3d, mi, ma, mi, ma, mi, ma)
 		print "histo done"
 		#gavifast.histogram2d(x, y, None, self.data2d, x.min(), x.max(), y.min(), y.max())
 		gavifast.histogram2d(x, y, None, self.data2d, mi, ma, mi, ma)
@@ -699,6 +703,44 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			self.mouse_button_down = False
 		if event.button() == QtCore.Qt.RightButton:
 			self.mouse_button_down_right = False
+			
+	def write(self):
+		colormap_name = "afmhot"
+		import matplotlib.cm
+		colormap = matplotlib.cm.get_cmap(colormap_name)
+		mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
+		#pixmap = QtGui.QPixmap(32*2, 32)
+		data = np.zeros((128*8, 128*16, 4), dtype=np.uint8)
+		
+		mi, ma = 1*10**self.mod1, self.data3d.max()*10**self.mod2
+		intensity_normalized = (np.log(self.data3d + 1.) - np.log(mi)) / (np.log(ma) - np.log(mi));
+		import PIL.Image
+		for y2d in range(8):
+			for x2d in range(16):
+				zindex = x2d + y2d*16
+				I = intensity_normalized[zindex]
+				rgba = mapping.to_rgba(I,bytes=True) #.reshape(Nx, 4)
+				print rgba.shape
+				subdata = data[y2d*128:(y2d+1)*128, x2d*128:(x2d+1)*128]
+				for i in range(3):
+					subdata[:,:,i] = rgba[:,:,i]
+				subdata[:,:,3] = (intensity_normalized[zindex]*255).astype(np.uint8)
+				if 0:
+					filename = "cube%03d.png" % zindex
+					img = PIL.Image.frombuffer("RGB", (128, 128), subdata[:,:,0:3] * 1)
+					print "saving to", filename
+					img.save(filename)
+		img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data)
+		filename = "cube.png"
+		print "saving to", filename
+		img.save(filename)
+		
+		filename = "colormap.png"
+		print "saving to", filename
+		height, width = self.colormap_data.shape[:2]
+		img = PIL.Image.frombuffer("RGB", (width, height), self.colormap_data)
+		img.save(filename)
+		
 		
 
 class TestWidget(QtGui.QMainWindow):
@@ -723,6 +765,12 @@ class TestWidget(QtGui.QMainWindow):
 		
 		
 if __name__ == "__main__":
+	import gavi.vaex.colormaps
+	colormaps = gavi.vaex.colormaps.colormaps
+	import json
+	js = json.dumps(gavi.vaex.colormaps.colormaps)
+	print js
+
 	app = QtGui.QApplication(sys.argv)
 	widget = TestWidget(None)
 	sys.exit(app.exec_())

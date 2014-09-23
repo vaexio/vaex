@@ -8,9 +8,12 @@
 
 	<script language="javascript" type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
 	<script language="javascript" type="text/javascript" src="vaex_volumerendering.js"></script>
+	<script src="jquery-ui-1.11.1.custom/jquery-ui.min.js"></script>
 	<!--<script language="javascript" type="text/javascript" src="http://rawgithub.com/toji/gl-matrix/master/src/gl-matrix/common.js"></script>
 	<script language="javascript" type="text/javascript" src="http://rawgithub.com/toji/gl-matrix/master/src/gl-matrix/mat4.js"></script>
 	-->
+	<link rel="stylesheet" href="jquery-ui-1.11.1.custom/jquery-ui.min.css"/>
+
 <script id="shader-vertex-cube" type="x-shader/x-vertex">
     attribute vec3 aVertexPosition;
 
@@ -33,6 +36,101 @@
     }
 </script>
 
+
+<script id="shader-vertex-volume-rendering" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+	varying vec4 vertex_color;
+
+    void main(void) {
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+		vertex_color = vec4(aVertexPosition, 1);
+    }
+</script>
+
+<script id="shader-fragment-volume-rendering" type="x-shader/x-fragment">
+    precision highp float;
+	varying vec4 vertex_color;
+	uniform sampler2D front;
+	uniform sampler2D back;
+	uniform sampler2D volume;
+	uniform sampler2D colormap;
+	uniform int colormap_index;
+	uniform float opacity;
+	uniform float volume_level;
+
+	vec2 computeSliceOffset(float slice, float slicesPerRow, vec2 sliceSize) {
+	return sliceSize * vec2(mod(slice, slicesPerRow), 
+							floor(slice / slicesPerRow));
+	}
+	vec4 sampleAs3DTexture(sampler2D tex, vec3 texCoord, float size, float numRows, float slicesPerRow) {
+		//float slice   = texCoord.z*0. + 1.*size*(size-1.)/size ;
+		float slice   = texCoord.z*size*(size-1.)/size ;
+		float sliceZ  = floor(slice);                         // slice we need
+		float zOffset = fract(slice);                         // dist between slices
+		//sliceZ = 64.;
+		
+		vec2 sliceSize = vec2((1.0-1./2048.) / slicesPerRow,             // u space of 1 slice
+								(1.0-1./1024.) / numRows);                 // v space of 1 slice
+		
+		vec2 slice0Offset = computeSliceOffset(sliceZ, slicesPerRow, sliceSize);
+		vec2 slice1Offset = computeSliceOffset(sliceZ + 1.0, slicesPerRow, sliceSize);
+		
+		vec2 slicePixelSize = sliceSize / size;               // space of 1 pixel
+		vec2 sliceInnerSize = slicePixelSize * (size - 1.0);  // space of size pixels
+		
+		vec2 coord = vec2(texCoord.x, texCoord.y);
+		vec2 uv = slicePixelSize * 0.5 + coord * sliceInnerSize;
+		//vec4 slice0Color = texture2D(tex, slice0Offset + uv);
+		vec2 uv1 = slice0Offset + uv.xy;
+		vec4 slice0Color = texture2D(tex, vec2(uv1.x, uv1.y));
+		vec4 slice1Color = texture2D(tex, slice1Offset + uv);
+		//return mix(slice0Color, slice1Color, zOffset);
+		return slice0Color;
+	}
+
+    void main(void) {
+		int steps = 300;
+
+		vec2 pixel = vec2(gl_FragCoord.x/512., gl_FragCoord.y/512.);
+		//vec4 textureColor = texture2D(volume, vec2(pixel.x * width + x_index, pixel.y*height + y_index));
+		vec3 ray_begin = vertex_color.xyz;//texture2D(front, pixel).rgb;
+		vec3 ray_end = texture2D(back, pixel).rgb;
+		vec3 ray_direction = ray_end - ray_begin;
+		vec3 ray_delta = ray_direction * (1./float(steps));
+		vec3 ray_pos = ray_begin;
+		vec4 color = vec4(0, 0, 0, 0);
+		float alpha_total = 0.;
+		float colormap_index_scaled = 0.5/70. + float(colormap_index)/70.;
+		for(int i = 0; i < 300; i++) {
+			vec3 pos = ray_pos;
+			//pos = vec3(pos.xy, 1./128. * mod1); //ray_pos.z * 0.9 + 0.05);
+			//pos = vec3(1./128. * mod1, pos.yz); //ray_pos.z * 0.9 + 0.05);
+			//pos = vec3(pos.x, pos.yz); //ray_pos.z * 0.9 + 0.05);
+			//pos = vec3(ray_pos.xy, 1./128. * mod1); //ray_pos.z * 0.9 + 0.05);
+			//pos = vec3(ray_pos.x, ray_pos.y, 1./128. * mod1); //ray_pos.z * 0.9 + 0.05);
+			//vec4 color_sample = sampleAs3DTexture(volume, pos, 128., 8., 16.);
+			vec4 sample = sampleAs3DTexture(volume, pos, 128., 8., 16.);
+			float level = pow(sample.r-volume_level/255., 2.)/0.01;
+			float intensity = exp(-level);
+			//vec4 color_sample = texture2D(colormap, vec2(clamp((level+2.)/2., 0., 1.), colormap_index_scaled));
+			vec4 color_sample = texture2D(colormap, vec2(clamp(intensity, 0., 1.), colormap_index_scaled));
+			//color_sample = texture2D(volume, ray_pos.yz);
+			float alpha_sample = opacity*sample.a;//1./128.* length(color_sample) * 100.;
+			alpha_sample = clamp(alpha_sample, 0., 1.);
+			color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+			alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+			ray_pos += ray_delta;
+		}
+		gl_FragColor = vec4(color.rgb, 1) * 5.	;
+		//gl_FragColor = vec4(texture2D(colormap, vec2(pixel.x, colormap_index_scaled)).rgb, 1);
+		//gl_FragColor = vec4(ray_e, 1);
+    }
+</script>
+
+
 <script id="shader-vertex-texture" type="x-shader/x-vertex">
     attribute vec3 aVertexPosition;
     attribute vec2 aTextureCoord;
@@ -53,7 +151,7 @@
     precision mediump float;
 	varying vec4 vertex_color;
 	varying vec2 vTextureCoord;
-	uniform sampler2D uSampler;
+	uniform sampler2D uSampler; // default is 0, so we don't have to set it
 
     void main(void) {
 		vec4 textureColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
@@ -65,6 +163,7 @@
 
 	$(function() {
 		$( "#canvas1" ).mousedown(onmousedown);
+		$( "#canvas1" ).on("touchmove", ontouchmove);
 		$( "#canvas1" ).mouseup(onmouseup);
 		$( "#canvas1" ).mousemove(onmousemove);
 
@@ -93,21 +192,61 @@ var angle2 = 0;
 var mouse_x = 0;
 var mouse_y = 0;
 var mouse_down = false;
+
+ontouchmove = function( event ) {
+	var msg = "Handler for .touchmove() called at ";
+
+	var touch = event.originalEvent.touches[0] || event.originalEvent.changedTouches[0];
+	var elm = $(this).offset();
+	var x = touch.pageX - elm.left;
+	var y = touch.pageY - elm.top;
+	//$( "#log" ).append( "<div>" + x +"," + y + "</div>" );
+	if(x < $(this).width() && x > 0){
+		if(y < $(this).height() && y > 0){
+			//CODE GOES HERE
+			//console.log(touch.pageY+' '+touch.pageX);
+			msg += x + ", " + y;
+			dx = x - mouse_x;
+			dy = y - mouse_y;
+			var speed = 0.01;
+			angle1 += dx * speed;
+			angle2 += dy * speed;
+			var msg = "change angle" + angle1 + ", " + angle2;
+			updateScene();
+			mouse_x = x;
+			mouse_y = y;
+			$( "#log" ).append( "<div>" + msg + "</div>" );
+
+
+			event.preventDefault();
+		}
+	}
+}
 onmousemove = function( event ) {
 	var msg = "Handler for .mousemove() called at ";
 	msg += event.pageX + ", " + event.pageY;
-	if(mouse_down) {
-		dx = event.pageX - mouse_x;
-		dy = event.pageY - mouse_y;
-		var speed = 0.03;
-		angle1 += dx * speed;
-		angle2 += dy * speed;
-		var msg = "change angle" + angle1 + ", " + angle2;
-		updateScene();
+	var elm = $(this).offset();
+	if(elm) {
+		var x = event.pageX - elm.left;
+		var y = event.pageY - elm.top;
+		//$( "#log" ).append( "<div>" + x +"," + y + "</div>" );
+		if(x < $(this).width() && x > 0){
+			if(y < $(this).height() && y > 0){
+				if(mouse_down) {
+					dx = event.pageX - mouse_x;
+					dy = event.pageY - mouse_y;
+					var speed = 0.01;
+					angle1 += dx * speed;
+					angle2 += dy * speed;
+					var msg = "change angle" + angle1 + ", " + angle2;
+					updateScene();
+				}
+			}
+		}
+		mouse_x = event.pageX;
+		mouse_y = event.pageY;
+		$( "#log" ).append( "<div>" + msg + "</div>" );
 	}
-	mouse_x = event.pageX;
-	mouse_y = event.pageY;
-	$( "#log" ).append( "<div>" + msg + "</div>" );
 	event.preventDefault();
 }
 onmousedown = function(event){
@@ -115,7 +254,7 @@ onmousedown = function(event){
 	var msg = "Handler for .mousedown() called at ";
 	msg += event.pageX + ", " + event.pageY;
 	$( "#log" ).append( "<div>" + msg + "</div>" );
-	event.preventDefault();
+	//event.preventDefault();
 	mouse_down = true;
 }
 onmouseup = function(event){
@@ -128,25 +267,71 @@ onmouseup = function(event){
 }
 
 $(function() {
-	$("#show-back").click(function() {
+	$("#show-back").bind("click touchstart", function() {
 		texture_show = texture_frame_buffer_back;
 		updateScene();
 	});
-	$("#show-front").click(function() {
+	$("#show-front").bind("click touchstart", function() {
 		texture_show = texture_frame_buffer_front;
 		updateScene();
 	});
+	$("#show-volume").bind("click touchstart", function() {
+		texture_show = texture_frame_buffer_volume;
+		updateScene();
+	});
 });
+var opacity = 0.1;
+var colormap_index = 0;
+var volume_level = 128;
+
+$(function() {
+    $( "#slider-opacity" ).slider({
+		value:opacity,
+		max: 0,
+		step: 0.001,
+		max: 0.2,
+		slide: function(event, ui) {
+			opacity = ui.value;
+			$("#opacity-value").val( ui.value )
+			updateScene();
+		}}
+	);
+	$("#opacity-value").val( $( "#slider-opacity" ).slider("value") )
+
+    $( "#slider-volume-level" ).slider({
+		value:volume_level,
+		max: 0,
+		step: 1,
+		max: 255,
+		slide: function(event, ui) {
+			volume_level = ui.value;
+			$("#volume-level-value").val( ui.value )
+			updateScene();
+		}}
+	);
+	$("#volume-level-value").val( $( "#slider-volume-level" ).slider("value") )
+
+	var colormap_selector = $('#colormap');
+	var index = 0;
+	$(colormap_names).each(function() {
+		colormap_selector.append($("<option>").attr('value', index++).text(this));
+	});
+	colormap_selector.on("change", function(a) {
+		console.log($(this).val())
+		colormap_index = $(this).val();
+		updateScene();
+	});
+
+  });
 	</script>
 </head>
 <body>
 
-	<div id="header">
-		<h2>Image Plots</h2>
-	</div>
 	<button id="show-back">Back</button>
 	<button id="show-front">Front</button>
-	
+	<button id="show-volume">Volume</button>
+
+<!--	
 	<select id="zoom-select">
 		<option value="xy">rectangle zoom</option>
 		<option value="x">zoom x</option>
@@ -161,12 +346,17 @@ $(function() {
 	</select>
 	<select id="y">
 	</select>
-
+-->
 	<div id="content">
-		<canvas id="canvas1" style="border: none;" width="500" height="500"></canvas>
+		<canvas id="canvas1" style="border: none;" width="512" height="512"></canvas>
 
-  
-
+<p>
+<select name="colormap" id="colormap">  
+<div id="slider-colormap"></div>
+<input type="text" id="volume-level-value" readonly style="border:0; color:#f6931f; font-weight:bold;">
+<div id="slider-volume-level"></div>
+<input type="text" id="opacity-value" readonly style="border:0; color:#f6931f; font-weight:bold;">
+<div id="slider-opacity"></div>
 		<div class="demo-container" style="width:400px;height:400px;">
 			<div id="placeholder" class="demo-placeholder"></div>
 		</div>
@@ -181,7 +371,9 @@ $(function() {
 
 	<div id="footer">
 	</div>
-
+	<div style="background: red;">
+	<img src="colormap.png">
+	</div>
 	
 
 </body>
