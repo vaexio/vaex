@@ -2,19 +2,20 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 
     var gl;
     function initGL(canvas) {
-        try {
+			console.log(window.WebGLRenderingContext)
+			console.log(canvas.getContext("webkit-3d"))
             gl = canvas.getContext("experimental-webgl");
-            gl.viewportWidth = canvas.width;
-            gl.viewportHeight = canvas.height;
-        } catch (e) {
-        }
+            if(gl) {
+				gl.viewportWidth = canvas.width;
+				gl.viewportHeight = canvas.height;
+			}
         if (!gl) {
             alert("Could not initialise WebGL, sorry :-(");
         }
     }
 
 
-    function getShader(gl, id) {
+    function getShader(gl, id, replacements) {
         var shaderScript = document.getElementById(id);
         if (!shaderScript) {
             alert("Cannot find element " + id);
@@ -29,6 +30,13 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
             }
             k = k.nextSibling;
         }
+        if(replacements) {
+			console.log(replacements)
+			for(var key in replacements) {
+				//console.log(replacements)
+				str  = str.replace(key, replacements[key])
+			}
+		}
 
         var shader;
         if (shaderScript.type == "x-shader/x-fragment") {
@@ -53,11 +61,14 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 
     var shaderProgram;
 	var shader_texture;
+	var shader_volume_rendering_poor;
+	var shader_volume_rendering_fast;
+	var shader_volume_rendering_best;
 	var shader_volume_rendering;
 
-    function initShaders(name) {
-		var fragmentShader = getShader(gl, "shader-fragment-"+name);
-		var vertexShader = getShader(gl, "shader-vertex-"+name);
+    function initShaders(name, replacements) {
+		var fragmentShader = getShader(gl, "shader-fragment-"+name, replacements);
+		var vertexShader = getShader(gl, "shader-vertex-"+name, replacements);
 		var program = gl.createProgram();
 		gl.attachShader(program, vertexShader);
 		gl.attachShader(program, fragmentShader);
@@ -78,7 +89,12 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
         shaderProgram = initShaders("cube");
         gl.useProgram(shaderProgram);
         shader_texture = initShaders("texture");
-        shader_volume_rendering = initShaders("volume-rendering");
+        shader_volume_rendering_best = initShaders("volume-rendering", {NR_OF_STEPS:300});
+        shader_volume_rendering_fast = initShaders("volume-rendering", {NR_OF_STEPS:80});
+        shader_volume_rendering_poor = initShaders("volume-rendering", {NR_OF_STEPS:40});
+        shader_volume_rendering = shader_volume_rendering_fast;
+		shader_volume_rendering_updates = shader_volume_rendering_poor;
+		shader_volume_rendering_final = shader_volume_rendering_best;
         //gl.useProgram(shaderProgram);
     }
 
@@ -108,6 +124,7 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 	
 	var texture_volume;
 	var volume_size = 128;
+	var colormap_image;
 	
 	function initVolumeTexture() {
 		texture_volume = gl.createTexture();
@@ -132,7 +149,7 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);		
 		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, volume_size, volume_size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-		loadTexture(texture_colormaps, gl.RGB, "colormap.png");
+		colormap_image = loadTexture(texture_colormaps, gl.RGB, "colormap.png");
 		//var ext = gl.getExtension("OES_texture_float")
 		//console.log("ext:" + ext.FLOAT);
 	}
@@ -146,6 +163,7 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 			updateScene();
 		}
 		textureImage.src = url;
+		return textureImage;
 		
 	}
 	
@@ -156,8 +174,8 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 		initColormapTexture();
 		frame_buffer = gl.createFramebuffer();
 		gl.bindFramebuffer(gl.FRAMEBUFFER, frame_buffer);
-		frame_buffer.width = 512;
-		frame_buffer.height = 512;
+		frame_buffer.width = 256;
+		frame_buffer.height = 256;
 
 
 		texture_frame_buffer_volume = gl.createTexture();
@@ -276,6 +294,48 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 
 
     function drawScene() {
+		
+		canvas2d_element = document.getElementById("canvas-transfer");
+		canvas2d = canvas2d_element.getContext("2d");
+		canvas2d.strokeStyle="purple"
+		canvas2d.strokeStyle="purple"
+		canvas2d.fillStyle="#000000";
+		canvas2d.fillRect(0, 0, 512, 30);
+		canvas2d.drawImage(colormap_image, 0, 70-1-colormap_index, 1024, 1, data_min*512, 0, (data_max - data_min)*512, 30)
+		var data_scale = 1./(data_max - data_min);
+		clamp = function(x, xmin, xmax) {
+			return (x < xmin ? xmin : (x > xmax ? xmax : x));
+		}
+		sign = function(x) {
+			return Math.abs(x) / x;
+		}
+		for(var j = 0; j < 4; j++) {
+			canvas2d.beginPath();
+			canvas2d.moveTo(data_min*512, 0);
+			for(var x_index = 0; x_index < 512; x_index++) {
+				var x = x_index/511;
+				var data_value = (x - data_min) * data_scale;//, 0., 1.);
+				var volume_level_value = (volume_level[j] - data_min) * data_scale;//, 0., 1.);
+				var chi = (data_value-volume_level[j])/volume_width[j];
+				var chisq = Math.pow(chi, 2.);
+				var intensity = Math.exp(-chisq);
+				var y = 30-intensity*(Math.log(opacity[j])/Math.log(10)+5)/5. * 30 * sign(data_value) * sign(1.-data_value);
+				if(x_index == 0) {
+					canvas2d.moveTo(x_index, y);
+				} else {
+					canvas2d.lineTo(x_index, y);
+				}
+				//vec4 color_sample = texture2D(colormap, vec2(clamp((level+2.)/2., 0., 1.), colormap_index_scaled));
+				//intensity = clamp(intensity, 0., 1.);
+				//float distance_norm = clamp(((-chi/0.5)+1.)/2., 0., 1.);
+				//color_index = 0.9;
+				//vec4 color_sample = texture2D(colormap, vec2(1.-volume_level[j], colormap_index_scaled));
+				//vec4 color_sample = texture2D(colormap, vec2(data_value, colormap_index_scaled));
+			}
+			canvas2d.stroke()
+		}
+		
+		
 		gl.bindFramebuffer(gl.FRAMEBUFFER, frame_buffer);
 		gl.cullFace(gl.BACK);
 
@@ -308,9 +368,13 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 		gl.uniform1i(gl.getUniformLocation(shader_volume_rendering, "volume"), 2);
 		gl.uniform1i(gl.getUniformLocation(shader_volume_rendering, "colormap"), 3);
 		gl.uniform1i(gl.getUniformLocation(shader_volume_rendering, "colormap_index"), colormap_index);
+		gl.uniform1f(gl.getUniformLocation(shader_volume_rendering, "brightness"), brightness);
+		gl.uniform1f(gl.getUniformLocation(shader_volume_rendering, "data_min"), data_min);
+		gl.uniform1f(gl.getUniformLocation(shader_volume_rendering, "data_max"), data_max);
 		
-		gl.uniform1f(gl.getUniformLocation(shader_volume_rendering, "opacity"), opacity);
-		gl.uniform1f(gl.getUniformLocation(shader_volume_rendering, "volume_level"), volume_level);
+		gl.uniform1fv(gl.getUniformLocation(shader_volume_rendering, "opacity"),  opacity);
+		gl.uniform1fv(gl.getUniformLocation(shader_volume_rendering, "volume_level"), volume_level);
+		gl.uniform1fv(gl.getUniformLocation(shader_volume_rendering, "volume_width"), volume_width);
 		
 		drawCube(shader_volume_rendering);
 		
@@ -325,7 +389,7 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 		gl.useProgram(shader_texture);
 
 		//mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
-		var size = 1.2;
+		var size = 1.0;
 		mat4.ortho(-size, size, -size, size, -100, 100, pMatrix)
 
 		mat4.identity(mvMatrix);
@@ -340,7 +404,7 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 	}
 
     function drawCube(program) {
-        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.viewport(0, 0, frame_buffer.width, frame_buffer.height);
 		gl.clearColor(1.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 

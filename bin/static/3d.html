@@ -4,7 +4,7 @@
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<title>WebGL test</title>
 	<!--[if lte IE 8]><script language="javascript" type="text/javascript" src="../../excanvas.min.js"></script><![endif]-->
-	<script language="javascript" type="text/javascript" src="jquery.js"></script>
+	<script language="javascript" type="text/javascript" src="jquery-2.1.1.min.js"></script>
 
 	<script language="javascript" type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
 	<script language="javascript" type="text/javascript" src="vaex_volumerendering.js"></script>
@@ -12,7 +12,11 @@
 	<!--<script language="javascript" type="text/javascript" src="http://rawgithub.com/toji/gl-matrix/master/src/gl-matrix/common.js"></script>
 	<script language="javascript" type="text/javascript" src="http://rawgithub.com/toji/gl-matrix/master/src/gl-matrix/mat4.js"></script>
 	-->
-	<link rel="stylesheet" href="jquery-ui-1.11.1.custom/jquery-ui.min.css"/>
+	<link rel="stylesheet" href="jquery-ui-1.11.1.custom/jquery-ui.css"/>
+<style type="text/css">
+tr.last td { border-bottom: thin solid black; }
+</style>
+
 
 <script id="shader-vertex-cube" type="x-shader/x-vertex">
     attribute vec3 aVertexPosition;
@@ -58,8 +62,14 @@
 	uniform sampler2D volume;
 	uniform sampler2D colormap;
 	uniform int colormap_index;
-	uniform float opacity;
-	uniform float volume_level;
+	uniform int surfaces;
+	uniform float opacity[4];
+	uniform float volume_level[4];
+	uniform float volume_width[4];
+	uniform float brightness;
+	uniform float data_min;
+	uniform float data_max;
+	//uniform float color_index;
 
 	vec2 computeSliceOffset(float slice, float slicesPerRow, vec2 sliceSize) {
 	return sliceSize * vec2(mod(slice, slicesPerRow), 
@@ -83,18 +93,18 @@
 		
 		vec2 coord = vec2(texCoord.x, texCoord.y);
 		vec2 uv = slicePixelSize * 0.5 + coord * sliceInnerSize;
-		//vec4 slice0Color = texture2D(tex, slice0Offset + uv);
-		vec2 uv1 = slice0Offset + uv.xy;
-		vec4 slice0Color = texture2D(tex, vec2(uv1.x, uv1.y));
+		vec4 slice0Color = texture2D(tex, slice0Offset + uv);
+		//vec2 uv1 = slice0Offset + uv.xy;
+		//vec4 slice0Color = texture2D(tex, vec2(uv1.x, uv1.y));
 		vec4 slice1Color = texture2D(tex, slice1Offset + uv);
-		//return mix(slice0Color, slice1Color, zOffset);
-		return slice0Color;
+		return mix(slice0Color, slice1Color, zOffset);
+		///return slice0Color;
 	}
 
     void main(void) {
-		int steps = 300;
+		const int steps = NR_OF_STEPS;
 
-		vec2 pixel = vec2(gl_FragCoord.x/512., gl_FragCoord.y/512.);
+		vec2 pixel = vec2(gl_FragCoord.x/256., gl_FragCoord.y/256.);
 		//vec4 textureColor = texture2D(volume, vec2(pixel.x * width + x_index, pixel.y*height + y_index));
 		vec3 ray_begin = vertex_color.xyz;//texture2D(front, pixel).rgb;
 		vec3 ray_end = texture2D(back, pixel).rgb;
@@ -104,7 +114,9 @@
 		vec4 color = vec4(0, 0, 0, 0);
 		float alpha_total = 0.;
 		float colormap_index_scaled = 0.5/70. + float(colormap_index)/70.;
-		for(int i = 0; i < 300; i++) {
+		float color_index;
+		float data_scale = 1./(data_max - data_min);
+		for(int i = 0; i < steps; i++) {
 			vec3 pos = ray_pos;
 			//pos = vec3(pos.xy, 1./128. * mod1); //ray_pos.z * 0.9 + 0.05);
 			//pos = vec3(1./128. * mod1, pos.yz); //ray_pos.z * 0.9 + 0.05);
@@ -113,18 +125,32 @@
 			//pos = vec3(ray_pos.x, ray_pos.y, 1./128. * mod1); //ray_pos.z * 0.9 + 0.05);
 			//vec4 color_sample = sampleAs3DTexture(volume, pos, 128., 8., 16.);
 			vec4 sample = sampleAs3DTexture(volume, pos, 128., 8., 16.);
-			float level = pow(sample.r-volume_level/255., 2.)/0.01;
-			float intensity = exp(-level);
-			//vec4 color_sample = texture2D(colormap, vec2(clamp((level+2.)/2., 0., 1.), colormap_index_scaled));
-			vec4 color_sample = texture2D(colormap, vec2(clamp(intensity, 0., 1.), colormap_index_scaled));
-			//color_sample = texture2D(volume, ray_pos.yz);
-			float alpha_sample = opacity*sample.a;//1./128.* length(color_sample) * 100.;
-			alpha_sample = clamp(alpha_sample, 0., 1.);
-			color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
-			alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+			for(int j = 0; j < 3; j++) {
+				//float bla = length(sample)/sqrt(3.);
+				float data_value = (sample.a - data_min) * data_scale;
+				float volume_level_value = (volume_level[j] - data_min) * data_scale;;
+				float chi = (data_value-volume_level[j])/volume_width[j];
+				float chisq = pow(chi, 2.);
+				float intensity = exp(-chisq);
+				//vec4 color_sample = texture2D(colormap, vec2(clamp((level+2.)/2., 0., 1.), colormap_index_scaled));
+				//intensity = clamp(intensity, 0., 1.);
+				//float distance_norm = clamp(((-chi/0.5)+1.)/2., 0., 1.);
+				//color_index = 0.9;
+				//vec4 color_sample = texture2D(colormap, vec2(1.-volume_level[j], colormap_index_scaled));
+				vec4 color_sample = texture2D(colormap, vec2(data_value, colormap_index_scaled));
+				//vec4 color_sample = texture2D(colormap, vec2(sample.a, colormap_index_scaled));
+				//color_sample = texture2D(volume, ray_pos.yz);
+				//float alpha_sample = opacity*intensity;//1./128.* length(color_sample) * 100.;
+				float alpha_sample = opacity[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100. ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+				alpha_sample = clamp(alpha_sample, 0., 1.);
+				color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+				if(alpha_total >= 1.)
+					break;
+				alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+			}
 			ray_pos += ray_delta;
 		}
-		gl_FragColor = vec4(color.rgb, 1) * 5.	;
+		gl_FragColor = vec4(color.rgb, 1) * brightness;
 		//gl_FragColor = vec4(texture2D(colormap, vec2(pixel.x, colormap_index_scaled)).rgb, 1);
 		//gl_FragColor = vec4(ray_e, 1);
     }
@@ -160,12 +186,18 @@
     }
 </script>
 	<script type="text/javascript">
+Storage.prototype.save = function(key, obj) {
+    return this.setItem(key, JSON.stringify(obj))
+}
+Storage.prototype.load = function(key) {
+    return JSON.parse(this.getItem(key))
+}
 
 	$(function() {
-		$( "#canvas1" ).mousedown(onmousedown);
-		$( "#canvas1" ).on("touchmove", ontouchmove);
-		$( "#canvas1" ).mouseup(onmouseup);
-		$( "#canvas1" ).mousemove(onmousemove);
+		$( "#canvas1" ).mousedown(canvas_onmousedown);
+		$( "#canvas1" ).on("touchmove", canvas_ontouchmove);
+		$( "#canvas1" ).mouseup(canvas_onmouseup);
+		$( "#canvas1" ).mousemove(canvas_onmousemove);
 
 
 		var canvas = document.getElementById("canvas1");
@@ -180,7 +212,24 @@
 		console.log("lala")
 				
 	});
+	var update_counter = 0;
 	updateScene = function() {
+		(function(local_update_counter) {
+			setTimeout(function(){
+				//console.log("update: " +update_counter +" / " +local_update_counter);
+				if(local_update_counter == update_counter) {
+					shader_volume_rendering = shader_volume_rendering_final;
+					real_updateScene()
+				}
+			}, 300);
+		})(++update_counter);
+		shader_volume_rendering = shader_volume_rendering_updates;
+		real_updateScene()
+
+	}
+	real_updateScene = function() {
+		//console.log(localStorage)
+		//localStorage.save("last_settings", settings)
 		gl.clearColor(0.0, 1.0, 0.0, 1.0);
 		gl.enable(gl.DEPTH_TEST);
 
@@ -193,7 +242,7 @@ var mouse_x = 0;
 var mouse_y = 0;
 var mouse_down = false;
 
-ontouchmove = function( event ) {
+canvas_ontouchmove = function( event ) {
 	var msg = "Handler for .touchmove() called at ";
 
 	var touch = event.originalEvent.touches[0] || event.originalEvent.changedTouches[0];
@@ -222,7 +271,7 @@ ontouchmove = function( event ) {
 		}
 	}
 }
-onmousemove = function( event ) {
+canvas_onmousemove = function( event ) {
 	var msg = "Handler for .mousemove() called at ";
 	msg += event.pageX + ", " + event.pageY;
 	var elm = $(this).offset();
@@ -249,16 +298,18 @@ onmousemove = function( event ) {
 	}
 	event.preventDefault();
 }
-onmousedown = function(event){
+canvas_onmousedown = function(event){
 	console.log("down")
+	var elm = $(this).offset();
+	console.log(elm)
 	var msg = "Handler for .mousedown() called at ";
 	msg += event.pageX + ", " + event.pageY;
 	$( "#log" ).append( "<div>" + msg + "</div>" );
 	//event.preventDefault();
 	mouse_down = true;
 }
-onmouseup = function(event){
-	console.log("down")
+canvas_onmouseup = function(event){
+	console.log("up")
 	var msg = "Handler for .mouseup() called at ";
 	msg += event.pageX + ", " + event.pageY;
 	$( "#log" ).append( "<div>" + msg + "</div>" );
@@ -279,38 +330,148 @@ $(function() {
 		texture_show = texture_frame_buffer_volume;
 		updateScene();
 	});
+
+	$("#quality-poor").bind("click touchstart", function() {
+		shader_volume_rendering_updates = shader_volume_rendering_poor;
+		updateScene();
+	});
+	$("#quality-fast").bind("click touchstart", function() {
+		shader_volume_rendering_updates = shader_volume_rendering_fast;
+		updateScene();
+	});
+	$("#quality-best").bind("click touchstart", function() {
+		shader_volume_rendering_updates = shader_volume_rendering_best;
+		updateScene();
+	});
 });
-var opacity = 0.1;
+var settings = {brightness: 3.};
+var opacity = [0.05, 0.025, 0.005, 0.0];
 var colormap_index = 0;
-var volume_level = 128;
+var volume_level = [178/255., 85/255., 31/255., 250];
+var brightness = 2.;
+var volume_width = [0.05, 0.05, 0.05, 0.05];
+var data_min = 0.;
+var data_max = 1.;
 
 $(function() {
-    $( "#slider-opacity" ).slider({
-		value:opacity,
-		max: 0,
+	for(var level_index=0; level_index < 3; level_index++) {
+		var bla = function(level_index) {
+			$( "#slider-opacity-"+level_index ).slider({
+				value:Math.log(opacity[level_index])/Math.log(10),
+				min: -4,
+				step: 0.001,
+				max: 0,
+				orientation: 'horizontal',
+				slide: function(event, ui) {
+					var value = Math.pow(10, ui.value);
+					opacity[level_index] = value;
+					$("#opacity-value-"+level_index).val( value )
+					//console.log("level_index="+level_index);
+					updateScene();
+				}}
+			);
+			$("#opacity-value-"+level_index).val( Math.pow(10, $( "#slider-opacity-"+level_index ).slider("value")) )
+
+			$( "#slider-volume-width-"+level_index ).slider({
+				value:Math.log(volume_width[level_index])/Math.log(10),
+				min: -3,
+				step: 0.001,
+				max: 0,
+				orientation: 'horizontal',
+				slide: function(event, ui) {
+					var value = Math.pow(10, ui.value);
+					volume_width[level_index] = value;
+					$("#volume-width-value-"+level_index).val( value )
+					//console.log("level_index="+level_index);
+					updateScene();
+				}}
+			);
+			$("#volume-width-value-"+level_index).val( Math.pow(10, $( "#slider-volume-width-"+level_index ).slider("value")) )
+
+			$( "#slider-volume-level-"+level_index ).slider({
+				value:volume_level[level_index],
+				min: 0.,
+				step: 0.01,
+				max: 1.,
+				orientation: 'horizontal',
+				slide: function(event, ui) {
+					volume_level[level_index] = ui.value;
+					$("#volume-level-value-"+level_index).val( ui.value )
+					updateScene();
+				}}
+			);
+			$("#volume-level-value-"+level_index).val( $( "#slider-volume-level-"+level_index ).slider("value") )
+		}(level_index);
+	}
+	
+	
+	$( "#slider-brightness").slider({
+		value:Math.log(brightness)/Math.log(10),
+		min: -1,
 		step: 0.001,
-		max: 0.2,
+		max: 1,
+		orientation: 'horizontal',
 		slide: function(event, ui) {
-			opacity = ui.value;
-			$("#opacity-value").val( ui.value )
+			var value = Math.pow(10, ui.value);
+			brightness = value;
+			$("#brightness-value").val( value )
 			updateScene();
 		}}
 	);
-	$("#opacity-value").val( $( "#slider-opacity" ).slider("value") )
-
-    $( "#slider-volume-level" ).slider({
-		value:volume_level,
-		max: 0,
-		step: 1,
-		max: 255,
+	$("#brightness-value").val( Math.pow(10, $( "#slider-brightness").slider("value")) )
+	
+	$( "#slider-data-min").slider({
+		value:data_min,
+		min: 0.,
+		step: 0.001,
+		max: 1.,
+		orientation: 'horizontal',
+		change: function(event, ui) {
+			data_min = ui.value;
+			//console.log(event)
+			//console.log(ui)
+			$("#data-min-value").val( ui.value )
+			updateScene();
+		},
 		slide: function(event, ui) {
-			volume_level = ui.value;
-			$("#volume-level-value").val( ui.value )
+			delta = ui.value - data_min;
+			if(event.altKey || event.shiftKey || event.ctrlKey) {
+				$( "#slider-data-max").slider("value", data_max+delta)
+				//console.log("setting max")
+			}
+			data_min = ui.value;
+			//console.log(event)
+			//console.log(ui)
+			$("#data-min-value").val( ui.value )
 			updateScene();
 		}}
 	);
-	$("#volume-level-value").val( $( "#slider-volume-level" ).slider("value") )
-
+	$("#data-min-value").val( $( "#slider-data-min").slider("value") )
+	
+	$( "#slider-data-max").slider({
+		value:data_max,
+		max: 0.,
+		step: 0.001,
+		max: 1.,
+		orientation: 'horizontal',
+		change: function(event, ui) {
+			data_max = ui.value;
+			$("#data-max-value").val( ui.value )
+			updateScene();
+		},
+		slide: function(event, ui) {
+			delta = ui.value - data_max;
+			if(event.altKey || event.shiftKey || event.ctrlKey) {
+				$( "#slider-data-min").slider("value", data_min+delta)
+			}
+			data_max = ui.value;
+			$("#data-max-value").val( ui.value )
+			updateScene();
+		}}
+	);
+	$("#data-max-value").val( $( "#slider-data-max").slider("value") )
+	
+	
 	var colormap_selector = $('#colormap');
 	var index = 0;
 	$(colormap_names).each(function() {
@@ -330,6 +491,9 @@ $(function() {
 	<button id="show-back">Back</button>
 	<button id="show-front">Front</button>
 	<button id="show-volume">Volume</button>
+	<button id="quality-poor">Best performance (bad quality)</button>
+	<button id="quality-fast">Fast performance</button>
+	<button id="quality-best">Good quality</button>
 
 <!--	
 	<select id="zoom-select">
@@ -348,15 +512,122 @@ $(function() {
 	</select>
 -->
 	<div id="content">
-		<canvas id="canvas1" style="border: none;" width="512" height="512"></canvas>
+		<canvas id="canvas1" style="border: none;" width="512" height="512" style="display: inline;"></canvas>
+		
+<table style="display: inline-block;"  cellspacing="0">
+<tr  class="last">
+<td></td>
+<td>		<canvas id="canvas-transfer" style="border: none;" width="512" height="30" style="display: block;"></canvas>
+</td>
+</tr>
+<tr>
+	<td>
+		level 1:<input type="text" id="volume-level-value-0" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+	</td>
+	<td>
+		<div id="slider-volume-level-0" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		width 1:<input type="text" id="volume-width-value-0" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+	</td>
+	<td>
+		<div id="slider-volume-width-0" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr class="last">
+	<td>
+		opacity 1:<input type="text" id="opacity-value-0" readonly style="border:0; color:#f6931f; font-weight:bold;">
+	</td>
+	<td>
+		<div id="slider-opacity-0" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		level 2:<input type="text" id="volume-level-value-1" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+	</td>
+	<td>
+		<div id="slider-volume-level-1" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		width 2:<input type="text" id="volume-width-value-1" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+	</td>
+	<td>
+		<div id="slider-volume-width-1" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr class="last">
+	<td>
+		opacity 2:<input type="text" id="opacity-value-1" readonly style="border:0; color:#f6931f; font-weight:bold;">
+	</td>
+	<td>
+		<div id="slider-opacity-1" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		level 3:<input type="text" id="volume-level-value-2" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+	</td>
+	<td>
+		<div id="slider-volume-level-2" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		width 3:<input type="text" id="volume-width-value-2" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+	</td>
+	<td>
+		<div id="slider-volume-width-2" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr class="last">
+	<td>
+		opacity 3:<input type="text" id="opacity-value-2" readonly style="border:0; color:#f6931f; font-weight:bold;">
+	</td>
+	<td>
+		<div id="slider-opacity-2" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		brightness:<input type="text" id="brightness-value" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+	</td>
+	<td>
+		<div id="slider-brightness" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		min:<input type="text" id="data-min-value" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+	</td>
+	<td>
+		<div id="slider-data-min" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		max:<input type="text" id="data-max-value" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+	</td>
+	<td>
+		<div id="slider-data-max" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+</table>
+
+<br>
+
+<select name="colormap-select" id="colormap"  style="display: inline;"/>  
+
+
+
+
+</div>
 
 <p>
-<select name="colormap" id="colormap">  
-<div id="slider-colormap"></div>
-<input type="text" id="volume-level-value" readonly style="border:0; color:#f6931f; font-weight:bold;">
-<div id="slider-volume-level"></div>
-<input type="text" id="opacity-value" readonly style="border:0; color:#f6931f; font-weight:bold;">
-<div id="slider-opacity"></div>
 		<div class="demo-container" style="width:400px;height:400px;">
 			<div id="placeholder" class="demo-placeholder"></div>
 		</div>
@@ -366,14 +637,12 @@ $(function() {
 	<div id="log">
 	</div>
 
-	<p class="message"></p>
-	<input type="text" value="some text">
-
 	<div id="footer">
 	</div>
+	<!--
 	<div style="background: red;">
 	<img src="colormap.png">
-	</div>
+	</div>-->
 	
 
 </body>
