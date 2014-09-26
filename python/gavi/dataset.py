@@ -1243,10 +1243,17 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 
 	@classmethod
 	def can_open(cls, path, *args):
-		if len(args) != 2:
-			return False
-		particleName = args[0]
-		particleType = args[1]
+		if len(args) == 2:
+			particleName = args[0]
+			particleType = args[1]
+		else:
+			try:
+				filename, index = path.split("#")
+				index = int(index)
+				particleNames = "gas halo disk bulge stars".split()
+				particleName = particleNames[index]
+			except:
+				return False
 		h5file = None
 		try:
 			h5file = h5py.File(path)
@@ -1365,11 +1372,32 @@ class Zeldovich(InMemory):
 dataset_type_map["zeldovich"] = Zeldovich
 		
 		
+import astropy.io.votable
+class VOTable(MemoryMapped):
+	def __init__(self, filename):
+		super(VOTable, self).__init__(filename, nommap=True)
+		table = astropy.io.votable.parse_single_table(filename)
+		print "done parsing table"
+		names = table.array.dtype.names
 		
-		
-		
-
-		
+		data = table.array.data
+		for i in range(len(data.dtype)):
+			name = data.dtype.names[i]
+			type = data.dtype[i]
+			if type.kind in ["f", "i"]: # only store float and int
+				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
+				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
+				self.addColumn(name, array=table.array[name])
+		#dataset.samp_id = table_id
+		#self.list.addDataset(dataset)
+		#return dataset
+	
+	@classmethod
+	def can_open(cls, path, *args):
+		can_open = path.endswith(".vot")
+		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
+		return can_open
+dataset_type_map["votable"] = VOTable
 
 class MemoryMappedGadget(MemoryMapped):
 	def __init__(self, filename):

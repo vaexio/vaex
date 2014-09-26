@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 try:
-	from PyQt4 import QtGui, QtCore, QtNetwork
-	from PyQt4.QtWebKit import QWebView
+	from PyQt4 import QtGui, QtCore#, QtNetwork
+	#from PyQt4.QtWebKit import QWebView
 	qt_version = QtCore.PYQT_VERSION_STR
 	import sip
 	sip.setapi('QVariant', 1)
 except ImportError, e1:
 	try:
-		from PySide import QtGui, QtCore, QtNetwork
-		from PySide.QtWebKit import QWebView
+		from PySide import QtGui, QtCore#, QtNetwork
+		#from PySide.QtWebKit import QWebView
 		QtCore.pyqtSignal= QtCore.Signal 
 		qt_version = QtCore.__version__
 		#QtCore.Slot = QtCore.pyqtSlot
@@ -49,6 +49,7 @@ import getpass
 import sys
 import os
 import urllib
+import gavi.utils
 #from email.mime.text import MIMEText
 
 def email(text):
@@ -57,11 +58,9 @@ def email(text):
 	subject = urllib.quote('Error report for: ' +gavi.vaex.__full_name__)
 	mailto = "mailto:maartenbreddels@gmail.com?subject={subject}&body={body}".format(**locals())
 	print "open:", mailto
-	osname = platform.system().lower()
-	if osname == "darwin":
-		os.system("open \"" +mailto +"\"")
-	if osname == "linux":
-		os.system("xdg-open \"" +mailto +"\"&")
+	gavi.utils.os_open(mailto)
+		
+
 
 def old_email(text):
 	# Open a plain text file for reading.  For this example, assume that

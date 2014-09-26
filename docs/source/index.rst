@@ -8,7 +8,8 @@ Veax is a graphical tool to visualize and explore large tabular datasets. It mai
 
 .. image:: images/ss1-small.png
 .. image:: images/ss2-small.png
-   :target: images/ss2-large.png
+
+.. :target: images/ss2-large.png
 
 Main features:
 

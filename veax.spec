@@ -17,13 +17,13 @@ exe = EXE(pyz,
           
 icon_tree = Tree('python/gavi/icons', prefix = 'icons')          
 data_tree = Tree('data/dist', prefix='data')
-html_tree = Tree('html', prefix='html')
+doc_tree = Tree('doc', prefix='doc')
 coll = COLLECT(exe,
                a.binaries,
                a.zipfiles,
                a.datas,
                icon_tree,
-               html_tree,
+               doc_tree,
                data_tree,
                strip=None,
                upx=True,
