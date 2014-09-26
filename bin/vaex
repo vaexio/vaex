@@ -1194,7 +1194,7 @@ class Vaex(QtGui.QMainWindow):
 				custom.openPlots(self.right)
 			else:
 				for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
-					self.list.addGadgetHdf5(os.path.join(application_path, 'data/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5'), name, index)
+					self.list.addGadgetHdf5(os.path.join(application_path, 'data/disk-galaxy.hdf5'), name, index)
 				self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
 		
 		self.open_generators = [] # for reference counts
@@ -1339,12 +1339,14 @@ class Vaex(QtGui.QMainWindow):
 			
 		
 	def onActionHelp(self):
-		self.webDialog("html/help_index.html")
+		gavi.utils.os_open("doc/index.html")
+		#self.webDialog("doc/index.html")
 		
 	def onActionCredits(self):
-		self.webDialog("html/credits.html")
+		gavi.utils.os_open("doc/credits.html")
+		#self.webDialog("html/credits.html")
 		
-	def webDialog(self, url):
+	def _webDialog(self, url):
 		view = QWebView()
 		view.load(QtCore.QUrl(url))
 		dialog = QtGui.QDialog(self)
@@ -1593,6 +1595,7 @@ class Vaex(QtGui.QMainWindow):
 				dataset.addColumn(name, array=table.array[name])
 		dataset.samp_id = table_id
 		self.list.addDataset(dataset)
+		return dataset
 			
 			
 

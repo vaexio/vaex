@@ -61,7 +61,7 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 
     var shaderProgram;
 	var shader_texture;
-	var shader_volume_rendering_por;
+	var shader_volume_rendering_poor;
 	var shader_volume_rendering_fast;
 	var shader_volume_rendering_best;
 	var shader_volume_rendering;
@@ -93,6 +93,8 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
         shader_volume_rendering_fast = initShaders("volume-rendering", {NR_OF_STEPS:80});
         shader_volume_rendering_poor = initShaders("volume-rendering", {NR_OF_STEPS:40});
         shader_volume_rendering = shader_volume_rendering_fast;
+		shader_volume_rendering_updates = shader_volume_rendering_poor;
+		shader_volume_rendering_final = shader_volume_rendering_best;
         //gl.useProgram(shaderProgram);
     }
 
@@ -172,8 +174,8 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 		initColormapTexture();
 		frame_buffer = gl.createFramebuffer();
 		gl.bindFramebuffer(gl.FRAMEBUFFER, frame_buffer);
-		frame_buffer.width = 512;
-		frame_buffer.height = 512;
+		frame_buffer.width = 128;
+		frame_buffer.height = 128;
 
 
 		texture_frame_buffer_volume = gl.createTexture();
@@ -304,17 +306,20 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 		clamp = function(x, xmin, xmax) {
 			return (x < xmin ? xmin : (x > xmax ? xmax : x));
 		}
+		sign = function(x) {
+			return Math.abs(x) / x;
+		}
 		for(var j = 0; j < 4; j++) {
 			canvas2d.beginPath();
 			canvas2d.moveTo(data_min*512, 0);
 			for(var x_index = 0; x_index < 512; x_index++) {
 				var x = x_index/511;
-				var data_value = clamp((x - data_min) * data_scale, 0., 1.);
-				var volume_level_value = clamp((volume_level[j] - data_min) * data_scale, 0., 1.);
+				var data_value = (x - data_min) * data_scale;//, 0., 1.);
+				var volume_level_value = (volume_level[j] - data_min) * data_scale;//, 0., 1.);
 				var chi = (data_value-volume_level[j])/volume_width[j];
 				var chisq = Math.pow(chi, 2.);
 				var intensity = Math.exp(-chisq);
-				var y = 30-intensity*(Math.log(opacity[j])/Math.log(10)+5)/5. * 30;
+				var y = 30-intensity*(Math.log(opacity[j])/Math.log(10)+5)/5. * 30 * sign(data_value) * sign(1.-data_value);
 				if(x_index == 0) {
 					canvas2d.moveTo(x_index, y);
 				} else {
@@ -399,7 +404,7 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 	}
 
     function drawCube(program) {
-        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.viewport(0, 0, frame_buffer.width, frame_buffer.height);
 		gl.clearColor(1.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 

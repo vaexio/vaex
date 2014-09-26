@@ -13,6 +13,10 @@
 	<script language="javascript" type="text/javascript" src="http://rawgithub.com/toji/gl-matrix/master/src/gl-matrix/mat4.js"></script>
 	-->
 	<link rel="stylesheet" href="jquery-ui-1.11.1.custom/jquery-ui.css"/>
+<style type="text/css">
+tr.last td { border-bottom: thin solid black; }
+</style>
+
 
 <script id="shader-vertex-cube" type="x-shader/x-vertex">
     attribute vec3 aVertexPosition;
@@ -100,7 +104,7 @@
     void main(void) {
 		const int steps = NR_OF_STEPS;
 
-		vec2 pixel = vec2(gl_FragCoord.x/512., gl_FragCoord.y/512.);
+		vec2 pixel = vec2(gl_FragCoord.x/128., gl_FragCoord.y/128.);
 		//vec4 textureColor = texture2D(volume, vec2(pixel.x * width + x_index, pixel.y*height + y_index));
 		vec3 ray_begin = vertex_color.xyz;//texture2D(front, pixel).rgb;
 		vec3 ray_end = texture2D(back, pixel).rgb;
@@ -123,8 +127,8 @@
 			vec4 sample = sampleAs3DTexture(volume, pos, 128., 8., 16.);
 			for(int j = 0; j < 3; j++) {
 				//float bla = length(sample)/sqrt(3.);
-				float data_value = clamp((sample.a - data_min) * data_scale, 0., 1.);
-				float volume_level_value = clamp((volume_level[j] - data_min) * data_scale, 0., 1.);
+				float data_value = (sample.a - data_min) * data_scale;
+				float volume_level_value = (volume_level[j] - data_min) * data_scale;;
 				float chi = (data_value-volume_level[j])/volume_width[j];
 				float chisq = pow(chi, 2.);
 				float intensity = exp(-chisq);
@@ -137,7 +141,7 @@
 				//vec4 color_sample = texture2D(colormap, vec2(sample.a, colormap_index_scaled));
 				//color_sample = texture2D(volume, ray_pos.yz);
 				//float alpha_sample = opacity*intensity;//1./128.* length(color_sample) * 100.;
-				float alpha_sample = opacity[j]*intensity;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+				float alpha_sample = opacity[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100. ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
 				alpha_sample = clamp(alpha_sample, 0., 1.);
 				color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
 				if(alpha_total >= 1.)
@@ -146,7 +150,7 @@
 			}
 			ray_pos += ray_delta;
 		}
-		gl_FragColor = vec4(color.rgb/float(steps) * 255., 1) * brightness;
+		gl_FragColor = vec4(color.rgb, 1) * brightness;
 		//gl_FragColor = vec4(texture2D(colormap, vec2(pixel.x, colormap_index_scaled)).rgb, 1);
 		//gl_FragColor = vec4(ray_e, 1);
     }
@@ -182,6 +186,12 @@
     }
 </script>
 	<script type="text/javascript">
+Storage.prototype.save = function(key, obj) {
+    return this.setItem(key, JSON.stringify(obj))
+}
+Storage.prototype.load = function(key) {
+    return JSON.parse(this.getItem(key))
+}
 
 	$(function() {
 		$( "#canvas1" ).mousedown(canvas_onmousedown);
@@ -202,7 +212,24 @@
 		console.log("lala")
 				
 	});
+	var update_counter = 0;
 	updateScene = function() {
+		(function(local_update_counter) {
+			setTimeout(function(){
+				//console.log("update: " +update_counter +" / " +local_update_counter);
+				if(local_update_counter == update_counter) {
+					shader_volume_rendering = shader_volume_rendering_final;
+					real_updateScene()
+				}
+			}, 300);
+		})(++update_counter);
+		shader_volume_rendering = shader_volume_rendering_updates;
+		real_updateScene()
+
+	}
+	real_updateScene = function() {
+		//console.log(localStorage)
+		//localStorage.save("last_settings", settings)
 		gl.clearColor(0.0, 1.0, 0.0, 1.0);
 		gl.enable(gl.DEPTH_TEST);
 
@@ -303,19 +330,21 @@ $(function() {
 		texture_show = texture_frame_buffer_volume;
 		updateScene();
 	});
+
 	$("#quality-poor").bind("click touchstart", function() {
-		shader_volume_rendering = shader_volume_rendering_poor;
+		shader_volume_rendering_updates = shader_volume_rendering_poor;
 		updateScene();
 	});
 	$("#quality-fast").bind("click touchstart", function() {
-		shader_volume_rendering = shader_volume_rendering_fast;
+		shader_volume_rendering_updates = shader_volume_rendering_fast;
 		updateScene();
 	});
 	$("#quality-best").bind("click touchstart", function() {
-		shader_volume_rendering = shader_volume_rendering_best;
+		shader_volume_rendering_updates = shader_volume_rendering_best;
 		updateScene();
 	});
 });
+var settings = {brightness: 3.};
 var opacity = [0.05, 0.025, 0.005, 0.0];
 var colormap_index = 0;
 var volume_level = [178/255., 85/255., 31/255., 250];
@@ -332,7 +361,7 @@ $(function() {
 				min: -4,
 				step: 0.001,
 				max: 0,
-				orientation: 'vertical',
+				orientation: 'horizontal',
 				slide: function(event, ui) {
 					var value = Math.pow(10, ui.value);
 					opacity[level_index] = value;
@@ -348,7 +377,7 @@ $(function() {
 				min: -3,
 				step: 0.001,
 				max: 0,
-				orientation: 'vertical',
+				orientation: 'horizontal',
 				slide: function(event, ui) {
 					var value = Math.pow(10, ui.value);
 					volume_width[level_index] = value;
@@ -364,7 +393,7 @@ $(function() {
 				min: 0.,
 				step: 0.01,
 				max: 1.,
-				orientation: 'vertical',
+				orientation: 'horizontal',
 				slide: function(event, ui) {
 					volume_level[level_index] = ui.value;
 					$("#volume-level-value-"+level_index).val( ui.value )
@@ -381,7 +410,7 @@ $(function() {
 		min: -1,
 		step: 0.001,
 		max: 1,
-		orientation: 'vertical',
+		orientation: 'horizontal',
 		slide: function(event, ui) {
 			var value = Math.pow(10, ui.value);
 			brightness = value;
@@ -396,9 +425,23 @@ $(function() {
 		min: 0.,
 		step: 0.001,
 		max: 1.,
-		orientation: 'vertical',
-		slide: function(event, ui) {
+		orientation: 'horizontal',
+		change: function(event, ui) {
 			data_min = ui.value;
+			//console.log(event)
+			//console.log(ui)
+			$("#data-min-value").val( ui.value )
+			updateScene();
+		},
+		slide: function(event, ui) {
+			delta = ui.value - data_min;
+			if(event.altKey || event.shiftKey || event.ctrlKey) {
+				$( "#slider-data-max").slider("value", data_max+delta)
+				//console.log("setting max")
+			}
+			data_min = ui.value;
+			//console.log(event)
+			//console.log(ui)
 			$("#data-min-value").val( ui.value )
 			updateScene();
 		}}
@@ -410,8 +453,17 @@ $(function() {
 		max: 0.,
 		step: 0.001,
 		max: 1.,
-		orientation: 'vertical',
+		orientation: 'horizontal',
+		change: function(event, ui) {
+			data_max = ui.value;
+			$("#data-max-value").val( ui.value )
+			updateScene();
+		},
 		slide: function(event, ui) {
+			delta = ui.value - data_max;
+			if(event.altKey || event.shiftKey || event.ctrlKey) {
+				$( "#slider-data-min").slider("value", data_min+delta)
+			}
 			data_max = ui.value;
 			$("#data-max-value").val( ui.value )
 			updateScene();
@@ -460,100 +512,117 @@ $(function() {
 	</select>
 -->
 	<div id="content">
-		<canvas id="canvas-transfer" style="border: none;" width="512" height="30" style="display: block;"></canvas><br>
 		<canvas id="canvas1" style="border: none;" width="512" height="512" style="display: inline;"></canvas>
 		
-<table style="display: inline-block">
+<table style="display: inline-block;"  cellspacing="0">
+<tr  class="last">
+<td></td>
+<td>		<canvas id="canvas-transfer" style="border: none;" width="512" height="30" style="display: block;"></canvas>
+</td>
+</tr>
 <tr>
 	<td>
-		level:<br>
-		<input type="text" id="volume-level-value-0" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+		level 1:<input type="text" id="volume-level-value-0" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
 	</td>
 	<td>
-		width:<br>
-		<input type="text" id="volume-width-value-0" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
-	</td>
-	<td>
-		opacity:<br>
-		<input type="text" id="opacity-value-0" readonly style="border:0; color:#f6931f; font-weight:bold;">
-	</td>
-	<td>
-		level:<br>
-		<input type="text" id="volume-level-value-1" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
-	</td>
-	<td>
-		width:<br>
-		<input type="text" id="volume-width-value-1" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
-	</td>
-	<td>
-		opacity:<br>
-		<input type="text" id="opacity-value-1" readonly style="border:0; color:#f6931f; font-weight:bold;">
-	</td>
-	<td>
-		level:<br>
-		<input type="text" id="volume-level-value-2" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
-	</td>
-	<td>
-		width:<br>
-		<input type="text" id="volume-width-value-2" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
-	</td>
-	<td>
-		opacity:<br>
-		<input type="text" id="opacity-value-2" readonly style="border:0; color:#f6931f; font-weight:bold;">
-	</td>
-	<td>
-		brightness:<br>
-		<input type="text" id="brightness-value" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
-	</td>
-	<td>
-		min:<br>
-		<input type="text" id="data-min-value" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
-	</td>
-	<td>
-		max:<br>
-		<input type="text" id="data-max-value" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
+		<div id="slider-volume-level-0" style="display: inline-block; width: 512px;;"></div>
 	</td>
 </tr>
 <tr>
 	<td>
-		<div id="slider-volume-level-0" style="display: inline-block; height: 500px;"></div>
+		width 1:<input type="text" id="volume-width-value-0" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
 	</td>
 	<td>
-		<div id="slider-volume-width-0" style="display: inline-block; height: 500px;"></div>
+		<div id="slider-volume-width-0" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr class="last">
+	<td>
+		opacity 1:<input type="text" id="opacity-value-0" readonly style="border:0; color:#f6931f; font-weight:bold;">
 	</td>
 	<td>
-		<div id="slider-opacity-0" style="display: inline-block;height: 500px;"></div>
+		<div id="slider-opacity-0" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		level 2:<input type="text" id="volume-level-value-1" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
 	</td>
 	<td>
-		<div id="slider-volume-level-1" style="display: inline-block; height: 500px;"></div>
+		<div id="slider-volume-level-1" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		width 2:<input type="text" id="volume-width-value-1" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
 	</td>
 	<td>
-		<div id="slider-volume-width-1" style="display: inline-block; height: 500px;"></div>
+		<div id="slider-volume-width-1" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr class="last">
+	<td>
+		opacity 2:<input type="text" id="opacity-value-1" readonly style="border:0; color:#f6931f; font-weight:bold;">
 	</td>
 	<td>
-		<div id="slider-opacity-1" style="display: inline-block;height: 500px;"></div>
+		<div id="slider-opacity-1" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		level 3:<input type="text" id="volume-level-value-2" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
 	</td>
 	<td>
-		<div id="slider-volume-level-2" style="display: inline-block; height: 500px;"></div>
+		<div id="slider-volume-level-2" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		width 3:<input type="text" id="volume-width-value-2" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
 	</td>
 	<td>
-		<div id="slider-volume-width-2" style="display: inline-block; height: 500px;"></div>
+		<div id="slider-volume-width-2" style="display: inline-block; width: 512px;;"></div>
+	</td>
+</tr>
+<tr class="last">
+	<td>
+		opacity 3:<input type="text" id="opacity-value-2" readonly style="border:0; color:#f6931f; font-weight:bold;">
 	</td>
 	<td>
-		<div id="slider-opacity-2" style="display: inline-block;height: 500px;"></div>
+		<div id="slider-opacity-2" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		brightness:<input type="text" id="brightness-value" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
 	</td>
 	<td>
-		<div id="slider-brightness" style="display: inline-block;height: 500px;"></div>
+		<div id="slider-brightness" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		min:<input type="text" id="data-min-value" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
 	</td>
 	<td>
-		<div id="slider-data-min" style="display: inline-block;height: 500px;"></div>
+		<div id="slider-data-min" style="display: inline-block;width: 512px;"></div>
+	</td>
+</tr>
+<tr>
+	<td>
+		max:<input type="text" id="data-max-value" readonly style="border:0; color:#f6931f; font-weight:bold; display: inline;" size="4" >
 	</td>
 	<td>
-		<div id="slider-data-max" style="display: inline-block;height: 500px;"></div>
+		<div id="slider-data-max" style="display: inline-block;width: 512px;"></div>
 	</td>
 </tr>
 </table>
-<select name="colormap-select" id="colormap"  style="display: inline-block;"/>  
+
+<br>
+
+<select name="colormap-select" id="colormap"  style="display: inline;"/>  
+
+
 
 
 </div>

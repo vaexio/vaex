@@ -17,11 +17,11 @@ from OpenGL.GL import shaders
 
 import numpy as np
 
-import gavi.dataset
+#import gavi.dataset
 import gavi.vaex.colormaps
 #print GL_R32F
-#dsa
 GL_R32F = 33326
+
 class VolumeRenderWidget(QtOpenGL.QGLWidget):
 	def __init__(self, parent = None):
 		super(VolumeRenderWidget, self).__init__(parent)
@@ -43,6 +43,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.texture_index = 1
 		self.texture_size = 512 #*8
 		self.grid = None
+		# gets executed after initializeGL, can hook up your loading of data here
 		self.post_init = lambda: 1
 		
 	def toggle(self, ignore=None):
@@ -180,7 +181,6 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glRotated(self.angle2, 0.0, 1.0, 0.0)
 			
 			
-			
 			self.draw_backside()
 			self.draw_frontside()
 			self.draw_to_screen()
@@ -224,29 +224,22 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glBindTexture(GL_TEXTURE_2D, self.texture_backside)
 		glEnable(GL_TEXTURE_2D)
 		glActiveTexture(GL_TEXTURE0);
-		if 1:
-			loc = glGetUniformLocation(self.shader, "cube");
-			glUniform1i(loc, 1); # texture unit 1
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_3D, self.texture_cube)
-			#glEnable(GL_TEXTURE_3D)
 
-			if 0:
-				loc = glGetUniformLocation(self.shader, "gradient");
-				glUniform1i(loc, 3); # texture unit 1
-				glActiveTexture(GL_TEXTURE3);
-				glBindTexture(GL_TEXTURE_3D, self.texture_gradient)
-				#glEnable(GL_TEXTURE_3D)
-		
-			loc = glGetUniformLocation(self.shader, "texture_colormap");
-			glUniform1i(loc, 2); # texture unit 2
-			glActiveTexture(GL_TEXTURE2);
-			#index = gavi.vaex.colormaps.colormaps.index("afmhot")
-			index = 0
-			glBindTexture(GL_TEXTURE_1D, self.textures_colormap[index])
-			glEnable(GL_TEXTURE_1D)
+		loc = glGetUniformLocation(self.shader, "cube");
+		glUniform1i(loc, 1); # texture unit 1
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_3D, self.texture_cube)
+		#glEnable(GL_TEXTURE_3D)
 
-			glActiveTexture(GL_TEXTURE0);
+		loc = glGetUniformLocation(self.shader, "texture_colormap");
+		glUniform1i(loc, 2); # texture unit 2
+		glActiveTexture(GL_TEXTURE2);
+		#index = gavi.vaex.colormaps.colormaps.index("afmhot")
+		index = 0
+		glBindTexture(GL_TEXTURE_1D, self.textures_colormap[index])
+		glEnable(GL_TEXTURE_1D)
+
+		glActiveTexture(GL_TEXTURE0);
 		
 		size = glGetUniformLocation(self.shader,"size");
 		glUniform2f(size, self.texture_size, self.texture_size);
@@ -554,7 +547,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		grid3d = np.zeros((grid_size, grid_size, grid_size), dtype=np.float64)
 
 		#mi, ma = -30., 30.
-		mi, ma = 0., 100.
+		mi, ma = 40., 60
 		#mi, ma = -0.5, 0.5
 		print "histogram3d"
 		gavifast.histogram3d(x, y, z, None, grid3d, mi, ma, mi, ma, mi, ma)

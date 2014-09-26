@@ -15,7 +15,7 @@
 	$(function() {
 
 		var dataset = 'Aq-A-2-999-shuffled-1percent';
-		var data = [[["http://localhost:5000/plot/Aq-A-2-999-shuffled-1percent/x/z?ranges=50,70,40,60", 50, 40, 70, 60]]];
+		var data = [[["http://localhost:5001/plot/Aq-A-2-999-shuffled-1percent/x/z?ranges=50,70,40,60", 50, 40, 70, 60]]];
 
 		var options = {
 			series: {
@@ -94,7 +94,7 @@
 			var y = $('#y').val()
 			var colormap = $('#colormap').val()
 			var dataset = $('#dataset').val()
-			var url = "http://localhost:5000/plot/" +dataset +"/" +x +"/" +y +"?ranges=" +options.xaxis.min +"," +options.xaxis.max +","+options.yaxis.min +"," +options.yaxis.max +"&colormap="+colormap;
+			var url = "http://localhost:5001/plot/" +dataset +"/" +x +"/" +y +"?ranges=" +options.xaxis.min +"," +options.xaxis.max +","+options.yaxis.min +"," +options.yaxis.max +"&colormap="+colormap;
 			console.log("url=" + url)
 			data = [[[url, options.xaxis.min, options.yaxis.min, options.xaxis.max, options.yaxis.max]]];
 			$.plot.image.loadDataImages(data, options, function () {
