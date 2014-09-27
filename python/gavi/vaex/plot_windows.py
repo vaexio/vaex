@@ -19,6 +19,7 @@ import time
 import gavi.logging
 import gavi.events
 import gavi.vaex.undo as undo
+import gavi.kld
 import numexpr as ne
 
 
@@ -458,6 +459,7 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.gridsize = eval(self.options.get("gridsize", "512/2"))
 		self.xoffset, self.yoffset = 0, 0
+		self.show_disjoined = False
 
 		self.fig = Figure(figsize=(width, height), dpi=dpi)
 		self.addAxes()
@@ -468,7 +470,12 @@ class PlotDialog(QtGui.QDialog):
 		self.queue_update = Queue("update", 1000, self.update_direct)
 		self.queue_redraw = Queue("redraw", 5, self.canvas.draw)
 		
+		self.layout_main = QtGui.QVBoxLayout()
+		self.layout_main.setContentsMargins(0, 0, 0, 0)
+		#self.button_layout.setSpacing(0)
+
 		self.boxlayout = QtGui.QVBoxLayout()
+		self.boxlayout_right = QtGui.QVBoxLayout()
 		
 		self.ranges = [None for _ in range(self.dimensions)] # min/max for the data
 		self.ranges_show = [None for _ in range(self.dimensions)] # min/max for the plots
@@ -491,8 +498,11 @@ class PlotDialog(QtGui.QDialog):
 		self.layout_plot_region.addWidget(self.canvas, 1)
 		
 		self.boxlayout.addLayout(self.layout_plot_region, 1)
-		self.afterCanvas(self.boxlayout)
-		self.setLayout(self.boxlayout)
+		self.addToolbar2(self.boxlayout)
+		self.afterCanvas(self.boxlayout_right)
+		self.layout_main.addLayout(self.boxlayout)
+		self.layout_main.addLayout(self.boxlayout_right)
+		self.setLayout(self.layout_main)
 		
 		self.compute_counter = 1 # to avoid reentrant 'computes'
 		self.compute()
@@ -1911,6 +1921,12 @@ class PlotDialog(QtGui.QDialog):
 		self.action_shuffled.setCheckable(True)
 		self.action_shuffled.triggered.connect(self.onActionShuffled)
 		self.toolbar2.addAction(self.action_shuffled)
+		
+		self.action_disjoin = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-outer-exclude')), 'Disjoined', self)
+		self.action_disjoin.setCheckable(True)
+		self.action_disjoin.triggered.connect(self.onActionDisjoin)
+		self.toolbar2.addAction(self.action_disjoin)
+		
 
 		self.action_axes_lock = QtGui.QAction(QtGui.QIcon(iconfile('lock')), 'Lock axis', self)
 		self.action_axes_lock.setCheckable(True)
@@ -1925,6 +1941,13 @@ class PlotDialog(QtGui.QDialog):
 		self.compute()
 		self.jobsManager.execute()
 		logger.debug("xoffset = %r" % self.xoffset)
+		
+	def onActionDisjoin(self, ignore=None):
+		#self.xoffset = 1 if self.action_shuffled.isChecked() else 0
+		self.show_disjoined = self.action_disjoin.isChecked() 
+		self.compute()
+		self.jobsManager.execute()
+		logger.debug("show_disjoined = %r" % self.show_disjoined)
 		
 	def onActionImageInvert(self, ignore=None):
 		self.image_invert = self.action_image_invert.isChecked()
@@ -2019,9 +2042,11 @@ class PlotDialog(QtGui.QDialog):
 		self.action_select_none = QtGui.QAction(QtGui.QIcon(iconfile('dialog-cancel-3')), '&No selection', self)
 		self.action_select_invert = QtGui.QAction(QtGui.QIcon(iconfile('dialog-cancel-3')), '&Invert', self)
 
-		self.action_select_mode_replace = QtGui.QAction(QtGui.QIcon(iconfile('glue_replace16')), '&Replace', self)
-		self.action_select_mode_and = QtGui.QAction(QtGui.QIcon(iconfile('glue_and16')), '&And', self)
-		self.action_select_mode_or = QtGui.QAction(QtGui.QIcon(iconfile('glue_or16')), '&Or', self)
+		self.action_select_mode_replace = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-right')), '&Replace', self)
+		self.action_select_mode_and = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-inner')), '&And', self)
+		self.action_select_mode_or = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-outer')), '&Or', self)
+		self.action_select_mode_xor = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-outer-exclude')), 'Xor', self)
+		self.action_select_mode_subtract = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-left-exclude')), 'Subtract', self)
 		
 		self.action_zoom_rect = QtGui.QAction(QtGui.QIcon(iconfile('zoom')), '&Zoom to rect', self)
 		#self.action_zoom_rect.setIconText("rect")
@@ -2091,6 +2116,8 @@ class PlotDialog(QtGui.QDialog):
 		self.actionGroupSelectMode.addAction(self.action_select_mode_replace)
 		self.actionGroupSelectMode.addAction(self.action_select_mode_and)
 		self.actionGroupSelectMode.addAction(self.action_select_mode_or)
+		self.actionGroupSelectMode.addAction(self.action_select_mode_xor)
+		self.actionGroupSelectMode.addAction(self.action_select_mode_subtract)
 		
 		self.actionGroup.addAction(self.action_move)
 		self.actionGroup.addAction(self.action_pick)
@@ -2161,6 +2188,8 @@ class PlotDialog(QtGui.QDialog):
 		self.select_mode_button_menu.addAction(self.action_select_mode_replace)
 		self.select_mode_button_menu.addAction(self.action_select_mode_or)
 		self.select_mode_button_menu.addAction(self.action_select_mode_and)
+		self.select_mode_button_menu.addAction(self.action_select_mode_xor)
+		self.select_mode_button_menu.addAction(self.action_select_mode_subtract)
 		self.select_mode_button.setDefaultAction(self.action_select_mode_replace)
 		self.toolbar.addWidget(self.select_mode_button)
 		
@@ -2205,6 +2234,8 @@ class PlotDialog(QtGui.QDialog):
 		self.action_select_mode_replace.setCheckable(True)
 		self.action_select_mode_and.setCheckable(True)
 		self.action_select_mode_or.setCheckable(True)
+		self.action_select_mode_xor.setCheckable(True)
+		self.action_select_mode_subtract.setCheckable(True)
 		
 		self.action_mini_mode.setCheckable(True)
 		self.action_mini_mode_normal.setCheckable(True)
@@ -2310,6 +2341,10 @@ class PlotDialog(QtGui.QDialog):
 			self.select_mode = self.select_and
 		if action == self.action_select_mode_or:
 			self.select_mode = self.select_or
+		if action == self.action_select_mode_xor:
+			self.select_mode = self.select_xor
+		if action == self.action_select_mode_subtract:
+			self.select_mode = self.select_subtract
 			
 	def select_replace(self, maskold, masknew):
 		return masknew
@@ -2319,6 +2354,12 @@ class PlotDialog(QtGui.QDialog):
 		
 	def select_or(self, maskold, masknew):
 		return masknew if maskold is None else maskold | masknew
+		
+	def select_xor(self, maskold, masknew):
+		return masknew if maskold is None else maskold ^ masknew
+		
+	def select_subtract(self, maskold, masknew):
+		return masknew if maskold is None else (maskold) & ~masknew
 		
 	def onActionSelectNone(self):
 		#self.dataset.selectMask(None)
@@ -2404,7 +2445,7 @@ class HistogramPlotDialog(PlotDialog):
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)
 		
-	def afterCanvas(self, layout):
+	def _afterCanvas(self, layout):
 		self.addToolbar2(layout, contrast=False, gamma=False)
 		super(HistogramPlotDialog, self).afterCanvas(layout)
 
@@ -2772,10 +2813,20 @@ class ScatterPlotDialog(PlotDialog):
 			elapsed = time.time() - info.time_start
 			self.message("computation %.2fs" % (elapsed), index=20)
 			self.message(None, index=-2) # clear error
+			if self.show_disjoined:
+				self.counts = gavi.kld.to_disjoined(self.counts)
+				if self.counts_mask is not None:
+					self.counts_mask = gavi.kld.to_disjoined(self.counts_mask)
+				if self.counts_x_weights is not None:
+					self.counts_x_weights = gavi.kld.to_disjoined(self.counts_x_weights)
+				if self.counts_y_weights is not None:
+					self.counts_y_weights = gavi.kld.to_disjoined(self.counts_y_weights)
+				if self.counts_xy_weights is not None:
+					self.counts_xy_weights = gavi.kld.to_disjoined(self.counts_xy_weights)
 			
 		
 		
-	def afterCanvas(self, layout):
+	def _afterCanvas(self, layout):
 		self.addToolbar2(layout)
 		super(ScatterPlotDialog, self).afterCanvas(layout)
 
@@ -2796,6 +2847,7 @@ class ScatterPlotDialog(PlotDialog):
 		y = np.arange(0, Nvector)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
 		x, y = np.meshgrid(x, y)
 		amplitude = self.counts
+			
 		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 		if self.amplitude_expression is not None:
 			locals = {"counts":self.counts, "weighted": self.counts_weights}
@@ -3229,7 +3281,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		self.layout_plot_region.insertWidget(0, self.widget_volume, 1)
 		
 		
-		self.addToolbar2(layout)
+		#self.addToolbar2(layout)
 		super(VolumeRenderingPlotDialog, self).afterCanvas(layout)
 
 	def getAxesList(self):

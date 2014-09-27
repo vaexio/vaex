@@ -196,6 +196,7 @@ class RankDialog(QtGui.QDialog):
 		super(RankDialog, self).__init__(parent)
 		self.dataset = dataset
 		self.mainPanel = mainPanel
+		self.range_map = {}
 		
 		self.tabs = QtGui.QTabWidget(self)
 		
@@ -279,7 +280,12 @@ class RankDialog(QtGui.QDialog):
 				#self.list1d.
 
 
-		self.boxlayout = QtGui.QHBoxLayout(self)
+		self.boxlayout = QtGui.QVBoxLayout(self)
+		self.radio_button_all = QtGui.QRadioButton("Use complete dataset", self)
+		self.radio_button_selection = QtGui.QRadioButton("Use selection", self)
+		self.radio_button_all.setChecked(True)
+		self.boxlayout.addWidget(self.radio_button_all)
+		self.boxlayout.addWidget(self.radio_button_selection)
 		self.boxlayout.addWidget(self.tabs)
 		#self.boxlayout.addWidget(self.rankButton)
 		#self.setCentralWidget(self.splitter)
@@ -313,13 +319,22 @@ class RankDialog(QtGui.QDialog):
 		print table
 		qualities = []
 		pairs = table.getSelected()
+		error = False
+		for pair in pairs:
+			for expression in pair:
+				if expression not in self.range_map:
+					error = True
+		if error:
+			dialog_error(self, "Missing min/max", "Please calculate the minimum and maximum for the dimensions")
+			return
+
 		if 0:
 			for pair in pairs:
 				dim = len(pair)
 				#if dim == 2:
 				columns = [self.dataset.columns[name] for name in pair]
 				print pair
-				information = gavi.kld.kld_shuffled(columns)
+				information = gavi.kld.kld_shuffled(columns, mask=mask)
 				qualities.append(information)
 				#print pair
 		dialog = QtGui.QProgressDialog("Calculating KL divergence", "Abort", 0, 1000, self)
@@ -329,7 +344,7 @@ class RankDialog(QtGui.QDialog):
 			QtCore.QCoreApplication.instance().processEvents()
 			if dialog.wasCanceled():
 				return True
-		qualities = gavi.kld.kld_shuffled_grouped(self.dataset, self.range_map, pairs, feedback=feedback)
+		qualities = gavi.kld.kld_shuffled_grouped(self.dataset, self.range_map, pairs, feedback=feedback, use_mask=self.radio_button_selection.isChecked())
 		print qualities
 		
 		table.setQualities(pairs, qualities)

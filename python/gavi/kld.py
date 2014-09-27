@@ -26,6 +26,14 @@ class KlDivergenceShuffle(object):
 			pass
 		
 		
+def to_disjoined(counts):
+	shape = counts.shape
+	assert len(counts.shape) == 2
+	counts_0 = counts.sum(axis=1).reshape((shape[0], 1))
+	counts_1 = counts.sum(axis=0).reshape((1, shape[1]))
+	counts_disjoined = counts_0 * counts_1
+	return counts_disjoined
+		
 def kld_shuffled(columns, Ngrid=128, datamins=None, datamaxes=None, offset=1):
 	if datamins is None:
 		datamins = np.array([np.nanmin(column) for column in columns])
@@ -77,7 +85,7 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 	wrapper.N_done = 0
 
 	counts = np.zeros((grids_per_iteration,) + (size_grid,) * dimension, dtype=np.float64)
-	counts_shuffled = np.zeros((grids_per_iteration,) + (size_grid,) * dimension, dtype=np.float64)
+	#counts_shuffled = np.zeros((grids_per_iteration,) + (size_grid,) * dimension, dtype=np.float64)
 
 	N_total = len(pairs) * len(dataset) * dimension + len(pairs) *counts.size
 
@@ -85,7 +93,7 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 	for part in range(iterations):
 		if part > 0: # next iterations reset the counts
 			counts.reshape(-1)[:] = 0
-			counts_shuffled.reshape(-1)[:] = 0
+			#counts_shuffled.reshape(-1)[:] = 0
 		i1, i2 = part * grids_per_iteration, (part+1)*grids_per_iteration
 		if i2 > len(pairs):
 			i2 = len(pairs)
@@ -94,19 +102,21 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 		def grid(info, *blocks, **kwargs):
 			index = kwargs["index"]
 			if use_mask and dataset.mask is not None:
-				mask = dataset.mask
+				mask = dataset.mask[info.i1:info.i2]
+				blocks = [block[mask] for block in blocks]
 			else:
 				mask = None
 			ranges = []
 			for dim in range(dimension):
 				ranges += list(range_map[pairs[index][dim]])
 			if len(blocks) == 2:
+				print "mask", mask
 				gavifast.histogram2d(blocks[0], blocks[1], None, counts[index], *(ranges + [0, 0]))
-				gavifast.histogram2d(blocks[0], blocks[1], None, counts_shuffled[index], *(ranges + [1, 0]))
+				#gavifast.histogram2d(blocks[0], blocks[1], None, counts_shuffled[index], *(ranges + [1, 0]))
 			if len(blocks) == 3:
 				gavifast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts[index], *(ranges + [0,0,0]))
-				for i in range(5):
-					gavifast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts_shuffled[index], *(ranges + [2+i,1+i,0]))
+				#for i in range(5):
+				#	gavifast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts_shuffled[index], *(ranges + [2+i,1+i,0]))
 			if feedback:
 				wrapper.N_done += len(dataset) * dimension
 				if feedback:
@@ -125,10 +135,11 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 				deltax = [float(range_map[pairs[i][d]][1] - range_map[pairs[i][d]][0]) for d in range(dimension)]
 				dx = np.array([deltax[d]/counts[i].shape[d] for d in range(dimension)])
 				density = counts[i]/np.sum(counts[i])# * np.sum(dx)
-				density_shuffled = counts_shuffled[i] / np.sum(counts_shuffled[i])# * np.sum(dx)
+				counts_shuffled = to_disjoined(counts[i])
+				density_shuffled = counts_shuffled / np.sum(counts_shuffled)# * np.sum(dx)
 				mask = (density_shuffled > 0) & (density>0)
 				print "mask sum", np.sum(mask)
-				print "mask sum", np.sum((counts_shuffled[i] > 0) & (counts[i]>0))
+				print "mask sum", np.sum((counts_shuffled > 0) & (counts[i]>0))
 				#print density
 				D_kl = np.sum(density[mask] * np.log(density[mask]/density_shuffled[mask]))# * np.sum(dx)
 				D_kls.append(D_kl)
