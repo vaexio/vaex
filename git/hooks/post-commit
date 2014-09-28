@@ -1,0 +1,3 @@
+#!/bin/bash
+version=`git describe --tags --long`
+python/gavi/vaex/setversion.py ${version}
