@@ -865,7 +865,22 @@ class PlotDialog(QtGui.QDialog):
 				logger.debug("selected colormap for vector: %r" % colormap_name)
 				self.colormap_vector = colormap_name
 				self.plot()
-			self.colormap_vector_box.setCurrentIndex(1)
+				
+			cmapnames = "cmapxy colormapxy colourmapxy".split()
+			if not set(cmapnames).isdisjoint(self.options):
+				for name in cmapnames:
+					if name in self.options:
+						break
+				cmap = self.options[name]
+				if cmap not in colormaps:
+					colormaps_sorted = sorted(colormaps)
+					colormaps_string = " ".join(colormaps_sorted)
+					dialog_error(self, "Wrong colormap name", "colormap {cmap} does not exist, choose between: {colormaps_string}".format(**locals()))
+					index = 0
+				else:
+					index = colormaps.index(cmap)
+				self.colormap_vector_box.setCurrentIndex(index)
+				self.colormap_vector = colormaps[index]
 			self.colormap_vector_box.currentIndexChanged.connect(onColorMap)
 			
 			row += 1
@@ -2632,7 +2647,11 @@ class HistogramPlotDialog(PlotDialog):
 class ScatterPlotDialog(PlotDialog):
 	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None, **options):
 		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname], "X Y".split(), **options)
-		
+
+	def error_in_field(self, widget, exception):
+		self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
+		self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
+
 		
 	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
 		if compute_counter < self.compute_counter:
@@ -2834,6 +2853,7 @@ class ScatterPlotDialog(PlotDialog):
 		self.axes.cla()
 		#extent = 
 		#ranges = np.nanmin(datax), np.nanmax(datax), np.nanmin(datay), np.nanmax(datay)
+		
 		ranges = []
 		logger.debug("self.ranges == %r" % (self.ranges, ))
 		for minimum, maximum in self.ranges:
@@ -2880,7 +2900,11 @@ class ScatterPlotDialog(PlotDialog):
 			else:
 				locals["average"] = self.counts_weights/self.counts
 			globals = np.__dict__
-			amplitude = eval(self.amplitude_expression, globals, locals)
+			try:
+				amplitude = eval(self.amplitude_expression, globals, locals)
+			except Exception, e:
+				self.error_in_field(self.amplitude_box, e)
+				return
 		print "amplitude", np.nanmin(amplitude), np.nanmax(amplitude)
 		#if self.ranges_level[0] is None:
 		#	self.ranges_level[0] = 0, amplitude.max() * 1.1

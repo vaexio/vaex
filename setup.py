@@ -25,7 +25,7 @@ if has_py2app:
 	class my_py2app(py2app.build_app.py2app):
 		"""hooks in post script to add in missing libraries and zip the content"""
 		def run(self):
-			super(self).run()
+			py2app.build_app.py2app.run(self)
 			#libQtWebKit.4.dylib
 			#libQtNetwork.4.dylib
 			libs = [line.strip() for line in """
@@ -56,10 +56,10 @@ if has_py2app:
 				print cmd
 				os.system(cmd)
 			os.system("cd dist")
-			zipname = "%s-osx.zip" % fullname
+			zipname = "%s-osx.zip" % gavi.vaex.__clean_name__
 			os.system("cd dist;rm %s" % zipname)
 			os.system("cd dist;zip -r %s %s.app" % (zipname, gavi.vaex.__program_name__))
-	cmdclass[py2app.build_app.py2app] = my_py2app
+	cmdclass['py2app'] = my_py2app
 			
 from distutils.core import setup, Extension
 numdir = os.path.dirname(numpy.__file__)
@@ -102,6 +102,7 @@ extensions = [
 ]
 
 setup(
+	name=gavi.vaex.__program_name__,
     app=APP,
     version=gavi.vaex.__release__,
     data_files=DATA_FILES,

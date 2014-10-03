@@ -11,4 +11,6 @@ __version_tuple__ = version.versiontuple
 __program_name__ = "vaex"
 __version__ = "%d.%d.%d" % __version_tuple__
 __release__ = version.versiontring
+__clean_release__ = "v%d.%d.%d-%d" % (__version_tuple__ + (version.commits,))
 __full_name__ = __program_name__ + "-" + __release__
+__clean_name__ =  __program_name__ + "-" + __clean_release__
