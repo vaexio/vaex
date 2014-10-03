@@ -73,7 +73,9 @@ DATA_FILES = []
 if has_py2app:
 	pass
 	DATA_FILES.append(["data", ["data/disk-galaxy.hdf5"]]) #, "data/Aq-A-2-999-shuffled-1percent.hdf5"]])
-DATA_FILES.append(["", ["doc"]])
+import glob
+
+DATA_FILES.append(["", glob.glob("doc/*/*")])
 OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/gavi/icons'], 'matplotlib_backends':'-'}
 
 
