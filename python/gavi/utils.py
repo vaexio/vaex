@@ -3,8 +3,18 @@
 import time
 import platform
 import os
+import sys
 
+is_frozen = getattr(sys, 'frozen', False)
 
+def get_root_path():
+	osname = platform.system().lower()
+	if (osname == "linux") and is_frozen: # we are using pyinstaller
+		return os.path.dirname(sys.argv[0])
+	else:
+		return os.path.abspath(".")
+	
+	
 def os_open(document):
 	"""Open document by the default handler of the OS, could be a url opened by a browser, a text file by an editor etc"""
 	osname = platform.system().lower()

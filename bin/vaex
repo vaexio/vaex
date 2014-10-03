@@ -15,7 +15,10 @@ import os
 import sys
 import sampy
 
+import gavi.utils
+
 import encodings
+
 
 print "DEFAULT ENCODING is: %s"%(sys.getdefaultencoding())
 print "FILE SYSTEM ENCODING is: %s"%(sys.getfilesystemencoding())
@@ -79,6 +82,8 @@ if os.path.exists(path):
 else:
 	custom = None
 	print >>sys.stderr, path, "does not exist"
+
+print "root path is", gavi.utils.get_root_path()
 
 frozen = getattr(sys, 'frozen', False)
 
@@ -1339,11 +1344,16 @@ class Vaex(QtGui.QMainWindow):
 			
 		
 	def onActionHelp(self):
-		gavi.utils.os_open("doc/index.html")
+		
+
+		url = "file://" + os.path.join(gavi.utils.get_root_path(), "doc/index.html")
+		gavi.utils.os_open(url)
 		#self.webDialog("doc/index.html")
 		
 	def onActionCredits(self):
-		gavi.utils.os_open("doc/credits.html")
+		url = "file://" + os.path.join(gavi.utils.get_root_path(), "doc/credits.html")
+		gavi.utils.os_open(url)
+		#gavi.utils.os_open("doc/credits.html")
 		#self.webDialog("html/credits.html")
 		
 	def _webDialog(self, url):
