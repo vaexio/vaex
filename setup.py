@@ -32,6 +32,7 @@ if has_py2app:
 			libLLVM-3.3.dylib
 			libQtGui.4.dylib
 			libQtCore.4.dylib
+			libQtOpenGL.4.dylib
 			libcrypto.1.0.0.dylib
 			libssl.1.0.0.dylib
 			libpng15.15.dylib
@@ -71,7 +72,8 @@ APP = ["bin/vaex"]
 DATA_FILES = []
 if has_py2app:
 	pass
-	#DATA_FILES.append(["data", ["data/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5"]]) #, "data/Aq-A-2-999-shuffled-1percent.hdf5"]])
+	DATA_FILES.append(["data", ["data/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5"]]) #, "data/Aq-A-2-999-shuffled-1percent.hdf5"]])
+DATA_FILES.append(["", ["doc"]])
 OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/gavi/icons'], 'matplotlib_backends':'-'}
 
 

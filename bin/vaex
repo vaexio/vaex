@@ -1339,7 +1339,8 @@ class Vaex(QtGui.QMainWindow):
 			
 		
 	def onActionHelp(self):
-		gavi.utils.os_open("doc/index.html")
+		path = "doc/index.html"
+		gavi.utils.os_open(path)
 		#self.webDialog("doc/index.html")
 		
 	def onActionCredits(self):
