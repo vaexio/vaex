@@ -1344,8 +1344,6 @@ class Vaex(QtGui.QMainWindow):
 			
 		
 	def onActionHelp(self):
-		
-
 		url = "file://" + os.path.join(gavi.utils.get_root_path(), "doc/index.html")
 		gavi.utils.os_open(url)
 		#self.webDialog("doc/index.html")
