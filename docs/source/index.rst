@@ -1,6 +1,9 @@
 VaeX: Visualization and eXploration
 ===================================
 
+
+
+
 What is Vaex?
 =============
 

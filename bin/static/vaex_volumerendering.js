@@ -174,8 +174,8 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 		initColormapTexture();
 		frame_buffer = gl.createFramebuffer();
 		gl.bindFramebuffer(gl.FRAMEBUFFER, frame_buffer);
-		frame_buffer.width = 128;
-		frame_buffer.height = 128;
+		frame_buffer.width = 256;
+		frame_buffer.height = 256;
 
 
 		texture_frame_buffer_volume = gl.createTexture();

@@ -13,10 +13,54 @@ import platform
 has_py2app = False
 import gavi.vaex
 try:
-	import py2app
+	import py2app.build_app
 	has_py2app = True
 except:
 	pass
+
+full_name = gavi.vaex.__full_name__
+cmdclass = {}
+
+if has_py2app:
+	class my_py2app(py2app.build_app.py2app):
+		"""hooks in post script to add in missing libraries and zip the content"""
+		def run(self):
+			py2app.build_app.py2app.run(self)
+			#libQtWebKit.4.dylib
+			#libQtNetwork.4.dylib
+			libs = [line.strip() for line in """
+			libLLVM-3.3.dylib
+			libQtGui.4.dylib
+			libQtCore.4.dylib
+			libcrypto.1.0.0.dylib
+			libssl.1.0.0.dylib
+			libpng15.15.dylib
+			libfreetype.6.dylib
+			""".strip().splitlines()]
+
+			libpath = "/Users/maartenbreddels/anaconda/lib"
+			targetdir = 'dist/vaex.app/Contents/Resources/lib/'
+			for filename in libs:
+				path = os.path.join(libpath, filename)
+				cmd = "cp %s %s" % (path, targetdir)
+				print cmd
+				os.system(cmd)
+
+			libs = [line.strip() for line in """
+			libpng15.15.dylib
+			""".strip().splitlines()]
+			targetdir = 'dist/vaex.app/Contents/Resources/'
+			for filename in libs:
+				#path = os.path.join(libpath, filename)
+				cmd = "cp %s %s" % (path, targetdir)
+				print cmd
+				os.system(cmd)
+			os.system("cd dist")
+			zipname = "%s-osx.zip" % gavi.vaex.__clean_name__
+			os.system("cd dist;rm %s" % zipname)
+			os.system("cd dist;zip -r %s %s.app" % (zipname, gavi.vaex.__program_name__))
+	cmdclass['py2app'] = my_py2app
+			
 from distutils.core import setup, Extension
 numdir = os.path.dirname(numpy.__file__)
 
@@ -58,49 +102,15 @@ extensions = [
 ]
 
 setup(
+	name=gavi.vaex.__program_name__,
     app=APP,
-    version=gavi.vaex.__version__,
+    version=gavi.vaex.__release__,
     data_files=DATA_FILES,
     options={'py2app': OPTIONS},
     setup_requires=['py2app'],
-    includes=["mayavi", "gavi", "md5"],
+    includes=["gavi", "md5"],
     ext_modules=extensions,
-    package_data={'gavi': ['gavi/icons/*.png']}
-    #packages=["h5py"]
+    package_data={'gavi': ['gavi/icons/*.png']},
+    cmdclass=cmdclass
 )
 
-if has_py2app:
-	libs = [line.strip() for line in """
-	libLLVM-3.3.dylib
-	libQtGui.4.dylib
-	libQtCore.4.dylib
-	libQtWebKit.4.dylib
-	libQtNetwork.4.dylib
-	libcrypto.1.0.0.dylib
-	libssl.1.0.0.dylib
-	libpng15.15.dylib
-	libfreetype.6.dylib
-	""".strip().splitlines()]
-
-	libpath = "/Users/maartenbreddels/anaconda/lib"
-	targetdir = 'dist/vaex.app/Contents/Resources/lib/'
-	for filename in libs:
-		path = os.path.join(libpath, filename)
-		cmd = "cp %s %s" % (path, targetdir)
-		print cmd
-		os.system(cmd)
-
-	libs = [line.strip() for line in """
-	libpng15.15.dylib
-	""".strip().splitlines()]
-	targetdir = 'dist/vaex.app/Contents/Resources/'
-	for filename in libs:
-		#path = os.path.join(libpath, filename)
-		cmd = "cp %s %s" % (path, targetdir)
-		print cmd
-		os.system(cmd)
-	os.system("cd dist")
-	zipname = "%s-osx.zip" % gavi.vaex.__full_name__
-	os.system("cd dist;rm %s" % zipname)
-	os.system("cd dist;zip -r %s %s.app" % (zipname, gavi.vaex.__program_name__))
-	os.system("cd ..")

@@ -136,6 +136,7 @@ class JobsManager(object):
 			self.order_numbers = []
 
 			cancelled = False
+			errors = False
 			with Timer("init"):
 				order_numbers.sort()
 				
@@ -152,7 +153,7 @@ class JobsManager(object):
 			# multiple passes, in order
 			with Timer("passes"):
 				for order in order_numbers:
-					if cancelled:
+					if cancelled or errors:
 						break
 					logger.debug("jobs, order: %r" % order)
 					jobs_order = [job for job in jobs if job[0] == order]
@@ -199,7 +200,7 @@ class JobsManager(object):
 						# execute blocks for all expressions, better for Lx cache
 						t0 = time.time()
 						for block_index in range(n_blocks):
-							if cancelled:
+							if cancelled or errors:
 								break
 							i1 = block_index * buffer_size
 							i2 = (block_index +1) * buffer_size
@@ -218,7 +219,7 @@ class JobsManager(object):
 							for key, value in dataset.rank1s.items():
 								local_dict[key] = value[:,i1:i2]
 							for dataset, expression in expressions_dataset:
-								if cancelled:
+								if cancelled or errors:
 									break
 								if expression is None:
 									expr_noslice, slice_vars = None, {}
@@ -298,7 +299,7 @@ class JobsManager(object):
 									logger.debug("output[%r]: %r, %r" % (key, value.shape, value.dtype))
 							with Timer("callbacks"):
 								for _order, callback, dataset, expressions, _variables in jobs_dataset:
-									if cancelled:
+									if cancelled or errors:
 										break
 									logger.debug("callback: %r" % (callback))
 									arguments = [info]
@@ -307,7 +308,7 @@ class JobsManager(object):
 							if info.error:
 								# if we get an error, no need to go through the whole data
 								break
-			if not cancelled:
+			if not cancelled and not errors:
 				for callback in self.after_execute:
 					try:
 						callback()

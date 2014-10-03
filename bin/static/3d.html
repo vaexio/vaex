@@ -104,7 +104,7 @@ tr.last td { border-bottom: thin solid black; }
     void main(void) {
 		const int steps = NR_OF_STEPS;
 
-		vec2 pixel = vec2(gl_FragCoord.x/128., gl_FragCoord.y/128.);
+		vec2 pixel = vec2(gl_FragCoord.x/256., gl_FragCoord.y/256.);
 		//vec4 textureColor = texture2D(volume, vec2(pixel.x * width + x_index, pixel.y*height + y_index));
 		vec3 ray_begin = vertex_color.xyz;//texture2D(front, pixel).rgb;
 		vec3 ray_end = texture2D(back, pixel).rgb;

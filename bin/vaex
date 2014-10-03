@@ -1547,7 +1547,7 @@ class Vaex(QtGui.QMainWindow):
 			for other_ext in [".hdf5", ".fits"]:
 				filename = basename + other_ext
 				print filename
-				if os.path.exists(filename):
+				if os.path.exists(filename) and filename not in filenames:
 					filenames.append(filename)
 			filenames = filter(gavi.dataset.can_open, filenames)
 		options = []
