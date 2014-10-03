@@ -53,8 +53,12 @@ import gavi.utils
 #from email.mime.text import MIMEText
 
 def email(text):
+	osname = platform.system().lower()
+	if osname == "linux":
+		text = text.replace("#", "%23") # for some reason, # needs to be double quoted on linux, otherwise it is interpreted as comment symbol
 	
 	body = urllib.quote(text)
+		
 	subject = urllib.quote('Error report for: ' +gavi.vaex.__full_name__)
 	mailto = "mailto:maartenbreddels@gmail.com?subject={subject}&body={body}".format(**locals())
 	print "open:", mailto

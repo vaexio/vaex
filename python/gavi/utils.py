@@ -11,7 +11,8 @@ def os_open(document):
 	if osname == "darwin":
 		os.system("open \"" +document +"\"")
 	if osname == "linux":
-		os.system("xdg-open \"" +document +"\"&")
+		cmd = "xdg-open \"" +document +"\"&"
+		os.system(cmd)
 	if osname == "windows":
 		os.system("start \"" +document +"\"")
 

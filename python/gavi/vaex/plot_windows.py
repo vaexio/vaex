@@ -221,19 +221,31 @@ class Mover(object):
 			dx = self.last_x - x_data
 			dy = self.last_y - y_data 
 			xmin, xmax = self.plot.ranges_show[self.current_axes.xaxis_index][0] + dx, self.plot.ranges_show[self.current_axes.xaxis_index][1] + dx
-			ymin, ymax = self.plot.ranges_show[self.current_axes.yaxis_index][0] + dy, self.plot.ranges_show[self.current_axes.yaxis_index][1] + dy
+			if self.plot.dimensions == 1:
+				ymin, ymax = self.plot.range_level[0] + dy, self.plot.range_level[1] + dy
+			else:
+				ymin, ymax = self.plot.ranges_show[self.current_axes.yaxis_index][0] + dy, self.plot.ranges_show[self.current_axes.yaxis_index][1] + dy
 			#self.plot.ranges_show = [[xmin, xmax], [ymin, ymax]]
 			self.plot.ranges_show[self.current_axes.xaxis_index] = [xmin, xmax]
-			self.plot.ranges_show[self.current_axes.yaxis_index] = [ymin, ymax]
+			if self.plot.dimensions == 1:
+				self.plot.range_level = [ymin, ymax]
+			else:
+				self.plot.ranges_show[self.current_axes.yaxis_index] = [ymin, ymax]
+			# TODO: maybe the dimension should be stored in the axes, not in the plotdialog
 			for axes in self.plot.getAxesList():
-				if axes.xaxis_index == self.current_axes.xaxis_index:
+				if self.plot.dimensions == 1:
+					# ftm we assume we only have 1 histogram, meabning axes == self.current_axes
 					axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
-				if axes.yaxis_index == self.current_axes.xaxis_index:
-					axes.set_ylim(*self.plot.ranges_show[self.current_axes.xaxis_index])
-				if axes.xaxis_index == self.current_axes.yaxis_index:
-					axes.set_xlim(*self.plot.ranges_show[self.current_axes.yaxis_index])
-				if axes.yaxis_index == self.current_axes.yaxis_index:
-					axes.set_ylim(*self.plot.ranges_show[self.current_axes.yaxis_index])
+					axes.set_ylim(*self.plot.range_level)
+				else:
+					if axes.xaxis_index == self.current_axes.xaxis_index:
+						axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
+					if axes.yaxis_index == self.current_axes.xaxis_index:
+						axes.set_ylim(*self.plot.ranges_show[self.current_axes.xaxis_index])
+					if axes.xaxis_index == self.current_axes.yaxis_index:
+						axes.set_xlim(*self.plot.ranges_show[self.current_axes.yaxis_index])
+					if axes.yaxis_index == self.current_axes.yaxis_index:
+						axes.set_ylim(*self.plot.ranges_show[self.current_axes.yaxis_index])
 
 			# transform again after we changed the axes limits
 			transform = self.current_axes.transData.inverted().transform
@@ -414,7 +426,8 @@ class PlotDialog(QtGui.QDialog):
 	def addAxes(self):
 		self.axes = self.fig.add_subplot(111)
 		self.axes.xaxis_index = 0
-		self.axes.yaxis_index = 1
+		if self.dimensions > 1:
+			self.axes.yaxis_index = 1
 		self.axes.hold(True)
 		
 	def getAxesList(self):
@@ -783,6 +796,8 @@ class PlotDialog(QtGui.QDialog):
 		self.weight_box.lineEdit().editingFinished.connect(self.onWeightExpr)
 		self.weight_box.currentIndexChanged.connect(lambda _: self.onWeightExpr())
 		self.weight_expression = str(self.weight_box.lineEdit().text())
+		if len(self.weight_expression.strip()) == 0:
+			self.weight_expression = None
 		
 		row += 1
 		
@@ -1610,6 +1625,54 @@ class PlotDialog(QtGui.QDialog):
 	def onZoomIn(self, *args):
 		self.zoom(0.5)
 		
+	def eval_amplitude(self, counts, counts_weights):
+		if self.amplitude_expression is not None:
+			locals = {"counts":counts, "weighted": counts_weights}
+			locals["gf"] = scipy.ndimage.gaussian_filter
+
+			#x = np.arange(0, Nvector)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.) 
+			#y = np.arange(0, Nvector)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
+			#x, y = np.meshgrid(x, y)
+
+			
+			if counts.ndim > 1:
+				peak_columns = np.apply_along_axis(np.nanmax, 1, counts)
+				peak_columns[peak_columns==0] = 1.
+				peak_columns = peak_columns.reshape((1, -1))#.T
+				locals["peak_columns"] = peak_columns
+				
+				
+				sum_columns = np.apply_along_axis(np.nansum, 1, counts)
+				sum_columns[sum_columns==0] = 1.
+				sum_columns = sum_columns.reshape((1, -1))#.T
+				locals["sum_columns"] = sum_columns
+
+				peak_rows = np.apply_along_axis(np.nanmax, 0, counts)
+				peak_rows[peak_rows==0] = 1.
+				peak_rows = peak_rows.reshape((-1, 1))#.T
+				locals["peak_rows"] = peak_rows
+
+				sum_rows = np.apply_along_axis(np.nansum, 0, counts)
+				sum_rows[sum_rows==0] = 1.
+				sum_rows = sum_rows.reshape((-1, 1))#.T
+				locals["sum_rows"] = sum_rows
+			
+			#locals["x"] = x#.T
+			#locals["y"] = y#.T
+
+			if counts_weights is None:
+				locals["average"] = None
+			else:
+				average = counts_weights/counts
+				average[counts==0] = np.nan
+				locals["average"] = average
+			globals = np.__dict__
+			amplitude = eval(self.amplitude_expression, globals, locals)
+		else:
+			amplitude = counts
+		return amplitude
+		
+		
 	def zoom(self, factor, axes, x=None, y=None, delay=300, *args):
 		xmin, xmax = axes.get_xlim()
 		width = xmax - xmin
@@ -1637,7 +1700,15 @@ class PlotDialog(QtGui.QDialog):
 		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
 			#range_level = ymin_show, ymax_show
 			#range_level = ymin_show, ymax_show
-			pass
+			#counts_weights = np.array([1., factor]) if self.weight_expression is not None else None
+			#w1, w2 = self.eval_amplitude(counts=np.array([1., factor]), counts_weights=counts_weights)
+			#print ">" * 20, w1, w2
+			#print counts_weights
+			if (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
+				range_level = ymin, ymax
+				#a = b
+			else:
+				range_level = ymin_show, ymax_show
 		else:
 			ranges_show.append((ymin_show, ymax_show))
 			axis_indices.append(axes.yaxis_index)
@@ -1659,12 +1730,14 @@ class PlotDialog(QtGui.QDialog):
 		
 		
 		if 1:
-			self.ranges_show[axis_indices[0]] = list(ranges_show[0])
-			self.ranges_show[axis_indices[1]] = list(ranges_show[1])
 			if self.dimensions == 2:
+				self.ranges_show[axis_indices[0]] = list(ranges_show[0])
+				self.ranges_show[axis_indices[1]] = list(ranges_show[1])
 				axes.set_xlim(self.ranges_show[0])
 				axes.set_ylim(self.ranges_show[1])
 			if self.dimensions == 1:
+				self.ranges_show[axis_indices[0]] = list(ranges_show[0])
+				self.range_level = list(range_level)
 				axes.set_xlim(self.ranges_show[0])
 				axes.set_ylim(self.range_level)
 			self.queue_redraw()
