@@ -203,7 +203,7 @@ class Mover(object):
 			factor = 0.333
 			if event.button != 1:
 				factor = 1/factor
-			self.plot.zoom(factor, axes=event.axes, x=event.xdata, y=event.ydata)
+			self.plot.zoom(factor, axes=event.inaxes, x=event.xdata, y=event.ydata)
 		else:
 			self.begin_x, self.begin_y = event.xdata, event.ydata
 			self.last_x, self.last_y = event.xdata, event.ydata
@@ -569,7 +569,7 @@ class PlotDialog(QtGui.QDialog):
 						#print "ZOOM " * 100
 						print rx, ry, x_data, y_data, scale
 						scale = 1/(scale)
-						self.zoom(scale, x_data, y_data)
+						self.zoom(scale, self.axes, x_data, y_data) # TODO: support for multiple axes
 						#print dx, dy
 			return True
 		else:
