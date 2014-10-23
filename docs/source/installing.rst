@@ -15,6 +15,7 @@ The binary should be fully self contained, it should not need any other software
 
 OSX (10.7 is tested):
  
+* `Vaex 0.1.8-5 <https://www.astro.rug.nl/~breddels/vaex/vaex-0.1.8-5-osx.zip>`_.
 * `Vaex 0.1.7 <https://www.astro.rug.nl/~breddels/vaex/vaex-0.1.7-osx.zip>`_.
 * `Vaex 0.1.6 <https://www.astro.rug.nl/~breddels/vaex/vaex-osx-0.1.6.zip>`_.
 * `Vaex 0.1.5 <https://astrodrive.astro.rug.nl/public.php?service=files&t=a408a79bc2811920878fda861f615f2a>`_.
@@ -29,6 +30,7 @@ Simpy unpack the tarball and run it like:
 	$ ./vaex-0.1.7/vaex
 	
 
+* `Vaex 0.1.8-5 <https://www.astro.rug.nl/~breddels/vaex/vaex-0.1.8-5-linux.tar.gz>`_.
 * `Vaex 0.1.7 <https://www.astro.rug.nl/~breddels/vaex/vaex-0.1.7-linux.tar.gz>`_.
 * `Vaex 0.1.5 <https://astrodrive.astro.rug.nl/public.php?service=files&t=86be18567ca6327a903f7863787c4ebf>`_
 
