@@ -8,6 +8,7 @@ import matplotlib.widgets
 import matplotlib.cm
 from gavi.multithreading import ThreadPool
 import gavi.vaex.volumerendering
+from gavi.vaex import widgets 		
 
 import scipy.ndimage
 import os
@@ -203,7 +204,7 @@ class Mover(object):
 			factor = 0.333
 			if event.button != 1:
 				factor = 1/factor
-			self.plot.zoom(factor, axes=event.axes, x=event.xdata, y=event.ydata)
+			self.plot.zoom(factor, axes=event.inaxes, x=event.xdata, y=event.ydata)
 		else:
 			self.begin_x, self.begin_y = event.xdata, event.ydata
 			self.last_x, self.last_y = event.xdata, event.ydata
@@ -439,7 +440,6 @@ class PlotDialog(QtGui.QDialog):
 	
 	def __init__(self, parent, jobsManager, dataset, expressions, axisnames, width=5, height=4, dpi=100, **options):
 		super(PlotDialog, self).__init__(parent)
-		self.resize(700,700)
 		print "aap"
 		self.options = options
 		
@@ -456,6 +456,12 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.expressions = expressions
 		self.dimensions = len(self.expressions)
+		
+		if self.dimensions == 3:
+			self.resize(800+400,700)
+		else:
+			self.resize(800,700)
+		
 
 		self.colormap = cm_plusmin #"binary"
 		self.colormap_vector = "binary"
@@ -482,13 +488,21 @@ class PlotDialog(QtGui.QDialog):
 
 		self.queue_update = Queue("update", 1000, self.update_direct)
 		self.queue_redraw = Queue("redraw", 5, self.canvas.draw)
+		self.queue_replot = Queue("replot", 10, self.plot)
 		
 		self.layout_main = QtGui.QVBoxLayout()
+		self.layout_content = QtGui.QHBoxLayout()
 		self.layout_main.setContentsMargins(0, 0, 0, 0)
+		self.layout_content.setContentsMargins(0, 0, 0, 0)
+		self.layout_main.setSpacing(0)
+		self.layout_content.setSpacing(0)
+		
 		#self.button_layout.setSpacing(0)
 
 		self.boxlayout = QtGui.QVBoxLayout()
 		self.boxlayout_right = QtGui.QVBoxLayout()
+		self.boxlayout.setContentsMargins(0, 0, 0, 0)
+		self.boxlayout_right.setContentsMargins(0, 0, 0, 0)
 		
 		self.ranges = [None for _ in range(self.dimensions)] # min/max for the data
 		self.ranges_show = [None for _ in range(self.dimensions)] # min/max for the plots
@@ -506,15 +520,20 @@ class PlotDialog(QtGui.QDialog):
 		self.currentModes = None
 		self.lastAction = None
 
-		self.beforeCanvas(self.boxlayout)
+		self.beforeCanvas(self.layout_main)
+		self.layout_main.addLayout(self.layout_content, 1.)
 		self.layout_plot_region = QtGui.QHBoxLayout()
 		self.layout_plot_region.addWidget(self.canvas, 1)
 		
 		self.boxlayout.addLayout(self.layout_plot_region, 1)
-		self.addToolbar2(self.boxlayout)
+		self.addToolbar2(self.layout_main)
 		self.afterCanvas(self.boxlayout_right)
-		self.layout_main.addLayout(self.boxlayout)
-		self.layout_main.addLayout(self.boxlayout_right)
+		self.layout_content.addLayout(self.boxlayout, 1.)
+		
+		self.status_bar = QtGui.QStatusBar(self)
+		self.layout_main.addWidget(self.status_bar)
+		
+		self.layout_content.addLayout(self.boxlayout_right, 0)
 		self.setLayout(self.layout_main)
 		
 		self.compute_counter = 1 # to avoid reentrant 'computes'
@@ -569,7 +588,7 @@ class PlotDialog(QtGui.QDialog):
 						#print "ZOOM " * 100
 						print rx, ry, x_data, y_data, scale
 						scale = 1/(scale)
-						self.zoom(scale, x_data, y_data)
+						self.zoom(scale, self.axes, x_data, y_data) # TODO: support for multiple axes
 						#print dx, dy
 			return True
 		else:
@@ -599,17 +618,265 @@ class PlotDialog(QtGui.QDialog):
 	def getExpressionList(self):
 		return self.dataset.column_names
 	
+	def add_pages(self, toolbox):
+
+		self.frame_options_volume_rendering = QtGui.QFrame(self)
+		#toolbox.addItem(self.frame_options_volume_rendering, "Volume rendering")
+		#toolbox.setCurrentIndex(3)
+		#self.fill_page_volume_rendering(self.frame_options_volume_rendering)
+
+	def fill_page_volume_rendering(self, frame):
+		layout = self.layout_frame_options_volume_rendering = QtGui.QGridLayout()
+		frame.setLayout(self.layout_frame_options_volume_rendering)
+		layout.setSpacing(0)
+		layout.setContentsMargins(0,0,0,0)
+		layout.setAlignment(QtCore.Qt.AlignTop)
+		
+		self.tool = widgets.HistogramAndTransfer(frame, self.colormap)
+		#self.tool.setMinimumHeight(100)
+		layout.addWidget(self.tool, 0, 1)
+
+		
+		self.slider_transfer_functions_mean = []
+		self.slider_transfer_functions_signa = []
+		self.slider_transfer_functions_opacity = []
+		
+		row = 1
+		for i in range(self.tool.function_count):
+			
+			#label = QtGui.QLabel("", frame)
+			#layout.addWidget(label, row, 0, 1, 2)
+			#row += 1
+
+			label_mean = QtGui.QLabel("mean: ", frame)
+			label_mean_value = QtGui.QLabel("", frame)
+			label_sigma = QtGui.QLabel("sigma: ", frame)
+			label_sigma_value = QtGui.QLabel("", frame)
+			label_opacity = QtGui.QLabel("opacity: ", frame)
+			label_opacity_value = QtGui.QLabel("", frame)
+			#label2 = QtGui.QLabel("sigma", frame)
+			
+			slider_mean = QtGui.QSlider(frame)
+			slider_mean.setOrientation(QtCore.Qt.Horizontal)
+			slider_sigma = QtGui.QSlider(frame)
+			slider_sigma.setOrientation(QtCore.Qt.Horizontal)
+			slider_opacity = QtGui.QSlider(frame)
+			slider_opacity.setOrientation(QtCore.Qt.Horizontal)
+
+			layout.addWidget(label_mean, row, 0)
+			layout.addWidget(slider_mean, row, 1)
+			layout.addWidget(label_mean_value, row, 2)
+			row += 1
+			
+			layout.addWidget(label_sigma, row, 0)
+			layout.addWidget(slider_sigma, row, 1)
+			layout.addWidget(label_sigma_value, row, 2)
+			row += 1
+			
+			layout.addWidget(label_opacity, row, 0)
+			layout.addWidget(slider_opacity, row, 1)
+			layout.addWidget(label_opacity_value, row, 2)
+			row += 1
+			
+			self.slider_transfer_functions_mean.append(slider_mean)
+			slider_mean.setRange(0, 1000)
+			slider_sigma.setRange(0, 1000)
+			slider_opacity.setRange(0, 1000)
+			def update_text(i=i, slider_mean=slider_mean, slider_sigma=slider_sigma, slider_opacity=slider_opacity, label_mean_value=label_mean_value, label_sigma_value=label_sigma_value, label_opacity_value=label_opacity_value):
+				#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+				label_mean_value.setText(" {0:.3g}".format(self.tool.function_means[i]))
+				label_sigma_value.setText(" {0:.3g}".format(self.tool.function_sigmas[i]))
+				label_opacity_value.setText(" {0:.3g}".format(self.tool.function_opacities[i]))
+			def on_mean_change(index, i=i, update_text=update_text):
+				value = index/1000.
+				self.tool.function_means[i] = value
+				self.widget_volume.function_means[i] = value
+				self.widget_volume.update()
+				update_text()
+				self.tool.update()
+			def on_sigma_change(index, i=i, update_text=update_text):
+				value = index/1000.
+				self.tool.function_sigmas[i] = value
+				self.widget_volume.function_sigmas[i] = value
+				self.widget_volume.update()
+				update_text()
+				self.tool.update()
+			def on_opacity_change(index, i=i, update_text=update_text):
+				value = index/1000.
+				value = 10**((value-1)*3)
+				self.tool.function_opacities[i] = value
+				self.widget_volume.function_opacities[i] = value
+				self.widget_volume.update()
+				update_text()
+				self.tool.update()
+			self.widget_volume.function_opacities[i] = self.tool.function_opacities[i]
+			self.widget_volume.function_sigmas[i] = self.tool.function_sigmas[i]
+			self.widget_volume.function_means[i] = self.tool.function_means[i]
+			slider_mean.valueChanged.connect(on_mean_change)
+			slider_sigma.valueChanged.connect(on_sigma_change)
+			slider_opacity.valueChanged.connect(on_opacity_change)
+			update_text()
+			slider_mean.setValue(int(self.tool.function_means[i] * 1000))
+			slider_sigma.setValue(int(self.tool.function_sigmas[i] * 2000))
+			slider_opacity.setValue(int((np.log10(self.tool.function_opacities[i])/3+1) * 1000))
+			
+			layout.setRowMinimumHeight(row, 8)
+			row += 1
+			
+		label_brightness = QtGui.QLabel("brightness: ", frame)
+		label_brightness_value = QtGui.QLabel("", frame)
+		slider_brightness = QtGui.QSlider(frame)
+		slider_brightness.setOrientation(QtCore.Qt.Horizontal)
+		slider_brightness.setRange(0, 1000)
+		
+		layout.addWidget(label_brightness, row, 0)
+		layout.addWidget(slider_brightness, row, 1)
+		layout.addWidget(label_brightness_value, row, 2)
+		row += 1
+
+		def update_text_brightness(i=i, label_brightness_value=label_brightness_value):
+			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+			label_brightness_value.setText(" {0:.3g}".format(self.widget_volume.brightness))
+		def on_brightness_change(index, update_text_brightness=update_text_brightness):
+			value = 10**(2*(index/1000.*2-1.))
+			print value
+			self.widget_volume.brightness = value
+			self.widget_volume.update()
+			update_text_brightness()
+			self.tool.update()
+		slider_brightness.setValue(int((np.log10(self.widget_volume.brightness)/2.+1)/2.*1000))
+		update_text_brightness()
+		slider_brightness.valueChanged.connect(on_brightness_change)
+
+		layout.setRowMinimumHeight(row, 8)
+		row += 1
+		
+		label_min_level = QtGui.QLabel("min_level: ", frame)
+		label_min_level_value = QtGui.QLabel("", frame)
+		slider_min_level = QtGui.QSlider(frame)
+		slider_min_level.setOrientation(QtCore.Qt.Horizontal)
+		slider_min_level.setRange(0, 1000)
+		
+		layout.addWidget(label_min_level, row, 0)
+		layout.addWidget(slider_min_level, row, 1)
+		layout.addWidget(label_min_level_value, row, 2)
+		row += 1
+
+		def update_text_min_level(i=i, label_min_level_value=label_min_level_value):
+			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+			label_min_level_value.setText(" {0:.3g}".format(self.widget_volume.min_level))
+		self.handling_nested_min_max_level = False
+		def on_min_level_change(index, update_text_min_level=update_text_min_level):
+			value = index/1000.
+			print value
+			self.widget_volume.min_level = value
+			if (self.handling_nested_min_max_level is False) and (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
+				self.handling_nested_min_max_level = True
+				try:
+					delta = value - self.previous_volume_rendering_min_level
+					max_level = self.previous_volume_rendering_max_level + delta
+					slider_max_level.setValue(int(max_level*1000))
+					self.previous_volume_rendering_max_level = max_level
+				finally:
+					self.handling_nested_min_max_level = False
+					
+			self.previous_volume_rendering_min_level = value
+			self.widget_volume.update()
+			update_text_min_level()
+			self.tool.update()
+			
+		slider_min_level.setValue(int(self.widget_volume.min_level*1000))
+		update_text_min_level()
+		slider_min_level.valueChanged.connect(on_min_level_change)
+
+		
+		
+		label_max_level = QtGui.QLabel("max_level: ", frame)
+		label_max_level_value = QtGui.QLabel("", frame)
+		slider_max_level = QtGui.QSlider(frame)
+		slider_max_level.setOrientation(QtCore.Qt.Horizontal)
+		slider_max_level.setRange(0, 1000)
+		
+		layout.addWidget(label_max_level, row, 0)
+		layout.addWidget(slider_max_level, row, 1)
+		layout.addWidget(label_max_level_value, row, 2)
+		row += 1
+
+		def update_text_max_level(i=i, label_max_level_value=label_max_level_value):
+			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+			label_max_level_value.setText(" {0:.3g}".format(self.widget_volume.max_level))
+		def on_max_level_change(index, update_text_max_level=update_text_max_level):
+			value = index/1000.
+			print value
+			self.widget_volume.max_level = value
+			if (self.handling_nested_min_max_level is False) and (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
+				self.handling_nested_min_max_level = True
+				try:
+					delta = value - self.previous_volume_rendering_max_level
+					min_level = self.previous_volume_rendering_min_level + delta
+					slider_min_level.setValue(int(min_level*1000))
+					self.previous_volume_rendering_min_level = min_level
+				finally:
+					self.handling_nested_min_max_level = False
+			
+			self.widget_volume.update()
+			update_text_max_level()
+			self.previous_volume_rendering_max_level = value
+			self.tool.update()
+		slider_max_level.setValue(int(self.widget_volume.max_level*1000))
+		update_text_max_level()
+		slider_max_level.valueChanged.connect(on_max_level_change)
+
+		self.previous_volume_rendering_min_level = self.widget_volume.min_level
+		self.previous_volume_rendering_max_level = self.widget_volume.max_level
+		
+		
+		
 	def afterCanvas(self, layout):
 		
 		self.bottomFrame = QtGui.QFrame(self)
+		self.toolbox = QtGui.QToolBox(self.bottomFrame)
+		self.toolbox.setMinimumWidth(250)
+		
+		self.frame_options_main = QtGui.QFrame(self)
+		self.layout_frame_options_main =  QtGui.QVBoxLayout()
+		self.frame_options_main.setLayout(self.layout_frame_options_main)
+		self.layout_frame_options_main.setSpacing(0)
+		self.layout_frame_options_main.setContentsMargins(0,0,0,0)
+		self.layout_frame_options_main.setAlignment(QtCore.Qt.AlignTop)
+		
+		self.frame_options_visuals = QtGui.QFrame(self)
+		self.layout_frame_options_visuals =  QtGui.QVBoxLayout()
+		self.frame_options_visuals.setLayout(self.layout_frame_options_visuals)
+		self.layout_frame_options_visuals.setAlignment(QtCore.Qt.AlignTop)
+		
+		self.frame_options_vector2d = QtGui.QFrame(self)
+		self.layout_frame_options_vector2d =  QtGui.QVBoxLayout()
+		self.frame_options_vector2d.setLayout(self.layout_frame_options_vector2d)
+		self.layout_frame_options_vector2d.setSpacing(0)
+		self.layout_frame_options_vector2d.setContentsMargins(0,0,0,0)
+		self.layout_frame_options_vector2d.setAlignment(QtCore.Qt.AlignTop)
+		
+		self.grid_layout_vector = QtGui.QGridLayout()
+		self.grid_layout_vector.setColumnStretch(2, 1)
+		self.layout_frame_options_vector2d.addLayout(self.grid_layout_vector)
+		
+
+		self.toolbox.addItem(self.frame_options_main, "Main")
+		self.toolbox.addItem(self.frame_options_vector2d, "Vector 2d")
+		self.toolbox.addItem(self.frame_options_visuals, "Display")
+		self.add_pages(self.toolbox)
+
+		
 		self.bottom_layout = QtGui.QVBoxLayout()
 		self.bottomFrame.setLayout(self.bottom_layout)
+		self.bottom_layout.addWidget(self.toolbox)
 		
-		self.form_layout = QtGui.QFormLayout()
+		#self.form_layout = QtGui.QFormLayout()
 
-		self.button_layout = QtGui.QHBoxLayout()
+		self.button_layout = QtGui.QVBoxLayout()
 		if self.dimensions > 1:
-			self.buttonFlipXY = QtGui.QPushButton("x<->y")
+			self.buttonFlipXY = QtGui.QPushButton("exchange x and y")
 			def flipXY():
 				self.expressions.reverse()
 				self.ranges.reverse()
@@ -619,9 +886,9 @@ class PlotDialog(QtGui.QDialog):
 				self.compute()
 				self.jobsManager.execute()
 			self.buttonFlipXY.clicked.connect(flipXY)
-			self.button_layout.addWidget(self.buttonFlipXY)
+			self.button_layout.addWidget(self.buttonFlipXY, 0.)
 			self.buttonFlipXY.setAutoDefault(False)
-			self.button_flip_colormap = QtGui.QPushButton("<->colormaps")
+			self.button_flip_colormap = QtGui.QPushButton("exchange colormaps")
 			def flip_colormap():
 				index1 = self.colormap_box.currentIndex()
 				index2 = self.colormap_vector_box.currentIndex()
@@ -630,7 +897,7 @@ class PlotDialog(QtGui.QDialog):
 			self.button_flip_colormap.clicked.connect(flip_colormap)
 			self.button_layout.addWidget(self.button_flip_colormap)
 			self.button_flip_colormap.setAutoDefault(False)
-		self.bottom_layout.addLayout(self.button_layout, 0)
+		self.layout_frame_options_main.addLayout(self.button_layout, 0)
 
 		self.axisboxes = []
 		self.onExpressionChangedPartials = []
@@ -640,6 +907,7 @@ class PlotDialog(QtGui.QDialog):
 		#row = 0
 		self.linkButtons = []
 		self.grid_layout.setColumnStretch(2, 1)
+		self.grid_layout_vector.setColumnStretch(2, 1)
 		for axisname in self.axisnames:
 			row = axisIndex
 			axisbox = QtGui.QComboBox(self)
@@ -650,8 +918,8 @@ class PlotDialog(QtGui.QDialog):
 			self.grid_layout.addWidget(axisbox, row, 2, QtCore.Qt.AlignLeft)
 			linkButton = LinkButton("link", self.dataset, axisIndex, self)
 			self.linkButtons.append(linkButton)
-			#linkButton.setChecked(True)
-			#linkButton.setVisible(False)
+			linkButton.setChecked(True)
+			linkButton.setVisible(False)
 			# obove doesn't fire event, do manually
 			#linkButton.onToggleLink()
 			if 1:
@@ -683,7 +951,7 @@ class PlotDialog(QtGui.QDialog):
 				self.grid_layout.addWidget(functionButton, row, 3, QtCore.Qt.AlignLeft)
 				#menu.addAction(unlink_action)
 				#self.grid_layout.addWidget(functionButton, row, 2)
-			self.grid_layout.addWidget(linkButton, row, 0)
+			#self.grid_layout.addWidget(linkButton, row, 0)
 			#if axisIndex == 0:
 			extra_expressions = []
 			expressionList = self.getExpressionList()
@@ -719,8 +987,8 @@ class PlotDialog(QtGui.QDialog):
 			axisIndex += 1
 			self.axisboxes.append(axisbox)
 		row += 1
-		self.bottom_layout.addLayout(self.grid_layout, 0)
-		self.bottom_layout.addLayout(self.form_layout, 0)
+		self.layout_frame_options_main.addLayout(self.grid_layout, 0)
+		#self.layout_frame_options_main.addLayout(self.form_layout, 0) # TODO: form layout can be removed?
 		
 		layout.addWidget(self.bottomFrame, 0)
 		
@@ -748,6 +1016,8 @@ class PlotDialog(QtGui.QDialog):
 		self.amplitude_box.currentIndexChanged.connect(lambda _: self.onAmplitudeExpr())
 		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
 		
+		row += 1
+		
 		if self.dimensions > 1:
 			process_colormaps()
 			self.colormap_box = QtGui.QComboBox(self)
@@ -761,7 +1031,8 @@ class PlotDialog(QtGui.QDialog):
 				model.appendRow(item)
 			self.colormap_box.setModel(model);
 			#self.form_layout.addRow("colormap=", self.colormap_box)
-			self.grid_layout.addWidget(self.colormap_box, row, 3, QtCore.Qt.AlignLeft)
+			self.grid_layout.addWidget(QtGui.QLabel("colormap="), row, 1)
+			self.grid_layout.addWidget(self.colormap_box, row, 2, QtCore.Qt.AlignLeft)
 			def onColorMap(index):
 				colormap_name = str(self.colormap_box.itemText(index))
 				logger.debug("selected colormap: %r" % colormap_name)
@@ -813,11 +1084,12 @@ class PlotDialog(QtGui.QDialog):
 		
 		if self.dimensions > -1:
 			self.weight_x_box = QtGui.QComboBox(self)
+			self.weight_x_box.setMinimumContentsLength(10)
 			self.weight_x_box.setEditable(True)
 			self.weight_x_box.addItems([self.options.get("wx", "")] + self.getExpressionList())
 			self.weight_x_box.setMinimumContentsLength(10)
-			self.grid_layout.addWidget(QtGui.QLabel("weight_x="), row, 1)
-			self.grid_layout.addWidget(self.weight_x_box, row, 2)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("weight_x="), row, 1)
+			self.grid_layout_vector.addWidget(self.weight_x_box, row, 2)
 			self.weight_x_box.lineEdit().editingFinished.connect(self.onWeightXExpr)
 			self.weight_x_box.currentIndexChanged.connect(lambda _: self.onWeightXExpr())
 			self.weight_x_expression = str(self.weight_x_box.lineEdit().text())
@@ -836,8 +1108,8 @@ class PlotDialog(QtGui.QDialog):
 			self.weight_y_box.setEditable(True)
 			self.weight_y_box.addItems([self.options.get("wy", "")] + self.getExpressionList())
 			self.weight_y_box.setMinimumContentsLength(10)
-			self.grid_layout.addWidget(QtGui.QLabel("weight_y="), row, 1)
-			self.grid_layout.addWidget(self.weight_y_box, row, 2)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("weight_y="), row, 1)
+			self.grid_layout_vector.addWidget(self.weight_y_box, row, 2)
 			self.weight_y_box.lineEdit().editingFinished.connect(self.onWeightYExpr)
 			self.weight_y_box.currentIndexChanged.connect(lambda _: self.onWeightYExpr())
 			self.weight_y_expression = str(self.weight_y_box.lineEdit().text())
@@ -857,11 +1129,13 @@ class PlotDialog(QtGui.QDialog):
 			self.weight_xy_box.setEditable(True)
 			self.weight_xy_box.addItems([self.options.get("wxy", "")] + self.getExpressionList())
 			self.weight_xy_box.setMinimumContentsLength(10)
-			self.grid_layout.addWidget(QtGui.QLabel("weight_xy="), row, 1)
-			self.grid_layout.addWidget(self.weight_xy_box, row, 2)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("weight_xy="), row, 1)
+			self.grid_layout_vector.addWidget(self.weight_xy_box, row, 2)
 			self.weight_xy_box.lineEdit().editingFinished.connect(self.onWeightXYExpr)
 			self.weight_xy_box.currentIndexChanged.connect(lambda _: self.onWeightXYExpr())
 			self.weight_xy_expression = str(self.weight_xy_box.lineEdit().text())
+			
+			row += 1
 			
 			self.colormap_vector_box = QtGui.QComboBox(self)
 			self.colormap_vector_box.setIconSize(QtCore.QSize(16, 16))
@@ -874,7 +1148,8 @@ class PlotDialog(QtGui.QDialog):
 				model.appendRow(item)
 			self.colormap_vector_box.setModel(model);
 			#self.form_layout.addRow("colormap=", self.colormap_vector_box)
-			self.grid_layout.addWidget(self.colormap_vector_box, row, 3, QtCore.Qt.AlignLeft)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("colormapxy="), row, 1)
+			self.grid_layout_vector.addWidget(self.colormap_vector_box, row, 2, QtCore.Qt.AlignLeft)
 			def onColorMap(index):
 				colormap_name = str(self.colormap_vector_box.itemText(index))
 				logger.debug("selected colormap for vector: %r" % colormap_name)
@@ -900,9 +1175,7 @@ class PlotDialog(QtGui.QDialog):
 			
 			row += 1
 
-		self.status_bar = QtGui.QStatusBar(self)
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
-		layout.addWidget(self.status_bar)
 		#self.setStatusBar(self.status_bar)
 		#layout.setMargin(0)
 		#self.grid_layout.setMargin(0)
@@ -914,13 +1187,50 @@ class PlotDialog(QtGui.QDialog):
 		self.button_layout.setSpacing(0)
 		self.bottom_layout.setContentsMargins(0, 0, 0, 0)
 		self.bottom_layout.setSpacing(0)
-		self.form_layout.setContentsMargins(0, 0, 0, 0)
-		self.form_layout.setSpacing(0)
+		#self.form_layout.setContentsMargins(0, 0, 0, 0)
+		#self.form_layout.setSpacing(0)
 		self.grid_layout.setContentsMargins(0, 0, 0, 0)
 		layout.setContentsMargins(0, 0, 0, 0)
 		layout.setSpacing(0)
 		self.messages = {}
 		#super(self.__class__, self).afterLayout()
+		
+		
+		if self.dimensions > 1:
+			if 0: # TODO: reimplement contrast
+				self.action_group_constrast = QtGui.QActionGroup(self)
+				self.action_image_contrast = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
+				self.action_image_contrast_auto = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
+				self.toolbar2.addAction(self.action_image_contrast)
+				
+				self.action_image_contrast.triggered.connect(self.onActionContrast)
+				self.contrast_list = [self.contrast_none, functools.partial(self.contrast_none_auto, percentage=0.1) , functools.partial(self.contrast_none_auto, percentage=1), functools.partial(self.contrast_none_auto, percentage=5)]
+			self.contrast = self.contrast_none
+
+			if 1:
+				self.slider_gamma = QtGui.QSlider(self)
+				self.label_gamma = QtGui.QLabel("...", self.frame_options_visuals)
+				self.layout_frame_options_visuals.addWidget(self.label_gamma)
+				self.layout_frame_options_visuals.addWidget(self.slider_gamma)
+				self.slider_gamma.setRange(-100, 100)
+				self.slider_gamma.valueChanged.connect(self.onGammaChange)
+				self.slider_gamma.setValue(0)
+				self.slider_gamma.setOrientation(QtCore.Qt.Horizontal)
+				#self.slider_gamma.setMaximumWidth(100)
+			self.image_gamma = 1.
+			self.update_gamma_label()
+			
+			self.image_invert = False
+			#self.action_image_invert = QtGui.QAction(QtGui.QIcon(iconfile('direction')), 'Invert image', self)
+			#self.action_image_invert.setCheckable(True)
+			#self.action_image_invert.triggered.connect(self.onActionImageInvert)
+			#self.toolbar2.addAction(self.action_image_invert)
+			self.button_image_invert = QtGui.QPushButton(QtGui.QIcon(iconfile('direction')), 'Invert image', self.frame_options_visuals)
+			self.button_image_invert.setCheckable(True)
+			self.button_image_invert.setAutoDefault(False)
+			self.button_image_invert.clicked.connect(self.onActionImageInvert)
+			self.layout_frame_options_visuals.addWidget(self.button_image_invert)
+		
 
 
 		def trigger(action):
@@ -977,6 +1287,8 @@ class PlotDialog(QtGui.QDialog):
 			self.ranges[0] = eval(self.options["xlim"])
 		if "ylim" in self.options:
 			self.ranges[1] = eval(self.options["ylim"])
+		if "zlim" in self.options:
+			self.ranges[2] = eval(self.options["zlim"])
 		if "aspect" in self.options:
 			self.aspect = eval(self.options["aspect"])
 			self.action_aspect_lock_one.setChecked(True)
@@ -1968,31 +2280,6 @@ class PlotDialog(QtGui.QDialog):
 		#self.action_save_figure_again.setEnabled(False)
 
 		
-		if contrast:
-			self.action_group_constrast = QtGui.QActionGroup(self)
-			self.action_image_contrast = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
-			self.action_image_contrast_auto = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
-			self.toolbar2.addAction(self.action_image_contrast)
-			
-			self.action_image_contrast.triggered.connect(self.onActionContrast)
-		self.contrast = self.contrast_none
-		self.contrast_list = [self.contrast_none, functools.partial(self.contrast_none_auto, percentage=0.1) , functools.partial(self.contrast_none_auto, percentage=1), functools.partial(self.contrast_none_auto, percentage=5)]
-
-		if gamma:
-			self.slider_gamma = QtGui.QSlider(self)
-			self.toolbar2.addWidget(self.slider_gamma)
-			self.slider_gamma.setRange(-100, 100)
-			self.slider_gamma.valueChanged.connect(self.onGammaChange)
-			self.slider_gamma.setValue(0)
-			self.slider_gamma.setOrientation(QtCore.Qt.Horizontal)
-			self.slider_gamma.setMaximumWidth(100)
-		self.image_gamma = 1.
-		
-		self.image_invert = False
-		self.action_image_invert = QtGui.QAction(QtGui.QIcon(iconfile('direction')), 'Invert image', self)
-		self.action_image_invert.setCheckable(True)
-		self.action_image_invert.triggered.connect(self.onActionImageInvert)
-		self.toolbar2.addAction(self.action_image_invert)
 
 		
 
@@ -2038,14 +2325,18 @@ class PlotDialog(QtGui.QDialog):
 		logger.debug("show_disjoined = %r" % self.show_disjoined)
 		
 	def onActionImageInvert(self, ignore=None):
-		self.image_invert = self.action_image_invert.isChecked()
+		self.image_invert = self.button_image_invert.isChecked()
 		self.plot()
 
+	def update_gamma_label(self):
+		text = "gamma=%.3f" % self.image_gamma
+		self.label_gamma.setText(text)
 		
 	def onGammaChange(self, gamma_index):
 		self.image_gamma = 10**(gamma_index / 100./2)
 		print "Gamma", self.image_gamma
-		self.plot()
+		self.update_gamma_label()
+		self.queue_replot()
 		
 	def normalize(self, array):
 		#return (array - np.nanmin(array)) / (np.nanmax(array) - np.nanmin(array))
@@ -3500,25 +3791,33 @@ class VolumeRenderingPlotDialog(PlotDialog):
 	def plot(self):
 		print "Start plotting"
 		t0 = time.time()
-		self.widget_volume.setGrid(self.counts if self.counts_mask is None else self.counts_mask)
 		if 1:
 			ranges = []
 			for minimum, maximum in self.ranges:
 				ranges.append(minimum)
 				ranges.append(maximum)
 				
-			amplitude = self.counts
+			if self.counts_weights is not None:
+				counts = self.counts_weights
+				
+			amplitude = counts
 			print "aap"
 			logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 			print "noot",self.dimensions
 			if self.amplitude_expression is not None:
-				locals = {"counts":self.counts_weights, "counts1": self.counts}
+				locals = {"counts":self.counts_weights, "counts1": self.counts, "weighted":None}
+				locals["gf"] = scipy.ndimage.gaussian_filter
 				globals = np.__dict__
 				print "mies"
 				amplitude = eval(self.amplitude_expression, globals, locals)
 				print "mies"
 			print "noot",self.dimensions
 			print "amplitude", np.nanmin(amplitude), np.nanmax(amplitude)
+			
+			self.widget_volume.setGrid(amplitude)
+			self.tool.grid = amplitude
+			self.tool.update()
+			
 			#if self.ranges_level[0] is None:
 			#	self.ranges_level[0] = 0, amplitude.max() * 1.1
 			#return
@@ -3556,6 +3855,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 							counts_mask = multisum(self.counts_mask, allaxes)
 						#	counts = counts.T
 						self.counts_ref = counts
+						print "DRAW" * 100,counts
 						axes.imshow(np.log10(counts), origin="lower", extent=ranges, alpha=1 if counts_mask is None else 0.4, cmap=self.colormap)
 						if counts_mask is not None:
 							#if i > j:

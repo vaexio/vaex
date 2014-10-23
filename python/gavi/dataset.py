@@ -15,6 +15,7 @@ import functools
 
 import gavi.vaex.expressions as expr
 import gavi.events
+import collections
 
 import sys
 import platform
@@ -186,7 +187,7 @@ class JobsManager(object):
 							for expression in expressions:
 								expressions_dataset.add((dataset, expression))
 								try:
-									expr_noslice, slice_vars = expr.translate(expression)
+									expr_noslice, slice_vars = expr.translate(expression, dataset.virtual_columns)
 								except:
 									logger.error("translating expression: %r" % (expression,))
 									expressions_translated[(dataset, expression)] = (expression, {}) # just pass expression, code below will handle errors
@@ -437,6 +438,7 @@ class MemoryMapped(object):
 		self.column_names = []
 		self.rank1s = {}
 		self.rank1names = []
+		self.virtual_columns = collections.OrderedDict()
 		
 		self.axes = {}
 		self.axis_names = []
