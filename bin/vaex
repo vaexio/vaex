@@ -954,49 +954,51 @@ class WidgetUsage(QtGui.QWidget):
 		#print height
 		self.tool_lines = []
 		#self.tool_text = ""
-		
-		def drawbar(index, count, fraction, color=QtCore.Qt.red):
-			#print "bar", index, count, height * (index)/ count, height * (index+1)/ count
-			rect = QtCore.QRect(0, height * (index)/ count, int(width*fraction+0.5), height/count)
-			#painter.setBrush(QtGui.QBrush(QtCore.Qt.blue))
-			painter.fillRect(rect, QtGui.QBrush(color))
-		
-		cpu_fraction = psutil.cpu_percent()/100.
-		#print cpu_fraction
-		drawbar(0, 4, cpu_fraction, QtCore.Qt.green)
-		self.tool_lines.append("Cpu usage: %.1f%%" % (cpu_fraction*100,))
-		
-		
-		vmem = psutil.virtual_memory()
-		mem_fraction = (vmem.total-vmem.available) * 1./vmem.total
-		self.tool_lines.append("Virtual memory: %s used of %s (=%.1f%%)%%" % (gavi.utils.filesize_format(vmem.total-vmem.available), gavi.utils.filesize_format(vmem.total), mem_fraction*100.))
-		drawbar(1, 4, mem_fraction, QtCore.Qt.red)
+		try:
+			def drawbar(index, count, fraction, color=QtCore.Qt.red):
+				if fraction == fraction: # check nan
+					#print "bar", index, count, height * (index)/ count, height * (index+1)/ count
+					rect = QtCore.QRect(0, height * (index)/ count, int(width*fraction+0.5), height/count)
+					#painter.setBrush(QtGui.QBrush(QtCore.Qt.blue))
+					painter.fillRect(rect, QtGui.QBrush(color))
+			
+			cpu_fraction = psutil.cpu_percent()/100.
+			#print cpu_fraction
+			drawbar(0, 4, cpu_fraction, QtCore.Qt.green)
+			self.tool_lines.append("Cpu usage: %.1f%%" % (cpu_fraction*100,))
+			
+			
+			vmem = psutil.virtual_memory()
+			mem_fraction = (vmem.total-vmem.available) * 1./vmem.total
+			self.tool_lines.append("Virtual memory: %s used of %s (=%.1f%%)%%" % (gavi.utils.filesize_format(vmem.total-vmem.available), gavi.utils.filesize_format(vmem.total), mem_fraction*100.))
+			drawbar(1, 4, mem_fraction, QtCore.Qt.red)
 
-		swapmem = psutil.swap_memory()
-		swap_fraction = swapmem.used * 1./swapmem.total
-		drawbar(2, 4, swap_fraction, QtCore.Qt.blue)
-		self.tool_lines.append("Swap memory: %s used of %s (=%.1f%%)" % (gavi.utils.filesize_format(swapmem.used), gavi.utils.filesize_format(swapmem.total), swap_fraction*100.))
-		
-		self.t_now = time.time()
-		self.bytes_read_new = psutil.disk_io_counters().read_bytes
-		bytes_per_second = (self.bytes_read_new - self.bytes_read_prev) / (self.t_now - self.t_prev)
-		Mbytes_per_second = bytes_per_second/1024**2
-		# go from 1 mb to 10*1024 mb/s in log spacing
-		disk_fraction = np.clip(np.log2(Mbytes_per_second)/np.log2(10*1024), 0, 1)
-		drawbar(3, 4, disk_fraction, QtCore.Qt.magenta)
-		self.tool_lines.append("Reading at %.2f MiB/s" % (Mbytes_per_second,))
-		
-		
-		
-		self.t_prev = self.t_now
-		self.bytes_read_prev = self.bytes_read_new
-		
-		
-		
-		self.tool_text = "\n".join(self.tool_lines)
-		painter.end()
-		self.setToolTip(self.tool_text)
-
+			swapmem = psutil.swap_memory()
+			swap_fraction = swapmem.used * 1./swapmem.total
+			drawbar(2, 4, swap_fraction, QtCore.Qt.blue)
+			self.tool_lines.append("Swap memory: %s used of %s (=%.1f%%)" % (gavi.utils.filesize_format(swapmem.used), gavi.utils.filesize_format(swapmem.total), swap_fraction*100.))
+			
+			self.t_now = time.time()
+			self.bytes_read_new = psutil.disk_io_counters().read_bytes
+			bytes_per_second = (self.bytes_read_new - self.bytes_read_prev) / (self.t_now - self.t_prev)
+			Mbytes_per_second = bytes_per_second/1024**2
+			# go from 1 mb to 10*1024 mb/s in log spacing
+			disk_fraction = np.clip(np.log2(Mbytes_per_second)/np.log2(10*1024), 0, 1)
+			drawbar(3, 4, disk_fraction, QtCore.Qt.magenta)
+			self.tool_lines.append("Reading at %.2f MiB/s" % (Mbytes_per_second,))
+			
+			
+			
+			self.t_prev = self.t_now
+			self.bytes_read_prev = self.bytes_read_new
+			
+			
+			
+			self.tool_text = "\n".join(self.tool_lines)
+			painter.end()
+			self.setToolTip(self.tool_text)
+		except:
+			pass
 
 class Vaex(QtGui.QMainWindow):
 
@@ -1269,7 +1271,14 @@ class Vaex(QtGui.QMainWindow):
 				while  index < len(args) and args[index] != "-" and args[index] != "--":
 					if "=" in args[index]:
 						key, value = args[index].split("=",1)
-						options[key] = value
+						if ":" in key:
+							type, key = key.split(":", 1)
+							if type == "vcol":
+								dataset.virtual_columns[key] = value
+							else:
+								error("unknown expression, %s, type %s not recognized" % (type + ":" + key, type))
+						else:
+							options[key] = value
 					else:
 						columns.append(args[index])
 					index += 1

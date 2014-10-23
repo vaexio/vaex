@@ -20,10 +20,10 @@ import numpy as np
 #import gavi.dataset
 import gavi.vaex.colormaps
 #print GL_R32F
-GL_R32F = 33326
+GL_R32F = 33326	
 
 class VolumeRenderWidget(QtOpenGL.QGLWidget):
-	def __init__(self, parent = None):
+	def __init__(self, parent = None, function_count=3):
 		super(VolumeRenderWidget, self).__init__(parent)
 		self.mouse_button_down = False
 		self.mouse_button_down_right = False
@@ -36,12 +36,22 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.mod4 = 0
 		self.mod5 = 0
 		self.mod6 = 0
+		
+		self.function_count = function_count
+		self.function_opacities = [0.1/2**(function_count-1-k) for k in range(function_count)] 
+		self.function_sigmas = [0.05] * function_count
+		self.function_means = (np.arange(function_count) / float(function_count-1)) * 0.8 + 0.10
+		
+		self.brightness = 5.;
+		self.min_level = 0.;
+		self.max_level = 1.;
+
 		self.texture_cube, self.texture_gradient = None, None
 		self.setMouseTracking(True)
 		shortcut = QtGui.QShortcut(QtGui.QKeySequence("space"), self)
 		shortcut.activated.connect(self.toggle)
 		self.texture_index = 1
-		self.texture_size = 512 #*8
+		self.texture_size = 256 #*8
 		self.grid = None
 		# gets executed after initializeGL, can hook up your loading of data here
 		self.post_init = lambda: 1
@@ -51,14 +61,30 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.texture_index += 1
 		self.update()
 		
+	def create_shader_color(self):
+		self.vertex_shader_color = shaders.compileShader("""
+			varying vec4 vertex_color;
+			void main() {
+				gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+				vertex_color =  gl_Vertex /80. + vec4(0.5, 0.5, 0.5, 0.);
+			}""",GL_VERTEX_SHADER)
+		self.fragment_shader_color = shaders.compileShader("""
+			varying vec4 vertex_color;
+			void main() {
+				gl_FragColor = vertex_color;
+			}""",GL_FRAGMENT_SHADER)
+		return shaders.compileProgram(self.vertex_shader_color, self.fragment_shader_color)
+
 	def create_shader(self):
+		
+
 		self.vertex_shader = shaders.compileShader("""
 			varying vec4 vertex_color;
 			void main() {
 				gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 				//vertex_color = gl_Color;
 				vertex_color =  gl_Vertex.x > 1.5 ? vec4(1,0,0,0) : vec4(0,1,0,0)  ;// vec4(gl_Color) + vec4(1, 0, 0, 0);
-				vertex_color =  gl_Vertex /60. + vec4(0.5, 0.5, 0.5, 0.);
+				vertex_color =  gl_Vertex /80. + vec4(0.5, 0.5, 0.5, 0.);
 			}""",GL_VERTEX_SHADER)
 		self.fragment_shader = shaders.compileShader("""
 			varying vec4 vertex_color;
@@ -169,6 +195,80 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				//gl_FragColor = texture3D(gradient, vec3(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y, 0.5) );
 				//gl_FragColor = vec4(ray_start, 1);
 			}""",GL_FRAGMENT_SHADER)
+		self.fragment_shader = shaders.compileShader("""
+			varying vec4 vertex_color;
+			uniform sampler1D texture_colormap; 
+			uniform sampler2D texture; 
+			uniform sampler3D cube; 
+			uniform sampler3D gradient;
+			uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
+			uniform vec2 minmax2d;
+			uniform vec2 minmax3d;
+			uniform vec2 minmax3d_total;
+			//uniform float maxvalue2d;
+			//uniform float maxvalue3d;
+			uniform float alpha_mod; // mod3
+			uniform float mod4;  // mafnifier
+			uniform float mod5; // blend color and line integral
+			uniform float mod6; 
+
+			uniform float function_opacities[3];
+			uniform float function_means[3];
+			uniform float function_sigmas[3];
+			
+			uniform float brightness;
+			
+			
+			void main() {
+				int steps = 400;
+				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
+				vec3 ray_start = vertex_color.xyz;
+				float length = 0.;
+				vec3 ray_dir = ray_end - ray_start;
+				vec3 ray_delta = ray_dir / float(steps);
+				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
+				vec3 ray_pos = ray_start;
+				float value = 0.;
+				//mat3 direction_matrix = inverse(mat3(transpose(inverse(gl_ModelViewProjectionMatrix))));
+				//mat3 direction_matrix = transpose(mat3(gl_ModelViewProjectionMatrix));
+				//vec3 light_pos = (direction_matrix * vec3(-100.,100., -100)).zyx;
+				//vec3 light_pos = (direction_matrix * vec3(-5.,5., -100));
+				//vec3 origin = (direction_matrix * vec3(0., 0., 0)).xyz;
+				vec3 origin = (vec4(0., 0., 0., 0.)).xyz;
+				vec3 light_pos = (vec4(-1000., 0., -1000, 1.)).xyz;
+				//mat3 mod = inverse(mat3(gl_ModelViewProjectionMatrix));
+				vec4 color = vec4(0, 0, 0, 0);
+				vec3 light_dir = light_pos - origin;
+				//light_dir = vec3(-1,-1,1);
+				light_dir = light_dir / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
+				float alpha_total = 0.;
+				//float normalize = log(maxvalue);
+				float intensity_total;
+				float data_min = minmax3d.x;
+				float data_max = minmax3d.y;
+				float data_scale = 1./(data_max - data_min);
+				for(int i = 0; i < 400; i++) {
+					vec4 sample = texture3D(cube, ray_pos);
+					for(int j = 0; j < 3; j++) {
+						float data_value = (sample.r - data_min) * data_scale;
+						//float volume_level_value = (function_means[j] - data_min) * data_scale;
+						float chi = (data_value-function_means[j])/function_sigmas[j];
+						float chisq = pow(chi, 2.);
+						float intensity = exp(-chisq);
+						vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
+						float alpha_sample = function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100. ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+						alpha_sample = clamp(alpha_sample, 0., 1.);
+						color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+						alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+						if(alpha_total >= 1.)
+							break;
+					}
+					ray_pos += ray_delta;
+				}
+				gl_FragColor = vec4(color.rgb, alpha_total) * brightness; //brightness;
+				//gl_FragColor = vec4(ray_pos.xyz, 1) * 100.; //brightness;
+			}""",GL_FRAGMENT_SHADER)
+		
 		return shaders.compileProgram(self.vertex_shader, self.fragment_shader)
 
 	def paintGL(self):
@@ -180,10 +280,15 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glRotated(self.angle1, 1.0, 0.0, 0.0)
 			glRotated(self.angle2, 0.0, 1.0, 0.0)
 			
-			
-			self.draw_backside()
-			self.draw_frontside()
-			self.draw_to_screen()
+			if self.grid is not None:
+				self.draw_backside()
+				self.draw_frontside()
+				self.draw_to_screen()
+			else:
+				glViewport(0, 0, self.texture_size, self.texture_size)
+				glBindFramebuffer(GL_FRAMEBUFFER, 0)
+				glClearColor(0.0, 0.0, 0.0, 1.0)
+				glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
 
 	def draw_backside(self):
 		glViewport(0, 0, self.texture_size, self.texture_size)
@@ -193,11 +298,18 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glClearColor(1.0, 1.0, 0.0, 1.0)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 		
+		glEnable(GL_DEPTH_TEST);
+		
 		glEnable(GL_CULL_FACE);
 		glCullFace(GL_FRONT);
 
 		glShadeModel(GL_SMOOTH);
-		self.cube(size=60)
+		self.cube(size=80)
+		self.cube(size=80, gl_type=GL_LINE_LOOP)
+		glUseProgram(self.shader_color)
+		glCullFace(GL_BACK);
+		self.cube(size=10)
+		glUseProgram(0)
 		#return
 
 	def draw_frontside(self):
@@ -209,14 +321,22 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.texture_final, 0);
 		
 		
-		glClearColor(0.0, 0.0, 1.0, 1.0)
+		glClearColor(1.0, 1.0, 1.0, 0.0)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 		
 		glEnable(GL_CULL_FACE);
 		glCullFace(GL_BACK);
 		
-		
 		glShadeModel(GL_SMOOTH);
+		
+		glDisable(GL_BLEND)
+		self.cube(size=80, gl_type=GL_LINE_LOOP) # draw the wireframe cube
+		self.cube(size=10)
+		glEnable(GL_BLEND)
+		
+		glBlendEquation(GL_FUNC_ADD, GL_FUNC_ADD)
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+		
 
 		glUseProgram(self.shader)
 		loc = glGetUniformLocation(self.shader, "texture");
@@ -252,10 +372,18 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glUniform2f(minmax, 1*10**self.mod1, self.grid2d_max*10**self.mod2);
 
 		minmax = glGetUniformLocation(self.shader,"minmax3d");
-		glUniform2f(minmax, 1*10**self.mod1, self.grid_max*10**self.mod2);
+		xmin =  self.grid_min +  (self.grid_max -  self.grid_min) * self.min_level;
+		xmax =  self.grid_min +  (self.grid_max -  self.grid_min) * self.max_level;
+		glUniform2f(minmax, xmin, xmax);
 		
 		minmax3d_total = glGetUniformLocation(self.shader,"minmax3d_total");
-		glUniform2f(minmax3d_total, 1, self.grid_max);
+		glUniform2f(minmax3d_total, self.grid_min, self.grid_max);
+		
+		glUniform1f(glGetUniformLocation(self.shader,"brightness"), self.brightness);
+		
+		glUniform1fv(glGetUniformLocation(self.shader,"function_means"), self.function_count, self.function_means);
+		glUniform1fv(glGetUniformLocation(self.shader,"function_sigmas"), self.function_count, self.function_sigmas);
+		glUniform1fv(glGetUniformLocation(self.shader,"function_opacities"), self.function_count, self.function_opacities);
 		
 
 		alpha_mod = glGetUniformLocation(self.shader,"alpha_mod");
@@ -271,7 +399,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		
 
 		glShadeModel(GL_SMOOTH);
-		self.cube(size=60)
+		self.cube(size=80) # do the volume rendering
 		glUseProgram(0)
 
 		glActiveTexture(GL_TEXTURE2);
@@ -285,8 +413,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, 0)
 		glEnable(GL_TEXTURE_2D)
-		self.cube(size=60, gl_type=GL_LINE_LOOP)
 
+		glDisable(GL_BLEND)
 		#return
 		
 	def draw_to_screen(self):
@@ -307,7 +435,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glEnable(GL_TEXTURE_2D)
 		glLoadIdentity()
 		glBegin(GL_QUADS)
-		w = 49
+		w = 50
 		z = -1
 		glTexCoord2f(0,0); 
 		glVertex3f(-w, -w, z)
@@ -532,6 +660,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 
 		self.shader = self.create_shader()
+		self.shader_color = self.create_shader_color()
 		self.post_init()
 			
 
@@ -547,7 +676,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		mi, ma = 40., 60
 		#mi, ma = -0.5, 0.5
 		print "histogram3d"
-		gavifast.histogram3d(x, y, z, None, grid3d, mi, ma, mi, ma, mi, ma)
+		gavifast.histogram3d(x, y, z, None, grid3d, mi+15, ma+15, mi, ma, mi, ma)
 
 		#self.data3d = self.data3d.astype(np.float32)
 		#self.data2d = self.data2d.astype(np.float32)
@@ -572,7 +701,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.mod5 = 0
 		self.mod6 = 0
 		#self.grid = np.log10(grid.astype(np.float32)+1)
-		self.grid = grid.astype(np.float32)
+		self.grid = np.log10(grid.astype(np.float32)+1)
 		self.grid_min, self.grid_max = self.grid.min(), self.grid.max()
 		grids_2d = [self.grid.sum(axis=i) for i in range(3)]
 		self.grid2d_min, self.grid2d_max = min([grid.min() for grid in grids_2d]), max([grid.max() for grid in grids_2d])
@@ -710,9 +839,9 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			print self.angle1, self.angle2
 		if self.mouse_button_down_right:
 			if QtGui.QApplication.keyboardModifiers() == QtCore.Qt.NoModifier:
-				self.mod1 += dx * speed_mod
-				self.mod2 += -dy * speed_mod
-				print "mod1/2", self.mod1, self.mod2
+				self.min_level += dx * speed_mod / 10.
+				self.max_level += -dy * speed_mod / 10.
+				print "mod1/2", self.min_level, self.max_level
 			if (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
 				self.mod3 += dx * speed_mod
 				self.mod4 += -dy * speed_mod

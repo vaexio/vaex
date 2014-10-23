@@ -269,7 +269,7 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
 	const double* __restrict__ block_ptr = block;
 	
 
-	//*
+	/*
 	
 	const int BLOCK_SIZE = (2<<10);
 	long long int indices[BLOCK_SIZE];

@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import gavi.logging
 import logging
-logger = gavi.logging.getLogger("expr")
+import collections
 
+logger = gavi.logging.getLogger("expr")
+logger.setLevel(logging.ERROR)
 
 class Base(object):
 	def __neg__(self):
@@ -231,10 +233,18 @@ def distance(args):
 		result = Sqrt(result)
 	return result
 macros = {"l2": distance}
-def translate(expression):
+def translate(expression, replacements={}):
 	scope = Scope(None)
 	newvars = {}
+	used_vars = set()
 	result = eval(expression, {}, scope)
+	#for key, value in replacements:
+	translated_replacements = {}
+	for i, (key, expression) in enumerate(replacements.items()):
+		current_replacements = dict(replacements.items()[:i])
+		print "*" * 70
+		print "TRANSLATE:", expression, current_replacements
+		translated_replacements[key] = translate(expression, current_replacements)[0] 
 
 	def slice_to_var(slice):
 		newname = slice.tovar()
@@ -242,8 +252,8 @@ def translate(expression):
 		newvars[newname] = slice
 		return Var(newname)
 		
-	def replace_slice(expr):
-		print ">>>>", expr, type(expr)
+	def walker(expr):
+		#print ">>>>", expr, type(expr)
 		if isinstance(expr, Slice):
 			return slice_to_var(expr)
 		elif isinstance(expr, Function):
@@ -252,11 +262,18 @@ def translate(expression):
 				return macros[expr.var.name](expr.args)
 			else:
 				return expr
+		elif isinstance(expr, Var):
+			logger.debug("var: " + expr.name)
+			used_vars.add(expr.name)
+			if expr.name in translated_replacements:
+				return translated_replacements[expr.name]
+			else:
+				return expr
 		else:
 			return expr
-	print "walking.."
-	newresult = result.walk(replace_slice)
-	return newresult, newvars
+	#print "walking.."
+	newresult = result.walk(walker)
+	return newresult, newvars #, used_vars
 	
 		
 if __name__ == "__main__":
@@ -273,6 +290,20 @@ if __name__ == "__main__":
 	print "translating"
 	print
 	newexpr, vars = translate(expr1)
+	print newexpr, vars
+	
+	expr = "xc + yc"
+	newexpr, vars = translate(expr, {"xc":"x+1", "yc":"sqrt(x**2+y**2)"})
+	print newexpr, vars
+	
+
+	expr = "(xc + yc)/r"
+	replacements = collections.OrderedDict()
+	replacements["xc"] = "x+1"
+	replacements["yc"] = "y-1"
+	replacements["r"] = "sqrt(xc**2+yc**2)"
+	print replacements.items()
+	newexpr, vars = translate(expr, replacements)
 	print newexpr, vars
 
 	
