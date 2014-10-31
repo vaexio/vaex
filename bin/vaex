@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 import sys
 import platform
-darwin = "darwin" in platform.system()
+darwin = "darwin" in platform.system().lower()
+frozen = getattr(sys, 'frozen', False)
+#print darwin, platform.system()
 if darwin:
 	sys.stdout = open('vaex.stdout.txt', 'w')
 	sys.stderr = open('vaex.stderr.txt', 'w')
@@ -85,7 +87,6 @@ else:
 
 print "root path is", gavi.utils.get_root_path()
 
-frozen = getattr(sys, 'frozen', False)
 
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
