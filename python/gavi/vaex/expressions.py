@@ -121,13 +121,13 @@ class Function(Base):
 	def __init__(self, var, args):
 		self.var = var
 		self.args = args
-		print args
+		#print args
 		
 	def __repr__(self):
 		return self.var.name +"(" +", ".join([repr(k) for k in self.args]) + ")"
 
 	def walk(self, f):
-		print "walk function", self.var.name
+		#print "walk function", self.var.name
 		args = [arg.walk(f) for arg in self.args]
 		return f(Function(self.var.walk(f), args))
 
@@ -241,9 +241,9 @@ def translate(expression, replacements={}):
 	#for key, value in replacements:
 	translated_replacements = {}
 	for i, (key, expression) in enumerate(replacements.items()):
-		current_replacements = dict(replacements.items()[:i])
-		print "*" * 70
-		print "TRANSLATE:", expression, current_replacements
+		current_replacements = collections.OrderedDict(replacements.items()[:i])
+		#print "*" * 70
+		#print "TRANSLATE:", expression, current_replacements
 		translated_replacements[key] = translate(expression, current_replacements)[0] 
 
 	def slice_to_var(slice):
@@ -257,13 +257,13 @@ def translate(expression, replacements={}):
 		if isinstance(expr, Slice):
 			return slice_to_var(expr)
 		elif isinstance(expr, Function):
-			logger.debug("expr: " + expr.var.name)
+			#logger.debug("expr: " + expr.var.name)
 			if expr.var.name in macros:
 				return macros[expr.var.name](expr.args)
 			else:
 				return expr
 		elif isinstance(expr, Var):
-			logger.debug("var: " + expr.name)
+			#logger.debug("var: " + expr.name)
 			used_vars.add(expr.name)
 			if expr.name in translated_replacements:
 				return translated_replacements[expr.name]

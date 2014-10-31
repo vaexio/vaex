@@ -619,11 +619,7 @@ class PlotDialog(QtGui.QDialog):
 		return self.dataset.column_names
 	
 	def add_pages(self, toolbox):
-
-		self.frame_options_volume_rendering = QtGui.QFrame(self)
-		#toolbox.addItem(self.frame_options_volume_rendering, "Volume rendering")
-		#toolbox.setCurrentIndex(3)
-		#self.fill_page_volume_rendering(self.frame_options_volume_rendering)
+		pass
 
 	def fill_page_volume_rendering(self, frame):
 		layout = self.layout_frame_options_volume_rendering = QtGui.QGridLayout()
@@ -632,16 +628,28 @@ class PlotDialog(QtGui.QDialog):
 		layout.setContentsMargins(0,0,0,0)
 		layout.setAlignment(QtCore.Qt.AlignTop)
 		
+		self.button_orbit = QtGui.QPushButton("orbit", self)
+		self.button_orbit.setCheckable(True)
+		self.button_orbit.setAutoDefault(False)
+		layout.addWidget(self.button_orbit, 0, 1)
+		def on_toggle_orbit(checked, button=self.button_orbit):
+			if checked: #button.isChecked
+				self.widget_volume.orbit_start()
+			else:
+				self.widget_volume.orbit_stop()
+		self.button_orbit.toggled.connect(on_toggle_orbit)
+		layout.setRowMinimumHeight(1, 8)
+		
 		self.tool = widgets.HistogramAndTransfer(frame, self.colormap)
 		#self.tool.setMinimumHeight(100)
-		layout.addWidget(self.tool, 0, 1)
+		layout.addWidget(self.tool, 2, 1)
 
 		
 		self.slider_transfer_functions_mean = []
 		self.slider_transfer_functions_signa = []
 		self.slider_transfer_functions_opacity = []
 		
-		row = 1
+		row = 3
 		for i in range(self.tool.function_count):
 			
 			#label = QtGui.QLabel("", frame)
@@ -1470,6 +1478,8 @@ class PlotDialog(QtGui.QDialog):
 
 
 	def compute(self):
+		import traceback
+		print "updating compute counter", ''.join(traceback.format_stack())		
 		compute_counter = self.compute_counter = self.compute_counter + 1
 		t0 = time.time()
 		def calculate_range(info, block, axisIndex):
@@ -3019,6 +3029,7 @@ class ScatterPlotDialog(PlotDialog):
 		
 	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
 		if compute_counter < self.compute_counter:
+			print compute_counter, self.compute_counter
 			print "STOP " * 100
 			return True
 		if info.error:
@@ -3401,6 +3412,8 @@ class ScatterPlotDialog(PlotDialog):
 			self.title = self.fig.suptitle(title_text)
 		if not self.action_mini_mode_ultra.isChecked():
 			self.fig.tight_layout(pad=0.0)#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
+		#self.fig.tight_layout(pad=0.01)#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
+		self.fig.tight_layout()#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 		self.canvas.draw()
 		self.update()
 		if self.first_time:
@@ -3676,6 +3689,13 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		#return reduce(lambda x,y: x + y, self.axes_grid, [])
 		return [self.axis_top, self.axis_bottom]
 
+	def add_pages(self, toolbox):
+		self.frame_options_volume_rendering = QtGui.QFrame(self)
+		
+		toolbox.addItem(self.frame_options_volume_rendering, "Volume rendering")
+		toolbox.setCurrentIndex(3)
+		self.fill_page_volume_rendering(self.frame_options_volume_rendering)
+
 	def addAxes(self):
 		self.axes_grid = [[None,] * self.dimensions for _ in range(self.dimensions)]
 		self.axis_top = self.fig.add_subplot(2,1,1)
@@ -3710,14 +3730,14 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		mask = self.dataset.mask
 		if info.first:
 			self.counts = np.zeros((N,) * self.dimensions, dtype=np.float64)
-			self.counts_weights = self.counts
+			self.counts_weights = None
 			if weights_block is not None:
 				self.counts_weights = np.zeros((N,) * self.dimensions, dtype=np.float64)
 			
 			self.selected_point = None
 			if mask is not None:
 				self.counts_mask = np.zeros((N,) * self.dimensions, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
-				self.counts_weights_mask = self.counts_mask
+				self.counts_weights_mask = None
 				if weights_block is not None:
 					self.counts_weights_mask = np.zeros((N,) * self.dimensions, dtype=np.float64)
 			else:
@@ -3797,15 +3817,16 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				ranges.append(minimum)
 				ranges.append(maximum)
 				
-			if self.counts_weights is not None:
-				counts = self.counts_weights
+			counts = self.counts
+			if self.counts_mask is not None:
+				counts = self.counts_mask
 				
 			amplitude = counts
 			print "aap"
 			logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 			print "noot",self.dimensions
 			if self.amplitude_expression is not None:
-				locals = {"counts":self.counts_weights, "counts1": self.counts, "weighted":None}
+				locals = {"counts":counts, "counts1": self.counts, "weighted":None}
 				locals["gf"] = scipy.ndimage.gaussian_filter
 				globals = np.__dict__
 				print "mies"
@@ -3875,6 +3896,8 @@ class VolumeRenderingPlotDialog(PlotDialog):
 						j = 1 + i
 						axes.set_xlim(self.ranges_show[0][0], self.ranges_show[0][1])
 						axes.set_ylim(self.ranges_show[j][0], self.ranges_show[j][1])
+						axes.set_xlabel(self.expressions[0])
+						axes.set_ylabel(self.expressions[j])
 			if 0:
 					
 				self.axes.imshow(amplitude.T, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)
