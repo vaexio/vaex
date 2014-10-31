@@ -1967,10 +1967,12 @@ class PlotDialog(QtGui.QDialog):
 					self.plot()
 		
 	def onZoomOut(self, *args):
-		self.zoom(2.)
+		axes = self.getAxesList()[0] # TODO: handle propery multiple axes
+		self.zoom(2., axes)
 		
 	def onZoomIn(self, *args):
-		self.zoom(0.5)
+		axes = self.getAxesList()[0] # TODO: handle propery multiple axes
+		self.zoom(0.5, axes)
 		
 	def eval_amplitude(self, counts, counts_weights):
 		if self.amplitude_expression is not None:
@@ -2803,10 +2805,15 @@ class PlotDialog(QtGui.QDialog):
 			otheraxes = range(self.dimensions)
 			allaxes = range(self.dimensions)
 			otheraxes.remove(axis_follow)
+			print self.ranges_show, self.ranges, axis_follow
 			ranges = [self.ranges_show[i] if self.ranges_show[i] is not None else self.ranges[i] for i in otheraxes]
 			
+			if None in ranges:
+				return
+			print ranges
 			width = self.ranges_show[axis_follow][1] - self.ranges_show[axis_follow][0]
-			#center = (self.ranges[axis_follow][1] + self.ranges[axis_follow][0])/2.
+			#width = ranges[axis_follow][1] - ranges[axis_follow][0]
+			center = (self.ranges[axis_follow][1] + self.ranges[axis_follow][0])/2.
 			
 			widths = [ranges[i][1] - ranges[i][0] for i in range(self.dimensions-1)]
 			center = [(ranges[i][1] + ranges[i][0])/2. for i in range(self.dimensions-1)]
@@ -3776,13 +3783,14 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		print "mies"
 		try:
 			args = data_blocks, self.counts, ranges
-			if self.dimensions == 2:
-				gavi.histogram.hist3d(data_blocks[0], data_blocks[1], self.counts, *ranges)
-			if self.dimensions == 3:
-				gavi.histogram.hist3d(data_blocks[0], data_blocks[1], data_blocks[2], self.counts, *ranges)
-			if weights_block is not None:
-				args = data_blocks, weights_block, self.counts, ranges
-				gavi.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
+			#if self.dimensions == 2:
+			#	gavi.histogram.hist3d(data_blocks[0], data_blocks[1], self.counts, *ranges)
+			#if self.dimensions == 3:
+			#	#gavi.histogram.hist3d(data_blocks[0], data_blocks[1], data_blocks[2], self.counts, *ranges)
+			gavifast.histogram3d(blockx, blocky, blockz, None, self.counts, *ranges)
+			#if weights_block is not None:
+			#	args = data_blocks, weights_block, self.counts, ranges
+			#	gavi.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
 		except:
 			print "args", args	
 			print blockx.shape, blockx.dtype
@@ -3810,6 +3818,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		
 		
 	def plot(self):
+		
 		print "Start plotting"
 		t0 = time.time()
 		if 1:
@@ -4008,18 +4017,21 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 
 	def afterCanvas(self, layout):
 		super(Rank1ScatterPlotDialog, self).afterCanvas(layout)
+		#return
 
 		self.seriesbox = QtGui.QComboBox(self)
 		self.seriesbox.addItems([str(k) for k in range(self.nSlices)])
 		self.seriesbox.setCurrentIndex(self.serieIndex)
 		self.seriesbox.currentIndexChanged.connect(self.onSerieIndex)
 		
-		self.form_layout.addRow("index", self.seriesbox)
-		self.buttonLoop = QtGui.QToolButton(self)
-		self.buttonLoop.setText("one loop")
-		self.buttonLoop.clicked.connect(self.onPlayOnce)
-		self.form_layout.addRow("movie", self.buttonLoop)
-		layout.addLayout(self.form_layout, 0)
+		self.grid_layout.addWidget(self.seriesbox, 10, 1)
+		#self.form_layout = QtGui.QFormLayout(self)
+		#self.form_layout.addRow("index", self.seriesbox)
+		#self.buttonLoop = QtGui.QToolButton(self)
+		#self.buttonLoop.setText("one loop")
+		#self.buttonLoop.clicked.connect(self.onPlayOnce)
+		#self.form_layout.addRow("movie", self.buttonLoop)
+		#layout.addLayout(self.form_layout, 0)
 		
 	def onPlayOnce(self):
 		#self.timer = QtCore.QTimer(self)

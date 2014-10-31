@@ -876,13 +876,14 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		else:
 			self.vectorgrid = None
 		self.grid = np.log10(grid.astype(np.float32)+1)
-		self.grid_min, self.grid_max = self.grid.min(), self.grid.max()
+		self.grid_min, self.grid_max = np.nanmin(self.grid), np.nanmax(self.grid)
 		grids_2d = [self.grid.sum(axis=i) for i in range(3)]
-		self.grid2d_min, self.grid2d_max = min([grid.min() for grid in grids_2d]), max([grid.max() for grid in grids_2d])
+		self.grid2d_min, self.grid2d_max = min([np.nanmin(grid) for grid in grids_2d]), max([np.nanmax(grid) for grid in grids_2d])
 		print "3d", self.grid_min, self.grid_max
 		print "2d", self.grid2d_min, self.grid2d_max
+		#return
 		#data3ds = data3ds.sum(axis=0)
-		if 1:
+		if 0:
 			self.grid_gradient = np.gradient(self.grid)
 			length = np.sqrt(self.grid_gradient[0]**2 + self.grid_gradient[1]**2 + self.grid_gradient[2]**2)
 			self.grid_gradient[0] = self.grid_gradient[0] / length

@@ -11,6 +11,8 @@ class Base(object):
 		return Neg(self)
 	def __add__(self, rhs):
 		return Add(self, rhs)
+	def __radd__(self, lhs):
+		return Add(lhs, self)
 	def __sub__(self, rhs):
 		return Sub(self, rhs)
 	def __rsub__(self, lhs):
@@ -54,7 +56,7 @@ class Neg(Base):
 		return "(-" +repr(self.obj) + ")"
 
 	def walk(self, f):
-		logger.debug("walk neg")
+		#logger.debug("walk neg")
 		return f(Neg(self.obj.walk(f)))
 
 class Add(Base):
@@ -66,7 +68,6 @@ class Add(Base):
 		return "(" +repr(self.lhs) +" + " +repr(self.rhs) +")"
 
 	def walk(self, f):
-		logger.debug("walk add")
 		return f(Add(self.lhs.walk(f), self.rhs.walk(f)))
 
 class Sub(Base):
@@ -78,7 +79,6 @@ class Sub(Base):
 		return "(" +repr(self.lhs) +" - " +repr(self.rhs) +")"
 
 	def walk(self, f):
-		logger.debug("walk sub")
 		return f(Sub(self.lhs.walk(f), self.rhs.walk(f)))
 
 class Div(Base):
@@ -90,7 +90,6 @@ class Div(Base):
 		return "(" +repr(self.lhs) +" / " +repr(self.rhs) +")"
 
 	def walk(self, f):
-		logger.debug("walk div")
 		return f(Div(self.lhs.walk(f), self.rhs.walk(f)))
 
 class Mul(Base):
@@ -102,7 +101,6 @@ class Mul(Base):
 		return "(" +repr(self.lhs) +" * " +repr(self.rhs) +")"
 
 	def walk(self, f):
-		logger.debug("walk mul")
 		return f(Mul(self.lhs.walk(f), self.rhs.walk(f)))
 
 class Pow(Base):
@@ -114,7 +112,6 @@ class Pow(Base):
 		return "(" +repr(self.lhs) +" ** " +repr(self.rhs) +")"
 
 	def walk(self, f):
-		logger.debug("walk pow")
 		return f(Pow(self.lhs.walk(f), self.rhs.walk(f)))
 
 class Function(Base):
@@ -127,7 +124,6 @@ class Function(Base):
 		return self.var.name +"(" +", ".join([repr(k) for k in self.args]) + ")"
 
 	def walk(self, f):
-		#print "walk function", self.var.name
 		args = [arg.walk(f) for arg in self.args]
 		return f(Function(self.var.walk(f), args))
 
@@ -243,8 +239,8 @@ def translate(expression, replacements={}):
 	for i, (key, expression) in enumerate(replacements.items()):
 		current_replacements = collections.OrderedDict(replacements.items()[:i])
 		#print "*" * 70
-		#print "TRANSLATE:", expression, current_replacements
 		translated_replacements[key] = translate(expression, current_replacements)[0] 
+		#print "TRANSLATE:", expression, translated_replacements[key], current_replacements
 
 	def slice_to_var(slice):
 		newname = slice.tovar()

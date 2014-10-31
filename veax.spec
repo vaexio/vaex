@@ -27,4 +27,4 @@ coll = COLLECT(exe,
                data_tree,
                strip=None,
                upx=True,
-               name=gavi.vaex.__full_name__)
+               name=gavi.vaex.__clean_name__)
