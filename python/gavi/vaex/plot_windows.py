@@ -2457,6 +2457,7 @@ class PlotDialog(QtGui.QDialog):
 		self.toolbar.addAction(self.action_samp_sand_table_select_row_list)
 		def send_samp_selection(ignore=None):
 			self.signal_samp_send_selection.emit(self.dataset)
+		self.send_samp_selection_reference = send_samp_selection # does this fix the bug that clicking the buttons doesn't do anything?
 		self.action_samp_sand_table_select_row_list.triggered.connect(send_samp_selection)
 		
 		self.action_display_mode_both = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show both', self)
