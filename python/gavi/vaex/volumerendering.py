@@ -786,8 +786,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glAttachObjectARB(self.program, f);
 
 		
-		glClearColor(0.0, 0.0, 0.0, 1.0)
-		glClear(GL_COLOR_BUFFER_BIT)
+		#glClearColor(0.0, 0.0, 0.0, 1.0)
+		#glClear(GL_COLOR_BUFFER_BIT)
 
 		print bool(glGenFramebuffers)
 		self.fbo = glGenFramebuffers(1)

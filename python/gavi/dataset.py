@@ -221,7 +221,10 @@ class JobsManager(object):
 							local_dict = dict()
 							# dataset scope, there will be evaluated in order
 							for key, value in dataset.variables.items():
-								local_dict[key] = eval(dataset.variables[key], np.__dict__, local_dict)
+								try:
+									local_dict[key] = eval(dataset.variables[key], np.__dict__, local_dict)
+								except:
+									local_dict[key] = None
 							print "local vars", local_dict
 							local_dict.update(variables) # window scope
 							for key, value in dataset.columns.items():
