@@ -430,6 +430,23 @@ class DataList(QtGui.QListWidget):
 		dataset = self.hdf5file
 		self.signal_add_dataset.emit(dataset)
 		
+	def addAmuse(self, filename, auto_fraction=True):
+		if not os.path.exists(filename):
+			return
+		
+		self.hdf5file = AmuseHdf5MemoryMapped(filename)
+		if auto_fraction:
+			self.setBestFraction(self.hdf5file)
+		item = QtGui.QListWidgetItem(self)
+		item.setText(self.hdf5file.name)
+		item.setToolTip("file: " +self.hdf5file.filename)
+		#self.icon = QIcon.fromTheme('document-open')
+		item.setIcon(self.icon)
+		item.setData(QtCore.Qt.UserRole, self.hdf5file)
+		self.setCurrentItem(item)
+		dataset = self.hdf5file
+		self.signal_add_dataset.emit(dataset)
+		
 	def addFits(self, filename, auto_fraction=True):
 		#if not os.path.exists(filename):
 		#	return
@@ -647,10 +664,10 @@ class MainPanel(QtGui.QFrame):
 		self.scatterButton.setText('x/y density')
 		self.form_layout.addRow('', self.scatterButton)
 		
+		self.scatter3dButton = QtGui.QToolButton(self)
+		self.scatter3dButton.setText('x/y/z density (beta)')
+		self.form_layout.addRow('', self.scatter3dButton)
 		if 0:
-			self.scatter3dButton = QtGui.QToolButton(self)
-			self.scatter3dButton.setText('x/y/z density')
-			self.form_layout.addRow('', self.scatter3dButton)
 			
 			
 			self.scatter1dSeries = QtGui.QPushButton('series', self)
@@ -695,7 +712,7 @@ class MainPanel(QtGui.QFrame):
 		self.histogramButton.clicked.connect(self.onOpenHistogram)
 		self.statistics.clicked.connect(self.onOpenStatistics)
 		self.scatterButton.clicked.connect(self.onOpenScatter)
-		#self.scatter3dButton.clicked.connect(self.onOpenScatter3d)
+		self.scatter3dButton.clicked.connect(self.onOpenScatter3d)
 		#self.scatter1dSeries.clicked.connect(self.onOpenScatter1dSeries)
 		#self.scatter2dSeries.clicked.connect(self.onOpenScatter2dSeries)
 		self.serieSlice.clicked.connect(self.onOpenSerieSlice)
@@ -834,7 +851,7 @@ class MainPanel(QtGui.QFrame):
 			self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
 			
 			self.histogramMenu = QtGui.QMenu(self)
-			for column_name in self.dataset.column_names:
+			for column_name in self.dataset.get_column_names():
 				#action = QtGui.QAction
 				#QtGui.QAction(QtGui.QIcon(iconfile('glue_cross')), '&Pick', self)
 				action = QtGui.QAction(column_name, self)
@@ -843,15 +860,27 @@ class MainPanel(QtGui.QFrame):
 			self.histogramButton.setMenu(self.histogramMenu)
 			
 			self.scatterMenu = QtGui.QMenu(self)
-			for column_name1 in self.dataset.column_names:
+			for column_name1 in self.dataset.get_column_names():
 				#action1 = QtGui.QAction(column_name, self)
 				submenu = self.scatterMenu.addMenu(column_name1)
-				for column_name2 in self.dataset.column_names:
+				for column_name2 in self.dataset.get_column_names():
 					action = QtGui.QAction(column_name2, self)
 					action.triggered.connect(functools.partial(self.plotxy, xname=column_name1, yname=column_name2))
 					submenu.addAction(action)
 			self.scatterButton.setMenu(self.scatterMenu)
 			
+			self.scatterMenu3d = QtGui.QMenu(self)
+			for column_name1 in self.dataset.get_column_names():
+				#action1 = QtGui.QAction(column_name, self)
+				submenu = self.scatterMenu3d.addMenu(column_name1)
+				for column_name2 in self.dataset.get_column_names():
+					subsubmenu = submenu.addMenu(column_name2)
+					for column_name3 in self.dataset.get_column_names():
+						action = QtGui.QAction(column_name3, self)
+						action.triggered.connect(functools.partial(self.plotxyz, xname=column_name1, yname=column_name2, zname=column_name3))
+						subsubmenu.addAction(action)
+			self.scatter3dButton.setMenu(self.scatterMenu3d)
+
 			self.serieSliceMenu = QtGui.QMenu(self)
 			for column_name1 in self.dataset.rank1names:
 				#action1 = QtGui.QAction(column_name, self)
@@ -1081,6 +1110,7 @@ class Vaex(QtGui.QMainWindow):
 		#self.action_open.
 		self.action_open_hdf5_gadget = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open gadget hdf5', self)        
 		self.action_open_hdf5_gavi = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open GAIA hdf5', self)        
+		self.action_open_hdf5_amuse = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open Amuse hdf5', self)        
 		self.action_open_fits = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open FITS (binary table)', self)        
 
 
@@ -1099,6 +1129,7 @@ class Vaex(QtGui.QMainWindow):
 		self.menu_open = fileMenu.addMenu("&Open")
 		self.menu_open.addAction(self.action_open_hdf5_gadget)
 		self.menu_open.addAction(self.action_open_hdf5_gavi)
+		self.menu_open.addAction(self.action_open_hdf5_amuse)
 		if (not frozen) or darwin:
 			self.menu_open.addAction(self.action_open_fits)
 		fileMenu.addAction(self.action_save_hdf5)
@@ -1189,24 +1220,25 @@ class Vaex(QtGui.QMainWindow):
 		
 		
 		if use_toolbar:
-			self.toolbar.addAction(self.action_open_hdf5_gadget)
-			self.toolbar.addAction(self.action_open_hdf5_gavi)
-			if (not frozen) or darwin:
-				self.toolbar.addAction(self.action_open_fits)
+			#self.toolbar.addAction(self.action_open_hdf5_gadget)
+			#self.toolbar.addAction(self.action_open_hdf5_gavi)
+			#if (not frozen) or darwin:
+			#	self.toolbar.addAction(self.action_open_fits)
 			self.toolbar.addAction(self.action_save_hdf5)
 		
 		if len(sys.argv[1:]) == 0:
 			if custom is not None:
 				custom.loadDatasets(self.list)
 				custom.openPlots(self.right)
-			else:
+			elif frozen:
 				for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 					self.list.addGadgetHdf5(os.path.join(application_path, 'data/disk-galaxy.hdf5'), name, index)
 				self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
 		
 		self.open_generators = [] # for reference counts
 		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "Gadget HDF5 file", "*.hdf5"))
-		self.action_open_hdf5_gavi.triggered.connect(self.openGenerator(self.gaia_hdf5, "HDF5 file", "*.hdf5"))
+		self.action_open_hdf5_gavi.triggered.connect(self.openGenerator(self.gaia_hdf5, "Gaia HDF5 file", "*.hdf5"))
+		self.action_open_hdf5_amuse.triggered.connect(self.openGenerator(self.amuse_hdf5, "Amuse HDF5 file", "*.hdf5"))
 		if (not frozen) or darwin:
 			self.action_open_fits.triggered.connect(self.openGenerator(self.open_fits, "FITS file", "*.fits"))
 		self.help_menu = menubar.addMenu('&Help')
@@ -1443,6 +1475,9 @@ class Vaex(QtGui.QMainWindow):
 	def gaia_hdf5(self, filename):
 		self.list.addHdf5(str(filename))
 		
+	def amuse_hdf5(self, filename):
+		self.list.addAmuse(str(filename))
+		
 	def open_fits(self, filename):
 		self.list.addFits(str(filename))
 		
@@ -1542,13 +1577,17 @@ class Vaex(QtGui.QMainWindow):
 		print ("select rowlist: {url}".format(**locals()))
 		row_list = np.array([long(k) for k in row_list])
 		did_select = False
+		datasets_updated = [] # keep a list to avoid multiple 'setMask' calls (which would do an update twice)
 		for id in (url, table_id):
 			if id != None:
 				for dataset in self._samp_find_datasets(id):
-					mask = np.zeros(len(dataset), dtype=np.bool)
-					mask[row_list] = True
-					dataset.selectMask(mask)
-					did_select = True
+					if dataset not in datasets_updated:
+						mask = np.zeros(len(dataset), dtype=np.bool)
+						mask[row_list] = True
+						print "match dataset", dataset
+						dataset.selectMask(mask)
+						did_select = True
+					datasets_updated.append(dataset)
 		if did_select:
 			self.main_panel.jobsManager.execute()
 			

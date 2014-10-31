@@ -253,13 +253,13 @@ def translate(expression, replacements={}):
 		if isinstance(expr, Slice):
 			return slice_to_var(expr)
 		elif isinstance(expr, Function):
-			logger.debug("expr: " + expr.var.name)
+			#logger.debug("expr: " + expr.var.name)
 			if expr.var.name in macros:
 				return macros[expr.var.name](expr.args)
 			else:
 				return expr
 		elif isinstance(expr, Var):
-			logger.debug("var: " + expr.name)
+			#logger.debug("var: " + expr.name)
 			used_vars.add(expr.name)
 			if expr.name in translated_replacements:
 				return translated_replacements[expr.name]

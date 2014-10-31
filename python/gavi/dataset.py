@@ -68,7 +68,7 @@ class JobsManager(object):
 			self.order_numbers.append(order)
 		self.jobs.append((order, callback, dataset, [None if e is None or len(e) == 0 else e for e in expressions], variables))
 		
-	def find_min_max(self, dataset, expressions, feedback=None):
+	def find_min_max(self, dataset, expressions, use_mask=False, feedback=None):
 		assert len(self.jobs) == 0, "leftover jobs exist"
 		pool = multithreading.ThreadPool()
 		minima = [None] * len(expressions)
@@ -87,7 +87,10 @@ class JobsManager(object):
 			def calculate_range(info, block, index):
 				def subblock(thread_index, sub_i1, sub_i2):
 					print "^" * 60
-					result = gavifast.find_nan_min_max(block[sub_i1:sub_i2])
+					if use_mask:
+						result = gavifast.find_nan_min_max(block[sub_i1:sub_i2][dataset.mask[sub_i1:sub_i2]])
+					else:
+						result = gavifast.find_nan_min_max(block[sub_i1:sub_i2])
 					print "result", result
 					mi, ma = result
 					print ">>>", mi, ma, thread_index
@@ -267,7 +270,10 @@ class JobsManager(object):
 									if expr_noslice is None:
 										results[expression] = None
 									#elif expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
-									elif expression in dataset.column_names and dataset.columns[expression].dtype==np.float64 and dataset.columns[expression].strides[0] == 8:
+									elif expression in dataset.column_names  \
+											and dataset.columns[expression].dtype==np.float64 \
+											and dataset.columns[expression].strides[0] == 8 \
+											and expression not in dataset.virtual_columns:
 										logger.debug("avoided expression, simply a column name with float64")
 										#yield self.columns[expression][i1:i2], info
 										results[expression] = dataset.columns[expression][i1:i2]
@@ -475,6 +481,13 @@ class MemoryMapped(object):
 		self.variables = collections.OrderedDict()
 		
 		self.signal_pick = gavi.events.Signal("pick")
+		
+	def get_column_names(self):
+		names = list(self.column_names)
+		for vname in self.virtual_columns.keys():
+			if vname not in names:
+				names.append(vname)
+		return names
 		
 		
 	def evaluate(self, callback, *expressions, **variables):

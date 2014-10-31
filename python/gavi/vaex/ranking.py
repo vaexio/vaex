@@ -7,12 +7,16 @@ import gavi.logging as logging
 logger = logging.getLogger("vaex.ranking")
 
 
+def unique_column_names(dataset):
+	return list(set(dataset.column_names) | set(dataset.virtual_columns.keys()))
+	
+	
 class RankingTableModel(QtCore.QAbstractTableModel): 
 	def __init__(self, dataset, dim=1, parent=None, *args): 
 		QtCore.QAbstractTableModel.__init__(self, parent, *args) 
 		self.dataset = dataset
 		
-		self.pairs = list(itertools.combinations(self.dataset.column_names, dim))
+		self.pairs = list(itertools.combinations(unique_column_names(self.dataset), dim))
 		self.ranking = [None for pair in self.pairs]
 		self.headers = ["subspace", "ranking", 'selected']
 		self.indices = range(len(self.pairs))
@@ -201,7 +205,7 @@ class RankDialog(QtGui.QDialog):
 		self.tabs = QtGui.QTabWidget(self)
 		
 		self.tab1d = QtGui.QWidget(self.tabs)
-		self.table1d = SubspaceTable(self.tab1d, mainPanel, self.dataset,  list(itertools.combinations(self.dataset.column_names, 1)),  1)
+		self.table1d = SubspaceTable(self.tab1d, mainPanel, self.dataset,  list(itertools.combinations(unique_column_names(self.dataset), 1)),  1)
 		
 		self.subspaceTables = {}
 		self.subspaceTabs = {}
@@ -306,7 +310,7 @@ class RankDialog(QtGui.QDialog):
 			if dialog.wasCanceled():
 				return True
 		try:
-			ranges = jobsManager.find_min_max(self.dataset, expressions, feedback=feedback)
+			ranges = jobsManager.find_min_max(self.dataset, expressions, use_mask=self.radio_button_selection.isChecked(), feedback=feedback)
 			for range_, expression in zip(ranges, expressions):
 				logger.debug("range for {expression} is {range_}".format(**locals()))
 				self.range_map[expression] = range_

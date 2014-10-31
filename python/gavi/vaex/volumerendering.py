@@ -17,6 +17,8 @@ from OpenGL.GL import shaders
 
 import numpy as np
 
+import time
+
 #import gavi.dataset
 import gavi.vaex.colormaps
 #print GL_R32F
@@ -37,6 +39,10 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.mod5 = 0
 		self.mod6 = 0
 		
+		self.orbit_angle = 0
+		self.orbit_delay = 50
+		self.orbiting = False
+		
 		self.function_count = function_count
 		self.function_opacities = [0.1/2**(function_count-1-k) for k in range(function_count)] 
 		self.function_sigmas = [0.05] * function_count
@@ -51,10 +57,33 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		shortcut = QtGui.QShortcut(QtGui.QKeySequence("space"), self)
 		shortcut.activated.connect(self.toggle)
 		self.texture_index = 1
-		self.texture_size = 256 #*8
+		self.texture_size = 400 #*8
 		self.grid = None
 		# gets executed after initializeGL, can hook up your loading of data here
 		self.post_init = lambda: 1
+		
+		self.arrow_model = Arrow(-40, -40, -40, 4)
+		
+	def orbit_start(self):
+		self.orbiting = True
+		self.orbit_time_previous = time.time()
+		self.orbit_angle = 0
+		self.update()
+		QtCore.QTimer.singleShot(self.orbit_delay, self.orbit_progress)
+		
+	def orbit_stop(self):
+		self.orbiting = False
+		
+	def orbit_progress(self):
+		orbit_time_now = time.time()
+		delta_time = orbit_time_now - self.orbit_time_previous
+		if self.orbiting:
+			self.orbit_angle += delta_time/4. * 360
+			QtCore.QTimer.singleShot(self.orbit_delay, self.orbit_progress)
+		else:
+			self.orbit_angle = 0
+		self.update()
+		self.orbit_time_previous = orbit_time_now
 		
 	def toggle(self, ignore=None):
 		print "toggle"
@@ -67,6 +96,44 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			void main() {
 				gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 				vertex_color =  gl_Vertex /80. + vec4(0.5, 0.5, 0.5, 0.);
+			}""",GL_VERTEX_SHADER)
+		self.fragment_shader_color = shaders.compileShader("""
+			varying vec4 vertex_color;
+			void main() {
+				gl_FragColor = vertex_color;
+			}""",GL_FRAGMENT_SHADER)
+		return shaders.compileProgram(self.vertex_shader_color, self.fragment_shader_color)
+
+	def create_shader_vectorfield_color(self):
+		self.vertex_shader_color = shaders.compileShader("""
+			#extension GL_ARB_draw_instanced : enable
+			varying vec4 vertex_color;
+			void main() {
+				float x = floor(float(gl_InstanceIDARB)/(8.*8.)) + 0.5;
+				float y = mod(floor(float(gl_InstanceIDARB)/8.), 8.) + 0.5;
+				float z = mod(float(gl_InstanceIDARB), 8.) + 0.5;
+				vec4 pos = (gl_Vertex + vec4(x*80./8., y*80./8., z*80./8., 0));
+				gl_Position = gl_ModelViewProjectionMatrix * pos;
+				vertex_color =  pos /80. + vec4(0.5, 0.5, 0.5, 0.);
+			}""",GL_VERTEX_SHADER)
+		self.fragment_shader_color = shaders.compileShader("""
+			varying vec4 vertex_color;
+			void main() {
+				gl_FragColor = vertex_color;
+			}""",GL_FRAGMENT_SHADER)
+		return shaders.compileProgram(self.vertex_shader_color, self.fragment_shader_color)
+
+	def create_shader_vectorfield(self):
+		self.vertex_shader_color = shaders.compileShader("""
+			#extension GL_ARB_draw_instanced : enable
+			varying vec4 vertex_color;
+			void main() {
+				float x = floor(float(gl_InstanceIDARB)/(8.*8.)) + 0.5;
+				float y = mod(floor(float(gl_InstanceIDARB)/8.), 8.) + 0.5;
+				float z = mod(float(gl_InstanceIDARB), 8.) + 0.5;
+				vec4 pos = (gl_Vertex + vec4(x*80./8., y*80./8., z*80./8., 0));
+				gl_Position = gl_ModelViewProjectionMatrix * pos;
+				vertex_color =  pos /80. + vec4(0.5, 0.5, 0.5, 0.);
 			}""",GL_VERTEX_SHADER)
 		self.fragment_shader_color = shaders.compileShader("""
 			varying vec4 vertex_color;
@@ -220,7 +287,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			
 			
 			void main() {
-				int steps = 400;
+				int steps = 200;
 				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
 				vec3 ray_start = vertex_color.xyz;
 				float length = 0.;
@@ -247,7 +314,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				float data_min = minmax3d.x;
 				float data_max = minmax3d.y;
 				float data_scale = 1./(data_max - data_min);
-				for(int i = 0; i < 400; i++) {
+				for(int i = 0; i < 200; i++) {
 					vec4 sample = texture3D(cube, ray_pos);
 					for(int j = 0; j < 3; j++) {
 						float data_value = (sample.r - data_min) * data_scale;
@@ -256,7 +323,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 						float chisq = pow(chi, 2.);
 						float intensity = exp(-chisq);
 						vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
-						float alpha_sample = function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100. ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+						float alpha_sample = function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
 						alpha_sample = clamp(alpha_sample, 0., 1.);
 						color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
 						alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
@@ -277,6 +344,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 			glLoadIdentity()
 			glTranslated(0.0, 0.0, -15.0)
+			glRotated(self.orbit_angle, 0.0, 1.0, 0.0) 
 			glRotated(self.angle1, 1.0, 0.0, 0.0)
 			glRotated(self.angle2, 0.0, 1.0, 0.0)
 			
@@ -304,13 +372,82 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glCullFace(GL_FRONT);
 
 		glShadeModel(GL_SMOOTH);
+		glUseProgram(self.shader_color)
 		self.cube(size=80)
 		self.cube(size=80, gl_type=GL_LINE_LOOP)
-		glUseProgram(self.shader_color)
 		glCullFace(GL_BACK);
-		self.cube(size=10)
+		if 0:
+			self.cube(size=10) # 'debug' cube
+		#self.arrow(0.5, 0.5, 0.5, 80.0)
+		#self.arrow_model.drawGL()
+		glUseProgram(self.shader_vectorfield)
+		if 0:
+			self.arrow_model.drawGL(8**3)
+		glUseProgram(0)
 		glUseProgram(0)
 		#return
+		
+	def arrow(self, x, y, z, scale):
+		headfraction = 0.4
+		baseradius = 0.1 * scale
+		headradius = 0.2 * scale
+		
+		# draw base
+		glBegin(GL_QUADS)
+		#glColor3f(1., 0., 0.)
+		for part in range(10):
+			angle = np.radians(part/10.*360)
+			angle2 = np.radians((part+1)/10.*360)
+			glNormal3f(np.cos(angle), np.sin(angle), 0.)
+			glVertex3f(x+baseradius*np.cos(angle), y+baseradius*np.sin(angle), z+scale/2-headfraction*scale)
+			glNormal3f(np.cos(angle), np.sin(angle), 0.)
+			glVertex3f(x+baseradius*np.cos(angle), y+baseradius*np.sin(angle), z-scale/2)
+			glNormal3f(np.cos(angle2), np.sin(angle2), 0.)
+			glVertex3f(x+baseradius*np.cos(angle2), y+baseradius*np.sin(angle2), z-scale/2)
+			glNormal3f(np.cos(angle2), np.sin(angle2), 0.)
+			glVertex3f(x+baseradius*np.cos(angle2), y+baseradius*np.sin(angle2), z+scale/2-headfraction*scale)
+		glEnd()
+		glBegin(GL_TRIANGLE_FAN)
+		glNormal3f(0, 0, -1)
+		#glColor3f(0., 1., 0.)
+		glVertex3f(x, y, z-scale/2)
+		for part in range(10+1):
+			angle = np.radians(-part/10.*360)
+			glVertex3f(x+baseradius*np.cos(angle), y+baseradius*np.sin(angle), z-scale/2)
+		glEnd()
+		
+		glBegin(GL_TRIANGLES)
+		#glColor3f(0., 0., 1.)
+		a = headradius - baseradius
+		b = headfraction * scale
+		headangle = np.arctan(a/b)
+		for part in range(10+1):
+			angle = np.radians(-part/10.*360)
+			anglemid = np.radians(-(part+0.5)/10.*360)
+			angle2 = np.radians(-(part+1)/10.*360)
+			glNormal3f(np.cos(anglemid)*np.cos(headangle), np.sin(anglemid)*np.cos(headangle), np.sin(headangle))
+			glVertex3f(x, y, z+scale/2)
+			
+			glNormal3f(np.cos(angle2)*np.cos(headangle), np.sin(angle2)*np.cos(headangle), np.sin(headangle))
+			glVertex3f(x+headradius*np.cos(angle2), y+headradius*np.sin(angle2), z+scale/2-headfraction*scale)
+
+			glNormal3f(np.cos(angle)*np.cos(headangle), np.sin(angle)*np.cos(headangle), np.sin(headangle))
+			glVertex3f(x+headradius*np.cos(angle), y+headradius*np.sin(angle), z+scale/2-headfraction*scale)
+		glEnd()
+
+		glBegin(GL_QUADS)
+		#glColor3f(1., 1., 0.)
+		glNormal3f(0, 0, -1)
+		for part in range(10):
+			angle = np.radians(part/10.*360)
+			angle2 = np.radians((part+1)/10.*360)
+			glVertex3f(x+baseradius*np.cos(angle), y+baseradius*np.sin(angle), z+scale/2-headfraction*scale)
+			glVertex3f(x+baseradius*np.cos(angle2), y+baseradius*np.sin(angle2), z+scale/2-headfraction*scale)
+			glVertex3f(x+headradius*np.cos(angle2), y+headradius*np.sin(angle2), z+scale/2-headfraction*scale)
+			glVertex3f(x+headradius*np.cos(angle), y+headradius*np.sin(angle), z+scale/2-headfraction*scale)
+		glEnd()
+		
+		
 
 	def draw_frontside(self):
 		glViewport(0, 0, self.texture_size, self.texture_size)
@@ -330,8 +467,33 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glShadeModel(GL_SMOOTH);
 		
 		glDisable(GL_BLEND)
+		glColor3f(0, 0, 0)
 		self.cube(size=80, gl_type=GL_LINE_LOOP) # draw the wireframe cube
-		self.cube(size=10)
+		if 0:
+			self.cube(size=10) # 'debug' cube
+		glEnable(GL_LIGHTING);
+		glEnable(GL_LIGHT0);
+		g = 0.5
+		glMaterialfv(GL_FRONT, GL_SPECULAR, [g, g, g, 1.]);
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, [g, g, g, 1.]);
+		glPushMatrix()
+		glLoadIdentity()
+		#glLightfv(GL_LIGHT0, GL_POSITION, [1, -0.5, 1, 0.])
+		glLightfv(GL_LIGHT0, GL_POSITION, [0.1, 0.1, 1, 0.])
+		glPopMatrix()
+		a = 0.5
+		glLightfv(GL_LIGHT0, GL_AMBIENT, [a, a, a, 0.])
+		glMaterialfv(GL_FRONT, GL_SHININESS, [50.]);
+		glColorMaterial ( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE )
+		glEnable ( GL_COLOR_MATERIAL )
+		glColor3f(0.5, 0, 0)
+		#self.arrow(0.5, 0.5, 0.5, 80.0)
+		glUseProgram(self.shader_vectorfield)
+		if 0:
+			self.arrow_model.drawGL(8**3)
+		glUseProgram(0)
+		glDisable(GL_LIGHTING);
+		glDisable(GL_LIGHT0);
 		glEnable(GL_BLEND)
 		
 		glBlendEquation(GL_FUNC_ADD, GL_FUNC_ADD)
@@ -492,13 +654,13 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		w = size/2.
 		
 		def vertex(x, y, z):
-			glColor3f(x+w, y+w, z+w)
+			#glColor3f(x+w, y+w, z+w)
 			#glMultiTexCoord3f(GL_TEXTURE1, x, y, z);
 			glVertex3f(x, y, z)
 		
 		# back
 		if 1:
-			glColor3f(1, 0, 0)
+			#glColor3f(1, 0, 0)
 			glBegin(gl_type);
 			vertex(-w, -w, -w)
 			vertex(-w,  w, -w)
@@ -509,7 +671,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		# front
 		if 1:
 			glBegin(gl_type);
-			glColor3f(0, 1, 0)
+			#glColor3f(0, 1, 0)
 			vertex(-w, -w, w)
 			vertex( w, -w, w)
 			vertex( w,  w, w)
@@ -519,7 +681,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		# right
 		if 1:
 			glBegin(gl_type);
-			glColor3f(0, 0, 1)
+			#glColor3f(0, 0, 1)
 			vertex(w, -w,  w)
 			vertex(w, -w, -w)
 			vertex(w,  w, -w)
@@ -529,7 +691,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		# left
 		if 1:
 			glBegin(gl_type);
-			glColor3f(0, 0, 1)
+			#glColor3f(0, 0, 1)
 			vertex(-w, -w, -w)
 			vertex(-w, -w,  w)
 			vertex(-w,  w,  w)
@@ -539,7 +701,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		# top
 		if 1:
 			glBegin(gl_type);
-			glColor3f(0, 0, 1)
+			#glColor3f(0, 0, 1)
 			vertex( w,  w, -w)
 			vertex(-w,  w, -w)
 			vertex(-w,  w,  w)
@@ -549,7 +711,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		# bottom
 		if 1:
 			glBegin(gl_type);
-			glColor3f(0, 0, 1)
+			#glColor3f(0, 0, 1)
 			vertex(-w, -w, -w)
 			vertex( w, -w, -w)
 			vertex( w, -w,  w)
@@ -661,22 +823,29 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 		self.shader = self.create_shader()
 		self.shader_color = self.create_shader_color()
+		self.shader_vectorfield = self.create_shader_vectorfield()
+		self.shader_vectorfield_color = self.create_shader_vectorfield_color()
 		self.post_init()
 			
 
 	# only gavi specific code?
-	def loadTable(self, args, column_names, grid_size=128):
+	def loadTable(self, args, column_names, grid_size=128, grid_size_vector=32):
 		import gavi.dataset
 		import gavifast
 		dataset = gavi.dataset.load_file(sys.argv[1])
-		x, y, z = [dataset.columns[name] for name in sys.argv[2:]]
+		x, y, z, vx, vy, vz = [dataset.columns[name] for name in sys.argv[2:]]
 		grid3d = np.zeros((grid_size, grid_size, grid_size), dtype=np.float64)
+		vectorgrid = np.zeros((3, grid_size, grid_size, grid_size), dtype=np.float64)
 
 		#mi, ma = -30., 30.
 		mi, ma = 40., 60
 		#mi, ma = -0.5, 0.5
 		print "histogram3d"
-		gavifast.histogram3d(x, y, z, None, grid3d, mi+15, ma+15, mi, ma, mi, ma)
+		gavifast.histogram3d(x, y, z, None, grid3d, mi+5, ma+5, mi, ma, mi, ma)
+		gavifast.histogram3d(x, y, z, vx, vectorgrid[0], mi+15, ma+15, mi, ma, mi, ma)
+		gavifast.histogram3d(x, y, z, vy, vectorgrid[1], mi+15, ma+15, mi, ma, mi, ma)
+		gavifast.histogram3d(x, y, z, vz, vectorgrid[2], mi+15, ma+15, mi, ma, mi, ma)
+
 
 		#self.data3d = self.data3d.astype(np.float32)
 		#self.data2d = self.data2d.astype(np.float32)
@@ -689,11 +858,12 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		##self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 1.5)-1
 		#self.data3d = 10**scipy.ndimage.gaussian_filter(np.log10(self.data3d+1), 0.5)-1
 		#data3ds = scipy.ndimage.gaussian_filter((self.data3d), 1.5)
+		vectorgrid = np.swapaxes(vectorgrid, 0, 3)
 		
-		self.setGrid(grid3d)
+		self.setGrid(grid3d, vectorgrid)
 
 			
-	def setGrid(self, grid):
+	def setGrid(self, grid, vectorgrid=None):
 		self.mod1 = 0
 		self.mod2 = 0
 		self.mod3 = 0
@@ -701,14 +871,19 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.mod5 = 0
 		self.mod6 = 0
 		#self.grid = np.log10(grid.astype(np.float32)+1)
+		if vectorgrid is not None:
+			self.vectorgrid = vectorgrid.astype(np.float32)
+		else:
+			self.vectorgrid = None
 		self.grid = np.log10(grid.astype(np.float32)+1)
-		self.grid_min, self.grid_max = self.grid.min(), self.grid.max()
+		self.grid_min, self.grid_max = np.nanmin(self.grid), np.nanmax(self.grid)
 		grids_2d = [self.grid.sum(axis=i) for i in range(3)]
-		self.grid2d_min, self.grid2d_max = min([grid.min() for grid in grids_2d]), max([grid.max() for grid in grids_2d])
+		self.grid2d_min, self.grid2d_max = min([np.nanmin(grid) for grid in grids_2d]), max([np.nanmax(grid) for grid in grids_2d])
 		print "3d", self.grid_min, self.grid_max
 		print "2d", self.grid2d_min, self.grid2d_max
+		#return
 		#data3ds = data3ds.sum(axis=0)
-		if 1:
+		if 0:
 			self.grid_gradient = np.gradient(self.grid)
 			length = np.sqrt(self.grid_gradient[0]**2 + self.grid_gradient[1]**2 + self.grid_gradient[2]**2)
 			self.grid_gradient[0] = self.grid_gradient[0] / length
@@ -780,6 +955,28 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
 		glBindTexture(GL_TEXTURE_3D, 0)
+			
+		if self.vectorgrid is not None:
+			assert self.vectorgrid.shape[0] == self.vectorgrid.shape[1] == self.vectorgrid.shape[2]
+			self.texture_cube_vector_size = self.vectorgrid.shape[0]
+			self.texture_cube_vector = glGenTextures(1)
+			glBindTexture(GL_TEXTURE_3D, self.texture_cube_vector)
+			_, width, height, depth = self.vectorgrid.shape[::-1]
+			print "dims vector", width, height, depth
+			glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, width, height, depth, 0,
+						GL_RED, GL_FLOAT, self.vectorgrid)
+			print self.grid, self.texture_cube
+			#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
+			#               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
+			
+			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+			glBindTexture(GL_TEXTURE_3D, 0)
+				
 			
 
 		# gradient
@@ -926,7 +1123,124 @@ class TestWidget(QtGui.QMainWindow):
 	def myclose(self, ignore=None):
 		self.hide()
 		
+
+from OpenGL.arrays import vbo
+
+class Arrow(object):
+	def begin(self, type):
+		self.type = type
 		
+	def end(self):
+		self.offset = len(self.vertices)
+	
+	def vertex3f(self, x, y, z):
+		self.vertices.append([x,y,z])
+		self.normals.append(list(self.current_normal))
+	
+	def normal3f(self, x, y, z):
+		self.current_normal = [x, y, z]
+		
+	def tri(self, i1, i2, i3):
+		self.indices.append(self.offset + i1)
+		self.indices.append(self.offset + i2)
+		self.indices.append(self.offset + i3)
+		
+	def drawGL(self, instances=1):
+		glEnableClientState(GL_VERTEX_ARRAY)
+		glEnableClientState(GL_NORMAL_ARRAY)
+		vertices_ptr = self.vertices.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+		glVertexPointer(3, GL_FLOAT, 0, vertices_ptr);
+		normal_ptr = self.normals.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+		glNormalPointer(GL_FLOAT, 0, normal_ptr);
+		indices_ptr = self.indices.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
+		#glDrawElements(GL_TRIANGLES, len(self.indices), GL_UNSIGNED_INT, indices_ptr);
+		glDrawElementsInstanced(GL_TRIANGLES, len(self.indices), GL_UNSIGNED_INT, indices_ptr, instances);
+		glDisableClientState(GL_VERTEX_ARRAY);
+		glDisableClientState(GL_NORMAL_ARRAY);
+		
+		
+	def __init__(self, x, y, z, scale=80, headfraction=0.4, baseradius=0.1, headradius=0.2):
+		self.vertices = []
+		self.normals = []
+		self.indices = []
+		self.offset = 0
+		
+		headfraction = 0.4
+		baseradius = 0.1 * scale
+		headradius = 0.2 * scale
+		
+		# draw base
+		self.begin(GL_QUADS)
+		#glColor3f(1., 0., 0.)
+		parts = 10
+		for part in range(parts):
+			angle = np.radians(part/10.*360)
+			angle2 = np.radians((part+1)/10.*360)
+			self.normal3f(np.cos(angle), np.sin(angle), 0.)
+			self.vertex3f(x+baseradius*np.cos(angle), y+baseradius*np.sin(angle), z+scale/2-headfraction*scale)
+			self.normal3f(np.cos(angle), np.sin(angle), 0.)
+			self.vertex3f(x+baseradius*np.cos(angle), y+baseradius*np.sin(angle), z-scale/2)
+			
+			#self.normal3f(np.cos(angle2), np.sin(angle2), 0.)
+			#self.vertex3f(x+baseradius*np.cos(angle2), y+baseradius*np.sin(angle2), z-scale/2)
+			#self.normal3f(np.cos(angle2), np.sin(angle2), 0.)
+			#self.vertex3f(x+baseradius*np.cos(angle2), y+baseradius*np.sin(angle2), z+scale/2-headfraction*scale)
+			
+		for part in range(10+1):
+			self.tri((part*2+0) % (10*2), (part*2+1) % (10*2), (part*2+2) % (10*2))
+			self.tri((part*2+2) % (10*2), (part*2+1) % (10*2), (part*2+3) % (10*2))
+		self.end()
+		self.begin(GL_TRIANGLE_FAN)
+		self.normal3f(0, 0, -1)
+		#glColor3f(0., 1., 0.)
+		for part in range(10):
+			angle = np.radians(-part/10.*360)
+			self.vertex3f(x+baseradius*np.cos(angle), y+baseradius*np.sin(angle), z-scale/2)
+		self.vertex3f(x, y, z-scale/2)
+		for part in range(parts+1):
+			self.tri(parts, part, (part+1) % (parts))
+		self.end()
+
+		#glColor3f(0., 0., 1.)
+		a = headradius - baseradius
+		b = headfraction * scale
+		headangle = np.arctan(a/b)
+		for part in range(10+1):
+			self.begin(GL_TRIANGLES)
+			angle = np.radians(-part/10.*360)
+			anglemid = np.radians(-(part+0.5)/10.*360)
+			angle2 = np.radians(-(part+1)/10.*360)
+			self.normal3f(np.cos(anglemid)*np.cos(headangle), np.sin(anglemid)*np.cos(headangle), np.sin(headangle))
+			self.vertex3f(x, y, z+scale/2)
+			
+			self.normal3f(np.cos(angle2)*np.cos(headangle), np.sin(angle2)*np.cos(headangle), np.sin(headangle))
+			self.vertex3f(x+headradius*np.cos(angle2), y+headradius*np.sin(angle2), z+scale/2-headfraction*scale)
+
+			self.normal3f(np.cos(angle)*np.cos(headangle), np.sin(angle)*np.cos(headangle), np.sin(headangle))
+			self.vertex3f(x+headradius*np.cos(angle), y+headradius*np.sin(angle), z+scale/2-headfraction*scale)
+			self.tri(0, 1, 2)
+			self.end()
+
+
+		self.begin(GL_QUADS)
+		#glColor3f(1., 1., 0.)
+		self.normal3f(0, 0, -1)
+		for part in range(10):
+			angle = np.radians(-part/10.*360)
+			angle2 = np.radians(-(part+1)/10.*360)
+			self.vertex3f(x+baseradius*np.cos(angle), y+baseradius*np.sin(angle), z+scale/2-headfraction*scale)
+			self.vertex3f(x+headradius*np.cos(angle), y+headradius*np.sin(angle), z+scale/2-headfraction*scale)
+			#self.vertex3f(x+baseradius*np.cos(angle2), y+baseradius*np.sin(angle2), z+scale/2-headfraction*scale)
+			#self.vertex3f(x+headradius*np.cos(angle2), y+headradius*np.sin(angle2), z+scale/2-headfraction*scale)
+		for part in range(10+1):
+			self.tri((part*2+0) % (10*2), (part*2+1) % (10*2), (part*2+2) % (10*2))
+			self.tri((part*2+2) % (10*2), (part*2+1) % (10*2), (part*2+3) % (10*2))
+		self.end()
+
+		self.vertices = np.array(self.vertices, dtype=np.float32)
+		self.normals = np.array(self.normals, dtype=np.float32)
+		self.indices = np.array(self.indices, dtype=np.uint32)
+	
 		
 if __name__ == "__main__":
 	import gavi.vaex.colormaps

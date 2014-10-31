@@ -141,7 +141,7 @@ tr.last td { border-bottom: thin solid black; }
 				//vec4 color_sample = texture2D(colormap, vec2(sample.a, colormap_index_scaled));
 				//color_sample = texture2D(volume, ray_pos.yz);
 				//float alpha_sample = opacity*intensity;//1./128.* length(color_sample) * 100.;
-				float alpha_sample = opacity[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100. ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+				float alpha_sample = opacity[j]*intensity * sign(data_value) * sign(1.-data_value) * 100. / float(steps);//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
 				alpha_sample = clamp(alpha_sample, 0., 1.);
 				color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
 				if(alpha_total >= 1.)
