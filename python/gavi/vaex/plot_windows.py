@@ -3984,18 +3984,21 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 
 	def afterCanvas(self, layout):
 		super(Rank1ScatterPlotDialog, self).afterCanvas(layout)
+		#return
 
 		self.seriesbox = QtGui.QComboBox(self)
 		self.seriesbox.addItems([str(k) for k in range(self.nSlices)])
 		self.seriesbox.setCurrentIndex(self.serieIndex)
 		self.seriesbox.currentIndexChanged.connect(self.onSerieIndex)
 		
-		self.form_layout.addRow("index", self.seriesbox)
-		self.buttonLoop = QtGui.QToolButton(self)
-		self.buttonLoop.setText("one loop")
-		self.buttonLoop.clicked.connect(self.onPlayOnce)
-		self.form_layout.addRow("movie", self.buttonLoop)
-		layout.addLayout(self.form_layout, 0)
+		self.grid_layout.addWidget(self.seriesbox, 10, 1)
+		#self.form_layout = QtGui.QFormLayout(self)
+		#self.form_layout.addRow("index", self.seriesbox)
+		#self.buttonLoop = QtGui.QToolButton(self)
+		#self.buttonLoop.setText("one loop")
+		#self.buttonLoop.clicked.connect(self.onPlayOnce)
+		#self.form_layout.addRow("movie", self.buttonLoop)
+		#layout.addLayout(self.form_layout, 0)
 		
 	def onPlayOnce(self):
 		#self.timer = QtCore.QTimer(self)

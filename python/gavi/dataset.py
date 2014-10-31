@@ -187,6 +187,7 @@ class JobsManager(object):
 							for expression in expressions:
 								expressions_dataset.add((dataset, expression))
 								try:
+									print "vcolumns:", dataset.virtual_columns
 									expr_noslice, slice_vars = expr.translate(expression, dataset.virtual_columns)
 								except:
 									logger.error("translating expression: %r" % (expression,))
@@ -214,7 +215,12 @@ class JobsManager(object):
 								#	outputs[i] = outputs[i][:i2-i1]
 							# local dicts has slices (not copies) of the whole dataset
 							logger.debug("block: %r to %r" % (i1, i2))
-							local_dict = dict(variables)
+							local_dict = dict()
+							# dataset scope, there will be evaluated in order
+							for key, value in dataset.variables.items():
+								local_dict[key] = eval(dataset.variables[key], np.__dict__, local_dict)
+							print "local vars", local_dict
+							local_dict.update(variables) # window scope
 							for key, value in dataset.columns.items():
 								local_dict[key] = value[i1:i2]
 							for key, value in dataset.rank1s.items():
@@ -443,8 +449,9 @@ class MemoryMapped(object):
 		self.axes = {}
 		self.axis_names = []
 		
-		self.properties = {}
-		self.property_names = []
+		# these are replaced by variables
+		#self.properties = {}
+		#self.property_names = []
 
 		self.current_slice = None
 		self.fraction = 1.0
@@ -465,6 +472,7 @@ class MemoryMapped(object):
 		self.filenames = {}
 		self.dtypes = {}
 		self.samp_id = None
+		self.variables = collections.OrderedDict()
 		
 		self.signal_pick = gavi.events.Signal("pick")
 		
@@ -1089,7 +1097,9 @@ class Hdf5MemoryMapped(MemoryMapped):
 		if "columns" in self.h5file:
 			self.load_columns(self.h5file["/columns"])
 		if "properties" in self.h5file:
-			self.load_properties(self.h5file["/properties"])
+			self.load_variables(self.h5file["/properties"]) # old name, kept for portability
+		if "variables" in self.h5file:
+			self.load_variables(self.h5file["/variables"])
 		if "axes" in self.h5file:
 			self.load_axes(self.h5file["/axes"])
 			
@@ -1106,6 +1116,10 @@ class Hdf5MemoryMapped(MemoryMapped):
 			#self.axis_names.append(axes_data)
 			#self.axes[name] = np.array(axes_data[name])
 			
+	def load_variables(self, h5variables):
+		for key, value in h5variables.attrs.iteritems():
+			self.variables[key] = value
+			
 			
 	def load_columns(self, h5data):
 		#print h5data
@@ -1119,6 +1133,8 @@ class Hdf5MemoryMapped(MemoryMapped):
 				if hasattr(column, "dtype"):
 					#print column, column.shape
 					offset = column.id.get_offset() 
+					if offset is None:
+						raise Exception, "columns doesn't really exist in hdf5 file"
 					shape = column.shape
 					if len(shape) == 1:
 						self.addColumn(column_name, offset, len(column), dtype=column.dtype)
@@ -1235,14 +1251,14 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 				if name in h5file["Header"]:
 					value = h5file["Header"].attrs[name]
 					logger.debug("property[{name!r}] = {value}".format(**locals()))
-					self.properties[name] = value
-					self.property_names.append(name)
+					self.variables[name] = value
+					#self.property_names.append(name)
 		
 		name = "particle_type"
 		value = particleType
 		logger.debug("property[{name}] = {value}".format(**locals()))
-		self.properties[name] = value
-		self.property_names.append(name)
+		self.variables[name] = value
+		#self.property_names.append(name)
 
 	@classmethod
 	def can_open(cls, path, *args):

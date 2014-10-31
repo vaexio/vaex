@@ -1275,6 +1275,8 @@ class Vaex(QtGui.QMainWindow):
 							type, key = key.split(":", 1)
 							if type == "vcol":
 								dataset.virtual_columns[key] = value
+							elif type == "var":
+								dataset.variables[key] = value
 							else:
 								error("unknown expression, %s, type %s not recognized" % (type + ":" + key, type))
 						else:
