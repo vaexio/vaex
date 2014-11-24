@@ -43,9 +43,9 @@ from qt import *
 import sys
 
 if getattr(sys, 'frozen', False):
-    application_path = os.path.dirname(sys.executable)
+	application_path = os.path.dirname(sys.executable)
 elif __file__:
-    application_path = os.path.dirname(__file__)
+	application_path = os.path.dirname(__file__)
 
 print "application path", application_path
 def iconfile(name):
@@ -442,7 +442,7 @@ class PlotDialog(QtGui.QDialog):
 		super(PlotDialog, self).__init__(parent)
 		print "aap"
 		self.options = options
-		
+
 		if "fraction" in self.options:
 			dataset.setFraction(float(self.options["fraction"]))
 		
@@ -2858,7 +2858,7 @@ class HistogramPlotDialog(PlotDialog):
 		elapsed = time.time() - info.time_start
 		self.message("computation at %.1f%% (%.2fs)" % (info.percentage, elapsed), index=20)
 		QtCore.QCoreApplication.instance().processEvents()
-		
+
 		self.expression_error = False
 		N = self.gridsize
 		mask = self.dataset.mask
@@ -2869,7 +2869,7 @@ class HistogramPlotDialog(PlotDialog):
 				self.counts_weights = np.zeros(N, dtype=np.float64)
 			else:
 				self.counts_weights = None
-			
+
 			if mask is not None:
 				self.counts_mask = np.zeros(N, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
 				self.counts_weights_mask = None
@@ -2878,7 +2878,7 @@ class HistogramPlotDialog(PlotDialog):
 			else:
 				self.counts_mask = None
 				self.counts_weights_mask = None
-		
+
 		#return
 		xmin, xmax = self.ranges[0]
 		if self.ranges_show[0] is None:
@@ -2890,7 +2890,7 @@ class HistogramPlotDialog(PlotDialog):
 			args = (block, self.counts, xmin, xmax)
 			#gavi.histogram.hist1d(block, self.counts, xmin, xmax)
 			if 1:
-				
+
 				sub_counts = np.zeros((self.pool.nthreads, N), dtype=np.float64)
 				def subblock(index, sub_i1, sub_i2):
 					subspacefind.histogram1d(block[sub_i1:sub_i2], None, sub_counts[index], xmin, xmax)
@@ -2898,7 +2898,7 @@ class HistogramPlotDialog(PlotDialog):
 				self.counts += np.sum(sub_counts, axis=0)
 			else:
 				subspacefind.histogram1d(block, None, self.counts, xmin, xmax)
-			
+
 			if weights_block is not None:
 				args = (block, self.counts, xmin, xmax, weights_block)
 				#gavi.histogram.hist1d_weights(block, self.counts_weights, weights_block, xmin, xmax)
@@ -2908,7 +2908,7 @@ class HistogramPlotDialog(PlotDialog):
 					subspacefind.histogram1d(block[sub_i1:sub_i2], weights_block[sub_i1:sub_i2], sub_counts[index], xmin, xmax)
 				self.pool.run_blocks(subblock, info.size)
 				self.counts_weights += np.sum(sub_counts, axis=0)
-				
+
 		except:
 			logger.exception("error with hist1d, arguments: %r" % (args,))
 		if mask is not None:
@@ -2919,7 +2919,7 @@ class HistogramPlotDialog(PlotDialog):
 				subspacefind.histogram1d(subset[sub_i1:sub_i2], None, sub_counts[index], xmin, xmax)
 			self.pool.run_blocks(subblock, len(subset))
 			self.counts_mask += np.sum(sub_counts, axis=0)
-			
+
 			if weights_block is not None:
 				subset_weights = weights_block[mask[info.i1:info.i2]]
 				#gavi.histogram.hist1d_weights(subset, self.counts_weights_mask, subset_weights, xmin, xmax)
@@ -2928,9 +2928,9 @@ class HistogramPlotDialog(PlotDialog):
 					subspacefind.histogram1d(subset[sub_i1:sub_i2], subset_weights[sub_i1:sub_i2], sub_counts[index], xmin, xmax)
 				self.pool.run_blocks(subblock, len(subset))
 				self.counts_mask += np.sum(sub_counts, axis=0)
-				
+
 		print "it took", time.time()-t0
-		
+
 		index = self.dataset.selected_row_index
 		if index is not None:
 			if index >= info.i1 and index < info.i2: # selected point is in this block

@@ -17,6 +17,7 @@ Veax is a graphical tool to visualize and explore large tabular datasets. It mai
 Main features:
 
 * render histograms and density plots (2d histograms), with weights (for average quantities)
+* volume rendering for 3d density plots (experimental at the moment)
 * overplot vectors for for instance velocity fields or proper motions.
 * use custom expressions, e.g. log(sqrt(x**2+y**2)), calculated on the fly
 * publish quality output (using matplotlib)
@@ -25,6 +26,7 @@ Main features:
 * data formats
 
  * hdf5: gadget, our own format (in the future: other formats can be supported with a few lines of code)
+ * hdf5 from `Amuse <http://amusecode.org/>`_. 
  * fits bintable
  * VOtable over SAMP
  * gadget native format (only singular file supported)
@@ -35,6 +37,12 @@ Main features:
 * exporting data: the selected data can be exported for further analysis
 * undo/redo: a mistake in selection or navigation can quickly be undone using undo
 
+
+.. raw:: html
+
+    <iframe width="560" height="315" src="//www.youtube.com/embed/oE5jN4zuhH0?vq=hd720" frameborder="0" allowfullscreen></iframe>
+    <iframe width="560" height="315" src="//www.youtube.com/embed/An33dYPmgKI" frameborder="0" allowfullscreen></iframe>
+    <iframe width="560" height="315" src="//www.youtube.com/embed/4HHa52Gxn9w" frameborder="0" allowfullscreen></iframe>
 
 
 Quickstart
