@@ -5,7 +5,7 @@ import platform
 darwin = "darwin" in platform.system().lower()
 frozen = getattr(sys, 'frozen', False)
 #print darwin, platform.system()
-if darwin:
+if darwin and frozen: # on newer osx versions we get a lot of broken pipes when writing to stdout
 	sys.stdout = open('vaex.stdout.txt', 'w')
 	sys.stderr = open('vaex.stderr.txt', 'w')
 
@@ -76,7 +76,7 @@ from gavi.samp import Samp
 
 
 custom = None
-path = os.path.expanduser('~/.medavaex/custom.py')
+custompath = path = os.path.expanduser('~/.vaex/custom.py')
 print path
 if os.path.exists(path):
 	customModule = imp.load_source('gavi.custom', path)
@@ -1231,11 +1231,21 @@ class Vaex(QtGui.QMainWindow):
 			if custom is not None:
 				custom.loadDatasets(self.list)
 				custom.openPlots(self.right)
-			elif frozen:
+			elif 1:#frozen:
 				for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 					self.list.addGadgetHdf5(os.path.join(application_path, 'data/disk-galaxy.hdf5'), name, index)
 				self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
-
+		for pluginpath in [os.path.expanduser('~/.vaex/plugin')]:
+			print "pluginpath", pluginpath
+			if os.path.exists(pluginpath):
+				import glob
+				paths = glob.glob(pluginpath + "/*.py")
+				for path in paths:
+					print "plugin file", path
+					filename = os.path.basename(path)
+					name = os.path.splitext(filename)[0]
+					imp.load_source('vaexuser.plugin.' + name, path)
+		
 		self.open_generators = [] # for reference counts
 		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "Gadget HDF5 file", "*.hdf5"))
 		self.action_open_hdf5_gavi.triggered.connect(self.openGenerator(self.gaia_hdf5, "Gaia HDF5 file", "*.hdf5"))

@@ -9,7 +9,7 @@ class HistogramAndTransfer(QtGui.QWidget):
 		super(HistogramAndTransfer, self).__init__(parent)
 		self.colormap = colormap
 		self.grid = None
-		self.setMinimumHeight(32+100)
+		self.setMinimumHeight(32+100*0)
 		self.function_count = function_count
 		self.function_opacities = [0.1/2**(function_count-1-k) for k in range(function_count)] 
 		self.function_sigmas = [0.05] * function_count
@@ -50,7 +50,7 @@ class HistogramAndTransfer(QtGui.QWidget):
 		mapping = matplotlib.cm.ScalarMappable(cmap=self.colormap)
 		rect = self.size()
 		Nx, Ny = rect.width(), 32
-		x = -np.arange(Nx) # TODO why are the colors reversed?
+		x = np.arange(Nx)/(Nx+0.) # TODO why are the colors reversed?
 		x = np.vstack([x]*Ny)
 		
 		rgba = mapping.to_rgba(x, bytes=True)
@@ -79,7 +79,7 @@ class HistogramAndTransfer(QtGui.QWidget):
 			nx = x / (Nx-1.)
 			y = np.exp(-((nx-self.function_means[i])/self.function_sigmas[i])**2) * (np.log10(self.function_opacities[i])+3)/3 * 32.
 			x = x.astype(np.int32)
-			y = 100+32-y.astype(np.int32)
+			y = 100*0+32-y.astype(np.int32)
 			polygon = QtGui.QPolygon(map(lambda x: QtCore.QPoint(*x), zip(x, y)))
 			painter.drawPolyline(polygon)
 		

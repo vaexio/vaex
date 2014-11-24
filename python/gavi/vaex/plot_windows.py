@@ -10,6 +10,7 @@ from gavi.multithreading import ThreadPool
 import gavi.vaex.volumerendering
 from gavi.vaex import widgets 		
 
+from operator import itemgetter
 import scipy.ndimage
 import os
 import gavi
@@ -22,7 +23,11 @@ import gavi.events
 import gavi.vaex.undo as undo
 import gavi.kld
 import numexpr as ne
-
+import gavi.vaex.plugin as plugin
+import gavi.vaex.plugin.zoom
+import gavi.vaex.plugin.vector3d
+import gavi.vaex.plugin.transferfunction
+from gavi.vaex.grids import Grids
 
 from numba import jit
 
@@ -42,21 +47,7 @@ from qt import *
 
 import sys
 
-if getattr(sys, 'frozen', False):
-	application_path = os.path.dirname(sys.executable)
-elif __file__:
-	application_path = os.path.dirname(__file__)
-
-print "application path", application_path
-def iconfile(name):
-	for dirname in ["./python/gavi", ".", os.path.dirname(gavi.__file__), os.path.join(application_path), os.path.join(application_path, "..")] :
-		path = os.path.join(dirname, "icons", name+".png")
-		if os.path.exists(path):
-			print "icon path:", path
-			return path
-		else:
-			print "path", path, "does not exist"
-	return path
+from gavi.icons import iconfile
 
 @jit(nopython=True)
 def range_check(block, mask, xmin, xmax):
@@ -417,7 +408,7 @@ class Queue(object):
 			if counter < self.counter:
 				pass # ignore, more events coming
 			else:
-				print ("CALL " + self.name + " ") * 100
+				#print ("CALL " + self.name + " ") * 100
 				callable()
 		callable = functools.partial(callable, *args, **kwargs)
 		self.counter += 1
@@ -438,6 +429,15 @@ class PlotDialog(QtGui.QDialog):
 	def __repr__(self):
 		return "<%s at 0x%x expr=%r>" % (self.__class__.__name__, id(self), self.expressions) 
 	
+	def plug_toolbar(self, callback, order):
+		self.plugin_queue_toolbar.append((callback, order))
+		
+	def plug_page(self, callback, pagename, pageorder, order):
+		self.plugin_queue_page.append((callback, pagename, pageorder, order))
+
+	def get_settings(self):
+		return dict(self.options)
+
 	def __init__(self, parent, jobsManager, dataset, expressions, axisnames, width=5, height=4, dpi=100, **options):
 		super(PlotDialog, self).__init__(parent)
 		print "aap"
@@ -451,12 +451,24 @@ class PlotDialog(QtGui.QDialog):
 		self.jobsManager = jobsManager
 		self.dataset = dataset
 		self.axisnames = axisnames
-		
 		self.pool = ThreadPool()
-		
 		self.expressions = expressions
 		self.dimensions = len(self.expressions)
+		self.grids = Grids(self.dataset, self.pool, *self.expressions)
+
+		# create plugins
+		self.plugin_queue_toolbar = [] # list of tuples (callback, order)
+		self.plugin_queue_page = []
+		print gavi.vaex.plugin.PluginPlot.registry
+		print "$" * 200
+		print self.__class__, gavi.vaex.plugin.transferfunction.TransferFunctionPlugin.useon(self.__class__)
+		self.plugins = [cls(self) for cls in gavi.vaex.plugin.PluginPlot.registry if cls.useon(self.__class__)]
+		self.plugins_map = {plugin.name:plugin for plugin in self.plugins}
+		#self.plugin_zoom = plugin.zoom.ZoomPlugin(self)
 		
+		self.gridsize_vector = 16
+
+
 		if self.dimensions == 3:
 			self.resize(800+400,700)
 		else:
@@ -475,6 +487,9 @@ class PlotDialog(QtGui.QDialog):
 		self.update_counter = 0
 		self.t_0 = 0
 		self.t_last = 0
+
+		self.shortcuts = []
+
 		
 		self.gridsize = eval(self.options.get("gridsize", "512/2"))
 		self.xoffset, self.yoffset = 0, 0
@@ -558,6 +573,9 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.canvas.mpl_connect('resize_event', self.on_resize_event)
 		#self.pinch_ranges_show = [None for i in range(self.dimension)]
+
+
+
 		
 	def on_resize_event(self, event):
 		if not self.action_mini_mode_ultra.isChecked():
@@ -621,266 +639,50 @@ class PlotDialog(QtGui.QDialog):
 	def add_pages(self, toolbox):
 		pass
 
-	def fill_page_volume_rendering(self, frame):
-		layout = self.layout_frame_options_volume_rendering = QtGui.QGridLayout()
-		frame.setLayout(self.layout_frame_options_volume_rendering)
-		layout.setSpacing(0)
-		layout.setContentsMargins(0,0,0,0)
-		layout.setAlignment(QtCore.Qt.AlignTop)
-		
-		self.button_orbit = QtGui.QPushButton("orbit", self)
-		self.button_orbit.setCheckable(True)
-		self.button_orbit.setAutoDefault(False)
-		layout.addWidget(self.button_orbit, 0, 1)
-		def on_toggle_orbit(checked, button=self.button_orbit):
-			if checked: #button.isChecked
-				self.widget_volume.orbit_start()
-			else:
-				self.widget_volume.orbit_stop()
-		self.button_orbit.toggled.connect(on_toggle_orbit)
-		layout.setRowMinimumHeight(1, 8)
-		
-		self.tool = widgets.HistogramAndTransfer(frame, self.colormap)
-		#self.tool.setMinimumHeight(100)
-		layout.addWidget(self.tool, 2, 1)
 
-		
-		self.slider_transfer_functions_mean = []
-		self.slider_transfer_functions_signa = []
-		self.slider_transfer_functions_opacity = []
-		
-		row = 3
-		for i in range(self.tool.function_count):
-			
-			#label = QtGui.QLabel("", frame)
-			#layout.addWidget(label, row, 0, 1, 2)
-			#row += 1
-
-			label_mean = QtGui.QLabel("mean: ", frame)
-			label_mean_value = QtGui.QLabel("", frame)
-			label_sigma = QtGui.QLabel("sigma: ", frame)
-			label_sigma_value = QtGui.QLabel("", frame)
-			label_opacity = QtGui.QLabel("opacity: ", frame)
-			label_opacity_value = QtGui.QLabel("", frame)
-			#label2 = QtGui.QLabel("sigma", frame)
-			
-			slider_mean = QtGui.QSlider(frame)
-			slider_mean.setOrientation(QtCore.Qt.Horizontal)
-			slider_sigma = QtGui.QSlider(frame)
-			slider_sigma.setOrientation(QtCore.Qt.Horizontal)
-			slider_opacity = QtGui.QSlider(frame)
-			slider_opacity.setOrientation(QtCore.Qt.Horizontal)
-
-			layout.addWidget(label_mean, row, 0)
-			layout.addWidget(slider_mean, row, 1)
-			layout.addWidget(label_mean_value, row, 2)
-			row += 1
-			
-			layout.addWidget(label_sigma, row, 0)
-			layout.addWidget(slider_sigma, row, 1)
-			layout.addWidget(label_sigma_value, row, 2)
-			row += 1
-			
-			layout.addWidget(label_opacity, row, 0)
-			layout.addWidget(slider_opacity, row, 1)
-			layout.addWidget(label_opacity_value, row, 2)
-			row += 1
-			
-			self.slider_transfer_functions_mean.append(slider_mean)
-			slider_mean.setRange(0, 1000)
-			slider_sigma.setRange(0, 1000)
-			slider_opacity.setRange(0, 1000)
-			def update_text(i=i, slider_mean=slider_mean, slider_sigma=slider_sigma, slider_opacity=slider_opacity, label_mean_value=label_mean_value, label_sigma_value=label_sigma_value, label_opacity_value=label_opacity_value):
-				#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-				label_mean_value.setText(" {0:.3g}".format(self.tool.function_means[i]))
-				label_sigma_value.setText(" {0:.3g}".format(self.tool.function_sigmas[i]))
-				label_opacity_value.setText(" {0:.3g}".format(self.tool.function_opacities[i]))
-			def on_mean_change(index, i=i, update_text=update_text):
-				value = index/1000.
-				self.tool.function_means[i] = value
-				self.widget_volume.function_means[i] = value
-				self.widget_volume.update()
-				update_text()
-				self.tool.update()
-			def on_sigma_change(index, i=i, update_text=update_text):
-				value = index/1000.
-				self.tool.function_sigmas[i] = value
-				self.widget_volume.function_sigmas[i] = value
-				self.widget_volume.update()
-				update_text()
-				self.tool.update()
-			def on_opacity_change(index, i=i, update_text=update_text):
-				value = index/1000.
-				value = 10**((value-1)*3)
-				self.tool.function_opacities[i] = value
-				self.widget_volume.function_opacities[i] = value
-				self.widget_volume.update()
-				update_text()
-				self.tool.update()
-			self.widget_volume.function_opacities[i] = self.tool.function_opacities[i]
-			self.widget_volume.function_sigmas[i] = self.tool.function_sigmas[i]
-			self.widget_volume.function_means[i] = self.tool.function_means[i]
-			slider_mean.valueChanged.connect(on_mean_change)
-			slider_sigma.valueChanged.connect(on_sigma_change)
-			slider_opacity.valueChanged.connect(on_opacity_change)
-			update_text()
-			slider_mean.setValue(int(self.tool.function_means[i] * 1000))
-			slider_sigma.setValue(int(self.tool.function_sigmas[i] * 2000))
-			slider_opacity.setValue(int((np.log10(self.tool.function_opacities[i])/3+1) * 1000))
-			
-			layout.setRowMinimumHeight(row, 8)
-			row += 1
-			
-		label_brightness = QtGui.QLabel("brightness: ", frame)
-		label_brightness_value = QtGui.QLabel("", frame)
-		slider_brightness = QtGui.QSlider(frame)
-		slider_brightness.setOrientation(QtCore.Qt.Horizontal)
-		slider_brightness.setRange(0, 1000)
-		
-		layout.addWidget(label_brightness, row, 0)
-		layout.addWidget(slider_brightness, row, 1)
-		layout.addWidget(label_brightness_value, row, 2)
-		row += 1
-
-		def update_text_brightness(i=i, label_brightness_value=label_brightness_value):
-			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-			label_brightness_value.setText(" {0:.3g}".format(self.widget_volume.brightness))
-		def on_brightness_change(index, update_text_brightness=update_text_brightness):
-			value = 10**(2*(index/1000.*2-1.))
-			print value
-			self.widget_volume.brightness = value
-			self.widget_volume.update()
-			update_text_brightness()
-			self.tool.update()
-		slider_brightness.setValue(int((np.log10(self.widget_volume.brightness)/2.+1)/2.*1000))
-		update_text_brightness()
-		slider_brightness.valueChanged.connect(on_brightness_change)
-
-		layout.setRowMinimumHeight(row, 8)
-		row += 1
-		
-		label_min_level = QtGui.QLabel("min_level: ", frame)
-		label_min_level_value = QtGui.QLabel("", frame)
-		slider_min_level = QtGui.QSlider(frame)
-		slider_min_level.setOrientation(QtCore.Qt.Horizontal)
-		slider_min_level.setRange(0, 1000)
-		
-		layout.addWidget(label_min_level, row, 0)
-		layout.addWidget(slider_min_level, row, 1)
-		layout.addWidget(label_min_level_value, row, 2)
-		row += 1
-
-		def update_text_min_level(i=i, label_min_level_value=label_min_level_value):
-			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-			label_min_level_value.setText(" {0:.3g}".format(self.widget_volume.min_level))
-		self.handling_nested_min_max_level = False
-		def on_min_level_change(index, update_text_min_level=update_text_min_level):
-			value = index/1000.
-			print value
-			self.widget_volume.min_level = value
-			if (self.handling_nested_min_max_level is False) and (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
-				self.handling_nested_min_max_level = True
-				try:
-					delta = value - self.previous_volume_rendering_min_level
-					max_level = self.previous_volume_rendering_max_level + delta
-					slider_max_level.setValue(int(max_level*1000))
-					self.previous_volume_rendering_max_level = max_level
-				finally:
-					self.handling_nested_min_max_level = False
-					
-			self.previous_volume_rendering_min_level = value
-			self.widget_volume.update()
-			update_text_min_level()
-			self.tool.update()
-			
-		slider_min_level.setValue(int(self.widget_volume.min_level*1000))
-		update_text_min_level()
-		slider_min_level.valueChanged.connect(on_min_level_change)
-
-		
-		
-		label_max_level = QtGui.QLabel("max_level: ", frame)
-		label_max_level_value = QtGui.QLabel("", frame)
-		slider_max_level = QtGui.QSlider(frame)
-		slider_max_level.setOrientation(QtCore.Qt.Horizontal)
-		slider_max_level.setRange(0, 1000)
-		
-		layout.addWidget(label_max_level, row, 0)
-		layout.addWidget(slider_max_level, row, 1)
-		layout.addWidget(label_max_level_value, row, 2)
-		row += 1
-
-		def update_text_max_level(i=i, label_max_level_value=label_max_level_value):
-			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-			label_max_level_value.setText(" {0:.3g}".format(self.widget_volume.max_level))
-		def on_max_level_change(index, update_text_max_level=update_text_max_level):
-			value = index/1000.
-			print value
-			self.widget_volume.max_level = value
-			if (self.handling_nested_min_max_level is False) and (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
-				self.handling_nested_min_max_level = True
-				try:
-					delta = value - self.previous_volume_rendering_max_level
-					min_level = self.previous_volume_rendering_min_level + delta
-					slider_min_level.setValue(int(min_level*1000))
-					self.previous_volume_rendering_min_level = min_level
-				finally:
-					self.handling_nested_min_max_level = False
-			
-			self.widget_volume.update()
-			update_text_max_level()
-			self.previous_volume_rendering_max_level = value
-			self.tool.update()
-		slider_max_level.setValue(int(self.widget_volume.max_level*1000))
-		update_text_max_level()
-		slider_max_level.valueChanged.connect(on_max_level_change)
-
-		self.previous_volume_rendering_min_level = self.widget_volume.min_level
-		self.previous_volume_rendering_max_level = self.widget_volume.max_level
-		
-		
-		
 	def afterCanvas(self, layout):
 		
+		layout.setContentsMargins(0, 0, 0, 0)
+		layout.setSpacing(0)
+
 		self.bottomFrame = QtGui.QFrame(self)
+		layout.addWidget(self.bottomFrame, 0)
 		self.toolbox = QtGui.QToolBox(self.bottomFrame)
 		self.toolbox.setMinimumWidth(250)
-		
-		self.frame_options_main = QtGui.QFrame(self)
+
+		self.bottom_layout = QtGui.QVBoxLayout()
+		self.bottomFrame.setLayout(self.bottom_layout)
+		self.bottom_layout.addWidget(self.toolbox)
+
+
+		self.plug_page(self.page_main, "Main", 1., 1.)
+		self.plug_page(self.page_vector2d, "Vector 2d", 2., 1.)
+		self.plug_page(self.page_display, "Display", 3., 1.)
+
+		# fist get unique page orders
+		pageorders = {}
+		for callback, pagename, pageorder, order in self.plugin_queue_page:
+			pageorders[pagename] = pageorder
+		self.pages = {}
+		for pagename, order in sorted(pageorders.items(), key=itemgetter(1)):
+			page_frame = QtGui.QFrame(self)
+			self.pages[pagename] = page_frame
+			self.toolbox.addItem(page_frame, pagename)
+			logger.debug("created page: "+pagename)
+		for pagename, order in sorted(pageorders.items(), key=itemgetter(1)):
+			logger.debug("filling page: "+pagename)
+			for callback, pagename_, pageorder, order in sorted(filter(lambda x: x[1] == pagename, self.plugin_queue_page), key=itemgetter(2)):
+	 			logger.debug("filling page: "+pagename +" order=" +str(order) + " callback=" +str(callback))
+				callback(self.pages[pagename])
+
+	def page_main(self, page):
+		print "page main"
+		self.frame_options_main = page #QtGui.QFrame(self)
 		self.layout_frame_options_main =  QtGui.QVBoxLayout()
 		self.frame_options_main.setLayout(self.layout_frame_options_main)
 		self.layout_frame_options_main.setSpacing(0)
 		self.layout_frame_options_main.setContentsMargins(0,0,0,0)
 		self.layout_frame_options_main.setAlignment(QtCore.Qt.AlignTop)
-		
-		self.frame_options_visuals = QtGui.QFrame(self)
-		self.layout_frame_options_visuals =  QtGui.QVBoxLayout()
-		self.frame_options_visuals.setLayout(self.layout_frame_options_visuals)
-		self.layout_frame_options_visuals.setAlignment(QtCore.Qt.AlignTop)
-		
-		self.frame_options_vector2d = QtGui.QFrame(self)
-		self.layout_frame_options_vector2d =  QtGui.QVBoxLayout()
-		self.frame_options_vector2d.setLayout(self.layout_frame_options_vector2d)
-		self.layout_frame_options_vector2d.setSpacing(0)
-		self.layout_frame_options_vector2d.setContentsMargins(0,0,0,0)
-		self.layout_frame_options_vector2d.setAlignment(QtCore.Qt.AlignTop)
-		
-		self.grid_layout_vector = QtGui.QGridLayout()
-		self.grid_layout_vector.setColumnStretch(2, 1)
-		self.layout_frame_options_vector2d.addLayout(self.grid_layout_vector)
-		
-
-		self.toolbox.addItem(self.frame_options_main, "Main")
-		self.toolbox.addItem(self.frame_options_vector2d, "Vector 2d")
-		self.toolbox.addItem(self.frame_options_visuals, "Display")
-		self.add_pages(self.toolbox)
-
-		
-		self.bottom_layout = QtGui.QVBoxLayout()
-		self.bottomFrame.setLayout(self.bottom_layout)
-		self.bottom_layout.addWidget(self.toolbox)
-		
-		#self.form_layout = QtGui.QFormLayout()
 
 		self.button_layout = QtGui.QVBoxLayout()
 		if self.dimensions > 1:
@@ -910,12 +712,11 @@ class PlotDialog(QtGui.QDialog):
 		self.axisboxes = []
 		self.onExpressionChangedPartials = []
 		axisIndex = 0
-		
+
 		self.grid_layout = QtGui.QGridLayout()
+		self.grid_layout.setColumnStretch(2, 1)
 		#row = 0
 		self.linkButtons = []
-		self.grid_layout.setColumnStretch(2, 1)
-		self.grid_layout_vector.setColumnStretch(2, 1)
 		for axisname in self.axisnames:
 			row = axisIndex
 			axisbox = QtGui.QComboBox(self)
@@ -938,8 +739,8 @@ class PlotDialog(QtGui.QDialog):
 				functionButton.setPopupMode(QtGui.QToolButton.InstantPopup)
 				#link_action = QtGui.QAction(QtGui.QIcon(iconfile('network-connect-3')), '&Link axis', self)
 				#unlink_action = QtGui.QAction(QtGui.QIcon(iconfile('network-disconnect-2')), '&Unlink axis', self)
-				templates = ["log(%s)", "sqrt(%s)", "1/(%s)", "abs(%s)"] 
-					
+				templates = ["log(%s)", "sqrt(%s)", "1/(%s)", "abs(%s)"]
+
 				for template in templates:
 					action = QtGui.QAction(template % "...", self)
 					def add(checked=None, axis_index=axisIndex, template=template):
@@ -997,9 +798,7 @@ class PlotDialog(QtGui.QDialog):
 		row += 1
 		self.layout_frame_options_main.addLayout(self.grid_layout, 0)
 		#self.layout_frame_options_main.addLayout(self.form_layout, 0) # TODO: form layout can be removed?
-		
-		layout.addWidget(self.bottomFrame, 0)
-		
+
 		self.amplitude_box = QtGui.QComboBox(self)
 		self.amplitude_box.setEditable(True)
 		if "amplitude" in self.options:
@@ -1023,9 +822,9 @@ class PlotDialog(QtGui.QDialog):
 		self.amplitude_box.lineEdit().editingFinished.connect(self.onAmplitudeExpr)
 		self.amplitude_box.currentIndexChanged.connect(lambda _: self.onAmplitudeExpr())
 		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
-		
+
 		row += 1
-		
+
 		if self.dimensions > 1:
 			process_colormaps()
 			self.colormap_box = QtGui.QComboBox(self)
@@ -1045,6 +844,11 @@ class PlotDialog(QtGui.QDialog):
 				colormap_name = str(self.colormap_box.itemText(index))
 				logger.debug("selected colormap: %r" % colormap_name)
 				self.colormap = colormap_name
+				if hasattr(self, "widget_volume"):
+					self.plugins_map["transferfunction"].tool.colormap = self.colormap
+					self.plugins_map["transferfunction"].tool.update()
+					self.widget_volume.colormap_index = index
+					self.widget_volume.update()
 				self.plot()
 			cmapnames = "cmap colormap colourmap".split()
 			if not set(cmapnames).isdisjoint(self.options):
@@ -1062,9 +866,9 @@ class PlotDialog(QtGui.QDialog):
 				self.colormap_box.setCurrentIndex(index)
 				self.colormap = colormaps[index]
 			self.colormap_box.currentIndexChanged.connect(onColorMap)
-			
+
 		row += 1
-		
+
 		self.title_box = QtGui.QComboBox(self)
 		self.title_box.setEditable(True)
 		self.title_box.addItems([""] + self.getTitleExpressionList())
@@ -1075,7 +879,7 @@ class PlotDialog(QtGui.QDialog):
 		self.title_box.currentIndexChanged.connect(lambda _: self.onTitleExpr())
 		self.title_expression = str(self.title_box.lineEdit().text())
 		row += 1
-		
+
 		self.weight_box = QtGui.QComboBox(self)
 		self.weight_box.setEditable(True)
 		self.weight_box.addItems([self.options.get("weight", "")] + self.getExpressionList())
@@ -1087,9 +891,64 @@ class PlotDialog(QtGui.QDialog):
 		self.weight_expression = str(self.weight_box.lineEdit().text())
 		if len(self.weight_expression.strip()) == 0:
 			self.weight_expression = None
+
+	def page_display(self, page):
 		
-		row += 1
+		self.frame_options_visuals = page#QtGui.QFrame(self)
+		self.layout_frame_options_visuals =  QtGui.QVBoxLayout()
+		self.frame_options_visuals.setLayout(self.layout_frame_options_visuals)
+		self.layout_frame_options_visuals.setAlignment(QtCore.Qt.AlignTop)
+
+		if self.dimensions > 1:
+			if 0: # TODO: reimplement contrast
+				self.action_group_constrast = QtGui.QActionGroup(self)
+				self.action_image_contrast = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
+				self.action_image_contrast_auto = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
+				self.toolbar2.addAction(self.action_image_contrast)
+
+				self.action_image_contrast.triggered.connect(self.onActionContrast)
+				self.contrast_list = [self.contrast_none, functools.partial(self.contrast_none_auto, percentage=0.1) , functools.partial(self.contrast_none_auto, percentage=1), functools.partial(self.contrast_none_auto, percentage=5)]
+			self.contrast = self.contrast_none
+
+			if 1:
+				self.slider_gamma = QtGui.QSlider(self)
+				self.label_gamma = QtGui.QLabel("...", self.frame_options_visuals)
+				self.layout_frame_options_visuals.addWidget(self.label_gamma)
+				self.layout_frame_options_visuals.addWidget(self.slider_gamma)
+				self.slider_gamma.setRange(-100, 100)
+				self.slider_gamma.valueChanged.connect(self.onGammaChange)
+				self.slider_gamma.setValue(0)
+				self.slider_gamma.setOrientation(QtCore.Qt.Horizontal)
+				#self.slider_gamma.setMaximumWidth(100)
+			self.image_gamma = 1.
+			self.update_gamma_label()
+
+			self.image_invert = False
+			#self.action_image_invert = QtGui.QAction(QtGui.QIcon(iconfile('direction')), 'Invert image', self)
+			#self.action_image_invert.setCheckable(True)
+			#self.action_image_invert.triggered.connect(self.onActionImageInvert)
+			#self.toolbar2.addAction(self.action_image_invert)
+			self.button_image_invert = QtGui.QPushButton(QtGui.QIcon(iconfile('direction')), 'Invert image', self.frame_options_visuals)
+			self.button_image_invert.setCheckable(True)
+			self.button_image_invert.setAutoDefault(False)
+			self.button_image_invert.clicked.connect(self.onActionImageInvert)
+			self.layout_frame_options_visuals.addWidget(self.button_image_invert)
+
+
+	def page_vector2d(self, page):
+		self.frame_options_vector2d = page #QtGui.QFrame(self)
+		self.layout_frame_options_vector2d =  QtGui.QVBoxLayout()
+		self.frame_options_vector2d.setLayout(self.layout_frame_options_vector2d)
+		self.layout_frame_options_vector2d.setSpacing(0)
+		self.layout_frame_options_vector2d.setContentsMargins(0,0,0,0)
+		self.layout_frame_options_vector2d.setAlignment(QtCore.Qt.AlignTop)
 		
+		self.grid_layout_vector = QtGui.QGridLayout()
+		self.grid_layout_vector.setColumnStretch(2, 1)
+		self.layout_frame_options_vector2d.addLayout(self.grid_layout_vector)
+
+		row = 0
+
 		if self.dimensions > -1:
 			self.weight_x_box = QtGui.QComboBox(self)
 			self.weight_x_box.setMinimumContentsLength(10)
@@ -1109,7 +968,7 @@ class PlotDialog(QtGui.QDialog):
 							if expression in self.getExpressionList():
 								self.weight_x_box.lineEdit().setText(expression)
 								self.weight_x_expression = expression
-			
+
 			row += 1
 
 			self.weight_y_box = QtGui.QComboBox(self)
@@ -1130,21 +989,21 @@ class PlotDialog(QtGui.QDialog):
 								if expression in self.getExpressionList():
 									self.weight_y_box.lineEdit().setText(expression)
 									self.weight_y_expression = expression
-			
+
 			row += 1
 
 			self.weight_xy_box = QtGui.QComboBox(self)
 			self.weight_xy_box.setEditable(True)
-			self.weight_xy_box.addItems([self.options.get("wxy", "")] + self.getExpressionList())
+			self.weight_xy_box.addItems([self.options.get("wz", "")] + self.getExpressionList())
 			self.weight_xy_box.setMinimumContentsLength(10)
 			self.grid_layout_vector.addWidget(QtGui.QLabel("weight_xy="), row, 1)
 			self.grid_layout_vector.addWidget(self.weight_xy_box, row, 2)
 			self.weight_xy_box.lineEdit().editingFinished.connect(self.onWeightXYExpr)
 			self.weight_xy_box.currentIndexChanged.connect(lambda _: self.onWeightXYExpr())
 			self.weight_xy_expression = str(self.weight_xy_box.lineEdit().text())
-			
+
 			row += 1
-			
+
 			self.colormap_vector_box = QtGui.QComboBox(self)
 			self.colormap_vector_box.setIconSize(QtCore.QSize(16, 16))
 			model = QtGui.QStandardItemModel(self.colormap_vector_box)
@@ -1163,7 +1022,7 @@ class PlotDialog(QtGui.QDialog):
 				logger.debug("selected colormap for vector: %r" % colormap_name)
 				self.colormap_vector = colormap_name
 				self.plot()
-				
+
 			cmapnames = "cmapxy colormapxy colourmapxy".split()
 			if not set(cmapnames).isdisjoint(self.options):
 				for name in cmapnames:
@@ -1180,8 +1039,18 @@ class PlotDialog(QtGui.QDialog):
 				self.colormap_vector_box.setCurrentIndex(index)
 				self.colormap_vector = colormaps[index]
 			self.colormap_vector_box.currentIndexChanged.connect(onColorMap)
-			
+
 			row += 1
+
+		#self.toolbox.addItem(self.frame_options_main, "Main")
+		#self.toolbox.addItem(self.frame_options_vector2d, "Vector 2d")
+		#self.toolbox.addItem(self.frame_options_visuals, "Display")
+		#self.add_pages(self.toolbox)
+
+		
+
+		#self.form_layout = QtGui.QFormLayout()
+
 
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 		#self.setStatusBar(self.status_bar)
@@ -1198,99 +1067,45 @@ class PlotDialog(QtGui.QDialog):
 		#self.form_layout.setContentsMargins(0, 0, 0, 0)
 		#self.form_layout.setSpacing(0)
 		self.grid_layout.setContentsMargins(0, 0, 0, 0)
-		layout.setContentsMargins(0, 0, 0, 0)
-		layout.setSpacing(0)
 		self.messages = {}
 		#super(self.__class__, self).afterLayout()
 		
-		
-		if self.dimensions > 1:
-			if 0: # TODO: reimplement contrast
-				self.action_group_constrast = QtGui.QActionGroup(self)
-				self.action_image_contrast = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
-				self.action_image_contrast_auto = QtGui.QAction(QtGui.QIcon(iconfile('contrast')), '&Contrast', self)
-				self.toolbar2.addAction(self.action_image_contrast)
-				
-				self.action_image_contrast.triggered.connect(self.onActionContrast)
-				self.contrast_list = [self.contrast_none, functools.partial(self.contrast_none_auto, percentage=0.1) , functools.partial(self.contrast_none_auto, percentage=1), functools.partial(self.contrast_none_auto, percentage=5)]
-			self.contrast = self.contrast_none
-
-			if 1:
-				self.slider_gamma = QtGui.QSlider(self)
-				self.label_gamma = QtGui.QLabel("...", self.frame_options_visuals)
-				self.layout_frame_options_visuals.addWidget(self.label_gamma)
-				self.layout_frame_options_visuals.addWidget(self.slider_gamma)
-				self.slider_gamma.setRange(-100, 100)
-				self.slider_gamma.valueChanged.connect(self.onGammaChange)
-				self.slider_gamma.setValue(0)
-				self.slider_gamma.setOrientation(QtCore.Qt.Horizontal)
-				#self.slider_gamma.setMaximumWidth(100)
-			self.image_gamma = 1.
-			self.update_gamma_label()
-			
-			self.image_invert = False
-			#self.action_image_invert = QtGui.QAction(QtGui.QIcon(iconfile('direction')), 'Invert image', self)
-			#self.action_image_invert.setCheckable(True)
-			#self.action_image_invert.triggered.connect(self.onActionImageInvert)
-			#self.toolbar2.addAction(self.action_image_invert)
-			self.button_image_invert = QtGui.QPushButton(QtGui.QIcon(iconfile('direction')), 'Invert image', self.frame_options_visuals)
-			self.button_image_invert.setCheckable(True)
-			self.button_image_invert.setAutoDefault(False)
-			self.button_image_invert.clicked.connect(self.onActionImageInvert)
-			self.layout_frame_options_visuals.addWidget(self.button_image_invert)
-		
 
 
-		def trigger(action):
-			def call(action=action):
-				print "toggle"
-				action.toggle()
-				action.trigger()
-			return call
-		self.shortcuts = []
-		def addShortCut(action, key):
-			if action.isEnabled():
-				print "key", key
-				shortcut = QtGui.QShortcut(QtGui.QKeySequence(key), self)
-				shortcut.activated.connect(trigger(action))
-				self.shortcuts.append(shortcut)
-		addShortCut(self.action_fullscreen, "F")
-		addShortCut(self.action_toolbar_toggle, "T")
-		addShortCut(self.action_move, "M")
-		addShortCut(self.action_pick, "P")
-		addShortCut(self.action_mini_mode_normal, "C")
-		addShortCut(self.action_mini_mode_ultra, "U")
-		addShortCut(self.action_lasso, "L")
-		addShortCut(self.action_xrange, "x")
-		addShortCut(self.action_yrange, "y")
-		addShortCut(self.action_select_none, "n")
-		addShortCut(self.action_select_invert, "i")
-		addShortCut(self.action_select_mode_and, "&")
-		addShortCut(self.action_select_mode_or, "|")
-		addShortCut(self.action_select_mode_replace, "=")
-		addShortCut(self.action_zoom_rect,"Z")
-		addShortCut(self.action_zoom_x,"Alt+X")
-		addShortCut(self.action_zoom_y,"Alt+Y")
-		addShortCut(self.action_zoom_in,"+")
-		addShortCut(self.action_zoom_out,"-")
-		addShortCut(self.action_zoom_fit, "0")
+		self.add_shortcut(self.action_fullscreen, "F")
+		self.add_shortcut(self.action_toolbar_toggle, "T")
+		self.add_shortcut(self.action_move, "M")
+		self.add_shortcut(self.action_pick, "P")
+		self.add_shortcut(self.action_mini_mode_normal, "C")
+		self.add_shortcut(self.action_mini_mode_ultra, "U")
+		self.add_shortcut(self.action_lasso, "L")
+		self.add_shortcut(self.action_xrange, "x")
+		self.add_shortcut(self.action_yrange, "y")
+		self.add_shortcut(self.action_select_none, "n")
+		self.add_shortcut(self.action_select_invert, "i")
+		self.add_shortcut(self.action_select_mode_and, "&")
+		self.add_shortcut(self.action_select_mode_or, "|")
+		self.add_shortcut(self.action_select_mode_replace, "=")
 
-		addShortCut(self.action_undo, "Ctrl+Z")
-		addShortCut(self.action_redo, "Alt+Y")
+		self.add_shortcut(self.action_undo, "Ctrl+Z")
+		self.add_shortcut(self.action_redo, "Alt+Y")
 
-		addShortCut(self.action_display_mode_both, "1")
-		addShortCut(self.action_display_mode_full, "2")
-		addShortCut(self.action_display_mode_selection, "3")
-		addShortCut(self.action_display_mode_both_contour, "4")
-		addShortCut(self.action_res_1,"Alt+1")
-		addShortCut(self.action_res_2,"Alt+2")
-		addShortCut(self.action_res_3,"Alt+3")
-		addShortCut(self.action_res_4,"Alt+4")
-		addShortCut(self.action_res_5,"Alt+5")
+		self.add_shortcut(self.action_display_mode_both, "1")
+		self.add_shortcut(self.action_display_mode_full, "2")
+		self.add_shortcut(self.action_display_mode_selection, "3")
+		self.add_shortcut(self.action_display_mode_both_contour, "4")
+		self.add_shortcut(self.action_res_1,"Alt+1")
+		self.add_shortcut(self.action_res_2,"Alt+2")
+		self.add_shortcut(self.action_res_3,"Alt+3")
+		self.add_shortcut(self.action_res_4,"Alt+4")
+		self.add_shortcut(self.action_res_5,"Alt+5")
 		
 		#if "zoom" in self.options:
 		#	factor = eval(self.options["zoom"])
 		#	self.zoom(factor)
+		if "lim" in self.options:
+			for i in range(self.dimensions):
+				self.ranges[i] = eval(self.options["lim"])
 		if "xlim" in self.options:
 			self.ranges[0] = eval(self.options["xlim"])
 		if "ylim" in self.options:
@@ -1309,6 +1124,19 @@ class PlotDialog(QtGui.QDialog):
 
 		self.first_time = True
 		self.checkUndoRedo()
+	
+	def add_shortcut(self, action, key):
+		def trigger(action):
+			def call(action=action):
+				print "toggle"
+				action.toggle()
+				action.trigger()
+			return call
+		if action.isEnabled():
+			print "key", key
+			shortcut = QtGui.QShortcut(QtGui.QKeySequence(key), self)
+			shortcut.activated.connect(trigger(action))
+			self.shortcuts.append(shortcut)
 		
 	def checkUndoRedo(self):
 		self.action_undo.setEnabled(self.undoManager.can_undo())
@@ -1515,17 +1343,36 @@ class PlotDialog(QtGui.QDialog):
 				#self.ranges[axisIndex] = [min(self.ranges[axisIndex][0], np.nanmin(block)), max(self.ranges[axisIndex][1], np.nanmax(block)),]
 			print "min/max for axis", axisIndex, self.ranges[axisIndex]
 			if info.last:
+				print "done with ranges", axisIndex, self.ranges[axisIndex]
+				self.grids.ranges[axisIndex] = list(self.ranges[axisIndex])
+				if self.ranges_show[axisIndex] is None:
+					self.ranges_show[axisIndex] = self.ranges[axisIndex]
 				self.message("min/max[%d] %.2fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
 				self.message(None, index=-1) # clear error msg
 
 		for axisIndex in range(self.dimensions):
+			print "axis", axisIndex, self.ranges[axisIndex]
 			if self.ranges[axisIndex] is None:
+				print "is None, so lets compute"
 				self.jobsManager.addJob(0, functools.partial(calculate_range, axisIndex=axisIndex), self.dataset, self.expressions[axisIndex], **self.getVariableDict())
+			else:
+				self.grids.ranges[axisIndex] = list(self.ranges[axisIndex])
+				if self.ranges_show[axisIndex] is None:
+					self.ranges_show[axisIndex] = self.ranges[axisIndex]
 		#if self.weight_expression is None or len(self.weight_expression.strip()) == 0:
 		#	self.jobsManager.addJob(1, self.calculate_visuals, self.dataset, *self.expressions, **self.getVariableDict())
 		#else:
 		all_expressions = self.expressions + [self.weight_expression, self.weight_x_expression, self.weight_y_expression, self.weight_xy_expression]
-		self.jobsManager.addJob(1, functools.partial(self.calculate_visuals, compute_counter=compute_counter), self.dataset, *all_expressions, **self.getVariableDict())
+		self.grids.set_expressions(self.expressions)
+		self.grids.define_grid("counts", self.gridsize, None)
+		self.grids.define_grid("weighted", self.gridsize, self.weight_expression)
+		self.grids.define_grid("weightx", self.gridsize_vector, self.weight_x_expression)
+		self.grids.define_grid("weighty", self.gridsize_vector, self.weight_y_expression)
+		self.grids.define_grid("weightz", self.gridsize_vector, self.weight_xy_expression)
+		self.grids.add_jobs(self.jobsManager)
+		#self.jobsManager.addJob(1, functools.partial(self.calculate_visuals, compute_counter=compute_counter), self.dataset, *all_expressions, **self.getVariableDict())
+		#for grid in self.grids:
+		#	grid.add_
 	
 	def getVariableDict(self):
 		playing = self.action_play_stop.isChecked()
@@ -1619,26 +1466,16 @@ class PlotDialog(QtGui.QDialog):
 				self.currentModes =[ matplotlib.widgets.LassoSelector(axes, functools.partial(self.onSelectLasso, axes=axes)) for axes in axes_list]
 				if useblit:
 					self.canvas.draw() # buggy otherwise
-			if action == self.action_zoom_x:
-				self.lastActionZoom = self.action_zoom_x
-				self.currentModes = [matplotlib.widgets.SpanSelector(axes, functools.partial(self.onZoomX, axes=axes), 'horizontal', useblit=useblit) for axes in axes_list] #, rectprops={"color":"blue"})
-				if useblit:
-					self.canvas.draw() # buggy otherwise
-			if action == self.action_zoom_y:
-				self.lastActionZoom = self.action_zoom_y
-				self.currentModes = [matplotlib.widgets.SpanSelector(axes, functools.partial(self.onZoomY, axes=axes), 'vertical', useblit=useblit)  for axes in axes_list] #, rectprops={"color":"blue"})
-				if useblit:
-					self.canvas.draw() # buggy otherwise
-			if action == self.action_zoom_rect:
-				self.lastActionZoom = self.action_zoom_rect
-				self.currentModes = [matplotlib.widgets.RectangleSelector(axes, functools.partial(self.onZoomRect, axes=axes), useblit=useblit) for axes in axes_list] #, rectprops={"color":"blue"})
-				if useblit:
-					self.canvas.draw() # buggy otherwise
+			#self.plugin_zoom.setMode(action)
+			for plugin in self.plugins:
+				print "plugin", plugin, plugin.name
+				plugin.setMode(action)
 		self.syncToolbar()
 				
 		#if self.action_lasso
 		#pass
 		#self.
+		
 		
 	def onPickX(self, event):
 		x, y = event.xdata, event.ydata
@@ -1825,21 +1662,6 @@ class PlotDialog(QtGui.QDialog):
 		#self.jobsManager.execute()
 		#self.setMode(self.lastAction)
 		
-	def onZoomX(self, xmin, xmax, axes):
-		
-		axisIndex = axes.xaxis_index
-		#self.ranges_show[axisIndex] = xmin, xmax
-		# move the link code to the set ranges
-		linkButton = self.linkButtons[axisIndex]
-		link = linkButton.link
-		if link:
-			logger.debug("sending link messages")
-			link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
-			link.sendPlot(linkButton)
-		action = undo.ActionZoom(self.undoManager, "zoom x [%f,%f]" % (xmin, xmax), self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show,  self.range_level, [axisIndex], ranges_show=[[xmin, xmax]])
-		action.do()
-		self.checkUndoRedo()
-			
 			
 	def set_ranges(self, axis_indices, ranges=None, ranges_show=None, range_level=None):
 		logger.debug("set axis/ranges/ranges_show: %r / %r / %r" % (axis_indices, ranges, ranges_show))
@@ -1883,142 +1705,43 @@ class PlotDialog(QtGui.QDialog):
 		self.update_counter += 1
 		QtCore.QTimer.singleShot(delay, functools.partial(update, update_counter=self.update_counter))
 		
-	def onZoomY(self, ymin, ymax, axes):
-		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
-			#self.range_level = ymin, ymax
-			action = undo.ActionZoom(self.undoManager, "change level [%f,%f]" % (ymin, ymax), self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show, self.range_level, [], range_level=[ymin, ymax])
-		else:
-			#self.ranges_show[axes.yaxis_index] = ymin, ymax
-			action = undo.ActionZoom(self.undoManager, "zoom y [%f,%f]" % (ymin, ymax), self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show, self.range_level, [axes.yaxis_index], ranges_show=[[ymin, ymax]])
-			
-		action.do()
-		self.checkUndoRedo()
-			
-	def onZoomRect(self, eclick, erelease, axes):
-		x1, y1 = (eclick.xdata, eclick.ydata)
-		x2, y2 = (erelease.xdata, erelease.ydata)
-		x = [x1, x2]
-		y = [y1, y2]
-
-		range_level = None
-		ranges_show = []
-		ranges = []
-		axis_indices = []
-		xmin_show, xmax_show = min(x), max(x)
-		ymin_show, ymax_show = min(y), max(y)
-		#self.ranges_show[axes.xaxis_index] = xmin_show, xmax_show
-		axis_indices.append(axes.xaxis_index)
-		ranges_show.append([xmin_show, xmax_show])
-		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
-			#self.range_level = ymin_show, ymax_show
-			range_level =  ymin_show, ymax_show
-			logger.debug("range refers to level: %r" % (self.range_level,))
-		else:
-			#self.ranges_show[axes.yaxis_index] = ymin_show, ymax_show
-			axis_indices.append(axes.yaxis_index)
-			ranges_show.append([ymin_show, ymax_show])
-			
-			
-		def delayed_zoom():
-			action = undo.ActionZoom(self.undoManager, "zoom to rect", self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
-			action.do()
-			self.checkUndoRedo()
-		self.queue_update(delayed_zoom, delay=300)
-		
-		
-		if 1:
-			#self.ranges_show = list(ranges_show)
-			self.ranges_show[axes.xaxis_index] = list(ranges_show[0])
-			self.ranges_show[axes.yaxis_index] = list(ranges_show[1])
-			self.check_aspect(1)
-			if self.dimensions == 2:
-				self.axes.set_xlim(self.ranges_show[0])
-				self.axes.set_ylim(self.ranges_show[1])
-			if self.dimensions == 1:
-				self.axes.set_xlim(self.ranges_show[0])
-				self.axes.set_ylim(self.range_level)
-			self.queue_redraw()
-			
-		if 0:
-
-			for axisIndex in range(self.dimensions):
-				linkButton = self.linkButtons[axisIndex]
-				link = linkButton.link
-				if link:
-					logger.debug("sending link messages")
-					link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
-					link.sendPlot(linkButton)
-			
-			#self.axes.set_xlim(self.xmin_show, self.xmax_show)
-			#self.axes.set_ylim(self.ymin_show, self.ymax_show)
-			#self.canvas.draw()
-			action = undo.ActionZoom(self.undoManager, "zoom to rect", self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
-			action.do()
-			self.checkUndoRedo()
-
-			if 0:
-				if self.autoRecalculate():
-					for i in range(self.dimensions):
-						self.ranges[i] = self.ranges_show[i]
-						self.range_level = None
-					self.compute()
-					self.jobsManager.execute()
-				else:
-					self.plot()
-		
-	def onZoomOut(self, *args):
-		axes = self.getAxesList()[0] # TODO: handle propery multiple axes
-		self.zoom(2., axes)
-		
-	def onZoomIn(self, *args):
-		axes = self.getAxesList()[0] # TODO: handle propery multiple axes
-		self.zoom(0.5, axes)
-		
-	def eval_amplitude(self, counts, counts_weights):
-		if self.amplitude_expression is not None:
-			locals = {"counts":counts, "weighted": counts_weights}
+	def eval_amplitude(self, expression, locals):
+		amplitude = None
+		locals = dict(locals)
+		if "gf" not in locals:
 			locals["gf"] = scipy.ndimage.gaussian_filter
+		counts = locals["counts"]
+		if self.dimensions == 2:
+			peak_columns = np.apply_along_axis(np.nanmax, 1, counts)
+			peak_columns[peak_columns==0] = 1.
+			peak_columns = peak_columns.reshape((1, -1))#.T
+			locals["peak_columns"] = peak_columns
 
-			#x = np.arange(0, Nvector)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.) 
-			#y = np.arange(0, Nvector)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
-			#x, y = np.meshgrid(x, y)
 
-			
-			if counts.ndim > 1:
-				peak_columns = np.apply_along_axis(np.nanmax, 1, counts)
-				peak_columns[peak_columns==0] = 1.
-				peak_columns = peak_columns.reshape((1, -1))#.T
-				locals["peak_columns"] = peak_columns
-				
-				
-				sum_columns = np.apply_along_axis(np.nansum, 1, counts)
-				sum_columns[sum_columns==0] = 1.
-				sum_columns = sum_columns.reshape((1, -1))#.T
-				locals["sum_columns"] = sum_columns
+			sum_columns = np.apply_along_axis(np.nansum, 1, counts)
+			sum_columns[sum_columns==0] = 1.
+			sum_columns = sum_columns.reshape((1, -1))#.T
+			locals["sum_columns"] = sum_columns
 
-				peak_rows = np.apply_along_axis(np.nanmax, 0, counts)
-				peak_rows[peak_rows==0] = 1.
-				peak_rows = peak_rows.reshape((-1, 1))#.T
-				locals["peak_rows"] = peak_rows
+			peak_rows = np.apply_along_axis(np.nanmax, 0, counts)
+			peak_rows[peak_rows==0] = 1.
+			peak_rows = peak_rows.reshape((-1, 1))#.T
+			locals["peak_rows"] = peak_rows
 
-				sum_rows = np.apply_along_axis(np.nansum, 0, counts)
-				sum_rows[sum_rows==0] = 1.
-				sum_rows = sum_rows.reshape((-1, 1))#.T
-				locals["sum_rows"] = sum_rows
-			
-			#locals["x"] = x#.T
-			#locals["y"] = y#.T
+			sum_rows = np.apply_along_axis(np.nansum, 0, counts)
+			sum_rows[sum_rows==0] = 1.
+			sum_rows = sum_rows.reshape((-1, 1))#.T
+			locals["sum_rows"] = sum_rows
 
-			if counts_weights is None:
-				locals["average"] = None
-			else:
-				average = counts_weights/counts
-				average[counts==0] = np.nan
-				locals["average"] = average
-			globals = np.__dict__
-			amplitude = eval(self.amplitude_expression, globals, locals)
+		weighted = locals["weighted"]
+		if weighted is None:
+			locals["average"] = None
 		else:
-			amplitude = counts
+			average = weighted/counts
+			average[counts==0] = np.nan
+			locals["average"] = average
+		globals = np.__dict__
+		amplitude = eval(expression, globals, locals)
 		return amplitude
 		
 		
@@ -2121,61 +1844,6 @@ class PlotDialog(QtGui.QDialog):
 			QtCore.QTimer.singleShot(1000, functools.partial(update, update_counter=self.update_counter))
 		
 		
-	def onZoomFit(self, *args):
-		#for i in range(self.dimensions):
-		#	self.ranges[i] = None
-		#	self.ranges_show[i] = None
-		#	self.range_level = None
-		if 0:
-			for axisIndex in range(self.dimensions):
-				linkButton = self.linkButtons[axisIndex]
-				link = linkButton.link
-				if link:
-					logger.debug("sending link messages")
-					link.sendRanges(self.ranges[axisIndex], linkButton)
-					link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
-				
-		
-		action = undo.ActionZoom(self.undoManager, "zoom to fit", self.set_ranges, range(self.dimensions), self.ranges, self.ranges_show,  self.range_level,
-						   range(self.dimensions), ranges=[None] * self.dimensions, ranges_show=[None] * self.dimensions, range_level=None)
-		action.do()
-		self.checkUndoRedo()
-		
-		if 0:
-			linked_buttons = [button for button in self.linkButtons if button.link is not None]
-			links = [button.link for button in linked_buttons]
-			if len(linked_buttons) > 0:
-				logger.debug("sending compute message")
-				gavi.dataset.Link.sendCompute(links, linked_buttons)
-			#linked_buttons[0].sendCompute(blacklist)
-		#if linkButtonLast: # only send once
-		#	link = linkButtonLast.link
-		#	logger.debug("sending compute message")
-		#	link.sendCompute(linkButton)
-
-		#self.compute()
-		#self.jobsManager.execute()
-		
-	def onZoomUse(self, *args):
-		# TODO: when this will be an option again, implement this as action
-		for i in range(self.dimensions):
-			self.ranges[i] = self.ranges_show[i]
-		self.range_level = None
-		for axisIndex in range(self.dimensions):
-			linkButton = self.linkButtons[axisIndex]
-			link = linkButton.link
-			if link:
-				logger.debug("sending link messages")
-				link.sendRanges(self.ranges[axisIndex], linkButton)
-				#link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
-		linked_buttons = [button for button in self.linkButtons if button.link is not None]
-		links = [button.link for button in linked_buttons]
-		if len(linked_buttons) > 0:
-			logger.debug("sending compute message")
-			gavi.dataset.Link.sendCompute(links, linked_buttons)
-		self.compute()
-		self.jobsManager.execute()
-
 	def autoRecalculate(self):
 		return True
 		
@@ -2385,8 +2053,8 @@ class PlotDialog(QtGui.QDialog):
 		
 		self.toolbar = QtGui.QToolBar(self)
 		self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
-		self.actionGroup = QtGui.QActionGroup(self)
-		self.actionGroupSelectMode = QtGui.QActionGroup(self)
+		self.action_group_main = QtGui.QActionGroup(self)
+		self.action_group_mainSelectMode = QtGui.QActionGroup(self)
 		
 		
 		self.action_group_display = QtGui.QActionGroup(self)
@@ -2439,20 +2107,6 @@ class PlotDialog(QtGui.QDialog):
 		self.action_select_mode_xor = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-outer-exclude')), 'Xor', self)
 		self.action_select_mode_subtract = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-left-exclude')), 'Subtract', self)
 		
-		self.action_zoom_rect = QtGui.QAction(QtGui.QIcon(iconfile('zoom')), '&Zoom to rect', self)
-		#self.action_zoom_rect.setIconText("rect")
-
-		#self.actionGroupZoom = QtGui.QActionGroup(self)
-		self.action_zoom_x = QtGui.QAction(QtGui.QIcon(iconfile('zoom_x')), '&Zoom x', self)
-		self.action_zoom_y = QtGui.QAction(QtGui.QIcon(iconfile('zoom_y')), '&Zoom y', self)
-		self.action_zoom = QtGui.QAction(QtGui.QIcon(iconfile('zoom')), '&Zoom(you should not read this)', self)
-
-
-		self.action_zoom_out = QtGui.QAction(QtGui.QIcon(iconfile('zoom_out')), '&Zoom out', self)
-		self.action_zoom_in = QtGui.QAction(QtGui.QIcon(iconfile('zoom_in')), '&Zoom in', self)
-		self.action_zoom_fit = QtGui.QAction(QtGui.QIcon(iconfile('arrow_out')), '&Reset view', self)
-		self.action_zoom_use = QtGui.QAction(QtGui.QIcon(iconfile('chart_bar')), '&Use zoom area', self)
-		
 		
 		self.action_samp_sand_table_select_row_list = QtGui.QAction(QtGui.QIcon(iconfile('block--arrow')), 'sel->SAMP', self)
 		self.action_samp_sand_table_select_row_list.setShortcut('S')
@@ -2503,23 +2157,20 @@ class PlotDialog(QtGui.QDialog):
 		#exitAction.setShortcut('Ctrl+Q')
 		#onExAction.setStatusTip('Exit application')
 
-		#self.actionGroup.setToggleAction(True)
-		#self.actionGroup.setExclusive(True)
-		self.actionGroupSelectMode.addAction(self.action_select_mode_replace)
-		self.actionGroupSelectMode.addAction(self.action_select_mode_and)
-		self.actionGroupSelectMode.addAction(self.action_select_mode_or)
-		self.actionGroupSelectMode.addAction(self.action_select_mode_xor)
-		self.actionGroupSelectMode.addAction(self.action_select_mode_subtract)
+		#self.action_group_main.setToggleAction(True)
+		#self.action_group_main.setExclusive(True)
+		self.action_group_mainSelectMode.addAction(self.action_select_mode_replace)
+		self.action_group_mainSelectMode.addAction(self.action_select_mode_and)
+		self.action_group_mainSelectMode.addAction(self.action_select_mode_or)
+		self.action_group_mainSelectMode.addAction(self.action_select_mode_xor)
+		self.action_group_mainSelectMode.addAction(self.action_select_mode_subtract)
 		
-		self.actionGroup.addAction(self.action_move)
-		self.actionGroup.addAction(self.action_pick)
-		self.actionGroup.addAction(self.action_xrange)
-		self.actionGroup.addAction(self.action_yrange)
-		self.actionGroup.addAction(self.action_lasso)
-		self.actionGroup.addAction(self.action_zoom_rect)
-		self.actionGroup.addAction(self.action_zoom_x)
-		self.actionGroup.addAction(self.action_zoom_y)
-		#self.actionGroup.addAction(self.action_zoom_out)
+		self.action_group_main.addAction(self.action_move)
+		self.action_group_main.addAction(self.action_pick)
+		self.action_group_main.addAction(self.action_xrange)
+		self.action_group_main.addAction(self.action_yrange)
+		self.action_group_main.addAction(self.action_lasso)
+		#self.action_group_main.addAction(self.action_zoom_out)
 
 
 		
@@ -2587,38 +2238,39 @@ class PlotDialog(QtGui.QDialog):
 		
 
 		#self.toolbar.addAction(action_select_mode)
-		
-		self.toolbar.addAction(self.action_zoom)
-		self.zoom_menu = QtGui.QMenu()
-		self.action_zoom.setMenu(self.zoom_menu)
-		self.zoom_menu.addAction(self.action_zoom_rect)
-		self.zoom_menu.addAction(self.action_zoom_x)
-		self.zoom_menu.addAction(self.action_zoom_y)
-		if self.dimensions == 1:
-			self.lastActionZoom = self.action_zoom_x # this makes more sense for histograms as default
+		if 0:
+			self.toolbar.addAction(self.action_zoom)
+			self.zoom_menu = QtGui.QMenu()
+			self.action_zoom.setMenu(self.zoom_menu)
+			self.zoom_menu.addAction(self.action_zoom_rect)
+			self.zoom_menu.addAction(self.action_zoom_x)
+			self.zoom_menu.addAction(self.action_zoom_y)
+			if self.dimensions == 1:
+				self.lastActionZoom = self.action_zoom_x # this makes more sense for histograms as default
+			else:
+				self.lastActionZoom = self.action_zoom_rect
+			
+			self.toolbar.addSeparator()
+			self.toolbar.addAction(self.action_zoom_out)
+			self.toolbar.addAction(self.action_zoom_fit)
+			#self.toolbar.addAction(self.action_zoom_use)
 		else:
-			self.lastActionZoom = self.action_zoom_rect
-		
-		self.toolbar.addSeparator()
-		self.toolbar.addAction(self.action_zoom_out)
-		self.toolbar.addAction(self.action_zoom_fit)
-		#self.toolbar.addAction(self.action_zoom_use)
+			#self.plugin_zoom.plug()
+			#
+			plugin_chain_toolbar = sorted(self.plugin_queue_toolbar, key=itemgetter(1)) # sort by order field
+			for plug, order in plugin_chain_toolbar:
+				plug()
 		
 		#self.zoomButton.setPopupMode(QtCore.QToolButton.DelayedPopup)
 		
 		
-		self.actionGroup.triggered.connect(self.setMode)
-		self.actionGroupSelectMode.triggered.connect(self.setSelectMode)
+		self.action_group_main.triggered.connect(self.setMode)
+		self.action_group_mainSelectMode.triggered.connect(self.setSelectMode)
 		
 		self.action_mini_mode.triggered.connect(self.onActionMiniMode)
 		self.action_mini_mode_normal.triggered.connect(self.onActionMiniModeNormal)
 		self.action_mini_mode_ultra.triggered.connect(self.onActionMiniModeUltra)
 		self.action_select.triggered.connect(self.onActionSelect)
-		self.action_zoom.triggered.connect(self.onActionZoom)
-		self.action_zoom_out.triggered.connect(self.onZoomOut)
-		self.action_zoom_in.triggered.connect(self.onZoomIn)
-		self.action_zoom_fit.triggered.connect(self.onZoomFit)
-		self.action_zoom_use.triggered.connect(self.onZoomUse)
 		self.action_select_none.triggered.connect(self.onActionSelectNone)
 		self.action_select_invert.triggered.connect(self.onActionSelectInvert)
 		#action_zoom_out
@@ -2643,12 +2295,8 @@ class PlotDialog(QtGui.QDialog):
 		self.action_xrange.setCheckable(True)
 		self.action_yrange.setCheckable(True)
 		self.action_lasso.setCheckable(True)
-		self.action_zoom.setCheckable(True)
-		self.action_zoom_rect.setCheckable(True)
-		self.action_zoom_x.setCheckable(True)
-		self.action_zoom_y.setCheckable(True)
 		#self.action_zoom_out.setCheckable(True)
-		#self.actionGroup.
+		#self.action_group_main.
 		
 		#action = self.toolbar.addAction(icon
 		self.syncToolbar()
@@ -2775,13 +2423,10 @@ class PlotDialog(QtGui.QDialog):
 		self.setMode(self.lastActionSelect)
 		self.syncToolbar()
 		
-	def onActionZoom(self):
-		self.lastActionZoom.setChecked(True)
-		self.setMode(self.lastActionZoom)
-		self.syncToolbar()
-		
 	def syncToolbar(self):
-		for action in [self.action_select, self.action_zoom]:
+		for plugin in self.plugins:
+			plugin.syncToolbar()
+		for action in [self.action_select]: #, self.action_zoom]:
 			logger.debug("sync action: %r" % action.text())
 			subactions = action.menu().actions()
 			subaction_selected = [subaction for subaction in subactions if subaction.isChecked()]
@@ -2793,11 +2438,11 @@ class PlotDialog(QtGui.QDialog):
 			action.setChecked(len(subaction_selected) > 0)
 			logger.debug(" action  is selected?: %r" % action.isChecked())
 		logger.debug("last select action: %r" % self.lastActionSelect.text())
-		logger.debug("last zoom action: %r" % self.lastActionZoom.text())
+		#logger.debug("last zoom action: %r" % self.lastActionZoom.text())
 		self.action_select.setText(self.lastActionSelect.text())
 		self.action_select.setIcon(self.lastActionSelect.icon())
-		self.action_zoom.setText(self.lastActionZoom.text())
-		self.action_zoom.setIcon(self.lastActionZoom.icon())
+		#self.action_zoom.setText(self.lastActionZoom.text())
+		#self.action_zoom.setIcon(self.lastActionZoom.icon())
 		#self.action_select.update()
 		
 	def check_aspect(self, axis_follow):
@@ -2831,7 +2476,25 @@ class PlotDialog(QtGui.QDialog):
 			for i in range(self.dimensions-1):
 				axis_index = otheraxes[i]
 				self.ranges[axis_index] = list(self.ranges_show[axis_index])
-			
+
+	def create_grid_map(self, gridsize, use_selection):
+		locals = {}
+		for name in self.grids.grids.keys():
+			grid = self.grids.grids[name]
+			if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
+				if grid.max_size >= gridsize:
+					locals[name] = grid.get_data(gridsize, use_selection=use_selection)
+			else:
+				locals[name] = None
+		width = self.ranges[0][1] - self.ranges[0][0]
+		height = self.ranges[1][1] - self.ranges[1][0]
+		x = (np.arange(0, gridsize)+0.5)/float(gridsize) * width + self.ranges[0][0]# + width/(Nvector/2.)
+		y = (np.arange(0, gridsize)+0.5)/float(gridsize) * height+ self.ranges[1][0]# + height/(Nvector/2.)
+		x, y = np.meshgrid(x, y)
+		locals["x"] = x#.T
+		locals["y"] = y#.T
+		return locals
+
 		
 
 
@@ -3134,7 +2797,7 @@ class ScatterPlotDialog(PlotDialog):
 				self.counts += np.sum(sub_counts, axis=0)
 			else:
 				subspacefind.histogram2d(blockx, blocky, None, self.counts, *(ranges + [self.xoffset, self.yoffset]))
-			
+
 			
 			
 			if weights_block is not None:
@@ -3232,146 +2895,97 @@ class ScatterPlotDialog(PlotDialog):
 		self.addToolbar2(layout)
 		super(ScatterPlotDialog, self).afterCanvas(layout)
 
+
 	def plot(self):
 		self.axes.cla()
 		#extent = 
 		#ranges = np.nanmin(datax), np.nanmax(datax), np.nanmin(datay), np.nanmax(datay)
-		
-		ranges = []
-		logger.debug("self.ranges == %r" % (self.ranges, ))
-		for minimum, maximum in self.ranges:
-			ranges.append(minimum)
-			ranges.append(maximum)
-			
-		Nvector = self.gridsize
-		width = ranges[1] - ranges[0]
-		height = ranges[3] - ranges[2]
-		x = np.arange(0, Nvector)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.) 
-		y = np.arange(0, Nvector)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
-		x, y = np.meshgrid(x, y)
-		amplitude = self.counts
-			
-		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
-		if self.amplitude_expression is not None:
-			locals = {"counts":self.counts, "weighted": self.counts_weights}
-			locals["gf"] = scipy.ndimage.gaussian_filter
-			peak_columns = np.apply_along_axis(np.nanmax, 1, self.counts)
-			peak_columns[peak_columns==0] = 1.
-			peak_columns = peak_columns.reshape((1, -1))#.T
-			locals["peak_columns"] = peak_columns
-
-			sum_columns = np.apply_along_axis(np.nansum, 1, self.counts)
-			sum_columns[sum_columns==0] = 1.
-			sum_columns = sum_columns.reshape((1, -1))#.T
-			locals["sum_columns"] = sum_columns
-
-			peak_rows = np.apply_along_axis(np.nanmax, 0, self.counts)
-			peak_rows[peak_rows==0] = 1.
-			peak_rows = peak_rows.reshape((-1, 1))#.T
-			locals["peak_rows"] = peak_rows
-
-			sum_rows = np.apply_along_axis(np.nansum, 0, self.counts)
-			sum_rows[sum_rows==0] = 1.
-			sum_rows = sum_rows.reshape((-1, 1))#.T
-			locals["sum_rows"] = sum_rows
-			
-			locals["x"] = x#.T
-			locals["y"] = y#.T
-
-			if self.counts_weights is None:
-				locals["average"] = None
-			else:
-				locals["average"] = self.counts_weights/self.counts
-			globals = np.__dict__
-			try:
-				amplitude = eval(self.amplitude_expression, globals, locals)
-			except Exception, e:
-				self.error_in_field(self.amplitude_box, e)
-				return
-		print "amplitude", np.nanmin(amplitude), np.nanmax(amplitude)
-		#if self.ranges_level[0] is None:
-		#	self.ranges_level[0] = 0, amplitude.max() * 1.1
-			
 		if 1:
-			if self.counts_mask is not None:
-				if self.amplitude_expression is not None:
-					#locals = {"counts":self.counts_mask}
-					locals = {"counts":self.counts_mask, "weighted": self.counts_weights_mask}
-					
-					#locals = {"counts":self.counts, "weighted": self.counts_weights}
-					peak_columns = np.apply_along_axis(np.nanmax, 1, self.counts_mask)
-					peak_columns[peak_columns==0] = 1.
-					peak_columns = peak_columns.reshape((1, -1))#.T
-					locals["peak_columns"] = peak_columns
+			ranges = []
+			logger.debug("self.ranges == %r" % (self.ranges, ))
+			for minimum, maximum in self.ranges:
+				ranges.append(minimum)
+				ranges.append(maximum)
 
-					sum_columns = np.apply_along_axis(np.nansum, 1, self.counts_mask)
-					sum_columns[sum_columns==0] = 1.
-					sum_columns = sum_columns.reshape((1, -1))#.T
-					locals["sum_columns"] = sum_columns
 
-					peak_rows = np.apply_along_axis(np.nanmax, 0, self.counts_mask)
-					peak_rows[peak_rows==0] = 1.
-					peak_rows = peak_rows.reshape((-1, 1))#.T
-					locals["peak_rows"] = peak_rows
+			#amplitude = self.grids.grids["counts"].get_data(self.gridsize)
 
-					sum_rows = np.apply_along_axis(np.nansum, 0, self.counts_mask)
-					sum_rows[sum_rows==0] = 1.
-					sum_rows = sum_rows.reshape((-1, 1))#.T
-					locals["sum_rows"] = sum_rows
-					
-					locals["x"] = x#.T
-					locals["y"] = y#.T
-					
-					
-					if self.counts_weights is None:
-						locals["average"] = None
-					else:
-						locals["average"] = self.counts_weights_mask/self.counts_mask
-					globals = np.__dict__
-					amplitude_mask = eval(self.amplitude_expression, globals, locals)
+			logger.debug("expr for amplitude: %r" % self.amplitude_expression)
+			grid_map = self.create_grid_map(self.gridsize, False)
+			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
+			use_selection = self.dataset.mask is not None
+			if use_selection:
+				grid_map_selection = self.create_grid_map(self.gridsize, True)
+				amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
+
 
 		if self.action_display_current == self.action_display_mode_both:
-			self.axes.imshow(self.contrast(amplitude), origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=self.colormap)
-			if self.counts_mask is not None:
-				self.axes.imshow(self.contrast(amplitude_mask), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
+			self.axes.imshow(self.contrast(amplitude), origin="lower", extent=ranges, alpha=0.4 if use_selection else 1.0, cmap=self.colormap)
+			if use_selection:
+				self.axes.imshow(self.contrast(amplitude_selection), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
 		if self.action_display_current == self.action_display_mode_full:
 			self.axes.imshow(self.contrast(amplitude), origin="lower", extent=ranges, cmap=self.colormap)
 		if self.action_display_current == self.action_display_mode_selection:
 			if self.counts_mask is not None:
 				self.axes.imshow(self.contrast(amplitude_mask), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
 		print "aap"
-		if self.counts_x_weights is not None and self.counts_y_weights is not None:
-			#x = np.linspace(ranges[0], ranges[1], 128/4)
-			#y = np.linspace(ranges[2], ranges[3], 128/4)
-			Nvector = 32 #self.gridsize/4
-			x = np.arange(0, Nvector)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.) 
-			y = np.arange(0, Nvector)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
-			x, y = np.meshgrid(x, y)
-			#x = x.reshape(-1)
-			#y = y.reshape(-1)
-			print "noot"
-			#print x
-			#print y
-			print self.counts_xy
-			U = (self.counts_x_weights/self.counts_xy) #.reshape(-1) #/counts_xy.T
-			V = (self.counts_y_weights/self.counts_xy) #.reshape(-1) #/counts_xy.T
-			mask = self.counts_xy > 0
-			#print "QUIVER" * 100
-			print "mean", U[mask].mean(), V[mask].mean()
-			#U -= U[mask].mean()
-			#V -= V[mask].mean()
-			print "mies"
-			#print "mask", mask
-			#print U[mask]
-			if self.counts_xy_weights is not None:
-				colors = (self.counts_xy_weights/self.counts_xy)
-				self.axes.quiver(x[mask], y[mask], U[mask], V[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
-			else:
-				self.axes.quiver(x[mask], y[mask], U[mask], V[mask])
-				colors = None
-			#print "min", U[mask].min(), V[mask].min()
-			#print "max", U[mask].max(), V[mask].max()
-			#self.axes.quiver(x, y, U, V)
+		if 1:
+			#locals = {key:None if grid is None else gavifast.resize(grid, 64) for key, grid in locals}
+			locals = {}
+			for name in self.grids.grids.keys():
+				grid = self.grids.grids[name]
+				if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
+					if grid.max_size >= self.gridsize_vector:
+						locals[name] = grid.get_data(self.gridsize_vector, use_selection)
+				else:
+					locals[name] = None
+
+			if 0:
+				if locals["weightx"] is not None and locals["weighty"] is not None:
+					#x = np.linspace(ranges[0], ranges[1], 128/4)
+					#y = np.linspace(ranges[2], ranges[3], 128/4)
+					Nvector = self.gridsize_vector
+					x = (np.arange(0, Nvector)+0.5)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.)
+					y = (np.arange(0, Nvector)+0.5)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
+					x, y = np.meshgrid(x, y)
+					#x = x.reshape(-1)
+					#y = y.reshape(-1)
+					print "noot"
+					#print x
+					#print y
+					#print self.counts_xy
+
+					wx = locals["weightx"]
+					wy = locals["weighty"]
+					counts = locals["counts"]
+					U = (wx/counts) #.reshape(-1) #/counts_xy.T
+					V = (wy/counts) #.reshape(-1) #/counts_xy.T
+					mask = counts > 0
+					#print "QUIVER" * 100
+					print "mean", U[mask].mean(), V[mask].mean()
+					#U -= U[mask].mean()
+					#V -= V[mask].mean()
+					print "mies"
+					#print "mask", mask
+					#print U[mask]
+					wz = locals["weightz"]
+			if 1:
+				grid_map_vector = self.create_grid_map(self.gridsize_vector, use_selection)
+				if grid_map_vector["weightx"] is not None and grid_map_vector["weighty"] is not None:
+					mask = grid_map_vector["counts"] > 0
+					x = grid_map_vector["x"]
+					y = grid_map_vector["y"]
+					vx = self.eval_amplitude("weightx/counts", locals=grid_map_vector)
+					vy = self.eval_amplitude("weighty/counts", locals=grid_map_vector)
+					if grid_map_vector["weightz"] is not None:
+						colors = self.eval_amplitude("weightz/counts", locals=grid_map_vector)
+						self.axes.quiver(x[mask], y[mask], vx[mask], vy[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
+					else:
+						self.axes.quiver(x[mask], y[mask], vx[mask], vy[mask], color="black")
+						colors = None
+				#print "min", U[mask].min(), V[mask].min()
+				#print "max", U[mask].max(), V[mask].max()
+				#self.axes.quiver(x, y, U, V)
 		if self.action_display_current == self.action_display_mode_both_contour:
 			#self.axes.imshow(amplitude, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)
 			#self.axes.contour(amplitude, origin="lower", extent=ranges, levels=levels, linewidths=2, colors="red")
@@ -3391,22 +3005,23 @@ class ScatterPlotDialog(PlotDialog):
 			#if self.dataset.selected_row_index is not None:
 				#self.axes.autoscale(False)
 		index = self.dataset.selected_row_index
-		if index is not None and self.selected_point is None:
-			logger.debug("point selected but after computation")
-			# TODO: optimize
-			def find_selected_point(info, blockx, blocky):
-				if index >= info.i1 and index < info.i2: # selected point is in this block
-					self.selected_point = blockx[index-info.i1], blocky[index-info.i1]
-			self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
-			
+		if 0:
+			if index is not None and self.selected_point is None:
+				logger.debug("point selected but after computation")
+				# TODO: optimize
+				def find_selected_point(info, blockx, blocky):
+					if index >= info.i1 and index < info.i2: # selected point is in this block
+						self.selected_point = blockx[index-info.i1], blocky[index-info.i1]
+				self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
 
-		if self.selected_point:
-			#x, y = self.getdatax()[self.dataset.selected_row_index],  self.getdatay()[self.dataset.selected_row_index]
-			x, y = self.selected_point
-			print "drawing selected point at", x, y
-			self.axes.scatter([x], [y], color='red') #, scalex=False, scaley=False)
-		#if dataxsel is not None:
-		#	self.axes.scatter(dataxsel, dataysel)
+
+			if self.selected_point:
+				#x, y = self.getdatax()[self.dataset.selected_row_index],  self.getdatay()[self.dataset.selected_row_index]
+				x, y = self.selected_point
+				print "drawing selected point at", x, y
+				self.axes.scatter([x], [y], color='red') #, scalex=False, scaley=False)
+			#if dataxsel is not None:
+			#	self.axes.scatter(dataxsel, dataysel)
 		self.axes.set_xlabel(self.expressions[0])
 		self.axes.set_ylabel(self.expressions[1])
 		print "plot limits:", self.ranges
@@ -3827,27 +3442,42 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				ranges.append(minimum)
 				ranges.append(maximum)
 				
-			counts = self.counts
-			if self.counts_mask is not None:
-				counts = self.counts_mask
-				
-			amplitude = counts
-			print "aap"
-			logger.debug("expr for amplitude: %r" % self.amplitude_expression)
-			print "noot",self.dimensions
-			if self.amplitude_expression is not None:
-				locals = {"counts":counts, "counts1": self.counts, "weighted":None}
-				locals["gf"] = scipy.ndimage.gaussian_filter
-				globals = np.__dict__
-				print "mies"
-				amplitude = eval(self.amplitude_expression, globals, locals)
-				print "mies"
-			print "noot",self.dimensions
-			print "amplitude", np.nanmin(amplitude), np.nanmax(amplitude)
-			
-			self.widget_volume.setGrid(amplitude)
-			self.tool.grid = amplitude
-			self.tool.update()
+			grid_map = self.create_grid_map(self.gridsize, False)
+			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
+			use_selection = self.dataset.mask is not None
+			if use_selection:
+				grid_map_selection = self.create_grid_map(self.gridsize, True)
+				amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
+
+			grid_map_vector = self.create_grid_map(self.gridsize_vector, use_selection)
+			vector_grid = None
+			if grid_map_vector["weightx"] is not None and grid_map_vector["weighty"] is not None:
+				print "weightx and y exist"
+				counts = grid_map_vector["counts"]
+				mask = counts > 0
+				x = grid_map_vector["x"]
+				y = grid_map_vector["y"]
+				vx = self.eval_amplitude("weightx/counts", locals=grid_map_vector)
+				vy = self.eval_amplitude("weighty/counts", locals=grid_map_vector)
+				if grid_map_vector["weightz"] is not None:
+					print "weightz"
+					vz = self.eval_amplitude("weightz/counts", locals=grid_map_vector)
+					vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
+					vector_grid[0] = vx
+					vector_grid[1] = vy
+					vector_grid[2] = vz
+					vector_grid[3] = counts
+					vector_grid = np.swapaxes(vector_grid, 0, 3)
+					vector_grid = vector_grid * 1.
+			else:
+				vx = None
+				vy = None
+				vz = None
+
+			self.widget_volume.setGrid(amplitude_selection if use_selection else amplitude, vector_grid)
+			if 0:
+				self.tool.grid = amplitude
+				self.tool.update()
 			
 			#if self.ranges_level[0] is None:
 			#	self.ranges_level[0] = 0, amplitude.max() * 1.1
@@ -3863,7 +3493,6 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			axeslist = self.getAxesList()
 			for i in range(2):
 					axes = axeslist[i]
-					
 					ranges = list(self.ranges[0]) + list(self.ranges[1+i])
 					axes.clear()
 					allaxes = range(self.dimensions)
@@ -3881,19 +3510,21 @@ class VolumeRenderingPlotDialog(PlotDialog):
 						allaxes.remove(2-(1+i))
 						print "removed", allaxes
 						counts_mask = None
-						counts = multisum(self.counts, allaxes)
-						if self.counts_mask is not None:
-							counts_mask = multisum(self.counts_mask, allaxes)
-						#	counts = counts.T
-						self.counts_ref = counts
-						print "DRAW" * 100,counts
-						axes.imshow(np.log10(counts), origin="lower", extent=ranges, alpha=1 if counts_mask is None else 0.4, cmap=self.colormap)
-						if counts_mask is not None:
-							#if i > j:
-							#	counts_mask = counts_mask.T
-							axes.imshow(np.log10(counts_mask), origin="lower", extent=ranges, cmap=self.colormap)
-						#axes.set_aspect('auto')
-						if self.dataset.selected_row_index is not None:
+						for key, grid in grid_map.items():
+							print key, grid #: #None if grid is None else grid.shape
+
+
+						grid_map_2d = {key:None if grid is None else multisum(grid, allaxes) for key, grid in grid_map.items()}
+						amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map_2d)
+						if use_selection:
+							grid_map_selection_2d = {key:multisum(grid, allaxes) for key, grid in grid_map_selection.items()}
+							amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection_2d)
+
+						axes.imshow(self.contrast(amplitude), origin="lower", extent=ranges, alpha=0.4 if use_selection else 1.0, cmap=self.colormap)
+						if use_selection:
+							axes.imshow(self.contrast(amplitude_selection), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
+
+						if 0: # TODO: self.dataset.selected_row_index is not None:
 							#self.axes.autoscale(False)
 							x, y = self.getdatax()[self.dataset.selected_row_index],  self.getdatay()[self.dataset.selected_row_index]
 							print "drawing selected point at", x, y

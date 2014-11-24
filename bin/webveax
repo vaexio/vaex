@@ -109,27 +109,43 @@ def api_columns(dataset):
 import StringIO
 import gavifast
 
+@app.route('/range/<name>/<x>')
+def api_range(name, x):
+	dataset = dataset_map[name]
+	blockx = dataset.columns[x]
+	data = {"min":float(np.min(blockx)), "max":float(np.max(blockx))}
+	print data
+	js = json.dumps(data)
+	response= Response(js, status=200, mimetype='application/json')
+	return response
+
+
 @app.route('/plot/<name>/<x>/<y>')
 def api_density_xy(name, x, y=None):
-	fig = plt.figure()
-	fig.set_size_inches(4, 4)
+	dpi=100.
+	fig = plt.figure(dpi=dpi)
+	fig.set_size_inches(512./dpi, 512./dpi)
+	#plt.figure(figsize=(512/my_dpi, 800/my_dpi), dpi=my_dpi)
 	#ax = fig.add_subplot(111)
 	ax = plt.Axes(fig, [0., 0., 1., 1.])
 	ax.set_axis_off()	
 	fig.add_axes(ax)
-	Ngrid = 256
+	Ngrid = 512
 	counts = np.zeros((Ngrid, Ngrid), dtype=np.float64)
 	dataset = dataset_map[name]
-	blockx = dataset.columns[x]
-	blocky = dataset.columns[y]
+	blockx = dataset.columns[x].astype(np.float64)
+	blocky = dataset.columns[y].astype(np.float64)
 	sub_i1, sub_i2 = 0, dataset._length
 	ranges = [0, 100, 0, 100]
 	if "ranges" in request.args:
 		ranges = map(float, request.args["ranges"].split(","))
 	colormap = request.args.get("colormap", "jet")
 	sub_counts = [counts]
+	print ranges
 	index = 0
+	print blockx[sub_i1:sub_i2].shape, blocky[sub_i1:sub_i2].shape, None, sub_counts[index].shape, ranges
 	gavifast.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], None, sub_counts[index], *ranges)
+	print "next"
 	ax.imshow(np.log10(counts), origin="lower", extent=ranges, cmap=colormap)
 	ax.set_aspect('auto')
 	#ax.set_axis_off()
@@ -150,5 +166,5 @@ def api_density_xy(name, x, y=None):
 
 if __name__ == '__main__':
 	#flask.url_for('static', filename='test.html')
-	app.run()
+	app.run(host='0.0.0.0')
 	#api_density_xy("Aq-A-2-999-shuffled-1percent", "x", "y")

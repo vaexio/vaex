@@ -110,6 +110,23 @@ void object_to_numpy3d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y
 		count_y = size_y;
 		count_z = size_z;
 }
+template<typename T>
+void object_to_numpyNd_nocopy(T* &ptr, PyObject* obj, int max_dimension, int& dimension, int* sizes, int* strides, int type=NPY_DOUBLE) {
+		if(obj == NULL)
+			throw std::runtime_error("cannot convert to numpy array");
+		printf("dim = %i maxdim = %i %i\n", dimension, max_dimension,  (int)PyArray_NDIM(obj));
+		dimension = (int)PyArray_NDIM(obj);
+		if(dimension > max_dimension) {
+			printf("dim = %i maxdim = %i\n", dimension, max_dimension);
+			throw std::runtime_error("array dimension is bigger than allowed");
+		}
+
+		for(int i = 0; i < dimension; i++) {
+			sizes[i] = PyArray_DIMS(obj)[i];
+			strides[i] = PyArray_STRIDES(obj)[i];
+		}
+		ptr = (T*)PyArray_DATA(obj);
+}
 
 
 
@@ -480,7 +497,7 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 			}
 		}
 	} else {
-		/*for(long long i = 0; i < block_length; i++) {
+		for(long long i = 0; i < block_length; i++) {
 			double value_x = blockx[i_x];
 			int index_x = (int)((value_x - xmin) * scale_x);
 			
@@ -489,13 +506,18 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 				int index_y = (int)((value_y - ymin) * scale_y);
 				
 				if ( (index_y >= 0) & (index_y < counts_length_y) ) {
-					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
+					double value_z = blockz[i_z];
+					int index_z = (int)((value_z - zmin) * scale_z);
+					if ( (index_z >= 0) & (index_z < counts_length_z) ) {
+						counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights == NULL ? 1 : weights[i];
+					}
 				}
 			}
 			
 			i_x = i_x >= block_length-1 ? 0 : i_x+1;
 			i_y = i_y >= block_length-1 ? 0 : i_y+1;
-		}*/
+			i_z = i_z >= block_length-1 ? 0 : i_z+1;
+		}
 	}	
 }
 
@@ -772,6 +794,127 @@ static PyObject* shuffled_sequence_(PyObject* self, PyObject *args) {
 }
 
 
+void resize(double* source, int size, int dimension, double* target, int new_size)
+{
+	/*
+	 * Reshape a N dimensional grid to a smaller size
+	 * in input grid should have all dimensions of equals size, and size should be a power of two
+	 * the output grid should have similar properties, but the new size should be equal or smaller 
+	 * (and again a power of two)
+	 * 
+	 * algo works by using a 1d index for the output grid, each value of the output grid is the sum
+	 * of the hybercube of the input grid. The 1d index together with a 1d index in the hypercube (blockindex)
+	 * index the input grid.
+	 * Example:
+	 *  input grid is 16x16, output grid is 8x8, so each pixel in the 8x8 block is replaced by the sum
+	 *   of 2x2 blocks in the input grid.
+	 */
+	int block_index = 0;
+	int target_index = 0;
+	int block_end_index = 1;
+	int target_end_index = 1;
+	// TODO: check if both are a power of two, and new_size <= size
+	if(new_size > size)
+		throw std::runtime_error("target size should be smaller than source size");
+	int block_size_1d = size/new_size;
+	
+	for(int i = 0; i < dimension; i++) {
+		block_end_index *= block_size_1d;
+		target_end_index *= new_size;
+	}
+	int block_length = block_end_index; // alias, same value but different concept
+	//printf("resize: %i %i\n", size, new_size);
+	//int blocksize = size/new_size
+	//int blocklength = 1;
+	//for(int i = 0; i < dimension; i++) {
+	//	blocklength *= block_size_1d;
+	bool done = false;
+	while(!done) {
+
+		double value = 0;
+		bool done_block = false;
+		block_index = 0;
+		// sum up all values from the subblock of the source
+
+		int source_index = 0; //target_index * block_length;
+		int target_index_subspace = target_index;
+		int scale = block_size_1d;
+		for(int i = 0; i < dimension; i++) {
+			source_index += (target_index_subspace % new_size) * scale;
+			scale *= new_size*block_size_1d;
+			target_index_subspace /= new_size;
+		}
+		while(!done_block) {
+			/* now convert the 1d block_index to of offset for the source */
+			int block_index_subspace = block_index;
+			int offset = 0;
+			scale = 1;
+			//printf("\tstart offset = %i\n", offset);
+			for(int i = 0; i < dimension; i++) {
+				offset += (block_index_subspace % block_size_1d) * scale;
+				//printf("\tsource_index = %i dim=%i scale=%i block_index_subspace=%i %i\n", offset, i, scale, block_index_subspace, (block_index_subspace % block_size_1d));
+				scale *= size;
+				block_index_subspace /= block_size_1d;
+			}
+			//printf(" source_index = %i\n", source_index+offset);
+			value += source[source_index+offset];
+			block_index++;
+			if(block_index == block_end_index)
+				done_block = true;
+		}
+		//printf("target_index = %i\n", target_index);
+		target[target_index] = value;
+		target_index++;
+		if(target_index == target_end_index)
+			done = true;
+	}
+}
+
+static PyObject* resize_(PyObject* self, PyObject *args) {
+	PyObject* result = NULL;
+	PyObject *array = NULL;
+	int new_size;
+	if(PyArg_ParseTuple(args, "Oi", &array, &new_size)) {
+		double *array_ptr, *new_array_ptr;
+		int sizes[3];
+		npy_intp new_sizes[3];
+		int strides[3];
+		int dimension = 0;
+		try {
+			object_to_numpyNd_nocopy(array_ptr, array, 3, dimension, sizes, strides, NPY_DOUBLE);
+			for(int i = 0; i < dimension; i++) {
+				new_sizes[i] = new_size;
+			}
+			int size1 = sizes[0];
+			for(int i = 1; i < dimension; i++) {
+				if(sizes[i] != size1)
+					throw std::runtime_error("array sizes aren't equal in all dimensions");
+			}
+			// check the array is 'normally' shaped, continuous, not transposed etc
+			int stride = 8;
+			for(int i = 0; i < dimension; i++) {
+				//printf("strides[dimension-1-i] = %i\n", strides[dimension-1-i]);
+				if(strides[dimension-1-i] != stride)
+					throw std::runtime_error("array strides don't match that of a continuous array");
+				stride *= size1;
+			}
+			PyObject* new_array = PyArray_SimpleNew(dimension, new_sizes, NPY_DOUBLE);
+			new_array_ptr = (double*)PyArray_DATA(new_array);
+			
+			//Py_BEGIN_ALLOW_THREADS
+			resize(array_ptr, size1, dimension, new_array_ptr, new_size);
+			//Py_END_ALLOW_THREADS
+			//Py_INCREF(Py_None);
+			result = new_array;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
+		}
+	}
+	
+	return result;
+}
+
 
 static PyMethodDef pygavi_functions[] = {
         {"range_check", (PyCFunction)range_check_, METH_VARARGS, ""},
@@ -783,6 +926,7 @@ static PyMethodDef pygavi_functions[] = {
         {"pnpoly", (PyCFunction)pnpoly_, METH_VARARGS, ""},
         {"soneira_peebles", (PyCFunction)soneira_peebles_, METH_VARARGS, ""},
         {"shuffled_sequence", (PyCFunction)shuffled_sequence_, METH_VARARGS, ""},
+        {"resize", (PyCFunction)resize_, METH_VARARGS, ""},
     { NULL, NULL, 0 }
 };
 
