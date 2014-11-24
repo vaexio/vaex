@@ -2,7 +2,7 @@ import gavi.dataset as dataset
 import numpy as np
 import unittest
 
-class DatasetTest(unittest.TestCase):
+class TestDataset(unittest.TestCase):
 	def setUp(self):
 		self.dataset = dataset.MemoryMapped("test", nommap=True)
 
@@ -13,11 +13,13 @@ class DatasetTest(unittest.TestCase):
 		
 		self.jobsManager = dataset.JobsManager()
 		
-	def length_test(self):
+	def test_length(self):
 		assert len(self.dataset) == 10
 
-	def length_mask_test(self):
+	def test_length_mask(self):
 		self.dataset.selectMask(self.dataset.columns['x'] < 5)
 		self.assertEqual(self.dataset.length(selection=True), 5)
 		
 	
+if __name__ == '__main__':
+    unittest.main()

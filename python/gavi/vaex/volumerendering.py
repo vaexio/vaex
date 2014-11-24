@@ -48,21 +48,25 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.function_sigmas = [0.05] * function_count
 		self.function_means = (np.arange(function_count) / float(function_count-1)) * 0.8 + 0.10
 		
-		self.brightness = 5.;
-		self.min_level = 0.;
-		self.max_level = 1.;
+		self.brightness = 5.
+		self.min_level = 0.
+		self.max_level = 1.
+
+		self.min_level_vector3d = 0.
+		self.max_level_vector3d = 1.
 
 		self.texture_cube, self.texture_gradient = None, None
 		self.setMouseTracking(True)
 		shortcut = QtGui.QShortcut(QtGui.QKeySequence("space"), self)
 		shortcut.activated.connect(self.toggle)
 		self.texture_index = 1
-		self.texture_size = 400 #*8
+		self.colormap_index = 0
+		self.texture_size = 512 #*8
 		self.grid = None
 		# gets executed after initializeGL, can hook up your loading of data here
 		self.post_init = lambda: 1
 		
-		self.arrow_model = Arrow(-40, -40, -40, 4)
+		self.arrow_model = Arrow(0, 0, 0, 4.)
 		
 	def orbit_start(self):
 		self.orbiting = True
@@ -96,44 +100,6 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			void main() {
 				gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 				vertex_color =  gl_Vertex /80. + vec4(0.5, 0.5, 0.5, 0.);
-			}""",GL_VERTEX_SHADER)
-		self.fragment_shader_color = shaders.compileShader("""
-			varying vec4 vertex_color;
-			void main() {
-				gl_FragColor = vertex_color;
-			}""",GL_FRAGMENT_SHADER)
-		return shaders.compileProgram(self.vertex_shader_color, self.fragment_shader_color)
-
-	def create_shader_vectorfield_color(self):
-		self.vertex_shader_color = shaders.compileShader("""
-			#extension GL_ARB_draw_instanced : enable
-			varying vec4 vertex_color;
-			void main() {
-				float x = floor(float(gl_InstanceIDARB)/(8.*8.)) + 0.5;
-				float y = mod(floor(float(gl_InstanceIDARB)/8.), 8.) + 0.5;
-				float z = mod(float(gl_InstanceIDARB), 8.) + 0.5;
-				vec4 pos = (gl_Vertex + vec4(x*80./8., y*80./8., z*80./8., 0));
-				gl_Position = gl_ModelViewProjectionMatrix * pos;
-				vertex_color =  pos /80. + vec4(0.5, 0.5, 0.5, 0.);
-			}""",GL_VERTEX_SHADER)
-		self.fragment_shader_color = shaders.compileShader("""
-			varying vec4 vertex_color;
-			void main() {
-				gl_FragColor = vertex_color;
-			}""",GL_FRAGMENT_SHADER)
-		return shaders.compileProgram(self.vertex_shader_color, self.fragment_shader_color)
-
-	def create_shader_vectorfield(self):
-		self.vertex_shader_color = shaders.compileShader("""
-			#extension GL_ARB_draw_instanced : enable
-			varying vec4 vertex_color;
-			void main() {
-				float x = floor(float(gl_InstanceIDARB)/(8.*8.)) + 0.5;
-				float y = mod(floor(float(gl_InstanceIDARB)/8.), 8.) + 0.5;
-				float z = mod(float(gl_InstanceIDARB), 8.) + 0.5;
-				vec4 pos = (gl_Vertex + vec4(x*80./8., y*80./8., z*80./8., 0));
-				gl_Position = gl_ModelViewProjectionMatrix * pos;
-				vertex_color =  pos /80. + vec4(0.5, 0.5, 0.5, 0.);
 			}""",GL_VERTEX_SHADER)
 		self.fragment_shader_color = shaders.compileShader("""
 			varying vec4 vertex_color;
@@ -287,7 +253,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			
 			
 			void main() {
-				int steps = 200;
+				int steps = 500;
 				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
 				vec3 ray_start = vertex_color.xyz;
 				float length = 0.;
@@ -314,7 +280,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				float data_min = minmax3d.x;
 				float data_max = minmax3d.y;
 				float data_scale = 1./(data_max - data_min);
-				for(int i = 0; i < 200; i++) {
+				for(int i = 0; i < 500; i++) {
 					vec4 sample = texture3D(cube, ray_pos);
 					for(int j = 0; j < 3; j++) {
 						float data_value = (sample.r - data_min) * data_scale;
@@ -336,7 +302,160 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				//gl_FragColor = vec4(ray_pos.xyz, 1) * 100.; //brightness;
 			}""",GL_FRAGMENT_SHADER)
 		
+		self.fragment_shader = shaders.compileShader("""
+			varying vec4 vertex_color;
+			uniform sampler1D texture_colormap; 
+			uniform sampler2D texture; 
+			uniform sampler3D cube; 
+			uniform sampler3D gradient;
+			uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
+			uniform vec2 minmax2d;
+			uniform vec2 minmax3d;
+			uniform vec2 minmax3d_total;
+			//uniform float maxvalue2d;
+			//uniform float maxvalue3d;
+			uniform float alpha_mod; // mod3
+			uniform float mod4;  // mafnifier
+			uniform float mod5; // blend color and line integral
+			uniform float mod6; 
+
+			uniform sampler1D transfer_function; 
+			
+			uniform float brightness;
+			
+			
+			void main() {
+				int steps = 300;
+				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
+				vec3 ray_start = vertex_color.xyz;
+				float length = 0.;
+				vec3 ray_dir = ray_end - ray_start;
+				vec3 ray_delta = ray_dir / float(steps);
+				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
+				vec3 ray_pos = ray_start;
+				float value = 0.;
+				//mat3 direction_matrix = inverse(mat3(transpose(inverse(gl_ModelViewProjectionMatrix))));
+				mat3 mat_temp = mat3(gl_ModelViewProjectionMatrix[0].xyz, gl_ModelViewProjectionMatrix[1].xyz, gl_ModelViewProjectionMatrix[2].xyz);
+				mat3 direction_matrix = mat_temp;
+				vec3 light_pos = (vec3(-100.,100., -100) * direction_matrix).zyx;
+				//vec3 light_pos = (direction_matrix * vec3(-5.,5., -100));
+				//vec3 origin = (direction_matrix * vec3(0., 0., 0)).xyz;
+				vec3 origin = (vec4(0., 0., 0., 0.)).xyz;
+				//vec3 light_pos = (vec4(-1000., 0., -1000, 1.)).xyz;
+				//mat3 mod = inverse(mat3(gl_ModelViewProjectionMatrix));
+				vec4 color = vec4(0, 0, 0, 0);
+				vec3 light_dir = light_pos - origin;
+				//light_dir = vec3(-1,-1,1);
+				light_dir = light_dir / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
+				float alpha_total = 0.;
+				//float normalize = log(maxvalue);
+				float intensity_total;
+				float data_min = minmax3d.x;
+				float data_max = minmax3d.y;
+				float data_scale = 1./(data_max - data_min);
+				for(int i = 0; i < 300; i++) {
+					/*vec3 normal = texture3D(gradient, ray_pos).zyx;
+					normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
+					float cosangle = dot(light_dir, normal);
+					cosangle = clamp(cosangle, 0., 1.);*/
+
+					vec4 sample = texture3D(cube, ray_pos);
+					float data_value = (sample.r - data_min) * data_scale;
+					vec4 color_sample = texture1D(transfer_function, data_value);
+					
+					//vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
+					float alpha_sample = color_sample.a * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length; //function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+					alpha_sample = clamp(alpha_sample, 0., 1.);
+					//color_sample = color_sample * cosangle;
+					color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+					alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+					if(alpha_total >= 1.)
+						break;
+					ray_pos += ray_delta;
+				}
+				gl_FragColor = vec4(color.rgb, alpha_total) * brightness; //brightness;
+				//gl_FragColor = vec4(ray_pos.xyz, 1) * 100.; //brightness;
+			}""",GL_FRAGMENT_SHADER)
+		
 		return shaders.compileProgram(self.vertex_shader, self.fragment_shader)
+
+	def create_shader_vectorfield(self):
+		self.vertex_shader_color = shaders.compileShader("""
+			#extension GL_ARB_draw_instanced : enable
+			varying vec4 vertex_color;
+			void main() {
+				float x = floor(float(gl_InstanceIDARB)/(8.*8.)) + 0.5;
+				float y = mod(floor(float(gl_InstanceIDARB)/8.), 8.) + 0.5;
+				float z = mod(float(gl_InstanceIDARB), 8.) + 0.5;
+				vec4 pos = (gl_Vertex + vec4(x*80./8., y*80./8., z*80./8., 0));
+				gl_Position = gl_ModelViewProjectionMatrix * pos;
+				vertex_color =  pos /80. + vec4(0.5, 0.5, 0.5, 0.);
+			}""",GL_VERTEX_SHADER)
+		self.fragment_shader_color = shaders.compileShader("""
+			varying vec4 vertex_color;
+			void main() {
+				gl_FragColor = vertex_color;
+			}""",GL_FRAGMENT_SHADER)
+		return shaders.compileProgram(self.vertex_shader_color, self.fragment_shader_color)
+
+	def create_shader_vectorfield_color(self):
+		self.vertex_shader_color = shaders.compileShader("""
+		#version 120
+			#extension GL_ARB_draw_instanced : enable
+			varying vec4 vertex_color;
+			uniform sampler3D vectorfield;
+			uniform int grid_size;
+			uniform int use_light;
+			uniform vec3 light_color;
+			uniform vec3 lightdir;
+			uniform float count_level_min;
+			uniform float count_level_max;
+
+			void main() {
+				float grid_size_f = float(grid_size);
+				float x = floor(float(gl_InstanceIDARB)/(grid_size_f*grid_size_f))/grid_size_f;
+				float y = mod(floor(float(gl_InstanceIDARB)/grid_size_f), grid_size_f)/grid_size_f;
+				float z = mod(float(gl_InstanceIDARB), grid_size_f)/grid_size_f;
+				vec3 uniform_center = vec3(x, y, z);
+				vec4 sample = texture3D(vectorfield, uniform_center.yzx);
+				vec3 velocity = sample.xyz;
+				float counts = sample.a;
+				float scale = (counts >= count_level_min) && (counts <= count_level_max) ? 1. : 0.0;
+				float speed = length(velocity);
+				vec3 direction = normalize(velocity) ;// / speed;
+				// form two orthogonal vector to define a rotation matrix
+				// the rotation around the vector's axis doesn't matter
+				vec3 some_axis = normalize(vec3(0., 1., 1.));
+				vec3 axis1 = normalize(cross(direction, some_axis));
+				vec3 axis2 = normalize(cross(direction, axis1));
+				mat3 rotation_and_scaling = mat3(axis1, axis2, direction * (speed) /50);
+				mat3 rotation_and_scaling_inverse_transpose = mat3(axis1, axis2, direction / (speed) /50);
+
+
+				vec3 pos = gl_Vertex.xyz;//
+				pos.z -= 0.5;
+				pos *= scale;
+				pos = rotation_and_scaling * pos;
+				vec4 transformed_pos = vec4(pos + (uniform_center - vec3(0.5,0.5,0.5) + 1./grid_size_f/2.) * 80., 1);
+				vertex_color =  transformed_pos/80. + vec4(0.5, 0.5, 0.5, 1.); //vec4(uniform_center + gl_ModelViewMatrix*pos, 0.);// + vec4(0.5, 0.5, 0.0, 1.);
+				gl_Position = gl_ModelViewProjectionMatrix * transformed_pos;
+				if(use_light == 1) {
+					float fraction = 0.5;
+					vec3 normal =  normalize(mat3(gl_ModelViewMatrix) * rotation_and_scaling_inverse_transpose * gl_Normal);
+					//vec3 normal = normalize(gl_NormalMatrix * gl_Normal);
+					//mat3 rotation = mat3(m);
+					vec3 lightdir_t = normalize(lightdir);
+					vertex_color = vec4(light_color * fraction + max(dot(lightdir_t, normal), 0.), 1.);
+					//vertex_color = vec4(normal, 1.0); //vec4(lightdir_t, 1.);
+				}
+
+			}""",GL_VERTEX_SHADER)
+		self.fragment_shader_color = shaders.compileShader("""
+			varying vec4 vertex_color;
+			void main() {
+				gl_FragColor = vertex_color;
+			}""",GL_FRAGMENT_SHADER)
+		return shaders.compileProgram(self.vertex_shader_color, self.fragment_shader_color)
 
 	def paintGL(self):
 		if self.grid is not None:
@@ -380,11 +499,32 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			self.cube(size=10) # 'debug' cube
 		#self.arrow(0.5, 0.5, 0.5, 80.0)
 		#self.arrow_model.drawGL()
-		glUseProgram(self.shader_vectorfield)
-		if 0:
-			self.arrow_model.drawGL(8**3)
+		glUseProgram(self.shader_vectorfield_color)
+		if self.vectorgrid is not None:
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "vectorfield");
+			glUniform1i(loc, 0); # texture unit 0
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "grid_size");
+			glUniform1i(loc, self.vectorgrid.shape[0])
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "use_light");
+			glUniform1i(loc, 0)
+			mi, ma = np.nanmin(self.vectorgrid_counts), np.nanmax(self.vectorgrid_counts)
+			#loc = glGetUniformLocation(self.shader_vectorfield_color, "count_level_min");
+			#glUniform1f(loc, mi + (ma-mi) * self.min_level_vector3d)
+			#loc = glGetUniformLocation(self.shader_vectorfield_color, "count_level_max");
+			#glUniform1f(loc, mi + (ma-mi) * self.max_level_vector3d)
+
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "count_level_min");
+			glUniform1f(loc, 10**(np.log10(ma)*self.min_level_vector3d))
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "count_level_max");
+			glUniform1f(loc, 10**(np.log10(ma)*self.max_level_vector3d))
+
+			glActiveTexture(GL_TEXTURE0);
+			glEnable(GL_TEXTURE_3D)
+			glBindTexture(GL_TEXTURE_3D, self.texture_cube_vector)
+			self.arrow_model.drawGL(self.vectorgrid.shape[0]**3)
 		glUseProgram(0)
-		glUseProgram(0)
+		glActiveTexture(GL_TEXTURE0);
+		glDisable(GL_TEXTURE_3D)
 		#return
 		
 	def arrow(self, x, y, z, scale):
@@ -488,9 +628,36 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glEnable ( GL_COLOR_MATERIAL )
 		glColor3f(0.5, 0, 0)
 		#self.arrow(0.5, 0.5, 0.5, 80.0)
-		glUseProgram(self.shader_vectorfield)
-		if 0:
-			self.arrow_model.drawGL(8**3)
+		if self.vectorgrid is not None:
+			glUseProgram(self.shader_vectorfield_color)
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "vectorfield");
+			glUniform1i(loc, 0); # texture unit 0
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "grid_size");
+			glUniform1i(loc, self.vectorgrid.shape[0])
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "use_light");
+			glUniform1i(loc, 1)
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "light_color");
+			glUniform3f(loc, 1., 0., 0.);
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "lightdir");
+			glUniform3f(loc, -1., -1., 1.);
+			mi, ma = np.nanmin(self.vectorgrid_counts), np.nanmax(self.vectorgrid_counts)
+			#loc = glGetUniformLocation(self.shader_vectorfield_color, "count_level_min");
+			#//glUniform1f(loc, mi + (ma-mi) * self.min_level_vector3d)
+			#glUniform1f(loc, 10**(log10(ma)*self.min_level_vector3d)
+			#loc = glGetUniformLocation(self.shader_vectorfield_color, "count_level_max");
+			#glUniform1f(loc, mi + (ma-mi) * self.max_level_vector3d)
+
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "count_level_min");
+			glUniform1f(loc, 10**(np.log10(ma)*self.min_level_vector3d))
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "count_level_max");
+			glUniform1f(loc, 10**(np.log10(ma)*self.max_level_vector3d))
+
+
+			glActiveTexture(GL_TEXTURE0);
+			glEnable(GL_TEXTURE_3D)
+			glBindTexture(GL_TEXTURE_3D, self.texture_cube_vector)
+			self.arrow_model.drawGL(self.vectorgrid.shape[0]**3)
+			glDisable(GL_TEXTURE_3D)
 		glUseProgram(0)
 		glDisable(GL_LIGHTING);
 		glDisable(GL_LIGHT0);
@@ -506,7 +673,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glBindTexture(GL_TEXTURE_2D, self.texture_backside)
 		glEnable(GL_TEXTURE_2D)
 		glActiveTexture(GL_TEXTURE0);
-
+		
+		
 		loc = glGetUniformLocation(self.shader, "cube");
 		glUniform1i(loc, 1); # texture unit 1
 		glActiveTexture(GL_TEXTURE1);
@@ -517,10 +685,40 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glUniform1i(loc, 2); # texture unit 2
 		glActiveTexture(GL_TEXTURE2);
 		#index = gavi.vaex.colormaps.colormaps.index("afmhot")
-		index = 0
+		index = 16
 		glBindTexture(GL_TEXTURE_1D, self.textures_colormap[index])
 		glEnable(GL_TEXTURE_1D)
 
+		if 1:
+			loc = glGetUniformLocation(self.shader, "transfer_function");
+			glUniform1i(loc, 3); # texture unit 3
+			glActiveTexture(GL_TEXTURE3);
+			#index = gavi.vaex.colormaps.colormaps.index("afmhot")
+			glBindTexture(GL_TEXTURE_1D, self.texture_function)
+			rgb = self.colormap_data[self.colormap_index]
+			Nx = 1024
+			x = np.arange(Nx) / (Nx-1.)
+			y = x * 0.
+			for i in range(3):
+				y += np.exp(-((x-self.function_means[i])/self.function_sigmas[i])**2) * self.function_opacities[i]
+				#y +=np.exp(-((nx-self.function_means[i])/self.function_sigmas[i])**2) * (np.log10(self.function_opacities[i])+3)/3 * 32.
+			print "max opacity", np.max(y)
+			self.function_data[:,0] = rgb[:,0]
+			self.function_data[:,1] = rgb[:,1]
+			self.function_data[:,2] = rgb[:,2]
+			self.function_data[:,3] = (y * 255).astype(np.uint8)
+			self.function_data_1d = self.function_data.reshape(-1)
+			glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA8, Nx, 0, GL_RGBA, GL_UNSIGNED_BYTE, self.function_data_1d);
+			
+			glEnable(GL_TEXTURE_1D)
+			
+		if 0:
+			loc = glGetUniformLocation(self.shader, "gradient");
+			glUniform1i(loc, 4); # texture unit 4
+			glActiveTexture(GL_TEXTURE4);
+			glEnable(GL_TEXTURE_3D)
+			glBindTexture(GL_TEXTURE_3D, self.texture_gradient)
+				
 		glActiveTexture(GL_TEXTURE0);
 		
 		size = glGetUniformLocation(self.shader,"size");
@@ -563,6 +761,14 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glShadeModel(GL_SMOOTH);
 		self.cube(size=80) # do the volume rendering
 		glUseProgram(0)
+
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_3D, 0)
+		glEnable(GL_TEXTURE_2D)
+
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_1D, 0)
+		glEnable(GL_TEXTURE_2D)
 
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_1D, 0)
@@ -757,6 +963,25 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			#glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
 			glBindTexture(GL_TEXTURE_1D, 0)
 			
+		if 1:
+			self.texture_function = glGenTextures(1)
+			texture = self.texture_function
+			glBindTexture(GL_TEXTURE_1D, texture)
+			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+			self.function_data = np.zeros((Nx, 4), dtype=np.uint8)
+			x = np.arange(Nx) * 255 / (Nx-1.)
+			self.function_data[:,0] = x
+			self.function_data[:,1] = x
+			self.function_data[:,2] = 0
+			self.function_data[:,3] = x
+			self.function_data_1d = self.function_data.reshape(-1)
+			glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA8, Nx, 0, GL_RGBA, GL_UNSIGNED_BYTE, self.function_data_1d);
+			#glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
+			glBindTexture(GL_TEXTURE_1D, 0)
 
 		if 1:
 			N = 1024 * 4
@@ -829,24 +1054,44 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			
 
 	# only gavi specific code?
-	def loadTable(self, args, column_names, grid_size=128, grid_size_vector=32):
+	def loadTable(self, args, column_names, grid_size=128, grid_size_vector=16):
 		import gavi.dataset
 		import gavifast
 		dataset = gavi.dataset.load_file(sys.argv[1])
 		x, y, z, vx, vy, vz = [dataset.columns[name] for name in sys.argv[2:]]
+		x, y, z, vx, vy, vz = [k.astype(np.float64)-k.mean() for k in [x, y, z, vx, vy, vz]]
 		grid3d = np.zeros((grid_size, grid_size, grid_size), dtype=np.float64)
-		vectorgrid = np.zeros((3, grid_size, grid_size, grid_size), dtype=np.float64)
+		vectorgrid = np.zeros((4, grid_size_vector, grid_size_vector, grid_size_vector), dtype=np.float64)
 
 		#mi, ma = -30., 30.
-		mi, ma = 40., 60
-		#mi, ma = -0.5, 0.5
+		#mi, ma = 45., 55
+		#mi, ma = -20, 20
+		s = 0.
+		mi, ma = -4, 4
 		print "histogram3d"
-		gavifast.histogram3d(x, y, z, None, grid3d, mi+5, ma+5, mi, ma, mi, ma)
-		gavifast.histogram3d(x, y, z, vx, vectorgrid[0], mi+15, ma+15, mi, ma, mi, ma)
-		gavifast.histogram3d(x, y, z, vy, vectorgrid[1], mi+15, ma+15, mi, ma, mi, ma)
-		gavifast.histogram3d(x, y, z, vz, vectorgrid[2], mi+15, ma+15, mi, ma, mi, ma)
+		gavifast.histogram3d(x, y, z, None, grid3d, mi+s, ma+s, mi, ma, mi, ma)
+		if 0:
+			vx = vx - vx.mean()
+			vy = vy - vy.mean()
+			vz = vz - vz.mean()
+		gavifast.histogram3d(x, y, z, vx, vectorgrid[0], mi+s, ma+s, mi, ma, mi, ma)
+		gavifast.histogram3d(x, y, z, vy, vectorgrid[1], mi+s, ma+s, mi, ma, mi, ma)
+		gavifast.histogram3d(x, y, z, vz, vectorgrid[2], mi+s, ma+s, mi, ma, mi, ma)
+		print vx
+		print vectorgrid[0]
+		print gavifast.resize(vectorgrid[0], 4)
+		print gavifast.resize(vectorgrid[1], 4)
+		print gavifast.resize(vectorgrid[2], 4)
+		print gavifast.resize(grid3d, 4)
+		print "$" * 80
+		vectorgrid[3][:] = gavifast.resize(grid3d, grid_size_vector)
+		for i in range(3):
+			vectorgrid[i] /= vectorgrid[3] # go from weighted to mean
 
-
+		if 1:
+			vmax = max([np.nanmax(vectorgrid[0]), np.nanmax(vectorgrid[1]), np.nanmax(vectorgrid[2])])
+			for i in range(3):
+				vectorgrid[i] *= 1
 		#self.data3d = self.data3d.astype(np.float32)
 		#self.data2d = self.data2d.astype(np.float32)
 		#self.size3d = 128 # * 4
@@ -873,6 +1118,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#self.grid = np.log10(grid.astype(np.float32)+1)
 		if vectorgrid is not None:
 			self.vectorgrid = vectorgrid.astype(np.float32)
+			self.vectorgrid_counts = self.vectorgrid[:,:,:,3]
 		else:
 			self.vectorgrid = None
 		self.grid = np.log10(grid.astype(np.float32)+1)
@@ -894,6 +1140,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			self.grid_gradient_data[:,:,:,0] = self.grid_gradient[0]
 			self.grid_gradient_data[:,:,:,1] = self.grid_gradient[1]
 			self.grid_gradient_data[:,:,:,2] = self.grid_gradient[2]
+			self.grid_gradient_data[:,:,:,2] = 1.
 			self.grid_gradient = self.grid_gradient_data
 			del self.grid_gradient_data
 			print self.grid_gradient.shape
@@ -941,7 +1188,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		print "dims", width, height, depth
 		glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0,
 					GL_RED, GL_FLOAT, self.grid)
-		print self.grid, self.texture_cube
+		#print self.grid, self.texture_cube
 		#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
          #               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
 		
@@ -957,14 +1204,16 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glBindTexture(GL_TEXTURE_3D, 0)
 			
 		if self.vectorgrid is not None:
-			assert self.vectorgrid.shape[0] == self.vectorgrid.shape[1] == self.vectorgrid.shape[2]
+			#print self.vectorgrid
+			#print "counts", self.vectorgrid[3]
+			assert self.vectorgrid.shape[0] == self.vectorgrid.shape[1] == self.vectorgrid.shape[2], "wrong shape %r" %  self.vectorgrid.shape
 			self.texture_cube_vector_size = self.vectorgrid.shape[0]
 			self.texture_cube_vector = glGenTextures(1)
 			glBindTexture(GL_TEXTURE_3D, self.texture_cube_vector)
 			_, width, height, depth = self.vectorgrid.shape[::-1]
 			print "dims vector", width, height, depth
-			glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, width, height, depth, 0,
-						GL_RED, GL_FLOAT, self.vectorgrid)
+			glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, width, height, depth, 0,
+						GL_RGBA, GL_FLOAT, self.vectorgrid)
 			print self.grid, self.texture_cube
 			#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
 			#               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
@@ -1165,8 +1414,8 @@ class Arrow(object):
 		self.indices = []
 		self.offset = 0
 		
-		headfraction = 0.4
-		baseradius = 0.1 * scale
+		headfraction = 0.5
+		baseradius = 0.1 * scale/1.5
 		headradius = 0.2 * scale
 		
 		# draw base
@@ -1190,6 +1439,8 @@ class Arrow(object):
 			self.tri((part*2+0) % (10*2), (part*2+1) % (10*2), (part*2+2) % (10*2))
 			self.tri((part*2+2) % (10*2), (part*2+1) % (10*2), (part*2+3) % (10*2))
 		self.end()
+
+		# end of base
 		self.begin(GL_TRIANGLE_FAN)
 		self.normal3f(0, 0, -1)
 		#glColor3f(0., 1., 0.)
@@ -1202,6 +1453,7 @@ class Arrow(object):
 		self.end()
 
 		#glColor3f(0., 0., 1.)
+		# head
 		a = headradius - baseradius
 		b = headfraction * scale
 		headangle = np.arctan(a/b)
@@ -1222,6 +1474,7 @@ class Arrow(object):
 			self.end()
 
 
+		# connecting base and head
 		self.begin(GL_QUADS)
 		#glColor3f(1., 1., 0.)
 		self.normal3f(0, 0, -1)

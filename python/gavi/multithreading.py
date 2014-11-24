@@ -3,6 +3,7 @@ import threading
 import Queue
 import math
 import multiprocessing
+import sys
 
 lock = threading.Lock()
 
@@ -43,7 +44,8 @@ class ThreadPool(object):
 					result = self.callable(index, *args)
 					#lock.release()
 				except Exception, e:
-					self.queues_out[index].put(e)
+					exc_info = sys.exc_info()
+					self.queues_out[index].put(exc_info)
 				else:
 					self.queues_out[index].put(result)
 				#print "done..", index
@@ -76,8 +78,9 @@ class ThreadPool(object):
 			args_list.append((i1, i2))
 		results = self.run_parallel(callable, args_list)
 		for result in results:
-			if isinstance(result, Exception):
-				raise result
+			print result, isinstance(result, tuple)#, len(result) > 1, isinstance(result[1], Exception)
+			if isinstance(result, tuple) and len(result) > 1 and isinstance(result[1], Exception):
+				raise result[1], None, result[2]
 		
 		
 

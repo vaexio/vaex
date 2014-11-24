@@ -1222,7 +1222,14 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
 
 class Hdf5MemoryMappedGadget(MemoryMapped):
-	def __init__(self, filename, particleName, particleType):
+	def __init__(self, filename, particleName=None, particleType=None):
+		if "#" in filename:
+			filename, index = filename.split("#")
+			index = int(index)
+			particleNames = "gas halo disk bulge stars dm".split()
+			particleType = index 
+			particleName = particleNames[particleType]
+			
 		super(Hdf5MemoryMappedGadget, self).__init__(filename)
 		self.particleType = particleType
 		self.particleName = particleName
@@ -1282,12 +1289,17 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 			particleName = args[0]
 			particleType = args[1]
 		else:
+			print "try particle type"
 			try:
 				filename, index = path.split("#")
 				index = int(index)
-				particleNames = "gas halo disk bulge stars".split()
-				particleName = particleNames[index]
-			except:
+				particleNames = "gas halo disk bulge stars dm".split()
+				particleType = index 
+				particleName = particleNames[particleType]
+				path = filename
+				print path, particleName
+			except Exception, e:
+				print e
 				return False
 		h5file = None
 		try:
