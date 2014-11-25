@@ -45,18 +45,24 @@ class Grid(object):
 			else:
 				subblock_weight = block_weight[sub_i1:sub_i2]
 			subblocks = [block[sub_i1:sub_i2] for block in blocks]
-			if self.dimensions == 2:
+			if self.dimensions == 1:
+				gavifast.histogram1d(subblocks[0], subblock_weight, self.data_per_thread[index], *ranges_flat)
+			elif self.dimensions == 2:
 				gavifast.histogram2d(subblocks[0], subblocks[1], subblock_weight, self.data_per_thread[index], *ranges_flat)
 			elif self.dimensions == 3:
 				gavifast.histogram3d(subblocks[0], subblocks[1], subblocks[2], subblock_weight, self.data_per_thread[index], *ranges_flat)
 			else:
 				raise NotImplementedError("TODO")
 			if compute_selection:
-				mask = self.grids.dataset.mask
-				subblocks = [block[mask[info.i1+sub_i1:info.i1+sub_i2]] for block in blocks]
+				mask = self.grids.dataset.mask[info.i1:info.i2][sub_i1:sub_i2]
+				subblocks = [block[mask] for block in subblocks]
+				#subblocks = [block[mask[info.i1+sub_i1:info.i1+sub_i2]] for block in blocks]
+				#[info.i1+sub_i1:info.i1+sub_i2]
 				if subblock_weight is not None:
-					subblock_weight = subblock_weight[mask[info.i1+sub_i1:info.i1+sub_i2]]
-				if self.dimensions == 2:
+					subblock_weight = subblock_weight[mask]
+				if self.dimensions == 1:
+					gavifast.histogram1d(subblocks[0], subblock_weight, self.data_selection_per_thread[index], *ranges_flat)
+				elif self.dimensions == 2:
 					gavifast.histogram2d(subblocks[0], subblocks[1], subblock_weight, self.data_selection_per_thread[index], *ranges_flat)
 				elif self.dimensions == 3:
 					gavifast.histogram3d(subblocks[0], subblocks[1], subblocks[2], subblock_weight, self.data_selection_per_thread[index], *ranges_flat)
