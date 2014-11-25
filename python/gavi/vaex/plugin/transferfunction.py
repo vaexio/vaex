@@ -54,6 +54,16 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 		self.slider_transfer_functions_opacity = []
 
 		row = 3
+
+		self.tool.function_means[:] = eval(self.dialog.options.get("tf_means", str(self.tool.function_means)))
+		self.tool.function_opacities[:] = eval(self.dialog.options.get("tf_opacities", str(self.tool.function_opacities)))
+		self.tool.function_sigmas[:] = eval(self.dialog.options.get("tf_sigmas", str(self.tool.function_sigmas)))
+		print "Set opacities", self.tool.function_opacities[:]
+		#dsa
+		#self.widget_volume.function_opacities[i] = self.tool.function_opacities[i]
+		#self.widget_volume.function_sigmas[i] = self.tool.function_sigmas[i]
+		#self.widget_volume.function_means[i] = self.tool.function_means[i]
+
 		for i in range(self.tool.function_count):
 
 			#label = QtGui.QLabel("", page)
@@ -122,45 +132,40 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 				self.widget_volume.update()
 				update_text()
 				self.tool.update()
+
 			self.widget_volume.function_opacities[i] = self.tool.function_opacities[i]
 			self.widget_volume.function_sigmas[i] = self.tool.function_sigmas[i]
 			self.widget_volume.function_means[i] = self.tool.function_means[i]
 			slider_mean.valueChanged.connect(on_mean_change)
 			slider_sigma.valueChanged.connect(on_sigma_change)
 			slider_opacity.valueChanged.connect(on_opacity_change)
-			update_text()
 			slider_mean.setValue(int(self.tool.function_means[i] * 1000))
 			#slider_sigma.setValue(int(self.tool.function_sigmas[i] * 2000))
-			slider_opacity.setValue(int((np.log10(self.tool.function_sigmas[i])/3+1) * 1000))
-			slider_opacity.setValue(int((np.log10(self.tool.function_opacities[i])/3+1) * 1000))
+			print "sigma", self.tool.function_sigmas[i]
+			print ((np.log10(self.tool.function_sigmas[i])/3+1) * 1000)
+			slider_sigma.setValue(int((np.log10(self.tool.function_sigmas[i])/3+1) * 1000))
+			slider_opacity.setValue(0 if self.tool.function_opacities[i] == 0 else int((np.log10(self.tool.function_opacities[i])/3+1) * 1000))
+			update_text()
 
 			layout.setRowMinimumHeight(row, 8)
 			row += 1
 
-		label_brightness = QtGui.QLabel("brightness: ", page)
-		label_brightness_value = QtGui.QLabel("", page)
-		slider_brightness = QtGui.QSlider(page)
-		slider_brightness.setOrientation(QtCore.Qt.Horizontal)
-		slider_brightness.setRange(0, 1000)
 
-		layout.addWidget(label_brightness, row, 0)
-		layout.addWidget(slider_brightness, row, 1)
-		layout.addWidget(label_brightness_value, row, 2)
-		row += 1
+		#dsa
 
-		def update_text_brightness(i=i, label_brightness_value=label_brightness_value):
-			#label.setText("mean/sigma: {0:<0.3f}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-			label_brightness_value.setText(" {0:<0.3f}".format(self.widget_volume.brightness))
-		def on_brightness_change(index, update_text_brightness=update_text_brightness):
-			value = 10**(2*(index/1000.*2-1.))
-			print value
+		def setter(value):
 			self.widget_volume.brightness = value
 			self.widget_volume.update()
-			update_text_brightness()
-			self.tool.update()
-		slider_brightness.setValue(int((np.log10(self.widget_volume.brightness)/2.+1)/2.*1000))
-		update_text_brightness()
-		slider_brightness.valueChanged.connect(on_brightness_change)
+			#self.tool.update()
+		def getter():
+			return self.widget_volume.brightness
+		self.widget_volume.brightness = eval(self.dialog.options.get("brightness", str(getter())))
+		label, slider, label_value = self.make_slider(page, "brightness", self.widget_volume.brightness, 0.1, 5., 1000, "{0:<0.3f}", getter, setter)
+		layout.addWidget(label, row, 0)
+		layout.addWidget(slider, row, 1)
+		layout.addWidget(label_value, row, 2)
+		row += 1
+
 
 		layout.setRowMinimumHeight(row, 8)
 		row += 1
@@ -243,5 +248,87 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 
 		self.previous_volume_rendering_min_level = self.widget_volume.min_level
 		self.previous_volume_rendering_max_level = self.widget_volume.max_level
+
+
+		layout.setRowMinimumHeight(row, 8)
+		row += 1
+
+
+		def setter(value):
+			self.widget_volume.ambient_coefficient = value
+			self.widget_volume.update()
+			#self.tool.update()
+		def getter():
+			return self.widget_volume.ambient_coefficient
+		self.widget_volume.ambient_coefficient = eval(self.dialog.options.get("ambient", str(getter())))
+		label, slider, label_value = self.make_slider(page, "ambient", self.widget_volume.ambient_coefficient, 0., 1., 1000, "{0:<0.3f}", getter, setter)
+		layout.addWidget(label, row, 0)
+		layout.addWidget(slider, row, 1)
+		layout.addWidget(label_value, row, 2)
+		row += 1
+
+		def setter(value):
+			self.widget_volume.diffuse_coefficient = value
+			self.widget_volume.update()
+			#self.tool.update()
+		def getter():
+			return self.widget_volume.diffuse_coefficient
+		self.widget_volume.diffuse_coefficient = eval(self.dialog.options.get("diffuse", str(getter())))
+		label, slider, label_value = self.make_slider(page, "diffuse", self.widget_volume.diffuse_coefficient, 0., 1., 1000, "{0:<0.3f}", getter, setter)
+		layout.addWidget(label, row, 0)
+		layout.addWidget(slider, row, 1)
+		layout.addWidget(label_value, row, 2)
+		row += 1
+
+		def setter(value):
+			self.widget_volume.specular_coefficient = value
+			self.widget_volume.update()
+			#self.tool.update()
+		def getter():
+			return self.widget_volume.specular_coefficient
+		self.widget_volume.specular_coefficient = eval(self.dialog.options.get("specular", str(getter())))
+		label, slider, label_value = self.make_slider(page, "specular", self.widget_volume.specular_coefficient, 0., 1., 1000, "{0:<0.3f}", getter, setter)
+		layout.addWidget(label, row, 0)
+		layout.addWidget(slider, row, 1)
+		layout.addWidget(label_value, row, 2)
+		row += 1
+
+		def setter(value):
+			self.widget_volume.specular_exponent = value
+			self.widget_volume.update()
+			#self.tool.update()
+		def getter():
+			return self.widget_volume.specular_exponent
+		self.widget_volume.specular_exponent = eval(self.dialog.options.get("specular_n", str(getter())))
+		label, slider, label_value = self.make_slider(page, "specular_n", self.widget_volume.specular_exponent, 0.1, 10., 1000, "{0:<0.3f}", getter, setter)
+		layout.addWidget(label, row, 0)
+		layout.addWidget(slider, row, 1)
+		layout.addWidget(label_value, row, 2)
+		row += 1
+
+
+	def make_slider(self, parent, label_text, value_current, value_min, value_max, value_steps, format, getter, setter):
+		label = QtGui.QLabel(label_text, parent)
+		label_value = QtGui.QLabel(label_text, parent)
+		slider = QtGui.QSlider(parent)
+		slider.setOrientation(QtCore.Qt.Horizontal)
+		slider.setRange(0, value_steps)
+
+		def update_text():
+			#label.setText("mean/sigma: {0:<0.3f}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+			label_value.setText(format.format(getter()))
+		def on_change(index, slider=slider):
+			value = index/float(value_steps) * (value_max - value_min) + value_min
+			print label_text, "set to", value
+			setter(value)
+			update_text()
+		slider.setValue((getter() - value_min)/(value_max - value_min) * value_steps)
+		update_text()
+		slider.valueChanged.connect(on_change)
+		return label, slider, label_value
+
+
+
+
 
 

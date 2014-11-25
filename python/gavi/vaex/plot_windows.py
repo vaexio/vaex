@@ -3478,10 +3478,9 @@ class VolumeRenderingPlotDialog(PlotDialog):
 								mask = multisum(vector_counts, allaxes) > 0
 								print U.shape, vector_mask.shape
 								axes.quiver(x[mask], y[mask], U[mask], V[mask], W[mask], cmap=self.colormap_vector)
-						else:
-							self.axes.quiver(x[mask], y[mask], vx[mask], vy[mask], color="black")
-							colors = None
-
+							else:
+								axes.quiver(x[mask], y[mask], vx[mask], vy[mask], color="black")
+	
 
 						if 0: # TODO: self.dataset.selected_row_index is not None:
 							#self.axes.autoscale(False)

@@ -11,9 +11,9 @@ class HistogramAndTransfer(QtGui.QWidget):
 		self.grid = None
 		self.setMinimumHeight(32+100*0)
 		self.function_count = function_count
-		self.function_opacities = [0.1/2**(function_count-1-k) for k in range(function_count)] 
-		self.function_sigmas = [0.05] * function_count
-		self.function_means = (np.arange(function_count) / float(function_count-1)) * 0.8 + 0.10
+		self.function_opacities = [0.2/2**(function_count-1-k) for k in range(function_count)]
+		self.function_sigmas = [0.025] * function_count
+		self.function_means = list((np.arange(function_count) / float(function_count-1)) * 0.8 + 0.10)
 		
 		
 	def paintEvent(self, event):
