@@ -18,7 +18,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 	name = "transferfunction"
 	def __init__(self, dialog):
 		super(TransferFunctionPlugin, self).__init__(dialog)
-		dialog.plug_page(self.plug_page, "Transfer function", 4.0, 1.0)
+		dialog.plug_page(self.plug_page, "Transfer function", 2.5, 1.0)
 
 	@staticmethod
 	def useon(dialog_class):
@@ -95,10 +95,10 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 			slider_sigma.setRange(0, 1000)
 			slider_opacity.setRange(0, 1000)
 			def update_text(i=i, slider_mean=slider_mean, slider_sigma=slider_sigma, slider_opacity=slider_opacity, label_mean_value=label_mean_value, label_sigma_value=label_sigma_value, label_opacity_value=label_opacity_value):
-				#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-				label_mean_value.setText(" {0:.3g}".format(self.tool.function_means[i]))
-				label_sigma_value.setText(" {0:.3g}".format(self.tool.function_sigmas[i]))
-				label_opacity_value.setText(" {0:.3g}".format(self.tool.function_opacities[i]))
+				#label.setText("mean/sigma: {0:<0.3f}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+				label_mean_value.setText(" {0:<0.3f}".format(self.tool.function_means[i]))
+				label_sigma_value.setText(" {0:<0.3f}".format(self.tool.function_sigmas[i]))
+				label_opacity_value.setText(" {0:<0.3f}".format(self.tool.function_opacities[i]))
 			def on_mean_change(index, i=i, update_text=update_text):
 				value = index/1000.
 				self.tool.function_means[i] = value
@@ -108,6 +108,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 				self.tool.update()
 			def on_sigma_change(index, i=i, update_text=update_text):
 				value = index/1000.
+				value = 10**((value-1)*3)
 				self.tool.function_sigmas[i] = value
 				self.widget_volume.function_sigmas[i] = value
 				self.widget_volume.update()
@@ -129,7 +130,8 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 			slider_opacity.valueChanged.connect(on_opacity_change)
 			update_text()
 			slider_mean.setValue(int(self.tool.function_means[i] * 1000))
-			slider_sigma.setValue(int(self.tool.function_sigmas[i] * 2000))
+			#slider_sigma.setValue(int(self.tool.function_sigmas[i] * 2000))
+			slider_opacity.setValue(int((np.log10(self.tool.function_sigmas[i])/3+1) * 1000))
 			slider_opacity.setValue(int((np.log10(self.tool.function_opacities[i])/3+1) * 1000))
 
 			layout.setRowMinimumHeight(row, 8)
@@ -147,8 +149,8 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 		row += 1
 
 		def update_text_brightness(i=i, label_brightness_value=label_brightness_value):
-			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-			label_brightness_value.setText(" {0:.3g}".format(self.widget_volume.brightness))
+			#label.setText("mean/sigma: {0:<0.3f}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+			label_brightness_value.setText(" {0:<0.3f}".format(self.widget_volume.brightness))
 		def on_brightness_change(index, update_text_brightness=update_text_brightness):
 			value = 10**(2*(index/1000.*2-1.))
 			print value
@@ -175,8 +177,8 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 		row += 1
 
 		def update_text_min_level(i=i, label_min_level_value=label_min_level_value):
-			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-			label_min_level_value.setText(" {0:.3g}".format(self.widget_volume.min_level))
+			#label.setText("mean/sigma: {0:<0.3f}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+			label_min_level_value.setText(" {0:<0.3f}".format(self.widget_volume.min_level))
 		self.handling_nested_min_max_level = False
 		def on_min_level_change(index, update_text_min_level=update_text_min_level):
 			value = index/1000.
@@ -215,8 +217,8 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 		row += 1
 
 		def update_text_max_level(i=i, label_max_level_value=label_max_level_value):
-			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-			label_max_level_value.setText(" {0:.3g}".format(self.widget_volume.max_level))
+			#label.setText("mean/sigma: {0:<0.3f}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+			label_max_level_value.setText(" {0:<0.3f}".format(self.widget_volume.max_level))
 		def on_max_level_change(index, update_text_max_level=update_text_max_level):
 			value = index/1000.
 			print value

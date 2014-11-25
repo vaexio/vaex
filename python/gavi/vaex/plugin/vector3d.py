@@ -17,14 +17,20 @@ class Vector3dPlugin(gavi.vaex.plugin.PluginPlot):
 	name = "vector3"
 	def __init__(self, dialog):
 		super(Vector3dPlugin, self).__init__(dialog)
-		dialog.plug_page(self.plug_page, "Vector3d", 2.5, 1.2)
+		dialog.plug_page(self.plug_page, "Vector field", 2., 2.)
 
 	@staticmethod
 	def useon(dialog_class):
 		return issubclass(dialog_class, gavi.vaex.plot_windows.VolumeRenderingPlotDialog)
 
 	def plug_page(self, page):
-		layout = self.layout = QtGui.QGridLayout()
+		existing_layout = page.layout()
+		if isinstance(existing_layout, QtGui.QGridLayout):
+			layout = existing_layout
+		else:
+			#raise NotImplementedError("expected different layout")
+			self.layout = layout = QtGui.QGridLayout()
+			existing_layout.addLayout(self.layout)
 		page.setLayout(self.layout)
 		layout.setSpacing(0)
 		layout.setContentsMargins(0,0,0,0)
@@ -50,7 +56,7 @@ class Vector3dPlugin(gavi.vaex.plugin.PluginPlot):
 
 		def update_text_vector3d_min_level(label_vector3d_min_level_value=label_vector3d_min_level_value):
 			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-			label_vector3d_min_level_value.setText(" {0:.3g}".format(self.dialog.widget_volume.min_level_vector3d))
+			label_vector3d_min_level_value.setText(" {0:<0.3f}".format(self.dialog.widget_volume.min_level_vector3d))
 		def on_vector3d_min_level_change(index, update_text_vector3d_min_level=update_text_vector3d_min_level):
 			value = index / 1000.
 			print value
@@ -76,7 +82,7 @@ class Vector3dPlugin(gavi.vaex.plugin.PluginPlot):
 
 		def update_text_vector3d_max_level(label_vector3d_max_level_value=label_vector3d_max_level_value):
 			#label.setText("mean/sigma: {0:.3g}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
-			label_vector3d_max_level_value.setText(" {0:0.3g}".format(self.dialog.widget_volume.max_level_vector3d))
+			label_vector3d_max_level_value.setText(" {0:<0.3f}".format(self.dialog.widget_volume.max_level_vector3d))
 		def on_vector3d_max_level_change(index, update_text_vector3d_max_level=update_text_vector3d_max_level):
 			value = index/1000.
 			print value

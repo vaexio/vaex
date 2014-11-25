@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import matplotlib.cm
 import numpy as np
+from 	qt import *
+
 cols = []
 for x in np.linspace(0,1, 256):
 	rcol = 0.237 - 2.13*x + 26.92*x**2 - 65.5*x**3 + 63.5*x**4 - 22.36*x**5
@@ -13,6 +15,7 @@ cm_plusmin = matplotlib.colors.LinearSegmentedColormap.from_list(name, cols)
 matplotlib.cm.register_cmap(name=name, cmap=cm_plusmin)
 
 colormaps = []
+colormaps_map = {}
 cmaps = [	('Extra', ['PaulT_plusmin']),
 				('Sequential',     ['binary', 'Blues', 'BuGn', 'BuPu', 'gist_yarg',
 								'GnBu', 'Greens', 'Greys', 'Oranges', 'OrRd',
@@ -32,3 +35,21 @@ cmaps = [	('Extra', ['PaulT_plusmin']),
 for cmap_category, cmap_list in cmaps:
 	for colormap_name in cmap_list:
 		colormaps.append(colormap_name)
+
+
+
+def colormap_to_QImage(colormap, width, height):
+	mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
+	x = np.arange(width)/(width+0.)
+	x = np.vstack([x]*height)
+
+	rgba = mapping.to_rgba(x, bytes=True)
+	# for some reason rgb need to be swapped
+	r, g, b = rgba[:,:,0] * 1., rgba[:,:,1] * 1., rgba[:,:,2] * 1.
+	rgba[:,:,0] = b
+	rgba[:,:,1] = g
+	rgba[:,:,2] = r
+	stringdata = rgba.tostring()
+	image = QtGui.QImage(stringdata, width, height, width*4, QtGui.QImage.Format_RGB32)
+	return image, stringdata
+
