@@ -1245,7 +1245,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			print "dims vector", width, height, depth
 			glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, width, height, depth, 0,
 						GL_RGBA, GL_FLOAT, self.vectorgrid)
-			print self.grid, self.texture_cube
+			#print self.grid, self.texture_cube
 			#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
 			#               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
 			

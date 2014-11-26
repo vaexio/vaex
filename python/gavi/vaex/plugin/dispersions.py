@@ -160,8 +160,8 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 				#deltax = self.dialog.ranges_show[0][1] - self.dialog.ranges_show[0][0]
 				#deltay = self.dialog.ranges_show[1][1] - self.dialog.ranges_show[1][0]
 				#aspect = deltay / float(height) / (deltax/float(width))
-				for grid in [x, y, sigmax, sigmay, covxy, counts, mask]:
-					print grid.shape
+				#for grid in [x, y, sigmax, sigmay, covxy, counts, mask]:
+				#	print grid.shape
 				for x, y, sigmax, sigmay, covxy in zip(x[mask].reshape(-1), y[mask].reshape(-1), sigmax[mask].reshape(-1), sigmay[mask].reshape(-1), covxy[mask].reshape(-1)):
 					try:
 						covmatrix = [[sigmax**2, covxy], [covxy, sigmay**2]]

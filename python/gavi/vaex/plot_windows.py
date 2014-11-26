@@ -2909,7 +2909,6 @@ class ScatterPlotDialog(PlotDialog):
 		if self.action_display_current == self.action_display_mode_selection:
 			if self.counts_mask is not None:
 				self.axes.imshow(self.contrast(amplitude_mask), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
-		print "aap"
 		if 1:
 			#locals = {key:None if grid is None else gavifast.resize(grid, 64) for key, grid in locals}
 			locals = {}
@@ -2981,7 +2980,6 @@ class ScatterPlotDialog(PlotDialog):
 			#	self.axes.scatter(dataxsel, dataysel)
 		self.axes.set_xlabel(self.expressions[0])
 		self.axes.set_ylabel(self.expressions[1])
-		print "plot limits:", self.ranges
 		self.axes.set_xlim(*self.ranges_show[0])
 		self.axes.set_ylim(*self.ranges_show[1])
 		#self.fig.texts = []
@@ -3104,10 +3102,6 @@ class ScatterPlotMatrixDialog(PlotDialog):
 				args = data_blocks, weights_block, self.counts, ranges
 				gavi.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
 		except:
-			print "args", args	
-			print blockx.shape, blockx.dtype
-			print blocky.shape, blocky.dtype
-			print self.counts.shape, self.counts.dtype
 			raise
 		print "it took", time.time()-t0
 
@@ -3245,13 +3239,23 @@ class ScatterPlotMatrixDialog(PlotDialog):
 			#	self.axes.scatter(dataxsel, dataysel)
 			self.axes.set_xlabel(self.expressions[0])
 			self.axes.set_ylabel(self.expressions[0])
-			print "plot limits:", self.ranges
 			self.axes.set_xlim(*self.ranges_show[0])
 			self.axes.set_ylim(*self.ranges_show[1])
 		self.canvas.draw()
 		self.message("ploting %f" % (time.time() - t0), index=5)
 		
-		
+time_previous = time.time()
+time_start = time.time()
+def timelog(msg, reset=False):
+	global time_previous, time_start
+	now = time.time()
+	if reset:
+		time_start = now
+	T = now - time_start
+	deltaT = now - time_previous
+	print "*** TIMELOG: %s (T=%f deltaT=%f)" % (msg, T, deltaT)
+	time_previous = now
+
 class VolumeRenderingPlotDialog(PlotDialog):
 	def __init__(self, parent, jobsManager, dataset, xname, yname, zname, **options):
 		super(VolumeRenderingPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname, zname], "X Y Z".split(), **options)
@@ -3390,22 +3394,26 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		
 		
 	def plot(self):
-		
-		print "Start plotting"
+		timelog("plot start", reset=True)
 		t0 = time.time()
 		if 1:
 			ranges = []
 			for minimum, maximum in self.ranges:
 				ranges.append(minimum)
 				ranges.append(maximum)
-				
+
+			timelog("creating grid map")
 			grid_map = self.create_grid_map(self.gridsize, False)
+			timelog("eval amplitude")
 			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
+			timelog("eval amplitude done")
 			use_selection = self.dataset.mask is not None
 			if use_selection:
+				timelog("repeat for selection")
 				grid_map_selection = self.create_grid_map(self.gridsize, True)
 				amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
 
+			timelog("creating grid map vector")
 			grid_map_vector = self.create_grid_map(self.gridsize_vector, use_selection)
 			vector_grid = None
 			vector_counts = grid_map_vector["counts"]
@@ -3429,6 +3437,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				vector_z = None
 				vz = None
 			if vx is not None and vy is not None and vz is not None:
+				timelog("making vector grid")
 				vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
 				vector_grid[0] = vx
 				vector_grid[1] = vy
@@ -3436,8 +3445,9 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				vector_grid[3] = vector_counts
 				vector_grid = np.swapaxes(vector_grid, 0, 3)
 				vector_grid = vector_grid * 1.
-
+			timelog("setting grid")
 			self.widget_volume.setGrid(amplitude_selection if use_selection else amplitude, vector_grid)
+			timelog("grid")
 			if 0:
 				self.tool.grid = amplitude
 				self.tool.update()
@@ -3457,6 +3467,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			vector_values = [vx, vy, vz]
 			vector_positions = [vector_x, vector_y, vector_z]
 			for i in range(2):
+					timelog("axis: " +str(i))
 					axes = axeslist[i]
 					i1 = 0
 					i2 = i + 1
@@ -3478,8 +3489,6 @@ class VolumeRenderingPlotDialog(PlotDialog):
 						allaxes.remove(2-(1+i))
 						print "removed", allaxes
 						counts_mask = None
-						for key, grid in grid_map.items():
-							print key, grid #: #None if grid is None else grid.shape
 
 
 						grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else multisum(grid, allaxes)) for key, grid in grid_map.items()}
@@ -3560,6 +3569,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				self.axes.set_xlim(*self.ranges_show[0])
 				self.axes.set_ylim(*self.ranges_show[1])
 		self.canvas.draw()
+		timelog("plot end")
 		self.message("ploting %f" % (time.time() - t0), index=5)
 		
 
