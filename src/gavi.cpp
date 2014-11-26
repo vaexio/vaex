@@ -388,15 +388,13 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 	if((weights == NULL) & (offset_x == 0) & (offset_y == 0)) { // default: fasted algo
 		for(long long i = 0; i < block_length; i++) {
 			double value_x = blockx[i];
-			int index_x = (int)((value_x - xmin) * scale_x);
+			double value_y = blocky[i];
 			
-			if( (index_x >= 0) & (index_x < counts_length_x)) {
-				double value_y = blocky[i];
+			if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
+			//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
+				int index_x = (int)((value_x - xmin) * scale_x);
 				int index_y = (int)((value_y - ymin) * scale_y);
-				
-				if ( (index_y >= 0) & (index_y < counts_length_y) ) {
-					counts[index_x + counts_length_x*index_y] += 1;
-				}
+				counts[index_x + counts_length_x*index_y] += 1;
 			}
 		}
 	} else {
@@ -938,6 +936,7 @@ initgavifast(void)
 
 	Py_InitModule("gavifast", pygavi_functions);
 }
+
 
 
 

@@ -78,7 +78,7 @@ class ThreadPool(object):
 			args_list.append((i1, i2))
 		results = self.run_parallel(callable, args_list)
 		for result in results:
-			print result, isinstance(result, tuple)#, len(result) > 1, isinstance(result[1], Exception)
+			#print result, isinstance(result, tuple)#, len(result) > 1, isinstance(result[1], Exception)
 			if isinstance(result, tuple) and len(result) > 1 and isinstance(result[1], Exception):
 				raise result[1], None, result[2]
 		

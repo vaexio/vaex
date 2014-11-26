@@ -101,7 +101,7 @@ class Grid(object):
 				data = self.data
 			else:
 				data = data_per_thread[index-1]
-			print "\tthread", self.weight_expression, sub_i1, sub_i2
+			print "\tthread", index, self.weight_expression, sub_i1, sub_i2
 			if block_weight is None:
 				subblock_weight = None
 			else:
@@ -135,7 +135,9 @@ class Grid(object):
 				else:
 					raise NotImplementedError("TODO")
 		self.grids.threadpool.run_blocks(bin_subblock, info.size)
-		self.data += np.sum(data_per_thread, axis=0)
+		for i in range(self.grids.threadpool.nthreads-1):
+			np.add(self.data, data_per_thread[i], self.data)
+		#self.data += np.sum(data_per_thread, axis=0)
 		if compute_selection:
 			self.data_selection += np.sum(data_selection_per_thread, axis=0)
 
@@ -158,8 +160,8 @@ class Grids(object):
 			expressions = list(self.expressions)
 			if grid.weight_expression is not None:
 				expressions.append(grid.weight_expression)
-			print "expressions", expressions
-			if name is "counts" or grid.weight_expression is not None:
+			if name is "counts" or (grid.weight_expression is not None and len(grid.weight_expression ) > 0):
+				print "*** JOB: expressions", expressions
 				jobsManager.addJob(1, callback, self.dataset, *expressions)
 
 	def set_expressions(self, expressions):

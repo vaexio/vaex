@@ -1279,6 +1279,8 @@ class PlotDialog(QtGui.QDialog):
 		print "updating compute counter", ''.join(traceback.format_stack())		
 		compute_counter = self.compute_counter = self.compute_counter + 1
 		t0 = time.time()
+
+
 		def calculate_range(info, block, axisIndex):
 			if compute_counter < self.compute_counter:
 				print "STOP " * 100
@@ -1661,9 +1663,11 @@ class PlotDialog(QtGui.QDialog):
 	def update_direct(self):
 		for i in range(self.dimensions):
 			self.ranges[i] = self.ranges_show[i]
+		timelog("begin computation", reset=True)
 		self.compute()
 		self.jobsManager.execute()
-		
+		timelog("computation done")
+
 	def update_delayed(self, delay=500):
 		def update(ignore=None, update_counter=None):
 			print "COUNTER " * 100, self.update_counter, update_counter
@@ -2894,6 +2898,7 @@ class ScatterPlotDialog(PlotDialog):
 			logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 			grid_map = self.create_grid_map(self.gridsize, False)
 			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
+			print "TOTAL", np.sum(amplitude)
 			use_selection = self.dataset.mask is not None
 			if use_selection:
 				grid_map_selection = self.create_grid_map(self.gridsize, True)
@@ -3394,7 +3399,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		
 		
 	def plot(self):
-		timelog("plot start", reset=True)
+		timelog("plot start", reset=False)
 		t0 = time.time()
 		if 1:
 			ranges = []

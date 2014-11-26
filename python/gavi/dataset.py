@@ -30,7 +30,7 @@ def error(title, msg):
 	print "Error", title, msg
 
 
-buffer_size = 1e8
+buffer_size = 1e9
 
 import gavi.logging
 logger = gavi.logging.getLogger("gavi.vaex")
@@ -48,7 +48,7 @@ class FakeLogger(object):
 	def exception(self, *args):
 		pass
 
-#logger = FakeLogger()
+logger = FakeLogger()
 
 class Job(object):
 	def __init__(self, callback, expressions):
