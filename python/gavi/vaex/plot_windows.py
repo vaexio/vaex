@@ -27,6 +27,7 @@ import gavi.vaex.plugin as plugin
 import gavi.vaex.plugin.zoom
 import gavi.vaex.plugin.vector3d
 import gavi.vaex.plugin.transferfunction
+import gavi.vaex.plugin.dispersions
 from gavi.vaex.grids import Grids
 
 from numba import jit
@@ -392,6 +393,10 @@ class PlotDialog(QtGui.QDialog):
 	def plug_page(self, callback, pagename, pageorder, order):
 		self.plugin_queue_page.append((callback, pagename, pageorder, order))
 
+	def plug_grids(self, callback_define, callback_draw):
+		self.plugin_grids_defines.append(callback_define)
+		self.plugin_grids_draw.append(callback_draw)
+
 	def get_settings(self):
 		return dict(self.options)
 
@@ -414,6 +419,8 @@ class PlotDialog(QtGui.QDialog):
 		self.grids = Grids(self.dataset, self.pool, *self.expressions)
 
 		# create plugins
+		self.plugin_grids_defines = []
+		self.plugin_grids_draw = []
 		self.plugin_queue_toolbar = [] # list of tuples (callback, order)
 		self.plugin_queue_page = []
 		print gavi.vaex.plugin.PluginPlot.registry
@@ -423,7 +430,7 @@ class PlotDialog(QtGui.QDialog):
 		self.plugins_map = {plugin.name:plugin for plugin in self.plugins}
 		#self.plugin_zoom = plugin.zoom.ZoomPlugin(self)
 		
-		self.gridsize_vector = 16
+		self.gridsize_vector = eval(self.options.get("grid_size_vector", "16"))
 
 
 		if self.dimensions == 3:
@@ -448,7 +455,7 @@ class PlotDialog(QtGui.QDialog):
 		self.shortcuts = []
 
 		
-		self.gridsize = eval(self.options.get("gridsize", "512/2"))
+		self.gridsize = eval(self.options.get("grid_size", "512/2"))
 		self.xoffset, self.yoffset = 0, 0
 		self.show_disjoined = False
 
@@ -1331,6 +1338,8 @@ class PlotDialog(QtGui.QDialog):
 		self.grids.define_grid("weightx", self.gridsize_vector, self.weight_x_expression)
 		self.grids.define_grid("weighty", self.gridsize_vector, self.weight_y_expression)
 		self.grids.define_grid("weightz", self.gridsize_vector, self.weight_z_expression)
+		for callback in self.plugin_grids_defines:
+			callback(self.grids)
 		self.grids.add_jobs(self.jobsManager)
 		#self.jobsManager.addJob(1, functools.partial(self.calculate_visuals, compute_counter=compute_counter), self.dataset, *all_expressions, **self.getVariableDict())
 		#for grid in self.grids:
@@ -2572,26 +2581,34 @@ class HistogramPlotDialog(PlotDialog):
 		t0 = time.time()
 		self.axes.cla()
 		self.axes.autoscale(False)
-		if self.expression_error:
-			return
+		#if self.expression_error:
+		#	return
 		#P.hist(x, 50, normed=1, histtype='stepfilled')
 		#values = 
 		Nvector = self.gridsize
 		width = self.ranges[0][1] - self.ranges[0][0]
-		x = np.arange(0, Nvector)/float(Nvector) * width + self.ranges[0][0]# + width/(Nvector/2.) 
+		x = np.arange(0, Nvector)/float(Nvector) * width + self.ranges[0][0]# + width/(Nvector/2.)
+		xmin, xmax = self.ranges[0]
+		xmin, xmax = self.ranges[0]
+		if self.ranges_show[0] is None:
+			self.ranges_show[0] = xmin, xmax
 
-		amplitude = self.counts
+		self.delta = (xmax - xmin) / self.gridsize
+		self.centers = (np.arange(self.gridsize)+0.5) * self.delta + xmin
+
 		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
-		if self.amplitude_expression is not None:
-			#locals = {"counts":self.counts, "counts_weights":self.counts_weights}
-			locals = {"counts": self.counts, "weighted": self.counts_weights}
-			locals["x"] = x
-			if self.counts_weights is not None:
-				locals["average"] = self.counts_weights/self.counts
-			else:
-				locals["average"] = None
-			globals = np.__dict__
-			amplitude = eval(self.amplitude_expression, globals, locals)
+		grid_map = self.create_grid_map(self.gridsize, False)
+		amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
+		use_selection = self.dataset.mask is not None
+		if use_selection:
+			grid_map_selection = self.create_grid_map(self.gridsize, True)
+			amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
+
+		if use_selection:
+			self.axes.bar(self.centers, amplitude, width=self.delta, align='center')
+			self.axes.bar(self.centers, amplitude_selection, width=self.delta, align='center', color="red", alpha=0.8)
+		else:
+			self.axes.bar(self.centers, amplitude, width=self.delta, align='center')
 
 		if self.range_level is None:
 			if self.weight_expression:
@@ -2599,37 +2616,41 @@ class HistogramPlotDialog(PlotDialog):
 			else:
 				self.range_level = 0, np.nanmax(amplitude) * 1.1
 
-
-		if self.counts_mask is None:
-			self.axes.bar(self.centers, amplitude, width=self.delta, align='center')
-		else:
+		if 0:
+			amplitude = self.counts
+			logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 			if self.amplitude_expression is not None:
-				#locals = {"counts":self.counts_mask}
-				locals = {"counts": self.counts_mask, "weighted": self.counts_weights_mask}
-				if self.counts_weights_mask is not None:
-					locals["average"] = self.counts_weights_mask/self.counts_mask
+				#locals = {"counts":self.counts, "counts_weights":self.counts_weights}
+				locals = {"counts": self.counts, "weighted": self.counts_weights}
+				locals["x"] = x
+				if self.counts_weights is not None:
+					locals["average"] = self.counts_weights/self.counts
 				else:
 					locals["average"] = None
-				
 				globals = np.__dict__
-				amplitude_mask = eval(self.amplitude_expression, globals, locals)
-			self.axes.bar(self.centers, amplitude, width=self.delta, align='center')
-			self.axes.bar(self.centers, amplitude_mask, width=self.delta, align='center', color="red", alpha=0.8)
-		
-		index = self.dataset.selected_row_index
-		if index is not None and self.selected_point is None:
-			logger.debug("point selected but after computation")
-			# TODO: optimize
-			# TODO: optimize
-			def find_selected_point(info, block):
-				if index >= info.i1 and index < info.i2: # selected point is in this block
-					self.selected_point = block[index-info.i1]
-			self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
-		
-		if self.selected_point is not None:
-			#x = self.getdatax()[self.dataset.selected_row_index]
-			print "drawing vline at", self.selected_point
-			self.axes.axvline(self.selected_point, color="red")
+				amplitude = eval(self.amplitude_expression, globals, locals)
+
+			if self.range_level is None:
+				if self.weight_expression:
+					self.range_level = np.nanmin(amplitude) * 1.1, np.nanmax(amplitude) * 1.1
+				else:
+					self.range_level = 0, np.nanmax(amplitude) * 1.1
+
+
+			index = self.dataset.selected_row_index
+			if index is not None and self.selected_point is None:
+				logger.debug("point selected but after computation")
+				# TODO: optimize
+				# TODO: optimize
+				def find_selected_point(info, block):
+					if index >= info.i1 and index < info.i2: # selected point is in this block
+						self.selected_point = block[index-info.i1]
+				self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
+
+			if self.selected_point is not None:
+				#x = self.getdatax()[self.dataset.selected_row_index]
+				print "drawing vline at", self.selected_point
+				self.axes.axvline(self.selected_point, color="red")
 		
 		self.axes.set_xlabel(self.expressions[0])
 		xmin_show, xmax_show = self.ranges_show[0]
@@ -2888,7 +2909,6 @@ class ScatterPlotDialog(PlotDialog):
 		if self.action_display_current == self.action_display_mode_selection:
 			if self.counts_mask is not None:
 				self.axes.imshow(self.contrast(amplitude_mask), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
-		print "aap"
 		if 1:
 			#locals = {key:None if grid is None else gavifast.resize(grid, 64) for key, grid in locals}
 			locals = {}
@@ -2930,6 +2950,10 @@ class ScatterPlotDialog(PlotDialog):
 				#self.axes.imshow(amplitude_mask, origin="lower", extent=ranges, alpha=1, cmap=cm_plusmin)
 				self.axes.contour(amplitude_mask, origin="lower", extent=ranges, levels=levels, linewidths=2, colors="red")
 
+		for callback in self.plugin_grids_draw:
+			callback(self.axes, grid_map, grid_map_vector)
+
+
 		if self.aspect is None:
 			self.axes.set_aspect('auto')
 		else:
@@ -2956,7 +2980,6 @@ class ScatterPlotDialog(PlotDialog):
 			#	self.axes.scatter(dataxsel, dataysel)
 		self.axes.set_xlabel(self.expressions[0])
 		self.axes.set_ylabel(self.expressions[1])
-		print "plot limits:", self.ranges
 		self.axes.set_xlim(*self.ranges_show[0])
 		self.axes.set_ylim(*self.ranges_show[1])
 		#self.fig.texts = []
@@ -3079,10 +3102,6 @@ class ScatterPlotMatrixDialog(PlotDialog):
 				args = data_blocks, weights_block, self.counts, ranges
 				gavi.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
 		except:
-			print "args", args	
-			print blockx.shape, blockx.dtype
-			print blocky.shape, blocky.dtype
-			print self.counts.shape, self.counts.dtype
 			raise
 		print "it took", time.time()-t0
 
@@ -3220,13 +3239,23 @@ class ScatterPlotMatrixDialog(PlotDialog):
 			#	self.axes.scatter(dataxsel, dataysel)
 			self.axes.set_xlabel(self.expressions[0])
 			self.axes.set_ylabel(self.expressions[0])
-			print "plot limits:", self.ranges
 			self.axes.set_xlim(*self.ranges_show[0])
 			self.axes.set_ylim(*self.ranges_show[1])
 		self.canvas.draw()
 		self.message("ploting %f" % (time.time() - t0), index=5)
 		
-		
+time_previous = time.time()
+time_start = time.time()
+def timelog(msg, reset=False):
+	global time_previous, time_start
+	now = time.time()
+	if reset:
+		time_start = now
+	T = now - time_start
+	deltaT = now - time_previous
+	print "*** TIMELOG: %s (T=%f deltaT=%f)" % (msg, T, deltaT)
+	time_previous = now
+
 class VolumeRenderingPlotDialog(PlotDialog):
 	def __init__(self, parent, jobsManager, dataset, xname, yname, zname, **options):
 		super(VolumeRenderingPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname, zname], "X Y Z".split(), **options)
@@ -3365,22 +3394,26 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		
 		
 	def plot(self):
-		
-		print "Start plotting"
+		timelog("plot start", reset=True)
 		t0 = time.time()
 		if 1:
 			ranges = []
 			for minimum, maximum in self.ranges:
 				ranges.append(minimum)
 				ranges.append(maximum)
-				
+
+			timelog("creating grid map")
 			grid_map = self.create_grid_map(self.gridsize, False)
+			timelog("eval amplitude")
 			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
+			timelog("eval amplitude done")
 			use_selection = self.dataset.mask is not None
 			if use_selection:
+				timelog("repeat for selection")
 				grid_map_selection = self.create_grid_map(self.gridsize, True)
 				amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
 
+			timelog("creating grid map vector")
 			grid_map_vector = self.create_grid_map(self.gridsize_vector, use_selection)
 			vector_grid = None
 			vector_counts = grid_map_vector["counts"]
@@ -3404,6 +3437,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				vector_z = None
 				vz = None
 			if vx is not None and vy is not None and vz is not None:
+				timelog("making vector grid")
 				vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
 				vector_grid[0] = vx
 				vector_grid[1] = vy
@@ -3411,8 +3445,9 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				vector_grid[3] = vector_counts
 				vector_grid = np.swapaxes(vector_grid, 0, 3)
 				vector_grid = vector_grid * 1.
-
+			timelog("setting grid")
 			self.widget_volume.setGrid(amplitude_selection if use_selection else amplitude, vector_grid)
+			timelog("grid")
 			if 0:
 				self.tool.grid = amplitude
 				self.tool.update()
@@ -3432,6 +3467,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			vector_values = [vx, vy, vz]
 			vector_positions = [vector_x, vector_y, vector_z]
 			for i in range(2):
+					timelog("axis: " +str(i))
 					axes = axeslist[i]
 					i1 = 0
 					i2 = i + 1
@@ -3453,8 +3489,6 @@ class VolumeRenderingPlotDialog(PlotDialog):
 						allaxes.remove(2-(1+i))
 						print "removed", allaxes
 						counts_mask = None
-						for key, grid in grid_map.items():
-							print key, grid #: #None if grid is None else grid.shape
 
 
 						grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else multisum(grid, allaxes)) for key, grid in grid_map.items()}
@@ -3535,6 +3569,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				self.axes.set_xlim(*self.ranges_show[0])
 				self.axes.set_ylim(*self.ranges_show[1])
 		self.canvas.draw()
+		timelog("plot end")
 		self.message("ploting %f" % (time.time() - t0), index=5)
 		
 

@@ -68,7 +68,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		shortcut.activated.connect(self.toggle)
 		self.texture_index = 1
 		self.colormap_index = 0
-		self.texture_size = 800 #*8
+		self.texture_size = 512 #*8
 		self.grid = None
 		# gets executed after initializeGL, can hook up your loading of data here
 		self.post_init = lambda: 1
@@ -1245,7 +1245,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			print "dims vector", width, height, depth
 			glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, width, height, depth, 0,
 						GL_RGBA, GL_FLOAT, self.vectorgrid)
-			print self.grid, self.texture_cube
+			#print self.grid, self.texture_cube
 			#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
 			#               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
 			
