@@ -1271,7 +1271,7 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 						print "unsupported column: %r of shape %r" % (name, array.shape)
 		if "Header" in h5file:
 			for name in "Redshift Time_GYR".split():
-				if name in h5file["Header"]:
+				if name in h5file["Header"].attrs:
 					value = h5file["Header"].attrs[name]
 					logger.debug("property[{name!r}] = {value}".format(**locals()))
 					self.variables[name] = value

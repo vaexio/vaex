@@ -2906,7 +2906,7 @@ class ScatterPlotDialog(PlotDialog):
 					mask = grid_map_vector["counts"] > 0
 					x = grid_map_vector["x"]
 					y = grid_map_vector["y"]
-					x2d, y2d = np.meshrid(x, y)
+					x2d, y2d = np.meshgrid(x, y)
 					vx = self.eval_amplitude("weightx/counts", locals=grid_map_vector)
 					vy = self.eval_amplitude("weighty/counts", locals=grid_map_vector)
 					if grid_map_vector["weightz"] is not None:

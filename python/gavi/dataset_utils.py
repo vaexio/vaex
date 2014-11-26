@@ -11,24 +11,26 @@ import numpy as np
 def merge(output_filename, datasets, sort_property=None, order_column_name=None, ascending=True):
 	datasets = list(datasets)
 	if sort_property:
-		datasets.sort(key=lambda dataset: dataset.properties[sort_property], reverse=not ascending)
+		datasets.sort(key=lambda dataset: dataset.variables[sort_property], reverse=not ascending)
 	h5output = h5py.File(output_filename, "w")
 	dataset = datasets[0]
-	shape = (len(datasets), len(dataset))
+	max_length = max(len(dataset) for dataset in datasets)
+	shape = (len(datasets), max_length)
 	print "shape of new arrays will be", shape
-	for dataset1 in datasets:
-		for dataset2 in datasets:
-			if dataset1 != dataset2:
-				if len(dataset1) != len(dataset2):
-					print dataset1.name, "is of length", len(dataset1), "but", dataset2.name, "is of length", len(dataset2)
-					sys.exit(1)
+	if 0:
+		for dataset1 in datasets:
+			for dataset2 in datasets:
+				if dataset1 != dataset2:
+					if len(dataset1) != len(dataset2):
+						print dataset1.name, "is of length", len(dataset1), "but", dataset2.name, "is of length", len(dataset2)
+						sys.exit(1)
 		
 	for column_name in dataset.column_names:
 		d = h5output.require_dataset("/columns/"+column_name, shape=shape, dtype=dataset.columns[column_name].dtype, exact=True)
 		d[0,0] = dataset.columns[column_name][0] # ensure the array exists
 	# each float propery will be a new axis in the merged file (TODO: int and other types?)
-	for property_name in dataset.property_names:
-		property = dataset.properties[property_name]
+	for property_name in dataset.variables.keys():
+		property = dataset.variables[property_name]
 		if isinstance(property, (float,)):
 			d = h5output.require_dataset("/axes/"+property_name, shape=(len(datasets),), dtype=np.float64, exact=True)
 			d[0] = 0. # make sure it exists
@@ -37,6 +39,15 @@ def merge(output_filename, datasets, sort_property=None, order_column_name=None,
 	dataset_output = gavi.dataset.Hdf5MemoryMapped(output_filename, write=True)
 		
 	progressBar = ProgressBar(0, len(datasets)-1)
+
+	if 0:
+		idmap = {}
+		for index, dataset in enumerate(datasets):
+			ids = dataset.columns["ParticleIDs"]
+			for id in ids:
+				idmap[id] = None
+		used_ids = idmap.keys()
+		print sorted(used_ids)
 	
 	for index, dataset in enumerate(datasets):
 		for column_name in dataset.column_names:
@@ -46,12 +57,14 @@ def merge(output_filename, datasets, sort_property=None, order_column_name=None,
 				order_column = dataset.columns[order_column_name]
 			else:
 				order_column = None
+			#print dataset.name, order_column, order_column-order_column.min()
 			if order_column is not None:
 				column_output[index,order_column-order_column.min()] = column_input[:]
 			else:
-				column_output[index,:] = column_input[:]
-		for property_name in dataset.property_names:
-			property = dataset.properties[property_name]
+				column_output[index,:] = np.nan
+				column_output[index,:len(dataset)] = column_input[:]
+		for property_name in dataset.variables.keys():
+			property = dataset.variables[property_name]
 			if isinstance(property, (float,)):
 				#print "propery ignored: %r" % property
 				#print "propery set: %s %r" % (property_name, property)
