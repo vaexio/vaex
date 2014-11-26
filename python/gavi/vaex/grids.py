@@ -3,15 +3,18 @@ import numpy as np
 import gavifast
 
 class Grid(object):
+	grid_cache = {}
+
 	def __init__(self, grids, max_size, dimensions,weight_expression, dtype=np.float64):
 		self.grids = grids
 		self.max_size = max_size
 		self.dimensions = dimensions
 		self.data = np.zeros((max_size,) * dimensions, dtype=dtype)
-		self.data_per_thread = np.zeros((self.grids.threadpool.nthreads, )  + (max_size,) * dimensions, dtype=dtype)
+		#self.data_per_thread = np.zeros((self.grids.threadpool.nthreads, )  + (max_size,) * dimensions, dtype=dtype)
+		#self.data_selection_per_thread = np.zeros((self.grids.threadpool.nthreads, )  + (max_size,) * dimensions, dtype=dtype)
 		self.data_selection = np.zeros((max_size,) * dimensions, dtype=dtype)
-		self.data_selection_per_thread = np.zeros((self.grids.threadpool.nthreads, )  + (max_size,) * dimensions, dtype=dtype)
 		self.weight_expression = weight_expression
+		self.dtype = dtype
 
 	def get_data(self, size, use_selection):
 		data = self.data_selection if use_selection else self.data
@@ -20,15 +23,31 @@ class Grid(object):
 		else:
 			return gavifast.resize(data, size)
 
+	def get_grid(self, shape, selection):
+		key = shape + (selection,)
+		if key not in self.grid_cache:
+			grid = np.zeros(shape, dtype=self.dtype)
+			self.grid_cache[key] = grid
+			return grid
+		else:
+			return self.grid_cache[key]
+
 	def bin_block(self, info, *blocks):
 		#assert len(blocks) == self.dimensions or len(blocks) == self.dimensions + 1
+		print "block", self.weight_expression, info.i1, info.i2
 		compute_selection = self.grids.dataset.mask is not None
 		if info.first:
 			self.data.reshape(-1)[:] = 0.
 			if compute_selection:
 				self.data_selection.reshape(-1)[:] = 0
-		self.data_per_thread.reshape(-1)[:] = 0.
-		self.data_selection_per_thread.reshape(-1)[:] = 0.
+
+		# get two unique grids
+		shape = (self.grids.threadpool.nthreads, )  + (self.max_size,) * self.dimensions
+		data_per_thread = self.get_grid(shape, None)
+		data_selection_per_thread = self.get_grid(shape, "selection")
+		data_per_thread.reshape(-1)[:] = 0.
+		data_selection_per_thread.reshape(-1)[:] = 0.
+
 		ranges_flat = []
 		for minimum, maximum in self.grids.ranges:
 			ranges_flat.append(minimum)
@@ -46,11 +65,11 @@ class Grid(object):
 				subblock_weight = block_weight[sub_i1:sub_i2]
 			subblocks = [block[sub_i1:sub_i2] for block in blocks]
 			if self.dimensions == 1:
-				gavifast.histogram1d(subblocks[0], subblock_weight, self.data_per_thread[index], *ranges_flat)
+				gavifast.histogram1d(subblocks[0], subblock_weight, data_per_thread[index], *ranges_flat)
 			elif self.dimensions == 2:
-				gavifast.histogram2d(subblocks[0], subblocks[1], subblock_weight, self.data_per_thread[index], *ranges_flat)
+				gavifast.histogram2d(subblocks[0], subblocks[1], subblock_weight, data_per_thread[index], *ranges_flat)
 			elif self.dimensions == 3:
-				gavifast.histogram3d(subblocks[0], subblocks[1], subblocks[2], subblock_weight, self.data_per_thread[index], *ranges_flat)
+				gavifast.histogram3d(subblocks[0], subblocks[1], subblocks[2], subblock_weight, data_per_thread[index], *ranges_flat)
 			else:
 				raise NotImplementedError("TODO")
 			if compute_selection:
@@ -61,16 +80,16 @@ class Grid(object):
 				if subblock_weight is not None:
 					subblock_weight = subblock_weight[mask]
 				if self.dimensions == 1:
-					gavifast.histogram1d(subblocks[0], subblock_weight, self.data_selection_per_thread[index], *ranges_flat)
+					gavifast.histogram1d(subblocks[0], subblock_weight, data_selection_per_thread[index], *ranges_flat)
 				elif self.dimensions == 2:
-					gavifast.histogram2d(subblocks[0], subblocks[1], subblock_weight, self.data_selection_per_thread[index], *ranges_flat)
+					gavifast.histogram2d(subblocks[0], subblocks[1], subblock_weight, data_selection_per_thread[index], *ranges_flat)
 				elif self.dimensions == 3:
-					gavifast.histogram3d(subblocks[0], subblocks[1], subblocks[2], subblock_weight, self.data_selection_per_thread[index], *ranges_flat)
+					gavifast.histogram3d(subblocks[0], subblocks[1], subblocks[2], subblock_weight, data_selection_per_thread[index], *ranges_flat)
 				else:
 					raise NotImplementedError("TODO")
 		self.grids.threadpool.run_blocks(bin_subblock, info.size)
-		self.data += np.sum(self.data_per_thread, axis=0)
-		self.data_selection += np.sum(self.data_selection_per_thread, axis=0)
+		self.data += np.sum(data_per_thread, axis=0)
+		self.data_selection += np.sum(data_selection_per_thread, axis=0)
 
 
 
@@ -92,7 +111,8 @@ class Grids(object):
 			if grid.weight_expression is not None:
 				expressions.append(grid.weight_expression)
 			print "expressions", expressions
-			jobsManager.addJob(1, callback, self.dataset, *expressions)
+			if name is "counts" or grid.weight_expression is not None:
+				jobsManager.addJob(1, callback, self.dataset, *expressions)
 
 	def set_expressions(self, expressions):
 		self.expressions = list(expressions)

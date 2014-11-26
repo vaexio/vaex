@@ -32,7 +32,7 @@ if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstal
 
 
 # on osx 10.8 we sometimes get pipe errors while printing, ignore these
-import signal 
+import signal
 #signal.signal(signal.SIGPIPE, signal.SIG_DFL) 
 
 import thread
@@ -89,11 +89,11 @@ print "root path is", gavi.utils.get_root_path()
 
 
 if getattr(sys, 'frozen', False):
-    application_path = os.path.dirname(sys.executable)
+	application_path = os.path.dirname(sys.executable)
 elif __file__:
-    application_path = os.path.dirname(__file__)
-    
-    
+	application_path = os.path.dirname(__file__)
+
+
 if not frozen: # astropy not working :s
 	pass
 	#import pdb
@@ -103,7 +103,7 @@ if not frozen: # astropy not working :s
 	#astropy.logger.log.disable_warnings_logging()
 	__import__("astropy.io.votable")
 
-    
+
 
 # for osx
 if "darwin" in platform.system().lower():
@@ -175,7 +175,7 @@ if 0:
 			self._idPress = None
 			self._idRelease = None
 			self.lasso = None
-			
+
 		def sync_buttons(self):
 			self._actions['select_point'].setChecked(self._active == 'SELECT_POINT')
 			self._actions['select_lasso'].setChecked(self._active == 'SELECT_LASSO')
@@ -193,7 +193,7 @@ if 0:
 				self.lasso.active = False
 				self.lasso.disconnect_events()
 				self.lasso = None
-				
+
 			if self._active == name:
 				self._idPress = self.canvas.mpl_connect(
 					'button_press_event', self.parent.press_select_point)
@@ -202,7 +202,7 @@ if 0:
 			else:
 				self.canvas.widgetlock.release(self)
 				self.set_message('')
-		
+
 		def select_lasso(self, *args):
 			print self._active
 			name = 'SELECT_LASSO'
@@ -211,7 +211,7 @@ if 0:
 			if self._idPress is not None:
 				self._idPress = self.canvas.mpl_disconnect(self._idPress)
 				self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
-				
+
 			if self._active == name:
 				#self._idPress = self.canvas.mpl_connect('button_press_event', self.press_select_lasso)
 				#self._idPress = self.canvas.mpl_connect('button_release_event', self.release_select_lasso)
@@ -238,8 +238,8 @@ if 0:
 				self.canvas.widgetlock.release(self.lasso)
 				self.lasso = None
 			self.canvas.draw()
-				
-			
+
+
 		def lasso_callback(self, vertices):
 			#print vertices
 			x, y = np.array(vertices).T
@@ -250,7 +250,7 @@ if 0:
 			#print (x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
 			gavi.selection.pnpoly(x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
 			self.parent.set_mask(mask==1)
-		
+
 #from PySide import QtGui, QtCore
 from gavi.vaex.qt import *
 from gavi.vaex.table import *
@@ -290,7 +290,7 @@ def error(title, msg):
 	print "Error", title, msg
 
 from gavi.dataset import *
-		
+
 possibleFractions = [10**base * f for base in [-3,-2,-1,0] for f in [0.25, 0.5, 0.75, 1.]]
 possibleFractions.insert(0,10**-4)
 print possibleFractions
@@ -302,57 +302,57 @@ class DataList(QtGui.QListWidget):
 		self.datasets = []
 		self.signal_pick = gavi.events.Signal("pick")
 		self.signal_add_dataset = gavi.events.Signal("add dataset")
-		
+
 		self.signal_add_dataset.connect(self.on_add_dataset)
-		#self.items 
-		
+		#self.items
+
 	def on_add_dataset(self, dataset):
 		print "added dataset", dataset
 		self.datasets.append(dataset)
 		dataset.signal_pick.connect(self.on_pick, dataset=dataset)
-		
+
 	def on_pick(self, row, dataset=None):
 		# broadcast
 		print "broadcast pick"
 		self.signal_pick.emit(dataset, row)
-		
+
 	def __testfill(self):
 		self.addHdf5("/home/data/gavi/gaussian3d-1e8-b.hdf5")
 		self.addHdf5("/home/data/gavi/gaussian3d-1e9-b.hdf5")
 		self.addHdf5("/home/data/gavi/rave/rave-dr5-shuffled.hdf5")
 		self.addHdf5("/home/data/gavi/helmi2000-FeH-s2.hdf5")
-		
+
 		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_nfw_soft/output/snapshot_213.hdf5")
 		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_einasto_2kpc_fornax/IC.hdf5")
 		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/hernquist/gadget/hernquist_half/output/snapshot_000.hdf5")
-		
+
 		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
 		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
-		
+
 		#self.addGadget2("/home/data/gavi/egpbos/snap_008")
 		self.addHdf5("/Users/users/breddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
-		
+
 		try:
 			hmmap = HansMemoryMapped("data/Orbitorb9.ac8.10000.100.5.orb.bin", "data/Orbitorb9.ac8.10000.100.5.orb.omega2")
 			self.addDataset(hmmap)
 		except:
 			print "oops"
 		self.addHdf5('/home/data/gavi/Aq-A-2-999-shuffled.hdf5')
-		
+
 		#self.addGadgetHdf5('/home/data/gavi/snap_800.hdf5')
 		# 0 - gas
 		# 1 - halo
 		# 2 disk
 		# 4 new stars
 		# 5 sat
-		
+
 		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 			self.addGadgetHdf5('data/disk2nv_N6N5_z0.1h_RfAs0.5H_no_H1_0.5_nH01_vw5s_ml50_st-snap_800.hdf5', name, index)
 		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 			self.addGadgetHdf5('/home/data/gavi/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5', name, index)
-			
-			
-		
+
+
+
 	def setBestFraction(self, dataset):
 		Nmax = 1000*1000*10
 		for fraction in possibleFractions[::-1]:
@@ -361,7 +361,7 @@ class DataList(QtGui.QListWidget):
 				dataset.setFraction(fraction)
 			else:
 				break
-			
+
 
 	def addDataset(self, dataset):
 		self.setBestFraction(dataset)
@@ -377,7 +377,7 @@ class DataList(QtGui.QListWidget):
 	def addGadget2(self, filename, auto_fraction=True):
 		if not os.path.exists(filename):
 			return
-			
+
 		self.hdf5file = MemoryMappedGadget(filename)
 		if auto_fraction:
 			self.setBestFraction(self.hdf5file)
@@ -390,9 +390,9 @@ class DataList(QtGui.QListWidget):
 		self.setCurrentItem(item)
 		dataset = self.hdf5file
 		self.signal_add_dataset.emit(dataset)
-			
-		
-	
+
+
+
 	def addGadgetHdf5(self, filename, name, particleType):
 		if not os.path.exists(filename):
 			print "does not exist", filename
@@ -413,11 +413,11 @@ class DataList(QtGui.QListWidget):
 		self.setCurrentItem(item)
 		dataset = self.hdf5file
 		self.signal_add_dataset.emit(dataset)
-	
+
 	def addHdf5(self, filename, auto_fraction=True):
 		if not os.path.exists(filename):
 			return
-		
+
 		self.hdf5file = Hdf5MemoryMapped(filename)
 		if auto_fraction:
 			self.setBestFraction(self.hdf5file)
@@ -430,11 +430,11 @@ class DataList(QtGui.QListWidget):
 		self.setCurrentItem(item)
 		dataset = self.hdf5file
 		self.signal_add_dataset.emit(dataset)
-		
+
 	def addAmuse(self, filename, auto_fraction=True):
 		if not os.path.exists(filename):
 			return
-		
+
 		self.hdf5file = AmuseHdf5MemoryMapped(filename)
 		if auto_fraction:
 			self.setBestFraction(self.hdf5file)
@@ -447,11 +447,11 @@ class DataList(QtGui.QListWidget):
 		self.setCurrentItem(item)
 		dataset = self.hdf5file
 		self.signal_add_dataset.emit(dataset)
-		
+
 	def addFits(self, filename, auto_fraction=True):
 		#if not os.path.exists(filename):
 		#	return
-		
+
 		self.hdf5file = FitsBinTable(filename)
 		if auto_fraction:
 			self.setBestFraction(self.hdf5file)
@@ -465,15 +465,15 @@ class DataList(QtGui.QListWidget):
 		#self.setCurrentRow(0)
 		dataset = self.hdf5file
 		self.signal_add_dataset.emit(dataset)
-		
+
 	def _addHdf5(filename, columns):
 		h5file = h5py.File(filename)
-		
-		
+
+
 		print f
 		print fileno
 		mapping = mmap.mmap(fileno, 0, prot=mmap.PROT_READ)
-		
+
 
 class Worker(QtCore.QThread):
 	def __init__(self, parent, name, func, *args, **kwargs):
@@ -483,7 +483,7 @@ class Worker(QtCore.QThread):
 		self.kwargs = kwargs
 		self.name = name
 		self.signal = QtCore.SIGNAL("signal")
-	
+
 	def run(self):
 		time.sleep(0.1)
 		print "in thread", self.currentThreadId()
@@ -496,7 +496,7 @@ import multiprocessing
 def MyStats(object):
 	def __init__(self, data):
 		self.data = data
-		
+
 	def __call___(self, args):
 		print args
 		#stat_name, column_name = args
@@ -538,38 +538,38 @@ class StatWorker(QtCore.QThread):
 				self.results[stat_name] = {}
 			self.results[stat_name][column_name] = value
 		print "results", self.results
-		
-		
-		
+
+
+
 
 from mab.parallelize import parallelize
-        
-       
+
+
 class StatisticsDialog(QtGui.QDialog):
 	def __init__(self, parent, data):
 		super(StatisticsDialog, self).__init__(parent)
 		self.data = data
-		
+
 		#self.form_layout = QtGui.QFormLayout()
 		#self.min = QtGui.QLabel('...computing...', self)
 		#self.form_layout.addRow('Minimum:', self.min)
 		#self.setLayout(self.form_layout)
-		
+
 		self.boxlist = QtGui.QHBoxLayout(self)
-		
+
 		self.headers = ['minimum', 'maximum', 'mean', 'std']
-		
+
 		#WorkerMinimum = lambda parent, data, column_name: Worker(parent, 'minimum', lambda data, column_name: str(min(data.columns[column_name])), data=data, column_name=column_name)
 		#WorkerMaximum = lambda parent, data, column_name: Worker(parent, 'maximum', lambda data, column_name: str(max(data.columns[column_name])), data=data, column_name=column_name)
 		#self.workers = {'minimum':WorkerMinimum, 'maximum': WorkerMaximum}
-		
+
 		self.table = QtGui.QTableWidget(data.nColumns, len(self.headers), self)
 		self.table.setHorizontalHeaderLabels(self.headers)
 		self.table.setVerticalHeaderLabels(self.data.columns.keys())
-		
-		
-		
-		
+
+
+
+
 		#pool = multiprocessing.Pool() #processes=QtCore.QThread.idealThreadCount())
 		#print "jobs:", jobs
 		worker = StatWorker(self, self.data)
@@ -579,8 +579,8 @@ class StatisticsDialog(QtGui.QDialog):
 					value = worker.results[stat][column_name]
 					item = QtGui.QTableWidgetItem(value)
 					self.table.setItem(row, column, item)
-					
-			
+
+
 		worker.finished.connect(onFinish)
 		worker.start()
 		#for name in self.header:
@@ -606,14 +606,14 @@ class StatisticsDialog(QtGui.QDialog):
 					print "starting", row, column
 					worker.start(QtCore.QThread.IdlePriority)
 					self.worker_list.append(worker) # keeps reference to avoid GC
-		
-		
+
+
 		self.boxlist.addWidget(self.table)
 		self.setLayout(self.boxlist)
-		
-		
-		
-		
+
+
+
+
 		if 0:
 			#w1 = Worker(self, lambda data: str(min(data.columns.items()[0])), self.data)
 			self.w1 = Worker(self, self.test, self.data)
@@ -635,27 +635,27 @@ class StatisticsDialog(QtGui.QDialog):
 
 import 	operator
 import random
-		
+
 class MainPanel(QtGui.QFrame):
 	def __init__(self, parent):
 		super(MainPanel, self).__init__(parent)
-		
+
 		self.jobsManager = gavi.dataset.JobsManager()
 		self.dataset = None
-		
+
 		self.undoManager = gavi.vaex.undo.UndoManager()
 
 		self.form_layout = QtGui.QFormLayout()
-		
+
 		self.name = QtGui.QLabel('', self)
 		self.form_layout.addRow('Name:', self.name)
-		
+
 		self.columns = QtGui.QLabel('', self)
 		self.form_layout.addRow('Columns:', self.columns)
-		
+
 		self.length = QtGui.QLabel('', self)
 		self.form_layout.addRow('Length:', self.length)
-		
+
 		#self.histogramButton = QtGui.QPushButton('histogram (1d)', self)
 		self.histogramButton = QtGui.QToolButton(self)
 		self.histogramButton.setText('histogram (1d)')
@@ -664,32 +664,32 @@ class MainPanel(QtGui.QFrame):
 		self.scatterButton = QtGui.QToolButton(self)
 		self.scatterButton.setText('x/y density')
 		self.form_layout.addRow('', self.scatterButton)
-		
+
 		self.scatter3dButton = QtGui.QToolButton(self)
 		self.scatter3dButton.setText('x/y/z density (beta)')
 		self.form_layout.addRow('', self.scatter3dButton)
 		if 0:
-			
-			
+
+
 			self.scatter1dSeries = QtGui.QPushButton('series', self)
 			self.form_layout.addRow('', self.scatter1dSeries)
-			
+
 			self.scatter2dSeries = QtGui.QPushButton('x/y series', self)
 			self.form_layout.addRow('', self.scatter2dSeries)
-		
+
 		self.serieSlice = QtGui.QToolButton(self)
 		self.serieSlice.setText('serie slice')
 		self.form_layout.addRow('', self.serieSlice)
-		
+
 		self.statistics = QtGui.QPushButton('Statistics', self)
 		self.form_layout.addRow('Data:', self.statistics)
-		
+
 		self.rank = QtGui.QPushButton('Rank subspaces', self)
 		self.form_layout.addRow('', self.rank)
-		
+
 		self.table = QtGui.QPushButton('Open table', self)
 		self.form_layout.addRow('', self.table)
-		
+
 		self.fractionLabel = QtGui.QLabel('Fraction used: ...')
 		self.fractionWidget = QtGui.QWidget(self)
 		self.fractionLayout = QtGui.QHBoxLayout(self.fractionWidget)
@@ -703,13 +703,13 @@ class MainPanel(QtGui.QFrame):
 		self.fractionWidget.setLayout(self.fractionLayout)
 		#self.fractionSlider.setTickInterval(len(possibleFractions))
 		self.form_layout.addRow(self.fractionLabel, self.fractionWidget)
-		
-		
+
+
 		self.fractionSlider.sliderReleased.connect(self.onFractionSet)
 		self.fractionSlider.valueChanged.connect(self.onValueChanged)
 		self.onValueChanged(0)
-		
-		
+
+
 		self.histogramButton.clicked.connect(self.onOpenHistogram)
 		self.statistics.clicked.connect(self.onOpenStatistics)
 		self.scatterButton.clicked.connect(self.onOpenScatter)
@@ -719,34 +719,34 @@ class MainPanel(QtGui.QFrame):
 		self.serieSlice.clicked.connect(self.onOpenSerieSlice)
 		self.rank.clicked.connect(self.onOpenRank)
 		self.table.clicked.connect(self.onOpenTable)
-		
+
 		self.setLayout(self.form_layout)
 		self.plot_dialogs = []
 		self.signal_open_plot = gavi.events.Signal("open plot")
-		
+
 	def onOpenStatistics(self):
 		print "open", self.dataset
 		if self.dataset is not None:
 			dialog = StatisticsDialog(self, self.dataset)
 			dialog.show()
 			print "show"
-		
+
 	def onOpenScatter(self):
 		print "open", self.dataset
 		if self.dataset is not None:
 			xname, yname = self.dataset.column_names[:2]
 			self.plotxy(xname, yname)
-		
+
 	def onOpenScatter3d(self):
 		if self.dataset is not None:
 			xname, yname, zname = self.dataset.column_names[:3]
 			self.plotxyz(xname, yname, zname)
-		
+
 	def onOpenSerieSlice(self):
 		if self.dataset is not None:
 			xname, yname = self.dataset.rank1names[:2]
 			self.plotseriexy(xname, yname)
-			
+
 	def onOpenScatter1dSeries(self):
 		print "open", self.dataset
 		if self.dataset is not None:
@@ -754,19 +754,19 @@ class MainPanel(QtGui.QFrame):
 			dialog.show()
 			self.jobsManager.execute()
 			print "show"
-		
+
 	def onOpenScatter2dSeries(self):
 		print "open", self.dataset
 		if self.dataset is not None:
 			dialog = vp.ScatterSeries2dPlotDialog(self, self.dataset)
 			dialog.show()
 			print "show"
-			
+
 	def onOpenHistogram(self):
 		if self.dataset is not None:
 			xname = self.dataset.column_names[0]
 			self.histogram(xname)
-			
+
 	def plotxy(self, xname, yname, **kwargs):
 		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, xname, yname, **kwargs)
 		dialog.show()
@@ -774,7 +774,7 @@ class MainPanel(QtGui.QFrame):
 		self.jobsManager.execute()
 		self.signal_open_plot.emit(dialog)
 		return dialog
-	
+
 	def plotxyz(self, xname, yname, zname, **kwargs):
 		dialog = vp.VolumeRenderingPlotDialog(self, self.jobsManager, self.dataset, xname, yname, zname, **kwargs)
 		dialog.show()
@@ -782,19 +782,19 @@ class MainPanel(QtGui.QFrame):
 		self.jobsManager.execute()
 		self.signal_open_plot.emit(dialog)
 		return dialog
-	
+
 	def plotmatrix(self, *expressions):
 		dialog = vp.ScatterPlotMatrixDialog(self, self.jobsManager, self.dataset, expressions)
 		dialog.show()
 		self.jobsManager.execute()
 		print "show matrix"
 		return dialog
-			
+
 	def plotxyz_old(self, xname, yname, zname):
 		dialog = vp.PlotDialog3d(self, self.dataset, xname, yname, zname)
 		dialog.show()
 		print "show"
-		
+
 	def histogram(self, xname, **kwargs):
 		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, xname, **kwargs)
 		dialog.show()
@@ -802,17 +802,17 @@ class MainPanel(QtGui.QFrame):
 		self.jobsManager.execute()
 		self.signal_open_plot.emit(dialog)
 		return dialog
-		
+
 	def onOpenRank(self):
 		print "open", self.dataset
 		if self.dataset is not None:
 			self.ranking()
-		
+
 	def onOpenTable(self):
 		print "open", self.dataset
 		if self.dataset is not None:
 			self.tableview()
-			
+
 	def onFractionSet(self):
 		index = self.fractionSlider.value()
 		fraction = possibleFractions[index]
@@ -826,11 +826,11 @@ class MainPanel(QtGui.QFrame):
 		fraction = possibleFractions[index]
 		text = 'Fraction used: %9.4f%%' % (fraction*100)
 		self.fractionLabel.setText(text)
-		
+
 	def onDataSelected(self, data_item, previous):
 		print "previous:", previous
 		if data_item is not None:
-			data = data_item.data(QtCore.Qt.UserRole)	
+			data = data_item.data(QtCore.Qt.UserRole)
 			if hasattr(data, "toPyObject"):
 				data = data.toPyObject()
 			self.dataset = data
@@ -850,7 +850,7 @@ class MainPanel(QtGui.QFrame):
 			#self.scatter3dButton.setEnabled(False)
 			#self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
 			self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
-			
+
 			self.histogramMenu = QtGui.QMenu(self)
 			for column_name in self.dataset.get_column_names():
 				#action = QtGui.QAction
@@ -859,7 +859,7 @@ class MainPanel(QtGui.QFrame):
 				action.triggered.connect(functools.partial(self.histogram, xname=column_name))
 				self.histogramMenu.addAction(action)
 			self.histogramButton.setMenu(self.histogramMenu)
-			
+
 			self.scatterMenu = QtGui.QMenu(self)
 			for column_name1 in self.dataset.get_column_names():
 				#action1 = QtGui.QAction(column_name, self)
@@ -869,7 +869,7 @@ class MainPanel(QtGui.QFrame):
 					action.triggered.connect(functools.partial(self.plotxy, xname=column_name1, yname=column_name2))
 					submenu.addAction(action)
 			self.scatterButton.setMenu(self.scatterMenu)
-			
+
 			self.scatterMenu3d = QtGui.QMenu(self)
 			for column_name1 in self.dataset.get_column_names():
 				#action1 = QtGui.QAction(column_name, self)
@@ -891,7 +891,7 @@ class MainPanel(QtGui.QFrame):
 					action.triggered.connect(functools.partial(self.plotseriexy, xname=column_name1, yname=column_name2))
 					submenu.addAction(action)
 			self.serieSlice.setMenu(self.serieSliceMenu)
-			
+
 	def plotseriexy(self, xname, yname):
 		if self.dataset is not None:
 			dialog = vp.Rank1ScatterPlotDialog(self, self.jobsManager, self.dataset, xname+"[index]", yname+"[index]")
@@ -899,18 +899,18 @@ class MainPanel(QtGui.QFrame):
 			self.jobsManager.execute()
 			dialog.show()
 			print "show"
-			
+
 	def tableview(self):
 		dialog = TableDialog(self.dataset, self)
 		dialog.show()
 		return dialog
-	
+
 	def ranking(self):
 		dialog = RankDialog(self.dataset, self, self)
 		dialog.show()
 		return dialog
-			
-			
+
+
 from numba import jit
 import numba
 print numba.__version__
@@ -945,7 +945,7 @@ def find_nearest_index(datax, datay, x, y, wx, wy):
 			mindistance = distance
 			index = i
 	return index
-		
+
 @jit(nopython=True)
 def find_nearest_index1d(datax, x):
 	N = len(datax)
@@ -957,13 +957,13 @@ def find_nearest_index1d(datax, x):
 			mindistance = distance
 			index = i
 	return index
-		
+
 
 
 import mab.utils.numpy
 
-import psutil		
-		
+import psutil
+
 class WidgetUsage(QtGui.QWidget):
 	def __init__(self, parent):
 		super(WidgetUsage, self).__init__(parent)
@@ -974,7 +974,7 @@ class WidgetUsage(QtGui.QWidget):
 		self.timer.start(500)
 		self.t_prev = time.time()
 		self.bytes_read_prev = psutil.disk_io_counters().read_bytes
-		
+
 	def paintEvent(self, event):
 		painter = QtGui.QPainter()
 		painter.begin(self)
@@ -991,13 +991,13 @@ class WidgetUsage(QtGui.QWidget):
 					rect = QtCore.QRect(0, height * (index)/ count, int(width*fraction+0.5), height/count)
 					#painter.setBrush(QtGui.QBrush(QtCore.Qt.blue))
 					painter.fillRect(rect, QtGui.QBrush(color))
-			
+
 			cpu_fraction = psutil.cpu_percent()/100.
 			#print cpu_fraction
 			drawbar(0, 4, cpu_fraction, QtCore.Qt.green)
 			self.tool_lines.append("Cpu usage: %.1f%%" % (cpu_fraction*100,))
-			
-			
+
+
 			vmem = psutil.virtual_memory()
 			mem_fraction = (vmem.total-vmem.available) * 1./vmem.total
 			self.tool_lines.append("Virtual memory: %s used of %s (=%.1f%%)%%" % (gavi.utils.filesize_format(vmem.total-vmem.available), gavi.utils.filesize_format(vmem.total), mem_fraction*100.))
@@ -1007,7 +1007,7 @@ class WidgetUsage(QtGui.QWidget):
 			swap_fraction = swapmem.used * 1./swapmem.total
 			drawbar(2, 4, swap_fraction, QtCore.Qt.blue)
 			self.tool_lines.append("Swap memory: %s used of %s (=%.1f%%)" % (gavi.utils.filesize_format(swapmem.used), gavi.utils.filesize_format(swapmem.total), swap_fraction*100.))
-			
+
 			self.t_now = time.time()
 			self.bytes_read_new = psutil.disk_io_counters().read_bytes
 			bytes_per_second = (self.bytes_read_new - self.bytes_read_prev) / (self.t_now - self.t_prev)
@@ -1016,14 +1016,14 @@ class WidgetUsage(QtGui.QWidget):
 			disk_fraction = np.clip(np.log2(Mbytes_per_second)/np.log2(10*1024), 0, 1)
 			drawbar(3, 4, disk_fraction, QtCore.Qt.magenta)
 			self.tool_lines.append("Reading at %.2f MiB/s" % (Mbytes_per_second,))
-			
-			
-			
+
+
+
 			self.t_prev = self.t_now
 			self.bytes_read_prev = self.bytes_read_new
-			
-			
-			
+
+
+
 			self.tool_text = "\n".join(self.tool_lines)
 			painter.end()
 			self.setToolTip(self.tool_text)
@@ -1034,69 +1034,69 @@ class Vaex(QtGui.QMainWindow):
 
 	signal_samp_notification = QtCore.pyqtSignal(str, str, str, dict, dict)
 	signal_samp_call = QtCore.pyqtSignal(str, str, str, str, dict, dict)
-	
+
 	def __init__(self):
 		super(Vaex, self).__init__()
-		
+
 		self.initUI()
-		
+
 	def initUI(self):
-		
+
 		QtGui.QToolTip.setFont(QtGui.QFont('SansSerif', 10))
-		
+
 		#self.setToolTip('This is a <b>QWidget</b> widget')
-		
-		
+
+
 		if 0:
 			qbtn = QtGui.QPushButton('Quit', self)
 			qbtn.clicked.connect(QtCore.QCoreApplication.instance().quit)
 			qbtn.resize(qbtn.sizeHint())
-			qbtn.move(150, 150) 
-			
+			qbtn.move(150, 150)
+
 			btn = QtGui.QPushButton('Button', self)
 			btn.setToolTip('This is a <b>QPushButton</b> widget')
 			btn.resize(btn.sizeHint())
-			btn.move(50, 50)       
-		
+			btn.move(50, 50)
+
 
 		#self.setGeometry(300, 300, 250, 150)
 		self.resize(700,500)
 		#self.center()
 		#self.setWindowTitle('Gavi samp test')    
-		self.setWindowTitle(u'V\xe6X')    
+		self.setWindowTitle(u'V\xe6X')
 		#self.statusBar().showMessage('Ready')
-		
+
 		self.toolbar = self.addToolBar('Main toolbar')
-		
-		
+
+
 		self.left = QtGui.QFrame(self)
 		self.left.setFrameShape(QtGui.QFrame.StyledPanel)
-		
+
 		self.right = MainPanel(self) #QtGui.QFrame(self)
 		self.right.setFrameShape(QtGui.QFrame.StyledPanel)
 		self.main_panel = self.right
-		
+
 		self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
 		self.splitter.addWidget(self.left)
 		self.splitter.addWidget(self.right)
-		
+
 		#self.hbox = QtGui.QHBoxLayout(self)
 		#self.hbox.addWidget(self.splitter)
 		self.setCentralWidget(self.splitter)
 		#self.setLayout(self.hbox)
-        
-        
+
+
 		self.widget_usage = WidgetUsage(self.left)
-        
+
 		self.list = DataList(self.left)
 		self.list.setMinimumWidth(300)
 		#self.list.resize(30
-		
+
 		self.boxlist = QtGui.QVBoxLayout(self.left)
 		self.boxlist.addWidget(self.list)
 		self.boxlist.addWidget(self.widget_usage)
 		self.left.setLayout(self.boxlist)
-		
+
 		#self.list.currentItemChanged.connect(self.infoPanel.onDataSelected)
 		self.list.currentItemChanged.connect(self.right.onDataSelected)
 		#self.list.testfill()
@@ -1104,27 +1104,27 @@ class Vaex(QtGui.QMainWindow):
 		self.show()
 		self.raise_()
 		#self.list.itemSelectionChanged.connect(self.right.onDataSelected)
-		
-		
-		
+
+
+
 		#self.action_open = QtGui.QAction(vp.iconfile('quickopen-file', '&Open', self)        
 		#self.action_open.
-		self.action_open_hdf5_gadget = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open gadget hdf5', self)        
-		self.action_open_hdf5_gavi = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open GAIA hdf5', self)        
-		self.action_open_hdf5_amuse = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open Amuse hdf5', self)        
-		self.action_open_fits = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open FITS (binary table)', self)        
+		self.action_open_hdf5_gadget = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open gadget hdf5', self)
+		self.action_open_hdf5_gavi = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open GAIA hdf5', self)
+		self.action_open_hdf5_amuse = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open Amuse hdf5', self)
+		self.action_open_fits = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open FITS (binary table)', self)
 
 
-		self.action_save_hdf5 = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-export')), '&Export to hdf5', self)        
+		self.action_save_hdf5 = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-export')), '&Export to hdf5', self)
 
-		exitAction = QtGui.QAction(QtGui.QIcon('icons/png/24x24/actions/application-exit-2.png'), '&Exit', self)        
+		exitAction = QtGui.QAction(QtGui.QIcon('icons/png/24x24/actions/application-exit-2.png'), '&Exit', self)
 		exitAction.setShortcut('Ctrl+Q')
 		exitAction.setShortcut('Alt+Q')
 		exitAction.setStatusTip('Exit application')
 		exitAction.triggered.connect(QtGui.qApp.quit)
 		self.samp = None
-		
-		
+
+
 		menubar = self.menuBar()
 		fileMenu = menubar.addMenu('&File')
 		self.menu_open = fileMenu.addMenu("&Open")
@@ -1136,8 +1136,8 @@ class Vaex(QtGui.QMainWindow):
 		fileMenu.addAction(self.action_save_hdf5)
 		#fileMenu.addAction(self.action_open)
 		fileMenu.addAction(exitAction)
-		
-		
+
+
 		self.menu_data = menubar.addMenu('&Data')
 		def check_memory(bytes):
 			if bytes > psutil.virtual_memory().available:
@@ -1147,7 +1147,7 @@ class Vaex(QtGui.QMainWindow):
 				else:
 					text = "Action requires %s, you do not have enough swap memory available, do you want try anyway?" % (gavi.utils.filesize_format(bytes),)
 					return confirm(self, "Memory usage issue", text)
-					
+
 			return True
 		for level in [20, 25, 27, 29, 30, 31, 32]:
 			N = 2**level
@@ -1163,7 +1163,7 @@ class Vaex(QtGui.QMainWindow):
 						self.list.addDataset(sp)
 			action.triggered.connect(do)
 			self.menu_data.addAction(action)
-		
+
 		for dim in [2,3]:
 			if dim == 3:
 				res = [128, 256, 512, 1024]
@@ -1180,7 +1180,7 @@ class Vaex(QtGui.QMainWindow):
 						self.list.addDataset(z)
 					action.triggered.connect(do)
 					self.menu_data.addAction(action)
-		
+
 
 		use_toolbar = "darwin" not in platform.system().lower()
 		use_toolbar = True
@@ -1189,44 +1189,44 @@ class Vaex(QtGui.QMainWindow):
 		if use_toolbar:
 			print "using toolbar!"
 		#self.toolbar.addAction(exitAction)
-		
+
 		self.action_samp_connect = QtGui.QAction(QtGui.QIcon(vp.iconfile('plug-connect')), 'Connect to SAMP HUB', self)
 		self.action_samp_connect.setShortcut('Alt+S')
 		self.action_samp_connect.setCheckable(True)
 		if use_toolbar:
 			self.toolbar.addAction(self.action_samp_connect)
 		self.action_samp_connect.triggered.connect(self.onSampConnect)
-		
-		if 0:
+
+		if 1:
 			self.action_samp_table_send = QtGui.QAction(QtGui.QIcon(vp.iconfile('table--arrow')), 'Send active dataset via SAMP', self)
 			self.action_samp_table_send.setShortcut('Alt+T')
 			if use_toolbar:
 				self.toolbar.addAction(self.action_samp_table_send)
 			self.action_samp_table_send.triggered.connect(self.onSampSend)
-		
+
 		self.action_samp_sand_table_select_row_list = QtGui.QAction(QtGui.QIcon(vp.iconfile('block--arrow')), 'Send selection via SAMP(table.select.rowlist)', self)
 		self.action_samp_sand_table_select_row_list.setShortcut('Alt+R')
 		if use_toolbar:
 			self.toolbar.addAction(self.action_samp_sand_table_select_row_list)
 		self.action_samp_sand_table_select_row_list.triggered.connect(self.on_samp_send_table_select_rowlist)
-		
+
 		self.toolbar.addSeparator()
-		
+
 		self.action_save_hdf5.triggered.connect(self.onSaveTable)
-		
+
 		self.sampMenu = menubar.addMenu('&Samp')
 		self.sampMenu.addAction(self.action_samp_connect)
 		#self.sampMenu.addAction(self.action_samp_table_send)
 		self.sampMenu.addAction(self.action_samp_sand_table_select_row_list)
-		
-		
+
+
 		if use_toolbar:
 			#self.toolbar.addAction(self.action_open_hdf5_gadget)
 			#self.toolbar.addAction(self.action_open_hdf5_gavi)
 			#if (not frozen) or darwin:
 			#	self.toolbar.addAction(self.action_open_fits)
 			self.toolbar.addAction(self.action_save_hdf5)
-		
+
 		if len(sys.argv[1:]) == 0:
 			if custom is not None:
 				custom.loadDatasets(self.list)
@@ -1235,7 +1235,6 @@ class Vaex(QtGui.QMainWindow):
 				for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 					self.list.addGadgetHdf5(os.path.join(application_path, 'data/disk-galaxy.hdf5'), name, index)
 				self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
-				
 		for pluginpath in [os.path.expanduser('~/.vaex/plugin')]:
 			print "pluginpath", pluginpath
 			if os.path.exists(pluginpath):
@@ -1254,16 +1253,16 @@ class Vaex(QtGui.QMainWindow):
 		if (not frozen) or darwin:
 			self.action_open_fits.triggered.connect(self.openGenerator(self.open_fits, "FITS file", "*.fits"))
 		self.help_menu = menubar.addMenu('&Help')
-		
+
 		self.action_help = QtGui.QAction("Help", self)
 		self.action_credits = QtGui.QAction("Credits", self)
 		self.help_menu.addAction(self.action_help)
 		self.help_menu.addAction(self.action_credits)
-		
+
 		self.action_help.triggered.connect(self.onActionHelp)
 		self.action_credits.triggered.connect(self.onActionCredits)
-		
-		
+
+
 		self.signal_samp_notification.connect(self.on_samp_notification)
 		self.signal_samp_call.connect(self.on_samp_call)
 
@@ -1271,17 +1270,17 @@ class Vaex(QtGui.QMainWindow):
 		self.action_samp_connect.setChecked(True)
 		self.onSampConnect(ignore_error=True)
 		self.list.signal_pick.connect(self.on_pick)
-		
+
 		self.samp_ping_timer = QtCore.QTimer()
 		self.samp_ping_timer.timeout.connect(self.on_samp_ping_timer)
 		self.samp_ping_timer.start(1000)
-		
+
 		def on_open_plot(plot_dialog):
 			plot_dialog.signal_samp_send_selection.connect(lambda dataset: self.on_samp_send_table_select_rowlist(dataset=dataset))
 		self.right.signal_open_plot.connect(on_open_plot)
-		
+
 		self.parse_args()
-		
+
 	def parse_args(self):
 		args = sys.argv[1:]
 		index = 0
@@ -1308,7 +1307,7 @@ class Vaex(QtGui.QMainWindow):
 			index += 1
 			print "dataset", filename
 			self.list.addDataset(dataset)
-			
+
 			while index < len(args) and args[index] != "--":
 				options = {}
 				columns = []
@@ -1343,7 +1342,7 @@ class Vaex(QtGui.QMainWindow):
 			if index < len(args):
 				print "eat", args[index]
 			index += 1
-		
+
 	def on_samp_ping_timer(self):
 		if self.samp:
 			connected = self.samp.client.isConnected()
@@ -1361,8 +1360,8 @@ class Vaex(QtGui.QMainWindow):
 					pass
 				self.samp = None
 		self.action_samp_connect.setChecked(self.samp is not None)
-		
-		
+
+
 	def on_pick(self, dataset, row):
 		print "select", dataset, row
 		if self.samp: # TODO: check if connected
@@ -1370,7 +1369,7 @@ class Vaex(QtGui.QMainWindow):
 			if dataset.samp_id:
 				kwargs["table-id"] = dataset.samp_id
 				#kwargs["url"] = "file:" + dataset.filename
-				kwargs["url"] = dataset.samp_id # 
+				kwargs["url"] = dataset.samp_id #
 			else:
 				if dataset.path:
 					kwargs["table-id"] = "file:" + dataset.path
@@ -1379,7 +1378,7 @@ class Vaex(QtGui.QMainWindow):
 					kwargs["table-id"] = "file:" + dataset.name
 					kwargs["url"] = "file:" + dataset.name
 			self.samp.client.enotifyAll("table.highlight.row", **kwargs)
-			
+
 	def on_samp_send_table_select_rowlist(self, ignore=None, dataset=None):
 		if self.samp: # TODO: check if connected
 			dataset = dataset or self.right.dataset
@@ -1387,28 +1386,28 @@ class Vaex(QtGui.QMainWindow):
 			if dataset.mask is not None:
 				rows = np.arange(len(dataset))[dataset.mask]
 			rowlist = map(str, rows)
-			
+
 			kwargs = {"row-list": rowlist}
 			if dataset.samp_id:
 				kwargs["table-id"] = dataset.samp_id
 				#kwargs["url"] = "file:" + dataset.filename
-				kwargs["url"] = "file:" +dataset.samp_id # 
+				kwargs["url"] = "file:" +dataset.samp_id #
 			else:
 				kwargs["table-id"] = "file:" + dataset.path
 			self.samp.client.enotifyAll("table.select.rowList", **kwargs)
-			
-		
+
+
 	def onActionHelp(self):
 		url = "file://" + os.path.join(gavi.utils.get_root_path(), "doc/index.html")
 		gavi.utils.os_open(url)
 		#self.webDialog("doc/index.html")
-		
+
 	def onActionCredits(self):
 		url = "file://" + os.path.join(gavi.utils.get_root_path(), "doc/credits.html")
 		gavi.utils.os_open(url)
 		#gavi.utils.os_open("doc/credits.html")
 		#self.webDialog("html/credits.html")
-		
+
 	def _webDialog(self, url):
 		view = QWebView()
 		view.load(QtCore.QUrl(url))
@@ -1422,7 +1421,7 @@ class Vaex(QtGui.QMainWindow):
 		layout.addWidget(view)
 		dialog.resize(300, 300)
 		dialog.show()
-		
+
 	def onSaveTable(self):
 		print "aap"
 		dataset = self.right.dataset
@@ -1432,14 +1431,14 @@ class Vaex(QtGui.QMainWindow):
 		print "mies"
 		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), gavi.utils.filesize_format(dataset.byte_size(selection=True))) ]
 		print "wim"
-			
+
 		index = choose(self, "What do you want to export?", "Choose what to export:", options)
 		if index is None:
 			return
 		export_selection = index == 1
-		
-		
-		
+
+
+
 		filename = QtGui.QFileDialog.getSaveFileName(self, "Save to HDF5", name, "HDF5 *.hdf5")
 		if isinstance(filename, tuple):
 			filename = str(filename[0])#]
@@ -1447,9 +1446,9 @@ class Vaex(QtGui.QMainWindow):
 		filename = str(filename)
 		if filename:
 				print filename
-				
+
 				h5file_output = h5py.File(filename, "w")
-				
+
 				h5data_output = h5file_output.require_group("data")
 				i1, i2 = dataset.current_slice
 				N = dataset.length(selection=export_selection)
@@ -1462,10 +1461,10 @@ class Vaex(QtGui.QMainWindow):
 					#array = h5file_output.require_dataset("/data/%s" % column_name, shape=column.shape, dtype=column.dtype)
 					array = h5file_output.require_dataset("/data/%s" % column_name, shape=(N,), dtype=column.dtype)
 					array[0] = array[0] # make sure the array really exists
-			
+
 				h5file_output.close()
 				dataset_output = gavi.dataset.Hdf5MemoryMapped(filename, write=True)
-				
+
 				for column_name in dataset.column_names:
 					with gavi.utils.Timer("copying: %s" % column_name):
 						from_array = dataset.columns[column_name]
@@ -1478,22 +1477,22 @@ class Vaex(QtGui.QMainWindow):
 						else:
 							to_array[:] = from_array[i1:i2]
 						#copy(, to_array, random_index)
-		
+
 	def gadgethdf5(self, filename):
 		print "filename", filename, repr(filename)
 		for index, name in list(enumerate("gas halo disk bulge stars sat".split()))[::-1]:
 			self.list.addGadgetHdf5(str(filename), name, index)
-			
+
 	def gaia_hdf5(self, filename):
 		self.list.addHdf5(str(filename))
-		
+
 	def amuse_hdf5(self, filename):
 		self.list.addAmuse(str(filename))
-		
+
 	def open_fits(self, filename):
 		self.list.addFits(str(filename))
-		
-		
+
+
 	def openGenerator(self, callback_, description, filemask):
 		print repr(callback_)
 		def open(arg=None, callback_=callback_, filemask=filemask):
@@ -1505,7 +1504,7 @@ class Vaex(QtGui.QMainWindow):
 			callback_(filename)
 		self.open_generators.append(open)
 		return open
-		
+
 	def onSampConnect(self, ignore_error=False):
 		if self.action_samp_connect.isChecked():
 			print "connect"
@@ -1534,7 +1533,7 @@ class Vaex(QtGui.QMainWindow):
 		#self.action_samp_connect.setText("disconnect from SAMP HUB" if self.samp else "conncet to SAMP HUB")
 			#except:
 			#	dialog_exception(self, "Connecting to SAMP server", "Could not connect, make sure a SAMP HUB is running (for instance TOPCAT)")
-					
+
 
 
 	def _on_samp_notification(self, private_key, sender_id, mtype, params, extra):
@@ -1548,7 +1547,7 @@ class Vaex(QtGui.QMainWindow):
 		print private_key, sender_id, msg_id, mtype, params, extra
 		self.signal_samp_call.emit(private_key, sender_id, msg_id, mtype, params, extra)
 		self.samp.client.ereply(msg_id, sampy.SAMP_STATUS_OK, result = {"txt": "printed"})
-	
+
 	def on_samp_notification(self, private_key, sender_id, mtype, params, extra):
 		# and this should execute in the main thread
 		assert QtCore.QThread.currentThread() == main_thread
@@ -1582,7 +1581,7 @@ class Vaex(QtGui.QMainWindow):
 			if id != None:
 				for dataset in self._samp_find_datasets(id):
 					dataset.selectRow(row)
-			
+
 	def samp_table_select_rowlist(self, row_list, url=None, table_id=None):
 		print "----"
 		logger.debug("select rowlist: {url}".format(**locals()))
@@ -1602,8 +1601,8 @@ class Vaex(QtGui.QMainWindow):
 					datasets_updated.append(dataset)
 		if did_select:
 			self.main_panel.jobsManager.execute()
-			
-			
+
+
 	def samp_table_load_votable(self, url=None, table_id=None, name=None):
 		filenames = []
 		if table_id is not None:
@@ -1637,7 +1636,7 @@ class Vaex(QtGui.QMainWindow):
 				print "load votable", url
 			else:
 				self.list.datasets[index-len(filenames)-1].samp_id = table_id
-			
+
 	def load_file(self, path, samp_id=None):
 		dataset_class = None
 		for name, class_ in gavi.dataset.dataset_type_map.items():
@@ -1648,13 +1647,13 @@ class Vaex(QtGui.QMainWindow):
 			dataset = dataset_class(path)
 			dataset.samp_id = samp_id
 			self.list.addDataset(dataset)
-			
+
 	def load_votable(self, url, table_id):
 		table = astropy.io.votable.parse_single_table(url)
 		print "done parsing table"
 		names = table.array.dtype.names
 		dataset = MemoryMapped(table_id, nommap=True)
-		
+
 		data = table.array.data
 		for i in range(len(data.dtype)):
 			name = data.dtype.names[i]
@@ -1666,10 +1665,10 @@ class Vaex(QtGui.QMainWindow):
 		dataset.samp_id = table_id
 		self.list.addDataset(dataset)
 		return dataset
-			
-			
 
-			
+
+
+
 	def message(self, text, index=0):
 		print text
 		self.messages[index] = text
@@ -1678,7 +1677,7 @@ class Vaex(QtGui.QMainWindow):
 		keys.sort()
 		text_parts = [self.messages[key] for key in keys]
 		self.statusBar().showMessage(" | ".join(text_parts))
-	
+
 	def _samp_find_datasets(self, id):
 		print self.list.datasets
 		try:
@@ -1687,8 +1686,8 @@ class Vaex(QtGui.QMainWindow):
 					yield dataset
 		except:
 			logger.exception("problem")
-		
-			
+
+
 	def onSampSend(self):
 		if self.samp is None:
 			self.onSampConnect()
@@ -1714,7 +1713,7 @@ class Vaex(QtGui.QMainWindow):
 		self.samp.client.callAll("send_mmap_"+dataset.name,
 					{"samp.mtype": "table.load.memory_mapped_columns",
 						"samp.params": params})
-		
+
 	def onLoadTable(self, url, table_id, name):
 		# this is called from a different thread!
 		print "loading table", url, table_id, name
@@ -1723,15 +1722,15 @@ class Vaex(QtGui.QMainWindow):
 		except:
 			logger.exception("load table")
 		return
-		
-		
+
+
 	def load(self, url, table_id, name):
 		print "parsing table..."
 		table = astropy.io.votable.parse_single_table(url)
 		print "done parsing table"
 		names = table.array.dtype.names
 		dataset = MemoryMapped(table_id, nommap=True)
-		
+
 		data = table.array.data
 		for i in range(len(data.dtype)):
 			name = data.dtype.names[i]
@@ -1746,7 +1745,7 @@ class Vaex(QtGui.QMainWindow):
 			#import pdb
 			#pdb.set_trace()
 			print "storing data..."
-			
+
 			for i in range(len(data.dtype)):
 				name = data.dtype.names[i]
 				type = data.dtype[i]
@@ -1758,27 +1757,27 @@ class Vaex(QtGui.QMainWindow):
 		#h5file.close()
 		#semaphore.release()
 		##samp.client.disconnect()
-	
-		
+
+
 	def center(self):
-		
+
 		qr = self.frameGeometry()
 		cp = QtGui.QDesktopWidget().availableGeometry().center()
 		qr.moveCenter(cp)
-		self.move(qr.topLeft())		
-		
+		self.move(qr.topLeft())
+
 	def closeEvent(self, event):
 		print "close event"
 		return
 		reply = QtGui.QMessageBox.question(self, 'Message',
-			"Are you sure to quit?", QtGui.QMessageBox.Yes | 
+			"Are you sure to quit?", QtGui.QMessageBox.Yes |
 			QtGui.QMessageBox.No, QtGui.QMessageBox.No)
 
 		if reply == QtGui.QMessageBox.Yes:
 			event.accept()
 		else:
-			event.ignore()               
-			
+			event.ignore()
+
 	def clean_up(self):
 		print "clean up"
 		if self.samp is not None:
@@ -1789,7 +1788,7 @@ class Vaex(QtGui.QMainWindow):
 				logger.exception("error disconnecting from SAMP hub")
 		#event.accept()
 		return
-	
+
 
 def main():
 	global main_thread
@@ -1798,8 +1797,8 @@ def main():
 	#ipython_window = gavi.vaex.ipkernel_qtapp.SimpleWindow(app)
 	main_thread = QtCore.QThread.currentThread()
 	print "main thread", main_thread
-	
-	
+
+
 	#sys._excepthook = sys.excepthook
 	def qt_exception_hook(exctype, value, traceback):
 		sys.__excepthook__(exctype, value, traceback)
@@ -1809,10 +1808,10 @@ def main():
 	sys.excepthook = qt_exception_hook
 	#raise RuntimeError, "blaat"
 
-	
+
 	vaex = Vaex()
-	
-	
+
+
 	#w = QtGui.QWidget()
 	#w.resize(250, 150)
 	#w.move(300, 300)

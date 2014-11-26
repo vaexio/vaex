@@ -1,7 +1,7 @@
 from qt import *
 import numpy as np
 import matplotlib.cm
-
+import gavi.vaex.colormaps
 import gavifast
 
 class HistogramAndTransfer(QtGui.QWidget):
@@ -11,9 +11,9 @@ class HistogramAndTransfer(QtGui.QWidget):
 		self.grid = None
 		self.setMinimumHeight(32+100*0)
 		self.function_count = function_count
-		self.function_opacities = [0.1/2**(function_count-1-k) for k in range(function_count)] 
-		self.function_sigmas = [0.05] * function_count
-		self.function_means = (np.arange(function_count) / float(function_count-1)) * 0.8 + 0.10
+		self.function_opacities = [0.2/2**(function_count-1-k) for k in range(function_count)]
+		self.function_sigmas = [0.025] * function_count
+		self.function_means = list((np.arange(function_count) / float(function_count-1)) * 0.8 + 0.10)
 		
 		
 	def paintEvent(self, event):
@@ -47,29 +47,9 @@ class HistogramAndTransfer(QtGui.QWidget):
 			
 		
 	def draw_colormap(self, painter):
-		mapping = matplotlib.cm.ScalarMappable(cmap=self.colormap)
 		rect = self.size()
 		Nx, Ny = rect.width(), 32
-		x = np.arange(Nx)/(Nx+0.) # TODO why are the colors reversed?
-		x = np.vstack([x]*Ny)
-		
-		rgba = mapping.to_rgba(x, bytes=True)
-		if 0:
-			r, g, b, a = rgba = rgba.reshape((4,-1))
-			r = r * 1
-			g = g * 1
-			b = b * 1
-			#rgba.reshape(4,-1)[2] = r
-			#rgba.reshape(4,-1)[1] = g
-			#rgba.reshape(4,-1)[0] = b
-			print rgba.shape, rgba.min(), rgba.max()
-			
-			#image = pixmap.toImage()
-			rgba = np.ascontiguousarray((rgba*255.).astype(np.uint8)).astype(np.uint8)
-		stringdata = rgba.tostring()
-		image = QtGui.QImage(stringdata, Nx, Ny, Nx*4, QtGui.QImage.Format_RGB32)
-		#pixmap = QtGui.QPixmap(Nx, Ny)
-		#pixmap.convertFromImage(image)
+		image, stringdata = gavi.vaex.colormaps.colormap_to_QImage(self.colormap, Nx, Ny)
 		point = QtCore.QPoint(0, rect.height()-32)
 		painter.drawImage(point, image)
 		

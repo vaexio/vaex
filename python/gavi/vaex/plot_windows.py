@@ -93,68 +93,25 @@ def find_nearest_index1d(datax, x):
 	distance = math.sqrt((datax[index]-x)**2)
 	return index, distance
 		
-		
-	
+import gavi.vaex.colormaps
+
 colormaps = []
 colormap_pixmap = {}
 colormaps_processed = False
-cols = []
-for x in np.linspace(0,1, 256):
-	rcol = 0.237 - 2.13*x + 26.92*x**2 - 65.5*x**3 + 63.5*x**4 - 22.36*x**5
-	gcol = ((0.572 + 1.524*x - 1.811*x**2)/(1 - 0.291*x + 0.1574*x**2))**2
-	bcol = 1/(1.579 - 4.03*x + 12.92*x**2 - 31.4*x**3 + 48.6*x**4 - 23.36*x**5)
-	cols.append((rcol, gcol, bcol))
-
-name = 'PaulT_plusmin'
-cm_plusmin = matplotlib.colors.LinearSegmentedColormap.from_list(name, cols)
-matplotlib.cm.register_cmap(name=name, cmap=cm_plusmin)
-
 refs = []
 def process_colormaps():
 	global colormaps_processed
 	if colormaps_processed:
 		return
 	colormaps_processed = True
-	cmaps = [	('Extra', ['PaulT_plusmin']),
-				('Sequential',     ['binary', 'Blues', 'BuGn', 'BuPu', 'gist_yarg',
-								'GnBu', 'Greens', 'Greys', 'Oranges', 'OrRd',
-								'PuBu', 'PuBuGn', 'PuRd', 'Purples', 'RdPu',
-								'Reds', 'YlGn', 'YlGnBu', 'YlOrBr', 'YlOrRd']),
-			('Sequential (2)', ['afmhot', 'autumn', 'bone', 'cool', 'copper',
-								'gist_gray', 'gist_heat', 'gray', 'hot', 'pink',
-								'spring', 'summer', 'winter']),
-			('Diverging',      ['BrBG', 'bwr', 'coolwarm', 'PiYG', 'PRGn', 'PuOr',
-								'RdBu', 'RdGy', 'RdYlBu', 'RdYlGn', 'seismic']),
-			('Qualitative',    ['Accent', 'Dark2', 'hsv', 'Paired', 'Pastel1',
-								'Pastel2', 'Set1', 'Set2', 'Set3', 'spectral']),
-			('Miscellaneous',  ['gist_earth', 'gist_ncar', 'gist_rainbow',
-								'gist_stern', 'jet', 'brg', 'CMRmap', 'cubehelix',
-								'gnuplot', 'gnuplot2', 'ocean', 'rainbow',
-								'terrain', 'flag', 'prism'])]
-	for cmap_category, cmap_list in cmaps:
-		for colormap_name in cmap_list:
-			colormaps.append(colormap_name)
-			colormap = matplotlib.cm.get_cmap(colormap_name)
-			mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
-			Nx, Ny = 32, 16
-			pixmap = QtGui.QPixmap(32*2, 32)
-			x = np.arange(Nx)
-			x = np.vstack([x]*Ny)
-			
-			rgba = mapping.to_rgba(x)
-			print rgba.shape, rgba.min(), rgba.max()
-			
-			#image = pixmap.toImage()
-			rgba = np.ascontiguousarray((rgba*255.).astype(np.uint8)).astype(np.uint8)
-			stringdata = rgba.tostring()
-			image = QtGui.QImage(stringdata, Nx, Ny, Nx*4, QtGui.QImage.Format_RGB32)
-			#image = QtGui.QImage(rgba.tostring(), Nx, Ny, Nx*4, QtGui.QImage.Format_BGR32)
-			#refs.append(rgba)
-			#refs.append(image)
-			#refs.append(pixmap)
-			refs.append(stringdata)
-			pixmap.convertFromImage(image)
-			colormap_pixmap[colormap_name] = pixmap
+	for colormap_name in gavi.vaex.colormaps.colormaps:
+		colormaps.append(colormap_name)
+		Nx, Ny = 32, 16
+		image, stringdata = gavi.vaex.colormaps.colormap_to_QImage(colormap_name, Nx, Ny)
+		refs.append((image, stringdata))
+		pixmap = QtGui.QPixmap(32*2, 32)
+		pixmap.convertFromImage(image)
+		colormap_pixmap[colormap_name] = pixmap
 	
 		
 		
@@ -447,7 +404,7 @@ class PlotDialog(QtGui.QDialog):
 		super(PlotDialog, self).__init__(parent)
 		print "aap"
 		self.options = options
-		
+
 		if "fraction" in self.options:
 			dataset.setFraction(float(self.options["fraction"]))
 		
@@ -482,10 +439,10 @@ class PlotDialog(QtGui.QDialog):
 			self.resize(800,700)
 		
 
-		self.colormap = cm_plusmin #"binary"
+		self.colormap = "PaulT_plusmin" #"binary"
 		self.colormap_vector = "binary"
 
-		self.colormap = cm_plusmin #"binary"
+		self.colormap = "PaulT_plusmin" #"binary"
 		self.colormap_vector = "binary"
 		
 		self.aspect = None
@@ -663,10 +620,10 @@ class PlotDialog(QtGui.QDialog):
 
 
 		self.plug_page(self.page_main, "Main", 1., 1.)
-		self.plug_page(self.page_vector2d, "Vector 2d", 2., 1.)
+		self.plug_page(self.page_vector, "Vector field", 2., 1.)
 		self.plug_page(self.page_display, "Display", 3., 1.)
 
-		# fist get unique page orders
+		# first get unique page orders
 		pageorders = {}
 		for callback, pagename, pageorder, order in self.plugin_queue_page:
 			pageorders[pagename] = pageorder
@@ -677,10 +634,15 @@ class PlotDialog(QtGui.QDialog):
 			self.toolbox.addItem(page_frame, pagename)
 			logger.debug("created page: "+pagename)
 		for pagename, order in sorted(pageorders.items(), key=itemgetter(1)):
-			logger.debug("filling page: "+pagename)
-			for callback, pagename_, pageorder, order in sorted(filter(lambda x: x[1] == pagename, self.plugin_queue_page), key=itemgetter(2)):
+			logger.debug("filling page: %sr %r" % (pagename, filter(lambda x: x[1] == pagename, self.plugin_queue_page)))
+			for callback, pagename_, pageorder, order in sorted(filter(lambda x: x[1] == pagename, self.plugin_queue_page), key=itemgetter(3)):
 	 			logger.debug("filling page: "+pagename +" order=" +str(order) + " callback=" +str(callback))
 				callback(self.pages[pagename])
+		page_name = self.options.get("page", "Main")
+		page_frame = self.pages.get(page_name, None)
+		if page_frame:
+			self.toolbox.setCurrentWidget(page_frame)
+
 
 	def page_main(self, page):
 		print "page main"
@@ -942,7 +904,7 @@ class PlotDialog(QtGui.QDialog):
 			self.layout_frame_options_visuals.addWidget(self.button_image_invert)
 
 
-	def page_vector2d(self, page):
+	def page_vector(self, page):
 		self.frame_options_vector2d = page #QtGui.QFrame(self)
 		self.layout_frame_options_vector2d =  QtGui.QVBoxLayout()
 		self.frame_options_vector2d.setLayout(self.layout_frame_options_vector2d)
@@ -960,9 +922,9 @@ class PlotDialog(QtGui.QDialog):
 			self.weight_x_box = QtGui.QComboBox(self)
 			self.weight_x_box.setMinimumContentsLength(10)
 			self.weight_x_box.setEditable(True)
-			self.weight_x_box.addItems([self.options.get("wx", "")] + self.getExpressionList())
+			self.weight_x_box.addItems([self.options.get("vx", "")] + self.getExpressionList())
 			self.weight_x_box.setMinimumContentsLength(10)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("weight_x="), row, 1)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vector x="), row, 1)
 			self.grid_layout_vector.addWidget(self.weight_x_box, row, 2)
 			self.weight_x_box.lineEdit().editingFinished.connect(self.onWeightXExpr)
 			self.weight_x_box.currentIndexChanged.connect(lambda _: self.onWeightXExpr())
@@ -980,9 +942,9 @@ class PlotDialog(QtGui.QDialog):
 
 			self.weight_y_box = QtGui.QComboBox(self)
 			self.weight_y_box.setEditable(True)
-			self.weight_y_box.addItems([self.options.get("wy", "")] + self.getExpressionList())
+			self.weight_y_box.addItems([self.options.get("vy", "")] + self.getExpressionList())
 			self.weight_y_box.setMinimumContentsLength(10)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("weight_y="), row, 1)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vector y="), row, 1)
 			self.grid_layout_vector.addWidget(self.weight_y_box, row, 2)
 			self.weight_y_box.lineEdit().editingFinished.connect(self.onWeightYExpr)
 			self.weight_y_box.currentIndexChanged.connect(lambda _: self.onWeightYExpr())
@@ -999,15 +961,15 @@ class PlotDialog(QtGui.QDialog):
 
 			row += 1
 
-			self.weight_xy_box = QtGui.QComboBox(self)
-			self.weight_xy_box.setEditable(True)
-			self.weight_xy_box.addItems([self.options.get("wz", "")] + self.getExpressionList())
-			self.weight_xy_box.setMinimumContentsLength(10)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("weight_xy="), row, 1)
-			self.grid_layout_vector.addWidget(self.weight_xy_box, row, 2)
-			self.weight_xy_box.lineEdit().editingFinished.connect(self.onWeightXYExpr)
-			self.weight_xy_box.currentIndexChanged.connect(lambda _: self.onWeightXYExpr())
-			self.weight_xy_expression = str(self.weight_xy_box.lineEdit().text())
+			self.weight_z_box = QtGui.QComboBox(self)
+			self.weight_z_box.setEditable(True)
+			self.weight_z_box.addItems([self.options.get("vz", "")] + self.getExpressionList())
+			self.weight_z_box.setMinimumContentsLength(10)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vector_z="), row, 1)
+			self.grid_layout_vector.addWidget(self.weight_z_box, row, 2)
+			self.weight_z_box.lineEdit().editingFinished.connect(self.onWeightZExpr)
+			self.weight_z_box.currentIndexChanged.connect(lambda _: self.onWeightZExpr())
+			self.weight_z_expression = str(self.weight_z_box.lineEdit().text())
 
 			row += 1
 
@@ -1263,16 +1225,16 @@ class PlotDialog(QtGui.QDialog):
 		self.jobsManager.execute()
 		self.plot()
 	
-	def onWeightXYExpr(self):
-		text = str(self.weight_xy_box.lineEdit().text())
-		print "############", self.weight_xy_expression, text
-		if (text == self.weight_xy_expression) or (text == "" and self.weight_xy_expression == None):
-			logger.debug("same weight_xy expression, will not update")
+	def onWeightZExpr(self):
+		text = str(self.weight_z_box.lineEdit().text())
+		print "############", self.weight_z_expression, text
+		if (text == self.weight_z_expression) or (text == "" and self.weight_z_expression == None):
+			logger.debug("same weight_z expression, will not update")
 			return
-		self.weight_xy_expression = text
-		print self.weight_xy_expression
-		if self.weight_xy_expression.strip() == "":
-			self.weight_xy_expression = None
+		self.weight_z_expression = text
+		print self.weight_z_expression
+		if self.weight_z_expression.strip() == "":
+			self.weight_z_expression = None
 		self.range_level = None
 		self.compute()
 		self.jobsManager.execute()
@@ -1369,13 +1331,13 @@ class PlotDialog(QtGui.QDialog):
 		#if self.weight_expression is None or len(self.weight_expression.strip()) == 0:
 		#	self.jobsManager.addJob(1, self.calculate_visuals, self.dataset, *self.expressions, **self.getVariableDict())
 		#else:
-		all_expressions = self.expressions + [self.weight_expression, self.weight_x_expression, self.weight_y_expression, self.weight_xy_expression]
+		all_expressions = self.expressions + [self.weight_expression, self.weight_x_expression, self.weight_y_expression, self.weight_z_expression]
 		self.grids.set_expressions(self.expressions)
 		self.grids.define_grid("counts", self.gridsize, None)
 		self.grids.define_grid("weighted", self.gridsize, self.weight_expression)
 		self.grids.define_grid("weightx", self.gridsize_vector, self.weight_x_expression)
 		self.grids.define_grid("weighty", self.gridsize_vector, self.weight_y_expression)
-		self.grids.define_grid("weightz", self.gridsize_vector, self.weight_xy_expression)
+		self.grids.define_grid("weightz", self.gridsize_vector, self.weight_z_expression)
 		for callback in self.plugin_grids_defines:
 			callback(self.grids)
 		self.grids.add_jobs(self.jobsManager)
@@ -2495,15 +2457,11 @@ class PlotDialog(QtGui.QDialog):
 					locals[name] = grid.get_data(gridsize, use_selection=use_selection)
 			else:
 				locals[name] = None
-		width = self.ranges[0][1] - self.ranges[0][0]
-		x = (np.arange(0, gridsize)+0.5)/float(gridsize) * width + self.ranges[0][0]# + width/(Nvector/2.)
-		locals["x"] = x#.T
-
-		if self.dimensions > 1:
-			height = self.ranges[1][1] - self.ranges[1][0]
-			y = (np.arange(0, gridsize)+0.5)/float(gridsize) * height+ self.ranges[1][0]# + height/(Nvector/2.)
-			#x, y = np.meshgrid(x, y)
-			locals["y"] = y#.T
+		for d, name in zip(range(self.dimensions), "xyzw"):
+			width = self.ranges[d][1] - self.ranges[d][0]
+			offset = self.ranges[d][0]
+			x = (np.arange(0, gridsize)+0.5)/float(gridsize) * width + offset
+			locals[name] = x
 		return locals
 
 		
@@ -2532,7 +2490,7 @@ class HistogramPlotDialog(PlotDialog):
 		elapsed = time.time() - info.time_start
 		self.message("computation at %.1f%% (%.2fs)" % (info.percentage, elapsed), index=20)
 		QtCore.QCoreApplication.instance().processEvents()
-		
+
 		self.expression_error = False
 		N = self.gridsize
 		mask = self.dataset.mask
@@ -2543,7 +2501,7 @@ class HistogramPlotDialog(PlotDialog):
 				self.counts_weights = np.zeros(N, dtype=np.float64)
 			else:
 				self.counts_weights = None
-			
+
 			if mask is not None:
 				self.counts_mask = np.zeros(N, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
 				self.counts_weights_mask = None
@@ -2552,7 +2510,7 @@ class HistogramPlotDialog(PlotDialog):
 			else:
 				self.counts_mask = None
 				self.counts_weights_mask = None
-		
+
 		#return
 		xmin, xmax = self.ranges[0]
 		if self.ranges_show[0] is None:
@@ -2564,7 +2522,7 @@ class HistogramPlotDialog(PlotDialog):
 			args = (block, self.counts, xmin, xmax)
 			#gavi.histogram.hist1d(block, self.counts, xmin, xmax)
 			if 1:
-				
+
 				sub_counts = np.zeros((self.pool.nthreads, N), dtype=np.float64)
 				def subblock(index, sub_i1, sub_i2):
 					subspacefind.histogram1d(block[sub_i1:sub_i2], None, sub_counts[index], xmin, xmax)
@@ -2572,7 +2530,7 @@ class HistogramPlotDialog(PlotDialog):
 				self.counts += np.sum(sub_counts, axis=0)
 			else:
 				subspacefind.histogram1d(block, None, self.counts, xmin, xmax)
-			
+
 			if weights_block is not None:
 				args = (block, self.counts, xmin, xmax, weights_block)
 				#gavi.histogram.hist1d_weights(block, self.counts_weights, weights_block, xmin, xmax)
@@ -2582,7 +2540,7 @@ class HistogramPlotDialog(PlotDialog):
 					subspacefind.histogram1d(block[sub_i1:sub_i2], weights_block[sub_i1:sub_i2], sub_counts[index], xmin, xmax)
 				self.pool.run_blocks(subblock, info.size)
 				self.counts_weights += np.sum(sub_counts, axis=0)
-				
+
 		except:
 			logger.exception("error with hist1d, arguments: %r" % (args,))
 		if mask is not None:
@@ -2593,7 +2551,7 @@ class HistogramPlotDialog(PlotDialog):
 				subspacefind.histogram1d(subset[sub_i1:sub_i2], None, sub_counts[index], xmin, xmax)
 			self.pool.run_blocks(subblock, len(subset))
 			self.counts_mask += np.sum(sub_counts, axis=0)
-			
+
 			if weights_block is not None:
 				subset_weights = weights_block[mask[info.i1:info.i2]]
 				#gavi.histogram.hist1d_weights(subset, self.counts_weights_mask, subset_weights, xmin, xmax)
@@ -2602,9 +2560,9 @@ class HistogramPlotDialog(PlotDialog):
 					subspacefind.histogram1d(subset[sub_i1:sub_i2], subset_weights[sub_i1:sub_i2], sub_counts[index], xmin, xmax)
 				self.pool.run_blocks(subblock, len(subset))
 				self.counts_mask += np.sum(sub_counts, axis=0)
-				
+
 		print "it took", time.time()-t0
-		
+
 		index = self.dataset.selected_row_index
 		if index is not None:
 			if index >= info.i1 and index < info.i2: # selected point is in this block
@@ -2963,49 +2921,20 @@ class ScatterPlotDialog(PlotDialog):
 				else:
 					locals[name] = None
 
-			if 0:
-				if locals["weightx"] is not None and locals["weighty"] is not None:
-					#x = np.linspace(ranges[0], ranges[1], 128/4)
-					#y = np.linspace(ranges[2], ranges[3], 128/4)
-					Nvector = self.gridsize_vector
-					x = (np.arange(0, Nvector)+0.5)/float(Nvector) * width + ranges[0]# + width/(Nvector/2.)
-					y = (np.arange(0, Nvector)+0.5)/float(Nvector) * height+ ranges[2]# + height/(Nvector/2.)
-					x, y = np.meshgrid(x, y)
-					#x = x.reshape(-1)
-					#y = y.reshape(-1)
-					print "noot"
-					#print x
-					#print y
-					#print self.counts_xy
-
-					wx = locals["weightx"]
-					wy = locals["weighty"]
-					counts = locals["counts"]
-					U = (wx/counts) #.reshape(-1) #/counts_xy.T
-					V = (wy/counts) #.reshape(-1) #/counts_xy.T
-					mask = counts > 0
-					#print "QUIVER" * 100
-					print "mean", U[mask].mean(), V[mask].mean()
-					#U -= U[mask].mean()
-					#V -= V[mask].mean()
-					print "mies"
-					#print "mask", mask
-					#print U[mask]
-					wz = locals["weightz"]
 			if 1:
 				grid_map_vector = self.create_grid_map(self.gridsize_vector, use_selection)
 				if grid_map_vector["weightx"] is not None and grid_map_vector["weighty"] is not None:
 					mask = grid_map_vector["counts"] > 0
 					x = grid_map_vector["x"]
 					y = grid_map_vector["y"]
-					x, y = np.meshgrid(x, y)
+					x2d, y2d = np.meshgrid(x, y)
 					vx = self.eval_amplitude("weightx/counts", locals=grid_map_vector)
 					vy = self.eval_amplitude("weighty/counts", locals=grid_map_vector)
 					if grid_map_vector["weightz"] is not None:
 						colors = self.eval_amplitude("weightz/counts", locals=grid_map_vector)
-						self.axes.quiver(x[mask], y[mask], vx[mask], vy[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
+						self.axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
 					else:
-						self.axes.quiver(x[mask], y[mask], vx[mask], vy[mask], color="black")
+						self.axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color="black")
 						colors = None
 				#print "min", U[mask].min(), V[mask].min()
 				#print "max", U[mask].max(), V[mask].max()
@@ -3013,7 +2942,7 @@ class ScatterPlotDialog(PlotDialog):
 		if self.action_display_current == self.action_display_mode_both_contour:
 			#self.axes.imshow(amplitude, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)
 			#self.axes.contour(amplitude, origin="lower", extent=ranges, levels=levels, linewidths=2, colors="red")
-			self.axes.imshow(amplitude, origin="lower", extent=ranges, cmap=cm_plusmin)
+			self.axes.imshow(amplitude, origin="lower", extent=ranges, cmap=self.colormap)
 			if self.counts_mask is not None:
 				values = amplitude_mask[~np.isinf(amplitude_mask)]
 				print values
@@ -3479,28 +3408,34 @@ class VolumeRenderingPlotDialog(PlotDialog):
 
 			grid_map_vector = self.create_grid_map(self.gridsize_vector, use_selection)
 			vector_grid = None
-			if grid_map_vector["weightx"] is not None and grid_map_vector["weighty"] is not None:
-				print "weightx and y exist"
-				counts = grid_map_vector["counts"]
-				mask = counts > 0
-				x = grid_map_vector["x"]
-				y = grid_map_vector["y"]
+			vector_counts = grid_map_vector["counts"]
+			vector_mask = vector_counts > 0
+			if grid_map_vector["weightx"] is not None:
+				vector_x = grid_map_vector["x"]
 				vx = self.eval_amplitude("weightx/counts", locals=grid_map_vector)
-				vy = self.eval_amplitude("weighty/counts", locals=grid_map_vector)
-				if grid_map_vector["weightz"] is not None:
-					print "weightz"
-					vz = self.eval_amplitude("weightz/counts", locals=grid_map_vector)
-					vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
-					vector_grid[0] = vx
-					vector_grid[1] = vy
-					vector_grid[2] = vz
-					vector_grid[3] = counts
-					vector_grid = np.swapaxes(vector_grid, 0, 3)
-					vector_grid = vector_grid * 1.
 			else:
+				vector_x = None
 				vx = None
+			if grid_map_vector["weighty"] is not None:
+				vector_y = grid_map_vector["y"]
+				vy = self.eval_amplitude("weighty/counts", locals=grid_map_vector)
+			else:
+				vector_y = None
 				vy = None
+			if grid_map_vector["weightz"] is not None:
+				vector_z = grid_map_vector["z"]
+				vz = self.eval_amplitude("weightz/counts", locals=grid_map_vector)
+			else:
+				vector_z = None
 				vz = None
+			if vx is not None and vy is not None and vz is not None:
+				vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
+				vector_grid[0] = vx
+				vector_grid[1] = vy
+				vector_grid[2] = vz
+				vector_grid[3] = vector_counts
+				vector_grid = np.swapaxes(vector_grid, 0, 3)
+				vector_grid = vector_grid * 1.
 
 			self.widget_volume.setGrid(amplitude_selection if use_selection else amplitude, vector_grid)
 			if 0:
@@ -3519,9 +3454,14 @@ class VolumeRenderingPlotDialog(PlotDialog):
 					correction += 1
 				return a		
 			axeslist = self.getAxesList()
+			vector_values = [vx, vy, vz]
+			vector_positions = [vector_x, vector_y, vector_z]
 			for i in range(2):
 					axes = axeslist[i]
-					ranges = list(self.ranges[0]) + list(self.ranges[1+i])
+					i1 = 0
+					i2 = i + 1
+					i3 = 2- i
+					ranges = list(self.ranges[i1]) + list(self.ranges[i2])
 					axes.clear()
 					allaxes = range(self.dimensions)
 					if 0 :#i > 0:
@@ -3542,15 +3482,30 @@ class VolumeRenderingPlotDialog(PlotDialog):
 							print key, grid #: #None if grid is None else grid.shape
 
 
-						grid_map_2d = {key:None if grid is None else multisum(grid, allaxes) for key, grid in grid_map.items()}
+						grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else multisum(grid, allaxes)) for key, grid in grid_map.items()}
 						amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map_2d)
 						if use_selection:
-							grid_map_selection_2d = {key:multisum(grid, allaxes) for key, grid in grid_map_selection.items()}
+							grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else multisum(grid, allaxes)) for key, grid in grid_map_selection.items()}
 							amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection_2d)
 
 						axes.imshow(self.contrast(amplitude), origin="lower", extent=ranges, alpha=0.4 if use_selection else 1.0, cmap=self.colormap)
 						if use_selection:
 							axes.imshow(self.contrast(amplitude_selection), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
+
+						#vector_positions1, vector_positions2,  = vector_positions[i1],  vector_positions[i2]
+						#vector_values1, vector_values2 = vector_values[i1],  vector_values[i2]
+						if vector_positions[i1] is not None and vector_positions[i2] is not None:
+							if vector_positions[i3] is not None:
+								x, y = np.meshgrid(vector_positions[i1], vector_positions[i2])
+								U = multisum(vector_values[i1], allaxes)
+								V = multisum(vector_values[i2], allaxes)
+								W = multisum(vector_values[i3], allaxes)
+								mask = multisum(vector_counts, allaxes) > 0
+								print U.shape, vector_mask.shape
+								axes.quiver(x[mask], y[mask], U[mask], V[mask], W[mask], cmap=self.colormap_vector)
+							else:
+								axes.quiver(x[mask], y[mask], vx[mask], vy[mask], color="black")
+	
 
 						if 0: # TODO: self.dataset.selected_row_index is not None:
 							#self.axes.autoscale(False)

@@ -48,12 +48,19 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.function_sigmas = [0.05] * function_count
 		self.function_means = (np.arange(function_count) / float(function_count-1)) * 0.8 + 0.10
 		
-		self.brightness = 5.
+		self.brightness = 2.
 		self.min_level = 0.
 		self.max_level = 1.
 
 		self.min_level_vector3d = 0.
 		self.max_level_vector3d = 1.
+		self.texture_function_size = 1024*8
+
+		self.ambient_coefficient = 0.5
+		self.diffuse_coefficient = 0.8
+		self.specular_coefficient = 0.5
+		self.specular_exponent = 5.
+
 
 		self.texture_cube, self.texture_gradient = None, None
 		self.setMouseTracking(True)
@@ -303,6 +310,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			}""",GL_FRAGMENT_SHADER)
 		
 		self.fragment_shader = shaders.compileShader("""
+		#version 120
 			varying vec4 vertex_color;
 			uniform sampler1D texture_colormap; 
 			uniform sampler2D texture; 
@@ -322,7 +330,11 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			uniform sampler1D transfer_function; 
 			
 			uniform float brightness;
-			
+			uniform float ambient_coefficient;
+			uniform float diffuse_coefficient;
+			uniform float specular_coefficient;
+			uniform float specular_exponent;
+
 			
 			void main() {
 				int steps = 300;
@@ -345,28 +357,42 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				//mat3 mod = inverse(mat3(gl_ModelViewProjectionMatrix));
 				vec4 color = vec4(0, 0, 0, 0);
 				vec3 light_dir = light_pos - origin;
-				//light_dir = vec3(-1,-1,1);
-				light_dir = light_dir / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
+				mat3 rotation = mat3(gl_ModelViewMatrix);
+				light_dir = vec3(-1,-1,1) * rotation;
+				light_dir = normalize(light_dir);// / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
 				float alpha_total = 0.;
 				//float normalize = log(maxvalue);
 				float intensity_total;
 				float data_min = minmax3d.x;
 				float data_max = minmax3d.y;
 				float data_scale = 1./(data_max - data_min);
+				float delta = 0.01/5.;
+				//vec3 light_dir = vec3(1,1,-1);
+				vec3 eye = vec3(0, 0, 1) * rotation;
 				for(int i = 0; i < 300; i++) {
 					/*vec3 normal = texture3D(gradient, ray_pos).zyx;
 					normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
 					float cosangle = dot(light_dir, normal);
 					cosangle = clamp(cosangle, 0., 1.);*/
 
+
 					vec4 sample = texture3D(cube, ray_pos);
+					float sample_x = texture3D(cube, ray_pos + vec3(delta, 0, 0)).r;
+					float sample_y = texture3D(cube, ray_pos + vec3(0, delta, 0)).r;
+					float sample_z = texture3D(cube, ray_pos + vec3(0, 0, delta)).r;
+					vec3 normal = normalize(-vec3((sample_x-sample.r)/delta, (sample_y-sample.r)/delta, (sample_z-sample.r)/delta));
+					float cosangle_light = max(dot(light_dir, normal), 0.);
+					float cosangle_eye = max(dot(eye, normal), 0.);
+
 					float data_value = (sample.r - data_min) * data_scale;
 					vec4 color_sample = texture1D(transfer_function, data_value);
-					
+					//float change = abs((texture1D(transfer_function, data_value+delta).a - color_sample.a)/delta);
+
 					//vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
 					float alpha_sample = color_sample.a * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length; //function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
 					alpha_sample = clamp(alpha_sample, 0., 1.);
-					//color_sample = color_sample * cosangle;
+					color_sample = color_sample * (ambient_coefficient + diffuse_coefficient*cosangle_light + specular_coefficient * pow(cosangle_eye, specular_exponent));
+					//color_sample = vec4(normal, 1.);
 					color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
 					alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
 					if(alpha_total >= 1.)
@@ -426,7 +452,9 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				// form two orthogonal vector to define a rotation matrix
 				// the rotation around the vector's axis doesn't matter
 				vec3 some_axis = normalize(vec3(0., 1., 1.));
+				//vec3 some_axis2 = normalize(vec3(1., 0., 1.));
 				vec3 axis1 = normalize(cross(direction, some_axis));
+				// + (1-length(cross(direction, some_axis)))*cross(direction, some_axis2));
 				vec3 axis2 = normalize(cross(direction, axis1));
 				mat3 rotation_and_scaling = mat3(axis1, axis2, direction * (speed) /50);
 				mat3 rotation_and_scaling_inverse_transpose = mat3(axis1, axis2, direction / (speed) /50);
@@ -482,7 +510,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#glViewport(0, 0, 128*2, 128*2)
 		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.texture_backside, 0);
-		glClearColor(1.0, 1.0, 0.0, 1.0)
+		#glClearColor(1.0, 1.0, 0.0, 1.0)
+		glClearColor(0.0, 0.0, 0.0, 1.0)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 		
 		glEnable(GL_DEPTH_TEST);
@@ -696,8 +725,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			#index = gavi.vaex.colormaps.colormaps.index("afmhot")
 			glBindTexture(GL_TEXTURE_1D, self.texture_function)
 			rgb = self.colormap_data[self.colormap_index]
-			Nx = 1024
-			x = np.arange(Nx) / (Nx-1.)
+			x = np.arange(self.texture_function_size) / (self.texture_function_size-1.)
 			y = x * 0.
 			for i in range(3):
 				y += np.exp(-((x-self.function_means[i])/self.function_sigmas[i])**2) * self.function_opacities[i]
@@ -708,7 +736,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			self.function_data[:,2] = rgb[:,2]
 			self.function_data[:,3] = (y * 255).astype(np.uint8)
 			self.function_data_1d = self.function_data.reshape(-1)
-			glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA8, Nx, 0, GL_RGBA, GL_UNSIGNED_BYTE, self.function_data_1d);
+			glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA8, self.texture_function_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, self.function_data_1d);
 			
 			glEnable(GL_TEXTURE_1D)
 			
@@ -744,6 +772,9 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glUniform1fv(glGetUniformLocation(self.shader,"function_means"), self.function_count, self.function_means);
 		glUniform1fv(glGetUniformLocation(self.shader,"function_sigmas"), self.function_count, self.function_sigmas);
 		glUniform1fv(glGetUniformLocation(self.shader,"function_opacities"), self.function_count, self.function_opacities);
+
+		for name in ["ambient_coefficient", "diffuse_coefficient", "specular_coefficient", "specular_exponent"]:
+			glUniform1f(glGetUniformLocation(self.shader, name), getattr(self, name))
 		
 
 		alpha_mod = glGetUniformLocation(self.shader,"alpha_mod");
@@ -934,7 +965,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 	def initializeGL(self):
 		
 		colormaps = gavi.vaex.colormaps.colormaps
-		Nx, Ny = 1024, 16
+		Nx, Ny = self.texture_function_size, 16
 		self.colormap_data = np.zeros((len(colormaps), Nx, 3), dtype=np.uint8)
 		
 		import matplotlib.cm
@@ -972,8 +1003,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
 			glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-			self.function_data = np.zeros((Nx, 4), dtype=np.uint8)
-			x = np.arange(Nx) * 255 / (Nx-1.)
+			self.function_data = np.zeros((self.texture_function_size, 4), dtype=np.uint8)
+			x = np.arange(self.texture_function_size) * 255 / (self.texture_function_size-1.)
 			self.function_data[:,0] = x
 			self.function_data[:,1] = x
 			self.function_data[:,2] = 0
