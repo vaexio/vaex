@@ -16,6 +16,7 @@ from OpenGL.GL.ARB.shadow import *
 from OpenGL.GL import shaders
 
 import numpy as np
+import scipy.stats
 
 import time
 
@@ -54,12 +55,16 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 		self.min_level_vector3d = 0.
 		self.max_level_vector3d = 1.
+		self.vector3d_scale = 1.
+		self.vector3d_auto_scale = True
+		self.vector3d_auto_scale_scale = 1.
 		self.texture_function_size = 1024*8
 
 		self.ambient_coefficient = 0.5
 		self.diffuse_coefficient = 0.8
 		self.specular_coefficient = 0.5
 		self.specular_exponent = 5.
+		self.draw_vectors = True
 
 
 		self.texture_cube, self.texture_gradient = None, None
@@ -436,6 +441,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			uniform vec3 lightdir;
 			uniform float count_level_min;
 			uniform float count_level_max;
+			uniform float vector3d_scale;
+			uniform float vector3d_auto_scale_scale;
 
 			void main() {
 				float grid_size_f = float(grid_size);
@@ -456,8 +463,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				vec3 axis1 = normalize(cross(direction, some_axis));
 				// + (1-length(cross(direction, some_axis)))*cross(direction, some_axis2));
 				vec3 axis2 = normalize(cross(direction, axis1));
-				mat3 rotation_and_scaling = mat3(axis1, axis2, direction * (speed) /50);
-				mat3 rotation_and_scaling_inverse_transpose = mat3(axis1, axis2, direction / (speed) /50);
+				mat3 rotation_and_scaling = mat3(axis1, axis2, direction * (speed) * 20. * vector3d_scale * vector3d_auto_scale_scale);
+				mat3 rotation_and_scaling_inverse_transpose = mat3(axis1, axis2, direction / (speed) / 20. / vector3d_scale / vector3d_auto_scale_scale);
 
 
 				vec3 pos = gl_Vertex.xyz;//
@@ -529,7 +536,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#self.arrow(0.5, 0.5, 0.5, 80.0)
 		#self.arrow_model.drawGL()
 		glUseProgram(self.shader_vectorfield_color)
-		if self.vectorgrid is not None:
+		if self.vectorgrid is not None and self.draw_vectors:
 			loc = glGetUniformLocation(self.shader_vectorfield_color, "vectorfield");
 			glUniform1i(loc, 0); # texture unit 0
 			loc = glGetUniformLocation(self.shader_vectorfield_color, "grid_size");
@@ -546,6 +553,13 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glUniform1f(loc, 10**(np.log10(ma)*self.min_level_vector3d))
 			loc = glGetUniformLocation(self.shader_vectorfield_color, "count_level_max");
 			glUniform1f(loc, 10**(np.log10(ma)*self.max_level_vector3d))
+
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "vector3d_scale");
+			glUniform1f(loc, self.vector3d_scale)
+
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "vector3d_auto_scale_scale");
+			glUniform1f(loc, self.vector3d_auto_scale_scale if self.vector3d_auto_scale else 1.)
+
 
 			glActiveTexture(GL_TEXTURE0);
 			glEnable(GL_TEXTURE_3D)
@@ -657,7 +671,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glEnable ( GL_COLOR_MATERIAL )
 		glColor3f(0.5, 0, 0)
 		#self.arrow(0.5, 0.5, 0.5, 80.0)
-		if self.vectorgrid is not None:
+		if self.vectorgrid is not None and self.draw_vectors:
 			glUseProgram(self.shader_vectorfield_color)
 			loc = glGetUniformLocation(self.shader_vectorfield_color, "vectorfield");
 			glUniform1i(loc, 0); # texture unit 0
@@ -680,6 +694,14 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glUniform1f(loc, 10**(np.log10(ma)*self.min_level_vector3d))
 			loc = glGetUniformLocation(self.shader_vectorfield_color, "count_level_max");
 			glUniform1f(loc, 10**(np.log10(ma)*self.max_level_vector3d))
+
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "vector3d_scale");
+			glUniform1f(loc, self.vector3d_scale)
+
+			loc = glGetUniformLocation(self.shader_vectorfield_color, "vector3d_auto_scale_scale");
+			glUniform1f(loc, self.vector3d_auto_scale_scale if self.vector3d_auto_scale else 1.)
+
+
 
 
 			glActiveTexture(GL_TEXTURE0);
@@ -1238,6 +1260,19 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			#print self.vectorgrid
 			#print "counts", self.vectorgrid[3]
 			assert self.vectorgrid.shape[0] == self.vectorgrid.shape[1] == self.vectorgrid.shape[2], "wrong shape %r" %  self.vectorgrid.shape
+
+			#vx, vy, vz = self.vectorgrid[:,:,0], self.vectorgrid[:,:,1], self.vectorgrid[:,:,2]
+			#length = numpy.linalg.norm(vx)
+			vectorflat = self.vectorgrid.reshape((-1, 4))
+			vx, vy, vz, counts = vectorflat.T
+			mask = counts > 0
+			#length = scipy.stats.nanmedian(np.sqrt(self.vectorgrid[:,:,0][mask]**2 + self.vectorgrid[:,:,1][mask]**2 + self.vectorgrid[:,:,2][mask]**2))
+			target_length = np.nanmean(np.sqrt(vx[mask]**2 + vy[mask]**2 + vz[mask]**2))
+
+			self.vector3d_auto_scale_scale = 1./target_length / self.vectorgrid.shape[0]
+			print "#" * 200
+			print self.vector3d_auto_scale_scale, target_length
+			#dsadsa
 			self.texture_cube_vector_size = self.vectorgrid.shape[0]
 			self.texture_cube_vector = glGenTextures(1)
 			glBindTexture(GL_TEXTURE_3D, self.texture_cube_vector)

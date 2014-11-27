@@ -774,6 +774,8 @@ class PlotDialog(QtGui.QDialog):
 			self.amplitude_box.addItems([self.options["amplitude"]])
 		self.amplitude_box.addItems(["log(counts) if weighted is None else average", "counts", "counts**2", "sqrt(counts)"])
 		self.amplitude_box.addItems(["log(counts+1)"])
+		self.amplitude_box.addItems(["gf(log(counts+1),1) # gaussian filter"])
+		self.amplitude_box.addItems(["gf(log(counts+1),2) # gaussian filter with higher sigma" ])
 		self.amplitude_box.addItems(["counts/peak_columns # divide by peak value in every row"])
 		self.amplitude_box.addItems(["counts/sum_columns # normalize columns"])
 		self.amplitude_box.addItems(["counts/peak_rows # divide by peak value in every row"])
@@ -788,8 +790,24 @@ class PlotDialog(QtGui.QDialog):
 		self.amplitude_box.setMinimumContentsLength(10)
 		self.grid_layout.addWidget(QtGui.QLabel("amplitude="), row, 1)
 		self.grid_layout.addWidget(self.amplitude_box, row, 2, QtCore.Qt.AlignLeft)
-		self.amplitude_box.lineEdit().editingFinished.connect(self.onAmplitudeExpr)
-		self.amplitude_box.currentIndexChanged.connect(lambda _: self.onAmplitudeExpr())
+		#self.amplitude_box.lineEdit().editingFinished.connect(self.onAmplitudeExpr)
+		#self.amplitude_box.currentIndexChanged.connect(lambda _: self.onAmplitudeExpr())
+		def onchange(*args, **kwargs):
+			print "change:", args, kwargs
+			self.onAmplitudeExpr()
+		def onchange_line(*args, **kwargs):
+			print "change: line", args, kwargs
+			if len(str(self.amplitude_box.lineEdit().text())) == 0:
+				self.onAmplitudeExpr()
+		#self.amplitude_box.currentIndexChanged.connect(functools.partial(onchange, event="currentIndexChanged"))
+		#self.amplitude_box.editTextChanged.connect(functools.partial(onchange, event="editTextChanged"))
+		#self.amplitude_box.lineEdit().editingFinished.connect(functools.partial(onchange, event="editingFinished"))
+
+		# this event is also fired when the line edit is finished, except when an empty entry is given
+		self.amplitude_box.currentIndexChanged.connect(onchange)
+		self.amplitude_box.lineEdit().editingFinished.connect(functools.partial(onchange_line, event="editingFinished"))
+
+
 		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
 
 		row += 1
@@ -904,6 +922,36 @@ class PlotDialog(QtGui.QDialog):
 			self.layout_frame_options_visuals.addWidget(self.button_image_invert)
 
 
+	def create_slider(self, parent, label_text, value_min, value_max, getter, setter, value_steps=1000, format=" {0:<0.3f}", transform=lambda x: x, inverse=lambda x: x):
+		label = QtGui.QLabel(label_text, parent)
+		label_value = QtGui.QLabel(label_text, parent)
+		slider = QtGui.QSlider(parent)
+		slider.setOrientation(QtCore.Qt.Horizontal)
+		slider.setRange(0, value_steps)
+
+		def update_text():
+			#label.setText("mean/sigma: {0:<0.3f}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+			label_value.setText(format.format(getter()))
+		def on_change(index, slider=slider):
+			value = index/float(value_steps) * (inverse(value_max) - inverse(value_min)) + inverse(value_min)
+			print label_text, "set to", value, "(", inverse(value), ")"
+			setter(transform(value))
+			update_text()
+		slider.setValue((inverse(getter()) - inverse(value_min))/(inverse(value_max) - inverse(value_min)	) * value_steps)
+		update_text()
+		slider.valueChanged.connect(on_change)
+		return label, slider, label_value
+
+	def create_checkbox(self, parent, label, getter, setter):
+		checkbox = QtGui.QCheckBox(label, parent)
+		checkbox.setChecked(getter())
+		def stateChanged(state):
+			value = state == QtCore.Qt.Checked
+			setter(value)
+
+		checkbox.stateChanged.connect(stateChanged)
+		return checkbox
+
 	def page_vector(self, page):
 		self.frame_options_vector2d = page #QtGui.QFrame(self)
 		self.layout_frame_options_vector2d =  QtGui.QVBoxLayout()
@@ -918,16 +966,37 @@ class PlotDialog(QtGui.QDialog):
 
 		row = 0
 
+		self.vectors_subtract_mean = bool(eval(self.options.get("vsub_mean", "False")))
+		def setter(value):
+			self.vectors_subtract_mean = value
+			self.plot()
+		self.vector_subtract_mean_checkbox = self.create_checkbox(page, "subtract mean", lambda : self.vectors_subtract_mean, setter)
+		self.grid_layout_vector.addWidget(self.vector_subtract_mean_checkbox, row, 2)
+		row += 1
+
+		self.vectors_color_code_3rd = bool(eval(self.options.get("vcolor_3rd", "True" if self.dimensions <=2 else "False")))
+		def setter(value):
+			self.vectors_color_code_3rd = value
+			self.plot()
+		self.vectors_color_code_3rd_checkbox = self.create_checkbox(page, "color code 3rd axis", lambda : self.vectors_color_code_3rd, setter)
+		self.grid_layout_vector.addWidget(self.vectors_color_code_3rd_checkbox, row, 2)
+		row += 1
+
+
+
 		if self.dimensions > -1:
 			self.weight_x_box = QtGui.QComboBox(self)
 			self.weight_x_box.setMinimumContentsLength(10)
 			self.weight_x_box.setEditable(True)
 			self.weight_x_box.addItems([self.options.get("vx", "")] + self.getExpressionList())
 			self.weight_x_box.setMinimumContentsLength(10)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("vector x="), row, 1)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vx="), row, 1)
 			self.grid_layout_vector.addWidget(self.weight_x_box, row, 2)
-			self.weight_x_box.lineEdit().editingFinished.connect(self.onWeightXExpr)
-			self.weight_x_box.currentIndexChanged.connect(lambda _: self.onWeightXExpr())
+			#def onWeightXExprLine(*args, **kwargs):
+			#	if len(str(self.weight_x_box.lineEdit().text())) == 0:
+			#		self.onWeightXExpr()
+			self.weight_x_box.lineEdit().editingFinished.connect(lambda _=None: self.onWeightXExpr())
+			self.weight_x_box.currentIndexChanged.connect(lambda _=None: self.onWeightXExpr())
 			self.weight_x_expression = str(self.weight_x_box.lineEdit().text())
 			if 0:
 				for name in "x y z".split():
@@ -944,10 +1013,13 @@ class PlotDialog(QtGui.QDialog):
 			self.weight_y_box.setEditable(True)
 			self.weight_y_box.addItems([self.options.get("vy", "")] + self.getExpressionList())
 			self.weight_y_box.setMinimumContentsLength(10)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("vector y="), row, 1)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vy="), row, 1)
 			self.grid_layout_vector.addWidget(self.weight_y_box, row, 2)
-			self.weight_y_box.lineEdit().editingFinished.connect(self.onWeightYExpr)
-			self.weight_y_box.currentIndexChanged.connect(lambda _: self.onWeightYExpr())
+			#def onWeightYExprLine(*args, **kwargs):
+			#	if len(str(self.weight_y_box.lineEdit().text())) == 0:
+			#		self.onWeightYExpr()
+			self.weight_y_box.lineEdit().editingFinished.connect(lambda _=None: self.onWeightYExpr())
+			self.weight_y_box.currentIndexChanged.connect(lambda _=None: self.onWeightYExpr())
 			self.weight_y_expression = str(self.weight_y_box.lineEdit().text())
 			if 0:
 				for name in "x y z".split():
@@ -965,10 +1037,13 @@ class PlotDialog(QtGui.QDialog):
 			self.weight_z_box.setEditable(True)
 			self.weight_z_box.addItems([self.options.get("vz", "")] + self.getExpressionList())
 			self.weight_z_box.setMinimumContentsLength(10)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("vector_z="), row, 1)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vz="), row, 1)
 			self.grid_layout_vector.addWidget(self.weight_z_box, row, 2)
-			self.weight_z_box.lineEdit().editingFinished.connect(self.onWeightZExpr)
-			self.weight_z_box.currentIndexChanged.connect(lambda _: self.onWeightZExpr())
+			#def onWeightZExprLine(*args, **kwargs):
+			#	if len(str(self.weight_z_box.lineEdit().text())) == 0:
+			#		self.onWeightZExpr()
+			self.weight_z_box.lineEdit().editingFinished.connect(lambda _=None: self.onWeightZExpr())
+			self.weight_z_box.currentIndexChanged.connect(lambda _=None: self.onWeightZExpr())
 			self.weight_z_expression = str(self.weight_z_box.lineEdit().text())
 
 			row += 1
@@ -984,7 +1059,7 @@ class PlotDialog(QtGui.QDialog):
 				model.appendRow(item)
 			self.colormap_vector_box.setModel(model);
 			#self.form_layout.addRow("colormap=", self.colormap_vector_box)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("colormapxy="), row, 1)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vz_cmap="), row, 1)
 			self.grid_layout_vector.addWidget(self.colormap_vector_box, row, 2, QtCore.Qt.AlignLeft)
 			def onColorMap(index):
 				colormap_name = str(self.colormap_vector_box.itemText(index))
@@ -992,7 +1067,7 @@ class PlotDialog(QtGui.QDialog):
 				self.colormap_vector = colormap_name
 				self.plot()
 
-			cmapnames = "cmapxy colormapxy colourmapxy".split()
+			cmapnames = "vz_cmap vz_colormap vz_colourmap".split()
 			if not set(cmapnames).isdisjoint(self.options):
 				for name in cmapnames:
 					if name in self.options:
@@ -1196,52 +1271,88 @@ class PlotDialog(QtGui.QDialog):
 		
 	def onWeightXExpr(self):
 		text = str(self.weight_x_box.lineEdit().text())
-		print "############", self.weight_x_expression, text
-		if (text == self.weight_x_expression) or (text == "" and self.weight_x_expression == None):
+		if (text == self.weight_x_expression):
 			logger.debug("same weight_x expression, will not update")
 			return
+		# is we set the text to "", check if some of the grids are existing, and simply 'disable' the and replot
+		# otherwise check if it changed, if it did, see if we should do the grid computation, since
+		# if only 1 grid is defined, we don't need it
+		if text == "":
+			self.weight_x_expression = ""
+			if "weightx" in self.grids.grids:
+				grid = self.grids.grids["weightx"]
+				if grid is not None and grid.weight_expression is not None and len(grid.weight_expression) > 0:
+					grid.weight_expression = ""
+					self.plot()
+					return
+
 		self.weight_x_expression = text
-		print self.weight_x_expression
 		if self.weight_x_expression.strip() == "":
 			self.weight_x_expression = None
 		self.range_level = None
-		self.compute()
-		self.jobsManager.execute()
-		self.plot()
+		self.check_vector_expressions()
+
+	def check_vector_expressions(self):
+		expressions = [self.weight_x_expression, self.weight_y_expression, self.weight_z_expression]
+		non_none_expressions = [k for k in expressions if k is not None and len(k) > 0]
+		if len(non_none_expressions) >= 2:
+			self.compute()
+			self.jobsManager.execute()
+			#self.plot()
 	
 		
 	def onWeightYExpr(self):
 		text = str(self.weight_y_box.lineEdit().text())
-		print "############", self.weight_y_expression, text
-		if (text == self.weight_y_expression) or (text == "" and self.weight_y_expression == None):
-			logger.debug("same weight_y expression, will not update")
+		if (text == self.weight_y_expression):
+			logger.debug("same weight_x expression, will not update")
 			return
+		# is we set the text to "", check if some of the grids are existing, and simply 'disable' the and replot
+		# otherwise check if it changed, if it did, see if we should do the grid computation, since
+		# if only 1 grid is defined, we don't need it
+		if text == "":
+			self.weight_y_expression = ""
+			if "weighty" in self.grids.grids:
+				grid = self.grids.grids["weighty"]
+				if grid is not None and grid.weight_expression is not None and len(grid.weight_expression) > 0:
+					grid.weight_expression = ""
+					self.plot()
+					return
+
 		self.weight_y_expression = text
-		print self.weight_y_expression
 		if self.weight_y_expression.strip() == "":
 			self.weight_y_expression = None
 		self.range_level = None
-		self.compute()
-		self.jobsManager.execute()
-		self.plot()
-	
+		self.check_vector_expressions()
+
 	def onWeightZExpr(self):
 		text = str(self.weight_z_box.lineEdit().text())
-		print "############", self.weight_z_expression, text
-		if (text == self.weight_z_expression) or (text == "" and self.weight_z_expression == None):
-			logger.debug("same weight_z expression, will not update")
+		if (text == self.weight_z_expression):
+			logger.debug("same weight_x expression, will not update")
 			return
+		# is we set the text to "", check if some of the grids are existing, and simply 'disable' the and replot
+		# otherwise check if it changed, if it did, see if we should do the grid computation, since
+		# if only 1 grid is defined, we don't need it
+		if text == "":
+			self.weight_z_expression = ""
+			if "weightz" in self.grids.grids:
+				grid = self.grids.grids["weightz"]
+				if grid is not None and grid.weight_expression is not None and len(grid.weight_expression) > 0:
+					grid.weight_expression = ""
+					self.plot()
+					return
+
 		self.weight_z_expression = text
-		print self.weight_z_expression
 		if self.weight_z_expression.strip() == "":
 			self.weight_z_expression = None
 		self.range_level = None
-		self.compute()
-		self.jobsManager.execute()
-		self.plot()
+		self.check_vector_expressions()
 	
 	def onAmplitudeExpr(self):
-		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
+		text = str(self.amplitude_box.lineEdit().text())
+		if len(text) == 0 or text == self.amplitude_expression:
+			print "same expression, skip"
+			return
+		self.amplitude_expression = text
 		print self.amplitude_expression
 		self.range_level = None
 		self.plot()
@@ -2934,7 +3045,11 @@ class ScatterPlotDialog(PlotDialog):
 					x2d, y2d = np.meshgrid(x, y)
 					vx = self.eval_amplitude("weightx/counts", locals=grid_map_vector)
 					vy = self.eval_amplitude("weighty/counts", locals=grid_map_vector)
-					if grid_map_vector["weightz"] is not None:
+					meanvx = 0 if self.vectors_subtract_mean is False else vx[mask].mean()
+					meanvy = 0 if self.vectors_subtract_mean is False else vy[mask].mean()
+					vx -= meanvx
+					vy -= meanvy
+					if grid_map_vector["weightz"] is not None and self.vectors_color_code_3rd:
 						colors = self.eval_amplitude("weightz/counts", locals=grid_map_vector)
 						self.axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
 					else:
@@ -3444,9 +3559,13 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			if vx is not None and vy is not None and vz is not None:
 				timelog("making vector grid")
 				vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
-				vector_grid[0] = vx
-				vector_grid[1] = vy
-				vector_grid[2] = vz
+				mask = vector_counts > 0
+				meanvx = 0 if self.vectors_subtract_mean is False else vx[mask].mean()
+				meanvy = 0 if self.vectors_subtract_mean is False else vy[mask].mean()
+				meanvz = 0 if self.vectors_subtract_mean is False else vz[mask].mean()
+				vector_grid[0] = vx - meanvx
+				vector_grid[1] = vy - meanvy
+				vector_grid[2] = vz - meanvz
 				vector_grid[3] = vector_counts
 				vector_grid = np.swapaxes(vector_grid, 0, 3)
 				vector_grid = vector_grid * 1.
@@ -3465,7 +3584,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			def multisum(a, axes):
 				correction = 0
 				for axis in axes:
-					a = np.sum(a, axis=axis-correction)
+					a = np.nansum(a, axis=axis-correction)
 					correction += 1
 				return a		
 			axeslist = self.getAxesList()
@@ -3489,7 +3608,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 							label.set_visible(False)
 						axes.xaxis.offsetText.set_visible(False)
 					if 1:
-						print "axes", allaxes
+						#print "axes", allaxes, i1, i2, i3, vector_values, vector_positions
 						allaxes.remove(2-(0))
 						allaxes.remove(2-(1+i))
 						print "removed", allaxes
@@ -3509,16 +3628,29 @@ class VolumeRenderingPlotDialog(PlotDialog):
 						#vector_positions1, vector_positions2,  = vector_positions[i1],  vector_positions[i2]
 						#vector_values1, vector_values2 = vector_values[i1],  vector_values[i2]
 						if vector_positions[i1] is not None and vector_positions[i2] is not None:
-							if vector_positions[i3] is not None:
-								x, y = np.meshgrid(vector_positions[i1], vector_positions[i2])
-								U = multisum(vector_values[i1], allaxes)
-								V = multisum(vector_values[i2], allaxes)
+							print "drawing vectors"
+							mask = multisum(vector_counts, allaxes) > 0
+							x, y = np.meshgrid(vector_positions[i1], vector_positions[i2])
+							U = multisum(vector_values[i1], allaxes)
+							V = multisum(vector_values[i2], allaxes)
+
+							if np.any(mask):
+								meanU = 0 if self.vectors_subtract_mean is False else U[mask].mean()
+								meanV = 0 if self.vectors_subtract_mean is False else V[mask].mean()
+								U -= meanU
+								V -= meanV
+
+							if vector_positions[i3] is not None and self.vectors_color_code_3rd:
+								print "with colors"
 								W = multisum(vector_values[i3], allaxes)
-								mask = multisum(vector_counts, allaxes) > 0
-								print U.shape, vector_mask.shape
+								if np.any(mask):
+									meanW = 0 if self.vectors_subtract_mean is False else W[mask].mean()
+									W -= meanW
+								#print U.shape, vector_mask.shape
 								axes.quiver(x[mask], y[mask], U[mask], V[mask], W[mask], cmap=self.colormap_vector)
 							else:
-								axes.quiver(x[mask], y[mask], vx[mask], vy[mask], color="black")
+								print "without colors"
+								axes.quiver(x[mask], y[mask], U[mask], V[mask], color="black")
 	
 
 						if 0: # TODO: self.dataset.selected_row_index is not None:
@@ -3531,11 +3663,10 @@ class VolumeRenderingPlotDialog(PlotDialog):
 					else:
 						axes.set_aspect(self.aspect)
 						
-						j = 1 + i
-						axes.set_xlim(self.ranges_show[0][0], self.ranges_show[0][1])
-						axes.set_ylim(self.ranges_show[j][0], self.ranges_show[j][1])
-						axes.set_xlabel(self.expressions[0])
-						axes.set_ylabel(self.expressions[j])
+					axes.set_xlim(self.ranges_show[i1][0], self.ranges_show[i1][1])
+					axes.set_ylim(self.ranges_show[i2][0], self.ranges_show[i2][1])
+					axes.set_xlabel(self.expressions[i1])
+					axes.set_ylabel(self.expressions[i2])
 			if 0:
 					
 				self.axes.imshow(amplitude.T, origin="lower", extent=ranges, alpha=1 if self.counts_mask is None else 0.4, cmap=cm_plusmin)

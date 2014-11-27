@@ -20,79 +20,80 @@ import matplotlib.transforms as transforms
 from matplotlib.path import Path
 
 class DispersionEllipse(patches.Patch):
-    """
-    This ellipse has it's center in user coordinates, and the width and height in device coordinates
-    such that is is not deformed
-    """
-    def __str__(self):
-        return "DispersionEllipse(%s,%s;%sx%s)" % (self.center[0], self.center[1],
-                                         self.width, self.height)
+	"""
+	This ellipse has it's center in user coordinates, and the width and height in device coordinates
+	such that is is not deformed
+	"""
+	def __str__(self):
+		return "DispersionEllipse(%s,%s;%sx%s)" % (self.center[0], self.center[1],
+										 self.width, self.height)
 
-    #@docstring.dedent_interpd
-    def __init__(self, xy, width, height, angle=0.0, **kwargs):
-        """
-        *xy*
-          center of ellipse
+	#@docstring.dedent_interpd
+	def __init__(self, xy, width, height, scale=1.0, angle=0.0, **kwargs):
+		"""
+		*xy*
+		  center of ellipse
 
-        *width*
-          total length (diameter) of horizontal axis
+		*width*
+		  total length (diameter) of horizontal axis
 
-        *height*
-          total length (diameter) of vertical axis
+		*height*
+		  total length (diameter) of vertical axis
 
-        *angle*
-          rotation in degrees (anti-clockwise)
+		*angle*
+		  rotation in degrees (anti-clockwise)
 
-        Valid kwargs are:
-        %(Patch)s
-        """
-        patches.Patch.__init__(self, **kwargs)
+		Valid kwargs are:
+		%(Patch)s
+		"""
+		patches.Patch.__init__(self, **kwargs)
 
-        self.center = xy
-        self.width, self.height = width, height
-        self.angle = angle
-        self._path = Path.unit_circle()
-        # Note: This cannot be calculated until this is added to an Axes
-        self._patch_transform = transforms.IdentityTransform()
+		self.center = xy
+		self.width, self.height = width, height
+		self.scale = scale
+		self.angle = angle
+		self._path = Path.unit_circle()
+		# Note: This cannot be calculated until this is added to an Axes
+		self._patch_transform = transforms.IdentityTransform()
 
-    def _recompute_transform(self):
-        """NOTE: This cannot be called until after this has been added
-                 to an Axes, otherwise unit conversion will fail. This
-                 maxes it very important to call the accessor method and
-                 not directly access the transformation member variable.
-        """
-        center = (self.convert_xunits(self.center[0]),
-                  self.convert_yunits(self.center[1]))
-        width = self.width #self.convert_xunits(self.width)
-        height = self.height #self.convert_yunits(self.height)
-        trans = artist.Artist.get_transform(self)
-        self._patch_transform = transforms.Affine2D() \
-            .scale(width * 0.5, height * 0.5) \
-            .rotate_deg(self.angle) \
-            .translate(*trans.transform(center))
+	def _recompute_transform(self):
+		"""NOTE: This cannot be called until after this has been added
+				 to an Axes, otherwise unit conversion will fail. This
+				 maxes it very important to call the accessor method and
+				 not directly access the transformation member variable.
+		"""
+		center = (self.convert_xunits(self.center[0]),
+				  self.convert_yunits(self.center[1]))
+		width = self.width #self.convert_xunits(self.width)
+		height = self.height #self.convert_yunits(self.height)
+		trans = artist.Artist.get_transform(self)
+		self._patch_transform = transforms.Affine2D() \
+			.scale(width * 0.5 * self.scale, height * 0.5* self.scale) \
+			.rotate_deg(self.angle) \
+			.translate(*trans.transform(center))
 
-    def get_path(self):
-        """
-        Return the vertices of the rectangle
-        """
-        return self._path
+	def get_path(self):
+		"""
+		Return the vertices of the rectangle
+		"""
+		return self._path
 
-    def get_transform(self):
-        """
-        Return the :class:`~matplotlib.transforms.Transform` applied
-        to the :class:`Patch`.
-        """
-        return self.get_patch_transform()
+	def get_transform(self):
+		"""
+		Return the :class:`~matplotlib.transforms.Transform` applied
+		to the :class:`Patch`.
+		"""
+		return self.get_patch_transform()
 
-    def get_patch_transform(self):
-        self._recompute_transform()
-        return self._patch_transform
+	def get_patch_transform(self):
+		self._recompute_transform()
+		return self._patch_transform
 
-    def contains(self, ev):
-        if ev.x is None or ev.y is None:
-            return False, {}
-        x, y = self.get_transform().inverted().transform_point((ev.x, ev.y))
-        return (x * x + y * y) <= 1.0, {}
+	def contains(self, ev):
+		if ev.x is None or ev.y is None:
+			return False, {}
+		x, y = self.get_transform().inverted().transform_point((ev.x, ev.y))
+		return (x * x + y * y) <= 1.0, {}
 
 
 class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
@@ -128,6 +129,9 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 						grids.define_grid("cov_" + axis_name1 +"_" +axis_name2, self.dialog.gridsize_vector, "(" + expression1 + ")*(" + expression2 +")")
 
 	def draw_grids(self, axes, grid_map, grid_map_vector):
+		if not self.dispersions_draw:
+			return
+		self.ellipses = []
 		dispersions = []
 		counts = grid_map_vector["counts"]
 		#print "counts check", np.sum(counts), np.sum(grid_map["counts"])
@@ -154,7 +158,7 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 
 				width, height = self.dialog.canvas.get_width_height()
 				#print "width,height", width, height
-				max_size = min(width, height) / float(self.dialog.gridsize_vector) * 0.9
+				max_size = min(width, height) / float(self.dialog.gridsize_vector)# * 0.9
 				#print max_size
 				#identity_transform = matplotlib.transforms.IdentityTransform()
 				#deltax = self.dialog.ranges_show[0][1] - self.dialog.ranges_show[0][0]
@@ -170,8 +174,12 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 						pass
 					else:
 						scaling = 1./vmax * max_size
-						device_width = np.sqrt(np.max(eigen_values)) * scaling #/100.
-						device_height = np.sqrt(np.min(eigen_values)) * scaling #/100.
+						device_width =  (np.sqrt(np.max(eigen_values)) * scaling)
+						device_height = (np.sqrt(np.min(eigen_values)) * scaling)
+						if self.dispersions_unit_length:
+							length = np.sqrt(device_width**2+device_height**2)
+							device_width  /= float(length) / max_size
+							device_height /= float(length) / max_size
 						#ellipse_width = np.sqrt(np.max(eigen_values)) * scaling / width * deltax
 						#ellipse_height = np.sqrt(np.min(eigen_values)) * scaling / height * deltay
 						#ellipse_height /= aspect
@@ -193,10 +201,11 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 						#                         alpha=0.4, color="blue") #rand()*360
 						#ellipse = patches.Ellipse(xy=(x, y), width=ellipse_width, height=ellipse_height, angle=np.degrees(angle),
 						#                         alpha=0.4, color="blue") #rand()*360
-						ellipse = DispersionEllipse(xy=(x, y), width=device_width, height=device_height, angle=np.degrees(angle),
-						                          alpha=0.4, color="green") #rand()*360
+						ellipse = DispersionEllipse(xy=(x, y), width=device_width, height=device_height, angle=np.degrees(angle), scale=self.scale_dispersion,
+												  alpha=0.4, facecolor="green", edgecolor="black") #rand()*360
 
 						axes.add_artist(ellipse)
+						self.ellipses.append(ellipse)
 						#axes.quiver()
 
 						#[Ellipse(xy=rand(2)*10, width=rand(), height=rand(), angle=rand()*360)
@@ -217,8 +226,27 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 
 
 		row = 0
+
+		self.dispersions_draw = bool(eval(self.dialog.options.get("disp_draw", "True")))
+		def setter(value):
+			self.dispersions_draw = value
+			self.dialog.plot()
+		self.dispersions_draw_checkbox = self.dialog.create_checkbox(page, "Draw dispersion tensors", lambda : self.dispersions_draw, setter)
+		layout.addWidget(self.dispersions_draw_checkbox, row, 1)
+		row += 1
+
+		self.dispersions_unit_length = bool(eval(self.dialog.options.get("disp_unit", "False")))
+		def setter(value):
+			self.dispersions_unit_length = value
+			self.dialog.plot()
+		self.dispersions_unit_lengthcheckbox = self.dialog.create_checkbox(page, "Unit length", lambda : self.dispersions_unit_length, setter)
+		layout.addWidget(self.dispersions_unit_lengthcheckbox, row, 1)
+		row += 1
+
+
 		self.expressions = []
 		self.expression_boxes = []
+
 
 		for dimension in range(self.dialog.dimensions):
 			axis_name = self.dialog.axisnames[dimension]
@@ -227,8 +255,8 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 			expression_box.setMinimumContentsLength(10)
 			self.expression_boxes.append(expression_box)
 
-			self.layout.addWidget(QtGui.QLabel(axis_name + '-axis:', page), row, 1)
-			self.layout.addWidget(expression_box, row, 2, QtCore.Qt.AlignLeft)
+			self.layout.addWidget(QtGui.QLabel(axis_name + '-axis:', page), row, 0)
+			self.layout.addWidget(expression_box, row, 1, QtCore.Qt.AlignLeft)
 
 			expression = self.dialog.options.get("disp"+axis_name.lower(), "")
 			expression_box.lineEdit().setText(expression)
@@ -239,13 +267,34 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 			expression_box.lineEdit().editingFinished.connect(calllback)
 			row += 1
 
+		self.scale_dispersion = eval(self.dialog.options.get("disp_scale", "1"))
+		def setter(value):
+			self.scale_dispersion = value
+			for ellipse in self.ellipses:
+				ellipse.scale = self.scale_dispersion
+			self.dialog.canvas.draw()
+			#self.dialog.plot()
+		self.scale_dispersion_label, self.scale_dispersion_slider, self.scale_dispersion_value_label =\
+				self.dialog.create_slider(page, "scale: ", 1./100, 100., lambda : self.scale_dispersion, setter, format=" {0:>05.2f}", transform=lambda x: 10**x, inverse=lambda x: np.log10(x))
+		layout.addWidget(self.scale_dispersion_label, row, 0)
+		layout.addWidget(self.scale_dispersion_slider, row, 1)
+		layout.addWidget(self.scale_dispersion_value_label, row, 2)
+		row += 1
+
+
 	def onExpressionChanged(self, _=None, axis_index=-1):
 		text = str(self.expression_boxes[axis_index].lineEdit().text())
 		logger.debug("text set for axis %i: %s" % (axis_index, text))
 		if text != self.expressions[axis_index]:
+			axis_name = self.dialog.axisnames[axis_index].lower()
 			self.expressions[axis_index] = text
-			self.dialog.compute()
-			self.dialog.jobsManager.execute()
+			if text == "": # check if we can replot without doing the whole calculation
+				self.dialog.plot()
+			else:
+				non_empty = [k for k in self.expressions if len(k) > 0]
+				if len(non_empty) == len(self.expressions):
+					self.dialog.compute()
+					self.dialog.jobsManager.execute()
 		else:
 			logger.debug("nothing changed")
 

@@ -30,7 +30,7 @@ def error(title, msg):
 	print "Error", title, msg
 
 
-buffer_size = 1e9
+buffer_size = 1e8
 
 import gavi.logging
 logger = gavi.logging.getLogger("gavi.vaex")
@@ -225,7 +225,7 @@ class JobsManager(object):
 									local_dict[key] = eval(dataset.variables[key], np.__dict__, local_dict)
 								except:
 									local_dict[key] = None
-							print "local vars", local_dict
+							#print "local vars", local_dict
 							local_dict.update(variables) # window scope
 							for key, value in dataset.columns.items():
 								local_dict[key] = value[i1:i2]
