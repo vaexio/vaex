@@ -38,7 +38,7 @@ def dialog_info(parent, title, msg):
 	QtGui.QMessageBox.information(parent, title, msg)
 	
 def confirm(parent, title, msg):
-	QtGui.QMessageBox.information(parent, title, msg, QtGui.QMessageBox.Yes|QtGui.QMessageBox.No) == QtGui.QMessageBox.Yes
+	return QtGui.QMessageBox.information(parent, title, msg, QtGui.QMessageBox.Yes|QtGui.QMessageBox.No) == QtGui.QMessageBox.Yes
 	
 import traceback as tb
 import sys

@@ -33,7 +33,13 @@ class PluginPlot(object):
 	
 	def setMode(self, action):
 		pass
-	
+
+	def get_options(self):
+		return {}
+
+	def apply_options(self, options):
+		pass
+
 class PluginDataset(object):
 	__metaclass__ = RegisterPlugins # trick to keep a list of plugins
 	def __init__(self, dataset, widget):

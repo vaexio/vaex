@@ -408,18 +408,38 @@ class PlotDialog(QtGui.QDialog):
 		options["ranges_show"] = self.ranges_show
 		options["grid_size"] = self.grid_size
 		options["vector_grid_size"] = self.vector_grid_size
+		for plugin in self.plugins:
+			options.update(plugin.get_options())
 		return dict(options)
 
-	def apply_options(self, options):
+	def apply_options(self, options, update=True):
 		#map = {"expressions",}
+		print "settings options", options, options.keys()
 		recognize = "expressions amplitude_expression ranges ranges_show grid_size vector_grid_size".split()
 		for key in recognize:
-			if key in self.options:
-				setattr(self, key, options[key])
+			#print repr(key), map(str, options.keys()), key in map(str, options.keys())
+			if key in options.keys():
+				value = options[key]
+				print "setting", key, "to value", value
+				import copy
+				setattr(self, key, copy.copy(value))
+				if key == "amplitude_expression":
+					self.amplitude_box.lineEdit().setText(value)
+				if key == "expressions":
+					print "settings expressions", zip(value, self.axisboxes)
+					for expr, box in zip(value, self.axisboxes):
+						print expr, box
+						box.lineEdit().setText(expr)
+		for plugin in self.plugins:
+			plugin.apply_options(options)
 		for key in options.keys():
 			if key not in recognize:
 				logger.error("option %s not recognized, ignored" % key)
-		self.queue_update()
+		if update:
+			self.queue_update()
+
+	def load_options(self, name):
+		self.plugins_map["favorites"].load_options(name, update=False)
 
 	def __init__(self, parent, jobsManager, dataset, expressions, axisnames, width=5, height=4, dpi=100, **options):
 		super(PlotDialog, self).__init__(parent)
@@ -535,6 +555,10 @@ class PlotDialog(QtGui.QDialog):
 
 		self.layout_content.addLayout(self.boxlayout_right, 0)
 		self.setLayout(self.layout_main)
+
+
+		if "options" in self.options:
+			self.load_options(self.options["options"])
 
 		self.compute_counter = 1 # to avoid reentrant 'computes'
 		self.compute()

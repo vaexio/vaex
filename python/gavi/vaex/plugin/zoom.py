@@ -126,10 +126,12 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 					link.sendRangesShow(self.dialog.ranges_show[axisIndex], linkButton)
 				
 		
-		action = undo.ActionZoom(self.undoManager, "zoom to fit", self.set_ranges, range(self.dimensions), self.dialog.ranges, self.dialog.ranges_show,  self.range_level,
-						   range(self.dimensions), ranges=[None] * self.dimensions, ranges_show=[None] * self.dimensions, range_level=None)
+		action = undo.ActionZoom(self.dialog.undoManager, "zoom to fit", self.dialog.set_ranges, range(self.dialog.dimensions), self.dialog.ranges,
+								self.dialog.ranges_show,  self.dialog.range_level,
+						   		range(self.dialog.dimensions), ranges=[None] * self.dialog.dimensions, ranges_show=[None] * self.dialog.dimensions,
+								range_level=None)
 		action.do()
-		self.checkUndoRedo()
+		self.dialog.checkUndoRedo()
 		
 		if 0:
 			linked_buttons = [button for button in self.linkButtons if button.link is not None]
