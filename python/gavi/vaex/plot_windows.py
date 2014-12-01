@@ -3613,7 +3613,12 @@ class VolumeRenderingPlotDialog(PlotDialog):
 						allaxes.remove(2-(1+i))
 						print "removed", allaxes
 						counts_mask = None
-
+						colors = "red green blue".split()
+						axes.spines['bottom'].set_color(colors[i1])
+						axes.spines['left'].set_color(colors[i2])
+						linewidth = 2.
+						axes.spines['bottom'].set_linewidth(linewidth)
+						axes.spines['left'].set_linewidth(linewidth)
 
 						grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else multisum(grid, allaxes)) for key, grid in grid_map.items()}
 						amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map_2d)
@@ -3635,8 +3640,8 @@ class VolumeRenderingPlotDialog(PlotDialog):
 							V = multisum(vector_values[i2], allaxes)
 
 							if np.any(mask):
-								meanU = 0 if self.vectors_subtract_mean is False else U[mask].mean()
-								meanV = 0 if self.vectors_subtract_mean is False else V[mask].mean()
+								meanU = 0 if self.vectors_subtract_mean is False else np.nanmean(U[mask])
+								meanV = 0 if self.vectors_subtract_mean is False else np.nanmean(V[mask])
 								U -= meanU
 								V -= meanV
 
@@ -3644,7 +3649,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 								print "with colors"
 								W = multisum(vector_values[i3], allaxes)
 								if np.any(mask):
-									meanW = 0 if self.vectors_subtract_mean is False else W[mask].mean()
+									meanW = 0 if self.vectors_subtract_mean is False else np.nanmean(W[mask])
 									W -= meanW
 								#print U.shape, vector_mask.shape
 								axes.quiver(x[mask], y[mask], U[mask], V[mask], W[mask], cmap=self.colormap_vector)
