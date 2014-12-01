@@ -114,7 +114,7 @@ template<typename T>
 void object_to_numpyNd_nocopy(T* &ptr, PyObject* obj, int max_dimension, int& dimension, int* sizes, int* strides, int type=NPY_DOUBLE) {
 		if(obj == NULL)
 			throw std::runtime_error("cannot convert to numpy array");
-		printf("dim = %i maxdim = %i %i\n", dimension, max_dimension,  (int)PyArray_NDIM(obj));
+		//printf("dim = %i maxdim = %i %i\n", dimension, max_dimension,  (int)PyArray_NDIM(obj));
 		dimension = (int)PyArray_NDIM(obj);
 		if(dimension > max_dimension) {
 			printf("dim = %i maxdim = %i\n", dimension, max_dimension);

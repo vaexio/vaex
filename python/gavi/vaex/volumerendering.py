@@ -112,6 +112,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			void main() {
 				gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 				vertex_color =  gl_Vertex /80. + vec4(0.5, 0.5, 0.5, 0.);
+				vertex_color.z = 1.-vertex_color.z;
 			}""",GL_VERTEX_SHADER)
 		self.fragment_shader_color = shaders.compileShader("""
 			varying vec4 vertex_color;
@@ -130,6 +131,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				//vertex_color = gl_Color;
 				vertex_color =  gl_Vertex.x > 1.5 ? vec4(1,0,0,0) : vec4(0,1,0,0)  ;// vec4(gl_Color) + vec4(1, 0, 0, 0);
 				vertex_color =  gl_Vertex /80. + vec4(0.5, 0.5, 0.5, 0.);
+				vertex_color.z = 1.-vertex_color.z;
 			}""",GL_VERTEX_SHADER)
 		self.fragment_shader = shaders.compileShader("""
 			varying vec4 vertex_color;
@@ -268,8 +270,9 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				int steps = 500;
 				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
 				vec3 ray_start = vertex_color.xyz;
+				ray_start.z = 1.-ray_start.z;
 				float length = 0.;
-				vec3 ray_dir = ray_end - ray_start;
+				vec3 ray_dir = (ray_end - ray_start);
 				vec3 ray_delta = ray_dir / float(steps);
 				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
 				vec3 ray_pos = ray_start;
@@ -345,8 +348,10 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				int steps = 300;
 				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
 				vec3 ray_start = vertex_color.xyz;
+				//ray_start.z = 1. - ray_start.z;
+				//ray_end.z = 1. - ray_end.z;
 				float length = 0.;
-				vec3 ray_dir = ray_end - ray_start;
+				vec3 ray_dir = (ray_end - ray_start);
 				vec3 ray_delta = ray_dir / float(steps);
 				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
 				vec3 ray_pos = ray_start;
@@ -421,6 +426,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				vec4 pos = (gl_Vertex + vec4(x*80./8., y*80./8., z*80./8., 0));
 				gl_Position = gl_ModelViewProjectionMatrix * pos;
 				vertex_color =  pos /80. + vec4(0.5, 0.5, 0.5, 0.);
+				//vertex_color.z = 1. - vertex_color.z;
 			}""",GL_VERTEX_SHADER)
 		self.fragment_shader_color = shaders.compileShader("""
 			varying vec4 vertex_color;
@@ -452,6 +458,9 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				vec3 uniform_center = vec3(x, y, z);
 				vec4 sample = texture3D(vectorfield, uniform_center.yzx);
 				vec3 velocity = sample.xyz;
+				velocity.x *= -1.;
+				velocity.y *= -1.;
+				velocity.z *= 1.;
 				float counts = sample.a;
 				float scale = (counts >= count_level_min) && (counts <= count_level_max) ? 1. : 0.0;
 				float speed = length(velocity);
@@ -469,10 +478,15 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 				vec3 pos = gl_Vertex.xyz;//
 				pos.z -= 0.5;
+				pos.z = -pos.z;
 				pos *= scale;
 				pos = rotation_and_scaling * pos;
-				vec4 transformed_pos = vec4(pos + (uniform_center - vec3(0.5,0.5,0.5) + 1./grid_size_f/2.) * 80., 1);
+				vec3 center = (uniform_center - vec3(0.5,0.5,0.5) + 1./grid_size_f/2.) * 80.;
+				center.z = -center.z;
+				vec4 transformed_pos = vec4(pos + center, 1);
+				//transformed_pos.z = 80. - transformed_pos.z;
 				vertex_color =  transformed_pos/80. + vec4(0.5, 0.5, 0.5, 1.); //vec4(uniform_center + gl_ModelViewMatrix*pos, 0.);// + vec4(0.5, 0.5, 0.0, 1.);
+				vertex_color.z = 1. - vertex_color.z;
 				gl_Position = gl_ModelViewProjectionMatrix * transformed_pos;
 				if(use_light == 1) {
 					float fraction = 0.5;
@@ -529,7 +543,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glShadeModel(GL_SMOOTH);
 		glUseProgram(self.shader_color)
 		self.cube(size=80)
-		self.cube(size=80, gl_type=GL_LINE_LOOP)
+		#self.cube(size=80, gl_type=GL_LINE_LOOP)
+		self.wireframe(size=80.)
 		glCullFace(GL_BACK);
 		if 0:
 			self.cube(size=10) # 'debug' cube
@@ -651,7 +666,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		
 		glDisable(GL_BLEND)
 		glColor3f(0, 0, 0)
-		self.cube(size=80, gl_type=GL_LINE_LOOP) # draw the wireframe cube
+		#self.cube(size=80, gl_type=GL_LINE_LOOP, color_axis=True) # draw the wireframe cube
+		self.wireframe(size=80.)
 		if 0:
 			self.cube(size=10) # 'debug' cube
 		glEnable(GL_LIGHTING);
@@ -909,6 +925,78 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 		
 		
+	def wireframe(self, size, color_axis=False):
+		w = size/2;
+		glLineWidth(2.)
+		# X
+		glBegin(GL_LINES)
+		glColor3f(1., 0., 0.)
+		glVertex3f(-w, -w, w)
+		glVertex3f(w, -w, w)
+		glEnd()
+
+		# Y
+		glBegin(GL_LINES)
+		glColor3f(0., 1., 0.)
+		glVertex3f(-w, -w, w)
+		glVertex3f(-w, w, w)
+		glEnd()
+
+		# Z
+		glBegin(GL_LINES)
+		glColor3f(0., 0., 1.)
+		glVertex3f(-w, -w, -w)
+		glVertex3f(-w, -w, w)
+		glEnd()
+
+		# the rest thin black
+		glLineWidth(1.)
+		glColor3f(0., 0., 0.)
+
+		# z parallel
+		glBegin(GL_LINES)
+		glVertex3f(-w, w, -w)
+		glVertex3f(-w, w, w)
+		glEnd()
+		glBegin(GL_LINES)
+		glVertex3f(w, w, -w)
+		glVertex3f(w, w, w)
+		glEnd()
+		glBegin(GL_LINES)
+		glVertex3f(w, -w, -w)
+		glVertex3f(w, -w, w)
+		glEnd()
+
+		# Y parallel
+		glBegin(GL_LINES)
+		glVertex3f(w, -w, -w)
+		glVertex3f(w, w, -w)
+		glEnd()
+		glBegin(GL_LINES)
+		glVertex3f(w, -w, w)
+		glVertex3f(w, w, w)
+		glEnd()
+		glBegin(GL_LINES)
+		glVertex3f(-w, -w, -w)
+		glVertex3f(-w, w, -w)
+		glEnd()
+
+		# X parallel
+		glBegin(GL_LINES)
+
+		glVertex3f(-w, w, -w)
+		glVertex3f(w, w, -w)
+		glEnd()
+		glBegin(GL_LINES)
+		glVertex3f(-w, -w, -w)
+		glVertex3f(w, -w, -w)
+		glEnd()
+		glBegin(GL_LINES)
+		glVertex3f(-w, w, w)
+		glVertex3f(w, w, w)
+		glEnd()
+
+
 	def cube(self, size, gl_type=GL_QUADS):
 		w = size/2.
 		
