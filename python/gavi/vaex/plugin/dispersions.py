@@ -112,11 +112,11 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 			axis_name = self.dialog.axisnames[dimension].lower()
 			expression = self.expressions[dimension].strip()
 			if len(expression) > 0:
-				grids.define_grid(axis_name + "_mom1", self.dialog.gridsize_vector, expression)
-				grids.define_grid(axis_name + "_mom2", self.dialog.gridsize_vector, "(" + expression + ")**2")
+				grids.define_grid(axis_name + "_mom1", self.dialog.vector_grid_size, expression)
+				grids.define_grid(axis_name + "_mom2", self.dialog.vector_grid_size, "(" + expression + ")**2")
 			else:
-				grids.define_grid(axis_name + "_mom1", self.dialog.gridsize_vector, None)
-				grids.define_grid(axis_name + "_mom2", self.dialog.gridsize_vector, None)
+				grids.define_grid(axis_name + "_mom1", self.dialog.vector_grid_size, None)
+				grids.define_grid(axis_name + "_mom2", self.dialog.vector_grid_size, None)
 
 		if 1:
 			for dimension1 in range(self.dialog.dimensions):
@@ -126,7 +126,7 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 					expression1 = self.expressions[dimension1].strip()
 					expression2 = self.expressions[dimension2].strip()
 					if len(expression1) > 0 and  len(expression2) > 0:
-						grids.define_grid("cov_" + axis_name1 +"_" +axis_name2, self.dialog.gridsize_vector, "(" + expression1 + ")*(" + expression2 +")")
+						grids.define_grid("cov_" + axis_name1 +"_" +axis_name2, self.dialog.vector_grid_size, "(" + expression1 + ")*(" + expression2 +")")
 
 	def draw_grids(self, axes, grid_map, grid_map_vector):
 		if not self.dispersions_draw:
@@ -158,7 +158,7 @@ class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
 
 				width, height = self.dialog.canvas.get_width_height()
 				#print "width,height", width, height
-				max_size = min(width, height) / float(self.dialog.gridsize_vector)# * 0.9
+				max_size = min(width, height) / float(self.dialog.vector_grid_size)# * 0.9
 				#print max_size
 				#identity_transform = matplotlib.transforms.IdentityTransform()
 				#deltax = self.dialog.ranges_show[0][1] - self.dialog.ranges_show[0][0]
