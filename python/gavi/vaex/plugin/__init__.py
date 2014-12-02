@@ -23,6 +23,9 @@ class PluginPlot(object):
 	__metaclass__ = RegisterPlugins # trick to keep a list of plugins
 	def __init__(self, dialog):
 		self.dialog = dialog
+
+	def clean_up(self):
+		pass
 		
 	@staticmethod
 	def useon(dialog_class):

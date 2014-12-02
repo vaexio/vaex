@@ -24,7 +24,7 @@ def getdir(parent, title, start_directory=""):
 	
 def gettext(parent, title, label, default=""):
 	text, ok = QtGui.QInputDialog.getText(parent, title, label, QtGui.QLineEdit.Normal, default)
-	return text if ok else None
+	return str(text) if ok else None
 
 
 def choose(parent, title, label, options, index=0):

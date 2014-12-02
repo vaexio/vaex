@@ -132,6 +132,7 @@ class JobsManager(object):
 		return zip(minima, maxima)
 		
 	def execute(self):
+		error_text = None
 		try:
 			# keep a local copy to support reentrant calling
 			jobs = self.jobs
@@ -285,27 +286,14 @@ class JobsManager(object):
 										output = expression_outputs[(dataset, expression)][i1-i1:i2-i1]
 										try:
 											ne.evaluate(repr(expr_noslice), local_dict=local_dict, out=output, casting="unsafe")
-										except SyntaxError, e:
-											info.error = True
-											info.error_text = e.message
-											logger.exception("error in expression: %s" % (expression,))
-											break
-										except KeyError, e:
-											info.error = True
-											info.error_text = "Unknown variable: %r" % (e.message, )
-											logger.exception("unknown variable %s in expression: %s" % (e.message, expression))
-											break
-										except TypeError, e:
-											info.error = True
-											info.error_text = e.message
-											logger.exception("error in expression: %s" % expression)
-											break
 										except Exception, e:
 											info.error = True
 											info.error_text = e.message
+											error_text = info.error_text
 											logger.exception("error in expression: %s" % expression)
 											break
-										
+
+
 										results[expression] = output[0:i2-i1]
 							# for this order and dataset all values are calculated, now call the callback
 							for key, value in results.items():
@@ -335,7 +323,7 @@ class JobsManager(object):
 			#self.jobs = []
 			#self.order_numbers = []
 			pass
-
+		return error_text
 
 class Link(object):
 	def __init__(self, dataset):
@@ -484,6 +472,9 @@ class MemoryMapped(object):
 		self.variables = collections.OrderedDict()
 		
 		self.signal_pick = gavi.events.Signal("pick")
+
+	def get_path(self):
+		return self.path
 		
 	def get_column_names(self):
 		names = list(self.column_names)

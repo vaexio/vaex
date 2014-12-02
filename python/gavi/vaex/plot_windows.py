@@ -401,21 +401,26 @@ class PlotDialog(QtGui.QDialog):
 
 	def get_options(self):
 		options = collections.OrderedDict()
-		options["type-names"] = map(str.strip, self.names.split(","))
+		#options["type-names"] = map(str.strip, self.names.split(","))
  		options["expressions"] = self.expressions
 		options["amplitude_expression"] = self.amplitude_expression
 		options["ranges"] = self.ranges
 		options["ranges_show"] = self.ranges_show
 		options["grid_size"] = self.grid_size
 		options["vector_grid_size"] = self.vector_grid_size
+		options["aspect"] = self.aspect
 		for plugin in self.plugins:
 			options.update(plugin.get_options())
+		# since options contains reference (like a list of expressions)
+		# changes in the gui might reflect previously stored options
+		import copy
+		options = copy.deepcopy(options)
 		return dict(options)
 
 	def apply_options(self, options, update=True):
 		#map = {"expressions",}
 		print "settings options", options, options.keys()
-		recognize = "expressions amplitude_expression ranges ranges_show grid_size vector_grid_size".split()
+		recognize = "expressions amplitude_expression ranges ranges_show grid_size vector_grid_size aspect".split()
 		for key in recognize:
 			#print repr(key), map(str, options.keys()), key in map(str, options.keys())
 			if key in options.keys():
@@ -423,6 +428,8 @@ class PlotDialog(QtGui.QDialog):
 				print "setting", key, "to value", value
 				import copy
 				setattr(self, key, copy.copy(value))
+				if key == "aspect":
+					self.action_aspect_lock_one.setChecked(bool(value))
 				if key == "amplitude_expression":
 					self.amplitude_box.lineEdit().setText(value)
 				if key == "expressions":
@@ -635,6 +642,8 @@ class PlotDialog(QtGui.QDialog):
 		self.dataset.row_selection_listeners.remove(self.onSelectRow)
 		self.dataset.serie_index_selection_listeners.remove(self.onSerieIndexSelect)
 		self.jobsManager.after_execute.remove(self.plot)
+		for plugin in self.plugins:
+			plugin.clean_up()
 		#self.action_play_stop.setChecked(False)
 		super(PlotDialog, self).closeEvent(event)
 		print "close event"
@@ -1427,7 +1436,9 @@ class PlotDialog(QtGui.QDialog):
 		else:
 			logger.debug("not linked")
 		self.compute()
-		self.jobsManager.execute()
+		error_text = self.jobsManager.execute()
+		if error_text:
+			dialog_error(self, "Error in expression", "Error: " +error_text)
 
 
 	def compute(self):
@@ -2628,7 +2639,8 @@ class PlotDialog(QtGui.QDialog):
 
 
 class HistogramPlotDialog(PlotDialog):
-	names = "histogram,1d"
+	type_name = "histogram"
+	#names = "histogram,1d"
 	def __init__(self, parent, jobsManager, dataset, expression, **kwargs):
 		super(HistogramPlotDialog, self).__init__(parent, jobsManager, dataset, [expression], ["X"], **kwargs)
 
@@ -2832,13 +2844,15 @@ class HistogramPlotDialog(PlotDialog):
 
 
 class ScatterPlotDialog(PlotDialog):
-	names = "heatmap,density2d,2d"
+	type_name = "density2d"
+	#names = "heatmap,density2d,2d"
 	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None, **options):
 		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname], "X Y".split(), **options)
 
-	def error_in_field(self, widget, exception):
-		self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
-		self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
+	def error_in_field(self, widget, name, exception):
+		dialog_error(widget, "Error in expression", "Invalid expression for field %s: %s" % (name, exception))
+		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
+		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
 
 
 	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
@@ -3055,7 +3069,11 @@ class ScatterPlotDialog(PlotDialog):
 
 			logger.debug("expr for amplitude: %r" % self.amplitude_expression)
 			grid_map = self.create_grid_map(self.grid_size, False)
-			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
+			try:
+				amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
+			except Exception, e:
+				self.error_in_field(self.amplitude_box, "amplitude", e)
+				return
 			print "TOTAL", np.sum(amplitude)
 			use_selection = self.dataset.mask is not None
 			if use_selection:
@@ -3424,7 +3442,8 @@ def timelog(msg, reset=False):
 	time_previous = now
 
 class VolumeRenderingPlotDialog(PlotDialog):
-	names = "volumerendering,3d"
+	type_name = "volumerendering"
+	#names = "volumerendering,3d"
 	def __init__(self, parent, jobsManager, dataset, xname, yname, zname, **options):
 		super(VolumeRenderingPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname, zname], "X Y Z".split(), **options)
 
@@ -3763,6 +3782,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		
 
 class Rank1ScatterPlotDialog(ScatterPlotDialog):
+	type_name = "sequence-density2d"
 	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None):
 		self.nSlices = dataset.rank1s[dataset.rank1s.keys()[0]].shape[0]
 		self.serieIndex = dataset.selected_serie_index if dataset.selected_serie_index is not None else 0
