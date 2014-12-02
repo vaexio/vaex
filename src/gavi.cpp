@@ -328,6 +328,7 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
 	}
 	/*/
 	
+	const double scale = counts_length / (max-min);;
 	for(long long i = 0; i < block_length; i++) {
 		const double value = block[i]; //block[i*block_stride];
 		//block_ptr++;
@@ -335,10 +336,12 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
 		//block_ptr += block_stride;
 		//__builtin_prefetch(block_ptr, 1, 1); // read, and no temporal locality
 		//__builtin_prefetch(block_ptr+block_stride*10, 1, 1); // read, and no temporal locality
-		const double scaled = (value - min) / (max-min);
-		const long long index = (long long)(scaled * counts_length);
-		if( (index >= 0) & (index < counts_length) )
+		//if( (index >= 0) & (index < counts_length) )
+		if((value > min) & (value < max)) {
+			const double scaled = (value - min) * scale;
+			const long long index = (long long)(scaled);
 			counts[index] += weights == NULL ? 1 : weights[i];
+		}
 	}
 	/**/
 }
@@ -479,23 +482,30 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 	if((weights == NULL) & (offset_x == 0) & (offset_y == 0) & (offset_z == 0)) { // default: fasted algo
 		for(long long i = 0; i < block_length; i++) {
 			double value_x = blockx[i];
-			int index_x = (int)((value_x - xmin) * scale_x);
+			double value_y = blocky[i];
+			double value_z = blockz[i];
 			
-			if( (index_x >= 0) & (index_x < counts_length_x)) {
-				double value_y = blocky[i];
+			if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) & (value_z >= zmin) & (value_z < zmax)) {
+				int index_x = (int)((value_x - xmin) * scale_x);
 				int index_y = (int)((value_y - ymin) * scale_y);
-				
-				if ( (index_y >= 0) & (index_y < counts_length_y) ) {
-					double value_z = blockz[i];
-					int index_z = (int)((value_z - zmin) * scale_z);
-					if ( (index_z >= 0) & (index_z < counts_length_z) ) {
-						counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += 1;
-					}
-				}
+				int index_z = (int)((value_z - zmin) * scale_z);
+				counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += 1;
 			}
 		}
 	} else {
 		for(long long i = 0; i < block_length; i++) {
+			double value_x = blockx[i];
+			double value_y = blocky[i];
+			double value_z = blockz[i];
+			
+			if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) & (value_z >= zmin) & (value_z < zmax)) {
+				int index_x = (int)((value_x - xmin) * scale_x);
+				int index_y = (int)((value_y - ymin) * scale_y);
+				int index_z = (int)((value_z - zmin) * scale_z);
+				counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights[i];
+			}
+		}
+		/*for(long long i = 0; i < block_length; i++) {
 			double value_x = blockx[i_x];
 			int index_x = (int)((value_x - xmin) * scale_x);
 			
@@ -508,6 +518,8 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 					int index_z = (int)((value_z - zmin) * scale_z);
 					if ( (index_z >= 0) & (index_z < counts_length_z) ) {
 						counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights == NULL ? 1 : weights[i];
+						if(!((weights[i] == 0) | (weights[i] == 1)))
+							printf("%d %d %d %f\n", i_x, i_y, i_z, weights[i]);
 					}
 				}
 			}
@@ -515,7 +527,7 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 			i_x = i_x >= block_length-1 ? 0 : i_x+1;
 			i_y = i_y >= block_length-1 ? 0 : i_y+1;
 			i_z = i_z >= block_length-1 ? 0 : i_z+1;
-		}
+		}*/
 	}	
 }
 

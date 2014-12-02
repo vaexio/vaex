@@ -483,6 +483,8 @@ class PlotDialog(QtGui.QDialog):
 		#self.plugin_zoom = plugin.zoom.ZoomPlugin(self)
 		
 		self.vector_grid_size = eval(self.options.get("vector_grid_size", "16"))
+		print "self.vector_grid_size", self.vector_grid_size
+		#dsa
 
 
 		if self.dimensions == 3:
@@ -1511,6 +1513,9 @@ class PlotDialog(QtGui.QDialog):
 		self.grids.define_grid("weightx", self.vector_grid_size, self.weight_x_expression)
 		self.grids.define_grid("weighty", self.vector_grid_size, self.weight_y_expression)
 		self.grids.define_grid("weightz", self.vector_grid_size, self.weight_z_expression)
+		print "*" * 70
+		print self.vector_grid_size
+		print "*" * 70
 		for callback in self.plugin_grids_defines:
 			callback(self.grids)
 		self.grids.add_jobs(self.jobsManager)
@@ -3647,6 +3652,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				vector_grid[3] = vector_counts
 				vector_grid = np.swapaxes(vector_grid, 0, 3)
 				vector_grid = vector_grid * 1.
+				print np.sum(vector_counts), np.sum(grid_map["counts"])
 			timelog("setting grid")
 			if use_selection:
 				self.widget_volume.setGrid(amplitude_selection, amplitude, vectorgrid=vector_grid)

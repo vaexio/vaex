@@ -7,7 +7,32 @@ import gavifast
 import numpy.testing
 
 class MyTestCase(unittest.TestCase):
-	def test_resize(self):
+
+	def test_histogram1d(self):
+
+		x = np.arange(-5-0.1, 5-0.1, dtype=np.float64)
+		print x, sum(x)
+		for N in [1, 2, 4, 256, 512]:
+			counts = np.zeros(N, dtype=np.float64)
+			min, max = -5, 5
+			gavifast.histogram1d(x, None, counts, min, max) #+1e-15)
+			#print np.sum(counts), len(x), x
+			self.assertEqual(np.sum(counts), 9, "histogram1d test") # 1 should fall outside
+
+			counts = np.zeros((N, N), dtype=np.float64)
+			gavifast.histogram2d(x, x, None, counts, min, max, min, max)
+			self.assertEqual(np.sum(counts), 9, "histogram2d test") # 1 should fall outside
+
+			counts = np.zeros((N, N, N), dtype=np.float64)
+			gavifast.histogram3d(x, x, x, None, counts, min, max, min, max, min, max)
+			self.assertEqual(np.sum(counts), 9, "histogram3d test") # 1 should fall outside
+			if 0:
+				print np.sum(counts)
+
+				counts = np.zeros((N, N, N), dtype=np.float64)
+				gavifast.histogram3d(x, x, x, None, counts, 0., 9., 0., 9., 0., 9.)
+				print np.sum(counts)
+	def _test_resize(self):
 		if 1:
 			input1d = np.arange(4) * 1.
 			output1d = gavifast.resize(input1d, 2)
