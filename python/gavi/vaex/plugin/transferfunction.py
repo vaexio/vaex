@@ -310,6 +310,38 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 		row += 1
 
 
+		layout.setRowMinimumHeight(row, 8)
+		row += 1
+
+		def setter(value, update=True, i=i):
+			self.widget_volume.foreground_opacity = value
+			if update:
+				self.widget_volume.update()
+		def getter(i=i):
+			return self.widget_volume.foreground_opacity
+		#self.widget_volume.ambient_coefficient = eval(self.dialog.options.get("ambient", str(getter())))
+		label, slider, label_value = self.make_slider(page, "opacity_fg", 0.0001, 10., 1000, "{0:<0.3f}", getter, setter, transform=lambda x: 10**x, inverse=lambda x: np.log10(x))
+		layout.addWidget(label, row, 0)
+		layout.addWidget(slider, row, 1)
+		layout.addWidget(label_value, row, 2)
+		row += 1
+
+
+		def setter(value, update=True, i=i):
+			self.widget_volume.background_opacity = value
+			if update:
+				self.widget_volume.update()
+		def getter(i=i):
+			return self.widget_volume.background_opacity
+		#self.widget_volume.ambient_coefficient = eval(self.dialog.options.get("ambient", str(getter())))
+		label, slider, label_value = self.make_slider(page, "opacity_bg", 0.0001, 10., 1000, "{0:<0.3f}", getter, setter, transform=lambda x: 10**x, inverse=lambda x: np.log10(x))
+		layout.addWidget(label, row, 0)
+		layout.addWidget(slider, row, 1)
+		layout.addWidget(label_value, row, 2)
+		row += 1
+
+
+
 	def make_slider(self, parent, label_text, value_min, value_max, value_steps, format, getter, setter, name=None, transform=lambda x: x, inverse=lambda x: x):
 		if name is None:
 			name = label_text

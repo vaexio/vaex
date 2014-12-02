@@ -452,7 +452,6 @@ class PlotDialog(QtGui.QDialog):
 		super(PlotDialog, self).__init__(parent)
 		print "aap"
 		self.options = options
-
 		if "fraction" in self.options:
 			dataset.setFraction(float(self.options["fraction"]))
 		
@@ -465,6 +464,11 @@ class PlotDialog(QtGui.QDialog):
 		self.expressions = expressions
 		self.dimensions = len(self.expressions)
 		self.grids = Grids(self.dataset, self.pool, *self.expressions)
+
+
+		if "selection" in options:
+			mask = np.load(self.dataset.name + "-selection.npy")
+			self.dataset.selectMask(mask)
 
 		# create plugins
 		self.plugin_grids_defines = []
@@ -2069,6 +2073,13 @@ class PlotDialog(QtGui.QDialog):
 
 		layout.addWidget(self.toolbar2)
 
+		def on_store_selection():
+			np.save(self.dataset.name + "-selection.npy", self.dataset.mask)
+		self.action_selection_store = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Store selection', self)
+		self.action_selection_store.triggered.connect(on_store_selection)
+		#self.action_selection_store.setCheckable(True)
+		self.toolbar2.addAction(self.action_selection_store)
+
 
 		self.action_play_stop = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Play', self)
 		self.action_play_stop.setCheckable(True)
@@ -3637,7 +3648,10 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				vector_grid = np.swapaxes(vector_grid, 0, 3)
 				vector_grid = vector_grid * 1.
 			timelog("setting grid")
-			self.widget_volume.setGrid(amplitude_selection if use_selection else amplitude, vector_grid)
+			if use_selection:
+				self.widget_volume.setGrid(amplitude_selection, amplitude, vectorgrid=vector_grid)
+			else:
+				self.widget_volume.setGrid(amplitude, vectorgrid=vector_grid)
 			timelog("grid")
 			if 0:
 				self.tool.grid = amplitude

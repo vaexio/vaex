@@ -48,7 +48,7 @@ class FakeLogger(object):
 	def exception(self, *args):
 		pass
 
-logger = FakeLogger()
+#logger = FakeLogger()
 
 class Job(object):
 	def __init__(self, callback, expressions):
@@ -316,8 +316,9 @@ class JobsManager(object):
 				for callback in self.after_execute:
 					try:
 						callback()
-					except:
+					except Exception, e:
 						logger.exception("error in post processing callback")
+						error_text = str(e)
 					
 		finally:
 			#self.jobs = []

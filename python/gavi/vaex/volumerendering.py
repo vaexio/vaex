@@ -58,13 +58,15 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.vector3d_scale = 1.
 		self.vector3d_auto_scale = True
 		self.vector3d_auto_scale_scale = 1.
-		self.texture_function_size = 1024*8
+		self.texture_function_size = 1024
 
 		self.ambient_coefficient = 0.5
 		self.diffuse_coefficient = 0.8
 		self.specular_coefficient = 0.5
 		self.specular_exponent = 5.
 		self.draw_vectors = True
+		self.background_opacity = 0.1
+		self.foreground_opacity = 1.
 
 
 		self.texture_cube, self.texture_gradient = None, None
@@ -74,7 +76,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.texture_index = 1
 		self.colormap_index = 0
 		self.texture_size = 512 #*8
-		self.grid = None
+		self.grid_gl = None
 		# gets executed after initializeGL, can hook up your loading of data here
 		self.post_init = lambda: 1
 		
@@ -95,12 +97,17 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		delta_time = orbit_time_now - self.orbit_time_previous
 		if self.orbiting:
 			self.orbit_angle += delta_time/4. * 360
-			QtCore.QTimer.singleShot(self.orbit_delay, self.orbit_progress)
 		else:
 			self.orbit_angle = 0
 		self.update()
+		if self.orbiting:
+			#ms_spend = (time.time() - self.orbit_time_previous) * 1000
+			#QtCore.QTimer.singleShot(max(0, self.orbit_delay - ms_spend), self.orbit_progress)
+			QtCore.QTimer.singleShot(50, self.orbit_progress)
+		#self.orbit_time_previous = time.time() # orbit_time_now
+		#print ".", 1./delta_time
 		self.orbit_time_previous = orbit_time_now
-		
+
 	def toggle(self, ignore=None):
 		print "toggle"
 		self.texture_index += 1
@@ -325,9 +332,9 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			uniform sampler3D cube; 
 			uniform sampler3D gradient;
 			uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
-			uniform vec2 minmax2d;
+			//uniform vec2 minmax2d;
 			uniform vec2 minmax3d;
-			uniform vec2 minmax3d_total;
+			//uniform vec2 minmax3d_total;
 			//uniform float maxvalue2d;
 			//uniform float maxvalue3d;
 			uniform float alpha_mod; // mod3
@@ -342,6 +349,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			uniform float diffuse_coefficient;
 			uniform float specular_coefficient;
 			uniform float specular_exponent;
+			uniform float background_opacity;
+			uniform float foreground_opacity;
 
 			
 			void main() {
@@ -387,26 +396,45 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 
 					vec4 sample = texture3D(cube, ray_pos);
-					float sample_x = texture3D(cube, ray_pos + vec3(delta, 0, 0)).r;
-					float sample_y = texture3D(cube, ray_pos + vec3(0, delta, 0)).r;
-					float sample_z = texture3D(cube, ray_pos + vec3(0, 0, delta)).r;
-					vec3 normal = normalize(-vec3((sample_x-sample.r)/delta, (sample_y-sample.r)/delta, (sample_z-sample.r)/delta));
-					float cosangle_light = max(dot(light_dir, normal), 0.);
-					float cosangle_eye = max(dot(eye, normal), 0.);
+					vec4 sample_x = texture3D(cube, ray_pos + vec3(delta, 0, 0));
+					vec4 sample_y = texture3D(cube, ray_pos + vec3(0, delta, 0));
+					vec4 sample_z = texture3D(cube, ray_pos + vec3(0, 0, delta));
+					if(1==1) {
+						vec3 normal = normalize(-vec3((sample_x[0]-sample[0])/delta, (sample_y[0]-sample[0])/delta, (sample_z[0]-sample[0])/delta));
+						float cosangle_light = max(dot(light_dir, normal), 0.);
+						float cosangle_eye = max(dot(eye, normal), 0.);
 
-					float data_value = (sample.r - data_min) * data_scale;
-					vec4 color_sample = texture1D(transfer_function, data_value);
-					//float change = abs((texture1D(transfer_function, data_value+delta).a - color_sample.a)/delta);
+						float data_value = (sample[0]/1000. - data_min) * data_scale;
+						vec4 color_sample = texture1D(transfer_function, data_value);
 
-					//vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
-					float alpha_sample = color_sample.a * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length; //function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
-					alpha_sample = clamp(alpha_sample, 0., 1.);
-					color_sample = color_sample * (ambient_coefficient + diffuse_coefficient*cosangle_light + specular_coefficient * pow(cosangle_eye, specular_exponent));
-					//color_sample = vec4(normal, 1.);
-					color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
-					alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
-					if(alpha_total >= 1.)
-						break;
+						//vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
+						float alpha_sample = color_sample.a * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length; //function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+						alpha_sample = clamp(alpha_sample * foreground_opacity, 0., 1.);
+						color_sample = color_sample * (ambient_coefficient + diffuse_coefficient*cosangle_light + specular_coefficient * pow(cosangle_eye, specular_exponent));
+						//color_sample = vec4(normal, 1.);
+						color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+						alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+						if(alpha_total >= 1.)
+							break;
+					}
+					if(1==1) {
+						vec3 normal = normalize(-vec3((sample_x[1]-sample[1])/delta, (sample_y[1]-sample[1])/delta, (sample_z[1]-sample[1])/delta));
+						float cosangle_light = max(dot(light_dir, normal), 0.);
+						float cosangle_eye = max(dot(eye, normal), 0.);
+
+						float data_value = (sample[1]/1000. - data_min) * data_scale;
+						vec4 color_sample = texture1D(transfer_function, data_value);
+
+						//vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
+						float alpha_sample = color_sample.a * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length; //function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+						alpha_sample = clamp(alpha_sample * background_opacity, 0., 1.);
+						color_sample = color_sample * (ambient_coefficient + diffuse_coefficient*cosangle_light + specular_coefficient * pow(cosangle_eye, specular_exponent));
+						//color_sample = vec4(normal, 1.);
+						color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+						alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+						if(alpha_total >= 1.)
+							break;
+					}
 					ray_pos += ray_delta;
 				}
 				gl_FragColor = vec4(color.rgb, alpha_total) * brightness; //brightness;
@@ -507,7 +535,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		return shaders.compileProgram(self.vertex_shader_color, self.fragment_shader_color)
 
 	def paintGL(self):
-		if self.grid is not None:
+		#if self.grid_gl is not None:
+		if 1:
 			glMatrixMode(GL_MODELVIEW)
 
 			glLoadIdentity()
@@ -516,7 +545,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glRotated(self.angle1, 1.0, 0.0, 0.0)
 			glRotated(self.angle2, 0.0, 1.0, 0.0)
 			
-			if self.grid is not None:
+			if self.grid_gl is not None:
 				self.draw_backside()
 				self.draw_frontside()
 				self.draw_to_screen()
@@ -525,6 +554,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				glBindFramebuffer(GL_FRAMEBUFFER, 0)
 				glClearColor(0.0, 0.0, 0.0, 1.0)
 				glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+		glFinish()
 
 	def draw_backside(self):
 		glViewport(0, 0, self.texture_size, self.texture_size)
@@ -768,7 +798,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			for i in range(3):
 				y += np.exp(-((x-self.function_means[i])/self.function_sigmas[i])**2) * self.function_opacities[i]
 				#y +=np.exp(-((nx-self.function_means[i])/self.function_sigmas[i])**2) * (np.log10(self.function_opacities[i])+3)/3 * 32.
-			print "max opacity", np.max(y)
+			#print "max opacity", np.max(y)
 			self.function_data[:,0] = rgb[:,0]
 			self.function_data[:,1] = rgb[:,1]
 			self.function_data[:,2] = rgb[:,2]
@@ -794,18 +824,21 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#glUniform1f(maxvalue, self.data3d.max()*10**self.mod2);
 		
 		
-		minmax = glGetUniformLocation(self.shader,"minmax2d");
-		glUniform2f(minmax, 1*10**self.mod1, self.grid2d_max*10**self.mod2);
+		#minmax = glGetUniformLocation(self.shader,"minmax2d");
+		#glUniform2f(minmax, 1*10**self.mod1, self.grid2d_max*10**self.mod2);
 
 		minmax = glGetUniformLocation(self.shader,"minmax3d");
-		xmin =  self.grid_min +  (self.grid_max -  self.grid_min) * self.min_level;
-		xmax =  self.grid_min +  (self.grid_max -  self.grid_min) * self.max_level;
-		glUniform2f(minmax, xmin, xmax);
+		#xmin =  self.grid_min +  (self.grid_max -  self.grid_min) * self.min_level;
+		#xmax =  self.grid_min +  (self.grid_max -  self.grid_min) * self.max_level;
+		glUniform2f(minmax, self.min_level, self.max_level);
 		
-		minmax3d_total = glGetUniformLocation(self.shader,"minmax3d_total");
-		glUniform2f(minmax3d_total, self.grid_min, self.grid_max);
+		#minmax3d_total = glGetUniformLocation(self.shader,"minmax3d_total");
+		#glUniform2f(minmax3d_total, self.grid_min, self.grid_max);
 		
 		glUniform1f(glGetUniformLocation(self.shader,"brightness"), self.brightness);
+		glUniform1f(glGetUniformLocation(self.shader,"background_opacity"), self.background_opacity);
+		glUniform1f(glGetUniformLocation(self.shader,"foreground_opacity"), self.foreground_opacity);
+
 		
 		glUniform1fv(glGetUniformLocation(self.shader,"function_means"), self.function_count, self.function_means);
 		glUniform1fv(glGetUniformLocation(self.shader,"function_sigmas"), self.function_count, self.function_sigmas);
@@ -1249,25 +1282,41 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.setGrid(grid3d, vectorgrid)
 
 			
-	def setGrid(self, grid, vectorgrid=None):
+	def setGrid(self, grid, grid_background=None, vectorgrid=None):
 		self.mod1 = 0
 		self.mod2 = 0
 		self.mod3 = 0
 		self.mod4 = 0
 		self.mod5 = 0
 		self.mod6 = 0
+		#print "*" * 70
+		#print self.grid
+		#print "*" * 70
 		#self.grid = np.log10(grid.astype(np.float32)+1)
 		if vectorgrid is not None:
 			self.vectorgrid = vectorgrid.astype(np.float32)
 			self.vectorgrid_counts = self.vectorgrid[:,:,:,3]
 		else:
 			self.vectorgrid = None
-		self.grid = np.log10(grid.astype(np.float32)+1)
-		self.grid_min, self.grid_max = np.nanmin(self.grid), np.nanmax(self.grid)
-		grids_2d = [self.grid.sum(axis=i) for i in range(3)]
-		self.grid2d_min, self.grid2d_max = min([np.nanmin(grid) for grid in grids_2d]), max([np.nanmax(grid) for grid in grids_2d])
-		print "3d", self.grid_min, self.grid_max
-		print "2d", self.grid2d_min, self.grid2d_max
+
+		def normalise(ar):
+			mi, ma = np.nanmin(ar),  np.nanmax(ar)
+			return (ar - mi)/(ma-mi) * 1000.
+		if grid_background is not None:
+			self.grid_gl = np.zeros(grid.shape + (2,), np.float32)
+			self.grid_gl[:,:,:,0] = normalise(grid.astype(np.float32))
+			self.grid_gl[:,:,:,1] = normalise(grid_background.astype(np.float32))
+		else:
+			self.grid_gl = np.zeros(grid.shape + (1,), np.float32)
+			self.grid_gl[:,:,:,0] = normalise(grid.astype(np.float32))
+		#self.grid_background = grid_background.astype(np.float32)
+		#self.grid = np.log10(grid.astype(np.float32)+1)
+		#self.grid_min, self.grid_max = np.nanmin(grid), np.nanmax(grid)
+		#print "MINMAX" * 10, self.grid_min, self.grid_max
+		#grids_2d = [self.grid.sum(axis=i) for i in range(3)]
+		#self.grid2d_min, self.grid2d_max = min([np.nanmin(grid) for grid in grids_2d]), max([np.nanmax(grid) for grid in grids_2d])
+		#print "3d", self.grid_min, self.grid_max
+		#print "2d", self.grid2d_min, self.grid2d_max
 		#return
 		#data3ds = data3ds.sum(axis=0)
 		if 0:
@@ -1325,10 +1374,14 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			self.rgb3d[:,:,:,2] = self.grid
 
 		glBindTexture(GL_TEXTURE_3D, self.texture_cube)
-		width, height, depth = self.grid.shape[::-1]
+		width, height, depth = grid.shape[::-1]
 		print "dims", width, height, depth
-		glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0,
-					GL_RED, GL_FLOAT, self.grid)
+		if grid_background is not None:
+			glTexImage3D(GL_TEXTURE_3D, 0, GL_RG32F, width, height, depth, 0,
+					GL_RG, GL_FLOAT, self.grid_gl)
+		else:
+			glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0,
+					GL_RED, GL_FLOAT, self.grid_gl)
 		#print self.grid, self.texture_cube
 		#glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, self.size3d, self.size3d, self.size3d, 0,
          #               GL_RGB, GL_UNSIGNED_BYTE, self.rgb3d)
