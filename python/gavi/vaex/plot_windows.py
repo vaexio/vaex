@@ -3463,6 +3463,10 @@ class VolumeRenderingPlotDialog(PlotDialog):
 	def __init__(self, parent, jobsManager, dataset, xname, yname, zname, **options):
 		super(VolumeRenderingPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname, zname], "X Y Z".split(), **options)
 
+	def closeEvent(self, event):
+		self.widget_volume.orbit_stop()
+		super(VolumeRenderingPlotDialog, self).closeEvent(event)
+
 	def afterCanvas(self, layout):
 
 		self.widget_volume = gavi.vaex.volumerendering.VolumeRenderWidget(self)

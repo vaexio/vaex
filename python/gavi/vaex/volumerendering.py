@@ -58,7 +58,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.vector3d_scale = 1.
 		self.vector3d_auto_scale = True
 		self.vector3d_auto_scale_scale = 1.
-		self.texture_function_size = 1024
+		self.texture_function_size = 1024 * 4
 
 		self.ambient_coefficient = 0.5
 		self.diffuse_coefficient = 0.8
@@ -81,31 +81,46 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.post_init = lambda: 1
 		
 		self.arrow_model = Arrow(0, 0, 0, 4.)
-		
+		self.update_timer = QtCore.QTimer(self)
+		self.update_timer.timeout.connect(self.orbit_progress)
+		self.update_timer.setInterval(40) # max 50 fps to save cpu/battery?
+		#self.orbit_start()
+		#self.update_timer.setSingleShot(False)
+
+
 	def orbit_start(self):
-		self.orbiting = True
+		#self.orbiting = True
 		self.orbit_time_previous = time.time()
-		self.orbit_angle = 0
-		self.update()
-		QtCore.QTimer.singleShot(self.orbit_delay, self.orbit_progress)
-		
+		self.stutter_last = time.time()
+		#self.orbit_angle = 0
+		#self.update()
+		self.update_timer.start()
+		#QtCore.QTimer.singleShot(self.orbit_delay, self.orbit_progress)
+
 	def orbit_stop(self):
 		self.orbiting = False
+		self.update_timer.stop()
 		
 	def orbit_progress(self):
 		orbit_time_now = time.time()
 		delta_time = orbit_time_now - self.orbit_time_previous
-		if self.orbiting:
-			self.orbit_angle += delta_time/4. * 360
-		else:
-			self.orbit_angle = 0
-		self.update()
-		if self.orbiting:
+		#if self.orbiting:
+		self.orbit_angle += delta_time/4. * 360
+		#self.orbit_angle += 1.
+		#else:
+		#	self.orbit_angle = 0
+		self.updateGL()
+		#glFinish()
+		#if self.orbiting:
 			#ms_spend = (time.time() - self.orbit_time_previous) * 1000
 			#QtCore.QTimer.singleShot(max(0, self.orbit_delay - ms_spend), self.orbit_progress)
-			QtCore.QTimer.singleShot(50, self.orbit_progress)
+			#QtCore.QTimer.singleShot(50, self.orbit_progress)
 		#self.orbit_time_previous = time.time() # orbit_time_now
-		#print ".", 1./delta_time
+		fps = 1./delta_time
+		if 1: #@fps < 40:
+			stutter_time = time.time()
+			print ".", fps, stutter_time - self.stutter_last
+			self.stutter_last = stutter_time
 		self.orbit_time_previous = orbit_time_now
 
 	def toggle(self, ignore=None):
@@ -354,7 +369,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 			
 			void main() {
-				int steps = 300;
+				int steps = 500;
 				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
 				vec3 ray_start = vertex_color.xyz;
 				//ray_start.z = 1. - ray_start.z;
@@ -385,10 +400,10 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				float data_min = minmax3d.x;
 				float data_max = minmax3d.y;
 				float data_scale = 1./(data_max - data_min);
-				float delta = 0.01/5.;
+				float delta = 1.0/256./2;
 				//vec3 light_dir = vec3(1,1,-1);
 				vec3 eye = vec3(0, 0, 1) * rotation;
-				for(int i = 0; i < 300; i++) {
+				for(int i = 0; i < 500; i++) {
 					/*vec3 normal = texture3D(gradient, ray_pos).zyx;
 					normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
 					float cosangle = dot(light_dir, normal);
@@ -400,7 +415,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 					vec4 sample_y = texture3D(cube, ray_pos + vec3(0, delta, 0));
 					vec4 sample_z = texture3D(cube, ray_pos + vec3(0, 0, delta));
 					if(1==1) {
-						vec3 normal = normalize(-vec3((sample_x[0]-sample[0])/delta, (sample_y[0]-sample[0])/delta, (sample_z[0]-sample[0])/delta));
+						vec3 normal = normalize(vec3((sample_x[0]-sample[0])/delta, (sample_y[0]-sample[0])/delta, (sample_z[0]-sample[0])/delta));
+						normal = -vec3(normal.x, normal.y, -normal.z);
 						float cosangle_light = max(dot(light_dir, normal), 0.);
 						float cosangle_eye = max(dot(eye, normal), 0.);
 
@@ -419,6 +435,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 					}
 					if(1==1) {
 						vec3 normal = normalize(-vec3((sample_x[1]-sample[1])/delta, (sample_y[1]-sample[1])/delta, (sample_z[1]-sample[1])/delta));
+						normal = -vec3(normal.x, normal.y, -normal.z);
 						float cosangle_light = max(dot(light_dir, normal), 0.);
 						float cosangle_eye = max(dot(eye, normal), 0.);
 
@@ -544,17 +561,29 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glRotated(self.orbit_angle, 0.0, 1.0, 0.0) 
 			glRotated(self.angle1, 1.0, 0.0, 0.0)
 			glRotated(self.angle2, 0.0, 1.0, 0.0)
-			
-			if self.grid_gl is not None:
-				self.draw_backside()
-				self.draw_frontside()
-				self.draw_to_screen()
-			else:
-				glViewport(0, 0, self.texture_size, self.texture_size)
-				glBindFramebuffer(GL_FRAMEBUFFER, 0)
+			if 0:
 				glClearColor(0.0, 0.0, 0.0, 1.0)
 				glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-		glFinish()
+				glBegin(GL_TRIANGLES)
+				glColor3f(1., 0., 0.)
+				glVertex3f(-30, -30, -20)
+				glColor3f(0., 2., 0.)
+				glVertex3f( 30, -30, -20)
+				glColor3f(0., 0., 1.)
+				glVertex3f(0, 15, -20)
+				glEnd()
+			else:
+				if self.grid_gl is not None:
+					self.draw_backside()
+					self.draw_frontside()
+					self.draw_to_screen()
+				else:
+					glViewport(0, 0, self.texture_size, self.texture_size)
+					glBindFramebuffer(GL_FRAMEBUFFER, 0)
+					glClearColor(0.0, 0.0, 0.0, 1.0)
+					glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+		#glFlush()
+		#glFinish()
 
 	def draw_backside(self):
 		glViewport(0, 0, self.texture_size, self.texture_size)
@@ -1106,7 +1135,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glViewport(0, 0, w, h)
 		
 	def initializeGL(self):
-		
+		self.thread().setPriority(QtCore.QThread.Priority.TimeCriticalPriority)
+
 		colormaps = gavi.vaex.colormaps.colormaps
 		Nx, Ny = self.texture_function_size, 16
 		self.colormap_data = np.zeros((len(colormaps), Nx, 3), dtype=np.uint8)
