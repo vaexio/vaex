@@ -27,6 +27,7 @@ import numexpr as ne
 import gavi.vaex.plugin as plugin
 import gavi.vaex.plugin.zoom
 import gavi.vaex.plugin.vector3d
+import gavi.vaex.plugin.animation
 import gavi.vaex.plugin.transferfunction
 import gavi.vaex.plugin.dispersions
 import gavi.vaex.plugin.favorites
@@ -375,7 +376,7 @@ class Queue(object):
 		print "add in queue", self.name, delay
 		QtCore.QTimer.singleShot(delay, functools.partial(call, counter=self.counter, callable=callable))
 
-class PlotDialog(QtGui.QDialog):
+class PlotDialog(QtGui.QWidget):
 	def addAxes(self):
 		self.axes = self.fig.add_subplot(111)
 		self.axes.xaxis_index = 0
@@ -449,12 +450,26 @@ class PlotDialog(QtGui.QDialog):
 		self.plugins_map["favorites"].load_options(name, update=False)
 
 	def __init__(self, parent, jobsManager, dataset, expressions, axisnames, width=5, height=4, dpi=100, **options):
-		super(PlotDialog, self).__init__(parent)
-		print "aap"
+		super(PlotDialog, self).__init__()
+		self.parent_widget = parent
 		self.options = options
 		if "fraction" in self.options:
 			dataset.setFraction(float(self.options["fraction"]))
-		
+
+		self.menu_bar = QtGui.QMenuBar(self)
+		self.menu_file = QtGui.QMenu("File", self.menu_bar)
+		self.menu_bar.addMenu(self.menu_file)
+		self.menu_view = QtGui.QMenu("View", self.menu_bar)
+		self.menu_bar.addMenu(self.menu_view)
+		self.menu_mode = QtGui.QMenu("Mode", self.menu_bar)
+		self.menu_bar.addMenu(self.menu_mode)
+		self.menu_selection = QtGui.QMenu("Selection", self.menu_bar)
+		self.menu_bar.addMenu(self.menu_selection)
+
+		self.menu_samp = QtGui.QMenu("SAMP", self.menu_bar)
+		self.menu_bar.addMenu(self.menu_samp)
+
+
 		self.undoManager = parent.undoManager
 		self.setWindowTitle(dataset.name)
 		self.jobsManager = jobsManager
@@ -465,6 +480,7 @@ class PlotDialog(QtGui.QDialog):
 		self.dimensions = len(self.expressions)
 		self.grids = Grids(self.dataset, self.pool, *self.expressions)
 
+		self.sequence_index = 0
 
 		if "selection" in options:
 			mask = np.load(self.dataset.name + "-selection.npy")
@@ -475,17 +491,11 @@ class PlotDialog(QtGui.QDialog):
 		self.plugin_grids_draw = []
 		self.plugin_queue_toolbar = [] # list of tuples (callback, order)
 		self.plugin_queue_page = []
-		print gavi.vaex.plugin.PluginPlot.registry
-		print "$" * 200
-		print self.__class__, gavi.vaex.plugin.transferfunction.TransferFunctionPlugin.useon(self.__class__)
 		self.plugins = [cls(self) for cls in gavi.vaex.plugin.PluginPlot.registry if cls.useon(self.__class__)]
 		self.plugins_map = {plugin.name:plugin for plugin in self.plugins}
 		#self.plugin_zoom = plugin.zoom.ZoomPlugin(self)
 		
 		self.vector_grid_size = eval(self.options.get("vector_grid_size", "16"))
-		print "self.vector_grid_size", self.vector_grid_size
-		#dsa
-
 
 		if self.dimensions == 3:
 			self.resize(800+400,700)
@@ -519,9 +529,9 @@ class PlotDialog(QtGui.QDialog):
 		self.canvas =  FigureCanvas(self.fig)
 		self.canvas.setParent(self)
 
-		self.queue_update = Queue("update", 1000, self.update_direct)
-		self.queue_redraw = Queue("redraw", 5, self.canvas.draw)
-		self.queue_replot = Queue("replot", 10, self.plot)
+		self.queue_update = Queue("update", 1000, self.update_direct) # a complete recalculation and refresh of the plot
+		self.queue_redraw = Queue("redraw", 5, self.canvas.draw) # only draw the canvas again
+		self.queue_replot = Queue("replot", 10, self.plot) # redo the whole plot, but no computation
 
 		self.layout_main = QtGui.QVBoxLayout()
 		self.layout_content = QtGui.QHBoxLayout()
@@ -546,10 +556,6 @@ class PlotDialog(QtGui.QDialog):
 		self.ranges_level_previous = None
 
 
-		#self.xmin_show, self.xmax_show = None, None
-		#self.ymin_show, self.ymax_show = None, None
-		#self.xmin, self.xmax = None, None
-		#self.ymin, self.ymax = None, None
 		self.currentModes = None
 		self.lastAction = None
 
@@ -586,7 +592,7 @@ class PlotDialog(QtGui.QDialog):
 		self.dataset.row_selection_listeners.append(self.onSelectRow)
 		self.dataset.serie_index_selection_listeners.append(self.onSerieIndexSelect)
 		self.shortcuts = []
-		print "noot"
+
 		self.grabGesture(QtCore.Qt.PinchGesture);
 		self.grabGesture(QtCore.Qt.PanGesture);
 		self.grabGesture(QtCore.Qt.SwipeGesture);
@@ -597,13 +603,22 @@ class PlotDialog(QtGui.QDialog):
 		#self.pinch_ranges_show = [None for i in range(self.dimension)]
 
 
+	def onSerieIndexSelect(self, sequence_index):
+		print ">>@", sequence_index, self.sequence_index
+		if sequence_index != self.sequence_index: # avoid unneeded event
+			self.sequence_index = sequence_index
+			#self.seriesbox.setCurrentIndex(self.sequence_index)
+		else:
+			self.sequence_index = sequence_index
+		#print "%" * 200
+		self.compute()
+
 
 
 	def on_resize_event(self, event):
 		if not self.action_mini_mode_ultra.isChecked():
 			self.fig.tight_layout()
 			self.queue_redraw()
-			print "tight layout"
 
 	def event(self, event):
 		if isinstance(event, QtGui.QGestureEvent):
@@ -640,7 +655,7 @@ class PlotDialog(QtGui.QDialog):
 	def closeEvent(self, event):
 		# disconnect this event, otherwise we get an update/redraw for nothing
 		# since closing a dialog causes this event to fire otherwise
-		self.parent().plot_dialogs.remove(self)
+		self.parent_widget.plot_dialogs.remove(self)
 		self.pool.close()
 		for axisbox, func in zip(self.axisboxes, self.onExpressionChangedPartials):
 			axisbox.lineEdit().editingFinished.disconnect(func)
@@ -650,12 +665,11 @@ class PlotDialog(QtGui.QDialog):
 		self.jobsManager.after_execute.remove(self.plot)
 		for plugin in self.plugins:
 			plugin.clean_up()
-		#self.action_play_stop.setChecked(False)
 		super(PlotDialog, self).closeEvent(event)
 		print "close event"
 
-	def onSerieIndexSelect(self, serie_index):
-		pass
+	#def onSerieIndexSelect(self, serie_index):
+	#	pass
 
 	def getExpressionList(self):
 		return self.dataset.column_names
@@ -1176,21 +1190,7 @@ class PlotDialog(QtGui.QDialog):
 
 
 
-		self.add_shortcut(self.action_fullscreen, "F")
-		self.add_shortcut(self.action_toolbar_toggle, "T")
-		self.add_shortcut(self.action_move, "M")
-		self.add_shortcut(self.action_pick, "P")
-		self.add_shortcut(self.action_mini_mode_normal, "C")
-		self.add_shortcut(self.action_mini_mode_ultra, "U")
-		self.add_shortcut(self.action_lasso, "L")
-		self.add_shortcut(self.action_xrange, "x")
-		self.add_shortcut(self.action_yrange, "y")
-		self.add_shortcut(self.action_select_none, "n")
-		self.add_shortcut(self.action_select_invert, "i")
-		self.add_shortcut(self.action_select_mode_and, "&")
-		self.add_shortcut(self.action_select_mode_or, "|")
-		self.add_shortcut(self.action_select_mode_replace, "=")
-
+		#self.add_shortcut(self.action_fullscreen, "F")
 		self.add_shortcut(self.action_undo, "Ctrl+Z")
 		self.add_shortcut(self.action_redo, "Alt+Y")
 
@@ -1198,11 +1198,6 @@ class PlotDialog(QtGui.QDialog):
 		self.add_shortcut(self.action_display_mode_full, "2")
 		self.add_shortcut(self.action_display_mode_selection, "3")
 		self.add_shortcut(self.action_display_mode_both_contour, "4")
-		self.add_shortcut(self.action_res_1,"Alt+1")
-		self.add_shortcut(self.action_res_2,"Alt+2")
-		self.add_shortcut(self.action_res_3,"Alt+3")
-		self.add_shortcut(self.action_res_4,"Alt+4")
-		self.add_shortcut(self.action_res_5,"Alt+5")
 
 		#if "zoom" in self.options:
 		#	factor = eval(self.options["zoom"])
@@ -1524,12 +1519,7 @@ class PlotDialog(QtGui.QDialog):
 		#	grid.add_
 
 	def getVariableDict(self):
-		playing = self.action_play_stop.isChecked()
 		dict = {}
-		if playing:
-			dict["time"] = self.t_last = time.time() - self.t_0
-		else:
-			dict["time"] = self.t_last
 		return dict
 
 	def __getVariableDictMinMax(self):
@@ -2052,25 +2042,6 @@ class PlotDialog(QtGui.QDialog):
 		self.aspect = 1 #self.get_aspect() if self.action_aspect_lock.isEnabled() else None
 		logger.debug("set aspect to: %r" % self.aspect)
 
-
-	def time_step(self):
-		print "time", self.getVariableDict()
-		self.update_plot()
-		playing = self.action_play_stop.isChecked()
-		if playing and self.isVisible():
-			QtCore.QTimer.singleShot(10, self.time_step)
-
-
-	def on_play_stop(self, ignore=None):
-		#self.action_play_stop.toggle()
-		play = self.action_play_stop.isChecked()
-		print "time", self.getVariableDict(), play
-		if play:
-			self.t_0 = time.time()
-			self.time_step()
-
-
-
 	def addToolbar2(self, layout, contrast=True, gamma=True):
 		self.toolbar2 = QtGui.QToolBar(self)
 		self.toolbar2.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
@@ -2078,27 +2049,51 @@ class PlotDialog(QtGui.QDialog):
 
 		layout.addWidget(self.toolbar2)
 
+
+
 		def on_store_selection():
-			np.save(self.dataset.name + "-selection.npy", self.dataset.mask)
+			if self.dataset.mask is None:
+				dialog_error(self, "No selection", "No selection made")
+			else:
+				path = self.dataset.name + "-selection.npy"
+				path = get_path_save(self, "Save selection as numpy array", path, "numpy array *.npy")
+				if path:
+					np.save(path, self.dataset.mask)
 		self.action_selection_store = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Store selection', self)
 		self.action_selection_store.triggered.connect(on_store_selection)
 		#self.action_selection_store.setCheckable(True)
-		self.toolbar2.addAction(self.action_selection_store)
+		#self.toolbar2.addAction(self.action_selection_store)
+		self.menu_selection.addAction(self.action_selection_store)
+
+		def on_load_selection():
+			path = self.dataset.name + "-selection.npy"
+			path = get_path_open(self, "Open selection as numpy array", path, "numpy array *.npy")
+			if path:
+				mask = np.load(path)
+				if len(mask) != len(self.dataset):
+					dialog_error(self, "Error opening selection", "Selection is not of same length (%d) as dataset (%d)" % (len(mask), len(self.dataset) ))
+					return
+				if mask.dtype != np.bool:
+					dialog_error(self, "Error opening selection", "Expected type numpy.bool, got %r" % (mask.dtype ))
+					return
+				self.dataset.selectMask(mask)
+				self.jobsManager.execute()
+		self.action_selection_load = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Load selection', self)
+		self.action_selection_load.triggered.connect(on_load_selection)
+		#self.action_selection_load.setCheckable(True)
+		#self.toolbar2.addAction(self.action_selection_load)
+		self.menu_selection.addAction(self.action_selection_load)
 
 
-		self.action_play_stop = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Play', self)
-		self.action_play_stop.setCheckable(True)
-
-		#self.toolbar2.addAction(self.action_play_stop)
-
-		self.action_play_stop.triggered.connect(self.on_play_stop)
 
 		self.action_save_figure = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Export figure', self)
 		self.action_save_figure_again = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Export figure again', self)
-		self.menu_save = QtGui.QMenu(self)
-		self.action_save_figure.setMenu(self.menu_save)
-		self.menu_save.addAction(self.action_save_figure_again)
-		self.toolbar2.addAction(self.action_save_figure)
+		#self.menu_save = QtGui.QMenu(self)
+		#self.action_save_figure.setMenu(self.menu_save)
+		#self.menu_save.addAction(self.action_save_figure_again)
+		#self.toolbar2.addAction(self.action_save_figure)
+		self.menu_file.addAction(self.action_save_figure)
+		self.menu_file.addAction(self.action_save_figure_again)
 
 		self.action_save_figure.triggered.connect(self.onActionSaveFigure)
 		self.action_save_figure_again.triggered.connect(self.onActionSaveFigureAgain)
@@ -2111,6 +2106,8 @@ class PlotDialog(QtGui.QDialog):
 		#self.action_aspect_lock.setMenu(self.menu_aspect)
 		#self.menu_aspect.addAction(self.action_aspect_lock_one)
 		self.toolbar2.addAction(self.action_aspect_lock_one)
+		self.menu_view.insertAction(self.action_mini_mode_normal, self.action_aspect_lock_one)
+		self.menu_view.insertSeparator(self.action_mini_mode_normal)
 
 		#self.action_aspect_lock.triggered.connect(self.onActionAspectLock)
 		self.action_aspect_lock_one.setCheckable(True)
@@ -2217,20 +2214,30 @@ class PlotDialog(QtGui.QDialog):
 
 		self.action_group_display = QtGui.QActionGroup(self)
 
-		self.actiongroup_mini_mode = QtGui.QActionGroup(self)
-		self.action_mini_mode = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&Mini screen(should not see)', self)
-		self.action_mini_mode_normal = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&compact', self)
-		self.action_mini_mode_ultra  = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&compact+', self)
+		self.actiongroup_display_mode = QtGui.QActionGroup(self)
 
-		self.action_fullscreen = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&fullscreen', self)
+		#self.action_displmini_mode = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&Mini screen(should not see)', self)
+		self.action_mini_mode_normal = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Normal', self)
+		self.action_mini_mode_compact = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Compact', self)
+		self.action_mini_mode_ultra  = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Ultra compact', self)
+		self.action_mini_mode_normal.setShortcut("Ctrl+Shift+N")
+		self.action_mini_mode_compact.setShortcut("Ctrl+Shift+C")
+		self.action_mini_mode_ultra.setShortcut("Ctrl+Shift+U")
+
+		self.action_group_mini_mode = QtGui.QActionGroup(self)
+		self.action_group_mini_mode.addAction(self.action_mini_mode_normal)
+		self.action_group_mini_mode.addAction(self.action_mini_mode_compact)
+		self.action_group_mini_mode.addAction(self.action_mini_mode_ultra)
+
+		self.action_fullscreen = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&Fullscreen', self)
 		self.action_fullscreen.setCheckable(True)
+		self.action_fullscreen.setShortcut(("Ctrl+F"))
 
 		self.action_toolbar_toggle = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&toolbars', self)
 		self.action_toolbar_toggle.setCheckable(True)
 		self.action_toolbar_toggle.setChecked(True)
+		self.action_toolbar_toggle.setShortcut(("Ctrl_Shift+T"))
 
-		self.actiongroup_mini_mode.addAction(self.action_mini_mode_normal)
-		self.actiongroup_mini_mode.addAction(self.action_mini_mode_ultra)
 		#self.actiongroup_mini_mode.addAction(self.action_fullscreen)
 
 
@@ -2250,7 +2257,12 @@ class PlotDialog(QtGui.QDialog):
 		self.action_toolbar_toggle.triggered.connect(self.on_toolbar_toggle)
 
 		self.action_move = QtGui.QAction(QtGui.QIcon(iconfile('edit-move')), '&Move', self)
+		self.action_move.setShortcut("Ctrl+M")
+		self.menu_mode.addAction(self.action_move)
+
 		self.action_pick = QtGui.QAction(QtGui.QIcon(iconfile('cursor')), '&Pick', self)
+		self.action_pick.setShortcut("Ctrl+P")
+		self.menu_mode.addAction(self.action_pick)
 
 		self.action_select = QtGui.QAction(QtGui.QIcon(iconfile('glue_lasso16')), '&Select(you should not read this)', self)
 		self.action_xrange = QtGui.QAction(QtGui.QIcon(iconfile('glue_xrange_select16')), '&x-range', self)
@@ -2259,20 +2271,47 @@ class PlotDialog(QtGui.QDialog):
 		self.action_select_none = QtGui.QAction(QtGui.QIcon(iconfile('dialog-cancel-3')), '&No selection', self)
 		self.action_select_invert = QtGui.QAction(QtGui.QIcon(iconfile('dialog-cancel-3')), '&Invert', self)
 
+		self.action_xrange.setShortcut("Ctrl+Shift+X")
+		self.menu_mode.addAction(self.action_xrange)
+		self.action_yrange.setShortcut("Ctrl+Shift+Y")
+		self.menu_mode.addAction(self.action_yrange)
+		self.action_lasso.setShortcut("Ctrl+L")
+		self.menu_mode.addAction(self.action_lasso)
+		self.action_select_none.setShortcut("Ctrl+N")
+		self.menu_mode.addAction(self.action_select_none)
+		self.action_select_invert.setShortcut("Ctrl+I")
+		self.menu_mode.addAction(self.action_select_invert)
+
+
+		self.menu_mode.addSeparator()
+		self.action_select_invert.setShortcut("Ctrl+I")
+		#self.menu_mode_select_mode = QtGui.QMenu("Select mode")
+		#self.menu_mode.addMenu(self.menu_mode_select_mode)
+
 		self.action_select_mode_replace = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-right')), '&Replace', self)
 		self.action_select_mode_and = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-inner')), '&And', self)
 		self.action_select_mode_or = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-outer')), '&Or', self)
 		self.action_select_mode_xor = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-outer-exclude')), 'Xor', self)
 		self.action_select_mode_subtract = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-left-exclude')), 'Subtract', self)
+		self.action_select_mode_replace.setShortcut("Ctrl+Shift+=")
+		self.action_select_mode_and.setShortcut("Ctrl+Shift+&")
+		self.action_select_mode_or.setShortcut("Ctrl+Shift+|")
+		self.action_select_mode_xor.setShortcut("Ctrl+Shift+^")
+		self.action_select_mode_subtract.setShortcut("Ctrl+Shift+-")
+		self.menu_mode.addAction(self.action_select_mode_replace)
+		self.menu_mode.addAction(self.action_select_mode_and)
+		self.menu_mode.addAction(self.action_select_mode_or)
+		self.menu_mode.addAction(self.action_select_mode_xor)
+		self.menu_mode.addAction(self.action_select_mode_subtract)
 
-
-		self.action_samp_sand_table_select_row_list = QtGui.QAction(QtGui.QIcon(iconfile('block--arrow')), 'sel->SAMP', self)
-		self.action_samp_sand_table_select_row_list.setShortcut('S')
-		self.toolbar.addAction(self.action_samp_sand_table_select_row_list)
+		self.action_samp_send_table_select_row_list = QtGui.QAction(QtGui.QIcon(iconfile('block--arrow')), 'Broadcast selection over SAMP', self)
+		self.action_samp_send_table_select_row_list.setShortcut('Ctrl+Shift+B')
+		#self.toolbar.addAction(self.action_samp_sand_table_select_row_list)
+		self.menu_samp.addAction(self.action_samp_send_table_select_row_list)
 		def send_samp_selection(ignore=None):
 			self.signal_samp_send_selection.emit(self.dataset)
 		self.send_samp_selection_reference = send_samp_selection # does this fix the bug that clicking the buttons doesn't do anything?
-		self.action_samp_sand_table_select_row_list.triggered.connect(send_samp_selection)
+		self.action_samp_send_table_select_row_list.triggered.connect(send_samp_selection)
 
 		self.action_display_mode_both = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show both', self)
 		self.action_display_mode_full = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show full', self)
@@ -2280,19 +2319,8 @@ class PlotDialog(QtGui.QDialog):
 		self.action_display_mode_both_contour = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Show contour', self)
 
 
-		self.action_res_1 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 1', self)
-		self.action_res_2 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 2', self)
-		self.action_res_3 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 3', self)
-		self.action_res_4 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 4', self)
-		self.action_res_5 = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'res 5', self)
 
-		for res, action in zip([128, 256, 512, 1024, 2048], [self.action_res_1, self.action_res_2, self.action_res_3, self.action_res_4, self.action_res_5]):
-			def do(ignore=None, res=res):
-				self.grid_size = res
-				self.compute()
-				self.jobsManager.execute()
-			action.triggered.connect(do)
-
+		#self.actions_resolution = []
 
 		self.actions_display = [self.action_display_mode_both, self.action_display_mode_full, self.action_display_mode_selection, self.action_display_mode_both_contour]
 		for action in self.actions_display:
@@ -2332,20 +2360,59 @@ class PlotDialog(QtGui.QDialog):
 
 
 
+		self.menu_view.addAction(self.action_mini_mode_normal)
+		self.menu_view.addAction(self.action_mini_mode_compact)
+		self.menu_view.addAction(self.action_mini_mode_ultra)
+		self.menu_view.addSeparator()
+		self.menu_view.addAction(self.action_fullscreen)
+
+		self.menu_view.addSeparator()
+		self.action_group_resolution = QtGui.QActionGroup(self)
+		for index, resolution in enumerate([32, 64, 128, 256, 512, 1024]):
+			action_resolution = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Grid Resolution: %d' % resolution, self)
+			def do(ignore=None, resolution=resolution):
+				self.grid_size = resolution
+				self.compute()
+				self.jobsManager.execute()
+			action_resolution.setCheckable(True)
+			if resolution == int(self.grid_size):
+				action_resolution.setChecked(True)
+			action_resolution.triggered.connect(do)
+			action_resolution.setShortcut("Ctrl+Alt+%d" % (index+1))
+			self.menu_view.addAction(action_resolution)
+			self.action_group_resolution.addAction(action_resolution)
+
+		self.menu_view.addSeparator()
+		self.action_group_resolution_vector = QtGui.QActionGroup(self)
+		for index, resolution in enumerate([8,16,32, 64, 128, 256]):
+			action_resolution = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Grid Resolution: %d' % resolution, self)
+			def do(ignore=None, resolution=resolution):
+				self.vector_grid_size = resolution
+				self.compute()
+				self.jobsManager.execute()
+			action_resolution.setCheckable(True)
+			if resolution == int(self.vector_grid_size):
+				action_resolution.setChecked(True)
+			action_resolution.triggered.connect(do)
+			action_resolution.setShortcut("Ctrl+Shift+Alt+%d" % (index+1))
+			self.menu_view.addAction(action_resolution)
+			self.action_group_resolution_vector.addAction(action_resolution)
+
+
 		#self.mini_mode_button = QtGui.QToolButton()
 		#self.mini_mode_button.setPopupMode(QtGui.QToolButton.InstantPopup)
 		#self.mini_mode_button.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
-		self.menu_mini_mode = QtGui.QMenu()
-		self.action_mini_mode.setMenu(self.menu_mini_mode)
+		#self.menu_mini_mode = QtGui.QMenu()
+		#self.action_mini_mode.setMenu(self.menu_mini_mode)
 		#self.mini_mode_button.setMenu(self.mini_mode_button_menu)
-		self.menu_mini_mode.addAction(self.action_mini_mode_normal)
-		self.menu_mini_mode.addAction(self.action_mini_mode_ultra)
+		#self.menu_mini_mode.addAction(self.action_mini_mode_normal)
+		#self.menu_mini_mode.addAction(self.action_mini_mode_ultra)
 		#self.mini_mode_button.setDefaultAction(self.action_miniscreen)
 		#self.mini_mode_button.setCheckable(True)
 		#self.mini_mode_button.setIcon(self.action_miniscreen.icon())
 		#self.mini_mode_button.setText(self.action_miniscreen.text())
 
-		self.toolbar.addAction(self.action_mini_mode)
+		#self.toolbar.addAction(self.action_mini_mode)
 		self.toolbar.addAction(self.action_fullscreen)
 		self.toolbar.addAction(self.action_toolbar_toggle)
 
@@ -2425,8 +2492,8 @@ class PlotDialog(QtGui.QDialog):
 		self.action_group_main.triggered.connect(self.setMode)
 		self.action_group_mainSelectMode.triggered.connect(self.setSelectMode)
 
-		self.action_mini_mode.triggered.connect(self.onActionMiniMode)
 		self.action_mini_mode_normal.triggered.connect(self.onActionMiniModeNormal)
+		self.action_mini_mode_compact.triggered.connect(self.onActionMiniModeCompact)
 		self.action_mini_mode_ultra.triggered.connect(self.onActionMiniModeUltra)
 		self.action_select.triggered.connect(self.onActionSelect)
 		self.action_select_none.triggered.connect(self.onActionSelectNone)
@@ -2439,12 +2506,13 @@ class PlotDialog(QtGui.QDialog):
 		self.action_select_mode_xor.setCheckable(True)
 		self.action_select_mode_subtract.setCheckable(True)
 
-		self.action_mini_mode.setCheckable(True)
+		#self.action_mini_mode.setCheckable(True)
 		self.action_mini_mode_normal.setCheckable(True)
+		self.action_mini_mode_normal.setChecked(True)
+		self.action_mini_mode_compact.setCheckable(True)
 		self.action_mini_mode_ultra.setCheckable(True)
-		self.action_mini_mode_ultra.setChecked(True)
-		self.action_mini_mode.setIcon(self.action_mini_mode_ultra.icon())
-		self.action_mini_mode.setText(self.action_mini_mode_ultra.text())
+		#self.action_mini_mode.setIcon(self.action_mini_mode_ultra.icon())
+		#self.action_mini_mode.setText(self.action_mini_mode_ultra.text())
 
 		self.action_move.setCheckable(True)
 		self.action_pick.setCheckable(True)
@@ -2471,7 +2539,7 @@ class PlotDialog(QtGui.QDialog):
 
 	def onActionMiniMode(self):
 		#targetAction = self.mini_mode_button.defaultAction()
-		enabled_mini_mode = self.action_mini_mode.isChecked()
+		enabled_mini_mode = self.action_mini_mode_compact.isChecked() or self.action_mini_mode_ultra.isChecked()
 		#enabled_mini_mode = self.action_mini_mode_normal.isChecked() or self.action_mini_mode_ultra.isChecked()
 		ultra_mode = self.action_mini_mode_ultra.isChecked()
 
@@ -2509,23 +2577,27 @@ class PlotDialog(QtGui.QDialog):
 			widget.setVisible(visible)
 
 	def onActionMiniModeNormal(self, *args):
+		self.onActionMiniMode()
 		#self.mini_mode_button.setDefaultAction(self.action_miniscreen)
 		#self.action_miniscreen.setChecked(True)
 		#self.action_miniscreen_ultra.setChecked(False)
 		#self.on
 		#logger.debug("normal mini screen: %r" % self.action_miniscreen.isChecked())
-		self.action_mini_mode.setIcon(self.action_mini_mode_normal.icon())
-		self.action_mini_mode.setText(self.action_mini_mode_normal.text())
+		#self.action_mini_mode.setIcon(self.action_mini_mode_normal.icon())
+		#self.action_mini_mode.setText(self.action_mini_mode_normal.text())
 		#self.onActionMiniMode()
-		self.action_mini_mode.trigger()
+		#self.action_mini_mode.trigger()
 		pass
 
+	def onActionMiniModeCompact(self, *args):
+		self.onActionMiniMode()
 	def onActionMiniModeUltra(self, *args):
+		self.onActionMiniMode()
 		#self.mini_mode_button.setDefaultAction(self.action_miniscreen_ultra)
 		#logger.debug("ultra mini screen: %r" % self.action_miniscreen_ultra.isChecked())
-		self.action_mini_mode.setIcon(self.action_mini_mode_ultra.icon())
-		self.action_mini_mode.setText(self.action_mini_mode_ultra.text())
-		self.action_mini_mode.trigger()
+		#self.action_mini_mode.setIcon(self.action_mini_mode_ultra.icon())
+		#self.action_mini_mode.setText(self.action_mini_mode_ultra.text())
+		#self.action_mini_mode.trigger()
 		#self.onActionMiniMode()
 		#self.onActionMiniScreen()
 		#self.action_miniscreen.setChecked(False)
@@ -2869,7 +2941,6 @@ class ScatterPlotDialog(PlotDialog):
 		dialog_error(widget, "Error in expression", "Invalid expression for field %s: %s" % (name, exception))
 		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
 		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
-
 
 	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
 		if compute_counter < self.compute_counter:
@@ -3476,6 +3547,32 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		#self.addToolbar2(layout)
 		super(VolumeRenderingPlotDialog, self).afterCanvas(layout)
 
+		self.menu_view.addSeparator()
+		self.action_group_quality_3d = QtGui.QActionGroup(self)
+		self.actions_quality_3d = []
+		for index, (name, resolution, iterations) in enumerate([("Fast", 256, 200), ("Medium", 256+128, 300), ("Best", 512, 500)]):
+			if "vr_quality" in self.options:
+				vr_index = int(eval(self.options.get("vr_quality")))
+				if index == vr_index:
+					#self.actions_quality_3d[index].trigger()
+					self.widget_volume.ray_iterations = iterations
+					self.widget_volume.texture_size = resolution
+
+			action_quality_3d = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), name + ' volume rendering', self)
+			def do(ignore=None, resolution=resolution, iterations=iterations):
+				self.widget_volume.set_iterations(iterations)
+				self.widget_volume.setResolution(resolution)
+				self.widget_volume.update()
+			action_quality_3d.setCheckable(True)
+			if resolution == self.widget_volume.texture_size and iterations == self.widget_volume.ray_iterations:
+				action_quality_3d.setChecked(True)
+			action_quality_3d.triggered.connect(do)
+			action_quality_3d.setShortcut("Ctrl+Shift+Meta+%d" % (index+1))
+			self.menu_view.addAction(action_quality_3d)
+			self.action_group_quality_3d.addAction(action_quality_3d)
+			self.actions_quality_3d.append(action_quality_3d)
+
+
 	def getAxesList(self):
 		#return reduce(lambda x,y: x + y, self.axes_grid, [])
 		return [self.axis_top, self.axis_bottom]
@@ -3844,6 +3941,7 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 				
 
 	def onSerieIndexSelect(self, serie_index):
+		print serie_index, self.serieIndex
 		if serie_index != self.serieIndex: # avoid unneeded event
 			self.serieIndex = serie_index
 			self.seriesbox.setCurrentIndex(self.serieIndex)

@@ -18,31 +18,47 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 		
 	def plug_toolbar(self):
 		logger.info("adding zoom plugin")
+		self.dialog.menu_mode.addSeparator()
 		self.action_zoom_rect = QtGui.QAction(QtGui.QIcon(iconfile('zoom')), '&Zoom to rect', self.dialog)
+		self.action_zoom_rect.setShortcut("Ctrl+Alt+Z")
+		self.dialog.menu_mode.addAction(self.action_zoom_rect)
 
 		self.action_zoom_x = QtGui.QAction(QtGui.QIcon(iconfile('zoom_x')), '&Zoom x', self.dialog)
 		self.action_zoom_y = QtGui.QAction(QtGui.QIcon(iconfile('zoom_y')), '&Zoom y', self.dialog)
 		self.action_zoom = QtGui.QAction(QtGui.QIcon(iconfile('zoom')), '&Zoom(you should not read this)', self.dialog)
 
+		self.action_zoom_x.setShortcut("Ctrl+Alt+X")
+		self.action_zoom_y.setShortcut("Ctrl+Alt+Y")
+		self.dialog.menu_mode.addAction(self.action_zoom_x)
+		self.dialog.menu_mode.addAction(self.action_zoom_y)
 
+
+		self.dialog.menu_mode.addSeparator()
 		self.action_zoom_out = QtGui.QAction(QtGui.QIcon(iconfile('zoom_out')), '&Zoom out', self.dialog)
 		self.action_zoom_in = QtGui.QAction(QtGui.QIcon(iconfile('zoom_in')), '&Zoom in', self.dialog)
 		self.action_zoom_fit = QtGui.QAction(QtGui.QIcon(iconfile('arrow_out')), '&Reset view', self.dialog)
-		self.action_zoom_use = QtGui.QAction(QtGui.QIcon(iconfile('chart_bar')), '&Use zoom area', self.dialog)
-		
+		#self.action_zoom_use = QtGui.QAction(QtGui.QIcon(iconfile('chart_bar')), '&Use zoom area', self.dialog)
+		self.action_zoom_out.setShortcut("Ctrl+Alt+-")
+		self.action_zoom_in.setShortcut("Ctrl+Alt++")
+		self.action_zoom_fit.setShortcut("Ctrl+Alt+0")
+		self.dialog.menu_mode.addAction(self.action_zoom_out)
+		self.dialog.menu_mode.addAction(self.action_zoom_in)
+		self.dialog.menu_mode.addAction(self.action_zoom_fit)
+
+
 
 		self.dialog.action_group_main.addAction(self.action_zoom_rect)
 		self.dialog.action_group_main.addAction(self.action_zoom_x)
 		self.dialog.action_group_main.addAction(self.action_zoom_y)
 
 		self.dialog.toolbar.addAction(self.action_zoom_out)
-		self.dialog.add_shortcut(self.action_zoom_in,"+")
-		self.dialog.add_shortcut(self.action_zoom_out,"-")
+		#self.dialog.add_shortcut(self.action_zoom_in,"+")
+		#self.dialog.add_shortcut(self.action_zoom_out,"-")
 		
-		self.dialog.add_shortcut(self.action_zoom_rect,"Z")
-		self.dialog.add_shortcut(self.action_zoom_x,"Alt+X")
-		self.dialog.add_shortcut(self.action_zoom_y,"Alt+Y")
-		self.dialog.add_shortcut(self.action_zoom_fit, "0")
+		#self.dialog.add_shortcut(self.action_zoom_rect,"Z")
+		#self.dialog.add_shortcut(self.action_zoom_x,"Alt+X")
+		#self.dialog.add_shortcut(self.action_zoom_y,"Alt+Y")
+		#self.dialog.add_shortcut(self.action_zoom_fit, "0")
 		
 		self.dialog.toolbar.addAction(self.action_zoom)
 		self.zoom_menu = QtGui.QMenu()
@@ -63,7 +79,7 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 		self.action_zoom_out.triggered.connect(self.onZoomOut)
 		self.action_zoom_in.triggered.connect(self.onZoomIn)
 		self.action_zoom_fit.triggered.connect(self.onZoomFit)
-		self.action_zoom_use.triggered.connect(self.onZoomUse)
+		#self.action_zoom_use.triggered.connect(self.onZoomUse)
 		
 		
 		self.action_zoom.setCheckable(True)
@@ -150,6 +166,7 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 		
 	def onZoomUse(self, *args):
 		# TODO: when this will be an option again, implement this as action
+		# TODO: will we ever use this again? auto updates are much better
 		for i in range(self.dimensions):
 			self.dialog.ranges[i] = self.dialog.ranges_show[i]
 		self.range_level = None

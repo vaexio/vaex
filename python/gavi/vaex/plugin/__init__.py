@@ -23,6 +23,7 @@ class PluginPlot(object):
 	__metaclass__ = RegisterPlugins # trick to keep a list of plugins
 	def __init__(self, dialog):
 		self.dialog = dialog
+		self.dataset = dialog.dataset
 
 	def clean_up(self):
 		pass
@@ -41,6 +42,12 @@ class PluginPlot(object):
 		return {}
 
 	def apply_options(self, options):
+		pass
+
+	def start_animation(self, widget):
+		pass
+
+	def stop_animation(self):
 		pass
 
 class PluginDataset(object):

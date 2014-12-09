@@ -235,6 +235,18 @@ void find_nan_min_max(const double* const block_ptr, const long long length, dou
 	min = block_ptr[0];
 	max = block_ptr[0];
 	for(long long i = 1; i < length; i++) {
+		if(isnan(min))
+			min = block_ptr[i];
+		else
+			break;
+	}
+	for(long long i = 1; i < length; i++) {
+		if(isnan(max))
+			max = block_ptr[i];
+		else
+			break;
+	}
+	for(long long i = 1; i < length; i++) {
 		const double value = block_ptr[i];
 		//if(value == value)// nan checking
 		{  
@@ -402,18 +414,15 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 		}
 	} else {
 		for(long long i = 0; i < block_length; i++) {
-			double value_x = blockx[i_x];
-			int index_x = (int)((value_x - xmin) * scale_x);
+			double value_x = blockx[i];
+			double value_y = blocky[i];
 			
-			if( (index_x >= 0) & (index_x < counts_length_x)) {
-				double value_y = blocky[i_y];
+			if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
+			//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
+				int index_x = (int)((value_x - xmin) * scale_x);
 				int index_y = (int)((value_y - ymin) * scale_y);
-				
-				if ( (index_y >= 0) & (index_y < counts_length_y) ) {
-					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
-				}
+				counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
 			}
-			
 			i_x = i_x >= block_length-1 ? 0 : i_x+1;
 			i_y = i_y >= block_length-1 ? 0 : i_y+1;
 		}

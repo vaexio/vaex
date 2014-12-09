@@ -1,4 +1,189 @@
 # -*- coding: utf-8 -*-
+		self.fragment_shader = shaders.compileShader("""
+			varying vec4 vertex_color;
+			uniform sampler1D texture_colormap;
+			uniform sampler2D texture;
+			uniform sampler3D cube;
+			uniform sampler3D gradient;
+			uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
+			uniform vec2 minmax2d;
+			uniform vec2 minmax3d;
+			uniform vec2 minmax3d_total;
+			//uniform float maxvalue2d;
+			//uniform float maxvalue3d;
+			uniform float alpha_mod; // mod3
+			uniform float mod4;  // mafnifier
+			uniform float mod5; // blend color and line integral
+			uniform float mod6;
+			void main() {
+				//gl_FragColor = vertex_color;
+				//gl_FragColor = texture2D(texture, gl_FragCoord.xy/2.);// * 0.8;
+				//gl_FragColor = texture2D(texture, vec2(44, 44));
+				//  0.8;
+				//gl_FragColor = texture2D(texture, gl_FragCoord.xy/128.) * 0.8;
+				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
+				vec3 ray_start = vertex_color.xyz;
+				float length = 0.;
+				vec3 ray_dir = ray_end - ray_start;
+				vec3 ray_delta = ray_dir / 200.;
+				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
+				vec3 pos = ray_start;
+				float value = 0.;
+				//mat3 direction_matrix = inverse(mat3(transpose(inverse(gl_ModelViewProjectionMatrix))));
+				//mat3 direction_matrix = transpose(mat3(gl_ModelViewProjectionMatrix));
+				//vec3 light_pos = (direction_matrix * vec3(-100.,100., -100)).zyx;
+				//vec3 light_pos = (direction_matrix * vec3(-5.,5., -100));
+				//vec3 origin = (direction_matrix * vec3(0., 0., 0)).xyz;
+				vec3 origin = (vec4(0., 0., 0., 0.)).xyz;
+				vec3 light_pos = (vec4(-1000., 0., -1000, 1.)).xyz;
+				//mat3 mod = inverse(mat3(gl_ModelViewProjectionMatrix));
+				vec4 color;
+				vec3 light_dir = light_pos - origin;
+				//light_dir = vec3(-1,-1,1);
+				light_dir = light_dir / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
+				float alpha_total = 0.;
+				//float normalize = log(maxvalue);
+				float intensity_total;
+				for (int n = 0; n < 200; n++)  {
+					//float fraction = float(n) / float(1000);
+					//float z_depth = fraction*ray_length;
+					//float current_value = texture3D(gradient, pos).b;
+					//vec3 normal = texture3D(gradient, pos).zyx;
+					//normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
+					//float cosangle = -dot(light_dir, normal);
+					float cosangle = 1.;
+					//cosangle = clamp(cosangle, 0.0, 1.);;
+					//float cosangle = 1.0;
+					//float s = 0.0001;
+					//value = value + current_value*exp(-(pow(pos.x - 0.5, 2)/s));//+pow(pos.y - 0.5, 2)/s+pow(pos.z - 0.5, 2)/s));
+					//value = value + current_value;
+					//*max(max(exp(-(pow(pos.x - 0.5, 2)/s)), exp(-(pow(pos.y - 0.5, 2)/s))), exp(-(pow(pos.z - 0.5, 2)/s)));
+					//+pow(pos.y - 0.5, 2)/s+pow(pos.z - 0.5, 2)/s));
+
+					float intensity = texture3D(cube, pos).r;
+					float intensity_normalized = (log(intensity + 1.) - log(minmax3d.x)) / (log(minmax3d.y) - log(minmax3d.x));
+
+					//intensity_normalized = clamp(cosangle, 0., 1.);
+					vec4 color_sample = texture1D(texture_colormap, intensity_normalized);// * clamp(cosangle, 0.1, 1.);
+					//color_sample = color_sample * clamp(cosangle, 0., 1.) * 15.;
+					//color_sample = texture1D(texture_colormap, cosangle * 2. - 1.);
+					float alpha_sample = 10./200. * alpha_mod  * intensity_normalized;// * clamp(cosangle+0.2, 0.0, 1.);;
+					alpha_sample = clamp(alpha_sample, 0., 1.);
+
+
+					intensity_total += intensity;
+
+
+					color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+					alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+
+					float border_level = log(minmax3d_total.x) + (log(minmax3d_total.y) - log(minmax3d_total.x)) * mod6 * 0.5;
+					float alpha_sample_border = exp(-pow(border_level-log(intensity)/3.,2.)) * mod5;// * clamp(cosangle, 0.1, 1);
+
+					float ambient = 0.5; //atan(log(mod4)) / 3.14159 + 0.5 ;
+					vec4 color_border = vec4(1,1,1,1);// * (ambient + clamp(cosangle, 0, 1.-ambient));
+					//vec4 color_border = vec4(normal.xyz, 1);// * clamp(cosangle, 0.1, 1);
+					color = color + (1.0 - alpha_total) * color_border * alpha_sample_border;
+					alpha_total = clamp(alpha_total + alpha_sample_border, 0., 1.);
+
+					pos += ray_delta;
+
+				}
+				gl_FragColor = vec4(color) * mod4;// / pow(0.9*alpha_total + 0.1, 1.0); // / sqrt(color.r*color.r + color.b*color.b + color.g*color.g);
+				//value *= 10;
+				//gl_FragColor = vec4(ray_end, 1);
+				//gl_FragColor = vec4(texture1D(texture_colormap, clamp(log(value*0.0001*ray_length+1)/log(10) * 1.2 - 0.1, 0.01, 0.99)).rgb, 1);
+				//gl_FragColor = vec4(texture1D(texture_colormap, log(value*1.1+1.) ).rgb, 1);
+				float scale = log(minmax2d.y)/log(10.) - log(minmax2d.x)/log(10.);
+				float intensity_total_scaled = (log(intensity_total+1.)/log(10.)-log(minmax2d.x)/log(10.)) / scale;
+				//scaled = value / 100.;
+				vec4 line_color = vec4(texture1D(texture_colormap, intensity_total_scaled).rgb, 1);
+				//gl_FragColor = line_color;
+				//float blend = atan(log(mod5)) / 3.14159 + 0.5 ;
+				//vec3 = gl_ModelViewProjectionMatrix
+				//gl_FragColor = vec4(light_dir, 1.);
+				//gl_FragColor = (blend * line_color + (1.-blend) * vec4(color)*mod6) * mod4;
+				//gl_FragColor = vec4(value, 0, 0, 1);
+				//gl_FragColor = texture3D(cube, vec3(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y, 0.5) );
+				//gl_FragColor = texture3D(gradient, vec3(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y, 0.5) );
+				//gl_FragColor = vec4(ray_start, 1);
+			}""",GL_FRAGMENT_SHADER)
+		self.fragment_shader = shaders.compileShader("""
+			varying vec4 vertex_color;
+			uniform sampler1D texture_colormap;
+			uniform sampler2D texture;
+			uniform sampler3D cube;
+			uniform sampler3D gradient;
+			uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
+			uniform vec2 minmax2d;
+			uniform vec2 minmax3d;
+			uniform vec2 minmax3d_total;
+			//uniform float maxvalue2d;
+			//uniform float maxvalue3d;
+			uniform float alpha_mod; // mod3
+			uniform float mod4;  // mafnifier
+			uniform float mod5; // blend color and line integral
+			uniform float mod6;
+
+			uniform float function_opacities[3];
+			uniform float function_means[3];
+			uniform float function_sigmas[3];
+
+			uniform float brightness;
+
+
+			void main() {
+				int steps = 500;
+				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
+				vec3 ray_start = vertex_color.xyz;
+				ray_start.z = 1.-ray_start.z;
+				float length = 0.;
+				vec3 ray_dir = (ray_end - ray_start);
+				vec3 ray_delta = ray_dir / float(steps);
+				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
+				vec3 ray_pos = ray_start;
+				float value = 0.;
+				//mat3 direction_matrix = inverse(mat3(transpose(inverse(gl_ModelViewProjectionMatrix))));
+				//mat3 direction_matrix = transpose(mat3(gl_ModelViewProjectionMatrix));
+				//vec3 light_pos = (direction_matrix * vec3(-100.,100., -100)).zyx;
+				//vec3 light_pos = (direction_matrix * vec3(-5.,5., -100));
+				//vec3 origin = (direction_matrix * vec3(0., 0., 0)).xyz;
+				vec3 origin = (vec4(0., 0., 0., 0.)).xyz;
+				vec3 light_pos = (vec4(-1000., 0., -1000, 1.)).xyz;
+				//mat3 mod = inverse(mat3(gl_ModelViewProjectionMatrix));
+				vec4 color = vec4(0, 0, 0, 0);
+				vec3 light_dir = light_pos - origin;
+				//light_dir = vec3(-1,-1,1);
+				light_dir = light_dir / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
+				float alpha_total = 0.;
+				//float normalize = log(maxvalue);
+				float intensity_total;
+				float data_min = minmax3d.x;
+				float data_max = minmax3d.y;
+				float data_scale = 1./(data_max - data_min);
+				for(int i = 0; i < 500; i++) {
+					vec4 sample = texture3D(cube, ray_pos);
+					for(int j = 0; j < 3; j++) {
+						float data_value = (sample.r - data_min) * data_scale;
+						//float volume_level_value = (function_means[j] - data_min) * data_scale;
+						float chi = (data_value-function_means[j])/function_sigmas[j];
+						float chisq = pow(chi, 2.);
+						float intensity = exp(-chisq);
+						vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
+						float alpha_sample = function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+						alpha_sample = clamp(alpha_sample, 0., 1.);
+						color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+						alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+						if(alpha_total >= 1.)
+							break;
+					}
+					ray_pos += ray_delta;
+				}
+				gl_FragColor = vec4(color.rgb, alpha_total) * brightness; //brightness;
+				//gl_FragColor = vec4(ray_pos.xyz, 1) * 100.; //brightness;
+			}""",GL_FRAGMENT_SHADER)
+
+
 class SequencePlot(PlotDialog):
 	def __init__(self, parent, jobsManager, dataset, expression="x[:,index]"):
 		self.index = 0

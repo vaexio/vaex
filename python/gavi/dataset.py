@@ -53,7 +53,13 @@ class FakeLogger(object):
 class Job(object):
 	def __init__(self, callback, expressions):
 		pass
-		
+
+class Job(dict):
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
+
+
 class JobsManager(object):
 	def __init__(self):
 		#self.datasets = datasets
@@ -264,7 +270,16 @@ class JobsManager(object):
 							info.error_text = ""
 							info.time_start = t0
 							results = {}
-							# put to 
+							# check for 'snapshots'/sequence array, and get the proper index automatically
+							for name, var in local_dict.items():
+								if hasattr(var, "shape"):
+									print name, var.shape
+									if len(var.shape) == 2:
+										local_dict[name] = var[dataset.selected_serie_index]
+										print " to", name, local_dict[name].shape
+								else:
+									print name, var
+							# put to
 							with Timer("evaluation"):
 								for dataset, expression in expressions_dataset:
 									logger.debug("expression: %r" % (expression,))
@@ -370,7 +385,7 @@ class Link(object):
 		for listener in listener_set:
 			if listener not in receivers:
 				listener.onCompute()
-				
+
 	def sendPlot(self, receiver):
 		for listener in self.listeners:
 			if listener != receiver:
@@ -456,7 +471,7 @@ class MemoryMapped(object):
 		
 		
 		self.selected_row_index = None
-		self.selected_serie_index = None
+		self.selected_serie_index = 0
 		self.row_selection_listeners = []
 		self.serie_index_selection_listeners = []
 		self.mask_listeners = []
@@ -473,6 +488,9 @@ class MemoryMapped(object):
 		self.variables = collections.OrderedDict()
 		
 		self.signal_pick = gavi.events.Signal("pick")
+
+	def has_snapshots(self):
+		return len(self.rank1s) > 0
 
 	def get_path(self):
 		return self.path
@@ -633,6 +651,9 @@ class MemoryMapped(object):
 				offset = None
 				dtype = array.dtype
 			else:
+				if offset is None:
+					print "offset is None"
+					sys.exit(0)
 				mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
 				if stride:
 					#import pdb
@@ -746,7 +767,12 @@ class HansMemoryMapped(MemoryMapped):
 				#print name, offset
 				# TODO: ask Hans for the self.numberTimes-1
 				self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1)
-				
+
+		if filename_extra is None:
+			basename = os.path.basename(filename)
+			if os.path.exists(basename + ".omega2"):
+				filename_extra = basename + ".omega2"
+
 		if filename_extra is not None:
 			self.addFile(filename_extra)
 			mapping = self.mapping_map[filename_extra]
@@ -776,7 +802,24 @@ class HansMemoryMapped(MemoryMapped):
 		
 		
 		#uint64 = np.frombuffer(self.mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
-		
+
+	@classmethod
+	def can_open(cls, path, *args):
+		print "path", path
+		basename, ext = os.path.splitext(path)
+		if os.path.exists(basename + ".omega2"):
+			return True
+		return False
+
+	@classmethod
+	def get_options(cls, path):
+		return []
+
+	@classmethod
+	def option_to_args(cls, option):
+		return []
+
+
 dataset_type_map["buist"] = HansMemoryMapped
 
 if __name__ == "__main__":
@@ -1238,27 +1281,33 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 			data = particles[name]
 			if isinstance(data, h5py.highlevel.Dataset): #array.shape
 				array = data
-				#print array.shape, array.dtype
+				print name, array.shape, array.dtype, array.id.get_offset()
 				shape = array.shape
 				if len(shape) == 1:
-					offset = array.id.get_offset() 
-					self.addColumn(name, offset, data.shape[0], dtype=data.dtype)
+					offset = array.id.get_offset()
+					print name, array.shape, array.dtype, array.id.get_offset()
+					if offset is not None:
+						self.addColumn(name, offset, data.shape[0], dtype=data.dtype)
 				else:
 					if name == "Coordinates":
 						offset = data.id.get_offset() 
+						if offset is None:
+							print name, "is not of continuous layout?"
+							sys.exit(0)
+						bytesize = data.dtype.itemsize
 						self.addColumn("x", offset, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("y", offset+4, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("z", offset+8, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("y", offset+bytesize, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("z", offset+bytesize*2, data.shape[0], dtype=data.dtype, stride=3)
 					elif name == "Velocity":
 						offset = data.id.get_offset() 
 						self.addColumn("vx", offset, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("vy", offset+4, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("vz", offset+8, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("vy", offset+bytesize, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("vz", offset+bytesize*2, data.shape[0], dtype=data.dtype, stride=3)
 					elif name == "Velocities":
 						offset = data.id.get_offset() 
 						self.addColumn("vx", offset, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("vy", offset+4, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("vz", offset+8, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("vy", offset+bytesize, data.shape[0], dtype=data.dtype, stride=3)
+						self.addColumn("vz", offset+bytesize*2, data.shape[0], dtype=data.dtype, stride=3)
 					else:
 						print "unsupported column: %r of shape %r" % (name, array.shape)
 		if "Header" in h5file:
@@ -1391,12 +1440,12 @@ class Zeldovich(InMemory):
 		s = np.array(np.gradient(grf)) / float(N)
 		#pylab.imshow(s[1], interpolation='nearest')
 		#pylab.show()
-		
+		s /= s.max() * 100.
 		#X = np.zeros((4, 3, N, N, N))
 		#for i in range(4):
-		if t is None:
-			s = s/s.max()
-			t = 0.07
+		#if t is None:
+		#	s = s/s.max()
+		t = 1.
 		X = Q + s * t
 		print dim, N, n, t
 

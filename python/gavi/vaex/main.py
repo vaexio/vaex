@@ -686,6 +686,10 @@ class MainPanel(QtGui.QFrame):
 		self.table = QtGui.QPushButton('Open table', self)
 		self.form_layout.addRow('', self.table)
 
+		self.button_variables = QtGui.QPushButton('Variables', self)
+		self.form_layout.addRow('', self.button_variables)
+
+
 		self.fractionLabel = QtGui.QLabel('Fraction used: ...')
 		self.fractionWidget = QtGui.QWidget(self)
 		self.fractionLayout = QtGui.QHBoxLayout(self.fractionWidget)
@@ -1271,7 +1275,7 @@ class Vaex(QtGui.QMainWindow):
 
 		self.samp_ping_timer = QtCore.QTimer()
 		self.samp_ping_timer.timeout.connect(self.on_samp_ping_timer)
-		self.samp_ping_timer.start(1000)
+		#self.samp_ping_timer.start(1000)
 
 		def on_open_plot(plot_dialog):
 			plot_dialog.signal_samp_send_selection.connect(lambda dataset: self.on_samp_send_table_select_rowlist(dataset=dataset))

@@ -18,10 +18,21 @@ except ImportError, e1:
 		sys.exit(1)
 
 
+def get_path_save(parent, title="Save file", path="", file_mask="HDF5 *.hdf5"):
+	path = QtGui.QFileDialog.getSaveFileName(parent, title, path, file_mask)
+	if isinstance(path, tuple):
+		filename = str(path[0])#]
+	return str(path)
 
+def get_path_open(parent, title="Select file", path="", file_mask="HDF5 *.hdf5"):
+	path = QtGui.QFileDialog.getOpenFileName(parent, title, path, file_mask)
+	if isinstance(path, tuple):
+		path = str(path[0])#]
+	return str(path)
 def getdir(parent, title, start_directory=""):
-	return QtGui.QFileDialog.getExistingDirectory(parent, title, "",  QtGui.QFileDialog.ShowDirsOnly | QtGui.QFileDialog.DontResolveSymlinks)	
-	
+	result = QtGui.QFileDialog.getExistingDirectory(parent, title, "",  QtGui.QFileDialog.ShowDirsOnly | QtGui.QFileDialog.DontResolveSymlinks)
+	return None if result is None else str(result)
+
 def gettext(parent, title, label, default=""):
 	text, ok = QtGui.QInputDialog.getText(parent, title, label, QtGui.QLineEdit.Normal, default)
 	return str(text) if ok else None

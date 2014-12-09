@@ -77,9 +77,17 @@ class FavStorePlugin(gavi.vaex.plugin.PluginPlot):
 
 	def plug_toolbar(self):
 		logger.info("adding %s plugin" % self.name)
-		self.action_store  = QtGui.QAction(QtGui.QIcon(iconfile('star')), 'Bookmark', self.dialog)
-		self.dialog.toolbar.addAction(self.action_store)
+		self.menu = QtGui.QMenu("Favorites")
+		self.dialog.menu_bar.addMenu(self.menu)
+
+		self.action_store  = QtGui.QAction(QtGui.QIcon(iconfile('star')), 'Store', self.dialog)
+		self.action_store.setShortcut("Ctrl+B")
+		self.action_store_toolbar  = QtGui.QAction(QtGui.QIcon(iconfile('star')), 'Store', self.dialog)
+
+
+		self.dialog.toolbar.addAction(self.action_store_toolbar)
 		self.action_store.triggered.connect(self.on_store)
+		self.action_store_toolbar.triggered.connect(self.on_store)
 		self.changed_handle = storage_plots.changed.connect(self.load_options_menu)
 		self.load_options_menu()
 
@@ -102,13 +110,18 @@ class FavStorePlugin(gavi.vaex.plugin.PluginPlot):
 
 	def load_options_menu(self):
 		self.fav_menu = QtGui.QMenu()
+		self.menu.clear()
+		self.menu.addAction(self.action_store)
+		self.menu.addSeparator()
+
 		for options in storage_plots.get_all(self.dialog.type_name, self.dialog.dataset):
-			action = QtGui.QAction(options["name"], self.fav_menu)
+			action = QtGui.QAction("Load:"+options["name"], self.fav_menu)
 			def onLoad(_=None, options=options):
 				self.dialog.apply_options(options["options"])
 			action.triggered.connect(onLoad)
 			self.fav_menu.addAction(action)
-		self.action_store.setMenu(self.fav_menu)
+			self.menu.addAction(action)
+		self.action_store_toolbar.setMenu(self.fav_menu)
 
 	def on_store(self, _=None):
 		index = len(storage_plots.get_all(self.dialog.type_name, self.dialog.dataset)) + 1

@@ -252,6 +252,19 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
 		self.previous_volume_rendering_min_level = self.widget_volume.min_level
 		self.previous_volume_rendering_max_level = self.widget_volume.max_level
 
+		def setter(value):
+			self.widget_volume.depth_peel = value
+			self.widget_volume.update()
+			#self.tool.update()
+		def getter():
+			return self.widget_volume.depth_peel
+		self.widget_volume.depth_peel = eval(self.dialog.options.get("depth_peel", str(getter())))
+		label, slider, label_value = self.make_slider(page, "depth_peel", 0., 1., 1000, "{0:<0.3f}", getter, setter)
+		layout.addWidget(label, row, 0)
+		layout.addWidget(slider, row, 1)
+		layout.addWidget(label_value, row, 2)
+		row += 1
+
 
 		layout.setRowMinimumHeight(row, 8)
 		row += 1

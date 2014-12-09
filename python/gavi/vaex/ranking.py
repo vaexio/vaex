@@ -82,6 +82,8 @@ class SubspaceTable(QtGui.QTableWidget):
 		self.headers = ['', 'space', 'ranking', 'plot']
 		if dim == 1:
 			self.headers += ["min", "max"]
+
+		print ", ".join([""+("-".join(pair))+"" for pair in pairs])
 		self.dataset = dataset
 		self.mainPanel = mainPanel
 		self.pairs = pairs #list(itertools.combinations(self.dataset.column_names, dim))

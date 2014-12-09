@@ -1,5 +1,134 @@
 # -*- coding: utf-8 -*-
 from qt import *
+from string import Template
+
+ray_cast_fragment_source = Template("""
+#version 120
+varying vec4 vertex_color;
+uniform sampler1D texture_colormap;
+uniform sampler2D texture;
+uniform sampler3D cube;
+uniform sampler3D gradient;
+uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
+//uniform vec2 minmax2d;
+uniform vec2 minmax3d;
+//uniform vec2 minmax3d_total;
+//uniform float maxvalue2d;
+//uniform float maxvalue3d;
+uniform float alpha_mod; // mod3
+uniform float mod4;  // mafnifier
+uniform float mod5; // blend color and line integral
+uniform float mod6;
+
+uniform sampler1D transfer_function;
+
+uniform float brightness;
+uniform float ambient_coefficient;
+uniform float diffuse_coefficient;
+uniform float specular_coefficient;
+uniform float specular_exponent;
+uniform float background_opacity;
+uniform float foreground_opacity;
+uniform float depth_peel;
+
+
+void main() {
+	int steps = ${iterations};
+	vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
+	vec3 ray_start = vertex_color.xyz;
+	//ray_start.z = 1. - ray_start.z;
+	//ray_end.z = 1. - ray_end.z;
+	float length = 0.;
+	vec3 ray_dir = (ray_end - ray_start);
+	vec3 ray_delta = ray_dir / float(steps);
+	float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
+	vec3 ray_pos = ray_start;
+	float value = 0.;
+	//mat3 direction_matrix = inverse(mat3(transpose(inverse(gl_ModelViewProjectionMatrix))));
+	mat3 mat_temp = mat3(gl_ModelViewProjectionMatrix[0].xyz, gl_ModelViewProjectionMatrix[1].xyz, gl_ModelViewProjectionMatrix[2].xyz);
+	mat3 direction_matrix = mat_temp;
+	vec3 light_pos = (vec3(-100.,100., -100) * direction_matrix).zyx;
+	//vec3 light_pos = (direction_matrix * vec3(-5.,5., -100));
+	//vec3 origin = (direction_matrix * vec3(0., 0., 0)).xyz;
+	vec3 origin = (vec4(0., 0., 0., 0.)).xyz;
+	//vec3 light_pos = (vec4(-1000., 0., -1000, 1.)).xyz;
+	//mat3 mod = inverse(mat3(gl_ModelViewProjectionMatrix));
+	vec4 color = vec4(0, 0, 0, 0);
+	vec3 light_dir = light_pos - origin;
+	mat3 rotation = mat3(gl_ModelViewMatrix);
+	light_dir = vec3(-1,-1,1) * rotation;
+	light_dir = normalize(light_dir);// / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
+	float alpha_total = 0.;
+	//float normalize = log(maxvalue);
+	float intensity_total;
+	float data_min = minmax3d.x;
+	float data_max = minmax3d.y;
+	float data_scale = 1./(data_max - data_min);
+	float delta = 1.0/256./2;
+	//vec3 light_dir = vec3(1,1,-1);
+	vec3 eye = vec3(0, 0, 1) * rotation;
+	float depth_factor = 0.;
+
+	for(int i = 0; i < ${iterations}; i++) {
+		/*vec3 normal = texture3D(gradient, ray_pos).zyx;
+		normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
+		float cosangle = dot(light_dir, normal);
+		cosangle = clamp(cosangle, 0., 1.);*/
+
+
+		vec4 sample = texture3D(cube, ray_pos);
+		vec4 sample_x = texture3D(cube, ray_pos + vec3(delta, 0, 0));
+		vec4 sample_y = texture3D(cube, ray_pos + vec3(0, delta, 0));
+		vec4 sample_z = texture3D(cube, ray_pos + vec3(0, 0, delta));
+		if(1==1) {
+			vec3 normal = normalize(vec3((sample_x[0]-sample[0])/delta, (sample_y[0]-sample[0])/delta, (sample_z[0]-sample[0])/delta));
+			normal = -vec3(normal.x, normal.y, -normal.z);
+			//normal *= -sign(normal.z);
+			// since the 'surfaces' have two sides, the absolute of the normal is fine
+			float cosangle_light = max(abs(dot(light_dir, normal)), 0.);
+			float cosangle_eye = max(abs(dot(eye, normal)), 0.);
+
+			float data_value = (sample[0]/1000. - data_min) * data_scale;
+			depth_factor = clamp(depth_factor + (data_value > depth_peel ? 1. : 0.), 0., 1.);
+			vec4 color_sample = texture1D(transfer_function, data_value);
+
+
+			//vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
+			float alpha_sample = color_sample.a * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length; //function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+			alpha_sample = clamp(alpha_sample * foreground_opacity, 0., 1.);
+			alpha_sample *= depth_factor;
+			color_sample = color_sample * (ambient_coefficient + diffuse_coefficient*cosangle_light + specular_coefficient * pow(cosangle_eye, specular_exponent));
+			//color_sample = vec4(normal, 1.);
+			color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+			alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+			if(alpha_total >= 1.)
+				break;
+		}
+		if(1==0) {
+			vec3 normal = normalize(-vec3((sample_x[1]-sample[1])/delta, (sample_y[1]-sample[1])/delta, (sample_z[1]-sample[1])/delta));
+			normal = -vec3(normal.x, normal.y, -normal.z);
+			float cosangle_light = max(dot(light_dir, normal), 0.);
+			float cosangle_eye = max(dot(eye, normal), 0.);
+
+			float data_value = (sample[1]/1000. - data_min) * data_scale;
+			vec4 color_sample = texture1D(transfer_function, data_value);
+
+			//vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
+			float alpha_sample = color_sample.a * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length; //function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
+			alpha_sample = clamp(alpha_sample * background_opacity, 0., 1.);
+			color_sample = color_sample * (ambient_coefficient + diffuse_coefficient*cosangle_light + specular_coefficient * pow(cosangle_eye, specular_exponent));
+			//color_sample = vec4(normal, 1.);
+			color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
+			alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
+			if(alpha_total >= 1.)
+				break;
+		}
+		ray_pos += ray_delta;
+	}
+	gl_FragColor = vec4(color.rgb, alpha_total) * brightness; //brightness;
+	//gl_FragColor = vec4(ray_pos.xyz, 1) * 100.; //brightness;
+}
+""")
 
 try:
 	from PyQt4 import QtGui, QtCore
@@ -83,9 +212,32 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.arrow_model = Arrow(0, 0, 0, 4.)
 		self.update_timer = QtCore.QTimer(self)
 		self.update_timer.timeout.connect(self.orbit_progress)
-		self.update_timer.setInterval(40) # max 50 fps to save cpu/battery?
+		self.update_timer.setInterval(0) # max 50 fps to save cpu/battery?
+		self.ray_iterations = 500
+		self.depth_peel = 0.3
 		#self.orbit_start()
 		#self.update_timer.setSingleShot(False)
+
+	def set_iterations(self, iterations):
+		self.ray_iterations = iterations
+		self.shader_ray_cast = self.create_shader_ray_cast()
+
+	def setResolution(self, size):
+		self.texture_size  = size
+		self.makeCurrent()
+		#self.textures = self.texture_backside, self.texture_final = glGenTextures(2)
+		#print "textures", self.textures
+		for texture in [self.texture_backside, self.texture_final]:
+			glBindTexture(GL_TEXTURE_2D, texture)
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
+			glBindTexture(GL_TEXTURE_2D, 0)
+
+		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
+		glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.texture_backside, 0);
+		glBindRenderbuffer(GL_RENDERBUFFER, self.render_buffer);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, self.texture_size, self.texture_size);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.render_buffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
 	def orbit_start(self):
@@ -110,14 +262,14 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#else:
 		#	self.orbit_angle = 0
 		self.updateGL()
-		#glFinish()
+		glFinish()
 		#if self.orbiting:
 			#ms_spend = (time.time() - self.orbit_time_previous) * 1000
 			#QtCore.QTimer.singleShot(max(0, self.orbit_delay - ms_spend), self.orbit_progress)
 			#QtCore.QTimer.singleShot(50, self.orbit_progress)
 		#self.orbit_time_previous = time.time() # orbit_time_now
 		fps = 1./delta_time
-		if 1: #@fps < 40:
+		if 1: #fps < 16:
 			stutter_time = time.time()
 			print ".", fps, stutter_time - self.stutter_last
 			self.stutter_last = stutter_time
@@ -143,9 +295,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			}""",GL_FRAGMENT_SHADER)
 		return shaders.compileProgram(self.vertex_shader_color, self.fragment_shader_color)
 
-	def create_shader(self):
-		
-
+	def create_shader_ray_cast(self):
 		self.vertex_shader = shaders.compileShader("""
 			varying vec4 vertex_color;
 			void main() {
@@ -155,308 +305,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				vertex_color =  gl_Vertex /80. + vec4(0.5, 0.5, 0.5, 0.);
 				vertex_color.z = 1.-vertex_color.z;
 			}""",GL_VERTEX_SHADER)
-		self.fragment_shader = shaders.compileShader("""
-			varying vec4 vertex_color;
-			uniform sampler1D texture_colormap; 
-			uniform sampler2D texture; 
-			uniform sampler3D cube; 
-			uniform sampler3D gradient;
-			uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
-			uniform vec2 minmax2d;
-			uniform vec2 minmax3d;
-			uniform vec2 minmax3d_total;
-			//uniform float maxvalue2d;
-			//uniform float maxvalue3d;
-			uniform float alpha_mod; // mod3
-			uniform float mod4;  // mafnifier
-			uniform float mod5; // blend color and line integral
-			uniform float mod6; 
-			void main() {
-				//gl_FragColor = vertex_color;
-				//gl_FragColor = texture2D(texture, gl_FragCoord.xy/2.);// * 0.8;
-				//gl_FragColor = texture2D(texture, vec2(44, 44));
-				//  0.8;
-				//gl_FragColor = texture2D(texture, gl_FragCoord.xy/128.) * 0.8;
-				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
-				vec3 ray_start = vertex_color.xyz;
-				float length = 0.;
-				vec3 ray_dir = ray_end - ray_start;
-				vec3 ray_delta = ray_dir / 200.;
-				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
-				vec3 pos = ray_start;
-				float value = 0.;
-				//mat3 direction_matrix = inverse(mat3(transpose(inverse(gl_ModelViewProjectionMatrix))));
-				//mat3 direction_matrix = transpose(mat3(gl_ModelViewProjectionMatrix));
-				//vec3 light_pos = (direction_matrix * vec3(-100.,100., -100)).zyx;
-				//vec3 light_pos = (direction_matrix * vec3(-5.,5., -100));
-				//vec3 origin = (direction_matrix * vec3(0., 0., 0)).xyz;
-				vec3 origin = (vec4(0., 0., 0., 0.)).xyz;
-				vec3 light_pos = (vec4(-1000., 0., -1000, 1.)).xyz;
-				//mat3 mod = inverse(mat3(gl_ModelViewProjectionMatrix));
-				vec4 color;
-				vec3 light_dir = light_pos - origin;
-				//light_dir = vec3(-1,-1,1);
-				light_dir = light_dir / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
-				float alpha_total = 0.;
-				//float normalize = log(maxvalue);
-				float intensity_total;
-				for (int n = 0; n < 200; n++)  {
-					//float fraction = float(n) / float(1000);
-					//float z_depth = fraction*ray_length;
-					//float current_value = texture3D(gradient, pos).b;
-					//vec3 normal = texture3D(gradient, pos).zyx;
-					//normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
-					//float cosangle = -dot(light_dir, normal);
-					float cosangle = 1.;
-					//cosangle = clamp(cosangle, 0.0, 1.);;
-					//float cosangle = 1.0;
-					//float s = 0.0001;
-					//value = value + current_value*exp(-(pow(pos.x - 0.5, 2)/s));//+pow(pos.y - 0.5, 2)/s+pow(pos.z - 0.5, 2)/s));
-					//value = value + current_value;
-					//*max(max(exp(-(pow(pos.x - 0.5, 2)/s)), exp(-(pow(pos.y - 0.5, 2)/s))), exp(-(pow(pos.z - 0.5, 2)/s)));
-					//+pow(pos.y - 0.5, 2)/s+pow(pos.z - 0.5, 2)/s));
-					
-					float intensity = texture3D(cube, pos).r;
-					float intensity_normalized = (log(intensity + 1.) - log(minmax3d.x)) / (log(minmax3d.y) - log(minmax3d.x));
-					
-					//intensity_normalized = clamp(cosangle, 0., 1.);
-					vec4 color_sample = texture1D(texture_colormap, intensity_normalized);// * clamp(cosangle, 0.1, 1.);
-					//color_sample = color_sample * clamp(cosangle, 0., 1.) * 15.;
-					//color_sample = texture1D(texture_colormap, cosangle * 2. - 1.);
-					float alpha_sample = 10./200. * alpha_mod  * intensity_normalized;// * clamp(cosangle+0.2, 0.0, 1.);;
-					alpha_sample = clamp(alpha_sample, 0., 1.);
-					
-					
-					intensity_total += intensity;
-					
-					
-					color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
-					alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
-					
-					float border_level = log(minmax3d_total.x) + (log(minmax3d_total.y) - log(minmax3d_total.x)) * mod6 * 0.5;
-					float alpha_sample_border = exp(-pow(border_level-log(intensity)/3.,2.)) * mod5;// * clamp(cosangle, 0.1, 1);
-
-					float ambient = 0.5; //atan(log(mod4)) / 3.14159 + 0.5 ;
-					vec4 color_border = vec4(1,1,1,1);// * (ambient + clamp(cosangle, 0, 1.-ambient));
-					//vec4 color_border = vec4(normal.xyz, 1);// * clamp(cosangle, 0.1, 1);
-					color = color + (1.0 - alpha_total) * color_border * alpha_sample_border;
-					alpha_total = clamp(alpha_total + alpha_sample_border, 0., 1.);
-					
-					pos += ray_delta;
-					
-				}
-				gl_FragColor = vec4(color) * mod4;// / pow(0.9*alpha_total + 0.1, 1.0); // / sqrt(color.r*color.r + color.b*color.b + color.g*color.g);
-				//value *= 10;
-				//gl_FragColor = vec4(ray_end, 1);
-				//gl_FragColor = vec4(texture1D(texture_colormap, clamp(log(value*0.0001*ray_length+1)/log(10) * 1.2 - 0.1, 0.01, 0.99)).rgb, 1);
-				//gl_FragColor = vec4(texture1D(texture_colormap, log(value*1.1+1.) ).rgb, 1);
-				float scale = log(minmax2d.y)/log(10.) - log(minmax2d.x)/log(10.);
-				float intensity_total_scaled = (log(intensity_total+1.)/log(10.)-log(minmax2d.x)/log(10.)) / scale;
-				//scaled = value / 100.;
-				vec4 line_color = vec4(texture1D(texture_colormap, intensity_total_scaled).rgb, 1);
-				//gl_FragColor = line_color;
-				//float blend = atan(log(mod5)) / 3.14159 + 0.5 ;
-				//vec3 = gl_ModelViewProjectionMatrix
-				//gl_FragColor = vec4(light_dir, 1.);
-				//gl_FragColor = (blend * line_color + (1.-blend) * vec4(color)*mod6) * mod4;
-				//gl_FragColor = vec4(value, 0, 0, 1);
-				//gl_FragColor = texture3D(cube, vec3(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y, 0.5) );
-				//gl_FragColor = texture3D(gradient, vec3(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y, 0.5) );
-				//gl_FragColor = vec4(ray_start, 1);
-			}""",GL_FRAGMENT_SHADER)
-		self.fragment_shader = shaders.compileShader("""
-			varying vec4 vertex_color;
-			uniform sampler1D texture_colormap; 
-			uniform sampler2D texture; 
-			uniform sampler3D cube; 
-			uniform sampler3D gradient;
-			uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
-			uniform vec2 minmax2d;
-			uniform vec2 minmax3d;
-			uniform vec2 minmax3d_total;
-			//uniform float maxvalue2d;
-			//uniform float maxvalue3d;
-			uniform float alpha_mod; // mod3
-			uniform float mod4;  // mafnifier
-			uniform float mod5; // blend color and line integral
-			uniform float mod6; 
-
-			uniform float function_opacities[3];
-			uniform float function_means[3];
-			uniform float function_sigmas[3];
-			
-			uniform float brightness;
-			
-			
-			void main() {
-				int steps = 500;
-				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
-				vec3 ray_start = vertex_color.xyz;
-				ray_start.z = 1.-ray_start.z;
-				float length = 0.;
-				vec3 ray_dir = (ray_end - ray_start);
-				vec3 ray_delta = ray_dir / float(steps);
-				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
-				vec3 ray_pos = ray_start;
-				float value = 0.;
-				//mat3 direction_matrix = inverse(mat3(transpose(inverse(gl_ModelViewProjectionMatrix))));
-				//mat3 direction_matrix = transpose(mat3(gl_ModelViewProjectionMatrix));
-				//vec3 light_pos = (direction_matrix * vec3(-100.,100., -100)).zyx;
-				//vec3 light_pos = (direction_matrix * vec3(-5.,5., -100));
-				//vec3 origin = (direction_matrix * vec3(0., 0., 0)).xyz;
-				vec3 origin = (vec4(0., 0., 0., 0.)).xyz;
-				vec3 light_pos = (vec4(-1000., 0., -1000, 1.)).xyz;
-				//mat3 mod = inverse(mat3(gl_ModelViewProjectionMatrix));
-				vec4 color = vec4(0, 0, 0, 0);
-				vec3 light_dir = light_pos - origin;
-				//light_dir = vec3(-1,-1,1);
-				light_dir = light_dir / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
-				float alpha_total = 0.;
-				//float normalize = log(maxvalue);
-				float intensity_total;
-				float data_min = minmax3d.x;
-				float data_max = minmax3d.y;
-				float data_scale = 1./(data_max - data_min);
-				for(int i = 0; i < 500; i++) {
-					vec4 sample = texture3D(cube, ray_pos);
-					for(int j = 0; j < 3; j++) {
-						float data_value = (sample.r - data_min) * data_scale;
-						//float volume_level_value = (function_means[j] - data_min) * data_scale;
-						float chi = (data_value-function_means[j])/function_sigmas[j];
-						float chisq = pow(chi, 2.);
-						float intensity = exp(-chisq);
-						vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
-						float alpha_sample = function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
-						alpha_sample = clamp(alpha_sample, 0., 1.);
-						color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
-						alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
-						if(alpha_total >= 1.)
-							break;
-					}
-					ray_pos += ray_delta;
-				}
-				gl_FragColor = vec4(color.rgb, alpha_total) * brightness; //brightness;
-				//gl_FragColor = vec4(ray_pos.xyz, 1) * 100.; //brightness;
-			}""",GL_FRAGMENT_SHADER)
-		
-		self.fragment_shader = shaders.compileShader("""
-		#version 120
-			varying vec4 vertex_color;
-			uniform sampler1D texture_colormap; 
-			uniform sampler2D texture; 
-			uniform sampler3D cube; 
-			uniform sampler3D gradient;
-			uniform vec2 size; // size of screen/fbo, to convert between pixels and uniform
-			//uniform vec2 minmax2d;
-			uniform vec2 minmax3d;
-			//uniform vec2 minmax3d_total;
-			//uniform float maxvalue2d;
-			//uniform float maxvalue3d;
-			uniform float alpha_mod; // mod3
-			uniform float mod4;  // mafnifier
-			uniform float mod5; // blend color and line integral
-			uniform float mod6; 
-
-			uniform sampler1D transfer_function; 
-			
-			uniform float brightness;
-			uniform float ambient_coefficient;
-			uniform float diffuse_coefficient;
-			uniform float specular_coefficient;
-			uniform float specular_exponent;
-			uniform float background_opacity;
-			uniform float foreground_opacity;
-
-			
-			void main() {
-				int steps = 500;
-				vec3 ray_end = vec3(texture2D(texture, vec2(gl_FragCoord.x/size.x, gl_FragCoord.y/size.y)));
-				vec3 ray_start = vertex_color.xyz;
-				//ray_start.z = 1. - ray_start.z;
-				//ray_end.z = 1. - ray_end.z;
-				float length = 0.;
-				vec3 ray_dir = (ray_end - ray_start);
-				vec3 ray_delta = ray_dir / float(steps);
-				float ray_length = sqrt(ray_dir.x*ray_dir.x + ray_dir.y*ray_dir.y + ray_dir.z*ray_dir.z);
-				vec3 ray_pos = ray_start;
-				float value = 0.;
-				//mat3 direction_matrix = inverse(mat3(transpose(inverse(gl_ModelViewProjectionMatrix))));
-				mat3 mat_temp = mat3(gl_ModelViewProjectionMatrix[0].xyz, gl_ModelViewProjectionMatrix[1].xyz, gl_ModelViewProjectionMatrix[2].xyz);
-				mat3 direction_matrix = mat_temp;
-				vec3 light_pos = (vec3(-100.,100., -100) * direction_matrix).zyx;
-				//vec3 light_pos = (direction_matrix * vec3(-5.,5., -100));
-				//vec3 origin = (direction_matrix * vec3(0., 0., 0)).xyz;
-				vec3 origin = (vec4(0., 0., 0., 0.)).xyz;
-				//vec3 light_pos = (vec4(-1000., 0., -1000, 1.)).xyz;
-				//mat3 mod = inverse(mat3(gl_ModelViewProjectionMatrix));
-				vec4 color = vec4(0, 0, 0, 0);
-				vec3 light_dir = light_pos - origin;
-				mat3 rotation = mat3(gl_ModelViewMatrix);
-				light_dir = vec3(-1,-1,1) * rotation;
-				light_dir = normalize(light_dir);// / sqrt(light_dir.x*light_dir.x + light_dir.y*light_dir.y + light_dir.z*light_dir.z);
-				float alpha_total = 0.;
-				//float normalize = log(maxvalue);
-				float intensity_total;
-				float data_min = minmax3d.x;
-				float data_max = minmax3d.y;
-				float data_scale = 1./(data_max - data_min);
-				float delta = 1.0/256./2;
-				//vec3 light_dir = vec3(1,1,-1);
-				vec3 eye = vec3(0, 0, 1) * rotation;
-				for(int i = 0; i < 500; i++) {
-					/*vec3 normal = texture3D(gradient, ray_pos).zyx;
-					normal = normal/ sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
-					float cosangle = dot(light_dir, normal);
-					cosangle = clamp(cosangle, 0., 1.);*/
-
-
-					vec4 sample = texture3D(cube, ray_pos);
-					vec4 sample_x = texture3D(cube, ray_pos + vec3(delta, 0, 0));
-					vec4 sample_y = texture3D(cube, ray_pos + vec3(0, delta, 0));
-					vec4 sample_z = texture3D(cube, ray_pos + vec3(0, 0, delta));
-					if(1==1) {
-						vec3 normal = normalize(vec3((sample_x[0]-sample[0])/delta, (sample_y[0]-sample[0])/delta, (sample_z[0]-sample[0])/delta));
-						normal = -vec3(normal.x, normal.y, -normal.z);
-						float cosangle_light = max(dot(light_dir, normal), 0.);
-						float cosangle_eye = max(dot(eye, normal), 0.);
-
-						float data_value = (sample[0]/1000. - data_min) * data_scale;
-						vec4 color_sample = texture1D(transfer_function, data_value);
-
-						//vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
-						float alpha_sample = color_sample.a * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length; //function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
-						alpha_sample = clamp(alpha_sample * foreground_opacity, 0., 1.);
-						color_sample = color_sample * (ambient_coefficient + diffuse_coefficient*cosangle_light + specular_coefficient * pow(cosangle_eye, specular_exponent));
-						//color_sample = vec4(normal, 1.);
-						color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
-						alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
-						if(alpha_total >= 1.)
-							break;
-					}
-					if(1==1) {
-						vec3 normal = normalize(-vec3((sample_x[1]-sample[1])/delta, (sample_y[1]-sample[1])/delta, (sample_z[1]-sample[1])/delta));
-						normal = -vec3(normal.x, normal.y, -normal.z);
-						float cosangle_light = max(dot(light_dir, normal), 0.);
-						float cosangle_eye = max(dot(eye, normal), 0.);
-
-						float data_value = (sample[1]/1000. - data_min) * data_scale;
-						vec4 color_sample = texture1D(transfer_function, data_value);
-
-						//vec4 color_sample = texture1D(texture_colormap, data_value);// * clamp(cosangle, 0.1, 1.);
-						float alpha_sample = color_sample.a * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length; //function_opacities[j]*intensity * sign(data_value) * sign(1.-data_value) / float(steps) * 100.* ray_length ;//clamp(1.-chisq, 0., 1.) * 0.5;//1./128.* length(color_sample) * 100.;
-						alpha_sample = clamp(alpha_sample * background_opacity, 0., 1.);
-						color_sample = color_sample * (ambient_coefficient + diffuse_coefficient*cosangle_light + specular_coefficient * pow(cosangle_eye, specular_exponent));
-						//color_sample = vec4(normal, 1.);
-						color = color + (1.0 - alpha_total) * color_sample * alpha_sample;
-						alpha_total = clamp(alpha_total + alpha_sample, 0., 1.);
-						if(alpha_total >= 1.)
-							break;
-					}
-					ray_pos += ray_delta;
-				}
-				gl_FragColor = vec4(color.rgb, alpha_total) * brightness; //brightness;
-				//gl_FragColor = vec4(ray_pos.xyz, 1) * 100.; //brightness;
-			}""",GL_FRAGMENT_SHADER)
+		self.fragment_shader = shaders.compileShader(ray_cast_fragment_source.substitute(iterations=self.ray_iterations),GL_FRAGMENT_SHADER)
 		
 		return shaders.compileProgram(self.vertex_shader, self.fragment_shader)
 
@@ -793,21 +642,21 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 		
 
-		glUseProgram(self.shader)
-		loc = glGetUniformLocation(self.shader, "texture");
+		glUseProgram(self.shader_ray_cast)
+		loc = glGetUniformLocation(self.shader_ray_cast, "texture");
 		glUniform1i(loc, 0); # texture unit 0
 		glBindTexture(GL_TEXTURE_2D, self.texture_backside)
 		glEnable(GL_TEXTURE_2D)
 		glActiveTexture(GL_TEXTURE0);
 		
 		
-		loc = glGetUniformLocation(self.shader, "cube");
+		loc = glGetUniformLocation(self.shader_ray_cast, "cube");
 		glUniform1i(loc, 1); # texture unit 1
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_3D, self.texture_cube)
 		#glEnable(GL_TEXTURE_3D)
 
-		loc = glGetUniformLocation(self.shader, "texture_colormap");
+		loc = glGetUniformLocation(self.shader_ray_cast, "texture_colormap");
 		glUniform1i(loc, 2); # texture unit 2
 		glActiveTexture(GL_TEXTURE2);
 		#index = gavi.vaex.colormaps.colormaps.index("afmhot")
@@ -816,7 +665,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glEnable(GL_TEXTURE_1D)
 
 		if 1:
-			loc = glGetUniformLocation(self.shader, "transfer_function");
+			loc = glGetUniformLocation(self.shader_ray_cast, "transfer_function");
 			glUniform1i(loc, 3); # texture unit 3
 			glActiveTexture(GL_TEXTURE3);
 			#index = gavi.vaex.colormaps.colormaps.index("afmhot")
@@ -838,7 +687,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			glEnable(GL_TEXTURE_1D)
 			
 		if 0:
-			loc = glGetUniformLocation(self.shader, "gradient");
+			loc = glGetUniformLocation(self.shader_ray_cast, "gradient");
 			glUniform1i(loc, 4); # texture unit 4
 			glActiveTexture(GL_TEXTURE4);
 			glEnable(GL_TEXTURE_3D)
@@ -846,43 +695,46 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				
 		glActiveTexture(GL_TEXTURE0);
 		
-		size = glGetUniformLocation(self.shader,"size");
+		size = glGetUniformLocation(self.shader_ray_cast,"size");
 		glUniform2f(size, self.texture_size, self.texture_size);
 		
-		#maxvalue = glGetUniformLocation(self.shader,"maxvalue");
+		depth_peel = glGetUniformLocation(self.shader_ray_cast,"depth_peel");
+		glUniform1f(depth_peel, self.depth_peel);
+
+		#maxvalue = glGetUniformLocation(self.shader_ray_cast,"maxvalue");
 		#glUniform1f(maxvalue, self.data3d.max()*10**self.mod2);
 		
 		
-		#minmax = glGetUniformLocation(self.shader,"minmax2d");
+		#minmax = glGetUniformLocation(self.shader_ray_cast,"minmax2d");
 		#glUniform2f(minmax, 1*10**self.mod1, self.grid2d_max*10**self.mod2);
 
-		minmax = glGetUniformLocation(self.shader,"minmax3d");
+		minmax = glGetUniformLocation(self.shader_ray_cast,"minmax3d");
 		#xmin =  self.grid_min +  (self.grid_max -  self.grid_min) * self.min_level;
 		#xmax =  self.grid_min +  (self.grid_max -  self.grid_min) * self.max_level;
 		glUniform2f(minmax, self.min_level, self.max_level);
 		
-		#minmax3d_total = glGetUniformLocation(self.shader,"minmax3d_total");
+		#minmax3d_total = glGetUniformLocation(self.shader_ray_cast,"minmax3d_total");
 		#glUniform2f(minmax3d_total, self.grid_min, self.grid_max);
 		
-		glUniform1f(glGetUniformLocation(self.shader,"brightness"), self.brightness);
-		glUniform1f(glGetUniformLocation(self.shader,"background_opacity"), self.background_opacity);
-		glUniform1f(glGetUniformLocation(self.shader,"foreground_opacity"), self.foreground_opacity);
+		glUniform1f(glGetUniformLocation(self.shader_ray_cast,"brightness"), self.brightness);
+		glUniform1f(glGetUniformLocation(self.shader_ray_cast,"background_opacity"), self.background_opacity);
+		glUniform1f(glGetUniformLocation(self.shader_ray_cast,"foreground_opacity"), self.foreground_opacity);
 
 		
-		glUniform1fv(glGetUniformLocation(self.shader,"function_means"), self.function_count, self.function_means);
-		glUniform1fv(glGetUniformLocation(self.shader,"function_sigmas"), self.function_count, self.function_sigmas);
-		glUniform1fv(glGetUniformLocation(self.shader,"function_opacities"), self.function_count, self.function_opacities);
+		glUniform1fv(glGetUniformLocation(self.shader_ray_cast,"function_means"), self.function_count, self.function_means);
+		glUniform1fv(glGetUniformLocation(self.shader_ray_cast,"function_sigmas"), self.function_count, self.function_sigmas);
+		glUniform1fv(glGetUniformLocation(self.shader_ray_cast,"function_opacities"), self.function_count, self.function_opacities);
 
 		for name in ["ambient_coefficient", "diffuse_coefficient", "specular_coefficient", "specular_exponent"]:
-			glUniform1f(glGetUniformLocation(self.shader, name), getattr(self, name))
+			glUniform1f(glGetUniformLocation(self.shader_ray_cast, name), getattr(self, name))
 		
 
-		alpha_mod = glGetUniformLocation(self.shader,"alpha_mod");
+		alpha_mod = glGetUniformLocation(self.shader_ray_cast,"alpha_mod");
 		glUniform1f(alpha_mod , 10**self.mod3);
 		
 		for i in range(4,7):
 			name = "mod" + str(i)
-			mod = glGetUniformLocation(self.shader, name)
+			mod = glGetUniformLocation(self.shader_ray_cast, name)
 			glUniform1f(mod, 10**getattr(self, name));
 		
 		
@@ -1135,7 +987,6 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glViewport(0, 0, w, h)
 		
 	def initializeGL(self):
-		self.thread().setPriority(QtCore.QThread.Priority.TimeCriticalPriority)
 
 		colormaps = gavi.vaex.colormaps.colormaps
 		Nx, Ny = self.texture_function_size, 16
@@ -1250,7 +1101,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#pylab.show()
 
 
-		self.shader = self.create_shader()
+		self.shader_ray_cast = self.create_shader_ray_cast()
 		self.shader_color = self.create_shader_color()
 		self.shader_vectorfield = self.create_shader_vectorfield()
 		self.shader_vectorfield_color = self.create_shader_vectorfield_color()
@@ -1536,8 +1387,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			
 		
 		self.mouse_x, self.mouse_y = x, y
-		if self.mouse_button_down or self.mouse_button_down_right:
-			self.update()
+		if not  self.update_timer.isActive() and (self.mouse_button_down or self.mouse_button_down_right):
+			self.updateGL()
 		
 	def mousePressEvent(self, event):
 		if event.button() == QtCore.Qt.LeftButton:
