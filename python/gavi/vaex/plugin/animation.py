@@ -14,7 +14,7 @@ import numpy as np
 
 logger = gavi.logging.getLogger("plugin.dispersions")
 
-class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
+class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
 	name = "animation"
 	def __init__(self, dialog):
 		super(AnimationPlugin, self).__init__(dialog)

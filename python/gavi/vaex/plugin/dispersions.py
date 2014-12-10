@@ -96,7 +96,7 @@ class DispersionEllipse(patches.Patch):
 		return (x * x + y * y) <= 1.0, {}
 
 
-class DispersionPlugin(gavi.vaex.plugin.PluginPlot):
+class DispersionPlugin(gavi.vaex.plugin.PluginLayer):
 	name = "dispersion"
 	def __init__(self, dialog):
 		super(DispersionPlugin, self).__init__(dialog)

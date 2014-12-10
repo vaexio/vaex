@@ -14,7 +14,7 @@ from gavi.vaex import widgets
 logger = gavi.logging.getLogger("plugin.transferfunction")
 
 
-class TransferFunctionPlugin(gavi.vaex.plugin.PluginPlot):
+class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 	name = "transferfunction"
 	def __init__(self, dialog):
 		super(TransferFunctionPlugin, self).__init__(dialog)

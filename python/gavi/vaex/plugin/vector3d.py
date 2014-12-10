@@ -14,7 +14,7 @@ import numpy as np
 logger = gavi.logging.getLogger("plugin.zoom")
 
 
-class Vector3dPlugin(gavi.vaex.plugin.PluginPlot):
+class Vector3dPlugin(gavi.vaex.plugin.PluginLayer):
 	name = "vector3"
 	def __init__(self, dialog):
 		super(Vector3dPlugin, self).__init__(dialog)

@@ -768,7 +768,8 @@ class MainPanel(QtGui.QFrame):
 			self.histogram(xname)
 
 	def plotxy(self, xname, yname, **kwargs):
-		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, xname, yname, **kwargs)
+		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset)
+		dialog.add_layer([xname, yname], self.dataset, **kwargs)
 		dialog.show()
 		self.plot_dialogs.append(dialog)
 		self.jobsManager.execute()
@@ -1310,10 +1311,12 @@ class Vaex(QtGui.QMainWindow):
 			print "dataset", filename
 			self.list.addDataset(dataset)
 
+			# for this dataset, keep opening plots (seperated by -) or add layers (seperated by +)
+			plot = None
+			options = {}
 			while index < len(args) and args[index] != "--":
-				options = {}
 				columns = []
-				while  index < len(args) and args[index] != "-" and args[index] != "--":
+				while  index < len(args) and args[index] not in ["+", "-", "--"]:
 					if "=" in args[index]:
 						key, value = args[index].split("=",1)
 						if ":" in key:
@@ -1330,14 +1333,19 @@ class Vaex(QtGui.QMainWindow):
 						columns.append(args[index])
 					index += 1
 				print "\tplot", columns, options
-				if len(columns) == 1:
-					self.right.histogram(columns[0], **options)
-				elif len(columns) == 2:
-					self.right.plotxy(columns[0], columns[1], **options)
-				elif len(columns) == 3:
-					self.right.plotxyz(columns[0], columns[1], columns[2], **options)
+				if plot is None:
+					if len(columns) == 1:
+						plot = self.right.histogram(columns[0], **options)
+					elif len(columns) == 2:
+						plot = self.right.plotxy(columns[0], columns[1], **options)
+					elif len(columns) == 3:
+						plot = self.right.plotxyz(columns[0], columns[1], columns[2], **options)
+					else:
+						error("cannot plot more than 3 columns yet: %r" % columns)
 				else:
-					error("cannot plot more than 2 columns yet: %r" % columns)
+					plot.add_layer(columns, **options)
+				if index < len(args) and args[index] == "-":
+					plot = None # set to None to create a new plot, + will do a new layer
 				if index < len(args) and args[index] == "--":
 					break # break out for the next dataset
 				index += 1
