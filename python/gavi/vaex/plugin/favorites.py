@@ -77,7 +77,7 @@ class FavStorePlugin(gavi.vaex.plugin.PluginPlot):
 
 	def plug_toolbar(self):
 		logger.info("adding %s plugin" % self.name)
-		self.menu = QtGui.QMenu("Favorites")
+		self.menu = QtGui.QMenu("F&avorites")
 		self.dialog.menu_bar.addMenu(self.menu)
 
 		self.action_store  = QtGui.QAction(QtGui.QIcon(iconfile('star')), 'Store', self.dialog)

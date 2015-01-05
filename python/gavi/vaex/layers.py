@@ -10,6 +10,7 @@ import gavi.vaex.grids
 from gavi.icons import iconfile
 import numpy as np
 import scipy.ndimage
+import matplotlib.colors
 
 __author__ = 'maartenbreddels'
 
@@ -156,6 +157,10 @@ class LayerTable(object):
 		self.compute_counter = 0
 		self.sequence_index = 0
 		self.alpha = float(self.options.get("alpha", "1."))
+		self.color = self.options.get("color")
+		self.level_min = 0.
+		self.level_max = 1.
+		self.use_intensity = bool(self.options.get("use_intensity", True))
 
 
 		self.vector_grid_size = eval(self.options.get("vector_grid_size", "16"))
@@ -209,6 +214,8 @@ class LayerTable(object):
 		self.dataset.row_selection_listeners.append(self.onSelectRow)
 		self.dataset.serie_index_selection_listeners.append(self.onSerieIndexSelect)
 		self.plot_density = self.plot_density_imshow
+		self.signal_expression_change = gavi.events.Signal("expression_change")
+		self.signal_plot_dirty = gavi.events.Signal("plot_dirty")
 
 	def create_grid_map(self, gridsize, use_selection):
 		locals = {}
@@ -265,7 +272,7 @@ class LayerTable(object):
 		amplitude = eval(expression, globals, locals)
 		return amplitude
 
-	def plot(self, axes):
+	def plot(self, axes, stack_image):
 		grid_map = self.create_grid_map(self.grid_size, False)
 		try:
 			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
@@ -279,21 +286,67 @@ class LayerTable(object):
 			grid_map_selection = self.create_grid_map(self.grid_size, True)
 			amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
 
-		self.plot_density(axes, amplitude, amplitude_selection)
+		self.plot_density(axes, amplitude, amplitude_selection, stack_image)
 
 		grid_map_vector = self.create_grid_map(self.vector_grid_size, use_selection)
 		for callback in self.plugin_grids_draw:
 			callback(axes, grid_map, grid_map_vector)
 
-	def plot_density_imshow(self, axes, amplitude, amplitude_selection):
+	def plot_density_imshow(self, axes, amplitude, amplitude_selection, stack_image):
+		if not self.visible:
+			return
 		ranges = []
 		for minimum, maximum in self.ranges_grid:
 			ranges.append(minimum)
 			ranges.append(maximum)
 		use_selection = amplitude_selection is not None
-		axes.imshow(self.contrast(amplitude), origin="lower", extent=ranges, alpha=(0.4 if use_selection else 1.0) * self.alpha, cmap=self.colormap)
-		if use_selection:
-			axes.imshow(self.contrast(amplitude_selection), origin="lower", extent=ranges, alpha=self.alpha, cmap=self.colormap)
+		#if isinstance(self.colormap, basestring):
+		print amplitude.min(), amplitude.max()
+		I = self.contrast(amplitude)
+		# scale to [0,1]
+		I -= I.min()
+		I /= I.max()
+
+		# scale [min, max] to [0, 1]
+		I -= self.level_min
+		I /= (self.level_max - self.level_min)
+
+		if self.color is not None:
+			color_tuple = matplotlib.colors.colorConverter.to_rgb(self.color)
+			rgba = np.zeros(I.shape + (4,), dtype=np.float64)
+			#print rgba[:,:,0:3].shape, np.array(color_tuple).shape
+			print "color", self.color, color_tuple
+			rgba[:,:,0:3] = np.array(color_tuple)
+		else:
+			cmap = matplotlib.cm.cmap_d[self.colormap]
+			rgba = cmap(I * 1.00)
+			rgba[:,:,3] = (np.clip((I**1.0) * self.alpha, 0, 1))
+		if self.use_intensity:
+			rgba[:,:,3] = (np.clip((I**1.0) * self.alpha, 0, 1)) * self.alpha
+		else:
+			rgba[:,:,3] = 1. * self.alpha
+		print "!@# " * 20
+		print I.min(), I.max()
+		#rgba[:,:,3] = np.clip(I, 0, 1) ** 1.0 * self.alpha
+		#rgba[:,:,3] = (np.clip(I, 0, 1) * 0.0 +1)* self.alpha
+		if 0:
+			c = rgba[0,0,:]
+			#c = [ 0.96862745,  0.98431373,  1.,          0.1-0.00186294143]
+			c = [1., 1., 1., 0.5]
+			x = np.linspace(0, 1, rgba.shape[0])
+			x, y = np.meshgrid(x, x)
+			rgba[:,:,0] = x * 0 + 1
+			rgba[:,:,1] = x * 0 + 0
+			rgba[:,:,2] = x * 0 + 0
+			rgba[:,:,3] = x # * 0 + 1
+			#rgba = (rgba * 255).astype(np.uint8)
+			print c
+		stack_image(rgba)
+		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=(0.4 if use_selection else 1.0) * self.alpha, cmap=self.colormap)
+		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=self.alpha)
+		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=self.alpha)
+		#if use_selection:
+		#	axes.imshow(self.contrast(amplitude_selection), origin="lower", extent=ranges, alpha=self.alpha, cmap=self.colormap)
 
 
 	def onSelectMask(self, mask):
@@ -390,7 +443,7 @@ class LayerTable(object):
 				print "is None, so lets compute"
 				self.jobs_manager.addJob(0, functools.partial(calculate_range, axisIndex=axisIndex), self.dataset, self.expressions[axisIndex]) #, **self.getVariableDict())
 			else:
-				self.grids.ranges[axisIndex] = copy.deepcopy(self.ranges[axisIndex])
+				self.grids.ranges[axisIndex] = copy.deepcopy(self.ranges_grid[axisIndex])
 
 		#if self.weight_expression is None or len(self.weight_expression.strip()) == 0:
 		#	self.jobs_manager.addJob(1, self.calculate_visuals, self.dataset, *self.expressions, **self.getVariableDict())
@@ -466,7 +519,38 @@ class LayerTable(object):
 			self.toolbox.setCurrentWidget(page_frame)
 
 		self.widget = self.toolbox
+
+
 		return self.toolbox
+
+
+	def build_widget_qt_layer_control(self, parent):
+		self.widget_layer_control = self.group_box_layer_control = QtGui.QGroupBox(self.name, parent)
+		#self.widget_layer_control.setFlat(True)
+
+		self.layout_layer_control = QtGui.QGridLayout()
+		self.widget_layer_control.setLayout(self.layout_layer_control)
+		self.layout_layer_control.setSpacing(0)
+		self.layout_layer_control.setContentsMargins(0,0,0,0)
+
+		row = 0
+
+		self.visible = True
+		self.checkbox_visible = Checkbox(self.group_box_layer_control, "visible", getter=attrgetter(self, "visible"), setter=attrsetter(self, "visible"), update=self.signal_plot_dirty.emit)
+		row = self.checkbox_visible.add_to_grid_layout(row, self.layout_layer_control)
+
+		self.checkbox_intensity_as_opacity = Checkbox(self.group_box_layer_control, "use_intensity", getter=attrgetter(self, "use_intensity"), setter=attrsetter(self, "use_intensity"), update=self.signal_plot_dirty.emit)
+		row = self.checkbox_intensity_as_opacity.add_to_grid_layout(row, self.layout_layer_control)
+
+		self.slider_layer_alpha = Slider(self.group_box_layer_control, "opacity", 0, 1, 1000, getter=attrgetter(self, "alpha"), setter=attrsetter(self, "alpha"), update=self.signal_plot_dirty.emit)
+		row = self.slider_layer_alpha.add_to_grid_layout(row, self.layout_layer_control)
+
+		self.slider_layer_level_min = Slider(self.group_box_layer_control, "level_min", 0, 1, 1000, getter=attrgetter(self, "level_min"), setter=attrsetter(self, "level_min"), update=self.signal_plot_dirty.emit)
+		row = self.slider_layer_level_min.add_to_grid_layout(row, self.layout_layer_control)
+
+		self.slider_layer_level_max = Slider(self.group_box_layer_control, "level_max", 0, 1, 1000, getter=attrgetter(self, "level_max"), setter=attrsetter(self, "level_max"), update=self.signal_plot_dirty.emit)
+		row = self.slider_layer_level_max.add_to_grid_layout(row, self.layout_layer_control)
+
 
 
 	def get_expression_list(self):
@@ -480,7 +564,7 @@ class LayerTable(object):
 			return
 		self.expressions[axisIndex] = text
 		# TODO: range reset as option?
-		self.ranges[axisIndex] = None
+		self.ranges_grid[axisIndex] = None
 		# TODO: how to handle axis lock.. ?
 		#if not self.axis_lock:
 		#	self.ranges_show[axisIndex] = None
@@ -494,10 +578,12 @@ class LayerTable(object):
 			gavi.dataset.Link.sendCompute([link], [linkButton])
 		else:
 			logger.debug("not linked")
-		self.compute()
-		error_text = self.jobsManager.execute()
-		if error_text:
-			dialog_error(self, "Error in expression", "Error: " +error_text)
+		# let any event handler deal with redraw etc
+		self.signal_expression_change.emit(self, axisIndex, text)
+		#self.compute()
+		#error_text = self.jobsManager.execute()
+		#if error_text:
+		#	dialog_error(self, "Error in expression", "Error: " +error_text)
 
 	def onWeightExpr(self):
 		text = str(self.weight_box.lineEdit().text())
@@ -798,7 +884,8 @@ class LayerTable(object):
 					self.plugins_map["transferfunction"].tool.update()
 					self.widget_volume.colormap_index = index
 					self.widget_volume.update()
-				self.plot()
+				#self.plot()
+				self.signal_plot_dirty.emit(self)
 			cmapnames = "cmap colormap colourmap".split()
 			if not set(cmapnames).isdisjoint(self.options):
 				for name in cmapnames:

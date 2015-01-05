@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import math
+
 try:
 	from PyQt4 import QtGui, QtCore#, QtNetwork
 	#from PyQt4.QtWebKit import QWebView
@@ -16,6 +18,116 @@ except ImportError, e1:
 		print >>sys.stderr, "could not import PyQt4 or PySide, please install"
 		print >>sys.stderr, "errors: ", repr(e1), repr(e2)
 		sys.exit(1)
+
+def attrsetter(object, attr_name):
+	def setter(value):
+		setattr(object, attr_name, value)
+	return setter
+
+def attrgetter(object, attr_name):
+	def getter():
+		return getattr(object, attr_name)
+	return getter
+
+
+class Option(object):
+	def __init__(self, parent, label, options, getter, setter, update=lambda: None):
+		self.update = update
+		self.options = options
+		self.label = QtGui.QLabel(label, parent)
+		self.combobox = QtGui.QComboBox(parent)
+		self.combobox.addItems(options)
+		def wrap_setter(value, update=True):
+			self.combobox.setCurrentIndex(options.index(getter()))
+			setter(value)
+			if update:
+				self.update()
+		# auto getter and setter
+		setattr(self, "get_value", getter)
+		setattr(self, "set_value", wrap_setter)
+
+		def on_change(index):
+			setter(self.options[index])
+			update()
+		self.combobox.currentIndexChanged.connect(on_change)
+		self.combobox.setCurrentIndex(options.index(getter()))
+
+	def add_to_grid_layout(self, row, grid_layout):
+		grid_layout.addWidget(self.label, row, 0)
+		grid_layout.addWidget(self.combobox, row, 1)
+		return row + 1
+
+class Checkbox(object):
+	def __init__(self, parent, label_text, getter, setter, update=lambda: None):
+		self.update = update
+		self.label = QtGui.QLabel(label_text, parent)
+		self.checkbox = QtGui.QCheckBox(parent)
+		def wrap_setter(value, update=True):
+			self.checkbox.setChecked(value)
+			setter(value)
+			if update:
+				self.update()
+		# auto getter and setter
+		setattr(self, "get_value", getter)
+		setattr(self, "set_value", wrap_setter)
+
+		def on_change(state):
+			value = state == QtCore.Qt.Checked
+			print label_text, "set to", value
+			setter(value)
+			self.update()
+		self.checkbox.setChecked(getter())
+		self.checkbox.stateChanged.connect(on_change)
+
+	def add_to_grid_layout(self, row, grid_layout):
+		grid_layout.addWidget(self.label, row, 0)
+		grid_layout.addWidget(self.checkbox, row, 1)
+		return row + 1
+
+class Slider(object):
+	def __init__(self, parent, label_text, value_min, value_max, value_steps, getter, setter, name=None, format="{0:<0.3f}", transform=lambda x: x, inverse=lambda x: x, update=lambda: None, uselog=False):
+		if name is None:
+			name = label_text
+		if uselog:
+			transform = lambda x: 10**x
+			inverse = lambda x: math.log10(x)
+		#self.properties.append(name)
+		self.update = update
+		self.label = QtGui.QLabel(label_text, parent)
+		self.label_value = QtGui.QLabel(label_text, parent)
+		self.slider = QtGui.QSlider(parent)
+		self.slider.setOrientation(QtCore.Qt.Horizontal)
+		self.slider.setRange(0, value_steps)
+
+		def wrap_setter(value, update=True):
+			self.slider.setValue((inverse(value) - inverse(value_min))/(inverse(value_max) - inverse(value_min)) * value_steps)
+			setter(value)
+			if update:
+				self.update()
+		# auto getter and setter
+		setattr(self, "get_value", getter)
+		setattr(self, "set_value", wrap_setter)
+
+		def update_text():
+			#label.setText("mean/sigma: {0:<0.3f}/{1:.3g} opacity: {2:.3g}".format(self.tool.function_means[i], self.tool.function_sigmas[i], self.tool.function_opacities[i]))
+			self.label_value.setText(format.format(getter()))
+		def on_change(index, slider=self.slider):
+			value = index/float(value_steps) * (inverse(value_max) - inverse(value_min)) + inverse(value_min)
+			print label_text, "set to", value
+			setter(transform(value))
+			self.update()
+			update_text()
+		self.slider.setValue((inverse(getter()) - inverse(value_min))/(inverse(value_max) - inverse(value_min)) * value_steps)
+		update_text()
+		self.slider.valueChanged.connect(on_change)
+		#return label, slider, label_value
+
+	def add_to_grid_layout(self, row, grid_layout):
+		grid_layout.addWidget(self.label, row, 0)
+		grid_layout.addWidget(self.slider, row, 1)
+		grid_layout.addWidget(self.label_value, row, 2)
+		return row + 1
+
 
 
 def get_path_save(parent, title="Save file", path="", file_mask="HDF5 *.hdf5"):

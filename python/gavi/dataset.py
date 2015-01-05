@@ -29,6 +29,8 @@ import astropy.io.fits as fits
 def error(title, msg):
 	print "Error", title, msg
 
+sys_is_le = sys.byteorder == 'little'
+native_code = sys_is_le and '<' or '>'
 
 buffer_size = 1e8
 
@@ -291,6 +293,7 @@ class JobsManager(object):
 									#elif expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
 									elif expression in dataset.column_names  \
 											and dataset.columns[expression].dtype==np.float64 \
+											and dataset.columns[expression].dtype.byteorder==native_code \
 											and dataset.columns[expression].strides[0] == 8 \
 											and expression not in dataset.virtual_columns:
 										logger.debug("avoided expression, simply a column name with float64")
@@ -654,6 +657,7 @@ class MemoryMapped(object):
 				if offset is None:
 					print "offset is None"
 					sys.exit(0)
+				print name, dtype
 				mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
 				if stride:
 					#import pdb
@@ -835,14 +839,46 @@ class FitsBinTable(MemoryMapped):
 		fitsfile = fits.open(filename)
 		for table in fitsfile:
 			if isinstance(table, fits.BinTableHDU):
-				logger.debug("adding table: %r" % table)
-				for column in table.columns:
-					array = column.array[:]
-					array = column.array[:] # 2nd time it will be a real np array
-					#import pdb
-					#pdb.set_trace()
-					if array.dtype.kind in "fi":
-						self.addColumn(column.name, array=array)
+				table_offset = table._data_offset
+				dim = eval(table.columns[0].dim) # TODO: can we not do an eval here? not so safe
+				if dim[0] == 1 and len(dim) == 2: # we have colfits format
+					print "colfits!"
+					offset = table_offset
+					for i in range(len(table.columns)):
+						column = table.columns[i]
+						cannot_handle = False
+						try:
+							dtype, length = eval(str(column.dtype)) # ugly hack
+							length = length[0]
+						except:
+							cannot_handle = True
+						if not cannot_handle:
+							print column.name
+							print dtype, length
+							print "ok"
+							#if type == np.float64:
+							print offset, dtype, length
+							if "f" in dtype:
+								#dtype = np.dtype(dtype)
+								print "we have float64!", dtype
+								dtype = ">f8"
+								self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
+								col = self.columns[column.name]
+								print col[:10],  col[:10].dtype, col.dtype.byteorder == native_code
+								offset += 8 * length
+								import pdb
+								#pdb.set_trace()
+
+
+				else:
+					logger.debug("adding table: %r" % table)
+					for column in table.columns:
+						array = column.array[:]
+						array = column.array[:] # 2nd time it will be a real np array
+						#import pdb
+						#pdb.set_trace()
+						if array.dtype.kind in "fi":
+							self.addColumn(column.name, array=array)
 		#BinTableHDU
 	@classmethod
 	def can_open(cls, path, *args):

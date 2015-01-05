@@ -1,5 +1,6 @@
 import gavi.logging
 import numpy as np
+import copy
 
 logger = gavi.logging.getLogger("gavi.undo")
 
@@ -88,21 +89,21 @@ class ActionMask(Action):
 		
 
 class ActionZoom(Action):		
-	def __init__(self, undo_manager, description, apply_ranges, all_axis_indices, previous_ranges, previous_ranges_show, previous_range_level, axis_indices, ranges=None, ranges_show=None, range_level=None):
+	def __init__(self, undo_manager, description, apply_ranges, all_axis_indices, previous_ranges_show, previous_range_level_show, axis_indices, ranges_show=None, range_level_show=None):
 		""" Assuming mask is a bool array"""
 		# store the 1 byte mask as a 1 bit mask to save memory
 		self.undo_manager = undo_manager
 		self.apply_ranges = apply_ranges
 		
 		self.all_axis_indices = all_axis_indices
-		self.previous_ranges = list(previous_ranges)
-		self.previous_ranges_show = list(previous_ranges_show)
-		self.previous_range_level = None if previous_range_level is None else list(previous_range_level)
+		#self.previous_ranges = list(previous_ranges)
+		self.previous_ranges_show = copy.deepcopy(previous_ranges_show)
+		self.previous_range_level_show = None if previous_range_level_show is None else copy.deepcopy(previous_range_level_show)
 		
 		self.axis_indices = axis_indices
-		self.ranges = ranges
-		self.ranges_show = ranges_show
-		self.range_level = range_level
+		#self.ranges = ranges
+		self.ranges_show = copy.deepcopy(ranges_show)
+		self.range_level_show = copy.deepcopy(range_level_show)
 		self._description = description
 		self.undo_manager.add_action(self)
 		
@@ -110,7 +111,7 @@ class ActionZoom(Action):
 		return self._description
 		
 	def do(self):
-		self.apply_ranges(self.axis_indices, self.ranges, self.ranges_show, self.range_level)
+		self.apply_ranges(self.axis_indices, self.ranges_show, self.range_level_show)
 		
 	def undo(self):
-		self.apply_ranges(self.all_axis_indices, self.previous_ranges, self.previous_ranges_show, self.previous_range_level)
+		self.apply_ranges(self.all_axis_indices, self.previous_ranges_show, self.previous_range_level_show)

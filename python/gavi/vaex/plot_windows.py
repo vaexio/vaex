@@ -5,12 +5,14 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbarQt
 from matplotlib.figure import Figure
 import matplotlib
+import matplotlib.colors
 from matplotlib.widgets import Lasso, LassoSelector
 import matplotlib.widgets 
 import matplotlib.cm
 from gavi.multithreading import ThreadPool
 import gavi.vaex.volumerendering
-from gavi.vaex import widgets 		
+import gavi.vaex.imageblending
+from gavi.vaex import widgets
 
 from operator import itemgetter
 import os
@@ -296,13 +298,35 @@ class PlotDialog(QtGui.QWidget):
 		if dataset is None:
 			dataset = self.dataset
 		if name is None:
-			name = options.get("name", "Layer: " + str(len(self.layers)+2))
+			name = options.get("name", "Layer: " + str(len(self.layers)+1))
 		layer = gavi.vaex.layers.LayerTable(name, dataset, expressions, self.axisnames, options, self.jobsManager, self.pool, self.fig, self.canvas, copy.deepcopy(self.ranges_show))
-		layer.build_widget_qt(self.bottomFrame) # layer.widget is the widget build
+		layer.build_widget_qt(self.widget_layer_stack) # layer.widget is the widget build
+		self.widget_layer_stack.addWidget(layer.widget)
+
+		layer.build_widget_qt_layer_control(self.frame_layer_controls)
+		self.layout_frame_layer_controls.addWidget(layer.widget_layer_control)
+
 		layer.widget.setVisible(False)
 		self.layers.append(layer)
 		self.layer_selection.addItem(name)
-		self.layer_selection.setCurrentIndex(len(self.layers))
+		#self.layer_selection.setCurrentIndex(len(self.layers)-1)
+
+
+
+		def on_expression_change(layer, axis_index, expression):
+			if not self.axis_lock: # and len(self.layers) == 1:
+				self.ranges_show[axis_index] = None
+			self.compute()
+			error_text = self.jobsManager.execute()
+			if error_text:
+				dialog_error(self, "Error in expression", "Error: " +error_text)
+
+		def on_plot_dirty(layer=None):
+			self.queue_replot()
+
+		layer.signal_expression_change.connect(on_expression_change)
+		layer.signal_plot_dirty.connect(on_plot_dirty)
+
 		self.queue_update()
 
 	def __init__(self, parent, jobsManager, dataset, dimensions, axisnames, width=5, height=4, dpi=100, **options):
@@ -318,16 +342,16 @@ class PlotDialog(QtGui.QWidget):
 		self.layers = []
 
 		self.menu_bar = QtGui.QMenuBar(self)
-		self.menu_file = QtGui.QMenu("File", self.menu_bar)
+		self.menu_file = QtGui.QMenu("&File", self.menu_bar)
 		self.menu_bar.addMenu(self.menu_file)
-		self.menu_view = QtGui.QMenu("View", self.menu_bar)
+		self.menu_view = QtGui.QMenu("&View", self.menu_bar)
 		self.menu_bar.addMenu(self.menu_view)
-		self.menu_mode = QtGui.QMenu("Mode", self.menu_bar)
+		self.menu_mode = QtGui.QMenu("&Mode", self.menu_bar)
 		self.menu_bar.addMenu(self.menu_mode)
-		self.menu_selection = QtGui.QMenu("Selection", self.menu_bar)
+		self.menu_selection = QtGui.QMenu("&Selection", self.menu_bar)
 		self.menu_bar.addMenu(self.menu_selection)
 
-		self.menu_samp = QtGui.QMenu("SAMP", self.menu_bar)
+		self.menu_samp = QtGui.QMenu("SAM&P", self.menu_bar)
 		self.menu_bar.addMenu(self.menu_samp)
 
 
@@ -379,6 +403,7 @@ class PlotDialog(QtGui.QWidget):
 		self.layout_content.setContentsMargins(0, 0, 0, 0)
 		self.layout_main.setSpacing(0)
 		self.layout_content.setSpacing(0)
+		self.layout_main.addWidget(self.menu_bar)
 
 		#self.button_layout.setSpacing(0)
 
@@ -389,7 +414,7 @@ class PlotDialog(QtGui.QWidget):
 
 		#self.ranges = [None for _ in range(self.dimensions)] # min/max for the data
 		self.ranges_show = [None for _ in range(self.dimensions)] # min/max for the plots
-		#self.range_level = None
+		self.range_level_show = None
 
 		#self.ranges_previous = None
 		#self.ranges_show_previous = None
@@ -480,11 +505,11 @@ class PlotDialog(QtGui.QWidget):
 		# since closing a dialog causes this event to fire otherwise
 		self.parent_widget.plot_dialogs.remove(self)
 		self.pool.close()
-		for axisbox, func in zip(self.axisboxes, self.onExpressionChangedPartials):
-			axisbox.lineEdit().editingFinished.disconnect(func)
-		self.dataset.mask_listeners.remove(self.onSelectMask)
-		self.dataset.row_selection_listeners.remove(self.onSelectRow)
-		self.dataset.serie_index_selection_listeners.remove(self.onSerieIndexSelect)
+		#for axisbox, func in zip(self.axisboxes, self.onExpressionChangedPartials):
+		#	axisbox.lineEdit().editingFinished.disconnect(func)
+		#self.dataset.mask_listeners.remove(self.onSelectMask)
+		#self.dataset.row_selection_listeners.remove(self.onSelectRow)
+		#self.dataset.serie_index_selection_listeners.remove(self.onSerieIndexSelect)
 		self.jobsManager.after_execute.remove(self.plot)
 		for plugin in self.plugins:
 			plugin.clean_up()
@@ -514,6 +539,7 @@ class PlotDialog(QtGui.QWidget):
 		self.layer_box.setLayout(self.layout_layer_box)
 
 
+
 		self.layout_layer_buttons = QtGui.QHBoxLayout()
 
 		self.button_layout_new = QtGui.QPushButton(QtGui.QIcon(iconfile("layer--plus")), "add")
@@ -521,21 +547,26 @@ class PlotDialog(QtGui.QWidget):
 		self.layout_layer_buttons.addWidget(self.button_layout_new, 0)
 		self.layout_layer_buttons.addWidget(self.button_layout_delete, 0)
 
+
+
 		self.layer_selection = QtGui.QComboBox(self)
-		self.layer_selection.addItems(["default"])
+		self.layer_selection.addItems(["Layer controls"])
 		self.layout_layer_box.addLayout(self.layout_layer_buttons)
 		self.layout_layer_box.addWidget(self.layer_selection)
 		self.current_layer = None
 		def onSwitchLayer(index):
 			print "switch to layer: ", index, self.layers
-			if self.current_layer is not None:
-				self.bottom_layout.removeWidget(self.current_layer.widget)
-				self.current_layer.widget.setVisible(False)
-			self.current_layer = self.layers[index-1]
-			self.current_layer.widget.setVisible(True)
-			self.bottom_layout.addWidget(self.current_layer.widget)
-			self.bottom_layout.update()
-			self.bottomFrame.updateGeometry()
+			#if self.current_layer is not None:
+			#	self.bottom_layout.removeWidget(self.current_layer.widget)
+			#	self.current_layer.widget.setVisible(False)
+			#self.current_layer = self.layers[index]
+			#self.current_layer.widget.setVisible(True)
+			#self.bottom_layout.addWidget(self.current_layer.widget)
+			#self.bottom_layout.update()
+			#self.bottomFrame.updateGeometry()
+			self.widget_layer_stack.setCurrentIndex(index)
+			#self.widget_layer_stack.setCurrentIndex(0)
+
 		self.layer_selection.currentIndexChanged.connect(onSwitchLayer)
 
 		self.bottomFrame = QtGui.QFrame(self)
@@ -547,6 +578,51 @@ class PlotDialog(QtGui.QWidget):
 
 		self.bottomFrame.setLayout(self.bottom_layout)
 		self.bottom_layout.addWidget(self.layer_box)
+
+		self.widget_layer_stack = QtGui.QStackedWidget(self)
+		self.bottom_layout.addWidget(self.widget_layer_stack)
+
+		self.frame_layer_controls = QtGui.QGroupBox("Layer controls", self.widget_layer_stack)
+		self.layout_frame_layer_controls = QtGui.QVBoxLayout(self.frame_layer_controls)
+		self.layout_frame_layer_controls.setAlignment(QtCore.Qt.AlignTop)
+		self.frame_layer_controls.setLayout(self.layout_frame_layer_controls)
+		self.widget_layer_stack.addWidget(self.frame_layer_controls)
+
+		self.frame_layer_controls_result = QtGui.QGroupBox("Layer result", self.frame_layer_controls)
+		self.layout_frame_layer_controls_result = QtGui.QGridLayout()
+		self.frame_layer_controls_result.setLayout(self.layout_frame_layer_controls_result)
+		self.layout_frame_layer_controls_result.setSpacing(0)
+		self.layout_frame_layer_controls_result.setContentsMargins(0,0,0,0)
+		self.layout_frame_layer_controls.addWidget(self.frame_layer_controls_result)
+
+
+		row = 0
+		attr_name = "layer_brightness"
+		self.layer_brightness = 1.
+		self.slider_layer_brightness = Slider(self.frame_layer_controls_result, "brightness", 10**-1, 10**1, 1000, attrgetter(self, attr_name), attrsetter(self, attr_name), uselog=True, update=self.plot)
+		row = self.slider_layer_brightness.add_to_grid_layout(row, self.layout_frame_layer_controls_result)
+		attr_name = "layer_gamma"
+		self.layer_gamma = 1.
+		self.slider_layer_gamma = Slider(self.frame_layer_controls_result, "gamma", 10**-1, 10**1, 1000, attrgetter(self, attr_name), attrsetter(self, attr_name), uselog=True, update=self.plot)
+		row = self.slider_layer_gamma.add_to_grid_layout(row, self.layout_frame_layer_controls_result)
+		#self.frame_layer_controls_result
+
+
+		self.blend_modes = gavi.vaex.imageblending.modes.keys()
+		self.blend_mode = self.blend_modes[0]
+		self.option_layer_blend_mode = Option(self.frame_layer_controls_result, "blend", self.blend_modes, getter=attrgetter(self, "blend_mode"), setter=attrsetter(self, "blend_mode"), update=self.plot)
+		row = self.option_layer_blend_mode.add_to_grid_layout(row, self.layout_frame_layer_controls_result)
+
+		self.background_colors = ["black", "white"]
+		self.background_color = self.background_colors[0]
+		self.option_layer_background_color = Option(self.frame_layer_controls_result, "background", self.background_colors, getter=attrgetter(self, "background_color"), setter=attrsetter(self, "background_color"), update=self.plot)
+		row = self.option_layer_background_color.add_to_grid_layout(row, self.layout_frame_layer_controls_result)
+
+		#row = self.checkbox_intensity_as_opacity.add_to_grid_layout(row, self.layout_layer_control)
+
+		#self.checkbox_intensity_as_opacity = Checkbox(self.group_box_layer_control, "use_intensity", getter=attrgetter(self, "use_intensity"), setter=attrsetter(self, "use_intensity"), update=self.plot)
+		#row = self.checkbox_intensity_as_opacity.add_to_grid_layout(row, self.layout_layer_control)
+
 
 
 	def add_shortcut(self, action, key):
@@ -912,19 +988,19 @@ class PlotDialog(QtGui.QWidget):
 		#self.setMode(self.lastAction)
 
 
-	def set_ranges(self, axis_indices, ranges=None, ranges_show=None, range_level=None):
-		logger.debug("set axis/ranges/ranges_show: %r / %r / %r" % (axis_indices, ranges, ranges_show))
+	def set_ranges(self, axis_indices, ranges_show=None, range_level=None):
+		logger.debug("set axis/ranges_show: %r / %r" % (axis_indices, ranges_show))
 		if axis_indices is None: # signals a 'reset'
 			for axis_index in range(self.dimensions):
 				self.ranges_show[axis_index] = None
-				self.ranges[axis_index] = None
+				#self.ranges[axis_index] = None
 		else:
 			print axis_indices, self.ranges_show, ranges_show
 			for i, axis_index in enumerate(axis_indices):
 				if ranges_show:
 					self.ranges_show[axis_index] = ranges_show[i]
-				if ranges:
-					self.ranges[axis_index] = ranges[i]
+				i#f ranges:
+				#	self.ranges[axis_index] = ranges[i]
 		logger.debug("set range_level: %r" % (range_level, ))
 		self.range_level = range_level
 		if len(axis_indices) > 0:
@@ -968,7 +1044,7 @@ class PlotDialog(QtGui.QWidget):
 
 		fraction = (x-xmin)/width
 
-		range_level = None
+		range_level_show = None
 		ranges_show = []
 		ranges = []
 		axis_indices = []
@@ -994,7 +1070,7 @@ class PlotDialog(QtGui.QWidget):
 				range_level = ymin, ymax
 				#a = b
 			else:
-				range_level = ymin_show, ymax_show
+				range_level_show = ymin_show, ymax_show
 		else:
 			ranges_show.append((ymin_show, ymax_show))
 			axis_indices.append(axes.yaxis_index)
@@ -1007,9 +1083,10 @@ class PlotDialog(QtGui.QWidget):
 			#action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"), self.set_ranges,
 			#				range(self.dimensions), self.ranges, self.ranges_show,
 			#				self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
-			action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"), self.set_ranges,
-							range(self.dimensions), self.ranges, self.ranges,
-							self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
+			action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"),
+							self.set_ranges,
+							range(self.dimensions), self.ranges_show,
+							self.range_level_show, axis_indices, ranges_show=ranges_show, range_level_show=range_level_show)
 			action.do()
 			self.checkUndoRedo()
 		self.queue_update(delayed_zoom, delay=delay)
@@ -2156,19 +2233,84 @@ class ScatterPlotDialog(PlotDialog):
 		self.addToolbar2(layout)
 		super(ScatterPlotDialog, self).afterCanvas(layout)
 
+	def add_image_layer(self, rgba):
+		self.image_layers.append(rgba)
 
 	def plot(self):
+		self.image_layers = []
 		self.axes.cla()
 		if len(self.layers) == 0:
 			return
 		first_layer = self.layers[0]
+
+		N = first_layer.grid_size
+		background = np.ones((N, N, 4), dtype=np.float64)
+		background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(self.background_color)
+		background[:,:,3] = 1
+
+		ranges = []
+		for minimum, maximum in first_layer.ranges_grid:
+			ranges.append(minimum)
+			ranges.append(maximum)
+
+		placeholder = self.axes.imshow(background, extent=ranges, origin="lower")
+		self.add_image_layer(background)
+
 		for i in range(self.dimensions):
 			if self.ranges_show[i] is None:
 				self.ranges_show[i] = copy.copy(first_layer.ranges_grid[i])
 		#extent =
 		#ranges = np.nanmin(datax), np.nanmax(datax), np.nanmin(datay), np.nanmax(datay)
+
+		xmin, xmax = self.ranges_show[0]
+		ymin, ymax = self.ranges_show[1]
+		width = xmax - xmin
+		height = ymax - ymin
+		extent = [xmin-width, xmax+width, ymin-height, ymax+height]
+		Z1 = np.array(([0,1]*8 + [1,0]*8)*8); Z1.shape = 16,16  # chessboard
+		#im1 = self.axes.imshow(Z1, cmap="gray", interpolation='nearest', extent=extent, vmin=-4, vmax=1.)
+
+
 		for layer in self.layers:
-			layer.plot(self.axes)
+			layer.plot(self.axes, self.add_image_layer)
+
+		rgba_dest = self.image_layers[0] * 1. # * 0
+		#@for i in range(3):
+		#	rgba_dest[:,:,i] *= rgba_dest[:,:,3]
+		for i in range(1, len(self.image_layers)):
+			rgba_source  = self.image_layers[i]
+			alpha_source = rgba_source[:,:,3]
+			alpha_dest   = rgba_dest[:,:,3]
+			#print alpha_source.min(), alpha_source.max()
+			alpha_result = alpha_source + alpha_dest * (1 - alpha_source)
+			mask = alpha_result > 0
+			for c in range(3):
+				#f = rgba_dest[:,:,c] + rgba_source[:,:,c] - rgba_dest[:,:,c] * rgba_source[:,:,c]
+				#f = rgba_dest[:,:,c] * rgba_source[:,:,c]
+				#f = np.maximum(rgba_dest[:,:,c], rgba_source[:,:,c])
+				#f = np.abs(rgba_dest[:,:,c] -  rgba_source[:,:,c])
+				#f = rgba_dest[:,:,c] +  rgba_source[:,:,c]
+				f = gavi.vaex.imageblending.modes[self.blend_mode](rgba_dest[:,:,c], rgba_source[:,:,c])
+				result = ((1.-alpha_dest) * alpha_source * rgba_source[:,:,c]  + (1.-alpha_source) * alpha_dest * rgba_dest[:,:,c] + alpha_source * alpha_dest * f) / alpha_result
+				rgba_dest[:,:,c][[mask]] = np.clip(result[[mask]], 0, 1)
+				#rgba_dest[:,:,c][[mask]] = (result[[mask]])
+				#rgba_dest[:,:,c] = (rgba_dest[:,:,c] * alpha_dest  * (1-alpha_source) + rgba_source[:,:,c] * alpha_source)
+				#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
+				#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
+				#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
+			rgba_dest[:,:,3] = np.clip(alpha_result, 0., 1)
+			#for c in range(3):
+			#	rgba_dest[:,:,c] = rgba_dest[:,:,c] / rgba_dest[:,:,3]
+		print rgba_dest[0]
+		#for c in range(3):
+		#	rgba_dest[:,:,c] = rgba_dest[:,:,c] * rgba_dest[:,:,3] + (1-rgba_dest[:,:,3])
+		for c in range(4):
+			#rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** 3.5)*2.6, 0., 1.)
+			rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** self.layer_gamma)*self.layer_brightness, 0., 1.)
+		rgba_dest[:,:,3] = rgba_dest[:,:,3] * 0 + 1
+		print rgba_dest[0]
+		placeholder.set_data((rgba_dest * 255).astype(np.uint8))
+
 		if self.aspect is None:
 			self.axes.set_aspect('auto')
 		else:
