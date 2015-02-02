@@ -781,6 +781,10 @@ void shuffled_sequence_(long long * array, long long length) {
 		uint_fast64_t j = r * i / (length-1);
 		array[i] = array[j];
 		array[j] = i;
+		if( ((i% 10000000) == 0) ){
+			printf("%lld out of %lld (%.2f%%)\n", i, length, (i*100./length));
+			fflush(stdout);
+		}
 		//printf("r=%d\n", r);
 		//for(long long k=0; k < i+1; k++)
 		//	printf(" %d", array[k]);
@@ -804,8 +808,8 @@ static PyObject* shuffled_sequence_(PyObject* self, PyObject *args) {
 			Py_INCREF(Py_None);
 			result = Py_None;
 		} catch(std::runtime_error e) {
-			//PyErr_SetString(PyExc_RuntimeError, e.what());
-			PyErr_SetString(PyExc_RuntimeError, "unknown exception");
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
 	}
 	

@@ -198,8 +198,8 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 				link.sendRangesShow(self.dialog.ranges_show[axisIndex], linkButton)
 				link.sendPlot(linkButton)
 		action = undo.ActionZoom(self.dialog.undoManager, "zoom x [%f,%f]" % (xmin, xmax),
-						   self.dialog.set_ranges, range(self.dialog.dimensions), self.dialog.ranges, self.dialog.ranges_show,
-						   self.dialog.range_level, [axisIndex], ranges_show=[[xmin, xmax]])
+						   self.dialog.set_ranges, range(self.dialog.dimensions),
+						   self.dialog.ranges_show,self.dialog.range_level_show, [axisIndex], ranges_show=[[xmin, xmax]])
 		action.do()
 		self.dialog.checkUndoRedo()
 			
@@ -207,11 +207,11 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 		if len(self.dialog.ranges_show) == 1: # if 1d, y refers to range_level
 			#self.range_level = ymin, ymax
 			action = undo.ActionZoom(self.dialog.undoManager, "change level [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, range(self.dialog.dimensions),
-							self.dialog.ranges, self.dialog.ranges_show, self.dialog.range_level, [], range_level=[ymin, ymax])
+							self.dialog.ranges_show, self.dialog.range_level_show, [], range_level=[ymin, ymax])
 		else:
 			#self.dialog.ranges_show[axes.yaxis_index] = ymin, ymax
 			action = undo.ActionZoom(self.dialog.undoManager, "zoom y [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, range(self.dialog.dimensions),
-							self.dialog.ranges, self.dialog.ranges_show, self.dialog.range_level, [axes.yaxis_index], ranges_show=[[ymin, ymax]])
+							self.dialog.ranges_show, self.dialog.range_level_show, [axes.yaxis_index], ranges_show=[[ymin, ymax]])
 			
 		action.do()
 		self.dialog.checkUndoRedo()
@@ -243,7 +243,8 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 			
 		def delayed_zoom():
 			action = undo.ActionZoom(self.dialog.undoManager, "zoom to rect", self.dialog.set_ranges, range(self.dialog.dimensions),
-							self.dialog.ranges, self.dialog.ranges_show,  self.dialog.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
+							self.dialog.ranges_show,
+							self.dialog.range_level_show, axis_indices, ranges_show=ranges_show, range_level_show=range_level)
 			action.do()
 			self.dialog.checkUndoRedo()
 		self.dialog.queue_update(delayed_zoom, delay=300)

@@ -847,27 +847,42 @@ class FitsBinTable(MemoryMapped):
 					for i in range(len(table.columns)):
 						column = table.columns[i]
 						cannot_handle = False
+						print column.name, str(column.dtype)
 						try:
 							dtype, length = eval(str(column.dtype)) # ugly hack
 							length = length[0]
 						except:
 							cannot_handle = True
 						if not cannot_handle:
-							print column.name
-							print dtype, length
-							print "ok"
+							#print column.name, dtype, length
+							#print "ok", column.dtype
 							#if type == np.float64:
-							print offset, dtype, length
-							if "f" in dtype:
+							#print "\t", offset, dtype, length
+							typestr = eval(str(table.columns[i].dtype))[0].replace("<", ">").strip()
+							#print "   type", typestr
+							dtype = np.zeros(1,dtype=typestr).dtype
+							bytessize = dtype.itemsize
+							#if "f" in dtype:
+							if 1:
 								#dtype = np.dtype(dtype)
-								print "we have float64!", dtype
-								dtype = ">f8"
+								#print "we have float64!", dtype
+								#dtype = ">f8"
 								self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
 								col = self.columns[column.name]
-								print col[:10],  col[:10].dtype, col.dtype.byteorder == native_code
-								offset += 8 * length
-								import pdb
-								#pdb.set_trace()
+								print "   ", col[:10],  col[:10].dtype, col.dtype.byteorder == native_code, bytessize
+							offset += bytessize * length
+							#else:
+							#	offset += 8 * length
+						else:
+							print str(column.dtype)
+							assert str(column.dtype)[0] == "|"
+							assert str(column.dtype)[1] == "S"
+							#overflown_length =
+							#import pdb
+							#pdb.set_trace()
+							offset += eval(column.dim)[0] * length
+							#raise Exception,"cannot handle type: %s" % column.dtype
+							#sys.exit(0)
 
 
 				else:

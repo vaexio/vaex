@@ -154,15 +154,55 @@ def choose(parent, title, label, options, index=0):
 	text, ok = QtGui.QInputDialog.getItem(parent, title, label, options, index, False)
 	return options.index(text) if ok else None
 
+def select_many(parent, title, options):
+	dialog = QtGui.QDialog(parent)
+	dialog.setWindowTitle(title)
+	dialog.setModal(True)
+	layout = QtGui.QGridLayout(dialog)
+	dialog.setLayout(layout)
+
+	scroll_area = QtGui.QScrollArea(dialog)
+	scroll_area.setWidgetResizable(True)
+	frame = QtGui.QWidget(scroll_area)
+	layout_frame = QtGui.QVBoxLayout(frame)
+	#frame.setMinimumSize(100,400)
+	frame.setLayout(layout_frame)
+	checkboxes = [QtGui.QCheckBox(option, frame) for option in options]
+	scroll_area.setWidget(frame)
+	row = 0
+	for checkbox in checkboxes:
+		checkbox.setCheckState(QtCore.Qt.Checked)
+		layout_frame.addWidget(checkbox, row, 0)
+		row += 1
+
+	buttonLayout = QtGui.QHBoxLayout()
+	button_ok = QtGui.QPushButton("Ok", dialog)
+	button_cancel = QtGui.QPushButton("Cancel", dialog)
+	button_cancel.clicked.connect(dialog.reject)
+	button_ok.clicked.connect(dialog.accept)
+
+	buttonLayout.addWidget(button_cancel)
+	buttonLayout.addWidget(button_ok)
+	layout.addWidget(scroll_area)
+	layout.addLayout(buttonLayout, row, 0)
+	#options_selected = []
+	value = dialog.exec_()
+	mask =[checkbox.checkState() == QtCore.Qt.Checked for checkbox in checkboxes]
+	return value == QtGui.QDialog.Accepted, mask
+
+
+
 def dialog_error(parent, title, msg):	
 	QtGui.QMessageBox.warning(parent, title, msg)
 	
 def dialog_info(parent, title, msg):	
 	QtGui.QMessageBox.information(parent, title, msg)
 	
-def confirm(parent, title, msg):
+def dialog_confirm(parent, title, msg):
 	return QtGui.QMessageBox.information(parent, title, msg, QtGui.QMessageBox.Yes|QtGui.QMessageBox.No) == QtGui.QMessageBox.Yes
-	
+
+confirm = dialog_confirm
+
 import traceback as tb
 import sys
 import gavi.vaex

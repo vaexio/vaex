@@ -1438,7 +1438,6 @@ class Vaex(QtGui.QMainWindow):
 		name = dataset.name + "-mysubset.hdf5"
 		print "noot"
 		options = ["All: %r records, filesize: %r" % (len(dataset), gavi.utils.filesize_format(dataset.byte_size())) ]
-		print "mies"
 		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), gavi.utils.filesize_format(dataset.byte_size(selection=True))) ]
 		print "wim"
 
@@ -1446,6 +1445,27 @@ class Vaex(QtGui.QMainWindow):
 		if index is None:
 			return
 		export_selection = index == 1
+
+
+		#select_many(None, "lala", ["aap", "noot"] + ["item-%d-%s" % (k, "-" * k) for k in range(30)])
+		ok, columns_mask = select_many(self, "Select columns", dataset.get_column_names())
+		if not ok: # cancel
+			return
+
+		selected_column_names = [column_name for column_name, selected in zip(dataset.get_column_names(), columns_mask) if selected]
+
+		shuffle = dialog_confirm(self, "Shuffle?", "Do you want the dataset to be shuffled (output the rows in random order)")
+		if shuffle and dataset.full_length() != len(dataset):
+			dialog_info(self, "Shuffle", "You selected shuffling while not exporting the full dataset, will select random rows from the full dataset")
+			partial_shuffle = True
+		else:
+			partial_shuffle = False
+
+		if export_selection and shuffle:
+			dialog_info(self, "Shuffle", "Shuffling with selection not supported")
+			return
+
+
 
 
 
@@ -1463,19 +1483,37 @@ class Vaex(QtGui.QMainWindow):
 				i1, i2 = dataset.current_slice
 				N = dataset.length(selection=export_selection)
 				print "N", N
-				for column_name in dataset.column_names:
+				for column_name in selected_column_names:
 					column = dataset.columns[column_name]
 					#dataset_output.add_column(column_name, length=len(column), dtype=column.dtype)
 					#assert N == len(column)
 					print column_name, column.shape, column.strides
 					#array = h5file_output.require_dataset("/data/%s" % column_name, shape=column.shape, dtype=column.dtype)
-					array = h5file_output.require_dataset("/data/%s" % column_name, shape=(N,), dtype=column.dtype)
+					print column_name, column.dtype, column.dtype.type
+					array = h5file_output.require_dataset("/data/%s" % column_name, shape=(N,), dtype=column.dtype.type)
 					array[0] = array[0] # make sure the array really exists
+				if shuffle:
+					shuffle_array = h5file_output.require_dataset("/data/random_index", shape=(N,), dtype=np.int64)
+					shuffle_array[0] = shuffle_array[0]
 
 				h5file_output.close()
 				dataset_output = gavi.dataset.Hdf5MemoryMapped(filename, write=True)
 
+				shuffle_array = dataset_output.columns["random_index"]
+
+				print "creating shuffled array"
+				#if partial_shuffle:
+				if 1:
+					shuffle_array_full = np.zeros(dataset.full_length(), dtype=np.int64)
+					gavifast.shuffled_sequence(shuffle_array_full)
+					shuffle_array[:] = shuffle_array_full[:len(dataset)]
+					del shuffle_array_full
+				#else:
+				#	gavifast.shuffled_sequence(shuffle_array)
+
+				print "creating shuffled array"
 				for column_name in dataset.column_names:
+					print column_name
 					with gavi.utils.Timer("copying: %s" % column_name):
 						from_array = dataset.columns[column_name]
 						to_array = dataset_output.columns[column_name]
@@ -1485,7 +1523,16 @@ class Vaex(QtGui.QMainWindow):
 							if dataset.mask is not None:
 								to_array[:] = from_array[i1:i2][dataset.mask]
 						else:
-							to_array[:] = from_array[i1:i2]
+							if shuffle:
+								#to_array[:] = from_array[i1:i2][shuffle_array]
+								#to_array[:] = from_array[shuffle_array]
+								#print [k.dtype for k in [from_array, to_array, shuffle_array]]
+								#copy(from_array, to_array, shuffle_array)
+								batch_copy_index(from_array, to_array, shuffle_array)
+								#np.take(from_array, indices=shuffle_array, out=to_array)
+								pass
+							else:
+								to_array[:] = from_array[i1:i2]
 						#copy(, to_array, random_index)
 
 	def gadgethdf5(self, filename):
@@ -1812,6 +1859,18 @@ def main(argv):
 	main_thread = QtCore.QThread.currentThread()
 	print "main thread", main_thread
 
+	a = np.arange(1000, dtype='f8')
+	b = np.arange(1000, dtype='f8')
+	b[:] = 0
+	i = np.arange(1000, dtype='i8')
+	copy(a, b, i)
+	print b
+	#dsa
+
+
+	#print select_many(None, "lala", ["aap", "noot"] + ["item-%d-%s" % (k, "-" * k) for k in range(30)])
+	#sys.exit(0)
+
 
 	#sys._excepthook = sys.excepthook
 	def qt_exception_hook(exctype, value, traceback):
@@ -1835,9 +1894,26 @@ def main(argv):
 	#ipython_window.ipkernel.start()
 	sys.exit(app.exec_())
 
-@jit
+@jit(nopython=True)
 def copy(from_array, to_array, indices):
 	length = len(indices)
 	for i in range(length):
 		index = indices[i]
 		to_array[i] = from_array[index]
+
+def batch_copy_index(from_array, to_array, shuffle_array):
+	N_per_batch = int(1e7)
+	length = len(from_array)
+	batches = long(math.ceil(float(length)/N_per_batch))
+	print np.sum(from_array)
+	for i in range(batches):
+		print "batch", i, "out of", batches, ""
+		sys.stdout.flush()
+		i1 = i * N_per_batch
+		i2 = min(length, (i+1)*N_per_batch)
+		print "reading...", i1, i2
+		sys.stdout.flush()
+		data = from_array[shuffle_array[i1:i2]]
+		print "writing..."
+		sys.stdout.flush()
+		to_array[i1:i2] = data

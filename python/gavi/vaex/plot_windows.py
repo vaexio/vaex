@@ -1079,14 +1079,15 @@ class PlotDialog(QtGui.QWidget):
 		#self.update = self.update_delayed
 
 
-		def delayed_zoom():
+		def delayed_zoom(current_ranges_show=copy.deepcopy(self.ranges_show), current_range_level_show=copy.deepcopy(self.range_level_show)):
 			#action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"), self.set_ranges,
 			#				range(self.dimensions), self.ranges, self.ranges_show,
 			#				self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
+			print "delayed zoom>", current_ranges_show
 			action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"),
 							self.set_ranges,
-							range(self.dimensions), self.ranges_show,
-							self.range_level_show, axis_indices, ranges_show=ranges_show, range_level_show=range_level_show)
+							range(self.dimensions), current_ranges_show, current_range_level_show,
+							axis_indices, ranges_show=ranges_show, range_level_show=range_level_show)
 			action.do()
 			self.checkUndoRedo()
 		self.queue_update(delayed_zoom, delay=delay)
@@ -2246,7 +2247,7 @@ class ScatterPlotDialog(PlotDialog):
 		N = first_layer.grid_size
 		background = np.ones((N, N, 4), dtype=np.float64)
 		background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(self.background_color)
-		background[:,:,3] = 1
+		background[:,:,3] = 0.02
 
 		ranges = []
 		for minimum, maximum in first_layer.ranges_grid:
@@ -2275,40 +2276,42 @@ class ScatterPlotDialog(PlotDialog):
 			layer.plot(self.axes, self.add_image_layer)
 
 		rgba_dest = self.image_layers[0] * 1. # * 0
-		#@for i in range(3):
-		#	rgba_dest[:,:,i] *= rgba_dest[:,:,3]
-		for i in range(1, len(self.image_layers)):
-			rgba_source  = self.image_layers[i]
-			alpha_source = rgba_source[:,:,3]
-			alpha_dest   = rgba_dest[:,:,3]
-			#print alpha_source.min(), alpha_source.max()
-			alpha_result = alpha_source + alpha_dest * (1 - alpha_source)
-			mask = alpha_result > 0
-			for c in range(3):
-				#f = rgba_dest[:,:,c] + rgba_source[:,:,c] - rgba_dest[:,:,c] * rgba_source[:,:,c]
-				#f = rgba_dest[:,:,c] * rgba_source[:,:,c]
-				#f = np.maximum(rgba_dest[:,:,c], rgba_source[:,:,c])
-				#f = np.abs(rgba_dest[:,:,c] -  rgba_source[:,:,c])
-				#f = rgba_dest[:,:,c] +  rgba_source[:,:,c]
-				f = gavi.vaex.imageblending.modes[self.blend_mode](rgba_dest[:,:,c], rgba_source[:,:,c])
-				result = ((1.-alpha_dest) * alpha_source * rgba_source[:,:,c]  + (1.-alpha_source) * alpha_dest * rgba_dest[:,:,c] + alpha_source * alpha_dest * f) / alpha_result
-				rgba_dest[:,:,c][[mask]] = np.clip(result[[mask]], 0, 1)
-				#rgba_dest[:,:,c][[mask]] = (result[[mask]])
-				#rgba_dest[:,:,c] = (rgba_dest[:,:,c] * alpha_dest  * (1-alpha_source) + rgba_source[:,:,c] * alpha_source)
-				#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
-				#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
-				#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
-			rgba_dest[:,:,3] = np.clip(alpha_result, 0., 1)
+		if 1:
+			#@for i in range(3):
+			#	rgba_dest[:,:,i] *= rgba_dest[:,:,3]
+			for i in range(1, len(self.image_layers)):
+				rgba_source  = self.image_layers[i]
+				alpha_source = rgba_source[:,:,3]
+				alpha_dest   = rgba_dest[:,:,3]
+				#print alpha_source.min(), alpha_source.max()
+				alpha_result = alpha_source + alpha_dest * (1 - alpha_source)
+				mask = alpha_result > 0
+				for c in range(3):
+					#f = rgba_dest[:,:,c] + rgba_source[:,:,c] - rgba_dest[:,:,c] * rgba_source[:,:,c]
+					#f = rgba_dest[:,:,c] * rgba_source[:,:,c]
+					#f = np.maximum(rgba_dest[:,:,c], rgba_source[:,:,c])
+					#f = np.abs(rgba_dest[:,:,c] -  rgba_source[:,:,c])
+					#f = rgba_dest[:,:,c] +  rgba_source[:,:,c]
+					f = gavi.vaex.imageblending.modes[self.blend_mode](rgba_dest[:,:,c], rgba_source[:,:,c])
+					result = ((1.-alpha_dest) * alpha_source * rgba_source[:,:,c]  + (1.-alpha_source) * alpha_dest * rgba_dest[:,:,c] + alpha_source * alpha_dest * f) / alpha_result
+					rgba_dest[:,:,c][[mask]] = np.clip(result[[mask]], 0, 1)
+					#rgba_dest[:,:,c][[mask]] = (result[[mask]])
+					#rgba_dest[:,:,c] = (rgba_dest[:,:,c] * alpha_dest  * (1-alpha_source) + rgba_source[:,:,c] * alpha_source)
+					#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
+					#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
+					#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
+				rgba_dest[:,:,3] = np.clip(alpha_result, 0., 1)
+				#for c in range(3):
+				#	rgba_dest[:,:,c] = rgba_dest[:,:,c] / rgba_dest[:,:,3]
+			print rgba_dest[0]
 			#for c in range(3):
-			#	rgba_dest[:,:,c] = rgba_dest[:,:,c] / rgba_dest[:,:,3]
-		print rgba_dest[0]
-		#for c in range(3):
-		#	rgba_dest[:,:,c] = rgba_dest[:,:,c] * rgba_dest[:,:,3] + (1-rgba_dest[:,:,3])
-		for c in range(4):
-			#rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** 3.5)*2.6, 0., 1.)
-			rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** self.layer_gamma)*self.layer_brightness, 0., 1.)
-		rgba_dest[:,:,3] = rgba_dest[:,:,3] * 0 + 1
-		print rgba_dest[0]
+			#	rgba_dest[:,:,c] = rgba_dest[:,:,c] * rgba_dest[:,:,3] + (1-rgba_dest[:,:,3])
+			for c in range(4):
+				#rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** 3.5)*2.6, 0., 1.)
+				rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** self.layer_gamma)*self.layer_brightness, 0., 1.)
+			rgba_dest[:,:,3] = rgba_dest[:,:,3] * 0 + 1
+			print rgba_dest[0]
+		#rgba_dest[:,:,3] = 1
 		placeholder.set_data((rgba_dest * 255).astype(np.uint8))
 
 		if self.aspect is None:

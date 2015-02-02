@@ -304,8 +304,10 @@ class LayerTable(object):
 		print amplitude.min(), amplitude.max()
 		I = self.contrast(amplitude)
 		# scale to [0,1]
-		I -= I.min()
-		I /= I.max()
+		mask = ~(np.isnan(I) | np.isinf(I))
+		I -= I[mask].min()
+		I /= I[mask].max()
+		print np.nanmin(I),np.nanmax(I)
 
 		# scale [min, max] to [0, 1]
 		I -= self.level_min
@@ -356,7 +358,8 @@ class LayerTable(object):
 	def onSelectRow(self, row):
 		print "row selected", row
 		self.selected_point = None
-		self.plot()
+		#self.plot()
+		self.signal_plot_dirty.emit(self)
 
 	def onSerieIndexSelect(self, sequence_index):
 		print ">>@", sequence_index, self.sequence_index
