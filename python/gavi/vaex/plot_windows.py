@@ -1011,7 +1011,9 @@ class PlotDialog(QtGui.QWidget):
 			print label_text, "set to", value, "(", inverse(value), ")"
 			setter(transform(value))
 			update_text()
-		slider.setValue((inverse(getter()) - inverse(value_min))/(inverse(value_max) - inverse(value_min)	) * value_steps)
+		index = (inverse(getter()) - inverse(value_min))/(inverse(value_max) - inverse(value_min)	) * value_steps
+
+		slider.setValue(int(index))
 		update_text()
 		slider.valueChanged.connect(on_change)
 		return label, slider, label_value
@@ -1056,6 +1058,26 @@ class PlotDialog(QtGui.QWidget):
 		self.grid_layout_vector.addWidget(self.vectors_color_code_3rd_checkbox, row, 2)
 		row += 1
 
+		def setter(value):
+			self.min_level_vector2d = value
+			self.queue_replot()
+		self.min_level_vector2d = float(self.options.get("vector_min_level", 1e-4))
+		self.vector2d_min_level_label, self.vector2d_min_level_slider, self.vector2d_min_level_value_label =\
+				self.create_slider(page, "min level: ", 10**-4, 1., lambda : self.min_level_vector2d, setter, transform=lambda x: 10**x, inverse=lambda x: np.log10(x))
+		self.grid_layout_vector.addWidget(self.vector2d_min_level_label, row, 1)
+		self.grid_layout_vector.addWidget(self.vector2d_min_level_slider, row, 2)
+		self.grid_layout_vector.addWidget(self.vector2d_min_level_value_label, row, 3)
+		row += 1
+		if 0:
+			def setter(value):
+				self.dialog.widget_volume.max_level_vector3d = value
+				self.dialog.widget_volume.update()
+			self.vector3d_max_level_label, self.vector3d_max_level_slider, self.vector3d_max_level_value_label =\
+					self.dialog.create_slider(page, "max level: ", 0., 1., lambda : self.dialog.widget_volume.max_level_vector3d, setter)
+			layout.addWidget(self.vector3d_max_level_label, row, 0)
+			layout.addWidget(self.vector3d_max_level_slider, row, 1)
+			layout.addWidget(self.vector3d_max_level_value_label, row, 2)
+			row += 1
 
 
 		if self.dimensions > -1:
@@ -3191,7 +3213,8 @@ class ScatterPlotDialog(PlotDialog):
 			if 1:
 				grid_map_vector = self.create_grid_map(self.vector_grid_size, use_selection)
 				if grid_map_vector["weightx"] is not None and grid_map_vector["weighty"] is not None:
-					mask = grid_map_vector["counts"] > 0
+					mask = grid_map_vector["counts"] > (self.min_level_vector2d * grid_map_vector["counts"].max())
+					print self.min_level_vector2d, "&" * 100
 					x = grid_map_vector["x"]
 					y = grid_map_vector["y"]
 					x2d, y2d = np.meshgrid(x, y)
