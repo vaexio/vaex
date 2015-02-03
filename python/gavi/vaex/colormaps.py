@@ -53,3 +53,21 @@ def colormap_to_QImage(colormap, width, height):
 	image = QtGui.QImage(stringdata, width, height, width*4, QtGui.QImage.Format_RGB32)
 	return image, stringdata
 
+
+#colormaps = []
+colormap_pixmap = {}
+colormaps_processed = False
+refs = []
+def process_colormaps():
+	global colormaps_processed
+	if colormaps_processed:
+		return
+	colormaps_processed = True
+	for colormap_name in colormaps:
+		#colormaps.append(colormap_name)
+		Nx, Ny = 32, 16
+		image, stringdata = colormap_to_QImage(colormap_name, Nx, Ny)
+		refs.append((image, stringdata))
+		pixmap = QtGui.QPixmap(32*2, 32)
+		pixmap.convertFromImage(image)
+		colormap_pixmap[colormap_name] = pixmap

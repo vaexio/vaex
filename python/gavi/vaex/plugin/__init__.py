@@ -23,21 +23,38 @@ class PluginPlot(object):
 	__metaclass__ = RegisterPlugins # trick to keep a list of plugins
 	def __init__(self, dialog):
 		self.dialog = dialog
-		self.dataset = dialog.dataset
+
+	def clean_up(self):
+		pass
+
+	def use_layer(self, layer):
+		pass
+
+	@staticmethod
+	def useon(dialog_class):
+		return True
+
+	def syncToolbar(self):
+		pass
+
+	def setMode(self, action):
+		pass
+
+
+class PluginLayer(object):
+	__metaclass__ = RegisterPlugins # trick to keep a list of plugins
+	def __init__(self, parent, layer):
+		self.parent = parent
+		self.layer = layer
+		self.dataset = layer.dataset
 
 	def clean_up(self):
 		pass
 		
 	@staticmethod
-	def useon(dialog_class):
+	def useon(layer_class):
 		return True
 	
-	def syncToolbar(self):
-		pass
-	
-	def setMode(self, action):
-		pass
-
 	def get_options(self):
 		return {}
 

@@ -14,35 +14,54 @@ import numpy as np
 
 logger = gavi.logging.getLogger("plugin.dispersions")
 
-class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
+class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
 	name = "animation"
-	def __init__(self, dialog):
-		super(AnimationPlugin, self).__init__(dialog)
-		dialog.plug_page(self.plug_page, "Animation", 6.0, 1.0)
+	def __init__(self, parent, layer):
+		super(AnimationPlugin, self).__init__(parent, layer)
+		layer.plug_page(self.plug_page, "Animation", 6.0, 1.0)
 
-		self.timer_sequence = QtCore.QTimer(dialog)
+		self.timer_sequence = QtCore.QTimer(parent)
 		self.timer_sequence.timeout.connect(self.on_timeout_sequence)
 		self.timer_sequence.setInterval(40) # max 50 fps to save cpu/battery?
-		self.has_snapshots = self.dialog.dataset.has_snapshots()
+		self.has_snapshots = self.dataset.has_snapshots()
 
 		self.no_snapshots = self.dataset.rank1s[self.dataset.rank1s.keys()[0]].shape[0] if self.has_snapshots else 0
-		self.plot_original = self.dialog.plot
-		self.dialog.plot = self.plot_wrapper
+		#self.plot_original = self.dialog.plot
+		#self.dialog.plot = self.plot_wrapper
+
+
+		def on_plot_finished(plot_window, figure):
+			#if self.timer_sequence.isActive():
+			#	self.dialog.update_grids()
+			#else:
+			if self.record_frames:
+				index = self.dataset.selected_serie_index
+				path = self.frame_template.format(index=index)
+				figure.savefig(path)
+				if index == self.no_snapshots-1:
+					self.record_frames = False
+					self.frame_template = None
+
+		self.layer.plot_window.signal_plot_finished.connect(on_plot_finished)
+
 		self.record_frames = False
 		self.frame_template = None
 		#self.dataset.serie_index_selection_listeners.append(self.on_snapshot_select)
 		# instead of binding to the event listener, wrap it so we are sure we execute it afterwards
 		# this assumes the function isn't bound yet
-		def wrapper(index, previous=self.dialog.onSerieIndexSelect):
-			previous(index)
-			print ">>>>3", index, self.dialog.sequence_index
-			self.box_sequence.setCurrentIndex(self.dialog.sequence_index)
-		self.dialog.onSerieIndexSelect = wrapper
+		#def wrapper(index, previous=self.dialog.onSerieIndexSelect):
+		#	previous(index)
+		#	print ">>>>3", index, self.dataset.selected_serie_index
+		#	self.box_sequence.setCurrentIndex(self.dataset.selected_serie_index)
+		#self.dialog.onSerieIndexSelect = wrapper
+		def on_sequence_index_change(dataset, index):
+			self.box_sequence.setCurrentIndex(index)
+		self.dataset.signal_sequence_index_change.connect(on_sequence_index_change)
 		#print "set time to zero" * 100
 		self.dataset.variables["time"] = str(0.)
 
 
-		self.timer_realtime = QtCore.QTimer(dialog)
+		self.timer_realtime = QtCore.QTimer(parent)
 		self.timer_realtime.timeout.connect(self.on_timeout_realtime)
 		self.timer_realtime.setInterval(40) # max 50 fps to save cpu/battery?
 		self.time_start = time.time()
@@ -52,23 +71,10 @@ class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
 		self.timer_realtime.stop()
 		#self.dataset.serie_index_selection_listeners.remove(self.on_snapshot_select)
 
-	def plot_wrapper(self):
-		#if self.timer_sequence.isActive():
-		#	self.dialog.update_grids()
-		#else:
-		self.plot_original()
-		if self.record_frames:
-			index = self.dataset.selected_serie_index
-			path = self.frame_template.format(index=index)
-			self.dialog.fig.savefig(path)
-			if index == self.no_snapshots-1:
-				self.record_frames = False
-				self.frame_template = None
-
 	def on_timeout_realtime(self):
 		self.dataset.variables["time"] = str(self.time_start - time.time())
-		self.dialog.compute()
-		self.dialog.jobsManager.execute()
+		#self.dialog.compute()
+		#self.layer.jobs_manager.execute()
 
 
 	def on_timeout_sequence(self):
@@ -77,11 +83,11 @@ class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
 		index = self.dataset.selected_serie_index + 1
 		if index < self.no_snapshots:
 			msg = "snapshot %d/%d" % (index+1, self.no_snapshots)
-			self.dialog.message(msg, index=-1)
+			self.layer.plot_window.message(msg, index=-1)
 			self.dataset.selectSerieIndex(index)
-			self.dialog.jobsManager.execute()
+			#self.layer.jobs_manager.execute()
 		else:
-			self.dialog.message(None, index=-1)
+			self.layer.plot_window.message(None, index=-1)
 			self.timer_sequence.stop()
 			self.stop_animation()
 
@@ -95,7 +101,7 @@ class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
 
 		row = 0
 
-		has_snapshots = self.dialog.dataset.has_snapshots()
+		has_snapshots = self.dataset.has_snapshots()
 
 
 
@@ -123,7 +129,7 @@ class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
 			self.layout_control.addWidget(button, 1)
 			def wrap_handler():
 				handler()
-				self.dialog.jobsManager.execute()
+				self.layer.jobs_manager.execute()
 
 			button.clicked.connect(wrap_handler)
 
@@ -132,13 +138,13 @@ class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
 		def do_end():
 			self.dataset.selectSerieIndex(self.no_snapshots-1)
 		def do_prev():
-			self.dataset.selectSerieIndex(max(0, self.dialog.sequence_index-1))
+			self.dataset.selectSerieIndex(max(0, self.dataset.selected_serie_index-1))
 		def do_next():
-			self.dataset.selectSerieIndex(min(self.no_snapshots-1, self.dialog.sequence_index+1))
+			self.dataset.selectSerieIndex(min(self.no_snapshots-1, self.dataset.selected_serie_index+1))
 		def do_prev_ten():
-			self.dataset.selectSerieIndex(max(0, self.dialog.sequence_index-10))
+			self.dataset.selectSerieIndex(max(0, self.dataset.selected_serie_index-10))
 		def do_next_ten():
-			self.dataset.selectSerieIndex(min(self.no_snapshots-1, self.dialog.sequence_index+10))
+			self.dataset.selectSerieIndex(min(self.no_snapshots-1, self.dataset.selected_serie_index+10))
 		add_control_button("|<", do_begin)
 		add_control_button("<<", do_prev_ten)
 		add_control_button("<", do_prev)
@@ -158,13 +164,13 @@ class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
 
 		self.box_sequence = QtGui.QComboBox(self.group_box_sequence)
 		self.box_sequence.addItems([str(k) for k in range(self.no_snapshots)])
-		self.box_sequence.setCurrentIndex(self.dialog.sequence_index)
+		self.box_sequence.setCurrentIndex(self.dataset.selected_serie_index)
 		self.box_sequence.setEnabled(has_snapshots)
 		def on_sequence_change(index):
-			print "event", index, self.dialog.sequence_index
-			if index != self.dialog.sequence_index:
+			print "event", index, self.dataset.selected_serie_index
+			if index != self.dataset.selected_serie_index:
 				self.dataset.selectSerieIndex(index)
-				self.dialog.jobsManager.execute()
+				#self.layer.jobs_manager.execute()
 		self.box_sequence.currentIndexChanged.connect(on_sequence_change)
 		self.layout_sequence.addWidget(self.box_sequence, row_sequence, 1)
 		row_sequence += 1
@@ -182,7 +188,7 @@ class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
 			if checked:
 				self.start_animation(self.button_play_sequence)
 				#self.dataset.selectSerieIndex(0)
-				self.dialog.jobsManager.execute()
+				self.layer.jobs_manager.execute()
 				self.timer_sequence.start()
 			else:
 				self.timer_sequence.stop()
@@ -193,7 +199,7 @@ class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
 		self.button_record_sequence = QtGui.QPushButton("Record(snapshots)", self.group_box_sequence)
 		self.button_record_sequence.setCheckable(True)
 		self.button_record_sequence.setAutoDefault(False)
-		has_snapshots = self.dialog.dataset.has_snapshots()
+		has_snapshots = self.dataset.has_snapshots()
 		self.button_record_sequence.setEnabled(has_snapshots)
 		if has_snapshots:
 			self.button_record_sequence.setToolTip("This data set has no snapshots")
@@ -210,7 +216,7 @@ class AnimationPlugin(gavi.vaex.plugin.PluginPlot):
 					if self.frame_template:
 						self.record_frames = True
 						#self.dataset.selectSerieIndex(0)
-						self.dialog.jobsManager.execute()
+						self.layer.jobs_manager.execute()
 						self.start_animation(self.button_record_sequence)
 						self.timer_sequence.start()
 			else:

@@ -67,6 +67,7 @@ Contents:
    installing
    reference
    tipsandfaq
+   examples
    credits
 	
 

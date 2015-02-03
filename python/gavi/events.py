@@ -6,8 +6,11 @@ class Signal(object):
 		self.callbacks = []
 		self.extra_args = {}
 		
-	def connect(self, callback, *args, **kwargs):
-		self.callbacks.append(callback)
+	def connect(self, callback, prepend=False, *args, **kwargs):
+		if prepend:
+			self.callbacks.insert(0, callback)
+		else:
+			self.callbacks.append(callback)
 		self.extra_args[callback] = (args, kwargs)
 		return callback
 						   
