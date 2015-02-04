@@ -1290,6 +1290,8 @@ class Vaex(QtGui.QMainWindow):
 		def error(msg):
 			print >>sys.stderr, msg
 			sys.exit(1)
+		hold_plot = False
+		plot = None
 		while index < len(args):
 			filename = args[index]
 			if filename[0] == ":": # not a filename, but a classname
@@ -1312,11 +1314,11 @@ class Vaex(QtGui.QMainWindow):
 			self.list.addDataset(dataset)
 
 			# for this dataset, keep opening plots (seperated by -) or add layers (seperated by +)
-			plot = None
+			plot = plot if hold_plot else None
 			options = {}
 			while index < len(args) and args[index] != "--":
 				columns = []
-				while  index < len(args) and args[index] not in ["+", "-", "--"]:
+				while  index < len(args) and args[index] not in ["+", "-", "--", "++"]:
 					if "=" in args[index]:
 						key, value = args[index].split("=",1)
 						if ":" in key:
@@ -1343,11 +1345,15 @@ class Vaex(QtGui.QMainWindow):
 					else:
 						error("cannot plot more than 3 columns yet: %r" % columns)
 				else:
-					plot.add_layer(columns, **options)
+					plot.add_layer(columns, dataset=dataset, **options)
 				if index < len(args) and args[index] == "-":
 					plot = None # set to None to create a new plot, + will do a new layer
 				if index < len(args) and args[index] == "--":
+					hold_plot = False
 					break # break out for the next dataset
+				if index < len(args) and args[index] == "++":
+					hold_plot = True
+					break # break out for the next dataset, but keep the same plot
 				index += 1
 			if index < len(args):
 				print "eat", args[index]
