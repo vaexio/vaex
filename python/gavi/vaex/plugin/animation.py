@@ -85,6 +85,9 @@ class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
 			msg = "snapshot %d/%d" % (index+1, self.no_snapshots)
 			self.layer.plot_window.message(msg, index=-1)
 			self.dataset.selectSerieIndex(index)
+			for layer in self.layer.plot_window.layers:
+				if layer.dataset != self.dataset:
+					layer.dataset.selectSerieIndex(index)
 			#$self.layer.
 			#self.layer.jobs_manager.execute()
 		else:
