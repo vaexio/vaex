@@ -275,7 +275,7 @@ class JobsManager(object):
 							# check for 'snapshots'/sequence array, and get the proper index automatically
 							for name, var in local_dict.items():
 								if hasattr(var, "shape"):
-									print name, var.shape
+									#print name, var.shape
 									if len(var.shape) == 2:
 										local_dict[name] = var[dataset.selected_serie_index]
 										print " to", name, local_dict[name].shape
@@ -288,12 +288,13 @@ class JobsManager(object):
 									#expr_noslice, slice_vars = expr.translate(expression)
 									expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #
 									logger.debug("translated expression: %r" % (expr_noslice,))
+									#print "native", dataset.columns[expression].dtype.byteorder, native_code, dataset.columns[expression].dtype.byteorder==native_code
 									if expr_noslice is None:
 										results[expression] = None
 									#elif expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
 									elif expression in dataset.column_names  \
 											and dataset.columns[expression].dtype==np.float64 \
-											and dataset.columns[expression].dtype.byteorder==native_code \
+											and dataset.columns[expression].dtype.byteorder in [native_code, "="] \
 											and dataset.columns[expression].strides[0] == 8 \
 											and expression not in dataset.virtual_columns:
 										logger.debug("avoided expression, simply a column name with float64")

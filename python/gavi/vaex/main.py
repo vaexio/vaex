@@ -777,7 +777,8 @@ class MainPanel(QtGui.QFrame):
 		return dialog
 
 	def plotxyz(self, xname, yname, zname, **kwargs):
-		dialog = vp.VolumeRenderingPlotDialog(self, self.jobsManager, self.dataset, xname, yname, zname, **kwargs)
+		dialog = vp.VolumeRenderingPlotDialog(self, self.jobsManager, self.dataset)
+		dialog.add_layer([xname, yname, zname], **kwargs)
 		dialog.show()
 		self.plot_dialogs.append(dialog)
 		self.jobsManager.execute()

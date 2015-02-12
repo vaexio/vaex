@@ -31,6 +31,7 @@ class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
 
 
 		def on_plot_finished(plot_window, figure):
+			print "save it " * 100
 			#if self.timer_sequence.isActive():
 			#	self.dialog.update_grids()
 			#else:
@@ -213,10 +214,10 @@ class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
 		def on_toggle_record_sequence(checked):
 			self.record_frames = False
 			if checked:
-				directory = getdir(self.dialog, "Choose where to save frames", "")
+				directory = getdir(self.parent, "Choose where to save frames", "")
 				if directory:
 					self.frame_template = os.path.join(directory, "%s_{index:05}.png" % self.dataset.name)
-					self.frame_template = gettext(self.dialog, "template for frame filenames", "template:", self.frame_template)
+					self.frame_template = gettext(self.parent, "template for frame filenames", "template:", self.frame_template)
 					if self.frame_template:
 						self.record_frames = True
 						#self.dataset.selectSerieIndex(0)

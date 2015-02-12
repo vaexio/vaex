@@ -11,6 +11,6 @@ modes["lighten"] = np.maximum
 
 
 
-
+def blend(image_list)
 
 

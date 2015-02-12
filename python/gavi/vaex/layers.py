@@ -147,13 +147,13 @@ class LayerTable(object):
 		self.dimensions = len(self.expressions)
 		self.options = options
 		self.grids = gavi.vaex.grids.Grids(self.dataset, self.thread_pool, *expressions)
-		self.expressions_vector = [None,] * self.dimensions
+		self.expressions_vector = [None,] * (self.dimensions + 1)
 		self.figure = figure
 		self.canvas = canvas
 
 		self.widget = None # each layer has a widget, atm only a qt widget is implemented
 
-		self.expression_weight = None
+		self.weight_expression = None
 
 		self.compute_counter = 0
 		self.sequence_index = 0
@@ -164,8 +164,6 @@ class LayerTable(object):
 		#self.use_intensity = bool(self.options.get("use_intensity", True))
 
 
-		self.vector_grid_size = eval(self.options.get("vector_grid_size", "16"))
-		self.grid_size = eval(self.options.get("grid_size", "512/2"))
 		if "selection" in options:
 			mask = np.load(self.dataset.name + "-selection.npy")
 			self.dataset.selectMask(mask)
@@ -266,8 +264,13 @@ class LayerTable(object):
 		amplitude = eval(expression, globals, locals)
 		return amplitude
 
-	def plot(self, axes, stack_image):
-		grid_map = self.create_grid_map(self.grid_size, False)
+	def error_in_field(self, widget, name, exception):
+		dialog_error(widget, "Error in expression", "Invalid expression for field %s: %s" % (name, exception))
+		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
+		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
+
+	def plot(self, axes_list, stack_image):
+		grid_map = self.create_grid_map(self.plot_window.grid_size, False)
 		try:
 			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
 		except Exception, e:
@@ -277,14 +280,52 @@ class LayerTable(object):
 		amplitude_selection = None
 		use_selection = self.dataset.mask is not None is not None
 		if use_selection:
-			grid_map_selection = self.create_grid_map(self.grid_size, True)
+			grid_map_selection = self.create_grid_map(self.plot_window.grid_size, True)
 			amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
 
-		self.plot_density(axes, amplitude, amplitude_selection, stack_image)
+		for axes in axes_list:
+			self.plot_density(axes, amplitude, amplitude_selection, stack_image)
 
-		grid_map_vector = self.create_grid_map(self.vector_grid_size, use_selection)
+		grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
 		for callback in self.plugin_grids_draw:
 			callback(axes, grid_map, grid_map_vector)
+
+		#return
+
+		locals = {}
+		for name in self.grids.grids.keys():
+			grid = self.grids.grids[name]
+			if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
+				if grid.max_size >= self.plot_window.vector_grid_size:
+					locals[name] = grid.get_data(self.plot_window.vector_grid_size, use_selection)
+			else:
+				locals[name] = None
+
+		if self.dimensions == 2:
+			print "vector stuff" * 100
+			self.min_level_vector2d = 0.
+			grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
+			print grid_map_vector["weightx"], grid_map_vector["weighty"]
+			if grid_map_vector["weightx"] is not None and grid_map_vector["weighty"] is not None:
+				mask = grid_map_vector["counts"] > (self.min_level_vector2d * grid_map_vector["counts"].max())
+				print self.min_level_vector2d, "&" * 100
+				x = grid_map_vector["x"]
+				y = grid_map_vector["y"]
+				x2d, y2d = np.meshgrid(x, y)
+				vx = self.eval_amplitude("weightx/counts", locals=grid_map_vector)
+				vy = self.eval_amplitude("weighty/counts", locals=grid_map_vector)
+				meanvx = 0 if self.vectors_subtract_mean is False else vx[mask].mean()
+				meanvy = 0 if self.vectors_subtract_mean is False else vy[mask].mean()
+				vx -= meanvx
+				vy -= meanvy
+				if grid_map_vector["weightz"] is not None and self.vectors_color_code_3rd:
+					colors = self.eval_amplitude("weightz/counts", locals=grid_map_vector)
+					axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
+				else:
+					axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color="black")
+					colors = None
+
+
 
 	def plot_density_imshow(self, axes, amplitude, amplitude_selection, stack_image):
 		if not self.visible:
@@ -326,14 +367,14 @@ class LayerTable(object):
 			else:
 				cmap = matplotlib.cm.cmap_d[self.colormap]
 				rgba = cmap(I * 1.00)
-				rgba[:,:,3] = (np.clip((I**1.0) * self.alpha, 0, 1))
+				rgba[...,3] = (np.clip((I**1.0) * self.alpha, 0, 1))
 			if self.transparancy == "intensity":
-				rgba[:,:,3] = (np.clip((I**1.0) * self.alpha, 0, 1)) * self.alpha
+				rgba[...,3] = (np.clip((I**1.0) * self.alpha, 0, 1)) * self.alpha
 			elif self.transparancy == "constant":
 				rgba[alpha_mask,3] = 1. * self.alpha
 				rgba[~alpha_mask,3] = 0
 			elif self.transparancy == "none":
-				rgba[:,:,3] = 1
+				rgba[...,3] = 1
 			else:
 				raise "not implemented"
 			print "!@# " * 20
@@ -352,7 +393,7 @@ class LayerTable(object):
 				rgba[:,:,3] = x # * 0 + 1
 				#rgba = (rgba * 255).astype(np.uint8)
 				print c
-			stack_image(rgba)
+			stack_image(rgba, I)
 		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=(0.4 if use_selection else 1.0) * self.alpha, cmap=self.colormap)
 		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=self.alpha)
 		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=self.alpha)
@@ -388,8 +429,6 @@ class LayerTable(object):
 		options["amplitude_expression"] = self.amplitude_expression
 		options["ranges"] = self.ranges
 		options["ranges_show"] = self.ranges_show
-		options["grid_size"] = self.grid_size
-		options["vector_grid_size"] = self.vector_grid_size
 		options["aspect"] = self.aspect
 		for plugin in self.plugins:
 			options.update(plugin.get_options())
@@ -414,7 +453,7 @@ class LayerTable(object):
 
 	def add_jobs(self):
 		import traceback
-		print "updating compute counter", ''.join(traceback.format_stack())
+		#print "updating compute counter", ''.join(traceback.format_stack())
 		compute_counter = self.compute_counter = self.compute_counter + 1
 		t0 = time.time()
 
@@ -463,11 +502,14 @@ class LayerTable(object):
 		#else:
 		#all_expressions = self.expressions + [self.weight_expression, self.weight_x_expression, self.weight_y_expression, self.weight_z_expression]
 		self.grids.set_expressions(self.expressions)
-		self.grids.define_grid("counts", self.grid_size, None)
-		self.grids.define_grid("weighted", self.grid_size, self.expression_weight)
+		self.grids.define_grid("counts", self.plot_window.grid_size, None)
+		self.grids.define_grid("weighted", self.plot_window.grid_size, self.weight_expression)
+		self.expressions_vector[0] = self.weight_x_expression
+		self.expressions_vector[1] = self.weight_y_expression
+		self.expressions_vector[2] = self.weight_z_expression
 		for i, expression in enumerate(self.expressions_vector):
 			name = "xyzw"[i]
-			self.grids.define_grid("weight_"+name, self.vector_grid_size, expression)
+			self.grids.define_grid("weight"+name, self.plot_window.vector_grid_size, expression)
 
 		for callback in self.plugin_grids_defines:
 			callback(self.grids)
@@ -614,8 +656,9 @@ class LayerTable(object):
 		if self.weight_expression.strip() == "":
 			self.weight_expression = None
 		self.range_level = None
-		self.compute()
-		self.jobsManager.execute()
+		self.signal_plot_update.emit()
+		#self.compute()
+		#self.jobsManager.execute()
 		#self.plot()
 
 	def onTitleExpr(self):
@@ -649,8 +692,9 @@ class LayerTable(object):
 		expressions = [self.weight_x_expression, self.weight_y_expression, self.weight_z_expression]
 		non_none_expressions = [k for k in expressions if k is not None and len(k) > 0]
 		if len(non_none_expressions) >= 2:
-			self.compute()
-			self.jobsManager.execute()
+			self.signal_plot_update.emit()
+			#self.compute()
+			#self.jobsManager.execute()
 			#self.plot()
 
 
@@ -708,7 +752,8 @@ class LayerTable(object):
 		self.amplitude_expression = text
 		print self.amplitude_expression
 		self.range_level = None
-		self.plot()
+		#self.plot()
+		self.signal_plot_update.emit()
 
 	def page_main(self, page):
 		print "page main"
@@ -838,7 +883,7 @@ class LayerTable(object):
 		self.amplitude_box.setEditable(True)
 		if "amplitude" in self.options:
 			self.amplitude_box.addItems([self.options["amplitude"]])
-		self.amplitude_box.addItems(["log(counts) if weighted is None else average", "counts", "counts**2", "sqrt(counts)"])
+		self.amplitude_box.addItems(["log(counts) if weighted is None else average", "counts", "counts**2", "average", "sqrt(counts)"])
 		self.amplitude_box.addItems(["log(counts+1)"])
 		self.amplitude_box.addItems(["gf(log(counts+1),1) # gaussian filter"])
 		self.amplitude_box.addItems(["gf(log(counts+1),2) # gaussian filter with higher sigma" ])
@@ -1106,7 +1151,8 @@ class LayerTable(object):
 		self.vectors_subtract_mean = bool(eval(self.options.get("vsub_mean", "False")))
 		def setter(value):
 			self.vectors_subtract_mean = value
-			self.plot()
+			#self.plot()
+			self.signal_plot_dirty.emit()
 		self.vector_subtract_mean_checkbox = self.create_checkbox(page, "subtract mean", lambda : self.vectors_subtract_mean, setter)
 		self.grid_layout_vector.addWidget(self.vector_subtract_mean_checkbox, row, 2)
 		row += 1
@@ -1114,7 +1160,8 @@ class LayerTable(object):
 		self.vectors_color_code_3rd = bool(eval(self.options.get("vcolor_3rd", "True" if self.dimensions <=2 else "False")))
 		def setter(value):
 			self.vectors_color_code_3rd = value
-			self.plot()
+			#self.plot()
+			self.signal_plot_dirty.emit()
 		self.vectors_color_code_3rd_checkbox = self.create_checkbox(page, "color code 3rd axis", lambda : self.vectors_color_code_3rd, setter)
 		self.grid_layout_vector.addWidget(self.vectors_color_code_3rd_checkbox, row, 2)
 		row += 1
@@ -1202,7 +1249,8 @@ class LayerTable(object):
 				colormap_name = str(self.colormap_vector_box.itemText(index))
 				logger.debug("selected colormap for vector: %r" % colormap_name)
 				self.colormap_vector = colormap_name
-				self.plot()
+				#self.plot()
+				self.signal_plot_dirty.emit()
 
 			cmapnames = "vz_cmap vz_colormap vz_colourmap".split()
 			if not set(cmapnames).isdisjoint(self.options):
@@ -1219,6 +1267,9 @@ class LayerTable(object):
 					index = gavi.vaex.colormaps.colormaps.index(cmap)
 				self.colormap_vector_box.setCurrentIndex(index)
 				self.colormap_vector = gavi.vaex.colormaps.colormaps[index]
+			else:
+				index = gavi.vaex.colormaps.colormaps.index(self.colormap_vector)
+				self.colormap_vector_box.setCurrentIndex(index)
 			self.colormap_vector_box.currentIndexChanged.connect(onColorMap)
 
 			row += 1

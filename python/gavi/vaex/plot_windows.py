@@ -288,6 +288,8 @@ class PlotDialog(QtGui.QWidget):
 	
 	def get_options(self):
 		options = collections.OrderedDict()
+		options["grid_size"] = self.grid_size
+		options["vector_grid_size"] = self.vector_grid_size
 		options["layers"] = []
 		for layer in self.layers:
 			options["layers"].append(layer.get_options())
@@ -394,6 +396,8 @@ class PlotDialog(QtGui.QWidget):
 		self.shortcuts = []
 		self.messages = {}
 
+		self.grid_size = eval(self.options.get("grid_size", "512/2"))
+		self.vector_grid_size = eval(self.options.get("vector_grid_size", "16"))
 
 
 		self.fig = Figure(figsize=(width, height), dpi=dpi)
@@ -1500,13 +1504,14 @@ class PlotDialog(QtGui.QWidget):
 			action_resolution = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
 				self.grid_size = resolution
-				self.compute()
-				self.jobsManager.execute()
+				self.queue_update()
+				#self.compute()
+				#self.jobsManager.execute()
 			action_resolution.setCheckable(True)
 			# TODO: this need to move to a layer change event
-			#if resolution == int(self.grid_size):
-			#	action_resolution.setChecked(True)
-			action_resolution.setEnabled(False)
+			if resolution == int(self.grid_size):
+				action_resolution.setChecked(True)
+			#action_resolution.setEnabled(False)
 			action_resolution.triggered.connect(do)
 			action_resolution.setShortcut("Ctrl+Alt+%d" % (index+1))
 			self.menu_view.addAction(action_resolution)
@@ -1518,13 +1523,14 @@ class PlotDialog(QtGui.QWidget):
 			action_resolution = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
 				self.vector_grid_size = resolution
-				self.compute()
-				self.jobsManager.execute()
+				self.queue_update()
+				#self.compute()
+				#self.jobsManager.execute()
 			action_resolution.setCheckable(True)
 			# TODO: this need to move to a layer change event
-			#if resolution == int(self.vector_grid_size):
-			#	action_resolution.setChecked(True)
-			action_resolution.setEnabled(False)
+			if resolution == int(self.vector_grid_size):
+				action_resolution.setChecked(True)
+			#action_resolution.setEnabled(False)
 			action_resolution.triggered.connect(do)
 			action_resolution.setShortcut("Ctrl+Shift+Alt+%d" % (index+1))
 			self.menu_view.addAction(action_resolution)
@@ -2057,10 +2063,6 @@ class ScatterPlotDialog(PlotDialog):
 	def __init__(self, parent, jobsManager, dataset, **options):
 		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, 2, "X Y".split(), **options)
 
-	def error_in_field(self, widget, name, exception):
-		dialog_error(widget, "Error in expression", "Invalid expression for field %s: %s" % (name, exception))
-		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
-		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
 
 	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
 		if compute_counter < self.compute_counter:
@@ -2259,7 +2261,7 @@ class ScatterPlotDialog(PlotDialog):
 		self.addToolbar2(layout)
 		super(ScatterPlotDialog, self).afterCanvas(layout)
 
-	def add_image_layer(self, rgba):
+	def add_image_layer(self, rgba, intensity):
 		self.image_layers.append(rgba)
 
 	def plot(self):
@@ -2269,7 +2271,7 @@ class ScatterPlotDialog(PlotDialog):
 			return
 		first_layer = self.layers[0]
 
-		N = first_layer.grid_size
+		N = self.grid_size
 		background = np.ones((N, N, 4), dtype=np.float64)
 		background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(self.background_color)
 		background[:,:,3] = 0.02
@@ -2298,7 +2300,7 @@ class ScatterPlotDialog(PlotDialog):
 
 
 		for layer in self.layers:
-			layer.plot(self.axes, self.add_image_layer)
+			layer.plot([self.axes], self.add_image_layer)
 
 		rgba_dest = self.image_layers[0] * 1. # * 0
 		if 1:
@@ -2339,6 +2341,8 @@ class ScatterPlotDialog(PlotDialog):
 		#rgba_dest[:,:,3] = 1
 		placeholder.set_data((rgba_dest * 255).astype(np.uint8))
 
+
+
 		if self.aspect is None:
 			self.axes.set_aspect('auto')
 		else:
@@ -2372,6 +2376,7 @@ class ScatterPlotDialog(PlotDialog):
 					self.filename_figure_last = self.options["filename"]
 					self.fig.savefig(self.filename_figure_last)
 
+		self.signal_plot_finished.emit(self, self.fig)
 		return
 		if 1:
 			ranges = []
@@ -2501,7 +2506,6 @@ class ScatterPlotDialog(PlotDialog):
 			if "filename" in self.options:
 				self.filename_figure_last = self.options["filename"]
 				self.fig.savefig(self.filename_figure_last)
-		self.signal_plot_finished.emit(self, self.fig)
 
 
 
@@ -2762,8 +2766,9 @@ def timelog(msg, reset=False):
 class VolumeRenderingPlotDialog(PlotDialog):
 	type_name = "volumerendering"
 	#names = "volumerendering,3d"
-	def __init__(self, parent, jobsManager, dataset, xname, yname, zname, **options):
-		super(VolumeRenderingPlotDialog, self).__init__(parent, jobsManager, dataset, [xname, yname, zname], "X Y Z".split(), **options)
+	def __init__(self, parent, jobsManager, dataset, **options):
+		super(VolumeRenderingPlotDialog, self).__init__(parent, jobsManager, dataset, 3, "X Y Z".split(), **options)
+		#[xname, yname, zname]
 
 	def closeEvent(self, event):
 		self.widget_volume.orbit_stop()
@@ -2815,7 +2820,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		toolbox.setCurrentIndex(3)
 		self.fill_page_volume_rendering(self.frame_options_volume_rendering)
 
-	def addAxes(self):
+	def add_axes(self):
 		self.axes_grid = [[None,] * self.dimensions for _ in range(self.dimensions)]
 		self.axis_top = self.fig.add_subplot(2,1,1)
 		self.axis_bottom = self.fig.add_subplot(2,1,2)
@@ -2928,12 +2933,45 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			self.message("computation (%f seconds)" % (elapsed), index=9)
 
 
+	def add_image_layer(self, rgba, intensity):
+		self.image_layers.append(intensity)
+
 	def plot(self):
+		self.image_layers = []
+		#self.image_layers = []
+		axes_list = self.getAxesList()
+		for axes in axes_list:
+			axes.cla()
+		if len(self.layers) == 0:
+			return
+		first_layer = self.layers[0]
+
+
+		for layer in self.layers:
+			layer.plot(axes_list, self.add_image_layer)
+		print "grids", self.image_layers
+		for image in self.image_layers:
+			self.widget_volume.setGrid(image)
+
+
+
+		#if self.aspect is None:
+		#	self.axes.set_aspect('auto')
+		#else:
+		#	self.axes.set_aspect(self.aspect)
+		#self.axes.set_xlim(*self.ranges_show[0])
+		#self.axes.set_ylim(*self.ranges_show[1])
+		self.fig.tight_layout()#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
+		self.canvas.draw()
+		self.update()
+
+
+	def plot_(self):
 		timelog("plot start", reset=False)
 		t0 = time.time()
 		if 1:
 			ranges = []
-			for minimum, maximum in self.ranges:
+			for minimum, maximum in self.ranges_show:
 				ranges.append(minimum)
 				ranges.append(maximum)
 
