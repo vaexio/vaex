@@ -298,5 +298,7 @@ def qt_exception(parent, exctype, value, traceback):
 	dialog.raise_()
 	dialog.exec_()
 	#QtGui.QMessageBox.critical(parent, "Unexpected error: %r" % (value, ), text)
-	
+
+
+
 	

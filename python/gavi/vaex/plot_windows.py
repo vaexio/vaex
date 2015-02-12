@@ -290,15 +290,36 @@ class PlotDialog(QtGui.QWidget):
 		options = collections.OrderedDict()
 		options["grid_size"] = self.grid_size
 		options["vector_grid_size"] = self.vector_grid_size
-		options["layers"] = []
-		for layer in self.layers:
-			options["layers"].append(layer.get_options())
+		options["ranges_show"] = self.ranges_show
+		options["aspect"] = self.aspect
+		layer = self.current_layer
+		if layer is not None:
+			options["layer"] = layer.get_options()
 		options = copy.deepcopy(options)
 		return dict(options)
 
 	def apply_options(self, options, update=True):
-		# TODO, remake layers?, or only apply to current layer
-		pass
+		#map = {"expressions",}
+		print "settings options", options, options.keys()
+		#recognize = "ranges_show grid_size vector_grid_size aspect".split()
+		recognize = "ranges_show  aspect".split()
+		for key in recognize:
+			if key in options.keys():
+				value = options[key]
+				print "setting", key, "to value", value
+				setattr(self, key, copy.copy(value))
+				if key == "aspect":
+					self.action_aspect_lock_one.setChecked(bool(value))
+		for plugin in self.plugins:
+			plugin.apply_options(options)
+		for key in options.keys():
+			if key not in recognize:
+				logger.error("option %s not recognized, ignored" % key)
+		layer = self.current_layer
+		if layer is not None:
+			layer.apply_options(options["layer"], update=False)
+		if update:
+			self.queue_update()
 
 	def load_options(self, name):
 		self.plugins_map["favorites"].load_options(name, update=False)
@@ -337,7 +358,13 @@ class PlotDialog(QtGui.QWidget):
 		layer.signal_plot_dirty.connect(on_plot_dirty)
 		layer.signal_plot_update.connect(self.queue_update)
 
-		self.queue_update()
+		if "options" in options:
+			assert self.current_layer == layer
+			self.load_options(options["options"])
+		layer.add_jobs()
+		#self.jobsManager.execute()
+		#self.queue_update()
+		return layer
 
 	def __init__(self, parent, jobsManager, dataset, dimensions, axisnames, width=5, height=4, dpi=100, **options):
 		super(PlotDialog, self).__init__()
@@ -427,6 +454,10 @@ class PlotDialog(QtGui.QWidget):
 		#self.ranges = [None for _ in range(self.dimensions)] # min/max for the data
 		self.ranges_show = [None for _ in range(self.dimensions)] # min/max for the plots
 		self.range_level_show = None
+		# if zooming in with for instance pinching, we like to know what the ranges were
+		# before zooming for the undo, and not all ranges in between
+		self.last_ranges_show = None
+		self.last_range_level_show = None
 
 		#self.ranges_previous = None
 		#self.ranges_show_previous = None
@@ -580,6 +611,7 @@ class PlotDialog(QtGui.QWidget):
 			#self.bottomFrame.updateGeometry()
 			layer_index = index - 1
 			if index == 0:
+				self.current_layer = None
 				for layer in self.layers:
 					layer_control_widget = layer.grab_layer_control(self.frame_layer_controls)
 					self.layout_frame_layer_controls.addWidget(layer_control_widget)
@@ -587,6 +619,7 @@ class PlotDialog(QtGui.QWidget):
 					#
 			else:
 				self.layers[layer_index].release_layer_control(self.frame_layer_controls)
+				self.current_layer = self.layers[index-1]
 
 
 			self.widget_layer_stack.setCurrentIndex(index)
@@ -776,17 +809,19 @@ class PlotDialog(QtGui.QWidget):
 				#hasy = hasattr(self, "getdatay")
 				#hasx = hasattr(self, "getdatax")
 				#print "pick", hasx, hasy
-				hasx = True
-				hasy = len(self.expressions) > 1
-				self.currentModes = [matplotlib.widgets.Cursor(axes, hasy, hasx, color="red", linestyle="dashed", useblit=useblit) for axes in axes_list]
-				for cursor in self.currentModes:
-					def onmove(event, current=cursor, cursors=self.currentModes):
-						if event.inaxes:
-							#print "on move", event.inaxes.xaxis_index, event.inaxes.yaxis_index
-							for other_cursor in cursors:
-								if current != other_cursor:
-									other_cursor.onmove(event)
-					cursor.connect_event('motion_notify_event', onmove)
+				layer = self.current_layer
+				if layer is not None:
+					hasx = True
+					hasy = len(layer.expressions) > 1
+					self.currentModes = [matplotlib.widgets.Cursor(axes, hasy, hasx, color="red", linestyle="dashed", useblit=useblit) for axes in axes_list]
+					for cursor in self.currentModes:
+						def onmove(event, current=cursor, cursors=self.currentModes):
+							if event.inaxes:
+								#print "on move", event.inaxes.xaxis_index, event.inaxes.yaxis_index
+								for other_cursor in cursors:
+									if current != other_cursor:
+										other_cursor.onmove(event)
+						cursor.connect_event('motion_notify_event', onmove)
 				if hasx and hasy:
 					for mode in self.currentModes:
 						mode.connect_event('button_press_event', self.onPickXY)
@@ -892,11 +927,15 @@ class PlotDialog(QtGui.QWidget):
 				scope.block_index, scope.block_distance = find_nearest_index(blockx, blocky, x, y, wx, wy)
 				if scope.block_distance < scope.distance:
 					scope.index = scope.block_index
-		self.dataset.evaluate(pick, *self.expressions[:2], **self.getVariableDict())
-		index, distance = scope.index, scope.distance
-		print "nearest row", index, distance
-		self.dataset.selectRow(index)
-		self.setMode(self.lastAction)
+		layer = self.current_layer
+		axes = event.inaxes
+		if layer is not None and  axes is not None:
+				layer.coordinates_picked_row = None
+				layer.dataset.evaluate(pick, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
+				index, distance = scope.index, scope.distance
+				print "nearest row", index, distance
+				layer.dataset.selectRow(index)
+				self.setMode(self.lastAction)
 
 
 	def onSelectX(self, xmin, xmax, axes):
@@ -929,17 +968,13 @@ class PlotDialog(QtGui.QWidget):
 
 		print "selectx", xmin, xmax, "selected", np.sum(mask), "for axis index", axes.xaxis_index
 
-		# xaxis is stored in the matplotlib object
-		self.dataset.evaluate(putmask, self.expressions[axes.xaxis_index], **self.getVariableDict())
-
-		action = undo.ActionMask(self.undoManager, "select x range[%f,%f]" % (xmin, xmax), mask, self.applyMask)
-		action.do()
-		self.checkUndoRedo()
-
-	def applyMask(self, mask):
-		self.dataset.selectMask(mask)
-		self.jobsManager.execute()
-		self.setMode(self.lastAction)
+		layer = self.current_layer
+		if layer is not None:
+			# xaxis is stored in the matplotlib object
+			layer.dataset.evaluate(putmask, layer.expressions[axes.xaxis_index], **self.getVariableDict())
+			action = undo.ActionMask(layer.dataset.undo_manager, "select x range[%f,%f]" % (xmin, xmax), mask, layer.apply_mask)
+			action.do()
+			#self.checkUndoRedo()
 
 	def onSelectY(self, ymin, ymax, axes):
 		y = [ymin, ymax]
@@ -948,16 +983,21 @@ class PlotDialog(QtGui.QWidget):
 		mask = np.zeros(self.dataset._length, dtype=np.bool)
 		def putmask(info, block):
 			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], (block >= ymin) & (block < ymax))
-		self.dataset.evaluate(putmask, self.expressions[axes.yaxis_index], **self.getVariableDict())
+		#self.dataset.evaluate(putmask, self.expressions[axes.yaxis_index], **self.getVariableDict())
 		#for block, info in self.dataset.evaluate(self.expressions[1]):
 		#	mask[info.i1:info.i2] = (block >= ymin) & (block < ymax)
 		print "selecty", ymin, ymax, "selected", np.sum(mask)
 		#self.dataset.selectMask(mask)
 		#self.jobsManager.execute()
 		#self.setMode(self.lastAction)
-		action = undo.ActionMask(self.undoManager, "select y range[%f,%f]" % (ymin, ymax), mask, self.applyMask)
-		action.do()
-		self.checkUndoRedo()
+		#action.do()
+		#self.checkUndoRedo()
+		layer = self.current_layer
+		if layer is not None:
+			# xaxis is stored in the matplotlib object
+			layer.dataset.evaluate(putmask, layer.expressions[axes.yaxis_index], **self.getVariableDict())
+			action = undo.ActionMask(layer.dataset.undo_manager, "select y range[%f,%f]" % (ymin, ymax), mask, layer.apply_mask)
+			action.do()
 
 	def onSelectLasso(self, vertices, axes):
 		x, y = np.array(vertices).T
@@ -994,20 +1034,13 @@ class PlotDialog(QtGui.QWidget):
 			if info.last:
 				self.message("selection %.2fs" % (time.time() - t0), index=40)
 
-		self.dataset.evaluate(select, self.expressions[axes.xaxis_index], self.expressions[axes.yaxis_index], **self.getVariableDict())
-		if 0:
-			try:
-				gavi.selection.pnpoly(x, y, self.getdatax(), self.getdatay(), mask, meanx, meany, radius)
-			except:
-				print gavi.selection.pnpoly.inspect_types()
-				args = (x, y, self.getdatax(), self.getdatay(), mask, meanx, meany, radius)
-				print "issue with pnppoly, arguments: "
-				for i, arg in enumerate(args):
-					print i, repr(arg), arg.dtype if hasattr(arg, "dtype") else ""
-				raise
-		action = undo.ActionMask(self.undoManager, "lasso around [%f,%f]" % (meanx, meany), mask, self.applyMask)
-		action.do()
-		self.checkUndoRedo()
+		layer = self.current_layer
+		if layer is not None:
+			self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
+			action = undo.ActionMask(layer.dataset.undo_manager, "lasso around [%f,%f]" % (meanx, meany), mask, layer.apply_mask)
+			action.do()
+			self.checkUndoRedo()
+			self.setMode(self.lastAction)
 		#self.dataset.selectMask(mask)
 		#self.jobsManager.execute()
 		#self.setMode(self.lastAction)
@@ -1061,6 +1094,10 @@ class PlotDialog(QtGui.QWidget):
 
 
 	def zoom(self, factor, axes, x=None, y=None, delay=300, *args):
+		if self.last_ranges_show is None:
+			self.last_ranges_show = copy.deepcopy(self.ranges_show)
+		if self.last_range_level_show is None:
+			self.last_range_level_show = copy.deepcopy(self.range_level_show)
 		xmin, xmax = axes.get_xlim()
 		width = xmax - xmin
 
@@ -1104,15 +1141,17 @@ class PlotDialog(QtGui.QWidget):
 		#self.update = self.update_delayed
 
 
-		def delayed_zoom(current_ranges_show=copy.deepcopy(self.ranges_show), current_range_level_show=copy.deepcopy(self.range_level_show)):
+		def delayed_zoom():
 			#action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"), self.set_ranges,
 			#				range(self.dimensions), self.ranges, self.ranges_show,
 			#				self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
-			print "delayed zoom>", current_ranges_show
+			#print "delayed zoom>", current_ranges_show
 			action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"),
 							self.set_ranges,
-							range(self.dimensions), current_ranges_show, current_range_level_show,
+							range(self.dimensions), self.last_ranges_show, self.last_range_level_show,
 							axis_indices, ranges_show=ranges_show, range_level_show=range_level_show)
+			self.last_ranges_show = None
+			self.last_range_level_show = None
 			action.do()
 			self.checkUndoRedo()
 		self.queue_update(delayed_zoom, delay=delay)
@@ -1180,18 +1219,20 @@ class PlotDialog(QtGui.QWidget):
 					else:
 						save_expr += "_"
 			return save_expr
-		save_expressions = map(make_save, self.expressions)
-		type = "histogram" if self.dimensions == 1 else "density"
-		filename = self.dataset.name +"_%s_" % type  +"-vs-".join(save_expressions) + ".png"
-		filename = QtGui.QFileDialog.getSaveFileName(self, "Export to figure", filename, ";;".join(filetypes))
-		if isinstance(filename, tuple):
-			filename = filename[0]
-		filename = str(filename)
-		if filename:
-			logger.debug("saving to figure: %s" % filename)
-			self.fig.savefig(filename)
-			self.filename_figure_last = filename
-			self.action_save_figure_again.setEnabled(True)
+		layer = self.current_layer
+		if layer != None:
+			save_expressions = map(make_save, layer.expressions)
+			type = "histogram" if self.dimensions == 1 else "density"
+			filename = layer.dataset.name +"_%s_" % type  +"-vs-".join(save_expressions) + ".png"
+			filename = QtGui.QFileDialog.getSaveFileName(self, "Export to figure", filename, ";;".join(filetypes))
+			if isinstance(filename, tuple):
+				filename = filename[0]
+			filename = str(filename)
+			if filename:
+				logger.debug("saving to figure: %s" % filename)
+				self.fig.savefig(filename)
+				self.filename_figure_last = filename
+				self.action_save_figure_again.setEnabled(True)
 
 	def onActionSaveFigureAgain(self, *ignore_args):
 		logger.debug("saving to figure: %s" % self.filename_figure_last)
@@ -1252,8 +1293,12 @@ class PlotDialog(QtGui.QWidget):
 				if mask.dtype != np.bool:
 					dialog_error(self, "Error opening selection", "Expected type numpy.bool, got %r" % (mask.dtype ))
 					return
-				self.dataset.selectMask(mask)
-				self.jobsManager.execute()
+				layer = self.current_layer
+				if layer is not None:
+					action = undo.ActionMask(layer.dataset.undo_manager, "loaded selection", mask, layer.apply_mask)
+					action.do()
+				#self.dataset.selectMask(mask)
+				#self.jobsManager.execute()
 		self.action_selection_load = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Load selection', self)
 		self.action_selection_load.triggered.connect(on_load_selection)
 		#self.action_selection_load.setCheckable(True)
@@ -1302,6 +1347,7 @@ class PlotDialog(QtGui.QWidget):
 		self.toolbar2.addAction(self.action_redo)
 		self.action_undo.triggered.connect(self.onActionUndo)
 		self.action_redo.triggered.connect(self.onActionRedo)
+		self.checkUndoRedo()
 
 		self.action_shuffled = QtGui.QAction(QtGui.QIcon(iconfile('table-select-cells')), 'Shuffled', self)
 		self.action_shuffled.setCheckable(True)
@@ -1772,19 +1818,23 @@ class PlotDialog(QtGui.QWidget):
 	def onActionSelectNone(self):
 		#self.dataset.selectMask(None)
 		#self.jobsManager.execute()
-		action = undo.ActionMask(self.undoManager, "clear selection", None, self.applyMask)
-		action.do()
-		self.checkUndoRedo()
+		layer = self.current_layer
+		if layer is not None:
+			action = undo.ActionMask(layer.dataset.undo_manager, "clear selection", None, layer.apply_mask)
+			action.do()
+		#self.checkUndoRedo()
 
 	def onActionSelectInvert(self):
-		mask = self.dataset.mask
-		if mask is not None:
-			mask = ~mask
-		else:
-			mask = np.ones(len(self.dataset), dtype=np.bool)
-		action = undo.ActionMask(self.undoManager, "invert selection", mask, self.applyMask)
-		action.do()
-		self.checkUndoRedo()
+		layer = self.current_layer
+		if layer is not None:
+			mask = layer.dataset.mask
+			print "invert", mask
+			if mask is not None:
+				mask = ~mask
+			else:
+				mask = np.ones(len(self.dataset), dtype=np.bool)
+			action = undo.ActionMask(layer.dataset.undo_manager, "invert selection", mask, layer.apply_mask)
+			action.do()
 
 	def onActionSelect(self):
 		self.lastActionSelect.setChecked(True)
@@ -2282,7 +2332,7 @@ class ScatterPlotDialog(PlotDialog):
 			ranges.append(maximum)
 
 		placeholder = self.axes.imshow(background, extent=ranges, origin="lower")
-		self.add_image_layer(background)
+		self.add_image_layer(background, None)
 
 		for i in range(self.dimensions):
 			if self.ranges_show[i] is None:

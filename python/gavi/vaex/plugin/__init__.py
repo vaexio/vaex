@@ -27,6 +27,12 @@ class PluginPlot(object):
 	def clean_up(self):
 		pass
 
+	def apply_options(self, options):
+		pass
+
+	def get_options(self):
+		pass
+
 	def use_layer(self, layer):
 		pass
 

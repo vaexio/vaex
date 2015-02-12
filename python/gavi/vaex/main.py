@@ -1346,7 +1346,8 @@ class Vaex(QtGui.QMainWindow):
 					else:
 						error("cannot plot more than 3 columns yet: %r" % columns)
 				else:
-					plot.add_layer(columns, dataset=dataset, **options)
+					layer = plot.add_layer(columns, dataset=dataset, **options)
+					layer.jobs_manager.execute()
 				if index < len(args) and args[index] == "-":
 					plot = None # set to None to create a new plot, + will do a new layer
 				if index < len(args) and args[index] == "--":
