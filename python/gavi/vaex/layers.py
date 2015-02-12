@@ -163,14 +163,14 @@ class LayerTable(object):
 		self.level_max = 1.
 		#self.use_intensity = bool(self.options.get("use_intensity", True))
 
+		self.coordinates_picked_row = None
+
 
 		self.vector_grid_size = eval(self.options.get("vector_grid_size", "16"))
 		self.grid_size = eval(self.options.get("grid_size", "512/2"))
 		if "selection" in options:
 			mask = np.load(self.dataset.name + "-selection.npy")
 			self.dataset.selectMask(mask)
-		if "options" in self.options:
-			self.load_options(self.options["options"])
 
 		self.colormap = "PaulT_plusmin" #"binary"
 		self.colormap_vector = "binary"
@@ -210,6 +210,8 @@ class LayerTable(object):
 		self.signal_expression_change = gavi.events.Signal("expression_change")
 		self.signal_plot_dirty = gavi.events.Signal("plot_dirty")
 		self.signal_plot_update = gavi.events.Signal("plot_update")
+
+
 
 	def create_grid_map(self, gridsize, use_selection):
 		locals = {}
@@ -266,17 +268,28 @@ class LayerTable(object):
 		amplitude = eval(expression, globals, locals)
 		return amplitude
 
+	def error_in_field(self, widget, name, exception):
+		dialog_error(widget, "Error in expression", "Invalid expression for field %s: %r" % (name, exception))
+		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
+		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
+
 	def plot(self, axes, stack_image):
+		import traceback
+		print "stack trace", ''.join(traceback.format_stack())
+		print ">>> GRIDS", self.grids.grids
 		grid_map = self.create_grid_map(self.grid_size, False)
 		try:
 			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
 		except Exception, e:
+			print e, repr(e)
 			self.error_in_field(self.amplitude_box, "amplitude", e)
 			return
 		print "TOTAL", np.sum(amplitude)
 		amplitude_selection = None
-		use_selection = self.dataset.mask is not None is not None
+		print self.dataset.mask
+		use_selection = self.dataset.mask is not None
 		if use_selection:
+			print "using selection"
 			grid_map_selection = self.create_grid_map(self.grid_size, True)
 			amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
 
@@ -285,6 +298,22 @@ class LayerTable(object):
 		grid_map_vector = self.create_grid_map(self.vector_grid_size, use_selection)
 		for callback in self.plugin_grids_draw:
 			callback(axes, grid_map, grid_map_vector)
+
+		index = self.dataset.selected_row_index
+		if index is not None and self.coordinates_picked_row is None:
+			logger.debug("point selected but after computation")
+			# TODO: optimize
+			def find_selected_point(info, *blocks):
+				if index >= info.i1 and index < info.i2: # selected point is in this block
+					self.coordinates_picked_row = [block[index-info.i1] for block in blocks]
+			self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
+		#for axes in axes_
+		if self.coordinates_picked_row is not None:
+			axes.scatter([self.coordinates_picked_row[axes.xaxis_index]], [self.coordinates_picked_row[axes.yaxis_index]], color='red')
+
+
+	def getVariableDict(self):
+		return {} # TODO: remove this? of replace
 
 	def plot_density_imshow(self, axes, amplitude, amplitude_selection, stack_image):
 		if not self.visible:
@@ -295,64 +324,71 @@ class LayerTable(object):
 			ranges.append(maximum)
 		use_selection = amplitude_selection is not None
 		#if isinstance(self.colormap, basestring):
-		print amplitude.min(), amplitude.max()
-		I = self.contrast(amplitude)
-		# scale to [0,1]
-		mask = ~(np.isnan(I) | np.isinf(I))
-		I -= I[mask].min()
-		I /= I[mask].max()
-		print np.nanmin(I),np.nanmax(I)
+		def normalize(amplitude):
+			print amplitude.min(), amplitude.max()
+			I = self.contrast(amplitude)
+			# scale to [0,1]
+			mask = ~(np.isnan(I) | np.isinf(I))
+			if np.sum(mask) == 0:
+				return np.zeros(I.shape + (4,), dtype=np.float64)
+			I -= I[mask].min()
+			I /= I[mask].max()
+			return I
 
-		# scale [min, max] to [0, 1]
-		I -= self.level_min
-		I /= (self.level_max - self.level_min)
+		def to_rgb(amplitude, pre_alpha=1.):
+			print amplitude.min(), amplitude.max()
+			I = self.contrast(amplitude)
+			# scale to [0,1]
+			mask = ~(np.isnan(I) | np.isinf(I))
+			if np.sum(mask) == 0:
+				return np.zeros(I.shape + (4,), dtype=np.float64)
+			I -= I[mask].min()
+			I /= I[mask].max()
+			print np.nanmin(I),np.nanmax(I)
 
-		#if self.color is not None:
+			# scale [min, max] to [0, 1]
+			I -= self.level_min
+			I /= (self.level_max - self.level_min)
 
-		alpha_mask = (mask) & (I > 0)
-		if self.display_type == "contour":
-			if self.contour_count > 0:
-				#levels = np.linspace(0, 1, self.contour_count)
-				levels = (np.arange(self.contour_count) + 1. ) / (self.contour_count + 1)
-				ranges = self.ranges_grid[0] + self.ranges_grid[1]
-				axes.contour(I, origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color)
-		else:
+			#if self.color is not None:
+
+			alpha_mask = (mask) & (I > 0)
 			if self.display_type == "solid":
 				color_tuple = matplotlib.colors.colorConverter.to_rgb(self.color)
 				rgba = np.zeros(I.shape + (4,), dtype=np.float64)
 				#print rgba[:,:,0:3].shape, np.array(color_tuple).shape
-				print "color", self.color, color_tuple
 				rgba[alpha_mask,0:3] = np.array(color_tuple)
 			else:
 				cmap = matplotlib.cm.cmap_d[self.colormap]
 				rgba = cmap(I * 1.00)
 				rgba[:,:,3] = (np.clip((I**1.0) * self.alpha, 0, 1))
 			if self.transparancy == "intensity":
-				rgba[:,:,3] = (np.clip((I**1.0) * self.alpha, 0, 1)) * self.alpha
+				rgba[:,:,3] = (np.clip((I**1.0) * self.alpha, 0, 1)) * self.alpha * pre_alpha
 			elif self.transparancy == "constant":
-				rgba[alpha_mask,3] = 1. * self.alpha
+				rgba[alpha_mask,3] = 1. * self.alpha * pre_alpha
 				rgba[~alpha_mask,3] = 0
 			elif self.transparancy == "none":
-				rgba[:,:,3] = 1
+				rgba[:,:,3] = pre_alpha
 			else:
 				raise "not implemented"
-			print "!@# " * 20
-			print I.min(), I.max()
-			#rgba[:,:,3] = np.clip(I, 0, 1) ** 1.0 * self.alpha
-			#rgba[:,:,3] = (np.clip(I, 0, 1) * 0.0 +1)* self.alpha
-			if 0:
-				c = rgba[0,0,:]
-				#c = [ 0.96862745,  0.98431373,  1.,          0.1-0.00186294143]
-				c = [1., 1., 1., 0.5]
-				x = np.linspace(0, 1, rgba.shape[0])
-				x, y = np.meshgrid(x, x)
-				rgba[:,:,0] = x * 0 + 1
-				rgba[:,:,1] = x * 0 + 0
-				rgba[:,:,2] = x * 0 + 0
-				rgba[:,:,3] = x # * 0 + 1
-				#rgba = (rgba * 255).astype(np.uint8)
-				print c
-			stack_image(rgba)
+			return rgba
+
+		levels = (np.arange(self.contour_count) + 1. ) / (self.contour_count + 1)
+		ranges = self.ranges_grid[0] + self.ranges_grid[1]
+		if use_selection:
+			if self.display_type == "contour":
+				if self.contour_count > 0:
+					axes.contour(normalize(amplitude), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4)
+					axes.contour(normalize(amplitude_selection), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color)
+			else:
+				stack_image(to_rgb(amplitude, 0.05))
+				stack_image(to_rgb(amplitude_selection))
+		else:
+			if self.display_type == "contour":
+				if self.contour_count > 0:
+					axes.contour(normalize(amplitude), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color)
+			else:
+				stack_image(to_rgb(amplitude))
 		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=(0.4 if use_selection else 1.0) * self.alpha, cmap=self.colormap)
 		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=self.alpha)
 		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=self.alpha)
@@ -361,6 +397,7 @@ class LayerTable(object):
 
 
 	def onSelectMask(self, mask):
+		self.check_selection_undo_redo()
 		self.add_jobs()
 		#self.plot()
 
@@ -385,18 +422,52 @@ class LayerTable(object):
 		options = collections.OrderedDict()
 		#options["type-names"] = map(str.strip, self.names.split(","))
  		options["expressions"] = self.expressions
+ 		options["expression_weight"] = self.expression_weight
 		options["amplitude_expression"] = self.amplitude_expression
-		options["ranges"] = self.ranges
-		options["ranges_show"] = self.ranges_show
-		options["grid_size"] = self.grid_size
-		options["vector_grid_size"] = self.vector_grid_size
-		options["aspect"] = self.aspect
+		options["ranges_grid"] = self.ranges_grid
+		options["weight_x_expression"] = self.weight_x_expression
+		options["weight_y_expression"] = self.weight_y_expression
+		options["weight_z_expression"] = self.weight_z_expression
 		for plugin in self.plugins:
 			options.update(plugin.get_options())
 		# since options contains reference (like a list of expressions)
 		# changes in the gui might reflect previously stored options
 		options = copy.deepcopy(options)
 		return dict(options)
+
+	def apply_options(self, options, update=True):
+		#map = {"expressions",}
+		print "settings options", options, options.keys()
+		recognize = "expressions expression_weight amplitude_expression ranges_grid aspect weight_x_expression weight_y_expression weight_z_expression".split()
+		for key in recognize:
+			if key in options.keys():
+				value = options[key]
+				print "setting", key, "to value", value
+				setattr(self, key, copy.copy(value))
+				if key == "amplitude_expression":
+					self.amplitude_box.lineEdit().setText(value)
+				if key == "expression_weight":
+					self.weight_box.lineEdit().setText(value or "")
+				if key == "weight_x_expression":
+					self.weight_x_box.lineEdit().setText(value or "")
+				if key == "weight_y_expression":
+					self.weight_y_box.lineEdit().setText(value or "")
+				if key == "weight_y_expression":
+					self.weight_y_box.lineEdit().setText(value or "")
+				if key == "expressions":
+					print "settings expressions", zip(value, self.axisboxes)
+					for expr, box in zip(value, self.axisboxes):
+						print expr, box
+						box.lineEdit().setText(expr)
+		for plugin in self.plugins:
+			plugin.apply_options(options)
+		for key in options.keys():
+			if key not in recognize:
+				logger.error("option %s not recognized, ignored" % key)
+		if update:
+			self.plot_window.queue_update()
+
+
 
 	def plug_toolbar(self, callback, order):
 		self.plugin_queue_toolbar.append((callback, order))
@@ -408,13 +479,21 @@ class LayerTable(object):
 		self.plugin_grids_defines.append(callback_define)
 		self.plugin_grids_draw.append(callback_draw)
 
+	def apply_mask(self, mask):
+		print "apply mask", mask
+		self.dataset.selectMask(mask)
+		self.jobs_manager.execute()
+		self.check_selection_undo_redo()
+		self.label_selection_info_update()
+
+
 
 	def message(self, *args, **kwargs):
 		print "message", args, kwargs
 
 	def add_jobs(self):
-		import traceback
-		print "updating compute counter", ''.join(traceback.format_stack())
+		#import traceback
+		#print "updating compute counter", ''.join(traceback.format_stack())
 		compute_counter = self.compute_counter = self.compute_counter + 1
 		t0 = time.time()
 
@@ -458,10 +537,10 @@ class LayerTable(object):
 			else:
 				self.grids.ranges[axisIndex] = copy.deepcopy(self.ranges_grid[axisIndex])
 
-		#if self.weight_expression is None or len(self.weight_expression.strip()) == 0:
+		#if self.expression_weight is None or len(self.expression_weight.strip()) == 0:
 		#	self.jobs_manager.addJob(1, self.calculate_visuals, self.dataset, *self.expressions, **self.getVariableDict())
 		#else:
-		#all_expressions = self.expressions + [self.weight_expression, self.weight_x_expression, self.weight_y_expression, self.weight_z_expression]
+		#all_expressions = self.expressions + [self.expression_weight, self.weight_x_expression, self.weight_y_expression, self.weight_z_expression]
 		self.grids.set_expressions(self.expressions)
 		self.grids.define_grid("counts", self.grid_size, None)
 		self.grids.define_grid("weighted", self.grid_size, self.expression_weight)
@@ -472,34 +551,6 @@ class LayerTable(object):
 		for callback in self.plugin_grids_defines:
 			callback(self.grids)
 		self.grids.add_jobs(self.jobs_manager)
-
-	def apply_options(self, options, update=True):
-		#map = {"expressions",}
-		print "settings options", options, options.keys()
-		recognize = "expressions amplitude_expression ranges ranges_show grid_size vector_grid_size aspect".split()
-		for key in recognize:
-			#print repr(key), map(str, options.keys()), key in map(str, options.keys())
-			if key in options.keys():
-				value = options[key]
-				print "setting", key, "to value", value
-				setattr(self, key, copy.copy(value))
-				if key == "aspect":
-					self.action_aspect_lock_one.setChecked(bool(value))
-				if key == "amplitude_expression":
-					self.amplitude_box.lineEdit().setText(value)
-				if key == "expressions":
-					print "settings expressions", zip(value, self.axisboxes)
-					for expr, box in zip(value, self.axisboxes):
-						print expr, box
-						box.lineEdit().setText(expr)
-		for plugin in self.plugins:
-			plugin.apply_options(options)
-		for key in options.keys():
-			if key not in recognize:
-				logger.error("option %s not recognized, ignored" % key)
-		if update:
-			self.queue_update()
-
 
 	def build_widget_qt(self, parent):
 
@@ -523,6 +574,7 @@ class LayerTable(object):
 		self.plug_page(self.page_visual, "Visual", 1.5, 1.)
 		self.plug_page(self.page_vector, "Vector field", 2., 1.)
 		self.plug_page(self.page_display, "Display", 3., 1.)
+		self.plug_page(self.page_selection, "Selection", 3.5, 1.)
 
 		# first get unique page orders
 		pageorders = {}
@@ -583,9 +635,10 @@ class LayerTable(object):
 		self.expressions[axisIndex] = text
 		# TODO: range reset as option?
 		self.ranges_grid[axisIndex] = None
+		self.plot_window.ranges_show[axisIndex] = None
 		# TODO: how to handle axis lock.. ?
-		#if not self.axis_lock:
-		#	self.ranges_show[axisIndex] = None
+		if not self.plot_window.axis_lock:
+			self.ranges_grid[axisIndex] = None
 		linkButton = self.linkButtons[axisIndex]
 		link = linkButton.link
 		if link:
@@ -597,7 +650,10 @@ class LayerTable(object):
 		else:
 			logger.debug("not linked")
 		# let any event handler deal with redraw etc
-		self.signal_expression_change.emit(self, axisIndex, text)
+		self.coordinates_picked_row = None
+		self.add_jobs()
+		self.jobs_manager.execute()
+		#self.signal_expression_change.emit(self, axisIndex, text)
 		#self.compute()
 		#error_text = self.jobsManager.execute()
 		#if error_text:
@@ -605,17 +661,17 @@ class LayerTable(object):
 
 	def onWeightExpr(self):
 		text = str(self.weight_box.lineEdit().text())
-		print "############", self.weight_expression, text
-		if (text == self.weight_expression) or (text == "" and self.weight_expression == None):
+		print "############", self.expression_weight, text
+		if (text == self.expression_weight) or (text == "" and self.expression_weight == None):
 			logger.debug("same weight expression, will not update")
 			return
-		self.weight_expression = text
-		print self.weight_expression
-		if self.weight_expression.strip() == "":
-			self.weight_expression = None
+		self.expression_weight = text
+		print self.expression_weight
+		if self.expression_weight.strip() == "":
+			self.expression_weight = None
 		self.range_level = None
-		self.compute()
-		self.jobsManager.execute()
+		self.add_jobs()
+		self.jobs_manager.execute()
 		#self.plot()
 
 	def onTitleExpr(self):
@@ -649,8 +705,8 @@ class LayerTable(object):
 		expressions = [self.weight_x_expression, self.weight_y_expression, self.weight_z_expression]
 		non_none_expressions = [k for k in expressions if k is not None and len(k) > 0]
 		if len(non_none_expressions) >= 2:
-			self.compute()
-			self.jobsManager.execute()
+			self.add_jobs()
+			self.jobs_manager.execute()
 			#self.plot()
 
 
@@ -708,7 +764,8 @@ class LayerTable(object):
 		self.amplitude_expression = text
 		print self.amplitude_expression
 		self.range_level = None
-		self.plot()
+		self.plot_window.plot()
+		#self.plot()
 
 	def page_main(self, page):
 		print "page main"
@@ -724,12 +781,13 @@ class LayerTable(object):
 			self.buttonFlipXY = QtGui.QPushButton("exchange x and y")
 			def flipXY():
 				self.expressions.reverse()
-				self.ranges.reverse()
-				self.ranges_show.reverse()
+				self.ranges_grid.reverse()
+				# TODO: how to handle layers?
+				self.plot_window.ranges_show.reverse()
 				for box, expr in zip(self.axisboxes, self.expressions):
 					box.lineEdit().setText(expr)
-				self.compute()
-				self.jobsManager.execute()
+				self.add_jobs()
+				self.jobs_manager.execute()
 			self.buttonFlipXY.clicked.connect(flipXY)
 			self.button_layout.addWidget(self.buttonFlipXY, 0.)
 			self.buttonFlipXY.setAutoDefault(False)
@@ -784,12 +842,15 @@ class LayerTable(object):
 						if "#" in expression:
 							expression = expression[:expression.index("#")].strip()
 						self.expressions[axis_index] = template % expression
+						# this doesn't cause an event causing jobs to be added?
 						self.axisboxes[axis_index].lineEdit().setText(self.expressions[axis_index])
-						self.ranges[axis_index] = None
-						if not self.axis_lock:
-							self.ranges_show[axis_index] = None
-						self.compute()
-						self.jobsManager.execute()
+						self.ranges_grid[axis_index] = None
+						self.coordinates_picked_row = None
+						if not self.plot_window.axis_lock:
+							self.plot_window.ranges_show[axis_index] = None
+						# to add them
+						self.add_jobs()
+						self.jobs_manager.execute()
 					action.triggered.connect(add)
 					menu.addAction(action)
 				self.grid_layout.addWidget(functionButton, row, 3, QtCore.Qt.AlignLeft)
@@ -899,9 +960,9 @@ class LayerTable(object):
 		self.grid_layout.addWidget(self.weight_box, row, 2)
 		self.weight_box.lineEdit().editingFinished.connect(self.onWeightExpr)
 		self.weight_box.currentIndexChanged.connect(lambda _: self.onWeightExpr())
-		self.weight_expression = str(self.weight_box.lineEdit().text())
-		if len(self.weight_expression.strip()) == 0:
-			self.weight_expression = None
+		self.expression_weight = str(self.weight_box.lineEdit().text())
+		if len(self.expression_weight.strip()) == 0:
+			self.expression_weight = None
 
 	def page_visual(self, page):
 
@@ -1015,6 +1076,47 @@ class LayerTable(object):
 		self.contour_count = int(self.options.get("contour_count", 4))
 		self.slider_contour_count = Slider(page_widget, "contour_count", 0, 20, 20, getter=attrgetter(self, "contour_count"), setter=attrsetter(self, "contour_count"), update=self.signal_plot_dirty.emit, format="{0:<3d}", numeric_type=int)
 		row = self.slider_contour_count.add_to_grid_layout(row, grid_layout)
+
+	def page_selection(self, page):
+		self.layout_page_selection =  QtGui.QVBoxLayout()
+		page.setLayout(self.layout_page_selection)
+		self.layout_page_selection.setSpacing(0)
+		self.layout_page_selection.setContentsMargins(0,0,0,0)
+		self.layout_page_selection.setAlignment(QtCore.Qt.AlignTop)
+
+		#button_layout = QtGui.QVBoxLayout()
+
+		self.button_selection_undo = QtGui.QPushButton(QtGui.QIcon(iconfile('undo')), "Undo", page )
+		self.button_selection_redo = QtGui.QPushButton(QtGui.QIcon(iconfile('redo')), "Redo", page)
+		self.layout_page_selection.addWidget(self.button_selection_undo)
+		self.layout_page_selection.addWidget(self.button_selection_redo)
+		def on_undo(checked=False):
+			self.dataset.undo_manager.undo()
+			self.check_selection_undo_redo()
+		def on_redo(checked=False):
+			self.dataset.undo_manager.redo()
+			self.check_selection_undo_redo()
+		self.button_selection_undo.clicked.connect(on_undo)
+		self.button_selection_redo.clicked.connect(on_redo)
+		self.check_selection_undo_redo()
+
+		self.label_selection_info = QtGui.QLabel("should not see me", page)
+		self.layout_page_selection.addWidget(self.label_selection_info)
+		self.label_selection_info_update()
+
+	def label_selection_info_update(self):
+		if self.dataset.mask is None:
+			self.label_selection_info.setText("no selection")
+		else:
+			N_sel = int(np.sum(self.dataset.mask))
+			N_total = len(self.dataset)
+			self.label_selection_info.setText("selected {:,} ({:.2f}%)".format(N_sel, N_sel*100./float(N_total)))
+
+	def check_selection_undo_redo(self):
+		self.button_selection_undo.setEnabled(self.dataset.undo_manager.can_undo())
+		self.button_selection_redo.setEnabled(self.dataset.undo_manager.can_redo())
+
+
 
 	def page_display(self, page):
 

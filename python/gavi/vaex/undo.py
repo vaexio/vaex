@@ -89,7 +89,8 @@ class ActionMask(Action):
 		
 
 class ActionZoom(Action):		
-	def __init__(self, undo_manager, description, apply_ranges, all_axis_indices, previous_ranges_show, previous_range_level_show, axis_indices, ranges_show=None, range_level_show=None):
+	def __init__(self, undo_manager, description, apply_ranges, all_axis_indices,
+	             previous_ranges_show, previous_range_level_show, axis_indices, ranges_show=None, range_level_show=None):
 		self.undo_manager = undo_manager
 		self.apply_ranges = apply_ranges
 		

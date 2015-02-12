@@ -124,6 +124,10 @@ class FavStorePlugin(gavi.vaex.plugin.PluginPlot):
 		self.action_store_toolbar.setMenu(self.fav_menu)
 
 	def on_store(self, _=None):
+		layer = self.dialog.current_layer
+		if layer is None:
+			dialog_error(self, "No active layer", "Can only store settings when a layer is present")
+			return
 		index = len(storage_plots.get_all(self.dialog.type_name, self.dialog.dataset)) + 1
 		default_name = "Settings%d" % index
 		new_name = gettext(self.dialog, "Store settings", "Give a name for the stored settings", default_name)

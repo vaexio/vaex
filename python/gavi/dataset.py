@@ -19,6 +19,7 @@ import collections
 
 import sys
 import platform
+import gavi.vaex.undo
 frozen = getattr(sys, 'frozen', False)
 darwin = "darwin" not in platform.system()
 import astropy.io.fits as fits
@@ -492,6 +493,8 @@ class MemoryMapped(object):
 		
 		self.signal_pick = gavi.events.Signal("pick")
 		self.signal_sequence_index_change = gavi.events.Signal("sequence index change")
+
+		self.undo_manager = gavi.vaex.undo.UndoManager()
 
 	def has_snapshots(self):
 		return len(self.rank1s) > 0
