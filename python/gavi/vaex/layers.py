@@ -456,7 +456,7 @@ class LayerTable(object):
 		options = collections.OrderedDict()
 		#options["type-names"] = map(str.strip, self.names.split(","))
  		options["expressions"] = self.expressions
- 		options["expression_weight"] = self.expression_weight
+ 		options["expression_weight"] = self.weight_expression
 		options["amplitude_expression"] = self.amplitude_expression
 		options["ranges_grid"] = self.ranges_grid
 		options["weight_x_expression"] = self.weight_x_expression
@@ -698,14 +698,14 @@ class LayerTable(object):
 
 	def onWeightExpr(self):
 		text = str(self.weight_box.lineEdit().text())
-		print "############", self.expression_weight, text
-		if (text == self.expression_weight) or (text == "" and self.expression_weight == None):
+		print "############", self.weight_expression, text
+		if (text == self.weight_expression) or (text == "" and self.weight_expression == None):
 			logger.debug("same weight expression, will not update")
 			return
-		self.expression_weight = text
-		print self.expression_weight
-		if self.expression_weight.strip() == "":
-			self.expression_weight = None
+		self.weight_expression = text
+		print self.weight_expression
+		if self.weight_expression.strip() == "":
+			self.weight_expression = None
 		self.range_level = None
 		self.add_jobs()
 		self.jobs_manager.execute()
@@ -996,9 +996,9 @@ class LayerTable(object):
 		self.grid_layout.addWidget(self.weight_box, row, 2)
 		self.weight_box.lineEdit().editingFinished.connect(self.onWeightExpr)
 		self.weight_box.currentIndexChanged.connect(lambda _: self.onWeightExpr())
-		self.expression_weight = str(self.weight_box.lineEdit().text())
-		if len(self.expression_weight.strip()) == 0:
-			self.expression_weight = None
+		self.weight_expression = str(self.weight_box.lineEdit().text())
+		if len(self.weight_expression.strip()) == 0:
+			self.weight_expression = None
 
 	def page_visual(self, page):
 
