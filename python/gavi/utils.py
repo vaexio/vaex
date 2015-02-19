@@ -4,8 +4,16 @@ import time
 import platform
 import os
 import sys
+import numpy as np
 
 is_frozen = getattr(sys, 'frozen', False)
+
+def multisum(a, axes):
+	correction = 0
+	for axis in axes:
+		a = np.nansum(a, axis=axis-correction)
+		correction += 1
+	return a
 
 def get_root_path():
 	osname = platform.system().lower()

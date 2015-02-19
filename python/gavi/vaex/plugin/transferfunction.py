@@ -16,9 +16,9 @@ logger = gavi.logging.getLogger("plugin.transferfunction")
 
 class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 	name = "transferfunction"
-	def __init__(self, dialog):
-		super(TransferFunctionPlugin, self).__init__(dialog)
-		dialog.plug_page(self.plug_page, "Transfer function", 2.5, 1.0)
+	def __init__(self, parent, layer):
+		super(TransferFunctionPlugin, self).__init__(parent, layer)
+		layer.plug_page(self.plug_page, "Transfer function", 2.5, 1.0)
 		self.properties = [] # list of names with set_<name> and get_<name>
 
 	@staticmethod
@@ -27,7 +27,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 
 	def plug_page(self, page):
 		layout = self.layout = QtGui.QGridLayout()
-		self.widget_volume = self.dialog.widget_volume
+		self.widget_volume = self.layer.plot_window.widget_volume
 		page.setLayout(self.layout)
 		layout.setSpacing(0)
 		layout.setContentsMargins(0,0,0,0)
@@ -45,7 +45,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 		self.button_orbit.toggled.connect(on_toggle_orbit)
 		layout.setRowMinimumHeight(1, 8)
 
-		self.tool = widgets.HistogramAndTransfer(page, self.dialog.colormap)
+		self.tool = widgets.HistogramAndTransfer(page, self.layer.colormap)
 		#self.tool.setMinimumHeight(100)
 		layout.addWidget(self.tool, 2, 1)
 
@@ -56,9 +56,9 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 
 		row = 3
 
-		self.tool.function_means[:] = eval(self.dialog.options.get("tf_means", str(self.tool.function_means)))
-		self.tool.function_opacities[:] = eval(self.dialog.options.get("tf_opacities", str(self.tool.function_opacities)))
-		self.tool.function_sigmas[:] = eval(self.dialog.options.get("tf_sigmas", str(self.tool.function_sigmas)))
+		self.tool.function_means[:] = eval(self.layer.options.get("tf_means", str(self.tool.function_means)))
+		self.tool.function_opacities[:] = eval(self.layer.options.get("tf_opacities", str(self.tool.function_opacities)))
+		self.tool.function_sigmas[:] = eval(self.layer.options.get("tf_sigmas", str(self.tool.function_sigmas)))
 		print "Set opacities", self.tool.function_opacities[:]
 		#dsa
 		#self.widget_volume.function_opacities[i] = self.tool.function_opacities[i]
@@ -139,7 +139,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 			#self.tool.update()
 		def getter():
 			return self.widget_volume.brightness
-		self.widget_volume.brightness = eval(self.dialog.options.get("brightness", str(getter())))
+		self.widget_volume.brightness = eval(self.layer.options.get("brightness", str(getter())))
 		label, slider, label_value = self.make_slider(page, "brightness", 0.1, 5., 1000, "{0:<0.3f}", getter, setter)
 		layout.addWidget(label, row, 0)
 		layout.addWidget(slider, row, 1)
@@ -258,7 +258,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 			#self.tool.update()
 		def getter():
 			return self.widget_volume.depth_peel
-		self.widget_volume.depth_peel = eval(self.dialog.options.get("depth_peel", str(getter())))
+		self.widget_volume.depth_peel = eval(self.layer.options.get("depth_peel", str(getter())))
 		label, slider, label_value = self.make_slider(page, "depth_peel", 0., 1., 1000, "{0:<0.3f}", getter, setter)
 		layout.addWidget(label, row, 0)
 		layout.addWidget(slider, row, 1)
@@ -276,7 +276,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 			#self.tool.update()
 		def getter():
 			return self.widget_volume.ambient_coefficient
-		self.widget_volume.ambient_coefficient = eval(self.dialog.options.get("ambient", str(getter())))
+		self.widget_volume.ambient_coefficient = eval(self.layer.options.get("ambient", str(getter())))
 		label, slider, label_value = self.make_slider(page, "ambient", 0., 1., 1000, "{0:<0.3f}", getter, setter)
 		layout.addWidget(label, row, 0)
 		layout.addWidget(slider, row, 1)
@@ -289,7 +289,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 			#self.tool.update()
 		def getter():
 			return self.widget_volume.diffuse_coefficient
-		self.widget_volume.diffuse_coefficient = eval(self.dialog.options.get("diffuse", str(getter())))
+		self.widget_volume.diffuse_coefficient = eval(self.layer.options.get("diffuse", str(getter())))
 		label, slider, label_value = self.make_slider(page, "diffuse", 0., 1., 1000, "{0:<0.3f}", getter, setter)
 		layout.addWidget(label, row, 0)
 		layout.addWidget(slider, row, 1)
@@ -302,7 +302,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 			#self.tool.update()
 		def getter():
 			return self.widget_volume.specular_coefficient
-		self.widget_volume.specular_coefficient = eval(self.dialog.options.get("specular", str(getter())))
+		self.widget_volume.specular_coefficient = eval(self.layer.options.get("specular", str(getter())))
 		label, slider, label_value = self.make_slider(page, "specular",  0., 1., 1000, "{0:<0.3f}", getter, setter)
 		layout.addWidget(label, row, 0)
 		layout.addWidget(slider, row, 1)
@@ -315,7 +315,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 			#self.tool.update()
 		def getter():
 			return self.widget_volume.specular_exponent
-		self.widget_volume.specular_exponent = eval(self.dialog.options.get("specular_n", str(getter())))
+		self.widget_volume.specular_exponent = eval(self.layer.options.get("specular_n", str(getter())))
 		label, slider, label_value = self.make_slider(page, "specular_n", 0.1, 10., 1000, "{0:<0.3f}", getter, setter)
 		layout.addWidget(label, row, 0)
 		layout.addWidget(slider, row, 1)

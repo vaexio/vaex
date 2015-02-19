@@ -69,12 +69,18 @@ class JobsManager(object):
 		self.jobs = []
 		self.order_numbers = []
 		self.after_execute = []
-		
+		self.signal_begin = gavi.events.Signal("begin")
+		self.signal_end = gavi.events.Signal("end")
+		self.signal_cancel = gavi.events.Signal("cancel")
+		self.signal_progress = gavi.events.Signal("progress")
+		self.progress_total = 0
+
 	def addJob(self, order, callback, dataset, *expressions, **variables):
 		args = order, callback, dataset, expressions, variables
 		logger.info("job: %r" % (args,))
 		if order not in self.order_numbers:
 			self.order_numbers.append(order)
+		self.progress_total += len(dataset)
 		self.jobs.append((order, callback, dataset, [None if e is None or len(e) == 0 else e for e in expressions], variables))
 		
 	def find_min_max(self, dataset, expressions, use_mask=False, feedback=None):
@@ -141,7 +147,9 @@ class JobsManager(object):
 		return zip(minima, maxima)
 		
 	def execute(self):
+		self.signal_begin.emit()
 		error_text = None
+		progress_value = 0
 		try:
 			# keep a local copy to support reentrant calling
 			jobs = self.jobs
@@ -329,20 +337,28 @@ class JobsManager(object):
 									arguments = [info]
 									arguments += [results.get(expression) for expression in expressions]
 									cancelled = cancelled or callback(*arguments)
+									progress_value += info.i2 - info.i1
+									cancelled = cancelled or np.any(self.signal_progress.emit(float(progress_value)/self.progress_total))
+									assert progress_value <= self.progress_total
+									if cancelled or errors:
+										break
 							if info.error:
 								# if we get an error, no need to go through the whole data
 								break
 			if not cancelled and not errors:
+				self.signal_end.emit()
 				for callback in self.after_execute:
 					try:
 						callback()
 					except Exception, e:
 						logger.exception("error in post processing callback")
 						error_text = str(e)
-					
+			else:
+				self.signal_cancel.emit()
 		finally:
-			#self.jobs = []
-			#self.order_numbers = []
+			self.progress_total = 0
+			self.jobs = []
+			self.order_numbers = []
 			pass
 		return error_text
 

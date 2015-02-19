@@ -104,7 +104,7 @@ void main() {
 			if(alpha_total >= 1.)
 				break;
 		}
-		if(1==0) {
+		if(1==1) {
 			vec3 normal = normalize(-vec3((sample_x[1]-sample[1])/delta, (sample_y[1]-sample[1])/delta, (sample_z[1]-sample[1])/delta));
 			normal = -vec3(normal.x, normal.y, -normal.z);
 			float cosangle_light = max(dot(light_dir, normal), 0.);
@@ -214,7 +214,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.update_timer.timeout.connect(self.orbit_progress)
 		self.update_timer.setInterval(0) # max 50 fps to save cpu/battery?
 		self.ray_iterations = 500
-		self.depth_peel = 0.3
+		self.depth_peel = 0.0
 		#self.orbit_start()
 		#self.update_timer.setSingleShot(False)
 

@@ -768,7 +768,7 @@ class MainPanel(QtGui.QFrame):
 			self.histogram(xname)
 
 	def plotxy(self, xname, yname, **kwargs):
-		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset)
+		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
 		dialog.add_layer([xname, yname], self.dataset, **kwargs)
 		dialog.show()
 		self.plot_dialogs.append(dialog)
@@ -777,7 +777,7 @@ class MainPanel(QtGui.QFrame):
 		return dialog
 
 	def plotxyz(self, xname, yname, zname, **kwargs):
-		dialog = vp.VolumeRenderingPlotDialog(self, self.jobsManager, self.dataset)
+		dialog = vp.VolumeRenderingPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
 		dialog.add_layer([xname, yname, zname], **kwargs)
 		dialog.show()
 		self.plot_dialogs.append(dialog)
@@ -798,7 +798,8 @@ class MainPanel(QtGui.QFrame):
 		print "show"
 
 	def histogram(self, xname, **kwargs):
-		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, xname, **kwargs)
+		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
+		dialog.add_layer([xname], **kwargs)
 		dialog.show()
 		self.plot_dialogs.append(dialog)
 		self.jobsManager.execute()
@@ -1348,6 +1349,7 @@ class Vaex(QtGui.QMainWindow):
 				else:
 					layer = plot.add_layer(columns, dataset=dataset, **options)
 					layer.jobs_manager.execute()
+				options = {}
 				if index < len(args) and args[index] == "-":
 					plot = None # set to None to create a new plot, + will do a new layer
 				if index < len(args) and args[index] == "--":
@@ -1520,7 +1522,7 @@ class Vaex(QtGui.QMainWindow):
 				#	gavifast.shuffled_sequence(shuffle_array)
 
 				print "creating shuffled array"
-				for column_name in dataset.column_names:
+				for column_name in selected_column_names:
 					print column_name
 					with gavi.utils.Timer("copying: %s" % column_name):
 						from_array = dataset.columns[column_name]

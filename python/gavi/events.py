@@ -16,13 +16,15 @@ class Signal(object):
 						   
 	def emit(self, *args, **kwargs):
 		print "emit", self.name, self.callbacks, args, kwargs
+		results = []
 		for callback in self.callbacks:
 			extra_args, extra_kwargs = self.extra_args[callback]
 			final_args = args + extra_args
 			final_kwargs = {}
 			final_kwargs.update(extra_kwargs)
 			final_kwargs.update(kwargs)
-			callback(*final_args, **final_kwargs)
+			results.append(callback(*final_args, **final_kwargs))
+		return results
 			
 	def disconnect(self, callback):
 		self.callbacks.remove(callback)

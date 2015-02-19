@@ -147,6 +147,8 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 		                         self.dialog.ranges_show, self.dialog.range_level_show,
 						   		 range(self.dialog.dimensions),
 							     ranges_show=[None] * self.dialog.dimensions, range_level_show=None)
+		#for layer in dialog.layers:
+		#	layer.range_level = None # reset these... is this the right place?
 		action.do()
 		self.dialog.checkUndoRedo()
 		
@@ -208,7 +210,7 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 		if len(self.dialog.ranges_show) == 1: # if 1d, y refers to range_level
 			#self.range_level = ymin, ymax
 			action = undo.ActionZoom(self.dialog.undoManager, "change level [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, range(self.dialog.dimensions),
-							self.dialog.ranges_show, self.dialog.range_level_show, [], range_level=[ymin, ymax])
+							self.dialog.ranges_show, self.dialog.range_level_show, [], range_level_show=[ymin, ymax])
 		else:
 			#self.dialog.ranges_show[axes.yaxis_index] = ymin, ymax
 			action = undo.ActionZoom(self.dialog.undoManager, "zoom y [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, range(self.dialog.dimensions),
@@ -235,7 +237,7 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 		if len(self.dialog.ranges_show) == 1: # if 1d, y refers to range_level
 			#self.range_level = ymin_show, ymax_show
 			range_level =  ymin_show, ymax_show
-			logger.debug("range refers to level: %r" % (self.dialog.range_level,))
+			logger.debug("range refers to level: %r" % (self.dialog.range_level_show,))
 		else:
 			#self.dialog.ranges_show[axes.yaxis_index] = ymin_show, ymax_show
 			axis_indices.append(axes.yaxis_index)
@@ -248,20 +250,21 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 							self.dialog.range_level_show, axis_indices, ranges_show=ranges_show, range_level_show=range_level)
 			action.do()
 			self.dialog.checkUndoRedo()
-		self.dialog.queue_update(delayed_zoom, delay=300)
-		
+		#self.dialog.queue_update(delayed_zoom, delay=300)
+		delayed_zoom()
 		
 		if 1:
 			#self.dialog.ranges_show = list(ranges_show)
 			self.dialog.ranges_show[axes.xaxis_index] = list(ranges_show[0])
-			self.dialog.ranges_show[axes.yaxis_index] = list(ranges_show[1])
-			self.dialog.check_aspect(1)
 			if self.dialog.dimensions == 2:
+				self.dialog.ranges_show[axes.yaxis_index] = list(ranges_show[1])
+				self.dialog.check_aspect(1)
 				axes.set_xlim(self.dialog.ranges_show[0])
 				axes.set_ylim(self.dialog.ranges_show[1])
 			if self.dialog.dimensions == 1:
+				self.dialog.range_level_show = range_level
 				axes.set_xlim(self.dialog.ranges_show[0])
-				axes.set_ylim(self.dialog.range_level)
+				axes.set_ylim(self.dialog.range_level_show)
 			self.dialog.queue_redraw()
 			
 		if 0:

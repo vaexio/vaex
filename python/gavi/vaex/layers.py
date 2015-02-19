@@ -5,13 +5,14 @@ import gavifast
 import matplotlib
 import gavifast
 import gavi
+import gavi.vaex.undo
 import gavi.vaex.colormaps
 import gavi.vaex.grids
 from gavi.icons import iconfile
 import numpy as np
 import scipy.ndimage
 import matplotlib.colors
-
+import gavi.utils
 __author__ = 'maartenbreddels'
 
 import copy
@@ -142,14 +143,16 @@ class LayerTable(object):
 		self.expressions = expressions
 		self.axis_names = axis_names
 		self.ranges_grid = ranges_grid
+		self.range_level = None
 		self.jobs_manager = jobs_manager
 		self.thread_pool = thread_pool
 		self.dimensions = len(self.expressions)
 		self.options = options
 		self.grids = gavi.vaex.grids.Grids(self.dataset, self.thread_pool, *expressions)
-		self.expressions_vector = [None,] * (self.dimensions + 1)
+		self.expressions_vector = [None,] * 3
 		self.figure = figure
 		self.canvas = canvas
+		self.widget_build = False
 
 		self.widget = None # each layer has a widget, atm only a qt widget is implemented
 
@@ -166,9 +169,6 @@ class LayerTable(object):
 		self.coordinates_picked_row = None
 
 
-		if "selection" in options:
-			mask = np.load(self.dataset.name + "-selection.npy")
-			self.dataset.selectMask(mask)
 
 		self.colormap = "PaulT_plusmin" #"binary"
 		self.colormap_vector = "binary"
@@ -208,6 +208,7 @@ class LayerTable(object):
 		self.signal_expression_change = gavi.events.Signal("expression_change")
 		self.signal_plot_dirty = gavi.events.Signal("plot_dirty")
 		self.signal_plot_update = gavi.events.Signal("plot_update")
+		#self.dataset.signal_pick.connect(self.on)
 
 
 
@@ -277,21 +278,18 @@ class LayerTable(object):
 		print ">>> GRIDS", self.grids.grids
 		grid_map = self.create_grid_map(self.plot_window.grid_size, False)
 		try:
-			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
+			self.amplitude = amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
 		except Exception, e:
 			print e, repr(e)
 			self.error_in_field(self.amplitude_box, "amplitude", e)
 			return
 		print "TOTAL", np.sum(amplitude)
-		amplitude_selection = None
+		self.amplitude_selection = amplitude_selection = None
 		print self.dataset.mask
 		use_selection = self.dataset.mask is not None
 		if use_selection:
 			grid_map_selection = self.create_grid_map(self.plot_window.grid_size, True)
-			amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
-
-		for axes in axes_list:
-			self.plot_density(axes, amplitude, amplitude_selection, stack_image)
+			self.amplitude_selection = amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
 
 		grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
 		for callback in self.plugin_grids_draw:
@@ -308,31 +306,6 @@ class LayerTable(object):
 			else:
 				locals[name] = None
 
-		if self.dimensions == 2:
-			print "vector stuff" * 100
-			self.min_level_vector2d = 0.
-			grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
-			print grid_map_vector["weightx"], grid_map_vector["weighty"]
-			if grid_map_vector["weightx"] is not None and grid_map_vector["weighty"] is not None:
-				mask = grid_map_vector["counts"] > (self.min_level_vector2d * grid_map_vector["counts"].max())
-				print self.min_level_vector2d, "&" * 100
-				x = grid_map_vector["x"]
-				y = grid_map_vector["y"]
-				x2d, y2d = np.meshgrid(x, y)
-				vx = self.eval_amplitude("weightx/counts", locals=grid_map_vector)
-				vy = self.eval_amplitude("weighty/counts", locals=grid_map_vector)
-				meanvx = 0 if self.vectors_subtract_mean is False else vx[mask].mean()
-				meanvy = 0 if self.vectors_subtract_mean is False else vy[mask].mean()
-				vx -= meanvx
-				vy -= meanvy
-				if grid_map_vector["weightz"] is not None and self.vectors_color_code_3rd:
-					colors = self.eval_amplitude("weightz/counts", locals=grid_map_vector)
-					axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
-				else:
-					axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color="black")
-					colors = None
-
-
 		index = self.dataset.selected_row_index
 		if index is not None and self.coordinates_picked_row is None:
 			logger.debug("point selected but after computation")
@@ -341,15 +314,118 @@ class LayerTable(object):
 				if index >= info.i1 and index < info.i2: # selected point is in this block
 					self.coordinates_picked_row = [block[index-info.i1] for block in blocks]
 			self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
-		#for axes in axes_
-		if self.coordinates_picked_row is not None:
-			axes.scatter([self.coordinates_picked_row[axes.xaxis_index]], [self.coordinates_picked_row[axes.yaxis_index]], color='red')
 
+
+		if self.dimensions == 1:
+			mask = ~(np.isnan(amplitude) | np.isinf(amplitude))
+			if np.sum(mask) == 0:
+				self.range_level = None
+			else:
+				if self.range_level is None:
+					#self.range_level = [np.min(amplitude[mask]), np.max(amplitude[mask])]
+					self.range_level = [min(0, np.min(amplitude[mask])), np.max(amplitude[mask])]
+				width = self.ranges_grid[0][1] - self.ranges_grid[0][0]
+				x = np.arange(0, self.plot_window.grid_size)/float(self.plot_window.grid_size) * width + self.ranges_grid[0][0]# + width/(Nvector/2.)
+				delta = x[1] - x[0]
+				for axes in axes_list:
+					axes.bar(x, amplitude, width=delta, align='center')
+					if use_selection:
+						axes.bar(x, amplitude_selection, width=delta, align='center', color="red", alpha=0.8)
+					if self.coordinates_picked_row is not None:
+						print "drawing vline at", self.coordinates_picked_row
+						axes.axvline(self.coordinates_picked_row[axes.xaxis_index], color="red")
+
+
+		if self.dimensions >= 2:
+			#for axes in axes_list:
+			self.plot_density(axes_list, amplitude, amplitude_selection, stack_image)
+
+			if self.coordinates_picked_row is not None:
+				for axes in axes_list:
+					axes.scatter([self.coordinates_picked_row[axes.xaxis_index]], [self.coordinates_picked_row[axes.yaxis_index]], color='red')
+
+
+			grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
+			self.vector_grid = None
+			vector_counts = grid_map_vector["counts"]
+			vector_mask = vector_counts > 0
+			if grid_map_vector["weightx"] is not None:
+				vector_x = grid_map_vector["x"] if "x" in grid_map_vector else None
+				vx = self.eval_amplitude("weightx/counts", locals=grid_map_vector)
+				if self.vectors_subtract_mean:
+					vx -= vx[vector_mask].mean()
+			else:
+				vector_x = None
+				vx = None
+			if grid_map_vector["weighty"] is not None:
+				vector_y = grid_map_vector["y"] if "y" in grid_map_vector else None
+				vy = self.eval_amplitude("weighty/counts", locals=grid_map_vector)
+				if self.vectors_subtract_mean:
+					vy -= vy[vector_mask].mean()
+			else:
+				vector_y = None
+				vy = None
+			if grid_map_vector["weightz"] is not None:
+				vector_z = grid_map_vector["z"] if "z" in grid_map_vector else None
+				vz = self.eval_amplitude("weightz/counts", locals=grid_map_vector)
+				if self.vectors_subtract_mean:
+					vz -= vz[vector_mask].mean()
+			else:
+				vector_z = None
+				vz = None
+			if vx is not None and vy is not None and vz is not None:
+				self.vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
+				self.vector_grid[0] = vx
+				self.vector_grid[1] = vy
+				self.vector_grid[2] = vz
+				self.vector_grid[3] = vector_counts
+				self.vector_grid = np.swapaxes(self.vector_grid, 0, 3)
+				self.vector_grid = self.vector_grid * 1.
+				print np.sum(vector_counts), np.sum(grid_map["counts"])
+
+			self.vector_grids = vector_grids = [vx, vy, vz]
+			vector_positions = [vector_x, vector_y, vector_z]
+			for axes in axes_list:
+
+				self.min_level_vector2d = 0.
+				#grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
+
+				all_axis = range(self.dimensions)
+				all_axis.remove(self.dimensions-1-axes.xaxis_index)
+				all_axis.remove(self.dimensions-1-axes.yaxis_index)
+
+				if len(all_axis) > 2:
+					other_axis = all_axis[0]
+					assert len(all_axis) == 1, ">3d not supported"
+				else:
+					other_axis = 2
+
+				U = vector_grids[axes.xaxis_index]
+				V = vector_grids[axes.yaxis_index]
+				W = vector_grids[self.dimensions-1-other_axis]
+				vx = None if U is None else gavi.utils.multisum(U, all_axis)
+				vy = None if V is None else gavi.utils.multisum(V, all_axis)
+				vz = None if W is None else gavi.utils.multisum(W, all_axis)
+				vector_counts_2d = gavi.utils.multisum(vector_counts, all_axis)
+				if vx is not None and vy is not None:
+					count_max = vector_counts_2d.max()
+					mask = (vector_counts_2d > (self.vector_level_min * count_max)) & \
+					        (vector_counts_2d <= (self.vector_level_max * count_max))
+					print self.min_level_vector2d, "&" * 100
+					x = vector_positions[axes.xaxis_index]
+					y = vector_positions[axes.yaxis_index]
+					x2d, y2d = np.meshgrid(x, y)
+					if vz is not None and self.vectors_color_code_3rd:
+						colors = vz
+						axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
+					else:
+						axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color="black")
+						colors = None
 
 	def getVariableDict(self):
 		return {} # TODO: remove this? of replace
 
-	def plot_density_imshow(self, axes, amplitude, amplitude_selection, stack_image):
+	def plot_density_imshow(self, axes_list, amplitude, amplitude_selection, stack_image):
 		if not self.visible:
 			return
 		ranges = []
@@ -360,7 +436,7 @@ class LayerTable(object):
 		#if isinstance(self.colormap, basestring):
 		def normalize(amplitude):
 			print amplitude.min(), amplitude.max()
-			I = self.contrast(amplitude)
+			I = amplitude#self.contrast(amplitude)
 			# scale to [0,1]
 			mask = ~(np.isnan(I) | np.isinf(I))
 			if np.sum(mask) == 0:
@@ -369,10 +445,8 @@ class LayerTable(object):
 			I /= I[mask].max()
 			return I
 
-		def to_rgb(amplitude, pre_alpha=1.):
-			print amplitude.min(), amplitude.max()
-			I = self.contrast(amplitude)
-			# scale to [0,1]
+		def to_rgb(intensity, pre_alpha=1.):
+			I = intensity
 			mask = ~(np.isnan(I) | np.isinf(I))
 			if np.sum(mask) == 0:
 				return np.zeros(I.shape + (4,), dtype=np.float64)
@@ -397,38 +471,39 @@ class LayerTable(object):
 				rgba = cmap(I * 1.00)
 				rgba[...,3] = (np.clip((I**1.0) * self.alpha, 0, 1))
 			if self.transparancy == "intensity":
-				rgba[:,:,3] = (np.clip((I**1.0) * self.alpha, 0, 1)) * self.alpha * pre_alpha
+				rgba[...,3] = (np.clip((I**1.0) * self.alpha, 0, 1)) * self.alpha * pre_alpha
 			elif self.transparancy == "constant":
 				rgba[alpha_mask,3] = 1. * self.alpha * pre_alpha
 				rgba[~alpha_mask,3] = 0
 			elif self.transparancy == "none":
-				rgba[:,:,3] = pre_alpha
+				rgba[...,3] = pre_alpha
 			else:
 				raise "not implemented"
 			return rgba
 
 		levels = (np.arange(self.contour_count) + 1. ) / (self.contour_count + 1)
 		ranges = self.ranges_grid[0] + self.ranges_grid[1]
-		if use_selection:
-			if self.display_type == "contour":
-				if self.contour_count > 0:
-					axes.contour(normalize(amplitude), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4)
-					axes.contour(normalize(amplitude_selection), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color)
-			else:
-				stack_image(to_rgb(amplitude, 0.05), None)
-				stack_image(to_rgb(amplitude_selection), None)
-		else:
-			if self.display_type == "contour":
-				if self.contour_count > 0:
-					axes.contour(normalize(amplitude), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color)
-			else:
-				stack_image(to_rgb(amplitude), None)
-		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=(0.4 if use_selection else 1.0) * self.alpha, cmap=self.colormap)
-		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=self.alpha)
-		#axes.imshow(rgba, origin="lower", extent=ranges, alpha=self.alpha)
-		#if use_selection:
-		#	axes.imshow(self.contrast(amplitude_selection), origin="lower", extent=ranges, alpha=self.alpha, cmap=self.colormap)
+		for axes in axes_list:
+			# create marginalized grid
+			all_axis = range(self.dimensions)
+			all_axis.remove(self.dimensions-1-axes.xaxis_index)
+			all_axis.remove(self.dimensions-1-axes.yaxis_index)
+			amplitude_marginalized = gavi.utils.multisum(amplitude, all_axis)
+			amplitude_marginalized_selected = gavi.utils.multisum(amplitude_selection, all_axis) if use_selection else None
 
+			if self.display_type == "contour":
+				if self.contour_count > 0:
+					if use_selection:
+						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4)
+						axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color)
+					else:
+						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color)
+			else:
+				I = normalize(amplitude_marginalized)
+				axes.rgb_images.append(to_rgb(I, 0.4 if use_selection else 1.0))
+				if use_selection:
+					I = normalize(amplitude_marginalized_selected)
+					axes.rgb_images.append(to_rgb(I))
 
 	def onSelectMask(self, mask):
 		self.check_selection_undo_redo()
@@ -437,7 +512,7 @@ class LayerTable(object):
 
 	def onSelectRow(self, row):
 		print "row selected", row
-		self.selected_point = None
+		self.coordinates_picked_row = None
 		#self.plot()
 		self.signal_plot_dirty.emit(self)
 
@@ -590,13 +665,14 @@ class LayerTable(object):
 		self.grids.add_jobs(self.jobs_manager)
 
 	def build_widget_qt(self, parent):
+		self.widget_build = True
 
 		# create plugins
 		self.plugin_grids_defines = []
 		self.plugin_grids_draw = []
 		self.plugin_queue_toolbar = [] # list of tuples (callback, order)
 		self.plugin_queue_page = []
-		self.plugins = [cls(parent, self) for cls in gavi.vaex.plugin.PluginLayer.registry if cls.useon(self.__class__)]
+		self.plugins = [cls(parent, self) for cls in gavi.vaex.plugin.PluginLayer.registry if cls.useon(self.plot_window.__class__)]
 		print "PLUGINS" * 10, self.plugins
 		self.plugins_map = {plugin.name:plugin for plugin in self.plugins}
 		#self.plugin_zoom = plugin.zoom.ZoomPlugin(self)
@@ -610,7 +686,7 @@ class LayerTable(object):
 		self.plug_page(self.page_main, "Main", 1., 1.)
 		self.plug_page(self.page_visual, "Visual", 1.5, 1.)
 		self.plug_page(self.page_vector, "Vector field", 2., 1.)
-		self.plug_page(self.page_display, "Display", 3., 1.)
+		#self.plug_page(self.page_display, "Display", 3., 1.)
 		self.plug_page(self.page_selection, "Selection", 3.5, 1.)
 
 		# first get unique page orders
@@ -635,6 +711,13 @@ class LayerTable(object):
 
 		self.widget = self.toolbox
 
+		if "selection" in self.options:
+			filename = self.options["selection"]
+			mask = np.load(filename)
+			action = gavi.vaex.undo.ActionMask(self.dataset.undo_manager, "selection from %s" % filename, mask, self.apply_mask)
+			action.do()
+			#self.apply_mask(mask)
+			#self.dataset.selectMask(mask)
 
 		return self.toolbox
 
@@ -707,6 +790,7 @@ class LayerTable(object):
 		if self.weight_expression.strip() == "":
 			self.weight_expression = None
 		self.range_level = None
+		self.plot_window.range_level_show = None
 		self.add_jobs()
 		self.jobs_manager.execute()
 		#self.plot()
@@ -736,6 +820,7 @@ class LayerTable(object):
 		if self.weight_x_expression.strip() == "":
 			self.weight_x_expression = None
 		self.range_level = None
+		self.plot_window.range_level_show = None
 		self.check_vector_expressions()
 
 	def check_vector_expressions(self):
@@ -767,6 +852,7 @@ class LayerTable(object):
 		if self.weight_y_expression.strip() == "":
 			self.weight_y_expression = None
 		self.range_level = None
+		self.plot_window.range_level_show = None
 		self.check_vector_expressions()
 
 	def onWeightZExpr(self):
@@ -790,6 +876,7 @@ class LayerTable(object):
 		if self.weight_z_expression.strip() == "":
 			self.weight_z_expression = None
 		self.range_level = None
+		self.plot_window.range_level_show = None
 		self.check_vector_expressions()
 
 	def onAmplitudeExpr(self):
@@ -800,6 +887,7 @@ class LayerTable(object):
 		self.amplitude_expression = text
 		print self.amplitude_expression
 		self.range_level = None
+		self.plot_window.range_level_show = None
 		self.plot_window.plot()
 		#self.plot()
 
@@ -1040,7 +1128,7 @@ class LayerTable(object):
 		#self.checkbox_intensity_as_opacity = Checkbox(page_widget, "use_intensity", getter=attrgetter(self, "use_intensity"), setter=attrsetter(self, "use_intensity"), update=self.signal_plot_dirty.emit)
 		#row = self.checkbox_intensity_as_opacity.add_to_grid_layout(row, grid_layout)
 		transparancies = ["intensity", "constant", "none"]
-		self.transparancy = self.options.get("transparancy", "intensity")
+		self.transparancy = self.options.get("transparancy", "constant")
 		self.option_transparancy = Option(page_widget, "transparancy", transparancies, getter=attrgetter(self, "transparancy"), setter=attrsetter(self, "transparancy"), update=self.signal_plot_dirty.emit)
 		row = self.option_transparancy.add_to_grid_layout(row, grid_layout)
 
@@ -1149,6 +1237,7 @@ class LayerTable(object):
 			self.label_selection_info.setText("selected {:,} ({:.2f}%)".format(N_sel, N_sel*100./float(N_total)))
 
 	def check_selection_undo_redo(self):
+		#if self.widget_build:
 		self.button_selection_undo.setEnabled(self.dataset.undo_manager.can_undo())
 		self.button_selection_redo.setEnabled(self.dataset.undo_manager.can_redo())
 
@@ -1247,7 +1336,7 @@ class LayerTable(object):
 			#self.plot()
 			self.signal_plot_dirty.emit()
 		self.vector_subtract_mean_checkbox = self.create_checkbox(page, "subtract mean", lambda : self.vectors_subtract_mean, setter)
-		self.grid_layout_vector.addWidget(self.vector_subtract_mean_checkbox, row, 2)
+		self.grid_layout_vector.addWidget(self.vector_subtract_mean_checkbox, row, 1)
 		row += 1
 
 		self.vectors_color_code_3rd = bool(eval(self.options.get("vcolor_3rd", "True" if self.dimensions <=2 else "False")))
@@ -1256,9 +1345,21 @@ class LayerTable(object):
 			#self.plot()
 			self.signal_plot_dirty.emit()
 		self.vectors_color_code_3rd_checkbox = self.create_checkbox(page, "color code 3rd axis", lambda : self.vectors_color_code_3rd, setter)
-		self.grid_layout_vector.addWidget(self.vectors_color_code_3rd_checkbox, row, 2)
+		self.grid_layout_vector.addWidget(self.vectors_color_code_3rd_checkbox, row, 1)
 		row += 1
 
+
+		self.vector_level_min = float(eval(self.options.get("vector_level_min", "0")))
+		self.slider_layer_level_min = Slider(page, "vector_level_min", 0, 1, 1000, getter=attrgetter(self, "vector_level_min"),
+		                                     setter=attrsetter(self, "vector_level_min"), update=self.signal_plot_dirty.emit,
+		                                     )#inverse=lambda x: math.log10(x), transform=lambda x: 10**x)
+		row = self.slider_layer_level_min.add_to_grid_layout(row, self.grid_layout_vector)
+
+		self.vector_level_max = float(eval(self.options.get("vector_level_max", "1.0")))
+		self.slider_layer_level_max = Slider(page, "vector_level_max", 0, 1, 1000, getter=attrgetter(self, "vector_level_max"),
+		                                     setter=attrsetter(self, "vector_level_max"), update=self.signal_plot_dirty.emit,
+		                                     )#inverse=lambda x: math.log10(x), transform=lambda x: 10**x)
+		row = self.slider_layer_level_max.add_to_grid_layout(row, self.grid_layout_vector)
 
 
 		if self.dimensions > -1:
@@ -1267,8 +1368,8 @@ class LayerTable(object):
 			self.weight_x_box.setEditable(True)
 			self.weight_x_box.addItems([self.options.get("vx", "")] + self.get_expression_list())
 			self.weight_x_box.setMinimumContentsLength(10)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("vx="), row, 1)
-			self.grid_layout_vector.addWidget(self.weight_x_box, row, 2)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vx="), row, 0)
+			self.grid_layout_vector.addWidget(self.weight_x_box, row, 1)
 			#def onWeightXExprLine(*args, **kwargs):
 			#	if len(str(self.weight_x_box.lineEdit().text())) == 0:
 			#		self.onWeightXExpr()
@@ -1286,12 +1387,13 @@ class LayerTable(object):
 
 			row += 1
 
+		if self.dimensions > -1:
 			self.weight_y_box = QtGui.QComboBox(page)
 			self.weight_y_box.setEditable(True)
 			self.weight_y_box.addItems([self.options.get("vy", "")] + self.get_expression_list())
 			self.weight_y_box.setMinimumContentsLength(10)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("vy="), row, 1)
-			self.grid_layout_vector.addWidget(self.weight_y_box, row, 2)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vy="), row, 0)
+			self.grid_layout_vector.addWidget(self.weight_y_box, row, 1)
 			#def onWeightYExprLine(*args, **kwargs):
 			#	if len(str(self.weight_y_box.lineEdit().text())) == 0:
 			#		self.onWeightYExpr()
@@ -1314,8 +1416,8 @@ class LayerTable(object):
 			self.weight_z_box.setEditable(True)
 			self.weight_z_box.addItems([self.options.get("vz", "")] + self.get_expression_list())
 			self.weight_z_box.setMinimumContentsLength(10)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("vz="), row, 1)
-			self.grid_layout_vector.addWidget(self.weight_z_box, row, 2)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vz="), row, 0)
+			self.grid_layout_vector.addWidget(self.weight_z_box, row, 1)
 			#def onWeightZExprLine(*args, **kwargs):
 			#	if len(str(self.weight_z_box.lineEdit().text())) == 0:
 			#		self.onWeightZExpr()
@@ -1325,6 +1427,8 @@ class LayerTable(object):
 
 			row += 1
 
+		if self.dimensions > -1:
+			gavi.vaex.colormaps.process_colormaps()
 			self.colormap_vector_box = QtGui.QComboBox(page)
 			self.colormap_vector_box.setIconSize(QtCore.QSize(16, 16))
 			model = QtGui.QStandardItemModel(self.colormap_vector_box)
@@ -1336,8 +1440,8 @@ class LayerTable(object):
 				model.appendRow(item)
 			self.colormap_vector_box.setModel(model);
 			#self.form_layout.addRow("colormap=", self.colormap_vector_box)
-			self.grid_layout_vector.addWidget(QtGui.QLabel("vz_cmap="), row, 1)
-			self.grid_layout_vector.addWidget(self.colormap_vector_box, row, 2, QtCore.Qt.AlignLeft)
+			self.grid_layout_vector.addWidget(QtGui.QLabel("vz_cmap="), row, 0)
+			self.grid_layout_vector.addWidget(self.colormap_vector_box, row, 1, QtCore.Qt.AlignLeft)
 			def onColorMap(index):
 				colormap_name = str(self.colormap_vector_box.itemText(index))
 				logger.debug("selected colormap for vector: %r" % colormap_name)

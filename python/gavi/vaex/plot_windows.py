@@ -21,6 +21,7 @@ import numpy as np
 import functools
 import time
 import copy
+import json
 
 import gavi.logging
 import gavi.events
@@ -36,7 +37,7 @@ import gavi.vaex.plugin.transferfunction
 import gavi.vaex.plugin.favorites
 from gavi.vaex.grids import Grids
 import gavi.vaex.layers
-
+import gavi.vaex.templates
 from numba import jit
 
 #import subspacefind
@@ -166,13 +167,13 @@ class Mover(object):
 			dy = self.last_y - y_data 
 			xmin, xmax = self.plot.ranges_show[self.current_axes.xaxis_index][0] + dx, self.plot.ranges_show[self.current_axes.xaxis_index][1] + dx
 			if self.plot.dimensions == 1:
-				ymin, ymax = self.plot.range_level[0] + dy, self.plot.range_level[1] + dy
+				ymin, ymax = self.plot.range_level_show[0] + dy, self.plot.range_level_show[1] + dy
 			else:
 				ymin, ymax = self.plot.ranges_show[self.current_axes.yaxis_index][0] + dy, self.plot.ranges_show[self.current_axes.yaxis_index][1] + dy
 			#self.plot.ranges_show = [[xmin, xmax], [ymin, ymax]]
 			self.plot.ranges_show[self.current_axes.xaxis_index] = [xmin, xmax]
 			if self.plot.dimensions == 1:
-				self.plot.range_level = [ymin, ymax]
+				self.plot.range_level_show = [ymin, ymax]
 			else:
 				self.plot.ranges_show[self.current_axes.yaxis_index] = [ymin, ymax]
 			# TODO: maybe the dimension should be stored in the axes, not in the plotdialog
@@ -180,7 +181,7 @@ class Mover(object):
 				if self.plot.dimensions == 1:
 					# ftm we assume we only have 1 histogram, meabning axes == self.current_axes
 					axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
-					axes.set_ylim(*self.plot.range_level)
+					axes.set_ylim(*self.plot.range_level_show)
 				else:
 					if axes.xaxis_index == self.current_axes.xaxis_index:
 						axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
@@ -478,6 +479,50 @@ class PlotDialog(QtGui.QWidget):
 		self.layout_content.addLayout(self.boxlayout, 1.)
 
 		self.status_bar = QtGui.QStatusBar(self)
+		self.button_cancel = QtGui.QToolButton(self.status_bar)
+		self.button_cancel.setText("cancel")
+		self.button_cancel.setContentsMargins(0, 0, 0, 0)
+		self.status_bar.layout().setContentsMargins(0,0,0,0)
+		self.status_bar.layout().setSpacing(0)
+
+		self.progress_bar = QtGui.QProgressBar(self.status_bar)
+		self.progress_bar.setMaximum(1000)
+		self.progress_bar.setMinimumWidth(100)
+		self.progress_bar.setFixedWidth(100)
+		self.button_cancel.setEnabled(False)
+
+		self.label_time = QtGui.QLabel("", self.toolbar)
+
+		self.status_bar.insertPermanentWidget(9, self.progress_bar)
+		self.status_bar.insertPermanentWidget(10, self.button_cancel)
+		self.status_bar.insertPermanentWidget(11, self.label_time)
+		def begin():
+			self.time_begin = time.time()
+			self.progress_bar.setValue(0)
+			self.cancelled = False
+			self.button_cancel.setEnabled(True)
+		def end():
+			self.progress_bar.setValue(1000)
+			self.cancelled = False
+			self.button_cancel.setEnabled(False)
+			time_total = time.time() - self.time_begin
+			self.label_time.setText("%.2fs" % time_total)
+		def progress(fraction):
+			self.progress_bar.setValue(fraction*1000)
+			QtCore.QCoreApplication.instance().processEvents()
+			return self.cancelled
+		def cancel():
+			self.progress_bar.setValue(0)
+			self.button_cancel.setEnabled(False)
+			self.label_time.setText("cancelled")
+		def on_click_cancel():
+			self.cancelled = True
+		self.button_cancel.clicked.connect(on_click_cancel)
+		self.jobsManager.signal_begin.connect(begin)
+		self.jobsManager.signal_end.connect(end)
+		self.jobsManager.signal_cancel.connect(cancel)
+		self.jobsManager.signal_progress.connect(progress)
+
 		self.layout_main.addWidget(self.status_bar)
 
 		self.layout_content.addLayout(self.boxlayout_right, 0)
@@ -718,33 +763,36 @@ class PlotDialog(QtGui.QWidget):
 	def onMouseMove(self, event):
 		x, y = event.xdata, event.ydata
 		if x is not None:
-			#extra_text = self.getExtraText(x, y)
-			extra_text = "TODO:"
+			extra_text = self.getExtraText(x, y)
+			#extra_text = "TODO:"
 			if extra_text:
-				self.message("x, y:  %5.4e %5.4e %s" % (x, y, extra_text), index=0)
+				self.message("x,y=%5.4e,%5.4e %s" % (x, y, extra_text), index=0)
 			else:
-				self.message("x, y:  %5.4e %5.4e" % (x, y), index=0)
+				self.message("x,y=%5.4e,%5.4e" % (x, y), index=0)
 		else:
 			self.message(None)
 
 	def getExtraText(self, x, y):
-		if hasattr(self, "counts"):
-			if len(self.counts.shape) == 1:
-				if self.ranges[0]:
-					N = self.counts.shape[0]
-					xmin, xmax = self.ranges[0]
+		layer = self.current_layer
+		if hasattr(layer, "amplitude"):
+			amplitude = layer.amplitude
+			if len(amplitude.shape) == 1:
+					#if self.ranges[0]:
+					N = amplitude.shape[0]
+					xmin, xmax = layer.ranges_grid[0]
 					index = (x-xmin)/(xmax-xmin) * N
 					if index >= 0 and index < N:
-						return "value = %r" % (self.counts[index])
-			if len(self.counts.shape) == 2:
-				if self.ranges[0] and self.ranges[1]:
-					Nx, Ny = self.counts.shape
-					xmin, xmax = self.ranges[0]
-					ymin, ymax = self.ranges[1]
+						index = int(index)
+						return "value = %f" % (self.amplitude[index])
+			if len(amplitude.shape) == 2:
+					#if self.ranges[0] and self.ranges[1]:
+					Nx, Ny = amplitude.shape
+					xmin, xmax = layer.ranges_grid[0]
+					ymin, ymax = layer.ranges_grid[1]
 					xindex = (x-xmin)/(xmax-xmin) * Nx
 					yindex = (y-ymin)/(ymax-ymin) * Ny
 					if xindex >= 0 and xindex < Nx and yindex >= 0 and yindex < Nx:
-						return "value = %r" % (self.counts[xindex, yindex])
+						return "value = %f" % (amplitude[int(yindex), int(xindex)])
 
 
 	def message(self, text, index=0):
@@ -871,18 +919,28 @@ class PlotDialog(QtGui.QWidget):
 		scope = Scope()
 		scope.index = None
 		scope.distance = None
-		def pick(block, info, scope=scope):
+		def pick(info, block, scope=scope):
 			if info.first:
 				scope.index, scope.distance = find_nearest_index1d(block, x)
 			else:
 				scope.block_index, scope.block_distance = find_nearest_index1d(block, x)
 				if scope.block_distance < scope.distance:
 					scope.index = scope.block_index
-		self.dataset.evaluate(pick, self.expressions[0], **self.getVariableDict())
-		index, distance = scope.index, scope.distance
-		print "nearest row", index, distance
-		self.dataset.selectRow(index)
-		self.setMode(self.lastAction)
+		#self.dataset.evaluate(pick, self.expressions[0], **self.getVariableDict())
+		#index, distance = scope.index, scope.distance
+		#print "nearest row", index, distance
+		#self.dataset.selectRow(index)
+		#self.setMode(self.lastAction)
+
+		layer = self.current_layer
+		axes = event.inaxes
+		if layer is not None and  axes is not None:
+				layer.coordinates_picked_row = None
+				layer.dataset.evaluate(pick, layer.expressions[axes.xaxis_index], **self.getVariableDict())
+				index, distance = scope.index, scope.distance
+				print "nearest row", index, distance
+				layer.dataset.selectRow(index)
+				self.setMode(self.lastAction)
 
 	def onPickY(self, event):
 		x, y = event.xdata, event.ydata
@@ -1060,7 +1118,7 @@ class PlotDialog(QtGui.QWidget):
 				i#f ranges:
 				#	self.ranges[axis_index] = ranges[i]
 		logger.debug("set range_level: %r" % (range_level, ))
-		self.range_level = range_level
+		self.range_level_show = range_level
 		if len(axis_indices) > 0:
 			self.check_aspect(axis_indices[0]) # maybe we should use the widest or smallest one
 
@@ -1073,8 +1131,10 @@ class PlotDialog(QtGui.QWidget):
 	def update_direct(self):
 		#for i in range(self.dimensions):
 		#	self.ranges[i] = self.ranges_show[i]
+		print "update direct" * 100, self.ranges_show
 		for layer in self.layers:
 			layer.ranges_grid = copy.deepcopy(self.ranges_show)
+			layer.range_level = copy.copy(self.range_level_show)
 		timelog("begin computation", reset=True)
 		self.compute()
 		self.jobsManager.execute()
@@ -1122,14 +1182,14 @@ class PlotDialog(QtGui.QWidget):
 		ymin_show, ymax_show = y - height*fraction*factor, y + height*(1-fraction)*factor
 		ymin_show, ymax_show = min(ymin_show, ymax_show), max(ymin_show, ymax_show)
 		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
-			#range_level = ymin_show, ymax_show
+			range_level_show = ymin_show, ymax_show
 			#range_level = ymin_show, ymax_show
 			#counts_weights = np.array([1., factor]) if self.weight_expression is not None else None
 			#w1, w2 = self.eval_amplitude(counts=np.array([1., factor]), counts_weights=counts_weights)
 			#print ">" * 20, w1, w2
 			#print counts_weights
 			if (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
-				range_level = ymin, ymax
+				range_level_show = ymin, ymax
 				#a = b
 			else:
 				range_level_show = ymin_show, ymax_show
@@ -1165,9 +1225,9 @@ class PlotDialog(QtGui.QWidget):
 				axes.set_ylim(self.ranges_show[1])
 			if self.dimensions == 1:
 				self.ranges_show[axis_indices[0]] = list(ranges_show[0])
-				self.range_level = list(range_level)
+				self.range_level_show = list(range_level_show)
 				axes.set_xlim(self.ranges_show[0])
-				axes.set_ylim(self.range_level)
+				axes.set_ylim(self.range_level_show)
 			self.queue_redraw()
 			#self.plot()
 
@@ -1259,6 +1319,67 @@ class PlotDialog(QtGui.QWidget):
 		self.aspect = 1 #self.get_aspect() if self.action_aspect_lock.isEnabled() else None
 		logger.debug("set aspect to: %r" % self.aspect)
 
+	def onActionExport(self):
+		ok, mask = select_many(self, "Choose export options", ["Export matplotlib python script", "Export grid", "Export selection", "Export vector grid"])
+		if ok:
+			name = self.current_layer.dataset.name
+			name = gettext(self, "Export name", "Give a base name for the export files", name)
+			if name:
+				dir_path = getdir(self, "Choose directory where to save")
+				if dir_path is None:
+					return
+				msg_list = []
+
+				if mask[0]:
+					scriptname = os.path.join(dir_path, name + "_plot.py")
+					template = gavi.vaex.templates.matplotlib
+					if not os.path.exists(scriptname):
+						yes, yesall = True, False
+					else:
+						yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +scriptname, to_all=True)
+					if yes or yesall:
+						file(scriptname, "w").write(template.format(name=name))
+						msg_list.append("wrote: " + scriptname)
+
+
+				optionsname = os.path.join(dir_path, name + "_meta.json")
+				options = {}
+				options["extent"] = self.current_layer.ranges_grid[0] + self.current_layer.ranges_grid[1]
+				json.dump(options, file(optionsname, "w"), indent=4)
+				msg_list.append("wrote: " + optionsname)
+
+				if mask[1]:
+					gridname = os.path.join(dir_path, name + "_grid.npy")
+					if not os.path.exists(scriptname) or yesall:
+						yes, yesall = True, yesall
+					else:
+						yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
+					if yes or yesall:
+						np.save(gridname, self.current_layer.amplitude)
+						msg_list.append("wrote: " + gridname)
+					if mask[2]:
+						gridname = os.path.join(dir_path, name + "_grid_selection.npy")
+						if not os.path.exists(scriptname) or yesall:
+							yes, yesall = True, yesall
+						else:
+							yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
+						if yes or yesall:
+							np.save(gridname, self.current_layer.amplitude_selection)
+							msg_list.append("wrote: " + gridname)
+					if mask[3]:
+						gridname = os.path.join(dir_path, name + "_grid_vector.npy")
+						if not os.path.exists(scriptname) or yesall:
+							yes, yesall = True, yesall
+						else:
+							yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
+						if yes or yesall:
+							np.save(gridname, self.current_layer.vector_grids)
+							msg_list.append("wrote: " + gridname)
+					msg = "\n".join(msg_list)
+					dialog_info(self, "Finished export", msg)
+
+
+
 	def addToolbar2(self, layout, contrast=True, gamma=True):
 		self.toolbar2 = QtGui.QToolBar(self)
 		self.toolbar2.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
@@ -1316,9 +1437,16 @@ class PlotDialog(QtGui.QWidget):
 		self.menu_file.addAction(self.action_save_figure)
 		self.menu_file.addAction(self.action_save_figure_again)
 
+
 		self.action_save_figure.triggered.connect(self.onActionSaveFigure)
 		self.action_save_figure_again.triggered.connect(self.onActionSaveFigureAgain)
 		self.action_save_figure_again.setEnabled(False)
+
+		self.action_export = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Export data/script', self)
+		self.menu_file.addSeparator()
+		self.menu_file.addAction(self.action_export)
+		self.action_export.triggered.connect(self.onActionExport)
+
 
 
 		self.action_aspect_lock_one = QtGui.QAction(QtGui.QIcon(iconfile('control-stop-square')), 'Aspect=1', self)
@@ -1904,8 +2032,8 @@ class PlotDialog(QtGui.QWidget):
 class HistogramPlotDialog(PlotDialog):
 	type_name = "histogram"
 	#names = "histogram,1d"
-	def __init__(self, parent, jobsManager, dataset, expression, **kwargs):
-		super(HistogramPlotDialog, self).__init__(parent, jobsManager, dataset, [expression], ["X"], **kwargs)
+	def __init__(self, parent, jobsManager, dataset):
+		super(HistogramPlotDialog, self).__init__(parent, jobsManager, dataset, 1, ["X"])
 
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)
@@ -1914,103 +2042,8 @@ class HistogramPlotDialog(PlotDialog):
 		self.addToolbar2(layout, contrast=False, gamma=False)
 		super(HistogramPlotDialog, self).afterCanvas(layout)
 
-	def calculate_visuals(self, info, block, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
-		if compute_counter < self.compute_counter:
-			print "STOP " * 100
-			return True
-		if info.error:
-			print "error", info.error_text
-			self.expression_error = True
-			self.message(info.error_text, index=-2)
-			return
-		elapsed = time.time() - info.time_start
-		self.message("computation at %.1f%% (%.2fs)" % (info.percentage, elapsed), index=20)
-		QtCore.QCoreApplication.instance().processEvents()
-
-		self.expression_error = False
-		N = self.grid_size
-		mask = self.dataset.mask
-		if info.first:
-			self.selected_point = None
-			self.counts = np.zeros(N, dtype=np.float64)
-			if weights_block is not None:
-				self.counts_weights = np.zeros(N, dtype=np.float64)
-			else:
-				self.counts_weights = None
-
-			if mask is not None:
-				self.counts_mask = np.zeros(N, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
-				self.counts_weights_mask = None
-				if weights_block is not None:
-					self.counts_weights_mask = np.zeros(N, dtype=np.float64)
-			else:
-				self.counts_mask = None
-				self.counts_weights_mask = None
-
-		#return
-		xmin, xmax = self.ranges[0]
-		if self.ranges_show[0] is None:
-			self.ranges_show[0] = xmin, xmax
-		#totalxmin, totalxmax = self.gettotalxrange()
-		#print repr(self.data), repr(self.counts), repr(xmin), repr(xmax)
-		t0 = time.time()
-		try:
-			args = (block, self.counts, xmin, xmax)
-			#gavi.histogram.hist1d(block, self.counts, xmin, xmax)
-			if 1:
-
-				sub_counts = np.zeros((self.pool.nthreads, N), dtype=np.float64)
-				def subblock(index, sub_i1, sub_i2):
-					subspacefind.histogram1d(block[sub_i1:sub_i2], None, sub_counts[index], xmin, xmax)
-				self.pool.run_blocks(subblock, info.size)
-				self.counts += np.sum(sub_counts, axis=0)
-			else:
-				subspacefind.histogram1d(block, None, self.counts, xmin, xmax)
-
-			if weights_block is not None:
-				args = (block, self.counts, xmin, xmax, weights_block)
-				#gavi.histogram.hist1d_weights(block, self.counts_weights, weights_block, xmin, xmax)
-				#subspacefind.histogram1d(block, weights_block, self.counts_weights, xmin, xmax)
-				sub_counts = np.zeros((self.pool.nthreads, N), dtype=np.float64)
-				def subblock(index, sub_i1, sub_i2):
-					subspacefind.histogram1d(block[sub_i1:sub_i2], weights_block[sub_i1:sub_i2], sub_counts[index], xmin, xmax)
-				self.pool.run_blocks(subblock, info.size)
-				self.counts_weights += np.sum(sub_counts, axis=0)
-
-		except:
-			logger.exception("error with hist1d, arguments: %r" % (args,))
-		if mask is not None:
-			subset = block[mask[info.i1:info.i2]]
-			#gavi.histogram.hist1d(subset, self.counts_mask, xmin, xmax)
-			sub_counts = np.zeros((self.pool.nthreads, N), dtype=np.float64)
-			def subblock(index, sub_i1, sub_i2):
-				subspacefind.histogram1d(subset[sub_i1:sub_i2], None, sub_counts[index], xmin, xmax)
-			self.pool.run_blocks(subblock, len(subset))
-			self.counts_mask += np.sum(sub_counts, axis=0)
-
-			if weights_block is not None:
-				subset_weights = weights_block[mask[info.i1:info.i2]]
-				#gavi.histogram.hist1d_weights(subset, self.counts_weights_mask, subset_weights, xmin, xmax)
-				sub_counts = np.zeros((self.pool.nthreads, N), dtype=np.float64)
-				def subblock(index, sub_i1, sub_i2):
-					subspacefind.histogram1d(subset[sub_i1:sub_i2], subset_weights[sub_i1:sub_i2], sub_counts[index], xmin, xmax)
-				self.pool.run_blocks(subblock, len(subset))
-				self.counts_mask += np.sum(sub_counts, axis=0)
-
-		print "it took", time.time()-t0
-
-		index = self.dataset.selected_row_index
-		if index is not None:
-			if index >= info.i1 and index < info.i2: # selected point is in this block
-				self.selected_point = block[index-info.i1]
-
-		self.delta = (xmax - xmin) / N
-		self.centers = np.arange(N) * self.delta + xmin
-		#print xmin, xmax, self.centers
-		if info.last:
-			elapsed = time.time() - info.time_start
-			self.message("computation %.2f s" % (elapsed), index=20)
-			self.message(None, index=-2) # clear error
+	def add_histogram(self, x, counts, selection):
+		self.histograms.append((x, counts))
 
 
 	def plot(self):
@@ -2021,11 +2054,48 @@ class HistogramPlotDialog(PlotDialog):
 		#	return
 		#P.hist(x, 50, normed=1, histtype='stepfilled')
 		#values =
+		if len(self.layers) == 0:
+			return
+		first_layer = self.layers[0]
+
+		for i in range(self.dimensions):
+			if self.ranges_show[i] is None:
+				self.ranges_show[i] = copy.copy(first_layer.ranges_grid[i])
+
+
+		for layer in self.layers:
+			layer.plot([self.axes], self.add_histogram)
+			#layer.prepare_histograms()
+
+
+		self.axes.set_xlabel(first_layer.expressions[0])
+		xmin_show, xmax_show = self.ranges_show[0]
+		print "plot limits:", xmin_show, xmax_show
+		self.axes.set_xlim(xmin_show, xmax_show)
+		if self.range_level_show is None:
+			self.range_level_show = first_layer.range_level
+		ymin_show, ymax_show = self.range_level_show
+		print "level limits:", ymin_show, ymax_show
+		if not first_layer.weight_expression:
+			self.axes.set_ylabel("counts")
+		else:
+			self.axes.set_ylabel(first_layer.weight_expression)
+		self.axes.set_ylim(ymin_show, ymax_show)
+		if not self.action_mini_mode_ultra.isChecked():
+			self.fig.tight_layout(pad=0.0)
+		self.canvas.draw()
+		self.update()
+		self.message("plotting %.2fs" % (time.time() - t0), index=100)
+		self.signal_plot_finished.emit(self, self.fig)
+		return
+
+
+
 		Nvector = self.grid_size
-		width = self.ranges[0][1] - self.ranges[0][0]
-		x = np.arange(0, Nvector)/float(Nvector) * width + self.ranges[0][0]# + width/(Nvector/2.)
-		xmin, xmax = self.ranges[0]
-		xmin, xmax = self.ranges[0]
+		width = self.ranges_show[0][1] - self.ranges_show[0][0]
+		x = np.arange(0, Nvector)/float(Nvector) * width + self.ranges_show[0][0]# + width/(Nvector/2.)
+		xmin, xmax = self.ranges_show[0]
+		xmin, xmax = self.ranges_show[0]
 		if self.ranges_show[0] is None:
 			self.ranges_show[0] = xmin, xmax
 
@@ -2083,28 +2153,6 @@ class HistogramPlotDialog(PlotDialog):
 						self.selected_point = block[index-info.i1]
 				self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
 
-			if self.selected_point is not None:
-				#x = self.getdatax()[self.dataset.selected_row_index]
-				print "drawing vline at", self.selected_point
-				self.axes.axvline(self.selected_point, color="red")
-
-		self.axes.set_xlabel(self.expressions[0])
-		xmin_show, xmax_show = self.ranges_show[0]
-		print "plot limits:", xmin_show, xmax_show
-		self.axes.set_xlim(xmin_show, xmax_show)
-		ymin_show, ymax_show = self.range_level
-		print "level limits:", ymin_show, ymax_show
-		if not self.weight_expression:
-			self.axes.set_ylabel("counts")
-		else:
-			self.axes.set_ylabel(self.weight_expression)
-		self.axes.set_ylim(ymin_show, ymax_show)
-		if not self.action_mini_mode_ultra.isChecked():
-			self.fig.tight_layout(pad=0.0)
-		self.canvas.draw()
-		self.update()
-		self.message("plotting %.2fs" % (time.time() - t0), index=100)
-		self.signal_plot_finished.emit(self, self.fig)
 
 
 class ScatterPlotDialog(PlotDialog):
@@ -2112,198 +2160,6 @@ class ScatterPlotDialog(PlotDialog):
 	#names = "heatmap,density2d,2d"
 	def __init__(self, parent, jobsManager, dataset, **options):
 		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, 2, "X Y".split(), **options)
-
-
-	def calculate_visuals(self, info, blockx, blocky, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
-		if compute_counter < self.compute_counter:
-			print compute_counter, self.compute_counter
-			print "STOP " * 100
-			return True
-		if info.error:
-			self.message(info.error_text, index=-2)
-			return
-
-		elapsed = time.time() - info.time_start
-		self.message("computation at %.2f%% (%fs)" % (info.percentage, elapsed), index=20)
-		QtCore.QCoreApplication.instance().processEvents()
-		self.expression_error = False
-
-		N = self.grid_size
-		Nvector = 32
-		mask = self.dataset.mask
-		if info.first:
-			self.counts = np.zeros((N,) * self.dimensions, dtype=np.float64)
-			self.counts_weights = None
-			self.counts_x_weights = None
-			self.counts_y_weights = None
-			self.counts_xy_weights = None
-			self.counts_xy = None
-			if weights_block is not None:
-				self.counts_weights = np.zeros((N,) * self.dimensions, dtype=np.float64)
-			if weights_x_block is not None:
-				self.counts_x_weights = np.zeros((Nvector,) * self.dimensions, dtype=np.float64)
-			if weights_y_block is not None:
-				self.counts_y_weights = np.zeros((Nvector,) * self.dimensions, dtype=np.float64)
-			if weights_xy_block is not None:
-				self.counts_xy_weights = np.zeros((Nvector,) * self.dimensions, dtype=np.float64)
-			if weights_x_block is not None or weights_y_block is not None:
-				self.counts_xy = np.zeros((Nvector,) * self.dimensions, dtype=np.float64)
-
-			self.selected_point = None
-			if mask is not None:
-				self.counts_mask = np.zeros((N,) * self.dimensions, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
-				self.counts_weights_mask = None
-				if weights_block is not None:
-					self.counts_weights_mask = np.zeros((N,) * self.dimensions, dtype=np.float64)
-			else:
-				self.counts_mask = None
-				self.counts_weights_mask = None
-
-
-
-
-
-		xmin, xmax = self.ranges[0]
-		ymin, ymax = self.ranges[1]
-		for i in range(self.dimensions):
-			if self.ranges_show[i] is None:
-				self.ranges_show[i] = self.ranges[i]
-
-		if self.aspect is not None:
-			centers = [(range_[1] + range_[0])/2 for range_ in self.ranges_show]
-			widths = [abs(range_[1] - range_[0]) for range_ in self.ranges_show] # TODO: should we use abs with flipped axes
-			width, height = widths[:2]
-			current_aspect = width/height
-			#if current_aspect > self.aspect:
-			logger.debug("ranges_show were: %r (width/height=%r/%r)"  % (self.ranges_show, width, height))
-			#if current_aspect < 1:
-			height = width/self.aspect
-			#else:
-			#width = self.aspect * height
-			#else:
-			self.ranges_show[0] = centers[0]-width/2,centers[0]+width/2
-			self.ranges_show[1] = centers[1]-height/2,centers[1]+height/2
-			self.ranges = [list(k) for k in self.ranges_show]
-			logger.debug("ranges_show are: %r (width/height=%r/%r)"  % (self.ranges_show, width, height))
-
-
-
-		index = self.dataset.selected_row_index
-		if index is not None:
-			if index >= info.i1 and index < info.i2: # selected point is in this block
-				self.selected_point = blockx[index-info.i1], blocky[index-info.i1]
-
-		t0 = time.time()
-		#histo2d(blockx, blocky, self.counts, *self.ranges)
-		ranges = []
-		for minimum, maximum in self.ranges:
-			ranges.append(minimum)
-			if minimum == maximum:
-				maximum += 1
-			ranges.append(maximum)
-		if 1:
-			args = blockx, blocky, self.counts, ranges
-			#gavi.histogram.hist2d(blockx, blocky, self.counts, *ranges)
-			#subspacefind.histogram2d(blockx, blocky, self.counts, *ranges)
-			if 1:
-				sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
-				def subblock(index, sub_i1, sub_i2):
-					subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], None, sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
-				self.pool.run_blocks(subblock, info.size)
-				self.counts += np.sum(sub_counts, axis=0)
-			else:
-				subspacefind.histogram2d(blockx, blocky, None, self.counts, *(ranges + [self.xoffset, self.yoffset]))
-
-
-
-			if weights_block is not None:
-				args = blockx, blocky, weights_block, self.counts, ranges
-				#gavi.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
-				if 1:
-					sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
-					def subblock(index, sub_i1, sub_i2):
-						subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], weights_block[sub_i1:sub_i2], sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
-					self.pool.run_blocks(subblock, info.size)
-					self.counts_weights += np.sum(sub_counts, axis=0)
-				else:
-					subspacefind.histogram2d(blockx, blocky, weights_block, self.counts_weights, *(ranges + [self.xoffset, self.yoffset]))
-			if mask is None:
-				for counts_weighted, weight_block in [(self.counts_x_weights, weights_x_block), (self.counts_y_weights, weights_y_block), (self.counts_xy_weights, weights_xy_block)]:
-					if weight_block is not None:
-						sub_counts = np.zeros((self.pool.nthreads, Nvector, Nvector), dtype=np.float64)
-						def subblock(index, sub_i1, sub_i2):
-							subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], weight_block[sub_i1:sub_i2], sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
-						self.pool.run_blocks(subblock, info.size)
-						counts_weighted += np.sum(sub_counts, axis=0)
-
-		if weights_x_block is not None or weights_y_block is not None:
-			if mask is None:
-				#subspacefind.histogram2d(blockx, blocky, None, self.counts_xy, *(ranges + [self.xoffset, self.yoffset]))
-				sub_counts = np.zeros((self.pool.nthreads, Nvector, Nvector), dtype=np.float64)
-				def subblock(index, sub_i1, sub_i2):
-					subspacefind.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], None, sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
-				self.pool.run_blocks(subblock, info.size)
-				self.counts_xy += np.sum(sub_counts, axis=0)
-
-			else:
-				subsetx = blockx[mask[info.i1:info.i2]]
-				subsety = blocky[mask[info.i1:info.i2]]
-				#subspacefind.histogram2d(subsetx, subsety, None, self.counts_xy, *(ranges + [self.xoffset, self.yoffset]))
-				#subspacefind.histogram2d(blockx, blocky, None, self.counts_xy, *(ranges + [self.xoffset, self.yoffset]))
-				sub_counts = np.zeros((self.pool.nthreads, Nvector, Nvector), dtype=np.float64)
-				def subblock(index, sub_i1, sub_i2):
-					subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], None, sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
-				self.pool.run_blocks(subblock, len(subsetx))
-				self.counts_xy += np.sum(sub_counts, axis=0)
-
-		if mask is not None:
-			subsetx = blockx[mask[info.i1:info.i2]]
-			subsety = blocky[mask[info.i1:info.i2]]
-			#print subx, suby, mask[info.i1:info.i2]
-			#histo2d(subsetx, subsety, self.counts_mask, *self.ranges)
-			#gavi.histogram.hist2d(subsetx, subsety, self.counts_mask, *ranges)
-
-			sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
-			def subblock(index, sub_i1, sub_i2):
-				subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], None, sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
-			self.pool.run_blocks(subblock, len(subsetx))
-			self.counts_mask += np.sum(sub_counts, axis=0)
-			#else:
-			#	subspacefind.histogram2d(subsetx, subsety, None, self.counts_mask, *ranges)
-
-			if weights_block is not None:
-				subset_weights = weights_block[mask[info.i1:info.i2]]
-				#gavi.histogram.hist2d_weights(subsetx, subsety, subset_weights, self.counts_weights_mask, *ranges)
-				#subspacefind.histogram2d(subsetx, subsety, subset_weights, self.counts_weights_mask, *ranges)
-				sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
-				def subblock(index, sub_i1, sub_i2):
-					subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], subset_weights[sub_i1:sub_i2], sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
-				self.pool.run_blocks(subblock, len(subsetx))
-				self.counts_weights_mask += np.sum(sub_counts, axis=0)
-
-			for counts_weighted, weight_block in [(self.counts_x_weights, weights_x_block), (self.counts_y_weights, weights_y_block), (self.counts_xy_weights, weights_xy_block)]:
-				if weight_block is not None:
-					weights_block_mask = weight_block[mask[info.i1:info.i2]]
-					sub_counts = np.zeros((self.pool.nthreads, Nvector, Nvector), dtype=np.float64)
-					def subblock(index, sub_i1, sub_i2):
-						subspacefind.histogram2d(subsetx[sub_i1:sub_i2], subsety[sub_i1:sub_i2], weights_block_mask[sub_i1:sub_i2], sub_counts[index], *(ranges + [self.xoffset, self.yoffset]))
-					self.pool.run_blocks(subblock, len(subsetx))
-					counts_weighted += np.sum(sub_counts, axis=0)
-
-		if info.last:
-			elapsed = time.time() - info.time_start
-			self.message("computation %.2fs" % (elapsed), index=20)
-			self.message(None, index=-2) # clear error
-			if self.show_disjoined:
-				self.counts = gavi.kld.to_disjoined(self.counts)
-				if self.counts_mask is not None:
-					self.counts_mask = gavi.kld.to_disjoined(self.counts_mask)
-				if self.counts_x_weights is not None:
-					self.counts_x_weights = gavi.kld.to_disjoined(self.counts_x_weights)
-				if self.counts_y_weights is not None:
-					self.counts_y_weights = gavi.kld.to_disjoined(self.counts_y_weights)
-				if self.counts_xy_weights is not None:
-					self.counts_xy_weights = gavi.kld.to_disjoined(self.counts_xy_weights)
 
 
 
@@ -2316,6 +2172,7 @@ class ScatterPlotDialog(PlotDialog):
 
 	def plot(self):
 		self.image_layers = []
+		self.axes.rgb_images = self.image_layers
 		self.axes.cla()
 		if len(self.layers) == 0:
 			return
@@ -2324,7 +2181,7 @@ class ScatterPlotDialog(PlotDialog):
 		N = self.grid_size
 		background = np.ones((N, N, 4), dtype=np.float64)
 		background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(self.background_color)
-		background[:,:,3] = 0.02
+		background[:,:,3] = 1.
 
 		ranges = []
 		for minimum, maximum in first_layer.ranges_grid:
@@ -2352,44 +2209,13 @@ class ScatterPlotDialog(PlotDialog):
 		for layer in self.layers:
 			layer.plot([self.axes], self.add_image_layer)
 
-		rgba_dest = self.image_layers[0] * 1. # * 0
-		if 1:
-			#@for i in range(3):
-			#	rgba_dest[:,:,i] *= rgba_dest[:,:,3]
-			for i in range(1, len(self.image_layers)):
-				rgba_source  = self.image_layers[i]
-				alpha_source = rgba_source[:,:,3]
-				alpha_dest   = rgba_dest[:,:,3]
-				#print alpha_source.min(), alpha_source.max()
-				alpha_result = alpha_source + alpha_dest * (1 - alpha_source)
-				mask = alpha_result > 0
-				for c in range(3):
-					#f = rgba_dest[:,:,c] + rgba_source[:,:,c] - rgba_dest[:,:,c] * rgba_source[:,:,c]
-					#f = rgba_dest[:,:,c] * rgba_source[:,:,c]
-					#f = np.maximum(rgba_dest[:,:,c], rgba_source[:,:,c])
-					#f = np.abs(rgba_dest[:,:,c] -  rgba_source[:,:,c])
-					#f = rgba_dest[:,:,c] +  rgba_source[:,:,c]
-					f = gavi.vaex.imageblending.modes[self.blend_mode](rgba_dest[:,:,c], rgba_source[:,:,c])
-					result = ((1.-alpha_dest) * alpha_source * rgba_source[:,:,c]  + (1.-alpha_source) * alpha_dest * rgba_dest[:,:,c] + alpha_source * alpha_dest * f) / alpha_result
-					rgba_dest[:,:,c][[mask]] = np.clip(result[[mask]], 0, 1)
-					#rgba_dest[:,:,c][[mask]] = (result[[mask]])
-					#rgba_dest[:,:,c] = (rgba_dest[:,:,c] * alpha_dest  * (1-alpha_source) + rgba_source[:,:,c] * alpha_source)
-					#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
-					#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
-					#rgba_dest[:,:,c] = rgba_dest[:,:,c] + rgba_source[:,:,c] * alpha_source
-				rgba_dest[:,:,3] = np.clip(alpha_result, 0., 1)
-				#for c in range(3):
-				#	rgba_dest[:,:,c] = rgba_dest[:,:,c] / rgba_dest[:,:,3]
-			print rgba_dest[0]
-			#for c in range(3):
-			#	rgba_dest[:,:,c] = rgba_dest[:,:,c] * rgba_dest[:,:,3] + (1-rgba_dest[:,:,3])
-			for c in range(4):
-				#rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** 3.5)*2.6, 0., 1.)
-				rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** self.layer_gamma)*self.layer_brightness, 0., 1.)
-			rgba_dest[:,:,3] = rgba_dest[:,:,3] * 0 + 1
-			print rgba_dest[0]
-		#rgba_dest[:,:,3] = 1
-		placeholder.set_data((rgba_dest * 255).astype(np.uint8))
+
+		rgba = gavi.vaex.imageblending.blend(self.image_layers, self.blend_mode)
+		rgba[...,3] = rgba[...,3] * 0 + 1
+		for c in range(4):
+			#rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** 3.5)*2.6, 0., 1.)
+			rgba[:,:,c] = np.clip((rgba[:,:,c] ** self.layer_gamma)*self.layer_brightness, 0., 1.)
+		placeholder.set_data((rgba * 255).astype(np.uint8))
 
 
 
@@ -2880,108 +2706,6 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		self.axis_bottom.yaxis_index = 2
 		#self.fig.subplots_adjust(hspace=0, wspace=0)
 
-	#def calculate_visuals(self, info, blockx=None, blocky=None, blockz=None, compute_counter=None):
-	def calculate_visuals(self, info, blockx, blocky, blockz, weights_block, weights_x_block, weights_y_block, weights_xy_block, compute_counter=None):
-		if compute_counter < self.compute_counter:
-			print "STOP " * 100
-			return True
-		print "info", info
-
-		blocks = [blockx, blocky, blockz]
-		data_blocks = blocks[:self.dimensions]
-		if len(blocks) > self.dimensions:
-			weights_block = blocks[self.dimensions]
-		else:
-			weights_block = None
-		elapsed = time.time() - info.time_start
-		self.message("computation %.2f%% (%f seconds)" % (info.percentage, elapsed), index=9)
-		QtCore.QCoreApplication.instance().processEvents()
-		self.expression_error = False
-
-		print "aap"
-
-		N = self.grid_size
-		mask = self.dataset.mask
-		if info.first:
-			self.counts = np.zeros((N,) * self.dimensions, dtype=np.float64)
-			self.counts_weights = None
-			if weights_block is not None:
-				self.counts_weights = np.zeros((N,) * self.dimensions, dtype=np.float64)
-
-			self.selected_point = None
-			if mask is not None:
-				self.counts_mask = np.zeros((N,) * self.dimensions, dtype=np.float64) #mab.utils.numpy.mmapzeros((128), dtype=np.float64)
-				self.counts_weights_mask = None
-				if weights_block is not None:
-					self.counts_weights_mask = np.zeros((N,) * self.dimensions, dtype=np.float64)
-			else:
-				self.counts_mask = None
-				self.counts_weights_mask = None
-
-		if info.error:
-			print "error", info.error_text
-			self.expression_error = True
-			self.message(info.error_text)
-			return
-
-
-		xmin, xmax = self.ranges[0]
-		ymin, ymax = self.ranges[1]
-		for i in range(self.dimensions):
-			if self.ranges_show[i] is None:
-				self.ranges_show[i] = self.ranges[i]
-
-
-		print "noot"
-		index = self.dataset.selected_row_index
-		if index is not None:
-			if index >= info.i1 and index < info.i2: # selected point is in this block
-				self.selected_point = blockx[index-info.i1], blocky[index-info.i1]
-
-		t0 = time.time()
-		#histo2d(blockx, blocky, self.counts, *self.ranges)
-		ranges = []
-		for minimum, maximum in self.ranges:
-			ranges.append(minimum)
-			if minimum == maximum:
-				maximum += 1
-			ranges.append(maximum)
-		print "mies"
-		try:
-			args = data_blocks, self.counts, ranges
-			#if self.dimensions == 2:
-			#	gavi.histogram.hist3d(data_blocks[0], data_blocks[1], self.counts, *ranges)
-			#if self.dimensions == 3:
-			#	#gavi.histogram.hist3d(data_blocks[0], data_blocks[1], data_blocks[2], self.counts, *ranges)
-			gavifast.histogram3d(blockx, blocky, blockz, None, self.counts, *ranges)
-			#if weights_block is not None:
-			#	args = data_blocks, weights_block, self.counts, ranges
-			#	gavi.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
-		except:
-			print "args", args
-			print blockx.shape, blockx.dtype
-			print blocky.shape, blocky.dtype
-			print self.counts.shape, self.counts.dtype
-			raise
-		print "it took", time.time()-t0
-		print "mies2"
-
-		if mask is not None:
-			subsets = [block[mask[info.i1:info.i2]] for block in data_blocks]
-			if self.dimensions == 2:
-				gavi.histogram.hist2d(subsets[0], subsets[1], self.counts_weights_mask, *ranges)
-			if self.dimensions == 3:
-				gavi.histogram.hist3d(subsets[0], subsets[1], subsets[2], self.counts_mask, *ranges)
-			if weights_block is not None:
-				subset_weights = weights_block[mask[info.i1:info.i2]]
-				if self.dimensions == 2:
-					gavi.histogram.hist2d_weights(subsets[0], subsets[1], self.counts_weights_mask, subset_weights, *ranges)
-				if self.dimensions == 3:
-					gavi.histogram.hist3d_weights(subsets[0], subsets[1], subsets[2], self.counts_weights_mask, subset_weights, *ranges)
-		if info.last:
-			elapsed = time.time() - info.time_start
-			self.message("computation (%f seconds)" % (elapsed), index=9)
-
 
 	def add_image_layer(self, rgba, intensity):
 		self.image_layers.append(intensity)
@@ -2989,6 +2713,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 	def plot(self):
 		self.image_layers = []
 		#self.image_layers = []
+
 		axes_list = self.getAxesList()
 		for axes in axes_list:
 			axes.cla()
@@ -2996,14 +2721,46 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			return
 		first_layer = self.layers[0]
 
+		for i in range(self.dimensions):
+			if self.ranges_show[i] is None:
+				self.ranges_show[i] = copy.copy(first_layer.ranges_grid[i])
+		#extent =
+		for axes in axes_list:
+			ranges = []
+			for minimum, maximum in [self.ranges_show[axes.xaxis_index], self.ranges_show[axes.yaxis_index], ]:
+				ranges.append(minimum)
+				ranges.append(maximum)
+			axes.rgb_images = []
+			N = self.grid_size
+			background = np.ones((N, N, 4), dtype=np.float64)
+			background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(self.background_color)
+			background[:,:,3] = 1.
+			axes.placeholder = axes.imshow(background, extent=ranges, origin="lower")
+			axes.rgb_images.append(background)
+			colors = "red green blue".split()
+			axes.spines['bottom'].set_color(colors[axes.xaxis_index])
+			axes.spines['left'].set_color(colors[axes.yaxis_index])
+			linewidth = 2.
+			axes.spines['bottom'].set_linewidth(linewidth)
+			axes.spines['left'].set_linewidth(linewidth)
+
 
 		for layer in self.layers:
 			layer.plot(axes_list, self.add_image_layer)
 		print "grids", self.image_layers
-		for image in self.image_layers:
-			self.widget_volume.setGrid(image)
+		#for image in self.image_layers:
+		if first_layer.amplitude_selection is not None:
+			self.widget_volume.setGrid(first_layer.amplitude_selection, first_layer.amplitude, first_layer.vector_grid)
+		else:
+			self.widget_volume.setGrid(first_layer.amplitude, vectorgrid=first_layer.vector_grid)
 
-
+		for axes in axes_list:
+			rgba = gavi.vaex.imageblending.blend(axes.rgb_images, self.blend_mode)
+			rgba[...,3] = rgba[...,3] * 0 + 1
+			for c in range(4):
+				#rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** 3.5)*2.6, 0., 1.)
+				rgba[:,:,c] = np.clip((rgba[:,:,c] ** self.layer_gamma)*self.layer_brightness, 0., 1.)
+			axes.placeholder.set_data((rgba * 255).astype(np.uint8))
 
 		#if self.aspect is None:
 		#	self.axes.set_aspect('auto')

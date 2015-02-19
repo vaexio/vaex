@@ -172,7 +172,7 @@ def select_many(parent, title, options):
 	row = 0
 	for checkbox in checkboxes:
 		checkbox.setCheckState(QtCore.Qt.Checked)
-		layout_frame.addWidget(checkbox, row, 0)
+		layout_frame.addWidget(checkbox) #, row, 0)
 		row += 1
 
 	buttonLayout = QtGui.QHBoxLayout()
@@ -198,8 +198,24 @@ def dialog_error(parent, title, msg):
 def dialog_info(parent, title, msg):	
 	QtGui.QMessageBox.information(parent, title, msg)
 	
-def dialog_confirm(parent, title, msg):
-	return QtGui.QMessageBox.information(parent, title, msg, QtGui.QMessageBox.Yes|QtGui.QMessageBox.No) == QtGui.QMessageBox.Yes
+def dialog_confirm(parent, title, msg, to_all=False):
+	#return QtGui.QMessageBox.information(parent, title, msg, QtGui.QMessageBox.Yes|QtGui.QMessageBox.No) == QtGui.QMessageBox.Yes
+	msgbox = QtGui.QMessageBox(parent)
+	msgbox.setText(msg)
+	msgbox.setWindowTitle(title)
+	#, title, msg, QtGui.QMessageBox.Yes|QtGui.QMessageBox.No) == QtGui.QMessageBox.Yes
+	msgbox.addButton(QtGui.QMessageBox.Yes)
+	if to_all:
+		msgbox.addButton(QtGui.QMessageBox.YesToAll)
+		msgbox.setDefaultButton(QtGui.QMessageBox.YesToAll)
+	else:
+		msgbox.setDefaultButton(QtGui.QMessageBox.Yes)
+	msgbox.addButton(QtGui.QMessageBox.No)
+	result = msgbox.exec_()
+	if to_all:
+		return result in [QtGui.QMessageBox.Yes, QtGui.QMessageBox.YesToAll], result == QtGui.QMessageBox.YesToAll
+	else:
+		return result in [QtGui.QMessageBox.Yes]
 
 confirm = dialog_confirm
 
