@@ -50,10 +50,10 @@ Quickstart
 
 :ref:`installing_from_binary`, unzip it at any location. OSX users can simply double click the unzipped file, Linux users should run the binary from the unzipped dir (./vaex/veax). Vaex comes with some example datasets. Click/select one of interest, and now click the 'x/y density' button on the right panel. Keep the button pressed to plot anything else but the first two columns. A density plot should now appear.
 
-By default the move mode is selected (as indicated by the selected button in the toolbar in the upper left corner). Dragging (keeping the mouse button pressed and moving) will move the density plot around, scrolling will zoom in and out. Selecting the next button (Pick), or by typing 'p', will enable pick mode, clicking the mouse button will select the nearest row under the cursor, and it will be highlighted as a red dot. Opening up any other plot, or the table will show the same row as selected, which is useful for checking outliers. 
+By default the move mode is selected (as indicated by the selected button in the toolbar in the upper left corner). Dragging (keeping the mouse button pressed and moving) will move the density plot around, scrolling will zoom in and out. Selecting the next button (Pick), will enable pick mode, clicking the mouse button will select the nearest row under the cursor, and it will be highlighted as a red dot. Opening up any other plot, or the table will show the same row as selected, which is useful for checking outliers. 
 
 
-Clicking the next button on the toolbar (or type l), will select the lasso selection tool. Draw a line around a region of interest to select rows inside it, again it will be selected in other plots as well. Use the x-range or y-range selection by keeping the button pressed for longer (or type x or y), and use it in combination with the different selection modes (and, or, replace: next button in the toolbar, or type &, | or =) for more advanced selections. 
+Clicking the next button on the toolbar will select the lasso selection tool. Draw a line around a region of interest to select rows inside it, again it will be selected in other plots as well. Use the x-range or y-range selection by keeping the button pressed for longer (or type x or y), and use it in combination with the different selection modes (and, or, replace: next button in the toolbar) for more advanced selections. 
 
 
 Guide

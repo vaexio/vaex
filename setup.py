@@ -8,17 +8,19 @@ Usage:
 
 import os
 from distutils.sysconfig import get_python_inc, get_python_lib
-import numpy
+#from distutils import setup, find_packages, Extension
+from setuptools import setup, find_packages, Extension
 import platform
+
 has_py2app = False
-import gavi.vaex
+#import gavi.vaex
 try:
-	import py2app.build_app
-	has_py2app = True
+	#import py2app.build_app
+	has_py2app = False
 except:
 	pass
 
-full_name = gavi.vaex.__full_name__
+#full_name = gavi.vaex.__full_name__
 cmdclass = {}
 
 if has_py2app:
@@ -62,9 +64,15 @@ if has_py2app:
 			os.system("cd dist;zip -r %s %s.app" % (zipname, gavi.vaex.__program_name__))
 	cmdclass['py2app'] = my_py2app
 			
-from distutils.core import setup, Extension
-numdir = os.path.dirname(numpy.__file__)
+#from distutils.core import setup, Extension
+try:
+	import numpy
+	numdir = os.path.dirname(numpy.__file__)
+except:
+	numdir = None
 
+if numdir is None:
+	print "numpy not found, cannot install"
 import sys 
 sys.setrecursionlimit(10000)
 
@@ -75,7 +83,12 @@ if has_py2app:
 	#DATA_FILES.append(["data", ["data/disk-galaxy.hdf5"]]) #, "data/Aq-A-2-999-shuffled-1percent.hdf5"]])
 import glob
 
-DATA_FILES.append(["", glob.glob("doc/*/*")])
+#print glob.glob("doc/*")
+
+DATA_FILES.append(["doc/", glob.glob("docs/build/html/*.html") + glob.glob("docs/build/html/*.js")] )
+for sub in "_static _images _sources".split():
+	DATA_FILES.append(["doc/" + sub, glob.glob("docs/build/html/" +sub +"/*")] )
+#print DATA_FILES
 OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/gavi/icons'], 'matplotlib_backends':'-'}
 
 
@@ -94,7 +107,8 @@ else:
 extra_compile_args.extend(["-std=c++0x"])
 
 include_dirs.append(os.path.join(get_python_inc(plat_specific=1), "numpy"))
-include_dirs.append(os.path.join(numdir, "core", "include"))
+if numdir is not None:
+	include_dirs.append(os.path.join(numdir, "core", "include"))
 
 extensions = [
 	Extension("gavifast", ["src/gavi.cpp"],
@@ -104,18 +118,40 @@ extensions = [
                 define_macros=defines,
                 extra_compile_args=extra_compile_args
                 )
-]
+] if numdir is not None else []
 
+from pip.req import parse_requirements
+import pip.download
+
+session=pip.download.PipSession()
+# parse_requirements() returns generator of pip.req.InstallRequirement objects
+install_reqs = parse_requirements("requirements.txt", session=session)
+
+# reqs is a list of requirement
+# e.g. ['django==1.5.1', 'mezzanine==1.4.6']
+reqs = [str(ir.req) for ir in install_reqs]
+
+
+#print "requirements", reqs
+#print "ver#sion", gavi.vaex.__release__
 setup(
-	name=gavi.vaex.__program_name__,
-    app=APP,
-    version=gavi.vaex.__release__,
+	name="vaex", #gavi.vaex.__program_name__,
+	author="Maarten A. Breddels",
+	author_email="maartenbreddels@gmail.com",
+    version="0.2.49", #gavi.vaex.__version__,
     data_files=DATA_FILES,
     options={'py2app': OPTIONS},
-    setup_requires=['py2app'],
-    includes=["gavi", "md5"],
+    #setup_requires=['py2app'],
+    #setup_requires=["sphinx"],
+    #includes=["gavi", "md5"],
+    packages=["gavi", "gavi.vaex", "gavi.vaex.plugin", "gavi.icons"],
+    install_requires=reqs,
+    entry_points={ 'console_scripts': [ 'vaex=gavi.vaex.main:main']  },
     ext_modules=extensions,
-    package_data={'gavi': ['gavi/icons/*.png']},
-    cmdclass=cmdclass
+    package_data={'gavi': ['icons/*.png']},
+    package_dir={'gavi':'python/gavi'},
+    cmdclass=cmdclass,
+    description="Veax is a graphical tool to visualize and explore large tabular datasets.",
+    url="https://www.astro.rug.nl/~breddels/vaex"
 )
 
