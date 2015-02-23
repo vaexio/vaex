@@ -538,7 +538,7 @@ class StatWorker(QtCore.QThread):
 
 
 
-from mab.parallelize import parallelize
+from gavi.parallelize import parallelize
 
 
 class StatisticsDialog(QtGui.QDialog):
@@ -963,7 +963,7 @@ def find_nearest_index1d(datax, x):
 
 
 
-import mab.utils.numpy
+#import mab.utils.numpy
 
 import psutil
 
@@ -1066,7 +1066,7 @@ class Vaex(QtGui.QMainWindow):
 		self.resize(700,500)
 		#self.center()
 		#self.setWindowTitle('Gavi samp test')
-		self.setWindowTitle(u'V\xe6X')
+		self.setWindowTitle(u'V\xe6X - ' + gavi.vaex.__release__)
 		#self.statusBar().showMessage('Ready')
 
 		self.toolbar = self.addToolBar('Main toolbar')
@@ -1418,12 +1418,14 @@ class Vaex(QtGui.QMainWindow):
 
 
 	def onActionHelp(self):
-		url = "file://" + os.path.join(gavi.utils.get_root_path(), "doc/index.html")
+		filename = gavi.utils.get_data_file("doc/index.html")
+		url = "file://" + filename
 		gavi.utils.os_open(url)
 		#self.webDialog("doc/index.html")
 
 	def onActionCredits(self):
-		url = "file://" + os.path.join(gavi.utils.get_root_path(), "doc/credits.html")
+		filename = gavi.utils.get_data_file("doc/credits.html")
+		url = "file://" + filename
 		gavi.utils.os_open(url)
 		#gavi.utils.os_open("doc/credits.html")
 		#self.webDialog("html/credits.html")
@@ -1858,7 +1860,7 @@ class Vaex(QtGui.QMainWindow):
 
 
 app = None
-def main(argv):
+def main(argv=sys.argv[1:]):
 	global main_thread
 	global vaex
 	global app

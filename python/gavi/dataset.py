@@ -313,7 +313,11 @@ class JobsManager(object):
 										# same as above, but -i1, since the array stars at zero
 										output = expression_outputs[(dataset, expression)][i1-i1:i2-i1]
 										try:
-											ne.evaluate(repr(expr_noslice), local_dict=local_dict, out=output, casting="unsafe")
+											ex = expr_noslice
+											if not isinstance(ex, str):
+												ex = repr(expr_noslice)
+											print ex, repr(expr_noslice), expr_noslice, local_dict, len(output)
+											ne.evaluate(ex, local_dict=local_dict, out=output, casting="unsafe")
 										except Exception, e:
 											info.error = True
 											info.error_text = e.message

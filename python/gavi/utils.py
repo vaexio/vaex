@@ -15,6 +15,19 @@ def multisum(a, axes):
 		correction += 1
 	return a
 
+
+def get_data_file(filename):
+	from pkg_resources import Requirement, resource_filename
+	path = resource_filename(Requirement.parse("vaex"), filename)
+	if os.path.exists(path):
+		return path
+	path = os.path.join(sys.prefix, filename)
+	if os.path.exists(path):
+		return path
+	path = os.path.join(get_root_path(), filename)
+	if os.path.exists(path):
+		return path
+
 def get_root_path():
 	osname = platform.system().lower()
 	if (osname == "linux") and is_frozen: # we are using pyinstaller

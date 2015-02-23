@@ -5,6 +5,7 @@ import gavifast
 import matplotlib
 import gavifast
 import gavi
+import gavi.vaex.storage
 import gavi.vaex.undo
 import gavi.vaex.colormaps
 import gavi.vaex.grids
@@ -21,6 +22,8 @@ import time
 from qt import *
 
 logger = gavi.logging.getLogger("gavi.vaex")
+
+storage_expressions = gavi.vaex.storage.Storage("expressions")
 
 
 #options.define_options("grid_size", int, validator=options.is_power_of_two)
@@ -1228,6 +1231,52 @@ class LayerTable(object):
 		self.label_selection_info = QtGui.QLabel("should not see me", page)
 		self.layout_page_selection.addWidget(self.label_selection_info)
 		self.label_selection_info_update()
+
+		def on_select_expression():
+			all = storage_expressions.get_all("selection", self.dataset)
+			print all
+			expressions = []
+			for stored in all:
+				expressions.extend(stored["options"]["expressions"])
+			print expressions
+			for column in self.dataset.get_column_names():
+				expressions.append("%s < 0" % column)
+			expression = choose(self.plot_window, "Give expression", "Expression for selection: ", expressions, 0, True)
+			if expression:
+				expression = str(expression)
+				if expression not in expressions:
+					expressions.insert(0, expression)
+				#dialog_info(self.plot_window, "expr", expression)
+				storage_expressions.add("", "selection", self.dataset, {"expressions": expressions} )
+
+				mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
+				t0 = time.time()
+				def select(info, blockmask):
+					self.message("selection at %.1f%% (%.2fs)" % (info.percentage, time.time() - t0), index=40)
+					QtCore.QCoreApplication.instance().processEvents()
+					mask[info.i1:info.i2] = self.plot_window.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], blockmask == 1)
+					print np.sum(blockmask), blockmask
+					#if info.last:
+					#	self.message("selection %.2fs" % (time.time() - t0), index=40)
+
+				#layer = self.current_layer
+				#if layer is not None:
+				if 1:
+					self.dataset.evaluate(select, expression, **self.getVariableDict())
+					action = gavi.vaex.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
+					action.do()
+					self.check_selection_undo_redo()
+
+					#self.plot_window.checkUndoRedo()
+					#self.setMode(self.lastAction)
+
+
+		self.button_selection_expression = QtGui.QPushButton(QtGui.QIcon(iconfile('undo')), "Add expression", page )
+		self.button_selection_expression.clicked.connect(on_select_expression)
+		self.layout_page_selection.addWidget(self.button_selection_expression)
+
+
+
 
 	def label_selection_info_update(self):
 		if self.dataset.mask is None:

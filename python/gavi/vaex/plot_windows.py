@@ -1941,7 +1941,7 @@ class PlotDialog(QtGui.QWidget):
 		return masknew if maskold is None else maskold ^ masknew
 
 	def select_subtract(self, maskold, masknew):
-		return masknew if maskold is None else (maskold) & ~masknew
+		return ~masknew if maskold is None else (maskold) & ~masknew
 
 	def onActionSelectNone(self):
 		#self.dataset.selectMask(None)
