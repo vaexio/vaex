@@ -11,6 +11,24 @@ from distutils.sysconfig import get_python_inc, get_python_lib
 #from distutils import setup, find_packages, Extension
 from setuptools import setup, find_packages, Extension
 import platform
+import sys
+import imp
+
+def system(cmd):
+	print "Executing: ", cmd
+	ret = os.system(cmd)
+	if ret != 0:
+		print "error, return code is", ret
+		sys.exit(ret)
+
+path_version_file = "python/gavi/vaex/version.py"
+if not os.path.exists(path_version_file):
+	system("version=`git describe --tags --long`; python/gavi/vaex/setversion.py ${version}")
+
+version = imp.load_source('version', path_version_file)
+#system("version=`git describe --tags --long`; python/gavi/vaex/setversion.py ${version}")
+
+
 
 has_py2app = False
 #import gavi.vaex
@@ -132,14 +150,14 @@ install_reqs = parse_requirements("requirements.txt", session=session)
 reqs = [str(ir.req) for ir in install_reqs]
 
 
+
 #print "requirements", reqs
 #print "ver#sion", gavi.vaex.__release__
 setup(
 	name="vaex", #gavi.vaex.__program_name__,
 	author="Maarten A. Breddels",
 	author_email="maartenbreddels@gmail.com",
-    version = "0.2.39"
-    ,
+    version = "%d.%d.%d" % version.versiontuple,
     data_files=DATA_FILES,
     options={'py2app': OPTIONS},
     #setup_requires=['py2app'],
