@@ -494,10 +494,10 @@ class LayerTable(object):
 			if self.display_type == "contour":
 				if self.contour_count > 0:
 					if use_selection:
-						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4)
-						axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color)
+						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4*self.alpha)
+						axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
 					else:
-						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color)
+						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
 			else:
 				I = normalize(amplitude_marginalized)
 				axes.rgb_images.append(to_rgb(I, 0.4 if use_selection else 1.0))
@@ -525,7 +525,8 @@ class LayerTable(object):
 			self.sequence_index = sequence_index
 		#print "%" * 200
 		#self.compute()
-		self.signal_plot_update.emit(delay=0)
+		#self.signal_plot_update.emit(delay=0)
+		self.add_jobs()
 
 	def get_options(self):
 		options = collections.OrderedDict()

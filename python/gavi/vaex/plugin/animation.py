@@ -90,7 +90,7 @@ class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
 				if layer.dataset != self.dataset:
 					layer.dataset.selectSerieIndex(index)
 			#$self.layer.
-			#self.layer.jobs_manager.execute()
+			self.layer.jobs_manager.execute()
 		else:
 			self.layer.plot_window.message(None, index=-1)
 			self.timer_sequence.stop()
@@ -137,19 +137,26 @@ class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
 				self.layer.jobs_manager.execute()
 
 			button.clicked.connect(wrap_handler)
-
+			
+		def select(index):
+			self.dataset.selectSerieIndex(index)
+			for layer in self.layer.plot_window.layers:
+				if layer.dataset != self.dataset:
+					layer.dataset.selectSerieIndex(index)
+			#$self.layer.
+			self.layer.jobs_manager.execute()
 		def do_begin():
-			self.dataset.selectSerieIndex(0)
+			select(0)
 		def do_end():
-			self.dataset.selectSerieIndex(self.no_snapshots-1)
+			select(self.no_snapshots-1)
 		def do_prev():
-			self.dataset.selectSerieIndex(max(0, self.dataset.selected_serie_index-1))
+			select(max(0, self.dataset.selected_serie_index-1))
 		def do_next():
-			self.dataset.selectSerieIndex(min(self.no_snapshots-1, self.dataset.selected_serie_index+1))
+			select(min(self.no_snapshots-1, self.dataset.selected_serie_index+1))
 		def do_prev_ten():
-			self.dataset.selectSerieIndex(max(0, self.dataset.selected_serie_index-10))
+			select(max(0, self.dataset.selected_serie_index-10))
 		def do_next_ten():
-			self.dataset.selectSerieIndex(min(self.no_snapshots-1, self.dataset.selected_serie_index+10))
+			select(min(self.no_snapshots-1, self.dataset.selected_serie_index+10))
 		add_control_button("|<", do_begin)
 		add_control_button("<<", do_prev_ten)
 		add_control_button("<", do_prev)
@@ -175,7 +182,11 @@ class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
 			print "event", index, self.dataset.selected_serie_index
 			if index != self.dataset.selected_serie_index:
 				self.dataset.selectSerieIndex(index)
-				#self.layer.jobs_manager.execute()
+				for layer in self.layer.plot_window.layers:
+					if layer.dataset != self.dataset:
+						layer.dataset.selectSerieIndex(index)
+				#self.dataset.selectSerieIndex(index)
+				self.layer.jobs_manager.execute()
 		self.box_sequence.currentIndexChanged.connect(on_sequence_change)
 		self.layout_sequence.addWidget(self.box_sequence, row_sequence, 1)
 		row_sequence += 1
