@@ -12,8 +12,9 @@ def iconfile(name):
 	for dirname in ["./python/gavi", ".", os.path.dirname(gavi.__file__), os.path.join(application_path), os.path.join(application_path, "..")] :
 		path = os.path.join(dirname, "icons", name+".png")
 		if os.path.exists(path):
-			print "icon path:", path
+			#print "icon path:", path
 			return path
 		else:
-			print "path", path, "does not exist"
+			#print "path", path, "does not exist"
+			pass
 	return path

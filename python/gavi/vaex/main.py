@@ -1066,7 +1066,7 @@ class Vaex(QtGui.QMainWindow):
 		self.resize(700,500)
 		#self.center()
 		#self.setWindowTitle('Gavi samp test')
-		self.setWindowTitle(u'V\xe6X - ' + gavi.vaex.__release__)
+		self.setWindowTitle(u'V\xe6X v' + gavi.vaex.__version__)
 		#self.statusBar().showMessage('Ready')
 
 		self.toolbar = self.addToolBar('Main toolbar')

@@ -31,7 +31,6 @@ class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
 
 
 		def on_plot_finished(plot_window, figure):
-			print "save it " * 100
 			#if self.timer_sequence.isActive():
 			#	self.dialog.update_grids()
 			#else:
@@ -179,7 +178,6 @@ class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
 		self.box_sequence.setCurrentIndex(self.dataset.selected_serie_index)
 		self.box_sequence.setEnabled(has_snapshots)
 		def on_sequence_change(index):
-			print "event", index, self.dataset.selected_serie_index
 			if index != self.dataset.selected_serie_index:
 				self.dataset.selectSerieIndex(index)
 				for layer in self.layer.plot_window.layers:

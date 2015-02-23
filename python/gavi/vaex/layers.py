@@ -277,18 +277,15 @@ class LayerTable(object):
 
 	def plot(self, axes_list, stack_image):
 		import traceback
-		print "stack trace", ''.join(traceback.format_stack())
-		print ">>> GRIDS", self.grids.grids
+		#print "stack trace", ''.join(traceback.format_stack())
 		grid_map = self.create_grid_map(self.plot_window.grid_size, False)
 		try:
 			self.amplitude = amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
 		except Exception, e:
-			print e, repr(e)
+			logger.exception("amplitude field")
 			self.error_in_field(self.amplitude_box, "amplitude", e)
 			return
-		print "TOTAL", np.sum(amplitude)
 		self.amplitude_selection = amplitude_selection = None
-		print self.dataset.mask
 		use_selection = self.dataset.mask is not None
 		if use_selection:
 			grid_map_selection = self.create_grid_map(self.plot_window.grid_size, True)
@@ -335,7 +332,6 @@ class LayerTable(object):
 					if use_selection:
 						axes.bar(x, amplitude_selection, width=delta, align='center', color="red", alpha=0.8)
 					if self.coordinates_picked_row is not None:
-						print "drawing vline at", self.coordinates_picked_row
 						axes.axvline(self.coordinates_picked_row[axes.xaxis_index], color="red")
 
 
@@ -384,7 +380,6 @@ class LayerTable(object):
 				self.vector_grid[3] = vector_counts
 				self.vector_grid = np.swapaxes(self.vector_grid, 0, 3)
 				self.vector_grid = self.vector_grid * 1.
-				print np.sum(vector_counts), np.sum(grid_map["counts"])
 
 			self.vector_grids = vector_grids = [vx, vy, vz]
 			vector_positions = [vector_x, vector_y, vector_z]
@@ -414,7 +409,6 @@ class LayerTable(object):
 					count_max = vector_counts_2d.max()
 					mask = (vector_counts_2d > (self.vector_level_min * count_max)) & \
 					        (vector_counts_2d <= (self.vector_level_max * count_max))
-					print self.min_level_vector2d, "&" * 100
 					x = vector_positions[axes.xaxis_index]
 					y = vector_positions[axes.yaxis_index]
 					x2d, y2d = np.meshgrid(x, y)
@@ -438,12 +432,11 @@ class LayerTable(object):
 		use_selection = amplitude_selection is not None
 		#if isinstance(self.colormap, basestring):
 		def normalize(amplitude):
-			print amplitude.min(), amplitude.max()
 			I = amplitude#self.contrast(amplitude)
 			# scale to [0,1]
 			mask = ~(np.isnan(I) | np.isinf(I))
 			if np.sum(mask) == 0:
-				return np.zeros(I.shape + (4,), dtype=np.float64)
+				return np.zeros(I.shape, dtype=np.float64)
 			I -= I[mask].min()
 			I /= I[mask].max()
 			return I
@@ -453,9 +446,12 @@ class LayerTable(object):
 			mask = ~(np.isnan(I) | np.isinf(I))
 			if np.sum(mask) == 0:
 				return np.zeros(I.shape + (4,), dtype=np.float64)
-			I -= I[mask].min()
-			I /= I[mask].max()
-			print np.nanmin(I),np.nanmax(I)
+			minvalue = I[mask].min()
+			maxvalue = I[mask].max()
+			if minvalue == maxvalue:
+				return np.zeros(I.shape + (4,), dtype=np.float64)
+			I -= minvalue
+			I /= maxvalue
 
 			# scale [min, max] to [0, 1]
 			I -= self.level_min
@@ -467,7 +463,6 @@ class LayerTable(object):
 			if self.display_type == "solid":
 				color_tuple = matplotlib.colors.colorConverter.to_rgb(self.color)
 				rgba = np.zeros(I.shape + (4,), dtype=np.float64)
-				#print rgba[:,:,0:3].shape, np.array(color_tuple).shape
 				rgba[alpha_mask,0:3] = np.array(color_tuple)
 			else:
 				cmap = matplotlib.cm.cmap_d[self.colormap]
@@ -485,7 +480,7 @@ class LayerTable(object):
 			return rgba
 
 		levels = (np.arange(self.contour_count) + 1. ) / (self.contour_count + 1)
-		ranges = self.ranges_grid[0] + self.ranges_grid[1]
+		ranges = list(self.ranges_grid[0]) + list(self.ranges_grid[1])
 		for axes in axes_list:
 			# create marginalized grid
 			all_axis = range(self.dimensions)
@@ -514,19 +509,16 @@ class LayerTable(object):
 		#self.plot()
 
 	def onSelectRow(self, row):
-		print "row selected", row
 		self.coordinates_picked_row = None
 		#self.plot()
 		self.signal_plot_dirty.emit(self)
 
 	def onSerieIndexSelect(self, sequence_index):
-		print ">>@", sequence_index, self.sequence_index
 		if sequence_index != self.sequence_index: # avoid unneeded event
 			self.sequence_index = sequence_index
 			#self.seriesbox.setCurrentIndex(self.sequence_index)
 		else:
 			self.sequence_index = sequence_index
-		#print "%" * 200
 		#self.compute()
 		#self.signal_plot_update.emit(delay=0)
 		self.add_jobs()
@@ -550,12 +542,10 @@ class LayerTable(object):
 
 	def apply_options(self, options, update=True):
 		#map = {"expressions",}
-		print "settings options", options, options.keys()
 		recognize = "expressions expression_weight amplitude_expression ranges_grid aspect weight_x_expression weight_y_expression weight_z_expression".split()
 		for key in recognize:
 			if key in options.keys():
 				value = options[key]
-				print "setting", key, "to value", value
 				setattr(self, key, copy.copy(value))
 				if key == "amplitude_expression":
 					self.amplitude_box.lineEdit().setText(value)
@@ -568,9 +558,7 @@ class LayerTable(object):
 				if key == "weight_y_expression":
 					self.weight_y_box.lineEdit().setText(value or "")
 				if key == "expressions":
-					print "settings expressions", zip(value, self.axisboxes)
 					for expr, box in zip(value, self.axisboxes):
-						print expr, box
 						box.lineEdit().setText(expr)
 		for plugin in self.plugins:
 			plugin.apply_options(options)
@@ -593,7 +581,6 @@ class LayerTable(object):
 		self.plugin_grids_draw.append(callback_draw)
 
 	def apply_mask(self, mask):
-		print "apply mask", mask
 		self.dataset.selectMask(mask)
 		self.jobs_manager.execute()
 		self.check_selection_undo_redo()
@@ -602,7 +589,7 @@ class LayerTable(object):
 
 
 	def message(self, *args, **kwargs):
-		print "message", args, kwargs
+		pass
 
 	def add_jobs(self):
 		#import traceback
@@ -613,17 +600,14 @@ class LayerTable(object):
 
 		def calculate_range(info, block, axisIndex):
 			if compute_counter < self.compute_counter:
-				print "STOP " * 100
 				return True
 			if info.error:
-				print "error", info.error_text
 				self.message(info.error_text, index=-1)
 				return True
 			subblock_size = math.ceil(len(block)/self.thread_pool.nthreads)
 			subblock_count = math.ceil(len(block)/subblock_size)
 			def subblock(index):
 				sub_i1, sub_i2 = index * subblock_size, (index +1) * subblock_size
-				print "index", index, sub_i1, sub_i2, len(block)
 				if len(block) < sub_i2: # last one can be a bit longer
 					sub_i2 = len(block)
 				return gavifast.find_nan_min_max(block[sub_i1:sub_i2])
@@ -635,17 +619,13 @@ class LayerTable(object):
 			else:
 				results = self.thread_pool.run_parallel(subblock)
 				self.ranges_grid[axisIndex] = min([self.ranges_grid[axisIndex][0]] + [result[0] for result in results]), max([self.ranges_grid[axisIndex][1]] + [result[1] for result in results])
-			print "min/max for axis", axisIndex, self.ranges_grid[axisIndex]
 			if info.last:
-				print "done with ranges", axisIndex, self.ranges_grid[axisIndex], self.grids.ranges, list(self.ranges_grid)
 				self.grids.ranges[axisIndex] = list(self.ranges_grid[axisIndex])
 				self.message("min/max[%d] %.2fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
 				self.message(None, index=-1) # clear error msg
 
 		for axisIndex in range(self.dimensions):
-			print "axis", axisIndex, self.ranges_grid[axisIndex]
 			if self.ranges_grid[axisIndex] is None:
-				print "is None, so lets compute"
 				self.jobs_manager.addJob(0, functools.partial(calculate_range, axisIndex=axisIndex), self.dataset, self.expressions[axisIndex]) #, **self.getVariableDict())
 			else:
 				self.grids.ranges[axisIndex] = copy.deepcopy(self.ranges_grid[axisIndex])
@@ -677,7 +657,7 @@ class LayerTable(object):
 		self.plugin_queue_toolbar = [] # list of tuples (callback, order)
 		self.plugin_queue_page = []
 		self.plugins = [cls(parent, self) for cls in gavi.vaex.plugin.PluginLayer.registry if cls.useon(self.plot_window.__class__)]
-		print "PLUGINS" * 10, self.plugins
+		logger.debug("PLUGINS: %r " % self.plugins)
 		self.plugins_map = {plugin.name:plugin for plugin in self.plugins}
 		#self.plugin_zoom = plugin.zoom.ZoomPlugin(self)
 
@@ -752,7 +732,6 @@ class LayerTable(object):
 
 	def onExpressionChanged(self, axisIndex):
 		text = str(self.axisboxes[axisIndex].lineEdit().text())
-		print "expr", repr(text)
 		if text == self.expressions[axisIndex]:
 			logger.debug("same expression, will not update")
 			return
@@ -785,12 +764,10 @@ class LayerTable(object):
 
 	def onWeightExpr(self):
 		text = str(self.weight_box.lineEdit().text())
-		print "############", self.weight_expression, text
 		if (text == self.weight_expression) or (text == "" and self.weight_expression == None):
 			logger.debug("same weight expression, will not update")
 			return
 		self.weight_expression = text
-		print self.weight_expression
 		if self.weight_expression.strip() == "":
 			self.weight_expression = None
 		self.range_level = None
@@ -886,17 +863,15 @@ class LayerTable(object):
 	def onAmplitudeExpr(self):
 		text = str(self.amplitude_box.lineEdit().text())
 		if len(text) == 0 or text == self.amplitude_expression:
-			print "same expression, skip"
+			logger.debug("same expression, skip")
 			return
 		self.amplitude_expression = text
-		print self.amplitude_expression
 		self.range_level = None
 		self.plot_window.range_level_show = None
 		self.plot_window.plot()
 		#self.plot()
 
 	def page_main(self, page):
-		print "page main"
 		self.frame_options_main = page #QtGui.QFrame(self)
 		self.layout_frame_options_main =  QtGui.QVBoxLayout()
 		self.frame_options_main.setLayout(self.layout_frame_options_main)
@@ -1048,10 +1023,8 @@ class LayerTable(object):
 		#self.amplitude_box.lineEdit().editingFinished.connect(self.onAmplitudeExpr)
 		#self.amplitude_box.currentIndexChanged.connect(lambda _: self.onAmplitudeExpr())
 		def onchange(*args, **kwargs):
-			print "change:", args, kwargs
 			self.onAmplitudeExpr()
 		def onchange_line(*args, **kwargs):
-			print "change: line", args, kwargs
 			if len(str(self.amplitude_box.lineEdit().text())) == 0:
 				self.onAmplitudeExpr()
 		#self.amplitude_box.currentIndexChanged.connect(functools.partial(onchange, event="currentIndexChanged"))
@@ -1234,11 +1207,9 @@ class LayerTable(object):
 
 		def on_select_expression():
 			all = storage_expressions.get_all("selection", self.dataset)
-			print all
 			expressions = []
 			for stored in all:
 				expressions.extend(stored["options"]["expressions"])
-			print expressions
 			for column in self.dataset.get_column_names():
 				expressions.append("%s < 0" % column)
 			expression = choose(self.plot_window, "Give expression", "Expression for selection: ", expressions, 0, True)
@@ -1255,7 +1226,6 @@ class LayerTable(object):
 					self.message("selection at %.1f%% (%.2fs)" % (info.percentage, time.time() - t0), index=40)
 					QtCore.QCoreApplication.instance().processEvents()
 					mask[info.i1:info.i2] = self.plot_window.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], blockmask == 1)
-					print np.sum(blockmask), blockmask
 					#if info.last:
 					#	self.message("selection %.2fs" % (time.time() - t0), index=40)
 
@@ -1348,7 +1318,6 @@ class LayerTable(object):
 			label_value.setText(format.format(getter()))
 		def on_change(index, slider=slider):
 			value = index/float(value_steps) * (inverse(value_max) - inverse(value_min)) + inverse(value_min)
-			print label_text, "set to", value, "(", inverse(value), ")"
 			setter(transform(value))
 			update_text()
 		slider.setValue((inverse(getter()) - inverse(value_min))/(inverse(value_max) - inverse(value_min)	) * value_steps)
@@ -1572,7 +1541,6 @@ class LayerTable(object):
 
 	def onGammaChange(self, gamma_index):
 		self.image_gamma = 10**(gamma_index / 100./2)
-		print "Gamma", self.image_gamma
 		self.update_gamma_label()
 		self.queue_replot()
 
@@ -1595,14 +1563,11 @@ class LayerTable(object):
 		N = len(values)
 		i1, i2 = int(N * percentage / 100), int(N-N * percentage / 100)
 		v1, v2 = values[indices[i1]], values[indices[i2]]
-		print "contrast[%f%%]" % percentage, "from[%f-%f] to [%f-%f]" % (min, max, v1, v2)
-		print i1, i2, N
 		return self.image_post(self.normalize(np.clip(array, v1, v2))**self.image_gamma)
 
 	def onActionContrast(self):
 		index = self.contrast_list.index(self.contrast)
 		next_index = (index + 1) % len(self.contrast_list)
 		self.contrast = self.contrast_list[next_index]
-		print self.contrast
 		self.plot()
 

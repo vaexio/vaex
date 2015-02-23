@@ -15,7 +15,6 @@ class Signal(object):
 		return callback
 						   
 	def emit(self, *args, **kwargs):
-		print "emit", self.name, self.callbacks, args, kwargs
 		results = []
 		for callback in self.callbacks:
 			extra_args, extra_kwargs = self.extra_args[callback]

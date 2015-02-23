@@ -2,7 +2,10 @@ __author__ = 'maartenbreddels'
 import numpy as np
 import gavifast
 from gavi.utils import filesize_format
+import gavi.logging
 total_bytes = 0
+
+logger = gavi.logging.getLogger("gavi.vaex.grids")
 
 def add_mem(bytes, *info):
 	global total_bytes
@@ -184,7 +187,7 @@ class Grids(object):
 			if grid.weight_expression is not None:
 				expressions.append(grid.weight_expression)
 			if name is "counts" or (grid.weight_expression is not None and len(grid.weight_expression ) > 0):
-				print "*** JOB: expressions", expressions
+				logger.debug("JOB: expressions: %r" % (expressions,))
 				jobsManager.addJob(1, callback, self.dataset, *expressions)
 
 	def set_expressions(self, expressions):

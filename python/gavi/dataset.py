@@ -101,36 +101,29 @@ class JobsManager(object):
 			t0 = time.time()
 			def calculate_range(info, block, index):
 				def subblock(thread_index, sub_i1, sub_i2):
-					print "^" * 60
 					if use_mask:
 						result = gavifast.find_nan_min_max(block[sub_i1:sub_i2][dataset.mask[sub_i1:sub_i2]])
 					else:
 						result = gavifast.find_nan_min_max(block[sub_i1:sub_i2])
-					print "result", result
 					mi, ma = result
-					print ">>>", mi, ma, thread_index
 					#if sub_i1 == 0:
 					minima_per_thread[thread_index] = mi
 					maxima_per_thread[thread_index] = ma
 					#else:
 					#	minima_per_thread[thread_index] = min(mi, minima_per_thread[thread_index])
 					#	maxima_per_thread[thread_index] = min(ma, maxima_per_thread[thread_index])
-					print ">>>>>>>>", minima_per_thread, maxima_per_thread, thread_index
 				#self.message("min/max[%d] at %.1f%% (%.2fs)" % (axisIndex, info.percentage, time.time() - info.time_start), index=50+axisIndex )
 				#QtCore.QCoreApplication.instance().processEvents()
 				if info.error:
-					#print "error", info.error_text
 					#self.message(info.error_text, index=-1)
 					raise Exception, info.error_text
 				pool.run_blocks(subblock, info.size)
-				print minima_per_thread
 				if info.first:
 					minima[index] = min(minima_per_thread)
 					maxima[index] = max(maxima_per_thread)
 				else:
 					minima[index] = min(min(minima_per_thread), minima[index])
 					maxima[index] = max(max(maxima_per_thread), maxima[index])
-				print "min/max for axis", index, minima[index], maxima[index]
 				#if info.last:
 				#	self.message("min/max[%d] %.2fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
 				wrapper.N_done += len(block)
@@ -208,7 +201,7 @@ class JobsManager(object):
 							for expression in expressions:
 								expressions_dataset.add((dataset, expression))
 								try:
-									print "vcolumns:", dataset.virtual_columns
+									#print "vcolumns:", dataset.virtual_columns
 									expr_noslice, slice_vars = expr.translate(expression, dataset.virtual_columns)
 								except:
 									logger.error("translating expression: %r" % (expression,))
@@ -287,9 +280,10 @@ class JobsManager(object):
 									#print name, var.shape
 									if len(var.shape) == 2:
 										local_dict[name] = var[dataset.selected_serie_index]
-										print " to", name, local_dict[name].shape
+										#print " to", name, local_dict[name].shape
 								else:
-									print name, var
+									#print name, var
+									pass
 							# put to
 							with Timer("evaluation"):
 								for dataset, expression in expressions_dataset:
@@ -316,7 +310,7 @@ class JobsManager(object):
 											ex = expr_noslice
 											if not isinstance(ex, str):
 												ex = repr(expr_noslice)
-											print ex, repr(expr_noslice), expr_noslice, local_dict, len(output)
+											#print ex, repr(expr_noslice), expr_noslice, local_dict, len(output)
 											ne.evaluate(ex, local_dict=local_dict, out=output, casting="unsafe")
 										except Exception, e:
 											info.error = True
@@ -605,7 +599,6 @@ class MemoryMapped(object):
 			
 	def matches_url(self, url):
 		filename = url
-		print url, self.filename
 		if filename.startswith("file:/"):
 			filename = filename[5:]
 		similar = os.path.splitext(os.path.abspath(self.filename))[0] == os.path.splitext(filename)[0]
@@ -683,7 +676,6 @@ class MemoryMapped(object):
 				if offset is None:
 					print "offset is None"
 					sys.exit(0)
-				print name, dtype
 				mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
 				if stride:
 					#import pdb
@@ -763,7 +755,6 @@ class HansMemoryMapped(MemoryMapped):
 		self.numberCompute, \
 		self.dataOffset, \
 		self.dataHeaderSize = struct.unpack("Q"*8, self.mapping[:8*8])
-		print "offset", self.dataOffset, self.formatSize, self.numberParticles, self.numberTimes
 		zerooffset = offset = self.dataOffset
 		length = self.numberParticles+1
 		stride = self.formatSize/8 # stride in units of the size of the element (float64)
@@ -791,10 +782,7 @@ class HansMemoryMapped(MemoryMapped):
 		if 1:
 			stride = self.formatSize/8 
 			#stride1 = self.numberTimes #*self.formatSize/8 
-			#print (self.numberParticles+1)
-			#print stride, stride1
 			for i, name in enumerate(names):
-				#print name, offset
 				# TODO: ask Hans for the self.numberTimes-1
 				self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1)
 
@@ -812,12 +800,9 @@ class HansMemoryMapped(MemoryMapped):
 			#import pdb
 			#pdb.set_trace()
 			for i, name in enumerate(names):
-				#print name, offset
 				# TODO: ask Hans for the self.numberTimes-1
 				self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
-				#print "min/max", np.min(self.rank1s[name]), np.max(self.rank1s[name]), offset+8*i, self.rank1s[name][0][0]
-				#for i, name in enumerate(names):
-				
+
 				self.addColumn(name+"_0", offset+8*i, length, dtype=np.float64, stride=stride, filename=filename_extra)
 				self.addColumn(name+"_last", offset+8*i + (self.numberParticles+1)*(self.numberTimes-2)*11*8, length, dtype=np.float64, stride=stride, filename=filename_extra)
 			
@@ -835,7 +820,6 @@ class HansMemoryMapped(MemoryMapped):
 
 	@classmethod
 	def can_open(cls, path, *args):
-		print "path", path
 		basename, ext = os.path.splitext(path)
 		if os.path.exists(basename + ".omega2"):
 			return True
@@ -868,12 +852,12 @@ class FitsBinTable(MemoryMapped):
 				table_offset = table._data_offset
 				dim = eval(table.columns[0].dim) # TODO: can we not do an eval here? not so safe
 				if dim[0] == 1 and len(dim) == 2: # we have colfits format
-					print "colfits!"
+					logger.debug("colfits file!")
 					offset = table_offset
 					for i in range(len(table.columns)):
 						column = table.columns[i]
 						cannot_handle = False
-						print column.name, str(column.dtype)
+						#print column.name, str(column.dtype)
 						try:
 							dtype, length = eval(str(column.dtype)) # ugly hack
 							length = length[0]
@@ -895,12 +879,12 @@ class FitsBinTable(MemoryMapped):
 								#dtype = ">f8"
 								self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
 								col = self.columns[column.name]
-								print "   ", col[:10],  col[:10].dtype, col.dtype.byteorder == native_code, bytessize
+								#print "   ", col[:10],  col[:10].dtype, col.dtype.byteorder == native_code, bytessize
 							offset += bytessize * length
 							#else:
 							#	offset += 8 * length
 						else:
-							print str(column.dtype)
+							#print str(column.dtype)
 							assert str(column.dtype)[0] == "|"
 							assert str(column.dtype)[1] == "S"
 							#overflown_length =
@@ -990,7 +974,7 @@ class InMemoryTable(MemoryMapped):
 			
 			
 			
-			print x.shape, x.dtype
+			#print x.shape, x.dtype
 			
 			#sys.exit(0)
 			
@@ -1004,14 +988,13 @@ class InMemoryTable(MemoryMapped):
 		N = eta**(max_level)
 		array = np.zeros((dim, N), dtype=np.float64)
 		L = 1.6
-		print "size {:,}".format(N)
+		#print "size {:,}".format(N)
 		
 		
 		def do(center, size, index, level):
 			pos = center.reshape((-1,1)) + np.random.random((dim, eta)) * size - size/2
 			#array[:,index:index+eta] = pos
 			if level == max_level:
-				#print index, index+eta, array.shape
 				array[:,index:index+eta] = pos
 				return index+eta
 			else:
@@ -1068,7 +1051,6 @@ class InMemoryTable(MemoryMapped):
 				#level = 5 - j
 				Nlevel = 2**(level+1)
 				#offset = sum(
-				#print "\t", offset, index, Nlevel
 				u1 = np.random.random()
 				u2 = np.random.random()
 				#c = rand[offset:offset+Nlevel].min()
@@ -1077,7 +1059,6 @@ class InMemoryTable(MemoryMapped):
 				#v2 = rand[offset+index+1] - c
 				#assert v1 >= 0
 				#assert v2 >= 0
-				#print "\t\t", rand[offset:offset+Nlevel], v1, v2
 				cumulative = np.cumsum(rand[offset:offset+Nlevel])
 				cumulative = np.cumsum(np.arange(Nlevel))
 				cumulative = []
@@ -1087,7 +1068,6 @@ class InMemoryTable(MemoryMapped):
 					cumulative.append(total)
 				cumulative = np.array(cumulative)
 				cumulative = cumulative * 1./cumulative[-1]
-				#print cumulative
 				for i, value in enumerate(cumulative):
 					if value >= u1:
 						break
@@ -1126,17 +1106,14 @@ class InMemoryTable(MemoryMapped):
 						x1, x2 = x1, x1 + (x2-x1)/2.
 						index = index * 2
 						#offset += Nlevel
-						print "left", x1, x2
 					else:
 						x1, x2 =  x1 + (x2-x1)/2., x2
 						#offset += Nlevel*2
 						index = (index+1) * 2
-						print "right", x1, x2
 				level += 1
 				offset += Nlevel
 				#if np.random.random() < 0.21:
 				#	break
-				#print "\t", offset, index, Nlevel
 			#print
 			#xs = [np.sqrt(np.random.random())]
 			amplitudes = 1./(np.arange(len(xs)) + 1)**2
@@ -1148,9 +1125,7 @@ class InMemoryTable(MemoryMapped):
 			xlist.extend(xs[3:])
 			ylist.extend(ys[3:])
 			
-		#print xlist
-		#print ylist
-			
+
 		self.addColumn("x", array=np.array(xlist))
 		self.addColumn("y", array=np.array(ylist))
 		#self.addColumn("x", array=np.random.random(10000)**0.5)
@@ -1239,7 +1214,7 @@ class Hdf5MemoryMapped(MemoryMapped):
 			offset = axis.id.get_offset() 
 			shape = axis.shape
 			assert len(shape) == 1 # ony 1d axes
-			print name, offset, len(axis), axis.dtype
+			#print name, offset, len(axis), axis.dtype
 			self.addAxis(name, offset=offset, length=len(axis), dtype=axis.dtype)
 			#self.axis_names.append(axes_data)
 			#self.axes[name] = np.array(axes_data[name])
@@ -1267,15 +1242,13 @@ class Hdf5MemoryMapped(MemoryMapped):
 					if len(shape) == 1:
 						self.addColumn(column_name, offset, len(column), dtype=column.dtype)
 					else:
-						print "rank 1 array", shape
-						
+
 						#transposed = self._length is None or shape[0] == self._length
 						transposed = shape[1] < shape[0]
 						self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1, transposed=transposed)
 						#if len(shape[0]) == self._length:
 						#	self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1)
 						#self.addColumn(column_name+"_0", offset, shape[1], dtype=column.dtype)
-						#print column.dtype.itemsize
 						#self.addColumn(column_name+"_last", offset+(shape[0]-1)*shape[1]*column.dtype.itemsize, shape[1], dtype=column.dtype)
 						#self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
 			finished.add(column_name)
@@ -1318,9 +1291,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 
 	def load(self):
 		particles = self.h5file["/particles"]
-		print "amuse", particles
 		for group_name in particles:
-			#print group
 			#import pdb
 			#pdb.set_trace()
 			group = particles[group_name]
@@ -1353,16 +1324,13 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 			raise KeyError, "%s does not exist" % key
 		particles = h5file[key]
 		for name in particles.keys():
-			#print name
 			#name = "/PartType%d/Coordinates" % i
 			data = particles[name]
 			if isinstance(data, h5py.highlevel.Dataset): #array.shape
 				array = data
-				print name, array.shape, array.dtype, array.id.get_offset()
 				shape = array.shape
 				if len(shape) == 1:
 					offset = array.id.get_offset()
-					print name, array.shape, array.dtype, array.id.get_offset()
 					if offset is not None:
 						self.addColumn(name, offset, data.shape[0], dtype=data.dtype)
 				else:
@@ -1386,7 +1354,7 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 						self.addColumn("vy", offset+bytesize, data.shape[0], dtype=data.dtype, stride=3)
 						self.addColumn("vz", offset+bytesize*2, data.shape[0], dtype=data.dtype, stride=3)
 					else:
-						print "unsupported column: %r of shape %r" % (name, array.shape)
+						logger.error("unsupported column: %r of shape %r" % (name, array.shape))
 		if "Header" in h5file:
 			for name in "Redshift Time_GYR".split():
 				if name in h5file["Header"].attrs:
@@ -1407,7 +1375,7 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 			particleName = args[0]
 			particleType = args[1]
 		else:
-			print "try particle type"
+			logger.debug("try particle type")
 			try:
 				filename, index = path.split("#")
 				index = int(index)
@@ -1415,9 +1383,8 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 				particleType = index 
 				particleName = particleNames[particleType]
 				path = filename
-				print path, particleName
 			except Exception, e:
-				print e
+				logger.exception("cannot open")
 				return False
 		h5file = None
 		try:
@@ -1474,20 +1441,15 @@ class SoneiraPeebles(InMemory):
 		# array[-1] is used as a temp storage
 		array = np.zeros((dimension+1, N), dtype=np.float64)
 		L = todim(L)
-		print "size {:,}".format(N)
-		
-		print "sp algo"
+
 		for d in range(dimension):
 			gavifast.soneira_peebles(array[d], 0, 1, L[d], eta, max_level)
-		print "generating shuffled_sequence"
 		order = np.zeros(N, dtype=np.int64)
 		gavifast.shuffled_sequence(order);
-		print "shuffling"
 		for i, name in zip(range(dimension), "x y z w v u".split()):
 			#np.take(array[i], order, out=array[i])
 			reorder(array[i], array[-1], order)
 			self.addColumn(name, array=array[i])
-		print "done"
 
 dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
 
@@ -1498,7 +1460,6 @@ class Zeldovich(InMemory):
 		
 		if seed is not None:
 			np.random.seed(seed)
-		#print np.random.normal()
 		#sys.exit(0)
 		shape = (N,) * dim
 		A = np.random.normal(0.0, 1.0, shape)
@@ -1506,10 +1467,8 @@ class Zeldovich(InMemory):
 		K = np.fft.fftfreq(N, 1./(2*np.pi))[np.indices(shape)]
 		k = (K**2).sum(axis=0)
 		k_max = np.pi
-		print k_max, k.max(), K.max()
 		F *= np.where(np.sqrt(k) > k_max, 0, np.sqrt(k**n) * np.exp(-k*4.0))
 		F.flat[0] = 0
-		print F.shape
 		#pylab.imshow(np.where(sqrt(k) > k_max, 0, np.sqrt(k**-2)), interpolation='nearest')
 		grf = np.fft.ifftn(F).real
 		from matplotlib import pylab
@@ -1524,7 +1483,6 @@ class Zeldovich(InMemory):
 		#	s = s/s.max()
 		t = 1.
 		X = Q + s * t
-		print dim, N, n, t
 
 		for d, name in zip(range(dim), "xyzw"):
 			self.addColumn(name, array=X[d].reshape(-1))
@@ -1542,7 +1500,7 @@ class VOTable(MemoryMapped):
 	def __init__(self, filename):
 		super(VOTable, self).__init__(filename, nommap=True)
 		table = astropy.io.votable.parse_single_table(filename)
-		print "done parsing table"
+		logger.debug("done parsing VO table")
 		names = table.array.dtype.names
 		
 		data = table.array.data
@@ -1570,8 +1528,6 @@ class MemoryMappedGadget(MemoryMapped):
 		#h5file = h5py.File(self.filename)
 		import gavi.file.gadget
 		length, posoffset, veloffset, header = gavi.file.gadget.getinfo(filename)
-		print length, posoffset, posoffset
-		print posoffset, hex(posoffset)
 		self.addColumn("x", posoffset, length, dtype=np.float32, stride=3)
 		self.addColumn("y", posoffset+4, length, dtype=np.float32, stride=3)
 		self.addColumn("z", posoffset+8, length, dtype=np.float32, stride=3)
