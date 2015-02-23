@@ -150,9 +150,12 @@ def gettext(parent, title, label, default=""):
 	return str(text) if ok else None
 
 
-def choose(parent, title, label, options, index=0):
-	text, ok = QtGui.QInputDialog.getItem(parent, title, label, options, index, False)
-	return options.index(text) if ok else None
+def choose(parent, title, label, options, index=0, editable=False):
+	text, ok = QtGui.QInputDialog.getItem(parent, title, label, options, index, editable)
+	if editable:
+		return text if ok else None
+	else:
+		return options.index(text) if ok else None
 
 def select_many(parent, title, options):
 	dialog = QtGui.QDialog(parent)

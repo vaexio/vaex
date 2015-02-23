@@ -138,7 +138,8 @@ setup(
 	name="vaex", #gavi.vaex.__program_name__,
 	author="Maarten A. Breddels",
 	author_email="maartenbreddels@gmail.com",
-    version="0.2.49", #gavi.vaex.__version__,
+    version = "0.2.39"
+    ,
     data_files=DATA_FILES,
     options={'py2app': OPTIONS},
     #setup_requires=['py2app'],
