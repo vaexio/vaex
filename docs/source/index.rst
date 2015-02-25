@@ -1,3 +1,4 @@
+===================================
 VaeX: Visualization and eXploration
 ===================================
 
@@ -7,7 +8,10 @@ VaeX: Visualization and eXploration
 What is Vaex?
 =============
 
-Veax is a graphical tool to visualize and explore large tabular datasets. It mainly renders density plots for visualization in the order of 10\ :sup:`9` rows in the order of 1 second. For exploration it support selection in 1 and 2d, but it can also analyse the columns (dimensions) to find subspaces which are richer in information than others. 
+Veax is a graphical tool to visualize and explore large tabular datasets.
+It mainly renders histograms, density plots and volume rendering  plots for visualization in the order of 10\ :sup:`9` rows in the order of 1 second.
+For exploration it support selection in 1 and 2d, but it can also analyse the columns (dimensions) to find subspaces
+which are richer in information than others.
 
 .. image:: images/ss1-small.png
 .. image:: images/ss2-small.png
@@ -38,11 +42,14 @@ Main features:
 * undo/redo: a mistake in selection or navigation can quickly be undone using undo
 
 
+Demo movies
+===========
+
 .. raw:: html
 
-    <iframe width="560" height="315" src="//www.youtube.com/embed/oE5jN4zuhH0?vq=hd720" frameborder="0" allowfullscreen></iframe>
-    <iframe width="560" height="315" src="//www.youtube.com/embed/An33dYPmgKI" frameborder="0" allowfullscreen></iframe>
-    <iframe width="560" height="315" src="//www.youtube.com/embed/4HHa52Gxn9w" frameborder="0" allowfullscreen></iframe>
+    <iframe width="560" height="315" src="http://www.youtube.com/embed/oE5jN4zuhH0" frameborder="0" allowfullscreen></iframe>
+    <iframe width="560" height="315" src="http://www.youtube.com/embed/An33dYPmgKI" frameborder="0" allowfullscreen></iframe>
+    <iframe width="560" height="315" src="http://www.youtube.com/embed/4HHa52Gxn9w" frameborder="0" allowfullscreen></iframe>
 
 
 Quickstart
@@ -50,19 +57,28 @@ Quickstart
 
 :ref:`installing_from_binary`, unzip it at any location. OSX users can simply double click the unzipped file, Linux users should run the binary from the unzipped dir (./vaex/veax). Vaex comes with some example datasets. Click/select one of interest, and now click the 'x/y density' button on the right panel. Keep the button pressed to plot anything else but the first two columns. A density plot should now appear.
 
-By default the move mode is selected (as indicated by the selected button in the toolbar in the upper left corner). Dragging (keeping the mouse button pressed and moving) will move the density plot around, scrolling will zoom in and out. Selecting the next button (Pick), will enable pick mode, clicking the mouse button will select the nearest row under the cursor, and it will be highlighted as a red dot. Opening up any other plot, or the table will show the same row as selected, which is useful for checking outliers. 
+By default the move mode is selected (as indicated by the selected button in the toolbar in the upper left corner). Dragging (keeping the mouse button pressed and moving) will move the density plot around, scrolling or pinching will zoom in and out. Selecting the next button (Pick), will enable pick mode, clicking the mouse button will select the nearest row under the cursor, and it will be highlighted as a red dot. Opening up any other plot, or the table will show the same row as selected, which is useful for checking outliers. 
 
 
 Clicking the next button on the toolbar will select the lasso selection tool. Draw a line around a region of interest to select rows inside it, again it will be selected in other plots as well. Use the x-range or y-range selection by keeping the button pressed for longer (or type x or y), and use it in combination with the different selection modes (and, or, replace: next button in the toolbar) for more advanced selections. 
 
+Links
+=====
+
+Vaex uses several sites:
+
+* Main page: http://www.astro.rug.nl/~breddels/vaex/
+* Github for source, bugs, wiki, releases: https://github.com/maartenbreddels/vaex
+* Python Package Index for installing the source in your Python tree: https://pypi.python.org/pypi/vaex/
+* Documentation, similar to the homepage, but also has older versions: http://vaex.readthedocs.org/
 
 Guide
-^^^^^
+=====
 
 Contents:
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
     
    installing
    reference
@@ -72,11 +88,4 @@ Contents:
 	
 
 
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
 

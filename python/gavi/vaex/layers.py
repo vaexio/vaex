@@ -152,6 +152,7 @@ class LayerTable(object):
 		self.dimensions = len(self.expressions)
 		self.options = options
 		self.grids = gavi.vaex.grids.Grids(self.dataset, self.thread_pool, *expressions)
+		self.grids.ranges = self.ranges_grid
 		self.expressions_vector = [None,] * 3
 		self.figure = figure
 		self.canvas = canvas
@@ -335,16 +336,14 @@ class LayerTable(object):
 						axes.axvline(self.coordinates_picked_row[axes.xaxis_index], color="red")
 
 
-		if self.dimensions >= 2:
+		if self.dimensions == 2:
 			#for axes in axes_list:
-			self.plot_density(axes_list, amplitude, amplitude_selection, stack_image)
-
-			if self.coordinates_picked_row is not None:
-				for axes in axes_list:
-					axes.scatter([self.coordinates_picked_row[axes.xaxis_index]], [self.coordinates_picked_row[axes.yaxis_index]], color='red')
-
-
+			assert len(axes_list) == 1
+			self.plot_density(axes_list[0], amplitude, amplitude_selection, stack_image)
+		if self.dimensions > 2:
+			# for vector we only use the selected map, maybe later also show the full dataset
 			grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
+
 			self.vector_grid = None
 			vector_counts = grid_map_vector["counts"]
 			vector_mask = vector_counts > 0
@@ -383,28 +382,36 @@ class LayerTable(object):
 
 			self.vector_grids = vector_grids = [vx, vy, vz]
 			vector_positions = [vector_x, vector_y, vector_z]
+
 			for axes in axes_list:
+				# create marginalized grid
+				all_axes = range(self.dimensions)
+				all_axes.remove(self.dimensions-1-axes.xaxis_index)
+				all_axes.remove(self.dimensions-1-axes.yaxis_index)
 
-				self.min_level_vector2d = 0.
-				#grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
 
-				all_axis = range(self.dimensions)
-				all_axis.remove(self.dimensions-1-axes.xaxis_index)
-				all_axis.remove(self.dimensions-1-axes.yaxis_index)
+				grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else gavi.utils.multisum(grid, all_axes)) for key, grid in grid_map.items()}
+				amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map_2d)
+				if use_selection:
+					grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else gavi.utils.multisum(grid, all_axes)) for key, grid in grid_map_selection.items()}
+					amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection_2d)
+				else:
+					amplitude_selection = None
+				self.plot_density(axes, amplitude, amplitude_selection, stack_image)
 
-				if len(all_axis) > 2:
-					other_axis = all_axis[0]
-					assert len(all_axis) == 1, ">3d not supported"
+				if len(all_axes) > 2:
+					other_axis = all_axes[0]
+					assert len(all_axes) == 1, ">3d not supported"
 				else:
 					other_axis = 2
 
 				U = vector_grids[axes.xaxis_index]
 				V = vector_grids[axes.yaxis_index]
 				W = vector_grids[self.dimensions-1-other_axis]
-				vx = None if U is None else gavi.utils.multisum(U, all_axis)
-				vy = None if V is None else gavi.utils.multisum(V, all_axis)
-				vz = None if W is None else gavi.utils.multisum(W, all_axis)
-				vector_counts_2d = gavi.utils.multisum(vector_counts, all_axis)
+				vx = None if U is None else gavi.utils.multisum(U, all_axes)
+				vy = None if V is None else gavi.utils.multisum(V, all_axes)
+				vz = None if W is None else gavi.utils.multisum(W, all_axes)
+				vector_counts_2d = gavi.utils.multisum(vector_counts, all_axes)
 				if vx is not None and vy is not None:
 					count_max = vector_counts_2d.max()
 					mask = (vector_counts_2d > (self.vector_level_min * count_max)) & \
@@ -418,11 +425,15 @@ class LayerTable(object):
 					else:
 						axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color="black")
 						colors = None
+		if self.coordinates_picked_row is not None:
+			for axes in axes_list:
+				axes.scatter([self.coordinates_picked_row[axes.xaxis_index]], [self.coordinates_picked_row[axes.yaxis_index]], color='red')
+
 
 	def getVariableDict(self):
 		return {} # TODO: remove this? of replace
 
-	def plot_density_imshow(self, axes_list, amplitude, amplitude_selection, stack_image):
+	def plot_density_imshow(self, axes, amplitude, amplitude_selection, stack_image):
 		if not self.visible:
 			return
 		ranges = []
@@ -481,27 +492,24 @@ class LayerTable(object):
 
 		levels = (np.arange(self.contour_count) + 1. ) / (self.contour_count + 1)
 		ranges = list(self.ranges_grid[0]) + list(self.ranges_grid[1])
-		for axes in axes_list:
-			# create marginalized grid
-			all_axis = range(self.dimensions)
-			all_axis.remove(self.dimensions-1-axes.xaxis_index)
-			all_axis.remove(self.dimensions-1-axes.yaxis_index)
-			amplitude_marginalized = gavi.utils.multisum(amplitude, all_axis)
-			amplitude_marginalized_selected = gavi.utils.multisum(amplitude_selection, all_axis) if use_selection else None
 
-			if self.display_type == "contour":
-				if self.contour_count > 0:
-					if use_selection:
-						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4*self.alpha)
-						axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
-					else:
-						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
-			else:
-				I = normalize(amplitude_marginalized)
-				axes.rgb_images.append(to_rgb(I, 0.4 if use_selection else 1.0))
+
+		amplitude_marginalized = amplitude
+		amplitude_marginalized_selected = amplitude_selection
+		if self.display_type == "contour":
+			if self.contour_count > 0:
 				if use_selection:
-					I = normalize(amplitude_marginalized_selected)
-					axes.rgb_images.append(to_rgb(I))
+					axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4*self.alpha)
+					axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
+				else:
+					axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
+		else:
+			I = normalize(amplitude_marginalized)
+			axes.rgb_images.append(to_rgb(I, 0.4 if use_selection else 1.0))
+			if use_selection:
+				I = normalize(amplitude_marginalized_selected)
+				axes.rgb_images.append(to_rgb(I))
+
 
 	def onSelectMask(self, mask):
 		self.check_selection_undo_redo()
@@ -620,15 +628,29 @@ class LayerTable(object):
 				results = self.thread_pool.run_parallel(subblock)
 				self.ranges_grid[axisIndex] = min([self.ranges_grid[axisIndex][0]] + [result[0] for result in results]), max([self.ranges_grid[axisIndex][1]] + [result[1] for result in results])
 			if info.last:
+				if self.plot_window.layers.index(self) == 0: # we are the first layer
+					print "first layer", self.ranges_grid[axisIndex], self.plot_window.layers[1:]
+					for layer in self.plot_window.layers[1:]:
+						layer.ranges_grid[axisIndex] = copy.deepcopy(self.ranges_grid[axisIndex])
+						layer.grids.ranges[axisIndex] = copy.deepcopy(self.ranges_grid[axisIndex])
+				else:
+					raise Exception, "should not happen"
 				self.grids.ranges[axisIndex] = list(self.ranges_grid[axisIndex])
 				self.message("min/max[%d] %.2fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
 				self.message(None, index=-1) # clear error msg
 
 		for axisIndex in range(self.dimensions):
-			if self.ranges_grid[axisIndex] is None:
-				self.jobs_manager.addJob(0, functools.partial(calculate_range, axisIndex=axisIndex), self.dataset, self.expressions[axisIndex]) #, **self.getVariableDict())
+			if self.plot_window.layers.index(self) == 0: # we are the first layer, only this one needs range computations
+				if self.ranges_grid[axisIndex] is None:
+					self.jobs_manager.addJob(0, functools.partial(calculate_range, axisIndex=axisIndex), self.dataset, self.expressions[axisIndex]) #, **self.getVariableDict())
+				else:
+					self.grids.ranges[axisIndex] = copy.deepcopy(self.ranges_grid[axisIndex])
 			else:
-				self.grids.ranges[axisIndex] = copy.deepcopy(self.ranges_grid[axisIndex])
+				first_layer = self.plot_window.layers[0]
+				if first_layer.ranges_grid[axisIndex] is not None:
+					self.ranges_grid[axisIndex] = copy.deepcopy(first_layer.ranges_grid[axisIndex])
+				if self.ranges_grid[axisIndex] is not None:
+					self.grids.ranges[axisIndex] = copy.deepcopy(self.ranges_grid[axisIndex])
 
 		#if self.expression_weight is None or len(self.expression_weight.strip()) == 0:
 		#	self.jobs_manager.addJob(1, self.calculate_visuals, self.dataset, *self.expressions, **self.getVariableDict())

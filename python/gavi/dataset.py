@@ -1178,11 +1178,14 @@ class Hdf5MemoryMapped(MemoryMapped):
 	def can_open(cls, path, *args):
 		h5file = None
 		try:
-			h5file = h5py.File(path)
+			h5file = h5py.File(path, "r")
 		except:
+			logger.exception("could not open file as hdf5")
 			return False
 		if h5file is not None:
 			return ("data" in h5file) or ("columns" in h5file)
+		else:
+			logger.debug("file %s has no data or columns group" % path)
 		return False
 			
 	
@@ -1282,7 +1285,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 	def can_open(cls, path, *args):
 		h5file = None
 		try:
-			h5file = h5py.File(path)
+			h5file = h5py.File(path, "r")
 		except:
 			return False
 		if h5file is not None:
@@ -1383,12 +1386,12 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 				particleType = index 
 				particleName = particleNames[particleType]
 				path = filename
-			except Exception, e:
-				logger.exception("cannot open")
+			except:
+				logger.info("cannot open %s as %r" % (path, cls))
 				return False
 		h5file = None
 		try:
-			h5file = h5py.File(path)
+			h5file = h5py.File(path, "r")
 		except:
 			return False
 		has_particles = False
@@ -1546,7 +1549,9 @@ def can_open(path, *args):
 def load_file(path, *args):
 	dataset_class = None
 	for name, class_ in gavi.dataset.dataset_type_map.items():
+		logger.debug("trying %r with class %r" % (path, class_))
 		if class_.can_open(path, *args):
+			logger.debug("can open!")
 			dataset_class = class_
 			break
 	if dataset_class:

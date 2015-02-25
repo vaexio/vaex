@@ -201,6 +201,8 @@ class Mover(object):
 	def mpl_scroll(self, event):
 		factor = 10**(-event.step/8)
 		self.zoom_counter += 1
+		if event.inaxes is None:
+			return
 		
 		if factor < 1:
 			self.plot.zoom(factor, event.inaxes, event.xdata, event.ydata)
@@ -320,7 +322,14 @@ class PlotDialog(QtGui.QWidget):
 			dataset = self.dataset
 		if name is None:
 			name = options.get("name", "Layer: " + str(len(self.layers)+1))
-		layer = gavi.vaex.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.jobsManager, self.pool, self.fig, self.canvas, copy.deepcopy(self.ranges_show))
+		ranges = copy.deepcopy(self.ranges_show)
+
+		if len(self.layers) > 0:
+			first_layer = self.layers[0]
+			for i in range(self.dimensions):
+				if ranges[i] is None and first_layer.ranges_grid[i] is not None:
+					ranges[i] = copy.copy(first_layer.ranges_grid[i])
+		layer = gavi.vaex.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.jobsManager, self.pool, self.fig, self.canvas, ranges)
 		layer.build_widget_qt(self.widget_layer_stack) # layer.widget is the widget build
 		self.widget_layer_stack.addWidget(layer.widget)
 
@@ -360,6 +369,7 @@ class PlotDialog(QtGui.QWidget):
 	def __init__(self, parent, jobsManager, dataset, dimensions, axisnames, width=5, height=4, dpi=100, **options):
 		super(PlotDialog, self).__init__()
 		self.parent_widget = parent
+		self.data_panel = parent
 		self.options = options
 		self.dataset = dataset
 		self.dimensions = dimensions
@@ -558,16 +568,22 @@ class PlotDialog(QtGui.QWidget):
 					if geometry.contains(x, y):
 						rx = x - geometry.x()
 						ry = y - geometry.y()
+						print self.canvas.geometry, self.canvas.mouse_grabber
+						axes_list = [ax for ax in self.getAxesList() if ax.contains_point((rx, geometry.height()-1-ry))]
+						print axes_list
 						#nx, ny = rx/geometry.width(), y/geometry.height()
-						transform = self.axes.transData.inverted().transform
-						x_data, y_data = transform([rx, geometry.height()-1-ry])
-						if gesture.lastScaleFactor() != 0:
-							scale = (gesture.scaleFactor()/gesture.lastScaleFactor())
-						else:
-							scale = (gesture.scaleFactor())
-						#@scale = gesture.totalScaleFactor()
-						scale = 1/(scale)
-						self.zoom(scale, self.axes, x_data, y_data) # TODO: support for multiple axes
+						if len(axes_list) > 0:
+							axes = axes_list[0]
+							transform = axes.transData.inverted().transform
+							x_data, y_data = transform([rx, geometry.height()-1-ry])
+							if gesture.lastScaleFactor() != 0:
+								scale = (gesture.scaleFactor()/gesture.lastScaleFactor())
+							else:
+								scale = (gesture.scaleFactor())
+							#@scale = gesture.totalScaleFactor()
+							scale = 1./(scale)
+							print scale, x_data, y_data
+							self.zoom(scale, axes, x_data, y_data)
 			return True
 		else:
 			return super(PlotDialog, self).event(event)
@@ -600,6 +616,44 @@ class PlotDialog(QtGui.QWidget):
 		pass
 
 
+	def fill_menu_layer_new(self):
+		self.menu_layer_new.clear()
+		for dataset in self.data_panel.dataset_list:
+			menu_dataset = QtGui.QMenu(dataset.name, self.menu_layer_new)
+			self.menu_layer_new.addMenu(menu_dataset)
+			for column1 in dataset.get_column_names():
+				if self.dimensions == 1:
+					action_col1 = QtGui.QAction(column1, menu_dataset)
+					menu_dataset.addAction(action_col1)
+					def add_layer_1():
+						print "add"
+					action_col1.triggered.connect(add_layer_1)
+				else:
+					menu_col1 = QtGui.QMenu(column1, menu_dataset)
+					menu_dataset.addMenu(menu_col1)
+					for column2 in dataset.get_column_names():
+						if self.dimensions == 2:
+							action_col2 = QtGui.QAction(column2, menu_dataset)
+							menu_col1.addAction(action_col2)
+							def add_layer_2(_ignore=None, column1=column1, column2=column2):
+								print "add 2", column1, column2, dataset
+								self.add_layer([column1, column2], dataset=dataset)
+								self.jobsManager.execute()
+							action_col2.triggered.connect(add_layer_2)
+						else:
+							pass
+
+					#action = QtGui.QAction()
+	def remove_layer(self):
+		layer = self.current_layer
+		logger.debug("remove layer: %r" % layer)
+		if layer is not None:
+			index = self.layers.index(layer)
+			self.layers.remove(layer)
+			self.layer_selection.removeItem(index+1) # index 0 is the layer control
+			self.widget_layer_stack.removeWidget(layer.widget)
+			self.plot()
+
 	def afterCanvas(self, layout):
 
 		layout.setContentsMargins(0, 0, 0, 0)
@@ -617,10 +671,30 @@ class PlotDialog(QtGui.QWidget):
 		self.layout_layer_buttons = QtGui.QHBoxLayout()
 
 
-		self.button_layout_new = QtGui.QPushButton(QtGui.QIcon(iconfile("layer--plus")), "add")
-		self.button_layout_delete = QtGui.QPushButton(QtGui.QIcon(iconfile("layer--minus")), "remove")
-		self.layout_layer_buttons.addWidget(self.button_layout_new, 0)
-		self.layout_layer_buttons.addWidget(self.button_layout_delete, 0)
+		self.button_layer_new = QtGui.QToolButton(self)
+		self.button_layer_new.setIcon(QtGui.QIcon(iconfile("layer--plus")))
+		self.button_layer_new.setPopupMode(QtGui.QToolButton.InstantPopup)
+		self.button_layer_new.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+
+		toolbuttonSizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Fixed)
+		self.button_layer_new.setSizePolicy(toolbuttonSizePolicy)
+
+		self.button_layer_new.setText("add")
+		self.menu_layer_new = QtGui.QMenu()
+		self.fill_menu_layer_new()
+		self.button_layer_new.setMenu(self.menu_layer_new)
+		self.button_layer_delete = QtGui.QToolButton(self)
+		self.button_layer_delete.setIcon(QtGui.QIcon(iconfile("layer--minus")))
+		self.button_layer_delete.setText("remove")
+		self.button_layer_delete.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.button_layer_delete.setSizePolicy(toolbuttonSizePolicy)
+		def on_layer_remove(_ignore=None):
+			print "remove layer"
+			self.remove_layer()
+		self.button_layer_delete.clicked.connect(on_layer_remove)
+		self.layout_layer_buttons.addWidget(self.button_layer_new, 0)
+		self.layout_layer_buttons.addWidget(self.button_layer_delete, 0)
+
 
 
 		self.layer_selection = QtGui.QComboBox(self)
@@ -769,12 +843,13 @@ class PlotDialog(QtGui.QWidget):
 			if len(amplitude.shape) == 2:
 					#if self.ranges[0] and self.ranges[1]:
 					Nx, Ny = amplitude.shape
-					xmin, xmax = layer.ranges_grid[0]
-					ymin, ymax = layer.ranges_grid[1]
-					xindex = (x-xmin)/(xmax-xmin) * Nx
-					yindex = (y-ymin)/(ymax-ymin) * Ny
-					if xindex >= 0 and xindex < Nx and yindex >= 0 and yindex < Nx:
-						return "value = %f" % (amplitude[int(yindex), int(xindex)])
+					if layer.ranges_grid[0] != None and layer.ranges_grid[1] != None:
+						xmin, xmax = layer.ranges_grid[0]
+						ymin, ymax = layer.ranges_grid[1]
+						xindex = (x-xmin)/(xmax-xmin) * Nx
+						yindex = (y-ymin)/(ymax-ymin) * Ny
+						if xindex >= 0 and xindex < Nx and yindex >= 0 and yindex < Nx:
+							return "value = %f" % (amplitude[int(yindex), int(xindex)])
 
 
 	def message(self, text, index=0):
@@ -1181,11 +1256,13 @@ class PlotDialog(QtGui.QWidget):
 
 
 		if 1:
-			if self.dimensions == 2:
-				self.ranges_show[axis_indices[0]] = list(ranges_show[0])
-				self.ranges_show[axis_indices[1]] = list(ranges_show[1])
-				axes.set_xlim(self.ranges_show[0])
-				axes.set_ylim(self.ranges_show[1])
+			self.check_aspect(axes.xaxis_index)
+			if self.dimensions in [2,3]:
+				self.ranges_show[axes.xaxis_index] = list(ranges_show[0])
+				self.ranges_show[axes.yaxis_index] = list(ranges_show[1])
+				for ax in self.getAxesList():
+					ax.set_xlim(self.ranges_show[ax.xaxis_index])
+					ax.set_ylim(self.ranges_show[ax.yaxis_index])
 			if self.dimensions == 1:
 				self.ranges_show[axis_indices[0]] = list(ranges_show[0])
 				self.range_level_show = list(range_level_show)
@@ -2129,6 +2206,8 @@ class ScatterPlotDialog(PlotDialog):
 		self.axes.rgb_images = self.image_layers
 		self.axes.cla()
 		if len(self.layers) == 0:
+			self.canvas.draw()
+			self.update()
 			return
 		first_layer = self.layers[0]
 
@@ -2160,8 +2239,10 @@ class ScatterPlotDialog(PlotDialog):
 		#im1 = self.axes.imshow(Z1, cmap="gray", interpolation='nearest', extent=extent, vmin=-4, vmax=1.)
 
 
+
 		for layer in self.layers:
 			layer.plot([self.axes], self.add_image_layer)
+
 
 
 		rgba = gavi.vaex.imageblending.blend(self.image_layers, self.blend_mode)
@@ -2685,6 +2766,10 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			linewidth = 2.
 			axes.spines['bottom'].set_linewidth(linewidth)
 			axes.spines['left'].set_linewidth(linewidth)
+			if self.aspect is None:
+				axes.set_aspect('auto')
+			else:
+				axes.set_aspect(self.aspect)
 
 
 		for layer in self.layers:

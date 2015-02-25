@@ -7,12 +7,12 @@ from logging import getLogger
 
 #logging.basicConfig(level=logging.ERROR)
 logging.basicConfig(level=logging.ERROR)
-logging.basicConfig(level=logging.ERROR, filename="vaex.logging.txt")
+logging.basicConfig(level=logging.DEBUG, filename="vaex.logging.txt")
 #print "das" * 1000
 rootlogger = logging.getLogger('gavi')
-rootlogger.setLevel(logging.ERROR)
+rootlogger.setLevel(logging.DEBUG)
 rootlogger = logging.getLogger('gavi.vaex')
-rootlogger.setLevel(logging.ERROR)
+rootlogger.setLevel(logging.DEBUG)
 
 LEVELS = {'debug': logging.DEBUG,
           'info': logging.INFO,

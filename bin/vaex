@@ -1,14 +1,22 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import sys
+import os
 import platform
-import gavi.vaex.main
 darwin = "darwin" in platform.system().lower()
 frozen = getattr(sys, 'frozen', False)
-#print darwin, platform.system()
+if frozen and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just stars without arguments
+	dirname = os.path.join(os.path.dirname(sys.argv[0]), "..", "..", "..")
+	os.chdir(dirname)
+
 if darwin and frozen: # on newer osx versions we get a lot of broken pipes when writing to stdout
-	sys.stdout = open('vaex.stdout.txt', 'w')
-	sys.stderr = open('vaex.stderr.txt', 'w')
+	directory = os.path.expanduser("~/.vaex")
+	if not os.path.exists(directory):
+		os.makedirs(directory)
+	sys.stdout = open(os.path.expanduser('~/.vaex/stdout.txt'), 'w')
+	sys.stderr = open(os.path.expanduser('~/.vaex/stderr.txt'), 'w')
+import gavi.vaex.main
+#print darwin, platform.system()
 
 
 
@@ -17,4 +25,8 @@ if __name__ == '__main__':
 	#sys.stderr = open("stderr.txt", "w")
 	#print sys.argv
 	#if darwin:
-	gavi.vaex.main.main(sys.argv[1:])
+	print sys.argv
+	if frozen and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just stars without arguments
+		gavi.vaex.main.main([])
+	else:
+		gavi.vaex.main.main(sys.argv[1:])

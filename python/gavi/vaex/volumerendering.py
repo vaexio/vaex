@@ -1181,8 +1181,11 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			self.vectorgrid = None
 
 		def normalise(ar):
-			mi, ma = np.nanmin(ar),  np.nanmax(ar)
-			return (ar - mi)/(ma-mi) * 1000.
+			mask = ~np.isinf(ar)
+			mi, ma = np.nanmin(ar[mask]),  np.nanmax(ar[mask])
+			res =  (ar - mi)/(ma-mi) * 1000.
+			res[~mask] = mi
+			return res
 		if grid_background is not None:
 			self.grid_gl = np.zeros(grid.shape + (2,), np.float32)
 			self.grid_gl[:,:,:,0] = normalise(grid.astype(np.float32))

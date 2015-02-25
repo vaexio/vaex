@@ -33,8 +33,8 @@ version = imp.load_source('version', path_version_file)
 has_py2app = False
 #import gavi.vaex
 try:
-	#import py2app.build_app
-	has_py2app = False
+	import py2app.build_app
+	has_py2app = True
 except:
 	pass
 
@@ -42,6 +42,7 @@ except:
 cmdclass = {}
 
 if has_py2app:
+	import gavi.vaex
 	class my_py2app(py2app.build_app.py2app):
 		"""hooks in post script to add in missing libraries and zip the content"""
 		def run(self):
@@ -57,6 +58,9 @@ if has_py2app:
 			libssl.1.0.0.dylib
 			libpng15.15.dylib
 			libfreetype.6.dylib
+			libjpeg.8.dylib
+			libhdf5_hl.9.dylib
+			libhdf5.9.dylib
 			""".strip().splitlines()]
 
 			libpath = "/Users/maartenbreddels/anaconda/lib"
@@ -80,6 +84,9 @@ if has_py2app:
 			zipname = "%s-osx.zip" % gavi.vaex.__clean_name__
 			os.system("cd dist;rm %s" % zipname)
 			os.system("cd dist;zip -r %s %s.app" % (zipname, gavi.vaex.__program_name__))
+			retvalue = os.system("git diff --quiet")
+			if retvalue != 0:
+				print "WARNING UNCOMMITED CHANGES, VERSION NUMBER WILL NOT MATCH"
 	cmdclass['py2app'] = my_py2app
 			
 #from distutils.core import setup, Extension
@@ -107,8 +114,12 @@ DATA_FILES.append(["doc/", glob.glob("docs/build/html/*.html") + glob.glob("docs
 for sub in "_static _images _sources".split():
 	DATA_FILES.append(["doc/" + sub, glob.glob("docs/build/html/" +sub +"/*")] )
 #print DATA_FILES
-OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/gavi/icons'], 'matplotlib_backends':'-'}
+OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/gavi/icons'],
+           'matplotlib_backends':'-',
+           'no_chdir':True,
 
+} #, 'debug_modulegraph':True}
+#, 'app':True
 
 
 include_dirs = []
@@ -154,6 +165,7 @@ reqs = [str(ir.req) for ir in install_reqs]
 #print "requirements", reqs
 #print "ver#sion", gavi.vaex.__release__
 setup(
+	app=["bin/vaex"],
 	name="vaex", #gavi.vaex.__program_name__,
 	author="Maarten A. Breddels",
 	author_email="maartenbreddels@gmail.com",
@@ -162,7 +174,7 @@ setup(
     options={'py2app': OPTIONS},
     #setup_requires=['py2app'],
     #setup_requires=["sphinx"],
-    #includes=["gavi", "md5"],
+    includes=["gavi", "md5"],
     packages=["gavi", "gavi.vaex", "gavi.vaex.plugin", "gavi.icons"],
     install_requires=reqs,
     entry_points={ 'console_scripts': [ 'vaex=gavi.vaex.main:main']  },

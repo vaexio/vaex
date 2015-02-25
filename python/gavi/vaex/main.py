@@ -14,12 +14,15 @@ import gavi.utils
 
 import encodings
 
+# help py2app, it was missing this import
+import PIL._imaging
+
 darwin = "darwin" in platform.system().lower()
 frozen = getattr(sys, 'frozen', False)
 
 
-print "DEFAULT ENCODING is: %s"%(sys.getdefaultencoding())
-print "FILE SYSTEM ENCODING is: %s"%(sys.getfilesystemencoding())
+#print "DEFAULT ENCODING is: %s"%(sys.getdefaultencoding())
+#print "FILE SYSTEM ENCODING is: %s"%(sys.getfilesystemencoding())
 #if darwin:
 if sys.getfilesystemencoding() == None: # TODO: why does this happen in pyinstaller?
 	def getfilesystemencoding_wrapper():
@@ -73,7 +76,7 @@ from gavi.samp import Samp
 
 custom = None
 custompath = path = os.path.expanduser('~/.vaex/custom.py')
-print path
+#print path
 if os.path.exists(path):
 	customModule = imp.load_source('gavi.custom', path)
 	custom = customModule.Custom()
@@ -81,7 +84,7 @@ else:
 	custom = None
 	print >>sys.stderr, path, "does not exist"
 
-print "root path is", gavi.utils.get_root_path()
+#print "root path is", gavi.utils.get_root_path()
 
 
 if getattr(sys, 'frozen', False):
@@ -289,7 +292,7 @@ from gavi.dataset import *
 
 possibleFractions = [10**base * f for base in [-3,-2,-1,0] for f in [0.25, 0.5, 0.75, 1.]]
 possibleFractions.insert(0,10**-4)
-print possibleFractions
+#print possibleFractions
 
 class DataList(QtGui.QListWidget):
 	def __init__(self, parent):
@@ -303,13 +306,13 @@ class DataList(QtGui.QListWidget):
 		#self.items
 
 	def on_add_dataset(self, dataset):
-		print "added dataset", dataset
+		#print "added dataset", dataset
 		self.datasets.append(dataset)
 		dataset.signal_pick.connect(self.on_pick, dataset=dataset)
 
 	def on_pick(self, row, dataset=None):
 		# broadcast
-		print "broadcast pick"
+		logger.debug("broadcast pick")
 		self.signal_pick.emit(dataset, row)
 
 	def __testfill(self):
@@ -633,11 +636,12 @@ import 	operator
 import random
 
 class MainPanel(QtGui.QFrame):
-	def __init__(self, parent):
+	def __init__(self, parent, dataset_list):
 		super(MainPanel, self).__init__(parent)
 
 		self.jobsManager = gavi.dataset.JobsManager()
 		self.dataset = None
+		self.dataset_list = dataset_list
 
 		self.undoManager = gavi.vaex.undo.UndoManager()
 
@@ -725,14 +729,14 @@ class MainPanel(QtGui.QFrame):
 		self.signal_open_plot = gavi.events.Signal("open plot")
 
 	def onOpenStatistics(self):
-		print "open", self.dataset
+		#print "open", self.dataset
 		if self.dataset is not None:
 			dialog = StatisticsDialog(self, self.dataset)
 			dialog.show()
-			print "show"
+			#print "show"
 
 	def onOpenScatter(self):
-		print "open", self.dataset
+		#print "open", self.dataset
 		if self.dataset is not None:
 			xname, yname = self.dataset.column_names[:2]
 			self.plotxy(xname, yname)
@@ -748,19 +752,15 @@ class MainPanel(QtGui.QFrame):
 			self.plotseriexy(xname, yname)
 
 	def onOpenScatter1dSeries(self):
-		print "open", self.dataset
 		if self.dataset is not None:
 			dialog = vp.SequencePlot(self, self.jobsManager, self.dataset)
 			dialog.show()
 			self.jobsManager.execute()
-			print "show"
 
 	def onOpenScatter2dSeries(self):
-		print "open", self.dataset
 		if self.dataset is not None:
 			dialog = vp.ScatterSeries2dPlotDialog(self, self.dataset)
 			dialog.show()
-			print "show"
 
 	def onOpenHistogram(self):
 		if self.dataset is not None:
@@ -789,13 +789,11 @@ class MainPanel(QtGui.QFrame):
 		dialog = vp.ScatterPlotMatrixDialog(self, self.jobsManager, self.dataset, expressions)
 		dialog.show()
 		self.jobsManager.execute()
-		print "show matrix"
 		return dialog
 
 	def plotxyz_old(self, xname, yname, zname):
 		dialog = vp.PlotDialog3d(self, self.dataset, xname, yname, zname)
 		dialog.show()
-		print "show"
 
 	def histogram(self, xname, **kwargs):
 		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
@@ -807,12 +805,10 @@ class MainPanel(QtGui.QFrame):
 		return dialog
 
 	def onOpenRank(self):
-		print "open", self.dataset
 		if self.dataset is not None:
 			self.ranking()
 
 	def onOpenTable(self):
-		print "open", self.dataset
 		if self.dataset is not None:
 			self.tableview()
 
@@ -825,13 +821,11 @@ class MainPanel(QtGui.QFrame):
 			self.jobsManager.execute()
 
 	def onValueChanged(self, index):
-		print index, len(possibleFractions)
 		fraction = possibleFractions[index]
 		text = 'Fraction used: %9.4f%%' % (fraction*100)
 		self.fractionLabel.setText(text)
 
 	def onDataSelected(self, data_item, previous):
-		print "previous:", previous
 		if data_item is not None:
 			data = data_item.data(QtCore.Qt.UserRole)
 			if hasattr(data, "toPyObject"):
@@ -842,11 +836,9 @@ class MainPanel(QtGui.QFrame):
 			self.columns.setText(str(len(data.columns)))
 			self.length.setText("{:,}".format(self.dataset.full_length()))
 			self.numberLabel.setText("{:,}".format(len(self.dataset)))
-			print self.dataset
 			fraction = self.dataset.fraction
 			distances = np.abs(np.array(possibleFractions) - fraction)
 			index = np.argsort(distances)[0]
-			print "best index:", index
 			self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
 			self.scatterButton.setEnabled(len(self.dataset.columns) > 0)
 			#self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
@@ -901,7 +893,6 @@ class MainPanel(QtGui.QFrame):
 			self.plot_dialogs.append(dialog)
 			self.jobsManager.execute()
 			dialog.show()
-			print "show"
 
 	def tableview(self):
 		dialog = TableDialog(self.dataset, self)
@@ -916,7 +907,7 @@ class MainPanel(QtGui.QFrame):
 
 from numba import jit
 import numba
-print numba.__version__
+#print numba.__version__
 import math
 #@jit('(f8[:],f8[:], i4[:,:], f8, f8, f8, f8)')
 @jit(nopython=True)
@@ -1075,7 +1066,10 @@ class Vaex(QtGui.QMainWindow):
 		self.left = QtGui.QFrame(self)
 		self.left.setFrameShape(QtGui.QFrame.StyledPanel)
 
-		self.right = MainPanel(self) #QtGui.QFrame(self)
+		self.list = DataList(self.left)
+		self.list.setMinimumWidth(300)
+
+		self.right = MainPanel(self, self.list.datasets) #QtGui.QFrame(self)
 		self.right.setFrameShape(QtGui.QFrame.StyledPanel)
 		self.main_panel = self.right
 
@@ -1092,8 +1086,6 @@ class Vaex(QtGui.QMainWindow):
 		# this widget uses a time which causes an fps drop for opengl
 		#self.widget_usage = WidgetUsage(self.left)
 
-		self.list = DataList(self.left)
-		self.list.setMinimumWidth(300)
 		#self.list.resize(30
 
 		self.boxlist = QtGui.QVBoxLayout(self.left)
@@ -1104,7 +1096,7 @@ class Vaex(QtGui.QMainWindow):
 		#self.list.currentItemChanged.connect(self.infoPanel.onDataSelected)
 		self.list.currentItemChanged.connect(self.right.onDataSelected)
 		#self.list.testfill()
-		print custom
+
 		self.show()
 		self.raise_()
 
@@ -1191,8 +1183,7 @@ class Vaex(QtGui.QMainWindow):
 		use_toolbar = True
 		self.toolbar.setIconSize(QtCore.QSize(16, 16))
 		#self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
-		if use_toolbar:
-			print "using toolbar!"
+
 		#self.toolbar.addAction(exitAction)
 
 		self.action_samp_connect = QtGui.QAction(QtGui.QIcon(vp.iconfile('plug-connect')), 'Connect to SAMP HUB', self)
@@ -1241,12 +1232,12 @@ class Vaex(QtGui.QMainWindow):
 					self.list.addGadgetHdf5(os.path.join(application_path, 'data/disk-galaxy.hdf5'), name, index)
 				self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
 		for pluginpath in [os.path.expanduser('~/.vaex/plugin')]:
-			print "pluginpath", pluginpath
+			logger.debug("pluginpath: %s" % pluginpath)
 			if os.path.exists(pluginpath):
 				import glob
 				paths = glob.glob(pluginpath + "/*.py")
 				for path in paths:
-					print "plugin file", path
+					logger.debug("plugin file: %s" % path)
 					filename = os.path.basename(path)
 					name = os.path.splitext(filename)[0]
 					imp.load_source('vaexuser.plugin.' + name, path)
@@ -1312,7 +1303,6 @@ class Vaex(QtGui.QMainWindow):
 			if dataset is None:
 				error("cannot open file {filename}".format(**locals()))
 			index += 1
-			print "dataset", filename
 			self.list.addDataset(dataset)
 
 			# for this dataset, keep opening plots (seperated by -) or add layers (seperated by +)
@@ -1336,7 +1326,6 @@ class Vaex(QtGui.QMainWindow):
 					else:
 						columns.append(args[index])
 					index += 1
-				print "\tplot", columns, options
 				if plot is None:
 					if len(columns) == 1:
 						plot = self.right.histogram(columns[0], **options)
@@ -1360,7 +1349,7 @@ class Vaex(QtGui.QMainWindow):
 					break # break out for the next dataset, but keep the same plot
 				index += 1
 			if index < len(args):
-				print "eat", args[index]
+				pass
 			index += 1
 
 	def on_samp_ping_timer(self):
@@ -1383,7 +1372,6 @@ class Vaex(QtGui.QMainWindow):
 
 
 	def on_pick(self, dataset, row):
-		print "select", dataset, row
 		if self.samp: # TODO: check if connected
 			kwargs = {"row": str(row)}
 			if dataset.samp_id:
@@ -1445,13 +1433,10 @@ class Vaex(QtGui.QMainWindow):
 		dialog.show()
 
 	def onSaveTable(self):
-		print "aap"
 		dataset = self.right.dataset
 		name = dataset.name + "-mysubset.hdf5"
-		print "noot"
 		options = ["All: %r records, filesize: %r" % (len(dataset), gavi.utils.filesize_format(dataset.byte_size())) ]
 		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), gavi.utils.filesize_format(dataset.byte_size(selection=True))) ]
-		print "wim"
 
 		index = choose(self, "What do you want to export?", "Choose what to export:", options)
 		if index is None:
@@ -1869,15 +1854,6 @@ def main(argv=sys.argv[1:]):
 	#import gavi.vaex.ipkernel_qtapp
 	#ipython_window = gavi.vaex.ipkernel_qtapp.SimpleWindow(app)
 	main_thread = QtCore.QThread.currentThread()
-	print "main thread", main_thread
-
-	a = np.arange(1000, dtype='f8')
-	b = np.arange(1000, dtype='f8')
-	b[:] = 0
-	i = np.arange(1000, dtype='i8')
-	copy(a, b, i)
-	print b
-	#dsa
 
 
 	#print select_many(None, "lala", ["aap", "noot"] + ["item-%d-%s" % (k, "-" * k) for k in range(30)])

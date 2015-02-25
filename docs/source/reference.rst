@@ -78,7 +78,8 @@ SAMP support
 
 .. |icon_connect| image:: icons/plug-connect.png
 .. |icon_topcat_broadcast| image:: images/topcat_broadcast.gif
-.. |icon_samp_send| image:: block--arrow|
+.. |icon_samp_send| image:: icons/block--arrow.png
+.. |icon_pick| image:: icons/cursor.png
 
 Vaex supports `SAMP <http://www.ivoa.net/documents/SAMP/>`_ to communicate and interoperate with other applications. Since vaex focusses on large datasets, the method of transferring data using VOTables is not recommended (although supported, it can be quite slow). For this example we assume that you have a working version of `TOPCAT <http://www.star.bris.ac.uk/~mbt/topcat/>`_ (version 4.2 was used at the time of writing) and that you have your dataset in both fits format (or any other format TOPCAT can read), and a hdf5 file (say mydata.fits and mydata.hdf5). Start TOPCAT with the SAMP hub enabled (the default in version 4.2), and open the fits file. Start vaex and open the hdf5 file. When vaex is started, it tries to connect to the SAMP hub directly, which you can verify by checking if connect icon in the toolbar |icon_connect| is selected, or the menu option "SAMP"->"Connect to SAMP hub" is checked. In case you started TOPCAT after you started vaex, you can connect to the SAMP hub using the connect icon 
 |icon_connect|, or from the menu "SAMP"->"Connect to SAMP hub". Now both TOPCAT and vaex are connected to the SAMP hub (which is started by TOPCAT), and should be able to send eachother messages. 
