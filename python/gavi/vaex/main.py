@@ -666,7 +666,7 @@ class MainPanel(QtGui.QFrame):
 		self.form_layout.addRow('', self.scatterButton)
 
 		self.scatter3dButton = QtGui.QToolButton(self)
-		self.scatter3dButton.setText('x/y/z density (beta)')
+		self.scatter3dButton.setText('x/y/z density')
 		self.form_layout.addRow('', self.scatter3dButton)
 		if 0:
 
@@ -677,9 +677,10 @@ class MainPanel(QtGui.QFrame):
 			self.scatter2dSeries = QtGui.QPushButton('x/y series', self)
 			self.form_layout.addRow('', self.scatter2dSeries)
 
-		self.serieSlice = QtGui.QToolButton(self)
-		self.serieSlice.setText('serie slice')
-		self.form_layout.addRow('', self.serieSlice)
+		if 0:
+			self.serieSlice = QtGui.QToolButton(self)
+			self.serieSlice.setText('serie slice')
+			self.form_layout.addRow('', self.serieSlice)
 
 		self.statistics = QtGui.QPushButton('Statistics', self)
 		self.form_layout.addRow('Data:', self.statistics)
@@ -690,8 +691,9 @@ class MainPanel(QtGui.QFrame):
 		self.table = QtGui.QPushButton('Open table', self)
 		self.form_layout.addRow('', self.table)
 
-		self.button_variables = QtGui.QPushButton('Variables', self)
-		self.form_layout.addRow('', self.button_variables)
+		if 0:
+			self.button_variables = QtGui.QPushButton('Variables', self)
+			self.form_layout.addRow('', self.button_variables)
 
 
 		self.fractionLabel = QtGui.QLabel('Fraction used: ...')
@@ -720,7 +722,7 @@ class MainPanel(QtGui.QFrame):
 		self.scatter3dButton.clicked.connect(self.onOpenScatter3d)
 		#self.scatter1dSeries.clicked.connect(self.onOpenScatter1dSeries)
 		#self.scatter2dSeries.clicked.connect(self.onOpenScatter2dSeries)
-		self.serieSlice.clicked.connect(self.onOpenSerieSlice)
+		#self.serieSlice.clicked.connect(self.onOpenSerieSlice)
 		self.rank.clicked.connect(self.onOpenRank)
 		self.table.clicked.connect(self.onOpenTable)
 
@@ -844,7 +846,7 @@ class MainPanel(QtGui.QFrame):
 			#self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
 			#self.scatter3dButton.setEnabled(False)
 			#self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
-			self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
+			#self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
 
 			self.histogramMenu = QtGui.QMenu(self)
 			for column_name in self.dataset.get_column_names():
@@ -877,15 +879,16 @@ class MainPanel(QtGui.QFrame):
 						subsubmenu.addAction(action)
 			self.scatter3dButton.setMenu(self.scatterMenu3d)
 
-			self.serieSliceMenu = QtGui.QMenu(self)
-			for column_name1 in self.dataset.rank1names:
-				#action1 = QtGui.QAction(column_name, self)
-				submenu = self.serieSliceMenu.addMenu(column_name1)
-				for column_name2 in self.dataset.rank1names:
-					action = QtGui.QAction(column_name2, self)
-					action.triggered.connect(functools.partial(self.plotseriexy, xname=column_name1, yname=column_name2))
-					submenu.addAction(action)
-			self.serieSlice.setMenu(self.serieSliceMenu)
+			if 0:
+				self.serieSliceMenu = QtGui.QMenu(self)
+				for column_name1 in self.dataset.rank1names:
+					#action1 = QtGui.QAction(column_name, self)
+					submenu = self.serieSliceMenu.addMenu(column_name1)
+					for column_name2 in self.dataset.rank1names:
+						action = QtGui.QAction(column_name2, self)
+						action.triggered.connect(functools.partial(self.plotseriexy, xname=column_name1, yname=column_name2))
+						submenu.addAction(action)
+				self.serieSlice.setMenu(self.serieSliceMenu)
 
 	def plotseriexy(self, xname, yname):
 		if self.dataset is not None:
@@ -1372,6 +1375,7 @@ class Vaex(QtGui.QMainWindow):
 
 
 	def on_pick(self, dataset, row):
+		logger.debug("samp pick event")
 		if self.samp: # TODO: check if connected
 			kwargs = {"row": str(row)}
 			if dataset.samp_id:
@@ -1474,6 +1478,7 @@ class Vaex(QtGui.QMainWindow):
 		if filename:
 				print filename
 
+				# first open file using h5py api
 				h5file_output = h5py.File(filename, "w")
 
 				h5data_output = h5file_output.require_group("data")
@@ -1493,44 +1498,66 @@ class Vaex(QtGui.QMainWindow):
 					shuffle_array = h5file_output.require_dataset("/data/random_index", shape=(N,), dtype=np.int64)
 					shuffle_array[0] = shuffle_array[0]
 
+				# close file, and reopen it using out class
 				h5file_output.close()
 				dataset_output = gavi.dataset.Hdf5MemoryMapped(filename, write=True)
 
-				shuffle_array = dataset_output.columns["random_index"]
-
-				print "creating shuffled array"
-				#if partial_shuffle:
-				if 1:
+				if shuffle:
+					shuffle_array = dataset_output.columns["random_index"]
+				if partial_shuffle:
+					# if we only export a portion, we need to create the full length random_index array, and
 					shuffle_array_full = np.zeros(dataset.full_length(), dtype=np.int64)
 					gavifast.shuffled_sequence(shuffle_array_full)
+					# then take a section of it
 					shuffle_array[:] = shuffle_array_full[:len(dataset)]
 					del shuffle_array_full
-				#else:
-				#	gavifast.shuffled_sequence(shuffle_array)
+				elif shuffle:
+					gavifast.shuffled_sequence(shuffle_array)
 
-				print "creating shuffled array"
-				for column_name in selected_column_names:
-					print column_name
-					with gavi.utils.Timer("copying: %s" % column_name):
-						from_array = dataset.columns[column_name]
-						to_array = dataset_output.columns[column_name]
-						#np.take(from_array, random_index, out=to_array)
-						#print [(k.shape, k.dtype) for k in [from_array, to_array, random_index]]
-						if export_selection:
-							if dataset.mask is not None:
-								to_array[:] = from_array[i1:i2][dataset.mask]
-						else:
-							if shuffle:
-								#to_array[:] = from_array[i1:i2][shuffle_array]
-								#to_array[:] = from_array[shuffle_array]
-								#print [k.dtype for k in [from_array, to_array, shuffle_array]]
-								#copy(from_array, to_array, shuffle_array)
-								batch_copy_index(from_array, to_array, shuffle_array)
-								#np.take(from_array, indices=shuffle_array, out=to_array)
-								pass
+				#print "creating shuffled array"
+				progress_total = len(selected_column_names)
+				progress_value = 0
+				progress_dialog = QtGui.QProgressDialog("Copying data...", "Abort export", 0, progress_total+1, self);
+				try:
+
+					progress_dialog.setWindowModality(QtCore.Qt.WindowModal);
+					progress_dialog.setMinimumDuration(0)
+					progress_dialog.setAutoClose(False)
+					progress_dialog.setAutoReset(False)
+					progress_dialog.show()
+					QtCore.QCoreApplication.instance().processEvents()
+
+					for column_name in selected_column_names:
+						print column_name
+						with gavi.utils.Timer("copying: %s" % column_name):
+							from_array = dataset.columns[column_name]
+							to_array = dataset_output.columns[column_name]
+							#np.take(from_array, random_index, out=to_array)
+							#print [(k.shape, k.dtype) for k in [from_array, to_array, random_index]]
+							if export_selection:
+								if dataset.mask is not None:
+									to_array[:] = from_array[i1:i2][dataset.mask]
 							else:
-								to_array[:] = from_array[i1:i2]
-						#copy(, to_array, random_index)
+								if shuffle:
+									#to_array[:] = from_array[i1:i2][shuffle_array]
+									#to_array[:] = from_array[shuffle_array]
+									#print [k.dtype for k in [from_array, to_array, shuffle_array]]
+									#copy(from_array, to_array, shuffle_array)
+									batch_copy_index(from_array, to_array, shuffle_array)
+									#np.take(from_array, indices=shuffle_array, out=to_array)
+									pass
+								else:
+									to_array[:] = from_array[i1:i2]
+							#copy(, to_array, random_index)
+						progress_value += 1
+						progress_dialog.setValue(progress_value)
+						QtCore.QCoreApplication.instance().processEvents()
+						if progress_dialog.wasCanceled():
+							dialog_info(self, "Cancel", "Export cancelled")
+							break
+
+				finally:
+					progress_dialog.hide()
 
 	def gadgethdf5(self, filename):
 		print "filename", filename, repr(filename)
@@ -1598,12 +1625,13 @@ class Vaex(QtGui.QMainWindow):
 
 	def _on_samp_call(self, private_key, sender_id, msg_id, mtype, params, extra):
 		# same as _on_samp_notification
-		print private_key, sender_id, msg_id, mtype, params, extra
+		#print private_key, sender_id, msg_id, mtype, params, extra
 		self.signal_samp_call.emit(private_key, sender_id, msg_id, mtype, params, extra)
 		self.samp.client.ereply(msg_id, sampy.SAMP_STATUS_OK, result = {"txt": "printed"})
 
 	def on_samp_notification(self, private_key, sender_id, mtype, params, extra):
 		# and this should execute in the main thread
+		logger.debug("samp notification: %r" % ((private_key, sender_id, mtype),))
 		assert QtCore.QThread.currentThread() == main_thread
 		def dash_to_underscore(hashmap):
 			hashmap = dict(hashmap) # copy
@@ -1895,13 +1923,13 @@ def batch_copy_index(from_array, to_array, shuffle_array):
 	batches = long(math.ceil(float(length)/N_per_batch))
 	print np.sum(from_array)
 	for i in range(batches):
-		print "batch", i, "out of", batches, ""
+		#print "batch", i, "out of", batches, ""
 		sys.stdout.flush()
 		i1 = i * N_per_batch
 		i2 = min(length, (i+1)*N_per_batch)
-		print "reading...", i1, i2
+		#print "reading...", i1, i2
 		sys.stdout.flush()
 		data = from_array[shuffle_array[i1:i2]]
-		print "writing..."
+		#print "writing..."
 		sys.stdout.flush()
 		to_array[i1:i2] = data

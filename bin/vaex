@@ -5,7 +5,7 @@ import os
 import platform
 darwin = "darwin" in platform.system().lower()
 frozen = getattr(sys, 'frozen', False)
-if frozen and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just stars without arguments
+if frozen and len(sys.argv) > 1 and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just stars without arguments
 	dirname = os.path.join(os.path.dirname(sys.argv[0]), "..", "..", "..")
 	os.chdir(dirname)
 
@@ -15,6 +15,10 @@ if darwin and frozen: # on newer osx versions we get a lot of broken pipes when 
 		os.makedirs(directory)
 	sys.stdout = open(os.path.expanduser('~/.vaex/stdout.txt'), 'w')
 	sys.stderr = open(os.path.expanduser('~/.vaex/stderr.txt'), 'w')
+
+if frozen and not darwin: # pyinstaller
+	os.environ["QT_API"] = "pyside" # somehow the new matplotlib under pyinstaller doesn't use pyside
+
 import gavi.vaex.main
 #print darwin, platform.system()
 
@@ -26,7 +30,7 @@ if __name__ == '__main__':
 	#print sys.argv
 	#if darwin:
 	print sys.argv
-	if frozen and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just stars without arguments
+	if frozen and len(sys.argv) > 1 and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just start without arguments
 		gavi.vaex.main.main([])
 	else:
 		gavi.vaex.main.main(sys.argv[1:])

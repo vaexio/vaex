@@ -58,6 +58,7 @@ class LinkButton(QtGui.QToolButton):
 		#self.setMenu(self.menu)
 		self.link = None
 
+
 	def onToggleLink(self):
 		if self.isChecked():
 			logger.debug("connected link")
@@ -214,6 +215,13 @@ class LayerTable(object):
 		self.signal_plot_update = gavi.events.Signal("plot_update")
 		#self.dataset.signal_pick.connect(self.on)
 
+	def removed(self):
+		self.dataset.mask_listeners.remove(self.onSelectMask)
+		self.dataset.row_selection_listeners.remove(self.onSelectRow)
+		self.dataset.serie_index_selection_listeners.remove(self.onSerieIndexSelect)
+		for plugin in self.plugins:
+			plugin.clean_up()
+
 
 
 	def create_grid_map(self, gridsize, use_selection):
@@ -329,9 +337,28 @@ class LayerTable(object):
 				x = np.arange(0, self.plot_window.grid_size)/float(self.plot_window.grid_size) * width + self.ranges_grid[0][0]# + width/(Nvector/2.)
 				delta = x[1] - x[0]
 				for axes in axes_list:
-					axes.bar(x, amplitude, width=delta, align='center')
+					if self.display_type == "bar":
+						axes.bar(x, amplitude, width=delta, align='center', alpha=self.alpha, color=self.color)
+					else:
+						print len(x), len(amplitude)
+						dx = x[1] - x[0]
+						x2 = list(np.ravel(zip(x,x+dx)))
+						x2p = [x[0]] + x2 + [x[-1]+dx]
+						y = amplitude
+						y2 = list(np.ravel(zip(y,y)))
+						y2p = [0] + y2 + [0]
+						axes.plot(x2p, y2p, alpha=self.alpha, color=self.color)
 					if use_selection:
-						axes.bar(x, amplitude_selection, width=delta, align='center', color="red", alpha=0.8)
+						if self.display_type == "bar":
+							axes.bar(x, amplitude_selection, width=delta, align='center', color=self.color_alt, alpha=0.6*self.alpha)
+						else:
+							dx = x[1] - x[0]
+							x2 = list(np.ravel(zip(x,x+dx)))
+							x2p = [x[0]] + x2 + [x[-1]+dx]
+							y = amplitude_selection
+							y2 = list(np.ravel(zip(y,y)))
+							y2p = [0] + y2 + [0]
+							axes.plot(x2p, y2p, drawstyle="steps-mid", alpha=self.alpha, color=self.color_alt)
 					if self.coordinates_picked_row is not None:
 						axes.axvline(self.coordinates_picked_row[axes.xaxis_index], color="red")
 
@@ -426,8 +453,9 @@ class LayerTable(object):
 						axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color="black")
 						colors = None
 		if self.coordinates_picked_row is not None:
-			for axes in axes_list:
-				axes.scatter([self.coordinates_picked_row[axes.xaxis_index]], [self.coordinates_picked_row[axes.yaxis_index]], color='red')
+			if self.dimensions >= 2:
+				for axes in axes_list:
+					axes.scatter([self.coordinates_picked_row[axes.xaxis_index]], [self.coordinates_picked_row[axes.yaxis_index]], color='red')
 
 
 	def getVariableDict(self):
@@ -590,10 +618,15 @@ class LayerTable(object):
 
 	def apply_mask(self, mask):
 		self.dataset.selectMask(mask)
-		self.jobs_manager.execute()
+		self.execute()
 		self.check_selection_undo_redo()
 		self.label_selection_info_update()
 
+	def execute(self):
+		error_text = self.jobs_manager.execute()
+		if error_text is not None:
+			logger.error("error while executing: %r" % error_text)
+			dialog_error(self.plot_window, "Error when executing", error_text)
 
 
 	def message(self, *args, **kwargs):
@@ -659,12 +692,13 @@ class LayerTable(object):
 		self.grids.set_expressions(self.expressions)
 		self.grids.define_grid("counts", self.plot_window.grid_size, None)
 		self.grids.define_grid("weighted", self.plot_window.grid_size, self.weight_expression)
-		self.expressions_vector[0] = self.weight_x_expression
-		self.expressions_vector[1] = self.weight_y_expression
-		self.expressions_vector[2] = self.weight_z_expression
-		for i, expression in enumerate(self.expressions_vector):
-			name = "xyzw"[i]
-			self.grids.define_grid("weight"+name, self.plot_window.vector_grid_size, expression)
+		if self.dimensions >= 2:
+			self.expressions_vector[0] = self.weight_x_expression
+			self.expressions_vector[1] = self.weight_y_expression
+			self.expressions_vector[2] = self.weight_z_expression
+			for i, expression in enumerate(self.expressions_vector):
+				name = "xyzw"[i]
+				self.grids.define_grid("weight"+name, self.plot_window.vector_grid_size, expression)
 
 		for callback in self.plugin_grids_defines:
 			callback(self.grids)
@@ -691,7 +725,8 @@ class LayerTable(object):
 
 		self.plug_page(self.page_main, "Main", 1., 1.)
 		self.plug_page(self.page_visual, "Visual", 1.5, 1.)
-		self.plug_page(self.page_vector, "Vector field", 2., 1.)
+		if self.dimensions >= 2:
+			self.plug_page(self.page_vector, "Vector field", 2., 1.)
 		#self.plug_page(self.page_display, "Display", 3., 1.)
 		self.plug_page(self.page_selection, "Selection", 3.5, 1.)
 
@@ -777,7 +812,7 @@ class LayerTable(object):
 		# let any event handler deal with redraw etc
 		self.coordinates_picked_row = None
 		self.add_jobs()
-		self.jobs_manager.execute()
+		self.execute()
 		#self.signal_expression_change.emit(self, axisIndex, text)
 		#self.compute()
 		#error_text = self.jobsManager.execute()
@@ -795,7 +830,7 @@ class LayerTable(object):
 		self.range_level = None
 		self.plot_window.range_level_show = None
 		self.add_jobs()
-		self.jobs_manager.execute()
+		self.execute()
 		#self.plot()
 
 	def onTitleExpr(self):
@@ -831,7 +866,7 @@ class LayerTable(object):
 		non_none_expressions = [k for k in expressions if k is not None and len(k) > 0]
 		if len(non_none_expressions) >= 2:
 			self.add_jobs()
-			self.jobs_manager.execute()
+			self.execute()
 
 
 	def onWeightYExpr(self):
@@ -912,7 +947,7 @@ class LayerTable(object):
 				for box, expr in zip(self.axisboxes, self.expressions):
 					box.lineEdit().setText(expr)
 				self.add_jobs()
-				self.jobs_manager.execute()
+				self.execute()
 			self.buttonFlipXY.clicked.connect(flipXY)
 			self.button_layout.addWidget(self.buttonFlipXY, 0.)
 			self.buttonFlipXY.setAutoDefault(False)
@@ -975,7 +1010,7 @@ class LayerTable(object):
 							self.plot_window.ranges_show[axis_index] = None
 						# to add them
 						self.add_jobs()
-						self.jobs_manager.execute()
+						self.execute()
 					action.triggered.connect(add)
 					menu.addAction(action)
 				self.grid_layout.addWidget(functionButton, row, 3, QtCore.Qt.AlignLeft)
@@ -1126,28 +1161,44 @@ class LayerTable(object):
 
 		#self.checkbox_intensity_as_opacity = Checkbox(page_widget, "use_intensity", getter=attrgetter(self, "use_intensity"), setter=attrsetter(self, "use_intensity"), update=self.signal_plot_dirty.emit)
 		#row = self.checkbox_intensity_as_opacity.add_to_grid_layout(row, grid_layout)
-		transparancies = ["intensity", "constant", "none"]
-		self.transparancy = self.options.get("transparancy", "constant")
-		self.option_transparancy = Option(page_widget, "transparancy", transparancies, getter=attrgetter(self, "transparancy"), setter=attrsetter(self, "transparancy"), update=self.signal_plot_dirty.emit)
-		row = self.option_transparancy.add_to_grid_layout(row, grid_layout)
+		if self.dimensions >= 2:
+			transparancies = ["intensity", "constant", "none"]
+			self.transparancy = self.options.get("transparancy", "constant")
+			self.option_transparancy = Option(page_widget, "transparancy", transparancies, getter=attrgetter(self, "transparancy"), setter=attrsetter(self, "transparancy"), update=self.signal_plot_dirty.emit)
+			row = self.option_transparancy.add_to_grid_layout(row, grid_layout)
 
 		self.slider_layer_alpha = Slider(page_widget, "opacity", 0, 1, 1000, getter=attrgetter(self, "alpha"), setter=attrsetter(self, "alpha"), update=self.signal_plot_dirty.emit)
 		row = self.slider_layer_alpha.add_to_grid_layout(row, grid_layout)
 
-		self.slider_layer_level_min = Slider(page_widget, "level_min", 0, 1, 1000, getter=attrgetter(self, "level_min"), setter=attrsetter(self, "level_min"), update=self.signal_plot_dirty.emit)
-		row = self.slider_layer_level_min.add_to_grid_layout(row, grid_layout)
+		if self.dimensions >= 2:
+			self.slider_layer_level_min = Slider(page_widget, "level_min", 0, 1, 1000, getter=attrgetter(self, "level_min"), setter=attrsetter(self, "level_min"), update=self.signal_plot_dirty.emit)
+			row = self.slider_layer_level_min.add_to_grid_layout(row, grid_layout)
 
-		self.slider_layer_level_max = Slider(page_widget, "level_max", 0, 1, 1000, getter=attrgetter(self, "level_max"), setter=attrsetter(self, "level_max"), update=self.signal_plot_dirty.emit)
-		row = self.slider_layer_level_max.add_to_grid_layout(row, grid_layout)
+			self.slider_layer_level_max = Slider(page_widget, "level_max", 0, 1, 1000, getter=attrgetter(self, "level_max"), setter=attrsetter(self, "level_max"), update=self.signal_plot_dirty.emit)
+			row = self.slider_layer_level_max.add_to_grid_layout(row, grid_layout)
 
-		self.display_type = self.options.get("display_type", "colormap")
-		self.option_display_type = Option(page_widget, "display", ["colormap", "solid", "contour"], getter=attrgetter(self, "display_type"), setter=attrsetter(self, "display_type"), update=self.signal_plot_dirty.emit)
-		row = self.option_display_type.add_to_grid_layout(row, grid_layout)
+			self.display_type = self.options.get("display_type", "colormap")
+			self.option_display_type = Option(page_widget, "display", ["colormap", "solid", "contour"], getter=attrgetter(self, "display_type"), setter=attrsetter(self, "display_type"), update=self.signal_plot_dirty.emit)
+			row = self.option_display_type.add_to_grid_layout(row, grid_layout)
 
 
-		self.color = self.options.get("color", "blue")
-		self.option_solid_color = Option(page_widget, "color", ["red", "green", "blue", "orange", "cyan", "magenta", "black", "gold", "purple"], getter=attrgetter(self, "color"), setter=attrsetter(self, "color"), update=self.signal_plot_dirty.emit)
+		colors =["red", "green", "blue", "orange", "cyan", "magenta", "black", "gold", "purple"]
+		default_color = colors[self.plot_window.layers.index(self)]
+		self.color = self.options.get("color", default_color)
+		self.option_solid_color = Option(page_widget, "color", colors, getter=attrgetter(self, "color"), setter=attrsetter(self, "color"), update=self.signal_plot_dirty.emit)
 		row = self.option_solid_color.add_to_grid_layout(row, grid_layout)
+
+		colors =["red", "green", "blue", "orange", "cyan", "magenta", "black", "gold", "purple"]
+		default_color = colors[-1-self.plot_window.layers.index(self)]
+		self.color_alt = self.options.get("color_alt", default_color)
+		self.option_solid_color_alt = Option(page_widget, "color_alt", colors, getter=attrgetter(self, "color_alt"), setter=attrsetter(self, "color_alt"), update=self.signal_plot_dirty.emit)
+		row = self.option_solid_color_alt.add_to_grid_layout(row, grid_layout)
+
+		if self.dimensions == 1:
+
+			self.display_type = self.options.get("display_type", "bar")
+			self.option_display_type = Option(page_widget, "display", ["bar", "line"], getter=attrgetter(self, "display_type"), setter=attrsetter(self, "display_type"), update=self.signal_plot_dirty.emit)
+			row = self.option_display_type.add_to_grid_layout(row, grid_layout)
 
 
 		if self.dimensions > 1:

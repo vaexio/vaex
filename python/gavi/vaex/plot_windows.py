@@ -330,6 +330,7 @@ class PlotDialog(QtGui.QWidget):
 				if ranges[i] is None and first_layer.ranges_grid[i] is not None:
 					ranges[i] = copy.copy(first_layer.ranges_grid[i])
 		layer = gavi.vaex.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.jobsManager, self.pool, self.fig, self.canvas, ranges)
+		self.layers.append(layer)
 		layer.build_widget_qt(self.widget_layer_stack) # layer.widget is the widget build
 		self.widget_layer_stack.addWidget(layer.widget)
 
@@ -337,7 +338,6 @@ class PlotDialog(QtGui.QWidget):
 		#self.layout_frame_layer_controls.addWidget(layer.widget_layer_control)
 
 		layer.widget.setVisible(False)
-		self.layers.append(layer)
 		self.layer_selection.addItem(name)
 		self.layer_selection.setCurrentIndex(len(self.layers))
 
@@ -595,6 +595,8 @@ class PlotDialog(QtGui.QWidget):
 		# since closing a dialog causes this event to fire otherwise
 		self.parent_widget.plot_dialogs.remove(self)
 		self.pool.close()
+		for layer in self.layers:
+			layer.removed()
 		#for axisbox, func in zip(self.axisboxes, self.onExpressionChangedPartials):
 		#	axisbox.lineEdit().editingFinished.disconnect(func)
 		#self.dataset.mask_listeners.remove(self.onSelectMask)
@@ -625,8 +627,9 @@ class PlotDialog(QtGui.QWidget):
 				if self.dimensions == 1:
 					action_col1 = QtGui.QAction(column1, menu_dataset)
 					menu_dataset.addAction(action_col1)
-					def add_layer_1():
-						print "add"
+					def add_layer_1(column1=column1, dataset=dataset):
+						self.add_layer([column1], dataset=dataset)
+						self.jobsManager.execute()
 					action_col1.triggered.connect(add_layer_1)
 				else:
 					menu_col1 = QtGui.QMenu(column1, menu_dataset)
@@ -635,8 +638,7 @@ class PlotDialog(QtGui.QWidget):
 						if self.dimensions == 2:
 							action_col2 = QtGui.QAction(column2, menu_dataset)
 							menu_col1.addAction(action_col2)
-							def add_layer_2(_ignore=None, column1=column1, column2=column2):
-								print "add 2", column1, column2, dataset
+							def add_layer_2(_ignore=None, column1=column1, column2=column2, dataset=dataset):
 								self.add_layer([column1, column2], dataset=dataset)
 								self.jobsManager.execute()
 							action_col2.triggered.connect(add_layer_2)
@@ -649,6 +651,7 @@ class PlotDialog(QtGui.QWidget):
 		logger.debug("remove layer: %r" % layer)
 		if layer is not None:
 			index = self.layers.index(layer)
+			layer.removed()
 			self.layers.remove(layer)
 			self.layer_selection.removeItem(index+1) # index 0 is the layer control
 			self.widget_layer_stack.removeWidget(layer.widget)
@@ -839,7 +842,7 @@ class PlotDialog(QtGui.QWidget):
 					index = (x-xmin)/(xmax-xmin) * N
 					if index >= 0 and index < N:
 						index = int(index)
-						return "value = %f" % (self.amplitude[index])
+						return "value = %f" % (amplitude[index])
 			if len(amplitude.shape) == 2:
 					#if self.ranges[0] and self.ranges[1]:
 					Nx, Ny = amplitude.shape
@@ -1359,6 +1362,9 @@ class PlotDialog(QtGui.QWidget):
 		logger.debug("set aspect to: %r" % self.aspect)
 
 	def onActionExport(self):
+		if self.dimensions != 2:
+			dialog_info(self, "Export failure", "Oops sorry, export only supported for 2d plots at the moment")
+			return
 		ok, mask = select_many(self, "Choose export options", ["Export matplotlib python script", "Export grid", "Export selection", "Export vector grid"])
 		if ok:
 			name = self.current_layer.dataset.name
@@ -1389,7 +1395,7 @@ class PlotDialog(QtGui.QWidget):
 
 				if mask[1]:
 					gridname = os.path.join(dir_path, name + "_grid.npy")
-					if not os.path.exists(scriptname) or yesall:
+					if not os.path.exists(gridname) or yesall:
 						yes, yesall = True, yesall
 					else:
 						yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
@@ -1397,23 +1403,25 @@ class PlotDialog(QtGui.QWidget):
 						np.save(gridname, self.current_layer.amplitude)
 						msg_list.append("wrote: " + gridname)
 					if mask[2]:
-						gridname = os.path.join(dir_path, name + "_grid_selection.npy")
-						if not os.path.exists(scriptname) or yesall:
-							yes, yesall = True, yesall
-						else:
-							yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
-						if yes or yesall:
-							np.save(gridname, self.current_layer.amplitude_selection)
-							msg_list.append("wrote: " + gridname)
+						if self.current_layer.dataset.mask is not None:
+							gridname = os.path.join(dir_path, name + "_grid_selection.npy")
+							if not os.path.exists(gridname) or yesall:
+								yes, yesall = True, yesall
+							else:
+								yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
+							if yes or yesall:
+								np.save(gridname, self.current_layer.amplitude_selection)
+								msg_list.append("wrote: " + gridname)
 					if mask[3]:
-						gridname = os.path.join(dir_path, name + "_grid_vector.npy")
-						if not os.path.exists(scriptname) or yesall:
-							yes, yesall = True, yesall
-						else:
-							yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
-						if yes or yesall:
-							np.save(gridname, self.current_layer.vector_grids)
-							msg_list.append("wrote: " + gridname)
+						if hasattr(self.current_layer, "vector_grids"):
+							gridname = os.path.join(dir_path, name + "_grid_vector.npy")
+							if not os.path.exists(gridname) or yesall:
+								yes, yesall = True, yesall
+							else:
+								yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
+							if yes or yesall:
+								np.save(gridname, self.current_layer.vector_grids)
+								msg_list.append("wrote: " + gridname)
 					msg = "\n".join(msg_list)
 					dialog_info(self, "Finished export", msg)
 
@@ -2065,8 +2073,8 @@ class PlotDialog(QtGui.QWidget):
 class HistogramPlotDialog(PlotDialog):
 	type_name = "histogram"
 	#names = "histogram,1d"
-	def __init__(self, parent, jobsManager, dataset):
-		super(HistogramPlotDialog, self).__init__(parent, jobsManager, dataset, 1, ["X"])
+	def __init__(self, parent, jobsManager, dataset, **kwargs):
+		super(HistogramPlotDialog, self).__init__(parent, jobsManager, dataset, 1, ["X"], **kwargs)
 
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)
