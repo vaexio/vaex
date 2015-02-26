@@ -1233,6 +1233,9 @@ class Vaex(QtGui.QMainWindow):
 			elif 1:#frozen:
 				for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 					self.list.addGadgetHdf5(os.path.join(application_path, 'data/disk-galaxy.hdf5'), name, index)
+				f = gavi.utils.get_data_file("data/helmi-dezeeuw-2000-10p.hdf5")
+				print "datafile", f
+				self.list.addHdf5(f)
 				self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
 		for pluginpath in [os.path.expanduser('~/.vaex/plugin')]:
 			logger.debug("pluginpath: %s" % pluginpath)
@@ -1273,6 +1276,8 @@ class Vaex(QtGui.QMainWindow):
 		self.samp_ping_timer = QtCore.QTimer()
 		self.samp_ping_timer.timeout.connect(self.on_samp_ping_timer)
 		#self.samp_ping_timer.start(1000)
+
+		self.highlighed_row_from_samp = False
 
 		def on_open_plot(plot_dialog):
 			plot_dialog.signal_samp_send_selection.connect(lambda dataset: self.on_samp_send_table_select_rowlist(dataset=dataset))
@@ -1376,7 +1381,8 @@ class Vaex(QtGui.QMainWindow):
 
 	def on_pick(self, dataset, row):
 		logger.debug("samp pick event")
-		if self.samp: # TODO: check if connected
+		# avoid sending an event if this was caused by a samp event
+		if self.samp and not self.highlighed_row_from_samp: # TODO: check if connected,
 			kwargs = {"row": str(row)}
 			if dataset.samp_id:
 				kwargs["table-id"] = dataset.samp_id
@@ -1662,7 +1668,14 @@ class Vaex(QtGui.QMainWindow):
 		for id in (url, table_id):
 			if id != None:
 				for dataset in self._samp_find_datasets(id):
-					dataset.selectRow(row)
+					# avoid triggering another samp event and an infinite loop
+					self.highlighed_row_from_samp = True
+					try:
+						dataset.selectRow(row)
+					finally:
+						self.highlighed_row_from_samp = False
+
+
 
 	def samp_table_select_rowlist(self, row_list, url=None, table_id=None):
 		print "----"

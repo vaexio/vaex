@@ -212,7 +212,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.arrow_model = Arrow(0, 0, 0, 4.)
 		self.update_timer = QtCore.QTimer(self)
 		self.update_timer.timeout.connect(self.orbit_progress)
-		self.update_timer.setInterval(0) # max 50 fps to save cpu/battery?
+		self.update_timer.setInterval(1000/50) # max 50 fps to save cpu/battery?
 		self.ray_iterations = 500
 		self.depth_peel = 0.0
 		#self.orbit_start()

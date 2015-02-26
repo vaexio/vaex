@@ -1389,7 +1389,7 @@ class PlotDialog(QtGui.QWidget):
 
 				optionsname = os.path.join(dir_path, name + "_meta.json")
 				options = {}
-				options["extent"] = self.current_layer.ranges_grid[0] + self.current_layer.ranges_grid[1]
+				options["extent"] = list(self.current_layer.ranges_grid[0]) + list(self.current_layer.ranges_grid[1])
 				json.dump(options, file(optionsname, "w"), indent=4)
 				msg_list.append("wrote: " + optionsname)
 

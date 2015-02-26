@@ -367,7 +367,7 @@ class LayerTable(object):
 			#for axes in axes_list:
 			assert len(axes_list) == 1
 			self.plot_density(axes_list[0], amplitude, amplitude_selection, stack_image)
-		if self.dimensions > 2:
+		if self.dimensions >= 2:
 			# for vector we only use the selected map, maybe later also show the full dataset
 			grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
 

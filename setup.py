@@ -99,6 +99,7 @@ except:
 if numdir is None:
 	print "numpy not found, cannot install"
 import sys 
+import glob
 sys.setrecursionlimit(10000)
 
 APP = ["bin/vaex"]
@@ -106,7 +107,8 @@ DATA_FILES = []
 if has_py2app:
 	pass
 	#DATA_FILES.append(["data", ["data/disk-galaxy.hdf5"]]) #, "data/Aq-A-2-999-shuffled-1percent.hdf5"]])
-import glob
+	DATA_FILES.append(["data/", glob.glob("data/dist/*")] )
+
 
 #print glob.glob("doc/*")
 
@@ -117,6 +119,7 @@ for sub in "_static _images _sources".split():
 OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/gavi/icons'],
            'matplotlib_backends':'-',
            'no_chdir':True,
+           'iconfile': 'python/gavi/icons/vaex.icns'
 
 } #, 'debug_modulegraph':True}
 #, 'app':True
@@ -164,6 +167,26 @@ reqs = [str(ir.req) for ir in install_reqs]
 
 #print "requirements", reqs
 #print "ver#sion", gavi.vaex.__release__
+
+print dict(app=["bin/vaex"],
+	name="vaex", #gavi.vaex.__program_name__,
+	author="Maarten A. Breddels",
+	author_email="maartenbreddels@gmail.com",
+    version = "%d.%d.%d" % version.versiontuple,
+    data_files=DATA_FILES,
+    options={'py2app': OPTIONS},
+    #setup_requires=['py2app'],
+    #setup_requires=["sphinx"],
+    includes=["gavi", "md5"],
+    packages=["gavi", "gavi.vaex", "gavi.vaex.plugin", "gavi.icons"],
+    install_requires=reqs,
+    entry_points={ 'console_scripts': [ 'vaex=gavi.vaex.main:main']  },
+    ext_modules=extensions,
+    package_data={'gavi': ['icons/*.png', 'icons/vaex.icns']},
+    package_dir={'gavi':'python/gavi'},
+    cmdclass=cmdclass,
+    description="Veax is a graphical tool to visualize and explore large tabular datasets.",
+    url="https://www.astro.rug.nl/~breddels/vaex")
 setup(
 	app=["bin/vaex"],
 	name="vaex", #gavi.vaex.__program_name__,
@@ -174,7 +197,7 @@ setup(
     options={'py2app': OPTIONS},
     #setup_requires=['py2app'],
     #setup_requires=["sphinx"],
-    includes=["gavi", "md5"],
+    includes=["gavi", "md5", "astropy"],
     packages=["gavi", "gavi.vaex", "gavi.vaex.plugin", "gavi.icons"],
     install_requires=reqs,
     entry_points={ 'console_scripts': [ 'vaex=gavi.vaex.main:main']  },
