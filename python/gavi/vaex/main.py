@@ -1892,6 +1892,10 @@ def main(argv=sys.argv[1:]):
 	global app
 	if app is None:
 		app = QtGui.QApplication(argv)
+		if not (frozen and darwin): # osx app has its own icon file
+			import gavi.icons
+			icon = QtGui.QIcon(gavi.icons.iconfile('vaex32'))
+			app.setWindowIcon(icon)
 	#import gavi.vaex.ipkernel_qtapp
 	#ipython_window = gavi.vaex.ipkernel_qtapp.SimpleWindow(app)
 	main_thread = QtCore.QThread.currentThread()
