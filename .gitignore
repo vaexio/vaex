@@ -54,3 +54,4 @@ tmp
 python/gavi/vaex/version.py # gets generated
 python/gavi.egg-info/
 bin/.idea
+*.npy
