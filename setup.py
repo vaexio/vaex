@@ -143,7 +143,7 @@ if numdir is not None:
 	include_dirs.append(os.path.join(numdir, "core", "include"))
 
 extensions = [
-	Extension("gavifast", ["src/gavi.cpp"],
+	Extension("gavifast", ["src/gavifast/gavi.cpp"],
                 include_dirs=include_dirs,
                 library_dirs=library_dirs,
                 libraries=libraries,
@@ -167,26 +167,6 @@ reqs = [str(ir.req) for ir in install_reqs]
 
 #print "requirements", reqs
 #print "ver#sion", gavi.vaex.__release__
-
-print dict(app=["bin/vaex"],
-	name="vaex", #gavi.vaex.__program_name__,
-	author="Maarten A. Breddels",
-	author_email="maartenbreddels@gmail.com",
-    version = "%d.%d.%d" % version.versiontuple,
-    data_files=DATA_FILES,
-    options={'py2app': OPTIONS},
-    #setup_requires=['py2app'],
-    #setup_requires=["sphinx"],
-    includes=["gavi", "md5"],
-    packages=["gavi", "gavi.vaex", "gavi.vaex.plugin", "gavi.icons"],
-    install_requires=reqs,
-    entry_points={ 'console_scripts': [ 'vaex=gavi.vaex.main:main']  },
-    ext_modules=extensions,
-    package_data={'gavi': ['icons/*.png', 'icons/vaex.icns']},
-    package_dir={'gavi':'python/gavi'},
-    cmdclass=cmdclass,
-    description="Veax is a graphical tool to visualize and explore large tabular datasets.",
-    url="https://www.astro.rug.nl/~breddels/vaex")
 setup(
 	app=["bin/vaex"],
 	name="vaex", #gavi.vaex.__program_name__,

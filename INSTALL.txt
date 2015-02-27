@@ -1,0 +1,2 @@
+See www.astro.rug.nl/~breddels/vaex/installing.html
+or vaex.readthedocs.org/en/latest/installing.html
