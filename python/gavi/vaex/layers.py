@@ -480,7 +480,7 @@ class LayerTable(object):
 			I /= I[mask].max()
 			return I
 
-		def to_rgb(intensity, pre_alpha=1.):
+		def to_rgb(intensity, color, pre_alpha=1.):
 			I = intensity
 			mask = ~(np.isnan(I) | np.isinf(I))
 			if np.sum(mask) == 0:
@@ -500,7 +500,7 @@ class LayerTable(object):
 
 			alpha_mask = (mask) & (I > 0)
 			if self.display_type == "solid":
-				color_tuple = matplotlib.colors.colorConverter.to_rgb(self.color)
+				color_tuple = matplotlib.colors.colorConverter.to_rgb(color)
 				rgba = np.zeros(I.shape + (4,), dtype=np.float64)
 				rgba[alpha_mask,0:3] = np.array(color_tuple)
 			else:
@@ -528,20 +528,21 @@ class LayerTable(object):
 			if self.contour_count > 0:
 				if use_selection:
 					axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4*self.alpha)
-					axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
+					axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.alpha)
 				else:
 					axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
 		else:
 			I = normalize(amplitude_marginalized)
-			axes.rgb_images.append(to_rgb(I, 0.4 if use_selection else 1.0))
+			axes.rgb_images.append(to_rgb(I, color=self.color, pre_alpha=0.4 if use_selection else 1.0))
 			if use_selection:
 				I = normalize(amplitude_marginalized_selected)
-				axes.rgb_images.append(to_rgb(I))
+				axes.rgb_images.append(to_rgb(I, color=self.color_alt))
 
 
 	def onSelectMask(self, mask):
 		self.check_selection_undo_redo()
 		self.add_jobs()
+		self.label_selection_info_update()
 		#self.plot()
 
 	def onSelectRow(self, row):
@@ -851,7 +852,7 @@ class LayerTable(object):
 				grid = self.grids.grids["weightx"]
 				if grid is not None and grid.weight_expression is not None and len(grid.weight_expression) > 0:
 					grid.weight_expression = ""
-					self.plot()
+					self.plot_window.plot()
 					return
 
 		self.weight_x_expression = text
@@ -883,7 +884,7 @@ class LayerTable(object):
 				grid = self.grids.grids["weighty"]
 				if grid is not None and grid.weight_expression is not None and len(grid.weight_expression) > 0:
 					grid.weight_expression = ""
-					self.plot()
+					self.plot_window.plot()
 					return
 
 		self.weight_y_expression = text
@@ -907,7 +908,7 @@ class LayerTable(object):
 				grid = self.grids.grids["weightz"]
 				if grid is not None and grid.weight_expression is not None and len(grid.weight_expression) > 0:
 					grid.weight_expression = ""
-					self.plot()
+					self.plot_window.plot()
 					return
 
 		self.weight_z_expression = text

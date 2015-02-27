@@ -424,7 +424,8 @@ class PlotDialog(QtGui.QWidget):
 		self.shortcuts = []
 		self.messages = {}
 
-		self.grid_size = eval(self.options.get("grid_size", "512/2"))
+		default_grid_size = 256 if self.dimensions == 2 else 128
+		self.grid_size = eval(self.options.get("grid_size", str(default_grid_size)))
 		self.vector_grid_size = eval(self.options.get("vector_grid_size", "16"))
 
 
@@ -683,6 +684,7 @@ class PlotDialog(QtGui.QWidget):
 		self.button_layer_new.setSizePolicy(toolbuttonSizePolicy)
 
 		self.button_layer_new.setText("add")
+		self.button_layer_new.setEnabled(self.dimensions < 3)
 		self.menu_layer_new = QtGui.QMenu()
 		self.fill_menu_layer_new()
 		self.button_layer_new.setMenu(self.menu_layer_new)
@@ -691,6 +693,7 @@ class PlotDialog(QtGui.QWidget):
 		self.button_layer_delete.setText("remove")
 		self.button_layer_delete.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
 		self.button_layer_delete.setSizePolicy(toolbuttonSizePolicy)
+		self.button_layer_delete.setEnabled(self.dimensions < 3)
 		def on_layer_remove(_ignore=None):
 			print "remove layer"
 			self.remove_layer()
@@ -838,11 +841,12 @@ class PlotDialog(QtGui.QWidget):
 			if len(amplitude.shape) == 1:
 					#if self.ranges[0]:
 					N = amplitude.shape[0]
-					xmin, xmax = layer.ranges_grid[0]
-					index = (x-xmin)/(xmax-xmin) * N
-					if index >= 0 and index < N:
-						index = int(index)
-						return "value = %f" % (amplitude[index])
+					if layer.ranges_grid[0] is not None:
+						xmin, xmax = layer.ranges_grid[0]
+						index = (x-xmin)/(xmax-xmin) * N
+						if index >= 0 and index < N:
+							index = int(index)
+							return "value = %f" % (amplitude[index])
 			if len(amplitude.shape) == 2:
 					#if self.ranges[0] and self.ranges[1]:
 					Nx, Ny = amplitude.shape
@@ -1375,6 +1379,7 @@ class PlotDialog(QtGui.QWidget):
 					return
 				msg_list = []
 
+				yesall = False
 				if mask[0]:
 					scriptname = os.path.join(dir_path, name + "_plot.py")
 					template = gavi.vaex.templates.matplotlib

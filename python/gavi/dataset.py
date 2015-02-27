@@ -317,6 +317,7 @@ class JobsManager(object):
 											info.error_text = repr(e) #.message
 											error_text = info.error_text
 											print "error_text", error_text
+											errors = True
 											logger.exception("error in expression: %s" % expression)
 											break
 

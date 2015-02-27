@@ -41,7 +41,7 @@ except:
 #full_name = gavi.vaex.__full_name__
 cmdclass = {}
 
-if has_py2app:
+if has_py2app and sys.argv[1] == "py2app":
 	import gavi.vaex
 	class my_py2app(py2app.build_app.py2app):
 		"""hooks in post script to add in missing libraries and zip the content"""
