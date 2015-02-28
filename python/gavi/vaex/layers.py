@@ -524,17 +524,30 @@ class LayerTable(object):
 
 		amplitude_marginalized = amplitude
 		amplitude_marginalized_selected = amplitude_selection
+
 		if self.display_type == "contour":
 			if self.contour_count > 0:
-				if use_selection:
-					axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4*self.alpha)
-					axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.alpha)
-				else:
+				if self.show == "total+selection":
+					if use_selection and self.show:
+						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4*self.alpha)
+						axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.alpha)
+					else:
+						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
+				elif self.show == "total":
 					axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
+				elif self.show == "selection":
+					axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.alpha)
 		else:
-			I = normalize(amplitude_marginalized)
-			axes.rgb_images.append(to_rgb(I, color=self.color, pre_alpha=0.4 if use_selection else 1.0))
-			if use_selection:
+			if self.show == "total+selection":
+				I = normalize(amplitude_marginalized)
+				axes.rgb_images.append(to_rgb(I, color=self.color, pre_alpha=0.4 if use_selection else 1.0))
+				if use_selection:
+					I = normalize(amplitude_marginalized_selected)
+					axes.rgb_images.append(to_rgb(I, color=self.color_alt))
+			elif self.show == "total":
+				I = normalize(amplitude_marginalized)
+				axes.rgb_images.append(to_rgb(I, color=self.color))
+			elif self.show == "selection":
 				I = normalize(amplitude_marginalized_selected)
 				axes.rgb_images.append(to_rgb(I, color=self.color_alt))
 
@@ -1162,6 +1175,13 @@ class LayerTable(object):
 
 		#self.checkbox_intensity_as_opacity = Checkbox(page_widget, "use_intensity", getter=attrgetter(self, "use_intensity"), setter=attrsetter(self, "use_intensity"), update=self.signal_plot_dirty.emit)
 		#row = self.checkbox_intensity_as_opacity.add_to_grid_layout(row, grid_layout)
+
+		if self.dimensions <= 2:
+			show_options = ["total+selection", "total", "selection"]
+			self.show = self.options.get("show", "total+selection")
+			self.option_show = Option(page_widget, "show", show_options, getter=attrgetter(self, "show"), setter=attrsetter(self, "show"), update=self.signal_plot_dirty.emit)
+			row = self.option_show.add_to_grid_layout(row, grid_layout)
+
 		if self.dimensions >= 2:
 			transparancies = ["intensity", "constant", "none"]
 			self.transparancy = self.options.get("transparancy", "constant")
