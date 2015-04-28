@@ -26,7 +26,6 @@ Main features:
 * use custom expressions, e.g. log(sqrt(x**2+y**2)), calculated on the fly
 * publish quality output (using matplotlib)
 * linked views:  selecting in 1 view will also select it in different views
-* linked axes: zooming, panning or changing the expression for the axis will update all linked axes in different views
 * data formats
 
  * hdf5: gadget, our own format (in the future: other formats can be supported with a few lines of code)
@@ -40,6 +39,7 @@ Main features:
 * easily showing a fraction of the data: if the rows are uncorrelated in order (random order), a subset of the data can be shown using a slider (which can make the program more responsive)
 * exporting data: the selected data can be exported for further analysis
 * undo/redo: a mistake in selection or navigation can quickly be undone using undo
+
 
 
 Demo movies

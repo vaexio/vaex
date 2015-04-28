@@ -793,7 +793,7 @@ class HansMemoryMapped(MemoryMapped):
 			if os.path.exists(basename + ".omega2"):
 				filename_extra = basename + ".omega2"
 
-		if 0: #filename_extra is not None:
+		if filename_extra is not None:
 			self.addFile(filename_extra)
 			mapping = self.mapping_map[filename_extra]
 			names = "J_r J_theta J_phi Theta_r Theta_theta Theta_phi Omega_r Omega_theta Omega_phi r_apo r_peri".split()
@@ -883,7 +883,7 @@ class FitsBinTable(MemoryMapped):
 									#print "we have float64!", dtype
 									#dtype = ">f8"
 									self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
-									col = self.columns[column.name]
+									#col = self.columns[column.name]
 									#print "   ", col[:10],  col[:10].dtype, col.dtype.byteorder == native_code, bytessize
 								offset += bytessize * length
 								#else:
