@@ -4,6 +4,7 @@ import gavifast
 import gavi.dataset
 
 import gavi.logging as logging
+from pyjavaproperties import Properties
 logger = logging.getLogger("vaex.ranking")
 
 
@@ -15,7 +16,8 @@ class RankingTableModel(QtCore.QAbstractTableModel):
 	def __init__(self, dataset, dim=1, parent=None, *args): 
 		QtCore.QAbstractTableModel.__init__(self, parent, *args) 
 		self.dataset = dataset
-		
+
+
 		self.pairs = list(itertools.combinations(unique_column_names(self.dataset), dim))
 		self.ranking = [None for pair in self.pairs]
 		self.headers = ["subspace", "ranking", 'selected']
@@ -78,10 +80,11 @@ class RankingTableModel(QtCore.QAbstractTableModel):
 		self.emit(QtCore.SIGNAL("layoutChanged()"))
 
 class SubspaceTable(QtGui.QTableWidget):
-	def __init__(self, parent, mainPanel, dataset, pairs, dim=1):
+	def __init__(self, parent, mainPanel, dataset, pairs, dim, properties):
 		self.headers = ['', 'space', 'ranking', 'plot']
 		if dim == 1:
 			self.headers += ["min", "max"]
+		self.properties = properties
 
 		print ", ".join([""+("-".join(pair))+"" for pair in pairs])
 		self.dataset = dataset
@@ -95,6 +98,7 @@ class SubspaceTable(QtGui.QTableWidget):
 		#self.setSortingEnabled(True)
 		#self.pair_to_item = {}
 		self.defaultFlags = QtCore.Qt.ItemIsSelectable|QtCore.Qt.ItemIsEnabled|QtCore.Qt.ItemIsEditable
+		print self.properties._props
 		if 1:
 			#self.ranking = [None for pair in self.pairs]
 			self.dim = dim
@@ -111,18 +115,45 @@ class SubspaceTable(QtGui.QTableWidget):
 				#item.setData(QtCore.Qt.DisplayRole, QtCore.QVariant(True))
 				#item.setFlags(QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
 				checkbox = QtGui.QCheckBox(self)
-				checkbox.setCheckState(QtCore.Qt.Checked)
+				use_key = ".".join(map(str, self.pairs[i])) + ".use"
+				if dim == 1 and use_key in self.properties._props:
+					print use_key, eval(self.properties[use_key])
+					checkbox.setCheckState(QtCore.Qt.Checked if eval(self.properties[use_key]) else QtCore.Qt.Unchecked)
+				else:
+					checkbox.setCheckState(QtCore.Qt.Checked)
 				self.checkboxes.append(checkbox)
 				self.setCellWidget(i, 0, checkbox)
 				
 				if dim == 1:
-					button = QtGui.QPushButton("histogram: " + text, self)
+					button = QtGui.QPushButton("plot: " + text, self)
 					def plot(_ignore=None, pair=pair):
 						self.mainPanel.histogram(*pair)
 					button.clicked.connect(plot)
 					self.setCellWidget(i, 3, button)
+
+					min_key = pair[0]+".min"
+					max_key = pair[0]+".min"
+					if 1:
+						print "test", min_key
+						if min_key in self.properties._props:
+							item = QtGui.QTableWidgetItem()#"%s"  % quality)
+							value = self.properties[min_key]
+							print "it is in... and value =", value
+							item.setText("%s"  % value)
+							item.setData(QtCore.Qt.DisplayRole, float(value))
+							item.setFlags(self.defaultFlags)
+							self.setItem(i, 4, item)
+
+						if max_key in self.properties._props:
+							value = self.properties[max_key]
+							item = QtGui.QTableWidgetItem()#"%s"  % quality)
+							item.setText("%s"  % value)
+							item.setData(QtCore.Qt.DisplayRole, float(value))
+							item.setFlags(self.defaultFlags)
+							self.setItem(i, 5, item)
+
 				if dim == 2:
-					button = QtGui.QPushButton("plotxy: " + text, self)
+					button = QtGui.QPushButton("plot: " + text, self)
 					def plot(_ignore=None, pair=pair):
 						self.mainPanel.plotxy(*pair)
 					button.clicked.connect(plot)
@@ -198,16 +229,30 @@ def joinpairs(pairs1d, pairsNd):
 					yield pair
 
 class RankDialog(QtGui.QDialog):
-	def __init__(self, dataset, parent, mainPanel):
+	def __init__(self, dataset, parent, mainPanel, **options):
 		super(RankDialog, self).__init__(parent)
 		self.dataset = dataset
 		self.mainPanel = mainPanel
 		self.range_map = {}
+
+
+		self.properties = Properties()
+		self.properties_path = os.path.splitext(self.dataset.path)[0] + ".properties"
+		self.properties_path = options.get("file", self.properties_path)
+		if os.path.exists(self.properties_path):
+			self.properties.load(open(self.properties_path))
+		else:
+			pass
+			#if not os.access(properties_path, os.W_OK):
+			#	dialog_error(self, "File access", "Cannot write to %r, so cannot save options" % properties_path)
+
+
+
 		
 		self.tabs = QtGui.QTabWidget(self)
 		
 		self.tab1d = QtGui.QWidget(self.tabs)
-		self.table1d = SubspaceTable(self.tab1d, mainPanel, self.dataset,  list(itertools.combinations(unique_column_names(self.dataset), 1)),  1)
+		self.table1d = SubspaceTable(self.tab1d, mainPanel, self.dataset,  list(itertools.combinations(unique_column_names(self.dataset), 1)),  1, self.properties)
 		
 		self.subspaceTables = {}
 		self.subspaceTabs = {}
@@ -266,9 +311,14 @@ class RankDialog(QtGui.QDialog):
 		self.button_get_ranges.setText("calculate min/max")
 		self.button_get_ranges.clicked.connect(self.onCalculateMinMax)
 		
+		self.button_store = QtGui.QToolButton(self.tab1d)
+		self.button_store.setText("store")
+		self.button_store.clicked.connect(self.onStore)
+
 		self.tab1dlayout = QtGui.QVBoxLayout(self)
 		self.tab1dlayout.addWidget(self.subspace2d)
 		self.tab1dlayout.addWidget(self.button_get_ranges)
+		self.tab1dlayout.addWidget(self.button_store)
 		self.tab1dlayout.addWidget(self.table1d)
 		#self.tab1dlayout.addWidget(self.rankButton)
 		#self.setCentralWidget(self.splitter)
@@ -296,6 +346,24 @@ class RankDialog(QtGui.QDialog):
 		#self.boxlayout.addWidget(self.rankButton)
 		#self.setCentralWidget(self.splitter)
 		self.setLayout(self.boxlayout)
+
+	def onStore(self):
+		selected_pairs = self.table1d.getSelected()
+		#error = False
+		for pair in self.table1d.pairs:
+			key = str(pair[0])
+			print repr(key+".use"), repr(pair in selected_pairs)
+			self.properties[key+".use"] = repr(pair in selected_pairs)
+			if key in self.range_map:
+				mi, ma = self.range_map[key]
+				self.properties[key+".min"] = repr(mi)
+				self.properties[key+".max"] = repr(ma)
+			else:
+				print "min/max not present", key
+		print "save to", self.properties_path
+		self.properties.store(open(self.properties_path, "w"))
+		dialog_info(self, "Stored", "Stored configuration to: %r" % self.properties_path)
+
 		
 	def onCalculateMinMax(self):
 		pairs = self.table1d.getSelected()

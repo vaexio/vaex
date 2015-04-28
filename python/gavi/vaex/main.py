@@ -902,8 +902,8 @@ class MainPanel(QtGui.QFrame):
 		dialog.show()
 		return dialog
 
-	def ranking(self):
-		dialog = RankDialog(self.dataset, self, self)
+	def ranking(self, **options):
+		dialog = RankDialog(self.dataset, self, self, **options)
 		dialog.show()
 		return dialog
 
@@ -1316,46 +1316,64 @@ class Vaex(QtGui.QMainWindow):
 			# for this dataset, keep opening plots (seperated by -) or add layers (seperated by +)
 			plot = plot if hold_plot else None
 			options = {}
-			while index < len(args) and args[index] != "--":
-				columns = []
-				while  index < len(args) and args[index] not in ["+", "-", "--", "++"]:
-					if "=" in args[index]:
-						key, value = args[index].split("=",1)
-						if ":" in key:
-							type, key = key.split(":", 1)
-							if type == "vcol":
-								dataset.virtual_columns[key] = value
-							elif type == "var":
-								dataset.variables[key] = value
-							else:
-								error("unknown expression, %s, type %s not recognized" % (type + ":" + key, type))
-						else:
-							options[key] = value
-					else:
-						columns.append(args[index])
-					index += 1
-				if plot is None:
-					if len(columns) == 1:
-						plot = self.right.histogram(columns[0], **options)
-					elif len(columns) == 2:
-						plot = self.right.plotxy(columns[0], columns[1], **options)
-					elif len(columns) == 3:
-						plot = self.right.plotxyz(columns[0], columns[1], columns[2], **options)
-					else:
-						error("cannot plot more than 3 columns yet: %r" % columns)
-				else:
-					layer = plot.add_layer(columns, dataset=dataset, **options)
-					layer.jobs_manager.execute()
-				options = {}
-				if index < len(args) and args[index] == "-":
-					plot = None # set to None to create a new plot, + will do a new layer
-				if index < len(args) and args[index] == "--":
-					hold_plot = False
-					break # break out for the next dataset
-				if index < len(args) and args[index] == "++":
-					hold_plot = True
-					break # break out for the next dataset, but keep the same plot
+			# if we find --<task> we don't plot but do sth else
+			if args[index].startswith("--") and len(args[index]) > 2:
+				task_name = args[index][2:]
 				index += 1
+				if task_name == "rank":
+					options = {}
+					while  index < len(args):
+						if "=" in args[index]:
+							key, value = args[index].split("=",1)
+							options[key] = value
+						else:
+							error("unkown option for task %r: " % (task_name, args[index]))
+						index += 1
+					self.right.ranking()
+
+				else:
+					error("unkown task: %r" % task_name)
+			else:
+				while index < len(args) and args[index] != "--":
+					columns = []
+					while  index < len(args) and args[index] not in ["+", "-", "--", "++"]:
+						if "=" in args[index]:
+							key, value = args[index].split("=",1)
+							if ":" in key:
+								type, key = key.split(":", 1)
+								if type == "vcol":
+									dataset.virtual_columns[key] = value
+								elif type == "var":
+									dataset.variables[key] = value
+								else:
+									error("unknown expression, %s, type %s not recognized" % (type + ":" + key, type))
+							else:
+								options[key] = value
+						else:
+							columns.append(args[index])
+						index += 1
+					if plot is None:
+						if len(columns) == 1:
+							plot = self.right.histogram(columns[0], **options)
+						elif len(columns) == 2:
+							plot = self.right.plotxy(columns[0], columns[1], **options)
+						elif len(columns) == 3:
+							plot = self.right.plotxyz(columns[0], columns[1], columns[2], **options)
+						else:
+							error("cannot plot more than 3 columns yet: %r" % columns)
+					else:
+						layer = plot.add_layer(columns, dataset=dataset, **options)
+						layer.jobs_manager.execute()
+					options = {}
+					if index < len(args) and args[index] == "-":
+						plot = None # set to None to create a new plot, + will do a new layer
+					if index < len(args) and args[index] == "--":
+						hold_plot = False
+						break # break out for the next dataset
+					if index < len(args) and args[index] == "++":
+						hold_plot = True
+						break # break out for the next dataset, but keep the same plot
+					index += 1
 			if index < len(args):
 				pass
 			index += 1

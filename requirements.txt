@@ -7,5 +7,6 @@ h5py>=2.2.1
 matplotlib>=1.3.1
 numexpr #>=2.3.1
 psutil>=1.2.1
+pyjavaproperties
 # PySide>=1.2.2
 # numba (remove this dependency)
