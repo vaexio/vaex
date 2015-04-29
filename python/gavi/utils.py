@@ -15,6 +15,24 @@ def multisum(a, axes):
 		correction += 1
 	return a
 
+def disjoined(data):
+	# create marginalized distributions and multiple them together
+	data_disjoined = None
+	dim = len(data.shape)
+	for d in range(dim):
+		axes = range(dim)
+		axes.remove(d)
+		data1d = multisum(data, axes)
+		shape = [1 for k in range(dim)]
+		shape[d] = len(data1d)
+		data1d = data1d.reshape(tuple(shape))
+		if d == 0:
+			data_disjoined = data1d
+		else:
+			data_disjoined = data_disjoined * data1d
+	return data_disjoined
+
+
 
 def get_data_file(filename):
 	try: # this works for egg like stuff, but fails for py2app apps

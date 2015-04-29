@@ -8,8 +8,18 @@ import numba.dispatcher
 import math
 import functools
 import gavifast
+import gavi.utils
 from gavi.utils import Timer
 
+def mutual_information(data):
+	Q = gavi.utils.disjoined(data)
+	P = data
+
+	P = P / P.sum()
+	Q = Q / Q.sum()
+	mask = (P > 0) & (Q>0)
+	information = np.sum(P[mask] * np.log(P[mask]/Q[mask]))# * np.sum(dx)
+	return information
 
 class KlDivergenceShuffle(object):
 	def __init__(self, dataset, pairs, gridsize=128):
@@ -73,7 +83,7 @@ def kld_shuffled(columns, Ngrid=128, datamins=None, datamaxes=None, offset=1):
 def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32, use_mask=True, bytes_max=int(1024**3/2)):
 	dimension = len(pairs[0])
 	bytes_per_grid = size_grid ** dimension * 8 # 8==sizeof (double)
-	grids_per_iteration = int(bytes_max/bytes_per_grid)
+	grids_per_iteration = min(128, int(bytes_max/bytes_per_grid))
 	iterations = int(math.ceil(len(pairs) * 1. / grids_per_iteration))
 	jobsManager = gavi.dataset.JobsManager()
 	ranges = [None] * len(pairs)
@@ -132,22 +142,26 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 	
 		with Timer("D_kl"):
 			for i in range(n_grids):
-				deltax = [float(range_map[pairs[i][d]][1] - range_map[pairs[i][d]][0]) for d in range(dimension)]
-				dx = np.array([deltax[d]/counts[i].shape[d] for d in range(dimension)])
-				density = counts[i]/np.sum(counts[i])# * np.sum(dx)
-				counts_shuffled = to_disjoined(counts[i])
-				density_shuffled = counts_shuffled / np.sum(counts_shuffled)# * np.sum(dx)
-				mask = (density_shuffled > 0) & (density>0)
-				print "mask sum", np.sum(mask)
-				print "mask sum", np.sum((counts_shuffled > 0) & (counts[i]>0))
-				#print density
-				D_kl = np.sum(density[mask] * np.log(density[mask]/density_shuffled[mask]))# * np.sum(dx)
+				if 0:
+					deltax = [float(range_map[pairs[i][d]][1] - range_map[pairs[i][d]][0]) for d in range(dimension)]
+					dx = np.array([deltax[d]/counts[i].shape[d] for d in range(dimension)])
+					density = counts[i]/np.sum(counts[i])# * np.sum(dx)
+					counts_shuffled = to_disjoined(counts[i])
+					density_shuffled = counts_shuffled / np.sum(counts_shuffled)# * np.sum(dx)
+					mask = (density_shuffled > 0) & (density>0)
+					print "mask sum", np.sum(mask)
+					print "mask sum", np.sum((counts_shuffled > 0) & (counts[i]>0))
+					#print density
+					D_kl = np.sum(density[mask] * np.log(density[mask]/density_shuffled[mask]))# * np.sum(dx)
+				else:
+					D_kl = mutual_information(counts[i])
 				D_kls.append(D_kl)
 				if feedback:
 					wrapper.N_done += counts.size
 					cancel = feedback(wrapper.N_done*100./N_total)
 					if cancel:
-						raise Exception, "cancelled"
+						return None
+						#raise Exception, "cancelled"
 	return D_kls
 			
 		

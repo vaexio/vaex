@@ -333,7 +333,7 @@ class JobsManager(object):
 								for _order, callback, dataset, expressions, _variables in jobs_dataset:
 									if cancelled or errors:
 										break
-									logger.debug("callback: %r" % (callback))
+									#logger.debug("callback: %r" % (callback))
 									arguments = [info]
 									arguments += [results.get(expression) for expression in expressions]
 									cancelled = cancelled or callback(*arguments)

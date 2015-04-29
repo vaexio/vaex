@@ -1,4 +1,7 @@
 __author__ = 'breddels'
+import sip
+sip.setapi('QVariant', 2)
+sip.setapi('QString', 2)
 
 import sys
 import platform
@@ -1329,7 +1332,7 @@ class Vaex(QtGui.QMainWindow):
 						else:
 							error("unkown option for task %r: " % (task_name, args[index]))
 						index += 1
-					self.right.ranking()
+					self.right.ranking(**options)
 
 				else:
 					error("unkown task: %r" % task_name)

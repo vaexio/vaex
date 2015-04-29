@@ -6,7 +6,7 @@ try:
 	#from PyQt4.QtWebKit import QWebView
 	qt_version = QtCore.PYQT_VERSION_STR
 	import sip
-	sip.setapi('QVariant', 1)
+	sip.setapi('QVariant', 2)
 except ImportError, e1:
 	try:
 		from PySide import QtGui, QtCore#, QtNetwork

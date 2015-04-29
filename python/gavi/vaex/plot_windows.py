@@ -378,6 +378,7 @@ class PlotDialog(QtGui.QWidget):
 
 
 		self.layers = []
+		self.show_disjoined = False
 
 		self.menu_bar = QtGui.QMenuBar(self)
 		self.menu_file = QtGui.QMenu("&File", self.menu_bar)

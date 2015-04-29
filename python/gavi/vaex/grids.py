@@ -3,6 +3,7 @@ import numpy as np
 import gavifast
 from gavi.utils import filesize_format
 import gavi.logging
+import gavi.utils
 total_bytes = 0
 
 logger = gavi.logging.getLogger("gavi.vaex.grids")
@@ -29,12 +30,11 @@ class Grid(object):
 		self.weight_expression = weight_expression
 		self.dtype = dtype
 
-	def get_data(self, size, use_selection):
+	def get_data(self, size, use_selection, disjoined=False):
 		data = self.data_selection if use_selection else self.data
-		if size == self.max_size:
-			return data
-		else:
-			return gavifast.resize(data, size)
+		if size != self.max_size:
+			data = gavifast.resize(data, size)
+		return gavi.utils.disjoined(data) if disjoined else data
 
 	def check_grid(self):
 		compute_selection = self.grids.dataset.mask is not None
