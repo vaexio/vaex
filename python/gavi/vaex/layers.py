@@ -5,6 +5,7 @@ import gavifast
 import matplotlib
 import gavifast
 import gavi
+from gavi.utils import disjoined
 import gavi.vaex.storage
 import gavi.vaex.undo
 import gavi.vaex.colormaps
@@ -230,7 +231,9 @@ class LayerTable(object):
 			grid = self.grids.grids[name]
 			if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
 				if grid.max_size >= gridsize:
-					locals[name] = grid.get_data(gridsize, use_selection=use_selection)
+					locals[name] = grid.get_data(gridsize, use_selection=use_selection, disjoined=self.plot_window.show_disjoined)
+					import gavi.kld
+					print "Mutual information", name,  gridsize, self.expressions, gavi.kld.mutual_information(locals[name])
 			else:
 				locals[name] = None
 		for d, name in zip(range(self.dimensions), "xyzw"):

@@ -98,6 +98,7 @@ class SubspaceTable(QtGui.QTableWidget):
 		QtGui.QTableWidget.__init__(self, len(self.pairs), len(self.headers), parent)
 		self.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows);
 		self.filter_mask = np.array([True for pair in pairs])
+		self.selected_dict = {pair:self.properties.get(".".join(pair) + ".use", "True") == "True" for pair in pairs}
 		#self.tableModel = RankingTableModel(self.dataset, dim, parent)
 		#self.setModel(self.tableModel)
 		#self.sortByColumn(0, QtCore.Qt.AscendingOrder)
@@ -115,7 +116,11 @@ class SubspaceTable(QtGui.QTableWidget):
 		self.queue_fill_table = gavi.vaex.plot_windows.Queue("fill table", 200, self.fill_table)
 
 	def fill_table(self):
+		# bug in qt? http://stackoverflow.com/questions/7960505/strange-qtablewidget-behavior-not-all-cells-populated-after-sorting-followed-b
+		# fix: disable sorting, then enable again
+		self.setSortingEnabled(False)
 		self.checkboxes = []
+		self.buttons = []
 		pairs = [pair for pair, display in zip(self.pairs, self.filter_mask) if display]
 		self.setRowCount(len(pairs))
 		self.setVerticalHeaderLabels(map(str, range(len(pairs))))
@@ -130,13 +135,19 @@ class SubspaceTable(QtGui.QTableWidget):
 			#item.setFlags(QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
 			checkbox = QtGui.QCheckBox(self)
 			use_key = ".".join(map(str, pair)) + ".use"
-			if self.dim == 1 and use_key in self.properties._props:
-				#print use_key, eval(self.properties[use_key])
-				checkbox.setCheckState(QtCore.Qt.Checked if eval(self.properties[use_key]) else QtCore.Qt.Unchecked)
-			else:
-				checkbox.setCheckState(QtCore.Qt.Checked)
+			#if self.dim == 1 and use_key in self.properties._props:
+			#	#print use_key, eval(self.properties[use_key])
+			#	checkbox.setCheckState(QtCore.Qt.Checked if eval(self.properties[use_key]) else QtCore.Qt.Unchecked)
+			#else:
+			#	checkbox.setCheckState(QtCore.Qt.Checked)
+			print "fill", pair, self.selected_dict[pair]
+			checkbox.setCheckState(QtCore.Qt.Checked if self.selected_dict[pair] else QtCore.Qt.Unchecked)
 			self.checkboxes.append(checkbox)
 			self.setCellWidget(i, 0, checkbox)
+			def stateChanged(state, pair=pair):
+				self.selected_dict[pair] = state == QtCore.Qt.Checked
+				print "set", pair, "to", self.selected_dict[pair]
+			checkbox.stateChanged.connect(stateChanged)
 
 			if self.dim == 1:
 				button = QtGui.QPushButton("plot: " + text, self)
@@ -183,7 +194,9 @@ class SubspaceTable(QtGui.QTableWidget):
 					self.mainPanel.plotxy(*pair)
 				button.clicked.connect(plot)
 				self.setCellWidget(i, 3, button)
+				self.buttons.append(button) # keep ref count
 			#self.setItem(i, 1, item)
+		self.setSortingEnabled(True)
 
 	def getSelected(self):
 		selection = [checkbox.checkState() == QtCore.Qt.Checked for checkbox in self.checkboxes]
@@ -242,24 +255,27 @@ class SubspaceTable(QtGui.QTableWidget):
 		checkbox.setCheckState(QtCore.Qt.Checked)
 
 	def setPairs(self, pairs):
-		selection = [checkbox.checkState() == QtCore.Qt.Checked for checkbox in self.checkboxes]
-		non_selected_pairs = [pair for pair, selected in zip(self.pairs, selection) if not selected]
+		#selection = [checkbox.checkState() == QtCore.Qt.Checked for checkbox in self.checkboxes]
+		#non_selected_pairs = [pair for pair, selected in zip(self.pairs, selection) if not selected]
 
 		self.pairs = list(pairs)
+		for pair in self.pairs:
+			if pair not in self.selected_dict:
+				self.selected_dict[pair] = self.properties.get(".".join(pair) + ".use", "True")
 		self.filter_mask = np.array([True for pair in pairs])
 		self.fill_table()
 		#self.checkboxes = []
 		#self.setRowCount(len(self.pairs))
 		#self.setVerticalHeaderLabels(map(str, range(len(self.pairs))))
-		for i in range(len(self.pairs)):
+		#for i in range(len(self.pairs)):
 			#text = " ".join(map(str, self.pairs[i]))
 			#print text
 			#item = QtGui.QTableWidgetItem(text)
 			#item.setFlags(self.defaultFlags)
 			#self.setItem(i, 1, item)
-			checkbox = self.checkboxes[i] #QtGui.QCheckBox(self)
-			if not (self.pairs[i] in non_selected_pairs):
-				checkbox.setCheckState(QtCore.Qt.Checked)
+			#checkbox = self.checkboxes[i] #QtGui.QCheckBox(self)
+			#if not (self.pairs[i] in non_selected_pairs):
+			#	checkbox.setCheckState(QtCore.Qt.Checked)
 			#self.checkboxes.append(checkbox)
 			#self.setCellWidget(i, 0, checkbox)
 		#print self.checkboxes
@@ -457,10 +473,12 @@ class RankDialog(QtGui.QDialog):
 		self.setLayout(self.boxlayout)
 
 
-		if "2" in options.get("open"):
+		if "2" in options.get("open", ""):
 			onclick(dim=2)
-		if "3" in options.get("open"):
+		if "3" in options.get("open", ""):
 			onclick(dim=3)
+		if "4" in options.get("open", ""):
+			onclick(dim=4)
 
 
 	def onFilter(self, text, table):

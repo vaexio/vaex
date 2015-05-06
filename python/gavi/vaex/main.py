@@ -1320,23 +1320,30 @@ class Vaex(QtGui.QMainWindow):
 			plot = plot if hold_plot else None
 			options = {}
 			# if we find --<task> we don't plot but do sth else
-			if args[index].startswith("--") and len(args[index]) > 2:
+			if index < len(args) and args[index].startswith("--") and len(args[index]) > 2:
 				task_name = args[index][2:]
 				index += 1
 				if task_name == "rank":
 					options = {}
 					while  index < len(args):
-						if "=" in args[index]:
+						if args[index] == "-":
+							index += 1
+							break
+						elif args[index] == "--":
+							index += 1
+							break
+						elif "=" in args[index]:
 							key, value = args[index].split("=",1)
 							options[key] = value
 						else:
-							error("unkown option for task %r: " % (task_name, args[index]))
+							error("unkown option for task %r: %r " % (task_name, args[index]))
 						index += 1
 					self.right.ranking(**options)
 
 				else:
 					error("unkown task: %r" % task_name)
-			else:
+			#else:
+			if 1:
 				while index < len(args) and args[index] != "--":
 					columns = []
 					while  index < len(args) and args[index] not in ["+", "-", "--", "++"]:

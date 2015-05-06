@@ -110,8 +110,43 @@ void object_to_numpy3d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y
 		count_y = size_y;
 		count_z = size_z;
 }
+\
+// TODO: merge these two functions
+/*
 template<typename T>
-void object_to_numpyNd_nocopy(T* &ptr, PyObject* obj, int max_dimension, int& dimension, int* sizes, int* strides, int type=NPY_DOUBLE) {
+void object_to_numpynd_nocopy__(T* &ptr, PyObject* obj, int dimensions, int *counts, int type=NPY_DOUBLE) {
+		if(obj == NULL)
+			throw std::runtime_error("cannot convert to numpy array");
+		if((int)PyArray_NDIM(obj) != dimension)
+			throw Error("array is not %d dimensional, but %d", dimensions, PyArray_NDIM(obj));
+		int* sizes = PyArray_DIMS(obj);
+		for(int d = 0; d < dimensions; d++) {
+			if((counts[d] >= 0) && (sizes[d] != counts[s]))
+				throw Error("arrays not of equal size");
+			counts[d] = sizes[d];
+		}
+		if(PyArray_TYPE(obj) != type)
+			throw std::runtime_error("is not of proper type");
+		npy_intp* strides =  PyArray_STRIDES(obj);
+		//printf("strides: %d %d %d(%d %d %d)\n", strides[0], strides[1], strides[2], size_x, size_y, size_z);
+		/*if(strides[2] != PyArray_ITEMSIZE(obj)) {
+			throw std::runtime_error("stride[0] is not 1");
+		}
+		if(strides[1] != PyArray_ITEMSIZE(obj)*size_y) {
+			throw std::runtime_error("stride[1] is not 1");
+		}
+		if(strides[0] != PyArray_ITEMSIZE(obj)*size_y*size_x) {
+			throw std::runtime_error("stride[2] is not 1");
+		}*/
+		
+		//ptr = (T*)PyArray_DATA(obj);
+		//count_x = size_x;
+		//count_y = size_y;
+		//count_z = size_z;
+//}
+
+template<typename T>
+void object_to_numpyNd_nocopy(T* &ptr, PyObject* obj, int max_dimension, int& dimension, int* sizes, long long int* strides, int type=NPY_DOUBLE) {
 		if(obj == NULL)
 			throw std::runtime_error("cannot convert to numpy array");
 		//printf("dim = %i maxdim = %i %i\n", dimension, max_dimension,  (int)PyArray_NDIM(obj));
@@ -295,7 +330,7 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 
 
 void histogram1d(const double* const __restrict__ block, const long long block_stride, const double* const weights, const int weights_stride, long long block_length, double* __restrict__ counts, const int counts_length, const double min, const double max) {
-	const double* __restrict__ block_ptr = block;
+	//const double* __restrict__ block_ptr = block;
 	
 
 	/*
@@ -482,9 +517,9 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 			//counts[index_z + counts_length_z*index_y + counts_length_z*counts_length_y*index_x] += weights == NULL ? 1 : weights[i];
 			counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights == NULL ? 1 : weights[i];
 	}*/
-	long long i_x = offset_x;
-	long long i_y = offset_y;
-	long long i_z = offset_z;
+	//long long i_x = offset_x;
+	//long long i_y = offset_y;
+	//long long i_z = offset_z;
 	const double scale_x = counts_length_x/ (xmax-xmin);
 	const double scale_y = counts_length_y/ (ymax-ymin);
 	const double scale_z = counts_length_z/ (zmax-zmin);
@@ -575,6 +610,103 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 	}
 	return result;
 }
+
+const int MAX_DIMENSIONS = 50;
+
+// __restrict__ 
+void histogramNd(const double* const blocks[], const double* const weights, long long block_length, int dimensions, double* counts, long long count_strides[], int count_sizes[], double minima[], double maxima[]) {
+//void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, double* counts, const int counts_length_x, const int counts_length_y, const int counts_length_z, const double xmin, const double xmax, const double ymin, const double ymax, const double zmin, const double zmax, long long const offset_x, long long const offset_y, long long const offset_z){
+	double scales[MAX_DIMENSIONS];
+	for(int d = 0; d < dimensions; d++) {
+		scales[d] = count_sizes[d] / (maxima[d] - minima[d]);
+	}
+	if((weights == NULL)) { // default: fasted algo
+		for(long long i = 0; i < block_length; i++) {
+			long long index = 0;
+			bool inside = true;
+			for(int d = 0; d < dimensions; d++) {
+				double value = blocks[d][i];
+				if( (value >= minima[d]) & (value < maxima[d]) ) {
+					int sub_index = (int)((value - minima[d]) * scales[d]);
+					index += count_strides[d] * sub_index;
+				} else {
+					inside = false;
+					break;
+				}
+			}
+			if(inside)
+				counts[index] += 1;
+		}
+	} else {
+		//counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights == NULL ? 1 : weights[i];
+	}	
+}
+
+PyObject* histogramNd_(PyObject* self, PyObject* args) {
+	//object block, object weights, object counts, double min, double max) {
+	PyObject* result = NULL;
+	PyObject *blocklist, *weights, *counts_object, *minimalist, *maximalist;
+	//double xmin, xmax, ymin, ymax, zmin, zmax;
+	double minima[MAX_DIMENSIONS];
+	double maxima[MAX_DIMENSIONS];
+	if(PyArg_ParseTuple(args, "OOOOO", &blocklist, &weights, &counts_object, &minimalist, &maximalist)) {
+		long long block_length = -1;
+		int count_sizes[MAX_DIMENSIONS];
+		long long count_strides[MAX_DIMENSIONS];
+		int dimensions = -1;
+		double *block_ptrs[MAX_DIMENSIONS];
+		
+		double *weights_ptr = NULL;
+		double *counts_ptr = NULL;
+		try {
+			if(!PyList_Check(blocklist))
+				throw std::runtime_error("blocks is not a list of blocks");
+			dimensions = PyList_Size(blocklist);
+
+			if(!PyList_Check(minimalist))
+				throw std::runtime_error("minima is not a list of blocks");
+			if(PyList_Size(minimalist) != dimensions)
+				throw Error("minima is of length %ld, expected %d", PyList_Size(minimalist), dimensions);
+
+			if(!PyList_Check(maximalist))
+				throw std::runtime_error("maxima is not a list of blocks");
+			if(PyList_Size(maximalist) != dimensions)
+				throw Error("maxima is of length %ld, expected %d", PyList_Size(maximalist), dimensions);
+			
+			for(int d = 0; d < dimensions; d++) {
+				object_to_numpy1d_nocopy(block_ptrs[d], PyList_GetItem(blocklist, d), block_length);
+				PyObject *min = PyList_GetItem(minimalist, d);
+				PyObject *max = PyList_GetItem(maximalist, d);
+				if(!PyFloat_Check(min))
+					throw Error("element %d of minima is not of type float", d);
+				if(!PyFloat_Check(max))
+					throw Error("element %d of maxima is not of type float", d);
+				minima[d] =  PyFloat_AsDouble(min);
+				maxima[d] =  PyFloat_AsDouble(max);
+				//printf("min/max[%d] = %f/%f\n", d, minima[d], maxima[d]);
+			}
+			if(weights != Py_None) {
+				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+			}
+			object_to_numpyNd_nocopy(counts_ptr, counts_object, MAX_DIMENSIONS, dimensions, &count_sizes[0], &count_strides[0]);
+			for(int d = 0; d < dimensions; d++) {
+				count_strides[d] /= 8; // convert from byte stride to element stride
+			}
+			if(weights != Py_None) {
+				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+			}
+			Py_BEGIN_ALLOW_THREADS
+			histogramNd(block_ptrs, weights_ptr, block_length, dimensions, counts_ptr, count_strides, count_sizes, minima, maxima);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
+	}
+	return result;
+}
+
 
 void project(double* cube_, const int cube_length_x, const int cube_length_y, const int cube_length_z, double* surface_, const int surface_length_x, const int surface_length_y, const double* const projection_, const double* const offset_)
 {
@@ -735,7 +867,7 @@ static PyObject* soneira_peebles_(PyObject* self, PyObject *args) {
 		try {
 			object_to_numpy1d_nocopy(coordinates_ptr, coordinates, length);
 			if(length != pow(eta, max_level))
-				throw Error("length of coordinates != eta**max_level (%d != %d)", length, pow(eta, max_level));
+				throw Error("length of coordinates != eta**max_level (%lld != %f)", length, pow(eta, max_level));
 			Py_BEGIN_ALLOW_THREADS
 			soneira_peebles(coordinates_ptr, center, width, lambda, eta, 1, max_level);
 			Py_END_ALLOW_THREADS
@@ -845,7 +977,7 @@ void resize(double* source, int size, int dimension, double* target, int new_siz
 		block_end_index *= block_size_1d;
 		target_end_index *= new_size;
 	}
-	int block_length = block_end_index; // alias, same value but different concept
+	//int block_length = block_end_index; // alias, same value but different concept
 	//printf("resize: %i %i\n", size, new_size);
 	//int blocksize = size/new_size
 	//int blocklength = 1;
@@ -901,7 +1033,7 @@ static PyObject* resize_(PyObject* self, PyObject *args) {
 		double *array_ptr, *new_array_ptr;
 		int sizes[3];
 		npy_intp new_sizes[3];
-		int strides[3];
+		long long int strides[3];
 		int dimension = 0;
 		try {
 			object_to_numpyNd_nocopy(array_ptr, array, 3, dimension, sizes, strides, NPY_DOUBLE);
@@ -945,6 +1077,7 @@ static PyMethodDef pygavi_functions[] = {
         {"histogram1d", (PyCFunction)histogram1d_, METH_VARARGS, ""},
         {"histogram2d", (PyCFunction)histogram2d_, METH_VARARGS, ""},
         {"histogram3d", (PyCFunction)histogram3d_, METH_VARARGS, ""},
+        {"histogramNd", (PyCFunction)histogramNd_, METH_VARARGS, ""},
         {"project", (PyCFunction)project_, METH_VARARGS, ""},
         {"pnpoly", (PyCFunction)pnpoly_, METH_VARARGS, ""},
         {"soneira_peebles", (PyCFunction)soneira_peebles_, METH_VARARGS, ""},

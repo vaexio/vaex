@@ -17,7 +17,7 @@ def mutual_information(data):
 
 	P = P / P.sum()
 	Q = Q / Q.sum()
-	mask = (P > 0) & (Q>0)
+	mask = (P > 0)# & (Q>0)
 	information = np.sum(P[mask] * np.log(P[mask]/Q[mask]))# * np.sum(dx)
 	return information
 
@@ -88,7 +88,8 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 	jobsManager = gavi.dataset.JobsManager()
 	ranges = [None] * len(pairs)
 	D_kls = []
-	
+
+
 	class Wrapper(object):
 		pass
 	wrapper = Wrapper()
@@ -117,14 +118,24 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 			else:
 				mask = None
 			ranges = []
+			minima = []
+			maxima = []
 			for dim in range(dimension):
 				ranges += list(range_map[pairs[index][dim]])
+				mi, ma = range_map[pairs[index][dim]]
+				minima.append(mi)
+				maxima.append(ma)
 			if len(blocks) == 2:
 				print "mask", mask
 				gavifast.histogram2d(blocks[0], blocks[1], None, counts[index], *(ranges + [0, 0]))
 				#gavifast.histogram2d(blocks[0], blocks[1], None, counts_shuffled[index], *(ranges + [1, 0]))
 			if len(blocks) == 3:
 				gavifast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts[index], *(ranges + [0,0,0]))
+				#gavifast.histogramNd(list(blocks), None, counts[index], minima, maxima)
+				#for i in range(5):
+				#	gavifast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts_shuffled[index], *(ranges + [2+i,1+i,0]))
+			if len(blocks) > 3:
+				gavifast.histogramNd(list(blocks), None, counts[index], minima, maxima)
 				#for i in range(5):
 				#	gavifast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts_shuffled[index], *(ranges + [2+i,1+i,0]))
 			if feedback:
