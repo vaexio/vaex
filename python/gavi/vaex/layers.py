@@ -181,6 +181,13 @@ class LayerTable(object):
 		if "lim" in self.options:
 			for i in range(self.dimensions):
 				self.ranges_grid[i] = eval(self.options["lim"])
+		if "ranges" in self.options:
+			ranges = self.options["ranges"]
+			if isinstance(self.options["ranges"], basestring):
+				ranges = eval(ranges)
+			for i in range(self.dimensions):
+				self.ranges_grid[i] = ranges[i]
+			print "ranges" * 100, self.ranges_grid
 		if "xlim" in self.options:
 			self.ranges_grid[0] = eval(self.options["xlim"])
 		if "ylim" in self.options:
@@ -1179,7 +1186,7 @@ class LayerTable(object):
 		#self.checkbox_intensity_as_opacity = Checkbox(page_widget, "use_intensity", getter=attrgetter(self, "use_intensity"), setter=attrsetter(self, "use_intensity"), update=self.signal_plot_dirty.emit)
 		#row = self.checkbox_intensity_as_opacity.add_to_grid_layout(row, grid_layout)
 
-		if self.dimensions <= 2:
+		if self.dimensions <= 3:
 			show_options = ["total+selection", "total", "selection"]
 			self.show = self.options.get("show", "total+selection")
 			self.option_show = Option(page_widget, "show", show_options, getter=attrgetter(self, "show"), setter=attrsetter(self, "show"), update=self.signal_plot_dirty.emit)

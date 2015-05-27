@@ -82,7 +82,8 @@ class ____RankingTableModel(QtCore.QAbstractTableModel):
 		self.emit(QtCore.SIGNAL("layoutChanged()"))
 
 class SubspaceTable(QtGui.QTableWidget):
-	def __init__(self, parent, mainPanel, dataset, pairs, dim, properties):
+	def __init__(self, dialog, parent, mainPanel, dataset, pairs, dim, properties):
+		self.dialog = dialog
 		self.headers = ['', 'space', 'ranking', 'plot']
 		self.dim = dim
 		if dim == 1:
@@ -152,7 +153,8 @@ class SubspaceTable(QtGui.QTableWidget):
 			if self.dim == 1:
 				button = QtGui.QPushButton("plot: " + text, self)
 				def plot(_ignore=None, pair=pair):
-					self.mainPanel.histogram(*pair)
+					ranges = [self.dialog.range_map[k] for k in pair]
+					self.mainPanel.histogram(*pair, ranges=ranges)
 				button.clicked.connect(plot)
 				self.setCellWidget(i, 3, button)
 
@@ -191,7 +193,16 @@ class SubspaceTable(QtGui.QTableWidget):
 			if self.dim == 2:
 				button = QtGui.QPushButton("plot: " + text, self)
 				def plot(_ignore=None, pair=pair):
-					self.mainPanel.plotxy(*pair)
+					ranges = [self.dialog.range_map[k] for k in pair]
+					self.mainPanel.plotxy(*pair, ranges=ranges)
+				button.clicked.connect(plot)
+				self.setCellWidget(i, 3, button)
+				self.buttons.append(button) # keep ref count
+			if self.dim == 3:
+				button = QtGui.QPushButton("plot: " + text, self)
+				def plot(_ignore=None, pair=pair):
+					ranges = [self.dialog.range_map[k] for k in pair]
+					self.mainPanel.plotxyz(*pair, ranges=ranges)
 				button.clicked.connect(plot)
 				self.setCellWidget(i, 3, button)
 				self.buttons.append(button) # keep ref count
@@ -209,12 +220,13 @@ class SubspaceTable(QtGui.QTableWidget):
 			self.qualities[pair] = quality
 			#item = self.pair_to_item[pair]
 			#print "quality", quality, qualities
-			row = self.pairs.index(pair)
-			item = QtGui.QTableWidgetItem()#"%s"  % quality)
-			item.setText("%s"  % quality)
-			item.setData(QtCore.Qt.DisplayRole, float(quality))
-			item.setFlags(self.defaultFlags)
-			self.setItem(row, 2, item)
+			#row = self.pairs.index(pair)
+			#item = QtGui.QTableWidgetItem()#"%s"  % quality)
+			#item.setText("%s"  % quality)
+			#item.setData(QtCore.Qt.DisplayRole, float(quality))
+			#item.setFlags(self.defaultFlags)
+			#self.setItem(row, 2, item)
+		self.fill_table()
 
 	def get_range(self, pair):
 		index = self.pairs.index(pair)
@@ -334,7 +346,7 @@ class RankDialog(QtGui.QDialog):
 		self.tabs = QtGui.QTabWidget(self)
 		
 		self.tab1d = QtGui.QWidget(self.tabs)
-		self.table1d = SubspaceTable(self.tab1d, mainPanel, self.dataset,  list(itertools.combinations(unique_column_names(self.dataset), 1)),  1, self.properties)
+		self.table1d = SubspaceTable(self, self.tab1d, mainPanel, self.dataset,  list(itertools.combinations(unique_column_names(self.dataset), 1)),  1, self.properties)
 		
 		self.subspaceTables = {}
 		self.subspaceTabs = {}
@@ -350,17 +362,22 @@ class RankDialog(QtGui.QDialog):
 			print "newpairs", newpairs
 			if dim not in self.subspaceTables:
 				self.tabNd = QtGui.QWidget(self.tabs)
-				self.tableNd = SubspaceTable(self.tabNd, self.mainPanel, self.dataset, newpairs, dim, self.properties)
+				self.tableNd = SubspaceTable(self, self.tabNd, self.mainPanel, self.dataset, newpairs, dim, self.properties)
 				self.tabNdlayout = QtGui.QVBoxLayout(self)
-				self.subspaceNd = QtGui.QPushButton("create %dd subspaces" % (dim+1), self.tab1d)
-				self.rankNd = QtGui.QPushButton("rank subspaces")
+				self.tabNdButtonLayout = QtGui.QHBoxLayout(self)
+				self.subspaceNd = QtGui.QPushButton("Create %dd subspaces" % (dim+1), self.tab1d)
+				self.rankNd = QtGui.QPushButton("Rank subspaces")
+				self.exportNd = QtGui.QPushButton("Export ranking")
 				if dim == len(self.dataset.column_names):
 					self.subspaceNd.setDisabled(True)
-				self.tabNdlayout.addWidget(self.subspaceNd)
-				self.tabNdlayout.addWidget(self.rankNd)
+				self.tabNdButtonLayout.addWidget(self.subspaceNd)
+				self.tabNdButtonLayout.addWidget(self.rankNd)
+				self.tabNdButtonLayout.addWidget(self.exportNd)
+				self.tabNdlayout.addLayout(self.tabNdButtonLayout)
 				self.subspaceNd.clicked.connect(functools.partial(onclick, dim=dim+1))
 				self.rankNd.clicked.connect(functools.partial(self.rankSubspaces, table=self.tableNd))
-				
+				self.exportNd.clicked.connect(functools.partial(self.export, table=self.tableNd))
+
 				def func(index, name=""):
 					print name, index.row(), index.column()
 				self.tableNd.pressed.connect(functools.partial(func, name="pressed"))
@@ -401,13 +418,16 @@ class RankDialog(QtGui.QDialog):
 		self.get_ranges_menu = QtGui.QMenu()
 		self.button_get_ranges.setMenu(self.get_ranges_menu)
 
-		self.action_ranges_minmax = QtGui.QAction("min/max", self)
+		self.action_ranges_minmax = QtGui.QAction("absolute min/max", self)
+		self.action_ranges_minmax_3sigma = QtGui.QAction("3 sigma clipping", self)
 		self.get_ranges_menu.addAction(self.action_ranges_minmax)
+		self.get_ranges_menu.addAction(self.action_ranges_minmax_3sigma)
 
 		#self.button_get_ranges = QtGui.QToolButton(self.tab1d)
 		#self.button_get_ranges.setText("calculate min/max")
 		#self.button_get_ranges.setM
 		self.action_ranges_minmax.triggered.connect(self.onCalculateMinMax)
+		self.action_ranges_minmax_3sigma.triggered.connect(self.onCalculateMinMax3Sigma)
 		
 		self.button_store = QtGui.QToolButton(self.tab1d)
 		self.button_store.setText("store")
@@ -423,12 +443,16 @@ class RankDialog(QtGui.QDialog):
 		self.action_select_all = QtGui.QAction("Select all", self)
 		self.action_select_none = QtGui.QAction("Select none", self)
 		self.action_remove_empty = QtGui.QAction("Remove empty columns", self)
+		self.action_pca = QtGui.QAction("PCA transformation", self)
 		self.action_select_all.triggered.connect(self.onSelectAll)
 		self.action_select_none.triggered.connect(self.onSelectNone)
 		self.action_remove_empty.triggered.connect(self.onRemoveEmpty)
+		self.action_pca.triggered.connect(self.onPca)
 		self.actions_menu.addAction(self.action_select_all)
 		self.actions_menu.addAction(self.action_select_none)
 		self.actions_menu.addAction(self.action_remove_empty)
+		self.actions_menu.addSeparator()
+		self.actions_menu.addAction(self.action_pca)
 
 		self.tab1dlayout = QtGui.QVBoxLayout(self)
 		self.tab1d_button_layout = QtGui.QHBoxLayout(self)
@@ -480,6 +504,13 @@ class RankDialog(QtGui.QDialog):
 		if "4" in options.get("open", ""):
 			onclick(dim=4)
 
+		self.fill_range_map()
+
+
+
+	def onPca(self):
+		#gavi.pca.
+		pass
 
 	def onFilter(self, text, table):
 		table.set_filter_terms(text.split())
@@ -555,9 +586,41 @@ class RankDialog(QtGui.QDialog):
 				logger.debug("range for {expression} is {range_}".format(**locals()))
 				self.range_map[expression] = range_
 			self.table1d.setRanges(pairs, ranges)
+			self.fill_range_map()
 		except:
 			logger.exception("Error in min/max or cancelled")
 		dialog.hide()
+
+	def onCalculateMinMax3Sigma(self):
+		pairs = self.table1d.getSelected()
+		jobsManager = gavi.dataset.JobsManager()
+		expressions = [pair[0] for pair in pairs]
+		with ProgressExecution("Calculating min/max", self) as progress:
+			means = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=expressions, feedback=progress.progress)
+			variance_expressions = ["(%s-%.20f)**2"  % (expression, mean) for expression, mean in zip(expressions, means)]
+			variances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=variance_expressions, feedback=progress.progress)
+			sigmas = np.sqrt(variances)
+			ranges = [(mean-3*sigma, mean+3*sigma) for mean, sigma in zip(means, sigmas)]
+			self.table1d.setRanges(pairs, ranges)
+			self.fill_range_map()
+			#progress.progress()
+
+
+	def export(self, table):
+		print "export", table
+		basename, ext = os.path.splitext(self.dataset.path)
+		path = basename + ("-ranking-%dd" % table.dim) + ".properties"
+		filename = get_path_save(self, path=path, title="Export ranking", file_mask="properties file *.properties")
+		if filename:
+			counts = 0
+			with open(filename, "w") as file:
+				for pair in table.pairs:
+					if pair in table.qualities:
+						file.write("%s=%f\n" % (".".join(pair),  table.qualities[pair]))
+						counts += 1
+				dialog_info(self, "Wrote ranking file", "wrote %d lines" % counts)
+
+
 
 	def rankSubspaces(self, table):
 		self.fill_range_map()

@@ -29,6 +29,30 @@ def attrgetter(object, attr_name):
 		return getattr(object, attr_name)
 	return getter
 
+class ProgressExecution(object):
+	def __init__(self, title, parent):
+		self.title = title
+		self.parent = parent
+
+	def __enter__(self):
+		#self.dialog = QtGui.QProgressDialog(self.title, "Cencel", 0, 1000, self.parent)
+		#self.dialog.show()
+		return self
+
+	def progress(self, percentage):
+		#self.dialog.setValue(int(percentage*10))
+		QtCore.QCoreApplication.instance().processEvents()
+		return False
+		#return self.dialog.wasCanceled()
+			#raise RuntimeError("progress cancelled")
+
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		#self.dialog.hide()
+		pass
+
+
+
+
 
 class Option(object):
 	def __init__(self, parent, label, options, getter, setter, update=lambda: None):

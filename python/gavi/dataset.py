@@ -82,6 +82,58 @@ class JobsManager(object):
 			self.order_numbers.append(order)
 		self.progress_total += len(dataset)
 		self.jobs.append((order, callback, dataset, [None if e is None or len(e) == 0 else e for e in expressions], variables))
+
+
+	def add_scalar_jobs(self, dataset, function_per_block, function_merge, function_final, use_mask, expressions, feedback=None):
+		#print "-->", self, dataset, function_per_block, function_post_blocks, function_final, use_mask, expressions
+		pool = multithreading.ThreadPool()
+		subresults = [None] * len(expressions)
+
+		#print "expressions", expressions
+		class Wrapper(object):
+			pass
+		wrapper = Wrapper()
+		wrapper.N_done = 0
+		N_total = len(expressions) * (len(dataset) if not use_mask else np.sum(dataset.mask))
+
+
+		def calculate(info, block, index):
+			#print block, index
+			def subblock(thread_index, sub_i1, sub_i2):
+				if use_mask:
+					data = block[sub_i1:sub_i2][dataset.mask[sub_i1:sub_i2]]
+				else:
+					data = block[sub_i1:sub_i2]
+				#print function_per_block, data
+				result = function_per_block(data)
+				#print "result", result
+				#assert result is not None
+				if subresults_per_thread[thread_index] is None:
+					subresults_per_thread[thread_index] = result
+				else:
+					subresults_per_thread[thread_index] = reduce(function_merge, [result, subresults_per_thread[thread_index]])
+				wrapper.N_done += len(data)
+				if feedback:
+					cancel = feedback(wrapper.N_done*100./N_total)
+					if cancel:
+						raise Exception, "cancelled"
+
+			subresults_per_thread = [None] * pool.nthreads
+			pool.run_blocks(subblock, info.size)
+			block_result = reduce(function_merge, subresults_per_thread)
+			if subresults[index] is None:
+				subresults[index] = block_result
+			else:
+				subresults[index] = reduce(function_merge, [block_result, subresults[index]])
+		for index in range(len(expressions)):
+			self.addJob(0, functools.partial(calculate, index=index), dataset, expressions[index])
+		self.execute()
+		return np.array([function_final(scalar) for scalar in subresults])
+
+
+	def calculate_mean(self, dataset, use_mask, expressions, feedback=None):
+		assert len(self.jobs) == 0, "leftover jobs exist"
+		return self.add_scalar_jobs(dataset, np.sum, lambda a,b: a + b, lambda x: x/len(dataset), use_mask, expressions, feedback=feedback)
 		
 	def find_min_max(self, dataset, expressions, use_mask=False, feedback=None):
 		assert len(self.jobs) == 0, "leftover jobs exist"

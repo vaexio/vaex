@@ -1,7 +1,4 @@
 __author__ = 'breddels'
-import sip
-sip.setapi('QVariant', 2)
-sip.setapi('QString', 2)
 
 import sys
 import platform
@@ -20,6 +17,12 @@ import encodings
 # help py2app, it was missing this import
 import PIL._imaging
 
+try: # in Pyinstaller this doesn't work, and we can get away with not setting this, total mystery
+	import sip
+	sip.setapi('QVariant', 2)
+	sip.setapi('QString', 2)
+except:
+	pass
 darwin = "darwin" in platform.system().lower()
 frozen = getattr(sys, 'frozen', False)
 
@@ -910,6 +913,13 @@ class MainPanel(QtGui.QFrame):
 		dialog.show()
 		return dialog
 
+	def pca(self, **options):
+		#dialog = RankDialog(self.dataset, self, self, **options)
+		#dialog.show()
+		#return dialog
+		import gavi.pca
+		gavi.pca.pca(self.dataset, self.dataset.get_column_names(), self.jobsManager)
+
 
 from numba import jit
 import numba
@@ -1323,7 +1333,7 @@ class Vaex(QtGui.QMainWindow):
 			if index < len(args) and args[index].startswith("--") and len(args[index]) > 2:
 				task_name = args[index][2:]
 				index += 1
-				if task_name == "rank":
+				if task_name in ["rank", "pca"]:
 					options = {}
 					while  index < len(args):
 						if args[index] == "-":
@@ -1338,7 +1348,10 @@ class Vaex(QtGui.QMainWindow):
 						else:
 							error("unkown option for task %r: %r " % (task_name, args[index]))
 						index += 1
-					self.right.ranking(**options)
+					if task_name == "rank":
+						self.right.ranking(**options)
+					if task_name == "pca":
+						self.right.pca(**options)
 
 				else:
 					error("unkown task: %r" % task_name)
