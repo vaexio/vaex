@@ -157,7 +157,7 @@ class Slider(object):
 def get_path_save(parent, title="Save file", path="", file_mask="HDF5 *.hdf5"):
 	path = QtGui.QFileDialog.getSaveFileName(parent, title, path, file_mask)
 	if isinstance(path, tuple):
-		filename = str(path[0])#]
+		path = str(path[0])#]
 	return str(path)
 
 def get_path_open(parent, title="Select file", path="", file_mask="HDF5 *.hdf5"):

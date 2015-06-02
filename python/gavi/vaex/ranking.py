@@ -22,7 +22,7 @@ class ____RankingTableModel(QtCore.QAbstractTableModel):
 
 		self.pairs = list(itertools.combinations(unique_column_names(self.dataset), dim))
 		self.ranking = [None for pair in self.pairs]
-		self.headers = ["subspace", "ranking", 'selected']
+		self.headers = ["subspace", "Mutual information", "MI ranking", "correlation", "MI ranking", 'selected']
 		self.indices = range(len(self.pairs))
 	
 	def rowCount(self, parent): 
@@ -84,7 +84,7 @@ class ____RankingTableModel(QtCore.QAbstractTableModel):
 class SubspaceTable(QtGui.QTableWidget):
 	def __init__(self, dialog, parent, mainPanel, dataset, pairs, dim, properties):
 		self.dialog = dialog
-		self.headers = ['', 'space', 'ranking', 'plot']
+		self.headers = ['', 'space', "Mutual information", "MI ranking", "correlation", "MI ranking", 'plot']
 		self.dim = dim
 		if dim == 1:
 			self.headers += ["min", "max"]
@@ -156,7 +156,7 @@ class SubspaceTable(QtGui.QTableWidget):
 					ranges = [self.dialog.range_map[k] for k in pair]
 					self.mainPanel.histogram(*pair, ranges=ranges)
 				button.clicked.connect(plot)
-				self.setCellWidget(i, 3, button)
+				self.setCellWidget(i, 6, button)
 
 				min_key = pair[0]+".min"
 				max_key = pair[0]+".max"
@@ -195,8 +195,9 @@ class SubspaceTable(QtGui.QTableWidget):
 				def plot(_ignore=None, pair=pair):
 					ranges = [self.dialog.range_map[k] for k in pair]
 					self.mainPanel.plotxy(*pair, ranges=ranges)
-				button.clicked.connect(plot)
-				self.setCellWidget(i, 3, button)
+				button.clicked.connect(
+					plot)
+				self.setCellWidget(i, 6, button)
 				self.buttons.append(button) # keep ref count
 			if self.dim == 3:
 				button = QtGui.QPushButton("plot: " + text, self)
@@ -597,6 +598,7 @@ class RankDialog(QtGui.QDialog):
 		expressions = [pair[0] for pair in pairs]
 		with ProgressExecution("Calculating min/max", self) as progress:
 			means = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=expressions, feedback=progress.progress)
+			print "means", means
 			variance_expressions = ["(%s-%.20f)**2"  % (expression, mean) for expression, mean in zip(expressions, means)]
 			variances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=variance_expressions, feedback=progress.progress)
 			sigmas = np.sqrt(variances)
