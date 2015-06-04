@@ -35,22 +35,69 @@ class ProgressExecution(object):
 		self.parent = parent
 
 	def __enter__(self):
-		#self.dialog = QtGui.QProgressDialog(self.title, "Cencel", 0, 1000, self.parent)
+		self.dialog = QtGui.QProgressDialog(self.title, "Cancel", 0, 1000, self.parent)
 		#self.dialog.show()
+		self.dialog.setWindowModality(QtCore.Qt.WindowModal)
+		self.dialog.setMinimumDuration(0)
+		self.dialog.setAutoClose(False)
+		self.dialog.setAutoReset(False)
+		self.dialog.show()
+		QtCore.QCoreApplication.instance().processEvents()
 		return self
 
 	def progress(self, percentage):
-		#self.dialog.setValue(int(percentage*10))
+		self.dialog.setValue(int(percentage*10))
 		QtCore.QCoreApplication.instance().processEvents()
-		return False
-		#return self.dialog.wasCanceled()
+		#self.dialog.setValue(300)
+		#self.dialog.update()
+		#self.dialog.repaint()
+		#print "progress", `percentage`, type(percentage), int(percentage*10)
+		#QtCore.QCoreApplication.instance().processEvents()
+		return self.dialog.wasCanceled()
+		#return False
 			#raise RuntimeError("progress cancelled")
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
-		#self.dialog.hide()
+		self.dialog.hide()
 		pass
 
 
+
+class Codeline(object):
+	def __init__(self, parent, label, options, getter, setter, update=lambda: None):
+		self.update = update
+		self.options = options
+		self.label = QtGui.QLabel(label, parent)
+		self.combobox = QtGui.QComboBox(parent)
+		self.combobox.addItems(options)
+		self.combobox.setEditable(True)
+		def wrap_setter(value, update=True):
+			self.combobox.lineEdit().setText(value)
+			setter(value)
+			if update:
+				self.update()
+		# auto getter and setter
+		setattr(self, "get_value", getter)
+		setattr(self, "set_value", wrap_setter)
+
+		def on_change(index):
+			on_edit_finished()
+		def on_edit_finished():
+			new_value = text = str(self.combobox.lineEdit().text())
+			if new_value != self.current_value:
+				self.current_value = new_value
+				setter(self.current_value)
+				update()
+		self.combobox.currentIndexChanged.connect(on_change)
+		self.combobox.lineEdit().editingFinished.connect(on_edit_finished)
+		#self.combobox.setCurrentIndex(options.index(getter()))
+		self.current_value = getter()
+		self.combobox.lineEdit().setText(self.current_value)
+
+	def add_to_grid_layout(self, row, grid_layout):
+		grid_layout.addWidget(self.label, row, 0)
+		grid_layout.addWidget(self.combobox, row, 1)
+		return row + 1
 
 
 

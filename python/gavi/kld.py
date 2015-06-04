@@ -139,7 +139,7 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 				#for i in range(5):
 				#	gavifast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts_shuffled[index], *(ranges + [2+i,1+i,0]))
 			if feedback:
-				wrapper.N_done += len(dataset) * dimension
+				wrapper.N_done += len(blocks[0]) * dimension
 				if feedback:
 					cancel = feedback(wrapper.N_done*100./N_total)
 					if cancel:

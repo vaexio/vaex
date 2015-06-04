@@ -33,7 +33,7 @@ def error(title, msg):
 sys_is_le = sys.byteorder == 'little'
 native_code = sys_is_le and '<' or '>'
 
-buffer_size = 1e8
+buffer_size = 1e5 # TODO: this should not be fixed, larger means faster but also large memory usage
 
 import gavi.logging
 logger = gavi.logging.getLogger("gavi.vaex")
@@ -94,7 +94,7 @@ class JobsManager(object):
 			pass
 		wrapper = Wrapper()
 		wrapper.N_done = 0
-		N_total = len(expressions) * (len(dataset) if not use_mask else np.sum(dataset.mask))
+		N_total = len(expressions) * (len(dataset)) # if not use_mask else np.sum(dataset.mask))
 
 
 		def calculate(info, block, index):
@@ -112,14 +112,14 @@ class JobsManager(object):
 					subresults_per_thread[thread_index] = result
 				else:
 					subresults_per_thread[thread_index] = reduce(function_merge, [result, subresults_per_thread[thread_index]])
-				wrapper.N_done += len(data)
-				if feedback:
-					cancel = feedback(wrapper.N_done*100./N_total)
-					if cancel:
-						raise Exception, "cancelled"
 
 			subresults_per_thread = [None] * pool.nthreads
 			pool.run_blocks(subblock, info.size)
+			wrapper.N_done += len(block)
+			if feedback:
+				cancel = feedback(wrapper.N_done*100./N_total)
+				if cancel:
+					raise Exception, "cancelled"
 			block_result = reduce(function_merge, subresults_per_thread)
 			if subresults[index] is None:
 				subresults[index] = block_result

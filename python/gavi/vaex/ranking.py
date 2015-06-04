@@ -12,8 +12,148 @@ logger = logging.getLogger("vaex.ranking")
 
 def unique_column_names(dataset):
 	return list(set(dataset.column_names) | set(dataset.virtual_columns.keys()))
-	
-	
+
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
+import matplotlib.pyplot as plt
+import scipy.stats
+
+testing = True
+class PlotDialog(QtGui.QDialog):
+	def __init__(self, parent, width=5, height=4, dpi=100, **options):
+		super(PlotDialog, self).__init__()
+		self.parent_widget = parent
+		self.figure = plt.figure()
+		self.canvas = FigureCanvas(self.figure)
+		self.toolbar = NavigationToolbar(self.canvas, self)
+
+		self.layout = QtGui.QVBoxLayout()
+		self.layout.addWidget(self.toolbar)
+		self.layout.addWidget(self.canvas)
+		self.setLayout(self.layout)
+		self.figure.canvas.mpl_connect('motion_notify_event', self._on_mouse_motion)
+		self.figure.canvas.mpl_connect('button_press_event', self._on_mouse_button)
+
+		#self.plot()
+
+	def _on_mouse_motion(self, event):
+		if event.xdata != None and event.ydata != None:
+			self.on_mouse_motion(event)
+
+	def _on_mouse_button(self, event):
+		if event.xdata != None and event.ydata != None:
+			self.on_mouse_button(event)
+
+	def on_mouse_button(self, event):
+		pass
+	def on_mouse_motion(self, event):
+		label, x, y = self.get_tooltip(event)
+		self.set_tooltip(x, y, label)
+
+	def set_tooltip(self, x, y, label):
+		y = self.canvas.height() - 1 - y
+		print "motion", label, x, y
+		if label:
+			print "self.canvas.x/y()", self.canvas.geometry().x(), self.canvas.geometry().y()
+			print "self.pos.x/y()", self.canvas.pos().x() + self.pos().x(), self.canvas.pos().y() + self.pos().y()
+			point = QtCore.QPoint(x + self.canvas.x() + self.pos().x(), y + self.canvas.y() + self.pos().y())
+			QtGui.QToolTip.showText(point, label)
+
+	def plot(self):
+		pass
+
+class RankPlot(PlotDialog):
+	def __init__(self, parent, table):
+		super(RankPlot, self).__init__(parent)
+		self.table = table
+
+		self.button_update_data = QtGui.QPushButton('Update data')
+		self.button_update_data.clicked.connect(self.update_data)
+		self.layout.addWidget(self.button_update_data)
+
+		grid_layout = QtGui.QGridLayout()
+		grid_layout.setColumnStretch(2, 1)
+		grid_layout.setAlignment(QtCore.Qt.AlignTop)
+		grid_layout.setSpacing(0)
+		grid_layout.setContentsMargins(0,0,0,0)
+		self.layout.addLayout(grid_layout)
+
+		row = 0
+		self.options = ["mutual_information", "rank(mutual_information)", "correlation_coefficient", "rank(correlation_coefficient)", "abs(correlation_coefficient)", "rank(abs(correlation_coefficient))"]
+		self.expression_x = "mutual_information"
+		self.expression_y = "correlation_coefficient"
+		self.codeline_x = Codeline(self, "x", self.options,
+								   getter=attrgetter(self, "expression_x"),
+								   setter=attrsetter(self, "expression_x"),
+								   update=self.plot)
+		self.codeline_y = Codeline(self, "y", self.options,
+								   getter=attrgetter(self, "expression_y"),
+								   setter=attrsetter(self, "expression_y"),
+								   update=self.plot)
+		row = self.codeline_x.add_to_grid_layout(row, grid_layout)
+		row = self.codeline_y.add_to_grid_layout(row, grid_layout)
+
+
+		self.axes = self.figure.add_subplot(111)
+		if 0:
+			def onpick(event):
+				thisline = event.artist
+				xdata = thisline.get_xdata()
+				ydata = thisline.get_ydata()
+				index = event.ind
+				print index, xdata[index], ydata[index], self.pairs[index]
+				self.table.select_pair(self.pairs[index])
+			self.figure.canvas.mpl_connect('pick_event', onpick)
+
+		self.update_data()
+		self.plot()
+
+	def on_mouse_button(self, event):
+		min_distance_index, x, y = self.find_nearest(event)
+		print "click", x, y
+		self.table.select_pair(self.pairs[min_distance_index])
+		def update_tooltip():
+			label, x, y = self.get_tooltip(event)
+			self.set_tooltip(x, y, label)
+		QtCore.QTimer.singleShot(100, update_tooltip)
+
+	def find_nearest(self, event):
+		transform = event.inaxes.transData.transform
+		xy = transform(zip(self.x, self.y))
+		#print xy
+		x, y = xy.T
+		print "event.x/y", event.x, event.y
+		distances = np.sqrt((x-event.x)**2 + (y-event.y)**2)
+		min_distance_index = np.argmin(distances)
+		return min_distance_index, x[min_distance_index], y[min_distance_index]
+
+	def get_tooltip(self, event):
+		min_distance_index, x, y = self.find_nearest(event)
+		label = "-".join(self.pairs[min_distance_index])
+		return label, x, y
+
+	def update_data(self):
+		self.variables = {}
+		self.pairs = pairs = self.table.getSelected()
+		mi = [self.table.qualities[pair] for pair in pairs]
+		corr = [self.table.correlation_map[pair] for pair in pairs]
+		self.variables["mutual_information"] = np.array(mi)
+		self.variables["correlation_coefficient"] = np.array(corr)
+
+
+	def plot(self):
+		scope = {}
+		scope.update(np.__dict__)
+		scope.update(self.variables)
+		scope["rank"] = scipy.stats.rankdata
+		self.x = x = eval(self.expression_x, scope)
+		self.y = y = eval(self.expression_y, scope)
+		self.axes.cla()
+		self.axes.plot(x, y, '.', picker=5)
+		self.canvas.draw()
+
+
+
 class ____RankingTableModel(QtCore.QAbstractTableModel):
 	def __init__(self, dataset, dim=1, parent=None, *args): 
 		QtCore.QAbstractTableModel.__init__(self, parent, *args) 
@@ -84,12 +224,17 @@ class ____RankingTableModel(QtCore.QAbstractTableModel):
 class SubspaceTable(QtGui.QTableWidget):
 	def __init__(self, dialog, parent, mainPanel, dataset, pairs, dim, properties):
 		self.dialog = dialog
-		self.headers = ['', 'space', "Mutual information", "MI ranking", "correlation", "MI ranking", 'plot']
 		self.dim = dim
 		if dim == 1:
-			self.headers += ["min", "max"]
+			self.headers = ['', 'space', "min", "max", 'plot']
+		else:
+			self.headers = ['', 'space', "Mutual information", "Correlation", 'plot']
 		self.properties = properties
 		self.qualities = {}
+		self.correlation_map = {}
+		if testing:
+			self.qualities = {key: np.random.random() for key in pairs}
+			self.correlation_map = {key: np.random.normal() for key in pairs}
 
 		#print ", ".join([""+("-".join(pair))+"" for pair in pairs])
 		self.dataset = dataset
@@ -116,6 +261,22 @@ class SubspaceTable(QtGui.QTableWidget):
 			self.setSortingEnabled(True)
 		self.queue_fill_table = gavi.vaex.plot_windows.Queue("fill table", 200, self.fill_table)
 
+	def pair_to_text(self, pair):
+		return " ".join(map(str, pair))
+
+	def select_pair(self, pair):
+		#self.setSortingEnabled(False)
+		index = self.pairs.index(pair)
+		for i in range(self.rowCount()):
+			item = self.item(i, 1)
+			print item.text(), self.pair_to_text(pair)
+			if item.text() == self.pair_to_text(pair):
+				self.selectRow(i)
+		#print index, self.visualRow(index)
+		#self.selectRow(self.visualRow(index))
+		#self.setSortingEnabled(True)
+
+
 	def fill_table(self):
 		# bug in qt? http://stackoverflow.com/questions/7960505/strange-qtablewidget-behavior-not-all-cells-populated-after-sorting-followed-b
 		# fix: disable sorting, then enable again
@@ -127,7 +288,7 @@ class SubspaceTable(QtGui.QTableWidget):
 		self.setVerticalHeaderLabels(map(str, range(len(pairs))))
 		for i in range(len(pairs)):
 			pair = pairs[i]
-			text = " ".join(map(str, pair))
+			text = self.pair_to_text(pair)
 			item = QtGui.QTableWidgetItem(text)
 			self.setItem(i, 1, item)
 			item.setFlags(self.defaultFlags)
@@ -156,7 +317,7 @@ class SubspaceTable(QtGui.QTableWidget):
 					ranges = [self.dialog.range_map[k] for k in pair]
 					self.mainPanel.histogram(*pair, ranges=ranges)
 				button.clicked.connect(plot)
-				self.setCellWidget(i, 6, button)
+				self.setCellWidget(i, 4, button)
 
 				min_key = pair[0]+".min"
 				max_key = pair[0]+".max"
@@ -169,7 +330,7 @@ class SubspaceTable(QtGui.QTableWidget):
 						item.setText("%s"  % value)
 						item.setData(QtCore.Qt.DisplayRole, float(value))
 						item.setFlags(self.defaultFlags)
-						self.setItem(i, 4, item)
+						self.setItem(i, 2, item)
 
 					if max_key in self.properties._props:
 						value = self.properties[max_key]
@@ -177,7 +338,7 @@ class SubspaceTable(QtGui.QTableWidget):
 						item.setText("%s"  % value)
 						item.setData(QtCore.Qt.DisplayRole, float(value))
 						item.setFlags(self.defaultFlags)
-						self.setItem(i, 5, item)
+						self.setItem(i, 3, item)
 			else:
 				#print "quality", quality, qualities
 				#row = self.pairs.index(pair)
@@ -188,6 +349,13 @@ class SubspaceTable(QtGui.QTableWidget):
 					item.setData(QtCore.Qt.DisplayRole, float(quality))
 					item.setFlags(self.defaultFlags)
 					self.setItem(i, 2, item)
+				correlation = self.correlation_map.get(pair)
+				if correlation is not None:
+					item = QtGui.QTableWidgetItem()#"%s"  % quality)
+					item.setText("%s"  % correlation)
+					item.setData(QtCore.Qt.DisplayRole, float(correlation))
+					item.setFlags(self.defaultFlags)
+					self.setItem(i, 3, item)
 
 
 			if self.dim == 2:
@@ -197,7 +365,7 @@ class SubspaceTable(QtGui.QTableWidget):
 					self.mainPanel.plotxy(*pair, ranges=ranges)
 				button.clicked.connect(
 					plot)
-				self.setCellWidget(i, 6, button)
+				self.setCellWidget(i, 4, button)
 				self.buttons.append(button) # keep ref count
 			if self.dim == 3:
 				button = QtGui.QPushButton("plot: " + text, self)
@@ -205,7 +373,7 @@ class SubspaceTable(QtGui.QTableWidget):
 					ranges = [self.dialog.range_map[k] for k in pair]
 					self.mainPanel.plotxyz(*pair, ranges=ranges)
 				button.clicked.connect(plot)
-				self.setCellWidget(i, 3, button)
+				self.setCellWidget(i, 4, button)
 				self.buttons.append(button) # keep ref count
 			#self.setItem(i, 1, item)
 		self.setSortingEnabled(True)
@@ -229,6 +397,10 @@ class SubspaceTable(QtGui.QTableWidget):
 			#self.setItem(row, 2, item)
 		self.fill_table()
 
+	def set_correlations(self, correlation_map):
+		self.correlation_map = dict(correlation_map)
+		self.fill_table()
+
 	def get_range(self, pair):
 		index = self.pairs.index(pair)
 		mi = self.item(index, 4)
@@ -247,12 +419,12 @@ class SubspaceTable(QtGui.QTableWidget):
 			item.setText("%s"  % mi)
 			item.setData(QtCore.Qt.DisplayRole, float(mi))
 			item.setFlags(self.defaultFlags)
-			self.setItem(row, 4, item)
+			self.setItem(row, 2, item)
 			item = QtGui.QTableWidgetItem()#"%s"  % quality)
 			item.setText("%s"  % ma)
 			item.setData(QtCore.Qt.DisplayRole, float(ma))
 			item.setFlags(self.defaultFlags)
-			self.setItem(row, 5, item)
+			self.setItem(row, 3, item)
 			
 
 	def deselect(self, pair):
@@ -367,17 +539,54 @@ class RankDialog(QtGui.QDialog):
 				self.tabNdlayout = QtGui.QVBoxLayout(self)
 				self.tabNdButtonLayout = QtGui.QHBoxLayout(self)
 				self.subspaceNd = QtGui.QPushButton("Create %dd subspaces" % (dim+1), self.tab1d)
-				self.rankNd = QtGui.QPushButton("Rank subspaces")
+				self.miNd = QtGui.QPushButton("Calculate mutual information")
+				self.correlationNd = QtGui.QPushButton("Calculate correlation")
+				self.plotNd = QtGui.QPushButton("Rank plot")
 				self.exportNd = QtGui.QPushButton("Export ranking")
 				if dim == len(self.dataset.column_names):
 					self.subspaceNd.setDisabled(True)
 				self.tabNdButtonLayout.addWidget(self.subspaceNd)
-				self.tabNdButtonLayout.addWidget(self.rankNd)
+				self.tabNdButtonLayout.addWidget(self.miNd)
+				self.tabNdButtonLayout.addWidget(self.correlationNd)
 				self.tabNdButtonLayout.addWidget(self.exportNd)
+				self.tabNdButtonLayout.addWidget(self.plotNd)
 				self.tabNdlayout.addLayout(self.tabNdButtonLayout)
 				self.subspaceNd.clicked.connect(functools.partial(onclick, dim=dim+1))
-				self.rankNd.clicked.connect(functools.partial(self.rankSubspaces, table=self.tableNd))
+				self.miNd.clicked.connect(functools.partial(self.rankSubspaces, table=self.tableNd))
+				self.correlationNd.clicked.connect(functools.partial(self.calculate_correlation, table=self.tableNd))
 				self.exportNd.clicked.connect(functools.partial(self.export, table=self.tableNd))
+				self.plotNd.clicked.connect(functools.partial(self.rank_plot, table=self.tableNd))
+
+				self.menu_calculate_rank_correlation = QtGui.QMenu()
+				self.button_calculate_rank_correlation = QtGui.QToolButton()
+				self.button_calculate_rank_correlation.setText("Calculate rank correlation")
+				self.button_calculate_rank_correlation.setPopupMode(QtGui.QToolButton.InstantPopup)
+				#self.button_get_ranges.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
+				self.button_calculate_rank_correlation.setMenu(self.menu_calculate_rank_correlation)
+
+				self.action_calculate_rank_correlation_MI_corr_kendall = QtGui.QAction("MI - correlation", self)
+				self.action_calculate_rank_correlation_MI_abs_corr_kendall = QtGui.QAction("MI - abs(correlation)", self)
+
+				self.action_calculate_rank_correlation_MI_corr_spearman = QtGui.QAction("MI - correlation", self)
+				self.action_calculate_rank_correlation_MI_abs_corr_spearman = QtGui.QAction("MI - abs(correlation)", self)
+
+				self.menu_correlation_kendall = self.menu_calculate_rank_correlation.addMenu("Kendall's rank correlation")
+				self.menu_correlation_spearman = self.menu_calculate_rank_correlation.addMenu("Spearman's rank correlation")
+
+				self.menu_correlation_kendall.addAction(self.action_calculate_rank_correlation_MI_corr_kendall)
+				self.menu_correlation_kendall.addAction(self.action_calculate_rank_correlation_MI_abs_corr_kendall)
+
+				self.menu_correlation_spearman.addAction(self.action_calculate_rank_correlation_MI_corr_spearman)
+				self.menu_correlation_spearman.addAction(self.action_calculate_rank_correlation_MI_abs_corr_spearman)
+
+				self.action_calculate_rank_correlation_MI_corr_kendall.triggered.connect(functools.partial(self.calculate_rank_correlation_kendall, table=self.tableNd))
+				self.action_calculate_rank_correlation_MI_abs_corr_kendall.triggered.connect(functools.partial(self.calculate_rank_correlation_kendall, table=self.tableNd, absolute=True))
+
+				self.action_calculate_rank_correlation_MI_corr_spearman.triggered.connect(functools.partial(self.calculate_rank_correlation_spearman, table=self.tableNd))
+				self.action_calculate_rank_correlation_MI_abs_corr_spearman.triggered.connect(functools.partial(self.calculate_rank_correlation_spearman, table=self.tableNd, absolute=True))
+
+				self.tabNdButtonLayout.addWidget(self.button_calculate_rank_correlation)
+
 
 				def func(index, name=""):
 					print name, index.row(), index.column()
@@ -596,9 +805,12 @@ class RankDialog(QtGui.QDialog):
 		pairs = self.table1d.getSelected()
 		jobsManager = gavi.dataset.JobsManager()
 		expressions = [pair[0] for pair in pairs]
+
+
 		with ProgressExecution("Calculating min/max", self) as progress:
 			means = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=expressions, feedback=progress.progress)
 			print "means", means
+		with ProgressExecution("Calculating variances", self) as progress:
 			variance_expressions = ["(%s-%.20f)**2"  % (expression, mean) for expression, mean in zip(expressions, means)]
 			variances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=variance_expressions, feedback=progress.progress)
 			sigmas = np.sqrt(variances)
@@ -606,6 +818,80 @@ class RankDialog(QtGui.QDialog):
 			self.table1d.setRanges(pairs, ranges)
 			self.fill_range_map()
 			#progress.progress()
+
+	def calculate_rank_correlation_kendall(self, table, absolute=False):
+		print "kendall", table, absolute
+		pairs = table.getSelected()
+		mi_values = [table.qualities[pair] for pair in pairs]
+		correlation_values = [table.correlation_map[pair] for pair in pairs]
+		ranking_mi = np.argsort(mi_values)
+		if absolute:
+			ranking_correlation = np.argsort(np.abs(correlation_values))
+		else:
+			ranking_correlation = np.argsort(correlation_values)
+		N = len(pairs)
+		A = np.zeros((N, N))
+		B = np.zeros((N, N))
+		for i in range(N):
+			for j in range(N):
+				A[i,j] = np.sign(ranking_mi[i] - ranking_mi[j])
+				B[i,j] = np.sign(ranking_correlation[i] - ranking_correlation[j])
+		AB = 0
+		AA = 0
+		BB = 0
+		for i in range(N):
+			for j in range(N):
+				AB += A[i,j] * B[i,j]
+				AA += A[i,j]**2
+				BB += B[i,j]**2
+
+
+	def calculate_rank_correlation_spearman(self, table, absolute=False):
+		print "spearman", table, absolute
+
+	def calculate_correlation(self, table):
+		print "calculate correlation for ", table
+		pairs = table.getSelected()
+		jobsManager = gavi.dataset.JobsManager()
+		expressions = set()
+		for pair in pairs:
+			for expression in pair:
+				expressions.add(expression)
+		expressions = list(expressions)
+		print "means"
+		with ProgressExecution("Calculating means", self) as progress:
+			means = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=expressions, feedback=progress.progress)
+		mean_map = dict(zip(expressions, means))
+		centered_expressions_map = {expression: "(%s - %.20e)" % (expression, mean) for (expression, mean) in mean_map.items()}
+		variances_expressions_map = {expression: "%s**2" % centered_expressions for expression, centered_expressions in centered_expressions_map.items()}
+		with ProgressExecution("Calculating variances", self) as progress:
+			variances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=variances_expressions_map.values(), feedback=progress.progress)
+		variances_map = dict(zip(variances_expressions_map.keys(), variances))
+
+		covariances_expressions = []
+		for pair in pairs:
+			centered_expressions = [centered_expressions_map[expression] for expression in pair]
+			covariance_expression = "*".join(centered_expressions)
+			covariances_expressions.append(covariance_expression)
+
+		print covariances_expressions
+		with ProgressExecution("Calculating covariances", self) as progress:
+			#progress.progress(20)
+			covariances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=covariances_expressions, feedback=progress.progress)
+			#progress.progress(20)
+		print variances
+		print covariances
+
+		correlation_map = {}
+		for pair, covariance in zip(pairs, covariances):
+			normalization = 1
+			for expression in pair:
+				normalization *= np.sqrt(variances_map[expression])
+			correlation_map[pair] = covariance / normalization
+		table.set_correlations(correlation_map)
+
+		return
+
 
 
 	def export(self, table):
@@ -649,15 +935,23 @@ class RankDialog(QtGui.QDialog):
 				information = gavi.kld.kld_shuffled(columns, mask=mask)
 				qualities.append(information)
 				#print pair
-		dialog = QtGui.QProgressDialog("Calculating KL divergence", "Abort", 0, 1000, self)
-		dialog.show()
-		def feedback(percentage):
-			dialog.setValue(int(percentage*10))
-			QtCore.QCoreApplication.instance().processEvents()
-			if dialog.wasCanceled():
-				return True
-		qualities = gavi.kld.kld_shuffled_grouped(self.dataset, self.range_map, pairs, feedback=feedback, use_mask=self.radio_button_selection.isChecked())
+		if 0:
+			dialog = QtGui.QProgressDialog("Calculating Mutual information", "Abort", 0, 1000, self)
+			dialog.show()
+			def feedback(percentage):
+				print percentage
+				dialog.setValue(int(percentage*10))
+				QtCore.QCoreApplication.instance().processEvents()
+				if dialog.wasCanceled():
+					return True
+		with ProgressExecution("Calculating Mutual information", self) as progress:
+			qualities = gavi.kld.kld_shuffled_grouped(self.dataset, self.range_map, pairs, feedback=progress.progress, use_mask=self.radio_button_selection.isChecked())
+			#dialog.hide()
 		if qualities is not None:
 			print qualities
 			table.setQualities(pairs, qualities)
 		
+
+	def rank_plot(self, table):
+		plot = RankPlot(self, table)
+		plot.show()
