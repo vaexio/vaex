@@ -162,7 +162,7 @@ class JobsManager(object):
 						mi, ma = result
 						#if sub_i1 == 0:
 						minima_per_thread[thread_index] = mi if minima_per_thread[thread_index] is None else min(mi, minima_per_thread[thread_index])
-						maxima_per_thread[thread_index] = ma if maxima_per_thread[thread_index] is None else max(mi, maxima_per_thread[thread_index])
+						maxima_per_thread[thread_index] = ma if maxima_per_thread[thread_index] is None else max(ma, maxima_per_thread[thread_index])
 				if info.error:
 					#self.message(info.error_text, index=-1)
 					raise Exception, info.error_text
@@ -182,7 +182,7 @@ class JobsManager(object):
 				maxs = [k for k in maxima_per_thread if k is not None]
 				if maxs:
 					ma = max(maxs)
-					maxima[index] = ma if maxima[index] is None else max(mi, maxima[index])
+					maxima[index] = ma if maxima[index] is None else max(ma, maxima[index])
 				wrapper.N_done += len(block)
 				if feedback:
 					cancel = feedback(wrapper.N_done*100./N_total)
