@@ -33,7 +33,7 @@ def error(title, msg):
 sys_is_le = sys.byteorder == 'little'
 native_code = sys_is_le and '<' or '>'
 
-buffer_size = 1e5 # TODO: this should not be fixed, larger means faster but also large memory usage
+buffer_size = 1e6 # TODO: this should not be fixed, larger means faster but also large memory usage
 
 import gavi.logging
 logger = gavi.logging.getLogger("gavi.vaex")
@@ -101,7 +101,7 @@ class JobsManager(object):
 			#print block, index
 			def subblock(thread_index, sub_i1, sub_i2):
 				if use_mask:
-					data = block[sub_i1:sub_i2][dataset.mask[sub_i1:sub_i2]]
+					data = block[sub_i1:sub_i2][dataset.mask[info.i1:info.i2][sub_i1:sub_i2]]
 				else:
 					data = block[sub_i1:sub_i2]
 				#print function_per_block, data
@@ -141,8 +141,6 @@ class JobsManager(object):
 		minima = [None] * len(expressions)
 		maxima = [None] * len(expressions)
 		#ranges = []
-		minima_per_thread = [None] * pool.nthreads
-		maxima_per_thread = [None] * pool.nthreads
 		#range_per_thread = [None] * pool.nthreads
 		N_total = len(expressions) * len(dataset)
 		class Wrapper(object):
@@ -152,32 +150,39 @@ class JobsManager(object):
 		try:
 			t0 = time.time()
 			def calculate_range(info, block, index):
+				minima_per_thread = [None] * pool.nthreads
+				maxima_per_thread = [None] * pool.nthreads
 				def subblock(thread_index, sub_i1, sub_i2):
 					if use_mask:
-						result = gavifast.find_nan_min_max(block[sub_i1:sub_i2][dataset.mask[sub_i1:sub_i2]])
+						data = block[sub_i1:sub_i2][dataset.mask[info.i1:info.i2][sub_i1:sub_i2]]
 					else:
-						result = gavifast.find_nan_min_max(block[sub_i1:sub_i2])
-					mi, ma = result
-					#if sub_i1 == 0:
-					minima_per_thread[thread_index] = mi
-					maxima_per_thread[thread_index] = ma
-					#else:
-					#	minima_per_thread[thread_index] = min(mi, minima_per_thread[thread_index])
-					#	maxima_per_thread[thread_index] = min(ma, maxima_per_thread[thread_index])
-				#self.message("min/max[%d] at %.1f%% (%.2fs)" % (axisIndex, info.percentage, time.time() - info.time_start), index=50+axisIndex )
-				#QtCore.QCoreApplication.instance().processEvents()
+						data = block[sub_i1:sub_i2]
+					if len(data):
+						result = gavifast.find_nan_min_max(data)
+						mi, ma = result
+						#if sub_i1 == 0:
+						minima_per_thread[thread_index] = mi if minima_per_thread[thread_index] is None else min(mi, minima_per_thread[thread_index])
+						maxima_per_thread[thread_index] = ma if maxima_per_thread[thread_index] is None else max(mi, maxima_per_thread[thread_index])
 				if info.error:
 					#self.message(info.error_text, index=-1)
 					raise Exception, info.error_text
 				pool.run_blocks(subblock, info.size)
-				if info.first:
-					minima[index] = min(minima_per_thread)
-					maxima[index] = max(maxima_per_thread)
-				else:
-					minima[index] = min(min(minima_per_thread), minima[index])
-					maxima[index] = max(max(maxima_per_thread), maxima[index])
+				#if info.first:
+				#	minima[index] = min(minima_per_thread)
+				#	maxima[index] = max(maxima_per_thread)
+				#else:
+				#	minima[index] = min(min(minima_per_thread), minima[index])
+				#	maxima[index] = max(max(maxima_per_thread), maxima[index])
 				#if info.last:
 				#	self.message("min/max[%d] %.2fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
+				mins = [k for k in minima_per_thread if k is not None]
+				if mins:
+					mi = min(mins)
+					minima[index] = mi if minima[index] is None else min(mi, minima[index])
+				maxs = [k for k in maxima_per_thread if k is not None]
+				if maxs:
+					ma = max(maxs)
+					maxima[index] = ma if maxima[index] is None else max(mi, maxima[index])
 				wrapper.N_done += len(block)
 				if feedback:
 					cancel = feedback(wrapper.N_done*100./N_total)
