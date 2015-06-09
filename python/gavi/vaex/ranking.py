@@ -917,7 +917,7 @@ class RankDialog(QtGui.QDialog):
 						file.write("%s.mutual_information=%f\n" % (".".join(pair),  table.qualities[pair]))
 						counts += 1
 					if pair in table.correlation_map:
-						file.write("%s.correlation_coefficient=%f\n" % (".".join(pair),  table.qualities[pair]))
+						file.write("%s.correlation_coefficient=%f\n" % (".".join(pair),  table.correlation_map[pair]))
 						counts += 1
 					expressions.update(pair)
 				for expression in expressions:
