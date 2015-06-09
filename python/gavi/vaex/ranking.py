@@ -18,7 +18,8 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as Naviga
 import matplotlib.pyplot as plt
 import scipy.stats
 
-testing = True
+testing = False
+
 class PlotDialog(QtGui.QDialog):
 	def __init__(self, parent, width=5, height=4, dpi=100, **options):
 		super(PlotDialog, self).__init__()
@@ -403,8 +404,8 @@ class SubspaceTable(QtGui.QTableWidget):
 
 	def get_range(self, pair):
 		index = self.pairs.index(pair)
-		mi = self.item(index, 4)
-		ma = self.item(index, 5)
+		mi = self.item(index, 2)
+		ma = self.item(index, 3)
 		#print pair, mi, ma
 		mi = None if mi is None else float(mi.data(QtCore.Qt.DisplayRole))
 		ma = None if ma is None else float(ma.data(QtCore.Qt.DisplayRole))
@@ -539,30 +540,37 @@ class RankDialog(QtGui.QDialog):
 				self.tabNdlayout = QtGui.QVBoxLayout(self)
 				self.tabNdButtonLayout = QtGui.QHBoxLayout(self)
 				self.subspaceNd = QtGui.QPushButton("Create %dd subspaces" % (dim+1), self.tab1d)
-				self.miNd = QtGui.QPushButton("Calculate mutual information")
-				self.correlationNd = QtGui.QPushButton("Calculate correlation")
 				self.plotNd = QtGui.QPushButton("Rank plot")
 				self.exportNd = QtGui.QPushButton("Export ranking")
 				if dim == len(self.dataset.column_names):
 					self.subspaceNd.setDisabled(True)
+
+				self.menu_calculate = QtGui.QMenu()
+				self.button_calculate = QtGui.QToolButton()
+				self.button_calculate.setText("Calculate")
+				self.button_calculate.setPopupMode(QtGui.QToolButton.InstantPopup)
+				#self.button_get_ranges.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
+				self.button_calculate.setMenu(self.menu_calculate)
+
 				self.tabNdButtonLayout.addWidget(self.subspaceNd)
-				self.tabNdButtonLayout.addWidget(self.miNd)
-				self.tabNdButtonLayout.addWidget(self.correlationNd)
+				self.tabNdButtonLayout.addWidget(self.button_calculate)
+				#self.tabNdButtonLayout.addWidget(self.miNd)
+				#self.tabNdButtonLayout.addWidget(self.correlationNd)
 				self.tabNdButtonLayout.addWidget(self.exportNd)
 				self.tabNdButtonLayout.addWidget(self.plotNd)
 				self.tabNdlayout.addLayout(self.tabNdButtonLayout)
 				self.subspaceNd.clicked.connect(functools.partial(onclick, dim=dim+1))
-				self.miNd.clicked.connect(functools.partial(self.rankSubspaces, table=self.tableNd))
-				self.correlationNd.clicked.connect(functools.partial(self.calculate_correlation, table=self.tableNd))
 				self.exportNd.clicked.connect(functools.partial(self.export, table=self.tableNd))
 				self.plotNd.clicked.connect(functools.partial(self.rank_plot, table=self.tableNd))
 
-				self.menu_calculate_rank_correlation = QtGui.QMenu()
-				self.button_calculate_rank_correlation = QtGui.QToolButton()
-				self.button_calculate_rank_correlation.setText("Calculate rank correlation")
-				self.button_calculate_rank_correlation.setPopupMode(QtGui.QToolButton.InstantPopup)
-				#self.button_get_ranges.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
-				self.button_calculate_rank_correlation.setMenu(self.menu_calculate_rank_correlation)
+
+				self.action_calculate_mi = QtGui.QAction("Calculate mutual information", self)
+				self.action_calculate_correlation = QtGui.QAction("Calculate correlation", self)
+				self.action_calculate_mi.triggered.connect(functools.partial(self.rankSubspaces, table=self.tableNd))
+				self.action_calculate_correlation.triggered.connect(functools.partial(self.calculate_correlation, table=self.tableNd))
+				self.menu_calculate.addAction(self.action_calculate_mi)
+				self.menu_calculate.addAction(self.action_calculate_correlation)
+
 
 				self.action_calculate_rank_correlation_MI_corr_kendall = QtGui.QAction("MI - correlation", self)
 				self.action_calculate_rank_correlation_MI_abs_corr_kendall = QtGui.QAction("MI - abs(correlation)", self)
@@ -570,8 +578,10 @@ class RankDialog(QtGui.QDialog):
 				self.action_calculate_rank_correlation_MI_corr_spearman = QtGui.QAction("MI - correlation", self)
 				self.action_calculate_rank_correlation_MI_abs_corr_spearman = QtGui.QAction("MI - abs(correlation)", self)
 
-				self.menu_correlation_kendall = self.menu_calculate_rank_correlation.addMenu("Kendall's rank correlation")
-				self.menu_correlation_spearman = self.menu_calculate_rank_correlation.addMenu("Spearman's rank correlation")
+				self.menu_correlation_kendall = self.menu_calculate.addMenu("Kendall's rank correlation")
+				self.menu_correlation_spearman = self.menu_calculate.addMenu("Spearman's rank correlation")
+				self.menu_correlation_kendall.setEnabled(False)
+				self.menu_correlation_spearman.setEnabled(False)
 
 				self.menu_correlation_kendall.addAction(self.action_calculate_rank_correlation_MI_corr_kendall)
 				self.menu_correlation_kendall.addAction(self.action_calculate_rank_correlation_MI_abs_corr_kendall)
@@ -585,7 +595,6 @@ class RankDialog(QtGui.QDialog):
 				self.action_calculate_rank_correlation_MI_corr_spearman.triggered.connect(functools.partial(self.calculate_rank_correlation_spearman, table=self.tableNd))
 				self.action_calculate_rank_correlation_MI_abs_corr_spearman.triggered.connect(functools.partial(self.calculate_rank_correlation_spearman, table=self.tableNd, absolute=True))
 
-				self.tabNdButtonLayout.addWidget(self.button_calculate_rank_correlation)
 
 
 				def func(index, name=""):
@@ -899,14 +908,24 @@ class RankDialog(QtGui.QDialog):
 		basename, ext = os.path.splitext(self.dataset.path)
 		path = basename + ("-ranking-%dd" % table.dim) + ".properties"
 		filename = get_path_save(self, path=path, title="Export ranking", file_mask="properties file *.properties")
+		expressions = set()
 		if filename:
 			counts = 0
 			with open(filename, "w") as file:
 				for pair in table.pairs:
 					if pair in table.qualities:
-						file.write("%s=%f\n" % (".".join(pair),  table.qualities[pair]))
+						file.write("%s.mutual_information=%f\n" % (".".join(pair),  table.qualities[pair]))
 						counts += 1
+					if pair in table.correlation_map:
+						file.write("%s.correlation_coefficient=%f\n" % (".".join(pair),  table.qualities[pair]))
+						counts += 1
+					expressions.update(pair)
+				for expression in expressions:
+					mi, ma = self.range_map[expression]
+					file.write("%s.min=%f\n" % (expression,  mi))
+					file.write("%s.max=%f\n" % (expression,  ma))
 				dialog_info(self, "Wrote ranking file", "wrote %d lines" % counts)
+
 
 
 
