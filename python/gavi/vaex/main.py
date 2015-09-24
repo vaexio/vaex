@@ -874,15 +874,16 @@ class MainPanel(QtGui.QFrame):
 			self.scatterButton.setMenu(self.scatterMenu)
 
 			self.scatterMenu3d = QtGui.QMenu(self)
-			for column_name1 in self.dataset.get_column_names():
-				#action1 = QtGui.QAction(column_name, self)
-				submenu = self.scatterMenu3d.addMenu(column_name1)
-				for column_name2 in self.dataset.get_column_names():
-					subsubmenu = submenu.addMenu(column_name2)
-					for column_name3 in self.dataset.get_column_names():
-						action = QtGui.QAction(column_name3, self)
-						action.triggered.connect(functools.partial(self.plotxyz, xname=column_name1, yname=column_name2, zname=column_name3))
-						subsubmenu.addAction(action)
+			if 0: # TODO 3d menu takes long to generate when many columns are present, can we do this lazy?
+				for column_name1 in self.dataset.get_column_names():
+					#action1 = QtGui.QAction(column_name, self)
+					submenu = self.scatterMenu3d.addMenu(column_name1)
+					for column_name2 in self.dataset.get_column_names():
+						subsubmenu = submenu.addMenu(column_name2)
+						for column_name3 in self.dataset.get_column_names():
+							action = QtGui.QAction(column_name3, self)
+							action.triggered.connect(functools.partial(self.plotxyz, xname=column_name1, yname=column_name2, zname=column_name3))
+							subsubmenu.addAction(action)
 			self.scatter3dButton.setMenu(self.scatterMenu3d)
 
 			if 0:
@@ -1247,8 +1248,8 @@ class Vaex(QtGui.QMainWindow):
 				for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 					self.list.addGadgetHdf5(os.path.join(application_path, 'data/disk-galaxy.hdf5'), name, index)
 				f = gavi.utils.get_data_file("data/helmi-dezeeuw-2000-10p.hdf5")
-				print "datafile", f
-				self.list.addHdf5(f)
+				if f and os.path.exists(f):
+					self.list.addHdf5(f)
 				self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
 		for pluginpath in [os.path.expanduser('~/.vaex/plugin')]:
 			logger.debug("pluginpath: %s" % pluginpath)
@@ -1294,6 +1295,8 @@ class Vaex(QtGui.QMainWindow):
 
 		def on_open_plot(plot_dialog):
 			plot_dialog.signal_samp_send_selection.connect(lambda dataset: self.on_samp_send_table_select_rowlist(dataset=dataset))
+			kernel.shell.push({"plot":plot_dialog})
+			kernel.shell.push({"layer":plot_dialog.current_layer})
 		self.right.signal_open_plot.connect(on_open_plot)
 
 		self.parse_args(argv)
@@ -1513,7 +1516,11 @@ class Vaex(QtGui.QMainWindow):
 			dialog_info(self, "Shuffle", "Shuffling with selection not supported")
 			return
 
-
+		endian_options = ["Native", "Little endian", "Big endian"]
+		index = choose(self, "Which endianness", "Which endianness / byte order:", endian_options)
+		if index is None:
+			return
+		endian_option = ["=", "<", ">"][index]
 
 
 
@@ -1539,10 +1546,10 @@ class Vaex(QtGui.QMainWindow):
 					print column_name, column.shape, column.strides
 					#array = h5file_output.require_dataset("/data/%s" % column_name, shape=column.shape, dtype=column.dtype)
 					print column_name, column.dtype, column.dtype.type
-					array = h5file_output.require_dataset("/data/%s" % column_name, shape=(N,), dtype=column.dtype.type)
+					array = h5file_output.require_dataset("/data/%s" % column_name, shape=(N,), dtype=column.dtype.newbyteorder(endian_option))
 					array[0] = array[0] # make sure the array really exists
 				if shuffle:
-					shuffle_array = h5file_output.require_dataset("/data/random_index", shape=(N,), dtype=np.int64)
+					shuffle_array = h5file_output.require_dataset("/data/random_index", shape=(N,), dtype=endian_option+"i8")
 					shuffle_array[0] = shuffle_array[0]
 
 				# close file, and reopen it using out class
@@ -1553,7 +1560,7 @@ class Vaex(QtGui.QMainWindow):
 					shuffle_array = dataset_output.columns["random_index"]
 				if partial_shuffle:
 					# if we only export a portion, we need to create the full length random_index array, and
-					shuffle_array_full = np.zeros(dataset.full_length(), dtype=np.int64)
+					shuffle_array_full = np.zeros(dataset.full_length(), dtype=endian_option+"i8")
 					gavifast.shuffled_sequence(shuffle_array_full)
 					# then take a section of it
 					shuffle_array[:] = shuffle_array_full[:len(dataset)]
@@ -1927,10 +1934,19 @@ class Vaex(QtGui.QMainWindow):
 
 
 app = None
+
+from qtconsole.rich_jupyter_widget import RichJupyterWidget
+from qtconsole.inprocess import QtInProcessKernelManager
+from IPython.lib import guisupport
+
+def print_process_id():
+    print('Process ID is:', os.getpid())
+
 def main(argv=sys.argv[1:]):
 	global main_thread
 	global vaex
 	global app
+	global kernel
 	if app is None:
 		app = QtGui.QApplication(argv)
 		if not (frozen and darwin): # osx app has its own icon file
@@ -1956,7 +1972,35 @@ def main(argv=sys.argv[1:]):
 	#raise RuntimeError, "blaat"
 
 
+
+	#   app = guisupport.get_app_qt4()
+	print_process_id()
+
+	# Create an in-process kernel
+	# >>> print_process_id()
+	# will print the same process ID as the main process
+	kernel_manager = QtInProcessKernelManager()
+	kernel_manager.start_kernel()
+	kernel = kernel_manager.kernel
+	kernel.gui = 'qt4'
+	kernel.shell.push({'foo': 43, 'print_process_id': print_process_id})
+
+	kernel_client = kernel_manager.client()
+	kernel_client.start_channels()
+
+	def stop():
+		kernel_client.stop_channels()
+		kernel_manager.shutdown_kernel()
+		app.exit()
+
+	control = RichJupyterWidget()
+	control.kernel_manager = kernel_manager
+	control.kernel_client = kernel_client
+	control.exit_requested.connect(stop)
+	control.show()
 	vaex = Vaex(argv)
+
+	sys.exit(guisupport.start_event_loop_qt4(app))
 
 
 	#w = QtGui.QWidget()
@@ -1966,7 +2010,7 @@ def main(argv=sys.argv[1:]):
 	#w.show()
 	#ipython_window.show()
 	#ipython_window.ipkernel.start()
-	sys.exit(app.exec_())
+	#sys.exit(app.exec_())
 
 @jit(nopython=True)
 def copy(from_array, to_array, indices):

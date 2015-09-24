@@ -838,7 +838,7 @@ class PlotDialog(QtGui.QWidget):
 	def getExtraText(self, x, y):
 		layer = self.current_layer
 		if hasattr(layer, "amplitude"):
-			amplitude = layer.amplitude
+			amplitude = layer.amplitude_grid
 			if len(amplitude.shape) == 1:
 					#if self.ranges[0]:
 					N = amplitude.shape[0]
@@ -1406,7 +1406,7 @@ class PlotDialog(QtGui.QWidget):
 					else:
 						yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
 					if yes or yesall:
-						np.save(gridname, self.current_layer.amplitude)
+						np.save(gridname, self.current_layer.amplitude_grid)
 						msg_list.append("wrote: " + gridname)
 					if mask[2]:
 						if self.current_layer.dataset.mask is not None:

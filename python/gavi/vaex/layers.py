@@ -223,6 +223,70 @@ class LayerTable(object):
 		self.signal_plot_update = gavi.events.Signal("plot_update")
 		#self.dataset.signal_pick.connect(self.on)
 
+	@property
+	def weight(self):
+		"""Expression that is used for the weight"""
+		return self.weight_expression
+
+	@weight.setter
+	def weight(self, value):
+		self.weight_expression = value
+		self.weight_box.lineEdit().setText(value)
+		self.plot_window.queue_update()
+
+	@weight.deleter
+	def weight(self):
+		self.weight_expression = None
+		self.weight_box.lineEdit().setText("")
+		self.plot_window.queue_update()
+
+	@property
+	def x(self):
+		"""x expression"""
+		return self.expressions[0]
+
+	@x.setter
+	def x(self, value):
+		self.expressions[0] = value
+		self.axisboxes[0].lineEdit().setText(value)
+		self.plot_window.queue_update()
+
+	@property
+	def y(self):
+		"""y expression"""
+		return self.expressions[1]
+
+	@y.setter
+	def y(self, value):
+		self.expressions[1] = value
+		self.axisboxes[1].lineEdit().setText(value)
+		self.plot_window.queue_update()
+
+	@property
+	def amplitude(self):
+		"""amplitude expression"""
+		return self.amplitude_expression
+
+	@amplitude.setter
+	def amplitude(self, value):
+		self.amplitude_expression = value
+		self.amplitude_box.lineEdit().setText(value)
+		self.plot_window.queue_update()
+
+	@property
+	def amplitude(self):
+		"""amplitude expression"""
+		return self.amplitude_expression
+
+	@amplitude.setter
+	def amplitude(self, value):
+		self.amplitude_expression = value
+		self.amplitude_box.lineEdit().setText(value)
+		self.plot_window.queue_update()
+
+
+
+
 	def removed(self):
 		self.dataset.mask_listeners.remove(self.onSelectMask)
 		self.dataset.row_selection_listeners.remove(self.onSelectRow)
@@ -299,7 +363,7 @@ class LayerTable(object):
 		#print "stack trace", ''.join(traceback.format_stack())
 		grid_map = self.create_grid_map(self.plot_window.grid_size, False)
 		try:
-			self.amplitude = amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
+			self.amplitude_grid = amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
 		except Exception, e:
 			logger.exception("amplitude field")
 			self.error_in_field(self.amplitude_box, "amplitude", e)
@@ -692,6 +756,7 @@ class LayerTable(object):
 						layer.grids.ranges[axisIndex] = copy.deepcopy(self.ranges_grid[axisIndex])
 				else:
 					raise Exception, "should not happen"
+				print "min/max", axisIndex, self.ranges_grid[axisIndex]
 				self.grids.ranges[axisIndex] = list(self.ranges_grid[axisIndex])
 				self.message("min/max[%d] %.2fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
 				self.message(None, index=-1) # clear error msg

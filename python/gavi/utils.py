@@ -76,7 +76,7 @@ def filesize_format(value):
 		if value < 1024.0:
 			return "%3.1f%s" % (value, unit)
 		value /= 1024.0
-	return "%3.1f%s" % (num, 'TiB')
+	return "%3.1f%s" % (value, 'TiB')
 
 
 

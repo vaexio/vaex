@@ -49,6 +49,30 @@ void object_to_numpy1d_nocopy(T* &ptr, PyObject* obj, long long  &count, int& st
 }
 
 template<typename T>
+void object_to_numpy1d_nocopy_endian(T* &ptr, PyObject* obj, long long  &count, bool &native, int& stride=stride_default, int type=NPY_DOUBLE) {
+		if(obj == NULL)
+			throw std::runtime_error("cannot convert to numpy array");
+		if((int)PyArray_NDIM(obj) != 1)
+			throw std::runtime_error("array is not 1d");
+		long long size = PyArray_DIMS(obj)[0];
+		if((count >= 0) && (size != count))
+			throw std::runtime_error("arrays not of equal size");
+		if(PyArray_TYPE(obj) != type)
+			throw std::runtime_error("is not of proper type");
+		npy_intp* strides =  PyArray_STRIDES(obj);
+		if(stride == -1) {
+			stride = strides[0];
+		} else {
+			if(strides[0] != stride*PyArray_ITEMSIZE(obj)) {
+				throw Error("stride is not equal to %d", stride);
+			}
+		}
+		native = PyArray_ISNOTSWAPPED(obj);
+		ptr = (T*)PyArray_DATA(obj);
+		count = size;
+}
+
+template<typename T>
 void object_to_numpy2d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y, int type=NPY_DOUBLE) {
 		if(obj == NULL)
 			throw std::runtime_error("cannot convert to numpy array");
@@ -198,8 +222,28 @@ PyObject* range_check_(PyObject* self, PyObject *args) {
 }
 
 
+double double_to_native1(double value_non_native) {
+	unsigned char* bytes = (unsigned char*)&value_non_native;
+	double result;
+	unsigned char* result_bytes = (unsigned char*)&result;
+	for(int i = 0; i < 8; i++)
+		result_bytes[7-i] = bytes[i];
+	return result;
+}
 
-void find_nan_min_max(const double* const block_ptr, const long long length, double &min_, double &max_) {
+inline double double_to_native(double value)
+{
+	uint64_t* val = (uint64_t*)&value;
+	double result_value;
+    uint64_t* result = (uint64_t*)&result_value;
+    /**val = (((*val) << 8) & 0xFF00FF00FF00FF00ULL )  | (((*val) >> 8) & 0x00FF00FF00FF00FFULL );
+    *val = (((*val) << 16) & 0xFFFF0000FFFF0000ULL ) | (((*val) >> 16) & 0x0000FFFF0000FFFFULL );
+    *result = ((*val) << 32) | (((*val) >> 32) & 0xFFFFFFFFULL);*/
+	*result = __builtin_bswap64(*val);
+	return result_value;
+}
+
+void find_nan_min_max(const double* const block_ptr, const long long length, bool native, double &min_, double &max_) {
 	double min = min_, max = max_;
 	//*double min = min_, max = max_; // no using the reference but a local var seems easier for the compiler to optimize
 	//printf("length: %d\n", length);
@@ -267,38 +311,76 @@ void find_nan_min_max(const double* const block_ptr, const long long length, dou
 
 	}
 	/*/
-	min = block_ptr[0];
-	max = block_ptr[0];
-	for(long long i = 1; i < length; i++) {
-		if(isnan(min))
-			min = block_ptr[i];
-		else
-			break;
-	}
-	for(long long i = 1; i < length; i++) {
-		if(isnan(max))
-			max = block_ptr[i];
-		else
-			break;
-	}
-	for(long long i = 1; i < length; i++) {
-		const double value = block_ptr[i];
-		//if(value == value)// nan checking
-		{  
-			//min = fmin(value, min);
-			//max = fmax(value, max);
-			if(value < min) {
-				min = value;
-			} else if (value > max) {
-				max = value;
-			}
-			//min = value < min ? value : min;
-			//max = value > max ? value : max;
+	printf("new min/max");
+	if(native) {
+		printf("native");
+		min = block_ptr[0];
+		max = block_ptr[0];
+		for(long long i = 1; i < length; i++) {
+			if(isnan(min))
+				min = block_ptr[i];
+			else
+				break;
 		}
+		for(long long i = 1; i < length; i++) {
+			if(isnan(max))
+				max = block_ptr[i];
+			else
+				break;
+		}
+		for(long long i = 1; i < length; i++) {
+			const double value = block_ptr[i];
+			//if(value == value)// nan checking
+			{  
+				//min = fmin(value, min);
+				//max = fmax(value, max);
+				if(value < min) {
+					min = value;
+				} else if (value > max) {
+					max = value;
+				}
+				//min = value < min ? value : min;
+				//max = value > max ? value : max;
+			}
+		}
+		/**/
+		min_ = min;
+		max_ = max;
+	} else {
+		printf("non-native");
+		min = double_to_native(block_ptr[0]);
+		max = double_to_native(block_ptr[0]);
+		for(long long i = 1; i < length; i++) {
+			if(isnan(min))
+				min = double_to_native(block_ptr[i]);
+			else
+				break;
+		}
+		for(long long i = 1; i < length; i++) {
+			if(isnan(max))
+				max = double_to_native(block_ptr[i]);
+			else
+				break;
+		}
+		for(long long i = 1; i < length; i++) {
+			const double value = double_to_native(block_ptr[i]);
+			//if(value == value)// nan checking
+			{  
+				//min = fmin(value, min);
+				//max = fmax(value, max);
+				if(value < min) {
+					min = value;
+				} else if (value > max) {
+					max = value;
+				}
+				//min = value < min ? value : min;
+				//max = value > max ? value : max;
+			}
+		}
+		/**/
+		min_ = min;
+		max_ = max;	
 	}
-	/**/
-	min_ = min;
-	max_ = max;
 }
 
 
@@ -313,10 +395,11 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 		long long length = -1;
 		double *block_ptr = NULL;
 		double min=0., max=1.;
+		bool native = true;
 		try {
-			object_to_numpy1d_nocopy(block_ptr, block, length);
+			object_to_numpy1d_nocopy_endian(block_ptr, block, length, native);
 			Py_BEGIN_ALLOW_THREADS
-			find_nan_min_max(block_ptr, length, min, max);
+			find_nan_min_max(block_ptr, length, native, min, max);
 			Py_END_ALLOW_THREADS
 			result = Py_BuildValue("dd", min, max); 
 		} catch(std::runtime_error e) {
@@ -329,7 +412,7 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 
 
 
-void histogram1d(const double* const __restrict__ block, const long long block_stride, const double* const weights, const int weights_stride, long long block_length, double* __restrict__ counts, const int counts_length, const double min, const double max) {
+void histogram1d(const double* const __restrict__ block, const long long block_stride, const bool block_native, const double* const weights, const int weights_stride, bool weights_native, long long block_length, double* __restrict__ counts, const int counts_length, const double min, const double max) {
 	//const double* __restrict__ block_ptr = block;
 	
 
@@ -374,20 +457,48 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
 		}
 	}
 	/*/
-	
 	const double scale = counts_length / (max-min);;
-	for(long long i = 0; i < block_length; i++) {
-		const double value = block[i]; //block[i*block_stride];
-		//block_ptr++;
-		//const double value = *block_ptr;
-		//block_ptr += block_stride;
-		//__builtin_prefetch(block_ptr, 1, 1); // read, and no temporal locality
-		//__builtin_prefetch(block_ptr+block_stride*10, 1, 1); // read, and no temporal locality
-		//if( (index >= 0) & (index < counts_length) )
-		if((value > min) & (value < max)) {
-			const double scaled = (value - min) * scale;
-			const long long index = (long long)(scaled);
-			counts[index] += weights == NULL ? 1 : weights[i];
+	if(block_native && weights_native) {
+		for(long long i = 0; i < block_length; i++) {
+			const double value = block[i]; //block[i*block_stride];
+			//block_ptr++;
+			//const double value = *block_ptr;
+			//block_ptr += block_stride;
+			//__builtin_prefetch(block_ptr, 1, 1); // read, and no temporal locality
+			//__builtin_prefetch(block_ptr+block_stride*10, 1, 1); // read, and no temporal locality
+			//if( (index >= 0) & (index < counts_length) )
+			if((value > min) & (value < max)) {
+				const double scaled = (value - min) * scale;
+				const long long index = (long long)(scaled);
+				counts[index] += weights == NULL ? 1 : weights[i];
+			}
+		}
+	} else {
+		/*if(!block_native && weights == NULL) {
+			for(long long i = 0; i < block_length; i++) {
+				const double value = block_native ? block[i] : double_to_native(block[i]);
+				if((value > min) & (value < max)) {
+					const double scaled = (value - min) * scale;
+					const long long index = (long long)(scaled);
+					counts[index] += 1;
+				}
+			}
+		} else*/ {
+			for(long long i = 0; i < block_length; i++) {
+				const double value = block_native ? block[i] : double_to_native(block[i]);
+				//block_ptr++;
+				//const double value = *block_ptr;
+				//block_ptr += block_stride;
+				//__builtin_prefetch(block_ptr, 1, 1); // read, and no temporal locality
+				//__builtin_prefetch(block_ptr+block_stride*10, 1, 1); // read, and no temporal locality
+				//if( (index >= 0) & (index < counts_length) )
+				if((value > min) & (value < max)) {
+					const double scaled = (value - min) * scale;
+					const long long index = (long long)(scaled);
+					double weight = weights_native ? weights[i] : double_to_native(weights[i]);
+					counts[index] += weights == NULL ? 1 : weight;
+				}
+			}
 		}
 	}
 	/**/
@@ -410,14 +521,20 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 		
 		double *weights_ptr = NULL;
 		int weights_stride = -1;
+		bool block_native = true;
+		bool weights_native = true;
+		bool counts_native = true;
+		
 		try {
-			object_to_numpy1d_nocopy(block_ptr, block, block_length, block_stride);
-			object_to_numpy1d_nocopy(counts_ptr, counts, counts_length, weights_stride);
+			object_to_numpy1d_nocopy_endian(block_ptr, block, block_length, block_native, block_stride);
+			object_to_numpy1d_nocopy_endian(counts_ptr, counts, counts_length, counts_native, weights_stride);
 			if(weights != Py_None) {
-				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+				object_to_numpy1d_nocopy_endian(weights_ptr, weights, block_length, weights_native);
 			}
+			if(!counts_native)
+				throw Error("counts is not in native byteorder");
 			Py_BEGIN_ALLOW_THREADS
-			histogram1d(block_ptr, block_stride, weights_ptr, weights_stride, block_length, counts_ptr, counts_length, min, max);
+			histogram1d(block_ptr, block_stride, block_native, weights_ptr, weights_stride, weights_native, block_length, counts_ptr, counts_length, min, max);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
@@ -430,36 +547,67 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 
 
 
-void histogram2d(const double* const __restrict__ blockx, const double* const __restrict__ blocky, const double* const weights, const long long block_length, double* const __restrict__ counts, const int counts_length_x, const int counts_length_y, const double xmin, const double xmax, const double ymin, const double ymax, const long long offset_x, const long long offset_y) {
+void histogram2d(const double* const __restrict__ blockx, const double* const __restrict__ blocky, const double* const weights, const long long block_length, bool blockx_native, bool blocky_native, bool weights_native, double* const __restrict__ counts, const int counts_length_x, const int counts_length_y, const double xmin, const double xmax, const double ymin, const double ymax, const long long offset_x, const long long offset_y) {
 	long long i_x = offset_x;
 	long long i_y = offset_y;
 	const double scale_x = counts_length_x/ (xmax-xmin);
 	const double scale_y = counts_length_y/ (ymax-ymin);
-	if((weights == NULL) & (offset_x == 0) & (offset_y == 0)) { // default: fasted algo
-		for(long long i = 0; i < block_length; i++) {
-			double value_x = blockx[i];
-			double value_y = blocky[i];
-			
-			if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
-			//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
-				int index_x = (int)((value_x - xmin) * scale_x);
-				int index_y = (int)((value_y - ymin) * scale_y);
-				counts[index_x + counts_length_x*index_y] += 1;
+	if(blockx_native && blocky_native & weights_native) {
+		if((weights == NULL) & (offset_x == 0) & (offset_y == 0)) { // default: fasted algo
+			for(long long i = 0; i < block_length; i++) {
+				double value_x = blockx[i];
+				double value_y = blocky[i];
+				
+				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
+				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
+					int index_x = (int)((value_x - xmin) * scale_x);
+					int index_y = (int)((value_y - ymin) * scale_y);
+					counts[index_x + counts_length_x*index_y] += 1;
+				}
+			}
+		} else {
+			for(long long i = 0; i < block_length; i++) {
+				double value_x = blockx[i];
+				double value_y = blocky[i];
+				
+				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
+				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
+					int index_x = (int)((value_x - xmin) * scale_x);
+					int index_y = (int)((value_y - ymin) * scale_y);
+					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
+				}
+				i_x = i_x >= block_length-1 ? 0 : i_x+1;
+				i_y = i_y >= block_length-1 ? 0 : i_y+1;
 			}
 		}
 	} else {
-		for(long long i = 0; i < block_length; i++) {
-			double value_x = blockx[i];
-			double value_y = blocky[i];
-			
-			if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
-			//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
-				int index_x = (int)((value_x - xmin) * scale_x);
-				int index_y = (int)((value_y - ymin) * scale_y);
-				counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
+		if((weights == NULL) & (offset_x == 0) & (offset_y == 0)) { // default: fasted algo
+			for(long long i = 0; i < block_length; i++) {
+				double value_x = blockx_native ? blockx[i] : double_to_native(blockx[i]);
+				double value_y = blocky_native ? blocky[i] : double_to_native(blocky[i]);
+				
+				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
+				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
+					int index_x = (int)((value_x - xmin) * scale_x);
+					int index_y = (int)((value_y - ymin) * scale_y);
+					counts[index_x + counts_length_x*index_y] += 1;
+				}
 			}
-			i_x = i_x >= block_length-1 ? 0 : i_x+1;
-			i_y = i_y >= block_length-1 ? 0 : i_y+1;
+		} else {
+			for(long long i = 0; i < block_length; i++) {
+				double value_x = blockx_native ? blockx[i] : double_to_native(blockx[i]);
+				double value_y = blocky_native ? blocky[i] : double_to_native(blocky[i]);
+				
+				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
+				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
+					int index_x = (int)((value_x - xmin) * scale_x);
+					int index_y = (int)((value_y - ymin) * scale_y);
+					double weight = weights_native ? weights[i] : double_to_native(weights[i]);
+					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weight;
+				}
+				i_x = i_x >= block_length-1 ? 0 : i_x+1;
+				i_y = i_y >= block_length-1 ? 0 : i_y+1;
+			}
 		}
 	}
 	/**/
@@ -480,15 +628,21 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 		double *blocky_ptr = NULL;
 		double *weights_ptr = NULL;
 		double *counts_ptr = NULL;
+		bool blockx_native = true;
+		bool blocky_native = true;
+		bool weights_native = true;
+		bool counts_native = true;
 		try {
-			object_to_numpy1d_nocopy(blockx_ptr, blockx, block_length);
-			object_to_numpy1d_nocopy(blocky_ptr, blocky, block_length);
+			object_to_numpy1d_nocopy_endian(blockx_ptr, blockx, block_length, blockx_native);
+			object_to_numpy1d_nocopy_endian(blocky_ptr, blocky, block_length, blocky_native);
 			object_to_numpy2d_nocopy(counts_ptr, counts, counts_length_x, counts_length_y);
 			if(weights != Py_None) {
-				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+				object_to_numpy1d_nocopy_endian(weights_ptr, weights, block_length, weights_native);
 			}
+			/*if(!counts_native)
+				throw Error("counts is not in native byteorder");*/
 			Py_BEGIN_ALLOW_THREADS
-			histogram2d(blockx_ptr, blocky_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, xmin, xmax, ymin, ymax, offset_x, offset_y);
+			histogram2d(blockx_ptr, blocky_ptr, weights_ptr, block_length, blockx_native, blocky_native, weights_native, counts_ptr, counts_length_x, counts_length_y, xmin, xmax, ymin, ymax, offset_x, offset_y);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
@@ -499,7 +653,7 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 	return result;
 }
 
-void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, double* counts, const int counts_length_x, const int counts_length_y, const int counts_length_z, const double xmin, const double xmax, const double ymin, const double ymax, const double zmin, const double zmax, long long const offset_x, long long const offset_y, long long const offset_z) {
+void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, bool blockx_native, bool blocky_native, bool blockz_native, bool weights_native, double* counts, const int counts_length_x, const int counts_length_y, const int counts_length_z, const double xmin, const double xmax, const double ymin, const double ymax, const double zmin, const double zmax, long long const offset_x, long long const offset_y, long long const offset_z) {
 	/*for(long long i = 0; i < block_length; i++) {
 		double value_x = blockx[(i+ offset_x + block_length)  % block_length];
 		double scaled_x = (value_x - xmin) / (xmax-xmin);
@@ -525,9 +679,9 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 	const double scale_z = counts_length_z/ (zmax-zmin);
 	if((weights == NULL) & (offset_x == 0) & (offset_y == 0) & (offset_z == 0)) { // default: fasted algo
 		for(long long i = 0; i < block_length; i++) {
-			double value_x = blockx[i];
-			double value_y = blocky[i];
-			double value_z = blockz[i];
+			double value_x = blockx_native ? blockx[i] : double_to_native(blockx[i]);
+			double value_y = blocky_native ? blocky[i] : double_to_native(blocky[i]);
+			double value_z = blockz_native ? blockz[i] : double_to_native(blockz[i]);
 			
 			if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) & (value_z >= zmin) & (value_z < zmax)) {
 				int index_x = (int)((value_x - xmin) * scale_x);
@@ -538,15 +692,16 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 		}
 	} else {
 		for(long long i = 0; i < block_length; i++) {
-			double value_x = blockx[i];
-			double value_y = blocky[i];
-			double value_z = blockz[i];
+			double value_x = blockx_native ? blockx[i] : double_to_native(blockx[i]);
+			double value_y = blocky_native ? blocky[i] : double_to_native(blocky[i]);
+			double value_z = blockz_native ? blockz[i] : double_to_native(blockz[i]);
 			
 			if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) & (value_z >= zmin) & (value_z < zmax)) {
 				int index_x = (int)((value_x - xmin) * scale_x);
 				int index_y = (int)((value_y - ymin) * scale_y);
 				int index_z = (int)((value_z - zmin) * scale_z);
-				counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights[i];
+				double weight = weights_native ? weights[i] : double_to_native(weights[i]);
+				counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weight;
 			}
 		}
 		/*for(long long i = 0; i < block_length; i++) {
@@ -591,16 +746,21 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 		double *blockz_ptr = NULL;
 		double *weights_ptr = NULL;
 		double *counts_ptr = NULL;
+		bool blockx_native = true;
+		bool blocky_native = true;
+		bool blockz_native = true;
+		bool weights_native = true;
+		bool counts_native = true;
 		try {
-			object_to_numpy1d_nocopy(blockx_ptr, blockx, block_length);
-			object_to_numpy1d_nocopy(blocky_ptr, blocky, block_length);
-			object_to_numpy1d_nocopy(blockz_ptr, blockz, block_length);
+			object_to_numpy1d_nocopy_endian(blockx_ptr, blockx, block_length, blockx_native);
+			object_to_numpy1d_nocopy_endian(blocky_ptr, blocky, block_length, blocky_native);
+			object_to_numpy1d_nocopy_endian(blockz_ptr, blockz, block_length, blockz_native);
 			object_to_numpy3d_nocopy(counts_ptr, counts, counts_length_x, counts_length_y, counts_length_z);
 			if(weights != Py_None) {
-				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+				object_to_numpy1d_nocopy_endian(weights_ptr, weights, block_length, weights_native);
 			}
 			Py_BEGIN_ALLOW_THREADS
-			histogram3d(blockx_ptr, blocky_ptr, blockz_ptr, weights_ptr, block_length, counts_ptr, counts_length_x, counts_length_y, counts_length_z, xmin, xmax, ymin, ymax, zmin, zmax, offset_x, offset_y, offset_z);
+			histogram3d(blockx_ptr, blocky_ptr, blockz_ptr, weights_ptr, block_length, blockx_native, blocky_native, blockz_native, weights_native, counts_ptr, counts_length_x, counts_length_y, counts_length_z, xmin, xmax, ymin, ymax, zmin, zmax, offset_x, offset_y, offset_z);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
@@ -771,11 +931,11 @@ PyObject* project_(PyObject* self, PyObject* args) {
 }
 
 
-void pnpoly(double *vertx, double *verty, int nvert, const double* const blockx, const double* const blocky, unsigned char* const mask, int length, double meanx, double meany, double radius) {
+void pnpoly(double *vertx, double *verty, int nvert, const double* const blockx, const double* const blocky, bool blockx_native, bool blocky_native, unsigned char* const mask, int length, double meanx, double meany, double radius) {
 	double radius_squared = radius*radius;
 	for(int k= 0; k < length; k++){
-		double testx = blockx[k];
-		double testy = blocky[k];
+		double testx = blockx_native ? blockx[k] : double_to_native(blockx[k]);
+		double testy = blocky_native ? blocky[k] : double_to_native(blocky[k]);
 		int i, j, c = 0;
 		mask[k] = 0;
 		double distancesq = pow(testx - meanx, 2) + pow(testy - meany, 2);
@@ -803,14 +963,16 @@ static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 		double *y_ptr = NULL;
 		double *blockx_ptr = NULL;
 		double *blocky_ptr = NULL;
+		bool blockx_native = true;
+		bool blocky_native = true;
 		try {
 			object_to_numpy1d_nocopy(x_ptr, x, polygon_length);
 			object_to_numpy1d_nocopy(y_ptr, y, polygon_length);
-			object_to_numpy1d_nocopy(blockx_ptr, blockx, length);
-			object_to_numpy1d_nocopy(blocky_ptr, blocky, length);
+			object_to_numpy1d_nocopy_endian(blockx_ptr, blockx, length, blockx_native);
+			object_to_numpy1d_nocopy_endian(blocky_ptr, blocky, length, blocky_native);
 			object_to_numpy1d_nocopy(mask_ptr, mask, length, stride_default, NPY_BOOL);
 			Py_BEGIN_ALLOW_THREADS
-			pnpoly(x_ptr, y_ptr, polygon_length, blockx_ptr, blocky_ptr, mask_ptr, length, meanx, meany, radius);
+			pnpoly(x_ptr, y_ptr, polygon_length, blockx_ptr, blocky_ptr, blockx_native, blocky_native, mask_ptr, length, meanx, meany, radius);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;

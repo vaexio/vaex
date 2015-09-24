@@ -17,7 +17,7 @@ def mutual_information(data):
 
 	P = P / P.sum()
 	Q = Q / Q.sum()
-	mask = (P > 0)# & (Q>0)
+	mask = (P > 0) & (Q>0)
 	information = np.sum(P[mask] * np.log(P[mask]/Q[mask]))# * np.sum(dx)
 	return information
 

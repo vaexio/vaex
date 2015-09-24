@@ -33,7 +33,7 @@ def error(title, msg):
 sys_is_le = sys.byteorder == 'little'
 native_code = sys_is_le and '<' or '>'
 
-buffer_size = 1e6 # TODO: this should not be fixed, larger means faster but also large memory usage
+buffer_size = 1e8 # TODO: this should not be fixed, larger means faster but also large memory usage
 
 import gavi.logging
 logger = gavi.logging.getLogger("gavi.vaex")
@@ -200,6 +200,7 @@ class JobsManager(object):
 		self.signal_begin.emit()
 		error_text = None
 		progress_value = 0
+		buffer_size_local = buffer_size #int(buffer_size / len(self.jobs))
 		try:
 			# keep a local copy to support reentrant calling
 			jobs = self.jobs
@@ -217,7 +218,7 @@ class JobsManager(object):
 					for expression in expressions:
 						all_expressions_set.add((dataset, expression))
 				# for each expresssion keep an array for intermediate storage
-				expression_outputs = dict([(key, np.zeros(buffer_size, dtype=np.float64)) for key in all_expressions_set])
+				expression_outputs = dict([(key, np.zeros(buffer_size_local, dtype=np.float64)) for key in all_expressions_set])
 			
 			class Info(object):
 				pass
@@ -268,15 +269,15 @@ class JobsManager(object):
 						
 						logger.debug("expressions: %r" % expressions_dataset)
 						# TODO: implement fractions/slices
-						n_blocks = int(math.ceil(dataset_length *1.0 / buffer_size))
-						logger.debug("blocks: %r %r" % (n_blocks, dataset_length *1.0 / buffer_size))
+						n_blocks = int(math.ceil(dataset_length *1.0 / buffer_size_local))
+						logger.debug("blocks: %r %r" % (n_blocks, dataset_length *1.0 / buffer_size_local))
 						# execute blocks for all expressions, better for Lx cache
 						t0 = time.time()
 						for block_index in range(n_blocks):
 							if cancelled or errors:
 								break
-							i1 = block_index * buffer_size
-							i2 = (block_index +1) * buffer_size
+							i1 = block_index * buffer_size_local
+							i2 = (block_index +1) * buffer_size_local
 							last = False
 							if i2 >= dataset_length: # round off the sizes
 								i2 = dataset_length
@@ -348,16 +349,18 @@ class JobsManager(object):
 									#expr_noslice, slice_vars = expr.translate(expression)
 									expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #
 									logger.debug("translated expression: %r" % (expr_noslice,))
-									#print "native", dataset.columns[expression].dtype.byteorder, native_code, dataset.columns[expression].dtype.byteorder==native_code
+									#print "native", dataset.columns[expression].dtype, dataset.columns[expression].dtype.type==np.float64, dataset.columns[expression].dtype.byteorder, native_code, dataset.columns[expression].dtype.byteorder==native_code, dataset.columns[expression].strides[0]
 									if expr_noslice is None:
 										results[expression] = None
 									#elif expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
 									elif expression in dataset.column_names  \
-											and dataset.columns[expression].dtype==np.float64 \
-											and dataset.columns[expression].dtype.byteorder in [native_code, "="] \
+											and dataset.columns[expression].dtype.type==np.float64 \
 											and dataset.columns[expression].strides[0] == 8 \
 											and expression not in dataset.virtual_columns:
+											#and False:
+											#and dataset.columns[expression].dtype.byteorder in [native_code, "="] \
 										logger.debug("avoided expression, simply a column name with float64")
+										print "fast"
 										#yield self.columns[expression][i1:i2], info
 										results[expression] = dataset.columns[expression][i1:i2]
 									else:
@@ -920,20 +923,42 @@ class FitsBinTable(MemoryMapped):
 							column = table.columns[i]
 							cannot_handle = False
 							#print column.name, str(column.dtype)
-							try:
-								dtype, length = eval(str(column.dtype)) # ugly hack
-								length = length[0]
-							except:
-								cannot_handle = True
-							if not cannot_handle:
+							#try:
+							#	dtype, length = eval(str(column.dtype)) # ugly hack
+							#	length = length[0]
+							#except:
+							#	cannot_handle = True
+
+							# flatlength == length * arraylength
+							flatlength, fitstype = long(column.format[:-1]),column.format[-1]
+							arraylength, length = arrayshape = eval(column.dim)
+
+							# numpy dtype code, like f8, i4
+							dtypecode = astropy.io.fits.column.FITS2NUMPY[fitstype]
+
+
+							dtype = np.dtype((">" +dtypecode, arraylength))
+							if 0:
+								if arraylength > 1:
+									dtype = np.dtype((">" +dtypecode, arraylength))
+								else:
+									if dtypecode == "a": # I think numpy needs by default a length 1
+										dtype = np.dtype(dtypecode + "1")
+									else:
+										dtype = np.dtype(">" +dtypecode)
+								#	bytessize = 8
+
+							bytessize = dtype.itemsize
+							print column.name, dtype, column.format, column.dim, length, bytessize, arraylength
+							#if not cannot_handle:
+							if (flatlength > 0) and dtypecode != "a": # TODO: support strings
 								#print column.name, dtype, length
 								#print "ok", column.dtype
 								#if type == np.float64:
 								#print "\t", offset, dtype, length
-								typestr = eval(str(table.columns[i].dtype))[0].replace("<", ">").strip()
+								#typestr = eval(str(table.columns[i].dtype))[0].replace("<", ">").strip()
 								#print "   type", typestr
-								dtype = np.zeros(1,dtype=typestr).dtype
-								bytessize = dtype.itemsize
+								#dtype = np.zeros(1,dtype=typestr).dtype
 								#if "f" in dtype:
 								if 1:
 									#dtype = np.dtype(dtype)
@@ -942,20 +967,29 @@ class FitsBinTable(MemoryMapped):
 									self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
 									#col = self.columns[column.name]
 									#print "   ", col[:10],  col[:10].dtype, col.dtype.byteorder == native_code, bytessize
+
+							if flatlength > 0: # flatlength can be
 								offset += bytessize * length
-								#else:
-								#	offset += 8 * length
-							else:
+
+							#else:
+							if 0:
 								#print str(column.dtype)
-								assert str(column.dtype)[0] == "|"
-								assert str(column.dtype)[1] == "S"
+								#print column.dtype
+								import pdb
+								#pdb.set_trace()
+								print column.name, column.format, length
+								#print column.dtype.descr
+								#print column.dtype.fields
+								#assert column.dtype.descr[0][1][0] == "|"
+								#assert column.dtype.descr[0][1][1] == "S"
 								#overflown_length =
 								#import pdb
 								#pdb.set_trace()
 								offset += eval(column.dim)[0] * length
 								#raise Exception,"cannot handle type: %s" % column.dtype
 								#sys.exit(0)
-
+							print "offset=", offset, 403532029440-offset
+					#sys.exit(0)
 
 				else:
 					logger.debug("adding table: %r" % table)
@@ -1589,6 +1623,38 @@ class VOTable(MemoryMapped):
 		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
 		return can_open
 dataset_type_map["votable"] = VOTable
+
+		
+import asciitable
+class AsciiTable(MemoryMapped):
+	def __init__(self, filename):
+		super(AsciiTable, self).__init__(filename, nommap=True)
+		import asciitable
+		table = asciitable.read(filename)
+		logger.debug("done parsing ascii table")
+		#import pdb
+		#pdb.set_trace()
+		#names = table.array.dtype.names
+		names = table.dtype.names
+		
+		#data = table.array.data
+		for i in range(len(table.dtype)):
+			name = table.dtype.names[i]
+			type = table.dtype[i]
+			if type.kind in ["f", "i"]: # only store float and int
+				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
+				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
+				self.addColumn(name, array=table[name])
+		#dataset.samp_id = table_id
+		#self.list.addDataset(dataset)
+		#return dataset
+	
+	@classmethod
+	def can_open(cls, path, *args):
+		can_open = path.endswith(".asc")
+		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
+		return can_open
+dataset_type_map["ascii"] = AsciiTable
 
 class MemoryMappedGadget(MemoryMapped):
 	def __init__(self, filename):
