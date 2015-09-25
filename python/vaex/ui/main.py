@@ -1768,7 +1768,7 @@ class Vaex(QtGui.QMainWindow):
 		table = astropy.io.votable.parse_single_table(url)
 		print "done parsing table"
 		names = table.array.dtype.names
-		dataset = MemoryMapped(table_id, nommap=True)
+		dataset = DatasetMemoryMapped(table_id, nommap=True)
 
 		data = table.array.data
 		for i in range(len(data.dtype)):
@@ -1845,7 +1845,7 @@ class Vaex(QtGui.QMainWindow):
 		table = astropy.io.votable.parse_single_table(url)
 		print "done parsing table"
 		names = table.array.dtype.names
-		dataset = MemoryMapped(table_id, nommap=True)
+		dataset = DatasetMemoryMapped(table_id, nommap=True)
 
 		data = table.array.data
 		for i in range(len(data.dtype)):

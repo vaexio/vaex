@@ -12,13 +12,11 @@ import platform
 
 import h5py
 import numpy as np
-import numexpr as ne
 
-from gavi.utils import Timer
-from gavi import multithreading
-import gavi.vaex.expressions as expr
-import gavi.events
-import gavi.vaex.undo
+from vaex.utils import Timer
+from vaex import multithreading
+import vaex.events
+import vaex.ui.undo
 
 frozen = getattr(sys, 'frozen', False)
 darwin = "darwin" not in platform.system()
@@ -33,394 +31,12 @@ def error(title, msg):
 sys_is_le = sys.byteorder == 'little'
 native_code = sys_is_le and '<' or '>'
 
-buffer_size = 1e8 # TODO: this should not be fixed, larger means faster but also large memory usage
-
-import gavi.logging
-logger = gavi.logging.getLogger("gavi.vaex")
+import vaex.logging
+logger = vaex.logging.getLogger("vaex")
 
 
 dataset_type_map = {}
 
-class FakeLogger(object):
-	def debug(self, *args):
-		pass
-	def info(self, *args):
-		pass
-	def error(self, *args):
-		pass
-	def exception(self, *args):
-		pass
-
-#logger = FakeLogger()
-
-class Job(object):
-	def __init__(self, callback, expressions):
-		pass
-
-class Job(dict):
-    def __init__(self, *args, **kwargs):
-        super(AttrDict, self).__init__(*args, **kwargs)
-        self.__dict__ = self
-
-
-class JobsManager(object):
-	def __init__(self):
-		#self.datasets = datasets
-		self.jobs = []
-		self.order_numbers = []
-		self.after_execute = []
-		self.signal_begin = gavi.events.Signal("begin")
-		self.signal_end = gavi.events.Signal("end")
-		self.signal_cancel = gavi.events.Signal("cancel")
-		self.signal_progress = gavi.events.Signal("progress")
-		self.progress_total = 0
-
-	def addJob(self, order, callback, dataset, *expressions, **variables):
-		args = order, callback, dataset, expressions, variables
-		logger.info("job: %r" % (args,))
-		if order not in self.order_numbers:
-			self.order_numbers.append(order)
-		self.progress_total += len(dataset)
-		self.jobs.append((order, callback, dataset, [None if e is None or len(e) == 0 else e for e in expressions], variables))
-
-
-	def add_scalar_jobs(self, dataset, function_per_block, function_merge, function_final, use_mask, expressions, feedback=None):
-		#print "-->", self, dataset, function_per_block, function_post_blocks, function_final, use_mask, expressions
-		pool = multithreading.ThreadPool()
-		subresults = [None] * len(expressions)
-
-		#print "expressions", expressions
-		class Wrapper(object):
-			pass
-		wrapper = Wrapper()
-		wrapper.N_done = 0
-		N_total = len(expressions) * (len(dataset)) # if not use_mask else np.sum(dataset.mask))
-
-
-		def calculate(info, block, index):
-			#print block, index
-			def subblock(thread_index, sub_i1, sub_i2):
-				if use_mask:
-					data = block[sub_i1:sub_i2][dataset.mask[info.i1:info.i2][sub_i1:sub_i2]]
-				else:
-					data = block[sub_i1:sub_i2]
-				#print function_per_block, data
-				result = function_per_block(data)
-				#print "result", result
-				#assert result is not None
-				if subresults_per_thread[thread_index] is None:
-					subresults_per_thread[thread_index] = result
-				else:
-					subresults_per_thread[thread_index] = reduce(function_merge, [result, subresults_per_thread[thread_index]])
-
-			subresults_per_thread = [None] * pool.nthreads
-			pool.run_blocks(subblock, info.size)
-			wrapper.N_done += len(block)
-			if feedback:
-				cancel = feedback(wrapper.N_done*100./N_total)
-				if cancel:
-					raise Exception, "cancelled"
-			block_result = reduce(function_merge, subresults_per_thread)
-			if subresults[index] is None:
-				subresults[index] = block_result
-			else:
-				subresults[index] = reduce(function_merge, [block_result, subresults[index]])
-		for index in range(len(expressions)):
-			self.addJob(0, functools.partial(calculate, index=index), dataset, expressions[index])
-		self.execute()
-		return np.array([function_final(scalar) for scalar in subresults])
-
-
-	def calculate_mean(self, dataset, use_mask, expressions, feedback=None):
-		assert len(self.jobs) == 0, "leftover jobs exist"
-		return self.add_scalar_jobs(dataset, np.sum, lambda a,b: a + b, lambda x: x/len(dataset), use_mask, expressions, feedback=feedback)
-		
-	def find_min_max(self, dataset, expressions, use_mask=False, feedback=None):
-		assert len(self.jobs) == 0, "leftover jobs exist"
-		pool = multithreading.ThreadPool()
-		minima = [None] * len(expressions)
-		maxima = [None] * len(expressions)
-		#ranges = []
-		#range_per_thread = [None] * pool.nthreads
-		N_total = len(expressions) * len(dataset)
-		class Wrapper(object):
-			pass
-		wrapper = Wrapper()
-		wrapper.N_done = 0
-		try:
-			t0 = time.time()
-			def calculate_range(info, block, index):
-				minima_per_thread = [None] * pool.nthreads
-				maxima_per_thread = [None] * pool.nthreads
-				def subblock(thread_index, sub_i1, sub_i2):
-					if use_mask:
-						data = block[sub_i1:sub_i2][dataset.mask[info.i1:info.i2][sub_i1:sub_i2]]
-					else:
-						data = block[sub_i1:sub_i2]
-					if len(data):
-						result = gavifast.find_nan_min_max(data)
-						mi, ma = result
-						#if sub_i1 == 0:
-						minima_per_thread[thread_index] = mi if minima_per_thread[thread_index] is None else min(mi, minima_per_thread[thread_index])
-						maxima_per_thread[thread_index] = ma if maxima_per_thread[thread_index] is None else max(ma, maxima_per_thread[thread_index])
-				if info.error:
-					#self.message(info.error_text, index=-1)
-					raise Exception, info.error_text
-				pool.run_blocks(subblock, info.size)
-				#if info.first:
-				#	minima[index] = min(minima_per_thread)
-				#	maxima[index] = max(maxima_per_thread)
-				#else:
-				#	minima[index] = min(min(minima_per_thread), minima[index])
-				#	maxima[index] = max(max(maxima_per_thread), maxima[index])
-				#if info.last:
-				#	self.message("min/max[%d] %.2fs" % (axisIndex, time.time() - t0), index=50+axisIndex)
-				mins = [k for k in minima_per_thread if k is not None]
-				if mins:
-					mi = min(mins)
-					minima[index] = mi if minima[index] is None else min(mi, minima[index])
-				maxs = [k for k in maxima_per_thread if k is not None]
-				if maxs:
-					ma = max(maxs)
-					maxima[index] = ma if maxima[index] is None else max(ma, maxima[index])
-				wrapper.N_done += len(block)
-				if feedback:
-					cancel = feedback(wrapper.N_done*100./N_total)
-					if cancel:
-						raise Exception, "cancelled"
-
-			for index in range(len(expressions)):
-				self.addJob(0, functools.partial(calculate_range, index=index), dataset, expressions[index])
-			self.execute()
-		finally:
-			pool.close()
-		return zip(minima, maxima)
-		
-	def execute(self):
-		self.signal_begin.emit()
-		error_text = None
-		progress_value = 0
-		buffer_size_local = buffer_size #int(buffer_size / len(self.jobs))
-		try:
-			# keep a local copy to support reentrant calling
-			jobs = self.jobs
-			order_numbers = self.order_numbers
-			self.jobs = []
-			self.order_numbers = []
-
-			cancelled = False
-			errors = False
-			with Timer("init"):
-				order_numbers.sort()
-				
-				all_expressions_set = set()
-				for order, callback, dataset, expressions, variables in jobs:
-					for expression in expressions:
-						all_expressions_set.add((dataset, expression))
-				# for each expresssion keep an array for intermediate storage
-				expression_outputs = dict([(key, np.zeros(buffer_size_local, dtype=np.float64)) for key in all_expressions_set])
-			
-			class Info(object):
-				pass
-			
-			# multiple passes, in order
-			with Timer("passes"):
-				for order in order_numbers:
-					if cancelled or errors:
-						break
-					logger.debug("jobs, order: %r" % order)
-					jobs_order = [job for job in jobs if job[0] == order]
-					datasets = set([job[2] for job in jobs])
-					# TODO: maybe per dataset a seperate variable dict
-					variables = {}
-					for job in jobs_order:
-						variables_job = job[-1]
-						for key, value in variables_job.items():
-							if key in variables:
-								if variables[key] != value:
-									raise ValueError, "variable %r cannot have both value %r and %r" % (key, value, variables[key])
-							variables[key] = value
-					logger.debug("variables: %r" % (variables,))
-					# group per dataset
-					for dataset in datasets:
-						if dataset.current_slice is None:
-							index_start = 0
-							index_stop = dataset._length
-						else:
-							index_start, index_stop = dataset.current_slice
-						
-						dataset_length = index_stop - index_start
-						logger.debug("dataset: %r" % dataset.name)
-						jobs_dataset = [job for job in jobs_order if job[2] == dataset]
-						# keep a set of expressions, duplicate expressions will only be calculated once
-						expressions_dataset = set()
-						expressions_translated = dict()
-						for order, callback, dataset, expressions, _variables in jobs_dataset:
-							for expression in expressions:
-								expressions_dataset.add((dataset, expression))
-								try:
-									#print "vcolumns:", dataset.virtual_columns
-									expr_noslice, slice_vars = expr.translate(expression, dataset.virtual_columns)
-								except:
-									logger.error("translating expression: %r" % (expression,))
-									expressions_translated[(dataset, expression)] = (expression, {}) # just pass expression, code below will handle errors
-								else:
-									expressions_translated[(dataset, expression)] = (expr_noslice, slice_vars)
-						
-						logger.debug("expressions: %r" % expressions_dataset)
-						# TODO: implement fractions/slices
-						n_blocks = int(math.ceil(dataset_length *1.0 / buffer_size_local))
-						logger.debug("blocks: %r %r" % (n_blocks, dataset_length *1.0 / buffer_size_local))
-						# execute blocks for all expressions, better for Lx cache
-						t0 = time.time()
-						for block_index in range(n_blocks):
-							if cancelled or errors:
-								break
-							i1 = block_index * buffer_size_local
-							i2 = (block_index +1) * buffer_size_local
-							last = False
-							if i2 >= dataset_length: # round off the sizes
-								i2 = dataset_length
-								last = True
-								logger.debug("last block")
-								#for i in range(len(outputs)):
-								#	outputs[i] = outputs[i][:i2-i1]
-							# local dicts has slices (not copies) of the whole dataset
-							logger.debug("block: %r to %r" % (i1, i2))
-							local_dict = dict()
-							# dataset scope, there will be evaluated in order
-							for key, value in dataset.variables.items():
-								try:
-									local_dict[key] = eval(dataset.variables[key], np.__dict__, local_dict)
-								except:
-									local_dict[key] = None
-							#print "local vars", local_dict
-							local_dict.update(variables) # window scope
-							for key, value in dataset.columns.items():
-								local_dict[key] = value[i1:i2]
-							for key, value in dataset.rank1s.items():
-								local_dict[key] = value[:,i1:i2]
-							for dataset, expression in expressions_dataset:
-								if cancelled or errors:
-									break
-								if expression is None:
-									expr_noslice, slice_vars = None, {}
-								else:
-									expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #expr.translate(expression)
-									logger.debug("replacing %r with %r" % (expression, expr_noslice))
-									for var, sliceobj in slice_vars.items():
-										logger.debug("adding slice %r as var %r (%r:%r)" % (sliceobj, var, sliceobj.var.name, sliceobj.args))
-										array = local_dict[sliceobj.var.name]
-										#print local_dict.keys()
-										slice_evaluated = eval(repr(sliceobj.args), {}, local_dict)
-										logger.debug("slicing array of shape %r  with slice %r" % (array.shape, slice_evaluated))
-										sliced_array = array[slice_evaluated]
-										logger.debug("slice is of type %r and shape %r" % (sliced_array.dtype, sliced_array.shape))
-										local_dict[var] = sliced_array[i1:i2]
-							info = Info()
-							info.index = block_index
-							info.size = i2-i1
-							info.total_size = dataset_length
-							info.length = n_blocks
-							info.first = block_index == 0
-							info.last = last
-							info.i1 = i1
-							info.i2 = i2
-							info.percentage = i2 * 100. / info.total_size
-							info.slice = slice(i1, i2)
-							info.error = False
-							info.error_text = ""
-							info.time_start = t0
-							results = {}
-							# check for 'snapshots'/sequence array, and get the proper index automatically
-							for name, var in local_dict.items():
-								if hasattr(var, "shape"):
-									#print name, var.shape
-									if len(var.shape) == 2:
-										local_dict[name] = var[dataset.selected_serie_index]
-										#print " to", name, local_dict[name].shape
-								else:
-									#print name, var
-									pass
-							# put to
-							with Timer("evaluation"):
-								for dataset, expression in expressions_dataset:
-									logger.debug("expression: %r" % (expression,))
-									#expr_noslice, slice_vars = expr.translate(expression)
-									expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #
-									logger.debug("translated expression: %r" % (expr_noslice,))
-									#print "native", dataset.columns[expression].dtype, dataset.columns[expression].dtype.type==np.float64, dataset.columns[expression].dtype.byteorder, native_code, dataset.columns[expression].dtype.byteorder==native_code, dataset.columns[expression].strides[0]
-									if expr_noslice is None:
-										results[expression] = None
-									#elif expression in dataset.column_names and dataset.columns[expression].dtype==np.float64:
-									elif expression in dataset.column_names  \
-											and dataset.columns[expression].dtype.type==np.float64 \
-											and dataset.columns[expression].strides[0] == 8 \
-											and expression not in dataset.virtual_columns:
-											#and False:
-											#and dataset.columns[expression].dtype.byteorder in [native_code, "="] \
-										logger.debug("avoided expression, simply a column name with float64")
-										print "fast"
-										#yield self.columns[expression][i1:i2], info
-										results[expression] = dataset.columns[expression][i1:i2]
-									else:
-										# same as above, but -i1, since the array stars at zero
-										output = expression_outputs[(dataset, expression)][i1-i1:i2-i1]
-										try:
-											ex = expr_noslice
-											if not isinstance(ex, str):
-												ex = repr(expr_noslice)
-											#print ex, repr(expr_noslice), expr_noslice, local_dict, len(output)
-											ne.evaluate(ex, local_dict=local_dict, out=output, casting="unsafe")
-										except Exception, e:
-											info.error = True
-											info.error_text = repr(e) #.message
-											error_text = info.error_text
-											print "error_text", error_text
-											errors = True
-											logger.exception("error in expression: %s" % expression)
-											break
-
-
-										results[expression] = output[0:i2-i1]
-							# for this order and dataset all values are calculated, now call the callback
-							for key, value in results.items():
-								if value is None:
-									logger.debug("output[%r]: None" % (key,))
-								else:
-									logger.debug("output[%r]: %r, %r" % (key, value.shape, value.dtype))
-							with Timer("callbacks"):
-								for _order, callback, dataset, expressions, _variables in jobs_dataset:
-									if cancelled or errors:
-										break
-									#logger.debug("callback: %r" % (callback))
-									arguments = [info]
-									arguments += [results.get(expression) for expression in expressions]
-									cancelled = cancelled or callback(*arguments)
-									progress_value += info.i2 - info.i1
-									cancelled = cancelled or np.any(self.signal_progress.emit(float(progress_value)/self.progress_total))
-									assert progress_value <= self.progress_total
-									if cancelled or errors:
-										break
-							if info.error:
-								# if we get an error, no need to go through the whole data
-								break
-			if not cancelled and not errors:
-				self.signal_end.emit()
-				for callback in self.after_execute:
-					try:
-						callback()
-					except Exception, e:
-						logger.exception("error in post processing callback")
-						error_text = str(e)
-			else:
-				self.signal_cancel.emit()
-		finally:
-			self.progress_total = 0
-			self.jobs = []
-			self.order_numbers = []
-			pass
-		return error_text
 
 class Link(object):
 	def __init__(self, dataset):
@@ -473,10 +89,52 @@ class Link(object):
 				listener.onPlot()
 				
 				
-		
-		
-	
-class MemoryMapped(object):
+
+import execution
+import vaex.grids
+import multithreading
+
+class Dataset(object):
+	def __init__(self, name):
+		self.name = name
+
+	def plot2d(self, x, y, vx=None, vy=None, size=256, size_vector=32, xlim=None, ylim=None):
+		import vaex.plot
+		if not xlim and not ylim:
+			xlim, ylim = execution.main_manager.find_min_max(self, [x, y])
+		elif not xlim:
+			xlim = execution.main_manager.find_min_max(self, [x])
+		elif not ylim:
+			ylim = execution.main_manager.find_min_max(self, [y])
+
+		grids = vaex.grids.Grids(self, multithreading.pool, x, y)
+		grids.ranges = [xlim, ylim]
+		grids.define_grid("counts", size, None)
+		if vx and vy:
+			grids.define_grid("vx", size_vector, vx)
+			grids.define_grid("vy", size_vector, vy)
+		grids.add_jobs(execution.main_manager)
+		execution.main_manager.execute()
+		vaex.plot.grid(grids["counts"])
+		#vaex.plot.vector2d(grids["vx"], grids["vy"])
+
+
+
+
+class DatasetLocal(Dataset):
+	def __init__(self, name, path):
+		self.is_local = True
+		super(DatasetLocal, self).__init__(name)
+		self.path = path
+
+class DatasetRemote(Dataset):
+	def __init__(self, name, server):
+		self.is_local = False
+		super(DatasetRemote, self).__init__(name)
+		self.server = server
+
+
+class DatasetMemoryMapped(DatasetLocal):
 	def link(self, expression, listener):
 		if expression not in self.global_links:
 			self.global_links[expression] = Link(self)
@@ -515,10 +173,11 @@ class MemoryMapped(object):
 		
 	# nommap is a hack to get in memory datasets working
 	def __init__(self, filename, write=False, nommap=False, name=None):
+		super(DatasetMemoryMapped, self).__init__(name=name or os.path.splitext(os.path.basename(filename))[0], path=os.path.abspath(filename) if filename is not None else None)
 		self.filename = filename or "no file"
 		self.write = write
-		self.name = name or os.path.splitext(os.path.basename(self.filename))[0]
-		self.path = os.path.abspath(filename) if filename is not None else None
+		#self.name = name or os.path.splitext(os.path.basename(self.filename))[0]
+		#self.path = os.path.abspath(filename) if filename is not None else None
 		self.nommap = nommap
 		if not nommap:
 			self.file = file(self.filename, "r+" if write else "r")
@@ -568,10 +227,10 @@ class MemoryMapped(object):
 		self.samp_id = None
 		self.variables = collections.OrderedDict()
 		
-		self.signal_pick = gavi.events.Signal("pick")
-		self.signal_sequence_index_change = gavi.events.Signal("sequence index change")
+		self.signal_pick = vaex.events.Signal("pick")
+		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
 
-		self.undo_manager = gavi.vaex.undo.UndoManager()
+		self.undo_manager = vaex.ui.undo.UndoManager()
 
 	def has_snapshots(self):
 		return len(self.rank1s) > 0
@@ -806,7 +465,7 @@ class MemoryMapped(object):
 		return []
 
 import struct
-class HansMemoryMapped(MemoryMapped):
+class HansMemoryMapped(DatasetMemoryMapped):
 	def __init__(self, filename, filename_extra=None):
 		super(HansMemoryMapped, self).__init__(filename)
 		self.pageSize, \
@@ -905,7 +564,7 @@ if __name__ == "__main__":
 	hmm = HansMemoryMapped(path)
 
 
-class FitsBinTable(MemoryMapped):
+class FitsBinTable(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
 		super(FitsBinTable, self).__init__(filename, write=write)
 		fitsfile = fits.open(filename)
@@ -1015,7 +674,7 @@ class FitsBinTable(MemoryMapped):
 dataset_type_map["fits"] = FitsBinTable
 		
 		
-class InMemoryTable(MemoryMapped):
+class InMemoryTable(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
 		super(InMemoryTable, self).__init__(filename)
 		
@@ -1263,7 +922,7 @@ class InMemoryTable(MemoryMapped):
 		
 dataset_type_map["fits"] = FitsBinTable
 		
-class Hdf5MemoryMapped(MemoryMapped):
+class Hdf5MemoryMapped(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
 		super(Hdf5MemoryMapped, self).__init__(filename, write=write)
 		self.h5file = h5py.File(self.filename, "r+" if write else "r")
@@ -1405,7 +1064,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 
 dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
 
-class Hdf5MemoryMappedGadget(MemoryMapped):
+class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 	def __init__(self, filename, particleName=None, particleType=None):
 		if "#" in filename:
 			filename, index = filename.split("#")
@@ -1510,7 +1169,7 @@ class Hdf5MemoryMappedGadget(MemoryMapped):
 
 dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
 
-class InMemory(MemoryMapped):
+class InMemory(DatasetMemoryMapped):
 	def __init__(self, name):
 		super(InMemory, self).__init__(filename=None, nommap=True, name=name)
 
@@ -1596,7 +1255,7 @@ dataset_type_map["zeldovich"] = Zeldovich
 		
 		
 import astropy.io.votable
-class VOTable(MemoryMapped):
+class VOTable(DatasetMemoryMapped):
 	def __init__(self, filename):
 		super(VOTable, self).__init__(filename, nommap=True)
 		table = astropy.io.votable.parse_single_table(filename)
@@ -1623,7 +1282,7 @@ class VOTable(MemoryMapped):
 dataset_type_map["votable"] = VOTable
 
 
-class AsciiTable(MemoryMapped):
+class AsciiTable(DatasetMemoryMapped):
 	def __init__(self, filename):
 		super(AsciiTable, self).__init__(filename, nommap=True)
 		import asciitable
@@ -1653,7 +1312,7 @@ class AsciiTable(MemoryMapped):
 		return can_open
 dataset_type_map["ascii"] = AsciiTable
 
-class MemoryMappedGadget(MemoryMapped):
+class MemoryMappedGadget(DatasetMemoryMapped):
 	def __init__(self, filename):
 		super(MemoryMappedGadget, self).__init__(filename)
 		#h5file = h5py.File(self.filename)
@@ -1676,7 +1335,7 @@ def can_open(path, *args):
 		
 def load_file(path, *args):
 	dataset_class = None
-	for name, class_ in gavi.dataset.dataset_type_map.items():
+	for name, class_ in vaex.dataset.dataset_type_map.items():
 		logger.debug("trying %r with class %r" % (path, class_))
 		if class_.can_open(path, *args):
 			logger.debug("can open!")

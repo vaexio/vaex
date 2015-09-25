@@ -1,12 +1,12 @@
 __author__ = 'maartenbreddels'
 import numpy as np
 import gavifast
-from gavi.utils import filesize_format
-import gavi.logging
-import gavi.utils
+from vaex.utils import filesize_format
+import vaex.logging
+import vaex.utils
 total_bytes = 0
 
-logger = gavi.logging.getLogger("gavi.vaex.grids")
+logger = vaex.logging.getLogger("vaex.grids")
 
 def add_mem(bytes, *info):
 	global total_bytes
@@ -34,7 +34,7 @@ class Grid(object):
 		data = self.data_selection if use_selection else self.data
 		if size != self.max_size:
 			data = gavifast.resize(data, size)
-		return gavi.utils.disjoined(data) if disjoined else data
+		return vaex.utils.disjoined(data) if disjoined else data
 
 	def check_grid(self):
 		compute_selection = self.grids.dataset.mask is not None

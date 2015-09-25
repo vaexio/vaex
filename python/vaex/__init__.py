@@ -14,3 +14,9 @@ __release__ = version.versiontring[:]
 __clean_release__ = "%d.%d.%d" % (__version_tuple__)
 __full_name__ = __program_name__ + "-" + __release__
 __clean_name__ =  __program_name__ + "-" + __clean_release__
+
+import vaex.dataset
+#import vaex.plot
+
+def open(path):
+	return vaex.dataset.load_file(path)
