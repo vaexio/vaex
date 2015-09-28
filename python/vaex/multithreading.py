@@ -24,7 +24,7 @@ class ThreadPool(object):
 			
 	def close(self):
 		self.callable = None
-		print "closing threads"
+		#print "closing threads"
 		for index in range(self.nthreads):
 			self.queues_in[index].put(None)
 			
@@ -50,7 +50,7 @@ class ThreadPool(object):
 					self.queues_out[index].put(result)
 				#print "done..", index
 				#self.semaphore_outrelease()
-		print "thread closed"
+		#print "thread closed"
 		
 	def run_parallel(self, callable, args_list=[]):
 		#lock.acquire()
@@ -68,7 +68,7 @@ class ThreadPool(object):
 		return results
 		
 	def run_blocks(self, callable, total_length):
-		subblock_size = math.ceil(total_length/self.nthreads)
+		subblock_size = int(math.ceil(float(total_length)/self.nthreads))
 		#subblock_count = math.ceil(total_length/subblock_size)
 		args_list = []
 		for index in range(self.nthreads):
@@ -81,7 +81,7 @@ class ThreadPool(object):
 			#print result, isinstance(result, tuple)#, len(result) > 1, isinstance(result[1], Exception)
 			if isinstance(result, tuple) and len(result) > 1 and isinstance(result[1], Exception):
 				raise result[1], None, result[2]
-		
-		
+		return results
+
 
 pool = ThreadPool()

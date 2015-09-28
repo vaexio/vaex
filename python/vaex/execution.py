@@ -6,14 +6,57 @@ import vaex.events
 import multithreading
 import time
 import math
-import vaex.misc.expressions as expr
+import vaex.ui.expressions as expr
 import numexpr as ne
 
 __author__ = 'breddels'
 
 buffer_size = 1e8 # TODO: this should not be fixed, larger means faster but also large memory usage
 
+import threading
+import Queue
+import math
+import multiprocessing
+import sys
+import collections
+lock = threading.Lock()
 
+import vaex.logging
+logger = vaex.logging.getLogger("vaex")
+
+thread_count_default = multiprocessing.cpu_count()
+
+class Column(collections.namedtuple('Column', ['dataset', 'expression'])):
+	def needs_copy(self):
+		return not \
+			(self.expression in self.dataset.column_names  \
+			and self.dataset.columns[self.expression].dtype.type==np.float64 \
+			and self.dataset.columns[self.expression].strides[0] == 8 \
+			and expression not in self.dataset.virtual_columns)
+				#and False:
+
+class Job(object):
+	def __init__(self, task, order):
+		self.task = task
+		self.order = order
+
+
+class Executor(object):
+	def __init__(self, threads=thread_count_default):
+		self.threads = threads
+		self.task_queue = []
+
+	def execute(self, task):
+		# u 'column' is uniquely identified by a tuple of (dataset, expression)
+		columns = set(Column(task.dataset, expressions) for task in self.task_queue for expressions in task.expressions)
+		columns_copy = [column for column in columns if column.needs_copy()]
+		buffers_needs = len(columns_copy)
+		buffers = {} # maps column to a list of buffers
+		#for
+		#buffers = {column:[] for column in columns if column.needs_copy()}
+
+
+default_executor = None
 
 
 class FakeLogger(object):

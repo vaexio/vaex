@@ -93,10 +93,101 @@ class Link(object):
 import execution
 import vaex.grids
 import multithreading
+import aplus
+import concurrent.futures
+from multiprocessing import Pool
+import vaex.execution
+
+class Promise(aplus.Promise):
+	pass
+
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+executor = vaex.execution.default_executor
+
+class ColumnBase(object):
+	def __init__(self, dataset, expression):
+		self.dataset = dataset
+		self.expression = expression
+
+class Column(ColumnBase):
+	def get(self, i1, i2):
+		return self.dataset.columns[self.name][i1:i2]
+
+class ColumnExpression(ColumnBase):
+	def __init__(self, dataset, expression):
+		super(ColumnExpression, self).__init__(dataset, expression)
+
+#	def get(self, i1, i2):
+
+class Task(Promise):
+	def __init__(self, dataset, expressions):
+		self.dataset = dataset
+		self.expressions = expressions
+
+
+class TaskMapReduce(Task):
+	def __init__(self, dataset, expressions, map, reduce):
+		Task.__init__(self, dataset, expressions)
+		self._map = map
+		self._reduce = reduce
+
+	def map(self, i1, i2, *blocks):
+		return map(self._map, blocks)#[self.map(block) for block in blocks]
+
+	def reduce(self, results):
+		return reduce(self._reduce, results)
+
+class TaskHistogram(Task):
+	def __init__(self, dataset, expressions, size):
+		super(TaskHistogram, self).__init__(dataset, expressions)
+		self.size = size
+
+
+class Expr(object):
+	def __init__(self, dataset, expressions, executor, immediate):
+		self.dataset = dataset
+		self.expressions = expressions
+		#self.columns = map(dataset.columns, self.expressions)
+		self.executor = executor
+		self.immediate = immediate
+
+	@property
+	def dimension(self):
+		return len(self.expressions)
+
+	@property
+	def pre(self):
+		self.executor.pre
+
+	@property
+	def post(self):
+		self.executor.post
+
+	def _task(self, task):
+		"""Helper function for returning tasks results, result when immediate is True, otherwise the task itself, which is a promise"""
+		if self.immediate:
+			return self.executor.execute(task)
+		else:
+			return task
+
+	def minmax(self):
+		promise = Promise()
+		def min_max_reduce(minmax1, minmax2):
+			min1, max1 = minmax1[0]
+			min2, max2 = minmax2[0]
+			return [(min(min1, min2), max(max1, max2))]
+		task = TaskMapReduce(self.dataset, self.expressions, gavifast.find_nan_min_max, min_max_reduce)
+		return self._task(task)
+
+	def histogram(self, size=256):
+		pass
 
 class Dataset(object):
 	def __init__(self, name):
 		self.name = name
+
+	def __call__(self, *expressions):
+		return Expr(self, expressions, executor, immediate=False)
 
 	def plot2d(self, x, y, vx=None, vy=None, size=256, size_vector=32, xlim=None, ylim=None):
 		import vaex.plot
