@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import vaex.ui.colormaps
 import numpy as np
 from optparse import OptionParser
 import os
@@ -13,12 +14,7 @@ import itertools
 import platform
 
 
-#import gavi.vaex.plot_windows as vp
-#import gavi.vaex.undo
-#import gavi.selection
-#import gavi.kld
-#import gavi.utils
-import gavi.dataset
+import vaex.dataset
 import imp
 
 
@@ -33,46 +29,34 @@ import flask
 
 
 dataset_map = {}
+dataset_list = []
 
-#jobsManager 
-class DatasetList(object):
-	def __init__(self):
-		self.datasets = []
-		
-	def addDataset(self, dataset):
-		self.datasets.append(dataset)
-		
-	def addHdf5(self, filename, auto_fraction=False):
-		self.addDataset(gavi.dataset.Hdf5MemoryMapped(filename))
-		
-	def addGadgetHdf5(self, filename, name, particleType):
-		try:
-			self.addDataset(gavi.dataset.Hdf5MemoryMappedGadget(filename, name, particleType))
-		except KeyError:
-			return
-		
-	def addFits(self, filename, auto_fraction=False):
-		self.addDataset(gavi.dataset.FitsBinTable(filename))
-		
-	def addGadget2(self, filename, ignore):
-		self.addDataset(gavi.dataset.MemoryMappedGadget(filename))
-		
+def open(path, *args, **kwargs):
+	try:
+		print "opening", path
+		dataset = vaex.open(path, *args, **kwargs)
+		if dataset is not None:
+			if dataset.name not in dataset_map:
+				dataset_map[dataset.name] = dataset
+				dataset_list.append(dataset)
+		return dataset
+	except:
+		print >>sys.stderr, "error opening", path
 
+path_list = [os.path.expanduser('~/.vaex/webvaex.py'), "/etc/webvaex.py"]
+key = "WEBVAEX_STARTUP"
+if key in os.environ:
+	path_list.append(key)
 
-datasetList = DatasetList()
-path = os.path.expanduser('~/.medavaex/custom.py')
-print path
-if os.path.exists(path):
-	customModule = imp.load_source('gavi.custom', path)
-	custom = customModule.Custom()
-else:
-	custom = None
-	print >>sys.stderr, path, "does not exist"
-	
-custom.loadDatasets(datasetList)
-datasets = datasetList.datasets
-for dataset in datasets:
-	dataset_map[dataset.name] = dataset
+custom_module = None
+for path in path_list:
+	if os.path.exists(path):
+		print "loading", path
+		custom_module = imp.load_source('vaex.web.custom', path)
+	else:
+		print >>sys.stderr, path, "does not exist"
+if custom_module:
+	custom_module.open_datasets(sys.modules[__name__])
 
 
 @app.route('/')
@@ -82,18 +66,18 @@ def api_root():
 import json
 @app.route('/datasets')
 def api_datasets():
+	print "request for datasets"
 	names = []
-	for dataset in datasetList.datasets:
+	for dataset in dataset_list:
 		names.append(dataset.name)
 	js = json.dumps(names)
 	response= Response(js, status=200, mimetype='application/json')
 	return response
 	
 	
-import gavi.vaex.colormaps
 @app.route('/colormaps')
 def colormaps():
-	js = json.dumps(gavi.vaex.colormaps.colormaps)
+	js = json.dumps(vaex.ui.colormaps)
 	response= Response(js, status=200, mimetype='application/json')
 	return response
 
@@ -109,14 +93,95 @@ def api_columns(dataset):
 import StringIO
 import gavifast
 
-@app.route('/range/<name>/<x>')
-def api_range(name, x):
+@app.route('/minmax/<name>/<x>')
+@app.route('/minmax/<name>/<x>/<y>')
+def api_range(name, x, y=None):
 	dataset = dataset_map[name]
-	blockx = dataset.columns[x]
-	data = {"min":float(np.min(blockx)), "max":float(np.max(blockx))}
-	print data
+	expressions = [x]
+	if y is not None:
+		expressions.append(y)
+	expr = dataset(*expressions)
+	values = expr.minmax()
+	data = {}
+	for expression, (min, max) in zip(expressions, values):
+		data[expression] = dict(min=min, max=max)
+	#blockx = dataset.columns[x]
+	#data = {"min":float(np.min(blockx)), "max":float(np.max(blockx))}
+	#print data
 	js = json.dumps(data)
 	response= Response(js, status=200, mimetype='application/json')
+	return response
+
+@app.route('/<name>/minmax')
+def api_minmax(name):
+	return simple_handle(name, "minmax")
+
+
+@app.route('/<name>/var')
+def api_var(name):
+	return simple_handle(name, "var")
+
+@app.route('/<name>/mean')
+def api_mean(name):
+	return simple_handle(name, "mean")
+
+@app.route('/<name>/sum')
+def api_sum(name):
+	return simple_handle(name, "sum")
+
+@app.route('/<name>/limits_sigma')
+def api_limits_sigma(name):
+	return simple_handle(name, "limits_sigma")
+
+@app.route('/<name>/select')
+def api_select(name):
+	dataset = dataset_map[name]
+	expression = json.loads(request.args["expression"])
+	result = dataset.select(expression)
+	result = 0
+	response= Response(json.dumps(result), status=200, mimetype='application/json')
+	return response
+
+import inspect
+def simple_handle(name, method_name):
+	dataset = dataset_map[name]
+	expressions = json.loads(request.args["expressions"])
+	expr = dataset(*expressions)
+	if json.loads(request.args.get("masked", "false")):
+		print "using masked"
+		expr = expr.masked()
+	method = getattr(expr, method_name)
+	args, varargs, kwargs, defaults = inspect.getargspec(method)
+	print inspect.getargspec(method)
+	#args_required = args[:len(args)-len(defaults)]
+	kwargs = {}
+	for arg in args:
+		if arg in request.args:
+			kwargs[arg] = json.loads(request.args[arg])
+	print "passing args", kwargs
+	values = method(**kwargs)
+	data = values.tolist()
+	response= Response(json.dumps(data), status=200, mimetype='application/json')
+	return response
+
+@app.route('/histogram/<name>')
+def api_histogram(name):
+	dataset = dataset_map[name]
+	print "histogram for", name
+	expressions = json.loads(request.args["expressions"])
+	print "expressions=", expressions
+	limits = json.loads(request.args["limits"])
+	print "limits=", limits
+	size = json.loads(request.args["size"])
+	print "size=", size
+	expr = dataset(*expressions)
+	if json.loads(request.args.get("masked", "false")):
+		expr = expr.masked()
+	grid = expr.histogram(limits=limits, size=size)
+	print "grid=", grid, grid.sum()
+	f = StringIO.StringIO()
+	response = make_response(grid.tostring())
+	response.mimetype = 'application/octet-stream'
 	return response
 
 

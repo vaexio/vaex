@@ -208,7 +208,7 @@ class Expr(object):
 		self.immediate = immediate
 		self.is_masked = masked
 
-	def masked(self):
+	def selected(self):
 		return Expr(self.dataset, expressions=self.expressions, executor=self.executor, immediate=self.immediate, masked=True)
 
 	def toarray(self, list):
@@ -289,7 +289,7 @@ class Expr(object):
 		stds = self.var(means=means)**0.5
 		if square:
 			stds = np.repeat(stds.mean(), len(stds))
-		return zip(means-sigmas*stds, means+sigmas*stds)
+		return np.array(zip(means-sigmas*stds, means+sigmas*stds))
 
 
 	def plot(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
@@ -301,6 +301,62 @@ class Expr(object):
 		if grid is None:
 			grid = self.histogram(limits=limits)
 		pylab.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
+
+
+class ExprRest(object):
+	def __init__(self, dataset, expressions, immediate=True, masked=False):
+		self.dataset = dataset
+		self.expressions = expressions
+		self.executor = executor
+		self.immediate = immediate
+		self.is_masked = masked
+
+	def selected(self):
+		return ExprRest(self.dataset, expressions=self.expressions, immediate=self.immediate, masked=True)
+
+	def toarray(self, list):
+		return np.array(list)
+
+	@property
+	def dimension(self):
+		return len(self.expressions)
+
+	def _promise(self, promise):
+		"""Helper function for returning tasks results, result when immediate is True, otherwise the task itself, which is a promise"""
+		if self.immediate:
+			return promise
+		else:
+			return promise
+
+	def minmax(self):
+		return self._promise(self.dataset.server.minmax(self, self.dataset.name, self.expressions))
+		#return self._task(task)
+
+	def histogram(self, limits, size=256):
+		return self._promise(self.dataset.server.histogram(self, self.dataset.name, self.expressions, size=size, limits=limits))
+
+	def mean(self):
+		return self.dataset.server.mean(self, self.dataset.name, self.expressions)
+
+	def var(self, means=None):
+		return self.dataset.server.var(self, self.dataset.name, self.expressions, means=means)
+
+	def sum(self):
+		return self.dataset.server.sum(self, self.dataset.name, self.expressions)
+
+	def limits_sigma(self, sigmas=3, square=False):
+		return self.dataset.server.limits_sigma(self, self.dataset.name, self.expressions, sigmas=sigmas, square=square)
+
+	def plot(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
+		import pylab
+		if limits is None:
+			limits = self.limits_sigma()
+		if center is not None:
+			limits = np.array(limits) - np.array(center).reshape(2,1)
+		if grid is None:
+			grid = self.histogram(limits=limits)
+		pylab.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
+
 
 class Dataset(object):
 	def __init__(self, name):
@@ -330,7 +386,7 @@ class Dataset(object):
 		vaex.plot.grid(grids["counts"])
 		#vaex.plot.vector2d(grids["vx"], grids["vy"])
 
-	def select_expression(self, expression):
+	def select(self, expression):
 		mask = np.zeros(len(self), dtype=np.bool)
 		def map(thread_index, i1, i2, block):
 			mask[i1:i2][block==1.] = 1
@@ -345,6 +401,194 @@ class Dataset(object):
 		task.then(apply_mask)
 		return expr._task(task)
 
+
+#from twisted.internet import reactor
+#from twisted.web.client import Agent
+#from twisted.web.http_headers import Headers
+from tornado.httpclient import AsyncHTTPClient, HTTPClient
+from tornado.concurrent import Future
+
+def wrap_future_with_promise(future):
+	promise = Promise()
+	def callback(future):
+		print "callback", future
+		e = future.exception()
+		if e:
+			print "reject", e
+			promise.reject(e)
+		else:
+			promise.fulfill(future.result())
+	future.add_done_callback(callback)
+	return promise
+
+import tornado.ioloop
+
+import threading
+import json
+import urllib
+import threading
+
+class ServerRest(object):
+	def __init__(self, host, port=5000, base_path="/", background=False, async=False):
+		self.host = host
+		self.port = port
+		self.base_path = base_path
+		#if async:
+		event = threading.Event()
+
+		if 0: #not async:
+			print "not running async"
+			#if not tornado.ioloop.IOLoop.initialized():
+			if True:
+				print "not init"
+				#tornado.ioloop.IOLoop.clear_current()
+				#tornado.ioloop.IOLoop.clear_instance()
+				#tornado.ioloop.IOLoop.current().run_sync()
+				def ioloop():
+					self.io_loop = tornado.ioloop.IOLoop()
+					event.set()
+					self.io_loop.make_current()
+					self.io_loop.start()
+				thread = threading.Thread(target=ioloop)
+				thread.setDaemon(True)
+				thread.start()
+			else:
+				print "already initialized"
+
+			print "waiting for io loop to be created"
+			event.wait()
+			print self.io_loop
+		#self.io_loop.make_current()
+		if async:
+			self.http_client = AsyncHTTPClient()
+		else:
+			self.http_client = HTTPClient()
+		self.async = async
+
+	def wait(self):
+		io_loop = tornado.ioloop.IOLoop.instance()
+		io_loop.start()
+
+	def list_datasets(self):
+		def wrap(result):
+			list = json.loads(result.body)
+			return list
+		url = self._build_url("datasets")
+		print "fetching", url
+		result = self.http_client.fetch(url)
+		return self._return(result, wrap)
+
+	def _build_url(self, method):
+		return "http://%s:%d%s%s" % (self.host, self.port, self.base_path, method)
+
+	def _list_columns(self, name):
+		def wrap(result):
+			list = json.loads(result.body)
+			return list
+		url = self._build_url("columns/%s" % name)
+		print "fetching", url
+		result = self.http_client.fetch(url)
+		return self._return(result, wrap)
+
+	def open(self, name):
+		def wrap(columns):
+			print "columns", columns
+			return DatasetRest(self, name, columns)
+		result = self._list_columns(name)
+		return self._return(result, wrap)
+
+	def _async(self, promise):
+		if self.async:
+			return promise
+		else:
+			return promise.get()
+
+	def minmax(self, expr, dataset_name, expressions):
+		def wrap(result):
+			data = json.loads(result.body)
+			print "data", data
+			return np.array([[data[expression]["min"], data[expression]["max"]] for expression in expressions])
+		columns = "/".join(expressions)
+		url = self._build_url("minmax/%s/%s" % (dataset_name, columns))
+		print "fetching", url
+		result = self.http_client.fetch(url)
+		return self._return(result, wrap)
+
+	def mean(self, expr, dataset_name, expressions, **kwargs):
+		return self._simple(expr, dataset_name, expressions, "mean", **kwargs)
+	def var(self, expr, dataset_name, expressions, **kwargs):
+		return self._simple(expr, dataset_name, expressions, "var", **kwargs)
+	def sum(self, expr, dataset_name, expressions):
+		return self._simple(expr, dataset_name, expressions, "sum")
+	def limits_sigma(self, expr, dataset_name, expressions, **kwargs):
+		return self._simple(expr, dataset_name, expressions, "limits_sigma", **kwargs)
+
+	def _simple(self, expr, dataset_name, expressions, name, **kwargs):
+		def wrap(result):
+			return np.array(json.loads(result.body))
+		url = self._build_url("%s/%s" % (dataset_name, name))
+		post_data = {key:json.dumps(value) for key, value in dict(kwargs).items()}
+		post_data["masked"] = json.dumps(expr.is_masked)
+		post_data.update(dict(expressions=json.dumps(expressions)))
+		body = urllib.urlencode(post_data)
+		result = self.http_client.fetch(url+"?"+body,method="GET")
+		return self._return(result, wrap)
+
+	def histogram(self, expr, dataset_name, expressions, size, limits):
+		def wrap(result):
+			data = np.fromstring(result.body)
+			shape = (size,) * len(expressions)
+			data = data.reshape(shape)
+			print "data", data.shape, data
+			return data
+		url = self._build_url("histogram/%s" % (dataset_name,))
+		print "fetching", url
+		post_data = dict(expressions=json.dumps(expressions), size=json.dumps(size), limits=json.dumps(limits.tolist()), masked=json.dumps(expr.is_masked))
+		body = urllib.urlencode(post_data)
+		result = self.http_client.fetch(url+"?"+body,method="GET")
+		return self._return(result, wrap)
+
+	def _return(self, response_or_future, f):
+		if self.async:
+			future = response_or_future
+			return wrap_future_with_promise(future).then(f)
+		else:
+			response = response_or_future
+			return f(response)
+
+	def select(self, dataset_name, expression, **kwargs):
+		name = "select"
+		def wrap(result):
+			return np.array(json.loads(result.body))
+		url = self._build_url("%s/%s" % (dataset_name, name))
+		post_data = {key:json.dumps(value) for key, value in dict(kwargs).items()}
+		post_data.update(dict(expression=json.dumps(expression)))
+		body = urllib.urlencode(post_data)
+		result = self.http_client.fetch(url+"?"+body,method="GET")
+		return self._return(result, wrap)
+
+
+
+
+
+
+
+
+class DatasetRest(Dataset):
+	def __init__(self, server, name, columns):
+		self.server = server
+		self.name = name
+		self.columns = columns
+		#self.host = host
+		#self.http_client = AsyncHTTPClient()
+		#future = http_client.fetch(self._build_url("datasets"))
+		#fetch_future.add_done_callback(
+
+	def __call__(self, *expressions):
+		return ExprRest(self, expressions, immediate=not self.server.async)
+
+	def select(self, expression):
+		return self.server.select(self.name, expression)
 
 
 

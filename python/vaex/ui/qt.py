@@ -6,7 +6,7 @@ try:
 	#from PyQt4.QtWebKit import QWebView
 	qt_version = QtCore.PYQT_VERSION_STR
 	import sip
-	sip.setapi('QVariant', 2)
+	#sip.setapi('QVariant', 2)
 except ImportError, e1:
 	try:
 		from PySide import QtGui, QtCore#, QtNetwork
@@ -295,14 +295,14 @@ confirm = dialog_confirm
 
 import traceback as tb
 import sys
-import gavi.vaex
+import vaex
 import smtplib
 import platform
 import getpass
 import sys
 import os
 import urllib
-import gavi.utils
+import vaex.utils
 #from email.mime.text import MIMEText
 
 def email(text):
@@ -312,10 +312,10 @@ def email(text):
 	
 	body = urllib.quote(text)
 		
-	subject = urllib.quote('Error report for: ' +gavi.vaex.__full_name__)
+	subject = urllib.quote('Error report for: ' +vaex.__full_name__)
 	mailto = "mailto:maartenbreddels@gmail.com?subject={subject}&body={body}".format(**locals())
 	print "open:", mailto
-	gavi.utils.os_open(mailto)
+	vaex.utils.os_open(mailto)
 		
 
 
@@ -323,7 +323,7 @@ def old_email(text):
 	# Open a plain text file for reading.  For this example, assume that
 	msg = MIMEText(text)
 
-	msg['Subject'] = 'Error report for: ' +gavi.vaex.__full_name__
+	msg['Subject'] = 'Error report for: ' +vaex.__full_name__
 	email_from = "vaex@astro.rug.nl"
 	#email_to = "breddels@astro.rug.nl"
 	email_to = "maartenbreddels@gmail.com"
@@ -343,9 +343,9 @@ def qt_exception(parent, exctype, value, traceback):
 	trace = "".join(trace_lines)
 	print trace
 	info = "username: %r\n" % (getpass.getuser(),)
-	info += "program: %r\n" % gavi.vaex.__program_name__
-	info += "version: %r\n" % gavi.vaex.__version__
-	info += "full name: %r\n" % gavi.vaex.__full_name__
+	info += "program: %r\n" % vaex.__program_name__
+	info += "version: %r\n" % vaex.__version__
+	info += "full name: %r\n" % vaex.__full_name__
 	info += "arguments: %r\n" % sys.argv
 	info += "Qt version: %r\n" % qt_version
 	
