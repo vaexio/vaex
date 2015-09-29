@@ -121,35 +121,98 @@ class ColumnExpression(ColumnBase):
 
 class Task(Promise):
 	def __init__(self, dataset, expressions):
+		Promise.__init__(self)
 		self.dataset = dataset
 		self.expressions = expressions
 
+	@property
+	def dimension(self):
+		return len(self.expressions)
 
 class TaskMapReduce(Task):
-	def __init__(self, dataset, expressions, map, reduce):
+	def __init__(self, dataset, expressions, map, reduce, converter=lambda x: x, info=False):
 		Task.__init__(self, dataset, expressions)
 		self._map = map
 		self._reduce = reduce
+		self.converter = converter
+		self.info = info
 
-	def map(self, i1, i2, *blocks):
-		return map(self._map, blocks)#[self.map(block) for block in blocks]
+	def map(self, thread_index, i1, i2, *blocks):
+		if self.info:
+			return self._map(thread_index, i1, i2, *blocks)
+		else:
+			return self._map(*blocks)#[self.map(block) for block in blocks]
 
 	def reduce(self, results):
-		return reduce(self._reduce, results)
+		return self.converter(reduce(self._reduce, results))
+
+
 
 class TaskHistogram(Task):
-	def __init__(self, dataset, expressions, size):
-		super(TaskHistogram, self).__init__(dataset, expressions)
+	def __init__(self, dataset, expressions, size, limits, masked=False):
+		Task.__init__(self, dataset, expressions)
+		self.dtype = np.float64
 		self.size = size
+		self.limits = limits
+		self.masked = masked
+		#self.grids = vaex.grids.Grids(self.dataset, self.dataset.executor.thread_pool, *expressions)
+		#self.grids.ranges = limits
+		#self.grids.grids["counts"] = vaex.grids.Grid(self.grids, size, self.dimension, None)
+		shape = (self.dataset.executor.thread_pool.nthreads,) + ( self.size,) * self.dimension
+		self.data = np.zeros(shape, dtype=self.dtype)
+		self.ranges_flat = []
+		for limit in self.limits:
+			self.ranges_flat.extend(limit)
+		#print self.ranges_flat
 
+	def map(self, thread_index, i1, i2, *blocks):
+		class Info(object):
+			pass
+		info = Info()
+		info.i1 = i1
+		info.i2 = i2
+		info.first = i1 == 0
+		info.last = i2 == len(self.dataset)
+		info.size = i2-i1
+		#print "bin", i1, i2, info.last
+		#self.grids["counts"].bin_block(info, *blocks)
+		mask = self.dataset.mask
+		data = self.data[thread_index]
+		if self.masked:
+			blocks = [block[mask[i1:i2]] for block in blocks]
+		subblock_weight = None
+		#print subblocks[0]
+		#print subblocks[1]
+		if self.dimension == 1:
+			gavifast.histogram1d(blocks[0], subblock_weight, data, *self.ranges_flat)
+		elif self.dimension == 2:
+			gavifast.histogram2d(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
+		elif self.dimension == 3:
+			gavifast.histogram3d(blocks[0], blocks[1], blocks[2], subblock_weight, data, *self.ranges_flat)
+
+		return i1
+		#return map(self._map, blocks)#[self.map(block) for block in blocks]
+
+	def reduce(self, results):
+		#for i in range(1, self.dataset.executor.thread_pool.nthreads):
+		#	self.data[0] += self.data[i]
+		return self.data[0]
+		#return self.data
 
 class Expr(object):
-	def __init__(self, dataset, expressions, executor, immediate):
+	def __init__(self, dataset, expressions, executor, immediate, masked=False):
 		self.dataset = dataset
 		self.expressions = expressions
 		#self.columns = map(dataset.columns, self.expressions)
 		self.executor = executor
 		self.immediate = immediate
+		self.is_masked = masked
+
+	def masked(self):
+		return Expr(self.dataset, expressions=self.expressions, executor=self.executor, immediate=self.immediate, masked=True)
+
+	def toarray(self, list):
+		return np.array(list)
 
 	@property
 	def dimension(self):
@@ -166,28 +229,86 @@ class Expr(object):
 	def _task(self, task):
 		"""Helper function for returning tasks results, result when immediate is True, otherwise the task itself, which is a promise"""
 		if self.immediate:
-			return self.executor.execute(task)
+			return self.executor.run(task)
 		else:
+			self.executor.schedule(task)
 			return task
 
 	def minmax(self):
 		promise = Promise()
 		def min_max_reduce(minmax1, minmax2):
-			min1, max1 = minmax1[0]
-			min2, max2 = minmax2[0]
-			return [(min(min1, min2), max(max1, max2))]
-		task = TaskMapReduce(self.dataset, self.expressions, gavifast.find_nan_min_max, min_max_reduce)
+			result = []
+			for d in range(self.dimension):
+				min1, max1 = minmax1[d]
+				min2, max2 = minmax2[d]
+				result.append((min(min1, min2), max(max1, max2)))
+			return result
+		def min_max_map(*blocks):
+			return [gavifast.find_nan_min_max(block) for block in blocks]
+		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self.toarray)
 		return self._task(task)
 
-	def histogram(self, size=256):
-		pass
+	def mean(self):
+		def mean_reduce(means1, means2):
+			means = []
+			for mean1, mean2 in zip(means1, means2):
+				means.append(np.nanmean([mean1, mean2]))
+			return means
+		if self.is_masked:
+			mask = self.dataset.mask
+			task = TaskMapReduce(self.dataset, self.expressions, lambda thread_index, i1, i2, *blocks: [np.nanmean(block[mask[i1:i2]]) for block in blocks], mean_reduce, self.toarray, info=True)
+		else:
+			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nanmean(block) for block in blocks], mean_reduce, self.toarray)
+		return self._task(task)
+
+	def var(self, means=None):
+		# variances are linear, use the mean to reduce
+		def vars_reduce(vars1, vars2):
+			vars = []
+			for var1, var2 in zip(vars1, vars2):
+				vars.append(np.nanmean([var1, var2]))
+			return vars
+		def var_map(*blocks):
+			if means is not None:
+				return [np.nanmean((block-mean)**2) for block, mean in zip(blocks, means)]
+			else:
+				return [np.nanmean(block**2) for block in blocks]
+		task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, self.toarray)
+		return self._task(task)
+
+	def sum(self):
+		task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self.toarray)
+		return self._task(task)
+
+	def histogram(self, limits, size=256):
+		task = TaskHistogram(self.dataset, self.expressions, size, limits, masked=self.is_masked)
+		return self._task(task)
+
+	def limits_sigma(self, sigmas=3, square=False):
+		means = self.mean()
+		stds = self.var(means=means)**0.5
+		if square:
+			stds = np.repeat(stds.mean(), len(stds))
+		return zip(means-sigmas*stds, means+sigmas*stds)
+
+
+	def plot(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
+		import pylab
+		if limits is None:
+			limits = self.limits_sigma()
+		if center is not None:
+			limits = np.array(limits) - np.array(center).reshape(2,1)
+		if grid is None:
+			grid = self.histogram(limits=limits)
+		pylab.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
 
 class Dataset(object):
 	def __init__(self, name):
 		self.name = name
+		self.executor = vaex.execution.Executor(self, multithreading.pool)
 
 	def __call__(self, *expressions):
-		return Expr(self, expressions, executor, immediate=False)
+		return Expr(self, expressions, self.executor, immediate=True)
 
 	def plot2d(self, x, y, vx=None, vy=None, size=256, size_vector=32, xlim=None, ylim=None):
 		import vaex.plot
@@ -208,6 +329,21 @@ class Dataset(object):
 		execution.main_manager.execute()
 		vaex.plot.grid(grids["counts"])
 		#vaex.plot.vector2d(grids["vx"], grids["vy"])
+
+	def select_expression(self, expression):
+		mask = np.zeros(len(self), dtype=np.bool)
+		def map(thread_index, i1, i2, block):
+			mask[i1:i2][block==1.] = 1
+			return 0
+		def reduce(*args):
+			None
+		expr = self(expression)
+		task = TaskMapReduce(self, [expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
+		def apply_mask(*args):
+			print "Setting mask"
+			self.set_mask(mask)
+		task.then(apply_mask)
+		return expr._task(task)
 
 
 
@@ -389,8 +525,7 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.fileno_map[filename] = self.file_map[filename].fileno()
 		self.mapping_map[filename] = mmap.mmap(self.fileno_map[filename], 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
 
-
-	def selectMask(self, mask):
+	def set_mask(self, mask):
 		self.mask = mask
 		for mask_listener in self.mask_listeners:
 			mask_listener(mask)
@@ -423,11 +558,11 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.file.close()
 		self.mapping.close()
 		
-	def setFraction(self, fraction):
+	def set_fraction(self, fraction):
 		self.fraction = fraction
 		self.current_slice = (0, int(self._length * fraction))
 		self._fraction_length = self.current_slice[1]
-		self.selectMask(None)
+		self.set_mask(None)
 		# TODO: if row in slice, we don't have to remove it
 		self.selectRow(None)
 		

@@ -11,7 +11,7 @@ import numexpr as ne
 
 __author__ = 'breddels'
 
-buffer_size = 1e8 # TODO: this should not be fixed, larger means faster but also large memory usage
+buffer_size = 1e6 # TODO: this should not be fixed, larger means faster but also large memory usage
 
 import threading
 import Queue
@@ -32,7 +32,7 @@ class Column(collections.namedtuple('Column', ['dataset', 'expression'])):
 			(self.expression in self.dataset.column_names  \
 			and self.dataset.columns[self.expression].dtype.type==np.float64 \
 			and self.dataset.columns[self.expression].strides[0] == 8 \
-			and expression not in self.dataset.virtual_columns)
+			and self.expression not in self.dataset.virtual_columns)
 				#and False:
 
 class Job(object):
@@ -40,18 +40,70 @@ class Job(object):
 		self.task = task
 		self.order = order
 
+# mutex for numexpr, it is not thread save
+ne_lock = threading.Lock()
 
 class Executor(object):
-	def __init__(self, threads=thread_count_default):
-		self.threads = threads
+	def __init__(self, dataset, thread_pool):
+		self.dataset = dataset
+		self.thread_pool = thread_pool
 		self.task_queue = []
 
-	def execute(self, task):
+	def schedule(self, task):
+		self.thread_pool.append(task)
+
+	def run(self, task):
+		assert task.dataset == self.dataset
+		previous_queue = self.task_queue
+		try:
+			self.task_queue = [task]
+			self.execute()
+		finally:
+			self.task_queue = previous_queue
+		return task._value
+
+	def execute(self):
 		# u 'column' is uniquely identified by a tuple of (dataset, expression)
-		columns = set(Column(task.dataset, expressions) for task in self.task_queue for expressions in task.expressions)
+		columns = list(set(Column(task.dataset, expression) for task in self.task_queue for expression in task.expressions))
+		expressions = list(set(expression for task in self.task_queue for expression in task.expressions))
 		columns_copy = [column for column in columns if column.needs_copy()]
 		buffers_needs = len(columns_copy)
-		buffers = {} # maps column to a list of buffers
+		thread_buffers = {} # maps column to a list of buffers
+		for column in columns_copy:
+			thread_buffers[column.expression] = np.zeros((self.thread_pool.nthreads, buffer_size))
+
+		for task in self.task_queue:
+			task._results = []
+		def process(thread_index, i1, i2):
+			#print "process", thread_index, i1, i2
+			size = i2-i1 # size may be smaller for the last step
+			# truncate the buffers accordingly, and pick the right one for this thread
+			buffers = {key:buffer[thread_index,0:size] for key,buffer in thread_buffers.items()}
+			def evaluate(column):
+				ne.evaluate(column.expression, local_dict=local_dict)
+			local_dict = {} # contains only the real column
+			for column in self.dataset.columns.keys():
+				local_dict[column] = self.dataset.columns[column][i1:i2]
+			# this dict should in the end contains all data blocks for all columns or expressions
+			block_dict = local_dict.copy()
+			# TODO: virtual columns
+			# now we do the dynamic evaluated 'columns'
+			for column in columns:
+				if column.needs_copy():
+					with ne_lock:
+						ne.evaluate(column.expression, local_dict=local_dict, out=buffers[column.expression])
+			block_dict.update(buffers)
+			for task in self.task_queue:
+				blocks = [block_dict[expression] for expression in task.expressions]
+				task._results.append(task.map(thread_index, i1, i2, *blocks))
+		length = len(self.dataset)
+		#print self.thread_pool.map()
+		for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size)):
+			pass # just eat all element
+		for task in self.task_queue:
+			task._result = task.reduce(task._results)
+			task.fulfill(task._result)
+
 		#for
 		#buffers = {column:[] for column in columns if column.needs_copy()}
 
@@ -378,8 +430,8 @@ class JobsManager(object):
 											#and False:
 											#and dataset.columns[expression].dtype.byteorder in [native_code, "="] \
 										logger.debug("avoided expression, simply a column name with float64")
-										print "fast"
-										#yield self.columns[expression][i1:i2], info
+										#print "fast"
+										##yield self.columns[expression][i1:i2], info
 										results[expression] = dataset.columns[expression][i1:i2]
 									else:
 										# same as above, but -i1, since the array stars at zero

@@ -704,7 +704,7 @@ class LayerTable(object):
 		self.plugin_grids_draw.append(callback_draw)
 
 	def apply_mask(self, mask):
-		self.dataset.selectMask(mask)
+		self.dataset.set_mask(mask)
 		self.execute()
 		self.check_selection_undo_redo()
 		self.label_selection_info_update()

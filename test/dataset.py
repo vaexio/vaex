@@ -17,7 +17,7 @@ class TestDataset(unittest.TestCase):
 		assert len(self.dataset) == 10
 
 	def test_length_mask(self):
-		self.dataset.selectMask(self.dataset.columns['x'] < 5)
+		self.dataset.set_mask(self.dataset.columns['x'] < 5)
 		self.assertEqual(self.dataset.length(selection=True), 5)
 		
 	

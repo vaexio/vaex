@@ -1712,7 +1712,7 @@ class Vaex(QtGui.QMainWindow):
 						mask = np.zeros(len(dataset), dtype=np.bool)
 						mask[row_list] = True
 						print "match dataset", dataset
-						dataset.selectMask(mask)
+						dataset.set_mask(mask)
 						did_select = True
 					datasets_updated.append(dataset)
 		if did_select:

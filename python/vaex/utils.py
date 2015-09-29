@@ -5,8 +5,30 @@ import platform
 import os
 import sys
 import numpy as np
+import math
 
 is_frozen = getattr(sys, 'frozen', False)
+
+def subdivide(length, parts=None, max_length=None):
+	"""Generates a list with start end stop indices of length parts, [(0, length/parts), ..., (.., length)]"""
+	if max_length:
+		i1 = 0
+		done = False
+		while not done:
+			i2 = min(length, i1 + max_length)
+			#print i1, i2
+			yield i1, i2
+			i1 = i2
+			if i1 == length:
+				done = True
+	else:
+		part_length = int(math.ceil(float(length)/parts))
+		#subblock_count = math.ceil(total_length/subblock_size)
+		#args_list = []
+		for index in range(parts):
+			i1, i2 = index * part_length, min(length, (index +1) * part_length)
+			yield i1, i2
+
 
 def multisum(a, axes):
 	correction = 0

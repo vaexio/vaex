@@ -4,11 +4,87 @@ import Queue
 import math
 import multiprocessing
 import sys
-
+import vaex.utils
 lock = threading.Lock()
 
 thread_count_default = multiprocessing.cpu_count()
 
+
+class ThreadPoolIndex(object):
+	def __init__(self, nthreads=thread_count_default):
+		self.nthreads = nthreads
+		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
+		self.lock = threading.Lock()
+		self.queue_in = Queue.Queue()
+		self.queue_out = Queue.Queue()
+		for thread in self.threads:
+			thread.setDaemon(True)
+			thread.start()
+
+	def map(self, callable, iterator, on_error=None):
+		with lock:
+			self.callable = callable
+			count = 0
+			for element in iterator:
+				#print "put in queue", element
+				self.queue_in.put(element)
+				count +=1
+
+			done = False
+			yielded = 0
+			while not done:
+				element = self.queue_out.get()
+				#print "get from queue", element
+				if isinstance(element, tuple) and len(element) > 1 and isinstance(element[1], Exception):
+					if on_error:
+						on_error(element[1])
+						done = True
+					else:
+						raise element[1], None, element[2]
+						done = True
+				else:
+					yield element
+					yielded += 1
+				done = yielded == count
+
+
+	def close(self):
+		self.callable = None
+		#print "closing threads"
+		for index in range(self.nthreads):
+			self.queue_in.put(None)
+
+	def execute(self, index):
+		done = False
+		while not done:
+			#print "waiting..", index
+			args = self.queue_in.get()
+			if self.callable is None:
+				#print "ending thread.."
+				done = True
+			else:
+				#print "running..", index
+				try:
+					#lock.acquire()
+					result = self.callable(index, *args)
+					#lock.release()
+				except Exception, e:
+					exc_info = sys.exc_info()
+					self.queue_out.put(exc_info)
+				else:
+					self.queue_out.put(result)
+				#print "done..", index
+				#self.semaphore_outrelease()
+		#print "thread closed"
+
+
+
+	def run_blocks(self, callabble, total_length, parts=10, on_error=None):
+		for result in self.map(callabble, vaex.utils.subdivide(total_length, parts), on_error=on_error):
+			yield result
+
+
+pool = ThreadPoolIndex()
 
 class ThreadPool(object):
 	
@@ -84,4 +160,4 @@ class ThreadPool(object):
 		return results
 
 
-pool = ThreadPool()
+#pool = ThreadPool()
