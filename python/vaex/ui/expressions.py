@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-import gavi.logging
+import vaex.logging
 import logging
 import collections
 
-logger = gavi.logging.getLogger("expr")
+logger = vaex.logging.getLogger("expr")
 logger.setLevel(logging.ERROR)
 
 class Base(object):

@@ -311,9 +311,9 @@ void find_nan_min_max(const double* const block_ptr, const long long length, boo
 
 	}
 	/*/
-	printf("new min/max");
+	//printf("new min/max");
 	if(native) {
-		printf("native");
+		//printf("native");
 		min = block_ptr[0];
 		max = block_ptr[0];
 		for(long long i = 1; i < length; i++) {
@@ -347,7 +347,7 @@ void find_nan_min_max(const double* const block_ptr, const long long length, boo
 		min_ = min;
 		max_ = max;
 	} else {
-		printf("non-native");
+		//printf("non-native");
 		min = double_to_native(block_ptr[0]);
 		max = double_to_native(block_ptr[0]);
 		for(long long i = 1; i < length; i++) {

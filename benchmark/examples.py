@@ -10,13 +10,13 @@ lock = threading.Lock()
 import sys
 
 pool = mt.pool
-ds = vx.open("data/Aq-A-2-999-shuffled-10percent.hdf5") if len(sys.argv) == 1 else sys.argv[1]
+ds = vx.open("data/Aq-A-2-999-shuffled-10percent.hdf5") if len(sys.argv) == 1 else vx.open(sys.argv[1])
 x = ds("x")
 xlim = x.minmax()
 data = ds.columns["x"]
 print len(data), len(data)/4, len(data)%4, math.ceil(float(len(data))/pool.nthreads)
 splits = 10
-buf_size = int(1e8)
+buf_size = int(1e7)
 buf = np.zeros((pool.nthreads, len(data)/pool.nthreads+10), dtype=np.float64)
 print buf.shape
 import concurrent.futures
@@ -44,11 +44,13 @@ def case_a():
 			if 1:
 				with lock:
 					ne.evaluate("x**2", local_dict=dict(x=data[start:end]), out=buf_thread)
+					#buf_thread = data[start:end]
 			else:
 				#with lock:
 				funct = function([x], z, outpu)
 				buf_thread = funct(data[start:end])
 
+			
 			results.append(xlim.map(start, end, buf_thread))
 			#print "done"
 			done = end == i2

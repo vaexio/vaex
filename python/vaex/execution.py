@@ -11,7 +11,7 @@ import numexpr as ne
 
 __author__ = 'breddels'
 
-buffer_size = 1e8 # TODO: this should not be fixed, larger means faster but also large memory usage
+buffer_size = 1e7 #this should not be fixed, larger means faster but also large memory usage
 
 import threading
 import Queue
