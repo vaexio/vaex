@@ -2,17 +2,18 @@ import functools
 
 import matplotlib.widgets
 
-import gavi.vaex.plugin
-from gavi.vaex.qt import *
-from vaex.icons import iconfile
-import gavi.logging
-import gavi.vaex.undo as undo
+import vaex.ui.plugin
+from vaex.ui import undo
+from vaex.ui.qt import *
+from vaex.ui.icons import iconfile
+import vaex.logging
+import vaex.ui.undo as undo
 
 
-logger = gavi.logging.getLogger("plugin.zoom")
+logger = vaex.logging.getLogger("plugin.zoom")
 
 
-class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
+class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 	name = "zoom"
 	def __init__(self, dialog):
 		super(ZoomPlugin, self).__init__(dialog)
@@ -160,7 +161,7 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 			links = [button.link for button in linked_buttons]
 			if len(linked_buttons) > 0:
 				logger.debug("sending compute message")
-				gavi.dataset.Link.sendCompute(links, linked_buttons)
+				vaex.dataset.Link.sendCompute(links, linked_buttons)
 			#linked_buttons[0].sendCompute(blacklist)
 		#if linkButtonLast: # only send once
 		#	link = linkButtonLast.link
@@ -187,7 +188,7 @@ class ZoomPlugin(gavi.vaex.plugin.PluginPlot):
 		links = [button.link for button in linked_buttons]
 		if len(linked_buttons) > 0:
 			logger.debug("sending compute message")
-			gavi.dataset.Link.sendCompute(links, linked_buttons)
+			vaex.dataset.Link.sendCompute(links, linked_buttons)
 		self.compute()
 		self.jobsManager.execute()
 		

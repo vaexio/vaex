@@ -3,7 +3,7 @@ import vaex.dataset as dataset
 import numpy as np
 import numpy
 import math
-import gavi.utils
+import vaex.utils
 import matplotlib.pyplot as plt
 import scipy.ndimage
 import matplotlib.animation as animation
@@ -87,7 +87,7 @@ matplotlib.cm.register_cmap(name=name, cmap=cm_plusmin)
 
 
 #data = dataset.Hdf5MemoryMapped("data/dist/Aq-A-2-999-shuffled-fraction.hdf5")
-data = dataset.Hdf5MemoryMapped("/home/data/gavi/Aq-A-2-999-shuffled.hdf5")
+data = dataset.Hdf5MemoryMapped("/home/data/vaex/Aq-A-2-999-shuffled.hdf5")
 
 Nrows = int(1e7)
 #x, y, z = [col[:Nrows] for col in [data.columns["x"], data.columns["y"], data.columns["z"]]]
@@ -96,13 +96,13 @@ x = x - 54 #x.mean()
 y = y - 50 #y.mean()
 z = z - 50 #y.mean()
 
-import gavi.histogram
+import vaex.histogram
 density = np.zeros((N,N,N))
-#gavi.histogram.hist3d(x, y, z, density, np.min(x), np.max(x), np.min(y), np.max(y), np.min(z), np.max(z))
+#vaex.histogram.hist3d(x, y, z, density, np.min(x), np.max(x), np.min(y), np.max(y), np.min(z), np.max(z))
 w = 10
-#gavi.histogram.hist3d(x, y, z, density, np.min(x)+w, np.max(x)-w, np.min(y)+w, np.max(y)-w, np.min(z)+w, np.max(z)-w)
-#gavi.histogram.hist3d(x, y, z, density, -w, w, -w, w, -w, w)
-import gavifast
+#vaex.histogram.hist3d(x, y, z, density, np.min(x)+w, np.max(x)-w, np.min(y)+w, np.max(y)-w, np.min(z)+w, np.max(z)-w)
+#vaex.histogram.hist3d(x, y, z, density, -w, w, -w, w, -w, w)
+import vaex.vaexfast
 
 #for i in range(10):
 
@@ -136,15 +136,15 @@ class ThreadPool(object):
 		for thread in self.threads:
 			self.semaphore_out.acquire()
 		
-from gavi.multithreading import ThreadPool
+from vaex.multithreading import ThreadPool
 		
 
 thread_pool = ThreadPool(8)
 
-#gavifast.histogram3d(x, y, z, None, density, -w, w, -w, w, -w, w)
+#vaex.vaexfast.histogram3d(x, y, z, None, density, -w, w, -w, w, -w, w)
 density_per_thread = np.zeros((thread_pool.nthreads, ) + density.shape)
 def calc_dens(index, i1, i2):
-	gavifast.histogram3d(x[i1:i2], y[i1:i2], z[i1:i2], None, density[index], -w, w, -w, w, -w, w)
+	vaex.vaexfast.histogram3d(x[i1:i2], y[i1:i2], z[i1:i2], None, density[index], -w, w, -w, w, -w, w)
 thread_pool.run_blocks(calc_dens, len(x))
 density  = np.sum(density_per_thread, axis=0)
 #density = np.log10(density + 1)
@@ -171,9 +171,9 @@ def frame(i):
 	#for i in range(8):
 	#	print "shape", i, density_per_thread[index].shape, density_per_thread[index].strides
 		
-	with gavi.utils.Timer("proj"):
+	with vaex.utils.Timer("proj"):
 		if 0:
-			gavi.histogram.proj(density, surface, px, py)
+			vaex.histogram.proj(density, surface, px, py)
 		else:
 			projection = np.array(list(px) + list(py))
 			#density_per_thread = [density[index*block:(index+1)*block,:,:] for index in range(thread_pool.ntrheads)]
@@ -181,8 +181,8 @@ def frame(i):
 				#print "execute", index, density_per_thread[index].shape, density_per_thread[index].strides
 				#print index, i1, i2
 				center = np.array([0., 0., index*block])
-				#gavifast.project(density[index*block:(index+1)*block], surface_per_thread[index], projection, center)
-				gavifast.project(density[i1:i2], surface_per_thread[index], projection, center)
+				#vaex.vaexfast.project(density[index*block:(index+1)*block], surface_per_thread[index], projection, center)
+				vaex.vaexfast.project(density[i1:i2], surface_per_thread[index], projection, center)
 			#print [(index*block, (index+1)*block) for index in range(thread_pool.ntheads)]
 			#dsa
 			if 1:
@@ -190,7 +190,7 @@ def frame(i):
 				thread_pool.run_blocks(execute, density.shape[0])
 			else:
 				center = np.array([0., 0., 6*block])
-				gavifast.project(density_per_thread[0], surface_per_thread[0], projection, center)
+				vaex.vaexfast.project(density_per_thread[0], surface_per_thread[0], projection, center)
 			surface = surface_per_thread.sum(axis=0)
 	#print surface
 	#I = density.sum(axis=1)

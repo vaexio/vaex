@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-from vaex.ui.qt import *
 from string import Template
+
+from vaex.ui.qt import *
+
 
 ray_cast_fragment_source = Template("""
 #version 120
@@ -136,21 +138,17 @@ try:
 except ImportError:
 	from PySide import QtGui, QtCore
 	from PySide import QtOpenGL
-import OpenGL
 from OpenGL.GL import * # import GL
 from OpenGL.GL.framebufferobjects import *
-from OpenGL.GLU import *
-from OpenGL.GL.ARB.depth_texture import *
 from OpenGL.GL.ARB.shadow import *
 from OpenGL.GL import shaders
 
 import numpy as np
-import scipy.stats
 
 import time
 
-#import gavi.dataset
-import gavi.vaex.colormaps
+#import vaex.dataset
+import vaex.ui.colormaps
 #print GL_R32F
 GL_R32F = 33326	
 
@@ -659,7 +657,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		loc = glGetUniformLocation(self.shader_ray_cast, "texture_colormap");
 		glUniform1i(loc, 2); # texture unit 2
 		glActiveTexture(GL_TEXTURE2);
-		#index = gavi.vaex.colormaps.colormaps.index("afmhot")
+		#index = vaex.ui.colormaps.colormaps.index("afmhot")
 		index = 16
 		glBindTexture(GL_TEXTURE_1D, self.textures_colormap[index])
 		glEnable(GL_TEXTURE_1D)
@@ -668,7 +666,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			loc = glGetUniformLocation(self.shader_ray_cast, "transfer_function");
 			glUniform1i(loc, 3); # texture unit 3
 			glActiveTexture(GL_TEXTURE3);
-			#index = gavi.vaex.colormaps.colormaps.index("afmhot")
+			#index = vaex.ui.colormaps.colormaps.index("afmhot")
 			glBindTexture(GL_TEXTURE_1D, self.texture_function)
 			rgb = self.colormap_data[self.colormap_index]
 			x = np.arange(self.texture_function_size) / (self.texture_function_size-1.)
@@ -988,7 +986,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		
 	def initializeGL(self):
 
-		colormaps = gavi.vaex.colormaps.colormaps
+		colormaps = vaex.ui.colormaps.colormaps
 		Nx, Ny = self.texture_function_size, 16
 		self.colormap_data = np.zeros((len(colormaps), Nx, 3), dtype=np.uint8)
 		
@@ -1108,11 +1106,10 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.post_init()
 			
 
-	# only gavi specific code?
+	# only vaex specific code?
 	def loadTable(self, args, column_names, grid_size=128, grid_size_vector=16):
-		import vaex.dataset
-		import gavifast
-		dataset = gavi.dataset.load_file(sys.argv[1])
+		import vaex.vaexfast
+		dataset = vaex.dataset.load_file(sys.argv[1])
 		x, y, z, vx, vy, vz = [dataset.columns[name] for name in sys.argv[2:]]
 		x, y, z, vx, vy, vz = [k.astype(np.float64)-k.mean() for k in [x, y, z, vx, vy, vz]]
 		grid3d = np.zeros((grid_size, grid_size, grid_size), dtype=np.float64)
@@ -1124,22 +1121,22 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		s = 0.
 		mi, ma = -4, 4
 		print "histogram3d"
-		gavifast.histogram3d(x, y, z, None, grid3d, mi+s, ma+s, mi, ma, mi, ma)
+		vaex.vaexfast.histogram3d(x, y, z, None, grid3d, mi+s, ma+s, mi, ma, mi, ma)
 		if 0:
 			vx = vx - vx.mean()
 			vy = vy - vy.mean()
 			vz = vz - vz.mean()
-		gavifast.histogram3d(x, y, z, vx, vectorgrid[0], mi+s, ma+s, mi, ma, mi, ma)
-		gavifast.histogram3d(x, y, z, vy, vectorgrid[1], mi+s, ma+s, mi, ma, mi, ma)
-		gavifast.histogram3d(x, y, z, vz, vectorgrid[2], mi+s, ma+s, mi, ma, mi, ma)
+		vaex.vaexfast.histogram3d(x, y, z, vx, vectorgrid[0], mi+s, ma+s, mi, ma, mi, ma)
+		vaex.vaexfast.histogram3d(x, y, z, vy, vectorgrid[1], mi+s, ma+s, mi, ma, mi, ma)
+		vaex.vaexfast.histogram3d(x, y, z, vz, vectorgrid[2], mi+s, ma+s, mi, ma, mi, ma)
 		print vx
 		print vectorgrid[0]
-		print gavifast.resize(vectorgrid[0], 4)
-		print gavifast.resize(vectorgrid[1], 4)
-		print gavifast.resize(vectorgrid[2], 4)
-		print gavifast.resize(grid3d, 4)
+		print vaex.vaexfast.resize(vectorgrid[0], 4)
+		print vaex.vaexfast.resize(vectorgrid[1], 4)
+		print vaex.vaexfast.resize(vectorgrid[2], 4)
+		print vaex.vaexfast.resize(grid3d, 4)
 		print "$" * 80
-		vectorgrid[3][:] = gavifast.resize(grid3d, grid_size_vector)
+		vectorgrid[3][:] = vaex.vaexfast.resize(grid3d, grid_size_vector)
 		for i in range(3):
 			vectorgrid[i] /= vectorgrid[3] # go from weighted to mean
 
@@ -1462,9 +1459,7 @@ class TestWidget(QtGui.QMainWindow):
 		
 	def myclose(self, ignore=None):
 		self.hide()
-		
 
-from OpenGL.arrays import vbo
 
 class Arrow(object):
 	def begin(self, type):
@@ -1587,10 +1582,10 @@ class Arrow(object):
 	
 		
 if __name__ == "__main__":
-	import gavi.vaex.colormaps
-	colormaps = gavi.vaex.colormaps.colormaps
+	import vaex.ui.colormaps
+	colormaps = vaex.ui.colormaps.colormaps
 	import json
-	js = json.dumps(gavi.vaex.colormaps.colormaps)
+	js = json.dumps(vaex.ui.colormaps.colormaps)
 	print js
 
 	app = QtGui.QApplication(sys.argv)

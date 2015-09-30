@@ -21,5 +21,5 @@ import vaex.dataset
 def open(path):
 	return vaex.dataset.load_file(path)
 
-def server(host, **kwargs):
-	return vaex.dataset.ServerRest(host, **kwargs)
+def server(hostname, **kwargs):
+	return vaex.dataset.ServerRest(hostname, **kwargs)

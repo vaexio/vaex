@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 import matplotlib.cm
 import numpy as np
-from 	qt import *
+
+from    vaex.ui.qt import *
+
 
 cols = []
 for x in np.linspace(0,1, 256):

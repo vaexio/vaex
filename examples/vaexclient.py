@@ -8,23 +8,25 @@ server = vx.server("localhost")
 
 
 list = server.list_datasets()
-ds = server.open(list[5])
-expr = ds("x", "y")
-limits = expr.limits_sigma(sigmas=3, square=True)
+print list
+ds = server.open(list[0])
+print "length", len(ds)
+subspace = ds("x", "y")
+limits = subspace.limits_sigma(sigmas=3, square=True)
 
 ds.select("z>50")
-selected = expr.selected()
+selected = subspace.selected()
 
 
-print expr.mean()
-print expr.var()
-print expr.limits_sigma()
-print expr.limits_sigma(sigmas=1)
-#limits = expr.minmax()
+print subspace.mean()
+print subspace.var()
+print subspace.limits_sigma()
+print subspace.limits_sigma(sigmas=1)
+#limits = subspace.minmax()
 print "square limits", limits
-grid = expr.histogram(limits=limits)
+grid = subspace.histogram(limits=limits)
 grid_selected = selected.histogram(limits=limits)
-expr.plot(np.log(grid), limits=limits)
+subspace.plot(np.log(grid), limits=limits)
 pylab.contour(np.log(grid_selected), 2, linewidth="2pt", colors="blue", extent=limits.flatten(), alpha=0.8)
 
 
@@ -38,18 +40,18 @@ dataset = None
 import traceback
 
 def printminmax(args):
-	expr, limits = args
-	print "minmax for", expr, limits
-	return expr, limits
+	subspace, limits = args
+	print "minmax for", subspace, limits
+	return subspace, limits
 
 def getminmax__(dataset):
 	dataset("x", "y").minmax()
 	print "get min max for", dataset
 	#try:
 	if 1:
-		expr = dataset("x", "y")
-		print "expr", expr
-		promise = expr.minmax()
+		subspace = dataset("x", "y")
+		print "subspace", subspace
+		promise = subspace.minmax()
 		print "promise", promise
 		#promise.then(printminmax, on_error)
 		return promise
@@ -64,18 +66,18 @@ def list_datasets(result):
 	print "list datasets", list
 	opened = server.open(list[5])
 	def plot(args):
-		expr, limits, size, data = args
+		subspace, limits, size, data = args
 		print "plot"
 		#pylab.imshow(log(data))
 		pylab.figure()
 		print data.max(), data.sum()
-		expr.plot(np.log(data), limits=limits)
+		subspace.plot(np.log(data), limits=limits)
 		pylab.show()
-		#expr.plot()
+		#subspace.plot()
 	def histogram(args):
-		expr, limits = args
-		print expr
-		return expr.histogram(limits=limits, size=256).then(plot)
+		subspace, limits = args
+		print subspace
+		return subspace.histogram(limits=limits, size=256).then(plot)
 	opened.then(lambda dataset: dataset("x", "y").minmax()).then(printminmax, on_error).then(histogram).then(None, on_error)
 
 

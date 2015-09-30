@@ -1,5 +1,5 @@
 PRINT, 'convert ascii file to hdf5'
-testfile = '/Users/users/breddels/gavi/src/SubspaceFinding/data/helmi2000.asc'
+testfile = '/Users/users/breddels/vaex/src/SubspaceFinding/data/helmi2000.asc'
 h5file_id = H5F_CREATE('/tmp/test.hdf5')
 
 N = 3300000; nr of rows

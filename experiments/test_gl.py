@@ -438,7 +438,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 			winz_inside = winz[inside==1]
 			#zmin, zmax = winz_inside.min(), winz_inside.max()
 			#counts = 
-			#gavi.histogram.hist1d(
+			#vaex.histogram.hist1d(
 			fraction = 0.005
 			N = len(winz_inside)
 			indices = np.argsort(winz_inside)

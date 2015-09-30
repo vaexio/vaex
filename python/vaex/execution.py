@@ -1,5 +1,5 @@
 import functools
-import gavifast
+import vaex.vaexfast
 import numpy as np
 from vaex.utils import Timer
 import vaex.events
@@ -228,7 +228,7 @@ class JobsManager(object):
 					else:
 						data = block[sub_i1:sub_i2]
 					if len(data):
-						result = gavifast.find_nan_min_max(data)
+						result = vaex.vaexfast.find_nan_min_max(data)
 						mi, ma = result
 						#if sub_i1 == 0:
 						minima_per_thread[thread_index] = mi if minima_per_thread[thread_index] is None else min(mi, minima_per_thread[thread_index])

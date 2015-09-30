@@ -4,7 +4,7 @@ import os
 import math
 import time
 import itertools
-import gavifast
+import vaex.vaexfast
 import functools
 import collections
 import sys
@@ -184,11 +184,11 @@ class TaskHistogram(Task):
 		#print subblocks[0]
 		#print subblocks[1]
 		if self.dimension == 1:
-			gavifast.histogram1d(blocks[0], subblock_weight, data, *self.ranges_flat)
+			vaex.vaexfast.histogram1d(blocks[0], subblock_weight, data, *self.ranges_flat)
 		elif self.dimension == 2:
-			gavifast.histogram2d(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
+			vaex.vaexfast.histogram2d(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
 		elif self.dimension == 3:
-			gavifast.histogram3d(blocks[0], blocks[1], blocks[2], subblock_weight, data, *self.ranges_flat)
+			vaex.vaexfast.histogram3d(blocks[0], blocks[1], blocks[2], subblock_weight, data, *self.ranges_flat)
 
 		return i1
 		#return map(self._map, blocks)#[self.map(block) for block in blocks]
@@ -199,7 +199,23 @@ class TaskHistogram(Task):
 		return self.data[0]
 		#return self.data
 
-class Expr(object):
+class Subspace(object):
+	def plot(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
+		import pylab
+		if limits is None:
+			limits = self.limits_sigma()
+		if center is not None:
+			limits = np.array(limits) - np.array(center).reshape(2,1)
+		if grid is None:
+			grid = self.histogram(limits=limits)
+		pylab.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
+
+	def figlarge(self):
+		import pylab
+		pylab.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
+
+
+class SubspaceLocal(Subspace):
 	def __init__(self, dataset, expressions, executor, immediate, masked=False):
 		self.dataset = dataset
 		self.expressions = expressions
@@ -209,7 +225,7 @@ class Expr(object):
 		self.is_masked = masked
 
 	def selected(self):
-		return Expr(self.dataset, expressions=self.expressions, executor=self.executor, immediate=self.immediate, masked=True)
+		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, immediate=self.immediate, masked=True)
 
 	def toarray(self, list):
 		return np.array(list)
@@ -244,7 +260,7 @@ class Expr(object):
 				result.append((min(min1, min2), max(max1, max2)))
 			return result
 		def min_max_map(*blocks):
-			return [gavifast.find_nan_min_max(block) for block in blocks]
+			return [vaex.vaexfast.find_nan_min_max(block) for block in blocks]
 		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self.toarray)
 		return self._task(task)
 
@@ -292,18 +308,7 @@ class Expr(object):
 		return np.array(zip(means-sigmas*stds, means+sigmas*stds))
 
 
-	def plot(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
-		import pylab
-		if limits is None:
-			limits = self.limits_sigma()
-		if center is not None:
-			limits = np.array(limits) - np.array(center).reshape(2,1)
-		if grid is None:
-			grid = self.histogram(limits=limits)
-		pylab.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
-
-
-class ExprRest(object):
+class SubspaceRemote(Subspace):
 	def __init__(self, dataset, expressions, immediate=True, masked=False):
 		self.dataset = dataset
 		self.expressions = expressions
@@ -312,7 +317,7 @@ class ExprRest(object):
 		self.is_masked = masked
 
 	def selected(self):
-		return ExprRest(self.dataset, expressions=self.expressions, immediate=self.immediate, masked=True)
+		return SubspaceRemote(self.dataset, expressions=self.expressions, immediate=self.immediate, masked=True)
 
 	def toarray(self, list):
 		return np.array(list)
@@ -358,49 +363,6 @@ class ExprRest(object):
 		pylab.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
 
 
-class Dataset(object):
-	def __init__(self, name):
-		self.name = name
-		self.executor = vaex.execution.Executor(self, multithreading.pool)
-
-	def __call__(self, *expressions):
-		return Expr(self, expressions, self.executor, immediate=True)
-
-	def plot2d(self, x, y, vx=None, vy=None, size=256, size_vector=32, xlim=None, ylim=None):
-		import vaex.plot
-		if not xlim and not ylim:
-			xlim, ylim = execution.main_manager.find_min_max(self, [x, y])
-		elif not xlim:
-			xlim = execution.main_manager.find_min_max(self, [x])
-		elif not ylim:
-			ylim = execution.main_manager.find_min_max(self, [y])
-
-		grids = vaex.grids.Grids(self, multithreading.pool, x, y)
-		grids.ranges = [xlim, ylim]
-		grids.define_grid("counts", size, None)
-		if vx and vy:
-			grids.define_grid("vx", size_vector, vx)
-			grids.define_grid("vy", size_vector, vy)
-		grids.add_jobs(execution.main_manager)
-		execution.main_manager.execute()
-		vaex.plot.grid(grids["counts"])
-		#vaex.plot.vector2d(grids["vx"], grids["vy"])
-
-	def select(self, expression):
-		mask = np.zeros(len(self), dtype=np.bool)
-		def map(thread_index, i1, i2, block):
-			mask[i1:i2][block==1.] = 1
-			return 0
-		def reduce(*args):
-			None
-		expr = self(expression)
-		task = TaskMapReduce(self, [expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
-		def apply_mask(*args):
-			print "Setting mask"
-			self.set_mask(mask)
-		task.then(apply_mask)
-		return expr._task(task)
-
 
 #from twisted.internet import reactor
 #from twisted.web.client import Agent
@@ -429,8 +391,8 @@ import urllib
 import threading
 
 class ServerRest(object):
-	def __init__(self, host, port=5000, base_path="/", background=False, async=False):
-		self.host = host
+	def __init__(self, hostname, port=5000, base_path="/", background=False, async=False):
+		self.hostname = hostname
 		self.port = port
 		self.base_path = base_path
 		#if async:
@@ -479,22 +441,32 @@ class ServerRest(object):
 		return self._return(result, wrap)
 
 	def _build_url(self, method):
-		return "http://%s:%d%s%s" % (self.host, self.port, self.base_path, method)
+		return "http://%s:%d%s%s" % (self.hostname, self.port, self.base_path, method)
 
 	def _list_columns(self, name):
 		def wrap(result):
 			list = json.loads(result.body)
 			return list
-		url = self._build_url("columns/%s" % name)
+		url = self._build_url("datasets/%s/columns" % name)
+		print "fetching", url
+		result = self.http_client.fetch(url)
+		return self._return(result, wrap)
+
+	def _info(self, name):
+		def wrap(result):
+			list = json.loads(result.body)
+			return list
+		url = self._build_url("datasets/%s/info" % name)
 		print "fetching", url
 		result = self.http_client.fetch(url)
 		return self._return(result, wrap)
 
 	def open(self, name):
-		def wrap(columns):
-			print "columns", columns
-			return DatasetRest(self, name, columns)
-		result = self._list_columns(name)
+		def wrap(info):
+			column_names = info["column_names"]
+			full_length = info["length"]
+			return DatasetRest(self, name, column_names, full_length)
+		result = self._info(name)
 		return self._return(result, wrap)
 
 	def _async(self, promise):
@@ -509,7 +481,7 @@ class ServerRest(object):
 			print "data", data
 			return np.array([[data[expression]["min"], data[expression]["max"]] for expression in expressions])
 		columns = "/".join(expressions)
-		url = self._build_url("minmax/%s/%s" % (dataset_name, columns))
+		url = self._build_url("datasets/%s/minmax/%s" % (dataset_name, columns))
 		print "fetching", url
 		result = self.http_client.fetch(url)
 		return self._return(result, wrap)
@@ -526,7 +498,7 @@ class ServerRest(object):
 	def _simple(self, expr, dataset_name, expressions, name, **kwargs):
 		def wrap(result):
 			return np.array(json.loads(result.body))
-		url = self._build_url("%s/%s" % (dataset_name, name))
+		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
 		post_data = {key:json.dumps(value) for key, value in dict(kwargs).items()}
 		post_data["masked"] = json.dumps(expr.is_masked)
 		post_data.update(dict(expressions=json.dumps(expressions)))
@@ -541,7 +513,7 @@ class ServerRest(object):
 			data = data.reshape(shape)
 			print "data", data.shape, data
 			return data
-		url = self._build_url("histogram/%s" % (dataset_name,))
+		url = self._build_url("datasets/%s/histogram" % (dataset_name,))
 		print "fetching", url
 		post_data = dict(expressions=json.dumps(expressions), size=json.dumps(size), limits=json.dumps(limits.tolist()), masked=json.dumps(expr.is_masked))
 		body = urllib.urlencode(post_data)
@@ -560,7 +532,7 @@ class ServerRest(object):
 		name = "select"
 		def wrap(result):
 			return np.array(json.loads(result.body))
-		url = self._build_url("%s/%s" % (dataset_name, name))
+		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
 		post_data = {key:json.dumps(value) for key, value in dict(kwargs).items()}
 		post_data.update(dict(expression=json.dumps(expression)))
 		body = urllib.urlencode(post_data)
@@ -570,39 +542,83 @@ class ServerRest(object):
 
 
 
+class Dataset(object):
+	def __init__(self, name, column_names):
+		self.name = name
+		self.column_names = column_names
+		self.executor = vaex.execution.Executor(self, multithreading.pool)
+
+	def __call__(self, *expressions):
+		return SubspaceLocal(self, expressions, self.executor, immediate=True)
+
+	def select(self, expression):
+		mask = np.zeros(len(self), dtype=np.bool)
+		def map(thread_index, i1, i2, block):
+			mask[i1:i2][block==1.] = 1
+			return 0
+		def reduce(*args):
+			None
+		expr = self(expression)
+		task = TaskMapReduce(self, [expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
+		def apply_mask(*args):
+			print "Setting mask"
+			self.set_mask(mask)
+		task.then(apply_mask)
+		return expr._task(task)
+
+	def column_count(self):
+		return len(self.column_names)
+
+	def get_column_names(self):
+		return list(self.column_names)
 
 
+class DatasetRemote(Dataset):
+	def __init__(self, name, server, column_names):
+		self.is_local = False
+		super(DatasetRemote, self).__init__(name, column_names)
+		self.server = server
 
-
-class DatasetRest(Dataset):
-	def __init__(self, server, name, columns):
+class DatasetRest(DatasetRemote):
+	def __init__(self, server, name, column_names, full_length):
+		DatasetRemote.__init__(self, name, server.hostname, column_names)
 		self.server = server
 		self.name = name
-		self.columns = columns
+		self.column_names = column_names
+		self._full_length = full_length
+		self.filename = "http://%s:%s/%s" % (server.hostname, server.port, name)
 		#self.host = host
 		#self.http_client = AsyncHTTPClient()
 		#future = http_client.fetch(self._build_url("datasets"))
 		#fetch_future.add_done_callback(
+		self.fraction = 1
+		self.signal_pick = vaex.events.Signal("pick")
+		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
+
+		self.undo_manager = vaex.ui.undo.UndoManager()
 
 	def __call__(self, *expressions):
-		return ExprRest(self, expressions, immediate=not self.server.async)
+		return SubspaceRemote(self, expressions, immediate=not self.server.async)
 
 	def select(self, expression):
 		return self.server.select(self.name, expression)
 
+	def setFraction(self, f):
+		self.fraction = f
+
+	def __len__(self):
+		return self._full_length
+
+	def full_length(self):
+		return self._full_length
+
 
 
 class DatasetLocal(Dataset):
-	def __init__(self, name, path):
+	def __init__(self, name, path, column_names):
 		self.is_local = True
-		super(DatasetLocal, self).__init__(name)
+		super(DatasetLocal, self).__init__(name, column_names)
 		self.path = path
-
-class DatasetRemote(Dataset):
-	def __init__(self, name, server):
-		self.is_local = False
-		super(DatasetRemote, self).__init__(name)
-		self.server = server
 
 
 class DatasetMemoryMapped(DatasetLocal):
@@ -644,7 +660,7 @@ class DatasetMemoryMapped(DatasetLocal):
 		
 	# nommap is a hack to get in memory datasets working
 	def __init__(self, filename, write=False, nommap=False, name=None):
-		super(DatasetMemoryMapped, self).__init__(name=name or os.path.splitext(os.path.basename(filename))[0], path=os.path.abspath(filename) if filename is not None else None)
+		super(DatasetMemoryMapped, self).__init__(name=name or os.path.splitext(os.path.basename(filename))[0], path=os.path.abspath(filename) if filename is not None else None, column_names=[])
 		self.filename = filename or "no file"
 		self.write = write
 		#self.name = name or os.path.splitext(os.path.basename(self.filename))[0]
@@ -1191,7 +1207,7 @@ class InMemoryTable(DatasetMemoryMapped):
 			y = np.random.random(x.shape) * 0.5 + 0.5
 			shape = x.shape
 			grid = np.zeros(shape, dtype=np.float64)
-			gavifast.histogram2d(x, y, None, grid, 0, N, 0, N)
+			vaex.vaexfast.histogram2d(x, y, None, grid, 0, N, 0, N)
 			phi_f = np.fft.fft2(grid)
 			self.addColumn("x", array=x)
 			self.addColumn("y", array=y)
@@ -1228,7 +1244,7 @@ class InMemoryTable(DatasetMemoryMapped):
 			
 		#do(np.zeros(dim), 1., 0, 0)
 		for d in range(dim):
-			gavifast.soneira_peebles(array[d], 0, 1, L, eta, max_level)
+			vaex.vaexfast.soneira_peebles(array[d], 0, 1, L, eta, max_level)
 		for i, name in zip(range(dim), "x y z w v u".split()):
 			self.addColumn(name, array=array[i])
 		
@@ -1502,7 +1518,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 		self.remap()
 		self.addColumn(column_name, offset, len(array), dtype=array.dtype)
 
-dataset_type_map["h5gavi"] = Hdf5MemoryMapped
+dataset_type_map["h5vaex"] = Hdf5MemoryMapped
 
 class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 	def __init__(self, filename, write=False):
@@ -1673,9 +1689,9 @@ class SoneiraPeebles(InMemory):
 		L = todim(L)
 
 		for d in range(dimension):
-			gavifast.soneira_peebles(array[d], 0, 1, L[d], eta, max_level)
+			vaex.vaexfast.soneira_peebles(array[d], 0, 1, L[d], eta, max_level)
 		order = np.zeros(N, dtype=np.int64)
-		gavifast.shuffled_sequence(order);
+		vaex.vaexfast.shuffled_sequence(order);
 		for i, name in zip(range(dimension), "x y z w v u".split()):
 			#np.take(array[i], order, out=array[i])
 			reorder(array[i], array[-1], order)
@@ -1814,4 +1830,5 @@ def load_file(path, *args):
 	if dataset_class:
 		dataset = dataset_class(path, *args)
 		return dataset
-	
+
+from execution import JobsManager

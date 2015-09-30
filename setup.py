@@ -7,9 +7,9 @@ Usage:
 """
 
 import os
-from distutils.sysconfig import get_python_inc, get_python_lib
+from distutils.sysconfig import get_python_inc
 #from distutils import setup, find_packages, Extension
-from setuptools import setup, find_packages, Extension
+from setuptools import setup, Extension
 import platform
 import sys
 import imp
@@ -21,28 +21,28 @@ def system(cmd):
 		print "error, return code is", ret
 		sys.exit(ret)
 
-path_version_file = "python/gavi/vaex/version.py"
+path_version_file = "python/vaex/version.py"
 if not os.path.exists(path_version_file):
-	system("version=`git describe --tags --long`; python/gavi/vaex/setversion.py ${version}")
+	system("version=`git describe --tags --long`; python/vaex/setversion.py ${version}")
 
 version = imp.load_source('version', path_version_file)
-#system("version=`git describe --tags --long`; python/gavi/vaex/setversion.py ${version}")
+#system("version=`git describe --tags --long`; python/vaex/vaex/setversion.py ${version}")
 
 
 
 has_py2app = False
-#import gavi.vaex
+#import vaex
 try:
 	import py2app.build_app
 	has_py2app = True
 except:
 	pass
 
-#full_name = gavi.vaex.__full_name__
+#full_name = vaex.__full_name__
 cmdclass = {}
 
 if has_py2app and sys.argv[1] == "py2app":
-	import gavi.vaex
+	import vaex.ui
 	class my_py2app(py2app.build_app.py2app):
 		"""hooks in post script to add in missing libraries and zip the content"""
 		def run(self):
@@ -81,9 +81,9 @@ if has_py2app and sys.argv[1] == "py2app":
 				print cmd
 				os.system(cmd)
 			os.system("cd dist")
-			zipname = "%s-osx.zip" % gavi.vaex.__clean_name__
+			zipname = "%s-osx.zip" % vaex.ui.__clean_name__
 			os.system("cd dist;rm %s" % zipname)
-			os.system("cd dist;zip -r %s %s.app" % (zipname, gavi.vaex.__program_name__))
+			os.system("cd dist;zip -r %s %s.app" % (zipname, vaex.ui.__program_name__))
 			retvalue = os.system("git diff --quiet")
 			if retvalue != 0:
 				print "WARNING UNCOMMITED CHANGES, VERSION NUMBER WILL NOT MATCH"
@@ -116,10 +116,10 @@ DATA_FILES.append(["doc/", glob.glob("docs/build/html/*.html") + glob.glob("docs
 for sub in "_static _images _sources".split():
 	DATA_FILES.append(["doc/" + sub, glob.glob("docs/build/html/" +sub +"/*")] )
 #print DATA_FILES
-OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/gavi/icons'],
+OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/vaex/icons'],
            'matplotlib_backends':'-',
            'no_chdir':True,
-           'iconfile': 'python/gavi/icons/vaex.icns'
+           'iconfile': 'python/vaex/icons/vaex.icns'
 
 } #, 'debug_modulegraph':True}
 #, 'app':True
@@ -143,7 +143,7 @@ if numdir is not None:
 	include_dirs.append(os.path.join(numdir, "core", "include"))
 
 extensions = [
-	Extension("gavifast", ["src/gavifast/gavi.cpp"],
+	Extension("vaex.vaex.vaexfast", ["src/vaex/vaex.vaexfast.cpp"],
                 include_dirs=include_dirs,
                 library_dirs=library_dirs,
                 libraries=libraries,
@@ -166,10 +166,10 @@ reqs = [str(ir.req) for ir in install_reqs]
 
 
 #print "requirements", reqs
-#print "ver#sion", gavi.vaex.__release__
+#print "ver#sion", vaex.__release__
 setup(
 	app=["bin/vaex"],
-	name="vaex", #gavi.vaex.__program_name__,
+	name="vaex", #vaex.__program_name__,
 	author="Maarten A. Breddels",
 	author_email="maartenbreddels@gmail.com",
     version = "%d.%d.%d" % version.versiontuple,
@@ -177,13 +177,13 @@ setup(
     options={'py2app': OPTIONS},
     #setup_requires=['py2app'],
     #setup_requires=["sphinx"],
-    includes=["gavi", "md5", "astropy"],
-    packages=["gavi", "gavi.vaex", "gavi.vaex.plugin", "gavi.icons"],
+    includes=["vaex", "md5", "astropy"],
+    packages=["vaex", "vaex", "vaex.ui.plugin", "vaex.ui.icons"],
     install_requires=reqs,
-    entry_points={ 'console_scripts': [ 'vaex=gavi.vaex.main:main']  },
+    entry_points={ 'console_scripts': [ 'vaex=vaex.main:main']  },
     ext_modules=extensions,
-    package_data={'gavi': ['icons/*.png']},
-    package_dir={'gavi':'python/gavi'},
+    package_data={'vaex': ['icons/*.png']},
+    package_dir={'vaex':'python/vaex'},
     cmdclass=cmdclass,
     description="Veax is a graphical tool to visualize and explore large tabular datasets.",
     url="https://www.astro.rug.nl/~breddels/vaex"

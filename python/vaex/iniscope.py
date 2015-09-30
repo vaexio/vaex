@@ -5,7 +5,7 @@ import os
 from math import *
 import glob
 
-import gavi.logging as logging
+import vaex.logging as logging
 import vaex.misc.ordereddict
 
 

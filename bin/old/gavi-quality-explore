@@ -18,24 +18,24 @@ if isfrozen:
 else:
 	app = wx.App(False, filename=None)
 
-import gavi
-import gavi.settings
-#settings = gavi.settings.Settings("settings_classes.ini")
+import vaex
+import vaex.settings
+#settings = vaex.settings.Settings("settings_classes.ini")
 #settings.load()
 #print settings.files.open
 
 
 import sys
 sys.path.append(".")
-import gavi.user_qualities
+import vaex.user_qualities
 import inspect
 
-members = inspect.getmembers(gavi.user_qualities)
+members = inspect.getmembers(vaex.user_qualities)
 def our_function_filter(name, function):
 	#print function
 	return inspect.isfunction(function)
 quality_functions = filter(lambda x: our_function_filter(*x), members)
-print quality_functions, inspect.isfunction(gavi.user_qualities.max_quality)
+print quality_functions, inspect.isfunction(vaex.user_qualities.max_quality)
 
 #sys.exit(0)
 

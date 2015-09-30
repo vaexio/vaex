@@ -3,11 +3,11 @@ import SocketServer
 import sys
 import os
 import sampy
-from gavi.samp import Samp
+from vaex.samp import Samp
 import astropy.io.votable
 import itertools
-import gavi.wxui
-import gavi.kde
+import vaex.wxui
+import vaex.kde
 import wx
 from wx.lib.mixins.listctrl import CheckListCtrlMixin
 import  wx.lib.newevent
@@ -168,7 +168,7 @@ class CombinationSelectionPanel(wx.Panel):
 		print event, event.combination
 		combination = event.combination
 		dialog = wx.Dialog(self, -1, size=(400, 400))
-		plotWindow = gavi.wxui.PlotWindow1d(dialog)
+		plotWindow = vaex.wxui.PlotWindow1d(dialog)
 		
 		# only 1 and 2d supported
 		assert len(combination) in [1,2]
@@ -176,7 +176,7 @@ class CombinationSelectionPanel(wx.Panel):
 			column1 = combination[0]
 			data = self.currentTable.array[column1]
 			Nkde1d = 128 # TODO: make this configurable
-			density = gavi.kde.kde1d(data, min(data), max(data), Nkde1d)
+			density = vaex.kde.kde1d(data, min(data), max(data), Nkde1d)
 			plotWindow.plot1d(density, min(data), max(data), xlabel=column1)
 		else:
 			column1 = combination[0]
@@ -187,7 +187,7 @@ class CombinationSelectionPanel(wx.Panel):
 			xmin, xmax = min(x), max(x)
 			ymin, ymax = min(y), max(y)
 			print xmin, xmax, ymin, ymax
-			density = gavi.kde.kde2d(x, y, xmin, xmax, ymin, ymax, (Nkde2d, Nkde2d))
+			density = vaex.kde.kde2d(x, y, xmin, xmax, ymin, ymax, (Nkde2d, Nkde2d))
 			plotWindow.plot2d(density, xmin, xmax, ymin, ymax, xlabel=column1, ylabel=column2)
 		
 		sizer = wx.BoxSizer(wx.VERTICAL)

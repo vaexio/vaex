@@ -1,20 +1,23 @@
 __author__ = 'maartenbreddels'
 
 import numpy as np
-import gavi.vaex.plugin
-from gavi.vaex.qt import *
-import gavi.vaex.plot_windows
-#from gavi.icons import iconfile
+
+import vaex.ui.plugin
+from vaex.ui.qt import *
+import vaex.ui.plot_windows
+
+
+
+#from vaex.ui.icons import iconfile
 #import matplotlib.widgets
 #import functools
-import gavi.logging
-import gavi.vaex.undo as undo
-from gavi.vaex import widgets
+import vaex.logging
+from vaex.ui import widgets
 
-logger = gavi.logging.getLogger("plugin.transferfunction")
+logger = vaex.logging.getLogger("plugin.transferfunction")
 
 
-class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
+class TransferFunctionPlugin(vaex.ui.plugin.PluginLayer):
 	name = "transferfunction"
 	def __init__(self, parent, layer):
 		super(TransferFunctionPlugin, self).__init__(parent, layer)
@@ -23,7 +26,7 @@ class TransferFunctionPlugin(gavi.vaex.plugin.PluginLayer):
 
 	@staticmethod
 	def useon(dialog_class):
-		return issubclass(dialog_class, gavi.vaex.plot_windows.VolumeRenderingPlotDialog)
+		return issubclass(dialog_class, vaex.ui.plot_windows.VolumeRenderingPlotDialog)
 
 	def plug_page(self, page):
 		layout = self.layout = QtGui.QGridLayout()

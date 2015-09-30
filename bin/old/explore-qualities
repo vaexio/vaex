@@ -17,9 +17,9 @@ if isfrozen:
 else:
 	app = wx.App(False, filename=None)
 
-import gavi
-import gavi.settings
-settings = gavi.settings.Settings("settings_classes.ini")
+import vaex
+import vaex.settings
+settings = vaex.settings.Settings("settings_classes.ini")
 settings.load()
 print settings.files.open
 

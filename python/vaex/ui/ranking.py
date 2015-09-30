@@ -1,12 +1,13 @@
-from vaex.ui.qt import *
 import itertools
-import gavifast
-import vaex.dataset
-import numpy as np
-import gavi.vaex.plot_windows
 
-import gavi.logging as logging
+import numpy as np
 from pyjavaproperties import Properties
+
+from vaex.ui.qt import *
+import vaex.dataset
+import vaex.ui.plot_windows
+import vaex.logging as logging
+
 logger = logging.getLogger("vaex.ranking")
 
 
@@ -260,7 +261,7 @@ class SubspaceTable(QtGui.QTableWidget):
 			#self.setVerticalHeaderLabels(map(str, range(len(self.pairs))))
 			self.fill_table()
 			self.setSortingEnabled(True)
-		self.queue_fill_table = gavi.vaex.plot_windows.Queue("fill table", 200, self.fill_table)
+		self.queue_fill_table = vaex.ui.plot_windows.Queue("fill table", 200, self.fill_table)
 
 	def pair_to_text(self, pair):
 		return " ".join(map(str, pair))
@@ -728,7 +729,7 @@ class RankDialog(QtGui.QDialog):
 
 
 	def onPca(self):
-		#gavi.pca.
+		#vaex.pca.
 		pass
 
 	def onFilter(self, text, table):
@@ -788,7 +789,7 @@ class RankDialog(QtGui.QDialog):
 	def onCalculateMinMax(self):
 		pairs = self.table1d.getSelected()
 		logger.debug("estimate min/max for %r" % pairs)
-		jobsManager = gavi.dataset.JobsManager()
+		jobsManager = vaex.dataset.JobsManager()
 		expressions = [pair[0] for pair in pairs]
 		assert len(pairs[0]) == 1
 		self.range_map = {}
@@ -812,7 +813,7 @@ class RankDialog(QtGui.QDialog):
 
 	def onCalculateMinMax3Sigma(self):
 		pairs = self.table1d.getSelected()
-		jobsManager = gavi.dataset.JobsManager()
+		jobsManager = vaex.dataset.JobsManager()
 		expressions = [pair[0] for pair in pairs]
 
 
@@ -861,7 +862,7 @@ class RankDialog(QtGui.QDialog):
 	def calculate_correlation(self, table):
 		print "calculate correlation for ", table
 		pairs = table.getSelected()
-		jobsManager = gavi.dataset.JobsManager()
+		jobsManager = vaex.dataset.JobsManager()
 		expressions = set()
 		for pair in pairs:
 			for expression in pair:
@@ -951,7 +952,7 @@ class RankDialog(QtGui.QDialog):
 				#if dim == 2:
 				columns = [self.dataset.columns[name] for name in pair]
 				print pair
-				information = gavi.kld.kld_shuffled(columns, mask=mask)
+				information = vaex.kld.kld_shuffled(columns, mask=mask)
 				qualities.append(information)
 				#print pair
 		if 0:
@@ -964,7 +965,7 @@ class RankDialog(QtGui.QDialog):
 				if dialog.wasCanceled():
 					return True
 		with ProgressExecution("Calculating Mutual information", self) as progress:
-			qualities = gavi.kld.kld_shuffled_grouped(self.dataset, self.range_map, pairs, feedback=progress.progress, use_mask=self.radio_button_selection.isChecked())
+			qualities = vaex.kld.kld_shuffled_grouped(self.dataset, self.range_map, pairs, feedback=progress.progress, use_mask=self.radio_button_selection.isChecked())
 			#dialog.hide()
 		if qualities is not None:
 			print qualities

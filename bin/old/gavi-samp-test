@@ -17,9 +17,9 @@ from matplotlib.figure import Figure
 import matplotlib
 from matplotlib.widgets import Lasso, LassoSelector
 import matplotlib.widgets 
-import gavi.selection
-import gavi.kld
-import gavi.utils
+import vaex.selection
+import vaex.kld
+import vaex.utils
 
 import subspacefind
 import ctypes
@@ -45,7 +45,7 @@ if 0:
 		print col_c.get(10)
 		print sum(counts)
 
-		with gavi.utils.Timer("hist"):
+		with vaex.utils.Timer("hist"):
 			subspacefind.histogram1d(col_c, counts, 0., 1.)
 	else:
 		step = 1000
@@ -54,7 +54,7 @@ if 0:
 		col_c = subspacefind.make_column(res)
 		#ne.set_num_threads(10)
 		vmax = None
-		with gavi.utils.Timer("hist"):
+		with vaex.utils.Timer("hist"):
 			for i in range(step):
 				a = array[i*Nstep:(i+1)*Nstep]
 				#ne.evaluate("log(a)**2/N**2", out=res)
@@ -164,7 +164,7 @@ class NavigationToolbar(NavigationToolbarQt):
 		meany = y.mean()
 		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
 		#print (x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
-		gavi.selection.pnpoly(x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
+		vaex.selection.pnpoly(x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
 		self.parent.set_mask(mask==1)
 	
 #from PySide import QtGui, QtCore
@@ -181,17 +181,17 @@ except ImportError, e1:
 		sys.exit(1)
 	
 
-from gavi.samp import Samp
+from vaex.samp import Samp
 
 usage = """
 Convert VO table from SAMP to hdf5 format:
 
 Example:
 
-gavi-data-samp2hdf5 -o photometry.hdf5
+vaex-data-samp2hdf5 -o photometry.hdf5
 
 Now open topcat:
-topcat -f csv $GAVI_DATA/scl_photo.csv
+topcat -f csv $vaex_DATA/scl_photo.csv
 
 ...
 
@@ -215,7 +215,7 @@ import mmap
 def error(title, msg):
 	print "Error", title, msg
 
-from gavi.dataset import *
+from vaex.dataset import *
 		
 possibleFractions = [10**base * f for base in [-3,-2,-1,0] for f in [0.25, 0.5, 0.75, 1.]]
 possibleFractions.insert(0,10**-4)
@@ -228,29 +228,29 @@ class DataList(QtGui.QListWidget):
 		#self.items 
 		
 	def testfill(self):
-		self.addHdf5("/home/data/gavi/gaussian3d-1e8-b.hdf5")
-		self.addHdf5("/home/data/gavi/gaussian3d-1e9-b.hdf5")
-		self.addHdf5("/home/data/gavi/rave/rave-dr5-shuffled.hdf5")
-		self.addHdf5("/home/data/gavi/helmi2000-FeH-s2.hdf5")
+		self.addHdf5("/home/data/vaex/gaussian3d-1e8-b.hdf5")
+		self.addHdf5("/home/data/vaex/gaussian3d-1e9-b.hdf5")
+		self.addHdf5("/home/data/vaex/rave/rave-dr5-shuffled.hdf5")
+		self.addHdf5("/home/data/vaex/helmi2000-FeH-s2.hdf5")
 		
 		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_nfw_soft/output/snapshot_213.hdf5")
 		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_einasto_2kpc_fornax/IC.hdf5")
 		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/hernquist/gadget/hernquist_half/output/snapshot_000.hdf5")
 		
-		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
-		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
+		self.addHdf5("/Users/maartenbreddels/vaex/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
+		self.addHdf5("/Users/maartenbreddels/vaex/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
 		
-		#self.addGadget2("/home/data/gavi/egpbos/snap_008")
-		self.addHdf5("/Users/users/breddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
+		#self.addGadget2("/home/data/vaex/egpbos/snap_008")
+		self.addHdf5("/Users/users/breddels/vaex/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
 		
 		try:
 			hmmap = HansMemoryMapped("data/Orbitorb9.ac8.10000.100.5.orb.bin", "data/Orbitorb9.ac8.10000.100.5.orb.omega2")
 			self.addDataset(hmmap)
 		except:
 			print "oops"
-		self.addHdf5('/home/data/gavi/Aq-A-2-999-shuffled.hdf5')
+		self.addHdf5('/home/data/vaex/Aq-A-2-999-shuffled.hdf5')
 		
-		#self.addGadgetHdf5('/home/data/gavi/snap_800.hdf5')
+		#self.addGadgetHdf5('/home/data/vaex/snap_800.hdf5')
 		# 0 - gas
 		# 1 - halo
 		# 2 disk
@@ -258,9 +258,9 @@ class DataList(QtGui.QListWidget):
 		# 5 sat
 		
 		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
-			self.addGadgetHdf5('/home/data/gavi/disk2nv_N6N5_z0.1h_RfAs0.5H_no_H1_0.5_nH01_vw5s_ml50_st-snap_800.hdf5', name, index)
+			self.addGadgetHdf5('/home/data/vaex/disk2nv_N6N5_z0.1h_RfAs0.5H_no_H1_0.5_nH01_vw5s_ml50_st-snap_800.hdf5', name, index)
 		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
-			self.addGadgetHdf5('/home/data/gavi/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5', name, index)
+			self.addGadgetHdf5('/home/data/vaex/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5', name, index)
 		
 	def setBestFraction(self, dataset):
 		Nmax = 1000*1000*10
@@ -765,7 +765,7 @@ class RankDialog(QtGui.QDialog):
 			#if dim == 2:
 			columns = [self.data.columns[name] for name in pair]
 			print pair
-			information = gavi.kld.kld_shuffled(columns)
+			information = vaex.kld.kld_shuffled(columns)
 			qualities.append(information)
 			#print pair
 		print qualities
@@ -1275,9 +1275,9 @@ class PlotDialog(QtGui.QDialog):
 		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
 		#print (x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
 		try:
-			gavi.selection.pnpoly(x, y, self.getdatax(), self.getdatay(), mask, meanx, meany, radius)
+			vaex.selection.pnpoly(x, y, self.getdatax(), self.getdatay(), mask, meanx, meany, radius)
 		except:
-			print gavi.selection.pnpoly.inspect_types()
+			print vaex.selection.pnpoly.inspect_types()
 			args = (x, y, self.getdatax(), self.getdatay(), mask, meanx, meany, radius)
 			print "issue with pnppoly, arguments: "
 			for i, arg in enumerate(args):
@@ -1431,7 +1431,7 @@ class PlotDialog(QtGui.QDialog):
 		
 		
 def iconfile(name):
-	path = os.path.join(os.path.dirname(gavi.__file__), "icons", name+".png")
+	path = os.path.join(os.path.dirname(vaex.__file__), "icons", name+".png")
 	print "icon path:", path
 	return path
 
@@ -1558,7 +1558,7 @@ class PlotDialog3d(PlotDialogNd):
 		Nhisto = 128
 		self.counts = np.zeros((Nhisto, ) * self.nAxes, dtype=np.float64)
 		assert self.nAxes == 3
-		gavi.histogram.hist3d(self.datalist[0], self.datalist[1], self.datalist[2], self.counts, *(self.ranges[0] + self.ranges[1] + self.ranges[2]))
+		vaex.histogram.hist3d(self.datalist[0], self.datalist[1], self.datalist[2], self.counts, *(self.ranges[0] + self.ranges[1] + self.ranges[2]))
 		
 	def plot(self):
 		def multisum(a, axes):
@@ -1742,13 +1742,13 @@ class HistogramPlotDialog(PlotDialog1d):
 				i2 = (data_length / parts) * (part+1)
 				#print i1, i2,datax[i1:i2],datay[i1:i2], Iparts[part], ranges
 				#histo2d(datax[i1:i2], datay[i1:i2], Iparts[part], *ranges)
-				gavi.histogram.hist1d(data[i1:i2], counts_parts[part], self.xmin, self.xmax)
+				vaex.histogram.hist1d(data[i1:i2], counts_parts[part], self.xmin, self.xmax)
 				#histo2d(datax[part::parts], datay[part::parts], Iparts[part], np.min(datax), np.max(datax), np.min(datay), np.max(datay))
 			histo1d_par(range(parts))
 			self.counts = np.sum(counts_parts, axis=0)
 		else:
 			self.counts = np.zeros(128, dtype=np.float64)
-			gavi.histogram.hist1d(self.data, self.counts, self.xmin, self.xmax, self.useLog())
+			vaex.histogram.hist1d(self.data, self.counts, self.xmin, self.xmax, self.useLog())
 			#I = np.zeros((parts, 128, 128), dtype=np.int32)
 			#histo2d(datax, datay, Iparts, np.min(datax), np.max(datax), np.min(datay), np.max(datay))
 			#I = np.sum(I, axis=0)
@@ -1757,7 +1757,7 @@ class HistogramPlotDialog(PlotDialog1d):
 			data_masked = data[self.dataset.mask]
 			data_length = len(data_masked)
 			self.counts_mask = mab.utils.numpy.mmapzeros((128), dtype=np.float64)
-			gavi.histogram.hist1d(data_masked, self.counts_mask, self.xmin, self.xmax, self.useLog())
+			vaex.histogram.hist1d(data_masked, self.counts_mask, self.xmin, self.xmax, self.useLog())
 		else:
 			self.counts_mask = None
 		if self.ymin is None or self.ymax is None:
@@ -2712,7 +2712,7 @@ class Example(QtGui.QMainWindow):
 		#self.setGeometry(300, 300, 250, 150)
 		self.resize(700,500)
 		self.center()
-		self.setWindowTitle('Gavi samp test')    
+		self.setWindowTitle('vaex samp test')
 		#self.statusBar().showMessage('Ready')
 		
 		

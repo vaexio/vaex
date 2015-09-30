@@ -1,6 +1,6 @@
 __author__ = 'maartenbreddels'
 import numpy as np
-import gavifast
+import vaex.vaexfast
 from vaex.utils import filesize_format
 import vaex.logging
 import vaex.utils
@@ -33,7 +33,7 @@ class Grid(object):
 	def get_data(self, size, use_selection, disjoined=False):
 		data = self.data_selection if use_selection else self.data
 		if size != self.max_size:
-			data = gavifast.resize(data, size)
+			data = vaex.vaexfast.resize(data, size)
 		return vaex.utils.disjoined(data) if disjoined else data
 
 	def check_grid(self):
@@ -129,11 +129,11 @@ class Grid(object):
 				subblock_weight = block_weight[sub_i1:sub_i2]
 			subblocks = [block[sub_i1:sub_i2] for block in blocks]
 			if self.dimensions == 1:
-				gavifast.histogram1d(subblocks[0], subblock_weight, data, *ranges_flat)
+				vaex.vaexfast.histogram1d(subblocks[0], subblock_weight, data, *ranges_flat)
 			elif self.dimensions == 2:
-				gavifast.histogram2d(subblocks[0], subblocks[1], subblock_weight, data, *ranges_flat)
+				vaex.vaexfast.histogram2d(subblocks[0], subblocks[1], subblock_weight, data, *ranges_flat)
 			elif self.dimensions == 3:
-				gavifast.histogram3d(subblocks[0], subblocks[1], subblocks[2], subblock_weight, data, *ranges_flat)
+				vaex.vaexfast.histogram3d(subblocks[0], subblocks[1], subblocks[2], subblock_weight, data, *ranges_flat)
 			else:
 				raise NotImplementedError("TODO")
 			if compute_selection:
@@ -148,11 +148,11 @@ class Grid(object):
 				if subblock_weight is not None:
 					subblock_weight = subblock_weight[mask]
 				if self.dimensions == 1:
-					gavifast.histogram1d(subblocks[0], subblock_weight, data, *ranges_flat)
+					vaex.vaexfast.histogram1d(subblocks[0], subblock_weight, data, *ranges_flat)
 				elif self.dimensions == 2:
-					gavifast.histogram2d(subblocks[0], subblocks[1], subblock_weight, data, *ranges_flat)
+					vaex.vaexfast.histogram2d(subblocks[0], subblocks[1], subblock_weight, data, *ranges_flat)
 				elif self.dimensions == 3:
-					gavifast.histogram3d(subblocks[0], subblocks[1], subblocks[2], subblock_weight, data, *ranges_flat)
+					vaex.vaexfast.histogram3d(subblocks[0], subblocks[1], subblocks[2], subblock_weight, data, *ranges_flat)
 				else:
 					raise NotImplementedError("TODO")
 		self.grids.threadpool.run_blocks(bin_subblock, info.size)

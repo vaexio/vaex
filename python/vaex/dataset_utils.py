@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#from gavi import dataset
+#from vaex import dataset
 import vaex.dataset
 from optparse import OptionParser
 from mab.utils.progressbar import ProgressBar
@@ -156,9 +156,9 @@ if __name__ == "__main__":
 		sys.exit(1)
 	#dataset_type_and_options = options.format.split(":")
 	#dataset_type, dataset_options = dataset_type_and_options[0], dataset_type_and_options[1:]
-	#if dataset_type not in gavi.dataset.dataset_type_map:
+	#if dataset_type not in vaex.dataset.dataset_type_map:
 	#	print "unknown type", dataset_type
-	#	print "possible options are:\n\t", "\n\t".join(gavi.dataset.dataset_type_map.keys())
+	#	print "possible options are:\n\t", "\n\t".join(vaex.dataset.dataset_type_map.keys())
 	#	sys.exit(1)
 	#evaluated_options = []
 	#f#or option in dataset_options:

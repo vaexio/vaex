@@ -1233,7 +1233,7 @@ static PyObject* resize_(PyObject* self, PyObject *args) {
 }
 
 
-static PyMethodDef pygavi_functions[] = {
+static PyMethodDef pyvaex_functions[] = {
         {"range_check", (PyCFunction)range_check_, METH_VARARGS, ""},
         {"find_nan_min_max", (PyCFunction)find_nan_min_max_, METH_VARARGS, ""},
         {"histogram1d", (PyCFunction)histogram1d_, METH_VARARGS, ""},
@@ -1250,11 +1250,11 @@ static PyMethodDef pygavi_functions[] = {
 
 
 PyMODINIT_FUNC
-initgavifast(void)
+initvaexfast(void)
 {
 	import_array();
 
-	Py_InitModule("gavifast", pygavi_functions);
+	Py_InitModule("vaex.vaexfast", pyvaex_functions);
 }
 
 

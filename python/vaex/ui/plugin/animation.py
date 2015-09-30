@@ -2,17 +2,18 @@ __author__ = 'maartenbreddels'
 
 import time
 
-import gavi.vaex.plugin
-from gavi.vaex.qt import *
+import vaex.ui.plugin
+from vaex.ui.qt import *
 
-#import gavi.vaex.plot_windows
 
-import gavi.logging
-#import gavi.vaex.undo as undo
+#import vaex.plot_windows
 
-logger = gavi.logging.getLogger("plugin.dispersions")
+import vaex.logging
+#import vaex.ui.undo as undo
 
-class AnimationPlugin(gavi.vaex.plugin.PluginLayer):
+logger = vaex.logging.getLogger("plugin.dispersions")
+
+class AnimationPlugin(vaex.ui.plugin.PluginLayer):
 	name = "animation"
 	def __init__(self, parent, layer):
 		super(AnimationPlugin, self).__init__(parent, layer)

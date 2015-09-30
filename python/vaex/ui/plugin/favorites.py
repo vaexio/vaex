@@ -1,19 +1,19 @@
 import sys
 
-import gavi.vaex.plugin
-from gavi.vaex.qt import *
-from vaex.icons import iconfile
-import gavi.events
-import gavi.logging
-import gavi.vaex.storage
+import vaex.ui.plugin
+from vaex.ui.qt import *
+from vaex.ui.icons import iconfile
+import vaex.events
+import vaex.logging
+import vaex.ui.storage
 
 
-logger = gavi.logging.getLogger("plugin.favorites")
+logger = vaex.logging.getLogger("plugin.favorites")
 
 
-storage_plots = gavi.vaex.storage.Storage("favorite-plots")
+storage_plots = vaex.ui.storage.Storage("favorite-plots")
 
-class FavStorePlugin(gavi.vaex.plugin.PluginPlot):
+class FavStorePlugin(vaex.ui.plugin.PluginPlot):
 	name="favorites"
 	def __init__(self, dialog):
 		super(FavStorePlugin, self).__init__(dialog)
@@ -80,7 +80,7 @@ class FavStorePlugin(gavi.vaex.plugin.PluginPlot):
 				storage_plots.add(new_name, self.dialog.type_name, self.dialog.dataset, self.dialog.get_options())
 		
 
-class FavLoadPlugin(gavi.vaex.plugin.PluginDataset):
+class FavLoadPlugin(vaex.ui.plugin.PluginDataset):
 	name="favorites"
 	def __init__(self):
 		pass

@@ -1,19 +1,20 @@
 import collections
 import operator
-import gavifast
+import vaex.vaexfast
 
 import matplotlib
 import numpy as np
 import scipy.ndimage
 import matplotlib.colors
 
-import gavi
-import gavi.vaex.storage
-import gavi.vaex.undo
-import gavi.vaex.colormaps
-import gavi.vaex.grids
-from vaex.icons import iconfile
-import gavi.utils
+import vaex
+import vaex.ui.storage
+import vaex.ui.undo
+import vaex.ui.colormaps
+import vaex.grids
+from vaex.ui.icons import iconfile
+import vaex.utils
+
 
 __author__ = 'maartenbreddels'
 
@@ -22,9 +23,9 @@ import functools
 import time
 from vaex.ui.qt import *
 
-logger = gavi.logging.getLogger("gavi.vaex")
+logger = vaex.logging.getLogger("vaex")
 
-storage_expressions = gavi.vaex.storage.Storage("expressions")
+storage_expressions = vaex.ui.storage.Storage("expressions")
 
 
 #options.define_options("grid_size", int, validator=options.is_power_of_two)
@@ -153,7 +154,7 @@ class LayerTable(object):
 		self.thread_pool = thread_pool
 		self.dimensions = len(self.expressions)
 		self.options = options
-		self.grids = gavi.vaex.grids.Grids(self.dataset, self.thread_pool, *expressions)
+		self.grids = vaex.grids.Grids(self.dataset, self.thread_pool, *expressions)
 		self.grids.ranges = self.ranges_grid
 		self.expressions_vector = [None,] * 3
 		self.figure = figure
@@ -218,9 +219,9 @@ class LayerTable(object):
 		self.dataset.row_selection_listeners.append(self.onSelectRow)
 		self.dataset.serie_index_selection_listeners.append(self.onSerieIndexSelect)
 		self.plot_density = self.plot_density_imshow
-		self.signal_expression_change = gavi.events.Signal("expression_change")
-		self.signal_plot_dirty = gavi.events.Signal("plot_dirty")
-		self.signal_plot_update = gavi.events.Signal("plot_update")
+		self.signal_expression_change = vaex.events.Signal("expression_change")
+		self.signal_plot_dirty = vaex.events.Signal("plot_dirty")
+		self.signal_plot_update = vaex.events.Signal("plot_update")
 		#self.dataset.signal_pick.connect(self.on)
 
 	@property
@@ -303,8 +304,8 @@ class LayerTable(object):
 			if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
 				if grid.max_size >= gridsize:
 					locals[name] = grid.get_data(gridsize, use_selection=use_selection, disjoined=self.plot_window.show_disjoined)
-					import gavi.kld
-					print "Mutual information", name,  gridsize, self.expressions, gavi.kld.mutual_information(locals[name])
+					import vaex.kld
+					print "Mutual information", name,  gridsize, self.expressions, vaex.kld.mutual_information(locals[name])
 			else:
 				locals[name] = None
 		for d, name in zip(range(self.dimensions), "xyzw"):
@@ -490,10 +491,10 @@ class LayerTable(object):
 				all_axes.remove(self.dimensions-1-axes.yaxis_index)
 
 
-				grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else gavi.utils.multisum(grid, all_axes)) for key, grid in grid_map.items()}
+				grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in grid_map.items()}
 				amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map_2d)
 				if use_selection:
-					grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else gavi.utils.multisum(grid, all_axes)) for key, grid in grid_map_selection.items()}
+					grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in grid_map_selection.items()}
 					amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection_2d)
 				else:
 					amplitude_selection = None
@@ -508,10 +509,10 @@ class LayerTable(object):
 				U = vector_grids[axes.xaxis_index]
 				V = vector_grids[axes.yaxis_index]
 				W = vector_grids[self.dimensions-1-other_axis]
-				vx = None if U is None else gavi.utils.multisum(U, all_axes)
-				vy = None if V is None else gavi.utils.multisum(V, all_axes)
-				vz = None if W is None else gavi.utils.multisum(W, all_axes)
-				vector_counts_2d = gavi.utils.multisum(vector_counts, all_axes)
+				vx = None if U is None else vaex.utils.multisum(U, all_axes)
+				vy = None if V is None else vaex.utils.multisum(V, all_axes)
+				vz = None if W is None else vaex.utils.multisum(W, all_axes)
+				vector_counts_2d = vaex.utils.multisum(vector_counts, all_axes)
 				if vx is not None and vy is not None:
 					count_max = vector_counts_2d.max()
 					mask = (vector_counts_2d > (self.vector_level_min * count_max)) & \
@@ -738,7 +739,7 @@ class LayerTable(object):
 				sub_i1, sub_i2 = index * subblock_size, (index +1) * subblock_size
 				if len(block) < sub_i2: # last one can be a bit longer
 					sub_i2 = len(block)
-				return gavifast.find_nan_min_max(block[sub_i1:sub_i2])
+				return vaex.vaexfast.find_nan_min_max(block[sub_i1:sub_i2])
 			self.message("min/max[%d] at %.1f%% (%.2fs)" % (axisIndex, info.percentage, time.time() - info.time_start), index=50+axisIndex )
 			QtCore.QCoreApplication.instance().processEvents()
 			if info.first:
@@ -800,7 +801,7 @@ class LayerTable(object):
 		self.plugin_grids_draw = []
 		self.plugin_queue_toolbar = [] # list of tuples (callback, order)
 		self.plugin_queue_page = []
-		self.plugins = [cls(parent, self) for cls in gavi.vaex.plugin.PluginLayer.registry if cls.useon(self.plot_window.__class__)]
+		self.plugins = [cls(parent, self) for cls in vaex.ui.plugin.PluginLayer.registry if cls.useon(self.plot_window.__class__)]
 		logger.debug("PLUGINS: %r " % self.plugins)
 		self.plugins_map = {plugin.name:plugin for plugin in self.plugins}
 		#self.plugin_zoom = plugin.zoom.ZoomPlugin(self)
@@ -843,7 +844,7 @@ class LayerTable(object):
 		if "selection" in self.options:
 			filename = self.options["selection"]
 			mask = np.load(filename)
-			action = gavi.vaex.undo.ActionMask(self.dataset.undo_manager, "selection from %s" % filename, mask, self.apply_mask)
+			action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "selection from %s" % filename, mask, self.apply_mask)
 			action.do()
 			#self.apply_mask(mask)
 			#self.dataset.selectMask(mask)
@@ -894,7 +895,7 @@ class LayerTable(object):
 			link.sendRanges(self.ranges[axisIndex], linkButton)
 			link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
 			link.sendExpression(self.expressions[axisIndex], linkButton)
-			gavi.dataset.Link.sendCompute([link], [linkButton])
+			vaex.dataset.Link.sendCompute([link], [linkButton])
 		else:
 			logger.debug("not linked")
 		# let any event handler deal with redraw etc
@@ -1297,13 +1298,13 @@ class LayerTable(object):
 
 
 		if self.dimensions > 1:
-			gavi.vaex.colormaps.process_colormaps()
+			vaex.ui.colormaps.process_colormaps()
 			self.colormap_box = QtGui.QComboBox(page_widget)
 			self.colormap_box.setIconSize(QtCore.QSize(16, 16))
 			model = QtGui.QStandardItemModel(self.colormap_box)
-			for colormap_name in gavi.vaex.colormaps.colormaps:
+			for colormap_name in vaex.ui.colormaps.colormaps:
 				colormap = matplotlib.cm.get_cmap(colormap_name)
-				pixmap = gavi.vaex.colormaps.colormap_pixmap[colormap_name]
+				pixmap = vaex.ui.colormaps.colormap_pixmap[colormap_name]
 				icon = QtGui.QIcon(pixmap)
 				item = QtGui.QStandardItem(icon, colormap_name)
 				model.appendRow(item)
@@ -1329,15 +1330,15 @@ class LayerTable(object):
 					if name in self.options:
 						break
 				cmap = self.options[name]
-				if cmap not in gavi.vaex.colormaps.colormaps:
-					colormaps_sorted = sorted(gavi.vaex.colormaps.colormaps)
+				if cmap not in vaex.ui.colormaps.colormaps:
+					colormaps_sorted = sorted(vaex.ui.colormaps.colormaps)
 					colormaps_string = " ".join(colormaps_sorted)
 					dialog_error(self, "Wrong colormap name", "colormap {cmap} does not exist, choose between: {colormaps_string}".format(**locals()))
 					index = 0
 				else:
-					index = gavi.vaex.colormaps.colormaps.index(cmap)
+					index = vaex.ui.colormaps.colormaps.index(cmap)
 				self.colormap_box.setCurrentIndex(index)
-				self.colormap = gavi.vaex.colormaps.colormaps[index]
+				self.colormap = vaex.ui.colormaps.colormaps[index]
 			self.colormap_box.currentIndexChanged.connect(onColorMap)
 
 		row += 1
@@ -1401,7 +1402,7 @@ class LayerTable(object):
 				#if layer is not None:
 				if 1:
 					self.dataset.evaluate(select, expression, **self.getVariableDict())
-					action = gavi.vaex.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
+					action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
 					action.do()
 					self.check_selection_undo_redo()
 
@@ -1615,13 +1616,13 @@ class LayerTable(object):
 			row += 1
 
 		if self.dimensions > -1:
-			gavi.vaex.colormaps.process_colormaps()
+			vaex.ui.colormaps.process_colormaps()
 			self.colormap_vector_box = QtGui.QComboBox(page)
 			self.colormap_vector_box.setIconSize(QtCore.QSize(16, 16))
 			model = QtGui.QStandardItemModel(self.colormap_vector_box)
-			for colormap_name in gavi.vaex.colormaps.colormaps:
+			for colormap_name in vaex.ui.colormaps.colormaps:
 				colormap = matplotlib.cm.get_cmap(colormap_name)
-				pixmap = gavi.vaex.colormaps.colormap_pixmap[colormap_name]
+				pixmap = vaex.ui.colormaps.colormap_pixmap[colormap_name]
 				icon = QtGui.QIcon(pixmap)
 				item = QtGui.QStandardItem(icon, colormap_name)
 				model.appendRow(item)
@@ -1642,17 +1643,17 @@ class LayerTable(object):
 					if name in self.options:
 						break
 				cmap = self.options[name]
-				if cmap not in gavi.vaex.colormaps.colormaps:
-					colormaps_sorted = sorted(gavi.vaex.colormaps.colormaps)
+				if cmap not in vaex.ui.colormaps.colormaps:
+					colormaps_sorted = sorted(vaex.ui.colormaps.colormaps)
 					colormaps_string = " ".join(colormaps_sorted)
 					dialog_error(self, "Wrong colormap name", "colormap {cmap} does not exist, choose between: {colormaps_string}".format(**locals()))
 					index = 0
 				else:
-					index = gavi.vaex.colormaps.colormaps.index(cmap)
+					index = vaex.ui.colormaps.colormaps.index(cmap)
 				self.colormap_vector_box.setCurrentIndex(index)
-				self.colormap_vector = gavi.vaex.colormaps.colormaps[index]
+				self.colormap_vector = vaex.ui.colormaps.colormaps[index]
 			else:
-				index = gavi.vaex.colormaps.colormaps.index(self.colormap_vector)
+				index = vaex.ui.colormaps.colormaps.index(self.colormap_vector)
 				self.colormap_vector_box.setCurrentIndex(index)
 			self.colormap_vector_box.currentIndexChanged.connect(onColorMap)
 

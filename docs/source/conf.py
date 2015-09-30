@@ -60,11 +60,11 @@ copyright = u'2014, Maarten A. Breddels'
 # built documents.
 #
 try:
-	import gavi.vaex
+	import vaex.ui
 	# The short X.Y version.
-	version = gavi.vaex.version
+	version = vaex.ui.version
 	# The full version, including alpha/beta/rc tags.
-	release = gavi.vaex.version
+	release = vaex.ui.version
 except:
 	print "failed finding vaex module, try finding version"
 	import sys
@@ -78,9 +78,9 @@ except:
 			print "error, return code is", ret
 			sys.exit(ret)
 
-	path_version_file = os.path.join(os.path.dirname(__file__), "../../python/gavi/vaex/version.py")
+	path_version_file = os.path.join(os.path.dirname(__file__), "../../python/vaex/vaex/version.py")
 	if not os.path.exists(path_version_file):
-		system("version=`git describe --tags --long`; python/gavi/vaex/setversion.py ${version}")
+		system("version=`git describe --tags --long`; python/vaex/vaex/setversion.py ${version}")
 
 	version = imp.load_source('version', path_version_file)
 

@@ -3,8 +3,8 @@ import os
 
 __author__ = 'maartenbreddels'
 
-import gavi.logging
-logger = gavi.logging.getLogger("plugin.favorites")
+import vaex.logging
+logger = vaex.logging.getLogger("plugin.favorites")
 
 class Storage(object):
 	def __init__(self, name):
@@ -14,7 +14,7 @@ class Storage(object):
 		self.path = os.path.join(self.dir_path, '%s.json' % name)
 		self.all_options = []
 		self.load()
-		self.changed = gavi.events.Signal("changed")
+		self.changed = vaex.events.Signal("changed")
 
 	def load(self):
 		if os.path.exists(self.path):

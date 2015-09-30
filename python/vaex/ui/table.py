@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-from gavi.vaex.qt import *
 import math
 
-import gavi.logging
-logger = gavi.logging.getLogger("vaex.table")
+from vaex.ui.qt import *
+import vaex.logging
+
+logger = vaex.logging.getLogger("vaex.table")
 
 
 PAGE_LIMIT = long(1e7)

@@ -1,8 +1,10 @@
-from qt import *
+import vaex.vaexfast
+
 import numpy as np
-import matplotlib.cm
-import gavi.vaex.colormaps
-import gavifast
+
+from vaex.ui.qt import *
+import vaex.ui.colormaps
+
 
 class HistogramAndTransfer(QtGui.QWidget):
 	def __init__(self, parent, colormap, function_count=3):
@@ -34,7 +36,7 @@ class HistogramAndTransfer(QtGui.QWidget):
 		xmin, xmax = grid1d.min(), grid1d.max()
 		width = self.width()
 		counts = np.zeros(width, dtype=np.float64)
-		gavifast.histogram1d(grid1d, None, counts, xmin, xmax+1)
+		vaex.vaexfast.histogram1d(grid1d, None, counts, xmin, xmax+1)
 		#counts, _ = np.histogram(grid1d, bins=width, range=(xmin, xmax))
 		print "histogram", xmin, xmax, counts, grid1d.mean(), len(grid1d)
 		counts = np.log10(counts+1)
@@ -49,7 +51,7 @@ class HistogramAndTransfer(QtGui.QWidget):
 	def draw_colormap(self, painter):
 		rect = self.size()
 		Nx, Ny = rect.width(), 32
-		image, stringdata = gavi.vaex.colormaps.colormap_to_QImage(self.colormap, Nx, Ny)
+		image, stringdata = vaex.ui.colormaps.colormap_to_QImage(self.colormap, Nx, Ny)
 		point = QtCore.QPoint(0, rect.height()-32)
 		painter.drawImage(point, image)
 		

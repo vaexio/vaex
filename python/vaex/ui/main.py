@@ -1,8 +1,13 @@
 __author__ = 'breddels'
 
 import sampy
+import platform
+import vaex.utils
+import sys
 
-import gavi.utils
+
+
+
 
 # help py2app, it was missing this import
 
@@ -35,20 +40,19 @@ try:
 except Exception, e:
 	print e
 	pdb.set_trace()
-import gavi.vaex.plot_windows as vp
-from gavi.vaex.ranking import *
-import gavi.vaex.undo
-import gavi.selection
-import gavi.kld
-import gavi.utils
+import vaex.ui.plot_windows as vp
+from vaex.ui.ranking import *
+import vaex.ui.undo
+import vaex.kld
+import vaex.utils
 
 #import subspacefind
 #import ctypes
 
 import imp
 
-import gavi.logging
-logger = gavi.logging.getLogger("gavi")
+import vaex.logging
+logger = vaex.logging.getLogger("vaex")
 import logging
 logger.setLevel(logging.DEBUG)
 
@@ -63,13 +67,13 @@ custom = None
 custompath = path = os.path.expanduser('~/.vaex/custom.py')
 #print path
 if os.path.exists(path):
-	customModule = imp.load_source('gavi.custom', path)
+	customModule = imp.load_source('vaex.custom', path)
 	custom = customModule.Custom()
 else:
 	custom = None
 	print >>sys.stderr, path, "does not exist"
 
-#print "root path is", gavi.utils.get_root_path()
+#print "root path is", vaex.utils.get_root_path()
 
 
 if getattr(sys, 'frozen', False):
@@ -113,7 +117,7 @@ if 0:
 		print col_c.get(10)
 		print sum(counts)
 
-		with gavi.utils.Timer("hist"):
+		with vaex.utils.Timer("hist"):
 			subspacefind.histogram1d(col_c, counts, 0., 1.)
 	else:
 		step = 1000
@@ -122,7 +126,7 @@ if 0:
 		col_c = subspacefind.make_column(res)
 		#ne.set_num_threads(10)
 		vmax = None
-		with gavi.utils.Timer("hist"):
+		with vaex.utils.Timer("hist"):
 			for i in range(step):
 				a = array[i*Nstep:(i+1)*Nstep]
 				#ne.evaluate("log(a)**2/N**2", out=res)
@@ -232,24 +236,24 @@ if 0:
 			meany = y.mean()
 			radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
 			#print (x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
-			gavi.selection.pnpoly(x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
+			vaex.selection.pnpoly(x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
 			self.parent.set_mask(mask==1)
 
 #from PySide import QtGui, QtCore
-from gavi.vaex.qt import *
-from gavi.vaex.table import *
+from vaex.ui.qt import *
+from vaex.ui.table import *
 
-from gavi.samp import Samp
+from vaex.samp import Samp
 
 usage = """
 Convert VO table from SAMP to hdf5 format:
 
 Example:
 
-gavi-data-samp2hdf5 -o photometry.hdf5
+vaex-data-samp2hdf5 -o photometry.hdf5
 
 Now open topcat:
-topcat -f csv $GAVI_DATA/scl_photo.csv
+topcat -f csv $vaex_DATA/scl_photo.csv
 
 ...
 
@@ -281,8 +285,8 @@ class DataList(QtGui.QListWidget):
 		super(DataList, self).__init__(parent)
 		self.icon = QtGui.QIcon('icons/png/24x24/devices/memory.png')
 		self.datasets = []
-		self.signal_pick = gavi.events.Signal("pick")
-		self.signal_add_dataset = gavi.events.Signal("add dataset")
+		self.signal_pick = vaex.events.Signal("pick")
+		self.signal_add_dataset = vaex.events.Signal("add dataset")
 
 		self.signal_add_dataset.connect(self.on_add_dataset)
 		#self.items
@@ -298,29 +302,29 @@ class DataList(QtGui.QListWidget):
 		self.signal_pick.emit(dataset, row)
 
 	def __testfill(self):
-		self.addHdf5("/home/data/gavi/gaussian3d-1e8-b.hdf5")
-		self.addHdf5("/home/data/gavi/gaussian3d-1e9-b.hdf5")
-		self.addHdf5("/home/data/gavi/rave/rave-dr5-shuffled.hdf5")
-		self.addHdf5("/home/data/gavi/helmi2000-FeH-s2.hdf5")
+		self.addHdf5("/home/data/vaex/gaussian3d-1e8-b.hdf5")
+		self.addHdf5("/home/data/vaex/gaussian3d-1e9-b.hdf5")
+		self.addHdf5("/home/data/vaex/rave/rave-dr5-shuffled.hdf5")
+		self.addHdf5("/home/data/vaex/helmi2000-FeH-s2.hdf5")
 
 		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_nfw_soft/output/snapshot_213.hdf5")
 		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_einasto_2kpc_fornax/IC.hdf5")
 		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/hernquist/gadget/hernquist_half/output/snapshot_000.hdf5")
 
-		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
-		self.addHdf5("/Users/maartenbreddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
+		self.addHdf5("/Users/maartenbreddels/vaex/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
+		self.addHdf5("/Users/maartenbreddels/vaex/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
 
-		#self.addGadget2("/home/data/gavi/egpbos/snap_008")
-		self.addHdf5("/Users/users/breddels/gavi/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
+		#self.addGadget2("/home/data/vaex/egpbos/snap_008")
+		self.addHdf5("/Users/users/breddels/vaex/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
 
 		try:
 			hmmap = HansMemoryMapped("data/Orbitorb9.ac8.10000.100.5.orb.bin", "data/Orbitorb9.ac8.10000.100.5.orb.omega2")
 			self.addDataset(hmmap)
 		except:
 			print "oops"
-		self.addHdf5('/home/data/gavi/Aq-A-2-999-shuffled.hdf5')
+		self.addHdf5('/home/data/vaex/Aq-A-2-999-shuffled.hdf5')
 
-		#self.addGadgetHdf5('/home/data/gavi/snap_800.hdf5')
+		#self.addGadgetHdf5('/home/data/vaex/snap_800.hdf5')
 		# 0 - gas
 		# 1 - halo
 		# 2 disk
@@ -330,14 +334,14 @@ class DataList(QtGui.QListWidget):
 		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 			self.addGadgetHdf5('data/disk2nv_N6N5_z0.1h_RfAs0.5H_no_H1_0.5_nH01_vw5s_ml50_st-snap_800.hdf5', name, index)
 		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
-			self.addGadgetHdf5('/home/data/gavi/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5', name, index)
+			self.addGadgetHdf5('/home/data/vaex/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5', name, index)
 
 
 
 	def setBestFraction(self, dataset):
 		Nmax = 1000*1000*10
 		for fraction in possibleFractions[::-1]:
-			N  = dataset.current_slice[1] - dataset.current_slice[0]
+			N  = len(dataset)
 			if N > Nmax:
 				dataset.setFraction(fraction)
 			else:
@@ -523,7 +527,7 @@ class StatWorker(QtCore.QThread):
 
 
 
-from gavi.parallelize import parallelize
+from vaex.parallelize import parallelize
 
 
 class StatisticsDialog(QtGui.QDialog):
@@ -619,11 +623,11 @@ class MainPanel(QtGui.QFrame):
 	def __init__(self, parent, dataset_list):
 		super(MainPanel, self).__init__(parent)
 
-		self.jobsManager = gavi.dataset.JobsManager()
+		self.jobsManager = vaex.dataset.JobsManager()
 		self.dataset = None
 		self.dataset_list = dataset_list
 
-		self.undoManager = gavi.vaex.undo.UndoManager()
+		self.undoManager = vaex.ui.undo.UndoManager()
 
 		self.form_layout = QtGui.QFormLayout()
 
@@ -708,7 +712,7 @@ class MainPanel(QtGui.QFrame):
 
 		self.setLayout(self.form_layout)
 		self.plot_dialogs = []
-		self.signal_open_plot = gavi.events.Signal("open plot")
+		self.signal_open_plot = vaex.events.Signal("open plot")
 
 	def onOpenStatistics(self):
 		#print "open", self.dataset
@@ -815,14 +819,14 @@ class MainPanel(QtGui.QFrame):
 			self.dataset = data
 			self.dataset = data
 			self.name.setText(data.name)
-			self.columns.setText(str(len(data.columns)))
+			self.columns.setText(str(data.column_count()))
 			self.length.setText("{:,}".format(self.dataset.full_length()))
 			self.numberLabel.setText("{:,}".format(len(self.dataset)))
 			fraction = self.dataset.fraction
 			distances = np.abs(np.array(possibleFractions) - fraction)
 			index = np.argsort(distances)[0]
 			self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
-			self.scatterButton.setEnabled(len(self.dataset.columns) > 0)
+			self.scatterButton.setEnabled(self.dataset.column_count() > 0)
 			#self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
 			#self.scatter3dButton.setEnabled(False)
 			#self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
@@ -984,13 +988,13 @@ class WidgetUsage(QtGui.QWidget):
 
 			vmem = psutil.virtual_memory()
 			mem_fraction = (vmem.total-vmem.available) * 1./vmem.total
-			self.tool_lines.append("Virtual memory: %s used of %s (=%.1f%%)%%" % (gavi.utils.filesize_format(vmem.total-vmem.available), gavi.utils.filesize_format(vmem.total), mem_fraction*100.))
+			self.tool_lines.append("Virtual memory: %s used of %s (=%.1f%%)%%" % (vaex.utils.filesize_format(vmem.total-vmem.available), vaex.utils.filesize_format(vmem.total), mem_fraction*100.))
 			drawbar(1, 4, mem_fraction, QtCore.Qt.red)
 
 			swapmem = psutil.swap_memory()
 			swap_fraction = swapmem.used * 1./swapmem.total
 			drawbar(2, 4, swap_fraction, QtCore.Qt.blue)
-			self.tool_lines.append("Swap memory: %s used of %s (=%.1f%%)" % (gavi.utils.filesize_format(swapmem.used), gavi.utils.filesize_format(swapmem.total), swap_fraction*100.))
+			self.tool_lines.append("Swap memory: %s used of %s (=%.1f%%)" % (vaex.utils.filesize_format(swapmem.used), vaex.utils.filesize_format(swapmem.total), swap_fraction*100.))
 
 			self.t_now = time.time()
 			self.bytes_read_new = psutil.disk_io_counters().read_bytes
@@ -1046,8 +1050,8 @@ class Vaex(QtGui.QMainWindow):
 		#self.setGeometry(300, 300, 250, 150)
 		self.resize(700,500)
 		#self.center()
-		#self.setWindowTitle('Gavi samp test')
-		self.setWindowTitle(u'V\xe6X v' + gavi.vaex.__version__)
+		#self.setWindowTitle('vaex samp test')
+		self.setWindowTitle(u'V\xe6X v' + vaex.__version__)
 		#self.statusBar().showMessage('Ready')
 
 		self.toolbar = self.addToolBar('Main toolbar')
@@ -1097,7 +1101,7 @@ class Vaex(QtGui.QMainWindow):
 		#self.action_open = QtGui.QAction(vp.iconfile('quickopen-file', '&Open', self)
 		#self.action_open.
 		self.action_open_hdf5_gadget = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open gadget hdf5', self)
-		self.action_open_hdf5_gavi = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open GAIA hdf5', self)
+		self.action_open_hdf5_vaex = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open GAIA hdf5', self)
 		self.action_open_hdf5_amuse = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open Amuse hdf5', self)
 		self.action_open_fits = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open FITS (binary table)', self)
 
@@ -1116,7 +1120,7 @@ class Vaex(QtGui.QMainWindow):
 		fileMenu = menubar.addMenu('&File')
 		self.menu_open = fileMenu.addMenu("&Open")
 		self.menu_open.addAction(self.action_open_hdf5_gadget)
-		self.menu_open.addAction(self.action_open_hdf5_gavi)
+		self.menu_open.addAction(self.action_open_hdf5_vaex)
 		self.menu_open.addAction(self.action_open_hdf5_amuse)
 		if (not frozen) or darwin:
 			self.menu_open.addAction(self.action_open_fits)
@@ -1129,10 +1133,10 @@ class Vaex(QtGui.QMainWindow):
 		def check_memory(bytes):
 			if bytes > psutil.virtual_memory().available:
 				if bytes < (psutil.virtual_memory().available +psutil.swap_memory().free):
-					text = "Action requires %s, you have enough swap memory available but it will make your computer slower, do you want to continue?" % (gavi.utils.filesize_format(bytes),)
+					text = "Action requires %s, you have enough swap memory available but it will make your computer slower, do you want to continue?" % (vaex.utils.filesize_format(bytes),)
 					return confirm(self, "Memory usage issue", text)
 				else:
-					text = "Action requires %s, you do not have enough swap memory available, do you want try anyway?" % (gavi.utils.filesize_format(bytes),)
+					text = "Action requires %s, you do not have enough swap memory available, do you want try anyway?" % (vaex.utils.filesize_format(bytes),)
 					return confirm(self, "Memory usage issue", text)
 
 			return True
@@ -1163,7 +1167,7 @@ class Vaex(QtGui.QMainWindow):
 					action = QtGui.QAction('Generate '+name, self)
 					def do(ignore=None, dim=dim, N=N, power=power, name=name):
 						t = None
-						z = gavi.dataset.Zeldovich(dim, N, power, t, name=name)
+						z = vaex.dataset.Zeldovich(dim, N, power, t, name=name)
 						self.list.addDataset(z)
 					action.triggered.connect(do)
 					self.menu_data.addAction(action)
@@ -1208,7 +1212,7 @@ class Vaex(QtGui.QMainWindow):
 
 		if use_toolbar:
 			#self.toolbar.addAction(self.action_open_hdf5_gadget)
-			#self.toolbar.addAction(self.action_open_hdf5_gavi)
+			#self.toolbar.addAction(self.action_open_hdf5_vaex)
 			#if (not frozen) or darwin:
 			#	self.toolbar.addAction(self.action_open_fits)
 			self.toolbar.addAction(self.action_save_hdf5)
@@ -1220,7 +1224,7 @@ class Vaex(QtGui.QMainWindow):
 			elif 1:#frozen:
 				for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
 					self.list.addGadgetHdf5(os.path.join(application_path, 'data/disk-galaxy.hdf5'), name, index)
-				f = gavi.utils.get_data_file("data/helmi-dezeeuw-2000-10p.hdf5")
+				f = vaex.utils.get_data_file("data/helmi-dezeeuw-2000-10p.hdf5")
 				if f and os.path.exists(f):
 					self.list.addHdf5(f)
 				self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
@@ -1237,7 +1241,7 @@ class Vaex(QtGui.QMainWindow):
 
 		self.open_generators = [] # for reference counts
 		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "Gadget HDF5 file", "*.hdf5"))
-		self.action_open_hdf5_gavi.triggered.connect(self.openGenerator(self.gaia_hdf5, "Gaia HDF5 file", "*.hdf5"))
+		self.action_open_hdf5_vaex.triggered.connect(self.openGenerator(self.gaia_hdf5, "Gaia HDF5 file", "*.hdf5"))
 		self.action_open_hdf5_amuse.triggered.connect(self.openGenerator(self.amuse_hdf5, "Amuse HDF5 file", "*.hdf5"))
 		if (not frozen) or darwin:
 			self.action_open_fits.triggered.connect(self.openGenerator(self.open_fits, "FITS file", "*.fits"))
@@ -1284,19 +1288,49 @@ class Vaex(QtGui.QMainWindow):
 		plot = None
 		while index < len(args):
 			filename = args[index]
-			if filename[0] == ":": # not a filename, but a classname
+			filename = args[index]
+			print "filename", filename
+			dataset = None
+			if filename.startswith("http://"):
+				print "filename is web address"
+				from urlparse import urlparse
+				o = urlparse(filename)
+				assert o.scheme == "http"
+				print o.username, o.password
+				print o.hostname
+				server = vaex.server(hostname=o.hostname, port = o.port or 80)
+				if o.path in ["", "/"]:
+					print "load all from server"
+					kwargs = dict()
+					datasets = server.list_datasets()
+					print "datasets", dataset
+					last_dataset1 = None
+					for dataset in datasets:
+						ds = server.open(dataset)
+						self.list.addDataset(ds)
+						last_dataset1 = ds
+					last_dataset = last_dataset1
+				else:
+					dataset = o.path
+					if dataset.startswith("/"):
+						dataset = dataset[1:]
+					ds = server.open(dataset)
+					self.list.addDataset(ds)
+					last_dataset = ds
+				dataset = last_dataset
+			elif filename[0] == ":": # not a filename, but a classname
 				classname = filename.split(":")[1]
-				if classname not in gavi.dataset.dataset_type_map:
-					print classname, "does not exist, options are", sorted(gavi.dataset.dataset_type_map.keys())
+				if classname not in vaex.dataset.dataset_type_map:
+					print classname, "does not exist, options are", sorted(vaex.dataset.dataset_type_map.keys())
 					sys.exit(-1)
-				class_ = gavi.dataset.dataset_type_map[classname]
+				class_ = vaex.dataset.dataset_type_map[classname]
 				clsargs = [eval(value) for value in filename.split(":")[2:]]
 				dataset = class_(*clsargs)
 			else:
 				options = filename.split(":")
 				clsargs = [eval(value) for value in options[1:]]
 				filename = options[0]
-				dataset = gavi.dataset.load_file(filename, *clsargs)
+				dataset = vaex.dataset.load_file(filename, *clsargs)
 			if dataset is None:
 				error("cannot open file {filename}".format(**locals()))
 			index += 1
@@ -1433,16 +1467,16 @@ class Vaex(QtGui.QMainWindow):
 
 
 	def onActionHelp(self):
-		filename = gavi.utils.get_data_file("doc/index.html")
+		filename = vaex.utils.get_data_file("doc/index.html")
 		url = "file://" + filename
-		gavi.utils.os_open(url)
+		vaex.utils.os_open(url)
 		#self.webDialog("doc/index.html")
 
 	def onActionCredits(self):
-		filename = gavi.utils.get_data_file("doc/credits.html")
+		filename = vaex.utils.get_data_file("doc/credits.html")
 		url = "file://" + filename
-		gavi.utils.os_open(url)
-		#gavi.utils.os_open("doc/credits.html")
+		vaex.utils.os_open(url)
+		#vaex.utils.os_open("doc/credits.html")
 		#self.webDialog("html/credits.html")
 
 	def _webDialog(self, url):
@@ -1462,8 +1496,8 @@ class Vaex(QtGui.QMainWindow):
 	def onSaveTable(self):
 		dataset = self.right.dataset
 		name = dataset.name + "-mysubset.hdf5"
-		options = ["All: %r records, filesize: %r" % (len(dataset), gavi.utils.filesize_format(dataset.byte_size())) ]
-		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), gavi.utils.filesize_format(dataset.byte_size(selection=True))) ]
+		options = ["All: %r records, filesize: %r" % (len(dataset), vaex.utils.filesize_format(dataset.byte_size())) ]
+		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), vaex.utils.filesize_format(dataset.byte_size(selection=True))) ]
 
 		index = choose(self, "What do you want to export?", "Choose what to export:", options)
 		if index is None:
@@ -1527,19 +1561,19 @@ class Vaex(QtGui.QMainWindow):
 
 				# close file, and reopen it using out class
 				h5file_output.close()
-				dataset_output = gavi.dataset.Hdf5MemoryMapped(filename, write=True)
+				dataset_output = vaex.dataset.Hdf5MemoryMapped(filename, write=True)
 
 				if shuffle:
 					shuffle_array = dataset_output.columns["random_index"]
 				if partial_shuffle:
 					# if we only export a portion, we need to create the full length random_index array, and
 					shuffle_array_full = np.zeros(dataset.full_length(), dtype=endian_option+"i8")
-					gavifast.shuffled_sequence(shuffle_array_full)
+					vaex.vaexfast.shuffled_sequence(shuffle_array_full)
 					# then take a section of it
 					shuffle_array[:] = shuffle_array_full[:len(dataset)]
 					del shuffle_array_full
 				elif shuffle:
-					gavifast.shuffled_sequence(shuffle_array)
+					vaex.vaexfast.shuffled_sequence(shuffle_array)
 
 				#print "creating shuffled array"
 				progress_total = len(selected_column_names)
@@ -1556,7 +1590,7 @@ class Vaex(QtGui.QMainWindow):
 
 					for column_name in selected_column_names:
 						print column_name
-						with gavi.utils.Timer("copying: %s" % column_name):
+						with vaex.utils.Timer("copying: %s" % column_name):
 							from_array = dataset.columns[column_name]
 							to_array = dataset_output.columns[column_name]
 							#np.take(from_array, random_index, out=to_array)
@@ -1734,7 +1768,7 @@ class Vaex(QtGui.QMainWindow):
 				print filename
 				if os.path.exists(filename) and filename not in filenames:
 					filenames.append(filename)
-			filenames = filter(gavi.dataset.can_open, filenames)
+			filenames = filter(vaex.dataset.can_open, filenames)
 		options = []
 		for filename in filenames:
 			options.append(filename + " | read directly from file (faster)")
@@ -1755,7 +1789,7 @@ class Vaex(QtGui.QMainWindow):
 
 	def load_file(self, path, samp_id=None):
 		dataset_class = None
-		for name, class_ in gavi.dataset.dataset_type_map.items():
+		for name, class_ in vaex.dataset.dataset_type_map.items():
 			if class_.can_open(path):
 				dataset_class = class_
 				break
@@ -1923,11 +1957,11 @@ def main(argv=sys.argv[1:]):
 	if app is None:
 		app = QtGui.QApplication(argv)
 		if not (frozen and darwin): # osx app has its own icon file
-			import vaex.icons
-			icon = QtGui.QIcon(vaex.icons.iconfile('vaex32'))
+			import vaex.ui.icons
+			icon = QtGui.QIcon(vaex.ui.icons.iconfile('vaex32'))
 			app.setWindowIcon(icon)
-	#import gavi.vaex.ipkernel_qtapp
-	#ipython_window = gavi.vaex.ipkernel_qtapp.SimpleWindow(app)
+	#import vaex.ipkernel_qtapp
+	#ipython_window = vaex.ipkernel_qtapp.SimpleWindow(app)
 	main_thread = QtCore.QThread.currentThread()
 
 

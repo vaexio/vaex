@@ -1,4 +1,4 @@
-import gavi.dataset as dataset
+import vaex.dataset as dataset
 import numpy as np
 import unittest
 

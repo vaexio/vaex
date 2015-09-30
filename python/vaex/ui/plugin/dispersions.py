@@ -6,13 +6,12 @@ import matplotlib.patches as patches
 import numpy as np
 import matplotlib.artist as artist
 
-import gavi.vaex.plugin
-from gavi.vaex.qt import *
-import gavi.vaex.plot_windows
-import gavi.logging
+import vaex.ui.plugin
+from vaex.ui.qt import *
+import vaex.logging
 
 
-logger = gavi.logging.getLogger("plugin.dispersions")
+logger = vaex.logging.getLogger("plugin.dispersions")
 
 
 import matplotlib.transforms as transforms
@@ -95,7 +94,7 @@ class DispersionEllipse(patches.Patch):
 		return (x * x + y * y) <= 1.0, {}
 
 
-class DispersionPlugin(gavi.vaex.plugin.PluginLayer):
+class DispersionPlugin(vaex.ui.plugin.PluginLayer):
 	name = "dispersion"
 	def __init__(self, parent, layer):
 		super(DispersionPlugin, self).__init__(parent, layer)
@@ -214,7 +213,7 @@ class DispersionPlugin(gavi.vaex.plugin.PluginLayer):
 
 	#@staticmethod
 	#def useon(dialog_class):
-	#	return issubclass(dialog_class, gavi.vaex.plot_windows.VolumeRenderingPlotDialog)
+	#	return issubclass(dialog_class, vaex.plot_windows.VolumeRenderingPlotDialog)
 
 	def plug_page(self, page):
 		layout = self.layout = QtGui.QGridLayout()

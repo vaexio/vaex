@@ -2,16 +2,16 @@ __author__ = 'maartenbreddels'
 
 import numpy as np
 
-import gavi.vaex.plugin
-from gavi.vaex.qt import *
-import gavi.vaex.plot_windows
-import gavi.logging
+import vaex.ui.plugin
+from vaex.ui.qt import *
+import vaex.ui.plot_windows
+import vaex.logging
 
 
-logger = gavi.logging.getLogger("plugin.zoom")
+logger = vaex.logging.getLogger("plugin.zoom")
 
 
-class Vector3dPlugin(gavi.vaex.plugin.PluginLayer):
+class Vector3dPlugin(vaex.ui.plugin.PluginLayer):
 	name = "vector3"
 	def __init__(self, parent, layer):
 		super(Vector3dPlugin, self).__init__(parent, layer)
@@ -19,7 +19,7 @@ class Vector3dPlugin(gavi.vaex.plugin.PluginLayer):
 
 	@staticmethod
 	def useon(dialog_class):
-		return issubclass(dialog_class, gavi.vaex.plot_windows.VolumeRenderingPlotDialog)
+		return issubclass(dialog_class, vaex.ui.plot_windows.VolumeRenderingPlotDialog)
 
 	def plug_page(self, page):
 		existing_layout = page.layout()

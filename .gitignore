@@ -51,7 +51,7 @@ python/.idea
 test/.idea
 venv
 tmp
-python/gavi/vaex/version.py # gets generated
-python/gavi.egg-info/
+python/vaex/version.py # gets generated
+python/vaex.egg-info/
 bin/.idea
 *.npy

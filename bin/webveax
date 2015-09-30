@@ -24,6 +24,9 @@ import matplotlib.pyplot as plt
 
 from flask import Flask, url_for, make_response, request, Response
 app = Flask(__name__)
+from flask.ext.compress import Compress
+app.config['COMPRESS_MIMETYPES'] = ['application/octet-stream', 'text/html', 'text/css', 'text/xml', 'application/json', 'application/javascript']
+c = Compress(app)
 
 import flask
 
@@ -40,14 +43,16 @@ def open(path, *args, **kwargs):
 				dataset_map[dataset.name] = dataset
 				dataset_list.append(dataset)
 		return dataset
-	except:
-		print >>sys.stderr, "error opening", path
+	except Exception, e:
+		print >>sys.stderr, "error opening", path, e
 
 path_list = [os.path.expanduser('~/.vaex/webvaex.py'), "/etc/webvaex.py"]
 key = "WEBVAEX_STARTUP"
 if key in os.environ:
 	path_list.append(key)
 
+for path in sys.argv[1:]:
+	open(path)
 custom_module = None
 for path in path_list:
 	if os.path.exists(path):
@@ -82,19 +87,26 @@ def colormaps():
 	return response
 
 
-@app.route('/columns/<dataset>')
+@app.route('/datasets/<dataset>/columns')
 def api_columns(dataset):
 	dataset = dataset_map[dataset]
 	js = json.dumps(dataset.column_names)
 	response= Response(js, status=200, mimetype='application/json')
 	return response
 
+@app.route('/datasets/<dataset>/info')
+def api_info(dataset):
+	dataset = dataset_map[dataset]
+	js = json.dumps(dict(column_names=dataset.get_column_names(), length=dataset.full_length()))
+	response= Response(js, status=200, mimetype='application/json')
+	return response
+
 
 import StringIO
-import gavifast
+import vaex.vaexfast
 
-@app.route('/minmax/<name>/<x>')
-@app.route('/minmax/<name>/<x>/<y>')
+@app.route('/datasets/<name>/minmax/<x>')
+@app.route('/datasets/<name>/minmax/<x>/<y>')
 def api_range(name, x, y=None):
 	dataset = dataset_map[name]
 	expressions = [x]
@@ -112,28 +124,28 @@ def api_range(name, x, y=None):
 	response= Response(js, status=200, mimetype='application/json')
 	return response
 
-@app.route('/<name>/minmax')
+@app.route('/datasets/<name>/minmax')
 def api_minmax(name):
 	return simple_handle(name, "minmax")
 
 
-@app.route('/<name>/var')
+@app.route('/datasets/<name>/var')
 def api_var(name):
 	return simple_handle(name, "var")
 
-@app.route('/<name>/mean')
+@app.route('/datasets/<name>/mean')
 def api_mean(name):
 	return simple_handle(name, "mean")
 
-@app.route('/<name>/sum')
+@app.route('/datasets/<name>/sum')
 def api_sum(name):
 	return simple_handle(name, "sum")
 
-@app.route('/<name>/limits_sigma')
+@app.route('/datasets/<name>/limits_sigma')
 def api_limits_sigma(name):
 	return simple_handle(name, "limits_sigma")
 
-@app.route('/<name>/select')
+@app.route('/datasets/<name>/select')
 def api_select(name):
 	dataset = dataset_map[name]
 	expression = json.loads(request.args["expression"])
@@ -149,7 +161,7 @@ def simple_handle(name, method_name):
 	expr = dataset(*expressions)
 	if json.loads(request.args.get("masked", "false")):
 		print "using masked"
-		expr = expr.masked()
+		expr = expr.selected()
 	method = getattr(expr, method_name)
 	args, varargs, kwargs, defaults = inspect.getargspec(method)
 	print inspect.getargspec(method)
@@ -164,10 +176,10 @@ def simple_handle(name, method_name):
 	response= Response(json.dumps(data), status=200, mimetype='application/json')
 	return response
 
-@app.route('/histogram/<name>')
+@app.route('/datasets/<name>/histogram')
 def api_histogram(name):
 	dataset = dataset_map[name]
-	print "histogram for", name
+	print "histogram for", name, repr(request.args["expressions"])
 	expressions = json.loads(request.args["expressions"])
 	print "expressions=", expressions
 	limits = json.loads(request.args["limits"])
@@ -176,7 +188,7 @@ def api_histogram(name):
 	print "size=", size
 	expr = dataset(*expressions)
 	if json.loads(request.args.get("masked", "false")):
-		expr = expr.masked()
+		expr = expr.selected()
 	grid = expr.histogram(limits=limits, size=size)
 	print "grid=", grid, grid.sum()
 	f = StringIO.StringIO()
@@ -209,7 +221,7 @@ def api_density_xy(name, x, y=None):
 	print ranges
 	index = 0
 	print blockx[sub_i1:sub_i2].shape, blocky[sub_i1:sub_i2].shape, None, sub_counts[index].shape, ranges
-	gavifast.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], None, sub_counts[index], *ranges)
+	vaexfast.histogram2d(blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], None, sub_counts[index], *ranges)
 	print "next"
 	ax.imshow(np.log10(counts), origin="lower", extent=ranges, cmap=colormap)
 	ax.set_aspect('auto')

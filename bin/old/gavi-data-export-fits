@@ -6,7 +6,7 @@ from optparse import OptionParser
 import os
 import sys
 from astropy.io import fits
-import gavi.dataset
+import vaex.dataset
 
 
 
@@ -15,7 +15,7 @@ Convert comma seperate value format to hdf5 format:
 
 Example:
 
-gavi-data-csv2hdf5 $GAVI_DATA/rave_internal_300808.v1g.TJK.uniform.final.post.csv -o rave.hdf5
+vaex-data-csv2hdf5 $vaex_DATA/rave_internal_300808.v1g.TJK.uniform.final.post.csv -o rave.hdf5
 
 """
 parser = OptionParser(usage=usage)
@@ -45,7 +45,7 @@ else:
 	#h5file = h5py.File(h5filename, "r") #, driver="core")
 	#data = h5file["data"]
 
-dataset = gavi.dataset.Hdf5MemoryMapped(h5filename)
+dataset = vaex.dataset.Hdf5MemoryMapped(h5filename)
 
 if options.all:
 	column_names = dataset.column_names
@@ -84,7 +84,7 @@ hdu = fits.PrimaryHDU(n)
 
 
 prihdr = fits.Header()
-prihdr['COMMENT'] = "Generated with gavi"
+prihdr['COMMENT'] = "Generated with vaex"
 prihdu = fits.PrimaryHDU(header=prihdr)
 
 thdulist = fits.HDUList([prihdu, tbhdu])

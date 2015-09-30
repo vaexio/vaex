@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 
-import gavi.logging as logging
+import vaex.logging as logging
 logger = logging.getLogger("vaex.kld")
 import numpy as np
-import gavi.histogram
 import numba.dispatcher
 import math
 import functools
-import gavifast
-import gavi.utils
-from gavi.utils import Timer
+import vaex.vaexfast
+import vaex.utils
+from vaex.utils import Timer
 
 def mutual_information(data):
-	Q = gavi.utils.disjoined(data)
+	Q = vaex.utils.disjoined(data)
 	P = data
 
 	P = P / P.sum()
@@ -59,7 +58,7 @@ def kld_shuffled(columns, Ngrid=128, datamins=None, datamaxes=None, offset=1):
 		#print y
 		print x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset
 		try:
-			gavi.histogram.hist2d_and_shuffled(x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset)
+			vaex.histogram.hist2d_and_shuffled(x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset)
 		except:
 			args = [x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset]
 			sig = [numba.dispatcher.typeof_pyval(a) for a in args]
@@ -127,17 +126,17 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 				maxima.append(ma)
 			if len(blocks) == 2:
 				print "mask", mask
-				gavifast.histogram2d(blocks[0], blocks[1], None, counts[index], *(ranges + [0, 0]))
-				#gavifast.histogram2d(blocks[0], blocks[1], None, counts_shuffled[index], *(ranges + [1, 0]))
+				vaex.vaexfast.histogram2d(blocks[0], blocks[1], None, counts[index], *(ranges + [0, 0]))
+				#vaex.vaexfast.histogram2d(blocks[0], blocks[1], None, counts_shuffled[index], *(ranges + [1, 0]))
 			if len(blocks) == 3:
-				gavifast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts[index], *(ranges + [0,0,0]))
-				#gavifast.histogramNd(list(blocks), None, counts[index], minima, maxima)
+				vaex.vaexfast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts[index], *(ranges + [0,0,0]))
+				#vaex.vaexfast.histogramNd(list(blocks), None, counts[index], minima, maxima)
 				#for i in range(5):
-				#	gavifast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts_shuffled[index], *(ranges + [2+i,1+i,0]))
+				#	vaex.vaexfast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts_shuffled[index], *(ranges + [2+i,1+i,0]))
 			if len(blocks) > 3:
-				gavifast.histogramNd(list(blocks), None, counts[index], minima, maxima)
+				vaex.vaexfast.histogramNd(list(blocks), None, counts[index], minima, maxima)
 				#for i in range(5):
-				#	gavifast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts_shuffled[index], *(ranges + [2+i,1+i,0]))
+				#	vaex.vaexfast.histogram3d(blocks[0], blocks[1], blocks[2], None, counts_shuffled[index], *(ranges + [2+i,1+i,0]))
 			if feedback:
 				wrapper.N_done += len(blocks[0]) * dimension
 				if feedback:
@@ -180,7 +179,7 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 	
 if __name__ == "__main__":
 	import vaex.dataset
-	import gavi.files
+	import vaex.files
 	from optparse import OptionParser
 	parser = OptionParser() #usage="")
 
@@ -194,7 +193,7 @@ if __name__ == "__main__":
 	else:
 		filename = "gaussian4d-1e7.hdf5"
 	
-	path = gavi.files.get_datafile(filename)
+	path = vaex.files.get_datafile(filename)
 	dataset = vaex.dataset.Hdf5MemoryMapped(path)
 	#for column_name in dataset.column_names:
 	#	print column_name

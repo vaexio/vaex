@@ -10,17 +10,17 @@ import thread
 import threading
 import time
 
-from gavi.samp import Samp
+from vaex.samp import Samp
 
 usage = """
 Convert VO table from SAMP to hdf5 format:
 
 Example:
 
-gavi-data-samp2hdf5 -o photometry.hdf5
+vaex-data-samp2hdf5 -o photometry.hdf5
 
 Now open topcat:
-topcat -f csv $GAVI_DATA/scl_photo.csv
+topcat -f csv $vaex_DATA/scl_photo.csv
 
 ...
 

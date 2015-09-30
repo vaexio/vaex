@@ -10,7 +10,7 @@ import vtk.util.numpy_support
 import numpy as np
 import mmap
 import h5py
-import gavi.histogram
+import vaex.histogram
 import scipy.spatial
 
 		
@@ -143,10 +143,10 @@ ymin, ymax = minmax(y)
 zmin, zmax = minmax(z)
 
 print "done"
-import gavifast
-gavifast.histogram3d(x, y, z, None, data_matrix , xmin, xmax, ymin, ymax, zmin, zmax)
+import vaex.vaexfast
+vaex.vaexfast.histogram3d(x, y, z, None, data_matrix , xmin, xmax, ymin, ymax, zmin, zmax)
 data_matrix = np.log(data_matrix + 1)
-#gavi.histogram.hist3d(x, y, z, data_matrix, xmin, xmax, ymin, ymax, zmin, zmax)
+#vaex.histogram.hist3d(x, y, z, data_matrix, xmin, xmax, ymin, ymax, zmin, zmax)
 print "done"
 maxvalue = data_matrix.max()
 print maxvalue

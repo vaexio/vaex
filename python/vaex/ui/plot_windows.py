@@ -14,41 +14,46 @@ import matplotlib.widgets
 import matplotlib.cm
 import numpy as np
 
-from gavi.multithreading import ThreadPool
-import gavi
-import gavi.logging
-import gavi.events
-import gavi.vaex.undo as undo
-import gavi.kld
-import gavi.vaex.plugin.zoom
-import gavi.vaex.plugin.vector3d
-import gavi.vaex.plugin.animation
-import gavi.vaex.plugin.transferfunction
+from vaex.multithreading import ThreadPool
+import vaex
+import vaex.logging
+import vaex.events
+import vaex.kld
+import vaex.ui.plugin.zoom
+import vaex.ui.plugin.vector3d
+import vaex.ui.plugin.animation
+import vaex.ui.imageblending
 
-#import gavi.vaex.plugin.dispersions
-import gavi.vaex.plugin.favorites
-import gavi.vaex.layers
-import gavi.vaex.templates
+
+
+
+
+
+
+
+#import vaex.ui.plugin.dispersions
+import vaex.ui.layers
+import vaex.ui.templates
 from numba import jit
 
 #import subspacefind
-import gavifast
-from vaex.ui import qt
+import vaex.vaexfast
+from vaex.ui import qt, undo
 
-subspacefind = gavifast
+subspacefind = vaex.vaexfast
 
 if 0:
 	block = np.arange(10., dtype=np.float64)[::1]
 	mask = np.zeros(10, dtype=np.bool)
 	xmin, xmax = 3, 6
-	gavifast.range_check(block, mask, xmin, xmax)
+	vaex.vaexfast.range_check(block, mask, xmin, xmax)
 	print mask
 
-logger = gavi.logging.getLogger("gavi.vaex")
+logger = vaex.logging.getLogger("vaex")
 
 from vaex.ui.qt import *
 
-from vaex.icons import iconfile
+from vaex.ui.icons import iconfile
 
 @jit(nopython=True)
 def range_check(block, mask, xmin, xmax):
@@ -93,7 +98,7 @@ def find_nearest_index1d(datax, x):
 	distance = math.sqrt((datax[index]-x)**2)
 	return index, distance
 		
-import gavi.vaex.colormaps
+import vaex.ui.colormaps
 
 
 		
@@ -320,7 +325,7 @@ class PlotDialog(QtGui.QWidget):
 			for i in range(self.dimensions):
 				if ranges[i] is None and first_layer.ranges_grid[i] is not None:
 					ranges[i] = copy.copy(first_layer.ranges_grid[i])
-		layer = gavi.vaex.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.jobsManager, self.pool, self.fig, self.canvas, ranges)
+		layer = vaex.ui.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.jobsManager, self.pool, self.fig, self.canvas, ranges)
 		self.layers.append(layer)
 		layer.build_widget_qt(self.widget_layer_stack) # layer.widget is the widget build
 		self.widget_layer_stack.addWidget(layer.widget)
@@ -402,7 +407,7 @@ class PlotDialog(QtGui.QWidget):
 
 
 		self.plugin_queue_toolbar = [] # list of tuples (callback, order)
-		self.plugins = [cls(self) for cls in gavi.vaex.plugin.PluginPlot.registry if cls.useon(self.__class__)]
+		self.plugins = [cls(self) for cls in vaex.ui.plugin.PluginPlot.registry if cls.useon(self.__class__)]
 		self.plugins_map = {plugin.name:plugin for plugin in self.plugins}
 		#self.plugin_zoom = plugin.zoom.ZoomPlugin(self)
 
@@ -538,9 +543,9 @@ class PlotDialog(QtGui.QWidget):
 		self.grabGesture(QtCore.Qt.PanGesture);
 		self.grabGesture(QtCore.Qt.SwipeGesture);
 
-		self.signal_samp_send_selection = gavi.events.Signal("samp send selection")
+		self.signal_samp_send_selection = vaex.events.Signal("samp send selection")
 
-		self.signal_plot_finished = gavi.events.Signal("plot finished")
+		self.signal_plot_finished = vaex.events.Signal("plot finished")
 
 		self.canvas.mpl_connect('resize_event', self.on_resize_event)
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
@@ -767,7 +772,7 @@ class PlotDialog(QtGui.QWidget):
 		#self.frame_layer_controls_result
 
 
-		self.blend_modes = gavi.vaex.imageblending.modes.keys()
+		self.blend_modes = vaex.ui.imageblending.modes.keys()
 		self.blend_mode = self.blend_modes[0]
 		self.option_layer_blend_mode = Option(self.frame_layer_controls_result, "blend", self.blend_modes, getter=attrgetter(self, "blend_mode"), setter=attrsetter(self, "blend_mode"), update=self.plot)
 		row = self.option_layer_blend_mode.add_to_grid_layout(row, self.layout_frame_layer_controls_result)
@@ -1121,7 +1126,7 @@ class PlotDialog(QtGui.QWidget):
 		def select(info, blockx, blocky):
 			self.message("selection at %.1f%% (%.2fs)" % (info.percentage, time.time() - t0), index=40)
 			QtCore.QCoreApplication.instance().processEvents()
-			#gavi.selection.pnpoly(x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius)
+			#vaex.selection.pnpoly(x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius)
 			args = (x, y, blockx, blocky, mask[info.i1:info.i2])
 			if 1:
 				submask = mask[info.i1:info.i2]
@@ -1288,7 +1293,7 @@ class PlotDialog(QtGui.QWidget):
 					links = [button.link for button in linked_buttons]
 					if len(linked_buttons) > 0:
 						logger.debug("sending compute message")
-						gavi.dataset.Link.sendCompute(links, linked_buttons)
+						vaex.dataset.Link.sendCompute(links, linked_buttons)
 					#self.compute()
 					logger.debug("now execute")
 					self.jobsManager.execute()
@@ -1374,7 +1379,7 @@ class PlotDialog(QtGui.QWidget):
 				yesall = False
 				if mask[0]:
 					scriptname = os.path.join(dir_path, name + "_plot.py")
-					template = gavi.vaex.templates.matplotlib
+					template = vaex.ui.templates.matplotlib
 					if not os.path.exists(scriptname):
 						yes, yesall = True, False
 					else:
@@ -2250,7 +2255,7 @@ class ScatterPlotDialog(PlotDialog):
 
 
 
-		rgba = gavi.vaex.imageblending.blend(self.image_layers, self.blend_mode)
+		rgba = vaex.ui.imageblending.blend(self.image_layers, self.blend_mode)
 		rgba[...,3] = rgba[...,3] * 0 + 1
 		for c in range(4):
 			#rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** 3.5)*2.6, 0., 1.)
@@ -2327,7 +2332,7 @@ class ScatterPlotDialog(PlotDialog):
 			if self.counts_mask is not None:
 				self.axes.imshow(self.contrast(amplitude_mask), origin="lower", extent=ranges, alpha=1, cmap=self.colormap)
 		if 1:
-			#locals = {key:None if grid is None else gavifast.resize(grid, 64) for key, grid in locals}
+			#locals = {key:None if grid is None else vaex.vaexfast.resize(grid, 64) for key, grid in locals}
 			locals = {}
 			for name in self.grids.grids.keys():
 				grid = self.grids.grids[name]
@@ -2510,27 +2515,27 @@ class ScatterPlotMatrixDialog(PlotDialog):
 		try:
 			args = data_blocks, self.counts, ranges
 			if self.dimensions == 2:
-				gavi.histogram.hist3d(data_blocks[0], data_blocks[1], self.counts, *ranges)
+				vaex.histogram.hist3d(data_blocks[0], data_blocks[1], self.counts, *ranges)
 			if self.dimensions == 3:
-				gavi.histogram.hist3d(data_blocks[0], data_blocks[1], data_blocks[2], self.counts, *ranges)
+				vaex.histogram.hist3d(data_blocks[0], data_blocks[1], data_blocks[2], self.counts, *ranges)
 			if weights_block is not None:
 				args = data_blocks, weights_block, self.counts, ranges
-				gavi.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
+				vaex.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
 		except:
 			raise
 
 		if mask is not None:
 			subsets = [block[mask[info.i1:info.i2]] for block in data_blocks]
 			if self.dimensions == 2:
-				gavi.histogram.hist2d(subsets[0], subsets[1], self.counts_weights_mask, *ranges)
+				vaex.histogram.hist2d(subsets[0], subsets[1], self.counts_weights_mask, *ranges)
 			if self.dimensions == 3:
-				gavi.histogram.hist3d(subsets[0], subsets[1], subsets[2], self.counts_weights_mask, *ranges)
+				vaex.histogram.hist3d(subsets[0], subsets[1], subsets[2], self.counts_weights_mask, *ranges)
 			if weights_block is not None:
 				subset_weights = weights_block[mask[info.i1:info.i2]]
 				if self.dimensions == 2:
-					gavi.histogram.hist2d_weights(subsets[0], subsets[1], self.counts_weights_mask, subset_weights, *ranges)
+					vaex.histogram.hist2d_weights(subsets[0], subsets[1], self.counts_weights_mask, subset_weights, *ranges)
 				if self.dimensions == 3:
-					gavi.histogram.hist3d_weights(subsets[0], subsets[1], subsets[2], self.counts_weights_mask, subset_weights, *ranges)
+					vaex.histogram.hist3d_weights(subsets[0], subsets[1], subsets[2], self.counts_weights_mask, subset_weights, *ranges)
 		if info.last:
 			elapsed = time.time() - info.time_start
 			self.message("computation (%f seconds)" % (elapsed), index=9)
@@ -2680,7 +2685,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 
 	def afterCanvas(self, layout):
 
-		self.widget_volume = gavi.vaex.volumerendering.VolumeRenderWidget(self)
+		self.widget_volume = vaex.ui.volumerendering.VolumeRenderWidget(self)
 		self.layout_plot_region.insertWidget(0, self.widget_volume, 1)
 
 
@@ -2786,7 +2791,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			self.widget_volume.setGrid(first_layer.amplitude, vectorgrid=first_layer.vector_grid)
 
 		for axes in axes_list:
-			rgba = gavi.vaex.imageblending.blend(axes.rgb_images, self.blend_mode)
+			rgba = vaex.ui.imageblending.blend(axes.rgb_images, self.blend_mode)
 			rgba[...,3] = rgba[...,3] * 0 + 1
 			for c in range(4):
 				#rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** 3.5)*2.6, 0., 1.)
