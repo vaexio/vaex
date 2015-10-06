@@ -4,7 +4,7 @@ import os
 import math
 import time
 import itertools
-import vaex.vaexfast
+#import vaex.vaexfast
 import functools
 import collections
 import sys
@@ -216,16 +216,16 @@ class Subspace(object):
 
 
 class SubspaceLocal(Subspace):
-	def __init__(self, dataset, expressions, executor, immediate, masked=False):
+	def __init__(self, dataset, expressions, executor, async, masked=False):
 		self.dataset = dataset
 		self.expressions = expressions
 		#self.columns = map(dataset.columns, self.expressions)
 		self.executor = executor
-		self.immediate = immediate
+		self.async = async
 		self.is_masked = masked
 
 	def selected(self):
-		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, immediate=self.immediate, masked=True)
+		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, immediate=self.async, masked=True)
 
 	def toarray(self, list):
 		return np.array(list)
@@ -244,11 +244,11 @@ class SubspaceLocal(Subspace):
 
 	def _task(self, task):
 		"""Helper function for returning tasks results, result when immediate is True, otherwise the task itself, which is a promise"""
-		if self.immediate:
-			return self.executor.run(task)
+		if self.async:
+			# should return a task or a promise nesting it
+			return self.executor.schedule(task)
 		else:
-			self.executor.schedule(task)
-			return task
+			return self.executor.run(task)
 
 	def minmax(self):
 		promise = Promise()
@@ -284,16 +284,29 @@ class SubspaceLocal(Subspace):
 			for var1, var2 in zip(vars1, vars2):
 				vars.append(np.nanmean([var1, var2]))
 			return vars
-		def var_map(*blocks):
-			if means is not None:
-				return [np.nanmean((block-mean)**2) for block, mean in zip(blocks, means)]
-			else:
-				return [np.nanmean(block**2) for block in blocks]
-		task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, self.toarray)
+		if self.is_masked:
+			mask = self.dataset.mask
+			def var_map(*blocks):
+				if means is not None:
+					return [np.nanmean((block[mask[i1:i2]]-mean)**2) for block, mean in zip(blocks, means)]
+				else:
+					return [np.nanmean(block[mask[i1:i2]]**2) for block in blocks]
+			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, self.toarray, info=True)
+		else:
+			def var_map(*blocks):
+				if means is not None:
+					return [np.nanmean((block-mean)**2) for block, mean in zip(blocks, means)]
+				else:
+					return [np.nanmean(block**2) for block in blocks]
+			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, self.toarray)
 		return self._task(task)
 
 	def sum(self):
-		task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self.toarray)
+		if self.is_masked:
+			mask = self.dataset.mask
+			task = TaskMapReduce(self.dataset, self.expressions, lambda thread_index, i1, i2, *blocks: [np.nansum(block[mask[i1:i2]]) for block in blocks], lambda a, b: np.array(a) + np.array(b), self.toarray, info=True)
+		else:
+			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self.toarray)
 		return self._task(task)
 
 	def histogram(self, limits, size=256):
@@ -308,248 +321,40 @@ class SubspaceLocal(Subspace):
 		return np.array(zip(means-sigmas*stds, means+sigmas*stds))
 
 
-class SubspaceRemote(Subspace):
-	def __init__(self, dataset, expressions, immediate=True, masked=False):
-		self.dataset = dataset
-		self.expressions = expressions
-		self.executor = executor
-		self.immediate = immediate
-		self.is_masked = masked
-
-	def selected(self):
-		return SubspaceRemote(self.dataset, expressions=self.expressions, immediate=self.immediate, masked=True)
-
-	def toarray(self, list):
-		return np.array(list)
-
-	@property
-	def dimension(self):
-		return len(self.expressions)
-
-	def _promise(self, promise):
-		"""Helper function for returning tasks results, result when immediate is True, otherwise the task itself, which is a promise"""
-		if self.immediate:
-			return promise
-		else:
-			return promise
-
-	def minmax(self):
-		return self._promise(self.dataset.server.minmax(self, self.dataset.name, self.expressions))
-		#return self._task(task)
-
-	def histogram(self, limits, size=256):
-		return self._promise(self.dataset.server.histogram(self, self.dataset.name, self.expressions, size=size, limits=limits))
-
-	def mean(self):
-		return self.dataset.server.mean(self, self.dataset.name, self.expressions)
-
-	def var(self, means=None):
-		return self.dataset.server.var(self, self.dataset.name, self.expressions, means=means)
-
-	def sum(self):
-		return self.dataset.server.sum(self, self.dataset.name, self.expressions)
-
-	def limits_sigma(self, sigmas=3, square=False):
-		return self.dataset.server.limits_sigma(self, self.dataset.name, self.expressions, sigmas=sigmas, square=square)
-
-	def plot(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
-		import pylab
-		if limits is None:
-			limits = self.limits_sigma()
-		if center is not None:
-			limits = np.array(limits) - np.array(center).reshape(2,1)
-		if grid is None:
-			grid = self.histogram(limits=limits)
-		pylab.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
 
 
-
-#from twisted.internet import reactor
-#from twisted.web.client import Agent
-#from twisted.web.http_headers import Headers
-from tornado.httpclient import AsyncHTTPClient, HTTPClient
-from tornado.concurrent import Future
-
-def wrap_future_with_promise(future):
-	promise = Promise()
-	def callback(future):
-		print "callback", future
-		e = future.exception()
-		if e:
-			print "reject", e
-			promise.reject(e)
-		else:
-			promise.fulfill(future.result())
-	future.add_done_callback(callback)
-	return promise
-
-import tornado.ioloop
-
-import threading
-import json
-import urllib
-import threading
-
-class ServerRest(object):
-	def __init__(self, hostname, port=5000, base_path="/", background=False, async=False):
-		self.hostname = hostname
-		self.port = port
-		self.base_path = base_path
-		#if async:
-		event = threading.Event()
-
-		if 0: #not async:
-			print "not running async"
-			#if not tornado.ioloop.IOLoop.initialized():
-			if True:
-				print "not init"
-				#tornado.ioloop.IOLoop.clear_current()
-				#tornado.ioloop.IOLoop.clear_instance()
-				#tornado.ioloop.IOLoop.current().run_sync()
-				def ioloop():
-					self.io_loop = tornado.ioloop.IOLoop()
-					event.set()
-					self.io_loop.make_current()
-					self.io_loop.start()
-				thread = threading.Thread(target=ioloop)
-				thread.setDaemon(True)
-				thread.start()
-			else:
-				print "already initialized"
-
-			print "waiting for io loop to be created"
-			event.wait()
-			print self.io_loop
-		#self.io_loop.make_current()
-		if async:
-			self.http_client = AsyncHTTPClient()
-		else:
-			self.http_client = HTTPClient()
-		self.async = async
-
-	def wait(self):
-		io_loop = tornado.ioloop.IOLoop.instance()
-		io_loop.start()
-
-	def list_datasets(self):
-		def wrap(result):
-			list = json.loads(result.body)
-			return list
-		url = self._build_url("datasets")
-		print "fetching", url
-		result = self.http_client.fetch(url)
-		return self._return(result, wrap)
-
-	def _build_url(self, method):
-		return "http://%s:%d%s%s" % (self.hostname, self.port, self.base_path, method)
-
-	def _list_columns(self, name):
-		def wrap(result):
-			list = json.loads(result.body)
-			return list
-		url = self._build_url("datasets/%s/columns" % name)
-		print "fetching", url
-		result = self.http_client.fetch(url)
-		return self._return(result, wrap)
-
-	def _info(self, name):
-		def wrap(result):
-			list = json.loads(result.body)
-			return list
-		url = self._build_url("datasets/%s/info" % name)
-		print "fetching", url
-		result = self.http_client.fetch(url)
-		return self._return(result, wrap)
-
-	def open(self, name):
-		def wrap(info):
-			column_names = info["column_names"]
-			full_length = info["length"]
-			return DatasetRest(self, name, column_names, full_length)
-		result = self._info(name)
-		return self._return(result, wrap)
-
-	def _async(self, promise):
-		if self.async:
-			return promise
-		else:
-			return promise.get()
-
-	def minmax(self, expr, dataset_name, expressions):
-		def wrap(result):
-			data = json.loads(result.body)
-			print "data", data
-			return np.array([[data[expression]["min"], data[expression]["max"]] for expression in expressions])
-		columns = "/".join(expressions)
-		url = self._build_url("datasets/%s/minmax/%s" % (dataset_name, columns))
-		print "fetching", url
-		result = self.http_client.fetch(url)
-		return self._return(result, wrap)
-
-	def mean(self, expr, dataset_name, expressions, **kwargs):
-		return self._simple(expr, dataset_name, expressions, "mean", **kwargs)
-	def var(self, expr, dataset_name, expressions, **kwargs):
-		return self._simple(expr, dataset_name, expressions, "var", **kwargs)
-	def sum(self, expr, dataset_name, expressions):
-		return self._simple(expr, dataset_name, expressions, "sum")
-	def limits_sigma(self, expr, dataset_name, expressions, **kwargs):
-		return self._simple(expr, dataset_name, expressions, "limits_sigma", **kwargs)
-
-	def _simple(self, expr, dataset_name, expressions, name, **kwargs):
-		def wrap(result):
-			return np.array(json.loads(result.body))
-		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
-		post_data = {key:json.dumps(value) for key, value in dict(kwargs).items()}
-		post_data["masked"] = json.dumps(expr.is_masked)
-		post_data.update(dict(expressions=json.dumps(expressions)))
-		body = urllib.urlencode(post_data)
-		result = self.http_client.fetch(url+"?"+body,method="GET")
-		return self._return(result, wrap)
-
-	def histogram(self, expr, dataset_name, expressions, size, limits):
-		def wrap(result):
-			data = np.fromstring(result.body)
-			shape = (size,) * len(expressions)
-			data = data.reshape(shape)
-			print "data", data.shape, data
-			return data
-		url = self._build_url("datasets/%s/histogram" % (dataset_name,))
-		print "fetching", url
-		post_data = dict(expressions=json.dumps(expressions), size=json.dumps(size), limits=json.dumps(limits.tolist()), masked=json.dumps(expr.is_masked))
-		body = urllib.urlencode(post_data)
-		result = self.http_client.fetch(url+"?"+body,method="GET")
-		return self._return(result, wrap)
-
-	def _return(self, response_or_future, f):
-		if self.async:
-			future = response_or_future
-			return wrap_future_with_promise(future).then(f)
-		else:
-			response = response_or_future
-			return f(response)
-
-	def select(self, dataset_name, expression, **kwargs):
-		name = "select"
-		def wrap(result):
-			return np.array(json.loads(result.body))
-		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
-		post_data = {key:json.dumps(value) for key, value in dict(kwargs).items()}
-		post_data.update(dict(expression=json.dumps(expression)))
-		body = urllib.urlencode(post_data)
-		result = self.http_client.fetch(url+"?"+body,method="GET")
-		return self._return(result, wrap)
-
-
-
+import vaex.events
 
 class Dataset(object):
+	"""
+	:type signal_selection_changed: events.Signal
+	"""
 	def __init__(self, name, column_names):
 		self.name = name
 		self.column_names = column_names
 		self.executor = vaex.execution.Executor(self, multithreading.pool)
+		self.signal_pick = vaex.events.Signal("pick")
+		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
+		self.signal_selection_changed = vaex.events.Signal("selection changed")
+		self.undo_manager = vaex.ui.undo.UndoManager()
+		self.variables = {}
 
-	def __call__(self, *expressions):
-		return SubspaceLocal(self, expressions, self.executor, immediate=True)
+	def current_sequence_index(self):
+		return 0
+
+	def current_row(self):
+		return None
+
+	def has_snapshots(self):
+		return False
+
+
+	def __call__(self, *expressions, **kwargs):
+		"""optional argument async[=False]
+
+		:return: SubspaceLocal
+		"""
+		return SubspaceLocal(self, expressions, self.executor, async=kwargs.get("async", False))
 
 	def select(self, expression):
 		mask = np.zeros(len(self), dtype=np.bool)
@@ -572,45 +377,6 @@ class Dataset(object):
 	def get_column_names(self):
 		return list(self.column_names)
 
-
-class DatasetRemote(Dataset):
-	def __init__(self, name, server, column_names):
-		self.is_local = False
-		super(DatasetRemote, self).__init__(name, column_names)
-		self.server = server
-
-class DatasetRest(DatasetRemote):
-	def __init__(self, server, name, column_names, full_length):
-		DatasetRemote.__init__(self, name, server.hostname, column_names)
-		self.server = server
-		self.name = name
-		self.column_names = column_names
-		self._full_length = full_length
-		self.filename = "http://%s:%s/%s" % (server.hostname, server.port, name)
-		#self.host = host
-		#self.http_client = AsyncHTTPClient()
-		#future = http_client.fetch(self._build_url("datasets"))
-		#fetch_future.add_done_callback(
-		self.fraction = 1
-		self.signal_pick = vaex.events.Signal("pick")
-		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
-
-		self.undo_manager = vaex.ui.undo.UndoManager()
-
-	def __call__(self, *expressions):
-		return SubspaceRemote(self, expressions, immediate=not self.server.async)
-
-	def select(self, expression):
-		return self.server.select(self.name, expression)
-
-	def setFraction(self, f):
-		self.fraction = f
-
-	def __len__(self):
-		return self._full_length
-
-	def full_length(self):
-		return self._full_length
 
 
 
@@ -701,7 +467,8 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.selected_serie_index = 0
 		self.row_selection_listeners = []
 		self.serie_index_selection_listeners = []
-		self.mask_listeners = []
+		#self.mask_listeners = []
+
 		self.all_columns = {}
 		self.all_column_names = []
 		self.mask = None
@@ -714,9 +481,6 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.samp_id = None
 		self.variables = collections.OrderedDict()
 		
-		self.signal_pick = vaex.events.Signal("pick")
-		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
-
 		self.undo_manager = vaex.ui.undo.UndoManager()
 
 	def has_snapshots(self):
@@ -787,9 +551,8 @@ class DatasetMemoryMapped(DatasetLocal):
 
 	def set_mask(self, mask):
 		self.mask = mask
-		for mask_listener in self.mask_listeners:
-			mask_listener(mask)
-		
+		self.signal_selection_changed.emit(self)
+
 		
 	def selectRow(self, index):
 		self.selected_row_index = index
@@ -1109,7 +872,25 @@ class FitsBinTable(DatasetMemoryMapped):
 									#dtype = np.dtype(dtype)
 									#print "we have float64!", dtype
 									#dtype = ">f8"
-									self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
+									print column.name, offset, dtype, length
+									if arraylength == 1:
+										self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
+									else:
+										#transposed = shape[1] < shape[0]
+										for i in range(arraylength):
+											name = column.name+"_" +str(i)
+											self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
+											print self.columns[name][0], self.columns[name][1]
+										#@self.addRank1(column.name, offset, arraylength, length1=length, dtype=">" +dtypecode, stride=1, stride1=1, transposed=True)
+										#@self.addRank1(column.name, offset, arraylength, length1=length, dtype=">" +dtypecode, stride=1, stride1=1, transposed=True)
+										#print self.rank1s[column.name][0]
+										#print self.rank1s[column.name][1]
+										#dsa
+									#else:
+									#	print "DON:T KNOW HOW TO HANDLE"
+
+									#print self.columns[column.name]
+
 									#col = self.columns[column.name]
 									#print "   ", col[:10],  col[:10].dtype, col.dtype.byteorder == native_code, bytessize
 
@@ -1132,7 +913,7 @@ class FitsBinTable(DatasetMemoryMapped):
 								offset += eval(column.dim)[0] * length
 								#raise Exception,"cannot handle type: %s" % column.dtype
 								#sys.exit(0)
-							print "offset=", offset, 403532029440-offset
+							#print "offset=", offset, 403532029440-offset
 					#sys.exit(0)
 
 				else:
@@ -1485,7 +1266,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 					if offset is None:
 						raise Exception, "columns doesn't really exist in hdf5 file"
 					shape = column.shape
-					if len(shape) == 1:
+					if True: #len(shape) == 1:
 						self.addColumn(column_name, offset, len(column), dtype=column.dtype)
 					else:
 
@@ -1832,3 +1613,4 @@ def load_file(path, *args):
 		return dataset
 
 from execution import JobsManager
+from .remote import ServerRest, SubspaceRemote, DatasetRemote

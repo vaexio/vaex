@@ -143,7 +143,7 @@ if numdir is not None:
 	include_dirs.append(os.path.join(numdir, "core", "include"))
 
 extensions = [
-	Extension("vaex.vaex.vaexfast", ["src/vaex/vaex.vaexfast.cpp"],
+	Extension("vaex.vaexfast", ["src/vaex/vaexfast.cpp"],
                 include_dirs=include_dirs,
                 library_dirs=library_dirs,
                 libraries=libraries,

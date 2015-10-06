@@ -169,7 +169,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		#	link.sendCompute(linkButton)
 
 		#self.compute()
-		#self.jobsManager.execute()
+		#self.dataset.executor.execute()
 		
 	def onZoomUse(self, *args):
 		# TODO: when this will be an option again, implement this as action
@@ -190,7 +190,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 			logger.debug("sending compute message")
 			vaex.dataset.Link.sendCompute(links, linked_buttons)
 		self.compute()
-		self.jobsManager.execute()
+		self.dataset.executor.execute()
 		
 	def onZoomX(self, xmin, xmax, axes):
 		
@@ -294,7 +294,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 						self.dialog.ranges[i] = self.dialog.ranges_show[i]
 						self.range_level = None
 					self.compute()
-					self.jobsManager.execute()
+					self.dataset.executor.execute()
 				else:
 					self.plot()
 		

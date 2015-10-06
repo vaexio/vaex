@@ -2,10 +2,10 @@
 #from sampy import *
 #from SocketServer import ThreadingMixIn
 import sampy
-from gavi import logging as logging_
+from vaex import logging as logging_
 import threading
 
-logger = logging_.getLogger("gavi.samp")
+logger = logging_.getLogger("vaex.samp")
 
 
 class Samp(object):

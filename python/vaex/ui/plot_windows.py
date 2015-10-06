@@ -343,7 +343,7 @@ class PlotDialog(QtGui.QWidget):
 			if not self.axis_lock: # and len(self.layers) == 1:
 				self.ranges_show[axis_index] = None
 			self.compute()
-			error_text = self.jobsManager.execute()
+			error_text = self.dataset.executor.execute()
 			if error_text:
 				dialog_error(self, "Error in expression", "Error: " +error_text)
 
@@ -358,7 +358,7 @@ class PlotDialog(QtGui.QWidget):
 			assert self.current_layer == layer
 			self.load_options(options["options"])
 		layer.add_jobs()
-		#self.jobsManager.execute()
+		#self.dataset.executor.execute()
 		#self.queue_update()
 		return layer
 
@@ -370,7 +370,7 @@ class PlotDialog(QtGui.QWidget):
 		self.dataset = dataset
 		self.dimensions = dimensions
 		if "fraction" in self.options:
-			dataset.setFraction(float(self.options["fraction"]))
+			dataset.set_fraction(float(self.options["fraction"]))
 
 
 		self.layers = []
@@ -627,7 +627,7 @@ class PlotDialog(QtGui.QWidget):
 					menu_dataset.addAction(action_col1)
 					def add_layer_1(column1=column1, dataset=dataset):
 						self.add_layer([column1], dataset=dataset)
-						self.jobsManager.execute()
+						self.dataset.executor.execute()
 					action_col1.triggered.connect(add_layer_1)
 				else:
 					menu_col1 = QtGui.QMenu(column1, menu_dataset)
@@ -638,7 +638,7 @@ class PlotDialog(QtGui.QWidget):
 							menu_col1.addAction(action_col2)
 							def add_layer_2(_ignore=None, column1=column1, column2=column2, dataset=dataset):
 								self.add_layer([column1, column2], dataset=dataset)
-								self.jobsManager.execute()
+								self.dataset.executor.execute()
 							action_col2.triggered.connect(add_layer_2)
 						else:
 							pass
@@ -1101,7 +1101,7 @@ class PlotDialog(QtGui.QWidget):
 		#	mask[info.i1:info.i2] = (block >= ymin) & (block < ymax)
 		logger.debug("selecty: %r %r selected %r for axis index %r" % (ymin, ymax, np.sum(mask), axes.yaxis_index))
 		#self.dataset.selectMask(mask)
-		#self.jobsManager.execute()
+		#self.dataset.executor.execute()
 		#self.setMode(self.lastAction)
 		#action.do()
 		#self.checkUndoRedo()
@@ -1148,7 +1148,7 @@ class PlotDialog(QtGui.QWidget):
 			self.checkUndoRedo()
 			self.setMode(self.lastAction)
 		#self.dataset.selectMask(mask)
-		#self.jobsManager.execute()
+		#self.dataset.executor.execute()
 		#self.setMode(self.lastAction)
 
 
@@ -1184,7 +1184,8 @@ class PlotDialog(QtGui.QWidget):
 			layer.range_level = copy.copy(self.range_level_show)
 		timelog("begin computation", reset=True)
 		self.compute()
-		self.jobsManager.execute()
+		#self.dataset.executor.execute()
+		self.dataset.executor.execute()
 		timelog("computation done")
 
 	def update_delayed(self, delay=500):
@@ -1296,7 +1297,7 @@ class PlotDialog(QtGui.QWidget):
 						vaex.dataset.Link.sendCompute(links, linked_buttons)
 					#self.compute()
 					logger.debug("now execute")
-					self.jobsManager.execute()
+					self.dataset.executor.execute()
 					logger.debug("execute finished")
 
 			self.update_counter += 1
@@ -1355,7 +1356,7 @@ class PlotDialog(QtGui.QWidget):
 		logger.debug("set aspect to: %r" % self.aspect)
 		self.check_aspect(0)
 		self.compute()
-		self.jobsManager.execute()
+		self.dataset.executor.execute()
 		#self.plot()
 
 	def _onActionAspectLockOne(self, *ignore_args):
@@ -1468,7 +1469,7 @@ class PlotDialog(QtGui.QWidget):
 					action = undo.ActionMask(layer.dataset.undo_manager, "loaded selection", mask, layer.apply_mask)
 					action.do()
 				#self.dataset.selectMask(mask)
-				#self.jobsManager.execute()
+				#self.dataset.executor.execute()
 		self.action_selection_load = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Load selection', self)
 		self.action_selection_load.triggered.connect(on_load_selection)
 		#self.action_selection_load.setCheckable(True)
@@ -1548,14 +1549,14 @@ class PlotDialog(QtGui.QWidget):
 	def onActionShuffled(self, ignore=None):
 		self.xoffset = 1 if self.action_shuffled.isChecked() else 0
 		self.compute()
-		self.jobsManager.execute()
+		self.dataset.executor.execute()
 		logger.debug("xoffset = %r" % self.xoffset)
 
 	def onActionDisjoin(self, ignore=None):
 		#self.xoffset = 1 if self.action_shuffled.isChecked() else 0
 		self.show_disjoined = self.action_disjoin.isChecked()
 		self.compute()
-		self.jobsManager.execute()
+		self.dataset.executor.execute()
 		logger.debug("show_disjoined = %r" % self.show_disjoined)
 
 
@@ -1728,7 +1729,7 @@ class PlotDialog(QtGui.QWidget):
 				self.grid_size = resolution
 				self.queue_update()
 				#self.compute()
-				#self.jobsManager.execute()
+				#self.dataset.executor.execute()
 			action_resolution.setCheckable(True)
 			# TODO: this need to move to a layer change event
 			if resolution == int(self.grid_size):
@@ -1747,7 +1748,7 @@ class PlotDialog(QtGui.QWidget):
 				self.vector_grid_size = resolution
 				self.queue_update()
 				#self.compute()
-				#self.jobsManager.execute()
+				#self.dataset.executor.execute()
 			action_resolution.setCheckable(True)
 			# TODO: this need to move to a layer change event
 			if resolution == int(self.vector_grid_size):
@@ -1991,7 +1992,7 @@ class PlotDialog(QtGui.QWidget):
 
 	def onActionSelectNone(self):
 		#self.dataset.selectMask(None)
-		#self.jobsManager.execute()
+		#self.dataset.executor.execute()
 		layer = self.current_layer
 		if layer is not None:
 			action = undo.ActionMask(layer.dataset.undo_manager, "clear selection", None, layer.apply_mask)
@@ -2270,7 +2271,7 @@ class ScatterPlotDialog(PlotDialog):
 			self.axes.set_aspect(self.aspect)
 			#if self.dataset.selected_row_index is not None:
 				#self.axes.autoscale(False)
-		index = self.dataset.selected_row_index
+		#index = self.dataset.selected_row_index
 
 		if 0:
 			self.axes.set_xlabel(self.expressions[0])
@@ -2382,8 +2383,8 @@ class ScatterPlotDialog(PlotDialog):
 			self.axes.set_aspect(self.aspect)
 			#if self.dataset.selected_row_index is not None:
 				#self.axes.autoscale(False)
-		index = self.dataset.selected_row_index
 		if 0:
+			index = self.dataset.selected_row_index
 			if index is not None and self.selected_point is None:
 				logger.debug("point selected but after computation")
 				# TODO: optimize
@@ -3095,7 +3096,7 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 			for i in range(self.dimensions):
 				self.ranges_show[i] = None
 		self.dataset.selectSerieIndex(0)
-		self.jobsManager.execute()
+		self.dataset.executor.execute()
 		QtCore.QTimer.singleShot(self.delay if not self.record_frames else 0, self.onNextFrame);
 		
 	def onNextFrame(self, *args):
@@ -3109,7 +3110,7 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 			for i in range(self.dimensions):
 				self.ranges_show[i] = None
 		self.dataset.selectSerieIndex(next)
-		self.jobsManager.execute()
+		self.dataset.executor.execute()
 		if self.serieIndex < self.nSlices-1 : # not last frame
 			QtCore.QTimer.singleShot(self.delay, self.onNextFrame);
 			
@@ -3123,6 +3124,6 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 					self.ranges_show[i] = None
 			self.dataset.selectSerieIndex(index)
 			#self.compute()
-			self.jobsManager.execute()
+			self.dataset.executor.execute()
 
 

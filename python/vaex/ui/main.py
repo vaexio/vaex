@@ -4,7 +4,7 @@ import sampy
 import platform
 import vaex.utils
 import sys
-
+import threading
 
 
 
@@ -283,7 +283,10 @@ possibleFractions.insert(0,10**-4)
 class DataList(QtGui.QListWidget):
 	def __init__(self, parent):
 		super(DataList, self).__init__(parent)
-		self.icon = QtGui.QIcon('icons/png/24x24/devices/memory.png')
+		#self.icon = QtGui.QIcon('icons/png/24x24/devices/memory.png')
+		#self.icon_server = QtGui.QIcon('icons/png/24x24/devices/memory.png')
+		self.icon = QtGui.QIcon(vp.iconfile('drive'))
+		self.icon_server = QtGui.QIcon(vp.iconfile('server-cloud'))
 		self.datasets = []
 		self.signal_pick = vaex.events.Signal("pick")
 		self.signal_add_dataset = vaex.events.Signal("add dataset")
@@ -343,7 +346,7 @@ class DataList(QtGui.QListWidget):
 		for fraction in possibleFractions[::-1]:
 			N  = len(dataset)
 			if N > Nmax:
-				dataset.setFraction(fraction)
+				dataset.set_fraction(fraction)
 			else:
 				break
 
@@ -353,7 +356,8 @@ class DataList(QtGui.QListWidget):
 		item = QtGui.QListWidgetItem(self)
 		item.setText(dataset.name)
 		#self.icon = QIcon.fromTheme('document-open')
-		item.setIcon(self.icon)
+		import vaex.dataset
+		item.setIcon(self.icon_server if isinstance(dataset, vaex.dataset.DatasetRemote) else self.icon)
 		item.setToolTip("file: " +dataset.filename)
 		item.setData(QtCore.Qt.UserRole, dataset)
 		self.setCurrentItem(item)
@@ -741,7 +745,7 @@ class MainPanel(QtGui.QFrame):
 		if self.dataset is not None:
 			dialog = vp.SequencePlot(self, self.jobsManager, self.dataset)
 			dialog.show()
-			self.jobsManager.execute()
+			self.dataset.executor.execute()
 
 	def onOpenScatter2dSeries(self):
 		if self.dataset is not None:
@@ -758,7 +762,8 @@ class MainPanel(QtGui.QFrame):
 		dialog.add_layer([xname, yname], self.dataset, **kwargs)
 		dialog.show()
 		self.plot_dialogs.append(dialog)
-		self.jobsManager.execute()
+		#self.dataset.executor.execute()
+		self.dataset.executor.execute()
 		self.signal_open_plot.emit(dialog)
 		return dialog
 
@@ -767,14 +772,15 @@ class MainPanel(QtGui.QFrame):
 		dialog.add_layer([xname, yname, zname], **kwargs)
 		dialog.show()
 		self.plot_dialogs.append(dialog)
-		self.jobsManager.execute()
+		#self.dataset.executor.execute()
+		self.dataset.executor.execute()
 		self.signal_open_plot.emit(dialog)
 		return dialog
 
 	def plotmatrix(self, *expressions):
 		dialog = vp.ScatterPlotMatrixDialog(self, self.jobsManager, self.dataset, expressions)
 		dialog.show()
-		self.jobsManager.execute()
+		self.dataset.executor.execute()
 		return dialog
 
 	def plotxyz_old(self, xname, yname, zname):
@@ -786,7 +792,9 @@ class MainPanel(QtGui.QFrame):
 		dialog.add_layer([xname], **kwargs)
 		dialog.show()
 		self.plot_dialogs.append(dialog)
-		self.jobsManager.execute()
+		#self.dataset.executor.execute()
+		print "executor..."
+		self.dataset.executor.execute()
 		self.signal_open_plot.emit(dialog)
 		return dialog
 
@@ -802,9 +810,10 @@ class MainPanel(QtGui.QFrame):
 		index = self.fractionSlider.value()
 		fraction = possibleFractions[index]
 		if self.dataset:
-			self.dataset.setFraction(fraction)
+			self.dataset.set_fraction(fraction)
 			self.numberLabel.setText("{:,}".format(len(self.dataset)))
-			self.jobsManager.execute()
+			#self.dataset.executor.execute()
+			self.dataset.executor.execute()
 
 	def onValueChanged(self, index):
 		fraction = possibleFractions[index]
@@ -879,7 +888,7 @@ class MainPanel(QtGui.QFrame):
 		if self.dataset is not None:
 			dialog = vp.Rank1ScatterPlotDialog(self, self.jobsManager, self.dataset, xname+"[index]", yname+"[index]")
 			self.plot_dialogs.append(dialog)
-			self.jobsManager.execute()
+			self.dataset.executor.execute()
 			dialog.show()
 
 	def tableview(self):
@@ -1022,6 +1031,7 @@ class Vaex(QtGui.QMainWindow):
 
 	signal_samp_notification = QtCore.pyqtSignal(str, str, str, dict, dict)
 	signal_samp_call = QtCore.pyqtSignal(str, str, str, str, dict, dict)
+
 
 	def __init__(self, argv):
 		super(Vaex, self).__init__()
@@ -1276,7 +1286,21 @@ class Vaex(QtGui.QMainWindow):
 			kernel.shell.push({"layer":plot_dialog.current_layer})
 		self.right.signal_open_plot.connect(on_open_plot)
 
+		self.signal_promise.connect(self.on_signal_promise)
 		self.parse_args(argv)
+
+
+	signal_promise = QtCore.pyqtSignal(object, object)
+	#signal_promise = QtCore.pyqtSignal(str)
+	def send_to_main_thread(self, promise, value):
+		print "send promise to main thread using signal", threading.currentThread()
+		self.signal_promise.emit(promise, value)
+		#self.signal_promise.emit("blaat")
+
+	def on_signal_promise(self, promise, value):
+		print "got promise, and should send it value", value, threading.currentThread()
+		promise.fulfill(value)
+
 
 	def parse_args(self, args):
 		#args = sys.argv[1:]
@@ -1298,7 +1322,7 @@ class Vaex(QtGui.QMainWindow):
 				assert o.scheme == "http"
 				print o.username, o.password
 				print o.hostname
-				server = vaex.server(hostname=o.hostname, port = o.port or 80)
+				server = vaex.server(hostname=o.hostname, port = o.port or 80, thread_mover=self.send_to_main_thread)
 				if o.path in ["", "/"]:
 					print "load all from server"
 					kwargs = dict()
@@ -1553,7 +1577,7 @@ class Vaex(QtGui.QMainWindow):
 					print column_name, column.shape, column.strides
 					#array = h5file_output.require_dataset("/data/%s" % column_name, shape=column.shape, dtype=column.dtype)
 					print column_name, column.dtype, column.dtype.type
-					array = h5file_output.require_dataset("/data/%s" % column_name, shape=(N,), dtype=column.dtype.newbyteorder(endian_option))
+					array = h5file_output.require_dataset("/data/%s" % column_name, shape=column.shape, dtype=column.dtype.newbyteorder(endian_option))
 					array[0] = array[0] # make sure the array really exists
 				if shuffle:
 					shuffle_array = h5file_output.require_dataset("/data/random_index", shape=(N,), dtype=endian_option+"i8")
@@ -1990,7 +2014,8 @@ def main(argv=sys.argv[1:]):
 	kernel_manager.start_kernel()
 	kernel = kernel_manager.kernel
 	kernel.gui = 'qt4'
-	kernel.shell.push({'foo': 43, 'print_process_id': print_process_id})
+	vaex_window = Vaex(argv)
+	kernel.shell.push({'foo': 43, 'print_process_id': print_process_id, "window":vaex_window})
 
 	kernel_client = kernel_manager.client()
 	kernel_client.start_channels()
@@ -2005,7 +2030,6 @@ def main(argv=sys.argv[1:]):
 	control.kernel_client = kernel_client
 	control.exit_requested.connect(stop)
 	control.show()
-	vaex = Vaex(argv)
 
 	sys.exit(guisupport.start_event_loop_qt4(app))
 

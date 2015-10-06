@@ -22,7 +22,7 @@ import collections
 lock = threading.Lock()
 
 import vaex.logging
-logger = vaex.logging.getLogger("vaex")
+logger = vaex.logging.getLogger("vaex.execution")
 
 thread_count_default = multiprocessing.cpu_count()
 
@@ -50,7 +50,8 @@ class Executor(object):
 		self.task_queue = []
 
 	def schedule(self, task):
-		self.thread_pool.append(task)
+		self.task_queue.append(task)
+		return task
 
 	def run(self, task):
 		assert task.dataset == self.dataset
@@ -64,6 +65,8 @@ class Executor(object):
 
 	def execute(self):
 		# u 'column' is uniquely identified by a tuple of (dataset, expression)
+		t0 = time.time()
+		logger.info("executing queue: %r" % (self.task_queue))
 		columns = list(set(Column(task.dataset, expression) for task in self.task_queue for expression in task.expressions))
 		expressions = list(set(expression for task in self.task_queue for expression in task.expressions))
 		columns_copy = [column for column in columns if column.needs_copy()]
@@ -74,6 +77,7 @@ class Executor(object):
 
 		for task in self.task_queue:
 			task._results = []
+			print "task", task, task._results
 		def process(thread_index, i1, i2):
 			#print "process", thread_index, i1, i2
 			size = i2-i1 # size may be smaller for the last step
@@ -100,9 +104,17 @@ class Executor(object):
 		#print self.thread_pool.map()
 		for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size)):
 			pass # just eat all element
-		for task in self.task_queue:
+		logger.debug("executing took %r seconds" % (time.time() - t0))
+		# while processing the self.task_queue, new elements will be added to it, so copy it
+		task_queue = list(self.task_queue)
+		self.task_queue = []
+		for task in list(task_queue):
 			task._result = task.reduce(task._results)
 			task.fulfill(task._result)
+		# if new tasks were added as a result of this, execute them immediately
+		# TODO: we may want to include infinite recursion protection
+		if len(self.task_queue) > 0:
+			self.execute()
 
 		#for
 		#buffers = {column:[] for column in columns if column.needs_copy()}

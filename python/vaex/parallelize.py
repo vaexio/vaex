@@ -65,11 +65,11 @@ class Watchdog(threading.Thread):
 				print execution.isAlive(), execution.error
 		
 
-import gavi.progressbar
+import vaex.misc.progressbar
 class InfoThreadProgressBar(InfoThread):
 	def __init__(self, fullsize, executions):
 		InfoThread.__init__(self, fullsize, executions)
-		self.bar = gavi.progressbar.ProgressBar(0, fullsize)
+		self.bar = vaex.misc.progressbar.ProgressBar(0, fullsize)
 		
 	def run(self):
 		done = False

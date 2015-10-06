@@ -1,8 +1,8 @@
-import gavi.logging
+import vaex.logging
 import numpy as np
 import copy
 
-logger = gavi.logging.getLogger("gavi.undo")
+logger = vaex.logging.getLogger("vaex.ui.undo")
 
 class UndoManager(object):
 	def __init__(self, max_bytes=1024**3):

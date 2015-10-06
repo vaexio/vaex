@@ -174,10 +174,10 @@ class AnimationPlugin(vaex.ui.plugin.PluginLayer):
 
 		self.box_sequence = QtGui.QComboBox(self.group_box_sequence)
 		self.box_sequence.addItems([str(k) for k in range(self.no_snapshots)])
-		self.box_sequence.setCurrentIndex(self.dataset.selected_serie_index)
+		self.box_sequence.setCurrentIndex(self.dataset.current_sequence_index())
 		self.box_sequence.setEnabled(has_snapshots)
 		def on_sequence_change(index):
-			if index != self.dataset.selected_serie_index:
+			if index != self.dataset.current_sequence_index():
 				self.dataset.selectSerieIndex(index)
 				for layer in self.layer.plot_window.layers:
 					if layer.dataset != self.dataset:

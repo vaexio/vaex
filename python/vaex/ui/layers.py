@@ -1,7 +1,7 @@
 import collections
 import operator
 import vaex.vaexfast
-
+import threading
 import matplotlib
 import numpy as np
 import scipy.ndimage
@@ -23,7 +23,7 @@ import functools
 import time
 from vaex.ui.qt import *
 
-logger = vaex.logging.getLogger("vaex")
+logger = vaex.logging.getLogger("vaex.ui.layer")
 
 storage_expressions = vaex.ui.storage.Storage("expressions")
 
@@ -140,9 +140,12 @@ class LinkButton(QtGui.QToolButton):
 		dropAction = drag.start(QtCore.Qt.MoveAction)
 
 
-
+import vaex.dataset
 class LayerTable(object):
 	def __init__(self, plot_window, name, dataset, expressions, axis_names, options, jobs_manager, thread_pool, figure, canvas, ranges_grid=None):
+		"""
+		:type dataset: dataset.Dataset
+		"""
 		self.plot_window = plot_window
 		self.name = name
 		self.dataset = dataset
@@ -160,6 +163,7 @@ class LayerTable(object):
 		self.figure = figure
 		self.canvas = canvas
 		self.widget_build = False
+
 
 		self.widget = None # each layer has a widget, atm only a qt widget is implemented
 
@@ -215,9 +219,13 @@ class LayerTable(object):
 		if self.ranges_grid is None:
 			self.submit_job_minmax()
 
-		self.dataset.mask_listeners.append(self.onSelectMask)
-		self.dataset.row_selection_listeners.append(self.onSelectRow)
-		self.dataset.serie_index_selection_listeners.append(self.onSerieIndexSelect)
+		#self.dataset.mask_listeners.append(self.onSelectMask)
+		self.dataset.signal_selection_changed.connect(self.on_selection_changed)
+		#self.dataset.signal_selection_changed.
+		#self.dataset.row_selection_listeners.append(self.onSelectRow)
+		self.dataset.signal_pick.connect(self.on_pick)
+		self.dataset.signal_sequence_index_change.connect(self.on_sequence_changed)
+		#self.dataset.serie_index_selection_listeners.append(self.onSerieIndexSelect)
 		self.plot_density = self.plot_density_imshow
 		self.signal_expression_change = vaex.events.Signal("expression_change")
 		self.signal_plot_dirty = vaex.events.Signal("plot_dirty")
@@ -289,15 +297,21 @@ class LayerTable(object):
 
 
 	def removed(self):
-		self.dataset.mask_listeners.remove(self.onSelectMask)
-		self.dataset.row_selection_listeners.remove(self.onSelectRow)
-		self.dataset.serie_index_selection_listeners.remove(self.onSerieIndexSelect)
+		#self.dataset.mask_listeners.remove(self.onSelectMask)
+		self.dataset.signal_selection_changed.disconnect(self.on_selection_changed)
+		self.dataset.signal_pick.disconnect(self.on_pick)
+		self.dataset.signal_sequence_index_change.disconnect(self.on_sequence_changed)
+		#self.dataset.row_selection_listeners.remove(self.onSelectRow)
+		#self.dataset.serie_index_selection_listeners.remove(self.onSerieIndexSelect)
 		for plugin in self.plugins:
 			plugin.clean_up()
 
 
 
 	def create_grid_map(self, gridsize, use_selection):
+		return {"counts":self.temp_grid, "weighted":None, "weightx":None, "weighty":None, "weightz":None}
+
+	def create_grid_map_(self, gridsize, use_selection):
 		locals = {}
 		for name in self.grids.grids.keys():
 			grid = self.grids.grids[name]
@@ -360,6 +374,7 @@ class LayerTable(object):
 		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
 
 	def plot(self, axes_list, stack_image):
+		logger.debug("begin plot")
 		#print "stack trace", ''.join(traceback.format_stack())
 		grid_map = self.create_grid_map(self.plot_window.grid_size, False)
 		try:
@@ -368,8 +383,9 @@ class LayerTable(object):
 			logger.exception("amplitude field")
 			self.error_in_field(self.amplitude_box, "amplitude", e)
 			return
+		logger.debug("begin plot 2")
 		self.amplitude_selection = amplitude_selection = None
-		use_selection = self.dataset.mask is not None
+		use_selection = False # TODO: fix self.dataset.mask is not None
 		if use_selection:
 			grid_map_selection = self.create_grid_map(self.plot_window.grid_size, True)
 			self.amplitude_selection = amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
@@ -379,6 +395,7 @@ class LayerTable(object):
 			callback(axes, grid_map, grid_map_vector)
 
 		#return
+		logger.debug("begin plot 3")
 
 		locals = {}
 		for name in self.grids.grids.keys():
@@ -389,7 +406,7 @@ class LayerTable(object):
 			else:
 				locals[name] = None
 
-		index = self.dataset.selected_row_index
+		index = self.dataset.current_row()
 		if index is not None and self.coordinates_picked_row is None:
 			logger.debug("point selected but after computation")
 			# TODO: optimize
@@ -398,7 +415,7 @@ class LayerTable(object):
 					self.coordinates_picked_row = [block[index-info.i1] for block in blocks]
 			self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
 
-
+		logger.debug("begin plot 4")
 		if self.dimensions == 1:
 			mask = ~(np.isnan(amplitude) | np.isinf(amplitude))
 			if np.sum(mask) == 0:
@@ -626,18 +643,18 @@ class LayerTable(object):
 				axes.rgb_images.append(to_rgb(I, color=self.color_alt))
 
 
-	def onSelectMask(self, mask):
+	def on_selection_changed(self, dataset):
 		self.check_selection_undo_redo()
 		self.add_jobs()
 		self.label_selection_info_update()
 		#self.plot()
 
-	def onSelectRow(self, row):
+	def on_pick(self, row):
 		self.coordinates_picked_row = None
 		#self.plot()
 		self.signal_plot_dirty.emit(self)
 
-	def onSerieIndexSelect(self, sequence_index):
+	def on_sequence_changed(self, sequence_index):
 		if sequence_index != self.sequence_index: # avoid unneeded event
 			self.sequence_index = sequence_index
 			#self.seriesbox.setCurrentIndex(self.sequence_index)
@@ -720,7 +737,45 @@ class LayerTable(object):
 	def message(self, *args, **kwargs):
 		pass
 
+	def on_error(self, exception):
+		print "exception", exception
+		import traceback
+		traceback.print_exc()
+
 	def add_jobs(self):
+		print "thread", threading.currentThread()
+		missing = False
+		for range in self.ranges_grid:
+			if range is None:
+				missing = True
+			else:
+				vmin, vmax = range
+				if vmin is None or vmax is None:
+					missing = True
+		self.subspace = self.dataset(*self.expressions, async=True)
+		if missing:
+			self.subspace.minmax().then(self.got_limits, self.on_error).then(None, self.on_error)
+		else:
+			self.got_limits(self.ranges_grid)
+
+	def got_limits(self, limits):
+		print "got limits", limits
+		print "thread", threading.currentThread()
+		self.ranges_grid = limits
+		self.subspace.histogram(limits=np.array(self.ranges_grid), size=self.plot_window.grid_size).then(self.got_grid).then(None, self.on_error)
+
+
+	def got_grid(self, grid):
+		print "got grid", grid
+		print "thread", threading.currentThread()
+		#self.grid_counts = grids
+		self.temp_grid = grid
+		self.amplitude_grid = grid
+		self.plot_window.queue_replot()
+
+
+
+	def add_jobs_(self):
 		#import traceback
 		#print "updating compute counter", ''.join(traceback.format_stack())
 		compute_counter = self.compute_counter = self.compute_counter + 1
@@ -904,7 +959,7 @@ class LayerTable(object):
 		self.execute()
 		#self.signal_expression_change.emit(self, axisIndex, text)
 		#self.compute()
-		#error_text = self.jobsManager.execute()
+		#error_text = self.dataset.executor.execute()
 		#if error_text:
 		#	dialog_error(self, "Error in expression", "Error: " +error_text)
 
@@ -1418,6 +1473,8 @@ class LayerTable(object):
 
 
 	def label_selection_info_update(self):
+		# TODO: support this again
+		return
 		if self.dataset.mask is None:
 			self.label_selection_info.setText("no selection")
 		else:

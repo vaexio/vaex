@@ -2,6 +2,11 @@
 
 class Signal(object):
 	def __init__(self, name=None):
+		"""
+
+		:type name: str
+		:return:
+		"""
 		self.name = name or repr(self)
 		self.callbacks = []
 		self.extra_args = {}
