@@ -18,8 +18,8 @@ __clean_name__ =  __program_name__ + "-" + __clean_release__
 import vaex.dataset
 #import vaex.plot
 
-def open(path):
-	return vaex.dataset.load_file(path)
+def open(path, *args, **kwargs):
+	return vaex.dataset.load_file(path, *args, **kwargs)
 
 def server(hostname, **kwargs):
 	return vaex.dataset.ServerRest(hostname, **kwargs)
