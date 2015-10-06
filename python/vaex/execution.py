@@ -77,7 +77,7 @@ class Executor(object):
 
 		for task in self.task_queue:
 			task._results = []
-			print "task", task, task._results
+			#print "task", task, task._results
 		def process(thread_index, i1, i2):
 			#print "process", thread_index, i1, i2
 			size = i2-i1 # size may be smaller for the last step

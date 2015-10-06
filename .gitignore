@@ -42,7 +42,7 @@ build/
 doc
 docs/build
 meeting
-misc
+#misc
 .DS_Store
 .ipynb_checkpoints
 app

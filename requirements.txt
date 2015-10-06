@@ -10,5 +10,6 @@ psutil>=1.2.1
 pyjavaproperties
 flask
 flask-compress>=1.2.1
+aplus
 # PySide>=1.2.2
 # numba (remove this dependency)
