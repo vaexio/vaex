@@ -7,10 +7,10 @@ from logging import getLogger
 
 #logging.basicConfig(level=logging.ERROR)
 logging.basicConfig(level=logging.ERROR)
-logging.basicConfig(level=logging.DEBUG, filename="vaex.logging.txt")
+#logging.basicConfig(level=logging.DEBUG, filename="vaex.logging.txt")
 #print "das" * 1000
 rootlogger = logging.getLogger('vaex')
-rootlogger.setLevel(logging.DEBUG)
+rootlogger.setLevel(logging.ERROR)
 
 LEVELS = {'debug': logging.DEBUG,
           'info': logging.INFO,

@@ -18,7 +18,7 @@ __clean_name__ =  __program_name__ + "-" + __clean_release__
 import vaex.dataset
 #import vaex.plot
 
-def open(path):
+def open(path, **kwargs):
 	return vaex.dataset.load_file(path)
 
 def server(hostname, **kwargs):

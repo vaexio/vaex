@@ -84,6 +84,7 @@ Contents:
    reference
    tipsandfaq
    examples
+   notebook_examples
    credits
 	
 

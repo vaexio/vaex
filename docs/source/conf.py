@@ -60,11 +60,12 @@ copyright = u'2014, Maarten A. Breddels'
 # built documents.
 #
 try:
-	import vaex.ui
+#if 1:
+	import vaex
 	# The short X.Y version.
-	version = vaex.ui.version
+	version = vaex.version
 	# The full version, including alpha/beta/rc tags.
-	release = vaex.ui.version
+	release = vaex.version
 except:
 	print "failed finding vaex module, try finding version"
 	import sys
@@ -167,7 +168,7 @@ html_static_path = ['nstatic']
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied
 # directly to the root of the documentation.
-#html_extra_path = []
+html_extra_path = ["example_movie.html", "example_start.html", "../../examples/example_start.ipynb", "../../examples/example_movie.ipynb"]
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
