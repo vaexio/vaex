@@ -149,8 +149,9 @@ class TaskMapReduce(Task):
 
 
 class TaskHistogram(Task):
-	def __init__(self, dataset, expressions, size, limits, masked=False):
+	def __init__(self, dataset, subspace, expressions, size, limits, masked=False):
 		Task.__init__(self, dataset, expressions)
+		self.subspace = subspace
 		self.dtype = np.float64
 		self.size = size
 		self.limits = limits
@@ -183,6 +184,7 @@ class TaskHistogram(Task):
 		subblock_weight = None
 		#print subblocks[0]
 		#print subblocks[1]
+		blocks = self.subspace._transform(*blocks)
 		if self.dimension == 1:
 			vaex.vaexfast.histogram1d(blocks[0], subblock_weight, data, *self.ranges_flat)
 		elif self.dimension == 2:
@@ -199,8 +201,46 @@ class TaskHistogram(Task):
 		return self.data[0]
 		#return self.data
 
+
+class SubspaceGridded(object):
+	def __init__(self, subspace_bounded, grid):
+		self.subspace_bounded = subspace_bounded
+		self.grid = grid
+
+	def plot(self, axes=None, **kwargs):
+		self.subspace_bounded.subspace.plot(self.grid, self.subspace_bounded.bounds, axes=axes, **kwargs)
+
+	def _repr_png_(self):
+		from matplotlib import pylab
+		fig, ax = pylab.subplots()
+		self.plot(axes=ax, f=np.log1p)
+		ax.title.set_text("$\log(1+counts)$")
+		ax.set_xlabel(self.subspace_bounded.subspace.expressions[0])
+		ax.set_ylabel(self.subspace_bounded.subspace.expressions[1])
+		#pylab.savefig
+		from cStringIO import StringIO
+		file_object = StringIO()
+		fig.canvas.print_png(file_object)
+		return file_object.getvalue()
+
+class SubspaceBounded(object):
+	def __init__(self, subspace, bounds):
+		self.subspace = subspace
+		self.bounds = bounds
+
+	def histogram(self, size=256):
+		return self.subspace.histogram(limits=self.bounds, size=size)
+
+	def gridded(self, size=256):
+		return self.gridded_by_histogram(size=size)
+
+	def gridded_by_histogram(self, size=256):
+		grid = self.histogram(size=size)
+		return SubspaceGridded(self, grid)
+
+
 class Subspace(object):
-	def plot(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
+	def plot(self, grid=None, limits=None, center=None, f=lambda x: x, axes=None, **kwargs):
 		import pylab
 		if limits is None:
 			limits = self.limits_sigma()
@@ -208,24 +248,73 @@ class Subspace(object):
 			limits = np.array(limits) - np.array(center).reshape(2,1)
 		if grid is None:
 			grid = self.histogram(limits=limits)
-		pylab.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
+		if axes is None:
+			axes = pylab.gca()
+		axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
 
 	def figlarge(self):
 		import pylab
 		pylab.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
 
+	def bounded(self):
+		return self.bounded_by_minmax()
+
+	def bounded_by_minmax(self):
+		bounds = self.minmax()
+		return SubspaceBounded(self, bounds)
+
+	def bounded_by_sigmas(self, sigmas=3, square=False):
+		bounds = self.limits_sigma(sigmas=sigmas, square=square)
+		return SubspaceBounded(self, bounds)
+
+class Transformation(object):
+	def __init__(self, dim_from, dim_to):
+		self.dim_from = dim_from
+		self.dim_to = dim_to
+
+
+	def __call__(self, *args, **kwargs):
+		raise NotImplemented
+
+class SphericalTransformation(Transformation):
+	def __init__(self, degrees=True):
+		self.degrees = degrees
+
+	def __call__(self, *args):
+		assert len(args) == 3, "spherical transformation expects 3 dimensions"
+		ra, dec, distance = args
+		if self.degrees:
+			ra, dec = np.deg2rad(ra),  np.deg2rad(dec)
+		x = np.sin(ra) * np.cos(dec) * distance
+		y = np.cos(ra) * np.cos(dec) * distance
+		z = np.cos(dec) * distance
+		return x, y, z
+
+transformations = collections.OrderedDict()
+transformations["deg_to_xyz"] = SphericalTransformation(True)
+transformations["rad_to_xyz"] = SphericalTransformation(False)
 
 class SubspaceLocal(Subspace):
-	def __init__(self, dataset, expressions, executor, async, masked=False):
+	def __init__(self, dataset, expressions, executor, async, transformation=None, masked=False):
 		self.dataset = dataset
 		self.expressions = expressions
 		#self.columns = map(dataset.columns, self.expressions)
 		self.executor = executor
 		self.async = async
 		self.is_masked = masked
+		self.transformation = transformation
+
+	def transform(self, name):
+		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, transformation=name, async=self.async, masked=self.is_masked)
+
+	def _transform(self, *blocks):
+		if self.transformation:
+			transform_function = transformations[self.transformation]
+			blocks = transform_function(*blocks)
+		return blocks
 
 	def selected(self):
-		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, immediate=self.async, masked=True)
+		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, transformation=self.transformation, async=self.async, masked=True)
 
 	def toarray(self, list):
 		return np.array(list)
@@ -260,6 +349,7 @@ class SubspaceLocal(Subspace):
 				result.append((min(min1, min2), max(max1, max2)))
 			return result
 		def min_max_map(*blocks):
+			blocks = self._transform(*blocks)
 			return [vaex.vaexfast.find_nan_min_max(block) for block in blocks]
 		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self.toarray)
 		return self._task(task)
@@ -310,7 +400,7 @@ class SubspaceLocal(Subspace):
 		return self._task(task)
 
 	def histogram(self, limits, size=256):
-		task = TaskHistogram(self.dataset, self.expressions, size, limits, masked=self.is_masked)
+		task = TaskHistogram(self.dataset, self, self.expressions, size, limits, masked=self.is_masked)
 		return self._task(task)
 
 	def limits_sigma(self, sigmas=3, square=False):
@@ -323,7 +413,10 @@ class SubspaceLocal(Subspace):
 
 
 
+
+
 import vaex.events
+import cgi
 
 class Dataset(object):
 	"""
@@ -338,6 +431,15 @@ class Dataset(object):
 		self.signal_selection_changed = vaex.events.Signal("selection changed")
 		self.undo_manager = vaex.ui.undo.UndoManager()
 		self.variables = {}
+
+	def __todo_repr_html_(self):
+		html = """<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))
+		html += """<table>"""
+		for column_name in self.get_column_names():
+			html += "<tr><td>%s</td><td>type unknown</td></tr>" % (column_name)
+		html += "</table>"
+		return html
+
 
 	def current_sequence_index(self):
 		return 0
