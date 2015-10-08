@@ -194,8 +194,8 @@ class TaskHistogram(Task):
 		#return map(self._map, blocks)#[self.map(block) for block in blocks]
 
 	def reduce(self, results):
-		#for i in range(1, self.dataset.executor.thread_pool.nthreads):
-		#	self.data[0] += self.data[i]
+		for i in range(1, self.dataset.executor.thread_pool.nthreads):
+			self.data[0] += self.data[i]
 		return self.data[0]
 		#return self.data
 
@@ -1410,8 +1410,8 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 				particleType = index 
 				particleName = particleNames[particleType]
 				path = filename
-			except:
-				logger.info("cannot open %s as %r" % (path, cls))
+			except Exception, e:
+				logger.info("cannot open %s as %r (%r)" % (path, cls, e))
 				return False
 		h5file = None
 		try:
