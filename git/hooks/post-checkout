@@ -1,3 +1,3 @@
 #!/bin/bash
 version=`git describe --tags --long`
-python/vaex/vaex/setversion.py ${version}
+python/vaex/setversion.py ${version}

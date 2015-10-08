@@ -415,9 +415,11 @@ class SubspaceLocal(Subspace):
 	def sum(self):
 		if self.is_masked:
 			mask = self.dataset.mask
-			task = TaskMapReduce(self.dataset, self.expressions, lambda thread_index, i1, i2, *blocks: [np.nansum(block[mask[i1:i2]]) for block in blocks], lambda a, b: np.array(a) + np.array(b), self.toarray, info=True)
+			task = TaskMapReduce(self.dataset,\
+								 self.expressions, lambda thread_index, i1, i2, *blocks: [np.nansum(block[mask[i1:i2]], dtype=np.float64) for block in blocks],\
+								 lambda a, b: np.array(a) + np.array(b), self.toarray, info=True)
 		else:
-			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self.toarray)
+			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nansum(block, dtype=np.float64) for block in blocks], lambda a, b: np.array(a) + np.array(b), self.toarray)
 		return self._task(task)
 
 	def histogram(self, limits, size=256):
@@ -492,7 +494,7 @@ class Dataset(object):
 		expr = self(expression)
 		task = TaskMapReduce(self, [expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
 		def apply_mask(*args):
-			print "Setting mask"
+			#print "Setting mask"
 			self.set_mask(mask)
 		task.then(apply_mask)
 		return expr._task(task)
@@ -515,6 +517,11 @@ class DatasetLocal(Dataset):
 		self.variables["pi"] = np.pi
 		self.variables["e"] = np.e
 		self.virtual_columns = collections.OrderedDict()
+		self.mask = None
+
+	def set_mask(self, mask):
+		self.mask = mask
+		self.signal_selection_changed.emit(self)
 
 	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname, yname, zname, radians=True):
 		if not radians:
@@ -712,11 +719,7 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.fileno_map[filename] = self.file_map[filename].fileno()
 		self.mapping_map[filename] = mmap.mmap(self.fileno_map[filename], 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
 
-	def set_mask(self, mask):
-		self.mask = mask
-		self.signal_selection_changed.emit(self)
 
-		
 	def selectRow(self, index):
 		self.selected_row_index = index
 		logger.debug("emit pick signal: %r" % index)
