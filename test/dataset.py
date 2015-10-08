@@ -57,11 +57,16 @@ class TestDataset(unittest.TestCase):
 		dataset.add_column("distance", distance)
 
 		dataset.add_virtual_columns_equatorial_to_galactic("alpha", "delta", "distance", "x", "y", "z", radians=False)
+		dataset.add_virtual_column("r", "sqrt(x**2+y**2+z**2)")
 
 		subspace = dataset("x", "y", "z")
 		x, y, z = subspace.sum()
 
 		self.assertAlmostEqual(x**2+y**2+z**2, 1)
+
+		subspace = dataset("r")
+		r, = subspace.sum()
+		self.assertAlmostEqual(r, 1)
 
 	def test_sum(self):
 		x, y = self.datasetxy("x", "y").sum()
