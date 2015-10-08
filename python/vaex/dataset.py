@@ -149,8 +149,9 @@ class TaskMapReduce(Task):
 
 
 class TaskHistogram(Task):
-	def __init__(self, dataset, expressions, size, limits, masked=False):
+	def __init__(self, dataset, subspace, expressions, size, limits, masked=False):
 		Task.__init__(self, dataset, expressions)
+		self.subspace = subspace
 		self.dtype = np.float64
 		self.size = size
 		self.limits = limits
@@ -183,6 +184,7 @@ class TaskHistogram(Task):
 		subblock_weight = None
 		#print subblocks[0]
 		#print subblocks[1]
+
 		if self.dimension == 1:
 			vaex.vaexfast.histogram1d(blocks[0], subblock_weight, data, *self.ranges_flat)
 		elif self.dimension == 2:
@@ -199,8 +201,101 @@ class TaskHistogram(Task):
 		return self.data[0]
 		#return self.data
 
+import scipy.ndimage.filters
+
+class SubspaceGridded(object):
+	def __init__(self, subspace_bounded, grid):
+		self.subspace_bounded = subspace_bounded
+		self.grid = grid
+
+
+	def filter_gaussian(self, sigmas=1):
+		return SubspaceGridded(self.subspace_bounded, scipy.ndimage.filters.gaussian_filter(self.grid, sigmas))
+
+	def volr(self,  **kwargs):
+		import vaex.notebook
+		return vaex.notebook.volr(self, **kwargs)
+
+	def plot(self, axes=None, **kwargs):
+		self.subspace_bounded.subspace.plot(self.grid, self.subspace_bounded.bounds, axes=axes, **kwargs)
+
+	def _repr_png_(self):
+		from matplotlib import pylab
+		fig, ax = pylab.subplots()
+		self.plot(axes=ax, f=np.log1p)
+		ax.title.set_text("$\log(1+counts)$")
+		ax.set_xlabel(self.subspace_bounded.subspace.expressions[0])
+		ax.set_ylabel(self.subspace_bounded.subspace.expressions[1])
+		#pylab.savefig
+		from cStringIO import StringIO
+		file_object = StringIO()
+		fig.canvas.print_png(file_object)
+		pylab.close(fig)
+		return file_object.getvalue()
+
+	def cube_png(self, f=np.log1p, colormap="afmhot", file="cube.png"):
+		if self.grid.shape != ((128,) *3):
+			logger.error("only 128**3 cubes are supported")
+			return None
+		colormap_name = "afmhot"
+		import matplotlib.cm
+		colormap = matplotlib.cm.get_cmap(colormap_name)
+		mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
+		#pixmap = QtGui.QPixmap(32*2, 32)
+		data = np.zeros((128*8, 128*16, 4), dtype=np.uint8)
+
+		#mi, ma = 1*10**self.mod1, self.data3d.max()*10**self.mod2
+		grid = f(self.grid)
+		vmin, vmax = grid.min(), grid.max()
+		grid_normalized = (grid-vmin) / (vmax-vmin)
+		#intensity_normalized = (np.log(self.data3d + 1.) - np.log(mi)) / (np.log(ma) - np.log(mi));
+		import PIL.Image
+		for y2d in range(8):
+			for x2d in range(16):
+				zindex = x2d + y2d*16
+				I = grid_normalized[zindex]
+				rgba = mapping.to_rgba(I,bytes=True) #.reshape(Nx, 4)
+				#print rgba.shape
+				subdata = data[y2d*128:(y2d+1)*128, x2d*128:(x2d+1)*128]
+				for i in range(3):
+					subdata[:,:,i] = rgba[:,:,i]
+				subdata[:,:,3] = (grid_normalized[zindex]*255).astype(np.uint8)# * 0 + 255
+				if 0:
+					filename = "cube%03d.png" % zindex
+					img = PIL.Image.frombuffer("RGB", (128, 128), subdata[:,:,0:3] * 1)
+					print "saving to", filename
+					img.save(filename)
+		img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data, 'raw', "RGBA", 0, -1)
+		#filename = "cube.png"
+		#print "saving to", file
+		img.save(file, "png")
+
+		if 0:
+			filename = "colormap.png"
+			print "saving to", filename
+			height, width = self.colormap_data.shape[:2]
+			img = PIL.Image.frombuffer("RGB", (width, height), self.colormap_data)
+			img.save(filename)
+
+
+class SubspaceBounded(object):
+	def __init__(self, subspace, bounds):
+		self.subspace = subspace
+		self.bounds = bounds
+
+	def histogram(self, size=256):
+		return self.subspace.histogram(limits=self.bounds, size=size)
+
+	def gridded(self, size=256):
+		return self.gridded_by_histogram(size=size)
+
+	def gridded_by_histogram(self, size=256):
+		grid = self.histogram(size=size)
+		return SubspaceGridded(self, grid)
+
+
 class Subspace(object):
-	def plot(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
+	def plot(self, grid=None, limits=None, center=None, f=lambda x: x, axes=None, **kwargs):
 		import pylab
 		if limits is None:
 			limits = self.limits_sigma()
@@ -208,11 +303,27 @@ class Subspace(object):
 			limits = np.array(limits) - np.array(center).reshape(2,1)
 		if grid is None:
 			grid = self.histogram(limits=limits)
-		pylab.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
+		if axes is None:
+			axes = pylab.gca()
+		axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
 
 	def figlarge(self):
 		import pylab
 		pylab.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
+
+	def bounded(self):
+		return self.bounded_by_minmax()
+
+	def bounded_by(self, *limits):
+		return SubspaceBounded(self, np.array(limits))
+
+	def bounded_by_minmax(self):
+		bounds = self.minmax()
+		return SubspaceBounded(self, bounds)
+
+	def bounded_by_sigmas(self, sigmas=3, square=False):
+		bounds = self.limits_sigma(sigmas=sigmas, square=square)
+		return SubspaceBounded(self, bounds)
 
 
 class SubspaceLocal(Subspace):
@@ -225,7 +336,7 @@ class SubspaceLocal(Subspace):
 		self.is_masked = masked
 
 	def selected(self):
-		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, immediate=self.async, masked=True)
+		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
 	def toarray(self, list):
 		return np.array(list)
@@ -286,7 +397,7 @@ class SubspaceLocal(Subspace):
 			return vars
 		if self.is_masked:
 			mask = self.dataset.mask
-			def var_map(*blocks):
+			def var_map(thread_index, i1, i2, *blocks):
 				if means is not None:
 					return [np.nanmean((block[mask[i1:i2]]-mean)**2) for block, mean in zip(blocks, means)]
 				else:
@@ -310,7 +421,7 @@ class SubspaceLocal(Subspace):
 		return self._task(task)
 
 	def histogram(self, limits, size=256):
-		task = TaskHistogram(self.dataset, self.expressions, size, limits, masked=self.is_masked)
+		task = TaskHistogram(self.dataset, self, self.expressions, size, limits, masked=self.is_masked)
 		return self._task(task)
 
 	def limits_sigma(self, sigmas=3, square=False):
@@ -323,7 +434,10 @@ class SubspaceLocal(Subspace):
 
 
 
+
+
 import vaex.events
+import cgi
 
 class Dataset(object):
 	"""
@@ -338,6 +452,18 @@ class Dataset(object):
 		self.signal_selection_changed = vaex.events.Signal("selection changed")
 		self.undo_manager = vaex.ui.undo.UndoManager()
 		self.variables = {}
+
+	def add_virtual_columns_spherical_to_cartesian(self, *args):
+		raise NotImplementedError
+
+	def __todo_repr_html_(self):
+		html = """<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))
+		html += """<table>"""
+		for column_name in self.get_column_names():
+			html += "<tr><td>%s</td><td>type unknown</td></tr>" % (column_name)
+		html += "</table>"
+		return html
+
 
 	def current_sequence_index(self):
 		return 0
@@ -385,7 +511,44 @@ class DatasetLocal(Dataset):
 		self.is_local = True
 		super(DatasetLocal, self).__init__(name, column_names)
 		self.path = path
+		self.variables = collections.OrderedDict()
+		self.variables["pi"] = np.pi
+		self.variables["e"] = np.e
+		self.virtual_columns = collections.OrderedDict()
 
+	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname, yname, zname, radians=True):
+		if not radians:
+			alpha = "pi/180.*%s" % alpha
+			delta = "pi/180.*%s" % delta
+		self.virtual_columns[xname] = "-sin(%s) * cos(%s) * %s" % (alpha, delta, distance)
+		self.virtual_columns[yname] = "cos(%s) * cos(%s) * %s" % (alpha, delta, distance)
+		self.virtual_columns[zname] = "sin(%s) * %s" % (delta, distance)
+
+	def add_virtual_columns_equatorial_to_galactic(self, alpha, delta, distance, xname, yname, zname, radians=True, alpha_gp=np.radians(192.85948), delta_gp=np.radians(27.12825), l_omega=np.radians(32.93192)):
+		"""From http://arxiv.org/pdf/1306.2945v2.pdf"""
+		if not radians:
+			alpha = "pi/180.*%s" % alpha
+			delta = "pi/180.*%s" % delta
+		# TODO: sort our x,y,z order and the l_omega
+		self.virtual_columns[zname] = "{distance} * (cos({delta}) * cos({delta_gp}) * cos({alpha} - {alpha_gp}) + sin({delta}) * sin({delta_gp}))".format(**locals())
+		self.virtual_columns[xname] = "{distance} * (cos({delta}) * sin({alpha} - {alpha_gp}))".format(**locals())
+		self.virtual_columns[yname] = "{distance} * (sin({delta}) * cos({delta_gp}) - cos({delta}) * sin({delta_gp}) * cos({alpha} - {alpha_gp}))".format(**locals())
+
+	def add_virtual_column(self, name, expression):
+		self.virtual_columns[name] = expression
+
+
+class DatasetArrays(DatasetLocal):
+	def __init__(self):
+		super(DatasetArrays, self).__init__(None, None, [])
+		self.columns = {}
+
+	def __len__(self):
+		return len(self.columns.values()[0])
+
+	def add_column(self, name, data):
+		self.column_names.append(name)
+		self.columns[name] = data
 
 class DatasetMemoryMapped(DatasetLocal):
 	def link(self, expression, listener):
@@ -479,7 +642,7 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.filenames = {}
 		self.dtypes = {}
 		self.samp_id = None
-		self.variables = collections.OrderedDict()
+		#self.variables = collections.OrderedDict()
 		
 		self.undo_manager = vaex.ui.undo.UndoManager()
 

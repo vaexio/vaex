@@ -72,8 +72,11 @@ class Executor(object):
 		columns_copy = [column for column in columns if column.needs_copy()]
 		buffers_needs = len(columns_copy)
 		thread_buffers = {} # maps column to a list of buffers
+		thread_virtual_buffers = {} # maps column to a list of buffers
 		for column in columns_copy:
 			thread_buffers[column.expression] = np.zeros((self.thread_pool.nthreads, buffer_size))
+		for name in self.dataset.virtual_columns.keys():
+			thread_virtual_buffers[name] = np.zeros((self.thread_pool.nthreads, buffer_size))
 
 		for task in self.task_queue:
 			task._results = []
@@ -83,20 +86,34 @@ class Executor(object):
 			size = i2-i1 # size may be smaller for the last step
 			# truncate the buffers accordingly, and pick the right one for this thread
 			buffers = {key:buffer[thread_index,0:size] for key,buffer in thread_buffers.items()}
+			virtual_buffers = {key:buffer[thread_index,0:size] for key,buffer in thread_virtual_buffers.items()}
 			def evaluate(column):
 				ne.evaluate(column.expression, local_dict=local_dict)
 			local_dict = {} # contains only the real column
+			local_dict.update(self.dataset.variables)
 			for column in self.dataset.columns.keys():
 				local_dict[column] = self.dataset.columns[column][i1:i2]
 			# this dict should in the end contains all data blocks for all columns or expressions
+			# and virtual columns
 			block_dict = local_dict.copy()
-			# TODO: virtual columns
+
+			# TODO: do not evaluate ALL virtual columns
+			for name, expression in self.dataset.virtual_columns.items():
+				with ne_lock:
+					ne.evaluate(expression, local_dict=block_dict, out=virtual_buffers[name])
+				# only update the dict after evaluating!
+				# if not, a virtual column may reference a not yet computed column with zeros or garbage
+				block_dict[name] = virtual_buffers[name]
+				#print "set", name, "to", virtual_buffers[name]
+
+			# TODO: we copy virtual columns, avoid that
+			#block_dict.update(buffers)
 			# now we do the dynamic evaluated 'columns'
 			for column in columns:
 				if column.needs_copy():
 					with ne_lock:
-						ne.evaluate(column.expression, local_dict=local_dict, out=buffers[column.expression])
-			block_dict.update(buffers)
+						ne.evaluate(column.expression, local_dict=block_dict, out=buffers[column.expression])
+						block_dict[column.expression] = buffers[column.expression]
 			for task in self.task_queue:
 				blocks = [block_dict[expression] for expression in task.expressions]
 				task._results.append(task.map(thread_index, i1, i2, *blocks))

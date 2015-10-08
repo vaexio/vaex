@@ -23,3 +23,7 @@ def open(path, *args, **kwargs):
 
 def server(hostname, **kwargs):
 	return vaex.dataset.ServerRest(hostname, **kwargs)
+
+def example():
+	import utils
+	return open(utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5"))
