@@ -184,7 +184,7 @@ class TaskHistogram(Task):
 		subblock_weight = None
 		#print subblocks[0]
 		#print subblocks[1]
-		blocks = self.subspace._transform(*blocks)
+
 		if self.dimension == 1:
 			vaex.vaexfast.histogram1d(blocks[0], subblock_weight, data, *self.ranges_flat)
 		elif self.dimension == 2:
@@ -201,11 +201,20 @@ class TaskHistogram(Task):
 		return self.data[0]
 		#return self.data
 
+import scipy.ndimage.filters
 
 class SubspaceGridded(object):
 	def __init__(self, subspace_bounded, grid):
 		self.subspace_bounded = subspace_bounded
 		self.grid = grid
+
+
+	def filter_gaussian(self, sigmas=1):
+		return SubspaceGridded(self.subspace_bounded, scipy.ndimage.filters.gaussian_filter(self.grid, sigmas))
+
+	def volr(self,  **kwargs):
+		import vaex.notebook
+		return vaex.notebook.volr(self, **kwargs)
 
 	def plot(self, axes=None, **kwargs):
 		self.subspace_bounded.subspace.plot(self.grid, self.subspace_bounded.bounds, axes=axes, **kwargs)
@@ -221,7 +230,53 @@ class SubspaceGridded(object):
 		from cStringIO import StringIO
 		file_object = StringIO()
 		fig.canvas.print_png(file_object)
+		pylab.close(fig)
 		return file_object.getvalue()
+
+	def cube_png(self, f=np.log1p, colormap="afmhot", file="cube.png"):
+		if self.grid.shape != ((128,) *3):
+			logger.error("only 128**3 cubes are supported")
+			return None
+		colormap_name = "afmhot"
+		import matplotlib.cm
+		colormap = matplotlib.cm.get_cmap(colormap_name)
+		mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
+		#pixmap = QtGui.QPixmap(32*2, 32)
+		data = np.zeros((128*8, 128*16, 4), dtype=np.uint8)
+
+		#mi, ma = 1*10**self.mod1, self.data3d.max()*10**self.mod2
+		grid = f(self.grid)
+		vmin, vmax = grid.min(), grid.max()
+		grid_normalized = (grid-vmin) / (vmax-vmin)
+		#intensity_normalized = (np.log(self.data3d + 1.) - np.log(mi)) / (np.log(ma) - np.log(mi));
+		import PIL.Image
+		for y2d in range(8):
+			for x2d in range(16):
+				zindex = x2d + y2d*16
+				I = grid_normalized[zindex]
+				rgba = mapping.to_rgba(I,bytes=True) #.reshape(Nx, 4)
+				#print rgba.shape
+				subdata = data[y2d*128:(y2d+1)*128, x2d*128:(x2d+1)*128]
+				for i in range(3):
+					subdata[:,:,i] = rgba[:,:,i]
+				subdata[:,:,3] = (grid_normalized[zindex]*255).astype(np.uint8)# * 0 + 255
+				if 0:
+					filename = "cube%03d.png" % zindex
+					img = PIL.Image.frombuffer("RGB", (128, 128), subdata[:,:,0:3] * 1)
+					print "saving to", filename
+					img.save(filename)
+		img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data, 'raw', "RGBA", 0, -1)
+		#filename = "cube.png"
+		#print "saving to", file
+		img.save(file, "png")
+
+		if 0:
+			filename = "colormap.png"
+			print "saving to", filename
+			height, width = self.colormap_data.shape[:2]
+			img = PIL.Image.frombuffer("RGB", (width, height), self.colormap_data)
+			img.save(filename)
+
 
 class SubspaceBounded(object):
 	def __init__(self, subspace, bounds):
@@ -259,6 +314,9 @@ class Subspace(object):
 	def bounded(self):
 		return self.bounded_by_minmax()
 
+	def bounded_by(self, *limits):
+		return SubspaceBounded(self, np.array(limits))
+
 	def bounded_by_minmax(self):
 		bounds = self.minmax()
 		return SubspaceBounded(self, bounds)
@@ -267,54 +325,18 @@ class Subspace(object):
 		bounds = self.limits_sigma(sigmas=sigmas, square=square)
 		return SubspaceBounded(self, bounds)
 
-class Transformation(object):
-	def __init__(self, dim_from, dim_to):
-		self.dim_from = dim_from
-		self.dim_to = dim_to
-
-
-	def __call__(self, *args, **kwargs):
-		raise NotImplemented
-
-class SphericalTransformation(Transformation):
-	def __init__(self, degrees=True):
-		self.degrees = degrees
-
-	def __call__(self, *args):
-		assert len(args) == 3, "spherical transformation expects 3 dimensions"
-		ra, dec, distance = args
-		if self.degrees:
-			ra, dec = np.deg2rad(ra),  np.deg2rad(dec)
-		x = np.sin(ra) * np.cos(dec) * distance
-		y = np.cos(ra) * np.cos(dec) * distance
-		z = np.cos(dec) * distance
-		return x, y, z
-
-transformations = collections.OrderedDict()
-transformations["deg_to_xyz"] = SphericalTransformation(True)
-transformations["rad_to_xyz"] = SphericalTransformation(False)
 
 class SubspaceLocal(Subspace):
-	def __init__(self, dataset, expressions, executor, async, transformation=None, masked=False):
+	def __init__(self, dataset, expressions, executor, async, masked=False):
 		self.dataset = dataset
 		self.expressions = expressions
 		#self.columns = map(dataset.columns, self.expressions)
 		self.executor = executor
 		self.async = async
 		self.is_masked = masked
-		self.transformation = transformation
-
-	def transform(self, name):
-		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, transformation=name, async=self.async, masked=self.is_masked)
-
-	def _transform(self, *blocks):
-		if self.transformation:
-			transform_function = transformations[self.transformation]
-			blocks = transform_function(*blocks)
-		return blocks
 
 	def selected(self):
-		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, transformation=self.transformation, async=self.async, masked=True)
+		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
 	def toarray(self, list):
 		return np.array(list)
@@ -349,7 +371,6 @@ class SubspaceLocal(Subspace):
 				result.append((min(min1, min2), max(max1, max2)))
 			return result
 		def min_max_map(*blocks):
-			blocks = self._transform(*blocks)
 			return [vaex.vaexfast.find_nan_min_max(block) for block in blocks]
 		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self.toarray)
 		return self._task(task)
@@ -376,7 +397,7 @@ class SubspaceLocal(Subspace):
 			return vars
 		if self.is_masked:
 			mask = self.dataset.mask
-			def var_map(*blocks):
+			def var_map(thread_index, i1, i2, *blocks):
 				if means is not None:
 					return [np.nanmean((block[mask[i1:i2]]-mean)**2) for block, mean in zip(blocks, means)]
 				else:
@@ -431,6 +452,9 @@ class Dataset(object):
 		self.signal_selection_changed = vaex.events.Signal("selection changed")
 		self.undo_manager = vaex.ui.undo.UndoManager()
 		self.variables = {}
+
+	def add_virtual_columns_spherical_to_cartesian(self, *args):
+		raise NotImplementedError
 
 	def __todo_repr_html_(self):
 		html = """<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))
@@ -487,7 +511,44 @@ class DatasetLocal(Dataset):
 		self.is_local = True
 		super(DatasetLocal, self).__init__(name, column_names)
 		self.path = path
+		self.variables = collections.OrderedDict()
+		self.variables["pi"] = np.pi
+		self.variables["e"] = np.e
+		self.virtual_columns = collections.OrderedDict()
 
+	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname, yname, zname, radians=True):
+		if not radians:
+			alpha = "pi/180.*%s" % alpha
+			delta = "pi/180.*%s" % delta
+		self.virtual_columns[xname] = "-sin(%s) * cos(%s) * %s" % (alpha, delta, distance)
+		self.virtual_columns[yname] = "cos(%s) * cos(%s) * %s" % (alpha, delta, distance)
+		self.virtual_columns[zname] = "sin(%s) * %s" % (delta, distance)
+
+	def add_virtual_columns_equatorial_to_galactic(self, alpha, delta, distance, xname, yname, zname, radians=True, alpha_gp=np.radians(192.85948), delta_gp=np.radians(27.12825), l_omega=np.radians(32.93192)):
+		"""From http://arxiv.org/pdf/1306.2945v2.pdf"""
+		if not radians:
+			alpha = "pi/180.*%s" % alpha
+			delta = "pi/180.*%s" % delta
+		# TODO: sort our x,y,z order and the l_omega
+		self.virtual_columns[zname] = "{distance} * (cos({delta}) * cos({delta_gp}) * cos({alpha} - {alpha_gp}) + sin({delta}) * sin({delta_gp}))".format(**locals())
+		self.virtual_columns[xname] = "{distance} * (cos({delta}) * sin({alpha} - {alpha_gp}))".format(**locals())
+		self.virtual_columns[yname] = "{distance} * (sin({delta}) * cos({delta_gp}) - cos({delta}) * sin({delta_gp}) * cos({alpha} - {alpha_gp}))".format(**locals())
+
+	def add_virtual_column(self, name, expression):
+		self.virtual_columns[name] = expression
+
+
+class DatasetArrays(DatasetLocal):
+	def __init__(self):
+		super(DatasetArrays, self).__init__(None, None, [])
+		self.columns = {}
+
+	def __len__(self):
+		return len(self.columns.values()[0])
+
+	def add_column(self, name, data):
+		self.column_names.append(name)
+		self.columns[name] = data
 
 class DatasetMemoryMapped(DatasetLocal):
 	def link(self, expression, listener):
@@ -581,7 +642,7 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.filenames = {}
 		self.dtypes = {}
 		self.samp_id = None
-		self.variables = collections.OrderedDict()
+		#self.variables = collections.OrderedDict()
 		
 		self.undo_manager = vaex.ui.undo.UndoManager()
 

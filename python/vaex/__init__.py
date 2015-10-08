@@ -26,4 +26,4 @@ def server(hostname, **kwargs):
 
 def example():
 	import utils
-	return vx.open(vx.utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5"))
+	return open(utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5"))
