@@ -47,7 +47,7 @@ vec4 sampleAs3DTexture(sampler2D tex, vec3 texCoord, float size, float numRows, 
   ///return slice0Color;
 }
 
-  void main(void) {
+void main(void) {
   const int steps = NR_OF_STEPS;
 
   vec2 pixel = vec2(gl_FragCoord.x/256., gl_FragCoord.y/256.);

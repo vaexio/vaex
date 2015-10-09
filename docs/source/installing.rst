@@ -38,6 +38,7 @@ Simpy unpack the tarball and run it like:
 * `Vaex 0.1.7-linux <https://www.astro.rug.nl/~breddels/vaex/vaex-0.1.7-linux.tar.gz>`_.
 * `Vaex 0.1.5-linux <https://astrodrive.astro.rug.nl/public.php?service=files&t=86be18567ca6327a903f7863787c4ebf>`_
 
+.. _installing_from_source:
 
 From source
 -----------

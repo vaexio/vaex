@@ -217,7 +217,7 @@ class SubspaceGridded(object):
 		return vaex.notebook.volr(self, **kwargs)
 
 	def plot(self, axes=None, **kwargs):
-		self.subspace_bounded.subspace.plot(self.grid, self.subspace_bounded.bounds, axes=axes, **kwargs)
+		self.subspace_bounded.subspace.plot(np.log1p(self.grid), self.subspace_bounded.bounds, axes=axes, **kwargs)
 
 	def _repr_png_(self):
 		from matplotlib import pylab

@@ -60,11 +60,11 @@ copyright = u'2014, Maarten A. Breddels'
 # built documents.
 #
 try:
-	import vaex.ui
+	import vaex
 	# The short X.Y version.
-	version = vaex.ui.version
+	version = vaex.version
 	# The full version, including alpha/beta/rc tags.
-	release = vaex.ui.version
+	release = vaex.version
 except:
 	print "failed finding vaex module, try finding version"
 	import sys
