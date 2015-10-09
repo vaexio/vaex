@@ -1,6 +1,6 @@
 
-versiontring = '0.3.24-ga699db1'
-versiontuple = (0, 3, 24)
-commits = 24
-hash = 'ga699db1'
+versiontring = '0.3.48-g332bcbd'
+versiontuple = (0, 3, 48)
+commits = 48
+hash = 'g332bcbd'
 

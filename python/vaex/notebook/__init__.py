@@ -12,7 +12,7 @@ widgets.IntSlider
 from IPython.display import HTML
 """
 
-from ipywidgets
+
 from IPython.display import HTML, display_html, display_javascript
 import os
 base_path = os.path.dirname(__file__)

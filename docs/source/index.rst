@@ -86,6 +86,7 @@ Contents:
    gallery
    tipsandfaq
    examples
+   notebook_examples
    credits
 	
 

@@ -59,13 +59,13 @@ copyright = u'2014, Maarten A. Breddels'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
-try:
+if 1:
 	import vaex
 	# The short X.Y version.
 	version = vaex.version
 	# The full version, including alpha/beta/rc tags.
 	release = vaex.version
-except:
+else:
 	print "failed finding vaex module, try finding version"
 	import sys
 	import os
@@ -167,7 +167,7 @@ html_static_path = ['nstatic']
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied
 # directly to the root of the documentation.
-#html_extra_path = []
+html_extra_path = ["example_movie.html", "example_start.html", "example_volume_rendering.html", "example_virtual_columns.html", "../../examples/example_start.ipynb", "../../examples/example_movie.ipynb", "../../examples/example_volume_rendering.ipynb", "../../examples/example_virtual_columns.ipynb"]
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.

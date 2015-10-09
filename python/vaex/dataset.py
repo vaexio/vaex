@@ -1770,7 +1770,7 @@ def load_file(path, *args, **kwargs):
 	dataset_class = None
 	for name, class_ in vaex.dataset.dataset_type_map.items():
 		logger.debug("trying %r with class %r" % (path, class_))
-		if class_.can_open(path, *args):
+		if class_.can_open(path, *args, **kwargs):
 			logger.debug("can open!")
 			dataset_class = class_
 			break
