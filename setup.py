@@ -119,7 +119,7 @@ for sub in "_static _images _sources".split():
 OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/vaex/icons'],
            'matplotlib_backends':'-',
            'no_chdir':True,
-           'iconfile': 'python/vaex/icons/vaex.icns'
+           'iconfile': 'python/vaex/ui/icons/vaex.icns'
 
 } #, 'debug_modulegraph':True}
 #, 'app':True
