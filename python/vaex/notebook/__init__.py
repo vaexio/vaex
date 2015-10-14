@@ -28,6 +28,17 @@ class volr(object):
 		self.subspace_gridded = subspace_gridded
 		self.settings = settings
 
+	def set(self, **kwargs):
+		settings = json.dumps(kwargs)
+		js_code = """var o = $('#%s').data('vr');
+		var new_settings = JSON.parse('%s');
+		console.log(new_settings);
+		console.log($.extend(o.settings, new_settings));
+		o.update_transfer_function_array()
+		o.drawScene();
+		""" % (self.id, settings)
+		display_javascript(js_code, raw=True)
+
 	def _ipython_display_(self):
 		f = StringIO()
 		#filename = os.path.join(base_path, "cube.png")
@@ -38,7 +49,7 @@ class volr(object):
 		#window.cube_src = 'data:image/png;base64,%s';
 		#""" % (cube64, colormap64), raw=True)
 
-		id = uuid.uuid1()
+		self.id = id = uuid.uuid1()
 		display_html("<canvas id='{id}' width=512 height=512  style='display: inline;'/>".format(**locals()), raw=True )
 		display_javascript(""" $('#%s').vr(
 				$.extend({cube:%s, colormap:window.colormap_src}, %s)

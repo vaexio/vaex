@@ -209,16 +209,6 @@ class ServerRest(object):
 
 
 class SubspaceRemote(Subspace):
-	def __init__(self, dataset, expressions, executor, async, masked=False):
-		self.dataset = dataset
-		self.expressions = expressions
-		#self.executor = executor
-		self.async = async
-		self.is_masked = masked
-
-	def selected(self):
-		return SubspaceRemote(self.dataset, expressions=self.expressions, immediate=self.immediate, masked=True)
-
 	def toarray(self, list):
 		return np.array(list)
 

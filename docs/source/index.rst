@@ -13,7 +13,8 @@ It mainly renders histograms, density plots and volume rendering  plots for visu
 For exploration it support selection in 1 and 2d, but it can also analyse the columns (dimensions) to find subspaces
 which are richer in information than others.
 
-.. image:: images/ss1-small.png
+.. image:: images/overview.png
+    :scale: 35%
 
 Main features
 =============
@@ -84,9 +85,8 @@ Contents:
    installing
    documentation
    gallery
-   tipsandfaq
    examples
-   notebook_examples
+   tipsandfaq
    credits
 	
 

@@ -2,14 +2,14 @@
 import math
 
 try:
-	from PyQt4 import QtGui, QtCore#, QtNetwork
+	from PyQt4 import QtGui, QtCore, QtTest #, QtNetwork
 	#from PyQt4.QtWebKit import QWebView
 	qt_version = QtCore.PYQT_VERSION_STR
 	import sip
 	#sip.setapi('QVariant', 2)
 except ImportError, e1:
 	try:
-		from PySide import QtGui, QtCore#, QtNetwork
+		from PySide import QtGui, QtCore, QtTest #, QtNetwork
 		#from PySide.QtWebKit import QWebView
 		QtCore.pyqtSignal= QtCore.Signal 
 		qt_version = QtCore.__version__

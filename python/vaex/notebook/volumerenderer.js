@@ -146,6 +146,7 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
 
     $.vr = function(canvas, options) {
         var plugin = this;
+        this.settings = options;
 
         initGL(canvas);
 
@@ -197,6 +198,7 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
         var transfer_function_array = []
 
         this.fill_transfer_function_array = function() {
+          transfer_function_array = []
           for(var i = 0; i < 1024; i++) {
             var position = i / (1023.);
             var intensity = 0.;

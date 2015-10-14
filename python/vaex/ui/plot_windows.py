@@ -32,7 +32,6 @@ import vaex.ui.imageblending
 
 
 #import vaex.ui.plugin.dispersions
-import vaex.ui.layers
 import vaex.ui.templates
 from numba import jit
 
@@ -41,13 +40,6 @@ import vaex.vaexfast
 from vaex.ui import qt, undo
 
 subspacefind = vaex.vaexfast
-
-if 0:
-	block = np.arange(10., dtype=np.float64)[::1]
-	mask = np.zeros(10, dtype=np.bool)
-	xmin, xmax = 3, 6
-	vaex.vaexfast.range_check(block, mask, xmin, xmax)
-	print mask
 
 logger = vaex.logging.getLogger("vaex")
 
@@ -228,32 +220,61 @@ class Mover(object):
 		
 
 class Queue(object):
-	def __init__(self, name, default_delay, default_callable):
+	logger = vaex.logging.getLogger("vaex.ui.queue")
+	def __init__(self, name, default_delay, default_callable, pre=lambda: None):
 		self.name = name
 		self.default_delay = default_delay
 		self.counter = 0
+		self.counter_processed = None
 		self.default_callable = default_callable
-		
-		
+		self.pre = pre
+
+
+	def _wait(self, sleep=10):
+		if self.counter > 0:
+			qt_app = QtCore.QCoreApplication.instance()
+			logger.debug("*** waiting for queue %r" % self.name)
+			while self.counter_processed != self.counter:
+				qt_app.processEvents()
+				QtTest.QTest.qSleep(sleep)
+			logger.debug("*** done with queue %r" %self.name)
+
+	def cancel(self):
+		def nop():
+			self.logger.debug("nop called in queue %r" % self.name)
+		self.logger.debug("cancelling last call in queue %r by inserting a nop" % self.name)
+		self(nop)
+
 	def __call__(self, callable=None, delay=None, *args, **kwargs):
+		self.pre()
 		if delay is None:
 			delay = self.default_delay
 		callable = callable or self.default_callable
-		def call(ignore=None, counter=None, callable=None):
-			if counter < self.counter:
-				pass # ignore, more events coming
-			else:
-				callable()
+		def call(_=None, counter=None, callable=None):
+			try:
+				if counter < self.counter:
+					pass # ignore, more events coming
+					self.logger.debug("ignoring this event in queue %r, since a new one is scheduled" % self.name)
+				else:
+					self.logger.debug("calling callback in queue %r" % self.name)
+					callable()
+			finally:
+				self.counter_processed = counter
 		callable = functools.partial(callable, *args, **kwargs)
 		self.counter += 1
-		logger.debug("add in queue %r %r" % (self.name, delay))
+		self.logger.debug("add in queue %r %r" % (self.name, delay))
+		#import traceback
+		#traceback.print_stack()
 		if delay == 0:
 			call(counter=self.counter, callable=callable)
 		else:
 			QtCore.QTimer.singleShot(delay, functools.partial(call, counter=self.counter, callable=callable))
 
-
 class PlotDialog(QtGui.QWidget):
+	"""
+	:type current_layer: LayerTable
+	:type layers: list[LayerTable]
+	"""
 	def add_axes(self):
 		self.axes = self.fig.add_subplot(111)
 		self.axes.xaxis_index = 0
@@ -431,9 +452,11 @@ class PlotDialog(QtGui.QWidget):
 		self.canvas.setParent(self)
 		self.add_axes()
 
-		self.queue_update = Queue("update", 1000, self.update_direct) # a complete recalculation and refresh of the plot
+		# if an update is scheduled, cancel any replot, since the preperations for the update may leave the grids
+		# in the layers in a undefined state
 		self.queue_redraw = Queue("redraw", 5, self.canvas.draw) # only draw the canvas again
 		self.queue_replot = Queue("replot", 10, self.plot) # redo the whole plot, but no computation
+		self.queue_update = Queue("update", 100, self.update_direct, pre=self.queue_replot.cancel) # a complete recalculation and refresh of the plot
 
 		self.layout_main = QtGui.QVBoxLayout()
 		self.layout_content = QtGui.QHBoxLayout()
@@ -491,9 +514,10 @@ class PlotDialog(QtGui.QWidget):
 
 		self.label_time = QtGui.QLabel("", self.toolbar)
 
-		self.status_bar.insertPermanentWidget(9, self.progress_bar)
-		self.status_bar.insertPermanentWidget(10, self.button_cancel)
-		self.status_bar.insertPermanentWidget(11, self.label_time)
+		#index = self.status_bar.
+		self.status_bar.addPermanentWidget(self.progress_bar)
+		self.status_bar.addPermanentWidget(self.button_cancel)
+		self.status_bar.addPermanentWidget(self.label_time)
 		def begin():
 			self.time_begin = time.time()
 			self.progress_bar.setValue(0)
@@ -544,12 +568,27 @@ class PlotDialog(QtGui.QWidget):
 		self.grabGesture(QtCore.Qt.SwipeGesture);
 
 		self.signal_samp_send_selection = vaex.events.Signal("samp send selection")
+		self.signal_closed = vaex.events.Signal("close plot window")
 
 		self.signal_plot_finished = vaex.events.Signal("plot finished")
 
 		self.canvas.mpl_connect('resize_event', self.on_resize_event)
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 		#self.pinch_ranges_show = [None for i in range(self.dimension)]
+
+	def _wait(self):
+		self.queue_update._wait()
+		self.queue_replot._wait()
+		self.queue_redraw._wait()
+
+	def plot_to_png(self, filename=None):
+		if filename is None:
+			import tempfile
+			handle, filename = tempfile.mkstemp(".png")
+			logger.debug("write to %s" % filename)
+		self.fig.savefig(filename)
+		return filename
+
 
 	def on_resize_event(self, event):
 		if not self.action_mini_mode_ultra.isChecked():
@@ -566,9 +605,8 @@ class PlotDialog(QtGui.QWidget):
 					if geometry.contains(x, y):
 						rx = x - geometry.x()
 						ry = y - geometry.y()
-						print self.canvas.geometry, self.canvas.mouse_grabber
+						#print self.canvas.geometry, self.canvas.mouse_grabber
 						axes_list = [ax for ax in self.getAxesList() if ax.contains_point((rx, geometry.height()-1-ry))]
-						print axes_list
 						#nx, ny = rx/geometry.width(), y/geometry.height()
 						if len(axes_list) > 0:
 							axes = axes_list[0]
@@ -580,7 +618,6 @@ class PlotDialog(QtGui.QWidget):
 								scale = (gesture.scaleFactor())
 							#@scale = gesture.totalScaleFactor()
 							scale = 1./(scale)
-							print scale, x_data, y_data
 							self.zoom(scale, axes, x_data, y_data)
 			return True
 		else:
@@ -591,7 +628,7 @@ class PlotDialog(QtGui.QWidget):
 	def closeEvent(self, event):
 		# disconnect this event, otherwise we get an update/redraw for nothing
 		# since closing a dialog causes this event to fire otherwise
-		self.parent_widget.plot_dialogs.remove(self)
+		#self.parent_widget.plot_dialogs.remove(self)
 		self.pool.close()
 		for layer in self.layers:
 			layer.removed()
@@ -604,7 +641,7 @@ class PlotDialog(QtGui.QWidget):
 		for plugin in self.plugins:
 			plugin.clean_up()
 		super(PlotDialog, self).closeEvent(event)
-		print "close event"
+		self.signal_closed.emit(self)
 
 	#def onSerieIndexSelect(self, serie_index):
 	#	pass
@@ -692,7 +729,7 @@ class PlotDialog(QtGui.QWidget):
 		self.button_layer_delete.setSizePolicy(toolbuttonSizePolicy)
 		self.button_layer_delete.setEnabled(self.dimensions < 3)
 		def on_layer_remove(_ignore=None):
-			print "remove layer"
+			logger.debug("remove layer")
 			self.remove_layer()
 		self.button_layer_delete.clicked.connect(on_layer_remove)
 		self.layout_layer_buttons.addWidget(self.button_layer_new, 0)
@@ -833,7 +870,7 @@ class PlotDialog(QtGui.QWidget):
 
 	def getExtraText(self, x, y):
 		layer = self.current_layer
-		if hasattr(layer, "amplitude"):
+		if hasattr(layer, "amplitude_grid"):
 			amplitude = layer.amplitude_grid
 			if len(amplitude.shape) == 1:
 					#if self.ranges[0]:
@@ -1175,11 +1212,19 @@ class PlotDialog(QtGui.QWidget):
 		# default value
 		self.update_direct()
 
-	def update_direct(self):
+	def update_direct(self, layer=None):
+		self.queue_replot.cancel()
+		self.queue_update.cancel()
 		#for i in range(self.dimensions):
 		#	self.ranges[i] = self.ranges_show[i]
 		logger.debug("update direct: ranges_show=%r" % (self.ranges_show, ))
-		for layer in self.layers:
+		if layer:
+			logger.debug("only update layer %r (index %d)" % (layer, self.layers.index(layer)))
+			layers = [layer]
+		else:
+			logger.debug("updating all layers")
+			layers = self.layers
+		for layer in layers:
 			layer.ranges_grid = copy.deepcopy(self.ranges_show)
 			layer.range_level = copy.copy(self.range_level_show)
 		timelog("begin computation", reset=True)
@@ -3127,3 +3172,5 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 			self.dataset.executor.execute()
 
 
+from vaex.ui.layers import LayerTable
+import vaex.ui.layers

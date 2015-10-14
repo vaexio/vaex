@@ -67,8 +67,8 @@ class Executor(object):
 		# u 'column' is uniquely identified by a tuple of (dataset, expression)
 		t0 = time.time()
 		logger.info("executing queue: %r" % (self.task_queue))
-		columns = list(set(Column(task.dataset, expression) for task in self.task_queue for expression in task.expressions))
-		expressions = list(set(expression for task in self.task_queue for expression in task.expressions))
+		columns = list(set(Column(task.dataset, expression) for task in self.task_queue for expression in task.expressions_all))
+		expressions = list(set(expression for task in self.task_queue for expression in task.expressions_all))
 		columns_copy = [column for column in columns if column.needs_copy()]
 		buffers_needs = len(columns_copy)
 		thread_buffers = {} # maps column to a list of buffers
@@ -115,7 +115,7 @@ class Executor(object):
 						ne.evaluate(column.expression, local_dict=block_dict, out=buffers[column.expression])
 						block_dict[column.expression] = buffers[column.expression]
 			for task in self.task_queue:
-				blocks = [block_dict[expression] for expression in task.expressions]
+				blocks = [block_dict[expression] for expression in task.expressions_all]
 				task._results.append(task.map(thread_index, i1, i2, *blocks))
 		length = len(self.dataset)
 		#print self.thread_pool.map()
@@ -150,7 +150,7 @@ class FakeLogger(object):
 	def exception(self, *args):
 		pass
 
-logger = FakeLogger()
+#logger = FakeLogger()
 
 class Job(object):
 	def __init__(self, callback, expressions):

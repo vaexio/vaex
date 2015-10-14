@@ -29,8 +29,9 @@ class Samp(object):
 			self.client.connect()
 			connected = True
 		except sampy.SAMPHubError, e:
-			print "error connecting to hub", e
-		
+			#print "error connecting to hub", e
+			pass
+
 		if connected:
 			#self.client.client._thread.setDaemon(False)
 			logger.info("connected to SAMP hub")

@@ -55,3 +55,16 @@ def example():
 	"""
 	import utils
 	return open(utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5"))
+
+
+def set_log_level_debug():
+	import vaex.logging as log
+	log.rootlogger.setLevel(log.LEVELS['debug'])
+
+def set_log_level_info():
+	import vaex.logging as log
+	log.rootlogger.setLevel(log.LEVELS['info'])
+
+def set_log_level_warning():
+	import vaex.logging as log
+	log.rootlogger.setLevel(log.LEVELS['warning'])

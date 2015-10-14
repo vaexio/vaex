@@ -2,7 +2,7 @@ API documentation for vaex
 ================================
 
 .. automodule:: vaex
-    :members:
+    :members: open, server, example
     :undoc-members:
     :show-inheritance:
 
@@ -20,7 +20,7 @@ vaex.dataset module
 -------------------
 
 .. automodule:: vaex.dataset
-    :members: Dataset, DatasetLocal, DatasetMemoryMapped, Hdf5MemoryMapped, FitsBinTable, AmuseHdf5MemoryMapped, Hdf5MemoryMappedGadget, SoneiraPeebles, Zeldovich, VOTable, AsciiTable, MemoryMappedGadget, can_open, load_file, Subspace, SubspaceLocal, SubspaceGridded, SubspaceBounded, TaskMapReduce, TaskHistogram
+    :members: Dataset, Subspace, SubspaceGridded, SubspaceBounded, Task, DatasetLocal, DatasetMemoryMapped, Hdf5MemoryMapped, FitsBinTable, AmuseHdf5MemoryMapped, Hdf5MemoryMappedGadget, SoneiraPeebles, Zeldovich, VOTable, AsciiTable, MemoryMappedGadget, can_open, load_file, TaskMapReduce, TaskHistogramSubspaceLocal
     :undoc-members:
     :show-inheritance:
 
