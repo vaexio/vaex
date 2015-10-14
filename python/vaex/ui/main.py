@@ -470,7 +470,14 @@ class DatasetPanel(QtGui.QFrame):
 	def plotxy(self, xname, yname, **kwargs):
 		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
 		dialog.add_layer([xname, yname], self.dataset, **kwargs)
-		dialog.show()
+		if not vaex.ui.hidden:
+			dialog.show()
+		else:
+			# we get a different output size when we don't show the dialog, which makes testing impossible
+			dialog.show()
+			dialog.hide()
+			#dialog.updateGeometry()
+			#dialog.adjustSize()
 		#self.dataset.executor.execute()
 		self.dataset.executor.execute()
 		self.signal_open_plot.emit(dialog)
@@ -755,8 +762,9 @@ class VaexApp(QtGui.QMainWindow):
 		#self.dataset_selector.currentItemChanged.connect(self.dataset_panel.onDataSelected)
 		#self.list.testfill()
 
-		self.show()
-		self.raise_()
+		if not vaex.ui.hidden:
+			self.show()
+			self.raise_()
 
 		#self.list.itemSelectionChanged.connect(self.right.onDataSelected)
 

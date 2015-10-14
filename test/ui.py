@@ -14,9 +14,11 @@ import vaex.utils
 import PIL.Image
 import PIL.ImageChops
 
-example_path = vaex.utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5")
-
 from vaex.ui.qt import QtGui, QtCore, QtTest
+
+example_path = vaex.utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5")
+vaex.ui.hidden = True
+
 qt_app = QtGui.QApplication([])
 
 base_path = os.path.dirname(__file__)
