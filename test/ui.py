@@ -20,7 +20,7 @@ from vaex.ui.qt import QtGui, QtCore, QtTest
 qt_app = QtGui.QApplication([])
 
 base_path = os.path.dirname(__file__)
-def test_image(name):
+def get_comparison_image(name):
 	return os.path.join(base_path, "images", name+".png")
 
 #logging.getLogger("vaex.ui.queue").setLevel(logging.DEBUG)
@@ -101,27 +101,27 @@ class TestPlotPanel2d(unittest.TestCase):
 		QtTest.QTest.qWait(self.window.queue_update.default_delay)
 		self.window._wait()
 		filename = self.window.plot_to_png()
-		self.compare(filename, test_image("example_xy"))
+		self.compare(filename, get_comparison_image("example_xy"))
 
 	def test_xr(self):
 		self.layer.y = "sqrt(x**2+y**2)"
 		self.window._wait()
 		filename = self.window.plot_to_png()
-		self.compare(filename, test_image("example_xr"))
+		self.compare(filename, get_comparison_image("example_xr"))
 
 	def test_xy_weight_r(self):
 		self.layer.weight = "sqrt(x**2+y**2)"
 		self.layer.amplitude = "clip(average, 0, 40)"
 		self.window._wait()
 		filename = self.window.plot_to_png()
-		self.compare(filename, test_image("example_xy_weight_r"))
+		self.compare(filename, get_comparison_image("example_xy_weight_r"))
 
 	def test_xy_vxvy(self):
 		self.layer.vx = "vx"
 		self.layer.vy = "vy"
 		self.window._wait()
 		filename = self.window.plot_to_png()
-		self.compare(filename, test_image("example_xy_vxvy"))
+		self.compare(filename, get_comparison_image("example_xy_vxvy"))
 
 		counter = self.window.queue_update.counter
 		# the following actions should not cause an update
