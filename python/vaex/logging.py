@@ -3,14 +3,18 @@
 from __future__ import absolute_import
 import logging
 import logging.handlers
-from logging import getLogger
+from logging import getLogger as _getLogger
 
 #logging.basicConfig(level=logging.ERROR)
 logging.basicConfig(level=logging.ERROR)
-logging.basicConfig(level=logging.DEBUG, filename="vaex.logging.txt")
+#logging.basicConfig(level=logging.DEBUG, filename="vaex.logging.txt")
 #print "das" * 1000
 rootlogger = logging.getLogger('vaex')
-rootlogger.setLevel(logging.ERROR)
+rootlogger.setLevel(logging.DEBUG)
+
+def getLogger(*args, **kwargs):
+	return _getLogger(*args, **kwargs)
+	#return rootlogger.getLogger(*args, **kwargs)
 
 LEVELS = {'debug': logging.DEBUG,
           'info': logging.INFO,

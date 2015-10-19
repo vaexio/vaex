@@ -165,7 +165,7 @@ class NavigationToolbar(NavigationToolbarQt):
 		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
 		#print (x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
 		vaex.selection.pnpoly(x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
-		self.parent.set_mask(mask==1)
+		self.parent._set_mask(mask==1)
 	
 #from PySide import QtGui, QtCore
 try:
@@ -1253,7 +1253,7 @@ class PlotDialog(QtGui.QDialog):
 		xmax = xmax if not self.useLogx() else 10**xmax
 		mask = (data >= xmin) & (data < xmax)
 		print "selectx", xmin, xmax, "selected", np.sum(mask)
-		self.dataset.set_mask(mask)
+		self.dataset._set_mask(mask)
 		self.setMode(self.lastAction)
 		
 	def onSelectY(self, ymin, ymax):
@@ -1262,7 +1262,7 @@ class PlotDialog(QtGui.QDialog):
 		ymin, ymax = min(y), max(y)
 		mask = (data >= ymin) & (data < ymax)
 		print "selecty", ymin, ymax, "selected", np.sum(mask)
-		self.dataset.set_mask(mask)
+		self.dataset._set_mask(mask)
 		self.setMode(self.lastAction)
 		
 	def onSelectLasso(self, vertices):
@@ -1283,7 +1283,7 @@ class PlotDialog(QtGui.QDialog):
 			for i, arg in enumerate(args):
 				print i, repr(arg), arg.dtype if hasattr(arg, "dtype") else ""
 			raise
-		self.dataset.set_mask(mask==1)
+		self.dataset._set_mask(mask==1)
 		self.setMode(self.lastAction)
 		
 	def onZoomX(self, xmin, xmax):
@@ -2159,7 +2159,7 @@ class ScatterPlotDialog_old(QtGui.QDialog):
 		self.plot()
 
 	def set_mask(self, mask):
-		self.dataset.set_mask(mask)
+		self.dataset._set_mask(mask)
 		
 	def onLassoSelect(self, *args):
 		print args

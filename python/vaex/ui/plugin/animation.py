@@ -11,7 +11,7 @@ from vaex.ui.qt import *
 import vaex.logging
 #import vaex.ui.undo as undo
 
-logger = vaex.logging.getLogger("plugin.dispersions")
+logger = vaex.logging.getLogger("vaex.ui.plugin.animation")
 
 class AnimationPlugin(vaex.ui.plugin.PluginLayer):
 	name = "animation"
@@ -112,15 +112,16 @@ class AnimationPlugin(vaex.ui.plugin.PluginLayer):
 		layout.addWidget(self.group_box_sequence, row, 1)
 		row += 1
 		layout_sequence = self.layout_sequence = QtGui.QGridLayout()
-		self.group_box_sequence.setLayout(self.layout_sequence)
+		#self.group_box_sequence.setLayout(self.layout_sequence)
 		layout_sequence.setSpacing(0)
 		layout_sequence.setContentsMargins(0,0,0,0)
 		layout_sequence.setAlignment(QtCore.Qt.AlignTop)
 		row_sequence = 0
 
 
-		self.layout_control = QtGui.QHBoxLayout(self.group_box_sequence)
+		self.layout_control = QtGui.QHBoxLayout()
 		self.layout_control.setSpacing(0)
+		logger.debug("3")
 
 		def add_control_button(text, handler):
 			button = QtGui.QToolButton(self.group_box_sequence)
@@ -262,7 +263,7 @@ class AnimationPlugin(vaex.ui.plugin.PluginLayer):
 			else:
 				self.timer_realtime.stop()
 				self.stop_animation()
-		self.button_play_realtime.toggled.connect(on_toggle_play_realtime)
+			self.button_play_realtime.toggled.connect(on_toggle_play_realtime)
 
 
 

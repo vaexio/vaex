@@ -9,7 +9,7 @@ import functools
 import collections
 import sys
 import platform
-
+import vaex.export
 import h5py
 import numpy as np
 
@@ -124,6 +124,7 @@ class Task(Promise):
 		Promise.__init__(self)
 		self.dataset = dataset
 		self.expressions = expressions
+		self.expressions_all = list(expressions)
 
 	@property
 	def dimension(self):
@@ -149,13 +150,14 @@ class TaskMapReduce(Task):
 
 
 class TaskHistogram(Task):
-	def __init__(self, dataset, subspace, expressions, size, limits, masked=False):
+	def __init__(self, dataset, subspace, expressions, size, limits, masked=False, weight=None):
 		Task.__init__(self, dataset, expressions)
 		self.subspace = subspace
 		self.dtype = np.float64
 		self.size = size
 		self.limits = limits
 		self.masked = masked
+		self.weight = weight
 		#self.grids = vaex.grids.Grids(self.dataset, self.dataset.executor.thread_pool, *expressions)
 		#self.grids.ranges = limits
 		#self.grids.grids["counts"] = vaex.grids.Grid(self.grids, size, self.dimension, None)
@@ -164,7 +166,13 @@ class TaskHistogram(Task):
 		self.ranges_flat = []
 		for limit in self.limits:
 			self.ranges_flat.extend(limit)
+		if self.weight is not None:
+			self.expressions_all.append(weight)
 		#print self.ranges_flat
+
+	def __repr__(self):
+		name = self.__class__.__module__ + "." +self.__class__.__name__
+		return "<%s(dataset=%r, expressions=%r, size=%r, limits=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.size, self.limits, id(self))
 
 	def map(self, thread_index, i1, i2, *blocks):
 		class Info(object):
@@ -181,7 +189,12 @@ class TaskHistogram(Task):
 		data = self.data[thread_index]
 		if self.masked:
 			blocks = [block[mask[i1:i2]] for block in blocks]
+
 		subblock_weight = None
+		if len(blocks) == len(self.expressions) + 1:
+			subblock_weight = blocks[-1]
+			if self.masked:
+				subblock_weight = subblock_weight[mask[i1:i2]]
 		#print subblocks[0]
 		#print subblocks[1]
 
@@ -212,12 +225,18 @@ class SubspaceGridded(object):
 	def filter_gaussian(self, sigmas=1):
 		return SubspaceGridded(self.subspace_bounded, scipy.ndimage.filters.gaussian_filter(self.grid, sigmas))
 
+	def clip_relative(self, v1, v2):
+		vmin = self.grid.min()
+		vmax = self.grid.max()
+		width = vmax - vmin
+		return SubspaceGridded(self.subspace_bounded, np.clip(self.grid, vmin + v1 * width, vmin + v2 * width))
+
 	def volr(self,  **kwargs):
 		import vaex.notebook
 		return vaex.notebook.volr(self, **kwargs)
 
 	def plot(self, axes=None, **kwargs):
-		self.subspace_bounded.subspace.plot(self.grid, self.subspace_bounded.bounds, axes=axes, **kwargs)
+		self.subspace_bounded.subspace.plot(np.log1p(self.grid), self.subspace_bounded.bounds, axes=axes, **kwargs)
 
 	def _repr_png_(self):
 		from matplotlib import pylab
@@ -283,26 +302,59 @@ class SubspaceBounded(object):
 		self.subspace = subspace
 		self.bounds = bounds
 
-	def histogram(self, size=256):
-		return self.subspace.histogram(limits=self.bounds, size=size)
+	def histogram(self, size=256, weight=None):
+		return self.subspace.histogram(limits=self.bounds, size=size, weight=weight)
 
-	def gridded(self, size=256):
-		return self.gridded_by_histogram(size=size)
+	def gridded(self, size=256, weight=None):
+		return self.gridded_by_histogram(size=size, weight=weight)
 
-	def gridded_by_histogram(self, size=256):
-		grid = self.histogram(size=size)
+	def gridded_by_histogram(self, size=256, weight=None):
+		grid = self.histogram(size=size, weight=weight)
 		return SubspaceGridded(self, grid)
 
 
 class Subspace(object):
-	def plot(self, grid=None, limits=None, center=None, f=lambda x: x, axes=None, **kwargs):
+	"""A Subspace represent a subset of columns or expressions from a dataset.
+
+	subspace are not instantiated directly, but by 'calling' the dataset like this:
+
+	>>> subspace_xy = some_dataset("x", "y")
+	>>> subspace_r = some_dataset("sqrt(x**2+y**2)")
+
+	See `vaex.dataset.Dataset` for more documentation.
+
+	"""
+	def __init__(self, dataset, expressions, executor, async, masked=False):
+		"""
+
+		:param Dataset dataset: the dataset the subspace refers to
+		:param list[str] expressions: list of expressions that forms the subspace
+		:param Executor executor: responsible for executing the tasks
+		:param bool async: return answers directly, or as a promise
+		:param bool masked: work on the selection or not
+		:return:
+		"""
+		self.dataset = dataset
+		self.expressions = expressions
+		self.executor = executor
+		self.async = async
+		self.is_masked = masked
+
+	@property
+	def dimension(self):
+		return len(self.expressions)
+
+	def selected(self):
+		return self.__class__(self.dataset, expressions=self.expressions, immediate=self.immediate, masked=True)
+
+	def plot(self, grid=None, limits=None, center=None, weight=None, f=lambda x: x, axes=None, **kwargs):
 		import pylab
 		if limits is None:
 			limits = self.limits_sigma()
 		if center is not None:
 			limits = np.array(limits) - np.array(center).reshape(2,1)
 		if grid is None:
-			grid = self.histogram(limits=limits)
+			grid = self.histogram(limits=limits, weight=weight)
 		if axes is None:
 			axes = pylab.gca()
 		axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
@@ -311,39 +363,66 @@ class Subspace(object):
 		import pylab
 		pylab.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
 
-	def bounded(self):
-		return self.bounded_by_minmax()
+	#def bounded(self):
+	#	return self.bounded_by_minmax()
 
-	def bounded_by(self, *limits):
+	def bounded_by(self, limits):
+		"""Returns a bounded subspace (SubspaceBounded) with limits as given by limits
+
+		:param limits: sequence of [(min, max), ..., (min, max)] values
+		:rtype: SubspaceBounded
+		"""
 		return SubspaceBounded(self, np.array(limits))
 
 	def bounded_by_minmax(self):
+		"""Returns a bounded subspace (SubspaceBounded) with limits given by Subspace.minmax()
+
+		:rtype: SubspaceBounded
+		"""
 		bounds = self.minmax()
 		return SubspaceBounded(self, bounds)
 
+	bounded = bounded_by_minmax
+
 	def bounded_by_sigmas(self, sigmas=3, square=False):
+		"""Returns a bounded subspace (SubspaceBounded) with limits given by Subspace.limits_sigma()
+
+		:rtype: SubspaceBounded
+		"""
 		bounds = self.limits_sigma(sigmas=sigmas, square=square)
 		return SubspaceBounded(self, bounds)
 
+	def minmax(self):
+		"""Return a sequence of [(min, max), ..., (min, max)] corresponding to each expression in this subspace ignoring NaN.
+		"""
+		raise NotImplementedError
+	def mean(self):
+		"""Return a sequence of [mean, ... , mean] corresponding to the mean of each expression in this subspace ignoring NaN.
+		"""
+		raise NotImplementedError
+	def var(self, means=None):
+		"""Return a sequence of [var, ... , var] corresponding to the variance of each expression in this subspace ignoring NaN.
+		"""
+		raise NotImplementedError
+	def sum(self):
+		"""Return a sequence of [sum, ... , sum] corresponding to the sum of values of each expression in this subspace ignoring NaN."""
+		raise NotImplementedError
+	def histogram(self, limits, size=256, weight=None):
+		"""Return a grid of shape (size, ..., size) corresponding to the dimensionality of this subspace containing the counts in each element
+
+		The type of the grid of np.float64
+
+		"""
+		raise NotImplementedError
+	def limits_sigma(self, sigmas=3, square=False):
+		raise NotImplementedError
 
 class SubspaceLocal(Subspace):
-	def __init__(self, dataset, expressions, executor, async, masked=False):
-		self.dataset = dataset
-		self.expressions = expressions
-		#self.columns = map(dataset.columns, self.expressions)
-		self.executor = executor
-		self.async = async
-		self.is_masked = masked
+	"""Subclass of subspace which implemented methods that can be run locally.
+	"""
 
-	def selected(self):
-		return SubspaceLocal(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
-
-	def toarray(self, list):
+	def _toarray(self, list):
 		return np.array(list)
-
-	@property
-	def dimension(self):
-		return len(self.expressions)
 
 	@property
 	def pre(self):
@@ -372,7 +451,7 @@ class SubspaceLocal(Subspace):
 			return result
 		def min_max_map(*blocks):
 			return [vaex.vaexfast.find_nan_min_max(block) for block in blocks]
-		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self.toarray)
+		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self._toarray)
 		return self._task(task)
 
 	def mean(self):
@@ -383,9 +462,9 @@ class SubspaceLocal(Subspace):
 			return means
 		if self.is_masked:
 			mask = self.dataset.mask
-			task = TaskMapReduce(self.dataset, self.expressions, lambda thread_index, i1, i2, *blocks: [np.nanmean(block[mask[i1:i2]]) for block in blocks], mean_reduce, self.toarray, info=True)
+			task = TaskMapReduce(self.dataset, self.expressions, lambda thread_index, i1, i2, *blocks: [np.nanmean(block[mask[i1:i2]]) for block in blocks], mean_reduce, self._toarray, info=True)
 		else:
-			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nanmean(block) for block in blocks], mean_reduce, self.toarray)
+			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nanmean(block) for block in blocks], mean_reduce, self._toarray)
 		return self._task(task)
 
 	def var(self, means=None):
@@ -402,14 +481,14 @@ class SubspaceLocal(Subspace):
 					return [np.nanmean((block[mask[i1:i2]]-mean)**2) for block, mean in zip(blocks, means)]
 				else:
 					return [np.nanmean(block[mask[i1:i2]]**2) for block in blocks]
-			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, self.toarray, info=True)
+			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, self._toarray, info=True)
 		else:
 			def var_map(*blocks):
 				if means is not None:
 					return [np.nanmean((block-mean)**2) for block, mean in zip(blocks, means)]
 				else:
 					return [np.nanmean(block**2) for block in blocks]
-			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, self.toarray)
+			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, self._toarray)
 		return self._task(task)
 
 	def sum(self):
@@ -417,13 +496,13 @@ class SubspaceLocal(Subspace):
 			mask = self.dataset.mask
 			task = TaskMapReduce(self.dataset,\
 								 self.expressions, lambda thread_index, i1, i2, *blocks: [np.nansum(block[mask[i1:i2]], dtype=np.float64) for block in blocks],\
-								 lambda a, b: np.array(a) + np.array(b), self.toarray, info=True)
+								 lambda a, b: np.array(a) + np.array(b), self._toarray, info=True)
 		else:
-			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nansum(block, dtype=np.float64) for block in blocks], lambda a, b: np.array(a) + np.array(b), self.toarray)
+			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nansum(block, dtype=np.float64) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
 		return self._task(task)
 
-	def histogram(self, limits, size=256):
-		task = TaskHistogram(self.dataset, self, self.expressions, size, limits, masked=self.is_masked)
+	def histogram(self, limits, size=256, weight=None):
+		task = TaskHistogram(self.dataset, self, self.expressions, size, limits, masked=self.is_masked, weight=weight)
 		return self._task(task)
 
 	def limits_sigma(self, sigmas=3, square=False):
@@ -433,6 +512,15 @@ class SubspaceLocal(Subspace):
 			stds = np.repeat(stds.mean(), len(stds))
 		return np.array(zip(means-sigmas*stds, means+sigmas*stds))
 
+	def current(self):
+		index = self.dataset.get_current_row()
+		def find(thread_index, i1, i2, *blocks):
+			if (index >= i1) and (index < i2):
+				return [block[index-i1] for block in blocks]
+			else:
+				return None
+		task = TaskMapReduce(self.dataset, self.expressions, find, lambda a, b: a if b is None else b, info=True)
+		return self._task(task)
 
 
 
@@ -442,7 +530,27 @@ import vaex.events
 import cgi
 
 class Dataset(object):
-	"""
+	"""All datasets are encapsulated in this class, local or remote dataets
+
+	Each dataset has a number of columns, and a number of rows, the length of the dataset.
+	Most operations on the data are not done directly on the dataset, but on subspaces of it, using the
+	Subspace class. Subspaces are created by 'calling' the dataset, like this:
+
+	>> subspace_xy = some_dataset("x", "y")
+	>> subspace_r = some_dataset("sqrt(x**2+y**2)")
+
+	All Datasets have one 'selection', and all calculations by Subspace are done on the whole dataset (default)
+	or for the selection. The following example shows how to use the selection.
+
+	>>> some_dataset.select("x < 0")
+	>>> subspace_xy = some_dataset("x", "y")
+	>>> subspace_xy_selected = subspace_xy.selected()
+
+
+	TODO: active fraction, length and shuffled
+
+
+
 	:type signal_selection_changed: events.Signal
 	"""
 	def __init__(self, name, column_names):
@@ -453,10 +561,73 @@ class Dataset(object):
 		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
 		self.signal_selection_changed = vaex.events.Signal("selection changed")
 		self.undo_manager = vaex.ui.undo.UndoManager()
-		self.variables = {}
+		self.variables = collections.OrderedDict()
+		self.variables["pi"] = np.pi
+		self.variables["e"] = np.e
+		self.virtual_columns = collections.OrderedDict()
+		self._length = None
+		self._full_length = None
+		self._active_fraction = 1
+		self._current_row = None
 
-	def add_virtual_columns_spherical_to_cartesian(self, *args):
+		self.mask = None # a bitmask for the selection does not work for server side
+		self._has_selection = False
+
+	def __call__(self, *expressions, **kwargs):
+		"""Return a Subspace for this dataset with the given expressions:
+
+		Example:
+
+		>>> subspace_xy = some_dataset("x", "y")
+
+		:rtype: Subspace
+		"""
 		raise NotImplementedError
+
+	def select(self, boolean_expression, mode="replace"):
+		"""Select rows based on the boolean_expression, if there was a previous selection, the mode is taken into account.
+
+		if boolean_expression is None, remove the selection, has_selection() will returns false
+
+		Note that per dataset, only one selection is possible.
+
+		:param str boolean_expression: boolean expression, such as 'x < 0', '(x < 0) & (y > -10)' or None to remove the selection
+		:param str mode: boolean operation to perform with the previous selection, "replace", "and", "or", "xor", "subtract"
+		:return: None
+		"""
+		raise NotImplementedError
+
+	def has_selection(self):
+		return self._has_selection
+
+	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname, yname, zname, radians=True):
+		if not radians:
+			alpha = "pi/180.*%s" % alpha
+			delta = "pi/180.*%s" % delta
+		self.virtual_columns[xname] = "-sin(%s) * cos(%s) * %s" % (alpha, delta, distance)
+		self.virtual_columns[yname] = "cos(%s) * cos(%s) * %s" % (alpha, delta, distance)
+		self.virtual_columns[zname] = "sin(%s) * %s" % (delta, distance)
+
+	def add_virtual_columns_equatorial_to_galactic_cartesian(self, alpha, delta, distance, xname, yname, zname, radians=True, alpha_gp=np.radians(192.85948), delta_gp=np.radians(27.12825), l_omega=np.radians(32.93192)):
+		"""From http://arxiv.org/pdf/1306.2945v2.pdf"""
+		if not radians:
+			alpha = "pi/180.*%s" % alpha
+			delta = "pi/180.*%s" % delta
+		# TODO: sort our x,y,z order and the l_omega
+		self.virtual_columns[zname] = "{distance} * (cos({delta}) * cos({delta_gp}) * cos({alpha} - {alpha_gp}) + sin({delta}) * sin({delta_gp}))".format(**locals())
+		self.virtual_columns[xname] = "{distance} * (cos({delta}) * sin({alpha} - {alpha_gp}))".format(**locals())
+		self.virtual_columns[yname] = "{distance} * (sin({delta}) * cos({delta_gp}) - cos({delta}) * sin({delta_gp}) * cos({alpha} - {alpha_gp}))".format(**locals())
+
+	def add_virtual_column(self, name, expression):
+		"""Add a virtual column to the dataset
+
+		Example:
+		>>> dataset.add_virtual_column("r", "sqrt(x**2 + y**2 + z**2)")
+		>>> dataset.select("r < 10")
+		"""
+		self.virtual_columns[name] = expression
+
+
 
 	def __todo_repr_html_(self):
 		html = """<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))
@@ -468,43 +639,65 @@ class Dataset(object):
 
 
 	def current_sequence_index(self):
+		"""TODO"""
 		return 0
 
-	def current_row(self):
-		return None
+	def has_current_row(self):
+		return self._current_row is not None
+
+	def get_current_row(self):
+		"""Individual rows can be 'picked', this is the index (integer) of the current row, or None there is nothing picked"""
+		return self._current_row
+
+	def set_current_row(self, value):
+		"""Set the current row, and emit the signal signal_pick"""
+		if (value is not None) and ((value < 0) or (value >= len(self))):
+			raise IndexError, "index %d out of range [0,%d]" % (value, len(self))
+		self._current_row = value
+		self.signal_pick.emit(self, value)
 
 	def has_snapshots(self):
 		return False
 
-
-	def __call__(self, *expressions, **kwargs):
-		"""optional argument async[=False]
-
-		:return: SubspaceLocal
-		"""
-		return SubspaceLocal(self, expressions, self.executor, async=kwargs.get("async", False))
-
-	def select(self, expression):
-		mask = np.zeros(len(self), dtype=np.bool)
-		def map(thread_index, i1, i2, block):
-			mask[i1:i2][block==1.] = 1
-			return 0
-		def reduce(*args):
-			None
-		expr = self(expression)
-		task = TaskMapReduce(self, [expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
-		def apply_mask(*args):
-			#print "Setting mask"
-			self.set_mask(mask)
-		task.then(apply_mask)
-		return expr._task(task)
-
 	def column_count(self):
+		"""Returns the number of columns, not counting virtual ones"""
 		return len(self.column_names)
 
 	def get_column_names(self):
+		"""Return a list of column names
+
+		:rtype: list of str
+ 		"""
 		return list(self.column_names)
 
+	def __len__(self):
+		"""Returns the number of rows in the dataset, if active_fraction != 1, then floor(active_fraction*full_length) is returned"""
+		return self._length
+
+	def selected_length(self):
+		"""Returns the number of rows that are selected"""
+		raise NotImplementedError
+
+	def full_length(self):
+		"""the full length of the dataset, independant what active_fraction is"""
+		return self._full_length
+
+	def get_active_fraction(self):
+		"""Value in the range (0, 1], to work only with a subset of rows
+		"""
+		return self._active_fraction
+
+	def set_active_fraction(self, value):
+		"""Sets the active_fraction, set picked row to None, and remove selection
+
+		TODO: we may be able to keep the selection, if we keep the expression, and also the picked row
+		"""
+		self._active_fraction = value
+		#self._fraction_length = int(self._length * self._active_fraction)
+		# TODO: this only for local datasets
+		self._set_mask(None)
+		self.set_current_row(None)
+		self._length = int(round(self.full_length() * self._active_fraction))
 
 
 
@@ -513,49 +706,127 @@ class DatasetLocal(Dataset):
 		self.is_local = True
 		super(DatasetLocal, self).__init__(name, column_names)
 		self.path = path
-		self.variables = collections.OrderedDict()
-		self.variables["pi"] = np.pi
-		self.variables["e"] = np.e
-		self.virtual_columns = collections.OrderedDict()
-		self.mask = None
+		self.columns = collections.OrderedDict()
 
-	def set_mask(self, mask):
+	def __call__(self, *expressions, **kwargs):
+		return SubspaceLocal(self, expressions, self.executor, async=kwargs.get("async", False))
+
+	def concat(self, other):
+		return DatasetConcatenated([self, other])
+
+	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False):
+		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection)
+
+	def selected_length(self):
+		return np.sum(self.mask) if self.has_selection() else None
+
+	def select(self, expression):
+		if expression is None:
+			self._has_selection = False
+			self.mask = None
+		else:
+			mask = np.zeros(len(self), dtype=np.bool)
+			def map(thread_index, i1, i2, block):
+				mask[i1:i2][block==1.] = 1
+				return 0
+			def reduce(*args):
+				None
+			expr = self(expression)
+			task = TaskMapReduce(self, [expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
+			def apply_mask(*args):
+				#print "Setting mask"
+				self._set_mask(mask)
+			task.then(apply_mask)
+			return expr._task(task)
+
+	def _set_mask(self, mask):
 		self.mask = mask
+		self._has_selection = mask is not None
 		self.signal_selection_changed.emit(self)
 
-	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname, yname, zname, radians=True):
-		if not radians:
-			alpha = "pi/180.*%s" % alpha
-			delta = "pi/180.*%s" % delta
-		self.virtual_columns[xname] = "-sin(%s) * cos(%s) * %s" % (alpha, delta, distance)
-		self.virtual_columns[yname] = "cos(%s) * cos(%s) * %s" % (alpha, delta, distance)
-		self.virtual_columns[zname] = "sin(%s) * %s" % (delta, distance)
 
-	def add_virtual_columns_equatorial_to_galactic(self, alpha, delta, distance, xname, yname, zname, radians=True, alpha_gp=np.radians(192.85948), delta_gp=np.radians(27.12825), l_omega=np.radians(32.93192)):
-		"""From http://arxiv.org/pdf/1306.2945v2.pdf"""
-		if not radians:
-			alpha = "pi/180.*%s" % alpha
-			delta = "pi/180.*%s" % delta
-		# TODO: sort our x,y,z order and the l_omega
-		self.virtual_columns[zname] = "{distance} * (cos({delta}) * cos({delta_gp}) * cos({alpha} - {alpha_gp}) + sin({delta}) * sin({delta_gp}))".format(**locals())
-		self.virtual_columns[xname] = "{distance} * (cos({delta}) * sin({alpha} - {alpha_gp}))".format(**locals())
-		self.virtual_columns[yname] = "{distance} * (sin({delta}) * cos({delta_gp}) - cos({delta}) * sin({delta_gp}) * cos({alpha} - {alpha_gp}))".format(**locals())
+class _ColumnConcatenatedLazy(object):
+	def __init__(self, datasets, column_name):
+		self.datasets = datasets
+		self.column_name = column_name
+		self.dtype = self.datasets[0].columns[self.column_name].dtype
+		#print len(self)
+		#print self.datasets[0].columns[self.column_name].shape[1:]
+		self.shape = (len(self), ) + self.datasets[0].columns[self.column_name].shape[1:]
+		#print self.shape
+	def __len__(self):
+		return sum(len(ds) for ds in self.datasets)
 
-	def add_virtual_column(self, name, expression):
-		self.virtual_columns[name] = expression
+	def __getitem__(self, slice):
+		start, stop, step = slice.start, slice.stop, slice.step
+		start = start or 0
+		stop = stop or len(self)
+		assert step in [None, 1]
+		datasets = iter(self.datasets)
+		current_dataset = datasets.next()
+		offset = 0
+		while start >= offset + len(current_dataset):
+			offset += len(current_dataset)
+			current_dataset = datasets.next()
+		# this is the fast path, no copy needed
+		if stop <= offset + len(current_dataset):
+			return current_dataset.columns[self.column_name][start-offset:stop-offset]
+		else:
+			copy = np.zeros(stop-start, dtype=current_dataset.columns[self.column_name][0:1].dtype)
+			copy_offset = 0
+			#print ">", start, stop, offset, len(current_dataset), current_dataset.columns[self.column_name]
+			while offset < stop: #> offset + len(current_dataset):
+				part = current_dataset.columns[self.column_name][start-offset:min(len(current_dataset), stop-offset)]
+				#print "part", part, copy_offset,copy_offset+len(part)
+				copy[copy_offset:copy_offset+len(part)] = part
+				#print copy[copy_offset:copy_offset+len(part)]
+				offset += len(current_dataset)
+				copy_offset += len(part)
+				start = offset
+				if offset < stop:
+					current_dataset = datasets.next()
+			return copy
+
+
+class DatasetConcatenated(DatasetLocal):
+	def __init__(self, datasets):
+		super(DatasetConcatenated, self).__init__(None, None, [])
+		self.datasets = datasets
+		first, tail = datasets[0], datasets[1:]
+		for column_name in first.get_column_names():
+			if all([column_name in dataset.get_column_names() for dataset in tail]):
+				self.column_names.append(column_name)
+		self.columns = {}
+		for column_name in self.get_column_names():
+			self.columns[column_name] = _ColumnConcatenatedLazy(datasets, column_name)
+		self._full_length = sum(ds.full_length() for ds in self.datasets)
+		self._length = self.full_length()
+		self.name = "_".join(ds.name for ds in self.datasets)
+
+
+	def concat(self, other):
+		datasets = list(self.datasets) + [other]
+		return DatasetConcatenated(datasets)
 
 
 class DatasetArrays(DatasetLocal):
-	def __init__(self):
+	def __init__(self, name="arrays"):
 		super(DatasetArrays, self).__init__(None, None, [])
-		self.columns = {}
+		self.name = name
 
-	def __len__(self):
-		return len(self.columns.values()[0])
+	#def __len__(self):
+	#	return len(self.columns.values()[0])
 
 	def add_column(self, name, data):
 		self.column_names.append(name)
 		self.columns[name] = data
+		#self._length = len(data)
+		if self._full_length is None:
+			self._full_length = len(data)
+		else:
+			assert self.full_length() == len(data), "columns should be of equal length"
+		self._length = int(round(self.full_length() * self._active_fraction))
+		#self.set_active_fraction(self._active_fraction)
 
 class DatasetMemoryMapped(DatasetLocal):
 	def link(self, expression, listener):
@@ -577,8 +848,8 @@ class DatasetMemoryMapped(DatasetLocal):
 	def full_length(self):
 		return self._length
 		
-	def __len__(self):
-		return self._fraction_length
+	#def __len__(self):
+	#	return self._fraction_length
 		
 	def length(self, selection=False):
 		if selection:
@@ -614,9 +885,8 @@ class DatasetMemoryMapped(DatasetLocal):
 			self.fileno_map = {}
 			self.mapping_map = {}
 		self._length = None
-		self._fraction_length = None
+		#self._fraction_length = None
 		self.nColumns = 0
-		self.columns = {}
 		self.column_names = []
 		self.rank1s = {}
 		self.rank1names = []
@@ -747,11 +1017,11 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.file.close()
 		self.mapping.close()
 		
-	def set_fraction(self, fraction):
+	def ___set_fraction(self, fraction):
 		self.fraction = fraction
 		self.current_slice = (0, int(self._length * fraction))
 		self._fraction_length = self.current_slice[1]
-		self.set_mask(None)
+		self._set_mask(None)
 		# TODO: if row in slice, we don't have to remove it
 		self.selectRow(None)
 		
@@ -799,7 +1069,8 @@ class DatasetMemoryMapped(DatasetLocal):
 			if self.current_slice is None:
 				self.current_slice = (0, length)
 				self.fraction = 1.
-				self._fraction_length = length
+				self._full_length = length
+				self._length = length
 			self._length = length
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			if array is not None:
@@ -840,7 +1111,8 @@ class DatasetMemoryMapped(DatasetLocal):
 			if self.current_slice is None:
 				self.current_slice = (0, length if not transposed else length1)
 				self.fraction = 1.
-				self._fraction_length = length if not transposed else length1
+				self._full_length = length if not transposed else length1
+				self._length = self._full_length
 			self._length = length if not transposed else length1
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			rawlength = length * length1
@@ -868,7 +1140,7 @@ class DatasetMemoryMapped(DatasetLocal):
 			#self.column_names.append(name)
 			
 	@classmethod
-	def can_open(cls, path, *args):
+	def can_open(cls, path, *args, **kwargs):
 		return False
 	
 	@classmethod
@@ -955,7 +1227,7 @@ class HansMemoryMapped(DatasetMemoryMapped):
 		#uint64 = np.frombuffer(self.mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
 
 	@classmethod
-	def can_open(cls, path, *args):
+	def can_open(cls, path, *args, **kwargs):
 		basename, ext = os.path.splitext(path)
 		if os.path.exists(basename + ".omega2"):
 			return True
@@ -1093,7 +1365,7 @@ class FitsBinTable(DatasetMemoryMapped):
 							self.addColumn(column.name, array=array)
 		#BinTableHDU
 	@classmethod
-	def can_open(cls, path, *args):
+	def can_open(cls, path, *args, **kwargs):
 		return os.path.splitext(path)[1] == ".fits"
 	
 	@classmethod
@@ -1365,7 +1637,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 			self.h5file.close()
 		
 	@classmethod
-	def can_open(cls, path, *args):
+	def can_open(cls, path, *args, **kwargs):
 		h5file = None
 		try:
 			h5file = h5py.File(path, "r")
@@ -1472,7 +1744,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 		super(AmuseHdf5MemoryMapped, self).__init__(filename, write=write)
 		
 	@classmethod
-	def can_open(cls, path, *args):
+	def can_open(cls, path, *args, **kwargs):
 		h5file = None
 		try:
 			h5file = h5py.File(path, "r")
@@ -1497,22 +1769,34 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 
 dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
 
+
+gadget_particle_names = "gas halo disk bulge stars dm".split()
+
 class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
-	def __init__(self, filename, particleName=None, particleType=None):
+	def __init__(self, filename, particle_name=None, particle_type=None):
 		if "#" in filename:
 			filename, index = filename.split("#")
 			index = int(index)
-			particleNames = "gas halo disk bulge stars dm".split()
-			particleType = index 
-			particleName = particleNames[particleType]
-			
+			particle_type = index
+			particle_name = gadget_particle_names[particle_type]
+		elif particle_type is not None:
+			self.particle_name = gadget_particle_names[self.particle_type]
+			self.particle_type = particle_type
+		elif particle_name is not None:
+			if particle_name.lower() in gadget_particle_names:
+				self.particle_type = gadget_particle_names.index(particle_name.lower())
+				self.particle_name = particle_name.lower()
+			else:
+				raise ValueError, "particle name not supported: %r, expected one of %r" % (particle_name, " ".join(gadget_particle_names))
+		else:
+			raise Exception, "expected particle type or name as argument, or #<nr> behind filename"
 		super(Hdf5MemoryMappedGadget, self).__init__(filename)
-		self.particleType = particleType
-		self.particleName = particleName
-		self.name = self.name + "-" + self.particleName
+		self.particle_type = particle_type
+		self.particle_name = particle_name
+		self.name = self.name + "-" + self.particle_name
 		h5file = h5py.File(self.filename, 'r')
 		#for i in range(1,4):
-		key = "/PartType%d" % self.particleType
+		key = "/PartType%d" % self.particle_type
 		if key not in h5file:
 			raise KeyError, "%s does not exist" % key
 		particles = h5file[key]
@@ -1557,38 +1841,34 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 					#self.property_names.append(name)
 		
 		name = "particle_type"
-		value = particleType
+		value = particle_type
 		logger.debug("property[{name}] = {value}".format(**locals()))
 		self.variables[name] = value
 		#self.property_names.append(name)
 
 	@classmethod
-	def can_open(cls, path, *args):
+	def can_open(cls, path, *args, **kwargs):
 		if len(args) == 2:
 			particleName = args[0]
 			particleType = args[1]
-		else:
-			logger.debug("try particle type")
-			try:
-				filename, index = path.split("#")
-				index = int(index)
-				particleNames = "gas halo disk bulge stars dm".split()
-				particleType = index 
-				particleName = particleNames[particleType]
-				path = filename
-			except Exception, e:
-				logger.info("cannot open %s as %r (%r)" % (path, cls, e))
-				return False
+		elif "particle_name" in kwargs:
+			particle_type = gadget_particle_names.index(kwargs["particle_name"].lower())
+		elif "particle_type" in kwargs:
+			particle_type = kwargs["particle_type"]
+		elif "#" in path:
+			filename, index = path.split("#")
+			particle_type = gadget_particle_names[index]
 		h5file = None
 		try:
 			h5file = h5py.File(path, "r")
 		except:
 			return False
 		has_particles = False
-		for i in range(1,6):
-			key = "/PartType%d" % particleType
-			has_particles = has_particles or (key in h5file)
-		return has_particles
+		#for i in range(1,6):
+		key = "/PartType%d" % particle_type
+		return key in h5file
+		#has_particles = has_particles or (key in h5file)
+		#return has_particles
 			
 	
 	@classmethod
@@ -1648,7 +1928,7 @@ dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
 
 
 class Zeldovich(InMemory):
-	def __init__(self, dim=2, N=256, n=-2.5, t=None, seed=None, name="zeldovich approximation"):
+	def __init__(self, dim=2, N=256, n=-2.5, t=None, seed=None, scale=1, name="zeldovich approximation"):
 		super(Zeldovich, self).__init__(name=name)
 		
 		if seed is not None:
@@ -1673,15 +1953,15 @@ class Zeldovich(InMemory):
 		#for i in range(4):
 		#if t is None:
 		#	s = s/s.max()
-		t = 1.
+		t = t or 1.
 		X = Q + s * t
 
 		for d, name in zip(range(dim), "xyzw"):
-			self.addColumn(name, array=X[d].reshape(-1))
+			self.addColumn(name, array=X[d].reshape(-1) * scale)
 		for d, name in zip(range(dim), "xyzw"):
-			self.addColumn("v"+name, array=s[d].reshape(-1))
+			self.addColumn("v"+name, array=s[d].reshape(-1) * scale)
 		for d, name in zip(range(dim), "xyzw"):
-			self.addColumn(name+"0", array=Q[d].reshape(-1))
+			self.addColumn(name+"0", array=Q[d].reshape(-1) * scale)
 		return
 		
 dataset_type_map["zeldovich"] = Zeldovich
@@ -1708,7 +1988,7 @@ class VOTable(DatasetMemoryMapped):
 		#return dataset
 	
 	@classmethod
-	def can_open(cls, path, *args):
+	def can_open(cls, path, *args, **kwargs):
 		can_open = path.endswith(".vot")
 		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
 		return can_open
@@ -1739,7 +2019,7 @@ class AsciiTable(DatasetMemoryMapped):
 		#return dataset
 	
 	@classmethod
-	def can_open(cls, path, *args):
+	def can_open(cls, path, *args, **kwargs):
 		can_open = path.endswith(".asc")
 		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
 		return can_open
@@ -1761,7 +2041,7 @@ class MemoryMappedGadget(DatasetMemoryMapped):
 dataset_type_map["gadget-plain"] = MemoryMappedGadget
 		
 		
-def can_open(path, *args):
+def can_open(path, *args, **kwargs):
 	for name, class_ in dataset_type_map.items():
 		if class_.can_open(path, *args):
 			return True
@@ -1770,7 +2050,7 @@ def load_file(path, *args, **kwargs):
 	dataset_class = None
 	for name, class_ in vaex.dataset.dataset_type_map.items():
 		logger.debug("trying %r with class %r" % (path, class_))
-		if class_.can_open(path, *args):
+		if class_.can_open(path, *args, **kwargs):
 			logger.debug("can open!")
 			dataset_class = class_
 			break

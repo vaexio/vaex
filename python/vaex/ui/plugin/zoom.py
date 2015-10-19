@@ -95,7 +95,6 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 	def setMode(self, action):
 		useblit = True
 		axes_list = self.dialog.getAxesList()
-		print action, self.action_zoom_rect
 		if action == self.action_zoom_x:
 			print "zoom x"
 			self.lastActionZoom = self.action_zoom_x

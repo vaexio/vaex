@@ -45,6 +45,7 @@ from vaex.ui.ranking import *
 import vaex.ui.undo
 import vaex.kld
 import vaex.utils
+import vaex.dataset
 
 #import subspacefind
 #import ctypes
@@ -53,8 +54,6 @@ import imp
 
 import vaex.logging
 logger = vaex.logging.getLogger("vaex")
-import logging
-logger.setLevel(logging.DEBUG)
 
 #import locale
 #locale.setlocale(locale.LC_ALL, )
@@ -71,7 +70,7 @@ if os.path.exists(path):
 	custom = customModule.Custom()
 else:
 	custom = None
-	print >>sys.stderr, path, "does not exist"
+	logger.debug("%s does not exist" % path)
 
 #print "root path is", vaex.utils.get_root_path()
 
@@ -97,178 +96,12 @@ if not frozen: # astropy not working :s
 if "darwin" in platform.system().lower():
 	application_path = os.path.abspath(".")
 
-if 0:
-	N = 1e9
-	array = np.arange(N)
-	counts = np.zeros(10, dtype=np.float64)
-	if 0:
-		#ptr = array.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-		col_a = subspacefind.make_column(array)
-		#col_b = subspacefind.make_column(array)
-		col_b = subspacefind.SquareColumn(col_a)
-		col_b2 = subspacefind.SquareColumn(col_b)
-		col_b3 = subspacefind.SquareColumn(col_b2)
-		col_b4 = subspacefind.SquareColumn(col_b3)
-		col_c = subspacefind.DivConstColumn(col_b4, N**2)
-
-		print col_a.get(10)
-		#array[:] = array**2/N**2
-		print col_a.get(10)
-		print col_c.get(10)
-		print sum(counts)
-
-		with vaex.utils.Timer("hist"):
-			subspacefind.histogram1d(col_c, counts, 0., 1.)
-	else:
-		step = 1000
-		res = array[:len(array)/step] * 0.0
-		Nstep = len(res)
-		col_c = subspacefind.make_column(res)
-		#ne.set_num_threads(10)
-		vmax = None
-		with vaex.utils.Timer("hist"):
-			for i in range(step):
-				a = array[i*Nstep:(i+1)*Nstep]
-				#ne.evaluate("log(a)**2/N**2", out=res)
-				ne.evaluate("sqrt(a**2+a**3)", out=res)
-				if vmax is None:
-					vmax = res.max()
-				else:
-					vmax = max(vmax, res.max())
-				subspacefind.histogram1d(col_c, counts, 0., 1.)
-		print  vmax
-	print counts
-	#col_a = subspacefind.DoubleColumn(array)
-	sys.exit(0)
-if 0:
-	class NavigationToolbar(NavigationToolbarQt):
-		def __init__(self, canvas, axes, parent):
-			self.toolitems = [k for k in self.toolitems if (k[0] is None) or (k[0].lower() in "home pan zoom")]
-			#self.toolitems.append()
-			super(NavigationToolbar, self).__init__(canvas, parent)
-			self.parent = parent
-			self.axes = axes
-			#self.basedir = os.path.join(matplotlib.rcParams[ 'datapath' ],'images')
-			#print self.basedir
-			self.extra_toolitems = [
-				('Select', 'Select point', 'filesave', 'select_point'),
-				('Lasso', 'Lasso select', 'matplotlib', 'select_lasso'),
-							]
-			for text, tooltip_text, image_file, callback in self.extra_toolitems:
-				a = self.addAction(self._icon(image_file + '.png'), text, getattr(self, callback))
-				a.setCheckable(True)
-				self._actions[callback] = a
-				if tooltip_text is not None:
-					a.setToolTip(tooltip_text)
-			self._idPress = None
-			self._idRelease = None
-			self.lasso = None
-
-		def sync_buttons(self):
-			self._actions['select_point'].setChecked(self._active == 'SELECT_POINT')
-			self._actions['select_lasso'].setChecked(self._active == 'SELECT_LASSO')
-
-		def select_point(self, *args):
-			print self._active
-			name = 'SELECT_POINT'
-			self._active = None if self._active == name else name
-			self.sync_buttons()
-			if self._idPress is not None:
-				self._idPress = self.canvas.mpl_disconnect(self._idPress)
-				self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
-
-			if self.lasso:
-				self.lasso.active = False
-				self.lasso.disconnect_events()
-				self.lasso = None
-
-			if self._active == name:
-				self._idPress = self.canvas.mpl_connect(
-					'button_press_event', self.parent.press_select_point)
-				self.canvas.widgetlock(self)
-				self.set_message('select point')
-			else:
-				self.canvas.widgetlock.release(self)
-				self.set_message('')
-
-		def select_lasso(self, *args):
-			print self._active
-			name = 'SELECT_LASSO'
-			self._active = None if self._active == name else name
-			self.sync_buttons()
-			if self._idPress is not None:
-				self._idPress = self.canvas.mpl_disconnect(self._idPress)
-				self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
-
-			if self._active == name:
-				#self._idPress = self.canvas.mpl_connect('button_press_event', self.press_select_lasso)
-				#self._idPress = self.canvas.mpl_connect('button_release_event', self.release_select_lasso)
-				#self.canvas.widgetlock(self)
-				#self.lasso = LassoSelector(evt.inaxes, (evt.xdata, evt.ydata), self.lasso_callback)
-				self.lasso = LassoSelector(self.axes, self.lasso_callback)
-				self.canvas.draw()
-				self.set_message('lasso select point')
-			else:
-				#self.canvas.widgetlock.release(self)
-				#self.set_message('')
-				self.lasso.active = False
-				self.lasso.disconnect_events()
-				self.lasso = None
-
-		def press_select_lasso(self, evt):
-			print "lasso", self.canvas.widgetlock.locked()
-			self.canvas.draw()
-			if not self.canvas.widgetlock.locked():
-				self.canvas.widgetlock(self.lasso)
-
-		def release_select_lasso(self, evt):
-			if self.lasso:
-				self.canvas.widgetlock.release(self.lasso)
-				self.lasso = None
-			self.canvas.draw()
-
-
-		def lasso_callback(self, vertices):
-			#print vertices
-			x, y = np.array(vertices).T
-			mask = np.zeros(len(self.parent.datax), dtype=np.uint8)
-			meanx = x.mean()
-			meany = y.mean()
-			radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
-			#print (x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
-			vaex.selection.pnpoly(x, y, self.parent.datax, self.parent.datay, mask, meanx, meany, radius)
-			self.parent.set_mask(mask==1)
 
 #from PySide import QtGui, QtCore
 from vaex.ui.qt import *
 from vaex.ui.table import *
 
 from vaex.samp import Samp
-
-usage = """
-Convert VO table from SAMP to hdf5 format:
-
-Example:
-
-vaex-data-samp2hdf5 -o photometry.hdf5
-
-Now open topcat:
-topcat -f csv $vaex_DATA/scl_photo.csv
-
-...
-
-"""
-#parser = OptionParser(usage=usage)
-
-#parser.add_option("-n", "--name",
- #                 help="dataset name [default=%default]", default="data", type=str)
-#parser.add_option("-o", "--output",
-#                 help="dataset output filename [by default the suffix of input filename will be replaced by hdf5]", default=None, type=str)
-#(options, args) = parser.parse_args()
-
-#if len(args) != 1:
-#	print "Program requires output filename as argument"
-#	sys.exit(1)
 
 
 def error(title, msg):
@@ -280,9 +113,9 @@ possibleFractions = [10**base * f for base in [-3,-2,-1,0] for f in [0.25, 0.5, 
 possibleFractions.insert(0,10**-4)
 #print possibleFractions
 
-class DataList(QtGui.QListWidget):
+class DatasetSelector(QtGui.QListWidget):
 	def __init__(self, parent):
-		super(DataList, self).__init__(parent)
+		super(DatasetSelector, self).__init__(parent)
 		#self.icon = QtGui.QIcon('icons/png/24x24/devices/memory.png')
 		#self.icon_server = QtGui.QIcon('icons/png/24x24/devices/memory.png')
 		self.icon = QtGui.QIcon(vp.iconfile('drive'))
@@ -292,7 +125,18 @@ class DataList(QtGui.QListWidget):
 		self.signal_add_dataset = vaex.events.Signal("add dataset")
 
 		self.signal_add_dataset.connect(self.on_add_dataset)
+		self.signal_dataset_select = vaex.events.Signal("dataset-select")
+		self.currentItemChanged.connect(self.onDatasetSelected)
 		#self.items
+
+	def onDatasetSelected(self, data_item, previous):
+		if data_item is not None:
+			data = data_item.data(QtCore.Qt.UserRole)
+			if hasattr(data, "toPyObject"):
+				dataset = data.toPyObject()
+				self.signal_dataset_select.emit(dataset)
+			else:
+				self.signal_dataset_select.emit(data)
 
 	def on_add_dataset(self, dataset):
 		#print "added dataset", dataset
@@ -304,43 +148,6 @@ class DataList(QtGui.QListWidget):
 		logger.debug("broadcast pick")
 		self.signal_pick.emit(dataset, row)
 
-	def __testfill(self):
-		self.addHdf5("/home/data/vaex/gaussian3d-1e8-b.hdf5")
-		self.addHdf5("/home/data/vaex/gaussian3d-1e9-b.hdf5")
-		self.addHdf5("/home/data/vaex/rave/rave-dr5-shuffled.hdf5")
-		self.addHdf5("/home/data/vaex/helmi2000-FeH-s2.hdf5")
-
-		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_nfw_soft/output/snapshot_213.hdf5")
-		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/gcsink/gadget/sink_einasto_2kpc_fornax/IC.hdf5")
-		#self.addGadgetHdf5("/Users/users/breddels/mab/models/nbody/hernquist/gadget/hernquist_half/output/snapshot_000.hdf5")
-
-		self.addHdf5("/Users/maartenbreddels/vaex/src/SubspaceFinding/data/gaussian4d-1e7.hdf5")
-		self.addHdf5("/Users/maartenbreddels/vaex/src/SubspaceFinding/data/helmi2000-FeH-s2.hdf5")
-
-		#self.addGadget2("/home/data/vaex/egpbos/snap_008")
-		self.addHdf5("/Users/users/breddels/vaex/src/SubspaceFinding/data/helmi2000-FeH-s2-shuffled.hdf5")
-
-		try:
-			hmmap = HansMemoryMapped("data/Orbitorb9.ac8.10000.100.5.orb.bin", "data/Orbitorb9.ac8.10000.100.5.orb.omega2")
-			self.addDataset(hmmap)
-		except:
-			print "oops"
-		self.addHdf5('/home/data/vaex/Aq-A-2-999-shuffled.hdf5')
-
-		#self.addGadgetHdf5('/home/data/vaex/snap_800.hdf5')
-		# 0 - gas
-		# 1 - halo
-		# 2 disk
-		# 4 new stars
-		# 5 sat
-
-		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
-			self.addGadgetHdf5('data/disk2nv_N6N5_z0.1h_RfAs0.5H_no_H1_0.5_nH01_vw5s_ml50_st-snap_800.hdf5', name, index)
-		for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
-			self.addGadgetHdf5('/home/data/vaex/oldplanar_c15_md0.002_z0.1h_H4_0.5_nH01_vw5s_ml30_sM2e9-snap_400.hdf5', name, index)
-
-
-
 	def setBestFraction(self, dataset):
 		Nmax = 1000*1000*10
 		for fraction in possibleFractions[::-1]:
@@ -350,118 +157,24 @@ class DataList(QtGui.QListWidget):
 			else:
 				break
 
+	def is_empty(self):
+		return len(self.datasets) == 0
 
-	def addDataset(self, dataset):
+	def open(self, path, **kwargs):
+		ds = vaex.open(path, **kwargs)
+		return self.add(ds)
+
+	def add(self, dataset):
 		self.setBestFraction(dataset)
 		item = QtGui.QListWidgetItem(self)
 		item.setText(dataset.name)
-		#self.icon = QIcon.fromTheme('document-open')
-		import vaex.dataset
 		item.setIcon(self.icon_server if isinstance(dataset, vaex.dataset.DatasetRemote) else self.icon)
 		item.setToolTip("file: " +dataset.filename)
 		item.setData(QtCore.Qt.UserRole, dataset)
 		self.setCurrentItem(item)
 		self.signal_add_dataset.emit(dataset)
+		return dataset
 
-	def addGadget2(self, filename, auto_fraction=True):
-		if not os.path.exists(filename):
-			return
-
-		self.hdf5file = MemoryMappedGadget(filename)
-		if auto_fraction:
-			self.setBestFraction(self.hdf5file)
-		item = QtGui.QListWidgetItem(self)
-		item.setText(self.hdf5file.name)
-		item.setToolTip("file: " +self.hdf5file.filename)
-		#self.icon = QIcon.fromTheme('document-open')
-		item.setIcon(self.icon)
-		item.setData(QtCore.Qt.UserRole, self.hdf5file)
-		self.setCurrentItem(item)
-		dataset = self.hdf5file
-		self.signal_add_dataset.emit(dataset)
-
-
-
-	def addGadgetHdf5(self, filename, name, particleType):
-		if not os.path.exists(filename):
-			print "does not exist", filename
-			return
-		try:
-			self.hdf5file = Hdf5MemoryMappedGadget(filename, name, particleType)
-		except KeyError, e:
-			print "error", e
-			logger.exception("loading gadget hdf5")
-			return
-		self.setBestFraction(self.hdf5file)
-		item = QtGui.QListWidgetItem(self)
-		item.setText(self.hdf5file.name)
-		#self.icon = QIcon.fromTheme('document-open')
-		item.setToolTip("file: " +self.hdf5file.filename)
-		item.setIcon(self.icon)
-		item.setData(QtCore.Qt.UserRole, self.hdf5file)
-		self.setCurrentItem(item)
-		dataset = self.hdf5file
-		self.signal_add_dataset.emit(dataset)
-
-	def addHdf5(self, filename, auto_fraction=True):
-		if not os.path.exists(filename):
-			return
-
-		self.hdf5file = Hdf5MemoryMapped(filename)
-		if auto_fraction:
-			self.setBestFraction(self.hdf5file)
-		item = QtGui.QListWidgetItem(self)
-		item.setText(self.hdf5file.name)
-		item.setToolTip("file: " +self.hdf5file.filename)
-		#self.icon = QIcon.fromTheme('document-open')
-		item.setIcon(self.icon)
-		item.setData(QtCore.Qt.UserRole, self.hdf5file)
-		self.setCurrentItem(item)
-		dataset = self.hdf5file
-		self.signal_add_dataset.emit(dataset)
-
-	def addAmuse(self, filename, auto_fraction=True):
-		if not os.path.exists(filename):
-			return
-
-		self.hdf5file = AmuseHdf5MemoryMapped(filename)
-		if auto_fraction:
-			self.setBestFraction(self.hdf5file)
-		item = QtGui.QListWidgetItem(self)
-		item.setText(self.hdf5file.name)
-		item.setToolTip("file: " +self.hdf5file.filename)
-		#self.icon = QIcon.fromTheme('document-open')
-		item.setIcon(self.icon)
-		item.setData(QtCore.Qt.UserRole, self.hdf5file)
-		self.setCurrentItem(item)
-		dataset = self.hdf5file
-		self.signal_add_dataset.emit(dataset)
-
-	def addFits(self, filename, auto_fraction=True):
-		#if not os.path.exists(filename):
-		#	return
-
-		self.hdf5file = FitsBinTable(filename)
-		if auto_fraction:
-			self.setBestFraction(self.hdf5file)
-		item = QtGui.QListWidgetItem(self)
-		item.setText(self.hdf5file.name)
-		item.setToolTip("file: " +self.hdf5file.filename)
-		#self.icon = QIcon.fromTheme('document-open')
-		item.setIcon(self.icon)
-		item.setData(QtCore.Qt.UserRole, self.hdf5file)
-		self.setCurrentItem(item)
-		#self.setCurrentRow(0)
-		dataset = self.hdf5file
-		self.signal_add_dataset.emit(dataset)
-
-	def _addHdf5(filename, columns):
-		h5file = h5py.File(filename)
-
-
-		print f
-		print fileno
-		mapping = mmap.mmap(fileno, 0, prot=mmap.PROT_READ)
 
 
 class Worker(QtCore.QThread):
@@ -623,9 +336,9 @@ class StatisticsDialog(QtGui.QDialog):
 		#self.min = str
 
 
-class MainPanel(QtGui.QFrame):
+class DatasetPanel(QtGui.QFrame):
 	def __init__(self, parent, dataset_list):
-		super(MainPanel, self).__init__(parent)
+		super(DatasetPanel, self).__init__(parent)
 
 		self.jobsManager = vaex.dataset.JobsManager()
 		self.dataset = None
@@ -638,24 +351,24 @@ class MainPanel(QtGui.QFrame):
 		self.name = QtGui.QLabel('', self)
 		self.form_layout.addRow('Name:', self.name)
 
-		self.columns = QtGui.QLabel('', self)
-		self.form_layout.addRow('Columns:', self.columns)
+		self.label_columns = QtGui.QLabel('', self)
+		self.form_layout.addRow('Columns:', self.label_columns)
 
-		self.length = QtGui.QLabel('', self)
-		self.form_layout.addRow('Length:', self.length)
+		self.label_length = QtGui.QLabel('', self)
+		self.form_layout.addRow('Length:', self.label_length)
 
 		#self.histogramButton = QtGui.QPushButton('histogram (1d)', self)
-		self.histogramButton = QtGui.QToolButton(self)
-		self.histogramButton.setText('histogram (1d)')
-		self.form_layout.addRow('Plotting:', self.histogramButton)
+		self.button_histogram = QtGui.QToolButton(self)
+		self.button_histogram.setText('histogram (1d)')
+		self.form_layout.addRow('Plotting:', self.button_histogram)
 
-		self.scatterButton = QtGui.QToolButton(self)
-		self.scatterButton.setText('x/y density')
-		self.form_layout.addRow('', self.scatterButton)
+		self.button_2d = QtGui.QToolButton(self)
+		self.button_2d.setText('x/y density')
+		self.form_layout.addRow('', self.button_2d)
 
-		self.scatter3dButton = QtGui.QToolButton(self)
-		self.scatter3dButton.setText('x/y/z density')
-		self.form_layout.addRow('', self.scatter3dButton)
+		self.button_3d = QtGui.QToolButton(self)
+		self.button_3d.setText('x/y/z density')
+		self.form_layout.addRow('', self.button_3d)
 		if 0:
 
 
@@ -704,10 +417,10 @@ class MainPanel(QtGui.QFrame):
 		self.onValueChanged(0)
 
 
-		self.histogramButton.clicked.connect(self.onOpenHistogram)
+		self.button_histogram.clicked.connect(self.onOpenHistogram)
 		self.statistics.clicked.connect(self.onOpenStatistics)
-		self.scatterButton.clicked.connect(self.onOpenScatter)
-		self.scatter3dButton.clicked.connect(self.onOpenScatter3d)
+		self.button_2d.clicked.connect(self.onOpenScatter)
+		self.button_3d.clicked.connect(self.onOpenScatter3d)
 		#self.scatter1dSeries.clicked.connect(self.onOpenScatter1dSeries)
 		#self.scatter2dSeries.clicked.connect(self.onOpenScatter2dSeries)
 		#self.serieSlice.clicked.connect(self.onOpenSerieSlice)
@@ -715,18 +428,15 @@ class MainPanel(QtGui.QFrame):
 		self.table.clicked.connect(self.onOpenTable)
 
 		self.setLayout(self.form_layout)
-		self.plot_dialogs = []
 		self.signal_open_plot = vaex.events.Signal("open plot")
 
 	def onOpenStatistics(self):
-		#print "open", self.dataset
+
 		if self.dataset is not None:
 			dialog = StatisticsDialog(self, self.dataset)
 			dialog.show()
-			#print "show"
 
 	def onOpenScatter(self):
-		#print "open", self.dataset
 		if self.dataset is not None:
 			xname, yname = self.dataset.column_names[:2]
 			self.plotxy(xname, yname)
@@ -760,8 +470,14 @@ class MainPanel(QtGui.QFrame):
 	def plotxy(self, xname, yname, **kwargs):
 		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
 		dialog.add_layer([xname, yname], self.dataset, **kwargs)
-		dialog.show()
-		self.plot_dialogs.append(dialog)
+		if not vaex.ui.hidden:
+			dialog.show()
+		else:
+			# we get a different output size when we don't show the dialog, which makes testing impossible
+			dialog.show()
+			dialog.hide()
+			#dialog.updateGeometry()
+			#dialog.adjustSize()
 		#self.dataset.executor.execute()
 		self.dataset.executor.execute()
 		self.signal_open_plot.emit(dialog)
@@ -771,7 +487,6 @@ class MainPanel(QtGui.QFrame):
 		dialog = vp.VolumeRenderingPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
 		dialog.add_layer([xname, yname, zname], **kwargs)
 		dialog.show()
-		self.plot_dialogs.append(dialog)
 		#self.dataset.executor.execute()
 		self.dataset.executor.execute()
 		self.signal_open_plot.emit(dialog)
@@ -791,9 +506,7 @@ class MainPanel(QtGui.QFrame):
 		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
 		dialog.add_layer([xname], **kwargs)
 		dialog.show()
-		self.plot_dialogs.append(dialog)
 		#self.dataset.executor.execute()
-		print "executor..."
 		self.dataset.executor.execute()
 		self.signal_open_plot.emit(dialog)
 		return dialog
@@ -820,75 +533,70 @@ class MainPanel(QtGui.QFrame):
 		text = 'Fraction used: %9.4f%%' % (fraction*100)
 		self.fractionLabel.setText(text)
 
-	def onDataSelected(self, data_item, previous):
-		if data_item is not None:
-			data = data_item.data(QtCore.Qt.UserRole)
-			if hasattr(data, "toPyObject"):
-				data = data.toPyObject()
-			self.dataset = data
-			self.dataset = data
-			self.name.setText(data.name)
-			self.columns.setText(str(data.column_count()))
-			self.length.setText("{:,}".format(self.dataset.full_length()))
-			self.numberLabel.setText("{:,}".format(len(self.dataset)))
-			fraction = self.dataset.fraction
-			distances = np.abs(np.array(possibleFractions) - fraction)
-			index = np.argsort(distances)[0]
-			self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
-			self.scatterButton.setEnabled(self.dataset.column_count() > 0)
-			#self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
-			#self.scatter3dButton.setEnabled(False)
-			#self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
-			#self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
+	def show_dataset(self, dataset):
+		self.dataset = dataset
+		self.name.setText(dataset.name)
+		self.label_columns.setText(str(dataset.column_count()))
+		self.label_length.setText("{:,}".format(self.dataset.full_length()))
+		self.numberLabel.setText("{:,}".format(len(self.dataset)))
+		fraction = self.dataset.fraction
+		distances = np.abs(np.array(possibleFractions) - fraction)
+		index = np.argsort(distances)[0]
+		self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
+		self.button_2d.setEnabled(self.dataset.column_count() > 0)
+		#self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
+		#self.scatter3dButton.setEnabled(False)
+		#self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
+		#self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
 
-			self.histogramMenu = QtGui.QMenu(self)
-			for column_name in self.dataset.get_column_names():
-				#action = QtGui.QAction
-				#QtGui.QAction(QtGui.QIcon(iconfile('glue_cross')), '&Pick', self)
-				action = QtGui.QAction(column_name, self)
-				action.triggered.connect(functools.partial(self.histogram, xname=column_name))
-				self.histogramMenu.addAction(action)
-			self.histogramButton.setMenu(self.histogramMenu)
+		self.histogramMenu = QtGui.QMenu(self)
+		for column_name in self.dataset.get_column_names():
+			#action = QtGui.QAction
+			#QtGui.QAction(QtGui.QIcon(iconfile('glue_cross')), '&Pick', self)
+			action = QtGui.QAction(column_name, self)
+			action.triggered.connect(functools.partial(self.histogram, xname=column_name))
+			self.histogramMenu.addAction(action)
+		self.button_histogram.setMenu(self.histogramMenu)
 
-			self.scatterMenu = QtGui.QMenu(self)
+		self.scatterMenu = QtGui.QMenu(self)
+		for column_name1 in self.dataset.get_column_names():
+			#action1 = QtGui.QAction(column_name, self)
+			submenu = self.scatterMenu.addMenu(column_name1)
+			for column_name2 in self.dataset.get_column_names():
+				action = QtGui.QAction(column_name2, self)
+				action.triggered.connect(functools.partial(self.plotxy, xname=column_name1, yname=column_name2))
+				submenu.addAction(action)
+		self.button_2d.setMenu(self.scatterMenu)
+
+		self.scatterMenu3d = QtGui.QMenu(self)
+		if 0: # TODO 3d menu takes long to generate when many columns are present, can we do this lazy?
 			for column_name1 in self.dataset.get_column_names():
 				#action1 = QtGui.QAction(column_name, self)
-				submenu = self.scatterMenu.addMenu(column_name1)
+				submenu = self.scatterMenu3d.addMenu(column_name1)
 				for column_name2 in self.dataset.get_column_names():
+					subsubmenu = submenu.addMenu(column_name2)
+					for column_name3 in self.dataset.get_column_names():
+						action = QtGui.QAction(column_name3, self)
+						action.triggered.connect(functools.partial(self.plotxyz, xname=column_name1, yname=column_name2, zname=column_name3))
+						subsubmenu.addAction(action)
+		self.button_3d.setMenu(self.scatterMenu3d)
+
+		if 0:
+			self.serieSliceMenu = QtGui.QMenu(self)
+			for column_name1 in self.dataset.rank1names:
+				#action1 = QtGui.QAction(column_name, self)
+				submenu = self.serieSliceMenu.addMenu(column_name1)
+				for column_name2 in self.dataset.rank1names:
 					action = QtGui.QAction(column_name2, self)
-					action.triggered.connect(functools.partial(self.plotxy, xname=column_name1, yname=column_name2))
+					action.triggered.connect(functools.partial(self.plotseriexy, xname=column_name1, yname=column_name2))
 					submenu.addAction(action)
-			self.scatterButton.setMenu(self.scatterMenu)
-
-			self.scatterMenu3d = QtGui.QMenu(self)
-			if 0: # TODO 3d menu takes long to generate when many columns are present, can we do this lazy?
-				for column_name1 in self.dataset.get_column_names():
-					#action1 = QtGui.QAction(column_name, self)
-					submenu = self.scatterMenu3d.addMenu(column_name1)
-					for column_name2 in self.dataset.get_column_names():
-						subsubmenu = submenu.addMenu(column_name2)
-						for column_name3 in self.dataset.get_column_names():
-							action = QtGui.QAction(column_name3, self)
-							action.triggered.connect(functools.partial(self.plotxyz, xname=column_name1, yname=column_name2, zname=column_name3))
-							subsubmenu.addAction(action)
-			self.scatter3dButton.setMenu(self.scatterMenu3d)
-
-			if 0:
-				self.serieSliceMenu = QtGui.QMenu(self)
-				for column_name1 in self.dataset.rank1names:
-					#action1 = QtGui.QAction(column_name, self)
-					submenu = self.serieSliceMenu.addMenu(column_name1)
-					for column_name2 in self.dataset.rank1names:
-						action = QtGui.QAction(column_name2, self)
-						action.triggered.connect(functools.partial(self.plotseriexy, xname=column_name1, yname=column_name2))
-						submenu.addAction(action)
-				self.serieSlice.setMenu(self.serieSliceMenu)
+			self.serieSlice.setMenu(self.serieSliceMenu)
 
 	def plotseriexy(self, xname, yname):
 		if self.dataset is not None:
 			dialog = vp.Rank1ScatterPlotDialog(self, self.jobsManager, self.dataset, xname+"[index]", yname+"[index]")
-			self.plot_dialogs.append(dialog)
 			self.dataset.executor.execute()
+			self.signal_open_plot.emit(dialog)
 			dialog.show()
 
 	def tableview(self):
@@ -909,56 +617,6 @@ class MainPanel(QtGui.QFrame):
 		vaex.pca.pca(self.dataset, self.dataset.get_column_names(), self.jobsManager)
 
 
-from numba import jit
-#print numba.__version__
-import math
-#@jit('(f8[:],f8[:], i4[:,:], f8, f8, f8, f8)')
-@jit(nopython=True)
-def histo2d(x, y, counts, dataminx, datamaxx, dataminy, datamaxy):
-	length = len(x)
-	#counts = np.zeros((bincountx, bincounty), dtype=np.int32)
-	bincountx, bincounty = counts.shape
-	#print length
-	#return bindata#
-	for i in range(length):
-		binNox = int(math.floor( ((float(x[i]) - dataminx) / (float(datamaxx) - dataminx)) * float(bincountx)))
-		binNoy = int(math.floor( ((float(y[i]) - dataminy) / (float(datamaxy) - dataminy)) * float(bincounty)))
-		if binNox >= 0 and binNox < bincountx and binNoy >= 0 and binNoy < bincounty:
-			counts[binNox, binNoy] += 1
-	#step = float(datamax-datamin)/bincount
-	#return numpy.arange(datamin, datamax+step/2, step), binData
-	return counts
-	#for i in range(N):
-	#	offset = data[
-
-@jit(nopython=True)
-def find_nearest_index(datax, datay, x, y, wx, wy):
-	N = len(datax)
-	index = 0
-	mindistance = math.sqrt((datax[0]-x)**2/wx**2 + (datay[0]-y)**2/wy**2)
-	for i in range(1,N):
-		distance = math.sqrt((datax[i]-x)**2/wx**2 + (datay[i]-y)**2/wy**2)
-		if distance < mindistance:
-			mindistance = distance
-			index = i
-	return index
-
-@jit(nopython=True)
-def find_nearest_index1d(datax, x):
-	N = len(datax)
-	index = 0
-	mindistance = math.sqrt((datax[0]-x)**2)
-	for i in range(1,N):
-		distance = math.sqrt((datax[i]-x)**2)
-		if distance < mindistance:
-			mindistance = distance
-			index = i
-	return index
-
-
-
-#import mab.utils.numpy
-
 import psutil
 
 class WidgetUsage(QtGui.QWidget):
@@ -978,7 +636,6 @@ class WidgetUsage(QtGui.QWidget):
 		painter.fillRect(event.rect(), QtGui.QBrush(QtCore.Qt.white))
 		size = self.size()
 		width, height = size.width(), size.height()
-		#print height
 		self.tool_lines = []
 		#self.tool_text = ""
 		try:
@@ -1027,18 +684,17 @@ class WidgetUsage(QtGui.QWidget):
 		except:
 			pass
 
-class Vaex(QtGui.QMainWindow):
-
+class VaexApp(QtGui.QMainWindow):
 	signal_samp_notification = QtCore.pyqtSignal(str, str, str, dict, dict)
 	signal_samp_call = QtCore.pyqtSignal(str, str, str, str, dict, dict)
 
 
-	def __init__(self, argv):
-		super(Vaex, self).__init__()
+	def __init__(self, argv=[], open_default=False):
+		super(VaexApp, self).__init__()
 
-		self.initUI(argv)
-
-	def initUI(self, argv):
+		self.windows = []
+		self.current_window = None
+		self.current_dataset = None
 
 		QtGui.QToolTip.setFont(QtGui.QFont('SansSerif', 10))
 
@@ -1070,16 +726,16 @@ class Vaex(QtGui.QMainWindow):
 		self.left = QtGui.QFrame(self)
 		self.left.setFrameShape(QtGui.QFrame.StyledPanel)
 
-		self.list = DataList(self.left)
-		self.list.setMinimumWidth(300)
+		self.dataset_selector = DatasetSelector(self.left)
+		self.dataset_selector.setMinimumWidth(300)
 
-		self.right = MainPanel(self, self.list.datasets) #QtGui.QFrame(self)
-		self.right.setFrameShape(QtGui.QFrame.StyledPanel)
-		self.main_panel = self.right
+		self.dataset_panel = DatasetPanel(self, self.dataset_selector.datasets) #QtGui.QFrame(self)
+		self.dataset_panel.setFrameShape(QtGui.QFrame.StyledPanel)
+		self.main_panel = self.dataset_panel
 
 		self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
 		self.splitter.addWidget(self.left)
-		self.splitter.addWidget(self.right)
+		self.splitter.addWidget(self.dataset_panel)
 
 		#self.hbox = QtGui.QHBoxLayout(self)
 		#self.hbox.addWidget(self.splitter)
@@ -1093,16 +749,22 @@ class Vaex(QtGui.QMainWindow):
 		#self.list.resize(30
 
 		self.boxlist = QtGui.QVBoxLayout(self.left)
-		self.boxlist.addWidget(self.list)
+		self.boxlist.addWidget(self.dataset_selector)
 		#self.boxlist.addWidget(self.widget_usage)
 		self.left.setLayout(self.boxlist)
 
+		def on_dataset_select(dataset):
+			self.current_dataset = dataset
+			self.dataset_panel.show_dataset(dataset)
+		self.dataset_selector.signal_dataset_select.connect(on_dataset_select)
 		#self.list.currentItemChanged.connect(self.infoPanel.onDataSelected)
-		self.list.currentItemChanged.connect(self.right.onDataSelected)
+		#self.dataset_selector.currentItemChanged.connect(self.dataset_panel.onDataSelected)
+		#self.dataset_selector.currentItemChanged.connect(self.dataset_panel.onDataSelected)
 		#self.list.testfill()
 
-		self.show()
-		self.raise_()
+		if not vaex.ui.hidden:
+			self.show()
+			self.raise_()
 
 		#self.list.itemSelectionChanged.connect(self.right.onDataSelected)
 
@@ -1157,11 +819,11 @@ class Vaex(QtGui.QMainWindow):
 				if level < 29:
 					if check_memory(4*8*2**level):
 						sp = SoneiraPeebles(dimension=4, eta=2, max_level=level, L=[1.1, 1.3, 1.6, 2.])
-						self.list.addDataset(sp)
+						self.dataset_selector.add(sp)
 				else:
 					if check_memory(2*8*2**level):
 						sp = SoneiraPeebles(dimension=2, eta=2, max_level=level, L=[1.6, 2.])
-						self.list.addDataset(sp)
+						self.dataset_selector.add(sp)
 			action.triggered.connect(do)
 			self.menu_data.addAction(action)
 
@@ -1178,7 +840,7 @@ class Vaex(QtGui.QMainWindow):
 					def do(ignore=None, dim=dim, N=N, power=power, name=name):
 						t = None
 						z = vaex.dataset.Zeldovich(dim, N, power, t, name=name)
-						self.list.addDataset(z)
+						self.dataset_selector.add(z)
 					action.triggered.connect(do)
 					self.menu_data.addAction(action)
 
@@ -1227,17 +889,18 @@ class Vaex(QtGui.QMainWindow):
 			#	self.toolbar.addAction(self.action_open_fits)
 			self.toolbar.addAction(self.action_save_hdf5)
 
-		if len(argv) == 0:
+		if len(argv) == 0 and open_default:
 			if custom is not None:
-				custom.loadDatasets(self.list)
-				custom.openPlots(self.right)
+				custom.loadDatasets(self.dataset_selector)
+				custom.openPlots(self.dataset_panel)
 			elif 1:#frozen:
-				for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
-					self.list.addGadgetHdf5(os.path.join(application_path, 'data/disk-galaxy.hdf5'), name, index)
-				f = vaex.utils.get_data_file("data/helmi-dezeeuw-2000-10p.hdf5")
-				if f and os.path.exists(f):
-					self.list.addHdf5(f)
-				self.list.addHdf5(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
+				#for index, name in list(enumerate("gas halo disk stars sat".split()))[::-1]:
+				#	self.dataset_selector.open(os.path.join(application_path, 'data/disk-galaxy.hdf5'), particle_name=name)
+				#f = vaex.utils.get_data_file("data/helmi-dezeeuw-2000-10p.hdf5")
+				#if f and os.path.exists(f):
+				#	self.dataset_selector.open(f)
+				#self.dataset_selector.open(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
+				self.dataset_selector.add(vaex.example())
 		for pluginpath in [os.path.expanduser('~/.vaex/plugin')]:
 			logger.debug("pluginpath: %s" % pluginpath)
 			if os.path.exists(pluginpath):
@@ -1272,7 +935,7 @@ class Vaex(QtGui.QMainWindow):
 		QtCore.QCoreApplication.instance().aboutToQuit.connect(self.clean_up)
 		self.action_samp_connect.setChecked(True)
 		self.onSampConnect(ignore_error=True)
-		self.list.signal_pick.connect(self.on_pick)
+		self.dataset_selector.signal_pick.connect(self.on_pick)
 
 		self.samp_ping_timer = QtCore.QTimer()
 		self.samp_ping_timer.timeout.connect(self.on_samp_ping_timer)
@@ -1282,9 +945,19 @@ class Vaex(QtGui.QMainWindow):
 
 		def on_open_plot(plot_dialog):
 			plot_dialog.signal_samp_send_selection.connect(lambda dataset: self.on_samp_send_table_select_rowlist(dataset=dataset))
-			kernel.shell.push({"plot":plot_dialog})
-			kernel.shell.push({"layer":plot_dialog.current_layer})
-		self.right.signal_open_plot.connect(on_open_plot)
+			if kernel:
+				kernel.shell.push({"plot":plot_dialog})
+				kernel.shell.push({"layer":plot_dialog.current_layer})
+			self.windows.append(plot_dialog) # TODO remove from list
+
+			def on_close(window):
+				self.windows.remove(window)
+				if self.current_window == window:
+					self.current_window = None
+			plot_dialog.signal_closed.connect(on_close)
+			self.current_window = plot_dialog
+
+		self.dataset_panel.signal_open_plot.connect(on_open_plot)
 
 		self.signal_promise.connect(self.on_signal_promise)
 		self.parse_args(argv)
@@ -1293,12 +966,12 @@ class Vaex(QtGui.QMainWindow):
 	signal_promise = QtCore.pyqtSignal(object, object)
 	#signal_promise = QtCore.pyqtSignal(str)
 	def send_to_main_thread(self, promise, value):
-		print "send promise to main thread using signal", threading.currentThread()
+		#print "send promise to main thread using signal", threading.currentThread()
 		self.signal_promise.emit(promise, value)
 		#self.signal_promise.emit("blaat")
 
 	def on_signal_promise(self, promise, value):
-		print "got promise, and should send it value", value, threading.currentThread()
+		#print "got promise, and should send it value", value, threading.currentThread()
 		promise.fulfill(value)
 
 
@@ -1331,7 +1004,7 @@ class Vaex(QtGui.QMainWindow):
 					last_dataset1 = None
 					for dataset in datasets:
 						ds = server.open(dataset)
-						self.list.addDataset(ds)
+						self.dataset_selector.add(ds)
 						last_dataset1 = ds
 					last_dataset = last_dataset1
 				else:
@@ -1339,7 +1012,7 @@ class Vaex(QtGui.QMainWindow):
 					if dataset.startswith("/"):
 						dataset = dataset[1:]
 					ds = server.open(dataset)
-					self.list.addDataset(ds)
+					self.dataset_selector.add(ds)
 					last_dataset = ds
 				dataset = last_dataset
 			elif filename[0] == ":": # not a filename, but a classname
@@ -1358,7 +1031,7 @@ class Vaex(QtGui.QMainWindow):
 			if dataset is None:
 				error("cannot open file {filename}".format(**locals()))
 			index += 1
-			self.list.addDataset(dataset)
+			self.dataset_selector.add(dataset)
 
 			# for this dataset, keep opening plots (seperated by -) or add layers (seperated by +)
 			plot = plot if hold_plot else None
@@ -1383,9 +1056,9 @@ class Vaex(QtGui.QMainWindow):
 							error("unkown option for task %r: %r " % (task_name, args[index]))
 						index += 1
 					if task_name == "rank":
-						self.right.ranking(**options)
+						self.dataset_panel.ranking(**options)
 					if task_name == "pca":
-						self.right.pca(**options)
+						self.dataset_panel.pca(**options)
 
 				else:
 					error("unkown task: %r" % task_name)
@@ -1411,11 +1084,11 @@ class Vaex(QtGui.QMainWindow):
 						index += 1
 					if plot is None:
 						if len(columns) == 1:
-							plot = self.right.histogram(columns[0], **options)
+							plot = self.dataset_panel.histogram(columns[0], **options)
 						elif len(columns) == 2:
-							plot = self.right.plotxy(columns[0], columns[1], **options)
+							plot = self.dataset_panel.plotxy(columns[0], columns[1], **options)
 						elif len(columns) == 3:
-							plot = self.right.plotxyz(columns[0], columns[1], columns[2], **options)
+							plot = self.dataset_panel.plotxyz(columns[0], columns[1], columns[2], **options)
 						else:
 							error("cannot plot more than 3 columns yet: %r" % columns)
 					else:
@@ -1474,7 +1147,7 @@ class Vaex(QtGui.QMainWindow):
 
 	def on_samp_send_table_select_rowlist(self, ignore=None, dataset=None):
 		if self.samp: # TODO: check if connected
-			dataset = dataset or self.right.dataset
+			dataset = dataset or self.dataset_panel.dataset
 			rows = []
 			if dataset.mask is not None:
 				rows = np.arange(len(dataset))[dataset.mask]
@@ -1518,7 +1191,7 @@ class Vaex(QtGui.QMainWindow):
 		dialog.show()
 
 	def onSaveTable(self):
-		dataset = self.right.dataset
+		dataset = self.dataset_panel.dataset
 		name = dataset.name + "-mysubset.hdf5"
 		options = ["All: %r records, filesize: %r" % (len(dataset), vaex.utils.filesize_format(dataset.byte_size())) ]
 		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), vaex.utils.filesize_format(dataset.byte_size(selection=True))) ]
@@ -1647,33 +1320,32 @@ class Vaex(QtGui.QMainWindow):
 	def gadgethdf5(self, filename):
 		print "filename", filename, repr(filename)
 		for index, name in list(enumerate("gas halo disk bulge stars sat".split()))[::-1]:
-			self.list.addGadgetHdf5(str(filename), name, index)
+			self.dataset_selector.addGadgetHdf5(str(filename), name, index)
 
 	def gaia_hdf5(self, filename):
-		self.list.addHdf5(str(filename))
+		self.dataset_selector.addHdf5(str(filename))
 
 	def amuse_hdf5(self, filename):
-		self.list.addAmuse(str(filename))
+		self.dataset_selector.addAmuse(str(filename))
 
 	def open_fits(self, filename):
-		self.list.addFits(str(filename))
+		self.dataset_selector.addFits(str(filename))
 
 
 	def openGenerator(self, callback_, description, filemask):
-		print repr(callback_)
+		#print repr(callback_)
 		def open(arg=None, callback_=callback_, filemask=filemask):
-			print repr(callback_), repr(filemask)
+			#print repr(callback_), repr(filemask)
 			filename = QtGui.QFileDialog.getOpenFileName(self, description, "", filemask)
 			if isinstance(filename, tuple):
 				filename = str(filename[0])#]
-			print repr(callback_)
+			#print repr(callback_)
 			callback_(filename)
 		self.open_generators.append(open)
 		return open
 
 	def onSampConnect(self, ignore_error=False):
 		if self.action_samp_connect.isChecked():
-			print "connect"
 			if self.samp is None:
 					self.samp = Samp(daemon=True, name="vaex")
 					#self.samp.tableLoadCallbacks.append(self.onLoadTable)
@@ -1770,7 +1442,7 @@ class Vaex(QtGui.QMainWindow):
 						mask = np.zeros(len(dataset), dtype=np.bool)
 						mask[row_list] = True
 						print "match dataset", dataset
-						dataset.set_mask(mask)
+						dataset._set_mask(mask)
 						did_select = True
 					datasets_updated.append(dataset)
 		if did_select:
@@ -1798,7 +1470,7 @@ class Vaex(QtGui.QMainWindow):
 			options.append(filename + " | read directly from file (faster)")
 		options.append(url + " | load as VOTable (slower)")
 		#options.append("link to existing opened dataset")
-		for dataset in self.list.datasets:
+		for dataset in self.dataset_selector.datasets:
 			options.append("link to existing open dataset: " + dataset.name)
 		index = choose(self, "SAMP: load table", "Choose how to load table", options)
 		if index is not None:
@@ -1809,7 +1481,7 @@ class Vaex(QtGui.QMainWindow):
 				self.load_votable(url, table_id)
 				print "load votable", url
 			else:
-				self.list.datasets[index-len(filenames)-1].samp_id = table_id
+				self.dataset_selector.datasets[index-len(filenames)-1].samp_id = table_id
 
 	def load_file(self, path, samp_id=None):
 		dataset_class = None
@@ -1820,7 +1492,7 @@ class Vaex(QtGui.QMainWindow):
 		if dataset_class:
 			dataset = dataset_class(path)
 			dataset.samp_id = samp_id
-			self.list.addDataset(dataset)
+			self.dataset_selector.add(dataset)
 
 	def load_votable(self, url, table_id):
 		table = astropy.io.votable.parse_single_table(url)
@@ -1837,7 +1509,7 @@ class Vaex(QtGui.QMainWindow):
 				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
 				dataset.addColumn(name, array=table.array[name])
 		dataset.samp_id = table_id
-		self.list.addDataset(dataset)
+		self.dataset_selector.add(dataset)
 		return dataset
 
 
@@ -1853,9 +1525,9 @@ class Vaex(QtGui.QMainWindow):
 		self.statusBar().showMessage(" | ".join(text_parts))
 
 	def _samp_find_datasets(self, id):
-		print self.list.datasets
+		print self.dataset_selector.datasets
 		try:
-			for dataset in self.list.datasets:
+			for dataset in self.dataset_selector.datasets:
 				if dataset.matches_url(id) or (dataset.samp_id == id):
 					yield dataset
 		except:
@@ -1865,7 +1537,7 @@ class Vaex(QtGui.QMainWindow):
 	def onSampSend(self):
 		if self.samp is None:
 			self.onSampConnect()
-		dataset = self.right.dataset
+		dataset = self.dataset_panel.dataset
 		params = {"rows":str(dataset._length), "columns":{}}
 		params['id'] = dataset.filename
 		type_map = {np.float64:"F8_LE", np.float32:"F4_LE", np.int64:"I8_LE", np.int32:"I4_LE", np.uint64:"U8_LE", np.uint32:"U4_LE"}
@@ -1912,7 +1584,7 @@ class Vaex(QtGui.QMainWindow):
 			if type.kind  == "f": # only store float
 				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
 				dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
-		self.list.addDataset(dataset)
+		self.dataset_selector.add(dataset)
 		if 0:
 			h5file = h5py.File(hdf5filename, "w", driver="core")
 			datagroup = h5file.create_group("data")
@@ -1965,6 +1637,7 @@ class Vaex(QtGui.QMainWindow):
 
 
 app = None
+kernel = None
 
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 from qtconsole.inprocess import QtInProcessKernelManager
@@ -2014,8 +1687,8 @@ def main(argv=sys.argv[1:]):
 	kernel_manager.start_kernel()
 	kernel = kernel_manager.kernel
 	kernel.gui = 'qt4'
-	vaex_window = Vaex(argv)
-	kernel.shell.push({'foo': 43, 'print_process_id': print_process_id, "window":vaex_window})
+	vaex_app = VaexApp(argv, open_default=True)
+	kernel.shell.push({'foo': 43, 'print_process_id': print_process_id, "vaex_app":vaex_app})
 
 	kernel_client = kernel_manager.client()
 	kernel_client.start_channels()
@@ -2029,7 +1702,7 @@ def main(argv=sys.argv[1:]):
 	control.kernel_manager = kernel_manager
 	control.kernel_client = kernel_client
 	control.exit_requested.connect(stop)
-	control.show()
+	#control.show()
 
 	sys.exit(guisupport.start_event_loop_qt4(app))
 
