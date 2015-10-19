@@ -30,6 +30,7 @@ class Column(collections.namedtuple('Column', ['dataset', 'expression'])):
 	def needs_copy(self):
 		return not \
 			(self.expression in self.dataset.column_names  \
+			and not isinstance(self.dataset.columns[self.expression], vaex.dataset._ColumnConcatenatedLazy)\
 			and self.dataset.columns[self.expression].dtype.type==np.float64 \
 			and self.dataset.columns[self.expression].strides[0] == 8 \
 			and self.expression not in self.dataset.virtual_columns)

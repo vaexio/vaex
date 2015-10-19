@@ -109,20 +109,27 @@ def filesize_format(value):
 
 
 
-log_timer = False
+log_timer = True
 class Timer(object):
-	def __init__(self, name=None):
+	def __init__(self, name=None, logger=None):
 		self.name = name
+		self.logger = logger
 
 	def __enter__(self):
 		if log_timer:
-			print '[%s starting]...' % self.name
+			if self.logger:
+				self.logger.debug("%s starting" % self.name)
+			else:
+				print '[%s starting]...' % self.name
 			self.tstart = time.time()
 
 	def __exit__(self, type, value, traceback):
 		if log_timer:
-			if self.name:
-				print '[%s]' % self.name,
-			print 'Elapsed: %s' % (time.time() - self.tstart)
-			print type, value, traceback
+			msg = "%s done, %ss elapsed" % (self.name, time.time() - self.tstart)
+			if self.logger:
+				self.logger.debug(msg)
+			else:
+				print msg
+			if type or value or traceback:
+				print type, value, traceback
 		return False

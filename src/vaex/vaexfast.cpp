@@ -43,7 +43,7 @@ void object_to_numpy1d_nocopy(T* &ptr, PyObject* obj, long long  &count, int& st
 				throw Error("stride is not equal to %d", stride);
 			}
 		}
-		
+
 		ptr = (T*)PyArray_DATA(obj);
 		count = size;
 }
@@ -94,7 +94,7 @@ void object_to_numpy2d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y
 		if(strides[0] != PyArray_ITEMSIZE(obj)*size_x) {
 			throw std::runtime_error("stride[1] is not 1");
 		}
-		
+
 		ptr = (T*)PyArray_DATA(obj);
 		count_x = size_x;
 		count_y = size_y;
@@ -128,7 +128,7 @@ void object_to_numpy3d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y
 		if(strides[0] != PyArray_ITEMSIZE(obj)*size_y*size_x) {
 			throw std::runtime_error("stride[2] is not 1");
 		}
-		
+
 		ptr = (T*)PyArray_DATA(obj);
 		count_x = size_x;
 		count_y = size_y;
@@ -162,7 +162,7 @@ void object_to_numpynd_nocopy__(T* &ptr, PyObject* obj, int dimensions, int *cou
 		if(strides[0] != PyArray_ITEMSIZE(obj)*size_y*size_x) {
 			throw std::runtime_error("stride[2] is not 1");
 		}*/
-		
+
 		//ptr = (T*)PyArray_DATA(obj);
 		//count_x = size_x;
 		//count_y = size_y;
@@ -243,11 +243,12 @@ inline double double_to_native(double value)
 	return result_value;
 }
 
+
 void find_nan_min_max(const double* const block_ptr, const long long length, bool native, double &min_, double &max_) {
 	double min = min_, max = max_;
 	//*double min = min_, max = max_; // no using the reference but a local var seems easier for the compiler to optimize
 	//printf("length: %d\n", length);
-	 
+
 	/*/
 	int thread_index = 0;
 	int counts = 0;
@@ -258,10 +259,10 @@ void find_nan_min_max(const double* const block_ptr, const long long length, boo
 	{
 		thread_index = omp_get_thread_num();
 		int nthreads = omp_get_num_threads();
-		
+
 		printf("threads: %d\n", nthreads);
 		counts = 0;
-		
+
 		#pragma omp single
 		{
 			//maxima = (double*)malloc(sizeof(double) * nthreads);
@@ -295,7 +296,7 @@ void find_nan_min_max(const double* const block_ptr, const long long length, boo
 		}
 		minima[thread_index] = local_min;
 		maxima[thread_index] = local_max;
-		
+
 		printf("thread %d did %d\n", thread_index, counts);
 		#pragma omp single
 		{
@@ -331,7 +332,7 @@ void find_nan_min_max(const double* const block_ptr, const long long length, boo
 		for(long long i = 1; i < length; i++) {
 			const double value = block_ptr[i];
 			//if(value == value)// nan checking
-			{  
+			{
 				//min = fmin(value, min);
 				//max = fmax(value, max);
 				if(value < min) {
@@ -365,7 +366,7 @@ void find_nan_min_max(const double* const block_ptr, const long long length, boo
 		for(long long i = 1; i < length; i++) {
 			const double value = double_to_native(block_ptr[i]);
 			//if(value == value)// nan checking
-			{  
+			{
 				//min = fmin(value, min);
 				//max = fmax(value, max);
 				if(value < min) {
@@ -379,7 +380,7 @@ void find_nan_min_max(const double* const block_ptr, const long long length, boo
 		}
 		/**/
 		min_ = min;
-		max_ = max;	
+		max_ = max;
 	}
 }
 
@@ -401,7 +402,7 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 			Py_BEGIN_ALLOW_THREADS
 			find_nan_min_max(block_ptr, length, native, min, max);
 			Py_END_ALLOW_THREADS
-			result = Py_BuildValue("dd", min, max); 
+			result = Py_BuildValue("dd", min, max);
 		} catch(std::runtime_error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
@@ -414,13 +415,13 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 
 void histogram1d(const double* const __restrict__ block, const long long block_stride, const bool block_native, const double* const weights, const int weights_stride, bool weights_native, long long block_length, double* __restrict__ counts, const int counts_length, const double min, const double max) {
 	//const double* __restrict__ block_ptr = block;
-	
+
 
 	/*
-	
+
 	const int BLOCK_SIZE = (2<<10);
 	long long int indices[BLOCK_SIZE];
-	
+
 	int subblocks = int(block_length * 1./ BLOCK_SIZE + 1.);
 	for(long long b = 0; b < subblocks ; b++) {
 		long long i1 = b * BLOCK_SIZE;
@@ -518,13 +519,13 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 		double *block_ptr = NULL;
 		int block_stride = -1;
 		double *counts_ptr = NULL;
-		
+
 		double *weights_ptr = NULL;
 		int weights_stride = -1;
 		bool block_native = true;
 		bool weights_native = true;
 		bool counts_native = true;
-		
+
 		try {
 			object_to_numpy1d_nocopy_endian(block_ptr, block, block_length, block_native, block_stride);
 			object_to_numpy1d_nocopy_endian(counts_ptr, counts, counts_length, counts_native, weights_stride);
@@ -557,7 +558,7 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 			for(long long i = 0; i < block_length; i++) {
 				double value_x = blockx[i];
 				double value_y = blocky[i];
-				
+
 				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
 				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
 					int index_x = (int)((value_x - xmin) * scale_x);
@@ -569,7 +570,7 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 			for(long long i = 0; i < block_length; i++) {
 				double value_x = blockx[i];
 				double value_y = blocky[i];
-				
+
 				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
 				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
 					int index_x = (int)((value_x - xmin) * scale_x);
@@ -585,7 +586,7 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 			for(long long i = 0; i < block_length; i++) {
 				double value_x = blockx_native ? blockx[i] : double_to_native(blockx[i]);
 				double value_y = blocky_native ? blocky[i] : double_to_native(blocky[i]);
-				
+
 				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
 				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
 					int index_x = (int)((value_x - xmin) * scale_x);
@@ -597,7 +598,7 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 			for(long long i = 0; i < block_length; i++) {
 				double value_x = blockx_native ? blockx[i] : double_to_native(blockx[i]);
 				double value_y = blocky_native ? blocky[i] : double_to_native(blocky[i]);
-				
+
 				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
 				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
 					int index_x = (int)((value_x - xmin) * scale_x);
@@ -662,11 +663,11 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 		double value_y = blocky[(i+ offset_y + block_length)  % block_length];
 		double scaled_y = (value_y - ymin) / (ymax-ymin);
 		int index_y = (int)(scaled_y * counts_length_y);
-		
+
 		double value_z = blockz[(i+ offset_z + block_length)  % block_length];
 		double scaled_z = (value_z - zmin) / (zmax-zmin);
 		int index_z = (int)(scaled_z * counts_length_z);
-		
+
 		if( (index_x >= 0) & (index_x < counts_length_x)  & (index_y >= 0) & (index_y < counts_length_y)  & (index_z >= 0) & (index_z < counts_length_z) )
 			//counts[index_z + counts_length_z*index_y + counts_length_z*counts_length_y*index_x] += weights == NULL ? 1 : weights[i];
 			counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights == NULL ? 1 : weights[i];
@@ -682,7 +683,7 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 			double value_x = blockx_native ? blockx[i] : double_to_native(blockx[i]);
 			double value_y = blocky_native ? blocky[i] : double_to_native(blocky[i]);
 			double value_z = blockz_native ? blockz[i] : double_to_native(blockz[i]);
-			
+
 			if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) & (value_z >= zmin) & (value_z < zmax)) {
 				int index_x = (int)((value_x - xmin) * scale_x);
 				int index_y = (int)((value_y - ymin) * scale_y);
@@ -695,7 +696,7 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 			double value_x = blockx_native ? blockx[i] : double_to_native(blockx[i]);
 			double value_y = blocky_native ? blocky[i] : double_to_native(blocky[i]);
 			double value_z = blockz_native ? blockz[i] : double_to_native(blockz[i]);
-			
+
 			if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) & (value_z >= zmin) & (value_z < zmax)) {
 				int index_x = (int)((value_x - xmin) * scale_x);
 				int index_y = (int)((value_y - ymin) * scale_y);
@@ -707,11 +708,11 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 		/*for(long long i = 0; i < block_length; i++) {
 			double value_x = blockx[i_x];
 			int index_x = (int)((value_x - xmin) * scale_x);
-			
+
 			if( (index_x >= 0) & (index_x < counts_length_x)) {
 				double value_y = blocky[i_y];
 				int index_y = (int)((value_y - ymin) * scale_y);
-				
+
 				if ( (index_y >= 0) & (index_y < counts_length_y) ) {
 					double value_z = blockz[i_z];
 					int index_z = (int)((value_z - zmin) * scale_z);
@@ -722,12 +723,12 @@ void histogram3d(const double* const blockx, const double* const blocky, const d
 					}
 				}
 			}
-			
+
 			i_x = i_x >= block_length-1 ? 0 : i_x+1;
 			i_y = i_y >= block_length-1 ? 0 : i_y+1;
 			i_z = i_z >= block_length-1 ? 0 : i_z+1;
 		}*/
-	}	
+	}
 }
 
 PyObject* histogram3d_(PyObject* self, PyObject* args) {
@@ -773,7 +774,7 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 
 const int MAX_DIMENSIONS = 50;
 
-// __restrict__ 
+// __restrict__
 void histogramNd(const double* const blocks[], const double* const weights, long long block_length, int dimensions, double* counts, long long count_strides[], int count_sizes[], double minima[], double maxima[]) {
 //void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, double* counts, const int counts_length_x, const int counts_length_y, const int counts_length_z, const double xmin, const double xmax, const double ymin, const double ymax, const double zmin, const double zmax, long long const offset_x, long long const offset_y, long long const offset_z){
 	double scales[MAX_DIMENSIONS];
@@ -799,7 +800,7 @@ void histogramNd(const double* const blocks[], const double* const weights, long
 		}
 	} else {
 		//counts[index_x + counts_length_x*index_y + counts_length_x*counts_length_y*index_z] += weights == NULL ? 1 : weights[i];
-	}	
+	}
 }
 
 PyObject* histogramNd_(PyObject* self, PyObject* args) {
@@ -815,7 +816,7 @@ PyObject* histogramNd_(PyObject* self, PyObject* args) {
 		long long count_strides[MAX_DIMENSIONS];
 		int dimensions = -1;
 		double *block_ptrs[MAX_DIMENSIONS];
-		
+
 		double *weights_ptr = NULL;
 		double *counts_ptr = NULL;
 		try {
@@ -832,7 +833,7 @@ PyObject* histogramNd_(PyObject* self, PyObject* args) {
 				throw std::runtime_error("maxima is not a list of blocks");
 			if(PyList_Size(maximalist) != dimensions)
 				throw Error("maxima is of length %ld, expected %d", PyList_Size(maximalist), dimensions);
-			
+
 			for(int d = 0; d < dimensions; d++) {
 				object_to_numpy1d_nocopy(block_ptrs[d], PyList_GetItem(blocklist, d), block_length);
 				PyObject *min = PyList_GetItem(minimalist, d);
@@ -895,11 +896,11 @@ PyObject* project_(PyObject* self, PyObject* args) {
 		int cube_length_y = -1;
 		int cube_length_z = -1;
 		double *cube_ptr = NULL;
-		
+
 		int surface_length_x = -1;
 		int surface_length_y = -1;
 		double *surface_ptr = NULL;
-		
+
 		long long projection_length = -1;
 		double *projection_ptr = NULL;
 
@@ -939,7 +940,7 @@ void pnpoly(double *vertx, double *verty, int nvert, const double* const blockx,
 		int i, j, c = 0;
 		mask[k] = 0;
 		double distancesq = pow(testx - meanx, 2) + pow(testy - meany, 2);
-		if(distancesq < radius_squared) 
+		if(distancesq < radius_squared)
 		{
 			for (i = 0, j = nvert-1; i < nvert; j = i++) {
 				if ( ((verty[i]>testy) != (verty[j]>testy)) &&
@@ -980,7 +981,7 @@ static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
-	
+
 	return result;
 }
 
@@ -1040,7 +1041,7 @@ static PyObject* soneira_peebles_(PyObject* self, PyObject *args) {
 			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
 	}
-	
+
 	return result;
 }
 
@@ -1059,22 +1060,24 @@ http://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle "The "inside-out" algo
 Fill array of length 'length ' with a shuffled sequence of numbers between 0 and length-1.
 important to use a 64 bit rng, mt19937_64 seems to be the only one
 */
-void shuffled_sequence_(long long * array, long long length) {
+void shuffled_sequence_(long long * array, long long length, bool native) {
 #ifdef  __APPLE__
 	for(long long i=0; i < length; i++) {
-		uint_fast64_t r = rand(); 
+		uint_fast64_t r = rand();
 		uint_fast64_t j =  r * i / RAND_MAX;
 		array[i] = array[j];
-		array[j] = i;
+		array[j] = 	native ? i : __builtin_bswap64(i);
+i;
 	}
 #else
 	auto rnd = std::mt19937_64(std::random_device{}());
-	std::uniform_int_distribution<long long> dist(0, length-1); 
+	std::uniform_int_distribution<long long> dist(0, length-1);
 	for(long long i=0; i < length; i++) {
 		uint_fast64_t r = dist(rnd);
 		uint_fast64_t j = r * i / (length-1);
 		array[i] = array[j];
-		array[j] = i;
+		//array[j] = i;
+    array[j] = 	native ? i : __builtin_bswap64(i);
 		if( ((i% 10000000) == 0) ){
 			printf("%lld out of %lld (%.2f%%)\n", i, length, (i*100./length));
 			fflush(stdout);
@@ -1085,7 +1088,7 @@ void shuffled_sequence_(long long * array, long long length) {
 		//printf("\n");
 	}
 #endif
-	
+
 }
 
 static PyObject* shuffled_sequence_(PyObject* self, PyObject *args) {
@@ -1095,9 +1098,10 @@ static PyObject* shuffled_sequence_(PyObject* self, PyObject *args) {
 		long long length = -1;
 		long long *array_ptr = NULL;
 		try {
-			object_to_numpy1d_nocopy(array_ptr, array, length, stride_default, NPY_INT64);
+      bool native;
+			object_to_numpy1d_nocopy_endian(array_ptr, array, length, native, stride_default, NPY_INT64);
 			Py_BEGIN_ALLOW_THREADS
-			shuffled_sequence_(array_ptr, length);
+			shuffled_sequence_(array_ptr, length, native);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
@@ -1106,7 +1110,7 @@ static PyObject* shuffled_sequence_(PyObject* self, PyObject *args) {
 			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
 	}
-	
+
 	return result;
 }
 
@@ -1116,9 +1120,9 @@ void resize(double* source, int size, int dimension, double* target, int new_siz
 	/*
 	 * Reshape a N dimensional grid to a smaller size
 	 * in input grid should have all dimensions of equals size, and size should be a power of two
-	 * the output grid should have similar properties, but the new size should be equal or smaller 
+	 * the output grid should have similar properties, but the new size should be equal or smaller
 	 * (and again a power of two)
-	 * 
+	 *
 	 * algo works by using a 1d index for the output grid, each value of the output grid is the sum
 	 * of the hybercube of the input grid. The 1d index together with a 1d index in the hypercube (blockindex)
 	 * index the input grid.
@@ -1134,7 +1138,7 @@ void resize(double* source, int size, int dimension, double* target, int new_siz
 	if(new_size > size)
 		throw std::runtime_error("target size should be smaller than source size");
 	int block_size_1d = size/new_size;
-	
+
 	for(int i = 0; i < dimension; i++) {
 		block_end_index *= block_size_1d;
 		target_end_index *= new_size;
@@ -1217,7 +1221,7 @@ static PyObject* resize_(PyObject* self, PyObject *args) {
 			}
 			PyObject* new_array = PyArray_SimpleNew(dimension, new_sizes, NPY_DOUBLE);
 			new_array_ptr = (double*)PyArray_DATA(new_array);
-			
+
 			//Py_BEGIN_ALLOW_THREADS
 			resize(array_ptr, size1, dimension, new_array_ptr, new_size);
 			//Py_END_ALLOW_THREADS
@@ -1228,7 +1232,7 @@ static PyObject* resize_(PyObject* self, PyObject *args) {
 			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
 	}
-	
+
 	return result;
 }
 
@@ -1256,10 +1260,3 @@ initvaexfast(void)
 
 	Py_InitModule("vaex.vaexfast", pyvaex_functions);
 }
-
-
-
-
-
-
-

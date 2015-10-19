@@ -9,7 +9,7 @@ import functools
 import collections
 import sys
 import platform
-
+import vaex.export
 import h5py
 import numpy as np
 
@@ -325,6 +325,15 @@ class Subspace(object):
 
 	"""
 	def __init__(self, dataset, expressions, executor, async, masked=False):
+		"""
+
+		:param Dataset dataset: the dataset the subspace refers to
+		:param list[str] expressions: list of expressions that forms the subspace
+		:param Executor executor: responsible for executing the tasks
+		:param bool async: return answers directly, or as a promise
+		:param bool masked: work on the selection or not
+		:return:
+		"""
 		self.dataset = dataset
 		self.expressions = expressions
 		self.executor = executor
@@ -503,6 +512,15 @@ class SubspaceLocal(Subspace):
 			stds = np.repeat(stds.mean(), len(stds))
 		return np.array(zip(means-sigmas*stds, means+sigmas*stds))
 
+	def current(self):
+		index = self.dataset.get_current_row()
+		def find(thread_index, i1, i2, *blocks):
+			if (index >= i1) and (index < i2):
+				return [block[index-i1] for block in blocks]
+			else:
+				return None
+		task = TaskMapReduce(self.dataset, self.expressions, find, lambda a, b: a if b is None else b, info=True)
+		return self._task(task)
 
 
 
@@ -624,12 +642,17 @@ class Dataset(object):
 		"""TODO"""
 		return 0
 
+	def has_current_row(self):
+		return self._current_row is not None
+
 	def get_current_row(self):
 		"""Individual rows can be 'picked', this is the index (integer) of the current row, or None there is nothing picked"""
 		return self._current_row
 
 	def set_current_row(self, value):
 		"""Set the current row, and emit the signal signal_pick"""
+		if (value is not None) and ((value < 0) or (value >= len(self))):
+			raise IndexError, "index %d out of range [0,%d]" % (value, len(self))
 		self._current_row = value
 		self.signal_pick.emit(self, value)
 
@@ -651,28 +674,30 @@ class Dataset(object):
 		"""Returns the number of rows in the dataset, if active_fraction != 1, then floor(active_fraction*full_length) is returned"""
 		return self._length
 
-	@property
+	def selected_length(self):
+		"""Returns the number of rows that are selected"""
+		raise NotImplementedError
+
 	def full_length(self):
 		"""the full length of the dataset, independant what active_fraction is"""
 		return self._full_length
 
-	@property
-	def active_fraction(self):
+	def get_active_fraction(self):
 		"""Value in the range (0, 1], to work only with a subset of rows
 		"""
 		return self._active_fraction
 
-	@active_fraction.setter
 	def set_active_fraction(self, value):
 		"""Sets the active_fraction, set picked row to None, and remove selection
 
 		TODO: we may be able to keep the selection, if we keep the expression, and also the picked row
 		"""
 		self._active_fraction = value
-		self._fraction_length = int(self._length * self._active_fraction)
-		# TODO: this only
+		#self._fraction_length = int(self._length * self._active_fraction)
+		# TODO: this only for local datasets
 		self._set_mask(None)
-		self.current_row = None
+		self.set_current_row(None)
+		self._length = int(round(self.full_length() * self._active_fraction))
 
 
 
@@ -681,13 +706,24 @@ class DatasetLocal(Dataset):
 		self.is_local = True
 		super(DatasetLocal, self).__init__(name, column_names)
 		self.path = path
+		self.columns = collections.OrderedDict()
 
 	def __call__(self, *expressions, **kwargs):
 		return SubspaceLocal(self, expressions, self.executor, async=kwargs.get("async", False))
 
+	def concat(self, other):
+		return DatasetConcatenated([self, other])
+
+	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False):
+		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection)
+
+	def selected_length(self):
+		return np.sum(self.mask) if self.has_selection() else None
+
 	def select(self, expression):
 		if expression is None:
 			self._has_selection = False
+			self.mask = None
 		else:
 			mask = np.zeros(len(self), dtype=np.bool)
 			def map(thread_index, i1, i2, block):
@@ -705,19 +741,92 @@ class DatasetLocal(Dataset):
 
 	def _set_mask(self, mask):
 		self.mask = mask
+		self._has_selection = mask is not None
 		self.signal_selection_changed.emit(self)
 
-class DatasetArrays(DatasetLocal):
-	def __init__(self):
-		super(DatasetArrays, self).__init__(None, None, [])
-		self.columns = {}
 
+class _ColumnConcatenatedLazy(object):
+	def __init__(self, datasets, column_name):
+		self.datasets = datasets
+		self.column_name = column_name
+		self.dtype = self.datasets[0].columns[self.column_name].dtype
+		#print len(self)
+		#print self.datasets[0].columns[self.column_name].shape[1:]
+		self.shape = (len(self), ) + self.datasets[0].columns[self.column_name].shape[1:]
+		#print self.shape
 	def __len__(self):
-		return len(self.columns.values()[0])
+		return sum(len(ds) for ds in self.datasets)
+
+	def __getitem__(self, slice):
+		start, stop, step = slice.start, slice.stop, slice.step
+		start = start or 0
+		stop = stop or len(self)
+		assert step in [None, 1]
+		datasets = iter(self.datasets)
+		current_dataset = datasets.next()
+		offset = 0
+		while start >= offset + len(current_dataset):
+			offset += len(current_dataset)
+			current_dataset = datasets.next()
+		# this is the fast path, no copy needed
+		if stop <= offset + len(current_dataset):
+			return current_dataset.columns[self.column_name][start-offset:stop-offset]
+		else:
+			copy = np.zeros(stop-start, dtype=current_dataset.columns[self.column_name][0:1].dtype)
+			copy_offset = 0
+			#print ">", start, stop, offset, len(current_dataset), current_dataset.columns[self.column_name]
+			while offset < stop: #> offset + len(current_dataset):
+				part = current_dataset.columns[self.column_name][start-offset:min(len(current_dataset), stop-offset)]
+				#print "part", part, copy_offset,copy_offset+len(part)
+				copy[copy_offset:copy_offset+len(part)] = part
+				#print copy[copy_offset:copy_offset+len(part)]
+				offset += len(current_dataset)
+				copy_offset += len(part)
+				start = offset
+				if offset < stop:
+					current_dataset = datasets.next()
+			return copy
+
+
+class DatasetConcatenated(DatasetLocal):
+	def __init__(self, datasets):
+		super(DatasetConcatenated, self).__init__(None, None, [])
+		self.datasets = datasets
+		first, tail = datasets[0], datasets[1:]
+		for column_name in first.get_column_names():
+			if all([column_name in dataset.get_column_names() for dataset in tail]):
+				self.column_names.append(column_name)
+		self.columns = {}
+		for column_name in self.get_column_names():
+			self.columns[column_name] = _ColumnConcatenatedLazy(datasets, column_name)
+		self._full_length = sum(ds.full_length() for ds in self.datasets)
+		self._length = self.full_length()
+		self.name = "_".join(ds.name for ds in self.datasets)
+
+
+	def concat(self, other):
+		datasets = list(self.datasets) + [other]
+		return DatasetConcatenated(datasets)
+
+
+class DatasetArrays(DatasetLocal):
+	def __init__(self, name="arrays"):
+		super(DatasetArrays, self).__init__(None, None, [])
+		self.name = name
+
+	#def __len__(self):
+	#	return len(self.columns.values()[0])
 
 	def add_column(self, name, data):
 		self.column_names.append(name)
 		self.columns[name] = data
+		#self._length = len(data)
+		if self._full_length is None:
+			self._full_length = len(data)
+		else:
+			assert self.full_length() == len(data), "columns should be of equal length"
+		self._length = int(round(self.full_length() * self._active_fraction))
+		#self.set_active_fraction(self._active_fraction)
 
 class DatasetMemoryMapped(DatasetLocal):
 	def link(self, expression, listener):
@@ -739,8 +848,8 @@ class DatasetMemoryMapped(DatasetLocal):
 	def full_length(self):
 		return self._length
 		
-	def __len__(self):
-		return self._fraction_length
+	#def __len__(self):
+	#	return self._fraction_length
 		
 	def length(self, selection=False):
 		if selection:
@@ -776,9 +885,8 @@ class DatasetMemoryMapped(DatasetLocal):
 			self.fileno_map = {}
 			self.mapping_map = {}
 		self._length = None
-		self._fraction_length = None
+		#self._fraction_length = None
 		self.nColumns = 0
-		self.columns = {}
 		self.column_names = []
 		self.rank1s = {}
 		self.rank1names = []
@@ -909,7 +1017,7 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.file.close()
 		self.mapping.close()
 		
-	def set_fraction(self, fraction):
+	def ___set_fraction(self, fraction):
 		self.fraction = fraction
 		self.current_slice = (0, int(self._length * fraction))
 		self._fraction_length = self.current_slice[1]
@@ -961,7 +1069,8 @@ class DatasetMemoryMapped(DatasetLocal):
 			if self.current_slice is None:
 				self.current_slice = (0, length)
 				self.fraction = 1.
-				self._fraction_length = length
+				self._full_length = length
+				self._length = length
 			self._length = length
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			if array is not None:
@@ -1002,7 +1111,8 @@ class DatasetMemoryMapped(DatasetLocal):
 			if self.current_slice is None:
 				self.current_slice = (0, length if not transposed else length1)
 				self.fraction = 1.
-				self._fraction_length = length if not transposed else length1
+				self._full_length = length if not transposed else length1
+				self._length = self._full_length
 			self._length = length if not transposed else length1
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			rawlength = length * length1
@@ -1818,7 +1928,7 @@ dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
 
 
 class Zeldovich(InMemory):
-	def __init__(self, dim=2, N=256, n=-2.5, t=None, seed=None, name="zeldovich approximation"):
+	def __init__(self, dim=2, N=256, n=-2.5, t=None, seed=None, scale=1, name="zeldovich approximation"):
 		super(Zeldovich, self).__init__(name=name)
 		
 		if seed is not None:
@@ -1843,15 +1953,15 @@ class Zeldovich(InMemory):
 		#for i in range(4):
 		#if t is None:
 		#	s = s/s.max()
-		t = 1.
+		t = t or 1.
 		X = Q + s * t
 
 		for d, name in zip(range(dim), "xyzw"):
-			self.addColumn(name, array=X[d].reshape(-1))
+			self.addColumn(name, array=X[d].reshape(-1) * scale)
 		for d, name in zip(range(dim), "xyzw"):
-			self.addColumn("v"+name, array=s[d].reshape(-1))
+			self.addColumn("v"+name, array=s[d].reshape(-1) * scale)
 		for d, name in zip(range(dim), "xyzw"):
-			self.addColumn(name+"0", array=Q[d].reshape(-1))
+			self.addColumn(name+"0", array=Q[d].reshape(-1) * scale)
 		return
 		
 dataset_type_map["zeldovich"] = Zeldovich

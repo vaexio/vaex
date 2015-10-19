@@ -81,9 +81,9 @@ if has_py2app and sys.argv[1] == "py2app":
 				print cmd
 				os.system(cmd)
 			os.system("cd dist")
-			zipname = "%s-osx.zip" % vaex.ui.__clean_name__
+			zipname = "%s-osx.zip" % vaex.__clean_name__
 			os.system("cd dist;rm %s" % zipname)
-			os.system("cd dist;zip -r %s %s.app" % (zipname, vaex.ui.__program_name__))
+			os.system("cd dist;zip -r %s %s.app" % (zipname, vaex.__program_name__))
 			retvalue = os.system("git diff --quiet")
 			if retvalue != 0:
 				print "WARNING UNCOMMITED CHANGES, VERSION NUMBER WILL NOT MATCH"
@@ -116,7 +116,7 @@ DATA_FILES.append(["doc/", glob.glob("docs/build/html/*.html") + glob.glob("docs
 for sub in "_static _images _sources".split():
 	DATA_FILES.append(["doc/" + sub, glob.glob("docs/build/html/" +sub +"/*")] )
 #print DATA_FILES
-OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/vaex/icons'],
+OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/vaex/ui/icons'],
            'matplotlib_backends':'-',
            'no_chdir':True,
            'iconfile': 'python/vaex/ui/icons/vaex.icns'

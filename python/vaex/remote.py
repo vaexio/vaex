@@ -51,8 +51,12 @@ class ServerRest(object):
 				#tornado.ioloop.IOLoop.clear_instance()
 				#tornado.ioloop.IOLoop.current().run_sync()
 				def ioloop():
-					print "creating io loop"
-					self.io_loop = tornado.ioloop.IOLoop.current()
+					#print "creating io loop"
+					self.io_loop = tornado.ioloop.IOLoop.current(instance=False)
+					if self.io_loop is None:
+						event.set()
+						return
+						self.io_loop = tornado.ioloop.IOLoop.instance()
 					event.set()
 					self.io_loop.make_current()
 					print "starting"
@@ -60,12 +64,12 @@ class ServerRest(object):
 				thread = threading.Thread(target=ioloop)
 				thread.setDaemon(True)
 				thread.start()
-			else:
-				print "already initialized"
+			#else:
+			#	print "already initialized"
 
-			print "waiting for io loop to be created"
+			#print "waiting for io loop to be created"
 			event.wait()
-			print self.io_loop
+			#print self.io_loop
 		#self.io_loop.make_current()
 		#if async:
 		self.http_client_async = AsyncHTTPClient()
@@ -85,13 +89,14 @@ class ServerRest(object):
 			return transform(self.http_client.fetch(url, **kwargs))
 
 
-	def list_datasets(self, async=False):
+	def datasets(self, async=False):
 		def wrap(result):
-			list = json.loads(result.body)
-			return list
+			#print "body", repr(result.body), result
+			data = json.loads(result.body)
+			return [DatasetRest(self, **kwargs) for kwargs in data["datasets"]]
 		url = self._build_url("datasets")
 		print "fetching", url
-		return self.fetch.fetch(url, wrap, async=async)
+		return self.fetch(url, wrap, async=async)
 		#return self._return(result, wrap)
 
 	def _build_url(self, method):
@@ -133,7 +138,8 @@ class ServerRest(object):
 		else:
 			return promise.get()
 
-	def minmax(self, expr, dataset_name, expressions, async=False):
+	def minmax(self, expr, dataset_name, expressions, **kwargs):
+		return self._simple(expr, dataset_name, expressions, "minmax", **kwargs)
 		def wrap(result):
 			data = json.loads(result.body)
 			print "data", data
@@ -155,7 +161,7 @@ class ServerRest(object):
 
 	def _simple(self, expr, dataset_name, expressions, name, async=False, **kwargs):
 		def wrap(result):
-			return np.array(json.loads(result.body))
+			return np.array(json.loads(result.body)["result"])
 		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
 		post_data = {key:json.dumps(value) for key, value in dict(kwargs).items()}
 		post_data["masked"] = json.dumps(expr.is_masked)
@@ -164,7 +170,7 @@ class ServerRest(object):
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 
-	def histogram(self, expr, dataset_name, expressions, size, limits, async=False):
+	def histogram(self, expr, dataset_name, expressions, size, limits, weight=None, async=False):
 		def wrap(result):
 			data = np.fromstring(result.body)
 			shape = (size,) * len(expressions)
@@ -173,7 +179,9 @@ class ServerRest(object):
 			return data
 		url = self._build_url("datasets/%s/histogram" % (dataset_name,))
 		print "fetching", url
-		post_data = dict(expressions=json.dumps(expressions), size=json.dumps(size), limits=json.dumps(limits.tolist()), masked=json.dumps(expr.is_masked))
+		post_data = dict(expressions=json.dumps(expressions), size=json.dumps(size),
+						 weight=json.dumps(weight),
+						 limits=json.dumps(limits.tolist()), masked=json.dumps(expr.is_masked))
 		body = urllib.urlencode(post_data)
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
@@ -227,8 +235,8 @@ class SubspaceRemote(Subspace):
 		return self._promise(self.dataset.server.minmax(self, self.dataset.name, self.expressions, async=self.async))
 		#return self._task(task)
 
-	def histogram(self, limits, size=256):
-		return self._promise(self.dataset.server.histogram(self, self.dataset.name, self.expressions, size=size, limits=limits, async=self.async))
+	def histogram(self, limits, size=256, weight=None):
+		return self._promise(self.dataset.server.histogram(self, self.dataset.name, self.expressions, size=size, limits=limits, weight=weight, async=self.async))
 
 	def mean(self):
 		return self.dataset.server.mean(self, self.dataset.name, self.expressions, async=self.async)

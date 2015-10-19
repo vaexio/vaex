@@ -19,6 +19,9 @@ __clean_name__ =  __program_name__ + "-" + __clean_release__
 
 import vaex.dataset
 #import vaex.plot
+from vaex.dataset import Dataset
+from vaex.remote import ServerRest
+del ServerRest, Dataset
 
 def open(path, *args, **kwargs):
 	"""Open a dataset from file given by path
@@ -27,7 +30,7 @@ def open(path, *args, **kwargs):
 	:param args: extra arguments for file readers that need it
 	:param kwargs: extra keyword arguments
 	:return: return dataset if file is supported, otherwise None
-	:rtype: vaex.dataset.Dataset
+	:rtype: Dataset
 
 	:Example:
 
@@ -44,7 +47,7 @@ def server(hostname, **kwargs):
 
 	:param str hostname: hostname or ip address of server
 	:return vaex.dataset.ServerRest: returns a server object, note that it does not connect to the server yet, so this will always succeed
-	:rtype: vaex.dataset.ServerRest
+	:rtype: ServerRest
 	"""
 	return vaex.dataset.ServerRest(hostname, **kwargs)
 
@@ -56,6 +59,9 @@ def example():
 	import utils
 	return open(utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5"))
 
+def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
+	return vaex.dataset.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
+	return vaex.dataset.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
 
 def set_log_level_debug():
 	import vaex.logging as log
