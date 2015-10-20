@@ -345,7 +345,7 @@ class Subspace(object):
 		return len(self.expressions)
 
 	def selected(self):
-		return self.__class__(self.dataset, expressions=self.expressions, immediate=self.immediate, masked=True)
+		return self.__class__(self.dataset, expressions=self.expressions, async=self.async, masked=True)
 
 	def plot(self, grid=None, limits=None, center=None, weight=None, f=lambda x: x, axes=None, **kwargs):
 		import pylab
@@ -1645,7 +1645,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 			logger.exception("could not open file as hdf5")
 			return False
 		if h5file is not None:
-			return ("data" in h5file) or ("columns" in h5file)
+			with h5file:
+				return ("data" in h5file) or ("columns" in h5file)
 		else:
 			logger.debug("file %s has no data or columns group" % path)
 		return False
@@ -1751,7 +1752,8 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 		except:
 			return False
 		if h5file is not None:
-			return ("particles" in h5file)# or ("columns" in h5file)
+			with h5file:
+				return ("particles" in h5file)# or ("columns" in h5file)
 		return False
 
 	def load(self):
@@ -1858,6 +1860,8 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 		elif "#" in path:
 			filename, index = path.split("#")
 			particle_type = gadget_particle_names[index]
+		else:
+			return False
 		h5file = None
 		try:
 			h5file = h5py.File(path, "r")
@@ -1866,7 +1870,10 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 		has_particles = False
 		#for i in range(1,6):
 		key = "/PartType%d" % particle_type
-		return key in h5file
+		exists = key in h5file
+		h5file.close()
+		return exists
+
 		#has_particles = has_particles or (key in h5file)
 		#return has_particles
 			

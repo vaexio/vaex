@@ -1,9 +1,13 @@
+# -*- coding: utf-8 -*-
 import vaex.dataset as dataset
 import numpy as np
 import unittest
 import vaex as vx
 import tempfile
 import vaex.webserver
+
+
+vx.set_log_level_warning()
 
 class CallbackCounter(object):
 	def __init__(self):
@@ -122,7 +126,7 @@ class TestDataset(unittest.TestCase):
 	def test_export(self):
 
 		path = tempfile.mktemp(".hdf5")
-		print path
+		#print path
 
 		with self.assertRaises(AssertionError):
 			self.dataset.export_hdf5(path, selection=True)
@@ -135,7 +139,7 @@ class TestDataset(unittest.TestCase):
 				for byteorder in "=<>":
 					for shuffle in [False, True]:
 						for selection in [False, True]:
-							print path, column_names, byteorder, shuffle, selection, fraction
+							#print path, column_names, byteorder, shuffle, selection, fraction
 							self.dataset.export_hdf5(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection)
 							compare = vx.open(path)
 							column_names = column_names or ["x", "y"]
@@ -211,9 +215,15 @@ class TestDataset(unittest.TestCase):
 				value = dataset.columns["x"][:][i]
 				self.assertEqual([value, value**2], values)
 
+	def test_selection(self):
+		total = self.dataset("x").sum()
+		self.dataset.select("x > 5")
+		total_subset = self.dataset("x").selected().sum()
+		self.assertLess(total_subset, total)
+		pass # TODO
 
 
-test_port = 19999
+test_port = 19000
 
 class TestWebServer(unittest.TestCase):
 	def setUp(self):
