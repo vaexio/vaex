@@ -2023,16 +2023,6 @@ class InMemory(DatasetMemoryMapped):
 		super(InMemory, self).__init__(filename=None, nommap=True, name=name)
 
 
-from numba import jit
-
-@jit(nopython=True)
-def reorder(array_from, array_temp, order):
-	length = len(array_from)
-	for i in range(length):
-		array_temp[i] = array_from[order[i]]
-	for i in range(length):
-		array_from[i] = array_temp[i]
-
 class SoneiraPeebles(InMemory):
 	def __init__(self, dimension, eta, max_level, L):
 		super(SoneiraPeebles, self).__init__(name="soneira-peebles")

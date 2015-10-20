@@ -33,7 +33,6 @@ import vaex.ui.imageblending
 
 #import vaex.ui.plugin.dispersions
 import vaex.ui.templates
-from numba import jit
 
 #import subspacefind
 import vaex.vaexfast
@@ -47,49 +46,12 @@ from vaex.ui.qt import *
 
 from vaex.ui.icons import iconfile
 
-@jit(nopython=True)
-def range_check(block, mask, xmin, xmax):
-	length = len(block)
-	for i in range(length):
-		mask[i] = (block[i] > xmin) and (block[i] <= xmax)
-
-import math
-@jit(nopython=True)
-def find_nearest_index_(datax, datay, x, y, wx, wy):
-	N = len(datax)
-	index = 0
-	mindistance = math.sqrt((datax[0]-x)**2/wx**2 + (datay[0]-y)**2/wy**2)
-	for i in range(1,N):
-		distance = math.sqrt((datax[i]-x)**2/wx**2 + (datay[i]-y)**2/wy**2)
-		if distance < mindistance:
-			mindistance = distance
-			index = i
-	return index
-		
-
 def find_nearest_index(datax, datay, x, y, wx, wy):
 	index = find_nearest_index_(datax, datay, x, y, wx, wy)
 	distance = math.sqrt((datax[index]-x)**2/wx**2 + (datay[index]-y)**2/wy**2)
 	return index, distance
 
 
-@jit(nopython=True)
-def find_nearest_index1d_(datax, x):
-	N = len(datax)
-	index = 0
-	mindistance = math.sqrt((datax[0]-x)**2)
-	for i in range(1,N):
-		distance = math.sqrt((datax[i]-x)**2)
-		if distance < mindistance:
-			mindistance = distance
-			index = i
-	return index
-
-def find_nearest_index1d(datax, x):
-	index = find_nearest_index1d_(datax, x)
-	distance = math.sqrt((datax[index]-x)**2)
-	return index, distance
-		
 import vaex.ui.colormaps
 
 

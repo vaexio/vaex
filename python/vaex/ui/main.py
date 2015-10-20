@@ -1653,12 +1653,6 @@ def main(argv=sys.argv[1:]):
 	#ipython_window.ipkernel.start()
 	#sys.exit(app.exec_())
 
-@jit(nopython=True)
-def copy(from_array, to_array, indices):
-	length = len(indices)
-	for i in range(length):
-		index = indices[i]
-		to_array[i] = from_array[index]
 
 def batch_copy_index(from_array, to_array, shuffle_array):
 	N_per_batch = int(1e7)
