@@ -68,6 +68,8 @@ class Executor(object):
 		# u 'column' is uniquely identified by a tuple of (dataset, expression)
 		t0 = time.time()
 		logger.debug("executing queue: %r" % (self.task_queue))
+		#for task in self.task_queue:
+		#$	print task, task.expressions_all
 
 		expressions = list(set(expression for task in self.task_queue for expression in task.expressions_all))
 
@@ -85,8 +87,14 @@ class Executor(object):
 
 		length = len(self.dataset)
 		#print self.thread_pool.map()
-		for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size)):
-			pass # just eat all element
+		try:
+			for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size)):
+				pass # just eat all element
+		except:
+			# on any error we flush the task queue
+			logger.error("error in task, flush task queue")
+			self.task_queue = []
+			raise
 		logger.debug("executing took %r seconds" % (time.time() - t0))
 		# while processing the self.task_queue, new elements will be added to it, so copy it
 		task_queue = list(self.task_queue)
@@ -103,7 +111,7 @@ class Executor(object):
 			self.execute()
 
 
-	def _execute(self):
+	def ____execute(self):
 		# u 'column' is uniquely identified by a tuple of (dataset, expression)
 		t0 = time.time()
 		logger.info("executing queue: %r" % (self.task_queue))

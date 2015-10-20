@@ -5,9 +5,11 @@ import math
 import multiprocessing
 import sys
 import vaex.utils
+import logging
 lock = threading.Lock()
 
 thread_count_default = multiprocessing.cpu_count()
+logger = logging.getLogger("vaex.multithreading")
 
 
 class ThreadPoolIndex(object):
@@ -20,9 +22,12 @@ class ThreadPoolIndex(object):
 		for thread in self.threads:
 			thread.setDaemon(True)
 			thread.start()
+		self.exception_occurred = False
 
 	def map(self, callable, iterator, on_error=None):
+		results = []
 		with lock:
+			self.exception_occurred = False
 			self.callable = callable
 			count = 0
 			for element in iterator:
@@ -40,12 +45,23 @@ class ThreadPoolIndex(object):
 						on_error(element[1])
 						done = True
 					else:
+						#print "RAISE"
+						self.exception_occurred = True
+						logger.debug("wait for queue_in")
+						self.queue_in.join()
+						# now we know all threads are waiting for the queue_in, so they will not fill queue_out
+						# but, it ma still contain elements, like exceptions, so flush it
+						logger.debug("flush queue_out")
+						while not self.queue_out.empty():
+							self.queue_out.get()
 						raise element[1], None, element[2]
 						done = True
 				else:
-					yield element
+					#yield element
+					results.append(element)
 					yielded += 1
 				done = yielded == count
+		return results
 
 
 	def close(self):
@@ -59,23 +75,31 @@ class ThreadPoolIndex(object):
 		while not done:
 			#print "waiting..", index
 			args = self.queue_in.get()
-			if self.callable is None:
-				#print "ending thread.."
-				done = True
-			else:
-				#print "running..", index
-				try:
-					#lock.acquire()
-					result = self.callable(index, *args)
-					#lock.release()
-				except Exception, e:
-					exc_info = sys.exc_info()
-					self.queue_out.put(exc_info)
+			try:
+				if self.exception_occurred:
+					pass # just eat the whole queue after an exception
+					#print "thread: %s just eat queue item %r" % (index, args)
 				else:
-					self.queue_out.put(result)
-				#print "done..", index
-				#self.semaphore_outrelease()
-		#print "thread closed"
+					if self.callable is None:
+						#print "ending thread.."
+						done = True
+					else:
+						#print "running..", index
+						try:
+							#lock.acquire()
+							result = self.callable(index, *args)
+							#lock.release()
+						except Exception, e:
+							exc_info = sys.exc_info()
+							self.queue_out.put(exc_info)
+						else:
+							self.queue_out.put(result)
+			finally:
+				self.queue_in.task_done()
+
+					#print "done..", index
+					#self.semaphore_outrelease()
+			#print "thread closed"
 
 
 

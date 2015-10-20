@@ -12,7 +12,7 @@ a = vaex.execution.buffer_size # will crash if we decide to rename it
 # this will make the test execute more code and may show up bugs
 vaex.execution.buffer_size = 3
 
-vx.set_log_level_warning()
+vx.set_log_level_exception()
 #vx.set_log_level_debug()
 
 class CallbackCounter(object):
@@ -73,6 +73,18 @@ class TestDataset(unittest.TestCase):
 			z = self.dataset.evaluate("z")
 			z_test = x + t * y
 			np.testing.assert_array_almost_equal(z, z_test)
+
+
+	def test_subspace_errors(self):
+
+		with self.assertRaises(SyntaxError):
+			self.dataset("x/").sum()
+		print self.dataset.executor.task_queue
+		with self.assertRaises(KeyError):
+			self.dataset("doesnotexist").sum()
+
+		# that that after a error we can still continue
+		self.dataset("x").sum()
 
 	def test_evaluate_nested(self):
 		self.dataset.add_virtual_column("z2", "-z")

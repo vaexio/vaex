@@ -586,7 +586,7 @@ class _BlockScope(object):
 
 			return self.values[variable]
 		except:
-			logger.exception("unknown variable: %r" % variable)
+			logger.error("unknown variable: %r" % variable)
 			raise
 
 class Dataset(object):
