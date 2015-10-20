@@ -266,7 +266,7 @@ class TestDataset(unittest.TestCase):
 		pass # TODO
 
 
-test_port = 19000
+test_port = 29001
 
 class TestWebServer(unittest.TestCase):
 	def setUp(self):
