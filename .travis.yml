@@ -2,8 +2,6 @@ language: python
 php:
  - 2.7
 install:
-  - sudo apt-get update
-  - sudo apt-get install libqt4-dev
   - pip install -r requirements.txt
 
 script:
