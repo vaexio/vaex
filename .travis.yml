@@ -17,4 +17,4 @@ install:
   - pip install -r requirements.txt
 
 script:
-    - python test/dataset.py
+    - python test/dataset.py TestDataset
