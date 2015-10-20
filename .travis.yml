@@ -2,6 +2,8 @@ language: python
 php:
  - 2.7
 install:
+  - sudo apt-get update
+  - sudo apt-get install libhdf5-serial-dev libqt4-dev
   - pip install -r requirements.txt
 
 script:
