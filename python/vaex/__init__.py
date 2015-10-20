@@ -74,3 +74,5 @@ def set_log_level_info():
 def set_log_level_warning():
 	import vaex.logging as log
 	log.rootlogger.setLevel(log.LEVELS['warning'])
+
+set_log_level_info()

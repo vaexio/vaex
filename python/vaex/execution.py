@@ -67,6 +67,45 @@ class Executor(object):
 	def execute(self):
 		# u 'column' is uniquely identified by a tuple of (dataset, expression)
 		t0 = time.time()
+		logger.debug("executing queue: %r" % (self.task_queue))
+
+		expressions = list(set(expression for task in self.task_queue for expression in task.expressions_all))
+
+		for task in self.task_queue:
+			task._results = []
+		block_scopes = [self.dataset._block_scope(0, buffer_size) for i in range(self.thread_pool.nthreads)]
+		def process(thread_index, i1, i2):
+			block_scope = block_scopes[thread_index]
+			block_scope.move(i1, i2)
+			with ne_lock:
+				block_dict = {expression:block_scope.evaluate(expression) for expression in expressions}
+			for task in self.task_queue:
+				blocks = [block_dict[expression] for expression in task.expressions_all]
+				task._results.append(task.map(thread_index, i1, i2, *blocks))
+
+		length = len(self.dataset)
+		#print self.thread_pool.map()
+		for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size)):
+			pass # just eat all element
+		logger.debug("executing took %r seconds" % (time.time() - t0))
+		# while processing the self.task_queue, new elements will be added to it, so copy it
+		task_queue = list(self.task_queue)
+		self.task_queue = []
+		for task in task_queue:
+			task._result = task.reduce(task._results)
+			task.fulfill(task._result)
+			# remove references
+			task._result = None
+			task._results = None
+		# if new tasks were added as a result of this, execute them immediately
+		# TODO: we may want to include infinite recursion protection
+		if len(self.task_queue) > 0:
+			self.execute()
+
+
+	def _execute(self):
+		# u 'column' is uniquely identified by a tuple of (dataset, expression)
+		t0 = time.time()
 		logger.info("executing queue: %r" % (self.task_queue))
 		columns = list(set(Column(task.dataset, expression) for task in self.task_queue for expression in task.expressions_all))
 		expressions = list(set(expression for task in self.task_queue for expression in task.expressions_all))
