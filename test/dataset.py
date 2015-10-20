@@ -6,10 +6,6 @@ import vaex as vx
 import tempfile
 import vaex.webserver
 
-<<<<<<< HEAD
-
-vx.set_log_level_warning()
-=======
 import vaex.execution
 a = vaex.execution.buffer_size # will crash if we decide to rename it
 
@@ -18,7 +14,6 @@ vaex.execution.buffer_size = 3
 
 vx.set_log_level_warning()
 #vx.set_log_level_debug()
->>>>>>> vaex-toplevel-laptop
 
 class CallbackCounter(object):
 	def __init__(self):
