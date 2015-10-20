@@ -679,7 +679,7 @@ class LayerTable(object):
 		self.label_selection_info_update()
 		#self.plot()
 
-	def on_pick(self, row):
+	def on_pick(self, dataset, row):
 		self.coordinates_picked_row = None
 		#self.plot()
 		self.signal_plot_dirty.emit(self)

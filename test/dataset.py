@@ -5,6 +5,15 @@ import vaex as vx
 import tempfile
 import vaex.webserver
 
+import vaex.execution
+a = vaex.execution.buffer_size # will crash if we decide to rename it
+
+# this will make the test execute more code and may show up bugs
+vaex.execution.buffer_size = 3
+
+vx.set_log_level_warning()
+#vx.set_log_level_debug()
+
 class CallbackCounter(object):
 	def __init__(self):
 		self.counter = 0
@@ -20,7 +29,9 @@ class TestDataset(unittest.TestCase):
 		y = x ** 2
 		self.dataset.add_column("x", x)
 		self.dataset.add_column("y", y)
-		
+		self.dataset.set_variable("t", 1.)
+		self.dataset.add_virtual_column("z", "x+t*y")
+
 		#self.jobsManager = dataset.JobsManager()
 
 		x = np.array([0., 1])
@@ -44,6 +55,7 @@ class TestDataset(unittest.TestCase):
 
 		self.dataset_concat = vx.dataset.DatasetConcatenated([dataset1, dataset2, dataset3])
 
+		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset, self.dataset, self.dataset])
 
 	def test_length(self):
 		assert len(self.dataset) == 10
@@ -51,6 +63,21 @@ class TestDataset(unittest.TestCase):
 	def t_est_length_mask(self):
 		self.dataset._set_mask(self.dataset.columns['x'] < 5)
 		self.assertEqual(self.dataset.length(selection=True), 5)
+
+	def test_evaluate(self):
+		for t in [2, 3]:
+			self.dataset.set_variable("t", t)
+			x = self.dataset.evaluate("x")
+			y = self.dataset.evaluate("y")
+			z = self.dataset.evaluate("z")
+			z_test = x + t * y
+			np.testing.assert_array_almost_equal(z, z_test)
+
+	def test_evaluate_nested(self):
+		self.dataset.add_virtual_column("z2", "-z")
+		self.dataset.add_virtual_column("z3", "z+z2")
+		zeros = self.dataset.evaluate("z3")
+		np.testing.assert_array_almost_equal(zeros, np.zeros(len(self.dataset)))
 
 
 	def test_virtual_columns_spherical(self):
@@ -122,33 +149,40 @@ class TestDataset(unittest.TestCase):
 	def test_export(self):
 
 		path = tempfile.mktemp(".hdf5")
-		print path
+		#print path
 
 		with self.assertRaises(AssertionError):
 			self.dataset.export_hdf5(path, selection=True)
 
-		for fraction in [1, 0.5]:
-			self.dataset.set_active_fraction(fraction)
-			self.dataset.select("x > 3")
-			length = len(self.dataset)
-			for column_names in [["x", "y"], ["x"], ["y"], None]:
-				for byteorder in "=<>":
-					for shuffle in [False, True]:
-						for selection in [False, True]:
-							print path, column_names, byteorder, shuffle, selection, fraction
-							self.dataset.export_hdf5(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection)
-							compare = vx.open(path)
-							column_names = column_names or ["x", "y"]
-							self.assertEqual(compare.get_column_names(), column_names + (["random_index"] if shuffle else []))
-							for column_name in column_names:
-								if selection:
-									self.assertEqual(sorted(compare.columns[column_name]), sorted(self.dataset.columns[column_name][self.dataset.mask]))
-								else:
-									if shuffle:
-										indices = compare.columns["random_index"]
-										self.assertEqual(sorted(compare.columns[column_name]), sorted(self.dataset.columns[column_name][indices]))
+		for dataset in [self.dataset_concat_dup, self.dataset]:
+			#print dataset.virtual_columns
+			for fraction in [1, 0.5]:
+				dataset.set_active_fraction(fraction)
+				dataset.select("x > 3")
+				length = len(dataset)
+				for column_names in [["x", "y", "z"], ["x"], ["y"], ["z"], None]:
+					for byteorder in "=<>":
+						for shuffle in [False, True]:
+							for selection in [False, True]:
+								#print dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length()
+								#print dataset.full_length()
+								#print len(dataset)
+								dataset.export_hdf5(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection)
+								compare = vx.open(path)
+								column_names = column_names or ["x", "y", "z"]
+								self.assertEqual(compare.get_column_names(), column_names + (["random_index"] if shuffle else []))
+								for column_name in column_names:
+									values = dataset.evaluate(column_name)
+									if selection:
+										self.assertEqual(sorted(compare.columns[column_name]), sorted(values[dataset.mask]))
 									else:
-										self.assertEqual(sorted(compare.columns[column_name]), sorted(self.dataset.columns[column_name][:length]))
+										if shuffle:
+											indices = compare.columns["random_index"]
+											self.assertEqual(sorted(compare.columns[column_name]), sorted(values[indices]))
+										else:
+											self.assertEqual(sorted(compare.columns[column_name]), sorted(values[:length]))
+				# self.dataset_concat_dup references self.dataset, so set it's active_fraction to 1 again
+				dataset.set_active_fraction(1)
 
 	def test_fraction(self):
 		counter_selection = CallbackCounter()

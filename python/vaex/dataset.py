@@ -12,6 +12,7 @@ import platform
 import vaex.export
 import h5py
 import numpy as np
+import numexpr as ne
 
 from vaex.utils import Timer
 from vaex import multithreading
@@ -345,7 +346,7 @@ class Subspace(object):
 		return len(self.expressions)
 
 	def selected(self):
-		return self.__class__(self.dataset, expressions=self.expressions, immediate=self.immediate, masked=True)
+		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
 	def plot(self, grid=None, limits=None, center=None, weight=None, f=lambda x: x, axes=None, **kwargs):
 		import pylab
@@ -529,6 +530,65 @@ class SubspaceLocal(Subspace):
 import vaex.events
 import cgi
 
+
+class _BlockScope(object):
+	def __init__(self, dataset, i1, i2, **variables):
+		"""
+
+		:param DatasetLocal dataset: the *local*  dataset
+		:param i1: start index
+		:param i2: end index
+		:param values:
+		:return:
+		"""
+		self.dataset = dataset
+		self.i1 = i1
+		self.i2 = i2
+		self.variables = variables
+		self.values = dict(self.variables)
+		self.buffers = {}
+
+	def move(self, i1, i2):
+		length_new = i2 - i1
+		length_old = self.i2 - self.i1
+		if length_new > length_old: # old buffers are too small, discard them
+			self.buffers = {}
+		else:
+			for name in self.buffers.keys():
+				self.buffers[name] = self.buffers[name][:length_new]
+		self.i1 = i1
+		self.i2 = i2
+		self.values = dict(self.variables)
+
+	def _ensure_buffer(self, column):
+		if column not in self.buffers:
+			self.buffers[column] = np.zeros(self.i2-self.i1)
+
+	def evaluate(self, expression, out=None):
+		return ne.evaluate(expression, local_dict=self, out=out)
+
+	def __getitem__(self, variable):
+		#logger.debug("get " + variable)
+		try:
+			if variable in self.dataset.get_column_names():
+				if self.dataset._needs_copy(variable):
+					self._ensure_buffer(variable)
+					self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
+				else:
+					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2]
+			elif variable in self.dataset.virtual_columns.keys():
+				expression = self.dataset.virtual_columns[variable]
+				self._ensure_buffer(variable)
+				self.evaluate(expression, out=self.buffers[variable])
+				self.values[variable] = self.buffers[variable]
+			if variable not in self.values:
+				raise KeyError, "Unknown variables or column: %r" % (variable,)
+
+			return self.values[variable]
+		except:
+			logger.exception("unknown variable: %r" % variable)
+			raise
+
 class Dataset(object):
 	"""All datasets are encapsulated in this class, local or remote dataets
 
@@ -584,6 +644,23 @@ class Dataset(object):
 		"""
 		raise NotImplementedError
 
+	def set_variable(self, name, value):
+		self.variables[name] = value
+
+	def get_variable(self, name):
+		return self.variables[name]
+
+	def evaluate(self, expression, i1=None, i2=None, out=None):
+		i1 = i1 or 0
+		i2 = i2 or len(self)
+		scope = _BlockScope(self, i1, i2, **self.variables)
+		if out is not None:
+			scope.buffers[expression] = out
+		return scope.evaluate(expression)
+
+	def _block_scope(self, i1, i2):
+		return _BlockScope(self, i1, i2, **self.variables)
+
 	def select(self, boolean_expression, mode="replace"):
 		"""Select rows based on the boolean_expression, if there was a previous selection, the mode is taken into account.
 
@@ -599,6 +676,47 @@ class Dataset(object):
 
 	def has_selection(self):
 		return self._has_selection
+
+	def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name):
+		"""
+
+		:param str x: name of x column
+		:param str y:
+		:param str z:
+		:param str xnew: name of transformed x column
+		:param str ynew:
+		:param str znew:
+		:param list[list] matrix: 2d array or list, with [row,column] order
+		:param str matrix_name:
+		:return:
+		"""
+		m = matrix_name
+		for i in range(3):
+			for j in range(3):
+				self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
+		self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y} + {m}_02 * {z}".format(**locals())
+		self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y} + {m}_12 * {z}".format(**locals())
+		self.virtual_columns[znew] = "{m}_20 * {x} + {m}_21 * {y} + {m}_22 * {z}".format(**locals())
+
+	def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees):
+		"""
+
+		:param str x: name of x column
+		:param str y:
+		:param str xnew: name of transformed x column
+		:param str ynew:
+		:param float angle_degrees: rotation in degrees, anti clockwise
+		:return:
+		"""
+		theta = np.radians(angle_degrees)
+		matrix = np.array([[np.cos(theta), -np.sin(theta)],[np.sin(theta), np.cos(theta)]])
+		m = matrix_name = x +"_" +y + "_rot"
+		for i in range(2):
+			for j in range(2):
+				self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
+		self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y}".format(**locals())
+		self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y}".format(**locals())
+
 
 	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname, yname, zname, radians=True):
 		if not radians:
@@ -717,6 +835,15 @@ class DatasetLocal(Dataset):
 	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False):
 		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection)
 
+	def _needs_copy(self, column_name):
+		return not \
+			(column_name in self.column_names  \
+			and not isinstance(self.columns[column_name], vaex.dataset._ColumnConcatenatedLazy)\
+			and self.columns[column_name].dtype.type==np.float64 \
+			and self.columns[column_name].strides[0] == 8 \
+			and column_name not in self.virtual_columns)
+				#and False:
+
 	def selected_length(self):
 		return np.sum(self.mask) if self.has_selection() else None
 
@@ -765,16 +892,23 @@ class _ColumnConcatenatedLazy(object):
 		datasets = iter(self.datasets)
 		current_dataset = datasets.next()
 		offset = 0
+		#print "#@!", start, stop, [len(dataset) for dataset in self.datasets]
 		while start >= offset + len(current_dataset):
+			#print offset
 			offset += len(current_dataset)
+			#try:
 			current_dataset = datasets.next()
+			#except StopIteration:
+				#logger.exception("requested start:stop %d:%d when max was %d, offset=%d" % (start, stop, offset+len(current_dataset), offset))
+				#raise
+			#	break
 		# this is the fast path, no copy needed
 		if stop <= offset + len(current_dataset):
 			return current_dataset.columns[self.column_name][start-offset:stop-offset]
 		else:
 			copy = np.zeros(stop-start, dtype=current_dataset.columns[self.column_name][0:1].dtype)
 			copy_offset = 0
-			#print ">", start, stop, offset, len(current_dataset), current_dataset.columns[self.column_name]
+			#print "!!>", start, stop, offset, len(current_dataset), current_dataset.columns[self.column_name]
 			while offset < stop: #> offset + len(current_dataset):
 				part = current_dataset.columns[self.column_name][start-offset:min(len(current_dataset), stop-offset)]
 				#print "part", part, copy_offset,copy_offset+len(part)
@@ -799,9 +933,19 @@ class DatasetConcatenated(DatasetLocal):
 		self.columns = {}
 		for column_name in self.get_column_names():
 			self.columns[column_name] = _ColumnConcatenatedLazy(datasets, column_name)
+
+		for name in first.virtual_columns.keys():
+			if all([first.virtual_columns[name] == dataset.virtual_columns.get(name, None) for dataset in tail]):
+				self.virtual_columns[name] = first.virtual_columns[name]
+		for dataset in datasets:
+			for name, value in dataset.variables.items():
+				self.set_variable(name, value)
+
+
 		self._full_length = sum(ds.full_length() for ds in self.datasets)
 		self._length = self.full_length()
 		self.name = "_".join(ds.name for ds in self.datasets)
+
 
 
 	def concat(self, other):
@@ -929,15 +1073,7 @@ class DatasetMemoryMapped(DatasetLocal):
 	def get_path(self):
 		return self.path
 		
-	def get_column_names(self):
-		names = list(self.column_names)
-		for vname in self.virtual_columns.keys():
-			if vname not in names:
-				names.append(vname)
-		return names
-		
-		
-	def evaluate(self, callback, *expressions, **variables):
+	def _evaluate(self, callback, *expressions, **variables):
 		jobManager = JobsManager()
 		logger.debug("evalulate: %r %r" % (expressions,variables))
 		jobManager.addJob(0, callback, self, *expressions, **variables)

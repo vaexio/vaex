@@ -4,11 +4,12 @@ import h5py
 import logging
 import vaex
 import vaex.utils
+import vaex.execution
 #from vaex.dataset import DatasetLocal
 
 logger = logging.getLogger("vaex.export")
 
-def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None):
+def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
 	"""
 	:param DatasetLocal dataset: dataset to export
 	:param str path: path for file
@@ -23,34 +24,36 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 	if selection:
 		assert dataset.has_selection(), "cannot export selection is there is none"
 	# first open file using h5py api
-	h5file_output = h5py.File(path, "w")
+	with h5py.File(path, "w") as h5file_output:
 
-	progress = progress or (lambda value: True)
+		progress = progress or (lambda value: True)
 
-	h5data_output = h5file_output.require_group("data")
-	#i1, i2 = dataset.current_slice
-	N = len(dataset) if not selection else dataset.selected_length()
-	if N == 0:
-		raise ValueError, "Cannot export empty table"
-	logger.debug("exporting %d rows to file %s" % (N, path))
-	column_names = column_names or dataset.get_column_names()
-	logger.debug(" exporting columns: %r" % column_names)
-	for column_name in column_names:
-		column = dataset.columns[column_name]
-		#print column_name, column.shape, column.strides
-		#print column_name, column.dtype, column.dtype.type
-		shape = (N,) + column.shape[1:]
-		array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=column.dtype.newbyteorder(byteorder))
-		array[0] = array[0] # make sure the array really exists
-	if shuffle:
-		random_index_name = "random_index"
-		while random_index_name in dataset.get_column_names():
-			random_index_name += "_new"
-		shuffle_array = h5file_output.require_dataset("/data/" + random_index_name, shape=(N,), dtype=byteorder+"i8")
-		shuffle_array[0] = shuffle_array[0]
+		h5data_output = h5file_output.require_group("data")
+		#i1, i2 = dataset.current_slice
+		N = len(dataset) if not selection else dataset.selected_length()
+		if N == 0:
+			raise ValueError, "Cannot export empty table"
+		logger.debug("exporting %d rows to file %s" % (N, path))
+		column_names = column_names or (dataset.get_column_names() + (dataset.virtual_columns.keys() if virtual else []))
+		logger.debug(" exporting columns: %r" % column_names)
+		for column_name in column_names:
+			if column_name in dataset.get_column_names():
+				column = dataset.columns[column_name]
+				shape = (N,) + column.shape[1:]
+				dtype = column.dtype
+			else:
+				dtype = np.float64().dtype
+				shape = (N,)
+			array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype.newbyteorder(byteorder))
+			array[0] = array[0] # make sure the array really exists
+		if shuffle:
+			random_index_name = "random_index"
+			while random_index_name in dataset.get_column_names():
+				random_index_name += "_new"
+			shuffle_array = h5file_output.require_dataset("/data/" + random_index_name, shape=(N,), dtype=byteorder+"i8")
+			shuffle_array[0] = shuffle_array[0]
 
-	# close file, and reopen it using out class
-	h5file_output.close()
+	# after this the file is closed,, and reopen it using out class
 	dataset_output = vaex.dataset.Hdf5MemoryMapped(path, write=True)
 
 	if shuffle:
@@ -64,41 +67,60 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 		shuffle_array_full = np.zeros(dataset.full_length(), dtype=byteorder+"i8")
 		vaex.vaexfast.shuffled_sequence(shuffle_array_full)
 		# then take a section of it
-		shuffle_array[:] = shuffle_array_full[:N]
+		#shuffle_array[:] = shuffle_array_full[:N]
+		shuffle_array[:] = shuffle_array_full[shuffle_array_full<N]
 		del shuffle_array_full
 	elif shuffle:
 		vaex.vaexfast.shuffled_sequence(shuffle_array)
 
 	i1, i2 = 0, N #len(dataset)
 	#print "creating shuffled array"
-	progress_total = len(column_names)
+	progress_total = len(column_names) * N
 	progress_value = 0
 	for column_name in column_names:
 		logger.debug("  exporting column: %s " % column_name)
 		with vaex.utils.Timer("copying column %s" % column_name, logger):
-			from_array = dataset.columns[column_name][:] # TODO: horribly inefficient for concatenated tables
+			block_scope = dataset._block_scope(0, vaex.execution.buffer_size)
 			to_array = dataset_output.columns[column_name]
-			#np.take(from_array, random_index, out=to_array)
-			#print [(k.shape, k.dtype) for k in [from_array, to_array, random_index]]
-			if selection:
-				if dataset.mask is not None:
-					data = from_array[0:len(dataset)][dataset.mask]
-					to_array[:] = data
-			else:
-				if shuffle:
-					#to_array[:] = from_array[i1:i2][shuffle_array]
-					#to_array[:] = from_array[shuffle_array]
-					#print [k.dtype for k in [from_array, to_array, shuffle_array]]
-					#copy(from_array, to_array, shuffle_array)
-					batch_copy_index(from_array, to_array, shuffle_array)
-					#np.take(from_array, indices=shuffle_array, out=to_array)
-					pass
+			if shuffle: # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
+				to_array_disk = to_array
+				to_array = np.zeros_like(to_array_disk)
+			to_offset = 0 # we need this for selections
+			for i1, i2 in vaex.utils.subdivide(len(dataset), max_length=vaex.execution.buffer_size):
+				block_scope.move(i1, i2)
+
+				#from_array = dataset.columns[column_name][i:] # TODO: horribly inefficient for concatenated tables
+				#np.take(from_array, random_index, out=to_array)
+				#print [(k.shape, k.dtype) for k in [from_array, to_array, random_index]]
+				values = block_scope.evaluate(column_name)
+				#print i1, i2, N
+				if selection:
+					selection_block_length = np.sum(dataset.mask[i1:i2])
+					to_array[to_offset:to_offset+selection_block_length] = values[dataset.mask[i1:i2]]
+					to_offset += selection_block_length
 				else:
-					to_array[:] = from_array[i1:i2]
-			#copy(, to_array, random_index)
-		progress_value += 1
-		if not progress(progress_value/float(progress_total)):
-			break
+					if shuffle:
+						indices = shuffle_array[i1:i2]
+						to_array[indices] = values
+					else:
+						to_array[i1:i2] = values
+
+				if False:
+					if shuffle:
+						#to_array[:] = from_array[i1:i2][shuffle_array]
+						#to_array[:] = from_array[shuffle_array]
+						#print [k.dtype for k in [from_array, to_array, shuffle_array]]
+						#copy(from_array, to_array, shuffle_array)
+						batch_copy_index(from_array, to_array, shuffle_array)
+						#np.take(from_array, indices=shuffle_array, out=to_array)
+						pass
+					else:
+						to_array[:] = from_array[i1:i2]
+				progress_value += i2-i1
+				if not progress(progress_value/float(progress_total)):
+					break
+			if shuffle: # write to disk in one go
+				to_array_disk[:] = to_array
 
 import math
 import sys

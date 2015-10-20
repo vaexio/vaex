@@ -5,6 +5,8 @@ import platform
 import vaex.utils
 import sys
 import threading
+import vaex.export
+import vaex.utils
 
 
 
@@ -141,9 +143,9 @@ class DatasetSelector(QtGui.QListWidget):
 	def on_add_dataset(self, dataset):
 		#print "added dataset", dataset
 		self.datasets.append(dataset)
-		dataset.signal_pick.connect(self.on_pick, dataset=dataset)
+		dataset.signal_pick.connect(self.on_pick)
 
-	def on_pick(self, row, dataset=None):
+	def on_pick(self, dataset, row):
 		# broadcast
 		logger.debug("broadcast pick")
 		self.signal_pick.emit(dataset, row)
@@ -153,7 +155,7 @@ class DatasetSelector(QtGui.QListWidget):
 		for fraction in possibleFractions[::-1]:
 			N  = len(dataset)
 			if N > Nmax:
-				dataset.set_fraction(fraction)
+				dataset.set_active_fraction(fraction)
 			else:
 				break
 
@@ -523,7 +525,7 @@ class DatasetPanel(QtGui.QFrame):
 		index = self.fractionSlider.value()
 		fraction = possibleFractions[index]
 		if self.dataset:
-			self.dataset.set_fraction(fraction)
+			self.dataset.set_active_fraction(fraction)
 			self.numberLabel.setText("{:,}".format(len(self.dataset)))
 			#self.dataset.executor.execute()
 			self.dataset.executor.execute()
@@ -1234,88 +1236,23 @@ class VaexApp(QtGui.QMainWindow):
 		#print args
 		filename = str(filename)
 		if filename:
-				print filename
+			progress_dialog = QtGui.QProgressDialog("Copying data...", "Abort export", 0, 1000, self);
+			progress_dialog.setWindowModality(QtCore.Qt.WindowModal);
+			progress_dialog.setMinimumDuration(0)
+			progress_dialog.setAutoClose(False)
+			progress_dialog.setAutoReset(False)
+			progress_dialog.show()
+			QtCore.QCoreApplication.instance().processEvents()
+			def progress(fraction):
+				progress_dialog.setValue(int(fraction*1000))
+				QtCore.QCoreApplication.instance().processEvents()
+				if progress_dialog.wasCanceled():
+					dialog_info(self, "Cancel", "Export cancelled")
+					return False
+				return True
 
-				# first open file using h5py api
-				h5file_output = h5py.File(filename, "w")
-
-				h5data_output = h5file_output.require_group("data")
-				i1, i2 = dataset.current_slice
-				N = dataset.length(selection=export_selection)
-				print "N", N
-				for column_name in selected_column_names:
-					column = dataset.columns[column_name]
-					#dataset_output.add_column(column_name, length=len(column), dtype=column.dtype)
-					#assert N == len(column)
-					print column_name, column.shape, column.strides
-					#array = h5file_output.require_dataset("/data/%s" % column_name, shape=column.shape, dtype=column.dtype)
-					print column_name, column.dtype, column.dtype.type
-					array = h5file_output.require_dataset("/data/%s" % column_name, shape=column.shape, dtype=column.dtype.newbyteorder(endian_option))
-					array[0] = array[0] # make sure the array really exists
-				if shuffle:
-					shuffle_array = h5file_output.require_dataset("/data/random_index", shape=(N,), dtype=endian_option+"i8")
-					shuffle_array[0] = shuffle_array[0]
-
-				# close file, and reopen it using out class
-				h5file_output.close()
-				dataset_output = vaex.dataset.Hdf5MemoryMapped(filename, write=True)
-
-				if shuffle:
-					shuffle_array = dataset_output.columns["random_index"]
-				if partial_shuffle:
-					# if we only export a portion, we need to create the full length random_index array, and
-					shuffle_array_full = np.zeros(dataset.full_length(), dtype=endian_option+"i8")
-					vaex.vaexfast.shuffled_sequence(shuffle_array_full)
-					# then take a section of it
-					shuffle_array[:] = shuffle_array_full[:len(dataset)]
-					del shuffle_array_full
-				elif shuffle:
-					vaex.vaexfast.shuffled_sequence(shuffle_array)
-
-				#print "creating shuffled array"
-				progress_total = len(selected_column_names)
-				progress_value = 0
-				progress_dialog = QtGui.QProgressDialog("Copying data...", "Abort export", 0, progress_total+1, self);
-				try:
-
-					progress_dialog.setWindowModality(QtCore.Qt.WindowModal);
-					progress_dialog.setMinimumDuration(0)
-					progress_dialog.setAutoClose(False)
-					progress_dialog.setAutoReset(False)
-					progress_dialog.show()
-					QtCore.QCoreApplication.instance().processEvents()
-
-					for column_name in selected_column_names:
-						print column_name
-						with vaex.utils.Timer("copying: %s" % column_name):
-							from_array = dataset.columns[column_name]
-							to_array = dataset_output.columns[column_name]
-							#np.take(from_array, random_index, out=to_array)
-							#print [(k.shape, k.dtype) for k in [from_array, to_array, random_index]]
-							if export_selection:
-								if dataset.mask is not None:
-									to_array[:] = from_array[i1:i2][dataset.mask]
-							else:
-								if shuffle:
-									#to_array[:] = from_array[i1:i2][shuffle_array]
-									#to_array[:] = from_array[shuffle_array]
-									#print [k.dtype for k in [from_array, to_array, shuffle_array]]
-									#copy(from_array, to_array, shuffle_array)
-									batch_copy_index(from_array, to_array, shuffle_array)
-									#np.take(from_array, indices=shuffle_array, out=to_array)
-									pass
-								else:
-									to_array[:] = from_array[i1:i2]
-							#copy(, to_array, random_index)
-						progress_value += 1
-						progress_dialog.setValue(progress_value)
-						QtCore.QCoreApplication.instance().processEvents()
-						if progress_dialog.wasCanceled():
-							dialog_info(self, "Cancel", "Export cancelled")
-							break
-
-				finally:
-					progress_dialog.hide()
+			vaex.export.export_hdf5(dataset, filename, column_names=selected_column_names, shuffle=shuffle, selection=export_selection, byteorder=endian_option, progress=progress)
+			progress_dialog.hide()
 
 	def gadgethdf5(self, filename):
 		print "filename", filename, repr(filename)

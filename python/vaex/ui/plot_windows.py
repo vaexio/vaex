@@ -391,7 +391,7 @@ class PlotDialog(QtGui.QWidget):
 		self.dataset = dataset
 		self.dimensions = dimensions
 		if "fraction" in self.options:
-			dataset.set_fraction(float(self.options["fraction"]))
+			dataset.set_active_fraction(float(self.options["fraction"]))
 
 
 		self.layers = []
