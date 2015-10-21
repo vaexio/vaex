@@ -13,4 +13,5 @@ aplus
 # numba (remove this dependency)
 tornado==4.1
 futures==2.2.0
+future
 jupyter
