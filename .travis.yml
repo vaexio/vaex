@@ -25,7 +25,7 @@ install:
   - if [[ $TRAVIS_OS_NAME == linux ]]; then pip install pyinstaller; pyinstaller vaex.spec; fi
   - ls dist
   - if [[ $TRAVIS_OS_NAME == osx ]]; then bash dropbox_uploader.sh upload dist/vaex*.zip vaex-osx-latest.zip; fi
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then cd dist; tar zcfv ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}; bash ../dropbox_uploader.sh upload ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}.tar.gz; fi
+  - if [[ $TRAVIS_OS_NAME == linux ]]; then cd dist; tar zcfv ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}; bash ../dropbox_uploader.sh upload ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}.tar.gz; cd ..; fi
 
 script:
     - python test/dataset.py
