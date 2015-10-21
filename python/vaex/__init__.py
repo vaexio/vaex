@@ -19,6 +19,16 @@ __clean_release__ = "%d.%d.%d" % (__version_tuple__)
 __full_name__ = __program_name__ + "-" + __release__
 __clean_name__ =  __program_name__ + "-" + __clean_release__
 
+import platform
+osname = platform.system().lower()
+if osname == "darwin":
+	__package_name__ = __clean_name__ + "-osx"
+if osname == "linux":
+	__package_name__ = __clean_name__ + "-linux"
+if osname == "windows":
+	__package_name__ = __clean_name__ + "-win"
+
+
 import vaex.dataset
 #import vaex.plot
 from vaex.dataset import Dataset

@@ -4,7 +4,7 @@ from __future__ import absolute_import
 
 #from . import logging
 import logging
-print(logging.__file__)
+#print(logging.__file__)
 from logging import getLogger as _getLogger
 
 #logging.basicConfig(level=logging.ERROR)
