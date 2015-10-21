@@ -88,6 +88,7 @@ if has_py2app and sys.argv[1] == "py2app":
 					print cmd
 					os.system(cmd)
 
+			os.system("cp dist/helmi* dist/vaex.app/Contents/Resources/")
 			os.system("cd dist")
 			zipname = "%s-osx.zip" % vaex.__clean_name__
 			os.system("cd dist;rm %s" % zipname)
