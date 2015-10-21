@@ -28,11 +28,6 @@ if not os.path.exists(path_version_file):
 version = imp.load_source('version', path_version_file)
 #system("version=`git describe --tags --long`; python/vaex/vaex/setversion.py ${version}")
 
-import py2app.recipes
-class astropy(object):
-	def check(self, cmd, graph):
-		return dict(packages=["astropy"])
-py2app.recipes.astropy = astropy()
 
 has_py2app = False
 #import vaex
@@ -41,6 +36,13 @@ try:
 	has_py2app = True
 except:
 	pass
+
+if has_py2app:
+	import py2app.recipes
+	class astropy(object):
+		def check(self, cmd, graph):
+			return dict(packages=["astropy"])
+	py2app.recipes.astropy = astropy()
 
 #full_name = vaex.__full_name__
 cmdclass = {}

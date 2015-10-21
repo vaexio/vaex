@@ -19,6 +19,7 @@ install:
   - python setup.py install
   - pip install -r requirements.txt
   - if [[ $TRAVIS_OS_NAME == osx ]]; then bash bin/build_binary_osx.sh; fi
+  - ls
 
 script:
     - python test/dataset.py
