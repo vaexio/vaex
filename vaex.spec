@@ -15,8 +15,8 @@ exe = EXE(pyz,
           upx=True,
           console=True )
           
-icon_tree = Tree('python/vaex/icons', prefix = 'icons')
-data_tree = Tree('data/dist', prefix='data')
+icon_tree = Tree('python/vaex/ui/icons', prefix = 'icons')
+data_tree = Tree('data', prefix='data')
 doc_tree = Tree('doc', prefix='doc')
 coll = COLLECT(exe,
                a.binaries,
