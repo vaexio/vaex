@@ -1,9 +1,12 @@
 language: python
+os:
+ - linux
+ - osx
 python:
  - 2.7
 install:
-  - sudo apt-get update
-  - sudo apt-get install libhdf5-serial-dev libqt4-dev
+#  - sudo apt-get update
+#  - sudo apt-get install libhdf5-serial-dev libqt4-dev
   - wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
@@ -15,6 +18,7 @@ install:
   - source activate test-environment
   - python setup.py install
   - pip install -r requirements.txt
+  - if [[ $TRAVIS_OS_NAME == osx ]]; then bash bin/build_binary_osx.sh; fi
 
 script:
     - python test/dataset.py
