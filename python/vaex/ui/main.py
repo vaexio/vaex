@@ -1,3 +1,4 @@
+from __future__ import print_function
 __author__ = 'breddels'
 
 import sampy
@@ -39,8 +40,8 @@ try:
 	import pdb
 	import astropy.io.fits
 	#pdb.set_trace()
-except Exception, e:
-	print e
+except Exception as e:
+	print(e)
 	pdb.set_trace()
 import vaex.ui.plot_windows as vp
 from vaex.ui.ranking import *
@@ -107,7 +108,7 @@ from vaex.samp import Samp
 
 
 def error(title, msg):
-	print "Error", title, msg
+	print("Error", title, msg)
 
 from vaex.dataset import *
 
@@ -190,9 +191,9 @@ class Worker(QtCore.QThread):
 
 	def run(self):
 		time.sleep(0.1)
-		print "in thread", self.currentThreadId()
+		print("in thread", self.currentThreadId())
 		self.result = self.func(*self.args, **self.kwargs)
-		print "result:", self.result
+		print("result:", self.result)
 		#self.emit(self.signal, self.result)
 		#self.exec_()
 
@@ -202,7 +203,7 @@ def MyStats(object):
 		self.data = data
 
 	def __call___(self, args):
-		print args
+		print(args)
 		#stat_name, column_name = args
 		#print "do", stat_name, "on", column_name
 		return 1
@@ -224,15 +225,15 @@ class StatWorker(QtCore.QThread):
 
 	def run(self):
 		time.sleep(0.1)
-		print "in thread", self.currentThreadId()
-		jobs = [(stat_name, column_name) for stat_name in stats.keys() for column_name in self.data.columns.keys()]
+		print("in thread", self.currentThreadId())
+		jobs = [(stat_name, column_name) for stat_name in list(stats.keys()) for column_name in list(self.data.columns.keys())]
 		@parallelize(cores=QtCore.QThread.idealThreadCount())
 		def dostats(args, data=self.data):
 			stat_name, column_name = args
 			columns = data.columns
 			f = stats[stat_name]
 			result = f(columns[column_name][slice(*data.current_slice)])
-			print result
+			print(result)
 			return result
 		values = dostats(jobs)
 		self.results = {}
@@ -241,7 +242,7 @@ class StatWorker(QtCore.QThread):
 			if stat_name not in self.results:
 				self.results[stat_name] = {}
 			self.results[stat_name][column_name] = value
-		print "results", self.results
+		print("results", self.results)
 
 
 
@@ -269,7 +270,7 @@ class StatisticsDialog(QtGui.QDialog):
 
 		self.table = QtGui.QTableWidget(data.nColumns, len(self.headers), self)
 		self.table.setHorizontalHeaderLabels(self.headers)
-		self.table.setVerticalHeaderLabels(self.data.columns.keys())
+		self.table.setVerticalHeaderLabels(list(self.data.columns.keys()))
 
 
 
@@ -303,11 +304,11 @@ class StatisticsDialog(QtGui.QDialog):
 				for row, column_name in enumerate(self.data.columns.keys()):
 					worker = self.workers[stat](parent, data, column_name)
 					def onFinish(worker=worker, row=row, column=column):
-						print "finished running", worker.result
+						print("finished running", worker.result)
 						item = QtGui.QTableWidgetItem(worker.result)
 						self.table.setItem(row, column, item)
 					worker.finished.connect(onFinish)
-					print "starting", row, column
+					print("starting", row, column)
 					worker.start(QtCore.QThread.IdlePriority)
 					self.worker_list.append(worker) # keeps reference to avoid GC
 
@@ -323,17 +324,17 @@ class StatisticsDialog(QtGui.QDialog):
 			self.w1 = Worker(self, self.test, self.data)
 			#self.connect(self.w1, self.w1.signal, self.setmin)
 			def setmin():
-				print self.min.setText(self.w1.result)
+				print(self.min.setText(self.w1.result))
 			self.w1.finished.connect(setmin)
 			self.w1.start()
 
 	def test(self, data):
-		print "test"
-		data = data.columns.values()[0]
+		print("test")
+		data = list(data.columns.values())[0]
 		return str(min(data))
 		#return "test"
 	def onFinish(self, worker):
-		print "worker", worker
+		print("worker", worker)
 		#print "setting", result
 		#self.min = str
 
@@ -719,7 +720,7 @@ class VaexApp(QtGui.QMainWindow):
 		self.resize(700,500)
 		#self.center()
 		#self.setWindowTitle('vaex samp test')
-		self.setWindowTitle(u'V\xe6X v' + vaex.__version__)
+		self.setWindowTitle('V\xe6X v' + vaex.__version__)
 		#self.statusBar().showMessage('Ready')
 
 		self.toolbar = self.addToolBar('Main toolbar')
@@ -981,28 +982,28 @@ class VaexApp(QtGui.QMainWindow):
 		#args = sys.argv[1:]
 		index = 0
 		def error(msg):
-			print >>sys.stderr, msg
+			print(msg, file=sys.stderr)
 			sys.exit(1)
 		hold_plot = False
 		plot = None
 		while index < len(args):
 			filename = args[index]
 			filename = args[index]
-			print "filename", filename
+			print("filename", filename)
 			dataset = None
 			if filename.startswith("http://"):
-				print "filename is web address"
-				from urlparse import urlparse
+				print("filename is web address")
+				from urllib.parse import urlparse
 				o = urlparse(filename)
 				assert o.scheme == "http"
-				print o.username, o.password
-				print o.hostname
+				print(o.username, o.password)
+				print(o.hostname)
 				server = vaex.server(hostname=o.hostname, port = o.port or 80, thread_mover=self.send_to_main_thread)
 				if o.path in ["", "/"]:
-					print "load all from server"
+					print("load all from server")
 					kwargs = dict()
 					datasets = server.list_datasets()
-					print "datasets", dataset
+					print("datasets", dataset)
 					last_dataset1 = None
 					for dataset in datasets:
 						ds = server.open(dataset)
@@ -1020,7 +1021,7 @@ class VaexApp(QtGui.QMainWindow):
 			elif filename[0] == ":": # not a filename, but a classname
 				classname = filename.split(":")[1]
 				if classname not in vaex.dataset.dataset_type_map:
-					print classname, "does not exist, options are", sorted(vaex.dataset.dataset_type_map.keys())
+					print(classname, "does not exist, options are", sorted(vaex.dataset.dataset_type_map.keys()))
 					sys.exit(-1)
 				class_ = vaex.dataset.dataset_type_map[classname]
 				clsargs = [eval(value) for value in filename.split(":")[2:]]
@@ -1120,7 +1121,7 @@ class VaexApp(QtGui.QMainWindow):
 			try:
 				self.samp.client.ping()
 			except:
-				print "oops, ping went wrong, disconnect detected"
+				print("oops, ping went wrong, disconnect detected")
 				try:
 					self.samp.disconnect()
 				except:
@@ -1153,7 +1154,7 @@ class VaexApp(QtGui.QMainWindow):
 			rows = []
 			if dataset.mask is not None:
 				rows = np.arange(len(dataset))[dataset.mask]
-			rowlist = map(str, rows)
+			rowlist = list(map(str, rows))
 
 			kwargs = {"row-list": rowlist}
 			if dataset.samp_id:
@@ -1255,7 +1256,7 @@ class VaexApp(QtGui.QMainWindow):
 			progress_dialog.hide()
 
 	def gadgethdf5(self, filename):
-		print "filename", filename, repr(filename)
+		print("filename", filename, repr(filename))
 		for index, name in list(enumerate("gas halo disk bulge stars sat".split()))[::-1]:
 			self.dataset_selector.addGadgetHdf5(str(filename), name, index)
 
@@ -1301,7 +1302,7 @@ class VaexApp(QtGui.QMainWindow):
 						self.samp = None
 						self.action_samp_connect.setChecked(False)
 		else:
-			print "disconnect"
+			print("disconnect")
 			#try:
 			self.samp.client.disconnect()
 			self.samp = None
@@ -1314,7 +1315,7 @@ class VaexApp(QtGui.QMainWindow):
 	def _on_samp_notification(self, private_key, sender_id, mtype, params, extra):
 		# this callback will be in a different thread, so we use pyqt's signal mechanism to
 		# push an event in the main thread's event loop
-		print private_key, sender_id, mtype, params, extra
+		print(private_key, sender_id, mtype, params, extra)
 		self.signal_samp_notification.emit(private_key, sender_id, mtype, params, extra)
 
 	def _on_samp_call(self, private_key, sender_id, msg_id, mtype, params, extra):
@@ -1329,7 +1330,7 @@ class VaexApp(QtGui.QMainWindow):
 		assert QtCore.QThread.currentThread() == main_thread
 		def dash_to_underscore(hashmap):
 			hashmap = dict(hashmap) # copy
-			for key, value in hashmap.items():
+			for key, value in list(hashmap.items()):
 				del hashmap[key]
 				hashmap[key.replace("-", "_")] = value
 			return hashmap
@@ -1350,8 +1351,8 @@ class VaexApp(QtGui.QMainWindow):
 
 	def samp_table_highlight_row(self, row, url=None, table_id=None):
 		logger.debug("highlight row: {url}:{row}".format(**locals()))
-		print ("highlight row: {url}:{row}".format(**locals()))
-		row = long(row)
+		print(("highlight row: {url}:{row}".format(**locals())))
+		row = int(row)
 		# only supports url for the moment
 		for id in (url, table_id):
 			if id != None:
@@ -1366,10 +1367,10 @@ class VaexApp(QtGui.QMainWindow):
 
 
 	def samp_table_select_rowlist(self, row_list, url=None, table_id=None):
-		print "----"
+		print("----")
 		logger.debug("select rowlist: {url}".format(**locals()))
-		print ("select rowlist: {url}".format(**locals()))
-		row_list = np.array([long(k) for k in row_list])
+		print(("select rowlist: {url}".format(**locals())))
+		row_list = np.array([int(k) for k in row_list])
 		did_select = False
 		datasets_updated = [] # keep a list to avoid multiple 'setMask' calls (which would do an update twice)
 		for id in (url, table_id):
@@ -1378,7 +1379,7 @@ class VaexApp(QtGui.QMainWindow):
 					if dataset not in datasets_updated:
 						mask = np.zeros(len(dataset), dtype=np.bool)
 						mask[row_list] = True
-						print "match dataset", dataset
+						print("match dataset", dataset)
 						dataset._set_mask(mask)
 						did_select = True
 					datasets_updated.append(dataset)
@@ -1398,10 +1399,10 @@ class VaexApp(QtGui.QMainWindow):
 				filenames.append(filename)
 			for other_ext in [".hdf5", ".fits"]:
 				filename = basename + other_ext
-				print filename
+				print(filename)
 				if os.path.exists(filename) and filename not in filenames:
 					filenames.append(filename)
-			filenames = filter(vaex.dataset.can_open, filenames)
+			filenames = list(filter(vaex.dataset.can_open, filenames))
 		options = []
 		for filename in filenames:
 			options.append(filename + " | read directly from file (faster)")
@@ -1412,17 +1413,17 @@ class VaexApp(QtGui.QMainWindow):
 		index = choose(self, "SAMP: load table", "Choose how to load table", options)
 		if index is not None:
 			if index < len(filenames):
-				print "open file", filenames[index]
+				print("open file", filenames[index])
 				self.load_file(filenames[index], table_id)
 			elif index  == len(filenames):
 				self.load_votable(url, table_id)
-				print "load votable", url
+				print("load votable", url)
 			else:
 				self.dataset_selector.datasets[index-len(filenames)-1].samp_id = table_id
 
 	def load_file(self, path, samp_id=None):
 		dataset_class = None
-		for name, class_ in vaex.dataset.dataset_type_map.items():
+		for name, class_ in list(vaex.dataset.dataset_type_map.items()):
 			if class_.can_open(path):
 				dataset_class = class_
 				break
@@ -1433,7 +1434,7 @@ class VaexApp(QtGui.QMainWindow):
 
 	def load_votable(self, url, table_id):
 		table = astropy.io.votable.parse_single_table(url)
-		print "done parsing table"
+		print("done parsing table")
 		names = table.array.dtype.names
 		dataset = DatasetMemoryMapped(table_id, nommap=True)
 
@@ -1453,16 +1454,16 @@ class VaexApp(QtGui.QMainWindow):
 
 
 	def message(self, text, index=0):
-		print text
+		print(text)
 		self.messages[index] = text
 		text = ""
-		keys = self.messages.keys()
+		keys = list(self.messages.keys())
 		keys.sort()
 		text_parts = [self.messages[key] for key in keys]
 		self.statusBar().showMessage(" | ".join(text_parts))
 
 	def _samp_find_datasets(self, id):
-		print self.dataset_selector.datasets
+		print(self.dataset_selector.datasets)
 		try:
 			for dataset in self.dataset_selector.datasets:
 				if dataset.matches_url(id) or (dataset.samp_id == id):
@@ -1478,7 +1479,7 @@ class VaexApp(QtGui.QMainWindow):
 		params = {"rows":str(dataset._length), "columns":{}}
 		params['id'] = dataset.filename
 		type_map = {np.float64:"F8_LE", np.float32:"F4_LE", np.int64:"I8_LE", np.int32:"I4_LE", np.uint64:"U8_LE", np.uint32:"U4_LE"}
-		print type_map
+		print(type_map)
 		for column_name in dataset.column_names:
 			type = dataset.dtypes[column_name]
 			if hasattr(type, "type"):
@@ -1499,7 +1500,7 @@ class VaexApp(QtGui.QMainWindow):
 
 	def onLoadTable(self, url, table_id, name):
 		# this is called from a different thread!
-		print "loading table", url, table_id, name
+		print("loading table", url, table_id, name)
 		try:
 			self.load(url, table_id, name)
 		except:
@@ -1508,9 +1509,9 @@ class VaexApp(QtGui.QMainWindow):
 
 
 	def load(self, url, table_id, name):
-		print "parsing table..."
+		print("parsing table...")
 		table = astropy.io.votable.parse_single_table(url)
-		print "done parsing table"
+		print("done parsing table")
 		names = table.array.dtype.names
 		dataset = DatasetMemoryMapped(table_id, nommap=True)
 
@@ -1527,14 +1528,14 @@ class VaexApp(QtGui.QMainWindow):
 			datagroup = h5file.create_group("data")
 			#import pdb
 			#pdb.set_trace()
-			print "storing data..."
+			print("storing data...")
 
 			for i in range(len(data.dtype)):
 				name = data.dtype.names[i]
 				type = data.dtype[i]
 				if type.kind  == "f": # only store float
 					datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
-			print "storing data done"
+			print("storing data done")
 		#thread.interrupt_main()
 		#sys.exit(0)
 		#h5file.close()
@@ -1550,7 +1551,7 @@ class VaexApp(QtGui.QMainWindow):
 		self.move(qr.topLeft())
 
 	def closeEvent(self, event):
-		print "close event"
+		print("close event")
 		return
 		reply = QtGui.QMessageBox.question(self, 'Message',
 			"Are you sure to quit?", QtGui.QMessageBox.Yes |
@@ -1562,9 +1563,9 @@ class VaexApp(QtGui.QMainWindow):
 			event.ignore()
 
 	def clean_up(self):
-		print "clean up"
+		print("clean up")
 		if self.samp is not None:
-			print "disconnect samp"
+			print("disconnect samp")
 			try:
 				self.samp.client.disconnect()
 			except:
@@ -1581,7 +1582,7 @@ from qtconsole.inprocess import QtInProcessKernelManager
 from IPython.lib import guisupport
 
 def print_process_id():
-    print('Process ID is:', os.getpid())
+    print(('Process ID is:', os.getpid()))
 
 def main(argv=sys.argv[1:]):
 	global main_thread
@@ -1657,8 +1658,8 @@ def main(argv=sys.argv[1:]):
 def batch_copy_index(from_array, to_array, shuffle_array):
 	N_per_batch = int(1e7)
 	length = len(from_array)
-	batches = long(math.ceil(float(length)/N_per_batch))
-	print np.sum(from_array)
+	batches = int(math.ceil(float(length)/N_per_batch))
+	print(np.sum(from_array))
 	for i in range(batches):
 		#print "batch", i, "out of", batches, ""
 		sys.stdout.flush()

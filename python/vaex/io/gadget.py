@@ -32,19 +32,19 @@ def getinfo(filename, seek=None):
 		#print repr(f.read(264))
 		#f.seek(8+16)
 		#f.seek(2)
-		print "N"
+		print("N")
 		for i in range(6):
-			print struct.unpack("I",f.read(4))
-		print "M"
+			print((struct.unpack("I",f.read(4))))
+		print("M")
 		for i in range(6):
-			print struct.unpack("d",f.read(8))
-		print "t", struct.unpack("d",f.read(8))
-		print "z", struct.unpack("d",f.read(8))
+			print((struct.unpack("d",f.read(8))))
+		print(("t", struct.unpack("d",f.read(8))))
+		print(("z", struct.unpack("d",f.read(8))))
 		#dsa
 	#f.seek(0)
 	raw = struct.unpack(HEAD,f.read(264))[1:-1]
 	values = (raw[:6], raw[6:12]) + raw[12:16] + (raw[16:22],) + raw[22:30] + (raw[30:36], raw[36], filename)
-	header = dict(zip(keys, values))
+	header = dict(list(zip(keys, values)))
 	#for key, value in zip(keys, values):
 	#	print key, value
 	#dsa

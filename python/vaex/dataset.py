@@ -11,6 +11,7 @@ import sys
 import platform
 import vaex.export
 import os
+from functools import reduce
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
@@ -36,7 +37,7 @@ import astropy.io.fits as fits
 #	pass
 
 def error(title, msg):
-	print "Error", title, msg
+	print(("Error", title, msg))
 
 sys_is_le = sys.byteorder == 'little'
 native_code = sys_is_le and '<' or '>'
@@ -68,7 +69,7 @@ class Link(object):
 			logger.debug("renamed link %r" % expression)
 			self.dataset.global_links[expression] = self
 		# remove old mapping
-		for key, link in self.dataset.global_links.items():
+		for key, link in list(self.dataset.global_links.items()):
 			logger.debug("link[%r] = %r" % (key, link))
 			if (link == self) and key != expression: # remove dangling links
 				logger.debug("removing link %r" % key)
@@ -100,9 +101,9 @@ class Link(object):
 				
 				
 
-import execution
+from . import execution
 import vaex.grids
-import multithreading
+from . import multithreading
 import aplus
 import concurrent.futures
 from multiprocessing import Pool
@@ -264,9 +265,9 @@ class SubspaceGridded(object):
 		if all([k is not None for k in [self.vx, self.vy, self.vcounts]]):
 			N = self.vx.grid.shape[0]
 			bounds = self.subspace_bounded.bounds
-			print bounds
+			print(bounds)
 			positions = [vaex.utils.linspace_centers(bounds[i][0], bounds[i][1], N) for i in range(self.subspace_bounded.subspace.dimension)]
-			print positions
+			print(positions)
 			mask = self.vcounts.grid > 0
 			vx = np.zeros_like(self.vx.grid)
 			vy = np.zeros_like(self.vy.grid)
@@ -285,7 +286,7 @@ class SubspaceGridded(object):
 		ax.set_xlabel(self.subspace_bounded.subspace.expressions[0])
 		ax.set_ylabel(self.subspace_bounded.subspace.expressions[1])
 		#pylab.savefig
-		from cStringIO import StringIO
+		from .io import StringIO
 		file_object = StringIO()
 		fig.canvas.print_png(file_object)
 		pylab.close(fig)
@@ -321,7 +322,7 @@ class SubspaceGridded(object):
 				if 0:
 					filename = "cube%03d.png" % zindex
 					img = PIL.Image.frombuffer("RGB", (128, 128), subdata[:,:,0:3] * 1)
-					print "saving to", filename
+					print(("saving to", filename))
 					img.save(filename)
 		img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data, 'raw', "RGBA", 0, -1)
 		#filename = "cube.png"
@@ -330,7 +331,7 @@ class SubspaceGridded(object):
 
 		if 0:
 			filename = "colormap.png"
-			print "saving to", filename
+			print(("saving to", filename))
 			height, width = self.colormap_data.shape[:2]
 			img = PIL.Image.frombuffer("RGB", (width, height), self.colormap_data)
 			img.save(filename)
@@ -553,7 +554,7 @@ class SubspaceLocal(Subspace):
 		stds = self.var(means=means)**0.5
 		if square:
 			stds = np.repeat(stds.mean(), len(stds))
-		return np.array(zip(means-sigmas*stds, means+sigmas*stds))
+		return np.array(list(zip(means-sigmas*stds, means+sigmas*stds)))
 
 	def current(self):
 		index = self.dataset.get_current_row()
@@ -596,7 +597,7 @@ class _BlockScope(object):
 		if length_new > length_old: # old buffers are too small, discard them
 			self.buffers = {}
 		else:
-			for name in self.buffers.keys():
+			for name in list(self.buffers.keys()):
 				self.buffers[name] = self.buffers[name][:length_new]
 		self.i1 = i1
 		self.i2 = i2
@@ -618,13 +619,13 @@ class _BlockScope(object):
 					self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
 				else:
 					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2]
-			elif variable in self.dataset.virtual_columns.keys():
+			elif variable in list(self.dataset.virtual_columns.keys()):
 				expression = self.dataset.virtual_columns[variable]
 				self._ensure_buffer(variable)
 				self.evaluate(expression, out=self.buffers[variable])
 				self.values[variable] = self.buffers[variable]
 			if variable not in self.values:
-				raise KeyError, "Unknown variables or column: %r" % (variable,)
+				raise KeyError("Unknown variables or column: %r" % (variable,))
 
 			return self.values[variable]
 		except:
@@ -812,7 +813,7 @@ class Dataset(object):
 	def set_current_row(self, value):
 		"""Set the current row, and emit the signal signal_pick"""
 		if (value is not None) and ((value < 0) or (value >= len(self))):
-			raise IndexError, "index %d out of range [0,%d]" % (value, len(self))
+			raise IndexError("index %d out of range [0,%d]" % (value, len(self)))
 		self._current_row = value
 		self.signal_pick.emit(self, value)
 
@@ -932,14 +933,14 @@ class _ColumnConcatenatedLazy(object):
 		stop = stop or len(self)
 		assert step in [None, 1]
 		datasets = iter(self.datasets)
-		current_dataset = datasets.next()
+		current_dataset = next(datasets)
 		offset = 0
 		#print "#@!", start, stop, [len(dataset) for dataset in self.datasets]
 		while start >= offset + len(current_dataset):
 			#print offset
 			offset += len(current_dataset)
 			#try:
-			current_dataset = datasets.next()
+			current_dataset = next(datasets)
 			#except StopIteration:
 				#logger.exception("requested start:stop %d:%d when max was %d, offset=%d" % (start, stop, offset+len(current_dataset), offset))
 				#raise
@@ -960,7 +961,7 @@ class _ColumnConcatenatedLazy(object):
 				copy_offset += len(part)
 				start = offset
 				if offset < stop:
-					current_dataset = datasets.next()
+					current_dataset = next(datasets)
 			return copy
 
 
@@ -976,11 +977,11 @@ class DatasetConcatenated(DatasetLocal):
 		for column_name in self.get_column_names():
 			self.columns[column_name] = _ColumnConcatenatedLazy(datasets, column_name)
 
-		for name in first.virtual_columns.keys():
+		for name in list(first.virtual_columns.keys()):
 			if all([first.virtual_columns[name] == dataset.virtual_columns.get(name, None) for dataset in tail]):
 				self.virtual_columns[name] = first.virtual_columns[name]
 		for dataset in datasets:
-			for name, value in dataset.variables.items():
+			for name, value in list(dataset.variables.items()):
 				self.set_variable(name, value)
 
 
@@ -1045,7 +1046,7 @@ class DatasetMemoryMapped(DatasetLocal):
 		
 	def byte_size(self, selection=False):
 		bytes_per_row = 0
-		for column in self.columns.values():
+		for column in list(self.columns.values()):
 			dtype = column.dtype
 			bytes_per_row += dtype.itemsize
 		return bytes_per_row * self.length(selection=selection)
@@ -1060,7 +1061,7 @@ class DatasetMemoryMapped(DatasetLocal):
 		#self.path = os.path.abspath(filename) if filename is not None else None
 		self.nommap = nommap
 		if not nommap:
-			self.file = file(self.filename, "r+" if write else "r")
+			self.file = open(self.filename, "r+" if write else "r")
 			self.fileno = self.file.fileno()
 			self.mapping = mmap.mmap(self.fileno, 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
 			self.file_map = {filename: self.file}
@@ -1128,7 +1129,7 @@ class DatasetMemoryMapped(DatasetLocal):
 			pass
 		outputs = [np.zeros(buffer_size, dtype=np.float64) for _ in expressions]
 		n_blocks = int(math.ceil(self._length *1.0 / buffer_size))
-		print "blocks", n_blocks, self._length *1.0 / buffer_size
+		print(("blocks", n_blocks, self._length *1.0 / buffer_size))
 		# execute blocks for all expressions, better for Lx cache
 		for block_index in range(n_blocks):
 			i1 = block_index * buffer_size
@@ -1139,7 +1140,7 @@ class DatasetMemoryMapped(DatasetLocal):
 					outputs[i] = outputs[i][:i2-i1]
 			# local dicts has slices (not copies) of the whole dataset
 			local_dict = {}
-			for key, value in self.columns.items():
+			for key, value in list(self.columns.items()):
 				local_dict[key] = value[i1:i2]
 			info = Info()
 			info.index = block_index
@@ -1152,18 +1153,18 @@ class DatasetMemoryMapped(DatasetLocal):
 			results = []
 			for output, expression in zip(outputs, expressions):
 				if expression in self.column_names and self.columns[expression].dtype == np.float64:
-					print "avoided"
+					print("avoided")
 					#yield self.columns[expression][i1:i2], info
 					results.append(self.columns[expression][i1:i2])
 				else:
 					ne.evaluate(expression, local_dict=local_dict, out=output, casting="unsafe")
 					results.append(output)
-			print results, info
+			print((results, info))
 			yield tuple(results), info
 		
 		
 	def addFile(self, filename, write=False):
-		self.file_map[filename] = file(filename, "r+" if write else "r")
+		self.file_map[filename] = open(filename, "r+" if write else "r")
 		self.fileno_map[filename] = self.file_map[filename].fileno()
 		self.mapping_map[filename] = mmap.mmap(self.fileno_map[filename], 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
 
@@ -1259,7 +1260,7 @@ class DatasetMemoryMapped(DatasetLocal):
 				dtype = array.dtype
 			else:
 				if offset is None:
-					print "offset is None"
+					print("offset is None")
 					sys.exit(0)
 				mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
 				if stride:
@@ -1454,7 +1455,7 @@ class FitsBinTable(DatasetMemoryMapped):
 							#	cannot_handle = True
 
 							# flatlength == length * arraylength
-							flatlength, fitstype = long(column.format[:-1]),column.format[-1]
+							flatlength, fitstype = int(column.format[:-1]),column.format[-1]
 							arraylength, length = arrayshape = eval(column.dim)
 
 							# numpy dtype code, like f8, i4
@@ -1473,7 +1474,7 @@ class FitsBinTable(DatasetMemoryMapped):
 								#	bytessize = 8
 
 							bytessize = dtype.itemsize
-							print column.name, dtype, column.format, column.dim, length, bytessize, arraylength
+							print((column.name, dtype, column.format, column.dim, length, bytessize, arraylength))
 							#if not cannot_handle:
 							if (flatlength > 0) and dtypecode != "a": # TODO: support strings
 								#print column.name, dtype, length
@@ -1488,7 +1489,7 @@ class FitsBinTable(DatasetMemoryMapped):
 									#dtype = np.dtype(dtype)
 									#print "we have float64!", dtype
 									#dtype = ">f8"
-									print column.name, offset, dtype, length
+									print((column.name, offset, dtype, length))
 									if arraylength == 1:
 										self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
 									else:
@@ -1496,7 +1497,7 @@ class FitsBinTable(DatasetMemoryMapped):
 										for i in range(arraylength):
 											name = column.name+"_" +str(i)
 											self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
-											print self.columns[name][0], self.columns[name][1]
+											print((self.columns[name][0], self.columns[name][1]))
 										#@self.addRank1(column.name, offset, arraylength, length1=length, dtype=">" +dtypecode, stride=1, stride1=1, transposed=True)
 										#@self.addRank1(column.name, offset, arraylength, length1=length, dtype=">" +dtypecode, stride=1, stride1=1, transposed=True)
 										#print self.rank1s[column.name][0]
@@ -1518,7 +1519,7 @@ class FitsBinTable(DatasetMemoryMapped):
 								#print str(column.dtype)
 								#print column.dtype
 								#pdb.set_trace()
-								print column.name, column.format, length
+								print((column.name, column.format, length))
 								#print column.dtype.descr
 								#print column.dtype.fields
 								#assert column.dtype.descr[0][1][0] == "|"
@@ -1642,7 +1643,7 @@ class InMemoryTable(DatasetMemoryMapped):
 		#do(np.zeros(dim), 1., 0, 0)
 		for d in range(dim):
 			vaex.vaexfast.soneira_peebles(array[d], 0, 1, L, eta, max_level)
-		for i, name in zip(range(dim), "x y z w v u".split()):
+		for i, name in zip(list(range(dim)), "x y z w v u".split()):
 			self.addColumn(name, array=array[i])
 		
 		return
@@ -1864,7 +1865,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 			#self.axes[name] = np.array(axes_data[name])
 			
 	def load_variables(self, h5variables):
-		for key, value in h5variables.attrs.iteritems():
+		for key, value in list(h5variables.attrs.items()):
 			self.variables[key] = value
 			
 			
@@ -1881,7 +1882,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 					#print column, column.shape
 					offset = column.id.get_offset() 
 					if offset is None:
-						raise Exception, "columns doesn't really exist in hdf5 file"
+						raise Exception("columns doesn't really exist in hdf5 file")
 					shape = column.shape
 					if True: #len(shape) == 1:
 						self.addColumn(column_name, offset, len(column), dtype=column.dtype)
@@ -1967,9 +1968,9 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 				self.particle_type = gadget_particle_names.index(particle_name.lower())
 				self.particle_name = particle_name.lower()
 			else:
-				raise ValueError, "particle name not supported: %r, expected one of %r" % (particle_name, " ".join(gadget_particle_names))
+				raise ValueError("particle name not supported: %r, expected one of %r" % (particle_name, " ".join(gadget_particle_names)))
 		else:
-			raise Exception, "expected particle type or name as argument, or #<nr> behind filename"
+			raise Exception("expected particle type or name as argument, or #<nr> behind filename")
 		super(Hdf5MemoryMappedGadget, self).__init__(filename)
 		self.particle_type = particle_type
 		self.particle_name = particle_name
@@ -1978,9 +1979,9 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 		#for i in range(1,4):
 		key = "/PartType%d" % self.particle_type
 		if key not in h5file:
-			raise KeyError, "%s does not exist" % key
+			raise KeyError("%s does not exist" % key)
 		particles = h5file[key]
-		for name in particles.keys():
+		for name in list(particles.keys()):
 			#name = "/PartType%d/Coordinates" % i
 			data = particles[name]
 			if isinstance(data, h5py.highlevel.Dataset): #array.shape
@@ -1994,7 +1995,7 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 					if name == "Coordinates":
 						offset = data.id.get_offset() 
 						if offset is None:
-							print name, "is not of continuous layout?"
+							print((name, "is not of continuous layout?"))
 							sys.exit(0)
 						bytesize = data.dtype.itemsize
 						self.addColumn("x", offset, data.shape[0], dtype=data.dtype, stride=3)
@@ -2094,7 +2095,7 @@ class SoneiraPeebles(InMemory):
 			vaex.vaexfast.soneira_peebles(array[d], 0, 1, L[d], eta, max_level)
 		order = np.zeros(N, dtype=np.int64)
 		vaex.vaexfast.shuffled_sequence(order);
-		for i, name in zip(range(dimension), "x y z w v u".split()):
+		for i, name in zip(list(range(dimension)), "x y z w v u".split()):
 			#np.take(array[i], order, out=array[i])
 			reorder(array[i], array[-1], order)
 			self.addColumn(name, array=array[i])
@@ -2131,11 +2132,11 @@ class Zeldovich(InMemory):
 		t = t or 1.
 		X = Q + s * t
 
-		for d, name in zip(range(dim), "xyzw"):
+		for d, name in zip(list(range(dim)), "xyzw"):
 			self.addColumn(name, array=X[d].reshape(-1) * scale)
-		for d, name in zip(range(dim), "xyzw"):
+		for d, name in zip(list(range(dim)), "xyzw"):
 			self.addColumn("v"+name, array=s[d].reshape(-1) * scale)
-		for d, name in zip(range(dim), "xyzw"):
+		for d, name in zip(list(range(dim)), "xyzw"):
 			self.addColumn(name+"0", array=Q[d].reshape(-1) * scale)
 		return
 		
@@ -2217,13 +2218,13 @@ dataset_type_map["gadget-plain"] = MemoryMappedGadget
 		
 		
 def can_open(path, *args, **kwargs):
-	for name, class_ in dataset_type_map.items():
+	for name, class_ in list(dataset_type_map.items()):
 		if class_.can_open(path, *args):
 			return True
 		
 def load_file(path, *args, **kwargs):
 	dataset_class = None
-	for name, class_ in vaex.dataset.dataset_type_map.items():
+	for name, class_ in list(vaex.dataset.dataset_type_map.items()):
 		logger.debug("trying %r with class %r" % (path, class_))
 		if class_.can_open(path, *args, **kwargs):
 			logger.debug("can open!")
@@ -2233,5 +2234,5 @@ def load_file(path, *args, **kwargs):
 		dataset = dataset_class(path, *args)
 		return dataset
 
-from execution import JobsManager
+from .execution import JobsManager
 from .remote import ServerRest, SubspaceRemote, DatasetRemote

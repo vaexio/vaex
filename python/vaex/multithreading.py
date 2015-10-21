@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import threading
-import Queue
+import queue
 import math
 import multiprocessing
 import sys
 import vaex.utils
-import logging
+from . import logging
 lock = threading.Lock()
 
 thread_count_default = multiprocessing.cpu_count()
@@ -17,8 +17,8 @@ class ThreadPoolIndex(object):
 		self.nthreads = nthreads
 		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
 		self.lock = threading.Lock()
-		self.queue_in = Queue.Queue()
-		self.queue_out = Queue.Queue()
+		self.queue_in = queue.Queue()
+		self.queue_out = queue.Queue()
 		for thread in self.threads:
 			thread.setDaemon(True)
 			thread.start()
@@ -54,7 +54,10 @@ class ThreadPoolIndex(object):
 						logger.debug("flush queue_out")
 						while not self.queue_out.empty():
 							self.queue_out.get()
-						raise element[1], None, element[2]
+						#print("********************")
+						#print(element)
+						raise element[0](element[1]) #element[0].__class__(None, element[2])
+						#TODO: 2to3 gave this suggestion: raise element[1].with_traceback(element[2])
 						done = True
 				else:
 					#yield element
@@ -89,7 +92,7 @@ class ThreadPoolIndex(object):
 							#lock.acquire()
 							result = self.callable(index, *args)
 							#lock.release()
-						except Exception, e:
+						except Exception as e:
 							exc_info = sys.exc_info()
 							self.queue_out.put(exc_info)
 						else:
@@ -116,8 +119,8 @@ class ThreadPool(object):
 		self.nthreads = nthreads
 		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
 		#self.semaphores_in = [threading.Semaphore(0) for i in range(nthreads)]
-		self.queues_in = [Queue.Queue(1) for i in range(nthreads)]
-		self.queues_out = [Queue.Queue(1) for i in range(nthreads)]
+		self.queues_in = [queue.Queue(1) for i in range(nthreads)]
+		self.queues_out = [queue.Queue(1) for i in range(nthreads)]
 		for thread in self.threads:
 			thread.setDaemon(True)
 			thread.start()
@@ -143,7 +146,7 @@ class ThreadPool(object):
 					#lock.acquire()
 					result = self.callable(index, *args)
 					#lock.release()
-				except Exception, e:
+				except Exception as e:
 					exc_info = sys.exc_info()
 					self.queues_out[index].put(exc_info)
 				else:
@@ -180,7 +183,8 @@ class ThreadPool(object):
 		for result in results:
 			#print result, isinstance(result, tuple)#, len(result) > 1, isinstance(result[1], Exception)
 			if isinstance(result, tuple) and len(result) > 1 and isinstance(result[1], Exception):
-				raise result[1], None, result[2]
+				raise result[1](None, result[2])
+				# TODO: 2to3 gave this suggestion raise result[1].with_traceback(result[2])
 		return results
 
 

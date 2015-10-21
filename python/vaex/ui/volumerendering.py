@@ -269,12 +269,12 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		fps = 1./delta_time
 		if 1: #fps < 16:
 			stutter_time = time.time()
-			print ".", fps, stutter_time - self.stutter_last
+			print(".", fps, stutter_time - self.stutter_last)
 			self.stutter_last = stutter_time
 		self.orbit_time_previous = orbit_time_now
 
 	def toggle(self, ignore=None):
-		print "toggle"
+		print("toggle")
 		self.texture_index += 1
 		self.update()
 		
@@ -1002,7 +1002,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			rgb = rgba[:,0:3] * 1
 			self.colormap_data[i] = rgb #(rgb*255.).astype(np.uint8)
 			if i == 0:
-				print rgb[0], rgb[-1], 
+				print(rgb[0], rgb[-1], end=' ') 
 			
 			
 			texture = self.textures_colormap[i]
@@ -1067,13 +1067,13 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#glClearColor(0.0, 0.0, 0.0, 1.0)
 		#glClear(GL_COLOR_BUFFER_BIT)
 
-		print bool(glGenFramebuffers)
+		print(bool(glGenFramebuffers))
 		self.fbo = glGenFramebuffers(1)
-		print self.fbo
+		print(self.fbo)
 		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
 		
 		self.textures = self.texture_backside, self.texture_final = glGenTextures(2)
-		print "textures", self.textures
+		print("textures", self.textures)
 		for texture in [self.texture_backside, self.texture_final]:
 			glBindTexture(GL_TEXTURE_2D, texture)
 			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
@@ -1120,7 +1120,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#mi, ma = -20, 20
 		s = 0.
 		mi, ma = -4, 4
-		print "histogram3d"
+		print("histogram3d")
 		vaex.vaexfast.histogram3d(x, y, z, None, grid3d, mi+s, ma+s, mi, ma, mi, ma)
 		if 0:
 			vx = vx - vx.mean()
@@ -1129,13 +1129,13 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		vaex.vaexfast.histogram3d(x, y, z, vx, vectorgrid[0], mi+s, ma+s, mi, ma, mi, ma)
 		vaex.vaexfast.histogram3d(x, y, z, vy, vectorgrid[1], mi+s, ma+s, mi, ma, mi, ma)
 		vaex.vaexfast.histogram3d(x, y, z, vz, vectorgrid[2], mi+s, ma+s, mi, ma, mi, ma)
-		print vx
-		print vectorgrid[0]
-		print vaex.vaexfast.resize(vectorgrid[0], 4)
-		print vaex.vaexfast.resize(vectorgrid[1], 4)
-		print vaex.vaexfast.resize(vectorgrid[2], 4)
-		print vaex.vaexfast.resize(grid3d, 4)
-		print "$" * 80
+		print(vx)
+		print(vectorgrid[0])
+		print(vaex.vaexfast.resize(vectorgrid[0], 4))
+		print(vaex.vaexfast.resize(vectorgrid[1], 4))
+		print(vaex.vaexfast.resize(vectorgrid[2], 4))
+		print(vaex.vaexfast.resize(grid3d, 4))
+		print("$" * 80)
 		vectorgrid[3][:] = vaex.vaexfast.resize(grid3d, grid_size_vector)
 		for i in range(3):
 			vectorgrid[i] /= vectorgrid[3] # go from weighted to mean
@@ -1214,7 +1214,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			self.grid_gradient_data[:,:,:,2] = 1.
 			self.grid_gradient = self.grid_gradient_data
 			del self.grid_gradient_data
-			print self.grid_gradient.shape
+			print(self.grid_gradient.shape)
 		
 		
 		#self.data3d -= self.data3d.min()
@@ -1256,7 +1256,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 
 		glBindTexture(GL_TEXTURE_3D, self.texture_cube)
 		width, height, depth = grid.shape[::-1]
-		print "dims", width, height, depth
+		print("dims", width, height, depth)
 		if grid_background is not None:
 			glTexImage3D(GL_TEXTURE_3D, 0, GL_RG32F, width, height, depth, 0,
 					GL_RG, GL_FLOAT, self.grid_gl)
@@ -1292,14 +1292,14 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			target_length = np.nanmean(np.sqrt(vx[mask]**2 + vy[mask]**2 + vz[mask]**2))
 
 			self.vector3d_auto_scale_scale = 1./target_length / self.vectorgrid.shape[0]
-			print "#" * 200
-			print self.vector3d_auto_scale_scale, target_length
+			print("#" * 200)
+			print(self.vector3d_auto_scale_scale, target_length)
 			#dsadsa
 			self.texture_cube_vector_size = self.vectorgrid.shape[0]
 			self.texture_cube_vector = glGenTextures(1)
 			glBindTexture(GL_TEXTURE_3D, self.texture_cube_vector)
 			_, width, height, depth = self.vectorgrid.shape[::-1]
-			print "dims vector", width, height, depth
+			print("dims vector", width, height, depth)
 			glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, width, height, depth, 0,
 						GL_RGBA, GL_FLOAT, self.vectorgrid)
 			#print self.grid, self.texture_cube
@@ -1370,20 +1370,20 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		if self.mouse_button_down:
 			self.angle2 += dx * speed
 			self.angle1 += dy * speed
-			print self.angle1, self.angle2
+			print(self.angle1, self.angle2)
 		if self.mouse_button_down_right:
 			if QtGui.QApplication.keyboardModifiers() == QtCore.Qt.NoModifier:
 				self.min_level += dx * speed_mod / 10.
 				self.max_level += -dy * speed_mod / 10.
-				print "mod1/2", self.min_level, self.max_level
+				print("mod1/2", self.min_level, self.max_level)
 			if (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
 				self.mod3 += dx * speed_mod
 				self.mod4 += -dy * speed_mod
-				print "mod3/4", self.mod3, self.mod4
+				print("mod3/4", self.mod3, self.mod4)
 			if QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ShiftModifier:
 				self.mod5 += dx * speed_mod
 				self.mod6 += -dy * speed_mod
-				print "mod5/6", self.mod5, self.mod6
+				print("mod5/6", self.mod5, self.mod6)
 			
 		
 		self.mouse_x, self.mouse_y = x, y
@@ -1418,7 +1418,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				zindex = x2d + y2d*16
 				I = intensity_normalized[zindex]
 				rgba = mapping.to_rgba(I,bytes=True) #.reshape(Nx, 4)
-				print rgba.shape
+				print(rgba.shape)
 				subdata = data[y2d*128:(y2d+1)*128, x2d*128:(x2d+1)*128]
 				for i in range(3):
 					subdata[:,:,i] = rgba[:,:,i]
@@ -1426,15 +1426,15 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 				if 0:
 					filename = "cube%03d.png" % zindex
 					img = PIL.Image.frombuffer("RGB", (128, 128), subdata[:,:,0:3] * 1)
-					print "saving to", filename
+					print("saving to", filename)
 					img.save(filename)
 		img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data)
 		filename = "cube.png"
-		print "saving to", filename
+		print("saving to", filename)
 		img.save(filename)
 		
 		filename = "colormap.png"
-		print "saving to", filename
+		print("saving to", filename)
 		height, width = self.colormap_data.shape[:2]
 		img = PIL.Image.frombuffer("RGB", (width, height), self.colormap_data)
 		img.save(filename)
@@ -1586,7 +1586,7 @@ if __name__ == "__main__":
 	colormaps = vaex.ui.colormaps.colormaps
 	import json
 	js = json.dumps(vaex.ui.colormaps.colormaps)
-	print js
+	print(js)
 
 	app = QtGui.QApplication(sys.argv)
 	widget = TestWidget(None)

@@ -79,7 +79,6 @@ class TestDataset(unittest.TestCase):
 
 		with self.assertRaises(SyntaxError):
 			self.dataset("x/").sum()
-		print self.dataset.executor.task_queue
 		with self.assertRaises(KeyError):
 			self.dataset("doesnotexist").sum()
 

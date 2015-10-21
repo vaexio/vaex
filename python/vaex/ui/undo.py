@@ -9,10 +9,10 @@ class UndoManager(object):
 		self.actions_undo = []
 		self.actions_redo = []
 		self.undo_count = 0# number of times undo is pressed
-		
+
 	def undo(self):
 		logger.debug("history was %r-%r" % (self.actions_undo, self.actions_redo))
- 		action = self.actions_undo.pop()
+		action = self.actions_undo.pop()
 		logger.debug("undoing: %r" % action)
 		self.actions_redo.insert(0, action)
 		try:

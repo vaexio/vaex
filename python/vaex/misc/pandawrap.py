@@ -10,7 +10,7 @@ import psutil
 
 def meminfo():
 	vmem = psutil.virtual_memory()
-	print "total mem", vmem.total/1024.**3, "avail", vmem.available/1024.**3
+	print(("total mem", vmem.total/1024.**3, "avail", vmem.available/1024.**3))
 
 def test_pandas(dataset):
 	#f = open(path, "wb")
@@ -20,9 +20,9 @@ def test_pandas(dataset):
 	y = pd.Series(dataset.columns["y"], index=index)
 	z = pd.Series(dataset.columns["z"], index=index)
 	f = pd.DataFrame({"x": x, "y":y, "z":z})
-	print f.x.mean()
-	print f.y.mean()
-	print f.z.mean()
+	print((f.x.mean()))
+	print((f.y.mean()))
+	print((f.z.mean()))
 	meminfo()
 
 	#y = pd.Series(dataset.columns["x"])

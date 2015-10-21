@@ -3,7 +3,7 @@ __author__ = 'maartenbreddels'
 import tornado.ioloop
 import tornado.web
 import threading
-import logging
+from . import logging
 import vaex as vx
 import json
 import inspect

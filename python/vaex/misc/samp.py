@@ -28,8 +28,8 @@ class Samp(object):
 		try:
 			self.client.connect()
 			connected = True
-		except sampy.SAMPHubError, e:
-			print "error connecting to hub", e
+		except sampy.SAMPHubError as e:
+			print(("error connecting to hub", e))
 		
 		if connected:
 			#self.client.client._thread.setDaemon(False)
@@ -57,7 +57,7 @@ class Samp(object):
 		self.tableLoadCallbacks = []
 	
 	def _onTableLoadVotable(self, private_key, sender_id, msg_id, mtype, params, extra):
-		print "Msg:", `private_key`, `sender_id`, `msg_id`, `mtype`, `params`, `extra`
+		print(("Msg:", repr(private_key), repr(sender_id), repr(msg_id), repr(mtype), repr(params), repr(extra)))
 		try:
 			url = params["url"]
 			table_id = params["table-id"]
@@ -71,13 +71,13 @@ class Samp(object):
 			self.client.ereply(msg_id, sampy.SAMP_STATUS_OK, result = {"txt": "loaded"})
 		
 	def _onSampNotification(self, private_key, sender_id, mtype, params, extra):
-		print "Notification:", `private_key`, `sender_id`, `mtype`, `params`, `extra`
+		print(("Notification:", repr(private_key), repr(sender_id), repr(mtype), repr(params), repr(extra)))
 		
 	def _onSampCall(self, private_key, sender_id, msg_id, mtype, params, extra):
-		print "----"
+		print("----")
 		try:
-			print "Call:", `private_key`, `sender_id`, `msg_id`, `mtype`, `params`, `extra`
+			print(("Call:", repr(private_key), repr(sender_id), repr(msg_id), repr(mtype), repr(params), repr(extra)))
 			self.client.ereply(msg_id, sampy.SAMP_STATUS_OK, result = {"txt": "printed"})
 		except:
-			print "errrrrrrororrrr hans!"
+			print("errrrrrrororrrr hans!")
 

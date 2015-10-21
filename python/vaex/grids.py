@@ -66,7 +66,7 @@ def add_mem(bytes, *info):
 	total_bytes += bytes
 	added = filesize_format(bytes)
 	total = filesize_format(total_bytes)
-	print "MEMORY USAGE: added %s, total %s (%r)" % (added, total, info)
+	print(("MEMORY USAGE: added %s, total %s (%r)" % (added, total, info)))
 
 class Grid(object):
 	grid_cache = {}
@@ -234,7 +234,7 @@ class Grids(object):
 
 	def add_jobs(self, jobsManager):
 		#self.jobsManager.addJob(1, functools.partial(self.calculate_visuals, compute_counter=compute_counter), self.dataset, *all_expressions, **self.getVariableDict())
-		for name, grid in self.grids.items():
+		for name, grid in list(self.grids.items()):
 			callback = grid.bin_block
 			expressions = list(self.expressions)
 			if grid.weight_expression is not None:
