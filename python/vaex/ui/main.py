@@ -1576,9 +1576,9 @@ class VaexApp(QtGui.QMainWindow):
 app = None
 kernel = None
 
-from qtconsole.rich_jupyter_widget import RichJupyterWidget
-from qtconsole.inprocess import QtInProcessKernelManager
-from IPython.lib import guisupport
+#from qtconsole.rich_jupyter_widget import RichJupyterWidget
+#from qtconsole.inprocess import QtInProcessKernelManager
+#from IPython.lib import guisupport
 
 def print_process_id():
     print('Process ID is:', os.getpid())
@@ -1613,35 +1613,35 @@ def main(argv=sys.argv[1:]):
 	#raise RuntimeError, "blaat"
 
 
-
-	#   app = guisupport.get_app_qt4()
-	print_process_id()
-
-	# Create an in-process kernel
-	# >>> print_process_id()
-	# will print the same process ID as the main process
-	kernel_manager = QtInProcessKernelManager()
-	kernel_manager.start_kernel()
-	kernel = kernel_manager.kernel
-	kernel.gui = 'qt4'
 	vaex_app = VaexApp(argv, open_default=True)
-	kernel.shell.push({'foo': 43, 'print_process_id': print_process_id, "vaex_app":vaex_app})
+	if 0:
+		#   app = guisupport.get_app_qt4()
+		print_process_id()
 
-	kernel_client = kernel_manager.client()
-	kernel_client.start_channels()
+		# Create an in-process kernel
+		# >>> print_process_id()
+		# will print the same process ID as the main process
+		kernel_manager = QtInProcessKernelManager()
+		kernel_manager.start_kernel()
+		kernel = kernel_manager.kernel
+		kernel.gui = 'qt4'
+		kernel.shell.push({'foo': 43, 'print_process_id': print_process_id, "vaex_app":vaex_app})
 
-	def stop():
-		kernel_client.stop_channels()
-		kernel_manager.shutdown_kernel()
-		app.exit()
+		kernel_client = kernel_manager.client()
+		kernel_client.start_channels()
 
-	control = RichJupyterWidget()
-	control.kernel_manager = kernel_manager
-	control.kernel_client = kernel_client
-	control.exit_requested.connect(stop)
-	#control.show()
+		def stop():
+			kernel_client.stop_channels()
+			kernel_manager.shutdown_kernel()
+			app.exit()
 
-	sys.exit(guisupport.start_event_loop_qt4(app))
+		control = RichJupyterWidget()
+		control.kernel_manager = kernel_manager
+		control.kernel_client = kernel_client
+		control.exit_requested.connect(stop)
+		#control.show()
+
+		sys.exit(guisupport.start_event_loop_qt4(app))
 
 
 	#w = QtGui.QWidget()
@@ -1651,7 +1651,7 @@ def main(argv=sys.argv[1:]):
 	#w.show()
 	#ipython_window.show()
 	#ipython_window.ipkernel.start()
-	#sys.exit(app.exec_())
+	sys.exit(app.exec_())
 
 
 def batch_copy_index(from_array, to_array, shuffle_array):

@@ -18,6 +18,13 @@ from vaex.utils import Timer
 from vaex import multithreading
 import vaex.events
 import vaex.ui.undo
+import execution
+import vaex.grids
+import multithreading
+import aplus
+import concurrent.futures
+from multiprocessing import Pool
+import vaex.execution
 
 frozen = getattr(sys, 'frozen', False)
 darwin = "darwin" not in platform.system()
@@ -91,13 +98,6 @@ class Link(object):
 				
 				
 
-import execution
-import vaex.grids
-import multithreading
-import aplus
-import concurrent.futures
-from multiprocessing import Pool
-import vaex.execution
 
 class Promise(aplus.Promise):
 	pass
