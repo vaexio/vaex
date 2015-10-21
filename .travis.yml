@@ -5,6 +5,8 @@ os:
 install:
 #  - sudo apt-get update
 #  - sudo apt-get install libhdf5-serial-dev libqt4-dev
+  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install -qq gcc-4.4;
+  - if [[ $TRAVIS_OS_NAME == linux ]]; then export CC="gcc-4.4";
   - if [[ $TRAVIS_OS_NAME == linux ]]; then wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh; fi
   - if [[ $TRAVIS_OS_NAME == osx ]]; then wget https://repo.continuum.io/miniconda/Miniconda-latest-MacOSX-x86_64.sh -O miniconda.sh; fi
   - bash miniconda.sh -b -p $HOME/miniconda
@@ -24,7 +26,7 @@ install:
   - if [[ $TRAVIS_OS_NAME == osx ]]; then bash bin/build_binary_osx.sh; fi
   - if [[ $TRAVIS_OS_NAME == linux ]]; then pip install pyinstaller; pyinstaller vaex.spec; fi
   - ls dist
-  - if [[ $TRAVIS_OS_NAME == osx ]]; then bash dropbox_uploader.sh upload dist/vaex*.zip vaex-osx-latest.zip; fi
+  - if [[ $TRAVIS_OS_NAME == osx ]]; then bash dropbox_uploader.sh upload dist/${PACKAGE_NAME}.zip ${PACKAGE_NAME}.zip; fi
   - if [[ $TRAVIS_OS_NAME == linux ]]; then cd dist; tar zcfv ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}; bash ../dropbox_uploader.sh upload ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}.tar.gz; cd ..; fi
 
 script:
