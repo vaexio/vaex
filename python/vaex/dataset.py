@@ -10,7 +10,16 @@ import collections
 import sys
 import platform
 import vaex.export
-import h5py
+import os
+
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+
+try:
+	import h5py
+except:
+	if not on_rtd:
+		raise
+
 import numpy as np
 import numexpr as ne
 
@@ -501,26 +510,28 @@ class SubspaceLocal(Subspace):
 
 	def var(self, means=None):
 		# variances are linear, use the mean to reduce
-		def vars_reduce(vars1, vars2):
-			vars = []
-			for var1, var2 in zip(vars1, vars2):
-				vars.append(np.nanmean([var1, var2]))
-			return vars
+		def vars_reduce(vars_and_counts1, vars_and_counts2):
+			vars_and_counts = []
+			for (var1, count1), (var2, count2) in zip(vars_and_counts1, vars_and_counts2):
+				vars_and_counts.append( [np.nansum([var1*count1, var2*count2])/(count1+count2), count1+count2] )
+			return vars_and_counts
+		def remove_counts(vars_and_counts):
+			return self._toarray(vars_and_counts)[:,0]
 		if self.is_masked:
 			mask = self.dataset.mask
 			def var_map(thread_index, i1, i2, *blocks):
 				if means is not None:
-					return [np.nanmean((block[mask[i1:i2]]-mean)**2) for block, mean in zip(blocks, means)]
+					return [(np.nanmean((block[mask[i1:i2]]-mean)**2), np.count_nonzero(~np.isnan(block))) for block, mean in zip(blocks, means)]
 				else:
-					return [np.nanmean(block[mask[i1:i2]]**2) for block in blocks]
-			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, self._toarray, info=True)
+					return [(np.nanmean(block[mask[i1:i2]]**2), np.count_nonzero(~np.isnan(block))) for block in blocks]
+			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, remove_counts, info=True)
 		else:
 			def var_map(*blocks):
 				if means is not None:
-					return [np.nanmean((block-mean)**2) for block, mean in zip(blocks, means)]
+					return [(np.nanmean((block-mean)**2), np.count_nonzero(~np.isnan(block))) for block, mean in zip(blocks, means)]
 				else:
-					return [np.nanmean(block**2) for block in blocks]
-			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, self._toarray)
+					return [(np.nanmean(block**2), np.count_nonzero(~np.isnan(block))) for block in blocks]
+			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, remove_counts)
 		return self._task(task)
 
 	def sum(self):

@@ -35,8 +35,8 @@ extensions = [
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
 ]
-
-import vaex
+import os
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 if not vaex.on_rtd:
 	extensions.append('sphinxcontrib.googleanalytics')
 

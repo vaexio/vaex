@@ -17,19 +17,11 @@ __clean_release__ = "%d.%d.%d" % (__version_tuple__)
 __full_name__ = __program_name__ + "-" + __release__
 __clean_name__ =  __program_name__ + "-" + __clean_release__
 
-import os
-
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-
-try:
-	import vaex.dataset
-	#import vaex.plot
-	from vaex.dataset import Dataset
-	from vaex.remote import ServerRest
-	del ServerRest, Dataset
-except:
-	if not on_rtd:
-		raise
+import vaex.dataset
+#import vaex.plot
+from vaex.dataset import Dataset
+from vaex.remote import ServerRest
+del ServerRest, Dataset
 
 def open(path, *args, **kwargs):
 	"""Open a dataset from file given by path
