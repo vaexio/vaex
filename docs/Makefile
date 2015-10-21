@@ -49,7 +49,17 @@ help:
 clean:
 	rm -rf $(BUILDDIR)/*
 
-html:
+source/%.rst: ../examples/%.ipynb
+	~/.local/bin/jupyter-nbconvert	$<  --to rst --output=$(@F)
+	mv $(@F) $@
+	cp -r $(*)_files $(@D)/
+	
+source/%.html: ../examples/%.ipynb
+	~/.local/bin/jupyter-nbconvert	$<  --to html --output=$@
+	
+html_extra = source/example_movie.html source/example_movies.html source/example_start.html  source/example_volume_rendering.html source/example_virtual_columns.html source/example_tables.html
+
+html: source/tutorial_ipython_notebook.rst ${html_extra}
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

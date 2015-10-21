@@ -167,7 +167,14 @@ html_static_path = ['nstatic']
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied
 # directly to the root of the documentation.
-html_extra_path = ["example_movie.html", "example_start.html", "example_volume_rendering.html", "example_virtual_columns.html", "../../examples/example_start.ipynb", "../../examples/example_movie.ipynb", "../../examples/example_volume_rendering.ipynb", "../../examples/example_virtual_columns.ipynb"]
+html_extra_path = [
+		"example_movie.html", "../../examples/example_movie.ipynb",
+		"example_movies.html", "../../examples/example_movies.ipynb",
+		"example_start.html", "../../examples/example_start.ipynb",
+		"example_volume_rendering.html", "../../examples/example_volume_rendering.ipynb",
+		"example_virtual_columns.html", "../../examples/example_virtual_columns.ipynb",
+		"example_tables.html", "../../examples/example_tables.ipynb"
+		]
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.

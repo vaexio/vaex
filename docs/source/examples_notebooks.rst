@@ -22,6 +22,12 @@ Virtual columns
  * Example output: `example_virtual_columns.html <example_virtual_columns.html>`_
  * Download notebook: `example_virtual_columns.ipynb <example_virtual_columns.ipynb>`_
  
+Working with tables
+---------------
+ 
+ * Example output: `example_tables.html <example_tables.html>`_
+ * Download notebook: `example_tables.ipynb <example_tables.ipynb>`_
+ 
 Volume rendering (3d)
 ---------------
 
@@ -33,4 +39,10 @@ Making a movie out of many snapshots
 
  * Example output: `example_movie.html <example_movie.html>`_
  * Download notebook: `example_movie.ipynb <example_movie.ipynb>`_
+
+Embed movies in a notebook
+--------------------------
+
+ * Example output: `example_movies.html <example_movies.html>`_
+ * Download notebook: `example_movies.ipynb <example_movies.ipynb>`_
 
