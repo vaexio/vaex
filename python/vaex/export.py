@@ -71,7 +71,10 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 		shuffle_array[:] = shuffle_array_full[shuffle_array_full<N]
 		del shuffle_array_full
 	elif shuffle:
-		vaex.vaexfast.shuffled_sequence(shuffle_array)
+		# better to do this in memory
+		shuffle_array_memory = np.zeros_like(shuffle_array)
+		vaex.vaexfast.shuffled_sequence(shuffle_array_memory)
+		shuffle_array[:] = shuffle_array_memory
 
 	i1, i2 = 0, N #len(dataset)
 	#print "creating shuffled array"

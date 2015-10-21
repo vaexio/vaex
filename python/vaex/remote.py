@@ -1,8 +1,10 @@
 __author__ = 'breddels'
 import numpy as np
+import logging
 import threading
 from .dataset import Dataset, Subspace, Task, Promise
 import aplus
+logger = logging.getLogger("vaex.remote")
 
 #from twisted.internet import reactor
 #from twisted.web.client import Agent
@@ -59,7 +61,7 @@ class ServerRest(object):
 						self.io_loop = tornado.ioloop.IOLoop.instance()
 					event.set()
 					self.io_loop.make_current()
-					print "starting"
+					#print "starting"
 					self.io_loop.start()
 				thread = threading.Thread(target=ioloop)
 				thread.setDaemon(True)
@@ -95,7 +97,7 @@ class ServerRest(object):
 			data = json.loads(result.body)
 			return [DatasetRest(self, **kwargs) for kwargs in data["datasets"]]
 		url = self._build_url("datasets")
-		print "fetching", url
+		logger.debug("fetching: %r", url)
 		return self.fetch(url, wrap, async=async)
 		#return self._return(result, wrap)
 
@@ -107,7 +109,7 @@ class ServerRest(object):
 			list = json.loads(result.body)
 			return list
 		url = self._build_url("datasets/%s/columns" % name)
-		print "fetching", url
+		logger.debug("fetching: %r", url)
 		#result = self.http_client.fetch(url)
 		#return self._return(result, wrap)
 		self.fetch(url, wrap, async=async)
@@ -117,7 +119,7 @@ class ServerRest(object):
 			list = json.loads(result.body)
 			return list
 		url = self._build_url("datasets/%s/info" % name)
-		print "fetching", url
+		logger.debug("fetching: %r", url)
 		return self.fetch(url, wrap, async=async)
 
 	def open(self, name, async=False):
@@ -146,7 +148,7 @@ class ServerRest(object):
 			return np.array([[data[expression]["min"], data[expression]["max"]] for expression in expressions])
 		columns = "/".join(expressions)
 		url = self._build_url("datasets/%s/minmax/%s" % (dataset_name, columns))
-		print "fetching", url
+		logger.debug("fetching: %r", url)
 		return self.fetch(url, wrap, async=async)
 		#return self._return(result, wrap, async=async)
 
@@ -175,10 +177,9 @@ class ServerRest(object):
 			data = np.fromstring(result.body)
 			shape = (size,) * len(expressions)
 			data = data.reshape(shape)
-			print "data", data.shape, data
 			return data
 		url = self._build_url("datasets/%s/histogram" % (dataset_name,))
-		print "fetching", url
+		logger.debug("fetching: %r", url)
 		post_data = dict(expressions=json.dumps(expressions), size=json.dumps(size),
 						 weight=json.dumps(weight),
 						 limits=json.dumps(limits.tolist()), masked=json.dumps(expr.is_masked))
@@ -199,7 +200,7 @@ class ServerRest(object):
 		#def do(value):
 		#	return value
 		#promise.then(do)
-		print "the other thread should fulfil the result to this promise"
+		logger.debug("the other thread should fulfil the result to this promise")
 		self.thread_mover(promise, result)
 		return promise
 

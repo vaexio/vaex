@@ -34,11 +34,14 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
-	'sphinxcontrib.googleanalytics',
 ]
+import os
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+if not vaex.on_rtd:
+	extensions.append('sphinxcontrib.googleanalytics')
 
-googleanalytics_id = 'UA-60052576-1'
-analytics_id = 'UA-60052576-1'
+	googleanalytics_id = 'UA-60052576-1'
+	analytics_id = 'UA-60052576-1'
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['ntemplates']
 

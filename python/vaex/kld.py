@@ -3,7 +3,6 @@
 import vaex.logging as logging
 logger = logging.getLogger("vaex.kld")
 import numpy as np
-import numba.dispatcher
 import math
 import functools
 import vaex.vaexfast

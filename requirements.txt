@@ -4,12 +4,13 @@ scipy>=0.1
 sampy>=1.2
 astropy>=0.3
 h5py>=2.2.1
+pyjavaproperties
 matplotlib>=1.3.1
 numexpr #>=2.3.1
 psutil>=1.2.1
-pyjavaproperties
-flask
-flask-compress>=1.2.1
 aplus
 # PySide>=1.2.2
 # numba (remove this dependency)
+tornado==4.1
+futures==2.2.0
+jupyter

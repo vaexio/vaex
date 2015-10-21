@@ -26,8 +26,8 @@ class TestDataset(unittest.TestCase):
 	def setUp(self):
 		self.dataset = dataset.DatasetArrays()
 
-		x = np.arange(10)
-		y = x ** 2
+		self.x = x = np.arange(10)
+		self.y = y = x ** 2
 		self.dataset.add_column("x", x)
 		self.dataset.add_column("y", y)
 		self.dataset.set_variable("t", 1.)
@@ -146,6 +146,10 @@ class TestDataset(unittest.TestCase):
 		x, y = self.datasetxy("x", "y").var()
 		self.assertAlmostEqual(x, 0.5)
 		self.assertAlmostEqual(y, 1.)
+
+		x, y = self.dataset("x", "y").var()
+		self.assertAlmostEqual(x, np.mean(self.x**2))
+		self.assertAlmostEqual(y, np.mean(self.y**2))
 
 	def test_concat(self):
 		self.assertEqual(self.dataset_concat.get_column_names(), ["x"])
@@ -266,14 +270,14 @@ class TestDataset(unittest.TestCase):
 		pass # TODO
 
 
-test_port = 19000
+test_port = 29001
 
 class TestWebServer(unittest.TestCase):
 	def setUp(self):
 		self.dataset = dataset.DatasetArrays()
 
-		x = np.arange(10)
-		y = x ** 2
+		self.x = x = np.arange(10)
+		self.y = y = x ** 2
 		self.dataset.add_column("x", x)
 		self.dataset.add_column("y", y)
 
