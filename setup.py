@@ -15,10 +15,10 @@ import sys
 import imp
 
 def system(cmd):
-	print "Executing: ", cmd
+	print("Executing: ", cmd)
 	ret = os.system(cmd)
 	if ret != 0:
-		print "error, return code is", ret
+		print("error, return code is", ret)
 		sys.exit(ret)
 
 path_version_file = "python/vaex/version.py"
@@ -85,13 +85,14 @@ if has_py2app and sys.argv[1] == "py2app":
 					cmd = "cp %s %s" % (path, targetdir)
 					print cmd
 					os.system(cmd)
+
 			os.system("cd dist")
 			zipname = "%s-osx.zip" % vaex.__clean_name__
 			os.system("cd dist;rm %s" % zipname)
 			os.system("cd dist;zip -r %s %s.app" % (zipname, vaex.__program_name__))
 			retvalue = os.system("git diff --quiet")
 			if retvalue != 0:
-				print "WARNING UNCOMMITED CHANGES, VERSION NUMBER WILL NOT MATCH"
+				print("WARNING UNCOMMITED CHANGES, VERSION NUMBER WILL NOT MATCH")
 	cmdclass['py2app'] = my_py2app
 			
 #from distutils.core import setup, Extension
@@ -102,7 +103,7 @@ except:
 	numdir = None
 
 if numdir is None:
-	print "numpy not found, cannot install"
+	print("numpy not found, cannot install")
 import sys 
 import glob
 sys.setrecursionlimit(10000)

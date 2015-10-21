@@ -38,7 +38,7 @@ class HistogramAndTransfer(QtGui.QWidget):
 		counts = np.zeros(width, dtype=np.float64)
 		vaex.vaexfast.histogram1d(grid1d, None, counts, xmin, xmax+1)
 		#counts, _ = np.histogram(grid1d, bins=width, range=(xmin, xmax))
-		print "histogram", xmin, xmax, counts, grid1d.mean(), len(grid1d)
+		print(("histogram", xmin, xmax, counts, grid1d.mean(), len(grid1d)))
 		counts = np.log10(counts+1)
 		counts -= counts.min()
 		counts /= counts.max()
@@ -62,7 +62,7 @@ class HistogramAndTransfer(QtGui.QWidget):
 			y = np.exp(-((nx-self.function_means[i])/self.function_sigmas[i])**2) * (np.log10(self.function_opacities[i])+3)/3 * 32.
 			x = x.astype(np.int32)
 			y = 100*0+32-y.astype(np.int32)
-			polygon = QtGui.QPolygon(map(lambda x: QtCore.QPoint(*x), zip(x, y)))
+			polygon = QtGui.QPolygon([QtCore.QPoint(*x) for x in zip(x, y)])
 			painter.drawPolyline(polygon)
 		
 

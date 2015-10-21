@@ -37,6 +37,7 @@ import vaex.ui.templates
 #import subspacefind
 import vaex.vaexfast
 from vaex.ui import qt, undo
+from functools import reduce
 
 subspacefind = vaex.vaexfast
 
@@ -277,14 +278,14 @@ class PlotDialog(QtGui.QWidget):
 		#recognize = "ranges_show grid_size vector_grid_size aspect".split()
 		recognize = "ranges_show  aspect".split()
 		for key in recognize:
-			if key in options.keys():
+			if key in list(options.keys()):
 				value = options[key]
 				setattr(self, key, copy.copy(value))
 				if key == "aspect":
 					self.action_aspect_lock_one.setChecked(bool(value))
 		for plugin in self.plugins:
 			plugin.apply_options(options)
-		for key in options.keys():
+		for key in list(options.keys()):
 			if key not in recognize:
 				logger.error("option %s not recognized, ignored" % key)
 		layer = self.current_layer
@@ -771,7 +772,7 @@ class PlotDialog(QtGui.QWidget):
 		#self.frame_layer_controls_result
 
 
-		self.blend_modes = vaex.ui.imageblending.modes.keys()
+		self.blend_modes = list(vaex.ui.imageblending.modes.keys())
 		self.blend_mode = self.blend_modes[0]
 		self.option_layer_blend_mode = Option(self.frame_layer_controls_result, "blend", self.blend_modes, getter=attrgetter(self, "blend_mode"), setter=attrsetter(self, "blend_mode"), update=self.plot)
 		row = self.option_layer_blend_mode.add_to_grid_layout(row, self.layout_frame_layer_controls_result)
@@ -862,7 +863,7 @@ class PlotDialog(QtGui.QWidget):
 		else:
 			self.messages[index] = text
 		text = ""
-		keys = self.messages.keys()
+		keys = list(self.messages.keys())
 		keys.sort()
 		text_parts = [self.messages[key] for key in keys]
 		self.status_bar.showMessage(" | ".join(text_parts))
@@ -1258,7 +1259,7 @@ class PlotDialog(QtGui.QWidget):
 			#				self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
 			action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"),
 							self.set_ranges,
-							range(self.dimensions), self.last_ranges_show, self.last_range_level_show,
+							list(range(self.dimensions)), self.last_ranges_show, self.last_range_level_show,
 							axis_indices, ranges_show=ranges_show, range_level_show=range_level_show)
 			self.last_ranges_show = None
 			self.last_range_level_show = None
@@ -1319,7 +1320,7 @@ class PlotDialog(QtGui.QWidget):
 		filetypes = dict(self.fig.canvas.get_supported_filetypes()) # copy, otherwise we lose png support :)
 		pngtype = [("png", filetypes["png"])]
 		del filetypes["png"]
-		filetypes = [value + "(*.%s)" % key for (key, value) in pngtype + filetypes.items()]
+		filetypes = [value + "(*.%s)" % key for (key, value) in pngtype + list(filetypes.items())]
 		import string
 		def make_save(expr):
 			save_expr = ""
@@ -1332,7 +1333,7 @@ class PlotDialog(QtGui.QWidget):
 			return save_expr
 		layer = self.current_layer
 		if layer != None:
-			save_expressions = map(make_save, layer.expressions)
+			save_expressions = list(map(make_save, layer.expressions))
 			type = "histogram" if self.dimensions == 1 else "density"
 			filename = layer.dataset.name +"_%s_" % type  +"-vs-".join(save_expressions) + ".png"
 			filename = QtGui.QFileDialog.getSaveFileName(self, "Export to figure", filename, ";;".join(filetypes))
@@ -2046,8 +2047,8 @@ class PlotDialog(QtGui.QWidget):
 
 	def check_aspect(self, axis_follow):
 		if self.aspect is not None:
-			otheraxes = range(self.dimensions)
-			allaxes = range(self.dimensions)
+			otheraxes = list(range(self.dimensions))
+			allaxes = list(range(self.dimensions))
 			otheraxes.remove(axis_follow)
 			#ranges = [self.ranges_show[i] if self.ranges_show[i] is not None else self.ranges[i] for i in otheraxes]
 			ranges = [self.ranges_show[i] for i in otheraxes]
@@ -2321,7 +2322,7 @@ class ScatterPlotDialog(PlotDialog):
 			grid_map = self.create_grid_map(self.grid_size, False)
 			try:
 				amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
-			except Exception, e:
+			except Exception as e:
 				self.error_in_field(self.amplitude_box, "amplitude", e)
 				return
 			use_selection = self.dataset.mask is not None
@@ -2342,7 +2343,7 @@ class ScatterPlotDialog(PlotDialog):
 		if 1:
 			#locals = {key:None if grid is None else vaex.vaexfast.resize(grid, 64) for key, grid in locals}
 			locals = {}
-			for name in self.grids.grids.keys():
+			for name in list(self.grids.grids.keys()):
 				grid = self.grids.grids[name]
 				if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
 					if grid.max_size >= self.vector_grid_size:
@@ -2580,7 +2581,7 @@ class ScatterPlotMatrixDialog(PlotDialog):
 				axes = self.axes_grid[i][j]
 				ranges = self.ranges[i] + self.ranges[j]
 				axes.clear()
-				allaxes = range(self.dimensions)
+				allaxes = list(range(self.dimensions))
 				if 0 :#i > 0:
 					for label in axes.get_yticklabels():
 						label.set_visible(False)
@@ -2905,7 +2906,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 					i3 = 2- i
 					ranges = list(self.ranges[i1]) + list(self.ranges[i2])
 					axes.clear()
-					allaxes = range(self.dimensions)
+					allaxes = list(range(self.dimensions))
 					if 0 :#i > 0:
 						for label in axes.get_yticklabels():
 							label.set_visible(False)
@@ -2925,10 +2926,10 @@ class VolumeRenderingPlotDialog(PlotDialog):
 						axes.spines['bottom'].set_linewidth(linewidth)
 						axes.spines['left'].set_linewidth(linewidth)
 
-						grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else multisum(grid, allaxes)) for key, grid in grid_map.items()}
+						grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else multisum(grid, allaxes)) for key, grid in list(grid_map.items())}
 						amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map_2d)
 						if use_selection:
-							grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else multisum(grid, allaxes)) for key, grid in grid_map_selection.items()}
+							grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else multisum(grid, allaxes)) for key, grid in list(grid_map_selection.items())}
 							amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection_2d)
 
 						axes.imshow(self.contrast(amplitude), origin="lower", extent=ranges, alpha=0.4 if use_selection else 1.0, cmap=self.colormap)
@@ -3015,7 +3016,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 class Rank1ScatterPlotDialog(ScatterPlotDialog):
 	type_name = "sequence-density2d"
 	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None):
-		self.nSlices = dataset.rank1s[dataset.rank1s.keys()[0]].shape[0]
+		self.nSlices = dataset.rank1s[list(dataset.rank1s.keys())[0]].shape[0]
 		self.serieIndex = dataset.selected_serie_index if dataset.selected_serie_index is not None else 0
 		self.record_frames = False
 		super(Rank1ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, xname, yname)

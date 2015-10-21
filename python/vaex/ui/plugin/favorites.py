@@ -49,7 +49,7 @@ class FavStorePlugin(vaex.ui.plugin.PluginPlot):
 				found = True
 		if not found:
 			list = "".join(["\t'%s'\n" % k for k in names])
-			print >>sys.stderr, "options %r not found, possible options:\n%s" % (name, list)
+			print("options %r not found, possible options:\n%s" % (name, list), file=sys.stderr)
 			sys.exit(-2)
 
 	def load_options_menu(self):

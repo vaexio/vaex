@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 import time
 
@@ -71,14 +72,14 @@ class ProgressBar(object):
 		if (fraction != 1) or (not self.firsttimedone): # last time print a newline char
 			if not self.firsttime:
 				self.firsttime = True
-				print >>self.output, s,
+				print(s, end=' ', file=self.output)
 			else:
-				print >>sys.stderr, "\r",
-				print >>self.output, "\r" + s,
+				print("\r", end=' ', file=sys.stderr)
+				print("\r" + s, end=' ', file=self.output)
 			#print >>self.output, s,
 		if (fraction == 1) and (not self.firsttimedone): # last time print a newline char
 			self.firsttimedone = True
-			print >>self.output, ""
+			print("", file=self.output)
 			
 		self.output.flush()
 		#if fraction > 0:

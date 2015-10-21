@@ -55,16 +55,16 @@ def kld_shuffled(columns, Ngrid=128, datamins=None, datamaxes=None, offset=1):
 		x, y = columns
 		#print x
 		#print y
-		print x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset
+		print((x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset))
 		try:
 			vaex.histogram.hist2d_and_shuffled(x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset)
 		except:
 			args = [x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset]
 			sig = [numba.dispatcher.typeof_pyval(a) for a in args]
-			print sig
+			print(sig)
 			raise
 			
-		print "counts", sum(counts)
+		print(("counts", sum(counts)))
 		deltax = [float(datamaxes[i] - datamins[i]) for i in range(dim)]
 		dx = np.array([deltax[d]/counts.shape[d] for d in range(dim)])
 		density = counts/np.sum(counts)# * np.sum(dx)
@@ -124,7 +124,7 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 				minima.append(mi)
 				maxima.append(ma)
 			if len(blocks) == 2:
-				print "mask", mask
+				print(("mask", mask))
 				vaex.vaexfast.histogram2d(blocks[0], blocks[1], None, counts[index], *(ranges + [0, 0]))
 				#vaex.vaexfast.histogram2d(blocks[0], blocks[1], None, counts_shuffled[index], *(ranges + [1, 0]))
 			if len(blocks) == 3:
@@ -141,9 +141,9 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 				if feedback:
 					cancel = feedback(wrapper.N_done*100./N_total)
 					if cancel:
-						raise Exception, "cancelled"
+						raise Exception("cancelled")
 				
-		for index, pair in zip(range(i1, i2), pairs[i1:i2]):
+		for index, pair in zip(list(range(i1, i2)), pairs[i1:i2]):
 			logger.debug("add job %r %r" % (index, pair))
 			jobsManager.addJob(0, functools.partial(grid, index=index-i1), dataset, *pair) 
 		jobsManager.execute()
@@ -158,8 +158,8 @@ def kld_shuffled_grouped(dataset, range_map, pairs, feedback=None, size_grid=32,
 					counts_shuffled = to_disjoined(counts[i])
 					density_shuffled = counts_shuffled / np.sum(counts_shuffled)# * np.sum(dx)
 					mask = (density_shuffled > 0) & (density>0)
-					print "mask sum", np.sum(mask)
-					print "mask sum", np.sum((counts_shuffled > 0) & (counts[i]>0))
+					print(("mask sum", np.sum(mask)))
+					print(("mask sum", np.sum((counts_shuffled > 0) & (counts[i]>0))))
 					#print density
 					D_kl = np.sum(density[mask] * np.log(density[mask]/density_shuffled[mask]))# * np.sum(dx)
 				else:

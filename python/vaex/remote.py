@@ -1,8 +1,10 @@
 __author__ = 'breddels'
 import numpy as np
+from . import logging
 import threading
 from .dataset import Dataset, Subspace, Task, Promise
 import aplus
+logger = logging.getLogger("vaex.remote")
 
 #from twisted.internet import reactor
 #from twisted.web.client import Agent
@@ -15,14 +17,14 @@ def wrap_future_with_promise(future):
 		return future
 	promise = Promise()
 	def callback(future):
-		print "callback", future
+		print(("callback", future))
 		e = future.exception()
 		if e:
-			print "reject", e
+			print(("reject", e))
 			promise.reject(e)
 		else:
 			promise.fulfill(future.result())
-	print future, isinstance(future, aplus.Promise)
+	print((future, isinstance(future, aplus.Promise)))
 	future.add_done_callback(callback)
 	return promise
 
@@ -30,7 +32,15 @@ import tornado.ioloop
 
 import threading
 import json
-import urllib
+#import urllib.request, urllib.parse, urllib.error
+
+try:
+	from urllib.request import urlopen
+	from urllib.parse import urlparse, urlencode
+except ImportError:
+	from urlparse import urlparse
+	from urllib import urlopen, urlencode
+
 import threading
 
 class ServerRest(object):
@@ -59,7 +69,7 @@ class ServerRest(object):
 						self.io_loop = tornado.ioloop.IOLoop.instance()
 					event.set()
 					self.io_loop.make_current()
-					print "starting"
+					#print "starting"
 					self.io_loop.start()
 				thread = threading.Thread(target=ioloop)
 				thread.setDaemon(True)
@@ -95,7 +105,7 @@ class ServerRest(object):
 			data = json.loads(result.body)
 			return [DatasetRest(self, **kwargs) for kwargs in data["datasets"]]
 		url = self._build_url("datasets")
-		print "fetching", url
+		logger.debug("fetching: %r", url)
 		return self.fetch(url, wrap, async=async)
 		#return self._return(result, wrap)
 
@@ -107,7 +117,7 @@ class ServerRest(object):
 			list = json.loads(result.body)
 			return list
 		url = self._build_url("datasets/%s/columns" % name)
-		print "fetching", url
+		logger.debug("fetching: %r", url)
 		#result = self.http_client.fetch(url)
 		#return self._return(result, wrap)
 		self.fetch(url, wrap, async=async)
@@ -117,7 +127,7 @@ class ServerRest(object):
 			list = json.loads(result.body)
 			return list
 		url = self._build_url("datasets/%s/info" % name)
-		print "fetching", url
+		logger.debug("fetching: %r", url)
 		return self.fetch(url, wrap, async=async)
 
 	def open(self, name, async=False):
@@ -142,11 +152,11 @@ class ServerRest(object):
 		return self._simple(expr, dataset_name, expressions, "minmax", **kwargs)
 		def wrap(result):
 			data = json.loads(result.body)
-			print "data", data
+			print(("data", data))
 			return np.array([[data[expression]["min"], data[expression]["max"]] for expression in expressions])
 		columns = "/".join(expressions)
 		url = self._build_url("datasets/%s/minmax/%s" % (dataset_name, columns))
-		print "fetching", url
+		logger.debug("fetching: %r", url)
 		return self.fetch(url, wrap, async=async)
 		#return self._return(result, wrap, async=async)
 
@@ -163,10 +173,10 @@ class ServerRest(object):
 		def wrap(result):
 			return np.array(json.loads(result.body)["result"])
 		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
-		post_data = {key:json.dumps(value) for key, value in dict(kwargs).items()}
+		post_data = {key:json.dumps(value) for key, value in list(dict(kwargs).items())}
 		post_data["masked"] = json.dumps(expr.is_masked)
 		post_data.update(dict(expressions=json.dumps(expressions)))
-		body = urllib.urlencode(post_data)
+		body = urlencode(post_data)
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 
@@ -175,14 +185,13 @@ class ServerRest(object):
 			data = np.fromstring(result.body)
 			shape = (size,) * len(expressions)
 			data = data.reshape(shape)
-			print "data", data.shape, data
 			return data
 		url = self._build_url("datasets/%s/histogram" % (dataset_name,))
-		print "fetching", url
+		logger.debug("fetching: %r", url)
 		post_data = dict(expressions=json.dumps(expressions), size=json.dumps(size),
 						 weight=json.dumps(weight),
 						 limits=json.dumps(limits.tolist()), masked=json.dumps(expr.is_masked))
-		body = urllib.urlencode(post_data)
+		body = urlencode(post_data)
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 
@@ -199,7 +208,7 @@ class ServerRest(object):
 		#def do(value):
 		#	return value
 		#promise.then(do)
-		print "the other thread should fulfil the result to this promise"
+		logger.debug("the other thread should fulfil the result to this promise")
 		self.thread_mover(promise, result)
 		return promise
 
@@ -209,9 +218,9 @@ class ServerRest(object):
 		def wrap(result):
 			return np.array(json.loads(result.body))
 		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
-		post_data = {key:json.dumps(value) for key, value in dict(kwargs).items()}
+		post_data = {key:json.dumps(value) for key, value in list(dict(kwargs).items())}
 		post_data.update(dict(expression=json.dumps(expression)))
-		body = urllib.urlencode(post_data)
+		body = urlencode(post_data)
 		return self.http_client.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 
@@ -304,6 +313,6 @@ class DatasetRest(DatasetRemote):
 # we may get rid of this when we group together tasks
 class DummyExecutor(object):
 	def execute(self):
-		print "dummy execute"
+		print("dummy execute")
 
 

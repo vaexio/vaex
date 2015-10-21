@@ -4,7 +4,7 @@ import tornado.ioloop
 import tornado.web
 import tornado.httpserver
 import threading
-import logging
+from . import logging
 import vaex as vx
 import json
 import inspect
@@ -14,12 +14,12 @@ logger = logging.getLogger("vaex.webserver")
 def task_invoke(subspace, method_name, request):
 	method = getattr(subspace, method_name)
 	args, varargs, kwargs, defaults = inspect.getargspec(method)
-	print inspect.getargspec(method)
+	#print inspect.getargspec(method)
 	#args_required = args[:len(args)-len(defaults)]
 	kwargs = {}
 	for arg in args:
 		if arg in request.arguments:
-			print arg, repr(request.arguments[arg][0])
+			#print arg, repr(request.arguments[arg][0])
 			kwargs[arg] = json.loads(request.arguments[arg][0])
 	values = method(**kwargs)
 	return values
@@ -33,7 +33,7 @@ class ListHandler(tornado.web.RequestHandler):
         #self.write("Hello, world")
 		#print self.request.path
 		parts = [part for part in self.request.path.split("/") if part]
-		print parts
+		#print parts
 		if parts[0] == "datasets":
 			if len(parts) == 1:
 				response = dict(datasets=[{"name":ds.name, "full_length":len(ds), "column_names":ds.get_column_names()} for ds in self.datasets])
@@ -42,13 +42,13 @@ class ListHandler(tornado.web.RequestHandler):
 				dataset_name = parts[1]
 				if len(parts) > 2:
 					method_name = parts[2]
-					print "method", method_name, self.request.arguments
+					logger.debug("method: %r args: %r" % (method_name, self.request.arguments))
 					expressions = json.loads(self.request.arguments["expressions"][0])
 					subspace = self.datasets_map[dataset_name](*expressions)
 					if method_name in ["minmax", "var", "mean", "sum", "limits_sigma"]:
-						print "expressions", expressions
+						#print "expressions", expressions
 						values = task_invoke(subspace, method_name, self.request)
-						print values, expressions
+						#print values, expressions
 						self.write({"result": values.tolist()})
 					if method_name == "histogram":
 						grid = task_invoke(subspace, method_name, self.request)
@@ -94,8 +94,10 @@ class WebServer(threading.Thread):
 	def mainloop(self):
 		logger.info("serving at http://%s:%d" % (self.address, self.port))
 		self.ioloop = tornado.ioloop.IOLoop.current()
+		# listen doesn't return a server object, which we need to close
 		#self.application.listen(self.port, address=self.address)
-		self.server = tornado.httpserver.HTTPServer(self.application)
+		from tornado.httpserver import HTTPServer
+		self.server = HTTPServer(self.application)
 		self.server.listen(self.port, self.address)
 		self.ioloop.add_callback(self.started.set)
 		self.ioloop.start()

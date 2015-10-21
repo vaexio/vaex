@@ -29,6 +29,8 @@ def subdivide(length, parts=None, max_length=None):
 			i1, i2 = index * part_length, min(length, (index +1) * part_length)
 			yield i1, i2
 
+def linspace_centers(start, stop, N):
+	return np.arange(N) / (N+0.) * (stop-start) + float(stop-start)/N/2 + start
 
 def multisum(a, axes):
 	correction = 0
@@ -42,7 +44,7 @@ def disjoined(data):
 	data_disjoined = None
 	dim = len(data.shape)
 	for d in range(dim):
-		axes = range(dim)
+		axes = list(range(dim))
 		axes.remove(d)
 		data1d = multisum(data, axes)
 		shape = [1 for k in range(dim)]
@@ -120,7 +122,7 @@ class Timer(object):
 			if self.logger:
 				self.logger.debug("%s starting" % self.name)
 			else:
-				print '[%s starting]...' % self.name
+				print(('[%s starting]...' % self.name))
 			self.tstart = time.time()
 
 	def __exit__(self, type, value, traceback):
@@ -129,7 +131,7 @@ class Timer(object):
 			if self.logger:
 				self.logger.debug(msg)
 			else:
-				print msg
+				print(msg)
 			if type or value or traceback:
-				print type, value, traceback
+				print((type, value, traceback))
 		return False

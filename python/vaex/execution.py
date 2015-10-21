@@ -3,18 +3,19 @@ import vaex.vaexfast
 import numpy as np
 from vaex.utils import Timer
 import vaex.events
-import multithreading
+from . import multithreading
 import time
 import math
 import vaex.ui.expressions as expr
 import numexpr as ne
+from functools import reduce
 
 __author__ = 'breddels'
 
 buffer_size = 1e6 # TODO: this should not be fixed, larger means faster but also large memory usage
 
 import threading
-import Queue
+import queue
 import math
 import multiprocessing
 import sys
@@ -68,6 +69,8 @@ class Executor(object):
 		# u 'column' is uniquely identified by a tuple of (dataset, expression)
 		t0 = time.time()
 		logger.debug("executing queue: %r" % (self.task_queue))
+		#for task in self.task_queue:
+		#$	print task, task.expressions_all
 
 		expressions = list(set(expression for task in self.task_queue for expression in task.expressions_all))
 
@@ -85,8 +88,14 @@ class Executor(object):
 
 		length = len(self.dataset)
 		#print self.thread_pool.map()
-		for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size)):
-			pass # just eat all element
+		try:
+			for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size)):
+				pass # just eat all element
+		except:
+			# on any error we flush the task queue
+			logger.error("error in task, flush task queue")
+			self.task_queue = []
+			raise
 		logger.debug("executing took %r seconds" % (time.time() - t0))
 		# while processing the self.task_queue, new elements will be added to it, so copy it
 		task_queue = list(self.task_queue)
@@ -103,7 +112,7 @@ class Executor(object):
 			self.execute()
 
 
-	def _execute(self):
+	def ____execute(self):
 		# u 'column' is uniquely identified by a tuple of (dataset, expression)
 		t0 = time.time()
 		logger.info("executing queue: %r" % (self.task_queue))
@@ -115,7 +124,7 @@ class Executor(object):
 		thread_virtual_buffers = {} # maps column to a list of buffers
 		for column in columns_copy:
 			thread_buffers[column.expression] = np.zeros((self.thread_pool.nthreads, buffer_size))
-		for name in self.dataset.virtual_columns.keys():
+		for name in list(self.dataset.virtual_columns.keys()):
 			thread_virtual_buffers[name] = np.zeros((self.thread_pool.nthreads, buffer_size))
 
 		for task in self.task_queue:
@@ -125,20 +134,20 @@ class Executor(object):
 			#print "process", thread_index, i1, i2
 			size = i2-i1 # size may be smaller for the last step
 			# truncate the buffers accordingly, and pick the right one for this thread
-			buffers = {key:buffer[thread_index,0:size] for key,buffer in thread_buffers.items()}
-			virtual_buffers = {key:buffer[thread_index,0:size] for key,buffer in thread_virtual_buffers.items()}
+			buffers = {key:buffer[thread_index,0:size] for key,buffer in list(thread_buffers.items())}
+			virtual_buffers = {key:buffer[thread_index,0:size] for key,buffer in list(thread_virtual_buffers.items())}
 			def evaluate(column):
 				ne.evaluate(column.expression, local_dict=local_dict)
 			local_dict = {} # contains only the real column
 			local_dict.update(self.dataset.variables)
-			for column in self.dataset.columns.keys():
+			for column in list(self.dataset.columns.keys()):
 				local_dict[column] = self.dataset.columns[column][i1:i2]
 			# this dict should in the end contains all data blocks for all columns or expressions
 			# and virtual columns
 			block_dict = local_dict.copy()
 
 			# TODO: do not evaluate ALL virtual columns
-			for name, expression in self.dataset.virtual_columns.items():
+			for name, expression in list(self.dataset.virtual_columns.items()):
 				with ne_lock:
 					ne.evaluate(expression, local_dict=block_dict, out=virtual_buffers[name])
 				# only update the dict after evaluating!
@@ -258,7 +267,7 @@ class JobsManager(object):
 			if feedback:
 				cancel = feedback(wrapper.N_done*100./N_total)
 				if cancel:
-					raise Exception, "cancelled"
+					raise Exception("cancelled")
 			block_result = reduce(function_merge, subresults_per_thread)
 			if subresults[index] is None:
 				subresults[index] = block_result
@@ -304,7 +313,7 @@ class JobsManager(object):
 						maxima_per_thread[thread_index] = ma if maxima_per_thread[thread_index] is None else max(ma, maxima_per_thread[thread_index])
 				if info.error:
 					#self.message(info.error_text, index=-1)
-					raise Exception, info.error_text
+					raise Exception(info.error_text)
 				pool.run_blocks(subblock, info.size)
 				#if info.first:
 				#	minima[index] = min(minima_per_thread)
@@ -326,14 +335,14 @@ class JobsManager(object):
 				if feedback:
 					cancel = feedback(wrapper.N_done*100./N_total)
 					if cancel:
-						raise Exception, "cancelled"
+						raise Exception("cancelled")
 
 			for index in range(len(expressions)):
 				self.addJob(0, functools.partial(calculate_range, index=index), dataset, expressions[index])
 			self.execute()
 		finally:
 			pool.close()
-		return zip(minima, maxima)
+		return list(zip(minima, maxima))
 
 	def execute(self):
 		self.signal_begin.emit()
@@ -374,10 +383,10 @@ class JobsManager(object):
 					variables = {}
 					for job in jobs_order:
 						variables_job = job[-1]
-						for key, value in variables_job.items():
+						for key, value in list(variables_job.items()):
 							if key in variables:
 								if variables[key] != value:
-									raise ValueError, "variable %r cannot have both value %r and %r" % (key, value, variables[key])
+									raise ValueError("variable %r cannot have both value %r and %r" % (key, value, variables[key]))
 							variables[key] = value
 					logger.debug("variables: %r" % (variables,))
 					# group per dataset
@@ -428,16 +437,16 @@ class JobsManager(object):
 							logger.debug("block: %r to %r" % (i1, i2))
 							local_dict = dict()
 							# dataset scope, there will be evaluated in order
-							for key, value in dataset.variables.items():
+							for key, value in list(dataset.variables.items()):
 								try:
 									local_dict[key] = eval(dataset.variables[key], np.__dict__, local_dict)
 								except:
 									local_dict[key] = None
 							#print "local vars", local_dict
 							local_dict.update(variables) # window scope
-							for key, value in dataset.columns.items():
+							for key, value in list(dataset.columns.items()):
 								local_dict[key] = value[i1:i2]
-							for key, value in dataset.rank1s.items():
+							for key, value in list(dataset.rank1s.items()):
 								local_dict[key] = value[:,i1:i2]
 							for dataset, expression in expressions_dataset:
 								if cancelled or errors:
@@ -447,7 +456,7 @@ class JobsManager(object):
 								else:
 									expr_noslice, slice_vars = expressions_translated[(dataset, expression)] #expr.translate(expression)
 									logger.debug("replacing %r with %r" % (expression, expr_noslice))
-									for var, sliceobj in slice_vars.items():
+									for var, sliceobj in list(slice_vars.items()):
 										logger.debug("adding slice %r as var %r (%r:%r)" % (sliceobj, var, sliceobj.var.name, sliceobj.args))
 										array = local_dict[sliceobj.var.name]
 										#print local_dict.keys()
@@ -472,7 +481,7 @@ class JobsManager(object):
 							info.time_start = t0
 							results = {}
 							# check for 'snapshots'/sequence array, and get the proper index automatically
-							for name, var in local_dict.items():
+							for name, var in list(local_dict.items()):
 								if hasattr(var, "shape"):
 									#print name, var.shape
 									if len(var.shape) == 2:
@@ -511,11 +520,11 @@ class JobsManager(object):
 												ex = repr(expr_noslice)
 											#print ex, repr(expr_noslice), expr_noslice, local_dict, len(output)
 											ne.evaluate(ex, local_dict=local_dict, out=output, casting="unsafe")
-										except Exception, e:
+										except Exception as e:
 											info.error = True
 											info.error_text = repr(e) #.message
 											error_text = info.error_text
-											print "error_text", error_text
+											print(("error_text", error_text))
 											errors = True
 											logger.exception("error in expression: %s" % expression)
 											break
@@ -523,7 +532,7 @@ class JobsManager(object):
 
 										results[expression] = output[0:i2-i1]
 							# for this order and dataset all values are calculated, now call the callback
-							for key, value in results.items():
+							for key, value in list(results.items()):
 								if value is None:
 									logger.debug("output[%r]: None" % (key,))
 								else:
@@ -549,7 +558,7 @@ class JobsManager(object):
 				for callback in self.after_execute:
 					try:
 						callback()
-					except Exception, e:
+					except Exception as e:
 						logger.exception("error in post processing callback")
 						error_text = str(e)
 			else:

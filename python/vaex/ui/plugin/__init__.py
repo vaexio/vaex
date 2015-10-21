@@ -20,7 +20,7 @@ class RegisterPlugins(type):
 
 
 class PluginPlot(object):
-	__metaclass__ = RegisterPlugins # trick to keep a list of plugins
+	__metaclass__ = RegisterPlugins
 	def __init__(self, dialog):
 		self.dialog = dialog
 
@@ -48,7 +48,7 @@ class PluginPlot(object):
 
 
 class PluginLayer(object):
-	__metaclass__ = RegisterPlugins # trick to keep a list of plugins
+	__metaclass__ = RegisterPlugins
 	def __init__(self, parent, layer):
 		self.parent = parent
 		self.layer = layer
@@ -74,7 +74,7 @@ class PluginLayer(object):
 		pass
 
 class PluginDataset(object):
-	__metaclass__ = RegisterPlugins # trick to keep a list of plugins
+	__metaclass__ = RegisterPlugins
 	def __init__(self, dataset, widget):
 		self.dataset = dataset
 		self.widget = widget

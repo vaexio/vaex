@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import vaex.dataset as dataset
 import numpy as np
 import unittest
@@ -11,7 +12,7 @@ a = vaex.execution.buffer_size # will crash if we decide to rename it
 # this will make the test execute more code and may show up bugs
 vaex.execution.buffer_size = 3
 
-vx.set_log_level_warning()
+vx.set_log_level_exception()
 #vx.set_log_level_debug()
 
 class CallbackCounter(object):
@@ -25,8 +26,8 @@ class TestDataset(unittest.TestCase):
 	def setUp(self):
 		self.dataset = dataset.DatasetArrays()
 
-		x = np.arange(10)
-		y = x ** 2
+		self.x = x = np.arange(10)
+		self.y = y = x ** 2
 		self.dataset.add_column("x", x)
 		self.dataset.add_column("y", y)
 		self.dataset.set_variable("t", 1.)
@@ -72,6 +73,17 @@ class TestDataset(unittest.TestCase):
 			z = self.dataset.evaluate("z")
 			z_test = x + t * y
 			np.testing.assert_array_almost_equal(z, z_test)
+
+
+	def test_subspace_errors(self):
+
+		with self.assertRaises(SyntaxError):
+			self.dataset("x/").sum()
+		with self.assertRaises(KeyError):
+			self.dataset("doesnotexist").sum()
+
+		# that that after a error we can still continue
+		self.dataset("x").sum()
 
 	def test_evaluate_nested(self):
 		self.dataset.add_virtual_column("z2", "-z")
@@ -133,6 +145,10 @@ class TestDataset(unittest.TestCase):
 		x, y = self.datasetxy("x", "y").var()
 		self.assertAlmostEqual(x, 0.5)
 		self.assertAlmostEqual(y, 1.)
+
+		x, y = self.dataset("x", "y").var()
+		self.assertAlmostEqual(x, np.mean(self.x**2))
+		self.assertAlmostEqual(y, np.mean(self.y**2))
 
 	def test_concat(self):
 		self.assertEqual(self.dataset_concat.get_column_names(), ["x"])
@@ -245,16 +261,22 @@ class TestDataset(unittest.TestCase):
 				value = dataset.columns["x"][:][i]
 				self.assertEqual([value, value**2], values)
 
+	def test_selection(self):
+		total = self.dataset("x").sum()
+		self.dataset.select("x > 5")
+		total_subset = self.dataset("x").selected().sum()
+		self.assertLess(total_subset, total)
+		pass # TODO
 
 
-test_port = 19999
+test_port = 29001
 
 class TestWebServer(unittest.TestCase):
 	def setUp(self):
 		self.dataset = dataset.DatasetArrays()
 
-		x = np.arange(10)
-		y = x ** 2
+		self.x = x = np.arange(10)
+		self.y = y = x ** 2
 		self.dataset.add_column("x", x)
 		self.dataset.add_column("y", y)
 

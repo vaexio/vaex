@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-import ConfigParser as configparser
+
+import configparser as configparser
 import os
 from math import *
 import glob
@@ -35,7 +35,7 @@ def recursive_import(basedirname, dirname):
 				#print "MOD", modulename
 				#if enable_logging:
 				#	logger.debug("basedir: %s; name: %s; modulename: %s" % (basedirname, name, modulename))
-				exec "import %s" % modulename
+				exec("import %s" % modulename)
 				
 				
 class SubScope(object):
@@ -145,8 +145,8 @@ class IniScope(object):
 	def reset(self):
 		self.dict = dict(self.defaults)
 		def prt(*args):
-			print "dsaaaaaaaaaaaaaaaa"
-			print args
+			print("dsaaaaaaaaaaaaaaaa")
+			print(args)
 		self.dict["print"] = prt
 		self.ini = configparser.ConfigParser(dict_type=vaex.misc.ordereddict.OrderedDict)
 		self.ini.optionxform = str
@@ -157,7 +157,7 @@ class IniScope(object):
 		tempini.optionxform = str
 		filename = filename.strip() # strip spaces
 		if not os.path.exists(filename):
-			print "error: file %s missing" % filename
+			print(("error: file %s missing" % filename))
 			sys.exit(-1) 
 		if os.path.exists(filename):
 			tempini.read(filename)
@@ -190,7 +190,7 @@ class IniScope(object):
 		
 	def readfiles(self, *extrafilenames):
 		#self.dict["__filename__"] #f = os.path.abspath(os.path.join(dirname, name))
-		assert os.path.exists(self.filename), "missing ini file: %s" % `self.filename`
+		assert os.path.exists(self.filename), "missing ini file: %s" % repr(self.filename)
 		allfilenames = [self.filename] + list(extrafilenames)
 		newallfilenames = []
 		#print "all filenames", allfilenames
@@ -218,7 +218,7 @@ class IniScope(object):
 			#print >>sys.stderr, filename
 			#print >>sys.stdout, filename
 			if not os.path.exists(filename):
-				print "file % missing" % filename
+				print(("file % missing" % filename))
 				sys.exit(-1)
 			self.ini.read(filename)
 		#print self.ini.sections()
@@ -226,7 +226,7 @@ class IniScope(object):
 		if "imports" in ini.sections():
 			for name, value in ini.items("imports"):
 				logger.debug("import: %s (%s)" % (name, value))
-				exec "import %s" % name
+				exec("import %s" % name)
 				basename = name.split(".")[0]
 				#print "   basename", basename
 				basemodule = eval(basename)
@@ -290,7 +290,7 @@ class IniScope(object):
 		if "imports" in ini.sections():
 			for name, value in ini.items("imports"):
 				logger.debug("import: %s (%s)" % (name, value))
-				exec "import %s" % name
+				exec("import %s" % name)
 				basename = name.split(".")[0]
 				#print "   basename", basename
 				basemodule = eval(basename)
@@ -385,7 +385,7 @@ def createobj_fromini(ini, name, scope, configurations):
 		if "__post__" in items:
 			post = items["__post__"]
 			del items["__post__"]
-		for arg, value in items.items():
+		for arg, value in list(items.items()):
 			#print name, ":", arg
 			if arg == "class":
 				classname = value
@@ -420,7 +420,7 @@ def createobj_fromini(ini, name, scope, configurations):
 				elif value == "parameter":
 					nestedname = "%s.%s" % (name, arg)
 					if nestedname not in scope:
-						raise Exception, "missing parameter: %s" % nestedname
+						raise Exception("missing parameter: %s" % nestedname)
 					value = scope[nestedname]
 				else:
 					try:
@@ -462,15 +462,15 @@ def createobj_fromini(ini, name, scope, configurations):
 		#print name
 	scope[name] = obj
 	if post:
-		print "EXECUTING post: %r" % post
+		print(("EXECUTING post: %r" % post))
 		eval(post, globals(), scope)
 	return obj
 
 if 0:
 	for section in ini.sections():
-		print "[%s]" % section
+		print(("[%s]" % section))
 		for name, value in ini.items(section):
-			print "%s=%s" % (name, value)
+			print(("%s=%s" % (name, value)))
 			
 
 #$scope = Scope()

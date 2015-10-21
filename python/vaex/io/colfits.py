@@ -17,12 +17,12 @@ def write_colfits(dataset, path, selection=False):
 	#vars.
 	def write(key, value, comment=""):
 		f.write("{key:8}= {value:20} / {comment:47}".format(key=key, value=value, comment=comment))
-		print "at pos", f.tell()
+		print(("at pos", f.tell()))
 	def finish_header():
-		print f.write("{end:80}".format(end="END"))
+		print((f.write("{end:80}".format(end="END"))))
 		offset = f.tell()
 		bytes_over_padding = offset % 2880
-		print "bytes_over_padding", bytes_over_padding
+		print(("bytes_over_padding", bytes_over_padding))
 		if bytes_over_padding > 0:
 			padding = 2880 - bytes_over_padding
 			f.write(" "*padding)
@@ -69,7 +69,7 @@ def write_colfits(dataset, path, selection=False):
 			i2 = min(len(dataset), (i+1) * chunk_size)
 			data_big_endian = column[i1:i2].astype(">" + numpy_type_name)
 			f.write(data_big_endian)
-		print f.tell(), f.tell() / 1024**2, "mb", len(dataset)
+		print((f.tell(), f.tell() / 1024**2, "mb", len(dataset)))
 		assert i2 == len(dataset)
 	finish_data()
 

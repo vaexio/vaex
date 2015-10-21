@@ -1079,8 +1079,9 @@ i;
 		//array[j] = i;
     array[j] = 	native ? i : __builtin_bswap64(i);
 		if( ((i% 10000000) == 0) ){
-			printf("%lld out of %lld (%.2f%%)\n", i, length, (i*100./length));
+			printf("\r%lld out of %lld (%.2f%%)", i, length, (i*100./length));
 			fflush(stdout);
+
 		}
 		//printf("r=%d\n", r);
 		//for(long long k=0; k < i+1; k++)
@@ -1252,11 +1253,73 @@ static PyMethodDef pyvaex_functions[] = {
     { NULL, NULL, 0 }
 };
 
+struct module_state {
+    PyObject *error;
+};
 
+#if PY_MAJOR_VERSION >= 3
+#define GETSTATE(m) ((struct module_state*)PyModule_GetState(m))
+#else
+#define GETSTATE(m) (&_state)
+static struct module_state _state;
+#endif
+
+#if PY_MAJOR_VERSION >= 3
+
+static int vaexfast_traverse(PyObject *m, visitproc visit, void *arg) {
+    Py_VISIT(GETSTATE(m)->error);
+    return 0;
+}
+
+static int vaexfast_clear(PyObject *m) {
+    Py_CLEAR(GETSTATE(m)->error);
+    return 0;
+}
+
+
+static struct PyModuleDef moduledef = {
+        PyModuleDef_HEAD_INIT,
+        "vaex.vaexfast",
+        NULL,
+        sizeof(struct module_state),
+        pyvaex_functions,
+        NULL,
+        vaexfast_traverse,
+        vaexfast_clear,
+        NULL
+};
+#define INITERROR return NULL
+#else
+#define INITERROR return
+#endif
+
+
+#if PY_MAJOR_VERSION >= 3
+extern "C" PyObject *
+PyInit_vaexfast(void)
+#else
 PyMODINIT_FUNC
 initvaexfast(void)
+#endif
 {
 	import_array();
+#if PY_MAJOR_VERSION >= 3
+    PyObject *module = PyModule_Create(&moduledef);
+#else
+	PyObject *module = Py_InitModule("vaex.vaexfast", pyvaex_functions);
+#endif
 
-	Py_InitModule("vaex.vaexfast", pyvaex_functions);
+    if (module == NULL)
+        INITERROR;
+    struct module_state *st = GETSTATE(module);
+
+    st->error = PyErr_NewException("vaex.vaexfast.Error", NULL, NULL);
+    if (st->error == NULL) {
+        Py_DECREF(module);
+        INITERROR;
+    }
+
+#if PY_MAJOR_VERSION >= 3
+    return module;
+#endif
 }

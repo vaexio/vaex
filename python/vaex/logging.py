@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 #from .... import logging
 from __future__ import absolute_import
+
+#from . import logging
 import logging
-import logging.handlers
+print(logging.__file__)
 from logging import getLogger as _getLogger
 
 #logging.basicConfig(level=logging.ERROR)
@@ -50,5 +52,5 @@ if False:
 	
 	#iclogger = logging.Logger('schw.ic')
 	#rootlogger.setLevel(DEBUG)
-	print dir(rootlogger)
+	print((dir(rootlogger)))
 #rootlogger.basicConfig()

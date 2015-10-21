@@ -1,7 +1,7 @@
 __author__ = 'maartenbreddels'
 import numpy as np
 import h5py
-import logging
+from . import logging
 import vaex
 import vaex.utils
 import vaex.execution
@@ -32,9 +32,9 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 		#i1, i2 = dataset.current_slice
 		N = len(dataset) if not selection else dataset.selected_length()
 		if N == 0:
-			raise ValueError, "Cannot export empty table"
+			raise ValueError("Cannot export empty table")
 		logger.debug("exporting %d rows to file %s" % (N, path))
-		column_names = column_names or (dataset.get_column_names() + (dataset.virtual_columns.keys() if virtual else []))
+		column_names = column_names or (dataset.get_column_names() + (list(dataset.virtual_columns.keys()) if virtual else []))
 		logger.debug(" exporting columns: %r" % column_names)
 		for column_name in column_names:
 			if column_name in dataset.get_column_names():
@@ -71,7 +71,10 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 		shuffle_array[:] = shuffle_array_full[shuffle_array_full<N]
 		del shuffle_array_full
 	elif shuffle:
-		vaex.vaexfast.shuffled_sequence(shuffle_array)
+		# better to do this in memory
+		shuffle_array_memory = np.zeros_like(shuffle_array)
+		vaex.vaexfast.shuffled_sequence(shuffle_array_memory)
+		shuffle_array[:] = shuffle_array_memory
 
 	i1, i2 = 0, N #len(dataset)
 	#print "creating shuffled array"
@@ -127,7 +130,7 @@ import sys
 def batch_copy_index(from_array, to_array, shuffle_array):
 	N_per_batch = int(1e7)
 	length = len(from_array)
-	batches = long(math.ceil(float(length)/N_per_batch))
+	batches = int(math.ceil(float(length)/N_per_batch))
 	#print np.sum(from_array)
 	for i in range(batches):
 		#print "batch", i, "out of", batches, ""

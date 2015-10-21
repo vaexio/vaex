@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 import threading
-import Queue
+import queue
 import math
 import multiprocessing
 import sys
 import vaex.utils
+from . import logging
 lock = threading.Lock()
 
 thread_count_default = multiprocessing.cpu_count()
+logger = logging.getLogger("vaex.multithreading")
 
 
 class ThreadPoolIndex(object):
@@ -15,14 +17,17 @@ class ThreadPoolIndex(object):
 		self.nthreads = nthreads
 		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
 		self.lock = threading.Lock()
-		self.queue_in = Queue.Queue()
-		self.queue_out = Queue.Queue()
+		self.queue_in = queue.Queue()
+		self.queue_out = queue.Queue()
 		for thread in self.threads:
 			thread.setDaemon(True)
 			thread.start()
+		self.exception_occurred = False
 
 	def map(self, callable, iterator, on_error=None):
+		results = []
 		with lock:
+			self.exception_occurred = False
 			self.callable = callable
 			count = 0
 			for element in iterator:
@@ -40,12 +45,26 @@ class ThreadPoolIndex(object):
 						on_error(element[1])
 						done = True
 					else:
-						raise element[1], None, element[2]
+						#print "RAISE"
+						self.exception_occurred = True
+						logger.debug("wait for queue_in")
+						self.queue_in.join()
+						# now we know all threads are waiting for the queue_in, so they will not fill queue_out
+						# but, it ma still contain elements, like exceptions, so flush it
+						logger.debug("flush queue_out")
+						while not self.queue_out.empty():
+							self.queue_out.get()
+						#print("********************")
+						#print(element)
+						raise element[0](element[1]) #element[0].__class__(None, element[2])
+						#TODO: 2to3 gave this suggestion: raise element[1].with_traceback(element[2])
 						done = True
 				else:
-					yield element
+					#yield element
+					results.append(element)
 					yielded += 1
 				done = yielded == count
+		return results
 
 
 	def close(self):
@@ -59,23 +78,31 @@ class ThreadPoolIndex(object):
 		while not done:
 			#print "waiting..", index
 			args = self.queue_in.get()
-			if self.callable is None:
-				#print "ending thread.."
-				done = True
-			else:
-				#print "running..", index
-				try:
-					#lock.acquire()
-					result = self.callable(index, *args)
-					#lock.release()
-				except Exception, e:
-					exc_info = sys.exc_info()
-					self.queue_out.put(exc_info)
+			try:
+				if self.exception_occurred:
+					pass # just eat the whole queue after an exception
+					#print "thread: %s just eat queue item %r" % (index, args)
 				else:
-					self.queue_out.put(result)
-				#print "done..", index
-				#self.semaphore_outrelease()
-		#print "thread closed"
+					if self.callable is None:
+						#print "ending thread.."
+						done = True
+					else:
+						#print "running..", index
+						try:
+							#lock.acquire()
+							result = self.callable(index, *args)
+							#lock.release()
+						except Exception as e:
+							exc_info = sys.exc_info()
+							self.queue_out.put(exc_info)
+						else:
+							self.queue_out.put(result)
+			finally:
+				self.queue_in.task_done()
+
+					#print "done..", index
+					#self.semaphore_outrelease()
+			#print "thread closed"
 
 
 
@@ -92,8 +119,8 @@ class ThreadPool(object):
 		self.nthreads = nthreads
 		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
 		#self.semaphores_in = [threading.Semaphore(0) for i in range(nthreads)]
-		self.queues_in = [Queue.Queue(1) for i in range(nthreads)]
-		self.queues_out = [Queue.Queue(1) for i in range(nthreads)]
+		self.queues_in = [queue.Queue(1) for i in range(nthreads)]
+		self.queues_out = [queue.Queue(1) for i in range(nthreads)]
 		for thread in self.threads:
 			thread.setDaemon(True)
 			thread.start()
@@ -119,7 +146,7 @@ class ThreadPool(object):
 					#lock.acquire()
 					result = self.callable(index, *args)
 					#lock.release()
-				except Exception, e:
+				except Exception as e:
 					exc_info = sys.exc_info()
 					self.queues_out[index].put(exc_info)
 				else:
@@ -156,7 +183,8 @@ class ThreadPool(object):
 		for result in results:
 			#print result, isinstance(result, tuple)#, len(result) > 1, isinstance(result[1], Exception)
 			if isinstance(result, tuple) and len(result) > 1 and isinstance(result[1], Exception):
-				raise result[1], None, result[2]
+				raise result[1](None, result[2])
+				# TODO: 2to3 gave this suggestion raise result[1].with_traceback(result[2])
 		return results
 
 
