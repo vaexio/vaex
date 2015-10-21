@@ -5,7 +5,7 @@ os:
 install:
 #  - sudo apt-get update
 #  - sudo apt-get install libhdf5-serial-dev libqt4-dev
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install libc-bin=2.12.1-0ubuntu10.2 libc6=2.12.1-0ubuntu10.2; fi
+#  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install libc-bin=2.12.1-0ubuntu10.2 libc6=2.12.1-0ubuntu10.2; fi
   - if [[ $TRAVIS_OS_NAME == linux ]]; then wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh; fi
   - if [[ $TRAVIS_OS_NAME == osx ]]; then wget https://repo.continuum.io/miniconda/Miniconda-latest-MacOSX-x86_64.sh -O miniconda.sh; fi
   - bash miniconda.sh -b -p $HOME/miniconda
