@@ -1,3 +1,6 @@
+.. image:: https://travis-ci.org/maartenbreddels/vaex.svg?branch=master
+    :target: https://travis-ci.org/maartenbreddels/vaex
+    
 VaeX: Visualization and eXploration
 
 Veax is a graphical tool to visualize and explore large tabular datasets.

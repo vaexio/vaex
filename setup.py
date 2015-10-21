@@ -111,10 +111,10 @@ if has_py2app:
 
 
 #print glob.glob("doc/*")
-
-DATA_FILES.append(["doc/", glob.glob("docs/build/html/*.html") + glob.glob("docs/build/html/*.js")] )
-for sub in "_static _images _sources".split():
-	DATA_FILES.append(["doc/" + sub, glob.glob("docs/build/html/" +sub +"/*")] )
+if 0:
+	DATA_FILES.append(["doc/", glob.glob("docs/build/html/*.html") + glob.glob("docs/build/html/*.js")] )
+	for sub in "_static _images _sources".split():
+		DATA_FILES.append(["doc/" + sub, glob.glob("docs/build/html/" +sub +"/*")] )
 #print DATA_FILES
 OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/vaex/ui/icons'],
            'matplotlib_backends':'-',
@@ -178,11 +178,11 @@ setup(
     #setup_requires=['py2app'],
     #setup_requires=["sphinx"],
     includes=["vaex", "md5", "astropy"],
-    packages=["vaex", "vaex", "vaex.ui.plugin", "vaex.ui.icons"],
-    install_requires=reqs,
-    entry_points={ 'console_scripts': [ 'vaex=vaex.main:main']  },
+    packages=["vaex", "vaex.ui", "vaex.misc", "vaex.notebook", "vaex.io", "vaex.ui.plugin", "vaex.ui.icons"],
+    #install_requires=reqs,
+    entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },
     ext_modules=extensions,
-    package_data={'vaex': ['icons/*.png']},
+    package_data={'vaex': ['ui/icons/*.png']},
     package_dir={'vaex':'python/vaex'},
     cmdclass=cmdclass,
     description="Veax is a graphical tool to visualize and explore large tabular datasets.",
