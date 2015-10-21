@@ -1079,8 +1079,8 @@ i;
 		//array[j] = i;
     array[j] = 	native ? i : __builtin_bswap64(i);
 		if( ((i% 10000000) == 0) ){
-			//printf("%lld out of %lld (%.2f%%)\n", i, length, (i*100./length));
-			//fflush(stdout);
+			printf("\r%lld out of %lld (%.2f%%)", i, length, (i*100./length));
+			fflush(stdout);
 
 		}
 		//printf("r=%d\n", r);

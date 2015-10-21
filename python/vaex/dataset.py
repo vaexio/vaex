@@ -218,10 +218,18 @@ class TaskHistogram(Task):
 import scipy.ndimage.filters
 
 class SubspaceGridded(object):
-	def __init__(self, subspace_bounded, grid):
+	def __init__(self, subspace_bounded, grid, vx=None, vy=None, vcounts=None):
 		self.subspace_bounded = subspace_bounded
 		self.grid = grid
+		self.vx = vx
+		self.vy = vy
+		self.vcounts = vcounts
 
+	def vector(self, weightx, weighty, size=32):
+		counts = self.subspace_bounded.gridded_by_histogram(size=size)
+		vx = self.subspace_bounded.gridded_by_histogram(size=size, weight=weightx)
+		vy = self.subspace_bounded.gridded_by_histogram(size=size, weight=weighty)
+		return SubspaceGridded(self.subspace_bounded, self.grid, vx=vx, vy=vy, vcounts=counts)
 
 	def filter_gaussian(self, sigmas=1):
 		return SubspaceGridded(self.subspace_bounded, scipy.ndimage.filters.gaussian_filter(self.grid, sigmas))
@@ -243,6 +251,27 @@ class SubspaceGridded(object):
 		from matplotlib import pylab
 		fig, ax = pylab.subplots()
 		self.plot(axes=ax, f=np.log1p)
+		import vaex.utils
+		if all([k is not None for k in [self.vx, self.vy, self.vcounts]]):
+			N = self.vx.grid.shape[0]
+			bounds = self.subspace_bounded.bounds
+			print bounds
+			positions = [vaex.utils.linspace_centers(bounds[i][0], bounds[i][1], N) for i in range(self.subspace_bounded.subspace.dimension)]
+			print positions
+			mask = self.vcounts.grid > 0
+			vx = np.zeros_like(self.vx.grid)
+			vy = np.zeros_like(self.vy.grid)
+			vx[mask] = self.vx.grid[mask] / self.vcounts.grid[mask]
+			vy[mask] = self.vy.grid[mask] / self.vcounts.grid[mask]
+			#vx = self.vx.grid / self.vcounts.grid
+			#vy = self.vy.grid / self.vcounts.grid
+			x2d, y2d = np.meshgrid(positions[0], positions[1])
+			ax.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask])
+			#print x2d
+			#print y2d
+			#print vx
+			#print vy
+			#ax.quiver(x2d, y2d, vx, vy)
 		ax.title.set_text("$\log(1+counts)$")
 		ax.set_xlabel(self.subspace_bounded.subspace.expressions[0])
 		ax.set_ylabel(self.subspace_bounded.subspace.expressions[1])
@@ -312,6 +341,8 @@ class SubspaceBounded(object):
 	def gridded_by_histogram(self, size=256, weight=None):
 		grid = self.histogram(size=size, weight=weight)
 		return SubspaceGridded(self, grid)
+
+
 
 
 class Subspace(object):
@@ -812,7 +843,7 @@ class Dataset(object):
 		"""
 		self._active_fraction = value
 		#self._fraction_length = int(self._length * self._active_fraction)
-		# TODO: this only for local datasets
+		# TODO: this only works for local datasets
 		self._set_mask(None)
 		self.set_current_row(None)
 		self._length = int(round(self.full_length() * self._active_fraction))
@@ -989,9 +1020,9 @@ class DatasetMemoryMapped(DatasetLocal):
 	def unlink(self, link, receiver):
 		link.listeners.remove(receiver)
 		
-	def full_length(self):
-		return self._length
-		
+	#def full_length(self):
+	#	return self._length
+
 	#def __len__(self):
 	#	return self._fraction_length
 		

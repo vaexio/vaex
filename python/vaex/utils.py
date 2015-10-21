@@ -29,6 +29,8 @@ def subdivide(length, parts=None, max_length=None):
 			i1, i2 = index * part_length, min(length, (index +1) * part_length)
 			yield i1, i2
 
+def linspace_centers(start, stop, N):
+	return np.arange(N) / (N+0.) * (stop-start) + float(stop-start)/N/2 + start
 
 def multisum(a, axes):
 	correction = 0
