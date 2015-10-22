@@ -61,7 +61,6 @@ class LinkButton(QtGui.QToolButton):
 		#self.setMenu(self.menu)
 		self.link = None
 
-
 	def onToggleLink(self):
 		if self.isChecked():
 			logger.debug("connected link")
@@ -161,7 +160,7 @@ class LayerTable(object):
 		self.options = options
 		self.grids = vaex.grids.Grids(self.dataset, self.thread_pool, *expressions)
 		self.grids.ranges = self.ranges_grid
-		self.vector_expressions = [None,] * 3
+		self.vector_expressions = [None,] * (1 if self.dimensions == 1 else 3)
 		self.figure = figure
 		self.canvas = canvas
 		self.widget_build = False
@@ -233,6 +232,10 @@ class LayerTable(object):
 		self.signal_plot_dirty = vaex.events.Signal("plot_dirty")
 		self.signal_plot_update = vaex.events.Signal("plot_update")
 		#self.dataset.signal_pick.connect(self.on)
+
+	def __repr__(self):
+		classname = self.__class__.__module__ + "." +self.__class__.__name__
+		return "<%s(name=%r, expressions=%r)> instance at 0x%x" % (classname, self.name, self.expressions, id(self))
 
 	@property
 	def weight(self):
@@ -406,7 +409,8 @@ class LayerTable(object):
 		except Exception as e:
 			logger.exception("amplitude field")
 			traceback.print_exc()
-			self.error_in_field(self.amplitude_box, "amplitude", e)
+			print self.error_in_field
+			self.error_in_field(self.amplitude_box, "amplitude of layer %s" % self.name, e)
 			return
 		logger.debug("begin plot 2")
 		self.amplitude_grid_selection = None
@@ -867,6 +871,7 @@ class LayerTable(object):
 			subspace = subspace.selected()
 
 		for i, expression in enumerate(self.vector_expressions):
+			print self, self.vector_expressions, self.ranges_grid
 			name = "xyzw"[i]
 
 			# add arrays x y z which container the centers of the bins

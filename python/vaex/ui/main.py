@@ -70,7 +70,7 @@ custompath = path = os.path.expanduser('~/.vaex/custom.py')
 #print path
 if os.path.exists(path):
 	customModule = imp.load_source('vaex.custom', path)
-	custom = customModule.Custom()
+	#custom = customModule.Custom()
 else:
 	custom = None
 	logger.debug("%s does not exist" % path)

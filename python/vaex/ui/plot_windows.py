@@ -303,9 +303,11 @@ class PlotDialog(QtGui.QWidget):
 		if name is None:
 			name = options.get("name", "Layer: " + str(len(self.layers)+1))
 		ranges = copy.deepcopy(self.ranges_show)
+		logger.debug("adding layer {name} with expressions {expressions} for dataset {dataset} and options {options}".format(**locals()))
 
 		if len(self.layers) > 0:
 			first_layer = self.layers[0]
+			assert len(expressions) == first_layer.dimensions
 			for i in range(self.dimensions):
 				if ranges[i] is None and first_layer.ranges_grid[i] is not None:
 					ranges[i] = copy.copy(first_layer.ranges_grid[i])
@@ -342,7 +344,7 @@ class PlotDialog(QtGui.QWidget):
 			assert self.current_layer == layer
 			self.load_options(options["options"])
 		layer.add_jobs()
-		#self.dataset.executor.execute()
+		self.dataset.executor.execute()
 		#self.queue_update()
 		return layer
 
