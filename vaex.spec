@@ -26,4 +26,4 @@ coll = COLLECT(exe,
                data_tree,
                strip=None,
                upx=True,
-               name=vaex.__package_name__)
+               name=vaex.__build_name__)

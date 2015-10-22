@@ -12,6 +12,8 @@ hash = '{hash}'
 """
 if __name__ == "__main__":
 	version = sys.argv[1]
+	print("deprecated")
+	sys.exit(1)
 	f = file(os.path.join(os.path.dirname(__file__), "version.py"), "w")
 	m = re.match("v([0-9]+)\.([0-9]+)-([0-9]+)-([\w]+)", version)
 	if m is None:

@@ -10,23 +10,17 @@ except:
 	print("version file not found, please run git/hooks/post-commit or git/hooks/post-checkout and/or install them as hooks (see git/README)", file=sys.stderr)
 	raise
 
-__release_name__ = "alpha"
+__version__ = version.versionstring
+#__pre_release_name__ = version.pre_release
 __version_tuple__ = version.versiontuple
 __program_name__ = "vaex"
-__version__ = "%d.%d.%d" % __version_tuple__
-__release__ = version.versiontring[:]
-__clean_release__ = "%d.%d.%d" % (__version_tuple__)
-__full_name__ = __program_name__ + "-" + __release__
-__clean_name__ =  __program_name__ + "-" + __clean_release__
+#__version_name__ = version.versiontring
+#__release_name_ = version.versiontring[:]
+#__clean_release__ = "%d.%d.%d" % (__version_tuple__)
+__full_name__ = __program_name__ + "-" + __version__
+#__clean_name__ =  __program_name__ + "-" + __clean_release__
 
-import platform
-osname = platform.system().lower()
-if osname == "darwin":
-	__package_name__ = __clean_name__ + "-osx"
-if osname == "linux":
-	__package_name__ = __clean_name__ + "-linux"
-if osname == "windows":
-	__package_name__ = __clean_name__ + "-win"
+__build_name__ = __full_name__ + "-" +version.osname
 
 
 import vaex.dataset

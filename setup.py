@@ -88,9 +88,9 @@ if has_py2app and sys.argv[1] == "py2app":
 					print cmd
 					os.system(cmd)
 
-			os.system("cp dist/helmi* dist/vaex.app/Contents/Resources/")
+			os.system("cp data/helmi* dist/vaex.app/Contents/Resources/")
 			os.system("cd dist")
-			zipname = "%s-osx.zip" % vaex.__clean_name__
+			zipname = "%s.zip" % vaex.__build_name__
 			os.system("cd dist;rm %s" % zipname)
 			os.system("cd dist;zip -r %s %s.app" % (zipname, vaex.__program_name__))
 			retvalue = os.system("git diff --quiet")

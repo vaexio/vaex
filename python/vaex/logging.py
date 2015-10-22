@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-#from .... import logging
 from __future__ import absolute_import
+#from .... import logging
 
 #from . import logging
 import logging
