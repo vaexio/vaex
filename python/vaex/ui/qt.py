@@ -1,5 +1,7 @@
+from __future__ import print_function
 # -*- coding: utf-8 -*-
 import math
+import collections
 
 try:
 	from PyQt4 import QtGui, QtCore, QtTest #, QtNetwork
@@ -7,16 +9,16 @@ try:
 	qt_version = QtCore.PYQT_VERSION_STR
 	import sip
 	#sip.setapi('QVariant', 2)
-except ImportError, e1:
+except ImportError as e1:
 	try:
 		from PySide import QtGui, QtCore, QtTest #, QtNetwork
 		#from PySide.QtWebKit import QWebView
 		QtCore.pyqtSignal= QtCore.Signal 
 		qt_version = QtCore.__version__
 		#QtCore.Slot = QtCore.pyqtSlot
-	except ImportError, e2:
-		print >>sys.stderr, "could not import PyQt4 or PySide, please install"
-		print >>sys.stderr, "errors: ", repr(e1), repr(e2)
+	except ImportError as e2:
+		print("could not import PyQt4 or PySide, please install", file=sys.stderr)
+		print("errors: ", repr(e1), repr(e2), file=sys.stderr)
 		sys.exit(1)
 
 def attrsetter(object, attr_name):
@@ -144,7 +146,7 @@ class Checkbox(object):
 
 		def on_change(state):
 			value = state == QtCore.Qt.Checked
-			print label_text, "set to", value
+			print(label_text, "set to", value)
 			setter(value)
 			self.update()
 		self.checkbox.setChecked(getter())
@@ -184,7 +186,7 @@ class Slider(object):
 			self.label_value.setText(format.format(getter()))
 		def on_change(index, slider=self.slider):
 			value = numeric_type(index/float(value_steps) * (inverse(value_max) - inverse(value_min)) + inverse(value_min))
-			print label_text, "set to", value
+			print(label_text, "set to", value)
 			setter(transform(value))
 			self.update()
 			update_text()
@@ -221,8 +223,15 @@ def gettext(parent, title, label, default=""):
 	return str(text) if ok else None
 
 
+def set_choose(text, ok=True):
+	def callback(*args):
+		QtGui.QInputDialog.getItem = previous_value
+		return text, ok
+	previous_value = QtGui.QInputDialog_getItem
+	QtGui.QInputDialog_getItem = callback
+QtGui.QInputDialog_getItem = QtGui.QInputDialog.getItem
 def choose(parent, title, label, options, index=0, editable=False):
-	text, ok = QtGui.QInputDialog.getItem(parent, title, label, options, index, editable)
+	text, ok = QtGui.QInputDialog_getItem(parent, title, label, options, index, editable)
 	if editable:
 		return text if ok else None
 	else:
@@ -301,20 +310,28 @@ import platform
 import getpass
 import sys
 import os
-import urllib
+#import urllib.request, urllib.parse, urllib.error
 import vaex.utils
 #from email.mime.text import MIMEText
+
+try:
+	from urllib.request import urlopen
+	from urllib.parse import urlparse, urlencode
+except ImportError:
+	from urlparse import urlparse
+	from urllib import urlopen, urlencode, quote as urlquote
+
 
 def email(text):
 	osname = platform.system().lower()
 	if osname == "linux":
 		text = text.replace("#", "%23") # for some reason, # needs to be double quoted on linux, otherwise it is interpreted as comment symbol
 	
-	body = urllib.quote(text)
+	body = urlquote(text)
 		
-	subject = urllib.quote('Error report for: ' +vaex.__full_name__)
+	subject = urlquote('Error report for: ' +vaex.__full_name__)
 	mailto = "mailto:maartenbreddels@gmail.com?subject={subject}&body={body}".format(**locals())
-	print "open:", mailto
+	print("open:", mailto)
 	vaex.utils.os_open(mailto)
 		
 
@@ -341,7 +358,7 @@ def old_email(text):
 def qt_exception(parent, exctype, value, traceback):
 	trace_lines = tb.format_exception(exctype, value, traceback)
 	trace = "".join(trace_lines)
-	print trace
+	print(trace)
 	info = "username: %r\n" % (getpass.getuser(),)
 	info += "program: %r\n" % vaex.__program_name__
 	info += "version: %r\n" % vaex.__version__
@@ -353,7 +370,7 @@ def qt_exception(parent, exctype, value, traceback):
 	for attr in attrs:
 		if not attr.startswith("_") and attr not in ["popen", "system_alias"]:
 			f = getattr(platform, attr)
-			if callable(f):
+			if isinstance(f, collections.Callable):
 				try:
 					info += "%s: %r\n" % (attr, f())
 				except:
@@ -373,7 +390,7 @@ def qt_exception(parent, exctype, value, traceback):
 	buttonQuit = QtGui.QPushButton("Quit program", dialog) 
 	buttonContinue = QtGui.QPushButton("Continue", dialog) 
 	def exit(ignore=None):
-		print "exit"
+		print("exit")
 		sys.exit(1)
 	def _email(ignore=None):
 		if QtGui.QMessageBox.information(dialog, "Send report", "Confirm that you want to send a report", QtGui.QMessageBox.Abort|QtGui.QMessageBox.Yes) == QtGui.QMessageBox.Yes:

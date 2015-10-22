@@ -44,7 +44,7 @@ def disjoined(data):
 	data_disjoined = None
 	dim = len(data.shape)
 	for d in range(dim):
-		axes = range(dim)
+		axes = list(range(dim))
 		axes.remove(d)
 		data1d = multisum(data, axes)
 		shape = [1 for k in range(dim)]
@@ -67,18 +67,18 @@ def get_data_file(filename):
 	except:
 		pass
 	# this is where we expect data to be in normal installations
-	for extra in ["", "data", "data/dist"]:
+	for extra in ["", "data", "data/dist", "../data", "../data/dist"]:
 		path = os.path.join(os.path.dirname(__file__), "..", "..", extra, filename)
-		#print "try", path
+		print "try", path
 		if os.path.exists(path):
 			return path
 		path = os.path.join(sys.prefix, extra, filename)
-		#print "try", path
+		print "try", path
 		if os.path.exists(path):
 			return path
 		# if all fails..
 		path = os.path.join(get_root_path(), extra, filename)
-		#print "try", path
+		print "try", path
 		if os.path.exists(path):
 			return path
 
@@ -122,7 +122,7 @@ class Timer(object):
 			if self.logger:
 				self.logger.debug("%s starting" % self.name)
 			else:
-				print '[%s starting]...' % self.name
+				print(('[%s starting]...' % self.name))
 			self.tstart = time.time()
 
 	def __exit__(self, type, value, traceback):
@@ -131,7 +131,7 @@ class Timer(object):
 			if self.logger:
 				self.logger.debug(msg)
 			else:
-				print msg
+				print(msg)
 			if type or value or traceback:
-				print type, value, traceback
+				print((type, value, traceback))
 		return False

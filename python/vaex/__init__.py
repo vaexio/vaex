@@ -1,21 +1,27 @@
 """
 Vaex is...
 """# -*- coding: utf-8 -*-
+from __future__ import print_function
+
 try:
-	import version
+	from . import version
 except:
 	import sys
-	print >>sys.stderr, "version file not found, please run git/hooks/post-commit or git/hooks/post-checkout and/or install them as hooks (see git/README)"
+	print("version file not found, please run git/hooks/post-commit or git/hooks/post-checkout and/or install them as hooks (see git/README)", file=sys.stderr)
 	raise
 
-__release_name__ = "alpha"
+__version__ = version.versionstring
+#__pre_release_name__ = version.pre_release
 __version_tuple__ = version.versiontuple
 __program_name__ = "vaex"
-__version__ = "%d.%d.%d" % __version_tuple__
-__release__ = version.versiontring[:]
-__clean_release__ = "%d.%d.%d" % (__version_tuple__)
-__full_name__ = __program_name__ + "-" + __release__
-__clean_name__ =  __program_name__ + "-" + __clean_release__
+#__version_name__ = version.versiontring
+#__release_name_ = version.versiontring[:]
+#__clean_release__ = "%d.%d.%d" % (__version_tuple__)
+__full_name__ = __program_name__ + "-" + __version__
+#__clean_name__ =  __program_name__ + "-" + __clean_release__
+
+__build_name__ = __full_name__ + "-" +version.osname
+
 
 import vaex.dataset
 #import vaex.plot
@@ -56,7 +62,7 @@ def example():
 
 	:rtype: vaex.dataset.Dataset
 	"""
-	import utils
+	from . import utils
 	return open(utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5"))
 
 def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
@@ -76,7 +82,7 @@ def set_log_level_warning():
 	log.rootlogger.setLevel(log.LEVELS['warning'])
 
 def set_log_level_exception():
-	import logging
+	from . import logging
 	logging.getLogger("vaex").setLevel(logging.logging.FATAL)
 
 set_log_level_info()

@@ -29,7 +29,7 @@ if __name__ == '__main__':
 	#sys.stderr = open("stderr.txt", "w")
 	#print sys.argv
 	#if darwin:
-	print sys.argv
+	print(sys.argv)
 	if frozen and len(sys.argv) > 1 and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just start without arguments
 		vaex.ui.main.main([])
 	else:

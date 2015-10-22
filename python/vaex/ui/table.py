@@ -7,7 +7,7 @@ import vaex.logging
 logger = vaex.logging.getLogger("vaex.table")
 
 
-PAGE_LIMIT = long(1e7)
+PAGE_LIMIT = int(1e7)
 
 class FullTableModel(QtCore.QAbstractTableModel): 
 	def __init__(self, dataset,  page_size, page, parent=None, *args): 
@@ -89,7 +89,7 @@ class TableDialog(QtGui.QDialog):
 				item.setCheckState(False)
 				#self.list1d.
 
-		print len(self.dataset)
+		print((len(self.dataset)))
 		pages = int(math.ceil(len(self.dataset)*1./self.tableModel.page_size))
 
 		self.boxlayout = QtGui.QVBoxLayout(self)

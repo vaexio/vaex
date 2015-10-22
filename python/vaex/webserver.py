@@ -2,8 +2,9 @@ __author__ = 'maartenbreddels'
 
 import tornado.ioloop
 import tornado.web
+import tornado.httpserver
 import threading
-import logging
+from . import logging
 import vaex as vx
 import json
 import inspect
@@ -93,18 +94,15 @@ class WebServer(threading.Thread):
 	def mainloop(self):
 		logger.info("serving at http://%s:%d" % (self.address, self.port))
 		self.ioloop = tornado.ioloop.IOLoop.current()
-
 		# listen doesn't return a server object, which we need to close
 		#self.application.listen(self.port, address=self.address)
 		from tornado.httpserver import HTTPServer
 		self.server = HTTPServer(self.application)
 		self.server.listen(self.port, self.address)
-
 		self.ioloop.add_callback(self.started.set)
 		self.ioloop.start()
 
 	def stop_serving(self):
-		#self.application.listen()
 		self.server.stop()
 		self.ioloop.stop()
 

@@ -96,7 +96,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		useblit = True
 		axes_list = self.dialog.getAxesList()
 		if action == self.action_zoom_x:
-			print "zoom x"
+			print("zoom x")
 			self.lastActionZoom = self.action_zoom_x
 			self.dialog.currentModes = [matplotlib.widgets.SpanSelector(axes, functools.partial(self.onZoomX, axes=axes), 'horizontal', useblit=useblit) for axes in axes_list] #, rectprops={"color":"blue"})
 			if useblit:
@@ -107,7 +107,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 			if useblit:
 				self.dialog.canvas.draw() # buggy otherwise
 		if action == self.action_zoom_rect:
-			print "zoom rect"
+			print("zoom rect")
 			self.lastActionZoom = self.action_zoom_rect
 			self.dialog.currentModes = [matplotlib.widgets.RectangleSelector(axes, functools.partial(self.onZoomRect, axes=axes), useblit=useblit) for axes in axes_list] #, rectprops={"color":"blue"})
 			if useblit:
@@ -125,7 +125,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		
 
 	def onActionZoom(self):
-		print "onactionzoom"
+		print("onactionzoom")
 		self.lastActionZoom.setChecked(True)
 		self.dialog.setMode(self.lastActionZoom)
 		self.syncToolbar()
@@ -146,9 +146,9 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 				
 		
 		action = undo.ActionZoom(self.dialog.undoManager, "zoom to fit", self.dialog.set_ranges,
-		                         range(self.dialog.dimensions),
+		                         list(range(self.dialog.dimensions)),
 		                         self.dialog.ranges_show, self.dialog.range_level_show,
-						   		 range(self.dialog.dimensions),
+						   		 list(range(self.dialog.dimensions)),
 							     ranges_show=[None] * self.dialog.dimensions, range_level_show=None)
 		#for layer in dialog.layers:
 		#	layer.range_level = None # reset these... is this the right place?
@@ -204,7 +204,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 				link.sendRangesShow(self.dialog.ranges_show[axisIndex], linkButton)
 				link.sendPlot(linkButton)
 		action = undo.ActionZoom(self.dialog.undoManager, "zoom x [%f,%f]" % (xmin, xmax),
-						   self.dialog.set_ranges, range(self.dialog.dimensions),
+						   self.dialog.set_ranges, list(range(self.dialog.dimensions)),
 						   self.dialog.ranges_show,self.dialog.range_level_show, [axisIndex], ranges_show=[[xmin, xmax]])
 		action.do()
 		self.dialog.checkUndoRedo()
@@ -212,11 +212,11 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 	def onZoomY(self, ymin, ymax, axes):
 		if len(self.dialog.ranges_show) == 1: # if 1d, y refers to range_level
 			#self.range_level = ymin, ymax
-			action = undo.ActionZoom(self.dialog.undoManager, "change level [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, range(self.dialog.dimensions),
+			action = undo.ActionZoom(self.dialog.undoManager, "change level [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, list(range(self.dialog.dimensions)),
 							self.dialog.ranges_show, self.dialog.range_level_show, [], range_level_show=[ymin, ymax])
 		else:
 			#self.dialog.ranges_show[axes.yaxis_index] = ymin, ymax
-			action = undo.ActionZoom(self.dialog.undoManager, "zoom y [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, range(self.dialog.dimensions),
+			action = undo.ActionZoom(self.dialog.undoManager, "zoom y [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, list(range(self.dialog.dimensions)),
 							self.dialog.ranges_show, self.dialog.range_level_show, [axes.yaxis_index], ranges_show=[[ymin, ymax]])
 			
 		action.do()
@@ -248,7 +248,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 			
 			
 		def delayed_zoom():
-			action = undo.ActionZoom(self.dialog.undoManager, "zoom to rect", self.dialog.set_ranges, range(self.dialog.dimensions),
+			action = undo.ActionZoom(self.dialog.undoManager, "zoom to rect", self.dialog.set_ranges, list(range(self.dialog.dimensions)),
 							self.dialog.ranges_show,
 							self.dialog.range_level_show, axis_indices, ranges_show=ranges_show, range_level_show=range_level)
 			action.do()
@@ -283,7 +283,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 			#self.axes.set_xlim(self.xmin_show, self.xmax_show)
 			#self.axes.set_ylim(self.ymin_show, self.ymax_show)
 			#self.canvas.draw()
-			action = undo.ActionZoom(self.undoManager, "zoom to rect", self.set_ranges, range(self.dimensions), self.dialog.ranges, self.dialog.ranges_show,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
+			action = undo.ActionZoom(self.undoManager, "zoom to rect", self.set_ranges, list(range(self.dimensions)), self.dialog.ranges, self.dialog.ranges_show,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
 			action.do()
 			self.checkUndoRedo()
 

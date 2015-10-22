@@ -1,10 +1,11 @@
+from __future__ import print_function
 # -*- coding: utf-8 -*-
 import threading
-import Queue
+import queue
 import sys
 import os
 import pickle
-from cStringIO import StringIO
+from io import StringIO
 import traceback
 import time
 import signal
@@ -47,7 +48,7 @@ class InfoThread(threading.Thread):
 	def run(self):
 		while 1:
 			count = self.n_done() #self.fullsize - self.taskQueue.qsize()
-			print "%d out of %d tasks completed (%5.2f%%)" % (count, self.fullsize, float(count)/self.fullsize*100)
+			print("%d out of %d tasks completed (%5.2f%%)" % (count, self.fullsize, float(count)/self.fullsize*100))
 			time.sleep(0.1)
 			
 class Watchdog(threading.Thread):
@@ -62,7 +63,7 @@ class Watchdog(threading.Thread):
 		while 1:
 			time.sleep(0.5)
 			for execution in self.executions:
-				print execution.isAlive(), execution.error
+				print(execution.isAlive(), execution.error)
 		
 
 import gavi.progressbar
@@ -176,7 +177,7 @@ class ForkExecutor(IOExecutor):
 			try:
 				self.childPart()
 			except BaseException:
-				print "oops"
+				print("oops")
 			self.input.close()
 			self.output.close()
 			os._exit(0)
@@ -203,7 +204,7 @@ class ForkExecutor(IOExecutor):
 			if command == "execute":
 				# execute...
 				response = self.input.readline().strip()
-				self.log("c: args:", `response`)
+				self.log("c: args:", repr(response))
 				args, kwargs = deserialize(response)
 				info = "ok"
 				exc_info = None
@@ -272,7 +273,7 @@ class Execution(threading.Thread):
 			self.log("starting")
 			try:
 				task = self.taskQueue.get(False)
-			except Queue.Empty:
+			except queue.Empty:
 				self.log("empty at first try")
 			while task is not None and self.error is False:
 				tasknr, args = task
@@ -283,13 +284,13 @@ class Execution(threading.Thread):
 				
 				info, exc_info, result = self.executor(*args, **kwargs)
 				if info == "exception":
-					print exc_info
+					print(exc_info)
 					self.error = True
 				self.log("r: got result")
 				self.results.append((tasknr, result))
 				try:
 					task = self.taskQueue.get(False)
-				except Queue.Empty:
+				except queue.Empty:
 					self.log("empty queue")
 					task = None
 			#if not self.error:
@@ -313,21 +314,21 @@ def timed(f):
 		dt = time.time() - t0
 		utime, stime, child_utime, child_stime, walltime = os.times()
 		#name = f.func_name
-		print
-		print "user time:            % 9.3f sec." % (utime-utime0)
-		print "system time:          % 9.3f sec." % (stime-stime0)
-		print "user time(children):  % 9.3f sec." % (child_utime-child_utime0)
-		print "system time(children):% 9.3f sec." % (child_stime-child_stime0)
-		print
+		print()
+		print("user time:            % 9.3f sec." % (utime-utime0))
+		print("system time:          % 9.3f sec." % (stime-stime0))
+		print("user time(children):  % 9.3f sec." % (child_utime-child_utime0))
+		print("system time(children):% 9.3f sec." % (child_stime-child_stime0))
+		print()
 		dt_total = child_utime-child_utime0 + child_stime-child_stime0+utime-utime0+stime-stime0
-		print "total cpu time:       % 9.3f sec. (time it would take on a single cpu/core)" % (dt_total)
-		print "elapsed time:         % 9.3f sec. (normal wallclock time it took)" % (walltime-walltime0)
+		print("total cpu time:       % 9.3f sec. (time it would take on a single cpu/core)" % (dt_total))
+		print("elapsed time:         % 9.3f sec. (normal wallclock time it took)" % (walltime-walltime0))
 		dt = walltime-walltime0
 		if dt == 0:
 			eff = 0.
 		else:
 			eff = dt_total/(dt)
-		print "efficiency factor     % 9.3f      (ratio of the two above ~= # cores)" % eff
+		print("efficiency factor     % 9.3f      (ratio of the two above ~= # cores)" % eff)
 		return result
 	return execute
 
@@ -369,11 +370,11 @@ def parallelize(cores=None, fork=True, flatten=False, info=False, infoclass=Info
 	def wrapper(f):
 		def execute(*multiargs):
 			results = []
-			len(zip(*multiargs))
+			len(list(zip(*multiargs)))
 			N = len(multiargs[0])
 			if info:
-				print "running %i jobs on %i cores" % (N, cores)
-			taskQueue = Queue.Queue(len(multiargs[0]))
+				print("running %i jobs on %i cores" % (N, cores))
+			taskQueue = queue.Queue(len(multiargs[0]))
 			#for timenr in range(times):
 			#	taskQueue.put(timenr)
 			for tasknr, _args in enumerate(zip(*multiargs)):
@@ -404,7 +405,7 @@ def parallelize(cores=None, fork=True, flatten=False, info=False, infoclass=Info
 			if info:
 				infoobj.join()
 			if error:
-				print >>sys.stderr, "error"
+				print("error", file=sys.stderr)
 				results = None
 				raise Exception("error in one or more of the executors")
 			else:
@@ -441,7 +442,7 @@ if __name__ == "__main__":
 		return primes
 			
 	
-	testnumbers = range(0, 10001, 100)
+	testnumbers = list(range(0, 10001, 100))
 	from_nrs = testnumbers[:-1]
 	to_nrs = testnumbers[1:]
 	results = testprime(from_nrs, to_nrs)

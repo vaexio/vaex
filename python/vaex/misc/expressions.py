@@ -237,7 +237,7 @@ def translate(expression, replacements={}):
 	#for key, value in replacements:
 	translated_replacements = {}
 	for i, (key, expression) in enumerate(replacements.items()):
-		current_replacements = collections.OrderedDict(replacements.items()[:i])
+		current_replacements = collections.OrderedDict(list(replacements.items())[:i])
 		#print "*" * 70
 		translated_replacements[key] = translate(expression, current_replacements)[0] 
 		#print "TRANSLATE:", expression, translated_replacements[key], current_replacements
@@ -281,16 +281,16 @@ if __name__ == "__main__":
 	expr1 = "-2.5 * log10(SPECTROFLUX[:,2])"
 	scope = Scope(None)
 	result = eval(expr1, {}, scope)
-	print "expression", expr1
-	print "should equal", repr(result)
-	print "translating"
-	print
+	print(("expression", expr1))
+	print(("should equal", repr(result)))
+	print("translating")
+	print()
 	newexpr, vars = translate(expr1)
-	print newexpr, vars
+	print((newexpr, vars))
 	
 	expr = "xc + yc"
 	newexpr, vars = translate(expr, {"xc":"x+1", "yc":"sqrt(x**2+y**2)"})
-	print newexpr, vars
+	print((newexpr, vars))
 	
 
 	expr = "(xc + yc)/r"
@@ -298,9 +298,9 @@ if __name__ == "__main__":
 	replacements["xc"] = "x+1"
 	replacements["yc"] = "y-1"
 	replacements["r"] = "sqrt(xc**2+yc**2)"
-	print replacements.items()
+	print((list(replacements.items())))
 	newexpr, vars = translate(expr, replacements)
-	print newexpr, vars
+	print((newexpr, vars))
 
 	
 	

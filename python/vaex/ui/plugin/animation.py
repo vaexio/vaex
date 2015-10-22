@@ -24,7 +24,7 @@ class AnimationPlugin(vaex.ui.plugin.PluginLayer):
 		self.timer_sequence.setInterval(40) # max 50 fps to save cpu/battery?
 		self.has_snapshots = self.dataset.has_snapshots()
 
-		self.no_snapshots = self.dataset.rank1s[self.dataset.rank1s.keys()[0]].shape[0] if self.has_snapshots else 0
+		self.no_snapshots = self.dataset.rank1s[list(self.dataset.rank1s.keys())[0]].shape[0] if self.has_snapshots else 0
 		#self.plot_original = self.dialog.plot
 		#self.dialog.plot = self.plot_wrapper
 

@@ -22,22 +22,22 @@ def merge(output_filename, datasets_list, datasets_centering=None, sort_property
 	#for datasets in datasets:
 	#max_length = sum( counts )
 	shape = (len(datasets_list), max_length)
-	print "shape of new arrays will be", shape, max_length
+	print(("shape of new arrays will be", shape, max_length))
 	if 0:
 		for dataset1 in datasets:
 			for dataset2 in datasets:
 				if dataset1 != dataset2:
 					if len(dataset1) != len(dataset2):
-						print dataset1.name, "is of length", len(dataset1), "but", dataset2.name, "is of length", len(dataset2)
+						print((dataset1.name, "is of length", len(dataset1), "but", dataset2.name, "is of length", len(dataset2)))
 						sys.exit(1)
 		
 	for column_name in example_dataset.column_names:
 		d = h5output.require_dataset("/columns/"+column_name, shape=shape, dtype=example_dataset.columns[column_name].dtype.type, exact=True)
 		d[0,0] = example_dataset.columns[column_name][0] # ensure the array exists
 	# each float propery will be a new axis in the merged file (TODO: int and other types?)
-	for property_name in example_dataset.variables.keys():
+	for property_name in list(example_dataset.variables.keys()):
 		property = example_dataset.variables[property_name]
-		if isinstance(property, (float,)):
+		if isinstance(property, float):
 			d = h5output.require_dataset("/axes/"+property_name, shape=(len(datasets_list),), dtype=np.float64, exact=True)
 			d[0] = 0. # make sure it exists
 	# close file and open it again with our interface
@@ -52,8 +52,8 @@ def merge(output_filename, datasets_list, datasets_centering=None, sort_property
 			ids = dataset.columns["ParticleIDs"]
 			for id in ids:
 				idmap[id] = None
-		used_ids = idmap.keys()
-		print sorted(used_ids)
+		used_ids = list(idmap.keys())
+		print((sorted(used_ids)))
 
 	particle_type_count = len(datasets_list[0])
 	for index, datasets in enumerate(datasets_list):
@@ -67,7 +67,7 @@ def merge(output_filename, datasets_list, datasets_centering=None, sort_property
 				indices = indices[:10]
 				#centers[name] = cols[name][np.argmin(cols["Potential"])] #.mean()
 				centers[name] = cols[name].mean()
-				print "center", centers[name]
+				print(("center", centers[name]))
 
 			if 0:
 				#if column_name in "x y z".split():
@@ -94,9 +94,9 @@ def merge(output_filename, datasets_list, datasets_centering=None, sort_property
 			column_output = dataset_output.rank1s[column_name]
 			column_output[index,:] = np.nan # first fill with nan's since the length of the output column may be larger than that of individual input datasets
 
-			for property_name in datasets[0].variables.keys():
+			for property_name in list(datasets[0].variables.keys()):
 				property = datasets[0].variables[property_name]
-				if isinstance(property, (float,)):
+				if isinstance(property, float):
 					#print "propery ignored: %r" % property
 					#print "propery set: %s %r" % (property_name, property)
 					dataset_output.axes[property_name][index] = property
@@ -148,10 +148,10 @@ if __name__ == "__main__":
 	(options, args) = parser.parse_args()
 	inputs = args[:-1]
 	output = args[-1]
-	print "merging:", "\n\t".join(inputs)
-	print "to:", output
+	print(("merging:", "\n\t".join(inputs)))
+	print(("to:", output))
 	if options.type is None:
-		print "specify file type --type"
+		print("specify file type --type")
 		parser.print_help()
 		sys.exit(1)
 	#dataset_type_and_options = options.format.split(":")
@@ -168,7 +168,7 @@ if __name__ == "__main__":
 	#@datasets = [class_(filename, *options) for filename in inputs]
 	datasets_list = []
 	for filename in inputs:
-		print "loading file", filename,options.particle_types
+		print(("loading file", filename,options.particle_types))
 		datasets = []
 		for type in options.particle_types.split(","):
 			datasets.append(class_(filename + "#" + type))

@@ -15,10 +15,10 @@ import sys
 import imp
 
 def system(cmd):
-	print "Executing: ", cmd
+	print("Executing: ", cmd)
 	ret = os.system(cmd)
 	if ret != 0:
-		print "error, return code is", ret
+		print("error, return code is", ret)
 		sys.exit(ret)
 
 path_version_file = "python/vaex/version.py"
@@ -29,7 +29,6 @@ version = imp.load_source('version', path_version_file)
 #system("version=`git describe --tags --long`; python/vaex/vaex/setversion.py ${version}")
 
 
-
 has_py2app = False
 #import vaex
 try:
@@ -37,6 +36,13 @@ try:
 	has_py2app = True
 except:
 	pass
+
+if has_py2app:
+	import py2app.recipes
+	class astropy(object):
+		def check(self, cmd, graph):
+			return dict(packages=["astropy"])
+	py2app.recipes.astropy = astropy()
 
 #full_name = vaex.__full_name__
 cmdclass = {}
@@ -49,44 +55,47 @@ if has_py2app and sys.argv[1] == "py2app":
 			py2app.build_app.py2app.run(self)
 			#libQtWebKit.4.dylib
 			#libQtNetwork.4.dylib
-			libs = [line.strip() for line in """
-			libLLVM-3.3.dylib
-			libQtGui.4.dylib
-			libQtCore.4.dylib
-			libQtOpenGL.4.dylib
-			libcrypto.1.0.0.dylib
-			libssl.1.0.0.dylib
-			libpng15.15.dylib
-			libfreetype.6.dylib
-			libjpeg.8.dylib
-			libhdf5_hl.9.dylib
-			libhdf5.9.dylib
-			""".strip().splitlines()]
+			if 0:
+				libs = [line.strip() for line in """
+				libLLVM-3.3.dylib
+				libQtGui.4.dylib
+				libQtCore.4.dylib
+				libQtOpenGL.4.dylib
+				libcrypto.1.0.0.dylib
+				libssl.1.0.0.dylib
+				libpng15.15.dylib
+				libfreetype.6.dylib
+				libjpeg.8.dylib
+				libhdf5_hl.9.dylib
+				libhdf5.9.dylib
+				""".strip().splitlines()]
 
-			libpath = "/Users/maartenbreddels/anaconda/lib"
-			targetdir = 'dist/vaex.app/Contents/Resources/lib/'
-			for filename in libs:
-				path = os.path.join(libpath, filename)
-				cmd = "cp %s %s" % (path, targetdir)
-				print cmd
-				os.system(cmd)
+				libpath = "/Users/maartenbreddels/anaconda/lib"
+				targetdir = 'dist/vaex.app/Contents/Resources/lib/'
+				for filename in libs:
+					path = os.path.join(libpath, filename)
+					cmd = "cp %s %s" % (path, targetdir)
+					print cmd
+					os.system(cmd)
 
-			libs = [line.strip() for line in """
-			libpng15.15.dylib
-			""".strip().splitlines()]
-			targetdir = 'dist/vaex.app/Contents/Resources/'
-			for filename in libs:
-				#path = os.path.join(libpath, filename)
-				cmd = "cp %s %s" % (path, targetdir)
-				print cmd
-				os.system(cmd)
+				libs = [line.strip() for line in """
+				libpng15.15.dylib
+				""".strip().splitlines()]
+				targetdir = 'dist/vaex.app/Contents/Resources/'
+				for filename in libs:
+					#path = os.path.join(libpath, filename)
+					cmd = "cp %s %s" % (path, targetdir)
+					print cmd
+					os.system(cmd)
+
+			os.system("cp data/helmi* dist/vaex.app/Contents/Resources/")
 			os.system("cd dist")
-			zipname = "%s-osx.zip" % vaex.__clean_name__
+			zipname = "%s.zip" % vaex.__build_name__
 			os.system("cd dist;rm %s" % zipname)
 			os.system("cd dist;zip -r %s %s.app" % (zipname, vaex.__program_name__))
 			retvalue = os.system("git diff --quiet")
 			if retvalue != 0:
-				print "WARNING UNCOMMITED CHANGES, VERSION NUMBER WILL NOT MATCH"
+				print("WARNING UNCOMMITED CHANGES, VERSION NUMBER WILL NOT MATCH")
 	cmdclass['py2app'] = my_py2app
 			
 #from distutils.core import setup, Extension
@@ -97,12 +106,12 @@ except:
 	numdir = None
 
 if numdir is None:
-	print "numpy not found, cannot install"
+	print("numpy not found, cannot install")
 import sys 
 import glob
 sys.setrecursionlimit(10000)
 
-APP = ["bin/vaex"]
+APP = ["vaex_app.py"]
 DATA_FILES = []
 if has_py2app:
 	pass
@@ -119,6 +128,17 @@ if 0:
 OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/vaex/ui/icons'],
            'matplotlib_backends':'-',
            'no_chdir':True,
+		   'includes': ['h5py',
+                 'h5py.defs',
+                 'h5py.h5ac',
+                 'h5py._errors',
+                 'h5py._objects',
+                 'h5py.defs',
+                 'h5py.utils',
+                 'h5py._proxy',
+				 'six',
+				 'aplus',
+				 "astropy.extern.bundled"],
            'iconfile': 'python/vaex/ui/icons/vaex.icns'
 
 } #, 'debug_modulegraph':True}
@@ -177,7 +197,7 @@ setup(
     options={'py2app': OPTIONS},
     #setup_requires=['py2app'],
     #setup_requires=["sphinx"],
-    includes=["vaex", "md5", "astropy"],
+    includes=["vaex", "md5", "astropy", "aplus", "six"],
     packages=["vaex", "vaex.ui", "vaex.misc", "vaex.notebook", "vaex.io", "vaex.ui.plugin", "vaex.ui.icons"],
     #install_requires=reqs,
     entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },

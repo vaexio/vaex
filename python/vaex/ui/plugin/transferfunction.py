@@ -62,7 +62,7 @@ class TransferFunctionPlugin(vaex.ui.plugin.PluginLayer):
 		self.tool.function_means[:] = eval(self.layer.options.get("tf_means", str(self.tool.function_means)))
 		self.tool.function_opacities[:] = eval(self.layer.options.get("tf_opacities", str(self.tool.function_opacities)))
 		self.tool.function_sigmas[:] = eval(self.layer.options.get("tf_sigmas", str(self.tool.function_sigmas)))
-		print "Set opacities", self.tool.function_opacities[:]
+		print(("Set opacities", self.tool.function_opacities[:]))
 		#dsa
 		#self.widget_volume.function_opacities[i] = self.tool.function_opacities[i]
 		#self.widget_volume.function_sigmas[i] = self.tool.function_sigmas[i]
@@ -181,7 +181,7 @@ class TransferFunctionPlugin(vaex.ui.plugin.PluginLayer):
 		self.handling_nested_min_max_level = False
 		def on_min_level_change(index, update_text_min_level=update_text_min_level):
 			value = index/1000.
-			print value
+			print(value)
 			self.widget_volume.min_level = value
 			if (self.handling_nested_min_max_level is False) and (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
 				self.handling_nested_min_max_level = True
@@ -232,7 +232,7 @@ class TransferFunctionPlugin(vaex.ui.plugin.PluginLayer):
 			label_max_level_value.setText(" {0:<0.3f}".format(self.widget_volume.max_level))
 		def on_max_level_change(index, update_text_max_level=update_text_max_level):
 			value = index/1000.
-			print value
+			print(value)
 			self.widget_volume.max_level = value
 			if (self.handling_nested_min_max_level is False) and (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
 				self.handling_nested_min_max_level = True
@@ -380,7 +380,7 @@ class TransferFunctionPlugin(vaex.ui.plugin.PluginLayer):
 			label_value.setText(format.format(getter()))
 		def on_change(index, slider=slider):
 			value = index/float(value_steps) * (inverse(value_max) - inverse(value_min)) + inverse(value_min)
-			print label_text, "set to", value
+			print((label_text, "set to", value))
 			setter(transform(value))
 			update_text()
 		slider.setValue((inverse(getter()) - inverse(value_min))/(inverse(value_max) - inverse(value_min)) * value_steps)

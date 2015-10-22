@@ -105,8 +105,8 @@ class LinkButton(QtGui.QToolButton):
 
 
 	def _dragEnterEvent(self, e):
-		print e.mimeData()
-		print e.mimeData().text()
+		print(e.mimeData())
+		print(e.mimeData().text())
 		if e.mimeData().hasFormat('text/plain'):
 			e.accept()
 
@@ -116,7 +116,7 @@ class LinkButton(QtGui.QToolButton):
 	def dropEvent(self, e):
 		position = e.pos()
 		#self.button.move(position)
-		print "do", e.mimeData().text()
+		print("do", e.mimeData().text())
 		e.setDropAction(QtCore.Qt.MoveAction)
 		e.accept()
 
@@ -125,7 +125,7 @@ class LinkButton(QtGui.QToolButton):
 			super(LinkButton, self).mousePressEvent(e)
 
 			if e.button() == QtCore.Qt.LeftButton:
-				print 'press'
+				print('press')
 
 	def _mouseMoveEvent(self, e):
 		if e.buttons() != QtCore.Qt.LeftButton:
@@ -190,11 +190,11 @@ class LayerTable(object):
 				self.ranges_grid[i] = eval(self.options["lim"])
 		if "ranges" in self.options:
 			ranges = self.options["ranges"]
-			if isinstance(self.options["ranges"], basestring):
+			if isinstance(self.options["ranges"], str):
 				ranges = eval(ranges)
 			for i in range(self.dimensions):
 				self.ranges_grid[i] = ranges[i]
-			print "ranges" * 100, self.ranges_grid
+			print("ranges" * 100, self.ranges_grid)
 		if "xlim" in self.options:
 			self.ranges_grid[0] = eval(self.options["xlim"])
 		if "ylim" in self.options:
@@ -336,16 +336,16 @@ class LayerTable(object):
 
 	def create_grid_map_(self, gridsize, use_selection):
 		locals = {}
-		for name in self.grids.grids.keys():
+		for name in list(self.grids.grids.keys()):
 			grid = self.grids.grids[name]
 			if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
 				if grid.max_size >= gridsize:
 					locals[name] = grid.get_data(gridsize, use_selection=use_selection, disjoined=self.plot_window.show_disjoined)
 					import vaex.kld
-					print "Mutual information", name,  gridsize, self.expressions, vaex.kld.mutual_information(locals[name])
+					print("Mutual information", name,  gridsize, self.expressions, vaex.kld.mutual_information(locals[name]))
 			else:
 				locals[name] = None
-		for d, name in zip(range(self.dimensions), "xyzw"):
+		for d, name in zip(list(range(self.dimensions)), "xyzw"):
 			width = self.ranges_grid[d][1] - self.ranges_grid[d][0]
 			offset = self.ranges_grid[d][0]
 			x = (np.arange(0, gridsize)+0.5)/float(gridsize) * width + offset
@@ -403,7 +403,7 @@ class LayerTable(object):
 		try:
 			#self.amplitude_grid = amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
 			self.amplitude_grid = self.grid_main.evaluate(self.amplitude_expression)
-		except Exception, e:
+		except Exception as e:
 			logger.exception("amplitude field")
 			traceback.print_exc()
 			self.error_in_field(self.amplitude_box, "amplitude", e)
@@ -425,7 +425,7 @@ class LayerTable(object):
 
 		if 0:
 			locals = {}
-			for name in self.grids.grids.keys():
+			for name in list(self.grids.grids.keys()):
 				grid = self.grids.grids[name]
 				if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
 					if grid.max_size >= self.plot_window.vector_grid_size:
@@ -458,12 +458,12 @@ class LayerTable(object):
 					if self.display_type == "bar":
 						axes.bar(x, amplitude, width=delta, align='center', alpha=self.alpha, color=self.color)
 					else:
-						print len(x), len(amplitude)
+						print(len(x), len(amplitude))
 						dx = x[1] - x[0]
-						x2 = list(np.ravel(zip(x,x+dx)))
+						x2 = list(np.ravel(list(zip(x,x+dx))))
 						x2p = [x[0]] + x2 + [x[-1]+dx]
 						y = amplitude
-						y2 = list(np.ravel(zip(y,y)))
+						y2 = list(np.ravel(list(zip(y,y))))
 						y2p = [0] + y2 + [0]
 						axes.plot(x2p, y2p, alpha=self.alpha, color=self.color)
 					if use_selection:
@@ -471,10 +471,10 @@ class LayerTable(object):
 							axes.bar(x, amplitude_selection, width=delta, align='center', color=self.color_alt, alpha=0.6*self.alpha)
 						else:
 							dx = x[1] - x[0]
-							x2 = list(np.ravel(zip(x,x+dx)))
+							x2 = list(np.ravel(list(zip(x,x+dx))))
 							x2p = [x[0]] + x2 + [x[-1]+dx]
 							y = amplitude_selection
-							y2 = list(np.ravel(zip(y,y)))
+							y2 = list(np.ravel(list(zip(y,y))))
 							y2p = [0] + y2 + [0]
 							axes.plot(x2p, y2p, drawstyle="steps-mid", alpha=self.alpha, color=self.color_alt)
 					if self.coordinates_picked_row is not None:
@@ -532,16 +532,16 @@ class LayerTable(object):
 				for axes in axes_list:
 				#if 0:
 					# create marginalized grid
-					all_axes = range(self.dimensions)
+					all_axes = list(range(self.dimensions))
 					all_axes.remove(self.dimensions-1-axes.xaxis_index)
 					all_axes.remove(self.dimensions-1-axes.yaxis_index)
 
 					if 0:
-						grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in grid_map.items()}
+						grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map.items())}
 						grid_context = self.grid_vector
 						amplitude = grid_context(self.amplitude_expression, locals=grid_map_2d)
 						if self.dataset.has_selection():
-							grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in grid_map_selection.items()}
+							grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
 							amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection_2d)
 						else:
 							amplitude_selection = None
@@ -636,7 +636,7 @@ class LayerTable(object):
 			elif self.transparancy == "none":
 				rgba[...,3] = pre_alpha
 			else:
-				raise "not implemented"
+				raise NotImplemented
 			return rgba
 
 		levels = (np.arange(self.contour_count) + 1. ) / (self.contour_count + 1)
@@ -697,8 +697,8 @@ class LayerTable(object):
 	def get_options(self):
 		options = collections.OrderedDict()
 		#options["type-names"] = map(str.strip, self.names.split(","))
- 		options["expressions"] = self.expressions
- 		options["expression_weight"] = self.weight_expression
+		options["expressions"] = self.expressions
+		options["expression_weight"] = self.weight_expression
 		options["amplitude_expression"] = self.amplitude_expression
 		options["ranges_grid"] = self.ranges_grid
 		options["weight_x_expression"] = self.weight_x_expression
@@ -715,7 +715,7 @@ class LayerTable(object):
 		#map = {"expressions",}
 		recognize = "expressions expression_weight amplitude_expression ranges_grid aspect weight_x_expression weight_y_expression weight_z_expression".split()
 		for key in recognize:
-			if key in options.keys():
+			if key in list(options.keys()):
 				value = options[key]
 				setattr(self, key, copy.copy(value))
 				if key == "amplitude_expression":
@@ -733,7 +733,7 @@ class LayerTable(object):
 						box.lineEdit().setText(expr)
 		for plugin in self.plugins:
 			plugin.apply_options(options)
-		for key in options.keys():
+		for key in list(options.keys()):
 			if key not in recognize:
 				logger.error("option %s not recognized, ignored" % key)
 		if update:
@@ -828,6 +828,7 @@ class LayerTable(object):
 
 		else:
 			self.grid_main["weighted"] = None
+			self.grid_main_selection["weighted"] = None
 
 		# the vector fields only use the selection if there is one, otherwise the whole dataset
 		subspace = self.subspace
@@ -912,13 +913,13 @@ class LayerTable(object):
 				self.ranges_grid[axis_index] = min([self.ranges_grid[axis_index][0]] + [result[0] for result in results]), max([self.ranges_grid[axis_index][1]] + [result[1] for result in results])
 			if info.last:
 				if self.plot_window.layers.index(self) == 0: # we are the first layer
-					print "first layer", self.ranges_grid[axis_index], self.plot_window.layers[1:]
+					print("first layer", self.ranges_grid[axis_index], self.plot_window.layers[1:])
 					for layer in self.plot_window.layers[1:]:
 						layer.ranges_grid[axis_index] = copy.deepcopy(self.ranges_grid[axis_index])
 						layer.grids.ranges[axis_index] = copy.deepcopy(self.ranges_grid[axis_index])
 				else:
-					raise Exception, "should not happen"
-				print "min/max", axis_index, self.ranges_grid[axis_index]
+					raise Exception("should not happen")
+				print("min/max", axis_index, self.ranges_grid[axis_index])
 				self.grids.ranges[axis_index] = list(self.ranges_grid[axis_index])
 				self.message("min/max[%d] %.2fs" % (axis_index, time.time() - t0), index=50+axis_index)
 				self.message(None, index=-1) # clear error msg
@@ -987,15 +988,15 @@ class LayerTable(object):
 		for callback, pagename, pageorder, order in self.plugin_queue_page:
 			pageorders[pagename] = pageorder
 		self.pages = {}
-		for pagename, order in sorted(pageorders.items(), key=operator.itemgetter(1)):
+		for pagename, order in sorted(list(pageorders.items()), key=operator.itemgetter(1)):
 			page_frame = QtGui.QFrame(self.toolbox)
 			self.pages[pagename] = page_frame
 			self.toolbox.addItem(page_frame, pagename)
 			logger.debug("created page: "+pagename)
-		for pagename, order in sorted(pageorders.items(), key=operator.itemgetter(1)):
-			logger.debug("filling page: %sr %r" % (pagename, filter(lambda x: x[1] == pagename, self.plugin_queue_page)))
-			for callback, pagename_, pageorder, order in sorted(filter(lambda x: x[1] == pagename, self.plugin_queue_page), key=operator.itemgetter(3)):
-	 			logger.debug("filling page: "+pagename +" order=" +str(order) + " callback=" +str(callback))
+		for pagename, order in sorted(list(pageorders.items()), key=operator.itemgetter(1)):
+			logger.debug("filling page: %sr %r" % (pagename, [x for x in self.plugin_queue_page if x[1] == pagename]))
+			for callback, pagename_, pageorder, order in sorted([x for x in self.plugin_queue_page if x[1] == pagename], key=operator.itemgetter(3)):
+				logger.debug("filling page: "+pagename +" order=" +str(order) + " callback=" +str(callback))
 				callback(self.pages[pagename])
 		page_name = self.options.get("page", "Main")
 		page_frame = self.pages.get(page_name, None)
@@ -1525,6 +1526,15 @@ class LayerTable(object):
 				#dialog_info(self.plot_window, "expr", expression)
 				storage_expressions.add("", "selection", self.dataset, {"expressions": expressions} )
 
+				mode = self.plot_window.select_mode
+				self.dataset.select(expression, mode)
+				mask = self.dataset.mask
+				action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
+				#action.do()
+
+				self.check_selection_undo_redo()
+				return
+
 				mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
 				t0 = time.time()
 				def select(info, blockmask):
@@ -1538,9 +1548,6 @@ class LayerTable(object):
 				#if layer is not None:
 				if 1:
 					self.dataset.evaluate(select, expression, **self.getVariableDict())
-					action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
-					action.do()
-					self.check_selection_undo_redo()
 
 					#self.plot_window.checkUndoRedo()
 					#self.setMode(self.lastAction)
@@ -1555,7 +1562,7 @@ class LayerTable(object):
 
 	def label_selection_info_update(self):
 		# TODO: support this again
-		return
+		#return
 		if self.dataset.mask is None:
 			self.label_selection_info.setText("no selection")
 		else:

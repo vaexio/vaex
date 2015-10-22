@@ -54,10 +54,10 @@ class PlotDialog(QtGui.QDialog):
 
 	def set_tooltip(self, x, y, label):
 		y = self.canvas.height() - 1 - y
-		print "motion", label, x, y
+		print(("motion", label, x, y))
 		if label:
-			print "self.canvas.x/y()", self.canvas.geometry().x(), self.canvas.geometry().y()
-			print "self.pos.x/y()", self.canvas.pos().x() + self.pos().x(), self.canvas.pos().y() + self.pos().y()
+			print(("self.canvas.x/y()", self.canvas.geometry().x(), self.canvas.geometry().y()))
+			print(("self.pos.x/y()", self.canvas.pos().x() + self.pos().x(), self.canvas.pos().y() + self.pos().y()))
 			point = QtCore.QPoint(x + self.canvas.x() + self.pos().x(), y + self.canvas.y() + self.pos().y())
 			QtGui.QToolTip.showText(point, label)
 
@@ -103,7 +103,7 @@ class RankPlot(PlotDialog):
 				xdata = thisline.get_xdata()
 				ydata = thisline.get_ydata()
 				index = event.ind
-				print index, xdata[index], ydata[index], self.pairs[index]
+				print((index, xdata[index], ydata[index], self.pairs[index]))
 				self.table.select_pair(self.pairs[index])
 			self.figure.canvas.mpl_connect('pick_event', onpick)
 
@@ -112,7 +112,7 @@ class RankPlot(PlotDialog):
 
 	def on_mouse_button(self, event):
 		min_distance_index, x, y = self.find_nearest(event)
-		print "click", x, y
+		print(("click", x, y))
 		self.table.select_pair(self.pairs[min_distance_index])
 		def update_tooltip():
 			label, x, y = self.get_tooltip(event)
@@ -121,10 +121,10 @@ class RankPlot(PlotDialog):
 
 	def find_nearest(self, event):
 		transform = event.inaxes.transData.transform
-		xy = transform(zip(self.x, self.y))
+		xy = transform(list(zip(self.x, self.y)))
 		#print xy
 		x, y = xy.T
-		print "event.x/y", event.x, event.y
+		print(("event.x/y", event.x, event.y))
 		distances = np.sqrt((x-event.x)**2 + (y-event.y)**2)
 		min_distance_index = np.argmin(distances)
 		return min_distance_index, x[min_distance_index], y[min_distance_index]
@@ -165,7 +165,7 @@ class ____RankingTableModel(QtCore.QAbstractTableModel):
 		self.pairs = list(itertools.combinations(unique_column_names(self.dataset), dim))
 		self.ranking = [None for pair in self.pairs]
 		self.headers = ["subspace", "Mutual information", "MI ranking", "correlation", "MI ranking", 'selected']
-		self.indices = range(len(self.pairs))
+		self.indices = list(range(len(self.pairs)))
 	
 	def rowCount(self, parent): 
 		return len(self.pairs)
@@ -201,26 +201,26 @@ class ____RankingTableModel(QtCore.QAbstractTableModel):
 		"""
 		self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
 		if Ncol == 0:
-			print "by name"
+			print("by name")
 			# get indices, sorted by pair name
-			sortlist = zip(self.pairs, range(len(self.pairs)))
-			print sortlist
+			sortlist = list(zip(self.pairs, list(range(len(self.pairs)))))
+			print(sortlist)
 			sortlist.sort(key=operator.itemgetter(0))
-			print sortlist
-			self.indices = map(operator.itemgetter(1), sortlist)
-			print self.indices
+			print(sortlist)
+			self.indices = list(map(operator.itemgetter(1), sortlist))
+			print((self.indices))
 		if Ncol == 1:
 			# get indices, sorted by ranking, or no sorting
 			if None not in self.ranking:
-				sortlist = zip(self.ranking, range(len(self.pairs)))
+				sortlist = list(zip(self.ranking, list(range(len(self.pairs)))))
 				sortlist.sort(key=operator.itemgetter(0))
-				self.indices = map(operator.itemgetter(1), sortlist)
+				self.indices = list(map(operator.itemgetter(1), sortlist))
 			else:
-				self.indices = range(len(self.pairs))
-			print self.indices
+				self.indices = list(range(len(self.pairs)))
+			print((self.indices))
 		if order == QtCore.Qt.DescendingOrder:
 			self.indices.reverse()
-		print self.indices
+		print((self.indices))
 		self.emit(QtCore.SIGNAL("layoutChanged()"))
 
 class SubspaceTable(QtGui.QTableWidget):
@@ -271,7 +271,7 @@ class SubspaceTable(QtGui.QTableWidget):
 		index = self.pairs.index(pair)
 		for i in range(self.rowCount()):
 			item = self.item(i, 1)
-			print item.text(), self.pair_to_text(pair)
+			print((item.text(), self.pair_to_text(pair)))
 			if item.text() == self.pair_to_text(pair):
 				self.selectRow(i)
 		#print index, self.visualRow(index)
@@ -287,7 +287,7 @@ class SubspaceTable(QtGui.QTableWidget):
 		self.buttons = []
 		pairs = [pair for pair, display in zip(self.pairs, self.filter_mask) if display]
 		self.setRowCount(len(pairs))
-		self.setVerticalHeaderLabels(map(str, range(len(pairs))))
+		self.setVerticalHeaderLabels(list(map(str, list(range(len(pairs))))))
 		for i in range(len(pairs)):
 			pair = pairs[i]
 			text = self.pair_to_text(pair)
@@ -304,13 +304,13 @@ class SubspaceTable(QtGui.QTableWidget):
 			#	checkbox.setCheckState(QtCore.Qt.Checked if eval(self.properties[use_key]) else QtCore.Qt.Unchecked)
 			#else:
 			#	checkbox.setCheckState(QtCore.Qt.Checked)
-			print "fill", pair, self.selected_dict[pair]
+			print(("fill", pair, self.selected_dict[pair]))
 			checkbox.setCheckState(QtCore.Qt.Checked if self.selected_dict[pair] else QtCore.Qt.Unchecked)
 			self.checkboxes.append(checkbox)
 			self.setCellWidget(i, 0, checkbox)
 			def stateChanged(state, pair=pair):
 				self.selected_dict[pair] = state == QtCore.Qt.Checked
-				print "set", pair, "to", self.selected_dict[pair]
+				print(("set", pair, "to", self.selected_dict[pair]))
 			checkbox.stateChanged.connect(stateChanged)
 
 			if self.dim == 1:
@@ -431,13 +431,13 @@ class SubspaceTable(QtGui.QTableWidget):
 
 	def deselect(self, pair):
 		index = self.pairs.index(pair)
-		print "deselect", pair, index
+		print(("deselect", pair, index))
 		checkbox = self.checkboxes[index]
 		checkbox.setCheckState(QtCore.Qt.Unchecked)
 		
 	def select(self, pair):
 		index = self.pairs.index(pair)
-		print "deselect", pair, index
+		print(("deselect", pair, index))
 		checkbox = self.checkboxes[index]
 		checkbox.setCheckState(QtCore.Qt.Checked)
 
@@ -478,7 +478,7 @@ class SubspaceTable(QtGui.QTableWidget):
 			return found
 
 		self.filter_terms = filter_terms
-		self.filter_mask = np.array([filter(pair) for pair in self.pairs])
+		self.filter_mask = np.array([list(filter(pair)) for pair in self.pairs])
 		self.queue_fill_table()
 		#self.fill_table()
 
@@ -534,7 +534,7 @@ class RankDialog(QtGui.QDialog):
 			#print pairs1d
 			#print pairsprevd
 			newpairs = list(joinpairs(pairs1d, pairsprevd))
-			print "newpairs", newpairs
+			print(("newpairs", newpairs))
 			if dim not in self.subspaceTables:
 				self.tabNd = QtGui.QWidget(self.tabs)
 				self.tableNd = SubspaceTable(self, self.tabNd, self.mainPanel, self.dataset, newpairs, dim, self.properties)
@@ -599,13 +599,13 @@ class RankDialog(QtGui.QDialog):
 
 
 				def func(index, name=""):
-					print name, index.row(), index.column()
+					print((name, index.row(), index.column()))
 				self.tableNd.pressed.connect(functools.partial(func, name="pressed"))
 				self.tableNd.entered.connect(functools.partial(func, name="entered"))
 				self.tableNd.clicked.connect(functools.partial(func, name="clicked"))
 				self.tableNd.activated.connect(functools.partial(func, name="activated"))
 				def func(index, previous, name=""):
-					print name, index.row(), index.column(), previous.row(), previous.column()
+					print((name, index.row(), index.column(), previous.row(), previous.column()))
 				self.selectionModel = self.tableNd.selectionModel()
 				self.selectionModel.currentChanged.connect(functools.partial(func, name="currentChanged"))
 				
@@ -747,8 +747,8 @@ class RankDialog(QtGui.QDialog):
 				self.properties[key+".min"] = repr(mi)
 				self.properties[key+".max"] = repr(ma)
 			else:
-				print "min/max not present", key
-		print "save to", self.properties_path
+				print(("min/max not present", key))
+		print(("save to", self.properties_path))
 		self.properties.store(open(self.properties_path, "w"))
 		dialog_info(self, "Stored", "Stored configuration to: %r" % self.properties_path)
 
@@ -774,11 +774,11 @@ class RankDialog(QtGui.QDialog):
 		pairs = self.table1d.getSelected()
 		error = False
 		for pair in pairs:
-			print pair
+			print(pair)
 			if pair[0] in self.range_map:
 				min, max = self.range_map[pair[0]]
 				if min == max:
-					print pair, "empty", min, max
+					print((pair, "empty", min, max))
 					self.table1d.deselect(pair)
 			else:
 				if not error: # only give a warning once
@@ -819,7 +819,7 @@ class RankDialog(QtGui.QDialog):
 
 		with ProgressExecution("Calculating min/max", self) as progress:
 			means = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=expressions, feedback=progress.progress)
-			print "means", means
+			print(("means", means))
 		with ProgressExecution("Calculating variances", self) as progress:
 			variance_expressions = ["(%s-%.20f)**2"  % (expression, mean) for expression, mean in zip(expressions, means)]
 			variances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=variance_expressions, feedback=progress.progress)
@@ -830,7 +830,7 @@ class RankDialog(QtGui.QDialog):
 			#progress.progress()
 
 	def calculate_rank_correlation_kendall(self, table, absolute=False):
-		print "kendall", table, absolute
+		print(("kendall", table, absolute))
 		pairs = table.getSelected()
 		mi_values = [table.qualities[pair] for pair in pairs]
 		correlation_values = [table.correlation_map[pair] for pair in pairs]
@@ -857,10 +857,10 @@ class RankDialog(QtGui.QDialog):
 
 
 	def calculate_rank_correlation_spearman(self, table, absolute=False):
-		print "spearman", table, absolute
+		print(("spearman", table, absolute))
 
 	def calculate_correlation(self, table):
-		print "calculate correlation for ", table
+		print(("calculate correlation for ", table))
 		pairs = table.getSelected()
 		jobsManager = vaex.dataset.JobsManager()
 		expressions = set()
@@ -868,15 +868,15 @@ class RankDialog(QtGui.QDialog):
 			for expression in pair:
 				expressions.add(expression)
 		expressions = list(expressions)
-		print "means"
+		print("means")
 		with ProgressExecution("Calculating means", self) as progress:
 			means = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=expressions, feedback=progress.progress)
-		mean_map = dict(zip(expressions, means))
-		centered_expressions_map = {expression: "(%s - %.20e)" % (expression, mean) for (expression, mean) in mean_map.items()}
-		variances_expressions_map = {expression: "%s**2" % centered_expressions for expression, centered_expressions in centered_expressions_map.items()}
+		mean_map = dict(list(zip(expressions, means)))
+		centered_expressions_map = {expression: "(%s - %.20e)" % (expression, mean) for (expression, mean) in list(mean_map.items())}
+		variances_expressions_map = {expression: "%s**2" % centered_expressions for expression, centered_expressions in list(centered_expressions_map.items())}
 		with ProgressExecution("Calculating variances", self) as progress:
-			variances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=variances_expressions_map.values(), feedback=progress.progress)
-		variances_map = dict(zip(variances_expressions_map.keys(), variances))
+			variances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=list(variances_expressions_map.values()), feedback=progress.progress)
+		variances_map = dict(list(zip(list(variances_expressions_map.keys()), variances)))
 
 		covariances_expressions = []
 		for pair in pairs:
@@ -884,13 +884,13 @@ class RankDialog(QtGui.QDialog):
 			covariance_expression = "*".join(centered_expressions)
 			covariances_expressions.append(covariance_expression)
 
-		print covariances_expressions
+		print(covariances_expressions)
 		with ProgressExecution("Calculating covariances", self) as progress:
 			#progress.progress(20)
 			covariances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=covariances_expressions, feedback=progress.progress)
 			#progress.progress(20)
-		print variances
-		print covariances
+		print(variances)
+		print(covariances)
 
 		correlation_map = {}
 		for pair, covariance in zip(pairs, covariances):
@@ -905,7 +905,7 @@ class RankDialog(QtGui.QDialog):
 
 
 	def export(self, table):
-		print "export", table
+		print(("export", table))
 		basename, ext = os.path.splitext(self.dataset.path)
 		path = basename + ("-ranking-%dd" % table.dim) + ".properties"
 		filename = get_path_save(self, path=path, title="Export ranking", file_mask="properties file *.properties")
@@ -932,16 +932,16 @@ class RankDialog(QtGui.QDialog):
 
 	def rankSubspaces(self, table):
 		self.fill_range_map()
-		print table
+		print(table)
 		qualities = []
 		pairs = table.getSelected()
 		error = False
-		print self.range_map
+		print((self.range_map))
 		for pair in pairs:
 			for expression in pair:
 				if expression not in self.range_map:
 					error = True
-					print "missing", expression
+					print(("missing", expression))
 		if error:
 			dialog_error(self, "Missing min/max", "Please calculate the minimum and maximum for the dimensions")
 			return
@@ -951,7 +951,7 @@ class RankDialog(QtGui.QDialog):
 				dim = len(pair)
 				#if dim == 2:
 				columns = [self.dataset.columns[name] for name in pair]
-				print pair
+				print(pair)
 				information = vaex.kld.kld_shuffled(columns, mask=mask)
 				qualities.append(information)
 				#print pair
@@ -959,7 +959,7 @@ class RankDialog(QtGui.QDialog):
 			dialog = QtGui.QProgressDialog("Calculating Mutual information", "Abort", 0, 1000, self)
 			dialog.show()
 			def feedback(percentage):
-				print percentage
+				print(percentage)
 				dialog.setValue(int(percentage*10))
 				QtCore.QCoreApplication.instance().processEvents()
 				if dialog.wasCanceled():
@@ -968,7 +968,7 @@ class RankDialog(QtGui.QDialog):
 			qualities = vaex.kld.kld_shuffled_grouped(self.dataset, self.range_map, pairs, feedback=progress.progress, use_mask=self.radio_button_selection.isChecked())
 			#dialog.hide()
 		if qualities is not None:
-			print qualities
+			print(qualities)
 			table.setQualities(pairs, qualities)
 		
 

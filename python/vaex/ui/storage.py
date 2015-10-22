@@ -19,12 +19,12 @@ class Storage(object):
 	def load(self):
 		if os.path.exists(self.path):
 			try:
-				self.all_options = json.load(file(self.path))
+				self.all_options = json.load(open(self.path))
 			except:
 				logger.exception("error parsing settings from:" +self.path)
 
 	def get_all(self, type_name, dataset):
-		return filter(lambda a: self._fuzzy_match(a, dataset, type_name), self.all_options)
+		return [a for a in self.all_options if self._fuzzy_match(a, dataset, type_name)]
 
 	def _fuzzy_match(self, options, dataset, type_name):
 		ids = options["identifiers"]
@@ -51,7 +51,7 @@ class Storage(object):
 				return # duplicate found
 		#for stored_options in self.all_options:
 		# make sure we overwrite older settings
-		self.all_options = filter(lambda set: set["key"] != key, self.all_options)
+		self.all_options = [set for set in self.all_options if set["key"] != key]
 
 		identifiers = {}
 		identifiers["name"] = dataset.name
@@ -59,7 +59,8 @@ class Storage(object):
 		identifiers["column_names"] = dataset.get_column_names()
 		self.all_options.append({"identifiers":identifiers, "options":options, "key":key, "name":name, "type_name": type_name})
 
-		print self.all_options
+
+		#print((self.all_options))
 		logger.debug("writing favorites to: %s" % self.path)
-		json.dump(self.all_options, file(self.path, "w"), indent=4)
+		json.dump(self.all_options, open(self.path, "w"), indent=4)
 		self.changed.emit()
