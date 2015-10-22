@@ -860,6 +860,27 @@ class Dataset(object):
 		self._length = int(round(self.full_length() * self._active_fraction))
 
 
+def _select_replace(maskold, masknew):
+	return masknew
+
+def _select_and(maskold, masknew):
+	return masknew if maskold is None else maskold & masknew
+
+def _select_or(maskold, masknew):
+	return masknew if maskold is None else maskold | masknew
+
+def _select_xor(maskold, masknew):
+	return masknew if maskold is None else maskold ^ masknew
+
+def _select_subtract(self, maskold, masknew):
+	return ~masknew if maskold is None else (maskold) & ~masknew
+
+_select_functions = {"replace":_select_replace,\
+					 "and":_select_and,
+					 "or":_select_or,
+					 "xor":_select_xor,
+					 "subtract":_select_subtract
+					 }
 
 class DatasetLocal(Dataset):
 	def __init__(self, name, path, column_names):
@@ -889,14 +910,16 @@ class DatasetLocal(Dataset):
 	def selected_length(self):
 		return np.sum(self.mask) if self.has_selection() else None
 
-	def select(self, expression):
+
+	def select(self, expression, mode="replace"):
+		mode_function = _select_functions[mode]
 		if expression is None:
 			self._has_selection = False
 			self.mask = None
 		else:
 			mask = np.zeros(len(self), dtype=np.bool)
 			def map(thread_index, i1, i2, block):
-				mask[i1:i2][block==1.] = 1
+				mask[i1:i2] = mode_function(None if self.mask is None else self.mask[i1:i2], block == 1)
 				return 0
 			def reduce(*args):
 				None

@@ -1896,7 +1896,7 @@ class PlotDialog(QtGui.QWidget):
 		#action = self.toolbar.addAction(icon
 		self.syncToolbar()
 		#self.action_select_mode_replace.setChecked(True)
-		self.select_mode = self.select_replace
+		self.select_mode = "replace"
 		self.setMode(self.action_move)
 		self.toolbar.setIconSize(QtCore.QSize(16, 16))
 		layout.addWidget(self.toolbar)
@@ -1973,30 +1973,25 @@ class PlotDialog(QtGui.QWidget):
 	def setSelectMode(self, action):
 		self.select_mode_button.setDefaultAction(action)
 		if action == self.action_select_mode_replace:
-			self.select_mode = self.select_replace
+			self._select_mode = "replace"
 		if action == self.action_select_mode_and:
-			self.select_mode = self.select_and
+			self._select_mode = "and"
 		if action == self.action_select_mode_or:
-			self.select_mode = self.select_or
+			self._select_mode = "or"
 		if action == self.action_select_mode_xor:
-			self.select_mode = self.select_xor
+			self._select_mode = "xor"
 		if action == self.action_select_mode_subtract:
-			self.select_mode = self.select_subtract
+			self._select_mode = "subtract"
 
-	def select_replace(self, maskold, masknew):
-		return masknew
+	@property
+	def select_mode(self):
+		return self._select_mode
 
-	def select_and(self, maskold, masknew):
-		return masknew if maskold is None else maskold & masknew
-
-	def select_or(self, maskold, masknew):
-		return masknew if maskold is None else maskold | masknew
-
-	def select_xor(self, maskold, masknew):
-		return masknew if maskold is None else maskold ^ masknew
-
-	def select_subtract(self, maskold, masknew):
-		return ~masknew if maskold is None else (maskold) & ~masknew
+	@select_mode.setter
+	def select_mode(self, value):
+		print "set to", value
+		action = getattr(self, "action_select_mode_%s" % value)
+		self.setSelectMode(action)
 
 	def onActionSelectNone(self):
 		#self.dataset.selectMask(None)

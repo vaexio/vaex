@@ -828,6 +828,7 @@ class LayerTable(object):
 
 		else:
 			self.grid_main["weighted"] = None
+			self.grid_main_selection["weighted"] = None
 
 		# the vector fields only use the selection if there is one, otherwise the whole dataset
 		subspace = self.subspace
@@ -1525,6 +1526,15 @@ class LayerTable(object):
 				#dialog_info(self.plot_window, "expr", expression)
 				storage_expressions.add("", "selection", self.dataset, {"expressions": expressions} )
 
+				mode = self.plot_window.select_mode
+				self.dataset.select(expression, mode)
+				mask = self.dataset.mask
+				action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
+				#action.do()
+
+				self.check_selection_undo_redo()
+				return
+
 				mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
 				t0 = time.time()
 				def select(info, blockmask):
@@ -1538,9 +1548,6 @@ class LayerTable(object):
 				#if layer is not None:
 				if 1:
 					self.dataset.evaluate(select, expression, **self.getVariableDict())
-					action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
-					action.do()
-					self.check_selection_undo_redo()
 
 					#self.plot_window.checkUndoRedo()
 					#self.setMode(self.lastAction)
@@ -1555,7 +1562,7 @@ class LayerTable(object):
 
 	def label_selection_info_update(self):
 		# TODO: support this again
-		return
+		#return
 		if self.dataset.mask is None:
 			self.label_selection_info.setText("no selection")
 		else:

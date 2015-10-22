@@ -83,6 +83,13 @@ class TestPlotPanel2d(unittest.TestCase):
 		QtTest.QTest.mouseClick(button, QtCore.Qt.LeftButton)
 		self.window = self.app.current_window
 		self.layer = self.window.current_layer
+		self.no_exceptions = True
+		import sys
+		def testExceptionHook(type, value, tback):
+			self.no_exceptions = False
+			sys.__excepthook__(type, value, tback)
+
+		sys.excepthook = testExceptionHook
 
 	def tearDown(self):
 		self.window.close()
@@ -140,6 +147,13 @@ class TestPlotPanel2d(unittest.TestCase):
 		self.layer.vx = "vx"
 		self.assertEqual(counter+1, self.window.queue_update.counter)
 		self.window._wait()
+
+	def test_select_by_expression(self):
+		vaex.ui.qt.set_choose("x < 0", True)
+		QtTest.QTest.mouseClick(self.layer.button_selection_expression, QtCore.Qt.LeftButton)
+		self.window._wait()
+		self.assertTrue(self.no_exceptions)
+
 
 
 

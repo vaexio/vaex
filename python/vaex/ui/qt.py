@@ -223,8 +223,15 @@ def gettext(parent, title, label, default=""):
 	return str(text) if ok else None
 
 
+def set_choose(text, ok=True):
+	def callback(*args):
+		QtGui.QInputDialog.getItem = previous_value
+		return text, ok
+	previous_value = QtGui.QInputDialog_getItem
+	QtGui.QInputDialog_getItem = callback
+QtGui.QInputDialog_getItem = QtGui.QInputDialog.getItem
 def choose(parent, title, label, options, index=0, editable=False):
-	text, ok = QtGui.QInputDialog.getItem(parent, title, label, options, index, editable)
+	text, ok = QtGui.QInputDialog_getItem(parent, title, label, options, index, editable)
 	if editable:
 		return text if ok else None
 	else:

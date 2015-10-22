@@ -59,7 +59,8 @@ class Storage(object):
 		identifiers["column_names"] = dataset.get_column_names()
 		self.all_options.append({"identifiers":identifiers, "options":options, "key":key, "name":name, "type_name": type_name})
 
-		print((self.all_options))
+
+		#print((self.all_options))
 		logger.debug("writing favorites to: %s" % self.path)
 		json.dump(self.all_options, open(self.path, "w"), indent=4)
 		self.changed.emit()
