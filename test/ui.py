@@ -154,6 +154,16 @@ class TestPlotPanel2d(unittest.TestCase):
 		self.window._wait()
 		self.assertTrue(self.no_exceptions)
 
+	def test_select_by_lasso(self):
+		vaex.ui.qt.set_choose("x < 0", True)
+		x = [-10, 10, 10, -10]
+		y = [-10, -10, 10, 10]
+		self.layer.dataset.lasso_select("x", "y", x, y)
+		#QtTest.QTest.mouseClick(self.layer.button_selection_expression, QtCore.Qt.LeftButton)
+		self.assertLess(self.layer.dataset.selected_length(), len(self.layer.dataset))
+		self.window._wait()
+		self.assertTrue(self.no_exceptions)
+
 
 
 

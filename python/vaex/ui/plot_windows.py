@@ -1084,9 +1084,14 @@ class PlotDialog(QtGui.QWidget):
 		layer = self.current_layer
 		if layer is not None:
 			# xaxis is stored in the matplotlib object
-			layer.dataset.evaluate(putmask, layer.expressions[axes.xaxis_index], **self.getVariableDict())
+			#layer.dataset.evaluate(putmask, layer.expressions[axes.xaxis_index], **self.getVariableDict())
+			boolean_expression = "((%s) >= %f) & ((%s) < %f)" % (layer.x, xmin, layer.x, xmax)
+			logger.debug("expression: %s", boolean_expression)
+			print boolean_expression
+			layer.dataset.select(boolean_expression, self.select_mode)
+			mask = layer.dataset.mask
 			action = undo.ActionMask(layer.dataset.undo_manager, "select x range[%f,%f]" % (xmin, xmax), mask, layer.apply_mask)
-			action.do()
+			#action.do()
 			#self.checkUndoRedo()
 
 	def onSelectY(self, ymin, ymax, axes):
@@ -1114,8 +1119,22 @@ class PlotDialog(QtGui.QWidget):
 
 	def onSelectLasso(self, vertices, axes):
 		x, y = np.array(vertices).T
+
 		x = np.ascontiguousarray(x, dtype=np.float64)
 		y = np.ascontiguousarray(y, dtype=np.float64)
+		layer = self.current_layer
+		if layer is not None:
+			self.dataset.lasso_select(layer.x, layer.y, x, y, mode=self.select_mode)
+			#self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
+			meanx = x.mean()
+			meany = y.mean()
+			mask = layer.dataset.mask
+			action = undo.ActionMask(layer.dataset.undo_manager, "lasso around [%f,%f]" % (meanx, meany), mask, layer.apply_mask)
+			#action.do()
+			self.checkUndoRedo()
+			#self.setMode(self.lastAction)
+		return
+
 		#mask = np.zeros(len(self.dataset._length), dtype=np.uint8)
 		mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
 		meanx = x.mean()

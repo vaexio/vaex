@@ -444,36 +444,67 @@ class LayerTable(object):
 
 		logger.debug("begin plot 4")
 		if self.dimensions == 1:
-			mask = ~(np.isnan(amplitude) | np.isinf(amplitude))
+			mask = ~(np.isnan(self.amplitude_grid) | np.isinf(self.amplitude_grid))
 			if np.sum(mask) == 0:
 				self.range_level = None
 			else:
+				values = self.amplitude_grid * 1.
+				print "values", values
+				#def nancumsum()
+				if self._cumulative:
+					values[~mask] = 0
+					values = np.cumsum(values)
+					print "values", values
+				if self._normalize:
+					if self._cumulative:
+						values /= values[-1]
+					else:
+						values /= np.sum(values[mask]) # TODO: take dx into account?
+
+				if self.dataset.has_selection():
+					mask_selected = ~(np.isnan(self.amplitude_grid_selection) | np.isinf(self.amplitude_grid_selection))
+					values_selected = self.amplitude_grid_selection * 1.
+					print "values_selected", values_selected
+					if self._cumulative:
+						values_selected[~mask_selected] = 0
+						values_selected = np.cumsum(values_selected)
+					if self._normalize:
+						if self._cumulative:
+							values_selected /= values_selected[-1]
+						else:
+							values_selected /= np.sum(values_selected[mask_selected]) # TODO: take dx into account?
+					print "values_selected", values_selected
 				if self.range_level is None:
 					#self.range_level = [np.min(amplitude[mask]), np.max(amplitude[mask])]
-					self.range_level = [min(0, np.min(amplitude[mask])), np.max(amplitude[mask])]
+					if self.dataset.has_selection():
+						vmin = min(np.min(values_selected[mask_selected]), np.min(values[mask]))
+						vmax = max( np.max(values_selected[mask_selected]), np.max(values[mask]) )
+						self.range_level = [min(0, vmin), vmax]
+					else:
+						self.range_level = [min(0, np.min(values[mask])), np.max(values[mask])]
 				width = self.ranges_grid[0][1] - self.ranges_grid[0][0]
 				x = np.arange(0, self.plot_window.grid_size)/float(self.plot_window.grid_size) * width + self.ranges_grid[0][0]# + width/(Nvector/2.)
 				delta = x[1] - x[0]
 				for axes in axes_list:
 					if self.display_type == "bar":
-						axes.bar(x, amplitude, width=delta, align='center', alpha=self.alpha, color=self.color)
+						axes.bar(x, values, width=delta, align='center', alpha=self.alpha, color=self.color)
 					else:
-						print(len(x), len(amplitude))
+						print(len(x), len(self.amplitude_grid))
 						dx = x[1] - x[0]
 						x2 = list(np.ravel(list(zip(x,x+dx))))
 						x2p = [x[0]] + x2 + [x[-1]+dx]
-						y = amplitude
+						y = values
 						y2 = list(np.ravel(list(zip(y,y))))
 						y2p = [0] + y2 + [0]
 						axes.plot(x2p, y2p, alpha=self.alpha, color=self.color)
-					if use_selection:
+					if self.dataset.has_selection():
 						if self.display_type == "bar":
-							axes.bar(x, amplitude_selection, width=delta, align='center', color=self.color_alt, alpha=0.6*self.alpha)
+							axes.bar(x, values_selected, width=delta, align='center', color=self.color_alt, alpha=0.6*self.alpha)
 						else:
 							dx = x[1] - x[0]
 							x2 = list(np.ravel(list(zip(x,x+dx))))
 							x2p = [x[0]] + x2 + [x[-1]+dx]
-							y = amplitude_selection
+							y = values_selected
 							y2 = list(np.ravel(list(zip(y,y))))
 							y2p = [0] + y2 + [0]
 							axes.plot(x2p, y2p, drawstyle="steps-mid", alpha=self.alpha, color=self.color_alt)
@@ -1432,6 +1463,15 @@ class LayerTable(object):
 			self.display_type = self.options.get("display_type", "bar")
 			self.option_display_type = Option(page_widget, "display", ["bar", "line"], getter=attrgetter(self, "display_type"), setter=attrsetter(self, "display_type"), update=self.signal_plot_dirty.emit)
 			row = self.option_display_type.add_to_grid_layout(row, grid_layout)
+
+
+			self._normalize = eval(self.options.get("normalize", "False"))
+			self.checkbox_normalize = Checkbox(page_widget, "normalize", getter=attrgetter(self, "_normalize"), setter=attrsetter(self, "_normalize"), update=self.signal_plot_dirty.emit)
+			row = self.checkbox_normalize.add_to_grid_layout(row, grid_layout)
+
+			self._cumulative = eval(self.options.get("cumulative", "False"))
+			self.checkbox_cumulative = Checkbox(page_widget, "cumulative", getter=attrgetter(self, "_cumulative"), setter=attrsetter(self, "_cumulative"), update=self.signal_plot_dirty.emit)
+			row = self.checkbox_cumulative.add_to_grid_layout(row, grid_layout)
 
 
 		if self.dimensions > 1:
