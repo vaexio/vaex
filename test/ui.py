@@ -9,6 +9,7 @@ vx.set_log_level_warning()
 
 import vaex.ui
 import vaex.ui.main
+import vaex.ui.layers
 import vaex.utils
 
 import PIL.Image
@@ -26,7 +27,7 @@ def get_comparison_image(name):
 	return os.path.join(base_path, "images", name+".png")
 
 #logging.getLogger("vaex.ui.queue").setLevel(logging.DEBUG)
-#logging.getLogger("vaex.ui.layer").setLevel(logging.DEBUG)
+logging.getLogger("vaex.ui").setLevel(logging.DEBUG)
 
 
 class TestUiCreation(unittest.TestCase):
@@ -83,9 +84,24 @@ class TestPlotPanel2d(unittest.TestCase):
 		QtTest.QTest.mouseClick(button, QtCore.Qt.LeftButton)
 		self.window = self.app.current_window
 		self.layer = self.window.current_layer
+		self.no_exceptions = True
+		import sys
+		def testExceptionHook(type, value, tback):
+			self.no_exceptions = False
+			sys.__excepthook__(type, value, tback)
+
+		sys.excepthook = testExceptionHook
+
+		self.no_error_in_field = True
+		def error_in_field(self, *args):
+			print args
+			self.no_error_in_field = False
+		vaex.ui.layers.LayerTable.error_in_field = error_in_field
 
 	def tearDown(self):
 		self.window.close()
+		self.assertTrue(self.no_exceptions)
+		self.assertTrue(self.no_error_in_field)
 
 	def compare(self, fn1, fn2):
 		image1 = PIL.Image.open(fn1)
@@ -140,6 +156,27 @@ class TestPlotPanel2d(unittest.TestCase):
 		self.layer.vx = "vx"
 		self.assertEqual(counter+1, self.window.queue_update.counter)
 		self.window._wait()
+
+	def test_select_by_expression(self):
+		vaex.ui.qt.set_choose("x < 0", True)
+		QtTest.QTest.mouseClick(self.layer.button_selection_expression, QtCore.Qt.LeftButton)
+		self.window._wait()
+		self.assertTrue(self.no_exceptions)
+
+	def test_select_by_lasso(self):
+		vaex.ui.qt.set_choose("x < 0", True)
+		x = [-10, 10, 10, -10]
+		y = [-10, -10, 10, 10]
+		self.layer.dataset.lasso_select("x", "y", x, y)
+		#QtTest.QTest.mouseClick(self.layer.button_selection_expression, QtCore.Qt.LeftButton)
+		self.assertLess(self.layer.dataset.selected_length(), len(self.layer.dataset))
+		self.window._wait()
+		self.assertTrue(self.no_exceptions)
+
+	def test_layers(self):
+		self.window.add_layer(["x", "z"])
+		self.window._wait()
+
 
 
 

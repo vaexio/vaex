@@ -57,6 +57,7 @@ class Executor(object):
 
 	def run(self, task):
 		assert task.dataset == self.dataset
+		logger.debug("added task: %r" % task)
 		previous_queue = self.task_queue
 		try:
 			self.task_queue = [task]

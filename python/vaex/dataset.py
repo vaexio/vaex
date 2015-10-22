@@ -860,6 +860,27 @@ class Dataset(object):
 		self._length = int(round(self.full_length() * self._active_fraction))
 
 
+def _select_replace(maskold, masknew):
+	return masknew
+
+def _select_and(maskold, masknew):
+	return masknew if maskold is None else maskold & masknew
+
+def _select_or(maskold, masknew):
+	return masknew if maskold is None else maskold | masknew
+
+def _select_xor(maskold, masknew):
+	return masknew if maskold is None else maskold ^ masknew
+
+def _select_subtract(self, maskold, masknew):
+	return ~masknew if maskold is None else (maskold) & ~masknew
+
+_select_functions = {"replace":_select_replace,\
+					 "and":_select_and,
+					 "or":_select_or,
+					 "xor":_select_xor,
+					 "subtract":_select_subtract
+					 }
 
 class DatasetLocal(Dataset):
 	def __init__(self, name, path, column_names):
@@ -889,14 +910,16 @@ class DatasetLocal(Dataset):
 	def selected_length(self):
 		return np.sum(self.mask) if self.has_selection() else None
 
-	def select(self, expression):
+
+	def select(self, expression, mode="replace"):
+		mode_function = _select_functions[mode]
 		if expression is None:
 			self._has_selection = False
 			self.mask = None
 		else:
 			mask = np.zeros(len(self), dtype=np.bool)
 			def map(thread_index, i1, i2, block):
-				mask[i1:i2][block==1.] = 1
+				mask[i1:i2] = mode_function(None if self.mask is None else self.mask[i1:i2], block == 1)
 				return 0
 			def reduce(*args):
 				None
@@ -907,6 +930,28 @@ class DatasetLocal(Dataset):
 				self._set_mask(mask)
 			task.then(apply_mask)
 			return expr._task(task)
+
+	def lasso_select(self, expression_x, expression_y, xsequence, ysequence, mode="replace"):
+		mode_function = _select_functions[mode]
+		x, y = np.array(xsequence, dtype=np.float64), np.array(ysequence, dtype=np.float64)
+		meanx = x.mean()
+		meany = y.mean()
+		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
+
+		mask = np.zeros(len(self), dtype=np.bool)
+		def lasso(thread_index, i1, i2, blockx, blocky):
+			vaex.vaexfast.pnpoly(x, y, blockx, blocky, mask[i1:i2], meanx, meany, radius)
+			mask[i1:i2] = mode_function(None if self.mask is None else self.mask[i1:i2], mask[i1:i2])
+			return 0
+		def reduce(*args):
+			None
+		subspace = self(expression_x, expression_y)
+		task = TaskMapReduce(self, [expression_x, expression_y], lambda thread_index, i1, i2, blockx, blocky: lasso(thread_index, i1, i2, blockx, blocky), reduce, info=True)
+		def apply_mask(*args):
+			#print "Setting mask"
+			self._set_mask(mask)
+		task.then(apply_mask)
+		return subspace._task(task)
 
 	def _set_mask(self, mask):
 		self.mask = mask

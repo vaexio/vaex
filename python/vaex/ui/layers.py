@@ -61,7 +61,6 @@ class LinkButton(QtGui.QToolButton):
 		#self.setMenu(self.menu)
 		self.link = None
 
-
 	def onToggleLink(self):
 		if self.isChecked():
 			logger.debug("connected link")
@@ -161,7 +160,7 @@ class LayerTable(object):
 		self.options = options
 		self.grids = vaex.grids.Grids(self.dataset, self.thread_pool, *expressions)
 		self.grids.ranges = self.ranges_grid
-		self.vector_expressions = [None,] * 3
+		self.vector_expressions = [None,] * (1 if self.dimensions == 1 else 3)
 		self.figure = figure
 		self.canvas = canvas
 		self.widget_build = False
@@ -233,6 +232,10 @@ class LayerTable(object):
 		self.signal_plot_dirty = vaex.events.Signal("plot_dirty")
 		self.signal_plot_update = vaex.events.Signal("plot_update")
 		#self.dataset.signal_pick.connect(self.on)
+
+	def __repr__(self):
+		classname = self.__class__.__module__ + "." +self.__class__.__name__
+		return "<%s(name=%r, expressions=%r)> instance at 0x%x" % (classname, self.name, self.expressions, id(self))
 
 	@property
 	def weight(self):
@@ -406,7 +409,8 @@ class LayerTable(object):
 		except Exception as e:
 			logger.exception("amplitude field")
 			traceback.print_exc()
-			self.error_in_field(self.amplitude_box, "amplitude", e)
+			print self.error_in_field
+			self.error_in_field(self.amplitude_box, "amplitude of layer %s" % self.name, e)
 			return
 		logger.debug("begin plot 2")
 		self.amplitude_grid_selection = None
@@ -444,36 +448,67 @@ class LayerTable(object):
 
 		logger.debug("begin plot 4")
 		if self.dimensions == 1:
-			mask = ~(np.isnan(amplitude) | np.isinf(amplitude))
+			mask = ~(np.isnan(self.amplitude_grid) | np.isinf(self.amplitude_grid))
 			if np.sum(mask) == 0:
 				self.range_level = None
 			else:
+				values = self.amplitude_grid * 1.
+				print "values", values
+				#def nancumsum()
+				if self._cumulative:
+					values[~mask] = 0
+					values = np.cumsum(values)
+					print "values", values
+				if self._normalize:
+					if self._cumulative:
+						values /= values[-1]
+					else:
+						values /= np.sum(values[mask]) # TODO: take dx into account?
+
+				if self.dataset.has_selection():
+					mask_selected = ~(np.isnan(self.amplitude_grid_selection) | np.isinf(self.amplitude_grid_selection))
+					values_selected = self.amplitude_grid_selection * 1.
+					print "values_selected", values_selected
+					if self._cumulative:
+						values_selected[~mask_selected] = 0
+						values_selected = np.cumsum(values_selected)
+					if self._normalize:
+						if self._cumulative:
+							values_selected /= values_selected[-1]
+						else:
+							values_selected /= np.sum(values_selected[mask_selected]) # TODO: take dx into account?
+					print "values_selected", values_selected
 				if self.range_level is None:
 					#self.range_level = [np.min(amplitude[mask]), np.max(amplitude[mask])]
-					self.range_level = [min(0, np.min(amplitude[mask])), np.max(amplitude[mask])]
+					if self.dataset.has_selection():
+						vmin = min(np.min(values_selected[mask_selected]), np.min(values[mask]))
+						vmax = max( np.max(values_selected[mask_selected]), np.max(values[mask]) )
+						self.range_level = [min(0, vmin), vmax]
+					else:
+						self.range_level = [min(0, np.min(values[mask])), np.max(values[mask])]
 				width = self.ranges_grid[0][1] - self.ranges_grid[0][0]
 				x = np.arange(0, self.plot_window.grid_size)/float(self.plot_window.grid_size) * width + self.ranges_grid[0][0]# + width/(Nvector/2.)
 				delta = x[1] - x[0]
 				for axes in axes_list:
 					if self.display_type == "bar":
-						axes.bar(x, amplitude, width=delta, align='center', alpha=self.alpha, color=self.color)
+						axes.bar(x, values, width=delta, align='center', alpha=self.alpha, color=self.color)
 					else:
-						print(len(x), len(amplitude))
+						print(len(x), len(self.amplitude_grid))
 						dx = x[1] - x[0]
 						x2 = list(np.ravel(list(zip(x,x+dx))))
 						x2p = [x[0]] + x2 + [x[-1]+dx]
-						y = amplitude
+						y = values
 						y2 = list(np.ravel(list(zip(y,y))))
 						y2p = [0] + y2 + [0]
 						axes.plot(x2p, y2p, alpha=self.alpha, color=self.color)
-					if use_selection:
+					if self.dataset.has_selection():
 						if self.display_type == "bar":
-							axes.bar(x, amplitude_selection, width=delta, align='center', color=self.color_alt, alpha=0.6*self.alpha)
+							axes.bar(x, values_selected, width=delta, align='center', color=self.color_alt, alpha=0.6*self.alpha)
 						else:
 							dx = x[1] - x[0]
 							x2 = list(np.ravel(list(zip(x,x+dx))))
 							x2p = [x[0]] + x2 + [x[-1]+dx]
-							y = amplitude_selection
+							y = values_selected
 							y2 = list(np.ravel(list(zip(y,y))))
 							y2p = [0] + y2 + [0]
 							axes.plot(x2p, y2p, drawstyle="steps-mid", alpha=self.alpha, color=self.color_alt)
@@ -828,6 +863,7 @@ class LayerTable(object):
 
 		else:
 			self.grid_main["weighted"] = None
+			self.grid_main_selection["weighted"] = None
 
 		# the vector fields only use the selection if there is one, otherwise the whole dataset
 		subspace = self.subspace
@@ -835,6 +871,7 @@ class LayerTable(object):
 			subspace = subspace.selected()
 
 		for i, expression in enumerate(self.vector_expressions):
+			print self, self.vector_expressions, self.ranges_grid
 			name = "xyzw"[i]
 
 			# add arrays x y z which container the centers of the bins
@@ -1433,6 +1470,15 @@ class LayerTable(object):
 			row = self.option_display_type.add_to_grid_layout(row, grid_layout)
 
 
+			self._normalize = eval(self.options.get("normalize", "False"))
+			self.checkbox_normalize = Checkbox(page_widget, "normalize", getter=attrgetter(self, "_normalize"), setter=attrsetter(self, "_normalize"), update=self.signal_plot_dirty.emit)
+			row = self.checkbox_normalize.add_to_grid_layout(row, grid_layout)
+
+			self._cumulative = eval(self.options.get("cumulative", "False"))
+			self.checkbox_cumulative = Checkbox(page_widget, "cumulative", getter=attrgetter(self, "_cumulative"), setter=attrsetter(self, "_cumulative"), update=self.signal_plot_dirty.emit)
+			row = self.checkbox_cumulative.add_to_grid_layout(row, grid_layout)
+
+
 		if self.dimensions > 1:
 			vaex.ui.colormaps.process_colormaps()
 			self.colormap_box = QtGui.QComboBox(page_widget)
@@ -1525,6 +1571,15 @@ class LayerTable(object):
 				#dialog_info(self.plot_window, "expr", expression)
 				storage_expressions.add("", "selection", self.dataset, {"expressions": expressions} )
 
+				mode = self.plot_window.select_mode
+				self.dataset.select(expression, mode)
+				mask = self.dataset.mask
+				action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
+				#action.do()
+
+				self.check_selection_undo_redo()
+				return
+
 				mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
 				t0 = time.time()
 				def select(info, blockmask):
@@ -1538,9 +1593,6 @@ class LayerTable(object):
 				#if layer is not None:
 				if 1:
 					self.dataset.evaluate(select, expression, **self.getVariableDict())
-					action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
-					action.do()
-					self.check_selection_undo_redo()
 
 					#self.plot_window.checkUndoRedo()
 					#self.setMode(self.lastAction)
@@ -1555,7 +1607,7 @@ class LayerTable(object):
 
 	def label_selection_info_update(self):
 		# TODO: support this again
-		return
+		#return
 		if self.dataset.mask is None:
 			self.label_selection_info.setText("no selection")
 		else:

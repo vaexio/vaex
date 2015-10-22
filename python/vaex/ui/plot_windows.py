@@ -303,9 +303,11 @@ class PlotDialog(QtGui.QWidget):
 		if name is None:
 			name = options.get("name", "Layer: " + str(len(self.layers)+1))
 		ranges = copy.deepcopy(self.ranges_show)
+		logger.debug("adding layer {name} with expressions {expressions} for dataset {dataset} and options {options}".format(**locals()))
 
 		if len(self.layers) > 0:
 			first_layer = self.layers[0]
+			assert len(expressions) == first_layer.dimensions
 			for i in range(self.dimensions):
 				if ranges[i] is None and first_layer.ranges_grid[i] is not None:
 					ranges[i] = copy.copy(first_layer.ranges_grid[i])
@@ -342,7 +344,7 @@ class PlotDialog(QtGui.QWidget):
 			assert self.current_layer == layer
 			self.load_options(options["options"])
 		layer.add_jobs()
-		#self.dataset.executor.execute()
+		self.dataset.executor.execute()
 		#self.queue_update()
 		return layer
 
@@ -1084,9 +1086,14 @@ class PlotDialog(QtGui.QWidget):
 		layer = self.current_layer
 		if layer is not None:
 			# xaxis is stored in the matplotlib object
-			layer.dataset.evaluate(putmask, layer.expressions[axes.xaxis_index], **self.getVariableDict())
+			#layer.dataset.evaluate(putmask, layer.expressions[axes.xaxis_index], **self.getVariableDict())
+			boolean_expression = "((%s) >= %f) & ((%s) < %f)" % (layer.x, xmin, layer.x, xmax)
+			logger.debug("expression: %s", boolean_expression)
+			print boolean_expression
+			layer.dataset.select(boolean_expression, self.select_mode)
+			mask = layer.dataset.mask
 			action = undo.ActionMask(layer.dataset.undo_manager, "select x range[%f,%f]" % (xmin, xmax), mask, layer.apply_mask)
-			action.do()
+			#action.do()
 			#self.checkUndoRedo()
 
 	def onSelectY(self, ymin, ymax, axes):
@@ -1114,8 +1121,22 @@ class PlotDialog(QtGui.QWidget):
 
 	def onSelectLasso(self, vertices, axes):
 		x, y = np.array(vertices).T
+
 		x = np.ascontiguousarray(x, dtype=np.float64)
 		y = np.ascontiguousarray(y, dtype=np.float64)
+		layer = self.current_layer
+		if layer is not None:
+			self.dataset.lasso_select(layer.x, layer.y, x, y, mode=self.select_mode)
+			#self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
+			meanx = x.mean()
+			meany = y.mean()
+			mask = layer.dataset.mask
+			action = undo.ActionMask(layer.dataset.undo_manager, "lasso around [%f,%f]" % (meanx, meany), mask, layer.apply_mask)
+			#action.do()
+			self.checkUndoRedo()
+			#self.setMode(self.lastAction)
+		return
+
 		#mask = np.zeros(len(self.dataset._length), dtype=np.uint8)
 		mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
 		meanx = x.mean()
@@ -1896,7 +1917,7 @@ class PlotDialog(QtGui.QWidget):
 		#action = self.toolbar.addAction(icon
 		self.syncToolbar()
 		#self.action_select_mode_replace.setChecked(True)
-		self.select_mode = self.select_replace
+		self.select_mode = "replace"
 		self.setMode(self.action_move)
 		self.toolbar.setIconSize(QtCore.QSize(16, 16))
 		layout.addWidget(self.toolbar)
@@ -1973,30 +1994,25 @@ class PlotDialog(QtGui.QWidget):
 	def setSelectMode(self, action):
 		self.select_mode_button.setDefaultAction(action)
 		if action == self.action_select_mode_replace:
-			self.select_mode = self.select_replace
+			self._select_mode = "replace"
 		if action == self.action_select_mode_and:
-			self.select_mode = self.select_and
+			self._select_mode = "and"
 		if action == self.action_select_mode_or:
-			self.select_mode = self.select_or
+			self._select_mode = "or"
 		if action == self.action_select_mode_xor:
-			self.select_mode = self.select_xor
+			self._select_mode = "xor"
 		if action == self.action_select_mode_subtract:
-			self.select_mode = self.select_subtract
+			self._select_mode = "subtract"
 
-	def select_replace(self, maskold, masknew):
-		return masknew
+	@property
+	def select_mode(self):
+		return self._select_mode
 
-	def select_and(self, maskold, masknew):
-		return masknew if maskold is None else maskold & masknew
-
-	def select_or(self, maskold, masknew):
-		return masknew if maskold is None else maskold | masknew
-
-	def select_xor(self, maskold, masknew):
-		return masknew if maskold is None else maskold ^ masknew
-
-	def select_subtract(self, maskold, masknew):
-		return ~masknew if maskold is None else (maskold) & ~masknew
+	@select_mode.setter
+	def select_mode(self, value):
+		print "set to", value
+		action = getattr(self, "action_select_mode_%s" % value)
+		self.setSelectMode(action)
 
 	def onActionSelectNone(self):
 		#self.dataset.selectMask(None)
