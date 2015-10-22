@@ -931,6 +931,28 @@ class DatasetLocal(Dataset):
 			task.then(apply_mask)
 			return expr._task(task)
 
+	def lasso_select(self, expression_x, expression_y, xsequence, ysequence, mode="replace"):
+		mode_function = _select_functions[mode]
+		x, y = np.array(xsequence, dtype=np.float64), np.array(ysequence, dtype=np.float64)
+		meanx = x.mean()
+		meany = y.mean()
+		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
+
+		mask = np.zeros(len(self), dtype=np.bool)
+		def lasso(thread_index, i1, i2, blockx, blocky):
+			vaex.vaexfast.pnpoly(x, y, blockx, blocky, mask[i1:i2], meanx, meany, radius)
+			mask[i1:i2] = mode_function(None if self.mask is None else self.mask[i1:i2], mask[i1:i2])
+			return 0
+		def reduce(*args):
+			None
+		subspace = self(expression_x, expression_y)
+		task = TaskMapReduce(self, [expression_x, expression_y], lambda thread_index, i1, i2, blockx, blocky: lasso(thread_index, i1, i2, blockx, blocky), reduce, info=True)
+		def apply_mask(*args):
+			#print "Setting mask"
+			self._set_mask(mask)
+		task.then(apply_mask)
+		return subspace._task(task)
+
 	def _set_mask(self, mask):
 		self.mask = mask
 		self._has_selection = mask is not None
