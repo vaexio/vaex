@@ -14,6 +14,8 @@ import os
 from functools import reduce
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+import threading
+lock = threading.Lock()
 
 try:
 	import h5py
@@ -203,8 +205,6 @@ class TaskHistogram(Task):
 		subblock_weight = None
 		if len(blocks) == len(self.expressions) + 1:
 			subblock_weight = blocks[-1]
-			if self.masked:
-				subblock_weight = subblock_weight[mask[i1:i2]]
 		#print subblocks[0]
 		#print subblocks[1]
 
@@ -565,6 +565,40 @@ class SubspaceLocal(Subspace):
 		task = TaskMapReduce(self.dataset, self.expressions, find, lambda a, b: a if b is None else b, info=True)
 		return self._task(task)
 
+	def nearest(self, point, metric=None):
+		metric = metric or [1.] * len(point)
+		def nearest_in_block(thread_index, i1, i2, *blocks):
+			if self.is_masked:
+				mask = self.dataset.mask[i1:i2]
+				if mask.sum() == 0:
+					return None
+				blocks = [block[mask] for block in blocks]
+			distance_squared = np.sum( [(blocks[i]-point[i])**2.*metric[i] for i in range(self.dimension)], axis=0 )
+			min_index = np.argmin(distance_squared)
+			return min_index + i1, distance_squared[min_index]**0.5, [block[min_index] for block in blocks]
+		def nearest_reduce(a, b):
+			if a is None:
+				return b
+			if b is None:
+				return a
+			if a[1] < b[1]:
+				return a
+			else:
+				return b
+		if self.is_masked:
+			pass
+		mask = self.dataset.mask
+		task = TaskMapReduce(self.dataset,\
+							 self.expressions,
+							 nearest_in_block,\
+							 nearest_reduce, info=True)
+		return self._task(task)
+
+	def row(self, index):
+		return np.array([self.dataset.evaluate(expression, i1=index, i2=index+1)[0] for expression in self.expressions])
+
+
+
 
 
 
@@ -631,6 +665,8 @@ class _BlockScope(object):
 			logger.error("unknown variable: %r" % variable)
 			raise
 
+main_executor = vaex.execution.Executor(multithreading.pool)
+
 class Dataset(object):
 	"""All datasets are encapsulated in this class, local or remote dataets
 
@@ -655,10 +691,10 @@ class Dataset(object):
 
 	:type signal_selection_changed: events.Signal
 	"""
-	def __init__(self, name, column_names):
+	def __init__(self, name, column_names, executor=None):
 		self.name = name
 		self.column_names = column_names
-		self.executor = vaex.execution.Executor(self, multithreading.pool)
+		self.executor = executor or main_executor
 		self.signal_pick = vaex.events.Signal("pick")
 		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
 		self.signal_selection_changed = vaex.events.Signal("selection changed")
@@ -1213,7 +1249,7 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.mapping_map[filename] = mmap.mmap(self.fileno_map[filename], 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
 
 
-	def selectRow(self, index):
+	def selectRow_(self, index):
 		self.selected_row_index = index
 		logger.debug("emit pick signal: %r" % index)
 		self.signal_pick.emit(index)

@@ -5,6 +5,7 @@ import functools
 import time
 import copy
 import json
+import traceback
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -23,9 +24,16 @@ import vaex.ui.plugin.zoom
 import vaex.ui.plugin.vector3d
 import vaex.ui.plugin.animation
 import vaex.ui.imageblending
+import aplus
+
+"""
+
+Cases/Rules:
+ * Enter a new expression: that dimension's limits need to be recalculated
+ * First layer determines
 
 
-
+"""
 
 
 
@@ -210,6 +218,9 @@ class Queue(object):
 
 	def __call__(self, callable=None, delay=None, *args, **kwargs):
 		self.pre()
+		#print self.name
+		#import traceback
+		#	traceback.print_stack()
 		if delay is None:
 			delay = self.default_delay
 		callable = callable or self.default_callable
@@ -334,6 +345,7 @@ class PlotDialog(QtGui.QWidget):
 				dialog_error(self, "Error in expression", "Error: " +error_text)
 
 		def on_plot_dirty(layer=None):
+			logger.debug("received signal plot dirty, layer=%r" % layer)
 			self.queue_replot()
 
 		layer.signal_expression_change.connect(on_expression_change)
@@ -343,9 +355,11 @@ class PlotDialog(QtGui.QWidget):
 		if "options" in options:
 			assert self.current_layer == layer
 			self.load_options(options["options"])
-		layer.add_jobs()
-		self.dataset.executor.execute()
+		#$layer.add_jobs()
+		self.queue_update(layer=layer)
+		#self.dataset.executor.execute()
 		#self.queue_update()
+		logger.debug("added layer")
 		return layer
 
 	def __init__(self, parent, jobsManager, dataset, dimensions, axisnames, width=5, height=4, dpi=100, **options):
@@ -557,6 +571,7 @@ class PlotDialog(QtGui.QWidget):
 
 	def on_resize_event(self, event):
 		if not self.action_mini_mode_ultra.isChecked():
+			logger.debug("resize event")
 			self.fig.tight_layout()
 			self.queue_redraw()
 
@@ -974,6 +989,27 @@ class PlotDialog(QtGui.QWidget):
 	def onPickX(self, event):
 		x, y = event.xdata, event.ydata
 		self.selected_point = None
+
+		layer = self.current_layer
+		axes = event.inaxes
+		logger.debug("pickx %r %r" % (layer, axes))
+		if layer is not None and  axes is not None:
+			layer.coordinates_picked_row = None
+			promise = layer.subspace.nearest([x])
+			layer.dataset.executor.execute()
+			def set(value):
+				if value is None:
+					logger.error("could not find nearest")
+				else:
+					index, distance, point = value
+					layer.dataset.set_current_row(index)
+			promise.then(set)
+				#layer.dataset.evaluate(pick, layer.expressions[axes.xaxis_index], **self.getVariableDict())
+				#index, distance = scope.index, scope.distance
+				#logger.debug("nearest row: %r d=%r" % (index, distance))
+				#layer.dataset.set_current_row(index)
+			self.setMode(self.lastAction)
+		return
 		class Scope(object):
 			pass
 		# temp scope object
@@ -1030,6 +1066,25 @@ class PlotDialog(QtGui.QWidget):
 		x, y = event.xdata, event.ydata
 		wx = self.ranges_show[0][1] - self.ranges_show[0][0]
 		wy = self.ranges_show[1][1] - self.ranges_show[1][0]
+
+		x, y = event.xdata, event.ydata
+		self.selected_point = None
+
+		layer = self.current_layer
+		axes = event.inaxes
+		logger.debug("pickx %r %r" % (layer, axes))
+		if layer is not None and  axes is not None:
+			layer.coordinates_picked_row = None
+			promise = layer.subspace.nearest([x, y], metric=[1./wx, 1./wy])
+			layer.dataset.executor.execute()
+			def set(value):
+				if value is None:
+					logger.error("could not find nearest")
+				else:
+					index, distance, point = value
+					layer.dataset.set_current_row(index)
+			promise.then(set)
+		return
 
 		self.selected_point = None
 		class Scope(object):
@@ -1178,11 +1233,15 @@ class PlotDialog(QtGui.QWidget):
 		if axis_indices is None: # signals a 'reset'
 			for axis_index in range(self.dimensions):
 				self.ranges_show[axis_index] = None
+				for layer in self.layers:
+					layer.ranges_grid[axis_index] = None
 				#self.ranges[axis_index] = None
 		else:
 			for i, axis_index in enumerate(axis_indices):
 				if ranges_show:
 					self.ranges_show[axis_index] = ranges_show[i]
+					for layer in self.layers:
+						layer.ranges_grid[axis_index] = ranges_show[i]
 				i#f ranges:
 				#	self.ranges[axis_index] = ranges[i]
 		logger.debug("set range_level: %r" % (range_level, ))
@@ -1190,15 +1249,18 @@ class PlotDialog(QtGui.QWidget):
 		if len(axis_indices) > 0:
 			self.check_aspect(axis_indices[0]) # maybe we should use the widest or smallest one
 
-		self.update_plot()
+		for layer in self.layers:
+			layer.needs_update = True
+		self.queue_update()
+		#self.update_plot()
 
 	def update_plot(self):
 		# default value
 		self.update_direct()
 
 	def update_direct(self, layer=None):
-		self.queue_replot.cancel()
-		self.queue_update.cancel()
+		#self.queue_replot.cancel()
+		#self.queue_update.cancel()
 		#for i in range(self.dimensions):
 		#	self.ranges[i] = self.ranges_show[i]
 		logger.debug("update direct: ranges_show=%r" % (self.ranges_show, ))
@@ -1208,14 +1270,79 @@ class PlotDialog(QtGui.QWidget):
 		else:
 			logger.debug("updating all layers")
 			layers = self.layers
+		layers = [layer for layer in self.layers if layer.needs_update]
+		if not layers:
+			logger.error("update requested while no layer needs it")
+		#for layer in layers:
+		#	layer.ranges_grid = copy.deepcopy(self.ranges_show)
+		#	layer.range_level = copy.copy(self.range_level_show)
+		#timelog("begin computation", reset=True)
+		#self.compute()
+		#self.dataset.executor.execute()
+		#self.dataset.executor.execute()
+		#timelog("computation done")
+
+		timelog("begin computation", reset=True)
+		# this can be
+		promises = [layer.add_tasks_ranges() for layer in layers]
+		# execute may do things async, like at a server
+		self.dataset.executor.execute()
+
+		promise_ranges_done = aplus.listPromise(promises)
+		promise_ranges_done.then(self._update_step2, self.on_error_or_cancel).then(None, self.on_error_or_cancel)
+
+	def on_error_or_cancel(self, error):
+		logger.exception("error occured: %r", error, exc_info=error)
+		import traceback
+		traceback.print_exc()
+		#raise exception
+		#raise error
+
+	def _update_step2(self, layers):
+		"""Each layer has it's own ranges_grid computed now, unless something went wrong
+		But all layers are shown with the same ranges (ranges_show)
+		If any of the ranges is None, take the min/max of each layer
+		"""
+		logger.debug("done with ranges, now update step2 for layers: %r", layers)
+
+
+		for dimension in range(self.dimensions):
+			if self.ranges_show[dimension] is None:
+				vmin = min([layer.ranges_grid[dimension][0] for layer in layers])
+				vmax = max([layer.ranges_grid[dimension][1] for layer in layers])
+				self.ranges_show[dimension] = [vmin, vmax]
+
+
+		# now make sure the layers all have the same ranges_grid
 		for layer in layers:
 			layer.ranges_grid = copy.deepcopy(self.ranges_show)
-			layer.range_level = copy.copy(self.range_level_show)
-		timelog("begin computation", reset=True)
-		self.compute()
-		#self.dataset.executor.execute()
+
+		# now we are ready to calculate histograms
+		promises = [layer.add_tasks_histograms() for layer in layers]
 		self.dataset.executor.execute()
+
+		promises_histograms_done = aplus.listPromise(promises)
+		promises_histograms_done.then(self._update_step3, self.on_error_or_cancel).then(None, self.on_error_or_cancel)
+
+	def _update_step3(self, layers):
+		logger.debug("done with histograms, now update step3, layers = %r" % layers)
+		# all histograms are computed, and anything needed to visualize it
+		# for 1d histograms, we for instance want to have similar levels
+		if self.range_level_show is None:
+			self.calculate_range_level_show()
 		timelog("computation done")
+		# now we can do the plot
+		self.queue_replot()
+
+	def calculate_range_level_show(self):
+		layers = [layer for layer in self.layers if layer.range_level is not None]
+		if layers:
+			for layer in layers:
+				logger.debug("layer %r has range_level %r" % (layer, layer.range_level))
+			vmin = min([layer.range_level[0] for layer in layers])
+			vmax = max([layer.range_level[1] for layer in layers])
+			self.range_level_show = [vmin, vmax]
+		logger.debug("range_level_show = %r" % (self.range_level_show, ))
 
 	def update_delayed(self, delay=500):
 		def update(ignore=None, update_counter=None):
@@ -1286,6 +1413,8 @@ class PlotDialog(QtGui.QWidget):
 			self.last_range_level_show = None
 			action.do()
 			self.checkUndoRedo()
+		for layer in self.layers:
+			layer.needs_update = True
 		self.queue_update(delayed_zoom, delay=delay)
 
 
@@ -2124,11 +2253,14 @@ class HistogramPlotDialog(PlotDialog):
 		#values =
 		if len(self.layers) == 0:
 			return
+		if self.range_level_show is None:
+			logger.error("cannot plot when range_level_show is None")
+			return
 		first_layer = self.layers[0]
 
-		for i in range(self.dimensions):
-			if self.ranges_show[i] is None:
-				self.ranges_show[i] = copy.copy(first_layer.ranges_grid[i])
+		#for i in range(self.dimensions):
+		#	if self.ranges_show[i] is None:
+		#		self.ranges_show[i] = copy.copy(first_layer.ranges_grid[i])
 
 
 		for layer in self.layers:
@@ -2139,8 +2271,8 @@ class HistogramPlotDialog(PlotDialog):
 		self.axes.set_xlabel(first_layer.expressions[0])
 		xmin_show, xmax_show = self.ranges_show[0]
 		self.axes.set_xlim(xmin_show, xmax_show)
-		if self.range_level_show is None:
-			self.range_level_show = first_layer.range_level
+		#if self.range_level_show is None:
+		#	self.range_level_show = first_layer.range_level
 		ymin_show, ymax_show = self.range_level_show
 		if not first_layer.weight_expression:
 			self.axes.set_ylabel("counts")
@@ -2218,7 +2350,6 @@ class HistogramPlotDialog(PlotDialog):
 					if index >= info.i1 and index < info.i2: # selected point is in this block
 						self.selected_point = block[index-info.i1]
 				self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
-
 
 
 class ScatterPlotDialog(PlotDialog):

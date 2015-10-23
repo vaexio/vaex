@@ -482,7 +482,7 @@ class DatasetPanel(QtGui.QFrame):
 			#dialog.updateGeometry()
 			#dialog.adjustSize()
 		#self.dataset.executor.execute()
-		self.dataset.executor.execute()
+		#self.dataset.executor.execute()
 		self.signal_open_plot.emit(dialog)
 		return dialog
 
@@ -510,7 +510,7 @@ class DatasetPanel(QtGui.QFrame):
 		dialog.add_layer([xname], **kwargs)
 		dialog.show()
 		#self.dataset.executor.execute()
-		self.dataset.executor.execute()
+		#self.dataset.executor.execute()
 		self.signal_open_plot.emit(dialog)
 		return dialog
 

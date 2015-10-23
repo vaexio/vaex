@@ -27,6 +27,24 @@ class GridScope(object):
 		self.globals = globals or {}
 		self.lazy = {}
 		self.lazy["average"] = grid_average
+		self.globals["cumulative"] = self.cumulative
+		self.globals["normalize"] = self.normalize
+
+	def cumulative(self, array, normalize=True):
+		mask = (np.isnan(array) | np.isinf(array))
+		values = array * 1
+		values[mask] = 0
+		c = np.cumsum(values)
+		if normalize:
+			return c/c[-1]
+		else:
+			return c
+
+	def normalize(self, array):
+		mask = (np.isnan(array) | np.isinf(array))
+		values = array * 1
+		total = np.sum(values[~mask])
+		return values/total
 
 	def setter(self, key):
 		def apply(value, key=key):

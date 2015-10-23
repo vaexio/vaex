@@ -268,6 +268,24 @@ class TestDataset(unittest.TestCase):
 		self.assertLess(total_subset, total)
 		pass # TODO
 
+	def test_nearest(self):
+		index, distance, (value,) = self.dataset("x").nearest([3])
+		self.assertEqual(index, 3)
+		self.assertEqual(distance, 0)
+		self.assertEqual(value, 3)
+
+		index, distance, (value,) = self.dataset("x").nearest([3.7])
+		self.assertEqual(index, 4)
+		self.assertAlmostEqual(distance, 0.3)
+		self.assertEqual(value, 4)
+
+		self.dataset.select("x > 5")
+		index, distance, (value,) = self.dataset("x").selected().nearest([3.7])
+		self.assertEqual(index, 6)
+		self.assertEqual(distance, 2.3)
+		self.assertEqual(value, 6)
+
+
 
 test_port = 29001
 

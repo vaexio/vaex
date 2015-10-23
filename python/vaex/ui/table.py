@@ -113,9 +113,9 @@ class TableDialog(QtGui.QDialog):
 		self.spinner.valueChanged.connect(self.onValueChanged)
 		self.count_from_zero.stateChanged.connect(self.onStateCountFromZero)
 		
-		self.dataset.row_selection_listeners.append(self.onRowSelect)
+		self.dataset.signal_pick.connect(self.on_row_pick)
 		if self.dataset.selected_row_index is not None:
-			self.onRowSelect(self.dataset.selected_row_index)
+			self.on_row_pick(self.dataset.get_current_row())
 		self._check_pages()
 		
 	def onStateCountFromZero(self, state):
@@ -153,7 +153,7 @@ class TableDialog(QtGui.QDialog):
 		info_text_pre = "showing {rows_visible:,} rows on page".format(**locals())
 		self.label_prefix.setText(info_text_pre)
 
-	def onRowSelect(self, row):
+	def on_row_pick(self, dataset, row):
 		self._check_pages()
 		if row is None:
 			return
@@ -197,6 +197,6 @@ class TableDialog(QtGui.QDialog):
 	def onSelectRow(self, model):
 		row_index = model.row() + self.tableModel.get_row_offset()
 		logger.debug("row index selected %d" % row_index)
-		self.dataset.selectRow(row_index)
+		self.dataset.set_current_row(row_index)
 		
 		
