@@ -6,6 +6,9 @@ import time
 import copy
 import json
 import traceback
+import numpy as np
+from functools import reduce
+
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -13,7 +16,7 @@ import matplotlib
 import matplotlib.colors
 import matplotlib.widgets
 import matplotlib.cm
-import numpy as np
+
 
 from vaex.multithreading import ThreadPool
 import vaex
@@ -24,356 +27,155 @@ import vaex.ui.plugin.zoom
 import vaex.ui.plugin.vector3d
 import vaex.ui.plugin.animation
 import vaex.ui.imageblending
-import aplus
-
-"""
-
-Cases/Rules:
- * Enter a new expression: that dimension's limits need to be recalculated
- * First layer determines
-
-
-"""
-
-
-
-
-
-#import vaex.ui.plugin.dispersions
+import vaex.ui.colormaps
 import vaex.ui.templates
+import vaex.promise
 
-#import subspacefind
+from vaex.ui.qt import *
+from vaex.ui.icons import iconfile
 import vaex.vaexfast
 from vaex.ui import qt, undo
-from functools import reduce
 
-subspacefind = vaex.vaexfast
 
 logger = vaex.logging.getLogger("vaex")
 
-from vaex.ui.qt import *
+class Slicer(matplotlib.widgets.Widget):
+	"""
+	"""
+	def __init__(self, plot_window, axes, canvas, useblit=True, horizOn=False, vertOn=True,
+				 **lineprops):
 
-from vaex.ui.icons import iconfile
-
-def find_nearest_index(datax, datay, x, y, wx, wy):
-	index = find_nearest_index_(datax, datay, x, y, wx, wy)
-	distance = math.sqrt((datax[index]-x)**2/wx**2 + (datay[index]-y)**2/wy**2)
-	return index, distance
-
-
-import vaex.ui.colormaps
-
-
-		
-		
-class Mover(object):
-	def __init__(self, plot, axes):
-		self.plot = plot
+		self.plot_window = plot_window
+		self.canvas = canvas
 		self.axes = axes
-		self.canvas = self.axes.figure.canvas
-		self.axes = None
-		
-		self.canvas.mpl_connect('scroll_event', self.mpl_scroll)
-		self.last_x, self.last_y = None, None
-		self.handles = []
-		self.handles.append(self.canvas.mpl_connect('motion_notify_event', self.mouse_move))
-		self.handles.append(self.canvas.mpl_connect('button_press_event', self.mouse_down))
-		self.handles.append(self.canvas.mpl_connect('button_release_event', self.mouse_up))
-		self.begin_x, self.begin_y = None, None
-		self.moved = False
-		self.zoom_queue = []
-		self.zoom_counter = 0
-		
-	def disconnect_events(self):
-		for handle in self.handles:
-			self.canvas.mpl_disconnect(handle)
-		
-	def mouse_up(self, event):
-		self.last_x, self.last_y = None, None
-		if self.moved:
-			# self.plot.ranges = list(self.plot.ranges_show)
-			#for layer in self.plot.layers:
-			#	layer.ranges = list(self.plot)
-			#self.plot.compute()
-			#self.plot.jobsManager.execute()
-			self.plot.queue_update(delay=10)
-			self.moved = False
-	
-	def mouse_down(self, event):
-		self.moved = False
-		if event.dblclick:
-			factor = 0.333
-			if event.button != 1:
-				factor = 1/factor
-			self.plot.zoom(factor, axes=event.inaxes, x=event.xdata, y=event.ydata)
-		else:
-			self.begin_x, self.begin_y = event.xdata, event.ydata
-			self.last_x, self.last_y = event.xdata, event.ydata
-			self.current_axes = event.inaxes
-			self.plot.ranges_begin = list(self.plot.ranges_show)
-	
-	def mouse_move(self, event):
-		#return
-		if self.last_x is not None and event.xdata is not None and self.current_axes is not None:
-			#axes = event.inaxes
-			transform = self.current_axes.transData.inverted().transform
-			x_data, y_data = event.xdata, event.ydata
-			self.moved = True
-			dx = self.last_x - x_data
-			dy = self.last_y - y_data 
-			xmin, xmax = self.plot.ranges_show[self.current_axes.xaxis_index][0] + dx, self.plot.ranges_show[self.current_axes.xaxis_index][1] + dx
-			if self.plot.dimensions == 1:
-				ymin, ymax = self.plot.range_level_show[0] + dy, self.plot.range_level_show[1] + dy
-			else:
-				ymin, ymax = self.plot.ranges_show[self.current_axes.yaxis_index][0] + dy, self.plot.ranges_show[self.current_axes.yaxis_index][1] + dy
-			#self.plot.ranges_show = [[xmin, xmax], [ymin, ymax]]
-			self.plot.ranges_show[self.current_axes.xaxis_index] = [xmin, xmax]
-			if self.plot.dimensions == 1:
-				self.plot.range_level_show = [ymin, ymax]
-			else:
-				self.plot.ranges_show[self.current_axes.yaxis_index] = [ymin, ymax]
-			# TODO: maybe the dimension should be stored in the axes, not in the plotdialog
-			for axes in self.plot.getAxesList():
-				if self.plot.dimensions == 1:
-					# ftm we assume we only have 1 histogram, meabning axes == self.current_axes
-					axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
-					axes.set_ylim(*self.plot.range_level_show)
-				else:
-					if axes.xaxis_index == self.current_axes.xaxis_index:
-						axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
-					if axes.yaxis_index == self.current_axes.xaxis_index:
-						axes.set_ylim(*self.plot.ranges_show[self.current_axes.xaxis_index])
-					if axes.xaxis_index == self.current_axes.yaxis_index:
-						axes.set_xlim(*self.plot.ranges_show[self.current_axes.yaxis_index])
-					if axes.yaxis_index == self.current_axes.yaxis_index:
-						axes.set_ylim(*self.plot.ranges_show[self.current_axes.yaxis_index])
+		self.horizOn = horizOn
+		self.vertOn = vertOn
 
-			# transform again after we changed the axes limits
-			transform = self.current_axes.transData.inverted().transform
-			x_data, y_data = transform([event.x*1., event.y*1])
-			self.last_x, self.last_y = x_data, y_data
-				
+		xmin, xmax = axes[-1].get_xlim()
+		ymin, ymax = axes[-1].get_ylim()
+		xmid = 0.5 * (xmin + xmax)
+		ymid = 0.5 * (ymin + ymax)
+
+		self.visible = True
+		self.useblit = useblit and self.canvas.supports_blit
+		self.background = None
+		self.needclear = False
+		self.radius = 0.05
+
+		if self.useblit:
+			lineprops['animated'] = True
+
+		import matplotlib.patches
+
+		self.ellipse = matplotlib.patches.Ellipse([0, 0], 1, 1, alpha=0.2)
+		axes[0].add_patch(self.ellipse)
+
+		if vertOn:
+			self.vlines = [ax.axvline(xmid, visible=False, **lineprops)
+						   for ax in axes]
+		else:
+			self.vlines = []
+
+		if horizOn:
+			self.hlines = [ax.axhline(ymid, visible=False, **lineprops)
+						   for ax in axes]
+		else:
+			self.hlines = []
+
+		self.connect()
+
+	def connect(self):
+		"""connect events"""
+		self._cidmotion = self.canvas.mpl_connect('motion_notify_event',
+												  self.onmove)
+		self._ciddraw = self.canvas.mpl_connect('draw_event', self.clear)
+
+	def disconnect(self):
+		"""disconnect events"""
+		self.canvas.mpl_disconnect(self._cidmotion)
+		self.canvas.mpl_disconnect(self._ciddraw)
+
+	def clear(self, event):
+		"""clear the cursor"""
+		if self.useblit:
+			self.background = (
+				self.canvas.copy_from_bbox(self.canvas.figure.bbox))
+		for line in self.vlines + self.hlines:
+			line.set_visible(False)
+
+	def onmove(self, event):
+		if event.inaxes is None:
+			self.plot_window.slice_none()
+			return
+		if not self.canvas.widgetlock.available(self):
+			return
+		self.needclear = True
+		if not self.visible:
+			return
+		if self.vertOn:
+			for line in self.vlines:
+				line.set_xdata((event.xdata, event.xdata))
+				line.set_visible(self.visible)
+		if self.horizOn:
+			for line in self.hlines:
+				line.set_ydata((event.ydata, event.ydata))
+				line.set_visible(self.visible)
+		self.plot_window.slice_circle(event.xdata, event.ydata, self.radius)
+
+		xlim, ylim = self.plot_window.ranges_show
+		width = abs(xlim[1] - xlim[0])
+		height = abs(ylim[1] - ylim[0])
+		scale = self.radius * 2
+
+		self.ellipse.center = [event.xdata, event.ydata]
+		self.ellipse.width = width * scale
+		self.ellipse.height = height * scale
+		self._update()
+
+	def _update(self):
+		if self.useblit:
+			if self.background is not None:
+				self.canvas.restore_region(self.background)
+			if self.vertOn:
+				for ax, line in zip(self.axes, self.vlines):
+					ax.draw_artist(line)
+			if self.horizOn:
+				for ax, line in zip(self.axes, self.hlines):
+					ax.draw_artist(line)
+			for ax in self.axes:
+				ax.draw_artist(self.ellipse)
+			self.canvas.blit(self.canvas.figure.bbox)
+		else:
+
 			self.canvas.draw_idle()
 
-		
-		
-	def mpl_scroll(self, event):
-		factor = 10**(-event.step/8)
-		self.zoom_counter += 1
-		if event.inaxes is None:
-			return
-		
-		if factor < 1:
-			self.plot.zoom(factor, event.inaxes, event.xdata, event.ydata)
-			#self.zoom_queue.append((factor, event.xdata, event.ydata))
-		else:
-			self.plot.zoom(factor, event.inaxes, event.xdata, event.ydata) #, event.xdata, event.ydata)
-			#self.zoom_queue.append((factor, None, None))
-		return
-		def idle_zoom(ignore=None, zoom_counter=None, axes=None):
-			
-			if zoom_counter < self.zoom_counter:
-				pass # ignore, a later event will come
-			else:
-				#zoom_queue = list((self.zoom_queue) # make copy to ensure it doesn't get modified in 
-				for i, (factor, x, y) in enumerate(self.zoom_queue):
-					# only redraw at last call
-					is_last = i==len(self.zoom_queue)-1
-					self.plot.zoom(factor, axes=axes, x=x, y=y, recalculate=False, history=False, redraw=is_last)
-				self.zoom_queue = []
-		if event.axes:
-			QtCore.QTimer.singleShot(1, functools.partial(idle_zoom, zoom_counter=self.zoom_counter, axes=event.inaxes))
-
-		
-		
-		
-		
-		
-
-class Queue(object):
-	logger = vaex.logging.getLogger("vaex.ui.queue")
-	def __init__(self, name, default_delay, default_callable, pre=lambda: None):
-		self.name = name
-		self.default_delay = default_delay
-		self.counter = 0
-		self.counter_processed = None
-		self.default_callable = default_callable
-		self.pre = pre
 
 
-	def _wait(self, sleep=10):
-		if self.counter > 0:
-			qt_app = QtCore.QCoreApplication.instance()
-			logger.debug("*** waiting for queue %r" % self.name)
-			while self.counter_processed != self.counter:
-				qt_app.processEvents()
-				QtTest.QTest.qSleep(sleep)
-			logger.debug("*** done with queue %r" %self.name)
-
-	def cancel(self):
-		def nop():
-			self.logger.debug("nop called in queue %r" % self.name)
-		self.logger.debug("cancelling last call in queue %r by inserting a nop" % self.name)
-		self(nop)
-
-	def __call__(self, callable=None, delay=None, *args, **kwargs):
-		self.pre()
-		#print self.name
-		#import traceback
-		#	traceback.print_stack()
-		if delay is None:
-			delay = self.default_delay
-		callable = callable or self.default_callable
-		def call(_=None, counter=None, callable=None):
-			try:
-				if counter < self.counter:
-					pass # ignore, more events coming
-					self.logger.debug("ignoring this event in queue %r, since a new one is scheduled" % self.name)
-				else:
-					self.logger.debug("calling callback in queue %r" % self.name)
-					callable()
-			finally:
-				self.counter_processed = counter
-		callable = functools.partial(callable, *args, **kwargs)
-		self.counter += 1
-		self.logger.debug("add in queue %r %r" % (self.name, delay))
-		#import traceback
-		#traceback.print_stack()
-		if delay == 0:
-			call(counter=self.counter, callable=callable)
-		else:
-			QtCore.QTimer.singleShot(delay, functools.partial(call, counter=self.counter, callable=callable))
 
 class PlotDialog(QtGui.QWidget):
 	"""
+	:type app: VaexApp
 	:type current_layer: LayerTable
 	:type layers: list[LayerTable]
 	"""
-	def add_axes(self):
-		self.axes = self.fig.add_subplot(111)
-		self.axes.xaxis_index = 0
-		if self.dimensions > 1:
-			self.axes.yaxis_index = 1
-		self.axes.hold(True)
-		
-	def plug_toolbar(self, callback, order):
-		self.plugin_queue_toolbar.append((callback, order))
-
-	def plug_page(self, callback, pagename, pageorder, order):
-		self.plugin_queue_page.append((callback, pagename, pageorder, order))
-
-	def plug_grids(self, callback_define, callback_draw):
-		self.plugin_grids_defines.append(callback_define)
-		self.plugin_grids_draw.append(callback_draw)
-
-	def getAxesList(self):
-		return [self.axes]
-	
-	def __repr__(self):
-		return "<%s at 0x%x layers=%r>" % (self.__class__.__name__, id(self), self.layers)
-	
-	def get_options(self):
-		options = collections.OrderedDict()
-		options["grid_size"] = self.grid_size
-		options["vector_grid_size"] = self.vector_grid_size
-		options["ranges_show"] = self.ranges_show
-		options["aspect"] = self.aspect
-		layer = self.current_layer
-		if layer is not None:
-			options["layer"] = layer.get_options()
-		options = copy.deepcopy(options)
-		return dict(options)
-
-	def apply_options(self, options, update=True):
-		#map = {"expressions",}
-		#recognize = "ranges_show grid_size vector_grid_size aspect".split()
-		recognize = "ranges_show  aspect".split()
-		for key in recognize:
-			if key in list(options.keys()):
-				value = options[key]
-				setattr(self, key, copy.copy(value))
-				if key == "aspect":
-					self.action_aspect_lock_one.setChecked(bool(value))
-		for plugin in self.plugins:
-			plugin.apply_options(options)
-		for key in list(options.keys()):
-			if key not in recognize:
-				logger.error("option %s not recognized, ignored" % key)
-		layer = self.current_layer
-		if layer is not None:
-			layer.apply_options(options["layer"], update=False)
-		if update:
-			self.queue_update()
-
-	def load_options(self, name):
-		self.plugins_map["favorites"].load_options(name, update=False)
-
-	def add_layer(self, expressions, dataset=None, name=None, **options):
-		if dataset is None:
-			dataset = self.dataset
-		if name is None:
-			name = options.get("name", "Layer: " + str(len(self.layers)+1))
-		ranges = copy.deepcopy(self.ranges_show)
-		logger.debug("adding layer {name} with expressions {expressions} for dataset {dataset} and options {options}".format(**locals()))
-
-		if len(self.layers) > 0:
-			first_layer = self.layers[0]
-			assert len(expressions) == first_layer.dimensions
-			for i in range(self.dimensions):
-				if ranges[i] is None and first_layer.ranges_grid[i] is not None:
-					ranges[i] = copy.copy(first_layer.ranges_grid[i])
-		layer = vaex.ui.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.jobsManager, self.pool, self.fig, self.canvas, ranges)
-		self.layers.append(layer)
-		layer.build_widget_qt(self.widget_layer_stack) # layer.widget is the widget build
-		self.widget_layer_stack.addWidget(layer.widget)
-
-		#layer.build_widget_qt_layer_control(self.frame_layer_controls)
-		#self.layout_frame_layer_controls.addWidget(layer.widget_layer_control)
-
-		layer.widget.setVisible(False)
-		self.layer_selection.addItem(name)
-		self.layer_selection.setCurrentIndex(len(self.layers))
-
-
-
-		def on_expression_change(layer, axis_index, expression):
-			if not self.axis_lock: # and len(self.layers) == 1:
-				self.ranges_show[axis_index] = None
-			self.compute()
-			error_text = self.dataset.executor.execute()
-			if error_text:
-				dialog_error(self, "Error in expression", "Error: " +error_text)
-
-		def on_plot_dirty(layer=None):
-			logger.debug("received signal plot dirty, layer=%r" % layer)
-			self.queue_replot()
-
-		layer.signal_expression_change.connect(on_expression_change)
-		layer.signal_plot_dirty.connect(on_plot_dirty)
-		layer.signal_plot_update.connect(self.queue_update)
-
-		if "options" in options:
-			assert self.current_layer == layer
-			self.load_options(options["options"])
-		#$layer.add_jobs()
-		self.queue_update(layer=layer)
-		#self.dataset.executor.execute()
-		#self.queue_update()
-		logger.debug("added layer")
-		return layer
-
-	def __init__(self, parent, jobsManager, dataset, dimensions, axisnames, width=5, height=4, dpi=100, **options):
+	def __init__(self, parent, jobsManager, dataset, dimensions, axisnames, app, width=5, height=4, dpi=100, **options):
 		super(PlotDialog, self).__init__()
 		self.parent_widget = parent
 		self.data_panel = parent
 		self.options = options
 		self.dataset = dataset
+		self.app = app
+		self.layers = []
+		index = len(self.app.windows)
+		self.name = options.get("window_name", "%s-%d" % (self.dataset.name, index))
 		self.dimensions = dimensions
 		if "fraction" in self.options:
 			dataset.set_active_fraction(float(self.options["fraction"]))
 
+		self.xlabel = options.get("xlabel")
+		self.ylabel = options.get("ylabel")
 
-		self.layers = []
+
 		self.show_disjoined = False
 
 		self.menu_bar = QtGui.QMenuBar(self)
@@ -391,7 +193,7 @@ class PlotDialog(QtGui.QWidget):
 
 
 		self.undoManager = parent.undoManager
-		self.setWindowTitle(dataset.name)
+		self.setWindowTitle(self.name)
 		self.jobsManager = jobsManager
 		self.dataset = dataset
 		self.axisnames = axisnames
@@ -530,8 +332,6 @@ class PlotDialog(QtGui.QWidget):
 		self.setLayout(self.layout_main)
 
 
-
-		self.compute()
 		self.jobsManager.after_execute.append(self.plot)
 
 		#self.plot()
@@ -555,7 +355,150 @@ class PlotDialog(QtGui.QWidget):
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 		#self.pinch_ranges_show = [None for i in range(self.dimension)]
 
+	def slice_none(self):
+		mask = np.ones((self.grid_size,) * self.dimensions, dtype=np.bool)
+		layer = self.current_layer
+		if layer:
+			layer.signal_slice_change.emit(mask, False)
+
+	def slice_circle(self, x, y, radius):
+		logger.debug("slice circle: %r %r", x, y)
+		xlim, ylim = self.ranges_show
+		width = abs(xlim[1] - xlim[0])
+		height = abs(ylim[1] - ylim[0])
+		xrel = (x - xlim[0]) / width
+		yrel = (y - ylim[0]) / height
+
+		import vaex.utils
+		x = vaex.utils.linspace_centers(0, 1, self.grid_size)
+		y = vaex.utils.linspace_centers(0, 1, self.grid_size)
+		x, y = np.meshgrid(x, y)
+		distance = np.sqrt((x-xrel)**2 + (y-yrel)**2)
+		mask = distance < radius
+		layer = self.current_layer
+		if layer:
+			layer.signal_slice_change.emit(mask, False)
+
+	def update_all_layers(self):
+		for layer in self.layers:
+			layer.needs_update = True
+		self.queue_update()
+
+	def add_axes(self):
+		self.axes = self.fig.add_subplot(111)
+		self.axes.xaxis_index = 0
+		if self.dimensions > 1:
+			self.axes.yaxis_index = 1
+		self.axes.hold(True)
+
+	def plug_toolbar(self, callback, order):
+		self.plugin_queue_toolbar.append((callback, order))
+
+	def plug_page(self, callback, pagename, pageorder, order):
+		self.plugin_queue_page.append((callback, pagename, pageorder, order))
+
+	def plug_grids(self, callback_define, callback_draw):
+		self.plugin_grids_defines.append(callback_define)
+		self.plugin_grids_draw.append(callback_draw)
+
+	def getAxesList(self):
+		return [self.axes]
+
+	def __repr__(self):
+		return "<%s at 0x%x layers=%r>" % (self.__class__.__name__, id(self), self.layers)
+
+	def get_options(self):
+		options = collections.OrderedDict()
+		options["grid_size"] = self.grid_size
+		options["vector_grid_size"] = self.vector_grid_size
+		options["ranges_show"] = self.ranges_show
+		options["aspect"] = self.aspect
+		layer = self.current_layer
+		if layer is not None:
+			options["layer"] = layer.get_options()
+		options = copy.deepcopy(options)
+		return dict(options)
+
+	def apply_options(self, options, update=True):
+		#map = {"expressions",}
+		#recognize = "ranges_show grid_size vector_grid_size aspect".split()
+		recognize = "ranges_show  aspect".split()
+		for key in recognize:
+			if key in list(options.keys()):
+				value = options[key]
+				setattr(self, key, copy.copy(value))
+				if key == "aspect":
+					self.action_aspect_lock_one.setChecked(bool(value))
+		for plugin in self.plugins:
+			plugin.apply_options(options)
+		for key in list(options.keys()):
+			if key not in recognize:
+				logger.error("option %s not recognized, ignored" % key)
+		layer = self.current_layer
+		if layer is not None:
+			layer.apply_options(options["layer"], update=False)
+		if update:
+			self.queue_update()
+
+	def load_options(self, name):
+		self.plugins_map["favorites"].load_options(name, update=False)
+
+	def add_layer(self, expressions, dataset=None, name=None, **options):
+		if dataset is None:
+			dataset = self.dataset
+		if name is None:
+			name = options.get("layer_name", "Layer: " + str(len(self.layers)+1))
+		ranges = copy.deepcopy(self.ranges_show)
+		logger.debug("adding layer {name} with expressions {expressions} for dataset {dataset} and options {options}".format(**locals()))
+
+		if len(self.layers) > 0:
+			first_layer = self.layers[0]
+			assert len(expressions) == first_layer.dimensions
+			for i in range(self.dimensions):
+				if ranges[i] is None and first_layer.ranges_grid[i] is not None:
+					ranges[i] = copy.copy(first_layer.ranges_grid[i])
+		layer = vaex.ui.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.jobsManager, self.pool, self.fig, self.canvas, ranges)
+		self.layers.append(layer)
+		layer.build_widget_qt(self.widget_layer_stack) # layer.widget is the widget build
+		self.widget_layer_stack.addWidget(layer.widget)
+
+		#layer.build_widget_qt_layer_control(self.frame_layer_controls)
+		#self.layout_frame_layer_controls.addWidget(layer.widget_layer_control)
+
+		layer.widget.setVisible(False)
+		self.layer_selection.addItem(name)
+		self.layer_selection.setCurrentIndex(len(self.layers))
+
+
+
+		def on_expression_change(layer, axis_index, expression):
+			if not self.axis_lock: # and len(self.layers) == 1:
+				self.ranges_show[axis_index] = None
+			self.compute()
+			error_text = self.dataset.executor.execute()
+			if error_text:
+				dialog_error(self, "Error in expression", "Error: " +error_text)
+
+		def on_plot_dirty(layer=None):
+			logger.debug("received signal plot dirty, layer=%r" % layer)
+			self.queue_replot()
+
+		layer.signal_expression_change.connect(on_expression_change)
+		layer.signal_plot_dirty.connect(on_plot_dirty)
+		layer.signal_plot_update.connect(self.queue_update)
+
+		if "options" in options:
+			assert self.current_layer == layer
+			self.load_options(options["options"])
+		#$layer.add_jobs()
+		self.queue_update(layer=layer)
+		#self.dataset.executor.execute()
+		#self.queue_update()
+		logger.debug("added layer")
+		return layer
+
 	def _wait(self):
+		"""Used for unittesting to make sure the plots are all done"""
 		self.queue_update._wait()
 		self.queue_replot._wait()
 		self.queue_redraw._wait()
@@ -612,19 +555,11 @@ class PlotDialog(QtGui.QWidget):
 		self.pool.close()
 		for layer in self.layers:
 			layer.removed()
-		#for axisbox, func in zip(self.axisboxes, self.onExpressionChangedPartials):
-		#	axisbox.lineEdit().editingFinished.disconnect(func)
-		#self.dataset.mask_listeners.remove(self.onSelectMask)
-		#self.dataset.row_selection_listeners.remove(self.onSelectRow)
-		#self.dataset.serie_index_selection_listeners.remove(self.onSerieIndexSelect)
 		self.jobsManager.after_execute.remove(self.plot)
 		for plugin in self.plugins:
 			plugin.clean_up()
 		super(PlotDialog, self).closeEvent(event)
 		self.signal_closed.emit(self)
-
-	#def onSerieIndexSelect(self, serie_index):
-	#	pass
 
 	def getExpressionList(self):
 		return self.dataset.column_names
@@ -886,30 +821,8 @@ class PlotDialog(QtGui.QWidget):
 		self.status_bar.showMessage(" | ".join(text_parts))
 
 
-	#def getTitleExpressionList(self):
-	#	return []
-
-
-
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout) #, yselect=True, lasso=False)
-
-	def compute(self):
-		for layer in self.layers:
-			layer.add_jobs()
-
-	def getVariableDict(self):
-		dict = {}
-		return dict
-
-	def __getVariableDictMinMax(self):
-		return {}
-
-	def _beforeCanvas(self, layout):
-		pass
-
-	def _afterCanvas(self, layout):
-		pass
 
 	def setMode(self, action, force=False):
 		logger.debug("set mode %r %r %r" % (action, action.text(), action.isChecked()))
@@ -946,15 +859,15 @@ class PlotDialog(QtGui.QWidget):
 									if current != other_cursor:
 										other_cursor.onmove(event)
 						cursor.connect_event('motion_notify_event', onmove)
-				if hasx and hasy:
-					for mode in self.currentModes:
-						mode.connect_event('button_press_event', self.onPickXY)
-				elif hasx:
-					for mode in self.currentModes:
-						mode.connect_event('button_press_event', self.onPickX)
-				elif hasy:
-					for mode in self.currentModes:
-						mode.connect_event('button_press_event', self.onPickY)
+					if hasx and hasy:
+						for mode in self.currentModes:
+							mode.connect_event('button_press_event', self.onPickXY)
+					elif hasx:
+						for mode in self.currentModes:
+							mode.connect_event('button_press_event', self.onPickX)
+					elif hasy:
+						for mode in self.currentModes:
+							mode.connect_event('button_press_event', self.onPickY)
 				if useblit:
 					self.canvas.draw() # buggy otherwise
 			if action == self.action_xrange:
@@ -973,6 +886,12 @@ class PlotDialog(QtGui.QWidget):
 				logger.debug("setting last select action to lasso")
 				self.lastActionSelect = self.action_lasso
 				self.currentModes =[ matplotlib.widgets.LassoSelector(axes, functools.partial(self.onSelectLasso, axes=axes)) for axes in axes_list]
+				if useblit:
+					self.canvas.draw() # buggy otherwise
+			if action == self.action_slice:
+				logger.debug("setting last select action to lasso")
+				#self.lastActionSelect = self.action_slice
+				self.currentModes =[ Slicer(self, [axes], canvas=self.canvas, horizOn=False, vertOn=False) for axes in axes_list]
 				if useblit:
 					self.canvas.draw() # buggy otherwise
 			#self.plugin_zoom.setMode(action)
@@ -1003,64 +922,29 @@ class PlotDialog(QtGui.QWidget):
 				else:
 					index, distance, point = value
 					layer.dataset.set_current_row(index)
-			promise.then(set)
-				#layer.dataset.evaluate(pick, layer.expressions[axes.xaxis_index], **self.getVariableDict())
-				#index, distance = scope.index, scope.distance
-				#logger.debug("nearest row: %r d=%r" % (index, distance))
-				#layer.dataset.set_current_row(index)
+			promise.then(set).end()
 			self.setMode(self.lastAction)
-		return
-		class Scope(object):
-			pass
-		# temp scope object
-		scope = Scope()
-		scope.index = None
-		scope.distance = None
-		def pick(info, block, scope=scope):
-			if info.first:
-				scope.index, scope.distance = find_nearest_index1d(block, x)
-			else:
-				scope.block_index, scope.block_distance = find_nearest_index1d(block, x)
-				if scope.block_distance < scope.distance:
-					scope.index = scope.block_index
-		#self.dataset.evaluate(pick, self.expressions[0], **self.getVariableDict())
-		#index, distance = scope.index, scope.distance
-		#self.dataset.selectRow(index)
-		#self.setMode(self.lastAction)
+
+	def onPickY(self, event):
+		# TODO: not sure when we want this?
+		x, y = event.xdata, event.ydata
+		self.selected_point = None
 
 		layer = self.current_layer
 		axes = event.inaxes
+		logger.debug("pickx %r %r" % (layer, axes))
 		if layer is not None and  axes is not None:
-				layer.coordinates_picked_row = None
-				layer.dataset.evaluate(pick, layer.expressions[axes.xaxis_index], **self.getVariableDict())
-				index, distance = scope.index, scope.distance
-				logger.debug("nearest row: %r d=%r" % (index, distance))
-				layer.dataset.selectRow(index)
-				self.setMode(self.lastAction)
-
-	def onPickY(self, event):
-		x, y = event.xdata, event.ydata
-		self.selected_point = None
-		class Scope(object):
-			pass
-		# temp scope object
-		scope = Scope()
-		scope.index = None
-		scope.distance = None
-		def pick(block, info, scope=scope):
-			if info.first:
-				scope.index, scope.distance = find_nearest_index1d(block, y)
-			else:
-				scope.block_index, scope.block_distance = find_nearest_index1d(block, y)
-				if scope.block_distance < scope.distance:
-					scope.index = scope.block_index
-		self.dataset.evaluate(pick, self.expressions[1], **self.getVariableDict())
-		index, distance = scope.index, scope.distance
-		logger.debug("nearest row: %r d=%r" % (index, distance))
-		self.dataset.selectRow(index)
-		self.setMode(self.lastAction)
-
-
+			layer.coordinates_picked_row = None
+			promise = layer.subspace.nearest([y])
+			layer.dataset.executor.execute()
+			def set(value):
+				if value is None:
+					logger.error("could not find nearest")
+				else:
+					index, distance, point = value
+					layer.dataset.set_current_row(index)
+			promise.then(set).end()
+			self.setMode(self.lastAction)
 
 	def onPickXY(self, event):
 		x, y = event.xdata, event.ydata
@@ -1083,96 +967,29 @@ class PlotDialog(QtGui.QWidget):
 				else:
 					index, distance, point = value
 					layer.dataset.set_current_row(index)
-			promise.then(set)
+			promise.then(set).end()
 		return
 
-		self.selected_point = None
-		class Scope(object):
-			pass
-		# temp scope object
-		scope = Scope()
-		scope.index = None
-		scope.distance = None
-		def pick(info, blockx, blocky, scope=scope):
-			if info.first:
-				scope.index, scope.distance = find_nearest_index(blockx, blocky, x, y, wx, wy)
-			else:
-				scope.block_index, scope.block_distance = find_nearest_index(blockx, blocky, x, y, wx, wy)
-				if scope.block_distance < scope.distance:
-					scope.index = scope.block_index
-		layer = self.current_layer
-		axes = event.inaxes
-		if layer is not None and  axes is not None:
-				layer.coordinates_picked_row = None
-				layer.dataset.evaluate(pick, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
-				index, distance = scope.index, scope.distance
-				logger.debug("nearest row: %r d=%r" % (index, distance))
-				layer.dataset.selectRow(index)
-				self.setMode(self.lastAction)
-
-
-	def onSelectX(self, xmin, xmax, axes):
-		#data = self.getdatax()
-		x = [xmin, xmax]
-		xmin, xmax = min(x), max(x)
-		#xmin = xmin if not self.useLogx() else 10**xmin
-		#xmax = xmax if not self.useLogx() else 10**xmax
-		#mask = np.zeros(self.dataset._length, dtype=np.bool)
-		length = self.dataset.current_slice[1] - self.dataset.current_slice[0]
-		mask = np.zeros(length, dtype=np.bool)
-		#for block, info in self.dataset.evaluate(self.expressions[0]):
-		#	mask[info.i1:info.i2] = (block >= xmin) & (block < xmax)
-		#	print ">>>>>>>>>>>>>>> block", info.i1,info.i2, "selected", sum(mask[info.i1:info.i2])
-		t0 = time.time()
-		def putmask(info, block):
-			self.message("selection at %.2f%% (%.1fs)" % (info.percentage, time.time() - t0), index=40 )
-			QtCore.QCoreApplication.instance().processEvents()
-			locals = {"block":block, "xmin":xmin, "xmax:":xmax}
-			#ne.evaluate("(block >= xmin) & (block < xmax)", out=mask[info.i1:info.i2], global_dict=locals)
-			#range_check(block, mask[info.i1:info.i2], xmin, xmax)
-			subspacefind.range_check(block, mask[info.i1:info.i2], xmin, xmax)
-			#mask[info.i1:info.i2] = (block >= xmin) & (block < xmax)
-			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], mask[info.i1:info.i2])
-			if info.last:
-				self.message("selection %.2fs" % (time.time() - t0), index=40)
-
-		logger.debug("selectx: %r %r selected %r for axis index %r" % (xmin, xmax, np.sum(mask), axes.xaxis_index))
+	def select(self, name, vmin, vmax):
+		values = [vmin, vmax]
+		vmin, vmax = min(values), max(values)
 
 		layer = self.current_layer
 		if layer is not None:
-			# xaxis is stored in the matplotlib object
-			#layer.dataset.evaluate(putmask, layer.expressions[axes.xaxis_index], **self.getVariableDict())
-			boolean_expression = "((%s) >= %f) & ((%s) < %f)" % (layer.x, xmin, layer.x, xmax)
+			# xaxis is stored in the matplotlib object / axes.xaxis_index
+			expr = getattr(layer, name)
+			boolean_expression = "((%s) >= %f) & ((%s) < %f)" % (expr, vmin, expr, vmax)
 			logger.debug("expression: %s", boolean_expression)
 			print boolean_expression
 			layer.dataset.select(boolean_expression, self.select_mode)
 			mask = layer.dataset.mask
-			action = undo.ActionMask(layer.dataset.undo_manager, "select x range[%f,%f]" % (xmin, xmax), mask, layer.apply_mask)
-			#action.do()
-			#self.checkUndoRedo()
+			action = undo.ActionMask(layer.dataset.undo_manager, "select %s range[%f,%f]" % (name, vmin, vmax), mask, layer.apply_mask)
+
+	def onSelectX(self, xmin, xmax, axes):
+		self.select("x", xmin, xmax)
 
 	def onSelectY(self, ymin, ymax, axes):
-		y = [ymin, ymax]
-		ymin, ymax = min(y), max(y)
-		#mask = (data >= ymin) & (data < ymax)
-		mask = np.zeros(self.dataset._length, dtype=np.bool)
-		def putmask(info, block):
-			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], (block >= ymin) & (block < ymax))
-		#self.dataset.evaluate(putmask, self.expressions[axes.yaxis_index], **self.getVariableDict())
-		#for block, info in self.dataset.evaluate(self.expressions[1]):
-		#	mask[info.i1:info.i2] = (block >= ymin) & (block < ymax)
-		logger.debug("selecty: %r %r selected %r for axis index %r" % (ymin, ymax, np.sum(mask), axes.yaxis_index))
-		#self.dataset.selectMask(mask)
-		#self.dataset.executor.execute()
-		#self.setMode(self.lastAction)
-		#action.do()
-		#self.checkUndoRedo()
-		layer = self.current_layer
-		if layer is not None:
-			# xaxis is stored in the matplotlib object
-			layer.dataset.evaluate(putmask, layer.expressions[axes.yaxis_index], **self.getVariableDict())
-			action = undo.ActionMask(layer.dataset.undo_manager, "select y range[%f,%f]" % (ymin, ymax), mask, layer.apply_mask)
-			action.do()
+		self.select("y", ymin, ymax)
 
 	def onSelectLasso(self, vertices, axes):
 		x, y = np.array(vertices).T
@@ -1189,44 +1006,9 @@ class PlotDialog(QtGui.QWidget):
 			action = undo.ActionMask(layer.dataset.undo_manager, "lasso around [%f,%f]" % (meanx, meany), mask, layer.apply_mask)
 			#action.do()
 			self.checkUndoRedo()
+			self.queue_update()
 			#self.setMode(self.lastAction)
 		return
-
-		#mask = np.zeros(len(self.dataset._length), dtype=np.uint8)
-		mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
-		meanx = x.mean()
-		meany = y.mean()
-		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
-		#for (blockx, blocky), info in self.dataset.evaluate(*self.expressions[:2]):
-		t0 = time.time()
-		def select(info, blockx, blocky):
-			self.message("selection at %.1f%% (%.2fs)" % (info.percentage, time.time() - t0), index=40)
-			QtCore.QCoreApplication.instance().processEvents()
-			#vaex.selection.pnpoly(x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius)
-			args = (x, y, blockx, blocky, mask[info.i1:info.i2])
-			if 1:
-				submask = mask[info.i1:info.i2]
-				#sub_counts = np.zeros((self.pool.nthreads, N, N), dtype=np.float64)
-				def subblock(index, sub_i1, sub_i2):
-					subspacefind.pnpoly(x, y, blockx[sub_i1:sub_i2], blocky[sub_i1:sub_i2], submask[sub_i1:sub_i2], meanx, meany, radius)
-				self.pool.run_blocks(subblock, info.size)
-			else:
-				subspacefind.pnpoly(x, y, blockx, blocky, mask[info.i1:info.i2], meanx, meany, radius)
-			mask[info.i1:info.i2] = self.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], mask[info.i1:info.i2])
-			if info.last:
-				self.message("selection %.2fs" % (time.time() - t0), index=40)
-
-		layer = self.current_layer
-		if layer is not None:
-			self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
-			action = undo.ActionMask(layer.dataset.undo_manager, "lasso around [%f,%f]" % (meanx, meany), mask, layer.apply_mask)
-			action.do()
-			self.checkUndoRedo()
-			self.setMode(self.lastAction)
-		#self.dataset.selectMask(mask)
-		#self.dataset.executor.execute()
-		#self.setMode(self.lastAction)
-
 
 	def set_ranges(self, axis_indices, ranges_show=None, range_level=None):
 		logger.debug("set axis/ranges_show: %r / %r" % (axis_indices, ranges_show))
@@ -1248,10 +1030,7 @@ class PlotDialog(QtGui.QWidget):
 		self.range_level_show = range_level
 		if len(axis_indices) > 0:
 			self.check_aspect(axis_indices[0]) # maybe we should use the widest or smallest one
-
-		for layer in self.layers:
-			layer.needs_update = True
-		self.queue_update()
+		self.update_all_layers()
 		#self.update_plot()
 
 	def update_plot(self):
@@ -1259,10 +1038,6 @@ class PlotDialog(QtGui.QWidget):
 		self.update_direct()
 
 	def update_direct(self, layer=None):
-		#self.queue_replot.cancel()
-		#self.queue_update.cancel()
-		#for i in range(self.dimensions):
-		#	self.ranges[i] = self.ranges_show[i]
 		logger.debug("update direct: ranges_show=%r" % (self.ranges_show, ))
 		if layer:
 			logger.debug("only update layer %r (index %d)" % (layer, self.layers.index(layer)))
@@ -1273,23 +1048,22 @@ class PlotDialog(QtGui.QWidget):
 		layers = [layer for layer in self.layers if layer.needs_update]
 		if not layers:
 			logger.error("update requested while no layer needs it")
-		#for layer in layers:
-		#	layer.ranges_grid = copy.deepcopy(self.ranges_show)
-		#	layer.range_level = copy.copy(self.range_level_show)
-		#timelog("begin computation", reset=True)
-		#self.compute()
-		#self.dataset.executor.execute()
-		#self.dataset.executor.execute()
-		#timelog("computation done")
 
 		timelog("begin computation", reset=True)
 		# this can be
 		promises = [layer.add_tasks_ranges() for layer in layers]
 		# execute may do things async, like at a server
-		self.dataset.executor.execute()
+		try:
+			self.dataset.executor.execute()
+		except SyntaxError as e:
+			msg = "%s: %r" % (e.args[0], e.args[1][3])
+			qt.dialog_error(self, "Syntax error", "Syntax error: %s " % msg)
+		except KeyError as e:
+			msg = e.args[0]
+			qt.dialog_error(self, "Unknown variable", "Unknown variable or column: %s " % msg)
 
-		promise_ranges_done = aplus.listPromise(promises)
-		promise_ranges_done.then(self._update_step2, self.on_error_or_cancel).then(None, self.on_error_or_cancel)
+		promise_ranges_done = vaex.promise.listPromise(promises)
+		promise_ranges_done.then(self._update_step2, self.on_error_or_cancel).then(None, self.on_error_or_cancel).end()
 
 	def on_error_or_cancel(self, error):
 		logger.exception("error occured: %r", error, exc_info=error)
@@ -1321,8 +1095,8 @@ class PlotDialog(QtGui.QWidget):
 		promises = [layer.add_tasks_histograms() for layer in layers]
 		self.dataset.executor.execute()
 
-		promises_histograms_done = aplus.listPromise(promises)
-		promises_histograms_done.then(self._update_step3, self.on_error_or_cancel).then(None, self.on_error_or_cancel)
+		promises_histograms_done = vaex.promise.listPromise(promises)
+		promises_histograms_done.then(self._update_step3, self.on_error_or_cancel).end()
 
 	def _update_step3(self, layers):
 		logger.debug("done with histograms, now update step3, layers = %r" % layers)
@@ -1343,17 +1117,6 @@ class PlotDialog(QtGui.QWidget):
 			vmax = max([layer.range_level[1] for layer in layers])
 			self.range_level_show = [vmin, vmax]
 		logger.debug("range_level_show = %r" % (self.range_level_show, ))
-
-	def update_delayed(self, delay=500):
-		def update(ignore=None, update_counter=None):
-			if self.update_counter > update_counter:
-				pass  # ignore this event, a new one will arrive
-			else:
-				self.update_direct()
-
-		self.update_counter += 1
-		QtCore.QTimer.singleShot(delay, functools.partial(update, update_counter=self.update_counter))
-
 
 	def zoom(self, factor, axes, x=None, y=None, delay=300, *args):
 		if self.last_ranges_show is None:
@@ -1385,26 +1148,15 @@ class PlotDialog(QtGui.QWidget):
 		ymin_show, ymax_show = min(ymin_show, ymax_show), max(ymin_show, ymax_show)
 		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
 			range_level_show = ymin_show, ymax_show
-			#range_level = ymin_show, ymax_show
-			#counts_weights = np.array([1., factor]) if self.weight_expression is not None else None
-			#w1, w2 = self.eval_amplitude(counts=np.array([1., factor]), counts_weights=counts_weights)
 			if (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
 				range_level_show = ymin, ymax
-				#a = b
 			else:
 				range_level_show = ymin_show, ymax_show
 		else:
 			ranges_show.append((ymin_show, ymax_show))
 			axis_indices.append(axes.yaxis_index)
 
-
-		#self.update = self.update_delayed
-
-
 		def delayed_zoom():
-			#action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"), self.set_ranges,
-			#				range(self.dimensions), self.ranges, self.ranges_show,
-			#				self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
 			action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"),
 							self.set_ranges,
 							list(range(self.dimensions)), self.last_ranges_show, self.last_range_level_show,
@@ -1433,38 +1185,6 @@ class PlotDialog(QtGui.QWidget):
 				axes.set_ylim(self.range_level_show)
 			self.queue_redraw()
 			#self.plot()
-
-		if 0: #recalculate:
-			def update(ignore=None, update_counter=None):
-				if self.update_counter > update_counter:
-					pass  # ignore this event, a new one will arrive
-				else:
-					for axisIndex in range(self.dimensions):
-						linkButton = self.linkButtons[axisIndex]
-						link = linkButton.link
-						if link:
-							logger.debug("sending link messages")
-							link.sendRangesShow(self.ranges_show[axisIndex], linkButton)
-							#link.sendPlot(linkButton)
-
-
-					linked_buttons = [button for button in self.linkButtons if button.link is not None]
-					links = [button.link for button in linked_buttons]
-					if len(linked_buttons) > 0:
-						logger.debug("sending compute message")
-						vaex.dataset.Link.sendCompute(links, linked_buttons)
-					#self.compute()
-					logger.debug("now execute")
-					self.dataset.executor.execute()
-					logger.debug("execute finished")
-
-			self.update_counter += 1
-			QtCore.QTimer.singleShot(1000, functools.partial(update, update_counter=self.update_counter))
-
-
-	def autoRecalculate(self):
-		return True
-
 
 	def onActionSaveFigure(self, *ignore_args):
 		filetypes = dict(self.fig.canvas.get_supported_filetypes()) # copy, otherwise we lose png support :)
@@ -1499,7 +1219,6 @@ class PlotDialog(QtGui.QWidget):
 	def onActionSaveFigureAgain(self, *ignore_args):
 		logger.debug("saving to figure: %s" % self.filename_figure_last)
 		self.fig.savefig(self.filename_figure_last)
-
 
 	def get_aspect(self):
 		if 0:
@@ -1747,10 +1466,10 @@ class PlotDialog(QtGui.QWidget):
 		self.action_fullscreen.setCheckable(True)
 		self.action_fullscreen.setShortcut(("Ctrl+F"))
 
-		self.action_toolbar_toggle = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&toolbars', self)
+		self.action_toolbar_toggle = QtGui.QAction(QtGui.QIcon(iconfile('ui-toolbar')), '&toolbars', self)
 		self.action_toolbar_toggle.setCheckable(True)
 		self.action_toolbar_toggle.setChecked(True)
-		self.action_toolbar_toggle.setShortcut(("Ctrl_Shift+T"))
+		self.action_toolbar_toggle.setShortcut(("Ctrl+Shift+T"))
 
 		#self.actiongroup_mini_mode.addAction(self.action_fullscreen)
 
@@ -1781,6 +1500,7 @@ class PlotDialog(QtGui.QWidget):
 		self.action_xrange = QtGui.QAction(QtGui.QIcon(iconfile('glue_xrange_select16')), '&x-range', self)
 		self.action_yrange = QtGui.QAction(QtGui.QIcon(iconfile('glue_yrange_select16')), '&y-range', self)
 		self.action_lasso = QtGui.QAction(QtGui.QIcon(iconfile('glue_lasso16')), '&Lasso', self)
+		self.action_slice = QtGui.QAction(QtGui.QIcon(iconfile('cutlery-knife')), '&Slice', self)
 		self.action_select_none = QtGui.QAction(QtGui.QIcon(iconfile('dialog-cancel-3')), '&No selection', self)
 		self.action_select_invert = QtGui.QAction(QtGui.QIcon(iconfile('dialog-cancel-3')), '&Invert', self)
 
@@ -1790,6 +1510,8 @@ class PlotDialog(QtGui.QWidget):
 		self.menu_mode.addAction(self.action_yrange)
 		self.action_lasso.setShortcut("Ctrl+L")
 		self.menu_mode.addAction(self.action_lasso)
+		self.action_slice.setShortcut("Ctrl+S")
+		self.menu_mode.addAction(self.action_slice)
 		self.action_select_none.setShortcut("Ctrl+N")
 		self.menu_mode.addAction(self.action_select_none)
 		self.action_select_invert.setShortcut("Ctrl+I")
@@ -1869,6 +1591,7 @@ class PlotDialog(QtGui.QWidget):
 		self.action_group_main.addAction(self.action_xrange)
 		self.action_group_main.addAction(self.action_yrange)
 		self.action_group_main.addAction(self.action_lasso)
+		self.action_group_main.addAction(self.action_slice)
 		#self.action_group_main.addAction(self.action_zoom_out)
 
 
@@ -1878,16 +1601,16 @@ class PlotDialog(QtGui.QWidget):
 		self.menu_view.addAction(self.action_mini_mode_ultra)
 		self.menu_view.addSeparator()
 		self.menu_view.addAction(self.action_fullscreen)
+		self.menu_view.addAction(self.action_toolbar_toggle)
 
 		self.menu_view.addSeparator()
 		self.action_group_resolution = QtGui.QActionGroup(self)
+		self.action_resolution_list = []
 		for index, resolution in enumerate([32, 64, 128, 256, 512, 1024]):
 			action_resolution = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
 				self.grid_size = resolution
-				self.queue_update()
-				#self.compute()
-				#self.dataset.executor.execute()
+				self.update_all_layers()
 			action_resolution.setCheckable(True)
 			# TODO: this need to move to a layer change event
 			if resolution == int(self.grid_size):
@@ -1897,9 +1620,11 @@ class PlotDialog(QtGui.QWidget):
 			action_resolution.setShortcut("Ctrl+Alt+%d" % (index+1))
 			self.menu_view.addAction(action_resolution)
 			self.action_group_resolution.addAction(action_resolution)
+			self.action_resolution_list.append(action_resolution)
 
 		self.menu_view.addSeparator()
 		self.action_group_resolution_vector = QtGui.QActionGroup(self)
+		self.action_resolution_vector_list = []
 		for index, resolution in enumerate([8,16,32, 64, 128, 256]):
 			action_resolution = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
@@ -1916,6 +1641,7 @@ class PlotDialog(QtGui.QWidget):
 			action_resolution.setShortcut("Ctrl+Shift+Alt+%d" % (index+1))
 			self.menu_view.addAction(action_resolution)
 			self.action_group_resolution_vector.addAction(action_resolution)
+			self.action_resolution_vector_list.append(action_resolution)
 
 
 		#self.mini_mode_button = QtGui.QToolButton()
@@ -1960,6 +1686,7 @@ class PlotDialog(QtGui.QWidget):
 				self.lastActionSelect = self.action_lasso
 		else:
 			self.action_lasso.setEnabled(False)
+		self.toolbar.addAction(self.action_slice)
 		self.select_menu.addSeparator()
 		self.select_menu.addAction(self.action_select_none)
 		self.select_menu.addAction(self.action_select_invert)
@@ -2040,6 +1767,7 @@ class PlotDialog(QtGui.QWidget):
 		self.action_xrange.setCheckable(True)
 		self.action_yrange.setCheckable(True)
 		self.action_lasso.setCheckable(True)
+		self.action_slice.setCheckable(True)
 		#self.action_zoom_out.setCheckable(True)
 		#self.action_group_main.
 
@@ -2078,16 +1806,16 @@ class PlotDialog(QtGui.QWidget):
 				self.resize(QtCore.QSize(self.width(), self.height() - self.bottomHeight))
 			else:
 				self.resize(QtCore.QSize(self.width(), self.height() + self.bottomHeight))
+		self.fig.tight_layout()
 		if enabled_mini_mode:
 			if ultra_mode:
 				self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1.)
-				self.canvas.draw()
 		else:
 			self.fig.subplots_adjust(**self.subplotpars_values)
-			self.canvas.draw()
+		self.canvas.draw()
 
 	def on_toolbar_toggle(self, ignore=None):
-		self.action_toolbar_toggle.toggle()
+		#self.action_toolbar_toggle.toggle()
 		visible = self.action_toolbar_toggle.isChecked()
 		logger.debug("toolbar visible? %r" % (visible, ))
 		for widget in [self.toolbar, self.toolbar2, self.status_bar]:
@@ -2229,8 +1957,8 @@ class PlotDialog(QtGui.QWidget):
 class HistogramPlotDialog(PlotDialog):
 	type_name = "histogram"
 	#names = "histogram,1d"
-	def __init__(self, parent, jobsManager, dataset, **kwargs):
-		super(HistogramPlotDialog, self).__init__(parent, jobsManager, dataset, 1, ["X"], **kwargs)
+	def __init__(self, parent, jobsManager, dataset, app, **kwargs):
+		super(HistogramPlotDialog, self).__init__(parent, jobsManager, dataset, 1, ["X"], app, **kwargs)
 
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)
@@ -2319,44 +2047,14 @@ class HistogramPlotDialog(PlotDialog):
 				self.range_level = np.nanmin(amplitude) * 1.1, np.nanmax(amplitude) * 1.1
 			else:
 				self.range_level = 0, np.nanmax(amplitude) * 1.1
-
-		if 0:
-			amplitude = self.counts
-			logger.debug("expr for amplitude: %r" % self.amplitude_expression)
-			if self.amplitude_expression is not None:
-				#locals = {"counts":self.counts, "counts_weights":self.counts_weights}
-				locals = {"counts": self.counts, "weighted": self.counts_weights}
-				locals["x"] = x
-				if self.counts_weights is not None:
-					locals["average"] = self.counts_weights/self.counts
-				else:
-					locals["average"] = None
-				globals = np.__dict__
-				amplitude = eval(self.amplitude_expression, globals, locals)
-
-			if self.range_level is None:
-				if self.weight_expression:
-					self.range_level = np.nanmin(amplitude) * 1.1, np.nanmax(amplitude) * 1.1
-				else:
-					self.range_level = 0, np.nanmax(amplitude) * 1.1
-
-
-			index = self.dataset.selected_row_index
-			if index is not None and self.selected_point is None:
-				logger.debug("point selected but after computation")
-				# TODO: optimize
-				# TODO: optimize
-				def find_selected_point(info, block):
-					if index >= info.i1 and index < info.i2: # selected point is in this block
-						self.selected_point = block[index-info.i1]
-				self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
-
+		if self.action_mini_mode_compact:
+			self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1.)
 
 class ScatterPlotDialog(PlotDialog):
 	type_name = "density2d"
 	#names = "heatmap,density2d,2d"
-	def __init__(self, parent, jobsManager, dataset, **options):
-		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, 2, "X Y".split(), **options)
+	def __init__(self, parent, jobsManager, dataset, app, **options):
+		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, 2, "X Y".split(), app, **options)
 
 
 
@@ -2428,9 +2126,9 @@ class ScatterPlotDialog(PlotDialog):
 				#self.axes.autoscale(False)
 		#index = self.dataset.selected_row_index
 
-		if 0:
-			self.axes.set_xlabel(self.expressions[0])
-			self.axes.set_ylabel(self.expressions[1])
+		if 1:
+			self.axes.set_xlabel(self.xlabel if self.xlabel is not None else first_layer.x)
+			self.axes.set_ylabel(self.ylabel if self.ylabel is not None else first_layer.y)
 		self.axes.set_xlim(*self.ranges_show[0])
 		self.axes.set_ylim(*self.ranges_show[1])
 		#self.fig.texts = []
@@ -2440,10 +2138,13 @@ class ScatterPlotDialog(PlotDialog):
 				self.title.set_text(title_text)
 			else:
 				self.title = self.fig.suptitle(title_text)
-			if not self.action_mini_mode_ultra.isChecked():
-				self.fig.tight_layout(pad=0.0)#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
+			self.canvas.draw()
+			#self.fig.tight_layout(pad=0.0)#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 			#self.fig.tight_layout(pad=0.01)#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 		self.fig.tight_layout()#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
+		if self.action_mini_mode_ultra.isChecked():
+			logger.debug("ultra compact mode")
+			self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1.)
 		self.canvas.draw()
 		self.update()
 		if 0:
@@ -3281,6 +2982,180 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 			#self.compute()
 			self.dataset.executor.execute()
 
+class Mover(object):
+	def __init__(self, plot, axes):
+		self.plot = plot
+		self.axes = axes
+		self.canvas = self.axes.figure.canvas
+		self.axes = None
+
+		self.canvas.mpl_connect('scroll_event', self.mpl_scroll)
+		self.last_x, self.last_y = None, None
+		self.handles = []
+		self.handles.append(self.canvas.mpl_connect('motion_notify_event', self.mouse_move))
+		self.handles.append(self.canvas.mpl_connect('button_press_event', self.mouse_down))
+		self.handles.append(self.canvas.mpl_connect('button_release_event', self.mouse_up))
+		self.begin_x, self.begin_y = None, None
+		self.moved = False
+		self.zoom_queue = []
+		self.zoom_counter = 0
+
+	def disconnect_events(self):
+		for handle in self.handles:
+			self.canvas.mpl_disconnect(handle)
+
+	def mouse_up(self, event):
+		self.last_x, self.last_y = None, None
+		if self.moved:
+			# self.plot.ranges = list(self.plot.ranges_show)
+			#for layer in self.plot.layers:
+			#	layer.ranges = list(self.plot)
+			#self.plot.compute()
+			#self.plot.jobsManager.execute()
+			self.plot.queue_update(delay=10)
+			self.moved = False
+
+	def mouse_down(self, event):
+		self.moved = False
+		if event.dblclick:
+			factor = 0.333
+			if event.button != 1:
+				factor = 1/factor
+			self.plot.zoom(factor, axes=event.inaxes, x=event.xdata, y=event.ydata)
+		else:
+			self.begin_x, self.begin_y = event.xdata, event.ydata
+			self.last_x, self.last_y = event.xdata, event.ydata
+			self.current_axes = event.inaxes
+			self.plot.ranges_begin = list(self.plot.ranges_show)
+
+	def mouse_move(self, event):
+		#return
+		if self.last_x is not None and event.xdata is not None and self.current_axes is not None:
+			#axes = event.inaxes
+			transform = self.current_axes.transData.inverted().transform
+			x_data, y_data = event.xdata, event.ydata
+			self.moved = True
+			dx = self.last_x - x_data
+			dy = self.last_y - y_data
+			xmin, xmax = self.plot.ranges_show[self.current_axes.xaxis_index][0] + dx, self.plot.ranges_show[self.current_axes.xaxis_index][1] + dx
+			if self.plot.dimensions == 1:
+				ymin, ymax = self.plot.range_level_show[0] + dy, self.plot.range_level_show[1] + dy
+			else:
+				ymin, ymax = self.plot.ranges_show[self.current_axes.yaxis_index][0] + dy, self.plot.ranges_show[self.current_axes.yaxis_index][1] + dy
+			#self.plot.ranges_show = [[xmin, xmax], [ymin, ymax]]
+			self.plot.ranges_show[self.current_axes.xaxis_index] = [xmin, xmax]
+			if self.plot.dimensions == 1:
+				self.plot.range_level_show = [ymin, ymax]
+			else:
+				self.plot.ranges_show[self.current_axes.yaxis_index] = [ymin, ymax]
+			# TODO: maybe the dimension should be stored in the axes, not in the plotdialog
+			for axes in self.plot.getAxesList():
+				if self.plot.dimensions == 1:
+					# ftm we assume we only have 1 histogram, meabning axes == self.current_axes
+					axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
+					axes.set_ylim(*self.plot.range_level_show)
+				else:
+					if axes.xaxis_index == self.current_axes.xaxis_index:
+						axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
+					if axes.yaxis_index == self.current_axes.xaxis_index:
+						axes.set_ylim(*self.plot.ranges_show[self.current_axes.xaxis_index])
+					if axes.xaxis_index == self.current_axes.yaxis_index:
+						axes.set_xlim(*self.plot.ranges_show[self.current_axes.yaxis_index])
+					if axes.yaxis_index == self.current_axes.yaxis_index:
+						axes.set_ylim(*self.plot.ranges_show[self.current_axes.yaxis_index])
+
+			# transform again after we changed the axes limits
+			transform = self.current_axes.transData.inverted().transform
+			x_data, y_data = transform([event.x*1., event.y*1])
+			self.last_x, self.last_y = x_data, y_data
+
+			self.canvas.draw_idle()
+
+
+
+	def mpl_scroll(self, event):
+		factor = 10**(-event.step/8)
+		self.zoom_counter += 1
+		if event.inaxes is None:
+			return
+
+		if factor < 1:
+			self.plot.zoom(factor, event.inaxes, event.xdata, event.ydata)
+			#self.zoom_queue.append((factor, event.xdata, event.ydata))
+		else:
+			self.plot.zoom(factor, event.inaxes, event.xdata, event.ydata) #, event.xdata, event.ydata)
+			#self.zoom_queue.append((factor, None, None))
+		return
+		def idle_zoom(ignore=None, zoom_counter=None, axes=None):
+
+			if zoom_counter < self.zoom_counter:
+				pass # ignore, a later event will come
+			else:
+				#zoom_queue = list((self.zoom_queue) # make copy to ensure it doesn't get modified in
+				for i, (factor, x, y) in enumerate(self.zoom_queue):
+					# only redraw at last call
+					is_last = i==len(self.zoom_queue)-1
+					self.plot.zoom(factor, axes=axes, x=x, y=y, recalculate=False, history=False, redraw=is_last)
+				self.zoom_queue = []
+		if event.axes:
+			QtCore.QTimer.singleShot(1, functools.partial(idle_zoom, zoom_counter=self.zoom_counter, axes=event.inaxes))
+
+class Queue(object):
+	logger = vaex.logging.getLogger("vaex.ui.queue")
+	def __init__(self, name, default_delay, default_callable, pre=lambda: None):
+		self.name = name
+		self.default_delay = default_delay
+		self.counter = 0
+		self.counter_processed = None
+		self.default_callable = default_callable
+		self.pre = pre
+
+
+	def _wait(self, sleep=10):
+		if self.counter > 0:
+			qt_app = QtCore.QCoreApplication.instance()
+			logger.debug("*** waiting for queue %r" % self.name)
+			while self.counter_processed != self.counter:
+				qt_app.processEvents()
+				QtTest.QTest.qSleep(sleep)
+			logger.debug("*** done with queue %r" %self.name)
+
+	def cancel(self):
+		def nop():
+			self.logger.debug("nop called in queue %r" % self.name)
+		self.logger.debug("cancelling last call in queue %r by inserting a nop" % self.name)
+		self(nop)
+
+	def __call__(self, callable=None, delay=None, *args, **kwargs):
+		self.pre()
+		#print self.name
+		#import traceback
+		#	traceback.print_stack()
+		if delay is None:
+			delay = self.default_delay
+		callable = callable or self.default_callable
+		def call(_=None, counter=None, callable=None):
+			try:
+				if counter < self.counter:
+					pass # ignore, more events coming
+					self.logger.debug("ignoring this event in queue %r, since a new one is scheduled" % self.name)
+				else:
+					self.logger.debug("calling callback in queue %r" % self.name)
+					callable()
+			finally:
+				self.counter_processed = counter
+		callable = functools.partial(callable, *args, **kwargs)
+		self.counter += 1
+		self.logger.debug("add in queue %r %r" % (self.name, delay))
+		#import traceback
+		#traceback.print_stack()
+		if delay == 0:
+			call(counter=self.counter, callable=callable)
+		else:
+			QtCore.QTimer.singleShot(delay, functools.partial(call, counter=self.counter, callable=callable))
 
 from vaex.ui.layers import LayerTable
 import vaex.ui.layers
+try:
+	from vaex.ui.main import VaexApp
+except: pass

@@ -33,7 +33,7 @@ import vaex.ui.undo
 import execution
 import vaex.grids
 import multithreading
-import aplus
+import vaex.promise
 import concurrent.futures
 from multiprocessing import Pool
 import vaex.execution
@@ -110,9 +110,6 @@ class Link(object):
 				
 				
 
-class Promise(aplus.Promise):
-	pass
-
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 executor = vaex.execution.default_executor
 
@@ -131,9 +128,9 @@ class ColumnExpression(ColumnBase):
 
 #	def get(self, i1, i2):
 
-class Task(Promise):
+class Task(vaex.promise.Promise):
 	def __init__(self, dataset, expressions):
-		Promise.__init__(self)
+		vaex.promise.Promise.__init__(self)
 		self.dataset = dataset
 		self.expressions = expressions
 		self.expressions_all = list(expressions)
@@ -176,8 +173,13 @@ class TaskHistogram(Task):
 		shape = (self.dataset.executor.thread_pool.nthreads,) + ( self.size,) * self.dimension
 		self.data = np.zeros(shape, dtype=self.dtype)
 		self.ranges_flat = []
+		self.minima = []
+		self.maxima = []
 		for limit in self.limits:
 			self.ranges_flat.extend(limit)
+			vmin, vmax = limit
+			self.minima.append(vmin)
+			self.maxima.append(vmax)
 		if self.weight is not None:
 			self.expressions_all.append(weight)
 		#print self.ranges_flat
@@ -205,6 +207,7 @@ class TaskHistogram(Task):
 		subblock_weight = None
 		if len(blocks) == len(self.expressions) + 1:
 			subblock_weight = blocks[-1]
+			blocks = list(blocks[:-1])
 		#print subblocks[0]
 		#print subblocks[1]
 
@@ -214,6 +217,9 @@ class TaskHistogram(Task):
 			vaex.vaexfast.histogram2d(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
 		elif self.dimension == 3:
 			vaex.vaexfast.histogram3d(blocks[0], blocks[1], blocks[2], subblock_weight, data, *self.ranges_flat)
+		else:
+			blocks = list(blocks) # histogramNd wants blocks to be a list
+			vaex.vaexfast.histogramNd(blocks, subblock_weight, data, self.minima, self.maxima)
 
 		return i1
 		#return map(self._map, blocks)#[self.map(block) for block in blocks]
@@ -482,7 +488,6 @@ class SubspaceLocal(Subspace):
 			return self.executor.run(task)
 
 	def minmax(self):
-		promise = Promise()
 		def min_max_reduce(minmax1, minmax2):
 			result = []
 			for d in range(self.dimension):
@@ -908,7 +913,7 @@ def _select_or(maskold, masknew):
 def _select_xor(maskold, masknew):
 	return masknew if maskold is None else maskold ^ masknew
 
-def _select_subtract(self, maskold, masknew):
+def _select_subtract( maskold, masknew):
 	return ~masknew if maskold is None else (maskold) & ~masknew
 
 _select_functions = {"replace":_select_replace,\

@@ -266,6 +266,12 @@ class TestDataset(unittest.TestCase):
 		self.dataset.select("x > 5")
 		total_subset = self.dataset("x").selected().sum()
 		self.assertLess(total_subset, total)
+		for mode in vaex.dataset._select_functions.keys():
+			self.dataset.select("x > 5")
+			self.dataset.select("x > 5", mode)
+			self.dataset.select(None)
+			self.dataset.select("x > 5", mode)
+
 		pass # TODO
 
 	def test_nearest(self):

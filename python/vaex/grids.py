@@ -29,6 +29,7 @@ class GridScope(object):
 		self.lazy["average"] = grid_average
 		self.globals["cumulative"] = self.cumulative
 		self.globals["normalize"] = self.normalize
+		self.user_added = set()
 
 	def cumulative(self, array, normalize=True):
 		mask = (np.isnan(array) | np.isinf(array))
@@ -62,6 +63,7 @@ class GridScope(object):
 	def __setitem__(self, key, value):
 		#logger.debug("%r.__setitem__(%r, %r)" % (self, key, value))
 		self.__dict__[key] = value
+		self.user_added.add(key)
 
 	def __getitem__(self, key):
 		logger.debug("%r.__getitem__(%r)" % (self, key))
@@ -78,6 +80,19 @@ class GridScope(object):
 			del locals["globals"]
 			logger.debug("evaluating: %r locals=%r", expression, locals)
 		return eval(expression, self.globals, self)
+
+	def slice(self, slice):
+		gridscope = GridScope(globals=self.globals)
+		for key in self.user_added:
+			value = self[key]
+			if isinstance(value, np.ndarray):
+				grid = value
+				sliced = np.sum(grid[slice,...], axis=0)
+				logger.debug("sliced %s from %r to %r", key, grid.shape, sliced.shape)
+				gridscope[key] = sliced
+			else:
+				gridscope[key] = value
+		return gridscope
 
 def add_mem(bytes, *info):
 	global total_bytes

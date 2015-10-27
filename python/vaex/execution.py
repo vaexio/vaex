@@ -96,7 +96,7 @@ class Executor(object):
 					pass # just eat all element
 		except:
 			# on any error we flush the task queue
-			logger.error("error in task, flush task queue")
+			logger.exception("error in task, flush task queue")
 			self.task_queue = []
 			raise
 		logger.debug("executing took %r seconds" % (time.time() - t0))

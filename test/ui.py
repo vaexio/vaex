@@ -83,6 +83,8 @@ class TestPlotPanel2d(unittest.TestCase):
 		self.assert_(len(self.app.windows) == 0)
 		QtTest.QTest.mouseClick(button, QtCore.Qt.LeftButton)
 		self.window = self.app.current_window
+		self.window.xlabel = ""
+		self.window.ylabel = ""
 		self.layer = self.window.current_layer
 		self.no_exceptions = True
 		import sys
@@ -157,6 +159,13 @@ class TestPlotPanel2d(unittest.TestCase):
 		self.assertEqual(counter+1, self.window.queue_update.counter)
 		self.window._wait()
 
+	def test_xy_vxvy_as_option(self):
+		self.window.remove_layer()
+		self.window.add_layer(["x", "y"], vx="vx", vy="vy")
+		self.window._wait()
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("example_xy_vxvy"))
+
 	def test_select_by_expression(self):
 		vaex.ui.qt.set_choose("x < 0", True)
 		QtTest.QTest.mouseClick(self.layer.button_selection_expression, QtCore.Qt.LeftButton)
@@ -177,7 +186,24 @@ class TestPlotPanel2d(unittest.TestCase):
 		self.window.add_layer(["x", "z"])
 		self.window._wait()
 
+	def test_resolution(self):
+		if 0: # keyClick doesn't work on osx it seems
+			self.window.show()
+			QtTest.QTest.qWaitForWindowShown(self.window)
+			QtTest.QTest.keyClick(self.window, QtCore.Qt.Key_1, QtCore.Qt.ControlModifier|QtCore.Qt.AltModifier) # "Ctrl+Alt+1"should be 32x32
+		else:
+			self.window.action_resolution_list[0].trigger()
+		self.window._wait()
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("example_xy_32x32"))
 
+	def test_resolution_vector(self):
+		self.layer.vx = "vx"
+		self.layer.vy = "vy"
+		self.window.action_resolution_vector_list[2].trigger()
+		self.window._wait()
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("example_xy_vxvy_32x32"))
 
 
 if __name__ == '__main__':

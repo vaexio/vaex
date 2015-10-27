@@ -8,7 +8,7 @@ import sys
 import threading
 import vaex.export
 import vaex.utils
-
+import vaex.promise
 
 
 
@@ -346,6 +346,7 @@ class DatasetPanel(QtGui.QFrame):
 		self.jobsManager = vaex.dataset.JobsManager()
 		self.dataset = None
 		self.dataset_list = dataset_list
+		self.app = parent
 
 		self.undoManager = vaex.ui.undo.UndoManager()
 
@@ -471,7 +472,7 @@ class DatasetPanel(QtGui.QFrame):
 			self.histogram(xname)
 
 	def plotxy(self, xname, yname, **kwargs):
-		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
+		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, app=self.app, **kwargs)
 		dialog.add_layer([xname, yname], self.dataset, **kwargs)
 		if not vaex.ui.hidden:
 			dialog.show()
@@ -506,7 +507,7 @@ class DatasetPanel(QtGui.QFrame):
 		dialog.show()
 
 	def histogram(self, xname, **kwargs):
-		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
+		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, app=self.app, **kwargs)
 		dialog.add_layer([xname], **kwargs)
 		dialog.show()
 		#self.dataset.executor.execute()
@@ -686,11 +687,15 @@ class WidgetUsage(QtGui.QWidget):
 			self.setToolTip(self.tool_text)
 		except:
 			pass
+from vaex.ui.plot_windows import PlotDialog
 
 class VaexApp(QtGui.QMainWindow):
+	"""
+	:type windows: list[PlotDialog]
+	"""
+
 	signal_samp_notification = QtCore.pyqtSignal(str, str, str, dict, dict)
 	signal_samp_call = QtCore.pyqtSignal(str, str, str, str, dict, dict)
-
 
 	def __init__(self, argv=[], open_default=False):
 		super(VaexApp, self).__init__()
@@ -1606,11 +1611,13 @@ def main(argv=sys.argv[1:]):
 
 	#sys._excepthook = sys.excepthook
 	def qt_exception_hook(exctype, value, traceback):
+		print("qt hook")
 		sys.__excepthook__(exctype, value, traceback)
 		qt_exception(None, exctype, value, traceback)
 		#sys._excepthook(exctype, value, traceback)
 		#sys.exit(1)
 	sys.excepthook = qt_exception_hook
+	vaex.promise.Promise.unhandled = staticmethod(qt_exception_hook)
 	#raise RuntimeError, "blaat"
 
 
@@ -1620,7 +1627,7 @@ def main(argv=sys.argv[1:]):
 		print_process_id()
 
 		# Create an in-process kernel
-		# >>> print_process_id()
+		# >>> print_process_id(	)
 		# will print the same process ID as the main process
 		kernel_manager = QtInProcessKernelManager()
 		kernel_manager.start_kernel()

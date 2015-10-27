@@ -2,9 +2,9 @@ __author__ = 'breddels'
 import numpy as np
 from . import logging
 import threading
-from .dataset import Dataset, Subspace, Task, Promise
-import aplus
+from .dataset import Dataset, Subspace, Task
 logger = logging.getLogger("vaex.remote")
+import vaex.promise
 
 #from twisted.internet import reactor
 #from twisted.web.client import Agent
@@ -13,9 +13,9 @@ from tornado.httpclient import AsyncHTTPClient, HTTPClient
 from tornado.concurrent import Future
 
 def wrap_future_with_promise(future):
-	if isinstance(future, aplus.Promise): # TODO: not so nice, sometimes we pass a promise
+	if isinstance(future, vaex.promise.Promise): # TODO: not so nice, sometimes we pass a promise
 		return future
-	promise = Promise()
+	promise = vaex.promise.Promise()
 	def callback(future):
 		print(("callback", future))
 		e = future.exception()
@@ -24,7 +24,6 @@ def wrap_future_with_promise(future):
 			promise.reject(e)
 		else:
 			promise.fulfill(future.result())
-	print((future, isinstance(future, aplus.Promise)))
 	future.add_done_callback(callback)
 	return promise
 
