@@ -169,7 +169,7 @@ class LayerTable(object):
 		self.widget_build = False
 
 		self._can_plot = False # when every process went though ok, this is True
-		self.needs_update = True
+		self._needs_update = True
 
 
 		self.widget = None # each layer has a widget, atm only a qt widget is implemented
@@ -239,11 +239,19 @@ class LayerTable(object):
 		self.signal_expression_change = vaex.events.Signal("expression_change")
 		self.signal_plot_dirty = vaex.events.Signal("plot_dirty")
 		self.signal_plot_update = vaex.events.Signal("plot_update")
+		self.signal_needs_update = vaex.events.Signal("needs update")
 		#self.dataset.signal_pick.connect(self.on)
 
 	def __repr__(self):
 		classname = self.__class__.__module__ + "." +self.__class__.__name__
 		return "<%s(name=%r, expressions=%r)> instance at 0x%x" % (classname, self.name, self.expressions, id(self))
+
+	def flag_needs_update(self):
+		self._needs_update = True
+		self.signal_needs_update.emit()
+
+	def get_needs_update(self):
+		return self._needs_update
 
 	@property
 	def weight(self):
@@ -523,27 +531,32 @@ class LayerTable(object):
 
 			self.vector_grid = None
 			if any(self.vector_expressions):
-				vector_counts = self.grid_vector.evaluate("counts")
+				grid_vector = self.grid_vector
+				if self.layer_slice_source:
+					print self.slice_selection_grid.shape
+					print grid_vector["counts"].shape
+					grid_vector = grid_vector.slice(self.slice_selection_grid)
+				vector_counts = grid_vector.evaluate("counts")
 				vector_mask = vector_counts > 0
-				if self.grid_vector.evaluate("weightx") is not None:
-					vector_x = self.grid_vector.evaluate("x")
-					vx = self.grid_vector.evaluate("weightx/counts")
+				if grid_vector.evaluate("weightx") is not None:
+					vector_x = grid_vector.evaluate("x")
+					vx = grid_vector.evaluate("weightx/counts")
 					if self.vectors_subtract_mean:
 						vx -= vx[vector_mask].mean()
 				else:
 					vector_x = None
 					vx = None
-				if self.grid_vector.evaluate("weighty") is not None:
-					vector_y = self.grid_vector.evaluate("y")
-					vy = self.grid_vector.evaluate("weighty/counts")
+				if grid_vector.evaluate("weighty") is not None:
+					vector_y = grid_vector.evaluate("y")
+					vy = grid_vector.evaluate("weighty/counts")
 					if self.vectors_subtract_mean:
 						vy -= vy[vector_mask].mean()
 				else:
 					vector_y = None
 					vy = None
-				if self.grid_vector.evaluate("weightz") is not None:
-					vector_z = self.grid_vector.evaluate("z")
-					vz = self.grid_vector.evaluate("weightz/counts")
+				if grid_vector.evaluate("weightz") is not None:
+					vector_z = grid_vector.evaluate("z")
+					vz = grid_vector.evaluate("weightz/counts")
 					if self.vectors_subtract_mean:
 						vz -= vz[vector_mask].mean()
 				else:
@@ -940,7 +953,7 @@ class LayerTable(object):
 	def got_grids(self, *args):
 		logger.debug("got grids for layer %r" % (self, ))
 		self.calculate_amplitudes()
-		self.needs_update = False
+		self._needs_update = False
 		return self
 
 	def slice_amplitudes(self):
@@ -978,7 +991,10 @@ class LayerTable(object):
 		self.amplitude_grid_selection = None
 		logger.debug("shape of amplitude grid: %r" % (self.amplitude_grid.shape, ))
 		if self.dataset.has_selection():
-			self.amplitude_grid_selection = self.grid_main_selection.evaluate(self.amplitude_expression)
+			grid = self.grid_main_selection
+			if slice:
+				grid = grid.slice(self.slice_selection_grid)
+			self.amplitude_grid_selection = grid.evaluate(self.amplitude_expression)
 
 		vmin = None
 		vmax = None
@@ -1557,7 +1573,8 @@ class LayerTable(object):
 
 	def page_slice(self, page):
 		class PageWrapper(object):
-			def __init__(self, page_widget):
+			def __init__(self, layer, page_widget):
+				self.layer = layer
 				self.page_widget = page_widget
 				self.layout_page =  QtGui.QVBoxLayout()
 				self.page_widget.setLayout(self.layout_page)
@@ -1576,7 +1593,15 @@ class LayerTable(object):
 				self.grid_layout.addWidget(widget, self.row, 1)
 				self.row += 1
 
-		page = PageWrapper(page)
+			def add_slider_linear(self, name, value, min, max, steps=1000):
+				def getter():
+					return getattr(self.layer, name)
+				def setter(value):
+					setattr(self.layer, name, value)
+				slider = Slider(self.page_widget, name, min, max, steps, getter, setter)
+				self.row = slider.add_to_grid_layout(self.row, self.grid_layout)
+
+		page = PageWrapper(self, page)
 		self.menu_button_slice_link = QtGui.QPushButton("No link", page.page_widget)
 		self.menu_slice_link = QtGui.QMenu()
 		self.menu_button_slice_link.setMenu(self.menu_slice_link)
@@ -1602,6 +1627,17 @@ class LayerTable(object):
 		page.add("slice_link", self.menu_button_slice_link)
 		self.signal_slice_change = vaex.events.Signal("slice changed")
 
+		self._slice_radius = 0.1
+		page.add_slider_linear("slice_radius", self.slice_radius, 0.0, 1.0)
+
+	@property
+	def slice_radius(self): return self._slice_radius
+	@slice_radius.setter
+	def slice_radius(self, value):
+		self._slice_radius = value
+		self.plot_window.slice_radius = value
+		self.plot_window.setMode(self.plot_window.lastAction)
+
 	def slice_link(self, layer):
 		name = layer.plot_window.name + "." + layer.name
 		self.menu_button_slice_link.setText(name)
@@ -1610,6 +1646,10 @@ class LayerTable(object):
 		shape = (layer.plot_window.grid_size, ) * layer.dimensions
 		self.slice_selection_grid = np.ones(shape, dtype=np.bool)
 		self.layer_slice_source.signal_slice_change.connect(self.on_slice_change)
+		self.layer_slice_source.signal_needs_update.connect(self.on_slice_source_needs_update)
+
+	def on_slice_source_needs_update(self):
+		self.update()
 
 	def on_slice_change(self, selection_grid, clicked):
 		self.slice_selection_grid = selection_grid
@@ -2019,7 +2059,7 @@ class LayerTable(object):
 		self.plot()
 
 	def update(self):
-		self.needs_update = True
+		self.flag_needs_update()
 		self.plot_window.queue_update()
 
 from vaex.dataset import Dataset

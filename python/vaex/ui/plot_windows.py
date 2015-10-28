@@ -43,7 +43,7 @@ class Slicer(matplotlib.widgets.Widget):
 	"""
 	"""
 	def __init__(self, plot_window, axes, canvas, useblit=True, horizOn=False, vertOn=True,
-				 **lineprops):
+				 radius=0.05, **lineprops):
 
 		self.plot_window = plot_window
 		self.canvas = canvas
@@ -60,14 +60,15 @@ class Slicer(matplotlib.widgets.Widget):
 		self.useblit = useblit and self.canvas.supports_blit
 		self.background = None
 		self.needclear = False
-		self.radius = 0.05
+		self.radius = radius
 
 		if self.useblit:
 			lineprops['animated'] = True
 
 		import matplotlib.patches
 
-		self.ellipse = matplotlib.patches.Ellipse([0, 0], 1, 1, alpha=0.2)
+		self.ellipse = matplotlib.patches.Ellipse([xmid, ymid], 1, 1, alpha=0.2, visible=False)
+		self.update_ellipse(xmid, ymid)
 		axes[0].add_patch(self.ellipse)
 
 		if vertOn:
@@ -102,6 +103,7 @@ class Slicer(matplotlib.widgets.Widget):
 				self.canvas.copy_from_bbox(self.canvas.figure.bbox))
 		for line in self.vlines + self.hlines:
 			line.set_visible(False)
+		self.ellipse.set_visible(False)
 
 	def onmove(self, event):
 		if event.inaxes is None:
@@ -122,15 +124,19 @@ class Slicer(matplotlib.widgets.Widget):
 				line.set_visible(self.visible)
 		self.plot_window.slice_circle(event.xdata, event.ydata, self.radius)
 
+		self.update_ellipse(event.xdata, event.ydata)
+		self.ellipse.set_visible(True)
+		self._update()
+
+	def update_ellipse(self, x, y):
 		xlim, ylim = self.plot_window.ranges_show
 		width = abs(xlim[1] - xlim[0])
 		height = abs(ylim[1] - ylim[0])
 		scale = self.radius * 2
 
-		self.ellipse.center = [event.xdata, event.ydata]
+		self.ellipse.center = [x, y]
 		self.ellipse.width = width * scale
 		self.ellipse.height = height * scale
-		self._update()
 
 	def _update(self):
 		if self.useblit:
@@ -149,6 +155,11 @@ class Slicer(matplotlib.widgets.Widget):
 
 			self.canvas.draw_idle()
 
+	def disconnect_events(self):
+		self.ellipse.set_visible(False)
+		self.canvas.restore_region(self.background)
+		self.canvas.blit(self.canvas.figure.bbox)
+		self.disconnect()
 
 
 
@@ -219,6 +230,7 @@ class PlotDialog(QtGui.QWidget):
 		self.update_counter = 0
 		self.t_0 = 0
 		self.t_last = 0
+		self.slice_radius = 0.05
 
 		self.shortcuts = []
 		self.messages = {}
@@ -381,7 +393,7 @@ class PlotDialog(QtGui.QWidget):
 
 	def update_all_layers(self):
 		for layer in self.layers:
-			layer.needs_update = True
+			layer.flag_needs_update()
 		self.queue_update()
 
 	def add_axes(self):
@@ -889,9 +901,9 @@ class PlotDialog(QtGui.QWidget):
 				if useblit:
 					self.canvas.draw() # buggy otherwise
 			if action == self.action_slice:
-				logger.debug("setting last select action to lasso")
+				logger.debug("setting mode to slice")
 				#self.lastActionSelect = self.action_slice
-				self.currentModes =[ Slicer(self, [axes], canvas=self.canvas, horizOn=False, vertOn=False) for axes in axes_list]
+				self.currentModes =[ Slicer(self, [axes], canvas=self.canvas, horizOn=False, vertOn=False, radius=self.slice_radius) for axes in axes_list]
 				if useblit:
 					self.canvas.draw() # buggy otherwise
 			#self.plugin_zoom.setMode(action)
@@ -1045,7 +1057,7 @@ class PlotDialog(QtGui.QWidget):
 		else:
 			logger.debug("updating all layers")
 			layers = self.layers
-		layers = [layer for layer in self.layers if layer.needs_update]
+		layers = [layer for layer in self.layers if layer.get_needs_update()]
 		if not layers:
 			logger.error("update requested while no layer needs it")
 
@@ -1086,10 +1098,13 @@ class PlotDialog(QtGui.QWidget):
 				vmax = max([layer.ranges_grid[dimension][1] for layer in layers])
 				self.ranges_show[dimension] = [vmin, vmax]
 
-
+		logger.debug("ranges before aspect check: %r", self.ranges_show)
+		self.check_aspect(0)
+		logger.debug("ranges after aspect check: %r", self.ranges_show)
 		# now make sure the layers all have the same ranges_grid
 		for layer in layers:
 			layer.ranges_grid = copy.deepcopy(self.ranges_show)
+
 
 		# now we are ready to calculate histograms
 		promises = [layer.add_tasks_histograms() for layer in layers]
@@ -1166,7 +1181,7 @@ class PlotDialog(QtGui.QWidget):
 			action.do()
 			self.checkUndoRedo()
 		for layer in self.layers:
-			layer.needs_update = True
+			layer.flag_needs_update()
 		self.queue_update(delayed_zoom, delay=delay)
 
 
@@ -1232,8 +1247,9 @@ class PlotDialog(QtGui.QWidget):
 		self.aspect = self.get_aspect() if self.action_aspect_lock_one.isChecked() else None
 		logger.debug("set aspect to: %r" % self.aspect)
 		self.check_aspect(0)
-		self.compute()
-		self.dataset.executor.execute()
+		self.queue_update()
+		#self.compute()
+		#self.dataset.executor.execute()
 		#self.plot()
 
 	def _onActionAspectLockOne(self, *ignore_args):
@@ -1920,21 +1936,40 @@ class PlotDialog(QtGui.QWidget):
 
 	def check_aspect(self, axis_follow):
 		if self.aspect is not None:
+			if self.ranges_show is None:
+				return
+			if any([k is None for k in self.ranges_show]):
+				return
+			width = self.ranges_show[axis_follow][1] - self.ranges_show[axis_follow][0]
+			centers = [(self.ranges_show[i][1] + self.ranges_show[i][0])/2. for i in range(self.dimensions)]
+			for i in range(self.dimensions):
+				print i, self.ranges_show[i]
+				if i != axis_follow:
+					self.ranges_show[i] = [None, None]
+					self.ranges_show[i][0] = centers[i] - width/2
+					self.ranges_show[i][1] = centers[i] + width/2
+				print i, self.ranges_show[i]
+			return
+
+
+
 			otheraxes = list(range(self.dimensions))
 			allaxes = list(range(self.dimensions))
 			otheraxes.remove(axis_follow)
 			#ranges = [self.ranges_show[i] if self.ranges_show[i] is not None else self.ranges[i] for i in otheraxes]
 			ranges = [self.ranges_show[i] for i in otheraxes]
 
+			logger.debug("aspect 1")
 			if None in ranges:
 				return
 			width = self.ranges_show[axis_follow][1] - self.ranges_show[axis_follow][0]
 			#width = ranges[axis_follow][1] - ranges[axis_follow][0]
 			center = (self.ranges_show[axis_follow][1] + self.ranges_show[axis_follow][0])/2.
+			logger.debug("aspect 2")
 
-			widths = [ranges[i][1] - ranges[i][0] for i in range(self.dimensions-1)]
-			center = [(ranges[i][1] + ranges[i][0])/2. for i in range(self.dimensions-1)]
-
+			#widths = [ranges[i][1] - ranges[i][0] for i in range(self.dimensions-1)]
+			centers = [(self.ranges_show[i][1] + self.ranges_show[i][0])/2. for i in range(self.dimensions)]
+			logger.debug("aspect 3")
 
 			#xmin, xmax = self.ranges[0]
 			#ymin, ymax = self.ranges[1]
@@ -1942,9 +1977,12 @@ class PlotDialog(QtGui.QWidget):
 				axis_index = otheraxes[i]
 				#if self.ranges_show[i] is None:
 				#	self.ranges_show[i] = self.ranges[i]
+				print self.ranges_show
 				self.ranges_show[axis_index] = [None, None]
-				self.ranges_show[axis_index][0] = center[i] - width/2
-				self.ranges_show[axis_index][1] = center[i] + width/2
+				self.ranges_show[axis_index][0] = centers[axis_index] - width/2
+				self.ranges_show[axis_index][1] = centers[axis_index] + width/2
+				logger.debug("aspect i=%d,%d", i, axis_index)
+				print self.ranges_show
 			for layer in self.layers:
 				for i in range(self.dimensions-1):
 					axis_index = otheraxes[i]
