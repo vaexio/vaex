@@ -292,7 +292,8 @@ class SubspaceGridded(object):
 		ax.set_xlabel(self.subspace_bounded.subspace.expressions[0])
 		ax.set_ylabel(self.subspace_bounded.subspace.expressions[1])
 		#pylab.savefig
-		from .io import StringIO
+		#from .io import StringIO
+		from cStringIO import StringIO
 		file_object = StringIO()
 		fig.canvas.print_png(file_object)
 		pylab.close(fig)

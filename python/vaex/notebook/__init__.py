@@ -21,7 +21,7 @@ base_path = os.path.dirname(__file__)
 import uuid
 from base64 import b64encode
 import json
-from io import StringIO
+from cStringIO import StringIO
 
 class volr(object):
 	def __init__(self, subspace_gridded, **settings):
