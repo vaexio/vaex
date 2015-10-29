@@ -274,6 +274,15 @@ def select_many(parent, title, options):
 	return value == QtGui.QDialog.Accepted, mask
 
 
+import psutil
+def memory_check_ok(parent, bytes_needed):
+	bytes_available = psutil.virtual_memory().available
+	alot = bytes_needed / bytes_available > 0.5
+	required = vaex.utils.filesize_format(bytes_needed)
+	available = vaex.utils.filesize_format(bytes_available)
+	msg = "This action required {required} of memory, while you have {available}. Are you sure you want to continue?".format(**locals())
+	return not alot or dialog_confirm(parent, "A lot of memory requested", msg)
+
 
 def dialog_error(parent, title, msg):	
 	QtGui.QMessageBox.warning(parent, title, msg)

@@ -179,6 +179,7 @@ class LayerTable(object):
 		self.compute_counter = 0
 		self.sequence_index = 0
 		self.alpha = float(self.options.get("alpha", "1."))
+		self.style = options.get("style", "histogram")
 		#self.color = self.options.get("color")
 		self.level_min = 0.
 		self.level_max = 1.
@@ -418,6 +419,14 @@ class LayerTable(object):
 		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
 		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
 
+	def plot_scatter(self, axes_list):
+		for ax in axes_list:
+			# TODO: support multiple axes with the axis index
+			x = self.dataset.evaluate(self.x)
+			y = self.dataset.evaluate(self.y)
+			ax.scatter(x, y, alpha=self.alpha, color=self.color)
+
+
 	def plot(self, axes_list, stack_image):
 		if self._can_plot:
 			logger.debug("begin plot: %r" % self)
@@ -427,34 +436,9 @@ class LayerTable(object):
 
 		if not self.visible:
 			return
-		if 0:
-			grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
-			for callback in self.plugin_grids_draw:
-				callback(axes, grid_map, grid_map_vector)
-
-		#return
-		logger.debug("begin plot 3")
-
-		if 0:
-			locals = {}
-			for name in list(self.grids.grids.keys()):
-				grid = self.grids.grids[name]
-				if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
-					if grid.max_size >= self.plot_window.vector_grid_size:
-						locals[name] = grid.get_data(self.plot_window.vector_grid_size, use_selection)
-				else:
-					locals[name] = None
-
-			index = self.dataset.get_current_row()
-			if index is not None and self.coordinates_picked_row is None:
-				logger.debug("point selected but after computation")
-				# TODO: optimize
-				def find_selected_point(info, *blocks):
-					if index >= info.i1 and index < info.i2: # selected point is in this block
-						self.coordinates_picked_row = [block[index-info.i1] for block in blocks]
-				self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
-
-		logger.debug("begin plot 4")
+		if self.style == "scatter":
+			self.plot_scatter(axes_list)
+			return
 		if self.dimensions == 1:
 			print self.amplitude_grid
 			print self.amplitude_grid_view
@@ -1606,6 +1590,11 @@ class LayerTable(object):
 		self.menu_slice_link = QtGui.QMenu()
 		self.menu_button_slice_link.setMenu(self.menu_slice_link)
 
+		action = QtGui.QAction("unlink", self.menu_slice_link)
+		action.triggered.connect(lambda *x: self.slice_unlink())
+		self.menu_slice_link.addAction(action)
+
+
 		for window in self.plot_window.app.windows:
 			print "window", window
 			layers = [layer for layer in window.layers if layer.dataset == self.dataset]
@@ -1621,7 +1610,6 @@ class LayerTable(object):
 						self.slice_link(layer)
 					action.triggered.connect(on_link)
 					menu_window.addAction(action)
-					print "add", layer.name
 				#self.menu_slice_link.
 
 		page.add("slice_link", self.menu_button_slice_link)
@@ -1639,14 +1627,31 @@ class LayerTable(object):
 		self.plot_window.setMode(self.plot_window.lastAction)
 
 	def slice_link(self, layer):
-		name = layer.plot_window.name + "." + layer.name
-		self.menu_button_slice_link.setText(name)
-		self.layer_slice_source = layer
-		self.slice_axis = [True] * layer.dimensions
-		shape = (layer.plot_window.grid_size, ) * layer.dimensions
-		self.slice_selection_grid = np.ones(shape, dtype=np.bool)
-		self.layer_slice_source.signal_slice_change.connect(self.on_slice_change)
-		self.layer_slice_source.signal_needs_update.connect(self.on_slice_source_needs_update)
+		if self.plot_window.grid_size != layer.plot_window.grid_size:
+			msg = "Source layer has a gridsize of %d, while the linked layer has a gridsize of %d, only linking with equal gridsize is supported" % (self.plot_window.grid_size, layer.plot_window.grid_size)
+			dialog_error(self.plot_window, "Unequal gridsize", msg)
+			return
+		dim = self.plot_window.dimensions * layer.plot_window.dimensions
+		bytes_required = (layer.plot_window.grid_size ** dim) * 8
+		if memory_check_ok(self.plot_window, bytes_required):
+			name = layer.plot_window.name + "." + layer.name
+			self.menu_button_slice_link.setText(name)
+			self.slice_unlink()
+
+			self.layer_slice_source = layer
+			self.slice_axis = [True] * layer.dimensions
+			shape = (layer.plot_window.grid_size, ) * layer.dimensions
+			self.slice_selection_grid = np.ones(shape, dtype=np.bool)
+			self.layer_slice_source.signal_slice_change.connect(self.on_slice_change)
+			self.layer_slice_source.signal_needs_update.connect(self.on_slice_source_needs_update)
+			self.update()
+
+	def slice_unlink(self):
+		if self.layer_slice_source is not None:
+			self.layer_slice_source.signal_slice_change.disconnect(self.on_slice_change)
+			self.layer_slice_source.signal_needs_update.disconnect(self.on_slice_source_needs_update)
+			self.layer_slice_source = None
+			self.update()
 
 	def on_slice_source_needs_update(self):
 		self.update()

@@ -11,6 +11,7 @@ import sys
 import platform
 import vaex.export
 import os
+import astropy.table
 from functools import reduce
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -329,7 +330,7 @@ class SubspaceGridded(object):
 					img = PIL.Image.frombuffer("RGB", (128, 128), subdata[:,:,0:3] * 1)
 					print(("saving to", filename))
 					img.save(filename)
-		img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data, 'raw', "RGBA", 0, -1)
+		img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data, 'raw') #, "RGBA", 0, -1)
 		#filename = "cube.png"
 		#print "saving to", file
 		img.save(file, "png")
@@ -1099,6 +1100,13 @@ class DatasetArrays(DatasetLocal):
 			assert self.full_length() == len(data), "columns should be of equal length"
 		self._length = int(round(self.full_length() * self._active_fraction))
 		#self.set_active_fraction(self._active_fraction)
+
+class DatasetAstropyTable(DatasetArrays):
+	def __init__(self, filename, format="ascii"):
+		DatasetArrays.__init__(self, filename)
+		self.filename = filename
+		self.table = astropy.table.Table.read(filename, format=format)
+
 
 class DatasetMemoryMapped(DatasetLocal):
 	def link(self, expression, listener):
@@ -2278,7 +2286,7 @@ class AsciiTable(DatasetMemoryMapped):
 		#dataset.samp_id = table_id
 		#self.list.addDataset(dataset)
 		#return dataset
-	
+
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
 		can_open = path.endswith(".asc")

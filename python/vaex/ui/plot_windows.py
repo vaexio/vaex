@@ -589,7 +589,7 @@ class PlotDialog(QtGui.QWidget):
 				if self.dimensions == 1:
 					action_col1 = QtGui.QAction(column1, menu_dataset)
 					menu_dataset.addAction(action_col1)
-					def add_layer_1(column1=column1, dataset=dataset):
+					def add_layer_1(ignore=None, column1=column1, dataset=dataset):
 						self.add_layer([column1], dataset=dataset)
 						self.dataset.executor.execute()
 					action_col1.triggered.connect(add_layer_1)
