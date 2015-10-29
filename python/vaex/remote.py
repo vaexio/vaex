@@ -17,7 +17,7 @@ def wrap_future_with_promise(future):
 		return future
 	promise = vaex.promise.Promise()
 	def callback(future):
-		print(("callback", future))
+		print(("callback", future, future.result()))
 		e = future.exception()
 		if e:
 			print(("reject", e))
@@ -42,6 +42,11 @@ except ImportError:
 
 import threading
 
+def _check_error(object):
+	if "error" in object:
+		raise RuntimeError, "Server responded with error: %r" % object["error"]
+
+
 class ServerRest(object):
 	def __init__(self, hostname, port=5000, base_path="/", background=False, thread_mover=None):
 		self.hostname = hostname
@@ -51,35 +56,34 @@ class ServerRest(object):
 		event = threading.Event()
 		self.thread_mover = thread_mover
 
-		if True:
-			#print "not running async"
-			#if not tornado.ioloop.IOLoop.initialized():
-			if True:
-				#print "not init"
-				#tornado.ioloop.IOLoop.clear_current()
-				#tornado.ioloop.IOLoop.clear_instance()
-				#tornado.ioloop.IOLoop.current().run_sync()
-				def ioloop():
-					#print "creating io loop"
-					self.io_loop = tornado.ioloop.IOLoop.current(instance=False)
-					if self.io_loop is None:
-						event.set()
-						return
-						self.io_loop = tornado.ioloop.IOLoop.instance()
-					event.set()
-					self.io_loop.make_current()
-					#print "starting"
-					self.io_loop.start()
-				thread = threading.Thread(target=ioloop)
-				thread.setDaemon(True)
-				thread.start()
-			#else:
-			#	print "already initialized"
+		def ioloop_threaded():
+			#print "creating io loop"
+			logger.debug("creating tornado io_loop")
+			#self.io_loop = tornado.ioloop.IOLoop.instance() #tornado.ioloop.IOLoop.current(instance=True)
+			self.io_loop = tornado.ioloop.IOLoop().instance()
+			#if self.io_loop is None:
+				#logger.debug("creating tornado io_loop")
+				#event.set()
+				#return
+				#self.io_loop = tornado.ioloop.IOLoop.instance()
+			event.set()
+			#self.io_loop.make_current()
+			#print "starting"
+			logger.debug("started tornado io_loop...")
+			self.io_loop.start()
+			logger.debug("stopped tornado io_loop")
 
-			#print "waiting for io loop to be created"
+		io_loop = tornado.ioloop.IOLoop.current(instance=False)
+		if io_loop is None:
+			logger.debug("no current io loop, starting it in thread")
+			thread = threading.Thread(target=ioloop_threaded)
+			thread.setDaemon(True)
+			thread.start()
 			event.wait()
-			#print self.io_loop
-		#self.io_loop.make_current()
+		else:
+			self.io_loop = io_loop
+
+		self.io_loop.make_current()
 		#if async:
 		self.http_client_async = AsyncHTTPClient()
 		self.http_client = HTTPClient()
@@ -91,6 +95,7 @@ class ServerRest(object):
 		io_loop.start()
 
 	def fetch(self, url, transform, async=False, **kwargs):
+		logger.debug("fetch %s, async=%r", url, async)
 		if async:
 			future = self.http_client_async.fetch(url, **kwargs)
 			return wrap_future_with_promise(future).then(transform).then(self._move_to_thread)
@@ -131,6 +136,7 @@ class ServerRest(object):
 
 	def open(self, name, async=False):
 		def wrap(info):
+			_check_error(info)
 			column_names = info["column_names"]
 			full_length = info["length"]
 			return DatasetRest(self, name, column_names, full_length)
@@ -203,7 +209,7 @@ class ServerRest(object):
 			return transform(response)
 
 	def _move_to_thread(self, result):
-		promise = Promise()
+		promise = vaex.promise.Promise()
 		#def do(value):
 		#	return value
 		#promise.then(do)

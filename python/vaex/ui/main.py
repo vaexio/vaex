@@ -10,6 +10,12 @@ import vaex.export
 import vaex.utils
 import vaex.promise
 
+# py2/p3 compatibility
+try:
+	from urllib.parse import urlparse
+except ImportError:
+	from urlparse import urlparse
+
 
 
 # help py2app, it was missing this import
@@ -787,6 +793,7 @@ class VaexApp(QtGui.QMainWindow):
 
 
 		self.action_save_hdf5 = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-export')), '&Export to hdf5', self)
+		self.action_save_fits = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-export')), '&Export to fits', self)
 
 		exitAction = QtGui.QAction(QtGui.QIcon('icons/png/24x24/actions/application-exit-2.png'), '&Exit', self)
 		exitAction.setShortcut('Ctrl+Q')
@@ -805,6 +812,7 @@ class VaexApp(QtGui.QMainWindow):
 		if (not frozen) or darwin:
 			self.menu_open.addAction(self.action_open_fits)
 		fileMenu.addAction(self.action_save_hdf5)
+		fileMenu.addAction(self.action_save_fits)
 		#fileMenu.addAction(self.action_open)
 		fileMenu.addAction(exitAction)
 
@@ -882,7 +890,8 @@ class VaexApp(QtGui.QMainWindow):
 
 		self.toolbar.addSeparator()
 
-		self.action_save_hdf5.triggered.connect(self.onSaveTable)
+		self.action_save_hdf5.triggered.connect(self.onExportHdf5)
+		self.action_save_fits.triggered.connect(self.onExportFits)
 
 		self.sampMenu = menubar.addMenu('&Samp')
 		self.sampMenu.addAction(self.action_samp_connect)
@@ -896,6 +905,7 @@ class VaexApp(QtGui.QMainWindow):
 			#if (not frozen) or darwin:
 			#	self.toolbar.addAction(self.action_open_fits)
 			self.toolbar.addAction(self.action_save_hdf5)
+			self.toolbar.addAction(self.action_save_fits)
 
 		if len(argv) == 0 and open_default:
 			if custom is not None:
@@ -997,32 +1007,23 @@ class VaexApp(QtGui.QMainWindow):
 			print("filename", filename)
 			dataset = None
 			if filename.startswith("http://"):
-				print("filename is web address")
-				from urllib.parse import urlparse
 				o = urlparse(filename)
 				assert o.scheme == "http"
-				print(o.username, o.password)
-				print(o.hostname)
 				server = vaex.server(hostname=o.hostname, port = o.port or 80, thread_mover=self.send_to_main_thread)
+				datasets = server.datasets()
+				first_name = datasets[0].name
+				name_list = ", ".join([dataset.name for dataset in datasets])
 				if o.path in ["", "/"]:
-					print("load all from server")
-					kwargs = dict()
-					datasets = server.list_datasets()
-					print("datasets", dataset)
-					last_dataset1 = None
-					for dataset in datasets:
-						ds = server.open(dataset)
-						self.dataset_selector.add(ds)
-						last_dataset1 = ds
-					last_dataset = last_dataset1
+					if filename.endswith("/"):
+						filename = filename[:-1]
+					error("please provide a dataset in the url, like %s/%s, or any other dataset from: %s" % (filename, first_name, name_list))
 				else:
-					dataset = o.path
-					if dataset.startswith("/"):
-						dataset = dataset[1:]
-					ds = server.open(dataset)
-					self.dataset_selector.add(ds)
-					last_dataset = ds
-				dataset = last_dataset
+					name = o.path[1:]
+					found = [dataset for dataset in datasets if dataset.name == name]
+					if found:
+						dataset = found[0]
+					else:
+						error("could not find dataset %s at the server, choose from: %s" % (name, name_list))
 			elif filename[0] == ":": # not a filename, but a classname
 				classname = filename.split(":")[1]
 				if classname not in vaex.dataset.dataset_type_map:
@@ -1198,7 +1199,13 @@ class VaexApp(QtGui.QMainWindow):
 		dialog.resize(300, 300)
 		dialog.show()
 
-	def onSaveTable(self):
+	def onExportHdf5(self):
+		self.export("hdf5")
+
+	def onExportFits(self):
+		self.export("fits")
+
+	def export(self, type="hdf5"):
 		dataset = self.dataset_panel.dataset
 		name = dataset.name + "-mysubset.hdf5"
 		options = ["All: %r records, filesize: %r" % (len(dataset), vaex.utils.filesize_format(dataset.byte_size())) ]
@@ -1228,19 +1235,26 @@ class VaexApp(QtGui.QMainWindow):
 			dialog_info(self, "Shuffle", "Shuffling with selection not supported")
 			return
 
-		endian_options = ["Native", "Little endian", "Big endian"]
-		index = choose(self, "Which endianness", "Which endianness / byte order:", endian_options)
-		if index is None:
-			return
-		endian_option = ["=", "<", ">"][index]
+		if type == "hdf5":
+			endian_options = ["Native", "Little endian", "Big endian"]
+			index = choose(self, "Which endianness", "Which endianness / byte order:", endian_options)
+			if index is None:
+				return
+			endian_option = ["=", "<", ">"][index]
 
 
-
-		filename = QtGui.QFileDialog.getSaveFileName(self, "Save to HDF5", name, "HDF5 *.hdf5")
-		if isinstance(filename, tuple):
-			filename = str(filename[0])#]
+		if type == "hdf5":
+			filename = QtGui.QFileDialog.getSaveFileName(self, "Save to HDF5", name, "HDF5 *.hdf5")
+			if isinstance(filename, tuple):
+				filename = str(filename[0])#]
+		else:
+			filename = QtGui.QFileDialog.getSaveFileName(self, "Save to col-fits", name, "FITS (*.fits)")
+			if isinstance(filename, tuple):
+				filename = str(filename[0])#]
 		#print args
 		filename = str(filename)
+		if not filename.endswith("."+type):
+			filename += "." + type
 		if filename:
 			progress_dialog = QtGui.QProgressDialog("Copying data...", "Abort export", 0, 1000, self);
 			progress_dialog.setWindowModality(QtCore.Qt.WindowModal);
@@ -1257,7 +1271,10 @@ class VaexApp(QtGui.QMainWindow):
 					return False
 				return True
 
-			vaex.export.export_hdf5(dataset, filename, column_names=selected_column_names, shuffle=shuffle, selection=export_selection, byteorder=endian_option, progress=progress)
+			if type == "hdf5":
+				vaex.export.export_hdf5(dataset, filename, column_names=selected_column_names, shuffle=shuffle, selection=export_selection, byteorder=endian_option, progress=progress)
+			if type == "fits":
+				vaex.export.export_fits(dataset, filename, column_names=selected_column_names, shuffle=shuffle, selection=export_selection, progress=progress)
 			progress_dialog.hide()
 
 	def gadgethdf5(self, filename):
