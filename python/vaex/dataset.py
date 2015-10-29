@@ -2234,34 +2234,6 @@ class Zeldovich(InMemory):
 dataset_type_map["zeldovich"] = Zeldovich
 		
 		
-import astropy.io.votable
-class VOTable(DatasetMemoryMapped):
-	def __init__(self, filename):
-		super(VOTable, self).__init__(filename, nommap=True)
-		table = astropy.io.votable.parse_single_table(filename)
-		logger.debug("done parsing VO table")
-		names = table.array.dtype.names
-		
-		data = table.array.data
-		for i in range(len(data.dtype)):
-			name = data.dtype.names[i]
-			type = data.dtype[i]
-			if type.kind in ["f", "i"]: # only store float and int
-				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
-				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
-				self.addColumn(name, array=table.array[name])
-		#dataset.samp_id = table_id
-		#self.list.addDataset(dataset)
-		#return dataset
-	
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		can_open = path.endswith(".vot")
-		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
-		return can_open
-dataset_type_map["votable"] = VOTable
-
-
 class AsciiTable(DatasetMemoryMapped):
 	def __init__(self, filename):
 		super(AsciiTable, self).__init__(filename, nommap=True)
@@ -2333,6 +2305,21 @@ class DatasetAstropyTable(DatasetArrays):
 		#dataset.samp_id = table_id
 		#self.list.addDataset(dataset)
 		#return dataset
+
+
+import astropy.io.votable
+class VOTable(DatasetAstropyTable):
+	def __init__(self, filename):
+		super(VOTable, self).__init__(filename, format="votable")
+
+	@classmethod
+	def can_open(cls, path, *args, **kwargs):
+		can_open = path.endswith(".vot")
+		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
+		return can_open
+
+dataset_type_map["votable"] = VOTable
+
 
 
 class DatasetNed(DatasetAstropyTable):
