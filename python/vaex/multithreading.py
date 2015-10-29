@@ -64,7 +64,7 @@ class ThreadPoolIndex(object):
 							done = True
 						else:
 							#print "RAISE"
-							_stop()
+							stop()
 							#print("********************")
 							#print(element)
 							#raise element[1]
