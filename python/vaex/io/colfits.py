@@ -6,7 +6,68 @@ import math
 import vaex.dataset
 import astropy.io.fits
 import numpy as np
-np.linspace()
+import logging
+
+logger = logging.getLogger("vaex.io.colfits")
+
+def empty(filename, length, column_names, data_types, data_shapes):
+	f = open(filename, "wb")
+	class Scope(object):
+		pass
+
+	def write(key, value, comment=""):
+		f.write("{key:8}= {value:20} / {comment:47}".format(key=key, value=value, comment=comment))
+		logger.debug("at pos: %s", f.tell())
+	def finish_header():
+		f.write("{end:80}".format(end="END"))
+		offset = f.tell()
+		bytes_over_padding = offset % 2880
+		logger.debug(("bytes_over_padding: %s", bytes_over_padding))
+		if bytes_over_padding > 0:
+			padding = 2880 - bytes_over_padding
+			f.write(" "*padding)
+	def finish_data():
+		offset = f.tell()
+		bytes_over_padding = offset % 2880
+		if bytes_over_padding > 0:
+			padding = 2880 - bytes_over_padding
+			f.write("\0"*padding)
+
+	byte_size = sum([length * type.itemsize for type in data_types])
+
+	write("SIMPLE", "T", "file conforms to FITS standard")
+	write("BITPIX", 8, "number of bits per data pixel")
+	write("NAXIS", 0, "number of array dimensions")
+	finish_header()
+	write("XTENSION", repr("BINTABLE"), "binary table extension")
+
+	write("BITPIX", 8, "number of bits per data pixel")
+	write("NAXIS", 2, "number of array dimensions")
+	write("NAXIS1", byte_size, "length of dim 1")
+	write("NAXIS2", 1, "length of dim 2")
+
+	write("TFIELDS", len(column_names), "number of columns")
+	for i, (column_name, type, shape) in enumerate(zip(column_names, data_types, data_shapes)):
+		i += 1 # 1 based index
+		#column = dataset.columns[column_name]
+		write("TTYPE%d" % i, repr(str(column_name)), "column name %i" % (i))
+		numpy_type_name = type.descr[0][1][1:] # i4, f8 etc
+		fits_type = astropy.io.fits.column.NUMPY2FITS[numpy_type_name]
+		logger.debug("type for %s: numpy=%r, fits=%r", column_name, numpy_type_name, fits_type)
+		# TODO: support rank1 arrays
+		write("TFORM%d" % i , repr("{length}{type}".format(length=length, type=fits_type)), "")
+		write("TDIM%d" % i, repr("(1,{length})".format(length=length)), "")
+
+	finish_header()
+
+	for i, (column_name, type, shape) in enumerate(zip(column_names, data_types, data_shapes)):
+		byte_size = length * type.itemsize
+		f.seek(f.tell() + byte_size)
+	finish_data()
+
+	f.close()
+
+
 
 def write_colfits(dataset, path, selection=False):
 	f = open(path, "wb")

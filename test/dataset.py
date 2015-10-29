@@ -164,8 +164,9 @@ class TestDataset(unittest.TestCase):
 
 	def test_export(self):
 
-		path = tempfile.mktemp(".hdf5")
-		#print path
+		path = path_hdf5 = tempfile.mktemp(".hdf5")
+		path_fits = tempfile.mktemp(".fits")
+		print path
 
 		with self.assertRaises(AssertionError):
 			self.dataset.export_hdf5(path, selection=True)
@@ -177,26 +178,32 @@ class TestDataset(unittest.TestCase):
 				dataset.select("x > 3")
 				length = len(dataset)
 				for column_names in [["x", "y", "z"], ["x"], ["y"], ["z"], None]:
-					for byteorder in "=<>":
+					for byteorder in ">=<":
 						for shuffle in [False, True]:
 							for selection in [False, True]:
-								#print dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length()
-								#print dataset.full_length()
-								#print len(dataset)
-								dataset.export_hdf5(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection)
-								compare = vx.open(path)
-								column_names = column_names or ["x", "y", "z"]
-								self.assertEqual(compare.get_column_names(), column_names + (["random_index"] if shuffle else []))
-								for column_name in column_names:
-									values = dataset.evaluate(column_name)
-									if selection:
-										self.assertEqual(sorted(compare.columns[column_name]), sorted(values[dataset.mask]))
+								for export in [dataset.export_fits, dataset.export_hdf5] if byteorder == ">" else [dataset.export_hdf5]:
+									#print dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length()
+									#print dataset.full_length()
+									#print len(dataset)
+									if export == dataset.export_hdf5:
+										path = path_hdf5
+										export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection)
 									else:
-										if shuffle:
-											indices = compare.columns["random_index"]
-											self.assertEqual(sorted(compare.columns[column_name]), sorted(values[indices]))
+										path = path_fits
+										export(path, column_names=column_names, shuffle=shuffle, selection=selection)
+									compare = vx.open(path)
+									column_names = column_names or ["x", "y", "z"]
+									self.assertEqual(compare.get_column_names(), column_names + (["random_index"] if shuffle else []))
+									for column_name in column_names:
+										values = dataset.evaluate(column_name)
+										if selection:
+											self.assertEqual(sorted(compare.columns[column_name]), sorted(values[dataset.mask]))
 										else:
-											self.assertEqual(sorted(compare.columns[column_name]), sorted(values[:length]))
+											if shuffle:
+												indices = compare.columns["random_index"]
+												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[indices]))
+											else:
+												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[:length]))
 				# self.dataset_concat_dup references self.dataset, so set it's active_fraction to 1 again
 				dataset.set_active_fraction(1)
 
@@ -293,7 +300,7 @@ class TestDataset(unittest.TestCase):
 
 
 
-test_port = 29001
+test_port = 29010
 
 class TestWebServer(unittest.TestCase):
 	def setUp(self):

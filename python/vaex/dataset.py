@@ -668,7 +668,7 @@ class _BlockScope(object):
 
 			return self.values[variable]
 		except:
-			logger.error("unknown variable: %r" % variable)
+			logger.exception("error in evaluating: %r" % variable)
 			raise
 
 main_executor = vaex.execution.Executor(multithreading.pool)
@@ -937,8 +937,30 @@ class DatasetLocal(Dataset):
 	def concat(self, other):
 		return DatasetConcatenated([self, other])
 
-	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False):
-		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection)
+	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None):
+		"""
+		:param DatasetLocal dataset: dataset to export
+		:param str path: path for file
+		:param lis[str] column_names: list of column names to export or None for all columns
+		:param str byteorder: = for native, < for little endian and > for big endian
+		:param bool shuffle: export rows in random order
+		:param bool selection: export selection or not
+		:param progress: progress callback that gets a progress fraction as argument and should return True to continue
+		:return:
+		"""
+		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress)
+
+	def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None):
+		"""
+		:param DatasetLocal dataset: dataset to export
+		:param str path: path for file
+		:param lis[str] column_names: list of column names to export or None for all columns
+		:param bool shuffle: export rows in random order
+		:param bool selection: export selection or not
+		:param progress: progress callback that gets a progress fraction as argument and should return True to continue
+		:return:
+		"""
+		vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress)
 
 	def _needs_copy(self, column_name):
 		return not \
@@ -953,9 +975,9 @@ class DatasetLocal(Dataset):
 		return np.sum(self.mask) if self.has_selection() else None
 
 
-	def select(self, expression, mode="replace"):
+	def select(self, boolean_expression, mode="replace"):
 		mode_function = _select_functions[mode]
-		if expression is None:
+		if boolean_expression is None:
 			self._has_selection = False
 			self.mask = None
 		else:
@@ -965,8 +987,8 @@ class DatasetLocal(Dataset):
 				return 0
 			def reduce(*args):
 				None
-			expr = self(expression)
-			task = TaskMapReduce(self, [expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
+			expr = self(boolean_expression)
+			task = TaskMapReduce(self, [boolean_expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
 			def apply_mask(*args):
 				#print "Setting mask"
 				self._set_mask(mask)
@@ -1567,7 +1589,7 @@ class FitsBinTable(DatasetMemoryMapped):
 								#	bytessize = 8
 
 							bytessize = dtype.itemsize
-							print((column.name, dtype, column.format, column.dim, length, bytessize, arraylength))
+							logger.debug("%r", (column.name, dtype, column.format, column.dim, length, bytessize, arraylength))
 							#if not cannot_handle:
 							if (flatlength > 0) and dtypecode != "a": # TODO: support strings
 								#print column.name, dtype, length
@@ -1582,7 +1604,7 @@ class FitsBinTable(DatasetMemoryMapped):
 									#dtype = np.dtype(dtype)
 									#print "we have float64!", dtype
 									#dtype = ">f8"
-									print((column.name, offset, dtype, length))
+									logger.debug("%r", (column.name, offset, dtype, length))
 									if arraylength == 1:
 										self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
 									else:
@@ -1590,7 +1612,6 @@ class FitsBinTable(DatasetMemoryMapped):
 										for i in range(arraylength):
 											name = column.name+"_" +str(i)
 											self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
-											print((self.columns[name][0], self.columns[name][1]))
 										#@self.addRank1(column.name, offset, arraylength, length1=length, dtype=">" +dtypecode, stride=1, stride1=1, transposed=True)
 										#@self.addRank1(column.name, offset, arraylength, length1=length, dtype=">" +dtypecode, stride=1, stride1=1, transposed=True)
 										#print self.rank1s[column.name][0]
@@ -1606,25 +1627,6 @@ class FitsBinTable(DatasetMemoryMapped):
 
 							if flatlength > 0: # flatlength can be
 								offset += bytessize * length
-
-							#else:
-							if 0:
-								#print str(column.dtype)
-								#print column.dtype
-								#pdb.set_trace()
-								print((column.name, column.format, length))
-								#print column.dtype.descr
-								#print column.dtype.fields
-								#assert column.dtype.descr[0][1][0] == "|"
-								#assert column.dtype.descr[0][1][1] == "S"
-								#overflown_length =
-								#import pdb
-								#pdb.set_trace()
-								offset += eval(column.dim)[0] * length
-								#raise Exception,"cannot handle type: %s" % column.dtype
-								#sys.exit(0)
-							#print "offset=", offset, 403532029440-offset
-					#sys.exit(0)
 
 				else:
 					logger.debug("adding table: %r" % table)
