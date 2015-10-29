@@ -425,6 +425,9 @@ class LayerTable(object):
 			x = self.dataset.evaluate(self.x)
 			y = self.dataset.evaluate(self.y)
 			ax.scatter(x, y, alpha=self.alpha, color=self.color)
+			row = self.dataset.get_current_row()
+			if row is not None:
+				ax.scatter([x[row]], [y[row]], alpha=self.alpha, color=self.color_alt)
 
 
 	def plot(self, axes_list, stack_image):

@@ -11,7 +11,10 @@ PAGE_LIMIT = int(1e7)
 
 class FullTableModel(QtCore.QAbstractTableModel): 
 	def __init__(self, dataset,  page_size, page, parent=None, *args): 
-		QtCore.QAbstractTableModel.__init__(self, parent, *args) 
+		"""
+		:type dataset: Dataset
+		"""
+		QtCore.QAbstractTableModel.__init__(self, parent, *args)
 		self.dataset = dataset
 		self.page_size = page_size
 		self.page = page
@@ -35,7 +38,7 @@ class FullTableModel(QtCore.QAbstractTableModel):
 		return self.page * self.page_size
 
 	def columnCount(self, parent): 
-		return len(self.dataset.all_column_names)+1
+		return self.dataset.column_count()+1
 
 	def data(self, index, role):
 		#return ""
@@ -47,11 +50,18 @@ class FullTableModel(QtCore.QAbstractTableModel):
 		if index.column() == 0:
 			return "{:,}".format(index.row()+self.row_count_start + row_offset)
 		else:
-			column = self.dataset.all_columns[self.dataset.all_column_names[index.column()-1]]
-			if len(column.shape) == 1:
-				return str(column[row_offset + index.row()])
+			#column = self.dataset.all_columns[self.dataset.all_column_names[index.column()-1]]
+			row = row_offset + index.row()
+			column_name = self.dataset.get_column_names()[index.column()-1]
+			if column_name in self.dataset.columns.keys():
+				value = self.dataset.columns[column_name][row]
 			else:
-				return "%s %s" % (column.dtype.name, column.shape)
+				value, = self.dataset(column_name).row(row)
+			#column = [self.dataset.all_column_names[index.column()-1]]
+			if len(value.shape) == 0:
+				return str(value)
+			else:
+				return "%s %s" % (value.dtype.name, value.shape)
 
 	def headerData(self, index, orientation, role):
 		#print index
@@ -60,7 +70,7 @@ class FullTableModel(QtCore.QAbstractTableModel):
 			if index == 0:
 				return "row"
 			else:
-				return self.dataset.all_column_names[index-1]
+				return self.dataset.get_column_names()[index-1]
 		#if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
 		#	return str(index+self.row_count_start + row_offset)
 		return None
@@ -114,7 +124,7 @@ class TableDialog(QtGui.QDialog):
 		self.count_from_zero.stateChanged.connect(self.onStateCountFromZero)
 		
 		self.dataset.signal_pick.connect(self.on_row_pick)
-		if self.dataset.selected_row_index is not None:
+		if self.dataset.get_current_row() is not None:
 			self.on_row_pick(self.dataset.get_current_row())
 		self._check_pages()
 		
@@ -200,3 +210,4 @@ class TableDialog(QtGui.QDialog):
 		self.dataset.set_current_row(row_index)
 		
 		
+from vaex.dataset import Dataset

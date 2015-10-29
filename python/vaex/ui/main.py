@@ -549,7 +549,7 @@ class DatasetPanel(QtGui.QFrame):
 		self.label_columns.setText(str(dataset.column_count()))
 		self.label_length.setText("{:,}".format(self.dataset.full_length()))
 		self.numberLabel.setText("{:,}".format(len(self.dataset)))
-		fraction = self.dataset.fraction
+		fraction = self.dataset.get_active_fraction()
 		distances = np.abs(np.array(possibleFractions) - fraction)
 		index = np.argsort(distances)[0]
 		self.fractionSlider.setValue(index) # this will fire an event and execute the above event code

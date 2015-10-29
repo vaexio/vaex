@@ -11,6 +11,7 @@ import sys
 import platform
 import vaex.export
 import os
+import re
 import astropy.table
 from functools import reduce
 
@@ -1123,12 +1124,6 @@ class DatasetArrays(DatasetLocal):
 			assert self.full_length() == len(data), "columns should be of equal length"
 		self._length = int(round(self.full_length() * self._active_fraction))
 		#self.set_active_fraction(self._active_fraction)
-
-class DatasetAstropyTable(DatasetArrays):
-	def __init__(self, filename, format="ascii"):
-		DatasetArrays.__init__(self, filename)
-		self.filename = filename
-		self.table = astropy.table.Table.read(filename, format=format)
 
 
 class DatasetMemoryMapped(DatasetLocal):
@@ -2311,8 +2306,44 @@ class MemoryMappedGadget(DatasetMemoryMapped):
 		self.addColumn("vy", veloffset+4, length, dtype=np.float32, stride=3)
 		self.addColumn("vz", veloffset+8, length, dtype=np.float32, stride=3)
 dataset_type_map["gadget-plain"] = MemoryMappedGadget
-		
-		
+
+class DatasetAstropyTable(DatasetArrays):
+	def __init__(self, filename, format, **kwargs):
+		DatasetArrays.__init__(self, filename)
+		self.filename = filename
+		self.table = astropy.table.Table.read(filename, format=format, **kwargs)
+
+		#data = table.array.data
+		for i in range(len(self.table.dtype)):
+			name = self.table.dtype.names[i]
+			type = self.table.dtype[i]
+			clean_name = re.sub("[^a-zA-Z_]", "_", name)
+			if type.kind in ["f", "i"]: # only store float and int
+				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
+				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
+				masked_array = self.table[name].data
+				if type.kind in ["f"]:
+					masked_array.data[masked_array.mask] = np.nan
+				if type.kind in ["i"]:
+					masked_array.data[masked_array.mask] = 0
+				self.add_column(clean_name, self.table[name].data)
+			if type.kind in ["S"]:
+				self.add_column(clean_name, self.table[name].data)
+
+		#dataset.samp_id = table_id
+		#self.list.addDataset(dataset)
+		#return dataset
+
+
+class DatasetNed(DatasetAstropyTable):
+	def __init__(self, code="2012AJ....144....4M"):
+		url = "http://ned.ipac.caltech.edu/cgi-bin/objsearch?refcode={code}&hconst=73&omegam=0.27&omegav=0.73&corr_z=1&out_csys=Equatorial&out_equinox=J2000.0&obj_sort=RA+or+Longitude&of=xml_main&zv_breaker=30000.0&list_limit=5&img_stamp=YES&search_type=Search"\
+			.format(code=code)
+		super(DatasetNed, self).__init__(url, format="votable", use_names_over_ids=True)
+		self.name = "ned:" + code
+
+dataset_type_map["ned"] = DatasetNed
+
 def can_open(path, *args, **kwargs):
 	for name, class_ in list(dataset_type_map.items()):
 		if class_.can_open(path, *args):
