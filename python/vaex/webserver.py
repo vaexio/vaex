@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 __author__ = 'maartenbreddels'
 
 import tornado.ioloop
@@ -33,6 +34,8 @@ class ListHandler(tornado.web.RequestHandler):
         #self.write("Hello, world")
 		#print self.request.path
 		parts = [part for part in self.request.path.split("/") if part]
+		logger.debug("request: %r" % parts)
+		print parts
 		#print parts
 		if parts[0] == "datasets":
 			if len(parts) == 1:
@@ -40,20 +43,29 @@ class ListHandler(tornado.web.RequestHandler):
 				self.write(response)
 			else:
 				dataset_name = parts[1]
-				if len(parts) > 2:
-					method_name = parts[2]
-					logger.debug("method: %r args: %r" % (method_name, self.request.arguments))
-					expressions = json.loads(self.request.arguments["expressions"][0])
-					subspace = self.datasets_map[dataset_name](*expressions)
-					if method_name in ["minmax", "var", "mean", "sum", "limits_sigma"]:
-						#print "expressions", expressions
-						values = task_invoke(subspace, method_name, self.request)
-						#print values, expressions
-						self.write({"result": values.tolist()})
-					if method_name == "histogram":
-						grid = task_invoke(subspace, method_name, self.request)
-						self.set_header("Content-Type", "application/octet-stream")
-						self.write(grid.tostring())
+				if dataset_name not in self.datasets_map:
+					self.error("dataset does not exist: %r, possible options: %r" % (dataset_name, self.datasets_map.keys()))
+				else:
+					if len(parts) > 2:
+						method_name = parts[2]
+						logger.debug("method: %r args: %r" % (method_name, self.request.arguments))
+						if "expressions" in self.request.arguments:
+							expressions = json.loads(self.request.arguments["expressions"][0])
+						else:
+							expressions = None
+						subspace = self.datasets_map[dataset_name](*expressions)
+						if method_name in ["minmax", "var", "mean", "sum", "limits_sigma"]:
+							#print "expressions", expressions
+							values = task_invoke(subspace, method_name, self.request)
+							#print values, expressions
+							self.write({"result": values.tolist()})
+						if method_name == "histogram":
+							grid = task_invoke(subspace, method_name, self.request)
+							self.set_header("Content-Type", "application/octet-stream")
+							self.write(grid.tostring())
+
+	def error(self, msg):
+		self.write({"error": msg})
 
 
 
@@ -87,6 +99,8 @@ class WebServer(threading.Thread):
 	def serve_threaded(self):
 		self.start()
 		self.started.wait()
+		# this will make the main thread use this ioloop as current
+		self.ioloop.make_current()
 
 	def run(self):
 		self.mainloop()
@@ -107,8 +121,18 @@ class WebServer(threading.Thread):
 		self.ioloop.stop()
 
 if __name__ == "__main__":
-	server = WebServer(datasets=[vx.example()])
+	#logger.setLevel(logging.logging.DEBUG)
+	import vaex
+	vaex.set_log_level_debug()
+	import sys
+	filenames = sys.argv[1:]
+	if filenames:
+		datasets = [vx.open(filename) for filename in filenames]
+	else:
+		datasets = [vx.example()]
+	server = WebServer(datasets=datasets, address="0.0.0.0")
 	server.serve()
+
 	#3_threaded()
 	#import time
 	#time.sleep(10)

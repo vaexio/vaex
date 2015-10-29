@@ -11,9 +11,13 @@ import sys
 import platform
 import vaex.export
 import os
+import re
+import astropy.table
 from functools import reduce
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+import threading
+lock = threading.Lock()
 
 try:
 	import h5py
@@ -31,7 +35,7 @@ import vaex.ui.undo
 import execution
 import vaex.grids
 import multithreading
-import aplus
+import vaex.promise
 import concurrent.futures
 from multiprocessing import Pool
 import vaex.execution
@@ -108,9 +112,6 @@ class Link(object):
 				
 				
 
-class Promise(aplus.Promise):
-	pass
-
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 executor = vaex.execution.default_executor
 
@@ -129,9 +130,9 @@ class ColumnExpression(ColumnBase):
 
 #	def get(self, i1, i2):
 
-class Task(Promise):
+class Task(vaex.promise.Promise):
 	def __init__(self, dataset, expressions):
-		Promise.__init__(self)
+		vaex.promise.Promise.__init__(self)
 		self.dataset = dataset
 		self.expressions = expressions
 		self.expressions_all = list(expressions)
@@ -174,8 +175,13 @@ class TaskHistogram(Task):
 		shape = (self.dataset.executor.thread_pool.nthreads,) + ( self.size,) * self.dimension
 		self.data = np.zeros(shape, dtype=self.dtype)
 		self.ranges_flat = []
+		self.minima = []
+		self.maxima = []
 		for limit in self.limits:
 			self.ranges_flat.extend(limit)
+			vmin, vmax = limit
+			self.minima.append(vmin)
+			self.maxima.append(vmax)
 		if self.weight is not None:
 			self.expressions_all.append(weight)
 		#print self.ranges_flat
@@ -203,8 +209,7 @@ class TaskHistogram(Task):
 		subblock_weight = None
 		if len(blocks) == len(self.expressions) + 1:
 			subblock_weight = blocks[-1]
-			if self.masked:
-				subblock_weight = subblock_weight[mask[i1:i2]]
+			blocks = list(blocks[:-1])
 		#print subblocks[0]
 		#print subblocks[1]
 
@@ -214,6 +219,9 @@ class TaskHistogram(Task):
 			vaex.vaexfast.histogram2d(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
 		elif self.dimension == 3:
 			vaex.vaexfast.histogram3d(blocks[0], blocks[1], blocks[2], subblock_weight, data, *self.ranges_flat)
+		else:
+			blocks = list(blocks) # histogramNd wants blocks to be a list
+			vaex.vaexfast.histogramNd(blocks, subblock_weight, data, self.minima, self.maxima)
 
 		return i1
 		#return map(self._map, blocks)#[self.map(block) for block in blocks]
@@ -285,7 +293,8 @@ class SubspaceGridded(object):
 		ax.set_xlabel(self.subspace_bounded.subspace.expressions[0])
 		ax.set_ylabel(self.subspace_bounded.subspace.expressions[1])
 		#pylab.savefig
-		from .io import StringIO
+		#from .io import StringIO
+		from cStringIO import StringIO
 		file_object = StringIO()
 		fig.canvas.print_png(file_object)
 		pylab.close(fig)
@@ -323,7 +332,7 @@ class SubspaceGridded(object):
 					img = PIL.Image.frombuffer("RGB", (128, 128), subdata[:,:,0:3] * 1)
 					print(("saving to", filename))
 					img.save(filename)
-		img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data, 'raw', "RGBA", 0, -1)
+		img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data, 'raw') #, "RGBA", 0, -1)
 		#filename = "cube.png"
 		#print "saving to", file
 		img.save(file, "png")
@@ -482,7 +491,6 @@ class SubspaceLocal(Subspace):
 			return self.executor.run(task)
 
 	def minmax(self):
-		promise = Promise()
 		def min_max_reduce(minmax1, minmax2):
 			result = []
 			for d in range(self.dimension):
@@ -565,6 +573,40 @@ class SubspaceLocal(Subspace):
 		task = TaskMapReduce(self.dataset, self.expressions, find, lambda a, b: a if b is None else b, info=True)
 		return self._task(task)
 
+	def nearest(self, point, metric=None):
+		metric = metric or [1.] * len(point)
+		def nearest_in_block(thread_index, i1, i2, *blocks):
+			if self.is_masked:
+				mask = self.dataset.mask[i1:i2]
+				if mask.sum() == 0:
+					return None
+				blocks = [block[mask] for block in blocks]
+			distance_squared = np.sum( [(blocks[i]-point[i])**2.*metric[i] for i in range(self.dimension)], axis=0 )
+			min_index = np.argmin(distance_squared)
+			return min_index + i1, distance_squared[min_index]**0.5, [block[min_index] for block in blocks]
+		def nearest_reduce(a, b):
+			if a is None:
+				return b
+			if b is None:
+				return a
+			if a[1] < b[1]:
+				return a
+			else:
+				return b
+		if self.is_masked:
+			pass
+		mask = self.dataset.mask
+		task = TaskMapReduce(self.dataset,\
+							 self.expressions,
+							 nearest_in_block,\
+							 nearest_reduce, info=True)
+		return self._task(task)
+
+	def row(self, index):
+		return np.array([self.dataset.evaluate(expression, i1=index, i2=index+1)[0] for expression in self.expressions])
+
+
+
 
 
 
@@ -628,8 +670,10 @@ class _BlockScope(object):
 
 			return self.values[variable]
 		except:
-			logger.error("unknown variable: %r" % variable)
+			logger.exception("error in evaluating: %r" % variable)
 			raise
+
+main_executor = vaex.execution.Executor(multithreading.pool)
 
 class Dataset(object):
 	"""All datasets are encapsulated in this class, local or remote dataets
@@ -655,10 +699,10 @@ class Dataset(object):
 
 	:type signal_selection_changed: events.Signal
 	"""
-	def __init__(self, name, column_names):
+	def __init__(self, name, column_names, executor=None):
 		self.name = name
 		self.column_names = column_names
-		self.executor = vaex.execution.Executor(self, multithreading.pool)
+		self.executor = executor or main_executor
 		self.signal_pick = vaex.events.Signal("pick")
 		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
 		self.signal_selection_changed = vaex.events.Signal("selection changed")
@@ -872,7 +916,7 @@ def _select_or(maskold, masknew):
 def _select_xor(maskold, masknew):
 	return masknew if maskold is None else maskold ^ masknew
 
-def _select_subtract(self, maskold, masknew):
+def _select_subtract( maskold, masknew):
 	return ~masknew if maskold is None else (maskold) & ~masknew
 
 _select_functions = {"replace":_select_replace,\
@@ -895,8 +939,30 @@ class DatasetLocal(Dataset):
 	def concat(self, other):
 		return DatasetConcatenated([self, other])
 
-	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False):
-		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection)
+	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None):
+		"""
+		:param DatasetLocal dataset: dataset to export
+		:param str path: path for file
+		:param lis[str] column_names: list of column names to export or None for all columns
+		:param str byteorder: = for native, < for little endian and > for big endian
+		:param bool shuffle: export rows in random order
+		:param bool selection: export selection or not
+		:param progress: progress callback that gets a progress fraction as argument and should return True to continue
+		:return:
+		"""
+		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress)
+
+	def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None):
+		"""
+		:param DatasetLocal dataset: dataset to export
+		:param str path: path for file
+		:param lis[str] column_names: list of column names to export or None for all columns
+		:param bool shuffle: export rows in random order
+		:param bool selection: export selection or not
+		:param progress: progress callback that gets a progress fraction as argument and should return True to continue
+		:return:
+		"""
+		vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress)
 
 	def _needs_copy(self, column_name):
 		return not \
@@ -911,9 +977,9 @@ class DatasetLocal(Dataset):
 		return np.sum(self.mask) if self.has_selection() else None
 
 
-	def select(self, expression, mode="replace"):
+	def select(self, boolean_expression, mode="replace"):
 		mode_function = _select_functions[mode]
-		if expression is None:
+		if boolean_expression is None:
 			self._has_selection = False
 			self.mask = None
 		else:
@@ -923,8 +989,8 @@ class DatasetLocal(Dataset):
 				return 0
 			def reduce(*args):
 				None
-			expr = self(expression)
-			task = TaskMapReduce(self, [expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
+			expr = self(boolean_expression)
+			task = TaskMapReduce(self, [boolean_expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
 			def apply_mask(*args):
 				#print "Setting mask"
 				self._set_mask(mask)
@@ -1058,6 +1124,7 @@ class DatasetArrays(DatasetLocal):
 			assert self.full_length() == len(data), "columns should be of equal length"
 		self._length = int(round(self.full_length() * self._active_fraction))
 		#self.set_active_fraction(self._active_fraction)
+
 
 class DatasetMemoryMapped(DatasetLocal):
 	def link(self, expression, listener):
@@ -1213,7 +1280,7 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.mapping_map[filename] = mmap.mmap(self.fileno_map[filename], 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
 
 
-	def selectRow(self, index):
+	def selectRow_(self, index):
 		self.selected_row_index = index
 		logger.debug("emit pick signal: %r" % index)
 		self.signal_pick.emit(index)
@@ -1518,7 +1585,7 @@ class FitsBinTable(DatasetMemoryMapped):
 								#	bytessize = 8
 
 							bytessize = dtype.itemsize
-							print((column.name, dtype, column.format, column.dim, length, bytessize, arraylength))
+							logger.debug("%r", (column.name, dtype, column.format, column.dim, length, bytessize, arraylength))
 							#if not cannot_handle:
 							if (flatlength > 0) and dtypecode != "a": # TODO: support strings
 								#print column.name, dtype, length
@@ -1533,7 +1600,7 @@ class FitsBinTable(DatasetMemoryMapped):
 									#dtype = np.dtype(dtype)
 									#print "we have float64!", dtype
 									#dtype = ">f8"
-									print((column.name, offset, dtype, length))
+									logger.debug("%r", (column.name, offset, dtype, length))
 									if arraylength == 1:
 										self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
 									else:
@@ -1541,7 +1608,6 @@ class FitsBinTable(DatasetMemoryMapped):
 										for i in range(arraylength):
 											name = column.name+"_" +str(i)
 											self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
-											print((self.columns[name][0], self.columns[name][1]))
 										#@self.addRank1(column.name, offset, arraylength, length1=length, dtype=">" +dtypecode, stride=1, stride1=1, transposed=True)
 										#@self.addRank1(column.name, offset, arraylength, length1=length, dtype=">" +dtypecode, stride=1, stride1=1, transposed=True)
 										#print self.rank1s[column.name][0]
@@ -1557,25 +1623,6 @@ class FitsBinTable(DatasetMemoryMapped):
 
 							if flatlength > 0: # flatlength can be
 								offset += bytessize * length
-
-							#else:
-							if 0:
-								#print str(column.dtype)
-								#print column.dtype
-								#pdb.set_trace()
-								print((column.name, column.format, length))
-								#print column.dtype.descr
-								#print column.dtype.fields
-								#assert column.dtype.descr[0][1][0] == "|"
-								#assert column.dtype.descr[0][1][1] == "S"
-								#overflown_length =
-								#import pdb
-								#pdb.set_trace()
-								offset += eval(column.dim)[0] * length
-								#raise Exception,"cannot handle type: %s" % column.dtype
-								#sys.exit(0)
-							#print "offset=", offset, 403532029440-offset
-					#sys.exit(0)
 
 				else:
 					logger.debug("adding table: %r" % table)
@@ -2237,7 +2284,7 @@ class AsciiTable(DatasetMemoryMapped):
 		#dataset.samp_id = table_id
 		#self.list.addDataset(dataset)
 		#return dataset
-	
+
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
 		can_open = path.endswith(".asc")
@@ -2259,8 +2306,44 @@ class MemoryMappedGadget(DatasetMemoryMapped):
 		self.addColumn("vy", veloffset+4, length, dtype=np.float32, stride=3)
 		self.addColumn("vz", veloffset+8, length, dtype=np.float32, stride=3)
 dataset_type_map["gadget-plain"] = MemoryMappedGadget
-		
-		
+
+class DatasetAstropyTable(DatasetArrays):
+	def __init__(self, filename, format, **kwargs):
+		DatasetArrays.__init__(self, filename)
+		self.filename = filename
+		self.table = astropy.table.Table.read(filename, format=format, **kwargs)
+
+		#data = table.array.data
+		for i in range(len(self.table.dtype)):
+			name = self.table.dtype.names[i]
+			type = self.table.dtype[i]
+			clean_name = re.sub("[^a-zA-Z_]", "_", name)
+			if type.kind in ["f", "i"]: # only store float and int
+				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
+				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
+				masked_array = self.table[name].data
+				if type.kind in ["f"]:
+					masked_array.data[masked_array.mask] = np.nan
+				if type.kind in ["i"]:
+					masked_array.data[masked_array.mask] = 0
+				self.add_column(clean_name, self.table[name].data)
+			if type.kind in ["S"]:
+				self.add_column(clean_name, self.table[name].data)
+
+		#dataset.samp_id = table_id
+		#self.list.addDataset(dataset)
+		#return dataset
+
+
+class DatasetNed(DatasetAstropyTable):
+	def __init__(self, code="2012AJ....144....4M"):
+		url = "http://ned.ipac.caltech.edu/cgi-bin/objsearch?refcode={code}&hconst=73&omegam=0.27&omegav=0.73&corr_z=1&out_csys=Equatorial&out_equinox=J2000.0&obj_sort=RA+or+Longitude&of=xml_main&zv_breaker=30000.0&list_limit=5&img_stamp=YES&search_type=Search"\
+			.format(code=code)
+		super(DatasetNed, self).__init__(url, format="votable", use_names_over_ids=True)
+		self.name = "ned:" + code
+
+dataset_type_map["ned"] = DatasetNed
+
 def can_open(path, *args, **kwargs):
 	for name, class_ in list(dataset_type_map.items()):
 		if class_.can_open(path, *args):

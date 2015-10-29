@@ -15,7 +15,7 @@ import vaex.ui.colormaps
 import vaex.grids
 from vaex.ui.icons import iconfile
 import vaex.utils
-import aplus
+import vaex.promise
 
 __author__ = 'maartenbreddels'
 
@@ -60,7 +60,6 @@ class LinkButton(QtGui.QToolButton):
 		self.clicked.connect(self.onToggleLink)
 		#self.setMenu(self.menu)
 		self.link = None
-
 
 	def onToggleLink(self):
 		if self.isChecked():
@@ -142,6 +141,9 @@ class LinkButton(QtGui.QToolButton):
 
 
 import vaex.dataset
+
+
+
 class LayerTable(object):
 	def __init__(self, plot_window, name, dataset, expressions, axis_names, options, jobs_manager, thread_pool, figure, canvas, ranges_grid=None):
 		"""
@@ -161,10 +163,13 @@ class LayerTable(object):
 		self.options = options
 		self.grids = vaex.grids.Grids(self.dataset, self.thread_pool, *expressions)
 		self.grids.ranges = self.ranges_grid
-		self.vector_expressions = [None,] * 3
+		self.vector_expressions = [None,] * (1 if self.dimensions == 1 else 3)
 		self.figure = figure
 		self.canvas = canvas
 		self.widget_build = False
+
+		self._can_plot = False # when every process went though ok, this is True
+		self._needs_update = True
 
 
 		self.widget = None # each layer has a widget, atm only a qt widget is implemented
@@ -174,6 +179,7 @@ class LayerTable(object):
 		self.compute_counter = 0
 		self.sequence_index = 0
 		self.alpha = float(self.options.get("alpha", "1."))
+		self.style = options.get("style", "histogram")
 		#self.color = self.options.get("color")
 		self.level_min = 0.
 		self.level_max = 1.
@@ -181,6 +187,8 @@ class LayerTable(object):
 
 		self.coordinates_picked_row = None
 
+		self.layer_slice_source = None # the layer we link to for slicing
+		self.slice_axis = [] # list of booleans, which axis we listen to
 
 
 		self.colormap = "PaulT_plusmin" #"binary"
@@ -232,7 +240,19 @@ class LayerTable(object):
 		self.signal_expression_change = vaex.events.Signal("expression_change")
 		self.signal_plot_dirty = vaex.events.Signal("plot_dirty")
 		self.signal_plot_update = vaex.events.Signal("plot_update")
+		self.signal_needs_update = vaex.events.Signal("needs update")
 		#self.dataset.signal_pick.connect(self.on)
+
+	def __repr__(self):
+		classname = self.__class__.__module__ + "." +self.__class__.__name__
+		return "<%s(name=%r, expressions=%r)> instance at 0x%x" % (classname, self.name, self.expressions, id(self))
+
+	def flag_needs_update(self):
+		self._needs_update = True
+		self.signal_needs_update.emit()
+
+	def get_needs_update(self):
+		return self._needs_update
 
 	@property
 	def weight(self):
@@ -244,13 +264,15 @@ class LayerTable(object):
 		logger.debug("setting self.weight_expression to %s" % value)
 		self.weight_expression = value
 		self.weight_box.lineEdit().setText(value)
-		self.plot_window.queue_update()
+		#self.plot_window.queue_update()
+		self.update()
 
 	@weight.deleter
 	def weight(self):
 		self.weight_expression = None
 		self.weight_box.lineEdit().setText("")
-		self.plot_window.queue_update()
+		#self.plot_window.queue_update()
+		self.update()
 
 	@property
 	def x(self):
@@ -314,7 +336,8 @@ class LayerTable(object):
 		logger.debug("setting self.amplitude_expression to %s" % value)
 		self.amplitude_expression = value
 		self.amplitude_box.lineEdit().setText(value)
-		self.plot_window.queue_update()
+		#self.plot_window.queue_update()
+		self.update()
 
 
 
@@ -396,65 +419,41 @@ class LayerTable(object):
 		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
 		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
 
+	def plot_scatter(self, axes_list):
+		for ax in axes_list:
+			# TODO: support multiple axes with the axis index
+			x = self.dataset.evaluate(self.x)
+			y = self.dataset.evaluate(self.y)
+			ax.scatter(x, y, alpha=self.alpha, color=self.color)
+			row = self.dataset.get_current_row()
+			if row is not None:
+				ax.scatter([x[row]], [y[row]], alpha=self.alpha, color=self.color_alt)
+
+
 	def plot(self, axes_list, stack_image):
-		logger.debug("begin plot")
-		#print "stack trace", ''.join(traceback.format_stack())
-		#grid_map = self.create_grid_map(self.plot_window.grid_size, False)
-		try:
-			#self.amplitude_grid = amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
-			self.amplitude_grid = self.grid_main.evaluate(self.amplitude_expression)
-		except Exception as e:
-			logger.exception("amplitude field")
-			traceback.print_exc()
-			self.error_in_field(self.amplitude_box, "amplitude", e)
+		if self._can_plot:
+			logger.debug("begin plot: %r" % self)
+		else:
+			logger.debug("cannot plot layer: %r" % self)
 			return
-		logger.debug("begin plot 2")
-		self.amplitude_grid_selection = None
-		if self.dataset.has_selection():
-			#grid_map_selection = self.create_grid_map(self.plot_window.grid_size, True)
-			#self.amplitude_selection = amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
-			self.amplitude_grid_selection = self.grid_main_selection.evaluate(self.amplitude_expression)
 
-		if 0:
-			grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
-			for callback in self.plugin_grids_draw:
-				callback(axes, grid_map, grid_map_vector)
-
-		#return
-		logger.debug("begin plot 3")
-
-		if 0:
-			locals = {}
-			for name in list(self.grids.grids.keys()):
-				grid = self.grids.grids[name]
-				if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
-					if grid.max_size >= self.plot_window.vector_grid_size:
-						locals[name] = grid.get_data(self.plot_window.vector_grid_size, use_selection)
-				else:
-					locals[name] = None
-
-			index = self.dataset.get_current_row()
-			if index is not None and self.coordinates_picked_row is None:
-				logger.debug("point selected but after computation")
-				# TODO: optimize
-				def find_selected_point(info, *blocks):
-					if index >= info.i1 and index < info.i2: # selected point is in this block
-						self.coordinates_picked_row = [block[index-info.i1] for block in blocks]
-				self.dataset.evaluate(find_selected_point, *self.expressions, **self.getVariableDict())
-
-		logger.debug("begin plot 4")
+		if not self.visible:
+			return
+		if self.style == "scatter":
+			self.plot_scatter(axes_list)
+			return
 		if self.dimensions == 1:
-			mask = ~(np.isnan(self.amplitude_grid) | np.isinf(self.amplitude_grid))
+			print self.amplitude_grid
+			print self.amplitude_grid_view
+			mask = ~(np.isnan(self.amplitude_grid_view) | np.isinf(self.amplitude_grid_view))
 			if np.sum(mask) == 0:
 				self.range_level = None
 			else:
-				values = self.amplitude_grid * 1.
-				print "values", values
+				values = self.amplitude_grid_view * 1.
 				#def nancumsum()
 				if self._cumulative:
 					values[~mask] = 0
 					values = np.cumsum(values)
-					print "values", values
 				if self._normalize:
 					if self._cumulative:
 						values /= values[-1]
@@ -462,9 +461,8 @@ class LayerTable(object):
 						values /= np.sum(values[mask]) # TODO: take dx into account?
 
 				if self.dataset.has_selection():
-					mask_selected = ~(np.isnan(self.amplitude_grid_selection) | np.isinf(self.amplitude_grid_selection))
-					values_selected = self.amplitude_grid_selection * 1.
-					print "values_selected", values_selected
+					mask_selected = ~(np.isnan(self.amplitude_grid_selection_view) | np.isinf(self.amplitude_grid_selection_view))
+					values_selected = self.amplitude_grid_selection_view * 1.
 					if self._cumulative:
 						values_selected[~mask_selected] = 0
 						values_selected = np.cumsum(values_selected)
@@ -473,43 +471,41 @@ class LayerTable(object):
 							values_selected /= values_selected[-1]
 						else:
 							values_selected /= np.sum(values_selected[mask_selected]) # TODO: take dx into account?
-					print "values_selected", values_selected
-				if self.range_level is None:
-					#self.range_level = [np.min(amplitude[mask]), np.max(amplitude[mask])]
-					if self.dataset.has_selection():
-						vmin = min(np.min(values_selected[mask_selected]), np.min(values[mask]))
-						vmax = max( np.max(values_selected[mask_selected]), np.max(values[mask]) )
-						self.range_level = [min(0, vmin), vmax]
-					else:
-						self.range_level = [min(0, np.min(values[mask])), np.max(values[mask])]
 				width = self.ranges_grid[0][1] - self.ranges_grid[0][0]
 				x = np.arange(0, self.plot_window.grid_size)/float(self.plot_window.grid_size) * width + self.ranges_grid[0][0]# + width/(Nvector/2.)
 				delta = x[1] - x[0]
 				for axes in axes_list:
-					if self.display_type == "bar":
-						axes.bar(x, values, width=delta, align='center', alpha=self.alpha, color=self.color)
-					else:
-						print(len(x), len(self.amplitude_grid))
-						dx = x[1] - x[0]
-						x2 = list(np.ravel(list(zip(x,x+dx))))
-						x2p = [x[0]] + x2 + [x[-1]+dx]
-						y = values
-						y2 = list(np.ravel(list(zip(y,y))))
-						y2p = [0] + y2 + [0]
-						axes.plot(x2p, y2p, alpha=self.alpha, color=self.color)
-					if self.dataset.has_selection():
+					if self.show in ["total+selection", "total"]:
 						if self.display_type == "bar":
-							axes.bar(x, values_selected, width=delta, align='center', color=self.color_alt, alpha=0.6*self.alpha)
+							axes.bar(x, values, width=delta, align='center', alpha=self.alpha, color=self.color)
 						else:
+							print(len(x), len(self.amplitude_grid))
 							dx = x[1] - x[0]
 							x2 = list(np.ravel(list(zip(x,x+dx))))
 							x2p = [x[0]] + x2 + [x[-1]+dx]
-							y = values_selected
+							y = values
 							y2 = list(np.ravel(list(zip(y,y))))
 							y2p = [0] + y2 + [0]
-							axes.plot(x2p, y2p, drawstyle="steps-mid", alpha=self.alpha, color=self.color_alt)
-					if self.coordinates_picked_row is not None:
-						axes.axvline(self.coordinates_picked_row[axes.xaxis_index], color="red")
+							axes.plot(x2p, y2p, alpha=self.alpha, color=self.color)
+					if self.show in ["total+selection", "selection"]:
+						if self.dataset.has_selection():
+							if self.display_type == "bar":
+								axes.bar(x, values_selected, width=delta, align='center', color=self.color_alt, alpha=0.6*self.alpha)
+							else:
+								dx = x[1] - x[0]
+								x2 = list(np.ravel(list(zip(x,x+dx))))
+								x2p = [x[0]] + x2 + [x[-1]+dx]
+								y = values_selected
+								y2 = list(np.ravel(list(zip(y,y))))
+								y2p = [0] + y2 + [0]
+								axes.plot(x2p, y2p, drawstyle="steps-mid", alpha=self.alpha, color=self.color_alt)
+
+					#3if self.coordinates_picked_row is not None:
+					index = self.dataset.get_current_row()
+					logger.debug("current row: %r" % index)
+					if index is not None:
+						x = self.subspace.row(index)
+						axes.axvline(x[axes.xaxis_index], color="red")
 
 
 		if self.dimensions == 2:
@@ -522,27 +518,32 @@ class LayerTable(object):
 
 			self.vector_grid = None
 			if any(self.vector_expressions):
-				vector_counts = self.grid_vector.evaluate("counts")
+				grid_vector = self.grid_vector
+				if self.layer_slice_source:
+					print self.slice_selection_grid.shape
+					print grid_vector["counts"].shape
+					grid_vector = grid_vector.slice(self.slice_selection_grid)
+				vector_counts = grid_vector.evaluate("counts")
 				vector_mask = vector_counts > 0
-				if self.grid_vector.evaluate("weightx") is not None:
-					vector_x = self.grid_vector.evaluate("x")
-					vx = self.grid_vector.evaluate("weightx/counts")
+				if grid_vector.evaluate("weightx") is not None:
+					vector_x = grid_vector.evaluate("x")
+					vx = grid_vector.evaluate("weightx/counts")
 					if self.vectors_subtract_mean:
 						vx -= vx[vector_mask].mean()
 				else:
 					vector_x = None
 					vx = None
-				if self.grid_vector.evaluate("weighty") is not None:
-					vector_y = self.grid_vector.evaluate("y")
-					vy = self.grid_vector.evaluate("weighty/counts")
+				if grid_vector.evaluate("weighty") is not None:
+					vector_y = grid_vector.evaluate("y")
+					vy = grid_vector.evaluate("weighty/counts")
 					if self.vectors_subtract_mean:
 						vy -= vy[vector_mask].mean()
 				else:
 					vector_y = None
 					vy = None
-				if self.grid_vector.evaluate("weightz") is not None:
-					vector_z = self.grid_vector.evaluate("z")
-					vz = self.grid_vector.evaluate("weightz/counts")
+				if grid_vector.evaluate("weightz") is not None:
+					vector_z = grid_vector.evaluate("z")
+					vz = grid_vector.evaluate("weightz/counts")
 					if self.vectors_subtract_mean:
 						vz -= vz[vector_mask].mean()
 				else:
@@ -609,6 +610,14 @@ class LayerTable(object):
 				for axes in axes_list:
 					axes.scatter([self.coordinates_picked_row[axes.xaxis_index]], [self.coordinates_picked_row[axes.yaxis_index]], color='red')
 
+
+		if self.dimensions >= 2:
+			for axes in axes_list:
+				index = self.dataset.get_current_row()
+				logger.debug("current row: %r" % index)
+				if index is not None:
+					x = self.subspace.row(index)
+					axes.scatter([x[axes.xaxis_index]], [x[axes.yaxis_index]], color='red')
 
 	def getVariableDict(self):
 		return {} # TODO: remove this? of replace
@@ -706,7 +715,9 @@ class LayerTable(object):
 
 	def on_selection_changed(self, dataset):
 		self.check_selection_undo_redo()
-		self.add_jobs()
+		#self.plot_window.queue_update(layer=self)
+		self.update()
+		#self.add_jobs()
 		self.label_selection_info_update()
 		#self.plot()
 
@@ -723,7 +734,9 @@ class LayerTable(object):
 			self.sequence_index = sequence_index
 		#self.compute()
 		#self.signal_plot_update.emit(delay=0)
-		self.add_jobs()
+		#self.add_jobs()
+		#self.plot_window.queue_update(layer=self)
+		self.update()
 
 	def get_options(self):
 		options = collections.OrderedDict()
@@ -732,9 +745,10 @@ class LayerTable(object):
 		options["expression_weight"] = self.weight_expression
 		options["amplitude_expression"] = self.amplitude_expression
 		options["ranges_grid"] = self.ranges_grid
-		options["weight_x_expression"] = self.weight_x_expression
-		options["weight_y_expression"] = self.weight_y_expression
-		options["weight_z_expression"] = self.weight_z_expression
+		options["vx"] = self.vx
+		if self.dimensions > 1:
+			options["vy"] = self.vy
+			options["vz"] = self.vz
 		for plugin in self.plugins:
 			options.update(plugin.get_options())
 		# since options contains reference (like a list of expressions)
@@ -744,7 +758,7 @@ class LayerTable(object):
 
 	def apply_options(self, options, update=True):
 		#map = {"expressions",}
-		recognize = "expressions expression_weight amplitude_expression ranges_grid aspect weight_x_expression weight_y_expression weight_z_expression".split()
+		recognize = "expressions expression_weight amplitude_expression ranges_grid aspect vx vy vz".split()
 		for key in recognize:
 			if key in list(options.keys()):
 				value = options[key]
@@ -753,11 +767,11 @@ class LayerTable(object):
 					self.amplitude_box.lineEdit().setText(value)
 				if key == "expression_weight":
 					self.weight_box.lineEdit().setText(value or "")
-				if key == "weight_x_expression":
+				if key == "vx":
 					self.weight_x_box.lineEdit().setText(value or "")
-				if key == "weight_y_expression":
+				if key == "vy":
 					self.weight_y_box.lineEdit().setText(value or "")
-				if key == "weight_y_expression":
+				if key == "vz":
 					self.weight_y_box.lineEdit().setText(value or "")
 				if key == "expressions":
 					for expr, box in zip(value, self.axisboxes):
@@ -768,7 +782,8 @@ class LayerTable(object):
 			if key not in recognize:
 				logger.error("option %s not recognized, ignored" % key)
 		if update:
-			self.plot_window.queue_update()
+			#self.plot_window.queue_update()
+			self.update()
 
 
 
@@ -804,9 +819,10 @@ class LayerTable(object):
 		traceback.print_exc()
 		raise exception
 
-	def add_jobs(self):
+	def add_tasks_ranges(self):
 		logger.debug("adding jobs for layer: %r, ranges_grid = %r", self, self.ranges_grid)
 		missing = False
+		# TODO, optimize for the case when some dimensions are already known
 		for range in self.ranges_grid:
 			if range is None:
 				missing = True
@@ -815,28 +831,43 @@ class LayerTable(object):
 				if vmin is None or vmax is None:
 					missing = True
 		self.subspace = self.dataset(*self.expressions, async=True)
+		subspace_ranges = self.subspace
+		if self.layer_slice_source:
+			all_expressions = self.expressions + self.layer_slice_source.expressions
+			self.subspace = self.dataset(*all_expressions, async=True)
+
 		if missing:
 			logger.debug("first we calculate min max for this layer")
-			self.subspace.minmax().then(self.got_limits, self.on_error).then(None, self.on_error)
+			return subspace_ranges.minmax().then(self.got_limits, self.on_error).then(None, self.on_error)
 		else:
-			self.got_limits(self.ranges_grid)
+			#self.got_limits(self.ranges_grid)
+			return vaex.promise.Promise.fulfilled(self)
 
 	def got_limits(self, limits):
 		logger.debug("got limits %r for layer %r" % (limits, self))
 		self.ranges_grid = np.array(limits).tolist() # for this class we need it to be a list
+		return self
+
+	def add_tasks_histograms(self):
+		self._can_plot = False
 		promises = []
 		self.grid_main = vaex.grids.GridScope(globals=np.__dict__)
 		self.grid_main_selection = vaex.grids.GridScope(globals=np.__dict__)
 		self.grid_vector = vaex.grids.GridScope(globals=np.__dict__)
 
+
+		ranges = np.array(self.ranges_grid)
+		if self.layer_slice_source:
+			ranges = np.array(self.ranges_grid + self.layer_slice_source.ranges_grid)
+		ranges = np.array(ranges)
 		# add the main grid
-		histogram_promise = self.subspace.histogram(limits=np.array(self.ranges_grid), size=self.plot_window.grid_size)\
+		histogram_promise = self.subspace.histogram(limits=ranges, size=self.plot_window.grid_size)\
 			.then(self.grid_main.setter("counts"))\
 			.then(None, self.on_error)
 		promises.append(histogram_promise)
 
 		if self.dataset.has_selection():
-			histogram_promise = self.subspace.selected().histogram(limits=np.array(self.ranges_grid), size=self.plot_window.grid_size)\
+			histogram_promise = self.subspace.selected().histogram(limits=ranges, size=self.plot_window.grid_size)\
 				.then(self.grid_main_selection.setter("counts"))\
 				.then(None, self.on_error)
 			promises.append(histogram_promise)
@@ -844,14 +875,14 @@ class LayerTable(object):
 
 		# the weighted ones
 		if self.weight_expression is not None:
-			histogram_weighted_promise = self.subspace.histogram(limits=np.array(self.ranges_grid)
+			histogram_weighted_promise = self.subspace.histogram(limits=ranges
 					, weight=self.weight_expression, size=self.plot_window.grid_size)\
 				.then(self.grid_main.setter("weighted"))\
 				.then(None, self.on_error)
 			promises.append(histogram_weighted_promise)
 
 			if self.dataset.has_selection():
-				histogram_weighted_promise = self.subspace.selected().histogram(limits=np.array(self.ranges_grid)
+				histogram_weighted_promise = self.subspace.selected().histogram(limits=ranges
 						, weight=self.weight_expression, size=self.plot_window.grid_size)\
 					.then(self.grid_main_selection.setter("weighted"))\
 					.then(None, self.on_error)
@@ -867,6 +898,7 @@ class LayerTable(object):
 			subspace = subspace.selected()
 
 		for i, expression in enumerate(self.vector_expressions):
+			#print self, self.vector_expressions, self.ranges_grid
 			name = "xyzw"[i]
 
 			# add arrays x y z which container the centers of the bins
@@ -878,7 +910,7 @@ class LayerTable(object):
 				self.grid_vector[name] = x
 
 			if self.vector_expressions[i]:
-				histogram_vector_promise = self.subspace.histogram(limits=np.array(self.ranges_grid)
+				histogram_vector_promise = self.subspace.histogram(limits=ranges
 						, weight=self.vector_expressions[i], size=self.plot_window.vector_grid_size)\
 					.then(self.grid_vector.setter("weight"+name))\
 					.then(None, self.on_error)
@@ -886,7 +918,7 @@ class LayerTable(object):
 			else:
 				self.grid_vector["weight" +name] = None
 			if any(self.vector_expressions):
-				histogram_vector_promise = self.subspace.histogram(limits=np.array(self.ranges_grid)
+				histogram_vector_promise = self.subspace.histogram(limits=ranges
 						,size=self.plot_window.vector_grid_size)\
 					.then(self.grid_vector.setter("counts"))\
 					.then(None, self.on_error)
@@ -899,7 +931,7 @@ class LayerTable(object):
 
 
 
-		aplus.listPromise(promises)\
+		return vaex.promise.listPromise(promises)\
 			.then(self.got_grids)\
 			.then(None, self.on_error)
 
@@ -907,85 +939,67 @@ class LayerTable(object):
 
 	def got_grids(self, *args):
 		logger.debug("got grids for layer %r" % (self, ))
-		#self.grid_counts = grids
-		#self.temp_grid = self.grid_main.evalulate(self.amplitude_expression)
-		#self.amplitude_grid = self.temp_grid
-		self.plot_window.queue_replot()
+		self.calculate_amplitudes()
+		self._needs_update = False
+		return self
 
-
-
-	def add_jobs_(self):
-		#import traceback
-		#print "updating compute counter", ''.join(traceback.format_stack())
-		compute_counter = self.compute_counter = self.compute_counter + 1
-		t0 = time.time()
-
-
-		def calculate_range(info, block, axis_index):
-			if compute_counter < self.compute_counter:
-				return True
-			if info.error:
-				self.message(info.error_text, index=-1)
-				return True
-			subblock_size = math.ceil(len(block)/self.thread_pool.nthreads)
-			subblock_count = math.ceil(len(block)/subblock_size)
-			def subblock(index):
-				sub_i1, sub_i2 = index * subblock_size, (index +1) * subblock_size
-				if len(block) < sub_i2: # last one can be a bit longer
-					sub_i2 = len(block)
-				return vaex.vaexfast.find_nan_min_max(block[sub_i1:sub_i2])
-			self.message("min/max[%d] at %.1f%% (%.2fs)" % (axis_index, info.percentage, time.time() - info.time_start), index=50+axis_index )
-			QtCore.QCoreApplication.instance().processEvents()
-			if info.first:
-				results = self.thread_pool.run_parallel(subblock)
-				self.ranges_grid[axis_index] = min([result[0] for result in results]), max([result[1] for result in results])
+	def slice_amplitudes(self):
+		slice = self.layer_slice_source is not None
+		if False: #slice:
+			extra_axes = tuple(range(self.subspace.dimension)[len(self.expressions):])
+			logger.debug("sum over axes: %r", extra_axes)
+			msum = vaex.utils.multisum
+			logger.debug("shape of grid: %r", self.amplitude_grid[...,self.slice_selection_grid].shape)
+			self.amplitude_grid_view = np.sum(self.amplitude_grid[...,self.slice_selection_grid], axis=-1)
+			if self.amplitude_grid_selection is not None:
+				self.amplitude_grid_selection_view = np.sum(self.amplitude_grid_selection[...,self.slice_selection_grid], axis=-1)
 			else:
-				results = self.thread_pool.run_parallel(subblock)
-				self.ranges_grid[axis_index] = min([self.ranges_grid[axis_index][0]] + [result[0] for result in results]), max([self.ranges_grid[axis_index][1]] + [result[1] for result in results])
-			if info.last:
-				if self.plot_window.layers.index(self) == 0: # we are the first layer
-					print("first layer", self.ranges_grid[axis_index], self.plot_window.layers[1:])
-					for layer in self.plot_window.layers[1:]:
-						layer.ranges_grid[axis_index] = copy.deepcopy(self.ranges_grid[axis_index])
-						layer.grids.ranges[axis_index] = copy.deepcopy(self.ranges_grid[axis_index])
-				else:
-					raise Exception("should not happen")
-				print("min/max", axis_index, self.ranges_grid[axis_index])
-				self.grids.ranges[axis_index] = list(self.ranges_grid[axis_index])
-				self.message("min/max[%d] %.2fs" % (axis_index, time.time() - t0), index=50+axis_index)
-				self.message(None, index=-1) # clear error msg
-
-		for axis_index in range(self.dimensions):
-			if self.plot_window.layers.index(self) == 0: # we are the first layer, only this one needs range computations
-				if self.ranges_grid[axis_index] is None:
-					self.jobs_manager.addJob(0, functools.partial(calculate_range, axis_index=axis_index), self.dataset, self.expressions[axis_index]) #, **self.getVariableDict())
-				else:
-					self.grids.ranges[axis_index] = copy.deepcopy(self.ranges_grid[axis_index])
-			else:
-				first_layer = self.plot_window.layers[0]
-				if first_layer.ranges_grid[axis_index] is not None:
-					self.ranges_grid[axis_index] = copy.deepcopy(first_layer.ranges_grid[axis_index])
-				if self.ranges_grid[axis_index] is not None:
-					self.grids.ranges[axis_index] = copy.deepcopy(self.ranges_grid[axis_index])
-
-		#if self.expression_weight is None or len(self.expression_weight.strip()) == 0:
-		#	self.jobs_manager.addJob(1, self.calculate_visuals, self.dataset, *self.expressions, **self.getVariableDict())
+				self.amplitude_grid_selection_view = None
 		#else:
-		#all_expressions = self.expressions + [self.expression_weight, self.weight_x_expression, self.weight_y_expression, self.weight_z_expression]
-		self.grids.set_expressions(self.expressions)
-		self.grids.define_grid("counts", self.plot_window.grid_size, None)
-		self.grids.define_grid("weighted", self.plot_window.grid_size, self.weight_expression)
-		if self.dimensions >= 2:
-			self.vector_expressions[0] = self.weight_x_expression
-			self.vector_expressions[1] = self.weight_y_expression
-			self.vector_expressions[2] = self.weight_z_expression
-			for i, expression in enumerate(self.vector_expressions):
-				name = "xyzw"[i]
-				self.grids.define_grid("weight"+name, self.plot_window.vector_grid_size, expression)
+		self.amplitude_grid_view = self.amplitude_grid
+		self.amplitude_grid_selection_view = self.amplitude_grid_selection
 
-		for callback in self.plugin_grids_defines:
-			callback(self.grids)
-		self.grids.add_jobs(self.jobs_manager)
+	def calculate_amplitudes(self):
+		logger.debug("calculating amplitudes")
+
+		slice = self.layer_slice_source is not None
+
+		try:
+			grid = self.grid_main
+			if slice:
+				grid = grid.slice(self.slice_selection_grid)
+			self.amplitude_grid = grid.evaluate(self.amplitude_expression)
+		except Exception as e:
+			logger.exception("amplitude field")
+			#traceback.print_exc()
+			#print self.error_in_field
+			self.error_in_field(self.amplitude_box, "amplitude of layer %s" % self.name, e)
+			return
+		self.amplitude_grid_selection = None
+		logger.debug("shape of amplitude grid: %r" % (self.amplitude_grid.shape, ))
+		if self.dataset.has_selection():
+			grid = self.grid_main_selection
+			if slice:
+				grid = grid.slice(self.slice_selection_grid)
+			self.amplitude_grid_selection = grid.evaluate(self.amplitude_expression)
+
+		vmin = None
+		vmax = None
+		def getminmax(grid, vmin, vmax):
+			mask = ~(np.isnan(grid) | np.isinf(grid))
+			if mask.sum() > 0:
+				newvmin = grid[mask].min()
+				newvmax = grid[mask].max()
+				vmin = min(newvmin, vmin) if vmin is not None else newvmin
+				vmax = max(newvmax, vmax) if vmax is not None else newvmax
+			return vmin, vmax
+		self.range_level = vmin, vmax = getminmax(self.amplitude_grid, vmin, vmax)
+		logger.debug("range_level: %r" % [vmin, vmax])
+		if self.dataset.has_selection():
+			self.range_level = getminmax(self.amplitude_grid_selection, vmin, vmax)
+			logger.debug("range_level update: %r" % ([vmin, vmax], ))
+		self.slice_amplitudes()
+		self._can_plot = True
 
 	def build_widget_qt(self, parent):
 		self.widget_build = True
@@ -1012,6 +1026,7 @@ class LayerTable(object):
 			self.plug_page(self.page_vector, "Vector field", 2., 1.)
 		#self.plug_page(self.page_display, "Display", 3., 1.)
 		self.plug_page(self.page_selection, "Selection", 3.5, 1.)
+		self.plug_page(self.page_slice, "Slicing", 3.75, 1.)
 
 		# first get unique page orders
 		logger.debug("setting up layer plugins")
@@ -1030,7 +1045,9 @@ class LayerTable(object):
 				logger.debug("filling page: "+pagename +" order=" +str(order) + " callback=" +str(callback))
 				callback(self.pages[pagename])
 		page_name = self.options.get("page", "Main")
+		print "PAGE NAME " * 10, page_name
 		page_frame = self.pages.get(page_name, None)
+		print "PAGE FRAME " * 10, page_frame
 		if page_frame:
 			self.toolbox.setCurrentWidget(page_frame)
 		logger.debug("done setting up layer plugins")
@@ -1044,6 +1061,19 @@ class LayerTable(object):
 			action.do()
 			#self.apply_mask(mask)
 			#self.dataset.selectMask(mask)
+
+		if "slice_link" in self.options:
+			window_name, layer_name = self.options["slice_link"].split(".")
+			matches = [window for window in self.plot_window.app.windows if window.name == window_name]
+			logger.debug("matching windows for slice_link: %r", matches)
+			if matches:
+				window = matches[0]
+				matches = [layer for layer in window.layers if layer.name == layer_name]
+				logger.debug("matching layers for slice_link: %r", matches)
+				if matches:
+					layer = matches[0]
+					self.slice_link(layer)
+
 
 		return self.toolbox
 
@@ -1100,7 +1130,8 @@ class LayerTable(object):
 		# let any event handler deal with redraw etc
 		self.coordinates_picked_row = None
 		#self.add_jobs()
-		self.plot_window.queue_update()
+		#self.plot_window.queue_update()
+		self.update()
 		#self.execute()
 		#self.signal_expression_change.emit(self, axis_index, text)
 		#self.compute()
@@ -1122,7 +1153,8 @@ class LayerTable(object):
 			self.weight_expression = None
 		self.range_level = None
 		self.plot_window.range_level_show = None
-		self.plot_window.queue_update(layer=self)
+		#self.plot_window.queue_update(layer=self)
+		self.update()
 		#self.add_jobs()
 		#self.execute()
 		#self.plot()
@@ -1172,7 +1204,8 @@ class LayerTable(object):
 			logger.debug("do an update due to change in vector_expression[%d]" % axis_index)
 			#self.add_jobs()
 			#self.execute()
-			self.plot_window.queue_update(layer=self)
+			#self.plot_window.queue_update(layer=self)
+			self.update()
 
 	def onAmplitudeExpr(self):
 		text = str(self.amplitude_box.lineEdit().text())
@@ -1180,8 +1213,8 @@ class LayerTable(object):
 			logger.debug("same expression, skip")
 			return
 		self.amplitude_expression = text
-		self.range_level = None
-		self.plot_window.range_level_show = None
+		self.calculate_amplitudes()
+		self.plot_window.calculate_range_level_show()
 		self.plot_window.plot()
 		#self.plot()
 
@@ -1203,7 +1236,8 @@ class LayerTable(object):
 				self.plot_window.ranges_show.reverse()
 				for box, expr in zip(self.axisboxes, self.expressions):
 					box.lineEdit().setText(expr)
-				self.add_jobs()
+				#self.plot_window.queue_update() # only update thislayer??
+				self.update()
 				self.execute()
 			self.buttonFlipXY.clicked.connect(flipXY)
 			self.button_layout.addWidget(self.buttonFlipXY, 0.)
@@ -1524,6 +1558,113 @@ class LayerTable(object):
 		self.slider_contour_count = Slider(page_widget, "contour_count", 0, 20, 20, getter=attrgetter(self, "contour_count"), setter=attrsetter(self, "contour_count"), update=self.signal_plot_dirty.emit, format="{0:<3d}", numeric_type=int)
 		row = self.slider_contour_count.add_to_grid_layout(row, grid_layout)
 
+	def page_slice(self, page):
+		class PageWrapper(object):
+			def __init__(self, layer, page_widget):
+				self.layer = layer
+				self.page_widget = page_widget
+				self.layout_page =  QtGui.QVBoxLayout()
+				self.page_widget.setLayout(self.layout_page)
+				self.layout_page.setSpacing(0)
+				self.layout_page.setContentsMargins(0,0,0,0)
+				self.layout_page.setAlignment(QtCore.Qt.AlignTop)
+				self.row = 0
+
+				self.grid_layout = QtGui.QGridLayout()
+				self.grid_layout.setColumnStretch(2, 1)
+				self.layout_page.addLayout(self.grid_layout)
+
+
+			def add(self, name, widget):
+				self.grid_layout.addWidget(QtGui.QLabel(name), self.row, 0)
+				self.grid_layout.addWidget(widget, self.row, 1)
+				self.row += 1
+
+			def add_slider_linear(self, name, value, min, max, steps=1000):
+				def getter():
+					return getattr(self.layer, name)
+				def setter(value):
+					setattr(self.layer, name, value)
+				slider = Slider(self.page_widget, name, min, max, steps, getter, setter)
+				self.row = slider.add_to_grid_layout(self.row, self.grid_layout)
+
+		page = PageWrapper(self, page)
+		self.menu_button_slice_link = QtGui.QPushButton("No link", page.page_widget)
+		self.menu_slice_link = QtGui.QMenu()
+		self.menu_button_slice_link.setMenu(self.menu_slice_link)
+
+		action = QtGui.QAction("unlink", self.menu_slice_link)
+		action.triggered.connect(lambda *x: self.slice_unlink())
+		self.menu_slice_link.addAction(action)
+
+
+		for window in self.plot_window.app.windows:
+			print "window", window
+			layers = [layer for layer in window.layers if layer.dataset == self.dataset]
+			print "layers", layer
+			if layers:
+				menu_window = QtGui.QMenu(window.name, self.menu_slice_link)
+				self.menu_slice_link.addMenu(menu_window)
+				#self.menu_slice_link.add
+				for layer in window.layers:
+					#menu_layer = QtGui.QMenu(layer.name)
+					action = QtGui.QAction(layer.name, self.menu_slice_link)
+					def on_link(ignore=None, layer=layer):
+						self.slice_link(layer)
+					action.triggered.connect(on_link)
+					menu_window.addAction(action)
+				#self.menu_slice_link.
+
+		page.add("slice_link", self.menu_button_slice_link)
+		self.signal_slice_change = vaex.events.Signal("slice changed")
+
+		self._slice_radius = 0.1
+		page.add_slider_linear("slice_radius", self.slice_radius, 0.0, 1.0)
+
+	@property
+	def slice_radius(self): return self._slice_radius
+	@slice_radius.setter
+	def slice_radius(self, value):
+		self._slice_radius = value
+		self.plot_window.slice_radius = value
+		self.plot_window.setMode(self.plot_window.lastAction)
+
+	def slice_link(self, layer):
+		if self.plot_window.grid_size != layer.plot_window.grid_size:
+			msg = "Source layer has a gridsize of %d, while the linked layer has a gridsize of %d, only linking with equal gridsize is supported" % (self.plot_window.grid_size, layer.plot_window.grid_size)
+			dialog_error(self.plot_window, "Unequal gridsize", msg)
+			return
+		dim = self.plot_window.dimensions * layer.plot_window.dimensions
+		bytes_required = (layer.plot_window.grid_size ** dim) * 8
+		if memory_check_ok(self.plot_window, bytes_required):
+			name = layer.plot_window.name + "." + layer.name
+			self.menu_button_slice_link.setText(name)
+			self.slice_unlink()
+
+			self.layer_slice_source = layer
+			self.slice_axis = [True] * layer.dimensions
+			shape = (layer.plot_window.grid_size, ) * layer.dimensions
+			self.slice_selection_grid = np.ones(shape, dtype=np.bool)
+			self.layer_slice_source.signal_slice_change.connect(self.on_slice_change)
+			self.layer_slice_source.signal_needs_update.connect(self.on_slice_source_needs_update)
+			self.update()
+
+	def slice_unlink(self):
+		if self.layer_slice_source is not None:
+			self.layer_slice_source.signal_slice_change.disconnect(self.on_slice_change)
+			self.layer_slice_source.signal_needs_update.disconnect(self.on_slice_source_needs_update)
+			self.layer_slice_source = None
+			self.update()
+
+	def on_slice_source_needs_update(self):
+		self.update()
+
+	def on_slice_change(self, selection_grid, clicked):
+		self.slice_selection_grid = selection_grid
+		self.calculate_amplitudes()
+		self.signal_plot_dirty.emit()
+
+
 	def page_selection(self, page):
 		self.layout_page_selection =  QtGui.QVBoxLayout()
 		page.setLayout(self.layout_page_selection)
@@ -1748,7 +1889,7 @@ class LayerTable(object):
 			#		self.onWeightXExpr()
 			self.weight_x_box.lineEdit().editingFinished.connect(lambda _=None: self.onWeightXExpr())
 			self.weight_x_box.currentIndexChanged.connect(lambda _=None: self.onWeightXExpr())
-			self.weight_x_expression = str(self.weight_x_box.lineEdit().text())
+			self.vector_expressions[0] = str(self.weight_x_box.lineEdit().text())
 			if 0:
 				for name in "x y z".split():
 					if name in self.expressions[0]:
@@ -1756,7 +1897,7 @@ class LayerTable(object):
 							expression = (prefix+name)
 							if expression in self.get_expression_list():
 								self.weight_x_box.lineEdit().setText(expression)
-								self.weight_x_expression = expression
+								self.vector_expressions[0] = expression
 
 			row += 1
 
@@ -1772,7 +1913,7 @@ class LayerTable(object):
 			#		self.onWeightYExpr()
 			self.weight_y_box.lineEdit().editingFinished.connect(lambda _=None: self.onWeightYExpr())
 			self.weight_y_box.currentIndexChanged.connect(lambda _=None: self.onWeightYExpr())
-			self.weight_y_expression = str(self.weight_y_box.lineEdit().text())
+			self.vector_expressions[1] = str(self.weight_y_box.lineEdit().text())
 			if 0:
 				for name in "x y z".split():
 					if self.dimensions > 1:
@@ -1781,7 +1922,7 @@ class LayerTable(object):
 								expression = (prefix+name)
 								if expression in self.get_expression_list():
 									self.weight_y_box.lineEdit().setText(expression)
-									self.weight_y_expression = expression
+									self.vector_expressions[0] = expression
 
 			row += 1
 
@@ -1796,7 +1937,7 @@ class LayerTable(object):
 			#		self.onWeightZExpr()
 			self.weight_z_box.lineEdit().editingFinished.connect(lambda _=None: self.onWeightZExpr())
 			self.weight_z_box.currentIndexChanged.connect(lambda _=None: self.onWeightZExpr())
-			self.weight_z_expression = str(self.weight_z_box.lineEdit().text())
+			self.vector_expressions[2] = str(self.weight_z_box.lineEdit().text())
 
 			row += 1
 
@@ -1924,6 +2065,10 @@ class LayerTable(object):
 		next_index = (index + 1) % len(self.contrast_list)
 		self.contrast = self.contrast_list[next_index]
 		self.plot()
+
+	def update(self):
+		self.flag_needs_update()
+		self.plot_window.queue_update()
 
 from vaex.dataset import Dataset
 from vaex.ui.plot_windows import PlotDialog

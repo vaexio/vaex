@@ -56,7 +56,10 @@ class ThreadPoolIndex(object):
 							self.queue_out.get()
 						#print("********************")
 						#print(element)
-						raise element[0](element[1]) #element[0].__class__(None, element[2])
+						#raise element[1]
+						raise element[0], element[1], element[2]
+						#raise element[0](element[1])
+						#raise element[0].__class__(None, element[2])
 						#TODO: 2to3 gave this suggestion: raise element[1].with_traceback(element[2])
 						done = True
 				else:

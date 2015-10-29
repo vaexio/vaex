@@ -69,16 +69,13 @@ def get_data_file(filename):
 	# this is where we expect data to be in normal installations
 	for extra in ["", "data", "data/dist", "../data", "../data/dist"]:
 		path = os.path.join(os.path.dirname(__file__), "..", "..", extra, filename)
-		print "try", path
 		if os.path.exists(path):
 			return path
 		path = os.path.join(sys.prefix, extra, filename)
-		print "try", path
 		if os.path.exists(path):
 			return path
 		# if all fails..
 		path = os.path.join(get_root_path(), extra, filename)
-		print "try", path
 		if os.path.exists(path):
 			return path
 

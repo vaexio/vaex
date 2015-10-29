@@ -87,11 +87,11 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
     }
 
     function getShader(gl, id, replacements) {
-        console.log("get shader " + id)
+        //console.log("get shader " + id)
         //var str = shader_text[id]
         var str = window.shader_cache[id]
-        console.log("id = " + id)
-        console.log(str)
+        //console.log("id = " + id)
+        //console.log(str)
         if(replacements) {
 			console.log(replacements)
 			for(var key in replacements) {
@@ -568,7 +568,7 @@ var colormap_names = ["PaulT_plusmin", "binary", "Blues", "BuGn", "BuPu", "gist_
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems);
             */
             var scale = vec3.create();
-            vec3.set(scale, 0.8,0.8,0.8)
+            vec3.set(scale, [0.8,0.8,0.8])
 
             mat4.identity(mvMatrix);
             //mat4.scale(mvMatrix, scale);

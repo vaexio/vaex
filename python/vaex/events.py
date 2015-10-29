@@ -1,4 +1,6 @@
 import traceback
+import logging
+logger = logging.getLogger("vaex.events")
 
 class Signal(object):
 	def __init__(self, name=None):
@@ -31,8 +33,10 @@ class Signal(object):
 				value = callback(*final_args, **final_kwargs)
 				results.append(value)
 			except Exception:
-				tb = traceback.format_exc()
-				raise Exception("error while calling callback: %r with arguments %r and kwargs %r" % (callback, final_args, final_kwargs), tb)
+				logger.error("error in handling callback %r with arguments %r and kwargs %r" % (callback, final_args, final_kwargs))
+				raise
+				#tb = traceback.format_exc()
+				#raise Exception("error while calling callback: %r with arguments %r and kwargs %r" % (callback, final_args, final_kwargs), tb)
 
 		return results
 			

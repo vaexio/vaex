@@ -46,8 +46,7 @@ class Job(object):
 ne_lock = threading.Lock()
 
 class Executor(object):
-	def __init__(self, dataset, thread_pool):
-		self.dataset = dataset
+	def __init__(self, thread_pool):
 		self.thread_pool = thread_pool
 		self.task_queue = []
 
@@ -56,7 +55,7 @@ class Executor(object):
 		return task
 
 	def run(self, task):
-		assert task.dataset == self.dataset
+		logger.debug("added task: %r" % task)
 		previous_queue = self.task_queue
 		try:
 			self.task_queue = [task]
@@ -71,29 +70,33 @@ class Executor(object):
 		logger.debug("executing queue: %r" % (self.task_queue))
 		#for task in self.task_queue:
 		#$	print task, task.expressions_all
+		datasets = set(task.dataset for task in self.task_queue)
 
-		expressions = list(set(expression for task in self.task_queue for expression in task.expressions_all))
-
-		for task in self.task_queue:
-			task._results = []
-		block_scopes = [self.dataset._block_scope(0, buffer_size) for i in range(self.thread_pool.nthreads)]
-		def process(thread_index, i1, i2):
-			block_scope = block_scopes[thread_index]
-			block_scope.move(i1, i2)
-			with ne_lock:
-				block_dict = {expression:block_scope.evaluate(expression) for expression in expressions}
-			for task in self.task_queue:
-				blocks = [block_dict[expression] for expression in task.expressions_all]
-				task._results.append(task.map(thread_index, i1, i2, *blocks))
-
-		length = len(self.dataset)
-		#print self.thread_pool.map()
 		try:
-			for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size)):
-				pass # just eat all element
+			# process tasks per dataset
+			for dataset in datasets:
+				task_queue = [task for task in self.task_queue if task.dataset == dataset]
+				expressions = list(set(expression for task in task_queue for expression in task.expressions_all))
+
+				for task in task_queue:
+					task._results = []
+				block_scopes = [dataset._block_scope(0, buffer_size) for i in range(self.thread_pool.nthreads)]
+				def process(thread_index, i1, i2):
+					block_scope = block_scopes[thread_index]
+					block_scope.move(i1, i2)
+					with ne_lock:
+						block_dict = {expression:block_scope.evaluate(expression) for expression in expressions}
+					for task in task_queue:
+						blocks = [block_dict[expression] for expression in task.expressions_all]
+						task._results.append(task.map(thread_index, i1, i2, *blocks))
+
+				length = len(dataset)
+				#print self.thread_pool.map()
+				for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size)):
+					pass # just eat all element
 		except:
 			# on any error we flush the task queue
-			logger.error("error in task, flush task queue")
+			logger.exception("error in task, flush task queue")
 			self.task_queue = []
 			raise
 		logger.debug("executing took %r seconds" % (time.time() - t0))

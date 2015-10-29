@@ -786,9 +786,9 @@ void histogramNd(const double* const blocks[], const double* const weights, long
 			long long index = 0;
 			bool inside = true;
 			for(int d = 0; d < dimensions; d++) {
-				double value = blocks[d][i];
-				if( (value >= minima[d]) & (value < maxima[d]) ) {
-					int sub_index = (int)((value - minima[d]) * scales[d]);
+				double value = blocks[dimensions-1-d][i];
+				if( (value >= minima[dimensions-1-d]) & (value < maxima[dimensions-1-d]) ) {
+					int sub_index = (int)((value - minima[dimensions-1-d]) * scales[dimensions-1-d]);
 					index += count_strides[d] * sub_index;
 				} else {
 					inside = false;

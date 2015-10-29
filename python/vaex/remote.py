@@ -2,9 +2,9 @@ __author__ = 'breddels'
 import numpy as np
 from . import logging
 import threading
-from .dataset import Dataset, Subspace, Task, Promise
-import aplus
+from .dataset import Dataset, Subspace, Task
 logger = logging.getLogger("vaex.remote")
+import vaex.promise
 
 #from twisted.internet import reactor
 #from twisted.web.client import Agent
@@ -12,19 +12,20 @@ logger = logging.getLogger("vaex.remote")
 from tornado.httpclient import AsyncHTTPClient, HTTPClient
 from tornado.concurrent import Future
 
+DEFAULT_REQUEST_TIMEOUT = 60 * 5 # 5 minutes
+
 def wrap_future_with_promise(future):
-	if isinstance(future, aplus.Promise): # TODO: not so nice, sometimes we pass a promise
+	if isinstance(future, vaex.promise.Promise): # TODO: not so nice, sometimes we pass a promise
 		return future
-	promise = Promise()
+	promise = vaex.promise.Promise()
 	def callback(future):
-		print(("callback", future))
+		print(("callback", future, future.result()))
 		e = future.exception()
 		if e:
 			print(("reject", e))
 			promise.reject(e)
 		else:
 			promise.fulfill(future.result())
-	print((future, isinstance(future, aplus.Promise)))
 	future.add_done_callback(callback)
 	return promise
 
@@ -43,6 +44,11 @@ except ImportError:
 
 import threading
 
+def _check_error(object):
+	if "error" in object:
+		raise RuntimeError, "Server responded with error: %r" % object["error"]
+
+
 class ServerRest(object):
 	def __init__(self, hostname, port=5000, base_path="/", background=False, thread_mover=None):
 		self.hostname = hostname
@@ -52,35 +58,34 @@ class ServerRest(object):
 		event = threading.Event()
 		self.thread_mover = thread_mover
 
-		if True:
-			#print "not running async"
-			#if not tornado.ioloop.IOLoop.initialized():
-			if True:
-				#print "not init"
-				#tornado.ioloop.IOLoop.clear_current()
-				#tornado.ioloop.IOLoop.clear_instance()
-				#tornado.ioloop.IOLoop.current().run_sync()
-				def ioloop():
-					#print "creating io loop"
-					self.io_loop = tornado.ioloop.IOLoop.current(instance=False)
-					if self.io_loop is None:
-						event.set()
-						return
-						self.io_loop = tornado.ioloop.IOLoop.instance()
-					event.set()
-					self.io_loop.make_current()
-					#print "starting"
-					self.io_loop.start()
-				thread = threading.Thread(target=ioloop)
-				thread.setDaemon(True)
-				thread.start()
-			#else:
-			#	print "already initialized"
+		def ioloop_threaded():
+			#print "creating io loop"
+			logger.debug("creating tornado io_loop")
+			#self.io_loop = tornado.ioloop.IOLoop.instance() #tornado.ioloop.IOLoop.current(instance=True)
+			self.io_loop = tornado.ioloop.IOLoop().instance()
+			#if self.io_loop is None:
+				#logger.debug("creating tornado io_loop")
+				#event.set()
+				#return
+				#self.io_loop = tornado.ioloop.IOLoop.instance()
+			event.set()
+			#self.io_loop.make_current()
+			#print "starting"
+			logger.debug("started tornado io_loop...")
+			self.io_loop.start()
+			logger.debug("stopped tornado io_loop")
 
-			#print "waiting for io loop to be created"
+		io_loop = tornado.ioloop.IOLoop.current(instance=False)
+		if io_loop is None:
+			logger.debug("no current io loop, starting it in thread")
+			thread = threading.Thread(target=ioloop_threaded)
+			thread.setDaemon(True)
+			thread.start()
 			event.wait()
-			#print self.io_loop
-		#self.io_loop.make_current()
+		else:
+			self.io_loop = io_loop
+
+		self.io_loop.make_current()
 		#if async:
 		self.http_client_async = AsyncHTTPClient()
 		self.http_client = HTTPClient()
@@ -92,11 +97,12 @@ class ServerRest(object):
 		io_loop.start()
 
 	def fetch(self, url, transform, async=False, **kwargs):
+		logger.debug("fetch %s, async=%r", url, async)
 		if async:
-			future = self.http_client_async.fetch(url, **kwargs)
+			future = self.http_client_async.fetch(url, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
 			return wrap_future_with_promise(future).then(transform).then(self._move_to_thread)
 		else:
-			return transform(self.http_client.fetch(url, **kwargs))
+			return transform(self.http_client.fetch(url, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs))
 
 
 	def datasets(self, async=False):
@@ -132,6 +138,7 @@ class ServerRest(object):
 
 	def open(self, name, async=False):
 		def wrap(info):
+			_check_error(info)
 			column_names = info["column_names"]
 			full_length = info["length"]
 			return DatasetRest(self, name, column_names, full_length)
@@ -204,7 +211,7 @@ class ServerRest(object):
 			return transform(response)
 
 	def _move_to_thread(self, result):
-		promise = Promise()
+		promise = vaex.promise.Promise()
 		#def do(value):
 		#	return value
 		#promise.then(do)
@@ -221,6 +228,7 @@ class ServerRest(object):
 		post_data = {key:json.dumps(value) for key, value in list(dict(kwargs).items())}
 		post_data.update(dict(expression=json.dumps(expression)))
 		body = urlencode(post_data)
+		# TODO: this should use self.fetch
 		return self.http_client.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 
