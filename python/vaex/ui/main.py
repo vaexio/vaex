@@ -918,7 +918,9 @@ class VaexApp(QtGui.QMainWindow):
 				#if f and os.path.exists(f):
 				#	self.dataset_selector.open(f)
 				#self.dataset_selector.open(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
-				self.dataset_selector.add(vaex.example())
+				dataset_example = vaex.example()
+				if dataset_example:
+					self.dataset_selector.add(dataset_example)
 		for pluginpath in [os.path.expanduser('~/.vaex/plugin')]:
 			logger.debug("pluginpath: %s" % pluginpath)
 			if os.path.exists(pluginpath):

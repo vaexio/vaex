@@ -12,6 +12,8 @@ import vaex.promise
 from tornado.httpclient import AsyncHTTPClient, HTTPClient
 from tornado.concurrent import Future
 
+DEFAULT_REQUEST_TIMEOUT = 60 * 5 # 5 minutes
+
 def wrap_future_with_promise(future):
 	if isinstance(future, vaex.promise.Promise): # TODO: not so nice, sometimes we pass a promise
 		return future
@@ -97,10 +99,10 @@ class ServerRest(object):
 	def fetch(self, url, transform, async=False, **kwargs):
 		logger.debug("fetch %s, async=%r", url, async)
 		if async:
-			future = self.http_client_async.fetch(url, **kwargs)
+			future = self.http_client_async.fetch(url, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
 			return wrap_future_with_promise(future).then(transform).then(self._move_to_thread)
 		else:
-			return transform(self.http_client.fetch(url, **kwargs))
+			return transform(self.http_client.fetch(url, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs))
 
 
 	def datasets(self, async=False):
@@ -226,6 +228,7 @@ class ServerRest(object):
 		post_data = {key:json.dumps(value) for key, value in list(dict(kwargs).items())}
 		post_data.update(dict(expression=json.dumps(expression)))
 		body = urlencode(post_data)
+		# TODO: this should use self.fetch
 		return self.http_client.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 

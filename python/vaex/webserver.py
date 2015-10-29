@@ -99,6 +99,8 @@ class WebServer(threading.Thread):
 	def serve_threaded(self):
 		self.start()
 		self.started.wait()
+		# this will make the main thread use this ioloop as current
+		self.ioloop.make_current()
 
 	def run(self):
 		self.mainloop()
@@ -122,7 +124,13 @@ if __name__ == "__main__":
 	#logger.setLevel(logging.logging.DEBUG)
 	import vaex
 	vaex.set_log_level_debug()
-	server = WebServer(datasets=[vx.example()])
+	import sys
+	filenames = sys.argv[1:]
+	if filenames:
+		datasets = [vx.open(filename) for filename in filenames]
+	else:
+		datasets = [vx.example()]
+	server = WebServer(datasets=datasets, address="0.0.0.0")
 	server.serve()
 
 	#3_threaded()

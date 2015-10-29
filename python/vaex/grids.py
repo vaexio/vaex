@@ -4,6 +4,7 @@ import vaex.vaexfast
 from vaex.utils import filesize_format
 import vaex.logging
 import vaex.utils
+import scipy.ndimage
 total_bytes = 0
 
 logger = vaex.logging.getLogger("vaex.grids")
@@ -29,6 +30,7 @@ class GridScope(object):
 		self.lazy["average"] = grid_average
 		self.globals["cumulative"] = self.cumulative
 		self.globals["normalize"] = self.normalize
+		self.globals["gf"] = scipy.ndimage.gaussian_filter
 		self.user_added = set()
 
 	def cumulative(self, array, normalize=True):
