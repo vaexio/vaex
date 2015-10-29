@@ -96,6 +96,17 @@ class GridScope(object):
 				gridscope[key] = value
 		return gridscope
 
+	def disjoined(self):
+		gridscope = GridScope(globals=self.globals)
+		for key in self.user_added:
+			value = self[key]
+			if isinstance(value, np.ndarray):
+				grid = vaex.utils.disjoined(value)
+				gridscope[key] = grid
+			else:
+				gridscope[key] = value
+		return gridscope
+
 def add_mem(bytes, *info):
 	global total_bytes
 	total_bytes += bytes

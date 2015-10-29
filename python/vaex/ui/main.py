@@ -163,6 +163,7 @@ class DatasetSelector(QtGui.QListWidget):
 			N  = len(dataset)
 			if N > Nmax:
 				dataset.set_active_fraction(fraction)
+				logger.debug("set best fraction for dataset %r to %r" % (dataset, fraction))
 			else:
 				break
 
@@ -536,23 +537,32 @@ class DatasetPanel(QtGui.QFrame):
 			self.dataset.set_active_fraction(fraction)
 			self.numberLabel.setText("{:,}".format(len(self.dataset)))
 			#self.dataset.executor.execute()
-			self.dataset.executor.execute()
+			#self.dataset.executor.execute()
 
 	def onValueChanged(self, index):
 		fraction = possibleFractions[index]
 		text = 'Fraction used: %9.4f%%' % (fraction*100)
 		self.fractionLabel.setText(text)
 
-	def show_dataset(self, dataset):
-		self.dataset = dataset
-		self.name.setText(dataset.name)
-		self.label_columns.setText(str(dataset.column_count()))
-		self.label_length.setText("{:,}".format(self.dataset.full_length()))
-		self.numberLabel.setText("{:,}".format(len(self.dataset)))
+	def on_active_fraction_changed(self, dataset, fraction):
+		self.update_active_fraction()
+
+	def update_active_fraction(self):
 		fraction = self.dataset.get_active_fraction()
 		distances = np.abs(np.array(possibleFractions) - fraction)
 		index = np.argsort(distances)[0]
 		self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
+
+	def show_dataset(self, dataset):
+		if self.dataset:
+			self.dataset.signal_active_fraction_changed.disconnect(self.on_active_fraction_changed)
+		self.dataset = dataset
+		self.dataset.signal_active_fraction_changed.connect(self.on_active_fraction_changed)
+		self.name.setText(dataset.name)
+		self.label_columns.setText(str(dataset.column_count()))
+		self.label_length.setText("{:,}".format(self.dataset.full_length()))
+		self.numberLabel.setText("{:,}".format(len(self.dataset)))
+		self.update_active_fraction()
 		self.button_2d.setEnabled(self.dataset.column_count() > 0)
 		#self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
 		#self.scatter3dButton.setEnabled(False)

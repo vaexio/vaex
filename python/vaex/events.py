@@ -37,7 +37,6 @@ class Signal(object):
 				raise
 				#tb = traceback.format_exc()
 				#raise Exception("error while calling callback: %r with arguments %r and kwargs %r" % (callback, final_args, final_kwargs), tb)
-
 		return results
 			
 	def disconnect(self, callback):

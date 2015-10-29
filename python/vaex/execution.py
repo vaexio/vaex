@@ -27,6 +27,9 @@ logger = vaex.logging.getLogger("vaex.execution")
 
 thread_count_default = multiprocessing.cpu_count()
 
+class UserAbort(Exception):
+	def __init__(self, reason):
+		super(UserAbort, self).__init__(reason)
 class Column(collections.namedtuple('Column', ['dataset', 'expression'])):
 	def needs_copy(self):
 		return not \
@@ -49,6 +52,10 @@ class Executor(object):
 	def __init__(self, thread_pool):
 		self.thread_pool = thread_pool
 		self.task_queue = []
+		self.signal_begin = vaex.events.Signal("begin")
+		self.signal_progress = vaex.events.Signal("progress")
+		self.signal_end = vaex.events.Signal("end")
+		self.signal_cancel = vaex.events.Signal("cancel")
 
 	def schedule(self, task):
 		self.task_queue.append(task)
@@ -71,9 +78,14 @@ class Executor(object):
 		#for task in self.task_queue:
 		#$	print task, task.expressions_all
 		datasets = set(task.dataset for task in self.task_queue)
-
+		cancelled = [False]
+		def cancel():
+			logger.debug("cancelling")
+			self.signal_cancel.emit()
+			cancelled[0] = True
 		try:
 			# process tasks per dataset
+			self.signal_begin.emit()
 			for dataset in datasets:
 				task_queue = [task for task in self.task_queue if task.dataset == dataset]
 				expressions = list(set(expression for task in task_queue for expression in task.expressions_all))
@@ -89,30 +101,47 @@ class Executor(object):
 					for task in task_queue:
 						blocks = [block_dict[expression] for expression in task.expressions_all]
 						task._results.append(task.map(thread_index, i1, i2, *blocks))
+						time.sleep(0.1)
 
 				length = len(dataset)
 				#print self.thread_pool.map()
-				for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size)):
+				for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size),\
+													progress=lambda p: all(self.signal_progress.emit(p)),
+													cancel=cancel):
 					pass # just eat all element
 		except:
 			# on any error we flush the task queue
+			self.signal_cancel.emit()
 			logger.exception("error in task, flush task queue")
 			self.task_queue = []
 			raise
 		logger.debug("executing took %r seconds" % (time.time() - t0))
 		# while processing the self.task_queue, new elements will be added to it, so copy it
-		task_queue = list(self.task_queue)
-		self.task_queue = []
-		for task in task_queue:
-			task._result = task.reduce(task._results)
-			task.fulfill(task._result)
-			# remove references
-			task._result = None
-			task._results = None
-		# if new tasks were added as a result of this, execute them immediately
-		# TODO: we may want to include infinite recursion protection
-		if len(self.task_queue) > 0:
-			self.execute()
+		logger.debug("cancelled: %r", cancelled)
+		if cancelled[0]:
+			logger.debug("execution aborted")
+			task_queue = list(self.task_queue)
+			self.task_queue = []
+			for task in task_queue:
+				task._result = task.reduce(task._results)
+				task.reject(UserAbort("cancelled"))
+				# remove references
+				task._result = None
+				task._results = None
+		else:
+			task_queue = list(self.task_queue)
+			self.task_queue = []
+			for task in task_queue:
+				task._result = task.reduce(task._results)
+				task.fulfill(task._result)
+				# remove references
+				task._result = None
+				task._results = None
+			self.signal_end.emit()
+			# if new tasks were added as a result of this, execute them immediately
+			# TODO: we may want to include infinite recursion protection
+			if len(self.task_queue) > 0:
+				self.execute()
 
 
 	def ____execute(self):

@@ -674,6 +674,7 @@ class _BlockScope(object):
 			raise
 
 main_executor = vaex.execution.Executor(multithreading.pool)
+from vaex.execution import Executor
 
 class Dataset(object):
 	"""All datasets are encapsulated in this class, local or remote dataets
@@ -698,6 +699,7 @@ class Dataset(object):
 
 
 	:type signal_selection_changed: events.Signal
+	:type executor: Executor
 	"""
 	def __init__(self, name, column_names, executor=None):
 		self.name = name
@@ -706,6 +708,8 @@ class Dataset(object):
 		self.signal_pick = vaex.events.Signal("pick")
 		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
 		self.signal_selection_changed = vaex.events.Signal("selection changed")
+		self.signal_active_fraction_changed = vaex.events.Signal("active fraction changed")
+
 		self.undo_manager = vaex.ui.undo.UndoManager()
 		self.variables = collections.OrderedDict()
 		self.variables["pi"] = np.pi
@@ -902,6 +906,7 @@ class Dataset(object):
 		self._set_mask(None)
 		self.set_current_row(None)
 		self._length = int(round(self.full_length() * self._active_fraction))
+		self.signal_active_fraction_changed.emit(self, value)
 
 
 def _select_replace(maskold, masknew):

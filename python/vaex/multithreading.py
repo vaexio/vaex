@@ -23,51 +23,69 @@ class ThreadPoolIndex(object):
 			thread.setDaemon(True)
 			thread.start()
 		self.exception_occurred = False
+		self._working = False
 
-	def map(self, callable, iterator, on_error=None):
+	def map(self, callable, iterator, on_error=None, progress=None, cancel=None):
 		results = []
-		with lock:
-			self.exception_occurred = False
-			self.callable = callable
-			count = 0
-			for element in iterator:
-				#print "put in queue", element
-				self.queue_in.put(element)
-				count +=1
+		progress = progress or (lambda x: True)
+		cancel = cancel or (lambda: True)
 
-			done = False
-			yielded = 0
-			while not done:
-				element = self.queue_out.get()
-				#print "get from queue", element
-				if isinstance(element, tuple) and len(element) > 1 and isinstance(element[1], Exception):
-					if on_error:
-						on_error(element[1])
-						done = True
+		try:
+			if self._working:
+				raise RuntimeError("reentered ThreadPoolIndex.map")
+			with lock:
+				self._working = True
+				self.exception_occurred = False
+				self.callable = callable
+				count = 0
+				for element in iterator:
+					#print "put in queue", element
+					self.queue_in.put(element)
+					count +=1
+
+				def stop():
+					self.exception_occurred = True
+					logger.debug("wait for queue_in")
+					self.queue_in.join()
+					# now we know all threads are waiting for the queue_in, so they will not fill queue_out
+					# but, it ma still contain elements, like exceptions, so flush it
+					logger.debug("flush queue_out")
+					while not self.queue_out.empty():
+						self.queue_out.get()
+					logger.debug("flush queue_out done")
+				done = False
+				yielded = 0
+				while not done:
+					element = self.queue_out.get()
+					#print "get from queue", element
+					if isinstance(element, tuple) and len(element) > 1 and isinstance(element[1], Exception):
+						if on_error:
+							on_error(element[1])
+							done = True
+						else:
+							#print "RAISE"
+							_stop()
+							#print("********************")
+							#print(element)
+							#raise element[1]
+							raise element[0], element[1], element[2]
+							#raise element[0](element[1])
+							#raise element[0].__class__(None, element[2])
+							#TODO: 2to3 gave this suggestion: raise element[1].with_traceback(element[2])
+							done = True
 					else:
-						#print "RAISE"
-						self.exception_occurred = True
-						logger.debug("wait for queue_in")
-						self.queue_in.join()
-						# now we know all threads are waiting for the queue_in, so they will not fill queue_out
-						# but, it ma still contain elements, like exceptions, so flush it
-						logger.debug("flush queue_out")
-						while not self.queue_out.empty():
-							self.queue_out.get()
-						#print("********************")
-						#print(element)
-						#raise element[1]
-						raise element[0], element[1], element[2]
-						#raise element[0](element[1])
-						#raise element[0].__class__(None, element[2])
-						#TODO: 2to3 gave this suggestion: raise element[1].with_traceback(element[2])
-						done = True
-				else:
-					#yield element
-					results.append(element)
-					yielded += 1
-				done = yielded == count
-		return results
+						#yield element
+						results.append(element)
+						yielded += 1
+						if progress(yielded/float(count)) == False:
+							stop()
+							cancel()
+							done = True
+						else:
+							done = yielded == count
+			return results
+		finally:
+			self._working = False
 
 
 	def close(self):
