@@ -132,3 +132,6 @@ class Timer(object):
 			if type or value or traceback:
 				print((type, value, traceback))
 		return False
+
+def get_private_dir():
+	return os.path.expanduser('~/.vaex')

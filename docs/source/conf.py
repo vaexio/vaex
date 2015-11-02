@@ -37,7 +37,7 @@ extensions = [
 ]
 import os
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if not vaex.on_rtd:
+if not on_rtd:
 	extensions.append('sphinxcontrib.googleanalytics')
 
 	googleanalytics_id = 'UA-60052576-1'

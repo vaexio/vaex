@@ -15,3 +15,6 @@ tornado==4.1
 futures==2.2.0
 future
 jupyter
+yaml
+
+# sphinxcontrib-googleanalytics # for building the docs

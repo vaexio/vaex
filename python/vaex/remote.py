@@ -2,15 +2,23 @@ __author__ = 'breddels'
 import numpy as np
 from . import logging
 import threading
+import __builtin__
 from .dataset import Dataset, Subspace, Task
-logger = logging.getLogger("vaex.remote")
 import vaex.promise
-
+import vaex.settings
+try:
+	import Cookie  # py2
+except ImportError:
+	import http.cookies as Cookie  # py3
+import cookielib
 #from twisted.internet import reactor
 #from twisted.web.client import Agent
 #from twisted.web.http_headers import Headers
 from tornado.httpclient import AsyncHTTPClient, HTTPClient
+import tornado.httputil
 from tornado.concurrent import Future
+
+logger = logging.getLogger("vaex.remote")
 
 DEFAULT_REQUEST_TIMEOUT = 60 * 5 # 5 minutes
 
@@ -19,10 +27,10 @@ def wrap_future_with_promise(future):
 		return future
 	promise = vaex.promise.Promise()
 	def callback(future):
-		print(("callback", future, future.result()))
+		#print(("callback", future, future.result()))
 		e = future.exception()
 		if e:
-			print(("reject", e))
+			#print(("reject", e))
 			promise.reject(e)
 		else:
 			promise.fulfill(future.result())
@@ -89,6 +97,8 @@ class ServerRest(object):
 		#if async:
 		self.http_client_async = AsyncHTTPClient()
 		self.http_client = HTTPClient()
+		self.user_id = vaex.settings.webclient.get("cookie.user_id")
+		#self.cookiejar = cookielib.FileCookieJar()
 		#else:
 		#self.async = async
 
@@ -96,23 +106,41 @@ class ServerRest(object):
 		io_loop = tornado.ioloop.IOLoop.instance()
 		io_loop.start()
 
-	def fetch(self, url, transform, async=False, **kwargs):
+	def fetch(self, url, transform, async=False, no_user=False, **kwargs):
 		logger.debug("fetch %s, async=%r", url, async)
+		headers = tornado.httputil.HTTPHeaders()
+		if self.user_id is None and not no_user:
+			raise ValueError, "user id not set, call datasets() first"
+		elif self.user_id is not None:
+			headers.add("Cookie", "user_id=%s" % self.user_id)
+			logger.debug("adding user_id %s to request", self.user_id)
 		if async:
-			future = self.http_client_async.fetch(url, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
+			future = self.http_client_async.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
 			return wrap_future_with_promise(future).then(transform).then(self._move_to_thread)
 		else:
-			return transform(self.http_client.fetch(url, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs))
+			return transform(self.http_client.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs))
 
 
-	def datasets(self, async=False):
+	def datasets(self, as_dict=False, async=False):
 		def wrap(result):
 			#print "body", repr(result.body), result
 			data = json.loads(result.body)
-			return [DatasetRest(self, **kwargs) for kwargs in data["datasets"]]
+			cookie = Cookie.SimpleCookie()
+			for cookieset in result.headers.get_list("Set-Cookie"):
+				cookie.load(cookieset)
+				logger.debug("cookie load: %r", cookieset)
+			logger.debug("cookie: %r", cookie)
+			if "user_id" in cookie:
+				user_id = cookie["user_id"].value
+				logger.debug("user_id: %s", user_id)
+				if self.user_id != user_id:
+					self.user_id = user_id
+					vaex.settings.webclient.store("cookie.user_id", self.user_id)
+			datasets = [DatasetRest(self, **kwargs) for kwargs in data["datasets"]]
+			return datasets if not as_dict else dict([(ds.name, ds) for ds in datasets])
 		url = self._build_url("datasets")
 		logger.debug("fetching: %r", url)
-		return self.fetch(url, wrap, async=async)
+		return self.fetch(url, wrap, async=async, no_user=True)
 		#return self._return(result, wrap)
 
 	def _build_url(self, method):
@@ -158,8 +186,7 @@ class ServerRest(object):
 	def minmax(self, expr, dataset_name, expressions, **kwargs):
 		return self._simple(expr, dataset_name, expressions, "minmax", **kwargs)
 		def wrap(result):
-			data = json.loads(result.body)
-			print(("data", data))
+			data = json.loads(self._check_exception(result.body))
 			return np.array([[data[expression]["min"], data[expression]["max"]] for expression in expressions])
 		columns = "/".join(expressions)
 		url = self._build_url("datasets/%s/minmax/%s" % (dataset_name, columns))
@@ -167,37 +194,47 @@ class ServerRest(object):
 		return self.fetch(url, wrap, async=async)
 		#return self._return(result, wrap, async=async)
 
-	def mean(self, expr, dataset_name, expressions, **kwargs):
-		return self._simple(expr, dataset_name, expressions, "mean", **kwargs)
-	def var(self, expr, dataset_name, expressions, **kwargs):
-		return self._simple(expr, dataset_name, expressions, "var", **kwargs)
-	def sum(self, expr, dataset_name, expressions):
-		return self._simple(expr, dataset_name, expressions, "sum")
-	def limits_sigma(self, expr, dataset_name, expressions, **kwargs):
-		return self._simple(expr, dataset_name, expressions, "limits_sigma", **kwargs)
+	def mean(self, subspace, dataset_name, expressions, **kwargs):
+		return self._simple(subspace, dataset_name, expressions, "mean", **kwargs)
+	def var(self, subspace, dataset_name, expressions, **kwargs):
+		return self._simple(subspace, dataset_name, expressions, "var", **kwargs)
+	def sum(self, subspace, dataset_name, expressions, **kwargs):
+		return self._simple(subspace, dataset_name, expressions, "sum", **kwargs)
+	def limits_sigma(self, subspace, dataset_name, expressions, **kwargs):
+		return self._simple(subspace, dataset_name, expressions, "limits_sigma", **kwargs)
 
-	def _simple(self, expr, dataset_name, expressions, name, async=False, **kwargs):
+	def _simple(self, subspace, dataset_name, expressions, name, async=False, **kwargs):
 		def wrap(result):
-			return np.array(json.loads(result.body)["result"])
+			result = self._check_exception(json.loads(result.body))["result"]
+			# try to return is as numpy array
+			try:
+				return np.array(result)
+			except ValueError:
+				return result
 		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
 		post_data = {key:json.dumps(value) for key, value in list(dict(kwargs).items())}
-		post_data["masked"] = json.dumps(expr.is_masked)
+		post_data["masked"] = json.dumps(subspace.is_masked)
+		post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
 		post_data.update(dict(expressions=json.dumps(expressions)))
 		body = urlencode(post_data)
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 
-	def histogram(self, expr, dataset_name, expressions, size, limits, weight=None, async=False):
+	def histogram(self, subspace, dataset_name, expressions, size, limits, weight=None, async=False, **kwargs):
 		def wrap(result):
+			# TODO: don't do binary transfer, just json, now we cannot handle exception
 			data = np.fromstring(result.body)
 			shape = (size,) * len(expressions)
 			data = data.reshape(shape)
 			return data
 		url = self._build_url("datasets/%s/histogram" % (dataset_name,))
 		logger.debug("fetching: %r", url)
+		limits = np.array(limits)
 		post_data = dict(expressions=json.dumps(expressions), size=json.dumps(size),
 						 weight=json.dumps(weight),
-						 limits=json.dumps(limits.tolist()), masked=json.dumps(expr.is_masked))
+						 limits=json.dumps(limits.tolist()), masked=json.dumps(subspace.is_masked))
+		post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
+		post_data.update({key:json.dumps(value) for key, value in list(dict(kwargs).items())})
 		body = urlencode(post_data)
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
@@ -220,18 +257,51 @@ class ServerRest(object):
 		return promise
 
 
-	def select(self, dataset_name, expression, async=False, **kwargs):
+	def select(self, dataset, dataset_name, boolean_expression, mode, async=False, **kwargs):
 		name = "select"
 		def wrap(result):
-			return np.array(json.loads(result.body))
+			return np.array(self._check_exception(json.loads(result.body)))
 		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
 		post_data = {key:json.dumps(value) for key, value in list(dict(kwargs).items())}
-		post_data.update(dict(expression=json.dumps(expression)))
+		post_data["active_fraction"] = json.dumps(dataset.get_active_fraction())
+		post_data.update(dict(boolean_expression=json.dumps(boolean_expression), mode=json.dumps(mode)))
 		body = urlencode(post_data)
-		# TODO: this should use self.fetch
-		return self.http_client.fetch(url+"?"+body, wrap, async=async, method="GET")
+		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 
+	def call_ondataset(self, method_name, dataset_remote, async, **kwargs):
+		def wrap(result):
+			result = self._check_exception(json.loads(result.body))["result"]
+			try:
+				return np.array(result)
+			except ValueError:
+				return result
+		url = self._build_url("datasets/%s/%s" % (dataset_remote.name, method_name))
+		post_data = {key:json.dumps(self._to_json_compatible(value)) for key, value in dict(kwargs).items()}
+		post_data["active_fraction"] = json.dumps(dataset_remote.get_active_fraction())
+		post_data["variables"] = json.dumps(dataset_remote.variables.items())
+		post_data["virtual_columns"] = json.dumps(dataset_remote.virtual_columns.items())
+		#post_data["selection_name"] = json.dumps(dataset_remote.get_selection_name())
+		body = urlencode(post_data)
+		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
+		#return self._return(result, wrap)
+
+	def _to_json_compatible(self, obj):
+		if hasattr(obj, "tolist"):
+			obj = obj.tolist()
+		return obj
+
+
+
+
+	def _check_exception(self, reply_json):
+		if "exception" in reply_json:
+			logger.error("exception happened at server side: %r", reply_json)
+			class_name = reply_json["exception"]["class"]
+			msg = reply_json["exception"]["msg"]
+			raise getattr(__builtin__, class_name)(msg)
+		else:
+			return reply_json
 
 class SubspaceRemote(Subspace):
 	def toarray(self, list):
@@ -249,23 +319,28 @@ class SubspaceRemote(Subspace):
 			return promise
 
 	def minmax(self):
-		return self._promise(self.dataset.server.minmax(self, self.dataset.name, self.expressions, async=self.async))
+		return self._promise(self.dataset.server.minmax(self, self.dataset.name, self.expressions, async=self.async, selection_name=self.get_selection_name()))
 		#return self._task(task)
 
 	def histogram(self, limits, size=256, weight=None):
-		return self._promise(self.dataset.server.histogram(self, self.dataset.name, self.expressions, size=size, limits=limits, weight=weight, async=self.async))
+		return self._promise(self.dataset.server.histogram(self, self.dataset.name, self.expressions, size=size, limits=limits, weight=weight, async=self.async, selection_name=self.get_selection_name()))
+
+	def nearest(self, point, metric=None):
+		point = point if not hasattr(point, "tolist") else point.tolist()
+		result = self.dataset.server._simple(self, self.dataset.name, self.expressions, "nearest", async=self.async, point=point, metric=metric, selection_name=self.get_selection_name())
+		return self._promise(result)
 
 	def mean(self):
-		return self.dataset.server.mean(self, self.dataset.name, self.expressions, async=self.async)
+		return self.dataset.server.mean(self, self.dataset.name, self.expressions, async=self.async, selection_name=self.get_selection_name())
 
 	def var(self, means=None):
-		return self.dataset.server.var(self, self.dataset.name, self.expressions, means=means, async=self.async)
+		return self.dataset.server.var(self, self.dataset.name, self.expressions, means=means, async=self.async, selection_name=self.get_selection_name())
 
 	def sum(self):
-		return self.dataset.server.sum(self, self.dataset.name, self.expressions, async=self.async)
+		return self.dataset.server.sum(self, self.dataset.name, self.expressions, async=self.async, selection_name=self.get_selection_name())
 
 	def limits_sigma(self, sigmas=3, square=False):
-		return self.dataset.server.limits_sigma(self, self.dataset.name, self.expressions, sigmas=sigmas, square=square, async=self.async)
+		return self.dataset.server.limits_sigma(self, self.dataset.name, self.expressions, sigmas=sigmas, square=square, async=self.async, selection_name=self.get_selection_name())
 
 	def plot_(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
 		import pylab
@@ -281,7 +356,6 @@ class SubspaceRemote(Subspace):
 
 class DatasetRemote(Dataset):
 	def __init__(self, name, server, column_names):
-		self.is_local = False
 		super(DatasetRemote, self).__init__(name, column_names)
 		self.server = server
 
@@ -292,6 +366,7 @@ class DatasetRest(DatasetRemote):
 		self.name = name
 		self.column_names = column_names
 		self._full_length = full_length
+		self._length = full_length
 		self.filename = "http://%s:%s/%s" % (server.hostname, server.port, name)
 		#self.host = host
 		#self.http_client = AsyncHTTPClient()
@@ -301,26 +376,82 @@ class DatasetRest(DatasetRemote):
 
 		self.executor = DummyExecutor()
 
+	def is_local(self): return False
+
+	def __repr__(self):
+		name = self.__class__.__module__ + "." +self.__class__.__name__
+		return "<%s(server=%r, name=%r, column_names=%r, __len__=%r)> instance at 0x%x" % (name, self.server, self.name, self.column_names, len(self), id(self))
+
 	def __call__(self, *expressions, **kwargs):
 		return SubspaceRemote(self, expressions, self.executor, async=kwargs.get("async", False))
 
-	def select(self, expression):
-		return self.server.select(self.name, expression)
+	def select(self, boolean_expression, mode="replace", async=False, selection_name="default"):
+		def emit(result):
+			# bit dirty to put this in the signal handler, but here we know we succeeded
+			self._has_selection = boolean_expression is not None
+			self.signal_selection_changed.emit(self)
+			return result
 
-	def set_fraction(self, f):
-		# TODO: implement fractions for remote
-		self.fraction = f
+		result = self.server.select(self, self.name, boolean_expression, mode, async=async, selection_name=selection_name)
+		if async:
+			return result.then(emit)
+		else:
+			emit(None)
+			return result
 
-	def __len__(self):
-		return self._full_length
+	def lasso_select(self, expression_x, expression_y, xsequence, ysequence, mode="replace", async=False):
+		def emit(result):
+			# bit dirty to put this in the signal handler, but here we know we succeeded
+			self._has_selection = True
+			self.signal_selection_changed.emit(self)
+			return result
+		result = self.server.call_ondataset("lasso_select", self, expression_x=expression_x, expression_y=expression_y,
+											xsequence=xsequence, ysequence=ysequence, mode=mode, async=async)
+		if async:
+			return result.then(emit)
+		else:
+			emit(None)
+			return result
 
-	def full_length(self):
-		return self._full_length
+	def evaluate(self, expression, i1=None, i2=None, out=None, async=False):
+		result = self.server.call_ondataset("evaluate", self, expression=expression, i1=i1, i2=i2, async=async)
+		# TODO: we ignore out
+		return result
+
+	#def set_fraction(self, f):
+	#	# TODO: implement fractions for remote
+	#	self.fraction = f
+
+	#def __len__(self):
+	#	return self._full_length
+
+	#def full_length(self):
+	#	return self._full_length
 
 
 # we may get rid of this when we group together tasks
 class DummyExecutor(object):
+	def __init__(self):
+		self.signal_begin = vaex.events.Signal("begin")
+		self.signal_progress = vaex.events.Signal("progress")
+		self.signal_end = vaex.events.Signal("end")
+		self.signal_cancel = vaex.events.Signal("cancel")
+
 	def execute(self):
 		print("dummy execute")
 
 
+if __name__ == "__main__":
+	import vaex
+	import sys
+	vaex.set_log_level_debug()
+	server = vaex.server(sys.argv[1], port=int(sys.argv[2]))
+	datasets = server.datasets()
+	print datasets
+	dataset = datasets[0]
+	dataset = vaex.example()
+	print dataset("x").minmax()
+	dataset.select("x < 0")
+	print dataset.selected_length(), len(dataset)
+	print dataset("x").selected().is_masked
+	print dataset("x").selected().minmax()
