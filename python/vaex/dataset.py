@@ -4,7 +4,6 @@ import os
 import math
 import time
 import itertools
-#import vaex.vaexfast
 import functools
 import collections
 import sys
@@ -12,51 +11,35 @@ import platform
 import vaex.export
 import os
 import re
-import astropy.table
 from functools import reduce
-
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 import threading
-lock = threading.Lock()
 
+import numpy as np
+import numexpr as ne
+import concurrent.futures
+import astropy.table
+
+from vaex.utils import Timer
+import vaex.events
+import vaex.ui.undo
+import vaex.grids
+import vaex.multithreading
+import vaex.promise
+import vaex.execution
+import vaex.logging
+import astropy.io.fits as fits
+
+
+# h5py doesn't want to build at readthedocs
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 try:
 	import h5py
 except:
 	if not on_rtd:
 		raise
 
-import numpy as np
-import numexpr as ne
-
-from vaex.utils import Timer
-from vaex import multithreading
-import vaex.events
-import vaex.ui.undo
-import execution
-import vaex.grids
-import multithreading
-import vaex.promise
-import concurrent.futures
-from multiprocessing import Pool
-import vaex.execution
-
-frozen = getattr(sys, 'frozen', False)
-darwin = "darwin" not in platform.system()
-import astropy.io.fits as fits
-#if (not frozen) or darwin: # astropy not working with pyinstaller
-#	#fits = __import__("astropy.io.fits").io.fits
-#	pass
-
-def error(title, msg):
-	print(("Error", title, msg))
-
-sys_is_le = sys.byteorder == 'little'
-native_code = sys_is_le and '<' or '>'
-
-import vaex.logging
 logger = vaex.logging.getLogger("vaex")
-
-
+lock = threading.Lock()
 dataset_type_map = {}
 
 
@@ -695,7 +678,7 @@ class _BlockScope(object):
 			logger.exception("error in evaluating: %r" % variable)
 			raise
 
-main_executor = vaex.execution.Executor(multithreading.pool)
+main_executor = vaex.execution.Executor(vaex.multithreading.pool)
 from vaex.execution import Executor
 
 class Dataset(object):
@@ -1171,35 +1154,7 @@ class DatasetArrays(DatasetLocal):
 
 
 class DatasetMemoryMapped(DatasetLocal):
-	def link(self, expression, listener):
-		if expression not in self.global_links:
-			self.global_links[expression] = Link(self)
-			logger.debug("creating link object: %r" % self.global_links[expression])
-		else:
-			
-			logger.debug("reusing link object: %r" % self.global_links[expression])
-
-			
-		link = self.global_links[expression]
-		link.listeners.append(listener)
-		return link
-	
-	def unlink(self, link, receiver):
-		link.listeners.remove(receiver)
-		
-	#def full_length(self):
-	#	return self._length
-
-	#def __len__(self):
-	#	return self._fraction_length
-		
-	def length(self, selection=False):
-		if selection:
-			return 0 if self.mask is None else np.sum(self.mask)
-		else:
-			return len(self)
-		
-	def byte_size(self, selection=False):
+	def _byte_size(self, selection=False):
 		bytes_per_row = 0
 		for column in list(self.columns.values()):
 			dtype = column.dtype
@@ -1271,66 +1226,12 @@ class DatasetMemoryMapped(DatasetLocal):
 	def get_path(self):
 		return self.path
 		
-	def _evaluate(self, callback, *expressions, **variables):
-		jobManager = JobsManager()
-		logger.debug("evalulate: %r %r" % (expressions,variables))
-		jobManager.addJob(0, callback, self, *expressions, **variables)
-		jobManager.execute()
-		return
-		
-		
-	def old(self):
-		class Info(object):
-			pass
-		outputs = [np.zeros(buffer_size, dtype=np.float64) for _ in expressions]
-		n_blocks = int(math.ceil(self._length *1.0 / buffer_size))
-		print(("blocks", n_blocks, self._length *1.0 / buffer_size))
-		# execute blocks for all expressions, better for Lx cache
-		for block_index in range(n_blocks):
-			i1 = block_index * buffer_size
-			i2 = (block_index +1) * buffer_size
-			if i2 >= self._length: # round off the sizes
-				i2 = self._length
-				for i in range(len(outputs)):
-					outputs[i] = outputs[i][:i2-i1]
-			# local dicts has slices (not copies) of the whole dataset
-			local_dict = {}
-			for key, value in list(self.columns.items()):
-				local_dict[key] = value[i1:i2]
-			info = Info()
-			info.index = block_index
-			info.size = i2-i1
-			info.length = n_blocks
-			info.first = block_index == 0
-			info.i1 = i1
-			info.i2 = i2
-			info.slice = slice(i1, i2)
-			results = []
-			for output, expression in zip(outputs, expressions):
-				if expression in self.column_names and self.columns[expression].dtype == np.float64:
-					print("avoided")
-					#yield self.columns[expression][i1:i2], info
-					results.append(self.columns[expression][i1:i2])
-				else:
-					ne.evaluate(expression, local_dict=local_dict, out=output, casting="unsafe")
-					results.append(output)
-			print((results, info))
-			yield tuple(results), info
-		
-		
 	def addFile(self, filename, write=False):
 		self.file_map[filename] = open(filename, "r+" if write else "r")
 		self.fileno_map[filename] = self.file_map[filename].fileno()
 		self.mapping_map[filename] = mmap.mmap(self.fileno_map[filename], 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
 
 
-	def selectRow_(self, index):
-		self.selected_row_index = index
-		logger.debug("emit pick signal: %r" % index)
-		self.signal_pick.emit(index)
-		for row_selection_listener in self.row_selection_listeners:
-			row_selection_listener(index)
-		
 	def selectSerieIndex(self, serie_index):
 		self.selected_serie_index = serie_index
 		for serie_index_selection_listener in self.serie_index_selection_listeners:
@@ -1344,39 +1245,11 @@ class DatasetMemoryMapped(DatasetLocal):
 		similar = os.path.splitext(os.path.abspath(self.filename))[0] == os.path.splitext(filename)[0]
 		logger.info("matching urls: %r == %r == %r" % (os.path.splitext(self.filename)[0], os.path.splitext(filename)[0], similar) )
 		return similar
-			
-		
-		
+
 	def close(self):
 		self.file.close()
 		self.mapping.close()
 		
-	def ___set_fraction(self, fraction):
-		self.fraction = fraction
-		self.current_slice = (0, int(self._length * fraction))
-		self._fraction_length = self.current_slice[1]
-		self._set_mask(None)
-		# TODO: if row in slice, we don't have to remove it
-		self.selectRow(None)
-		
-	def __addMemoryColumn(self, name, column):
-		# remove, is replaced by array argument of addColumn
-		length = len(column)
-		if self.current_slice is None:
-			self.current_slice = (0, length)
-			self.fraction = 1.
-			self._fraction_length = length
-		self._length = length
-		#print self.mapping, dtype, length if stride is None else length * stride, offset
-		self.columns[name] = column
-		self.column_names.append(name)
-		self.all_columns[name] = column
-		self.all_column_names.append(name)
-		#self.column_names.sort()
-		self.nColumns += 1
-		self.nRows = self._length
-		
-
 	def addAxis(self, name, offset=None, length=None, dtype=np.float64, stride=1, filename=None):
 		if filename is None:
 			filename = self.filename
@@ -1398,7 +1271,7 @@ class DatasetMemoryMapped(DatasetLocal):
 			length = len(array)
 			
 		if self._length is not None and length != self._length:
-			error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
+			logger.error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
 		else:
 			if self.current_slice is None:
 				self.current_slice = (0, length)
@@ -1440,7 +1313,7 @@ class DatasetMemoryMapped(DatasetLocal):
 			filename = self.filename
 		mapping = self.mapping_map[filename]
 		if (not transposed and self._length is not None and length != self._length) or (transposed and self._length is not None and length1 != self._length):
-			error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
+			logger.error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
 		else:
 			if self.current_slice is None:
 				self.current_slice = (0, length if not transposed else length1)
@@ -1452,27 +1325,17 @@ class DatasetMemoryMapped(DatasetLocal):
 			rawlength = length * length1
 			rawlength *= stride
 			rawlength *= stride1
-			#print rawlength, offset
-			#print rawlength * 8, offset, self.mapping.size()
-			#import pdb
-			#pdb.set_trace()
+
 			mmapped_array = np.frombuffer(mapping, dtype=dtype, count=rawlength, offset=offset)
 			mmapped_array = mmapped_array.reshape((length1*stride1, length*stride))
 			mmapped_array = mmapped_array[::stride1,::stride]
-			#if transposed:
-			#	mmapped_array = mmapped_array.T
-			#assert mmapped_array.shape[1] == self._length, "error {0} {1} {2} {3} {4}".format(length, length1, mmapped_array.shape, self._length, transposed)
+
 			self.rank1s[name] = mmapped_array
 			self.rank1names.append(name)
 			self.all_columns[name] = mmapped_array
 			self.all_column_names.append(name)
 			
-			#self.column_names.sort()
-			#self.nColumns += 1
-			#self.nRows = self._length
-			#self.columns[name] = mmapped_array
-			#self.column_names.append(name)
-			
+
 
 import struct
 class HansMemoryMapped(DatasetMemoryMapped):
@@ -1503,13 +1366,9 @@ class HansMemoryMapped(DatasetMemoryMapped):
 		for i, name in enumerate(names):
 			self.addColumn(name+"_last", lastoffset+8*i, length, dtype=np.float64, stride=stride)
 		
-		#for i, name in enumerate(names):
-		#	self.addColumn(name+"_mid", midoffset+8*i, length, dtype=np.float64, stride=stride)
-		
 
 		names = "x y z vx vy vz".split()
-		#import pdb
-		#pdb.set_trace()
+
 		if 1:
 			stride = self.formatSize/8 
 			#stride1 = self.numberTimes #*self.formatSize/8 
@@ -1538,17 +1397,6 @@ class HansMemoryMapped(DatasetMemoryMapped):
 				self.addColumn(name+"_last", offset+8*i + (self.numberParticles+1)*(self.numberTimes-2)*11*8, length, dtype=np.float64, stride=stride, filename=filename_extra)
 			
 			
-
-		#for i, name in enumerate(names):
-		#	self.addColumn(name+"_last", offset+8*i + (self.formatSize*(self.numberTimes-1)), length, dtype=np.float64, stride=stride)
-		#for i, name in enumerate(names):
-		#	self.addRank1(name, offset+8*i, (length, numberTimes), dtype=np.float64, stride=stride)
-		
-		
-		
-		
-		#uint64 = np.frombuffer(self.mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
-
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
 		basename, ext = os.path.splitext(path)
@@ -1563,15 +1411,7 @@ class HansMemoryMapped(DatasetMemoryMapped):
 	@classmethod
 	def option_to_args(cls, option):
 		return []
-
-
 dataset_type_map["buist"] = HansMemoryMapped
-
-if __name__ == "__main__":
-	path = "/Users/users/buist/research/2014 Simulation Data/12Orbits/Sigma/Orbitorb1.ac0.10000.100.5.orb.omega2"
-	path = "/net/pannekoek/data/users/buist/Research/2014 Simulation Data/12Orbits/Integration/Orbitorb9.ac8.10000.100.5.orb.bin"
-
-	hmm = HansMemoryMapped(path)
 
 
 class FitsBinTable(DatasetMemoryMapped):
@@ -1591,12 +1431,6 @@ class FitsBinTable(DatasetMemoryMapped):
 						for i in range(len(table.columns)):
 							column = table.columns[i]
 							cannot_handle = False
-							#print column.name, str(column.dtype)
-							#try:
-							#	dtype, length = eval(str(column.dtype)) # ugly hack
-							#	length = length[0]
-							#except:
-							#	cannot_handle = True
 
 							# flatlength == length * arraylength
 							flatlength, fitstype = int(column.format[:-1]),column.format[-1]
@@ -1619,41 +1453,14 @@ class FitsBinTable(DatasetMemoryMapped):
 
 							bytessize = dtype.itemsize
 							logger.debug("%r", (column.name, dtype, column.format, column.dim, length, bytessize, arraylength))
-							#if not cannot_handle:
 							if (flatlength > 0) and dtypecode != "a": # TODO: support strings
-								#print column.name, dtype, length
-								#print "ok", column.dtype
-								#if type == np.float64:
-								#print "\t", offset, dtype, length
-								#typestr = eval(str(table.columns[i].dtype))[0].replace("<", ">").strip()
-								#print "   type", typestr
-								#dtype = np.zeros(1,dtype=typestr).dtype
-								#if "f" in dtype:
-								if 1:
-									#dtype = np.dtype(dtype)
-									#print "we have float64!", dtype
-									#dtype = ">f8"
-									logger.debug("%r", (column.name, offset, dtype, length))
-									if arraylength == 1:
-										self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
-									else:
-										#transposed = shape[1] < shape[0]
-										for i in range(arraylength):
-											name = column.name+"_" +str(i)
-											self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
-										#@self.addRank1(column.name, offset, arraylength, length1=length, dtype=">" +dtypecode, stride=1, stride1=1, transposed=True)
-										#@self.addRank1(column.name, offset, arraylength, length1=length, dtype=">" +dtypecode, stride=1, stride1=1, transposed=True)
-										#print self.rank1s[column.name][0]
-										#print self.rank1s[column.name][1]
-										#dsa
-									#else:
-									#	print "DON:T KNOW HOW TO HANDLE"
-
-									#print self.columns[column.name]
-
-									#col = self.columns[column.name]
-									#print "   ", col[:10],  col[:10].dtype, col.dtype.byteorder == native_code, bytessize
-
+								logger.debug("%r", (column.name, offset, dtype, length))
+								if arraylength == 1:
+									self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
+								else:
+									for i in range(arraylength):
+										name = column.name+"_" +str(i)
+										self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
 							if flatlength > 0: # flatlength can be
 								offset += bytessize * length
 
@@ -1666,7 +1473,7 @@ class FitsBinTable(DatasetMemoryMapped):
 						#pdb.set_trace()
 						if array.dtype.kind in "fi":
 							self.addColumn(column.name, array=array)
-		#BinTableHDU
+
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
 		return os.path.splitext(path)[1] == ".fits"
@@ -1680,256 +1487,7 @@ class FitsBinTable(DatasetMemoryMapped):
 		return []
 
 dataset_type_map["fits"] = FitsBinTable
-		
-		
-class InMemoryTable(DatasetMemoryMapped):
-	def __init__(self, filename, write=False):
-		super(InMemoryTable, self).__init__(filename)
-		
-		if 1:
-			
-			N = 1024
-			x = np.arange(1, N+1, dtype=np.float64)
-			x, y = np.meshgrid(x, x)
-			shape = x.shape
-			phase = np.random.random(shape)* 2 * np.pi
-			#r = (N-x)**2 + (N-y)**2
-			r = (x)**2 + (y)**2
-			amplitude = np.random.random(shape) * np.exp(-r**1.4/100**2) * np.exp( 1j * phase)
-			amplitude[0,0] = 0
-			import pylab
-			realspace = np.fft.fft2(amplitude)
-			vx = np.fft.fft2(amplitude * x).real
-			vy = np.fft.fft2(amplitude * y).real
-			x = np.arange(1, N+1, dtype=np.float64)
-			x, y = np.meshgrid(x, x)
-			scale = 0.05
-			for i in range(2):
-				x += vx * scale
-				y += vy * scale
-			
-			self.addColumn("x", array=x.reshape(-1))
-			self.addColumn("y", array=y.reshape(-1))
-			return
-				
-			if 0:
-				pass
-			pylab.imshow(realspace.real)
-			pylab.show()
-			sys.exit(0)
-		
-			N = 512
-			d = 2
-			
-			x = np.arange(N)
-			x, y = np.meshgrid(x, x)
-			x = x.reshape(-1)
-			y = y.reshape(-1)
-			x = np.random.random(x.shape) * 0.5 + 0.5
-			y = np.random.random(x.shape) * 0.5 + 0.5
-			shape = x.shape
-			grid = np.zeros(shape, dtype=np.float64)
-			vaex.vaexfast.histogram2d(x, y, None, grid, 0, N, 0, N)
-			phi_f = np.fft.fft2(grid)
-			self.addColumn("x", array=x)
-			self.addColumn("y", array=y)
-			
-			
-			
-			#print x.shape, x.dtype
-			
-			#sys.exit(0)
-			
-			
-			return
-		
-		
-		eta = 4
-		max_level = 13
-		dim = 2
-		N = eta**(max_level)
-		array = np.zeros((dim, N), dtype=np.float64)
-		L = 1.6
-		#print "size {:,}".format(N)
-		
-		
-		def do(center, size, index, level):
-			pos = center.reshape((-1,1)) + np.random.random((dim, eta)) * size - size/2
-			#array[:,index:index+eta] = pos
-			if level == max_level:
-				array[:,index:index+eta] = pos
-				return index+eta
-			else:
-				for i in range(eta):
-					index = do(pos[:,i], size/L, index, level+1)
-				return index
-			
-		#do(np.zeros(dim), 1., 0, 0)
-		for d in range(dim):
-			vaex.vaexfast.soneira_peebles(array[d], 0, 1, L, eta, max_level)
-		for i, name in zip(list(range(dim)), "x y z w v u".split()):
-			self.addColumn(name, array=array[i])
-		
-		return
-		
-		
-		N = int(1e7)
-		a0 = 1.
-		t = np.linspace(0, 2 * np.pi * 5, N) + 2 * np.pi/1000 * (np.random.random() - 0.5)
-		a0 = a0 - t /t.max() * a0 * 0.5
-		a = np.zeros(N) + a0 + a0 * 0.1 * (np.random.random(N) - 0.5)
-		b = 0.2
-		x = a * (np.cos(t) + 0.2 * (np.random.random(N) - 0.5))
-		y = a * (np.sin(t) + 0.2 * (np.random.random(N) - 0.5))
-		z = b * t
-		
-		self.addColumn("x", array=x)
-		self.addColumn("y", array=y)
-		self.addColumn("z", array=z)
-		self.addColumn("a", array=a)
-		self.addColumn("t", array=t)
-		return
 
-		#for i in range(N):
-		#	a[
-		
-		
-		N = 2+4+8+16+32+64+128
-		rand = np.random.random(N-1)
-		rand_y = np.random.random(N-1)
-		#x = 
-		xlist =[]
-		ylist =[]
-		for i in range(15000*2):
-			#random.seed(0)
-			index = 0
-			level = 0
-			offset = 0
-			x1 = 0.
-			x2 = 1.
-			xs = []
-			ys = []
-			for j in range(7):
-				#level = 5 - j
-				Nlevel = 2**(level+1)
-				#offset = sum(
-				u1 = np.random.random()
-				u2 = np.random.random()
-				#c = rand[offset:offset+Nlevel].min()
-				#c = 0
-				#v1 = rand[offset+index] - c
-				#v2 = rand[offset+index+1] - c
-				#assert v1 >= 0
-				#assert v2 >= 0
-				cumulative = np.cumsum(rand[offset:offset+Nlevel])
-				cumulative = np.cumsum(np.arange(Nlevel))
-				cumulative = []
-				total = 0
-				for value in rand[offset:offset+Nlevel]:
-					total += value
-					cumulative.append(total)
-				cumulative = np.array(cumulative)
-				cumulative = cumulative * 1./cumulative[-1]
-				for i, value in enumerate(cumulative):
-					if value >= u1:
-						break
-				left, mid, right = [(float(i+1+j/2.*2))/(Nlevel+1) for j in [-1,0,1]]
-				x  = np.random.triangular(left, mid, right)
-
-				cumulative = []
-				total = 0
-				for value in rand_y[offset:offset+Nlevel]:
-					total += value
-					cumulative.append(total)
-				cumulative = np.array(cumulative)
-				cumulative = cumulative * 1./cumulative[-1]
-				for i, value in enumerate(cumulative):
-					if value >= u2:
-						break
-				left, mid, right = [(float(i+1+j/2.*2))/(Nlevel+1) for j in [-1,0,1]]
-				y  = np.random.triangular(left, mid, right)
-				if 0:
-					if v1 < v2:
-						b = v1
-						c = v2-v1
-						w = (-b + np.sqrt(b**2.+4.*c*u )) /   (-b + np.sqrt(b**2.+4.*c ))
-						x = x1 + w * (x2-x1)
-					else:
-						b = v2
-						c = v1-v2
-						w = 1. - (-b + np.sqrt(b**2.+4.*c*u )) /   (-b + np.sqrt(b**2.+4.*c ))
-						x = x2 - (x2-x1)*w
-				#w = np.sqrt(r)
-				#xs.append(x1 + w * (x2-x1))
-				xs.append(x)# - (x1+x2)/2.)
-				ys.append(y)
-				if 0:
-					if w < 0.5:
-						x1, x2 = x1, x1 + (x2-x1)/2.
-						index = index * 2
-						#offset += Nlevel
-					else:
-						x1, x2 =  x1 + (x2-x1)/2., x2
-						#offset += Nlevel*2
-						index = (index+1) * 2
-				level += 1
-				offset += Nlevel
-				#if np.random.random() < 0.21:
-				#	break
-			#print
-			#xs = [np.sqrt(np.random.random())]
-			amplitudes = 1./(np.arange(len(xs)) + 1)**2
-			#xlist.append( np.sum( (xs*amplitudes)/np.sum(amplitudes) )  )
-			#xlist.append( (xs[0] + xs[1] * 0.5)/1.5  )
-			#xlist.append(sum(xs * amplitudes))
-			#xlist.append(sum(xs))
-			#xlist.append(xs[4])
-			xlist.extend(xs[3:])
-			ylist.extend(ys[3:])
-			
-
-		self.addColumn("x", array=np.array(xlist))
-		self.addColumn("y", array=np.array(ylist))
-		#self.addColumn("x", array=np.random.random(10000)**0.5)
-		
-		return
-				
-				#if random.
-				
-		
-		x = []
-		y = []
-		z = []
-		
-		for i in range(100):
-			x0, y0, z0 = 0., 0., 0.
-			vx, vy, vz = 1., 0., 0.
-			for i in range(1000):
-				x0 += vx
-				y0 += vy
-				z0 += vz
-				x.append(x0)
-				y.append(y0)
-				z.append(z0)
-				s = 0.01
-				vx += np.random.random() * s-s/2
-				vy += np.random.random() * s-s/2
-				vz += np.random.random() * s-s/2
-				if np.random.random() < 0.05:
-					s = 1.
-					vx += np.random.random() * s-s/2
-					#vz += np.random.random() * s-s/2
-					
-		x = np.array(x)
-		y = np.array(y)
-		z = np.array(z)
-		self.addColumn("x", array=x)
-		self.addColumn("y", array=y)
-		self.addColumn("z", array=z)
-			
-		
-dataset_type_map["fits"] = FitsBinTable
-		
 class Hdf5MemoryMapped(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
 		super(Hdf5MemoryMapped, self).__init__(filename, write=write)
@@ -2277,7 +1835,7 @@ class AsciiTable(DatasetMemoryMapped):
 		#pdb.set_trace()
 		#names = table.array.dtype.names
 		names = table.dtype.names
-		
+
 		#data = table.array.data
 		for i in range(len(table.dtype)):
 			name = table.dtype.names[i]
