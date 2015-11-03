@@ -8,3 +8,4 @@ scipy>=0.1
 aplus
 tornado==4.1
 futures==2.2.0
+jupyter
