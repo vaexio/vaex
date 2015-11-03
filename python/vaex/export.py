@@ -1,12 +1,19 @@
 __author__ = 'maartenbreddels'
 import numpy as np
-import h5py
+import os
 from . import logging
 import vaex
 import vaex.utils
 import vaex.execution
 import vaex.io.colfits
 
+
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+try:
+	import h5py
+except:
+	if not on_rtd:
+		raise
 #from vaex.dataset import DatasetLocal
 
 logger = logging.getLogger("vaex.export")
