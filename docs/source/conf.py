@@ -171,13 +171,21 @@ html_static_path = ['nstatic']
 # .htaccess) here, relative to this directory. These files are copied
 # directly to the root of the documentation.
 html_extra_path = [
-		"example_movie.html", "../../examples/example_movie.ipynb",
-		"example_movies.html", "../../examples/example_movies.ipynb",
-		"example_start.html", "../../examples/example_start.ipynb",
-		"example_volume_rendering.html", "../../examples/example_volume_rendering.ipynb",
-		"example_virtual_columns.html", "../../examples/example_virtual_columns.ipynb",
-		"example_tables.html", "../../examples/example_tables.ipynb"
 		]
+
+for name in "example_movies example_start example_volume_rendering example_virtual_columns example_tables".split():
+	source = "../../examples/{name}.ipynb".format(name=name)
+	dest = "{name}.html".format(name=name)
+	time_source = os.path.getmtime(os.path.abspath(os.path.join(source)))
+	time_dest = os.path.getmtime(os.path.abspath(os.path.join(dest)))
+	cmd = "cd source; jupyter-nbconvert {source} --to html --output={dest}".format(source=source, dest=dest)
+	if time_source > time_dest:
+		print("executing %s" % cmd)
+		os.system(cmd)
+	else:
+		print("%s is already up to date" % name)
+	html_extra_path.append(source)
+	html_extra_path.append(dest)
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
