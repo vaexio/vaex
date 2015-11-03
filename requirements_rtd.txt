@@ -1,3 +1,7 @@
 sphinxcontrib-googleanalytics
 future
 pyyaml
+astropy
+numexpr
+numpy>=1.7.2
+scipy>=0.1
