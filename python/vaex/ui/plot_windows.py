@@ -187,8 +187,6 @@ class PlotDialog(QtGui.QWidget):
 		self.ylabel = options.get("ylabel")
 
 
-		self.show_disjoined = False
-
 		self.menu_bar = QtGui.QMenuBar(self)
 		self.menu_file = QtGui.QMenu("&File", self.menu_bar)
 		self.menu_bar.addMenu(self.menu_file)
@@ -325,7 +323,7 @@ class PlotDialog(QtGui.QWidget):
 		def progress(fraction):
 			self.progress_bar.setValue(fraction*1000)
 			QtCore.QCoreApplication.instance().processEvents()
-			return self.cancelled
+			return (not self.cancelled) and (self.queue_update.is_empty())
 		def cancel():
 			self.progress_bar.setValue(0)
 			self.button_cancel.setEnabled(False)
@@ -337,6 +335,11 @@ class PlotDialog(QtGui.QWidget):
 		self.jobsManager.signal_end.connect(end)
 		self.jobsManager.signal_cancel.connect(cancel)
 		self.jobsManager.signal_progress.connect(progress)
+
+		self.dataset.executor.signal_begin.connect(begin)
+		self.dataset.executor.signal_progress.connect(progress)
+		self.dataset.executor.signal_end.connect(end)
+		self.dataset.executor.signal_cancel.connect(cancel)
 
 		self.layout_main.addWidget(self.status_bar)
 
@@ -1420,11 +1423,6 @@ class PlotDialog(QtGui.QWidget):
 		self.action_redo.triggered.connect(self.onActionRedo)
 		self.checkUndoRedo()
 
-		self.action_shuffled = QtGui.QAction(QtGui.QIcon(iconfile('table-select-cells')), 'Shuffled', self)
-		self.action_shuffled.setCheckable(True)
-		self.action_shuffled.triggered.connect(self.onActionShuffled)
-		self.toolbar2.addAction(self.action_shuffled)
-
 		self.action_disjoin = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-outer-exclude')), 'Disjoined', self)
 		self.action_disjoin.setCheckable(True)
 		self.action_disjoin.triggered.connect(self.onActionDisjoin)
@@ -1447,10 +1445,12 @@ class PlotDialog(QtGui.QWidget):
 
 	def onActionDisjoin(self, ignore=None):
 		#self.xoffset = 1 if self.action_shuffled.isChecked() else 0
-		self.show_disjoined = self.action_disjoin.isChecked()
-		self.compute()
-		self.dataset.executor.execute()
-		logger.debug("show_disjoined = %r" % self.show_disjoined)
+		layer = self.current_layer
+		if layer:
+			layer.show_disjoined = self.action_disjoin.isChecked()
+			layer.calculate_amplitudes()
+			logger.debug("show_disjoined = %r" % layer.sh)
+			self.queue_replot()
 
 
 	def addToolbar(self, layout, pick=True, xselect=True, yselect=True, lasso=True):
@@ -3050,7 +3050,7 @@ class Mover(object):
 			#	layer.ranges = list(self.plot)
 			#self.plot.compute()
 			#self.plot.jobsManager.execute()
-			self.plot.queue_update(delay=10)
+			self.plot.update_all_layers()
 			self.moved = False
 
 	def mouse_down(self, event):
@@ -3144,9 +3144,12 @@ class Queue(object):
 		self.name = name
 		self.default_delay = default_delay
 		self.counter = 0
-		self.counter_processed = None
+		self.counter_processed = -1
 		self.default_callable = default_callable
 		self.pre = pre
+
+	def is_empty(self):
+		return (self.counter_processed == self.counter-1)
 
 
 	def _wait(self, sleep=10):
@@ -3179,6 +3182,7 @@ class Queue(object):
 					self.logger.debug("ignoring this event in queue %r, since a new one is scheduled" % self.name)
 				else:
 					self.logger.debug("calling callback in queue %r" % self.name)
+					self.counter_processed = self.counter -1 # to make the queue 'empty'
 					callable()
 			finally:
 				self.counter_processed = counter

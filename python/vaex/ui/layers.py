@@ -175,6 +175,7 @@ class LayerTable(object):
 		self.widget = None # each layer has a widget, atm only a qt widget is implemented
 
 		self.weight_expression = None
+		self.show_disjoined = False
 
 		self.compute_counter = 0
 		self.sequence_index = 0
@@ -968,6 +969,8 @@ class LayerTable(object):
 			grid = self.grid_main
 			if slice:
 				grid = grid.slice(self.slice_selection_grid)
+			if self.show_disjoined:
+				grid = grid.disjoined()
 			self.amplitude_grid = grid.evaluate(self.amplitude_expression)
 		except Exception as e:
 			logger.exception("amplitude field")
@@ -981,6 +984,8 @@ class LayerTable(object):
 			grid = self.grid_main_selection
 			if slice:
 				grid = grid.slice(self.slice_selection_grid)
+			if self.show_disjoined:
+				grid = grid.disjoined()
 			self.amplitude_grid_selection = grid.evaluate(self.amplitude_expression)
 
 		vmin = None

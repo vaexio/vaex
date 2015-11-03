@@ -390,9 +390,16 @@ class Subspace(object):
 		self.async = async
 		self.is_masked = masked
 
+	def __repr__(self):
+		name = self.__class__.__module__ + "." +self.__class__.__name__
+		return "<%s(dataset=%r, expressions=%r, async=%r, is_masked=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.async, self.is_masked, id(self))
+
 	@property
 	def dimension(self):
 		return len(self.expressions)
+
+	def get_selection_name(self):
+		return "default" if self.is_masked else None
 
 	def selected(self):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
@@ -467,6 +474,10 @@ class Subspace(object):
 	def limits_sigma(self, sigmas=3, square=False):
 		raise NotImplementedError
 
+	def row(self, index):
+		return np.array([self.dataset.evaluate(expression, i1=index, i2=index+1)[0] for expression in self.expressions])
+
+
 class SubspaceLocal(Subspace):
 	"""Subclass of subspace which implemented methods that can be run locally.
 	"""
@@ -492,15 +503,29 @@ class SubspaceLocal(Subspace):
 
 	def minmax(self):
 		def min_max_reduce(minmax1, minmax2):
+			if minmax1 is None:
+				return minmax2
+			if minmax2 is None:
+				return minmax1
 			result = []
 			for d in range(self.dimension):
 				min1, max1 = minmax1[d]
 				min2, max2 = minmax2[d]
 				result.append((min(min1, min2), max(max1, max2)))
 			return result
-		def min_max_map(*blocks):
+		def min_max_map(thread_index, i1, i2, *blocks):
+			if self.is_masked:
+				mask = self.dataset.mask
+				blocks = [block[mask[i1:i2]] for block in blocks]
+				is_empty = all(~mask[i1:i2])
+				if is_empty:
+					return None
+			#with lock:
+			#print blocks
+			#with lock:
+			#	print thread_index, i1, i2, blocks
 			return [vaex.vaexfast.find_nan_min_max(block) for block in blocks]
-		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self._toarray)
+		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self._toarray, info=True)
 		return self._task(task)
 
 	def mean(self):
@@ -529,9 +554,9 @@ class SubspaceLocal(Subspace):
 			mask = self.dataset.mask
 			def var_map(thread_index, i1, i2, *blocks):
 				if means is not None:
-					return [(np.nanmean((block[mask[i1:i2]]-mean)**2), np.count_nonzero(~np.isnan(block))) for block, mean in zip(blocks, means)]
+					return [(np.nanmean((block[mask[i1:i2]]-mean)**2), np.count_nonzero(~np.isnan(block[mask[i1:i2]]))) for block, mean in zip(blocks, means)]
 				else:
-					return [(np.nanmean(block[mask[i1:i2]]**2), np.count_nonzero(~np.isnan(block))) for block in blocks]
+					return [(np.nanmean(block[mask[i1:i2]]**2), np.count_nonzero(~np.isnan(block[mask[i1:i2]]))) for block in blocks]
 			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, remove_counts, info=True)
 		else:
 			def var_map(*blocks):
@@ -563,7 +588,7 @@ class SubspaceLocal(Subspace):
 			stds = np.repeat(stds.mean(), len(stds))
 		return np.array(list(zip(means-sigmas*stds, means+sigmas*stds)))
 
-	def current(self):
+	def _not_needed_current(self):
 		index = self.dataset.get_current_row()
 		def find(thread_index, i1, i2, *blocks):
 			if (index >= i1) and (index < i2):
@@ -601,9 +626,6 @@ class SubspaceLocal(Subspace):
 							 nearest_in_block,\
 							 nearest_reduce, info=True)
 		return self._task(task)
-
-	def row(self, index):
-		return np.array([self.dataset.evaluate(expression, i1=index, i2=index+1)[0] for expression in self.expressions])
 
 
 
@@ -674,6 +696,7 @@ class _BlockScope(object):
 			raise
 
 main_executor = vaex.execution.Executor(multithreading.pool)
+from vaex.execution import Executor
 
 class Dataset(object):
 	"""All datasets are encapsulated in this class, local or remote dataets
@@ -698,6 +721,7 @@ class Dataset(object):
 
 
 	:type signal_selection_changed: events.Signal
+	:type executor: Executor
 	"""
 	def __init__(self, name, column_names, executor=None):
 		self.name = name
@@ -706,6 +730,8 @@ class Dataset(object):
 		self.signal_pick = vaex.events.Signal("pick")
 		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
 		self.signal_selection_changed = vaex.events.Signal("selection changed")
+		self.signal_active_fraction_changed = vaex.events.Signal("active fraction changed")
+
 		self.undo_manager = vaex.ui.undo.UndoManager()
 		self.variables = collections.OrderedDict()
 		self.variables["pi"] = np.pi
@@ -718,6 +744,18 @@ class Dataset(object):
 
 		self.mask = None # a bitmask for the selection does not work for server side
 		self._has_selection = False
+
+	@classmethod
+	def can_open(cls, path, *args, **kwargs):
+		return False
+
+	@classmethod
+	def get_options(cls, path):
+		return []
+
+	@classmethod
+	def option_to_args(cls, option):
+		return []
 
 	def __call__(self, *expressions, **kwargs):
 		"""Return a Subspace for this dataset with the given expressions:
@@ -737,17 +775,12 @@ class Dataset(object):
 		return self.variables[name]
 
 	def evaluate(self, expression, i1=None, i2=None, out=None):
-		i1 = i1 or 0
-		i2 = i2 or len(self)
-		scope = _BlockScope(self, i1, i2, **self.variables)
-		if out is not None:
-			scope.buffers[expression] = out
-		return scope.evaluate(expression)
+		raise NotImplementedError
 
 	def _block_scope(self, i1, i2):
 		return _BlockScope(self, i1, i2, **self.variables)
 
-	def select(self, boolean_expression, mode="replace"):
+	def select(self, boolean_expression, mode="replace", selection_name="default"):
 		"""Select rows based on the boolean_expression, if there was a previous selection, the mode is taken into account.
 
 		if boolean_expression is None, remove the selection, has_selection() will returns false
@@ -896,12 +929,15 @@ class Dataset(object):
 
 		TODO: we may be able to keep the selection, if we keep the expression, and also the picked row
 		"""
-		self._active_fraction = value
-		#self._fraction_length = int(self._length * self._active_fraction)
-		# TODO: this only works for local datasets
-		self._set_mask(None)
-		self.set_current_row(None)
-		self._length = int(round(self.full_length() * self._active_fraction))
+		if value != self._active_fraction:
+			self._active_fraction = value
+			#self._fraction_length = int(self._length * self._active_fraction)
+			# TODO: this only works for local datasets
+			#self._set_mask(None)
+			self.select(None)
+			self.set_current_row(None)
+			self._length = int(round(self.full_length() * self._active_fraction))
+			self.signal_active_fraction_changed.emit(self, value)
 
 
 def _select_replace(maskold, masknew):
@@ -928,16 +964,25 @@ _select_functions = {"replace":_select_replace,\
 
 class DatasetLocal(Dataset):
 	def __init__(self, name, path, column_names):
-		self.is_local = True
 		super(DatasetLocal, self).__init__(name, column_names)
 		self.path = path
 		self.columns = collections.OrderedDict()
+
+	def is_local(self): return True
 
 	def __call__(self, *expressions, **kwargs):
 		return SubspaceLocal(self, expressions, self.executor, async=kwargs.get("async", False))
 
 	def concat(self, other):
 		return DatasetConcatenated([self, other])
+
+	def evaluate(self, expression, i1=None, i2=None, out=None):
+		i1 = i1 or 0
+		i2 = i2 or len(self)
+		scope = _BlockScope(self, i1, i2, **self.variables)
+		if out is not None:
+			scope.buffers[expression] = out
+		return scope.evaluate(expression)
 
 	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None):
 		"""
@@ -977,11 +1022,10 @@ class DatasetLocal(Dataset):
 		return np.sum(self.mask) if self.has_selection() else None
 
 
-	def select(self, boolean_expression, mode="replace"):
+	def select(self, boolean_expression, mode="replace", selection_name="default"):
 		mode_function = _select_functions[mode]
 		if boolean_expression is None:
-			self._has_selection = False
-			self.mask = None
+			self._set_mask(None)
 		else:
 			mask = np.zeros(len(self), dtype=np.bool)
 			def map(thread_index, i1, i2, block):
@@ -1076,9 +1120,10 @@ class _ColumnConcatenatedLazy(object):
 
 
 class DatasetConcatenated(DatasetLocal):
-	def __init__(self, datasets):
+	def __init__(self, datasets, name=None):
 		super(DatasetConcatenated, self).__init__(None, None, [])
 		self.datasets = datasets
+		self.name = name or "-".join(ds.name for ds in self.datasets)
 		first, tail = datasets[0], datasets[1:]
 		for column_name in first.get_column_names():
 			if all([column_name in dataset.get_column_names() for dataset in tail]):
@@ -1097,7 +1142,6 @@ class DatasetConcatenated(DatasetLocal):
 
 		self._full_length = sum(ds.full_length() for ds in self.datasets)
 		self._length = self.full_length()
-		self.name = "_".join(ds.name for ds in self.datasets)
 
 
 
@@ -1429,17 +1473,6 @@ class DatasetMemoryMapped(DatasetLocal):
 			#self.columns[name] = mmapped_array
 			#self.column_names.append(name)
 			
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		return False
-	
-	@classmethod
-	def get_options(cls, path):
-		return []
-	
-	@classmethod
-	def option_to_args(cls, option):
-		return []
 
 import struct
 class HansMemoryMapped(DatasetMemoryMapped):
@@ -2234,34 +2267,6 @@ class Zeldovich(InMemory):
 dataset_type_map["zeldovich"] = Zeldovich
 		
 		
-import astropy.io.votable
-class VOTable(DatasetMemoryMapped):
-	def __init__(self, filename):
-		super(VOTable, self).__init__(filename, nommap=True)
-		table = astropy.io.votable.parse_single_table(filename)
-		logger.debug("done parsing VO table")
-		names = table.array.dtype.names
-		
-		data = table.array.data
-		for i in range(len(data.dtype)):
-			name = data.dtype.names[i]
-			type = data.dtype[i]
-			if type.kind in ["f", "i"]: # only store float and int
-				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
-				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
-				self.addColumn(name, array=table.array[name])
-		#dataset.samp_id = table_id
-		#self.list.addDataset(dataset)
-		#return dataset
-	
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		can_open = path.endswith(".vot")
-		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
-		return can_open
-dataset_type_map["votable"] = VOTable
-
-
 class AsciiTable(DatasetMemoryMapped):
 	def __init__(self, filename):
 		super(AsciiTable, self).__init__(filename, nommap=True)
@@ -2333,6 +2338,21 @@ class DatasetAstropyTable(DatasetArrays):
 		#dataset.samp_id = table_id
 		#self.list.addDataset(dataset)
 		#return dataset
+
+
+import astropy.io.votable
+class VOTable(DatasetAstropyTable):
+	def __init__(self, filename):
+		super(VOTable, self).__init__(filename, format="votable")
+
+	@classmethod
+	def can_open(cls, path, *args, **kwargs):
+		can_open = path.endswith(".vot")
+		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
+		return can_open
+
+dataset_type_map["votable"] = VOTable
+
 
 
 class DatasetNed(DatasetAstropyTable):

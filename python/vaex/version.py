@@ -2,7 +2,7 @@
 major = 0
 minor = 5
 patch = 0
-pre_release = "alpha.4"
+pre_release = "alpha.6"
 
 #versiontring = '0.2.42-g54a6613'
 versiontuple = (major, minor, patch)
@@ -25,5 +25,6 @@ if __name__ == "__main__":
 		print "build name:", vaex.__build_name__
 	elif sys.argv[1] == "tagcmd":
 		print "git tag %s" % versionstring
+		print "git push --tags"
 	else:
 		print "use version, fullname or buildname as argument"

@@ -125,7 +125,7 @@ class TableDialog(QtGui.QDialog):
 		
 		self.dataset.signal_pick.connect(self.on_row_pick)
 		if self.dataset.get_current_row() is not None:
-			self.on_row_pick(self.dataset.get_current_row())
+			self.on_row_pick(self.dataset, self.dataset.get_current_row())
 		self._check_pages()
 		
 	def onStateCountFromZero(self, state):

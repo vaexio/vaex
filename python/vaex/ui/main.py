@@ -163,6 +163,7 @@ class DatasetSelector(QtGui.QListWidget):
 			N  = len(dataset)
 			if N > Nmax:
 				dataset.set_active_fraction(fraction)
+				logger.debug("set best fraction for dataset %r to %r" % (dataset, fraction))
 			else:
 				break
 
@@ -536,23 +537,32 @@ class DatasetPanel(QtGui.QFrame):
 			self.dataset.set_active_fraction(fraction)
 			self.numberLabel.setText("{:,}".format(len(self.dataset)))
 			#self.dataset.executor.execute()
-			self.dataset.executor.execute()
+			#self.dataset.executor.execute()
 
 	def onValueChanged(self, index):
 		fraction = possibleFractions[index]
 		text = 'Fraction used: %9.4f%%' % (fraction*100)
 		self.fractionLabel.setText(text)
 
-	def show_dataset(self, dataset):
-		self.dataset = dataset
-		self.name.setText(dataset.name)
-		self.label_columns.setText(str(dataset.column_count()))
-		self.label_length.setText("{:,}".format(self.dataset.full_length()))
-		self.numberLabel.setText("{:,}".format(len(self.dataset)))
+	def on_active_fraction_changed(self, dataset, fraction):
+		self.update_active_fraction()
+
+	def update_active_fraction(self):
 		fraction = self.dataset.get_active_fraction()
 		distances = np.abs(np.array(possibleFractions) - fraction)
 		index = np.argsort(distances)[0]
 		self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
+
+	def show_dataset(self, dataset):
+		if self.dataset:
+			self.dataset.signal_active_fraction_changed.disconnect(self.on_active_fraction_changed)
+		self.dataset = dataset
+		self.dataset.signal_active_fraction_changed.connect(self.on_active_fraction_changed)
+		self.name.setText(dataset.name)
+		self.label_columns.setText(str(dataset.column_count()))
+		self.label_length.setText("{:,}".format(self.dataset.full_length()))
+		self.numberLabel.setText("{:,}".format(len(self.dataset)))
+		self.update_active_fraction()
 		self.button_2d.setEnabled(self.dataset.column_count() > 0)
 		#self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
 		#self.scatter3dButton.setEnabled(False)
@@ -786,8 +796,8 @@ class VaexApp(QtGui.QMainWindow):
 
 		#self.action_open = QtGui.QAction(vp.iconfile('quickopen-file', '&Open', self)
 		#self.action_open.
-		self.action_open_hdf5_gadget = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open gadget hdf5', self)
-		self.action_open_hdf5_vaex = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open GAIA hdf5', self)
+		self.action_open_hdf5_gadget = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open Gadget hdf5', self)
+		self.action_open_hdf5_vaex = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open Vaex hdf5', self)
 		self.action_open_hdf5_amuse = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open Amuse hdf5', self)
 		self.action_open_fits = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open FITS (binary table)', self)
 
@@ -806,8 +816,8 @@ class VaexApp(QtGui.QMainWindow):
 		menubar = self.menuBar()
 		fileMenu = menubar.addMenu('&File')
 		self.menu_open = fileMenu.addMenu("&Open")
-		self.menu_open.addAction(self.action_open_hdf5_gadget)
 		self.menu_open.addAction(self.action_open_hdf5_vaex)
+		self.menu_open.addAction(self.action_open_hdf5_gadget)
 		self.menu_open.addAction(self.action_open_hdf5_amuse)
 		if (not frozen) or darwin:
 			self.menu_open.addAction(self.action_open_fits)
@@ -934,7 +944,7 @@ class VaexApp(QtGui.QMainWindow):
 
 		self.open_generators = [] # for reference counts
 		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "Gadget HDF5 file", "*.hdf5"))
-		self.action_open_hdf5_vaex.triggered.connect(self.openGenerator(self.gaia_hdf5, "Gaia HDF5 file", "*.hdf5"))
+		self.action_open_hdf5_vaex.triggered.connect(self.openGenerator(self.vaex_hdf5, "Gaia HDF5 file", "*.hdf5"))
 		self.action_open_hdf5_amuse.triggered.connect(self.openGenerator(self.amuse_hdf5, "Amuse HDF5 file", "*.hdf5"))
 		if (not frozen) or darwin:
 			self.action_open_fits.triggered.connect(self.openGenerator(self.open_fits, "FITS file", "*.fits"))
@@ -1280,18 +1290,24 @@ class VaexApp(QtGui.QMainWindow):
 			progress_dialog.hide()
 
 	def gadgethdf5(self, filename):
-		print("filename", filename, repr(filename))
+		logger.debug("open gadget hdf5: %r" , filename)
 		for index, name in list(enumerate("gas halo disk bulge stars sat".split()))[::-1]:
 			self.dataset_selector.addGadgetHdf5(str(filename), name, index)
 
-	def gaia_hdf5(self, filename):
-		self.dataset_selector.addHdf5(str(filename))
+	def vaex_hdf5(self, filename):
+		logger.debug("open vaex hdf5: %r" , filename)
+		dataset = vaex.open(str(filename))
+		self.dataset_selector.add(dataset)
 
 	def amuse_hdf5(self, filename):
-		self.dataset_selector.addAmuse(str(filename))
+		logger.debug("open amuse: %r" , filename)
+		dataset = vaex.open(str(filename))
+		self.dataset_selector.add(dataset)
 
 	def open_fits(self, filename):
-		self.dataset_selector.addFits(str(filename))
+		logger.debug("open fits: %r" , filename)
+		dataset = vaex.open(str(filename))
+		self.dataset_selector.add(dataset)
 
 
 	def openGenerator(self, callback_, description, filemask):
@@ -1302,7 +1318,8 @@ class VaexApp(QtGui.QMainWindow):
 			if isinstance(filename, tuple):
 				filename = str(filename[0])#]
 			#print repr(callback_)
-			callback_(filename)
+			if filename:
+				callback_(filename)
 		self.open_generators.append(open)
 		return open
 

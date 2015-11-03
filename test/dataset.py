@@ -24,7 +24,7 @@ class CallbackCounter(object):
 
 class TestDataset(unittest.TestCase):
 	def setUp(self):
-		self.dataset = dataset.DatasetArrays()
+		self.dataset = dataset.DatasetArrays("dataset")
 
 		self.x = x = np.arange(10)
 		self.y = y = x ** 2
@@ -37,7 +37,7 @@ class TestDataset(unittest.TestCase):
 
 		x = np.array([0., 1])
 		y = np.array([-1., 1])
-		self.datasetxy = vx.dataset.DatasetArrays()
+		self.datasetxy = vx.dataset.DatasetArrays("datasetxy")
 		self.datasetxy.add_column("x", x)
 		self.datasetxy.add_column("y", y)
 
@@ -46,17 +46,17 @@ class TestDataset(unittest.TestCase):
 		x3 = np.array([5.])
 		self.x_concat = np.concatenate((x1, x2, x3))
 
-		dataset1 = vx.dataset.DatasetArrays()
-		dataset2 = vx.dataset.DatasetArrays()
-		dataset3 = vx.dataset.DatasetArrays()
+		dataset1 = vx.dataset.DatasetArrays("dataset1")
+		dataset2 = vx.dataset.DatasetArrays("dataset2")
+		dataset3 = vx.dataset.DatasetArrays("dataset2")
 		dataset1.add_column("x", x1)
 		dataset2.add_column("x", x2)
 		dataset3.add_column("x", x3)
 		dataset3.add_column("y", x3**2)
 
-		self.dataset_concat = vx.dataset.DatasetConcatenated([dataset1, dataset2, dataset3])
+		self.dataset_concat = vx.dataset.DatasetConcatenated([dataset1, dataset2, dataset3], name="dataset_concat")
 
-		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset, self.dataset, self.dataset])
+		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset, self.dataset, self.dataset], name="dataset_concat_dup")
 
 	def test_length(self):
 		assert len(self.dataset) == 10
@@ -136,10 +136,30 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(x, 1)
 		self.assertAlmostEqual(y, 0)
 
+		self.datasetxy.select("x < 1")
+		x, y = self.datasetxy("x", "y").selected().sum()
+		self.assertAlmostEqual(x, 0)
+		self.assertAlmostEqual(y, -1)
+
 	def test_mean(self):
 		x, y = self.datasetxy("x", "y").mean()
 		self.assertAlmostEqual(x, 0.5)
 		self.assertAlmostEqual(y, 0)
+
+		self.datasetxy.select("x < 1")
+		x, y = self.datasetxy("x", "y").selected().mean()
+		self.assertAlmostEqual(x, 0)
+		self.assertAlmostEqual(y, -1)
+
+	def test_minmax(self):
+		((xmin, xmax), ) = self.dataset("x").minmax()
+		self.assertAlmostEqual(xmin, 0)
+		self.assertAlmostEqual(xmax, 9)
+
+		self.dataset.select("x < 5")
+		((xmin2, xmax2), ) = self.dataset("x").selected().minmax()
+		self.assertAlmostEqual(xmin2, 0)
+		self.assertAlmostEqual(xmax2, 4)
 
 	def test_var(self):
 		x, y = self.datasetxy("x", "y").var()
@@ -149,6 +169,12 @@ class TestDataset(unittest.TestCase):
 		x, y = self.dataset("x", "y").var()
 		self.assertAlmostEqual(x, np.mean(self.x**2))
 		self.assertAlmostEqual(y, np.mean(self.y**2))
+
+		self.dataset.select("x < 5")
+		x, y = self.dataset("x", "y").selected().var()
+		self.assertAlmostEqual(x, np.mean(self.x[:5]**2))
+		self.assertAlmostEqual(y, np.mean(self.y[:5]**2))
+
 
 	def test_concat(self):
 		self.assertEqual(self.dataset_concat.get_column_names(), ["x"])
@@ -166,7 +192,7 @@ class TestDataset(unittest.TestCase):
 
 		path = path_hdf5 = tempfile.mktemp(".hdf5")
 		path_fits = tempfile.mktemp(".fits")
-		print path
+		#print path
 
 		with self.assertRaises(AssertionError):
 			self.dataset.export_hdf5(path, selection=True)
@@ -213,10 +239,13 @@ class TestDataset(unittest.TestCase):
 		self.dataset.signal_pick.connect(counter_current_row)
 		self.dataset.signal_selection_changed.connect(counter_selection)
 
-		self.dataset.set_active_fraction(1.0)
+		self.dataset.set_active_fraction(1.0) # this shouldn't trigger
+		self.assertEqual(counter_selection.counter, 0)
+		self.assertEqual(counter_current_row.counter, 0)
+		length = len(self.dataset)
+		self.dataset.set_active_fraction(0.1) # this should trigger
 		self.assertEqual(counter_selection.counter, 1)
 		self.assertEqual(counter_current_row.counter, 1)
-		length = len(self.dataset)
 
 		# test for event and the effect of the length
 		self.dataset.set_active_fraction(0.5)
@@ -228,7 +257,9 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(counter_selection.counter, 3)
 		self.assertEqual(counter_current_row.counter, 2)
 		self.assert_(self.dataset.has_selection())
-		self.dataset.set_active_fraction(0.5)
+		self.dataset.set_active_fraction(0.5) # nothing should happen, still the same
+		self.assert_(self.dataset.has_selection())
+		self.dataset.set_active_fraction(0.4999)
 		self.assertFalse(self.dataset.has_selection())
 
 		self.dataset.set_current_row(1)
@@ -236,17 +267,32 @@ class TestDataset(unittest.TestCase):
 		self.dataset.set_active_fraction(0.5)
 		self.assertFalse(self.dataset.has_current_row())
 
-		for dataset in [self.dataset, self.dataset_concat]:
-			dataset.set_active_fraction(1.0)
-			x = dataset.columns["x"][:] * 1. # make a copy
-			dataset.set_active_fraction(0.5)
-			length = len(dataset)
-			a = x[:length]
-			b = dataset.columns["x"][:len(dataset)]
-			np.testing.assert_array_almost_equal(a, b)
-			self.assertLess(length, dataset.full_length())
+		if self.dataset.is_local(): # this part doesn't work for remote datasets
+			for dataset in [self.dataset, self.dataset_concat]:
+				dataset.set_active_fraction(1.0)
+				x = dataset.columns["x"][:] * 1. # make a copy
+				dataset.set_active_fraction(0.5)
+				length = len(dataset)
+				a = x[:length]
+				b = dataset.columns["x"][:len(dataset)]
+				np.testing.assert_array_almost_equal(a, b)
+				self.assertLess(length, dataset.full_length())
 
 		# TODO: test if statistics and histogram work on the active_fraction
+		self.dataset.set_active_fraction(1)
+		total, = self.dataset("x").sum()
+		self.dataset.set_active_fraction(0.5)
+		total_half, = self.dataset("x").sum()
+		self.assertLess(total_half, total)
+
+		limits = [(-100, 100)]
+		self.dataset.set_active_fraction(1)
+		total = self.dataset("x").histogram(limits).sum()
+		self.dataset.set_active_fraction(0.5)
+		total_half = self.dataset("x").histogram(limits).sum()
+		self.assertLess(total_half, total)
+
+
 
 	def test_current_row(self):
 		counter_current_row = CallbackCounter()
@@ -260,7 +306,7 @@ class TestDataset(unittest.TestCase):
 			self.dataset.set_current_row(len(self.dataset))
 
 
-	def test_current(self):
+	def t_not_needed_est_current(self):
 		for dataset in [self.dataset, self.dataset_concat]:
 			for i in range(len(dataset)):
 				dataset.set_current_row(i)
@@ -299,8 +345,56 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(value, 6)
 
 
+	def test_lasso(self):
+		# this doesn't really test much, just that the code gets executed
+		self.x = x = np.arange(10)
+		self.y = y = x ** 2
+
+		x = [-0.1, 5.1, 5.1, -0.1]
+		y = [-0.1, -0.1, 4.1, 4.1]
+		self.dataset.lasso_select("x", "y", x, y)
+		sumx, sumy = self.dataset("x", "y").selected().sum()
+		self.assertAlmostEqual(sumx, 0+1+2)
+		self.assertAlmostEqual(sumy, 0+1+4)
+
+
 
 test_port = 29010
+
+class TestDatasetRemote(TestDataset):
+	def setUp(self):
+		# run all tests from TestDataset, but now served at the server
+		super(TestDatasetRemote, self).setUp()
+		self.dataset_local = self.dataset
+		self.datasetxy_local = self.datasetxy
+		self.dataset_concat_local = self.dataset_concat
+		self.dataset_concat_dup_local = self.dataset_concat_dup
+
+		datasets = [self.dataset_local, self.datasetxy_local, self.dataset_concat_local, self.dataset_concat_dup_local]
+		self.webserver = vaex.webserver.WebServer(datasets=datasets, port=test_port)
+		#print "serving"
+		self.webserver.serve_threaded()
+		#print "getting server object"
+		self.server = vx.server("localhost", port=test_port)
+		#print "get datasets"
+		datasets = self.server.datasets(as_dict=True)
+		#print "got it", datasets
+
+		self.dataset = datasets["dataset"]
+		self.datasetxy = datasets["datasetxy"]
+		self.dataset_concat = datasets["dataset_concat"]
+		self.dataset_concat_dup = datasets["dataset_concat_dup"]
+		#print "all done"
+
+	def tearDown(self):
+		#print "stop serving"
+		self.webserver.stop_serving()
+
+	def test_export(self):
+		pass # we can't export atm
+
+	def test_concat(self):
+		pass # doesn't make sense to test this for remote
 
 class TestWebServer(unittest.TestCase):
 	def setUp(self):
