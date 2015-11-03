@@ -816,8 +816,8 @@ class VaexApp(QtGui.QMainWindow):
 		menubar = self.menuBar()
 		fileMenu = menubar.addMenu('&File')
 		self.menu_open = fileMenu.addMenu("&Open")
-		self.menu_open.addAction(self.action_open_hdf5_gadget)
 		self.menu_open.addAction(self.action_open_hdf5_vaex)
+		self.menu_open.addAction(self.action_open_hdf5_gadget)
 		self.menu_open.addAction(self.action_open_hdf5_amuse)
 		if (not frozen) or darwin:
 			self.menu_open.addAction(self.action_open_fits)
@@ -944,7 +944,7 @@ class VaexApp(QtGui.QMainWindow):
 
 		self.open_generators = [] # for reference counts
 		self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "Gadget HDF5 file", "*.hdf5"))
-		self.action_open_hdf5_vaex.triggered.connect(self.openGenerator(self.gaia_hdf5, "Gaia HDF5 file", "*.hdf5"))
+		self.action_open_hdf5_vaex.triggered.connect(self.openGenerator(self.vaex_hdf5, "Gaia HDF5 file", "*.hdf5"))
 		self.action_open_hdf5_amuse.triggered.connect(self.openGenerator(self.amuse_hdf5, "Amuse HDF5 file", "*.hdf5"))
 		if (not frozen) or darwin:
 			self.action_open_fits.triggered.connect(self.openGenerator(self.open_fits, "FITS file", "*.fits"))
@@ -1290,18 +1290,24 @@ class VaexApp(QtGui.QMainWindow):
 			progress_dialog.hide()
 
 	def gadgethdf5(self, filename):
-		print("filename", filename, repr(filename))
+		logger.debug("open gadget hdf5: %r" , filename)
 		for index, name in list(enumerate("gas halo disk bulge stars sat".split()))[::-1]:
 			self.dataset_selector.addGadgetHdf5(str(filename), name, index)
 
-	def gaia_hdf5(self, filename):
-		self.dataset_selector.addHdf5(str(filename))
+	def vaex_hdf5(self, filename):
+		logger.debug("open vaex hdf5: %r" , filename)
+		dataset = vaex.open(str(filename))
+		self.dataset_selector.add(dataset)
 
 	def amuse_hdf5(self, filename):
-		self.dataset_selector.addAmuse(str(filename))
+		logger.debug("open amuse: %r" , filename)
+		dataset = vaex.open(str(filename))
+		self.dataset_selector.add(dataset)
 
 	def open_fits(self, filename):
-		self.dataset_selector.addFits(str(filename))
+		logger.debug("open fits: %r" , filename)
+		dataset = vaex.open(str(filename))
+		self.dataset_selector.add(dataset)
 
 
 	def openGenerator(self, callback_, description, filemask):
@@ -1312,7 +1318,8 @@ class VaexApp(QtGui.QMainWindow):
 			if isinstance(filename, tuple):
 				filename = str(filename[0])#]
 			#print repr(callback_)
-			callback_(filename)
+			if filename:
+				callback_(filename)
 		self.open_generators.append(open)
 		return open
 

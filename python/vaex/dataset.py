@@ -745,6 +745,18 @@ class Dataset(object):
 		self.mask = None # a bitmask for the selection does not work for server side
 		self._has_selection = False
 
+	@classmethod
+	def can_open(cls, path, *args, **kwargs):
+		return False
+
+	@classmethod
+	def get_options(cls, path):
+		return []
+
+	@classmethod
+	def option_to_args(cls, option):
+		return []
+
 	def __call__(self, *expressions, **kwargs):
 		"""Return a Subspace for this dataset with the given expressions:
 
@@ -1461,17 +1473,6 @@ class DatasetMemoryMapped(DatasetLocal):
 			#self.columns[name] = mmapped_array
 			#self.column_names.append(name)
 			
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		return False
-	
-	@classmethod
-	def get_options(cls, path):
-		return []
-	
-	@classmethod
-	def option_to_args(cls, option):
-		return []
 
 import struct
 class HansMemoryMapped(DatasetMemoryMapped):
