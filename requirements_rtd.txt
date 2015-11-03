@@ -5,3 +5,6 @@ astropy
 numexpr
 numpy>=1.7.2
 scipy>=0.1
+aplus
+tornado==4.1
+futures==2.2.0
