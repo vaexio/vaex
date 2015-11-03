@@ -176,10 +176,13 @@ html_extra_path = [
 for name in "example_movies example_start example_volume_rendering example_virtual_columns example_tables".split():
 	source = "../../examples/{name}.ipynb".format(name=name)
 	dest = "{name}.html".format(name=name)
-	time_source = os.path.getmtime(os.path.abspath(os.path.join(source)))
-	time_dest = os.path.getmtime(os.path.abspath(os.path.join(dest)))
+	should_make = True
+	if os.path.exists(dest):
+		time_source = os.path.getmtime(os.path.abspath(os.path.join(source)))
+		time_dest = os.path.getmtime(os.path.abspath(os.path.join(dest)))
+		should_make = time_source > time_dest
 	cmd = "cd source; jupyter-nbconvert {source} --to html --output={dest}".format(source=source, dest=dest)
-	if time_source > time_dest:
+	if should_make:
 		print("executing %s" % cmd)
 		os.system(cmd)
 	else:
