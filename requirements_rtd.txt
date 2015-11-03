@@ -1,1 +1,3 @@
 sphinxcontrib-googleanalytics
+future
+pyyaml
