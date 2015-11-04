@@ -1881,7 +1881,7 @@ class PlotDialog(QtGui.QWidget):
 
 	@select_mode.setter
 	def select_mode(self, value):
-		print "set to", value
+		logger.debug("set to: %r", value)
 		action = getattr(self, "action_select_mode_%s" % value)
 		self.setSelectMode(action)
 

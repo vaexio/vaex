@@ -186,6 +186,7 @@ class TestPlotPanel2d(unittest.TestCase):
 
 
 	def test_select_by_lasso(self):
+		self.window._wait() # TODO: is this a bug? same as above
 		vaex.ui.qt.set_choose("x < 0", True)
 		x = [-10, 10, 10, -10]
 		y = [-10, -10, 10, 10]
