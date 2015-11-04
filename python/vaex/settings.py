@@ -1,18 +1,7 @@
-import vaex.iniscope
 import logging
 
 logger = logging.getLogger("vaex.settings")
 
-class Settings(object):
-	def __init__(self, inifilename):
-		self.inifilename = inifilename
-		
-	def load(self):
-		self.scope = vaex.iniscope.IniScope(self.inifilename, load=True)
-		#self.scope.init()
-		self.files = self.scope["files"]
-		
-		
 class Files(object):
 	def __init__(self, open, recent):
 		self.open = open
@@ -24,7 +13,6 @@ from yaml import Loader, Dumper
 class Settings(object):
 	def __init__(self, filename):
 		self.filename = filename
-		print filename
 		if not os.path.exists(filename):
 			with open(filename, "w"):
 				pass
@@ -32,7 +20,7 @@ class Settings(object):
 			self.settings = yaml.load(f, Loader=Loader)
 		if self.settings is None:
 			self.settings = {}
-		logger.debug("settings: %r", self.settings)
+		#logger.debug("settings: %r", self.settings)
 
 	def store(self, key, value):
 		parts = key.split(".")

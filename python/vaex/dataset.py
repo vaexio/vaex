@@ -1939,5 +1939,4 @@ def load_file(path, *args, **kwargs):
 		dataset = dataset_class(path, *args)
 		return dataset
 
-from .execution import JobsManager
 from .remote import ServerRest, SubspaceRemote, DatasetRemote

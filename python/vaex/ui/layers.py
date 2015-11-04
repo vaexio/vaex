@@ -145,7 +145,7 @@ import vaex.dataset
 
 
 class LayerTable(object):
-	def __init__(self, plot_window, name, dataset, expressions, axis_names, options, jobs_manager, thread_pool, figure, canvas, ranges_grid=None):
+	def __init__(self, plot_window, name, dataset, expressions, axis_names, options, thread_pool, figure, canvas, ranges_grid=None):
 		"""
 		:type dataset: Dataset
 		:type plot_window: PlotDialog
@@ -157,12 +157,9 @@ class LayerTable(object):
 		self.axis_names = axis_names
 		self.ranges_grid = ranges_grid
 		self.range_level = None
-		self.jobs_manager = jobs_manager
 		self.thread_pool = thread_pool
 		self.dimensions = len(self.expressions)
 		self.options = options
-		self.grids = vaex.grids.Grids(self.dataset, self.thread_pool, *expressions)
-		self.grids.ranges = self.ranges_grid
 		self.vector_expressions = [None,] * (1 if self.dimensions == 1 else 3)
 		self.figure = figure
 		self.canvas = canvas
@@ -1050,9 +1047,7 @@ class LayerTable(object):
 				logger.debug("filling page: "+pagename +" order=" +str(order) + " callback=" +str(callback))
 				callback(self.pages[pagename])
 		page_name = self.options.get("page", "Main")
-		print "PAGE NAME " * 10, page_name
 		page_frame = self.pages.get(page_name, None)
-		print "PAGE FRAME " * 10, page_frame
 		if page_frame:
 			self.toolbox.setCurrentWidget(page_frame)
 		logger.debug("done setting up layer plugins")

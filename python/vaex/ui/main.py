@@ -350,7 +350,6 @@ class DatasetPanel(QtGui.QFrame):
 	def __init__(self, parent, dataset_list):
 		super(DatasetPanel, self).__init__(parent)
 
-		self.jobsManager = vaex.dataset.JobsManager()
 		self.dataset = None
 		self.dataset_list = dataset_list
 		self.app = parent
@@ -464,7 +463,7 @@ class DatasetPanel(QtGui.QFrame):
 
 	def onOpenScatter1dSeries(self):
 		if self.dataset is not None:
-			dialog = vp.SequencePlot(self, self.jobsManager, self.dataset)
+			dialog = vp.SequencePlot(self, self.dataset)
 			dialog.show()
 			self.dataset.executor.execute()
 
@@ -479,7 +478,7 @@ class DatasetPanel(QtGui.QFrame):
 			self.histogram(xname)
 
 	def plotxy(self, xname, yname, **kwargs):
-		dialog = vp.ScatterPlotDialog(self, self.jobsManager, self.dataset, app=self.app, **kwargs)
+		dialog = vp.ScatterPlotDialog(self, self.dataset, app=self.app, **kwargs)
 		dialog.add_layer([xname, yname], self.dataset, **kwargs)
 		if not vaex.ui.hidden:
 			dialog.show()
@@ -495,7 +494,7 @@ class DatasetPanel(QtGui.QFrame):
 		return dialog
 
 	def plotxyz(self, xname, yname, zname, **kwargs):
-		dialog = vp.VolumeRenderingPlotDialog(self, self.jobsManager, self.dataset, **kwargs)
+		dialog = vp.VolumeRenderingPlotDialog(self, self.dataset, **kwargs)
 		dialog.add_layer([xname, yname, zname], **kwargs)
 		dialog.show()
 		#self.dataset.executor.execute()
@@ -504,7 +503,7 @@ class DatasetPanel(QtGui.QFrame):
 		return dialog
 
 	def plotmatrix(self, *expressions):
-		dialog = vp.ScatterPlotMatrixDialog(self, self.jobsManager, self.dataset, expressions)
+		dialog = vp.ScatterPlotMatrixDialog(self, self.dataset, expressions)
 		dialog.show()
 		self.dataset.executor.execute()
 		return dialog
@@ -514,7 +513,7 @@ class DatasetPanel(QtGui.QFrame):
 		dialog.show()
 
 	def histogram(self, xname, **kwargs):
-		dialog = vp.HistogramPlotDialog(self, self.jobsManager, self.dataset, app=self.app, **kwargs)
+		dialog = vp.HistogramPlotDialog(self, self.dataset, app=self.app, **kwargs)
 		dialog.add_layer([xname], **kwargs)
 		dialog.show()
 		#self.dataset.executor.execute()
@@ -614,7 +613,7 @@ class DatasetPanel(QtGui.QFrame):
 
 	def plotseriexy(self, xname, yname):
 		if self.dataset is not None:
-			dialog = vp.Rank1ScatterPlotDialog(self, self.jobsManager, self.dataset, xname+"[index]", yname+"[index]")
+			dialog = vp.Rank1ScatterPlotDialog(self, self.dataset, xname+"[index]", yname+"[index]")
 			self.dataset.executor.execute()
 			self.signal_open_plot.emit(dialog)
 			dialog.show()
@@ -634,7 +633,7 @@ class DatasetPanel(QtGui.QFrame):
 		#dialog.show()
 		#return dialog
 		import vaex.pca
-		vaex.pca.pca(self.dataset, self.dataset.get_column_names(), self.jobsManager)
+		vaex.pca.pca(self.dataset, self.dataset.get_column_names())
 
 
 import psutil
@@ -1491,9 +1490,6 @@ class VaexApp(QtGui.QMainWindow):
 		self.dataset_selector.add(dataset)
 		return dataset
 
-
-
-
 	def message(self, text, index=0):
 		print(text)
 		self.messages[index] = text
@@ -1564,28 +1560,9 @@ class VaexApp(QtGui.QMainWindow):
 				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
 				dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
 		self.dataset_selector.add(dataset)
-		if 0:
-			h5file = h5py.File(hdf5filename, "w", driver="core")
-			datagroup = h5file.create_group("data")
-			#import pdb
-			#pdb.set_trace()
-			print("storing data...")
-
-			for i in range(len(data.dtype)):
-				name = data.dtype.names[i]
-				type = data.dtype[i]
-				if type.kind  == "f": # only store float
-					datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
-			print("storing data done")
-		#thread.interrupt_main()
-		#sys.exit(0)
-		#h5file.close()
-		#semaphore.release()
-		##samp.client.disconnect()
 
 
 	def center(self):
-
 		qr = self.frameGeometry()
 		cp = QtGui.QDesktopWidget().availableGeometry().center()
 		qr.moveCenter(cp)

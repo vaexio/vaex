@@ -4,7 +4,6 @@ import os
 
 import vaex as vx
 import logging
-vx.set_log_level_warning()
 #vx.set_log_level_debug()
 
 import vaex.ui
@@ -14,6 +13,10 @@ import vaex.utils
 
 import PIL.Image
 import PIL.ImageChops
+
+import vaex.execution
+# this will trigger more code, such as the canceling in between computation
+vaex.execution.buffer_size = 10000
 
 from vaex.ui.qt import QtGui, QtCore, QtTest
 
@@ -27,7 +30,9 @@ def get_comparison_image(name):
 	return os.path.join(base_path, "images", name+".png")
 
 #logging.getLogger("vaex.ui.queue").setLevel(logging.DEBUG)
-logging.getLogger("vaex.ui").setLevel(logging.DEBUG)
+#logging.getLogger("vaex.ui").setLevel(logging.DEBUG)
+vx.set_log_level_warning()
+#vx.set_log_level_debug()
 
 
 class TestUiCreation(unittest.TestCase):
@@ -167,10 +172,18 @@ class TestPlotPanel2d(unittest.TestCase):
 		self.compare(filename, get_comparison_image("example_xy_vxvy"))
 
 	def test_select_by_expression(self):
+		self.window.xlabel = "x"
+		self.window.ylabel = "y"
+		self.window._wait() # TODO: is this a bug? if we don't wait and directly do the selection, the ThreadPoolIndex
+		# is entered twice, not sure this can happen from the gui
 		vaex.ui.qt.set_choose("x < 0", True)
 		QtTest.QTest.mouseClick(self.layer.button_selection_expression, QtCore.Qt.LeftButton)
 		self.window._wait()
 		self.assertTrue(self.no_exceptions)
+
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("example_xy_selection_on_x"))
+
 
 	def test_select_by_lasso(self):
 		vaex.ui.qt.set_choose("x < 0", True)

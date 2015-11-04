@@ -47,8 +47,8 @@ def task_invoke(subspace, method_name, request):
 import collections
 
 class ListHandler(tornado.web.RequestHandler):
-	def initialize(self, datasets):
-		self.datasets = datasets
+	def initialize(self, datasets=None):
+		self.datasets = datasets or [vx.example()]
 		self.datasets_map = collections.OrderedDict([(ds.name,ds) for ds in self.datasets])
 
 	def get(self):
@@ -66,7 +66,12 @@ class ListHandler(tornado.web.RequestHandler):
 			self.set_cookie("user_id", user_id)
 		logger.debug("user_id: %r", user_id)
 		#print parts
-		if parts[0] == "datasets":
+		if parts[0] == "sleep":
+			seconds = float(parts[1])
+			import time
+			time.sleep(seconds)
+			self.write({"result":seconds})
+		elif parts[0] == "datasets":
 			if len(parts) == 1:
 				response = dict(datasets=[{"name":ds.name, "full_length":len(ds), "column_names":ds.get_column_names()} for ds in self.datasets])
 				self.write(response)

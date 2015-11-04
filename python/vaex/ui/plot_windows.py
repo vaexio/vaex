@@ -169,7 +169,7 @@ class PlotDialog(QtGui.QWidget):
 	:type current_layer: LayerTable
 	:type layers: list[LayerTable]
 	"""
-	def __init__(self, parent, jobsManager, dataset, dimensions, axisnames, app, width=5, height=4, dpi=100, **options):
+	def __init__(self, parent, dataset, dimensions, axisnames, app, width=5, height=4, dpi=100, **options):
 		super(PlotDialog, self).__init__()
 		self.parent_widget = parent
 		self.data_panel = parent
@@ -203,7 +203,6 @@ class PlotDialog(QtGui.QWidget):
 
 		self.undoManager = parent.undoManager
 		self.setWindowTitle(self.name)
-		self.jobsManager = jobsManager
 		self.dataset = dataset
 		self.axisnames = axisnames
 		self.pool = ThreadPool()
@@ -323,7 +322,8 @@ class PlotDialog(QtGui.QWidget):
 		def progress(fraction):
 			self.progress_bar.setValue(fraction*1000)
 			QtCore.QCoreApplication.instance().processEvents()
-			return (not self.cancelled) and (self.queue_update.is_empty())
+			logger.debug("queue: %r %r", self.queue_update.counter, self.queue_update.counter_processed)
+			return (not self.cancelled) and (not self.queue_update.in_queue(2))
 		def cancel():
 			self.progress_bar.setValue(0)
 			self.button_cancel.setEnabled(False)
@@ -331,23 +331,16 @@ class PlotDialog(QtGui.QWidget):
 		def on_click_cancel():
 			self.cancelled = True
 		self.button_cancel.clicked.connect(on_click_cancel)
-		self.jobsManager.signal_begin.connect(begin)
-		self.jobsManager.signal_end.connect(end)
-		self.jobsManager.signal_cancel.connect(cancel)
-		self.jobsManager.signal_progress.connect(progress)
 
-		self.dataset.executor.signal_begin.connect(begin)
-		self.dataset.executor.signal_progress.connect(progress)
-		self.dataset.executor.signal_end.connect(end)
-		self.dataset.executor.signal_cancel.connect(cancel)
+		self._begin_signal = self.dataset.executor.signal_begin.connect(begin)
+		self._progress_signal = self.dataset.executor.signal_progress.connect(progress)
+		self._end_signal = self.dataset.executor.signal_end.connect(end)
+		self._cancel_signal = self.dataset.executor.signal_cancel.connect(cancel)
 
 		self.layout_main.addWidget(self.status_bar)
 
 		self.layout_content.addLayout(self.boxlayout_right, 0)
 		self.setLayout(self.layout_main)
-
-
-		self.jobsManager.after_execute.append(self.plot)
 
 		#self.plot()
 		FigureCanvas.setSizePolicy(self,
@@ -472,7 +465,7 @@ class PlotDialog(QtGui.QWidget):
 			for i in range(self.dimensions):
 				if ranges[i] is None and first_layer.ranges_grid[i] is not None:
 					ranges[i] = copy.copy(first_layer.ranges_grid[i])
-		layer = vaex.ui.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.jobsManager, self.pool, self.fig, self.canvas, ranges)
+		layer = vaex.ui.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.pool, self.fig, self.canvas, ranges)
 		self.layers.append(layer)
 		layer.build_widget_qt(self.widget_layer_stack) # layer.widget is the widget build
 		self.widget_layer_stack.addWidget(layer.widget)
@@ -567,10 +560,15 @@ class PlotDialog(QtGui.QWidget):
 		# disconnect this event, otherwise we get an update/redraw for nothing
 		# since closing a dialog causes this event to fire otherwise
 		#self.parent_widget.plot_dialogs.remove(self)
+
+		self.dataset.executor.signal_begin.disconnect(self._begin_signal)
+		self.dataset.executor.signal_progress.disconnect(self._progress_signal)
+		self.dataset.executor.signal_end.disconnect(self._end_signal)
+		self.dataset.executor.signal_cancel.disconnect(self._cancel_signal)
+
 		self.pool.close()
 		for layer in self.layers:
 			layer.removed()
-		self.jobsManager.after_execute.remove(self.plot)
 		for plugin in self.plugins:
 			plugin.clean_up()
 		super(PlotDialog, self).closeEvent(event)
@@ -1449,7 +1447,7 @@ class PlotDialog(QtGui.QWidget):
 		if layer:
 			layer.show_disjoined = self.action_disjoin.isChecked()
 			layer.calculate_amplitudes()
-			logger.debug("show_disjoined = %r" % layer.sh)
+			logger.debug("show_disjoined = %r" % layer.show_disjoined)
 			self.queue_replot()
 
 
@@ -1995,8 +1993,8 @@ class PlotDialog(QtGui.QWidget):
 class HistogramPlotDialog(PlotDialog):
 	type_name = "histogram"
 	#names = "histogram,1d"
-	def __init__(self, parent, jobsManager, dataset, app, **kwargs):
-		super(HistogramPlotDialog, self).__init__(parent, jobsManager, dataset, 1, ["X"], app, **kwargs)
+	def __init__(self, parent, dataset, app, **kwargs):
+		super(HistogramPlotDialog, self).__init__(parent, dataset, 1, ["X"], app, **kwargs)
 
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)
@@ -2091,8 +2089,8 @@ class HistogramPlotDialog(PlotDialog):
 class ScatterPlotDialog(PlotDialog):
 	type_name = "density2d"
 	#names = "heatmap,density2d,2d"
-	def __init__(self, parent, jobsManager, dataset, app, **options):
-		super(ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, 2, "X Y".split(), app, **options)
+	def __init__(self, parent, dataset, app, **options):
+		super(ScatterPlotDialog, self).__init__(parent, dataset, 2, "X Y".split(), app, **options)
 
 
 
@@ -2319,8 +2317,8 @@ class ScatterPlotDialog(PlotDialog):
 
 
 class ScatterPlotMatrixDialog(PlotDialog):
-	def __init__(self, parent, jobsManager, dataset, expressions):
-		super(ScatterPlotMatrixDialog, self).__init__(parent, jobsManager, dataset, list(expressions), "X Y Z W V U T S R Q P".split()[:len(expressions)])
+	def __init__(self, parent, dataset, expressions):
+		super(ScatterPlotMatrixDialog, self).__init__(parent, dataset, list(expressions), "X Y Z W V U T S R Q P".split()[:len(expressions)])
 
 	def getAxesList(self):
 		return reduce(lambda x,y: x + y, self.axes_grid, [])
@@ -2570,8 +2568,8 @@ def timelog(msg, reset=False):
 class VolumeRenderingPlotDialog(PlotDialog):
 	type_name = "volumerendering"
 	#names = "volumerendering,3d"
-	def __init__(self, parent, jobsManager, dataset, **options):
-		super(VolumeRenderingPlotDialog, self).__init__(parent, jobsManager, dataset, 3, "X Y Z".split(), **options)
+	def __init__(self, parent, dataset, **options):
+		super(VolumeRenderingPlotDialog, self).__init__(parent, dataset, 3, "X Y Z".split(), **options)
 		#[xname, yname, zname]
 
 	def closeEvent(self, event):
@@ -2901,11 +2899,11 @@ class VolumeRenderingPlotDialog(PlotDialog):
 
 class Rank1ScatterPlotDialog(ScatterPlotDialog):
 	type_name = "sequence-density2d"
-	def __init__(self, parent, jobsManager, dataset, xname=None, yname=None):
+	def __init__(self, parent, dataset, xname=None, yname=None):
 		self.nSlices = dataset.rank1s[list(dataset.rank1s.keys())[0]].shape[0]
 		self.serieIndex = dataset.selected_serie_index if dataset.selected_serie_index is not None else 0
 		self.record_frames = False
-		super(Rank1ScatterPlotDialog, self).__init__(parent, jobsManager, dataset, xname, yname)
+		super(Rank1ScatterPlotDialog, self).__init__(parent, dataset, xname, yname)
 
 	def getTitleExpressionList(self):
 		#return []
@@ -3144,12 +3142,15 @@ class Queue(object):
 		self.name = name
 		self.default_delay = default_delay
 		self.counter = 0
-		self.counter_processed = -1
+		self.counter_processed = 0
 		self.default_callable = default_callable
 		self.pre = pre
 
 	def is_empty(self):
-		return (self.counter_processed == self.counter-1)
+		return (self.counter_processed == self.counter)
+
+	def in_queue(self, minimum=1):
+		return (self.counter_processed <= (self.counter - minimum))
 
 
 	def _wait(self, sleep=10):

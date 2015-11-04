@@ -17,6 +17,7 @@ import cookielib
 from tornado.httpclient import AsyncHTTPClient, HTTPClient
 import tornado.httputil
 from tornado.concurrent import Future
+from tornado import gen
 
 logger = logging.getLogger("vaex.remote")
 
@@ -80,6 +81,7 @@ class ServerRest(object):
 			#self.io_loop.make_current()
 			#print "starting"
 			logger.debug("started tornado io_loop...")
+
 			self.io_loop.start()
 			logger.debug("stopped tornado io_loop")
 
@@ -115,8 +117,13 @@ class ServerRest(object):
 			headers.add("Cookie", "user_id=%s" % self.user_id)
 			logger.debug("adding user_id %s to request", self.user_id)
 		if async:
-			future = self.http_client_async.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
-			return wrap_future_with_promise(future).then(transform).then(self._move_to_thread)
+			# tornado doesn't like that we call fetch while ioloop is running in another thread, we should use ioloop.add_callbacl
+			promise = vaex.promise.Promise()
+			def do():
+				future = self.http_client_async.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
+				promise.fulfill(wrap_future_with_promise(future).then(transform).then(self._move_to_thread))
+			self.io_loop.add_callback(do)
+			return promise
 		else:
 			return transform(self.http_client.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs))
 
@@ -252,9 +259,12 @@ class ServerRest(object):
 		#def do(value):
 		#	return value
 		#promise.then(do)
-		logger.debug("the other thread should fulfil the result to this promise")
-		self.thread_mover(promise, result)
-		return promise
+		if self.thread_mover:
+			logger.debug("the other thread should fulfil the result to this promise")
+			self.thread_mover(promise, result)
+			return promise
+		else:
+			return result
 
 
 	def select(self, dataset, dataset_name, boolean_expression, mode, async=False, **kwargs):
@@ -285,6 +295,18 @@ class ServerRest(object):
 		body = urlencode(post_data)
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
+
+	def call(self, method_name, arg, async, **kwargs):
+		def wrap(result):
+			result = self._check_exception(json.loads(result.body))["result"]
+			try:
+				return np.array(result)
+			except ValueError:
+				return result
+		url = self._build_url("%s/%s" % (method_name, arg))
+		post_data = {key:json.dumps(self._to_json_compatible(value)) for key, value in dict(kwargs).items()}
+		body = urlencode(post_data)
+		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 
 	def _to_json_compatible(self, obj):
 		if hasattr(obj, "tolist"):
@@ -317,6 +339,9 @@ class SubspaceRemote(Subspace):
 			return promise
 		else:
 			return promise
+
+	def sleep(self, seconds, async=False):
+		return self.dataset.server.call("sleep", seconds, async=async)
 
 	def minmax(self):
 		return self._promise(self.dataset.server.minmax(self, self.dataset.name, self.expressions, async=self.async, selection_name=self.get_selection_name()))
