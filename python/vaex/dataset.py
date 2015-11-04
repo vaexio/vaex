@@ -953,6 +953,20 @@ class DatasetLocal(Dataset):
 
 	def is_local(self): return True
 
+	def byte_size(self, selection=False):
+		bytes_per_row = 0
+		for column in list(self.columns.values()):
+			dtype = column.dtype
+			bytes_per_row += dtype.itemsize
+		return bytes_per_row * self.length(selection=selection)
+
+
+	def length(self, selection=False):
+		if selection:
+			return 0 if self.mask is None else np.sum(self.mask)
+		else:
+			return len(self)
+
 	def __call__(self, *expressions, **kwargs):
 		return SubspaceLocal(self, expressions, self.executor, async=kwargs.get("async", False))
 
@@ -1154,13 +1168,7 @@ class DatasetArrays(DatasetLocal):
 
 
 class DatasetMemoryMapped(DatasetLocal):
-	def _byte_size(self, selection=False):
-		bytes_per_row = 0
-		for column in list(self.columns.values()):
-			dtype = column.dtype
-			bytes_per_row += dtype.itemsize
-		return bytes_per_row * self.length(selection=selection)
-		
+
 		
 	# nommap is a hack to get in memory datasets working
 	def __init__(self, filename, write=False, nommap=False, name=None):
