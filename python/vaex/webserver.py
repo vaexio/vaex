@@ -118,7 +118,7 @@ class ListHandler(tornado.web.RequestHandler):
 										logger.debug("taking selected")
 										subspace = subspace.selected()
 							logger.debug("subspace: %r", subspace)
-							if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest"]:
+							if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest", "correlation"]:
 								#print "expressions", expressions
 								values = task_invoke(subspace, method_name, self.request)
 								logger.debug("result: %r", values)

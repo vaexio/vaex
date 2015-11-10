@@ -219,7 +219,7 @@ class ServerRest(object):
 			except ValueError:
 				return result
 		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
-		post_data = {key:json.dumps(value) for key, value in list(dict(kwargs).items())}
+		post_data = {key:json.dumps(value.tolist() if hasattr(value, "tolist") else value) for key, value in list(dict(kwargs).items())}
 		post_data["masked"] = json.dumps(subspace.is_masked)
 		post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
 		post_data.update(dict(expressions=json.dumps(expressions)))
@@ -357,6 +357,9 @@ class SubspaceRemote(Subspace):
 
 	def mean(self):
 		return self.dataset.server.mean(self, self.dataset.name, self.expressions, async=self.async, selection_name=self.get_selection_name())
+
+	def correlation(self, means, vars):
+		return self.dataset.server._simple(self, self.dataset.name, self.expressions, "correlation", means=means, vars=vars, async=self.async, selection_name=self.get_selection_name())
 
 	def var(self, means=None):
 		return self.dataset.server.var(self, self.dataset.name, self.expressions, means=means, async=self.async, selection_name=self.get_selection_name())

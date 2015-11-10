@@ -21,6 +21,7 @@ import multiprocessing
 import sys
 import collections
 lock = threading.Lock()
+import vaex.multithreading
 
 import vaex.logging
 logger = vaex.logging.getLogger("vaex.execution")
@@ -49,8 +50,8 @@ class Job(object):
 ne_lock = threading.Lock()
 
 class Executor(object):
-	def __init__(self, thread_pool):
-		self.thread_pool = thread_pool
+	def __init__(self, thread_pool=None):
+		self.thread_pool = thread_pool or vaex.multithreading.ThreadPoolIndex()
 		self.task_queue = []
 		self.signal_begin = vaex.events.Signal("begin")
 		self.signal_progress = vaex.events.Signal("progress")
@@ -101,7 +102,7 @@ class Executor(object):
 					for task in task_queue:
 						blocks = [block_dict[expression] for expression in task.expressions_all]
 						task._results.append(task.map(thread_index, i1, i2, *blocks))
-						time.sleep(0.1)
+						#time.sleep(0.1)
 
 				length = len(dataset)
 				#print self.thread_pool.map()

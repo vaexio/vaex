@@ -2,6 +2,7 @@ from __future__ import print_function
 # -*- coding: utf-8 -*-
 import math
 import collections
+import time
 
 try:
 	from PyQt4 import QtGui, QtCore, QtTest #, QtNetwork
@@ -32,10 +33,39 @@ def attrgetter(object, attr_name):
 	return getter
 
 class ProgressExecution(object):
-	def __init__(self, parent, title, cancel_text="Cancel"):
+	def __init__(self, parent, title, cancel_text="Cancel", executor=None):
 		self.parent = parent
 		self.title = title
 		self.cancel_text = cancel_text
+		self.executor = executor
+		if self.executor:
+			def begin():
+				self.time_begin = time.time()
+				#self.progress_bar.setValue(0)
+				self.cancelled = False
+				#self.button_cancel.setEnabled(True)
+			def end():
+				#self.progress_bar.setValue(1000)
+				self.cancelled = False
+				#self.button_cancel.setEnabled(False)
+				time_total = time.time() - self.time_begin
+				#self.label_time.setText("%.2fs" % time_total)
+			def progress(fraction):
+				#self.progress_bar.setValue(fraction*1000)
+				#QtCore.QCoreApplication.instance().processEvents()
+				#logger.debug("queue: %r %r", self.queue_update.counter, self.queue_update.counter_processed)
+				#return (not self.cancelled) and (not self.queue_update.in_queue(2))
+				return not self.progress(fraction*100)
+			def cancel():
+				#self.progress_bar.setValue(0)
+				#self.button_cancel.setEnabled(False)
+				#self.label_time.setText("cancelled")
+				pass
+
+			self._begin_signal = self.executor.signal_begin.connect(begin)
+			self._progress_signal = self.executor.signal_progress.connect(progress)
+			self._end_signal = self.executor.signal_end.connect(end)
+			self._cancel_signal = self.executor.signal_cancel.connect(cancel)
 
 	def __enter__(self):
 		self.dialog = QtGui.QProgressDialog(self.title, self.cancel_text, 0, 1000, self.parent)
@@ -62,7 +92,11 @@ class ProgressExecution(object):
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
 		self.dialog.hide()
-		pass
+		if self.executor:
+			self.executor.signal_begin.disconnect(self._begin_signal)
+			self.executor.signal_progress.disconnect(self._progress_signal)
+			self.executor.signal_end.disconnect(self._end_signal)
+			self.executor.signal_cancel.disconnect(self._cancel_signal)
 
 class FakeProgressExecution(object):
 	def __init__(self, *args):

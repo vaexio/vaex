@@ -550,6 +550,42 @@ class SubspaceLocal(Subspace):
 			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, remove_counts)
 		return self._task(task)
 
+	def correlation(self, means, vars):
+		if self.dimension != 2:
+			raise ValueError("correlation is only defined for 2d subspaces, not %dd" % self.dimension)
+
+		meanx, meany = means
+		sigmax, sigmay = vars[0]**0.5, vars[1]**0.5
+
+		def remove_counts_and_normalize(covar_and_count):
+			covar, counts = covar_and_count
+			return covar/counts / (sigmax * sigmay)
+
+		def covars_reduce(covar_and_count1, covar_and_count2):
+			if covar_and_count1 is None:
+				return covar_and_count2
+			if covar_and_count2 is None:
+				return covar_and_count1
+			else:
+				covar1, count1 = covar_and_count1
+				covar2, count2 = covar_and_count2
+				return [np.nansum([covar1, covar2]), count1+count2]
+
+		mask = self.dataset.mask
+		def covar_map(thread_index, i1, i2, *blocks):
+			#return [(np.nanmean((block[mask[i1:i2]]-mean)**2), np.count_nonzero(~np.isnan(block[mask[i1:i2]]))) for block, mean in zip(blocks, means)]
+			blockx, blocky = blocks
+			if self.is_masked:
+				blockx, blocky = blockx[mask[i1:i2]], blocky[mask[i1:i2]]
+			counts = np.count_nonzero( ~(np.isnan(blockx) | np.isnan(blocky)) )
+			if counts == 0:
+				return None
+			else:
+				return np.nansum((blockx - meanx) * (blocky - meany)), counts
+
+		task = TaskMapReduce(self.dataset, self.expressions, covar_map, covars_reduce, remove_counts_and_normalize, info=True)
+		return self._task(task)
+
 	def sum(self):
 		if self.is_masked:
 			mask = self.dataset.mask
@@ -968,7 +1004,7 @@ class DatasetLocal(Dataset):
 			return len(self)
 
 	def __call__(self, *expressions, **kwargs):
-		return SubspaceLocal(self, expressions, self.executor, async=kwargs.get("async", False))
+		return SubspaceLocal(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
 
 	def concat(self, other):
 		datasets = []
@@ -1111,9 +1147,9 @@ class _ColumnConcatenatedLazy(object):
 			#	break
 		# this is the fast path, no copy needed
 		if stop <= offset + len(current_dataset):
-			return current_dataset.columns[self.column_name][start-offset:stop-offset]
+			return current_dataset.columns[self.column_name][start-offset:stop-offset].astype(self.dtype)
 		else:
-			copy = np.zeros(stop-start, dtype=current_dataset.columns[self.column_name][0:1].dtype)
+			copy = np.zeros(stop-start, dtype=self.dtype)
 			copy_offset = 0
 			#print "!!>", start, stop, offset, len(current_dataset), current_dataset.columns[self.column_name]
 			while offset < stop: #> offset + len(current_dataset):
