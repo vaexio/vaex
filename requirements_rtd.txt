@@ -9,3 +9,4 @@ aplus
 tornado==4.1
 futures==2.2.0
 jupyter
+layeredconfig

@@ -16,5 +16,5 @@ futures==2.2.0
 future
 jupyter
 pyyaml
-
+layeredconfig
 # sphinxcontrib-googleanalytics # for building the docs
