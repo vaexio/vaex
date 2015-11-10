@@ -10,6 +10,8 @@ import vaex.export
 import vaex.utils
 import vaex.promise
 
+import vaex.ui.qt as dialogs
+
 # py2/p3 compatibility
 try:
 	from urllib.parse import urlparse
@@ -179,7 +181,8 @@ class DatasetSelector(QtGui.QListWidget):
 		item = QtGui.QListWidgetItem(self)
 		item.setText(dataset.name)
 		item.setIcon(self.icon_server if isinstance(dataset, vaex.dataset.DatasetRemote) else self.icon)
-		item.setToolTip("file: " +dataset.filename)
+		if hasattr(dataset, "filename"):
+			item.setToolTip("file: " +dataset.filename)
 		item.setData(QtCore.Qt.UserRole, dataset)
 		self.setCurrentItem(item)
 		self.signal_add_dataset.emit(dataset)
@@ -1222,71 +1225,58 @@ class VaexApp(QtGui.QMainWindow):
 		options = ["All: %r records, filesize: %r" % (len(dataset), vaex.utils.filesize_format(dataset.byte_size())) ]
 		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), vaex.utils.filesize_format(dataset.byte_size(selection=True))) ]
 
-		index = choose(self, "What do you want to export?", "Choose what to export:", options)
+		index = dialogs.choose(self, "What do you want to export?", "Choose what to export:", options)
 		if index is None:
 			return
 		export_selection = index == 1
+		logger.debug("export selection: %r", export_selection)
 
 
 		#select_many(None, "lala", ["aap", "noot"] + ["item-%d-%s" % (k, "-" * k) for k in range(30)])
-		ok, columns_mask = select_many(self, "Select columns", dataset.get_column_names())
+		ok, columns_mask = dialogs.select_many(self, "Select columns", dataset.get_column_names())
 		if not ok: # cancel
 			return
 
 		selected_column_names = [column_name for column_name, selected in zip(dataset.get_column_names(), columns_mask) if selected]
+		logger.debug("export column names: %r", selected_column_names)
 
-		shuffle = dialog_confirm(self, "Shuffle?", "Do you want the dataset to be shuffled (output the rows in random order)")
+		shuffle = dialogs.dialog_confirm(self, "Shuffle?", "Do you want the dataset to be shuffled (output the rows in random order)")
+		logger.debug("export shuffled: %r", shuffle)
 		if shuffle and dataset.full_length() != len(dataset):
-			dialog_info(self, "Shuffle", "You selected shuffling while not exporting the full dataset, will select random rows from the full dataset")
+			dialogs.dialog_info(self, "Shuffle", "You selected shuffling while not exporting the full dataset, will select random rows from the full dataset")
 			partial_shuffle = True
 		else:
 			partial_shuffle = False
 
 		if export_selection and shuffle:
-			dialog_info(self, "Shuffle", "Shuffling with selection not supported")
+			dialogs.dialog_info(self, "Shuffle", "Shuffling with selection not supported")
 			return
 
 		if type == "hdf5":
 			endian_options = ["Native", "Little endian", "Big endian"]
-			index = choose(self, "Which endianness", "Which endianness / byte order:", endian_options)
+			index = dialogs.choose(self, "Which endianness", "Which endianness / byte order:", endian_options)
 			if index is None:
 				return
 			endian_option = ["=", "<", ">"][index]
+			logger.debug("export endian: %r", endian_option)
 
 
 		if type == "hdf5":
-			filename = QtGui.QFileDialog.getSaveFileName(self, "Save to HDF5", name, "HDF5 *.hdf5")
-			if isinstance(filename, tuple):
-				filename = str(filename[0])#]
+			filename = dialogs.get_path_save(self, "Save to HDF5", name, "HDF5 *.hdf5")
 		else:
-			filename = QtGui.QFileDialog.getSaveFileName(self, "Save to col-fits", name, "FITS (*.fits)")
-			if isinstance(filename, tuple):
-				filename = str(filename[0])#]
+			filename = dialogs.get_path_save(self, "Save to col-fits", name, "FITS (*.fits)")
+		logger.debug("export to file: %r", filename)
 		#print args
 		filename = str(filename)
 		if not filename.endswith("."+type):
 			filename += "." + type
 		if filename:
-			progress_dialog = QtGui.QProgressDialog("Copying data...", "Abort export", 0, 1000, self);
-			progress_dialog.setWindowModality(QtCore.Qt.WindowModal);
-			progress_dialog.setMinimumDuration(0)
-			progress_dialog.setAutoClose(False)
-			progress_dialog.setAutoReset(False)
-			progress_dialog.show()
-			QtCore.QCoreApplication.instance().processEvents()
-			def progress(fraction):
-				progress_dialog.setValue(int(fraction*1000))
-				QtCore.QCoreApplication.instance().processEvents()
-				if progress_dialog.wasCanceled():
-					dialog_info(self, "Cancel", "Export cancelled")
-					return False
-				return True
-
-			if type == "hdf5":
-				vaex.export.export_hdf5(dataset, filename, column_names=selected_column_names, shuffle=shuffle, selection=export_selection, byteorder=endian_option, progress=progress)
-			if type == "fits":
-				vaex.export.export_fits(dataset, filename, column_names=selected_column_names, shuffle=shuffle, selection=export_selection, progress=progress)
-			progress_dialog.hide()
+			with dialogs.ProgressExecution(self, "Copying data...", "Abort export") as progress_dialog:
+				if type == "hdf5":
+					vaex.export.export_hdf5(dataset, filename, column_names=selected_column_names, shuffle=shuffle, selection=export_selection, byteorder=endian_option, progress=progress_dialog.progress)
+				if type == "fits":
+					vaex.export.export_fits(dataset, filename, column_names=selected_column_names, shuffle=shuffle, selection=export_selection, progress=progress_dialog.progress)
+		logger.debug("export done")
 
 	def gadgethdf5(self, filename):
 		logger.debug("open gadget hdf5: %r" , filename)

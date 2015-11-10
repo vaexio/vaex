@@ -16,6 +16,7 @@ import vaex.grids
 from vaex.ui.icons import iconfile
 import vaex.utils
 import vaex.promise
+import vaex.ui.qt as dialogs
 
 __author__ = 'maartenbreddels'
 
@@ -1699,7 +1700,7 @@ class LayerTable(object):
 				expressions.extend(stored["options"]["expressions"])
 			for column in self.dataset.get_column_names():
 				expressions.append("%s < 0" % column)
-			expression = choose(self.plot_window, "Give expression", "Expression for selection: ", expressions, 0, True)
+			expression = dialogs.choose(self.plot_window, "Give expression", "Expression for selection: ", expressions, 0, True)
 			if expression:
 				expression = str(expression)
 				if expression not in expressions:

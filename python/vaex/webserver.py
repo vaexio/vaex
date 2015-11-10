@@ -10,6 +10,10 @@ from . import logging
 import vaex as vx
 import json
 import inspect
+import layeredconfig
+import yaml
+import argparse
+import os
 
 logger = logging.getLogger("vaex.webserver")
 
@@ -208,18 +212,39 @@ class WebServer(threading.Thread):
 		#self.ioloop.stop()
 		self.ioloop.clear_current()
 
+defaults_yaml = """
+address: 0.0.0.0
+port: 9002
+filenames: []
+verbose: 2
+"""
 if __name__ == "__main__":
 	#logger.setLevel(logging.logging.DEBUG)
-	import vaex
-	vaex.set_log_level_debug()
-	import sys
+
+	defaults = layeredconfig.Defaults(yaml.load(defaults_yaml))
+	env = layeredconfig.Environment(os.environ, prefix="VAEX_WEBSERVER_")
+	default_config = layeredconfig.LayeredConfig(defaults, env)
+	parser = argparse.ArgumentParser("python -m vaex.webserver")
+	parser.add_argument("filename", help="filename for dataset", nargs='*')
+	parser.add_argument("--address", help="address to bind the server to (default: %(default)s)", default=default_config.address)
+	parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=default_config.port)
+	parser.add_argument('--verbose', '-v', action='count')
+	config = layeredconfig.LayeredConfig(defaults, layeredconfig.Commandline(parser=parser), env)
+
+	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
+	logging.getLogger("vaex").setLevel(verbosity[config.verbose])
+	#import vaex
+	#vaex.set_log_level_debug()
 	from vaex.settings import webserver as settings
-	filenames = settings.get("datasets.filenames", [])
-	filenames += sys.argv[1:]
-	print filenames
+
+	filenames = config.filenames
+	filenames += config.filename
 	datasets = [vx.open(filename) for filename in filenames]
 	datasets = datasets or [vx.example()]
-	server = WebServer(datasets=datasets, address=settings.get("server.address", "0.0.0.0"), port=settings.get("server.port", 9000))
+	logger.info("datasets:")
+	for dataset in datasets:
+		logger.info("\thttp://%s:%d/%s", config.address, config.port, dataset.name)
+	server = WebServer(datasets=datasets, address=config.address, port=config.port)
 	server.serve()
 
 	#3_threaded()

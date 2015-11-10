@@ -1,24 +1,26 @@
 __author__ = 'maartenbreddels'
 import unittest
 import os
+import tempfile
+import logging
+import numpy as np
+import PIL.Image
+import PIL.ImageChops
 
 import vaex as vx
-import logging
-#vx.set_log_level_debug()
-
 import vaex.ui
 import vaex.ui.main
 import vaex.ui.layers
 import vaex.utils
-
-import PIL.Image
-import PIL.ImageChops
-
+import vaex.dataset
 import vaex.execution
+from vaex.ui.qt import QtGui, QtCore, QtTest
+
+import vaex.ui.qt as dialogs
+
 # this will trigger more code, such as the canceling in between computation
 vaex.execution.buffer_size = 10000
-
-from vaex.ui.qt import QtGui, QtCore, QtTest
+#vx.set_log_level_debug()
 
 example_path = vaex.utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5")
 vaex.ui.hidden = True
@@ -35,7 +37,28 @@ vx.set_log_level_warning()
 #vx.set_log_level_debug()
 
 
-class TestUiCreation(unittest.TestCase):
+class CallCounter(object):
+	def __init__(self, return_value=None):
+		self.counter = 0
+		self.return_value = return_value
+
+	def __call__(self, *args, **kwargs):
+		self.counter += 1
+		return self.return_value
+
+class TestMain(unittest.TestCase):
+	def setUp(self):
+		self.dataset = vaex.dataset.DatasetArrays("dataset")
+
+		self.x = x = np.arange(10)
+		self.y = y = x ** 2
+		self.dataset.add_column("x", x)
+		self.dataset.add_column("y", y)
+		self.dataset.set_variable("t", 1.)
+		self.dataset.add_virtual_column("z", "x+t*y")
+
+		self.app = vx.ui.main.VaexApp()
+
 	def test_default(self):
 		app = vx.ui.main.VaexApp(open_default=False)
 		self.assert_(app.dataset_selector.is_empty())
@@ -59,6 +82,61 @@ class TestUiCreation(unittest.TestCase):
 		self.assert_(not app.dataset_selector.is_empty())
 		self.assertEqual(int(app.dataset_panel.label_length.text().replace(",", "")), len(ds))
 		self.assertEqual(ds, app.current_dataset)
+
+	def test_export(self):
+		path_hdf5 = tempfile.mktemp(".hdf5")
+		path_hdf5_ui = tempfile.mktemp(".hdf5")
+		path_fits = tempfile.mktemp(".fits")
+		path_fits_ui = tempfile.mktemp(".fits")
+
+		for dataset in [self.dataset]:
+			self.app.dataset_selector.add(dataset)
+			for fraction in [1, 0.5]:
+				dataset.set_active_fraction(fraction)
+				dataset.select("x > 3")
+				length = len(dataset)
+				# TODO: gui doesn't export virtual columns, add "z" to this list
+				for column_names in [["x", "y"], ["x"], ["y"]]:
+					for byteorder in "=<>":
+						for shuffle in [False, True]:
+							for selection in [False, True]:
+								for export in [dataset.export_fits, dataset.export_hdf5] if byteorder == ">" else [dataset.export_hdf5]:
+									type = "hdf5" if export == dataset.export_hdf5 else "fits"
+									if shuffle and selection:
+										continue # TODO: export should fail on this combination
+									#print column_names, byteorder, shuffle, selection, type
+									if export == dataset.export_hdf5:
+										path = path_hdf5
+										path_ui = path_hdf5_ui
+										export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection)
+									else:
+										path = path_fits
+										path_ui = path_fits_ui
+										export(path, column_names=column_names, shuffle=shuffle, selection=selection)
+									compare_direct = vx.open(path)
+
+									dialogs.set_choose(1 if selection else 0).then("=<>".index(byteorder))
+									# select columns
+									dialogs.set_select_many(True, [name in column_names for name in dataset.get_column_names()])
+									counter_confirm = CallCounter(return_value=shuffle)
+									counter_info = CallCounter()
+									dialogs.dialog_confirm = counter_confirm
+									dialogs.dialog_info = counter_info
+									dialogs.get_path_save = lambda *args: path_ui
+									dialogs.ProgressExecution = dialogs.FakeProgressExecution
+									import sys
+									sys.stdout.flush()
+
+									self.app.export(type=type)
+									compare_ui = vx.open(path_ui)
+
+									column_names = column_names or ["x", "y", "z"]
+									self.assertEqual(compare_direct.get_column_names(), compare_ui.get_column_names())
+									for column_name in column_names:
+										values_ui = compare_ui.evaluate(column_name)
+										values = compare_direct.evaluate(column_name)
+										self.assertEqual(sorted(values), sorted(values_ui))
+
 
 class TestPlotPanel(unittest.TestCase):
 	def setUp(self):

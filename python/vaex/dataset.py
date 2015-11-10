@@ -971,7 +971,16 @@ class DatasetLocal(Dataset):
 		return SubspaceLocal(self, expressions, self.executor, async=kwargs.get("async", False))
 
 	def concat(self, other):
-		return DatasetConcatenated([self, other])
+		datasets = []
+		if isinstance(self, DatasetConcatenated):
+			datasets.extend(self.datasets)
+		else:
+			datasets.extend([self])
+		if isinstance(other, DatasetConcatenated):
+			datasets.extend(other.datasets)
+		else:
+			datasets.extend([other])
+		return DatasetConcatenated(datasets)
 
 	def evaluate(self, expression, i1=None, i2=None, out=None):
 		i1 = i1 or 0
@@ -1070,11 +1079,15 @@ class _ColumnConcatenatedLazy(object):
 	def __init__(self, datasets, column_name):
 		self.datasets = datasets
 		self.column_name = column_name
-		self.dtype = self.datasets[0].columns[self.column_name].dtype
-		#print len(self)
-		#print self.datasets[0].columns[self.column_name].shape[1:]
+		dtypes = [dataset.columns[self.column_name].dtype for dataset in datasets]
+		self.dtype = np.find_common_type(dtypes, [])
 		self.shape = (len(self), ) + self.datasets[0].columns[self.column_name].shape[1:]
-		#print self.shape
+		for i in range(1, len(datasets)):
+			c0 = self.datasets[0].columns[self.column_name]
+			ci = self.datasets[i].columns[self.column_name]
+			if c0.shape[1:] != ci.shape[1:]:
+				raise ValueError("shape of of column %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.column_name, c0.shape, i, ci.shape))
+
 	def __len__(self):
 		return sum(len(ds) for ds in self.datasets)
 
@@ -1139,13 +1152,6 @@ class DatasetConcatenated(DatasetLocal):
 
 		self._full_length = sum(ds.full_length() for ds in self.datasets)
 		self._length = self.full_length()
-
-
-
-	def concat(self, other):
-		datasets = list(self.datasets) + [other]
-		return DatasetConcatenated(datasets)
-
 
 class DatasetArrays(DatasetLocal):
 	def __init__(self, name="arrays"):
@@ -1509,15 +1515,23 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 	def can_open(cls, path, *args, **kwargs):
 		h5file = None
 		try:
-			h5file = h5py.File(path, "r")
+			with open(path, "rb") as f:
+				signature = open(path, "rb").read(4)
+				hdf5file = signature == "\x89\x48\x44\x46"
 		except:
-			logger.exception("could not open file as hdf5")
-			return False
-		if h5file is not None:
-			with h5file:
-				return ("data" in h5file) or ("columns" in h5file)
-		else:
-			logger.debug("file %s has no data or columns group" % path)
+			logger.error("could not read 4 bytes from %r", path)
+			return
+		if hdf5file:
+			try:
+				h5file = h5py.File(path, "r")
+			except:
+				logger.exception("could not open file as hdf5")
+				return False
+			if h5file is not None:
+				with h5file:
+					return ("data" in h5file) or ("columns" in h5file)
+			else:
+				logger.debug("file %s has no data or columns group" % path)
 		return False
 			
 	

@@ -32,12 +32,13 @@ def attrgetter(object, attr_name):
 	return getter
 
 class ProgressExecution(object):
-	def __init__(self, title, parent):
-		self.title = title
+	def __init__(self, parent, title, cancel_text="Cancel"):
 		self.parent = parent
+		self.title = title
+		self.cancel_text = cancel_text
 
 	def __enter__(self):
-		self.dialog = QtGui.QProgressDialog(self.title, "Cancel", 0, 1000, self.parent)
+		self.dialog = QtGui.QProgressDialog(self.title, self.cancel_text, 0, 1000, self.parent)
 		#self.dialog.show()
 		self.dialog.setWindowModality(QtCore.Qt.WindowModal)
 		self.dialog.setMinimumDuration(0)
@@ -55,7 +56,7 @@ class ProgressExecution(object):
 		#self.dialog.repaint()
 		#print "progress", `percentage`, type(percentage), int(percentage*10)
 		#QtCore.QCoreApplication.instance().processEvents()
-		return self.dialog.wasCanceled()
+		return not self.dialog.wasCanceled()
 		#return False
 			#raise RuntimeError("progress cancelled")
 
@@ -63,7 +64,15 @@ class ProgressExecution(object):
 		self.dialog.hide()
 		pass
 
-
+class FakeProgressExecution(object):
+	def __init__(self, *args):
+		pass
+	def __enter__(self):
+		return self
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		pass
+	def progress(self, percentage):
+		return True
 
 class Codeline(object):
 	def __init__(self, parent, label, options, getter, setter, update=lambda: None):
@@ -222,13 +231,27 @@ def gettext(parent, title, label, default=""):
 	text, ok = QtGui.QInputDialog.getText(parent, title, label, QtGui.QLineEdit.Normal, default)
 	return str(text) if ok else None
 
+class Thenner(object):
+	def __init__(self, callback):
+		self.callback = callback
+		self.thennable = False
+	def then(self, *args, **kwargs):
+		self.thennable = True
+		self.args = args
+		self.kwargs = kwargs
 
-def set_choose(text, ok=True):
-	def callback(*args):
-		QtGui.QInputDialog.getItem = previous_value
-		return text, ok
-	previous_value = QtGui.QInputDialog_getItem
-	QtGui.QInputDialog_getItem = callback
+	def do(self):
+		if self.thennable:
+			self.callback(*self.args, **self.kwargs)
+
+def set_choose(value, ok=None):
+	global choose
+	thenner = Thenner(set_choose)
+	def wrapper(*args):
+		thenner.do()
+		return value# if ok is None else (value, ok)
+	choose = wrapper
+	return thenner
 QtGui.QInputDialog_getItem = QtGui.QInputDialog.getItem
 def choose(parent, title, label, options, index=0, editable=False):
 	text, ok = QtGui.QInputDialog_getItem(parent, title, label, options, index, editable)
@@ -237,6 +260,11 @@ def choose(parent, title, label, options, index=0, editable=False):
 	else:
 		return options.index(text) if ok else None
 
+def set_select_many(ok, mask):
+	global select_many
+	def wrapper(*args):
+		return ok, mask
+	select_many = wrapper
 def select_many(parent, title, options):
 	dialog = QtGui.QDialog(parent)
 	dialog.setWindowTitle(title)

@@ -53,7 +53,6 @@ class TestDataset(unittest.TestCase):
 		dataset2.add_column("x", x2)
 		dataset3.add_column("x", x3)
 		dataset3.add_column("y", x3**2)
-
 		self.dataset_concat = vx.dataset.DatasetConcatenated([dataset1, dataset2, dataset3], name="dataset_concat")
 
 		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset, self.dataset, self.dataset], name="dataset_concat_dup")
@@ -187,6 +186,65 @@ class TestDataset(unittest.TestCase):
 				b = self.x_concat[i1:i2]
 				#print a, b
 				np.testing.assert_array_almost_equal(a, b)
+
+		def concat(*types):
+			arrays = [np.arange(3, dtype=dtype) for dtype in types]
+			N = len(arrays)
+			datasets = [vx.dataset.DatasetArrays("dataset1") for i in range(N)]
+			for dataset, array in zip(datasets, arrays):
+				dataset.add_column("x", array)
+			dataset_concat = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
+			return dataset_concat
+
+		self.assertEqual(concat(np.float32, np.float64).columns["x"].dtype, np.float64)
+		self.assertEqual(concat(np.float32, np.int64).columns["x"].dtype, np.float64)
+		self.assertEqual(concat(np.float32, np.byte).columns["x"].dtype, np.float32)
+		self.assertEqual(concat(np.float64, np.byte, np.int64).columns["x"].dtype, np.float64)
+
+		ar1 = np.zeros((10, 2))
+		ar2 = np.zeros((20))
+		arrays = [ar1, ar2]
+		N = len(arrays)
+		datasets = [vx.dataset.DatasetArrays("dataset1") for i in range(N)]
+		for dataset, array in zip(datasets, arrays):
+			dataset.add_column("x", array)
+		with self.assertRaises(ValueError):
+			dataset_concat = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
+
+
+		ar1 = np.zeros((10))
+		ar2 = np.zeros((20))
+		arrays = [ar1, ar2]
+		N = len(arrays)
+		datasets = [vx.dataset.DatasetArrays("dataset1") for i in range(N)]
+		for dataset, array in zip(datasets, arrays):
+			dataset.add_column("x", array)
+		dataset_concat = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
+
+
+		dataset_concat1 = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
+		dataset_concat2 = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
+		self.assertEqual(len(dataset_concat1.concat(dataset_concat2).datasets), 4)
+		self.assertEqual(len(dataset_concat1.concat(datasets[0]).datasets), 3)
+		self.assertEqual(len(datasets[0].concat(dataset_concat1).datasets), 3)
+		self.assertEqual(len(datasets[0].concat(datasets[0]).datasets), 2)
+
+	def test_export_concat(self):
+		x1 = np.arange(1000, dtype=np.float32)
+		x2 = np.arange(100, dtype=np.float32)
+		self.x_concat = np.concatenate((x1, x2))
+
+		dataset1 = vx.dataset.DatasetArrays("dataset1")
+		dataset2 = vx.dataset.DatasetArrays("dataset2")
+		dataset1.add_column("x", x1)
+		dataset2.add_column("x", x2)
+
+		self.dataset_concat = vx.dataset.DatasetConcatenated([dataset1, dataset2], name="dataset_concat")
+
+		path_hdf5 = tempfile.mktemp(".hdf5")
+		print path_hdf5
+		self.dataset_concat.export_hdf5(path_hdf5)
+
 
 	def test_export(self):
 

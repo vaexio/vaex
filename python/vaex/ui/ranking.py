@@ -817,10 +817,10 @@ class RankDialog(QtGui.QDialog):
 		expressions = [pair[0] for pair in pairs]
 
 
-		with ProgressExecution("Calculating min/max", self) as progress:
+		with ProgressExecution(self, "Calculating min/max") as progress:
 			means = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=expressions, feedback=progress.progress)
 			print(("means", means))
-		with ProgressExecution("Calculating variances", self) as progress:
+		with ProgressExecution(self, "Calculating variances") as progress:
 			variance_expressions = ["(%s-%.20f)**2"  % (expression, mean) for expression, mean in zip(expressions, means)]
 			variances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=variance_expressions, feedback=progress.progress)
 			sigmas = np.sqrt(variances)
@@ -869,12 +869,12 @@ class RankDialog(QtGui.QDialog):
 				expressions.add(expression)
 		expressions = list(expressions)
 		print("means")
-		with ProgressExecution("Calculating means", self) as progress:
+		with ProgressExecution(self, "Calculating means") as progress:
 			means = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=expressions, feedback=progress.progress)
 		mean_map = dict(list(zip(expressions, means)))
 		centered_expressions_map = {expression: "(%s - %.20e)" % (expression, mean) for (expression, mean) in list(mean_map.items())}
 		variances_expressions_map = {expression: "%s**2" % centered_expressions for expression, centered_expressions in list(centered_expressions_map.items())}
-		with ProgressExecution("Calculating variances", self) as progress:
+		with ProgressExecution(self, "Calculating variances") as progress:
 			variances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=list(variances_expressions_map.values()), feedback=progress.progress)
 		variances_map = dict(list(zip(list(variances_expressions_map.keys()), variances)))
 
@@ -885,7 +885,7 @@ class RankDialog(QtGui.QDialog):
 			covariances_expressions.append(covariance_expression)
 
 		print(covariances_expressions)
-		with ProgressExecution("Calculating covariances", self) as progress:
+		with ProgressExecution(self, "Calculating covariances") as progress:
 			#progress.progress(20)
 			covariances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=covariances_expressions, feedback=progress.progress)
 			#progress.progress(20)
@@ -964,7 +964,7 @@ class RankDialog(QtGui.QDialog):
 				QtCore.QCoreApplication.instance().processEvents()
 				if dialog.wasCanceled():
 					return True
-		with ProgressExecution("Calculating Mutual information", self) as progress:
+		with ProgressExecution(self, "Calculating Mutual information") as progress:
 			qualities = vaex.kld.kld_shuffled_grouped(self.dataset, self.range_map, pairs, feedback=progress.progress, use_mask=self.radio_button_selection.isChecked())
 			#dialog.hide()
 		if qualities is not None:
