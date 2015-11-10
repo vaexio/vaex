@@ -57,7 +57,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 		vaex.vaexfast.shuffled_sequence(shuffle_array_memory)
 		shuffle_array[:] = shuffle_array_memory
 
-	i1, i2 = 0, N #len(dataset)
+	#i1, i2 = 0, N #len(dataset)
 	#print "creating shuffled array"
 	progress_total = len(column_names) * N
 	progress_value = 0
@@ -71,7 +71,9 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 				to_array = np.zeros_like(to_array_disk)
 			to_offset = 0 # we need this for selections
 			for i1, i2 in vaex.utils.subdivide(len(dataset_input), max_length=vaex.execution.buffer_size):
+				logger.debug("from %d to %d (total length: %d, output length: %d)", i1, i2, len(dataset_input), N)
 				block_scope.move(i1, i2)
+				#	block_scope.move(i1-i1, i2-i1)
 
 				values = block_scope.evaluate(column_name)
 

@@ -7,7 +7,8 @@ from vaex.ui.qt import *
 import vaex.dataset
 import vaex.ui.plot_windows
 import vaex.logging as logging
-
+import vaex.ui.qt as dialogs
+import vaex.execution
 logger = logging.getLogger("vaex.ranking")
 
 
@@ -789,7 +790,9 @@ class RankDialog(QtGui.QDialog):
 	def onCalculateMinMax(self):
 		pairs = self.table1d.getSelected()
 		logger.debug("estimate min/max for %r" % pairs)
-		jobsManager = vaex.dataset.JobsManager()
+		#jobsManager = vaex.dataset.JobsManager()
+		executor = vaex.execution.Executor()
+
 		expressions = [pair[0] for pair in pairs]
 		assert len(pairs[0]) == 1
 		self.range_map = {}
@@ -801,10 +804,21 @@ class RankDialog(QtGui.QDialog):
 			if dialog.wasCanceled():
 				return True
 		try:
-			ranges = jobsManager.find_min_max(self.dataset, expressions, use_mask=self.radio_button_selection.isChecked(), feedback=feedback)
-			for range_, expression in zip(ranges, expressions):
-				logger.debug("range for {expression} is {range_}".format(**locals()))
-				self.range_map[expression] = range_
+			def on_error(exc):
+				raise exc
+			for expression in expressions:
+				subspace = self.dataset(expression, executor=executor, async=True)
+				def assign(minmax_list, expression=expression):
+					logger.debug("assigning %r to %s", minmax_list, expression)
+					self.range_map[expression] = minmax_list	[0].tolist()
+				subspace.minmax().then(assign, on_error).end()
+			with dialogs.ProgressExecution("Calculating min/max", self, executor):
+				executor.execute()
+			#for range_, expression in zip(ranges, expressions):
+			#	logger.debug("range for {expression} is {range_}".format(**locals()))
+			#	self.range_map[expression] = range_
+				#ranges = jobsManager.find_min_max(self.dataset, expressions, use_mask=self.radio_button_selection.isChecked(), feedback=feedback)
+			ranges = [self.range_map[expressions[0]] for expressions in pairs]
 			self.table1d.setRanges(pairs, ranges)
 			self.fill_range_map()
 		except:
@@ -813,21 +827,40 @@ class RankDialog(QtGui.QDialog):
 
 	def onCalculateMinMax3Sigma(self):
 		pairs = self.table1d.getSelected()
-		jobsManager = vaex.dataset.JobsManager()
+
 		expressions = [pair[0] for pair in pairs]
+		executor = vaex.execution.Executor()
 
 
-		with ProgressExecution("Calculating min/max", self) as progress:
-			means = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=expressions, feedback=progress.progress)
-			print(("means", means))
-		with ProgressExecution("Calculating variances", self) as progress:
-			variance_expressions = ["(%s-%.20f)**2"  % (expression, mean) for expression, mean in zip(expressions, means)]
-			variances = jobsManager.calculate_mean(self.dataset, use_mask=self.radio_button_selection.isChecked(), expressions=variance_expressions, feedback=progress.progress)
-			sigmas = np.sqrt(variances)
-			ranges = [(mean-3*sigma, mean+3*sigma) for mean, sigma in zip(means, sigmas)]
-			self.table1d.setRanges(pairs, ranges)
-			self.fill_range_map()
-			#progress.progress()
+		mean_map = {}
+		def on_error(exc):
+			raise exc
+		for expression in expressions:
+			subspace = self.dataset(expression, executor=executor, async=True)
+			def assign(mean_list, expression=expression):
+				logger.debug("assigning %r to %s", mean_list, expression)
+				mean_map[expression] = mean_list
+			subspace.mean().then(assign, on_error).end()
+		with dialogs.ProgressExecution("Calculating means", self, executor):
+			executor.execute()
+
+		var_map = {}
+		for expression in expressions:
+			subspace = self.dataset(expression, executor=executor, async=True)
+			def assign(mean_list, expression=expression):
+				logger.debug("assigning %r to %s", mean_list, expression)
+				var_map[expression] = mean_list[0].tolist()
+			subspace.var(means=mean_map[expression]).then(assign, on_error).end()
+		with dialogs.ProgressExecution("Calculating variances", self, executor):
+			executor.execute()
+
+		means = [mean_map[expressions[0]] for expressions in pairs]
+		variances = [var_map[expressions[0]] for expressions in pairs]
+
+		ranges = [(mean-3*var**0.5, mean+3*var**0.5) for mean, var in zip(means, variances)]
+		self.table1d.setRanges(pairs, ranges)
+		self.fill_range_map()
+
 
 	def calculate_rank_correlation_kendall(self, table, absolute=False):
 		print(("kendall", table, absolute))
@@ -862,6 +895,55 @@ class RankDialog(QtGui.QDialog):
 	def calculate_correlation(self, table):
 		print(("calculate correlation for ", table))
 		pairs = table.getSelected()
+
+		expressions = set()
+		for pair in pairs:
+			for expression in pair:
+				expressions.add(expression)
+		expressions = list(expressions)
+		executor = vaex.execution.Executor()
+
+		mean_map = {}
+		def on_error(exc):
+			raise exc
+		for expression in expressions:
+			subspace = self.dataset(expression, executor=executor, async=True)
+			def assign(mean_list, expression=expression):
+				logger.debug("assigning %r to %s", mean_list, expression)
+				mean_map[expression] = mean_list
+			subspace.mean().then(assign, on_error).end()
+		with dialogs.ProgressExecution("Calculating means", self, executor):
+			executor.execute()
+
+		var_map = {}
+		for expression in expressions:
+			subspace = self.dataset(expression, executor=executor, async=True)
+			def assign(mean_list, expression=expression):
+				logger.debug("assigning %r to %s", mean_list, expression)
+				var_map[expression] = mean_list[0].tolist()
+			subspace.var(means=mean_map[expression]).then(assign, on_error).end()
+		with dialogs.ProgressExecution("Calculating variances", self, executor):
+			executor.execute()
+
+		means = [mean_map[expressions[0]] for expressions in pairs]
+		variances = [var_map[expressions[0]] for expressions in pairs]
+
+		correlation_map = {}
+		for pair in pairs:
+			means = [mean_map[expression] for expression in pair]
+			vars = [var_map[expression] for expression in pair]
+			subspace = self.dataset(*pair, executor=executor, async=True)
+			def assign(correlation, pair=pair):
+				logger.debug("assigning %r to %s", correlation, pair)
+				correlation_map[pair] = correlation
+			subspace.correlation(means, vars).then(assign, on_error).end()
+
+		with dialogs.ProgressExecution("Calculating correlation", self, executor):
+			executor.execute()
+
+		table.set_correlations(correlation_map)
+		return
+
 		jobsManager = vaex.dataset.JobsManager()
 		expressions = set()
 		for pair in pairs:

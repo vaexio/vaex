@@ -175,6 +175,20 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(x, np.mean(self.x[:5]**2))
 		self.assertAlmostEqual(y, np.mean(self.y[:5]**2))
 
+	def test_correlation(self):
+
+		subspace = self.datasetxy("y", "y")
+		means = subspace.mean()
+		vars = subspace.var(means)
+		correlation = subspace.correlation(means, vars)
+		self.assertAlmostEqual(correlation, 1.0)
+
+		subspace = self.datasetxy("y", "-y")
+		means = subspace.mean()
+		vars = subspace.var(means)
+		correlation = subspace.correlation(means, vars)
+		self.assertAlmostEqual(correlation, -1.0)
+
 
 	def test_concat(self):
 		self.assertEqual(self.dataset_concat.get_column_names(), ["x"])
