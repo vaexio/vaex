@@ -1308,8 +1308,9 @@ class LayerTable(object):
 						if not self.plot_window.axis_lock:
 							self.plot_window.ranges_show[axis_index] = None
 						# to add them
-						self.add_jobs()
-						self.execute()
+						#self.add_jobs()
+						#self.execute()
+						self.update()
 					action.triggered.connect(add)
 					menu.addAction(action)
 				self.grid_layout.addWidget(functionButton, row, 3, QtCore.Qt.AlignLeft)

@@ -1643,10 +1643,10 @@ class PlotDialog(QtGui.QWidget):
 		self.action_group_resolution_vector = QtGui.QActionGroup(self)
 		self.action_resolution_vector_list = []
 		for index, resolution in enumerate([8,16,32, 64, 128, 256]):
-			action_resolution = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Grid Resolution: %d' % resolution, self)
+			action_resolution = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Vector grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
 				self.vector_grid_size = resolution
-				self.queue_update()
+				self.update_all_layers()
 				#self.compute()
 				#self.dataset.executor.execute()
 			action_resolution.setCheckable(True)
