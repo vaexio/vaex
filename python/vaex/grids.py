@@ -107,6 +107,21 @@ class GridScope(object):
 				gridscope[key] = value
 		return gridscope
 
+	def marginal2d(self, i, j):
+		gridscope = GridScope(globals=self.globals)
+		for key in self.user_added:
+			value = self[key]
+			if isinstance(value, np.ndarray):
+				dimension = len(value.shape)
+				axes = range(dimension)
+				axes.remove(i)
+				axes.remove(j)
+				grid = vaex.utils.multisum(value, axes)
+				gridscope[key] = grid
+			else:
+				gridscope[key] = value
+		return gridscope
+
 def add_mem(bytes, *info):
 	global total_bytes
 	total_bytes += bytes

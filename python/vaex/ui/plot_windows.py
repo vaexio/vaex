@@ -30,11 +30,13 @@ import vaex.ui.imageblending
 import vaex.ui.colormaps
 import vaex.ui.templates
 import vaex.promise
+import vaex.ui.volumerendering
 
 from vaex.ui.qt import *
 from vaex.ui.icons import iconfile
 import vaex.vaexfast
 from vaex.ui import qt, undo
+
 
 
 logger = vaex.logging.getLogger("vaex")
@@ -2569,8 +2571,8 @@ def timelog(msg, reset=False):
 class VolumeRenderingPlotDialog(PlotDialog):
 	type_name = "volumerendering"
 	#names = "volumerendering,3d"
-	def __init__(self, parent, dataset, **options):
-		super(VolumeRenderingPlotDialog, self).__init__(parent, dataset, 3, "X Y Z".split(), **options)
+	def __init__(self, parent, dataset, app, **options):
+		super(VolumeRenderingPlotDialog, self).__init__(parent, dataset, 3, "X Y Z".split(), app, **options)
 		#[xname, yname, zname]
 
 	def closeEvent(self, event):
@@ -2679,12 +2681,13 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		for layer in self.layers:
 			layer.plot(axes_list, self.add_image_layer)
 		#for image in self.image_layers:
-		if first_layer.amplitude_selection is not None:
-			self.widget_volume.setGrid(first_layer.amplitude_selection, first_layer.amplitude, first_layer.vector_grid)
+		if first_layer.amplitude_grid_selection is not None:
+			self.widget_volume.setGrid(first_layer.amplitude_grid_selection, first_layer.amplitude_grid, first_layer.vector_grid)
 		else:
-			self.widget_volume.setGrid(first_layer.amplitude, vectorgrid=first_layer.vector_grid)
+			self.widget_volume.setGrid(first_layer.amplitude_grid, vectorgrid=first_layer.vector_grid)
 
 		for axes in axes_list:
+			print axes, len(axes.rgb_images)
 			rgba = vaex.ui.imageblending.blend(axes.rgb_images, self.blend_mode)
 			rgba[...,3] = rgba[...,3] * 0 + 1
 			for c in range(4):

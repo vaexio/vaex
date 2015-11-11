@@ -508,7 +508,7 @@ class RankDialog(QtGui.QDialog):
 		self.dataset = dataset
 		self.mainPanel = mainPanel
 		self.range_map = {}
-		self.grid_size = options.get("grid_size", 32)
+		self.grid_size = int(options.get("grid_size", "32"))
 
 
 		#print "options", options

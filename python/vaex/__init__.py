@@ -48,6 +48,12 @@ def open(path, *args, **kwargs):
 	"""
 	return vaex.dataset.load_file(path, *args, **kwargs)
 
+def from_arrays(name="array", **arrays):
+	dataset = vaex.dataset.DatasetArrays(name)
+	for name, array in arrays.items():
+		dataset.add_column(name, array)
+	return dataset
+
 def server(hostname, **kwargs):
 	"""Connect to hostname supporting the vaex web api
 

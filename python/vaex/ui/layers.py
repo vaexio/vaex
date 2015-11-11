@@ -516,49 +516,51 @@ class LayerTable(object):
 			#grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
 
 			self.vector_grid = None
-			if any(self.vector_expressions):
+			if 1: #any(self.vector_expressions):
 				grid_vector = self.grid_vector
 				if self.layer_slice_source:
 					print self.slice_selection_grid.shape
 					print grid_vector["counts"].shape
 					grid_vector = grid_vector.slice(self.slice_selection_grid)
-				vector_counts = grid_vector.evaluate("counts")
-				vector_mask = vector_counts > 0
-				if grid_vector.evaluate("weightx") is not None:
-					vector_x = grid_vector.evaluate("x")
-					vx = grid_vector.evaluate("weightx/counts")
-					if self.vectors_subtract_mean:
-						vx -= vx[vector_mask].mean()
-				else:
-					vector_x = None
-					vx = None
-				if grid_vector.evaluate("weighty") is not None:
-					vector_y = grid_vector.evaluate("y")
-					vy = grid_vector.evaluate("weighty/counts")
-					if self.vectors_subtract_mean:
-						vy -= vy[vector_mask].mean()
-				else:
-					vector_y = None
-					vy = None
-				if grid_vector.evaluate("weightz") is not None:
-					vector_z = grid_vector.evaluate("z")
-					vz = grid_vector.evaluate("weightz/counts")
-					if self.vectors_subtract_mean:
-						vz -= vz[vector_mask].mean()
-				else:
-					vector_z = None
-					vz = None
-				if vx is not None and vy is not None and vz is not None:
-					self.vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
-					self.vector_grid[0] = vx
-					self.vector_grid[1] = vy
-					self.vector_grid[2] = vz
-					self.vector_grid[3] = vector_counts
-					self.vector_grid = np.swapaxes(self.vector_grid, 0, 3)
-					self.vector_grid = self.vector_grid * 1.
+				vector_grids = None
+				if any(self.vector_expressions):
+					vector_counts = grid_vector.evaluate("counts")
+					vector_mask = vector_counts > 0
+					if grid_vector.evaluate("weightx") is not None:
+						vector_x = grid_vector.evaluate("x")
+						vx = grid_vector.evaluate("weightx/counts")
+						if self.vectors_subtract_mean:
+							vx -= vx[vector_mask].mean()
+					else:
+						vector_x = None
+						vx = None
+					if grid_vector.evaluate("weighty") is not None:
+						vector_y = grid_vector.evaluate("y")
+						vy = grid_vector.evaluate("weighty/counts")
+						if self.vectors_subtract_mean:
+							vy -= vy[vector_mask].mean()
+					else:
+						vector_y = None
+						vy = None
+					if grid_vector.evaluate("weightz") is not None:
+						vector_z = grid_vector.evaluate("z")
+						vz = grid_vector.evaluate("weightz/counts")
+						if self.vectors_subtract_mean:
+							vz -= vz[vector_mask].mean()
+					else:
+						vector_z = None
+						vz = None
+					if vx is not None and vy is not None and vz is not None:
+						self.vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
+						self.vector_grid[0] = vx
+						self.vector_grid[1] = vy
+						self.vector_grid[2] = vz
+						self.vector_grid[3] = vector_counts
+						self.vector_grid = np.swapaxes(self.vector_grid, 0, 3)
+						self.vector_grid = self.vector_grid * 1.
 
-				self.vector_grids = vector_grids = [vx, vy, vz]
-				vector_positions = [vector_x, vector_y, vector_z]
+					self.vector_grids = vector_grids = [vx, vy, vz]
+					vector_positions = [vector_x, vector_y, vector_z]
 
 				for axes in axes_list:
 				#if 0:
@@ -567,13 +569,17 @@ class LayerTable(object):
 					all_axes.remove(self.dimensions-1-axes.xaxis_index)
 					all_axes.remove(self.dimensions-1-axes.yaxis_index)
 
-					if 0:
-						grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map.items())}
-						grid_context = self.grid_vector
-						amplitude = grid_context(self.amplitude_expression, locals=grid_map_2d)
+					if 1:
+						#grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map.items())}
+						#grid_context = self.grid_vector
+						#amplitude = grid_context(self.amplitude_expression, locals=grid_map_2d)
+
+						grid = self.grid_main.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
+						amplitude = grid.evaluate(self.amplitude_expression)
 						if self.dataset.has_selection():
-							grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
-							amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection_2d)
+							#grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
+							grid_selection = self.grid_main.marginal2d(axes.xaxis_index, axes.yaxis_index)
+							amplitude_selection = grid_selection.evaluate(self.amplitude_expression)
 						else:
 							amplitude_selection = None
 						self.plot_density(axes, amplitude, amplitude_selection, stack_image)
@@ -584,26 +590,27 @@ class LayerTable(object):
 					else:
 						other_axis = 2
 
-					U = vector_grids[axes.xaxis_index]
-					V = vector_grids[axes.yaxis_index]
-					W = vector_grids[self.dimensions-1-other_axis]
-					vx = None if U is None else vaex.utils.multisum(U, all_axes)
-					vy = None if V is None else vaex.utils.multisum(V, all_axes)
-					vz = None if W is None else vaex.utils.multisum(W, all_axes)
-					vector_counts_2d = vaex.utils.multisum(vector_counts, all_axes)
-					if vx is not None and vy is not None:
-						count_max = vector_counts_2d.max()
-						mask = (vector_counts_2d > (self.vector_level_min * count_max)) & \
-								(vector_counts_2d <= (self.vector_level_max * count_max))
-						x = vector_positions[axes.xaxis_index]
-						y = vector_positions[axes.yaxis_index]
-						x2d, y2d = np.meshgrid(x, y)
-						if vz is not None and self.vectors_color_code_3rd:
-							colors = vz
-							axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
-						else:
-							axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color="black")
-							colors = None
+					if vector_grids:
+						U = vector_grids[axes.xaxis_index]
+						V = vector_grids[axes.yaxis_index]
+						W = vector_grids[self.dimensions-1-other_axis]
+						vx = None if U is None else vaex.utils.multisum(U, all_axes)
+						vy = None if V is None else vaex.utils.multisum(V, all_axes)
+						vz = None if W is None else vaex.utils.multisum(W, all_axes)
+						vector_counts_2d = vaex.utils.multisum(vector_counts, all_axes)
+						if vx is not None and vy is not None:
+							count_max = vector_counts_2d.max()
+							mask = (vector_counts_2d > (self.vector_level_min * count_max)) & \
+									(vector_counts_2d <= (self.vector_level_max * count_max))
+							x = vector_positions[axes.xaxis_index]
+							y = vector_positions[axes.yaxis_index]
+							x2d, y2d = np.meshgrid(x, y)
+							if vz is not None and self.vectors_color_code_3rd:
+								colors = vz
+								axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
+							else:
+								axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color="black")
+								colors = None
 		if 0: #if self.coordinates_picked_row is not None:
 			if self.dimensions >= 2:
 				for axes in axes_list:

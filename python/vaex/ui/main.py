@@ -497,7 +497,7 @@ class DatasetPanel(QtGui.QFrame):
 		return dialog
 
 	def plotxyz(self, xname, yname, zname, **kwargs):
-		dialog = vp.VolumeRenderingPlotDialog(self, self.dataset, **kwargs)
+		dialog = vp.VolumeRenderingPlotDialog(self, self.dataset, app=self.app, **kwargs)
 		dialog.add_layer([xname, yname, zname], **kwargs)
 		dialog.show()
 		#self.dataset.executor.execute()
