@@ -5,11 +5,13 @@ import collections
 import time
 
 try:
+	import sip
+	sip.setapi('QVariant', 2)
+	sip.setapi('QString', 2)
 	from PyQt4 import QtGui, QtCore, QtTest #, QtNetwork
+	sip.setapi('QVariant', 2)
 	#from PyQt4.QtWebKit import QWebView
 	qt_version = QtCore.PYQT_VERSION_STR
-	import sip
-	#sip.setapi('QVariant', 2)
 except ImportError as e1:
 	try:
 		from PySide import QtGui, QtCore, QtTest #, QtNetwork
@@ -55,7 +57,7 @@ class ProgressExecution(object):
 				#QtCore.QCoreApplication.instance().processEvents()
 				#logger.debug("queue: %r %r", self.queue_update.counter, self.queue_update.counter_processed)
 				#return (not self.cancelled) and (not self.queue_update.in_queue(2))
-				return not self.progress(fraction*100)
+				return self.progress(fraction*100)
 			def cancel():
 				#self.progress_bar.setValue(0)
 				#self.button_cancel.setEnabled(False)

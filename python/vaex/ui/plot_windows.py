@@ -320,9 +320,10 @@ class PlotDialog(QtGui.QWidget):
 			time_total = time.time() - self.time_begin
 			self.label_time.setText("%.2fs" % time_total)
 		def progress(fraction):
-			self.progress_bar.setValue(fraction*1000)
-			QtCore.QCoreApplication.instance().processEvents()
+			logger.debug("progress on %r: %f", self, fraction)
 			logger.debug("queue: %r %r", self.queue_update.counter, self.queue_update.counter_processed)
+			self.progress_bar.setValue(fraction*1000)
+			#QtCore.QCoreApplication.instance().processEvents()
 			return (not self.cancelled) and (not self.queue_update.in_queue(2))
 		def cancel():
 			self.progress_bar.setValue(0)

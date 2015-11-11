@@ -9,6 +9,7 @@ import vaex.ui.plot_windows
 import vaex.logging as logging
 import vaex.ui.qt as dialogs
 import vaex.execution
+import vaex.kld
 logger = logging.getLogger("vaex.ranking")
 
 
@@ -409,6 +410,7 @@ class SubspaceTable(QtGui.QTableWidget):
 		mi = self.item(index, 2)
 		ma = self.item(index, 3)
 		#print pair, mi, ma
+		print mi.data(QtCore.Qt.DisplayRole)
 		mi = None if mi is None else float(mi.data(QtCore.Qt.DisplayRole))
 		ma = None if ma is None else float(ma.data(QtCore.Qt.DisplayRole))
 		#print "->", pair, mi, ma
@@ -479,7 +481,8 @@ class SubspaceTable(QtGui.QTableWidget):
 			return found
 
 		self.filter_terms = filter_terms
-		self.filter_mask = np.array([list(filter(pair)) for pair in self.pairs])
+		print list, filter, self.pairs
+		self.filter_mask = np.array([filter(pair) for pair in self.pairs])
 		self.queue_fill_table()
 		#self.fill_table()
 
@@ -503,6 +506,7 @@ class RankDialog(QtGui.QDialog):
 		self.dataset = dataset
 		self.mainPanel = mainPanel
 		self.range_map = {}
+		self.grid_size = options.get("grid_size", 32)
 
 
 		#print "options", options
@@ -812,7 +816,7 @@ class RankDialog(QtGui.QDialog):
 					logger.debug("assigning %r to %s", minmax_list, expression)
 					self.range_map[expression] = minmax_list	[0].tolist()
 				subspace.minmax().then(assign, on_error).end()
-			with dialogs.ProgressExecution("Calculating min/max", self, executor):
+			with dialogs.ProgressExecution(self, "Calculating min/max", executor=executor):
 				executor.execute()
 			#for range_, expression in zip(ranges, expressions):
 			#	logger.debug("range for {expression} is {range_}".format(**locals()))
@@ -838,26 +842,27 @@ class RankDialog(QtGui.QDialog):
 		for expression in expressions:
 			subspace = self.dataset(expression, executor=executor, async=True)
 			def assign(mean_list, expression=expression):
-				logger.debug("assigning %r to %s", mean_list, expression)
-				mean_map[expression] = mean_list
+				logger.debug("assigning %r to %s", mean_list[0], expression)
+				mean_map[expression] = mean_list[0]
 			subspace.mean().then(assign, on_error).end()
-		with dialogs.ProgressExecution("Calculating means", self, executor):
+		with dialogs.ProgressExecution(self, "Calculating means", executor=executor):
 			executor.execute()
 
 		var_map = {}
 		for expression in expressions:
 			subspace = self.dataset(expression, executor=executor, async=True)
-			def assign(mean_list, expression=expression):
-				logger.debug("assigning %r to %s", mean_list, expression)
-				var_map[expression] = mean_list[0].tolist()
-			subspace.var(means=mean_map[expression]).then(assign, on_error).end()
-		with dialogs.ProgressExecution("Calculating variances", self, executor):
+			def assign(var_list, expression=expression):
+				logger.debug("assigning %r to %s", var_list[0], expression)
+				var_map[expression] = var_list[0]
+			subspace.var(means=[mean_map[expression]]).then(assign, on_error).end()
+		with dialogs.ProgressExecution(self, "Calculating variances", executor=executor):
 			executor.execute()
 
 		means = [mean_map[expressions[0]] for expressions in pairs]
 		variances = [var_map[expressions[0]] for expressions in pairs]
 
 		ranges = [(mean-3*var**0.5, mean+3*var**0.5) for mean, var in zip(means, variances)]
+		print ranges
 		self.table1d.setRanges(pairs, ranges)
 		self.fill_range_map()
 
@@ -912,7 +917,7 @@ class RankDialog(QtGui.QDialog):
 				logger.debug("assigning %r to %s", mean_list, expression)
 				mean_map[expression] = mean_list
 			subspace.mean().then(assign, on_error).end()
-		with dialogs.ProgressExecution("Calculating means", self, executor):
+		with dialogs.ProgressExecution(self, "Calculating means", executor=executor):
 			executor.execute()
 
 		var_map = {}
@@ -922,7 +927,7 @@ class RankDialog(QtGui.QDialog):
 				logger.debug("assigning %r to %s", mean_list, expression)
 				var_map[expression] = mean_list[0].tolist()
 			subspace.var(means=mean_map[expression]).then(assign, on_error).end()
-		with dialogs.ProgressExecution("Calculating variances", self, executor):
+		with dialogs.ProgressExecution(self, "Calculating variances", executor=executor):
 			executor.execute()
 
 		means = [mean_map[expressions[0]] for expressions in pairs]
@@ -938,7 +943,7 @@ class RankDialog(QtGui.QDialog):
 				correlation_map[pair] = correlation
 			subspace.correlation(means, vars).then(assign, on_error).end()
 
-		with dialogs.ProgressExecution("Calculating correlation", self, executor):
+		with dialogs.ProgressExecution(self, "Calculating correlation", executor=executor):
 			executor.execute()
 
 		table.set_correlations(correlation_map)
@@ -1014,11 +1019,10 @@ class RankDialog(QtGui.QDialog):
 
 	def rankSubspaces(self, table):
 		self.fill_range_map()
-		print(table)
-		qualities = []
+
 		pairs = table.getSelected()
 		error = False
-		print((self.range_map))
+
 		for pair in pairs:
 			for expression in pair:
 				if expression not in self.range_map:
@@ -1027,6 +1031,31 @@ class RankDialog(QtGui.QDialog):
 		if error:
 			dialog_error(self, "Missing min/max", "Please calculate the minimum and maximum for the dimensions")
 			return
+
+
+		#expressions = [pair[0] for pair in pairs]
+		executor = vaex.execution.Executor()
+
+
+		MI_map = {}
+		def on_error(exc):
+			raise exc
+		for pair in pairs:
+			subspace = self.dataset(*pair, executor=executor, async=True)
+			def assign(grid, pair=pair):
+				MI_map[pair] = vaex.kld.mutual_information(grid)
+			limits = [self.range_map[expression] for expression in pair]
+			subspace.histogram(limits, size=self.grid_size).then(assign, on_error).end()
+		with dialogs.ProgressExecution(self, "Calculating mutual information", executor=executor):
+			executor.execute()
+
+		mutual_information_list = [MI_map[pair] for pair in pairs]
+		table.setQualities(pairs, mutual_information_list)
+		return
+
+		print(table)
+		qualities = []
+		pairs = table.getSelected()
 
 		if 0:
 			for pair in pairs:
