@@ -409,7 +409,9 @@ class SubspaceTable(QtGui.QTableWidget):
 		index = self.pairs.index(pair)
 		mi = self.item(index, 2)
 		ma = self.item(index, 3)
-		#print pair, mi, ma
+		if mi is None or ma is None:
+			return None, None
+		print pair, mi, ma
 		print mi.data(QtCore.Qt.DisplayRole)
 		mi = None if mi is None else float(mi.data(QtCore.Qt.DisplayRole))
 		ma = None if ma is None else float(ma.data(QtCore.Qt.DisplayRole))
