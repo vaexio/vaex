@@ -48,6 +48,12 @@ def open(path, *args, **kwargs):
 	"""
 	return vaex.dataset.load_file(path, *args, **kwargs)
 
+def open_many(filenames):
+	datasets = []
+	for filename in filenames:
+		datasets.append(open(filename))
+	return vaex.dataset.DatasetConcatenated(datasets=datasets)
+
 def from_arrays(name="array", **arrays):
 	dataset = vaex.dataset.DatasetArrays(name)
 	for name, array in arrays.items():
