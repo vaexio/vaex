@@ -836,6 +836,36 @@ class Dataset(object):
 		self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y} + {m}_12 * {z}".format(**locals())
 		self.virtual_columns[znew] = "{m}_20 * {x} + {m}_21 * {y} + {m}_22 * {z}".format(**locals())
 
+	def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="celestial", radians=False):
+		import kapteyn.celestial as c
+		input = input or c.eq
+		output = input or c.gal
+		matrix = c.skymatrix((input,'j2000',c.fk5), output)[0]
+		if not radians:
+			long_in = "pi/180.*%s" % long_in
+			lat_in = "pi/180.*%s" % lat_in
+		x_in = name_prefix+"_in_x"
+		y_in = name_prefix+"_in_y"
+		z_in = name_prefix+"_in_z"
+		x_out = name_prefix+"_out_x"
+		y_out = name_prefix+"_out_y"
+		z_out = name_prefix+"_out_z"
+		self.add_virtual_column(x_in, "cos({long_in})*cos({lat_in})".format(**locals()))
+		self.add_virtual_column(y_in, "sin({long_in})*cos({lat_in})".format(**locals()))
+		self.add_virtual_column(z_in, "sin({lat_in})".format(**locals()))
+		self.add_virtual_columns_matrix3d(x_in, y_in, z_in, x_out, y_out, z_out,\
+										  matrix, name_prefix+"_matrix")
+		long_out_expr = "arctan2({y_out},{x_out})".format(**locals())
+		lat_out_expr = "arctan2({z_out},sqrt({x_out}**2+{y_out}**2))".format(**locals())
+		if not radians:
+			long_out_expr = "180./pi*%s" % long_out_expr
+			lat_out_expr = "180./pi*%s" % lat_out_expr
+
+		self.add_virtual_column(long_out, long_out_expr)
+		self.add_virtual_column(lat_out, lat_out_expr)
+
+
+
 	def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees):
 		"""
 
@@ -919,12 +949,12 @@ class Dataset(object):
 		"""Returns the number of columns, not counting virtual ones"""
 		return len(self.column_names)
 
-	def get_column_names(self):
+	def get_column_names(self, virtual=False):
 		"""Return a list of column names
 
 		:rtype: list of str
  		"""
-		return list(self.column_names)
+		return list(self.column_names) + (self.virtual_columns.keys() if virtual else [])
 
 	def __len__(self):
 		"""Returns the number of rows in the dataset, if active_fraction != 1, then floor(active_fraction*full_length) is returned"""

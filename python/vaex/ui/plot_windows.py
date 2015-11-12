@@ -1068,9 +1068,11 @@ class PlotDialog(QtGui.QWidget):
 		timelog("begin computation", reset=True)
 		# this can be
 		promises = [layer.add_tasks_ranges() for layer in layers]
+		executors = list(set([layer.dataset.executor for layer in layers]))
 		# execute may do things async, like at a server
 		try:
-			self.dataset.executor.execute()
+			for executor in executors:
+				executor.execute()
 		except SyntaxError as e:
 			msg = "%s: %r" % (e.args[0], e.args[1][3])
 			qt.dialog_error(self, "Syntax error", "Syntax error: %s " % msg)
@@ -1080,6 +1082,7 @@ class PlotDialog(QtGui.QWidget):
 
 		promise_ranges_done = vaex.promise.listPromise(promises)
 		promise_ranges_done.then(self._update_step2, self.on_error_or_cancel).then(None, self.on_error_or_cancel).end()
+		logger.debug("waiting for promises %r to finish", promises)
 
 	def on_error_or_cancel(self, error):
 		logger.exception("error occured: %r", error, exc_info=error)
@@ -1112,7 +1115,9 @@ class PlotDialog(QtGui.QWidget):
 
 		# now we are ready to calculate histograms
 		promises = [layer.add_tasks_histograms() for layer in layers]
-		self.dataset.executor.execute()
+		executors = list(set([layer.dataset.executor for layer in layers]))
+		for executor in executors:
+			executor.execute()
 
 		promises_histograms_done = vaex.promise.listPromise(promises)
 		promises_histograms_done.then(self._update_step3, self.on_error_or_cancel).end()

@@ -1100,6 +1100,12 @@ class VaexApp(QtGui.QMainWindow):
 									dataset.variables[key] = value
 								else:
 									error("unknown expression, %s, type %s not recognized" % (type + ":" + key, type))
+							elif key.startswith("@"):
+								method_name = key[1:]
+								method = getattr(dataset, method_name)
+								method(*eval(value))
+								#if method is Non
+								#	error("unknown expression, %s, type %s not recognized" % (type + ":" + key, type))
 							else:
 								options[key] = value
 						else:
@@ -1116,7 +1122,7 @@ class VaexApp(QtGui.QMainWindow):
 							error("cannot plot more than 3 columns yet: %r" % columns)
 					else:
 						layer = plot.add_layer(columns, dataset=dataset, **options)
-						layer.jobs_manager.execute()
+						#layer.jobs_manager.execute()
 					options = {}
 					if index < len(args) and args[index] == "-":
 						plot = None # set to None to create a new plot, + will do a new layer

@@ -9,6 +9,16 @@ total_bytes = 0
 
 logger = vaex.logging.getLogger("vaex.grids")
 
+def dog(grid, sigma1, sigma2):
+	return gf(grid, sigma1) - gf(grid, sigma2)
+
+def gf(grid, sigma, **kwargs):
+	return scipy.ndimage.gaussian_filter(grid, sigma=sigma, **kwargs)
+
+functions = {}
+functions["dog"] = dog
+functions["gf"] = gf
+
 def grid_average(scope, counts_name="counts", weighted_name="weighted"):
 
 	counts = scope.evaluate(counts_name)
@@ -30,7 +40,7 @@ class GridScope(object):
 		self.lazy["average"] = grid_average
 		self.globals["cumulative"] = self.cumulative
 		self.globals["normalize"] = self.normalize
-		self.globals["gf"] = scipy.ndimage.gaussian_filter
+		self.globals.update(functions)
 		self.user_added = set()
 
 	def cumulative(self, array, normalize=True):

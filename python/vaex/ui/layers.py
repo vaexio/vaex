@@ -1108,7 +1108,7 @@ class LayerTable(object):
 
 
 	def get_expression_list(self):
-		return self.dataset.column_names
+		return self.dataset.get_column_names(virtual=True)
 
 	def onExpressionChanged(self, axis_index):
 		text = str(self.axisboxes[axis_index].lineEdit().text())
@@ -1361,19 +1361,21 @@ class LayerTable(object):
 			self.amplitude_box.addItems([self.options["amplitude"]])
 		self.amplitude_box.addItems(["log(counts) if weighted is None else average", "counts", "counts**2", "average", "sqrt(counts)"])
 		self.amplitude_box.addItems(["log(counts+1)"])
-		self.amplitude_box.addItems(["gf(log(counts+1),1) # gaussian filter"])
-		self.amplitude_box.addItems(["gf(log(counts+1),2) # gaussian filter with higher sigma" ])
-		self.amplitude_box.addItems(["counts/peak_columns # divide by peak value in every row"])
-		self.amplitude_box.addItems(["counts/sum_columns # normalize columns"])
-		self.amplitude_box.addItems(["counts/peak_rows # divide by peak value in every row"])
-		self.amplitude_box.addItems(["counts/sum_rows # normalize rows"])
-		self.amplitude_box.addItems(["log(counts/peak_columns)"])
-		self.amplitude_box.addItems(["log(counts/sum_columns)"])
-		self.amplitude_box.addItems(["log(counts/peak_rows)"])
-		self.amplitude_box.addItems(["log(counts/sum_rows)"])
-		self.amplitude_box.addItems(["abs(fft.fftshift(fft.fft2(counts))) # 2d fft"])
-		self.amplitude_box.addItems(["abs(fft.fft(counts, axis=1)) # ffts along y axis"])
-		self.amplitude_box.addItems(["abs(fft.fft(counts, axis=0)) # ffts along x axis"])
+		self.amplitude_box.addItems(["gf(log(counts+1),1)"])
+		self.amplitude_box.addItems(["gf(log(counts+1),2)"])
+		self.amplitude_box.addItems(["dog(counts, 2, 2.1)"])
+		if 0:
+			self.amplitude_box.addItems(["counts/peak_columns # divide by peak value in every row"])
+			self.amplitude_box.addItems(["counts/sum_columns # normalize columns"])
+			self.amplitude_box.addItems(["counts/peak_rows # divide by peak value in every row"])
+			self.amplitude_box.addItems(["counts/sum_rows # normalize rows"])
+			self.amplitude_box.addItems(["log(counts/peak_columns)"])
+			self.amplitude_box.addItems(["log(counts/sum_columns)"])
+			self.amplitude_box.addItems(["log(counts/peak_rows)"])
+			self.amplitude_box.addItems(["log(counts/sum_rows)"])
+			self.amplitude_box.addItems(["abs(fft.fftshift(fft.fft2(counts))) # 2d fft"])
+			self.amplitude_box.addItems(["abs(fft.fft(counts, axis=1)) # ffts along y axis"])
+			self.amplitude_box.addItems(["abs(fft.fft(counts, axis=0)) # ffts along x axis"])
 		self.amplitude_box.setMinimumContentsLength(10)
 		self.grid_layout.addWidget(QtGui.QLabel("amplitude="), row, 1)
 		self.grid_layout.addWidget(self.amplitude_box, row, 2, QtCore.Qt.AlignLeft)
