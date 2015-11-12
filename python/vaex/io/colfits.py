@@ -45,6 +45,7 @@ def empty(filename, length, column_names, data_types, data_shapes):
 	write("NAXIS", 2, "number of array dimensions")
 	write("NAXIS1", byte_size, "length of dim 1")
 	write("NAXIS2", 1, "length of dim 2")
+	write("PCOUNT", 0, "number of group parameters")
 
 	write("TFIELDS", len(column_names), "number of columns")
 	for i, (column_name, type, shape) in enumerate(zip(column_names, data_types, data_shapes)):
