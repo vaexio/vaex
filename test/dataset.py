@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import vaex.dataset as dataset
 import numpy as np
 import unittest
@@ -270,6 +271,7 @@ class TestDataset(unittest.TestCase):
 
 		path = path_hdf5 = tempfile.mktemp(".hdf5")
 		path_fits = tempfile.mktemp(".fits")
+		path_fits_astropy = tempfile.mktemp(".fits")
 		#print path
 
 		with self.assertRaises(AssertionError):
@@ -298,6 +300,10 @@ class TestDataset(unittest.TestCase):
 										fitsfile = astropy.io.fits.open(path)
 										# make sure astropy can read the data
 										bla = fitsfile[1].data
+										try:
+											fitsfile.writeto(path_fits_astropy)
+										finally:
+											os.remove(path_fits_astropy)
 									compare = vx.open(path)
 									column_names = column_names or ["x", "y", "z"]
 									self.assertEqual(compare.get_column_names(), column_names + (["random_index"] if shuffle else []))
