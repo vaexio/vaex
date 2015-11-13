@@ -5,6 +5,7 @@ import tornado.ioloop
 import tornado.web
 import tornado.httpserver
 import tornado.auth
+import tornado.gen
 import threading
 from . import logging
 import vaex as vx
@@ -14,9 +15,103 @@ import layeredconfig
 import yaml
 import argparse
 import os
+import time
 
 logger = logging.getLogger("vaex.webserver")
+job_index = 0
+class JobFlexible(object):
+	def __init__(self, cost, index=None):
+		global job_index
+		self.cost = cost
+		if index is None:
+			self.index = job_index
+			job_index += 1
+		else:
+			self.index = index
+		self.fraction = None
+		self.time_elapsed_goal = None
+		self.time_created = time.time()
 
+	def set_fraction(self, fraction):
+		self.fraction = fraction
+
+	def set_time_elapsed_goal(self, time_elapsed_goal):
+		self.time_elapsed_goal = time_elapsed_goal
+
+	def execute(self):
+		pass
+
+	def done(self):
+		self.time_done = time.time()
+		self.time_elapsed = self.time_done - self.time_created
+import vaex.events
+class JobQueue(object):
+	def __init__(self):
+		self.queue = []
+		self.queue_delay = 1. # 1 second to get rid of the queue
+		self.seconds_per_cost = 1.
+		self.cost_modifier_per_miss = 0.1
+		self.fraction_minimum = 1e-4
+		self.signal_job_finished = vaex.events.Signal("job finished")
+
+	def add(self, job):
+		self.queue.append(job)
+
+	def get_next(self):
+		if len(self.queue) == 0:
+			raise IndexError, "queue empty"
+		total_cost = sum(job.cost for job in self.queue)
+		job_count = len(self.queue)
+		job = self.queue.pop(0)
+		logger.debug("queue length is %d, total cost of queue is %f, job index %d", len(self.queue), total_cost, job.index)
+		# if the total cost equals seconds, and we want the queue to be finished in 1 second
+		# this will be the best fraction
+		elapsed = time.time() - job.time_created
+		if elapsed > self.queue_delay * 1.3: # we already spent way too long time, the math doesn't work out, so what now?
+			# we scale the cost up, since it apearently doesn't work out fully
+			#raise ValueError, "elapsed = %f" % elapsed
+			logger.error("queue clogging up")
+		# assuming the queue costs will stay constant we want to finished this whole queue in max self.queue_delay
+		# seconds. Therefore the current job should only calculate a fraction as computed by:
+		fraction = (self.queue_delay - elapsed) / (total_cost * self.seconds_per_cost) * 0.9
+		fraction = min(max(self.fraction_minimum, fraction), 1)
+		time_elapsed_goal = elapsed + job.cost * self.seconds_per_cost * fraction / 0.9#elapsed + fraction * (self.seconds_per_cost)
+		logger.debug("to finish the queue we set the next job's fraction to %f (time elapsed = %f)", fraction, elapsed)
+		job.set_fraction(fraction)
+		job.set_time_elapsed_goal(time_elapsed_goal)
+		return job
+
+	def finished(self, job):
+		ratio = job.time_elapsed/ job.time_elapsed_goal # / job.time_elapsed_goal
+		if ratio > 1.2:
+			logger.debug("job should have taken %f seconds, took %f seconds, we should go faster", job.time_elapsed_goal, job.time_elapsed)
+			self.seconds_per_cost *= (1 + self.cost_modifier_per_miss)
+		if ratio < 0.75:
+			self.seconds_per_cost *= (1 - self.cost_modifier_per_miss)
+			logger.debug("job should have taken %f seconds, took %f seconds, we can slow down", job.time_elapsed_goal, job.time_elapsed)
+		logger.debug("seconds_per_cost set to: %f", self.seconds_per_cost)
+		self.signal_job_finished.emit(job)
+
+		#seconds_goal = job.set_fraction
+		#fraction_goal = job.set_fraction
+		#fraction_achieved = job.ti
+		pass
+
+#import concurrent.future
+
+class JobExecutor(object):
+	def __init__(self, job_queue):
+		self.job_queue = job_queue
+		#self.thread_pool_executor = concurrent.
+
+	def empty_queue(self):
+		while True:
+			try:
+				job = self.job_queue.get_next()
+				job.execute()
+				self.job_queue.finished(job)
+			except IndexError:
+				return
 
 class GoogleOAuth2LoginHandler(tornado.web.RequestHandler,
                                tornado.auth.GoogleOAuth2Mixin):
@@ -49,19 +144,109 @@ def task_invoke(subspace, method_name, request):
 	return values
 
 import collections
+import concurrent.futures
+import vaex.execution
+import vaex.multithreading
 
 class ListHandler(tornado.web.RequestHandler):
-	def initialize(self, datasets=None):
+	def initialize(self, submit_threaded, thread_local, datasets=None):
+		self.submit_threaded = submit_threaded
+		self.thread_local = thread_local
 		self.datasets = datasets or [vx.example()]
 		self.datasets_map = collections.OrderedDict([(ds.name,ds) for ds in self.datasets])
 
+
+	def process(self, user_id, request):
+		if not hasattr(self.thread_local, "executor"):
+			logger.debug("creating thread pool and executor")
+			self.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex()
+			self.thread_local.executor = vaex.execution.Executor(thread_pool=self.thread_local.thread_pool)
+
+        #return ("Hello, world")
+		#print request.path
+		try:
+			parts = [part for part in request.path.split("/") if part]
+			logger.debug("request: %r" % parts)
+			#print parts
+			#print request.headers
+			#print parts
+			if parts[0] == "sleep":
+				seconds = float(parts[1])
+				import time
+				time.sleep(seconds)
+				return ({"result":seconds})
+			elif parts[0] == "datasets":
+				if len(parts) == 1:
+					response = dict(datasets=[{"name":ds.name, "full_length":len(ds), "column_names":ds.get_column_names()} for ds in self.datasets])
+					return response
+				else:
+
+					dataset_name = parts[1]
+					logger.debug("dataset: %s", dataset_name)
+					if dataset_name not in self.datasets_map:
+						self.error("dataset does not exist: %r, possible options: %r" % (dataset_name, self.datasets_map.keys()))
+					else:
+						if len(parts) > 2:
+							method_name = parts[2]
+							logger.debug("method: %r args: %r" % (method_name, request.arguments))
+							if "expressions" in request.arguments:
+								expressions = json.loads(request.arguments["expressions"][0])
+							else:
+								expressions = None
+							dataset = self.datasets_map[dataset_name]
+							if dataset.mask is not None:
+								logger.debug("selection: %r", dataset.mask.sum())
+							if "active_fraction" in request.arguments:
+								active_fraction = json.loads(request.arguments["active_fraction"][0])
+								logger.debug("setting active fraction to: %r", active_fraction)
+								dataset.set_active_fraction(active_fraction)
+							if "variables" in request.arguments:
+								variables = json.loads(request.arguments["variables"][0])
+								logger.debug("setting variables to: %r", variables)
+								for key, value in variables:
+									dataset.set_variable(key, value)
+							if "virtual_columns" in request.arguments:
+								virtual_columns = json.loads(request.arguments["virtual_columns"][0])
+								logger.debug("setting virtual_columns to: %r", virtual_columns)
+								for key, value in virtual_columns:
+									dataset.add_virtual_column(key, value)
+							subspace = dataset(*expressions, executor=self.thread_local.executor) if expressions else None
+							try:
+								if subspace:
+									if "selection_name" in request.arguments:
+										selection_name = json.loads(request.arguments["selection_name"][0])
+										logger.debug("selection_name = %r", selection_name)
+										if selection_name == "default":
+											logger.debug("taking selected")
+											subspace = subspace.selected()
+								logger.debug("subspace: %r", subspace)
+								if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest", "correlation"]:
+									#print "expressions", expressions
+									values = task_invoke(subspace, method_name, request)
+									logger.debug("result: %r", values)
+									#print values, expressions
+									values = values.tolist() if hasattr(values, "tolist") else values
+									return ({"result": values})
+								elif method_name == "histogram":
+									grid = task_invoke(subspace, method_name, request)
+									self.set_header("Content-Type", "application/octet-stream")
+									return (grid.tostring())
+								elif method_name in ["select", "evaluate", "lasso_select"]:
+									result = task_invoke(dataset, method_name, request)
+									result = result.tolist() if hasattr(result, "tolist") else result
+									return ({"result": result})
+								else:
+									logger.error("unknown method: %r", method_name)
+									return self.error("unknown method: " + method_name)
+							except (SyntaxError, KeyError) as e:
+								return self.exception(e)
+		except:
+			logger.exception("unknown issue")
+		return self.error("unknown request")
+
+
+	@tornado.gen.coroutine
 	def get(self):
-        #self.write("Hello, world")
-		#print self.request.path
-		parts = [part for part in self.request.path.split("/") if part]
-		logger.debug("request: %r" % parts)
-		#print parts
-		#print self.request.headers
 		user_id = self.get_cookie("user_id")
 		logger.debug("user_id in cookie: %r", user_id)
 		if user_id is None:
@@ -69,81 +254,17 @@ class ListHandler(tornado.web.RequestHandler):
 			user_id = str(uuid.uuid4())
 			self.set_cookie("user_id", user_id)
 		logger.debug("user_id: %r", user_id)
-		#print parts
-		if parts[0] == "sleep":
-			seconds = float(parts[1])
-			import time
-			time.sleep(seconds)
-			self.write({"result":seconds})
-		elif parts[0] == "datasets":
-			if len(parts) == 1:
-				response = dict(datasets=[{"name":ds.name, "full_length":len(ds), "column_names":ds.get_column_names()} for ds in self.datasets])
-				self.write(response)
-			else:
-				dataset_name = parts[1]
-				if dataset_name not in self.datasets_map:
-					self.error("dataset does not exist: %r, possible options: %r" % (dataset_name, self.datasets_map.keys()))
-				else:
-					if len(parts) > 2:
-						method_name = parts[2]
-						logger.debug("method: %r args: %r" % (method_name, self.request.arguments))
-						if "expressions" in self.request.arguments:
-							expressions = json.loads(self.request.arguments["expressions"][0])
-						else:
-							expressions = None
-						dataset = self.datasets_map[dataset_name]
-						if dataset.mask is not None:
-							logger.debug("selection: %r", dataset.mask.sum())
-						if "active_fraction" in self.request.arguments:
-							active_fraction = json.loads(self.request.arguments["active_fraction"][0])
-							logger.debug("setting active fraction to: %r", active_fraction)
-							dataset.set_active_fraction(active_fraction)
-						if "variables" in self.request.arguments:
-							variables = json.loads(self.request.arguments["variables"][0])
-							logger.debug("setting variables to: %r", variables)
-							for key, value in variables:
-								dataset.set_variable(key, value)
-						if "virtual_columns" in self.request.arguments:
-							virtual_columns = json.loads(self.request.arguments["virtual_columns"][0])
-							logger.debug("setting virtual_columns to: %r", virtual_columns)
-							for key, value in virtual_columns:
-								dataset.add_virtual_column(key, value)
-						subspace = dataset(*expressions) if expressions else None
-						try:
-							if subspace:
-								if "selection_name" in self.request.arguments:
-									selection_name = json.loads(self.request.arguments["selection_name"][0])
-									logger.debug("selection_name = %r", selection_name)
-									if selection_name == "default":
-										logger.debug("taking selected")
-										subspace = subspace.selected()
-							logger.debug("subspace: %r", subspace)
-							if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest", "correlation"]:
-								#print "expressions", expressions
-								values = task_invoke(subspace, method_name, self.request)
-								logger.debug("result: %r", values)
-								#print values, expressions
-								values = values.tolist() if hasattr(values, "tolist") else values
-								self.write({"result": values})
-							elif method_name == "histogram":
-								grid = task_invoke(subspace, method_name, self.request)
-								self.set_header("Content-Type", "application/octet-stream")
-								self.write(grid.tostring())
-							elif method_name in ["select", "evaluate", "lasso_select"]:
-								result = task_invoke(dataset, method_name, self.request)
-								result = result.tolist() if hasattr(result, "tolist") else result
-								self.write({"result": result})
-							else:
-								logger.error("unknown method: %r", method_name)
-								self.error("unknown method: " + method_name)
-						except (SyntaxError, KeyError) as e:
-							self.exception(e)
+		response = yield self.submit_threaded(self.process, user_id, self.request)
+		if response is None:
+			response = self.error("unknown request or error")
+
+		self.write(response)
 
 	def exception(self, exception):
 		logger.exception("handled exception at server, all fine")
-		self.write({"exception": {"class":str(exception.__class__.__name__), "msg": str(exception)} })
+		return ({"exception": {"class":str(exception.__class__.__name__), "msg": str(exception)} })
 	def error(self, msg):
-		self.write({"error": msg}) #, "result":None})
+		return ({"error": msg}) #, "result":None})
 
 
 
@@ -165,13 +286,22 @@ class WebServer(threading.Thread):
 		self.address = address
 		self.port = port
 		self.started = threading.Event()
-		self.options = dict(datasets=datasets)
+
+		self.thread_pool = concurrent.futures.ThreadPoolExecutor(2)
+		self.thread_local = threading.local()
+
+		self.options = dict(datasets=datasets, submit_threaded=self.submit_threaded, thread_local=self.thread_local)
+
+
 
 		self.application = tornado.web.Application([
 			(r"/queue", QueueHandler, self.options),
 			(r"/auth", GoogleOAuth2LoginHandler, {}),
 			(r"/.*", ListHandler, self.options),
 		])
+
+	def submit_threaded(self, callable, *args, **kwargs):
+		return self.thread_pool.submit(callable, *args, **kwargs)
 
 	def serve(self):
 		self.mainloop()
@@ -229,7 +359,7 @@ if __name__ == "__main__":
 	parser.add_argument("--address", help="address to bind the server to (default: %(default)s)", default=default_config.address)
 	parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=default_config.port)
 	parser.add_argument('--verbose', '-v', action='count')
-	config = layeredconfig.LayeredConfig(defaults, layeredconfig.Commandline(parser=parser), env)
+	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser))
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
 	logging.getLogger("vaex").setLevel(verbosity[config.verbose])
