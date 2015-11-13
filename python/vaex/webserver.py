@@ -196,14 +196,15 @@ class ListHandler(tornado.web.RequestHandler):
 							dataset = self.datasets_map[dataset_name]
 							if dataset.mask is not None:
 								logger.debug("selection: %r", dataset.mask.sum())
-							if fraction is not None:
-								dataset.set_active_fraction(fraction)
-								logger.debug("auto fraction set to %f", fraction)
+							if "active_fraction" in request.arguments:
+								active_fraction = json.loads(request.arguments["active_fraction"][0])
+								logger.debug("setting active fraction to: %r", active_fraction)
+								dataset.set_active_fraction(active_fraction)
 							else:
-								if "active_fraction" in request.arguments:
-									active_fraction = json.loads(request.arguments["active_fraction"][0])
-									logger.debug("setting active fraction to: %r", active_fraction)
-									dataset.set_active_fraction(active_fraction)
+								if fraction is not None:
+									dataset.set_active_fraction(fraction)
+									logger.debug("auto fraction set to %f", fraction)
+
 							if "variables" in request.arguments:
 								variables = json.loads(request.arguments["variables"][0])
 								logger.debug("setting variables to: %r", variables)
@@ -310,10 +311,13 @@ class WebServer(threading.Thread):
 
 	def submit_threaded(self, callable, *args, **kwargs):
 		job = JobFlexible(4.)
+		job.callable = callable
+		job.args = args
+		job.kwargs = kwargs
 		self.job_queue.add(job)
 		def execute():
 			job = self.job_queue.get_next()
-			result = callable(fraction=job.fraction, *args, **kwargs)
+			result = callable(fraction=job.fraction, *job.args, **job.kwargs)
 			job.done()
 			self.job_queue.finished(job)
 			return result
