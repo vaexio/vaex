@@ -1239,11 +1239,11 @@ class VaexApp(QtGui.QMainWindow):
 
 
 		#select_many(None, "lala", ["aap", "noot"] + ["item-%d-%s" % (k, "-" * k) for k in range(30)])
-		ok, columns_mask = dialogs.select_many(self, "Select columns", dataset.get_column_names())
+		ok, columns_mask = dialogs.select_many(self, "Select columns", dataset.get_column_names(virtual=True))
 		if not ok: # cancel
 			return
 
-		selected_column_names = [column_name for column_name, selected in zip(dataset.get_column_names(), columns_mask) if selected]
+		selected_column_names = [column_name for column_name, selected in zip(dataset.get_column_names(virtual=True), columns_mask) if selected]
 		logger.debug("export column names: %r", selected_column_names)
 
 		shuffle = dialogs.dialog_confirm(self, "Shuffle?", "Do you want the dataset to be shuffled (output the rows in random order)")

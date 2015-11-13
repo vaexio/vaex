@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
+import os
 import vaex.dataset as dataset
 import numpy as np
 import unittest
 import vaex as vx
 import tempfile
 import vaex.webserver
+import astropy.io.fits
 
 import vaex.execution
 a = vaex.execution.buffer_size # will crash if we decide to rename it
@@ -270,6 +272,7 @@ class TestDataset(unittest.TestCase):
 
 		path = path_hdf5 = tempfile.mktemp(".hdf5")
 		path_fits = tempfile.mktemp(".fits")
+		path_fits_astropy = tempfile.mktemp(".fits")
 		#print path
 
 		with self.assertRaises(AssertionError):
@@ -295,6 +298,13 @@ class TestDataset(unittest.TestCase):
 									else:
 										path = path_fits
 										export(path, column_names=column_names, shuffle=shuffle, selection=selection)
+										fitsfile = astropy.io.fits.open(path)
+										# make sure astropy can read the data
+										bla = fitsfile[1].data
+										try:
+											fitsfile.writeto(path_fits_astropy)
+										finally:
+											os.remove(path_fits_astropy)
 									compare = vx.open(path)
 									column_names = column_names or ["x", "y", "z"]
 									self.assertEqual(compare.get_column_names(), column_names + (["random_index"] if shuffle else []))
@@ -308,6 +318,7 @@ class TestDataset(unittest.TestCase):
 												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[indices]))
 											else:
 												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[:length]))
+
 				# self.dataset_concat_dup references self.dataset, so set it's active_fraction to 1 again
 				dataset.set_active_fraction(1)
 

@@ -655,6 +655,8 @@ class SubspaceLocal(Subspace):
 import vaex.events
 import cgi
 
+# mutex for numexpr (is not thread save)
+ne_lock = threading.Lock()
 
 class _BlockScope(object):
 	def __init__(self, dataset, i1, i2, **variables):
@@ -690,7 +692,8 @@ class _BlockScope(object):
 			self.buffers[column] = np.zeros(self.i2-self.i1)
 
 	def evaluate(self, expression, out=None):
-		return ne.evaluate(expression, local_dict=self, out=out)
+		result = ne.evaluate(expression, local_dict=self, out=out)
+		return result
 
 	def __getitem__(self, variable):
 		#logger.debug("get " + variable)
@@ -701,6 +704,8 @@ class _BlockScope(object):
 					self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
 				else:
 					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2]
+			elif variable in self.values:
+				return self.values[variable]
 			elif variable in list(self.dataset.virtual_columns.keys()):
 				expression = self.dataset.virtual_columns[variable]
 				self._ensure_buffer(variable)
@@ -836,7 +841,7 @@ class Dataset(object):
 		self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y} + {m}_12 * {z}".format(**locals())
 		self.virtual_columns[znew] = "{m}_20 * {x} + {m}_21 * {y} + {m}_22 * {z}".format(**locals())
 
-	def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="celestial", radians=False):
+	def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial", radians=False):
 		import kapteyn.celestial as c
 		input = input or c.eq
 		output = input or c.gal
@@ -954,7 +959,7 @@ class Dataset(object):
 
 		:rtype: list of str
  		"""
-		return list(self.column_names) + (self.virtual_columns.keys() if virtual else [])
+		return list(self.column_names) + ([key for key in self.virtual_columns.keys() if not key.startswith("__")] if virtual else [])
 
 	def __len__(self):
 		"""Returns the number of rows in the dataset, if active_fraction != 1, then floor(active_fraction*full_length) is returned"""
