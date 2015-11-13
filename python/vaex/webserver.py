@@ -156,7 +156,7 @@ class ListHandler(tornado.web.RequestHandler):
 		self.datasets_map = collections.OrderedDict([(ds.name,ds) for ds in self.datasets])
 
 
-	def process(self, user_id, request):
+	def process(self, user_id, request, fraction=None):
 		if not hasattr(self.thread_local, "executor"):
 			logger.debug("creating thread pool and executor")
 			self.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex()
@@ -196,10 +196,14 @@ class ListHandler(tornado.web.RequestHandler):
 							dataset = self.datasets_map[dataset_name]
 							if dataset.mask is not None:
 								logger.debug("selection: %r", dataset.mask.sum())
-							if "active_fraction" in request.arguments:
-								active_fraction = json.loads(request.arguments["active_fraction"][0])
-								logger.debug("setting active fraction to: %r", active_fraction)
-								dataset.set_active_fraction(active_fraction)
+							if fraction is not None:
+								dataset.set_active_fraction(fraction)
+								logger.debug("auto fraction set to %f", fraction)
+							else:
+								if "active_fraction" in request.arguments:
+									active_fraction = json.loads(request.arguments["active_fraction"][0])
+									logger.debug("setting active fraction to: %r", active_fraction)
+									dataset.set_active_fraction(active_fraction)
 							if "variables" in request.arguments:
 								variables = json.loads(request.arguments["variables"][0])
 								logger.debug("setting variables to: %r", variables)
@@ -280,15 +284,19 @@ class QueueHandler(tornado.web.RequestHandler):
 
 
 class WebServer(threading.Thread):
-	def __init__(self, address="localhost", port=9000, datasets=[]):
+	def __init__(self, address="localhost", port=9000, webserver_thread_count=2, datasets=[]):
 		threading.Thread.__init__(self)
 		self.setDaemon(True)
 		self.address = address
 		self.port = port
 		self.started = threading.Event()
 
-		self.thread_pool = concurrent.futures.ThreadPoolExecutor(2)
+		self.webserver_thread_count = webserver_thread_count
+
+		self.thread_pool = concurrent.futures.ThreadPoolExecutor(self.webserver_thread_count)
 		self.thread_local = threading.local()
+
+		self.job_queue = JobQueue()
 
 		self.options = dict(datasets=datasets, submit_threaded=self.submit_threaded, thread_local=self.thread_local)
 
@@ -301,7 +309,16 @@ class WebServer(threading.Thread):
 		])
 
 	def submit_threaded(self, callable, *args, **kwargs):
-		return self.thread_pool.submit(callable, *args, **kwargs)
+		job = JobFlexible(4.)
+		self.job_queue.add(job)
+		def execute():
+			job = self.job_queue.get_next()
+			result = callable(fraction=job.fraction, *args, **kwargs)
+			job.done()
+			self.job_queue.finished(job)
+			return result
+		future = self.thread_pool.submit(execute) #, *args, **kwargs)
+		return future
 
 	def serve(self):
 		self.mainloop()
