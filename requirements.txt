@@ -17,4 +17,5 @@ future
 jupyter
 pyyaml
 layeredconfig
+http://www.astro.rug.nl/software/kapteyn/kapteyn-2.3.tar.gz
 # sphinxcontrib-googleanalytics # for building the docs
