@@ -748,7 +748,7 @@ class LayerTable(object):
 		options = collections.OrderedDict()
 		#options["type-names"] = map(str.strip, self.names.split(","))
 		options["expressions"] = self.expressions
-		options["expression_weight"] = self.weight_expression
+		options["weight"] = self.weight_expression
 		options["amplitude_expression"] = self.amplitude_expression
 		options["ranges_grid"] = self.ranges_grid
 		options["vx"] = self.vx
@@ -764,15 +764,15 @@ class LayerTable(object):
 
 	def apply_options(self, options, update=True):
 		#map = {"expressions",}
-		recognize = "expressions expression_weight amplitude_expression ranges_grid aspect vx vy vz".split()
+		recognize = "expressions weight amplitude_expression ranges_grid aspect vx vy vz".split()
 		for key in recognize:
 			if key in list(options.keys()):
 				value = options[key]
 				setattr(self, key, copy.copy(value))
 				if key == "amplitude_expression":
 					self.amplitude_box.lineEdit().setText(value)
-				if key == "expression_weight":
-					self.weight_box.lineEdit().setText(value or "")
+				if key == "weight":
+					self.weight = value
 				if key == "vx":
 					self.weight_x_box.lineEdit().setText(value or "")
 				if key == "vy":
@@ -880,7 +880,7 @@ class LayerTable(object):
 
 
 		# the weighted ones
-		if self.weight_expression is not None:
+		if self.weight_expression:
 			histogram_weighted_promise = self.subspace.histogram(limits=ranges
 					, weight=self.weight_expression, size=self.plot_window.grid_size)\
 				.then(self.grid_main.setter("weighted"))\
@@ -1119,6 +1119,7 @@ class LayerTable(object):
 
 	def set_expression(self, expression, index):
 		self.expressions[index] = expression
+		self.axisboxes[index].lineEdit().setText(expression)
 		# TODO: range reset as option?
 		self.ranges_grid[index] = None
 		self.plot_window.ranges_show[index] = None

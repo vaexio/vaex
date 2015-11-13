@@ -798,6 +798,8 @@ class VaexApp(QtGui.QMainWindow):
 
 		#self.action_open = QtGui.QAction(vp.iconfile('quickopen-file', '&Open', self)
 		#self.action_open.
+
+
 		self.action_open_hdf5_gadget = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open Gadget hdf5', self)
 		self.action_open_hdf5_vaex = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open Vaex hdf5', self)
 		self.action_open_hdf5_amuse = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&Open Amuse hdf5', self)
@@ -815,6 +817,14 @@ class VaexApp(QtGui.QMainWindow):
 		self.samp = None
 
 
+		ipythonAction = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&IPython console', self)
+		ipythonAction.setShortcut('Alt+I')
+		ipythonAction.setStatusTip('Show IPython console')
+		def show_ipython_console(*args):
+			ipython_console.show()
+		ipythonAction.triggered.connect(show_ipython_console)
+
+
 		menubar = self.menuBar()
 		fileMenu = menubar.addMenu('&File')
 		self.menu_open = fileMenu.addMenu("&Open")
@@ -826,6 +836,7 @@ class VaexApp(QtGui.QMainWindow):
 		fileMenu.addAction(self.action_save_hdf5)
 		fileMenu.addAction(self.action_save_fits)
 		#fileMenu.addAction(self.action_open)
+		fileMenu.addAction(ipythonAction)
 		fileMenu.addAction(exitAction)
 
 
@@ -978,7 +989,7 @@ class VaexApp(QtGui.QMainWindow):
 		def on_open_plot(plot_dialog):
 			plot_dialog.signal_samp_send_selection.connect(lambda dataset: self.on_samp_send_table_select_rowlist(dataset=dataset))
 			if kernel:
-				kernel.shell.push({"plot":plot_dialog})
+				kernel.shell.push({"window":plot_dialog})
 				kernel.shell.push({"layer":plot_dialog.current_layer})
 			self.windows.append(plot_dialog) # TODO remove from list
 
@@ -1005,6 +1016,38 @@ class VaexApp(QtGui.QMainWindow):
 	def on_signal_promise(self, promise, value):
 		#print "got promise, and should send it value", value, threading.currentThread()
 		promise.fulfill(value)
+
+	def plot(self, *args, **kwargs):
+		window_name = kwargs.get("window_name")
+		layer_name = kwargs.get("layer_name")
+		name = kwargs.get("name")
+		if name is not None:
+			window_name, layer_name = name.split(":")
+			kwargs["window_name"] = window_name
+			kwargs["layer_name"] = layer_name
+
+		layer = None
+		window = None
+		windows = [window for window in self.windows if window.name == window_name]
+		if windows:
+			window = windows[0]
+			layers = [layer for layer in window.layers if layer.name == layer_name]
+			if layer:
+				layer.apply_options(kwargs)
+				if len(args) == 1:
+					layer.x = args[0]
+				if len(args) == 2:
+					layer.x = args[0]
+					layer.y = args[1]
+		if layer is None:
+			if len(args) == 1:
+				self.dataset_panel.histogram(args[0], **kwargs)
+			if len(args) == 2:
+				self.dataset_panel.plotxy(args[0], args[1], **kwargs)
+			#if len(args) == 1:
+			#	self.dataset_panel.histogram(args[0], kwargs)
+		#else:
+
 
 
 	def parse_args(self, args):
@@ -1591,9 +1634,9 @@ class VaexApp(QtGui.QMainWindow):
 app = None
 kernel = None
 
-#from qtconsole.rich_jupyter_widget import RichJupyterWidget
-#from qtconsole.inprocess import QtInProcessKernelManager
-#from IPython.lib import guisupport
+from qtconsole.rich_jupyter_widget import RichJupyterWidget
+from qtconsole.inprocess import QtInProcessKernelManager
+from IPython.lib import guisupport
 
 def print_process_id():
     print(('Process ID is:', os.getpid()))
@@ -1603,6 +1646,7 @@ def main(argv=sys.argv[1:]):
 	global vaex
 	global app
 	global kernel
+	global ipython_console
 	if app is None:
 		app = QtGui.QApplication(argv)
 		if not (frozen and darwin): # osx app has its own icon file
@@ -1631,7 +1675,10 @@ def main(argv=sys.argv[1:]):
 
 
 	vaex_app = VaexApp(argv, open_default=True)
-	if 0:
+	def plot(*args, **kwargs):
+		vaex_app.plot(*args, **kwargs)
+
+	if 1:
 		#   app = guisupport.get_app_qt4()
 		print_process_id()
 
@@ -1642,7 +1689,7 @@ def main(argv=sys.argv[1:]):
 		kernel_manager.start_kernel()
 		kernel = kernel_manager.kernel
 		kernel.gui = 'qt4'
-		kernel.shell.push({'foo': 43, 'print_process_id': print_process_id, "vaex_app":vaex_app})
+		kernel.shell.push({'foo': 43, 'print_process_id': print_process_id, "vaex_app":vaex_app, "plot": plot})
 
 		kernel_client = kernel_manager.client()
 		kernel_client.start_channels()
@@ -1652,11 +1699,11 @@ def main(argv=sys.argv[1:]):
 			kernel_manager.shutdown_kernel()
 			app.exit()
 
-		control = RichJupyterWidget()
-		control.kernel_manager = kernel_manager
-		control.kernel_client = kernel_client
-		control.exit_requested.connect(stop)
-		#control.show()
+		ipython_console = RichJupyterWidget()
+		ipython_console.kernel_manager = kernel_manager
+		ipython_console.kernel_client = kernel_client
+		ipython_console.exit_requested.connect(stop)
+		#ipython_console.show()
 
 		sys.exit(guisupport.start_event_loop_qt4(app))
 
