@@ -1898,8 +1898,9 @@ class PlotDialog(QtGui.QWidget):
 		#self.dataset.executor.execute()
 		layer = self.current_layer
 		if layer is not None:
+			self.dataset.select(None)
 			action = undo.ActionMask(layer.dataset.undo_manager, "clear selection", None, layer.apply_mask)
-			action.do()
+			#action.do()
 		#self.checkUndoRedo()
 
 	def onActionSelectInvert(self):

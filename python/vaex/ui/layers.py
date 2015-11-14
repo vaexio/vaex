@@ -578,7 +578,7 @@ class LayerTable(object):
 						amplitude = grid.evaluate(self.amplitude_expression)
 						if self.dataset.has_selection():
 							#grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
-							grid_selection = self.grid_main.marginal2d(axes.xaxis_index, axes.yaxis_index)
+							grid_selection = self.grid_main_selection.marginal2d(axes.xaxis_index, axes.yaxis_index)
 							amplitude_selection = grid_selection.evaluate(self.amplitude_expression)
 						else:
 							amplitude_selection = None
@@ -804,8 +804,10 @@ class LayerTable(object):
 		self.plugin_grids_draw.append(callback_draw)
 
 	def apply_mask(self, mask):
-		self.dataset._set_mask(mask)
-		self.execute()
+		# TODO: how to treat this when there is a server
+		if self.dataset.is_local():
+			self.dataset._set_mask(mask)
+			self.execute()
 		self.check_selection_undo_redo()
 		self.label_selection_info_update()
 

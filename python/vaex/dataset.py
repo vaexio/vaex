@@ -769,6 +769,8 @@ class Dataset(object):
 		self.mask = None # a bitmask for the selection does not work for server side
 		self._has_selection = False
 
+	def is_local(self): raise NotImplementedError
+
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
 		return False
@@ -1020,7 +1022,20 @@ class DatasetLocal(Dataset):
 	def __init__(self, name, path, column_names):
 		super(DatasetLocal, self).__init__(name, column_names)
 		self.path = path
+		self.mask = None
 		self.columns = collections.OrderedDict()
+
+	def shallow_copy(self, virtual=True, variables=True):
+		dataset = DatasetLocal(self.name, self.path, self.column_names)
+		dataset.columns.update(self.columns)
+		dataset._full_length = self._full_length
+		dataset._length = self._length
+		dataset._active_fraction = self._active_fraction
+		if virtual:
+			dataset.virtual_columns.update(self.virtual_columns)
+		if variables:
+			dataset.variables.update(self.variables)
+		return dataset
 
 	def is_local(self): return True
 
@@ -1293,7 +1308,6 @@ class DatasetMemoryMapped(DatasetLocal):
 
 		self.all_columns = {}
 		self.all_column_names = []
-		self.mask = None
 		self.global_links = {}
 		
 		self.offsets = {}

@@ -20,7 +20,7 @@ import time
 logger = logging.getLogger("vaex.webserver")
 job_index = 0
 class JobFlexible(object):
-	def __init__(self, cost, index=None):
+	def __init__(self, cost, fn=None, args=None, kwargs=None, index=None):
 		global job_index
 		self.cost = cost
 		if index is None:
@@ -31,6 +31,9 @@ class JobFlexible(object):
 		self.fraction = None
 		self.time_elapsed_goal = None
 		self.time_created = time.time()
+		self.fn = fn or (lambda *args, **kwargs: None)
+		self.args = args
+		self.kwargs = kwargs
 
 	def set_fraction(self, fraction):
 		self.fraction = fraction
@@ -39,7 +42,11 @@ class JobFlexible(object):
 		self.time_elapsed_goal = time_elapsed_goal
 
 	def execute(self):
-		pass
+		try:
+			result = self.fn(*self.args, **self.kwargs)
+			return result
+		finally:
+			self.done()
 
 	def done(self):
 		self.time_done = time.time()
@@ -77,6 +84,7 @@ class JobQueue(object):
 		fraction = min(max(self.fraction_minimum, fraction), 1)
 		time_elapsed_goal = elapsed + job.cost * self.seconds_per_cost * fraction / 0.9#elapsed + fraction * (self.seconds_per_cost)
 		logger.debug("to finish the queue we set the next job's fraction to %f (time elapsed = %f)", fraction, elapsed)
+		#print fraction
 		job.set_fraction(fraction)
 		job.set_time_elapsed_goal(time_elapsed_goal)
 		return job
@@ -149,11 +157,13 @@ import vaex.execution
 import vaex.multithreading
 
 class ListHandler(tornado.web.RequestHandler):
-	def initialize(self, submit_threaded, thread_local, datasets=None):
+	def initialize(self, submit_threaded, thread_local, cache, cache_selection, datasets=None):
 		self.submit_threaded = submit_threaded
 		self.thread_local = thread_local
 		self.datasets = datasets or [vx.example()]
 		self.datasets_map = collections.OrderedDict([(ds.name,ds) for ds in self.datasets])
+		self.cache = cache
+		self.cache_selection = cache_selection
 
 
 	def process(self, user_id, request, fraction=None):
@@ -178,6 +188,7 @@ class ListHandler(tornado.web.RequestHandler):
 			elif parts[0] == "datasets":
 				if len(parts) == 1:
 					response = dict(datasets=[{"name":ds.name, "full_length":len(ds), "column_names":ds.get_column_names()} for ds in self.datasets])
+					logger.debug("response: %r", response)
 					return response
 				else:
 
@@ -193,7 +204,8 @@ class ListHandler(tornado.web.RequestHandler):
 								expressions = json.loads(request.arguments["expressions"][0])
 							else:
 								expressions = None
-							dataset = self.datasets_map[dataset_name]
+							# make a shallow copy, such that selection and active_fraction is not shared
+							dataset = self.datasets_map[dataset_name].shallow_copy()
 							if dataset.mask is not None:
 								logger.debug("selection: %r", dataset.mask.sum())
 							if "active_fraction" in request.arguments:
@@ -223,6 +235,7 @@ class ListHandler(tornado.web.RequestHandler):
 										logger.debug("selection_name = %r", selection_name)
 										if selection_name == "default":
 											logger.debug("taking selected")
+											dataset.mask = self.cache_selection[(dataset.path, user_id)]
 											subspace = subspace.selected()
 								logger.debug("subspace: %r", subspace)
 								if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest", "correlation"]:
@@ -236,7 +249,13 @@ class ListHandler(tornado.web.RequestHandler):
 									grid = task_invoke(subspace, method_name, request)
 									self.set_header("Content-Type", "application/octet-stream")
 									return (grid.tostring())
-								elif method_name in ["select", "evaluate", "lasso_select"]:
+								elif method_name in ["select", "lasso_select"]:
+									dataset.mask = self.cache_selection.get((dataset.path, user_id))
+									result = task_invoke(dataset, method_name, request)
+									result = result.tolist() if hasattr(result, "tolist") else result
+									self.cache_selection[(dataset.path, user_id)] = dataset.mask
+									return ({"result": result})
+								elif method_name in ["evaluate"]:
 									result = task_invoke(dataset, method_name, request)
 									result = result.tolist() if hasattr(result, "tolist") else result
 									return ({"result": result})
@@ -259,7 +278,17 @@ class ListHandler(tornado.web.RequestHandler):
 			user_id = str(uuid.uuid4())
 			self.set_cookie("user_id", user_id)
 		logger.debug("user_id: %r", user_id)
-		response = yield self.submit_threaded(self.process, user_id, self.request)
+		key = (self.request.path, "-".join([str(v) for v in sorted(self.request.arguments.items())]))
+		response = self.cache.get(key)
+		if response is None:
+			response = yield self.submit_threaded(self.process, user_id, self.request)
+			try:
+				self.cache[key] = response
+			except ValueError:
+				pass # raised when it doesn't fit in cache
+		else:
+			logger.debug("cache hit for key: %r", key)
+		#logger.debug("response is: %r", response)
 		if response is None:
 			response = self.error("unknown request or error")
 
@@ -282,10 +311,13 @@ class QueueHandler(tornado.web.RequestHandler):
         #self.write("Hello, world")
 		self.write(dict(datasets=[{"name":ds.name, "length":len(ds)} for ds in self.datasets]))
 
-
+from cachetools import Cache, LRUCache
+import sys
+MB = 1024**2
+GB = MB * 1024
 
 class WebServer(threading.Thread):
-	def __init__(self, address="localhost", port=9000, webserver_thread_count=2, datasets=[]):
+	def __init__(self, address="localhost", port=9000, webserver_thread_count=2, cache_byte_size=500*MB, cache_selection_byte_size=500*MB, datasets=[]):
 		threading.Thread.__init__(self)
 		self.setDaemon(True)
 		self.address = address
@@ -299,7 +331,11 @@ class WebServer(threading.Thread):
 
 		self.job_queue = JobQueue()
 
-		self.options = dict(datasets=datasets, submit_threaded=self.submit_threaded, thread_local=self.thread_local)
+		self.cache = LRUCache(cache_byte_size, getsizeof=sys.getsizeof)
+		self.cache_selection = LRUCache(cache_selection_byte_size, getsizeof=sys.getsizeof)
+
+		self.options = dict(datasets=datasets, submit_threaded=self.submit_threaded, thread_local=self.thread_local, cache=self.cache,
+							cache_selection=self.cache_selection)
 
 
 
@@ -310,16 +346,14 @@ class WebServer(threading.Thread):
 		])
 
 	def submit_threaded(self, callable, *args, **kwargs):
-		job = JobFlexible(4.)
-		job.callable = callable
-		job.args = args
-		job.kwargs = kwargs
+		job = JobFlexible(4., callable, args=args, kwargs=kwargs)
 		self.job_queue.add(job)
 		def execute():
 			job = self.job_queue.get_next()
-			result = callable(fraction=job.fraction, *job.args, **job.kwargs)
-			job.done()
-			self.job_queue.finished(job)
+			try:
+				result = job.execute()
+			finally:
+				self.job_queue.finished(job)
 			return result
 		future = self.thread_pool.submit(execute) #, *args, **kwargs)
 		return future
@@ -368,7 +402,9 @@ address: 0.0.0.0
 port: 9002
 filenames: []
 verbose: 2
+cache: 500000000
 """
+
 if __name__ == "__main__":
 	#logger.setLevel(logging.logging.DEBUG)
 
@@ -380,6 +416,7 @@ if __name__ == "__main__":
 	parser.add_argument("--address", help="address to bind the server to (default: %(default)s)", default=default_config.address)
 	parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=default_config.port)
 	parser.add_argument('--verbose', '-v', action='count')
+	parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=default_config.cache)
 	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser))
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
@@ -395,7 +432,7 @@ if __name__ == "__main__":
 	logger.info("datasets:")
 	for dataset in datasets:
 		logger.info("\thttp://%s:%d/%s", config.address, config.port, dataset.name)
-	server = WebServer(datasets=datasets, address=config.address, port=config.port)
+	server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache)
 	server.serve()
 
 	#3_threaded()
