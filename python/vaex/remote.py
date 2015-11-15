@@ -121,9 +121,9 @@ class ServerRest(object):
 			promise = vaex.promise.Promise()
 			def do():
 				future = self.http_client_async.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
-				promise.fulfill(wrap_future_with_promise(future).then(transform).then(self._move_to_thread))
+				promise.fulfill(wrap_future_with_promise(future).then(transform))
 			self.io_loop.add_callback(do)
-			return promise
+			return promise.then(self._move_to_thread)
 		else:
 			return transform(self.http_client.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs))
 

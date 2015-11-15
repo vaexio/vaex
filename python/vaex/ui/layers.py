@@ -190,6 +190,8 @@ class LayerTable(object):
 		self.slice_axis = [] # list of booleans, which axis we listen to
 
 
+		self._histogram_counter = 0 # TODO: until we can cancel the server, we have to fix it with a counter
+
 		self.colormap = "PaulT_plusmin" #"binary"
 		self.colormap_vector = "binary"
 		if "lim" in self.options:
@@ -857,6 +859,9 @@ class LayerTable(object):
 		return self
 
 	def add_tasks_histograms(self):
+		self._histogram_counter += 1
+
+		histogram_counter = self._histogram_counter
 		self._can_plot = False
 		promises = []
 		self.grid_main = vaex.grids.GridScope(globals=np.__dict__)
@@ -937,11 +942,20 @@ class LayerTable(object):
 		#		self.grid_vector["weight" +name] = None
 
 
+		def check_counter(arg):
+			if histogram_counter == self._histogram_counter:
+				self.got_grids(arg)
+			else:
+				logger.debug
+				#raise ValueError, "histogram counter got update, cancel redraw etc"
+			return arg
+		def error_counter(error):
+			logger.debug("histogram cancelled: %r", error)
 
 
-		return vaex.promise.listPromise(promises)\
-			.then(self.got_grids)\
-			.then(None, self.on_error)
+		return vaex.promise.listPromise(promises).then(check_counter)#.then(None, error_counter)\
+			#.then(self.got_grids)\
+			#.then(None, self.on_error)
 
 
 
