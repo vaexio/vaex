@@ -1023,7 +1023,11 @@ class VaexApp(QtGui.QMainWindow):
 			if filename.startswith("http://"):
 				o = urlparse(filename)
 				assert o.scheme == "http"
-				server = vaex.server(hostname=o.hostname, port = o.port or 80, thread_mover=self.send_to_main_thread)
+				base_path, should_be_datasets, dataset_name = o.path.rsplit("/", 2)
+				if should_be_datasets != "datasets":
+					error("expected an url in the form http://host:port/optional/part/datasets/dataset_name")
+				server = vaex.server(hostname=o.hostname, port = o.port or 80, thread_mover=self.send_to_main_thread, base_path=base_path)
+				#logger.debug()
 				datasets = server.datasets()
 				first_name = datasets[0].name
 				name_list = ", ".join([dataset.name for dataset in datasets])
@@ -1032,12 +1036,11 @@ class VaexApp(QtGui.QMainWindow):
 						filename = filename[:-1]
 					error("please provide a dataset in the url, like %s/%s, or any other dataset from: %s" % (filename, first_name, name_list))
 				else:
-					name = o.path[1:]
-					found = [dataset for dataset in datasets if dataset.name == name]
+					found = [dataset for dataset in datasets if dataset.name == dataset_name]
 					if found:
 						dataset = found[0]
 					else:
-						error("could not find dataset %s at the server, choose from: %s" % (name, name_list))
+						error("could not find dataset %s at the server, choose from: %s" % (dataset_name, name_list))
 			elif filename[0] == ":": # not a filename, but a classname
 				classname = filename.split(":")[1]
 				if classname not in vaex.dataset.dataset_type_map:

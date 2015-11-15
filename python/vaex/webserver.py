@@ -217,6 +217,10 @@ class ListHandler(tornado.web.RequestHandler):
 									dataset.set_active_fraction(fraction)
 									logger.debug("auto fraction set to %f", fraction)
 
+							if "selection" in request.arguments:
+								selection_values = json.loads(request.arguments["selection"][0])
+								selection = vaex.dataset.selection_from_dict(dataset, selection_values)
+								dataset.set_selection(selection, executor=self.thread_local.executor)
 							if "variables" in request.arguments:
 								variables = json.loads(request.arguments["variables"][0])
 								logger.debug("setting variables to: %r", variables)
@@ -230,13 +234,8 @@ class ListHandler(tornado.web.RequestHandler):
 							subspace = dataset(*expressions, executor=self.thread_local.executor) if expressions else None
 							try:
 								if subspace:
-									if "selection_name" in request.arguments:
-										selection_name = json.loads(request.arguments["selection_name"][0])
-										logger.debug("selection_name = %r", selection_name)
-										if selection_name == "default":
-											logger.debug("taking selected")
-											dataset.mask = self.cache_selection[(dataset.path, user_id)]
-											subspace = subspace.selected()
+									if "selection" in request.arguments:
+										subspace = subspace.selected()
 								logger.debug("subspace: %r", subspace)
 								if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest", "correlation"]:
 									#print "expressions", expressions

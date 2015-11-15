@@ -1065,10 +1065,11 @@ class LayerTable(object):
 		self.widget = self.toolbox
 
 		if "selection" in self.options:
-			filename = self.options["selection"]
-			mask = np.load(filename)
-			action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "selection from %s" % filename, mask, self.apply_mask)
-			action.do()
+			raise NotImplementedError, "selection meaning changed"
+			#filename = self.options["selection"]
+			#mask = np.load(filename)
+			#action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "selection from %s" % filename, mask, self.apply_mask)
+			#action.do()
 			#self.apply_mask(mask)
 			#self.dataset.selectMask(mask)
 
@@ -1692,10 +1693,10 @@ class LayerTable(object):
 		self.layout_page_selection.addWidget(self.button_selection_undo)
 		self.layout_page_selection.addWidget(self.button_selection_redo)
 		def on_undo(checked=False):
-			self.dataset.undo_manager.undo()
+			self.dataset.selection_undo()
 			self.check_selection_undo_redo()
 		def on_redo(checked=False):
-			self.dataset.undo_manager.redo()
+			self.dataset.selection_redo()
 			self.check_selection_undo_redo()
 		self.button_selection_undo.clicked.connect(on_undo)
 		self.button_selection_redo.clicked.connect(on_redo)
@@ -1722,8 +1723,8 @@ class LayerTable(object):
 
 				mode = self.plot_window.select_mode
 				self.dataset.select(expression, mode)
-				mask = self.dataset.mask
-				action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
+				#mask = self.dataset.mask
+				#action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
 				#action.do()
 
 				self.check_selection_undo_redo()
@@ -1766,8 +1767,10 @@ class LayerTable(object):
 
 	def check_selection_undo_redo(self):
 		#if self.widget_build:
-		self.button_selection_undo.setEnabled(self.dataset.undo_manager.can_undo())
-		self.button_selection_redo.setEnabled(self.dataset.undo_manager.can_redo())
+		#self.button_selection_undo.setEnabled(self.dataset.undo_manager.can_undo())
+		#self.button_selection_redo.setEnabled(self.dataset.undo_manager.can_redo())
+		self.button_selection_undo.setEnabled(self.dataset.selection_can_undo())
+		self.button_selection_redo.setEnabled(self.dataset.selection_can_redo())
 
 
 
