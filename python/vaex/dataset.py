@@ -1157,14 +1157,16 @@ class Dataset(object):
 		return (self.selection_history_indices[selection_name] + 1) < len(self.selection_histories[selection_name])
 
 	def select(self, boolean_expression, mode="replace", selection_name="default", executor=None):
-		def create(current):
-			return SelectionExpression(self, boolean_expression, current, mode) if boolean_expression else None
-		return self._selection(create, selection_name)
+		if boolean_expression is None and not self.has_selection(selection_name=selection_name):
+			pass # we don't want to pollute the history with many None selections
+			self.signal_selection_changed.emit(self) # TODO: unittest want to know, does this make sense?
+		else:
+			def create(current):
+				return SelectionExpression(self, boolean_expression, current, mode) if boolean_expression else None
+			return self._selection(create, selection_name)
 
 	def select_nothing(self, selection_name="default"):
-		def create(current):
-			return None
-		return self._selection(create, selection_name)
+		self.select(None, selection_name=selection_name)
 
 	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", selection_name="default", executor=None):
 		def create(current):

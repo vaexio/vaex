@@ -416,6 +416,16 @@ class TestDataset(unittest.TestCase):
 		pass # TODO
 
 	def test_selection_history(self):
+		self.assert_(not self.dataset.has_selection())
+		self.assert_(not self.dataset.selection_can_undo())
+		self.assert_(not self.dataset.selection_can_redo())
+
+		self.dataset.select_nothing()
+		self.assert_(not self.dataset.has_selection())
+		self.assert_(not self.dataset.selection_can_undo())
+		self.assert_(not self.dataset.selection_can_redo())
+
+
 		total = self.dataset("x").sum()
 		self.assert_(not self.dataset.has_selection())
 		self.assert_(not self.dataset.selection_can_undo())

@@ -1724,6 +1724,7 @@ class LayerTable(object):
 
 				mode = self.plot_window.select_mode
 				self.dataset.select(expression, mode)
+				self.update()
 				#mask = self.dataset.mask
 				#action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
 				#action.do()

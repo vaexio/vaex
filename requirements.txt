@@ -18,4 +18,5 @@ jupyter
 pyyaml
 layeredconfig
 http://www.astro.rug.nl/software/kapteyn/kapteyn-2.3.tar.gz
+cachetools
 # sphinxcontrib-googleanalytics # for building the docs
