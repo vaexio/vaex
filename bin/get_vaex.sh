@@ -1,5 +1,5 @@
 #!/bin/sh
-# run like $ curl http://bit.ly/get_vaex | sh
+# run like $ curl -L http://bit.ly/get_vaex | sh
 case "$OSTYPE" in
   solaris*) echo "SOLARIS not supported" ;;
   darwin*)  wget --continue https://repo.continuum.io/miniconda/Miniconda-latest-MacOSX-x86_64.sh -O miniconda.sh; ;;
