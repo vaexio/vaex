@@ -877,8 +877,15 @@ class Dataset(object):
 		self.selection_histories = collections.defaultdict(list)
 		# after an undo, the last one in the history list is not the active one, -1 means no selection
 		self.selection_history_indices = collections.defaultdict(lambda: -1)
+		self._auto_fraction= False
 
 	def is_local(self): raise NotImplementedError
+
+	def get_auto_fraction(self):
+		return self._auto_fraction
+
+	def set_auto_fraction(self, enabled):
+		self._auto_fraction = enabled
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):

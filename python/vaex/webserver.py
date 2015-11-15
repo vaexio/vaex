@@ -350,6 +350,7 @@ class WebServer(threading.Thread):
 		self.job_queue.add(job)
 		def execute():
 			job = self.job_queue.get_next()
+			job.kwargs["fraction"] = job.fraction # add fraction keyword argument to the callback
 			try:
 				result = job.execute()
 			finally:

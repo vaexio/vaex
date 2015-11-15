@@ -221,7 +221,8 @@ class ServerRest(object):
 		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
 		post_data = {key:json.dumps(value.tolist() if hasattr(value, "tolist") else value) for key, value in list(dict(kwargs).items())}
 		post_data["masked"] = json.dumps(subspace.is_masked)
-		post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
+		if not subspace.dataset.get_auto_fraction():
+			post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
 		if selection is not None:
 			post_data["selection"] = json.dumps(selection.to_dict())
 		post_data.update(dict(expressions=json.dumps(expressions)))
@@ -244,7 +245,8 @@ class ServerRest(object):
 		post_data = dict(expressions=json.dumps(expressions), size=json.dumps(size),
 						 weight=json.dumps(weight),
 						 limits=json.dumps(limits.tolist()), masked=json.dumps(subspace.is_masked))
-		post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
+		if not subspace.dataset.get_auto_fraction():
+			post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
 		if selection is not None:
 			post_data["selection"] = json.dumps(selection.to_dict())
 		post_data.update({key:json.dumps(value) for key, value in list(dict(kwargs).items())})
@@ -294,7 +296,8 @@ class ServerRest(object):
 				return result
 		url = self._build_url("datasets/%s/%s" % (dataset_remote.name, method_name))
 		post_data = {key:json.dumps(self._to_json_compatible(value)) for key, value in dict(kwargs).items()}
-		post_data["active_fraction"] = json.dumps(dataset_remote.get_active_fraction())
+		if not dataset_remote.get_auto_fraction():
+			post_data["active_fraction"] = json.dumps(dataset_remote.get_active_fraction())
 		post_data["variables"] = json.dumps(dataset_remote.variables.items())
 		post_data["virtual_columns"] = json.dumps(dataset_remote.virtual_columns.items())
 		#post_data["selection_name"] = json.dumps(dataset_remote.get_selection_name())

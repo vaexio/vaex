@@ -410,7 +410,7 @@ class DatasetPanel(QtGui.QFrame):
 			self.form_layout.addRow('', self.button_variables)
 
 
-		self.fractionLabel = QtGui.QLabel('Fraction used: ...')
+		self.fractionLabel = QtGui.QLabel("Use:...")
 		self.fractionWidget = QtGui.QWidget(self)
 		self.fractionLayout = QtGui.QHBoxLayout(self.fractionWidget)
 		self.fractionSlider = QtGui.QSlider(QtCore.Qt.Horizontal, self)
@@ -423,6 +423,18 @@ class DatasetPanel(QtGui.QFrame):
 		self.fractionWidget.setLayout(self.fractionLayout)
 		#self.fractionSlider.setTickInterval(len(possibleFractions))
 		self.form_layout.addRow(self.fractionLabel, self.fractionWidget)
+
+
+
+		self.auto_fraction_label = QtGui.QLabel("Display", parent)
+		self.auto_fraction_checkbox = QtGui.QCheckBox("Let server determine how much to display", parent)
+		self.form_layout.addRow(self.auto_fraction_label, self.auto_fraction_checkbox)
+		def on_change(state):
+			checked = state == QtCore.Qt.Checked
+			self.dataset.set_auto_fraction(checked)
+			self.fractionSlider.setEnabled(not self.dataset.get_auto_fraction())
+		self.auto_fraction_checkbox.stateChanged.connect(on_change)
+
 
 
 		self.fractionSlider.sliderReleased.connect(self.onFractionSet)
@@ -543,7 +555,7 @@ class DatasetPanel(QtGui.QFrame):
 
 	def onValueChanged(self, index):
 		fraction = possibleFractions[index]
-		text = 'Fraction used: %9.4f%%' % (fraction*100)
+		text = "Dispay: %9.4f%%" % (fraction*100)
 		self.fractionLabel.setText(text)
 
 	def on_active_fraction_changed(self, dataset, fraction):
@@ -570,6 +582,8 @@ class DatasetPanel(QtGui.QFrame):
 		#self.scatter3dButton.setEnabled(False)
 		#self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
 		#self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
+		self.auto_fraction_checkbox.setEnabled(not dataset.is_local())
+		self.fractionSlider.setEnabled(not dataset.get_auto_fraction())
 
 		self.histogramMenu = QtGui.QMenu(self)
 		for column_name in self.dataset.get_column_names():
