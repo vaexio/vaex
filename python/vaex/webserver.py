@@ -9,6 +9,7 @@ import tornado.gen
 import threading
 import logging
 import vaex as vx
+import vaex.utils
 import json
 import inspect
 import layeredconfig
@@ -316,7 +317,8 @@ MB = 1024**2
 GB = MB * 1024
 
 class WebServer(threading.Thread):
-	def __init__(self, address="localhost", port=9000, webserver_thread_count=2, cache_byte_size=500*MB, cache_selection_byte_size=500*MB, datasets=[]):
+	def __init__(self, address="localhost", port=9000, webserver_thread_count=2, cache_byte_size=500*MB,
+				 cache_selection_byte_size=500*MB, datasets=[], compress=True):
 		threading.Thread.__init__(self)
 		self.setDaemon(True)
 		self.address = address
@@ -343,7 +345,10 @@ class WebServer(threading.Thread):
 			(r"/queue", QueueHandler, self.options),
 			(r"/auth", GoogleOAuth2LoginHandler, {}),
 			(r"/.*", ListHandler, self.options),
-		], compress_response=True, debug=True)
+		], compress_response=compress, debug=True)
+		logger.debug("compression set to %r", compress)
+		logger.debug("cache size set to %s", vaex.utils.filesize_format(cache_byte_size))
+		logger.debug("thread count set to %r", self.webserver_thread_count)
 
 	def submit_threaded(self, callable, *args, **kwargs):
 		job = JobFlexible(4., callable, args=args, kwargs=kwargs)
@@ -404,6 +409,7 @@ port: 9002
 filenames: []
 verbose: 2
 cache: 500000000
+compress: true
 """
 
 if __name__ == "__main__":
@@ -418,6 +424,8 @@ if __name__ == "__main__":
 	parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=default_config.port)
 	parser.add_argument('--verbose', '-v', action='count')
 	parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=default_config.cache)
+	parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=default_config.compress, action='store_true')
+	parser.add_argument('--no-compress', dest="compress", action='store_false')
 	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser))
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
@@ -432,8 +440,8 @@ if __name__ == "__main__":
 	datasets = datasets or [vx.example()]
 	logger.info("datasets:")
 	for dataset in datasets:
-		logger.info("\thttp://%s:%d/%s", config.address, config.port, dataset.name)
-	server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache)
+		logger.info("\thttp://%s:%d/datasets/%s", config.address, config.port, dataset.name)
+	server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache, compress=config.compress)
 	server.serve()
 
 	#3_threaded()
