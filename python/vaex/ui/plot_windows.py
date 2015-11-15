@@ -26,6 +26,7 @@ import vaex.kld
 import vaex.ui.plugin.zoom
 import vaex.ui.plugin.vector3d
 import vaex.ui.plugin.animation
+import vaex.ui.plugin.transferfunction
 import vaex.ui.imageblending
 import vaex.ui.colormaps
 import vaex.ui.templates

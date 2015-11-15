@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 from string import Template
-
+import logging
 from vaex.ui.qt import *
+
+logger = logging.getLogger("vaex.ui.volr")
 
 
 ray_cast_fragment_source = Template("""
@@ -143,6 +145,8 @@ from OpenGL.GL import * # import GL
 from OpenGL.GL.framebufferobjects import *
 from OpenGL.GL.ARB.shadow import *
 from OpenGL.GL import shaders
+import OpenGL
+print(("error checking", OpenGL.ERROR_CHECKING))
 
 import numpy as np
 
@@ -1072,7 +1076,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		self.fbo = glGenFramebuffers(1)
 		print(self.fbo)
 		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
-		
+
 		self.textures = self.texture_backside, self.texture_final = glGenTextures(2)
 		print("textures", self.textures)
 		for texture in [self.texture_backside, self.texture_final]:
@@ -1085,7 +1089,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			#glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, self.texture_size, self.texture_size, 0, GL_RGBA, GL_FLOAT, None);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self.texture_size, self.texture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, None);
 			glBindTexture(GL_TEXTURE_2D, 0)
-			
+
 		
 		glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.texture_backside, 0);
 
@@ -1094,18 +1098,20 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, self.texture_size, self.texture_size);
 
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.render_buffer);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		#from matplotlib import pylab
 		#pylab.imshow(np.log((self.data3d.astype(np.float32)).sum(axis=0)+1), cmap='PaulT_plusmin', origin="lower")
 		#pylab.show()
 
+		#print(self.texture_size)
+		#print(glCheckFramebufferStatus())
 
 		self.shader_ray_cast = self.create_shader_ray_cast()
 		self.shader_color = self.create_shader_color()
 		self.shader_vectorfield = self.create_shader_vectorfield()
 		self.shader_vectorfield_color = self.create_shader_vectorfield_color()
 		self.post_init()
-			
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 
 	# only vaex specific code?
 	def loadTable(self, args, column_names, grid_size=128, grid_size_vector=16):
@@ -1235,6 +1241,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#self.data2d = (self.data2d * 255).astype(np.uint8)
 		#print self.data3d.max()
 		for texture in [self.texture_cube, self.texture_gradient]:
+			logger.debug("deleting texture: %r", texture)
 			if texture is not None:
 				glDeleteTextures(texture)
 

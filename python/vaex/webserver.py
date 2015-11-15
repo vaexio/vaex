@@ -337,12 +337,13 @@ class WebServer(threading.Thread):
 							cache_selection=self.cache_selection)
 
 
-
+		#tornado.web.GZipContentEncoding.MIN_LENGTH = 1
+		tornado.web.GZipContentEncoding.CONTENT_TYPES.add("application/octet-stream")
 		self.application = tornado.web.Application([
 			(r"/queue", QueueHandler, self.options),
 			(r"/auth", GoogleOAuth2LoginHandler, {}),
 			(r"/.*", ListHandler, self.options),
-		])
+		], compress_response=True, debug=True)
 
 	def submit_threaded(self, callable, *args, **kwargs):
 		job = JobFlexible(4., callable, args=args, kwargs=kwargs)
