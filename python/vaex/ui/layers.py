@@ -578,7 +578,7 @@ class LayerTable(object):
 						amplitude = grid.evaluate(self.amplitude_expression)
 						if self.dataset.has_selection():
 							#grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
-							grid_selection = self.grid_main.marginal2d(axes.xaxis_index, axes.yaxis_index)
+							grid_selection = self.grid_main_selection.marginal2d(axes.xaxis_index, axes.yaxis_index)
 							amplitude_selection = grid_selection.evaluate(self.amplitude_expression)
 						else:
 							amplitude_selection = None
@@ -804,8 +804,10 @@ class LayerTable(object):
 		self.plugin_grids_draw.append(callback_draw)
 
 	def apply_mask(self, mask):
-		self.dataset._set_mask(mask)
-		self.execute()
+		# TODO: how to treat this when there is a server
+		if self.dataset.is_local():
+			self.dataset._set_mask(mask)
+			self.execute()
 		self.check_selection_undo_redo()
 		self.label_selection_info_update()
 
@@ -1063,10 +1065,11 @@ class LayerTable(object):
 		self.widget = self.toolbox
 
 		if "selection" in self.options:
-			filename = self.options["selection"]
-			mask = np.load(filename)
-			action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "selection from %s" % filename, mask, self.apply_mask)
-			action.do()
+			raise NotImplementedError, "selection meaning changed"
+			#filename = self.options["selection"]
+			#mask = np.load(filename)
+			#action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "selection from %s" % filename, mask, self.apply_mask)
+			#action.do()
 			#self.apply_mask(mask)
 			#self.dataset.selectMask(mask)
 
@@ -1691,10 +1694,10 @@ class LayerTable(object):
 		self.layout_page_selection.addWidget(self.button_selection_undo)
 		self.layout_page_selection.addWidget(self.button_selection_redo)
 		def on_undo(checked=False):
-			self.dataset.undo_manager.undo()
+			self.dataset.selection_undo()
 			self.check_selection_undo_redo()
 		def on_redo(checked=False):
-			self.dataset.undo_manager.redo()
+			self.dataset.selection_redo()
 			self.check_selection_undo_redo()
 		self.button_selection_undo.clicked.connect(on_undo)
 		self.button_selection_redo.clicked.connect(on_redo)
@@ -1721,8 +1724,8 @@ class LayerTable(object):
 
 				mode = self.plot_window.select_mode
 				self.dataset.select(expression, mode)
-				mask = self.dataset.mask
-				action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
+				#mask = self.dataset.mask
+				#action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
 				#action.do()
 
 				self.check_selection_undo_redo()
@@ -1765,8 +1768,10 @@ class LayerTable(object):
 
 	def check_selection_undo_redo(self):
 		#if self.widget_build:
-		self.button_selection_undo.setEnabled(self.dataset.undo_manager.can_undo())
-		self.button_selection_redo.setEnabled(self.dataset.undo_manager.can_redo())
+		#self.button_selection_undo.setEnabled(self.dataset.undo_manager.can_undo())
+		#self.button_selection_redo.setEnabled(self.dataset.undo_manager.can_redo())
+		self.button_selection_undo.setEnabled(self.dataset.selection_can_undo())
+		self.button_selection_redo.setEnabled(self.dataset.selection_can_redo())
 
 
 

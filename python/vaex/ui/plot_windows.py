@@ -1014,7 +1014,7 @@ class PlotDialog(QtGui.QWidget):
 		y = np.ascontiguousarray(y, dtype=np.float64)
 		layer = self.current_layer
 		if layer is not None:
-			self.dataset.lasso_select(layer.x, layer.y, x, y, mode=self.select_mode)
+			self.dataset.select_lasso(layer.x, layer.y, x, y, mode=self.select_mode)
 			#self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
 			meanx = x.mean()
 			meany = y.mean()
@@ -1089,7 +1089,7 @@ class PlotDialog(QtGui.QWidget):
 		import traceback
 		traceback.print_exc()
 		#raise exception
-		#raise error
+		raise error
 
 	def _update_step2(self, layers):
 		"""Each layer has it's own ranges_grid computed now, unless something went wrong
@@ -1898,8 +1898,9 @@ class PlotDialog(QtGui.QWidget):
 		#self.dataset.executor.execute()
 		layer = self.current_layer
 		if layer is not None:
+			self.dataset.select(None)
 			action = undo.ActionMask(layer.dataset.undo_manager, "clear selection", None, layer.apply_mask)
-			action.do()
+			#action.do()
 		#self.checkUndoRedo()
 
 	def onActionSelectInvert(self):

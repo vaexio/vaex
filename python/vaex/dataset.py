@@ -381,8 +381,8 @@ class Subspace(object):
 	def dimension(self):
 		return len(self.expressions)
 
-	def get_selection_name(self):
-		return "default" if self.is_masked else None
+	def get_selection(self):
+		return self.dataset.get_selection("default") if self.is_masked else None
 
 	def selected(self):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
@@ -722,6 +722,111 @@ class _BlockScope(object):
 main_executor = vaex.execution.Executor(vaex.multithreading.pool)
 from vaex.execution import Executor
 
+
+class Selection(object):
+	def __init__(self, dataset, previous_selection, mode):
+		self.dataset = dataset
+		# we don't care about the previous selection if we simply replace the current selection
+		self.previous_selection = previous_selection if mode != "replace" else None
+		self.mode = mode
+
+	def execute(self, executor, execute_fully=False):
+		if execute_fully and self.previous_selection:
+			self.previous_selection.execute(executor=executor, execute_fully=execute_fully)
+
+class SelectionExpression(Selection):
+	def __init__(self, dataset, boolean_expression, previous_selection, mode):
+		super(SelectionExpression, self).__init__(dataset, previous_selection, mode)
+		self.boolean_expression = boolean_expression
+
+	def to_dict(self):
+		previous = None
+		if self.previous_selection:
+			previous = self.previous_selection.to_dict()
+		return dict(type="expression", boolean_expression=self.boolean_expression, mode=self.mode, previous_selection=previous)
+
+
+	def execute(self, executor, execute_fully=False):
+		super(SelectionExpression, self).execute(executor=executor, execute_fully=execute_fully)
+		mode_function = _select_functions[self.mode]
+		if self.boolean_expression is None:
+			self.dataset._set_mask(None)
+			promise = vaex.promise.Promise()
+			promise.fulfill(None)
+			return promise
+		else:
+			logger.debug("executing selection: %r, mode: %r", self.boolean_expression, self.mode)
+			mask = np.zeros(len(self.dataset), dtype=np.bool)
+			def map(thread_index, i1, i2, block):
+				mask[i1:i2] = mode_function(None if self.dataset.mask is None else self.dataset.mask[i1:i2], block == 1)
+				return 0
+			def reduce(*args):
+				None
+			expr = self.dataset(self.boolean_expression, executor=executor)
+			task = TaskMapReduce(self.dataset, [self.boolean_expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
+			def apply_mask(*args):
+				#print "Setting mask"
+				self.dataset._set_mask(mask)
+			task.then(apply_mask)
+			return expr._task(task)
+
+class SelectionLasso(Selection):
+	def __init__(self, dataset, boolean_expression_x, boolean_expression_y, xseq, yseq, previous_selection, mode):
+		super(SelectionLasso, self).__init__(dataset, previous_selection, mode)
+		self.boolean_expression_x = boolean_expression_x
+		self.boolean_expression_y = boolean_expression_y
+		self.xseq = xseq
+		self.yseq = yseq
+
+	def execute(self, executor, execute_fully=False):
+		super(SelectionLasso, self).execute(executor=executor, execute_fully=execute_fully)
+		mode_function = _select_functions[self.mode]
+		x, y = np.array(self.xseq, dtype=np.float64), np.array(self.yseq, dtype=np.float64)
+		meanx = x.mean()
+		meany = y.mean()
+		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
+
+		mask = np.zeros(len(self.dataset), dtype=np.bool)
+		def lasso(thread_index, i1, i2, blockx, blocky):
+			vaex.vaexfast.pnpoly(x, y, blockx, blocky, mask[i1:i2], meanx, meany, radius)
+			mask[i1:i2] = mode_function(None if self.dataset.mask is None else self.dataset.mask[i1:i2], mask[i1:i2])
+			return 0
+		def reduce(*args):
+			None
+		subspace = self.dataset(self.boolean_expression_x, self.boolean_expression_y, executor=executor)
+		task = TaskMapReduce(self.dataset, subspace.expressions, lambda thread_index, i1, i2, blockx, blocky: lasso(thread_index, i1, i2, blockx, blocky), reduce, info=True)
+		def apply_mask(*args):
+			#print "Setting mask"
+			self.dataset._set_mask(mask)
+		task.then(apply_mask)
+		return subspace._task(task)
+
+	def to_dict(self):
+		previous = None
+		if self.previous_selection:
+			previous = self.previous_selection.to_dict()
+		return dict(type="lasso",
+					boolean_expression_x=self.boolean_expression_x,
+					boolean_expression_y=self.boolean_expression_y,
+					xseq=vaex.utils.make_list(self.xseq),
+					yseq=vaex.utils.make_list(self.yseq),
+					mode=self.mode,
+					previous_selection=previous)
+
+def selection_from_dict(dataset, values):
+	kwargs = dict(values)
+	kwargs["dataset"] = dataset
+	del kwargs["type"]
+	if values["type"] == "lasso":
+		kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
+		return SelectionLasso(**kwargs)
+	elif values["type"] == "expression":
+		kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
+		return SelectionExpression(**kwargs)
+	else:
+		raise ValueError, "unknown type: %r, in dict: %r" % (values["type"], values)
+
+
 class Dataset(object):
 	"""All datasets are encapsulated in this class, local or remote dataets
 
@@ -767,7 +872,13 @@ class Dataset(object):
 		self._current_row = None
 
 		self.mask = None # a bitmask for the selection does not work for server side
-		self._has_selection = False
+
+		# maps from name to list of Selection objets
+		self.selection_histories = collections.defaultdict(list)
+		# after an undo, the last one in the history list is not the active one, -1 means no selection
+		self.selection_history_indices = collections.defaultdict(lambda: -1)
+
+	def is_local(self): raise NotImplementedError
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
@@ -816,9 +927,6 @@ class Dataset(object):
 		:return: None
 		"""
 		raise NotImplementedError
-
-	def has_selection(self):
-		return self._has_selection
 
 	def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name):
 		"""
@@ -986,12 +1094,114 @@ class Dataset(object):
 		if value != self._active_fraction:
 			self._active_fraction = value
 			#self._fraction_length = int(self._length * self._active_fraction)
-			# TODO: this only works for local datasets
-			#self._set_mask(None)
 			self.select(None)
 			self.set_current_row(None)
 			self._length = int(round(self.full_length() * self._active_fraction))
 			self.signal_active_fraction_changed.emit(self, value)
+
+	def get_selection(self, selection_name="default"):
+		selection_history = self.selection_histories[selection_name]
+		index = self.selection_history_indices[selection_name]
+		if index == -1:
+			return None
+		else:
+			return selection_history[index]
+
+	def selection_undo(self, selection_name="default", executor=None):
+		logger.debug("undo")
+		executor = executor or self.executor
+		assert self.selection_can_undo(selection_name=selection_name)
+		selection_history = self.selection_histories[selection_name]
+		index = self.selection_history_indices[selection_name]
+		if index == 0:
+			# special case, ugly solution to select nothing
+			if self.is_local():
+				result =  SelectionExpression(self, None, None, "replace").execute(executor=executor)
+			else:
+				# for remote we don't have to do anything, the index == -1 is enough
+				# just emit the signal
+				self.signal_selection_changed.emit(self)
+				result = vaex.promise.Promise.fulfilled(None)
+		else:
+			previous = selection_history[index-1]
+			if self.is_local():
+				result = previous.execute(executor=executor, execute_fully=True) if previous else vaex.promise.Promise.fulfilled(None)
+			else:
+				self.signal_selection_changed.emit(self)
+				result = vaex.promise.Promise.fulfilled(None)
+		self.selection_history_indices[selection_name] -= 1
+		logger.debug("undo: selection history is %r, index is %r", selection_history, self.selection_history_indices[selection_name])
+		return result
+
+
+	def selection_redo(self, selection_name="default", executor=None):
+		logger.debug("redo")
+		executor = executor or self.executor
+		assert self.selection_can_redo(selection_name=selection_name)
+		selection_history = self.selection_histories[selection_name]
+		index = self.selection_history_indices[selection_name]
+		next = selection_history[index+1]
+		if self.is_local():
+			result = next.execute(executor=executor)
+		else:
+			self.signal_selection_changed.emit(self)
+			result = vaex.promise.Promise.fulfilled(None)
+		self.selection_history_indices[selection_name] += 1
+		logger.debug("redo: selection history is %r, index is %r", selection_history, index)
+		return result
+
+	def selection_can_undo(self, selection_name="default"):
+		return self.selection_history_indices[selection_name] > -1
+
+	def selection_can_redo(self, selection_name="default"):
+		return (self.selection_history_indices[selection_name] + 1) < len(self.selection_histories[selection_name])
+
+	def select(self, boolean_expression, mode="replace", selection_name="default", executor=None):
+		def create(current):
+			return SelectionExpression(self, boolean_expression, current, mode) if boolean_expression else None
+		return self._selection(create, selection_name)
+
+	def select_nothing(self, selection_name="default"):
+		def create(current):
+			return None
+		return self._selection(create, selection_name)
+
+	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", selection_name="default", executor=None):
+		def create(current):
+			return SelectionLasso(self, expression_x, expression_y, xsequence, ysequence, current, mode)
+		return self._selection(create, selection_name, executor=executor)
+
+	def set_selection(self, selection, selection_name="default", executor=None):
+		def create(current):
+			return selection
+		return self._selection(create, selection_name, executor=executor, execute_fully=True)
+
+
+	def _selection(self, create_selection, selection_name, executor=None, execute_fully=False):
+		"""select_lasso and select almost share the same code"""
+		selection_history = self.selection_histories[selection_name]
+		previous_index = self.selection_history_indices[selection_name]
+		current = selection_history[previous_index] if selection_history else None
+		selection = create_selection(current)
+		executor = executor or self.executor
+		if self.is_local():
+			if selection:
+				result = selection.execute(executor=executor, execute_fully=execute_fully)
+			else:
+				result = vaex.promise.Promise.fulfilled(None)
+				self.signal_selection_changed.emit(self)
+		else:
+			self.signal_selection_changed.emit(self)
+			result = vaex.promise.Promise.fulfilled(None)
+		selection_history.append(selection)
+		self.selection_history_indices[selection_name] += 1
+		# clip any redo history
+		del selection_history[self.selection_history_indices[selection_name]:-1]
+		logger.debug("select selection history is %r, index is %r", selection_history, self.selection_history_indices[selection_name])
+		return result
+
+	def has_selection(self, selection_name="default"):
+		return self.get_selection(selection_name) != None
 
 
 def _select_replace(maskold, masknew):
@@ -1015,12 +1225,24 @@ _select_functions = {"replace":_select_replace,\
 					 "xor":_select_xor,
 					 "subtract":_select_subtract
 					 }
-
 class DatasetLocal(Dataset):
 	def __init__(self, name, path, column_names):
 		super(DatasetLocal, self).__init__(name, column_names)
 		self.path = path
+		self.mask = None
 		self.columns = collections.OrderedDict()
+
+	def shallow_copy(self, virtual=True, variables=True):
+		dataset = DatasetLocal(self.name, self.path, self.column_names)
+		dataset.columns.update(self.columns)
+		dataset._full_length = self._full_length
+		dataset._length = self._length
+		dataset._active_fraction = self._active_fraction
+		if virtual:
+			dataset.virtual_columns.update(self.virtual_columns)
+		if variables:
+			dataset.variables.update(self.variables)
+		return dataset
 
 	def is_local(self): return True
 
@@ -1099,46 +1321,6 @@ class DatasetLocal(Dataset):
 		return np.sum(self.mask) if self.has_selection() else None
 
 
-	def select(self, boolean_expression, mode="replace", selection_name="default"):
-		mode_function = _select_functions[mode]
-		if boolean_expression is None:
-			self._set_mask(None)
-		else:
-			mask = np.zeros(len(self), dtype=np.bool)
-			def map(thread_index, i1, i2, block):
-				mask[i1:i2] = mode_function(None if self.mask is None else self.mask[i1:i2], block == 1)
-				return 0
-			def reduce(*args):
-				None
-			expr = self(boolean_expression)
-			task = TaskMapReduce(self, [boolean_expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
-			def apply_mask(*args):
-				#print "Setting mask"
-				self._set_mask(mask)
-			task.then(apply_mask)
-			return expr._task(task)
-
-	def lasso_select(self, expression_x, expression_y, xsequence, ysequence, mode="replace"):
-		mode_function = _select_functions[mode]
-		x, y = np.array(xsequence, dtype=np.float64), np.array(ysequence, dtype=np.float64)
-		meanx = x.mean()
-		meany = y.mean()
-		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
-
-		mask = np.zeros(len(self), dtype=np.bool)
-		def lasso(thread_index, i1, i2, blockx, blocky):
-			vaex.vaexfast.pnpoly(x, y, blockx, blocky, mask[i1:i2], meanx, meany, radius)
-			mask[i1:i2] = mode_function(None if self.mask is None else self.mask[i1:i2], mask[i1:i2])
-			return 0
-		def reduce(*args):
-			None
-		subspace = self(expression_x, expression_y)
-		task = TaskMapReduce(self, [expression_x, expression_y], lambda thread_index, i1, i2, blockx, blocky: lasso(thread_index, i1, i2, blockx, blocky), reduce, info=True)
-		def apply_mask(*args):
-			#print "Setting mask"
-			self._set_mask(mask)
-		task.then(apply_mask)
-		return subspace._task(task)
 
 	def _set_mask(self, mask):
 		self.mask = mask
@@ -1293,7 +1475,6 @@ class DatasetMemoryMapped(DatasetLocal):
 
 		self.all_columns = {}
 		self.all_column_names = []
-		self.mask = None
 		self.global_links = {}
 		
 		self.offsets = {}

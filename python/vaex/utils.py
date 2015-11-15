@@ -138,3 +138,9 @@ def get_private_dir():
 	if not os.path.exists(path):
 		os.makedirs(path)
 	return path
+
+def make_list(sequence):
+	if isinstance(sequence, np.ndarray):
+		return sequence.tolist()
+	else:
+		return list(sequence)

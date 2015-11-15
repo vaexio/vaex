@@ -264,7 +264,6 @@ class TestDataset(unittest.TestCase):
 		self.dataset_concat = vx.dataset.DatasetConcatenated([dataset1, dataset2], name="dataset_concat")
 
 		path_hdf5 = tempfile.mktemp(".hdf5")
-		print path_hdf5
 		self.dataset_concat.export_hdf5(path_hdf5)
 
 
@@ -416,6 +415,74 @@ class TestDataset(unittest.TestCase):
 
 		pass # TODO
 
+	def test_selection_history(self):
+		total = self.dataset("x").sum()
+		self.assert_(not self.dataset.has_selection())
+		self.assert_(not self.dataset.selection_can_undo())
+		self.assert_(not self.dataset.selection_can_redo())
+		self.dataset.select("x > 5")
+		self.assert_(self.dataset.has_selection())
+		total_subset = self.dataset("x").selected().sum()
+		self.assertLess(total_subset, total)
+		self.assert_(self.dataset.selection_can_undo())
+		self.assert_(not self.dataset.selection_can_redo())
+
+		self.dataset.select("x < 7", mode="and")
+		total_subset2 = self.dataset("x").selected().sum()
+		self.assertLess(total_subset2, total_subset)
+		self.assert_(self.dataset.selection_can_undo())
+		self.assert_(not self.dataset.selection_can_redo())
+
+		self.dataset.selection_undo()
+		total_subset_same = self.dataset("x").selected().sum()
+		self.assertEqual(total_subset, total_subset_same)
+		self.assert_(self.dataset.selection_can_undo())
+		self.assert_(self.dataset.selection_can_redo())
+
+		self.dataset.selection_redo()
+		total_subset2_same = self.dataset("x").selected().sum()
+		self.assertEqual(total_subset2, total_subset2_same)
+		self.assert_(self.dataset.selection_can_undo())
+		self.assert_(not self.dataset.selection_can_redo())
+
+		self.dataset.selection_undo()
+		self.dataset.selection_undo()
+		self.assert_(not self.dataset.has_selection())
+		self.assert_(not self.dataset.selection_can_undo())
+		self.assert_(self.dataset.selection_can_redo())
+
+		self.dataset.selection_redo()
+		self.assert_(self.dataset.has_selection())
+		self.assert_(self.dataset.selection_can_undo())
+		self.assert_(self.dataset.selection_can_redo())
+		self.dataset.select("x < 7", mode="and")
+		self.assert_(self.dataset.selection_can_undo())
+		self.assert_(not self.dataset.selection_can_redo())
+
+		self.dataset.select_nothing()
+		self.assert_(not self.dataset.has_selection())
+		self.assert_(self.dataset.selection_can_undo())
+		self.assert_(not self.dataset.selection_can_redo())
+		self.dataset.selection_undo()
+		self.assert_(self.dataset.selection_can_undo())
+		self.assert_(self.dataset.selection_can_redo())
+
+	def test_selection_serialize(self):
+		selection_lasso = vaex.dataset.SelectionLasso(self.dataset, "x", "y", [0, 10, 0], [-1, -1, 1], None, "replace")
+		selection_expression = vaex.dataset.SelectionExpression(self.dataset, "x > 5", None, "and")
+		self.dataset.set_selection(selection_expression)
+		total_subset = self.dataset("x").selected().sum()
+
+		self.dataset.select("x > 5")
+		total_subset_same = self.dataset("x").selected().sum()
+		self.assertEqual(total_subset, total_subset_same)
+
+		values = selection_expression.to_dict()
+		self.dataset.set_selection(vaex.dataset.selection_from_dict(self.dataset, values))
+		total_subset_same2 = self.dataset("x").selected().sum()
+		self.assertEqual(total_subset, total_subset_same2)
+
+
 	def test_nearest(self):
 		index, distance, (value,) = self.dataset("x").nearest([3])
 		self.assertEqual(index, 3)
@@ -441,7 +508,7 @@ class TestDataset(unittest.TestCase):
 
 		x = [-0.1, 5.1, 5.1, -0.1]
 		y = [-0.1, -0.1, 4.1, 4.1]
-		self.dataset.lasso_select("x", "y", x, y)
+		self.dataset.select_lasso("x", "y", x, y)
 		sumx, sumy = self.dataset("x", "y").selected().sum()
 		self.assertAlmostEqual(sumx, 0+1+2)
 		self.assertAlmostEqual(sumy, 0+1+4)

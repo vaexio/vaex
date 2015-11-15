@@ -62,7 +62,7 @@ class ServerRest(object):
 	def __init__(self, hostname, port=5000, base_path="/", background=False, thread_mover=None):
 		self.hostname = hostname
 		self.port = port
-		self.base_path = base_path
+		self.base_path = base_path if base_path.endswith("/") else (base_path + "/")
 		#if async:
 		event = threading.Event()
 		self.thread_mover = thread_mover
@@ -210,7 +210,7 @@ class ServerRest(object):
 	def limits_sigma(self, subspace, dataset_name, expressions, **kwargs):
 		return self._simple(subspace, dataset_name, expressions, "limits_sigma", **kwargs)
 
-	def _simple(self, subspace, dataset_name, expressions, name, async=False, **kwargs):
+	def _simple(self, subspace, dataset_name, expressions, name, selection, async=False, **kwargs):
 		def wrap(result):
 			result = self._check_exception(json.loads(result.body))["result"]
 			# try to return is as numpy array
@@ -222,14 +222,17 @@ class ServerRest(object):
 		post_data = {key:json.dumps(value.tolist() if hasattr(value, "tolist") else value) for key, value in list(dict(kwargs).items())}
 		post_data["masked"] = json.dumps(subspace.is_masked)
 		post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
+		if selection is not None:
+			post_data["selection"] = json.dumps(selection.to_dict())
 		post_data.update(dict(expressions=json.dumps(expressions)))
 		body = urlencode(post_data)
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 
-	def histogram(self, subspace, dataset_name, expressions, size, limits, weight=None, async=False, **kwargs):
+	def histogram(self, subspace, dataset_name, expressions, size, limits, selection, weight=None, async=False, **kwargs):
 		def wrap(result):
 			# TODO: don't do binary transfer, just json, now we cannot handle exception
+			logger.debug("data size: %r", len(result.body))
 			data = np.fromstring(result.body)
 			shape = (size,) * len(expressions)
 			data = data.reshape(shape)
@@ -241,6 +244,8 @@ class ServerRest(object):
 						 weight=json.dumps(weight),
 						 limits=json.dumps(limits.tolist()), masked=json.dumps(subspace.is_masked))
 		post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
+		if selection is not None:
+			post_data["selection"] = json.dumps(selection.to_dict())
 		post_data.update({key:json.dumps(value) for key, value in list(dict(kwargs).items())})
 		body = urlencode(post_data)
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
@@ -267,7 +272,7 @@ class ServerRest(object):
 			return result
 
 
-	def select(self, dataset, dataset_name, boolean_expression, mode, async=False, **kwargs):
+	def _select(self, dataset, dataset_name, boolean_expression, mode, async=False, **kwargs):
 		name = "select"
 		def wrap(result):
 			return np.array(self._check_exception(json.loads(result.body)))
@@ -344,31 +349,31 @@ class SubspaceRemote(Subspace):
 		return self.dataset.server.call("sleep", seconds, async=async)
 
 	def minmax(self):
-		return self._promise(self.dataset.server.minmax(self, self.dataset.name, self.expressions, async=self.async, selection_name=self.get_selection_name()))
+		return self._promise(self.dataset.server.minmax(self, self.dataset.name, self.expressions, async=self.async, selection=self.get_selection()))
 		#return self._task(task)
 
 	def histogram(self, limits, size=256, weight=None):
-		return self._promise(self.dataset.server.histogram(self, self.dataset.name, self.expressions, size=size, limits=limits, weight=weight, async=self.async, selection_name=self.get_selection_name()))
+		return self._promise(self.dataset.server.histogram(self, self.dataset.name, self.expressions, size=size, limits=limits, weight=weight, async=self.async, selection=self.get_selection()))
 
 	def nearest(self, point, metric=None):
 		point = point if not hasattr(point, "tolist") else point.tolist()
-		result = self.dataset.server._simple(self, self.dataset.name, self.expressions, "nearest", async=self.async, point=point, metric=metric, selection_name=self.get_selection_name())
+		result = self.dataset.server._simple(self, self.dataset.name, self.expressions, "nearest", async=self.async, point=point, metric=metric, selection=self.get_selection())
 		return self._promise(result)
 
 	def mean(self):
-		return self.dataset.server.mean(self, self.dataset.name, self.expressions, async=self.async, selection_name=self.get_selection_name())
+		return self.dataset.server.mean(self, self.dataset.name, self.expressions, async=self.async, selection=self.get_selection())
 
 	def correlation(self, means, vars):
-		return self.dataset.server._simple(self, self.dataset.name, self.expressions, "correlation", means=means, vars=vars, async=self.async, selection_name=self.get_selection_name())
+		return self.dataset.server._simple(self, self.dataset.name, self.expressions, "correlation", means=means, vars=vars, async=self.async, selection=self.get_selection())
 
 	def var(self, means=None):
-		return self.dataset.server.var(self, self.dataset.name, self.expressions, means=means, async=self.async, selection_name=self.get_selection_name())
+		return self.dataset.server.var(self, self.dataset.name, self.expressions, means=means, async=self.async, selection=self.get_selection())
 
 	def sum(self):
-		return self.dataset.server.sum(self, self.dataset.name, self.expressions, async=self.async, selection_name=self.get_selection_name())
+		return self.dataset.server.sum(self, self.dataset.name, self.expressions, async=self.async, selection=self.get_selection())
 
 	def limits_sigma(self, sigmas=3, square=False):
-		return self.dataset.server.limits_sigma(self, self.dataset.name, self.expressions, sigmas=sigmas, square=square, async=self.async, selection_name=self.get_selection_name())
+		return self.dataset.server.limits_sigma(self, self.dataset.name, self.expressions, sigmas=sigmas, square=square, async=self.async, selection=self.get_selection())
 
 	def plot_(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
 		import pylab
@@ -413,7 +418,7 @@ class DatasetRest(DatasetRemote):
 	def __call__(self, *expressions, **kwargs):
 		return SubspaceRemote(self, expressions, self.executor, async=kwargs.get("async", False))
 
-	def select(self, boolean_expression, mode="replace", async=False, selection_name="default"):
+	def _select(self, boolean_expression, mode="replace", async=False, selection_name="default"):
 		def emit(result):
 			# bit dirty to put this in the signal handler, but here we know we succeeded
 			self._has_selection = boolean_expression is not None
@@ -427,7 +432,7 @@ class DatasetRest(DatasetRemote):
 			emit(None)
 			return result
 
-	def lasso_select(self, expression_x, expression_y, xsequence, ysequence, mode="replace", async=False):
+	def _lasso_select(self, expression_x, expression_y, xsequence, ysequence, mode="replace", async=False):
 		def emit(result):
 			# bit dirty to put this in the signal handler, but here we know we succeeded
 			self._has_selection = True
