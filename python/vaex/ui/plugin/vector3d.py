@@ -5,10 +5,10 @@ import numpy as np
 import vaex.ui.plugin
 from vaex.ui.qt import *
 import vaex.ui.plot_windows
-import vaex.logging
+import logging
 
 
-logger = vaex.logging.getLogger("plugin.zoom")
+logger = logging.getLogger("plugin.zoom")
 
 
 class Vector3dPlugin(vaex.ui.plugin.PluginLayer):

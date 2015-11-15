@@ -2,9 +2,9 @@
 import math
 
 from vaex.ui.qt import *
-import vaex.logging
+import logging
 
-logger = vaex.logging.getLogger("vaex.table")
+logger = logging.getLogger("vaex.table")
 
 
 PAGE_LIMIT = int(1e7)

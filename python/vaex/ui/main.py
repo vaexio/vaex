@@ -63,8 +63,8 @@ import vaex.dataset
 
 import imp
 
-import vaex.logging
-logger = vaex.logging.getLogger("vaex")
+import logging
+logger = logging.getLogger("vaex")
 
 #import locale
 #locale.setlocale(locale.LC_ALL, )
@@ -1014,7 +1014,7 @@ class VaexApp(QtGui.QMainWindow):
 		#self.signal_promise.emit("blaat")
 
 	def on_signal_promise(self, promise, value):
-		#print "got promise, and should send it value", value, threading.currentThread()
+		logger.debug("got promise, and should send it value: %r (from thread %r", value, threading.currentThread())
 		promise.fulfill(value)
 
 	def plot(self, *args, **kwargs):

@@ -1,6 +1,6 @@
 __author__ = 'breddels'
 import numpy as np
-from . import logging
+import logging
 import threading
 import __builtin__
 from .dataset import Dataset, Subspace, Task
@@ -233,6 +233,7 @@ class ServerRest(object):
 		def wrap(result):
 			# TODO: don't do binary transfer, just json, now we cannot handle exception
 			logger.debug("data size: %r", len(result.body))
+			logger.debug("header: %r", list(result.headers.get_all()))
 			data = np.fromstring(result.body)
 			shape = (size,) * len(expressions)
 			data = data.reshape(shape)

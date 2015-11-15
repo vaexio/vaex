@@ -82,19 +82,21 @@ def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
 	return vaex.dataset.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
 
 def set_log_level_debug():
-	import vaex.logging as log
-	log.rootlogger.setLevel(log.LEVELS['debug'])
+	import logging
+	logging.getLogger("vaex").setLevel(logging.DEBUG)
 
 def set_log_level_info():
-	import vaex.logging as log
-	log.rootlogger.setLevel(log.LEVELS['info'])
+	import logging
+	logging.getLogger("vaex").setLevel(logging.INFO)
 
 def set_log_level_warning():
-	import vaex.logging as log
-	log.rootlogger.setLevel(log.LEVELS['warning'])
+	import logging
+	logging.getLogger("vaex").setLevel(logging.WARNING)
 
 def set_log_level_exception():
-	from . import logging
-	logging.getLogger("vaex").setLevel(logging.logging.FATAL)
+	import logging
+	logging.getLogger("vaex").setLevel(logging.FATAL)
 
+import logging
+logging.basicConfig(level=logging.ERROR)
 set_log_level_info()

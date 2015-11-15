@@ -11,10 +11,10 @@ import vaex.ui.plot_windows
 #from vaex.ui.icons import iconfile
 #import matplotlib.widgets
 #import functools
-import vaex.logging
+import logging
 from vaex.ui import widgets
 
-logger = vaex.logging.getLogger("plugin.transferfunction")
+logger = logging.getLogger("plugin.transferfunction")
 
 
 class TransferFunctionPlugin(vaex.ui.plugin.PluginLayer):

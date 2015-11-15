@@ -1,10 +1,11 @@
 import json
 import os
+import vaex.events
 
 __author__ = 'maartenbreddels'
 
-import vaex.logging
-logger = vaex.logging.getLogger("plugin.favorites")
+import logging
+logger = logging.getLogger("plugin.favorites")
 
 class Storage(object):
 	def __init__(self, name):

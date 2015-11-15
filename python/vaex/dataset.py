@@ -26,7 +26,7 @@ import vaex.grids
 import vaex.multithreading
 import vaex.promise
 import vaex.execution
-import vaex.logging
+import logging
 import astropy.io.fits as fits
 
 
@@ -38,7 +38,7 @@ except:
 	if not on_rtd:
 		raise
 
-logger = vaex.logging.getLogger("vaex")
+logger = logging.getLogger("vaex")
 lock = threading.Lock()
 dataset_type_map = {}
 
@@ -2135,8 +2135,8 @@ class MemoryMappedGadget(DatasetMemoryMapped):
 	def __init__(self, filename):
 		super(MemoryMappedGadget, self).__init__(filename)
 		#h5file = h5py.File(self.filename)
-		import vaex.io.gadget
-		length, posoffset, veloffset, header = vaex.io.gadget.getinfo(filename)
+		import vaex.file.gadget
+		length, posoffset, veloffset, header = vaex.file.gadget.getinfo(filename)
 		self.addColumn("x", posoffset, length, dtype=np.float32, stride=3)
 		self.addColumn("y", posoffset+4, length, dtype=np.float32, stride=3)
 		self.addColumn("z", posoffset+8, length, dtype=np.float32, stride=3)

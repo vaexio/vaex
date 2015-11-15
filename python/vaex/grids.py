@@ -2,12 +2,12 @@ __author__ = 'maartenbreddels'
 import numpy as np
 import vaex.vaexfast
 from vaex.utils import filesize_format
-import vaex.logging
+import logging
 import vaex.utils
 import scipy.ndimage
 total_bytes = 0
 
-logger = vaex.logging.getLogger("vaex.grids")
+logger = logging.getLogger("vaex.grids")
 
 def dog(grid, sigma1, sigma2):
 	return gf(grid, sigma1) - gf(grid, sigma2)

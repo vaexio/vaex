@@ -20,7 +20,7 @@ import matplotlib.cm
 
 from vaex.multithreading import ThreadPool
 import vaex
-import vaex.logging
+import logging
 import vaex.events
 import vaex.kld
 import vaex.ui.plugin.zoom
@@ -40,7 +40,7 @@ from vaex.ui import qt, undo
 
 
 
-logger = vaex.logging.getLogger("vaex")
+logger = logging.getLogger("vaex")
 
 class Slicer(matplotlib.widgets.Widget):
 	"""
@@ -3148,7 +3148,7 @@ class Mover(object):
 			QtCore.QTimer.singleShot(1, functools.partial(idle_zoom, zoom_counter=self.zoom_counter, axes=event.inaxes))
 
 class Queue(object):
-	logger = vaex.logging.getLogger("vaex.ui.queue")
+	logger = logging.getLogger("vaex.ui.queue")
 	def __init__(self, name, default_delay, default_callable, pre=lambda: None):
 		self.name = name
 		self.default_delay = default_delay

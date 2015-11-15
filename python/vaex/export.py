@@ -1,11 +1,11 @@
 __author__ = 'maartenbreddels'
 import numpy as np
 import os
-from . import logging
+import logging
 import vaex
 import vaex.utils
 import vaex.execution
-import vaex.io.colfits
+import vaex.file.colfits
 
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -131,7 +131,7 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 	else:
 		random_index_name = None
 
-	vaex.io.colfits.empty(path, N, column_names, data_types, data_shapes)
+	vaex.file.colfits.empty(path, N, column_names, data_types, data_shapes)
 	if shuffle:
 		del column_names[-1]
 		del data_types[-1]

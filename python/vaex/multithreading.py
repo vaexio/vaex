@@ -5,7 +5,7 @@ import math
 import multiprocessing
 import sys
 import vaex.utils
-from . import logging
+import logging
 lock = threading.Lock()
 
 thread_count_default = multiprocessing.cpu_count()

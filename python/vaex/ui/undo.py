@@ -1,8 +1,8 @@
-import vaex.logging
+import logging
 import numpy as np
 import copy
 
-logger = vaex.logging.getLogger("vaex.ui.undo")
+logger = logging.getLogger("vaex.ui.undo")
 
 class UndoManager(object):
 	def __init__(self, max_bytes=1024**3):

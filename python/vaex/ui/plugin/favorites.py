@@ -5,11 +5,11 @@ import vaex.ui.plugin
 from vaex.ui.qt import *
 from vaex.ui.icons import iconfile
 import vaex.events
-import vaex.logging
+import logging
 import vaex.ui.storage
 
 
-logger = vaex.logging.getLogger("plugin.favorites")
+logger = logging.getLogger("plugin.favorites")
 
 
 storage_plots = vaex.ui.storage.Storage("favorite-plots")

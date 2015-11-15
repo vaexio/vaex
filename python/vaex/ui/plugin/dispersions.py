@@ -8,10 +8,10 @@ import matplotlib.artist as artist
 
 import vaex.ui.plugin
 from vaex.ui.qt import *
-import vaex.logging
+import logging
 
 
-logger = vaex.logging.getLogger("plugin.dispersions")
+logger = logging.getLogger("plugin.dispersions")
 
 
 import matplotlib.transforms as transforms

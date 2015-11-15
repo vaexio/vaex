@@ -24,8 +24,9 @@ import copy
 import functools
 import time
 from vaex.ui.qt import *
+import logging
 
-logger = vaex.logging.getLogger("vaex.ui.layer")
+logger = logging.getLogger("vaex.ui.layer")
 
 storage_expressions = vaex.ui.storage.Storage("expressions")
 

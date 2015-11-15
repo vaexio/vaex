@@ -2,14 +2,14 @@
 from __future__ import absolute_import
 #from .... import logging
 
-#from . import logging
+#import logging
 import logging
 #print(logging.__file__)
 from logging import getLogger as _getLogger
 
 #logging.basicConfig(level=logging.ERROR)
 logging.basicConfig(level=logging.ERROR)
-#logging.basicConfig(level=logging.DEBUG, filename="vaex.logging.txt")
+#logging.basicConfig(level=logging.DEBUG, filename="logging.txt")
 #print "das" * 1000
 rootlogger = logging.getLogger('vaex')
 rootlogger.setLevel(logging.DEBUG)

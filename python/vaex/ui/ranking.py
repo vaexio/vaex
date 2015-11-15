@@ -6,7 +6,7 @@ from pyjavaproperties import Properties
 from vaex.ui.qt import *
 import vaex.dataset
 import vaex.ui.plot_windows
-import vaex.logging as logging
+import logging as logging
 import vaex.ui.qt as dialogs
 import vaex.execution
 import vaex.kld

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import vaex.logging as logging
+import logging as logging
 logger = logging.getLogger("vaex.kld")
 import numpy as np
 import math

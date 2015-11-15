@@ -7,7 +7,7 @@ import tornado.httpserver
 import tornado.auth
 import tornado.gen
 import threading
-from . import logging
+import logging
 import vaex as vx
 import json
 import inspect

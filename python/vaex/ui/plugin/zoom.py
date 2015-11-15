@@ -6,11 +6,11 @@ import vaex.ui.plugin
 from vaex.ui import undo
 from vaex.ui.qt import *
 from vaex.ui.icons import iconfile
-import vaex.logging
+import logging
 import vaex.ui.undo as undo
 
 
-logger = vaex.logging.getLogger("plugin.zoom")
+logger = logging.getLogger("plugin.zoom")
 
 
 class ZoomPlugin(vaex.ui.plugin.PluginPlot):

@@ -8,10 +8,10 @@ from vaex.ui.qt import *
 
 #import vaex.plot_windows
 
-import vaex.logging
+import logging
 #import vaex.ui.undo as undo
 
-logger = vaex.logging.getLogger("vaex.ui.plugin.animation")
+logger = logging.getLogger("vaex.ui.plugin.animation")
 
 class AnimationPlugin(vaex.ui.plugin.PluginLayer):
 	name = "animation"

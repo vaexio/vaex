@@ -23,8 +23,8 @@ import collections
 lock = threading.Lock()
 import vaex.multithreading
 
-import vaex.logging
-logger = vaex.logging.getLogger("vaex.execution")
+import logging
+logger = logging.getLogger("vaex.execution")
 
 thread_count_default = multiprocessing.cpu_count()
 
