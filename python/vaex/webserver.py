@@ -187,7 +187,7 @@ class ListHandler(tornado.web.RequestHandler):
 				return ({"result":seconds})
 			elif parts[0] == "datasets":
 				if len(parts) == 1:
-					response = dict(datasets=[{"name":ds.name, "full_length":len(ds), "column_names":ds.get_column_names()} for ds in self.datasets])
+					response = dict(datasets=[{"name":ds.name, "full_length":ds.full_length(), "column_names":ds.get_column_names()} for ds in self.datasets])
 					logger.debug("response: %r", response)
 					return response
 				else:

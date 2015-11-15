@@ -400,7 +400,9 @@ class DatasetRest(DatasetRemote):
 		self.column_names = column_names
 		self._full_length = full_length
 		self._length = full_length
-		self.filename = "http://%s:%s/%s" % (server.hostname, server.port, name)
+		#self.filename = #"http://%s:%s/%s" % (server.hostname, server.port, name)
+		self.path = self.filename = self.server._build_url("datasets/%s" % name)
+
 		#self.host = host
 		#self.http_client = AsyncHTTPClient()
 		#future = http_client.fetch(self._build_url("datasets"))

@@ -35,7 +35,7 @@ class Storage(object):
 
 	def _make_key(self, name, type_name, dataset):
 		#return os.path.join(dataset.path, name)
-		return dataset.get_path() +"?type=%s&options=%s" % (type_name, name)
+		return dataset.path +"?type=%s&options=%s" % (type_name, name)
 
 	def exists(self, name, type_name, dataset):
 		key = self._make_key(name, type_name, dataset)
