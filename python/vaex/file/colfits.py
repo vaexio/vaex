@@ -8,7 +8,7 @@ import astropy.io.fits
 import numpy as np
 import logging
 
-logger = logging.getLogger("vaex.io.colfits")
+logger = logging.getLogger("vaex.file.colfits")
 
 def empty(filename, length, column_names, data_types, data_shapes):
 	f = open(filename, "wb")
