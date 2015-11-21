@@ -50,9 +50,10 @@ class Job(object):
 ne_lock = threading.Lock()
 
 class Executor(object):
-	def __init__(self, thread_pool=None):
+	def __init__(self, thread_pool=None, buffer_size=buffer_size):
 		self.thread_pool = thread_pool or vaex.multithreading.ThreadPoolIndex()
 		self.task_queue = []
+		self.buffer_size = buffer_size
 		self.signal_begin = vaex.events.Signal("begin")
 		self.signal_progress = vaex.events.Signal("progress")
 		self.signal_end = vaex.events.Signal("end")
@@ -106,7 +107,7 @@ class Executor(object):
 
 				length = len(dataset)
 				#print self.thread_pool.map()
-				for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=buffer_size),\
+				for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=self.buffer_size),\
 													progress=lambda p: all(self.signal_progress.emit(p)),
 													cancel=cancel):
 					pass # just eat all element
