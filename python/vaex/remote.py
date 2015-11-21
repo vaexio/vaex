@@ -225,6 +225,8 @@ class ServerRest(object):
 			post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
 		if selection is not None:
 			post_data["selection"] = json.dumps(selection.to_dict())
+		post_data["variables"] = json.dumps(subspace.dataset.variables.items())
+		post_data["virtual_columns"] = json.dumps(subspace.dataset.virtual_columns.items())
 		post_data.update(dict(expressions=json.dumps(expressions)))
 		body = urlencode(post_data)
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
@@ -249,6 +251,8 @@ class ServerRest(object):
 			post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
 		if selection is not None:
 			post_data["selection"] = json.dumps(selection.to_dict())
+		post_data["variables"] = json.dumps(subspace.dataset.variables.items())
+		post_data["virtual_columns"] = json.dumps(subspace.dataset.virtual_columns.items())
 		post_data.update({key:json.dumps(value) for key, value in list(dict(kwargs).items())})
 		body = urlencode(post_data)
 		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
