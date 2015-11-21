@@ -17,9 +17,9 @@ conda update -q conda
 conda info -a
 conda create -q -n vaex python=2.7 numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado jupyter
 source activate vaex
-pip install -r requirements.txt
 git clone https://github.com/maartenbreddels/vaex/
 cd vaex
+pip install -r requirements.txt
 python setup.py install
 
 echo '# to run vaex, execute: '
