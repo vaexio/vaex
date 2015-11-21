@@ -387,7 +387,7 @@ class Subspace(object):
 	def selected(self):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
-	def plot(self, grid=None, limits=None, center=None, weight=None, f=lambda x: x, axes=None, **kwargs):
+	def plot(self, grid=None, limits=None, center=None, weight=None, figsize=None, aspect="auto", f=lambda x: x, axes=None, **kwargs):
 		import pylab
 		if limits is None:
 			limits = self.limits_sigma()
@@ -395,13 +395,16 @@ class Subspace(object):
 			limits = np.array(limits) - np.array(center).reshape(2,1)
 		if grid is None:
 			grid = self.histogram(limits=limits, weight=weight)
+		if figsize is not None:
+			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
 		if axes is None:
 			axes = pylab.gca()
+		axes.set_aspect(aspect)
 		axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
 
-	def figlarge(self):
+	def figlarge(self, size=(10,10)):
 		import pylab
-		pylab.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
+		pylab.figure(num=None, figsize=size, dpi=80, facecolor='w', edgecolor='k')
 
 	#def bounded(self):
 	#	return self.bounded_by_minmax()
@@ -550,41 +553,58 @@ class SubspaceLocal(Subspace):
 			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, remove_counts)
 		return self._task(task)
 
-	def correlation(self, means, vars):
+	def correlation(self, means=None, vars=None):
 		if self.dimension != 2:
 			raise ValueError("correlation is only defined for 2d subspaces, not %dd" % self.dimension)
 
-		meanx, meany = means
-		sigmax, sigmay = vars[0]**0.5, vars[1]**0.5
+		def do_correlation(means, vars):
+			meanx, meany = means
+			sigmax, sigmay = vars[0]**0.5, vars[1]**0.5
 
-		def remove_counts_and_normalize(covar_and_count):
-			covar, counts = covar_and_count
-			return covar/counts / (sigmax * sigmay)
+			def remove_counts_and_normalize(covar_and_count):
+				covar, counts = covar_and_count
+				return covar/counts / (sigmax * sigmay)
 
-		def covars_reduce(covar_and_count1, covar_and_count2):
-			if covar_and_count1 is None:
-				return covar_and_count2
-			if covar_and_count2 is None:
-				return covar_and_count1
+			def covars_reduce(covar_and_count1, covar_and_count2):
+				if covar_and_count1 is None:
+					return covar_and_count2
+				if covar_and_count2 is None:
+					return covar_and_count1
+				else:
+					covar1, count1 = covar_and_count1
+					covar2, count2 = covar_and_count2
+					return [np.nansum([covar1, covar2]), count1+count2]
+
+			mask = self.dataset.mask
+			def covar_map(thread_index, i1, i2, *blocks):
+				#return [(np.nanmean((block[mask[i1:i2]]-mean)**2), np.count_nonzero(~np.isnan(block[mask[i1:i2]]))) for block, mean in zip(blocks, means)]
+				blockx, blocky = blocks
+				if self.is_masked:
+					blockx, blocky = blockx[mask[i1:i2]], blocky[mask[i1:i2]]
+				counts = np.count_nonzero( ~(np.isnan(blockx) | np.isnan(blocky)) )
+				if counts == 0:
+					return None
+				else:
+					return np.nansum((blockx - meanx) * (blocky - meany)), counts
+
+			task = TaskMapReduce(self.dataset, self.expressions, covar_map, covars_reduce, remove_counts_and_normalize, info=True)
+			return self._task(task)
+		if means is None:
+			if self.async:
+				means_wrapper = [None]
+				def do_vars(means):
+					print "mean", means
+					means_wrapper[0] = means
+					return self.var(means)
+				def do_correlation_wrapper(vars):
+					return do_correlation(means_wrapper[0], vars)
+				return self.mean().then(do_vars).then(do_correlation_wrapper)
 			else:
-				covar1, count1 = covar_and_count1
-				covar2, count2 = covar_and_count2
-				return [np.nansum([covar1, covar2]), count1+count2]
-
-		mask = self.dataset.mask
-		def covar_map(thread_index, i1, i2, *blocks):
-			#return [(np.nanmean((block[mask[i1:i2]]-mean)**2), np.count_nonzero(~np.isnan(block[mask[i1:i2]]))) for block, mean in zip(blocks, means)]
-			blockx, blocky = blocks
-			if self.is_masked:
-				blockx, blocky = blockx[mask[i1:i2]], blocky[mask[i1:i2]]
-			counts = np.count_nonzero( ~(np.isnan(blockx) | np.isnan(blocky)) )
-			if counts == 0:
-				return None
-			else:
-				return np.nansum((blockx - meanx) * (blocky - meany)), counts
-
-		task = TaskMapReduce(self.dataset, self.expressions, covar_map, covars_reduce, remove_counts_and_normalize, info=True)
-		return self._task(task)
+				means = self.mean()
+				vars = self.var(means)
+				return do_correlation(means, vars)
+		else:
+			return do_correlation(means, vars)
 
 	def sum(self):
 		if self.is_masked:
@@ -2203,7 +2223,24 @@ class DatasetNed(DatasetAstropyTable):
 		super(DatasetNed, self).__init__(url, format="votable", use_names_over_ids=True)
 		self.name = "ned:" + code
 
-dataset_type_map["ned"] = DatasetNed
+class DatasetGacs(DatasetArrays):
+	def __init__(self, tap_url="http://geadev.esac.esa.int/tap-dev/tap/"):
+		url = "http://ned.ipac.caltech.edu/cgi-bin/objsearch?refcode={code}&hconst=73&omegam=0.27&omegav=0.73&corr_z=1&out_csys=Equatorial&out_equinox=J2000.0&obj_sort=RA+or+Longitude&of=xml_main&zv_breaker=30000.0&list_limit=5&img_stamp=YES&search_type=Search"\
+			.format(code=code)
+		super(DatasetGacs, self).__init__("tap gacs")
+		self.tap_url = tap_url
+		import requests
+		req = requests.request("get", self.tap_url+"/tables/")
+		print dir(req)
+		from bs4 import BeautifulSoup
+		soup = BeautifulSoup(req.response)
+
+
+
+if __name__ == "__main__":
+	DatasetGacs()
+
+dataset_type_map["gacs"] = DatasetGacs
 
 def can_open(path, *args, **kwargs):
 	for name, class_ in list(dataset_type_map.items()):
