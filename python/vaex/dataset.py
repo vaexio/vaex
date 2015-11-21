@@ -114,11 +114,25 @@ class ColumnExpression(ColumnBase):
 #	def get(self, i1, i2):
 
 class Task(vaex.promise.Promise):
+	"""
+	:type: signal_progress: Signal
+	"""
 	def __init__(self, dataset, expressions):
 		vaex.promise.Promise.__init__(self)
 		self.dataset = dataset
 		self.expressions = expressions
 		self.expressions_all = list(expressions)
+		self.signal_progress = vaex.events.Signal("progress (float)")
+		self.progress_fraction = 0
+		self.signal_progress.connect(self._set_progress)
+		self.cancelled = False
+
+	def _set_progress(self, fraction):
+		self.progress_fraction = fraction
+		return not self.cancelled # don't cancel
+
+	def cancel(self):
+		self.cancelled = True
 
 	@property
 	def dimension(self):
@@ -646,8 +660,12 @@ class SubspaceLocal(Subspace):
 					return None
 				blocks = [block[mask] for block in blocks]
 			distance_squared = np.sum( [(blocks[i]-point[i])**2.*metric[i] for i in range(self.dimension)], axis=0 )
-			min_index = np.argmin(distance_squared)
-			return min_index + i1, distance_squared[min_index]**0.5, [block[min_index] for block in blocks]
+			min_index_global = min_index = np.argmin(distance_squared)
+			if self.is_masked: # we skipped some indices, so correct for that
+				min_index_global = np.argmin((np.cumsum(mask) - 1 - min_index)**2)
+			#with lock:
+			#	print i1, i2, min_index, distance_squared, [block[min_index] for block in blocks]
+			return min_index_global + i1, distance_squared[min_index]**0.5, [block[min_index] for block in blocks]
 		def nearest_reduce(a, b):
 			if a is None:
 				return b
@@ -2260,3 +2278,4 @@ def load_file(path, *args, **kwargs):
 		return dataset
 
 from .remote import ServerRest, SubspaceRemote, DatasetRemote
+from vaex.events import Signal

@@ -1016,20 +1016,31 @@ class VaexApp(QtGui.QMainWindow):
 
 		self.dataset_panel.signal_open_plot.connect(on_open_plot)
 
-		self.signal_promise.connect(self.on_signal_promise)
+		self.signal_call_in_main_thread.connect(self.on_signal_call_in_main_thread)
 		self.parse_args(argv)
+		import queue
+		# this queue is used to return values from the main thread to the callers thread
+		self.queue_call_in_main_thread = queue.Queue(1)
 
 
-	signal_promise = QtCore.pyqtSignal(object, object)
+	signal_call_in_main_thread = QtCore.pyqtSignal(object, object, object) # fn, args, kwargs
 	#signal_promise = QtCore.pyqtSignal(str)
-	def send_to_main_thread(self, promise, value):
+	def call_in_main_thread(self, fn, *args, **kwargs):
 		#print "send promise to main thread using signal", threading.currentThread()
-		self.signal_promise.emit(promise, value)
+		assert self.queue_call_in_main_thread.empty()
+		self.signal_call_in_main_thread.emit(fn, args, kwargs)
+		return self.queue_call_in_main_thread.get()
 		#self.signal_promise.emit("blaat")
 
-	def on_signal_promise(self, promise, value):
-		logger.debug("got promise, and should send it value: %r (from thread %r", value, threading.currentThread())
-		promise.fulfill(value)
+	def on_signal_call_in_main_thread(self, fn, args, kwargs):
+		logger.debug("got callback %r, and should call it with argument: %r %r (from thread %r)", fn, args, kwargs , threading.currentThread())
+		assert self.queue_call_in_main_thread.empty()
+		return_value = None
+		try:
+			return_value = fn(*args, **kwargs)
+		finally:
+			self.queue_call_in_main_thread.put(return_value)
+		#promise.fulfill(value)
 
 	def plot(self, *args, **kwargs):
 		window_name = kwargs.get("window_name")
@@ -1083,7 +1094,7 @@ class VaexApp(QtGui.QMainWindow):
 				base_path, should_be_datasets, dataset_name = o.path.rsplit("/", 2)
 				if should_be_datasets != "datasets":
 					error("expected an url in the form http://host:port/optional/part/datasets/dataset_name")
-				server = vaex.server(hostname=o.hostname, port = o.port or 80, thread_mover=self.send_to_main_thread, base_path=base_path)
+				server = vaex.server(hostname=o.hostname, port = o.port or 80, thread_mover=self.call_in_main_thread, base_path=base_path)
 				#logger.debug()
 				datasets = server.datasets()
 				first_name = datasets[0].name

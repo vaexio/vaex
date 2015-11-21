@@ -249,7 +249,11 @@ class PlotDialog(QtGui.QWidget):
 		# in the layers in a undefined state
 		self.queue_redraw = Queue("redraw", 5, self.canvas.draw) # only draw the canvas again
 		self.queue_replot = Queue("replot", 10, self.plot) # redo the whole plot, but no computation
-		self.queue_update = Queue("update", 100, self.update_direct, pre=self.queue_replot.cancel) # a complete recalculation and refresh of the plot
+		def pre():
+			self.queue_replot.cancel()
+			for layer in self.layers:
+				layer.cancel_tasks()
+		self.queue_update = Queue("update", 100, self.update_direct, pre=pre) # a complete recalculation and refresh of the plot
 
 		self.layout_main = QtGui.QVBoxLayout()
 		self.layout_content = QtGui.QHBoxLayout()
@@ -311,35 +315,12 @@ class PlotDialog(QtGui.QWidget):
 		self.status_bar.addPermanentWidget(self.progress_bar)
 		self.status_bar.addPermanentWidget(self.button_cancel)
 		self.status_bar.addPermanentWidget(self.label_time)
-		def begin():
-			self.time_begin = time.time()
-			self.progress_bar.setValue(0)
-			self.cancelled = False
-			self.button_cancel.setEnabled(True)
-		def end():
-			self.progress_bar.setValue(1000)
-			self.cancelled = False
-			self.button_cancel.setEnabled(False)
-			time_total = time.time() - self.time_begin
-			self.label_time.setText("%.2fs" % time_total)
-		def progress(fraction):
-			logger.debug("progress on %r: %f", self, fraction)
-			logger.debug("queue: %r %r", self.queue_update.counter, self.queue_update.counter_processed)
-			self.progress_bar.setValue(fraction*1000)
-			#QtCore.QCoreApplication.instance().processEvents()
-			return (not self.cancelled) and (not self.queue_update.in_queue(2))
-		def cancel():
-			self.progress_bar.setValue(0)
-			self.button_cancel.setEnabled(False)
-			self.label_time.setText("cancelled")
-		def on_click_cancel():
-			self.cancelled = True
-		self.button_cancel.clicked.connect(on_click_cancel)
 
-		self._begin_signal = self.dataset.executor.signal_begin.connect(begin)
-		self._progress_signal = self.dataset.executor.signal_progress.connect(progress)
-		self._end_signal = self.dataset.executor.signal_end.connect(end)
-		self._cancel_signal = self.dataset.executor.signal_cancel.connect(cancel)
+		def on_click_cancel():
+			self.button_cancel.setEnabled(False)
+			for layer in self.layers:
+				layer.cancel_tasks()
+		self.button_cancel.clicked.connect(on_click_cancel)
 
 		self.layout_main.addWidget(self.status_bar)
 
@@ -366,6 +347,20 @@ class PlotDialog(QtGui.QWidget):
 		self.canvas.mpl_connect('resize_event', self.on_resize_event)
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 		#self.pinch_ranges_show = [None for i in range(self.dimension)]
+
+	def set_layer_progress(self, layer, fraction):
+		self.button_cancel.setEnabled(True)
+		fraction = self.get_progress_fraction()
+		self.progress_bar.setValue(fraction*1000)
+		QtCore.QCoreApplication.instance().processEvents()
+
+	def get_progress_fraction(self):
+		total_fraction = 0
+		updating_layers = [layer for layer in self.layers if layer.tasks]
+		total_fraction = sum([layer.get_progress_fraction() for layer in updating_layers])
+		return total_fraction/len(updating_layers)
+
+
 
 	def slice_none(self):
 		mask = np.ones((self.grid_size,) * self.dimensions, dtype=np.bool)
@@ -565,10 +560,10 @@ class PlotDialog(QtGui.QWidget):
 		# since closing a dialog causes this event to fire otherwise
 		#self.parent_widget.plot_dialogs.remove(self)
 
-		self.dataset.executor.signal_begin.disconnect(self._begin_signal)
-		self.dataset.executor.signal_progress.disconnect(self._progress_signal)
-		self.dataset.executor.signal_end.disconnect(self._end_signal)
-		self.dataset.executor.signal_cancel.disconnect(self._cancel_signal)
+		#self.dataset.executor.signal_begin.disconnect(self._begin_signal)
+		#self.dataset.executor.signal_progress.disconnect(self._progress_signal)
+		#self.dataset.executor.signal_end.disconnect(self._end_signal)
+		#self.dataset.executor.signal_cancel.disconnect(self._cancel_signal)
 
 		self.pool.close()
 		for layer in self.layers:

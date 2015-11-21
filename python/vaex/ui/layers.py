@@ -151,6 +151,7 @@ import vaex.dataset
 class LayerTable(object):
 	def __init__(self, plot_window, name, dataset, expressions, axis_names, options, thread_pool, figure, canvas, ranges_grid=None):
 		"""
+		:type tasks: list[Task]
 		:type dataset: Dataset
 		:type plot_window: PlotDialog
 		"""
@@ -191,6 +192,11 @@ class LayerTable(object):
 
 		self.layer_slice_source = None # the layer we link to for slicing
 		self.slice_axis = [] # list of booleans, which axis we listen to
+
+		# we keep a list of vaex.dataset.Task, so that we can cancel, listen
+		# to progress etc
+		self.tasks = []
+		self._task_signals = []
 
 
 		self._histogram_counter = 0 # TODO: until we can cancel the server, we have to fix it with a counter
@@ -851,12 +857,45 @@ class LayerTable(object):
 
 	def on_error(self, exception):
 		logger.exception("unhandled error occured")
+		self.finished_tasks()
 		import traceback
 		traceback.print_exc()
 		raise exception
 
+	def add_task(self, task):
+		self._task_signals.append(task.signal_progress.connect(self._layer_progress))
+		self.tasks.append(task)
+		return task
+
+	def _layer_progress(self, fraction):
+		total_fraction = 0
+		for task in self.tasks:
+			total_fraction += task.progress_fraction
+		fraction = total_fraction / len(self.tasks)
+		self.plot_window.set_layer_progress(self, fraction)
+		return True
+
+	def get_progress_fraction(self):
+		total_fraction = 0
+		for task in self.tasks:
+			total_fraction += task.progress_fraction
+		fraction = total_fraction / len(self.tasks)
+		return fraction
+
+	def finished_tasks(self):
+		for task, signal in zip(self.tasks, self._task_signals):
+			task.signal_progress.disconnect(signal)
+		self.tasks = []
+		self._task_signals = []
+
+	def cancel_tasks(self):
+		for task in self.tasks:
+			task.cancel()
+		self.finished_tasks()
+
 	def add_tasks_ranges(self):
 		logger.debug("adding jobs for layer: %r, ranges_grid = %r", self, self.ranges_grid)
+		assert not self.tasks
 		missing = False
 		# TODO, optimize for the case when some dimensions are already known
 		for range in self.ranges_grid:
@@ -874,7 +913,7 @@ class LayerTable(object):
 
 		if missing:
 			logger.debug("first we calculate min max for this layer")
-			return subspace_ranges.minmax().then(self.got_limits, self.on_error).then(None, self.on_error)
+			return self.add_task(subspace_ranges.minmax()).then(self.got_limits, self.on_error).then(None, self.on_error)
 		else:
 			#self.got_limits(self.ranges_grid)
 			return vaex.promise.Promise.fulfilled(self)
@@ -882,10 +921,12 @@ class LayerTable(object):
 	def got_limits(self, limits):
 		logger.debug("got limits %r for layer %r" % (limits, self))
 		self.ranges_grid = np.array(limits).tolist() # for this class we need it to be a list
+		self.finished_tasks()
 		return self
 
 	def add_tasks_histograms(self):
 		self._histogram_counter += 1
+		assert not self.tasks
 
 		histogram_counter = self._histogram_counter
 		self._can_plot = False
@@ -900,13 +941,13 @@ class LayerTable(object):
 			ranges = np.array(self.ranges_grid + self.layer_slice_source.ranges_grid)
 		ranges = np.array(ranges)
 		# add the main grid
-		histogram_promise = self.subspace.histogram(limits=ranges, size=self.plot_window.grid_size)\
+		histogram_promise = self.add_task(self.subspace.histogram(limits=ranges, size=self.plot_window.grid_size))\
 			.then(self.grid_main.setter("counts"))\
 			.then(None, self.on_error)
 		promises.append(histogram_promise)
 
 		if self.dataset.has_selection():
-			histogram_promise = self.subspace.selected().histogram(limits=ranges, size=self.plot_window.grid_size)\
+			histogram_promise = self.add_task(self.subspace.selected().histogram(limits=ranges, size=self.plot_window.grid_size))\
 				.then(self.grid_main_selection.setter("counts"))\
 				.then(None, self.on_error)
 			promises.append(histogram_promise)
@@ -914,15 +955,15 @@ class LayerTable(object):
 
 		# the weighted ones
 		if self.weight_expression:
-			histogram_weighted_promise = self.subspace.histogram(limits=ranges
-					, weight=self.weight_expression, size=self.plot_window.grid_size)\
+			histogram_weighted_promise = self.add_task(self.subspace.histogram(limits=ranges
+					, weight=self.weight_expression, size=self.plot_window.grid_size))\
 				.then(self.grid_main.setter("weighted"))\
 				.then(None, self.on_error)
 			promises.append(histogram_weighted_promise)
 
 			if self.dataset.has_selection():
-				histogram_weighted_promise = self.subspace.selected().histogram(limits=ranges
-						, weight=self.weight_expression, size=self.plot_window.grid_size)\
+				histogram_weighted_promise = self.add_task(self.subspace.selected().histogram(limits=ranges
+						, weight=self.weight_expression, size=self.plot_window.grid_size))\
 					.then(self.grid_main_selection.setter("weighted"))\
 					.then(None, self.on_error)
 				promises.append(histogram_weighted_promise)
@@ -949,16 +990,16 @@ class LayerTable(object):
 				self.grid_vector[name] = x
 
 			if self.vector_expressions[i]:
-				histogram_vector_promise = self.subspace.histogram(limits=ranges
-						, weight=self.vector_expressions[i], size=self.plot_window.vector_grid_size)\
+				histogram_vector_promise = self.add_task(self.subspace.histogram(limits=ranges
+						, weight=self.vector_expressions[i], size=self.plot_window.vector_grid_size))\
 					.then(self.grid_vector.setter("weight"+name))\
 					.then(None, self.on_error)
 				promises.append(histogram_vector_promise)
 			else:
 				self.grid_vector["weight" +name] = None
 			if any(self.vector_expressions):
-				histogram_vector_promise = self.subspace.histogram(limits=ranges
-						,size=self.plot_window.vector_grid_size)\
+				histogram_vector_promise = self.add_task(self.subspace.histogram(limits=ranges
+						,size=self.plot_window.vector_grid_size))\
 					.then(self.grid_vector.setter("counts"))\
 					.then(None, self.on_error)
 				promises.append(histogram_vector_promise)
@@ -975,9 +1016,6 @@ class LayerTable(object):
 				logger.debug
 				#raise ValueError, "histogram counter got update, cancel redraw etc"
 			return arg
-		def error_counter(error):
-			logger.debug("histogram cancelled: %r", error)
-
 
 		return vaex.promise.listPromise(promises).then(check_counter)#.then(None, error_counter)\
 			#.then(self.got_grids)\
@@ -987,6 +1025,7 @@ class LayerTable(object):
 
 	def got_grids(self, *args):
 		logger.debug("got grids for layer %r" % (self, ))
+		self.finished_tasks()
 		self.calculate_amplitudes()
 		self._needs_update = False
 		return self
@@ -2143,5 +2182,5 @@ class LayerTable(object):
 		self.flag_needs_update()
 		self.plot_window.queue_update()
 
-from vaex.dataset import Dataset
+from vaex.dataset import Dataset, Task
 from vaex.ui.plot_windows import PlotDialog

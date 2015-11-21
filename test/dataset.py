@@ -18,11 +18,17 @@ vx.set_log_level_exception()
 #vx.set_log_level_debug()
 
 class CallbackCounter(object):
-	def __init__(self):
+	def __init__(self, return_value=None):
 		self.counter = 0
+		self.return_value = return_value
+		self.last_args = None
+		self.last_kwargs = None
 
 	def __call__(self, *args, **kwargs):
 		self.counter += 1
+		self.last_args = args
+		self.last_kwargs = kwargs
+		return self.return_value
 
 class TestDataset(unittest.TestCase):
 	def setUp(self):
@@ -147,6 +153,19 @@ class TestDataset(unittest.TestCase):
 		x, y = self.datasetxy("x", "y").selected().sum()
 		self.assertAlmostEqual(x, 0)
 		self.assertAlmostEqual(y, -1)
+
+	def test_progress(self):
+		x, y = self.datasetxy("x", "y").sum()
+		task = self.datasetxy("x", "y", async=True).sum()
+		counter = CallbackCounter(True)
+		task.signal_progress.connect(counter)
+		self.datasetxy.executor.execute()
+		x2, y2 = task.get()
+		self.assertEqual(x, x2)
+		self.assertEqual(y, y2)
+		self.assertGreater(counter.counter, 0)
+		self.assertEqual(counter.last_args[0], 1.0)
+
 
 	def test_mean(self):
 		x, y = self.datasetxy("x", "y").mean()
