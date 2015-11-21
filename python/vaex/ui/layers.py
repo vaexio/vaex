@@ -25,6 +25,8 @@ import functools
 import time
 from vaex.ui.qt import *
 import logging
+import healpy
+
 
 logger = logging.getLogger("vaex.ui.layer")
 
@@ -431,10 +433,29 @@ class LayerTable(object):
 			if row is not None:
 				ax.scatter([x[row]], [y[row]], alpha=self.alpha, color=self.color_alt)
 
+	def plot_schlegel(self, axes_list, stack_image):
+		if not hasattr(self, "schlegel_map"):
+			self.schlegel_map = healpy.read_map('data/lambda_sfd_ebv.fits', nest=False)
+		xlim, ylim = self.plot_window.ranges_show
+		phis = np.linspace(np.deg2rad(xlim[0]), np.deg2rad(xlim[1]), self.plot_window.grid_size)# + np.pi/2.
+		thetas = np.pi-np.linspace(np.deg2rad(ylim[1]) + np.pi/2., np.deg2rad(ylim[0]) + np.pi/2., self.plot_window.grid_size)
+		#phis = (np.linspace(0, 2*np.pi, 256) - np.pi) % (2*np.pi)
+		print thetas, phis
+		thetas, phis = np.meshgrid(thetas, phis)
+
+		pix = healpy.ang2pix(512, thetas, phis)
+		I = self.schlegel_map[pix].T[::-1,:]
+		I = self._normalize_values(np.log(I))
+		print I
+		self.schlegel_projected = I
+		rgb = self._to_rgb(I, color=self.color)
+		axes_list[0].rgb_images.append(rgb)
+		#print "SCHL" * 1000
+		#pylab.imshow(np.log(schlegel_map[pix].T))
 
 	def plot(self, axes_list, stack_image):
 		if self._can_plot:
-			logger.debug("begin plot: %r" % self)
+			logger.debug("begin plot: %r, style: %r", self, self.style)
 		else:
 			logger.debug("cannot plot layer: %r" % self)
 			return
@@ -444,6 +465,7 @@ class LayerTable(object):
 		if self.style == "scatter":
 			self.plot_scatter(axes_list)
 			return
+			#return
 		if self.dimensions == 1:
 			print self.amplitude_grid
 			print self.amplitude_grid_view
@@ -631,6 +653,54 @@ class LayerTable(object):
 	def getVariableDict(self):
 		return {} # TODO: remove this? of replace
 
+	def _normalize_values(self, amplitude):
+		I = amplitude#self.contrast(amplitude)
+		# scale to [0,1]
+		mask = ~(np.isnan(I) | np.isinf(I))
+		if np.sum(mask) == 0:
+			return np.zeros(I.shape, dtype=np.float64)
+		I -= I[mask].min()
+		I /= I[mask].max()
+		return I
+
+	def _to_rgb(self, intensity, color, pre_alpha=1.):
+		I = intensity
+		mask = ~(np.isnan(I) | np.isinf(I))
+		if np.sum(mask) == 0:
+			return np.zeros(I.shape + (4,), dtype=np.float64)
+		minvalue = I[mask].min()
+		maxvalue = I[mask].max()
+		if minvalue == maxvalue:
+			return np.zeros(I.shape + (4,), dtype=np.float64)
+		I -= minvalue
+		I /= maxvalue
+
+		# scale [min, max] to [0, 1]
+		I -= self.level_min
+		I /= (self.level_max - self.level_min)
+
+		#if self.color is not None:
+
+		alpha_mask = (mask) & (I > 0)
+		if self.display_type == "solid":
+			color_tuple = matplotlib.colors.colorConverter.to_rgb(color)
+			rgba = np.zeros(I.shape + (4,), dtype=np.float64)
+			rgba[alpha_mask,0:3] = np.array(color_tuple)
+		else:
+			cmap = matplotlib.cm.cmap_d[self.colormap]
+			rgba = cmap(I * 1.00)
+			rgba[...,3] = (np.clip((I**1.0) * self.alpha, 0, 1))
+		if self.transparancy == "intensity":
+			rgba[...,3] = (np.clip((I**1.0) * self.alpha, 0, 1)) * self.alpha * pre_alpha
+		elif self.transparancy == "constant":
+			rgba[alpha_mask,3] = 1. * self.alpha * pre_alpha
+			rgba[~alpha_mask,3] = 0
+		elif self.transparancy == "none":
+			rgba[...,3] = pre_alpha
+		else:
+			raise NotImplemented
+		return rgba
+
 	def plot_density_imshow(self, axes, amplitude, amplitude_selection, stack_image):
 		if not self.visible:
 			return
@@ -640,55 +710,10 @@ class LayerTable(object):
 			ranges.append(maximum)
 		use_selection = amplitude_selection is not None
 		#if isinstance(self.colormap, basestring):
-		def normalize(amplitude):
-			I = amplitude#self.contrast(amplitude)
-			# scale to [0,1]
-			mask = ~(np.isnan(I) | np.isinf(I))
-			if np.sum(mask) == 0:
-				return np.zeros(I.shape, dtype=np.float64)
-			I -= I[mask].min()
-			I /= I[mask].max()
-			return I
 
-		def to_rgb(intensity, color, pre_alpha=1.):
-			I = intensity
-			mask = ~(np.isnan(I) | np.isinf(I))
-			if np.sum(mask) == 0:
-				return np.zeros(I.shape + (4,), dtype=np.float64)
-			minvalue = I[mask].min()
-			maxvalue = I[mask].max()
-			if minvalue == maxvalue:
-				return np.zeros(I.shape + (4,), dtype=np.float64)
-			I -= minvalue
-			I /= maxvalue
-
-			# scale [min, max] to [0, 1]
-			I -= self.level_min
-			I /= (self.level_max - self.level_min)
-
-			#if self.color is not None:
-
-			alpha_mask = (mask) & (I > 0)
-			if self.display_type == "solid":
-				color_tuple = matplotlib.colors.colorConverter.to_rgb(color)
-				rgba = np.zeros(I.shape + (4,), dtype=np.float64)
-				rgba[alpha_mask,0:3] = np.array(color_tuple)
-			else:
-				cmap = matplotlib.cm.cmap_d[self.colormap]
-				rgba = cmap(I * 1.00)
-				rgba[...,3] = (np.clip((I**1.0) * self.alpha, 0, 1))
-			if self.transparancy == "intensity":
-				rgba[...,3] = (np.clip((I**1.0) * self.alpha, 0, 1)) * self.alpha * pre_alpha
-			elif self.transparancy == "constant":
-				rgba[alpha_mask,3] = 1. * self.alpha * pre_alpha
-				rgba[~alpha_mask,3] = 0
-			elif self.transparancy == "none":
-				rgba[...,3] = pre_alpha
-			else:
-				raise NotImplemented
-			return rgba
 
 		levels = (np.arange(self.contour_count) + 1. ) / (self.contour_count + 1)
+		levels = np.linspace(self.level_min, self.level_max, self.contour_count)
 		ranges = list(self.ranges_grid[0]) + list(self.ranges_grid[1])
 
 
@@ -699,27 +724,27 @@ class LayerTable(object):
 			if self.contour_count > 0:
 				if self.show == "total+selection":
 					if use_selection and self.show:
-						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4*self.alpha)
-						axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.alpha)
+						axes.contour(self._normalize_values(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4*self.alpha)
+						axes.contour(self._normalize_values(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.alpha)
 					else:
-						axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
+						axes.contour(self._normalize_values(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
 				elif self.show == "total":
-					axes.contour(normalize(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
+					axes.contour(self._normalize_values(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.alpha)
 				elif self.show == "selection":
-					axes.contour(normalize(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.alpha)
+					axes.contour(self._normalize_values(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.alpha)
 		else:
 			if self.show == "total+selection":
-				I = normalize(amplitude_marginalized)
-				axes.rgb_images.append(to_rgb(I, color=self.color, pre_alpha=0.4 if use_selection else 1.0))
+				I = self._normalize_values(amplitude_marginalized)
+				axes.rgb_images.append(self._to_rgb(I, color=self.color, pre_alpha=0.4 if use_selection else 1.0))
 				if use_selection:
-					I = normalize(amplitude_marginalized_selected)
-					axes.rgb_images.append(to_rgb(I, color=self.color_alt))
+					I = self._normalize_values(amplitude_marginalized_selected)
+					axes.rgb_images.append(self._to_rgb(I, color=self.color_alt))
 			elif self.show == "total":
-				I = normalize(amplitude_marginalized)
-				axes.rgb_images.append(to_rgb(I, color=self.color))
+				I = self._normalize_values(amplitude_marginalized)
+				axes.rgb_images.append(self._to_rgb(I, color=self.color))
 			elif self.show == "selection":
-				I = normalize(amplitude_marginalized_selected)
-				axes.rgb_images.append(to_rgb(I, color=self.color_alt))
+				I = self._normalize_values(amplitude_marginalized_selected)
+				axes.rgb_images.append(self._to_rgb(I, color=self.color_alt))
 
 
 	def on_selection_changed(self, dataset):
@@ -989,6 +1014,21 @@ class LayerTable(object):
 
 		try:
 			grid = self.grid_main
+			if self.style == "schlegel":
+				#self.plot_schlegel(axes_list, stack_image)
+				if not hasattr(self, "schlegel_map"):
+					self.schlegel_map = healpy.read_map('data/lambda_sfd_ebv.fits', nest=False)
+				xlim, ylim = self.plot_window.ranges_show
+				phis = np.linspace(np.deg2rad(xlim[0]), np.deg2rad(xlim[1]), self.plot_window.grid_size)# + np.pi/2.
+				thetas = np.pi-np.linspace(np.deg2rad(ylim[1]) + np.pi/2., np.deg2rad(ylim[0]) + np.pi/2., self.plot_window.grid_size)
+				#phis = (np.linspace(0, 2*np.pi, 256) - np.pi) % (2*np.pi)
+				print thetas, phis
+				thetas, phis = np.meshgrid(thetas, phis)
+
+				pix = healpy.ang2pix(512, thetas, phis)
+				grid["counts"] = self.schlegel_map[pix].T[::-1,:]
+				#self.amplitude_grid_selection = None
+
 			if slice:
 				grid = grid.slice(self.slice_selection_grid)
 			if self.show_disjoined:
