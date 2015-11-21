@@ -13,6 +13,9 @@ import vaex.kld
 logger = logging.getLogger("vaex.ranking")
 
 
+# since we do many columns at once, a smallar buffer will lead to more resposiveness in the gui
+buffer_size = 1e5
+
 def unique_column_names(dataset):
 	return list(set(dataset.column_names) | set(dataset.virtual_columns.keys()))
 
@@ -798,7 +801,7 @@ class RankDialog(QtGui.QDialog):
 		pairs = self.table1d.getSelected()
 		logger.debug("estimate min/max for %r" % pairs)
 		#jobsManager = vaex.dataset.JobsManager()
-		executor = vaex.execution.Executor()
+		executor = vaex.execution.Executor(buffer_size=buffer_size)
 
 		expressions = [pair[0] for pair in pairs]
 		assert len(pairs[0]) == 1
@@ -836,7 +839,7 @@ class RankDialog(QtGui.QDialog):
 		pairs = self.table1d.getSelected()
 
 		expressions = [pair[0] for pair in pairs]
-		executor = vaex.execution.Executor()
+		executor = vaex.execution.Executor(buffer_size=buffer_size)
 
 
 		mean_map = {}
@@ -909,7 +912,7 @@ class RankDialog(QtGui.QDialog):
 			for expression in pair:
 				expressions.add(expression)
 		expressions = list(expressions)
-		executor = vaex.execution.Executor()
+		executor = vaex.execution.Executor(buffer_size=buffer_size)
 
 		mean_map = {}
 		def on_error(exc):
@@ -1037,7 +1040,7 @@ class RankDialog(QtGui.QDialog):
 
 
 		#expressions = [pair[0] for pair in pairs]
-		executor = vaex.execution.Executor()
+		executor = vaex.execution.Executor(buffer_size=buffer_size)
 
 
 		MI_map = {}
