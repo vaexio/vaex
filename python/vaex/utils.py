@@ -145,14 +145,14 @@ def make_list(sequence):
 	else:
 		return list(sequence)
 
+import progressbar
+#from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
+#   FileTransferSpeed, FormatLabel, Percentage, \
+#    ProgressBar, ReverseBar, RotatingMarker, \
+#    SimpleProgress, Timer, AdaptiveETA, AbsoluteETA, AdaptiveTransferSpeed
+#from progressbar.widgets import TimeSensitiveWidgetBase, FormatWidgetMixin
 
-from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
-    FileTransferSpeed, FormatLabel, Percentage, \
-    ProgressBar, ReverseBar, RotatingMarker, \
-    SimpleProgress, Timer, AdaptiveETA, AbsoluteETA, AdaptiveTransferSpeed
-from progressbar.widgets import TimeSensitiveWidgetBase, FormatWidgetMixin
-
-class CpuUsage(FormatWidgetMixin, TimeSensitiveWidgetBase):
+class CpuUsage(progressbar.widgets.FormatWidgetMixin, progressbar.widgets.TimeSensitiveWidgetBase):
 	def __init__(self, format='CPU Usage: %(cpu_usage)s%%', usage_format="% 5d"):
 		super(CpuUsage, self).__init__(format=format)
 		self.usage_format = usage_format
@@ -180,18 +180,18 @@ class CpuUsage(FormatWidgetMixin, TimeSensitiveWidgetBase):
 			cpu_usage = delta_time/(delta_walltime * 1.) * 100
 			data["cpu_usage"] = self.usage_format % cpu_usage
 		#utime0, stime0, child_utime0, child_stime0, walltime0 = os.times()
-		return FormatWidgetMixin.__call__(self, progress, data)
+		return progressbar.widgets.FormatWidgetMixin.__call__(self, progress, data)
 
 def progressbar(name="processing"):
 	widgets = [
 		name,
-        ': ', Percentage(),
-        ' ', Bar(),
-        ' ', ETA(),
-        ' ', AdaptiveETA(),
-		' ', CpuUsage()
+        ': ', progressbar.Percentage(),
+        ' ', progressbar.Bar(),
+        ' ', progressbar.ETA(),
+        ' ', progressbar.AdaptiveETA(),
+		' ', progressbar.CpuUsage()
     ]
-	bar = ProgressBar(widgets=widgets, max_value=1)
+	bar = progressbar.ProgressBar(widgets=widgets, max_value=1)
 	bar.start()
 	return bar
 	#FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')
