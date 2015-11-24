@@ -144,3 +144,54 @@ def make_list(sequence):
 		return sequence.tolist()
 	else:
 		return list(sequence)
+
+
+from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
+    FileTransferSpeed, FormatLabel, Percentage, \
+    ProgressBar, ReverseBar, RotatingMarker, \
+    SimpleProgress, Timer, AdaptiveETA, AbsoluteETA, AdaptiveTransferSpeed
+from progressbar.widgets import TimeSensitiveWidgetBase, FormatWidgetMixin
+
+class CpuUsage(FormatWidgetMixin, TimeSensitiveWidgetBase):
+	def __init__(self, format='CPU Usage: %(cpu_usage)s%%', usage_format="% 5d"):
+		super(CpuUsage, self).__init__(format=format)
+		self.usage_format = usage_format
+		self.utime_0 = None
+		self.stime_0 = None
+		self.walltime_0 = None
+
+	def __call__(self, progress, data):
+		utime, stime, child_utime, child_stime, walltime = os.times()
+		if self.utime_0 is None:
+			self.utime_0 = utime
+		if self.stime_0 is None:
+			self.stime_0 = utime
+		if self.walltime_0 is None:
+			self.walltime_0 = walltime
+		data["utime_0"] = self.utime_0
+		data["stime_0"] = self.stime_0
+		data["walltime_0"] = self.walltime_0
+
+		delta_time = utime - self.utime_0 + stime - self.stime_0
+		delta_walltime = walltime - self.walltime_0
+		if delta_walltime == 0:
+			data["cpu_usage"] = "---"
+		else:
+			cpu_usage = delta_time/(delta_walltime * 1.) * 100
+			data["cpu_usage"] = self.usage_format % cpu_usage
+		#utime0, stime0, child_utime0, child_stime0, walltime0 = os.times()
+		return FormatWidgetMixin.__call__(self, progress, data)
+
+def progressbar(name="processing"):
+	widgets = [
+		name,
+        ': ', Percentage(),
+        ' ', Bar(),
+        ' ', ETA(),
+        ' ', AdaptiveETA(),
+		' ', CpuUsage()
+    ]
+	bar = ProgressBar(widgets=widgets, max_value=1)
+	bar.start()
+	return bar
+	#FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')

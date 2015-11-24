@@ -12,7 +12,7 @@ from functools import reduce
 
 __author__ = 'breddels'
 
-buffer_size = 1e6 # TODO: this should not be fixed, larger means faster but also large memory usage
+buffer_size = 1e5 # TODO: this should not be fixed, larger means faster but also large memory usage
 
 import threading
 import queue

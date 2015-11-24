@@ -117,7 +117,7 @@ class Task(vaex.promise.Promise):
 	"""
 	:type: signal_progress: Signal
 	"""
-	def __init__(self, dataset, expressions):
+	def __init__(self, dataset, expressions, name="task"):
 		vaex.promise.Promise.__init__(self)
 		self.dataset = dataset
 		self.expressions = expressions
@@ -126,6 +126,7 @@ class Task(vaex.promise.Promise):
 		self.progress_fraction = 0
 		self.signal_progress.connect(self._set_progress)
 		self.cancelled = False
+		self.name = name
 
 	def _set_progress(self, fraction):
 		self.progress_fraction = fraction
@@ -139,8 +140,8 @@ class Task(vaex.promise.Promise):
 		return len(self.expressions)
 
 class TaskMapReduce(Task):
-	def __init__(self, dataset, expressions, map, reduce, converter=lambda x: x, info=False):
-		Task.__init__(self, dataset, expressions)
+	def __init__(self, dataset, expressions, map, reduce, converter=lambda x: x, info=False, name="task"):
+		Task.__init__(self, dataset, expressions, name=name)
 		self._map = map
 		self._reduce = reduce
 		self.converter = converter
@@ -159,7 +160,7 @@ class TaskMapReduce(Task):
 
 class TaskHistogram(Task):
 	def __init__(self, dataset, subspace, expressions, size, limits, masked=False, weight=None):
-		Task.__init__(self, dataset, expressions)
+		Task.__init__(self, dataset, expressions, name="histogram")
 		self.subspace = subspace
 		self.dtype = np.float64
 		self.size = size
@@ -493,15 +494,31 @@ class SubspaceLocal(Subspace):
 	def post(self):
 		self.executor.post
 
-	def _task(self, task):
+	def _task(self, task, progressbar=False):
 		"""Helper function for returning tasks results, result when immediate is True, otherwise the task itself, which is a promise"""
 		if self.async:
 			# should return a task or a promise nesting it
 			return self.executor.schedule(task)
 		else:
-			return self.executor.run(task)
+			import vaex.utils
+			callback = None
+			try:
+				if progressbar == True:
+					def update(fraction):
+						bar.update(fraction)
+						return True
+					bar = vaex.utils.progressbar(task.name)
+					callback = self.executor.signal_progress.connect(update)
+				result = self.executor.run(task)
+				if progressbar == True:
+					bar.finish()
+					sys.stdout.write('\n')
+				return result
+			finally:
+				if callback:
+					self.executor.signal_progress.disconnect(callback)
 
-	def minmax(self):
+	def minmax(self, progressbar=False):
 		def min_max_reduce(minmax1, minmax2):
 			if minmax1 is None:
 				return minmax2
@@ -525,8 +542,8 @@ class SubspaceLocal(Subspace):
 			#with lock:
 			#	print thread_index, i1, i2, blocks
 			return [vaex.vaexfast.find_nan_min_max(block) for block in blocks]
-		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self._toarray, info=True)
-		return self._task(task)
+		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self._toarray, info=True, name="minmax")
+		return self._task(task, progressbar=progressbar)
 
 	def mean(self):
 		def mean_reduce(means1, means2):
@@ -630,9 +647,9 @@ class SubspaceLocal(Subspace):
 			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nansum(block, dtype=np.float64) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
 		return self._task(task)
 
-	def histogram(self, limits, size=256, weight=None):
+	def histogram(self, limits, size=256, weight=None, progressbar=False):
 		task = TaskHistogram(self.dataset, self, self.expressions, size, limits, masked=self.is_masked, weight=weight)
-		return self._task(task)
+		return self._task(task, progressbar=progressbar)
 
 	def limits_sigma(self, sigmas=3, square=False):
 		means = self.mean()
@@ -727,19 +744,37 @@ class _BlockScope(object):
 
 	def _ensure_buffer(self, column):
 		if column not in self.buffers:
+			logger.debug("creating column for: %s", column)
 			self.buffers[column] = np.zeros(self.i2-self.i1)
 
 	def evaluate(self, expression, out=None):
-		result = ne.evaluate(expression, local_dict=self, out=out)
+		try:
+			#logger.debug("try avoid evaluating: %s", expression)
+			result = self[expression]
+		except:
+			#logger.debug("no luck, eval: %s", expression)
+			result = ne.evaluate(expression, local_dict=self, out=out)
+			#logger.debug("in eval")
+			#result = eval(expression, {}, self)
+			self.values[expression] = result
+			#if out is not None:
+			#	out[:] = result
+			#	result = out
+			#logger.debug("out eval")
+		#logger.debug("done with eval of %s", expression)
 		return result
 
 	def __getitem__(self, variable):
 		#logger.debug("get " + variable)
+		#return self.dataset.columns[variable][self.i1:self.i2]
+		if variable in np.__dict__:
+			return np.__dict__[variable]
 		try:
 			if variable in self.dataset.get_column_names():
 				if self.dataset._needs_copy(variable):
 					self._ensure_buffer(variable)
 					self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
+					#self.values[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
 				else:
 					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2]
 			elif variable in self.values:
@@ -747,14 +782,14 @@ class _BlockScope(object):
 			elif variable in list(self.dataset.virtual_columns.keys()):
 				expression = self.dataset.virtual_columns[variable]
 				self._ensure_buffer(variable)
-				self.evaluate(expression, out=self.buffers[variable])
+				self.values[variable] = self.evaluate(expression, out=self.buffers[variable])
 				self.values[variable] = self.buffers[variable]
 			if variable not in self.values:
 				raise KeyError("Unknown variables or column: %r" % (variable,))
 
 			return self.values[variable]
 		except:
-			logger.exception("error in evaluating: %r" % variable)
+			#logger.exception("error in evaluating: %r" % variable)
 			raise
 
 main_executor = vaex.execution.Executor(vaex.multithreading.pool)

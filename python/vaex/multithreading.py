@@ -3,12 +3,13 @@ import threading
 import queue
 import math
 import multiprocessing
+import time
 import sys
 import vaex.utils
 import logging
 lock = threading.Lock()
 
-thread_count_default = multiprocessing.cpu_count()
+thread_count_default = multiprocessing.cpu_count()# * 2 + 1
 logger = logging.getLogger("vaex.multithreading")
 
 
@@ -17,8 +18,9 @@ class ThreadPoolIndex(object):
 		self.nthreads = nthreads
 		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
 		self.lock = threading.Lock()
-		self.queue_in = queue.Queue()
+		self.queue_in = [] #queue.Queue()
 		self.queue_out = queue.Queue()
+		self.new_jobs_event = threading.Event()
 		for thread in self.threads:
 			thread.setDaemon(True)
 			thread.start()
@@ -40,13 +42,24 @@ class ThreadPoolIndex(object):
 				count = 0
 				for element in iterator:
 					#print "put in queue", element
-					self.queue_in.put(element)
+					#logger.debug("put in queue: %r", element)
+					self.queue_in.append(element)
+					#$$self.queue_in.unfinished_tasks += 1
 					count +=1
+				self.new_jobs_event.set()
+				#self.queue_in.put(element)
+				#self.queue_in.put(element)
+				#try:
+				#for element in iterator:
+				#	self.queue_in.not_empty.notify()
+				#except:
+				#	pass
 
 				def stop():
 					self.exception_occurred = True
 					logger.debug("wait for queue_in")
-					self.queue_in.join()
+					#self.queue_in.join()
+					self.queue_in = []
 					# now we know all threads are waiting for the queue_in, so they will not fill queue_out
 					# but, it ma still contain elements, like exceptions, so flush it
 					logger.debug("flush queue_out")
@@ -56,7 +69,9 @@ class ThreadPoolIndex(object):
 				done = False
 				yielded = 0
 				while not done:
+					#logger.debug("...")
 					element = self.queue_out.get()
+					#logger.debug("got queue element")
 					#print "get from queue", element
 					if isinstance(element, tuple) and len(element) > 1 and isinstance(element[1], Exception):
 						if on_error:
@@ -86,6 +101,7 @@ class ThreadPoolIndex(object):
 			return results
 		finally:
 			self._working = False
+			self.new_jobs_event.clear()
 
 
 	def close(self):
@@ -98,7 +114,15 @@ class ThreadPoolIndex(object):
 		done = False
 		while not done:
 			#print "waiting..", index
-			args = self.queue_in.get()
+			t0 = time.time()
+			empty = True
+			while empty:
+				try:
+					args = self.queue_in.pop()
+					empty = False
+				except IndexError:
+					self.new_jobs_event.wait()
+			#logger.debug("took %f to get a job", time.time() - t0)
 			try:
 				if self.exception_occurred:
 					pass # just eat the whole queue after an exception
@@ -112,6 +136,7 @@ class ThreadPoolIndex(object):
 						try:
 							#lock.acquire()
 							result = self.callable(index, *args)
+							#self.queue_in.task_done()
 							#lock.release()
 						except Exception as e:
 							exc_info = sys.exc_info()
@@ -119,7 +144,8 @@ class ThreadPoolIndex(object):
 						else:
 							self.queue_out.put(result)
 			finally:
-				self.queue_in.task_done()
+				#self.queue_in.task_done()
+				pass
 
 					#print "done..", index
 					#self.semaphore_outrelease()
