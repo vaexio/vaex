@@ -491,7 +491,7 @@ if __name__ == "__main__":
 	parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=default_config.cache)
 	parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=default_config.compress, action='store_true')
 	parser.add_argument('--no-compress', dest="compress", action='store_false')
-	parser.add_argument('--development', default="false", action='store_true', help="enable development features (auto reloading)")
+	parser.add_argument('--development', default=False, action='store_true', help="enable development features (auto reloading)")
 	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser))
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
