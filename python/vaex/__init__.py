@@ -67,7 +67,7 @@ def server(hostname, **kwargs):
 	:return vaex.dataset.ServerRest: returns a server object, note that it does not connect to the server yet, so this will always succeed
 	:rtype: ServerRest
 	"""
-	return vaex.dataset.ServerRest(hostname, **kwargs)
+	return vaex.remote.ServerRest(hostname, **kwargs)
 
 def example():
 	"""Returns an example dataset which comes with vaex for learning purposes

@@ -2,20 +2,22 @@ __author__ = 'breddels'
 import numpy as np
 import logging
 import threading
+import uuid
+
 import __builtin__
 from .dataset import Dataset, Subspace, Task
 import vaex.promise
 import vaex.settings
+import vaex.utils
 try:
 	import Cookie  # py2
 except ImportError:
 	import http.cookies as Cookie  # py3
 import cookielib
-#from twisted.internet import reactor
-#from twisted.web.client import Agent
-#from twisted.web.http_headers import Headers
+
 from tornado.httpclient import AsyncHTTPClient, HTTPClient
 import tornado.httputil
+import tornado.websocket
 from tornado.concurrent import Future
 from tornado import gen
 
@@ -42,7 +44,7 @@ import tornado.ioloop
 
 import threading
 import json
-#import urllib.request, urllib.parse, urllib.error
+
 
 try:
 	from urllib.request import urlopen
@@ -59,27 +61,21 @@ def _check_error(object):
 
 
 class ServerRest(object):
-	def __init__(self, hostname, port=5000, base_path="/", background=False, thread_mover=None):
+	def __init__(self, hostname, port=5000, base_path="/", background=False, thread_mover=None, websocket=True):
 		self.hostname = hostname
 		self.port = port
 		self.base_path = base_path if base_path.endswith("/") else (base_path + "/")
 		#if async:
 		event = threading.Event()
-		self.thread_mover = thread_mover
+		self.thread_mover = thread_mover or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
+
+		# jobs maps from uid to tasks
+		self.jobs = {}
 
 		def ioloop_threaded():
-			#print "creating io loop"
 			logger.debug("creating tornado io_loop")
-			#self.io_loop = tornado.ioloop.IOLoop.instance() #tornado.ioloop.IOLoop.current(instance=True)
 			self.io_loop = tornado.ioloop.IOLoop().instance()
-			#if self.io_loop is None:
-				#logger.debug("creating tornado io_loop")
-				#event.set()
-				#return
-				#self.io_loop = tornado.ioloop.IOLoop.instance()
 			event.set()
-			#self.io_loop.make_current()
-			#print "starting"
 			logger.debug("started tornado io_loop...")
 
 			self.io_loop.start()
@@ -100,40 +96,106 @@ class ServerRest(object):
 		self.http_client_async = AsyncHTTPClient()
 		self.http_client = HTTPClient()
 		self.user_id = vaex.settings.webclient.get("cookie.user_id")
-		#self.cookiejar = cookielib.FileCookieJar()
-		#else:
-		#self.async = async
+		self.use_websocket = websocket
+		self.websocket = None
+
+		self.submit = self.submit_http
+
+		if self.use_websocket:
+			self.submit = self.submit_websocket
+			self.websocket_connected = vaex.promise.Promise()
+			def do():
+				connected = wrap_future_with_promise(tornado.websocket.websocket_connect(self._build_url("websocket"), on_message_callback=self._on_websocket_message))
+				self.websocket_connected.fulfill(connected)
+			self.io_loop.add_callback(do)
+
+
+
+	def _on_websocket_message(self, msg):
+		logger.debug("socket read message: %s", msg)
+		response = json.loads(msg)
+		# for the moment, job == task, in the future a job can be multiple tasks
+		job_id = response.get("job_id")
+		if job_id:
+			try:
+				phase = response["job_phase"]
+				logger.debug("job update %r, phase=%r", job_id, phase)
+				if phase == "COMPLETED":
+					result = response["result"]#[0]
+					logger.debug("completed job %r, result=%r", job_id, result)
+					task = self.jobs[job_id]
+					processed_result = task.post_process(result)
+					if task.async:
+						self.thread_mover(task.fulfill, processed_result)
+					else:
+						task.fulfill(processed_result)
+				elif phase == "EXCEPTION":
+					logger.error("exception happened at server side: %r", response)
+					class_name = response["exception"]["class"]
+					msg = response["exception"]["msg"]
+					exception = getattr(__builtin__, class_name)(msg)
+					logger.debug("error in job %r, exception=%r", job_id, exception)
+					task = self.jobs[job_id]
+					if task.async:
+						self.thread_mover(task.reject, exception)
+					else:
+						task.reject(exception)
+				elif phase == "PENDING":
+					fraction = response["progress"]
+					logger.debug("pending?: %r", phase)
+					task = self.jobs[job_id]
+					if task.async:
+						self.thread_mover(task.signal_progress.emit, fraction)
+					else:
+						task.signal_progress.emit(fraction)
+			except Exception, e:
+				logger.exception("error in handling job", e)
+				task = self.jobs[job_id]
+				if task.async:
+					self.thread_mover(task.reject, e)
+				else:
+					task.reject(e)
+
 
 	def wait(self):
 		io_loop = tornado.ioloop.IOLoop.instance()
 		io_loop.start()
 
-	def fetch(self, url, transform, async=False, no_user=False, **kwargs):
-		logger.debug("fetch %s, async=%r", url, async)
-		headers = tornado.httputil.HTTPHeaders()
-		if self.user_id is None and not no_user:
-			raise ValueError, "user id not set, call datasets() first"
-		elif self.user_id is not None:
-			headers.add("Cookie", "user_id=%s" % self.user_id)
-			logger.debug("adding user_id %s to request", self.user_id)
+	def submit_websocket(self, path, arguments, async=False, post_process=lambda x: x):
+		assert self.use_websocket
+
+		task = TaskServer(post_process=post_process, async=async)
+		job_id = str(uuid.uuid4())
+		self.jobs[job_id] = task
+		arguments["job_id"] = job_id
+		arguments["path"] = path
+		arguments["user_id"] = self.user_id
+		arguments = {key: (value.tolist() if hasattr(value, "tolist") else value) for key, value in arguments.items()}
+
+		def do():
+			def write(socket):
+				try:
+					logger.debug("write to websocket: %r", arguments)
+					socket.write_message(json.dumps(arguments))
+					return
+				except:
+					import traceback
+					traceback.print_exc()
+			#return
+			logger.debug("will schedule a write to the websocket")
+			self.websocket_connected.then(write).end()#.then(task.fulfill)
+
+		self.io_loop.add_callback(do)
+		logger.debug("we can continue (main thread is %r)", threading.currentThread())
 		if async:
-			# tornado doesn't like that we call fetch while ioloop is running in another thread, we should use ioloop.add_callbacl
-			promise = vaex.promise.Promise()
-			def do():
-				future = self.http_client_async.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
-				promise.fulfill(wrap_future_with_promise(future).then(transform))
-			self.io_loop.add_callback(do)
-			return promise.then(self._move_to_thread)
+			return task
 		else:
-			return transform(self.http_client.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs))
+			return task.get()
 
-
-	def datasets(self, as_dict=False, async=False):
-		def wrap(result):
-			#print "body", repr(result.body), result
-			data = json.loads(result.body)
+	def submit_http(self, path, arguments, post_process, async, **kwargs):
+		def pre_post_process(response):
 			cookie = Cookie.SimpleCookie()
-			for cookieset in result.headers.get_list("Set-Cookie"):
+			for cookieset in response.headers.get_list("Set-Cookie"):
 				cookie.load(cookieset)
 				logger.debug("cookie load: %r", cookieset)
 			logger.debug("cookie: %r", cookie)
@@ -143,190 +205,98 @@ class ServerRest(object):
 				if self.user_id != user_id:
 					self.user_id = user_id
 					vaex.settings.webclient.store("cookie.user_id", self.user_id)
-			datasets = [DatasetRest(self, **kwargs) for kwargs in data["datasets"]]
+			data = json.loads(response.body)
+			self._check_exception(data)
+			return post_process(data["result"])
+
+		arguments = {key: (value.tolist() if hasattr(value, "tolist") else value) for key, value in arguments.items()}
+		arguments_json = {key:json.dumps(value) for key, value in arguments.items()}
+		headers = tornado.httputil.HTTPHeaders()
+
+		url = self._build_url(path +"?" + urlencode(arguments_json))
+		logger.debug("fetch %s, async=%r", url, async)
+
+		if self.user_id is not None:
+			headers.add("Cookie", "user_id=%s" % self.user_id)
+			logger.debug("adding user_id %s to request", self.user_id)
+		if async:
+			task = TaskServer(pre_post_process, async=async)
+			# tornado doesn't like that we call fetch while ioloop is running in another thread, we should use ioloop.add_callbacl
+			def do():
+				self.thread_mover(task.signal_progress.emit, 0.5)
+				future = self.http_client_async.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
+				def thread_save_succes(value):
+					self.thread_mover(task.signal_progress.emit, 1.0)
+					self.thread_mover(task.fulfill, value)
+				def thread_save_failure(value):
+					self.thread_mover(task.reject, value)
+				wrap_future_with_promise(future).then(pre_post_process).then(thread_save_succes, thread_save_failure)
+			self.io_loop.add_callback(do)
+			return task #promise.then(self._move_to_thread)
+		else:
+			return pre_post_process(self.http_client.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs))
+
+	def datasets(self, as_dict=False, async=False):
+		def post(result):
+			logger.debug("datasets result: %r", result)
+			datasets = [DatasetRest(self, **kwargs) for kwargs in result]
+			logger.debug("datasets: %r", datasets)
 			return datasets if not as_dict else dict([(ds.name, ds) for ds in datasets])
-		url = self._build_url("datasets")
-		logger.debug("fetching: %r", url)
-		return self.fetch(url, wrap, async=async, no_user=True)
-		#return self._return(result, wrap)
+		return self.submit(path="datasets", arguments={}, post_process=post, async=async)
 
 	def _build_url(self, method):
-		return "http://%s:%d%s%s" % (self.hostname, self.port, self.base_path, method)
+		protocol = "ws" if self.use_websocket else "http"
+		return "%s://%s:%d%s%s" % (protocol, self.hostname, self.port, self.base_path, method)
 
-	def _list_columns(self, name, async=False):
-		def wrap(result):
-			list = json.loads(result.body)
-			return list
-		url = self._build_url("datasets/%s/columns" % name)
-		logger.debug("fetching: %r", url)
-		#result = self.http_client.fetch(url)
-		#return self._return(result, wrap)
-		self.fetch(url, wrap, async=async)
+	def _call_subspace(self, method_name, subspace, **kwargs):
+		def post_process(result):
+			if method_name == "histogram": # histogram is the exception..
+				# TODO: don't do binary transfer, just json, now we cannot handle exception
+				result = result.decode("base64")
+				data = np.fromstring(result)
+				shape = (kwargs["size"],) * subspace.dimension
+				data = data.reshape(shape)
+				return data
+			else:
+				try:
+					return np.array(result)
+				except ValueError:
+					return result
+		dataset_name = subspace.dataset.name
+		expressions = subspace.expressions
+		async = subspace.async
+		path = "datasets/%s/%s" % (dataset_name, method_name)
+		url = self._build_url(path)
+		arguments = dict(kwargs)
+		if not subspace.dataset.get_auto_fraction():
+			arguments["active_fraction"] = subspace.dataset.get_active_fraction()
+		selection = subspace.get_selection()
+		if selection is not None:
+			arguments["selection"] = selection.to_dict()
+		arguments["variables"] = subspace.dataset.variables.items()
+		arguments["virtual_columns"] = subspace.dataset.virtual_columns.items()
+		arguments.update(dict(expressions=expressions))
+		return self.submit(path, arguments, post_process=post_process, async=async)
 
-	def _info(self, name, async=False):
-		def wrap(result):
-			list = json.loads(result.body)
-			return list
-		url = self._build_url("datasets/%s/info" % name)
-		logger.debug("fetching: %r", url)
-		return self.fetch(url, wrap, async=async)
-
-	def open(self, name, async=False):
-		def wrap(info):
-			_check_error(info)
-			column_names = info["column_names"]
-			full_length = info["length"]
-			return DatasetRest(self, name, column_names, full_length)
-		if async:
-			return self._info(name, async=True).then(wrap)
-		else:
-			return wrap(self._info(name, async=False))
-		#3result = self._info(name)
-		#return self._return(result, wrap)
-
-	def _async(self, promise):
-		if self.async:
-			return promise
-		else:
-			return promise.get()
-
-	def minmax(self, expr, dataset_name, expressions, **kwargs):
-		return self._simple(expr, dataset_name, expressions, "minmax", **kwargs)
-		def wrap(result):
-			data = json.loads(self._check_exception(result.body))
-			return np.array([[data[expression]["min"], data[expression]["max"]] for expression in expressions])
-		columns = "/".join(expressions)
-		url = self._build_url("datasets/%s/minmax/%s" % (dataset_name, columns))
-		logger.debug("fetching: %r", url)
-		return self.fetch(url, wrap, async=async)
-		#return self._return(result, wrap, async=async)
-
-	def mean(self, subspace, dataset_name, expressions, **kwargs):
-		return self._simple(subspace, dataset_name, expressions, "mean", **kwargs)
-	def var(self, subspace, dataset_name, expressions, **kwargs):
-		return self._simple(subspace, dataset_name, expressions, "var", **kwargs)
-	def sum(self, subspace, dataset_name, expressions, **kwargs):
-		return self._simple(subspace, dataset_name, expressions, "sum", **kwargs)
-	def limits_sigma(self, subspace, dataset_name, expressions, **kwargs):
-		return self._simple(subspace, dataset_name, expressions, "limits_sigma", **kwargs)
-
-	def _simple(self, subspace, dataset_name, expressions, name, selection, async=False, **kwargs):
-		def wrap(result):
-			result = self._check_exception(json.loads(result.body))["result"]
-			# try to return is as numpy array
+	def _call_dataset(self, method_name, dataset_remote, async, **kwargs):
+		def post_process(result):
+			#result = self._check_exception(json.loads(result.body))["result"]
 			try:
 				return np.array(result)
 			except ValueError:
 				return result
-		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
-		post_data = {key:json.dumps(value.tolist() if hasattr(value, "tolist") else value) for key, value in list(dict(kwargs).items())}
-		post_data["masked"] = json.dumps(subspace.is_masked)
-		if not subspace.dataset.get_auto_fraction():
-			post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
-		if selection is not None:
-			post_data["selection"] = json.dumps(selection.to_dict())
-		post_data["variables"] = json.dumps(subspace.dataset.variables.items())
-		post_data["virtual_columns"] = json.dumps(subspace.dataset.virtual_columns.items())
-		post_data.update(dict(expressions=json.dumps(expressions)))
-		body = urlencode(post_data)
-		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
-		#return self._return(result, wrap)
-
-	def histogram(self, subspace, dataset_name, expressions, size, limits, selection, weight=None, async=False, **kwargs):
-		def wrap(result):
-			# TODO: don't do binary transfer, just json, now we cannot handle exception
-			logger.debug("data size: %r", len(result.body))
-			logger.debug("header: %r", list(result.headers.get_all()))
-			data = np.fromstring(result.body)
-			shape = (size,) * len(expressions)
-			data = data.reshape(shape)
-			return data
-		url = self._build_url("datasets/%s/histogram" % (dataset_name,))
-		logger.debug("fetching: %r", url)
-		limits = np.array(limits)
-		post_data = dict(expressions=json.dumps(expressions), size=json.dumps(size),
-						 weight=json.dumps(weight),
-						 limits=json.dumps(limits.tolist()), masked=json.dumps(subspace.is_masked))
-		if not subspace.dataset.get_auto_fraction():
-			post_data["active_fraction"] = json.dumps(subspace.dataset.get_active_fraction())
-		if selection is not None:
-			post_data["selection"] = json.dumps(selection.to_dict())
-		post_data["variables"] = json.dumps(subspace.dataset.variables.items())
-		post_data["virtual_columns"] = json.dumps(subspace.dataset.virtual_columns.items())
-		post_data.update({key:json.dumps(value) for key, value in list(dict(kwargs).items())})
-		body = urlencode(post_data)
-		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
-		#return self._return(result, wrap)
-
-	def __return(self, response_or_future, transform):
-		if self.async:
-			future = response_or_future
-			return wrap_future_with_promise(future).then(transform).then(self._move_to_thread)
-		else:
-			response = response_or_future
-			return transform(response)
-
-	def _move_to_thread(self, result):
-		promise = vaex.promise.Promise()
-		#def do(value):
-		#	return value
-		#promise.then(do)
-		if self.thread_mover:
-			logger.debug("the other thread should fulfil the result to this promise")
-			self.thread_mover(promise, result)
-			return promise
-		else:
-			return result
-
-
-	def _select(self, dataset, dataset_name, boolean_expression, mode, async=False, **kwargs):
-		name = "select"
-		def wrap(result):
-			return np.array(self._check_exception(json.loads(result.body)))
-		url = self._build_url("datasets/%s/%s" % (dataset_name, name))
-		post_data = {key:json.dumps(value) for key, value in list(dict(kwargs).items())}
-		post_data["active_fraction"] = json.dumps(dataset.get_active_fraction())
-		post_data.update(dict(boolean_expression=json.dumps(boolean_expression), mode=json.dumps(mode)))
-		body = urlencode(post_data)
-		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
-		#return self._return(result, wrap)
-
-	def call_ondataset(self, method_name, dataset_remote, async, **kwargs):
-		def wrap(result):
-			result = self._check_exception(json.loads(result.body))["result"]
-			try:
-				return np.array(result)
-			except ValueError:
-				return result
-		url = self._build_url("datasets/%s/%s" % (dataset_remote.name, method_name))
-		post_data = {key:json.dumps(self._to_json_compatible(value)) for key, value in dict(kwargs).items()}
+		path = "datasets/%s/%s" % (dataset_remote.name, method_name)
+		arguments = dict(kwargs)
 		if not dataset_remote.get_auto_fraction():
-			post_data["active_fraction"] = json.dumps(dataset_remote.get_active_fraction())
-		post_data["variables"] = json.dumps(dataset_remote.variables.items())
-		post_data["virtual_columns"] = json.dumps(dataset_remote.virtual_columns.items())
-		#post_data["selection_name"] = json.dumps(dataset_remote.get_selection_name())
-		body = urlencode(post_data)
-		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
+			arguments["active_fraction"] = dataset_remote.get_active_fraction()
+		arguments["variables"] = dataset_remote.variables.items()
+		arguments["virtual_columns"] = dataset_remote.virtual_columns.items()
+		#arguments["selection_name"] = json.dumps(dataset_remote.get_selection_name())
+		body = urlencode(arguments)
+
+		return self.submit(path, arguments, post_process=post_process, async=async)
+		#return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
-
-	def call(self, method_name, arg, async, **kwargs):
-		def wrap(result):
-			result = self._check_exception(json.loads(result.body))["result"]
-			try:
-				return np.array(result)
-			except ValueError:
-				return result
-		url = self._build_url("%s/%s" % (method_name, arg))
-		post_data = {key:json.dumps(self._to_json_compatible(value)) for key, value in dict(kwargs).items()}
-		body = urlencode(post_data)
-		return self.fetch(url+"?"+body, wrap, async=async, method="GET")
-
-	def _to_json_compatible(self, obj):
-		if hasattr(obj, "tolist"):
-			obj = obj.tolist()
-		return obj
-
-
 
 
 	def _check_exception(self, reply_json):
@@ -346,7 +316,7 @@ class SubspaceRemote(Subspace):
 	def dimension(self):
 		return len(self.expressions)
 
-	def _promise(self, promise):
+	def _task(self, promise):
 		"""Helper function for returning tasks results, result when immediate is True, otherwise the task itself, which is a promise"""
 		if self.async:
 			return promise
@@ -357,43 +327,31 @@ class SubspaceRemote(Subspace):
 		return self.dataset.server.call("sleep", seconds, async=async)
 
 	def minmax(self):
-		return self._promise(self.dataset.server.minmax(self, self.dataset.name, self.expressions, async=self.async, selection=self.get_selection()))
+		return self._task(self.dataset.server._call_subspace("minmax", self))
 		#return self._task(task)
 
 	def histogram(self, limits, size=256, weight=None):
-		return self._promise(self.dataset.server.histogram(self, self.dataset.name, self.expressions, size=size, limits=limits, weight=weight, async=self.async, selection=self.get_selection()))
+		return self._task(self.dataset.server._call_subspace("histogram", self, size=size, limits=limits, weight=weight))
 
 	def nearest(self, point, metric=None):
-		point = point if not hasattr(point, "tolist") else point.tolist()
-		result = self.dataset.server._simple(self, self.dataset.name, self.expressions, "nearest", async=self.async, point=point, metric=metric, selection=self.get_selection())
-		return self._promise(result)
+		point = vaex.utils.make_list(point)
+		result = self.dataset.server._call_subspace("nearest", self, point=point, metric=metric)
+		return self._task(result)
 
 	def mean(self):
-		return self.dataset.server.mean(self, self.dataset.name, self.expressions, async=self.async, selection=self.get_selection())
+		return self.dataset.server._call_subspace("mean", self)
 
-	def correlation(self, means, vars):
-		return self.dataset.server._simple(self, self.dataset.name, self.expressions, "correlation", means=means, vars=vars, async=self.async, selection=self.get_selection())
+	def correlation(self, means=None, vars=None):
+		return self.dataset.server._call_subspace("correlation", self, means=means, vars=vars)
 
 	def var(self, means=None):
-		return self.dataset.server.var(self, self.dataset.name, self.expressions, means=means, async=self.async, selection=self.get_selection())
+		return self.dataset.server._call_subspace("var", self, means=means)
 
 	def sum(self):
-		return self.dataset.server.sum(self, self.dataset.name, self.expressions, async=self.async, selection=self.get_selection())
+		return self.dataset.server._call_subspace("sum", self)
 
 	def limits_sigma(self, sigmas=3, square=False):
-		return self.dataset.server.limits_sigma(self, self.dataset.name, self.expressions, sigmas=sigmas, square=square, async=self.async, selection=self.get_selection())
-
-	def plot_(self, grid=None, limits=None, center=None, f=lambda x: x,**kwargs):
-		import pylab
-		if limits is None:
-			limits = self.limits_sigma()
-		if center is not None:
-			limits = np.array(limits) - np.array(center).reshape(2,1)
-		if grid is None:
-			grid = self.histogram(limits=limits)
-		pylab.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
-
-
+		return self.dataset.server._call_subspace("limits_sigma", self, sigmas=sigmas, square=square)
 
 class DatasetRemote(Dataset):
 	def __init__(self, name, server, column_names):
@@ -411,13 +369,10 @@ class DatasetRest(DatasetRemote):
 		#self.filename = #"http://%s:%s/%s" % (server.hostname, server.port, name)
 		self.path = self.filename = self.server._build_url("datasets/%s" % name)
 
-		#self.host = host
-		#self.http_client = AsyncHTTPClient()
-		#future = http_client.fetch(self._build_url("datasets"))
-		#fetch_future.add_done_callback(
+
 		self.fraction = 1
 
-		self.executor = DummyExecutor()
+		self.executor = ServerExecutor()
 
 	def is_local(self): return False
 
@@ -428,52 +383,14 @@ class DatasetRest(DatasetRemote):
 	def __call__(self, *expressions, **kwargs):
 		return SubspaceRemote(self, expressions, self.executor, async=kwargs.get("async", False))
 
-	def _select(self, boolean_expression, mode="replace", async=False, selection_name="default"):
-		def emit(result):
-			# bit dirty to put this in the signal handler, but here we know we succeeded
-			self._has_selection = boolean_expression is not None
-			self.signal_selection_changed.emit(self)
-			return result
-
-		result = self.server.select(self, self.name, boolean_expression, mode, async=async, selection_name=selection_name)
-		if async:
-			return result.then(emit)
-		else:
-			emit(None)
-			return result
-
-	def _lasso_select(self, expression_x, expression_y, xsequence, ysequence, mode="replace", async=False):
-		def emit(result):
-			# bit dirty to put this in the signal handler, but here we know we succeeded
-			self._has_selection = True
-			self.signal_selection_changed.emit(self)
-			return result
-		result = self.server.call_ondataset("lasso_select", self, expression_x=expression_x, expression_y=expression_y,
-											xsequence=xsequence, ysequence=ysequence, mode=mode, async=async)
-		if async:
-			return result.then(emit)
-		else:
-			emit(None)
-			return result
-
 	def evaluate(self, expression, i1=None, i2=None, out=None, async=False):
-		result = self.server.call_ondataset("evaluate", self, expression=expression, i1=i1, i2=i2, async=async)
+		result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, async=async)
 		# TODO: we ignore out
 		return result
 
-	#def set_fraction(self, f):
-	#	# TODO: implement fractions for remote
-	#	self.fraction = f
-
-	#def __len__(self):
-	#	return self._full_length
-
-	#def full_length(self):
-	#	return self._full_length
-
 
 # we may get rid of this when we group together tasks
-class DummyExecutor(object):
+class ServerExecutor(object):
 	def __init__(self):
 		self.signal_begin = vaex.events.Signal("begin")
 		self.signal_progress = vaex.events.Signal("progress")
@@ -481,7 +398,14 @@ class DummyExecutor(object):
 		self.signal_cancel = vaex.events.Signal("cancel")
 
 	def execute(self):
-		print("dummy execute")
+		logger.debug("dummy execute")
+
+from vaex.dataset import Task
+class TaskServer(Task):
+	def __init__(self, post_process, async):
+		vaex.dataset.Task.__init__(self, None, [])
+		self.post_process = post_process
+		self.async = async
 
 
 if __name__ == "__main__":

@@ -547,6 +547,7 @@ class TestDataset(unittest.TestCase):
 test_port = 29010
 
 class TestDatasetRemote(TestDataset):
+	use_websocket = True
 	def setUp(self):
 		# run all tests from TestDataset, but now served at the server
 		super(TestDatasetRemote, self).setUp()
@@ -560,7 +561,7 @@ class TestDatasetRemote(TestDataset):
 		#print "serving"
 		self.webserver.serve_threaded()
 		#print "getting server object"
-		self.server = vx.server("localhost", port=test_port)
+		self.server = vx.server("localhost", port=test_port, websocket=self.use_websocket)
 		#print "get datasets"
 		datasets = self.server.datasets(as_dict=True)
 		#print "got it", datasets
@@ -580,6 +581,10 @@ class TestDatasetRemote(TestDataset):
 
 	def test_concat(self):
 		pass # doesn't make sense to test this for remote
+
+class TestDatasetRemoteHttp(TestDatasetRemote):
+	use_websocket = False
+
 
 class TestWebServer(unittest.TestCase):
 	def setUp(self):

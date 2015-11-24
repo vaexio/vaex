@@ -1017,16 +1017,18 @@ class VaexApp(QtGui.QMainWindow):
 		self.dataset_panel.signal_open_plot.connect(on_open_plot)
 
 		self.signal_call_in_main_thread.connect(self.on_signal_call_in_main_thread)
-		self.parse_args(argv)
 		import queue
-		# this queue is used to return values from the main thread to the callers thread
 		self.queue_call_in_main_thread = queue.Queue(1)
+
+		self.parse_args(argv)
+		# this queue is used to return values from the main thread to the callers thread
 
 
 	signal_call_in_main_thread = QtCore.pyqtSignal(object, object, object) # fn, args, kwargs
 	#signal_promise = QtCore.pyqtSignal(str)
 	def call_in_main_thread(self, fn, *args, **kwargs):
 		#print "send promise to main thread using signal", threading.currentThread()
+		logger.debug("sending call to main thread, we are in thread: %r", threading.currentThread())
 		assert self.queue_call_in_main_thread.empty()
 		self.signal_call_in_main_thread.emit(fn, args, kwargs)
 		return self.queue_call_in_main_thread.get()
@@ -1692,7 +1694,7 @@ def main(argv=sys.argv[1:]):
 
 	#sys._excepthook = sys.excepthook
 	def qt_exception_hook(exctype, value, traceback):
-		print("qt hook")
+		print("qt hook in thread: %r", threading.currentThread())
 		sys.__excepthook__(exctype, value, traceback)
 		qt_exception(None, exctype, value, traceback)
 		#sys._excepthook(exctype, value, traceback)

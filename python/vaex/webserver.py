@@ -4,6 +4,7 @@ __author__ = 'maartenbreddels'
 import tornado.ioloop
 import tornado.web
 import tornado.httpserver
+import tornado.websocket
 import tornado.auth
 import tornado.gen
 import threading
@@ -139,16 +140,15 @@ class GoogleOAuth2LoginHandler(tornado.web.RequestHandler,
                 response_type='code',
                 extra_params={'approval_prompt': 'auto'})
 
-def task_invoke(subspace, method_name, request):
+def task_invoke(subspace, method_name, **arguments):
 	method = getattr(subspace, method_name)
 	args, varargs, kwargs, defaults = inspect.getargspec(method)
 	#print inspect.getargspec(method)
 	#args_required = args[:len(args)-len(defaults)]
 	kwargs = {}
 	for arg in args:
-		if arg in request.arguments:
-			#print arg, repr(request.arguments[arg][0])
-			kwargs[arg] = json.loads(request.arguments[arg][0])
+		if arg in arguments:
+			kwargs[arg] = arguments[arg]
 	values = method(**kwargs)
 	return values
 
@@ -158,115 +158,13 @@ import vaex.execution
 import vaex.multithreading
 
 class ListHandler(tornado.web.RequestHandler):
-	def initialize(self, submit_threaded, thread_local, cache, cache_selection, datasets=None):
+	def initialize(self, webserver, submit_threaded, cache, cache_selection, datasets=None):
+		self.webserver = webserver
 		self.submit_threaded = submit_threaded
-		self.thread_local = thread_local
 		self.datasets = datasets or [vx.example()]
 		self.datasets_map = collections.OrderedDict([(ds.name,ds) for ds in self.datasets])
 		self.cache = cache
 		self.cache_selection = cache_selection
-
-
-	def process(self, user_id, request, fraction=None):
-		if not hasattr(self.thread_local, "executor"):
-			logger.debug("creating thread pool and executor")
-			self.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex()
-			self.thread_local.executor = vaex.execution.Executor(thread_pool=self.thread_local.thread_pool)
-
-        #return ("Hello, world")
-		#print request.path
-		try:
-			parts = [part for part in request.path.split("/") if part]
-			logger.debug("request: %r" % parts)
-			#print parts
-			#print request.headers
-			#print parts
-			if parts[0] == "sleep":
-				seconds = float(parts[1])
-				import time
-				time.sleep(seconds)
-				return ({"result":seconds})
-			elif parts[0] == "datasets":
-				if len(parts) == 1:
-					response = dict(datasets=[{"name":ds.name, "full_length":ds.full_length(), "column_names":ds.get_column_names()} for ds in self.datasets])
-					logger.debug("response: %r", response)
-					return response
-				else:
-
-					dataset_name = parts[1]
-					logger.debug("dataset: %s", dataset_name)
-					if dataset_name not in self.datasets_map:
-						self.error("dataset does not exist: %r, possible options: %r" % (dataset_name, self.datasets_map.keys()))
-					else:
-						if len(parts) > 2:
-							method_name = parts[2]
-							logger.debug("method: %r args: %r" % (method_name, request.arguments))
-							if "expressions" in request.arguments:
-								expressions = json.loads(request.arguments["expressions"][0])
-							else:
-								expressions = None
-							# make a shallow copy, such that selection and active_fraction is not shared
-							dataset = self.datasets_map[dataset_name].shallow_copy()
-							if dataset.mask is not None:
-								logger.debug("selection: %r", dataset.mask.sum())
-							if "active_fraction" in request.arguments:
-								active_fraction = json.loads(request.arguments["active_fraction"][0])
-								logger.debug("setting active fraction to: %r", active_fraction)
-								dataset.set_active_fraction(active_fraction)
-							else:
-								if fraction is not None:
-									dataset.set_active_fraction(fraction)
-									logger.debug("auto fraction set to %f", fraction)
-
-							if "selection" in request.arguments:
-								selection_values = json.loads(request.arguments["selection"][0])
-								selection = vaex.dataset.selection_from_dict(dataset, selection_values)
-								dataset.set_selection(selection, executor=self.thread_local.executor)
-							if "variables" in request.arguments:
-								variables = json.loads(request.arguments["variables"][0])
-								logger.debug("setting variables to: %r", variables)
-								for key, value in variables:
-									dataset.set_variable(key, value)
-							if "virtual_columns" in request.arguments:
-								virtual_columns = json.loads(request.arguments["virtual_columns"][0])
-								logger.debug("setting virtual_columns to: %r", virtual_columns)
-								for key, value in virtual_columns:
-									dataset.add_virtual_column(key, value)
-							subspace = dataset(*expressions, executor=self.thread_local.executor) if expressions else None
-							try:
-								if subspace:
-									if "selection" in request.arguments:
-										subspace = subspace.selected()
-								logger.debug("subspace: %r", subspace)
-								if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest", "correlation"]:
-									#print "expressions", expressions
-									values = task_invoke(subspace, method_name, request)
-									logger.debug("result: %r", values)
-									#print values, expressions
-									values = values.tolist() if hasattr(values, "tolist") else values
-									return ({"result": values})
-								elif method_name == "histogram":
-									grid = task_invoke(subspace, method_name, request)
-									self.set_header("Content-Type", "application/octet-stream")
-									return (grid.tostring())
-								elif method_name in ["select", "lasso_select"]:
-									dataset.mask = self.cache_selection.get((dataset.path, user_id))
-									result = task_invoke(dataset, method_name, request)
-									result = result.tolist() if hasattr(result, "tolist") else result
-									self.cache_selection[(dataset.path, user_id)] = dataset.mask
-									return ({"result": result})
-								elif method_name in ["evaluate"]:
-									result = task_invoke(dataset, method_name, request)
-									result = result.tolist() if hasattr(result, "tolist") else result
-									return ({"result": result})
-								else:
-									logger.error("unknown method: %r", method_name)
-									return self.error("unknown method: " + method_name)
-							except (SyntaxError, KeyError) as e:
-								return self.exception(e)
-		except:
-			logger.exception("unknown issue")
-		return self.error("unknown request")
 
 
 	@tornado.gen.coroutine
@@ -278,10 +176,12 @@ class ListHandler(tornado.web.RequestHandler):
 			user_id = str(uuid.uuid4())
 			self.set_cookie("user_id", user_id)
 		logger.debug("user_id: %r", user_id)
-		key = (self.request.path, "-".join([str(v) for v in sorted(self.request.arguments.items())]))
+		# tornado retursn a list of values, just use the first value
+		arguments = {key:json.loads(self.request.arguments[key][0]) for key in self.request.arguments.keys()}
+		key = (self.request.path, "-".join([str(v) for v in sorted(arguments.items())]))
 		response = self.cache.get(key)
 		if response is None:
-			response = yield self.submit_threaded(self.process, user_id, self.request)
+			response = yield self.submit_threaded(process, self.webserver, user_id, self.request.path, **arguments)
 			try:
 				self.cache[key] = response
 			except ValueError:
@@ -291,16 +191,69 @@ class ListHandler(tornado.web.RequestHandler):
 		#logger.debug("response is: %r", response)
 		if response is None:
 			response = self.error("unknown request or error")
-
+		if isinstance(response, str):
+			self.set_header("Content-Type", "application/octet-stream")
 		self.write(response)
 
-	def exception(self, exception):
-		logger.exception("handled exception at server, all fine")
-		return ({"exception": {"class":str(exception.__class__.__name__), "msg": str(exception)} })
-	def error(self, msg):
-		return ({"error": msg}) #, "result":None})
 
+class ProgressWebSocket(tornado.websocket.WebSocketHandler):
+	def initialize(self, webserver, submit_threaded, cache, cache_selection, datasets=None):
+		self.webserver = webserver
+		self.submit_threaded = submit_threaded
+		self.datasets = datasets or [vx.example()]
+		self.datasets_map = collections.OrderedDict([(ds.name,ds) for ds in self.datasets])
+		self.cache = cache
+		self.cache_selection = cache_selection
 
+	def check_origin(self, origin):
+		return True
+
+	def open(self):
+		logger.debug("WebSocket opened")
+
+	@tornado.gen.coroutine
+	def on_message(self, message):
+		logger.debug("websocket message: %r", message)
+		arguments = json.loads(message)
+		path = arguments["path"]
+		arguments.pop("path")
+		user_id = self.get_cookie("user_id")
+		if user_id == None:
+			user_id = arguments.pop("user_id")
+			if user_id == None:
+				self.write_json(error="no user id, do an http get request first")
+				return
+		job_id = arguments["job_id"]
+		last_progress = [None]
+		def progress(f):
+			def do():
+				logger.debug("progress: %r", f)
+				last_progress[0] = f
+				self.write_json(job_id=job_id, job_phase="PENDING", progress=f)
+			if last_progress[0] is None or (f - last_progress[0]) > 0.05 or f == 1.0:
+				tornado.ioloop.IOLoop.current().add_callback(do)
+			return True
+		response = yield self.submit_threaded(process, self.webserver, user_id, path, progress=progress, **arguments)
+		if response is None:
+			response = self.error("unknown request or error")
+		#if isinstance(response, str):
+		#	#self.set_header("Content-Type", "application/octet-stream")
+		#	response = {"result": response.encode("base64")}
+		response["job_id"] = job_id
+		if "result" in response:
+			response["job_phase"] = "COMPLETED"
+		if "error" in response:
+			response["job_phase"] = "ERROR"
+		if "exception" in response:
+			response["job_phase"] = "EXCEPTION"
+		self.write_json(**response)
+
+	def write_json(self, **kwargs):
+		logger.debug("writing json: %r", kwargs)
+		self.write_message(json.dumps(kwargs))
+
+	def on_close(self):
+		logger.debug("WebSocket closed")
 
 class QueueHandler(tornado.web.RequestHandler):
 	def initialize(self, datasets):
@@ -311,6 +264,115 @@ class QueueHandler(tornado.web.RequestHandler):
         #self.write("Hello, world")
 		self.write(dict(datasets=[{"name":ds.name, "length":len(ds)} for ds in self.datasets]))
 
+def exception(exception):
+	logger.exception("handled exception at server, all fine")
+	return ({"exception": {"class":str(exception.__class__.__name__), "msg": str(exception)} })
+
+def error(msg):
+	return ({"error": msg}) #, "result":None})
+
+def process(webserver, user_id, path, fraction=None, progress=None, **arguments):
+	if not hasattr(webserver.thread_local, "executor"):
+		logger.debug("creating thread pool and executor")
+		webserver.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex()
+		webserver.thread_local.executor = vaex.execution.Executor(thread_pool=webserver.thread_local.thread_pool)
+
+	progress = progress or (lambda x: True)
+	# TODO: mem leak and other issues if we don't disconnect this
+	webserver.thread_local.executor.signal_progress.connect(progress)
+	#return ("Hello, world")
+	#print request.path
+	try:
+		parts = [part for part in path.split("/") if part]
+		logger.debug("request: %r" % parts)
+		if parts[0] == "sleep":
+			seconds = float(parts[1])
+			import time
+			time.sleep(min(1, seconds))
+			return ({"result":seconds})
+		elif parts[0] == "datasets":
+			if len(parts) == 1:
+				response = dict(result=[{"name":ds.name, "full_length":ds.full_length(), "column_names":ds.get_column_names()} for ds in webserver.datasets])
+				logger.debug("response: %r", response)
+				return response
+			else:
+
+				dataset_name = parts[1]
+				logger.debug("dataset: %s", dataset_name)
+				if dataset_name not in webserver.datasets_map:
+					error("dataset does not exist: %r, possible options: %r" % (dataset_name, webserver.datasets_map.keys()))
+				else:
+					if len(parts) > 2:
+						method_name = parts[2]
+						logger.debug("method: %r args: %r" % (method_name, arguments))
+						if "expressions" in arguments:
+							expressions = arguments["expressions"]
+						else:
+							expressions = None
+						# make a shallow copy, such that selection and active_fraction is not shared
+						dataset = webserver.datasets_map[dataset_name].shallow_copy()
+						if dataset.mask is not None:
+							logger.debug("selection: %r", dataset.mask.sum())
+						if "active_fraction" in arguments:
+							active_fraction = arguments["active_fraction"]
+							logger.debug("setting active fraction to: %r", active_fraction)
+							dataset.set_active_fraction(active_fraction)
+						else:
+							if fraction is not None:
+								dataset.set_active_fraction(fraction)
+								logger.debug("auto fraction set to %f", fraction)
+
+						if "selection" in arguments:
+							selection_values = arguments["selection"]
+							selection = vaex.dataset.selection_from_dict(dataset, selection_values)
+							dataset.set_selection(selection, executor=webserver.thread_local.executor)
+						if "variables" in arguments:
+							variables = arguments["variables"]
+							logger.debug("setting variables to: %r", variables)
+							for key, value in variables:
+								dataset.set_variable(key, value)
+						if "virtual_columns" in arguments:
+							virtual_columns = arguments["virtual_columns"]
+							logger.debug("setting virtual_columns to: %r", virtual_columns)
+							for key, value in virtual_columns:
+								dataset.add_virtual_column(key, value)
+						subspace = dataset(*expressions, executor=webserver.thread_local.executor) if expressions else None
+						try:
+							if subspace:
+								if "selection" in arguments:
+									subspace = subspace.selected()
+							logger.debug("subspace: %r", subspace)
+							if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest", "correlation"]:
+								#print "expressions", expressions
+								values = task_invoke(subspace, method_name, **arguments)
+								logger.debug("result: %r", values)
+								#print values, expressions
+								values = values.tolist() if hasattr(values, "tolist") else values
+								return ({"result": values})
+							elif method_name == "histogram":
+								grid = task_invoke(subspace, method_name, **arguments)
+								#self.set_header("Content-Type", "application/octet-stream")
+								#return (grid.tostring())
+								return {"result": grid.tostring().encode("base64")}
+							elif method_name in ["select", "lasso_select"]:
+								dataset.mask = webserver.cache_selection.get((dataset.path, user_id))
+								result = task_invoke(dataset, method_name, **arguments)
+								result = result.tolist() if hasattr(result, "tolist") else result
+								webserver.cache_selection[(dataset.path, user_id)] = dataset.mask
+								return ({"result": result})
+							elif method_name in ["evaluate"]:
+								result = task_invoke(dataset, method_name, **arguments)
+								result = result.tolist() if hasattr(result, "tolist") else result
+								return ({"result": result})
+							else:
+								logger.error("unknown method: %r", method_name)
+								return error("unknown method: " + method_name)
+						except (SyntaxError, KeyError) as e:
+							return exception(e)
+	except:
+		logger.exception("unknown issue")
+	return error("unknown request")
+
 from cachetools import Cache, LRUCache
 import sys
 MB = 1024**2
@@ -318,12 +380,14 @@ GB = MB * 1024
 
 class WebServer(threading.Thread):
 	def __init__(self, address="localhost", port=9000, webserver_thread_count=2, cache_byte_size=500*MB,
-				 cache_selection_byte_size=500*MB, datasets=[], compress=True):
+				 cache_selection_byte_size=500*MB, datasets=[], compress=True, development=False):
 		threading.Thread.__init__(self)
 		self.setDaemon(True)
 		self.address = address
 		self.port = port
 		self.started = threading.Event()
+		self.datasets = datasets
+		self.datasets_map = dict([(ds.name,ds) for ds in self.datasets])
 
 		self.webserver_thread_count = webserver_thread_count
 
@@ -335,7 +399,7 @@ class WebServer(threading.Thread):
 		self.cache = LRUCache(cache_byte_size, getsizeof=sys.getsizeof)
 		self.cache_selection = LRUCache(cache_selection_byte_size, getsizeof=sys.getsizeof)
 
-		self.options = dict(datasets=datasets, submit_threaded=self.submit_threaded, thread_local=self.thread_local, cache=self.cache,
+		self.options = dict(webserver=self, datasets=datasets, submit_threaded=self.submit_threaded, cache=self.cache,
 							cache_selection=self.cache_selection)
 
 
@@ -344,8 +408,9 @@ class WebServer(threading.Thread):
 		self.application = tornado.web.Application([
 			(r"/queue", QueueHandler, self.options),
 			(r"/auth", GoogleOAuth2LoginHandler, {}),
+			(r"/websocket", ProgressWebSocket, self.options),
 			(r"/.*", ListHandler, self.options),
-		], compress_response=compress, debug=True)
+		], compress_response=compress, debug=development)
 		logger.debug("compression set to %r", compress)
 		logger.debug("cache size set to %s", vaex.utils.filesize_format(cache_byte_size))
 		logger.debug("thread count set to %r", self.webserver_thread_count)
@@ -426,6 +491,7 @@ if __name__ == "__main__":
 	parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=default_config.cache)
 	parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=default_config.compress, action='store_true')
 	parser.add_argument('--no-compress', dest="compress", action='store_false')
+	parser.add_argument('--development', default="false", action='store_true', help="enable development features (auto reloading)")
 	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser))
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
@@ -436,12 +502,19 @@ if __name__ == "__main__":
 
 	filenames = config.filenames
 	filenames += config.filename
-	datasets = [vx.open(filename) for filename in filenames]
+	datasets = []
+	for filename in filenames:
+		ds = vx.open(filename)
+		if ds is None:
+			print("error opening file: %r" % filename)
+		else:
+			datasets.append(ds)
 	datasets = datasets or [vx.example()]
+	#datasets = [ds for ds in datasets if ds is not None]
 	logger.info("datasets:")
 	for dataset in datasets:
 		logger.info("\thttp://%s:%d/datasets/%s", config.address, config.port, dataset.name)
-	server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache, compress=config.compress)
+	server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache, compress=config.compress, development=config.development)
 	server.serve()
 
 	#3_threaded()

@@ -2277,5 +2277,5 @@ def load_file(path, *args, **kwargs):
 		dataset = dataset_class(path, *args)
 		return dataset
 
-from .remote import ServerRest, SubspaceRemote, DatasetRemote
+from vaex.remote import ServerRest, SubspaceRemote, DatasetRemote
 from vaex.events import Signal
