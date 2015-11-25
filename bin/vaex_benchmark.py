@@ -1,14 +1,14 @@
 import vaex as vx
 import sys
 
-import yappi
+#import yappi
 
-vx.set_log_level_debug()
-progressbar = False
+#vx.set_log_level_debug()
+progressbar = True
 fn = sys.argv[1]
 print "opening", fn
-dataset = vx.open(fn)
-dataset.set_active_fraction(0.5)
+dataset = vx.open_many([fn]*10)
+#dataset.set_active_fraction(0.5)
 
 expressions = tuple(sys.argv[2:])
 if sys.argv[2] == "Alpha":
@@ -19,10 +19,10 @@ if sys.argv[2] == "Alpha":
 #dsa
 print "subspace", expressions
 subspace = dataset(*expressions)
-print "calculate minmax"
+#print "calculate minmax"
 #yappi.start()
 limits = subspace.minmax(progressbar=progressbar)
-print "calculate histogram"
+#print "calculate histogram"
 subspace.histogram(limits, progressbar=progressbar)
 #yappi.get_func_stats().print_all()
 
