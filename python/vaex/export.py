@@ -1,12 +1,16 @@
 __author__ = 'maartenbreddels'
-import numpy as np
 import os
+import sys
+
+import numpy as np
+
 import logging
 import vaex
 import vaex.utils
 import vaex.execution
 import vaex.file.colfits
 
+max_length = 12000
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 try:
@@ -63,14 +67,15 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 	progress_value = 0
 	for column_name in column_names:
 		logger.debug("  exporting column: %s " % column_name)
-		with vaex.utils.Timer("copying column %s" % column_name, logger):
+		#with vaex.utils.Timer("copying column %s" % column_name, logger):
+		if 1:
 			block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size)
 			to_array = dataset_output.columns[column_name]
 			if shuffle: # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
 				to_array_disk = to_array
 				to_array = np.zeros_like(to_array_disk)
 			to_offset = 0 # we need this for selections
-			for i1, i2 in vaex.utils.subdivide(len(dataset_input), max_length=vaex.execution.buffer_size):
+			for i1, i2 in vaex.utils.subdivide(len(dataset_input), max_length=max_length):
 				logger.debug("from %d to %d (total length: %d, output length: %d)", i1, i2, len(dataset_input), N)
 				block_scope.move(i1, i2)
 				#	block_scope.move(i1-i1, i2-i1)
@@ -194,3 +199,52 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 			column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
 			progress=progress)
 	return
+
+
+if __name__ == "__main__":
+	import argparse
+	parser = argparse.ArgumentParser("python -m vaex.export")
+	parser.add_argument("input", help="input source or file")
+	parser.add_argument("output", help="output file (ends in .fits or .hdf5)")
+	parser.add_argument("columns", help="list of columns to export", nargs="*")
+	parser.add_argument('--verbose', '-v', action='count', default=0)
+	parser.add_argument('--list', '-l', default=False, action='store_true', help="list columns of input")
+	args = parser.parse_args()
+
+	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
+	logging.getLogger("vaex").setLevel(verbosity[min(3, args.verbose)])
+	print("exporting from {input} to {output}".format(input=args.input, output=args.output))
+	ds = vaex.open(args.input)
+	if ds is None:
+		print("Cannot opening input")
+		sys.exit(1)
+	if args.list:
+		print("columns names: " + " ".join(ds.get_column_names()))
+	else:
+		if args.columns:
+			columns = args.columns
+		else:
+			columns = None
+		for column in columns:
+			if column not in ds.get_column_names():
+				print("column %r does not exist, run with --list or -l to list all columns")
+				sys.exit(1)
+
+		base, output_ext = os.path.splitext(args.output)
+		with vaex.utils.progressbar("exporting") as progressbar:
+			def update(p):
+				progressbar.update(p)
+				return True
+			if output_ext == ".hdf5":
+				export_hdf5(ds, args.output, column_names=columns, progress=update)
+			else:
+				print("extension %s not supported, only .fits and .hdf5 are" % output_ext)
+		print("\noutput to %s" % os.path.abspath(args.output))
+
+	if 0:
+		parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=default_config.port)
+		parser.add_argument('--verbose', '-v', action='count')
+		parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=default_config.cache)
+		parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=default_config.compress, action='store_true')
+		parser.add_argument('--no-compress', dest="compress", action='store_false')
+		parser.add_argument('--development', default=False, action='store_true', help="enable development features (auto reloading)")
