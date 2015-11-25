@@ -180,18 +180,18 @@ class CpuUsage(progressbar.widgets.FormatWidgetMixin, progressbar.widgets.TimeSe
 			cpu_usage = delta_time/(delta_walltime * 1.) * 100
 			data["cpu_usage"] = self.usage_format % cpu_usage
 		#utime0, stime0, child_utime0, child_stime0, walltime0 = os.times()
-		return progressbar.widgets.FormatWidgetMixin.__call__(self, progress, data)
-
+		return progressbar_mod.widgets.FormatWidgetMixin.__call__(self, progress, data)
+progressbar_mod = progressbar
 def progressbar(name="processing"):
 	widgets = [
 		name,
-        ': ', progressbar.Percentage(),
-        ' ', progressbar.Bar(),
-        ' ', progressbar.ETA(),
-        ' ', progressbar.AdaptiveETA(),
-		' ', progressbar.CpuUsage()
+        ': ', progressbar_mod.widgets.Percentage(),
+        ' ', progressbar_mod.widgets.Bar(),
+        ' ', progressbar_mod.widgets.ETA(),
+        ' ', progressbar_mod.widgets.AdaptiveETA(),
+		' ', CpuUsage()
     ]
-	bar = progressbar.ProgressBar(widgets=widgets, max_value=1)
+	bar = progressbar_mod.ProgressBar(widgets=widgets, max_value=1)
 	bar.start()
 	return bar
 	#FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')
