@@ -209,6 +209,8 @@ if __name__ == "__main__":
 	parser.add_argument("columns", help="list of columns to export", nargs="*")
 	parser.add_argument('--verbose', '-v', action='count', default=0)
 	parser.add_argument('--list', '-l', default=False, action='store_true', help="list columns of input")
+	parser.add_argument('--progress', help="show progress (default: %(default)s)", default=True, action='store_true')
+	parser.add_argument('--no-progress', dest="progress", action='store_false')
 	args = parser.parse_args()
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]

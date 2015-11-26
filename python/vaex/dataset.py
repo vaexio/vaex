@@ -759,9 +759,9 @@ class _BlockScope(object):
 			result = self[expression]
 		except:
 			#logger.debug("no luck, eval: %s", expression)
-			result = ne.evaluate(expression, local_dict=self, out=out)
+			#result = ne.evaluate(expression, local_dict=self, out=out)
 			#logger.debug("in eval")
-			#result = eval(expression, {}, self)
+			result = eval(expression, {}, self)
 			self.values[expression] = result
 			#if out is not None:
 			#	out[:] = result
@@ -778,18 +778,18 @@ class _BlockScope(object):
 		try:
 			if variable in self.dataset.get_column_names():
 				if self.dataset._needs_copy(variable):
-					self._ensure_buffer(variable)
-					self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
-					#self.values[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
+					#self._ensure_buffer(variable)
+					#self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
+					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
 				else:
 					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2]
 			elif variable in self.values:
 				return self.values[variable]
 			elif variable in list(self.dataset.virtual_columns.keys()):
 				expression = self.dataset.virtual_columns[variable]
-				self._ensure_buffer(variable)
-				self.values[variable] = self.evaluate(expression, out=self.buffers[variable])
-				self.values[variable] = self.buffers[variable]
+				#self._ensure_buffer(variable)
+				self.values[variable] = self.evaluate(expression)#, out=self.buffers[variable])
+				#self.values[variable] = self.buffers[variable]
 			if variable not in self.values:
 				raise KeyError("Unknown variables or column: %r" % (variable,))
 
@@ -2118,14 +2118,14 @@ class InMemory(DatasetMemoryMapped):
 		super(InMemory, self).__init__(filename=None, nommap=True, name=name)
 
 
-class SoneiraPeebles(InMemory):
+class SoneiraPeebles(DatasetArrays):
 	def __init__(self, dimension, eta, max_level, L):
 		super(SoneiraPeebles, self).__init__(name="soneira-peebles")
 		#InMemory.__init__(self)
 		def todim(value):
 			if isinstance(value, (tuple, list)):
-				assert len(value) == dimension, "either a scalar or sequence of length equal to the dimension"
-				return value
+				assert len(value) >= dimension, "either a scalar or sequence of length equal to or larger than the dimension"
+				return value[:dimension]
 			else:
 				return [value] * dimension
 
@@ -2138,12 +2138,15 @@ class SoneiraPeebles(InMemory):
 
 		for d in range(dimension):
 			vaex.vaexfast.soneira_peebles(array[d], 0, 1, L[d], eta, max_level)
-		order = np.zeros(N, dtype=np.int64)
-		vaex.vaexfast.shuffled_sequence(order);
-		for i, name in zip(list(range(dimension)), "x y z w v u".split()):
-			#np.take(array[i], order, out=array[i])
-			reorder(array[i], array[-1], order)
-			self.addColumn(name, array=array[i])
+		for d, name in zip(list(range(dimension)), "x y z w v u".split()):
+			self.add_column(name, array[d])
+		if 0:
+			order = np.zeros(N, dtype=np.int64)
+			vaex.vaexfast.shuffled_sequence(order);
+			for i, name in zip(list(range(dimension)), "x y z w v u".split()):
+				#np.take(array[i], order, out=array[i])
+				reorder(array[i], array[-1], order)
+				self.addColumn(name, array=array[i])
 
 dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
 
@@ -2292,7 +2295,7 @@ class DatasetTap(DatasetArrays):
 			self.ucd = ucd
 			self.alpha_min = 0
 			length = len(tap_dataset)
-			steps = length/1e4 # try to do it in chunks of 1e5
+			steps = length/1e6 # try to do it in chunks
 			self.alpha_step = 360/steps
 			self.alpha_max = self.alpha_min + self.alpha_step
 			logger.debug("stepping in alpha %f" % self.alpha_step)
@@ -2429,10 +2432,6 @@ class DatasetTap(DatasetArrays):
 		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
 		return can_open
 
-if __name__ == "__main__":
-	vaex.set_log_level_debug()
-	ds = DatasetTap()
-	ds.columns["alpha"][0:100]
 
 dataset_type_map["tap"] = DatasetTap
 
@@ -2455,3 +2454,45 @@ def load_file(path, *args, **kwargs):
 
 from vaex.remote import ServerRest, SubspaceRemote, DatasetRemote
 from vaex.events import Signal
+
+if __name__ == "__main__":
+	import argparse
+	parser = argparse.ArgumentParser(prog='python -m vaex.dataset')
+	subparsers = parser.add_subparsers(help='sub-command help', dest="task")
+	parser_soneira = subparsers.add_parser('soneira', help='create soneira peebles dataset')
+	parser_soneira.add_argument('output', help='output file')
+	parser.add_argument("columns", help="list of columns to export", nargs="*")
+	parser_soneira.add_argument('--dimension','-d', type=int, help='dimensions', default=4)
+	#parser_soneira.add_argument('--eta','-e', type=int, help='dimensions', default=3)
+	parser_soneira.add_argument('--max-level','-m', type=int, help='dimensions', default=28)
+	parser_soneira.add_argument('--lambdas','-l', type=int, help='lambda values for fractal', default=[1.1, 1.3, 1.6, 2.])
+	args = parser.parse_args()
+	print(args.task)
+	if args.task == "soneira":
+		if vaex.utils.check_memory_usage(4*8*2**args.max_level, vaex.utils.confirm_on_console):
+			dataset = SoneiraPeebles(args.dimension, 2, args.max_level, args.lambdas)
+
+	if args.columns:
+		columns = args.columns
+	else:
+		columns = None
+	if columns is None:
+		columns = dataset.get_column_names()
+	for column in columns:
+		if column not in dataset.get_column_names():
+			print("column %r does not exist, run with --list or -l to list all columns")
+			sys.exit(1)
+
+	base, output_ext = os.path.splitext(args.output)
+	with vaex.utils.progressbar("exporting") as progressbar:
+		def update(p):
+			progressbar.update(p)
+			return True
+		if output_ext == ".hdf5":
+			dataset.export_hdf5(args.output, column_names=columns, progress=update)
+		else:
+			print("extension %s not supported, only .fits and .hdf5 are" % output_ext)
+
+	#vaex.set_log_level_debug()
+	#ds = DatasetTap()
+	#ds.columns["alpha"][0:100]

@@ -7,7 +7,8 @@ import sys
 progressbar = True
 fn = sys.argv[1]
 print "opening", fn
-dataset = vx.open_many([fn]*10)
+#dataset = vx.open_many([fn])
+dataset = vx.open(fn)
 #dataset.set_active_fraction(0.5)
 
 expressions = tuple(sys.argv[2:])

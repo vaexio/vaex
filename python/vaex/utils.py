@@ -196,3 +196,24 @@ def progressbar(name="processing", max_value=1):
 	bar.start()
 	return bar
 	#FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')
+
+def confirm_on_console(topic, msg):
+	done = False
+	print(topic)
+	while not done:
+		output = raw_input(msg +":[y/n]")
+		if output.lower() == "y":
+			return True
+		if output.lower() == "n":
+			return False
+
+
+import psutil
+def check_memory_usage(bytes_needed, confirm):
+	if bytes_needed > psutil.virtual_memory().available:
+		if bytes_needed < (psutil.virtual_memory().available +psutil.swap_memory().free):
+			text = "Action requires %s, you have enough swap memory available but it will make your computer slower, do you want to continue?" % (filesize_format(bytes_needed),)
+			return confirm("Memory usage issue", text)
+		else:
+			text = "Action requires %s, you do not have enough swap memory available, do you want try anyway?" % (filesize_format(bytes_needed),)
+			return confirm("Memory usage issue", text)

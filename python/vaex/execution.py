@@ -12,7 +12,7 @@ from functools import reduce
 
 __author__ = 'breddels'
 
-buffer_size = 1e5 # TODO: this should not be fixed, larger means faster but also large memory usage
+buffer_size = 1e6 # TODO: this should not be fixed, larger means faster but also large memory usage
 
 import threading
 import queue
@@ -111,8 +111,8 @@ class Executor(object):
 					def process(thread_index, i1, i2):
 						block_scope = block_scopes[thread_index]
 						block_scope.move(i1, i2)
-						with ne_lock:
-							block_dict = {expression:block_scope.evaluate(expression) for expression in expressions}
+						#with ne_lock:
+						block_dict = {expression:block_scope.evaluate(expression) for expression in expressions}
 						for task in task_queue:
 							blocks = [block_dict[expression] for expression in task.expressions_all]
 							task._results.append(task.map(thread_index, i1, i2, *blocks))
