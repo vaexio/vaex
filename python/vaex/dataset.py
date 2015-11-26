@@ -2302,6 +2302,8 @@ class DatasetTap(DatasetArrays):
 			self.dtype = DatasetTap.type_map[self.column_type]().dtype
 			self.left_over_chunk = None
 			self.rows_left = length
+			import tempfile
+			self.download_file = tempfile.mktemp(".vot")
 
 		def __getitem__(self, slice):
 			start, stop, step = slice.start, slice.stop, slice.step
@@ -2315,15 +2317,22 @@ class DatasetTap(DatasetArrays):
 			if enough:
 				logger.debug("we can skip the query, already have results from previous query")
 			while not enough:
-				adql_query = "SELECT {column_name} FROM {table_name} WHERE alpha >= {alpha_min} AND alpha < {alpha_max}"\
+				adql_query = "SELECT {column_name} FROM {table_name} WHERE alpha >= {alpha_min} AND alpha < {alpha_max} ORDER BY alpha ASC"\
 					.format(column_name=self.column_name, table_name=self.tap_dataset.table_name, alpha_min=self.alpha_min, alpha_max=self.alpha_max)
 				logger.debug("executing: %s" % adql_query)
 				logger.debug("executing: %s" % adql_query.replace(" ", "+"))
 
 
 				url = self.tap_dataset.tap_url + "/sync?REQUEST=doQuery&LANG=ADQL&MAXREC=10000000&FORMAT=votable&QUERY=" +adql_query.replace(" ", "+")
-				table = astropy.table.Table.read(url, format="votable") #, show_progress=False)
-				data = table[self.column_name].data.data.data
+				import urllib2
+				response = urllib2.urlopen(url)
+				with open(self.download_file, "w") as f:
+					f.write(response.read())
+				votable = astropy.io.votable.parse(self.download_file)
+				data = votable.get_first_table().array[self.column_name].data
+				# TODO: respect masked array
+				#table = astropy.table.Table.read(url, format="votable") #, show_progress=False)
+				#data = table[self.column_name].data.data.data
 				logger.debug("new chunk is of lenght %d", len(data))
 				self.rows_left -= len(data)
 				logger.debug("rows left %d", self.rows_left)

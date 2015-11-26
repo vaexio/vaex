@@ -165,7 +165,7 @@ class CpuUsage(progressbar.widgets.FormatWidgetMixin, progressbar.widgets.TimeSe
 		if self.utime_0 is None:
 			self.utime_0 = utime
 		if self.stime_0 is None:
-			self.stime_0 = utime
+			self.stime_0 = stime
 		if self.walltime_0 is None:
 			self.walltime_0 = walltime
 		data["utime_0"] = self.utime_0
@@ -174,6 +174,7 @@ class CpuUsage(progressbar.widgets.FormatWidgetMixin, progressbar.widgets.TimeSe
 
 		delta_time = utime - self.utime_0 + stime - self.stime_0
 		delta_walltime = walltime - self.walltime_0
+		#print delta_time, delta_walltime, utime, self.utime_0, stime, self.stime_0
 		if delta_walltime == 0:
 			data["cpu_usage"] = "---"
 		else:
@@ -182,16 +183,16 @@ class CpuUsage(progressbar.widgets.FormatWidgetMixin, progressbar.widgets.TimeSe
 		#utime0, stime0, child_utime0, child_stime0, walltime0 = os.times()
 		return progressbar_mod.widgets.FormatWidgetMixin.__call__(self, progress, data)
 progressbar_mod = progressbar
-def progressbar(name="processing"):
+def progressbar(name="processing", max_value=1):
 	widgets = [
 		name,
         ': ', progressbar_mod.widgets.Percentage(),
         ' ', progressbar_mod.widgets.Bar(),
         ' ', progressbar_mod.widgets.ETA(),
-        ' ', progressbar_mod.widgets.AdaptiveETA(),
+        #' ', progressbar_mod.widgets.AdaptiveETA(),
 		' ', CpuUsage()
     ]
-	bar = progressbar_mod.ProgressBar(widgets=widgets, max_value=1)
+	bar = progressbar_mod.ProgressBar(widgets=widgets, max_value=max_value)
 	bar.start()
 	return bar
 	#FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')

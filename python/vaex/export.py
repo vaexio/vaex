@@ -10,7 +10,7 @@ import vaex.utils
 import vaex.execution
 import vaex.file.colfits
 
-max_length = 12000
+max_length = int(1e5)
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 try:
