@@ -15,7 +15,7 @@ a = vaex.execution.buffer_size # will crash if we decide to rename it
 vaex.execution.buffer_size = 3
 
 vx.set_log_level_exception()
-#vx.set_log_level_debug()
+vx.set_log_level_debug()
 
 class CallbackCounter(object):
 	def __init__(self, return_value=None):
@@ -86,7 +86,7 @@ class TestDataset(unittest.TestCase):
 
 		with self.assertRaises(SyntaxError):
 			self.dataset("x/").sum()
-		with self.assertRaises(KeyError):
+		with self.assertRaises((KeyError, NameError)): # TODO: should we have just one error type?
 			self.dataset("doesnotexist").sum()
 
 		# that that after a error we can still continue
@@ -561,7 +561,8 @@ class TestDatasetRemote(TestDataset):
 		#print "serving"
 		self.webserver.serve_threaded()
 		#print "getting server object"
-		self.server = vx.server("localhost", port=test_port, websocket=self.use_websocket)
+		scheme = "ws" if self.use_websocket else "http"
+		self.server = vx.server("%s://localhost:%d" % (scheme, test_port))
 		#print "get datasets"
 		datasets = self.server.datasets(as_dict=True)
 		#print "got it", datasets

@@ -367,7 +367,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							else:
 								logger.error("unknown method: %r", method_name)
 								return error("unknown method: " + method_name)
-						except (SyntaxError, KeyError) as e:
+						except (SyntaxError, KeyError, NameError) as e:
 							return exception(e)
 	except:
 		logger.exception("unknown issue")

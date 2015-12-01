@@ -1047,7 +1047,7 @@ class LayerTable(object):
 		self.amplitude_grid_selection_view = self.amplitude_grid_selection
 
 	def calculate_amplitudes(self):
-		logger.debug("calculating amplitudes")
+		logger.debug("calculating amplitudes (in thread %r)" % threading.currentThread())
 
 		slice = self.layer_slice_source is not None
 

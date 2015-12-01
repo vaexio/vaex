@@ -103,16 +103,36 @@ class ServerRest(object):
 
 		if self.use_websocket:
 			self.submit = self.submit_websocket
-			self.websocket_connected = vaex.promise.Promise()
-			def do():
+			self._websocket_connect()
+
+	def _websocket_connect(self):
+		def connected(websocket):
+			logger.debug("connected to websocket: %s" % self._build_url(""))
+		def failed(reason):
+			logger.error("failed to connect to %s" % self._build_url(""))
+		self.websocket_connected = vaex.promise.Promise()
+		self.websocket_connected.then(connected, failed)
+		if 0:
+			connected = wrap_future_with_promise(tornado.websocket.websocket_connect(self._build_url("websocket"), on_message_callback=self._on_websocket_message))
+			connected.get()
+			self.websocket_connected.fulfill(connected)
+		def do():
+			try:
 				connected = wrap_future_with_promise(tornado.websocket.websocket_connect(self._build_url("websocket"), on_message_callback=self._on_websocket_message))
 				self.websocket_connected.fulfill(connected)
-			self.io_loop.add_callback(do)
+			except:
+				logger.exception("error connecting")
+				#raise
+		self.io_loop.add_callback(do)
+		result = self.websocket_connected.get()
+		if self.websocket_connected.isRejected:
+			raise self.websocket.reason
+
 
 
 
 	def _on_websocket_message(self, msg):
-		logger.debug("socket read message: %s", msg)
+		logger.debug("socket read message: %s")
 		response = json.loads(msg)
 		# for the moment, job == task, in the future a job can be multiple tasks
 		job_id = response.get("job_id")
@@ -122,8 +142,9 @@ class ServerRest(object):
 				logger.debug("job update %r, phase=%r", job_id, phase)
 				if phase == "COMPLETED":
 					result = response["result"]#[0]
-					logger.debug("completed job %r, result=%r", job_id, result)
+					#logger.debug("completed job %r, result=%r", job_id, result)
 					task = self.jobs[job_id]
+					logger.debug("completed job %r (async=%r, thread_mover=%r)", job_id, task.async, self.thread_mover)
 					processed_result = task.post_process(result)
 					if task.async:
 						self.thread_mover(task.fulfill, processed_result)
@@ -135,6 +156,15 @@ class ServerRest(object):
 					msg = response["exception"]["msg"]
 					exception = getattr(__builtin__, class_name)(msg)
 					logger.debug("error in job %r, exception=%r", job_id, exception)
+					task = self.jobs[job_id]
+					if task.async:
+						self.thread_mover(task.reject, exception)
+					else:
+						task.reject(exception)
+				elif phase == "ERROR":
+					logger.error("error happened at server side: %r", response)
+					msg = response["error"]
+					exception = RuntimeError("error at server: %r" % msg)
 					task = self.jobs[job_id]
 					if task.async:
 						self.thread_mover(task.reject, exception)
@@ -165,6 +195,7 @@ class ServerRest(object):
 		assert self.use_websocket
 
 		task = TaskServer(post_process=post_process, async=async)
+		logger.debug("created task: %r, %r (async=%r)" % (path, arguments, async))
 		job_id = str(uuid.uuid4())
 		self.jobs[job_id] = task
 		arguments["job_id"] = job_id

@@ -60,14 +60,29 @@ def from_arrays(name="array", **arrays):
 		dataset.add_column(name, array)
 	return dataset
 
-def server(hostname, **kwargs):
+# py2/p3 compatibility
+try:
+	from urllib.parse import urlparse
+except ImportError:
+	from urlparse import urlparse
+
+def server(url, **kwargs):
 	"""Connect to hostname supporting the vaex web api
 
 	:param str hostname: hostname or ip address of server
 	:return vaex.dataset.ServerRest: returns a server object, note that it does not connect to the server yet, so this will always succeed
 	:rtype: ServerRest
 	"""
-	return vaex.remote.ServerRest(hostname, **kwargs)
+	url = urlparse(url)
+	if url.scheme == "ws":
+		websocket = True
+	else:
+		websocket = False
+	assert url.scheme in ["ws", "http"]
+	port = url.port
+	base_path = url.path
+	hostname = url.hostname
+	return vaex.remote.ServerRest(hostname, base_path=base_path, port=port, websocket=websocket, **kwargs)
 
 def example():
 	"""Returns an example dataset which comes with vaex for learning purposes
