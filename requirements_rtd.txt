@@ -10,3 +10,7 @@ tornado==4.1
 futures==2.2.0
 jupyter
 layeredconfig
+http://www.astro.rug.nl/software/kapteyn/kapteyn-2.3.tar.gz
+cachetools
+#healpy # this is only used in the gui
+progressbar2
