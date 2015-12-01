@@ -169,13 +169,15 @@ class ListHandler(tornado.web.RequestHandler):
 
 	@tornado.gen.coroutine
 	def get(self):
-		user_id = self.get_cookie("user_id")
-		logger.debug("user_id in cookie: %r", user_id)
-		if user_id is None:
-			import uuid
-			user_id = str(uuid.uuid4())
-			self.set_cookie("user_id", user_id)
-		logger.debug("user_id: %r", user_id)
+		user_id = None
+		if False: # disable user_id for the moment
+			user_id = self.get_cookie("user_id")
+			logger.debug("user_id in cookie: %r", user_id)
+			if user_id is None:
+				import uuid
+				user_id = str(uuid.uuid4())
+				self.set_cookie("user_id", user_id)
+			logger.debug("user_id: %r", user_id)
 		# tornado retursn a list of values, just use the first value
 		arguments = {key:json.loads(self.request.arguments[key][0]) for key in self.request.arguments.keys()}
 		key = (self.request.path, "-".join([str(v) for v in sorted(arguments.items())]))
@@ -217,12 +219,15 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
 		arguments = json.loads(message)
 		path = arguments["path"]
 		arguments.pop("path")
-		user_id = self.get_cookie("user_id")
-		if user_id == None:
-			user_id = arguments.pop("user_id")
+		user_id = arguments.pop("user_id", None)
+
+		if False: # disable user_id for the moment
+			user_id = self.get_cookie("user_id")
 			if user_id == None:
-				self.write_json(error="no user id, do an http get request first")
-				return
+				user_id = arguments.pop("user_id")
+				if user_id == None:
+					self.write_json(error="no user id, do an http get request first")
+					return
 		job_id = arguments["job_id"]
 		last_progress = [None]
 		def progress(f):
