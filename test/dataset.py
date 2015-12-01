@@ -598,7 +598,7 @@ class TestWebServer(unittest.TestCase):
 
 		self.webserver = vaex.webserver.WebServer(datasets=[self.dataset], port=test_port)
 		self.webserver.serve_threaded()
-		self.server = vx.server("localhost", port=test_port)
+		self.server = vx.server("http://localhost:%d" % test_port)
 		self.dataset_remote = self.server.datasets()[0]
 
 	def tearDown(self):
