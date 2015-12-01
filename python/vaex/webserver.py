@@ -239,6 +239,7 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
 				tornado.ioloop.IOLoop.current().add_callback(do)
 			return True
 		response = yield self.submit_threaded(process, self.webserver, user_id, path, progress=progress, **arguments)
+		progress(1)
 		if response is None:
 			response = self.error("unknown request or error")
 		#if isinstance(response, str):
@@ -283,6 +284,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 		webserver.thread_local.executor = vaex.execution.Executor(thread_pool=webserver.thread_local.thread_pool)
 
 	progress = progress or (lambda x: True)
+	progress(0)
 	# TODO: mem leak and other issues if we don't disconnect this
 	webserver.thread_local.executor.signal_progress.connect(progress)
 	#return ("Hello, world")

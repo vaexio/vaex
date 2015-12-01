@@ -1131,7 +1131,7 @@ class VaexApp(QtGui.QMainWindow):
 					error("expected dataset to follow url, e.g. vaex http://servername:9000 somedataset, possible dataset names: %s" %  " ".join(names))
 				name = args[index]
 				if name not in names:
-					error("no such dataset '%s' at server, possible dataset names: %s" %  " ".join(names))
+					error("no such dataset '%s' at server, possible dataset names: %s" %  (name, " ".join(names)))
 
 				found = [dataset for dataset in datasets if dataset.name == name]
 				if found:

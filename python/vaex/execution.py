@@ -107,6 +107,7 @@ class Executor(object):
 
 					for task in task_queue:
 						task._results = []
+						task.signal_progress.emit(0)
 					block_scopes = [dataset._block_scope(0, buffer_size) for i in range(self.thread_pool.nthreads)]
 					def process(thread_index, i1, i2):
 						block_scope = block_scopes[thread_index]
@@ -118,7 +119,7 @@ class Executor(object):
 							task._results.append(task.map(thread_index, i1, i2, *blocks))
 							# don't call directly, since ui's don't like being updated from a different thread
 							#self.thread_mover(task.signal_progress, float(i2)/length)
-							#time.sleep(0.1)
+							#time.sleep(0.3)
 
 					length = len(dataset)
 					#print self.thread_pool.map()

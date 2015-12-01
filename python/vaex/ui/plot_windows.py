@@ -308,6 +308,7 @@ class PlotDialog(QtGui.QWidget):
 		self.progress_bar.setMinimumWidth(100)
 		self.progress_bar.setFixedWidth(100)
 		self.button_cancel.setEnabled(False)
+		self.progress_start_time = time.time()
 
 		self.label_time = QtGui.QLabel("", self.toolbar)
 
@@ -349,6 +350,18 @@ class PlotDialog(QtGui.QWidget):
 		#self.pinch_ranges_show = [None for i in range(self.dimension)]
 
 	def set_layer_progress(self, layer, fraction):
+		if fraction == 0:
+			self.progress_start_time = time.time()
+		if fraction == 1:
+			delta_time = time.time() - self.progress_start_time
+			info = "%.2f sec" % delta_time
+			self.label_time.setText(info)
+		elif fraction > 0:
+			delta_time = time.time() - self.progress_start_time
+			estimated = delta_time / fraction - delta_time
+			info = "ETA: %.2f sec" % estimated
+			self.label_time.setText(info)
+
 		self.button_cancel.setEnabled(True)
 		fraction = self.get_progress_fraction()
 		self.progress_bar.setValue(fraction*1000)
