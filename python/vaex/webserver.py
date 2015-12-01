@@ -475,20 +475,19 @@ class WebServer(threading.Thread):
 
 defaults_yaml = """
 address: 0.0.0.0
-port: 9002
+port: 9000
 filenames: []
 verbose: 2
 cache: 500000000
 compress: true
 """
 
-if __name__ == "__main__":
-	#logger.setLevel(logging.logging.DEBUG)
+def main(argv):
 
 	defaults = layeredconfig.Defaults(yaml.load(defaults_yaml))
 	env = layeredconfig.Environment(os.environ, prefix="VAEX_WEBSERVER_")
 	default_config = layeredconfig.LayeredConfig(defaults, env)
-	parser = argparse.ArgumentParser("python -m vaex.webserver")
+	parser = argparse.ArgumentParser(argv[0])
 	parser.add_argument("filename", help="filename for dataset", nargs='*')
 	parser.add_argument("--address", help="address to bind the server to (default: %(default)s)", default=default_config.address)
 	parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=default_config.port)
@@ -497,7 +496,7 @@ if __name__ == "__main__":
 	parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=default_config.compress, action='store_true')
 	parser.add_argument('--no-compress', dest="compress", action='store_false')
 	parser.add_argument('--development', default=False, action='store_true', help="enable development features (auto reloading)")
-	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser))
+	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser, commandline=argv))
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
 	logging.getLogger("vaex").setLevel(verbosity[config.verbose])
@@ -522,6 +521,10 @@ if __name__ == "__main__":
 	server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache, compress=config.compress, development=config.development)
 	server.serve()
 
+if __name__ == "__main__":
+	#logger.setLevel(logging.logging.DEBUG)
+	print sys.argv
+	main(sys.argv)
 	#3_threaded()
 	#import time
 	#time.sleep(10)

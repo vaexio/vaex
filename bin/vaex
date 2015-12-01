@@ -19,18 +19,21 @@ if darwin and frozen: # on newer osx versions we get a lot of broken pipes when 
 if frozen and not darwin: # pyinstaller
 	os.environ["QT_API"] = "pyside" # somehow the new matplotlib under pyinstaller doesn't use pyside
 
-import vaex.ui.main
 #print darwin, platform.system()
 
 
 
 if __name__ == '__main__':
-	#sys.stdout = open("stdout.txt", "w")
-	#sys.stderr = open("stderr.txt", "w")
-	#print sys.argv
-	#if darwin:
-	print(sys.argv)
 	if frozen and len(sys.argv) > 1 and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just start without arguments
+		import vaex.ui.main
 		vaex.ui.main.main([])
 	else:
-		vaex.ui.main.main(sys.argv[1:])
+		if len(sys.argv) > 1 and sys.argv[1] == "webserver":
+			import vaex.webserver
+			vaex.webserver.main([os.path.basename(sys.argv[0]) +" " +sys.argv[1]]  + sys.argv[2:])
+		elif len(sys.argv) > 1 and sys.argv[1] == "convert":
+			import vaex.export
+			vaex.export.main([os.path.basename(sys.argv[0]) +" " +sys.argv[1]]  + sys.argv[2:])
+		else:
+			import vaex.ui.main
+			vaex.ui.main.main(sys.argv[1:])

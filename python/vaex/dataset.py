@@ -2367,6 +2367,7 @@ class DatasetTap(DatasetArrays):
 	}
 	#not supported types yet 'VARCHAR',', u'BOOLEAN', u'INTEGER', u'CHAR
 	def __init__(self, tap_url="http://geadev.esac.esa.int/tap-dev/tap/g10_smc", table_name=None):
+		logger.debug("tap url: %r", tap_url)
 		self.tap_url = tap_url
 		self.table_name = table_name
 		if table_name is None: # let us try to infer the table name
@@ -2383,6 +2384,7 @@ class DatasetTap(DatasetArrays):
 		import requests
 		super(DatasetTap, self).__init__(self.table_name)
 		self.req = requests.request("get", self.tap_url+"/tables/")
+
 		#print dir(self.req)
 		from bs4 import BeautifulSoup
 			#self.soup = BeautifulSoup(req.response)
@@ -2391,8 +2393,9 @@ class DatasetTap(DatasetArrays):
 		for table in tables.find_all("table"):
 			#print table.find("name").string, table.description.string, table["gaiatap:size"]
 			table_name = unicode(table.find("name").string)
-			table_size = int(table["gaiatap:size"])
+			table_size = int(table["esatapplus:size"])
 			#print table_name, table_size
+			logger.debug("tap table %r ", table_name)
 			columns = []
 			for column in table.find_all("column"):
 				column_name = unicode(column.find("name").string)
@@ -2402,6 +2405,8 @@ class DatasetTap(DatasetArrays):
 				#types.add()
 				columns.append((column_name, column_type, ucd))
 			self.tap_tables[table_name] = (table_size, columns)
+		if not self.tap_tables:
+			raise ValueError, "no tables or wrong url"
 		for name, (table_size, columns) in self.tap_tables.items():
 			logger.debug("table %s has length %d", name, table_size)
 		self._full_length, self._tap_columns = self.tap_tables[self.table_name]

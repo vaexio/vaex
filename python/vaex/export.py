@@ -202,15 +202,18 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 
 
 if __name__ == "__main__":
+	main(sys.argv)
+
+def main(argv):
 	import argparse
-	parser = argparse.ArgumentParser("python -m vaex.export")
+	parser = argparse.ArgumentParser(argv[0])
 	parser.add_argument('--verbose', '-v', action='count', default=0)
 	parser.add_argument('--list', '-l', default=False, action='store_true', help="list columns of input")
 	parser.add_argument('--progress', help="show progress (default: %(default)s)", default=True, action='store_true')
 	parser.add_argument('--no-progress', dest="progress", action='store_false')
 	parser.add_argument('--shuffle', "-s", dest="shuffle", action='store_true', default=False)
 
-	subparsers = parser.add_subparsers(help='sub-command help', dest="task")
+	subparsers = parser.add_subparsers(help='type of input source', dest="task")
 
 	parser_soneira = subparsers.add_parser('soneira', help='create soneira peebles dataset')
 	parser_soneira.add_argument('output', help='output file')
@@ -221,18 +224,18 @@ if __name__ == "__main__":
 	parser_soneira.add_argument('--lambdas','-l', type=int, help='lambda values for fractal', default=[1.1, 1.3, 1.6, 2.])
 
 
-	parser_tap = subparsers.add_parser('tap', help='use TAP as source')
+	parser_tap = subparsers.add_parser('tap', help='use TAP (Table Access Protocol) as source')
 	parser_tap.add_argument("tap_url", help="input source or file")
 	parser_tap.add_argument("table_name", help="input source or file")
 	parser_tap.add_argument("output", help="output file (ends in .fits or .hdf5)")
 	parser_tap.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
 
-	parser_file = subparsers.add_parser('file', help='use a file as source')
+	parser_file = subparsers.add_parser('file', help='use a file as source (e.g. .hdf5, .fits, .vot (VO table), .asc (ascii)')
 	parser_file.add_argument("input", help="input source or file")
 	parser_file.add_argument("output", help="output file (ends in .fits or .hdf5)")
 	parser_file.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
 
-	args = parser.parse_args()
+	args = parser.parse_args(argv[1:])
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
 	logging.getLogger("vaex").setLevel(verbosity[min(3, args.verbose)])
