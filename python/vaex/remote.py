@@ -132,8 +132,9 @@ class ServerRest(object):
 
 
 	def _on_websocket_message(self, msg):
-		logger.debug("socket read message: %s")
+		logger.debug("socket read message: %s", msg)
 		response = json.loads(msg)
+		logger.debug("json response: %r", response)
 		# for the moment, job == task, in the future a job can be multiple tasks
 		job_id = response.get("job_id")
 		if job_id:
