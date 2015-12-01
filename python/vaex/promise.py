@@ -67,6 +67,7 @@ class Promise(aplus.Promise):
                     ret.fulfill(v)
             except Exception as e:
                 Promise.last_exc_info = sys.exc_info()
+                e.exc_info = sys.exc_info()
                 ret.reject(e)
 
         def callAndReject(r):
@@ -81,6 +82,7 @@ class Promise(aplus.Promise):
                     ret.reject(r)
             except Exception as e:
                 Promise.last_exc_info = sys.exc_info()
+                e.exc_info = sys.exc_info()
                 ret.reject(e)
 
         self.done(callAndFulfill, callAndReject)
@@ -92,7 +94,10 @@ class Promise(aplus.Promise):
 			args = sys.exc_info()
 			if args is None or args[0] is None:
 				args = Promise.last_exc_info
-			print args, Promise.last_exc_info, sys.exc_info(), Promise.unhandled
+			print reason, args, Promise.last_exc_info, sys.exc_info(), Promise.unhandled
+			if hasattr(reason, "exc_info"):
+				args = reason.exc_info
+			#print args
 			try:
 				Promise.unhandled(*args)
 			except:
