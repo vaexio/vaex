@@ -204,49 +204,82 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 if __name__ == "__main__":
 	import argparse
 	parser = argparse.ArgumentParser("python -m vaex.export")
-	parser.add_argument("input", help="input source or file")
-	parser.add_argument("output", help="output file (ends in .fits or .hdf5)")
-	parser.add_argument("columns", help="list of columns to export", nargs="*")
 	parser.add_argument('--verbose', '-v', action='count', default=0)
 	parser.add_argument('--list', '-l', default=False, action='store_true', help="list columns of input")
 	parser.add_argument('--progress', help="show progress (default: %(default)s)", default=True, action='store_true')
 	parser.add_argument('--no-progress', dest="progress", action='store_false')
+	parser.add_argument('--shuffle', "-s", dest="shuffle", action='store_true', default=False)
+
+	subparsers = parser.add_subparsers(help='sub-command help', dest="task")
+
+	parser_soneira = subparsers.add_parser('soneira', help='create soneira peebles dataset')
+	parser_soneira.add_argument('output', help='output file')
+	parser_soneira.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
+	parser_soneira.add_argument('--dimension','-d', type=int, help='dimensions', default=4)
+	#parser_soneira.add_argument('--eta','-e', type=int, help='dimensions', default=3)
+	parser_soneira.add_argument('--max-level','-m', type=int, help='dimensions', default=28)
+	parser_soneira.add_argument('--lambdas','-l', type=int, help='lambda values for fractal', default=[1.1, 1.3, 1.6, 2.])
+
+
+	parser_tap = subparsers.add_parser('tap', help='use TAP as source')
+	parser_tap.add_argument("tap_url", help="input source or file")
+	parser_tap.add_argument("table_name", help="input source or file")
+	parser_tap.add_argument("output", help="output file (ends in .fits or .hdf5)")
+	parser_tap.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
+
+	parser_file = subparsers.add_parser('file', help='use a file as source')
+	parser_file.add_argument("input", help="input source or file")
+	parser_file.add_argument("output", help="output file (ends in .fits or .hdf5)")
+	parser_file.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
+
 	args = parser.parse_args()
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
 	logging.getLogger("vaex").setLevel(verbosity[min(3, args.verbose)])
-	print("exporting from {input} to {output}".format(input=args.input, output=args.output))
-	ds = vaex.open(args.input)
-	if ds is None:
-		print("Cannot opening input")
+
+	if args.task == "soneira":
+		if vaex.utils.check_memory_usage(4*8*2**args.max_level, vaex.utils.confirm_on_console):
+			dataset = vaex.dataset.SoneiraPeebles(args.dimension, 2, args.max_level, args.lambdas)
+		else:
+			sys.exit(1)
+	if args.task == "tap":
+		dataset = vaex.dataset.DatasetTap(args.tap_url, args.table_name)
+		print("exporting from {tap_url} table name {table_name} to {output}".format(tap_url=args.tap_url, table_name=args.table_name, output=args.output))
+	if args.task == "file":
+		dataset = vaex.open(args.input)
+		print("exporting from {input} to {output}".format(input=args.input, output=args.output))
+
+	if dataset is None:
+		print("Cannot open input")
 		sys.exit(1)
 	if args.list:
-		print("columns names: " + " ".join(ds.get_column_names()))
+		print("columns names: " + " ".join(dataset.get_column_names()))
 	else:
 		if args.columns:
 			columns = args.columns
 		else:
 			columns = None
+		if columns is None:
+			columns = dataset.get_column_names()
 		for column in columns:
-			if column not in ds.get_column_names():
+			if column not in dataset.get_column_names():
 				print("column %r does not exist, run with --list or -l to list all columns")
 				sys.exit(1)
 
 		base, output_ext = os.path.splitext(args.output)
+		if output_ext not in [".hdf5", ".fits"]:
+			print("extension %s not supported, only .fits and .hdf5 are" % output_ext)
+			sys.exit(1)
+
+		print("exporting %d rows and %d columns" % (len(dataset), len(columns)))
+		print("columns: " +" ".join(columns))
 		with vaex.utils.progressbar("exporting") as progressbar:
 			def update(p):
 				progressbar.update(p)
 				return True
 			if output_ext == ".hdf5":
-				export_hdf5(ds, args.output, column_names=columns, progress=update)
-			else:
-				print("extension %s not supported, only .fits and .hdf5 are" % output_ext)
+				export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
+			elif output_ext == ".fits":
+				export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
 		print("\noutput to %s" % os.path.abspath(args.output))
 
-	if 0:
-		parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=default_config.port)
-		parser.add_argument('--verbose', '-v', action='count')
-		parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=default_config.cache)
-		parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=default_config.compress, action='store_true')
-		parser.add_argument('--no-compress', dest="compress", action='store_false')
-		parser.add_argument('--development', default=False, action='store_true', help="enable development features (auto reloading)")
