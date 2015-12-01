@@ -217,3 +217,4 @@ def check_memory_usage(bytes_needed, confirm):
 		else:
 			text = "Action requires %s, you do not have enough swap memory available, do you want try anyway?" % (filesize_format(bytes_needed),)
 			return confirm("Memory usage issue", text)
+	return True
