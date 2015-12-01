@@ -22,12 +22,72 @@ if frozen and not darwin: # pyinstaller
 #print darwin, platform.system()
 
 
+usage = """usage veax [-h] {webserver,convert,...}
 
+optional arguments:
+  -h, --help          show this help message and exit
+
+positional arguments:
+    webserver           start the vaex webserver
+    convert             convert datasets
+    ...                 anything else will start up the gui, see usage below
+
+
+All other cases will start up the gui:
+usage: vaex [input expression [expression ...] [key=value ...]
+            [-|--|+|++] input expression...]
+
+input        input file or url (if an url is provided, a dataset name should follow)
+expression   expressions to plot, for instance "x**2", "y" "x+y"
+-|--|+|++    - will open a new window, no input is required
+             -- will open a new window with a new dataset (input is required)
+             + will add a new layer, no input is required
+             ++ will add a new layer with a new dataset (input is required)
+key=value    will set properties of the plot, see a list of values below
+
+there can be 1, 2 or 3 expressions, resulting in a 1d histogram, a 2d density plot or a
+ 3d volume rendering window.
+
+key=value options:
+amplitude          (string) expression for how the histogram translates to an amplitude,
+                    available grids:
+                       counts: N dimensional grid containing the counts
+                       weighted: N dimensional grid containing the sum of
+                            the weighted values
+weight             (string) expression for the weight field
+grid_size          (integer, power of 2), defines the size of the histogram grid, example
+                       grid_size=64 grid_size=129
+vector_grid_size   similar, for the vector histogram
+vx, vy, vz         (string) expressions for the x,y and z component of the vector grid
+
+
+Examples:
+# single window, showing log(counts+1) as amplitude
+$ vaex example.hdf5 x y amplitude="log(counts+1)'
+
+# adding a second window, showing x vs z
+vaex example.hdf5 x y amplitude="log(counts+1)" - x z amplitude="log(counts+1)"
+
+# adding a second window with a new dataset
+vaex example.hdf5 x y amplitude="log(counts+1)" -- example2.hdf5 x z amplitude="log(counts+1)"
+
+# single window, with an extra layer
+vaex example.hdf5 x y amplitude="log(counts+1)" + y x amplitude="log(counts+1)"
+
+# single window, with an extra layer from a new dataset
+vaex example.hdf5 x y amplitude="log(counts+1)" ++ example2.hdf5 x y amplitude="log(counts+1)"
+
+see more examples at http://TODO
+
+"""
 if __name__ == '__main__':
 	if frozen and len(sys.argv) > 1 and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just start without arguments
 		import vaex.ui.main
 		vaex.ui.main.main([])
 	else:
+		if len(sys.argv) > 1 and sys.argv[1] in ["-h", "--help"]:
+			print(usage)
+			sys.exit(0)
 		if len(sys.argv) > 1 and sys.argv[1] == "webserver":
 			import vaex.webserver
 			vaex.webserver.main([os.path.basename(sys.argv[0]) +" " +sys.argv[1]]  + sys.argv[2:])
