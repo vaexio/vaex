@@ -463,6 +463,9 @@ class PlotDialog(QtGui.QWidget):
 	def load_options(self, name):
 		self.plugins_map["favorites"].load_options(name, update=False)
 
+	def select_layer(self, index):
+		self.layer_selection.setCurrentIndex(index+1)
+
 	def add_layer(self, expressions, dataset=None, name=None, **options):
 		if dataset is None:
 			dataset = self.dataset
@@ -487,7 +490,8 @@ class PlotDialog(QtGui.QWidget):
 
 		layer.widget.setVisible(False)
 		self.layer_selection.addItem(name)
-		self.layer_selection.setCurrentIndex(len(self.layers))
+		#self.layer_selection.setCurrentIndex(len(self.layers))
+		self.select_layer(len(self.layers)-1)
 
 
 
