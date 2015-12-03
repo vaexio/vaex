@@ -796,6 +796,7 @@ class VaexApp(QtGui.QMainWindow):
 
 		def on_dataset_select(dataset):
 			self.current_dataset = dataset
+			current.dataset = dataset
 			self.dataset_panel.show_dataset(dataset)
 		self.dataset_selector.signal_dataset_select.connect(on_dataset_select)
 		#self.list.currentItemChanged.connect(self.infoPanel.onDataSelected)
@@ -1028,6 +1029,8 @@ class VaexApp(QtGui.QMainWindow):
 
 		def on_open_plot(plot_dialog):
 			plot_dialog.signal_samp_send_selection.connect(lambda dataset: self.on_samp_send_table_select_rowlist(dataset=dataset))
+			current.window = plot_dialog
+			#current.layer = plot_dialog.current_layer
 			if kernel:
 				kernel.shell.push({"window":plot_dialog})
 				kernel.shell.push({"layer":plot_dialog.current_layer})
@@ -1037,6 +1040,7 @@ class VaexApp(QtGui.QMainWindow):
 				self.windows.remove(window)
 				if self.current_window == window:
 					self.current_window = None
+					current.window = None
 			plot_dialog.signal_closed.connect(on_close)
 			self.current_window = plot_dialog
 
@@ -1070,21 +1074,30 @@ class VaexApp(QtGui.QMainWindow):
 			self.queue_call_in_main_thread.put(return_value)
 		#promise.fulfill(value)
 
-	def plot(self, *args, **kwargs):
-		window_name = kwargs.get("window_name")
-		layer_name = kwargs.get("layer_name")
-		name = kwargs.get("name")
-		if name is not None:
-			window_name, layer_name = name.split(":")
-			kwargs["window_name"] = window_name
-			kwargs["layer_name"] = layer_name
+	def select(self, *args):
+		args = list(args) # copy since we will modify it
+		if len(args) == 0:
+			print("select requires at least one argument")
+			return
+		index = args.pop(0)
+		if (index < 0) or index >= len(self.windows):
+			print("window index %d out of range [%d, %d]" % (index, 0, len(self.windows)-1))
+		else:
+			current.window = self.windows[index]
+			if len(args) > 0:
+				layer_index = args.pop(0)
+				current.window.select_layer(layer_index)
+				current.layer = current.window.current_layer
 
-		layer = None
-		window = None
-		windows = [window for window in self.windows if window.name == window_name]
-		if windows:
-			window = windows[0]
-			layers = [layer for layer in window.layers if layer.name == layer_name]
+
+	def plot(self, *args, **kwargs):
+		if current.window is None:
+			if len(args) == 1:
+				self.dataset_panel.histogram(args[0], **kwargs)
+			if len(args) == 2:
+				self.dataset_panel.plotxy(args[0], args[1], **kwargs)
+		else:
+			layer = current.window.current_layer
 			if layer:
 				layer.apply_options(kwargs)
 				if len(args) == 1:
@@ -1092,11 +1105,28 @@ class VaexApp(QtGui.QMainWindow):
 				if len(args) == 2:
 					layer.x = args[0]
 					layer.y = args[1]
-		if layer is None:
-			if len(args) == 1:
-				self.dataset_panel.histogram(args[0], **kwargs)
-			if len(args) == 2:
-				self.dataset_panel.plotxy(args[0], args[1], **kwargs)
+			else:
+				print("no current layer")
+
+		#window_name = kwargs.get("window_name")
+		#layer_name = kwargs.get("layer_name")
+		#name = kwargs.get("name")
+		#if name is not None:
+		#	window_name, layer_name = name.split(":")
+		#	kwargs["window_name"] = window_name
+		#	kwargs["layer_name"] = layer_name
+
+		#layer = None
+		#window = None
+		#windows = [window for window in self.windows if window.name == window_name]
+		#if windows:
+		#	window = windows[0]
+		#	layers = [layer for layer in window.layers if layer.name == layer_name]
+		#if layer is None:
+		#	if len(args) == 1:
+		#		self.dataset_panel.histogram(args[0], **kwargs)
+		#	if len(args) == 2:
+		#		self.dataset_panel.plotxy(args[0], args[1], **kwargs)
 			#if len(args) == 1:
 			#	self.dataset_panel.histogram(args[0], kwargs)
 		#else:
@@ -1695,6 +1725,13 @@ from IPython.lib import guisupport
 
 def print_process_id():
     print(('Process ID is:', os.getpid()))
+class Current(object):
+	pass
+
+current = Current()
+#current.fig = None
+current.window = None
+#current.layer  = None
 
 def main(argv=sys.argv[1:]):
 	global main_thread
@@ -1702,6 +1739,8 @@ def main(argv=sys.argv[1:]):
 	global app
 	global kernel
 	global ipython_console
+	global current
+
 	if app is None:
 		app = QtGui.QApplication(argv)
 		if not (frozen and darwin): # osx app has its own icon file
@@ -1732,6 +1771,8 @@ def main(argv=sys.argv[1:]):
 	vaex_app = VaexApp(argv, open_default=True)
 	def plot(*args, **kwargs):
 		vaex_app.plot(*args, **kwargs)
+	def select(*args, **kwargs):
+		vaex_app.select(*args, **kwargs)
 
 	if 1:
 		#   app = guisupport.get_app_qt4()
@@ -1744,7 +1785,7 @@ def main(argv=sys.argv[1:]):
 		kernel_manager.start_kernel()
 		kernel = kernel_manager.kernel
 		kernel.gui = 'qt4'
-		kernel.shell.push({'foo': 43, 'print_process_id': print_process_id, "vaex_app":vaex_app, "plot": plot})
+		kernel.shell.push({'foo': 43, 'print_process_id': print_process_id, "vaex_app":vaex_app, "plot": plot, "current": current, "select": select})
 
 		kernel_client = kernel_manager.client()
 		kernel_client.start_channels()
