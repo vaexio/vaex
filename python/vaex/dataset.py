@@ -644,13 +644,16 @@ class SubspaceLocal(Subspace):
 			return do_correlation(means, vars)
 
 	def sum(self):
+		nansum = lambda x: np.nansum(x, dtype=np.float64)
+		# TODO: we can speed up significantly using our own nansum, probably the same for var and mean
+		#nansum = vaex.vaexfast.nansum
 		if self.is_masked:
 			mask = self.dataset.mask
 			task = TaskMapReduce(self.dataset,\
-								 self.expressions, lambda thread_index, i1, i2, *blocks: [np.nansum(block[mask[i1:i2]], dtype=np.float64) for block in blocks],\
+								 self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[mask[i1:i2]], dtype=np.float64) for block in blocks],\
 								 lambda a, b: np.array(a) + np.array(b), self._toarray, info=True)
 		else:
-			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nansum(block, dtype=np.float64) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
+			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
 		return self._task(task)
 
 	def histogram(self, limits, size=256, weight=None, progressbar=False):
