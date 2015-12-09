@@ -410,6 +410,46 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 	return result;
 }
 
+void nansum(const double* const block_ptr, const long long length, bool native, double &sum_) {
+	double sum = sum_;
+
+	if(native) {
+		for(long long i = 0; i < length; i++) {
+			double value = block_ptr[i];
+			sum += value != value ? 0 : value;
+		}
+	} else {
+		for(long long i = 0; i < length; i++) {
+			double value = double_to_native(block_ptr[i]);
+			sum += value != value ? 0 : value;
+		}
+	}
+	sum_ = sum;
+}
+
+
+PyObject* nansum_(PyObject* self, PyObject* args) {
+	PyObject* result = NULL;
+	PyObject* block;
+	if(PyArg_ParseTuple(args, "O", &block)) {
+
+		long long length = -1;
+		double *block_ptr = NULL;
+		double sum=0.;
+		bool native = true;
+		try {
+			object_to_numpy1d_nocopy_endian(block_ptr, block, length, native);
+			Py_BEGIN_ALLOW_THREADS
+			nansum(block_ptr, length, native, sum);
+			Py_END_ALLOW_THREADS
+			result = Py_BuildValue("d", sum);
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
+	}
+	return result;
+}
+
 
 
 
@@ -558,6 +598,8 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 			for(long long i = 0; i < block_length; i++) {
 				double value_x = blockx[i];
 				double value_y = blocky[i];
+				//value_x = value_x * value_y;
+				//value_y = atan2(value_x, value_y);
 
 				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
 				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
@@ -1240,6 +1282,7 @@ static PyObject* resize_(PyObject* self, PyObject *args) {
 
 static PyMethodDef pyvaex_functions[] = {
         {"range_check", (PyCFunction)range_check_, METH_VARARGS, ""},
+        {"nansum", (PyCFunction)nansum_, METH_VARARGS, ""},
         {"find_nan_min_max", (PyCFunction)find_nan_min_max_, METH_VARARGS, ""},
         {"histogram1d", (PyCFunction)histogram1d_, METH_VARARGS, ""},
         {"histogram2d", (PyCFunction)histogram2d_, METH_VARARGS, ""},
