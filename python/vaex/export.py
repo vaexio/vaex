@@ -242,6 +242,7 @@ def main(argv):
 
 	if args.task == "soneira":
 		if vaex.utils.check_memory_usage(4*8*2**args.max_level, vaex.utils.confirm_on_console):
+			print("generating soneira peebles dataset...")
 			dataset = vaex.dataset.SoneiraPeebles(args.dimension, 2, args.max_level, args.lambdas)
 		else:
 			sys.exit(1)
