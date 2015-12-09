@@ -120,7 +120,7 @@ if __name__ == '__main__':
 			import vaex.export
 			vaex.export.main([os.path.basename(sys.argv[0]) +" " +sys.argv[1]]  + sys.argv[2:])
 		else:
-			if frozendarwin: # pyinstaller and py2app need this
+			if frozen: # pyinstaller and py2app need this
 				os.environ["QT_API"] = "pyqt" # somehow the new matplotlib under pyinstaller doesn't use pyside
 				# fix for qt_console, which uses imp.find_module which doesn't work
 				import qtconsole.qt_loaders
