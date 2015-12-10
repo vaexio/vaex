@@ -410,7 +410,7 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 	return result;
 }
 
-void nansum(const double* const block_ptr, const long long length, bool native, double &sum_) {
+void nansum(const double* const __restrict__ block_ptr, const long long length, bool native, double &sum_) {
 	double sum = sum_;
 
 	if(native) {
@@ -599,7 +599,7 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 				double value_x = blockx[i];
 				double value_y = blocky[i];
 				//value_x = value_x * value_y;
-				//value_y = atan2(value_x, value_y);
+				//value_y = value_x + value_y;
 
 				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
 				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
