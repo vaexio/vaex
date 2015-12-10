@@ -63,6 +63,9 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 
 	#i1, i2 = 0, N #len(dataset)
 	#print "creating shuffled array"
+	if progress == True:
+		progress = vaex.utils.progressbar_callable("exporting")
+	progress = progress or (lambda value: True)
 	progress_total = len(column_names) * N
 	progress_value = 0
 	for column_name in column_names:
@@ -106,7 +109,9 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 	:param lis[str] column_names: list of column names to export or None for all columns
 	:param bool shuffle: export rows in random order
 	:param bool selection: export selection or not
-	:param progress: progress callback that gets a progress fraction as argument and should return True to continue
+	:param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+		or a default progress bar when progress=True
+	:param: bool virtual: When True, export virtual columns
 	:return:
 	"""
 	if shuffle:
@@ -142,7 +147,6 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 		del data_types[-1]
 		del data_shapes[-1]
 	dataset_output = vaex.dataset.FitsBinTable(path, write=True)
-	progress = progress or (lambda value: True)
 	_export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
 			column_names=column_names, selection=selection, shuffle=shuffle,
 			progress=progress)
@@ -155,7 +159,9 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 	:param str byteorder: = for native, < for little endian and > for big endian
 	:param bool shuffle: export rows in random order
 	:param bool selection: export selection or not
-	:param progress: progress callback that gets a progress fraction as argument and should return True to continue
+	:param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+		or a default progress bar when progress=True
+	:param: bool virtual: When True, export virtual columns
 	:return:
 	"""
 
@@ -163,8 +169,6 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 		assert dataset.has_selection(), "cannot export selection is there is none"
 	# first open file using h5py api
 	with h5py.File(path, "w") as h5file_output:
-
-		progress = progress or (lambda value: True)
 
 		h5data_output = h5file_output.require_group("data")
 		#i1, i2 = dataset.current_slice

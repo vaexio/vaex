@@ -197,6 +197,16 @@ def progressbar(name="processing", max_value=1):
 	return bar
 	#FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')
 
+def progressbar_callable(name="processing", max_value=1):
+	bar = progressbar(name, max_value=max_value)
+	def update(fraction):
+		bar.update(fraction)
+		if fraction == 1:
+			bar.finish()
+		return True
+	return update
+
+
 def confirm_on_console(topic, msg):
 	done = False
 	print(topic)

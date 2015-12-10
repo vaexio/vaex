@@ -387,6 +387,9 @@ class Subspaces(object):
 		self.expressions = list(self.expressions)
 		self.subspace = self.dataset(*list(self.expressions), async=self.async, executor=first_subspace.executor)
 
+	def names(self, seperator=" "):
+		return [seperator.join(subspace.expressions) for subspace in self.subspaces]
+
 	def selected(self):
 		return Subspaces([subspace.selected() for subspace in self.subspaces])
 
@@ -567,12 +570,12 @@ class Subspace(object):
 			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
 		if axes is None:
 			axes = pylab.gca()
-		if xlabel:
-			pylab.xlabel(xlabel)
-		if ylabel:
-			pylab.ylabel(ylabel)
-		axes.set_aspect(aspect)
-		return axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
+		#if xlabel:
+		pylab.xlabel(xlabel or self.expressions[0])
+		#if ylabel:
+		pylab.ylabel(ylabel or self.expressions[1])
+		#axes.set_aspect(aspect)
+		return axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", aspect=aspect, **kwargs)
 
 	def figlarge(self, size=(10,10)):
 		import pylab
@@ -797,11 +800,11 @@ class SubspaceLocal(Subspace):
 	def sum(self):
 		nansum = lambda x: np.nansum(x, dtype=np.float64)
 		# TODO: we can speed up significantly using our own nansum, probably the same for var and mean
-		nansum = vaex.vaexfast.nansum
+		# nansum = vaex.vaexfast.nansum
 		if self.is_masked:
 			mask = self.dataset.mask
 			task = TaskMapReduce(self.dataset,\
-								 self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[mask[i1:i2]], dtype=np.float64) for block in blocks],\
+								 self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[mask[i1:i2]]) for block in blocks],\
 								 lambda a, b: np.array(a) + np.array(b), self._toarray, info=True)
 		else:
 			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
@@ -1548,7 +1551,7 @@ class DatasetLocal(Dataset):
 			scope.buffers[expression] = out
 		return scope.evaluate(expression)
 
-	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None):
+	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
 		"""
 		:param DatasetLocal dataset: dataset to export
 		:param str path: path for file
@@ -1556,7 +1559,9 @@ class DatasetLocal(Dataset):
 		:param str byteorder: = for native, < for little endian and > for big endian
 		:param bool shuffle: export rows in random order
 		:param bool selection: export selection or not
-		:param progress: progress callback that gets a progress fraction as argument and should return True to continue
+		:param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+			or a default progress bar when progress=True
+		:param: bool virtual: When True, export virtual columns
 		:return:
 		"""
 		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress)
@@ -1568,7 +1573,9 @@ class DatasetLocal(Dataset):
 		:param lis[str] column_names: list of column names to export or None for all columns
 		:param bool shuffle: export rows in random order
 		:param bool selection: export selection or not
-		:param progress: progress callback that gets a progress fraction as argument and should return True to continue
+		:param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+			or a default progress bar when progress=True
+		:param: bool virtual: When True, export virtual columns
 		:return:
 		"""
 		vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress)
