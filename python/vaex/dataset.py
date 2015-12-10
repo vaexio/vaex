@@ -28,6 +28,7 @@ import vaex.promise
 import vaex.execution
 import logging
 import astropy.io.fits as fits
+import vaex.kld
 
 # py2/p3 compatibility
 try:
@@ -365,7 +366,140 @@ class SubspaceBounded(object):
 		return SubspaceGridded(self, grid)
 
 
+class Subspaces(object):
+	"""
+	:type: subspaces: list[Subspace]
 
+	"""
+	def __init__(self, subspaces):
+		self.subspaces = subspaces
+		self.expressions = set()
+		first_subspace = self.subspaces[0]
+		self.async = first_subspace.async
+		self.dimension = first_subspace.dimension
+		self.dataset = self.subspaces[0].dataset
+		for subspace in self.subspaces:
+			assert subspace.dataset == self.subspaces[0].dataset
+			assert subspace.async == self.subspaces[0].async
+			assert subspace.dimension == self.subspaces[0].dimension, "subspace is of dimension %s, while first subspace if of dimension %s" % (subspace.dimension, self.subspaces[0].dimension)
+			#assert subspace.sele== self.subspaces[0].async
+			self.expressions.update(subspace.expressions)
+		self.expressions = list(self.expressions)
+		self.subspace = self.dataset(*list(self.expressions), async=self.async, executor=first_subspace.executor)
+
+	def selected(self):
+		return Subspaces([subspace.selected() for subspace in self.subspaces])
+
+	def _unpack(self, values):
+		value_map = dict(zip(self.expressions, values))
+		return [[value_map[ex] for ex in subspace.expressions] for subspace in self.subspaces]
+
+	def _pack(self, values):
+		value_map = {}
+		for subspace_values, subspace in zip(values, self.subspaces):
+			for value, expression in zip(subspace_values, subspace.expressions):
+				if expression in value_map:
+					if isinstance(value, np.ndarray):
+						assert np.all(value_map[expression] == value), "inconsistency in subspaces, value for expression %r is %r in one case, and %r in the other" % (expression, value, value_map[expression])
+					else:
+						assert value_map[expression] == value, "inconsistency in subspaces, value for expression %r is %r in one case, and %r in the other" % (expression, value, value_map[expression])
+				else:
+					value_map[expression] = value
+		return [value_map[expression] for expression in self.expressions]
+
+
+	def minmax(self):
+		if self.async:
+			return self.subspace.minmax().then(self._unpack)
+		else:
+			return self._unpack(self.subspace.minmax())
+
+	def limits_sigma(self, sigmas=3, square=False):
+		if self.async:
+			return self.subspace.limits_sigma(sigmas=sigmas, square=square).then(self._unpack)
+		else:
+			return self._unpack(self.subspace.limits_sigma(sigmas=sigmas, square=square))
+
+	def mutual_information(self, limits=None, size=256):
+		if limits is not None:
+			limits = self._pack(limits)
+		def mutual_information(limits):
+			return vaex.promise.listPromise([vaex.promise.Promise.fulfilled(subspace.mutual_information(subspace_limits, size=size)) for subspace_limits, subspace in zip(limits, self.subspaces)])
+			#return histograms
+		if limits is None:
+			limits_promise = vaex.promise.Promise.fulfilled(self.subspace.minmax())
+		else:
+			limits_promise = vaex.promise.Promise.fulfilled(limits)
+		limits_promise = limits_promise.then(self._unpack)
+		promise = limits_promise.then(mutual_information)
+		return promise if self.async else promise.get()
+
+
+
+	def mean(self):
+		if self.async:
+			return self.subspace.mean().then(self._unpack)
+		else:
+			means = self.subspace.mean()
+			return self._unpack(means)
+
+	def var(self, means=None):
+		# 'pack' means, and check if it makes sence
+		if means is not None:
+			means = self._pack(means)
+		def var(means):
+			return self.subspace.var(means=means)
+		if self.async:
+			if means is None:
+				return self.subspace.means().then(var).then(self._unpack)
+			else:
+				return var(means).then(self._unpack)
+		else:
+			if means is None:
+				means = self.subspace.mean()
+			logger.debug("means: %r", means)
+			return self._unpack(var(means))
+
+	def correlation(self, means=None, vars=None):
+		def var(means):
+			return self.subspace.var(means=means)
+		def correlation(means_and_vars):
+			means, vars = means_and_vars
+			print means, vars
+			means, vars = self._unpack(means), self._unpack(vars)
+			#return self.subspace.correlation(means=means, vars=vars)
+			return vaex.promise.listPromise([subspace.correlation(means=subspace_mean, vars=subspace_var) for subspace_mean, subspace_var, subspace in zip(means, vars, self.subspaces)])
+		if means is not None:
+			means = self._pack(means)
+		if vars is not None:
+			vars = self._pack(vars)
+		if self.async:
+			if means is None:
+				mean_promise = self.subspace.mean()
+			else:
+				mean_promise = vaex.promise.Promise.fulfilled(means)
+			if vars is None:
+				var_promise = mean_promise.then(var)
+			else:
+				var_promise = vaex.promise.Promise.fulfilled(vars)
+			mean_and_var_calculated = vaex.promise.listPromise(mean_promise, var_promise)
+			return mean_and_var_calculated.then(correlation)
+		else:
+			if means is None:
+				means = self.subspace.mean()
+			if vars is None:
+				vars = self.subspace.var(means=means)
+			means = self._unpack(means)
+			vars = self._unpack(vars)
+			return [subspace.correlation(means=subspace_mean, vars=subspace_var) for subspace_mean, subspace_var, subspace in zip(means, vars, self.subspaces)]
+			#return correlation((means, vars))
+
+
+
+
+
+	#def bounded_by(self, limits_list):
+	#	return SubspacesBounded(SubspaceBounded(subspace, limits) for subspace, limit in zip(self.subspaces, limits_list))
 
 class Subspace(object):
 	"""A Subspace represent a subset of columns or expressions from a dataset.
@@ -409,11 +543,21 @@ class Subspace(object):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
 	def plot(self, grid=None, limits=None, center=None, weight=None, figsize=None, aspect="auto", f=lambda x: x, axes=None, **kwargs):
+		"""Plot the subspace using sane defaults to get a quick look at the data.
+
+
+		:param grid: A 2d numpy array with the counts, if None it will be calculated using limits provided and Subspace.histogram
+		:param limits: Limits for the subspace in the form [[xmin, xmax], [ymin, ymax]], if None it will be calculated using Subspace.limits_sigma
+		:param Executor executor: responsible for executing the tasks
+		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+		:param aspect: Passes to matplotlib's axes.set_aspect
+		:param kwargs: extra argument passed to axes.imshow, useful for setting the colormap for instance, e.g. cmap='afmhot'
+		:return:
+
+		 """
 		import pylab
 		if limits is None:
 			limits = self.limits_sigma()
-		if center is not None:
-			limits = np.array(limits) - np.array(center).reshape(2,1)
 		if grid is None:
 			grid = self.histogram(limits=limits, weight=weight)
 		if figsize is not None:
@@ -421,7 +565,7 @@ class Subspace(object):
 		if axes is None:
 			axes = pylab.gca()
 		axes.set_aspect(aspect)
-		axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
+		return axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
 
 	def figlarge(self, size=(10,10)):
 		import pylab
@@ -646,7 +790,7 @@ class SubspaceLocal(Subspace):
 	def sum(self):
 		nansum = lambda x: np.nansum(x, dtype=np.float64)
 		# TODO: we can speed up significantly using our own nansum, probably the same for var and mean
-		#nansum = vaex.vaexfast.nansum
+		nansum = vaex.vaexfast.nansum
 		if self.is_masked:
 			mask = self.dataset.mask
 			task = TaskMapReduce(self.dataset,\
@@ -659,6 +803,19 @@ class SubspaceLocal(Subspace):
 	def histogram(self, limits, size=256, weight=None, progressbar=False):
 		task = TaskHistogram(self.dataset, self, self.expressions, size, limits, masked=self.is_masked, weight=weight)
 		return self._task(task, progressbar=progressbar)
+
+	def mutual_information(self, limits=None, grid=None, size=256):
+		if limits is None:
+			limits_done = vaex.promise.Promise.fulfilled(self.minmax())
+		else:
+			limits_done = vaex.promise.Promise.fulfilled(limits)
+		if grid is None:
+			histogram_done = limits_done.then(lambda limits: self.histogram(limits, size=size))
+		else:
+			histogram_done = limits_done.fulfill(grid)
+		mutual_information_promise = histogram_done.then(vaex.kld.mutual_information)
+		return mutual_information_promise if self.async else mutual_information_promise.get()
+
 
 	def limits_sigma(self, sigmas=3, square=False):
 		means = self.mean()
@@ -980,6 +1137,16 @@ class Dataset(object):
 	@classmethod
 	def option_to_args(cls, option):
 		return []
+
+	def subspace(self, *expressions, **kwargs):
+		return self(*expressions, **kwargs)
+
+	def subspaces(self, expressions_list=None, dimensions=None, **kwargs):
+		if dimensions is not None:
+			expressions_list = list(itertools.combinations(self.get_column_names(), dimensions))
+			logger.debug("expression list generated: %r", expressions_list)
+		return Subspaces([self(*expressions, **kwargs) for expressions in expressions_list])
+
 
 	def __call__(self, *expressions, **kwargs):
 		"""Return a Subspace for this dataset with the given expressions:

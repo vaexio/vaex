@@ -914,30 +914,57 @@ class RankDialog(QtGui.QDialog):
 		expressions = list(expressions)
 		executor = vaex.execution.Executor(buffer_size=buffer_size)
 
-		mean_map = {}
 		def on_error(exc):
 			raise exc
-		for expression in expressions:
-			subspace = self.dataset(expression, executor=executor, async=True)
-			def assign(mean_list, expression=expression):
-				logger.debug("assigning %r to %s", mean_list, expression)
-				mean_map[expression] = mean_list
-			subspace.mean().then(assign, on_error).end()
-		with dialogs.ProgressExecution(self, "Calculating means", executor=executor):
-			executor.execute()
+		if 1:
+			#subspace = self.dataset(*expressions, executor=executor, async=True)
+			subspaces = self.dataset.subspaces(pairs, executor=executor, async=True)
+			means_promise = subspaces.mean()
+			with dialogs.ProgressExecution(self, "Calculating means", executor=executor):
+				executor.execute()
+			means = means_promise.get()
+			print means
+			variances_promise = subspaces.var(means=means)
+			with dialogs.ProgressExecution(self, "Calculating variances", executor=executor):
+				executor.execute()
+			vars = variances_promise.get()
+			print vars
 
-		var_map = {}
-		for expression in expressions:
-			subspace = self.dataset(expression, executor=executor, async=True)
-			def assign(mean_list, expression=expression):
-				logger.debug("assigning %r to %s", mean_list, expression)
-				var_map[expression] = mean_list[0].tolist()
-			subspace.var(means=mean_map[expression]).then(assign, on_error).end()
-		with dialogs.ProgressExecution(self, "Calculating variances", executor=executor):
-			executor.execute()
+			correlations_promise = subspaces.correlation(means=means, vars=vars)
+			with dialogs.ProgressExecution(self, "Calculating correlation", executor=executor):
+				executor.execute()
+			correlations = correlations_promise.get()
 
-		means = [mean_map[expressions[0]] for expressions in pairs]
-		variances = [var_map[expressions[0]] for expressions in pairs]
+			correlation_map = dict(zip(pairs, correlations))
+			table.set_correlations(correlation_map)
+			return
+			#mean_map = dict(zip(expressions, means))
+			#var_map = dict(zip(expressions, variances))
+		else:
+			mean_map = {}
+			def on_error(exc):
+				raise exc
+			for expression in expressions:
+				subspace = self.dataset(expression, executor=executor, async=True)
+				def assign(mean_list, expression=expression):
+					logger.debug("assigning %r to %s", mean_list, expression)
+					mean_map[expression] = mean_list
+				subspace.mean().then(assign, on_error).end()
+			with dialogs.ProgressExecution(self, "Calculating means", executor=executor):
+				executor.execute()
+
+			var_map = {}
+			for expression in expressions:
+				subspace = self.dataset(expression, executor=executor, async=True)
+				def assign(mean_list, expression=expression):
+					logger.debug("assigning %r to %s", mean_list, expression)
+					var_map[expression] = mean_list[0].tolist()
+				subspace.var(means=mean_map[expression]).then(assign, on_error).end()
+			with dialogs.ProgressExecution(self, "Calculating variances", executor=executor):
+				executor.execute()
+
+			means = [mean_map[expressions[0]] for expressions in pairs]
+			variances = [var_map[expressions[0]] for expressions in pairs]
 
 		correlation_map = {}
 		for pair in pairs:
