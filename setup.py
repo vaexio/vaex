@@ -138,7 +138,9 @@ OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/vaex/ui/
                  'h5py._proxy',
 				 'six',
 				 'aplus',
-				 "astropy.extern.bundled"],
+				 "astropy.extern.bundled",
+				 ],
+		   "packages": ["pygments"],
            'iconfile': 'python/vaex/ui/icons/vaex.icns'
 
 } #, 'debug_modulegraph':True}
@@ -197,7 +199,7 @@ setup(
     options={'py2app': OPTIONS},
     #setup_requires=['py2app'],
     #setup_requires=["sphinx"],
-    includes=["vaex", "md5", "astropy", "aplus", "six"],
+    includes=["vaex", "md5", "astropy", "aplus", "six", "pygments"],
     packages=["vaex", "vaex.ui", "vaex.misc", "vaex.notebook", "vaex.file", "vaex.ui.plugin", "vaex.ui.icons"],
     #install_requires=reqs,
     entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },

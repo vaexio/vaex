@@ -408,18 +408,22 @@ class Subspace(object):
 	def selected(self):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
-	def plot(self, grid=None, limits=None, center=None, weight=None, figsize=None, aspect="auto", f=lambda x: x, axes=None, **kwargs):
+	def plot(self, grid=None, size=256, limits=None, center=None, weight=None, figsize=None, aspect="auto", f=lambda x: x, axes=None, square=False, xlabel=None, ylabel=None, **kwargs):
 		import pylab
 		if limits is None:
-			limits = self.limits_sigma()
+			limits = self.limits_sigma(square=square)
 		if center is not None:
 			limits = np.array(limits) - np.array(center).reshape(2,1)
 		if grid is None:
-			grid = self.histogram(limits=limits, weight=weight)
+			grid = self.histogram(limits=limits, size=size, weight=weight)
 		if figsize is not None:
 			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
 		if axes is None:
 			axes = pylab.gca()
+		if xlabel:
+			pylab.xlabel(xlabel)
+		if ylabel:
+			pylab.ylabel(ylabel)
 		axes.set_aspect(aspect)
 		axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
 

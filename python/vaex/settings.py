@@ -22,6 +22,12 @@ class Settings(object):
 			self.settings = {}
 		#logger.debug("settings: %r", self.settings)
 
+	def auto_store_dict(self, key):
+		# TODO: no nested keys supported yet
+		if key not in self.settings:
+			self.settings[key] = {}
+		return AutoStoreDict(self, self.settings[key])
+
 	def store(self, key, value):
 		parts = key.split(".")
 		obj = self.settings
@@ -32,6 +38,9 @@ class Settings(object):
 			obj = obj[part]
 		obj[parts[-1]] = value
 		#print self.settings
+		self.dump()
+
+	def dump(self):
 		with open(self.filename, "w") as f:
 			yaml.dump(self.settings, f)
 
@@ -51,6 +60,34 @@ settings = {}
 
 import vaex.utils
 import os
+
+import collections
+
+
+class AutoStoreDict(collections.MutableMapping):
+	def __init__(self, settings, store):
+		self.store = store
+		self.settings = settings
+
+	def __getitem__(self, key):
+		return self.store[self.__keytransform__(key)]
+
+	def __setitem__(self, key, value):
+		self.store[self.__keytransform__(key)] = value
+		self.settings.dump()
+
+	def __delitem__(self, key):
+		del self.store[self.__keytransform__(key)]
+		self.settings.dump()
+
+	def __iter__(self):
+		return iter(self.store)
+
+	def __len__(self):
+		return len(self.store)
+
+	def __keytransform__(self, key):
+		return key
 
 
 main = Settings(os.path.join(vaex.utils.get_private_dir(), "main.yml"))

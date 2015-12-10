@@ -46,7 +46,17 @@ def open(path, *args, **kwargs):
 	>>> vx.open('gadget_file.hdf5', 3) # this will read only particle type 3
 	<vaex.dataset.Hdf5MemoryMappedGadget at 0x1136ef3d0>
 	"""
-	return vaex.dataset.load_file(path, *args, **kwargs)
+	if path in aliases:
+		path = aliases[path]
+	if path.startswith("http://") or path.startswith("ws://"): # TODO: think about https and wss
+		server, dataset = path.rsplit("/", 1)
+		server = vaex.server(server)
+		datasets = server.datasets(as_dict=True)
+		if dataset not in datasets:
+			raise KeyError("no such dataset '%s' at server, possible dataset names: %s" %  (dataset, " ".join(datasets.keys())))
+		return datasets[dataset]
+	else:
+		return vaex.dataset.load_file(path, *args, **kwargs)
 
 def open_many(filenames):
 	datasets = []
@@ -59,6 +69,9 @@ def from_arrays(name="array", **arrays):
 	for name, array in arrays.items():
 		dataset.add_column(name, array)
 	return dataset
+
+import vaex.settings
+aliases = vaex.settings.main.auto_store_dict("aliases")
 
 # py2/p3 compatibility
 try:
@@ -111,6 +124,7 @@ def set_log_level_warning():
 def set_log_level_exception():
 	import logging
 	logging.getLogger("vaex").setLevel(logging.FATAL)
+
 
 import logging
 logging.basicConfig(level=logging.ERROR)
