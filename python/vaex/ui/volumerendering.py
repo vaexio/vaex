@@ -146,7 +146,7 @@ from OpenGL.GL.framebufferobjects import *
 from OpenGL.GL.ARB.shadow import *
 from OpenGL.GL import shaders
 import OpenGL
-print(("error checking", OpenGL.ERROR_CHECKING))
+
 
 import numpy as np
 
@@ -1072,9 +1072,9 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#glClearColor(0.0, 0.0, 0.0, 1.0)
 		#glClear(GL_COLOR_BUFFER_BIT)
 
-		print(bool(glGenFramebuffers))
+		#print(bool(glGenFramebuffers))
 		self.fbo = glGenFramebuffers(1)
-		print(self.fbo)
+		#print(self.fbo)
 		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
 
 		self.textures = self.texture_backside, self.texture_final = glGenTextures(2)
@@ -1127,7 +1127,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#mi, ma = -20, 20
 		s = 0.
 		mi, ma = -4, 4
-		print("histogram3d")
+		#print("histogram3d")
 		vaex.vaexfast.histogram3d(x, y, z, None, grid3d, mi+s, ma+s, mi, ma, mi, ma)
 		if 0:
 			vx = vx - vx.mean()

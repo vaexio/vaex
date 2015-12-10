@@ -542,28 +542,35 @@ class Subspace(object):
 	def selected(self):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
-	def plot(self, grid=None, limits=None, center=None, weight=None, figsize=None, aspect="auto", f=lambda x: x, axes=None, **kwargs):
+	def plot(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None, aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None, **kwargs):
 		"""Plot the subspace using sane defaults to get a quick look at the data.
 
-
 		:param grid: A 2d numpy array with the counts, if None it will be calculated using limits provided and Subspace.histogram
+		:param size: Passed to Subspace.histogram
 		:param limits: Limits for the subspace in the form [[xmin, xmax], [ymin, ymax]], if None it will be calculated using Subspace.limits_sigma
+		:param square: argument passed to Subspace.limits_sigma
 		:param Executor executor: responsible for executing the tasks
 		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
-		:param aspect: Passes to matplotlib's axes.set_aspect
+		:param aspect: Passed to matplotlib's axes.set_aspect
+		:param xlabel: String for label on x axis (may contain latex)
+		:param ylabel: Same for y axis
 		:param kwargs: extra argument passed to axes.imshow, useful for setting the colormap for instance, e.g. cmap='afmhot'
-		:return:
+		:return: matplotlib.image.AxesImage
 
 		 """
 		import pylab
 		if limits is None:
 			limits = self.limits_sigma()
 		if grid is None:
-			grid = self.histogram(limits=limits, weight=weight)
+			grid = self.histogram(limits=limits, size=size, weight=weight)
 		if figsize is not None:
 			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
 		if axes is None:
 			axes = pylab.gca()
+		if xlabel:
+			pylab.xlabel(xlabel)
+		if ylabel:
+			pylab.ylabel(ylabel)
 		axes.set_aspect(aspect)
 		return axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", **kwargs)
 
@@ -1178,7 +1185,7 @@ class Dataset(object):
 
 		Note that per dataset, only one selection is possible.
 
-		:param str boolean_expression: boolean expression, such as 'x < 0', '(x < 0) & (y > -10)' or None to remove the selection
+		:param str boolean_expression: boolean expression, such as 'x < 0', '(x < 0) || (y > -10)' or None to remove the selection
 		:param str mode: boolean operation to perform with the previous selection, "replace", "and", "or", "xor", "subtract"
 		:return: None
 		"""
