@@ -1307,11 +1307,8 @@ class PlotDialog(QtGui.QWidget):
 		logger.debug("set aspect to: %r" % self.aspect)
 
 	def onActionExport(self):
-		if self.dimensions != 2:
-			dialog_info(self, "Export failure", "Oops sorry, export only supported for 2d plots at the moment")
-			return
-		ok, mask = select_many(self, "Choose export options", ["Export matplotlib python script", "Export grid", "Export selection", "Export vector grid"])
-		if ok:
+		if self.dimensions == 3:
+			ok, mask = select_many(self, "Choose export options", ["Export grid", "Export grid from selection", "Export vector grid"])
 			name = self.current_layer.dataset.name
 			name = gettext(self, "Export name", "Give a base name for the export files", name)
 			if name:
@@ -1319,19 +1316,7 @@ class PlotDialog(QtGui.QWidget):
 				if dir_path is None:
 					return
 				msg_list = []
-
 				yesall = False
-				if mask[0]:
-					scriptname = os.path.join(dir_path, name + "_plot.py")
-					template = vaex.ui.templates.matplotlib
-					if not os.path.exists(scriptname):
-						yes, yesall = True, False
-					else:
-						yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +scriptname, to_all=True)
-					if yes or yesall:
-						file(scriptname, "w").write(template.format(name=name))
-						msg_list.append("wrote: " + scriptname)
-
 
 				optionsname = os.path.join(dir_path, name + "_meta.json")
 				options = {}
@@ -1339,7 +1324,7 @@ class PlotDialog(QtGui.QWidget):
 				json.dump(options, file(optionsname, "w"), indent=4)
 				msg_list.append("wrote: " + optionsname)
 
-				if mask[1]:
+				if mask[0]:
 					gridname = os.path.join(dir_path, name + "_grid.npy")
 					if not os.path.exists(gridname) or yesall:
 						yes, yesall = True, yesall
@@ -1348,28 +1333,91 @@ class PlotDialog(QtGui.QWidget):
 					if yes or yesall:
 						np.save(gridname, self.current_layer.amplitude_grid)
 						msg_list.append("wrote: " + gridname)
-					if mask[2]:
-						if self.current_layer.dataset.mask is not None:
-							gridname = os.path.join(dir_path, name + "_grid_selection.npy")
-							if not os.path.exists(gridname) or yesall:
-								yes, yesall = True, yesall
-							else:
-								yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
-							if yes or yesall:
-								np.save(gridname, self.current_layer.amplitude_selection)
-								msg_list.append("wrote: " + gridname)
-					if mask[3]:
-						if hasattr(self.current_layer, "vector_grids"):
-							gridname = os.path.join(dir_path, name + "_grid_vector.npy")
-							if not os.path.exists(gridname) or yesall:
-								yes, yesall = True, yesall
-							else:
-								yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
-							if yes or yesall:
-								np.save(gridname, self.current_layer.vector_grids)
-								msg_list.append("wrote: " + gridname)
-					msg = "\n".join(msg_list)
-					dialog_info(self, "Finished export", msg)
+				if mask[1]:
+					if self.current_layer.dataset.mask is not None:
+						gridname = os.path.join(dir_path, name + "_grid_selection.npy")
+						if not os.path.exists(gridname) or yesall:
+							yes, yesall = True, yesall
+						else:
+							yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
+						if yes or yesall:
+							np.save(gridname, self.current_layer.amplitude_selection)
+							msg_list.append("wrote: " + gridname)
+				if mask[2]:
+					if hasattr(self.current_layer, "vector_grids"):
+						gridname = os.path.join(dir_path, name + "_grid_vector.npy")
+						if not os.path.exists(gridname) or yesall:
+							yes, yesall = True, yesall
+						else:
+							yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
+						if yes or yesall:
+							np.save(gridname, self.current_layer.vector_grids)
+							msg_list.append("wrote: " + gridname)
+				msg = "\n".join(msg_list)
+				dialog_info(self, "Finished export", msg)
+		elif self.dimensions == 2:
+			ok, mask = select_many(self, "Choose export options", ["Export matplotlib python script", "Export grid", "Export selection", "Export vector grid"])
+			if ok:
+				name = self.current_layer.dataset.name
+				name = gettext(self, "Export name", "Give a base name for the export files", name)
+				if name:
+					dir_path = getdir(self, "Choose directory where to save")
+					if dir_path is None:
+						return
+					msg_list = []
+
+					yesall = False
+					if mask[0]:
+						scriptname = os.path.join(dir_path, name + "_plot.py")
+						template = vaex.ui.templates.matplotlib
+						if not os.path.exists(scriptname):
+							yes, yesall = True, False
+						else:
+							yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +scriptname, to_all=True)
+						if yes or yesall:
+							file(scriptname, "w").write(template.format(name=name))
+							msg_list.append("wrote: " + scriptname)
+
+
+					optionsname = os.path.join(dir_path, name + "_meta.json")
+					options = {}
+					options["extent"] = list(self.current_layer.ranges_grid[0]) + list(self.current_layer.ranges_grid[1])
+					json.dump(options, file(optionsname, "w"), indent=4)
+					msg_list.append("wrote: " + optionsname)
+
+					if mask[1]:
+						gridname = os.path.join(dir_path, name + "_grid.npy")
+						if not os.path.exists(gridname) or yesall:
+							yes, yesall = True, yesall
+						else:
+							yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
+						if yes or yesall:
+							np.save(gridname, self.current_layer.amplitude_grid)
+							msg_list.append("wrote: " + gridname)
+						if mask[2]:
+							if self.current_layer.dataset.mask is not None:
+								gridname = os.path.join(dir_path, name + "_grid_selection.npy")
+								if not os.path.exists(gridname) or yesall:
+									yes, yesall = True, yesall
+								else:
+									yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
+								if yes or yesall:
+									np.save(gridname, self.current_layer.amplitude_selection)
+									msg_list.append("wrote: " + gridname)
+						if mask[3]:
+							if hasattr(self.current_layer, "vector_grids"):
+								gridname = os.path.join(dir_path, name + "_grid_vector.npy")
+								if not os.path.exists(gridname) or yesall:
+									yes, yesall = True, yesall
+								else:
+									yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +gridname, to_all=True)
+								if yes or yesall:
+									np.save(gridname, self.current_layer.vector_grids)
+									msg_list.append("wrote: " + gridname)
+						msg = "\n".join(msg_list)
+						dialog_info(self, "Finished export", msg)
+		else:
+			dialog_info(self, "Export failure", "Oops sorry, export only supported for 2d and 3d (partially) plots at the moment")
 
 
 
@@ -1460,7 +1508,8 @@ class PlotDialog(QtGui.QWidget):
 
 
 
-		self.action_aspect_lock_one = QtGui.QAction(QtGui.QIcon(iconfile('control-stop-square')), 'Aspect=1', self)
+		self.action_aspect_lock_one = QtGui.QAction(QtGui.QIcon(iconfile('control-stop-square')), 'Equal aspect', self)
+		self.action_aspect_lock_one.setShortcut("Ctrl+=")
 		#self.action_aspect_lock_one = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Set aspect to one', self)
 		#self.menu_aspect = QtGui.QMenu(self)
 		#self.action_aspect_lock.setMenu(self.menu_aspect)
