@@ -131,7 +131,8 @@ class DatasetSelector(QtGui.QListWidget):
 		#self.icon = QtGui.QIcon('icons/png/24x24/devices/memory.png')
 		#self.icon_server = QtGui.QIcon('icons/png/24x24/devices/memory.png')
 		self.icon = QtGui.QIcon(vp.iconfile('drive'))
-		self.icon_server = QtGui.QIcon(vp.iconfile('server-cloud'))
+		self.icon_server = QtGui.QIcon(vp.iconfile('server-network'))
+		self.icon_memory = QtGui.QIcon(vp.iconfile('memory'))
 		self.datasets = []
 		self.signal_pick = vaex.events.Signal("pick")
 		self.signal_add_dataset = vaex.events.Signal("add dataset")
@@ -181,9 +182,15 @@ class DatasetSelector(QtGui.QListWidget):
 		self.setBestFraction(dataset)
 		item = QtGui.QListWidgetItem(self)
 		item.setText(dataset.name)
-		item.setIcon(self.icon_server if isinstance(dataset, vaex.dataset.DatasetRemote) else self.icon)
+		icon = self.icon
 		if hasattr(dataset, "filename"):
 			item.setToolTip("file: " +dataset.filename)
+		if isinstance(dataset, vaex.dataset.DatasetRemote):
+			icon = self.icon_server
+			item.setToolTip("source: " +dataset.path)
+		if isinstance(dataset, vaex.dataset.DatasetArrays):
+			icon = self.icon_memory
+		item.setIcon(icon)
 		item.setData(QtCore.Qt.UserRole, dataset)
 		self.setCurrentItem(item)
 		self.signal_add_dataset.emit(dataset)
@@ -371,41 +378,6 @@ class DatasetPanel(QtGui.QFrame):
 		self.label_length = QtGui.QLabel('', self)
 		self.form_layout.addRow('Length:', self.label_length)
 
-		#self.histogramButton = QtGui.QPushButton('histogram (1d)', self)
-		self.button_histogram = QtGui.QToolButton(self)
-		self.button_histogram.setText('histogram (1d)')
-		self.form_layout.addRow('Plotting:', self.button_histogram)
-
-		self.button_2d = QtGui.QToolButton(self)
-		self.button_2d.setText('x/y density')
-		self.form_layout.addRow('', self.button_2d)
-
-		self.button_3d = QtGui.QToolButton(self)
-		self.button_3d.setText('x/y/z density')
-		self.form_layout.addRow('', self.button_3d)
-		if 0:
-
-
-			self.scatter1dSeries = QtGui.QPushButton('series', self)
-			self.form_layout.addRow('', self.scatter1dSeries)
-
-			self.scatter2dSeries = QtGui.QPushButton('x/y series', self)
-			self.form_layout.addRow('', self.scatter2dSeries)
-
-		if 0:
-			self.serieSlice = QtGui.QToolButton(self)
-			self.serieSlice.setText('serie slice')
-			self.form_layout.addRow('', self.serieSlice)
-
-		self.statistics = QtGui.QPushButton('Statistics', self)
-		self.form_layout.addRow('Data:', self.statistics)
-
-		self.rank = QtGui.QPushButton('Rank subspaces', self)
-		self.form_layout.addRow('', self.rank)
-
-		self.table = QtGui.QPushButton('Open table', self)
-		self.form_layout.addRow('', self.table)
-
 		if 0:
 			self.button_variables = QtGui.QPushButton('Variables', self)
 			self.form_layout.addRow('', self.button_variables)
@@ -417,10 +389,10 @@ class DatasetPanel(QtGui.QFrame):
 		self.fractionSlider = QtGui.QSlider(QtCore.Qt.Horizontal, self)
 		self.fractionSlider.setMinimum(0)
 		self.fractionSlider.setMaximum(len(possibleFractions)-1)
-		self.numberLabel = QtGui.QLabel('')
+		#self.numberLabel = QtGui.QLabel('')
 
 		self.fractionLayout.addWidget(self.fractionSlider)
-		self.fractionLayout.addWidget(self.numberLabel)
+		#self.fractionLayout.addWidget(self.numberLabel)
 		self.fractionWidget.setLayout(self.fractionLayout)
 		#self.fractionSlider.setTickInterval(len(possibleFractions))
 		self.form_layout.addRow(self.fractionLabel, self.fractionWidget)
@@ -441,6 +413,53 @@ class DatasetPanel(QtGui.QFrame):
 		self.fractionSlider.sliderReleased.connect(self.onFractionSet)
 		self.fractionSlider.valueChanged.connect(self.onValueChanged)
 		self.onValueChanged(0)
+
+		#self.histogramButton = QtGui.QPushButton('histogram (1d)', self)
+		self.button_histogram = QtGui.QToolButton(self)
+		self.button_histogram.setText('histogram (1d)')
+		self.button_histogram.setIcon(QtGui.QIcon(vp.iconfile('layout')))
+		self.button_histogram.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.form_layout.addRow('Plotting:', self.button_histogram)
+
+		self.button_2d = QtGui.QToolButton(self)
+		self.button_2d.setIcon(QtGui.QIcon(vp.iconfile('layout-2-equal')))
+		self.button_2d.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.button_2d.setText('x/y density')
+		self.form_layout.addRow('', self.button_2d)
+
+		self.button_3d = QtGui.QToolButton(self)
+		self.button_3d.setIcon(QtGui.QIcon(vp.iconfile('layout-3')))
+		self.button_3d.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.button_3d.setText('x/y/z density')
+		self.form_layout.addRow('', self.button_3d)
+		if 0:
+
+
+			self.scatter1dSeries = QtGui.QPushButton('series', self)
+			self.form_layout.addRow('', self.scatter1dSeries)
+
+			self.scatter2dSeries = QtGui.QPushButton('x/y series', self)
+			self.form_layout.addRow('', self.scatter2dSeries)
+
+		if 0:
+			self.serieSlice = QtGui.QToolButton(self)
+			self.serieSlice.setText('serie slice')
+			self.form_layout.addRow('', self.serieSlice)
+
+		self.statistics = QtGui.QPushButton('Statistics', self)
+		self.statistics.setIcon(QtGui.QIcon(vp.iconfile('table-sum')))
+		#self.statistics.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.form_layout.addRow('Data:', self.statistics)
+
+		self.rank = QtGui.QPushButton('Rank subspaces', self)
+		self.rank.setIcon(QtGui.QIcon(vp.iconfile('sort-quantity')))
+		#self.table.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.form_layout.addRow('', self.rank)
+
+		self.table = QtGui.QPushButton('Open table', self)
+		self.table.setIcon(QtGui.QIcon(vp.iconfile('table')))
+		#self.table.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.form_layout.addRow('', self.table)
 
 
 		self.button_histogram.clicked.connect(self.onOpenHistogram)
@@ -550,7 +569,8 @@ class DatasetPanel(QtGui.QFrame):
 		fraction = possibleFractions[index]
 		if self.dataset:
 			self.dataset.set_active_fraction(fraction)
-			self.numberLabel.setText("{:,}".format(len(self.dataset)))
+			self.update_length()
+			#self.numberLabel.setText("{:,}".format(len(self.dataset)))
 			#self.dataset.executor.execute()
 			#self.dataset.executor.execute()
 
@@ -568,6 +588,12 @@ class DatasetPanel(QtGui.QFrame):
 		index = np.argsort(distances)[0]
 		self.fractionSlider.setValue(index) # this will fire an event and execute the above event code
 
+	def update_length(self):
+		if self.dataset.get_active_fraction() == 1:
+			self.label_length.setText("{:,}".format(self.dataset.full_length()))
+		else:
+			self.label_length.setText("{:,} of {:,}".format(len(self.dataset), self.dataset.full_length()))
+
 	def show_dataset(self, dataset):
 		if self.dataset:
 			self.dataset.signal_active_fraction_changed.disconnect(self.on_active_fraction_changed)
@@ -575,8 +601,9 @@ class DatasetPanel(QtGui.QFrame):
 		self.dataset.signal_active_fraction_changed.connect(self.on_active_fraction_changed)
 		self.name.setText(dataset.name)
 		self.label_columns.setText(str(dataset.column_count()))
+		self.update_length()
 		self.label_length.setText("{:,}".format(self.dataset.full_length()))
-		self.numberLabel.setText("{:,}".format(len(self.dataset)))
+		#self.numberLabel.setText("{:,}".format(len(self.dataset)))
 		self.update_active_fraction()
 		self.button_2d.setEnabled(self.dataset.column_count() > 0)
 		#self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
@@ -762,6 +789,7 @@ class VaexApp(QtGui.QMainWindow):
 		#self.statusBar().showMessage('Ready')
 
 		self.toolbar = self.addToolBar('Main toolbar')
+		self.toolbar.setVisible(False)
 
 
 		self.left = QtGui.QFrame(self)
@@ -1153,19 +1181,22 @@ class VaexApp(QtGui.QMainWindow):
 				#if should_be_datasets != "datasets":
 				#	error("expected an url in the form http://host:port/optional/part/datasets/dataset_name")
 				#server = vaex.server(hostname=o.hostname, port = o.port or 80, thread_mover=self.call_in_main_thread, base_path=base_path)
-				server = vaex.server(filename, thread_mover=self.call_in_main_thread)
-				datasets = server.datasets()
-				names = [dataset.name for dataset in datasets]
-				index += 1
-				if index >= len(args):
-					error("expected dataset to follow url, e.g. vaex http://servername:9000 somedataset, possible dataset names: %s" %  " ".join(names))
-				name = args[index]
-				if name not in names:
-					error("no such dataset '%s' at server, possible dataset names: %s" %  (name, " ".join(names)))
+				if 0:
+					server = vaex.server(filename, thread_mover=self.call_in_main_thread)
+					datasets = server.datasets()
+					names = [dataset.name for dataset in datasets]
+					index += 1
+					if index >= len(args):
+						error("expected dataset to follow url, e.g. vaex http://servername:9000 somedataset, possible dataset names: %s" %  " ".join(names))
+					name = args[index]
+					if name not in names:
+						error("no such dataset '%s' at server, possible dataset names: %s" %  (name, " ".join(names)))
 
-				found = [dataset for dataset in datasets if dataset.name == name]
-				if found:
-					dataset = found[0]
+
+					found = [dataset for dataset in datasets if dataset.name == name]
+					if found:
+						dataset = found[0]
+				dataset = vaex.open(filename)
 			elif filename[0] == ":": # not a filename, but a classname
 				classname = filename.split(":")[1]
 				if classname not in vaex.dataset.dataset_type_map:

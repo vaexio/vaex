@@ -34,6 +34,7 @@ import vaex.promise
 import vaex.ui.volumerendering
 
 from vaex.ui.qt import *
+import vaex.ui.qt as dialogs
 from vaex.ui.icons import iconfile
 import vaex.vaexfast
 from vaex.ui import qt, undo
@@ -188,6 +189,8 @@ class PlotDialog(QtGui.QWidget):
 
 		self.xlabel = options.get("xlabel")
 		self.ylabel = options.get("ylabel")
+
+		self.enable_slicing = options.get("enable_slicing", False)
 
 
 		self.menu_bar = QtGui.QMenuBar(self)
@@ -917,6 +920,12 @@ class PlotDialog(QtGui.QWidget):
 				self.currentModes =[ matplotlib.widgets.LassoSelector(axes, functools.partial(self.onSelectLasso, axes=axes)) for axes in axes_list]
 				if useblit:
 					self.canvas.draw() # buggy otherwise
+			if action == self.action_select_rectangle:
+				logger.debug("setting last select action to rect")
+				self.lastActionSelect = self.action_select_rectangle
+				self.currentModes =[ matplotlib.widgets.RectangleSelector(axes, functools.partial(self.on_select_rectangle, axes=axes), spancoords='data') for axes in axes_list]
+				if useblit:
+					self.canvas.draw() # buggy otherwise
 			if action == self.action_slice:
 				logger.debug("setting mode to slice")
 				#self.lastActionSelect = self.action_slice
@@ -1037,6 +1046,25 @@ class PlotDialog(QtGui.QWidget):
 			self.checkUndoRedo()
 			self.queue_update()
 			#self.setMode(self.lastAction)
+		return
+
+	def on_select_rectangle(self, pos1, pos2, axes):
+		layer = self.current_layer
+		if layer is not None:
+			xmin = min(pos1.xdata, pos2.xdata)
+			xmax = max(pos1.xdata, pos2.xdata)
+			ymin = min(pos1.ydata, pos2.ydata)
+			ymax = max(pos1.ydata, pos2.ydata)
+			args = (layer.x, xmin, layer.x, xmax, layer.y, ymin, layer.y, ymax)
+			expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
+			logger.debug("rectangle selection using expression: %r" % expression)
+			self.dataset.select(expression, mode=self.select_mode)
+			#self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
+			mask = layer.dataset.mask
+			action = undo.ActionMask(layer.dataset.undo_manager, "rectangle from [%f,%f] to [%f,%f]" % (pos1.xdata, pos1.ydata, pos2.xdata, pos2.ydata), mask, layer.apply_mask)
+			#action.do()
+			self.checkUndoRedo()
+			self.queue_update()
 		return
 
 	def set_ranges(self, axis_indices, ranges_show=None, range_level=None):
@@ -1355,37 +1383,55 @@ class PlotDialog(QtGui.QWidget):
 
 
 		def on_store_selection():
-			if self.dataset.mask is None:
+			if not self.dataset.has_selection():
 				dialog_error(self, "No selection", "No selection made")
 			else:
-				path = self.dataset.name + "-selection.npy"
-				path = get_path_save(self, "Save selection as numpy array", path, "numpy array *.npy")
+				path = self.dataset.name + "-selection.yaml"
+				path = dialogs.get_path_save(self, "Save selection", path, "YAML (*.yaml);;JSON (*.json)")
 				if path:
-					np.save(path, self.dataset.mask)
-		self.action_selection_store = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Store selection', self)
+					_, ext = os.path.splitext(path)
+					data = self.dataset.get_selection().to_dict()
+					if ext == ".yaml":
+						import yaml
+						with open(path, "w") as f:
+							yaml.dump(data, f)
+					elif ext == ".json":
+						import json
+						with open(path, "w") as f:
+							json.dump(data, f)
+					else:
+						dialogs.dialog_error(self, "Unknown extension", "Unknown extension %r" % ext)
+					#np.save(path, self.dataset.mask)
+
+		self.action_selection_store = QtGui.QAction(QtGui.QIcon(iconfile('tag-export')), '&Store selection', self)
 		self.action_selection_store.triggered.connect(on_store_selection)
 		#self.action_selection_store.setCheckable(True)
 		#self.toolbar2.addAction(self.action_selection_store)
 		self.menu_selection.addAction(self.action_selection_store)
 
 		def on_load_selection():
-			path = self.dataset.name + "-selection.npy"
-			path = get_path_open(self, "Open selection as numpy array", path, "numpy array *.npy")
+			path = self.dataset.name + "-selection.yaml"
+			path = get_path_open(self, "Open selection", path, "Compatible files for vaex (*.yaml *.json)")
 			if path:
-				mask = np.load(path)
-				if len(mask) != len(self.dataset):
-					dialog_error(self, "Error opening selection", "Selection is not of same length (%d) as dataset (%d)" % (len(mask), len(self.dataset) ))
-					return
-				if mask.dtype != np.bool:
-					dialog_error(self, "Error opening selection", "Expected type numpy.bool, got %r" % (mask.dtype ))
-					return
-				layer = self.current_layer
-				if layer is not None:
-					action = undo.ActionMask(layer.dataset.undo_manager, "loaded selection", mask, layer.apply_mask)
-					action.do()
-				#self.dataset.selectMask(mask)
-				#self.dataset.executor.execute()
-		self.action_selection_load = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Load selection', self)
+				_, ext = os.path.splitext(path)
+				if ext == ".yaml":
+					import yaml
+					with open(path) as f:
+						data = yaml.load(f)
+				elif ext == ".json":
+					import json
+					with open(path) as f:
+						json.load(f)
+				else:
+					dialogs.dialog_error(self, "Unknown extension", "Unknown extension %r" % ext)
+				try:
+					selection = vaex.dataset.selection_from_dict(self.dataset, data)
+				except Exception, e:
+					logger.exception("error reading in selection")
+					dialogs.dialog_error(self, "Error reading in selection", "Error reading in selection: %r" % e)
+				self.dataset.set_selection(selection)
+				self.queue_update()
+		self.action_selection_load = QtGui.QAction(QtGui.QIcon(iconfile('tag-import')), '&Load selection', self)
 		self.action_selection_load.triggered.connect(on_load_selection)
 		#self.action_selection_load.setCheckable(True)
 		#self.toolbar2.addAction(self.action_selection_load)
@@ -1393,8 +1439,8 @@ class PlotDialog(QtGui.QWidget):
 
 
 
-		self.action_save_figure = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Export figure', self)
-		self.action_save_figure_again = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Export figure again', self)
+		self.action_save_figure = QtGui.QAction(QtGui.QIcon(iconfile('image-export')), '&Export figure', self)
+		self.action_save_figure_again = QtGui.QAction(QtGui.QIcon(iconfile('image-export')), '&Export figure again', self)
 		#self.menu_save = QtGui.QMenu(self)
 		#self.action_save_figure.setMenu(self.menu_save)
 		#self.menu_save.addAction(self.action_save_figure_again)
@@ -1407,7 +1453,7 @@ class PlotDialog(QtGui.QWidget):
 		self.action_save_figure_again.triggered.connect(self.onActionSaveFigureAgain)
 		self.action_save_figure_again.setEnabled(False)
 
-		self.action_export = QtGui.QAction(QtGui.QIcon(iconfile('table_save')), '&Export data/script', self)
+		self.action_export = QtGui.QAction(QtGui.QIcon(iconfile('script-export')), '&Export data/script', self)
 		self.menu_file.addSeparator()
 		self.menu_file.addAction(self.action_export)
 		self.action_export.triggered.connect(self.onActionExport)
@@ -1419,9 +1465,8 @@ class PlotDialog(QtGui.QWidget):
 		#self.menu_aspect = QtGui.QMenu(self)
 		#self.action_aspect_lock.setMenu(self.menu_aspect)
 		#self.menu_aspect.addAction(self.action_aspect_lock_one)
-		self.toolbar2.addAction(self.action_aspect_lock_one)
+		#self.toolbar2.addAction(self.action_aspect_lock_one)
 		self.menu_view.insertAction(self.action_mini_mode_normal, self.action_aspect_lock_one)
-		self.menu_view.insertSeparator(self.action_mini_mode_normal)
 
 		#self.action_aspect_lock.triggered.connect(self.onActionAspectLock)
 		self.action_aspect_lock_one.setCheckable(True)
@@ -1433,11 +1478,17 @@ class PlotDialog(QtGui.QWidget):
 
 
 
-		self.action_undo = QtGui.QAction(QtGui.QIcon(iconfile('arrow-curve-180-left')), 'Undo', self)
-		self.action_redo = QtGui.QAction(QtGui.QIcon(iconfile('arrow-curve-000-left')), 'Redo', self)
+		self.action_undo = QtGui.QAction(QtGui.QIcon(iconfile('arrow-curve-180-left')), 'Back', self)
+		self.action_redo = QtGui.QAction(QtGui.QIcon(iconfile('arrow-curve-000-left')), 'Forward', self)
+		self.action_undo.setShortcut("Ctrl+Left")
+		self.action_redo.setShortcut("Ctrl+Right")
 
-		self.toolbar2.addAction(self.action_undo)
-		self.toolbar2.addAction(self.action_redo)
+		self.toolbar.insertAction(self.action_move, self.action_undo)
+		self.toolbar.insertAction(self.action_move, self.action_redo)
+		#self.toolbar2.addAction(self.action_undo)
+		#self.toolbar2.addAction(self.action_redo)
+		self.menu_view.insertAction(self.action_aspect_lock_one, self.action_undo)
+		self.menu_view.insertAction(self.action_aspect_lock_one, self.action_redo)
 		self.action_undo.triggered.connect(self.onActionUndo)
 		self.action_redo.triggered.connect(self.onActionRedo)
 		self.checkUndoRedo()
@@ -1445,13 +1496,22 @@ class PlotDialog(QtGui.QWidget):
 		self.action_disjoin = QtGui.QAction(QtGui.QIcon(iconfile('sql-join-outer-exclude')), 'Disjoined', self)
 		self.action_disjoin.setCheckable(True)
 		self.action_disjoin.triggered.connect(self.onActionDisjoin)
-		self.toolbar2.addAction(self.action_disjoin)
+		self.action_disjoin.setShortcut("Ctrl+D")
+		self.menu_view.insertAction(self.action_mini_mode_normal, self.action_disjoin)
+		#self.toolbar2.addAction(self.action_disjoin)
 
 
 		self.action_axes_lock = QtGui.QAction(QtGui.QIcon(iconfile('lock')), 'Lock axis', self)
 		self.action_axes_lock.setCheckable(True)
 		self.action_axes_lock.triggered.connect(self.onActionAxesLock)
-		self.toolbar2.addAction(self.action_axes_lock)
+		self.action_axes_lock.setShortcut("Ctrl+Shift+L")
+		self.menu_view.insertAction(self.action_mini_mode_normal, self.action_axes_lock)
+		#self.toolbar2.addAction(self.action_axes_lock)
+
+		self.menu_view.insertSeparator(self.action_aspect_lock_one)
+		self.menu_view.insertSeparator(self.action_mini_mode_normal)
+		self.toolbar2.setVisible(False)
+
 
 	def onActionAxesLock(self, ignore=None):
 		self.axis_lock = self.action_axes_lock.isChecked()
@@ -1485,9 +1545,9 @@ class PlotDialog(QtGui.QWidget):
 		self.actiongroup_display_mode = QtGui.QActionGroup(self)
 
 		#self.action_displmini_mode = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), '&Mini screen(should not see)', self)
-		self.action_mini_mode_normal = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Normal', self)
-		self.action_mini_mode_compact = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Compact', self)
-		self.action_mini_mode_ultra  = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Ultra compact', self)
+		self.action_mini_mode_normal = QtGui.QAction(QtGui.QIcon(iconfile('layout-hf-2')), 'Normal', self)
+		self.action_mini_mode_compact = QtGui.QAction(QtGui.QIcon(iconfile('layout-hf')), 'Compact', self)
+		self.action_mini_mode_ultra  = QtGui.QAction(QtGui.QIcon(iconfile('layout')), 'Ultra compact', self)
 		self.action_mini_mode_normal.setShortcut("Ctrl+Shift+N")
 		self.action_mini_mode_compact.setShortcut("Ctrl+Shift+C")
 		self.action_mini_mode_ultra.setShortcut("Ctrl+Shift+U")
@@ -1501,7 +1561,7 @@ class PlotDialog(QtGui.QWidget):
 		self.action_fullscreen.setCheckable(True)
 		self.action_fullscreen.setShortcut(("Ctrl+F"))
 
-		self.action_toolbar_toggle = QtGui.QAction(QtGui.QIcon(iconfile('ui-toolbar')), '&toolbars', self)
+		self.action_toolbar_toggle = QtGui.QAction(QtGui.QIcon(iconfile('ui-toolbar')), '&Toolbars', self)
 		self.action_toolbar_toggle.setCheckable(True)
 		self.action_toolbar_toggle.setChecked(True)
 		self.action_toolbar_toggle.setShortcut(("Ctrl+Shift+T"))
@@ -1535,9 +1595,11 @@ class PlotDialog(QtGui.QWidget):
 		self.action_xrange = QtGui.QAction(QtGui.QIcon(iconfile('glue_xrange_select16')), '&x-range', self)
 		self.action_yrange = QtGui.QAction(QtGui.QIcon(iconfile('glue_yrange_select16')), '&y-range', self)
 		self.action_lasso = QtGui.QAction(QtGui.QIcon(iconfile('glue_lasso16')), '&Lasso', self)
+		self.action_select_rectangle = QtGui.QAction(QtGui.QIcon(iconfile('glue_square16')), '&Rectangle', self)
 		self.action_slice = QtGui.QAction(QtGui.QIcon(iconfile('cutlery-knife')), '&Slice', self)
-		self.action_select_none = QtGui.QAction(QtGui.QIcon(iconfile('dialog-cancel-3')), '&No selection', self)
-		self.action_select_invert = QtGui.QAction(QtGui.QIcon(iconfile('dialog-cancel-3')), '&Invert', self)
+		self.action_select_viewport = QtGui.QAction(QtGui.QIcon(iconfile('control-stop-square')), '&Select viewport', self)
+		self.action_select_none = QtGui.QAction(QtGui.QIcon(iconfile('cross')), '&No selection', self)
+		self.action_select_invert = QtGui.QAction(QtGui.QIcon(iconfile('arrow-circle-double-135')), '&Invert', self)
 
 		self.action_xrange.setShortcut("Ctrl+Shift+X")
 		self.menu_mode.addAction(self.action_xrange)
@@ -1545,8 +1607,12 @@ class PlotDialog(QtGui.QWidget):
 		self.menu_mode.addAction(self.action_yrange)
 		self.action_lasso.setShortcut("Ctrl+L")
 		self.menu_mode.addAction(self.action_lasso)
+		self.action_select_rectangle.setShortcut("Ctrl+R")
+		self.menu_mode.addAction(self.action_select_rectangle)
 		self.action_slice.setShortcut("Ctrl+S")
 		self.menu_mode.addAction(self.action_slice)
+		self.action_select_viewport.setShortcut("Ctrl+Shift+V")
+		self.menu_mode.addAction(self.action_select_viewport)
 		self.action_select_none.setShortcut("Ctrl+N")
 		self.menu_mode.addAction(self.action_select_none)
 		self.action_select_invert.setShortcut("Ctrl+I")
@@ -1626,7 +1692,9 @@ class PlotDialog(QtGui.QWidget):
 		self.action_group_main.addAction(self.action_xrange)
 		self.action_group_main.addAction(self.action_yrange)
 		self.action_group_main.addAction(self.action_lasso)
-		self.action_group_main.addAction(self.action_slice)
+		self.action_group_main.addAction(self.action_select_rectangle)
+		if self.enable_slicing:
+			self.action_group_main.addAction(self.action_slice)
 		#self.action_group_main.addAction(self.action_zoom_out)
 
 
@@ -1642,7 +1710,7 @@ class PlotDialog(QtGui.QWidget):
 		self.action_group_resolution = QtGui.QActionGroup(self)
 		self.action_resolution_list = []
 		for index, resolution in enumerate([32, 64, 128, 256, 512, 1024]):
-			action_resolution = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Grid Resolution: %d' % resolution, self)
+			action_resolution = QtGui.QAction('Grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
 				self.grid_size = resolution
 				self.update_all_layers()
@@ -1661,7 +1729,7 @@ class PlotDialog(QtGui.QWidget):
 		self.action_group_resolution_vector = QtGui.QActionGroup(self)
 		self.action_resolution_vector_list = []
 		for index, resolution in enumerate([8,16,32, 64, 128, 256]):
-			action_resolution = QtGui.QAction(QtGui.QIcon(iconfile('picture_empty')), 'Vector grid Resolution: %d' % resolution, self)
+			action_resolution = QtGui.QAction('Vector grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
 				self.vector_grid_size = resolution
 				self.update_all_layers()
@@ -1693,8 +1761,8 @@ class PlotDialog(QtGui.QWidget):
 		#self.mini_mode_button.setText(self.action_miniscreen.text())
 
 		#self.toolbar.addAction(self.action_mini_mode)
-		self.toolbar.addAction(self.action_fullscreen)
-		self.toolbar.addAction(self.action_toolbar_toggle)
+		#self.toolbar.addAction(self.action_fullscreen)
+		#self.toolbar.addAction(self.action_toolbar_toggle)
 
 		self.toolbar.addAction(self.action_move)
 		if pick:
@@ -1706,6 +1774,7 @@ class PlotDialog(QtGui.QWidget):
 		self.select_menu = QtGui.QMenu()
 		self.action_select.setMenu(self.select_menu)
 		self.select_menu.addAction(self.action_lasso)
+		self.select_menu.addAction(self.action_select_rectangle)
 		if yselect:
 			#self.toolbar.addAction(self.action_yrange)
 			self.select_menu.addAction(self.action_yrange)
@@ -1721,8 +1790,11 @@ class PlotDialog(QtGui.QWidget):
 				self.lastActionSelect = self.action_lasso
 		else:
 			self.action_lasso.setEnabled(False)
-		self.toolbar.addAction(self.action_slice)
+			self.action_select_rectangle.setEnabled(False)
+		if self.enable_slicing:
+			self.toolbar.addAction(self.action_slice)
 		self.select_menu.addSeparator()
+		self.select_menu.addAction(self.action_select_viewport)
 		self.select_menu.addAction(self.action_select_none)
 		self.select_menu.addAction(self.action_select_invert)
 		self.select_menu.addSeparator()
@@ -1757,7 +1829,7 @@ class PlotDialog(QtGui.QWidget):
 				self.lastActionZoom = self.action_zoom_rect
 
 			self.toolbar.addSeparator()
-			self.toolbar.addAction(self.action_zoom_out)
+			#self.toolbar.addAction(self.action_zoom_out)
 			self.toolbar.addAction(self.action_zoom_fit)
 			#self.toolbar.addAction(self.action_zoom_use)
 		else:
@@ -1777,6 +1849,7 @@ class PlotDialog(QtGui.QWidget):
 		self.action_mini_mode_compact.triggered.connect(self.onActionMiniModeCompact)
 		self.action_mini_mode_ultra.triggered.connect(self.onActionMiniModeUltra)
 		self.action_select.triggered.connect(self.onActionSelect)
+		self.action_select_viewport.triggered.connect(self.onActionSelectViewport)
 		self.action_select_none.triggered.connect(self.onActionSelectNone)
 		self.action_select_invert.triggered.connect(self.onActionSelectInvert)
 		#action_zoom_out
@@ -1802,6 +1875,7 @@ class PlotDialog(QtGui.QWidget):
 		self.action_xrange.setCheckable(True)
 		self.action_yrange.setCheckable(True)
 		self.action_lasso.setCheckable(True)
+		self.action_select_rectangle.setCheckable(True)
 		self.action_slice.setCheckable(True)
 		#self.action_zoom_out.setCheckable(True)
 		#self.action_group_main.
@@ -1905,6 +1979,30 @@ class PlotDialog(QtGui.QWidget):
 		logger.debug("set to: %r", value)
 		action = getattr(self, "action_select_mode_%s" % value)
 		self.setSelectMode(action)
+
+	def onActionSelectViewport(self):
+		layer = self.current_layer
+		if layer is not None:
+			if self.dimensions == 3:
+				(xmin, xmax), (ymin, ymax), (zmin, zmax) = self.ranges_show
+				args = (layer.x, xmin, layer.x, xmax, layer.y, ymin, layer.y, ymax, layer.z, zmin, layer.z, zmax)
+				expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
+			if self.dimensions == 2:
+				(xmin, xmax), (ymin, ymax) = self.ranges_show
+				args = (layer.x, xmin, layer.x, xmax, layer.y, ymin, layer.y, ymax)
+				expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
+			if self.dimensions == 1:
+				(xmin, xmax) = self.ranges_show
+				args = (layer.x, xmin, layer.x, xmax, layer.y, ymin, layer.y, ymax)
+				expression = "((%s) >= %f) & ((%s) <= %f)" % args
+			logger.debug("rectangle selection using expression: %r" % expression)
+			self.dataset.select(expression, mode=self.select_mode)
+			#self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
+			mask = layer.dataset.mask
+			action = undo.ActionMask(layer.dataset.undo_manager, "selected (%d-D)viewport" % (self.dimensions), mask, layer.apply_mask)
+			#action.do()
+			self.checkUndoRedo()
+			self.queue_update()
 
 	def onActionSelectNone(self):
 		#self.dataset.selectMask(None)
@@ -2212,6 +2310,8 @@ class ScatterPlotDialog(PlotDialog):
 					self.filename_figure_last = self.options["filename"]
 					self.fig.savefig(self.filename_figure_last)
 
+		# this will readd any widgets
+		self.setMode(self.lastAction)
 		self.signal_plot_finished.emit(self, self.fig)
 		return
 		if 1:

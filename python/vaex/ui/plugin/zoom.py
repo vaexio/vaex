@@ -55,7 +55,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		self.dialog.action_group_main.addAction(self.action_zoom_x)
 		self.dialog.action_group_main.addAction(self.action_zoom_y)
 
-		self.dialog.toolbar.addAction(self.action_zoom_out)
+		#self.dialog.toolbar.addAction(self.action_zoom_out)
 		#self.dialog.add_shortcut(self.action_zoom_in,"+")
 		#self.dialog.add_shortcut(self.action_zoom_out,"-")
 		
@@ -76,7 +76,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 			self.lastActionZoom = self.action_zoom_rect
 		
 		self.dialog.toolbar.addSeparator()
-		self.dialog.toolbar.addAction(self.action_zoom_out)
+		#self.dialog.toolbar.addAction(self.action_zoom_out)
 		self.dialog.toolbar.addAction(self.action_zoom_fit)
 
 		self.action_zoom.triggered.connect(self.onActionZoom)

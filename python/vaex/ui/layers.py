@@ -538,10 +538,10 @@ class LayerTable(object):
 						axes.axvline(x[axes.xaxis_index], color="red")
 
 
-		if self.dimensions == 2:
-			#for axes in axes_list:
-			assert len(axes_list) == 1
-			self.plot_density(axes_list[0], self.amplitude_grid, self.amplitude_grid_selection, stack_image)
+		#if self.dimensions == 2:
+		#	#for axes in axes_list:
+		#	assert len(axes_list) == 1
+		#	self.plot_density(axes_list[0], self.amplitude_grid, self.amplitude_grid_selection, stack_image)
 		if self.dimensions >= 2:
 			# for vector we only use the selected map, maybe later also show the full dataset
 			#grid_map_vector = self.create_grid_map(self.plot_window.vector_grid_size, use_selection)
@@ -606,10 +606,14 @@ class LayerTable(object):
 						#amplitude = grid_context(self.amplitude_expression, locals=grid_map_2d)
 
 						grid = self.grid_main.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
+						if self.show_disjoined:
+							grid = grid.disjoined()
 						amplitude = grid.evaluate(self.amplitude_expression)
 						if self.dataset.has_selection():
 							#grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
 							grid_selection = self.grid_main_selection.marginal2d(axes.xaxis_index, axes.yaxis_index)
+							if self.show_disjoined:
+								grid_selection = grid_selection.disjoined()
 							amplitude_selection = grid_selection.evaluate(self.amplitude_expression)
 						else:
 							amplitude_selection = None
@@ -1132,7 +1136,8 @@ class LayerTable(object):
 			self.plug_page(self.page_vector, "Vector field", 2., 1.)
 		#self.plug_page(self.page_display, "Display", 3., 1.)
 		self.plug_page(self.page_selection, "Selection", 3.5, 1.)
-		self.plug_page(self.page_slice, "Slicing", 3.75, 1.)
+		if self.plot_window.enable_slicing:
+			self.plug_page(self.page_slice, "Slicing", 3.75, 1.)
 
 		# first get unique page orders
 		logger.debug("setting up layer plugins")

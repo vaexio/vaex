@@ -931,6 +931,7 @@ class _BlockScope(object):
 			#logger.debug("no luck, eval: %s", expression)
 			#result = ne.evaluate(expression, local_dict=self, out=out)
 			#logger.debug("in eval")
+			#eval("def f(")
 			result = eval(expression, {}, self)
 			self.values[expression] = result
 			#if out is not None:
