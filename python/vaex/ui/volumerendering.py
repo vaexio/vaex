@@ -310,7 +310,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 			}""",GL_VERTEX_SHADER)
 		self.fragment_shader = shaders.compileShader(ray_cast_fragment_source.substitute(iterations=self.ray_iterations),GL_FRAGMENT_SHADER)
 		
-		return shaders.compileProgram(self.vertex_shader, self.fragment_shader)
+		return shaders.compileProgram(self.vertex_shader, self.fragment_shader, validate=False)
 
 	def create_shader_vectorfield(self):
 		self.vertex_shader_color = shaders.compileShader("""
@@ -742,7 +742,8 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		
 		
 		
-		
+		self.shader_ray_cast.check_validate()
+
 
 		glShadeModel(GL_SMOOTH);
 		self.cube(size=80) # do the volume rendering
@@ -1106,6 +1107,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#print(glCheckFramebufferStatus())
 
 		self.shader_ray_cast = self.create_shader_ray_cast()
+
 		self.shader_color = self.create_shader_color()
 		self.shader_vectorfield = self.create_shader_vectorfield()
 		self.shader_vectorfield_color = self.create_shader_vectorfield_color()
@@ -1127,7 +1129,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#mi, ma = -20, 20
 		s = 0.
 		mi, ma = -4, 4
-		#print("histogram3d")
+		print("histogram3d")
 		vaex.vaexfast.histogram3d(x, y, z, None, grid3d, mi+s, ma+s, mi, ma, mi, ma)
 		if 0:
 			vx = vx - vx.mean()
@@ -1164,7 +1166,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		#data3ds = scipy.ndimage.gaussian_filter((self.data3d), 1.5)
 		vectorgrid = np.swapaxes(vectorgrid, 0, 3)
 		
-		self.setGrid(grid3d, vectorgrid)
+		self.setGrid(grid3d, vectorgrid=vectorgrid)
 
 			
 	def setGrid(self, grid, grid_background=None, vectorgrid=None):
@@ -1243,10 +1245,12 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
 		for texture in [self.texture_cube, self.texture_gradient]:
 			logger.debug("deleting texture: %r", texture)
 			if texture is not None:
-				glDeleteTextures(texture)
+				glDeleteTextures(int(texture))
 
 		self.texture_cube = glGenTextures(1)
 		self.texture_gradient = glGenTextures(1)
+		logger.debug("texture: %s %s", self.texture_cube, self.texture_gradient)
+		logger.debug("texture types: %s %s", type(self.texture_cube), type(self.texture_gradient))
 		#self.texture_square = glGenTextures(1)
 		
 		#glActiveTexture(GL_TEXTURE1);
