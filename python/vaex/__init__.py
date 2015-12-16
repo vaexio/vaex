@@ -129,3 +129,11 @@ def set_log_level_exception():
 import logging
 logging.basicConfig(level=logging.ERROR)
 set_log_level_info()
+import os
+import_script = os.path.expanduser("~/.vaex/vaex_import.py")
+if os.path.exists(import_script):
+	try:
+		execfile(import_script)
+	except:
+		import traceback
+		tracepack.print_tb()
