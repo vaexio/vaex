@@ -581,6 +581,7 @@ class LayerTable(object):
 					else:
 						vector_z = None
 						vz = None
+					logger.debug("vx=%s vy=%s vz=%s", vx, vy, vz)
 					if vx is not None and vy is not None and vz is not None:
 						self.vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
 						self.vector_grid[0] = vx
@@ -816,7 +817,7 @@ class LayerTable(object):
 				if key == "vy":
 					self.weight_y_box.lineEdit().setText(value or "")
 				if key == "vz":
-					self.weight_y_box.lineEdit().setText(value or "")
+					self.weight_z_box.lineEdit().setText(value or "")
 				if key == "expressions":
 					for expr, box in zip(value, self.axisboxes):
 						box.lineEdit().setText(expr)
@@ -1284,7 +1285,7 @@ class LayerTable(object):
 
 	def onWeightZExpr(self):
 		text = str(self.weight_z_box.lineEdit().text())
-		self.set_vector_expression(text, 1)
+		self.set_vector_expression(text, 2)
 
 	def set_vector_expression(self, expression, axis_index):
 		# is we set the text to "", check if some of the grids are existing, and simply 'disable' the and replot
