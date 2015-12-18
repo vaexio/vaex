@@ -6,7 +6,7 @@ import os
 import sys
 import numpy as np
 import math
-
+import concurrent.futures
 is_frozen = getattr(sys, 'frozen', False)
 
 def subdivide(length, parts=None, max_length=None):
@@ -28,6 +28,15 @@ def subdivide(length, parts=None, max_length=None):
 		for index in range(parts):
 			i1, i2 = index * part_length, min(length, (index +1) * part_length)
 			yield i1, i2
+
+
+def submit_subdivide(thread_count, f, length, max_length):
+	futures = []
+	thread_pool = concurrent.futures.ThreadPoolExecutor(thread_count)
+	#thread_pool = concurrent.futures.ProcessPoolExecutor(thread_count)
+	for i1, i2 in list(subdivide(length, max_length=max_length)):
+		futures.append(thread_pool.submit(f, i1, i2))
+	return futures
 
 def linspace_centers(start, stop, N):
 	return np.arange(N) / (N+0.) * (stop-start) + float(stop-start)/N/2 + start
