@@ -101,6 +101,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 					break
 			if shuffle: # write to disk in one go
 				to_array_disk[:] = to_array
+	return column_names
 
 def export_fits(dataset, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=True):
 	"""
@@ -199,9 +200,22 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 	# after this the file is closed,, and reopen it using out class
 	dataset_output = vaex.dataset.Hdf5MemoryMapped(path, write=True)
 
-	_export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
+	column_names = _export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
 			column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
 			progress=progress)
+	with h5py.File(path, "r+") as h5file_output:
+		if dataset.description is not None:
+			print "descr", repr(dataset.description)
+			h5file_output["/data"].attrs["description"] = dataset.description
+		for column_name in column_names:
+			h5dataset = h5file_output["/data/%s" % column_name]
+			for name, values in [("ucd", dataset.ucds), ("unit", dataset.units), ("descriptions", dataset.descriptions)]:
+				if column_name in values:
+					value = values[column_name]
+					if name == "unit":
+						value = value.name
+					print type(value), value, name
+					h5dataset.attrs[name] = value
 	return
 
 

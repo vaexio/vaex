@@ -2332,8 +2332,23 @@ class ScatterPlotDialog(PlotDialog):
 		#index = self.dataset.selected_row_index
 
 		if 1:
-			self.axes.set_xlabel(self.xlabel if self.xlabel is not None else first_layer.x)
-			self.axes.set_ylabel(self.ylabel if self.ylabel is not None else first_layer.y)
+			xlabel = self.xlabel
+			if xlabel is None:
+				xlabel = first_layer.x
+				if first_layer.x in first_layer.dataset.get_column_names(virtual=False):
+					if first_layer.x in first_layer.dataset.units:
+						unit = first_layer.dataset.units[first_layer.x]
+						xlabel = "%s (%s)" % (xlabel, unit.to_string('latex_inline')  )
+			ylabel = self.ylabel
+			if ylabel is None:
+				ylabel = first_layer.y
+				if first_layer.y in first_layer.dataset.get_column_names(virtual=False):
+					if first_layer.y in first_layer.dataset.units:
+						unit = first_layer.dataset.units[first_layer.y]
+						ylabel = "%s (%s)" % (ylabel, unit.to_string('latex_inline')  )
+
+			self.axes.set_xlabel(xlabel)
+			self.axes.set_ylabel(ylabel)
 		self.axes.set_xlim(*self.ranges_show[0])
 		self.axes.set_ylim(*self.ranges_show[1])
 		#self.fig.texts = []

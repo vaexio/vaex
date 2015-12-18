@@ -18,6 +18,7 @@ import numpy as np
 import numexpr as ne
 import concurrent.futures
 import astropy.table
+import astropy.units
 
 from vaex.utils import Timer
 import vaex.events
@@ -1121,6 +1122,11 @@ class Dataset(object):
 		self._active_fraction = 1
 		self._current_row = None
 
+		self.description = None
+		self.ucds = {}
+		self.units = {}
+		self.descriptions = {}
+
 		self.mask = None # a bitmask for the selection does not work for server side
 
 		# maps from name to list of Selection objets
@@ -2108,6 +2114,15 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 			if column_name in h5data and column_name not in finished:
 				#print type(column_name)
 				column = h5data[column_name]
+				if "ucd" in column.attrs:
+					self.ucds[column_name] = column.attrs["ucd"]
+				if "description" in column.attrs:
+					self.descriptions[column_name] = column.attrs["description"]
+				if "unit" in column.attrs:
+					try:
+						self.units[column_name] = astropy.units.Unit(column.attrs["unit"])
+					except:
+						logger.exception("error parsing unit: %s", column.attrs["unit"])
 				if hasattr(column, "dtype"):
 					#print column, column.shape
 					offset = column.id.get_offset() 
@@ -2425,7 +2440,8 @@ class DatasetAstropyTable(DatasetArrays):
 	def __init__(self, filename, format, **kwargs):
 		DatasetArrays.__init__(self, filename)
 		self.filename = filename
-		self.table = astropy.table.Table.read(filename, format=format, **kwargs)
+		self.format = format
+		self.read_table()
 
 		#data = table.array.data
 		for i in range(len(self.table.dtype)):
@@ -2448,11 +2464,36 @@ class DatasetAstropyTable(DatasetArrays):
 		#self.list.addDataset(dataset)
 		#return dataset
 
+	def read_table(self):
+		self.table = astropy.table.Table.read(self.filename, format=self.format, **kwargs)
 
 import astropy.io.votable
-class VOTable(DatasetAstropyTable):
+class VOTable(DatasetArrays):
 	def __init__(self, filename):
-		super(VOTable, self).__init__(filename, format="votable")
+		DatasetArrays.__init__(self, filename)
+		self.filename = filename
+		votable = astropy.io.votable.parse(self.filename)
+
+		self.first_table = votable.get_first_table()
+		self.description = self.first_table.description
+
+		for field in self.first_table.fields:
+			name = field.name
+			data = self.first_table.array[name].data
+			self.ucds[name] = field.ucd
+			self.units[name] = field.unit
+			self.descriptions[name] = field.description
+			type = self.first_table.array[name].dtype
+			clean_name = re.sub("[^a-zA-Z_]", "_", name)
+			if type.kind in ["f", "i"]: # only store float and int
+				masked_array = self.first_table.array[name]
+				if type.kind in ["f"]:
+					masked_array.data[masked_array.mask] = np.nan
+				if type.kind in ["i"]:
+					masked_array.data[masked_array.mask] = 0
+				self.add_column(clean_name, self.first_table.array[name].data)
+			#if type.kind in ["S"]:
+			#	self.add_column(clean_name, self.first_table.array[name].data)
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
