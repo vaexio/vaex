@@ -362,6 +362,8 @@ class DatasetPanel(QtGui.QFrame):
 		super(DatasetPanel, self).__init__(parent)
 
 		self.dataset = None
+		self.column_changed_handler = None
+		self.active_fraction_changed_handler = None
 		self.dataset_list = dataset_list
 		self.app = parent
 
@@ -594,11 +596,18 @@ class DatasetPanel(QtGui.QFrame):
 		else:
 			self.label_length.setText("{:,} of {:,}".format(len(self.dataset), self.dataset.full_length()))
 
+	def on_column_change(self, *args):
+		logger.debug("updating columns")
+		self.show_dataset(self.dataset)
+
 	def show_dataset(self, dataset):
-		if self.dataset:
-			self.dataset.signal_active_fraction_changed.disconnect(self.on_active_fraction_changed)
 		self.dataset = dataset
-		self.dataset.signal_active_fraction_changed.connect(self.on_active_fraction_changed)
+		if self.active_fraction_changed_handler:
+			self.dataset.signal_active_fraction_changed.disconnect(self.active_fraction_changed_handler)
+		if self.column_changed_handler:
+			self.dataset.signal_column_changed.disconnect(self.column_changed_handler)
+		self.column_changed_handler = self.dataset.signal_column_changed.connect(self.on_column_change)
+		self.active_fraction_changed_handler = self.dataset.signal_active_fraction_changed.connect(self.on_active_fraction_changed)
 		self.name.setText(dataset.name)
 		self.label_columns.setText(str(dataset.column_count()))
 		self.update_length()
@@ -614,7 +623,7 @@ class DatasetPanel(QtGui.QFrame):
 		self.fractionSlider.setEnabled(not dataset.get_auto_fraction())
 
 		self.histogramMenu = QtGui.QMenu(self)
-		for column_name in self.dataset.get_column_names():
+		for column_name in self.dataset.get_column_names(virtual=True):
 			#action = QtGui.QAction
 			#QtGui.QAction(QtGui.QIcon(iconfile('glue_cross')), '&Pick', self)
 			action = QtGui.QAction(column_name, self)
@@ -623,10 +632,10 @@ class DatasetPanel(QtGui.QFrame):
 		self.button_histogram.setMenu(self.histogramMenu)
 
 		self.scatterMenu = QtGui.QMenu(self)
-		for column_name1 in self.dataset.get_column_names():
+		for column_name1 in self.dataset.get_column_names(virtual=True):
 			#action1 = QtGui.QAction(column_name, self)
 			submenu = self.scatterMenu.addMenu(column_name1)
-			for column_name2 in self.dataset.get_column_names():
+			for column_name2 in self.dataset.get_column_names(virtual=True):
 				action = QtGui.QAction(column_name2, self)
 				action.triggered.connect(functools.partial(self.plotxy, xname=column_name1, yname=column_name2))
 				submenu.addAction(action)
@@ -748,6 +757,7 @@ class WidgetUsage(QtGui.QWidget):
 		except:
 			pass
 from vaex.ui.plot_windows import PlotDialog
+import vaex.ui.metatable
 
 class VaexApp(QtGui.QMainWindow):
 	"""
@@ -798,13 +808,20 @@ class VaexApp(QtGui.QMainWindow):
 		self.dataset_selector = DatasetSelector(self.left)
 		self.dataset_selector.setMinimumWidth(300)
 
+		self.tabs = QtGui.QTabWidget()
+		self.columns_panel = vaex.ui.metatable.MetaTable(self.tabs)
+
+
 		self.dataset_panel = DatasetPanel(self, self.dataset_selector.datasets) #QtGui.QFrame(self)
 		self.dataset_panel.setFrameShape(QtGui.QFrame.StyledPanel)
+		self.tabs.addTab(self.dataset_panel, "Main")
+		self.tabs.addTab(self.columns_panel, "Columns")
 		self.main_panel = self.dataset_panel
 
 		self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
 		self.splitter.addWidget(self.left)
-		self.splitter.addWidget(self.dataset_panel)
+		#self.splitter.addWidget(self.dataset_panel)
+		self.splitter.addWidget(self.tabs)
 
 		#self.hbox = QtGui.QHBoxLayout(self)
 		#self.hbox.addWidget(self.splitter)
@@ -826,6 +843,7 @@ class VaexApp(QtGui.QMainWindow):
 			self.current_dataset = dataset
 			current.dataset = dataset
 			self.dataset_panel.show_dataset(dataset)
+			self.columns_panel.set_dataset(dataset)
 		self.dataset_selector.signal_dataset_select.connect(on_dataset_select)
 		#self.list.currentItemChanged.connect(self.infoPanel.onDataSelected)
 		#self.dataset_selector.currentItemChanged.connect(self.dataset_panel.onDataSelected)

@@ -1111,6 +1111,7 @@ class Dataset(object):
 		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
 		self.signal_selection_changed = vaex.events.Signal("selection changed")
 		self.signal_active_fraction_changed = vaex.events.Signal("active fraction changed")
+		self.signal_column_changed = vaex.events.Signal("a column changed") # (dataset, column_name, change_type=["add", "remove", "change"])
 
 		self.undo_manager = vaex.ui.undo.UndoManager()
 		self.variables = collections.OrderedDict()
@@ -1134,6 +1135,10 @@ class Dataset(object):
 		# after an undo, the last one in the history list is not the active one, -1 means no selection
 		self.selection_history_indices = collections.defaultdict(lambda: -1)
 		self._auto_fraction= False
+
+	def write_meta(self):
+		"""Write the metadata, like ucd, units, descriptions"""
+		raise NotImplementedError
 
 	def is_local(self): raise NotImplementedError
 
@@ -1201,7 +1206,7 @@ class Dataset(object):
 		"""
 		raise NotImplementedError
 
-	def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name):
+	def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name, matrix_is_expression=False):
 		"""
 
 		:param str x: name of x column
@@ -1217,7 +1222,10 @@ class Dataset(object):
 		m = matrix_name
 		for i in range(3):
 			for j in range(3):
-				self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
+				if matrix_is_expression:
+					self.add_virtual_column(matrix_name +"_%d%d" % (i,j), matrix[i,j])
+				else:
+					self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
 		self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y} + {m}_02 * {z}".format(**locals())
 		self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y} + {m}_12 * {z}".format(**locals())
 		self.virtual_columns[znew] = "{m}_20 * {x} + {m}_21 * {y} + {m}_22 * {z}".format(**locals())
@@ -1297,7 +1305,13 @@ class Dataset(object):
 		>>> dataset.add_virtual_column("r", "sqrt(x**2 + y**2 + z**2)")
 		>>> dataset.select("r < 10")
 		"""
+		type = "change" if name in self.virtual_columns else "add"
 		self.virtual_columns[name] = expression
+		self.signal_column_changed.emit(self, name, "add")
+
+	def delete_virtual_column(self, name):
+		del self.virtual_columns[name]
+		self.signal_column_changed.emit(self, name, "delete")
 
 
 
@@ -2038,11 +2052,23 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
 		super(Hdf5MemoryMapped, self).__init__(filename, write=write)
 		self.h5file = h5py.File(self.filename, "r+" if write else "r")
+		self.h5table_root_name = None
 		try:
 			self.load()
 		finally:
 			self.h5file.close()
-		
+
+	def write_meta(self):
+		with h5py.File(self.filename, "r+") as h5file_output:
+			h5table_root = h5file_output[self.h5table_root_name]
+			if self.description is not None:
+				h5table_root.attrs["description"] = self.description
+			for column_name in self.columns.keys():
+				h5dataset = h5table_root[column_name]
+				for name, values in [("ucd", self.ucds), ("unit", self.units), ("description", self.descriptions)]:
+					if column_name in values:
+						value = str(values[column_name])
+						h5dataset.attrs[name] = value
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
 		h5file = None
@@ -2078,8 +2104,14 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 	def load(self):
 		if "data" in self.h5file:
 			self.load_columns(self.h5file["/data"])
+			self.h5table_root_name = "/data"
+		# TODO: shall we rename it vaex... ?
+		# if "vaex" in self.h5file:
+		#	self.load_columns(self.h5file["/vaex"])
+		#	h5table_root = "/vaex"
 		if "columns" in self.h5file:
 			self.load_columns(self.h5file["/columns"])
+			self.h5table_root_name = "/columns"
 		if "properties" in self.h5file:
 			self.load_variables(self.h5file["/properties"]) # old name, kept for portability
 		if "variables" in self.h5file:
@@ -2110,6 +2142,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 		# make sure x y x etc are first
 		first = "x y z vx vy vz".split()
 		finished = set()
+		if "description" in h5data.attrs:
+			self.description = h5data.attrs["description"]
 		for column_name in first + list(h5data):
 			if column_name in h5data and column_name not in finished:
 				#print type(column_name)
@@ -2592,7 +2626,7 @@ class DatasetTap(DatasetArrays):
 		'BOOLEAN':np.bool8
 	}
 	#not supported types yet 'VARCHAR',', u'BOOLEAN', u'INTEGER', u'CHAR
-	def __init__(self, tap_url="http://geadev.esac.esa.int/tap-dev/tap/g10_smc", table_name=None):
+	def __init__(self, tap_url="http://gaia.esac.esa.int/tap-server/tap/g10_smc", table_name=None):
 		logger.debug("tap url: %r", tap_url)
 		self.tap_url = tap_url
 		self.table_name = table_name
@@ -2627,9 +2661,11 @@ class DatasetTap(DatasetArrays):
 				column_name = unicode(column.find("name").string)
 				column_type = unicode(column.dataType.string)
 				ucd = column.ucd.string if column.ucd else None
+				unit = column.unit.string if column.unit else None
+				description = column.description.string if column.description else None
 				#print "\t", column_name, column_type, ucd
 				#types.add()
-				columns.append((column_name, column_type, ucd))
+				columns.append((column_name, column_type, ucd, unit, description))
 			self.tap_tables[table_name] = (table_size, columns)
 		if not self.tap_tables:
 			raise ValueError, "no tables or wrong url"
@@ -2640,10 +2676,16 @@ class DatasetTap(DatasetArrays):
 		logger.debug("selected table table %s has length %d", self.table_name, self._full_length)
 		#self.column_names = []
 		#self.columns = collections.OrderedDict()
-		for column_name, column_type, ucd in self._tap_columns:
-			logger.debug("  column %s has type %s and ucd %s", column_name, column_type, ucd)
+		for column_name, column_type, ucd, unit, description in self._tap_columns:
+			logger.debug("  column %s has type %s and ucd %s, unit %s and description %s", column_name, column_type, ucd, unit, description)
 			if column_type in self.type_map.keys():
 				self.column_names.append(column_name)
+				if ucd:
+					self.ucds[column_name] = ucd
+				if unit:
+					self.units[column_name] = unit
+				if description:
+					self.descriptions[column_name] = description
 				self.columns[column_name] = self.TapColumn(self, column_name, column_type, ucd)
 			else:
 				logger.warning("  type of column %s is not supported, it will be skipped", column_name)

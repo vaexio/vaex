@@ -89,7 +89,7 @@ class TableDialog(QtGui.QDialog):
 		self.tableModel = FullTableModel(self.dataset, PAGE_LIMIT, 0, self)
 		self.tableView.setModel(self.tableModel)
 		self.tableView.pressed.connect(self.onSelectRow)
-		
+
 		self.tableView.verticalHeader().setResizeMode(QtGui.QHeaderView.Interactive)
 		
 		if 0:

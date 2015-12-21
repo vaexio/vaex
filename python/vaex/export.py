@@ -203,11 +203,28 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 	column_names = _export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
 			column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
 			progress=progress)
+	for column_name in column_names:
+		description = dataset.description
+		if description is None:
+			description = ""
+		else:
+			description = ", "
+		import getpass
+		import datetime
+		user = getpass.getuser()
+		date = unicode(datetime.datetime.now())
+		source = dataset.path
+		description += "file exported by vaex, by user %s, on date %s, from source %s" % (user, date, source)
+		dataset_output.description = description
+		for name in "ucds units descriptions".split():
+			dest = getattr(dataset_output, name)
+			source = getattr(dataset, name)
+			if column_name in source:
+				dest[column_name] = source[column_name]
 	with h5py.File(path, "r+") as h5file_output:
 		if dataset.description is not None:
 			print "descr", repr(dataset.description)
 			h5file_output["/data"].attrs["description"] = dataset.description
-		for column_name in column_names:
 			h5dataset = h5file_output["/data/%s" % column_name]
 			for name, values in [("ucd", dataset.ucds), ("unit", dataset.units), ("descriptions", dataset.descriptions)]:
 				if column_name in values:
