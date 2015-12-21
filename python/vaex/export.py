@@ -221,18 +221,21 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 			source = getattr(dataset, name)
 			if column_name in source:
 				dest[column_name] = source[column_name]
-	with h5py.File(path, "r+") as h5file_output:
-		if dataset.description is not None:
-			print "descr", repr(dataset.description)
-			h5file_output["/data"].attrs["description"] = dataset.description
-			h5dataset = h5file_output["/data/%s" % column_name]
-			for name, values in [("ucd", dataset.ucds), ("unit", dataset.units), ("descriptions", dataset.descriptions)]:
-				if column_name in values:
-					value = values[column_name]
-					if name == "unit":
-						value = value.name
-					print type(value), value, name
-					h5dataset.attrs[name] = value
+	logger.debug("writing meta information")
+	dataset_output.write_meta()
+	if 0:
+		with h5py.File(path, "r+") as h5file_output:
+			if dataset.description is not None:
+				print "descr", repr(dataset.description)
+				h5file_output["/data"].attrs["description"] = dataset.description
+				h5dataset = h5file_output["/data/%s" % column_name]
+				for name, values in [("ucd", dataset.ucds), ("unit", dataset.units), ("descriptions", dataset.descriptions)]:
+					if column_name in values:
+						value = values[column_name]
+						if name == "unit":
+							value = value.name
+						print type(value), value, name
+						h5dataset.attrs[name] = value
 	return
 
 

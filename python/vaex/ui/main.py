@@ -356,6 +356,10 @@ class StatisticsDialog(QtGui.QDialog):
 		#print "setting", result
 		#self.min = str
 
+class TextEdit(QtGui.QTextEdit):
+    doubleClicked = QtCore.pyqtSignal(object)
+    def mouseDoubleClickEvent(self, event):
+        self.doubleClicked.emit(event)
 
 class DatasetPanel(QtGui.QFrame):
 	def __init__(self, parent, dataset_list):
@@ -474,8 +478,20 @@ class DatasetPanel(QtGui.QFrame):
 		self.rank.clicked.connect(self.onOpenRank)
 		self.table.clicked.connect(self.onOpenTable)
 
+		self.description = TextEdit('', self)
+		self.description.setReadOnly(True)
+		self.form_layout.addRow('Description:', self.description)
+		self.description.doubleClicked.connect(self.onEditDescription)
+
 		self.setLayout(self.form_layout)
 		self.signal_open_plot = vaex.events.Signal("open plot")
+
+	def onEditDescription(self):
+		text = dialogs.gettext(self, "Edit description", "Edit description", self.description.toPlainText())
+		if text is not None:
+			self.dataset.description = text
+			self.description.setText(text)
+			self.dataset.write_meta()
 
 	def onOpenStatistics(self):
 
@@ -601,14 +617,18 @@ class DatasetPanel(QtGui.QFrame):
 		self.show_dataset(self.dataset)
 
 	def show_dataset(self, dataset):
-		self.dataset = dataset
+
 		if self.active_fraction_changed_handler:
 			self.dataset.signal_active_fraction_changed.disconnect(self.active_fraction_changed_handler)
 		if self.column_changed_handler:
 			self.dataset.signal_column_changed.disconnect(self.column_changed_handler)
-		self.column_changed_handler = self.dataset.signal_column_changed.connect(self.on_column_change)
+
+		self.dataset = dataset
 		self.active_fraction_changed_handler = self.dataset.signal_active_fraction_changed.connect(self.on_active_fraction_changed)
+		self.column_changed_handler = self.dataset.signal_column_changed.connect(self.on_column_change)
+
 		self.name.setText(dataset.name)
+		self.description.setText(dataset.description if dataset.description else "")
 		self.label_columns.setText(str(dataset.column_count()))
 		self.update_length()
 		self.label_length.setText("{:,}".format(self.dataset.full_length()))

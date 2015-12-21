@@ -2644,6 +2644,7 @@ class DatasetTap(DatasetArrays):
 		import requests
 		super(DatasetTap, self).__init__(self.table_name)
 		self.req = requests.request("get", self.tap_url+"/tables/")
+		self.path = "tap+" +self.tap_url + "/" + table_name
 
 		#print dir(self.req)
 		from bs4 import BeautifulSoup

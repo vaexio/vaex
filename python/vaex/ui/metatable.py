@@ -331,6 +331,8 @@ class MetaTableModel(QtCore.QAbstractTableModel):
 class MetaTable(QtGui.QWidget):
 
 	def set_dataset(self, dataset):
+		if self.event_handler:
+			self.dataset.signal_column_changed.disconnect(self.event_handler)
 		self.dataset = dataset
 		self.tableModel = MetaTableModel(self.dataset, self)
 		self.tableView.setModel(self.tableModel)
@@ -338,8 +340,6 @@ class MetaTable(QtGui.QWidget):
 		self.tableView.resizeColumnsToContents()
 		#self.tableView.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch);
 		self.tableView.horizontalHeader().setStretchLastSection(True)
-		if self.event_handler:
-			self.dataset.signal_column_changed.disconnect(self.event_handler)
 		self.event_handler = self.dataset.signal_column_changed.connect(self.on_column_change)
 
 	def on_column_change(self, *args):
