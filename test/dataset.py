@@ -113,8 +113,8 @@ class TestDataset(unittest.TestCase):
 		subspace = dataset("x", "y", "z")
 		x, y, z = subspace.sum()
 
-		self.assertAlmostEqual(x, 0)
-		self.assertAlmostEqual(y, 1)
+		self.assertAlmostEqual(x, 1)
+		self.assertAlmostEqual(y, 0)
 		self.assertAlmostEqual(z, 0)
 
 
