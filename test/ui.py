@@ -36,6 +36,7 @@ def get_comparison_image(name):
 vx.set_log_level_warning()
 #vx.set_log_level_debug()
 
+overwrite_images = False #True
 
 class CallCounter(object):
 	def __init__(self, return_value=None):
@@ -144,6 +145,8 @@ class TestPlotPanel(unittest.TestCase):
 
 	def test_open_and_close(self):
 		button = self.app.dataset_panel.button_2d
+		self.app.show()
+		self.app.hide()
 		self.assert_(len(self.app.windows) == 0)
 		QtTest.QTest.mouseClick(button, QtCore.Qt.LeftButton)
 		self.assertEqual(len(self.app.windows), 1)
@@ -162,12 +165,17 @@ class TestPlotPanel2d(unittest.TestCase):
 	"""
 	def setUp(self):
 		self.app = vx.ui.main.VaexApp([], open_default=True)
+		self.app.show()
+		self.app.hide()
 		button = self.app.dataset_panel.button_2d
 		self.assert_(len(self.app.windows) == 0)
 		QtTest.QTest.mouseClick(button, QtCore.Qt.LeftButton)
 		self.window = self.app.current_window
-		self.window.xlabel = ""
-		self.window.ylabel = ""
+		#self.window.xlabel = ""
+		#self.window.ylabel = ""
+		self.window.set_plot_size(512, 512)
+		self.window.show()
+		self.window.hide()
 		self.layer = self.window.current_layer
 		self.no_exceptions = True
 		import sys
@@ -193,11 +201,24 @@ class TestPlotPanel2d(unittest.TestCase):
 		image2 = PIL.Image.open(fn2)
 		diff = PIL.ImageChops.difference(image1, image2)
 		extrema = diff.getextrema()
-
 		for i, (vmin, vmax) in enumerate(extrema):
 			msg = "difference found between %s and %s in band %d" % (fn1, fn2, i)
+			if vmin != vmax and overwrite_images:
+				image1.show()
+				image2.show()
+				done = False
+				while not done:
+					answer = raw_input("is the new image ok? [y/N]").lower().strip()
+					if answer == "n":
+						self.assertEqual(vmin, 0, msg)
+						return
+					if answer == "y":
+						import shutil
+						shutil.copy(fn1, fn2)
+						return
 			self.assertEqual(vmin, 0, msg)
 			self.assertEqual(vmax, 0, msg)
+
 
 
 	def test_xy(self):

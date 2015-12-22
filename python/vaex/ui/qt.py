@@ -198,9 +198,9 @@ class Checkbox(object):
 		self.checkbox.setChecked(getter())
 		self.checkbox.stateChanged.connect(on_change)
 
-	def add_to_grid_layout(self, row, grid_layout):
-		grid_layout.addWidget(self.label, row, 0)
-		grid_layout.addWidget(self.checkbox, row, 1)
+	def add_to_grid_layout(self, row, grid_layout, column_start=0):
+		grid_layout.addWidget(self.label, row,  column_start+0)
+		grid_layout.addWidget(self.checkbox, row,  column_start+1)
 		return row + 1
 
 class Slider(object):

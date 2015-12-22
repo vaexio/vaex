@@ -136,4 +136,4 @@ if os.path.exists(import_script):
 		execfile(import_script)
 	except:
 		import traceback
-		tracepack.print_tb()
+		traceback.print_tb()

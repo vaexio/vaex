@@ -1,5 +1,5 @@
+# -*- coding: utf-8 -*-
 __author__ = 'breddels'
-
 import sys
 import vaex
 from vaex.ui.qt import *
@@ -244,10 +244,14 @@ class MetaTableModel(QtCore.QAbstractTableModel):
 			self.dataset.descriptions[column_name] = value
 		if property == "UCD":
 			self.dataset.ucds[column_name] = value
+			# TODO: move to dataset class
+			self.dataset.signal_column_changed.emit(self.dataset, column_name, "change")
 		if property == "Units":
 			if value:
 				logger.debug("setting unit to: %s (%s)" % (value, astropy.units.Unit(value)))
-				self.dataset.units[column_name] = str(astropy.units.Unit(value))
+				self.dataset.units[column_name] = astropy.units.Unit(value)
+				# TODO: move to dataset class
+				self.dataset.signal_column_changed.emit(self.dataset, column_name, "change")
 			else:
 				if column_name in self.dataset.units:
 					del self.dataset.units[column_name]
@@ -288,7 +292,8 @@ class MetaTableModel(QtCore.QAbstractTableModel):
 				else:
 					return "virtual column"
 			elif property == "Units":
-				return str(self.dataset.units.get(column_name, ""))
+				unit = self.dataset.unit(column_name)
+				return str(unit) if unit else ""
 			elif property == "UCD":
 				return self.dataset.ucds.get(column_name, "")
 			elif property == "Description":
@@ -344,8 +349,9 @@ class MetaTable(QtGui.QWidget):
 
 	def on_column_change(self, *args):
 		self.reset()
+		pass
 
-	def __init__(self, parent):
+	def __init__(self, parent, menu=None):
 		super(MetaTable, self).__init__(parent)
 		#dataset.add_virtual_column("xp", "x")
 		self.event_handler = None
@@ -363,6 +369,8 @@ class MetaTable(QtGui.QWidget):
 		#self.description.setFixedHeight(100)
 		#self.description.textChanged.connect(self.onTextChanged)
 
+		#self.action_group_add = QtGui.QActionGroup(self)
+
 		self.action_add = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Add virtual column', self)
 		self.action_remove = QtGui.QAction(QtGui.QIcon(iconfile('table-delete-column')), 'Remove virtual column', self)
 		self.action_remove.setEnabled(False)
@@ -372,8 +380,36 @@ class MetaTable(QtGui.QWidget):
 		self.toolbar.addAction(self.action_add)
 		self.toolbar.addAction(self.action_remove)
 
+		self.action_add_menu = QtGui.QMenu()
+		self.action_add.setMenu(self.action_add_menu)
+
+		self.action_celestial = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'equatorial to galactic', self)
+		self.action_celestial.setShortcut("Ctrl+G")
+		self.action_add.menu().addAction(self.action_celestial)
+		self.action_celestial.triggered.connect(lambda *args: add_celestial(self, self.dataset))
+
+		self.action_car_to_gal = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'cartesian to galactic', self)
+		self.action_car_to_gal.setShortcut("Ctrl+S")
+		self.action_add.menu().addAction(self.action_car_to_gal)
+		self.action_car_to_gal.triggered.connect(lambda *args: add_sky(self, self.dataset, True))
+
+		self.action_gal_to_car = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'galactic to cartesian', self)
+		self.action_gal_to_car.setShortcut("Ctrl+C")
+		self.action_add.menu().addAction(self.action_gal_to_car)
+		self.action_gal_to_car.triggered.connect(lambda *args: add_cartesian(self, self.dataset, True))
+
+		self.action_gal_to_aitoff = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'galactic to Aitoff projection', self)
+		self.action_gal_to_aitoff.setShortcut("Ctrl+A")
+		self.action_add.menu().addAction(self.action_gal_to_aitoff)
+		self.action_gal_to_aitoff.triggered.connect(lambda *args: add_aitoff(self, self.dataset, True))
+
+		#action_group_add.add(self.action_add)
+
 		self.action_add.triggered.connect(self.onAdd)
 		self.action_remove.triggered.connect(self.onRemove)
+
+		menu.addAction(self.action_add)
+		menu.addAction(self.action_remove)
 		#self.tableView.pressed.connect(self.onSelectRow)
 		#self.tableView.activated.connect(self.onActivateRow)
 		#self.tableView.selectionModel().currentChanged.connect(self.onCurrentChanged)
@@ -440,13 +476,241 @@ class MetaTable(QtGui.QWidget):
 				#self.tableView.show()
 				#self.tableView.setModel(self.tableModel)
 
+	def onAddCelestial(self, *args):
+		add_celestial(self, self.dataset)
+
+def add_celestial(parent, dataset):
+	result = dataset.ucd_find("pos.eq.ra", "pos.eq.dec")
+	column_names = dataset.get_column_names(virtual=True)
+	if result is None:
+		result = ["", ""]
+
+	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and result is not None:
+			values = dict(ra=result[0], dec=result[1], l="l", b="b", degrees="degrees")
+	else:
+		dialog = QuickDialog(parent, title="Celestial transform")
+		dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+		dialog.add_combo_edit("ra", "Right ascension", result[0], column_names)
+		dialog.add_combo_edit("dec", "Declination", result[1], column_names)
+
+		dialog.add_text("l", "Galactic l", "l")
+		dialog.add_text("b", "Galactic b", "b")
+		values = dialog.get()
+	if values:
+		dataset.ucds[values["l"]] = "pos.galactic.lon"
+		dataset.ucds[values["b"]] = "pos.galactic.lat"
+		dataset.units[values["l"]] = astropy.units.deg if values["degrees"] == "degrees" else astropy.units.rad
+		dataset.units[values["b"]] = astropy.units.deg if values["degrees"] == "degrees" else astropy.units.rad
+		dataset.add_virtual_columns_celestial(long_in=values["ra"], lat_in=values["dec"],
+												   long_out=values["l"], lat_out=values["b"],
+												   radians=values["degrees"] == "radians")
+
+
+def add_cartesian(parent, dataset, galactic=True):
+	if galactic:
+		spherical = [dataset.ucd_find("pos.distance"), dataset.ucd_find("pos.galactic.lon"), dataset.ucd_find("pos.galactic.lat")]
+	else:
+		spherical = [dataset.ucd_find("pos.distance"), dataset.ucd_find("pos.eq.ra"), dataset.ucd_find("pos.eq.dec")]
+	column_names = dataset.get_column_names(virtual=True)
+
+	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and None not in spherical:
+			values = dict(alpha=spherical[1], delta=spherical[2], distance=spherical[0], x="x", y="y", z="z",
+						  degrees="degrees", solar_pos=repr(default_solar_position)
+						  )
+	else:
+		dialog = QuickDialog(parent, title="Spherical to cartesian transform")
+		if spherical[1]:
+			radians = dataset.unit(spherical[1], default=astropy.units.deg) == astropy.units.rad
+			if radians:
+				dialog.add_combo("degrees", "Input in", ["degrees", "radians"][::-1])
+			else:
+				dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+		else:
+			dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+		dialog.add_combo_edit("distance", "Distance", spherical[0], column_names)
+		dialog.add_combo_edit("alpha", "Alpha", spherical[1], column_names)
+		dialog.add_combo_edit("delta", "Delta", spherical[2], column_names)
+		# TODO: 8 should be in proper units
+		dialog.add_combo_edit("solar_pos", "Solar position (x,y,z)", repr(default_solar_position), column_names)
+
+		dialog.add_text("x", "x", make_unique("x", dataset))
+		dialog.add_text("y", "y", make_unique("y", dataset))
+		dialog.add_text("z", "z", make_unique("z", dataset))
+		values = dialog.get()
+	if values:
+		pos = "pos.galactocentric" if galactic else "pos.heliocentric"
+		if 0:
+			units = dataset.unit(values["distance"])
+			if units:
+				dataset.units[values["x"]] = units
+				dataset.units[values["y"]] = units
+				dataset.units[values["z"]] = units
+		dataset.ucds[values["x"]] = "pos.cartesian.x;%s" % pos
+		dataset.ucds[values["y"]] = "pos.cartesian.y;%s" % pos
+		dataset.ucds[values["z"]] = "pos.cartesian.z;%s" % pos
+		solar_position = eval(values["solar_pos"])
+		dataset.add_virtual_columns_spherical_to_cartesian(values["alpha"], values["delta"], values["distance"],
+														   values["x"], values["y"], values["z"],
+														   center=solar_position,
+														   radians=values["degrees"] == "radians")
+
+def make_unique(name, dataset):
+	postfix = ""
+	number = 2
+	original_name = name
+	while name in dataset.get_column_names(virtual=True):
+		name = original_name + "_" + str(number)
+		number += 1
+	return name
+
+default_solar_position = (-8, 0, 0)
+def add_sky(parent, dataset, galactic=True):
+	if galactic:
+		pos = "pos.galactocentric"
+	else:
+		pos = "pos.heliocentric"
+	cartesian = [dataset.ucd_find("pos.cartesian.x;%s" % pos), dataset.ucd_find("pos.cartesian.y;%s" % pos),
+				 dataset.ucd_find("pos.cartesian.z;%s" % pos)]
+	column_names = dataset.get_column_names(virtual=True)
+
+	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and None not in cartesian:
+			values = dict(x=cartesian[0], y=cartesian[1], z=cartesian[2],
+							alpha=make_unique("l" if galactic else "alpha", dataset),
+							delta=make_unique("b" if galactic else "delta", dataset),
+							distance=make_unique("distance", dataset),
+							solar_pos=repr(default_solar_position),
+							degrees="degrees")
+	else:
+		dialog = QuickDialog(parent, title="Cartesian to spherical transform")
+		dialog.add_combo_edit("x", "x", cartesian[0], column_names)
+		dialog.add_combo_edit("y", "y", cartesian[1], column_names)
+		dialog.add_combo_edit("z", "z", cartesian[2], column_names)
+		# TODO: 8 should be in proper units
+		dialog.add_combo_edit("solar_pos", "Solar position (x,y,z)", repr(default_solar_position), [])
+		dialog.add_combo("degrees", "Output in", ["degrees", "radians"])
+
+		dialog.add_text("distance", "Distance", make_unique("distance", dataset))
+		dialog.add_text("alpha", "Alpha", make_unique("l" if galactic else "alpha", dataset))
+		dialog.add_text("delta", "Delta", make_unique("b" if galactic else "delta", dataset))
+		values = dialog.get()
+	if values:
+		units = dataset.unit(values["x"])
+		pos = "pos.galactocentric" if galactic else "pos.heliocentric"
+		dataset.units[values["alpha"]] = astropy.units.deg if values["degrees"] == "degrees" else astropy.units.rad
+		dataset.units[values["delta"]] = astropy.units.deg if values["degrees"] == "degrees" else astropy.units.rad
+		if units:
+			dataset.units[values["distance"]] = units
+		dataset.ucds[values["distance"]] = "pos.distance;%s" % pos
+		dataset.ucds[values["alpha"]] = "pos.galactic.lon" if galactic else "pos.eq.ra"
+		dataset.ucds[values["delta"]] = "pos.galactic.lat" if galactic else "pos.eq.dec"
+		solar_position = eval(values["solar_pos"])
+		dataset.add_virtual_columns_cartesian_to_spherical(values["x"], values["y"], values["z"],
+														   values["alpha"], values["delta"], values["distance"],
+														   radians=values["degrees"] == "radians", center=solar_position)
+
+def add_aitoff(parent, dataset, galactic=True):
+	if galactic:
+		spherical = [dataset.ucd_find("pos.galactic.lon"), dataset.ucd_find("pos.galactic.lat")]
+	else:
+		spherical = [dataset.ucd_find("pos.eq.ra"), dataset.ucd_find("pos.eq.dec")]
+	column_names = dataset.get_column_names(virtual=True)
+
+	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and None not in spherical:
+			values = dict(alpha=spherical[0], delta=spherical[1], x="x_aitoff", y="y_aitoff", degrees="degrees")
+	else:
+		dialog = QuickDialog(parent, title="Spherical to cartesian transform")
+		if spherical[1]:
+			radians = dataset.unit(spherical[1], default=astropy.units.deg) == astropy.units.rad
+			if radians:
+				dialog.add_combo("degrees", "Input in", ["degrees", "radians"][::-1])
+			else:
+				dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+		else:
+			dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+		dialog.add_combo_edit("alpha", "Alpha", spherical[0], column_names)
+		dialog.add_combo_edit("delta", "Delta", spherical[1], column_names)
+
+		dialog.add_text("x", "x", make_unique("x_aitoff", dataset))
+		dialog.add_text("y", "y", make_unique("y_aitoff", dataset))
+		values = dialog.get()
+	if values:
+		#pos = "pos.galactic" if galactic else "pos.eq"
+		#dataset.ucds[values["x"]] = "pos.cartesian.x;%s" % pos
+		#dataset.ucds[values["y"]] = "pos.cartesian.y;%s" % pos
+		#dataset.ucds[values["z"]] = "pos.cartesian.z;%s" % pos
+		alpha = values["alpha"]
+		if galactic: # go from 0-360 to -180-180
+			if values["degrees"] == "radians":
+				alpha = "((%s+pi) %% (2*pi) - pi)" % values["alpha"]
+			else:
+				alpha = "((%s+180) %% 360 - 180)" % values["alpha"]
+
+		dataset.add_virtual_columns_aitoff(alpha, values["delta"],
+										   values["x"], values["y"], radians=values["degrees"] == "radians")
+
+class QuickDialog(QtGui.QDialog):
+	def __init__(self, parent, title, validate=None):
+		QtGui.QDialog.__init__(self, parent)
+		self.layout = QtGui.QFormLayout()
+		self.values = {}
+		self.widgets = {}
+		self.validate = validate
+		self.button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok|QtGui.QDialogButtonBox.Cancel, QtCore.Qt.Horizontal, self);
+		self.button_box.accepted.connect(self.check_accept)
+		self.button_box.rejected.connect(self.reject)
+		self.setLayout(self.layout)
+
+	def get(self):
+		self.layout.addWidget(self.button_box)
+		if self.exec_() == QtGui.QDialog.Accepted:
+			return self.values
+		else:
+			return None
+
+	def check_accept(self):
+		logger.debug("on accepted")
+		for name, widget in self.widgets.items():
+			if isinstance(widget, QtGui.QLabel):
+				pass#self.values[name] = None
+			elif isinstance(widget, QtGui.QLineEdit):
+				self.values[name] = widget.text()
+			elif isinstance(widget, QtGui.QComboBox):
+				self.values[name] = widget.currentText() #lineEdit().text()
+			else:
+				raise NotImplementedError
+		if self.validate is None or self.validate(self, self.values):
+			self.accept()
+
+
+	def accept(self):#(self, *args):
+		return QtGui.QDialog.accept(self)
+
+	def add_label(self, name, label=""):
+		self.widgets[name] = widget = QtGui.QLabel(label)
+		self.layout.addRow("", widget)
+
+	def add_text(self, name, label="", value=""):
+		self.widgets[name] = widget = QtGui.QLineEdit(value, self)
+		self.layout.addRow(label, widget)
+
+	def add_combo_edit(self, name, label="", value="", values=[]):
+		self.widgets[name] = widget = QtGui.QComboBox(self)
+		widget.addItems([value] + values)
+		widget.setEditable(True)
+		self.layout.addRow(label, widget)
+
+	def add_combo(self, name, label="", values=[]):
+		self.widgets[name] = widget = QtGui.QComboBox(self)
+		widget.addItems(values)
+		self.layout.addRow(label, widget)
+
 
 
 def main(argv=sys.argv):
 	dataset = vaex.open(argv[1])
 	app = QtGui.QApplication(argv)
 	table = MetaTable(None)
-	self.set_dataset(dataset)
+	table.set_dataset(dataset)
 	table.show()
 	table.raise_()
 	sys.exit(app.exec_())

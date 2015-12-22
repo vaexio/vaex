@@ -1527,6 +1527,25 @@ class LayerTable(object):
 		self.weight_expression = str(self.weight_box.lineEdit().text())
 		if len(self.weight_expression.strip()) == 0:
 			self.weight_expression = None
+		row += 1
+
+
+		if 0:
+			self.flip_x = False
+			ucd_x = self.dataset.ucds.get(self.x)
+			if ucd_x and ("pos.galactic.lon" in ucd_x or "pos.eq.ra" in ucd_x):
+				self.flip_x = True
+
+			self.checkbox_flip_x = Checkbox(page, "flip_x", getter=attrgetter(self, "flip_x"), setter=attrsetter(self, "flip_x"), update=self.signal_plot_dirty.emit)
+			row = self.checkbox_flip_x.add_to_grid_layout(row, self.grid_layout, 1)
+
+			self.flip_y = False
+			ucd_x = self.dataset.ucds.get(self.y)
+			#if ucd_x and ("pos.galactic.lon" in ucd_x or "pos.eq.ra" in ucd_x):
+			#	self.flip_x = True
+
+			self.checkbox_flip_y = Checkbox(page, "flip_y", getter=attrgetter(self, "flip_y"), setter=attrsetter(self, "flip_y"), update=self.signal_plot_dirty.emit)
+			row = self.checkbox_flip_y.add_to_grid_layout(row, self.grid_layout, 1)
 
 	def page_visual(self, page):
 

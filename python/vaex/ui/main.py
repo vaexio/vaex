@@ -13,6 +13,8 @@ import vaex.settings
 
 import vaex.ui.qt as dialogs
 
+import astropy.units
+
 # py2/p3 compatibility
 try:
 	from urllib.parse import urlparse
@@ -420,24 +422,41 @@ class DatasetPanel(QtGui.QFrame):
 		self.fractionSlider.valueChanged.connect(self.onValueChanged)
 		self.onValueChanged(0)
 
+		self.button_common = QtGui.QToolButton(self)
+		self.button_common.setText('Suggestions')
+		self.button_common.setIcon(QtGui.QIcon(vp.iconfile('light-bulb')))
+		self.button_common.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.button_common.setPopupMode(QtGui.QToolButton.InstantPopup)
+		self.menu_common = QtGui.QMenu()
+		self.button_common.setMenu(self.menu_common)
+
+		self.form_layout.addRow('Suggestions:', self.button_common)
+
 		#self.histogramButton = QtGui.QPushButton('histogram (1d)', self)
 		self.button_histogram = QtGui.QToolButton(self)
 		self.button_histogram.setText('histogram (1d)')
 		self.button_histogram.setIcon(QtGui.QIcon(vp.iconfile('layout')))
 		self.button_histogram.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
 		self.form_layout.addRow('Plotting:', self.button_histogram)
+		self.menu_1d = QtGui.QMenu(self)
+		self.button_histogram.setMenu(self.menu_1d)
+
 
 		self.button_2d = QtGui.QToolButton(self)
 		self.button_2d.setIcon(QtGui.QIcon(vp.iconfile('layout-2-equal')))
 		self.button_2d.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
 		self.button_2d.setText('x/y density')
 		self.form_layout.addRow('', self.button_2d)
+		self.menu_2d = QtGui.QMenu(self)
+		self.button_2d.setMenu(self.menu_2d)
 
 		self.button_3d = QtGui.QToolButton(self)
 		self.button_3d.setIcon(QtGui.QIcon(vp.iconfile('layout-3')))
 		self.button_3d.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
 		self.button_3d.setText('x/y/z density')
 		self.form_layout.addRow('', self.button_3d)
+		self.menu_3d = QtGui.QMenu(self)
+		self.button_3d.setMenu(self.menu_3d)
 		if 0:
 
 
@@ -622,46 +641,100 @@ class DatasetPanel(QtGui.QFrame):
 			self.dataset.signal_active_fraction_changed.disconnect(self.active_fraction_changed_handler)
 		if self.column_changed_handler:
 			self.dataset.signal_column_changed.disconnect(self.column_changed_handler)
+		self.refs = []
 
 		self.dataset = dataset
 		self.active_fraction_changed_handler = self.dataset.signal_active_fraction_changed.connect(self.on_active_fraction_changed)
 		self.column_changed_handler = self.dataset.signal_column_changed.connect(self.on_column_change)
-
 		self.name.setText(dataset.name)
 		self.description.setText(dataset.description if dataset.description else "")
 		self.label_columns.setText(str(dataset.column_count()))
 		self.update_length()
 		self.label_length.setText("{:,}".format(self.dataset.full_length()))
-		#self.numberLabel.setText("{:,}".format(len(self.dataset)))
 		self.update_active_fraction()
 		self.button_2d.setEnabled(self.dataset.column_count() > 0)
-		#self.scatter2dSeries.setEnabled(len(self.dataset.rank1s) >= 2)
-		#self.scatter3dButton.setEnabled(False)
-		#self.scatter1dSeries.setEnabled(len(self.dataset.rank1s) >= 1)
-		#self.serieSlice.setEnabled(len(self.dataset.rank1s) >= 2)
 		self.auto_fraction_checkbox.setEnabled(not dataset.is_local())
 		self.fractionSlider.setEnabled(not dataset.get_auto_fraction())
 
-		self.histogramMenu = QtGui.QMenu(self)
+
+		self.menu_common.clear()
+		if dataset.ucd_find("pos.eq.ra", "pos.eq.dec") and dataset.ucd_find("pos.galactic.lon", "pos.galactic.lat") is None:
+			def add(*args):
+				vaex.ui.metatable.add_celestial(self, self.dataset)
+			action = QtGui.QAction("Add galactic coordinates", self)
+			action.triggered.connect(add)
+			self.refs.append((action, add))
+			self.menu_common.addAction(action)
+		if dataset.ucd_find("pos.parallax.spect") and not dataset.ucd_find("pos.distance"):
+			def add(*args):
+				parallax = self.dataset.ucd_find("pos.parallax.spect")
+				unit = self.dataset.unit(parallax)
+				if unit:
+					convert = unit.to(astropy.units.mas)
+					distance_expression = "%f/(%s)" % (convert, parallax)
+				else:
+					distance_expression = "1/(%s)" % (parallax)
+				if unit:
+					self.dataset.units["distance"] = astropy.units.kpc
+				self.dataset.ucds["distance"] = "pos.distance"
+				self.dataset.add_virtual_column("distance", distance_expression)
+
+			action = QtGui.QAction("Add distance from parallax", self)
+			action.triggered.connect(add)
+			self.refs.append((action, add))
+			self.menu_common.addAction(action)
+		spherical_galactic = dataset.ucd_find("pos.distance", "pos.galactic.lon", "pos.galactic.lat")
+		if spherical_galactic and not dataset.ucd_find("pos.cartesian.x;pos.galactocentric", "pos.cartesian.y;pos.galactocentric", "pos.cartesian.z;pos.galactocentric"):
+			def add(*args):
+				vaex.ui.metatable.add_cartesian(self, self.dataset, True)
+			action = QtGui.QAction("Add galactic cartesian positions", self)
+			action.triggered.connect(add)
+			self.refs.append((action, add))
+			self.menu_common.addAction(action)
+		if dataset.ucd_find("pos.cartesian.x;pos.galactocentric", "pos.cartesian.y;pos.galactocentric", "pos.cartesian.z;pos.galactocentric") and \
+				not dataset.ucd_find("pos.distance;pos.galactocentric", "pos.galactic.lon", "pos.galactic.lat"):
+			def add(*args):
+				vaex.ui.metatable.add_sky(self, self.dataset, True)
+			action = QtGui.QAction("Add galactic sky coordinates", self)
+			action.triggered.connect(add)
+			self.refs.append((action, add))
+			self.menu_common.addAction(action)
+
+		spherical_galactic = dataset.ucd_find("pos.galactic.lon", "pos.galactic.lat")
+		if spherical_galactic:
+			def add(*args):
+				vaex.ui.metatable.add_aitoff(self, self.dataset, True)
+			action = QtGui.QAction("Add galactic aitoff projection", self)
+			action.triggered.connect(add)
+			self.refs.append((action, add))
+			self.menu_common.addAction(action)
+
+		self.menu_1d.clear()
 		for column_name in self.dataset.get_column_names(virtual=True):
 			#action = QtGui.QAction
 			#QtGui.QAction(QtGui.QIcon(iconfile('glue_cross')), '&Pick', self)
 			action = QtGui.QAction(column_name, self)
 			action.triggered.connect(functools.partial(self.histogram, xname=column_name))
-			self.histogramMenu.addAction(action)
-		self.button_histogram.setMenu(self.histogramMenu)
+			self.menu_1d.addAction(action)
 
-		self.scatterMenu = QtGui.QMenu(self)
+		self.menu_2d.clear()
+		ucd_pairs = [("pos.cartesian.x", "pos.cartesian.y"), ("pos.cartesian.x", "pos.cartesian.z"), ("pos.cartesian.y", "pos.cartesian.z"),
+					 ("pos.eq.ra", "pos.eq.dec"), ("pos.galactic.lon", "pos.galactic.lat")]
+		for ucd_pair in ucd_pairs:
+			pair = dataset.ucd_find(*ucd_pair)
+			if pair:
+				action = QtGui.QAction(", ".join(pair), self)
+				action.triggered.connect(functools.partial(self.plotxy, xname=pair[0], yname=pair[1]))
+				self.menu_2d.addAction(action)
 		for column_name1 in self.dataset.get_column_names(virtual=True):
 			#action1 = QtGui.QAction(column_name, self)
-			submenu = self.scatterMenu.addMenu(column_name1)
+			submenu = self.menu_2d.addMenu(column_name1)
 			for column_name2 in self.dataset.get_column_names(virtual=True):
 				action = QtGui.QAction(column_name2, self)
 				action.triggered.connect(functools.partial(self.plotxy, xname=column_name1, yname=column_name2))
 				submenu.addAction(action)
-		self.button_2d.setMenu(self.scatterMenu)
 
-		self.scatterMenu3d = QtGui.QMenu(self)
+		return
 		if 0: # TODO 3d menu takes long to generate when many columns are present, can we do this lazy?
 			for column_name1 in self.dataset.get_column_names():
 				#action1 = QtGui.QAction(column_name, self)
@@ -672,7 +745,6 @@ class DatasetPanel(QtGui.QFrame):
 						action = QtGui.QAction(column_name3, self)
 						action.triggered.connect(functools.partial(self.plotxyz, xname=column_name1, yname=column_name2, zname=column_name3))
 						subsubmenu.addAction(action)
-		self.button_3d.setMenu(self.scatterMenu3d)
 
 		if 0:
 			self.serieSliceMenu = QtGui.QMenu(self)
@@ -829,13 +901,11 @@ class VaexApp(QtGui.QMainWindow):
 		self.dataset_selector.setMinimumWidth(300)
 
 		self.tabs = QtGui.QTabWidget()
-		self.columns_panel = vaex.ui.metatable.MetaTable(self.tabs)
 
 
 		self.dataset_panel = DatasetPanel(self, self.dataset_selector.datasets) #QtGui.QFrame(self)
 		self.dataset_panel.setFrameShape(QtGui.QFrame.StyledPanel)
 		self.tabs.addTab(self.dataset_panel, "Main")
-		self.tabs.addTab(self.columns_panel, "Columns")
 		self.main_panel = self.dataset_panel
 
 		self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
@@ -990,6 +1060,9 @@ class VaexApp(QtGui.QMainWindow):
 					action.triggered.connect(do)
 					self.menu_data.addAction(action)
 
+		self.menu_columns = menubar.addMenu('&Columns')
+		self.columns_panel = vaex.ui.metatable.MetaTable(self.tabs, menu=self.menu_columns)
+		self.tabs.addTab(self.columns_panel, "Columns")
 
 		use_toolbar = "darwin" not in platform.system().lower()
 		use_toolbar = True
@@ -1109,7 +1182,6 @@ class VaexApp(QtGui.QMainWindow):
 					current.window = None
 			plot_dialog.signal_closed.connect(on_close)
 			self.current_window = plot_dialog
-
 		self.dataset_panel.signal_open_plot.connect(on_open_plot)
 
 		self.signal_call_in_main_thread.connect(self.on_signal_call_in_main_thread)

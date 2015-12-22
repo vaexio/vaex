@@ -352,6 +352,10 @@ class PlotDialog(QtGui.QWidget):
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 		#self.pinch_ranges_show = [None for i in range(self.dimension)]
 
+	def set_plot_size(self, width, height):
+		# use for testing only, to get a fixed size per platform
+		self.canvas.setFixedSize(width, height)
+
 	def set_layer_progress(self, layer, fraction):
 		if fraction == 0:
 			self.progress_start_time = time.time()
@@ -1078,9 +1082,9 @@ class PlotDialog(QtGui.QWidget):
 		else:
 			for i, axis_index in enumerate(axis_indices):
 				if ranges_show:
-					self.ranges_show[axis_index] = ranges_show[i]
+					self.ranges_show[axis_index] = list(sorted(ranges_show[i]))
 					for layer in self.layers:
-						layer.ranges_grid[axis_index] = ranges_show[i]
+						layer.ranges_grid[axis_index] = list(sorted(ranges_show[i]))
 				i#f ranges:
 				#	self.ranges[axis_index] = ranges[i]
 		logger.debug("set range_level: %r" % (range_level, ))
@@ -1239,10 +1243,20 @@ class PlotDialog(QtGui.QWidget):
 			self.check_aspect(axes.xaxis_index)
 			if self.dimensions in [2,3]:
 				self.ranges_show[axes.xaxis_index] = list(ranges_show[0])
+				#self.ranges_show[axes.xaxis_index].sort()
 				self.ranges_show[axes.yaxis_index] = list(ranges_show[1])
+				#self.ranges_show[axes.yaxis_index].sort()
+				first_layer = None
+				if len(self.layers):
+					first_layer = self.layers[0]
 				for ax in self.getAxesList():
 					ax.set_xlim(self.ranges_show[ax.xaxis_index])
 					ax.set_ylim(self.ranges_show[ax.yaxis_index])
+					#if 1:
+					#	if first_layer.flip_x:
+					#		ax.invert_xaxis()
+					#	if first_layer.flip_y:
+					#		ax.invert_yaxis()
 			if self.dimensions == 1:
 				self.ranges_show[axis_indices[0]] = list(ranges_show[0])
 				self.range_level_show = list(range_level_show)
@@ -2335,23 +2349,30 @@ class ScatterPlotDialog(PlotDialog):
 			xlabel = self.xlabel
 			if xlabel is None:
 				xlabel = first_layer.x
-				if first_layer.x in first_layer.dataset.get_column_names(virtual=False):
-					if first_layer.x in first_layer.dataset.units:
-						unit = first_layer.dataset.units[first_layer.x]
-						xlabel = "%s (%s)" % (xlabel, unit.to_string('latex_inline')  )
+				#if first_layer.x in first_layer.dataset.get_column_names(virtual=False):
+				#	if first_layer.x in first_layer.dataset.units:
+				#		unit = first_layer.dataset.units[first_layer.x]
+				unit = self.dataset.unit(first_layer.x)
+				logger.debug("x unit: %r", unit)
+				if unit is not None:
+					xlabel = "%s (%s)" % (xlabel, unit.to_string('latex_inline')  )
 			ylabel = self.ylabel
 			if ylabel is None:
 				ylabel = first_layer.y
-				if first_layer.y in first_layer.dataset.get_column_names(virtual=False):
-					if first_layer.y in first_layer.dataset.units:
-						unit = first_layer.dataset.units[first_layer.y]
-						ylabel = "%s (%s)" % (ylabel, unit.to_string('latex_inline')  )
+				unit = self.dataset.unit(first_layer.y)
+				logger.debug("y unit: %r", unit)
+				if unit is not None:
+					ylabel = "%s (%s)" % (ylabel, unit.to_string('latex_inline')  )
 
 			self.axes.set_xlabel(xlabel)
 			self.axes.set_ylabel(ylabel)
 		self.axes.set_xlim(*self.ranges_show[0])
 		self.axes.set_ylim(*self.ranges_show[1])
 		#self.fig.texts = []
+		#if first_layer.flip_x:
+		#	self.axes.invert_xaxis()
+		#if first_layer.flip_y:
+		#	self.axes.invert_yaxis()
 		if 0:
 			title_text = self.title_expression.format(**self.getVariableDict())
 			if hasattr(self, "title"):
@@ -3266,11 +3287,11 @@ class Mover(object):
 			else:
 				ymin, ymax = self.plot.ranges_show[self.current_axes.yaxis_index][0] + dy, self.plot.ranges_show[self.current_axes.yaxis_index][1] + dy
 			#self.plot.ranges_show = [[xmin, xmax], [ymin, ymax]]
-			self.plot.ranges_show[self.current_axes.xaxis_index] = [xmin, xmax]
+			self.plot.ranges_show[self.current_axes.xaxis_index] = list(sorted([xmin, xmax]))
 			if self.plot.dimensions == 1:
 				self.plot.range_level_show = [ymin, ymax]
 			else:
-				self.plot.ranges_show[self.current_axes.yaxis_index] = [ymin, ymax]
+				self.plot.ranges_show[self.current_axes.yaxis_index] = list(sorted([ymin, ymax]))
 			# TODO: maybe the dimension should be stored in the axes, not in the plotdialog
 			for axes in self.plot.getAxesList():
 				if self.plot.dimensions == 1:

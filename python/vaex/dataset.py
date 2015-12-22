@@ -469,7 +469,6 @@ class Subspaces(object):
 			return self.subspace.var(means=means)
 		def correlation(means_and_vars):
 			means, vars = means_and_vars
-			print means, vars
 			means, vars = self._unpack(means), self._unpack(vars)
 			#return self.subspace.correlation(means=means, vars=vars)
 			return vaex.promise.listPromise([subspace.correlation(means=subspace_mean, vars=subspace_var) for subspace_mean, subspace_var, subspace in zip(means, vars, self.subspaces)])
@@ -785,7 +784,6 @@ class SubspaceLocal(Subspace):
 			if self.async:
 				means_wrapper = [None]
 				def do_vars(means):
-					print "mean", means
 					means_wrapper[0] = means
 					return self.var(means)
 				def do_correlation_wrapper(vars):
@@ -889,6 +887,27 @@ import cgi
 
 # mutex for numexpr (is not thread save)
 ne_lock = threading.Lock()
+
+globals_for_eval = {}
+globals_for_eval.update(np.__dict__)
+
+class UnitScope(object):
+	def __init__(self, dataset, value=None):
+		self.dataset = dataset
+		self.value = value
+
+	def __getitem__(self, variable):
+		if variable in self.dataset.units:
+			return self.dataset.units[variable]
+		elif variable in self.dataset.columns:
+			unit = self.dataset.units.get(variable, astropy.units.dimensionless_unscaled)
+			return (self.value * unit) if self.value is not None else unit
+		elif variable in self.dataset.virtual_columns:
+			return eval(self.dataset.virtual_columns[variable], globals_for_eval, self)
+		elif variable in self.dataset.variables:
+			return astropy.units.dimensionless_unscaled # TODO units for variables?
+		else:
+			raise KeyError, "unkown variable %s" % variable
 
 class _BlockScope(object):
 	def __init__(self, dataset, i1, i2, **variables):
@@ -1136,6 +1155,29 @@ class Dataset(object):
 		self.selection_history_indices = collections.defaultdict(lambda: -1)
 		self._auto_fraction= False
 
+
+	def unit(self, expression, default=None):
+		try:
+			# if an expression like pi * <some_expr> it will evaluate to a quantity instead of a unit
+			unit_or_quantity = eval(expression, globals_for_eval, UnitScope(self))
+			return unit_or_quantity.unit if hasattr(unit_or_quantity, "unit") else unit_or_quantity
+		except:
+			#logger.exception("error evaluating unit expression: %s", expression)
+			# astropy doesn't add units, so we try with a quatiti
+			try:
+				return eval(expression, globals_for_eval, UnitScope(self, 1.)).unit
+			except:
+				logger.exception("error evaluating unit expression: %s", expression)
+				return default
+
+	def ucd_find(self, *ucds):
+		if len(ucds) == 1:
+			columns = [name for name in self.get_column_names(virtual=True) if ucds[0] in self.ucds.get(name, "")]
+			return None if len(columns) == 0 else columns[0]
+		else:
+			columns = [self.ucd_find(ucd) for ucd in ucds]
+			return None if None in columns else columns
+
 	def write_meta(self):
 		"""Write the metadata, like ucd, units, descriptions"""
 		raise NotImplementedError
@@ -1249,14 +1291,21 @@ class Dataset(object):
 		self.add_virtual_column(z_in, "sin({lat_in})".format(**locals()))
 		self.add_virtual_columns_matrix3d(x_in, y_in, z_in, x_out, y_out, z_out,\
 										  matrix, name_prefix+"_matrix")
-		long_out_expr = "arctan2({y_out},{x_out})".format(**locals())
-		lat_out_expr = "arctan2({z_out},sqrt({x_out}**2+{y_out}**2))".format(**locals())
-		if not radians:
-			long_out_expr = "180./pi*%s" % long_out_expr
-			lat_out_expr = "180./pi*%s" % lat_out_expr
+		#long_out_expr = "arctan2({y_out},{x_out})".format(**locals())
+		#lat_out_expr = "arctan2({z_out},sqrt({x_out}**2+{y_out}**2))".format(**locals())
+		#if not radians:
+		#	long_out_expr = "180./pi*%s" % long_out_expr
+		#	lat_out_expr = "180./pi*%s" % lat_out_expr
+		transform = "" if radians else "*180./pi"
+		x = x_out
+		y = y_out
+		z = z_out
+		#self.add_virtual_column(long_out, "((arctan2({y}, {x})+2*pi) % (2*pi)){transform}".format(**locals()))
+		self.add_virtual_column(long_out, "arctan2({y}, {x}){transform}".format(**locals()))
+		self.add_virtual_column(lat_out, "(-arccos({z}/sqrt({x}**2+{y}**2+{z}**2))+pi/2){transform}".format(**locals()))
 
-		self.add_virtual_column(long_out, long_out_expr)
-		self.add_virtual_column(lat_out, lat_out_expr)
+		#self.add_virtual_column(long_out, long_out_expr)
+		#self.add_virtual_column(lat_out, lat_out_expr)
 
 
 
@@ -1280,20 +1329,61 @@ class Dataset(object):
 		self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y}".format(**locals())
 
 
-	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname, yname, zname, radians=True):
+	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname, yname, zname, center=None, center_name="solar_position", radians=True):
 		if not radians:
 			alpha = "pi/180.*%s" % alpha
 			delta = "pi/180.*%s" % delta
-		self.virtual_columns[xname] = "-sin(%s) * cos(%s) * %s" % (alpha, delta, distance)
-		self.virtual_columns[yname] = "cos(%s) * cos(%s) * %s" % (alpha, delta, distance)
-		self.virtual_columns[zname] = "sin(%s) * %s" % (delta, distance)
+		if center is not None:
+			self.variables[center_name] = center
+		if center and center[0] != 0:
+			solar_mod = " + " +center_name+"[0]"
+		else:
+			solar_mod = ""
+		self.add_virtual_column(xname, "cos(%s) * cos(%s) * %s%s" % (alpha, delta, distance, solar_mod))
+		if center and center[1] != 0:
+			solar_mod = " + " +center_name+"[1]"
+		else:
+			solar_mod = ""
+		self.add_virtual_column(yname, "sin(%s) * cos(%s) * %s%s" % (alpha, delta, distance, solar_mod))
+		if center and center[2] != 0:
+			solar_mod = " + " +center_name+"[2]"
+		else:
+			solar_mod = ""
+		self.add_virtual_column(zname, "sin(%s) * %s%s" % (delta, distance, solar_mod))
+
+	def add_virtual_columns_cartesian_to_spherical(self, x, y, z, alpha, delta, distance, radians=True, center=None, center_name="solar_position"):
+		transform = "" if radians else "*180./pi"
+
+		if center is not None:
+			self.variables[center_name] = center
+		if center is not None and center[0] != 0:
+			x = "({x} - {center_name}[0])".format(**locals())
+		if center is not None and center[1] != 0:
+			y = "({y} - {center_name}[1])".format(**locals())
+		if center is not None and center[2] != 0:
+			z = "({z} - {center_name}[2])".format(**locals())
+		self.add_virtual_column(distance, "sqrt({x}**2 + {y}**2 + {z}**2)".format(**locals()))
+		#self.add_virtual_column(alpha, "((arctan2({y}, {x}) + 2*pi) % (2*pi)){transform}".format(**locals()))
+		self.add_virtual_column(alpha, "arctan2({y}, {x}){transform}".format(**locals()))
+		self.add_virtual_column(delta, "(-arccos({z}/{distance})+pi/2){transform}".format(**locals()))
+		#self.add_virtual_column(long_out, "((arctan2({y}, {x})+2*pi) % (2*pi)){transform}".format(**locals()))
+		#self.add_virtual_column(lat_out, "(-arccos({z}/sqrt({x}**2+{y}**2+{z}**2))+pi/2){transform}".format(**locals()))
+
+	def add_virtual_columns_aitoff(self, alpha, delta, x, y, radians=True):
+		transform = "" if radians else "*pi/180."
+		aitoff_alpha = "__aitoff_alpha_%s_%s" % (alpha, delta)
+		# sanatize
+		aitoff_alpha = re.sub("[^a-zA-Z_]", "_", aitoff_alpha)
+
+		self.add_virtual_column(aitoff_alpha, "arccos(cos({delta}{transform})*cos({alpha}{transform}/2))".format(**locals()))
+		self.add_virtual_column(x, "2*cos({delta}{transform})*sin({alpha}{transform}/2)/sinc({aitoff_alpha}/pi)/pi".format(**locals()))
+		self.add_virtual_column(y, "sin({delta}{transform})/sinc({aitoff_alpha}/pi)/pi".format(**locals()))
 
 	def add_virtual_columns_equatorial_to_galactic_cartesian(self, alpha, delta, distance, xname, yname, zname, radians=True, alpha_gp=np.radians(192.85948), delta_gp=np.radians(27.12825), l_omega=np.radians(32.93192)):
 		"""From http://arxiv.org/pdf/1306.2945v2.pdf"""
 		if not radians:
 			alpha = "pi/180.*%s" % alpha
 			delta = "pi/180.*%s" % delta
-		# TODO: sort our x,y,z order and the l_omega
 		self.virtual_columns[zname] = "{distance} * (cos({delta}) * cos({delta_gp}) * cos({alpha} - {alpha_gp}) + sin({delta}) * sin({delta_gp}))".format(**locals())
 		self.virtual_columns[xname] = "{distance} * (cos({delta}) * sin({alpha} - {alpha_gp}))".format(**locals())
 		self.virtual_columns[yname] = "{distance} * (sin({delta}) * cos({delta_gp}) - cos({delta}) * sin({delta_gp}) * cos({alpha} - {alpha_gp}))".format(**locals())
@@ -2502,6 +2592,7 @@ class DatasetAstropyTable(DatasetArrays):
 		self.table = astropy.table.Table.read(self.filename, format=self.format, **kwargs)
 
 import astropy.io.votable
+import string
 class VOTable(DatasetArrays):
 	def __init__(self, filename):
 		DatasetArrays.__init__(self, filename)
@@ -2514,11 +2605,13 @@ class VOTable(DatasetArrays):
 		for field in self.first_table.fields:
 			name = field.name
 			data = self.first_table.array[name].data
-			self.ucds[name] = field.ucd
-			self.units[name] = field.unit
-			self.descriptions[name] = field.description
 			type = self.first_table.array[name].dtype
-			clean_name = re.sub("[^a-zA-Z_]", "_", name)
+			clean_name = re.sub("[^a-zA-Z_0-9]", "_", name)
+			if clean_name in string.digits:
+				clean_name = "_" + clean_name
+			self.ucds[clean_name] = field.ucd
+			self.units[clean_name] = field.unit
+			self.descriptions[clean_name] = field.description
 			if type.kind in ["f", "i"]: # only store float and int
 				masked_array = self.first_table.array[name]
 				if type.kind in ["f"]:
