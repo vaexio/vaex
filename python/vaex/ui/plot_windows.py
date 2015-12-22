@@ -41,7 +41,7 @@ from vaex.ui import qt, undo
 
 
 
-logger = logging.getLogger("vaex")
+logger = logging.getLogger("vaex.ui.window")
 
 class Slicer(matplotlib.widgets.Widget):
 	"""
@@ -1082,9 +1082,9 @@ class PlotDialog(QtGui.QWidget):
 		else:
 			for i, axis_index in enumerate(axis_indices):
 				if ranges_show:
-					self.ranges_show[axis_index] = list(sorted(ranges_show[i]))
+					self.ranges_show[axis_index] = ranges_show[i]
 					for layer in self.layers:
-						layer.ranges_grid[axis_index] = list(sorted(ranges_show[i]))
+						layer.ranges_grid[axis_index] = ranges_show[i]
 				i#f ranges:
 				#	self.ranges[axis_index] = ranges[i]
 		logger.debug("set range_level: %r" % (range_level, ))
@@ -3287,11 +3287,11 @@ class Mover(object):
 			else:
 				ymin, ymax = self.plot.ranges_show[self.current_axes.yaxis_index][0] + dy, self.plot.ranges_show[self.current_axes.yaxis_index][1] + dy
 			#self.plot.ranges_show = [[xmin, xmax], [ymin, ymax]]
-			self.plot.ranges_show[self.current_axes.xaxis_index] = list(sorted([xmin, xmax]))
+			self.plot.ranges_show[self.current_axes.xaxis_index] = [xmin, xmax]
 			if self.plot.dimensions == 1:
 				self.plot.range_level_show = [ymin, ymax]
 			else:
-				self.plot.ranges_show[self.current_axes.yaxis_index] = list(sorted([ymin, ymax]))
+				self.plot.ranges_show[self.current_axes.yaxis_index] = [ymin, ymax]
 			# TODO: maybe the dimension should be stored in the axes, not in the plotdialog
 			for axes in self.plot.getAxesList():
 				if self.plot.dimensions == 1:

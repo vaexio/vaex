@@ -68,6 +68,7 @@ class ServerRest(object):
 		#if async:
 		event = threading.Event()
 		self.thread_mover = thread_mover or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
+		logger.debug("thread mover: %r", self.thread_mover)
 
 		# jobs maps from uid to tasks
 		self.jobs = {}
@@ -132,9 +133,13 @@ class ServerRest(object):
 
 
 	def _on_websocket_message(self, msg):
-		logger.debug("socket read message: %s", msg)
 		response = json.loads(msg)
-		logger.debug("json response: %r", response)
+		import sys
+		if sys.getsizeof(msg) > 1024*4:
+			logger.debug("socket read message: <large amount of data>",)
+		else:
+			logger.debug("socket read message: %s", msg)
+			logger.debug("json response: %r", response)
 		# for the moment, job == task, in the future a job can be multiple tasks
 		job_id = response.get("job_id")
 		if job_id:
@@ -390,12 +395,19 @@ class DatasetRemote(Dataset):
 		super(DatasetRemote, self).__init__(name, column_names)
 		self.server = server
 
+import astropy.units
+
 class DatasetRest(DatasetRemote):
-	def __init__(self, server, name, column_names, full_length):
+	def __init__(self, server, name, column_names, dtypes, ucds, descriptions, units, description, full_length):
 		DatasetRemote.__init__(self, name, server.hostname, column_names)
 		self.server = server
 		self.name = name
 		self.column_names = column_names
+		self.dtypes = {name: np.zeros(1, dtype=getattr(np, dtype)).dtype for name, dtype in dtypes.items()}
+		self.units = {name: astropy.units.Unit(unit) for name, unit in units.items()}
+		self.ucds = ucds
+		self.descriptions = descriptions
+		self.description = description
 		self._full_length = full_length
 		self._length = full_length
 		#self.filename = #"http://%s:%s/%s" % (server.hostname, server.port, name)
@@ -405,6 +417,12 @@ class DatasetRest(DatasetRemote):
 		self.fraction = 1
 
 		self.executor = ServerExecutor()
+
+	def dtype(self, expression):
+		if expression in self.get_column_names():
+			return self.dtypes[expression].dtype
+		else:
+			return np.zeros(1, dtype=np.float64).dtype
 
 	def is_local(self): return False
 

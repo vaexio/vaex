@@ -226,6 +226,30 @@ def confirm_on_console(topic, msg):
 		if output.lower() == "n":
 			return False
 
+import json
+import yaml
+def write_json_or_yaml(filename, data):
+	base, ext = os.path.splitext(filename)
+	if ext == ".json":
+		json.dump(data, filename)
+	elif ext == ".yaml":
+		with open(filename, "w") as f:
+			yaml.safe_dump(data, f, default_flow_style=False, encoding='utf-8',  allow_unicode=True)
+	else:
+		raise ValueError, "file should end in .json or .yaml (not %s)" % ext
+
+def read_json_or_yaml(filename):
+	base, ext = os.path.splitext(filename)
+	if ext == ".json":
+		with open(filename, "r") as f:
+			return json.load(f)
+	elif ext == ".yaml":
+		with open(filename, "r") as f:
+			return yaml.load(f)
+	else:
+		raise ValueError, "file should end in .json or .yaml (not %s)" % ext
+
+
 
 import psutil
 def check_memory_usage(bytes_needed, confirm):

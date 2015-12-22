@@ -279,16 +279,16 @@ class MetaTableModel(QtCore.QAbstractTableModel):
 			column_name = self.get_dataset_column_names()[row]
 			property = self.table_column_names[column_index]
 			column = None
-			if column_name in self.dataset.columns:
-				column = self.dataset.columns[column_name]
+			#if column_name in self.dataset.get_column_names():
+			#	column = self.dataset.columns[column_name]
 
 			#if property == "Visible":
 			#	return QtCore.Qt.Checked
 			if property == "Name":
 				return column_name
 			elif property == "Type":
-				if column is not None:
-					return str(column.dtype)
+				if column_name is self.dataset.get_column_names():
+					return str(self.dataset.dtype(column_name))
 				else:
 					return "virtual column"
 			elif property == "Units":
@@ -310,8 +310,6 @@ class MetaTableModel(QtCore.QAbstractTableModel):
 		property = self.table_column_names[column_index]
 		column = None
 		flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
-		if column_name in self.dataset.columns:
-			column = self.dataset.columns[column_name]
 		if property in ["Description", "Units", "UCD"]:
 			flags |= QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsSelectable
 		if column_name in self.dataset.virtual_columns:

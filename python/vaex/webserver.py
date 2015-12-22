@@ -299,7 +299,12 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 			return ({"result":seconds})
 		elif parts[0] == "datasets":
 			if len(parts) == 1:
-				response = dict(result=[{"name":ds.name, "full_length":ds.full_length(), "column_names":ds.get_column_names()} for ds in webserver.datasets])
+				#
+				response = dict(result=[{"name":ds.name, "full_length":ds.full_length(), "column_names":ds.get_column_names(),
+										 "description": ds.description, "descriptions":ds.descriptions,
+										 "ucds":ds.ucds, "units":{name:str(unit) for name, unit in ds.units.items()},
+										 "dtypes":{name:ds.columns[name].dtype.name for name in ds.get_column_names()},
+										 } for ds in webserver.datasets])
 				logger.debug("response: %r", response)
 				return response
 			else:

@@ -899,7 +899,7 @@ class UnitScope(object):
 	def __getitem__(self, variable):
 		if variable in self.dataset.units:
 			return self.dataset.units[variable]
-		elif variable in self.dataset.columns:
+		elif variable in self.dataset.get_column_names():
 			unit = self.dataset.units.get(variable, astropy.units.dimensionless_unscaled)
 			return (self.value * unit) if self.value is not None else unit
 		elif variable in self.dataset.virtual_columns:
@@ -1155,6 +1155,11 @@ class Dataset(object):
 		self.selection_history_indices = collections.defaultdict(lambda: -1)
 		self._auto_fraction= False
 
+	def dtype(self, expression):
+		if expression in self.get_column_names():
+			return self.column[expression].dtype
+		else:
+			return np.zeros(1, dtype=np.float64).dtype
 
 	def unit(self, expression, default=None):
 		try:

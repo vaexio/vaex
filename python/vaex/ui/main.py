@@ -422,15 +422,15 @@ class DatasetPanel(QtGui.QFrame):
 		self.fractionSlider.valueChanged.connect(self.onValueChanged)
 		self.onValueChanged(0)
 
-		self.button_common = QtGui.QToolButton(self)
-		self.button_common.setText('Suggestions')
-		self.button_common.setIcon(QtGui.QIcon(vp.iconfile('light-bulb')))
-		self.button_common.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
-		self.button_common.setPopupMode(QtGui.QToolButton.InstantPopup)
+		self.button_suggesions = QtGui.QToolButton(self)
+		self.button_suggesions.setText('Suggestions')
+		self.button_suggesions.setIcon(QtGui.QIcon(vp.iconfile('light-bulb')))
+		self.button_suggesions.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.button_suggesions.setPopupMode(QtGui.QToolButton.InstantPopup)
 		self.menu_common = QtGui.QMenu()
-		self.button_common.setMenu(self.menu_common)
+		self.button_suggesions.setMenu(self.menu_common)
 
-		self.form_layout.addRow('Suggestions:', self.button_common)
+		self.form_layout.addRow('Suggestions:', self.button_suggesions)
 
 		#self.histogramButton = QtGui.QPushButton('histogram (1d)', self)
 		self.button_histogram = QtGui.QToolButton(self)
@@ -708,6 +708,7 @@ class DatasetPanel(QtGui.QFrame):
 			action.triggered.connect(add)
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
+		self.button_suggesions.setEnabled(len(self.menu_common.actions()) > 0)
 
 		self.menu_1d.clear()
 		for column_name in self.dataset.get_column_names(virtual=True):
@@ -1306,7 +1307,7 @@ class VaexApp(QtGui.QMainWindow):
 					found = [dataset for dataset in datasets if dataset.name == name]
 					if found:
 						dataset = found[0]
-				dataset = vaex.open(filename)
+				dataset = vaex.open(filename,  thread_mover=self.call_in_main_thread)
 			elif filename[0] == ":": # not a filename, but a classname
 				classname = filename.split(":")[1]
 				if classname not in vaex.dataset.dataset_type_map:

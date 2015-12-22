@@ -88,7 +88,7 @@ if has_py2app and sys.argv[1] == "py2app":
 					print cmd
 					os.system(cmd)
 
-			os.system("cp data/helmi* dist/vaex.app/Contents/Resources/")
+			os.system("cp data/helmi-dezeeuw-2000-10p.hdf5 dist/vaex.app/Contents/Resources/")
 			os.system("cd dist")
 			zipname = "%s.zip" % vaex.__build_name__
 			os.system("cd dist;rm %s" % zipname)

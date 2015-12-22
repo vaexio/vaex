@@ -50,7 +50,7 @@ def open(path, *args, **kwargs):
 		path = aliases[path]
 	if path.startswith("http://") or path.startswith("ws://"): # TODO: think about https and wss
 		server, dataset = path.rsplit("/", 1)
-		server = vaex.server(server)
+		server = vaex.server(server, **kwargs)
 		datasets = server.datasets(as_dict=True)
 		if dataset not in datasets:
 			raise KeyError("no such dataset '%s' at server, possible dataset names: %s" %  (dataset, " ".join(datasets.keys())))
