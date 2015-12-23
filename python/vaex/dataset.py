@@ -1096,6 +1096,37 @@ def selection_from_dict(dataset, values):
 	else:
 		raise ValueError, "unknown type: %r, in dict: %r" % (values["type"], values)
 
+# name maps to numpy function
+# <vaex name>:<numpy name>
+function_mapping = [name.strip().split(":") if ":" in name else (name, name) for name in """
+sinc
+sin
+cos
+tan
+arcsin
+arccos
+arctan2
+sinh
+cosh
+tanh
+arcsinh
+arccosh
+arctanh
+log
+log10
+log1p
+exp
+expm1
+sqrt
+abs
+""".strip().split()]
+expression_namespace = {}
+for name, numpy_name in function_mapping:
+	if not hasattr(np, numpy_name):
+		raise SystemError, "numpy does not have: %s" % numpy_name
+	else:
+		expression_namespace[name] = getattr(np, numpy_name)
+
 
 class Dataset(object):
 	"""All datasets are encapsulated in this class, local or remote dataets
@@ -1236,6 +1267,10 @@ class Dataset(object):
 
 	def evaluate(self, expression, i1=None, i2=None, out=None):
 		raise NotImplementedError
+
+	def validate_expression(self, expression):
+		return self.evaluate(expression, 0, 1)
+
 
 	def _block_scope(self, i1, i2):
 		return _BlockScope(self, i1, i2, **self.variables)

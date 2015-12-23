@@ -15,200 +15,7 @@ completerContents = "blaat schaap aap koe".split()
 words = astropy.io.votable.ucd.UCDWords()
 ucd_words =  list(words._primary.union(words._secondary))
 ucd_words.sort()
-
-# from http://stackoverflow.com/questions/5816383/model-view-qcompleter-in-a-qlineedit
-# and http://stackoverflow.com/questions/24687620/looking-for-example-for-qcompleter-with-segmented-completion-tree-models
-
-class UCDTreeModel(QtCore.QAbstractItemModel):
-	def __init__(self):
-		super(UCDTreeModel, self).__init__()
-		self.rootlist = []
-		for word in words._primary:
-			self.rootlist.append(word)
-		#for
-		self.primary = list(words._primary)
-		self.primary.sort()
-		#self.primary = self.primary[:3]
-		self.secondary = list(words._secondary)
-		self.secondary.sort()
-		#self.secondary = self.secondary[:3]
-		self.refs = []
-
-	def parent(self, index):
-		#print "parent", index, index.row(), index.column()
-		if not index.isValid():
-			return QtCore.QModelIndex()
-		parts = index.internalPointer()
-		if len(parts) == 1:
-			return QtCore.QModelIndex()
-		else:
-			parts = parts[:-1]
-			self.refs.append(parts)
-			if len(parts) == 1:
-				return self.createIndex(self.primary.index(parts[0]), 0, parts)
-			else:
-				return self.createIndex(self.secondary.index(parts[-1]), 0, parts)
-		#parts = ";".join(data.split(";")[:-1])
-		#return
-
-
-	def index(self, row, column, parent):
-		#print "index", row, column, parent, parent.internalPointer()
-		if not self.hasIndex(row, column, parent):
-			return QtCore.QModelIndex()
-
-		if not parent.isValid():
-			parts = [self.primary[row]]
-			self.refs.append(parts)
-			return self.createIndex(row, column, parts)
-		else:
-			parts = parent.internalPointer() + [self.secondary[row]]
-			self.refs.append(parts)
-			return self.createIndex(row, column, parts)
-
-	def columnCount(self, parent):
-		return 1
-
-	def rowCount(self, parent):
-		if parent.isValid():
-			return len(self.secondary)
-		else:
-			return len(self.primary)
-
-	def data(self, index, role):
-		#print "data", index, role, index.isValid(), index.column(), index.row()
-		if role == QtCore.Qt.DisplayRole:
-			if index.parent().isValid():
-				#return self.data(index.parent(), role) + ";" + self.secondary[index.row()]
-				return self.secondary[index.row()]
-			else:
-				return self.primary[index.row()]
-		if role == QtCore.Qt.EditRole:
-			if index.parent().isValid():
-				return self.secondary[index.row()]
-			else:
-				return self.primary[index.row()]
-		return None
-
-class UCDCompleter(QtGui.QCompleter):
-	def __init__(self, parent):
-		QtGui.QCompleter.__init__(self, parent)
-		self._model = UCDTreeModel()
-		self.setModel(self._model)
-
-	def splitPath(self, text):
-		return text.split(";")
-
-	def pathFromIndex(self, index):
-		result = []
-		while index.isValid():
-			result = [self.model().data(index, QtCore.Qt.DisplayRole)] + result
-			index = index.parent()
-		r = ';'.join(result)
-		return r
-
-class LineEdit(QtGui.QLineEdit):
-	def __init__(self, parent, word_list):
-		super(LineEdit, self).__init__(parent)
-
-		self.full_word_list = word_list
-
-		#self.completerList = QtCore.QStringList()
-		#for content in completerContents:
-		#	self.completerList.append(QtCore.QString(content))
-		#self.completer = UCDCompleter(self)
-		self.completer = QtGui.QCompleter(self.full_word_list, self)
-		#self.completer.setFilterMode(QtCore.Qt.MatchContains)
-		self.completer.setCompletionMode(QtGui.QCompleter.UnfilteredPopupCompletion)
-		self.completer.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
-		self.setCompleter(self.completer)
-		self.completer.activated.connect(self.onActivated)
-
-		self.textChanged.connect(self.OnTextChanged)
-
-	def onActivated(self, text):
-		print text
-
-	def OnTextChanged(self, text):
-		#print self.completer.completionPrefix()
-		#return
-		right = left = pos = self.cursorPosition()
-		print "pos", pos, repr(text)
-		# find left index
-		done = False
-		while not done:
-			if left == len(text):
-				left -= 1
-			elif left == 0:
-				done = True
-			elif text[left-1] == ";":
-				done = True
-			else:
-				left -= 1
-			#print "left", left
-
-		done = False
-		while not done:
-			if right == len(text):
-				done = True
-			elif right == 0:
-				right += 1
-			elif text[right] == ";":
-				done = True
-			else:
-				right -= 1
-			#print "right", left
-
-		part = text[left:right]
-		if left == 0:
-			full_word_list = words._primary
-		else:
-			full_word_list = words._secondary
-		#print "part", part
-		logger.debug("completion part: " +part)
-		suggestions = []
-		for word in full_word_list:
-			if part in word:
-				suggestions.append((text[:left] if text[:left] else "") + word + (text[right:] if text[right:] else ""))
-		#matching_words = [word for word in full_word_list if part in word]
-		model = QtGui.QStringListModel(suggestions)
-		#model = QtGui.QStandardItemModel()
-		#for word in full_word_list:
-		#	item = QtGui.QStandardItem(word)
-		#	item.setData("bla", QtCore.Qt.EditRole)
-		#	item.setData("idps", QtCore.Qt.DisplayRole)
-		#	model.appendRow(item)
-		self.completer.setModel(model)
-
-
-# from https://gist.github.com/Riateche/5984815
-class ComboDelegate(QtGui.QItemDelegate):
-	"""
-	A delegate that places a fully functioning QComboBox in every
-	cell of the column to which it's applied
-	"""
-	def __init__(self, parent):
-
-		QtGui.QItemDelegate.__init__(self, parent)
-
-	def createEditor(self, parent, option, index):
-		combo = LineEdit(parent, list(ucd_words))
-		#self.connect(combo, QtCore.SIGNAL("currentIndexChanged(int)"), self, QtCore.SLOT("currentIndexChanged()"))
-		return combo
-
-	def setEditorData(self, editor, index):
-		editor.blockSignals(True)
-		#editor.setCurrentIndex(int(index.model().data(index)))
-		editor.setText(index.model().data(index))
-		editor.blockSignals(False)
-
-	def setModelData(self, editor, model, index):
-		print model
-		model.setData(index, editor.text())
-
-	@QtCore.pyqtSlot()
-	def currentIndexChanged(self):
-		self.commitData.emit(self.sender())
+import vaex.ui.completer
 
 class MetaTableModel(QtCore.QAbstractTableModel):
 	def __init__(self, dataset, parent=None, *args):
@@ -248,15 +55,25 @@ class MetaTableModel(QtCore.QAbstractTableModel):
 			self.dataset.signal_column_changed.emit(self.dataset, column_name, "change")
 		if property == "Units":
 			if value:
-				logger.debug("setting unit to: %s (%s)" % (value, astropy.units.Unit(value)))
-				self.dataset.units[column_name] = astropy.units.Unit(value)
-				# TODO: move to dataset class
-				self.dataset.signal_column_changed.emit(self.dataset, column_name, "change")
+				try:
+					unit = astropy.units.Unit(value)
+					logger.debug("setting unit to: %s (%s)" % (value, unit))
+					self.dataset.units[column_name] = unit
+					# TODO: move to dataset class
+					self.dataset.signal_column_changed.emit(self.dataset, column_name, "change")
+				except Exception, e:
+					dialogs.dialog_error(None, "Cannot parse unit", "Cannot parse unit:\n %s" % e)
 			else:
 				if column_name in self.dataset.units:
 					del self.dataset.units[column_name]
 		if property == "Expression":
+			try:
+				self.dataset.validate_expression(value)
+			except Exception, e:
+				dialogs.dialog_error(None, "Invalid expression", "Invalid expression: %s" % e)
+			# although it may not be a valid expression, still set it to the user can edit it
 			self.dataset.virtual_columns[column_name] = value
+
 		self.dataset.write_meta()
 		return True
 
@@ -360,7 +177,8 @@ class MetaTable(QtGui.QWidget):
 		#self.tableView.pressed.connect(self.onSelectRow)
 
 		self.tableView.verticalHeader().setResizeMode(QtGui.QHeaderView.Interactive)
-		self.tableView.setItemDelegateForColumn(5, ComboDelegate(self))
+		self.tableView.setItemDelegateForColumn(4, vaex.ui.completer.UnitDelegate(self))
+		self.tableView.setItemDelegateForColumn(5, vaex.ui.completer.UCDDelegate(self))
 
 		self.toolbar = QtGui.QToolBar(self)
 		#self.description = QtGui.QTextEdit(self.dataset.description, self)
@@ -406,8 +224,9 @@ class MetaTable(QtGui.QWidget):
 		self.action_add.triggered.connect(self.onAdd)
 		self.action_remove.triggered.connect(self.onRemove)
 
-		menu.addAction(self.action_add)
-		menu.addAction(self.action_remove)
+		if menu:
+			menu.addAction(self.action_add)
+			menu.addAction(self.action_remove)
 		#self.tableView.pressed.connect(self.onSelectRow)
 		#self.tableView.activated.connect(self.onActivateRow)
 		#self.tableView.selectionModel().currentChanged.connect(self.onCurrentChanged)
@@ -460,19 +279,19 @@ class MetaTable(QtGui.QWidget):
 		self.tableModel.endResetModel()
 
 	def onAdd(self, _=None):
-		name = dialogs.gettext(self, "Give a name for the virtual column", "Give a name for the virtual column", "r")
-		if name:
-			expression = dialogs.gettext(self, "Enter an expression", "Enter an expression", "sqrt(x**2+y**2+z**2)")
-			if expression:
-				self.dataset.add_virtual_column(name, expression)
-				#begin = self.tableModel.index(0, 0)
-				#end = self.tableModel.index(50, 50)
-				#self.tableModel.dataChanged.emit(begin, end)
-				#self.tableModel.insertRows(0, 1)
-				#self.update()
-				#self.tableView.hide()
-				#self.tableView.show()
-				#self.tableView.setModel(self.tableModel)
+		dialog = QuickDialog(self, title="Add virtual column")
+		dialog.add_text("name", "Column name", make_unique("user", self.dataset))
+		dialog.add_expression("expression", "Expression", "sqrt(%s)" % self.dataset.get_column_names()[0], self.dataset)
+		#dialog.add_unit("unit", "Expression", "sqrt(%s)" % self.dataset.get_column_names()[0], self.dataset)
+		dialog.add_ucd("ucd", "UCD", "")
+		dialog.add_text("description", "Description", placeholder="Enter a description")
+		values = dialog.get()
+		if values:
+			if values["description"]:
+				self.dataset.descriptions[values["name"]] = values["description"]
+			if values["ucd"]:
+				self.dataset.ucds[values["name"]] = values["ucd"]
+			self.dataset.add_virtual_column(values["name"], values["expression"])
 
 	def onAddCelestial(self, *args):
 		add_celestial(self, self.dataset)
@@ -488,8 +307,8 @@ def add_celestial(parent, dataset):
 	else:
 		dialog = QuickDialog(parent, title="Celestial transform")
 		dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
-		dialog.add_combo_edit("ra", "Right ascension", result[0], column_names)
-		dialog.add_combo_edit("dec", "Declination", result[1], column_names)
+		dialog.add_expression("ra", "Right ascension", result[0], dataset)
+		dialog.add_expression("dec", "Declination", result[1], dataset)
 
 		dialog.add_text("l", "Galactic l", "l")
 		dialog.add_text("b", "Galactic b", "b")
@@ -525,9 +344,9 @@ def add_cartesian(parent, dataset, galactic=True):
 				dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
 		else:
 			dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
-		dialog.add_combo_edit("distance", "Distance", spherical[0], column_names)
-		dialog.add_combo_edit("alpha", "Alpha", spherical[1], column_names)
-		dialog.add_combo_edit("delta", "Delta", spherical[2], column_names)
+		dialog.add_expression("distance", "Distance", spherical[0], dataset)
+		dialog.add_expression("alpha", "Alpha", spherical[1], dataset)
+		dialog.add_expression("delta", "Delta", spherical[2], dataset)
 		# TODO: 8 should be in proper units
 		dialog.add_combo_edit("solar_pos", "Solar position (x,y,z)", repr(default_solar_position), column_names)
 
@@ -580,9 +399,9 @@ def add_sky(parent, dataset, galactic=True):
 							degrees="degrees")
 	else:
 		dialog = QuickDialog(parent, title="Cartesian to spherical transform")
-		dialog.add_combo_edit("x", "x", cartesian[0], column_names)
-		dialog.add_combo_edit("y", "y", cartesian[1], column_names)
-		dialog.add_combo_edit("z", "z", cartesian[2], column_names)
+		dialog.add_expression("x", "x", cartesian[0], dataset)
+		dialog.add_expression("y", "y", cartesian[1], dataset)
+		dialog.add_expression("z", "z", cartesian[2], dataset)
 		# TODO: 8 should be in proper units
 		dialog.add_combo_edit("solar_pos", "Solar position (x,y,z)", repr(default_solar_position), [])
 		dialog.add_combo("degrees", "Output in", ["degrees", "radians"])
@@ -625,8 +444,8 @@ def add_aitoff(parent, dataset, galactic=True):
 				dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
 		else:
 			dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
-		dialog.add_combo_edit("alpha", "Alpha", spherical[0], column_names)
-		dialog.add_combo_edit("delta", "Delta", spherical[1], column_names)
+		dialog.add_expression("alpha", "Alpha", spherical[0], dataset)
+		dialog.add_expression("delta", "Delta", spherical[1], dataset)
 
 		dialog.add_text("x", "x", make_unique("x_aitoff", dataset))
 		dialog.add_text("y", "y", make_unique("y_aitoff", dataset))
@@ -687,14 +506,27 @@ class QuickDialog(QtGui.QDialog):
 		self.widgets[name] = widget = QtGui.QLabel(label)
 		self.layout.addRow("", widget)
 
-	def add_text(self, name, label="", value=""):
+	def add_text(self, name, label="", value="", placeholder=None):
 		self.widgets[name] = widget = QtGui.QLineEdit(value, self)
+		if placeholder:
+			widget.setPlaceholderText(placeholder)
+		self.layout.addRow(label, widget)
+
+	def add_ucd(self, name, label="", value=""):
+		self.widgets[name] = widget = QtGui.QLineEdit(value, self)
+		widget.setCompleter(vaex.ui.completer.UCDCompleter(widget))
 		self.layout.addRow(label, widget)
 
 	def add_combo_edit(self, name, label="", value="", values=[]):
 		self.widgets[name] = widget = QtGui.QComboBox(self)
 		widget.addItems([value] + values)
 		widget.setEditable(True)
+		self.layout.addRow(label, widget)
+
+	def add_expression(self, name, label, value, dataset):
+		self.widgets[name] = widget = vaex.ui.completer.ExpressionCombobox(self, dataset)
+		if value is not None:
+			widget.lineEdit().setText(value)
 		self.layout.addRow(label, widget)
 
 	def add_combo(self, name, label="", values=[]):

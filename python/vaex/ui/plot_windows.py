@@ -1499,6 +1499,14 @@ class PlotDialog(QtGui.QWidget):
 		#self.toolbar2.addAction(self.action_selection_load)
 		self.menu_selection.addAction(self.action_selection_load)
 
+		def on_selection_bookmark():
+			data = self.dataset.get_selection().to_dict()
+
+		self.action_selection_bookmark = QtGui.QAction(QtGui.QIcon(iconfile('star')), '&Bookmark selection', self)
+		self.action_selection_bookmark.triggered.connect(on_selection_bookmark)
+		#self.action_selection_load.setCheckable(True)
+		#self.toolbar2.addAction(self.action_selection_load)
+		self.menu_selection.addAction(self.action_selection_bookmark)
 
 
 		self.action_save_figure = QtGui.QAction(QtGui.QIcon(iconfile('image-export')), '&Export figure', self)
