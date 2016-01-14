@@ -503,7 +503,7 @@ def main(argv):
 	parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=default_config.compress, action='store_true')
 	parser.add_argument('--no-compress', dest="compress", action='store_false')
 	parser.add_argument('--development', default=False, action='store_true', help="enable development features (auto reloading)")
-	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser, commandline=argv))
+	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser, commandline=argv[1:]))
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
 	logging.getLogger("vaex").setLevel(verbosity[config.verbose])
@@ -524,7 +524,7 @@ def main(argv):
 	#datasets = [ds for ds in datasets if ds is not None]
 	logger.info("datasets:")
 	for dataset in datasets:
-		logger.info("\thttp://%s:%d/datasets/%s", config.address, config.port, dataset.name)
+		logger.info("\thttp://%s:%d/%s or ws://%s:%d/%s", config.address, config.port, dataset.name, config.address, config.port, dataset.name)
 	server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache, compress=config.compress, development=config.development)
 	server.serve()
 
