@@ -420,9 +420,13 @@ class DatasetRest(DatasetRemote):
 
 	def dtype(self, expression):
 		if expression in self.get_column_names():
-			return self.dtypes[expression].dtype
+			return self.dtypes[expression]
 		else:
 			return np.zeros(1, dtype=np.float64).dtype
+
+	def write_meta(self):
+		"""Write the metadata, like ucd, units, descriptions"""
+		logger.error("not implemented yet") # TODO: how to implement this?
 
 	def is_local(self): return False
 
