@@ -898,9 +898,7 @@ class UnitScope(object):
 
 	def __getitem__(self, variable):
 		if variable in self.dataset.units:
-			return self.dataset.units[variable]
-		elif variable in self.dataset.get_column_names():
-			unit = self.dataset.units.get(variable, astropy.units.dimensionless_unscaled)
+			unit = self.dataset.units[variable]
 			return (self.value * unit) if self.value is not None else unit
 		elif variable in self.dataset.virtual_columns:
 			return eval(self.dataset.virtual_columns[variable], globals_for_eval, self)
@@ -1188,7 +1186,7 @@ class Dataset(object):
 
 	def dtype(self, expression):
 		if expression in self.get_column_names():
-			return self.column[expression].dtype
+			return self.columns[expression].dtype
 		else:
 			return np.zeros(1, dtype=np.float64).dtype
 
