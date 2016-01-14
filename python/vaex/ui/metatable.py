@@ -104,7 +104,7 @@ class MetaTableModel(QtCore.QAbstractTableModel):
 			if property == "Name":
 				return column_name
 			elif property == "Type":
-				if column_name is self.dataset.get_column_names():
+				if column_name in self.dataset.get_column_names():
 					return str(self.dataset.dtype(column_name))
 				else:
 					return "virtual column"
