@@ -14,6 +14,7 @@ class Signal(object):
 		self.extra_args = {}
 		
 	def connect(self, callback, prepend=False, *args, **kwargs):
+		logger.debug("(%s) connected %s", self.name, callback)
 		if prepend:
 			self.callbacks.insert(0, callback)
 		else:
@@ -23,13 +24,14 @@ class Signal(object):
 						   
 	def emit(self, *args, **kwargs):
 		results = []
-		for callback in self.callbacks:
+		for callback in list(self.callbacks): # copy it because handlers van add or remove items
 			extra_args, extra_kwargs = self.extra_args[callback]
 			final_args = args + extra_args
 			final_kwargs = {}
 			final_kwargs.update(extra_kwargs)
 			final_kwargs.update(kwargs)
 			try:
+				logger.debug("(%s) calling %r with arguments %r and kwargs %r" % (self.name, callback, final_args, final_kwargs))
 				value = callback(*final_args, **final_kwargs)
 				results.append(value)
 			except Exception:
