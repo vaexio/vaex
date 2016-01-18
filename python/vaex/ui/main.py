@@ -994,13 +994,14 @@ class VaexApp(QtGui.QMainWindow):
 		self.samp = None
 
 
+		"""
 		ipythonAction = QtGui.QAction(QtGui.QIcon(vp.iconfile('table-import')), '&IPython console', self)
 		ipythonAction.setShortcut('Alt+I')
 		ipythonAction.setStatusTip('Show IPython console')
 		def show_ipython_console(*args):
 			ipython_console.show()
 		ipythonAction.triggered.connect(show_ipython_console)
-
+		"""
 
 		menubar = self.menuBar()
 		fileMenu = menubar.addMenu('&File')
@@ -1014,7 +1015,7 @@ class VaexApp(QtGui.QMainWindow):
 		fileMenu.addAction(self.action_save_fits)
 		#fileMenu.addAction(self.action_open)
 		fileMenu.addAction(self.server_connect_action)
-		fileMenu.addAction(ipythonAction)
+		#fileMenu.addAction(ipythonAction)
 		fileMenu.addAction(exitAction)
 
 
@@ -1861,9 +1862,11 @@ class VaexApp(QtGui.QMainWindow):
 app = None
 kernel = None
 
+"""
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 from qtconsole.inprocess import QtInProcessKernelManager
 from IPython.lib import guisupport
+"""
 
 def print_process_id():
     print(('Process ID is:', os.getpid()))
@@ -1916,7 +1919,7 @@ def main(argv=sys.argv[1:]):
 	def select(*args, **kwargs):
 		vaex_app.select(*args, **kwargs)
 
-	if 1:
+	"""if 1:
 		#   app = guisupport.get_app_qt4()
 		print_process_id()
 
@@ -1944,7 +1947,7 @@ def main(argv=sys.argv[1:]):
 		#ipython_console.show()
 
 		sys.exit(guisupport.start_event_loop_qt4(app))
-
+	"""
 
 	#w = QtGui.QWidget()
 	#w.resize(250, 150)
