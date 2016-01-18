@@ -2282,7 +2282,9 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 					self.descriptions[column_name] = column.attrs["description"]
 				if "unit" in column.attrs:
 					try:
-						self.units[column_name] = astropy.units.Unit(column.attrs["unit"])
+						unitname = column.attrs["unit"]
+						if unitname and unitname != "None":
+							self.units[column_name] = astropy.units.Unit(unitname)
 					except:
 						logger.exception("error parsing unit: %s", column.attrs["unit"])
 				if hasattr(column, "dtype"):
