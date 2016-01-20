@@ -176,6 +176,70 @@ class Option(object):
 		grid_layout.addWidget(self.combobox, row, 1)
 		return row + 1
 
+# list of rgb values from tableau20
+color_list = [(255, 187, 120),
+ (255, 127, 14),
+ (174, 199, 232),
+ (44, 160, 44),
+ (31, 119, 180),
+ (255, 152, 150),
+ (214, 39, 40),
+ (197, 176, 213),
+ (152, 223, 138),
+ (148, 103, 189),
+ (247, 182, 210),
+ (227, 119, 194),
+ (196, 156, 148),
+ (140, 86, 75),
+ (127, 127, 127),
+ (219, 219, 141),
+ (199, 199, 199),
+ (188, 189, 34),
+ (158, 218, 229),
+ (23, 190, 207)]
+
+class ColorOption(object):
+	def __init__(self, parent, label, getter, setter, update=lambda: None):
+		self.update = update
+		#self.options = options
+		self.label = QtGui.QLabel(label, parent)
+		self.combobox = QtGui.QComboBox(parent)
+		index = 0
+		self.qt_colors = []
+		for color_tuple in color_list:
+			#self.combobox.addItems(options)
+			self.combobox.addItem(",".join(map(str, color_tuple)))
+			model = self.combobox.model().index(index, 0)
+			color = QtGui.QColor(*color_tuple)
+			self.combobox.model().setData(model, color, QtCore.Qt.BackgroundColorRole)
+			index += 1
+			self.qt_colors.append(color)
+		def wrap_setter(value, update=True):
+			index = color_list.index(getter())
+			self.combobox.setCurrentIndex(index)
+			self.combobox.palette().setColor(QtGui.QPalette.Background, self.qt_colors[index]);
+			self.combobox.palette().setColor(QtGui.QPalette.Highlight, self.qt_colors[index]);
+			print("SETTING"*100, repr(value))
+			setter([c/255. for c in value])
+			if update:
+				self.update()
+		# auto getter and setter
+		setattr(self, "get_value", getter)
+		setattr(self, "set_value", wrap_setter)
+
+		def on_change(index):
+			print("setter", index, color_list[index])
+			self.set_value(color_list[index])
+			update()
+		self.combobox.currentIndexChanged.connect(on_change)
+		self.combobox.setCurrentIndex(color_list.index(getter()))
+
+	def add_to_grid_layout(self, row, grid_layout):
+		grid_layout.addWidget(self.label, row, 0)
+		grid_layout.addWidget(self.combobox, row, 1)
+		return row + 1
+
+
 class Checkbox(object):
 	def __init__(self, parent, label_text, getter, setter, update=lambda: None):
 		self.update = update
