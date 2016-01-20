@@ -65,6 +65,19 @@ class TestDataset(unittest.TestCase):
 
 		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset, self.dataset, self.dataset], name="dataset_concat_dup")
 
+	def test_subspaces(self):
+		dataset = vaex.from_arrays("arrays", x=[1], y=[2], z=[3])
+		subspaces = dataset.subspaces(dimensions=2)
+		self.assertEqual(len(subspaces), 3)
+		subspaces = dataset.subspaces(dimensions=2, exclude="x")
+		self.assertEqual(len(subspaces), 1)
+		subspaces = dataset.subspaces(dimensions=2, exclude=["x"])
+		self.assertEqual(len(subspaces), 1)
+		subspaces = dataset.subspaces(dimensions=2, exclude=[["x", "y"]])
+		self.assertEqual(len(subspaces), 2)
+		subspaces = dataset.subspaces(dimensions=2, exclude=lambda list: "x" in list)
+		self.assertEqual(len(subspaces), 1)
+
 	def test_length(self):
 		assert len(self.dataset) == 10
 

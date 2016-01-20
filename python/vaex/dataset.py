@@ -388,8 +388,14 @@ class Subspaces(object):
 		self.expressions = list(self.expressions)
 		self.subspace = self.dataset(*list(self.expressions), async=self.async, executor=first_subspace.executor)
 
+	def __len__(self):
+		return len(self.subspaces)
+
 	def names(self, seperator=" "):
 		return [seperator.join(subspace.expressions) for subspace in self.subspaces]
+
+	def expressions_list(self):
+		return [subspace.expressions for subspace in self.subspaces]
 
 	def selected(self):
 		return Subspaces([subspace.selected() for subspace in self.subspaces])
@@ -1239,9 +1245,39 @@ class Dataset(object):
 	def subspace(self, *expressions, **kwargs):
 		return self(*expressions, **kwargs)
 
-	def subspaces(self, expressions_list=None, dimensions=None, **kwargs):
+	def subspaces(self, expressions_list=None, dimensions=None, exclude=None, **kwargs):
+		"""Generate a Subspaces object, based on a custom list of expressions or all possible combinations based on
+		dimension
+
+		:param expressions_list: list of list of expressions, where the inner list defines the subspace
+		:param dimensions: if given, generates a subspace with all possible combinations for that dimension
+		:param exclude: list of
+		"""
 		if dimensions is not None:
 			expressions_list = list(itertools.combinations(self.get_column_names(), dimensions))
+			if exclude is not None:
+				import six
+				def excluded(expressions):
+					if callable(exclude):
+						return exclude(expressions)
+					elif isinstance(exclude, six.string_types):
+						return exclude in expressions
+					elif isinstance(exclude, (list, tuple)):
+						#$#expressions = set(expressions)
+						for e in exclude:
+							if isinstance(e, six.string_types):
+								if e in expressions:
+									return True
+							elif isinstance(e, (list, tuple)):
+								if set(e).issubset(expressions):
+									return True
+							else:
+								raise ValueError, "elements of exclude should contain a string or a sequence of strings"
+					else:
+						raise ValueError, "exclude should contain a string, a sequence of strings, or should be a callable"
+					return False
+				# test if any of the elements of exclude are a subset of the expression
+				expressions_list = [expr for expr in expressions_list if not excluded(expr)]
 			logger.debug("expression list generated: %r", expressions_list)
 		return Subspaces([self(*expressions, **kwargs) for expressions in expressions_list])
 
