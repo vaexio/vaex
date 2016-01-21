@@ -75,6 +75,8 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(len(subspaces), 1)
 		subspaces = dataset.subspaces(dimensions=2, exclude=[["x", "y"]])
 		self.assertEqual(len(subspaces), 2)
+		subspaces = dataset.subspaces(dimensions=2, exclude=[["y", "x"]])
+		self.assertEqual(len(subspaces), 2)
 		subspaces = dataset.subspaces(dimensions=2, exclude=lambda list: "x" in list)
 		self.assertEqual(len(subspaces), 1)
 
