@@ -2123,10 +2123,11 @@ class HansMemoryMapped(DatasetMemoryMapped):
 			
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
+		return os.path.splitext(path)[-1] == ".bin"
 		basename, ext = os.path.splitext(path)
-		if os.path.exists(basename + ".omega2"):
-			return True
-		return False
+		#if os.path.exists(basename + ".omega2"):
+		#	return True
+		#return True
 
 	@classmethod
 	def get_options(cls, path):
