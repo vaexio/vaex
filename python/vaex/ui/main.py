@@ -665,20 +665,9 @@ class DatasetPanel(QtGui.QFrame):
 			action.triggered.connect(add)
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
-		if dataset.ucd_find("pos.parallax.spect") and not dataset.ucd_find("pos.distance"):
+		if dataset.ucd_find("pos.parallax.") and not dataset.ucd_find("pos.distance"):
 			def add(*args):
-				parallax = self.dataset.ucd_find("pos.parallax.spect")
-				unit = self.dataset.unit(parallax)
-				if unit:
-					convert = unit.to(astropy.units.mas)
-					distance_expression = "%f/(%s)" % (convert, parallax)
-				else:
-					distance_expression = "1/(%s)" % (parallax)
-				if unit:
-					self.dataset.units["distance"] = astropy.units.kpc
-				self.dataset.ucds["distance"] = "pos.distance"
-				self.dataset.add_virtual_column("distance", distance_expression)
-
+				vaex.ui.metatable.add_distance(self, self.dataset)
 			action = QtGui.QAction("Add distance from parallax", self)
 			action.triggered.connect(add)
 			self.refs.append((action, add))
