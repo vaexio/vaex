@@ -203,19 +203,19 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 	column_names = _export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
 			column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
 			progress=progress)
+	description = dataset.description
+	if description is None:
+		description = ""
+	else:
+		description += ", "
+	import getpass
+	import datetime
+	user = getpass.getuser()
+	date = unicode(datetime.datetime.now())
+	source = dataset.path
+	description += "file exported by vaex, by user %s, on date %s, from source %s" % (user, date, source)
+	dataset_output.description = description
 	for column_name in column_names:
-		description = dataset.description
-		if description is None:
-			description = ""
-		else:
-			description = ", "
-		import getpass
-		import datetime
-		user = getpass.getuser()
-		date = unicode(datetime.datetime.now())
-		source = dataset.path
-		description += "file exported by vaex, by user %s, on date %s, from source %s" % (user, date, source)
-		dataset_output.description = description
 		for name in "ucds units descriptions".split():
 			dest = getattr(dataset_output, name)
 			source = getattr(dataset, name)
