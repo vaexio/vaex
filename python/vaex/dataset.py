@@ -1207,7 +1207,7 @@ class Dataset(object):
 			try:
 				return eval(expression, globals_for_eval, UnitScope(self, 1.)).unit
 			except:
-				logger.exception("error evaluating unit expression: %s", expression)
+				#logger.exception("error evaluating unit expression: %s", expression)
 				return default
 
 	def ucd_find(self, *ucds):
@@ -2674,6 +2674,7 @@ class VOTable(DatasetArrays):
 	def __init__(self, filename):
 		DatasetArrays.__init__(self, filename)
 		self.filename = filename
+		self.path = filename
 		votable = astropy.io.votable.parse(self.filename)
 
 		self.first_table = votable.get_first_table()
