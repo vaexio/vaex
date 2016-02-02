@@ -753,7 +753,7 @@ class LayerTable(object):
 			elif self.show == "total":
 				I = self._normalize_values(amplitude_marginalized)
 				axes.rgb_images.append(self._to_rgb(I, color=self.color))
-			elif self.show == "selection":
+			elif self.show == "selection" and amplitude_marginalized_selected is not None:
 				I = self._normalize_values(amplitude_marginalized_selected)
 				axes.rgb_images.append(self._to_rgb(I, color=self.color_alt))
 
