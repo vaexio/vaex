@@ -10,7 +10,7 @@ logger = logging.getLogger("vaex.ui.completer")
 # based on http://stackoverflow.com/a/26065682
 class Completer(QtGui.QCompleter):
 	def __init__(self, line_edit, allowed_chars=string.ascii_letters + string.digits +"_", separators=None, match_contains=True, match_case=False):
-		QtGui.QCompleter.__init__(self, [])
+		QtGui.QCompleter.__init__(self, [], line_edit)
 		self.line_edit = line_edit
 		self.match_contains = match_contains
 		self.match_case = match_case
@@ -25,6 +25,7 @@ class Completer(QtGui.QCompleter):
 		#self.setCompletionMode(QtGui.QCompleter.InlineCompletion)
 
 	def pathFromIndex(self, index):
+		#return QtGui.QCompleter.pathFromIndex(self, index)
 		suggested_word = QtGui.QCompleter.pathFromIndex(self, index)
 
 		full_text = self.line_edit.text()
@@ -64,10 +65,11 @@ class Completer(QtGui.QCompleter):
 
 				if (self.match_contains and case(part) in case(word)) or (not self.match_contains and case(word).startswith(case(part))):
 					suggestions.append(word)
-		model = QtGui.QStringListModel(suggestions)
-		self.setModel(model)
-
-		return [part]
+		self.suggestions = suggestions
+		self.model = QtGui.QStringListModel(suggestions, self.parent())
+		self.setModel(self.model)
+		self.parts = [part]
+		return self.parts
 
 	def onActivated(self, text):
 		pass#print "activated", text
@@ -171,12 +173,14 @@ class UCDDelegate(QtGui.QItemDelegate):
 class UnitDelegate(QtGui.QItemDelegate):
 	def __init__(self, parent):
 		QtGui.QItemDelegate.__init__(self, parent)
+		self.lastEditor = None
 
 	def createEditor(self, parent, option, index):
-		editor = QtGui.QLineEdit(parent)
-		completer = vaex.ui.completer.UnitCompleter(editor)
-		editor.setCompleter(completer)
+		self.lastEditor = editor = QtGui.QLineEdit(parent)
+		self.completer = vaex.ui.completer.UnitCompleter(editor)
+		editor.setCompleter(self.completer)
 		#self.connect(combo, QtCore.SIGNAL("currentIndexChanged(int)"), self, QtCore.SLOT("currentIndexChanged()"))
+
 		return editor
 
 	def setEditorData(self, editor, index):
@@ -197,7 +201,7 @@ class UnitDelegate(QtGui.QItemDelegate):
 
 import numpy as np
 vars = dir(np)
-vars.append("hoeba")
+#vars.append("hoeba")
 
 class LineCompleter(QtGui.QLineEdit):
 	def __init__(self, parent):
@@ -227,13 +231,14 @@ if __name__ == "__main__":
 	app = QtGui.QApplication([])
 	dialog = QtGui.QDialog()
 	dialog.resize(400, 100)
-	if 0:
+	if 1:
 		lineEdit = LineCompleter(dialog)
-		combo = QtGui.QComboBox(dialog)
-		combo.setEditable(True)
-		combo.addItems("hoeba blaat schaap".split())
-		lineEdit = combo.lineEdit()
-		completer = MathCompleter(lineEdit, vars)
+		#combo = QtGui.QComboBox(dialog)
+		#combo.setEditable(True)
+		#combo.addItems("hoeba blaat schaap".split())
+		#lineEdit = combo.lineEdit()
+		#completer = MathCompleter(lineEdit, vars)
+		completer = UnitCompleter(lineEdit)
 		lineEdit.setCompleter(completer)
 	else:
 		dataset = vaex.open(sys.argv[1])
