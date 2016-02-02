@@ -660,14 +660,14 @@ class DatasetPanel(QtGui.QFrame):
 		self.menu_common.clear()
 		if dataset.ucd_find("pos.eq.ra", "pos.eq.dec") and dataset.ucd_find("pos.galactic.lon", "pos.galactic.lat") is None:
 			def add(*args):
-				vaex.ui.metatable.add_celestial(self, self.dataset)
+				vaex.ui.columns.add_celestial(self, self.dataset)
 			action = QtGui.QAction("Add galactic coordinates", self)
 			action.triggered.connect(add)
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
 		if dataset.ucd_find("pos.parallax.") and not dataset.ucd_find("pos.distance"):
 			def add(*args):
-				vaex.ui.metatable.add_distance(self, self.dataset)
+				vaex.ui.columns.add_distance(self, self.dataset)
 			action = QtGui.QAction("Add distance from parallax", self)
 			action.triggered.connect(add)
 			self.refs.append((action, add))
@@ -675,7 +675,7 @@ class DatasetPanel(QtGui.QFrame):
 		spherical_galactic = dataset.ucd_find("pos.distance", "pos.galactic.lon", "pos.galactic.lat")
 		if spherical_galactic and not dataset.ucd_find("pos.cartesian.x;pos.galactocentric", "pos.cartesian.y;pos.galactocentric", "pos.cartesian.z;pos.galactocentric"):
 			def add(*args):
-				vaex.ui.metatable.add_cartesian(self, self.dataset, True)
+				vaex.ui.columns.add_cartesian(self, self.dataset, True)
 			action = QtGui.QAction("Add galactic cartesian positions", self)
 			action.triggered.connect(add)
 			self.refs.append((action, add))
@@ -683,7 +683,7 @@ class DatasetPanel(QtGui.QFrame):
 		if dataset.ucd_find("pos.cartesian.x;pos.galactocentric", "pos.cartesian.y;pos.galactocentric", "pos.cartesian.z;pos.galactocentric") and \
 				not dataset.ucd_find("pos.distance;pos.galactocentric", "pos.galactic.lon", "pos.galactic.lat"):
 			def add(*args):
-				vaex.ui.metatable.add_sky(self, self.dataset, True)
+				vaex.ui.columns.add_sky(self, self.dataset, True)
 			action = QtGui.QAction("Add galactic sky coordinates", self)
 			action.triggered.connect(add)
 			self.refs.append((action, add))
@@ -692,7 +692,7 @@ class DatasetPanel(QtGui.QFrame):
 		spherical_galactic = dataset.ucd_find("pos.galactic.lon", "pos.galactic.lat")
 		if spherical_galactic:
 			def add(*args):
-				vaex.ui.metatable.add_aitoff(self, self.dataset, True)
+				vaex.ui.columns.add_aitoff(self, self.dataset, True)
 			action = QtGui.QAction("Add galactic aitoff projection", self)
 			action.triggered.connect(add)
 			self.refs.append((action, add))
@@ -839,7 +839,7 @@ class WidgetUsage(QtGui.QWidget):
 		except:
 			pass
 from vaex.ui.plot_windows import PlotDialog
-import vaex.ui.metatable
+import vaex.ui.columns
 
 class VaexApp(QtGui.QMainWindow):
 	"""
@@ -1052,7 +1052,7 @@ class VaexApp(QtGui.QMainWindow):
 					self.menu_data.addAction(action)
 
 		self.menu_columns = menubar.addMenu('&Columns')
-		self.columns_panel = vaex.ui.metatable.MetaTable(self.tabs, menu=self.menu_columns)
+		self.columns_panel = vaex.ui.columns.ColumnsTable(self.tabs, menu=self.menu_columns)
 		self.tabs.addTab(self.columns_panel, "Columns")
 
 		use_toolbar = "darwin" not in platform.system().lower()
