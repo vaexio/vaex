@@ -199,22 +199,27 @@ class MetaTable(QtGui.QWidget):
 		self.action_add_menu = QtGui.QMenu()
 		self.action_add.setMenu(self.action_add_menu)
 
-		self.action_celestial = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'equatorial to galactic', self)
+		self.action_celestial = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Equatorial to galactic', self)
 		self.action_celestial.setShortcut("Ctrl+G")
 		self.action_add.menu().addAction(self.action_celestial)
 		self.action_celestial.triggered.connect(lambda *args: add_celestial(self, self.dataset))
 
-		self.action_car_to_gal = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'cartesian to galactic', self)
+		self.action_car_to_gal = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Cartesian to galactic', self)
 		self.action_car_to_gal.setShortcut("Ctrl+S")
 		self.action_add.menu().addAction(self.action_car_to_gal)
 		self.action_car_to_gal.triggered.connect(lambda *args: add_sky(self, self.dataset, True))
 
-		self.action_gal_to_car = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'galactic to cartesian', self)
+		self.action_par_to_dis = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Parallax to distance', self)
+		self.action_par_to_dis.setShortcut("Ctrl+D")
+		self.action_add.menu().addAction(self.action_par_to_dis)
+		self.action_par_to_dis.triggered.connect(lambda *args: add_distance(self, self.dataset))
+
+		self.action_gal_to_car = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Galactic to cartesian', self)
 		self.action_gal_to_car.setShortcut("Ctrl+C")
 		self.action_add.menu().addAction(self.action_gal_to_car)
 		self.action_gal_to_car.triggered.connect(lambda *args: add_cartesian(self, self.dataset, True))
 
-		self.action_gal_to_aitoff = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'galactic to Aitoff projection', self)
+		self.action_gal_to_aitoff = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Galactic to Aitoff projection', self)
 		self.action_gal_to_aitoff.setShortcut("Ctrl+A")
 		self.action_add.menu().addAction(self.action_gal_to_aitoff)
 		self.action_gal_to_aitoff.triggered.connect(lambda *args: add_aitoff(self, self.dataset, True))
@@ -321,6 +326,35 @@ def add_celestial(parent, dataset):
 		dataset.add_virtual_columns_celestial(long_in=values["ra"], lat_in=values["dec"],
 												   long_out=values["l"], lat_out=values["b"],
 												   radians=values["degrees"] == "radians")
+
+def add_distance(parent, dataset):
+	parallax = dataset.ucd_find("pos.parallax.")
+	column_names = dataset.get_column_names(virtual=True)
+	if parallax is None:
+		parallax = ""
+
+	unit = dataset.unit(parallax)
+	distance_name = make_unique("distance", dataset)
+	if unit:
+		convert = unit.to(astropy.units.mas)
+		distance_expression = "%f/(%s)" % (convert, parallax)
+	else:
+		distance_expression = "1/(%s)" % (parallax)
+
+
+	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and parallax is not None:
+		values = dict(distance=distance_name, parallax=parallax)
+	else:
+		dialog = QuickDialog(parent, title="Parallax to distance transform")
+		#dialog.add_combo("parallax", "Input in", ["degrees", "radians"])
+		dialog.add_expression("parallax", "Parallax", parallax, dataset)
+		dialog.add_text("distance", "Distance name", distance_name)
+		values = dialog.get()
+	if values:
+		dataset.ucds[values["distance"]] = "pos.distance"
+		if unit:
+			dataset.units["distance"] = astropy.units.kpc
+		dataset.add_virtual_column(values["distance"], distance_expression)
 
 
 def add_cartesian(parent, dataset, galactic=True):
@@ -468,6 +502,7 @@ def add_aitoff(parent, dataset, galactic=True):
 class QuickDialog(QtGui.QDialog):
 	def __init__(self, parent, title, validate=None):
 		QtGui.QDialog.__init__(self, parent)
+		self.setWindowTitle(title)
 		self.layout = QtGui.QFormLayout()
 		self.values = {}
 		self.widgets = {}
