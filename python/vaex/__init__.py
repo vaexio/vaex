@@ -105,8 +105,8 @@ def example():
 	from . import utils
 	return open(utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5"))
 
+
 def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
-	return vaex.dataset.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
 	return vaex.dataset.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
 
 def set_log_level_debug():
