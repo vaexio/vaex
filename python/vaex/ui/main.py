@@ -840,6 +840,7 @@ class WidgetUsage(QtGui.QWidget):
 			pass
 from vaex.ui.plot_windows import PlotDialog
 import vaex.ui.columns
+import vaex.ui.variables
 
 class VaexApp(QtGui.QMainWindow):
 	"""
@@ -924,6 +925,7 @@ class VaexApp(QtGui.QMainWindow):
 			current.dataset = dataset
 			self.dataset_panel.show_dataset(dataset)
 			self.columns_panel.set_dataset(dataset)
+			self.variables_panel.set_dataset(dataset)
 		self.dataset_selector.signal_dataset_select.connect(on_dataset_select)
 		#self.list.currentItemChanged.connect(self.infoPanel.onDataSelected)
 		#self.dataset_selector.currentItemChanged.connect(self.dataset_panel.onDataSelected)
@@ -1054,6 +1056,8 @@ class VaexApp(QtGui.QMainWindow):
 		self.menu_columns = menubar.addMenu('&Columns')
 		self.columns_panel = vaex.ui.columns.ColumnsTable(self.tabs, menu=self.menu_columns)
 		self.tabs.addTab(self.columns_panel, "Columns")
+		self.variables_panel = vaex.ui.variables.VariablesTable(self.tabs, menu=self.menu_columns)
+		self.tabs.addTab(self.variables_panel, "Variables")
 
 		use_toolbar = "darwin" not in platform.system().lower()
 		use_toolbar = True
