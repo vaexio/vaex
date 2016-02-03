@@ -212,16 +212,20 @@ class LineCompleter(QtGui.QLineEdit):
 		self.setCompleter(completer)
 from vaex.dataset import Dataset
 class ExpressionCombobox(QtGui.QComboBox):
-	def __init__(self, parent, dataset):
+	def __init__(self, parent, dataset, variables=False):
 		"""
 
 		:param parent:
 		:param Dataset dataset:
 		"""
 		QtGui.QComboBox.__init__(self, parent)
-		self.columns = dataset.get_column_names(virtual=True)
-		self.identifiers = list(self.columns) + list(vaex.dataset.expression_namespace.keys())
-		self.addItems(self.columns)
+		if variables:
+			self.identifiers = list(dataset.variables.keys()) + list(vaex.dataset.expression_namespace.keys())
+			self.addItems(dataset.variables.keys())
+		else:
+			self.columns = dataset.get_column_names(virtual=True)
+			self.identifiers = list(self.columns) + list(vaex.dataset.expression_namespace.keys())
+			self.addItems(self.columns)
 		self.setEditable(True)
 		lineEdit = self.lineEdit()
 		completer = IdentifierCompleter(lineEdit, self.identifiers)
