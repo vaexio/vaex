@@ -1222,6 +1222,11 @@ class LayerTable(object):
 
 	def set_expression(self, expression, index):
 		self.expressions[index] = expression
+		try:
+			self.dataset.validate_expression(expression)
+		except Exception, e:
+			self.error_in_field(self.axisboxes[index], self.axis_names[index], e)
+			return
 		self.axisboxes[index].lineEdit().setText(expression)
 		# TODO: range reset as option?
 		self.ranges_grid[index] = None
@@ -1260,6 +1265,11 @@ class LayerTable(object):
 			self.set_weight_expression(text)
 
 	def set_weight_expression(self, expression):
+		try:
+			self.dataset.validate_expression(expression)
+		except Exception, e:
+			self.error_in_field(self.weight_box, "weight", e)
+			return
 		self.weight_expression = expression
 		if self.weight_expression.strip() == "":
 			self.weight_expression = None
@@ -1300,6 +1310,13 @@ class LayerTable(object):
 			return
 
 		self.vector_expressions[axis_index] = expression
+		if expression:
+			try:
+				self.dataset.validate_expression(expression)
+			except Exception, e:
+				self.error_in_field(self.weight_x_box, "v" +name, e)
+				return
+
 		if expression is None:
 			if weight_name in self.grid_vector and self.grid_vector[weight_name] is not None:
 				logger.debug("avoided update due to change in vector_expression[%d]", axis_index)
@@ -1833,40 +1850,51 @@ class LayerTable(object):
 				expressions.extend(stored["options"]["expressions"])
 			for column in self.dataset.get_column_names():
 				expressions.append("%s < 0" % column)
-			expression = dialogs.choose(self.plot_window, "Give expression", "Expression for selection: ", expressions, 0, True)
-			if expression:
-				expression = str(expression)
-				if expression not in expressions:
-					expressions.insert(0, expression)
-				#dialog_info(self.plot_window, "expr", expression)
-				storage_expressions.add("", "selection", self.dataset, {"expressions": expressions} )
+			cancelled = False
+			while not cancelled:
+				expression = dialogs.choose(self.plot_window, "Give expression", "Expression for selection: ", expressions, 0, True)
+				if not expression:
+					cancelled = True
+				else:
+					expression = str(expression)
+					try:
+						self.dataset.validate_expression(expression)
+					except Exception, e:
+						expressions[0] = expression
+						self.error_in_field(self.button_selection_expression, "selection", e)
+						continue
 
-				mode = self.plot_window.select_mode
-				self.dataset.select(expression, mode)
-				self.update()
-				#mask = self.dataset.mask
-				#action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
-				#action.do()
+					if expression not in expressions:
+						expressions.insert(0, expression)
+					#dialog_info(self.plot_window, "expr", expression)
+					storage_expressions.add("", "selection", self.dataset, {"expressions": expressions} )
 
-				self.check_selection_undo_redo()
-				return
+					mode = self.plot_window.select_mode
+					self.dataset.select(expression, mode)
+					self.update()
+					#mask = self.dataset.mask
+					#action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "expression: " + expression, mask, self.apply_mask)
+					#action.do()
 
-				mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
-				t0 = time.time()
-				def select(info, blockmask):
-					self.message("selection at %.1f%% (%.2fs)" % (info.percentage, time.time() - t0), index=40)
-					QtCore.QCoreApplication.instance().processEvents()
-					mask[info.i1:info.i2] = self.plot_window.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], blockmask == 1)
-					#if info.last:
-					#	self.message("selection %.2fs" % (time.time() - t0), index=40)
+					self.check_selection_undo_redo()
+					return
 
-				#layer = self.current_layer
-				#if layer is not None:
-				if 1:
-					self.dataset.evaluate(select, expression, **self.getVariableDict())
+					mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
+					t0 = time.time()
+					def select(info, blockmask):
+						self.message("selection at %.1f%% (%.2fs)" % (info.percentage, time.time() - t0), index=40)
+						QtCore.QCoreApplication.instance().processEvents()
+						mask[info.i1:info.i2] = self.plot_window.select_mode(None if self.dataset.mask is None else self.dataset.mask[info.i1:info.i2], blockmask == 1)
+						#if info.last:
+						#	self.message("selection %.2fs" % (time.time() - t0), index=40)
 
-					#self.plot_window.checkUndoRedo()
-					#self.setMode(self.lastAction)
+					#layer = self.current_layer
+					#if layer is not None:
+					if 1:
+						self.dataset.evaluate(select, expression, **self.getVariableDict())
+
+						#self.plot_window.checkUndoRedo()
+						#self.setMode(self.lastAction)
 
 
 		self.button_selection_expression = QtGui.QPushButton(QtGui.QIcon(iconfile('undo')), "Add expression", page )
