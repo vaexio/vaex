@@ -66,7 +66,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 	if progress == True:
 		progress = vaex.utils.progressbar_callable("exporting")
 	progress = progress or (lambda value: True)
-	progress_total = len(column_names) * N
+	progress_total = len(column_names) * len(dataset_input)
 	progress_value = 0
 	for column_name in column_names:
 		logger.debug("  exporting column: %s " % column_name)
