@@ -30,7 +30,7 @@ class ColumnsTableModel(QtCore.QAbstractTableModel):
 		self.show_virtual = True
 
 	def get_dataset_column_names(self):
-		return self.dataset.get_column_names(virtual=self.show_virtual)
+		return self.dataset.get_column_names(virtual=self.show_virtual, hidden=True)
 
 	def rowCount(self, parent):
 		column_names = self.get_dataset_column_names()
@@ -83,7 +83,9 @@ class ColumnsTableModel(QtCore.QAbstractTableModel):
 		if not index.isValid():
 			return None
 		if role == QtCore.Qt.CheckStateRole and index.column() == 1:
-			return QtCore.Qt.Checked
+			row = index.row()
+			column_name = self.get_dataset_column_names()[row]
+			return QtCore.Qt.Checked if not column_name.startswith("__") else QtCore.Qt.Unchecked
 
 		elif role not in [QtCore.Qt.DisplayRole, QtCore.Qt.EditRole]:
 			return None
@@ -501,75 +503,6 @@ def add_aitoff(parent, dataset, galactic=True):
 		dataset.add_virtual_columns_aitoff(alpha, values["delta"],
 										   values["x"], values["y"], radians=values["degrees"] == "radians")
 
-class QuickDialog(QtGui.QDialog):
-	def __init__(self, parent, title, validate=None):
-		QtGui.QDialog.__init__(self, parent)
-		self.setWindowTitle(title)
-		self.layout = QtGui.QFormLayout()
-		self.values = {}
-		self.widgets = {}
-		self.validate = validate
-		self.button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok|QtGui.QDialogButtonBox.Cancel, QtCore.Qt.Horizontal, self);
-		self.button_box.accepted.connect(self.check_accept)
-		self.button_box.rejected.connect(self.reject)
-		self.setLayout(self.layout)
-
-	def get(self):
-		self.layout.addWidget(self.button_box)
-		if self.exec_() == QtGui.QDialog.Accepted:
-			return self.values
-		else:
-			return None
-
-	def check_accept(self):
-		logger.debug("on accepted")
-		for name, widget in self.widgets.items():
-			if isinstance(widget, QtGui.QLabel):
-				pass#self.values[name] = None
-			elif isinstance(widget, QtGui.QLineEdit):
-				self.values[name] = widget.text()
-			elif isinstance(widget, QtGui.QComboBox):
-				self.values[name] = widget.currentText() #lineEdit().text()
-			else:
-				raise NotImplementedError
-		if self.validate is None or self.validate(self, self.values):
-			self.accept()
-
-
-	def accept(self):#(self, *args):
-		return QtGui.QDialog.accept(self)
-
-	def add_label(self, name, label=""):
-		self.widgets[name] = widget = QtGui.QLabel(label)
-		self.layout.addRow("", widget)
-
-	def add_text(self, name, label="", value="", placeholder=None):
-		self.widgets[name] = widget = QtGui.QLineEdit(value, self)
-		if placeholder:
-			widget.setPlaceholderText(placeholder)
-		self.layout.addRow(label, widget)
-
-	def add_ucd(self, name, label="", value=""):
-		self.widgets[name] = widget = QtGui.QLineEdit(value, self)
-		widget.setCompleter(vaex.ui.completer.UCDCompleter(widget))
-		self.layout.addRow(label, widget)
-
-	def add_combo_edit(self, name, label="", value="", values=[]):
-		self.widgets[name] = widget = QtGui.QComboBox(self)
-		widget.addItems([value] + values)
-		widget.setEditable(True)
-		self.layout.addRow(label, widget)
-
-	def add_expression(self, name, label, value, dataset):
-		self.widgets[name] = widget = vaex.ui.completer.ExpressionCombobox(self, dataset)
-		if value is not None:
-			widget.lineEdit().setText(value)
-		self.layout.addRow(label, widget)
-
-	def add_combo(self, name, label="", values=[]):
-		self.widgets[name] = widget = QtGui.QComboBox(self)
-		widget.addItems(values)
-		self.layout.addRow(label, widget)
 
 
 

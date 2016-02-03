@@ -4,6 +4,9 @@ import math
 import collections
 import time
 import sys
+import logging
+
+logger = logging.getLogger("vaex.ui.qt")
 
 try:
 	import sip
@@ -311,6 +314,84 @@ class Slider(object):
 		grid_layout.addWidget(self.label_value, row, 2)
 		return row + 1
 
+class QuickDialog(QtGui.QDialog):
+	def __init__(self, parent, title, validate=None):
+		QtGui.QDialog.__init__(self, parent)
+		self.setWindowTitle(title)
+		self.layout = QtGui.QFormLayout(self)
+		self.layout.setFieldGrowthPolicy(QtGui.QFormLayout.AllNonFixedFieldsGrow)
+		self.values = {}
+		self.widgets = {}
+		self.validate = validate
+		self.button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok|QtGui.QDialogButtonBox.Cancel, QtCore.Qt.Horizontal, self);
+		self.button_box.accepted.connect(self.check_accept)
+		self.button_box.rejected.connect(self.reject)
+		self.setLayout(self.layout)
+
+	def get(self):
+		self.layout.addWidget(self.button_box)
+		if self.exec_() == QtGui.QDialog.Accepted:
+			return self.values
+		else:
+			return None
+
+	def check_accept(self):
+		logger.debug("on accepted")
+		for name, widget in self.widgets.items():
+			if isinstance(widget, QtGui.QLabel):
+				pass#self.values[name] = None
+			elif isinstance(widget, QtGui.QLineEdit):
+				self.values[name] = widget.text()
+			elif isinstance(widget, QtGui.QComboBox):
+				self.values[name] = widget.currentText() #lineEdit().text()
+			else:
+				raise NotImplementedError
+		if self.validate is None or self.validate(self, self.values):
+			self.accept()
+
+
+	def accept(self):#(self, *args):
+		return QtGui.QDialog.accept(self)
+
+	def add_label(self, name, label=""):
+		self.widgets[name] = widget = QtGui.QLabel(label)
+		self.layout.addRow("", widget)
+
+	def add_text(self, name, label="", value="", placeholder=None):
+		self.widgets[name] = widget = QtGui.QLineEdit(value, self)
+		if placeholder:
+			widget.setPlaceholderText(placeholder)
+		self.layout.addRow(label, widget)
+
+	def add_ucd(self, name, label="", value=""):
+		self.widgets[name] = widget = QtGui.QLineEdit(value, self)
+		widget.setCompleter(vaex.ui.completer.UCDCompleter(widget))
+		self.layout.addRow(label, widget)
+
+	def add_combo_edit(self, name, label="", value="", values=[]):
+		self.widgets[name] = widget = QtGui.QComboBox(self)
+		widget.addItems([value] + values)
+		widget.setEditable(True)
+		self.layout.addRow(label, widget)
+
+	def add_expression(self, name, label, value, dataset):
+		import vaex.ui.completer
+		self.widgets[name] = widget = vaex.ui.completer.ExpressionCombobox(self, dataset)
+		if value is not None:
+			widget.lineEdit().setText(value)
+		self.layout.addRow(label, widget)
+
+	def add_variable_expression(self, name, label, value, dataset):
+		import vaex.ui.completer
+		self.widgets[name] = widget = vaex.ui.completer.ExpressionCombobox(self, dataset, variables=True)
+		if value is not None:
+			widget.lineEdit().setText(value)
+		self.layout.addRow(label, widget)
+
+	def add_combo(self, name, label="", values=[]):
+		self.widgets[name] = widget = QtGui.QComboBox(self)
+		widget.addItems(values)
+		self.layout.addRow(label, widget)
 
 
 def get_path_save(parent, title="Save file", path="", file_mask="HDF5 *.hdf5"):
