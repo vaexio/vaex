@@ -13,6 +13,7 @@ import os
 import re
 from functools import reduce
 import threading
+import six
 
 import numpy as np
 import numexpr as ne
@@ -1166,6 +1167,7 @@ class Dataset(object):
 		self.signal_selection_changed = vaex.events.Signal("selection changed")
 		self.signal_active_fraction_changed = vaex.events.Signal("active fraction changed")
 		self.signal_column_changed = vaex.events.Signal("a column changed") # (dataset, column_name, change_type=["add", "remove", "change"])
+		self.signal_variable_changed = vaex.events.Signal("a variable changed")
 
 		self.undo_manager = vaex.ui.undo.UndoManager()
 		self.variables = collections.OrderedDict()
@@ -1303,11 +1305,19 @@ class Dataset(object):
 		raise NotImplementedError
 
 	def validate_expression(self, expression):
-		return self.evaluate(expression, 0, 1)
+		return self.evaluate(expression, 0, 2)
 
+	def evaluate_variable(self, name):
+		if isinstance(self.variables[name], six.string_types):
+			# TODO: this does not allow more than one level deep variable, like a depends on b, b on c, c is a const
+			value = eval(self.variables[name], expression_namespace, self.variables)
+			return value
+		else:
+			return self.variables[name]
 
 	def _block_scope(self, i1, i2):
-		return _BlockScope(self, i1, i2, **self.variables)
+		variables = {key:self.evaluate_variable(key) for key in self.variables.keys()}
+		return _BlockScope(self, i1, i2, **variables)
 
 	def select(self, boolean_expression, mode="replace", selection_name="default"):
 		"""Select rows based on the boolean_expression, if there was a previous selection, the mode is taken into account.
@@ -1336,15 +1346,25 @@ class Dataset(object):
 		:return:
 		"""
 		m = matrix_name
+		matrix_list = [[None for i in range(3)] for j in range(3)]
 		for i in range(3):
 			for j in range(3):
 				if matrix_is_expression:
 					self.add_virtual_column(matrix_name +"_%d%d" % (i,j), matrix[i,j])
 				else:
-					self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
-		self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y} + {m}_02 * {z}".format(**locals())
-		self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y} + {m}_12 * {z}".format(**locals())
-		self.virtual_columns[znew] = "{m}_20 * {x} + {m}_21 * {y} + {m}_22 * {z}".format(**locals())
+					#self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
+					matrix_list[i][j] = matrix[i,j]
+		if not matrix_is_expression:
+			self.add_variable(matrix_name, matrix_list)
+
+		if matrix_is_expression:
+			self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y} + {m}_02 * {z}".format(**locals())
+			self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y} + {m}_12 * {z}".format(**locals())
+			self.virtual_columns[znew] = "{m}_20 * {x} + {m}_21 * {y} + {m}_22 * {z}".format(**locals())
+		else:
+			self.virtual_columns[xnew] = "{m}[0][0] * {x} + {m}[0][1] * {y} + {m}[0][2] * {z}".format(**locals())
+			self.virtual_columns[ynew] = "{m}[1][0] * {x} + {m}[1][1] * {y} + {m}[1][2] * {z}".format(**locals())
+			self.virtual_columns[znew] = "{m}[2][0] * {x} + {m}[2][1] * {y} + {m}[2][2] * {z}".format(**locals())
 
 	def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial", radians=False):
 		import kapteyn.celestial as c
@@ -1408,7 +1428,7 @@ class Dataset(object):
 			alpha = "pi/180.*%s" % alpha
 			delta = "pi/180.*%s" % delta
 		if center is not None:
-			self.variables[center_name] = center
+			self.add_variable(center_name, center)
 		if center and center[0] != 0:
 			solar_mod = " + " +center_name+"[0]"
 		else:
@@ -1429,7 +1449,7 @@ class Dataset(object):
 		transform = "" if radians else "*180./pi"
 
 		if center is not None:
-			self.variables[center_name] = center
+			self.add_variable(center_name, center)
 		if center is not None and center[0] != 0:
 			x = "({x} - {center_name}[0])".format(**locals())
 		if center is not None and center[1] != 0:
@@ -1477,6 +1497,14 @@ class Dataset(object):
 		del self.virtual_columns[name]
 		self.signal_column_changed.emit(self, name, "delete")
 
+	def add_variable(self, name, expression):
+		self.variables[name] = expression
+		self.signal_variable_changed.emit(self, name, "add")
+
+	def delete_variable(self, name):
+		del self.variables[name]
+		self.signal_variable_changed.emit(self, name, "delete")
+
 
 
 	def __todo_repr_html_(self):
@@ -1513,12 +1541,12 @@ class Dataset(object):
 		"""Returns the number of columns, not counting virtual ones"""
 		return len(self.column_names)
 
-	def get_column_names(self, virtual=False):
+	def get_column_names(self, virtual=False, hidden=False):
 		"""Return a list of column names
 
 		:rtype: list of str
  		"""
-		return list(self.column_names) + ([key for key in self.virtual_columns.keys() if not key.startswith("__")] if virtual else [])
+		return list(self.column_names) + ([key for key in self.virtual_columns.keys() if (hidden or (not key.startswith("__")))] if virtual else [])
 
 	def __len__(self):
 		"""Returns the number of rows in the dataset, if active_fraction != 1, then floor(active_fraction*full_length) is returned"""
