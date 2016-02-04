@@ -59,7 +59,7 @@ class VariablesTableModel(QtCore.QAbstractTableModel):
 		if property == "Expression":
 			try:
 				test = eval(value, vaex.dataset.expression_namespace, self.dataset.variables)
-				self.dataset.variables[variable_name] = value
+				self.dataset.add_variable(variable_name, value)
 			except Exception, e:
 				dialogs.dialog_error(None, "Invalid expression", "Invalid expression: %s" % e)
 			# although it may not be a valid expression, still set it to the user can edit it
@@ -192,8 +192,8 @@ class VariablesTable(QtGui.QWidget):
 		self.action_add = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Add variable', self)
 		self.action_remove = QtGui.QAction(QtGui.QIcon(iconfile('table-delete-column')), 'Remove variable', self)
 		self.action_remove.setEnabled(False)
-		self.action_add.setShortcut("Ctrl+Alt+")
-		self.action_remove.setShortcut("Ctrl+Alt-")
+		self.action_add.setShortcut("Ctrl+Alt++")
+		self.action_remove.setShortcut("Ctrl+Alt+-")
 
 		self.toolbar.addAction(self.action_add)
 		self.toolbar.addAction(self.action_remove)
