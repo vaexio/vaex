@@ -19,6 +19,17 @@ byte_size = len(dataset) * len(expressions) * 8
 limits = subspace.minmax()
 
 N = 5
+print "benchmarking minmax"
+expr = "subspace.minmax()"
+times = timeit.repeat(expr, setup="from __main__ import subspace, dataset, np", repeat=5, number=N)
+print "minimum time", min(times)/N
+bandwidth = [byte_size/1024.**3/(time/N) for time in times]
+print "%f GiB/s" % max(bandwidth)
+
+speed = [len(dataset)/(time/N)/1e9 for time in times]
+print "%f billion rows/s " % max(speed)
+
+
 print "benchmarking histogram"
 expr = "subspace.histogram(limits, 256)"
 times = timeit.repeat(expr, setup="from __main__ import subspace, dataset, np, limits", repeat=5, number=N)

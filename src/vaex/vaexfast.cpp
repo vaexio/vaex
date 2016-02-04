@@ -243,6 +243,7 @@ inline double double_to_native(double value)
 	return result_value;
 }
 
+#define custom_isfinite(value) ((value-value)==0)
 
 void find_nan_min_max(const double* const block_ptr, const long long length, bool native, double &min_, double &max_) {
 	double min = min_, max = max_;
@@ -318,13 +319,13 @@ void find_nan_min_max(const double* const block_ptr, const long long length, boo
 		min = block_ptr[0];
 		max = block_ptr[0];
 		for(long long i = 1; i < length; i++) {
-			if(isnan(min))
+			if(!custom_isfinite(min))
 				min = block_ptr[i];
 			else
 				break;
 		}
 		for(long long i = 1; i < length; i++) {
-			if(isnan(max))
+			if(!custom_isfinite(max))
 				max = block_ptr[i];
 			else
 				break;
@@ -332,6 +333,7 @@ void find_nan_min_max(const double* const block_ptr, const long long length, boo
 		for(long long i = 1; i < length; i++) {
 			const double value = block_ptr[i];
 			//if(value == value)// nan checking
+			if(custom_isfinite(value))
 			{
 				//min = fmin(value, min);
 				//max = fmax(value, max);
@@ -593,6 +595,9 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 	long long i_y = offset_y;
 	const double scale_x = counts_length_x/ (xmax-xmin);
 	const double scale_y = counts_length_y/ (ymax-ymin);
+	// do nothing if any of the bounds are inf
+	if(!(isfinite(xmin) && isfinite(xmax) && isfinite(ymin) && isfinite(ymax)))
+		return;
 	if(blockx_native && blocky_native & weights_native) {
 		if((weights == NULL) & (offset_x == 0) & (offset_y == 0)) { // default: fasted algo
 			for(long long i = 0; i < block_length; i++) {
