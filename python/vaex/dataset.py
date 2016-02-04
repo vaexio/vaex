@@ -1214,7 +1214,12 @@ class Dataset(object):
 
 	def ucd_find(self, *ucds):
 		if len(ucds) == 1:
-			columns = [name for name in self.get_column_names(virtual=True) if ucds[0] in self.ucds.get(name, "")]
+			ucd = ucds[0]
+			if ucd[0] == "^": # we want it to start with
+				ucd = ucd[1:]
+				columns = [name for name in self.get_column_names(virtual=True) if self.ucds.get(name, "").startswith(ucd)]
+			else:
+				columns = [name for name in self.get_column_names(virtual=True) if ucd in self.ucds.get(name, "")]
 			return None if len(columns) == 0 else columns[0]
 		else:
 			columns = [self.ucd_find(ucd) for ucd in ucds]
@@ -1429,17 +1434,17 @@ class Dataset(object):
 			delta = "pi/180.*%s" % delta
 		if center is not None:
 			self.add_variable(center_name, center)
-		if center and center[0] != 0:
+		if center:
 			solar_mod = " + " +center_name+"[0]"
 		else:
 			solar_mod = ""
 		self.add_virtual_column(xname, "cos(%s) * cos(%s) * %s%s" % (alpha, delta, distance, solar_mod))
-		if center and center[1] != 0:
+		if center:
 			solar_mod = " + " +center_name+"[1]"
 		else:
 			solar_mod = ""
 		self.add_virtual_column(yname, "sin(%s) * cos(%s) * %s%s" % (alpha, delta, distance, solar_mod))
-		if center and center[2] != 0:
+		if center:
 			solar_mod = " + " +center_name+"[2]"
 		else:
 			solar_mod = ""

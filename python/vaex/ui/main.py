@@ -658,7 +658,7 @@ class DatasetPanel(QtGui.QFrame):
 
 
 		self.menu_common.clear()
-		if dataset.ucd_find("pos.eq.ra", "pos.eq.dec") and dataset.ucd_find("pos.galactic.lon", "pos.galactic.lat") is None:
+		if dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec") and dataset.ucd_find("pos.galactic.lon", "pos.galactic.lat") is None:
 			def add(*args):
 				vaex.ui.columns.add_celestial(self, self.dataset)
 			action = QtGui.QAction("Add galactic coordinates", self)
