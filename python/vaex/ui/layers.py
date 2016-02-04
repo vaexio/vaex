@@ -241,6 +241,8 @@ class LayerTable(object):
 
 		#self.dataset.mask_listeners.append(self.onSelectMask)
 		self.dataset.signal_selection_changed.connect(self.on_selection_changed)
+		self.dataset.signal_column_changed.connect(self.on_column_changed)
+		self.dataset.signal_variable_changed.connect(self.on_variable_changed)
 		#self.dataset.signal_selection_changed.
 		#self.dataset.row_selection_listeners.append(self.onSelectRow)
 		self.dataset.signal_pick.connect(self.on_pick)
@@ -765,6 +767,12 @@ class LayerTable(object):
 		#self.add_jobs()
 		self.label_selection_info_update()
 		#self.plot()
+
+	def on_column_changed(self, dataset, column, type):
+		self.update()
+
+	def on_variable_changed(self, dataset, column, type):
+		self.update()
 
 	def on_pick(self, dataset, row):
 		self.coordinates_picked_row = None
