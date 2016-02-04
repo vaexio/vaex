@@ -194,7 +194,7 @@ class ColumnsTable(QtGui.QWidget):
 		self.action_add = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Add virtual column', self)
 		self.action_remove = QtGui.QAction(QtGui.QIcon(iconfile('table-delete-column')), 'Remove virtual column', self)
 		self.action_remove.setEnabled(False)
-		self.action_add.setShortcut("Ctrl++")
+		#self.action_add.setShortcut("Ctrl++")
 		self.action_remove.setShortcut("Ctrl+-")
 
 		self.toolbar.addAction(self.action_add)
@@ -202,6 +202,11 @@ class ColumnsTable(QtGui.QWidget):
 
 		self.action_add_menu = QtGui.QMenu()
 		self.action_add.setMenu(self.action_add_menu)
+
+		self.action_normal = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Add virtual column', self)
+		self.action_normal.setShortcut("Ctrl++")
+		self.action_add.menu().addAction(self.action_normal)
+		self.action_normal.triggered.connect(self.onAdd)
 
 		self.action_celestial = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Equatorial to galactic', self)
 		self.action_celestial.setShortcut("Ctrl+G")
@@ -306,7 +311,7 @@ class ColumnsTable(QtGui.QWidget):
 		add_celestial(self, self.dataset)
 
 def add_celestial(parent, dataset):
-	result = dataset.ucd_find("pos.eq.ra", "pos.eq.dec")
+	result = dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec")
 	column_names = dataset.get_column_names(virtual=True)
 	if result is None:
 		result = ["", ""]
