@@ -37,8 +37,12 @@ class FullTableModel(QtCore.QAbstractTableModel):
 	def get_row_offset(self):
 		return self.page * self.page_size
 
+	def get_column_names(self):
+		return self.dataset.get_column_names(virtual=True, hidden=True)
+
 	def columnCount(self, parent): 
-		return self.dataset.column_count()+1
+		#return self.dataset.column_count()+1
+		return len(self.get_column_names()) + 1
 
 	def data(self, index, role):
 		#return ""
@@ -52,11 +56,12 @@ class FullTableModel(QtCore.QAbstractTableModel):
 		else:
 			#column = self.dataset.all_columns[self.dataset.all_column_names[index.column()-1]]
 			row = row_offset + index.row()
-			column_name = self.dataset.get_column_names()[index.column()-1]
-			if column_name in self.dataset.columns.keys():
-				value = self.dataset.columns[column_name][row]
-			else:
-				value, = self.dataset(column_name).row(row)
+			column_name = self.get_column_names()[index.column()-1]
+			#if column_name in self.dataset.columns.keys():
+			#	value = self.dataset.columns[column_name][row]
+			#else:
+			#	value, = self.dataset(column_name).row(row)
+			value = self.dataset.evaluate(column_name, row, row+1)[0]
 			#column = [self.dataset.all_column_names[index.column()-1]]
 			if len(value.shape) == 0:
 				return str(value)
@@ -70,7 +75,7 @@ class FullTableModel(QtCore.QAbstractTableModel):
 			if index == 0:
 				return "row"
 			else:
-				return self.dataset.get_column_names()[index-1]
+				return self.get_column_names()[index-1]
 		#if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
 		#	return str(index+self.row_count_start + row_offset)
 		return None
