@@ -1173,6 +1173,9 @@ class Dataset(object):
 		self.variables = collections.OrderedDict()
 		self.variables["pi"] = np.pi
 		self.variables["e"] = np.e
+		self.variables["km_in_au"] = 149597870700/1000.
+		self.variables["seconds_per_year"] = 31557600
+		# leads to k = 4.74047 to go from au/year to km/s
 		self.virtual_columns = collections.OrderedDict()
 		self._length = None
 		self._full_length = None
