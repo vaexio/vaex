@@ -7,7 +7,6 @@ import time
 import sys
 import vaex.utils
 import logging
-lock = threading.Lock()
 
 thread_count_default = multiprocessing.cpu_count()# * 2 + 1
 logger = logging.getLogger("vaex.multithreading")
@@ -26,6 +25,7 @@ class ThreadPoolIndex(object):
 			thread.start()
 		self.exception_occurred = False
 		self._working = False
+		self.lock = threading.Lock()
 
 	def map(self, callable, iterator, on_error=None, progress=None, cancel=None):
 		results = []
@@ -35,7 +35,7 @@ class ThreadPoolIndex(object):
 		try:
 			if self._working:
 				raise RuntimeError("reentered ThreadPoolIndex.map")
-			with lock:
+			with self.lock:
 				self._working = True
 				self.exception_occurred = False
 				self.callable = callable
