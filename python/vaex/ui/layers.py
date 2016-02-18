@@ -364,6 +364,8 @@ class LayerTable(object):
 			self.option_xrange.set_value((min, max), update=False)
 		if dimension == 1:
 			self.option_yrange.set_value((min, max), update=False)
+		if dimension == 2:
+			self.option_zrange.set_value((min, max), update=False)
 		#return not was_equal
 
 	def get_range(self, dimension=0):
@@ -1628,8 +1630,12 @@ class LayerTable(object):
 		self.option_xrange = RangeOption(page, "x-range", [0], lambda: self.get_range(0), lambda value: self.plot_window.set_range(value[0], value[1], 0), update=self.update)
 		row = self.option_xrange.add_to_grid_layout(row, self.grid_layout)
 
-		self.option_yrange = RangeOption(page, "y-range", [0], lambda: self.get_range(1), lambda value: self.plot_window.set_range(value[0], value[1], 1), update=self.update)
-		row = self.option_yrange.add_to_grid_layout(row, self.grid_layout)
+		if self.dimensions >= 2:
+			self.option_yrange = RangeOption(page, "y-range", [0], lambda: self.get_range(1), lambda value: self.plot_window.set_range(value[0], value[1], 1), update=self.update)
+			row = self.option_yrange.add_to_grid_layout(row, self.grid_layout)
+		if self.dimensions >= 3:
+			self.option_zrange = RangeOption(page, "z-range", [0], lambda: self.get_range(2), lambda value: self.plot_window.set_range(value[0], value[1], 2), update=self.update)
+			row = self.option_zrange.add_to_grid_layout(row, self.grid_layout)
 
 	def page_visual(self, page):
 
