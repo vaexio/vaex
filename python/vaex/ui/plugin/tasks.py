@@ -55,6 +55,26 @@ def sigma3(plot_window):
 		logger.debug("limits=%r", limits)
 		#plot_window.queue_update()
 
+def subtract_mean(plot_window):
+	if plot_window.layers:
+		layer = plot_window.layers[0]
+
+		executor = vaex.execution.Executor()
+		subspace = layer.dataset.subspace(*layer.expressions, executor=executor, async=True)
+		means = subspace.mean()
+		with dialogs.ProgressExecution(plot_window, "Calculating mean", executor=executor):
+			executor.execute()
+		means = means.get()
+		new_expressions = ["(%s) - %s" % (expression, mean) for expression, mean in zip(layer.expressions, means)]
+		for i in range(len(new_expressions)):
+			vmin, vmax = layer.plot_window.ranges_show[i]
+			vmin -= means[i]
+			vmax -= means[i]
+			layer.plot_window.set_range(vmin, vmax, i)
+		for i in range(len(new_expressions)):
+			layer.set_expression(new_expressions[i], i)
+		plot_window.update_all_layers()
+
 
 class TasksPlugin(vaex.ui.plugin.PluginPlot):
 	name = "tasks"
@@ -95,6 +115,10 @@ class TasksPlugin(vaex.ui.plugin.PluginPlot):
 		self.action_tasks_removelog = QtGui.QAction(QtGui.QIcon(iconfile('gear')), 'Remove log', self.dialog)
 		self.menu.addAction(self.action_tasks_removelog)
 		self.action_tasks_removelog.triggered.connect(lambda *arg: removelog(self.dialog))
+
+		self.action_tasks_subtract_mean = QtGui.QAction(QtGui.QIcon(iconfile('gear')), 'Subtract mean', self.dialog)
+		self.menu.addAction(self.action_tasks_subtract_mean)
+		self.action_tasks_subtract_mean.triggered.connect(lambda *arg: subtract_mean(self.dialog))
 
 
 	def __(self):
