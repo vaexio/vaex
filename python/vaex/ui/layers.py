@@ -25,7 +25,11 @@ import functools
 import time
 from vaex.ui.qt import *
 import logging
-import healpy
+try:
+	import healpy
+except:
+	healpy = None
+	
 
 
 logger = logging.getLogger("vaex.ui.layer")
@@ -351,6 +355,52 @@ class LayerTable(object):
 		#self.plot_window.queue_update()
 		self.update()
 
+	def set_range(self, min, max, dimension=0):
+		#was_equal = list(self.plot_window.ranges_show[dimension]) == [min, max]
+		self.ranges_grid[dimension] = [min, max]
+		#self.plot_window.ranges_show[dimension] = list(self.ranges_grid[dimension])
+		#self.plot_window.set_range(min, max, dimension=dimension)
+		if dimension == 0:
+			self.option_xrange.set_value((min, max), update=False)
+		if dimension == 1:
+			self.option_yrange.set_value((min, max), update=False)
+		#return not was_equal
+
+	def get_range(self, dimension=0):
+		return list(self.ranges_grid[dimension]) if self.ranges_grid[dimension] is not None else None
+
+	@property
+	def xlim(self):
+		"""vector z expression"""
+		return self.get_range(0)
+
+	@xlim.setter
+	def xlim(self, value):
+		vmin, vmax = value
+		self.plot_window.set_range(vmin, vmax, 0)
+		self.update()
+
+	@property
+	def ylim(self):
+		"""vector z expression"""
+		return self.get_range(1)
+
+	@ylim.setter
+	def ylim(self, value):
+		vmin, vmax = value
+		self.plot_window.set_range(vmin, vmax, 1)
+		self.update()
+
+	@property
+	def zlim(self):
+		"""vector z expression"""
+		return self.get_range(2)
+
+	@xlim.setter
+	def zlim(self, value):
+		vmin, vmax = value
+		self.plot_window.set_range(vmin, vmax, 2)
+		self.update()
 
 
 
@@ -474,6 +524,8 @@ class LayerTable(object):
 			self.plot_scatter(axes_list)
 			return
 			#return
+		logger.debug("total sum of amplitude grid: %s", np.nansum(self.amplitude_grid_view))
+
 		if self.dimensions == 1:
 			print self.amplitude_grid
 			print self.amplitude_grid_view
@@ -1404,8 +1456,8 @@ class LayerTable(object):
 			axisbox.setEditable(True)
 			axisbox.setMinimumContentsLength(10)
 			#self.form_layout.addRow(axis_name + '-axis:', axisbox)
-			self.grid_layout.addWidget(QtGui.QLabel(axis_name + '-axis:', page), row, 1)
-			self.grid_layout.addWidget(axisbox, row, 2, QtCore.Qt.AlignLeft)
+			self.grid_layout.addWidget(QtGui.QLabel(axis_name + '-axis:', page), row, 0)
+			self.grid_layout.addWidget(axisbox, row, 1, QtCore.Qt.AlignLeft)
 			linkButton = LinkButton("link", self.dataset, axis_index, page)
 			self.linkButtons.append(linkButton)
 			linkButton.setChecked(True)
@@ -1420,7 +1472,7 @@ class LayerTable(object):
 				functionButton.setPopupMode(QtGui.QToolButton.InstantPopup)
 				#link_action = QtGui.QAction(QtGui.QIcon(iconfile('network-connect-3')), '&Link axis', self)
 				#unlink_action = QtGui.QAction(QtGui.QIcon(iconfile('network-disconnect-2')), '&Unlink axis', self)
-				templates = ["log(%s)", "sqrt(%s)", "1/(%s)", "abs(%s)"]
+				templates = ["log10(%s)", "sqrt(%s)", "1/(%s)", "abs(%s)"]
 
 				for template in templates:
 					action = QtGui.QAction(template % "...", page)
@@ -1442,7 +1494,7 @@ class LayerTable(object):
 						self.update()
 					action.triggered.connect(add)
 					menu.addAction(action)
-				self.grid_layout.addWidget(functionButton, row, 3, QtCore.Qt.AlignLeft)
+				self.grid_layout.addWidget(functionButton, row, 2, QtCore.Qt.AlignLeft)
 				#menu.addAction(unlink_action)
 				#self.grid_layout.addWidget(functionButton, row, 2)
 			#self.grid_layout.addWidget(linkButton, row, 0)
@@ -1506,8 +1558,8 @@ class LayerTable(object):
 			self.amplitude_box.addItems(["abs(fft.fft(counts, axis=1)) # ffts along y axis"])
 			self.amplitude_box.addItems(["abs(fft.fft(counts, axis=0)) # ffts along x axis"])
 		self.amplitude_box.setMinimumContentsLength(10)
-		self.grid_layout.addWidget(QtGui.QLabel("amplitude="), row, 1)
-		self.grid_layout.addWidget(self.amplitude_box, row, 2, QtCore.Qt.AlignLeft)
+		self.grid_layout.addWidget(QtGui.QLabel("amplitude="), row, 0)
+		self.grid_layout.addWidget(self.amplitude_box, row, 1, QtCore.Qt.AlignLeft)
 		#self.amplitude_box.lineEdit().editingFinished.connect(self.onAmplitudeExpr)
 		#self.amplitude_box.currentIndexChanged.connect(lambda _: self.onAmplitudeExpr())
 		def onchange(*args, **kwargs):
@@ -1534,8 +1586,8 @@ class LayerTable(object):
 			self.title_box.setEditable(True)
 			self.title_box.addItems([""] + self.getTitleExpressionList())
 			self.title_box.setMinimumContentsLength(10)
-			self.grid_layout.addWidget(QtGui.QLabel("title="), row, 1)
-			self.grid_layout.addWidget(self.title_box, row, 2)
+			self.grid_layout.addWidget(QtGui.QLabel("title="), row, 0)
+			self.grid_layout.addWidget(self.title_box, row, 1)
 			self.title_box.lineEdit().editingFinished.connect(self.onTitleExpr)
 			self.title_box.currentIndexChanged.connect(lambda _: self.onTitleExpr())
 			self.title_expression = str(self.title_box.lineEdit().text())
@@ -1545,8 +1597,8 @@ class LayerTable(object):
 		self.weight_box.setEditable(True)
 		self.weight_box.addItems([self.options.get("weight", "")] + self.get_expression_list())
 		self.weight_box.setMinimumContentsLength(10)
-		self.grid_layout.addWidget(QtGui.QLabel("weight="), row, 1)
-		self.grid_layout.addWidget(self.weight_box, row, 2)
+		self.grid_layout.addWidget(QtGui.QLabel("weight="), row, 0)
+		self.grid_layout.addWidget(self.weight_box, row, 1)
 		self.weight_box.lineEdit().editingFinished.connect(self.onWeightExpr)
 		self.weight_box.currentIndexChanged.connect(lambda _: self.onWeightExpr())
 		self.weight_expression = str(self.weight_box.lineEdit().text())
@@ -1571,6 +1623,13 @@ class LayerTable(object):
 
 			self.checkbox_flip_y = Checkbox(page, "flip_y", getter=attrgetter(self, "flip_y"), setter=attrsetter(self, "flip_y"), update=self.signal_plot_dirty.emit)
 			row = self.checkbox_flip_y.add_to_grid_layout(row, self.grid_layout, 1)
+
+
+		self.option_xrange = RangeOption(page, "x-range", [0], lambda: self.get_range(0), lambda value: self.plot_window.set_range(value[0], value[1], 0), update=self.update)
+		row = self.option_xrange.add_to_grid_layout(row, self.grid_layout)
+
+		self.option_yrange = RangeOption(page, "y-range", [0], lambda: self.get_range(1), lambda value: self.plot_window.set_range(value[0], value[1], 1), update=self.update)
+		row = self.option_yrange.add_to_grid_layout(row, self.grid_layout)
 
 	def page_visual(self, page):
 

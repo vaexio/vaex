@@ -593,8 +593,8 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 void histogram2d(const double* const __restrict__ blockx, const double* const __restrict__ blocky, const double* const weights, const long long block_length, bool blockx_native, bool blocky_native, bool weights_native, double* const __restrict__ counts, const int counts_length_x, const int counts_length_y, const double xmin, const double xmax, const double ymin, const double ymax, const long long offset_x, const long long offset_y) {
 	long long i_x = offset_x;
 	long long i_y = offset_y;
-	const double scale_x = counts_length_x/ (xmax-xmin);
-	const double scale_y = counts_length_y/ (ymax-ymin);
+	const double scale_x = 1./ (xmax-xmin);
+	const double scale_y = 1./ (ymax-ymin);
 	// do nothing if any of the bounds are inf
 	if(!(isfinite(xmin) && isfinite(xmax) && isfinite(ymin) && isfinite(ymax)))
 		return;
@@ -605,11 +605,13 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 				double value_y = blocky[i];
 				//value_x = value_x * value_y;
 				//value_y = value_x + value_y;
+				double scaled_x = (value_x - xmin) * scale_x;
+				double scaled_y = (value_y - ymin) * scale_y;
 
-				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
+				if( (scaled_x >= 0) & (scaled_x < 1) &  (scaled_y >= 0) & (scaled_y < 1) ) {
 				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
-					int index_x = (int)((value_x - xmin) * scale_x);
-					int index_y = (int)((value_y - ymin) * scale_y);
+					int index_x = (int)(scaled_x * counts_length_x);
+					int index_y = (int)(scaled_y * counts_length_y);
 					counts[index_x + counts_length_x*index_y] += 1;
 				}
 			}

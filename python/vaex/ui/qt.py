@@ -179,6 +179,138 @@ class Option(object):
 		grid_layout.addWidget(self.combobox, row, 1)
 		return row + 1
 
+class RangeOption(object):
+	def __init__(self, parent, label, values, getter, setter, update=lambda: None):
+		self.update = update
+		self.values = [str(k) for k in values]
+		self.label = QtGui.QLabel(label, parent)
+		self.combobox_min = QtGui.QComboBox(parent)
+		self.combobox_max = QtGui.QComboBox(parent)
+		self.combobox_min.setEditable(True)
+		self.combobox_max.setEditable(True)
+		self.vmin = None
+		self.vmax = None
+		#self.combobox_min.addItems(values)
+		#self.combobox_max.addItems(values)
+		def wrap_setter(value, update=True):
+			if value is None:
+				vmin, vmax = None, None
+			else:
+				vmin, vmax = value
+			self.combobox_min.blockSignals(True)
+			self.combobox_max.blockSignals(True)
+			changed = False
+			if vmin != self.vmin:
+				print(("setting vmin to", vmin))
+				self.vmin = vmin
+				self.combobox_min.lineEdit().setText(str(self.vmin) if self.vmin is not None else "")
+				changed = True
+			if vmax != self.vmax:
+				print(( "setting vmax to", vmax))
+				self.vmax = vmax
+				self.combobox_max.lineEdit().setText(str(self.vmax) if self.vmax is not None else "")
+				changed = True
+			self.combobox_min.blockSignals(False)
+			self.combobox_max.blockSignals(False)
+			#self.combobox.setCurrentIndex(options.index(getter()))
+			#setter(value)
+			if update and changed:
+				self.update()
+		# auto getter and setter
+		setattr(self, "get_value", getter)
+		setattr(self, "set_value", wrap_setter)
+
+		def get():
+			#vmin, vmax = None, None
+			if self.combobox_min.lineEdit().text().strip():
+				try:
+					self.vmin = float(self.combobox_min.lineEdit().text())
+				except:
+					logger.exception("parsing vmin")
+					dialog_error(self.combobox_min, "Error parsing number", "Cannot parse number: %s" % self.combobox_min.lineEdit().text())
+
+			if self.combobox_max.lineEdit().text().strip():
+				try:
+					self.vmax = float(self.combobox_max.lineEdit().text())
+				except:
+					logger.exception("parsing vmax")
+					dialog_error(self.combobox_max, "Error parsing number", "Cannot parse number: %s" % self.combobox_max.lineEdit().text())
+			return (self.vmin, self.vmax) if self.vmin is not None and self.vmax is not None else None
+
+
+		def on_change(_ignore=None):
+			#setter(self.options[index])
+			value = get()
+			if value:
+				vmin, vmax = value
+				if setter((vmin, vmax)):
+					update()
+				#self.weight_x_box.lineEdit().editingFinished.connect(lambda _=None: self.onWeightXExpr())
+
+		self.combobox_min.lineEdit().returnPressed.connect(on_change)
+		self.combobox_max.lineEdit().returnPressed.connect(on_change)
+		#self.combobox_min.currentIndexChanged.connect(on_change)
+		#self.combobox_max.currentIndexChanged.connect(on_change)
+		self.combobox_layout = QtGui.QHBoxLayout(parent)
+		self.combobox_layout.addWidget(self.combobox_min)
+		self.combobox_layout.addWidget(self.combobox_max)
+		#self.combobox_min.currentIndexChanged.connect(on_change_min)
+		#self.combobox_max.currentIndexChanged.connect(on_change_max)
+		#self.combobox.setCurrentIndex(options.index(getter()))
+
+		if 1:
+			from vaex.ui.icons import iconfile
+			self.tool_button = QtGui.QToolButton(parent)
+			self.tool_button .setIcon(QtGui.QIcon(iconfile('gear')))
+			self.tool_menu = QtGui.QMenu()
+			self.tool_button.setMenu(self.tool_menu)
+			self.tool_button.setPopupMode(QtGui.QToolButton.InstantPopup)
+
+			def flip(_=None):
+				value = get()
+				if value:
+					vmin, vmax = value
+					setter((vmax, vmin))
+					self.set_value((vmax, vmin))
+			self.action_flip = QtGui.QAction("Flip axis", parent)
+			self.action_flip.triggered.connect(flip)
+			self.tool_menu.addAction(self.action_flip)
+
+			def copy(_=None):
+				value = get()
+				if value:
+					clipboard = QtGui.QApplication.clipboard()
+					text = str(value)
+					clipboard.setText(text)
+			self.action_copy = QtGui.QAction("Copy", parent)
+			self.action_copy.triggered.connect(copy)
+			self.tool_menu.addAction(self.action_copy)
+
+			def paste(_=None):
+				clipboard = QtGui.QApplication.clipboard()
+				text = clipboard.text()
+				try:
+					vmin, vmax = eval(text)
+					setter((vmin, vmax))
+					self.set_value((vmin, vmax))
+				except Exception, e:
+					dialog_error(parent, "Could not parse min/max values", "Could not parse min/max values: %r" % e)
+			self.action_paste = QtGui.QAction("Paste", parent)
+			self.action_paste.triggered.connect(paste)
+			self.tool_menu.addAction(self.action_paste)
+
+
+
+	def add_to_grid_layout(self, row, grid_layout):
+		#grid_layout.addLayout(self.combobox_layout, row, 1)
+		grid_layout.addWidget(self.label, row, 0)
+		grid_layout.addWidget(self.combobox_min, row, 1)
+		grid_layout.addWidget(self.tool_button, row, 2)
+		row += 1
+		#grid_layout.addWidget(self.label, row, 0)
+		grid_layout.addWidget(self.combobox_max, row, 1)
+		return row + 1
+
 # list of rgb values from tableau20
 color_list = [(255, 187, 120),
  (255, 127, 14),

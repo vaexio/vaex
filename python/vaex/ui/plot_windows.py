@@ -26,6 +26,7 @@ import vaex.kld
 import vaex.ui.plugin.zoom
 import vaex.ui.plugin.vector3d
 import vaex.ui.plugin.animation
+import vaex.ui.plugin.tasks
 import vaex.ui.plugin.transferfunction
 import vaex.ui.imageblending
 import vaex.ui.colormaps
@@ -348,7 +349,7 @@ class PlotDialog(QtGui.QWidget):
 
 		self.signal_plot_finished = vaex.events.Signal("plot finished")
 
-		self.canvas.mpl_connect('resize_event', self.on_resize_event)
+		self.canvas.mpl_connect('resize_event'	, self.on_resize_event)
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 		#self.pinch_ranges_show = [None for i in range(self.dimension)]
 
@@ -1071,7 +1072,13 @@ class PlotDialog(QtGui.QWidget):
 			self.queue_update()
 		return
 
-	def set_ranges(self, axis_indices, ranges_show=None, range_level=None):
+	def set_ranges(self, axis_indices, ranges_show=None, range_level=None, add_to_history=False, reason=None):
+		if add_to_history:
+			action = undo.ActionZoom(self.undoManager, reason or "Change in ranges",
+							self.set_ranges,
+							list(range(self.dimensions)), copy.deepcopy(self.ranges_show), copy.deepcopy(self.range_level_show),
+							axis_indices, ranges_show=ranges_show, range_level_show=range_level)
+			self.checkUndoRedo()
 		logger.debug("set axis/ranges_show: %r / %r" % (axis_indices, ranges_show))
 		if axis_indices is None: # signals a 'reset'
 			for axis_index in range(self.dimensions):
@@ -1084,7 +1091,11 @@ class PlotDialog(QtGui.QWidget):
 				if ranges_show:
 					self.ranges_show[axis_index] = ranges_show[i]
 					for layer in self.layers:
-						layer.ranges_grid[axis_index] = ranges_show[i]
+						#layer.ranges_grid[axis_index] = ranges_show[i]
+						if ranges_show[i] is not None:
+							layer.set_range(ranges_show[i][0], ranges_show[i][1], axis_index)
+						else:
+							layer.set_range(None, None, axis_index)
 				i#f ranges:
 				#	self.ranges[axis_index] = ranges[i]
 		logger.debug("set range_level: %r" % (range_level, ))
@@ -1155,7 +1166,9 @@ class PlotDialog(QtGui.QWidget):
 		logger.debug("ranges after aspect check: %r", self.ranges_show)
 		# now make sure the layers all have the same ranges_grid
 		for layer in layers:
-			layer.ranges_grid = copy.deepcopy(self.ranges_show)
+			#layer.ranges_grid = copy.deepcopy(self.ranges_show)
+			for d in range(layer.dimensions):
+				layer.set_range(self.ranges_show[d][0], self.ranges_show[d][1], d)
 
 
 		# now we are ready to calculate histograms
@@ -1187,6 +1200,20 @@ class PlotDialog(QtGui.QWidget):
 			self.range_level_show = [vmin, vmax]
 		logger.debug("range_level_show = %r" % (self.range_level_show, ))
 
+
+	def set_range(self, min, max, dimension=0):
+		was_equal = list(self.ranges_show[dimension]) == [min, max]
+		dimension_names = "xyz"
+		dim_name = dimension_names[dimension]
+		action = undo.ActionZoom(self.undoManager, "change range in dimension %s" % dim_name,
+						self.set_ranges,
+						list(range(self.dimensions)), copy.deepcopy(self.ranges_show), copy.deepcopy(self.range_level_show),
+						[dimension], ranges_show=[[min, max]])
+		action.do()
+		self.checkUndoRedo()
+		return was_equal
+
+
 	def zoom(self, factor, axes, x=None, y=None, delay=300, *args):
 		if self.last_ranges_show is None:
 			self.last_ranges_show = copy.deepcopy(self.ranges_show)
@@ -1214,7 +1241,7 @@ class PlotDialog(QtGui.QWidget):
 			y = ymin + height/2
 		fraction = (y-ymin)/height
 		ymin_show, ymax_show = y - height*fraction*factor, y + height*(1-fraction)*factor
-		ymin_show, ymax_show = min(ymin_show, ymax_show), max(ymin_show, ymax_show)
+		#ymin_show, ymax_show = min(ymin_show, ymax_show), max(ymin_show, ymax_show)
 		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
 			range_level_show = ymin_show, ymax_show
 			if (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
@@ -1311,7 +1338,7 @@ class PlotDialog(QtGui.QWidget):
 		self.aspect = self.get_aspect() if self.action_aspect_lock_one.isChecked() else None
 		logger.debug("set aspect to: %r" % self.aspect)
 		self.check_aspect(0)
-		self.queue_update()
+		self.update_all_layers()
 		#self.compute()
 		#self.dataset.executor.execute()
 		#self.plot()
@@ -2175,7 +2202,8 @@ class PlotDialog(QtGui.QWidget):
 			for layer in self.layers:
 				for i in range(self.dimensions-1):
 					axis_index = otheraxes[i]
-					layer.ranges_grid[axis_index] = list(self.ranges_show[axis_index])
+					#layer.ranges_grid[axis_index] = list(self.ranges_show[axis_index])
+					layer.set_range(list(self.ranges_show[axis_index]), axis_index)
 				layer.ranges_grid[axis_follow] = list(self.ranges_show[axis_follow])
 
 

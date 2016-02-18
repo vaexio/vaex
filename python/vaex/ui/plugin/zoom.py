@@ -234,6 +234,11 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		axis_indices = []
 		xmin_show, xmax_show = min(x), max(x)
 		ymin_show, ymax_show = min(y), max(y)
+		if self.dialog.ranges_show[0][0] > self.dialog.ranges_show[0][1]:
+			xmin_show, xmax_show = xmax_show, xmin_show
+		if self.dialog.ranges_show[1][0] > self.dialog.ranges_show[1][1]:
+			ymin_show, ymax_show = ymax_show, ymin_show
+
 		#self.dialog.ranges_show[axes.xaxis_index] = xmin_show, xmax_show
 		axis_indices.append(axes.xaxis_index)
 		ranges_show.append([xmin_show, xmax_show])
