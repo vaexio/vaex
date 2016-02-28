@@ -280,7 +280,7 @@ def error(msg):
 def process(webserver, user_id, path, fraction=None, progress=None, **arguments):
 	if not hasattr(webserver.thread_local, "executor"):
 		logger.debug("creating thread pool and executor")
-		webserver.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex()
+		webserver.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex(nthreads=webserver.threads_per_job)
 		webserver.thread_local.executor = vaex.execution.Executor(thread_pool=webserver.thread_local.thread_pool)
 
 	progress = progress or (lambda x: True)
@@ -392,7 +392,7 @@ GB = MB * 1024
 
 class WebServer(threading.Thread):
 	def __init__(self, address="localhost", port=9000, webserver_thread_count=2, cache_byte_size=500*MB,
-				 cache_selection_byte_size=500*MB, datasets=[], compress=True, development=False):
+				 cache_selection_byte_size=500*MB, datasets=[], compress=True, development=False, threads_per_job=4):
 		threading.Thread.__init__(self)
 		self.setDaemon(True)
 		self.address = address
@@ -402,6 +402,7 @@ class WebServer(threading.Thread):
 		self.datasets_map = dict([(ds.name,ds) for ds in self.datasets])
 
 		self.webserver_thread_count = webserver_thread_count
+		self.threads_per_job = threads_per_job
 
 		self.thread_pool = concurrent.futures.ThreadPoolExecutor(self.webserver_thread_count)
 		self.thread_local = threading.local()
@@ -503,6 +504,7 @@ def main(argv):
 	parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=default_config.compress, action='store_true')
 	parser.add_argument('--no-compress', dest="compress", action='store_false')
 	parser.add_argument('--development', default=False, action='store_true', help="enable development features (auto reloading)")
+	parser.add_argument('--threads-per-job', default=4, type=int, help="threads per job (default: %(default)s)")
 	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser, commandline=argv[1:]))
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
@@ -525,7 +527,9 @@ def main(argv):
 	logger.info("datasets:")
 	for dataset in datasets:
 		logger.info("\thttp://%s:%d/%s or ws://%s:%d/%s", config.address, config.port, dataset.name, config.address, config.port, dataset.name)
-	server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache, compress=config.compress, development=config.development)
+	server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache,
+					   compress=config.compress, development=config.development,
+					   threads_per_job=config.threads_per_job)
 	server.serve()
 
 if __name__ == "__main__":
