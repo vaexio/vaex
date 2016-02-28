@@ -269,7 +269,7 @@ def main(argv):
 	parser_tap.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
 
 	parser_file = subparsers.add_parser('file', help='use a file as source (e.g. .hdf5, .fits, .vot (VO table), .asc (ascii)')
-	parser_file.add_argument("input", help="input source or file")
+	parser_file.add_argument("input", help="input source or file, when prefixed with @ it is assumed to be a text file with a file list (one file per line)")
 	parser_file.add_argument("output", help="output file (ends in .fits or .hdf5)")
 	parser_file.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
 
@@ -288,7 +288,11 @@ def main(argv):
 		dataset = vaex.dataset.DatasetTap(args.tap_url, args.table_name)
 		print("exporting from {tap_url} table name {table_name} to {output}".format(tap_url=args.tap_url, table_name=args.table_name, output=args.output))
 	if args.task == "file":
-		dataset = vaex.open(args.input)
+		if args.input[0] == "@":
+			inputs = open(args.input[1:]).readlines()
+			dataset = vaex.open_many(inputs)
+		else:
+			dataset = vaex.open(args.input)
 		print("exporting from {input} to {output}".format(input=args.input, output=args.output))
 
 	if dataset is None:

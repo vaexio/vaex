@@ -61,7 +61,7 @@ def open(path, *args, **kwargs):
 def open_many(filenames):
 	datasets = []
 	for filename in filenames:
-		datasets.append(open(filename))
+		datasets.append(open(filename.strip()))
 	return vaex.dataset.DatasetConcatenated(datasets=datasets)
 
 def from_arrays(name="array", **arrays):
