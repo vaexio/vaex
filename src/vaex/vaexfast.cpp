@@ -603,13 +603,10 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 			for(long long i = 0; i < block_length; i++) {
 				double value_x = blockx[i];
 				double value_y = blocky[i];
-				//value_x = value_x * value_y;
-				//value_y = value_x + value_y;
 				double scaled_x = (value_x - xmin) * scale_x;
 				double scaled_y = (value_y - ymin) * scale_y;
 
 				if( (scaled_x >= 0) & (scaled_x < 1) &  (scaled_y >= 0) & (scaled_y < 1) ) {
-				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
 					int index_x = (int)(scaled_x * counts_length_x);
 					int index_y = (int)(scaled_y * counts_length_y);
 					counts[index_x + counts_length_x*index_y] += 1;
@@ -619,11 +616,12 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 			for(long long i = 0; i < block_length; i++) {
 				double value_x = blockx[i];
 				double value_y = blocky[i];
+				double scaled_x = (value_x - xmin) * scale_x;
+				double scaled_y = (value_y - ymin) * scale_y;
 
-				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
-				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
-					int index_x = (int)((value_x - xmin) * scale_x);
-					int index_y = (int)((value_y - ymin) * scale_y);
+				if( (scaled_x >= 0) & (scaled_x < 1) &  (scaled_y >= 0) & (scaled_y < 1) ) {
+					int index_x = (int)(scaled_x * counts_length_x);
+					int index_y = (int)(scaled_y * counts_length_y);
 					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
 				}
 				i_x = i_x >= block_length-1 ? 0 : i_x+1;
@@ -635,11 +633,12 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 			for(long long i = 0; i < block_length; i++) {
 				double value_x = blockx_native ? blockx[i] : double_to_native(blockx[i]);
 				double value_y = blocky_native ? blocky[i] : double_to_native(blocky[i]);
+				double scaled_x = (value_x - xmin) * scale_x;
+				double scaled_y = (value_y - ymin) * scale_y;
 
-				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
-				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
-					int index_x = (int)((value_x - xmin) * scale_x);
-					int index_y = (int)((value_y - ymin) * scale_y);
+				if( (scaled_x >= 0) & (scaled_x < 1) &  (scaled_y >= 0) & (scaled_y < 1) ) {
+					int index_x = (int)(scaled_x * counts_length_x);
+					int index_y = (int)(scaled_y * counts_length_y);
 					counts[index_x + counts_length_x*index_y] += 1;
 				}
 			}
@@ -647,13 +646,13 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 			for(long long i = 0; i < block_length; i++) {
 				double value_x = blockx_native ? blockx[i] : double_to_native(blockx[i]);
 				double value_y = blocky_native ? blocky[i] : double_to_native(blocky[i]);
+				double scaled_x = (value_x - xmin) * scale_x;
+				double scaled_y = (value_y - ymin) * scale_y;
 
-				if( (value_x >= xmin) & (value_x < xmax) &  (value_y >= ymin) & (value_y < ymax) ) {
-				//if( (index_x >= 0) & (index_x < counts_length_x) &  (index_y >= 0) & (index_y < counts_length_y) ) {
-					int index_x = (int)((value_x - xmin) * scale_x);
-					int index_y = (int)((value_y - ymin) * scale_y);
-					double weight = weights_native ? weights[i] : double_to_native(weights[i]);
-					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weight;
+				if( (scaled_x >= 0) & (scaled_x < 1) &  (scaled_y >= 0) & (scaled_y < 1) ) {
+					int index_x = (int)(scaled_x * counts_length_x);
+					int index_y = (int)(scaled_y * counts_length_y);
+					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
 				}
 				i_x = i_x >= block_length-1 ? 0 : i_x+1;
 				i_y = i_y >= block_length-1 ? 0 : i_y+1;
