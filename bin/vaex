@@ -48,6 +48,7 @@ optional arguments:
 positional arguments:
     webserver           start the vaex webserver
     convert             convert datasets
+    benchmark           run benchmarks
     ...                 anything else will start up the gui, see usage below
 
 
@@ -116,6 +117,9 @@ if __name__ == '__main__':
 		elif len(sys.argv) > 1 and sys.argv[1] == "webserver":
 			import vaex.webserver
 			vaex.webserver.main([os.path.basename(sys.argv[0]) +" " +sys.argv[1]]  + sys.argv[2:])
+		elif len(sys.argv) > 1 and sys.argv[1] == "benchmark":
+			import vaex.benchmark
+			vaex.benchmark.main([os.path.basename(sys.argv[0]) +" " +sys.argv[1]]  + sys.argv[2:])
 		elif len(sys.argv) > 1 and sys.argv[1] == "convert":
 			import vaex.export
 			vaex.export.main([os.path.basename(sys.argv[0]) +" " +sys.argv[1]]  + sys.argv[2:])
