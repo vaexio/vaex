@@ -665,7 +665,11 @@ class LayerTable(object):
 						grid = self.grid_main.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
 						if self.show_disjoined:
 							grid = grid.disjoined()
-						amplitude = grid.evaluate(self.amplitude_expression)
+						try:
+							amplitude = grid.evaluate(self.amplitude_expression)
+						except Exception, e:
+							self.error_in_field(self.amplitude_box, "amplitude of layer %s" % self.name, e)
+							return
 						if self.dataset.has_selection():
 							#grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
 							grid_selection = self.grid_main_selection.marginal2d(axes.xaxis_index, axes.yaxis_index)
@@ -701,7 +705,9 @@ class LayerTable(object):
 								colors = vz
 								axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=self.colormap_vector)#, scale=1)
 							else:
-								axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color="black")
+								scale = self.plot_window.vector_grid_size / self.vector_scale
+								axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color=self.color, scale_units="width", scale=scale)
+								logger.debug("quiver: %s", self.vector_scale)
 								colors = None
 		if 0: #if self.coordinates_picked_row is not None:
 			if self.dimensions >= 2:
@@ -1094,6 +1100,12 @@ class LayerTable(object):
 		logger.debug("got grids for layer %r" % (self, ))
 		self.finished_tasks()
 		self.calculate_amplitudes()
+		if 0: # TODO: enable again with postfixes like M, insteads of long numbers
+			counts = self.grid_main.evaluate("counts")
+			visible = np.sum(counts)
+			total = len(self.dataset)
+			fraction = float(visible)/total
+			self.label_visible.setText("{:,} of {:,} ({}) visible".format(visible, total, fraction*100))
 		self._needs_update = False
 		return self
 
@@ -1637,6 +1649,13 @@ class LayerTable(object):
 			self.option_zrange = RangeOption(page, "z-range", [0], lambda: self.get_range(2), lambda value: self.plot_window.set_range(value[0], value[1], 2), update=self.update)
 			row = self.option_zrange.add_to_grid_layout(row, self.grid_layout)
 
+		if 0:
+			self.grid_layout.addWidget(QtGui.QLabel("visible:"), row, 0)
+			self.label_visible = QtGui.QLabel("", page)
+			self.grid_layout.addWidget(self.label_visible, row, 1)
+
+		row += 1
+
 	def page_visual(self, page):
 
 		# this widget is used for the layer control, it is wrapped around the page_widget
@@ -2112,6 +2131,14 @@ class LayerTable(object):
 		                                     setter=attrsetter(self, "vector_level_max"), update=self.signal_plot_dirty.emit,
 		                                     )#inverse=lambda x: math.log10(x), transform=lambda x: 10**x)
 		row = self.slider_layer_level_max.add_to_grid_layout(row, self.grid_layout_vector)
+
+
+		self.vector_scale = 1.
+		self.slider_vector_scale = Slider(page, "vector_scale", 0.001, 1, 1000, getter=attrgetter(self, "vector_scale"),
+		                                     setter=attrsetter(self, "vector_scale"), update=self.update)
+		                                     #format=" {0:>05.2f}", transform=lambda x: 10**x, inverse=lambda x: float(np.log10(x))
+		#)#inverse=lambda x: math.log10(x), transform=lambda x: 10**x)
+		row = self.slider_vector_scale.add_to_grid_layout(row, self.grid_layout_vector)
 
 
 		if self.dimensions > -1:

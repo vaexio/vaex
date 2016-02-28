@@ -497,7 +497,7 @@ class PlotDialog(QtGui.QWidget):
 		#self.layout_frame_layer_controls.addWidget(layer.widget_layer_control)
 
 		layer.widget.setVisible(False)
-		self.layer_selection.addItem(name)
+		self.layer_selection.addItem(name + "(%s)" % dataset.name)
 		#self.layer_selection.setCurrentIndex(len(self.layers))
 		self.select_layer(len(self.layers)-1)
 
@@ -2094,7 +2094,7 @@ class PlotDialog(QtGui.QWidget):
 				args = (layer.x, xmin, layer.x, xmax, layer.y, ymin, layer.y, ymax)
 				expression = "((%s) >= %f) & ((%s) <= %f)" % args
 			logger.debug("rectangle selection using expression: %r" % expression)
-			self.dataset.select(expression, mode=self.select_mode)
+			layer.dataset.select(expression, mode=self.select_mode)
 			#self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
 			mask = layer.dataset.mask
 			action = undo.ActionMask(layer.dataset.undo_manager, "selected (%d-D)viewport" % (self.dimensions), mask, layer.apply_mask)
