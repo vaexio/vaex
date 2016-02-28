@@ -179,7 +179,7 @@ class TaskHistogram(Task):
 		#self.grids = vaex.grids.Grids(self.dataset, self.dataset.executor.thread_pool, *expressions)
 		#self.grids.ranges = limits
 		#self.grids.grids["counts"] = vaex.grids.Grid(self.grids, size, self.dimension, None)
-		shape = (self.dataset.executor.thread_pool.nthreads,) + ( self.size,) * self.dimension
+		shape = (self.subspace.executor.thread_pool.nthreads,) + ( self.size,) * self.dimension
 		self.data = np.zeros(shape, dtype=self.dtype)
 		self.ranges_flat = []
 		self.minima = []
