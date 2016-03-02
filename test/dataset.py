@@ -354,6 +354,18 @@ class TestDataset(unittest.TestCase):
 
 				# self.dataset_concat_dup references self.dataset, so set it's active_fraction to 1 again
 				dataset.set_active_fraction(1)
+		import vaex.export
+		dataset = self.dataset
+		dataset.export_hdf5(path_fits)
+		name = "vaex export"
+		vaex.export.main([name, "file", path_fits, path_hdf5])
+		backup = vaex.vaex.utils.check_memory_usage
+		try:
+			vaex.vaex.utils.check_memory_usage = lambda *args: False
+			assert vaex.export.main([name, "soneira", "--dimension=2", "-m=40", path_hdf5]) == 1
+		finally:
+			vaex.utils.check_memory_usage = backup
+		assert vaex.export.main([name, "soneira", "--dimension=2", "-m=20", path_hdf5]) == 0
 
 	def test_fraction(self):
 		counter_selection = CallbackCounter()

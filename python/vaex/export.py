@@ -240,7 +240,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 
 
 if __name__ == "__main__":
-	main(sys.argv)
+	sys.exit(main(sys.argv))
 
 def main(argv):
 	import argparse
@@ -283,7 +283,7 @@ def main(argv):
 			print("generating soneira peebles dataset...")
 			dataset = vaex.dataset.SoneiraPeebles(args.dimension, 2, args.max_level, args.lambdas)
 		else:
-			sys.exit(1)
+			return 1
 	if args.task == "tap":
 		dataset = vaex.dataset.DatasetTap(args.tap_url, args.table_name)
 		print("exporting from {tap_url} table name {table_name} to {output}".format(tap_url=args.tap_url, table_name=args.table_name, output=args.output))
@@ -297,7 +297,7 @@ def main(argv):
 
 	if dataset is None:
 		print("Cannot open input")
-		sys.exit(1)
+		return 1
 	if args.list:
 		print("columns names: " + " ".join(dataset.get_column_names()))
 	else:
@@ -310,12 +310,12 @@ def main(argv):
 		for column in columns:
 			if column not in dataset.get_column_names():
 				print("column %r does not exist, run with --list or -l to list all columns")
-				sys.exit(1)
+				return 1
 
 		base, output_ext = os.path.splitext(args.output)
 		if output_ext not in [".hdf5", ".fits"]:
 			print("extension %s not supported, only .fits and .hdf5 are" % output_ext)
-			sys.exit(1)
+			return 1
 
 		print("exporting %d rows and %d columns" % (len(dataset), len(columns)))
 		print("columns: " +" ".join(columns))
@@ -328,4 +328,5 @@ def main(argv):
 			elif output_ext == ".fits":
 				export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
 		print("\noutput to %s" % os.path.abspath(args.output))
+	return 0
 
