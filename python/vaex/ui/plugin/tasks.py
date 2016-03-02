@@ -9,7 +9,7 @@ from vaex.ui.icons import iconfile
 import logging
 import vaex.ui.undo as undo
 import vaex.ui.qt as dialogs
-
+import re
 logger = logging.getLogger("vaex.plugin.tasks")
 
 def loglog(plot_window):
@@ -18,9 +18,11 @@ def loglog(plot_window):
 		layer.y = "log10(%s)" % layer.y
 
 def removelog(plot_window):
+	def remove_log(expression):
+		return re.sub("^\s*(log|log2|log10)\((.*?)\)\s*$", "\\2", expression)
 	for layer in plot_window.layers:
-		layer.x = layer.x.replace("log10", "").replace("log", "")
-		layer.y = layer.y.replace("log10", "").replace("log", "")
+		layer.x = remove_log(layer.x)
+		layer.y = remove_log(layer.y)
 
 def loglog_and_sigma3(plot_window):
 	removelog(plot_window)
@@ -32,7 +34,7 @@ def sigma3(plot_window):
 		layer = plot_window.layers[0]
 
 		executor = vaex.execution.Executor()
-		subspace = layer.dataset.subspace(*layer.expressions, executor=executor, async=True)
+		subspace = layer.dataset.subspace(*layer.state.expressions, executor=executor, async=True)
 		means = subspace.mean()
 		with dialogs.ProgressExecution(plot_window, "Calculating mean", executor=executor):
 			executor.execute()
@@ -60,14 +62,14 @@ def subtract_mean(plot_window):
 		layer = plot_window.layers[0]
 
 		executor = vaex.execution.Executor()
-		subspace = layer.dataset.subspace(*layer.expressions, executor=executor, async=True)
+		subspace = layer.dataset.subspace(*layer.state.expressions, executor=executor, async=True)
 		means = subspace.mean()
 		with dialogs.ProgressExecution(plot_window, "Calculating mean", executor=executor):
 			executor.execute()
 		means = means.get()
-		new_expressions = ["(%s) - %s" % (expression, mean) for expression, mean in zip(layer.expressions, means)]
+		new_expressions = ["(%s) - %s" % (expression, mean) for expression, mean in zip(layer.state.expressions, means)]
 		for i in range(len(new_expressions)):
-			vmin, vmax = layer.plot_window.ranges_show[i]
+			vmin, vmax = layer.plot_window.state.ranges_viewport[i]
 			vmin -= means[i]
 			vmax -= means[i]
 			layer.plot_window.set_range(vmin, vmax, i)

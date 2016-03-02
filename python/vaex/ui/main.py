@@ -658,7 +658,7 @@ class DatasetPanel(QtGui.QFrame):
 
 
 		self.menu_common.clear()
-		if dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec") and dataset.ucd_find("pos.galactic.lon", "pos.galactic.lat") is None:
+		if dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec") and dataset.ucd_find("^pos.galactic.lon", "^pos.galactic.lat") is None:
 			def add(*args):
 				vaex.ui.columns.add_celestial(self, self.dataset)
 			action = QtGui.QAction("Add galactic coordinates", self)
@@ -672,7 +672,7 @@ class DatasetPanel(QtGui.QFrame):
 			action.triggered.connect(add)
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
-		spherical_galactic = dataset.ucd_find("pos.distance", "pos.galactic.lon", "pos.galactic.lat")
+		spherical_galactic = dataset.ucd_find("^pos.distance", "^pos.galactic.lon", "^pos.galactic.lat")
 		if spherical_galactic and not dataset.ucd_find("pos.cartesian.x;pos.galactocentric", "pos.cartesian.y;pos.galactocentric", "pos.cartesian.z;pos.galactocentric"):
 			def add(*args):
 				vaex.ui.columns.add_cartesian(self, self.dataset, True)
@@ -689,7 +689,7 @@ class DatasetPanel(QtGui.QFrame):
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
 
-		spherical_galactic = dataset.ucd_find("pos.galactic.lon", "pos.galactic.lat")
+		spherical_galactic = dataset.ucd_find("^pos.galactic.lon", "^pos.galactic.lat")
 		if spherical_galactic:
 			def add(*args):
 				vaex.ui.columns.add_aitoff(self, self.dataset, True)
@@ -708,8 +708,8 @@ class DatasetPanel(QtGui.QFrame):
 			self.menu_1d.addAction(action)
 
 		self.menu_2d.clear()
-		ucd_pairs = [("pos.cartesian.x", "pos.cartesian.y"), ("pos.cartesian.x", "pos.cartesian.z"), ("pos.cartesian.y", "pos.cartesian.z"),
-					 ("pos.eq.ra", "pos.eq.dec"), ("pos.galactic.lon", "pos.galactic.lat")]
+		ucd_pairs = [("^pos.cartesian.x", "^pos.cartesian.y"), ("^pos.cartesian.x", "^pos.cartesian.z"), ("^pos.cartesian.y", "^pos.cartesian.z"),
+					 ("^pos.eq.ra", "^pos.eq.dec"), ("^pos.galactic.lon", "^pos.galactic.lat")]
 		for ucd_pair in ucd_pairs:
 			pair = dataset.ucd_find(*ucd_pair)
 			if pair:

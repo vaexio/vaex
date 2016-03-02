@@ -22,3 +22,4 @@ cachetools
 healpy
 progressbar2
 # sphinxcontrib-googleanalytics # for building the docs
+attrdict

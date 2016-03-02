@@ -133,7 +133,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 	def onZoomFit(self, *args):
 		#for i in range(self.dimensions):
 		#	self.dialog.ranges[i] = None
-		#	self.dialog.ranges_show[i] = None
+		#	self.dialog.state.ranges_viewport[i] = None
 		#	self.range_level = None
 		if 0:
 			for axisIndex in range(self.dimensions):
@@ -142,12 +142,12 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 				if link:
 					logger.debug("sending link messages")
 					link.sendRanges(self.dialog.ranges[axisIndex], linkButton)
-					link.sendRangesShow(self.dialog.ranges_show[axisIndex], linkButton)
+					link.sendRangesShow(self.dialog.state.ranges_viewport[axisIndex], linkButton)
 				
 		
 		action = undo.ActionZoom(self.dialog.undoManager, "zoom to fit", self.dialog.set_ranges,
 		                         list(range(self.dialog.dimensions)),
-		                         self.dialog.ranges_show, self.dialog.range_level_show,
+		                         self.dialog.state.ranges_viewport, self.dialog.range_level_show,
 						   		 list(range(self.dialog.dimensions)),
 							     ranges_show=[None] * self.dialog.dimensions, range_level_show=None)
 		#for layer in dialog.layers:
@@ -174,7 +174,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		# TODO: when this will be an option again, implement this as action
 		# TODO: will we ever use this again? auto updates are much better
 		for i in range(self.dimensions):
-			self.dialog.ranges[i] = self.dialog.ranges_show[i]
+			self.dialog.ranges[i] = self.dialog.state.ranges_viewport[i]
 		self.range_level = None
 		for axisIndex in range(self.dimensions):
 			linkButton = self.linkButtons[axisIndex]
@@ -182,7 +182,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 			if link:
 				logger.debug("sending link messages")
 				link.sendRanges(self.dialog.ranges[axisIndex], linkButton)
-				#link.sendRangesShow(self.dialog.ranges_show[axisIndex], linkButton)
+				#link.sendRangesShow(self.dialog.state.ranges_viewport[axisIndex], linkButton)
 		linked_buttons = [button for button in self.linkButtons if button.link is not None]
 		links = [button.link for button in linked_buttons]
 		if len(linked_buttons) > 0:
@@ -194,30 +194,30 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 	def onZoomX(self, xmin, xmax, axes):
 		
 		axisIndex = axes.xaxis_index
-		#self.dialog.ranges_show[axisIndex] = xmin, xmax
+		#self.dialog.state.ranges_viewport[axisIndex] = xmin, xmax
 		# move the link code to the set ranges
 		if 0:
 			linkButton = self.linkButtons[axisIndex]
 			link = linkButton.link
 			if link:
 				logger.debug("sending link messages")
-				link.sendRangesShow(self.dialog.ranges_show[axisIndex], linkButton)
+				link.sendRangesShow(self.dialog.state.ranges_viewport[axisIndex], linkButton)
 				link.sendPlot(linkButton)
 		action = undo.ActionZoom(self.dialog.undoManager, "zoom x [%f,%f]" % (xmin, xmax),
 						   self.dialog.set_ranges, list(range(self.dialog.dimensions)),
-						   self.dialog.ranges_show,self.dialog.range_level_show, [axisIndex], ranges_show=[[xmin, xmax]])
+						   self.dialog.state.ranges_viewport,self.dialog.range_level_show, [axisIndex], ranges_show=[[xmin, xmax]])
 		action.do()
 		self.dialog.checkUndoRedo()
 			
 	def onZoomY(self, ymin, ymax, axes):
-		if len(self.dialog.ranges_show) == 1: # if 1d, y refers to range_level
+		if len(self.dialog.state.ranges_viewport) == 1: # if 1d, y refers to range_level
 			#self.range_level = ymin, ymax
 			action = undo.ActionZoom(self.dialog.undoManager, "change level [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, list(range(self.dialog.dimensions)),
-							self.dialog.ranges_show, self.dialog.range_level_show, [], range_level_show=[ymin, ymax])
+							self.dialog.state.ranges_viewport, self.dialog.range_level_show, [], range_level_show=[ymin, ymax])
 		else:
-			#self.dialog.ranges_show[axes.yaxis_index] = ymin, ymax
+			#self.dialog.state.ranges_viewport[axes.yaxis_index] = ymin, ymax
 			action = undo.ActionZoom(self.dialog.undoManager, "zoom y [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, list(range(self.dialog.dimensions)),
-							self.dialog.ranges_show, self.dialog.range_level_show, [axes.yaxis_index], ranges_show=[[ymin, ymax]])
+							self.dialog.state.ranges_viewport, self.dialog.range_level_show, [axes.yaxis_index], ranges_show=[[ymin, ymax]])
 			
 		action.do()
 		self.dialog.checkUndoRedo()
@@ -234,44 +234,44 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		axis_indices = []
 		xmin_show, xmax_show = min(x), max(x)
 		ymin_show, ymax_show = min(y), max(y)
-		if self.dialog.ranges_show[0][0] > self.dialog.ranges_show[0][1]:
+		if self.dialog.state.ranges_viewport[0][0] > self.dialog.state.ranges_viewport[0][1]:
 			xmin_show, xmax_show = xmax_show, xmin_show
-		if self.dialog.ranges_show[1][0] > self.dialog.ranges_show[1][1]:
+		if self.dialog.state.ranges_viewport[1][0] > self.dialog.state.ranges_viewport[1][1]:
 			ymin_show, ymax_show = ymax_show, ymin_show
 
-		#self.dialog.ranges_show[axes.xaxis_index] = xmin_show, xmax_show
+		#self.dialog.state.ranges_viewport[axes.xaxis_index] = xmin_show, xmax_show
 		axis_indices.append(axes.xaxis_index)
 		ranges_show.append([xmin_show, xmax_show])
-		if len(self.dialog.ranges_show) == 1: # if 1d, y refers to range_level
+		if len(self.dialog.state.ranges_viewport) == 1: # if 1d, y refers to range_level
 			#self.range_level = ymin_show, ymax_show
 			range_level =  ymin_show, ymax_show
 			logger.debug("range refers to level: %r" % (self.dialog.range_level_show,))
 		else:
-			#self.dialog.ranges_show[axes.yaxis_index] = ymin_show, ymax_show
+			#self.dialog.state.ranges_viewport[axes.yaxis_index] = ymin_show, ymax_show
 			axis_indices.append(axes.yaxis_index)
 			ranges_show.append([ymin_show, ymax_show])
 			
 			
 		def delayed_zoom():
 			action = undo.ActionZoom(self.dialog.undoManager, "zoom to rect", self.dialog.set_ranges, list(range(self.dialog.dimensions)),
-							self.dialog.ranges_show,
-							self.dialog.range_level_show, axis_indices, ranges_show=ranges_show, range_level_show=range_level)
+							self.dialog.state.ranges_viewport,
+							self.dialog.state.range_level_show, axis_indices, ranges_viewport=ranges_show, range_level_show=range_level)
 			action.do()
 			self.dialog.checkUndoRedo()
 		#self.dialog.queue_update(delayed_zoom, delay=300)
 		delayed_zoom()
 		
 		if 1:
-			#self.dialog.ranges_show = list(ranges_show)
-			self.dialog.ranges_show[axes.xaxis_index] = list(ranges_show[0])
+			#self.dialog.state.ranges_viewport = list(ranges_show)
+			self.dialog.state.ranges_viewport[axes.xaxis_index] = list(ranges_show[0])
 			if self.dialog.dimensions == 2:
-				self.dialog.ranges_show[axes.yaxis_index] = list(ranges_show[1])
+				self.dialog.state.ranges_viewport[axes.yaxis_index] = list(ranges_show[1])
 				self.dialog.check_aspect(1)
-				axes.set_xlim(self.dialog.ranges_show[0])
-				axes.set_ylim(self.dialog.ranges_show[1])
+				axes.set_xlim(self.dialog.state.ranges_viewport[0])
+				axes.set_ylim(self.dialog.state.ranges_viewport[1])
 			if self.dialog.dimensions == 1:
 				self.dialog.range_level_show = range_level
-				axes.set_xlim(self.dialog.ranges_show[0])
+				axes.set_xlim(self.dialog.state.ranges_viewport[0])
 				axes.set_ylim(self.dialog.range_level_show)
 			self.dialog.queue_redraw()
 			
@@ -282,20 +282,20 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 				link = linkButton.link
 				if link:
 					logger.debug("sending link messages")
-					link.sendRangesShow(self.dialog.ranges_show[axisIndex], linkButton)
+					link.sendRangesShow(self.dialog.state.ranges_viewport[axisIndex], linkButton)
 					link.sendPlot(linkButton)
 			
 			#self.axes.set_xlim(self.xmin_show, self.xmax_show)
 			#self.axes.set_ylim(self.ymin_show, self.ymax_show)
 			#self.canvas.draw()
-			action = undo.ActionZoom(self.undoManager, "zoom to rect", self.set_ranges, list(range(self.dimensions)), self.dialog.ranges, self.dialog.ranges_show,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
+			action = undo.ActionZoom(self.undoManager, "zoom to rect", self.set_ranges, list(range(self.dimensions)), self.dialog.ranges, self.dialog.state.ranges_viewport,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
 			action.do()
 			self.checkUndoRedo()
 
 			if 0:
 				if self.autoRecalculate():
 					for i in range(self.dimensions):
-						self.dialog.ranges[i] = self.dialog.ranges_show[i]
+						self.dialog.ranges[i] = self.dialog.state.ranges_viewport[i]
 						self.range_level = None
 					self.compute()
 					self.dataset.executor.execute()

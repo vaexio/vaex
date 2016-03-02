@@ -90,18 +90,18 @@ class ActionMask(Action):
 
 class ActionZoom(Action):		
 	def __init__(self, undo_manager, description, apply_ranges, all_axis_indices,
-	             previous_ranges_show, previous_range_level_show, axis_indices, ranges_show=None, range_level_show=None):
+	             previous_ranges_viewport, previous_range_level_show, axis_indices, ranges_viewport=None, range_level_show=None):
 		self.undo_manager = undo_manager
 		self.apply_ranges = apply_ranges
 		
 		self.all_axis_indices = all_axis_indices
 		#self.previous_ranges = list(previous_ranges)
-		self.previous_ranges_show = copy.deepcopy(previous_ranges_show)
+		self.previous_ranges_viewport = copy.deepcopy(previous_ranges_viewport)
 		self.previous_range_level_show = None if previous_range_level_show is None else copy.deepcopy(previous_range_level_show)
 		
 		self.axis_indices = axis_indices
 		#self.ranges = ranges
-		self.ranges_show = copy.deepcopy(ranges_show)
+		self.ranges_viewport = copy.deepcopy(ranges_viewport)
 		self.range_level_show = copy.deepcopy(range_level_show)
 		self._description = description
 		self.undo_manager.add_action(self)
@@ -110,7 +110,7 @@ class ActionZoom(Action):
 		return self._description
 		
 	def do(self):
-		self.apply_ranges(self.axis_indices, self.ranges_show, self.range_level_show)
+		self.apply_ranges(self.axis_indices, self.ranges_viewport, self.range_level_show)
 		
 	def undo(self):
-		self.apply_ranges(self.all_axis_indices, self.previous_ranges_show, self.previous_range_level_show)
+		self.apply_ranges(self.all_axis_indices, self.previous_ranges_viewport, self.previous_range_level_show)

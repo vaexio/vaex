@@ -40,7 +40,7 @@ from vaex.ui.icons import iconfile
 import vaex.vaexfast
 from vaex.ui import qt, undo
 
-
+from attrdict import AttrDict
 
 logger = logging.getLogger("vaex.ui.window")
 
@@ -134,7 +134,7 @@ class Slicer(matplotlib.widgets.Widget):
 		self._update()
 
 	def update_ellipse(self, x, y):
-		xlim, ylim = self.plot_window.ranges_show
+		xlim, ylim = self.plot_window.self.state.ranges_viewport
 		width = abs(xlim[1] - xlim[0])
 		height = abs(ylim[1] - ylim[0])
 		scale = self.radius * 2
@@ -188,10 +188,13 @@ class PlotDialog(QtGui.QWidget):
 		if "fraction" in self.options:
 			dataset.set_active_fraction(float(self.options["fraction"]))
 
-		self.xlabel = options.get("xlabel")
-		self.ylabel = options.get("ylabel")
+		self.state = AttrDict()
+		self.state._setattr("_sequence_type", None)
+		self.state.xlabel = options.get("xlabel")
+		self.state.ylabel = options.get("ylabel")
 
 		self.enable_slicing = options.get("enable_slicing", False)
+		
 
 
 		self.menu_bar = QtGui.QMenuBar(self)
@@ -228,8 +231,8 @@ class PlotDialog(QtGui.QWidget):
 		self.plugins_map = {plugin.name:plugin for plugin in self.plugins}
 		#self.plugin_zoom = plugin.zoom.ZoomPlugin(self)
 
-		self.aspect = None
-		self.axis_lock = False
+		self.state.aspect = None
+		self.state.axis_lock = False
 
 		self.update_counter = 0
 		self.t_0 = 0
@@ -240,8 +243,8 @@ class PlotDialog(QtGui.QWidget):
 		self.messages = {}
 
 		default_grid_size = 256 if self.dimensions == 2 else 128
-		self.grid_size = eval(self.options.get("grid_size", str(default_grid_size)))
-		self.vector_grid_size = eval(self.options.get("vector_grid_size", "16"))
+		self.state.grid_size = eval(self.options.get("grid_size", str(default_grid_size)))
+		self.state.vector_grid_size = eval(self.options.get("vector_grid_size", "16"))
 
 
 		self.fig = Figure(figsize=(width, height), dpi=dpi)
@@ -275,15 +278,15 @@ class PlotDialog(QtGui.QWidget):
 		self.boxlayout_right.setContentsMargins(0, 0, 0, 0)
 
 		#self.ranges = [None for _ in range(self.dimensions)] # min/max for the data
-		self.ranges_show = [None for _ in range(self.dimensions)] # min/max for the plots
-		self.range_level_show = None
+		self.state.ranges_viewport = [None for _ in range(self.dimensions)] # min/max for the plots
+		self.state.range_level_show = None
 		# if zooming in with for instance pinching, we like to know what the ranges were
 		# before zooming for the undo, and not all ranges in between
-		self.last_ranges_show = None
+		self.last_ranges_viewport = None
 		self.last_range_level_show = None
 
 		#self.ranges_previous = None
-		#self.ranges_show_previous = None
+		#self.state.ranges_viewport_previous = None
 		#self.ranges_level_previous = None
 
 
@@ -351,7 +354,7 @@ class PlotDialog(QtGui.QWidget):
 
 		self.canvas.mpl_connect('resize_event'	, self.on_resize_event)
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
-		#self.pinch_ranges_show = [None for i in range(self.dimension)]
+		#self.pinch_self.state.ranges_viewport = [None for i in range(self.dimension)]
 
 	def set_plot_size(self, width, height):
 		# use for testing only, to get a fixed size per platform
@@ -384,22 +387,22 @@ class PlotDialog(QtGui.QWidget):
 
 
 	def slice_none(self):
-		mask = np.ones((self.grid_size,) * self.dimensions, dtype=np.bool)
+		mask = np.ones((self.state.grid_size,) * self.dimensions, dtype=np.bool)
 		layer = self.current_layer
 		if layer:
 			layer.signal_slice_change.emit(mask, False)
 
 	def slice_circle(self, x, y, radius):
 		logger.debug("slice circle: %r %r", x, y)
-		xlim, ylim = self.ranges_show
+		xlim, ylim = self.state.ranges_viewport
 		width = abs(xlim[1] - xlim[0])
 		height = abs(ylim[1] - ylim[0])
 		xrel = (x - xlim[0]) / width
 		yrel = (y - ylim[0]) / height
 
 		import vaex.utils
-		x = vaex.utils.linspace_centers(0, 1, self.grid_size)
-		y = vaex.utils.linspace_centers(0, 1, self.grid_size)
+		x = vaex.utils.linspace_centers(0, 1, self.state.grid_size)
+		y = vaex.utils.linspace_centers(0, 1, self.state.grid_size)
 		x, y = np.meshgrid(x, y)
 		distance = np.sqrt((x-xrel)**2 + (y-yrel)**2)
 		mask = distance < radius
@@ -437,10 +440,10 @@ class PlotDialog(QtGui.QWidget):
 
 	def get_options(self):
 		options = collections.OrderedDict()
-		options["grid_size"] = self.grid_size
-		options["vector_grid_size"] = self.vector_grid_size
-		options["ranges_show"] = self.ranges_show
-		options["aspect"] = self.aspect
+		options["grid_size"] = self.state.grid_size
+		options["vector_grid_size"] = self.state.vector_grid_size
+		options["ranges_viewport"] = self.state.ranges_viewport
+		options["aspect"] = self.state.aspect
 		layer = self.current_layer
 		if layer is not None:
 			options["layer"] = layer.get_options()
@@ -449,8 +452,8 @@ class PlotDialog(QtGui.QWidget):
 
 	def apply_options(self, options, update=True):
 		#map = {"expressions",}
-		#recognize = "ranges_show grid_size vector_grid_size aspect".split()
-		recognize = "ranges_show  aspect".split()
+		#recognize = "self.state.ranges_viewport grid_size vector_grid_size aspect".split()
+		recognize = "ranges_viewport  aspect".split()
 		for key in recognize:
 			if key in list(options.keys()):
 				value = options[key]
@@ -479,15 +482,15 @@ class PlotDialog(QtGui.QWidget):
 			dataset = self.dataset
 		if name is None:
 			name = options.get("layer_name", "Layer: " + str(len(self.layers)+1))
-		ranges = copy.deepcopy(self.ranges_show)
+		ranges = copy.deepcopy(self.state.ranges_viewport)
 		logger.debug("adding layer {name} with expressions {expressions} for dataset {dataset} and options {options}".format(**locals()))
 
 		if len(self.layers) > 0:
 			first_layer = self.layers[0]
 			assert len(expressions) == first_layer.dimensions
 			for i in range(self.dimensions):
-				if ranges[i] is None and first_layer.ranges_grid[i] is not None:
-					ranges[i] = copy.copy(first_layer.ranges_grid[i])
+				if ranges[i] is None and first_layer.state.ranges_grid[i] is not None:
+					ranges[i] = copy.copy(first_layer.state.ranges_grid[i])
 		layer = vaex.ui.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.pool, self.fig, self.canvas, ranges)
 		self.layers.append(layer)
 		layer.build_widget_qt(self.widget_layer_stack) # layer.widget is the widget build
@@ -504,8 +507,8 @@ class PlotDialog(QtGui.QWidget):
 
 
 		def on_expression_change(layer, axis_index, expression):
-			if not self.axis_lock: # and len(self.layers) == 1:
-				self.ranges_show[axis_index] = None
+			if not self.state.axis_lock: # and len(self.layers) == 1:
+				self.state.ranges_viewport[axis_index] = None
 			self.compute()
 			error_text = self.dataset.executor.execute()
 			if error_text:
@@ -827,8 +830,8 @@ class PlotDialog(QtGui.QWidget):
 			if len(amplitude.shape) == 1:
 					#if self.ranges[0]:
 					N = amplitude.shape[0]
-					if layer.ranges_grid[0] is not None:
-						xmin, xmax = layer.ranges_grid[0]
+					if layer.state.ranges_grid[0] is not None:
+						xmin, xmax = layer.state.ranges_grid[0]
 						index = (x-xmin)/(xmax-xmin) * N
 						if index >= 0 and index < N:
 							index = int(index)
@@ -836,9 +839,9 @@ class PlotDialog(QtGui.QWidget):
 			if len(amplitude.shape) == 2:
 					#if self.ranges[0] and self.ranges[1]:
 					Nx, Ny = amplitude.shape
-					if layer.ranges_grid[0] != None and layer.ranges_grid[1] != None:
-						xmin, xmax = layer.ranges_grid[0]
-						ymin, ymax = layer.ranges_grid[1]
+					if layer.state.ranges_grid[0] != None and layer.state.ranges_grid[1] != None:
+						xmin, xmax = layer.state.ranges_grid[0]
+						ymin, ymax = layer.state.ranges_grid[1]
 						xindex = (x-xmin)/(xmax-xmin) * Nx
 						yindex = (y-ymin)/(ymax-ymin) * Ny
 						if xindex >= 0 and xindex < Nx and yindex >= 0 and yindex < Nx:
@@ -991,8 +994,8 @@ class PlotDialog(QtGui.QWidget):
 
 	def onPickXY(self, event):
 		x, y = event.xdata, event.ydata
-		wx = self.ranges_show[0][1] - self.ranges_show[0][0]
-		wy = self.ranges_show[1][1] - self.ranges_show[1][0]
+		wx = self.state.ranges_viewport[0][1] - self.state.ranges_viewport[0][0]
+		wy = self.state.ranges_viewport[1][1] - self.state.ranges_viewport[1][0]
 
 		x, y = event.xdata, event.ydata
 		self.selected_point = None
@@ -1072,34 +1075,34 @@ class PlotDialog(QtGui.QWidget):
 			self.queue_update()
 		return
 
-	def set_ranges(self, axis_indices, ranges_show=None, range_level=None, add_to_history=False, reason=None):
+	def set_ranges(self, axis_indices, ranges_viewport=None, range_level=None, add_to_history=False, reason=None):
 		if add_to_history:
 			action = undo.ActionZoom(self.undoManager, reason or "Change in ranges",
 							self.set_ranges,
-							list(range(self.dimensions)), copy.deepcopy(self.ranges_show), copy.deepcopy(self.range_level_show),
-							axis_indices, ranges_show=ranges_show, range_level_show=range_level)
+							list(range(self.dimensions)), copy.deepcopy(self.state.ranges_viewport), copy.deepcopy(self.state.range_level_show),
+							axis_indices, ranges_viewport=self.state.ranges_viewport, range_level_show=range_level)
 			self.checkUndoRedo()
-		logger.debug("set axis/ranges_show: %r / %r" % (axis_indices, ranges_show))
+		logger.debug("set axis/self.state.ranges_viewport: %r / %r" % (axis_indices, self.state.ranges_viewport))
 		if axis_indices is None: # signals a 'reset'
 			for axis_index in range(self.dimensions):
-				self.ranges_show[axis_index] = None
+				self.state.ranges_viewport[axis_index] = None
 				for layer in self.layers:
-					layer.ranges_grid[axis_index] = None
+					layer.state.ranges_grid[axis_index] = None
 				#self.ranges[axis_index] = None
 		else:
 			for i, axis_index in enumerate(axis_indices):
-				if ranges_show:
-					self.ranges_show[axis_index] = ranges_show[i]
+				if self.state.ranges_viewport:
+					self.state.ranges_viewport[axis_index] = ranges_viewport[i]
 					for layer in self.layers:
-						#layer.ranges_grid[axis_index] = ranges_show[i]
-						if ranges_show[i] is not None:
-							layer.set_range(ranges_show[i][0], ranges_show[i][1], axis_index)
+						#layer.state.ranges_grid[axis_index] = self.state.ranges_viewport[i]
+						if self.state.ranges_viewport[i] is not None:
+							layer.set_range(self.state.ranges_viewport[i][0], ranges_viewport[i][1], axis_index)
 						else:
 							layer.set_range(None, None, axis_index)
 				i#f ranges:
 				#	self.ranges[axis_index] = ranges[i]
 		logger.debug("set range_level: %r" % (range_level, ))
-		self.range_level_show = range_level
+		self.state.range_level_show = range_level
 		if len(axis_indices) > 0:
 			self.check_aspect(axis_indices[0]) # maybe we should use the widest or smallest one
 		self.update_all_layers()
@@ -1110,7 +1113,7 @@ class PlotDialog(QtGui.QWidget):
 		self.update_direct()
 
 	def update_direct(self, layer=None):
-		logger.debug("update direct: ranges_show=%r" % (self.ranges_show, ))
+		logger.debug("update direct: ranges_viewport=%r" % (self.state.ranges_viewport, ))
 		if layer:
 			logger.debug("only update layer %r (index %d)" % (layer, self.layers.index(layer)))
 			layers = [layer]
@@ -1137,7 +1140,7 @@ class PlotDialog(QtGui.QWidget):
 			qt.dialog_error(self, "Unknown variable", "Unknown variable or column: %s " % msg)
 
 		promise_ranges_done = vaex.promise.listPromise(promises)
-		promise_ranges_done.then(self._update_step2, self.on_error_or_cancel).then(None, self.on_error_or_cancel).end()
+		promise_ranges_done.then(self._update_step2, self.on_error_or_cancel).end()
 		logger.debug("waiting for promises %r to finish", promises)
 
 	def on_error_or_cancel(self, error):
@@ -1149,26 +1152,27 @@ class PlotDialog(QtGui.QWidget):
 
 	def _update_step2(self, layers):
 		"""Each layer has it's own ranges_grid computed now, unless something went wrong
-		But all layers are shown with the same ranges (ranges_show)
+		But all layers are shown with the same ranges (self.state.ranges_viewport)
 		If any of the ranges is None, take the min/max of each layer
 		"""
 		logger.debug("done with ranges, now update step2 for layers: %r", layers)
 
 
 		for dimension in range(self.dimensions):
-			if self.ranges_show[dimension] is None:
-				vmin = min([layer.ranges_grid[dimension][0] for layer in layers])
-				vmax = max([layer.ranges_grid[dimension][1] for layer in layers])
-				self.ranges_show[dimension] = [vmin, vmax]
+			if self.state.ranges_viewport[dimension] is None:
+				vmin = min([layer.state.ranges_grid[dimension][0] for layer in layers])
+				vmax = max([layer.state.ranges_grid[dimension][1] for layer in layers])
+				print self.state.ranges_viewport
+				self.state.ranges_viewport[dimension] = [vmin, vmax]
 
-		logger.debug("ranges before aspect check: %r", self.ranges_show)
+		logger.debug("ranges before aspect check: %r", self.state.ranges_viewport)
 		self.check_aspect(0)
-		logger.debug("ranges after aspect check: %r", self.ranges_show)
+		logger.debug("ranges after aspect check: %r", self.state.ranges_viewport)
 		# now make sure the layers all have the same ranges_grid
 		for layer in layers:
-			#layer.ranges_grid = copy.deepcopy(self.ranges_show)
+			#layer.state.ranges_grid = copy.deepcopy(self.state.ranges_viewport)
 			for d in range(layer.dimensions):
-				layer.set_range(self.ranges_show[d][0], self.ranges_show[d][1], d)
+				layer.set_range(self.state.ranges_viewport[d][0], self.state.ranges_viewport[d][1], d)
 
 
 		# now we are ready to calculate histograms
@@ -1184,7 +1188,7 @@ class PlotDialog(QtGui.QWidget):
 		logger.debug("done with histograms, now update step3, layers = %r" % layers)
 		# all histograms are computed, and anything needed to visualize it
 		# for 1d histograms, we for instance want to have similar levels
-		if self.range_level_show is None:
+		if self.state.range_level_show is None:
 			self.calculate_range_level_show()
 		timelog("computation done")
 		# now we can do the plot
@@ -1197,28 +1201,28 @@ class PlotDialog(QtGui.QWidget):
 				logger.debug("layer %r has range_level %r" % (layer, layer.range_level))
 			vmin = min([layer.range_level[0] for layer in layers])
 			vmax = max([layer.range_level[1] for layer in layers])
-			self.range_level_show = [vmin, vmax]
-		logger.debug("range_level_show = %r" % (self.range_level_show, ))
+			self.state.range_level_show = [vmin, vmax]
+		logger.debug("range_level_show = %r" % (self.state.range_level_show, ))
 
 
 	def set_range(self, min, max, dimension=0):
-		was_equal = list(self.ranges_show[dimension]) == [min, max]
+		was_equal = list(self.state.ranges_viewport[dimension]) == [min, max]
 		dimension_names = "xyz"
 		dim_name = dimension_names[dimension]
 		action = undo.ActionZoom(self.undoManager, "change range in dimension %s" % dim_name,
 						self.set_ranges,
-						list(range(self.dimensions)), copy.deepcopy(self.ranges_show), copy.deepcopy(self.range_level_show),
-						[dimension], ranges_show=[[min, max]])
+						list(range(self.dimensions)), copy.deepcopy(self.state.ranges_viewport), copy.deepcopy(self.state.range_level_show),
+						[dimension], ranges_viewport=[[min, max]])
 		action.do()
 		self.checkUndoRedo()
 		return was_equal
 
 
 	def zoom(self, factor, axes, x=None, y=None, delay=300, *args):
-		if self.last_ranges_show is None:
-			self.last_ranges_show = copy.deepcopy(self.ranges_show)
+		if self.last_ranges_viewport is None:
+			self.last_ranges_viewport = copy.deepcopy(self.state.ranges_viewport)
 		if self.last_range_level_show is None:
-			self.last_range_level_show = copy.deepcopy(self.range_level_show)
+			self.last_range_level_show = copy.deepcopy(self.state.range_level_show)
 		xmin, xmax = axes.get_xlim()
 		width = xmax - xmin
 
@@ -1228,11 +1232,11 @@ class PlotDialog(QtGui.QWidget):
 		fraction = (x-xmin)/width
 
 		range_level_show = None
-		ranges_show = []
+		ranges_viewport = []
 		ranges = []
 		axis_indices = []
 
-		ranges_show.append((x - width *fraction *factor , x + width * (1-fraction)*factor))
+		ranges_viewport.append([x - width *fraction *factor , x + width * (1-fraction)*factor])
 		axis_indices.append(axes.xaxis_index)
 
 		ymin, ymax = axes.get_ylim()
@@ -1242,22 +1246,22 @@ class PlotDialog(QtGui.QWidget):
 		fraction = (y-ymin)/height
 		ymin_show, ymax_show = y - height*fraction*factor, y + height*(1-fraction)*factor
 		#ymin_show, ymax_show = min(ymin_show, ymax_show), max(ymin_show, ymax_show)
-		if len(self.ranges_show) == 1: # if 1d, y refers to range_level
+		if len(self.state.ranges_viewport) == 1: # if 1d, y refers to range_level
 			range_level_show = ymin_show, ymax_show
 			if (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier) or (QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier):
 				range_level_show = ymin, ymax
 			else:
 				range_level_show = ymin_show, ymax_show
 		else:
-			ranges_show.append((ymin_show, ymax_show))
+			ranges_viewport.append([ymin_show, ymax_show])
 			axis_indices.append(axes.yaxis_index)
 
 		def delayed_zoom():
 			action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"),
 							self.set_ranges,
-							list(range(self.dimensions)), self.last_ranges_show, self.last_range_level_show,
-							axis_indices, ranges_show=ranges_show, range_level_show=range_level_show)
-			self.last_ranges_show = None
+							list(range(self.dimensions)), self.last_ranges_viewport, self.last_range_level_show,
+							axis_indices, ranges_viewport=ranges_viewport, range_level_show=range_level_show)
+			self.last_ranges_viewport = None
 			self.last_range_level_show = None
 			action.do()
 			self.checkUndoRedo()
@@ -1269,26 +1273,26 @@ class PlotDialog(QtGui.QWidget):
 		if 1:
 			self.check_aspect(axes.xaxis_index)
 			if self.dimensions in [2,3]:
-				self.ranges_show[axes.xaxis_index] = list(ranges_show[0])
-				#self.ranges_show[axes.xaxis_index].sort()
-				self.ranges_show[axes.yaxis_index] = list(ranges_show[1])
-				#self.ranges_show[axes.yaxis_index].sort()
+				self.state.ranges_viewport[axes.xaxis_index] = list(ranges_viewport[0])
+				#self.state.ranges_viewport[axes.xaxis_index].sort()
+				self.state.ranges_viewport[axes.yaxis_index] = list(ranges_viewport[1])
+				#self.state.ranges_viewport[axes.yaxis_index].sort()
 				first_layer = None
 				if len(self.layers):
 					first_layer = self.layers[0]
 				for ax in self.getAxesList():
-					ax.set_xlim(self.ranges_show[ax.xaxis_index])
-					ax.set_ylim(self.ranges_show[ax.yaxis_index])
+					ax.set_xlim(self.state.ranges_viewport[ax.xaxis_index])
+					ax.set_ylim(self.state.ranges_viewport[ax.yaxis_index])
 					#if 1:
 					#	if first_layer.flip_x:
 					#		ax.invert_xaxis()
 					#	if first_layer.flip_y:
 					#		ax.invert_yaxis()
 			if self.dimensions == 1:
-				self.ranges_show[axis_indices[0]] = list(ranges_show[0])
-				self.range_level_show = list(range_level_show)
-				axes.set_xlim(self.ranges_show[0])
-				axes.set_ylim(self.range_level_show)
+				self.state.ranges_viewport[axis_indices[0]] = list(ranges_viewport[0])
+				self.state.range_level_show = list(range_level_show)
+				axes.set_xlim(self.state.ranges_viewport[0])
+				axes.set_ylim(self.state.range_level_show)
 			self.queue_redraw()
 			#self.plot()
 
@@ -1335,8 +1339,8 @@ class PlotDialog(QtGui.QWidget):
 		return 1 #width/height
 
 	def onActionAspectLockOne(self, *ignore_args):
-		self.aspect = self.get_aspect() if self.action_aspect_lock_one.isChecked() else None
-		logger.debug("set aspect to: %r" % self.aspect)
+		self.state.aspect = self.get_aspect() if self.action_aspect_lock_one.isChecked() else None
+		logger.debug("set aspect to: %r" % self.state.aspect)
 		self.check_aspect(0)
 		self.update_all_layers()
 		#self.compute()
@@ -1344,8 +1348,8 @@ class PlotDialog(QtGui.QWidget):
 		#self.plot()
 
 	def _onActionAspectLockOne(self, *ignore_args):
-		self.aspect = 1 #self.get_aspect() if self.action_aspect_lock.isEnabled() else None
-		logger.debug("set aspect to: %r" % self.aspect)
+		self.state.aspect = 1 #self.get_aspect() if self.action_aspect_lock.isEnabled() else None
+		logger.debug("set aspect to: %r" % self.state.aspect)
 
 	def onActionExport(self):
 		if self.dimensions == 3:
@@ -1361,7 +1365,7 @@ class PlotDialog(QtGui.QWidget):
 
 				optionsname = os.path.join(dir_path, name + "_meta.json")
 				options = {}
-				options["extent"] = list(self.current_layer.ranges_grid[0]) + list(self.current_layer.ranges_grid[1])
+				options["extent"] = list(self.current_layer.state.ranges_grid[0]) + list(self.current_layer.state.ranges_grid[1])
 				json.dump(options, file(optionsname, "w"), indent=4)
 				msg_list.append("wrote: " + optionsname)
 
@@ -1422,7 +1426,7 @@ class PlotDialog(QtGui.QWidget):
 
 					optionsname = os.path.join(dir_path, name + "_meta.json")
 					options = {}
-					options["extent"] = list(self.current_layer.ranges_grid[0]) + list(self.current_layer.ranges_grid[1])
+					options["extent"] = list(self.current_layer.state.ranges_grid[0]) + list(self.current_layer.state.ranges_grid[1])
 					json.dump(options, file(optionsname, "w"), indent=4)
 					msg_list.append("wrote: " + optionsname)
 
@@ -1612,7 +1616,7 @@ class PlotDialog(QtGui.QWidget):
 
 
 	def onActionAxesLock(self, ignore=None):
-		self.axis_lock = self.action_axes_lock.isChecked()
+		self.state.axis_lock = self.action_axes_lock.isChecked()
 
 	def onActionShuffled(self, ignore=None):
 		self.xoffset = 1 if self.action_shuffled.isChecked() else 0
@@ -1810,11 +1814,11 @@ class PlotDialog(QtGui.QWidget):
 		for index, resolution in enumerate([32, 64, 128, 256, 512, 1024]):
 			action_resolution = QtGui.QAction('Grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
-				self.grid_size = resolution
+				self.state.grid_size = resolution
 				self.update_all_layers()
 			action_resolution.setCheckable(True)
 			# TODO: this need to move to a layer change event
-			if resolution == int(self.grid_size):
+			if resolution == int(self.state.grid_size):
 				action_resolution.setChecked(True)
 			#action_resolution.setEnabled(False)
 			action_resolution.triggered.connect(do)
@@ -1829,13 +1833,13 @@ class PlotDialog(QtGui.QWidget):
 		for index, resolution in enumerate([8,16,32, 64, 128, 256]):
 			action_resolution = QtGui.QAction('Vector grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
-				self.vector_grid_size = resolution
+				self.state.vector_grid_size = resolution
 				self.update_all_layers()
 				#self.compute()
 				#self.dataset.executor.execute()
 			action_resolution.setCheckable(True)
 			# TODO: this need to move to a layer change event
-			if resolution == int(self.vector_grid_size):
+			if resolution == int(self.state.vector_grid_size):
 				action_resolution.setChecked(True)
 			#action_resolution.setEnabled(False)
 			action_resolution.triggered.connect(do)
@@ -2082,15 +2086,15 @@ class PlotDialog(QtGui.QWidget):
 		layer = self.current_layer
 		if layer is not None:
 			if self.dimensions == 3:
-				(xmin, xmax), (ymin, ymax), (zmin, zmax) = self.ranges_show
+				(xmin, xmax), (ymin, ymax), (zmin, zmax) = self.state.ranges_viewport
 				args = (layer.x, xmin, layer.x, xmax, layer.y, ymin, layer.y, ymax, layer.z, zmin, layer.z, zmax)
 				expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
 			if self.dimensions == 2:
-				(xmin, xmax), (ymin, ymax) = self.ranges_show
+				(xmin, xmax), (ymin, ymax) = self.state.ranges_viewport
 				args = (layer.x, xmin, layer.x, xmax, layer.y, ymin, layer.y, ymax)
 				expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
 			if self.dimensions == 1:
-				(xmin, xmax) = self.ranges_show
+				(xmin, xmax) = self.state.ranges_viewport
 				args = (layer.x, xmin, layer.x, xmax, layer.y, ymin, layer.y, ymax)
 				expression = "((%s) >= %f) & ((%s) <= %f)" % args
 			logger.debug("rectangle selection using expression: %r" % expression)
@@ -2151,20 +2155,20 @@ class PlotDialog(QtGui.QWidget):
 		#self.action_select.update()
 
 	def check_aspect(self, axis_follow):
-		if self.aspect is not None:
-			if self.ranges_show is None:
+		if self.state.aspect is not None:
+			if self.state.ranges_viewport is None:
 				return
-			if any([k is None for k in self.ranges_show]):
+			if any([k is None for k in self.state.ranges_viewport]):
 				return
-			width = self.ranges_show[axis_follow][1] - self.ranges_show[axis_follow][0]
-			centers = [(self.ranges_show[i][1] + self.ranges_show[i][0])/2. for i in range(self.dimensions)]
+			width = self.state.ranges_viewport[axis_follow][1] - self.state.ranges_viewport[axis_follow][0]
+			centers = [(self.state.ranges_viewport[i][1] + self.state.ranges_viewport[i][0])/2. for i in range(self.dimensions)]
 			for i in range(self.dimensions):
-				print i, self.ranges_show[i]
+				print i, self.state.ranges_viewport[i]
 				if i != axis_follow:
-					self.ranges_show[i] = [None, None]
-					self.ranges_show[i][0] = centers[i] - width/2
-					self.ranges_show[i][1] = centers[i] + width/2
-				print i, self.ranges_show[i]
+					self.state.ranges_viewport[i] = [None, None]
+					self.state.ranges_viewport[i][0] = centers[i] - width/2
+					self.state.ranges_viewport[i][1] = centers[i] + width/2
+				print i, self.state.ranges_viewport[i]
 			return
 
 
@@ -2172,39 +2176,39 @@ class PlotDialog(QtGui.QWidget):
 			otheraxes = list(range(self.dimensions))
 			allaxes = list(range(self.dimensions))
 			otheraxes.remove(axis_follow)
-			#ranges = [self.ranges_show[i] if self.ranges_show[i] is not None else self.ranges[i] for i in otheraxes]
-			ranges = [self.ranges_show[i] for i in otheraxes]
+			#ranges = [self.state.ranges_viewport[i] if self.state.ranges_viewport[i] is not None else self.ranges[i] for i in otheraxes]
+			ranges = [self.state.ranges_viewport[i] for i in otheraxes]
 
 			logger.debug("aspect 1")
 			if None in ranges:
 				return
-			width = self.ranges_show[axis_follow][1] - self.ranges_show[axis_follow][0]
+			width = self.state.ranges_viewport[axis_follow][1] - self.state.ranges_viewport[axis_follow][0]
 			#width = ranges[axis_follow][1] - ranges[axis_follow][0]
-			center = (self.ranges_show[axis_follow][1] + self.ranges_show[axis_follow][0])/2.
+			center = (self.state.ranges_viewport[axis_follow][1] + self.state.ranges_viewport[axis_follow][0])/2.
 			logger.debug("aspect 2")
 
 			#widths = [ranges[i][1] - ranges[i][0] for i in range(self.dimensions-1)]
-			centers = [(self.ranges_show[i][1] + self.ranges_show[i][0])/2. for i in range(self.dimensions)]
+			centers = [(self.state.ranges_viewport[i][1] + self.state.ranges_viewport[i][0])/2. for i in range(self.dimensions)]
 			logger.debug("aspect 3")
 
 			#xmin, xmax = self.ranges[0]
 			#ymin, ymax = self.ranges[1]
 			for i in range(self.dimensions-1):
 				axis_index = otheraxes[i]
-				#if self.ranges_show[i] is None:
-				#	self.ranges_show[i] = self.ranges[i]
-				print self.ranges_show
-				self.ranges_show[axis_index] = [None, None]
-				self.ranges_show[axis_index][0] = centers[axis_index] - width/2
-				self.ranges_show[axis_index][1] = centers[axis_index] + width/2
+				#if self.state.ranges_viewport[i] is None:
+				#	self.state.ranges_viewport[i] = self.ranges[i]
+				print self.state.ranges_viewport
+				self.state.ranges_viewport[axis_index] = [None, None]
+				self.state.ranges_viewport[axis_index][0] = centers[axis_index] - width/2
+				self.state.ranges_viewport[axis_index][1] = centers[axis_index] + width/2
 				logger.debug("aspect i=%d,%d", i, axis_index)
-				print self.ranges_show
+				print self.state.ranges_viewport
 			for layer in self.layers:
 				for i in range(self.dimensions-1):
 					axis_index = otheraxes[i]
-					#layer.ranges_grid[axis_index] = list(self.ranges_show[axis_index])
-					layer.set_range(list(self.ranges_show[axis_index]), axis_index)
-				layer.ranges_grid[axis_follow] = list(self.ranges_show[axis_follow])
+					#layer.state.ranges_grid[axis_index] = list(self.state.ranges_viewport[axis_index])
+					layer.set_range(list(self.state.ranges_viewport[axis_index]), axis_index)
+				layer.state.ranges_grid[axis_follow] = list(self.state.ranges_viewport[axis_follow])
 
 
 
@@ -2236,14 +2240,14 @@ class HistogramPlotDialog(PlotDialog):
 		#values =
 		if len(self.layers) == 0:
 			return
-		if self.range_level_show is None:
+		if self.state.range_level_show is None:
 			logger.error("cannot plot when range_level_show is None")
 			return
 		first_layer = self.layers[0]
 
 		#for i in range(self.dimensions):
-		#	if self.ranges_show[i] is None:
-		#		self.ranges_show[i] = copy.copy(first_layer.ranges_grid[i])
+		#	if self.state.ranges_viewport[i] is None:
+		#		self.state.ranges_viewport[i] = copy.copy(first_layer.state.ranges_grid[i])
 
 
 		for layer in self.layers:
@@ -2252,11 +2256,11 @@ class HistogramPlotDialog(PlotDialog):
 
 
 		self.axes.set_xlabel(first_layer.expressions[0])
-		xmin_show, xmax_show = self.ranges_show[0]
+		xmin_show, xmax_show = self.state.ranges_viewport[0]
 		self.axes.set_xlim(xmin_show, xmax_show)
-		#if self.range_level_show is None:
-		#	self.range_level_show = first_layer.range_level
-		ymin_show, ymax_show = self.range_level_show
+		#if self.state.range_level_show is None:
+		#	self.state.range_level_show = first_layer.range_level
+		ymin_show, ymax_show = self.state.range_level_show
 		if not first_layer.weight_expression:
 			self.axes.set_ylabel("counts")
 		else:
@@ -2272,23 +2276,23 @@ class HistogramPlotDialog(PlotDialog):
 
 
 
-		Nvector = self.grid_size
-		width = self.ranges_show[0][1] - self.ranges_show[0][0]
-		x = np.arange(0, Nvector)/float(Nvector) * width + self.ranges_show[0][0]# + width/(Nvector/2.)
-		xmin, xmax = self.ranges_show[0]
-		xmin, xmax = self.ranges_show[0]
-		if self.ranges_show[0] is None:
-			self.ranges_show[0] = xmin, xmax
+		Nvector = self.state.grid_size
+		width = self.state.ranges_viewport[0][1] - self.state.ranges_viewport[0][0]
+		x = np.arange(0, Nvector)/float(Nvector) * width + self.state.ranges_viewport[0][0]# + width/(Nvector/2.)
+		xmin, xmax = self.state.ranges_viewport[0]
+		xmin, xmax = self.state.ranges_viewport[0]
+		if self.state.ranges_viewport[0] is None:
+			self.state.ranges_viewport[0] = [xmin, xmax]
 
-		self.delta = (xmax - xmin) / self.grid_size
-		self.centers = (np.arange(self.grid_size)+0.5) * self.delta + xmin
+		self.delta = (xmax - xmin) / self.state.grid_size
+		self.centers = (np.arange(self.state.grid_size)+0.5) * self.delta + xmin
 
 		logger.debug("expr for amplitude: %r" % self.amplitude_expression)
-		grid_map = self.create_grid_map(self.grid_size, False)
+		grid_map = self.create_grid_map(self.state.grid_size, False)
 		amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
 		use_selection = self.dataset.mask is not None
 		if use_selection:
-			grid_map_selection = self.create_grid_map(self.grid_size, True)
+			grid_map_selection = self.create_grid_map(self.state.grid_size, True)
 			amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
 
 		if use_selection:
@@ -2330,13 +2334,13 @@ class ScatterPlotDialog(PlotDialog):
 			return
 		first_layer = self.layers[0]
 
-		N = self.grid_size
+		N = self.state.grid_size
 		background = np.ones((N, N, 4), dtype=np.float64)
 		background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(self.background_color)
 		background[:,:,3] = 1.
 
 		ranges = []
-		for minimum, maximum in first_layer.ranges_grid:
+		for minimum, maximum in first_layer.state.ranges_grid:
 			ranges.append(minimum)
 			ranges.append(maximum)
 
@@ -2344,13 +2348,13 @@ class ScatterPlotDialog(PlotDialog):
 		self.add_image_layer(background, None)
 
 		for i in range(self.dimensions):
-			if self.ranges_show[i] is None:
-				self.ranges_show[i] = copy.copy(first_layer.ranges_grid[i])
+			if self.state.ranges_viewport[i] is None:
+				self.state.ranges_viewport[i] = copy.copy(first_layer.state.ranges_grid[i])
 		#extent =
 		#ranges = np.nanmin(datax), np.nanmax(datax), np.nanmin(datay), np.nanmax(datay)
 
-		xmin, xmax = self.ranges_show[0]
-		ymin, ymax = self.ranges_show[1]
+		xmin, xmax = self.state.ranges_viewport[0]
+		ymin, ymax = self.state.ranges_viewport[1]
 		width = xmax - xmin
 		height = ymax - ymin
 		extent = [xmin-width, xmax+width, ymin-height, ymax+height]
@@ -2373,16 +2377,16 @@ class ScatterPlotDialog(PlotDialog):
 
 
 
-		if self.aspect is None:
+		if self.state.aspect is None:
 			self.axes.set_aspect('auto')
 		else:
-			self.axes.set_aspect(self.aspect)
+			self.axes.set_aspect(self.state.aspect)
 			#if self.dataset.selected_row_index is not None:
 				#self.axes.autoscale(False)
 		#index = self.dataset.selected_row_index
 
 		if 1:
-			xlabel = self.xlabel
+			xlabel = self.state.xlabel
 			if xlabel is None:
 				xlabel = first_layer.x
 				#if first_layer.x in first_layer.dataset.get_column_names(virtual=False):
@@ -2392,7 +2396,7 @@ class ScatterPlotDialog(PlotDialog):
 				logger.debug("x unit: %r", unit)
 				if unit is not None:
 					xlabel = "%s (%s)" % (xlabel, unit.to_string('latex_inline')  )
-			ylabel = self.ylabel
+			ylabel = self.state.ylabel
 			if ylabel is None:
 				ylabel = first_layer.y
 				unit = self.dataset.unit(first_layer.y)
@@ -2402,8 +2406,8 @@ class ScatterPlotDialog(PlotDialog):
 
 			self.axes.set_xlabel(xlabel)
 			self.axes.set_ylabel(ylabel)
-		self.axes.set_xlim(*self.ranges_show[0])
-		self.axes.set_ylim(*self.ranges_show[1])
+		self.axes.set_xlim(*self.state.ranges_viewport[0])
+		self.axes.set_ylim(*self.state.ranges_viewport[1])
 		#self.fig.texts = []
 		#if first_layer.flip_x:
 		#	self.axes.invert_xaxis()
@@ -2446,7 +2450,7 @@ class ScatterPlotDialog(PlotDialog):
 			#amplitude = self.grids.grids["counts"].get_data(self.gridsize)
 
 			logger.debug("expr for amplitude: %r" % self.amplitude_expression)
-			grid_map = self.create_grid_map(self.grid_size, False)
+			grid_map = self.create_grid_map(self.state.grid_size, False)
 			try:
 				amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
 			except Exception as e:
@@ -2454,7 +2458,7 @@ class ScatterPlotDialog(PlotDialog):
 				return
 			use_selection = self.dataset.mask is not None
 			if use_selection:
-				grid_map_selection = self.create_grid_map(self.grid_size, True)
+				grid_map_selection = self.create_grid_map(self.state.grid_size, True)
 				amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
 
 
@@ -2473,13 +2477,13 @@ class ScatterPlotDialog(PlotDialog):
 			for name in list(self.grids.grids.keys()):
 				grid = self.grids.grids[name]
 				if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
-					if grid.max_size >= self.vector_grid_size:
-						locals[name] = grid.get_data(self.vector_grid_size, use_selection)
+					if grid.max_size >= self.state.vector_grid_size:
+						locals[name] = grid.get_data(self.state.vector_grid_size, use_selection)
 				else:
 					locals[name] = None
 
 			if 1:
-				grid_map_vector = self.create_grid_map(self.vector_grid_size, use_selection)
+				grid_map_vector = self.create_grid_map(self.state.vector_grid_size, use_selection)
 				if grid_map_vector["weightx"] is not None and grid_map_vector["weighty"] is not None:
 					mask = grid_map_vector["counts"] > (self.min_level_vector2d * grid_map_vector["counts"].max())
 					x = grid_map_vector["x"]
@@ -2512,10 +2516,10 @@ class ScatterPlotDialog(PlotDialog):
 			callback(self.axes, grid_map, grid_map_vector)
 
 
-		if self.aspect is None:
+		if self.state.aspect is None:
 			self.axes.set_aspect('auto')
 		else:
-			self.axes.set_aspect(self.aspect)
+			self.axes.set_aspect(self.state.aspect)
 			#if self.dataset.selected_row_index is not None:
 				#self.axes.autoscale(False)
 		if 0:
@@ -2537,8 +2541,8 @@ class ScatterPlotDialog(PlotDialog):
 			#	self.axes.scatter(dataxsel, dataysel)
 		self.axes.set_xlabel(self.expressions[0])
 		self.axes.set_ylabel(self.expressions[1])
-		self.axes.set_xlim(*self.ranges_show[0])
-		self.axes.set_ylim(*self.ranges_show[1])
+		self.axes.set_xlim(*self.state.ranges_viewport[0])
+		self.axes.set_ylim(*self.state.ranges_viewport[1])
 		#self.fig.texts = []
 		title_text = self.title_expression.format(**self.getVariableDict())
 		if hasattr(self, "title"):
@@ -2604,7 +2608,7 @@ class ScatterPlotMatrixDialog(PlotDialog):
 		QtCore.QCoreApplication.instance().processEvents()
 		self.expression_error = False
 
-		N = self.grid_size
+		N = self.state.grid_size
 		mask = self.dataset.mask
 		if info.first:
 			self.counts = np.zeros((N,) * self.dimensions, dtype=np.float64)
@@ -2631,8 +2635,8 @@ class ScatterPlotMatrixDialog(PlotDialog):
 		xmin, xmax = self.ranges[0]
 		ymin, ymax = self.ranges[1]
 		for i in range(self.dimensions):
-			if self.ranges_show[i] is None:
-				self.ranges_show[i] = self.ranges[i]
+			if self.state.ranges_viewport[i] is None:
+				self.state.ranges_viewport[i] = self.ranges[i]
 
 
 		index = self.dataset.selected_row_index
@@ -2737,8 +2741,8 @@ class ScatterPlotMatrixDialog(PlotDialog):
 						x, y = self.getdatax()[self.dataset.selected_row_index],  self.getdatay()[self.dataset.selected_row_index]
 						axes.scatter([x], [y], color='red') #, scalex=False, scaley=False)
 
-					axes.set_xlim(self.ranges_show[i][0], self.ranges_show[i][1])
-					axes.set_ylim(self.ranges_show[j][0], self.ranges_show[j][1])
+					axes.set_xlim(self.state.ranges_viewport[i][0], self.state.ranges_viewport[i][1])
+					axes.set_ylim(self.state.ranges_viewport[j][0], self.state.ranges_viewport[j][1])
 				else:
 					allaxes.remove(j)
 					counts = multisum(self.counts, allaxes)
@@ -2755,7 +2759,7 @@ class ScatterPlotMatrixDialog(PlotDialog):
 					else:
 						self.axes.bar(self.centers, self.counts, width=self.delta, align='center', alpha=0.5)
 						self.axes.bar(self.centers, self.counts_mask, width=self.delta, align='center', color="red")
-					axes.set_xlim(self.ranges_show[i][0], self.ranges_show[i][1])
+					axes.set_xlim(self.state.ranges_viewport[i][0], self.state.ranges_viewport[i][1])
 					axes.set_ylim(0, np.max(counts)*1.1)
 
 		if 0:
@@ -2791,8 +2795,8 @@ class ScatterPlotMatrixDialog(PlotDialog):
 			#	self.axes.scatter(dataxsel, dataysel)
 			self.axes.set_xlabel(self.expressions[0])
 			self.axes.set_ylabel(self.expressions[0])
-			self.axes.set_xlim(*self.ranges_show[0])
-			self.axes.set_ylim(*self.ranges_show[1])
+			self.axes.set_xlim(*self.state.ranges_viewport[0])
+			self.axes.set_ylim(*self.state.ranges_viewport[1])
 		self.canvas.draw()
 		self.message("ploting %f" % (time.time() - t0), index=5)
 
@@ -2891,16 +2895,16 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		first_layer = self.layers[0]
 
 		for i in range(self.dimensions):
-			if self.ranges_show[i] is None:
-				self.ranges_show[i] = copy.copy(first_layer.ranges_grid[i])
+			if self.state.ranges_viewport[i] is None:
+				self.state.ranges_viewport[i] = copy.copy(first_layer.state.ranges_grid[i])
 		#extent =
 		for axes in axes_list:
 			ranges = []
-			for minimum, maximum in [self.ranges_show[axes.xaxis_index], self.ranges_show[axes.yaxis_index], ]:
+			for minimum, maximum in [self.state.ranges_viewport[axes.xaxis_index], self.state.ranges_viewport[axes.yaxis_index], ]:
 				ranges.append(minimum)
 				ranges.append(maximum)
 			axes.rgb_images = []
-			N = self.grid_size
+			N = self.state.grid_size
 			background = np.ones((N, N, 4), dtype=np.float64)
 			background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(self.background_color)
 			background[:,:,3] = 1.
@@ -2912,10 +2916,10 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			linewidth = 2.
 			axes.spines['bottom'].set_linewidth(linewidth)
 			axes.spines['left'].set_linewidth(linewidth)
-			if self.aspect is None:
+			if self.state.aspect is None:
 				axes.set_aspect('auto')
 			else:
-				axes.set_aspect(self.aspect)
+				axes.set_aspect(self.state.aspect)
 
 
 		for layer in self.layers:
@@ -2935,12 +2939,12 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				rgba[:,:,c] = np.clip((rgba[:,:,c] ** self.layer_gamma)*self.layer_brightness, 0., 1.)
 			axes.placeholder.set_data((rgba * 255).astype(np.uint8))
 
-		#if self.aspect is None:
+		#if self.state.aspect is None:
 		#	self.axes.set_aspect('auto')
 		#else:
-		#	self.axes.set_aspect(self.aspect)
-		#self.axes.set_xlim(*self.ranges_show[0])
-		#self.axes.set_ylim(*self.ranges_show[1])
+		#	self.axes.set_aspect(self.state.aspect)
+		#self.axes.set_xlim(*self.state.ranges_viewport[0])
+		#self.axes.set_ylim(*self.state.ranges_viewport[1])
 		self.fig.tight_layout()#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 		self.canvas.draw()
 		self.update()
@@ -2951,23 +2955,23 @@ class VolumeRenderingPlotDialog(PlotDialog):
 		t0 = time.time()
 		if 1:
 			ranges = []
-			for minimum, maximum in self.ranges_show:
+			for minimum, maximum in self.state.ranges_viewport:
 				ranges.append(minimum)
 				ranges.append(maximum)
 
 			timelog("creating grid map")
-			grid_map = self.create_grid_map(self.grid_size, False)
+			grid_map = self.create_grid_map(self.state.grid_size, False)
 			timelog("eval amplitude")
 			amplitude = self.eval_amplitude(self.amplitude_expression, locals=grid_map)
 			timelog("eval amplitude done")
 			use_selection = self.dataset.mask is not None
 			if use_selection:
 				timelog("repeat for selection")
-				grid_map_selection = self.create_grid_map(self.grid_size, True)
+				grid_map_selection = self.create_grid_map(self.state.grid_size, True)
 				amplitude_selection = self.eval_amplitude(self.amplitude_expression, locals=grid_map_selection)
 
 			timelog("creating grid map vector")
-			grid_map_vector = self.create_grid_map(self.vector_grid_size, use_selection)
+			grid_map_vector = self.create_grid_map(self.state.vector_grid_size, use_selection)
 			vector_grid = None
 			vector_counts = grid_map_vector["counts"]
 			vector_mask = vector_counts > 0
@@ -3092,13 +3096,13 @@ class VolumeRenderingPlotDialog(PlotDialog):
 							#self.axes.autoscale(False)
 							x, y = self.getdatax()[self.dataset.selected_row_index],  self.getdatay()[self.dataset.selected_row_index]
 							axes.scatter([x], [y], color='red') #, scalex=False, scaley=False)
-					if self.aspect is None:
+					if self.state.aspect is None:
 						axes.set_aspect('auto')
 					else:
-						axes.set_aspect(self.aspect)
+						axes.set_aspect(self.state.aspect)
 						
-					axes.set_xlim(self.ranges_show[i1][0], self.ranges_show[i1][1])
-					axes.set_ylim(self.ranges_show[i2][0], self.ranges_show[i2][1])
+					axes.set_xlim(self.state.ranges_viewport[i1][0], self.state.ranges_viewport[i1][1])
+					axes.set_ylim(self.state.ranges_viewport[i2][0], self.state.ranges_viewport[i2][1])
 					axes.set_xlabel(self.expressions[i1])
 					axes.set_ylabel(self.expressions[i2])
 			if 0:
@@ -3134,8 +3138,8 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				#	self.axes.scatter(dataxsel, dataysel)
 				self.axes.set_xlabel(self.expressions[0])
 				self.axes.set_ylabel(self.expressions[0])
-				self.axes.set_xlim(*self.ranges_show[0])
-				self.axes.set_ylim(*self.ranges_show[1])
+				self.axes.set_xlim(*self.state.ranges_viewport[0])
+				self.axes.set_ylim(*self.state.ranges_viewport[1])
 		self.canvas.draw()
 		timelog("plot end")
 		self.message("ploting %f" % (time.time() - t0), index=5)
@@ -3226,11 +3230,11 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 		#self.timer = QtCore.QTimer(self)
 		#self.timer.timeout.connect(self.onNextFrame)
 		self.delay = 10
-		if not self.axis_lock:
+		if not self.state.axis_lock:
 			for i in range(self.dimensions):
 				self.ranges[i] = None
 			for i in range(self.dimensions):
-				self.ranges_show[i] = None
+				self.state.ranges_viewport[i] = None
 		self.dataset.selectSerieIndex(0)
 		self.dataset.executor.execute()
 		QtCore.QTimer.singleShot(self.delay if not self.record_frames else 0, self.onNextFrame);
@@ -3240,11 +3244,11 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 		next = self.serieIndex +step
 		if next >= self.nSlices:
 			next = self.nSlices-1
-		if not self.axis_lock:
+		if not self.state.axis_lock:
 			for i in range(self.dimensions):
 				self.ranges[i] = None
 			for i in range(self.dimensions):
-				self.ranges_show[i] = None
+				self.state.ranges_viewport[i] = None
 		self.dataset.selectSerieIndex(next)
 		self.dataset.executor.execute()
 		if self.serieIndex < self.nSlices-1 : # not last frame
@@ -3253,11 +3257,11 @@ class Rank1ScatterPlotDialog(ScatterPlotDialog):
 			
 	def onSerieIndex(self, index):
 		if index != self.dataset.selected_serie_index: # avoid unneeded event
-			if not self.axis_lock:
+			if not self.state.axis_lock:
 				for i in range(self.dimensions):
 					self.ranges[i] = None
 				for i in range(self.dimensions):
-					self.ranges_show[i] = None
+					self.state.ranges_viewport[i] = None
 			self.dataset.selectSerieIndex(index)
 			#self.compute()
 			self.dataset.executor.execute()
@@ -3287,7 +3291,7 @@ class Mover(object):
 	def mouse_up(self, event):
 		self.last_x, self.last_y = None, None
 		if self.moved:
-			# self.plot.ranges = list(self.plot.ranges_show)
+			# self.plot.ranges = list(self.plot.state.ranges_viewport)
 			#for layer in self.plot.layers:
 			#	layer.ranges = list(self.plot)
 			#self.plot.compute()
@@ -3306,7 +3310,7 @@ class Mover(object):
 			self.begin_x, self.begin_y = event.xdata, event.ydata
 			self.last_x, self.last_y = event.xdata, event.ydata
 			self.current_axes = event.inaxes
-			self.plot.ranges_begin = list(self.plot.ranges_show)
+			self.plot.ranges_begin = list(self.plot.state.ranges_viewport)
 
 	def mouse_move(self, event):
 		#return
@@ -3317,32 +3321,32 @@ class Mover(object):
 			self.moved = True
 			dx = self.last_x - x_data
 			dy = self.last_y - y_data
-			xmin, xmax = self.plot.ranges_show[self.current_axes.xaxis_index][0] + dx, self.plot.ranges_show[self.current_axes.xaxis_index][1] + dx
+			xmin, xmax = self.plot.state.ranges_viewport[self.current_axes.xaxis_index][0] + dx, self.plot.state.ranges_viewport[self.current_axes.xaxis_index][1] + dx
 			if self.plot.dimensions == 1:
 				ymin, ymax = self.plot.range_level_show[0] + dy, self.plot.range_level_show[1] + dy
 			else:
-				ymin, ymax = self.plot.ranges_show[self.current_axes.yaxis_index][0] + dy, self.plot.ranges_show[self.current_axes.yaxis_index][1] + dy
-			#self.plot.ranges_show = [[xmin, xmax], [ymin, ymax]]
-			self.plot.ranges_show[self.current_axes.xaxis_index] = [xmin, xmax]
+				ymin, ymax = self.plot.state.ranges_viewport[self.current_axes.yaxis_index][0] + dy, self.plot.state.ranges_viewport[self.current_axes.yaxis_index][1] + dy
+			#self.plot.state.ranges_viewport = [[xmin, xmax], [ymin, ymax]]
+			self.plot.state.ranges_viewport[self.current_axes.xaxis_index] = [xmin, xmax]
 			if self.plot.dimensions == 1:
 				self.plot.range_level_show = [ymin, ymax]
 			else:
-				self.plot.ranges_show[self.current_axes.yaxis_index] = [ymin, ymax]
+				self.plot.state.ranges_viewport[self.current_axes.yaxis_index] = [ymin, ymax]
 			# TODO: maybe the dimension should be stored in the axes, not in the plotdialog
 			for axes in self.plot.getAxesList():
 				if self.plot.dimensions == 1:
 					# ftm we assume we only have 1 histogram, meabning axes == self.current_axes
-					axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
+					axes.set_xlim(*self.plot.state.ranges_viewport[self.current_axes.xaxis_index])
 					axes.set_ylim(*self.plot.range_level_show)
 				else:
 					if axes.xaxis_index == self.current_axes.xaxis_index:
-						axes.set_xlim(*self.plot.ranges_show[self.current_axes.xaxis_index])
+						axes.set_xlim(*self.plot.state.ranges_viewport[self.current_axes.xaxis_index])
 					if axes.yaxis_index == self.current_axes.xaxis_index:
-						axes.set_ylim(*self.plot.ranges_show[self.current_axes.xaxis_index])
+						axes.set_ylim(*self.plot.state.ranges_viewport[self.current_axes.xaxis_index])
 					if axes.xaxis_index == self.current_axes.yaxis_index:
-						axes.set_xlim(*self.plot.ranges_show[self.current_axes.yaxis_index])
+						axes.set_xlim(*self.plot.state.ranges_viewport[self.current_axes.yaxis_index])
 					if axes.yaxis_index == self.current_axes.yaxis_index:
-						axes.set_ylim(*self.plot.ranges_show[self.current_axes.yaxis_index])
+						axes.set_ylim(*self.plot.state.ranges_viewport[self.current_axes.yaxis_index])
 
 			# transform again after we changed the axes limits
 			transform = self.current_axes.transData.inverted().transform
