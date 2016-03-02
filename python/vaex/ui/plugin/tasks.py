@@ -14,15 +14,15 @@ logger = logging.getLogger("vaex.plugin.tasks")
 
 def loglog(plot_window):
 	for layer in plot_window.layers:
-		layer.x = "log10(%s)" % layer.x
-		layer.y = "log10(%s)" % layer.y
+		for i, expression in enumerate(layer.state.expressions):
+			layer.set_expression("log10(%s)" % expression, i)
 
 def removelog(plot_window):
 	def remove_log(expression):
 		return re.sub("^\s*(log|log2|log10)\((.*?)\)\s*$", "\\2", expression)
 	for layer in plot_window.layers:
-		layer.x = remove_log(layer.x)
-		layer.y = remove_log(layer.y)
+		for i, expression in enumerate(layer.state.expressions):
+			layer.set_expression(remove_log(expression), i)
 
 def loglog_and_sigma3(plot_window):
 	removelog(plot_window)

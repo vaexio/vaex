@@ -520,7 +520,7 @@ class DatasetPanel(QtGui.QFrame):
 
 	def onOpenScatter(self):
 		if self.dataset is not None:
-			xname, yname = self.dataset.column_names[:2]
+			xname, yname = self.default_columns_2d
 			self.plotxy(xname, yname)
 
 	def onOpenScatter3d(self):
@@ -707,6 +707,7 @@ class DatasetPanel(QtGui.QFrame):
 			action.triggered.connect(functools.partial(self.histogram, xname=column_name))
 			self.menu_1d.addAction(action)
 
+		self.default_columns_2d = None
 		self.menu_2d.clear()
 		ucd_pairs = [("^pos.cartesian.x", "^pos.cartesian.y"), ("^pos.cartesian.x", "^pos.cartesian.z"), ("^pos.cartesian.y", "^pos.cartesian.z"),
 					 ("^pos.eq.ra", "^pos.eq.dec"), ("^pos.galactic.lon", "^pos.galactic.lat")]
@@ -716,13 +717,23 @@ class DatasetPanel(QtGui.QFrame):
 				action = QtGui.QAction(", ".join(pair), self)
 				action.triggered.connect(functools.partial(self.plotxy, xname=pair[0], yname=pair[1]))
 				self.menu_2d.addAction(action)
-		for column_name1 in self.dataset.get_column_names(virtual=True):
+				if self.default_columns_2d is None:
+					self.default_columns_2d = pair
+		column_names = self.dataset.get_column_names(virtual=True)
+		for column_name1 in column_names:
 			#action1 = QtGui.QAction(column_name, self)
 			submenu = self.menu_2d.addMenu(column_name1)
 			for column_name2 in self.dataset.get_column_names(virtual=True):
 				action = QtGui.QAction(column_name2, self)
 				action.triggered.connect(functools.partial(self.plotxy, xname=column_name1, yname=column_name2))
 				submenu.addAction(action)
+		if self.default_columns_2d is None:
+			if len(column_names) >= 2:
+				self.default_columns_2d = column_names[2:]
+			elif len(column_names) == 1:
+				self.default_columns_2d = [column_names[0], ""]
+				self.default_columns_2d = ["", ""]
+
 
 		return
 		if 0: # TODO 3d menu takes long to generate when many columns are present, can we do this lazy?

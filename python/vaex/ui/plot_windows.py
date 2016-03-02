@@ -890,7 +890,7 @@ class PlotDialog(QtGui.QWidget):
 				layer = self.current_layer
 				if layer is not None:
 					hasx = True
-					hasy = len(layer.expressions) > 1
+					hasy = len(layer.state.expressions) > 1
 					self.currentModes = [matplotlib.widgets.Cursor(axes, hasy, hasx, color="red", linestyle="dashed", useblit=useblit) for axes in axes_list]
 					for cursor in self.currentModes:
 						def onmove(event, current=cursor, cursors=self.currentModes):
@@ -1045,7 +1045,7 @@ class PlotDialog(QtGui.QWidget):
 		layer = self.current_layer
 		if layer is not None:
 			self.dataset.select_lasso(layer.x, layer.y, x, y, mode=self.select_mode)
-			#self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
+			#self.dataset.evaluate(select, layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], **self.getVariableDict())
 			meanx = x.mean()
 			meany = y.mean()
 			mask = layer.dataset.mask
@@ -1067,7 +1067,7 @@ class PlotDialog(QtGui.QWidget):
 			expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
 			logger.debug("rectangle selection using expression: %r" % expression)
 			self.dataset.select(expression, mode=self.select_mode)
-			#self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
+			#self.dataset.evaluate(select, layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], **self.getVariableDict())
 			mask = layer.dataset.mask
 			action = undo.ActionMask(layer.dataset.undo_manager, "rectangle from [%f,%f] to [%f,%f]" % (pos1.xdata, pos1.ydata, pos2.xdata, pos2.ydata), mask, layer.apply_mask)
 			#action.do()
@@ -1191,6 +1191,12 @@ class PlotDialog(QtGui.QWidget):
 		if self.state.range_level_show is None:
 			self.calculate_range_level_show()
 		timelog("computation done")
+		print "=" * 80
+		print self.state
+		for layer in self.layers:
+			print layer.state
+
+		print "=" * 80
 		# now we can do the plot
 		self.queue_replot()
 
@@ -1313,7 +1319,7 @@ class PlotDialog(QtGui.QWidget):
 			return save_expr
 		layer = self.current_layer
 		if layer != None:
-			save_expressions = list(map(make_save, layer.expressions))
+			save_expressions = list(map(make_save, layer.state.expressions))
 			type = "histogram" if self.dimensions == 1 else "density"
 			filename = layer.dataset.name +"_%s_" % type  +"-vs-".join(save_expressions) + ".png"
 			filename = QtGui.QFileDialog.getSaveFileName(self, "Export to figure", filename, ";;".join(filetypes))
@@ -2099,7 +2105,7 @@ class PlotDialog(QtGui.QWidget):
 				expression = "((%s) >= %f) & ((%s) <= %f)" % args
 			logger.debug("rectangle selection using expression: %r" % expression)
 			layer.dataset.select(expression, mode=self.select_mode)
-			#self.dataset.evaluate(select, layer.expressions[axes.xaxis_index], layer.expressions[axes.yaxis_index], **self.getVariableDict())
+			#self.dataset.evaluate(select, layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], **self.getVariableDict())
 			mask = layer.dataset.mask
 			action = undo.ActionMask(layer.dataset.undo_manager, "selected (%d-D)viewport" % (self.dimensions), mask, layer.apply_mask)
 			#action.do()
@@ -2255,16 +2261,16 @@ class HistogramPlotDialog(PlotDialog):
 			#layer.prepare_histograms()
 
 
-		self.axes.set_xlabel(first_layer.expressions[0])
+		self.axes.set_xlabel(first_layer.state.expressions[0])
 		xmin_show, xmax_show = self.state.ranges_viewport[0]
 		self.axes.set_xlim(xmin_show, xmax_show)
 		#if self.state.range_level_show is None:
 		#	self.state.range_level_show = first_layer.range_level
 		ymin_show, ymax_show = self.state.range_level_show
-		if not first_layer.weight_expression:
+		if not first_layer.state.weight_expression:
 			self.axes.set_ylabel("counts")
 		else:
-			self.axes.set_ylabel(first_layer.weight_expression)
+			self.axes.set_ylabel(first_layer.state.weight_expression)
 		self.axes.set_ylim(ymin_show, ymax_show)
 		if not self.action_mini_mode_ultra.isChecked():
 			self.fig.tight_layout(pad=0.0)
@@ -2302,7 +2308,7 @@ class HistogramPlotDialog(PlotDialog):
 			self.axes.bar(self.centers, amplitude, width=self.delta, align='center')
 
 		if self.range_level is None:
-			if self.weight_expression:
+			if self.state.weight_expression:
 				self.range_level = np.nanmin(amplitude) * 1.1, np.nanmax(amplitude) * 1.1
 			else:
 				self.range_level = 0, np.nanmax(amplitude) * 1.1
@@ -3323,13 +3329,13 @@ class Mover(object):
 			dy = self.last_y - y_data
 			xmin, xmax = self.plot.state.ranges_viewport[self.current_axes.xaxis_index][0] + dx, self.plot.state.ranges_viewport[self.current_axes.xaxis_index][1] + dx
 			if self.plot.dimensions == 1:
-				ymin, ymax = self.plot.range_level_show[0] + dy, self.plot.range_level_show[1] + dy
+				ymin, ymax = self.plot.state.range_level_show[0] + dy, self.plot.state.range_level_show[1] + dy
 			else:
 				ymin, ymax = self.plot.state.ranges_viewport[self.current_axes.yaxis_index][0] + dy, self.plot.state.ranges_viewport[self.current_axes.yaxis_index][1] + dy
 			#self.plot.state.ranges_viewport = [[xmin, xmax], [ymin, ymax]]
 			self.plot.state.ranges_viewport[self.current_axes.xaxis_index] = [xmin, xmax]
 			if self.plot.dimensions == 1:
-				self.plot.range_level_show = [ymin, ymax]
+				self.plot.state.range_level_show = [ymin, ymax]
 			else:
 				self.plot.state.ranges_viewport[self.current_axes.yaxis_index] = [ymin, ymax]
 			# TODO: maybe the dimension should be stored in the axes, not in the plotdialog
@@ -3337,7 +3343,7 @@ class Mover(object):
 				if self.plot.dimensions == 1:
 					# ftm we assume we only have 1 histogram, meabning axes == self.current_axes
 					axes.set_xlim(*self.plot.state.ranges_viewport[self.current_axes.xaxis_index])
-					axes.set_ylim(*self.plot.range_level_show)
+					axes.set_ylim(*self.plot.state.range_level_show)
 				else:
 					if axes.xaxis_index == self.current_axes.xaxis_index:
 						axes.set_xlim(*self.plot.state.ranges_viewport[self.current_axes.xaxis_index])

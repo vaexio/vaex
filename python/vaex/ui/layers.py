@@ -1467,10 +1467,10 @@ class LayerTable(object):
 			self.buttonFlipXY.setAutoDefault(False)
 			self.button_flip_colormap = QtGui.QPushButton("exchange colormaps")
 			def flip_colormap():
-				index1 = self.state.colormap_box.currentIndex()
-				index2 = self.state.colormap_vector_box.currentIndex()
-				self.state.colormap_box.setCurrentIndex(index2)
-				self.state.colormap_vector_box.setCurrentIndex(index1)
+				index1 = self.colormap_box.currentIndex()
+				index2 = self.colormap_vector_box.currentIndex()
+				self.colormap_box.setCurrentIndex(index2)
+				self.colormap_vector_box.setCurrentIndex(index1)
 			self.button_flip_colormap.clicked.connect(flip_colormap)
 			self.button_layout.addWidget(self.button_flip_colormap)
 			self.button_flip_colormap.setAutoDefault(False)
@@ -1773,22 +1773,22 @@ class LayerTable(object):
 
 		if self.dimensions > 1:
 			vaex.ui.colormaps.process_colormaps()
-			self.state.colormap_box = QtGui.QComboBox(page_widget)
-			self.state.colormap_box.setIconSize(QtCore.QSize(16, 16))
-			model = QtGui.QStandardItemModel(self.state.colormap_box)
+			self.colormap_box = QtGui.QComboBox(page_widget)
+			self.colormap_box.setIconSize(QtCore.QSize(16, 16))
+			model = QtGui.QStandardItemModel(self.colormap_box)
 			for colormap_name in vaex.ui.colormaps.colormaps:
 				colormap = matplotlib.cm.get_cmap(colormap_name)
 				pixmap = vaex.ui.colormaps.colormap_pixmap[colormap_name]
 				icon = QtGui.QIcon(pixmap)
 				item = QtGui.QStandardItem(icon, colormap_name)
 				model.appendRow(item)
-			self.state.colormap_box.setModel(model);
-			#self.form_layout.addRow("colormap=", self.state.colormap_box)
+			self.colormap_box.setModel(model);
+			#self.form_layout.addRow("colormap=", self.colormap_box)
 			self.label_colormap = QtGui.QLabel("colormap=")
 			grid_layout.addWidget(self.label_colormap, row, 0)
-			grid_layout.addWidget(self.state.colormap_box, row, 1, QtCore.Qt.AlignLeft)
+			grid_layout.addWidget(self.colormap_box, row, 1, QtCore.Qt.AlignLeft)
 			def onColorMap(index):
-				colormap_name = str(self.state.colormap_box.itemText(index))
+				colormap_name = str(self.colormap_box.itemText(index))
 				logger.debug("selected colormap: %r" % colormap_name)
 				self.state.colormap = colormap_name
 				if hasattr(self, "widget_volume"):
@@ -1811,9 +1811,9 @@ class LayerTable(object):
 					index = 0
 				else:
 					index = vaex.ui.colormaps.colormaps.index(cmap)
-				self.state.colormap_box.setCurrentIndex(index)
+				self.colormap_box.setCurrentIndex(index)
 				self.state.colormap = vaex.ui.colormaps.colormaps[index]
-			self.state.colormap_box.currentIndexChanged.connect(onColorMap)
+			self.colormap_box.currentIndexChanged.connect(onColorMap)
 
 		row += 1
 
@@ -2235,21 +2235,21 @@ class LayerTable(object):
 
 		if self.dimensions > -1:
 			vaex.ui.colormaps.process_colormaps()
-			self.state.colormap_vector_box = QtGui.QComboBox(page)
-			self.state.colormap_vector_box.setIconSize(QtCore.QSize(16, 16))
-			model = QtGui.QStandardItemModel(self.state.colormap_vector_box)
+			self.colormap_vector_box = QtGui.QComboBox(page)
+			self.colormap_vector_box.setIconSize(QtCore.QSize(16, 16))
+			model = QtGui.QStandardItemModel(self.colormap_vector_box)
 			for colormap_name in vaex.ui.colormaps.colormaps:
 				colormap = matplotlib.cm.get_cmap(colormap_name)
 				pixmap = vaex.ui.colormaps.colormap_pixmap[colormap_name]
 				icon = QtGui.QIcon(pixmap)
 				item = QtGui.QStandardItem(icon, colormap_name)
 				model.appendRow(item)
-			self.state.colormap_vector_box.setModel(model);
-			#self.form_layout.addRow("colormap=", self.state.colormap_vector_box)
+			self.colormap_vector_box.setModel(model);
+			#self.form_layout.addRow("colormap=", self.colormap_vector_box)
 			self.grid_layout_vector.addWidget(QtGui.QLabel("vz_cmap="), row, 0)
-			self.grid_layout_vector.addWidget(self.state.colormap_vector_box, row, 1, QtCore.Qt.AlignLeft)
+			self.grid_layout_vector.addWidget(self.colormap_vector_box, row, 1, QtCore.Qt.AlignLeft)
 			def onColorMap(index):
-				colormap_name = str(self.state.colormap_vector_box.itemText(index))
+				colormap_name = str(self.colormap_vector_box.itemText(index))
 				logger.debug("selected colormap for vector: %r" % colormap_name)
 				self.state.colormap_vector = colormap_name
 				#self.plot()
@@ -2268,16 +2268,16 @@ class LayerTable(object):
 					index = 0
 				else:
 					index = vaex.ui.colormaps.colormaps.index(cmap)
-				self.state.colormap_vector_box.setCurrentIndex(index)
+				self.colormap_vector_box.setCurrentIndex(index)
 				self.state.colormap_vector = vaex.ui.colormaps.colormaps[index]
 			else:
 				index = vaex.ui.colormaps.colormaps.index(self.state.colormap_vector)
-				self.state.colormap_vector_box.setCurrentIndex(index)
-			self.state.colormap_vector_box.currentIndexChanged.connect(onColorMap)
+				self.colormap_vector_box.setCurrentIndex(index)
+			self.colormap_vector_box.currentIndexChanged.connect(onColorMap)
 
 			row += 1
 
-		#self.toolbox.addItem(self.frame_options_main, "Main")
+		#self.toolbox.addItem(self.frame_options_main, " Main")
 		#self.toolbox.addItem(self.frame_options_vector2d, "Vector 2d")
 		#self.toolbox.addItem(self.frame_options_visuals, "Display")
 		#self.add_pages(self.toolbox)

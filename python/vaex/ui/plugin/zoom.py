@@ -147,9 +147,9 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		
 		action = undo.ActionZoom(self.dialog.undoManager, "zoom to fit", self.dialog.set_ranges,
 		                         list(range(self.dialog.dimensions)),
-		                         self.dialog.state.ranges_viewport, self.dialog.range_level_show,
+		                         self.dialog.state.ranges_viewport, self.dialog.state.range_level_show,
 						   		 list(range(self.dialog.dimensions)),
-							     ranges_show=[None] * self.dialog.dimensions, range_level_show=None)
+							     ranges_viewport=[None] * self.dialog.dimensions, range_level_show=None)
 		#for layer in dialog.layers:
 		#	layer.range_level = None # reset these... is this the right place?
 		action.do()
@@ -205,7 +205,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 				link.sendPlot(linkButton)
 		action = undo.ActionZoom(self.dialog.undoManager, "zoom x [%f,%f]" % (xmin, xmax),
 						   self.dialog.set_ranges, list(range(self.dialog.dimensions)),
-						   self.dialog.state.ranges_viewport,self.dialog.range_level_show, [axisIndex], ranges_show=[[xmin, xmax]])
+						   self.dialog.state.ranges_viewport,self.dialog.state.range_level_show, [axisIndex], ranges_viewport=[[xmin, xmax]])
 		action.do()
 		self.dialog.checkUndoRedo()
 			
@@ -213,11 +213,11 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		if len(self.dialog.state.ranges_viewport) == 1: # if 1d, y refers to range_level
 			#self.range_level = ymin, ymax
 			action = undo.ActionZoom(self.dialog.undoManager, "change level [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, list(range(self.dialog.dimensions)),
-							self.dialog.state.ranges_viewport, self.dialog.range_level_show, [], range_level_show=[ymin, ymax])
+							self.dialog.state.ranges_viewport, self.dialog.state.range_level_show, [], range_level_show=[ymin, ymax])
 		else:
 			#self.dialog.state.ranges_viewport[axes.yaxis_index] = ymin, ymax
 			action = undo.ActionZoom(self.dialog.undoManager, "zoom y [%f,%f]" % (ymin, ymax), self.dialog.set_ranges, list(range(self.dialog.dimensions)),
-							self.dialog.state.ranges_viewport, self.dialog.range_level_show, [axes.yaxis_index], ranges_show=[[ymin, ymax]])
+							self.dialog.state.ranges_viewport, self.dialog.state.range_level_show, [axes.yaxis_index], ranges_viewport=[[ymin, ymax]])
 			
 		action.do()
 		self.dialog.checkUndoRedo()
@@ -236,7 +236,9 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		ymin_show, ymax_show = min(y), max(y)
 		if self.dialog.state.ranges_viewport[0][0] > self.dialog.state.ranges_viewport[0][1]:
 			xmin_show, xmax_show = xmax_show, xmin_show
-		if self.dialog.state.ranges_viewport[1][0] > self.dialog.state.ranges_viewport[1][1]:
+		if len(self.dialog.state.ranges_viewport) == 1 and self.dialog.state.range_level_show[0] > self.dialog.state.range_level_show[1]:
+			ymin_show, ymax_show = ymax_show, ymin_show
+		elif self.dialog.state.ranges_viewport[1][0] > self.dialog.state.ranges_viewport[1][1]:
 			ymin_show, ymax_show = ymax_show, ymin_show
 
 		#self.dialog.state.ranges_viewport[axes.xaxis_index] = xmin_show, xmax_show
@@ -245,7 +247,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		if len(self.dialog.state.ranges_viewport) == 1: # if 1d, y refers to range_level
 			#self.range_level = ymin_show, ymax_show
 			range_level =  ymin_show, ymax_show
-			logger.debug("range refers to level: %r" % (self.dialog.range_level_show,))
+			logger.debug("range refers to level: %r" % (self.dialog.state.range_level_show,))
 		else:
 			#self.dialog.state.ranges_viewport[axes.yaxis_index] = ymin_show, ymax_show
 			axis_indices.append(axes.yaxis_index)
@@ -270,9 +272,9 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 				axes.set_xlim(self.dialog.state.ranges_viewport[0])
 				axes.set_ylim(self.dialog.state.ranges_viewport[1])
 			if self.dialog.dimensions == 1:
-				self.dialog.range_level_show = range_level
+				self.dialog.state.range_level_show = range_level
 				axes.set_xlim(self.dialog.state.ranges_viewport[0])
-				axes.set_ylim(self.dialog.range_level_show)
+				axes.set_ylim(self.dialog.state.range_level_show)
 			self.dialog.queue_redraw()
 			
 		if 0:
@@ -288,7 +290,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 			#self.axes.set_xlim(self.xmin_show, self.xmax_show)
 			#self.axes.set_ylim(self.ymin_show, self.ymax_show)
 			#self.canvas.draw()
-			action = undo.ActionZoom(self.undoManager, "zoom to rect", self.set_ranges, list(range(self.dimensions)), self.dialog.ranges, self.dialog.state.ranges_viewport,  self.range_level, axis_indices, ranges_show=ranges_show, range_level=range_level)
+			action = undo.ActionZoom(self.undoManager, "zoom to rect", self.set_ranges, list(range(self.dimensions)), self.dialog.ranges, self.dialog.state.ranges_viewport,  self.range_level, axis_indices, ranges_viewport=ranges_show, range_level=range_level)
 			action.do()
 			self.checkUndoRedo()
 
