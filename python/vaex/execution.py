@@ -88,7 +88,7 @@ class Executor(object):
 		try:
 			t0 = time.time()
 			logger.debug("executing queue: %r" % (self.task_queue))
-			task_queue_all = self.task_queue
+			task_queue_all = list(self.task_queue)
 			self.task_queue = []
 			#for task in self.task_queue:
 			#$	print task, task.expressions_all
@@ -110,16 +110,17 @@ class Executor(object):
 						task.signal_progress.emit(0)
 					block_scopes = [dataset._block_scope(0, buffer_size) for i in range(self.thread_pool.nthreads)]
 					def process(thread_index, i1, i2):
-						block_scope = block_scopes[thread_index]
-						block_scope.move(i1, i2)
-						#with ne_lock:
-						block_dict = {expression:block_scope.evaluate(expression) for expression in expressions}
-						for task in task_queue:
-							blocks = [block_dict[expression] for expression in task.expressions_all]
-							task._results.append(task.map(thread_index, i1, i2, *blocks))
-							# don't call directly, since ui's don't like being updated from a different thread
-							#self.thread_mover(task.signal_progress, float(i2)/length)
-							#time.sleep(0.3)
+						if not cancelled[0]:
+							block_scope = block_scopes[thread_index]
+							block_scope.move(i1, i2)
+							#with ne_lock:
+							block_dict = {expression:block_scope.evaluate(expression) for expression in expressions}
+							for task in task_queue:
+								blocks = [block_dict[expression] for expression in task.expressions_all]
+								task._results.append(task.map(thread_index, i1, i2, *blocks))
+								# don't call directly, since ui's don't like being updated from a different thread
+								#self.thread_mover(task.signal_progress, float(i2)/length)
+								#time.sleep(0.3)
 
 					length = len(dataset)
 					#print self.thread_pool.map()
