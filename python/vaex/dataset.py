@@ -994,8 +994,13 @@ class _BlockScope(object):
 			#logger.exception("error in evaluating: %r" % variable)
 			raise
 
-main_executor = vaex.execution.Executor(vaex.multithreading.pool)
+main_executor = None# vaex.execution.Executor(vaex.multithreading.pool)
 from vaex.execution import Executor
+def get_main_executor():
+	global main_executor
+	if main_executor is None:
+		main_executor = vaex.execution.Executor(vaex.multithreading.get_main_pool())
+	return main_executor
 
 
 class Selection(object):
@@ -1161,7 +1166,7 @@ class Dataset(object):
 	def __init__(self, name, column_names, executor=None):
 		self.name = name
 		self.column_names = column_names
-		self.executor = executor or main_executor
+		self.executor = executor or get_main_executor()
 		self.signal_pick = vaex.events.Signal("pick")
 		self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
 		self.signal_selection_changed = vaex.events.Signal("selection changed")

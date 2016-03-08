@@ -10,12 +10,15 @@ def main(argv):
 	global subspace, dataset, limits
 	parser = argparse.ArgumentParser(argv[0])
 	parser.add_argument("-N", help="run each batch N times (default: %(default)s)", type=int, default=5)
-	parser.add_argument("-f", "--fraction", help="fraction of dataset to use (default: %(default)s)", default=1., type=float, nargs="*")
+	parser.add_argument("-f", "--fraction", help="fraction of dataset to use (default: %(default)s)", default=1., type=float)
+	parser.add_argument("-b", "--buffer-size", default=vx.execution.buffer_size_default, help="buffer size per thread (default: %(default)s)", type=int)
+	parser.add_argument("-c", "--cpu-count", default=vx.multithreading.thread_count_default, help="thread count/cpu count (default: %(default)s)", type=int)
 	parser.add_argument("filename", help="filename of dataset to use")
 	parser.add_argument("expressions", help="list of expressions to export (or all when empty)", nargs="*")
 
 	args = parser.parse_args(argv[1:])
-
+	vx.execution.buffer_size_default = args.buffer_size
+	vx.multithreading.thread_count_default = args.cpu_count
 
 	progressbar = False
 	fn = args.filename

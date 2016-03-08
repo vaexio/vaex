@@ -12,7 +12,7 @@ from functools import reduce
 
 __author__ = 'breddels'
 
-buffer_size = 1e6 # TODO: this should not be fixed, larger means faster but also large memory usage
+buffer_size_default = 1e6 # TODO: this should not be fixed, larger means faster but also large memory usage
 
 import threading
 import queue
@@ -50,10 +50,10 @@ class Job(object):
 ne_lock = threading.Lock()
 
 class Executor(object):
-	def __init__(self, thread_pool=None, buffer_size=buffer_size, thread_mover=None):
+	def __init__(self, thread_pool=None, buffer_size=None, thread_mover=None):
 		self.thread_pool = thread_pool or vaex.multithreading.ThreadPoolIndex()
 		self.task_queue = []
-		self.buffer_size = buffer_size
+		self.buffer_size = buffer_size or buffer_size_default
 		self.signal_begin = vaex.events.Signal("begin")
 		self.signal_progress = vaex.events.Signal("progress")
 		self.signal_end = vaex.events.Signal("end")
@@ -108,7 +108,7 @@ class Executor(object):
 					for task in task_queue:
 						task._results = []
 						task.signal_progress.emit(0)
-					block_scopes = [dataset._block_scope(0, buffer_size) for i in range(self.thread_pool.nthreads)]
+					block_scopes = [dataset._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
 					def process(thread_index, i1, i2):
 						if not cancelled[0]:
 							block_scope = block_scopes[thread_index]
@@ -117,7 +117,8 @@ class Executor(object):
 							block_dict = {expression:block_scope.evaluate(expression) for expression in expressions}
 							for task in task_queue:
 								blocks = [block_dict[expression] for expression in task.expressions_all]
-								task._results.append(task.map(thread_index, i1, i2, *blocks))
+								if not cancelled[0]:
+									task._results.append(task.map(thread_index, i1, i2, *blocks))
 								# don't call directly, since ui's don't like being updated from a different thread
 								#self.thread_mover(task.signal_progress, float(i2)/length)
 								#time.sleep(0.3)

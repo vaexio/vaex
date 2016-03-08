@@ -13,9 +13,9 @@ logger = logging.getLogger("vaex.multithreading")
 
 
 class ThreadPoolIndex(object):
-	def __init__(self, nthreads=thread_count_default):
-		self.nthreads = nthreads
-		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
+	def __init__(self, nthreads=None):
+		self.nthreads = nthreads or thread_count_default
+		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(self.nthreads)]
 		self.lock = threading.Lock()
 		self.queue_in = [] #queue.Queue()
 		self.queue_out = queue.Queue()
@@ -158,7 +158,12 @@ class ThreadPoolIndex(object):
 			yield result
 
 
-pool = ThreadPoolIndex()
+main_pool = None #ThreadPoolIndex()
+def get_main_pool():
+	global main_pool
+	if main_pool is None:
+		main_pool = ThreadPoolIndex()
+	return main_pool
 
 class ThreadPool(object):
 	
