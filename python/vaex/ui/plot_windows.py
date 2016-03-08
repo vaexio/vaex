@@ -42,6 +42,14 @@ from vaex.ui import qt, undo
 
 from attrdict import AttrDict
 
+class AttrDict(AttrDict):
+	def __init__(self, *args, **kwargs):
+		super(AttrDict, self).__init__(*args, **kwargs)
+		self._setattr("_sequence_type", None)
+
+grid_resolutions = [32, 64, 128, 256, 512, 1024]
+vector_grid_resolutions = [8,16,32, 64, 128, 256]
+
 logger = logging.getLogger("vaex.ui.window")
 
 class Slicer(matplotlib.widgets.Widget):
@@ -180,6 +188,7 @@ class PlotDialog(QtGui.QWidget):
 		self.data_panel = parent
 		self.options = options
 		self.dataset = dataset
+		self.datasets = {} # keep a record of dataset.path to path for history/state management
 		self.app = app
 		self.layers = []
 		index = len(self.app.windows)
@@ -189,7 +198,6 @@ class PlotDialog(QtGui.QWidget):
 			dataset.set_active_fraction(float(self.options["fraction"]))
 
 		self.state = AttrDict()
-		self.state._setattr("_sequence_type", None)
 		self.state.xlabel = options.get("xlabel")
 		self.state.ylabel = options.get("ylabel")
 
@@ -212,6 +220,9 @@ class PlotDialog(QtGui.QWidget):
 
 
 		self.undoManager = parent.undoManager
+		self.full_state_history = []
+		self.full_state_history_index = -1
+		self.full_state_history_change_reason = None
 		self.setWindowTitle(self.name)
 		self.dataset = dataset
 		self.axisnames = axisnames
@@ -482,6 +493,7 @@ class PlotDialog(QtGui.QWidget):
 			dataset = self.dataset
 		if name is None:
 			name = options.get("layer_name", "Layer: " + str(len(self.layers)+1))
+		self.datasets[dataset.path] = dataset
 		ranges = copy.deepcopy(self.state.ranges_viewport)
 		logger.debug("adding layer {name} with expressions {expressions} for dataset {dataset} and options {options}".format(**locals()))
 
@@ -495,6 +507,7 @@ class PlotDialog(QtGui.QWidget):
 		self.layers.append(layer)
 		layer.build_widget_qt(self.widget_layer_stack) # layer.widget is the widget build
 		self.widget_layer_stack.addWidget(layer.widget)
+		self.queue_history_change("added layer: " +name)
 
 		#layer.build_widget_qt_layer_control(self.frame_layer_controls)
 		#self.layout_frame_layer_controls.addWidget(layer.widget_layer_control)
@@ -636,8 +649,13 @@ class PlotDialog(QtGui.QWidget):
 							pass
 
 					#action = QtGui.QAction()
-	def remove_layer(self):
-		layer = self.current_layer
+	def remove_layer(self, layer=None, layer_index=None):
+		if layer is not None:
+			layer = layer
+		elif layer_index is not None:
+			layer = self.layers[layer_index]
+		else:
+			layer = self.current_layer
 		logger.debug("remove layer: %r" % layer)
 		if layer is not None:
 			index = self.layers.index(layer)
@@ -645,6 +663,8 @@ class PlotDialog(QtGui.QWidget):
 			self.layers.remove(layer)
 			self.layer_selection.removeItem(index+1) # index 0 is the layer control
 			self.widget_layer_stack.removeWidget(layer.widget)
+			self.queue_history_change("Remove layer: %s" % layer.name)
+			self.queue_push_full_state()
 			self.plot()
 
 	def afterCanvas(self, layout):
@@ -793,22 +813,33 @@ class PlotDialog(QtGui.QWidget):
 			self.shortcuts.append(shortcut)
 
 	def checkUndoRedo(self):
-		self.action_undo.setEnabled(self.undoManager.can_undo())
-		if self.undoManager.can_undo():
-			self.action_undo.setToolTip("Undo: "+self.undoManager.actions_undo[-1].description())
+		can_undo = self.full_state_history_index >= 1
+		can_redo = self.full_state_history_index < (len(self.full_state_history)-1)
+		#if len(full_state_history)
+		self.action_undo.setEnabled(can_undo)
+		if can_undo:
+			reason, state = self.full_state_history[self.full_state_history_index]
+			self.action_undo.setToolTip("Undo: "+reason)
 
-		self.action_redo.setEnabled(self.undoManager.can_redo())
-		if self.undoManager.can_redo():
-			self.action_redo.setToolTip("Redo: "+self.undoManager.actions_redo[0].description())
+		self.action_redo.setEnabled(can_redo)
+		if can_redo:
+			reason, state = self.full_state_history[self.full_state_history_index+1]
+			self.action_redo.setToolTip("Redo: "+reason)
 
 	def onActionUndo(self):
 		logger.debug("undo")
-		self.undoManager.undo()
+		#self.undoManager.undo()
+		self.full_state_history_index -= 1
+		reason, state = self.full_state_history[self.full_state_history_index]
+		self.restore_full_state(state)
 		self.checkUndoRedo()
 
 	def onActionRedo(self):
 		logger.debug("redo")
-		self.undoManager.redo()
+		self.full_state_history_index += 1
+		reason, state = self.full_state_history[self.full_state_history_index]
+		self.restore_full_state(state)
+		#self.undoManager.redo()
 		self.checkUndoRedo()
 
 	def onMouseMove(self, event):
@@ -1196,9 +1227,67 @@ class PlotDialog(QtGui.QWidget):
 		for layer in self.layers:
 			print layer.state
 
+		print self.full_state_history_index
+		print self.full_state_history
 		print "=" * 80
+
 		# now we can do the plot
+		self.push_full_state()
 		self.queue_replot()
+
+	def queue_history_change(self, reason):
+		self.full_state_history_change_reason = reason
+
+	def get_full_state(self):
+		return {"window":copy.deepcopy(dict(self.state)), "layers":[copy.deepcopy(dict(layer.state)) for layer in self.layers]}
+
+	def push_full_state(self):
+		if not self.full_state_history:
+			self.full_state_history.append(("initial state", self.get_full_state()))
+			self.full_state_history_index += 1
+		else:
+			if self.full_state_history_change_reason is not None:
+				# clip off any possible redo history
+				self.full_state_history = self.full_state_history[:self.full_state_history_index+1]
+				state = self.full_state_history.append((self.full_state_history_change_reason, self.get_full_state()))
+				self.full_state_history_index += 1
+				self.full_state_history_change_reason = None
+		self.checkUndoRedo()
+		print "=" * 80
+		print self.state
+		for layer in self.layers:
+			print layer.state
+
+		print self.full_state_history_index
+		print self.full_state_history
+		print "=" * 80
+
+	def queue_push_full_state(self):
+		QtCore.QTimer.singleShot(1, self.push_full_state);
+
+	def restore_full_state(self, state):
+		#return {"window":copy.deepcopy(dict(self.state)), "layers":[copy.deepcopy(dict(layer.state)) for layer in self.layers]}
+		layer_states = [AttrDict(copy.deepcopy(layer)) for layer in state["layers"]]
+		while len(layer_states) < len(self.layers):
+			self.remove_layer(layer_index=len(self.layers)-1)
+		for layer_state, layer in zip(layer_states, self.layers):
+			layer.restore_state(layer_state)
+		leftover_layer_states = layer_states[len(self.layers):]
+		for layer_state in leftover_layer_states:
+			print "restoring", layer_state
+			layer = self.add_layer(expressions=layer_state.expressions, dataset=self.datasets[layer_state.dataset_path], name=layer_state.name)
+			layer.restore_state(layer_state)
+		self.queue_history_change(None)
+		#self.queue_update()
+		self.state = AttrDict(copy.deepcopy(state["window"]))
+		self.action_axes_lock.setChecked(bool(self.state.axis_lock))
+		self.action_aspect_lock_one.setChecked(bool(self.state.aspect))
+		self.action_resolution_list[grid_resolutions.index(self.state.grid_size)].setChecked(True)
+		self.action_resolution_vector_list[vector_grid_resolutions.index(self.state.vector_grid_size)].setChecked(True)
+		self.update_all_layers()
+		#for layer in
+
+
 
 	def calculate_range_level_show(self):
 		layers = [layer for layer in self.layers if layer.range_level is not None]
@@ -1262,8 +1351,10 @@ class PlotDialog(QtGui.QWidget):
 			ranges_viewport.append([ymin_show, ymax_show])
 			axis_indices.append(axes.yaxis_index)
 
+		reason = "zoom " + ("out" if factor > 1 else "in")
+		self.queue_history_change(reason)
 		def delayed_zoom():
-			action = undo.ActionZoom(self.undoManager, "zoom " + ("out" if factor > 1 else "in"),
+			action = undo.ActionZoom(self.undoManager, reason,
 							self.set_ranges,
 							list(range(self.dimensions)), self.last_ranges_viewport, self.last_range_level_show,
 							axis_indices, ranges_viewport=ranges_viewport, range_level_show=range_level_show)
@@ -1348,6 +1439,7 @@ class PlotDialog(QtGui.QWidget):
 		self.state.aspect = self.get_aspect() if self.action_aspect_lock_one.isChecked() else None
 		logger.debug("set aspect to: %r" % self.state.aspect)
 		self.check_aspect(0)
+		self.queue_history_change("Set equal aspect" if self.state.aspect else "Unset equal aspect")
 		self.update_all_layers()
 		#self.compute()
 		#self.dataset.executor.execute()
@@ -1623,6 +1715,9 @@ class PlotDialog(QtGui.QWidget):
 
 	def onActionAxesLock(self, ignore=None):
 		self.state.axis_lock = self.action_axes_lock.isChecked()
+		self.queue_history_change("Set axis lock" if self.action_axes_lock.isChecked() else "Unset axis lock")
+		self.push_full_state()
+		self.checkUndoRedo()
 
 	def onActionShuffled(self, ignore=None):
 		self.xoffset = 1 if self.action_shuffled.isChecked() else 0
@@ -1817,10 +1912,11 @@ class PlotDialog(QtGui.QWidget):
 		self.menu_view.addSeparator()
 		self.action_group_resolution = QtGui.QActionGroup(self)
 		self.action_resolution_list = []
-		for index, resolution in enumerate([32, 64, 128, 256, 512, 1024]):
+		for index, resolution in enumerate(grid_resolutions):
 			action_resolution = QtGui.QAction('Grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
 				self.state.grid_size = resolution
+				self.queue_history_change("Set grid resolution to %s" % resolution)
 				self.update_all_layers()
 			action_resolution.setCheckable(True)
 			# TODO: this need to move to a layer change event
@@ -1836,10 +1932,11 @@ class PlotDialog(QtGui.QWidget):
 		self.menu_view.addSeparator()
 		self.action_group_resolution_vector = QtGui.QActionGroup(self)
 		self.action_resolution_vector_list = []
-		for index, resolution in enumerate([8,16,32, 64, 128, 256]):
+		for index, resolution in enumerate(vector_grid_resolutions):
 			action_resolution = QtGui.QAction('Vector grid Resolution: %d' % resolution, self)
 			def do(ignore=None, resolution=resolution):
 				self.state.vector_grid_size = resolution
+				self.queue_history_change("Set vector grid resolution to %s" % resolution)
 				self.update_all_layers()
 				#self.compute()
 				#self.dataset.executor.execute()
@@ -3302,6 +3399,7 @@ class Mover(object):
 			#	layer.ranges = list(self.plot)
 			#self.plot.compute()
 			#self.plot.jobsManager.execute()
+			self.plot.queue_history_change("pan")
 			self.plot.update_all_layers()
 			self.moved = False
 
@@ -3312,6 +3410,7 @@ class Mover(object):
 			if event.button != 1:
 				factor = 1/factor
 			self.plot.zoom(factor, axes=event.inaxes, x=event.xdata, y=event.ydata)
+			self.plot.queue_history_change("zoom in around (%s, %s)" % (event.xdata, event.ydata))
 		else:
 			self.begin_x, self.begin_y = event.xdata, event.ydata
 			self.last_x, self.last_y = event.xdata, event.ydata

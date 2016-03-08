@@ -16,6 +16,7 @@ def loglog(plot_window):
 	for layer in plot_window.layers:
 		for i, expression in enumerate(layer.state.expressions):
 			layer.set_expression("log10(%s)" % expression, i)
+	plot_window.queue_history_change("task: log/log")
 
 def removelog(plot_window):
 	def remove_log(expression):
@@ -23,11 +24,14 @@ def removelog(plot_window):
 	for layer in plot_window.layers:
 		for i, expression in enumerate(layer.state.expressions):
 			layer.set_expression(remove_log(expression), i)
+	plot_window.queue_history_change("task: remove log/log")
 
 def loglog_and_sigma3(plot_window):
 	removelog(plot_window)
 	loglog(plot_window)
+	plot_window.queue_history_change(None)
 	sigma3(plot_window)
+	plot_window.queue_history_change("task: log/log and 3 sigma region")
 
 def sigma3(plot_window):
 	if plot_window.layers:
@@ -55,6 +59,7 @@ def sigma3(plot_window):
 		logger.debug("means=%r", means)
 		logger.debug("vars=%r", vars)
 		logger.debug("limits=%r", limits)
+		plot_window.queue_history_change("task: 3 sigma region")
 		#plot_window.queue_update()
 
 def subtract_mean(plot_window):
@@ -76,6 +81,7 @@ def subtract_mean(plot_window):
 		for i in range(len(new_expressions)):
 			layer.set_expression(new_expressions[i], i)
 		plot_window.update_all_layers()
+		plot_window.queue_history_change("task: remove mean")
 
 
 class TasksPlugin(vaex.ui.plugin.PluginPlot):

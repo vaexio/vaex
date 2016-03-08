@@ -112,16 +112,18 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 			self.dialog.currentModes = [matplotlib.widgets.RectangleSelector(axes, functools.partial(self.onZoomRect, axes=axes), useblit=useblit) for axes in axes_list] #, rectprops={"color":"blue"})
 			if useblit:
 				self.dialog.canvas.draw() # buggy otherwise
-		
+
 		
 
 	def onZoomIn(self, *args):
 		axes = self.getAxesList()[0] # TODO: handle propery multiple axes
 		self.dialog.zoom(0.5, axes)
+		self.dialog.queue_history_change("zoom in")
 		
 	def onZoomOut(self):
 		axes = self.dialog.getAxesList()[0] # TODO: handle propery multiple axes
 		self.dialog.zoom(2., axes)
+		self.dialog.queue_history_change("zoom out")
 		
 
 	def onActionZoom(self):
@@ -154,6 +156,7 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 		#	layer.range_level = None # reset these... is this the right place?
 		action.do()
 		self.dialog.checkUndoRedo()
+		self.dialog.queue_history_change("zoom to fit")
 		
 		if 0:
 			linked_buttons = [button for button in self.linkButtons if button.link is not None]
@@ -208,7 +211,8 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 						   self.dialog.state.ranges_viewport,self.dialog.state.range_level_show, [axisIndex], ranges_viewport=[[xmin, xmax]])
 		action.do()
 		self.dialog.checkUndoRedo()
-			
+		self.dialog.queue_history_change("zoom x")
+
 	def onZoomY(self, ymin, ymax, axes):
 		if len(self.dialog.state.ranges_viewport) == 1: # if 1d, y refers to range_level
 			#self.range_level = ymin, ymax
@@ -221,7 +225,8 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 			
 		action.do()
 		self.dialog.checkUndoRedo()
-			
+		self.dialog.queue_history_change("zoom y")
+
 	def onZoomRect(self, eclick, erelease, axes):
 		x1, y1 = (eclick.xdata, eclick.ydata)
 		x2, y2 = (erelease.xdata, erelease.ydata)
@@ -262,7 +267,8 @@ class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 			self.dialog.checkUndoRedo()
 		#self.dialog.queue_update(delayed_zoom, delay=300)
 		delayed_zoom()
-		
+		self.dialog.queue_history_change("zoom to rectangle")
+
 		if 1:
 			#self.dialog.state.ranges_viewport = list(ranges_show)
 			self.dialog.state.ranges_viewport[axes.xaxis_index] = list(ranges_show[0])

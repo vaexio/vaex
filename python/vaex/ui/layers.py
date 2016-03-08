@@ -30,7 +30,8 @@ try:
 except:
 	healpy = None
 	
-from attrdict import AttrDict
+#from attrdict import AttrDict
+from plot_windows import AttrDict
 
 
 logger = logging.getLogger("vaex.ui.layer")
@@ -179,7 +180,6 @@ class LayerTable(object):
 		self.axis_names = axis_names
 
 		self.state = AttrDict()
-		self.state._setattr("_sequence_type", None)
 
 		self.state.ranges_grid = ranges_grid
 
@@ -192,6 +192,7 @@ class LayerTable(object):
 		self.figure = figure
 		self.canvas = canvas
 		self.widget_build = False
+		self.grid_vector = None
 
 		self._can_plot = False # when every process went though ok, this is True
 		self._needs_update = True
@@ -201,6 +202,8 @@ class LayerTable(object):
 
 		self.state.weight_expression = None
 		self.state.show_disjoined = False
+		self.state.dataset_path = self.dataset.path
+		self.state.name = self.dataset.name
 
 		self.compute_counter = 0
 		self.sequence_index = 0
@@ -281,6 +284,17 @@ class LayerTable(object):
 	def __repr__(self):
 		classname = self.__class__.__module__ + "." +self.__class__.__name__
 		return "<%s(name=%r, expressions=%r)> instance at 0x%x" % (classname, self.name, self.state.expressions, id(self))
+
+	def restore_state(self, state):
+		self.state = AttrDict(state)
+		for dim in range(self.dimensions):
+			self.set_expression(self.state.expressions[dim], dim)
+			self.set_vector_expression(self.state.vector_expressions[dim], dim)
+			self.set_weight_expression(self.state.weight_expression)
+
+		self.plot_window.queue_history_change(None)
+
+
 
 	def flag_needs_update(self):
 		self._needs_update = True
@@ -649,7 +663,10 @@ class LayerTable(object):
 						vector_y = None
 						vy = None
 					if grid_vector.evaluate("weightz") is not None:
-						vector_z = grid_vector.evaluate("z")
+						if self.dimensions >= 3:
+							vector_z = grid_vector.evaluate("z")
+						else:
+							vector_z = None
 						vz = grid_vector.evaluate("weightz/counts")
 						if self.vectors_subtract_mean:
 							vz -= vz[vector_mask].mean()
@@ -720,13 +737,21 @@ class LayerTable(object):
 							x = vector_positions[axes.xaxis_index]
 							y = vector_positions[axes.yaxis_index]
 							x2d, y2d = np.meshgrid(x, y)
-							if vz is not None and self.vectors_color_code_3rd:
-								colors = vz
-								axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=self.state.colormap_vector)#, scale=1)
-							else:
+							colors, colormap = None, None
+							if True:
+								if self.vector_auto_scale:
+									length = np.sqrt(vx[mask]**2 + vy[mask]**2)
+									vx[mask] /= length
+									vy[mask] /= length
+
 								scale = self.plot_window.state.vector_grid_size / self.vector_scale
 								width = self.vector_head_width * 0.1/self.plot_window.state.vector_grid_size
-								axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color=self.color, scale_units="width", scale=scale, width=width)
+								if vz is not None and self.vectors_color_code_3rd:
+									colors = vz
+									colormap = self.state.colormap_vector
+									axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=colormap, scale_units="width", scale=scale, width=width)
+								else:
+									axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color=self.color, scale_units="width", scale=scale, width=width)
 								logger.debug("quiver: %s", self.vector_scale)
 								colors = None
 		if 0: #if self.coordinates_picked_row is not None:
@@ -1083,7 +1108,7 @@ class LayerTable(object):
 				self.grid_vector[name] = x
 
 			if self.state.vector_expressions[i]:
-				histogram_vector_promise = self.add_task(self.subspace.histogram(limits=ranges
+				histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
 						, weight=self.state.vector_expressions[i], size=self.plot_window.state.vector_grid_size))\
 					.then(self.grid_vector.setter("weight"+name))\
 					.then(None, self.on_error)
@@ -1091,7 +1116,7 @@ class LayerTable(object):
 			else:
 				self.grid_vector["weight" +name] = None
 			if any(self.state.vector_expressions):
-				histogram_vector_promise = self.add_task(self.subspace.histogram(limits=ranges
+				histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
 						,size=self.plot_window.state.vector_grid_size))\
 					.then(self.grid_vector.setter("counts"))\
 					.then(None, self.on_error)
@@ -1322,6 +1347,7 @@ class LayerTable(object):
 			self.error_in_field(self.axisboxes[index], self.axis_names[index], e)
 			return
 		self.axisboxes[index].lineEdit().setText(expression)
+		self.plot_window.queue_history_change("changed expression %s to %s" % (self.axis_names[index], expression))
 		# TODO: range reset as option?
 		self.state.ranges_grid[index] = None
 		self.plot_window.state.ranges_viewport[index] = None
@@ -1359,14 +1385,19 @@ class LayerTable(object):
 			self.set_weight_expression(text)
 
 	def set_weight_expression(self, expression):
-		try:
-			self.dataset.validate_expression(expression)
-		except Exception, e:
-			self.error_in_field(self.weight_box, "weight", e)
-			return
-		self.state.weight_expression = expression
-		if self.state.weight_expression.strip() == "":
+		expression = expression or ""
+		if expression:
+			try:
+				self.dataset.validate_expression(expression)
+			except Exception, e:
+				self.error_in_field(self.weight_box, "weight", e)
+				return
+		if expression.strip() == "":
 			self.state.weight_expression = None
+		else:
+			self.state.weight_expression = expression
+		self.weight_box.lineEdit().setText(expression)
+		self.plot_window.queue_history_change("changed weight expression to %s" % (expression))
 		self.range_level = None
 		self.plot_window.range_level_show = None
 		#self.plot_window.queue_update(layer=self)
@@ -1398,7 +1429,9 @@ class LayerTable(object):
 		name = "xyz"[axis_index]
 		weight_name = ("weight" + name)
 		if (not expression) or expression.strip() == "":
-			expression = None
+			expression = ""
+		vector_boxes = [self.weight_x_box, self.weight_y_box, self.weight_z_box]
+		vector_boxes[axis_index].lineEdit().setText(expression)
 		if expression == self.state.vector_expressions[axis_index]:
 			logger.debug("same vector_expression[%d], will not update", axis_index)
 			return
@@ -1411,11 +1444,13 @@ class LayerTable(object):
 				self.error_in_field(self.weight_x_box, "v" +name, e)
 				return
 
+		self.plot_window.queue_history_change("changed vector expression %s to %s" % (name, expression))
 		if expression is None:
-			if weight_name in self.grid_vector and self.grid_vector[weight_name] is not None:
+			if self.grid_vector and weight_name in self.grid_vector and self.grid_vector[weight_name] is not None:
 				logger.debug("avoided update due to change in vector_expression[%d]", axis_index)
 				self.grid_vector[weight_name] = None
 				self.plot_window.queue_replot()
+				self.plot_window.queue_push_full_state()
 				return
 
 		self.range_level = None
@@ -1429,6 +1464,8 @@ class LayerTable(object):
 			#self.execute()
 			#self.plot_window.queue_update(layer=self)
 			self.update()
+		else:
+			self.plot_window.queue_push_full_state()
 
 	def onAmplitudeExpr(self):
 		text = str(self.amplitude_box.lineEdit().text())
@@ -2139,6 +2176,14 @@ class LayerTable(object):
 		self.grid_layout_vector.addWidget(self.vectors_color_code_3rd_checkbox, row, 1)
 		row += 1
 
+		self.vector_auto_scale = (eval(self.options.get("vector_auto_scale", "True")))
+		def setter(value):
+			self.vector_auto_scale = value
+			#self.plot()
+			self.signal_plot_dirty.emit()
+		self.vector_auto_scale_checkbox = self.create_checkbox(page, "vector_auto_scale", lambda : self.vector_auto_scale, setter)
+		self.grid_layout_vector.addWidget(self.vector_auto_scale_checkbox, row, 1)
+		row += 1
 
 		self.vector_level_min = float(eval(self.options.get("vector_level_min", "0")))
 		self.slider_layer_level_min = Slider(page, "vector_level_min", 0, 1, 1000, getter=attrgetter(self, "vector_level_min"),

@@ -729,7 +729,7 @@ class DatasetPanel(QtGui.QFrame):
 				submenu.addAction(action)
 		if self.default_columns_2d is None:
 			if len(column_names) >= 2:
-				self.default_columns_2d = column_names[2:]
+				self.default_columns_2d = column_names[:2]
 			elif len(column_names) == 1:
 				self.default_columns_2d = [column_names[0], ""]
 				self.default_columns_2d = ["", ""]
