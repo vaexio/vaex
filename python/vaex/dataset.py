@@ -234,7 +234,7 @@ class TaskHistogram(Task):
 		#return map(self._map, blocks)#[self.map(block) for block in blocks]
 
 	def reduce(self, results):
-		for i in range(1, self.dataset.executor.thread_pool.nthreads):
+		for i in range(1, self.subspace.executor.thread_pool.nthreads):
 			self.data[0] += self.data[i]
 		return self.data[0]
 		#return self.data
