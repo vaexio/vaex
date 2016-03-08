@@ -9,10 +9,10 @@ import vaex.webserver
 import astropy.io.fits
 
 import vaex.execution
-a = vaex.execution.buffer_size # will crash if we decide to rename it
+a = vaex.execution.buffer_size_default # will crash if we decide to rename it
 
 # this will make the test execute more code and may show up bugs
-vaex.execution.buffer_size = 3
+vaex.execution.buffer_size_default = 3
 
 vx.set_log_level_exception()
 #vx.set_log_level_debug()

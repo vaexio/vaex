@@ -72,7 +72,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 		logger.debug("  exporting column: %s " % column_name)
 		#with vaex.utils.Timer("copying column %s" % column_name, logger):
 		if 1:
-			block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size)
+			block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
 			to_array = dataset_output.columns[column_name]
 			if shuffle: # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
 				to_array_disk = to_array
