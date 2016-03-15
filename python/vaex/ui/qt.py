@@ -68,20 +68,67 @@ class ProgressExecution(object):
 				#self.label_time.setText("cancelled")
 				pass
 
-			self._begin_signal = self.executor.signal_begin.connect(begin)
-			self._progress_signal = self.executor.signal_progress.connect(progress)
-			self._end_signal = self.executor.signal_end.connect(end)
-			self._cancel_signal = self.executor.signal_cancel.connect(cancel)
+			#self._begin_signal = self.executor.signal_begin.connect(begin)
+			#self._progress_signal = self.executor.signal_progress.connect(progress)
+			#self._end_signal = self.executor.signal_end.connect(end)
+			#self._cancel_signal = self.executor.signal_cancel.connect(cancel)
+		self.tasks = []
+		self._task_signals = []
+
+	def execute(self):
+		logger.debug("show dialog")
+		if isinstance(self.executor, vaex.remote.ServerExecutor):
+			self.dialog.exec_()
+			logger.debug("dialog stopped")
+			# important possible deadlock possible:
+			# in the case where fulfill or reject is indirectly called, the call to that promise is put in a qtevent
+			# so while they are pending, keep processing events until they are handled in this thread
+			while any(task.isPending for task in self.tasks):
+				QtCore.QCoreApplication.instance().processEvents()
+				time.sleep(0.01)
+			self.finished_tasks()
+		else:
+			self.dialog.show()
+			self.executor.execute()
+			self.dialog.hide()
+		logger.debug("self.dialog.wasCanceled() = %r", self.dialog.wasCanceled())
+		return not self.dialog.wasCanceled()
+
+	def add_task(self, task):
+		self._task_signals.append(task.signal_progress.connect(self._on_progress))
+		self.tasks.append(task)
+		return task
+
+	def _on_progress(self, fraction):
+		total = self.get_progress_fraction()
+		self.progress(total*100)
+		QtCore.QCoreApplication.instance().processEvents()
+		ok = not self.dialog.wasCanceled()
+		if total == 1:
+			self.dialog.hide()
+		return ok
+
+	def get_progress_fraction(self):
+		total_fraction = 0
+		for task in self.tasks:
+			total_fraction += task.progress_fraction
+		fraction = total_fraction / len(self.tasks)
+		return fraction
+
+	def finished_tasks(self):
+		for task, signal in zip(self.tasks, self._task_signals):
+			task.signal_progress.disconnect(signal)
+		self.tasks = []
+		self._task_signals = []
 
 	def __enter__(self):
 		self.dialog = QtGui.QProgressDialog(self.title, self.cancel_text, 0, 1000, self.parent)
 		#self.dialog.show()
 		self.dialog.setWindowModality(QtCore.Qt.WindowModal)
 		self.dialog.setMinimumDuration(0)
-		self.dialog.setAutoClose(False)
-		self.dialog.setAutoReset(False)
-		self.dialog.show()
-		QtCore.QCoreApplication.instance().processEvents()
+		self.dialog.setAutoClose(True)
+		self.dialog.setAutoReset(True)
+		#QtCore.QCoreApplication.instance().processEvents()
 		return self
 
 	def progress(self, percentage):
@@ -98,11 +145,31 @@ class ProgressExecution(object):
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
 		self.dialog.hide()
-		if self.executor:
+		if 0: #self.executor:
 			self.executor.signal_begin.disconnect(self._begin_signal)
 			self.executor.signal_progress.disconnect(self._progress_signal)
 			self.executor.signal_end.disconnect(self._end_signal)
 			self.executor.signal_cancel.disconnect(self._cancel_signal)
+
+class assertError(object):
+	def __init__(self, calls_expected=1):
+		self.calls_expected = calls_expected
+
+	def wrapper(self, *args, **kwargs):
+		self.called += 1
+
+	def __enter__(self):
+		global dialog_error
+		self.remember = dialog_error
+		self.called = 0
+		dialog_error = self.wrapper
+		logger.debug("wrapped dialog_error")
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		global dialog_error
+		assert self.called == self.calls_expected, "expected the error dialog to be invoked %i time(s), was called %i times(s)" % (self.calls_expected, self.called)
+		dialog_error = self.remember
+		logger.debug("unwrapped dialog_error")
+
 
 class FakeProgressExecution(object):
 	def __init__(self, *args):

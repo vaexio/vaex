@@ -121,7 +121,7 @@ class Executor(object):
 									task._results.append(task.map(thread_index, i1, i2, *blocks))
 								# don't call directly, since ui's don't like being updated from a different thread
 								#self.thread_mover(task.signal_progress, float(i2)/length)
-								#time.sleep(0.3)
+								time.sleep(0.3)
 
 					length = len(dataset)
 					#print self.thread_pool.map()

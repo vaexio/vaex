@@ -390,6 +390,9 @@ class SubspaceRemote(Subspace):
 	def limits_sigma(self, sigmas=3, square=False):
 		return self.dataset.server._call_subspace("limits_sigma", self, sigmas=sigmas, square=square)
 
+	def mutual_information(self, limits=None, size=256):
+		return self.dataset.server._call_subspace("mutual_information", self, limits=limits, size=size)
+
 class DatasetRemote(Dataset):
 	def __init__(self, name, server, column_names):
 		super(DatasetRemote, self).__init__(name, column_names)
@@ -435,7 +438,7 @@ class DatasetRest(DatasetRemote):
 		return "<%s(server=%r, name=%r, column_names=%r, __len__=%r)> instance at 0x%x" % (name, self.server, self.name, self.column_names, len(self), id(self))
 
 	def __call__(self, *expressions, **kwargs):
-		return SubspaceRemote(self, expressions, self.executor, async=kwargs.get("async", False))
+		return SubspaceRemote(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
 
 	def evaluate(self, expression, i1=None, i2=None, out=None, async=False):
 		result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, async=async)

@@ -28,6 +28,7 @@ import vaex.grids
 import vaex.multithreading
 import vaex.promise
 import vaex.execution
+import vaex.expresso
 import logging
 import astropy.io.fits as fits
 import vaex.kld
@@ -126,7 +127,7 @@ class Task(vaex.promise.Promise):
 	"""
 	:type: signal_progress: Signal
 	"""
-	def __init__(self, dataset, expressions, name="task"):
+	def __init__(self, dataset=None, expressions=[], name="task"):
 		vaex.promise.Promise.__init__(self)
 		self.dataset = dataset
 		self.expressions = expressions
@@ -147,6 +148,16 @@ class Task(vaex.promise.Promise):
 	@property
 	def dimension(self):
 		return len(self.expressions)
+
+	@classmethod
+	def create(cls):
+		ret = Task()
+		return ret
+
+	def create_next(self):
+		ret = Task(self.dataset, [])
+		self.signal_progress.connect(ret.signal_progress.emit)
+		return ret
 
 class TaskMapReduce(Task):
 	def __init__(self, dataset, expressions, map, reduce, converter=lambda x: x, info=False, name="task"):
@@ -822,13 +833,16 @@ class SubspaceLocal(Subspace):
 
 	def mutual_information(self, limits=None, grid=None, size=256):
 		if limits is None:
-			limits_done = vaex.promise.Promise.fulfilled(self.minmax())
+			limits_done = self.minmax()
 		else:
-			limits_done = vaex.promise.Promise.fulfilled(limits)
+			limits_done = Task.fulfilled(limits)
 		if grid is None:
-			histogram_done = limits_done.then(lambda limits: self.histogram(limits, size=size))
+			if limits is None:
+				histogram_done = limits_done.then(lambda limits: self.histogram(limits, size=size))
+			else:
+				histogram_done = self.histogram(limits, size=size)
 		else:
-			histogram_done = limits_done.fulfill(grid)
+			histogram_done = Task.fulfilled(grid)
 		mutual_information_promise = histogram_done.then(vaex.kld.mutual_information)
 		return mutual_information_promise if self.async else mutual_information_promise.get()
 
@@ -1318,7 +1332,10 @@ class Dataset(object):
 		raise NotImplementedError
 
 	def validate_expression(self, expression):
-		return self.evaluate(expression, 0, 2)
+		#return self.evaluate(expression, 0, 2)
+		vars = set(self.get_column_names(True, True)) | set(self.variables.keys())
+		funcs = set(expression_namespace.keys())
+		return vaex.expresso.validate_expression(expression, vars, funcs)
 
 	def evaluate_variable(self, name):
 		if isinstance(self.variables[name], six.string_types):

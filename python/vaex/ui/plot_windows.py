@@ -8,6 +8,7 @@ import json
 import traceback
 import numpy as np
 from functools import reduce
+import threading
 
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -296,6 +297,8 @@ class PlotDialog(QtGui.QWidget):
 		self.last_ranges_viewport = None
 		self.last_range_level_show = None
 
+		self._plot_event = None # used for unittesting only
+
 		#self.ranges_previous = None
 		#self.state.ranges_viewport_previous = None
 		#self.ranges_level_previous = None
@@ -547,9 +550,20 @@ class PlotDialog(QtGui.QWidget):
 
 	def _wait(self):
 		"""Used for unittesting to make sure the plots are all done"""
+		self._plot_event = threading.Event()
 		self.queue_update._wait()
 		self.queue_replot._wait()
 		self.queue_redraw._wait()
+		qt_app = QtCore.QCoreApplication.instance()
+		sleep = 10
+		while not self._plot_event.is_set():
+			logger.debug("waiting for last plot to finish")
+			qt_app.processEvents()
+			QtTest.QTest.qSleep(sleep)
+		logger.debug("waiting for plot finished")
+		traceback.print_stack()
+		#self._plot_event.wait()
+		#self._plot_event.wait()
 
 	def plot_to_png(self, filename=None):
 		if filename is None:
@@ -831,16 +845,22 @@ class PlotDialog(QtGui.QWidget):
 		#self.undoManager.undo()
 		self.full_state_history_index -= 1
 		reason, state = self.full_state_history[self.full_state_history_index]
+		logger.debug("restore state")
 		self.restore_full_state(state)
+		logger.debug("state restored")
 		self.checkUndoRedo()
+		logger.debug("undo/redo buttons checked")
 
 	def onActionRedo(self):
 		logger.debug("redo")
 		self.full_state_history_index += 1
 		reason, state = self.full_state_history[self.full_state_history_index]
+		logger.debug("restore state")
 		self.restore_full_state(state)
+		logger.debug("state restored")
 		#self.undoManager.redo()
 		self.checkUndoRedo()
+		logger.debug("undo/redo buttons checked")
 
 	def onMouseMove(self, event):
 		x, y = event.xdata, event.ydata
@@ -1268,22 +1288,28 @@ class PlotDialog(QtGui.QWidget):
 	def restore_full_state(self, state):
 		#return {"window":copy.deepcopy(dict(self.state)), "layers":[copy.deepcopy(dict(layer.state)) for layer in self.layers]}
 		layer_states = [AttrDict(copy.deepcopy(layer)) for layer in state["layers"]]
+		logger.debug("removing possible layers")
 		while len(layer_states) < len(self.layers):
+			logger.debug("removing layer: %r", self.layers[len(self.layers)-1])
 			self.remove_layer(layer_index=len(self.layers)-1)
 		for layer_state, layer in zip(layer_states, self.layers):
+			logger.debug("restoring state of layer %r to %r", layer, layer_state)
 			layer.restore_state(layer_state)
 		leftover_layer_states = layer_states[len(self.layers):]
 		for layer_state in leftover_layer_states:
-			print "restoring", layer_state
 			layer = self.add_layer(expressions=layer_state.expressions, dataset=self.datasets[layer_state.dataset_path], name=layer_state.name)
+			logger.debug("restoring (left over) state of layer %r to %r", layer, layer_state)
 			layer.restore_state(layer_state)
+		logger.debug("queue history change")
 		self.queue_history_change(None)
 		#self.queue_update()
 		self.state = AttrDict(copy.deepcopy(state["window"]))
+		logger.debug("updating gui")
 		self.action_axes_lock.setChecked(bool(self.state.axis_lock))
 		self.action_aspect_lock_one.setChecked(bool(self.state.aspect))
 		self.action_resolution_list[grid_resolutions.index(self.state.grid_size)].setChecked(True)
 		self.action_resolution_vector_list[vector_grid_resolutions.index(self.state.vector_grid_size)].setChecked(True)
+		logger.debug("update all layers")
 		self.update_all_layers()
 		#for layer in
 
@@ -2320,7 +2346,7 @@ class HistogramPlotDialog(PlotDialog):
 	type_name = "histogram"
 	#names = "histogram,1d"
 	def __init__(self, parent, dataset, app, **kwargs):
-		super(HistogramPlotDialog, self).__init__(parent, dataset, 1, ["X"], app, **kwargs)
+		super(HistogramPlotDialog, self).__init__(parent, dataset, 1, ["x"], app, **kwargs)
 
 	def beforeCanvas(self, layout):
 		self.addToolbar(layout, yselect=False, lasso=False)
@@ -2375,6 +2401,9 @@ class HistogramPlotDialog(PlotDialog):
 		self.update()
 		self.message("plotting %.2fs" % (time.time() - t0), index=100)
 		self.signal_plot_finished.emit(self, self.fig)
+		if self._plot_event:
+			logger.debug("plotting done")
+			self._plot_event.set()
 		return
 
 
@@ -2416,7 +2445,7 @@ class ScatterPlotDialog(PlotDialog):
 	type_name = "density2d"
 	#names = "heatmap,density2d,2d"
 	def __init__(self, parent, dataset, app, **options):
-		super(ScatterPlotDialog, self).__init__(parent, dataset, 2, "X Y".split(), app, **options)
+		super(ScatterPlotDialog, self).__init__(parent, dataset, 2, "x y".split(), app, **options)
 
 
 
@@ -2541,6 +2570,10 @@ class ScatterPlotDialog(PlotDialog):
 		# this will readd any widgets
 		self.setMode(self.lastAction)
 		self.signal_plot_finished.emit(self, self.fig)
+		logger.debug("plot finished")
+		if self._plot_event:
+			self._plot_event.set()
+		traceback.print_stack()
 		return
 		if 1:
 			ranges = []
@@ -2919,7 +2952,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 	type_name = "volumerendering"
 	#names = "volumerendering,3d"
 	def __init__(self, parent, dataset, app, **options):
-		super(VolumeRenderingPlotDialog, self).__init__(parent, dataset, 3, "X Y Z".split(), app, **options)
+		super(VolumeRenderingPlotDialog, self).__init__(parent, dataset, 3, "x y x".split(), app, **options)
 		#[xname, yname, zname]
 
 	def closeEvent(self, event):
@@ -3511,6 +3544,7 @@ class Queue(object):
 			qt_app = QtCore.QCoreApplication.instance()
 			logger.debug("*** waiting for queue %r" % self.name)
 			while self.counter_processed != self.counter:
+				logger.debug("counter=%i counter_processed=%i", self.counter, self.counter_processed)
 				qt_app.processEvents()
 				QtTest.QTest.qSleep(sleep)
 			logger.debug("*** done with queue %r" %self.name)
@@ -3536,13 +3570,14 @@ class Queue(object):
 					self.logger.debug("ignoring this event in queue %r, since a new one is scheduled" % self.name)
 				else:
 					self.logger.debug("calling callback in queue %r" % self.name)
-					self.counter_processed = self.counter -1 # to make the queue 'empty'
 					callable()
+					self.counter_processed = self.counter -1 # to make the queue 'empty'
 			finally:
 				self.counter_processed = counter
 		callable = functools.partial(callable, *args, **kwargs)
 		self.counter += 1
-		self.logger.debug("add in queue %r %r" % (self.name, delay))
+		self.logger.debug("add in queue %r %r %s" % (self.name, delay, threading.currentThread()))
+		#traceback.print_stack()
 		#import traceback
 		#traceback.print_stack()
 		if delay == 0:

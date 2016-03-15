@@ -37,15 +37,24 @@ def sigma3(plot_window):
 	if plot_window.layers:
 		layer = plot_window.layers[0]
 
-		executor = vaex.execution.Executor()
+
+		if layer.dataset.is_local():
+			executor = vaex.execution.Executor()
+		else:
+			executor = vaex.remote.ServerExecutor()
 		subspace = layer.dataset.subspace(*layer.state.expressions, executor=executor, async=True)
 		means = subspace.mean()
-		with dialogs.ProgressExecution(plot_window, "Calculating mean", executor=executor):
-			executor.execute()
+		with dialogs.ProgressExecution(plot_window, "Calculating mean", executor=executor) as progress:
+			progress.add_task(means)
+			progress.execute()
+		logger.debug("get means")
 		means = means.get()
+		logger.debug("got means")
+
 		vars = subspace.var(means=means)
-		with dialogs.ProgressExecution(plot_window, "Calculating variance", executor=executor):
-			executor.execute()
+		with dialogs.ProgressExecution(plot_window, "Calculating variance", executor=executor) as progress:
+			progress.add_task(vars)
+			progress.execute()
 		#limits  = limits.get()
 		vars = vars.get()
 		stds = vars**0.5

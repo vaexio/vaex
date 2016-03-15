@@ -14,7 +14,7 @@ logger = logging.getLogger("vaex.ranking")
 
 
 # since we do many columns at once, a smallar buffer will lead to more resposiveness in the gui
-buffer_size = 1e5
+buffer_size = 1e6
 
 def unique_column_names(dataset):
 	return list(set(dataset.column_names) | set(dataset.virtual_columns.keys()))
@@ -517,7 +517,16 @@ class RankDialog(QtGui.QDialog):
 
 		#print "options", options
 		self.properties = Properties()
-		self.properties_path = os.path.splitext(self.dataset.path)[0] + ".properties"
+		if self.dataset.is_local():
+			self.properties_path = os.path.splitext(self.dataset.path)[0] + ".properties"
+		else:
+			dir = os.path.join(vaex.utils.get_private_dir(), "ranking")
+			if not os.path.exists(dir):
+				os.makedirs(dir)
+			server = self.dataset.server
+			name = "%s_%s_%s_%s" % (server.hostname, server.port, server.base_path.replace("/", "_"), self.dataset.name)
+			self.properties_path = os.path.join(dir, name+".properties")
+
 		self.properties_path = options.get("file", self.properties_path)
 		if os.path.exists(self.properties_path):
 			self.properties.load(open(self.properties_path))
@@ -800,74 +809,59 @@ class RankDialog(QtGui.QDialog):
 	def onCalculateMinMax(self):
 		pairs = self.table1d.getSelected()
 		logger.debug("estimate min/max for %r" % pairs)
-		#jobsManager = vaex.dataset.JobsManager()
-		executor = vaex.execution.Executor(buffer_size=buffer_size)
+		if self.dataset.is_local():
+			executor = vaex.execution.Executor(buffer_size=buffer_size)
+		else:
+			executor = vaex.remote.ServerExecutor()
 
 		expressions = [pair[0] for pair in pairs]
 		assert len(pairs[0]) == 1
 		self.range_map = {}
-		dialog = QtGui.QProgressDialog("Calculating min/max", "Abort", 0, 1000, self)
-		dialog.show()
-		def feedback(percentage):
-			dialog.setValue(int(percentage*10))
-			QtCore.QCoreApplication.instance().processEvents()
-			if dialog.wasCanceled():
-				return True
 		try:
-			def on_error(exc):
-				raise exc
-			for expression in expressions:
-				subspace = self.dataset(expression, executor=executor, async=True)
-				def assign(minmax_list, expression=expression):
-					logger.debug("assigning %r to %s", minmax_list, expression)
-					self.range_map[expression] = minmax_list	[0].tolist()
-				subspace.minmax().then(assign, on_error).end()
-			with dialogs.ProgressExecution(self, "Calculating min/max", executor=executor):
-				executor.execute()
-			#for range_, expression in zip(ranges, expressions):
-			#	logger.debug("range for {expression} is {range_}".format(**locals()))
-			#	self.range_map[expression] = range_
-				#ranges = jobsManager.find_min_max(self.dataset, expressions, use_mask=self.radio_button_selection.isChecked(), feedback=feedback)
-			ranges = [self.range_map[expressions[0]] for expressions in pairs]
+			with dialogs.ProgressExecution(self, "Calculating min/max", executor=executor) as progress:
+				subspace = self.dataset.subspace(*expressions, executor=executor, async=True)
+				minmax = subspace.minmax()
+				progress.add_task(minmax).end()
+				progress.execute()
+			ranges = minmax.get()
+			print ranges
 			self.table1d.setRanges(pairs, ranges)
 			self.fill_range_map()
 		except:
 			logger.exception("Error in min/max or cancelled")
-		dialog.hide()
+		#dialog.hide()
 
 	def onCalculateMinMax3Sigma(self):
 		pairs = self.table1d.getSelected()
 
 		expressions = [pair[0] for pair in pairs]
-		executor = vaex.execution.Executor(buffer_size=buffer_size)
+		if self.dataset.is_local():
+			executor = vaex.execution.Executor(buffer_size=buffer_size)
+		else:
+			executor = vaex.remote.ServerExecutor()
 
+		if self.dataset.is_local():
+			executor = vaex.execution.Executor()
+		else:
+			executor = vaex.remote.ServerExecutor()
+		subspace = self.dataset.subspace(*expressions, executor=executor, async=True)
+		means = subspace.mean()
+		with dialogs.ProgressExecution(self, "Calculating mean", executor=executor) as progress:
+			progress.add_task(means).end()
+			progress.execute()
+		logger.debug("get means")
+		means = means.get()
+		logger.debug("got means")
 
-		mean_map = {}
-		def on_error(exc):
-			raise exc
-		for expression in expressions:
-			subspace = self.dataset(expression, executor=executor, async=True)
-			def assign(mean_list, expression=expression):
-				logger.debug("assigning %r to %s", mean_list[0], expression)
-				mean_map[expression] = mean_list[0]
-			subspace.mean().then(assign, on_error).end()
-		with dialogs.ProgressExecution(self, "Calculating means", executor=executor):
-			executor.execute()
-
-		var_map = {}
-		for expression in expressions:
-			subspace = self.dataset(expression, executor=executor, async=True)
-			def assign(var_list, expression=expression):
-				logger.debug("assigning %r to %s", var_list[0], expression)
-				var_map[expression] = var_list[0]
-			subspace.var(means=[mean_map[expression]]).then(assign, on_error).end()
-		with dialogs.ProgressExecution(self, "Calculating variances", executor=executor):
-			executor.execute()
-
-		means = [mean_map[expressions[0]] for expressions in pairs]
-		variances = [var_map[expressions[0]] for expressions in pairs]
-
-		ranges = [(mean-3*var**0.5, mean+3*var**0.5) for mean, var in zip(means, variances)]
+		vars = subspace.var(means=means)
+		with dialogs.ProgressExecution(self, "Calculating variance", executor=executor) as progress:
+			progress.add_task(vars).end()
+			progress.execute()
+		#limits  = limits.get()
+		vars = vars.get()
+		stds = vars**0.5
+		sigmas = 3
+		ranges = list(zip(means-sigmas*stds, means+sigmas*stds))
 		print ranges
 		self.table1d.setRanges(pairs, ranges)
 		self.fill_range_map()
@@ -912,7 +906,10 @@ class RankDialog(QtGui.QDialog):
 			for expression in pair:
 				expressions.add(expression)
 		expressions = list(expressions)
-		executor = vaex.execution.Executor(buffer_size=buffer_size)
+		if self.dataset.is_local():
+			executor = vaex.execution.Executor(buffer_size=buffer_size)
+		else:
+			executor = vaex.remote.ServerExecutor()
 
 		def on_error(exc):
 			raise exc
@@ -920,20 +917,28 @@ class RankDialog(QtGui.QDialog):
 			#subspace = self.dataset(*expressions, executor=executor, async=True)
 			subspaces = self.dataset.subspaces(pairs, executor=executor, async=True)
 			means_promise = subspaces.mean()
-			with dialogs.ProgressExecution(self, "Calculating means", executor=executor):
-				executor.execute()
-			means = means_promise.get()
-			print means
-			variances_promise = subspaces.var(means=means)
-			with dialogs.ProgressExecution(self, "Calculating variances", executor=executor):
-				executor.execute()
-			vars = variances_promise.get()
-			print vars
+			#print means_promise, type(means_promise), subs
+			with dialogs.ProgressExecution(self, "Calculating means", executor=executor) as progress:
+				progress.add_task(means_promise)
+				progress.execute()
+			means  = means_promise.get()
 
-			correlations_promise = subspaces.correlation(means=means, vars=vars)
-			with dialogs.ProgressExecution(self, "Calculating correlation", executor=executor):
-				executor.execute()
-			correlations = correlations_promise.get()
+			variances_promise = subspaces.var(means=means)
+			with dialogs.ProgressExecution(self, "Calculating variances", executor=executor) as progress:
+				progress.add_task(variances_promise)
+				progress.execute()
+			vars = variances_promise.get()
+
+			#means = subspaces._unpack(means_packed)
+			#vars = subspaces._unpack(vars_packed)
+			tasks = []
+			with dialogs.ProgressExecution(self, "Calculating correlation", executor=executor) as progress:
+				for subspace, mean, var in zip(subspaces.subspaces, means, vars):
+					task = subspace.correlation(means=mean, vars=var)
+					progress.add_task(task).end()
+					tasks.append(task)
+				progress.execute()
+			correlations = [task.get() for task in tasks]
 
 			correlation_map = dict(zip(pairs, correlations))
 			table.set_correlations(correlation_map)
@@ -1055,6 +1060,7 @@ class RankDialog(QtGui.QDialog):
 
 		pairs = table.getSelected()
 		error = False
+		ranges = []
 
 		for pair in pairs:
 			for expression in pair:
@@ -1067,23 +1073,27 @@ class RankDialog(QtGui.QDialog):
 
 
 		#expressions = [pair[0] for pair in pairs]
-		executor = vaex.execution.Executor(buffer_size=buffer_size)
+		#executor = vaex.execution.Executor(buffer_size=buffer_size)
+		if self.dataset.is_local():
+			executor = vaex.execution.Executor(buffer_size=buffer_size)
+		else:
+			executor = vaex.remote.ServerExecutor()
 
 
-		MI_map = {}
-		def on_error(exc):
-			raise exc
-		for pair in pairs:
-			subspace = self.dataset(*pair, executor=executor, async=True)
-			def assign(grid, pair=pair):
-				MI_map[pair] = vaex.kld.mutual_information(grid)
-			limits = [self.range_map[expression] for expression in pair]
-			subspace.histogram(limits, size=self.grid_size).then(assign, on_error).end()
-		with dialogs.ProgressExecution(self, "Calculating mutual information", executor=executor):
-			executor.execute()
+		tasks = []
+		with dialogs.ProgressExecution(self, "Calculating mutual information", executor=executor) as progress:
+			for pair in pairs:
+				limits = [self.range_map[expr] for expr in pair]
+				task = self.dataset(*pair, executor=executor, async=True).mutual_information(limits=limits, size=self.grid_size)
+				progress.add_task(task).end()
+				tasks.append(task)
+			if not progress.execute():
+				return
+		logger.debug("get means")
+		mutual_information = [task.get() for task in tasks]
 
-		mutual_information_list = [MI_map[pair] for pair in pairs]
-		table.setQualities(pairs, mutual_information_list)
+		#mutual_information_list = [MI_map[pair] for pair in pairs]
+		table.setQualities(pairs, mutual_information)
 		return
 
 		print(table)

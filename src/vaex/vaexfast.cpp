@@ -622,7 +622,7 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 				if( (scaled_x >= 0) & (scaled_x < 1) &  (scaled_y >= 0) & (scaled_y < 1) ) {
 					int index_x = (int)(scaled_x * counts_length_x);
 					int index_y = (int)(scaled_y * counts_length_y);
-					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
+					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : (isfinite(weights[i]) ? weights[i] : 0);
 				}
 				i_x = i_x >= block_length-1 ? 0 : i_x+1;
 				i_y = i_y >= block_length-1 ? 0 : i_y+1;

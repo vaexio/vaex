@@ -107,6 +107,24 @@ class TestDataset(unittest.TestCase):
 		# that that after a error we can still continue
 		self.dataset("x").sum()
 
+	def test_invalid_expression(self):
+		with self.assertRaises(SyntaxError):
+			self.dataset.validate_expression("x/")
+		with self.assertRaises(NameError):
+			self.dataset.validate_expression("hoeba(x)")
+		with self.assertRaises(NameError):
+			self.dataset.validate_expression("x()")
+		self.dataset.validate_expression("sin(x)+tan(y)")
+		with self.assertRaises((KeyError, NameError)): # TODO: should we have just one error type?
+			self.dataset.validate_expression("doesnotexist")
+		self.dataset.validate_expression("x / y * z + x - x - -x")
+		self.dataset.validate_expression("x < 0")
+		self.dataset.validate_expression("x <= 0")
+		self.dataset.validate_expression("x > 0")
+		self.dataset.validate_expression("x >= 0")
+		self.dataset.validate_expression("x == 0")
+		self.dataset.validate_expression("x != 0")
+
 	def test_evaluate_nested(self):
 		self.dataset.add_virtual_column("z2", "-z")
 		self.dataset.add_virtual_column("z3", "z+z2")

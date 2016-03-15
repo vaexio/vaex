@@ -354,7 +354,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								if "selection" in arguments:
 									subspace = subspace.selected()
 							logger.debug("subspace: %r", subspace)
-							if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest", "correlation"]:
+							if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
 								#print "expressions", expressions
 								values = task_invoke(subspace, method_name, **arguments)
 								logger.debug("result: %r", values)

@@ -286,12 +286,17 @@ class LayerTable(object):
 		return "<%s(name=%r, expressions=%r)> instance at 0x%x" % (classname, self.name, self.state.expressions, id(self))
 
 	def restore_state(self, state):
+		logger.debug("restoring layer %r to state %r ", self, state)
 		self.state = AttrDict(state)
 		for dim in range(self.dimensions):
+			logger.debug("set expression[%i] to %s", dim, self.state.expressions[dim])
 			self.set_expression(self.state.expressions[dim], dim)
+			logger.debug("set vector expression[%i] to %s", dim, self.state.vector_expressions[dim])
 			self.set_vector_expression(self.state.vector_expressions[dim], dim)
-			self.set_weight_expression(self.state.weight_expression)
+		logger.debug("set weight expression to %s", dim, self.state.weight_expression)
+		self.set_weight_expression(self.state.weight_expression)
 
+		logger.debug("remove history change")
 		self.plot_window.queue_history_change(None)
 
 
@@ -311,10 +316,11 @@ class LayerTable(object):
 	@weight.setter
 	def weight(self, value):
 		logger.debug("setting self.state.weight_expression to %s" % value)
-		self.state.weight_expression = value
-		self.weight_box.lineEdit().setText(value)
+		self.set_weight_expression(value)
+		#self.state.weight_expression = value
+		#self.weight_box.lineEdit().setText(value)
 		#self.plot_window.queue_update()
-		self.update()
+		#self.update()
 
 	@weight.deleter
 	def weight(self):
@@ -390,7 +396,10 @@ class LayerTable(object):
 
 	def set_range(self, min, max, dimension=0):
 		#was_equal = list(self.plot_window.state.ranges_viewport[dimension]) == [min, max]
-		self.state.ranges_grid[dimension] = [min, max]
+		if min is None or max is None:
+			self.state.ranges_grid[dimension] = None
+		else:
+			self.state.ranges_grid[dimension] = [min, max]
 		#self.plot_window.state.ranges_viewport[dimension] = list(self.state.ranges_grid[dimension])
 		#self.plot_window.set_range(min, max, dimension=dimension)
 		if dimension == 0:
@@ -512,7 +521,7 @@ class LayerTable(object):
 		return amplitude
 
 	def error_in_field(self, widget, name, exception):
-		dialog_error(widget, "Error in expression", "Invalid expression for field %s: %r" % (name, exception))
+		dialogs.dialog_error(widget, "Error in expression", "Invalid expression for field %s: %r" % (name, exception))
 		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
 		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
 
@@ -740,10 +749,13 @@ class LayerTable(object):
 							colors, colormap = None, None
 							if True:
 								if self.vector_auto_scale:
-									length = np.sqrt(vx[mask]**2 + vy[mask]**2)
+									length = np.nanmean(np.sqrt(vx[mask]**2 + vy[mask]**2))#  / 1.5
+									logger.debug("auto scaling using length: %r", length)
 									vx[mask] /= length
 									vy[mask] /= length
 
+								print "length " * 10,
+								print np.sqrt(vx[mask]**2 + vy[mask]**2)
 								scale = self.plot_window.state.vector_grid_size / self.vector_scale
 								width = self.vector_head_width * 0.1/self.plot_window.state.vector_grid_size
 								if vz is not None and self.vectors_color_code_3rd:
@@ -967,7 +979,7 @@ class LayerTable(object):
 		error_text = self.dataset.executor.execute()
 		if error_text is not None:
 			logger.error("error while executing: %r" % error_text)
-			dialog_error(self.plot_window, "Error when executing", error_text)
+			dialogs.dialog_error(self.plot_window, "Error when executing", error_text)
 
 
 	def message(self, *args, **kwargs):
@@ -1115,12 +1127,12 @@ class LayerTable(object):
 				promises.append(histogram_vector_promise)
 			else:
 				self.grid_vector["weight" +name] = None
-			if any(self.state.vector_expressions):
-				histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
-						,size=self.plot_window.state.vector_grid_size))\
-					.then(self.grid_vector.setter("counts"))\
-					.then(None, self.on_error)
-				promises.append(histogram_vector_promise)
+		if any(self.state.vector_expressions):
+			histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
+					,size=self.plot_window.state.vector_grid_size))\
+				.then(self.grid_vector.setter("counts"))\
+				.then(None, self.on_error)
+			promises.append(histogram_vector_promise)
 
 		#else:
 		#	for name in "xyz":
@@ -1254,6 +1266,10 @@ class LayerTable(object):
 		self.plug_page(self.page_visual, "Visual", 1.5, 1.)
 		if self.dimensions >= 2:
 			self.plug_page(self.page_vector, "Vector field", 2., 1.)
+		else:
+			self.vector_dimensions = 0
+			self.vector_names = "vx vy vz".split()[:self.vector_dimensions]
+
 		#self.plug_page(self.page_display, "Display", 3., 1.)
 		self.plug_page(self.page_selection, "Selection", 3.5, 1.)
 		if self.plot_window.enable_slicing:
@@ -1344,6 +1360,7 @@ class LayerTable(object):
 		try:
 			self.dataset.validate_expression(expression)
 		except Exception, e:
+			logger.exception("error in expression")
 			self.error_in_field(self.axisboxes[index], self.axis_names[index], e)
 			return
 		self.axisboxes[index].lineEdit().setText(expression)
@@ -1386,16 +1403,16 @@ class LayerTable(object):
 
 	def set_weight_expression(self, expression):
 		expression = expression or ""
+		if expression.strip() == "":
+			self.state.weight_expression = None
+		else:
+			self.state.weight_expression = expression
 		if expression:
 			try:
 				self.dataset.validate_expression(expression)
 			except Exception, e:
 				self.error_in_field(self.weight_box, "weight", e)
 				return
-		if expression.strip() == "":
-			self.state.weight_expression = None
-		else:
-			self.state.weight_expression = expression
 		self.weight_box.lineEdit().setText(expression)
 		self.plot_window.queue_history_change("changed weight expression to %s" % (expression))
 		self.range_level = None
@@ -1430,8 +1447,7 @@ class LayerTable(object):
 		weight_name = ("weight" + name)
 		if (not expression) or expression.strip() == "":
 			expression = ""
-		vector_boxes = [self.weight_x_box, self.weight_y_box, self.weight_z_box]
-		vector_boxes[axis_index].lineEdit().setText(expression)
+		self.vector_boxes[axis_index].lineEdit().setText(expression)
 		if expression == self.state.vector_expressions[axis_index]:
 			logger.debug("same vector_expression[%d], will not update", axis_index)
 			return
@@ -1844,7 +1860,7 @@ class LayerTable(object):
 				if cmap not in vaex.ui.colormaps.colormaps:
 					colormaps_sorted = sorted(vaex.ui.colormaps.colormaps)
 					colormaps_string = " ".join(colormaps_sorted)
-					dialog_error(self, "Wrong colormap name", "colormap {cmap} does not exist, choose between: {colormaps_string}".format(**locals()))
+					dialogs.dialog_error(self, "Wrong colormap name", "colormap {cmap} does not exist, choose between: {colormaps_string}".format(**locals()))
 					index = 0
 				else:
 					index = vaex.ui.colormaps.colormaps.index(cmap)
@@ -1932,7 +1948,7 @@ class LayerTable(object):
 	def slice_link(self, layer):
 		if self.plot_window.state.grid_size != layer.plot_window.state.grid_size:
 			msg = "Source layer has a gridsize of %d, while the linked layer has a gridsize of %d, only linking with equal gridsize is supported" % (self.plot_window.state.grid_size, layer.plot_window.state.grid_size)
-			dialog_error(self.plot_window, "Unequal gridsize", msg)
+			dialogs.dialog_error(self.plot_window, "Unequal gridsize", msg)
 			return
 		dim = self.plot_window.dimensions * layer.plot_window.dimensions
 		bytes_required = (layer.plot_window.state.grid_size ** dim) * 8
@@ -1993,6 +2009,7 @@ class LayerTable(object):
 		self.label_selection_info_update()
 
 		def on_select_expression():
+			logger.debug("making selection by expression")
 			all = storage_expressions.get_all("selection", self.dataset)
 			expressions = []
 			for stored in all:
@@ -2213,6 +2230,7 @@ class LayerTable(object):
 		row = self.slider_vector_head_width.add_to_grid_layout(row, self.grid_layout_vector)
 
 
+		self.vector_boxes = []
 		if self.dimensions > -1:
 			self.weight_x_box = QtGui.QComboBox(page)
 			self.weight_x_box.setMinimumContentsLength(10)
@@ -2227,6 +2245,7 @@ class LayerTable(object):
 			self.weight_x_box.lineEdit().editingFinished.connect(lambda _=None: self.onWeightXExpr())
 			self.weight_x_box.currentIndexChanged.connect(lambda _=None: self.onWeightXExpr())
 			self.state.vector_expressions[0] = str(self.weight_x_box.lineEdit().text())
+			self.vector_boxes.append(self.weight_x_box)
 			if 0:
 				for name in "x y z".split():
 					if name in self.state.expressions[0]:
@@ -2251,6 +2270,7 @@ class LayerTable(object):
 			self.weight_y_box.lineEdit().editingFinished.connect(lambda _=None: self.onWeightYExpr())
 			self.weight_y_box.currentIndexChanged.connect(lambda _=None: self.onWeightYExpr())
 			self.state.vector_expressions[1] = str(self.weight_y_box.lineEdit().text())
+			self.vector_boxes.append(self.weight_y_box)
 			if 0:
 				for name in "x y z".split():
 					if self.dimensions > 1:
@@ -2275,8 +2295,12 @@ class LayerTable(object):
 			self.weight_z_box.lineEdit().editingFinished.connect(lambda _=None: self.onWeightZExpr())
 			self.weight_z_box.currentIndexChanged.connect(lambda _=None: self.onWeightZExpr())
 			self.state.vector_expressions[2] = str(self.weight_z_box.lineEdit().text())
+			self.vector_boxes.append(self.weight_z_box)
 
 			row += 1
+
+		self.vector_dimensions = len(self.vector_boxes)
+		self.vector_names = "vx vy vz".split()[:self.vector_dimensions]
 
 		if self.dimensions > -1:
 			vaex.ui.colormaps.process_colormaps()
@@ -2403,9 +2427,35 @@ class LayerTable(object):
 		self.contrast = self.contrast_list[next_index]
 		self.plot()
 
+	def validate_all_fields(self):
+		for i in range(self.dimensions):
+			logger.debug("validating %r", self.state.expressions[i])
+			try:
+				self.dataset.validate_expression(self.state.expressions[i])
+			except Exception, e:
+				self.error_in_field(self.axisboxes[i], self.axis_names[i], e)
+				return False
+		for i in range(self.vector_dimensions):
+			logger.debug("validating %r", self.state.vector_expressions[i])
+			try:
+				if self.state.vector_expressions[i]:
+					self.dataset.validate_expression(self.state.vector_expressions[i])
+			except Exception, e:
+				self.error_in_field(self.vector_boxes[i], self.vector_names[i], e)
+				return False
+
+		try:
+			if self.state.weight_expression:
+				self.dataset.validate_expression(self.state.weight_expression)
+		except Exception, e:
+			self.error_in_field(self.weight_box, "weight", e)
+			return False
+		return True
+
 	def update(self):
-		self.flag_needs_update()
-		self.plot_window.queue_update()
+		if self.validate_all_fields():
+			self.flag_needs_update()
+			self.plot_window.queue_update()
 
 from vaex.dataset import Dataset, Task
 from vaex.ui.plot_windows import PlotDialog

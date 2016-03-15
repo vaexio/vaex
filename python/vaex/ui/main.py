@@ -1205,6 +1205,7 @@ class VaexApp(QtGui.QMainWindow):
 		logger.debug("sending call to main thread, we are in thread: %r", threading.currentThread())
 		assert self.queue_call_in_main_thread.empty()
 		self.signal_call_in_main_thread.emit(fn, args, kwargs)
+		logger.debug("emitted...")
 		return self.queue_call_in_main_thread.get()
 		#self.signal_promise.emit("blaat")
 
