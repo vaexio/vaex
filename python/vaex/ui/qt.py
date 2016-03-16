@@ -246,6 +246,42 @@ class Option(object):
 		grid_layout.addWidget(self.combobox, row, 1)
 		return row + 1
 
+class TextOption(object):
+	def __init__(self, parent, label, value, placeholder, getter, setter, update=lambda: None):
+		self.update = update
+		self.value = value
+		self.placeholder = placeholder
+		self.label = QtGui.QLabel(label, parent)
+		self.textfield = QtGui.QLineEdit(parent)
+		self.textfield.setPlaceholderText(self.get_placeholder())
+		#self.combobox.addItems(options)
+		def wrap_setter(value, update=True):
+			self.textfield.setText(value)
+			setter(value)
+			if update:
+				self.update()
+		# auto getter and setter
+		setattr(self, "get_value", getter)
+		setattr(self, "set_value", wrap_setter)
+
+		def on_change(*ignore):
+			setter(self.textfield.text())
+			update()
+		#self.combobox.currentIndexChanged.connect(on_change)
+		#self.combobox.setCurrentIndex(options.index(getter()))
+		self.textfield.returnPressed.connect(on_change)
+
+	def get_placeholder(self):
+		if callable(self.placeholder):
+			return self.placeholder()
+		else:
+			return self.placeholder
+
+	def add_to_grid_layout(self, row, grid_layout):
+		grid_layout.addWidget(self.label, row, 0)
+		grid_layout.addWidget(self.textfield, row, 1)
+		return row + 1
+
 class RangeOption(object):
 	def __init__(self, parent, label, values, getter, setter, update=lambda: None):
 		self.update = update

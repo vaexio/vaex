@@ -370,6 +370,42 @@ class PlotDialog(QtGui.QWidget):
 		self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 		#self.pinch_self.state.ranges_viewport = [None for i in range(self.dimension)]
 
+	def get_label(self, axis=0):
+		if self.layers:
+			layer_labels = [layer.state.labels[axis] for layer in self.layers]
+			print "axis", axis, layer_labels
+			if any(layer_labels):
+				return ",".join([label for label in layer_labels if label])
+			else:
+				return self.get_default_label(axis=axis)
+		else:
+			return ""
+
+	def get_default_label(self, axis=0):
+		if len(self.layers) == 0:
+			return ""
+		else:
+			first_layer = self.layers[0]
+			if axis == 0:
+				expr = first_layer.x
+			if axis == 1:
+				if self.dimensions > 1:
+					expr = first_layer.y
+				else:
+					if not first_layer.state.weight_expression:
+						return "counts"
+					else:
+						return first_layer.state.weight_expression
+			if axis == 2:
+				expr = first_layer.z
+			label = expr
+			unit = first_layer.dataset.unit(expr)
+			logger.debug("unit: %r", unit)
+			if unit is not None:
+				label = "%s (%s)" % (label, unit.to_string('latex_inline')  )
+			return label
+
+
 	def set_plot_size(self, width, height):
 		# use for testing only, to get a fixed size per platform
 		self.canvas.setFixedSize(width, height)
@@ -2384,16 +2420,18 @@ class HistogramPlotDialog(PlotDialog):
 			#layer.prepare_histograms()
 
 
-		self.axes.set_xlabel(first_layer.state.expressions[0])
+		#self.axes.set_xlabel(first_layer.state.expressions[0])
 		xmin_show, xmax_show = self.state.ranges_viewport[0]
 		self.axes.set_xlim(xmin_show, xmax_show)
 		#if self.state.range_level_show is None:
 		#	self.state.range_level_show = first_layer.range_level
 		ymin_show, ymax_show = self.state.range_level_show
-		if not first_layer.state.weight_expression:
-			self.axes.set_ylabel("counts")
-		else:
-			self.axes.set_ylabel(first_layer.state.weight_expression)
+		#if not first_layer.state.weight_expression:
+		#	self.axes.set_ylabel("counts")
+		#else:
+		#	self.axes.set_ylabel(first_layer.state.weight_expression)
+		self.axes.set_xlabel(self.get_label(0))
+		self.axes.set_ylabel(self.get_label(1))
 		self.axes.set_ylim(ymin_show, ymax_show)
 		if not self.action_mini_mode_ultra.isChecked():
 			self.fig.tight_layout(pad=0.0)
@@ -2518,26 +2556,9 @@ class ScatterPlotDialog(PlotDialog):
 		#index = self.dataset.selected_row_index
 
 		if 1:
-			xlabel = self.state.xlabel
-			if xlabel is None:
-				xlabel = first_layer.x
-				#if first_layer.x in first_layer.dataset.get_column_names(virtual=False):
-				#	if first_layer.x in first_layer.dataset.units:
-				#		unit = first_layer.dataset.units[first_layer.x]
-				unit = self.dataset.unit(first_layer.x)
-				logger.debug("x unit: %r", unit)
-				if unit is not None:
-					xlabel = "%s (%s)" % (xlabel, unit.to_string('latex_inline')  )
-			ylabel = self.state.ylabel
-			if ylabel is None:
-				ylabel = first_layer.y
-				unit = self.dataset.unit(first_layer.y)
-				logger.debug("y unit: %r", unit)
-				if unit is not None:
-					ylabel = "%s (%s)" % (ylabel, unit.to_string('latex_inline')  )
 
-			self.axes.set_xlabel(xlabel)
-			self.axes.set_ylabel(ylabel)
+			self.axes.set_xlabel(self.get_label(0))
+			self.axes.set_ylabel(self.get_label(1))
 		self.axes.set_xlim(*self.state.ranges_viewport[0])
 		self.axes.set_ylim(*self.state.ranges_viewport[1])
 		#self.fig.texts = []

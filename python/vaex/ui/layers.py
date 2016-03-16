@@ -1264,6 +1264,7 @@ class LayerTable(object):
 
 		self.plug_page(self.page_main, "Main", 1., 1.)
 		self.plug_page(self.page_visual, "Visual", 1.5, 1.)
+		self.plug_page(self.page_annotate, "Annotate", 1.75, 1.)
 		if self.dimensions >= 2:
 			self.plug_page(self.page_vector, "Vector field", 2., 1.)
 		else:
@@ -1873,6 +1874,46 @@ class LayerTable(object):
 		self.contour_count = int(self.options.get("contour_count", 4))
 		self.slider_contour_count = Slider(page_widget, "contour_count", 0, 20, 20, getter=attrgetter(self, "contour_count"), setter=attrsetter(self, "contour_count"), update=self.signal_plot_dirty.emit, format="{0:<3d}", numeric_type=int)
 		row = self.slider_contour_count.add_to_grid_layout(row, grid_layout)
+
+	def page_annotate(self, page):
+		#self.frame_options_vector2d = page #QtGui.QFrame(self)
+		#self.layout_frame_options_vector2d =  QtGui.QVBoxLayout()
+		#self.frame_options_vector2d.setLayout(self.layout_frame_options_vector2d)
+		#self.layout_frame_options_vector2d.setSpacing(0)
+		#self.layout_frame_options_vector2d.setContentsMargins(0,0,0,0)
+		#self.layout_frame_options_vector2d.setAlignment(QtCore.Qt.AlignTop)
+
+		self.grid_layout_annotate = QtGui.QGridLayout()
+		self.grid_layout_annotate.setColumnStretch(1, 1)
+		self.grid_layout_annotate.setSpacing(0)
+		self.grid_layout_annotate.setContentsMargins(2,1,2,1)
+		self.grid_layout_annotate.setAlignment(QtCore.Qt.AlignTop)
+		page.setLayout(self.grid_layout_annotate)
+		row = 0
+
+		self.state.labels = []
+
+		self.state.labels.append(self.options.get("label_x"))
+		def get():
+			return self.state.labels[0]
+		def set(value):
+			self.state.labels[0] = value
+		def default():
+			#return "default label"
+			return self.plot_window.get_default_label(0)
+		self.option_label_x = TextOption(page, "label_x", self.state.labels[0], default, get, set, self.signal_plot_dirty.emit)
+		row = self.option_label_x.add_to_grid_layout(row, self.grid_layout_annotate)
+
+		self.state.labels.append(self.options.get("label_y"))
+		def get():
+			return self.state.labels[1]
+		def set(value):
+			self.state.labels[1] = value
+		def default():
+			#return "default label"
+			return self.plot_window.get_default_label(1)
+		self.option_label_y = TextOption(page, "label_y", self.state.labels[1], default, get, set, self.signal_plot_dirty.emit)
+		row = self.option_label_y.add_to_grid_layout(row, self.grid_layout_annotate)
 
 	def page_slice(self, page):
 		class PageWrapper(object):
