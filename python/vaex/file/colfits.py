@@ -16,7 +16,10 @@ def empty(filename, length, column_names, data_types, data_shapes):
 		pass
 
 	def write(key, value, comment=""):
-		f.write("{key:8}= {value:20} / {comment:47}".format(key=key, value=value, comment=comment))
+		first_part = "{key:8}= {value:20} / ".format(key=key, value=value)
+		f.write(first_part)
+		leftover = 80 - len(first_part)
+		f.write(("{comment:"+str(leftover) +"}").format(comment=comment))
 		logger.debug("at pos: %s", f.tell())
 	def finish_header():
 		f.write("{end:80}".format(end="END"))
