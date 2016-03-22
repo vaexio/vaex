@@ -24,10 +24,6 @@ before_install:
   - conda create -q -n test-environment python=$PYTHON_VERSION numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado jupyter
   - source activate test-environment
   - pip install -r requirements.txt
-  - git clone http://github.com/kapteyn-astro/kapteyn
-  - cd kapteyn
-  - python setup.py install
-  - cd ..
 install:
   - python setup.py install
 script:
