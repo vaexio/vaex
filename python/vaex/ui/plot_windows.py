@@ -2547,7 +2547,7 @@ class ScatterPlotDialog(PlotDialog):
 				self.cmap = matplotlib.cm.cmap_d[self.layer.state.colormap]
 				self.norm = matplotlib.colors.Normalize(layer.level_ranges[0], layer.level_ranges[1])
 				self.norm = matplotlib.colors.Normalize(max(layer.level_ranges), min(layer.level_ranges))
-				super(ColorbarWrapper, self).__init__(self.norm, self.cmap)
+				matplotlib.cm.ScalarMappable.__init__(self, self.norm, self.cmap)
 
 			def autoscale_None(self):
 				pass
