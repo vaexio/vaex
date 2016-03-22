@@ -18,6 +18,7 @@ jupyter
 pyyaml
 layeredconfig
 #http://www.astro.rug.nl/software/kapteyn/kapteyn-2.3.tar.gz
+#-e git+http://github.com/kapteyn-astro/kapteyn#egg=kapteyn
 cachetools
 healpy
 progressbar2
