@@ -775,11 +775,11 @@ class RankDialog(QtGui.QDialog):
 		dialog_info(self, "Stored", "Stored configuration to: %r" % self.properties_path)
 
 	def load_properties(self):
-		with open(self.properties_path) as f:
+		with open(self.properties_path, "rb") as f:
 			self.properties = jprops.load_properties(f, collections.OrderedDict)
 
 	def store_properties(self):
-		with open(self.properties_path) as f:
+		with open(self.properties_path, "wb") as f:
 			jprops.store_properties(f, self.properties)
 
 	def fill_range_map(self):
