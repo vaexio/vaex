@@ -14,7 +14,6 @@ aplus
 tornado==4.1
 futures==2.2.0
 future
-jupyter
 pyyaml
 layeredconfig
 #http://www.astro.rug.nl/software/kapteyn/kapteyn-2.3.tar.gz

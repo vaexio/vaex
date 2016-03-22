@@ -9,7 +9,6 @@ scipy>=0.1
 aplus
 tornado==4.1
 futures==2.2.0
-jupyter
 layeredconfig
 http://www.astro.rug.nl/software/kapteyn/kapteyn-2.3.tar.gz
 cachetools
