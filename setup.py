@@ -210,5 +210,3 @@ setup(
     description="Veax is a graphical tool to visualize and explore large tabular datasets.",
     url="https://www.astro.rug.nl/~breddels/vaex"
 )
-
-os.path.dir
