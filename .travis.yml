@@ -5,8 +5,8 @@ os:
 env:
  matrix:
   - PYTHON_VERSION
-   -2.7
-   -3.5
+   - 2.7
+   - 3.5
 
 before_install:
 #  - sudo apt-get update
