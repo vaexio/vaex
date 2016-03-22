@@ -268,4 +268,4 @@ def ensure_string(string_or_bytes, encoding="utf-8"):
 	if isinstance(string_or_bytes, six.string_types):
 		return string_or_bytes
 	else:
-		string_or_bytes.decode(encoding)
+		return string_or_bytes.decode(encoding)
