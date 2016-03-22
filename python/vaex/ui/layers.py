@@ -846,9 +846,12 @@ class LayerTable(object):
 		levels = np.linspace(self.level_min, self.level_max, self.contour_count)
 		ranges = list(self.state.ranges_grid[0]) + list(self.state.ranges_grid[1])
 
-
 		amplitude_marginalized = amplitude
 		amplitude_marginalized_selected = amplitude_selection
+		mask = ~(np.isnan(amplitude_marginalized) | np.isinf(amplitude_marginalized))
+		vmin, vmax = amplitude_marginalized[mask].min(), amplitude_marginalized[mask].max()
+		self.level_ranges = [vmin + self.level_min * (vmax - vmin), vmin + self.level_max * (vmax - vmin)]
+		logger.debug("level ranges: %r" % self.level_ranges)
 
 		if self.display_type == "contour":
 			if self.contour_count > 0:

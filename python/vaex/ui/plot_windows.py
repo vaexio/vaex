@@ -2561,6 +2561,30 @@ class ScatterPlotDialog(PlotDialog):
 			self.axes.set_ylabel(self.get_label(1))
 		self.axes.set_xlim(*self.state.ranges_viewport[0])
 		self.axes.set_ylim(*self.state.ranges_viewport[1])
+		layer = first_layer
+		class Dummy(object):
+			pass
+		class ColorbarWrapper(matplotlib.cm.ScalarMappable):
+			def __init__(self, layer):
+				self.layer = layer
+				self.cmap = matplotlib.cm.cmap_d[self.layer.state.colormap]
+				self.norm = matplotlib.colors.Normalize(layer.level_ranges[0], layer.level_ranges[1])
+				self.norm = matplotlib.colors.Normalize(max(layer.level_ranges), min(layer.level_ranges))
+				super(ColorbarWrapper, self).__init__(self.norm, self.cmap)
+
+			def autoscale_None(self):
+				pass
+		wrapper = ColorbarWrapper(first_layer)
+		print first_layer.level_ranges
+		if hasattr(self, "colorbar"):
+			self.colorbar.on_mappable_changed(wrapper)
+		else:
+			self.colorbar = self.fig.colorbar(wrapper)
+		self.colorbar.ax.set_ylabel("counts")
+		ymin, ymax = self.colorbar.ax.get_ylim()
+		if (layer.level_ranges[0] > layer.level_ranges[1]) != (ymin > ymax):
+			self.colorbar.ax.invert_yaxis()
+
 		#self.fig.texts = []
 		#if first_layer.flip_x:
 		#	self.axes.invert_xaxis()
