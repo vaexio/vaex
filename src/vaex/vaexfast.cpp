@@ -1127,7 +1127,7 @@ i;
 		//array[j] = i;
     array[j] = 	native ? i : __builtin_bswap64(i);
 		if( ((i% 10000000) == 0) ){
-			printf("\r%lld out of %lld (%.2f%%)", i, length, (i*100./length));
+			//printf("\r%lld out of %lld (%.2f%%)", i, length, (i*100./length));
 			fflush(stdout);
 
 		}
@@ -1303,6 +1303,7 @@ static PyMethodDef pyvaex_functions[] = {
 };
 
 struct module_state {
+
     PyObject *error;
 };
 

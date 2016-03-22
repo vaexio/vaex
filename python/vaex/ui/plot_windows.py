@@ -373,7 +373,6 @@ class PlotDialog(QtGui.QWidget):
 	def get_label(self, axis=0):
 		if self.layers:
 			layer_labels = [layer.state.labels[axis] for layer in self.layers]
-			print "axis", axis, layer_labels
 			if any(layer_labels):
 				return ",".join([label for label in layer_labels if label])
 			else:
@@ -1113,7 +1112,6 @@ class PlotDialog(QtGui.QWidget):
 			expr = getattr(layer, name)
 			boolean_expression = "((%s) >= %f) & ((%s) < %f)" % (expr, vmin, expr, vmax)
 			logger.debug("expression: %s", boolean_expression)
-			print boolean_expression
 			layer.dataset.select(boolean_expression, self.select_mode)
 			mask = layer.dataset.mask
 			action = undo.ActionMask(layer.dataset.undo_manager, "select %s range[%f,%f]" % (name, vmin, vmax), mask, layer.apply_mask)
@@ -1249,7 +1247,6 @@ class PlotDialog(QtGui.QWidget):
 			if self.state.ranges_viewport[dimension] is None:
 				vmin = min([layer.state.ranges_grid[dimension][0] for layer in layers])
 				vmax = max([layer.state.ranges_grid[dimension][1] for layer in layers])
-				print self.state.ranges_viewport
 				self.state.ranges_viewport[dimension] = [vmin, vmax]
 
 		logger.debug("ranges before aspect check: %r", self.state.ranges_viewport)
@@ -1278,14 +1275,6 @@ class PlotDialog(QtGui.QWidget):
 		if self.state.range_level_show is None:
 			self.calculate_range_level_show()
 		timelog("computation done")
-		print "=" * 80
-		print self.state
-		for layer in self.layers:
-			print layer.state
-
-		print self.full_state_history_index
-		print self.full_state_history
-		print "=" * 80
 
 		# now we can do the plot
 		self.push_full_state()
@@ -1309,14 +1298,6 @@ class PlotDialog(QtGui.QWidget):
 				self.full_state_history_index += 1
 				self.full_state_history_change_reason = None
 		self.checkUndoRedo()
-		print "=" * 80
-		print self.state
-		for layer in self.layers:
-			print layer.state
-
-		print self.full_state_history_index
-		print self.full_state_history
-		print "=" * 80
 
 	def queue_push_full_state(self):
 		QtCore.QTimer.singleShot(1, self.push_full_state);
@@ -1679,7 +1660,7 @@ class PlotDialog(QtGui.QWidget):
 					dialogs.dialog_error(self, "Unknown extension", "Unknown extension %r" % ext)
 				try:
 					selection = vaex.dataset.selection_from_dict(self.dataset, data)
-				except Exception, e:
+				except Exception as e:
 					logger.exception("error reading in selection")
 					dialogs.dialog_error(self, "Error reading in selection", "Error reading in selection: %r" % e)
 				self.dataset.set_selection(selection)
@@ -2328,12 +2309,10 @@ class PlotDialog(QtGui.QWidget):
 			width = self.state.ranges_viewport[axis_follow][1] - self.state.ranges_viewport[axis_follow][0]
 			centers = [(self.state.ranges_viewport[i][1] + self.state.ranges_viewport[i][0])/2. for i in range(self.dimensions)]
 			for i in range(self.dimensions):
-				print i, self.state.ranges_viewport[i]
 				if i != axis_follow:
 					self.state.ranges_viewport[i] = [None, None]
 					self.state.ranges_viewport[i][0] = centers[i] - width/2
 					self.state.ranges_viewport[i][1] = centers[i] + width/2
-				print i, self.state.ranges_viewport[i]
 			return
 
 
@@ -2362,12 +2341,10 @@ class PlotDialog(QtGui.QWidget):
 				axis_index = otheraxes[i]
 				#if self.state.ranges_viewport[i] is None:
 				#	self.state.ranges_viewport[i] = self.ranges[i]
-				print self.state.ranges_viewport
 				self.state.ranges_viewport[axis_index] = [None, None]
 				self.state.ranges_viewport[axis_index][0] = centers[axis_index] - width/2
 				self.state.ranges_viewport[axis_index][1] = centers[axis_index] + width/2
 				logger.debug("aspect i=%d,%d", i, axis_index)
-				print self.state.ranges_viewport
 			for layer in self.layers:
 				for i in range(self.dimensions-1):
 					axis_index = otheraxes[i]
@@ -2575,7 +2552,6 @@ class ScatterPlotDialog(PlotDialog):
 			def autoscale_None(self):
 				pass
 		wrapper = ColorbarWrapper(first_layer)
-		print first_layer.level_ranges
 		if hasattr(self, "colorbar"):
 			self.colorbar.on_mappable_changed(wrapper)
 		else:
@@ -3112,7 +3088,6 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			self.widget_volume.setGrid(first_layer.amplitude_grid, vectorgrid=first_layer.vector_grid)
 
 		for axes in axes_list:
-			print axes, len(axes.rgb_images)
 			rgba = vaex.ui.imageblending.blend(axes.rgb_images, self.blend_mode)
 			rgba[...,3] = rgba[...,3] * 0 + 1
 			for c in range(4):

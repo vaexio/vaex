@@ -4,7 +4,11 @@ import logging
 import threading
 import uuid
 
-import __builtin__
+try:
+	import __builtin__
+except ImportError:
+	import builtins as __builtin__
+
 from .dataset import Dataset, Subspace, Task
 import vaex.promise
 import vaex.settings
@@ -13,7 +17,7 @@ try:
 	import Cookie  # py2
 except ImportError:
 	import http.cookies as Cookie  # py3
-import cookielib
+
 
 from tornado.httpclient import AsyncHTTPClient, HTTPClient
 import tornado.httputil
@@ -57,7 +61,7 @@ import threading
 
 def _check_error(object):
 	if "error" in object:
-		raise RuntimeError, "Server responded with error: %r" % object["error"]
+		raise RuntimeError("Server responded with error: %r" % object["error"])
 
 
 class ServerRest(object):
@@ -184,7 +188,7 @@ class ServerRest(object):
 						self.thread_mover(task.signal_progress.emit, fraction)
 					else:
 						task.signal_progress.emit(fraction)
-			except Exception, e:
+			except Exception as e:
 				logger.exception("error in handling job", e)
 				task = self.jobs[job_id]
 				if task.async:
@@ -207,7 +211,7 @@ class ServerRest(object):
 		arguments["job_id"] = job_id
 		arguments["path"] = path
 		arguments["user_id"] = self.user_id
-		arguments = {key: (value.tolist() if hasattr(value, "tolist") else value) for key, value in arguments.items()}
+		arguments = dict({key: (value.tolist() if hasattr(value, "tolist") else value) for key, value in arguments.items()})
 
 		def do():
 			def write(socket):
@@ -289,7 +293,9 @@ class ServerRest(object):
 		def post_process(result):
 			if method_name == "histogram": # histogram is the exception..
 				# TODO: don't do binary transfer, just json, now we cannot handle exception
-				result = result.decode("base64")
+				import base64
+				logger.debug("result: %r" % result)
+				result = base64.b64decode(result) #.decode("base64")
 				data = np.fromstring(result)
 				shape = (kwargs["size"],) * subspace.dimension
 				data = data.reshape(shape)
@@ -310,8 +316,8 @@ class ServerRest(object):
 		selection = subspace.get_selection()
 		if selection is not None:
 			arguments["selection"] = selection.to_dict()
-		arguments["variables"] = subspace.dataset.variables.items()
-		arguments["virtual_columns"] = subspace.dataset.virtual_columns.items()
+		arguments["variables"] = list(subspace.dataset.variables.items())
+		arguments["virtual_columns"] = list(subspace.dataset.virtual_columns.items())
 		arguments.update(dict(expressions=expressions))
 		return self.submit(path, arguments, post_process=post_process, async=async)
 
@@ -326,8 +332,8 @@ class ServerRest(object):
 		arguments = dict(kwargs)
 		if not dataset_remote.get_auto_fraction():
 			arguments["active_fraction"] = dataset_remote.get_active_fraction()
-		arguments["variables"] = dataset_remote.variables.items()
-		arguments["virtual_columns"] = dataset_remote.virtual_columns.items()
+		arguments["variables"] = list(dataset_remote.variables.items())
+		arguments["virtual_columns"] = list(dataset_remote.virtual_columns.items())
 		#arguments["selection_name"] = json.dumps(dataset_remote.get_selection_name())
 		body = urlencode(arguments)
 
@@ -401,13 +407,14 @@ class DatasetRemote(Dataset):
 import astropy.units
 
 class DatasetRest(DatasetRemote):
-	def __init__(self, server, name, column_names, dtypes, ucds, descriptions, units, description, full_length):
+	def __init__(self, server, name, column_names, dtypes, ucds, descriptions, units, description, full_length, virtual_columns=None):
 		DatasetRemote.__init__(self, name, server.hostname, column_names)
 		self.server = server
 		self.name = name
 		self.column_names = column_names
 		self.dtypes = {name: np.zeros(1, dtype=getattr(np, dtype)).dtype for name, dtype in dtypes.items()}
 		self.units = {name: astropy.units.Unit(unit) for name, unit in units.items()}
+		self.virtual_columns.update(virtual_columns or {})
 		self.ucds = ucds
 		self.descriptions = descriptions
 		self.description = description
@@ -471,11 +478,11 @@ if __name__ == "__main__":
 	vaex.set_log_level_debug()
 	server = vaex.server(sys.argv[1], port=int(sys.argv[2]))
 	datasets = server.datasets()
-	print datasets
+	print(datasets)
 	dataset = datasets[0]
 	dataset = vaex.example()
-	print dataset("x").minmax()
+	print(dataset("x").minmax())
 	dataset.select("x < 0")
-	print dataset.selected_length(), len(dataset)
-	print dataset("x").selected().is_masked
-	print dataset("x").selected().minmax()
+	print(dataset.selected_length(), len(dataset))
+	print(dataset("x").selected().is_masked)
+	print(dataset("x").selected().minmax())

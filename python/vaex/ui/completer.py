@@ -40,7 +40,7 @@ class Completer(QtGui.QCompleter):
 		def fixcursor():
 			logger.debug("cursor set to: %d", new_cursor_pos)
 			self.line_edit.setCursorPosition(new_cursor_pos)
-		print "pathFromIndex", index, repr(full_text), repr(suggested_text), repr(suggested_text), self.last_editing_cursor_position
+		#print(("pathFromIndex", index, repr(full_text), repr(suggested_text), repr(suggested_text), self.last_editing_cursor_position))
 
 		# after the text is set by completer, the cursor is set to the end of the lineedit, we correct is by fixcursor to set it at
 		# the end of the word
@@ -163,7 +163,6 @@ class UCDDelegate(QtGui.QItemDelegate):
 		editor.blockSignals(False)
 
 	def setModelData(self, editor, model, index):
-		print model
 		model.setData(index, editor.text())
 
 	@QtCore.pyqtSlot()
@@ -190,7 +189,6 @@ class UnitDelegate(QtGui.QItemDelegate):
 		editor.blockSignals(False)
 
 	def setModelData(self, editor, model, index):
-		print model
 		model.setData(index, editor.text())
 
 	@QtCore.pyqtSlot()

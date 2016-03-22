@@ -321,10 +321,10 @@ def math_parse(expression, macros=[]):
 	# TODO: validate macros?
 	node = ast.parse(expression)
 	if len(node.body) != 1:
-		raise ValueError, "expected one expression, got %r" % len(node.body)
+		raise ValueError("expected one expression, got %r" % len(node.body))
 	expr = node.body[0]
 	if not isinstance(expr, _ast.Expr):
-		raise ValueError, "expected an expression got a %r" % type(node.body)
+		raise ValueError("expected an expression got a %r" % type(node.body))
 	validate_expression(expr.value)
 	return MathExpression(expression, macros)
 import six
@@ -332,26 +332,26 @@ def validate_expression(expr, variable_set, function_set):
 	if isinstance(expr, six.string_types):
 		node = ast.parse(expr)
 		if len(node.body) != 1:
-			raise ValueError, "expected one expression, got %r" % len(node.body)
+			raise ValueError("expected one expression, got %r" % len(node.body))
 		first_expr = node.body[0]
 		if not isinstance(first_expr, _ast.Expr):
-			raise ValueError, "expected an expression got a %r" % type(node.body)
+			raise ValueError("expected an expression got a %r" % type(node.body))
 		validate_expression(first_expr.value, variable_set, function_set)
 	elif isinstance(expr, _ast.BinOp):
 		if expr.op.__class__ in valid_binary_operators:
 			validate_expression(expr.right, variable_set, function_set)
 			validate_expression(expr.left, variable_set, function_set)
 		else:
-			raise ValueError, "Binary operator not allowed: %r" % expr.op
+			raise ValueError("Binary operator not allowed: %r" % expr.op)
 	elif isinstance(expr, _ast.UnaryOp):
 		if expr.op.__class__ in valid_unary_operators:
 			validate_expression(expr.operand, variable_set, function_set)
 		else:
-			raise ValueError, "Unary operator not allowed: %r" % expr.op
+			raise ValueError("Unary operator not allowed: %r" % expr.op)
 	elif isinstance(expr, _ast.Name):
 		validate_id(expr.id)
 		if expr.id not in variable_set:
-			raise NameError, "variable %r is not defined" % expr.id
+			raise NameError("variable %r is not defined (available are: %s]" % (expr.id, ", ".join(list(variable_set))))
 	elif isinstance(expr, _ast.Num):
 		pass # numbers are fine
 	elif isinstance(expr, _ast.Call):
@@ -360,19 +360,19 @@ def validate_expression(expr, variable_set, function_set):
 		validate_expression(expr.left, variable_set, function_set)
 		for op in expr.ops:
 			if op.__class__ not in valid_compare_operators:
-				raise ValueError, "Compare operator not allowed: %r" % op
+				raise ValueError("Compare operator not allowed: %r" % op)
 		for comparator in expr.comparators:
 			validate_expression(comparator, variable_set, function_set)
 		#if expr.op.__class__ in valid_binary_operators:
 		#import pdb
 		#pdb.set_trace()
 	else:
-		raise ValueError, "Unknown expression type: %r" % type(expr)
+		raise ValueError("Unknown expression type: %r" % type(expr))
 
 
 def validate_func(name, function_set):
 	if name.id not in function_set:
-		raise NameError, "function %r is not defined" % name.id
+		raise NameError("function %r is not defined" % name.id)
 	#if name.id not in valid_functions:
 	#	raise ValueError, "invalid or unknown function %r" % name.id
 
@@ -380,7 +380,7 @@ def validate_func(name, function_set):
 def validate_id(id):
 	for char in id:
 		if char not in valid_id_characters:
-			raise ValueError, "invalid character %r in id %r" % (char, id)
+			raise ValueError("invalid character %r in id %r" % (char, id))
 
 expressions = [expr for expr in """
 a * b
@@ -393,11 +393,11 @@ if __name__ == "__main__":
 	values = dict(a=1, b=2, pi=math.pi)
 	for expression in expressions:
 		ex = math_parse(expression)
-		print expression, "=", ex.evaluate(values)
+		print((expression, "=", ex.evaluate(values)))
 	values = dict(a=np.array([1,2]), b=np.array([2,3]), pi=math.pi)
 	for expression in expressions:
 		ex = math_parse(expression)
-		print expression, "=", ex.evaluate_numpy(values)
+		print(expression, "=", ex.evaluate_numpy(values))
 	import types
 	import numba
 
@@ -415,7 +415,7 @@ if __name__ == "__main__":
 	scope.write(f)
 	f.write("values[0] = %s;" % result.c_code())
 	f.write("// end of generated code =====\n")
-	print f.getvalue()
+	print(f.getvalue())
 	import os
 	import platform
 	from distutils.sysconfig import get_python_inc

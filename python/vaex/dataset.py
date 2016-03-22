@@ -14,6 +14,7 @@ import re
 from functools import reduce
 import threading
 import six
+from vaex.utils import ensure_string
 
 import numpy as np
 import numexpr as ne
@@ -878,7 +879,7 @@ class SubspaceLocal(Subspace):
 				min_index_global = np.argmin((np.cumsum(mask) - 1 - min_index)**2)
 			#with lock:
 			#	print i1, i2, min_index, distance_squared, [block[min_index] for block in blocks]
-			return min_index_global + i1, distance_squared[min_index]**0.5, [block[min_index] for block in blocks]
+			return min_index_global.item() + i1, distance_squared[min_index].item()**0.5, [block[min_index].item() for block in blocks]
 		def nearest_reduce(a, b):
 			if a is None:
 				return b
@@ -926,7 +927,7 @@ class UnitScope(object):
 		elif variable in self.dataset.variables:
 			return astropy.units.dimensionless_unscaled # TODO units for variables?
 		else:
-			raise KeyError, "unkown variable %s" % variable
+			raise KeyError("unkown variable %s" % variable)
 
 class _BlockScope(object):
 	def __init__(self, dataset, i1, i2, **variables):
@@ -1118,7 +1119,7 @@ def selection_from_dict(dataset, values):
 		kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
 		return SelectionExpression(**kwargs)
 	else:
-		raise ValueError, "unknown type: %r, in dict: %r" % (values["type"], values)
+		raise ValueError("unknown type: %r, in dict: %r" % (values["type"], values))
 
 # name maps to numpy function
 # <vaex name>:<numpy name>
@@ -1147,7 +1148,7 @@ abs
 expression_namespace = {}
 for name, numpy_name in function_mapping:
 	if not hasattr(np, numpy_name):
-		raise SystemError, "numpy does not have: %s" % numpy_name
+		raise SystemError("numpy does not have: %s" % numpy_name)
 	else:
 		expression_namespace[name] = getattr(np, numpy_name)
 
@@ -1213,6 +1214,11 @@ class Dataset(object):
 		# after an undo, the last one in the history list is not the active one, -1 means no selection
 		self.selection_history_indices = collections.defaultdict(lambda: -1)
 		self._auto_fraction= False
+
+	def close_files(self):
+		"""Close any possible open file handles, the dataset not not be usable afterwards"""
+		pass
+
 
 	def dtype(self, expression):
 		if expression in self.get_column_names():
@@ -1301,9 +1307,9 @@ class Dataset(object):
 								if set(e).issubset(expressions):
 									return True
 							else:
-								raise ValueError, "elements of exclude should contain a string or a sequence of strings"
+								raise ValueError("elements of exclude should contain a string or a sequence of strings")
 					else:
-						raise ValueError, "exclude should contain a string, a sequence of strings, or should be a callable"
+						raise ValueError("exclude should contain a string, a sequence of strings, or should be a callable")
 					return False
 				# test if any of the elements of exclude are a subset of the expression
 				expressions_list = [expr for expr in expressions_list if not excluded(expr)]
@@ -2002,6 +2008,10 @@ class DatasetMemoryMapped(DatasetLocal):
 		
 		self.undo_manager = vaex.ui.undo.UndoManager()
 
+	def close_files(self):
+		for name, file in self.file_map.items():
+			file.close()
+
 	def has_snapshots(self):
 		return len(self.rank1s) > 0
 
@@ -2200,62 +2210,62 @@ dataset_type_map["buist"] = HansMemoryMapped
 class FitsBinTable(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
 		super(FitsBinTable, self).__init__(filename, write=write)
-		fitsfile = fits.open(filename)
-		for table in fitsfile:
-			if isinstance(table, fits.BinTableHDU):
-				table_offset = table._data_offset
-				#import pdb
-				#pdb.set_trace()
-				if table.columns[0].dim is not None: # for sure not a colfits
-					dim = eval(table.columns[0].dim) # TODO: can we not do an eval here? not so safe
-					if dim[0] == 1 and len(dim) == 2: # we have colfits format
-						logger.debug("colfits file!")
-						offset = table_offset
-						for i in range(len(table.columns)):
-							column = table.columns[i]
-							cannot_handle = False
+		with fits.open(filename) as fitsfile:
+			for table in fitsfile:
+				if isinstance(table, fits.BinTableHDU):
+					table_offset = table._data_offset
+					#import pdb
+					#pdb.set_trace()
+					if table.columns[0].dim is not None: # for sure not a colfits
+						dim = eval(table.columns[0].dim) # TODO: can we not do an eval here? not so safe
+						if dim[0] == 1 and len(dim) == 2: # we have colfits format
+							logger.debug("colfits file!")
+							offset = table_offset
+							for i in range(len(table.columns)):
+								column = table.columns[i]
+								cannot_handle = False
 
-							# flatlength == length * arraylength
-							flatlength, fitstype = int(column.format[:-1]),column.format[-1]
-							arraylength, length = arrayshape = eval(column.dim)
+								# flatlength == length * arraylength
+								flatlength, fitstype = int(column.format[:-1]),column.format[-1]
+								arraylength, length = arrayshape = eval(column.dim)
 
-							# numpy dtype code, like f8, i4
-							dtypecode = astropy.io.fits.column.FITS2NUMPY[fitstype]
+								# numpy dtype code, like f8, i4
+								dtypecode = astropy.io.fits.column.FITS2NUMPY[fitstype]
 
 
-							dtype = np.dtype((">" +dtypecode, arraylength))
-							if 0:
-								if arraylength > 1:
-									dtype = np.dtype((">" +dtypecode, arraylength))
-								else:
-									if dtypecode == "a": # I think numpy needs by default a length 1
-										dtype = np.dtype(dtypecode + "1")
+								dtype = np.dtype((">" +dtypecode, arraylength))
+								if 0:
+									if arraylength > 1:
+										dtype = np.dtype((">" +dtypecode, arraylength))
 									else:
-										dtype = np.dtype(">" +dtypecode)
-								#	bytessize = 8
+										if dtypecode == "a": # I think numpy needs by default a length 1
+											dtype = np.dtype(dtypecode + "1")
+										else:
+											dtype = np.dtype(">" +dtypecode)
+									#	bytessize = 8
 
-							bytessize = dtype.itemsize
-							logger.debug("%r", (column.name, dtype, column.format, column.dim, length, bytessize, arraylength))
-							if (flatlength > 0) and dtypecode != "a": # TODO: support strings
-								logger.debug("%r", (column.name, offset, dtype, length))
-								if arraylength == 1:
-									self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
-								else:
-									for i in range(arraylength):
-										name = column.name+"_" +str(i)
-										self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
-							if flatlength > 0: # flatlength can be
-								offset += bytessize * length
+								bytessize = dtype.itemsize
+								logger.debug("%r", (column.name, dtype, column.format, column.dim, length, bytessize, arraylength))
+								if (flatlength > 0) and dtypecode != "a": # TODO: support strings
+									logger.debug("%r", (column.name, offset, dtype, length))
+									if arraylength == 1:
+										self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
+									else:
+										for i in range(arraylength):
+											name = column.name+"_" +str(i)
+											self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
+								if flatlength > 0: # flatlength can be
+									offset += bytessize * length
 
-				else:
-					logger.debug("adding table: %r" % table)
-					for column in table.columns:
-						array = column.array[:]
-						array = column.array[:] # 2nd time it will be a real np array
-						#import pdb
-						#pdb.set_trace()
-						if array.dtype.kind in "fi":
-							self.addColumn(column.name, array=array)
+					else:
+						logger.debug("adding table: %r" % table)
+						for column in table.columns:
+							array = column.array[:]
+							array = column.array[:] # 2nd time it will be a real np array
+							#import pdb
+							#pdb.set_trace()
+							if array.dtype.kind in "fi":
+								self.addColumn(column.name, array=array)
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
@@ -2297,8 +2307,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 		h5file = None
 		try:
 			with open(path, "rb") as f:
-				signature = open(path, "rb").read(4)
-				hdf5file = signature == "\x89\x48\x44\x46"
+				signature = f.read(4)
+				hdf5file = signature == b"\x89\x48\x44\x46"
 		except:
 			logger.error("could not read 4 bytes from %r", path)
 			return
@@ -2366,18 +2376,18 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 		first = "x y z vx vy vz".split()
 		finished = set()
 		if "description" in h5data.attrs:
-			self.description = h5data.attrs["description"]
+			self.description = ensure_string(h5data.attrs["description"])
 		for column_name in first + list(h5data):
 			if column_name in h5data and column_name not in finished:
 				#print type(column_name)
 				column = h5data[column_name]
 				if "ucd" in column.attrs:
-					self.ucds[column_name] = column.attrs["ucd"]
+					self.ucds[column_name] = ensure_string(column.attrs["ucd"])
 				if "description" in column.attrs:
-					self.descriptions[column_name] = column.attrs["description"]
+					self.descriptions[column_name] = ensure_string(column.attrs["description"])
 				if "unit" in column.attrs:
 					try:
-						unitname = column.attrs["unit"]
+						unitname = ensure_string(column.attrs["unit"])
 						if unitname and unitname != "None":
 							self.units[column_name] = astropy.units.Unit(unitname)
 					except:
@@ -2520,7 +2530,7 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 		if "Header" in h5file:
 			for name in "Redshift Time_GYR".split():
 				if name in h5file["Header"].attrs:
-					value = h5file["Header"].attrs[name]
+					value = h5file["Header"].attrs[name].decode("utf-8")
 					logger.debug("property[{name!r}] = {value}".format(**locals()))
 					self.variables[name] = value
 					#self.property_names.append(name)
@@ -2898,7 +2908,7 @@ class DatasetTap(DatasetArrays):
 				columns.append((column_name, column_type, ucd, unit, description))
 			self.tap_tables[table_name] = (table_size, columns)
 		if not self.tap_tables:
-			raise ValueError, "no tables or wrong url"
+			raise ValueError("no tables or wrong url")
 		for name, (table_size, columns) in self.tap_tables.items():
 			logger.debug("table %s has length %d", name, table_size)
 		self._full_length, self._tap_columns = self.tap_tables[self.table_name]

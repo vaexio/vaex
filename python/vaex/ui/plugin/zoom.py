@@ -12,7 +12,7 @@ import vaex.ui.undo as undo
 
 logger = logging.getLogger("plugin.zoom")
 
-
+@vaex.ui.plugin.pluginclass
 class ZoomPlugin(vaex.ui.plugin.PluginPlot):
 	name = "zoom"
 	def __init__(self, dialog):

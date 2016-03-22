@@ -236,7 +236,7 @@ def write_json_or_yaml(filename, data):
 		with open(filename, "w") as f:
 			yaml.safe_dump(data, f, default_flow_style=False, encoding='utf-8',  allow_unicode=True)
 	else:
-		raise ValueError, "file should end in .json or .yaml (not %s)" % ext
+		raise ValueError("file should end in .json or .yaml (not %s)" % ext)
 
 def read_json_or_yaml(filename):
 	base, ext = os.path.splitext(filename)
@@ -247,7 +247,7 @@ def read_json_or_yaml(filename):
 		with open(filename, "r") as f:
 			return yaml.load(f)
 	else:
-		raise ValueError, "file should end in .json or .yaml (not %s)" % ext
+		raise ValueError("file should end in .json or .yaml (not %s)" % ext)
 
 
 
@@ -261,3 +261,11 @@ def check_memory_usage(bytes_needed, confirm):
 			text = "Action requires %s, you do not have enough swap memory available, do you want try anyway?" % (filesize_format(bytes_needed),)
 			return confirm("Memory usage issue", text)
 	return True
+
+import six
+
+def ensure_string(string_or_bytes, encoding="utf-8"):
+	if isinstance(string_or_bytes, six.string_types):
+		return string_or_bytes
+	else:
+		string_or_bytes.decode(encoding)

@@ -61,7 +61,7 @@ class ColumnsTableModel(QtCore.QAbstractTableModel):
 					self.dataset.units[column_name] = unit
 					# TODO: move to dataset class
 					self.dataset.signal_column_changed.emit(self.dataset, column_name, "change")
-				except Exception, e:
+				except Exception as e:
 					dialogs.dialog_error(None, "Cannot parse unit", "Cannot parse unit:\n %s" % e)
 			else:
 				if column_name in self.dataset.units:
@@ -69,7 +69,7 @@ class ColumnsTableModel(QtCore.QAbstractTableModel):
 		if property == "Expression":
 			try:
 				self.dataset.validate_expression(value)
-			except Exception, e:
+			except Exception as e:
 				dialogs.dialog_error(None, "Invalid expression", "Invalid expression: %s" % e)
 			# although it may not be a valid expression, still set it to the user can edit it
 			self.dataset.virtual_columns[column_name] = value

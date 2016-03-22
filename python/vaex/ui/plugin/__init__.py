@@ -1,6 +1,16 @@
 
 order_toolbar_navigate = 1.
 
+def pluginclass(cls):
+
+	cls.__bases__[0].registry.add(cls)
+	return cls
+
+def pluginbase(cls):
+	if not hasattr(cls, 'registry'):
+		cls.registry = set()
+	return cls
+
 
 class RegisterPlugins(type):
 	def __init__(cls, name, bases, nmspc):
@@ -19,8 +29,9 @@ class RegisterPlugins(type):
 		return cls.__name__ + ": " + ", ".join([sc.__name__ for sc in cls])
 
 
+@pluginbase
 class PluginPlot(object):
-	__metaclass__ = RegisterPlugins
+	#__metaclass__ = RegisterPlugins
 	def __init__(self, dialog):
 		self.dialog = dialog
 
@@ -47,8 +58,9 @@ class PluginPlot(object):
 		pass
 
 
+@pluginbase
 class PluginLayer(object):
-	__metaclass__ = RegisterPlugins
+	#__metaclass__ = RegisterPlugins
 	def __init__(self, parent, layer):
 		self.parent = parent
 		self.layer = layer
@@ -73,8 +85,9 @@ class PluginLayer(object):
 	def stop_animation(self):
 		pass
 
+@pluginbase
 class PluginDataset(object):
-	__metaclass__ = RegisterPlugins
+	#__metaclass__ = RegisterPlugins
 	def __init__(self, dataset, widget):
 		self.dataset = dataset
 		self.widget = widget

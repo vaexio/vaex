@@ -20,7 +20,7 @@ class VariablesTableModel(QtCore.QAbstractTableModel):
 		#self.show_virtual = True
 
 	def get_dataset_column_names(self):
-		return self.dataset.variables.keys()
+		return list(self.dataset.variables.keys())
 
 	def rowCount(self, parent):
 		column_names = self.get_dataset_column_names()
@@ -60,7 +60,7 @@ class VariablesTableModel(QtCore.QAbstractTableModel):
 			try:
 				test = eval(value, vaex.dataset.expression_namespace, self.dataset.variables)
 				self.dataset.add_variable(variable_name, value)
-			except Exception, e:
+			except Exception as e:
 				dialogs.dialog_error(None, "Invalid expression", "Invalid expression: %s" % e)
 			# although it may not be a valid expression, still set it to the user can edit it
 			#self.dataset.virtual_columns[column_name] = value
@@ -110,7 +110,7 @@ class VariablesTableModel(QtCore.QAbstractTableModel):
 				#return str(self.dataset.variables[variable_name])
 				try:
 					return str(self.dataset.evaluate_variable(variable_name))
-				except Exception, e:
+				except Exception as e:
 					#dialogs.dialog_error(None, "Invalid expression", "Invalid expression: %s" % e)
 					return "Error in expression: %s" % e
 			elif property == "Expression":

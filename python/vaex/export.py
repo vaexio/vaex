@@ -151,6 +151,7 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 	_export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
 			column_names=column_names, selection=selection, shuffle=shuffle,
 			progress=progress)
+	dataset_output.close_files()
 
 def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
 	"""
@@ -211,7 +212,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 	import getpass
 	import datetime
 	user = getpass.getuser()
-	date = unicode(datetime.datetime.now())
+	date = str(datetime.datetime.now())
 	source = dataset.path
 	description += "file exported by vaex, by user %s, on date %s, from source %s" % (user, date, source)
 	dataset_output.description = description
@@ -223,19 +224,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 				dest[column_name] = source[column_name]
 	logger.debug("writing meta information")
 	dataset_output.write_meta()
-	if 0:
-		with h5py.File(path, "r+") as h5file_output:
-			if dataset.description is not None:
-				print "descr", repr(dataset.description)
-				h5file_output["/data"].attrs["description"] = dataset.description
-				h5dataset = h5file_output["/data/%s" % column_name]
-				for name, values in [("ucd", dataset.ucds), ("unit", dataset.units), ("descriptions", dataset.descriptions)]:
-					if column_name in values:
-						value = values[column_name]
-						if name == "unit":
-							value = value.name
-						print type(value), value, name
-						h5dataset.attrs[name] = value
+	dataset_output.close_files()
 	return
 
 
@@ -246,6 +235,7 @@ def main(argv):
 	import argparse
 	parser = argparse.ArgumentParser(argv[0])
 	parser.add_argument('--verbose', '-v', action='count', default=0)
+	parser.add_argument('--quiet', '-q', default=False, action='store_true', help="do not output anything")
 	parser.add_argument('--list', '-l', default=False, action='store_true', help="list columns of input")
 	parser.add_argument('--progress', help="show progress (default: %(default)s)", default=True, action='store_true')
 	parser.add_argument('--no-progress', dest="progress", action='store_false')
@@ -280,26 +270,31 @@ def main(argv):
 
 	if args.task == "soneira":
 		if vaex.utils.check_memory_usage(4*8*2**args.max_level, vaex.utils.confirm_on_console):
-			print("generating soneira peebles dataset...")
+			if not args.quiet:
+				print("generating soneira peebles dataset...")
 			dataset = vaex.dataset.SoneiraPeebles(args.dimension, 2, args.max_level, args.lambdas)
 		else:
 			return 1
 	if args.task == "tap":
 		dataset = vaex.dataset.DatasetTap(args.tap_url, args.table_name)
-		print("exporting from {tap_url} table name {table_name} to {output}".format(tap_url=args.tap_url, table_name=args.table_name, output=args.output))
+		if not args.quiet:
+			print("exporting from {tap_url} table name {table_name} to {output}".format(tap_url=args.tap_url, table_name=args.table_name, output=args.output))
 	if args.task == "file":
 		if args.input[0] == "@":
 			inputs = open(args.input[1:]).readlines()
 			dataset = vaex.open_many(inputs)
 		else:
 			dataset = vaex.open(args.input)
-		print("exporting from {input} to {output}".format(input=args.input, output=args.output))
+		if not args.quiet:
+			print("exporting from {input} to {output}".format(input=args.input, output=args.output))
 
 	if dataset is None:
-		print("Cannot open input")
+		if not args.quiet:
+			print("Cannot open input")
 		return 1
 	if args.list:
-		print("columns names: " + " ".join(dataset.get_column_names()))
+		if not args.quiet:
+			print("columns names: " + " ".join(dataset.get_column_names()))
 	else:
 		if args.columns:
 			columns = args.columns
@@ -309,24 +304,33 @@ def main(argv):
 			columns = dataset.get_column_names()
 		for column in columns:
 			if column not in dataset.get_column_names():
-				print("column %r does not exist, run with --list or -l to list all columns")
+				if not args.quiet:
+					print("column %r does not exist, run with --list or -l to list all columns")
 				return 1
 
 		base, output_ext = os.path.splitext(args.output)
 		if output_ext not in [".hdf5", ".fits"]:
-			print("extension %s not supported, only .fits and .hdf5 are" % output_ext)
+			if not args.quiet:
+				print("extension %s not supported, only .fits and .hdf5 are" % output_ext)
 			return 1
 
-		print("exporting %d rows and %d columns" % (len(dataset), len(columns)))
-		print("columns: " +" ".join(columns))
-		with vaex.utils.progressbar("exporting") as progressbar:
-			def update(p):
+		if not args.quiet:
+			print("exporting %d rows and %d columns" % (len(dataset), len(columns)))
+			print("columns: " +" ".join(columns))
+		progressbar = vaex.utils.progressbar("exporting") if args.progress else None
+
+		def update(p):
+			if progressbar:
 				progressbar.update(p)
-				return True
-			if output_ext == ".hdf5":
-				export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
-			elif output_ext == ".fits":
-				export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
-		print("\noutput to %s" % os.path.abspath(args.output))
+			return True
+		if output_ext == ".hdf5":
+			export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
+		elif output_ext == ".fits":
+			export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
+		if progressbar:
+			progressbar.close()
+		if not args.quiet:
+			print("\noutput to %s" % os.path.abspath(args.output))
+	dataset.close_files()
 	return 0
 

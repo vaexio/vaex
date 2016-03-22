@@ -1,7 +1,9 @@
 import itertools
 
 import numpy as np
-from pyjavaproperties import Properties
+#from pyjavaproperties import Properties
+import jprops
+import collections
 
 from vaex.ui.qt import *
 import vaex.dataset
@@ -331,7 +333,7 @@ class SubspaceTable(QtGui.QTableWidget):
 				max_key = pair[0]+".max"
 				if 1:
 					#print "test", min_key
-					if min_key in self.properties._props:
+					if min_key in self.properties:
 						item = QtGui.QTableWidgetItem()#"%s"  % quality)
 						value = self.properties[min_key]
 						#print "it is in... and value =", value
@@ -340,7 +342,7 @@ class SubspaceTable(QtGui.QTableWidget):
 						item.setFlags(self.defaultFlags)
 						self.setItem(i, 2, item)
 
-					if max_key in self.properties._props:
+					if max_key in self.properties:
 						value = self.properties[max_key]
 						item = QtGui.QTableWidgetItem()#"%s"  % quality)
 						item.setText("%s"  % value)
@@ -415,8 +417,8 @@ class SubspaceTable(QtGui.QTableWidget):
 		ma = self.item(index, 3)
 		if mi is None or ma is None:
 			return None, None
-		print pair, mi, ma
-		print mi.data(QtCore.Qt.DisplayRole)
+		#print pair, mi, ma
+		#print mi.data(QtCore.Qt.DisplayRole)
 		mi = None if mi is None else float(mi.data(QtCore.Qt.DisplayRole))
 		ma = None if ma is None else float(ma.data(QtCore.Qt.DisplayRole))
 		#print "->", pair, mi, ma
@@ -487,7 +489,7 @@ class SubspaceTable(QtGui.QTableWidget):
 			return found
 
 		self.filter_terms = filter_terms
-		print list, filter, self.pairs
+		#print list, filter, self.pairs
 		self.filter_mask = np.array([filter(pair) for pair in self.pairs])
 		self.queue_fill_table()
 		#self.fill_table()
@@ -516,7 +518,7 @@ class RankDialog(QtGui.QDialog):
 
 
 		#print "options", options
-		self.properties = Properties()
+		self.properties = collections.OrderedDict()# Properties()
 		if self.dataset.is_local():
 			self.properties_path = os.path.splitext(self.dataset.path)[0] + ".properties"
 		else:
@@ -529,7 +531,7 @@ class RankDialog(QtGui.QDialog):
 
 		self.properties_path = options.get("file", self.properties_path)
 		if os.path.exists(self.properties_path):
-			self.properties.load(open(self.properties_path))
+			self.load_properties()
 		else:
 			pass
 			#if not os.access(properties_path, os.W_OK):
@@ -769,8 +771,16 @@ class RankDialog(QtGui.QDialog):
 			else:
 				print(("min/max not present", key))
 		print(("save to", self.properties_path))
-		self.properties.store(open(self.properties_path, "w"))
+		self.store_properties()
 		dialog_info(self, "Stored", "Stored configuration to: %r" % self.properties_path)
+
+	def load_properties(self):
+		with open(self.properties_path) as f:
+			self.properties = jprops.load_properties(f, collections.OrderedDict)
+
+	def store_properties(self):
+		with open(self.properties_path) as f:
+			jprops.store_properties(f, self.properties)
 
 	def fill_range_map(self):
 		pairs = self.table1d.getSelected()
@@ -824,7 +834,6 @@ class RankDialog(QtGui.QDialog):
 				progress.add_task(minmax).end()
 				progress.execute()
 			ranges = minmax.get()
-			print ranges
 			self.table1d.setRanges(pairs, ranges)
 			self.fill_range_map()
 		except:
@@ -862,7 +871,6 @@ class RankDialog(QtGui.QDialog):
 		stds = vars**0.5
 		sigmas = 3
 		ranges = list(zip(means-sigmas*stds, means+sigmas*stds))
-		print ranges
 		self.table1d.setRanges(pairs, ranges)
 		self.fill_range_map()
 

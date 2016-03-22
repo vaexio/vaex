@@ -396,7 +396,7 @@ class RangeOption(object):
 					vmin, vmax = eval(text)
 					setter((vmin, vmax))
 					self.set_value((vmin, vmax))
-				except Exception, e:
+				except Exception as e:
 					dialog_error(parent, "Could not parse min/max values", "Could not parse min/max values: %r" % e)
 			self.action_paste = QtGui.QAction("Paste", parent)
 			self.action_paste.triggered.connect(paste)

@@ -31,7 +31,7 @@ except:
 	healpy = None
 	
 #from attrdict import AttrDict
-from plot_windows import AttrDict
+from .plot_windows import AttrDict
 
 
 logger = logging.getLogger("vaex.ui.layer")
@@ -238,7 +238,6 @@ class LayerTable(object):
 				ranges = eval(ranges)
 			for i in range(self.dimensions):
 				self.state.ranges_grid[i] = ranges[i]
-			print("ranges" * 100, self.state.ranges_grid)
 		if "xlim" in self.options:
 			self.state.ranges_grid[0] = eval(self.options["xlim"])
 		if "ylim" in self.options:
@@ -470,8 +469,8 @@ class LayerTable(object):
 			if name == "counts" or (grid.weight_expression is not None and len(grid.weight_expression) > 0):
 				if grid.max_size >= gridsize:
 					locals[name] = grid.get_data(gridsize, use_selection=use_selection, disjoined=self.plot_window.show_disjoined)
-					import vaex.kld
-					print("Mutual information", name,  gridsize, self.state.expressions, vaex.kld.mutual_information(locals[name]))
+					#import vaex.kld
+					#print("Mutual information", name,  gridsize, self.state.expressions, vaex.kld.mutual_information(locals[name]))
 			else:
 				locals[name] = None
 		for d, name in zip(list(range(self.dimensions)), "xyzw"):
@@ -542,13 +541,11 @@ class LayerTable(object):
 		phis = np.linspace(np.deg2rad(xlim[0]), np.deg2rad(xlim[1]), self.plot_window.state.grid_size)# + np.pi/2.
 		thetas = np.pi-np.linspace(np.deg2rad(ylim[1]) + np.pi/2., np.deg2rad(ylim[0]) + np.pi/2., self.plot_window.state.grid_size)
 		#phis = (np.linspace(0, 2*np.pi, 256) - np.pi) % (2*np.pi)
-		print thetas, phis
 		thetas, phis = np.meshgrid(thetas, phis)
 
 		pix = healpy.ang2pix(512, thetas, phis)
 		I = self.schlegel_map[pix].T[::-1,:]
 		I = self._normalize_values(np.log(I))
-		print I
 		self.schlegel_projected = I
 		rgb = self._to_rgb(I, color=self.color)
 		axes_list[0].rgb_images.append(rgb)
@@ -571,8 +568,6 @@ class LayerTable(object):
 		logger.debug("total sum of amplitude grid: %s", np.nansum(self.amplitude_grid_view))
 
 		if self.dimensions == 1:
-			print self.amplitude_grid
-			print self.amplitude_grid_view
 			mask = ~(np.isnan(self.amplitude_grid_view) | np.isinf(self.amplitude_grid_view))
 			if np.sum(mask) == 0:
 				self.range_level = None
@@ -607,7 +602,6 @@ class LayerTable(object):
 						if self.display_type == "bar":
 							axes.bar(x, values, width=delta, align='center', alpha=self.state.alpha, color=self.color)
 						else:
-							print(len(x), len(self.amplitude_grid))
 							dx = x[1] - x[0]
 							x2 = list(np.ravel(list(zip(x,x+dx))))
 							x2p = [x[0]] + x2 + [x[-1]+dx]
@@ -648,8 +642,6 @@ class LayerTable(object):
 			if 1: #any(self.state.vector_expressions):
 				grid_vector = self.grid_vector
 				if self.layer_slice_source:
-					print self.slice_selection_grid.shape
-					print grid_vector["counts"].shape
 					grid_vector = grid_vector.slice(self.slice_selection_grid)
 				vector_grids = None
 				if any(self.state.vector_expressions):
@@ -712,7 +704,7 @@ class LayerTable(object):
 							grid = grid.disjoined()
 						try:
 							amplitude = grid.evaluate(self.amplitude_expression)
-						except Exception, e:
+						except Exception as e:
 							self.error_in_field(self.amplitude_box, "amplitude of layer %s" % self.name, e)
 							return
 						if self.dataset.has_selection():
@@ -754,8 +746,6 @@ class LayerTable(object):
 									vx[mask] /= length
 									vy[mask] /= length
 
-								print "length " * 10,
-								print np.sqrt(vx[mask]**2 + vy[mask]**2)
 								scale = self.plot_window.state.vector_grid_size / self.vector_scale
 								width = self.vector_head_width * 0.1/self.plot_window.state.vector_grid_size
 								if vz is not None and self.vectors_color_code_3rd:
@@ -1111,7 +1101,6 @@ class LayerTable(object):
 			subspace = subspace.selected()
 
 		for i, expression in enumerate(self.state.vector_expressions):
-			#print self, self.state.vector_expressions, self.state.ranges_grid
 			name = "xyzw"[i]
 
 			# add arrays x y z which container the centers of the bins
@@ -1200,7 +1189,6 @@ class LayerTable(object):
 				phis = np.linspace(np.deg2rad(xlim[0]), np.deg2rad(xlim[1]), self.plot_window.state.grid_size)# + np.pi/2.
 				thetas = np.pi-np.linspace(np.deg2rad(ylim[1]) + np.pi/2., np.deg2rad(ylim[0]) + np.pi/2., self.plot_window.state.grid_size)
 				#phis = (np.linspace(0, 2*np.pi, 256) - np.pi) % (2*np.pi)
-				print thetas, phis
 				thetas, phis = np.meshgrid(thetas, phis)
 
 				pix = healpy.ang2pix(512, thetas, phis)
@@ -1304,7 +1292,7 @@ class LayerTable(object):
 		self.widget = self.toolbox
 
 		if "selection" in self.options:
-			raise NotImplementedError, "selection meaning changed"
+			raise NotImplementedError("selection meaning changed")
 			#filename = self.options["selection"]
 			#mask = np.load(filename)
 			#action = vaex.ui.undo.ActionMask(self.dataset.undo_manager, "selection from %s" % filename, mask, self.apply_mask)
@@ -1363,7 +1351,7 @@ class LayerTable(object):
 		self.state.expressions[index] = expression
 		try:
 			self.dataset.validate_expression(expression)
-		except Exception, e:
+		except Exception as e:
 			logger.exception("error in expression")
 			self.error_in_field(self.axisboxes[index], self.axis_names[index], e)
 			return
@@ -1414,7 +1402,7 @@ class LayerTable(object):
 		if expression:
 			try:
 				self.dataset.validate_expression(expression)
-			except Exception, e:
+			except Exception as e:
 				self.error_in_field(self.weight_box, "weight", e)
 				return
 		self.weight_box.lineEdit().setText(expression)
@@ -1460,7 +1448,7 @@ class LayerTable(object):
 		if expression:
 			try:
 				self.dataset.validate_expression(expression)
-			except Exception, e:
+			except Exception as e:
 				self.error_in_field(self.weight_x_box, "v" +name, e)
 				return
 
@@ -1959,9 +1947,7 @@ class LayerTable(object):
 
 
 		for window in self.plot_window.app.windows:
-			print "window", window
 			layers = [layer for layer in window.layers if layer.dataset == self.dataset]
-			print "layers", layer
 			if layers:
 				menu_window = QtGui.QMenu(window.name, self.menu_slice_link)
 				self.menu_slice_link.addMenu(menu_window)
@@ -2069,7 +2055,7 @@ class LayerTable(object):
 					expression = str(expression)
 					try:
 						self.dataset.validate_expression(expression)
-					except Exception, e:
+					except Exception as e:
 						expressions[0] = expression
 						self.error_in_field(self.button_selection_expression, "selection", e)
 						continue
@@ -2476,7 +2462,7 @@ class LayerTable(object):
 			logger.debug("validating %r", self.state.expressions[i])
 			try:
 				self.dataset.validate_expression(self.state.expressions[i])
-			except Exception, e:
+			except Exception as e:
 				self.error_in_field(self.axisboxes[i], self.axis_names[i], e)
 				return False
 		for i in range(self.vector_dimensions):
@@ -2484,14 +2470,14 @@ class LayerTable(object):
 			try:
 				if self.state.vector_expressions[i]:
 					self.dataset.validate_expression(self.state.vector_expressions[i])
-			except Exception, e:
+			except Exception as e:
 				self.error_in_field(self.vector_boxes[i], self.vector_names[i], e)
 				return False
 
 		try:
 			if self.state.weight_expression:
 				self.dataset.validate_expression(self.state.weight_expression)
-		except Exception, e:
+		except Exception as e:
 			self.error_in_field(self.weight_box, "weight", e)
 			return False
 		return True

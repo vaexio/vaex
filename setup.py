@@ -75,7 +75,7 @@ if has_py2app and sys.argv[1] == "py2app":
 				for filename in libs:
 					path = os.path.join(libpath, filename)
 					cmd = "cp %s %s" % (path, targetdir)
-					print cmd
+					print(cmd)
 					os.system(cmd)
 
 				libs = [line.strip() for line in """
@@ -85,7 +85,7 @@ if has_py2app and sys.argv[1] == "py2app":
 				for filename in libs:
 					#path = os.path.join(libpath, filename)
 					cmd = "cp %s %s" % (path, targetdir)
-					print cmd
+					print(cmd)
 					os.system(cmd)
 
 			os.system("cp data/helmi-dezeeuw-2000-10p.hdf5 dist/vaex.app/Contents/Resources/")

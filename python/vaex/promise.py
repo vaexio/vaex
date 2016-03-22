@@ -113,7 +113,7 @@ class Promise(aplus.Promise):
 			args = sys.exc_info()
 			if args is None or args[0] is None:
 				args = Promise.last_exc_info
-			print reason, args, Promise.last_exc_info, sys.exc_info(), Promise.unhandled
+			#print reason, args, Promise.last_exc_info, sys.exc_info(), Promise.unhandled
 			if hasattr(reason, "exc_info"):
 				args = reason.exc_info
 			#print args

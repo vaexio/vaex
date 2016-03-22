@@ -15,6 +15,7 @@ a = vaex.execution.buffer_size_default # will crash if we decide to rename it
 vaex.execution.buffer_size_default = 3
 
 vx.set_log_level_exception()
+vx.set_log_level_off()
 #vx.set_log_level_debug()
 
 class CallbackCounter(object):
@@ -345,17 +346,17 @@ class TestDataset(unittest.TestCase):
 									#print len(dataset)
 									if export == dataset.export_hdf5:
 										path = path_hdf5
-										export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection)
+										export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
 									else:
 										path = path_fits
-										export(path, column_names=column_names, shuffle=shuffle, selection=selection)
-										fitsfile = astropy.io.fits.open(path)
-										# make sure astropy can read the data
-										bla = fitsfile[1].data
-										try:
-											fitsfile.writeto(path_fits_astropy)
-										finally:
-											os.remove(path_fits_astropy)
+										export(path, column_names=column_names, shuffle=shuffle, selection=selection, progress=False)
+										with astropy.io.fits.open(path) as fitsfile:
+											# make sure astropy can read the data
+											bla = fitsfile[1].data
+											try:
+												fitsfile.writeto(path_fits_astropy)
+											finally:
+												os.remove(path_fits_astropy)
 									compare = vx.open(path)
 									column_names = column_names or ["x", "y", "z"]
 									self.assertEqual(compare.get_column_names(), column_names + (["random_index"] if shuffle else []))
@@ -369,21 +370,23 @@ class TestDataset(unittest.TestCase):
 												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[indices]))
 											else:
 												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[:length]))
+									compare.close_files()
 
 				# self.dataset_concat_dup references self.dataset, so set it's active_fraction to 1 again
 				dataset.set_active_fraction(1)
 		import vaex.export
 		dataset = self.dataset
-		dataset.export_hdf5(path_fits)
+		dataset.export_fits(path_fits)
 		name = "vaex export"
-		vaex.export.main([name, "file", path_fits, path_hdf5])
+		#print(path_fits)
+		vaex.export.main([name, "--no-progress", "-q", "file", path_fits, path_hdf5])
 		backup = vaex.vaex.utils.check_memory_usage
 		try:
 			vaex.vaex.utils.check_memory_usage = lambda *args: False
-			assert vaex.export.main([name, "soneira", "--dimension=2", "-m=40", path_hdf5]) == 1
+			assert vaex.export.main([name, "--no-progress", "-q", "soneira", "--dimension=2", "-m=40", path_hdf5]) == 1
 		finally:
 			vaex.utils.check_memory_usage = backup
-		assert vaex.export.main([name, "soneira", "--dimension=2", "-m=20", path_hdf5]) == 0
+		assert vaex.export.main([name, "--no-progress", "-q", "soneira", "--dimension=2", "-m=20", path_hdf5]) == 0
 
 	def test_fraction(self):
 		counter_selection = CallbackCounter()
@@ -408,9 +411,9 @@ class TestDataset(unittest.TestCase):
 		self.dataset.select("x > 5")
 		self.assertEqual(counter_selection.counter, 3)
 		self.assertEqual(counter_current_row.counter, 2)
-		self.assert_(self.dataset.has_selection())
+		self.assertTrue(self.dataset.has_selection())
 		self.dataset.set_active_fraction(0.5) # nothing should happen, still the same
-		self.assert_(self.dataset.has_selection())
+		self.assertTrue(self.dataset.has_selection())
 		self.dataset.set_active_fraction(0.4999)
 		self.assertFalse(self.dataset.has_selection())
 
@@ -480,66 +483,66 @@ class TestDataset(unittest.TestCase):
 		pass # TODO
 
 	def test_selection_history(self):
-		self.assert_(not self.dataset.has_selection())
-		self.assert_(not self.dataset.selection_can_undo())
-		self.assert_(not self.dataset.selection_can_redo())
+		self.assertTrue(not self.dataset.has_selection())
+		self.assertTrue(not self.dataset.selection_can_undo())
+		self.assertTrue(not self.dataset.selection_can_redo())
 
 		self.dataset.select_nothing()
-		self.assert_(not self.dataset.has_selection())
-		self.assert_(not self.dataset.selection_can_undo())
-		self.assert_(not self.dataset.selection_can_redo())
+		self.assertTrue(not self.dataset.has_selection())
+		self.assertTrue(not self.dataset.selection_can_undo())
+		self.assertTrue(not self.dataset.selection_can_redo())
 
 
 		total = self.dataset("x").sum()
-		self.assert_(not self.dataset.has_selection())
-		self.assert_(not self.dataset.selection_can_undo())
-		self.assert_(not self.dataset.selection_can_redo())
+		self.assertTrue(not self.dataset.has_selection())
+		self.assertTrue(not self.dataset.selection_can_undo())
+		self.assertTrue(not self.dataset.selection_can_redo())
 		self.dataset.select("x > 5")
-		self.assert_(self.dataset.has_selection())
+		self.assertTrue(self.dataset.has_selection())
 		total_subset = self.dataset("x").selected().sum()
 		self.assertLess(total_subset, total)
-		self.assert_(self.dataset.selection_can_undo())
-		self.assert_(not self.dataset.selection_can_redo())
+		self.assertTrue(self.dataset.selection_can_undo())
+		self.assertTrue(not self.dataset.selection_can_redo())
 
 		self.dataset.select("x < 7", mode="and")
 		total_subset2 = self.dataset("x").selected().sum()
 		self.assertLess(total_subset2, total_subset)
-		self.assert_(self.dataset.selection_can_undo())
-		self.assert_(not self.dataset.selection_can_redo())
+		self.assertTrue(self.dataset.selection_can_undo())
+		self.assertTrue(not self.dataset.selection_can_redo())
 
 		self.dataset.selection_undo()
 		total_subset_same = self.dataset("x").selected().sum()
 		self.assertEqual(total_subset, total_subset_same)
-		self.assert_(self.dataset.selection_can_undo())
-		self.assert_(self.dataset.selection_can_redo())
+		self.assertTrue(self.dataset.selection_can_undo())
+		self.assertTrue(self.dataset.selection_can_redo())
 
 		self.dataset.selection_redo()
 		total_subset2_same = self.dataset("x").selected().sum()
 		self.assertEqual(total_subset2, total_subset2_same)
-		self.assert_(self.dataset.selection_can_undo())
-		self.assert_(not self.dataset.selection_can_redo())
+		self.assertTrue(self.dataset.selection_can_undo())
+		self.assertTrue(not self.dataset.selection_can_redo())
 
 		self.dataset.selection_undo()
 		self.dataset.selection_undo()
-		self.assert_(not self.dataset.has_selection())
-		self.assert_(not self.dataset.selection_can_undo())
-		self.assert_(self.dataset.selection_can_redo())
+		self.assertTrue(not self.dataset.has_selection())
+		self.assertTrue(not self.dataset.selection_can_undo())
+		self.assertTrue(self.dataset.selection_can_redo())
 
 		self.dataset.selection_redo()
-		self.assert_(self.dataset.has_selection())
-		self.assert_(self.dataset.selection_can_undo())
-		self.assert_(self.dataset.selection_can_redo())
+		self.assertTrue(self.dataset.has_selection())
+		self.assertTrue(self.dataset.selection_can_undo())
+		self.assertTrue(self.dataset.selection_can_redo())
 		self.dataset.select("x < 7", mode="and")
-		self.assert_(self.dataset.selection_can_undo())
-		self.assert_(not self.dataset.selection_can_redo())
+		self.assertTrue(self.dataset.selection_can_undo())
+		self.assertTrue(not self.dataset.selection_can_redo())
 
 		self.dataset.select_nothing()
-		self.assert_(not self.dataset.has_selection())
-		self.assert_(self.dataset.selection_can_undo())
-		self.assert_(not self.dataset.selection_can_redo())
+		self.assertTrue(not self.dataset.has_selection())
+		self.assertTrue(self.dataset.selection_can_undo())
+		self.assertTrue(not self.dataset.selection_can_redo())
 		self.dataset.selection_undo()
-		self.assert_(self.dataset.selection_can_undo())
-		self.assert_(self.dataset.selection_can_redo())
+		self.assertTrue(self.dataset.selection_can_undo())
+		self.assertTrue(self.dataset.selection_can_redo())
 
 	def test_selection_serialize(self):
 		selection_lasso = vaex.dataset.SelectionLasso(self.dataset, "x", "y", [0, 10, 0], [-1, -1, 1], None, "replace")
@@ -589,11 +592,11 @@ class TestDataset(unittest.TestCase):
 
 
 
-test_port = 29010
-
+test_port = 29010+10
 class TestDatasetRemote(TestDataset):
 	use_websocket = True
 	def setUp(self):
+		global test_port
 		# run all tests from TestDataset, but now served at the server
 		super(TestDatasetRemote, self).setUp()
 		self.dataset_local = self.dataset
@@ -608,6 +611,7 @@ class TestDatasetRemote(TestDataset):
 		#print "getting server object"
 		scheme = "ws" if self.use_websocket else "http"
 		self.server = vx.server("%s://localhost:%d" % (scheme, test_port))
+		test_port += 1
 		#print "get datasets"
 		datasets = self.server.datasets(as_dict=True)
 		#print "got it", datasets
@@ -618,6 +622,8 @@ class TestDatasetRemote(TestDataset):
 		self.dataset_concat_dup = datasets["dataset_concat_dup"]
 		#print "all done"
 
+
+
 	def tearDown(self):
 		#print "stop serving"
 		self.webserver.stop_serving()
@@ -627,12 +633,13 @@ class TestDatasetRemote(TestDataset):
 
 	def test_concat(self):
 		pass # doesn't make sense to test this for remote
+"""
 
-class TestDatasetRemoteHttp(TestDatasetRemote):
+class T_estDatasetRemoteHttp(T_estDatasetRemote):
 	use_websocket = False
 
 
-class TestWebServer(unittest.TestCase):
+class T_stWebServer(unittest.TestCase):
 	def setUp(self):
 		self.dataset = dataset.DatasetArrays()
 
@@ -651,7 +658,7 @@ class TestWebServer(unittest.TestCase):
 
 	def test_list(self):
 		datasets = self.server.datasets()
-		self.assert_(len(datasets) == 1)
+		self.assertTrue(len(datasets) == 1)
 		dataset_remote = datasets[0]
 		self.assertEqual(dataset_remote.name, self.dataset.name)
 		self.assertEqual(dataset_remote.get_column_names(), self.dataset.get_column_names())
@@ -668,7 +675,7 @@ class TestWebServer(unittest.TestCase):
 		grid2 = self.dataset_remote("x").bounded().gridded(32).grid
 		self.assertEqual(grid1.tolist(), grid2.tolist())
 
-
+"""
 
 if __name__ == '__main__':
     unittest.main()

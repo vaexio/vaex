@@ -125,6 +125,10 @@ def set_log_level_exception():
 	import logging
 	logging.getLogger("vaex").setLevel(logging.FATAL)
 
+def set_log_level_off():
+	import logging
+	logging.disable(logging.CRITICAL)
+
 
 import logging
 logging.basicConfig(level=logging.ERROR)

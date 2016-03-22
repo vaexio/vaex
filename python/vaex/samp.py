@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #from sampy import *
 #from SocketServer import ThreadingMixIn
-import sampy
+import astropy.vo.samp
 import logging
 import threading
 
@@ -10,7 +10,7 @@ logger = logging.getLogger("vaex.samp")
 
 class Samp(object):
 	def __init__(self, daemon=True, name=None):
-		self.client = sampy.SAMPIntegratedClient(metadata = {"samp.name":"Gavi client" if name is None else name,
+		self.client = astropy.vo.samp.SAMPIntegratedClient(metadata = {"samp.name":"Gavi client" if name is None else name,
 										"samp.description.text": "Gavi client" if name is None else name,
 										"gavi.samp.version":"0.01"}, callable=True)
 

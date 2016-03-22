@@ -83,7 +83,10 @@ class ThreadPoolIndex(object):
 							#print("********************")
 							#print(element)
 							#raise element[1]
-							raise element[0], element[1], element[2]
+							if sys.version_info >= (3, 0):
+								raise element[1].with_traceback(element[2])
+							else:
+								raise element[1]#(element[2])
 							#raise element[0](element[1])
 							#raise element[0].__class__(None, element[2])
 							#TODO: 2to3 gave this suggestion: raise element[1].with_traceback(element[2])

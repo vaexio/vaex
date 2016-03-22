@@ -1,7 +1,7 @@
 from __future__ import print_function
 __author__ = 'breddels'
 
-import sampy
+#import astropy.vo.samp as sampy
 import platform
 import vaex.utils
 import sys
@@ -861,9 +861,10 @@ class VaexApp(QtGui.QMainWindow):
 	signal_samp_notification = QtCore.pyqtSignal(str, str, str, dict, dict)
 	signal_samp_call = QtCore.pyqtSignal(str, str, str, str, dict, dict)
 
-	def __init__(self, argv=[], open_default=False):
+	def __init__(self, argv=[], open_default=False, enable_samp=None):
 		super(VaexApp, self).__init__()
 
+		self.enable_samp = False #enable_samp if enable_samp is not None or (sys.version_info < (3, 0))
 		self.windows = []
 		self.current_window = None
 		self.current_dataset = None
@@ -888,7 +889,6 @@ class VaexApp(QtGui.QMainWindow):
 		#self.setGeometry(300, 300, 250, 150)
 		self.resize(700,500)
 		#self.center()
-		#self.setWindowTitle('vaex samp test')
 		self.setWindowTitle('V\xe6X v' + vaex.__version__)
 		#self.statusBar().showMessage('Ready')
 
@@ -973,7 +973,7 @@ class VaexApp(QtGui.QMainWindow):
 			try:
 				vaex_server = vaex.server(server, thread_mover=self.call_in_main_thread)
 				datasets = vaex_server.datasets()
-			except Exception, e:
+			except Exception as e:
 				dialogs.dialog_error(self, "Error connecting", "Error connecting: %r" % e)
 				return
 			dataset_descriptions = ["%s (%d rows)" % (dataset.name, len(dataset)) for dataset in datasets]
@@ -1076,36 +1076,35 @@ class VaexApp(QtGui.QMainWindow):
 		#self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
 
 		#self.toolbar.addAction(exitAction)
+		if self.enable_samp:
+			self.action_samp_connect = QtGui.QAction(QtGui.QIcon(vp.iconfile('plug-connect')), 'Connect to SAMP HUB', self)
+			self.action_samp_connect.setShortcut('Alt+S')
+			self.action_samp_connect.setCheckable(True)
+			if use_toolbar:
+				self.toolbar.addAction(self.action_samp_connect)
+			self.action_samp_connect.triggered.connect(self.onSampConnect)
 
-		self.action_samp_connect = QtGui.QAction(QtGui.QIcon(vp.iconfile('plug-connect')), 'Connect to SAMP HUB', self)
-		self.action_samp_connect.setShortcut('Alt+S')
-		self.action_samp_connect.setCheckable(True)
-		if use_toolbar:
-			self.toolbar.addAction(self.action_samp_connect)
-		self.action_samp_connect.triggered.connect(self.onSampConnect)
-
-		if 1:
 			self.action_samp_table_send = QtGui.QAction(QtGui.QIcon(vp.iconfile('table--arrow')), 'Send active dataset via SAMP', self)
 			self.action_samp_table_send.setShortcut('Alt+T')
 			if use_toolbar:
 				self.toolbar.addAction(self.action_samp_table_send)
 			self.action_samp_table_send.triggered.connect(self.onSampSend)
 
-		self.action_samp_sand_table_select_row_list = QtGui.QAction(QtGui.QIcon(vp.iconfile('block--arrow')), 'Send selection via SAMP(table.select.rowlist)', self)
-		self.action_samp_sand_table_select_row_list.setShortcut('Alt+R')
-		if use_toolbar:
-			self.toolbar.addAction(self.action_samp_sand_table_select_row_list)
-		self.action_samp_sand_table_select_row_list.triggered.connect(self.on_samp_send_table_select_rowlist)
+			self.action_samp_sand_table_select_row_list = QtGui.QAction(QtGui.QIcon(vp.iconfile('block--arrow')), 'Send selection via SAMP(table.select.rowlist)', self)
+			self.action_samp_sand_table_select_row_list.setShortcut('Alt+R')
+			if use_toolbar:
+				self.toolbar.addAction(self.action_samp_sand_table_select_row_list)
+			self.action_samp_sand_table_select_row_list.triggered.connect(self.on_samp_send_table_select_rowlist)
 
-		self.toolbar.addSeparator()
+			self.toolbar.addSeparator()
 
-		self.action_save_hdf5.triggered.connect(self.onExportHdf5)
-		self.action_save_fits.triggered.connect(self.onExportFits)
+			self.action_save_hdf5.triggered.connect(self.onExportHdf5)
+			self.action_save_fits.triggered.connect(self.onExportFits)
 
-		self.sampMenu = menubar.addMenu('&Samp')
-		self.sampMenu.addAction(self.action_samp_connect)
-		#self.sampMenu.addAction(self.action_samp_table_send)
-		self.sampMenu.addAction(self.action_samp_sand_table_select_row_list)
+			self.sampMenu = menubar.addMenu('&Samp')
+			self.sampMenu.addAction(self.action_samp_connect)
+			#self.sampMenu.addAction(self.action_samp_table_send)
+			self.sampMenu.addAction(self.action_samp_sand_table_select_row_list)
 
 
 		if use_toolbar:
@@ -1158,19 +1157,20 @@ class VaexApp(QtGui.QMainWindow):
 		self.action_credits.triggered.connect(self.onActionCredits)
 
 
-		self.signal_samp_notification.connect(self.on_samp_notification)
-		self.signal_samp_call.connect(self.on_samp_call)
+		if self.enable_samp:
+			self.signal_samp_notification.connect(self.on_samp_notification)
+			self.signal_samp_call.connect(self.on_samp_call)
 
-		QtCore.QCoreApplication.instance().aboutToQuit.connect(self.clean_up)
-		self.action_samp_connect.setChecked(True)
-		self.onSampConnect(ignore_error=True)
-		self.dataset_selector.signal_pick.connect(self.on_pick)
+			QtCore.QCoreApplication.instance().aboutToQuit.connect(self.clean_up)
+			self.action_samp_connect.setChecked(True)
+			self.onSampConnect(ignore_error=True)
+			self.dataset_selector.signal_pick.connect(self.on_pick)
 
-		self.samp_ping_timer = QtCore.QTimer()
-		self.samp_ping_timer.timeout.connect(self.on_samp_ping_timer)
-		#self.samp_ping_timer.start(1000)
+			self.samp_ping_timer = QtCore.QTimer()
+			self.samp_ping_timer.timeout.connect(self.on_samp_ping_timer)
+			#self.samp_ping_timer.start(1000)
 
-		self.highlighed_row_from_samp = False
+			self.highlighed_row_from_samp = False
 
 		def on_open_plot(plot_dialog):
 			plot_dialog.signal_samp_send_selection.connect(lambda dataset: self.on_samp_send_table_select_rowlist(dataset=dataset))

@@ -6,7 +6,7 @@ import sys
 import os
 import pickle
 try: # py2/3 compatibility
-	from file import StringIO
+	from io import StringIO
 except ImportError:
 	from cStringIO import StringIO
 import traceback

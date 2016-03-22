@@ -123,7 +123,7 @@ class GridScope(object):
 			value = self[key]
 			if isinstance(value, np.ndarray):
 				dimension = len(value.shape)
-				axes = range(dimension)
+				axes = list(range(dimension))
 				axes.remove(i)
 				axes.remove(j)
 				grid = vaex.utils.multisum(value, axes)

@@ -18,13 +18,13 @@ if __name__ == "__main__":
 	import sys
 	#print vaex.__version_tuple__
 	if sys.argv[1] == "version":
-		print "version:", vaex.__version__
+		print("version:", vaex.__version__)
 	elif sys.argv[1] == "fullname":
-		print "full name:", vaex.__full_name__
+		print("full name:", vaex.__full_name__)
 	elif sys.argv[1] == "buildname":
-		print "build name:", vaex.__build_name__
+		print("build name:", vaex.__build_name__)
 	elif sys.argv[1] == "tagcmd":
-		print "git tag %s" % versionstring
-		print "git push --tags"
+		print("git tag %s" % versionstring)
+		print("git push --tags")
 	else:
-		print "use version, fullname or buildname as argument"
+		print("use version, fullname or buildname as argument")

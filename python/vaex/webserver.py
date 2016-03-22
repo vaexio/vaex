@@ -68,7 +68,7 @@ class JobQueue(object):
 
 	def get_next(self):
 		if len(self.queue) == 0:
-			raise IndexError, "queue empty"
+			raise IndexError("queue empty")
 		total_cost = sum(job.cost for job in self.queue)
 		job_count = len(self.queue)
 		job = self.queue.pop(0)
@@ -304,6 +304,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 										 "description": ds.description, "descriptions":ds.descriptions,
 										 "ucds":ds.ucds, "units":{name:str(unit) for name, unit in ds.units.items()},
 										 "dtypes":{name:ds.columns[name].dtype.name for name in ds.get_column_names()},
+										 "virtual_columns":dict(ds.virtual_columns),
 										 } for ds in webserver.datasets])
 				logger.debug("response: %r", response)
 				return response
@@ -322,7 +323,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 						else:
 							expressions = None
 						# make a shallow copy, such that selection and active_fraction is not shared
-						dataset = webserver.datasets_map[dataset_name].shallow_copy()
+						dataset = webserver.datasets_map[dataset_name].shallow_copy(virtual=False)
 						if dataset.mask is not None:
 							logger.debug("selection: %r", dataset.mask.sum())
 						if "active_fraction" in arguments:
@@ -360,12 +361,22 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								logger.debug("result: %r", values)
 								#print values, expressions
 								values = values.tolist() if hasattr(values, "tolist") else values
+
+								#for value in values:
+								#	logger.debug("value: %r" % type(value))
+								#try:
+								#	values = [(k.tolist() if hasattr(k, "tolist") else k) for k in values]
+								#except:
+								#	pass
 								return ({"result": values})
 							elif method_name == "histogram":
 								grid = task_invoke(subspace, method_name, **arguments)
 								#self.set_header("Content-Type", "application/octet-stream")
 								#return (grid.tostring())
-								return {"result": grid.tostring().encode("base64")}
+								import base64
+								result = base64.b64encode(grid.tostring()).decode("ascii")
+								logger.debug("type: %s" % type(result))
+								return {"result": result}
 							elif method_name in ["select", "lasso_select"]:
 								dataset.mask = webserver.cache_selection.get((dataset.path, user_id))
 								result = task_invoke(dataset, method_name, **arguments)
@@ -534,7 +545,7 @@ def main(argv):
 
 if __name__ == "__main__":
 	#logger.setLevel(logging.logging.DEBUG)
-	print sys.argv
+	#print sys.argv
 	main(sys.argv)
 	#3_threaded()
 	#import time
