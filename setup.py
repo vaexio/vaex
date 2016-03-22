@@ -211,3 +211,4 @@ setup(
     url="https://www.astro.rug.nl/~breddels/vaex"
 )
 
+os.path.dir
