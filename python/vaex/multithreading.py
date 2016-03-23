@@ -12,10 +12,46 @@ thread_count_default = multiprocessing.cpu_count()# * 2 + 1
 logger = logging.getLogger("vaex.multithreading")
 
 
+class MiniJob(object):
+	def __init__(self, callable, queue_out, args):
+		self.thread_index = None #thread_index
+		self.callable = callable
+		self.queue_out = queue_out
+		self.args = args
+		self.result = None
+		self.exc_info = None
+		self.cancelled = False
+		self.lock = threading.Lock()
+
+	def cancel(self):
+		with self.lock:
+			self.cancelled = True
+
+	def __call__(self, thread_index):
+		if not self.cancelled:
+			try:
+				result = self.callable(thread_index, *self.args)
+				with self.lock:
+					if not self.cancelled:
+						self.result = result
+						self.queue_out.put(self)
+					#else:
+					#	self.queue_out(None)
+			except Exception as e:
+				exc_info = sys.exc_info()
+				with self.lock:
+					if not self.cancelled:
+						self.exc_info = exc_info
+						self.queue_out.put(self)
+					#else:
+					#	self.queue_out(None)
+
 class ThreadPoolIndex(object):
 	def __init__(self, nthreads=None):
 		self.nthreads = nthreads or thread_count_default
+		self.jobs = []
 		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(self.nthreads)]
+		self.thread_locks = [threading.Lock() for i in range(self.nthreads)]
 		self.lock = threading.Lock()
 		self.queue_in = [] #queue.Queue()
 		self.queue_out = queue.Queue()
@@ -28,6 +64,70 @@ class ThreadPoolIndex(object):
 		self.lock = threading.Lock()
 
 	def map(self, callable, iterator, on_error=None, progress=None, cancel=None):
+		results = []
+		progress = progress or (lambda x: True)
+		cancel = cancel or (lambda: True)
+		try:
+			if self._working:
+				raise RuntimeError("reentered ThreadPoolIndex.map")
+			with self.lock:
+				self._working = True
+				count = 0
+				self.jobs = []
+				for element in iterator:
+					self.jobs.append(MiniJob(callable=callable, args=element, queue_out=self.queue_out))
+					#self.queue_in.append(element)
+					#$$self.queue_in.unfinished_tasks += 1
+					count +=1
+				self.new_jobs_event.set()
+				done = False
+				yielded = 0
+				while not done:
+					job = self.queue_out.get()
+					if job is None:
+						# this was just a leftover cancelled task
+						pass
+					else:
+						if job.exc_info is not None:
+							for other_job in self.jobs:
+								other_job.cancel()
+							while not self.queue_out.empty():
+								self.queue_out.get()
+							#print job.exc_info
+							if sys.version_info >= (3, 0):
+								raise job.exc_info[1].with_traceback(job.exc_info[2])
+							else:
+								raise job.exc_info[1]#(element[2])
+						results.append(job.result)
+						yielded += 1
+						if progress(yielded/float(count)) == False:
+							for job in self.jobs:
+								job.cancel()
+							while not self.queue_out.empty():
+								self.queue_out.get()
+							done = True
+						else:
+							done = yielded == count
+			return results
+		finally:
+			self._working = False
+			self.new_jobs_event.clear()
+
+	def execute(self, index):
+		done = False
+		while not done:
+			#print "waiting..", index
+			t0 = time.time()
+			empty = True
+			while empty:
+				try:
+					job = self.jobs.pop()
+					empty = False
+				except IndexError:
+					self.new_jobs_event.wait()
+			job(index)
+
+	def _map(self, callable, iterator, on_error=None, progress=None, cancel=None):
 		results = []
 		progress = progress or (lambda x: True)
 		cancel = cancel or (lambda: True)
@@ -115,7 +215,7 @@ class ThreadPoolIndex(object):
 		self.new_jobs_event.set()
 
 
-	def execute(self, index):
+	def _execute(self, index):
 		done = False
 		while not done:
 			#print "waiting..", index

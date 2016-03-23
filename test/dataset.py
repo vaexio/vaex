@@ -108,6 +108,13 @@ class TestDataset(unittest.TestCase):
 		# that that after a error we can still continue
 		self.dataset("x").sum()
 
+		for i in range(10):
+			with self.assertRaises(SyntaxError):
+				self.dataset("x/").sum()
+			with self.assertRaises((KeyError, NameError)): # TODO: should we have just one error type?
+				self.dataset("doesnotexist").sum()
+			self.dataset("x").sum()
+
 	def test_invalid_expression(self):
 		with self.assertRaises(SyntaxError):
 			self.dataset.validate_expression("x/")
