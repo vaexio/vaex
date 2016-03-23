@@ -513,7 +513,7 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
 			if((value > min) & (value < max)) {
 				const double scaled = (value - min) * scale;
 				const long long index = (long long)(scaled);
-				counts[index] += weights == NULL ? 1 : weights[i];
+				counts[index] +=  weights == NULL ? 1 : (isfinite(weights[i]) ? weights[i] : 0);
 			}
 		}
 	} else {
@@ -539,7 +539,7 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
 					const double scaled = (value - min) * scale;
 					const long long index = (long long)(scaled);
 					double weight = weights_native ? weights[i] : double_to_native(weights[i]);
-					counts[index] += weights == NULL ? 1 : weight;
+					counts[index] +=  weights == NULL ? 1 : (isfinite(weight) ? weight : 0);
 				}
 			}
 		}
@@ -652,7 +652,8 @@ void histogram2d(const double* const __restrict__ blockx, const double* const __
 				if( (scaled_x >= 0) & (scaled_x < 1) &  (scaled_y >= 0) & (scaled_y < 1) ) {
 					int index_x = (int)(scaled_x * counts_length_x);
 					int index_y = (int)(scaled_y * counts_length_y);
-					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : weights[i];
+					double weight = weights_native ? weights[i] : double_to_native(weights[i]);
+					counts[index_x + counts_length_x*index_y] += weights == NULL ? 1 : (isfinite(weight) ? weight : 0);
 				}
 				i_x = i_x >= block_length-1 ? 0 : i_x+1;
 				i_y = i_y >= block_length-1 ? 0 : i_y+1;
