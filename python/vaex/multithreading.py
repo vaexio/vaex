@@ -12,6 +12,8 @@ thread_count_default = multiprocessing.cpu_count()# * 2 + 1
 logger = logging.getLogger("vaex.multithreading")
 
 
+cancel_lock = threading.Lock()
+print_lock = threading.Lock()
 class MiniJob(object):
 	def __init__(self, callable, queue_out, args):
 		self.thread_index = None #thread_index
@@ -74,26 +76,23 @@ class ThreadPoolIndex(object):
 				self._working = True
 				count = 0
 				self.jobs = []
+				alljobs = []
 				for element in iterator:
-					self.jobs.append(MiniJob(callable=callable, args=element, queue_out=self.queue_out))
-					#self.queue_in.append(element)
-					#$$self.queue_in.unfinished_tasks += 1
+					job = MiniJob(callable=callable, args=element, queue_out=self.queue_out)
+					self.jobs.append(job)
+					alljobs.append(job)
 					count +=1
 				self.new_jobs_event.set()
 				done = False
 				yielded = 0
 				while not done:
 					job = self.queue_out.get()
-					if job is None:
-						# this was just a leftover cancelled task
-						pass
-					else:
+					if 1:
 						if job.exc_info is not None:
-							for other_job in self.jobs:
+							for other_job in alljobs:
 								other_job.cancel()
 							while not self.queue_out.empty():
 								self.queue_out.get()
-							#print job.exc_info
 							if sys.version_info >= (3, 0):
 								raise job.exc_info[1].with_traceback(job.exc_info[2])
 							else:
@@ -101,8 +100,8 @@ class ThreadPoolIndex(object):
 						results.append(job.result)
 						yielded += 1
 						if progress(yielded/float(count)) == False:
-							for job in self.jobs:
-								job.cancel()
+							for other_job in alljobs:
+								other_job.cancel()
 							while not self.queue_out.empty():
 								self.queue_out.get()
 							done = True
@@ -111,6 +110,7 @@ class ThreadPoolIndex(object):
 			return results
 		finally:
 			self._working = False
+			#self.jobs = []
 			self.new_jobs_event.clear()
 
 	def execute(self, index):
