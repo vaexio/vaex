@@ -282,6 +282,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 		logger.debug("creating thread pool and executor")
 		webserver.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex(nthreads=webserver.threads_per_job)
 		webserver.thread_local.executor = vaex.execution.Executor(thread_pool=webserver.thread_local.thread_pool)
+		webserver.thread_pools.append(webserver.thread_local.thread_pool)
 
 	progress = progress or (lambda x: True)
 	progress(0)
@@ -417,6 +418,7 @@ class WebServer(threading.Thread):
 
 		self.thread_pool = concurrent.futures.ThreadPoolExecutor(self.webserver_thread_count)
 		self.thread_local = threading.local()
+		self.thread_pools = []
 
 		self.job_queue = JobQueue()
 
@@ -491,6 +493,8 @@ class WebServer(threading.Thread):
 		logger.debug("stop io loop")
 		#self.ioloop.stop()
 		self.ioloop.clear_current()
+		for thread_pool in self.thread_pools:
+			thread_pool.close()
 
 defaults_yaml = """
 address: 0.0.0.0

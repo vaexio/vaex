@@ -111,7 +111,9 @@ class ThreadPoolIndex(object):
 		self.callable = None
 		#print "closing threads"
 		for index in range(self.nthreads):
-			self.queue_in.put(None)
+			self.queue_in.append(None)
+		self.new_jobs_event.set()
+
 
 	def execute(self, index):
 		done = False
