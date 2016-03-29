@@ -320,7 +320,18 @@ def add_celestial(parent, dataset):
 			values = dict(ra=result[0], dec=result[1], l="l", b="b", degrees="degrees")
 	else:
 		dialog = QuickDialog(parent, title="Celestial transform")
-		dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+		#dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+
+		logger.debug("unit = %s", dataset.unit(column_names[0], default=astropy.units.deg))
+		logger.debug("unit = %s", dataset.unit(column_names[0], default=astropy.units.deg) == astropy.units.rad)
+		radians = (dataset.unit(result[0], default=astropy.units.deg) == astropy.units.rad)
+		if radians:
+			dialog.add_combo("degrees", "Input in", ["degrees", "radians"][::-1])
+		else:
+			dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+
+
+
 		dialog.add_expression("ra", "Right ascension", result[0], dataset)
 		dialog.add_expression("dec", "Declination", result[1], dataset)
 
