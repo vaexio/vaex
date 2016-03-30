@@ -271,6 +271,10 @@ class TextOption(object):
 		#self.combobox.setCurrentIndex(options.index(getter()))
 		self.textfield.returnPressed.connect(on_change)
 
+	def set_unit_completer(self):
+		self.completer = vaex.ui.completer.UnitCompleter(self.textfield)
+		self.textfield.setCompleter(self.completer)
+
 	def get_placeholder(self):
 		if callable(self.placeholder):
 			return self.placeholder()

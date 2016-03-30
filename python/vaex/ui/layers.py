@@ -25,6 +25,7 @@ import functools
 import time
 from vaex.ui.qt import *
 import logging
+import astropy.units
 try:
 	import healpy
 except:
@@ -295,8 +296,17 @@ class LayerTable(object):
 		logger.debug("set weight expression to %s", dim, self.state.weight_expression)
 		self.set_weight_expression(self.state.weight_expression)
 
+
+		self.colorbar_checkbox.set_value(self.state.colorbar)
+		for dim in range(self.dimensions):
+			self.option_output_unit[dim].set_value(self.state.output_units[dim])
+		self.option_label_x.set_value(self.state.labels[0])
+		self.option_label_y.set_value(self.state.labels[1])
+
 		logger.debug("remove history change")
 		self.plot_window.queue_history_change(None)
+
+
 
 
 
@@ -519,6 +529,8 @@ class LayerTable(object):
 		amplitude = eval(expression, globals, locals)
 		return amplitude
 
+	def error_dialog(self, widget, name, exception):
+		dialogs.dialog_error(widget, "Error", "%s: %r" % (name, exception))
 	def error_in_field(self, widget, name, exception):
 		dialogs.dialog_error(widget, "Error in expression", "Invalid expression for field %s: %r" % (name, exception))
 		#self.current_tooltip = QtGui.QToolTip.showText(widget.mapToGlobal(QtCore.QPoint(0, 0)), "Error: " + str(exception), widget)
@@ -1526,17 +1538,22 @@ class LayerTable(object):
 		axis_index = 0
 
 		self.grid_layout = QtGui.QGridLayout()
-		self.grid_layout.setColumnStretch(2, 1)
+		#self.grid_layout.setColumnStretch(2, 1)
+		self.grid_layout.setColumnStretch(1, 1)
+		self.grid_layout.setSpacing(0)
+		self.grid_layout.setContentsMargins(2,1,2,1)
+		self.grid_layout.setAlignment(QtCore.Qt.AlignTop)
 		#row = 0
 		self.linkButtons = []
 		for axis_name in self.axis_names:
 			row = axis_index
-			axisbox = QtGui.QComboBox(page)
-			axisbox.setEditable(True)
-			axisbox.setMinimumContentsLength(10)
+			import vaex.ui.completer
+			axisbox = vaex.ui.completer.ExpressionCombobox(page, self.dataset, variables=True) #$QtGui.QComboBox(page)
+			#$axisbox.setEditable(True)
+			#axisbox.setMinimumContentsLength(10)
 			#self.form_layout.addRow(axis_name + '-axis:', axisbox)
 			self.grid_layout.addWidget(QtGui.QLabel(axis_name + '-axis:', page), row, 0)
-			self.grid_layout.addWidget(axisbox, row, 1, QtCore.Qt.AlignLeft)
+			self.grid_layout.addWidget(axisbox, row, 1)
 			linkButton = LinkButton("link", self.dataset, axis_index, page)
 			self.linkButtons.append(linkButton)
 			linkButton.setChecked(True)
@@ -1587,9 +1604,9 @@ class LayerTable(object):
 					if prefix + name not in expressionList:
 						allin = False
 				# if all items found, add it
-				if allin:
-					expression = "l2(%s) # l2 norm" % (",".join([prefix+name for name in names]))
-					extra_expressions.append(expression)
+				#if allin:
+				#	expression = "l2(%s) # l2 norm" % (",".join([prefix+name for name in names]))
+				#	extra_expressions.append(expression)
 
 				if 0: # this gives too much clutter
 					for name1 in names:
@@ -1672,7 +1689,7 @@ class LayerTable(object):
 			self.title_expression = str(self.title_box.lineEdit().text())
 			row += 1
 
-		self.weight_box = QtGui.QComboBox(page)
+		self.weight_box = vaex.ui.completer.ExpressionCombobox(page, self.dataset, variables=True)#QtGui.QComboBox(page)
 		self.weight_box.setEditable(True)
 		self.weight_box.addItems([self.options.get("weight", "")] + self.get_expression_list())
 		self.weight_box.setMinimumContentsLength(10)
@@ -1713,6 +1730,35 @@ class LayerTable(object):
 		if self.dimensions >= 3:
 			self.option_zrange = RangeOption(page, "z-range", [0], lambda: self.get_range(2), lambda value: self.plot_window.set_range(value[0], value[1], 2), update=self.update)
 			row = self.option_zrange.add_to_grid_layout(row, self.grid_layout)
+
+		self.state.output_units = []
+		self.option_output_unit = []
+		for dim in range(self.dimensions):
+			name = "unit"+self.axis_names[dim]
+			self.state.output_units.append(self.options.get(name, ""))
+			def get(dim=dim):
+				return self.state.output_units[dim]
+			def set(value, dim=dim, name=name):
+				if not value:
+					self.state.output_units[dim] = ""
+					self.plot_window.queue_history_change("changed %s to default" % name)
+					self.plot_window.queue_push_full_state()
+				else:
+					try:
+						unit_output = astropy.units.Unit(value)
+						unit_input = self.dataset.unit(self.state.expressions[dim])
+						unit_input.to(unit_output)
+						self.plot_window.queue_history_change("changed %s to %s" % (name, value))
+						self.plot_window.queue_push_full_state()
+					except Exception as e:
+						self.error_dialog(self.option_output_unit[dim].textfield, "Error converting units", e)
+					else:
+						self.state.output_units[dim] = value
+			self.option_output_unit.append(
+				dialogs.TextOption(page, name, get(), placeholder="output units", getter=get, setter=set, update=self.signal_plot_dirty.emit)
+			)
+			self.option_output_unit[-1].set_unit_completer()
+			row = self.option_output_unit[-1].add_to_grid_layout(row, self.grid_layout)
 
 		if 0:
 			self.grid_layout.addWidget(QtGui.QLabel("visible:"), row, 0)
@@ -1889,6 +1935,8 @@ class LayerTable(object):
 			return self.state.labels[0]
 		def set(value):
 			self.state.labels[0] = value
+			self.plot_window.queue_history_change("changed label_x to %s" % (value))
+			self.plot_window.queue_push_full_state()
 		def default():
 			#return "default label"
 			return self.plot_window.get_default_label(0)
@@ -1900,6 +1948,8 @@ class LayerTable(object):
 			return self.state.labels[1]
 		def set(value):
 			self.state.labels[1] = value
+			self.plot_window.queue_history_change("changed label_y to %s" % (value))
+			self.plot_window.queue_push_full_state()
 		def default():
 			#return "default label"
 			return self.plot_window.get_default_label(1)
@@ -1911,6 +1961,8 @@ class LayerTable(object):
 			return self.state.colorbar
 		def set(value):
 			self.state.colorbar = value
+			self.plot_window.queue_history_change("enabled colorbar" if value else "disabled colorbar")
+			self.plot_window.queue_push_full_state()
 		self.state.colorbar = eval(self.options.get("colorbar", "True"))
 		self.colorbar_checkbox = Checkbox(page, "colorbar", getter=get, setter=set, update=self.signal_plot_dirty.emit)
 		row = self.colorbar_checkbox.add_to_grid_layout(row, self.grid_layout_annotate)
@@ -2272,10 +2324,11 @@ class LayerTable(object):
 
 		self.vector_boxes = []
 		if self.dimensions > -1:
-			self.weight_x_box = QtGui.QComboBox(page)
+			self.weight_x_box = vaex.ui.completer.ExpressionCombobox(page, self.dataset, variables=True)#QtGui.QComboBox(page)
 			self.weight_x_box.setMinimumContentsLength(10)
 			self.weight_x_box.setEditable(True)
-			self.weight_x_box.addItems([self.options.get("vx", "")] + self.get_expression_list())
+			#self.weight_x_box.addItems([self.options.get("vx", "")] + self.get_expression_list())
+			self.weight_x_box.lineEdit().setText(self.options.get("vx", ""))
 			self.weight_x_box.setMinimumContentsLength(10)
 			self.grid_layout_vector.addWidget(QtGui.QLabel("vx="), row, 0)
 			self.grid_layout_vector.addWidget(self.weight_x_box, row, 1)
@@ -2298,9 +2351,10 @@ class LayerTable(object):
 			row += 1
 
 		if self.dimensions > -1:
-			self.weight_y_box = QtGui.QComboBox(page)
+			self.weight_y_box = vaex.ui.completer.ExpressionCombobox(page, self.dataset, variables=True)#QtGui.QComboBox(page)
 			self.weight_y_box.setEditable(True)
-			self.weight_y_box.addItems([self.options.get("vy", "")] + self.get_expression_list())
+			#self.weight_y_box.addItems([self.options.get("vy", "")] + self.get_expression_list())
+			self.weight_y_box.lineEdit().setText(self.options.get("vy", ""))
 			self.weight_y_box.setMinimumContentsLength(10)
 			self.grid_layout_vector.addWidget(QtGui.QLabel("vy="), row, 0)
 			self.grid_layout_vector.addWidget(self.weight_y_box, row, 1)
@@ -2323,9 +2377,10 @@ class LayerTable(object):
 
 			row += 1
 
-			self.weight_z_box = QtGui.QComboBox(page)
+			self.weight_z_box = vaex.ui.completer.ExpressionCombobox(page, self.dataset, variables=True) #QtGui.QComboBox(page)
 			self.weight_z_box.setEditable(True)
-			self.weight_z_box.addItems([self.options.get("vz", "")] + self.get_expression_list())
+			#self.weight_z_box.addItems([self.options.get("vz", "")] + self.get_expression_list())
+			self.weight_z_box.lineEdit().setText(self.options.get("vz", ""))
 			self.weight_z_box.setMinimumContentsLength(10)
 			self.grid_layout_vector.addWidget(QtGui.QLabel("vz="), row, 0)
 			self.grid_layout_vector.addWidget(self.weight_z_box, row, 1)

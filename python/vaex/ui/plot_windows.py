@@ -17,7 +17,10 @@ import matplotlib
 import matplotlib.colors
 import matplotlib.widgets
 import matplotlib.cm
+import matplotlib.ticker
 
+
+import astropy.units
 
 from vaex.multithreading import ThreadPool
 import vaex
@@ -235,7 +238,7 @@ class PlotDialog(QtGui.QWidget):
 		if self.dimensions == 3:
 			self.resize(800+400,700)
 		else:
-			self.resize(800,700)
+			self.resize(800+150,700)
 
 
 		self.plugin_queue_toolbar = [] # list of tuples (callback, order)
@@ -399,6 +402,12 @@ class PlotDialog(QtGui.QWidget):
 				expr = first_layer.z
 			label = expr
 			unit = first_layer.dataset.unit(expr)
+			try: # if we can convert the unit, use that for the labeling
+				output_unit = astropy.units.Unit(first_layer.state.output_units[axis])
+				output_unit.to(unit)
+				unit = output_unit
+			except:
+				logger.exception("unit error")
 			logger.debug("unit: %r", unit)
 			if unit is not None:
 				label = "%s (%s)" % (label, unit.to_string('latex_inline')  )
@@ -2583,11 +2592,70 @@ class ScatterPlotDialog(PlotDialog):
 		if self.action_mini_mode_ultra.isChecked():
 			logger.debug("ultra compact mode")
 			self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1.)
-		self.fig.tight_layout()#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 		#print(self.fig.axes)
 		#for axes in self.fig.axes:
 		#	print("      %s" % axes)
 		#print self.fig._axstack()
+		class ScaledLocator(matplotlib.ticker.MaxNLocator):
+			"""
+			Locates regular intervals along an axis scaled by *dx* and shifted by
+			*x0*. For example, this would locate minutes on an axis plotted in seconds
+			if dx=60.  This differs from MultipleLocator in that an approriate interval
+			of dx units will be chosen similar to the default MaxNLocator.
+			"""
+			def __init__(self, dx=1.0, x0=0.0):
+				self.dx = dx
+				self.x0 = x0
+				matplotlib.ticker.MaxNLocator.__init__(self, nbins=9, steps=[1, 2, 5, 10])
+
+			def rescale(self, x):
+				return x / self.dx + self.x0
+			def inv_rescale(self, x):
+				return  (x - self.x0) * self.dx
+
+			def __call__(self):
+				vmin, vmax = self.axis.get_view_interval()
+				vmin, vmax = self.rescale(vmin), self.rescale(vmax)
+				vmin, vmax = matplotlib.transforms.nonsingular(vmin, vmax, expander = 0.05)
+				locs = self.bin_boundaries(vmin, vmax)
+				locs = self.inv_rescale(locs)
+				prune = self._prune
+				if prune=='lower':
+					locs = locs[1:]
+				elif prune=='upper':
+					locs = locs[:-1]
+				elif prune=='both':
+					locs = locs[1:-1]
+				return self.raise_if_exceeds(locs)
+
+		class ScaledFormatter(matplotlib.ticker.OldScalarFormatter):
+			"""Formats tick labels scaled by *dx* and shifted by *x0*."""
+			def __init__(self, dx=1.0, x0=0.0, **kwargs):
+				self.dx, self.x0 = dx, x0
+
+			def rescale(self, x):
+				return x / self.dx + self.x0
+
+			def __call__(self, x, pos=None):
+				xmin, xmax = self.axis.get_view_interval()
+				xmin, xmax = self.rescale(xmin), self.rescale(xmax)
+				d = abs(xmax - xmin)
+				x = self.rescale(x)
+				s = self.pprint_val(x, d)
+				return s
+		for dim in range(2):
+			if first_layer.state.output_units[dim]:
+				unit = first_layer.dataset.unit(first_layer.state.expressions[dim])
+				try:
+					scale = astropy.units.Unit(first_layer.state.output_units[dim]).to(unit)
+					print("scale", scale)
+					axis = self.axes.xaxis if dim == 0 else self.axes.yaxis
+					axis.set_major_locator(ScaledLocator(dx=scale))
+					axis.set_major_formatter(ScaledFormatter(dx=scale))
+				except:
+					pass
+
+		self.fig.tight_layout()#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 		self.canvas.draw()
 		self.update()
 		if 0:
