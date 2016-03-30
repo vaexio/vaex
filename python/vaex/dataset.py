@@ -1749,6 +1749,21 @@ class DatasetLocal(Dataset):
 		self.mask = None
 		self.columns = collections.OrderedDict()
 
+	@property
+	def data(self):
+		class Data(object):
+			pass
+		class VaexColumn(np.ndarray):
+			pass
+
+		data = Data()
+		for name, array in self.columns.items():
+			#c = VaexColumn()
+			column = array.view(VaexColumn)
+			column.unit = self.unit(name)
+			setattr(data, name, column)
+		return data
+
 	def shallow_copy(self, virtual=True, variables=True):
 		dataset = DatasetLocal(self.name, self.path, self.column_names)
 		dataset.columns.update(self.columns)
@@ -2392,6 +2407,17 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 							self.units[column_name] = astropy.units.Unit(unitname)
 					except:
 						logger.exception("error parsing unit: %s", column.attrs["unit"])
+				if "units" in column.attrs: # Amuse case
+					unitname = ensure_string(column.attrs["units"])
+					logger.debug("amuse unit: %s", unitname)
+					if unitname == "(0.01 * system.get('S.I.').base('length'))":
+						self.units[column_name] = astropy.units.Unit("cm")
+					if unitname == "((0.01 * system.get('S.I.').base('length')) * (system.get('S.I.').base('time')**-1))":
+						self.units[column_name] = astropy.units.Unit("cm/s")
+					if unitname == "(0.001 * system.get('S.I.').base('mass'))":
+						self.units[column_name] = astropy.units.Unit("gram")
+
+
 				if hasattr(column, "dtype"):
 					#print column, column.shape
 					offset = column.id.get_offset() 
