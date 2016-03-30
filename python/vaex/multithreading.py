@@ -7,6 +7,7 @@ import time
 import sys
 import vaex.utils
 import logging
+import traceback
 
 thread_count_default = multiprocessing.cpu_count()# * 2 + 1
 logger = logging.getLogger("vaex.multithreading")
@@ -96,6 +97,7 @@ class ThreadPoolIndex(object):
 							if sys.version_info >= (3, 0):
 								raise job.exc_info[1].with_traceback(job.exc_info[2])
 							else:
+								logger.error("real traceback: %s", traceback.format_tb(job.exc_info[2]))
 								raise job.exc_info[1]#(element[2])
 						results.append(job.result)
 						yielded += 1
