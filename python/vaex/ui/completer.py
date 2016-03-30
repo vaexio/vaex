@@ -24,6 +24,9 @@ class Completer(QtGui.QCompleter):
 		self.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
 		#self.setCompletionMode(QtGui.QCompleter.InlineCompletion)
 
+		self.model = QtGui.QStringListModel([], self)
+		self.setModel(self.model)
+
 	def pathFromIndex(self, index):
 		#return QtGui.QCompleter.pathFromIndex(self, index)
 		suggested_word = QtGui.QCompleter.pathFromIndex(self, index)
@@ -55,19 +58,12 @@ class Completer(QtGui.QCompleter):
 		result = QtGui.QCompleter.splitPath(self, path)
 		#print "splitPath", path, result, part
 
-		def case(word):
-			return word if self.match_case else word.lower()
-
-		suggestions = []
-		if part:
-			word_list = self.get_word_list(part, path[:left], path[right:])
-			for word in word_list:
-
-				if (self.match_contains and case(part) in case(word)) or (not self.match_contains and case(word).startswith(case(part))):
-					suggestions.append(word)
+		suggestions = self.get_suggestions(part, path[:left], path[right:])
 		self.suggestions = suggestions
-		self.model = QtGui.QStringListModel(suggestions, self.parent())
-		self.setModel(self.model)
+		self.model.setStringList(suggestions)
+		#self.model = QtGui.QStringListModel(suggestions, self.parent())
+		#self.setModel(self.model)
+		#QtCore.QTimer.singleShot(0, lambda: self.setModel(self.model));
 		self.parts = [part]
 		return self.parts
 
@@ -106,9 +102,25 @@ class Completer(QtGui.QCompleter):
 	def get_word_list(self, word, text_left, text_right):
 		return "aap aardappel schaap koe blaat".split()
 
-words = astropy.io.votable.ucd.UCDWords()
-primary_list = list(sorted(words._primary))
-secondary_list = list(sorted(words._secondary))
+	def get_suggestions(self, typed_word, text_left, text_right):
+		def case(word):
+			return word if self.match_case else word.lower()
+
+		suggestions = []
+		if typed_word:
+			word_list = self.get_word_list(typed_word, text_left, text_right)
+			for word in word_list:
+
+				if (self.match_contains and case(typed_word) in case(word)) or (not self.match_contains and case(word).startswith(case(typed_word))):
+					suggestions.append(word)
+		return suggestions
+
+ucd_words = astropy.io.votable.ucd.UCDWords()
+primary_list = list(sorted(ucd_words._primary))
+secondary_list = list(sorted(ucd_words._secondary))
+#from astropy.utils import data
+import astropy.utils.data
+astropy.utils.data
 
 class UCDCompleter(Completer):
 	"""
@@ -123,6 +135,25 @@ class UCDCompleter(Completer):
 			return secondary_list
 		else:
 			return primary_list
+
+	def get_suggestions(self, typed_word, text_left, text_right):
+		typed_word = typed_word.lower()
+		if text_left.strip():
+			word_list = secondary_list
+		else:
+			word_list = primary_list
+		descriptions = {key:desc.lower() for key, desc in ucd_words._descriptions.items() if key in word_list}
+		suggestions = []
+		if typed_word:
+			for word in word_list:
+				#if any([typed_word in word for word in word_list]) or any([typed_word in desc for desc in descriptions]):
+				#print(typed_word)
+				#print(list([typed_word in desc for desc in descriptions]))
+				#print(any([typed_word in desc for desc in descriptions]))
+				#print([desc for desc in descriptions if typed_word in desc])
+				if (typed_word in word) or typed_word in descriptions[word]:
+					suggestions.append(ucd_words._capitalization[word])
+		return suggestions
 
 class IdentifierCompleter(Completer):
 	"""Completes variables and functions"""
@@ -169,7 +200,7 @@ class UCDDelegate(QtGui.QItemDelegate):
 	def currentIndexChanged(self):
 		self.commitData.emit(self.sender())
 
-class UnitDelegate(QtGui.QItemDelegate):
+class UnitDelegate(QtGui.QStyledItemDelegate):
 	def __init__(self, parent):
 		QtGui.QItemDelegate.__init__(self, parent)
 		self.lastEditor = None
