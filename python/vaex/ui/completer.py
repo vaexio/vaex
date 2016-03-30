@@ -248,17 +248,21 @@ class ExpressionCombobox(QtGui.QComboBox):
 		:param Dataset dataset:
 		"""
 		QtGui.QComboBox.__init__(self, parent)
+		self.identifiers = []
+		self.columns = dataset.get_column_names(virtual=True)
+		self.identifiers.extend(vaex.dataset.expression_namespace.keys())
+		self.identifiers.extend(self.columns)
 		if variables:
-			self.identifiers = list(dataset.variables.keys()) + list(vaex.dataset.expression_namespace.keys())
-			self.addItems(dataset.variables.keys())
-		else:
-			self.columns = dataset.get_column_names(virtual=True)
-			self.identifiers = list(self.columns) + list(vaex.dataset.expression_namespace.keys())
-			self.addItems(self.columns)
+			self.identifiers.extend(list(dataset.variables.keys()))
+		self.addItems([""] + self.columns)
+		#	= list(dataset.variables.keys()) + list(vaex.dataset.expression_namespace.keys())
+		#	self.addItems(list(dataset.variables.keys()))
+		#else:
+		#	self.identifiers = list(self.columns) + list(vaex.dataset.expression_namespace.keys())
 		self.setEditable(True)
 		lineEdit = self.lineEdit()
-		completer = IdentifierCompleter(lineEdit, self.identifiers)
-		lineEdit.setCompleter(completer)
+		self.completer = IdentifierCompleter(lineEdit, self.identifiers)
+		lineEdit.setCompleter(self.completer)
 
 if __name__ == "__main__":
 	app = QtGui.QApplication([])
