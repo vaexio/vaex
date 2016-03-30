@@ -304,12 +304,12 @@ class RangeOption(object):
 			self.combobox_max.blockSignals(True)
 			changed = False
 			if vmin != self.vmin:
-				print(("setting vmin to", vmin))
+				#print(("setting vmin to", vmin))
 				self.vmin = vmin
 				self.combobox_min.lineEdit().setText(str(self.vmin) if self.vmin is not None else "")
 				changed = True
 			if vmax != self.vmax:
-				print(( "setting vmax to", vmax))
+				#print(( "setting vmax to", vmax))
 				self.vmax = vmax
 				self.combobox_max.lineEdit().setText(str(self.vmax) if self.vmax is not None else "")
 				changed = True
