@@ -1906,6 +1906,16 @@ class LayerTable(object):
 		self.option_label_y = TextOption(page, "label_y", self.state.labels[1], default, get, set, self.signal_plot_dirty.emit)
 		row = self.option_label_y.add_to_grid_layout(row, self.grid_layout_annotate)
 
+
+		def get():
+			return self.state.colorbar
+		def set(value):
+			self.state.colorbar = value
+		self.state.colorbar = eval(self.options.get("colorbar", "True"))
+		self.colorbar_checkbox = Checkbox(page, "colorbar", getter=get, setter=set, update=self.signal_plot_dirty.emit)
+		row = self.colorbar_checkbox.add_to_grid_layout(row, self.grid_layout_annotate)
+
+
 	def page_slice(self, page):
 		class PageWrapper(object):
 			def __init__(self, layer, page_widget):

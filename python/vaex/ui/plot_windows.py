@@ -596,7 +596,7 @@ class PlotDialog(QtGui.QWidget):
 			qt_app.processEvents()
 			QtTest.QTest.qSleep(sleep)
 		logger.debug("waiting for plot finished")
-		traceback.print_stack()
+		#traceback.print_stack()
 		#self._plot_event.wait()
 		#self._plot_event.wait()
 
@@ -2472,6 +2472,12 @@ class ScatterPlotDialog(PlotDialog):
 		self.image_layers.append(rgba)
 
 	def plot(self):
+		self.fig.clf()
+		self.add_axes()
+		if 0: #hasattr(self, "colorbar") and self.colorbar:
+			#self.fig.delaxes(self.colorbar.ax)
+			self.fig.delaxes(self.fig.axes[1])
+			self.colorbar = None
 		self.image_layers = []
 		self.axes.rgb_images = self.image_layers
 		self.axes.cla()
@@ -2551,15 +2557,14 @@ class ScatterPlotDialog(PlotDialog):
 
 			def autoscale_None(self):
 				pass
-		wrapper = ColorbarWrapper(first_layer)
-		if hasattr(self, "colorbar"):
-			self.colorbar.on_mappable_changed(wrapper)
-		else:
-			self.colorbar = self.fig.colorbar(wrapper)
-		self.colorbar.ax.set_ylabel("counts")
-		ymin, ymax = self.colorbar.ax.get_ylim()
-		if (layer.level_ranges[0] > layer.level_ranges[1]) != (ymin > ymax):
-			self.colorbar.ax.invert_yaxis()
+
+		if first_layer.state.colorbar:
+			wrapper = ColorbarWrapper(first_layer)
+			self.colorbar = self.fig.colorbar(wrapper, use_gridspec=True)
+			self.colorbar.ax.set_ylabel("counts")
+			ymin, ymax = self.colorbar.ax.get_ylim()
+			if (layer.level_ranges[0] > layer.level_ranges[1]) != (ymin > ymax):
+				self.colorbar.ax.invert_yaxis()
 
 		#self.fig.texts = []
 		#if first_layer.flip_x:
@@ -2575,10 +2580,14 @@ class ScatterPlotDialog(PlotDialog):
 			self.canvas.draw()
 			#self.fig.tight_layout(pad=0.0)#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 			#self.fig.tight_layout(pad=0.01)#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
-		self.fig.tight_layout()#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 		if self.action_mini_mode_ultra.isChecked():
 			logger.debug("ultra compact mode")
 			self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1.)
+		self.fig.tight_layout()#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
+		#print(self.fig.axes)
+		#for axes in self.fig.axes:
+		#	print("      %s" % axes)
+		#print self.fig._axstack()
 		self.canvas.draw()
 		self.update()
 		if 0:
@@ -2594,7 +2603,7 @@ class ScatterPlotDialog(PlotDialog):
 		logger.debug("plot finished")
 		if self._plot_event:
 			self._plot_event.set()
-		traceback.print_stack()
+		#traceback.print_stack()
 		return
 		if 1:
 			ranges = []
