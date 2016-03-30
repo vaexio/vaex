@@ -21,7 +21,7 @@ import vaex.ui.qt as dialogs
 
 # this will trigger more code, such as the canceling in between computation
 vaex.execution.buffer_size = 10000
-#vx.set_log_level_debug()
+vx.set_log_level_off()
 
 example_path = vaex.utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5")
 vaex.ui.hidden = True
@@ -40,7 +40,7 @@ import logging
 logger = logging.getLogger("vaex.test.ui")
 
 
-overwrite_images = False #True
+overwrite_images = False
 
 class CallCounter(object):
 	def __init__(self, return_value=None):
@@ -178,6 +178,7 @@ class TestPlotPanel(unittest.TestCase):
 		self.window.show()
 		self.window.hide()
 		self.layer = self.window.current_layer
+		self.layer.state.colorbar = False
 		self.no_exceptions = True
 		import sys
 		def testExceptionHook(type, value, tback):
@@ -256,26 +257,26 @@ class TestPlotPanel2d(TestPlotPanel):
 		QtTest.QTest.mouseClick(button, QtCore.Qt.LeftButton)
 
 
-	def t_est_xy(self):
+	def test_xy(self):
 		QtTest.QTest.qWait(self.window.queue_update.default_delay)
 		self.window._wait()
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_xy"))
 
-	def t_est_xr(self):
+	def test_xr(self):
 		self.layer.y = "sqrt(x**2+y**2)"
 		self.window._wait()
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_xr"))
 
-	def t_est_xy_weight_r(self):
+	def test_xy_weight_r(self):
 		self.layer.weight = "sqrt(x**2+y**2)"
 		self.layer.amplitude = "clip(average, 0, 40)"
 		self.window._wait()
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_xy_weight_r"))
 
-	def t_est_xy_vxvy(self):
+	def test_xy_vxvy(self):
 		self.layer.vx = "vx"
 		self.layer.vy = "vy"
 		self.window._wait()
@@ -298,14 +299,14 @@ class TestPlotPanel2d(TestPlotPanel):
 		self.assertEqual(counter+1, self.window.queue_update.counter)
 		self.window._wait()
 
-	def t_est_xy_vxvy_as_option(self):
+	def test_xy_vxvy_as_option(self):
 		self.window.remove_layer()
-		self.window.add_layer(["x", "y"], vx="vx", vy="vy")
+		self.window.add_layer(["x", "y"], vx="vx", vy="vy", colorbar="False")
 		self.window._wait()
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_xy_vxvy"))
 
-	def t_est_select_by_expression(self):
+	def test_select_by_expression(self):
 		self.window.xlabel = "x"
 		self.window.ylabel = "y"
 		##self.window._wait() # TODO: is this a bug? if we don't wait and directly do the selection, the ThreadPoolIndex
@@ -321,7 +322,7 @@ class TestPlotPanel2d(TestPlotPanel):
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_xy_selection_on_x"))
 
-	def t_est_select_by_lasso(self):
+	def test_select_by_lasso(self):
 		self.window._wait() # TODO: is this a bug? same as above
 		vaex.ui.qt.set_choose("x < 0", True)
 		x = [-10, 10, 10, -10]
@@ -336,7 +337,7 @@ class TestPlotPanel2d(TestPlotPanel):
 		self.window.add_layer(["x", "z"])
 		self.window._wait()
 
-	def t_est_resolution(self):
+	def test_resolution(self):
 		if 0: # keyClick doesn't work on osx it seems
 			self.window.show()
 			QtTest.QTest.qWaitForWindowShown(self.window)
@@ -347,7 +348,7 @@ class TestPlotPanel2d(TestPlotPanel):
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_xy_32x32"))
 
-	def t_est_resolution_vector(self):
+	def test_resolution_vector(self):
 		self.layer.vx = "vx"
 		self.layer.vy = "vy"
 		self.window.action_resolution_vector_list[2].trigger()
@@ -357,6 +358,7 @@ class TestPlotPanel2d(TestPlotPanel):
 
 
 	def test_invalid_expression(self):
+		self.window._wait()
 
 		with dialogs.assertError(2):
 			self.layer.x = "vx*"
@@ -370,6 +372,10 @@ class TestPlotPanel2d(TestPlotPanel):
 			self.layer.vy = "x(vx)"
 		with dialogs.assertError(1):
 			self.layer.weight = "hoeba(vx)"
+		self.layer.x = "x"
+		self.layer.y = "y"
+		self.layer.weight = "z"
+		#self.window._wait()
 		# since this will be triggered, overrule it
 		self.no_error_in_field = True
 
