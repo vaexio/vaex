@@ -213,6 +213,11 @@ class ColumnsTable(QtGui.QWidget):
 		self.action_add.menu().addAction(self.action_celestial)
 		self.action_celestial.triggered.connect(lambda *args: add_celestial(self, self.dataset))
 
+		self.action_eq2ecl = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Equatorial to ecliptic', self)
+		#self.action_eq2ecl.setShortcut("Ctrl+G")
+		self.action_add.menu().addAction(self.action_eq2ecl)
+		self.action_celestial.triggered.connect(lambda *args: add_celestial_eq2ecl(self, self.dataset))
+
 		self.action_car_to_gal = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Cartesian to galactic', self)
 		self.action_car_to_gal.setShortcut("Ctrl+S")
 		self.action_add.menu().addAction(self.action_car_to_gal)
@@ -310,7 +315,10 @@ class ColumnsTable(QtGui.QWidget):
 	def onAddCelestial(self, *args):
 		add_celestial(self, self.dataset)
 
-def add_celestial(parent, dataset):
+def add_celestial_eq2ecl(parent, dataset):
+	add_celestial(parent, dataset, type="ecliptic")
+
+def add_celestial(parent, dataset, type="galactic"):
 	result = dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec")
 	column_names = dataset.get_column_names(virtual=True)
 	if result is None:
@@ -319,7 +327,7 @@ def add_celestial(parent, dataset):
 	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and result is not None:
 			values = dict(ra=result[0], dec=result[1], l="l", b="b", degrees="degrees")
 	else:
-		dialog = QuickDialog(parent, title="Celestial transform")
+		dialog = QuickDialog(parent, title="Celestial transform: equatorial to %s" % type)
 		#dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
 
 		logger.debug("unit = %s", dataset.unit(column_names[0], default=astropy.units.deg))
@@ -334,16 +342,24 @@ def add_celestial(parent, dataset):
 
 		dialog.add_expression("ra", "Right ascension", result[0], dataset)
 		dialog.add_expression("dec", "Declination", result[1], dataset)
-
-		dialog.add_text("l", "Galactic l", "l")
-		dialog.add_text("b", "Galactic b", "b")
+		if type == "galactic":
+			dialog.add_text("l", "Galactic l", "l")
+			dialog.add_text("b", "Galactic b", "b")
+		else:
+			dialog.add_text("l", "Ecliptic ra", "ra_lambda")
+			dialog.add_text("b", "Ecliptic dec", "dec_beta")
 		values = dialog.get()
 	if values:
-		dataset.ucds[values["l"]] = "pos.galactic.lon"
-		dataset.ucds[values["b"]] = "pos.galactic.lat"
+		dataset.ucds[values["l"]] = "pos.%s.lon" % type
+		dataset.ucds[values["b"]] = "pos.%s.lat" % type
 		dataset.units[values["l"]] = astropy.units.deg if values["degrees"] == "degrees" else astropy.units.rad
 		dataset.units[values["b"]] = astropy.units.deg if values["degrees"] == "degrees" else astropy.units.rad
-		dataset.add_virtual_columns_celestial(long_in=values["ra"], lat_in=values["dec"],
+		if type == "galactic":
+			dataset.add_virtual_columns_celestial(long_in=values["ra"], lat_in=values["dec"],
+												   long_out=values["l"], lat_out=values["b"],
+												   radians=values["degrees"] == "radians")
+		else:
+			dataset.add_virtual_columns_eq2ecl(long_in=values["ra"], lat_in=values["dec"],
 												   long_out=values["l"], lat_out=values["b"],
 												   radians=values["degrees"] == "radians")
 

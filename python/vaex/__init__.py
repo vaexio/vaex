@@ -32,7 +32,6 @@ del ServerRest, Dataset
 def app(*args, **kwargs):
 	import vaex.ui.main
 	return vaex.ui.main.VaexApp()
-
 def open(path, *args, **kwargs):
 	"""Open a dataset from file given by path
 
