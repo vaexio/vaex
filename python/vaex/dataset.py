@@ -1543,11 +1543,11 @@ class Dataset(object):
 
 
 
-	def __todo_repr_html_(self):
+	def _repr_html_(self):
 		html = """<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))
 		html += """<table>"""
 		for column_name in self.get_column_names():
-			html += "<tr><td>%s</td><td>type unknown</td></tr>" % (column_name)
+			html += "<tr><td>%s</td><td>%s</td></tr>" % (column_name, self.dtype(column_name))
 		html += "</table>"
 		return html
 
