@@ -281,7 +281,31 @@ class SubspaceGridded(object):
 		return vaex.notebook.volr(self, **kwargs)
 
 	def plot(self, axes=None, **kwargs):
-		self.subspace_bounded.subspace.plot(np.log1p(self.grid), self.subspace_bounded.bounds, axes=axes, **kwargs)
+		self.subspace_bounded.subspace.plot(np.log1p(self.grid), limits=self.subspace_bounded.bounds, axes=axes, **kwargs)
+
+	def mean_line(self, axis=0, **kwargs):
+		from matplotlib import pylab
+		assert axis in [0,1]
+		other_axis = 0 if axis == 1 else 1
+		xmin, xmax = self.subspace_bounded.bounds[axis]
+		ymin, ymax = self.subspace_bounded.bounds[other_axis]
+		x = vaex.utils.linspace_centers(xmin, xmax, self.grid.shape[axis])
+		y = vaex.utils.linspace_centers(ymin, ymax, self.grid.shape[other_axis])
+		print(y)
+		if axis == 0:
+			counts = np.sum(self.grid, axis=axis)
+			means = np.sum(self.grid * y[np.newaxis,:].T, axis=axis)/counts
+		else:
+			counts = np.sum(self.grid, axis=axis)
+			means = np.sum(self.grid * y[:,np.newaxis].T, axis=axis)/counts
+		if axis == 0:
+			pylab.plot(x, means, **kwargs)
+		else:
+			pylab.plot(means, x, **kwargs)
+
+		self.subspace_bounded.lim()
+
+
 
 	def _repr_png_(self):
 		from matplotlib import pylab
@@ -378,6 +402,13 @@ class SubspaceBounded(object):
 	def gridded_by_histogram(self, size=256, weight=None):
 		grid = self.histogram(size=size, weight=weight)
 		return SubspaceGridded(self, grid)
+
+	def lim(self):
+		from matplotlib import pylab
+		xmin, xmax = self.bounds[0]
+		ymin, ymax = self.bounds[1]
+		pylab.xlim(xmin, xmax)
+		pylab.ylim(ymin, ymax)
 
 
 class Subspaces(object):
@@ -1402,10 +1433,18 @@ class Dataset(object):
 			self.virtual_columns[ynew] = "{m}[1][0] * {x} + {m}[1][1] * {y} + {m}[1][2] * {z}".format(**locals())
 			self.virtual_columns[znew] = "{m}[2][0] * {x} + {m}[2][1] * {y} + {m}[2][2] * {z}".format(**locals())
 
+	def add_virtual_columns_eq2ecl(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial_eq2ecl", radians=False):
+		import kapteyn.celestial as c
+		self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.ecliptic, name_prefix=name_prefix, radians=radians)
+
+	def add_virtual_columns_eq2gal(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial_eq2gal", radians=False):
+		import kapteyn.celestial as c
+		self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
+
 	def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial", radians=False):
 		import kapteyn.celestial as c
-		input = input or c.eq
-		output = input or c.gal
+		input = input or c.equatorial
+		output = output or c.galactic
 		matrix = c.skymatrix((input,'j2000',c.fk5), output)[0]
 		if not radians:
 			long_in = "pi/180.*%s" % long_in

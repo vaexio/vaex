@@ -665,6 +665,13 @@ class DatasetPanel(QtGui.QFrame):
 			action.triggered.connect(add)
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
+		if dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec") and dataset.ucd_find("^pos.ecliptic.lon", "^pos.ecliptic.lat") is None:
+			def add(*args):
+				vaex.ui.columns.add_celestial_eq2ecl(self, self.dataset)
+			action = QtGui.QAction("Add ecliptic coordinates", self)
+			action.triggered.connect(add)
+			self.refs.append((action, add))
+			self.menu_common.addAction(action)
 		if dataset.ucd_find("pos.parallax.") and not dataset.ucd_find("pos.distance"):
 			def add(*args):
 				vaex.ui.columns.add_distance(self, self.dataset)
@@ -710,7 +717,7 @@ class DatasetPanel(QtGui.QFrame):
 		self.default_columns_2d = None
 		self.menu_2d.clear()
 		ucd_pairs = [("^pos.cartesian.x", "^pos.cartesian.y"), ("^pos.cartesian.x", "^pos.cartesian.z"), ("^pos.cartesian.y", "^pos.cartesian.z"),
-					 ("^pos.eq.ra", "^pos.eq.dec"), ("^pos.galactic.lon", "^pos.galactic.lat")]
+					 ("^pos.eq.ra", "^pos.eq.dec"), ("^pos.galactic.lon", "^pos.galactic.lat"), ("^pos.ecliptic.lon", "^pos.ecliptic.lat")]
 		for ucd_pair in ucd_pairs:
 			pair = dataset.ucd_find(*ucd_pair)
 			if pair:
