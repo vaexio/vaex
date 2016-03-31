@@ -1326,7 +1326,7 @@ class VaexApp(QtGui.QMainWindow):
 				options = filename.split(":")
 				clsargs = [eval(value) for value in options[1:]]
 				filename = options[0]
-				dataset = vaex.dataset.load_file(filename, *clsargs)
+				dataset = vaex.open(filename, *clsargs) #vaex.dataset.load_file(filename, *clsargs)
 			if dataset is None:
 				error("cannot open file {filename}".format(**locals()))
 			index += 1

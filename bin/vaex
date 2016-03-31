@@ -126,6 +126,9 @@ if __name__ == '__main__':
 		elif len(sys.argv) > 1 and sys.argv[1] == "meta":
 			import vaex.meta
 			vaex.meta.main([os.path.basename(sys.argv[0]) +" " +sys.argv[1]]  + sys.argv[2:])
+		elif len(sys.argv) > 1 and sys.argv[1] == "alias":
+			import vaex.dataset
+			vaex.dataset.alias_main([os.path.basename(sys.argv[0]) +" " +sys.argv[1]]  + sys.argv[2:])
 		else:
 			if frozen: # pyinstaller and py2app need this
 				os.environ["QT_API"] = "pyqt" # somehow the new matplotlib under pyinstaller doesn't use pyside

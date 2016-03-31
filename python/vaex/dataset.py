@@ -3035,3 +3035,36 @@ if __name__ == "__main__":
 	#vaex.set_log_level_debug()
 	#ds = DatasetTap()
 	#ds.columns["alpha"][0:100]
+
+
+def alias_main(argv):
+	import argparse
+	parser = argparse.ArgumentParser(argv[0])
+	#parser.add_argument('--verbose', '-v', action='count', default=0)
+	#parser.add_argument('--quiet', '-q', default=False, action='store_true', help="do not output anything")
+	#parser.add_argument('--list', '-l', default=False, action='store_true', help="list columns of input")
+	#parser.add_argument('--progress', help="show progress (default: %(default)s)", default=True, action='store_true')
+	#parser.add_argument('--no-progress', dest="progress", action='store_false')
+	#parser.add_argument('--shuffle', "-s", dest="shuffle", action='store_true', default=False)
+
+	subparsers = parser.add_subparsers(help='type of task', dest="task")
+
+	parser_list = subparsers.add_parser('list', help='list aliases')
+
+	parser_add = subparsers.add_parser('add', help='add alias')
+	parser_add.add_argument('name', help='name of alias')
+	parser_add.add_argument('path', help='path/filename for alias')
+	parser.add_argument('-f', '--force', help="force/overwrite existing alias", default=False, action='store_true')
+
+	parser_remove = subparsers.add_parser('remove', help='remove alias')
+	parser_remove.add_argument('name', help='name of alias')
+
+	args = parser.parse_args(argv[1:])
+	import vaex
+	if args.task == "add":
+		vaex.aliases[args.name] = args.path
+	if args.task == "remove":
+		del vaex.aliases[args.name]
+	if args.task == "list":
+		for name in sorted(vaex.aliases.keys()):
+			print("%s: %s" % (name, vaex.aliases[name]))
