@@ -240,6 +240,7 @@ def main(argv):
 	parser.add_argument('--progress', help="show progress (default: %(default)s)", default=True, action='store_true')
 	parser.add_argument('--no-progress', dest="progress", action='store_false')
 	parser.add_argument('--shuffle', "-s", dest="shuffle", action='store_true', default=False)
+	parser.add_argument('--fraction', "-f", dest="fraction", type=float, default=1.0, help="fraction of input dataset to export")
 
 	subparsers = parser.add_subparsers(help='type of input source', dest="task")
 
@@ -292,6 +293,7 @@ def main(argv):
 		if not args.quiet:
 			print("Cannot open input")
 		return 1
+	dataset.set_active_fraction(args.fraction)
 	if args.list:
 		if not args.quiet:
 			print("columns names: " + " ".join(dataset.get_column_names()))
