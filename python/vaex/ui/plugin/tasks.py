@@ -93,6 +93,7 @@ def subtract_mean(plot_window):
 		plot_window.queue_history_change("task: remove mean")
 
 
+@vaex.ui.plugin.pluginclass
 class TasksPlugin(vaex.ui.plugin.PluginPlot):
 	name = "tasks"
 	def __init__(self, dialog):

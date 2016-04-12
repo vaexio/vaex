@@ -53,76 +53,9 @@ logger = logging.getLogger("vaex")
 lock = threading.Lock()
 dataset_type_map = {}
 
+#executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+#executor = vaex.execution.default_executor
 
-class Link(object):
-	def __init__(self, dataset):
-		self.dataset = dataset
-		self.listeners = []
-		
-	def sendExpression(self, expression, receiver):
-		for listener in self.listeners:
-			if listener != receiver:
-				listener.onChangeExpression(expression)
-		if expression in self.dataset.global_links:
-			# merge the listeners of this link to the other link
-			logger.debug("merging with link %r" % expression)
-			merging_link = self.dataset.global_links[expression]
-			for receiver in merging_link.listeners:
-				self.listeners.append(receiver)
-		else:
-			# add new mapping
-			logger.debug("renamed link %r" % expression)
-			self.dataset.global_links[expression] = self
-		# remove old mapping
-		for key, link in list(self.dataset.global_links.items()):
-			logger.debug("link[%r] = %r" % (key, link))
-			if (link == self) and key != expression: # remove dangling links
-				logger.debug("removing link %r" % key)
-				del self.dataset.global_links[key]
-				
-	def sendRanges(self, range_, receiver):
-		for listener in self.listeners:
-			if listener != receiver:
-				listener.onChangeRange(range_)
-
-	def sendRangesShow(self, range_, receiver):
-		for listener in self.listeners:
-			if listener != receiver:
-				listener.onChangeRangeShow(range_)
-
-	#
-	@staticmethod
-	def sendCompute(links, receivers):
-		listener_set = set(list(itertools.chain.from_iterable([link.listeners for link in links])))
-
-		for listener in listener_set:
-			if listener not in receivers:
-				listener.onCompute()
-
-	def sendPlot(self, receiver):
-		for listener in self.listeners:
-			if listener != receiver:
-				listener.onPlot()
-				
-				
-
-executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-executor = vaex.execution.default_executor
-
-class ColumnBase(object):
-	def __init__(self, dataset, expression):
-		self.dataset = dataset
-		self.expression = expression
-
-class Column(ColumnBase):
-	def get(self, i1, i2):
-		return self.dataset.columns[self.name][i1:i2]
-
-class ColumnExpression(ColumnBase):
-	def __init__(self, dataset, expression):
-		super(ColumnExpression, self).__init__(dataset, expression)
-
-#	def get(self, i1, i2):
 
 class Task(vaex.promise.Promise):
 	"""
@@ -505,15 +438,15 @@ class Subspaces(object):
 		def var(means):
 			return self.subspace.var(means=means)
 		if self.async:
-			if means is None:
-				return self.subspace.means().then(var).then(self._unpack)
-			else:
-				return var(means).then(self._unpack)
+			#if means is None:
+			#	return self.subspace.mean().then(var).then(self._unpack)
+			#else:
+			return var(means).then(self._unpack)
 		else:
-			if means is None:
-				means = self.subspace.mean()
-			logger.debug("means: %r", means)
-			return self._unpack(var(means))
+			#if means is None:
+			#	means = self.subspace.mean()
+			#logger.debug("means: %r", means)
+			return self._unpack(var(means=means))
 
 	def correlation(self, means=None, vars=None):
 		def var(means):
@@ -757,16 +690,23 @@ class SubspaceLocal(Subspace):
 		return self._task(task, progressbar=progressbar)
 
 	def mean(self):
-		def mean_reduce(means1, means2):
-			means = []
-			for mean1, mean2 in zip(means1, means2):
-				means.append(np.nanmean([mean1, mean2]))
-			return means
-		if self.is_masked:
-			mask = self.dataset.mask
-			task = TaskMapReduce(self.dataset, self.expressions, lambda thread_index, i1, i2, *blocks: [np.nanmean(block[mask[i1:i2]]) for block in blocks], mean_reduce, self._toarray, info=True)
-		else:
-			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [np.nanmean(block) for block in blocks], mean_reduce, self._toarray)
+		return self._moment(1)
+
+	def _moment(self, moment=1):
+		def mean_reduce(means_and_counts1, means_and_counts2):
+			means_and_counts = []
+			for (mean1, count1), (mean2, count2) in zip(means_and_counts1, means_and_counts2):
+				means_and_counts.append( [np.nansum([mean1*count1, mean2*count2])/(count1+count2), count1+count2] )
+			return means_and_counts
+		def remove_counts(means_and_counts):
+			return self._toarray(means_and_counts)[:,0]
+		def mean_map(thread_index, i1, i2, *blocks):
+			if self.is_masked:
+				mask = self.dataset.mask
+				return [(np.nanmean(block[mask[i1:i2]]**moment), np.count_nonzero(~np.isnan(block[mask[i1:i2]]))) for block in blocks]
+			else:
+				return [(np.nanmean(block**moment), np.count_nonzero(~np.isnan(block))) for block in blocks]
+		task = TaskMapReduce(self.dataset, self.expressions, mean_map, mean_reduce, remove_counts, info=True)
 		return self._task(task)
 
 	def var(self, means=None):
@@ -842,10 +782,23 @@ class SubspaceLocal(Subspace):
 				return self.mean().then(do_vars).then(do_correlation_wrapper)
 			else:
 				means = self.mean()
-				vars = self.var(means)
+				vars = self.var(means=means)
 				return do_correlation(means, vars)
 		else:
-			return do_correlation(means, vars)
+			if vars is None:
+				if self.async:
+					def do_correlation_wrapper(vars):
+						return do_correlation(means, vars)
+					return self.vars(means=means).then(do_correlation_wrapper)
+				else:
+					vars = self.var(means)
+					return do_correlation(means, vars)
+			else:
+				if means is None:
+					means = self.mean()
+				if vars is None:
+					vars = self.var(means=means)
+				return do_correlation(means, vars)
 
 	def sum(self):
 		nansum = lambda x: np.nansum(x, dtype=np.float64)
@@ -866,14 +819,14 @@ class SubspaceLocal(Subspace):
 
 	def mutual_information(self, limits=None, grid=None, size=256):
 		if limits is None:
-			limits_done = self.minmax()
+			limits_done = Task.fulfilled(self.minmax())
 		else:
 			limits_done = Task.fulfilled(limits)
 		if grid is None:
 			if limits is None:
 				histogram_done = limits_done.then(lambda limits: self.histogram(limits, size=size))
 			else:
-				histogram_done = self.histogram(limits, size=size)
+				histogram_done = Task.fulfilled(self.histogram(limits, size=size))
 		else:
 			histogram_done = Task.fulfilled(grid)
 		mutual_information_promise = histogram_done.then(vaex.kld.mutual_information)
@@ -881,11 +834,24 @@ class SubspaceLocal(Subspace):
 
 
 	def limits_sigma(self, sigmas=3, square=False):
-		means = self.mean()
-		stds = self.var(means=means)**0.5
-		if square:
-			stds = np.repeat(stds.mean(), len(stds))
-		return np.array(list(zip(means-sigmas*stds, means+sigmas*stds)))
+		if self.async:
+			means_wrapper = [None]
+			def do_vars(means):
+				means_wrapper[0] = means
+				return self.var(means)
+			def do_limits(vars):
+				stds = vars**0.5
+				means = means_wrapper[0]
+				if square:
+					stds = np.repeat(stds.mean(), len(stds))
+				return np.array(list(zip(means-sigmas*stds, means+sigmas*stds)))
+			return self.mean().then(do_vars).then(do_limits)
+		else:
+			means = self.mean()
+			stds = self.var(means=means)**0.5
+			if square:
+				stds = np.repeat(stds.mean(), len(stds))
+			return np.array(list(zip(means-sigmas*stds, means+sigmas*stds)))
 
 	def _not_needed_current(self):
 		index = self.dataset.get_current_row()
@@ -1251,6 +1217,13 @@ class Dataset(object):
 		"""Close any possible open file handles, the dataset not not be usable afterwards"""
 		pass
 
+	def byte_size(self, selection=False):
+		bytes_per_row = 0
+		for column in list(self.get_column_names()):
+			dtype = self.dtype(column)
+			bytes_per_row += dtype.itemsize
+		return bytes_per_row * self.length(selection=selection)
+
 
 	def dtype(self, expression):
 		if expression in self.get_column_names():
@@ -1273,6 +1246,20 @@ class Dataset(object):
 				return default
 
 	def ucd_find(self, *ucds):
+		"""Find a set of columns (names) which have the ucd, or part of the ucd
+
+		Prefixed with a ^, it will only match the first part of the ucd
+
+		>>> dataset.ucd_find('pos.eq.ra', 'pos.eq.dec')
+		['RA', 'DEC']
+		>>> dataset.ucd_find('pos.eq.ra', 'doesnotexist')
+		>>> dataset.ucds[dataset.ucd_find('pos.eq.ra')]
+		'pos.eq.ra;meta.main'
+		>>> dataset.ucd_find('meta.main')]
+		'dec'
+		>>> dataset.ucd_find('^meta.main')]
+		>>>
+		"""
 		if len(ucds) == 1:
 			ucd = ucds[0]
 			if ucd[0] == "^": # we want it to start with
@@ -1801,6 +1788,8 @@ class DatasetLocal(Dataset):
 			#c = VaexColumn()
 			column = array.view(VaexColumn)
 			column.unit = self.unit(name)
+			column.ucd = self.ucds.get(name)
+			column.description = self.descriptions.get(name)
 			setattr(data, name, column)
 		return data
 
@@ -1817,13 +1806,6 @@ class DatasetLocal(Dataset):
 		return dataset
 
 	def is_local(self): return True
-
-	def byte_size(self, selection=False):
-		bytes_per_row = 0
-		for column in list(self.columns.values()):
-			dtype = column.dtype
-			bytes_per_row += dtype.itemsize
-		return bytes_per_row * self.length(selection=selection)
 
 
 	def length(self, selection=False):
@@ -3110,9 +3092,9 @@ def alias_main(argv):
 			print("%s: %s" % (name, vaex.aliases[name]))
 
 
-def stat_main(argv):
+def make_stat_parser(name):
 	import argparse
-	parser = argparse.ArgumentParser(argv[0])
+	parser = argparse.ArgumentParser(name)
 	#parser.add_argument('--verbose', '-v', action='count', default=0)
 	#parser.add_argument('--quiet', '-q', default=False, action='store_true', help="do not output anything")
 	#parser.add_argument('--list', '-l', default=False, action='store_true', help="list columns of input")
@@ -3127,7 +3109,10 @@ def stat_main(argv):
 	#parser = subparsers.add_parser('add', help='add alias')
 	parser.add_argument('dataset', help='path or name of dataset')
 	parser.add_argument('--fraction', "-f", dest="fraction", type=float, default=1.0, help="fraction of input dataset to export")
+	return parser
 
+def stat_main(argv):
+	parser = make_stat_parser(argv[0])
 	args = parser.parse_args(argv[1:])
 	import vaex
 	dataset = vaex.open(args.dataset)

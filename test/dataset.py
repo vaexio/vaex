@@ -7,6 +7,7 @@ import vaex as vx
 import tempfile
 import vaex.webserver
 import astropy.io.fits
+import astropy.units
 
 import vaex.execution
 a = vaex.execution.buffer_size_default # will crash if we decide to rename it
@@ -16,7 +17,7 @@ vaex.execution.buffer_size_default = 3
 
 vx.set_log_level_exception()
 vx.set_log_level_off()
-#vx.set_log_level_debug()
+vx.set_log_level_debug()
 
 class CallbackCounter(object):
 	def __init__(self, return_value=None):
@@ -41,6 +42,11 @@ class TestDataset(unittest.TestCase):
 		self.dataset.add_column("y", y)
 		self.dataset.set_variable("t", 1.)
 		self.dataset.add_virtual_column("z", "x+t*y")
+		self.dataset.units["x"] = astropy.units.Unit("km")
+		self.dataset.units["y"] = astropy.units.Unit("km/s")
+		self.dataset.units["t"] = astropy.units.Unit("s")
+		self.dataset.add_column("f", np.arange(len(self.dataset), dtype=np.float64))
+		self.dataset.ucds["x"] = "some;ucd"
 
 		#self.jobsManager = dataset.JobsManager()
 
@@ -66,6 +72,51 @@ class TestDataset(unittest.TestCase):
 
 		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset, self.dataset, self.dataset], name="dataset_concat_dup")
 
+	def test_units(self):
+		assert self.dataset.unit("x") == astropy.units.km
+		assert self.dataset.unit("y") == astropy.units.km/astropy.units.second
+		assert self.dataset.unit("t") == astropy.units.second
+		assert self.dataset.unit("z") == astropy.units.km
+		assert self.dataset.unit("x+y") == None
+
+	def test_dtype(self):
+		self.assertEqual(self.dataset.dtype("x"), np.int64)
+		self.assertEqual(self.dataset.dtype("f"), np.float64)
+		self.assertEqual(self.dataset.dtype("x*f"), np.float64)
+
+	def test_byte_size(self):
+		self.assertEqual(self.dataset.byte_size(), 8*3*len(self.dataset))
+		self.dataset.select("x < 1")
+		self.assertEqual(self.dataset.byte_size(selection=True), 8*3)
+
+	def test_ucd_find(self):
+		self.dataset.ucds["x"] = "a;b;c"
+		self.dataset.ucds["y"] = "b;c;d"
+		self.dataset.ucds["z"] = "b;c;d"
+		self.assertEqual(self.dataset.ucd_find("a"), "x")
+		self.assertEqual(self.dataset.ucd_find("b"), "x")
+		self.assertEqual(self.dataset.ucd_find("^b"), "y")
+		self.assertEqual(self.dataset.ucd_find("c"), "x")
+		self.assertEqual(self.dataset.ucd_find("d"), "y")
+
+		self.assertEqual(self.dataset.ucd_find("b;c"), "x")
+		self.assertEqual(self.dataset.ucd_find("^b;c"), "y")
+
+	def test_data_access(self):
+		assert (all(self.dataset.data.x == self.dataset.columns["x"]))
+		self.assertEqual(self.dataset.data.x.ucd, self.dataset.ucds["x"])
+
+	def test_subspace_basics(self):
+		self.assertIsNotNone(repr(self.dataset("x")))
+		self.assertIsNotNone(repr(self.dataset("x", "y")))
+		self.assertIsNotNone(repr(self.dataset("x", "y", "z")))
+
+		subspace = self.dataset("x", "y")
+		for i in range(len(self.dataset)):
+			self.assertEqual(subspace.row(0).tolist(), [self.x[0], self.y[0]])
+
+		self.assertEqual(self.dataset.subspace("x", "y").expressions, self.dataset("x", "y").expressions)
+
 	def test_subspaces(self):
 		dataset = vaex.from_arrays("arrays", x=[1], y=[2], z=[3])
 		subspaces = dataset.subspaces(dimensions=2)
@@ -80,6 +131,134 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(len(subspaces), 2)
 		subspaces = dataset.subspaces(dimensions=2, exclude=lambda list: "x" in list)
 		self.assertEqual(len(subspaces), 1)
+
+		subspaces = self.dataset.subspaces([("x", "y")])
+		self.assertEqual(subspaces.names(), ["x y"])
+		self.assertEqual(subspaces.expressions_list(), [("x", "y")])
+
+		self.assertIsNotNone(subspaces.selected().subspaces[0].is_masked)
+
+		for async in [False, True]:
+			subspaces = self.dataset.subspaces([("x", "y")], async=async)
+			result = subspaces.minmax()
+			if async:
+				subspaces.subspace.executor.execute()
+				result = result.get()
+			minmax = result
+			values = np.array(result).flatten()
+			self.assertEqual(values.tolist(), self.dataset("x", "y").minmax().flatten().tolist())
+
+			result = subspaces.limits_sigma()
+			if async:
+				subspaces.subspace.executor.execute()
+				result = result.get()
+			values = np.array(result).flatten()
+			self.assertEqual(values.tolist(), self.dataset("x", "y").limits_sigma().flatten().tolist())
+
+			result = subspaces.mean()
+			if async:
+				subspaces.subspace.executor.execute()
+				result = result.get()
+			means = result
+			values = np.array(result).flatten()
+			self.assertEqual(values.tolist(), self.dataset("x", "y").mean().flatten().tolist())
+
+			result = subspaces.var()
+			if async:
+				subspaces.subspace.executor.execute()
+				result = result.get()
+			vars = result
+			values = np.array(result).flatten()
+			self.assertEqual(values.tolist(), self.dataset("x", "y").var().flatten().tolist())
+
+			result = subspaces.var(means=means)
+			if async:
+				subspaces.subspace.executor.execute()
+				result = result.get()
+			vars = result
+			values = np.array(result).flatten()
+			self.assertEqual(values.tolist(), self.dataset("x", "y").var(means=means[0]).flatten().tolist())
+
+			#means = [0, 0]
+			result = subspaces.var(means=means)
+			if async:
+				subspaces.subspace.executor.execute()
+				result = result.get()
+			values = np.array(result).flatten()
+			self.assertEqual(values.tolist(), self.dataset("x", "y").var(means=means[0]).flatten().tolist())
+
+			for means_ in [means, None]:
+				for vars_ in [vars, None]:
+					result = subspaces.correlation(means=means_, vars=vars_)
+					if async:
+						subspaces.subspace.executor.execute()
+						result = result.get()
+					values = np.array(result).flatten()
+					#print async, means_, vars_
+					#print values, self.dataset("x", "y").correlation(), self.dataset("x", "y").correlation(means=means_[0] if means_ else None, vars=vars_[0] if vars_ else None).flatten().tolist()
+					self.assertEqual(values.tolist(), self.dataset("x", "y").correlation(means=means_[0] if means_ else None, vars=vars_[0] if vars_ else None).flatten().tolist())
+
+
+			result = subspaces.mutual_information()
+			if async:
+				subspaces.subspace.executor.execute()
+				result = result.get()
+			values = np.array(result).flatten()
+			self.assertEqual(values.tolist(), self.dataset("x", "y").mutual_information().flatten().tolist())
+
+			result = subspaces.mutual_information(limits=minmax)
+			if async:
+				subspaces.subspace.executor.execute()
+				result = result.get()
+			values = np.array(result).flatten()
+			self.assertEqual(values.tolist(), self.dataset("x", "y").mutual_information(limits=minmax[0]).flatten().tolist())
+
+	def test_not_implemented(self):
+		subspace = vaex.dataset.Subspace(self.dataset, ["x", "y"], self.dataset.executor, False)
+		with self.assertRaises(NotImplementedError):
+			subspace.minmax()
+		with self.assertRaises(NotImplementedError):
+			subspace.mean()
+		with self.assertRaises(NotImplementedError):
+			subspace.var()
+		with self.assertRaises(NotImplementedError):
+			subspace.sum()
+		with self.assertRaises(NotImplementedError):
+			subspace.histogram([])
+		with self.assertRaises(NotImplementedError):
+			subspace.limits_sigma()
+
+	def test_subspace_gridded(self):
+		subspace = self.dataset("x", "y")
+		limits = subspace.minmax()
+		grid = subspace.histogram(limits)
+		subspace_bounded = subspace.bounded_by(limits)
+		subspace_gridded = subspace_bounded.gridded()
+		assert(np.all(subspace_gridded.grid == grid))
+
+		subspace_bounded = subspace.bounded_by_minmax()
+		subspace_gridded = subspace_bounded.gridded()
+		assert(np.all(subspace_gridded.grid == grid))
+
+		limits = subspace.limits_sigma()
+		grid = subspace.histogram(limits)
+		subspace_bounded = subspace.bounded_by(limits)
+		subspace_gridded = subspace_bounded.gridded()
+		assert(np.all(subspace_gridded.grid == grid))
+
+		subspace_bounded = subspace.bounded_by_sigmas()
+		subspace_gridded = subspace_bounded.gridded()
+		assert(np.all(subspace_gridded.grid == grid))
+
+
+		subspace_gridded_vector = subspace_gridded.vector("x", "y")
+		gridx = subspace.histogram(subspace_gridded_vector.subspace_bounded.bounds, size=32, weight="x")
+		gridy = subspace.histogram(subspace_gridded_vector.subspace_bounded.bounds, size=32, weight="y")
+
+		assert(np.all(subspace_gridded_vector.vx.grid == gridx))
+		assert(np.all(subspace_gridded_vector.vy.grid == gridy))
+
+
 
 	def test_length(self):
 		assert len(self.dataset) == 10
@@ -157,6 +336,13 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(x, 1)
 		self.assertAlmostEqual(y, 0)
 		self.assertAlmostEqual(z, 0)
+
+
+		dataset.add_virtual_columns_cartesian_to_spherical("x", "y", "z", "theta", "phi", "r", radians=False)
+		theta, phi, r = dataset("theta", "phi", "r").row(0)
+		self.assertAlmostEqual(theta, 0)
+		self.assertAlmostEqual(phi, 0)
+		self.assertAlmostEqual(r, 1)
 
 
 		dataset.add_virtual_columns_celestial("alpha", "delta", "l", "b")
@@ -365,8 +551,9 @@ class TestDataset(unittest.TestCase):
 											finally:
 												os.remove(path_fits_astropy)
 									compare = vx.open(path)
-									column_names = column_names or ["x", "y", "z"]
-									self.assertEqual(compare.get_column_names(), column_names + (["random_index"] if shuffle else []))
+									column_names = column_names or ["x", "y", "f", "z"]
+									# TODO: does the order matter?
+									self.assertEqual(sorted(compare.get_column_names()), sorted(column_names + (["random_index"] if shuffle else [])))
 									for column_name in column_names:
 										values = dataset.evaluate(column_name)
 										if selection:
@@ -453,6 +640,49 @@ class TestDataset(unittest.TestCase):
 		self.dataset.set_active_fraction(0.5)
 		total_half = self.dataset("x").histogram(limits).sum()
 		self.assertLess(total_half, total)
+
+
+	def test_histogram(self):
+		counts = self.dataset("x").histogram([[0,10]], size=10)
+		assert(all(counts == 1))
+
+		sums = self.dataset("x").histogram([[0,10]], size=10, weight="y")
+		assert(all(sums == self.y))
+
+		self.dataset.select("x < 5")
+		mask = self.x < 5
+
+		counts = self.dataset("x").selected().histogram([[0,10]], size=10)
+		mod_counts = counts * 1.
+		mod_counts[~mask] = 0
+		assert(all(counts == mod_counts))
+
+		mod_sums = self.y * 1.
+		mod_sums[~mask] = 0
+		sums = self.dataset("x").selected().histogram([[0,10]], size=10, weight="y")
+		assert(all(sums == mod_sums))
+
+
+		x = np.array([0, 1, 0, 1])
+		y = np.array([0, 0, 1, 1])
+		dataset = vx.from_arrays(x=x, y=y)
+		counts = dataset("x", "y").histogram([[0.,2.], [0.,2.]], size=2)
+		assert(np.all(counts == 1))
+
+		x = np.array([0, 1, 0, 1, 0, 1, 0, 1])
+		y = np.array([0, 0, 1, 1, 0, 0, 1, 1])
+		z = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+		dataset = vx.from_arrays(x=x, y=y, z=z)
+		counts = dataset("x", "y", "z").histogram([[0.,2.], [0.,2.], [0.,2.]], size=2)
+		assert(np.all(counts == 1))
+
+		x = np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1])
+		y = np.array([0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1])
+		z = np.array([0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1])
+		w = np.array([0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1,])
+		dataset = vx.from_arrays(x=x, y=y, z=z, w=w)
+		counts = dataset("x", "y", "z", "w").histogram([[0.,2.], [0.,2.], [0.,2.], [0.,2.]], size=2)
+		assert(np.all(counts == 1))
 
 
 
@@ -599,7 +829,10 @@ class TestDataset(unittest.TestCase):
 
 
 
-test_port = 29010+10
+# allow multiple python versions on one machine to run the test
+import sys
+test_port = 29110 + sys.version_info[0] * 10 + sys.version_info[1]
+
 class TestDatasetRemote(TestDataset):
 	use_websocket = True
 	def setUp(self):
@@ -640,6 +873,14 @@ class TestDatasetRemote(TestDataset):
 
 	def test_concat(self):
 		pass # doesn't make sense to test this for remote
+
+	def test_data_access(self):
+		pass
+
+	def test_byte_size(self):
+		pass # we don't know the selection's length for dataset remote..
+
+
 """
 
 class T_estDatasetRemoteHttp(T_estDatasetRemote):

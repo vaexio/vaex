@@ -211,7 +211,15 @@ class ServerRest(object):
 		arguments["job_id"] = job_id
 		arguments["path"] = path
 		arguments["user_id"] = self.user_id
-		arguments = dict({key: (value.tolist() if hasattr(value, "tolist") else value) for key, value in arguments.items()})
+		def listify(value):
+			if isinstance(value, list):
+				value = list([listify(item) for item in value])
+			if hasattr(value, "tolist"):
+				value = value.tolist()
+			return value
+
+		#arguments = dict({key: (value.tolist() if hasattr(value, "tolist") else value) for key, value in arguments.items()})
+		arguments = dict({key: listify(value) for key, value in arguments.items()})
 
 		def do():
 			def write(socket):

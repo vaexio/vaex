@@ -510,7 +510,7 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
 			//__builtin_prefetch(block_ptr, 1, 1); // read, and no temporal locality
 			//__builtin_prefetch(block_ptr+block_stride*10, 1, 1); // read, and no temporal locality
 			//if( (index >= 0) & (index < counts_length) )
-			if((value > min) & (value < max)) {
+			if((value >= min) & (value < max)) {
 				const double scaled = (value - min) * scale;
 				const long long index = (long long)(scaled);
 				counts[index] +=  weights == NULL ? 1 : (isfinite(weights[i]) ? weights[i] : 0);
@@ -535,7 +535,7 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
 				//__builtin_prefetch(block_ptr, 1, 1); // read, and no temporal locality
 				//__builtin_prefetch(block_ptr+block_stride*10, 1, 1); // read, and no temporal locality
 				//if( (index >= 0) & (index < counts_length) )
-				if((value > min) & (value < max)) {
+				if((value >= min) & (value < max)) {
 					const double scaled = (value - min) * scale;
 					const long long index = (long long)(scaled);
 					if(weights != NULL) {

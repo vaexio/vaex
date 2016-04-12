@@ -164,4 +164,4 @@ class Executor(object):
 		finally:
 			self._is_executing = False
 
-default_executor = None
+#default_executor = None
