@@ -15,6 +15,7 @@ from functools import reduce
 import threading
 import six
 from vaex.utils import ensure_string
+import vaex.utils
 
 import numpy as np
 import numexpr as ne
@@ -237,7 +238,7 @@ class SubspaceGridded(object):
 			result = pylab.plot(means, x, **kwargs)
 
 		self.subspace_bounded.lim()
-		return result
+		return result, x, means
 
 
 
@@ -813,7 +814,7 @@ class SubspaceLocal(Subspace):
 			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
 		return self._task(task)
 
-	def histogram(self, limits, size=256, weight=None, progressbar=False):
+	def histogram(self, limits, size=256, weight=None, progressbar=False, ):
 		task = TaskHistogram(self.dataset, self, self.expressions, size, limits, masked=self.is_masked, weight=weight)
 		return self._task(task, progressbar=progressbar)
 
@@ -1272,9 +1273,42 @@ class Dataset(object):
 			columns = [self.ucd_find(ucd) for ucd in ucds]
 			return None if None in columns else columns
 
+	def get_private_dir(self, create=False):
+		if self.is_local():
+			name = os.path.abspath(self.path).replace("/", "_")
+		else:
+			server = self.server
+			name = "%s_%s_%s_%s" % (server.hostname, server.port, server.base_path.replace("/", "_"), self.dataset.name)
+		dir = os.path.join(vaex.utils.get_private_dir(), "datasets", name)
+		if create and not os.path.exists(dir):
+			os.makedirs(dir)
+		return dir
+
 	def write_meta(self):
 		"""Write the metadata, like ucd, units, descriptions"""
-		raise NotImplementedError
+		#raise NotImplementedError
+		path = os.path.join(self.get_private_dir(create=True), "meta.yaml")
+		units = {key:str(value) for key, value in self.units.items()}
+		meta_info = dict(description=self.description,
+						 ucds=self.ucds, units=units, descriptions=self.descriptions,
+						 virtual_columns=self.virtual_columns,
+						 variables=self.variables)
+		vaex.utils.write_json_or_yaml(path, meta_info)
+
+	def update_meta(self):
+		path = os.path.join(self.get_private_dir(create=False), "meta.yaml")
+		if os.path.exists(path):
+			meta_info = vaex.utils.read_json_or_yaml(path)
+			self.description = meta_info["description"]
+			self.ucds.update(meta_info["ucds"])
+			self.descriptions.update(meta_info["descriptions"])
+			self.virtual_columns.update(meta_info["virtual_columns"])
+			self.variables.update(meta_info["variables"])
+			units = {key:astropy.units.Unit(value) for key, value in meta_info["units"].items()}
+			self.units.update(units)
+			units = {key:str(value) for key, value in self.units.items()}
+
+
 
 	def is_local(self): raise NotImplementedError
 
@@ -1408,7 +1442,7 @@ class Dataset(object):
 					self.add_virtual_column(matrix_name +"_%d%d" % (i,j), matrix[i,j])
 				else:
 					#self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
-					matrix_list[i][j] = matrix[i,j]
+					matrix_list[i][j] = matrix[i,j].item()
 		if not matrix_is_expression:
 			self.add_variable(matrix_name, matrix_list)
 
@@ -1428,6 +1462,26 @@ class Dataset(object):
 	def add_virtual_columns_eq2gal(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial_eq2gal", radians=False):
 		import kapteyn.celestial as c
 		self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
+
+	def add_virtual_columns_proper_motion_eq2gal(self, long_in, lat_in, pm_long, pm_lat, pm_long_out, pm_lat_out, name_prefix="__proper_motion_eq2gal", radians=False):
+		import kapteyn.celestial as c
+		"""mu_gb =  mu_dec*(cdec*sdp-sdec*cdp*COS(ras))/cgb $
+		  - mu_ra*cdp*SIN(ras)/cgb"""
+		if not radians:
+			long_in = "pi/180.*%s" % long_in
+			lat_in = "pi/180.*%s" % lat_in
+		c1 = name_prefix + "_C1"
+		c2 = name_prefix + "_C2"
+		self.add_variable("right_ascension_galactic_pole", np.radians(192.85))
+		self.add_variable("declination_galactic_pole", np.radians(27.12))
+		self.add_virtual_column(c1, "sin(declination_galactic_pole) * cos({lat_in}) - cos(declination_galactic_pole)*sin({lat_in})*cos({long_in}-right_ascension_galactic_pole)".format(**locals()))
+		self.add_virtual_column(c2, "cos(declination_galactic_pole) * sin({long_in}-right_ascension_galactic_pole)".format(**locals()))
+		self.add_virtual_column(pm_long_out, "({c1} * {pm_long} + {c2} * {pm_lat})/sqrt({c1}**2+{c2}**2)".format(**locals()))
+		self.add_virtual_column(pm_lat_out, "(-{c2} * {pm_long} + {c1} * {pm_lat})/sqrt({c1}**2+{c2}**2)".format(**locals()))
+
+		#mu
+
+		#self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
 
 	def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial", radians=False):
 		import kapteyn.celestial as c
@@ -1555,6 +1609,7 @@ class Dataset(object):
 		type = "change" if name in self.virtual_columns else "add"
 		self.virtual_columns[name] = expression
 		self.signal_column_changed.emit(self, name, "add")
+		self.write_meta()
 
 	def delete_virtual_column(self, name):
 		del self.virtual_columns[name]
@@ -2243,6 +2298,9 @@ class HansMemoryMapped(DatasetMemoryMapped):
 		return []
 dataset_type_map["buist"] = HansMemoryMapped
 
+def _python_save_name(name):
+	first, rest = name[0], name[1:]
+	return re.sub("[^a-zA-Z_]", "_", first) +  re.sub("[^a-zA-Z_0-9]", "_", rest)
 
 class FitsBinTable(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
@@ -2255,12 +2313,24 @@ class FitsBinTable(DatasetMemoryMapped):
 					#pdb.set_trace()
 					if table.columns[0].dim is not None: # for sure not a colfits
 						dim = eval(table.columns[0].dim) # TODO: can we not do an eval here? not so safe
-						if dim[0] == 1 and len(dim) == 2: # we have colfits format
+						if len(dim) == 2 and dim[0] < dim[1]: # we have colfits format
 							logger.debug("colfits file!")
 							offset = table_offset
 							for i in range(len(table.columns)):
 								column = table.columns[i]
 								cannot_handle = False
+								column_name = _python_save_name(column.name)
+
+								ucd_header_name = "TUCD%d" % (i+1)
+								if ucd_header_name in table.header:
+									self.ucds[column_name] = table.header[ucd_header_name]
+								#unit_header_name = "TUCD%d" % (i+1)
+								#if ucd_header_name in table.header:
+								if column.unit:
+									try:
+										self.units[column_name] = astropy.units.Unit(column.unit)
+									except:
+										logger.debug("could not understand unit: %s" % column.unit)
 
 								# flatlength == length * arraylength
 								flatlength, fitstype = int(column.format[:-1]),column.format[-1]
@@ -2286,10 +2356,10 @@ class FitsBinTable(DatasetMemoryMapped):
 								if (flatlength > 0) and dtypecode != "a": # TODO: support strings
 									logger.debug("%r", (column.name, offset, dtype, length))
 									if arraylength == 1:
-										self.addColumn(column.name, offset=offset, dtype=dtype, length=length)
+										self.addColumn(column_name, offset=offset, dtype=dtype, length=length)
 									else:
 										for i in range(arraylength):
-											name = column.name+"_" +str(i)
+											name = column_name+"_" +str(i)
 											self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
 								if flatlength > 0: # flatlength can be
 									offset += bytessize * length
@@ -2303,6 +2373,7 @@ class FitsBinTable(DatasetMemoryMapped):
 							#pdb.set_trace()
 							if array.dtype.kind in "fi":
 								self.addColumn(column.name, array=array)
+		self.update_meta()
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
@@ -2388,7 +2459,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 			self.load_variables(self.h5file["/variables"])
 		if "axes" in self.h5file:
 			self.load_axes(self.h5file["/axes"])
-			
+		self.update_meta()
+
 	#def 
 	def load_axes(self, axes_data):
 		for name in axes_data:
@@ -2509,6 +2581,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 			column = group[column_name]
 			offset = column.id.get_offset() 
 			self.addColumn(column_name, offset, len(column), dtype=column.dtype)
+		self.update_meta()
 
 dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
 
