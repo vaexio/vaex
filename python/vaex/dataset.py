@@ -1233,6 +1233,22 @@ class Dataset(object):
 			return np.zeros(1, dtype=np.float64).dtype
 
 	def unit(self, expression, default=None):
+		"""Returns the unit (an astropy.unit.Units object) for the expression
+
+		:Example:
+		>>> import vaex as vx
+		>>> ds = vx.example()
+		>>> ds.unit("x")
+		Unit("kpc")
+		>>> ds.unit("x*L")
+		Unit("km kpc2 / s")
+
+
+		:param expression: Expression, which can be a column name
+		:param default: if no unit is known, it will return this
+		:return: The resulting unit of the expression
+		:rtype: astropy.units.Unit
+		"""
 		try:
 			# if an expression like pi * <some_expr> it will evaluate to a quantity instead of a unit
 			unit_or_quantity = eval(expression, globals_for_eval, UnitScope(self))
@@ -1251,6 +1267,7 @@ class Dataset(object):
 
 		Prefixed with a ^, it will only match the first part of the ucd
 
+		:Example:
 		>>> dataset.ucd_find('pos.eq.ra', 'pos.eq.dec')
 		['RA', 'DEC']
 		>>> dataset.ucd_find('pos.eq.ra', 'doesnotexist')
@@ -1274,6 +1291,17 @@ class Dataset(object):
 			return None if None in columns else columns
 
 	def get_private_dir(self, create=False):
+		"""Each datasets has a directory where files are stored for metadata etc
+
+		:Example:
+		>>> import vaex as vx
+		>>> ds = vx.example()
+		>>> ds.get_private_dir()
+		'/Users/users/breddels/.vaex/datasets/_Users_users_breddels_vaex-testing_data_helmi-dezeeuw-2000-10p.hdf5'
+
+		:param bool create: is True, it will create the directory if it does not exist
+
+		"""
 		if self.is_local():
 			name = os.path.abspath(self.path).replace("/", "_")
 		else:
@@ -1286,6 +1314,17 @@ class Dataset(object):
 
 
 	def write_virtual_meta(self):
+		"""Writes virtual columns, variables and their ucd,description and units
+
+		The default implementation is to write this to a file called virtual_meta.yaml in the directory defined by
+		:func:`Dataset.get_private_dir`. Other implementation may store this in the dataset file itself.
+
+		This method is called after virtual columns or variables are added. Upon opening a file, :func:`Dataset.update_virtual_meta`
+		is called, so that the information is not lost between sessions.
+
+		Note: opening a dataset twice may result in corruption of this file.
+
+		"""
 		path = os.path.join(self.get_private_dir(create=True), "virtual_meta.yaml")
 		virtual_names = self.virtual_columns.keys()  + self.variables.keys()
 		units = {key:str(value) for key, value in self.units.items() if key in virtual_names}
@@ -1297,6 +1336,7 @@ class Dataset(object):
 		vaex.utils.write_json_or_yaml(path, meta_info)
 
 	def update_virtual_meta(self):
+		"""Will read back the virtual column etc, written by :func:`Dataset.write_virtual_meta`. This will be done when opening a dataset."""
 		try:
 			path = os.path.join(self.get_private_dir(create=False), "virtual_meta.yaml")
 			if os.path.exists(path):
@@ -1311,7 +1351,18 @@ class Dataset(object):
 			logger.exception("non fatal error")
 
 	def write_meta(self):
-		"""Write the metadata, like ucd, units, descriptions"""
+		"""Writes all meta data, ucd,description and units
+
+		The default implementation is to write this to a file called meta.yaml in the directory defined by
+		:func:`Dataset.get_private_dir`. Other implementation may store this in the dataset file itself.
+		(For instance the vaex hdf5 implementation does this)
+
+		This method is called after virtual columns or variables are added. Upon opening a file, :func:`Dataset.update_meta`
+		is called, so that the information is not lost between sessions.
+
+		Note: opening a dataset twice may result in corruption of this file.
+
+		"""
 		#raise NotImplementedError
 		path = os.path.join(self.get_private_dir(create=True), "meta.yaml")
 		units = {key:str(value) for key, value in self.units.items()}
@@ -1321,6 +1372,7 @@ class Dataset(object):
 		vaex.utils.write_json_or_yaml(path, meta_info)
 
 	def update_meta(self):
+		"""Will read back the ucd, descriptions, units etc, written by :func:`Dataset.write_meta`. This will be done when opening a dataset."""
 		path = os.path.join(self.get_private_dir(create=False), "meta.yaml")
 		if os.path.exists(path):
 			meta_info = vaex.utils.read_json_or_yaml(path)
@@ -1334,7 +1386,9 @@ class Dataset(object):
 
 
 
-	def is_local(self): raise NotImplementedError
+	def is_local(self):
+		"""Returns True if the dataset is a local dataset, False when a remote dataset"""
+		raise NotImplementedError
 
 	def get_auto_fraction(self):
 		return self._auto_fraction
@@ -1344,6 +1398,7 @@ class Dataset(object):
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
+		"""Tests if this class can open the file given by path"""
 		return False
 
 	@classmethod
@@ -1355,6 +1410,17 @@ class Dataset(object):
 		return []
 
 	def subspace(self, *expressions, **kwargs):
+		"""Return a :class:`Subspace` for this dataset with the given expressions:
+
+		Example:
+
+		>>> subspace_xy = some_dataset("x", "y")
+
+		:rtype: Subspace
+		:param list[str] expressions: list of expressions
+		:param kwargs:
+		:return:
+		"""
 		return self(*expressions, **kwargs)
 
 	def subspaces(self, expressions_list=None, dimensions=None, exclude=None, **kwargs):
@@ -1395,38 +1461,65 @@ class Dataset(object):
 
 
 	def __call__(self, *expressions, **kwargs):
-		"""Return a Subspace for this dataset with the given expressions:
-
-		Example:
-
-		>>> subspace_xy = some_dataset("x", "y")
-
-		:rtype: Subspace
-		"""
+		"""Alias/shortcut for :func:`Dataset.subspace`"""
 		raise NotImplementedError
 
-	def set_variable(self, name, value):
-		self.variables[name] = value
+	def set_variable(self, name, expression_or_value):
+		"""Set the variable to an expression or value defined by expression_or_value
+
+		:Example:
+		>>> ds.set_variable("a", 2.)
+		>>> ds.set_variable("b", "a**2")
+		>>> ds.get_variable("b")
+		'a**2'
+		>>> ds.evaluate_variable("b")
+		4.0
+
+		:param name: Name of the variable
+		:param expression: value or expression
+		"""
+		self.variables[name] = expression_or_value
+		self.write_virtual_meta()
 
 	def get_variable(self, name):
+		"""Returns the variable given by name, it will not evaluate it.
+
+		For evaluation, see :func:`Dataset.evaluate_variable`, see also :func:`Dataset.set_variable`
+
+		"""
 		return self.variables[name]
 
-	def evaluate(self, expression, i1=None, i2=None, out=None):
-		raise NotImplementedError
-
-	def validate_expression(self, expression):
-		#return self.evaluate(expression, 0, 2)
-		vars = set(self.get_column_names(True, True)) | set(self.variables.keys())
-		funcs = set(expression_namespace.keys())
-		return vaex.expresso.validate_expression(expression, vars, funcs)
-
 	def evaluate_variable(self, name):
+		"""Evaluates the variable given by name"""
 		if isinstance(self.variables[name], six.string_types):
 			# TODO: this does not allow more than one level deep variable, like a depends on b, b on c, c is a const
 			value = eval(self.variables[name], expression_namespace, self.variables)
 			return value
 		else:
 			return self.variables[name]
+
+	def evaluate(self, expression, i1=None, i2=None, out=None):
+		"""Evaluate an expression, and return a numpy array with the results for the full column or a part of it.
+
+		Note that this is not how vaex should be used, since it means a copy of the data needs to fit in memory.
+
+		To get partial results, use i1 and i2/
+
+		:param str expression: Name/expression to evaluate
+		:param int i1: Start row index, default is the start (0)
+		:param int i2: End row index, default is the length of the dataset
+		:param ndarray out: Output array, to which the result may be written (may be used to reuse an array, or write to
+		a memory mapped array)
+		:return:
+		"""
+		raise NotImplementedError
+
+	def validate_expression(self, expression):
+		"""Validate an expression (may throw Exceptions)"""
+		#return self.evaluate(expression, 0, 2)
+		vars = set(self.get_column_names(True, True)) | set(self.variables.keys())
+		funcs = set(expression_namespace.keys())
+		return vaex.expresso.validate_expression(expression, vars, funcs)
 
 	def _block_scope(self, i1, i2):
 		variables = {key:self.evaluate_variable(key) for key in self.variables.keys()}
@@ -1480,15 +1573,53 @@ class Dataset(object):
 			self.virtual_columns[znew] = "{m}[2][0] * {x} + {m}[2][1] * {y} + {m}[2][2] * {z}".format(**locals())
 		self.write_virtual_meta()
 
-	def add_virtual_columns_eq2ecl(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial_eq2ecl", radians=False):
+	def add_virtual_columns_eq2ecl(self, long_in, lat_in, long_out="lambda_", lat_out="beta", input=None, output=None, name_prefix="__celestial_eq2ecl", radians=False):
+		"""Add ecliptic coordates (long_out, lat_out) from equatorial coordinates.
+
+		:param long_in: Name/expression for right ascension
+		:param lat_in: Name/expression for declination
+		:param long_out:  Output name for lambda coordinate
+		:param lat_out: Output name for beta coordinate
+		:param input:
+		:param output:
+		:param name_prefix:
+		:param radians: input and output in radians (True), or degrees (False)
+		:return:
+		"""
 		import kapteyn.celestial as c
 		self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.ecliptic, name_prefix=name_prefix, radians=radians)
 
-	def add_virtual_columns_eq2gal(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial_eq2gal", radians=False):
+	def add_virtual_columns_eq2gal(self, long_in, lat_in, long_out="l", lat_out="b", input=None, output=None, name_prefix="__celestial_eq2gal", radians=False):
+		"""Add galactic coordates (long_out, lat_out) from equatorial coordinates.
+
+		:param long_in: Name/expression for right ascension
+		:param lat_in: Name/expression for declination
+		:param long_out:  Output name for galactic longitude
+		:param lat_out: Output name for galactic latitude
+		:param input:
+		:param output:
+		:param name_prefix:
+		:param radians: input and output in radians (True), or degrees (False)
+		:return:
+		"""
 		import kapteyn.celestial as c
 		self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
 
 	def add_virtual_columns_proper_motion_eq2gal(self, long_in, lat_in, pm_long, pm_lat, pm_long_out, pm_lat_out, name_prefix="__proper_motion_eq2gal", radians=False):
+		"""Transform/rotate proper motions from equatorial to galactic coordinates
+
+		Taken from http://arxiv.org/abs/1306.2945
+
+		:param long_in: Name/expression for right ascension
+		:param lat_in: Name/expression for declination
+		:param pm_long: Proper motion for ra
+		:param pm_lat: Proper motion for dec
+		:param pm_long_out:  Output name for output proper motion on l direction
+		:param pm_lat_out: Output name for output proper motion on b direction
+		:param name_prefix:
+		:param radians: input and output in radians (True), or degrees (False)
+		:return:
+		"""
 		import kapteyn.celestial as c
 		"""mu_gb =  mu_dec*(cdec*sdp-sdec*cdp*COS(ras))/cgb $
 		  - mu_ra*cdp*SIN(ras)/cgb"""
@@ -1508,7 +1639,25 @@ class Dataset(object):
 
 		#self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
 
-	def add_virtual_columns_lbrvr_proper_motion2vcartesian(self, long_in, lat_in, distance, pm_long, pm_lat, vr, vx, vy, vz, name_prefix="__lbvr_proper_motion2vcartesian", center_v_name="solar_motion", center_v=(0,0,0), radians=False):
+	def add_virtual_columns_lbrvr_proper_motion2vcartesian(self, long_in, lat_in, distance, pm_long, pm_lat, vr, vx, vy, vz, name_prefix="__lbvr_proper_motion2vcartesian", center_v=(0,0,0), center_v_name="solar_motion", radians=False):
+		"""Convert radial velocity and galactic proper motions (and positions) to cartesian velocities wrt the center_v
+		Based on http://adsabs.harvard.edu/abs/1987AJ.....93..864J
+
+		:param long_in: Name/expression for galactic longitude
+		:param lat_in: Name/expression for galactic latitude
+		:param distance: Name/expression for heliocentric distance
+		:param pm_long: Name/expression for the galactic proper motion in latitude direction (pm_l*, so cosine(b) term should be included)
+		:param pm_lat: Name/expression for the galactic proper motion in longitude direction
+		:param vr: Name/expression for the radial velocity
+		:param vx: Output name for the cartesian velocity x-component
+		:param vy: Output name for the cartesian velocity y-component
+		:param vz: Output name for the cartesian velocity z-component
+		:param name_prefix:
+		:param center_v: Extra motion that should be added, for instance lsr + motion of the sun wrt the galactic restframe
+		:param center_v_name:
+		:param radians: input and output in radians (True), or degrees (False)
+		:return:
+		"""
 		k = 4.74057
 		if 0:
 			v_sun_lsr = array([10.0, 5.2, 7.2])
@@ -1589,10 +1738,10 @@ class Dataset(object):
 
 
 	def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees):
-		"""
+		"""Rotation in 2d
 
-		:param str x: name of x column
-		:param str y:
+		:param str x: Name/expression of x column
+		:param str y: idem for y
 		:param str xnew: name of transformed x column
 		:param str ynew:
 		:param float angle_degrees: rotation in degrees, anti clockwise
@@ -1649,6 +1798,15 @@ class Dataset(object):
 		#self.add_virtual_column(lat_out, "(-arccos({z}/sqrt({x}**2+{y}**2+{z}**2))+pi/2){transform}".format(**locals()))
 
 	def add_virtual_columns_aitoff(self, alpha, delta, x, y, radians=True):
+		"""Add aitoff (https://en.wikipedia.org/wiki/Aitoff_projection) projection
+
+		:param alpha: azimuth angle
+		:param delta: polar angle
+		:param x: output name for x coordinate
+		:param y: output name for y coordinate
+		:param radians: input and output in radians (True), or degrees (False)
+		:return:
+		"""
 		transform = "" if radians else "*pi/180."
 		aitoff_alpha = "__aitoff_alpha_%s_%s" % (alpha, delta)
 		# sanatize
@@ -1671,7 +1829,10 @@ class Dataset(object):
 	def add_virtual_column(self, name, expression):
 		"""Add a virtual column to the dataset
 
-		Example:
+		:param: str name: name of virtual column
+		:param: expression: expression for the column
+
+		:Example:
 		>>> dataset.add_virtual_column("r", "sqrt(x**2 + y**2 + z**2)")
 		>>> dataset.select("r < 10")
 		"""
@@ -1681,16 +1842,30 @@ class Dataset(object):
 		self.write_virtual_meta()
 
 	def delete_virtual_column(self, name):
+		"""Deletes a virtual column from a dataset"""
 		del self.virtual_columns[name]
 		self.signal_column_changed.emit(self, name, "delete")
 		self.write_virtual_meta()
 
 	def add_variable(self, name, expression):
+		"""Add a variable column to the dataset
+
+		:param: str name: name of virtual varible
+		:param: expression: expression for the variable
+
+		Variable may refer to other variables, and virtual columns and expression may refer to variables
+
+		:Example:
+		>>> dataset.add_variable("center")
+		>>> dataset.add_virtual_column("x_prime", "x-center")
+		>>> dataset.select("x_prime < 0")
+		"""
 		self.variables[name] = expression
 		self.signal_variable_changed.emit(self, name, "add")
 		self.write_virtual_meta()
 
 	def delete_variable(self, name):
+		"""Deletes a variable from a dataset"""
 		del self.variables[name]
 		self.signal_variable_changed.emit(self, name, "delete")
 		self.write_virtual_meta()
@@ -1698,6 +1873,7 @@ class Dataset(object):
 
 
 	def _repr_html_(self):
+		"""Representation for Jupyter"""
 		html = """<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))
 		html += """<table>"""
 		for column_name in self.get_column_names():
@@ -1706,11 +1882,12 @@ class Dataset(object):
 		return html
 
 
-	def current_sequence_index(self):
+	def __current_sequence_index(self):
 		"""TODO"""
 		return 0
 
 	def has_current_row(self):
+		"""Returns True/False is there currently is a picked row"""
 		return self._current_row is not None
 
 	def get_current_row(self):
@@ -1724,7 +1901,8 @@ class Dataset(object):
 		self._current_row = value
 		self.signal_pick.emit(self, value)
 
-	def has_snapshots(self):
+	def __has_snapshots(self):
+		# currenly disabled
 		return False
 
 	def column_count(self):
@@ -1734,6 +1912,9 @@ class Dataset(object):
 	def get_column_names(self, virtual=False, hidden=False):
 		"""Return a list of column names
 
+
+		:param virtual: If True, also return virtual columns
+		:param hidden: If True, also return hidden columns
 		:rtype: list of str
  		"""
 		return list(self.column_names) + ([key for key in self.virtual_columns.keys() if (hidden or (not key.startswith("__")))] if virtual else [])
@@ -1769,6 +1950,7 @@ class Dataset(object):
 			self.signal_active_fraction_changed.emit(self, value)
 
 	def get_selection(self, selection_name="default"):
+		"""Get the current selection object (mostly for internal use atm)"""
 		selection_history = self.selection_histories[selection_name]
 		index = self.selection_history_indices[selection_name]
 		if index == -1:
@@ -1777,6 +1959,7 @@ class Dataset(object):
 			return selection_history[index]
 
 	def selection_undo(self, selection_name="default", executor=None):
+		"""Undo selection, for the selection_name"""
 		logger.debug("undo")
 		executor = executor or self.executor
 		assert self.selection_can_undo(selection_name=selection_name)
@@ -1804,6 +1987,7 @@ class Dataset(object):
 
 
 	def selection_redo(self, selection_name="default", executor=None):
+		"""Redo selection, for the selection_name"""
 		logger.debug("redo")
 		executor = executor or self.executor
 		assert self.selection_can_redo(selection_name=selection_name)
@@ -1820,12 +2004,24 @@ class Dataset(object):
 		return result
 
 	def selection_can_undo(self, selection_name="default"):
+		"""Can selection selection_name be undone?"""
 		return self.selection_history_indices[selection_name] > -1
 
 	def selection_can_redo(self, selection_name="default"):
+		"""Can selection selection_name be redone?"""
 		return (self.selection_history_indices[selection_name] + 1) < len(self.selection_histories[selection_name])
 
 	def select(self, boolean_expression, mode="replace", selection_name="default", executor=None):
+		"""Perform a selection, defined by the boolean expression, and combined with the previous selection using the given mode
+
+		Selections are recorded in a history tree, per selection_name, undo/redo can be done for them seperately
+
+		:param str boolean_expression: Any valid column expression, with comparison operators
+		:param str mode: Possible boolean operator: replace/and/or/xor/subtract
+		:param str selection_name: history tree or selection 'slot' to use
+		:param executor:
+		:return:
+		"""
 		if boolean_expression is None and not self.has_selection(selection_name=selection_name):
 			pass # we don't want to pollute the history with many None selections
 			self.signal_selection_changed.emit(self) # TODO: unittest want to know, does this make sense?
@@ -1835,14 +2031,35 @@ class Dataset(object):
 			return self._selection(create, selection_name)
 
 	def select_nothing(self, selection_name="default"):
+		"""Select nothing"""
 		self.select(None, selection_name=selection_name)
 
 	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", selection_name="default", executor=None):
+		"""For performance reasons, a lasso selection is handled differently.
+
+		:param str expression_x: Name/expression for the x coordinate
+		:param str expression_y: Name/expression for the y coordinate
+		:param xsequence: list of x numbers defining the lasso, together with y
+		:param ysequence:
+		:param str mode: Possible boolean operator: replace/and/or/xor/subtract
+		:param str selection_name:
+		:param executor:
+		:return:
+		"""
+
+
 		def create(current):
 			return SelectionLasso(self, expression_x, expression_y, xsequence, ysequence, current, mode)
 		return self._selection(create, selection_name, executor=executor)
 
 	def set_selection(self, selection, selection_name="default", executor=None):
+		"""Sets the selection object
+
+		:param selection: Selection object
+		:param selection_name: selection 'slot'
+		:param executor:
+		:return:
+		"""
 		def create(current):
 			return selection
 		return self._selection(create, selection_name, executor=executor, execute_fully=True)
@@ -1872,6 +2089,7 @@ class Dataset(object):
 		return result
 
 	def has_selection(self, selection_name="default"):
+		"""Returns True of there is a selection"""
 		return self.get_selection(selection_name) != None
 
 
@@ -1897,6 +2115,7 @@ _select_functions = {"replace":_select_replace,\
 					 "subtract":_select_subtract
 					 }
 class DatasetLocal(Dataset):
+	"""Base class for datasets that work with local file/data"""
 	def __init__(self, name, path, column_names):
 		super(DatasetLocal, self).__init__(name, column_names)
 		self.path = path
@@ -1905,6 +2124,22 @@ class DatasetLocal(Dataset):
 
 	@property
 	def data(self):
+		"""Gives direct access to the data as numpy-like arrays.
+
+		Convenient when working with ipython in combination with small datasets, since this gives tab-completion
+
+		Columns can be accesed by there names, which are attributes. The attribues are subclasses of numpy.ndarray
+		and have the following extra properties:
+
+		* ucd - The ucd for the column
+		* description - Text description for column
+		* unit - astropy unit object (astropy.units.Unit)
+
+		:Example:
+		>>> ds = vx.example()
+		>>> r = np.sqrt(ds.data.x**2 + ds.data.y**2)
+
+		"""
 		class Data(object):
 			pass
 		class VaexColumn(np.ndarray):
@@ -1921,6 +2156,11 @@ class DatasetLocal(Dataset):
 		return data
 
 	def shallow_copy(self, virtual=True, variables=True):
+		"""Creates a (shallow) copy of the dataset
+
+		It will link to the same data, but will have its own state, e.g. virtual columns, variables, selection etc
+
+		"""
 		dataset = DatasetLocal(self.name, self.path, self.column_names)
 		dataset.columns.update(self.columns)
 		dataset._full_length = self._full_length
@@ -1932,19 +2172,31 @@ class DatasetLocal(Dataset):
 			dataset.variables.update(self.variables)
 		return dataset
 
-	def is_local(self): return True
+	def is_local(self):
+		"""The local implementation of :func:`Dataset.evaluate`, always returns True"""
+		return True
 
 
-	def length(self, selection=False):
+	def __length(self, selection=False):
+		"""This does not exist: The local implementation of :func:`Dataset.length`"""
 		if selection:
 			return 0 if self.mask is None else np.sum(self.mask)
 		else:
 			return len(self)
 
 	def __call__(self, *expressions, **kwargs):
+		"""The local implementation of :func:`Dataset.__call__`"""
 		return SubspaceLocal(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
 
 	def concat(self, other):
+		"""Concatenates two datasets, adding the rows of one the other dataset to the current, returned in a new dataset.
+
+		No copy of the data is made.
+
+		:param other: The other dataset that is concatenated with this dataset
+		:return: New dataset with the rows concatenated
+		:rtype: DatasetConcatenated
+		"""
 		datasets = []
 		if isinstance(self, DatasetConcatenated):
 			datasets.extend(self.datasets)
@@ -1957,6 +2209,7 @@ class DatasetLocal(Dataset):
 		return DatasetConcatenated(datasets)
 
 	def evaluate(self, expression, i1=None, i2=None, out=None):
+		"""The local implementation of :func:`Dataset.evaluate`"""
 		i1 = i1 or 0
 		i2 = i2 or len(self)
 		scope = _BlockScope(self, i1, i2, **self.variables)
@@ -1965,7 +2218,8 @@ class DatasetLocal(Dataset):
 		return scope.evaluate(expression)
 
 	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
-		"""
+		"""Exports the dataset to a vaex hdf5 file
+
 		:param DatasetLocal dataset: dataset to export
 		:param str path: path for file
 		:param lis[str] column_names: list of column names to export or None for all columns
@@ -1980,7 +2234,8 @@ class DatasetLocal(Dataset):
 		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress)
 
 	def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None):
-		"""
+		"""Exports the dataset to a fits file that is compatible with TOPCAT colfits format
+
 		:param DatasetLocal dataset: dataset to export
 		:param str path: path for file
 		:param lis[str] column_names: list of column names to export or None for all columns
@@ -2004,6 +2259,7 @@ class DatasetLocal(Dataset):
 				#and False:
 
 	def selected_length(self):
+		"""The local implementation of :func:`Dataset.selected_length`"""
 		return np.sum(self.mask) if self.has_selection() else None
 
 
@@ -2069,6 +2325,8 @@ class _ColumnConcatenatedLazy(object):
 
 
 class DatasetConcatenated(DatasetLocal):
+	"""Represents a set of datasets all concatenated. See :func:`DatasetLocal.concat` for usage.
+	"""
 	def __init__(self, datasets, name=None):
 		super(DatasetConcatenated, self).__init__(None, None, [])
 		self.datasets = datasets
@@ -2093,6 +2351,7 @@ class DatasetConcatenated(DatasetLocal):
 		self._length = self.full_length()
 
 class DatasetArrays(DatasetLocal):
+	"""Represent an in-memory dataset of numpy arrays, see :func:`from_arrays` for usage."""
 	def __init__(self, name="arrays"):
 		super(DatasetArrays, self).__init__(None, None, [])
 		self.name = name
@@ -2102,6 +2361,11 @@ class DatasetArrays(DatasetLocal):
 	#	return len(self.columns.values()[0])
 
 	def add_column(self, name, data):
+		"""Add a column to the dataset
+
+		:param str name: name of column
+		:param data: numpy array with the data
+		"""
 		self.column_names.append(name)
 		self.columns[name] = data
 		#self._length = len(data)
@@ -2114,6 +2378,7 @@ class DatasetArrays(DatasetLocal):
 
 
 class DatasetMemoryMapped(DatasetLocal):
+	"""Represents a dataset where the data is memory mapped for efficient reading"""
 
 		
 	# nommap is a hack to get in memory datasets working
@@ -2464,16 +2729,20 @@ class FitsBinTable(DatasetMemoryMapped):
 dataset_type_map["fits"] = FitsBinTable
 
 class Hdf5MemoryMapped(DatasetMemoryMapped):
+	"""Implements the vaex hdf5 file format"""
 	def __init__(self, filename, write=False):
 		super(Hdf5MemoryMapped, self).__init__(filename, write=write)
 		self.h5file = h5py.File(self.filename, "r+" if write else "r")
 		self.h5table_root_name = None
 		try:
-			self.load()
+			self._load()
 		finally:
 			self.h5file.close()
 
 	def write_meta(self):
+		"""ucds, descriptions and units are written as attributes in the hdf5 file, instead of a seperate file as
+		 the default :func:`Dataset.write_meta`.
+		 """
 		with h5py.File(self.filename, "r+") as h5file_output:
 			h5table_root = h5file_output[self.h5table_root_name]
 			if self.description is not None:
@@ -2516,28 +2785,28 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 	def option_to_args(cls, option):
 		return []
 
-	def load(self):
+	def _load(self):
 		if "data" in self.h5file:
-			self.load_columns(self.h5file["/data"])
+			self._load_columns(self.h5file["/data"])
 			self.h5table_root_name = "/data"
 		# TODO: shall we rename it vaex... ?
 		# if "vaex" in self.h5file:
 		#	self.load_columns(self.h5file["/vaex"])
 		#	h5table_root = "/vaex"
 		if "columns" in self.h5file:
-			self.load_columns(self.h5file["/columns"])
+			self._load_columns(self.h5file["/columns"])
 			self.h5table_root_name = "/columns"
 		if "properties" in self.h5file:
-			self.load_variables(self.h5file["/properties"]) # old name, kept for portability
+			self._load_variables(self.h5file["/properties"]) # old name, kept for portability
 		if "variables" in self.h5file:
-			self.load_variables(self.h5file["/variables"])
+			self._load_variables(self.h5file["/variables"])
 		if "axes" in self.h5file:
-			self.load_axes(self.h5file["/axes"])
+			self._load_axes(self.h5file["/axes"])
 		self.update_meta()
 		self.update_virtual_meta()
 
 	#def 
-	def load_axes(self, axes_data):
+	def _load_axes(self, axes_data):
 		for name in axes_data:
 			axis = axes_data[name]
 			logger.debug("loading axis %r" % name)
@@ -2549,12 +2818,12 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 			#self.axis_names.append(axes_data)
 			#self.axes[name] = np.array(axes_data[name])
 			
-	def load_variables(self, h5variables):
+	def _load_variables(self, h5variables):
 		for key, value in list(h5variables.attrs.items()):
 			self.variables[key] = value
 			
 			
-	def load_columns(self, h5data):
+	def _load_columns(self, h5data):
 		#print h5data
 		# make sure x y x etc are first
 		first = "x y z vx vy vz".split()
@@ -2629,6 +2898,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 dataset_type_map["h5vaex"] = Hdf5MemoryMapped
 
 class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
+	"""Implements reading Amuse hdf5 files `amusecode.org <http://amusecode.org/>`_"""
 	def __init__(self, filename, write=False):
 		super(AmuseHdf5MemoryMapped, self).__init__(filename, write=write)
 		
@@ -2644,7 +2914,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 				return ("particles" in h5file)# or ("columns" in h5file)
 		return False
 
-	def load(self):
+	def _load(self):
 		particles = self.h5file["/particles"]
 		for group_name in particles:
 			#import pdb
@@ -2665,6 +2935,7 @@ dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
 gadget_particle_names = "gas halo disk bulge stars dm".split()
 
 class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
+	"""Implements reading `Gadget2 <http://wwwmpa.mpa-garching.mpg.de/gadget/>`_ hdf5 files """
 	def __init__(self, filename, particle_name=None, particle_type=None):
 		if "#" in filename:
 			filename, index = filename.split("#")

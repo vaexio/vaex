@@ -442,10 +442,6 @@ class DatasetRest(DatasetRemote):
 		else:
 			return np.zeros(1, dtype=np.float64).dtype
 
-	def write_meta(self):
-		"""Write the metadata, like ucd, units, descriptions"""
-		logger.error("not implemented yet") # TODO: how to implement this?
-
 	def is_local(self): return False
 
 	def __repr__(self):

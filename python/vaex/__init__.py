@@ -30,6 +30,21 @@ from vaex.remote import ServerRest
 del ServerRest, Dataset
 
 def app(*args, **kwargs):
+	"""Create a vaex app, the QApplication mainloop must be started.
+
+	In ipython notebook/jupyter do the following:
+	import vaex.ui.main # this causes the qt api level to be set properly
+	import vaex as xs
+	Next cell:
+	%gui qt
+	Next cell
+	app = vx.app()
+
+	From now on, you can run the app along with jupyter
+
+	"""
+
+
 	import vaex.ui.main
 	return vaex.ui.main.VaexApp()
 def open(path, *args, **kwargs):
@@ -62,12 +77,30 @@ def open(path, *args, **kwargs):
 		return vaex.dataset.load_file(path, *args, **kwargs)
 
 def open_many(filenames):
+	"""Open a list of filenames, and return a dataset with all datasets cocatenated
+
+	:param list[str] filenames: list of filenames/paths
+	:rtype: Dataset
+	"""
 	datasets = []
 	for filename in filenames:
 		datasets.append(open(filename.strip()))
 	return vaex.dataset.DatasetConcatenated(datasets=datasets)
 
 def from_arrays(name="array", **arrays):
+	"""Create an in memory dataset from numpy arrays
+
+
+	:param: str name: name of dataset
+	:param: arrays: keyword arguments with arrays
+
+	:Example:
+	>>> x = np.arange(10)
+	>>> y = x ** 2
+	>>> dataset = vx.from_arrays("test", x=x, y=y)
+
+
+	"""
 	dataset = vaex.dataset.DatasetArrays(name)
 	for name, array in arrays.items():
 		dataset.add_column(name, array)
@@ -101,7 +134,7 @@ def server(url, **kwargs):
 	return vaex.remote.ServerRest(hostname, base_path=base_path, port=port, websocket=websocket, **kwargs)
 
 def example():
-	"""Returns an example dataset which comes with vaex for learning purposes
+	"""Returns an example dataset which comes with vaex for testing/learning purposes
 
 	:rtype: vaex.dataset.Dataset
 	"""
@@ -110,25 +143,32 @@ def example():
 
 
 def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
+	"""Creates a zeldovich dataset
+	"""
 	return vaex.dataset.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
 
 def set_log_level_debug():
+	"""set log level to debug"""
 	import logging
 	logging.getLogger("vaex").setLevel(logging.DEBUG)
 
 def set_log_level_info():
+	"""set log level to info"""
 	import logging
 	logging.getLogger("vaex").setLevel(logging.INFO)
 
 def set_log_level_warning():
+	"""set log level to warning"""
 	import logging
 	logging.getLogger("vaex").setLevel(logging.WARNING)
 
 def set_log_level_exception():
+	"""set log level to exception"""
 	import logging
 	logging.getLogger("vaex").setLevel(logging.FATAL)
 
 def set_log_level_off():
+	"""Disabled logging"""
 	import logging
 	logging.disable(logging.CRITICAL)
 

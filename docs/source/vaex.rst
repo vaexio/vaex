@@ -2,7 +2,7 @@ API documentation for vaex
 ================================
 
 .. automodule:: vaex
-    :members: open, server, example
+    :members: open, server, example, from_arrays, open_many, app, zeldovich, set_log_level_debug, set_log_level_info, set_log_level_warning, set_log_level_exception, set_log_level_off
     :undoc-members:
     :show-inheritance:
 
@@ -20,7 +20,7 @@ vaex.dataset module
 -------------------
 
 .. automodule:: vaex.dataset
-    :members: Dataset, Subspace, SubspaceGridded, SubspaceBounded, Task, DatasetLocal, DatasetMemoryMapped, Hdf5MemoryMapped, FitsBinTable, AmuseHdf5MemoryMapped, Hdf5MemoryMappedGadget, SoneiraPeebles, Zeldovich, VOTable, AsciiTable, MemoryMappedGadget, can_open, load_file, TaskMapReduce, TaskHistogramSubspaceLocal
+    :members: Dataset, Subspace, SubspaceGridded, SubspaceBounded, Task, DatasetLocal, DatasetConcatenated, DatasetArrays, DatasetMemoryMapped, Hdf5MemoryMapped, FitsBinTable, AmuseHdf5MemoryMapped, Hdf5MemoryMappedGadget, SoneiraPeebles, Zeldovich, VOTable, AsciiTable, MemoryMappedGadget, can_open, load_file, TaskMapReduce, TaskHistogramSubspaceLocal
     :undoc-members:
     :show-inheritance:
 
