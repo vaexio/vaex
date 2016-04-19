@@ -271,6 +271,44 @@ class TextOption(object):
 		#self.combobox.setCurrentIndex(options.index(getter()))
 		self.textfield.returnPressed.connect(on_change)
 
+		if 1:
+			from vaex.ui.icons import iconfile
+			self.tool_button = QtGui.QToolButton(parent)
+			self.tool_button .setIcon(QtGui.QIcon(iconfile('gear')))
+			self.tool_menu = QtGui.QMenu()
+			self.tool_button.setMenu(self.tool_menu)
+			self.tool_button.setPopupMode(QtGui.QToolButton.InstantPopup)
+
+			if self.placeholder:
+				def fill(_=None):
+					value = self.get_placeholder()
+					if value:
+						setter(value)
+						self.set_value(value)
+				self.action_fill = QtGui.QAction("Fill in default value", parent)
+				self.action_fill.triggered.connect(fill)
+				self.tool_menu.addAction(self.action_fill)
+
+			def copy(_=None):
+				value = self.textfield.text()
+				if value:
+					clipboard = QtGui.QApplication.clipboard()
+					text = str(value)
+					clipboard.setText(text)
+			self.action_copy = QtGui.QAction("Copy", parent)
+			self.action_copy.triggered.connect(copy)
+			self.tool_menu.addAction(self.action_copy)
+
+			def paste(_=None):
+				clipboard = QtGui.QApplication.clipboard()
+				text = clipboard.text()
+				setter(text)
+				self.set_value(text)
+			self.action_paste = QtGui.QAction("Paste", parent)
+			self.action_paste.triggered.connect(paste)
+			self.tool_menu.addAction(self.action_paste)
+
+
 	def set_unit_completer(self):
 		self.completer = vaex.ui.completer.UnitCompleter(self.textfield)
 		self.textfield.setCompleter(self.completer)
@@ -284,6 +322,7 @@ class TextOption(object):
 	def add_to_grid_layout(self, row, grid_layout):
 		grid_layout.addWidget(self.label, row, 0)
 		grid_layout.addWidget(self.textfield, row, 1)
+		grid_layout.addWidget(self.tool_button, row, 2)
 		return row + 1
 
 class RangeOption(object):
