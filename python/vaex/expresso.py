@@ -311,7 +311,7 @@ import numpy as np
 import math
 import sys
 
-valid_binary_operators = [_ast.Add, _ast.Sub, _ast.Mult, _ast.Pow, _ast.Div]
+valid_binary_operators = [_ast.Add, _ast.Sub, _ast.Mult, _ast.Pow, _ast.Div, _ast.BitAnd, _ast.BitOr, _ast.BitXor, _ast.Mod]
 valid_compare_operators = [_ast.Lt, _ast.LtE, _ast.Gt, _ast.GtE, _ast.Eq, _ast.NotEq]
 valid_unary_operators = [_ast.USub, _ast.UAdd]
 valid_id_characters = string.ascii_letters + string.digits + "_"
