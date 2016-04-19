@@ -684,7 +684,7 @@ class PlotDialog(QtGui.QWidget):
 		for dataset in self.data_panel.dataset_list:
 			menu_dataset = QtGui.QMenu(dataset.name, self.menu_layer_new)
 			self.menu_layer_new.addMenu(menu_dataset)
-			for column1 in dataset.get_column_names():
+			for column1 in dataset.get_column_names(virtual=True):
 				if self.dimensions == 1:
 					action_col1 = QtGui.QAction(column1, menu_dataset)
 					menu_dataset.addAction(action_col1)
@@ -695,7 +695,7 @@ class PlotDialog(QtGui.QWidget):
 				else:
 					menu_col1 = QtGui.QMenu(column1, menu_dataset)
 					menu_dataset.addMenu(menu_col1)
-					for column2 in dataset.get_column_names():
+					for column2 in dataset.get_column_names(virtual=True):
 						if self.dimensions == 2:
 							action_col2 = QtGui.QAction(column2, menu_dataset)
 							menu_col1.addAction(action_col2)
@@ -2655,6 +2655,10 @@ class ScatterPlotDialog(PlotDialog):
 				except:
 					pass
 
+		titles = [layer.state.title for layer in self.layers if layer.state.title]
+		if titles:
+			self.title = self.axes.set_title(",".join(titles))
+		self.canvas.draw()
 		self.fig.tight_layout()#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 		self.canvas.draw()
 		self.update()

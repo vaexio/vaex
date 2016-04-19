@@ -183,6 +183,7 @@ class LayerTable(object):
 		self.state = AttrDict()
 
 		self.state.ranges_grid = ranges_grid
+		self.state.title = options.get("title")
 
 		self.range_level = None
 		self.thread_pool = thread_pool
@@ -727,6 +728,7 @@ class LayerTable(object):
 							amplitude_selection = grid_selection.evaluate(self.amplitude_expression)
 						else:
 							amplitude_selection = None
+						print("total amplit")
 						self.plot_density(axes, amplitude, amplitude_selection, stack_image)
 
 					if len(all_axes) > 2:
@@ -786,7 +788,7 @@ class LayerTable(object):
 		return {} # TODO: remove this? of replace
 
 	def _normalize_values(self, amplitude):
-		I = amplitude#self.contrast(amplitude)
+		I = amplitude*1.#self.contrast(amplitude)
 		# scale to [0,1]
 		mask = ~(np.isnan(I) | np.isinf(I))
 		if np.sum(mask) == 0:
@@ -1232,9 +1234,21 @@ class LayerTable(object):
 		vmax = None
 		def getminmax(grid, vmin, vmax):
 			mask = ~(np.isnan(grid) | np.isinf(grid))
+			values = grid
+			if self.dimensions == 1:
+				# DRY, same code in plot(..)
+				values = grid * 1. # copy grid
+				if self._cumulative:
+					values[~mask] = 0
+					values = np.cumsum(values)
+				if self._normalize:
+					if self._cumulative:
+						values /= values[-1]
+					else:
+						values /= np.sum(values[mask]) # TODO: take dx into account?
 			if mask.sum() > 0:
-				newvmin = grid[mask].min()
-				newvmax = grid[mask].max()
+				newvmin = values[mask].min()
+				newvmax = values[mask].max()
 				vmin = min(newvmin, vmin) if vmin is not None else newvmin
 				vmax = max(newvmax, vmax) if vmax is not None else newvmax
 			return vmin, vmax
@@ -1927,6 +1941,20 @@ class LayerTable(object):
 		self.grid_layout_annotate.setAlignment(QtCore.Qt.AlignTop)
 		page.setLayout(self.grid_layout_annotate)
 		row = 0
+
+		def get():
+			return self.state.title
+		def set(value):
+			self.state.title = value
+			self.plot_window.queue_history_change("changed title to %s" % (value))
+			self.plot_window.queue_push_full_state()
+		#def default():
+		#	#return "default label"
+		#	return self.plot_window.get_default_label(0)
+		self.option_title = TextOption(page, "title", self.state.title, None, get, set, self.signal_plot_dirty.emit)
+		row = self.option_title.add_to_grid_layout(row, self.grid_layout_annotate)
+
+
 
 		self.state.labels = []
 
