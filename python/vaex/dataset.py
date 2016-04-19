@@ -1284,6 +1284,32 @@ class Dataset(object):
 			os.makedirs(dir)
 		return dir
 
+
+	def write_virtual_meta(self):
+		path = os.path.join(self.get_private_dir(create=True), "virtual_meta.yaml")
+		virtual_names = self.virtual_columns.keys()  + self.variables.keys()
+		units = {key:str(value) for key, value in self.units.items() if key in virtual_names}
+		ucds = {key:value for key, value in self.ucds.items() if key in virtual_names}
+		descriptions = {key:value for key, value in self.descriptions.items() if key in virtual_names}
+		meta_info = dict(virtual_columns=self.virtual_columns,
+						 variables=self.variables,
+						 ucds=ucds, units=units, descriptions=descriptions)
+		vaex.utils.write_json_or_yaml(path, meta_info)
+
+	def update_virtual_meta(self):
+		try:
+			path = os.path.join(self.get_private_dir(create=False), "virtual_meta.yaml")
+			if os.path.exists(path):
+					meta_info = vaex.utils.read_json_or_yaml(path)
+					self.virtual_columns.update(meta_info["virtual_columns"])
+					self.variables.update(meta_info["variables"])
+					self.ucds.update(meta_info["ucds"])
+					self.descriptions.update(meta_info["descriptions"])
+					units = {key:astropy.units.Unit(value) for key, value in meta_info["units"].items()}
+					self.units.update(units)
+		except:
+			logger.exception("non fatal error")
+
 	def write_meta(self):
 		"""Write the metadata, like ucd, units, descriptions"""
 		#raise NotImplementedError
@@ -1291,8 +1317,7 @@ class Dataset(object):
 		units = {key:str(value) for key, value in self.units.items()}
 		meta_info = dict(description=self.description,
 						 ucds=self.ucds, units=units, descriptions=self.descriptions,
-						 virtual_columns=self.virtual_columns,
-						 variables=self.variables)
+)
 		vaex.utils.write_json_or_yaml(path, meta_info)
 
 	def update_meta(self):
@@ -1302,11 +1327,10 @@ class Dataset(object):
 			self.description = meta_info["description"]
 			self.ucds.update(meta_info["ucds"])
 			self.descriptions.update(meta_info["descriptions"])
-			self.virtual_columns.update(meta_info["virtual_columns"])
-			self.variables.update(meta_info["variables"])
+			#self.virtual_columns.update(meta_info["virtual_columns"])
+			#self.variables.update(meta_info["variables"])
 			units = {key:astropy.units.Unit(value) for key, value in meta_info["units"].items()}
 			self.units.update(units)
-			units = {key:str(value) for key, value in self.units.items()}
 
 
 
@@ -1439,7 +1463,7 @@ class Dataset(object):
 		for i in range(3):
 			for j in range(3):
 				if matrix_is_expression:
-					self.add_virtual_column(matrix_name +"_%d%d" % (i,j), matrix[i,j])
+					self.add_virtual_column(matrix_name +"_%d%d" % (i,j), matrix[i][j])
 				else:
 					#self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
 					matrix_list[i][j] = matrix[i,j].item()
@@ -1454,6 +1478,7 @@ class Dataset(object):
 			self.virtual_columns[xnew] = "{m}[0][0] * {x} + {m}[0][1] * {y} + {m}[0][2] * {z}".format(**locals())
 			self.virtual_columns[ynew] = "{m}[1][0] * {x} + {m}[1][1] * {y} + {m}[1][2] * {z}".format(**locals())
 			self.virtual_columns[znew] = "{m}[2][0] * {x} + {m}[2][1] * {y} + {m}[2][2] * {z}".format(**locals())
+		self.write_virtual_meta()
 
 	def add_virtual_columns_eq2ecl(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial_eq2ecl", radians=False):
 		import kapteyn.celestial as c
@@ -1472,8 +1497,8 @@ class Dataset(object):
 			lat_in = "pi/180.*%s" % lat_in
 		c1 = name_prefix + "_C1"
 		c2 = name_prefix + "_C2"
-		self.add_variable("right_ascension_galactic_pole", np.radians(192.85))
-		self.add_variable("declination_galactic_pole", np.radians(27.12))
+		self.add_variable("right_ascension_galactic_pole", np.radians(192.85).item())
+		self.add_variable("declination_galactic_pole", np.radians(27.12).item())
 		self.add_virtual_column(c1, "sin(declination_galactic_pole) * cos({lat_in}) - cos(declination_galactic_pole)*sin({lat_in})*cos({long_in}-right_ascension_galactic_pole)".format(**locals()))
 		self.add_virtual_column(c2, "cos(declination_galactic_pole) * sin({long_in}-right_ascension_galactic_pole)".format(**locals()))
 		self.add_virtual_column(pm_long_out, "({c1} * {pm_long} + {c2} * {pm_lat})/sqrt({c1}**2+{c2}**2)".format(**locals()))
@@ -1482,6 +1507,49 @@ class Dataset(object):
 		#mu
 
 		#self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
+
+	def add_virtual_columns_lbrvr_proper_motion2vcartesian(self, long_in, lat_in, distance, pm_long, pm_lat, vr, vx, vy, vz, name_prefix="__lbvr_proper_motion2vcartesian", center_v_name="solar_motion", center_v=(0,0,0), radians=False):
+		k = 4.74057
+		if 0:
+			v_sun_lsr = array([10.0, 5.2, 7.2])
+			v_lsr_gsr = array([0., 220, 0])
+			theta0 = 122.932
+			#d_NGP = 27.128336111111111
+			#al_NGP = 192.10950833333334
+			al_NGP = 192.85948
+			d_NGP = 27.12825
+			c = numpy.matrix([
+					[cosd(al_NGP),  sind(al_NGP), 0],
+					[sind(al_NGP), -cosd(al_NGP), 0],
+					[0, 0, 1]])
+			b = numpy.matrix([
+					[-sind(d_NGP), 0, cosd(d_NGP)],
+					[0, -1, 0],
+					[cosd(d_NGP), 0, sind(d_NGP)]])
+			a = numpy.matrix([
+					[cosd(theta0),  sind(theta0), 0],
+					[sind(theta0), -cosd(theta0), 0],
+					[0, 0, 1]])
+			T = a*b*c
+		self.add_variable("k", k)
+		A = [["cos({a})*cos({d})",  "-sin({a})", "-cos({a})*sin({d})"],
+			 ["sin({a})*cos({d})", "cos({a})", "-sin({a})*sin({d})"],
+			 ["sin({d})", "0", "cos({d})"]]
+		a = long_in
+		d = lat_in
+		if not radians:
+			a = "pi/180.*%s" % a
+			d = "pi/180.*%s" % d
+		for i in range(3):
+			for j in range(3):
+				A[i][j] = A[i][j].format(**locals())
+		self.add_virtual_columns_matrix3d(vr, "k*{pm_long}*{distance}".format(**locals()), "k*{pm_lat}*{distance}".format(**locals()), name_prefix +vx, name_prefix +vy, name_prefix +vz,\
+										  A, name_prefix+"_matrix", matrix_is_expression=True)
+		self.add_variable(center_v_name, center_v)
+		self.add_virtual_column(vx, "%s + %s[0]" % (name_prefix +vx, center_v_name))
+		self.add_virtual_column(vy, "%s + %s[1]" % (name_prefix +vy, center_v_name))
+		self.add_virtual_column(vz, "%s + %s[2]" % (name_prefix +vz, center_v_name))
+
 
 	def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial", radians=False):
 		import kapteyn.celestial as c
@@ -1598,6 +1666,7 @@ class Dataset(object):
 		self.virtual_columns[zname] = "{distance} * (cos({delta}) * cos({delta_gp}) * cos({alpha} - {alpha_gp}) + sin({delta}) * sin({delta_gp}))".format(**locals())
 		self.virtual_columns[xname] = "{distance} * (cos({delta}) * sin({alpha} - {alpha_gp}))".format(**locals())
 		self.virtual_columns[yname] = "{distance} * (sin({delta}) * cos({delta_gp}) - cos({delta}) * sin({delta_gp}) * cos({alpha} - {alpha_gp}))".format(**locals())
+		self.write_virtual_meta()
 
 	def add_virtual_column(self, name, expression):
 		"""Add a virtual column to the dataset
@@ -1609,19 +1678,22 @@ class Dataset(object):
 		type = "change" if name in self.virtual_columns else "add"
 		self.virtual_columns[name] = expression
 		self.signal_column_changed.emit(self, name, "add")
-		self.write_meta()
+		self.write_virtual_meta()
 
 	def delete_virtual_column(self, name):
 		del self.virtual_columns[name]
 		self.signal_column_changed.emit(self, name, "delete")
+		self.write_virtual_meta()
 
 	def add_variable(self, name, expression):
 		self.variables[name] = expression
 		self.signal_variable_changed.emit(self, name, "add")
+		self.write_virtual_meta()
 
 	def delete_variable(self, name):
 		del self.variables[name]
 		self.signal_variable_changed.emit(self, name, "delete")
+		self.write_virtual_meta()
 
 
 
@@ -2024,6 +2096,7 @@ class DatasetArrays(DatasetLocal):
 	def __init__(self, name="arrays"):
 		super(DatasetArrays, self).__init__(None, None, [])
 		self.name = name
+		self.path = "/has/no/path/"+name
 
 	#def __len__(self):
 	#	return len(self.columns.values()[0])
@@ -2374,6 +2447,7 @@ class FitsBinTable(DatasetMemoryMapped):
 							if array.dtype.kind in "fi":
 								self.addColumn(column.name, array=array)
 		self.update_meta()
+		self.update_virtual_meta()
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
@@ -2460,6 +2534,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 		if "axes" in self.h5file:
 			self.load_axes(self.h5file["/axes"])
 		self.update_meta()
+		self.update_virtual_meta()
 
 	#def 
 	def load_axes(self, axes_data):
@@ -2582,6 +2657,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 			offset = column.id.get_offset() 
 			self.addColumn(column_name, offset, len(column), dtype=column.dtype)
 		self.update_meta()
+		self.update_virtual_meta()
 
 dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
 

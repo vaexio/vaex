@@ -72,6 +72,11 @@ class TestDataset(unittest.TestCase):
 
 		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset, self.dataset, self.dataset], name="dataset_concat_dup")
 
+
+	def histogram_cumulative(self):
+
+		self.dataset("x").histogram()
+
 	def test_units(self):
 		assert self.dataset.unit("x") == astropy.units.km
 		assert self.dataset.unit("y") == astropy.units.km/astropy.units.second

@@ -680,7 +680,7 @@ class DatasetPanel(QtGui.QFrame):
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
 		spherical_galactic = dataset.ucd_find("^pos.distance", "^pos.galactic.lon", "^pos.galactic.lat")
-		if spherical_galactic and not dataset.ucd_find("pos.cartesian.x;pos.galactocentric", "pos.cartesian.y;pos.galactocentric", "pos.cartesian.z;pos.galactocentric"):
+		if spherical_galactic and not dataset.ucd_find("^pos.cartesian.x;pos.galactocentric", "^pos.cartesian.y;pos.galactocentric", "^pos.cartesian.z;pos.galactocentric"):
 			def add(*args):
 				vaex.ui.columns.add_cartesian(self, self.dataset, True)
 			action = QtGui.QAction("Add galactic cartesian positions", self)
@@ -696,9 +696,8 @@ class DatasetPanel(QtGui.QFrame):
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
 
-
-		if dataset.ucd_find("pos.pm;pos.eq.ra", "pos.pm;pos.eq.dec") and \
-				not dataset.ucd_find("pos.pm;pos.galactic.ra", "pos.pm;pos.galactic.dec"):
+		if dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec", "pos.pm;pos.eq.ra", "pos.pm;pos.eq.dec") and \
+				not dataset.ucd_find("pos.pm;pos.galactic.lon", "pos.pm;pos.galactic.lat"):
 			def add(*args):
 				vaex.ui.columns.add_proper_motion_eq2gal(self, self.dataset)
 			action = QtGui.QAction("Equatorial proper motions to galactic", self)
@@ -708,6 +707,14 @@ class DatasetPanel(QtGui.QFrame):
 
 			#dataset.add_virtual_columns_proper_motion_eq2gal("RA_ICRS_", "DE_ICRS_", "pmRA", "pmDE", "pm_l", "pm_b")
 			#dataset.add_virtual_columns_eq2gal("RA_ICRS_", "DE_ICRS_", "l", "b")
+
+		if dataset.ucd_find("^pos.galactic.lon", "^pos.galactic.lat", "^pos.distance", "pos.pm;pos.galactic.lon", "pos.pm;pos.galactic.lat", "spect.dopplerVeloc"):
+			def add(*args):
+				vaex.ui.columns.add_cartesian_velocities(self, self.dataset)
+			action = QtGui.QAction("Galactic velocities", self)
+			action.triggered.connect(add)
+			self.refs.append((action, add))
+			self.menu_common.addAction(action)
 
 		spherical_galactic = dataset.ucd_find("^pos.galactic.lon", "^pos.galactic.lat")
 		if spherical_galactic:

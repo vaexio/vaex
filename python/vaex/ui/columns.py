@@ -440,7 +440,58 @@ def add_cartesian(parent, dataset, galactic=True):
 														   values["x"], values["y"], values["z"],
 														   center=solar_position,
 														   radians=values["degrees"] == "radians")
+def add_cartesian_velocities(parent, dataset, galactic=True):
+	if galactic:
+		ucds = ["pos.distance", "^pos.galactic.lon", "^pos.galactic.lat", "pos.pm;pos.galactic.lon", "pos.pm;pos.galactic.lat", "spect.dopplerVeloc"]
+	else:
+		raise NotImplementedError("is this useful?")
+	spherical = [dataset.ucd_find(ucd) for ucd in ucds]
+	column_names = dataset.get_column_names(virtual=True)
 
+	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and None not in spherical:
+			values = dict(alpha=spherical[1], delta=spherical[2], distance=spherical[0], pm_alpha=spherical[3], pm_delta=spherical[4], vr=spherical[5],
+						  degrees="degrees", solar_pos=repr(default_solar_position)
+						  )
+	else:
+		dialog = QuickDialog(parent, title="Spherical motion to cartesian velocity")
+		if spherical[1]:
+			radians = dataset.unit(spherical[1], default=astropy.units.deg) == astropy.units.rad
+			if radians:
+				dialog.add_combo("degrees", "Input in", ["degrees", "radians"][::-1])
+			else:
+				dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+		else:
+			dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+		dialog.add_expression("distance", "Distance", spherical[0], dataset)
+		dialog.add_expression("alpha", "Alpha", spherical[1], dataset)
+		dialog.add_expression("delta", "Delta", spherical[2], dataset)
+		dialog.add_expression("pm_alpha", "pm_Alpha*", spherical[3], dataset)
+		dialog.add_expression("pm_delta", "pm_Delta", spherical[4], dataset)
+		dialog.add_expression("vr", "radial velocity", spherical[5], dataset)
+		# TODO: 8 should be in proper units
+		dialog.add_combo_edit("solar_velocity", "Solar velocity (vx,vy,vz)", default_solar_velocity, column_names)
+
+		dialog.add_text("vx", "vx_gal", make_unique("vx_gal", dataset))
+		dialog.add_text("vy", "vy_gal", make_unique("vy_gal", dataset))
+		dialog.add_text("vz", "vz_gal", make_unique("vz_gal", dataset))
+		values = dialog.get()
+	if values:
+		pos = "pos.galactocentric" if galactic else "pos.heliocentric"
+		if 0:
+			units = dataset.unit(values["distance"])
+			if units:
+				dataset.units[values["x"]] = units
+				dataset.units[values["y"]] = units
+				dataset.units[values["z"]] = units
+		dataset.ucds[values["vx"]] = "phys.veloc;pos.cartesian.x;%s" % pos
+		dataset.ucds[values["vy"]] = "phys.veloc;pos.cartesian.y;%s" % pos
+		dataset.ucds[values["vz"]] = "phys.veloc;pos.cartesian.z;%s" % pos
+		solar_velocity = eval(values["solar_velocity"])
+		dataset.add_virtual_columns_lbrvr_proper_motion2vcartesian(values["alpha"], values["delta"], values["distance"],
+														   values["pm_alpha"], values["pm_delta"], values["vr"],
+															values["vx"], values["vy"], values["vz"],
+														   center_v=solar_velocity,
+														   radians=values["degrees"] == "radians")
 def make_unique(name, dataset):
 	postfix = ""
 	number = 2
@@ -451,6 +502,7 @@ def make_unique(name, dataset):
 	return name
 
 default_solar_position = (-8, 0, 0)
+default_solar_velocity = "(10., 220+5.2, 7.2)"
 def add_sky(parent, dataset, galactic=True):
 	if galactic:
 		pos = "pos.galactocentric"
@@ -536,7 +588,56 @@ def add_aitoff(parent, dataset, galactic=True):
 										   values["x"], values["y"], radians=values["degrees"] == "radians")
 
 
+def add_proper_motion_eq2gal(parent, dataset, type="galactic"):
+	assert type == "galactic"
+	default_columns = dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec", "pos.pm;pos.eq.ra", "pos.pm;pos.eq.dec")
+	column_names = dataset.get_column_names(virtual=True)
+	if default_columns is None:
+		default_columns = ["", "", "", ""]
 
+	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and default_columns is not None:
+		values = dict(alpha=default_columns[0], delta=default_columns[1], pm_alpha=default_columns[2], pm_delta=default_columns[3], pm_alpha_out="pm_l", pm_delta_out="pm_b", degrees="degrees")
+	else:
+		dialog = QuickDialog(parent, title="Proper motion transform: equatorial to %s" % type)
+		#dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+
+		#logger.debug("unit = %s", dataset.unit(column_names[0], default=astropy.units.deg))
+		#logger.debug("unit = %s", dataset.unit(column_names[0], default=astropy.units.deg) == astropy.units.rad)
+		radians = (dataset.unit(default_columns[0], default=astropy.units.deg) == astropy.units.rad)
+		if radians:
+			dialog.add_combo("degrees", "Input in", ["degrees", "radians"][::-1])
+		else:
+			dialog.add_combo("degrees", "Input in", ["degrees", "radians"])
+
+
+
+		dialog.add_expression("alpha", "Right ascension", default_columns[0], dataset)
+		dialog.add_expression("delta", "Declination", default_columns[1], dataset)
+		if type == "galactic":
+			dialog.add_expression("pm_alpha", "pm_ra", default_columns[2], dataset)
+			dialog.add_expression("pm_delta", "pm_dec", default_columns[3], dataset)
+			dialog.add_text("pm_alpha_out", "pm_long name", "pm_l")
+			dialog.add_text("pm_delta_out", "pm_lat name", "pm_b")
+		else:
+			#dialog.add_text("l", "Ecliptic ra", "ra_lambda")
+			#dialog.add_text("b", "Ecliptic dec", "dec_beta")
+			pass
+		values = dialog.get()
+	if values:
+		dataset.ucds[values["pm_alpha_out"]] = "pos.pm;pos.galactic.lon"# % type
+		dataset.ucds[values["pm_delta_out"]] = "pos.pm;pos.galactic.lat"# % type
+		dataset.units[values["pm_alpha_out"]] = dataset.unit(values["pm_alpha"])
+		dataset.units[values["pm_delta_out"]] = dataset.unit(values["pm_delta"])
+		if type == "galactic":
+			dataset.add_virtual_columns_proper_motion_eq2gal(long_in=values["alpha"], lat_in=values["delta"],
+												   pm_long=values["pm_alpha"], pm_lat=values["pm_delta"],
+												   pm_long_out=values["pm_alpha_out"], pm_lat_out=values["pm_delta_out"],
+												   radians=values["degrees"] == "radians")
+		else:
+			pass
+			#dataset.add_virtual_columns_eq2ecl(long_in=values["ra"], lat_in=values["dec"],
+			#									   long_out=values["l"], lat_out=values["b"],
+			#									   radians=values["degrees"] == "radians")
 
 def main(argv=sys.argv):
 	dataset = vaex.open(argv[1])
