@@ -216,7 +216,7 @@ class ColumnsTable(QtGui.QWidget):
 		self.action_eq2ecl = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Equatorial to ecliptic', self)
 		#self.action_eq2ecl.setShortcut("Ctrl+G")
 		self.action_add.menu().addAction(self.action_eq2ecl)
-		self.action_celestial.triggered.connect(lambda *args: add_celestial_eq2ecl(self, self.dataset))
+		self.action_eq2ecl.triggered.connect(lambda *args: add_celestial_eq2ecl(self, self.dataset))
 
 		self.action_car_to_gal = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Cartesian to galactic', self)
 		self.action_car_to_gal.setShortcut("Ctrl+S")

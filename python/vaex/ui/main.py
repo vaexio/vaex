@@ -696,6 +696,19 @@ class DatasetPanel(QtGui.QFrame):
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
 
+
+		if dataset.ucd_find("pos.pm;pos.eq.ra", "pos.pm;pos.eq.dec") and \
+				not dataset.ucd_find("pos.pm;pos.galactic.ra", "pos.pm;pos.galactic.dec"):
+			def add(*args):
+				vaex.ui.columns.add_proper_motion_eq2gal(self, self.dataset)
+			action = QtGui.QAction("Equatorial proper motions to galactic", self)
+			action.triggered.connect(add)
+			self.refs.append((action, add))
+			self.menu_common.addAction(action)
+
+			#dataset.add_virtual_columns_proper_motion_eq2gal("RA_ICRS_", "DE_ICRS_", "pmRA", "pmDE", "pm_l", "pm_b")
+			#dataset.add_virtual_columns_eq2gal("RA_ICRS_", "DE_ICRS_", "l", "b")
+
 		spherical_galactic = dataset.ucd_find("^pos.galactic.lon", "^pos.galactic.lat")
 		if spherical_galactic:
 			def add(*args):
@@ -871,7 +884,7 @@ class VaexApp(QtGui.QMainWindow):
 	def __init__(self, argv=[], open_default=False, enable_samp=None):
 		super(VaexApp, self).__init__()
 
-		self.enable_samp = False #enable_samp if enable_samp is not None or (sys.version_info < (3, 0))
+		self.enable_samp = True #enable_samp if enable_samp is not None or (sys.version_info < (3, 0))
 		self.windows = []
 		self.current_window = None
 		self.current_dataset = None
@@ -1180,6 +1193,7 @@ class VaexApp(QtGui.QMainWindow):
 			self.highlighed_row_from_samp = False
 
 		def on_open_plot(plot_dialog):
+			self.dataset_selector.signal_add_dataset.connect(lambda dataset: plot_dialog.fill_menu_layer_new())
 			plot_dialog.signal_samp_send_selection.connect(lambda dataset: self.on_samp_send_table_select_rowlist(dataset=dataset))
 			current.window = plot_dialog
 			#current.layer = plot_dialog.current_layer
