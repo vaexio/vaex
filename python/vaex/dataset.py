@@ -1387,7 +1387,7 @@ class Dataset(object):
 
 	def update_meta(self):
 		"""Will read back the ucd, descriptions, units etc, written by :func:`Dataset.write_meta`. This will be done when opening a dataset."""
-		try;
+		try:
 			path = os.path.join(self.get_private_dir(create=False), "meta.yaml")
 			if os.path.exists(path):
 				meta_info = vaex.utils.read_json_or_yaml(path)
