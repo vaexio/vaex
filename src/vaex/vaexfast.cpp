@@ -500,19 +500,15 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
 		}
 	}
 	/*/
-	const double scale = counts_length / (max-min);;
+
+
+	const double scale = 1 / (max-min);;
 	if(block_native && weights_native) {
 		for(long long i = 0; i < block_length; i++) {
 			const double value = block[i]; //block[i*block_stride];
-			//block_ptr++;
-			//const double value = *block_ptr;
-			//block_ptr += block_stride;
-			//__builtin_prefetch(block_ptr, 1, 1); // read, and no temporal locality
-			//__builtin_prefetch(block_ptr+block_stride*10, 1, 1); // read, and no temporal locality
-			//if( (index >= 0) & (index < counts_length) )
-			if((value >= min) & (value < max)) {
-				const double scaled = (value - min) * scale;
-				const long long index = (long long)(scaled);
+			const double scaled = (value - min) * scale;
+			if( (scaled >= 0) & (scaled < 1) ) {
+				int index = (int)(scaled * counts_length);
 				counts[index] +=  weights == NULL ? 1 : (isfinite(weights[i]) ? weights[i] : 0);
 			}
 		}
@@ -529,15 +525,18 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
 		} else*/ {
 			for(long long i = 0; i < block_length; i++) {
 				const double value = block_native ? block[i] : double_to_native(block[i]);
+    			const double scaled = (value - min) * scale;
 				//block_ptr++;
 				//const double value = *block_ptr;
 				//block_ptr += block_stride;
 				//__builtin_prefetch(block_ptr, 1, 1); // read, and no temporal locality
 				//__builtin_prefetch(block_ptr+block_stride*10, 1, 1); // read, and no temporal locality
 				//if( (index >= 0) & (index < counts_length) )
-				if((value >= min) & (value < max)) {
-					const double scaled = (value - min) * scale;
-					const long long index = (long long)(scaled);
+				//if((value >= min) & (value < max)) {
+    			if( (scaled >= 0) & (scaled < 1) ) {
+					//const double scaled = (value - min) * scale;
+					//const long long index = (long long)(scaled);
+    				int index = (int)(scaled * counts_length);
 					if(weights != NULL) {
     					double weight = weights_native ? weights[i] : double_to_native(weights[i]);
 	    				counts[index] +=  isfinite(weight) ? weight : 0;
