@@ -1313,6 +1313,20 @@ class Dataset(object):
 		return dir
 
 
+	def remove_virtual_meta(self):
+		"""Removes the file with the virtual column etc, it does not change the current virtual columns etc"""
+		dir = self.get_private_dir(create=True)
+		path = os.path.join(dir, "virtual_meta.yaml")
+		try:
+			os.remove(path)
+			if not os.listdir(dir):
+				os.rmdir(dir)
+		except:
+			logger.exception("error while trying to remove %s or %s", path, dir)
+	#def remove_meta(self):
+	#	path = os.path.join(self.get_private_dir(create=True), "meta.yaml")
+	#	os.remove(path)
+
 	def write_virtual_meta(self):
 		"""Writes virtual columns, variables and their ucd,description and units
 
@@ -1326,7 +1340,7 @@ class Dataset(object):
 
 		"""
 		path = os.path.join(self.get_private_dir(create=True), "virtual_meta.yaml")
-		virtual_names = self.virtual_columns.keys()  + self.variables.keys()
+		virtual_names = list(self.virtual_columns.keys())  + list(self.variables.keys())
 		units = {key:str(value) for key, value in self.units.items() if key in virtual_names}
 		ucds = {key:value for key, value in self.ucds.items() if key in virtual_names}
 		descriptions = {key:value for key, value in self.descriptions.items() if key in virtual_names}
@@ -2177,8 +2191,16 @@ class DatasetLocal(Dataset):
 		return True
 
 
-	def __length(self, selection=False):
-		"""This does not exist: The local implementation of :func:`Dataset.length`"""
+	def length(self, selection=False):
+		"""Get the length of the datasets, for the selection of the whole dataset.
+
+		If selection is False, it returns len(dataset)
+
+		TODO: Implement this in DatasetRemote, and move the method up in :func:`Dataset.length`
+
+		:param selection: When True, will return the number of selected rows
+		:return:
+		"""
 		if selection:
 			return 0 if self.mask is None else np.sum(self.mask)
 		else:
@@ -2331,6 +2353,7 @@ class DatasetConcatenated(DatasetLocal):
 		super(DatasetConcatenated, self).__init__(None, None, [])
 		self.datasets = datasets
 		self.name = name or "-".join(ds.name for ds in self.datasets)
+		self.path =  "-".join(ds.path for ds in self.datasets)
 		first, tail = datasets[0], datasets[1:]
 		for column_name in first.get_column_names():
 			if all([column_name in dataset.get_column_names() for dataset in tail]):
@@ -2651,7 +2674,7 @@ class FitsBinTable(DatasetMemoryMapped):
 					#pdb.set_trace()
 					if table.columns[0].dim is not None: # for sure not a colfits
 						dim = eval(table.columns[0].dim) # TODO: can we not do an eval here? not so safe
-						if len(dim) == 2 and dim[0] < dim[1]: # we have colfits format
+						if len(dim) == 2 and dim[0] <= dim[1]: # we have colfits format
 							logger.debug("colfits file!")
 							offset = table_offset
 							for i in range(len(table.columns)):
