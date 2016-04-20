@@ -63,7 +63,7 @@ class TestDataset(unittest.TestCase):
 
 		dataset1 = vx.dataset.DatasetArrays("dataset1")
 		dataset2 = vx.dataset.DatasetArrays("dataset2")
-		dataset3 = vx.dataset.DatasetArrays("dataset2")
+		dataset3 = vx.dataset.DatasetArrays("dataset3")
 		dataset1.add_column("x", x1)
 		dataset2.add_column("x", x2)
 		dataset3.add_column("x", x3)
@@ -71,6 +71,11 @@ class TestDataset(unittest.TestCase):
 		self.dataset_concat = vx.dataset.DatasetConcatenated([dataset1, dataset2, dataset3], name="dataset_concat")
 
 		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset, self.dataset, self.dataset], name="dataset_concat_dup")
+
+	def tearDown(self):
+		self.dataset.remove_virtual_meta()
+		self.dataset_concat.remove_virtual_meta()
+		self.dataset_concat_dup.remove_virtual_meta()
 
 
 	def histogram_cumulative(self):
@@ -463,7 +468,7 @@ class TestDataset(unittest.TestCase):
 		def concat(*types):
 			arrays = [np.arange(3, dtype=dtype) for dtype in types]
 			N = len(arrays)
-			datasets = [vx.dataset.DatasetArrays("dataset1") for i in range(N)]
+			datasets = [vx.dataset.DatasetArrays("dataset-%i" % i)  for i in range(N)]
 			for dataset, array in zip(datasets, arrays):
 				dataset.add_column("x", array)
 			dataset_concat = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
@@ -649,7 +654,9 @@ class TestDataset(unittest.TestCase):
 
 	def test_histogram(self):
 		counts = self.dataset("x").histogram([[0,10]], size=10)
-		assert(all(counts == 1))
+		#import pdb
+		#pdb.set_trace()
+		self.assertTrue(all(counts == 1), "counts is %r" % counts)
 
 		sums = self.dataset("x").histogram([[0,10]], size=10, weight="y")
 		assert(all(sums == self.y))
@@ -870,6 +877,7 @@ class TestDatasetRemote(TestDataset):
 
 
 	def tearDown(self):
+		TestDataset.tearDown(self)
 		#print "stop serving"
 		self.webserver.stop_serving()
 
