@@ -891,7 +891,8 @@ class VaexApp(QtGui.QMainWindow):
 	def __init__(self, argv=[], open_default=False, enable_samp=None):
 		super(VaexApp, self).__init__()
 
-		self.enable_samp = True #enable_samp if enable_samp is not None or (sys.version_info < (3, 0))
+		is_py2 = (sys.version_info[0] == 2)
+		self.enable_samp = enable_samp if (enable_samp is not None) else is_py2
 		self.windows = []
 		self.current_window = None
 		self.current_dataset = None
