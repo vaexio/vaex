@@ -61,7 +61,15 @@ class FullTableModel(QtCore.QAbstractTableModel):
 			#	value = self.dataset.columns[column_name][row]
 			#else:
 			#	value, = self.dataset(column_name).row(row)
-			value = self.dataset.evaluate(column_name, row, row+1)[0]
+			try:
+				value = self.dataset.evaluate(column_name, row, row+1)
+			except Exception as e:
+				logger.exception("Error evaluating: %s %s", column_name, row)
+				return "Error: %r" % e
+			try:
+				value = value[0]
+			except:
+				pass # TODO: ok, it can be a scalar sometimes... should not happen, but can when an column expression is set to '0'
 			#column = [self.dataset.all_column_names[index.column()-1]]
 			if len(value.shape) == 0:
 				return str(value)
