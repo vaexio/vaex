@@ -1387,16 +1387,19 @@ class Dataset(object):
 
 	def update_meta(self):
 		"""Will read back the ucd, descriptions, units etc, written by :func:`Dataset.write_meta`. This will be done when opening a dataset."""
-		path = os.path.join(self.get_private_dir(create=False), "meta.yaml")
-		if os.path.exists(path):
-			meta_info = vaex.utils.read_json_or_yaml(path)
-			self.description = meta_info["description"]
-			self.ucds.update(meta_info["ucds"])
-			self.descriptions.update(meta_info["descriptions"])
-			#self.virtual_columns.update(meta_info["virtual_columns"])
-			#self.variables.update(meta_info["variables"])
-			units = {key:astropy.units.Unit(value) for key, value in meta_info["units"].items()}
-			self.units.update(units)
+		try;
+			path = os.path.join(self.get_private_dir(create=False), "meta.yaml")
+			if os.path.exists(path):
+				meta_info = vaex.utils.read_json_or_yaml(path)
+				self.description = meta_info["description"]
+				self.ucds.update(meta_info["ucds"])
+				self.descriptions.update(meta_info["descriptions"])
+				#self.virtual_columns.update(meta_info["virtual_columns"])
+				#self.variables.update(meta_info["variables"])
+				units = {key:astropy.units.Unit(value) for key, value in meta_info["units"].items()}
+				self.units.update(units)
+		except:
+			logger.exception("non fatal error, but could read/understand %s", path)
 
 
 
