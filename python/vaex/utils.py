@@ -254,7 +254,7 @@ import collections
 _mapping_tag = yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
 
 def dict_representer(dumper, data):
-    return dumper.represent_dict(data.iteritems())
+    return dumper.represent_dict(data.iteritems() if hasattr(data, "iteritems") else data.items())
 
 def dict_constructor(loader, node):
     return collections.OrderedDict(loader.construct_pairs(node))
