@@ -68,13 +68,15 @@ class FullTableModel(QtCore.QAbstractTableModel):
 				return "Error: %r" % e
 			try:
 				value = value[0]
+				if len(value.shape) == 0:
+					return str(value)
+				else:
+					return "%s %s" % (value.dtype.name, value.shape)
 			except:
 				pass # TODO: ok, it can be a scalar sometimes... should not happen, but can when an column expression is set to '0'
-			#column = [self.dataset.all_column_names[index.column()-1]]
-			if len(value.shape) == 0:
 				return str(value)
-			else:
-				return "%s %s" % (value.dtype.name, value.shape)
+			#column = [self.dataset.all_column_names[index.column()-1]]
+
 
 	def headerData(self, index, orientation, role):
 		#print index
