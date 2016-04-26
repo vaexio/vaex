@@ -1138,7 +1138,7 @@ class PlotDialog(QtGui.QWidget):
 		y = np.ascontiguousarray(y, dtype=np.float64)
 		layer = self.current_layer
 		if layer is not None:
-			self.dataset.select_lasso(layer.x, layer.y, x, y, mode=self.select_mode)
+			self.dataset.select_lasso(layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], x, y, mode=self.select_mode)
 			#self.dataset.evaluate(select, layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], **self.getVariableDict())
 			meanx = x.mean()
 			meany = y.mean()

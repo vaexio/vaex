@@ -17,6 +17,7 @@ from vaex.ui import widgets
 logger = logging.getLogger("plugin.transferfunction")
 
 
+@vaex.ui.plugin.pluginclass
 class TransferFunctionPlugin(vaex.ui.plugin.PluginLayer):
 	name = "transferfunction"
 	def __init__(self, parent, layer):
@@ -48,7 +49,7 @@ class TransferFunctionPlugin(vaex.ui.plugin.PluginLayer):
 		self.button_orbit.toggled.connect(on_toggle_orbit)
 		layout.setRowMinimumHeight(1, 8)
 
-		self.tool = widgets.HistogramAndTransfer(page, self.layer.colormap)
+		self.tool = widgets.HistogramAndTransfer(page, self.layer.state.colormap)
 		#self.tool.setMinimumHeight(100)
 		layout.addWidget(self.tool, 2, 1)
 

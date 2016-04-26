@@ -713,6 +713,7 @@ class LayerTable(object):
 						#amplitude = grid_context(self.amplitude_expression, locals=grid_map_2d)
 
 						grid = self.grid_main.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
+						#grid = self.grid_main.marginal2d(axes.xaxis_index, axes.yaxis_index)
 						if self.state.show_disjoined:
 							grid = grid.disjoined()
 						try:
@@ -722,7 +723,7 @@ class LayerTable(object):
 							return
 						if self.dataset.has_selection():
 							#grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
-							grid_selection = self.grid_main_selection.marginal2d(axes.xaxis_index, axes.yaxis_index)
+							grid_selection = self.grid_main_selection.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
 							if self.state.show_disjoined:
 								grid_selection = grid_selection.disjoined()
 							amplitude_selection = grid_selection.evaluate(self.amplitude_expression)
@@ -738,6 +739,7 @@ class LayerTable(object):
 						other_axis = 2
 
 					if vector_grids:
+						#vector_grids[vector_grids==np.inf] = np.nan
 						U = vector_grids[axes.xaxis_index]
 						V = vector_grids[axes.yaxis_index]
 						W = vector_grids[self.dimensions-1-other_axis]

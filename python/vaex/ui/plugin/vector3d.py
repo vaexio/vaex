@@ -11,6 +11,7 @@ import logging
 logger = logging.getLogger("plugin.zoom")
 
 
+@vaex.ui.plugin.pluginclass
 class Vector3dPlugin(vaex.ui.plugin.PluginLayer):
 	name = "vector3"
 	def __init__(self, parent, layer):
@@ -55,11 +56,11 @@ class Vector3dPlugin(vaex.ui.plugin.PluginLayer):
 		row = self.vector3d_auto_scale_checkbox.add_to_grid_layout(row, layout)
 
 
-		self.vector3d_min_level_label = Slider(page, "min level", 0, 1, 1000, getter=attrgetter(self.layer.plot_window.widget_volume, "min_level_vector3d"),
+		self.vector3d_min_level_label = Slider(page, "min level 3d", 0, 1, 1000, getter=attrgetter(self.layer.plot_window.widget_volume, "min_level_vector3d"),
 		                                     setter=attrsetter(self.layer.plot_window.widget_volume, "min_level_vector3d"), update=self.layer.plot_window.widget_volume.update)
 		row = self.vector3d_min_level_label.add_to_grid_layout(row, layout)
 
-		self.vector3d_max_level_label = Slider(page, "max level", 0, 1, 1000, getter=attrgetter(self.layer.plot_window.widget_volume, "max_level_vector3d"),
+		self.vector3d_max_level_label = Slider(page, "max level 3d", 0, 1, 1000, getter=attrgetter(self.layer.plot_window.widget_volume, "max_level_vector3d"),
 		                                     setter=attrsetter(self.layer.plot_window.widget_volume, "max_level_vector3d"), update=self.layer.plot_window.widget_volume.update)
 		row = self.vector3d_max_level_label.add_to_grid_layout(row, layout)
 		return
