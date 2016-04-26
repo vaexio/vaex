@@ -19,7 +19,8 @@ logger = logging.getLogger("vaex.ranking")
 buffer_size = 1e6
 
 def unique_column_names(dataset):
-	return list(set(dataset.column_names) | set(dataset.virtual_columns.keys()))
+	#return list(set(dataset.column_names) | set(dataset.virtual_columns.keys()))
+	return dataset.get_column_names(virtual=True)
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 #from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
@@ -728,11 +729,32 @@ class RankDialog(QtGui.QDialog):
 
 
 		self.boxlayout = QtGui.QVBoxLayout(self)
-		self.radio_button_all = QtGui.QRadioButton("Use complete dataset", self)
-		self.radio_button_selection = QtGui.QRadioButton("Use selection", self)
+
+		self.gridlayout = QtGui.QGridLayout()
+		self.gridlayout.setColumnStretch(1, 1)
+		self.gridlayout.setSpacing(0)
+		self.gridlayout.setContentsMargins(2,1,2,1)
+		self.gridlayout.setAlignment(QtCore.Qt.AlignTop)
+		row = 1
+
+		self.selection_label = QtGui.QLabel("Use for computations:", self)
+		self.gridlayout.addWidget(self.selection_label, row, 0);
+		self.radio_button_all = QtGui.QRadioButton("Complete dataset", self)
+		self.radio_button_selection = QtGui.QRadioButton("Selection", self)
 		self.radio_button_all.setChecked(True)
-		self.boxlayout.addWidget(self.radio_button_all)
-		self.boxlayout.addWidget(self.radio_button_selection)
+		self.gridlayout.addWidget(self.radio_button_all, row, 1); row += 1
+		self.gridlayout.addWidget(self.radio_button_selection, row, 1); row += 1
+
+		def get():
+			return str(self.grid_size)
+		def set(value):
+			self.grid_size = int(value)
+		self.option_grid_size = Option(self, "grid size (for mutual info)", "32 64 128 256".split(), get, set)
+		row = self.option_grid_size.add_to_grid_layout(row, self.gridlayout)
+		#self.gridlayout.addWidget(self.option_grid_size.combobox); row += 1
+		#self.gridlayout.addWidget(self.option_grid_size.combobox); row += 1
+
+		self.boxlayout.addLayout(self.gridlayout)
 		self.boxlayout.addWidget(self.tabs)
 		#self.boxlayout.addWidget(self.rankButton)
 		#self.setCentralWidget(self.splitter)
