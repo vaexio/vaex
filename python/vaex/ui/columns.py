@@ -346,8 +346,8 @@ def add_celestial(parent, dataset, type="galactic"):
 			dialog.add_text("l", "Galactic l", "l")
 			dialog.add_text("b", "Galactic b", "b")
 		else:
-			dialog.add_text("l", "Ecliptic ra", "ra_lambda")
-			dialog.add_text("b", "Ecliptic dec", "dec_beta")
+			dialog.add_text("l", "Ecliptic ra", "lambda_")
+			dialog.add_text("b", "Ecliptic dec", "beta")
 		values = dialog.get()
 	if values:
 		dataset.ucds[values["l"]] = "pos.%s.lon" % type
