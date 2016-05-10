@@ -1306,7 +1306,7 @@ class Dataset(object):
 			name = os.path.abspath(self.path).replace("/", "_")
 		else:
 			server = self.server
-			name = "%s_%s_%s_%s" % (server.hostname, server.port, server.base_path.replace("/", "_"), self.dataset.name)
+			name = "%s_%s_%s_%s" % (server.hostname, server.port, server.base_path.replace("/", "_"), self.name)
 		dir = os.path.join(vaex.utils.get_private_dir(), "datasets", name)
 		if create and not os.path.exists(dir):
 			os.makedirs(dir)
