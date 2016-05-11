@@ -22,7 +22,6 @@ import matplotlib.ticker
 
 import astropy.units
 
-from vaex.multithreading import ThreadPool
 import vaex
 import logging
 import vaex.events
@@ -230,7 +229,6 @@ class PlotDialog(QtGui.QWidget):
 		self.setWindowTitle(self.name)
 		self.dataset = dataset
 		self.axisnames = axisnames
-		self.pool = ThreadPool()
 		#self.expressions = expressions
 		#self.dimensions = len(self.expressions)
 		#self.grids = Grids(self.dataset, self.pool, *self.expressions)
@@ -404,8 +402,9 @@ class PlotDialog(QtGui.QWidget):
 			unit = first_layer.dataset.unit(expr)
 			try: # if we can convert the unit, use that for the labeling
 				output_unit = astropy.units.Unit(first_layer.state.output_units[axis])
-				output_unit.to(unit)
-				unit = output_unit
+				if first_layer.state.output_units[axis] and unit: # avoid unnecessary error msg'es
+					output_unit.to(unit)
+					unit = output_unit
 			except:
 				logger.exception("unit error")
 			logger.debug("unit: %r", unit)
@@ -550,7 +549,7 @@ class PlotDialog(QtGui.QWidget):
 			for i in range(self.dimensions):
 				if ranges[i] is None and first_layer.state.ranges_grid[i] is not None:
 					ranges[i] = copy.copy(first_layer.state.ranges_grid[i])
-		layer = vaex.ui.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.pool, self.fig, self.canvas, ranges)
+		layer = vaex.ui.layers.LayerTable(self, name, dataset, expressions, self.axisnames, options, self.fig, self.canvas, ranges)
 		self.layers.append(layer)
 		layer.build_widget_qt(self.widget_layer_stack) # layer.widget is the widget build
 		self.widget_layer_stack.addWidget(layer.widget)
@@ -664,7 +663,6 @@ class PlotDialog(QtGui.QWidget):
 		#self.dataset.executor.signal_end.disconnect(self._end_signal)
 		#self.dataset.executor.signal_cancel.disconnect(self._cancel_signal)
 
-		self.pool.close()
 		for layer in self.layers:
 			layer.removed()
 		for plugin in self.plugins:

@@ -169,7 +169,7 @@ import vaex.dataset
 
 
 class LayerTable(object):
-	def __init__(self, plot_window, name, dataset, expressions, axis_names, options, thread_pool, figure, canvas, ranges_grid=None):
+	def __init__(self, plot_window, name, dataset, expressions, axis_names, options, figure, canvas, ranges_grid=None):
 		"""
 		:type tasks: list[Task]
 		:type dataset: Dataset
@@ -186,7 +186,6 @@ class LayerTable(object):
 		self.state.title = options.get("title")
 
 		self.range_level = None
-		self.thread_pool = thread_pool
 		self.options = options
 		self.state.expressions = expressions
 		self.dimensions = len(self.state.expressions)

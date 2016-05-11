@@ -1318,7 +1318,8 @@ class Dataset(object):
 		dir = self.get_private_dir(create=True)
 		path = os.path.join(dir, "virtual_meta.yaml")
 		try:
-			os.remove(path)
+			if os.path.exists(path):
+				os.remove(path)
 			if not os.listdir(dir):
 				os.rmdir(dir)
 		except:
