@@ -29,7 +29,7 @@ before_install:
 install:
   - python setup.py install
 script:
- - python test/dataset.py
+ - python -m vaex.test.dataset
 # - export PACKAGE_NAME=`python -c "import vaex; print vaex.__build_name__"`
 # - python bin/make_dropbox_uploader_conf.py ~/.dropbox_uploader
 # - curl "https://raw.githubusercontent.com/andreafabrizi/Dropbox-Uploader/master/dropbox_uploader.sh" -o dropbox_uploader.sh

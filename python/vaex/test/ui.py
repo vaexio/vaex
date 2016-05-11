@@ -21,7 +21,7 @@ import vaex.ui.qt as dialogs
 
 # this will trigger more code, such as the canceling in between computation
 vaex.execution.buffer_size = 10000
-vx.set_log_level_off()
+#vx.set_log_level_off()
 
 example_path = vaex.utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5")
 vaex.ui.hidden = True
@@ -189,16 +189,18 @@ class TestPlotPanel(unittest.TestCase):
 
 		self.no_error_in_field = True
 		def error_in_field(*args):
-			print args
+			print(args)
 			self.no_error_in_field = False
 			previous_error_in_field(*args)
 		previous_error_in_field = vaex.ui.layers.LayerTable.error_in_field
 		vaex.ui.layers.LayerTable.error_in_field = error_in_field
 		def log_error(*args):
-			print "dialog error", args
+			print("dialog error", args)
 		dialogs.dialog_error = log_error
 
 	def tearDown(self):
+		for dataset in self.app.dataset_selector.datasets:
+			dataset.close_files()
 		self.window.close()
 		self.assertTrue(self.no_exceptions)
 		self.assertTrue(self.no_error_in_field)
@@ -206,27 +208,31 @@ class TestPlotPanel(unittest.TestCase):
 	def compare(self, fn1, fn2):
 		assert os.path.exists(fn2), "image missing: cp {im1} {im2}".format(im1=fn1, im2=fn2)
 
-		image1 = PIL.Image.open(fn1)
-		image2 = PIL.Image.open(fn2)
-		diff = PIL.ImageChops.difference(image1, image2)
-		extrema = diff.getextrema()
-		for i, (vmin, vmax) in enumerate(extrema):
-			msg = "difference found between {im1} and {im2} in band {band}\n $ cp {im1} {im2}".format(im1=fn1, im2=fn2, band=i)
-			if vmin != vmax and overwrite_images:
-				image1.show()
-				image2.show()
-				done = False
-				while not done:
-					answer = raw_input("is the new image ok? [y/N]").lower().strip()
-					if answer == "n":
-						self.assertEqual(vmin, 0, msg)
-						return
-					if answer == "y":
-						import shutil
-						shutil.copy(fn1, fn2)
-						return
-			self.assertEqual(vmin, 0, msg)
-			self.assertEqual(vmax, 0, msg)
+		try:
+			image1 = PIL.Image.open(fn1)
+			image2 = PIL.Image.open(fn2)
+			diff = PIL.ImageChops.difference(image1, image2)
+			extrema = diff.getextrema()
+			for i, (vmin, vmax) in enumerate(extrema):
+				msg = "difference found between {im1} and {im2} in band {band}\n $ cp {im1} {im2}".format(im1=fn1, im2=fn2, band=i)
+				if vmin != vmax and overwrite_images:
+					image1.show()
+					image2.show()
+					done = False
+					while not done:
+						answer = raw_input("is the new image ok? [y/N]").lower().strip()
+						if answer == "n":
+							self.assertEqual(vmin, 0, msg)
+							return
+						if answer == "y":
+							import shutil
+							shutil.copy(fn1, fn2)
+							return
+				self.assertEqual(vmin, 0, msg)
+				self.assertEqual(vmax, 0, msg)
+		finally:
+			image1.close()
+			image2.close()
 
 
 class TestPlotPanel1d(TestPlotPanel):
@@ -379,11 +385,13 @@ class TestPlotPanel2d(TestPlotPanel):
 		# since this will be triggered, overrule it
 		self.no_error_in_field = True
 
-test_port = 29010
+import sys
+test_port = 29210 + sys.version_info[0] * 10 + sys.version_info[1]
 
 class TestPlotPanel2dRemote(TestPlotPanel2d):
 	use_websocket = True
 	def create_app(self):
+		global test_port
 		self.app = vx.ui.main.VaexApp([], open_default=False)
 		self.dataset_default = vaex.example()
 		datasets = [self.dataset_default]
@@ -397,6 +405,7 @@ class TestPlotPanel2dRemote(TestPlotPanel2d):
 
 		self.dataset = datasets[self.dataset_default.name]
 		self.app.dataset_selector.add(self.dataset)
+		test_port += 1
 
 	def tearDown(self):
 		#print "stop serving"

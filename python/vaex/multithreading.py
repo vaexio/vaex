@@ -273,7 +273,7 @@ def get_main_pool():
 	return main_pool
 
 class ThreadPool(object):
-	
+
 	def __init__(self, nthreads=thread_count_default):
 		self.nthreads = nthreads
 		self.threads = [threading.Thread(target=self.execute, kwargs={"index":i}) for i in range(nthreads)]
@@ -283,13 +283,13 @@ class ThreadPool(object):
 		for thread in self.threads:
 			thread.setDaemon(True)
 			thread.start()
-			
+
 	def close(self):
 		self.callable = None
 		#print "closing threads"
 		for index in range(self.nthreads):
 			self.queues_in[index].put(None)
-			
+
 	def execute(self, index):
 		#print "index", index
 		done = False
@@ -313,7 +313,7 @@ class ThreadPool(object):
 				#print "done..", index
 				#self.semaphore_outrelease()
 		#print "thread closed"
-		
+
 	def run_parallel(self, callable, args_list=[]):
 		#lock.acquire()
 		self.callable = callable
@@ -328,7 +328,7 @@ class ThreadPool(object):
 		results = [queue.get() for queue in self.queues_out]
 		#lock.release()
 		return results
-		
+
 	def run_blocks(self, callable, total_length):
 		subblock_size = int(math.ceil(float(total_length)/self.nthreads))
 		#subblock_count = math.ceil(total_length/subblock_size)

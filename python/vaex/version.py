@@ -2,7 +2,7 @@
 major = 1
 minor = 0
 patch = 0
-pre_release = "alpha.2"
+pre_release = "alpha.3"
 
 #versiontring = '0.2.42-g54a6613'
 versiontuple = (major, minor, patch)
