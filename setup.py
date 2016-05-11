@@ -200,7 +200,7 @@ setup(
     #setup_requires=['py2app'],
     #setup_requires=["sphinx"],
     includes=["vaex", "md5", "astropy", "aplus", "six", "pygments"],
-    packages=["vaex", "vaex.ui", "vaex.misc", "vaex.notebook", "vaex.file", "vaex.ui.plugin", "vaex.ui.icons"],
+    packages=["vaex", "vaex.ui", "vaex.test", "vaex.misc", "vaex.notebook", "vaex.file", "vaex.ui.plugin", "vaex.ui.icons"],
     #install_requires=reqs,
     entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },
     ext_modules=extensions,
