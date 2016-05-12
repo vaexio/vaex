@@ -115,11 +115,11 @@ class TaskMapReduce(Task):
 
 class TaskHistogram(Task):
 	def __init__(self, dataset, subspace, expressions, size, limits, masked=False, weight=None):
+		self.size = size
+		self.limits = limits
 		Task.__init__(self, dataset, expressions, name="histogram")
 		self.subspace = subspace
 		self.dtype = np.float64
-		self.size = size
-		self.limits = limits
 		self.masked = masked
 		self.weight = weight
 		#self.grids = vaex.grids.Grids(self.dataset, self.dataset.executor.thread_pool, *expressions)

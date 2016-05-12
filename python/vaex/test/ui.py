@@ -30,7 +30,8 @@ qt_app = QtGui.QApplication([])
 
 base_path = os.path.dirname(__file__)
 def get_comparison_image(name):
-	return os.path.join(base_path, "images", name+".png")
+	osname = vaex.utils.osname
+	return os.path.join(base_path, "images", name+"_" + osname + ".png")
 
 #logging.getLogger("vaex.ui.queue").setLevel(logging.DEBUG)
 #logging.getLogger("vaex.ui").setLevel(logging.DEBUG)
@@ -231,8 +232,9 @@ class TestPlotPanel(unittest.TestCase):
 				self.assertEqual(vmin, 0, msg)
 				self.assertEqual(vmax, 0, msg)
 		finally:
-			image1.close()
-			image2.close()
+			pass
+			#image1.close()
+			#image2.close()
 
 
 class TestPlotPanel1d(TestPlotPanel):
@@ -317,7 +319,8 @@ class TestPlotPanel2d(TestPlotPanel):
 		self.window.ylabel = "y"
 		##self.window._wait() # TODO: is this a bug? if we don't wait and directly do the selection, the ThreadPoolIndex
 		## is entered twice, not sure this can happen from the gui
-		vaex.ui.qt.set_choose("x < 0", True)
+		expression = "x < 0"
+		vaex.ui.qt.set_choose(expression, True)
 		logger.debug("click mouse")
 		QtTest.QTest.mouseClick(self.layer.button_selection_expression, QtCore.Qt.LeftButton)
 		logger.debug("clicked mouse")
@@ -327,6 +330,54 @@ class TestPlotPanel2d(TestPlotPanel):
 
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_xy_selection_on_x"))
+
+	def test_selection_options(self):
+		self.window.xlabel = "x"
+		self.window.ylabel = "y"
+		##self.window._wait() # TODO: is this a bug? if we don't wait and directly do the selection, the ThreadPoolIndex
+		## is entered twice, not sure this can happen from the gui
+		expression = "x < 0"
+		vaex.ui.qt.set_choose(expression, True)
+		QtTest.QTest.mouseClick(self.layer.button_selection_expression, QtCore.Qt.LeftButton)
+
+		# test if the expressions ends up in the clipboard
+		self.window.action_selection_copy.trigger()
+		clipboard = QtGui.QApplication.clipboard()
+		clipboard_text = clipboard.text()
+		self.assertIn(expression, clipboard_text)
+
+		self.window._wait()
+		self.assertTrue(self.no_exceptions)
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("example_xy_selection_on_x"))
+
+
+		# select nothing
+		self.window.action_select_none.trigger()
+		self.window._wait()
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("example_xy"))
+		with dialogs.assertError(1):
+			self.window.action_selection_copy.trigger()
+
+		# paste the expression back
+		print("paste back the expression")
+		clipboard.setText(clipboard_text)
+		self.window.action_selection_paste.trigger()
+		print("waiting....")
+		self.window._wait()
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("example_xy_selection_on_x"))
+
+
+
+		#clipboard.setText("junk")
+		#with dialogs.assertError(1):
+		#	self.window.action_selection_paste.trigger()
+			#self.window.action_selection_copy.trigger()
+
+
+
 
 	def test_select_by_lasso(self):
 		self.window._wait() # TODO: is this a bug? same as above

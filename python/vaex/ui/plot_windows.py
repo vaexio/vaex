@@ -44,6 +44,7 @@ import vaex.vaexfast
 from vaex.ui import qt, undo
 
 from attrdict import AttrDict
+from StringIO import StringIO
 
 class AttrDict(AttrDict):
 	def __init__(self, *args, **kwargs):
@@ -688,7 +689,7 @@ class PlotDialog(QtGui.QWidget):
 					menu_dataset.addAction(action_col1)
 					def add_layer_1(ignore=None, column1=column1, dataset=dataset):
 						self.add_layer([column1], dataset=dataset)
-						self.dataset.executor.execute()
+						dataset.executor.execute()
 					action_col1.triggered.connect(add_layer_1)
 				else:
 					menu_col1 = QtGui.QMenu(column1, menu_dataset)
@@ -699,7 +700,7 @@ class PlotDialog(QtGui.QWidget):
 							menu_col1.addAction(action_col2)
 							def add_layer_2(_ignore=None, column1=column1, column2=column2, dataset=dataset):
 								self.add_layer([column1, column2], dataset=dataset)
-								self.dataset.executor.execute()
+								dataset.executor.execute()
 							action_col2.triggered.connect(add_layer_2)
 						else:
 							pass
@@ -1113,8 +1114,7 @@ class PlotDialog(QtGui.QWidget):
 		values = [vmin, vmax]
 		vmin, vmax = min(values), max(values)
 
-		layer = self.current_layer
-		if layer is not None:
+		for layer in self.active_layers():
 			# xaxis is stored in the matplotlib object / axes.xaxis_index
 			expr = getattr(layer, name)
 			boolean_expression = "((%s) >= %f) & ((%s) < %f)" % (expr, vmin, expr, vmax)
@@ -1134,9 +1134,8 @@ class PlotDialog(QtGui.QWidget):
 
 		x = np.ascontiguousarray(x, dtype=np.float64)
 		y = np.ascontiguousarray(y, dtype=np.float64)
-		layer = self.current_layer
-		if layer is not None:
-			self.dataset.select_lasso(layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], x, y, mode=self.select_mode)
+		for layer in self.active_layers():
+			layer.dataset.select_lasso(layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], x, y, mode=self.select_mode)
 			#self.dataset.evaluate(select, layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], **self.getVariableDict())
 			meanx = x.mean()
 			meany = y.mean()
@@ -1158,8 +1157,8 @@ class PlotDialog(QtGui.QWidget):
 			args = (layer.x, xmin, layer.x, xmax, layer.y, ymin, layer.y, ymax)
 			expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
 			logger.debug("rectangle selection using expression: %r" % expression)
-			self.dataset.select(expression, mode=self.select_mode)
-			#self.dataset.evaluate(select, layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], **self.getVariableDict())
+			layer.dataset.select(expression, mode=self.select_mode)
+			#layer.dataset.evaluate(select, layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], **self.getVariableDict())
 			mask = layer.dataset.mask
 			action = undo.ActionMask(layer.dataset.undo_manager, "rectangle from [%f,%f] to [%f,%f]" % (pos1.xdata, pos1.ydata, pos2.xdata, pos2.ydata), mask, layer.apply_mask)
 			#action.do()
@@ -1613,6 +1612,9 @@ class PlotDialog(QtGui.QWidget):
 			dialog_info(self, "Export failure", "Oops sorry, export only supported for 2d and 3d (partially) plots at the moment")
 
 
+	def active_layers(self):
+		return [self.current_layer] if self.current_layer else self.layers
+
 
 	def addToolbar2(self, layout, contrast=True, gamma=True):
 		self.toolbar2 = QtGui.QToolBar(self)
@@ -1624,25 +1626,27 @@ class PlotDialog(QtGui.QWidget):
 
 
 		def on_store_selection():
-			if not self.dataset.has_selection():
-				dialog_error(self, "No selection", "No selection made")
-			else:
-				path = self.dataset.name + "-selection.yaml"
-				path = dialogs.get_path_save(self, "Save selection", path, "YAML (*.yaml);;JSON (*.json)")
-				if path:
-					_, ext = os.path.splitext(path)
-					data = self.dataset.get_selection().to_dict()
-					if ext == ".yaml":
-						import yaml
-						with open(path, "w") as f:
-							yaml.dump(data, f)
-					elif ext == ".json":
-						import json
-						with open(path, "w") as f:
-							json.dump(data, f)
-					else:
-						dialogs.dialog_error(self, "Unknown extension", "Unknown extension %r" % ext)
-					#np.save(path, self.dataset.mask)
+			if self.current_layer:
+				dataset = self.current_layer.dataset
+				if not dataset.has_selection():
+					dialog_error(self, "No selection", "No selection made")
+				else:
+					path = dataset.name + "-selection.yaml"
+					path = dialogs.get_path_save(self, "Save selection", path, "YAML (*.yaml);;JSON (*.json)")
+					if path:
+						_, ext = os.path.splitext(path)
+						data = dataset.get_selection().to_dict()
+						if ext == ".yaml":
+							import yaml
+							with open(path, "w") as f:
+								yaml.dump(data, f)
+						elif ext == ".json":
+							import json
+							with open(path, "w") as f:
+								json.dump(data, f)
+						else:
+							dialogs.dialog_error(self, "Unknown extension", "Unknown extension %r" % ext)
+						#np.save(path, self.dataset.mask)
 
 		self.action_selection_store = QtGui.QAction(QtGui.QIcon(iconfile('tag-export')), '&Store selection', self)
 		self.action_selection_store.triggered.connect(on_store_selection)
@@ -1651,41 +1655,85 @@ class PlotDialog(QtGui.QWidget):
 		self.menu_selection.addAction(self.action_selection_store)
 
 		def on_load_selection():
-			path = self.dataset.name + "-selection.yaml"
-			path = get_path_open(self, "Open selection", path, "Compatible files for vaex (*.yaml *.json)")
-			if path:
-				_, ext = os.path.splitext(path)
-				if ext == ".yaml":
-					import yaml
-					with open(path) as f:
-						data = yaml.load(f)
-				elif ext == ".json":
-					import json
-					with open(path) as f:
-						json.load(f)
-				else:
-					dialogs.dialog_error(self, "Unknown extension", "Unknown extension %r" % ext)
-				try:
-					selection = vaex.dataset.selection_from_dict(self.dataset, data)
-				except Exception as e:
-					logger.exception("error reading in selection")
-					dialogs.dialog_error(self, "Error reading in selection", "Error reading in selection: %r" % e)
-				self.dataset.set_selection(selection)
-				self.queue_update()
+			if self.current_layer:
+				dataset = self.current_layer.dataset
+				path = dataset.name + "-selection.yaml"
+				path = get_path_open(self, "Open selection", path, "Compatible files for vaex (*.yaml *.json)")
+				if path:
+					_, ext = os.path.splitext(path)
+					if ext == ".yaml":
+						import yaml
+						with open(path) as f:
+							data = yaml.load(f)
+					elif ext == ".json":
+						import json
+						with open(path) as f:
+							json.load(f)
+					else:
+						dialogs.dialog_error(self, "Unknown extension", "Unknown extension %r" % ext)
+					try:
+						selection = vaex.dataset.selection_from_dict(dataset, data)
+					except Exception as e:
+						logger.exception("error reading in selection")
+						dialogs.dialog_error(self, "Error reading in selection", "Error reading in selection: %r" % e)
+					dataset.set_selection(selection)
+					self.queue_update()
 		self.action_selection_load = QtGui.QAction(QtGui.QIcon(iconfile('tag-import')), '&Load selection', self)
 		self.action_selection_load.triggered.connect(on_load_selection)
 		#self.action_selection_load.setCheckable(True)
 		#self.toolbar2.addAction(self.action_selection_load)
 		self.menu_selection.addAction(self.action_selection_load)
 
-		def on_selection_bookmark():
-			data = self.dataset.get_selection().to_dict()
+		if 0:
+			def on_selection_bookmark():
+				data = self.current_layer.dataset.get_selection().to_dict()
 
-		self.action_selection_bookmark = QtGui.QAction(QtGui.QIcon(iconfile('star')), '&Bookmark selection', self)
-		self.action_selection_bookmark.triggered.connect(on_selection_bookmark)
+			self.action_selection_bookmark = QtGui.QAction(QtGui.QIcon(iconfile('star')), '&Bookmark selection', self)
+			self.action_selection_bookmark.triggered.connect(on_selection_bookmark)
+			#self.action_selection_load.setCheckable(True)
+			#self.toolbar2.addAction(self.action_selection_load)
+			self.menu_selection.addAction(self.action_selection_bookmark)
+
+		def on_selection_copy():
+			if self.current_layer:
+				selection = self.current_layer.dataset.get_selection()
+				if self.current_layer:
+					if selection:
+						data = selection.to_dict()
+						clipboard = QtGui.QApplication.clipboard()
+						f = StringIO()
+						vaex.utils.yaml_dump(f, data)
+						text = str(f.getvalue())
+						clipboard.setText(text)
+					else:
+						dialogs.dialog_error(self, "No selection", "No selection exists")
+			else:
+					dialogs.dialog_error(self, "No layer", "No active layer")
+
+		self.action_selection_copy = QtGui.QAction('&Copy selection', self)
+		self.action_selection_copy.triggered.connect(on_selection_copy)
 		#self.action_selection_load.setCheckable(True)
 		#self.toolbar2.addAction(self.action_selection_load)
-		self.menu_selection.addAction(self.action_selection_bookmark)
+		self.menu_selection.addAction(self.action_selection_copy)
+
+		def on_selection_paste():
+			clipboard = QtGui.QApplication.clipboard()
+			f = StringIO()
+			f.write(clipboard.text())
+			f.seek(0)
+			data = vaex.utils.yaml_load(f)
+			for layer in self.active_layers():
+				print("paste!", data)
+				selection = vaex.dataset.selection_from_dict(layer.dataset, data)
+				layer.dataset.set_selection(selection)
+
+			#	dialogs.dialog_error(self, "No selection", "No selection exists")
+
+		self.action_selection_paste = QtGui.QAction('&Paste selection', self)
+		self.action_selection_paste.triggered.connect(on_selection_paste)
+		#self.action_selection_load.setCheckable(True)
+		#self.toolbar2.addAction(self.action_selection_load)
+		self.menu_selection.addAction(self.action_selection_paste)
 
 
 		self.action_save_figure = QtGui.QAction(QtGui.QIcon(iconfile('image-export')), '&Export figure', self)
@@ -2236,8 +2284,7 @@ class PlotDialog(QtGui.QWidget):
 		self.setSelectMode(action)
 
 	def onActionSelectViewport(self):
-		layer = self.current_layer
-		if layer is not None:
+		for layer in self.active_layers():
 			if self.dimensions == 3:
 				(xmin, xmax), (ymin, ymax), (zmin, zmax) = self.state.ranges_viewport
 				args = (layer.x, xmin, layer.x, xmax, layer.y, ymin, layer.y, ymax, layer.z, zmin, layer.z, zmax)
@@ -2262,21 +2309,21 @@ class PlotDialog(QtGui.QWidget):
 	def onActionSelectNone(self):
 		#self.dataset.selectMask(None)
 		#self.dataset.executor.execute()
-		layer = self.current_layer
-		if layer is not None:
-			self.dataset.select(None)
+		#layer = self.current_layer
+		#if layer is not None:
+		for layer in self.active_layers():
+			layer.dataset.select(None)
 			action = undo.ActionMask(layer.dataset.undo_manager, "clear selection", None, layer.apply_mask)
 			#action.do()
 		#self.checkUndoRedo()
 
 	def onActionSelectInvert(self):
-		layer = self.current_layer
-		if layer is not None:
+		for layer in self.active_layers():
 			mask = layer.dataset.mask
 			if mask is not None:
 				mask = ~mask
 			else:
-				mask = np.ones(len(self.dataset), dtype=np.bool)
+				mask = np.ones(len(layer.dataset), dtype=np.bool)
 			action = undo.ActionMask(layer.dataset.undo_manager, "invert selection", mask, layer.apply_mask)
 			action.do()
 

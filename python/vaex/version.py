@@ -11,7 +11,7 @@ if pre_release:
 	versionstring += "-" + pre_release
 
 import platform
-osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
+from vaex.utils import osname
 
 if __name__ == "__main__":
 	import vaex

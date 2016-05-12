@@ -9,6 +9,8 @@ import math
 import concurrent.futures
 is_frozen = getattr(sys, 'frozen', False)
 
+osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
+
 def subdivide(length, parts=None, max_length=None):
 	"""Generates a list with start end stop indices of length parts, [(0, length/parts), ..., (.., length)]"""
 	if max_length:
@@ -228,13 +230,19 @@ def confirm_on_console(topic, msg):
 
 import json
 import yaml
+
+def yaml_dump(f, data):
+	yaml.safe_dump(data, f, default_flow_style=False, encoding='utf-8',  allow_unicode=True)
+def yaml_load(f):
+	return yaml.safe_load(f)
+
 def write_json_or_yaml(filename, data):
 	base, ext = os.path.splitext(filename)
 	if ext == ".json":
 		json.dump(data, filename)
 	elif ext == ".yaml":
 		with open(filename, "w") as f:
-			yaml.safe_dump(data, f, default_flow_style=False, encoding='utf-8',  allow_unicode=True)
+			yaml_dump(f, data)
 	else:
 		raise ValueError("file should end in .json or .yaml (not %s)" % ext)
 
@@ -245,7 +253,7 @@ def read_json_or_yaml(filename):
 			return json.load(f) or {}
 	elif ext == ".yaml":
 		with open(filename, "r") as f:
-			return yaml.load(f) or {}
+			return yaml_load(f) or {}
 	else:
 		raise ValueError("file should end in .json or .yaml (not %s)" % ext)
 
