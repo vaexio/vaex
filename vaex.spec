@@ -14,7 +14,7 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
           exclude_binaries=True,
-          name=vaex.__program_name__, #+"_app",
+          name=vaex.__build_name__, #+"_app",
           debug=False,
           strip=None,
           upx=True,

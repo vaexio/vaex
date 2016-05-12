@@ -140,7 +140,7 @@ OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/vaex/ui/
 				 'aplus',
 				 "astropy.extern.bundled",
 				 ],
-		   "packages": ["pygments"],
+		   "frameworks": [sys.prefix + "/lib/libmkl_avx2.dylib"],
            'iconfile': 'python/vaex/ui/icons/vaex.icns'
 
 } #, 'debug_modulegraph':True}
