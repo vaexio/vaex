@@ -742,6 +742,21 @@ class TestDataset(unittest.TestCase):
 
 		pass # TODO
 
+	def test_favorite_selections(self):
+		self.dataset.select("x > 5")
+		total_subset = self.dataset("x").selected().sum()
+		self.dataset.add_favorite_selection("test")
+		self.dataset.select_nothing()
+		with self.assertRaises(ValueError):
+			self.dataset.add_favorite_selection("test")
+		self.dataset.load_favorite_selections()
+		self.dataset.apply_favorite_selection("test")
+		total_subset_test = self.dataset("x").selected().sum()
+		self.assertEqual(total_subset, total_subset_test)
+
+
+
+
 	def test_selection_history(self):
 		self.assertTrue(not self.dataset.has_selection())
 		self.assertTrue(not self.dataset.selection_can_undo())

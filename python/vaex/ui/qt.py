@@ -170,6 +170,50 @@ class assertError(object):
 		dialog_error = self.remember
 		logger.debug("unwrapped dialog_error")
 
+class settext(object):
+	def __init__(self, value, calls_expected=1):
+		self.value = value
+		self.calls_expected = calls_expected
+
+	def wrapper(self, *args, **kwargs):
+		self.called += 1
+		return self.value
+
+	def __enter__(self):
+		global gettext
+		self.remember = gettext
+		self.called = 0
+		gettext = self.wrapper
+		logger.debug("wrapped gettext")
+
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		global gettext
+		assert self.called == self.calls_expected, "expected the error dialog to be invoked %i time(s), was called %i times(s)" % (self.calls_expected, self.called)
+		gettext = self.remember
+		logger.debug("unwrapped gettext")
+
+class setchoose(object):
+	def __init__(self, value, calls_expected=1):
+		self.value = value
+		self.calls_expected = calls_expected
+
+	def wrapper(self, *args, **kwargs):
+		self.called += 1
+		return self.value
+
+	def __enter__(self):
+		global choose
+		self.remember = choose
+		self.called = 0
+		choose = self.wrapper
+		logger.debug("wrapped choose")
+
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		global choose
+		assert self.called == self.calls_expected, "expected the error dialog to be invoked %i time(s), was called %i times(s)" % (self.calls_expected, self.called)
+		choose = self.remember
+		logger.debug("unwrapped choose")
+
 
 class FakeProgressExecution(object):
 	def __init__(self, *args):

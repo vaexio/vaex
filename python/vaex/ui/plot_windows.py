@@ -795,6 +795,7 @@ class PlotDialog(QtGui.QWidget):
 			else:
 				self.layers[layer_index].release_layer_control(self.frame_layer_controls)
 				self.current_layer = self.layers[index-1]
+			self.update_favorite_selections()
 
 
 			self.widget_layer_stack.setCurrentIndex(index)
@@ -1616,6 +1617,26 @@ class PlotDialog(QtGui.QWidget):
 		return [self.current_layer] if self.current_layer else self.layers
 
 
+	def update_favorite_selections(self):
+		#pass
+		#self.menu_selection.clear()
+		if hasattr(self, "_favorite_selections_actions"):
+			for action in self._favorite_selections_actions:
+				self.menu_selection.removeAction(action)
+		self._favorite_selections_actions = [] # keep references
+		if self.current_layer:
+			for key, value in self.current_layer.dataset.favorite_selections.items():
+				def select(ignore=None,key=key):
+					self.current_layer.dataset.apply_favorite_selection(name=key)
+				action = QtGui.QAction(key, self)
+				action.triggered.connect(select)
+				self._favorite_selections_actions.append(action)
+				self.menu_selection.addAction(action)
+
+
+
+
+
 	def addToolbar2(self, layout, contrast=True, gamma=True):
 		self.toolbar2 = QtGui.QToolBar(self)
 		self.toolbar2.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
@@ -1648,7 +1669,7 @@ class PlotDialog(QtGui.QWidget):
 							dialogs.dialog_error(self, "Unknown extension", "Unknown extension %r" % ext)
 						#np.save(path, self.dataset.mask)
 
-		self.action_selection_store = QtGui.QAction(QtGui.QIcon(iconfile('tag-export')), '&Store selection', self)
+		self.action_selection_store = QtGui.QAction(QtGui.QIcon(iconfile('tag-export')), '&Export selection query', self)
 		self.action_selection_store.triggered.connect(on_store_selection)
 		#self.action_selection_store.setCheckable(True)
 		#self.toolbar2.addAction(self.action_selection_store)
@@ -1678,22 +1699,14 @@ class PlotDialog(QtGui.QWidget):
 						dialogs.dialog_error(self, "Error reading in selection", "Error reading in selection: %r" % e)
 					dataset.set_selection(selection)
 					self.queue_update()
-		self.action_selection_load = QtGui.QAction(QtGui.QIcon(iconfile('tag-import')), '&Load selection', self)
+		self.action_selection_load = QtGui.QAction(QtGui.QIcon(iconfile('tag-import')), '&Import selection query', self)
 		self.action_selection_load.triggered.connect(on_load_selection)
 		#self.action_selection_load.setCheckable(True)
 		#self.toolbar2.addAction(self.action_selection_load)
 		self.menu_selection.addAction(self.action_selection_load)
 
-		if 0:
-			def on_selection_bookmark():
-				data = self.current_layer.dataset.get_selection().to_dict()
 
-			self.action_selection_bookmark = QtGui.QAction(QtGui.QIcon(iconfile('star')), '&Bookmark selection', self)
-			self.action_selection_bookmark.triggered.connect(on_selection_bookmark)
-			#self.action_selection_load.setCheckable(True)
-			#self.toolbar2.addAction(self.action_selection_load)
-			self.menu_selection.addAction(self.action_selection_bookmark)
-
+		self.menu_selection.addSeparator()
 		def on_selection_copy():
 			if self.current_layer:
 				selection = self.current_layer.dataset.get_selection()
@@ -1710,7 +1723,7 @@ class PlotDialog(QtGui.QWidget):
 			else:
 					dialogs.dialog_error(self, "No layer", "No active layer")
 
-		self.action_selection_copy = QtGui.QAction('&Copy selection', self)
+		self.action_selection_copy = QtGui.QAction('&Copy selection query', self)
 		self.action_selection_copy.triggered.connect(on_selection_copy)
 		#self.action_selection_load.setCheckable(True)
 		#self.toolbar2.addAction(self.action_selection_load)
@@ -1729,11 +1742,55 @@ class PlotDialog(QtGui.QWidget):
 
 			#	dialogs.dialog_error(self, "No selection", "No selection exists")
 
-		self.action_selection_paste = QtGui.QAction('&Paste selection', self)
+		self.action_selection_paste = QtGui.QAction('&Paste selection query', self)
 		self.action_selection_paste.triggered.connect(on_selection_paste)
 		#self.action_selection_load.setCheckable(True)
 		#self.toolbar2.addAction(self.action_selection_load)
 		self.menu_selection.addAction(self.action_selection_paste)
+
+		self.menu_selection.addSeparator()
+		def on_selection_add_favorite():
+			if self.current_layer:
+				#data = self.current_layer.dataset.get_selection().to_dict()
+				dataset = self.current_layer.dataset
+				if dataset.get_selection():
+					name = dialogs.gettext(self, "Add selection to favorites", "Name", "my selection")
+					if name:
+						if name not in dataset.favorite_selections or dialogs.dialog_confirm(self, "Overwrite", "Overwrite selection with the same name?"):
+							dataset.add_favorite_selection(name)
+							self.update_favorite_selections()
+				else:
+					dialogs.dialog_error(self, "No selection", "No selection exists")
+			else:
+				dialogs.dialog_error(self, "No layer", "No active layer")
+
+
+		self.action_selection_add_favorites = QtGui.QAction(QtGui.QIcon(iconfile('star')), '&Add to favorites', self)
+		self.action_selection_add_favorites.triggered.connect(on_selection_add_favorite)
+		self.menu_selection.addAction(self.action_selection_add_favorites)
+
+
+		def on_selection_remove_favorite():
+			if self.current_layer:
+				#data = self.current_layer.dataset.get_selection().to_dict()
+				dataset = self.current_layer.dataset
+				if dataset.favorite_selections:
+					names = dataset.favorite_selections.keys()
+					index = dialogs.choose(self, "Remove favorite", "Favorite", names)
+					if index is not None:
+						key = names[index]
+						dataset.remove_favorite_selection(key)
+						self.update_favorite_selections()
+				else:
+					dialogs.dialog_error(self, "No favorites", "No favorites exists")
+			else:
+				dialogs.dialog_error(self, "No layer", "No active layer")
+
+
+		self.action_selection_remove_favorites = QtGui.QAction(QtGui.QIcon(iconfile('star--minus')), '&Remove a favorite', self)
+		self.action_selection_remove_favorites.triggered.connect(on_selection_remove_favorite)
+		self.menu_selection.addAction(self.action_selection_remove_favorites)
+
 
 
 		self.action_save_figure = QtGui.QAction(QtGui.QIcon(iconfile('image-export')), '&Export figure', self)
@@ -1904,20 +1961,32 @@ class PlotDialog(QtGui.QWidget):
 
 		self.action_xrange.setShortcut("Ctrl+Shift+X")
 		self.menu_mode.addAction(self.action_xrange)
+		self.menu_selection.addAction(self.action_xrange)
 		self.action_yrange.setShortcut("Ctrl+Shift+Y")
 		self.menu_mode.addAction(self.action_yrange)
+		self.menu_selection.addAction(self.action_yrange)
 		self.action_lasso.setShortcut("Ctrl+L")
 		self.menu_mode.addAction(self.action_lasso)
+		self.menu_selection.addAction(self.action_lasso)
 		self.action_select_rectangle.setShortcut("Ctrl+R")
 		self.menu_mode.addAction(self.action_select_rectangle)
-		self.action_slice.setShortcut("Ctrl+S")
-		self.menu_mode.addAction(self.action_slice)
+		self.menu_selection.addAction(self.action_select_rectangle)
+
+		#self.action_slice.setShortcut("Ctrl+S")
+		#self.menu_mode.addAction(self.action_slice)
+
+
+		self.menu_selection.addSeparator()
+
+
+
 		self.action_select_viewport.setShortcut("Ctrl+Shift+V")
-		self.menu_mode.addAction(self.action_select_viewport)
+		self.menu_selection.addAction(self.action_select_viewport)
 		self.action_select_none.setShortcut("Ctrl+N")
-		self.menu_mode.addAction(self.action_select_none)
+		self.menu_selection.addAction(self.action_select_none)
 		self.action_select_invert.setShortcut("Ctrl+I")
-		self.menu_mode.addAction(self.action_select_invert)
+		self.menu_selection.addAction(self.action_select_invert)
+		self.menu_selection.addSeparator()
 
 
 		self.menu_mode.addSeparator()

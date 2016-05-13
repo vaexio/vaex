@@ -1246,6 +1246,8 @@ class Dataset(object):
 		self.units = {}
 		self.descriptions = {}
 
+		self.favorite_selections = collections.OrderedDict()
+
 		self.mask = None # a bitmask for the selection does not work for server side
 
 		# maps from name to list of Selection objets
@@ -1329,6 +1331,37 @@ class Dataset(object):
 		else:
 			columns = [self.ucd_find(ucd) for ucd in ucds]
 			return None if None in columns else columns
+
+	def add_favorite_selection(self, name, selection_name="default"):
+		selection = self.get_selection(selection_name=selection_name)
+		if selection:
+			self.favorite_selections[name] = selection
+			self.store_favorite_selections()
+		else:
+			raise ValueError("no selection exists")
+
+	def remove_favorite_selection(self, name):
+		del self.favorite_selections[name]
+		self.store_favorite_selections()
+
+	def apply_favorite_selection(self, name, selection_name="default", executor=None):
+		self.set_selection(self.favorite_selections[name], selection_name=selection_name, executor=executor)
+
+	def store_favorite_selections(self):
+		path = os.path.join(self.get_private_dir(create=True), "favorite_selection.yaml")
+		selections = collections.OrderedDict([(key,value.to_dict()) for key,value in self.favorite_selections.items()])
+		vaex.utils.write_json_or_yaml(path, selections)
+
+	def load_favorite_selections(self):
+		try:
+			path = os.path.join(self.get_private_dir(create=True), "favorite_selection.yaml")
+			if os.path.exists(path):
+				selections_dict = vaex.utils.read_json_or_yaml(path)
+				for key, value in selections_dict.items():
+					self.favorite_selections[key] = selection_from_dict(self, value)
+		except:
+			logger.exception("non fatal error")
+
 
 	def get_private_dir(self, create=False):
 		"""Each datasets has a directory where files are stored for metadata etc
@@ -2793,6 +2826,7 @@ class FitsBinTable(DatasetMemoryMapped):
 								self.addColumn(column.name, array=array)
 		self.update_meta()
 		self.update_virtual_meta()
+		self.load_favorite_selections()
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
@@ -2884,6 +2918,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 			self._load_axes(self.h5file["/axes"])
 		self.update_meta()
 		self.update_virtual_meta()
+		self.load_favorite_selections()
 
 	#def 
 	def _load_axes(self, axes_data):
@@ -3008,6 +3043,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 			self.addColumn(column_name, offset, len(column), dtype=column.dtype)
 		self.update_meta()
 		self.update_virtual_meta()
+		self.load_favorite_selections()
 
 dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
 

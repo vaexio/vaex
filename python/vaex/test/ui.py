@@ -18,6 +18,7 @@ import vaex.webserver
 from vaex.ui.qt import QtGui, QtCore, QtTest
 
 import vaex.ui.qt as dialogs
+import random
 
 # this will trigger more code, such as the canceling in between computation
 vaex.execution.buffer_size = 10000
@@ -144,7 +145,7 @@ class TestMain(unittest.TestCase):
 										self.assertEqual(sorted(values), sorted(values_ui))
 
 
-class TestPlotPanel(unittest.TestCase):
+class __TestPlotPanel(unittest.TestCase):
 	def setUp(self):
 		self.app = vx.ui.main.VaexApp([], open_default=True)
 
@@ -164,7 +165,7 @@ class TestPlotPanel(unittest.TestCase):
 
 from vaex.ui.plot_windows import PlotDialog
 
-class TestPlotPanel(unittest.TestCase):
+class _TestPlotPanel(unittest.TestCase):
 	def create_app(self):
 		self.app = vx.ui.main.VaexApp([], open_default=True)
 	def setUp(self):
@@ -198,6 +199,38 @@ class TestPlotPanel(unittest.TestCase):
 		def log_error(*args):
 			print("dialog error", args)
 		dialogs.dialog_error = log_error
+
+	def test_favorite_selections(self):
+		with dialogs.assertError():
+			self.window.action_selection_add_favorites.trigger()
+		self.window.current_layer.dataset.select("x > 5")
+		name = "test-selection-" + str(random.random())
+		with dialogs.settext(name):
+			self.window.action_selection_add_favorites.trigger()
+			self.assertIn(name, self.window.current_layer.dataset.favorite_selections)
+			found = 0
+			found_index = 0
+			for i, action in enumerate(self.window._favorite_selections_actions):
+				if action.text() == name:
+					found += 1
+					index = i
+			self.assertEqual(found, 1, "expect the entry to occur once, occurred %d" % found)
+		with dialogs.setchoose(index):
+			self.window.action_selection_remove_favorites.trigger()
+			self.assertNotIn(name, self.window.current_layer.dataset.favorite_selections)
+			found = 0
+			for action in self.window.menu_selection.actions():
+				if action.text() == name:
+					found += 1
+			self.assertEqual(found, 0, "expect the entry to occur be removed, but it occurred %d" % found)
+		self.window.dataset.favorite_selections.clear()
+		with dialogs.assertError():
+			self.window.action_selection_remove_favorites.trigger()
+		self.window.remove_layer()
+		with dialogs.assertError():
+			self.window.action_selection_remove_favorites.trigger()
+		with dialogs.assertError():
+			self.window.action_selection_add_favorites.trigger()
 
 	def tearDown(self):
 		for dataset in self.app.dataset_selector.datasets:
@@ -237,7 +270,7 @@ class TestPlotPanel(unittest.TestCase):
 			#image2.close()
 
 
-class TestPlotPanel1d(TestPlotPanel):
+class TestPlotPanel1d(_TestPlotPanel):
 	def open_window(self):
 		button = self.app.dataset_panel.button_histogram
 		self.assert_(len(self.app.windows) == 0)
@@ -255,7 +288,7 @@ class TestPlotPanel1d(TestPlotPanel):
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_r"))
 
-class TestPlotPanel2d(TestPlotPanel):
+class TestPlotPanel2d(_TestPlotPanel):
 	"""
 	:type window: PlotDialog
 	"""
