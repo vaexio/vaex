@@ -1064,6 +1064,43 @@ class SelectionExpression(Selection):
 			task.then(apply_mask)
 			return expr._task(task)
 
+class SelectionInvert(Selection):
+	def __init__(self, dataset, previous_selection):
+		super(SelectionInvert, self).__init__(dataset, previous_selection, "")
+
+	def to_dict(self):
+		previous = None
+		if self.previous_selection:
+			previous = self.previous_selection.to_dict()
+		return dict(type="invert", previous_selection=previous)
+
+
+	def execute(self, executor, execute_fully=False):
+		super(SelectionInvert, self).execute(executor=executor, execute_fully=execute_fully)
+		self.dataset.mask = ~self.dataset.mask
+		self.dataset._set_mask(self.dataset.mask)
+		return
+		if self.boolean_expression is None:
+			self.dataset._set_mask(None)
+			promise = vaex.promise.Promise()
+			promise.fulfill(None)
+			return promise
+		else:
+			logger.debug("executing selection: %r, mode: %r", self.boolean_expression, self.mode)
+			mask = np.zeros(len(self.dataset), dtype=np.bool)
+			def map(thread_index, i1, i2, block):
+				mask[i1:i2] = mode_function(None if self.dataset.mask is None else self.dataset.mask[i1:i2], block == 1)
+				return 0
+			def reduce(*args):
+				None
+			expr = self.dataset(self.boolean_expression, executor=executor)
+			task = TaskMapReduce(self.dataset, [self.boolean_expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
+			def apply_mask(*args):
+				#print "Setting mask"
+				self.dataset._set_mask(mask)
+			task.then(apply_mask)
+			return expr._task(task)
+
 class SelectionLasso(Selection):
 	def __init__(self, dataset, boolean_expression_x, boolean_expression_y, xseq, yseq, previous_selection, mode):
 		super(SelectionLasso, self).__init__(dataset, previous_selection, mode)
@@ -1117,6 +1154,9 @@ def selection_from_dict(dataset, values):
 	elif values["type"] == "expression":
 		kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
 		return SelectionExpression(**kwargs)
+	elif values["type"] == "invert":
+		kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
+		return SelectionInvert(**kwargs)
 	else:
 		raise ValueError("unknown type: %r, in dict: %r" % (values["type"], values))
 
@@ -2068,6 +2108,19 @@ class Dataset(object):
 
 		def create(current):
 			return SelectionLasso(self, expression_x, expression_y, xsequence, ysequence, current, mode)
+		return self._selection(create, selection_name, executor=executor)
+
+	def select_inverse(self, selection_name="default", executor=None):
+		"""Invert the selection, i.e. what is selected will not be, and vice versa
+
+		:param str selection_name:
+		:param executor:
+		:return:
+		"""
+
+
+		def create(current):
+			return SelectionInvert(self, current)
 		return self._selection(create, selection_name, executor=executor)
 
 	def set_selection(self, selection, selection_name="default", executor=None):

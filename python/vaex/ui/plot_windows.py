@@ -2303,7 +2303,7 @@ class PlotDialog(QtGui.QWidget):
 			mask = layer.dataset.mask
 			action = undo.ActionMask(layer.dataset.undo_manager, "selected (%d-D)viewport" % (self.dimensions), mask, layer.apply_mask)
 			#action.do()
-			self.checkUndoRedo()
+			#self.checkUndoRedo()
 			self.queue_update()
 
 	def onActionSelectNone(self):
@@ -2319,13 +2319,18 @@ class PlotDialog(QtGui.QWidget):
 
 	def onActionSelectInvert(self):
 		for layer in self.active_layers():
+			layer.dataset.select_inverse()
+			self.queue_update()
+			return
 			mask = layer.dataset.mask
 			if mask is not None:
 				mask = ~mask
 			else:
 				mask = np.ones(len(layer.dataset), dtype=np.bool)
 			action = undo.ActionMask(layer.dataset.undo_manager, "invert selection", mask, layer.apply_mask)
-			action.do()
+			#action.do()
+			#self.checkUndoRedo()
+			self.queue_update()
 
 	def onActionSelect(self):
 		self.lastActionSelect.setChecked(True)

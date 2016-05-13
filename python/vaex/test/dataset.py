@@ -729,6 +729,17 @@ class TestDataset(unittest.TestCase):
 			self.dataset.select(None)
 			self.dataset.select("x > 5", mode)
 
+
+		self.dataset.select("x > 5")
+		total_subset = self.dataset("x").selected().sum()
+		self.dataset.select_inverse()
+		total_subset_inverse = self.dataset("x").selected().sum()
+		self.dataset.select("x <= 5")
+		total_subset_inverse_compare = self.dataset("x").selected().sum()
+		self.assertEqual(total_subset_inverse, total_subset_inverse_compare)
+		self.assertEqual(total_subset_inverse + total_subset, total)
+
+
 		pass # TODO
 
 	def test_selection_history(self):
