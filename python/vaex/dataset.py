@@ -367,6 +367,10 @@ class Subspaces(object):
 		self.expressions = list(self.expressions)
 		self.subspace = self.dataset(*list(self.expressions), async=self.async, executor=first_subspace.executor)
 
+	#def _repr_html_(self):
+
+
+
 	def __len__(self):
 		return len(self.subspaces)
 
@@ -2749,9 +2753,15 @@ class HansMemoryMapped(DatasetMemoryMapped):
 		return []
 dataset_type_map["buist"] = HansMemoryMapped
 
-def _python_save_name(name):
+def _python_save_name(name, used=[]):
 	first, rest = name[0], name[1:]
-	return re.sub("[^a-zA-Z_]", "_", first) +  re.sub("[^a-zA-Z_0-9]", "_", rest)
+	name = re.sub("[^a-zA-Z_]", "_", first) +  re.sub("[^a-zA-Z_0-9]", "_", rest)
+	if name in used:
+		nr = 1
+		while name + ("_%d" % nr) in used:
+			nr += 1
+		name = name + ("_%d" % nr)
+	return name
 
 class FitsBinTable(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
@@ -2770,7 +2780,7 @@ class FitsBinTable(DatasetMemoryMapped):
 							for i in range(len(table.columns)):
 								column = table.columns[i]
 								cannot_handle = False
-								column_name = _python_save_name(column.name)
+								column_name = _python_save_name(column.name, used=self.columns.keys())
 
 								ucd_header_name = "TUCD%d" % (i+1)
 								if ucd_header_name in table.header:
@@ -3290,21 +3300,34 @@ class MemoryMappedGadget(DatasetMemoryMapped):
 dataset_type_map["gadget-plain"] = MemoryMappedGadget
 
 class DatasetAstropyTable(DatasetArrays):
-	def __init__(self, filename, format, **kwargs):
-		DatasetArrays.__init__(self, filename)
-		self.filename = filename
-		self.format = format
-		self.read_table()
+	def __init__(self, filename=None, format=None, table=None, **kwargs):
+		if table is None:
+			self.filename = filename
+			self.format = format
+			DatasetArrays.__init__(self, filename)
+			self.read_table()
+		else:
+			#print vars(table)
+			#print dir(table)
+			DatasetArrays.__init__(self, table.meta["name"])
+			self.table = table
+			#self.name
 
 		#data = table.array.data
 		for i in range(len(self.table.dtype)):
 			name = self.table.dtype.names[i]
+			column = self.table[name]
 			type = self.table.dtype[i]
-			clean_name = re.sub("[^a-zA-Z_]", "_", name)
+			#clean_name = re.sub("[^a-zA-Z_]", "_", name)
+			clean_name = _python_save_name(name, self.columns.keys())
 			if type.kind in ["f", "i"]: # only store float and int
 				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
 				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
 				masked_array = self.table[name].data
+				if "ucd" in column._meta:
+					self.ucds[clean_name] = column._meta["ucd"]
+				if column.description:
+					self.descriptions[clean_name] = column.description
 				if type.kind in ["f"]:
 					masked_array.data[masked_array.mask] = np.nan
 				if type.kind in ["i"]:

@@ -87,6 +87,22 @@ def open_many(filenames):
 		datasets.append(open(filename.strip()))
 	return vaex.dataset.DatasetConcatenated(datasets=datasets)
 
+def open_samp_single():
+	"""Connect to a SAMP Hub and wait for a single table load event, disconnect, download the table and return the dataset
+
+	Useful if you want to send a single table from say TOPCAT to vaex in a python console or notebook
+	"""
+	from vaex.samp import SampSingle
+	from astropy.table import Table
+	#samp = Samp(daemon=False)
+	#samp.tableLoadCallbacks.
+	samp = SampSingle()
+	url = samp.wait_for_table()
+	table = Table.read(url)
+	return vaex.dataset.DatasetAstropyTable(table=table)
+
+
+
 def from_arrays(name="array", **arrays):
 	"""Create an in memory dataset from numpy arrays
 

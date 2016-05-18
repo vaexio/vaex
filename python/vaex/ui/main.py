@@ -1609,6 +1609,12 @@ class VaexApp(QtGui.QMainWindow):
 		dataset = vaex.open(str(filename))
 		self.dataset_selector.add(dataset)
 
+	def open(self, name):
+		logger.debug("open dataset: %r" , name)
+		dataset = vaex.open(str(name))
+		self.dataset_selector.add(dataset)
+		return dataset
+
 
 	def openGenerator(self, callback_, description, filemask):
 		#print repr(callback_)

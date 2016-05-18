@@ -7,6 +7,8 @@ except ImportError:
 	import astropy.vo.samp as sampy
 import logging
 import threading
+import time
+import astropy.vo.samp
 
 logger = logging.getLogger("vaex.samp")
 
@@ -85,3 +87,32 @@ class Samp(object):
 		except:
 			print("errrrrrrororrrr hans!")
 
+
+
+# similar to http://astrofrog-debug.readthedocs.io/en/latest/vo/samp/example_table_image.html
+class SampSingle(object):
+	def __init__(self, name="vaex - single table load"):
+		self.done = False
+		self.client = astropy.vo.samp.SAMPIntegratedClient(name=name)
+		self.client.connect()
+
+		def call(private_key, sender_id, msg_id, mtype, params, extra):
+			self.params = params
+			self.client.reply(msg_id, {"samp.status": "samp.ok", "samp.result": {}})
+			self.done = True
+		def notify(private_key, sender_id, mtype, params, extra):
+			self.params = params
+			self.done = True
+
+		self.client.bind_receive_call("table.load.votable", call)
+		self.client.bind_receive_notification("table.load.votable", notify)
+
+
+
+	def wait_for_table(self):
+		logging.debug("waiting for samp msg: table.load.votable")
+		while not self.done:
+			time.sleep(0.1)
+		logging.debug("got samp msg: table.load.votable with params: %s", self.params)
+		self.client.disconnect()
+		return self.params["url"]
