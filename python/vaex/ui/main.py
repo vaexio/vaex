@@ -1444,7 +1444,7 @@ class VaexApp(QtGui.QMainWindow):
 
 	def on_samp_ping_timer(self):
 		if self.samp:
-			connected = self.samp.client.isConnected()
+			connected = self.samp.client.is_connected
 			#print "samp is", "connected" if connected else "disconnected!"
 			if not connected:
 				self.samp = None
@@ -1477,7 +1477,7 @@ class VaexApp(QtGui.QMainWindow):
 				else:
 					kwargs["table-id"] = "file:" + dataset.name
 					kwargs["url"] = "file:" + dataset.name
-			self.samp.client.enotifyAll("table.highlight.row", **kwargs)
+			self.samp.client.enotify_all("table.highlight.row", **kwargs)
 
 	def on_samp_send_table_select_rowlist(self, ignore=None, dataset=None):
 		if self.samp: # TODO: check if connected
@@ -1494,7 +1494,7 @@ class VaexApp(QtGui.QMainWindow):
 				kwargs["url"] = "file:" +dataset.samp_id #
 			else:
 				kwargs["table-id"] = "file:" + dataset.path
-			self.samp.client.enotifyAll("table.select.rowList", **kwargs)
+			self.samp.client.enotify_all("table.select.rowList", **kwargs)
 
 
 	def onActionHelp(self):
@@ -1634,15 +1634,15 @@ class VaexApp(QtGui.QMainWindow):
 			if self.samp is None:
 					self.samp = Samp(daemon=True, name="vaex")
 					#self.samp.tableLoadCallbacks.append(self.onLoadTable)
-					connected = self.samp.client.isConnected()
+					connected = self.samp.client.is_connected
 					#print "samp is connected:", connected
 					if connected:
-						self.samp.client.bindReceiveNotification("table.highlight.row", self._on_samp_notification)
-						self.samp.client.bindReceiveCall("table.select.rowList", self._on_samp_call)
-						self.samp.client.bindReceiveNotification("table.load.votable", self._on_samp_notification)
-						self.samp.client.bindReceiveCall("table.load.votable", self._on_samp_call)
-						self.samp.client.bindReceiveNotification("table.load.fits", self._on_samp_notification)
-						self.samp.client.bindReceiveCall("table.load.fits", self._on_samp_call)
+						self.samp.client.bind_receive_notification("table.highlight.row", self._on_samp_notification)
+						self.samp.client.bind_receive_call("table.select.rowList", self._on_samp_call)
+						self.samp.client.bind_receive_notification("table.load.votable", self._on_samp_notification)
+						self.samp.client.bind_receive_call("table.load.votable", self._on_samp_call)
+						self.samp.client.bind_receive_notification("table.load.fits", self._on_samp_notification)
+						self.samp.client.bind_receive_call("table.load.fits", self._on_samp_call)
 					else:
 						if not ignore_error:
 							dialog_error(self, "Connecting to SAMP server", "Could not connect, make sure a SAMP HUB is running (for instance TOPCAT)")
@@ -1707,7 +1707,7 @@ class VaexApp(QtGui.QMainWindow):
 					# avoid triggering another samp event and an infinite loop
 					self.highlighed_row_from_samp = True
 					try:
-						dataset.selectRow(row)
+						dataset.set_current_row(row)
 					finally:
 						self.highlighed_row_from_samp = False
 
@@ -1718,8 +1718,9 @@ class VaexApp(QtGui.QMainWindow):
 		logger.debug("select rowlist: {url}".format(**locals()))
 		print(("select rowlist: {url}".format(**locals())))
 		row_list = np.array([int(k) for k in row_list])
-		did_select = False
+		#did_select = False
 		datasets_updated = [] # keep a list to avoid multiple 'setMask' calls (which would do an update twice)
+		# TODO: this method is not compatible with the selection history... how to deal with this? New SelectionObject?
 		for id in (url, table_id):
 			if id != None:
 				for dataset in self._samp_find_datasets(id):
@@ -1728,10 +1729,10 @@ class VaexApp(QtGui.QMainWindow):
 						mask[row_list] = True
 						print("match dataset", dataset)
 						dataset._set_mask(mask)
-						did_select = True
+						#did_select = True
 					datasets_updated.append(dataset)
-		if did_select:
-			self.main_panel.jobsManager.execute()
+		#if did_select:
+		#	self.main_panel.jobsManager.execute()
 
 
 	def samp_table_load_votable(self, url=None, table_id=None, name=None):

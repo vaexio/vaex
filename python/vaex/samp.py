@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 #from sampy import *
 #from SocketServer import ThreadingMixIn
-try:
-	import sampy
-except ImportError:
-	import astropy.vo.samp as sampy
+#try:
+#	import sampy
+#except ImportError:
+#import astropy.vo.samp as sampy
 import logging
 import threading
 import time
@@ -15,25 +15,25 @@ logger = logging.getLogger("vaex.samp")
 
 class Samp(object):
 	def __init__(self, daemon=True, name=None):
-		self.client = sampy.SAMPIntegratedClient(metadata = {"samp.name":"Gavi client" if name is None else name,
+		self.client = astropy.vo.samp.SAMPIntegratedClient(metadata = {"samp.name":"Gavi client" if name is None else name,
 										"samp.description.text": "Gavi client" if name is None else name,
 										"gavi.samp.version":"0.01"}, callable=True)
 
 
 		# sampy doesn't make this thread Daeamon, so the python process never stops on the cmd line
 		# this fixes that
-		def _myrun_client():
-			if self.client.client._callable:
-				self.client.client._thread = threading.Thread(target = self.client.client._serve_forever)
-				self.client.client._thread.setDaemon(True)
-				self.client.client._thread.start()
-		if daemon:
-			self.client.client._run_client = _myrun_client
+		#def _myrun_client():
+		#	if self.client.client._callable:
+		#		self.client.client._thread = threading.Thread(target = self.client.client._serve_forever)
+		#		self.client.client._thread.setDaemon(True)
+		#		self.client.client._thread.start()
+		#if daemon:
+		#	self.client.client._run_client = _myrun_client
 		connected = False
 		try:
 			self.client.connect()
 			connected = True
-		except sampy.SAMPHubError as e:
+		except astropy.vo.samp.SAMPHubError as e:
 			#print "error connecting to hub", e
 			pass
 
@@ -41,8 +41,8 @@ class Samp(object):
 			#self.client.client._thread.setDaemon(False)
 			logger.info("connected to SAMP hub")
 			logger.info("binding events")
-			self.client.bindReceiveCall			("table.load.votable", self._onTableLoadVotable)
-			self.client.bindReceiveNotification	("table.load.votable", self._onTableLoadVotable)
+			self.client.bind_receive_call			("table.load.votable", self._onTableLoadVotable)
+			self.client.bind_receive_notification	("table.load.votable", self._onTableLoadVotable)
 			#self.client.bindReceiveNotification	("table.highlight.row", self._onSampNotification)
 			#self.client.bindReceiveMessage("table.load.votable", self._onSampCall)
 			#self.client.bindReceiveResponse("table.load.votable", self._onSampCall)
