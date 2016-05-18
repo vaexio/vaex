@@ -44,7 +44,10 @@ import vaex.vaexfast
 from vaex.ui import qt, undo
 
 from attrdict import AttrDict
-from StringIO import StringIO
+try:
+	from StringIO import StringIO
+except ImportError:
+	from io import StringIO
 
 class AttrDict(AttrDict):
 	def __init__(self, *args, **kwargs):
