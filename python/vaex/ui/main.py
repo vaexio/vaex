@@ -897,6 +897,7 @@ class VaexApp(QtGui.QMainWindow):
 		self.current_window = None
 		self.current_dataset = None
 
+
 		QtGui.QToolTip.setFont(QtGui.QFont('SansSerif', 10))
 
 		#self.setToolTip('This is a <b>QWidget</b> widget')
@@ -1009,6 +1010,7 @@ class VaexApp(QtGui.QMainWindow):
 			if dataset_index is None: return
 			dataset = datasets[dataset_index]
 			self.dataset_selector.add(dataset)
+			self.add_recently_opened(dataset.path)
 
 			if server in servers:
 				servers.remove(server)
@@ -1039,6 +1041,9 @@ class VaexApp(QtGui.QMainWindow):
 		self.menu_open.addAction(self.action_open_hdf5_vaex)
 		self.menu_open.addAction(self.action_open_hdf5_gadget)
 		self.menu_open.addAction(self.action_open_hdf5_amuse)
+		self.menu_recent = fileMenu.addMenu("&Open Recent")
+		self.recently_opened = vaex.settings.main.get("recent", [])
+		self.update_recently_opened()
 		if (not frozen) or darwin:
 			self.menu_open.addAction(self.action_open_fits)
 		fileMenu.addAction(self.action_save_hdf5)
@@ -1343,6 +1348,8 @@ class VaexApp(QtGui.QMainWindow):
 					if found:
 						dataset = found[0]
 				dataset = vaex.open(filename,  thread_mover=self.call_in_main_thread)
+				self.add_recently_opened(filename)
+				#dataset = self.open(filename)
 			elif filename[0] == ":": # not a filename, but a classname
 				classname = filename.split(":")[1]
 				if classname not in vaex.dataset.dataset_type_map:
@@ -1356,6 +1363,7 @@ class VaexApp(QtGui.QMainWindow):
 				clsargs = [eval(value) for value in options[1:]]
 				filename = options[0]
 				dataset = vaex.open(filename, *clsargs) #vaex.dataset.load_file(filename, *clsargs)
+				self.add_recently_opened(filename)
 			if dataset is None:
 				error("cannot open file {filename}".format(**locals()))
 			index += 1
@@ -1609,9 +1617,13 @@ class VaexApp(QtGui.QMainWindow):
 		dataset = vaex.open(str(filename))
 		self.dataset_selector.add(dataset)
 
-	def open(self, name):
-		logger.debug("open dataset: %r" , name)
-		dataset = vaex.open(str(name))
+	def open(self, path):
+		logger.debug("open dataset: %r", path)
+		if path.startswith("http") or path.startswith("ws"):
+			dataset = vaex.open(path, thread_mover=self.call_in_main_thread)
+		else:
+			dataset = vaex.open(path)
+		self.add_recently_opened(path)
 		self.dataset_selector.add(dataset)
 		return dataset
 
@@ -1626,8 +1638,43 @@ class VaexApp(QtGui.QMainWindow):
 			#print repr(callback_)
 			if filename:
 				callback_(filename)
+				self.add_recently_opened(filename)
 		self.open_generators.append(open)
 		return open
+
+	def add_recently_opened(self, path):
+		#vaex.recent[""]
+		if path.startswith("http") or path.startswith("ws"):
+			pass
+		else: # non url's will be converted to an absolute path
+			path = os.path.abspath(path)
+		while path in self.recently_opened:
+			self.recently_opened.remove(path)
+		self.recently_opened.insert(0, path)
+		self.recently_opened = self.recently_opened[:10]
+		vaex.settings.main.store("recent", self.recently_opened)
+		self.update_recently_opened()
+
+	def update_recently_opened(self):
+		self.menu_recent.clear()
+		self.menu_recent_subactions = []
+		for path in self.recently_opened:
+			def open(ignore=None, path=path):
+				self.open(path)
+			name = vaex.utils.filename_shorten(path)
+			action = QtGui.QAction(name, self)
+			action.triggered.connect(open)
+			self.menu_recent_subactions.append(action)
+			self.menu_recent.addAction(action)
+		self.menu_recent.addSeparator()
+		def clear(ignore=None):
+			self.recently_opened = []
+			vaex.settings.main.store("recent", self.recently_opened)
+			self.update_recently_opened()
+		action = QtGui.QAction("Clear recent list", self)
+		action.triggered.connect(clear)
+		self.menu_recent_subactions.append(action)
+		self.menu_recent.addAction(action)
 
 	def onSampConnect(self, ignore_error=False):
 		if self.action_samp_connect.isChecked():

@@ -288,3 +288,31 @@ def ensure_string(string_or_bytes, encoding="utf-8"):
 		return string_or_bytes
 	else:
 		return string_or_bytes.decode(encoding)
+
+def filename_shorten(path, max_length=150):
+	#parts = path.split(os.path.sep)
+	parts = []
+	done = False
+	tail = path
+	while not done:
+		tail, head = os.path.split(tail)
+		#print ">>", tail, head
+		if not head:
+			done = True
+			parts.append(tail)
+		else:
+			parts.append(head)
+	parts.reverse()
+	#print "parts", parts, os.path.join(*parts)
+	if len(parts) > 4:
+		first, middle, last = os.path.join(parts[0], parts[1]), parts[2:-1], parts[-1]
+		#print first, middle, last
+		while (len(os.path.join(first, *(middle + [last]))) <= max_length) and middle:
+			last = os.path.join(middle[-1], last)
+			middle = middle[:-1]
+		if middle:
+			return os.path.join(first, "...", last)
+		else:
+			return os.path.join(first, last)
+	else:
+		return path

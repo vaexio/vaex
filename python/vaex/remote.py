@@ -429,7 +429,7 @@ class DatasetRest(DatasetRemote):
 		self._full_length = full_length
 		self._length = full_length
 		#self.filename = #"http://%s:%s/%s" % (server.hostname, server.port, name)
-		self.path = self.filename = self.server._build_url("datasets/%s" % name)
+		self.path = self.filename = self.server._build_url("%s" % name)
 
 
 		self.fraction = 1
