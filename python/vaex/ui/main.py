@@ -888,11 +888,11 @@ class VaexApp(QtGui.QMainWindow):
 	signal_samp_notification = QtCore.pyqtSignal(str, str, str, dict, dict)
 	signal_samp_call = QtCore.pyqtSignal(str, str, str, str, dict, dict)
 
-	def __init__(self, argv=[], open_default=False, enable_samp=None):
+	def __init__(self, argv=[], open_default=False, enable_samp=True):
 		super(VaexApp, self).__init__()
 
 		is_py2 = (sys.version_info[0] == 2)
-		self.enable_samp = enable_samp if (enable_samp is not None) else is_py2
+		self.enable_samp = enable_samp# if (enable_samp is not None) else is_py2
 		self.windows = []
 		self.current_window = None
 		self.current_dataset = None
