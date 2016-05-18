@@ -330,7 +330,7 @@ def main(argv):
 		elif output_ext == ".fits":
 			export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
 		if progressbar:
-			progressbar.close()
+			progressbar.finish()
 		if not args.quiet:
 			print("\noutput to %s" % os.path.abspath(args.output))
 	dataset.close_files()
