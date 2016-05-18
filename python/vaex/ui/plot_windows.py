@@ -1517,7 +1517,8 @@ class PlotDialog(QtGui.QWidget):
 				optionsname = os.path.join(dir_path, name + "_meta.json")
 				options = {}
 				options["extent"] = list(self.current_layer.state.ranges_grid[0]) + list(self.current_layer.state.ranges_grid[1])
-				json.dump(options, file(optionsname, "w"), indent=4)
+				with open(optionsname, "w") as f:
+					json.dump(options, f, indent=4)
 				msg_list.append("wrote: " + optionsname)
 
 				if mask[0]:
@@ -1571,14 +1572,16 @@ class PlotDialog(QtGui.QWidget):
 						else:
 							yes, yesall = dialog_confirm(self, "Overwrite", "Overwrite: " +scriptname, to_all=True)
 						if yes or yesall:
-							file(scriptname, "w").write(template.format(name=name))
-							msg_list.append("wrote: " + scriptname)
+							with  open(scriptname, "w") as f:
+								f.write(template.format(name=name))
+								msg_list.append("wrote: " + scriptname)
 
 
 					optionsname = os.path.join(dir_path, name + "_meta.json")
 					options = {}
 					options["extent"] = list(self.current_layer.state.ranges_grid[0]) + list(self.current_layer.state.ranges_grid[1])
-					json.dump(options, file(optionsname, "w"), indent=4)
+					with open(optionsname, "w") as f:
+						json.dump(options, f, indent=4)
 					msg_list.append("wrote: " + optionsname)
 
 					if mask[1]:
