@@ -17,7 +17,7 @@ class Settings(object):
 			with open(filename, "w"):
 				pass
 		with open(self.filename) as f:
-			self.settings = yaml.load(f, Loader=Loader)
+			self.settings = vaex.utils.yaml_load(f) #yaml.load(f, Loader=Loader)
 		if self.settings is None:
 			self.settings = {}
 		#logger.debug("settings: %r", self.settings)
@@ -42,7 +42,8 @@ class Settings(object):
 
 	def dump(self):
 		with open(self.filename, "w") as f:
-			yaml.dump(self.settings, f)
+			#yaml.dump(self.settings, f)
+			vaex.utils.yaml_dump(f, self.settings)
 
 	def get(self, key, default=None):
 		logger.debug("get %r", key)
