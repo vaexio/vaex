@@ -3328,10 +3328,11 @@ class DatasetAstropyTable(DatasetArrays):
 					self.ucds[clean_name] = column._meta["ucd"]
 				if column.description:
 					self.descriptions[clean_name] = column.description
-				if type.kind in ["f"]:
-					masked_array.data[masked_array.mask] = np.nan
-				if type.kind in ["i"]:
-					masked_array.data[masked_array.mask] = 0
+				if hasattr(masked_array, "mask")
+					if type.kind in ["f"]:
+						masked_array.data[masked_array.mask] = np.nan
+					if type.kind in ["i"]:
+						masked_array.data[masked_array.mask] = 0
 				self.add_column(clean_name, self.table[name].data)
 			if type.kind in ["S"]:
 				self.add_column(clean_name, self.table[name].data)
