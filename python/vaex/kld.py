@@ -19,6 +19,15 @@ def mutual_information(data):
 	information = np.sum(P[mask] * np.log(P[mask]/Q[mask]))# * np.sum(dx)
 	return information
 
+def kl_divergence(P, Q, axis=None):
+    P = P / P.sum(axis=axis)
+    Q = Q / Q.sum(axis=axis)
+    #mask = (P > 0) & (Q>0)
+    #information = np.sum(P[mask] * np.log(P[mask]/Q[mask]), axis=axis)# * np.sum(dx)
+    #mask = (P > 0) & (Q>0)
+    information = np.sum(P * np.log(P/Q), axis=axis)# * np.sum(dx)
+    return information
+
 class KlDivergenceShuffle(object):
 	def __init__(self, dataset, pairs, gridsize=128):
 		self.dataset = dataset
