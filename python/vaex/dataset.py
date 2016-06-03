@@ -112,6 +112,22 @@ class TaskMapReduce(Task):
 		return self.converter(reduce(self._reduce, results))
 
 
+#import numba
+#@numba.jit(nopython=True, nogil=True)
+#def histogram_numba(x, y, weight, grid, xmin, xmax, ymin, ymax):
+#    scale_x = 1./ (xmax-xmin);
+#    scale_y = 1./ (ymax-ymin);
+#    counts_length_y, counts_length_x = grid.shape
+#    for i in range(len(x)):
+#        value_x = x[i];
+#        value_y = y[i];
+#        scaled_x = (value_x - xmin) * scale_x;
+#        scaled_y = (value_y - ymin) * scale_y;
+#
+#        if ( (scaled_x >= 0) & (scaled_x < 1) &  (scaled_y >= 0) & (scaled_y < 1) ) :
+#            index_x = (int)(scaled_x * counts_length_x);
+#            index_y = (int)(scaled_y * counts_length_y);
+#            grid[index_y, index_x] += 1;
 
 class TaskHistogram(Task):
 	def __init__(self, dataset, subspace, expressions, size, limits, masked=False, weight=None):
@@ -169,7 +185,11 @@ class TaskHistogram(Task):
 		if self.dimension == 1:
 			vaex.vaexfast.histogram1d(blocks[0], subblock_weight, data, *self.ranges_flat)
 		elif self.dimension == 2:
-			vaex.vaexfast.histogram2d(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
+			#if subblock_weight is None:
+			#	#print "speedup?"
+			#	histogram_numba(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
+			#else:
+				vaex.vaexfast.histogram2d(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
 		elif self.dimension == 3:
 			vaex.vaexfast.histogram3d(blocks[0], blocks[1], blocks[2], subblock_weight, data, *self.ranges_flat)
 		else:
@@ -3328,7 +3348,7 @@ class DatasetAstropyTable(DatasetArrays):
 					self.ucds[clean_name] = column._meta["ucd"]
 				if column.description:
 					self.descriptions[clean_name] = column.description
-				if hasattr(masked_array, "mask")
+				if hasattr(masked_array, "mask"):
 					if type.kind in ["f"]:
 						masked_array.data[masked_array.mask] = np.nan
 					if type.kind in ["i"]:
