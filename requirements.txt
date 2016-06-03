@@ -17,9 +17,9 @@ future
 pyyaml
 layeredconfig
 #http://www.astro.rug.nl/software/kapteyn/kapteyn-2.3.tar.gz
-git+https://github.com/kapteyn-astro/kapteyn#egg=kapteyn
+#git+https://github.com/kapteyn-astro/kapteyn#egg=kapteyn
 cachetools
-healpy
+#healpy
 progressbar2
 # sphinxcontrib-googleanalytics # for building the docs
 attrdict
