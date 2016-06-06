@@ -16,8 +16,7 @@ futures==2.2.0
 future
 pyyaml
 layeredconfig
-#http://www.astro.rug.nl/software/kapteyn/kapteyn-2.3.tar.gz
-#git+https://github.com/kapteyn-astro/kapteyn#egg=kapteyn
+kapteyn
 cachetools
 #healpy
 progressbar2
