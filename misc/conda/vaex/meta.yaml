@@ -97,8 +97,8 @@ test:
 
 about:
   home: https://www.astro.rug.nl/~breddels/vaex
-  license: UNKNOWN
-  summary: 'Veax is a graphical tool to visualize and explore large tabular datasets.'
+  license: MIT
+  summary: 'Vaex is a graphical tool to visualize and explore large tabular datasets.'
 
 # See
 # http://docs.continuum.io/conda/build.html for
