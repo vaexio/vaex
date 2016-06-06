@@ -183,7 +183,11 @@ install_reqs = parse_requirements("requirements.txt", session=session)
 
 # reqs is a list of requirement
 # e.g. ['django==1.5.1', 'mezzanine==1.4.6']
-reqs = [str(ir.req) for ir in install_reqs]
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+if on_rtd:
+	reqs = [] # we do this with requirements-rtd.txt
+else:
+	reqs = [str(ir.req) for ir in install_reqs]
 
 
 
