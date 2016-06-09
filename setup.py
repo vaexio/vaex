@@ -209,7 +209,7 @@ setup(
     install_requires=reqs,
     entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },
     ext_modules=extensions,
-    package_data={'vaex': ['ui/icons/*.png']},
+    package_data={'vaex': ['ui/icons/*.png', 'ui/icons/*.icns']},
     package_dir={'vaex':'python/vaex'},
     cmdclass=cmdclass,
     description="Vaex is a graphical tool to visualize and explore large tabular datasets.",
