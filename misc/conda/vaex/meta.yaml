@@ -11,6 +11,7 @@ source:
    # - fix.patch
 
 build:
+  osx_is_app: True
   # noarch_python: True
   # preserve_egg_dir: True
   entry_points:
@@ -26,6 +27,7 @@ build:
   # If this is a new build for the same version, increment the build
   # number. If you do not include this key, it defaults to 0.
   # number: 1
+
 
 requirements:
   build:
@@ -70,6 +72,7 @@ requirements:
     - cachetools
     - progressbar2
     - attrdict
+    - python.app  # [osx]
 
 test:
   # Python imports
@@ -94,10 +97,17 @@ test:
   # requires:
     # Put any additional test requirements here.  For example
     # - nose
+app:
+  entry: vaex
+  summary: 'Vaex is a graphical tool to visualize and explore large tabular datasets.'
+  icon: vaex32.png
+  type: desk
+
 
 about:
   home: https://www.astro.rug.nl/~breddels/vaex
   license: MIT
+#  license_file: LICENSE
   summary: 'Vaex is a graphical tool to visualize and explore large tabular datasets.'
 
 # See
