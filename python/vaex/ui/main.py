@@ -164,6 +164,7 @@ class DatasetSelector(QtGui.QListWidget):
 		self.signal_pick.emit(dataset, row)
 
 	def setBestFraction(self, dataset):
+		return
 		Nmax = 1000*1000*10
 		for fraction in possibleFractions[::-1]:
 			N  = len(dataset)
@@ -1005,7 +1006,7 @@ class VaexApp(QtGui.QMainWindow):
 			except Exception as e:
 				dialogs.dialog_error(self, "Error connecting", "Error connecting: %r" % e)
 				return
-			dataset_descriptions = ["%s (%d rows)" % (dataset.name, len(dataset)) for dataset in datasets]
+			dataset_descriptions = ["{} ({:,} rows)".format(dataset.name, len(dataset)) for dataset in datasets]
 			dataset_index = dialogs.choose(self, "Choose datasets", "Choose dataset", dataset_descriptions)
 			if dataset_index is None: return
 			dataset = datasets[dataset_index]
@@ -1474,7 +1475,7 @@ class VaexApp(QtGui.QMainWindow):
 		# avoid sending an event if this was caused by a samp event
 		if self.samp and not self.highlighed_row_from_samp: # TODO: check if connected,
 			kwargs = {"row": str(row)}
-			if dataset.samp_id:
+			if hasattr(dataset, "samp_id") and dataset.samp_id:
 				kwargs["table-id"] = dataset.samp_id
 				#kwargs["url"] = "file:" + dataset.filename
 				kwargs["url"] = dataset.samp_id #
