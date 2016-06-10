@@ -177,7 +177,7 @@ html_extra_path = [
 def convert(names, ext="html", include_source=True, include_dest=True):
 	for name in names:
 		source = "../../examples/{name}.ipynb".format(name=name)
-		dest = "{name}.html".format(name=name)
+		dest = "{name}.{ext}".format(name=name, ext=ext)
 		should_make = True
 		if os.path.exists(dest):
 			time_source = os.path.getmtime(os.path.abspath(os.path.join(source)))
