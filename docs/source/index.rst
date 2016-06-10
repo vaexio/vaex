@@ -11,8 +11,8 @@ What is Vaex?
 * Veax is a **graphical tool** and **python library** to visualize and explore large tabular datasets.
 * It mainly renders **histograms**, **density plots** and **volume rendering**  plots for visualization in the order of a **billion** (10\ :sup:`9`) objects in the order of **1 second**.
 * For **exploration** it support selection in 1 and 2d, but it can also analyse the columns (dimensions) to find subspaces which are richer in information than others.
-* **Downloads**: :ref:`Standalone version or Python package <installing_from_binary>`
-* **More**: :doc:`gallery` | :doc:`gui_reference` | :doc:`tutorial_ipython_notebook` | :doc:`vaex`
+* **Downloads**: :doc:`Standalone version or Python package <installing>`
+* **More**: :doc:`gallery` | :doc:`gui_reference` | :doc:`Tutorial <tutorial_ipython_notebook>` | :doc:`API docs <vaex>` | :doc:`examples`
 
 .. image:: images/overview.png
     :scale: 35%
