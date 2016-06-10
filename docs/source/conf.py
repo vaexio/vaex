@@ -189,7 +189,7 @@ for name in "example_movies example_start example_volume_rendering example_virtu
 		if on_rtd:
 			# nb convert on rtd puts the output in the same directory..
 			import shutil
-			shutil.move("../../" + dest, dest)
+			shutil.move("../../examples/" + dest, dest)
 	else:
 		print("%s is already up to date" % name)
 	html_extra_path.append(source)
