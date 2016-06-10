@@ -189,6 +189,7 @@ def convert(names, ext="html", include_source=True, include_dest=True):
 			print("executing %s" % cmd)
 			os.system(cmd)
 			if on_rtd:
+				pass
 				# nb convert on rtd puts the output in the same directory..
 				#import shutil
 				#shutil.move("../../examples/" + dest, dest)
