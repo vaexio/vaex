@@ -155,7 +155,8 @@ def example():
 	:rtype: vaex.dataset.Dataset
 	"""
 	from . import utils
-	return open(utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5"))
+	path = utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5")
+	return open(path) if path else None
 
 
 def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):

@@ -174,22 +174,34 @@ html_static_path = ['nstatic']
 html_extra_path = [
 		]
 
-for name in "example_movies example_start example_volume_rendering example_virtual_columns example_tables".split():
-	source = "../../examples/{name}.ipynb".format(name=name)
-	dest = "{name}.html".format(name=name)
-	should_make = True
-	if os.path.exists(dest):
-		time_source = os.path.getmtime(os.path.abspath(os.path.join(source)))
-		time_dest = os.path.getmtime(os.path.abspath(os.path.join(dest)))
-		should_make = time_source > time_dest
-	cmd = "cd source; jupyter-nbconvert {source} --to html --output={dest}".format(source=source, dest=dest)
-	if should_make:
-		print("executing %s" % cmd)
-		os.system(cmd)
-	else:
-		print("%s is already up to date" % name)
-	html_extra_path.append(source)
-	html_extra_path.append(dest)
+def convert(names, ext="html", include_source=True, include_dest=True):
+	for name in names:
+		source = "../../examples/{name}.ipynb".format(name=name)
+		dest = "{name}.{ext}".format(name=name, ext=ext)
+		should_make = True
+		if os.path.exists(dest):
+			time_source = os.path.getmtime(os.path.abspath(os.path.join(source)))
+			time_dest = os.path.getmtime(os.path.abspath(os.path.join(dest)))
+			should_make = time_source > time_dest
+		cwd = os.getcwd()
+		cmd = "cd docs; cd source; jupyter-nbconvert {source} --to {ext} --output-dir={cwd} --output={dest}".format(source=source, cwd=cwd, ext=ext, dest=dest)
+		if should_make:
+			print("executing %s" % cmd)
+			os.system(cmd)
+			if on_rtd:
+				pass
+				# nb convert on rtd puts the output in the same directory..
+				#import shutil
+				#shutil.move("../../examples/" + dest, dest)
+		else:
+			print("%s is already up to date" % name)
+		if include_source:
+			html_extra_path.append(source)
+		if include_dest:
+			html_extra_path.append(dest)
+convert("example_movies example_start example_volume_rendering example_virtual_columns example_tables".split(), "html", True, True)
+convert("tutorial_ipython_notebook".split(), "rst", True, False)
+
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.

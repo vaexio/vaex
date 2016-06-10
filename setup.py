@@ -201,6 +201,7 @@ setup(
     version = version.versionstring, #"%d.%d.%d" % version.versiontuple,
     data_files=DATA_FILES,
     options={'py2app': OPTIONS},
+	license='MIT',
     #setup_requires=['py2app'],
     #setup_requires=["sphinx"],
     includes=["vaex", "md5", "astropy", "aplus", "six"],
@@ -208,9 +209,41 @@ setup(
     install_requires=reqs,
     entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },
     ext_modules=extensions,
-    package_data={'vaex': ['ui/icons/*.png']},
+    package_data={'vaex': ['ui/icons/*.png', 'ui/icons/*.icns']},
     package_dir={'vaex':'python/vaex'},
     cmdclass=cmdclass,
-    description="Veax is a graphical tool to visualize and explore large tabular datasets.",
-    url="https://www.astro.rug.nl/~breddels/vaex"
+    description="Vaex is a graphical tool to visualize and explore large tabular datasets.",
+    url="https://www.astro.rug.nl/~breddels/vaex",
+	classifiers=[
+        # How mature is this project? Common values are
+        #   3 - Alpha
+        #   4 - Beta
+        #   5 - Production/Stable
+        'Development Status :: 4 - Beta',
+
+        'License :: OSI Approved :: MIT License',
+
+        # Specify the Python versions you support here. In particular, ensure
+        # that you indicate whether you support Python 2, Python 3 or both.
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+
+		'Operating System :: MacOS',
+		'Operating System :: POSIX',
+		'Operating System :: Unix',
+
+		'Topic :: Scientific/Engineering :: Visualization',
+		'Topic :: Scientific/Engineering :: Information Analysis',
+
+		'Intended Audience :: Science/Research'
+
+		'Environment :: MacOS X',
+		'Environment :: X11 Applications'
+
+    ],
+	keywords="visualization exploration data analysis "
 )
