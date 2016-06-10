@@ -15,7 +15,7 @@
 jenkins/jenkins.war
 /nosetests.xml
 /.idea
-
+misc/experiments/
 /.coverage
 /coverage.xml
 
