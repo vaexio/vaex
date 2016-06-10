@@ -176,7 +176,7 @@ html_extra_path = [
 
 for name in "example_movies example_start example_volume_rendering example_virtual_columns example_tables tutorial_ipython_notebook.rst".split():
 	source = "../../examples/{name}.ipynb".format(name=name)
-	dest = "./{name}.html".format(name=name)
+	dest = "{name}.html".format(name=name)
 	should_make = True
 	if os.path.exists(dest):
 		time_source = os.path.getmtime(os.path.abspath(os.path.join(source)))
@@ -186,6 +186,10 @@ for name in "example_movies example_start example_volume_rendering example_virtu
 	if should_make:
 		print("executing %s" % cmd)
 		os.system(cmd)
+		if on_rtd:
+			# nb convert on rtd puts the output in the same directory..
+			import shutil
+			shutil.move("../../" + source, source)
 	else:
 		print("%s is already up to date" % name)
 	html_extra_path.append(source)
