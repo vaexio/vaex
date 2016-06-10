@@ -47,16 +47,20 @@ def sum_read_part(i1, i2):
 		thread_local.c_buffer = ctypes.create_string_buffer((i2-i1)*8)
 		thread_local.buffer = np.frombuffer(thread_local.c_buffer)
 		# opening the file for each thread avoids having mutexes slow us down in the c code
-		thread_local.file = open(filename)
-		thread_local.fileno = thread_local.file.fileno()
+		#thread_local.file = open(filename)
+		#thread_local.fileno = thread_local.file.fileno()
+		thread_local.file = open(filename, "r", 1)
+		#thread_local.fileno = thread_local.file.fileno()
 
 		#print "creating buffer"
 	c_buffer = thread_local.c_buffer
 	buffer = thread_local.buffer
 	buffer = buffer[:i2-i1] # clip it if needed
 	thread_local.file.seek(offset+i1)
+	buffer = np.fromfile(thread_local.file, count=i2-i1+1)
+	#thread_local.read()
 	#fread(c_buffer, 8, (i2-i1), fh)
-	libc.read(thread_local.fileno, c_buffer, (i2-i1)*8)
+	#libc.read(thread_local.fileno, c_buffer, (i2-i1)*8)
 	#data = file.read((i2-i1)*8)
 	#buffer = np.fromstring(data, dtype=np.float64)
 	return np.sum(buffer)
@@ -65,13 +69,14 @@ def sum_read_part(i1, i2):
 import concurrent.futures
 
 def sum_read():
-	total = sum([future.result() for future in vaex.utils.submit_subdivide(9, sum_read_part, length, int(1e6))])
+	total = sum([future.result() for future in vaex.utils.submit_subdivide(9, sum_read_part, length, int(2e5))])
 	return total
 
 #for i in range(3):
 #	print sum_read()
 print "benchmarking read mmap", sum_read()
 expr = "sum_read()"
+print sum_read()
 times = timeit.repeat(expr, setup="from __main__ import sum_read", repeat=5, number=N)
 print "minimum time", min(times)/N
 bandwidth = [byte_size/1024.**3/(time/N) for time in times]
@@ -95,6 +100,7 @@ def sum_mmap():
 
 print "benchmarking sum mmap", sum_mmap(), sum_mmap(), sum_mmap()
 expr = "sum_mmap()"
+print sum_mmap()
 times = timeit.repeat(expr, setup="from __main__ import sum_mmap", repeat=5, number=N)
 print "minimum time", min(times)/N
 bandwidth = [byte_size/1024.**3/(time/N) for time in times]

@@ -11,6 +11,7 @@ source:
    # - fix.patch
 
 build:
+  script: python setup.py install --single-version-externally-managed --record record.txt
   osx_is_app: True
   # noarch_python: True
   # preserve_egg_dir: True
@@ -32,7 +33,6 @@ build:
 requirements:
   build:
     - python
-    - setuptools
     - pyopengl >=3.1.0
     - numpy >=1.7.2
     - scipy >=0.1
@@ -43,9 +43,9 @@ requirements:
     - numexpr
     - psutil >=1.2.1
     - aplus
-    - tornado ==4.1
-    - futures ==2.2.0
-    - future
+    - tornado >4.1
+    - futures
+    - future >= 0.15.2
     - pyyaml
     - layeredconfig
     - cachetools
@@ -64,9 +64,9 @@ requirements:
     - numexpr
     - psutil >=1.2.1
     - aplus
-    - tornado ==4.1
-    - futures ==2.2.0
-    - future
+    - tornado >4.1
+    - futures
+    - future >= 0.15.2
     - pyyaml
     - layeredconfig
     - cachetools
