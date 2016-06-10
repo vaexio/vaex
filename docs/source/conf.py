@@ -174,7 +174,7 @@ html_static_path = ['nstatic']
 html_extra_path = [
 		]
 
-for name in "example_movies example_start example_volume_rendering example_virtual_columns example_tables tutorial_ipython_notebook".split():
+for name in "example_movies example_start example_volume_rendering example_virtual_columns example_tables tutorial_ipython_notebook.rst".split():
 	source = "../../examples/{name}.ipynb".format(name=name)
 	dest = "{name}.html".format(name=name)
 	should_make = True
@@ -192,7 +192,6 @@ for name in "example_movies example_start example_volume_rendering example_virtu
 	html_extra_path.append(dest)
 
 
-tutorial_ipython_notebook.rst
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
