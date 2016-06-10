@@ -198,7 +198,7 @@ def convert(names, ext="html", include_source=True, include_dest=True):
 		if include_dest:
 			html_extra_path.append(dest)
 convert("example_movies example_start example_volume_rendering example_virtual_columns example_tables".split(), "html", True, True)
-convert("tutorial_ipython_notebook".split(), ".rst", True, False)
+convert("tutorial_ipython_notebook".split(), "rst", True, False)
 
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
