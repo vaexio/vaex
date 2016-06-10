@@ -183,7 +183,7 @@ def convert(names, ext="html", include_source=True, include_dest=True):
 			time_source = os.path.getmtime(os.path.abspath(os.path.join(source)))
 			time_dest = os.path.getmtime(os.path.abspath(os.path.join(dest)))
 			should_make = time_source > time_dest
-		cmd = "cd docs; cd source; jupyter-nbconvert {source} --to html --output={dest}".format(source=source, dest=dest)
+		cmd = "cd docs; cd source; jupyter-nbconvert {source} --to {ext} --output={dest}".format(source=source, ext=ext, dest=dest)
 		if should_make:
 			print("executing %s" % cmd)
 			os.system(cmd)
