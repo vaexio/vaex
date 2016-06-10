@@ -183,14 +183,15 @@ def convert(names, ext="html", include_source=True, include_dest=True):
 			time_source = os.path.getmtime(os.path.abspath(os.path.join(source)))
 			time_dest = os.path.getmtime(os.path.abspath(os.path.join(dest)))
 			should_make = time_source > time_dest
-		cmd = "cd docs; cd source; jupyter-nbconvert {source} --to {ext} --output={dest}".format(source=source, ext=ext, dest=dest)
+		cwd = os.getcwd()
+		cmd = "cd docs; cd source; jupyter-nbconvert {source} --to {ext} --output-dir={cwd} --output={dest}".format(source=source, cwd=cwd, ext=ext, dest=dest)
 		if should_make:
 			print("executing %s" % cmd)
 			os.system(cmd)
 			if on_rtd:
 				# nb convert on rtd puts the output in the same directory..
-				import shutil
-				shutil.move("../../examples/" + dest, dest)
+				#import shutil
+				#shutil.move("../../examples/" + dest, dest)
 		else:
 			print("%s is already up to date" % name)
 		if include_source:
