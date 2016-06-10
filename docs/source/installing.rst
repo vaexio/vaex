@@ -5,6 +5,10 @@ Download and installing
 
 VaeX is available as binary for OSX and Linux, without any dependencies. See the next section how to get it. For development, other plaforms, or for more optimized compiling of the source, you may want to build from source.
 
+ * **Standalone version**: download ( `osx <https://www.astro.rug.nl/~breddels/vaex/vaex-1.0.0-beta1-osx.zip>`_ | `linux <https://www.astro.rug.nl/~breddels/vaex/vaex-1.0.0-beta1-linux.zip>`_ )
+ * **Python package**: ``pip install --pre vaex`` (no root? use ``pip install --pre --user vaex``)
+ * **Anaconda users**: ``conda install -c maartenbred``
+
 
 .. _installing_from_binary:
 
