@@ -37,7 +37,7 @@ requirements:
     - python
     - six
     - pyyaml
-
+    - requests
 test:
   # Python imports
   imports:
