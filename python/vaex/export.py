@@ -84,6 +84,8 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 				#	block_scope.move(i1-i1, i2-i1)
 
 				values = block_scope.evaluate(column_name)
+				if values.dtype.type == np.datetime64:
+					values = values.view(np.int64)
 
 				if selection:
 					selection_block_length = np.sum(dataset_input.mask[i1:i2])
@@ -188,7 +190,11 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 			else:
 				dtype = np.float64().dtype
 				shape = (N,)
-			array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype.newbyteorder(byteorder))
+			if dtype.type == np.datetime64:
+				array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=np.int64)
+				array.attrs["dtype"] = dtype.name
+			else:
+				array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype.newbyteorder(byteorder))
 			array[0] = array[0] # make sure the array really exists
 		random_index_name = None
 		if shuffle:
@@ -264,11 +270,16 @@ def main(argv):
 	parser_file.add_argument("output", help="output file (ends in .fits or .hdf5)")
 	parser_file.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
 
+	parser_file = subparsers.add_parser('csv', help='use a csv file as source (e.g. .hdf5, .fits, .vot (VO table), .asc (ascii)')
+	parser_file.add_argument("input", help="input source or file, when prefixed with @ it is assumed to be a text file with a file list (one file per line)")
+	parser_file.add_argument("output", help="output file (ends in .hdf5)")
+	parser_file.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
+
 	args = parser.parse_args(argv[1:])
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
 	logging.getLogger("vaex").setLevel(verbosity[min(3, args.verbose)])
-
+	dataset = None
 	if args.task == "soneira":
 		if vaex.utils.check_memory_usage(4*8*2**args.max_level, vaex.utils.confirm_on_console):
 			if not args.quiet:
@@ -280,6 +291,10 @@ def main(argv):
 		dataset = vaex.dataset.DatasetTap(args.tap_url, args.table_name)
 		if not args.quiet:
 			print("exporting from {tap_url} table name {table_name} to {output}".format(tap_url=args.tap_url, table_name=args.table_name, output=args.output))
+	if args.task == "csv":
+		#dataset = vaex.dataset.DatasetTap(args.tap_url, args.table_name)
+		if not args.quiet:
+			print("exporting from {input} to {output}".format(input=args.input, output=args.output))
 	if args.task == "file":
 		if args.input[0] == "@":
 			inputs = open(args.input[1:]).readlines()
@@ -289,50 +304,97 @@ def main(argv):
 		if not args.quiet:
 			print("exporting from {input} to {output}".format(input=args.input, output=args.output))
 
-	if dataset is None:
+	if dataset is None and args.task not in ["csv"]:
 		if not args.quiet:
 			print("Cannot open input")
 		return 1
-	dataset.set_active_fraction(args.fraction)
+	if dataset:
+		dataset.set_active_fraction(args.fraction)
 	if args.list:
 		if not args.quiet:
 			print("columns names: " + " ".join(dataset.get_column_names()))
 	else:
-		if args.columns:
-			columns = args.columns
+		if args.task == "csv":
+			row_count = -1 # the header does not count
+			with file(args.input) as lines:
+				for line in lines:
+					row_count += 1
+					#print line
+			logger.debug("row_count: %d", row_count)
+			with file(args.input) as lines:
+				line = next(lines).strip()
+				#print line
+				names = line.strip().split(",")
+				line = next(lines).strip()
+				values = line.strip().split(",")
+				numerics = []
+				for value in values:
+					try:
+						float(value)
+						numerics.append(True)
+					except:
+						numerics.append(False)
+				names_numeric = [name for name, numeric in zip(names, numerics) if numeric]
+				print (names_numeric)
+				output = vaex.dataset.Hdf5MemoryMapped.create(args.output, row_count, names_numeric)
+				Ncols = len(names)
+				cols = [output.columns[name] if numeric else None for name, numeric in zip(names, numerics)]
+				def copy(line, row_index):
+					values = line.strip().split(",")
+					for column_index in range(Ncols):
+						if numerics[column_index]:
+							value = float(values[column_index])
+							cols[column_index][row_index] = value
+				row = 0
+				copy(line, row)
+				row += 1
+				progressbar = vaex.utils.progressbar("exporting") if args.progress else None
+				for line in lines:
+					#print line
+					copy(line, row)
+					row += 1
+					if row % 1000:
+						progressbar.update(row/float(row_count))
+				progressbar.finish()
+				for col in cols:
+					print col
+				#print names
 		else:
-			columns = None
-		if columns is None:
-			columns = dataset.get_column_names()
-		for column in columns:
-			if column not in dataset.get_column_names():
+			if args.columns:
+				columns = args.columns
+			else:
+				columns = None
+			if columns is None:
+				columns = dataset.get_column_names()
+			for column in columns:
+				if column not in dataset.get_column_names():
+					if not args.quiet:
+						print("column %r does not exist, run with --list or -l to list all columns")
+					return 1
+
+			base, output_ext = os.path.splitext(args.output)
+			if output_ext not in [".hdf5", ".fits"]:
 				if not args.quiet:
-					print("column %r does not exist, run with --list or -l to list all columns")
+					print("extension %s not supported, only .fits and .hdf5 are" % output_ext)
 				return 1
 
-		base, output_ext = os.path.splitext(args.output)
-		if output_ext not in [".hdf5", ".fits"]:
 			if not args.quiet:
-				print("extension %s not supported, only .fits and .hdf5 are" % output_ext)
-			return 1
+				print("exporting %d rows and %d columns" % (len(dataset), len(columns)))
+				print("columns: " +" ".join(columns))
+			progressbar = vaex.utils.progressbar("exporting") if args.progress else None
 
-		if not args.quiet:
-			print("exporting %d rows and %d columns" % (len(dataset), len(columns)))
-			print("columns: " +" ".join(columns))
-		progressbar = vaex.utils.progressbar("exporting") if args.progress else None
-
-		def update(p):
+			def update(p):
+				if progressbar:
+					progressbar.update(p)
+				return True
+			if output_ext == ".hdf5":
+				export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
+			elif output_ext == ".fits":
+				export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
 			if progressbar:
-				progressbar.update(p)
-			return True
-		if output_ext == ".hdf5":
-			export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
-		elif output_ext == ".fits":
-			export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
-		if progressbar:
-			progressbar.finish()
-		if not args.quiet:
-			print("\noutput to %s" % os.path.abspath(args.output))
-	dataset.close_files()
+				progressbar.finish()
+			if not args.quiet:
+				print("\noutput to %s" % os.path.abspath(args.output))
+			dataset.close_files()
 	return 0
 
