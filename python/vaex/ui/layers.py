@@ -728,7 +728,7 @@ class LayerTable(object):
 							amplitude_selection = grid_selection.evaluate(self.amplitude_expression)
 						else:
 							amplitude_selection = None
-						print("total amplit")
+						#print("total amplit")
 						self.plot_density(axes, amplitude, amplitude_selection, stack_image)
 
 					if len(all_axes) > 2:
