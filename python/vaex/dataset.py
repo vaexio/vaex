@@ -141,7 +141,13 @@ class TaskHistogram(Task):
 		#self.grids = vaex.grids.Grids(self.dataset, self.dataset.executor.thread_pool, *expressions)
 		#self.grids.ranges = limits
 		#self.grids.grids["counts"] = vaex.grids.Grid(self.grids, size, self.dimension, None)
-		shape = (self.subspace.executor.thread_pool.nthreads,) + ( self.size,) * self.dimension
+		shape1 = ( self.size,) * self.dimension
+		try:
+			self.size[0]
+			shape1 = self.size
+		except:
+			pass
+		shape = (self.subspace.executor.thread_pool.nthreads,) + shape1
 		self.data = np.zeros(shape, dtype=self.dtype)
 		self.ranges_flat = []
 		self.minima = []
@@ -554,7 +560,86 @@ class Subspace(object):
 	def selected(self):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
-	def plot(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None, aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None, **kwargs):
+	def rgba_image_url(self, **kwargs):
+		rgba8 = self.rgba_image(**kwargs)
+		import PIL.Image
+		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
+		import StringIO
+		f = StringIO.StringIO()
+		img.save(f, "png")
+		from base64 import b64encode
+		imgurl = "data:image/png;base64," + b64encode(f.getvalue()) + ""
+		return imgurl
+
+	def rgba_image(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
+			 aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None,
+			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=10, cmap="afmhot",
+			 pre_blend=False, background_color="white", background_alpha=1.):
+		if limits is None:
+			limits = self.limits_sigma()
+		if group_limits is None and group_by:
+			group_limits = tuple(self.dataset(group_by).minmax()[0]) + (group_count,)
+		if grid is None:
+			grid = self.histogram(limits=limits, size=size, weight=weight, group_limits=group_limits, group_by=group_by)
+		import matplotlib
+		background_color = np.array(matplotlib.colors.colorConverter.to_rgb(background_color))
+		if group_by:
+			gmin, gmax, group_count = group_limits
+			if isinstance(group_colors, six.string_types):
+				group_colors = matplotlib.cm.get_cmap(group_colors)
+			if isinstance(group_colors, matplotlib.colors.Colormap):
+				group_count = group_limits[2]
+				colors = [group_colors(k/float(group_count-1.)) for k in range(group_count) ]
+			else:
+				colors = [matplotlib.colors.colorConverter.to_rgba(k) for k in group_colors]
+			total = np.sum(grid[2:5], axis=0).T
+			#grid /= total
+			mask = total > 0
+			alpha = total - total[mask].min()
+			alpha[~mask] = 0
+			alpha = total / alpha.max()
+			rgba = grid.T.dot(colors)
+			def _norm(data):
+				mask = np.isfinite(data)
+				data = data - data[mask].min()
+				data /= data[mask].max()
+				return data
+			rgba[...,3] = (f(alpha))
+			rgba[...,3] = 1
+			print rgba[...,0:3].max()
+			rgba[total == 0,3] = 0.
+			mask = alpha > 0
+			if 1:
+				for i in range(3):
+					rgba[...,i] /= total
+					#rgba[...,i] /= rgba[...,0:3].max()
+					rgba[~mask,i] = background_color[i]
+			rgba = (np.swapaxes(rgba, 0, 1))
+		else:
+			cmap = matplotlib.cm.get_cmap(cmap)
+			data = f(grid)
+			mask = (data > 0) & np.isfinite(data)
+			data -= data[mask].min()
+			data /= data[mask].max()
+			rgba = cmap(data)
+			data[~mask] = 0
+			rgba[...,3] = data
+			#rgba8 = np.swapaxes(rgba8, 0, 1)
+		#white = np.ones_like(rgba[...,0:3])
+		if pre_blend:
+			#rgba[...,3] = background_alpha
+			rgb = rgba[...,:3].T
+			alpha = rgba[...,3].T
+			rgb[:] = rgb * alpha + background_color.reshape(3,1,1) * (1-alpha)
+			alpha[:] = alpha + background_alpha * (1-alpha)
+		rgba= np.clip(rgba, 0, 1)
+		rgba8 = (rgba*255).astype(np.uint8)
+		return rgba8
+
+	def plot(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
+			 aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None,
+			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=None,
+			 **kwargs):
 		"""Plot the subspace using sane defaults to get a quick look at the data.
 
 		:param grid: A 2d numpy array with the counts, if None it will be calculated using limits provided and Subspace.histogram
@@ -573,6 +658,68 @@ class Subspace(object):
 		import pylab
 		if limits is None:
 			limits = self.limits_sigma()
+		#if grid is None:
+		if group_limits is None and group_by:
+			group_limits = tuple(self.dataset(group_by).minmax()[0]) + (group_count,)
+		#	grid = self.histogram(limits=limits, size=size, weight=weight, group_limits=group_limits, group_by=group_by)
+		if figsize is not None:
+			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
+		if axes is None:
+			axes = pylab.gca()
+		fig = pylab.gcf()
+		#if xlabel:
+		pylab.xlabel(xlabel or self.expressions[0])
+		#if ylabel:
+		pylab.ylabel(ylabel or self.expressions[1])
+		#axes.set_aspect(aspect)
+		rgba8 = self.rgba_image(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight,
+			 f=f, axes=axes,
+			 group_by=group_by, group_limits=group_limits, group_colors=group_colors, group_count=group_count)
+		if group_by:
+			import matplotlib
+			if isinstance(group_colors, six.string_types):
+				group_colors = matplotlib.cm.get_cmap(group_colors)
+			if isinstance(group_colors, matplotlib.colors.Colormap):
+				group_count = group_limits[2]
+				colors = [group_colors(k/float(group_count-1.)) for k in range(group_count) ]
+			else:
+				colors = [matplotlib.colors.colorConverter.to_rgba(k) for k in group_colors]
+			colormap = matplotlib.colors.ListedColormap(colors)
+			gmin, gmax, group_count = group_limits#[:2]
+			delta = (gmax - gmin) / (group_count-1.)
+			norm = matplotlib.colors.Normalize(gmin-delta/2, gmax+delta/2)
+			sm = matplotlib.cm.ScalarMappable(norm, colormap)
+			sm.set_array(1) # make matplotlib happy (strange behavious)
+			colorbar = fig.colorbar(sm)
+			if group_labels:
+				colorbar.set_ticks(np.arange(gmin, gmax+delta/2, delta))
+				colorbar.set_ticklabels(group_labels)
+			else:
+				colorbar.set_ticks(np.arange(gmin, gmax+delta/2, delta))
+				colorbar.set_ticklabels(map(str, np.arange(gmin, gmax+delta/2, delta)))
+			colorbar.ax.set_ylabel(group_by)
+			#matplotlib.colorbar.ColorbarBase(axes, norm=norm, cmap=colormap)
+			im = axes.imshow(rgba8, extent=np.array(limits).flatten(), origin="lower", aspect=aspect, **kwargs)
+		else:
+			im = axes.imshow(rgba8, extent=np.array(limits).flatten(), origin="lower", aspect=aspect, **kwargs)
+			colorbar = None
+		return im, colorbar
+	def plot1d(self, grid=None, size=64, limits=None, weight=None, figsize=None, f=lambda x: x, axes=None, xlabel=None, ylabel=None, **kwargs):
+		"""Plot the subspace using sane defaults to get a quick look at the data.
+
+		:param grid: A 2d numpy array with the counts, if None it will be calculated using limits provided and Subspace.histogram
+		:param size: Passed to Subspace.histogram
+		:param limits: Limits for the subspace in the form [[xmin, xmax], [ymin, ymax]], if None it will be calculated using Subspace.limits_sigma
+		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+		:param xlabel: String for label on x axis (may contain latex)
+		:param ylabel: Same for y axis
+		:param kwargs: extra argument passed to ...,
+
+		 """
+		import pylab
+		assert self.dimension == 1, "can only plot 1d, not %s" % self.dimension
+		if limits is None:
+			limits = self.limits_sigma()
 		if grid is None:
 			grid = self.histogram(limits=limits, size=size, weight=weight)
 		if figsize is not None:
@@ -582,9 +729,13 @@ class Subspace(object):
 		#if xlabel:
 		pylab.xlabel(xlabel or self.expressions[0])
 		#if ylabel:
-		pylab.ylabel(ylabel or self.expressions[1])
+		#pylab.ylabel(ylabel or self.expressions[1])
+		pylab.ylabel("counts" or ylabel)
 		#axes.set_aspect(aspect)
-		return axes.imshow(f(grid), extent=np.array(limits).flatten(), origin="lower", aspect=aspect, **kwargs)
+		N = len(grid)
+		xmin, xmax = limits[0]
+		return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
+		#pylab.ylim(-1, 6)
 
 	def figlarge(self, size=(10,10)):
 		import pylab
@@ -838,8 +989,14 @@ class SubspaceLocal(Subspace):
 			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
 		return self._task(task)
 
-	def histogram(self, limits, size=256, weight=None, progressbar=False, ):
-		task = TaskHistogram(self.dataset, self, self.expressions, size, limits, masked=self.is_masked, weight=weight)
+	def histogram(self, limits, size=256, weight=None, progressbar=False, group_by=None, group_limits=None):
+		expressions = self.expressions
+		if group_by:
+			expressions = list(expressions) + [group_by]
+			limits = list(limits) + [group_limits[:2]] #[[group_limits[0] - 0,5, group_limits[1]+0.5]]
+			#assert group_limits[2] == 1
+			size = (group_limits[2],) + (size,) * (len(expressions) -1)
+		task = TaskHistogram(self.dataset, self, expressions, size, limits, masked=self.is_masked, weight=weight)
 		return self._task(task, progressbar=progressbar)
 
 	def mutual_information(self, limits=None, grid=None, size=256):
@@ -995,7 +1152,7 @@ class _BlockScope(object):
 			#result = ne.evaluate(expression, local_dict=self, out=out)
 			#logger.debug("in eval")
 			#eval("def f(")
-			result = eval(expression, {}, self)
+			result = eval(expression, expression_namespace, self)
 			self.values[expression] = result
 			#if out is not None:
 			#	out[:] = result
@@ -1007,8 +1164,8 @@ class _BlockScope(object):
 	def __getitem__(self, variable):
 		#logger.debug("get " + variable)
 		#return self.dataset.columns[variable][self.i1:self.i2]
-		if variable in np.__dict__:
-			return np.__dict__[variable]
+		if variable in expression_namespace:
+			return expression_namespace[variable]
 		try:
 			if variable in self.dataset.get_column_names():
 				if self.dataset._needs_copy(variable):
@@ -1214,6 +1371,15 @@ for name, numpy_name in function_mapping:
 		raise SystemError("numpy does not have: %s" % numpy_name)
 	else:
 		expression_namespace[name] = getattr(np, numpy_name)
+import pandas as pd
+def dayofweek(x):
+    x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.dayofweek.values.astype(np.float64)
+expression_namespace["dayofweek"] = dayofweek
+def hourofday(x):
+    x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.hour.values.astype(np.float64)
+expression_namespace["hourofday"] = hourofday
 
 
 class Dataset(object):
@@ -1328,7 +1494,7 @@ class Dataset(object):
 				#logger.exception("error evaluating unit expression: %s", expression)
 				return default
 
-	def ucd_find(self, *ucds):
+	def ucd_find(self, ucds, exclude=[]):
 		"""Find a set of columns (names) which have the ucd, or part of the ucd
 
 		Prefixed with a ^, it will only match the first part of the ucd
@@ -1344,39 +1510,41 @@ class Dataset(object):
 		>>> dataset.ucd_find('^meta.main')]
 		>>>
 		"""
+		if isinstance(ucds, six.string_types):
+			ucds = [ucds]
 		if len(ucds) == 1:
 			ucd = ucds[0]
 			if ucd[0] == "^": # we want it to start with
 				ucd = ucd[1:]
-				columns = [name for name in self.get_column_names(virtual=True) if self.ucds.get(name, "").startswith(ucd)]
+				columns = [name for name in self.get_column_names(virtual=True) if self.ucds.get(name, "").startswith(ucd) and name not in exclude]
 			else:
-				columns = [name for name in self.get_column_names(virtual=True) if ucd in self.ucds.get(name, "")]
+				columns = [name for name in self.get_column_names(virtual=True) if ucd in self.ucds.get(name, "") and name not in exclude]
 			return None if len(columns) == 0 else columns[0]
 		else:
-			columns = [self.ucd_find(ucd) for ucd in ucds]
+			columns = [self.ucd_find([ucd], exclude=exclude) for ucd in ucds]
 			return None if None in columns else columns
 
-	def add_favorite_selection(self, name, selection_name="default"):
+	def selection_favorite_add(self, name, selection_name="default"):
 		selection = self.get_selection(selection_name=selection_name)
 		if selection:
 			self.favorite_selections[name] = selection
-			self.store_favorite_selections()
+			self.selections_favorite_store()
 		else:
 			raise ValueError("no selection exists")
 
-	def remove_favorite_selection(self, name):
+	def selection_favorite_remove(self, name):
 		del self.favorite_selections[name]
-		self.store_favorite_selections()
+		self.selections_favorite_store()
 
-	def apply_favorite_selection(self, name, selection_name="default", executor=None):
+	def selection_favorite_apply(self, name, selection_name="default", executor=None):
 		self.set_selection(self.favorite_selections[name], selection_name=selection_name, executor=executor)
 
-	def store_favorite_selections(self):
+	def selections_favorite_store(self):
 		path = os.path.join(self.get_private_dir(create=True), "favorite_selection.yaml")
 		selections = collections.OrderedDict([(key,value.to_dict()) for key,value in self.favorite_selections.items()])
 		vaex.utils.write_json_or_yaml(path, selections)
 
-	def load_favorite_selections(self):
+	def selections_favorite_load(self):
 		try:
 			path = os.path.join(self.get_private_dir(create=True), "favorite_selection.yaml")
 			if os.path.exists(path):
@@ -2251,6 +2419,31 @@ class DatasetLocal(Dataset):
 		self.columns = collections.OrderedDict()
 
 	@property
+	def names(self):
+		"""Gives direct access to the data as numpy-like arrays.
+
+		Convenient when working with ipython in combination with small datasets, since this gives tab-completion
+
+		Columns can be accesed by there names, which are attributes. The attribues are subclasses of numpy.ndarray
+		and have the following extra properties:
+
+		* ucd - The ucd for the column
+		* description - Text description for column
+		* unit - astropy unit object (astropy.units.Unit)
+
+		:Example:
+		>>> ds = vx.example()
+		>>> r = np.sqrt(ds.data.x**2 + ds.data.y**2)
+
+		"""
+		class Wrapper(object):
+			pass
+		data = Wrapper()
+		for name in self.get_column_names(virtual=True):
+			setattr(data, name, name)
+		return data
+
+	@property
 	def data(self):
 		"""Gives direct access to the data as numpy-like arrays.
 
@@ -2323,6 +2516,22 @@ class DatasetLocal(Dataset):
 	def __call__(self, *expressions, **kwargs):
 		"""The local implementation of :func:`Dataset.__call__`"""
 		return SubspaceLocal(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
+
+	def echo(self, arg): return arg
+
+	def __getitem__(self, arg):
+		"""Alias for call, to mimic Pandas a bit
+
+		:Example:
+		>> ds["Lz"]
+		>> ds["Lz", "E"]
+		>> ds[ds.names.Lz]
+
+		"""
+		if isinstance(arg, tuple):
+			return self(*arg)
+		else:
+			return self(arg)
 
 	def concat(self, other):
 		"""Concatenates two datasets, adding the rows of one the other dataset to the current, returned in a new dataset.
@@ -2856,7 +3065,7 @@ class FitsBinTable(DatasetMemoryMapped):
 								self.addColumn(column.name, array=array)
 		self.update_meta()
 		self.update_virtual_meta()
-		self.load_favorite_selections()
+		self.selections_favorite_load()
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
@@ -2897,6 +3106,30 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 					if column_name in values:
 						value = str(values[column_name])
 						h5dataset.attrs[name] = value
+	@classmethod
+	def create(cls, path, N, column_names, dtypes=None, write=True):
+		"""Create a new (empty) hdf5 file with columns given by column names, of length N
+
+		Optionally, numpy dtypes can be passed, default is floats
+		"""
+
+		dtypes = dtypes or [np.float] * len(column_names)
+
+		if N == 0:
+			raise ValueError("Cannot export empty table")
+		with h5py.File(path, "w") as h5file_output:
+			h5data_output = h5file_output.require_group("data")
+			for column_name, dtype in zip(column_names, dtypes):
+				shape = (N,)
+				print(dtype)
+				if dtype.type == np.datetime64:
+					array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=np.int64)
+					array.attrs["dtype"] = dtype.name
+				else:
+					array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype)
+				array[0] = array[0] # make sure the array really exists
+		return Hdf5MemoryMapped(path, write=write)
+
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
 		h5file = None
@@ -2948,7 +3181,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 			self._load_axes(self.h5file["/axes"])
 		self.update_meta()
 		self.update_virtual_meta()
-		self.load_favorite_selections()
+		self.selections_favorite_load()
 
 	#def 
 	def _load_axes(self, axes_data):
@@ -3008,7 +3241,10 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 						raise Exception("columns doesn't really exist in hdf5 file")
 					shape = column.shape
 					if True: #len(shape) == 1:
-						self.addColumn(column_name, offset, len(column), dtype=column.dtype)
+						dtype = column.dtype
+						if "dtype" in column.attrs:
+							dtype = column.attrs["dtype"]
+						self.addColumn(column_name, offset, len(column), dtype=dtype)
 					else:
 
 						#transposed = self._length is None or shape[0] == self._length
@@ -3073,7 +3309,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 			self.addColumn(column_name, offset, len(column), dtype=column.dtype)
 		self.update_meta()
 		self.update_virtual_meta()
-		self.load_favorite_selections()
+		self.selections_favorite_load()
 
 dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
 
