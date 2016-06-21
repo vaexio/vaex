@@ -1633,7 +1633,7 @@ class PlotDialog(QtGui.QWidget):
 		if self.current_layer:
 			for key, value in self.current_layer.dataset.favorite_selections.items():
 				def select(ignore=None,key=key):
-					self.current_layer.dataset.apply_favorite_selection(name=key)
+					self.current_layer.dataset.selection_favorite_apply(name=key)
 				action = QtGui.QAction(key, self)
 				action.triggered.connect(select)
 				self._favorite_selections_actions.append(action)
@@ -1763,7 +1763,7 @@ class PlotDialog(QtGui.QWidget):
 					name = dialogs.gettext(self, "Add selection to favorites", "Name", "my selection")
 					if name:
 						if name not in dataset.favorite_selections or dialogs.dialog_confirm(self, "Overwrite", "Overwrite selection with the same name?"):
-							dataset.add_favorite_selection(name)
+							dataset.selection_favorite_add(name)
 							self.update_favorite_selections()
 				else:
 					dialogs.dialog_error(self, "No selection", "No selection exists")
@@ -1785,7 +1785,7 @@ class PlotDialog(QtGui.QWidget):
 					index = dialogs.choose(self, "Remove favorite", "Favorite", names)
 					if index is not None:
 						key = names[index]
-						dataset.remove_favorite_selection(key)
+						dataset.selection_favorite_remove(key)
 						self.update_favorite_selections()
 				else:
 					dialogs.dialog_error(self, "No favorites", "No favorites exists")
