@@ -122,6 +122,14 @@ def from_arrays(name="array", **arrays):
 		dataset.add_column(name, array)
 	return dataset
 
+def from_pandas(df, name="pandas"):
+	dataset = vaex.dataset.DatasetArrays(name)
+	for name in df.columns:
+		dataset.add_column(name, df[name].values)
+	return dataset
+
+
+
 import vaex.settings
 aliases = vaex.settings.main.auto_store_dict("aliases")
 
