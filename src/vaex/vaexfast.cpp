@@ -122,7 +122,7 @@ void object_to_numpy3d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y
 		if(strides[2] != PyArray_ITEMSIZE(obj)) {
 			throw std::runtime_error("stride[0] is not 1");
 		}
-		if(strides[1] != PyArray_ITEMSIZE(obj)*size_y) {
+		if(strides[1] != PyArray_ITEMSIZE(obj)*size_x) {
 			throw std::runtime_error("stride[1] is not 1");
 		}
 		if(strides[0] != PyArray_ITEMSIZE(obj)*size_y*size_x) {
