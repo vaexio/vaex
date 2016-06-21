@@ -745,12 +745,12 @@ class TestDataset(unittest.TestCase):
 	def test_favorite_selections(self):
 		self.dataset.select("x > 5")
 		total_subset = self.dataset("x").selected().sum()
-		self.dataset.add_favorite_selection("test")
+		self.dataset.selection_favorite_add("test")
 		self.dataset.select_nothing()
 		with self.assertRaises(ValueError):
-			self.dataset.add_favorite_selection("test")
-		self.dataset.load_favorite_selections()
-		self.dataset.apply_favorite_selection("test")
+			self.dataset.selection_favorite_add("test")
+		self.dataset.selections_favorite_load()
+		self.dataset.selection_favorite_apply("test")
 		total_subset_test = self.dataset("x").selected().sum()
 		self.assertEqual(total_subset, total_subset_test)
 
