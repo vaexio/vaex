@@ -659,37 +659,37 @@ class DatasetPanel(QtGui.QFrame):
 
 
 		self.menu_common.clear()
-		if dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec") and dataset.ucd_find("^pos.galactic.lon", "^pos.galactic.lat") is None:
+		if dataset.ucd_find(["^pos.eq.ra", "^pos.eq.dec"]) and dataset.ucd_find(["^pos.galactic.lon", "^pos.galactic.lat"]) is None:
 			def add(*args):
 				vaex.ui.columns.add_celestial(self, self.dataset)
 			action = QtGui.QAction("Add galactic coordinates", self)
 			action.triggered.connect(add)
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
-		if dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec") and dataset.ucd_find("^pos.ecliptic.lon", "^pos.ecliptic.lat") is None:
+		if dataset.ucd_find(["^pos.eq.ra", "^pos.eq.dec"]) and dataset.ucd_find(["^pos.ecliptic.lon", "^pos.ecliptic.lat"]) is None:
 			def add(*args):
 				vaex.ui.columns.add_celestial_eq2ecl(self, self.dataset)
 			action = QtGui.QAction("Add ecliptic coordinates", self)
 			action.triggered.connect(add)
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
-		if dataset.ucd_find("pos.parallax.") and not dataset.ucd_find("pos.distance"):
+		if dataset.ucd_find(["pos.parallax."]) and not dataset.ucd_find(["pos.distance"]):
 			def add(*args):
 				vaex.ui.columns.add_distance(self, self.dataset)
 			action = QtGui.QAction("Add distance from parallax", self)
 			action.triggered.connect(add)
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
-		spherical_galactic = dataset.ucd_find("^pos.distance", "^pos.galactic.lon", "^pos.galactic.lat")
-		if spherical_galactic and not dataset.ucd_find("^pos.cartesian.x;pos.galactocentric", "^pos.cartesian.y;pos.galactocentric", "^pos.cartesian.z;pos.galactocentric"):
+		spherical_galactic = dataset.ucd_find(["^pos.distance", "^pos.galactic.lon", "^pos.galactic.lat"])
+		if spherical_galactic and not dataset.ucd_find(["^pos.cartesian.x;pos.galactocentric", "^pos.cartesian.y;pos.galactocentric", "^pos.cartesian.z;pos.galactocentric"]):
 			def add(*args):
 				vaex.ui.columns.add_cartesian(self, self.dataset, True)
 			action = QtGui.QAction("Add galactic cartesian positions", self)
 			action.triggered.connect(add)
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
-		if dataset.ucd_find("pos.cartesian.x;pos.galactocentric", "pos.cartesian.y;pos.galactocentric", "pos.cartesian.z;pos.galactocentric") and \
-				not dataset.ucd_find("pos.distance;pos.galactocentric", "pos.galactic.lon", "pos.galactic.lat"):
+		if dataset.ucd_find(["pos.cartesian.x;pos.galactocentric", "pos.cartesian.y;pos.galactocentric", "pos.cartesian.z;pos.galactocentric"]) and \
+				not dataset.ucd_find(["pos.distance;pos.galactocentric", "pos.galactic.lon", "pos.galactic.lat"]):
 			def add(*args):
 				vaex.ui.columns.add_sky(self, self.dataset, True)
 			action = QtGui.QAction("Add galactic sky coordinates", self)
@@ -697,8 +697,8 @@ class DatasetPanel(QtGui.QFrame):
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
 
-		if dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec", "pos.pm;pos.eq.ra", "pos.pm;pos.eq.dec") and \
-				not dataset.ucd_find("pos.pm;pos.galactic.lon", "pos.pm;pos.galactic.lat"):
+		if dataset.ucd_find(["^pos.eq.ra", "^pos.eq.dec", "pos.pm;pos.eq.ra", "pos.pm;pos.eq.dec"]) and \
+				not dataset.ucd_find(["pos.pm;pos.galactic.lon", "pos.pm;pos.galactic.lat"]):
 			def add(*args):
 				vaex.ui.columns.add_proper_motion_eq2gal(self, self.dataset)
 			action = QtGui.QAction("Equatorial proper motions to galactic", self)
@@ -709,7 +709,7 @@ class DatasetPanel(QtGui.QFrame):
 			#dataset.add_virtual_columns_proper_motion_eq2gal("RA_ICRS_", "DE_ICRS_", "pmRA", "pmDE", "pm_l", "pm_b")
 			#dataset.add_virtual_columns_eq2gal("RA_ICRS_", "DE_ICRS_", "l", "b")
 
-		if dataset.ucd_find("^pos.galactic.lon", "^pos.galactic.lat", "^pos.distance", "pos.pm;pos.galactic.lon", "pos.pm;pos.galactic.lat", "spect.dopplerVeloc"):
+		if dataset.ucd_find(["^pos.galactic.lon", "^pos.galactic.lat", "^pos.distance", "pos.pm;pos.galactic.lon", "pos.pm;pos.galactic.lat", "spect.dopplerVeloc"]):
 			def add(*args):
 				vaex.ui.columns.add_cartesian_velocities(self, self.dataset)
 			action = QtGui.QAction("Galactic velocities", self)
@@ -717,7 +717,7 @@ class DatasetPanel(QtGui.QFrame):
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
 
-		spherical_galactic = dataset.ucd_find("^pos.galactic.lon", "^pos.galactic.lat")
+		spherical_galactic = dataset.ucd_find(["^pos.galactic.lon", "^pos.galactic.lat"])
 		if spherical_galactic:
 			def add(*args):
 				vaex.ui.columns.add_aitoff(self, self.dataset, True)
@@ -738,15 +738,25 @@ class DatasetPanel(QtGui.QFrame):
 		self.default_columns_2d = None
 		self.menu_2d.clear()
 		ucd_pairs = [("^pos.cartesian.x", "^pos.cartesian.y"), ("^pos.cartesian.x", "^pos.cartesian.z"), ("^pos.cartesian.y", "^pos.cartesian.z"),
-					 ("^pos.eq.ra", "^pos.eq.dec"), ("^pos.galactic.lon", "^pos.galactic.lat"), ("^pos.ecliptic.lon", "^pos.ecliptic.lat")]
+					 ("^pos.eq.ra", "^pos.eq.dec"), ("^pos.galactic.lon", "^pos.galactic.lat"), ("^pos.ecliptic.lon", "^pos.ecliptic.lat"), ("^pos.earth.lon", "^pos.earth.lat")]
 		for ucd_pair in ucd_pairs:
-			pair = dataset.ucd_find(*ucd_pair)
-			if pair:
-				action = QtGui.QAction(", ".join(pair), self)
-				action.triggered.connect(functools.partial(self.plotxy, xname=pair[0], yname=pair[1]))
-				self.menu_2d.addAction(action)
-				if self.default_columns_2d is None:
-					self.default_columns_2d = pair
+			done = False
+			exclude = []
+			while not done:
+				pair = dataset.ucd_find(ucd_pair, exclude=exclude)
+				if pair:
+					print(ucd_pair)
+					print(pair)
+
+					action = QtGui.QAction(", ".join(pair), self)
+					action.triggered.connect(functools.partial(self.plotxy, xname=pair[0], yname=pair[1]))
+					self.menu_2d.addAction(action)
+					if self.default_columns_2d is None:
+						self.default_columns_2d = pair
+					exclude.extend(pair)
+				else:
+					done = True
+
 		column_names = self.dataset.get_column_names(virtual=True)
 		for column_name1 in column_names:
 			#action1 = QtGui.QAction(column_name, self)
@@ -1925,7 +1935,7 @@ class VaexApp(QtGui.QMainWindow):
 		self.move(qr.topLeft())
 
 	def closeEvent(self, event):
-		print("close event")
+		#print("close event")
 		return
 		reply = QtGui.QMessageBox.question(self, 'Message',
 			"Are you sure to quit?", QtGui.QMessageBox.Yes |
