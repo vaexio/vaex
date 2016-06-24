@@ -617,7 +617,7 @@ class Subspace(object):
 				colors = [group_colors(k/float(group_count-1.)) for k in range(group_count) ]
 			else:
 				colors = [matplotlib.colors.colorConverter.to_rgba(k) for k in group_colors]
-			total = np.sum(grid[2:5], axis=0).T
+			total = np.sum(grid, axis=0).T
 			#grid /= total
 			mask = total > 0
 			alpha = total - total[mask].min()
@@ -630,7 +630,7 @@ class Subspace(object):
 				data /= data[mask].max()
 				return data
 			rgba[...,3] = (f(alpha))
-			rgba[...,3] = 1
+			#rgba[...,3] = 1
 			print rgba[...,0:3].max()
 			rgba[total == 0,3] = 0.
 			mask = alpha > 0
@@ -1667,7 +1667,7 @@ class Dataset(object):
 
 		"""
 		if self.is_local():
-			name = os.path.abspath(self.path).replace("/", "_")[:250]
+			name = os.path.abspath(self.path).replace("/", "_")[:250]  # should not be too long for most os'es
 		else:
 			server = self.server
 			name = "%s_%s_%s_%s" % (server.hostname, server.port, server.base_path.replace("/", "_"), self.name)
@@ -2741,7 +2741,11 @@ class _ColumnConcatenatedLazy(object):
 		self.datasets = datasets
 		self.column_name = column_name
 		dtypes = [dataset.columns[self.column_name].dtype for dataset in datasets]
-		self.dtype = np.find_common_type(dtypes, [])
+		# np.datetime64 and find_common_type don't mix very well
+		if all([dtype.type == np.datetime64 for dtype in dtypes]):
+			self.dtype = dtypes[0]
+		else:
+			self.dtype = np.find_common_type(dtypes, [])
 		self.shape = (len(self), ) + self.datasets[0].columns[self.column_name].shape[1:]
 		for i in range(1, len(datasets)):
 			c0 = self.datasets[0].columns[self.column_name]
