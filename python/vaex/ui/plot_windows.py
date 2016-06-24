@@ -845,12 +845,12 @@ class PlotDialog(QtGui.QWidget):
 		#self.frame_layer_controls_result
 
 
-		self.blend_modes = list(vaex.ui.imageblending.modes.keys())
+		self.blend_modes = list(vaex.ui.imageblending.modes)
 		self.blend_mode = self.blend_modes[0]
 		self.option_layer_blend_mode = Option(self.frame_layer_controls_result, "blend", self.blend_modes, getter=attrgetter(self, "blend_mode"), setter=attrsetter(self, "blend_mode"), update=self.plot)
 		row = self.option_layer_blend_mode.add_to_grid_layout(row, self.layout_frame_layer_controls_result)
 
-		self.background_colors = ["white", "black"]
+		self.background_colors = ["auto", "white", "black"]
 		self.background_color = self.background_colors[0]
 		self.option_layer_background_color = Option(self.frame_layer_controls_result, "background", self.background_colors, getter=attrgetter(self, "background_color"), setter=attrsetter(self, "background_color"), update=self.plot)
 		row = self.option_layer_background_color.add_to_grid_layout(row, self.layout_frame_layer_controls_result)
@@ -2623,7 +2623,13 @@ class ScatterPlotDialog(PlotDialog):
 
 		N = self.state.grid_size
 		background = np.ones((N, N, 4), dtype=np.float64)
-		background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(self.background_color)
+		background_color = self.background_color
+		if background_color == "auto":
+			if self.blend_mode in "screen lighten".split():
+				background_color = "black"
+			else:
+				background_color = "white"
+		background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(background_color)
 		background[:,:,3] = 1.
 
 		ranges = []
