@@ -7,7 +7,6 @@ from . import multithreading
 import time
 import math
 import vaex.ui.expressions as expr
-import numexpr as ne
 from functools import reduce
 
 __author__ = 'breddels'
