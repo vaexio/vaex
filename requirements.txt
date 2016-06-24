@@ -15,5 +15,5 @@ kapteyn
 cachetools
 progressbar2
 attrdict
-
-#psutil>=1.2.1
+psutil>=1.2.1
+pandas
