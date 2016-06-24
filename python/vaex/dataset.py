@@ -18,7 +18,6 @@ from vaex.utils import ensure_string
 import vaex.utils
 
 import numpy as np
-import numexpr as ne
 import concurrent.futures
 import astropy.table
 import astropy.units
@@ -560,6 +559,20 @@ class Subspace(object):
 	def selected(self):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
+	def rgba_image_data(self, format="png", pil_draw=False, **kwargs):
+		import PIL.Image
+		import PIL.ImageDraw
+		import StringIO
+		rgba8 = self.rgba_image(**kwargs)
+		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
+		if pil_draw:
+			draw = PIL.ImageDraw.Draw(img)
+			pil_draw(draw)
+
+		f = StringIO.StringIO()
+		img.save(f, format)
+		return f.getvalue()
+
 	def rgba_image_url(self, **kwargs):
 		rgba8 = self.rgba_image(**kwargs)
 		import PIL.Image
@@ -571,16 +584,28 @@ class Subspace(object):
 		imgurl = "data:image/png;base64," + b64encode(f.getvalue()) + ""
 		return imgurl
 
+	def normalize_grid(self, grid):
+		grid = grid * 1 # copy
+		mask = (grid > 0) & np.isfinite(grid)
+		if grid.sum():
+			grid -= grid[mask].min()
+			grid /= grid[mask].max()
+		else:
+			grid[:] = 0
+		return grid
+
 	def rgba_image(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
 			 aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=10, cmap="afmhot",
-			 pre_blend=False, background_color="white", background_alpha=1.):
+			 pre_blend=False, background_color="white", background_alpha=1., normalize=True, color=None):
 		if limits is None:
 			limits = self.limits_sigma()
 		if group_limits is None and group_by:
 			group_limits = tuple(self.dataset(group_by).minmax()[0]) + (group_count,)
 		if grid is None:
 			grid = self.histogram(limits=limits, size=size, weight=weight, group_limits=group_limits, group_by=group_by)
+			if grid is None: # cancel occured
+				return
 		import matplotlib
 		background_color = np.array(matplotlib.colors.colorConverter.to_rgb(background_color))
 		if group_by:
@@ -616,29 +641,74 @@ class Subspace(object):
 					rgba[~mask,i] = background_color[i]
 			rgba = (np.swapaxes(rgba, 0, 1))
 		else:
-			cmap = matplotlib.cm.get_cmap(cmap)
-			data = f(grid)
-			mask = (data > 0) & np.isfinite(data)
-			data -= data[mask].min()
-			data /= data[mask].max()
-			rgba = cmap(data)
-			data[~mask] = 0
-			rgba[...,3] = data
+			if color:
+				color = np.array(matplotlib.colors.colorConverter.to_rgba(color))
+				rgba = np.zeros(grid.shape + (4,))
+				rgba[...,0:4] = color
+				data = f(grid)
+				mask = (grid > 0) & np.isfinite(data)
+				if mask.sum():
+					data -= data[mask].min()
+					data /= data[mask].max()
+					data[~mask] = 0
+				else:
+					data[:] = 0
+				rgba[...,3] = data
+			else:
+				cmap = matplotlib.cm.get_cmap(cmap)
+				data = f(grid)
+				if normalize:
+					mask = (data > 0) & np.isfinite(data)
+					if mask.sum():
+						data -= data[mask].min()
+						data /= data[mask].max()
+					else:
+						data[:] = 0
+					data[~mask] = 0
+				rgba = cmap(data)
+				if normalize:
+					rgba[~mask,3] = 0
+				rgba[...,3] = 1#data
 			#rgba8 = np.swapaxes(rgba8, 0, 1)
 		#white = np.ones_like(rgba[...,0:3])
 		if pre_blend:
 			#rgba[...,3] = background_alpha
 			rgb = rgba[...,:3].T
 			alpha = rgba[...,3].T
-			rgb[:] = rgb * alpha + background_color.reshape(3,1,1) * (1-alpha)
+			rgb[:] = rgb * alpha + background_color[:3].reshape(3,1,1) * (1-alpha)
 			alpha[:] = alpha + background_alpha * (1-alpha)
 		rgba= np.clip(rgba, 0, 1)
 		rgba8 = (rgba*255).astype(np.uint8)
 		return rgba8
 
+	def plot_vectors(self, expression_x, expression_y, limits, wx=None, wy=None, counts=None, size=32, axes=None, **kwargs):
+		import pylab
+		# refactor: should go to bin_means_xy
+		if counts is None:
+			counts = self.histogram(size=size, limits=limits)
+		if wx is None:
+			wx = self.histogram(size=size, weight=expression_x, limits=limits)
+		if wy is None:
+			wy = self.histogram(size=size, weight=expression_y, limits=limits)
+		N = size
+		positions = [vaex.utils.linspace_centers(limits[i][0], limits[i][1], N) for i in range(self.dimension)]
+		#print(positions)
+		mask = counts > 0
+		vx = wx/counts
+		vy = wy/counts
+		vx[counts==0] = 0
+		vy[counts==0] = 0
+		#vx = self.vx.grid / self.vcounts.grid
+		#vy = self.vy.grid / self.vcounts.grid
+		x2d, y2d = np.meshgrid(positions[0], positions[1])
+		if axes is None:
+			axes = pylab.gca()
+		axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], **kwargs)
+
 	def plot(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
 			 aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=None,
+			 cmap="afmhot",
 			 **kwargs):
 		"""Plot the subspace using sane defaults to get a quick look at the data.
 
@@ -656,6 +726,7 @@ class Subspace(object):
 
 		 """
 		import pylab
+		import bqplot
 		if limits is None:
 			limits = self.limits_sigma()
 		#if grid is None:
@@ -674,9 +745,10 @@ class Subspace(object):
 		#axes.set_aspect(aspect)
 		rgba8 = self.rgba_image(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight,
 			 f=f, axes=axes,
-			 group_by=group_by, group_limits=group_limits, group_colors=group_colors, group_count=group_count)
+			 group_by=group_by, group_limits=group_limits, group_colors=group_colors, group_count=group_count,
+			 cmap=cmap)
+		import matplotlib
 		if group_by:
-			import matplotlib
 			if isinstance(group_colors, six.string_types):
 				group_colors = matplotlib.cm.get_cmap(group_colors)
 			if isinstance(group_colors, matplotlib.colors.Colormap):
@@ -701,6 +773,10 @@ class Subspace(object):
 			#matplotlib.colorbar.ColorbarBase(axes, norm=norm, cmap=colormap)
 			im = axes.imshow(rgba8, extent=np.array(limits).flatten(), origin="lower", aspect=aspect, **kwargs)
 		else:
+			norm = matplotlib.colors.Normalize(0, 23)
+			sm = matplotlib.cm.ScalarMappable(norm, cmap)
+			sm.set_array(1) # make matplotlib happy (strange behavious)
+			colorbar = fig.colorbar(sm)
 			im = axes.imshow(rgba8, extent=np.array(limits).flatten(), origin="lower", aspect=aspect, **kwargs)
 			colorbar = None
 		return im, colorbar
@@ -829,6 +905,8 @@ class SubspaceLocal(Subspace):
 						return True
 					bar = vaex.utils.progressbar(task.name)
 					callback = self.executor.signal_progress.connect(update)
+				elif progressbar:
+					callback = self.executor.signal_progress.connect(progressbar)
 				result = self.executor.run(task)
 				if progressbar == True:
 					bar.finish()
@@ -998,6 +1076,27 @@ class SubspaceLocal(Subspace):
 			size = (group_limits[2],) + (size,) * (len(expressions) -1)
 		task = TaskHistogram(self.dataset, self, expressions, size, limits, masked=self.is_masked, weight=weight)
 		return self._task(task, progressbar=progressbar)
+
+	def bin_mean(self, expression, limits, size=256, progressbar=False, group_by=None, group_limits=None):
+		# todo, fix progressbar into two...
+		counts = self.histogram(limits=limits, size=size, progressbar=progressbar, group_by=group_by, group_limits=group_limits)
+		weighted  =self.histogram(limits=limits, size=size, progressbar=progressbar, group_by=group_by, group_limits=group_limits,
+								weight=expression)
+		mean = weighted/counts
+		mean[counts==0] = np.nan
+		return mean
+
+	def bin_mean_cyclic(self, expression, max_value, limits, size=256, progressbar=False, group_by=None, group_limits=None):
+		# todo, fix progressbar into two...
+		meanx = self.bin_mean(limits=limits, size=size, progressbar=progressbar, group_by=group_by, group_limits=group_limits,
+								expression="cos((%s)/%r*2*pi)" % (expression, max_value))
+		meany = self.bin_mean(limits=limits, size=size, progressbar=progressbar, group_by=group_by, group_limits=group_limits,
+								expression="sin((%s)/%r*2*pi)" % (expression, max_value))
+		angles = np.arctan2(meany, meanx)
+		values =  ((angles+2*np.pi) % (2*np.pi)) / (2*np.pi) * max_value
+		length =  np.sqrt(meanx**2+meany**2)
+		length[~np.isfinite(meanx)] = np.nan
+		return values, length
 
 	def mutual_information(self, limits=None, grid=None, size=256):
 		if limits is None:
@@ -1568,7 +1667,7 @@ class Dataset(object):
 
 		"""
 		if self.is_local():
-			name = os.path.abspath(self.path).replace("/", "_")
+			name = os.path.abspath(self.path).replace("/", "_")[:250]
 		else:
 			server = self.server
 			name = "%s_%s_%s_%s" % (server.hostname, server.port, server.base_path.replace("/", "_"), self.name)
@@ -1820,6 +1919,20 @@ class Dataset(object):
 		:return: None
 		"""
 		raise NotImplementedError
+
+	def add_virtual_column_bearing(self, name, lon1, lat1, lon2, lat2):
+		lon1 = "(pickup_longitude * pi / 180)"
+		lon2 = "(dropoff_longitude * pi / 180)"
+		lat1 = "(pickup_latitude * pi / 180)"
+		lat2 = "(dropoff_latitude * pi / 180)"
+		p1 = lat1
+		p2 = lat2
+		l1 = lon1
+		l2 = lon2
+		# from http://www.movable-type.co.uk/scripts/latlong.html
+		expr = "arctan2(sin({l2}-{l1}) * cos({p2}), cos({p1})*sin({p2}) - sin({p1})*cos({p2})*cos({l2}-{l1}))"\
+		.format(**locals())
+		self.add_virtual_column("bearing", expr)
 
 	def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name, matrix_is_expression=False):
 		"""
@@ -2316,6 +2429,14 @@ class Dataset(object):
 	def select_nothing(self, selection_name="default"):
 		"""Select nothing"""
 		self.select(None, selection_name=selection_name)
+
+	def select_rectangle(self, expression_x, expression_y, limits, mode="replace"):
+		(x1, x2), (y1, y2) = limits
+		xmin, xmax = min(x1, x2), max(x1, x2)
+		ymin, ymax = min(y1, y2), max(y1, y2)
+		args = (expression_x, xmin, expression_x, xmax, expression_y, ymin, expression_y, ymax)
+		expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
+		self.select(expression, mode=mode)
 
 	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", selection_name="default", executor=None):
 		"""For performance reasons, a lasso selection is handled differently.
