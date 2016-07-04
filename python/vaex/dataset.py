@@ -606,7 +606,7 @@ class Subspace(object):
 			grid = self.histogram(limits=limits, size=size, weight=weight, group_limits=group_limits, group_by=group_by)
 			if grid is None: # cancel occured
 				return
-		import matplotlib
+		import matplotlib.cm
 		background_color = np.array(matplotlib.colors.colorConverter.to_rgb(background_color))
 		if group_by:
 			gmin, gmax, group_count = group_limits
@@ -780,6 +780,7 @@ class Subspace(object):
 			im = axes.imshow(rgba8, extent=np.array(limits).flatten(), origin="lower", aspect=aspect, **kwargs)
 			colorbar = None
 		return im, colorbar
+
 	def plot1d(self, grid=None, size=64, limits=None, weight=None, figsize=None, f=lambda x: x, axes=None, xlabel=None, ylabel=None, **kwargs):
 		"""Plot the subspace using sane defaults to get a quick look at the data.
 
@@ -812,6 +813,164 @@ class Subspace(object):
 		xmin, xmax = limits[0]
 		return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
 		#pylab.ylim(-1, 6)
+
+	def plot_bq(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
+			 aspect="auto", f=lambda x: x, fig=None, axes=None, xlabel=None, ylabel=None, title=None,
+			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=None,
+			 cmap="afmhot", scales=None, tool_select=False, bq_cleanup=True,
+			 **kwargs):
+		import vaex.ext.bqplot
+		import bqplot.interacts
+		import bqplot.pyplot as p
+		import ipywidgets as widgets
+		import bqplot as bq
+		if not hasattr(self, "_bqplot"):
+			self._bqplot = {}
+			self._bqplot["cleanups"] = []
+		else:
+			if bq_cleanup:
+				for cleanup in self._bqplot["cleanups"]:
+					cleanup()
+			self._bqplot["cleanups"] = []
+		if limits is None:
+			limits = self.limits_sigma()
+		#if fig is None:
+		if scales is None:
+			x_scale = bq.LinearScale(min=limits[0][0], max=limits[0][1])
+			y_scale = bq.LinearScale(min=limits[1][0], max=limits[1][1])
+			scales = {'x': x_scale, 'y': y_scale}
+		else:
+			x_scale = scales["x"]
+			y_scale = scales["y"]
+		if 1:
+			fig = p.figure() # actually, bqplot doesn't return it
+			fig = p.current_figure()
+			fig.fig_color = "black" # TODO, take the color from the colormap
+			fig.padding_y = 0
+			# if we don't do this, bqplot may flip some axes... report this bug
+			x = np.arange(10)
+			y = x**2
+			p.plot(x, y, scales=scales)
+			#p.xlim(*limits[0])
+			#p.ylim(*limits[1])
+			#if grid is None:
+		if group_limits is None and group_by:
+			group_limits = tuple(self.dataset(group_by).minmax()[0]) + (group_count,)
+		#fig = p.
+		#if xlabel:
+		fig.axes[0].label = xlabel or self.expressions[0]
+		#if ylabel:
+		fig.axes[1].label = ylabel or self.expressions[1]
+		if title:
+			fig.title = title
+		#axes.set_aspect(aspect)
+		rgba8 = self.rgba_image(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight,
+			 f=f, axes=axes,
+			 group_by=group_by, group_limits=group_limits, group_colors=group_colors, group_count=group_count,
+			 cmap=cmap)
+		#x_scale = p._context["scales"]["x"]
+		#y_scale = p._context["scales"]["y"]
+		src="http://localhost:8888/kernelspecs/python2/logo-64x64.png"
+		im = bq.Image(src=src, scales=scales, x=0, y=0, width=1, height=1)
+		if 0:
+			size = 20
+			x_data = np.arange(size)
+			line = bq.Lines(x=x_data, y=np.random.randn(size), scales={'x': x_scale, 'y': y_scale},
+							stroke_width=3, colors=['red'])
+
+
+			ax_x = bq.Axis(scale=x_scale, tick_format='0.2f', grid_lines='solid')
+			ax_y = bq.Axis(scale=y_scale, orientation='vertical', tick_format='0.2f', grid_lines='solid')
+			panzoom = bq.PanZoom(scales={'x': [x_scale], 'y': [y_scale]})
+			lasso = bqplot.interacts.LassoSelector()
+			brush = bqplot.interacts.BrushSelector(x_scale=x_scale, y_scale=y_scale, color="green")
+			fig = bq.Figure(marks=[line,im], axes=[ax_x, ax_y], min_width=100, min_height=100, interaction=panzoom)
+			print fig.marks
+		else:
+			fig.marks = list(fig.marks) + [im]
+		def make_image(executor, limits):
+			#print "make image" * 100
+			self.executor = executor
+			if self.dataset.has_selection():
+				sub = self.selected()
+			else:
+				sub = self
+			return sub.rgba_image(limits=limits, size=size, f=f)
+		progress = widgets.FloatProgress(value=0.0, min=0.0, max=1.0, step=0.01)
+		updater = vaex.ext.bqplot.DebouncedThreadedUpdater(self.dataset, im, make_image, progress_widget=progress)
+		def update_image():
+			limits = [x_scale.min, x_scale.max], [y_scale.min, y_scale.max]
+			#\print limits
+			#print "update...", limits
+			#vxbq.debounced_threaded_update(self.dataset, im, make_image2, limits=limits)
+			updater.update(limits)
+		def update(*args):
+			update_image()
+		y_scale.observe(update, "min")
+		y_scale.observe(update, "max")
+		x_scale.observe(update, "min")
+		x_scale.observe(update, "max")
+		update_image()
+		#fig = kwargs.pop('figure', p.current_figure())
+		tools = []
+		tool_actions = []
+		panzoom = bq.PanZoom(scales={'x': [x_scale], 'y': [y_scale]})
+		tool_actions_map = {u"m":panzoom}
+		tool_actions.append(u"m")
+
+		fig.interaction = panzoom
+		if tool_select:
+			brush = bqplot.interacts.BrushSelector(x_scale=x_scale, y_scale=y_scale, color="green")
+			tool_actions_map["b"] = brush
+			tool_actions.append("b")
+			def update_selection(*args):
+				def f():
+					if brush.selected:
+						(x1, y1), (x2, y2) = brush.selected
+						ex1, ex2 = self.expressions
+						mode = modes_names[modes_labels.index(button_selection_mode.value)]
+						self.dataset.select_rectangle(ex1, ex2, limits=[[x1, x2], [y1, y2]], mode=mode)
+					else:
+						self.dataset.select_nothing()
+				updater.update_select(f)
+			brush.observe(update_selection, "selected")
+			#fig.interaction = brush
+			callback = self.dataset.signal_selection_changed.connect(lambda dataset: update_image())
+			def cleanup(callback=callback):
+				self.dataset.signal_selection_changed.disconnect(callback=callback)
+			self._bqplot["cleanups"].append(cleanup)
+
+			button_select_nothing = widgets.Button(icon="fa-trash-o")
+			def select_nothing(button):
+				self.dataset.select_nothing()
+			button_select_nothing.on_click(select_nothing)
+			tools.append(button_select_nothing)
+			modes_names = "replace and or xor subtract".split()
+			modes_labels = "= & | ^ -".split()
+			button_selection_mode = widgets.ToggleButtons(description='',options=modes_labels)
+			tools.append(button_selection_mode)
+		def change_interact(*args):
+			#print "change", args
+			fig.interaction = tool_actions_map[button_action.value]
+		#tool_actions = ["m", "b"]
+		#tool_actions = [("m", "m"), ("b", "b")]
+		button_action = widgets.ToggleButtons(description='',options=tool_actions, icons=["fa-arrows", "fa-pencil-square-o"])
+		button_action.observe(change_interact, "value")
+		tools.insert(0,button_action)
+		button_action.value = "m" #tool_actions[-1]
+		if len(tools) == 1:
+			tools = []
+		tools = widgets.HBox(tools)
+
+		box_layout = widgets.Layout(display='flex',
+						flex_flow='column',
+						#border='solid',
+						width='100%', height="100%")
+		fig.fig_margin = {'bottom': 40, 'left': 60, 'right': 10, 'top': 40}
+		#fig.min_height = 700
+		#fig.min_width = 400
+		fig.layout = box_layout
+		return widgets.VBox([fig, progress, tools])
 
 	def figlarge(self, size=(10,10)):
 		import pylab
