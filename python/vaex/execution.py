@@ -59,20 +59,22 @@ class Executor(object):
 		self.signal_cancel = vaex.events.Signal("cancel")
 		self.thread_mover = thread_mover or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
 		self._is_executing = False
+		self.lock = threading.Lock()
 
 	def schedule(self, task):
 		self.task_queue.append(task)
 		return task
 
 	def run(self, task):
-		logger.debug("added task: %r" % task)
-		previous_queue = self.task_queue
-		try:
-			self.task_queue = [task]
-			self.execute()
-		finally:
-			self.task_queue = previous_queue
-		return task._value
+		with self.lock:
+			logger.debug("added task: %r" % task)
+			previous_queue = self.task_queue
+			try:
+				self.task_queue = [task]
+				self.execute()
+			finally:
+				self.task_queue = previous_queue
+			return task._value
 
 	def execute(self):
 		if self._is_executing:
