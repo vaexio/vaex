@@ -24,6 +24,7 @@ __build_name__ = __full_name__ + "-" +version.osname
 
 
 import vaex.dataset
+import vaex.datasets
 #import vaex.plot
 from vaex.dataset import Dataset
 from vaex.remote import ServerRest
