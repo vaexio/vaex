@@ -631,7 +631,6 @@ class Subspace(object):
 				return data
 			rgba[...,3] = (f(alpha))
 			#rgba[...,3] = 1
-			print rgba[...,0:3].max()
 			rgba[total == 0,3] = 0.
 			mask = alpha > 0
 			if 1:
@@ -885,7 +884,6 @@ class Subspace(object):
 			lasso = bqplot.interacts.LassoSelector()
 			brush = bqplot.interacts.BrushSelector(x_scale=x_scale, y_scale=y_scale, color="green")
 			fig = bq.Figure(marks=[line,im], axes=[ax_x, ax_y], min_width=100, min_height=100, interaction=panzoom)
-			print fig.marks
 		else:
 			fig.marks = list(fig.marks) + [im]
 		def make_image(executor, limits):

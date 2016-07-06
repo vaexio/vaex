@@ -356,8 +356,6 @@ def main(argv):
 					if row % 1000:
 						progressbar.update(row/float(row_count))
 				progressbar.finish()
-				for col in cols:
-					print col
 				#print names
 		else:
 			if args.columns:

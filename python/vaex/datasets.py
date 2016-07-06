@@ -1,6 +1,5 @@
 __author__ = 'maartenbreddels'
-import urllib2, sys
-import tqdm
+import sys
 import vaex.utils
 import vaex as vx
 import os
@@ -55,7 +54,7 @@ class NYCTaxi(object):
 				print("Downloading %s (%d out of %d)" % (url, i+1, len(self.url_list)))
 				code = os.system("wget -c -P %s %s" % (data_dir, url))
 				if code != 0:
-					raise RuntimeError, "wget finished with an error"
+					raise RuntimeError("wget finished with an error")
 
 	def fix(self):
 		pass
