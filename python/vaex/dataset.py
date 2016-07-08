@@ -1353,8 +1353,6 @@ class SubspaceLocal(Subspace):
 			f = (1-percentage/100.)/2
 			x = np.linspace(vmin, vmax, size+1)
 			l = scipy.interp([f,1-f], cumcounts, x)
-			print cumcounts.min(), cumcounts.max(), x
-			print((expr, percentage, l))
 			limits.append(l)
 		return limits
 
