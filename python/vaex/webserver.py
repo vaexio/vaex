@@ -13,7 +13,6 @@ import vaex as vx
 import vaex.utils
 import json
 import inspect
-import layeredconfig
 import yaml
 import argparse
 import os
@@ -149,6 +148,7 @@ def task_invoke(subspace, method_name, **arguments):
 	for arg in args:
 		if arg in arguments:
 			kwargs[arg] = arguments[arg]
+	print "calling", method, "with", kwargs
 	values = method(**kwargs)
 	return values
 
@@ -166,6 +166,8 @@ class ListHandler(tornado.web.RequestHandler):
 		self.cache = cache
 		self.cache_selection = cache_selection
 
+	def set_default_headers(self):
+		self.set_header("Access-Control-Allow-Origin", "*")
 
 	@tornado.gen.coroutine
 	def get(self):
@@ -356,7 +358,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								if "selection" in arguments:
 									subspace = subspace.selected()
 							logger.debug("subspace: %r", subspace)
-							if method_name in ["minmax", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
+							if method_name in ["minmax", "rgba_image_url", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
 								#print "expressions", expressions
 								values = task_invoke(subspace, method_name, **arguments)
 								logger.debug("result: %r", values)
@@ -503,24 +505,25 @@ filenames: []
 verbose: 2
 cache: 500000000
 compress: true
+filename: []
+development: False
+threads_per_job: 4
 """
 
 def main(argv):
 
-	defaults = layeredconfig.Defaults(yaml.load(defaults_yaml))
-	env = layeredconfig.Environment(os.environ, prefix="VAEX_WEBSERVER_")
-	default_config = layeredconfig.LayeredConfig(defaults, env)
 	parser = argparse.ArgumentParser(argv[0])
 	parser.add_argument("filename", help="filename for dataset", nargs='*')
-	parser.add_argument("--address", help="address to bind the server to (default: %(default)s)", default=default_config.address)
-	parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=default_config.port)
-	parser.add_argument('--verbose', '-v', action='count')
-	parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=default_config.cache)
-	parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=default_config.compress, action='store_true')
+	parser.add_argument("--address", help="address to bind the server to (default: %(default)s)", default="0.0.0.0")
+	parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=9000)
+	parser.add_argument('--verbose', '-v', action='count', default=2)
+	parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=500000000)
+	parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=True, action='store_true')
 	parser.add_argument('--no-compress', dest="compress", action='store_false')
 	parser.add_argument('--development', default=False, action='store_true', help="enable development features (auto reloading)")
 	parser.add_argument('--threads-per-job', default=4, type=int, help="threads per job (default: %(default)s)")
-	config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser, commandline=argv[1:]))
+	#config = layeredconfig.LayeredConfig(defaults, env, layeredconfig.Commandline(parser=parser, commandline=argv[1:]))
+	config = parser.parse_args(argv[1:])
 
 	verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
 	logging.getLogger("vaex").setLevel(verbosity[config.verbose])
@@ -528,8 +531,9 @@ def main(argv):
 	#vaex.set_log_level_debug()
 	from vaex.settings import webserver as settings
 
-	filenames = config.filenames
-	filenames += config.filename
+	#filenames = config.filenames
+	filenames = []
+	filenames = config.filename
 	datasets = []
 	for filename in filenames:
 		ds = vx.open(filename)
