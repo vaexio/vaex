@@ -4,45 +4,67 @@ import vaex.utils
 import vaex as vx
 import os
 import pandas as pd
-data_dir = "/tmp/vaex/data"
-if not os.path.exists(data_dir):
-	os.makedirs(data_dir)
+#data_dir = "/tmp/vaex/data"
+import vaex.utils
+data_dir = vaex.utils.get_private_dir("data")
 
 
-def _url_to_filename(url, replace_ext=None):
-	filename = os.path.join(data_dir, url.split("/")[-1])
+def _url_to_filename(url, replace_ext=None, subdir=None):
+	if subdir:
+		filename = os.path.join(data_dir, subdir, url.split("/")[-1])
+	else:
+		filename = os.path.join(data_dir, url.split("/")[-1])
 	if replace_ext:
 		dot_index = filename.rfind(".")
-		filename = filename[:dot_index] + "." + replace_ext
+		filename = filename[:dot_index] + replace_ext
 	return filename
 
 
+class Hdf5Download(object):
+	def __init__(self, url):
+		self.url = url
+
+	@property
+	def filename(self):
+		return os.path.join(data_dir, _url_to_filename(self.url))
+
+	def download(self, force=False):
+		if not os.path.exists(self.filename) or force:
+			print("Downloading %s to %s" % (self.url, self.filename))
+			code = os.system("wget -c -P %s %s" % (data_dir, self.url))
+
+	def fetch(self, force_download=False):
+		self.download(force=force_download)
+		return vx.open(self.filename)
+
+
 class NYCTaxi(object):
-	def __init__(self, name, url_list):
+	def __init__(self, name, url_list, subdir="nyc_taxi"):
 		self.name = name
+		self.subdir = subdir
 		self.url_list = url_list
 
 	@property
 	def filename_single(self):
-		return os.path.join(data_dir, self.name+".hdf5")
+		return os.path.join(data_dir, self.subdir, self.name+".hdf5")
 
 	@property
 	def filenames(self):
-		return map(_url_to_filename, self.url_list)
+		return map(lambda url: _url_to_filename(url, subdir=self.subdir), self.url_list)
 
 	@property
 	def filenames_vaex(self):
-		return map(lambda x: _url_to_filename(x, ".hdf5"), self.url_list)
+		return map(lambda x: _url_to_filename(x, ".hdf5", subdir=self.subdir), self.url_list)
 
-	def get_single(self):
-		ds = self.get()
+	def fetch(self):
+		ds = self.fetch_multi()
 		if len(self.filenames) > 1:
 			if not os.path.exists(self.filename_single):
 				ds.export_hdf5(self.filename_single)
 			ds = vx.open(self.filename_single)
 		return ds
 
-	def get(self):
+	def fetch_multi(self):
 		self.download()
 		self.fix()
 		self.convert()
@@ -52,7 +74,7 @@ class NYCTaxi(object):
 		for i, url in enumerate(self.url_list):
 			if not os.path.exists(self.filenames[i]) or force:
 				print("Downloading %s (%d out of %d)" % (url, i+1, len(self.url_list)))
-				code = os.system("wget -c -P %s %s" % (data_dir, url))
+				code = os.system("wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url))
 				if code != 0:
 					raise RuntimeError("wget finished with an error")
 
@@ -194,5 +216,8 @@ https://storage.googleapis.com/tlc-trip-data/2015/yellow_tripdata_2015-10.csv
 https://storage.googleapis.com/tlc-trip-data/2015/yellow_tripdata_2015-11.csv
 https://storage.googleapis.com/tlc-trip-data/2015/yellow_tripdata_2015-12.csv""".split("\n")
 
-nyctaxi_2015_jan = NYCTaxi("nyc_taxi2015jan", [urllist[-12]])
-nyctaxi_2015 = NYCTaxi("nyc_taxi2015", urllist[-12:])
+nyctaxi_yellow_2015_jan = NYCTaxi("nyc_taxi2015jan", [urllist[-12]])
+nyctaxi_yellow_2015 = NYCTaxi("nyc_taxi2015", urllist[-12:])
+nyctaxi_yellow_201x = NYCTaxi("nyc_taxi_all", [url for url in urllist if "yellow" in url and "201" in url])
+
+helmi_de_zeeuw = Hdf5Download("http://vaex.astro.rug.nl/data/helmi-dezeeuw-2000-FeH.hdf5")

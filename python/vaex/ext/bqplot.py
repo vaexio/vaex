@@ -4,7 +4,42 @@ import vaex.image
 import logging
 import vaex as vx
 from .common import Job
+import os
+from IPython.display import HTML, display_html, display_javascript
+import bqplot.marks
+
+
 logger = logging.getLogger("vaex.ext.bqplot")
+base_path = os.path.dirname(__file__)
+
+
+@bqplot.marks.register_mark('vaex.ext.bqplot.Image')
+class Image(bqplot.marks.Mark):
+    src = bqplot.marks.Unicode().tag(sync=True)
+    x = bqplot.marks.Float().tag(sync=True)
+    y = bqplot.marks.Float().tag(sync=True)
+    width = bqplot.marks.Float().tag(sync=True)
+    height = bqplot.marks.Float().tag(sync=True)
+    preserve_aspect_ratio = bqplot.marks.Unicode('').tag(sync=True)
+
+    _view_name = bqplot.marks.Unicode('Image').tag(sync=True)
+    _model_name = bqplot.marks.Unicode('ImageModel').tag(sync=True)
+    scales_metadata = bqplot.marks.Dict({
+        'x': {'orientation': 'horizontal', 'dimension': 'x'},
+        'y': {'orientation': 'vertical', 'dimension': 'y'},
+    }).tag(sync=True)
+    def __init__(self, **kwargs):
+        self._drag_end_handlers = bqplot.marks.CallbackDispatcher()
+        super(Image, self).__init__(**kwargs)
+import warnings
+
+def patch():
+	if bqplot.__version__ == (0, 6, 1):
+		display_javascript(file(os.path.join(base_path, "bqplot_ext.js")).read(), raw=True)
+	else:
+		warnings.warn("This version of bqplot is not supppored")
+
+
 
 class DebouncedThreadedUpdater(object):
 	def __init__(self, dataset, bqplot_image, factory_rgba8, delay=0.5, progress_widget=None):
