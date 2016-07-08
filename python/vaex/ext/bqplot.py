@@ -21,6 +21,8 @@ class Image(bqplot.marks.Mark):
     width = bqplot.marks.Float().tag(sync=True)
     height = bqplot.marks.Float().tag(sync=True)
     preserve_aspect_ratio = bqplot.marks.Unicode('').tag(sync=True)
+    _model_module = bqplot.marks.Unicode('vaex.ext.bqplot').tag(sync=True)
+    _view_module = bqplot.marks.Unicode('vaex.ext.bqplot').tag(sync=True)
 
     _view_name = bqplot.marks.Unicode('Image').tag(sync=True)
     _model_name = bqplot.marks.Unicode('ImageModel').tag(sync=True)
@@ -34,10 +36,12 @@ class Image(bqplot.marks.Mark):
 import warnings
 
 def patch():
-	if bqplot.__version__ == (0, 6, 1):
+	#return
+	if (bqplot.__version__ == (0, 6, 1)) or (bqplot.__version__ == "0.6.1"):
 		display_javascript(file(os.path.join(base_path, "bqplot_ext.js")).read(), raw=True)
 	else:
-		warnings.warn("This version of bqplot is not supppored")
+		warnings.warn("This version (%s) of bqplot is not supppored" % bqplot.__version__)
+	print(bqplot.__version__)
 
 
 
@@ -94,6 +98,7 @@ class DebouncedThreadedUpdater(object):
 					return False
 				else:
 					return True
+			callback = None
 			try:
 				if self.progress_widget:
 					self.progress_widget.description = "Calculating"
@@ -101,7 +106,11 @@ class DebouncedThreadedUpdater(object):
 				logger.debug("creating image")
 				rgba8 = self.factory_rgba8(executor, limits)
 			finally:
-				executor.signal_progress.disconnect(callback)
+				if callback:
+					try:
+						executor.signal_progress.disconnect(callback)
+					except:
+						pass # TODO: why does this sometimes fail??
 				if self.progress_widget:
 					self.progress_widget.description = "Done"
 			src = vaex.image.rgba_to_url(rgba8)

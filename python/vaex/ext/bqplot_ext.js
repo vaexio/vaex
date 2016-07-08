@@ -1,8 +1,8 @@
-define(["d3", "./Mark", "./utils", "./Markers", "underscore"],
-       function(d3, MarkViewModule, utils, markers, _) {
+define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
+       function(widgets, bqplot, _) {
     "use strict";
 
-    var Image = MarkViewModule.Mark.extend({
+    var Image = bqplot.Mark.extend({
 
         render: function() {
             var base_render_promise = Image.__super__.render.apply(this);
@@ -131,9 +131,9 @@ define(["d3", "./Mark", "./utils", "./Markers", "underscore"],
     });
 
 
-   var ImageModel = MarkModel.MarkModel.extend({
+   var ImageModel = bqplot.MarkModel.extend({
 
-        defaults: _.extend({}, MarkModel.MarkModel.prototype.defaults, {
+        defaults: _.extend({}, bqplot.MarkModel.prototype.defaults, {
             _model_name: "ImageModel",
             _view_name: "Image",
             _view_module: "vaex.ext.bqplot",
@@ -153,8 +153,10 @@ define(["d3", "./Mark", "./utils", "./Markers", "underscore"],
 
 
 
+    console.log("blaat")
 	    return {
 	        ImageModel: ImageModel,
 	        Image:Image,
 	    };
-}
+})
+//require(["vaex.ext.bqplot"])
