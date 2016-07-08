@@ -726,7 +726,6 @@ class Subspace(object):
 
 		 """
 		import pylab
-		import bqplot
 		if limits is None:
 			limits = self.limits_sigma()
 		#if grid is None:
