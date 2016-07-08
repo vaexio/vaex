@@ -177,9 +177,16 @@ extensions = [
 from pip.req import parse_requirements
 import pip.download
 
-session=pip.download.PipSession()
+# older versions of pip don't use the pipsession..?
+try:
+	session = pip.download.PipSession()
+except:
+	session = None
 # parse_requirements() returns generator of pip.req.InstallRequirement objects
-install_reqs = parse_requirements("requirements.txt", session=session)
+if session:
+	install_reqs = parse_requirements("requirements.txt", session=session)
+else:
+	install_reqs = parse_requirements("requirements.txt")
 
 # reqs is a list of requirement
 # e.g. ['django==1.5.1', 'mezzanine==1.4.6']
