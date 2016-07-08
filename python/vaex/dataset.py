@@ -154,7 +154,7 @@ class TaskHistogram(Task):
 		shape1 = ( self.size,) * self.dimension
 		try:
 			self.size[0]
-			shape1 = self.size
+			shape1 = tuple(self.size)
 		except:
 			pass
 		shape = (self.subspace.executor.thread_pool.nthreads,) + shape1
@@ -604,8 +604,8 @@ class Subspace(object):
 		img.save(f, format)
 		return f.getvalue()
 
-	def rgba_image_url(self, f="identity", limits=None, size=256, **kwargs):
-		rgba8 = self.rgba_image(**kwargs)
+	def image_rgba_url(self, **kwargs):
+		rgba8 = self.image_rgba(**kwargs)
 		import PIL.Image
 		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
 		import StringIO
