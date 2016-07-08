@@ -352,13 +352,13 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							logger.debug("setting virtual_columns to: %r", virtual_columns)
 							for key, value in virtual_columns:
 								dataset.add_virtual_column(key, value)
-						for name in "expressions active_fraction selection variables virtual_columns".split():
-							arguments.pop(name, None)
 						subspace = dataset(*expressions, executor=webserver.thread_local.executor) if expressions else None
 						try:
 							if subspace:
 								if "selection" in arguments:
 									subspace = subspace.selected()
+							for name in "job_id expressions active_fraction selection variables virtual_columns".split():
+								arguments.pop(name, None)
 							logger.debug("subspace: %r", subspace)
 							if method_name in ["minmax", "image_rgba_url", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
 								#print "expressions", expressions
