@@ -1,7 +1,12 @@
 __author__ = 'maartenbreddels'
 import PIL.Image
 import PIL.ImageDraw
-import StringIO
+try:
+	from StringIO import StringIO
+	py3 = False
+except ImportError:
+	from io import StringIO, BytesIO
+	py3 = True
 import collections
 import numpy as np
 import matplotlib.colors
@@ -15,14 +20,20 @@ def rgba_2_pil(rgba):
 	return im
 
 def pil_2_data(im, format="png"):
-	f = StringIO.StringIO()
+	if py3: # py3 case
+		f = BytesIO()
+	else:
+		f = StringIO()
 	im.save(f, format)
 	return f.getvalue()
 
 def rgba_to_url(rgba):
 	im = rgba_2_pil(rgba)
 	data = pil_2_data(im)
-	imgurl = "data:image/png;base64," + b64encode(data) + ""
+	data = b64encode(data)
+	if py3:
+		data = data.decode("ascii")
+	imgurl = "data:image/png;base64," + data + ""
 	return imgurl
 
 pdf_modes = collections.OrderedDict()
@@ -37,7 +48,7 @@ cairo_modes["saturate"] = (lambda aA, aB: np.minimum(1, aA + aB),
 cairo_modes["add"] = (lambda aA, aB: np.minimum(1, aA + aB),
 						   lambda aA, xA, aB, xB, aR: (aA*xA + aB*xB)/aR)
 
-modes = pdf_modes.keys() + cairo_modes.keys()
+modes = list(pdf_modes.keys()) + list(cairo_modes.keys())
 def background(shape, color="white", alpha=1, bit8=True):
 	rgba = np.zeros(shape + (4,))
 	rgba[:] = np.array(matplotlib.colors.colorConverter.to_rgba(color))
