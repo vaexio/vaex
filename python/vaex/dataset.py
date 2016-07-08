@@ -56,6 +56,17 @@ dataset_type_map = {}
 #executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 #executor = vaex.execution.default_executor
 
+def _parse_f(f):
+	if isinstance(f, six.string_types):
+		if f == "identity":
+			return lambda x: x
+		else:
+			if hasattr(np, f):
+				return getattr(np, f)
+			else:
+				raise ValueError("do not understand f = %s, should be a function, string 'identity' or a function from numpy such as 'log', 'log1p'" % f)
+	else:
+		return f
 
 class Task(vaex.promise.Promise):
 	"""
@@ -556,6 +567,9 @@ class Subspace(object):
 	def get_selection(self):
 		return self.dataset.get_selection("default") if self.is_masked else None
 
+	def is_selected(self):
+		return self.is_masked
+
 	def selected(self):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
@@ -573,7 +587,7 @@ class Subspace(object):
 		img.save(f, format)
 		return f.getvalue()
 
-	def rgba_image_url(self, **kwargs):
+	def rgba_image_url(self, f="identity", limits=None, size=256, **kwargs):
 		rgba8 = self.rgba_image(**kwargs)
 		import PIL.Image
 		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
@@ -594,10 +608,37 @@ class Subspace(object):
 			grid[:] = 0
 		return grid
 
+	def limits(self, value, square=False):
+		"""TODO: doc + server side implementation"""
+		if isinstance(value, six.string_types):
+			import re
+			match = re.match("(\d*)(\D*)", value)
+			if match is None:
+				raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
+			else:
+				value, type = match.groups()
+				import ast
+				value = ast.literal_eval(value)
+				type = type.strip()
+				if type in ["s", "sigma"]:
+					return self.limits_sigma(value)
+				elif type in ["ss", "sigmasquare"]:
+					return self.limits_sigma(value, square=True)
+				elif type in ["%", "percent"]:
+					return self.limits_percentage(value)
+				elif type in ["%s", "%square", "percentsquare"]:
+					return self.limits_percentage(value, square=True)
+		if value is None:
+			return self.limits_percentage(square=square)
+		else:
+			return value
+
 	def rgba_image(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
-			 aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None,
+			 aspect="auto", f="identity", axes=None, xlabel=None, ylabel=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=10, cmap="afmhot",
 			 pre_blend=False, background_color="white", background_alpha=1., normalize=True, color=None):
+		f = _parse_f(f)
+		limits = self.limits(limits)
 		if limits is None:
 			limits = self.limits_sigma()
 		if group_limits is None and group_by:
@@ -705,7 +746,7 @@ class Subspace(object):
 		axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], **kwargs)
 
 	def plot(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
-			 aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None,
+			 aspect="auto", f="identity", axes=None, xlabel=None, ylabel=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=None,
 			 cmap="afmhot",
 			 **kwargs):
@@ -726,6 +767,8 @@ class Subspace(object):
 		 """
 		import pylab
 		import bqplot
+		f = _parse_f(f)
+		limits = self.limits(limits)
 		if limits is None:
 			limits = self.limits_sigma()
 		#if grid is None:
@@ -780,7 +823,7 @@ class Subspace(object):
 			colorbar = None
 		return im, colorbar
 
-	def plot1d(self, grid=None, size=64, limits=None, weight=None, figsize=None, f=lambda x: x, axes=None, xlabel=None, ylabel=None, **kwargs):
+	def plot1d(self, grid=None, size=64, limits=None, weight=None, figsize=None, f="identity", axes=None, xlabel=None, ylabel=None, **kwargs):
 		"""Plot the subspace using sane defaults to get a quick look at the data.
 
 		:param grid: A 2d numpy array with the counts, if None it will be calculated using limits provided and Subspace.histogram
@@ -793,6 +836,8 @@ class Subspace(object):
 
 		 """
 		import pylab
+		f = _parse_f(f)
+		limits = self.limits(limits)
 		assert self.dimension == 1, "can only plot 1d, not %s" % self.dimension
 		if limits is None:
 			limits = self.limits_sigma()
@@ -814,7 +859,7 @@ class Subspace(object):
 		#pylab.ylim(-1, 6)
 
 	def plot_bq(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
-			 aspect="auto", f=lambda x: x, fig=None, axes=None, xlabel=None, ylabel=None, title=None,
+			 aspect="auto", f="identity", fig=None, axes=None, xlabel=None, ylabel=None, title=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=None,
 			 cmap="afmhot", scales=None, tool_select=False, bq_cleanup=True,
 			 **kwargs):
@@ -823,6 +868,8 @@ class Subspace(object):
 		import bqplot.pyplot as p
 		import ipywidgets as widgets
 		import bqplot as bq
+		f = _parse_f(f)
+		limits = self.limits(limits)
 		if not hasattr(self, "_bqplot"):
 			self._bqplot = {}
 			self._bqplot["cleanups"] = []
@@ -1270,6 +1317,27 @@ class SubspaceLocal(Subspace):
 		mutual_information_promise = histogram_done.then(vaex.kld.mutual_information)
 		return mutual_information_promise if self.async else mutual_information_promise.get()
 
+
+	def limits_percentage(self, percentage=99.73, square=False):
+		limits = []
+		for expr in self.expressions:
+			subspace = self.dataset(expr)
+			if self.is_selected():
+				subspace = subspace.selected()
+			limits_minmax = subspace.minmax()
+			vmin, vmax = limits_minmax[0]
+			size = 1024*16
+			counts = subspace.histogram(size=size, limits=limits_minmax)
+			cumcounts = np.concatenate([[0], np.cumsum(counts)])
+			cumcounts /= cumcounts.max()
+			# TODO: this is crude.. see the details!
+			f = (1-percentage/100.)/2
+			x = np.linspace(vmin, vmax, size+1)
+			l = scipy.interp([f,1-f], cumcounts, x)
+			print cumcounts.min(), cumcounts.max(), x
+			print((expr, percentage, l))
+			limits.append(l)
+		return limits
 
 	def limits_sigma(self, sigmas=3, square=False):
 		if self.async:
