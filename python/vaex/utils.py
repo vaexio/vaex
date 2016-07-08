@@ -144,8 +144,10 @@ class Timer(object):
 				print((type, value, traceback))
 		return False
 
-def get_private_dir():
+def get_private_dir(subdir=None):
 	path = os.path.expanduser('~/.vaex')
+	if subdir:
+		path = os.path.join(path, subdir)
 	if not os.path.exists(path):
 		os.makedirs(path)
 	return path
