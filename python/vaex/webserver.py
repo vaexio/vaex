@@ -148,7 +148,6 @@ def task_invoke(subspace, method_name, **arguments):
 	for arg in args:
 		if arg in arguments:
 			kwargs[arg] = arguments[arg]
-	print "calling", method, "with", kwargs
 	values = method(**kwargs)
 	return values
 
