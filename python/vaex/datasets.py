@@ -1,6 +1,5 @@
 __author__ = 'maartenbreddels'
-import urllib2, sys
-import tqdm
+import sys
 import vaex.utils
 import vaex as vx
 import os
@@ -18,7 +17,7 @@ def _url_to_filename(url, replace_ext=None):
 	return filename
 
 
-class NYCTaxiExample(object):
+class NYCTaxi(object):
 	def __init__(self, name, url_list):
 		self.name = name
 		self.url_list = url_list
@@ -55,7 +54,7 @@ class NYCTaxiExample(object):
 				print("Downloading %s (%d out of %d)" % (url, i+1, len(self.url_list)))
 				code = os.system("wget -c -P %s %s" % (data_dir, url))
 				if code != 0:
-					raise RuntimeError, "wget finished with an error"
+					raise RuntimeError("wget finished with an error")
 
 	def fix(self):
 		pass
@@ -195,5 +194,5 @@ https://storage.googleapis.com/tlc-trip-data/2015/yellow_tripdata_2015-10.csv
 https://storage.googleapis.com/tlc-trip-data/2015/yellow_tripdata_2015-11.csv
 https://storage.googleapis.com/tlc-trip-data/2015/yellow_tripdata_2015-12.csv""".split("\n")
 
-nyctaxi_2015_jan = NYCTaxiExample("nyc_taxi2015jan", [urllist[-12]])
-nyctaxi_2015 = NYCTaxiExample("nyc_taxi2015", urllist[-12:])
+nyctaxi_2015_jan = NYCTaxi("nyc_taxi2015jan", [urllist[-12]])
+nyctaxi_2015 = NYCTaxi("nyc_taxi2015", urllist[-12:])
