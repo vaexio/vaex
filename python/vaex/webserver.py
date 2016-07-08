@@ -144,11 +144,12 @@ def task_invoke(subspace, method_name, **arguments):
 	args, varargs, kwargs, defaults = inspect.getargspec(method)
 	#print inspect.getargspec(method)
 	#args_required = args[:len(args)-len(defaults)]
-	kwargs = {}
-	for arg in args:
-		if arg in arguments:
-			kwargs[arg] = arguments[arg]
-	values = method(**kwargs)
+	#kwargs = {}
+	#for arg in args:
+	#	if arg in arguments:
+	#		kwargs[arg] = arguments[arg]
+	#print("calling %s with arguments %r" % (method_name, arguments))
+	values = method(**arguments)
 	return values
 
 import collections
@@ -351,13 +352,15 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							logger.debug("setting virtual_columns to: %r", virtual_columns)
 							for key, value in virtual_columns:
 								dataset.add_virtual_column(key, value)
+						for name in "expressions active_fraction selection variables virtual_columns".split():
+							arguments.pop(name, None)
 						subspace = dataset(*expressions, executor=webserver.thread_local.executor) if expressions else None
 						try:
 							if subspace:
 								if "selection" in arguments:
 									subspace = subspace.selected()
 							logger.debug("subspace: %r", subspace)
-							if method_name in ["minmax", "rgba_image_url", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
+							if method_name in ["minmax", "image_rgba_url", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
 								#print "expressions", expressions
 								values = task_invoke(subspace, method_name, **arguments)
 								logger.debug("result: %r", values)
