@@ -559,11 +559,28 @@ class Subspace(object):
 	def selected(self):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
-	def rgba_image_data(self, format="png", pil_draw=False, **kwargs):
+	def image_rgba_save(self, filename, data=None, rgba8=None, **kwargs):
+		if rgba8 is not None:
+			data = self.image_rgba_data(rgba8=rgba8, **kwargs)
+		if data is None:
+			data = self.image_rgba_data(**kwargs)
+		with open(filename, "wb") as f:
+			f.write(data)
+
+	def image_rgba_notebook(self, data=None, rgba8=None, **kwargs):
+		if rgba8 is not None:
+			data = self.image_rgba_data(rgba8=rgba8, **kwargs)
+		if data is None:
+			data = self.image_rgba_data(**kwargs)
+		from IPython.display import display, Image
+		return Image(data=data)
+		
+	def image_rgba_data(self, rgba8=None, format="png", pil_draw=False, **kwargs):
 		import PIL.Image
 		import PIL.ImageDraw
 		import StringIO
-		rgba8 = self.rgba_image(**kwargs)
+		if rgba8 is None:
+			rgba8 = self.image_rgba(**kwargs)
 		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
 		if pil_draw:
 			draw = PIL.ImageDraw.Draw(img)
@@ -573,8 +590,8 @@ class Subspace(object):
 		img.save(f, format)
 		return f.getvalue()
 
-	def rgba_image_url(self, **kwargs):
-		rgba8 = self.rgba_image(**kwargs)
+	def image_rgba_url(self, **kwargs):
+		rgba8 = self.image_rgba(**kwargs)
 		import PIL.Image
 		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
 		import StringIO
@@ -594,7 +611,7 @@ class Subspace(object):
 			grid[:] = 0
 		return grid
 
-	def rgba_image(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
+	def image_rgba(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
 			 aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=10, cmap="afmhot",
 			 pre_blend=False, background_color="white", background_alpha=1., normalize=True, color=None):
@@ -741,7 +758,7 @@ class Subspace(object):
 		#if ylabel:
 		pylab.ylabel(ylabel or self.expressions[1])
 		#axes.set_aspect(aspect)
-		rgba8 = self.rgba_image(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight,
+		rgba8 = self.image_rgba(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight,
 			 f=f, axes=axes,
 			 group_by=group_by, group_limits=group_limits, group_colors=group_colors, group_count=group_count,
 			 cmap=cmap)
@@ -766,7 +783,7 @@ class Subspace(object):
 				colorbar.set_ticklabels(group_labels)
 			else:
 				colorbar.set_ticks(np.arange(gmin, gmax+delta/2, delta))
-				colorbar.set_ticklabels(map(str, np.arange(gmin, gmax+delta/2, delta)))
+				colorbar.set_ticklabels(map(lambda x: "%f" % x, np.arange(gmin, gmax+delta/2, delta)))
 			colorbar.ax.set_ylabel(group_by)
 			#matplotlib.colorbar.ColorbarBase(axes, norm=norm, cmap=colormap)
 			im = axes.imshow(rgba8, extent=np.array(limits).flatten(), origin="lower", aspect=aspect, **kwargs)
@@ -822,6 +839,8 @@ class Subspace(object):
 		import bqplot.pyplot as p
 		import ipywidgets as widgets
 		import bqplot as bq
+		import vaex.ext.bqplot
+		vaex.ext.bqplot.patch()
 		if not hasattr(self, "_bqplot"):
 			self._bqplot = {}
 			self._bqplot["cleanups"] = []
@@ -862,14 +881,15 @@ class Subspace(object):
 		if title:
 			fig.title = title
 		#axes.set_aspect(aspect)
-		rgba8 = self.rgba_image(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight,
+		rgba8 = self.image_rgba(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight,
 			 f=f, axes=axes,
 			 group_by=group_by, group_limits=group_limits, group_colors=group_colors, group_count=group_count,
 			 cmap=cmap)
 		#x_scale = p._context["scales"]["x"]
 		#y_scale = p._context["scales"]["y"]
 		src="http://localhost:8888/kernelspecs/python2/logo-64x64.png"
-		im = bq.Image(src=src, scales=scales, x=0, y=0, width=1, height=1)
+		import bqplot.marks
+		im = vaex.ext.bqplot.Image(src=src, scales=scales, x=0, y=0, width=1, height=1)
 		if 0:
 			size = 20
 			x_data = np.arange(size)
@@ -892,7 +912,7 @@ class Subspace(object):
 				sub = self.selected()
 			else:
 				sub = self
-			return sub.rgba_image(limits=limits, size=size, f=f)
+			return sub.image_rgba(limits=limits, size=size, f=f)
 		progress = widgets.FloatProgress(value=0.0, min=0.0, max=1.0, step=0.01)
 		updater = vaex.ext.bqplot.DebouncedThreadedUpdater(self.dataset, im, make_image, progress_widget=progress)
 		def update_image():
