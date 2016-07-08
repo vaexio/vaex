@@ -97,7 +97,8 @@ class NYCTaxi(object):
 				ds.add_virtual_column("dropoff_hour", "hourofday(tpep_dropoff_datetime)")
 				ds.add_virtual_column("pickup_dayofweek", "dayofweek(tpep_pickup_datetime)")
 				ds.add_virtual_column("dropoff_dayofweek", "dayofweek(tpep_dropoff_datetime)")
-				ds.export_hdf5(output, virtual=True)
+				ds.select("(pickup_longitude != 0) & (pickup_latitude != 0) & (dropoff_longitude != 0) & (dropoff_latitude != 0)")
+				ds.export_hdf5(output, virtual=True, selection=True)
 
 	def open(self):
 		return vx.open_many(self.filenames_vaex) if len(self.filenames_vaex) != 1 else vx.open(self.filenames_vaex[0])
