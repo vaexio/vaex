@@ -13,7 +13,7 @@ which are richer in information than others.
 
 Vaex uses several sites:
 
-* Main page: http://www.astro.rug.nl/~breddels/vaex/
+* Main page: http://vaex.astro.rug.nl/
 * Github for source, bugs, wiki, releases: https://github.com/maartenbreddels/vaex
 * Python Package Index for installing the source in your Python tree: https://pypi.python.org/pypi/vaex/
 * Documentation, similar to the homepage, but also has older versions: http://vaex.readthedocs.org/
