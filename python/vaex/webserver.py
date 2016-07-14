@@ -327,6 +327,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							expressions = None
 						# make a shallow copy, such that selection and active_fraction is not shared
 						dataset = webserver.datasets_map[dataset_name].shallow_copy(virtual=False)
+	
 						if dataset.mask is not None:
 							logger.debug("selection: %r", dataset.mask.sum())
 						if "active_fraction" in arguments:
@@ -352,6 +353,11 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							logger.debug("setting virtual_columns to: %r", virtual_columns)
 							for key, value in virtual_columns:
 								dataset.add_virtual_column(key, value)
+						if expressions:
+							for expression in expressions:
+								dataset.validate_expression(expression)
+							for key, value in virtual_columns:
+								dataset.validate_expression(value)
 						for name in "expressions active_fraction selection variables virtual_columns".split():
 							arguments.pop(name, None)
 						subspace = dataset(*expressions, executor=webserver.thread_local.executor) if expressions else None
