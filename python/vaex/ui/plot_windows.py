@@ -597,6 +597,7 @@ class PlotDialog(QtGui.QWidget):
 
 	def _wait(self):
 		"""Used for unittesting to make sure the plots are all done"""
+		logger.debug("will wait for last plot to finish")
 		self._plot_event = threading.Event()
 		self.queue_update._wait()
 		self.queue_replot._wait()
