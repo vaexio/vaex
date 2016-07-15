@@ -122,12 +122,13 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 		while random_index_name in dataset.get_column_names():
 			random_index_name += "_new"
 
-	column_names = column_names or (dataset.get_column_names() + (list(dataset.virtual_columns.keys()) if virtual else []))
+	column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True)
+	logger.debug("exporting columns(fits): %r" % column_names)
 	N = len(dataset) if not selection else dataset.selected_length()
 	data_types = []
 	data_shapes = []
 	for column_name in column_names:
-		if column_name in dataset.get_column_names():
+		if column_name in dataset.get_column_names(strings=True):
 			column = dataset.columns[column_name]
 			shape = (N,) + column.shape[1:]
 			dtype = column.dtype
@@ -179,11 +180,14 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 		N = len(dataset) if not selection else dataset.selected_length()
 		if N == 0:
 			raise ValueError("Cannot export empty table")
+		logger.debug("virtual=%r", virtual)
 		logger.debug("exporting %d rows to file %s" % (N, path))
-		column_names = column_names or (dataset.get_column_names() + (list(dataset.virtual_columns.keys()) if virtual else []))
-		logger.debug(" exporting columns: %r" % column_names)
+		#column_names = column_names or (dataset.get_column_names() + (list(dataset.virtual_columns.keys()) if virtual else []))
+		column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True)
+
+		logger.debug("exporting columns(hdf5): %r" % column_names)
 		for column_name in column_names:
-			if column_name in dataset.get_column_names():
+			if column_name in dataset.get_column_names(strings=True):
 				column = dataset.columns[column_name]
 				shape = (N,) + column.shape[1:]
 				dtype = column.dtype

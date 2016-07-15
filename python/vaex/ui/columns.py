@@ -30,7 +30,7 @@ class ColumnsTableModel(QtCore.QAbstractTableModel):
 		self.show_virtual = True
 
 	def get_dataset_column_names(self):
-		return self.dataset.get_column_names(virtual=self.show_virtual, hidden=True)
+		return self.dataset.get_column_names(virtual=self.show_virtual, hidden=True, strings=True)
 
 	def rowCount(self, parent):
 		column_names = self.get_dataset_column_names()
@@ -106,8 +106,10 @@ class ColumnsTableModel(QtCore.QAbstractTableModel):
 			if property == "Name":
 				return column_name
 			elif property == "Type":
-				if column_name in self.dataset.get_column_names():
-					return str(self.dataset.dtype(column_name))
+				if column_name in self.dataset.get_column_names(strings=True):
+					dtype = self.dataset.dtype(column_name)
+					return dtype.name
+					#return str(self.dataset.dtype(column_name))
 				else:
 					return "virtual column"
 			elif property == "Units":

@@ -12,6 +12,7 @@ logger = logging.getLogger("vaex.file.colfits")
 
 def empty(filename, length, column_names, data_types, data_shapes):
 	with open(filename, "wb") as f:
+		logger.debug("preparing empty fits file: %s", filename)
 		class Scope(object):
 			pass
 
@@ -57,11 +58,19 @@ def empty(filename, length, column_names, data_types, data_shapes):
 			#column = dataset.columns[column_name]
 			write("TTYPE%d" % i, repr(str(column_name)), "column name %i" % (i))
 			numpy_type_name = type.descr[0][1][1:] # i4, f8 etc
-			fits_type = astropy.io.fits.column.NUMPY2FITS[numpy_type_name]
-			logger.debug("type for %s: numpy=%r, fits=%r", column_name, numpy_type_name, fits_type)
-			# TODO: support rank1 arrays
-			write("TFORM%d" % i , repr("{length}{type}".format(length=length, type=fits_type)), "")
-			write("TDIM%d" % i, repr("(1,{length})".format(length=length)), "")
+			if numpy_type_name[0] == 'S':
+				string_length = numpy_type_name[1:]
+				fits_type = str(int(string_length)*length)+"A"
+				logger.debug("type for %s: numpy=%r, fits=%r, string_length=%r length=%r", column_name, numpy_type_name, fits_type, string_length, length)
+				# TODO: support rank1 arrays
+				write("TFORM%d" % i , repr("{type}".format(type=fits_type)), "")
+				write("TDIM%d" % i, repr("({string_length},{length})".format(string_length=string_length, length=length)), "")
+			else:
+				fits_type = astropy.io.fits.column.NUMPY2FITS[numpy_type_name]
+				logger.debug("type for %s: numpy=%r, fits=%r", column_name, numpy_type_name, fits_type)
+				# TODO: support rank1 arrays
+				write("TFORM%d" % i , repr("{length}{type}".format(length=length, type=fits_type)), "")
+				write("TDIM%d" % i, repr("(1,{length})".format(length=length)), "")
 
 		finish_header()
 

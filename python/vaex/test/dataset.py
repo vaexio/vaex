@@ -48,6 +48,11 @@ class TestDataset(unittest.TestCase):
 		self.dataset.add_column("f", np.arange(len(self.dataset), dtype=np.float64))
 		self.dataset.ucds["x"] = "some;ucd"
 
+		name = np.array(list(map(lambda x: str(x) + "bla", self.x)), dtype='S') #, dtype=np.string_)
+		self.names = self.dataset.get_column_names()
+		self.dataset.add_column("name", np.array(name))
+
+
 		#self.jobsManager = dataset.JobsManager()
 
 		x = np.array([0., 1])
@@ -76,6 +81,37 @@ class TestDataset(unittest.TestCase):
 		self.dataset.remove_virtual_meta()
 		self.dataset_concat.remove_virtual_meta()
 		self.dataset_concat_dup.remove_virtual_meta()
+
+
+	def test_strings(self):
+		# TODO: concatenated datasets with strings of different length
+		self.assertEqual(["x", "y", "f"], self.dataset.get_column_names())
+
+		names = ["x", "y", "f", "name"]
+		self.assertEqual(names, self.dataset.get_column_names(strings=True))
+
+		if self.dataset.is_local():
+			# check if strings are exported
+			path_hdf5 = tempfile.mktemp(".hdf5")
+			self.dataset.export_hdf5(path_hdf5, virtual=False)
+
+			exported_dataset = vx.open(path_hdf5)
+			self.assertEqual(names, exported_dataset.get_column_names(strings=True))
+
+			path_fits = tempfile.mktemp(".fits")
+			self.dataset.export_fits(path_fits, virtual=False)
+
+			exported_dataset = vx.open(path_fits)
+			self.assertEqual(names, exported_dataset.get_column_names(strings=True))
+
+			path_fits_astropy = tempfile.mktemp(".fits")
+			with astropy.io.fits.open(path_fits) as fitsfile:
+				# make sure astropy can read the data
+				bla = fitsfile[1].data
+				try:
+					fitsfile.writeto(path_fits_astropy)
+				finally:
+					os.remove(path_fits_astropy)
 
 
 	def histogram_cumulative(self):
@@ -128,7 +164,7 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(self.dataset.subspace("x", "y").expressions, self.dataset("x", "y").expressions)
 
 	def test_subspaces(self):
-		dataset = vaex.from_arrays("arrays", x=[1], y=[2], z=[3])
+		dataset = vaex.from_arrays("arrays", x=np.array([1]), y=np.array([2]), z=np.array([3]))
 		subspaces = dataset.subspaces(dimensions=2)
 		self.assertEqual(len(subspaces), 3)
 		subspaces = dataset.subspaces(dimensions=2, exclude="x")
@@ -543,38 +579,43 @@ class TestDataset(unittest.TestCase):
 					for byteorder in ">=<":
 						for shuffle in [False, True]:
 							for selection in [False, True]:
-								for export in [dataset.export_fits, dataset.export_hdf5] if byteorder == ">" else [dataset.export_hdf5]:
-									#print dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length()
-									#print dataset.full_length()
-									#print len(dataset)
-									if export == dataset.export_hdf5:
-										path = path_hdf5
-										export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
-									else:
-										path = path_fits
-										export(path, column_names=column_names, shuffle=shuffle, selection=selection, progress=False)
-										with astropy.io.fits.open(path) as fitsfile:
-											# make sure astropy can read the data
-											bla = fitsfile[1].data
-											try:
-												fitsfile.writeto(path_fits_astropy)
-											finally:
-												os.remove(path_fits_astropy)
-									compare = vx.open(path)
-									column_names = column_names or ["x", "y", "f", "z"]
-									# TODO: does the order matter?
-									self.assertEqual(sorted(compare.get_column_names()), sorted(column_names + (["random_index"] if shuffle else [])))
-									for column_name in column_names:
-										values = dataset.evaluate(column_name)
-										if selection:
-											self.assertEqual(sorted(compare.columns[column_name]), sorted(values[dataset.mask]))
+								for virtual in [False, True]:
+									for export in [dataset.export_fits, dataset.export_hdf5] if byteorder == ">" else [dataset.export_hdf5]:
+										print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length(), virtual)
+										#print dataset.full_length()
+										#print len(dataset)
+										if export == dataset.export_hdf5:
+											path = path_hdf5
+											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
 										else:
-											if shuffle:
-												indices = compare.columns["random_index"]
-												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[indices]))
+											path = path_fits
+											export(path, column_names=column_names, shuffle=shuffle, selection=selection, progress=False, virtual=virtual)
+											with astropy.io.fits.open(path) as fitsfile:
+												# make sure astropy can read the data
+												bla = fitsfile[1].data
+												try:
+													fitsfile.writeto(path_fits_astropy)
+												finally:
+													os.remove(path_fits_astropy)
+										compare = vx.open(path)
+										if column_names is None:
+											column_names = ["x", "y", "f", "z", "name"] if virtual else ["x", "y", "f", "name"]
+										#if not virtual:
+										#	if "z" in column_names:
+										#		column_names.remove("z")
+										# TODO: does the order matter?
+										self.assertEqual(sorted(compare.get_column_names(strings=True)), sorted(column_names + (["random_index"] if shuffle else [])))
+										for column_name in column_names:
+											values = dataset.evaluate(column_name)
+											if selection:
+												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[dataset.mask]))
 											else:
-												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[:length]))
-									compare.close_files()
+												if shuffle:
+													indices = compare.columns["random_index"]
+													self.assertEqual(sorted(compare.columns[column_name]), sorted(values[indices]))
+												else:
+													self.assertEqual(sorted(compare.columns[column_name]), sorted(values[:length]))
+										compare.close_files()
 
 				# self.dataset_concat_dup references self.dataset, so set it's active_fraction to 1 again
 				dataset.set_active_fraction(1)
@@ -741,6 +782,14 @@ class TestDataset(unittest.TestCase):
 
 
 		pass # TODO
+
+	def test_selection_in_handler(self):
+		self.dataset.select("x > 5")
+		# in the handler, we should know there is not selection
+		def check(*ignore):
+			self.assertFalse(self.dataset.has_selection())
+		self.dataset.signal_selection_changed.connect(check)
+		self.dataset.select_nothing()
 
 	def test_favorite_selections(self):
 		self.dataset.select("x > 5")
@@ -918,7 +967,6 @@ class TestDatasetRemote(TestDataset):
 
 	def test_byte_size(self):
 		pass # we don't know the selection's length for dataset remote..
-
 
 """
 

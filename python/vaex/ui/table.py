@@ -38,7 +38,7 @@ class FullTableModel(QtCore.QAbstractTableModel):
 		return self.page * self.page_size
 
 	def get_column_names(self):
-		return self.dataset.get_column_names(virtual=True, hidden=True)
+		return self.dataset.get_column_names(virtual=True, hidden=True, strings=True)
 
 	def columnCount(self, parent): 
 		#return self.dataset.column_count()+1

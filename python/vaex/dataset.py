@@ -573,6 +573,9 @@ class Subspace(object):
 	def selected(self):
 		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
 
+	def asynchronous(self):
+		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=True, masked=self.is_masked)
+
 	def image_rgba_save(self, filename, data=None, rgba8=None, **kwargs):
 		if rgba8 is not None:
 			data = self.image_rgba_data(rgba8=rgba8, **kwargs)
@@ -604,8 +607,9 @@ class Subspace(object):
 		img.save(f, format)
 		return f.getvalue()
 
-	def image_rgba_url(self, **kwargs):
-		rgba8 = self.image_rgba(**kwargs)
+	def image_rgba_url(self, rgba8=None, **kwargs):
+		if rgba8 is None:
+			rgba8 = self.image_rgba(**kwargs)
 		import PIL.Image
 		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
 		import StringIO
@@ -655,12 +659,12 @@ class Subspace(object):
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=10, cmap="afmhot",
 			 pre_blend=False, background_color="white", background_alpha=1., normalize=True, color=None):
 		f = _parse_f(f)
-		limits = self.limits(limits)
-		if limits is None:
-			limits = self.limits_sigma()
-		if group_limits is None and group_by:
-			group_limits = tuple(self.dataset(group_by).minmax()[0]) + (group_count,)
 		if grid is None:
+			limits = self.limits(limits)
+			if limits is None:
+				limits = self.limits_sigma()
+			if group_limits is None and group_by:
+				group_limits = tuple(self.dataset(group_by).minmax()[0]) + (group_count,)
 			grid = self.histogram(limits=limits, size=size, weight=weight, group_limits=group_limits, group_by=group_by)
 			if grid is None: # cancel occured
 				return
@@ -874,6 +878,27 @@ class Subspace(object):
 		return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
 		#pylab.ylim(-1, 6)
 
+
+	def plot_histogram_bq(self, f="identity", size=64, limits=None, color="red", bq_cleanup=True):
+		import vaex.ext.bqplot
+		limits = self.limits(limits)
+		plot = vaex.ext.bqplot.BqplotHistogram(self, color, size, limits)
+		if not hasattr(self, "_bqplot"):
+			self._bqplot = {}
+			self._bqplot["cleanups"] = []
+		else:
+			if bq_cleanup:
+				for cleanup in self._bqplot["cleanups"]:
+					cleanup()
+			self._bqplot["cleanups"] = []
+
+		def cleanup(callback=plot.callback):
+			self.dataset.signal_selection_changed.disconnect(callback=callback)
+		self._bqplot["cleanups"].append(cleanup)
+
+		return plot
+
+
 	def plot_bq(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
 			 aspect="auto", f="identity", fig=None, axes=None, xlabel=None, ylabel=None, title=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=None,
@@ -961,7 +986,7 @@ class Subspace(object):
 				sub = self
 			return sub.image_rgba(limits=limits, size=size, f=f)
 		progress = widgets.FloatProgress(value=0.0, min=0.0, max=1.0, step=0.01)
-		updater = vaex.ext.bqplot.DebouncedThreadedUpdater(self.dataset, im, make_image, progress_widget=progress)
+		updater = vaex.ext.bqplot.DebouncedThreadedUpdater(self, size, im, make_image, progress_widget=progress)
 		def update_image():
 			limits = [x_scale.min, x_scale.max], [y_scale.min, y_scale.max]
 			#\print limits
@@ -999,7 +1024,8 @@ class Subspace(object):
 				updater.update_select(f)
 			brush.observe(update_selection, "selected")
 			#fig.interaction = brush
-			callback = self.dataset.signal_selection_changed.connect(lambda dataset: update_image())
+			#callback = self.dataset.signal_selection_changed.connect(lambda dataset: update_image())
+			callback = self.dataset.signal_selection_changed.connect(lambda dataset: updater.update_direct_safe())
 			def cleanup(callback=callback):
 				self.dataset.signal_selection_changed.disconnect(callback=callback)
 			self._bqplot["cleanups"].append(cleanup)
@@ -1508,7 +1534,7 @@ class _BlockScope(object):
 		if variable in expression_namespace:
 			return expression_namespace[variable]
 		try:
-			if variable in self.dataset.get_column_names():
+			if variable in self.dataset.get_column_names(strings=True):
 				if self.dataset._needs_copy(variable):
 					#self._ensure_buffer(variable)
 					#self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
@@ -1800,7 +1826,7 @@ class Dataset(object):
 
 
 	def dtype(self, expression):
-		if expression in self.get_column_names():
+		if expression in self.columns.keys():
 			return self.columns[expression].dtype
 		else:
 			return np.zeros(1, dtype=np.float64).dtype
@@ -1961,13 +1987,13 @@ class Dataset(object):
 		try:
 			path = os.path.join(self.get_private_dir(create=False), "virtual_meta.yaml")
 			if os.path.exists(path):
-					meta_info = vaex.utils.read_json_or_yaml(path)
-					self.virtual_columns.update(meta_info["virtual_columns"])
-					self.variables.update(meta_info["variables"])
-					self.ucds.update(meta_info["ucds"])
-					self.descriptions.update(meta_info["descriptions"])
-					units = {key:astropy.units.Unit(value) for key, value in meta_info["units"].items()}
-					self.units.update(units)
+				meta_info = vaex.utils.read_json_or_yaml(path)
+				self.virtual_columns.update(meta_info["virtual_columns"])
+				self.variables.update(meta_info["variables"])
+				self.ucds.update(meta_info["ucds"])
+				self.descriptions.update(meta_info["descriptions"])
+				units = {key:astropy.units.Unit(value) for key, value in meta_info["units"].items()}
+				self.units.update(units)
 		except:
 			logger.exception("non fatal error")
 
@@ -1989,7 +2015,7 @@ class Dataset(object):
 		units = {key:str(value) for key, value in self.units.items()}
 		meta_info = dict(description=self.description,
 						 ucds=self.ucds, units=units, descriptions=self.descriptions,
-)
+						 )
 		vaex.utils.write_json_or_yaml(path, meta_info)
 
 	def update_meta(self):
@@ -2172,8 +2198,8 @@ class Dataset(object):
 		l1 = lon1
 		l2 = lon2
 		# from http://www.movable-type.co.uk/scripts/latlong.html
-		expr = "arctan2(sin({l2}-{l1}) * cos({p2}), cos({p1})*sin({p2}) - sin({p1})*cos({p2})*cos({l2}-{l1}))"\
-		.format(**locals())
+		expr = "arctan2(sin({l2}-{l1}) * cos({p2}), cos({p1})*sin({p2}) - sin({p1})*cos({p2})*cos({l2}-{l1}))" \
+			.format(**locals())
 		self.add_virtual_column("bearing", expr)
 
 	def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name, matrix_is_expression=False):
@@ -2273,9 +2299,9 @@ class Dataset(object):
 		self.add_virtual_column(pm_long_out, "({c1} * {pm_long} + {c2} * {pm_lat})/sqrt({c1}**2+{c2}**2)".format(**locals()))
 		self.add_virtual_column(pm_lat_out, "(-{c2} * {pm_long} + {c1} * {pm_lat})/sqrt({c1}**2+{c2}**2)".format(**locals()))
 
-		#mu
+	#mu
 
-		#self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
+	#self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
 
 	def add_virtual_columns_lbrvr_proper_motion2vcartesian(self, long_in, lat_in, distance, pm_long, pm_lat, vr, vx, vy, vz, name_prefix="__lbvr_proper_motion2vcartesian", center_v=(0,0,0), center_v_name="solar_motion", radians=False):
 		"""Convert radial velocity and galactic proper motions (and positions) to cartesian velocities wrt the center_v
@@ -2306,17 +2332,17 @@ class Dataset(object):
 			al_NGP = 192.85948
 			d_NGP = 27.12825
 			c = numpy.matrix([
-					[cosd(al_NGP),  sind(al_NGP), 0],
-					[sind(al_NGP), -cosd(al_NGP), 0],
-					[0, 0, 1]])
+				[cosd(al_NGP),  sind(al_NGP), 0],
+				[sind(al_NGP), -cosd(al_NGP), 0],
+				[0, 0, 1]])
 			b = numpy.matrix([
-					[-sind(d_NGP), 0, cosd(d_NGP)],
-					[0, -1, 0],
-					[cosd(d_NGP), 0, sind(d_NGP)]])
+				[-sind(d_NGP), 0, cosd(d_NGP)],
+				[0, -1, 0],
+				[cosd(d_NGP), 0, sind(d_NGP)]])
 			a = numpy.matrix([
-					[cosd(theta0),  sind(theta0), 0],
-					[sind(theta0), -cosd(theta0), 0],
-					[0, 0, 1]])
+				[cosd(theta0),  sind(theta0), 0],
+				[sind(theta0), -cosd(theta0), 0],
+				[0, 0, 1]])
 			T = a*b*c
 		self.add_variable("k", k)
 		A = [["cos({a})*cos({d})",  "-sin({a})", "-cos({a})*sin({d})"],
@@ -2330,7 +2356,7 @@ class Dataset(object):
 		for i in range(3):
 			for j in range(3):
 				A[i][j] = A[i][j].format(**locals())
-		self.add_virtual_columns_matrix3d(vr, "k*{pm_long}*{distance}".format(**locals()), "k*{pm_lat}*{distance}".format(**locals()), name_prefix +vx, name_prefix +vy, name_prefix +vz,\
+		self.add_virtual_columns_matrix3d(vr, "k*{pm_long}*{distance}".format(**locals()), "k*{pm_lat}*{distance}".format(**locals()), name_prefix +vx, name_prefix +vy, name_prefix +vz, \
 										  A, name_prefix+"_matrix", matrix_is_expression=True)
 		self.add_variable(center_v_name, center_v)
 		self.add_virtual_column(vx, "%s + %s[0]" % (name_prefix +vx, center_v_name))
@@ -2355,7 +2381,7 @@ class Dataset(object):
 		self.add_virtual_column(x_in, "cos({long_in})*cos({lat_in})".format(**locals()))
 		self.add_virtual_column(y_in, "sin({long_in})*cos({lat_in})".format(**locals()))
 		self.add_virtual_column(z_in, "sin({lat_in})".format(**locals()))
-		self.add_virtual_columns_matrix3d(x_in, y_in, z_in, x_out, y_out, z_out,\
+		self.add_virtual_columns_matrix3d(x_in, y_in, z_in, x_out, y_out, z_out, \
 										  matrix, name_prefix+"_matrix")
 		#long_out_expr = "arctan2({y_out},{x_out})".format(**locals())
 		#lat_out_expr = "arctan2({z_out},sqrt({x_out}**2+{y_out}**2))".format(**locals())
@@ -2370,8 +2396,8 @@ class Dataset(object):
 		self.add_virtual_column(long_out, "arctan2({y}, {x}){transform}".format(**locals()))
 		self.add_virtual_column(lat_out, "(-arccos({z}/sqrt({x}**2+{y}**2+{z}**2))+pi/2){transform}".format(**locals()))
 
-		#self.add_virtual_column(long_out, long_out_expr)
-		#self.add_virtual_column(lat_out, lat_out_expr)
+	#self.add_virtual_column(long_out, long_out_expr)
+	#self.add_virtual_column(lat_out, lat_out_expr)
 
 
 
@@ -2432,8 +2458,8 @@ class Dataset(object):
 		#self.add_virtual_column(alpha, "((arctan2({y}, {x}) + 2*pi) % (2*pi)){transform}".format(**locals()))
 		self.add_virtual_column(alpha, "arctan2({y}, {x}){transform}".format(**locals()))
 		self.add_virtual_column(delta, "(-arccos({z}/{distance})+pi/2){transform}".format(**locals()))
-		#self.add_virtual_column(long_out, "((arctan2({y}, {x})+2*pi) % (2*pi)){transform}".format(**locals()))
-		#self.add_virtual_column(lat_out, "(-arccos({z}/sqrt({x}**2+{y}**2+{z}**2))+pi/2){transform}".format(**locals()))
+	#self.add_virtual_column(long_out, "((arctan2({y}, {x})+2*pi) % (2*pi)){transform}".format(**locals()))
+	#self.add_virtual_column(lat_out, "(-arccos({z}/sqrt({x}**2+{y}**2+{z}**2))+pi/2){transform}".format(**locals()))
 
 	def add_virtual_columns_aitoff(self, alpha, delta, x, y, radians=True):
 		"""Add aitoff (https://en.wikipedia.org/wiki/Aitoff_projection) projection
@@ -2547,7 +2573,7 @@ class Dataset(object):
 		"""Returns the number of columns, not counting virtual ones"""
 		return len(self.column_names)
 
-	def get_column_names(self, virtual=False, hidden=False):
+	def get_column_names(self, virtual=False, hidden=False, strings=False):
 		"""Return a list of column names
 
 
@@ -2555,7 +2581,8 @@ class Dataset(object):
 		:param hidden: If True, also return hidden columns
 		:rtype: list of str
  		"""
-		return list(self.column_names) + ([key for key in self.virtual_columns.keys() if (hidden or (not key.startswith("__")))] if virtual else [])
+		return list([name for name in self.column_names if strings or self.dtype(name).type != np.string_]) \
+			   + ([key for key in self.virtual_columns.keys() if (hidden or (not key.startswith("__")))] if virtual else [])
 
 	def __len__(self):
 		"""Returns the number of rows in the dataset, if active_fraction != 1, then floor(active_fraction*full_length) is returned"""
@@ -2670,7 +2697,9 @@ class Dataset(object):
 
 	def select_nothing(self, selection_name="default"):
 		"""Select nothing"""
+		logger.debug("selecting nothing")
 		self.select(None, selection_name=selection_name)
+	#self.signal_selection_changed.emit(self)
 
 	def select_rectangle(self, expression_x, expression_y, limits, mode="replace"):
 		(x1, x2), (y1, y2) = limits
@@ -2731,6 +2760,10 @@ class Dataset(object):
 		current = selection_history[previous_index] if selection_history else None
 		selection = create_selection(current)
 		executor = executor or self.executor
+		selection_history.append(selection)
+		self.selection_history_indices[selection_name] += 1
+		# clip any redo history
+		del selection_history[self.selection_history_indices[selection_name]:-1]
 		if self.is_local():
 			if selection:
 				result = selection.execute(executor=executor, execute_fully=execute_fully)
@@ -2740,10 +2773,6 @@ class Dataset(object):
 		else:
 			self.signal_selection_changed.emit(self)
 			result = vaex.promise.Promise.fulfilled(None)
-		selection_history.append(selection)
-		self.selection_history_indices[selection_name] += 1
-		# clip any redo history
-		del selection_history[self.selection_history_indices[selection_name]:-1]
 		logger.debug("select selection history is %r, index is %r", selection_history, self.selection_history_indices[selection_name])
 		return result
 
@@ -2925,7 +2954,7 @@ class DatasetLocal(Dataset):
 			scope.buffers[expression] = out
 		return scope.evaluate(expression)
 
-	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
+	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False):
 		"""Exports the dataset to a vaex hdf5 file
 
 		:param DatasetLocal dataset: dataset to export
@@ -2939,9 +2968,9 @@ class DatasetLocal(Dataset):
 		:param: bool virtual: When True, export virtual columns
 		:return:
 		"""
-		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress)
+		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual)
 
-	def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None):
+	def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=False):
 		"""Exports the dataset to a fits file that is compatible with TOPCAT colfits format
 
 		:param DatasetLocal dataset: dataset to export
@@ -2954,16 +2983,16 @@ class DatasetLocal(Dataset):
 		:param: bool virtual: When True, export virtual columns
 		:return:
 		"""
-		vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress)
+		vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual)
 
 	def _needs_copy(self, column_name):
 		return not \
-			(column_name in self.column_names  \
+			((column_name in self.column_names  \
 			and not isinstance(self.columns[column_name], vaex.dataset._ColumnConcatenatedLazy)\
 			and not isinstance(self.columns[column_name], vaex.dataset.DatasetTap.TapColumn)\
 			and self.columns[column_name].dtype.type==np.float64 \
 			and self.columns[column_name].strides[0] == 8 \
-			and column_name not in self.virtual_columns)
+			and column_name not in self.virtual_columns) or self.dtype(column_name).kind == 'S')
 				#and False:
 
 	def selected_length(self):
@@ -2987,7 +3016,11 @@ class _ColumnConcatenatedLazy(object):
 		if all([dtype.type == np.datetime64 for dtype in dtypes]):
 			self.dtype = dtypes[0]
 		else:
-			self.dtype = np.find_common_type(dtypes, [])
+			if all([dtype == dtypes[0] for dtype in dtypes]): # find common types doesn't always behave well
+				self.dtype = dtypes[0]
+			else:
+				self.dtype = np.find_common_type(dtypes, [])
+			logger.debug("common type for %r is %r", dtypes, self.dtype)
 		self.shape = (len(self), ) + self.datasets[0].columns[self.column_name].shape[1:]
 		for i in range(1, len(datasets)):
 			c0 = self.datasets[0].columns[self.column_name]
@@ -3045,11 +3078,11 @@ class DatasetConcatenated(DatasetLocal):
 		self.name = name or "-".join(ds.name for ds in self.datasets)
 		self.path =  "-".join(ds.path for ds in self.datasets)
 		first, tail = datasets[0], datasets[1:]
-		for column_name in first.get_column_names():
-			if all([column_name in dataset.get_column_names() for dataset in tail]):
+		for column_name in first.get_column_names(strings=True):
+			if all([column_name in dataset.get_column_names(strings=True) for dataset in tail]):
 				self.column_names.append(column_name)
 		self.columns = {}
-		for column_name in self.get_column_names():
+		for column_name in self.get_column_names(strings=True):
 			self.columns[column_name] = _ColumnConcatenatedLazy(datasets, column_name)
 
 		for name in list(first.virtual_columns.keys()):
@@ -3062,6 +3095,13 @@ class DatasetConcatenated(DatasetLocal):
 
 		self._full_length = sum(ds.full_length() for ds in self.datasets)
 		self._length = self.full_length()
+
+def _is_dtype_ok(dtype):
+	return dtype in [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.float64] or\
+		dtype.type == np.string_
+
+def _is_array_type_ok(array):
+	return _is_dtype_ok(array.dtype)
 
 class DatasetArrays(DatasetLocal):
 	"""Represent an in-memory dataset of numpy arrays, see :func:`from_arrays` for usage."""
@@ -3079,13 +3119,14 @@ class DatasetArrays(DatasetLocal):
 		:param str name: name of column
 		:param data: numpy array with the data
 		"""
+		assert _is_array_type_ok(data), "dtype not supported: %r, %r" % (data.dtype, data.dtype.type)
 		self.column_names.append(name)
 		self.columns[name] = data
 		#self._length = len(data)
 		if self._full_length is None:
 			self._full_length = len(data)
 		else:
-			assert self.full_length() == len(data), "columns should be of equal length"
+			assert self.full_length() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.full_length(), len(data))
 		self._length = int(round(self.full_length() * self._active_fraction))
 		#self.set_active_fraction(self._active_fraction)
 
@@ -3410,9 +3451,11 @@ class FitsBinTable(DatasetMemoryMapped):
 
 								bytessize = dtype.itemsize
 								logger.debug("%r", (column.name, dtype, column.format, column.dim, length, bytessize, arraylength))
-								if (flatlength > 0) and dtypecode != "a": # TODO: support strings
-									logger.debug("%r", (column.name, offset, dtype, length))
-									if arraylength == 1:
+								if (flatlength > 0): # and dtypecode != "a": # TODO: support strings
+									if dtypecode == "a": # for ascii, we need to add the length again..
+										dtypecode += str(arraylength)
+									logger.debug("column type: %r", (column.name, offset, dtype, length, column.format, column.dim))
+									if arraylength == 1 or dtypecode[0] == "a":
 										self.addColumn(column_name, offset=offset, dtype=dtype, length=length)
 									else:
 										for i in range(arraylength):
@@ -3611,6 +3654,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 						dtype = column.dtype
 						if "dtype" in column.attrs:
 							dtype = column.attrs["dtype"]
+						logger.debug("adding column %r with dtype %r", column_name, dtype)
 						self.addColumn(column_name, offset, len(column), dtype=dtype)
 					else:
 
