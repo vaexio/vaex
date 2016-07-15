@@ -303,10 +303,10 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 		elif parts[0] == "datasets":
 			if len(parts) == 1:
 				#
-				response = dict(result=[{"name":ds.name, "full_length":ds.full_length(), "column_names":ds.get_column_names(),
+				response = dict(result=[{"name":ds.name, "full_length":ds.full_length(), "column_names":ds.get_column_names(strings=True),
 										 "description": ds.description, "descriptions":ds.descriptions,
 										 "ucds":ds.ucds, "units":{name:str(unit) for name, unit in ds.units.items()},
-										 "dtypes":{name:ds.columns[name].dtype.name for name in ds.get_column_names()},
+										 "dtypes":{name:str(ds.columns[name].dtype) for name in ds.get_column_names(strings=True)},
 										 "virtual_columns":dict(ds.virtual_columns),
 										 } for ds in webserver.datasets])
 				logger.debug("response: %r", response)
@@ -353,18 +353,23 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							logger.debug("setting virtual_columns to: %r", virtual_columns)
 							for key, value in virtual_columns:
 								dataset.add_virtual_column(key, value)
+								try:
+									dataset.validate_expression(value)
+								except (SyntaxError, KeyError, NameError) as e:
+									return exception(e)
 						if expressions:
 							for expression in expressions:
-								dataset.validate_expression(expression)
-							for key, value in virtual_columns:
-								dataset.validate_expression(value)
-						for name in "expressions active_fraction selection variables virtual_columns".split():
-							arguments.pop(name, None)
+								try:
+									dataset.validate_expression(expression)
+								except (SyntaxError, KeyError, NameError) as e:
+									return exception(e)
 						subspace = dataset(*expressions, executor=webserver.thread_local.executor) if expressions else None
 						try:
 							if subspace:
 								if "selection" in arguments:
 									subspace = subspace.selected()
+							for name in "job_id expressions active_fraction selection variables virtual_columns".split():
+								arguments.pop(name, None)
 							logger.debug("subspace: %r", subspace)
 							if method_name in ["minmax", "image_rgba_url", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
 								#print "expressions", expressions
