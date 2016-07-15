@@ -79,7 +79,7 @@ class ServerRest(object):
 
 		def ioloop_threaded():
 			logger.debug("creating tornado io_loop")
-			self.io_loop = tornado.ioloop.IOLoop().instance()
+			self.io_loop = tornado.ioloop.IOLoop().current()
 			event.set()
 			logger.debug("started tornado io_loop...")
 
@@ -87,13 +87,14 @@ class ServerRest(object):
 			logger.debug("stopped tornado io_loop")
 
 		io_loop = tornado.ioloop.IOLoop.current(instance=False)
-		if io_loop is None:
+		if True:# io_loop:# is None:
 			logger.debug("no current io loop, starting it in thread")
 			thread = threading.Thread(target=ioloop_threaded)
 			thread.setDaemon(True)
 			thread.start()
 			event.wait()
 		else:
+			logger.debug("using current io loop")
 			self.io_loop = io_loop
 
 		self.io_loop.make_current()
@@ -107,8 +108,18 @@ class ServerRest(object):
 		self.submit = self.submit_http
 
 		if self.use_websocket:
+			logger.debug("connect via websocket")
 			self.submit = self.submit_websocket
 			self._websocket_connect()
+			logger.debug("websocket connected")
+
+	def close(self):
+		#self.http_client_async.
+		self.http_client.close()
+		if self.use_websocket:
+			if self.websocket:
+					self.websocket.close()
+
 
 	def _websocket_connect(self):
 		def connected(websocket):
@@ -123,13 +134,23 @@ class ServerRest(object):
 			self.websocket_connected.fulfill(connected)
 		def do():
 			try:
+				logger.debug("wrapping promise")
 				connected = wrap_future_with_promise(tornado.websocket.websocket_connect(self._build_url("websocket"), on_message_callback=self._on_websocket_message))
+				logger.debug("continue")
 				self.websocket_connected.fulfill(connected)
 			except:
 				logger.exception("error connecting")
 				#raise
+		logger.debug("add callback")
 		self.io_loop.add_callback(do)
+		logger.debug("added callback: ")
+		#self.io_loop.start()
+		#if self.port == 29345:
+		#	import pdb
+		#	pdb.set_trace()
+		logger.debug("waiting for connection")
 		result = self.websocket_connected.get()
+		logger.debug("websocket connected")
 		if self.websocket_connected.isRejected:
 			raise self.websocket.reason
 
@@ -420,7 +441,8 @@ class DatasetRest(DatasetRemote):
 		self.server = server
 		self.name = name
 		self.column_names = column_names
-		self.dtypes = {name: np.zeros(1, dtype=getattr(np, dtype)).dtype for name, dtype in dtypes.items()}
+		#self.dtypes = {name: np.zeros(1, dtype=getattr(np, dtype)).dtype for name, dtype in dtypes.items()}
+		self.dtypes = {name: np.dtype(dtype) for name, dtype in dtypes.items()}
 		self.units = {name: astropy.units.Unit(unit) for name, unit in units.items()}
 		self.virtual_columns.update(virtual_columns or {})
 		self.ucds = ucds
@@ -437,7 +459,7 @@ class DatasetRest(DatasetRemote):
 		self.executor = ServerExecutor()
 
 	def dtype(self, expression):
-		if expression in self.get_column_names():
+		if expression in self.dtypes:
 			return self.dtypes[expression]
 		else:
 			return np.zeros(1, dtype=np.float64).dtype
