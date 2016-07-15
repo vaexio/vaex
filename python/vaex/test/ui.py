@@ -37,7 +37,7 @@ def get_comparison_image(name):
 #logging.getLogger("vaex.ui.queue").setLevel(logging.DEBUG)
 #logging.getLogger("vaex.ui").setLevel(logging.DEBUG)
 vx.set_log_level_warning()
-vx.set_log_level_debug()
+#vx.set_log_level_debug()
 import logging
 logger = logging.getLogger("vaex.test.ui")
 
@@ -169,6 +169,9 @@ class _TestPlotPanel(unittest.TestCase):
 	def create_app(self):
 		self.app = vx.ui.main.VaexApp([], open_default=True)
 	def setUp(self):
+		vaex.dataset.main_executor = None
+		vaex.dataset.main_executor = None
+		vaex.multithreading.main_pool = None
 		self.create_app()
 		self.app.show()
 		self.app.hide()
@@ -240,6 +243,9 @@ class _TestPlotPanel(unittest.TestCase):
 		self.assertTrue(self.no_error_in_field)
 
 	def compare(self, fn1, fn2):
+		if not os.path.exists(fn2) and overwrite_images:
+			import shutil
+			shutil.copy(fn1, fn2)
 		assert os.path.exists(fn2), "image missing: cp {im1} {im2}".format(im1=fn1, im2=fn2)
 
 		try:
@@ -277,7 +283,7 @@ class TestPlotPanel1d(_TestPlotPanel):
 		QtTest.QTest.mouseClick(button, QtCore.Qt.LeftButton)
 
 	def test_x(self):
-		QtTest.QTest.qWait(self.window.queue_update.default_delay)
+		#QtTest.QTest.qWait(self.window.queue_update.default_delay)
 		self.window._wait()
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_x"))
@@ -299,7 +305,7 @@ class TestPlotPanel2d(_TestPlotPanel):
 
 
 	def test_xy(self):
-		QtTest.QTest.qWait(self.window.queue_update.default_delay)
+		#QtTest.QTest.qWait(self.window.queue_update.default_delay)
 		self.window._wait()
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_xy"))
@@ -470,41 +476,49 @@ class TestPlotPanel2d(_TestPlotPanel):
 		self.no_error_in_field = True
 
 import sys
-test_port = 29210 + sys.version_info[0] * 10 + sys.version_info[1]
+test_port = 29310 + sys.version_info[0] * 10 + sys.version_info[1]
 
 class TestPlotPanel2dRemote(TestPlotPanel2d):
 	use_websocket = True
 	def create_app(self):
+		logger.debug("create app")
 		global test_port
 		self.app = vx.ui.main.VaexApp([], open_default=False)
 		self.dataset_default = vaex.example()
 		datasets = [self.dataset_default]
 		self.webserver = vaex.webserver.WebServer(datasets=datasets, port=test_port)
 		#print "serving"
+		logger.debug("serve server")
 		self.webserver.serve_threaded()
 		#print "getting server object"
 		scheme = "ws" if self.use_websocket else "http"
+		logger.debug("get from server")
 		self.server = vx.server("%s://localhost:%d" % (scheme, test_port), thread_mover=self.app.call_in_main_thread)
 		datasets = self.server.datasets(as_dict=True)
+		logger.debug("got it")
 
 		self.dataset = datasets[self.dataset_default.name]
 		self.app.dataset_selector.add(self.dataset)
 		test_port += 1
+		logger.debug("create app done")
 
 	def tearDown(self):
+		logger.debug("closing all")
 		#print "stop serving"
 		TestPlotPanel2d.tearDown(self)
 		self.webserver.stop_serving()
+		self.server.close()
+
 
 	def test_select_by_lasso(self):
 		pass # TODO: cannot test since DatasetRemote.selected_length it not implemented
 
-	def test_invalid_expression(self): pass
+	#def test_invalid_expression(self): pass
 	#def test_resolution_vector(self): pass
 	#def test_resolution(self): pass
 	#def test_layers(self): pass
-	def test_select_by_lasso(self): pass
-	def test_select_by_expression(self): pass
+	#def test_select_by_lasso(self): pass
+	#def test_select_by_expression(self): pass
 	#def test_xy_vxvy_as_option(self): pass
 	#def test_xy_vxvy(self): pass
 	#def test_xy_weight_r(self): pass
