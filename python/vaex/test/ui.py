@@ -165,118 +165,122 @@ class __TestPlotPanel(unittest.TestCase):
 
 from vaex.ui.plot_windows import PlotDialog
 
-class _TestPlotPanel(unittest.TestCase):
-	def create_app(self):
-		self.app = vx.ui.main.VaexApp([], open_default=True)
-	def setUp(self):
-		vaex.dataset.main_executor = None
-		vaex.dataset.main_executor = None
-		vaex.multithreading.main_pool = None
-		self.create_app()
-		self.app.show()
-		self.app.hide()
-		self.open_window()
-		self.window = self.app.current_window
-		#self.window.xlabel = ""
-		#self.window.ylabel = ""
-		self.window.set_plot_size(512, 512)
-		self.window.show()
-		self.window.hide()
-		self.layer = self.window.current_layer
-		self.layer.state.colorbar = False
-		self.no_exceptions = True
-		import sys
-		def testExceptionHook(type, value, tback):
-			self.no_exceptions = False
-			sys.__excepthook__(type, value, tback)
+# hide the class from the main namespace
+class NoTest:
+	class TestPlotPanel(unittest.TestCase):
+		def create_app(self):
+			self.app = vx.ui.main.VaexApp([], open_default=True)
+		def setUp(self):
+			vaex.dataset.main_executor = None
+			vaex.dataset.main_executor = None
+			vaex.multithreading.main_pool = None
+			self.create_app()
+			self.app.show()
+			self.app.hide()
+			self.open_window()
+			self.window = self.app.current_window
+			#self.window.xlabel = ""
+			#self.window.ylabel = ""
+			self.window.set_plot_size(512, 512)
+			self.window.show()
+			self.window.hide()
+			self.layer = self.window.current_layer
+			self.layer.state.colorbar = False
+			self.no_exceptions = True
+			import sys
+			def testExceptionHook(type, value, tback):
+				self.no_exceptions = False
+				sys.__excepthook__(type, value, tback)
 
-		sys.excepthook = testExceptionHook
+			sys.excepthook = testExceptionHook
 
-		self.no_error_in_field = True
-		def error_in_field(*args):
-			print(args)
-			self.no_error_in_field = False
-			previous_error_in_field(*args)
-		previous_error_in_field = vaex.ui.layers.LayerTable.error_in_field
-		vaex.ui.layers.LayerTable.error_in_field = error_in_field
-		def log_error(*args):
-			print("dialog error", args)
-		dialogs.dialog_error = log_error
-
-	def test_favorite_selections(self):
-		with dialogs.assertError():
-			self.window.action_selection_add_favorites.trigger()
-		self.window.current_layer.dataset.select("x > 5")
-		name = "test-selection-" + str(random.random())
-		with dialogs.settext(name):
-			self.window.action_selection_add_favorites.trigger()
-			self.assertIn(name, self.window.current_layer.dataset.favorite_selections)
-			found = 0
-			found_index = 0
-			for i, action in enumerate(self.window._favorite_selections_actions):
-				if action.text() == name:
-					found += 1
-					index = i
-			self.assertEqual(found, 1, "expect the entry to occur once, occurred %d" % found)
-		with dialogs.setchoose(index):
-			self.window.action_selection_remove_favorites.trigger()
-			self.assertNotIn(name, self.window.current_layer.dataset.favorite_selections)
-			found = 0
-			for action in self.window.menu_selection.actions():
-				if action.text() == name:
-					found += 1
-			self.assertEqual(found, 0, "expect the entry to occur be removed, but it occurred %d" % found)
-		self.window.dataset.favorite_selections.clear()
-		with dialogs.assertError():
-			self.window.action_selection_remove_favorites.trigger()
-		self.window.remove_layer()
-		with dialogs.assertError():
-			self.window.action_selection_remove_favorites.trigger()
-		with dialogs.assertError():
-			self.window.action_selection_add_favorites.trigger()
-
-	def tearDown(self):
-		for dataset in self.app.dataset_selector.datasets:
-			dataset.close_files()
-		self.window.close()
-		self.assertTrue(self.no_exceptions)
-		self.assertTrue(self.no_error_in_field)
-
-	def compare(self, fn1, fn2):
-		if not os.path.exists(fn2) and overwrite_images:
-			import shutil
-			shutil.copy(fn1, fn2)
-		assert os.path.exists(fn2), "image missing: cp {im1} {im2}".format(im1=fn1, im2=fn2)
-
-		try:
-			image1 = PIL.Image.open(fn1)
-			image2 = PIL.Image.open(fn2)
-			diff = PIL.ImageChops.difference(image1, image2)
-			extrema = diff.getextrema()
-			for i, (vmin, vmax) in enumerate(extrema):
-				msg = "difference found between {im1} and {im2} in band {band}\n $ cp {im1} {im2}".format(im1=fn1, im2=fn2, band=i)
-				if vmin != vmax and overwrite_images:
-					image1.show()
-					image2.show()
-					done = False
-					while not done:
-						answer = raw_input("is the new image ok? [y/N]").lower().strip()
-						if answer == "n":
-							self.assertEqual(vmin, 0, msg)
-							return
-						if answer == "y":
-							import shutil
-							shutil.copy(fn1, fn2)
-							return
-				self.assertEqual(vmin, 0, msg)
-				self.assertEqual(vmax, 0, msg)
-		finally:
-			pass
-			#image1.close()
-			#image2.close()
+			self.no_error_in_field = True
+			def error_in_field(*args):
+				print(args)
+				self.no_error_in_field = False
+				previous_error_in_field(*args)
+			previous_error_in_field = vaex.ui.layers.LayerTable.error_in_field
+			vaex.ui.layers.LayerTable.error_in_field = error_in_field
+			def log_error(*args):
+				print("dialog error", args)
+			dialogs.dialog_error = log_error
 
 
-class TestPlotPanel1d(_TestPlotPanel):
+		def test_favorite_selections(self):
+			with dialogs.assertError():
+				self.window.action_selection_add_favorites.trigger()
+			self.window.current_layer.dataset.select("x > 5")
+			name = "test-selection-" + str(random.random())
+			with dialogs.settext(name):
+				self.window.action_selection_add_favorites.trigger()
+				self.assertIn(name, self.window.current_layer.dataset.favorite_selections)
+				found = 0
+				found_index = 0
+				for i, action in enumerate(self.window._favorite_selections_actions):
+					if action.text() == name:
+						found += 1
+						index = i
+				self.assertEqual(found, 1, "expect the entry to occur once, occurred %d" % found)
+			with dialogs.setchoose(index):
+				self.window.action_selection_remove_favorites.trigger()
+				self.assertNotIn(name, self.window.current_layer.dataset.favorite_selections)
+				found = 0
+				for action in self.window.menu_selection.actions():
+					if action.text() == name:
+						found += 1
+				self.assertEqual(found, 0, "expect the entry to occur be removed, but it occurred %d" % found)
+			self.window.dataset.favorite_selections.clear()
+			with dialogs.assertError():
+				self.window.action_selection_remove_favorites.trigger()
+			self.window.remove_layer()
+			with dialogs.assertError():
+				self.window.action_selection_remove_favorites.trigger()
+			with dialogs.assertError():
+				self.window.action_selection_add_favorites.trigger()
+
+		def tearDown(self):
+			for dataset in self.app.dataset_selector.datasets:
+				dataset.close_files()
+				dataset.remove_virtual_meta()
+			self.window.close()
+			self.assertTrue(self.no_exceptions)
+			self.assertTrue(self.no_error_in_field)
+
+		def compare(self, fn1, fn2):
+			if not os.path.exists(fn2) and overwrite_images:
+				import shutil
+				shutil.copy(fn1, fn2)
+			assert os.path.exists(fn2), "image missing: cp {im1} {im2}".format(im1=fn1, im2=fn2)
+
+			try:
+				image1 = PIL.Image.open(fn1)
+				image2 = PIL.Image.open(fn2)
+				diff = PIL.ImageChops.difference(image1, image2)
+				extrema = diff.getextrema()
+				for i, (vmin, vmax) in enumerate(extrema):
+					msg = "difference found between {im1} and {im2} in band {band}\n $ cp {im1} {im2}".format(im1=fn1, im2=fn2, band=i)
+					if vmin != vmax and overwrite_images:
+						image1.show()
+						image2.show()
+						done = False
+						while not done:
+							answer = raw_input("is the new image ok? [y/N]").lower().strip()
+							if answer == "n":
+								self.assertEqual(vmin, 0, msg)
+								return
+							if answer == "y":
+								import shutil
+								shutil.copy(fn1, fn2)
+								return
+					self.assertEqual(vmin, 0, msg)
+					self.assertEqual(vmax, 0, msg)
+			finally:
+				pass
+				#image1.close()
+				#image2.close()
+
+
+class TestPlotPanel1d(NoTest.TestPlotPanel):
 	def open_window(self):
 		button = self.app.dataset_panel.button_histogram
 		self.assert_(len(self.app.windows) == 0)
@@ -294,7 +298,7 @@ class TestPlotPanel1d(_TestPlotPanel):
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_r"))
 
-class TestPlotPanel2d(_TestPlotPanel):
+class TestPlotPanel2d(NoTest.TestPlotPanel):
 	"""
 	:type window: PlotDialog
 	"""
