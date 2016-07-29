@@ -654,7 +654,7 @@ class Subspace(object):
 		else:
 			return value
 
-	def image_rgba(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
+	def image_rgba(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, weight_stat="mean", figsize=None,
 			 aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=10, cmap="afmhot",
 			 pre_blend=False, background_color="white", background_alpha=1., normalize=True, color=None):
@@ -665,7 +665,10 @@ class Subspace(object):
 				limits = self.limits_sigma()
 			if group_limits is None and group_by:
 				group_limits = tuple(self.dataset(group_by).minmax()[0]) + (group_count,)
-			grid = self.histogram(limits=limits, size=size, weight=weight, group_limits=group_limits, group_by=group_by)
+			if weight_stat == "mean" and weight is not None:
+				grid = self.bin_mean(weight, limits=limits, size=size, group_limits=group_limits, group_by=group_by)
+			else:
+				grid = self.histogram(limits=limits, size=size, weight=weight, group_limits=group_limits, group_by=group_by)
 			if grid is None: # cancel occured
 				return
 		import matplotlib.cm
@@ -766,7 +769,7 @@ class Subspace(object):
 			axes = pylab.gca()
 		axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], **kwargs)
 
-	def plot(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
+	def plot(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, weight_stat="mean", figsize=None,
 			 aspect="auto", f="identity", axes=None, xlabel=None, ylabel=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=None,
 			 cmap="afmhot",
@@ -805,7 +808,7 @@ class Subspace(object):
 		#if ylabel:
 		pylab.ylabel(ylabel or self.expressions[1])
 		#axes.set_aspect(aspect)
-		rgba8 = self.image_rgba(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight,
+		rgba8 = self.image_rgba(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight, weight_stat=weight_stat,
 			 f=f, axes=axes,
 			 group_by=group_by, group_limits=group_limits, group_colors=group_colors, group_count=group_count,
 			 cmap=cmap)
@@ -1797,6 +1800,8 @@ class Dataset(object):
 		self._full_length = None
 		self._active_fraction = 1
 		self._current_row = None
+		self._index_start = 0
+		self._index_end = None
 
 		self.description = None
 		self.ucds = {}
@@ -2612,7 +2617,27 @@ class Dataset(object):
 			self.select(None)
 			self.set_current_row(None)
 			self._length = int(round(self.full_length() * self._active_fraction))
+			self._index_start = 0
+			self._index_end = self._length
 			self.signal_active_fraction_changed.emit(self, value)
+
+	def get_active_range(self):
+		return self._index_start, self._index_end
+	def set_active_range(self, i1, i2):
+		"""Sets the active_fraction, set picked row to None, and remove selection
+
+		TODO: we may be able to keep the selection, if we keep the expression, and also the picked row
+		"""
+		logger.debug("set active range to: %r", (i1, i2))
+		self._active_fraction = (i2-i1) / float(self.full_length())
+		#self._fraction_length = int(self._length * self._active_fraction)
+		self._index_start = i1
+		self._index_end = i2
+		self.select(None)
+		self.set_current_row(None)
+		self._length = i2-i1
+		self.signal_active_fraction_changed.emit(self, self._active_fraction)
+
 
 	def get_selection(self, selection_name="default"):
 		"""Get the current selection object (mostly for internal use atm)"""
@@ -2877,6 +2902,7 @@ class DatasetLocal(Dataset):
 		dataset = DatasetLocal(self.name, self.path, self.column_names)
 		dataset.columns.update(self.columns)
 		dataset._full_length = self._full_length
+		dataset._index_end = self._full_length
 		dataset._length = self._length
 		dataset._active_fraction = self._active_fraction
 		if virtual:
@@ -3095,6 +3121,7 @@ class DatasetConcatenated(DatasetLocal):
 
 		self._full_length = sum(ds.full_length() for ds in self.datasets)
 		self._length = self.full_length()
+		self._index_end = self._full_length
 
 def _is_dtype_ok(dtype):
 	return dtype in [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.float64] or\
@@ -3125,6 +3152,7 @@ class DatasetArrays(DatasetLocal):
 		#self._length = len(data)
 		if self._full_length is None:
 			self._full_length = len(data)
+			self._index_end = self._full_length
 		else:
 			assert self.full_length() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.full_length(), len(data))
 		self._length = int(round(self.full_length() * self._active_fraction))
@@ -3254,6 +3282,7 @@ class DatasetMemoryMapped(DatasetLocal):
 				self.fraction = 1.
 				self._full_length = length
 				self._length = length
+				self._index_end = self._full_length
 			self._length = length
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			if array is not None:
@@ -3296,6 +3325,7 @@ class DatasetMemoryMapped(DatasetLocal):
 				self.fraction = 1.
 				self._full_length = length if not transposed else length1
 				self._length = self._full_length
+				self._index_end = self._full_length
 			self._length = length if not transposed else length1
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			rawlength = length * length1
