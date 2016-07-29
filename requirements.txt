@@ -16,3 +16,4 @@ progressbar2
 attrdict
 psutil>=1.2.1
 pandas
+pillow
