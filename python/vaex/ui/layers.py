@@ -1027,13 +1027,14 @@ class LayerTable(object):
 		self._task_signals = []
 
 	def cancel_tasks(self):
+		logger.info("cancelling tasks for layer %r", self)
 		for task in self.tasks:
 			task.cancel()
 		self.finished_tasks()
 
 	def add_tasks_ranges(self):
-		logger.debug("adding jobs for layer: %r, ranges_grid = %r", self, self.state.ranges_grid)
-		assert not self.tasks
+		logger.info("adding ranges jobs for layer: %r, previous ranges_grid = %r", self, self.state.ranges_grid)
+		assert not self.tasks, "still were tasks in queue: %r for %r" % (self.tasks, self)
 		missing = False
 		# TODO, optimize for the case when some dimensions are already known
 		for range in self.state.ranges_grid:
@@ -2134,9 +2135,13 @@ class LayerTable(object):
 			all = storage_expressions.get_all("selection", self.dataset)
 			expressions = []
 			for stored in all:
-				expressions.extend(stored["options"]["expressions"])
+				for ex in stored["options"]["expressions"]:
+					if ex not in expressions:
+						expressions.append(ex)
 			for column in self.dataset.get_column_names():
-				expressions.append("%s < 0" % column)
+				ex = "%s < 0" % column
+				if ex not in expressions:
+					expressions.append(ex)
 			cancelled = False
 			while not cancelled:
 				expression = dialogs.choose(self.plot_window, "Give expression", "Expression for selection: ", expressions, 0, True)
