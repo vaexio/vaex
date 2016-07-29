@@ -250,6 +250,7 @@ def main(argv):
 	parser.add_argument('--progress', help="show progress (default: %(default)s)", default=True, action='store_true')
 	parser.add_argument('--no-progress', dest="progress", action='store_false')
 	parser.add_argument('--shuffle', "-s", dest="shuffle", action='store_true', default=False)
+	parser.add_argument('--virtual', dest="virtual", action='store_true', default=False, help="Also export virtual columns")
 	parser.add_argument('--fraction', "-f", dest="fraction", type=float, default=1.0, help="fraction of input dataset to export")
 
 	subparsers = parser.add_subparsers(help='type of input source', dest="task")
@@ -367,11 +368,11 @@ def main(argv):
 			else:
 				columns = None
 			if columns is None:
-				columns = dataset.get_column_names()
+				columns = dataset.get_column_names(strings=True, virtual=args.virtual)
 			for column in columns:
-				if column not in dataset.get_column_names():
+				if column not in dataset.get_column_names(strings=True, virtual=True):
 					if not args.quiet:
-						print("column %r does not exist, run with --list or -l to list all columns")
+						print("column %r does not exist, run with --list or -l to list all columns" % column)
 					return 1
 
 			base, output_ext = os.path.splitext(args.output)
