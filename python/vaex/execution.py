@@ -12,6 +12,7 @@ from functools import reduce
 __author__ = 'breddels'
 
 buffer_size_default = 1e6 # TODO: this should not be fixed, larger means faster but also large memory usage
+#buffer_size_default = 1e4
 
 import threading
 import queue
@@ -24,6 +25,8 @@ import vaex.multithreading
 
 import logging
 logger = logging.getLogger("vaex.execution")
+
+
 
 thread_count_default = multiprocessing.cpu_count()
 
@@ -60,13 +63,16 @@ class Executor(object):
 		self.thread_mover = thread_mover or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
 		self._is_executing = False
 		self.lock = threading.Lock()
+		self.thread = None
 
 	def schedule(self, task):
 		self.task_queue.append(task)
+		logger.info("task added, queue: %r", self.task_queue)
 		return task
 
 	def run(self, task):
-		with self.lock:
+		#with self.lock:
+		if 1:
 			logger.debug("added task: %r" % task)
 			previous_queue = self.task_queue
 			try:
@@ -76,7 +82,33 @@ class Executor(object):
 				self.task_queue = previous_queue
 			return task._value
 
+	def execute_threaded(self):
+		if self.thread is None:
+			logger.info("starting thread for executor")
+			self.thread = threading.Thread(target=self._execute_in_thread)
+			self.thread.start()
+			self.queue_semaphore = threading.Semaphore()
+		logger.info("sending thread a msg that it can execute")
+		self.queue_semaphore.release()
+
+	def _execute_in_thread(self):
+		while True:
+			try:
+				logger.info("waiting for jobs")
+				self.queue_semaphore.acquire()
+				logger.info("got jobs")
+				if self.task_queue:
+					logger.info("executing tasks in thread: %r", self.task_queue)
+					self.execute()
+				else:
+					logger.info("empty task queue")
+			except:
+				import traceback
+				traceback.print_exc()
+				logger.error("exception occured in thread")
+
 	def execute(self):
+		logger.debug("starting with execute")
 		if self._is_executing:
 			logger.debug("nested execute call")
 			# this situation may happen since in this methods, via a callback (to update a progressbar) we enter
@@ -88,9 +120,18 @@ class Executor(object):
 		self._is_executing = True
 		try:
 			t0 = time.time()
-			logger.debug("executing queue: %r" % (self.task_queue))
 			task_queue_all = list(self.task_queue)
-			self.task_queue = []
+			if not task_queue_all:
+				logger.info("only had cancelled tasks")
+			logger.info("clearing queue")
+			#self.task_queue = [] # Ok, this was stupid.. in the meantime there may have been new tasks, instead, remove the ones we copied
+			for task in task_queue_all:
+				logger.info("remove from queue: %r", task)
+				self.task_queue.remove(task)
+			logger.info("left in queue: %r", self.task_queue)
+			task_queue_all = [task for task in task_queue_all if not task.cancelled]
+			logger.debug("executing queue: %r" % (task_queue_all))
+
 			#for task in self.task_queue:
 			#$	print task, task.expressions_all
 			datasets = set(task.dataset for task in task_queue_all)
@@ -111,6 +152,8 @@ class Executor(object):
 						task.signal_progress.emit(0)
 					block_scopes = [dataset._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
 					def process(thread_index, i1, i2):
+						i1 += dataset._index_start
+						i2 += dataset._index_start
 						if not cancelled[0]:
 							block_scope = block_scopes[thread_index]
 							block_scope.move(i1, i2)
@@ -122,7 +165,7 @@ class Executor(object):
 									task._results.append(task.map(thread_index, i1, i2, *blocks))
 								# don't call directly, since ui's don't like being updated from a different thread
 								#self.thread_mover(task.signal_progress, float(i2)/length)
-								#time.sleep(0.3)
+#								time.sleep(0.1)
 
 					length = len(dataset)
 					#print self.thread_pool.map()
@@ -144,7 +187,7 @@ class Executor(object):
 				logger.debug("execution aborted")
 				task_queue = task_queue_all
 				for task in task_queue:
-					task._result = task.reduce(task._results)
+					#task._result = task.reduce(task._results)
 					#task.reject(UserAbort("cancelled"))
 					# remove references
 					task._result = None
@@ -152,15 +195,18 @@ class Executor(object):
 			else:
 				task_queue = task_queue_all
 				for task in task_queue:
-					task._result = task.reduce(task._results)
-					task.fulfill(task._result)
-					# remove references
+					if not task.cancelled:
+						task._result = task.reduce(task._results)
+						task.fulfill(task._result)
+						# remove references
 					task._result = None
 					task._results = None
 				self.signal_end.emit()
 				# if new tasks were added as a result of this, execute them immediately
 				# TODO: we may want to include infinite recursion protection
+				self._is_executing = False
 				if len(self.task_queue) > 0:
+					logger.debug("task queue not empty.. start over!")
 					self.execute()
 		finally:
 			self._is_executing = False
