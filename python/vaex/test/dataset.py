@@ -968,6 +968,91 @@ class TestDatasetRemote(TestDataset):
 	def test_byte_size(self):
 		pass # we don't know the selection's length for dataset remote..
 
+
+import vaex.distributed
+class TestDatasetDistributed(unittest.TestCase):
+	use_websocket = True
+	def setUp(self):
+		global test_port
+		self.dataset_local = self.dataset = dataset.DatasetArrays("dataset")
+
+		self.x = x = np.arange(10)
+		self.y = y = x ** 2
+		self.dataset.add_column("x", x)
+		self.dataset.add_column("y", y)
+		datasets = [self.dataset]
+		self.webserver1 = vaex.webserver.WebServer(datasets=datasets, port=test_port)
+		self.webserver1.serve_threaded()
+		test_port += 1
+		self.webserver2 = vaex.webserver.WebServer(datasets=datasets, port=test_port)
+		self.webserver2.serve_threaded()
+		test_port += 1
+
+		scheme = "ws" if self.use_websocket else "http"
+		self.server1 = vx.server("%s://localhost:%d" % (scheme, test_port-2))
+		self.server2 = vx.server("%s://localhost:%d" % (scheme, test_port-1))
+		test_port += 1
+		datasets1 = self.server1.datasets(as_dict=True)
+		datasets2 = self.server2.datasets(as_dict=True)
+		self.datasets = [datasets1["dataset"], datasets2["dataset"]]
+		self.dataset = vaex.distributed.DatasetDistributed(self.datasets)
+
+
+
+	def tearDown(self):
+		#TestDataset.tearDown(self)
+		#print "stop serving"
+		self.webserver1.stop_serving()
+		self.webserver2.stop_serving()
+
+	def test_histogram(self):
+		print self.dataset, self.dataset.__call__
+		print self.dataset.subspace("x")
+		#self.dataset_local.set_active_range(5, 10)
+		counts = self.dataset("x").histogram([[0,10]], size=10)
+		#import pdb
+		#pdb.set_trace()
+		self.assertTrue(all(counts == 1), "counts is %r" % counts)
+
+		sums = self.dataset("x").histogram([[0,10]], size=10, weight="y")
+		assert(all(sums == self.y))
+		return
+
+		self.dataset.select("x < 5")
+		mask = self.x < 5
+
+		counts = self.dataset("x").selected().histogram([[0,10]], size=10)
+		mod_counts = counts * 1.
+		mod_counts[~mask] = 0
+		assert(all(counts == mod_counts))
+
+		mod_sums = self.y * 1.
+		mod_sums[~mask] = 0
+		sums = self.dataset("x").selected().histogram([[0,10]], size=10, weight="y")
+		assert(all(sums == mod_sums))
+
+
+		x = np.array([0, 1, 0, 1])
+		y = np.array([0, 0, 1, 1])
+		dataset = vx.from_arrays(x=x, y=y)
+		counts = dataset("x", "y").histogram([[0.,2.], [0.,2.]], size=2)
+		assert(np.all(counts == 1))
+
+		x = np.array([0, 1, 0, 1, 0, 1, 0, 1])
+		y = np.array([0, 0, 1, 1, 0, 0, 1, 1])
+		z = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+		dataset = vx.from_arrays(x=x, y=y, z=z)
+		counts = dataset("x", "y", "z").histogram([[0.,2.], [0.,2.], [0.,2.]], size=2)
+		assert(np.all(counts == 1))
+
+		x = np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1])
+		y = np.array([0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1])
+		z = np.array([0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1])
+		w = np.array([0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1,])
+		dataset = vx.from_arrays(x=x, y=y, z=z, w=w)
+		counts = dataset("x", "y", "z", "w").histogram([[0.,2.], [0.,2.], [0.,2.], [0.,2.]], size=2)
+		assert(np.all(counts == 1))
+
 """
 
 class T_estDatasetRemoteHttp(T_estDatasetRemote):
