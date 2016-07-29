@@ -342,6 +342,7 @@ class ServerRest(object):
 		arguments = dict(kwargs)
 		if not subspace.dataset.get_auto_fraction():
 			arguments["active_fraction"] = subspace.dataset.get_active_fraction()
+			arguments["active_start_index"], arguments["active_end_index"] = subspace.dataset.get_active_range()
 		selection = subspace.get_selection()
 		if selection is not None:
 			arguments["selection"] = selection.to_dict()
@@ -450,6 +451,7 @@ class DatasetRest(DatasetRemote):
 		self.description = description
 		self._full_length = full_length
 		self._length = full_length
+		self._index_end = self._length
 		#self.filename = #"http://%s:%s/%s" % (server.hostname, server.port, name)
 		self.path = self.filename = self.server._build_url("%s" % name)
 
