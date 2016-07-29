@@ -338,6 +338,10 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							if fraction is not None:
 								dataset.set_active_fraction(fraction)
 								logger.debug("auto fraction set to %f", fraction)
+						if "active_start_index" in arguments and "active_end_index" in arguments:
+							i1, i2 = arguments["active_start_index"], arguments["active_end_index"]
+							logger.debug("setting active range to: %r", (i1, i2))
+							dataset.set_active_range(i1, i2)
 
 						if "selection" in arguments:
 							selection_values = arguments["selection"]
@@ -353,9 +357,11 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							logger.debug("setting virtual_columns to: %r", virtual_columns)
 							for key, value in virtual_columns:
 								dataset.add_virtual_column(key, value)
+							for key, value in virtual_columns:
 								try:
 									dataset.validate_expression(value)
 								except (SyntaxError, KeyError, NameError) as e:
+									logger.exception("state was: %r", arguments)
 									return exception(e)
 						if expressions:
 							for expression in expressions:
@@ -368,7 +374,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							if subspace:
 								if "selection" in arguments:
 									subspace = subspace.selected()
-							for name in "job_id expressions active_fraction selection variables virtual_columns".split():
+							for name in "job_id expressions active_fraction selection variables virtual_columns active_start_index active_end_index".split():
 								arguments.pop(name, None)
 							logger.debug("subspace: %r", subspace)
 							if method_name in ["minmax", "image_rgba_url", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
