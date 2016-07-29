@@ -21,6 +21,7 @@ def main(argv):
 	parser_export.add_argument("input", help="input dataset")
 	parser_export.add_argument('output', help='output file (.yaml or .json)')
 	parser_export.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
+	parser_export.add_argument('--all', dest="all", action='store_true', default=False, help="Also export missing values (useful for having a template)")
 
 	parser_import = subparsers.add_parser('import', help='read meta info')
 	parser_import.add_argument('input', help='input meta file (.yaml or .json)')
@@ -35,7 +36,15 @@ def main(argv):
 
 	if args.task == "export":
 		ds = vaex.open(args.input)
-		output_data = dict(description=ds.description,
+		column_names = ds.get_column_names(strings=True, virtual=True)
+		if args.all:
+			output_data = dict(description=ds.description,
+						 	descriptions={name:ds.descriptions.get(name, "") for name in column_names},
+							ucds={name:ds.ucds.get(name, "") for name in column_names},
+							units={name:str(ds.units.get(name, "")) for name in column_names}, #{name:str(unit) for name, unit in ds.units.items()},
+						   )
+		else:
+			output_data = dict(description=ds.description,
 						 	descriptions=ds.descriptions,
 							ucds=ds.ucds,
 							units={name:str(unit) for name, unit in ds.units.items()},
