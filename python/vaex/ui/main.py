@@ -745,9 +745,6 @@ class DatasetPanel(QtGui.QFrame):
 			while not done:
 				pair = dataset.ucd_find(ucd_pair, exclude=exclude)
 				if pair:
-					print(ucd_pair)
-					print(pair)
-
 					action = QtGui.QAction(", ".join(pair), self)
 					action.triggered.connect(functools.partial(self.plotxy, xname=pair[0], yname=pair[1]))
 					self.menu_2d.addAction(action)
