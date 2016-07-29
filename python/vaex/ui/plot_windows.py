@@ -1209,12 +1209,12 @@ class PlotDialog(QtGui.QWidget):
 		self.update_direct()
 
 	def update_direct(self, layer=None):
-		logger.debug("update direct: ranges_viewport=%r" % (self.state.ranges_viewport, ))
+		logger.info("update plot: ranges_viewport=%r" % (self.state.ranges_viewport, ))
 		if layer:
-			logger.debug("only update layer %r (index %d)" % (layer, self.layers.index(layer)))
+			logger.info("only update layer %r (index %d)" % (layer, self.layers.index(layer)))
 			layers = [layer]
 		else:
-			logger.debug("updating all layers")
+			logger.info("updating all layers")
 			layers = self.layers
 		layers = [layer for layer in self.layers if layer.get_needs_update()]
 		if not layers:
@@ -1251,7 +1251,7 @@ class PlotDialog(QtGui.QWidget):
 		But all layers are shown with the same ranges (self.state.ranges_viewport)
 		If any of the ranges is None, take the min/max of each layer
 		"""
-		logger.debug("done with ranges, now update step2 for layers: %r", layers)
+		logger.info("done with ranges, now update step2 for layers: %r", layers)
 
 
 		for dimension in range(self.dimensions):
@@ -1280,7 +1280,7 @@ class PlotDialog(QtGui.QWidget):
 		promises_histograms_done.then(self._update_step3, self.on_error_or_cancel).end()
 
 	def _update_step3(self, layers):
-		logger.debug("done with histograms, now update step3, layers = %r" % layers)
+		logger.info("done with histograms, now update step3, layers = %r" % layers)
 		# all histograms are computed, and anything needed to visualize it
 		# for 1d histograms, we for instance want to have similar levels
 		if self.state.range_level_show is None:
@@ -1368,6 +1368,7 @@ class PlotDialog(QtGui.QWidget):
 
 
 	def zoom(self, factor, axes, x=None, y=None, delay=300, *args):
+		logger.info("zooming at location %r, with a factor of %r", (x, y), factor)
 		if self.last_ranges_viewport is None:
 			self.last_ranges_viewport = copy.deepcopy(self.state.ranges_viewport)
 		if self.last_range_level_show is None:
