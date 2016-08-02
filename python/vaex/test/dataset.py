@@ -1006,8 +1006,8 @@ class TestDatasetDistributed(unittest.TestCase):
 		self.webserver2.stop_serving()
 
 	def test_histogram(self):
-		print self.dataset, self.dataset.__call__
-		print self.dataset.subspace("x")
+		#print self.dataset, self.dataset.__call__
+		#print self.dataset.subspace("x")
 		#self.dataset_local.set_active_range(5, 10)
 		counts = self.dataset("x").histogram([[0,10]], size=10)
 		#import pdb
