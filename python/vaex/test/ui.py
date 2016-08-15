@@ -483,7 +483,7 @@ import sys
 test_port = 29310 + sys.version_info[0] * 10 + sys.version_info[1]
 
 class TestPlotPanel2dRemote(TestPlotPanel2d):
-	use_websocket = True
+	use_websocket = False
 	def create_app(self):
 		logger.debug("create app")
 		global test_port
