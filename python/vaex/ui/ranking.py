@@ -552,104 +552,7 @@ class RankDialog(QtGui.QDialog):
 		self.subspaceTabs[1] = self.tab1d
 		
 		def onclick(dim=2):
-			pairs1d = self.subspaceTables[1].getSelected()
-			pairsprevd = self.subspaceTables[dim-1].getSelected()
-			#print pairs1d
-			#print pairsprevd
-			newpairs = list(joinpairs(pairs1d, pairsprevd))
-			print(("newpairs", newpairs))
-			if dim not in self.subspaceTables:
-				self.tabNd = QtGui.QWidget(self.tabs)
-				self.tableNd = SubspaceTable(self, self.tabNd, self.mainPanel, self.dataset, newpairs, dim, self.properties)
-				self.tabNdlayout = QtGui.QVBoxLayout(self)
-				self.tabNdButtonLayout = QtGui.QHBoxLayout(self)
-				self.subspaceNd = QtGui.QPushButton("Create %dd subspaces" % (dim+1), self.tab1d)
-				self.plotNd = QtGui.QPushButton("Rank plot")
-				self.exportNd = QtGui.QPushButton("Export ranking")
-				if dim == len(self.dataset.column_names):
-					self.subspaceNd.setDisabled(True)
-
-				self.menu_calculate = QtGui.QMenu()
-				self.button_calculate = QtGui.QToolButton()
-				self.button_calculate.setText("Calculate")
-				self.button_calculate.setPopupMode(QtGui.QToolButton.InstantPopup)
-				#self.button_get_ranges.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
-				self.button_calculate.setMenu(self.menu_calculate)
-
-				self.tabNdButtonLayout.addWidget(self.subspaceNd)
-				self.tabNdButtonLayout.addWidget(self.button_calculate)
-				#self.tabNdButtonLayout.addWidget(self.miNd)
-				#self.tabNdButtonLayout.addWidget(self.correlationNd)
-				self.tabNdButtonLayout.addWidget(self.exportNd)
-				self.tabNdButtonLayout.addWidget(self.plotNd)
-				self.tabNdlayout.addLayout(self.tabNdButtonLayout)
-				self.subspaceNd.clicked.connect(functools.partial(onclick, dim=dim+1))
-				self.exportNd.clicked.connect(functools.partial(self.export, table=self.tableNd))
-				self.plotNd.clicked.connect(functools.partial(self.rank_plot, table=self.tableNd))
-
-
-				self.action_calculate_mi = QtGui.QAction("Calculate mutual information", self)
-				self.action_calculate_correlation = QtGui.QAction("Calculate correlation", self)
-				self.action_calculate_mi.triggered.connect(functools.partial(self.rankSubspaces, table=self.tableNd))
-				self.action_calculate_correlation.triggered.connect(functools.partial(self.calculate_correlation, table=self.tableNd))
-				self.menu_calculate.addAction(self.action_calculate_mi)
-				self.menu_calculate.addAction(self.action_calculate_correlation)
-
-
-				self.action_calculate_rank_correlation_MI_corr_kendall = QtGui.QAction("MI - correlation", self)
-				self.action_calculate_rank_correlation_MI_abs_corr_kendall = QtGui.QAction("MI - abs(correlation)", self)
-
-				self.action_calculate_rank_correlation_MI_corr_spearman = QtGui.QAction("MI - correlation", self)
-				self.action_calculate_rank_correlation_MI_abs_corr_spearman = QtGui.QAction("MI - abs(correlation)", self)
-
-				self.menu_correlation_kendall = self.menu_calculate.addMenu("Kendall's rank correlation")
-				self.menu_correlation_spearman = self.menu_calculate.addMenu("Spearman's rank correlation")
-				self.menu_correlation_kendall.setEnabled(False)
-				self.menu_correlation_spearman.setEnabled(False)
-
-				self.menu_correlation_kendall.addAction(self.action_calculate_rank_correlation_MI_corr_kendall)
-				self.menu_correlation_kendall.addAction(self.action_calculate_rank_correlation_MI_abs_corr_kendall)
-
-				self.menu_correlation_spearman.addAction(self.action_calculate_rank_correlation_MI_corr_spearman)
-				self.menu_correlation_spearman.addAction(self.action_calculate_rank_correlation_MI_abs_corr_spearman)
-
-				self.action_calculate_rank_correlation_MI_corr_kendall.triggered.connect(functools.partial(self.calculate_rank_correlation_kendall, table=self.tableNd))
-				self.action_calculate_rank_correlation_MI_abs_corr_kendall.triggered.connect(functools.partial(self.calculate_rank_correlation_kendall, table=self.tableNd, absolute=True))
-
-				self.action_calculate_rank_correlation_MI_corr_spearman.triggered.connect(functools.partial(self.calculate_rank_correlation_spearman, table=self.tableNd))
-				self.action_calculate_rank_correlation_MI_abs_corr_spearman.triggered.connect(functools.partial(self.calculate_rank_correlation_spearman, table=self.tableNd, absolute=True))
-
-
-
-				def func(index, name=""):
-					print((name, index.row(), index.column()))
-				self.tableNd.pressed.connect(functools.partial(func, name="pressed"))
-				self.tableNd.entered.connect(functools.partial(func, name="entered"))
-				self.tableNd.clicked.connect(functools.partial(func, name="clicked"))
-				self.tableNd.activated.connect(functools.partial(func, name="activated"))
-				def func(index, previous, name=""):
-					print((name, index.row(), index.column(), previous.row(), previous.column()))
-				self.selectionModel = self.tableNd.selectionModel()
-				self.selectionModel.currentChanged.connect(functools.partial(func, name="currentChanged"))
-				
-				self.filter_Nd_line_edit = QtGui.QLineEdit(self)
-				self.filter_Nd_line_edit.setPlaceholderText("Enter space seperated search terms")
-				self.filter_Nd_line_edit.textEdited.connect(functools.partial(self.onFilter, table=self.tableNd))
-				self.tabNdlayout.addWidget(self.filter_Nd_line_edit)
-
-				self.tabNdlayout.addWidget(self.tableNd)
-				#self.tab1dlayout.addWidget(self.rankButton)
-				#self.setCentralWidget(self.splitter)
-				self.tabNd.setLayout(self.tabNdlayout)
-				self.subspaceTables[dim] = self.tableNd
-				self.subspaceTabs[dim] = self.tabNd
-				
-				self.tabs.addTab(self.tabNd, "%dd" % dim)
-				self.tabs.setCurrentWidget(self.tabNd)
-			else:
-				self.subspaceTables[dim].setPairs(newpairs)
-				self.tabs.setCurrentWidget(self.subspaceTabs[dim])
-
+			self.open(dim=dim)
 		self.subspace2d = QtGui.QPushButton("create 2d subspaces", self.tab1d)
 		self.subspace2d.clicked.connect(functools.partial(onclick, dim=2))
 
@@ -762,14 +665,112 @@ class RankDialog(QtGui.QDialog):
 
 
 		if "2" in options.get("open", ""):
-			onclick(dim=2)
+			self.open(dim=2)
 		if "3" in options.get("open", ""):
-			onclick(dim=3)
+			self.open(dim=3)
 		if "4" in options.get("open", ""):
-			onclick(dim=4)
+			self.open(dim=4)
 
 		self.fill_range_map()
 
+	def open(self, dim=2):
+		pairs1d = self.subspaceTables[1].getSelected()
+		pairsprevd = self.subspaceTables[dim-1].getSelected()
+		#print pairs1d
+		#print pairsprevd
+		newpairs = list(joinpairs(pairs1d, pairsprevd))
+		print(("newpairs", newpairs))
+		if dim not in self.subspaceTables:
+			self.tabNd = QtGui.QWidget(self.tabs)
+			self.tableNd = SubspaceTable(self, self.tabNd, self.mainPanel, self.dataset, newpairs, dim, self.properties)
+			self.tabNdlayout = QtGui.QVBoxLayout(self)
+			self.tabNdButtonLayout = QtGui.QHBoxLayout(self)
+			self.subspaceNd = QtGui.QPushButton("Create %dd subspaces" % (dim+1), self.tab1d)
+			self.plotNd = QtGui.QPushButton("Rank plot")
+			self.exportNd = QtGui.QPushButton("Export ranking")
+			if dim == len(self.dataset.column_names):
+				self.subspaceNd.setDisabled(True)
+
+			self.menu_calculate = QtGui.QMenu()
+			self.button_calculate = QtGui.QToolButton()
+			self.button_calculate.setText("Calculate")
+			self.button_calculate.setPopupMode(QtGui.QToolButton.InstantPopup)
+			#self.button_get_ranges.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
+			self.button_calculate.setMenu(self.menu_calculate)
+
+			self.tabNdButtonLayout.addWidget(self.subspaceNd)
+			self.tabNdButtonLayout.addWidget(self.button_calculate)
+			#self.tabNdButtonLayout.addWidget(self.miNd)
+			#self.tabNdButtonLayout.addWidget(self.correlationNd)
+			self.tabNdButtonLayout.addWidget(self.exportNd)
+			self.tabNdButtonLayout.addWidget(self.plotNd)
+			self.tabNdlayout.addLayout(self.tabNdButtonLayout)
+			self.subspaceNd.clicked.connect(functools.partial(self.open, dim=dim+1))
+			self.exportNd.clicked.connect(functools.partial(self.export, table=self.tableNd))
+			self.plotNd.clicked.connect(functools.partial(self.rank_plot, table=self.tableNd))
+
+
+			self.action_calculate_mi = QtGui.QAction("Calculate mutual information", self)
+			self.action_calculate_correlation = QtGui.QAction("Calculate correlation", self)
+			self.action_calculate_mi.triggered.connect(functools.partial(self.rankSubspaces, table=self.tableNd))
+			self.action_calculate_correlation.triggered.connect(functools.partial(self.calculate_correlation, table=self.tableNd))
+			self.menu_calculate.addAction(self.action_calculate_mi)
+			self.menu_calculate.addAction(self.action_calculate_correlation)
+
+
+			self.action_calculate_rank_correlation_MI_corr_kendall = QtGui.QAction("MI - correlation", self)
+			self.action_calculate_rank_correlation_MI_abs_corr_kendall = QtGui.QAction("MI - abs(correlation)", self)
+
+			self.action_calculate_rank_correlation_MI_corr_spearman = QtGui.QAction("MI - correlation", self)
+			self.action_calculate_rank_correlation_MI_abs_corr_spearman = QtGui.QAction("MI - abs(correlation)", self)
+
+			self.menu_correlation_kendall = self.menu_calculate.addMenu("Kendall's rank correlation")
+			self.menu_correlation_spearman = self.menu_calculate.addMenu("Spearman's rank correlation")
+			self.menu_correlation_kendall.setEnabled(False)
+			self.menu_correlation_spearman.setEnabled(False)
+
+			self.menu_correlation_kendall.addAction(self.action_calculate_rank_correlation_MI_corr_kendall)
+			self.menu_correlation_kendall.addAction(self.action_calculate_rank_correlation_MI_abs_corr_kendall)
+
+			self.menu_correlation_spearman.addAction(self.action_calculate_rank_correlation_MI_corr_spearman)
+			self.menu_correlation_spearman.addAction(self.action_calculate_rank_correlation_MI_abs_corr_spearman)
+
+			self.action_calculate_rank_correlation_MI_corr_kendall.triggered.connect(functools.partial(self.calculate_rank_correlation_kendall, table=self.tableNd))
+			self.action_calculate_rank_correlation_MI_abs_corr_kendall.triggered.connect(functools.partial(self.calculate_rank_correlation_kendall, table=self.tableNd, absolute=True))
+
+			self.action_calculate_rank_correlation_MI_corr_spearman.triggered.connect(functools.partial(self.calculate_rank_correlation_spearman, table=self.tableNd))
+			self.action_calculate_rank_correlation_MI_abs_corr_spearman.triggered.connect(functools.partial(self.calculate_rank_correlation_spearman, table=self.tableNd, absolute=True))
+
+
+
+			def func(index, name=""):
+				print((name, index.row(), index.column()))
+			self.tableNd.pressed.connect(functools.partial(func, name="pressed"))
+			self.tableNd.entered.connect(functools.partial(func, name="entered"))
+			self.tableNd.clicked.connect(functools.partial(func, name="clicked"))
+			self.tableNd.activated.connect(functools.partial(func, name="activated"))
+			def func(index, previous, name=""):
+				print((name, index.row(), index.column(), previous.row(), previous.column()))
+			self.selectionModel = self.tableNd.selectionModel()
+			self.selectionModel.currentChanged.connect(functools.partial(func, name="currentChanged"))
+
+			self.filter_Nd_line_edit = QtGui.QLineEdit(self)
+			self.filter_Nd_line_edit.setPlaceholderText("Enter space seperated search terms")
+			self.filter_Nd_line_edit.textEdited.connect(functools.partial(self.onFilter, table=self.tableNd))
+			self.tabNdlayout.addWidget(self.filter_Nd_line_edit)
+
+			self.tabNdlayout.addWidget(self.tableNd)
+			#self.tab1dlayout.addWidget(self.rankButton)
+			#self.setCentralWidget(self.splitter)
+			self.tabNd.setLayout(self.tabNdlayout)
+			self.subspaceTables[dim] = self.tableNd
+			self.subspaceTabs[dim] = self.tabNd
+
+			self.tabs.addTab(self.tabNd, "%dd" % dim)
+			self.tabs.setCurrentWidget(self.tabNd)
+		else:
+			self.subspaceTables[dim].setPairs(newpairs)
+			self.tabs.setCurrentWidget(self.subspaceTabs[dim])
 
 
 	def onPca(self):
