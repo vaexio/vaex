@@ -152,11 +152,9 @@ class Executor(object):
 						task.signal_progress.emit(0)
 					block_scopes = [dataset._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
 					def process(thread_index, i1, i2):
-						i1 += dataset._index_start
-						i2 += dataset._index_start
 						if not cancelled[0]:
 							block_scope = block_scopes[thread_index]
-							block_scope.move(i1, i2)
+							block_scope.move(i1 + dataset._index_start, i2 + dataset._index_start)
 							#with ne_lock:
 							block_dict = {expression:block_scope.evaluate(expression) for expression in expressions}
 							for task in task_queue:
