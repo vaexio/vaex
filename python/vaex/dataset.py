@@ -72,7 +72,7 @@ def _normalize(a, axis=None):
 	a = np.copy(a) # we're gonna modify inplace, better copy iy
 	mask = np.isfinite(a)
 	a[~mask] = np.nan # put inf to nan
-	allaxis = range(len(a.shape))
+	allaxis = list(range(len(a.shape)))
 	if axis is not None:
 		if type(axis) == int:
 			axis = [axis]
