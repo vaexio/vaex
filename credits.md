@@ -1,0 +1,1 @@
+icon based on Creative Stall, https://thenounproject.com/term/telescope/389646/, Creative Commons
