@@ -94,6 +94,7 @@ class AutoStoreDict(collections.MutableMapping):
 main = Settings(os.path.join(vaex.utils.get_private_dir(), "main.yml"))
 webclient = Settings(os.path.join(vaex.utils.get_private_dir(), "webclient.yml"))
 webserver = Settings(os.path.join(vaex.utils.get_private_dir(), "webserver.yml"))
+cluster = Settings(os.path.join(vaex.utils.get_private_dir(), "cluster.yml"))
 
 #yaml.load()
 
