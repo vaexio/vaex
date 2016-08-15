@@ -1569,8 +1569,8 @@ class _BlockScope(object):
 		:return:
 		"""
 		self.dataset = dataset
-		self.i1 = i1
-		self.i2 = i2
+		self.i1 = int(i1)
+		self.i2 = int(i2)
 		self.variables = variables
 		self.values = dict(self.variables)
 		self.buffers = {}
@@ -1583,8 +1583,8 @@ class _BlockScope(object):
 		else:
 			for name in list(self.buffers.keys()):
 				self.buffers[name] = self.buffers[name][:length_new]
-		self.i1 = i1
-		self.i2 = i2
+		self.i1 = int(i1)
+		self.i2 = int(i2)
 		self.values = dict(self.variables)
 
 	def _ensure_buffer(self, column):
@@ -3021,18 +3021,15 @@ class DatasetLocal(Dataset):
 		n = _parse_n(n)
 		if type(shape) == int:
 			shape = (shape,) * 2
-		if not axes:
-			axes = []
-		if not extra:
-			extra = []
-		for expression in [z,y,x]:
+		binby = []
+		for expression in [y,x]:
 			if expression is not None:
-				axes = [expression] + axes
-		limits = self.limits(axes, limits)
+				binby = [expression] + binby
+		if extra:
+			binby.extend(extra)
+		limits = self.limits(binby, limits)
 		if figsize is not None:
 			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
-		if axes is None:
-			axes = pylab.gca()
 		fig = pylab.gcf()
 		import re
 		if facet is not None:
@@ -3044,7 +3041,7 @@ class DatasetLocal(Dataset):
 				facet_limits = [ast.literal_eval(groups[1]), ast.literal_eval(groups[2])]
 				facet_count = ast.literal_eval(groups[3])
 				limits.append(facet_limits)
-				extra.append(facet_expression)
+				binby = binby + [facet_expression]
 				shape = (facet_count,) + shape
 			else:
 				raise ValueError("Could not understand 'facet' argument %r, expected something in form: 'column:-1,10:5'" % facet)
@@ -3063,15 +3060,15 @@ class DatasetLocal(Dataset):
 					arguments = groups[1].strip()
 					functions = ["mean", "sum"]
 					if function in functions:
-						grid = getattr(self, function)(arguments, (axes+extra), limits=limits, shape=shape)
+						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape)
 					elif function == "count" and arguments == "*":
-						grid = self.histogram((axes+extra), shape=shape, limits=limits)
+						grid = self.histogram(binby, shape=shape, limits=limits)
 					else:
 						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
 				else:
 					raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
 			else:
-				grid = self.histogram(*(axes+extra), size=shape, limits=limits)
+				grid = self.histogram(binby, size=shape, limits=limits)
 		fgrid = f(grid)
 		ngrid = n(fgrid, axis=normalize_axis)
 		#reductions = [_parse_reduction(r, colormap, colors) for r in reduce]
