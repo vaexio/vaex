@@ -2990,7 +2990,7 @@ class DatasetLocal(Dataset):
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
 	def plot(self, x=None, y=None, what="count(*)", extra=None, facet=None, reduce=["colormap"], f="identity", n="normalize", normalize_axis=None,
 			 shape=256, limits=None, grid=None, colormap="afmhot", colors=["red", "green", "blue"],
-			figsize=None, xlabel=None, ylabel=None, aspect="auto",
+			figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True,
 			return_extra=False):
 		"""
 
@@ -3012,6 +3012,7 @@ class DatasetLocal(Dataset):
 		:param xlabel:
 		:param ylabel:
 		:param aspect:
+		:param: tight_layout: call pylab.tight_layout or not
 		:param return_extra:
 		:return:
 		"""
@@ -3046,8 +3047,6 @@ class DatasetLocal(Dataset):
 			else:
 				raise ValueError("Could not understand 'facet' argument %r, expected something in form: 'column:-1,10:5'" % facet)
 
-		pylab.xlabel(xlabel or x)
-		pylab.ylabel(ylabel or y)
 		#axes.set_aspect(aspect)
 		if grid is None:
 			if what:
@@ -3085,10 +3084,16 @@ class DatasetLocal(Dataset):
 				ax = pylab.subplot(rows, columns, i+1)
 				im = ax.imshow(rgrid[i], extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
 				v1, v2 = values[i], values[i+1]
+				pylab.xlabel(xlabel or x)
+				pylab.ylabel(ylabel or what)
 				ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
 				#pylab.show()
 		else:
+			pylab.xlabel(xlabel or x)
+			pylab.ylabel(ylabel or what)
 			im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+		if tight_layout:
+			pylab.tight_layout()
 		if return_extra:
 			return im, grid, fgrid, ngrid, rgrid
 		else:
@@ -3097,7 +3102,7 @@ class DatasetLocal(Dataset):
 		#return im, colorbar
 
 	def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
-		xlabel=None, ylabel=None, **kwargs):
+		xlabel=None, ylabel=None, tight_layout=True, **kwargs):
 		"""
 
 		:param x: Expression to bin in the x direction
@@ -3113,6 +3118,7 @@ class DatasetLocal(Dataset):
 		:param normalize_axis:
 		:param xlabel: String for label on x axis (may contain latex)
 		:param ylabel: Same for y axis
+		:param: tight_layout: call pylab.tight_layout or not
 		:param kwargs: extra argument passed to pylab.plot
 		:return:
 		"""
@@ -3190,7 +3196,7 @@ class DatasetLocal(Dataset):
 			values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
 			for i in range(facet_count):
 				ax = pylab.subplot(rows, columns, i+1)
-				ax.plot(xar, ngrid[i], drawstyle="steps", **kwargs)
+				value = ax.plot(xar, ngrid[i], drawstyle="steps", **kwargs)
 				v1, v2 = values[i], values[i+1]
 				pylab.xlabel(xlabel or x)
 				pylab.ylabel(ylabel or what)
@@ -3200,7 +3206,10 @@ class DatasetLocal(Dataset):
 			#im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
 			pylab.xlabel(xlabel or x)
 			pylab.ylabel(ylabel or what)
-			return pylab.plot(xar, ngrid, drawstyle="steps", **kwargs)
+			value = pylab.plot(xar, ngrid, drawstyle="steps", **kwargs)
+		if tight_layout:
+			pylab.tight_layout()
+		return value
 		#N = len(grid)
 		#xmin, xmax = limits[0]
 		#return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
