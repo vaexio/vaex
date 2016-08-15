@@ -2932,6 +2932,25 @@ class DatasetLocal(Dataset):
 			limits.append(l)
 		return limits
 
+	def percentile(self, expression, percentage=99.73):
+		limits = []
+		waslist, percentages = vaex.utils.listify(percentage)
+		values = []
+		for percentage in percentages:
+			subspace = self(expression)
+			limits_minmax = subspace.minmax()
+			vmin, vmax = limits_minmax[0]
+			size = 1024*16
+			counts = subspace.histogram(size=size, limits=limits_minmax)
+			cumcounts = np.concatenate([[0], np.cumsum(counts)])
+			cumcounts /= cumcounts.max()
+			# TODO: this is crude.. see the details!
+			f = percentage/100.
+			x = np.linspace(vmin, vmax, size+1)
+			l = scipy.interp([f], cumcounts, x)
+			values.append(l[0])
+		return vaex.utils.unlistify(waslist, values)
+
 	def limits(self, expressions, value, square=False):
 		"""TODO: doc + server side implementation"""
 		if isinstance(value, six.string_types):
@@ -2958,18 +2977,28 @@ class DatasetLocal(Dataset):
 			return value
 
 	def minmax(self, expressions, progressbar=False):
-		return self(*expressions).minmax()
-
-	def histogram(self, expressions, limits, shape=256, weight=None, progressbar=False):
 		subspace = self(*expressions)
+		if selection:
+			subspace = subspace.selected()
+		return subspace.minmax()
+
+	def histogram(self, expressions, limits, shape=256, weight=None, progressbar=False, selection=None):
+		subspace = self(*expressions)
+		if selection:
+			subspace = subspace.selected()
 		return subspace.histogram(limits=limits, size=shape, weight=weight, progressbar=progressbar)
 
-	def mean(self, expression, binby=[], limits=None, shape=256, progressbar=False):
+	def mean(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
 		if len(binby) == 0:
-			return self(expression).mean()[0]
+			subspace = self(expression)
+			if selection:
+				subspace = subspace.selected()
+			return subspace.mean()[0]
 		else:
 			# todo, fix progressbar into two...
 			subspace = self(*binby)
+			if selection:
+				subspace = subspace.selected()
 			counts = subspace.histogram(limits=limits, size=shape, progressbar=progressbar)
 			weighted = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
 									weight=expression)
@@ -2977,21 +3006,29 @@ class DatasetLocal(Dataset):
 			mean[counts==0] = np.nan
 			return mean
 
-	def sum(self, expression, binby=[], limits=None, shape=256, progressbar=False):
-		if len(by) == 0:
-			return self(expression).sum()[0]
+	def sum(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
+		if len(binby) == 0:
+			subspace = self(expression)
+			if selection:
+				subspace = subspace.selected()
+			return subspace.sum()[0]
 		else:
 			# todo, fix progressbar into two...
 			subspace = self(*binby)
+			if selection:
+				subspace = subspace.selected()
 			summed = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
 									weight=expression)
 			return summed
 
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
-	def plot(self, x=None, y=None, what="count(*)", extra=None, facet=None, reduce=["colormap"], f="identity", n="normalize", normalize_axis=None,
+	def plot(self, x=None, y=None, what="count(*)", extra=None, facet=None, facet_column_count=4, reduce=["colormap"], f="identity", n="normalize", normalize_axis=None,
+			 vmin=None, vmax=None,
 			 shape=256, limits=None, grid=None, colormap="afmhot", colors=["red", "green", "blue"],
 			figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True,
-			vmin=None, vmax=None,
+			colorbar=True,
+			selection=None,
+		 	background_color="white", pre_blend=False, background_alpha=1.,
 			return_extra=False):
 		"""
 
@@ -3000,10 +3037,13 @@ class DatasetLocal(Dataset):
 		:param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
 		:param extra: Possible extra axes
 		:param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
+		:param:facet_column_count: number of columns to use for faceting
 		:param reduce:
 		:param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
 		:param n: normalization function, currently only 'normalize' is supported
 		:param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
+		:param vmin: instead of automatic normalization, (using n and normalization _axis) scale the data between vmin and vmax to [0, 1]
+		:param vmax: see vmin
 		:param shape: shape/size of the n-D histogram grid
 		:param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
 		:param grid: if the binning is done before by yourself, you can pass it
@@ -3013,12 +3053,14 @@ class DatasetLocal(Dataset):
 		:param xlabel:
 		:param ylabel:
 		:param aspect:
-		:param: tight_layout: call pylab.tight_layout or not
+		:param tight_layout: call pylab.tight_layout or not
+		:param colorbar: plot a colorbar if True
 		:param return_extra:
 		:return:
 		"""
 		# axes order is.. [x,y,z,extra...,row,column]
 		import pylab
+		import matplotlib
 		f = _parse_f(f)
 		n = _parse_n(n)
 		if type(shape) == int:
@@ -3060,16 +3102,17 @@ class DatasetLocal(Dataset):
 					arguments = groups[1].strip()
 					functions = ["mean", "sum"]
 					if function in functions:
-						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape)
+						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
 					elif function == "count" and arguments == "*":
-						grid = self.histogram(binby, shape=shape, limits=limits)
+						grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
 					else:
 						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
 				else:
 					raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
 			else:
-				grid = self.histogram(binby, size=shape, limits=limits)
+				grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
 		fgrid = f(grid)
+		finite_mask = np.isfinite(grid)
 		if vmin is not None and vmax is not None:
 			ngrid = fgrid * 1
 			ngrid -= vmin
@@ -3087,16 +3130,19 @@ class DatasetLocal(Dataset):
 		#grid = self.reduce(grid, )
 		axes = []
 		#cax = pylab.subplot(1,1,1)
+
+		background_color = np.array(matplotlib.colors.colorConverter.to_rgb(background_color))
+
 		if facet:
 			import math
-			rows, columns = int(math.ceil(facet_count / 4.)), 4
+			rows, columns = int(math.ceil(facet_count / float(facet_column_count))), facet_column_count
 			values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
 			import matplotlib.gridspec as gridspec
 			column_scale = 4
 			gs = gridspec.GridSpec(rows, columns*column_scale+1)
 			for i in range(facet_count):
 				#ax = pylab.subplot(rows, columns, i+1)
-				row = i / 4
+				row = i / facet_column_count
 				column = i % columns
 				ax = pylab.subplot(gs[row, column*column_scale:(column+1)*column_scale])
 				axes.append(ax)
@@ -3110,8 +3156,21 @@ class DatasetLocal(Dataset):
 			pylab.xlabel(xlabel or x)
 			pylab.ylabel(ylabel or y)
 			axes.append(pylab.gca())
-			im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
-		if normalize_axis is None:
+
+			rgba = rgrid
+			rgba[~finite_mask,3] = 0
+
+			if pre_blend:
+			#	#rgba[...,3] = background_alpha
+				rgb = rgba[...,:3].T
+				alpha = rgba[...,3].T
+				rgb[:] = rgb * alpha + background_color[:3].reshape(3,1,1) * (1-alpha)
+				alpha[:] = alpha + background_alpha * (1-alpha)
+			rgba= np.clip(rgba, 0, 1)
+			rgba8 = (rgba*255).astype(np.uint8)
+
+			im = pylab.imshow(rgba8 , extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+		if normalize_axis is None and colorbar:
 			#pylab.subplot(1,1,1)
 			import matplotlib.colors
 			import matplotlib.cm
@@ -3204,6 +3263,10 @@ class DatasetLocal(Dataset):
 						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape)
 					elif function == "count" and arguments == "*":
 						grid = self.histogram(binby, shape=shape, limits=limits)
+					elif function == "cumulative" and arguments == "*":
+						# TODO: comulative should also include the tails outside limits
+						grid = self.histogram(binby, shape=shape, limits=limits)
+						grid = np.cumsum(grid)
 					else:
 						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
 				else:
