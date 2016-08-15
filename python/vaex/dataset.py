@@ -2965,7 +2965,7 @@ class DatasetLocal(Dataset):
 		return subspace.histogram(limits=limits, size=shape, weight=weight, progressbar=progressbar)
 
 	def mean(self, expression, binby=[], limits=None, shape=256, progressbar=False):
-		if len(by) == 0:
+		if len(binby) == 0:
 			return self(expression).mean()[0]
 		else:
 			# todo, fix progressbar into two...
