@@ -68,6 +68,85 @@ def _parse_f(f):
 	else:
 		return f
 
+def _normalize(a, axis=None):
+	a = np.copy(a) # we're gonna modify inplace, better copy iy
+	mask = np.isfinite(a)
+	a[~mask] = np.nan # put inf to nan
+	allaxis = range(len(a.shape))
+	if axis is not None:
+		if type(axis) == int:
+			axis = [axis]
+		for ax in axis:
+			allaxis.remove(ax)
+		axis=tuple(allaxis)
+	a = a - np.nanmin(a, axis=axis, keepdims=True)
+	a /= np.nanmax(a, axis=axis, keepdims=True)
+	return a
+
+def _parse_n(n):
+	if isinstance(n, six.string_types):
+		if n == "normalize":
+			return _normalize
+			#return lambda x: x
+		else:
+			raise ValueError("do not understand n = %s, should be a function, or string 'normalize'" % n)
+	else:
+		return n
+
+
+def _parse_reduction(name, colormap, colors):
+	if name.startswith("stack.fade"):
+		def _reduce_stack_fade(grid):
+			return grid[...,-1] # return last..
+		return _reduce_stack_fade
+	elif name.startswith("colormap"):
+		import matplotlib
+		cmap = matplotlib.cm.get_cmap(colormap)
+		def f(grid):
+			return cmap(grid)
+		return f
+	elif name.startswith("stack.color"):
+		def f(grid, colors=colors, colormap=colormap):
+			import matplotlib
+			colormap = matplotlib.cm.get_cmap(colormap)
+			if isinstance(colors, six.string_types):
+				colors = matplotlib.cm.get_cmap(colors)
+			if isinstance(colors, matplotlib.colors.Colormap):
+				group_count = grid.shape[-1]
+				colors = [colors(k/float(group_count-1.)) for k in range(group_count) ]
+			else:
+				colors = [matplotlib.colors.colorConverter.to_rgba(k) for k in colors]
+			#print grid.shape
+			total = np.nansum(grid, axis=0)/grid.shape[0]
+			#grid /= total
+			#mask = total > 0
+			#alpha = total - total[mask].min()
+			#alpha[~mask] = 0
+			#alpha = total / alpha.max()
+			#print np.nanmax(total), np.nanmax(grid)
+			return colormap(total)
+			rgba = grid.dot(colors)
+			#def _norm(data):
+			#	mask = np.isfinite(data)
+			#	data = data - data[mask].min()
+			#	data /= data[mask].max()
+			#	return data
+			#rgba[...,3] = (f(alpha))
+			#rgba[...,3] = 1
+			rgba[total == 0,3] = 0.
+			#mask = alpha > 0
+			#if 1:
+			#	for i in range(3):
+			#		rgba[...,i] /= total
+			#		#rgba[...,i] /= rgba[...,0:3].max()
+			#		rgba[~mask,i] = background_color[i]
+			#rgba = (np.swapaxes(rgba, 0, 1))
+			return rgba
+		return f
+
+	else:
+		raise ValueError("do not understand reduction = %s, should be a ..." % name)
+
 class Task(vaex.promise.Promise):
 	"""
 	:type: signal_progress: Signal
@@ -1603,6 +1682,8 @@ class SelectionExpression(Selection):
 			logger.debug("executing selection: %r, mode: %r", self.boolean_expression, self.mode)
 			mask = np.zeros(len(self.dataset), dtype=np.bool)
 			def map(thread_index, i1, i2, block):
+				#print(i1, i2, mask)
+				#i1, i2 = i1 - self.dataset._index_start, i2 - self.dataset._index_start
 				mask[i1:i2] = mode_function(None if self.dataset.mask is None else self.dataset.mask[i1:i2], block == 1)
 				return 0
 			def reduce(*args):
@@ -1670,6 +1751,7 @@ class SelectionLasso(Selection):
 
 		mask = np.zeros(len(self.dataset), dtype=np.bool)
 		def lasso(thread_index, i1, i2, blockx, blocky):
+			#i1, i2 = i1 - self.dataset._index_start, i2 - self.dataset._index_start
 			vaex.vaexfast.pnpoly(x, y, blockx, blocky, mask[i1:i2], meanx, meany, radius)
 			mask[i1:i2] = mode_function(None if self.dataset.mask is None else self.dataset.mask[i1:i2], mask[i1:i2])
 			return 0
@@ -2835,30 +2917,321 @@ class DatasetLocal(Dataset):
 		self.mask = None
 		self.columns = collections.OrderedDict()
 
+
+	def limits_percentage(self, expressions, percentage=99.73, square=False):
+		limits = []
+		for expr in expressions:
+			subspace = self(expr)
+			limits_minmax = subspace.minmax()
+			vmin, vmax = limits_minmax[0]
+			size = 1024*16
+			counts = subspace.histogram(size=size, limits=limits_minmax)
+			cumcounts = np.concatenate([[0], np.cumsum(counts)])
+			cumcounts /= cumcounts.max()
+			# TODO: this is crude.. see the details!
+			f = (1-percentage/100.)/2
+			x = np.linspace(vmin, vmax, size+1)
+			l = scipy.interp([f,1-f], cumcounts, x)
+			limits.append(l)
+		return limits
+
+	def limits(self, expressions, value, square=False):
+		"""TODO: doc + server side implementation"""
+		if isinstance(value, six.string_types):
+			import re
+			match = re.match("(\d*)(\D*)", value)
+			if match is None:
+				raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
+			else:
+				value, type = match.groups()
+				import ast
+				value = ast.literal_eval(value)
+				type = type.strip()
+				if type in ["s", "sigma"]:
+					return self.limits_sigma(value)
+				elif type in ["ss", "sigmasquare"]:
+					return self.limits_sigma(value, square=True)
+				elif type in ["%", "percent"]:
+					return self.limits_percentage(expressions, value)
+				elif type in ["%s", "%square", "percentsquare"]:
+					return self.limits_percentage(value, square=True)
+		if value is None:
+			return self.limits_percentage(expressions, square=square)
+		else:
+			return value
+
+	def minmax(self, expressions, progressbar=False):
+		return self(*expressions).minmax()
+
+	def histogram(self, expressions, limits, shape=256, weight=None, progressbar=False):
+		subspace = self(*expressions)
+		return subspace.histogram(limits=limits, size=shape, weight=weight, progressbar=progressbar)
+
+	def mean(self, expression, binby=[], limits=None, shape=256, progressbar=False):
+		if len(by) == 0:
+			return self(expression).mean()[0]
+		else:
+			# todo, fix progressbar into two...
+			subspace = self(*binby)
+			counts = subspace.histogram(limits=limits, size=shape, progressbar=progressbar)
+			weighted = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
+									weight=expression)
+			mean = weighted/counts
+			mean[counts==0] = np.nan
+			return mean
+
+	def sum(self, expression, binby=[], limits=None, shape=256, progressbar=False):
+		if len(by) == 0:
+			return self(expression).sum()[0]
+		else:
+			# todo, fix progressbar into two...
+			subspace = self(*binby)
+			summed = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
+									weight=expression)
+			return summed
+
+	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
+	def plot(self, x=None, y=None, what="count(*)", extra=None, facet=None, reduce=["colormap"], f="identity", n="normalize", normalize_axis=None,
+			 shape=256, limits=None, grid=None, colormap="afmhot", colors=["red", "green", "blue"],
+			figsize=None, xlabel=None, ylabel=None, aspect="auto",
+			return_extra=False):
+		"""
+
+		:param x: Expression to bin in the x direction
+		:param y:                          y
+		:param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
+		:param extra: Possible extra axes
+		:param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
+		:param reduce:
+		:param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
+		:param n: normalization function, currently only 'normalize' is supported
+		:param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
+		:param shape: shape/size of the n-D histogram grid
+		:param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
+		:param grid: if the binning is done before by yourself, you can pass it
+		:param colormap: matplotlib colormap to use
+		:param colors:
+		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+		:param xlabel:
+		:param ylabel:
+		:param aspect:
+		:param return_extra:
+		:return:
+		"""
+		# axes order is.. [x,y,z,extra...,row,column]
+		import pylab
+		f = _parse_f(f)
+		n = _parse_n(n)
+		if type(shape) == int:
+			shape = (shape,) * 2
+		if not axes:
+			axes = []
+		if not extra:
+			extra = []
+		for expression in [z,y,x]:
+			if expression is not None:
+				axes = [expression] + axes
+		limits = self.limits(axes, limits)
+		if figsize is not None:
+			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
+		if axes is None:
+			axes = pylab.gca()
+		fig = pylab.gcf()
+		import re
+		if facet is not None:
+			match = re.match("(.*):(.*),(.*),(.*)", facet)
+			if match:
+				groups = match.groups()
+				import ast
+				facet_expression = groups[0]
+				facet_limits = [ast.literal_eval(groups[1]), ast.literal_eval(groups[2])]
+				facet_count = ast.literal_eval(groups[3])
+				limits.append(facet_limits)
+				extra.append(facet_expression)
+				shape = (facet_count,) + shape
+			else:
+				raise ValueError("Could not understand 'facet' argument %r, expected something in form: 'column:-1,10:5'" % facet)
+
+		pylab.xlabel(xlabel or x)
+		pylab.ylabel(ylabel or y)
+		#axes.set_aspect(aspect)
+		if grid is None:
+			if what:
+				what = what.strip()
+				index = what.index("(")
+				import re
+				groups = re.match("(.*)\((.*)\)", what).groups()
+				if groups and len(groups) == 2:
+					function = groups[0]
+					arguments = groups[1].strip()
+					functions = ["mean", "sum"]
+					if function in functions:
+						grid = getattr(self, function)(arguments, (axes+extra), limits=limits, shape=shape)
+					elif function == "count" and arguments == "*":
+						grid = self.histogram((axes+extra), shape=shape, limits=limits)
+					else:
+						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
+				else:
+					raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
+			else:
+				grid = self.histogram(*(axes+extra), size=shape, limits=limits)
+		fgrid = f(grid)
+		ngrid = n(fgrid, axis=normalize_axis)
+		#reductions = [_parse_reduction(r, colormap, colors) for r in reduce]
+		rgrid = ngrid * 1.
+		for r in reduce:
+			r = _parse_reduction(r, colormap, colors)
+			rgrid = r(rgrid)
+		#grid = self.reduce(grid, )
+		if facet:
+			import math
+			rows, columns = int(math.ceil(facet_count / 4.)), 4
+			values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
+			for i in range(facet_count):
+				ax = pylab.subplot(rows, columns, i+1)
+				im = ax.imshow(rgrid[i], extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+				v1, v2 = values[i], values[i+1]
+				ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
+				#pylab.show()
+		else:
+			im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+		if return_extra:
+			return im, grid, fgrid, ngrid, rgrid
+		else:
+			return im
+		#colorbar = None
+		#return im, colorbar
+
+	def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
+		xlabel=None, ylabel=None, **kwargs):
+		"""
+
+		:param x: Expression to bin in the x direction
+		:param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
+		:param grid:
+		:param grid: if the binning is done before by yourself, you can pass it
+		:param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
+		:param limits: list of [xmin, xmax], or a description such as 'minmax', '99%'
+		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+		:param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
+		:param n: normalization function, currently only 'normalize' is supported, or None for no normalization
+		:param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
+		:param normalize_axis:
+		:param xlabel: String for label on x axis (may contain latex)
+		:param ylabel: Same for y axis
+		:param kwargs: extra argument passed to pylab.plot
+		:return:
+		"""
+
+
+
+		import pylab
+		f = _parse_f(f)
+		n = _parse_n(n)
+		if type(shape) == int:
+			shape = (shape,)
+		binby = []
+		for expression in [x]:
+			if expression is not None:
+				binby = [expression] + binby
+		limits = self.limits(binby, limits)
+		if figsize is not None:
+			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
+		fig = pylab.gcf()
+		import re
+		if facet is not None:
+			match = re.match("(.*):(.*),(.*),(.*)", facet)
+			if match:
+				groups = match.groups()
+				import ast
+				facet_expression = groups[0]
+				facet_limits = [ast.literal_eval(groups[1]), ast.literal_eval(groups[2])]
+				facet_count = ast.literal_eval(groups[3])
+				limits.append(facet_limits)
+				binby.append(facet_expression)
+				shape = (facet_count,) + shape
+			else:
+				raise ValueError("Could not understand 'facet' argument %r, expected something in form: 'column:-1,10:5'" % facet)
+
+		pylab.xlabel(xlabel or x)
+		pylab.ylabel(ylabel or what)
+
+		if grid is None:
+			if what:
+				what = what.strip()
+				index = what.index("(")
+				import re
+				groups = re.match("(.*)\((.*)\)", what).groups()
+				if groups and len(groups) == 2:
+					function = groups[0]
+					arguments = groups[1].strip()
+					functions = ["mean", "sum"]
+					if function in functions:
+						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape)
+					elif function == "count" and arguments == "*":
+						grid = self.histogram(binby, shape=shape, limits=limits)
+					else:
+						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
+				else:
+					raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
+			else:
+				grid = self.histogram(binby, size=shape, limits=limits)
+		fgrid = f(grid)
+		if n is not None:
+			ngrid = n(fgrid, axis=normalize_axis)
+		else:
+			ngrid = fgrid
+			#reductions = [_parse_reduction(r, colormap, colors) for r in reduce]
+			#rgrid = ngrid * 1.
+			#for r in reduce:
+			#	r = _parse_reduction(r, colormap, colors)
+			#	rgrid = r(rgrid)
+			#grid = self.reduce(grid, )
+		xmin, xmax = limits[-1]
+		if facet:
+			N = len(grid[-1])
+		else:
+			N = len(grid)
+		xar = np.arange(N) / (N-1.0) * (xmax-xmin) + xmin
+		if facet:
+			import math
+			rows, columns = int(math.ceil(facet_count / 4.)), 4
+			values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
+			for i in range(facet_count):
+				ax = pylab.subplot(rows, columns, i+1)
+				ax.plot(xar, ngrid[i], drawstyle="steps", **kwargs)
+				v1, v2 = values[i], values[i+1]
+				ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
+				#pylab.show()
+		else:
+			#im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+			return pylab.plot(xar, ngrid, drawstyle="steps", **kwargs)
+		#N = len(grid)
+		#xmin, xmax = limits[0]
+		#return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
+		#pylab.ylim(-1, 6)
 	@property
-	def names(self):
+	def col(self):
 		"""Gives direct access to the data as numpy-like arrays.
 
 		Convenient when working with ipython in combination with small datasets, since this gives tab-completion
 
-		Columns can be accesed by there names, which are attributes. The attribues are subclasses of numpy.ndarray
-		and have the following extra properties:
-
-		* ucd - The ucd for the column
-		* description - Text description for column
-		* unit - astropy unit object (astropy.units.Unit)
+		Columns can be accesed by there names, which are attributes. The attribues are currently strings, so you cannot
+		do computations with them
 
 		:Example:
 		>>> ds = vx.example()
-		>>> r = np.sqrt(ds.data.x**2 + ds.data.y**2)
+		>>> ds.plot(ds.col.x, ds.col.y)
 
 		"""
-		class Wrapper(object):
+		class ColumnList(object):
 			pass
-		data = Wrapper()
+		data = ColumnList()
 		for name in self.get_column_names(virtual=True):
 			setattr(data, name, name)
 		return data
+
+
 
 	@property
 	def data(self):
