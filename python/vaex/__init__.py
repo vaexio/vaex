@@ -65,6 +65,7 @@ def open(path, *args, **kwargs):
 	>>> vx.open('gadget_file.hdf5', 3) # this will read only particle type 3
 	<vaex.dataset.Hdf5MemoryMappedGadget at 0x1136ef3d0>
 	"""
+	import vaex
 	if path in aliases:
 		path = aliases[path]
 	if path.startswith("http://") or path.startswith("ws://"): # TODO: think about https and wss
@@ -74,6 +75,9 @@ def open(path, *args, **kwargs):
 		if dataset not in datasets:
 			raise KeyError("no such dataset '%s' at server, possible dataset names: %s" %  (dataset, " ".join(datasets.keys())))
 		return datasets[dataset]
+	if path.startswith("cluster"):
+		import vaex.distributed
+		return vaex.distributed.open(path, *args, **kwargs)
 	else:
 		return vaex.dataset.load_file(path, *args, **kwargs)
 
@@ -85,7 +89,9 @@ def open_many(filenames):
 	"""
 	datasets = []
 	for filename in filenames:
-		datasets.append(open(filename.strip()))
+		filename = filename.strip()
+		if filename and filename[0] != "#":
+			datasets.append(open(filename))
 	return vaex.dataset.DatasetConcatenated(datasets=datasets)
 
 def open_samp_single():
@@ -200,8 +206,10 @@ def set_log_level_off():
 
 
 import logging
-logging.basicConfig(level=logging.ERROR)
-set_log_level_info()
+format = "%(levelname)s:%(threadName)s:%(name)s:%(message)s"
+logging.basicConfig(level=logging.INFO, format=format)
+logging.basicConfig(level=logging.DEBUG)
+set_log_level_debug()
 import os
 import_script = os.path.expanduser("~/.vaex/vaex_import.py")
 if os.path.exists(import_script):
