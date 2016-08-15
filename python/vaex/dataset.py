@@ -3085,13 +3085,22 @@ class DatasetLocal(Dataset):
 				im = ax.imshow(rgrid[i], extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
 				v1, v2 = values[i], values[i+1]
 				pylab.xlabel(xlabel or x)
-				pylab.ylabel(ylabel or what)
+				pylab.ylabel(ylabel or y)
 				ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
 				#pylab.show()
 		else:
 			pylab.xlabel(xlabel or x)
-			pylab.ylabel(ylabel or what)
+			pylab.ylabel(ylabel or y)
 			im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+		if normalize_axis is None:
+			import matplotlib.colors
+			import matplotlib.cm
+			norm = matplotlib.colors.Normalize(np.nanmin(fgrid), np.nanmax(fgrid))
+			sm = matplotlib.cm.ScalarMappable(norm, colormap)
+			sm.set_array(1) # make matplotlib happy (strange behavious)
+			colorbar = fig.colorbar(sm)
+			colorbar.ax.set_ylabel(what)
+
 		if tight_layout:
 			pylab.tight_layout()
 		if return_extra:
