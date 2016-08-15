@@ -1682,8 +1682,6 @@ class SelectionExpression(Selection):
 			logger.debug("executing selection: %r, mode: %r", self.boolean_expression, self.mode)
 			mask = np.zeros(len(self.dataset), dtype=np.bool)
 			def map(thread_index, i1, i2, block):
-				#print(i1, i2, mask)
-				#i1, i2 = i1 - self.dataset._index_start, i2 - self.dataset._index_start
 				mask[i1:i2] = mode_function(None if self.dataset.mask is None else self.dataset.mask[i1:i2], block == 1)
 				return 0
 			def reduce(*args):
@@ -1751,7 +1749,6 @@ class SelectionLasso(Selection):
 
 		mask = np.zeros(len(self.dataset), dtype=np.bool)
 		def lasso(thread_index, i1, i2, blockx, blocky):
-			#i1, i2 = i1 - self.dataset._index_start, i2 - self.dataset._index_start
 			vaex.vaexfast.pnpoly(x, y, blockx, blocky, mask[i1:i2], meanx, meany, radius)
 			mask[i1:i2] = mode_function(None if self.dataset.mask is None else self.dataset.mask[i1:i2], mask[i1:i2])
 			return 0
