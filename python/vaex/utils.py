@@ -318,3 +318,18 @@ def filename_shorten(path, max_length=150):
 			return os.path.join(first, last)
 	else:
 		return path
+
+
+def listify(x):
+	try:
+		_ = x[0]
+		return True, x
+	except:
+		return False, [x]
+
+def unlistify(waslist, x):
+	if waslist:
+		return x
+	else:
+		return x[0]
+
