@@ -41,10 +41,10 @@ import warnings
 
 def patch():
 	#return
-	if (bqplot.__version__ == (0, 6, 1)) or (bqplot.__version__ == "0.6.1"):
-		display_javascript(file(os.path.join(base_path, "bqplot_ext.js")).read(), raw=True)
-	else:
-		warnings.warn("This version (%s) of bqplot is not supppored" % bqplot.__version__)
+	display_javascript(open(os.path.join(base_path, "bqplot_ext.js")).read(), raw=True)
+	#if (bqplot.__version__ == (0, 6, 1)) or (bqplot.__version__ == "0.6.1"):
+	#else:
+	#	warnings.warn("This version (%s) of bqplot is not supppored" % bqplot.__version__)
 
 
 class Bqplot(object):
