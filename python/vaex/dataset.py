@@ -3147,9 +3147,6 @@ class DatasetLocal(Dataset):
 			else:
 				raise ValueError("Could not understand 'facet' argument %r, expected something in form: 'column:-1,10:5'" % facet)
 
-		pylab.xlabel(xlabel or x)
-		pylab.ylabel(ylabel or what)
-
 		if grid is None:
 			if what:
 				what = what.strip()
@@ -3195,10 +3192,14 @@ class DatasetLocal(Dataset):
 				ax = pylab.subplot(rows, columns, i+1)
 				ax.plot(xar, ngrid[i], drawstyle="steps", **kwargs)
 				v1, v2 = values[i], values[i+1]
+				pylab.xlabel(xlabel or x)
+				pylab.ylabel(ylabel or what)
 				ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
 				#pylab.show()
 		else:
 			#im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+			pylab.xlabel(xlabel or x)
+			pylab.ylabel(ylabel or what)
 			return pylab.plot(xar, ngrid, drawstyle="steps", **kwargs)
 		#N = len(grid)
 		#xmin, xmax = limits[0]
