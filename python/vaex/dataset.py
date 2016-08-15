@@ -2991,6 +2991,7 @@ class DatasetLocal(Dataset):
 	def plot(self, x=None, y=None, what="count(*)", extra=None, facet=None, reduce=["colormap"], f="identity", n="normalize", normalize_axis=None,
 			 shape=256, limits=None, grid=None, colormap="afmhot", colors=["red", "green", "blue"],
 			figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True,
+			vmin=None, vmax=None,
 			return_extra=False):
 		"""
 
@@ -3069,19 +3070,36 @@ class DatasetLocal(Dataset):
 			else:
 				grid = self.histogram(binby, size=shape, limits=limits)
 		fgrid = f(grid)
-		ngrid = n(fgrid, axis=normalize_axis)
+		if vmin is not None and vmax is not None:
+			ngrid = fgrid * 1
+			ngrid -= vmin
+			ngrid /= (vmax-vmin)
+			ngrid = np.clip(ngrid, 0, 1)
+		else:
+			ngrid = n(fgrid, axis=normalize_axis)
+			vmin, vmax = np.nanmin(fgrid), np.nanmax(fgrid)
+
 		#reductions = [_parse_reduction(r, colormap, colors) for r in reduce]
 		rgrid = ngrid * 1.
 		for r in reduce:
 			r = _parse_reduction(r, colormap, colors)
 			rgrid = r(rgrid)
 		#grid = self.reduce(grid, )
+		axes = []
+		#cax = pylab.subplot(1,1,1)
 		if facet:
 			import math
 			rows, columns = int(math.ceil(facet_count / 4.)), 4
 			values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
+			import matplotlib.gridspec as gridspec
+			column_scale = 4
+			gs = gridspec.GridSpec(rows, columns*column_scale+1)
 			for i in range(facet_count):
-				ax = pylab.subplot(rows, columns, i+1)
+				#ax = pylab.subplot(rows, columns, i+1)
+				row = i / 4
+				column = i % columns
+				ax = pylab.subplot(gs[row, column*column_scale:(column+1)*column_scale])
+				axes.append(ax)
 				im = ax.imshow(rgrid[i], extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
 				v1, v2 = values[i], values[i+1]
 				pylab.xlabel(xlabel or x)
@@ -3091,14 +3109,24 @@ class DatasetLocal(Dataset):
 		else:
 			pylab.xlabel(xlabel or x)
 			pylab.ylabel(ylabel or y)
+			axes.append(pylab.gca())
 			im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
 		if normalize_axis is None:
+			#pylab.subplot(1,1,1)
 			import matplotlib.colors
 			import matplotlib.cm
-			norm = matplotlib.colors.Normalize(np.nanmin(fgrid), np.nanmax(fgrid))
+			#from mpl_toolkits.axes_grid1 import make_axes_locatable
+			#divider = make_axes_locatable(cax)
+			#cax = divider.append_axes("right", "5%", pad="3%")
+
+			norm = matplotlib.colors.Normalize(vmin, vmax)
 			sm = matplotlib.cm.ScalarMappable(norm, colormap)
 			sm.set_array(1) # make matplotlib happy (strange behavious)
-			colorbar = fig.colorbar(sm)
+			if facet:
+				ax = pylab.subplot(gs[:, -1])
+				colorbar = fig.colorbar(sm, cax=ax)
+			else:
+				colorbar = fig.colorbar(sm)
 			colorbar.ax.set_ylabel(what)
 
 		if tight_layout:
