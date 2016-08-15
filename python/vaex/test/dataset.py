@@ -921,7 +921,7 @@ import sys
 test_port = 29110 + sys.version_info[0] * 10 + sys.version_info[1]
 
 class TestDatasetRemote(TestDataset):
-	use_websocket = True
+	use_websocket = False
 	def setUp(self):
 		global test_port
 		# run all tests from TestDataset, but now served at the server
@@ -971,7 +971,7 @@ class TestDatasetRemote(TestDataset):
 
 import vaex.distributed
 class TestDatasetDistributed(unittest.TestCase):
-	use_websocket = True
+	use_websocket = False
 	def setUp(self):
 		global test_port
 		self.dataset_local = self.dataset = dataset.DatasetArrays("dataset")
@@ -1016,7 +1016,6 @@ class TestDatasetDistributed(unittest.TestCase):
 
 		sums = self.dataset("x").histogram([[0,10]], size=10, weight="y")
 		assert(all(sums == self.y))
-		return
 
 		self.dataset.select("x < 5")
 		mask = self.x < 5
@@ -1052,11 +1051,12 @@ class TestDatasetDistributed(unittest.TestCase):
 		dataset = vx.from_arrays(x=x, y=y, z=z, w=w)
 		counts = dataset("x", "y", "z", "w").histogram([[0.,2.], [0.,2.], [0.,2.], [0.,2.]], size=2)
 		assert(np.all(counts == 1))
+		return
 
+class TestDatasetRemotePlain(TestDatasetRemote):
+	use_websocket = False
 """
 
-class T_estDatasetRemoteHttp(T_estDatasetRemote):
-	use_websocket = False
 
 
 class T_stWebServer(unittest.TestCase):
