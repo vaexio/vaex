@@ -23,6 +23,7 @@ def _url_to_filename(url, replace_ext=None, subdir=None):
 class Hdf5Download(object):
 	def __init__(self, url):
 		self.url = url
+		self.url_list = [self.url]
 
 	@property
 	def filename(self):
@@ -31,11 +32,17 @@ class Hdf5Download(object):
 	def download(self, force=False):
 		if not os.path.exists(self.filename) or force:
 			print("Downloading %s to %s" % (self.url, self.filename))
-			code = os.system("wget -c -P %s %s" % (data_dir, self.url))
+			code = os.system(self.wget_command(0))
 
 	def fetch(self, force_download=False):
 		self.download(force=force_download)
 		return vx.open(self.filename)
+
+	def wget_command(self, i):
+		assert i == 0
+		url = self.url_list[i]
+		return "wget -c -P %s %s" % (data_dir, url)
+
 
 
 class NYCTaxi(object):
@@ -70,11 +77,16 @@ class NYCTaxi(object):
 		self.convert()
 		return self.open()
 
+	def wget_command(self, i):
+		url = self.url_list[i]
+		return "wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url)
+
 	def download(self, force=False):
 		for i, url in enumerate(self.url_list):
 			if not os.path.exists(self.filenames[i]) or force:
 				print("Downloading %s (%d out of %d)" % (url, i+1, len(self.url_list)))
-				code = os.system("wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url))
+				#code = os.system("wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url))
+				code = os.system(self.wget_command(i))
 				if code != 0:
 					raise RuntimeError("wget finished with an error")
 
