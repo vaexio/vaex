@@ -49,6 +49,13 @@ import tornado.ioloop
 import threading
 import json
 
+def listify(value):
+	if isinstance(value, list):
+		value = list([listify(item) for item in value])
+	if hasattr(value, "tolist"):
+		value = value.tolist()
+	return value
+
 
 try:
 	from urllib.request import urlopen
@@ -232,13 +239,6 @@ class ServerRest(object):
 		arguments["job_id"] = job_id
 		arguments["path"] = path
 		arguments["user_id"] = self.user_id
-		def listify(value):
-			if isinstance(value, list):
-				value = list([listify(item) for item in value])
-			if hasattr(value, "tolist"):
-				value = value.tolist()
-			return value
-
 		#arguments = dict({key: (value.tolist() if hasattr(value, "tolist") else value) for key, value in arguments.items()})
 		arguments = dict({key: listify(value) for key, value in arguments.items()})
 
@@ -275,11 +275,23 @@ class ServerRest(object):
 				if self.user_id != user_id:
 					self.user_id = user_id
 					vaex.settings.webclient.store("cookie.user_id", self.user_id)
-			data = json.loads(response.body)
-			self._check_exception(data)
-			return post_process(data["result"])
+			data = response.body
+			is_json = False
+			logger.info("response is: %r", response.body)
+			try:
+				data = json.loads(response.body.decode("ascii"))
+				is_json = True
+			except Exception as e:
+				logger.info("couldn't convert to json (error is %s, assume it's raw data): %s", e, data)
+				#logger.info("couldn't convert to json (error is %s, assume it's raw data)", e)
+			if is_json:
+				self._check_exception(data)
+				return post_process(data["result"])
+			else:
+				return post_process(data)
 
-		arguments = {key: (value.tolist() if hasattr(value, "tolist") else value) for key, value in arguments.items()}
+		arguments = {key: listify(value) for key, value in arguments.items()}
+		import pdb
 		arguments_json = {key:json.dumps(value) for key, value in arguments.items()}
 		headers = tornado.httputil.HTTPHeaders()
 
@@ -323,9 +335,10 @@ class ServerRest(object):
 			if method_name == "histogram": # histogram is the exception..
 				# TODO: don't do binary transfer, just json, now we cannot handle exception
 				import base64
-				logger.debug("result: %r" % result)
-				result = base64.b64decode(result) #.decode("base64")
-				data = np.fromstring(result)
+				#logger.debug("result: %r", result)
+				#result = base64.b64decode(result) #.decode("base64")
+				#result = base64.
+				data = np.fromstring(result, dtype=np.float64)
 				shape = (kwargs["size"],) * subspace.dimension
 				data = data.reshape(shape)
 				return data
@@ -378,6 +391,8 @@ class ServerRest(object):
 			class_name = reply_json["exception"]["class"]
 			msg = reply_json["exception"]["msg"]
 			raise getattr(__builtin__, class_name)(msg)
+		if "error" in reply_json:
+			raise ValueError("unknown error occured at server")
 		else:
 			return reply_json
 
