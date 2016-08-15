@@ -321,7 +321,7 @@ def add_celestial_eq2ecl(parent, dataset):
 	add_celestial(parent, dataset, type="ecliptic")
 
 def add_celestial(parent, dataset, type="galactic"):
-	result = dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec")
+	result = dataset.ucd_find(["^pos.eq.ra", "^pos.eq.dec"])
 	column_names = dataset.get_column_names(virtual=True)
 	if result is None:
 		result = ["", ""]
@@ -366,7 +366,7 @@ def add_celestial(parent, dataset, type="galactic"):
 												   radians=values["degrees"] == "radians")
 
 def add_distance(parent, dataset):
-	parallax = dataset.ucd_find("pos.parallax.")
+	parallax = dataset.ucd_find(["pos.parallax."])
 	column_names = dataset.get_column_names(virtual=True)
 	if parallax is None:
 		parallax = ""
@@ -397,9 +397,9 @@ def add_distance(parent, dataset):
 
 def add_cartesian(parent, dataset, galactic=True):
 	if galactic:
-		spherical = [dataset.ucd_find("pos.distance"), dataset.ucd_find("pos.galactic.lon"), dataset.ucd_find("pos.galactic.lat")]
+		spherical = [dataset.ucd_find(["pos.distance"]), dataset.ucd_find(["pos.galactic.lon"]), dataset.ucd_find(["pos.galactic.lat"])]
 	else:
-		spherical = [dataset.ucd_find("pos.distance"), dataset.ucd_find("pos.eq.ra"), dataset.ucd_find("pos.eq.dec")]
+		spherical = [dataset.ucd_find(["pos.distance"]), dataset.ucd_find(["pos.eq.ra"]), dataset.ucd_find(["pos.eq.dec"])]
 	column_names = dataset.get_column_names(virtual=True)
 
 	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and None not in spherical:
@@ -447,7 +447,7 @@ def add_cartesian_velocities(parent, dataset, galactic=True):
 		ucds = ["pos.distance", "^pos.galactic.lon", "^pos.galactic.lat", "pos.pm;pos.galactic.lon", "pos.pm;pos.galactic.lat", "spect.dopplerVeloc"]
 	else:
 		raise NotImplementedError("is this useful?")
-	spherical = [dataset.ucd_find(ucd) for ucd in ucds]
+	spherical = [dataset.ucd_find([ucd]) for ucd in ucds]
 	column_names = dataset.get_column_names(virtual=True)
 
 	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and None not in spherical:
@@ -510,8 +510,8 @@ def add_sky(parent, dataset, galactic=True):
 		pos = "pos.galactocentric"
 	else:
 		pos = "pos.heliocentric"
-	cartesian = [dataset.ucd_find("pos.cartesian.x;%s" % pos), dataset.ucd_find("pos.cartesian.y;%s" % pos),
-				 dataset.ucd_find("pos.cartesian.z;%s" % pos)]
+	cartesian = [dataset.ucd_find(["pos.cartesian.x;%s" % pos]), dataset.ucd_find(["pos.cartesian.y;%s" % pos]),
+				 dataset.ucd_find(["pos.cartesian.z;%s" % pos])]
 	column_names = dataset.get_column_names(virtual=True)
 
 	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and None not in cartesian:
@@ -551,9 +551,9 @@ def add_sky(parent, dataset, galactic=True):
 
 def add_aitoff(parent, dataset, galactic=True):
 	if galactic:
-		spherical = [dataset.ucd_find("pos.galactic.lon"), dataset.ucd_find("pos.galactic.lat")]
+		spherical = [dataset.ucd_find(["pos.galactic.lon"]), dataset.ucd_find(["pos.galactic.lat"])]
 	else:
-		spherical = [dataset.ucd_find("pos.eq.ra"), dataset.ucd_find("pos.eq.dec")]
+		spherical = [dataset.ucd_find(["pos.eq.ra"]), dataset.ucd_find(["pos.eq.dec"])]
 	column_names = dataset.get_column_names(virtual=True)
 
 	if QtGui.QApplication.keyboardModifiers()  == QtCore.Qt.ShiftModifier and None not in spherical:
@@ -592,7 +592,7 @@ def add_aitoff(parent, dataset, galactic=True):
 
 def add_proper_motion_eq2gal(parent, dataset, type="galactic"):
 	assert type == "galactic"
-	default_columns = dataset.ucd_find("^pos.eq.ra", "^pos.eq.dec", "pos.pm;pos.eq.ra", "pos.pm;pos.eq.dec")
+	default_columns = dataset.ucd_find(["^pos.eq.ra", "^pos.eq.dec", "pos.pm;pos.eq.ra", "pos.pm;pos.eq.dec"])
 	column_names = dataset.get_column_names(virtual=True)
 	if default_columns is None:
 		default_columns = ["", "", "", ""]
