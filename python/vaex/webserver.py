@@ -156,7 +156,7 @@ import collections
 import concurrent.futures
 import vaex.execution
 import vaex.multithreading
-
+import tornado.escape
 class ListHandler(tornado.web.RequestHandler):
 	def initialize(self, webserver, submit_threaded, cache, cache_selection, datasets=None):
 		self.webserver = webserver
@@ -181,7 +181,7 @@ class ListHandler(tornado.web.RequestHandler):
 				self.set_cookie("user_id", user_id)
 			logger.debug("user_id: %r", user_id)
 		# tornado retursn a list of values, just use the first value
-		arguments = {key:json.loads(self.request.arguments[key][0]) for key in self.request.arguments.keys()}
+		arguments = {key:json.loads(tornado.escape.to_basestring(self.request.arguments[key][0])) for key in self.request.arguments.keys()}
 		key = (self.request.path, "-".join([str(v) for v in sorted(arguments.items())]))
 		response = self.cache.get(key)
 		if response is None:
@@ -396,9 +396,10 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								#self.set_header("Content-Type", "application/octet-stream")
 								#return (grid.tostring())
 								import base64
-								result = base64.b64encode(grid.tostring()).decode("ascii")
-								logger.debug("type: %s" % type(result))
-								return {"result": result}
+								return grid.tostring()
+								#result = base64.b64encode(grid.tostring()).decode("ascii")
+								#logger.debug("type: %s" % type(result))
+								#return {"result": result}
 							elif method_name in ["select", "lasso_select"]:
 								dataset.mask = webserver.cache_selection.get((dataset.path, user_id))
 								result = task_invoke(dataset, method_name, **arguments)
@@ -414,8 +415,9 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								return error("unknown method: " + method_name)
 						except (SyntaxError, KeyError, NameError) as e:
 							return exception(e)
-	except:
+	except Exception as e:
 		logger.exception("unknown issue")
+		return exception(e)
 	return error("unknown request")
 
 from cachetools import Cache, LRUCache
