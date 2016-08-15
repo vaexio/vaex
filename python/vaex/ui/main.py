@@ -1333,7 +1333,9 @@ class VaexApp(QtGui.QMainWindow):
 			filename = args[index]
 			print("filename", filename)
 			dataset = None
-			if filename.startswith("http://") or filename.startswith("ws://"): # TODO: thinkg about https wss
+			if filename.startswith("cluster://"):
+				dataset = vaex.open(filename)#, thread_mover=self.call_in_main_thread)
+			elif filename.startswith("http://") or filename.startswith("ws://"): # TODO: thinkg about https wss
 				#o = urlparse(filename)
 				#assert o.scheme == "http"
 				#base_path, should_be_datasets, dataset_name = o.path.rsplit("/", 2)
