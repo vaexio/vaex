@@ -2956,6 +2956,8 @@ class DatasetLocal(Dataset):
 	def limits(self, expressions, value, square=False):
 		"""TODO: doc + server side implementation"""
 		if isinstance(value, six.string_types):
+			if value == "minmax":
+				return self.minmax(expressions)
 			import re
 			match = re.match("([\d.]*)(\D*)", value)
 			if match is None:
