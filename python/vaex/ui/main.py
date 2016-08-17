@@ -673,7 +673,7 @@ class DatasetPanel(QtGui.QFrame):
 			action.triggered.connect(add)
 			self.refs.append((action, add))
 			self.menu_common.addAction(action)
-		if dataset.ucd_find(["pos.parallax."]) and not dataset.ucd_find(["pos.distance"]):
+		if dataset.ucd_find(["pos.parallax"]) and not dataset.ucd_find(["pos.distance"]):
 			def add(*args):
 				vaex.ui.columns.add_distance(self, self.dataset)
 			action = QtGui.QAction("Add distance from parallax", self)

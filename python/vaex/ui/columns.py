@@ -366,7 +366,7 @@ def add_celestial(parent, dataset, type="galactic"):
 												   radians=values["degrees"] == "radians")
 
 def add_distance(parent, dataset):
-	parallax = dataset.ucd_find(["pos.parallax."])
+	parallax = dataset.ucd_find(["pos.parallax"])
 	column_names = dataset.get_column_names(virtual=True)
 	if parallax is None:
 		parallax = ""
@@ -391,7 +391,10 @@ def add_distance(parent, dataset):
 	if values:
 		dataset.ucds[values["distance"]] = "pos.distance"
 		if unit:
-			dataset.units["distance"] = astropy.units.kpc
+			if unit == astropy.units.milliarcsecond:
+				dataset.units["distance"] = astropy.units.kpc
+			if unit == astropy.units.arcsecond:
+				dataset.units["distance"] = astropy.units.parsec
 		dataset.add_virtual_column(values["distance"], distance_expression)
 
 
