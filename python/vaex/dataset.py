@@ -2932,12 +2932,14 @@ class DatasetLocal(Dataset):
 			limits.append(l)
 		return limits
 
-	def percentile(self, expression, percentage=99.73):
+	def percentile(self, expression, percentage=99.73, selection=False):
 		limits = []
 		waslist, percentages = vaex.utils.listify(percentage)
 		values = []
 		for percentage in percentages:
 			subspace = self(expression)
+			if selection:
+				subspace = subspace.selected()
 			limits_minmax = subspace.minmax()
 			vmin, vmax = limits_minmax[0]
 			size = 1024*16
@@ -2955,7 +2957,7 @@ class DatasetLocal(Dataset):
 		"""TODO: doc + server side implementation"""
 		if isinstance(value, six.string_types):
 			import re
-			match = re.match("(\d*)(\D*)", value)
+			match = re.match("([\d.]*)(\D*)", value)
 			if match is None:
 				raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
 			else:
@@ -2976,11 +2978,12 @@ class DatasetLocal(Dataset):
 		else:
 			return value
 
-	def minmax(self, expressions, progressbar=False):
+	def minmax(self, expression, progressbar=False, selection=None):
+		waslist, expressions = vaex.utils.listify(expression)
 		subspace = self(*expressions)
 		if selection:
 			subspace = subspace.selected()
-		return subspace.minmax()
+		return vaex.utils.unlistify(waslist, subspace.minmax())
 
 	def histogram(self, expressions, limits, shape=256, weight=None, progressbar=False, selection=None):
 		subspace = self(*expressions)
@@ -3339,36 +3342,26 @@ class DatasetLocal(Dataset):
 
 	@property
 	def data(self):
-		"""Gives direct access to the data as numpy-like arrays.
+		"""Gives direct access to the data as numpy arrays.
 
-		Convenient when working with ipython in combination with small datasets, since this gives tab-completion
+		Convenient when working with IPython in combination with small datasets, since this gives tab-completion.
+		Only real columns (i.e. no virtual) columns can be accessed, for getting the data from virtual columns, use
+		Dataset.evalulate(...)
 
-		Columns can be accesed by there names, which are attributes. The attribues are subclasses of numpy.ndarray
-		and have the following extra properties:
-
-		* ucd - The ucd for the column
-		* description - Text description for column
-		* unit - astropy unit object (astropy.units.Unit)
+		Columns can be accesed by there names, which are attributes. The attribues are of type numpy.ndarray
 
 		:Example:
 		>>> ds = vx.example()
 		>>> r = np.sqrt(ds.data.x**2 + ds.data.y**2)
 
 		"""
-		class Data(object):
-			pass
-		class VaexColumn(np.ndarray):
+		class Datas(object):
 			pass
 
-		data = Data()
+		datas = Datas()
 		for name, array in self.columns.items():
-			#c = VaexColumn()
-			column = array.view(VaexColumn)
-			column.unit = self.unit(name)
-			column.ucd = self.ucds.get(name)
-			column.description = self.descriptions.get(name)
-			setattr(data, name, column)
-		return data
+			setattr(datas, name, array)
+		return datas
 
 	def shallow_copy(self, virtual=True, variables=True):
 		"""Creates a (shallow) copy of the dataset
