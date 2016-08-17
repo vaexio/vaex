@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import math
 import concurrent.futures
+import six
 is_frozen = getattr(sys, 'frozen', False)
 
 osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
@@ -319,8 +320,9 @@ def filename_shorten(path, max_length=150):
 	else:
 		return path
 
-
 def listify(x):
+	if isinstance(x, six.string_types):
+		return False, [x]
 	try:
 		_ = x[0]
 		return True, x
