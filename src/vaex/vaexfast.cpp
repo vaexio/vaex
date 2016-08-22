@@ -242,148 +242,35 @@ inline double double_to_native(double value)
 	*result = __builtin_bswap64(*val);
 	return result_value;
 }
+// no-op for template
+inline double double_to_double(double value) {
+    return value;
+}
 
 #define custom_isfinite(value) ((value-value)==0)
+#define custom_isnan(value) (!(value==value))
 
 void find_nan_min_max(const double* const block_ptr, const long long length, bool native, double &min_, double &max_) {
-	double min = min_, max = max_;
-	//*double min = min_, max = max_; // no using the reference but a local var seems easier for the compiler to optimize
-	//printf("length: %d\n", length);
-
-	/*/
-	int thread_index = 0;
-	int counts = 0;
-	double maxima[16], minima[16];
-	double local_max, local_min;
-	int k;
-	#pragma omp parallel private(thread_index, counts, k, local_max, local_min)
-	{
-		thread_index = omp_get_thread_num();
-		int nthreads = omp_get_num_threads();
-
-		printf("threads: %d\n", nthreads);
-		counts = 0;
-
-		#pragma omp single
-		{
-			//maxima = (double*)malloc(sizeof(double) * nthreads);
-			//minima = (double*)malloc(sizeof(double) * nthreads);
-			for(int i = 0; i < nthreads; i++) {
-				maxima[i] = block_ptr[0];
-				minima[i] = block_ptr[0];
-			}
-		}
-		local_min = minima[thread_index];
-		local_max = maxima[thread_index];
-		for(int k = 0; k < length/nthreads; k++) {
-			double value = block_ptr[k*nthreads + thread_index];
-			local_min = fmin(value, local_min);
-			local_max = fmax(value, local_max);
-		}
-		//schedule(static, 1000)
-		#pragma omp for
-		for(int i = 0; i < length; i++) {
-			//mask_ptr[i] = (block_ptr[i] > min) & (block_ptr[i] <= max);
-			double value = block_ptr[i];
-			//printf("%d %d\n", thread_index, i);
-			//#if(!isnan(value)) {
-			if(value == value) {  // nan checking
-				//minima[thread_index] = (value < minima[thread_index]) ? value : minima[thread_index];
-				//maxima[thread_index] = (value > maxima[thread_index]) ? value : maxima[thread_index];
-				local_min = fmin(value, local_min);
-				local_max = fmax(value, local_max);
-			}
-			counts++;
-		}
-		minima[thread_index] = local_min;
-		maxima[thread_index] = local_max;
-
-		printf("thread %d did %d\n", thread_index, counts);
-		#pragma omp single
-		{
-			min = minima[0];
-			max = maxima[0];
-			for(int i = 1; i < nthreads; i++) {
-				min = fmin(minima[i], min);
-				max = fmax(maxima[i], max);
-			}
-			//free(maxima);
-			//free(minima);
-		}
-
-	}
-	/*/
-	//printf("new min/max");
+	double min = INFINITY, max = -INFINITY;// not using the reference but a local var seems easier for the compiler to optimize
 	if(native) {
-		//printf("native");
-		min = block_ptr[0];
-		max = block_ptr[0];
-		for(long long i = 1; i < length; i++) {
-			if(!custom_isfinite(min))
-				min = block_ptr[i];
-			else
-				break;
+		for(long long i = 0; i < length; i++) {
+	    	const double value = block_ptr[i];
+	    	if(custom_isfinite(value)) {
+                min = value < min ? value : min;
+                max = value > max ? value : max;
+            }
 		}
-		for(long long i = 1; i < length; i++) {
-			if(!custom_isfinite(max))
-				max = block_ptr[i];
-			else
-				break;
-		}
-		for(long long i = 1; i < length; i++) {
-			const double value = block_ptr[i];
-			//if(value == value)// nan checking
-			if(custom_isfinite(value))
-			{
-				//min = fmin(value, min);
-				//max = fmax(value, max);
-				if(value < min) {
-					min = value;
-				} else if (value > max) {
-					max = value;
-				}
-				//min = value < min ? value : min;
-				//max = value > max ? value : max;
-			}
-		}
-		/**/
-		min_ = min;
-		max_ = max;
 	} else {
-		//printf("non-native");
-		min = double_to_native(block_ptr[0]);
-		max = double_to_native(block_ptr[0]);
-		for(long long i = 1; i < length; i++) {
-			if(isnan(min))
-				min = double_to_native(block_ptr[i]);
-			else
-				break;
-		}
-		for(long long i = 1; i < length; i++) {
-			if(isnan(max))
-				max = double_to_native(block_ptr[i]);
-			else
-				break;
-		}
 		for(long long i = 1; i < length; i++) {
 			const double value = double_to_native(block_ptr[i]);
-			//if(value == value)// nan checking
-			{
-				//min = fmin(value, min);
-				//max = fmax(value, max);
-				if(value < min) {
-					min = value;
-				} else if (value > max) {
-					max = value;
-				}
-				//min = value < min ? value : min;
-				//max = value > max ? value : max;
-			}
+	    	if(custom_isfinite(value)) {
+                min = value < min ? value : min;
+                max = value > max ? value : max;
+            }
 		}
-		/**/
-		min_ = min;
-		max_ = max;
 	}
+    min_ = min;
+    max_ = max;
 }
 
 
@@ -445,6 +332,79 @@ PyObject* nansum_(PyObject* self, PyObject* args) {
 			nansum(block_ptr, length, native, sum);
 			Py_END_ALLOW_THREADS
 			result = Py_BuildValue("d", sum);
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
+	}
+	return result;
+}
+#include <immintrin.h>
+
+void sum(const double* const __restrict__ block_ptr, const long long length, bool native, double &sum_) {
+	double sum = sum_;
+
+	if(native) {
+	    /*
+	    __m256d ymm0, ymm1, ymm2, ymm3, ymm4, ymm5, ymm6, ymm7;
+        ymm0 = __builtin_ia32_loadupd256(block_ptr+4*0);
+        ymm1 = __builtin_ia32_loadupd256(block_ptr+4*1);
+        ymm2 = __builtin_ia32_loadupd256(block_ptr+4*2);
+        ymm3 = __builtin_ia32_loadupd256(block_ptr+4*3);
+        double normal[4];
+		for(long long i = 4; i < length; i+=4*4) {
+			//double value = block_ptr[i];
+			//sum += block_ptr[i];
+			ymm4 = __builtin_ia32_loadupd256(block_ptr+i+4*0);
+			ymm5 = __builtin_ia32_loadupd256(block_ptr+i+4*1);
+			ymm6 = __builtin_ia32_loadupd256(block_ptr+i+4*2);
+			ymm7 = __builtin_ia32_loadupd256(block_ptr+i+4*3);
+
+			ymm0 = __builtin_ia32_addpd256(ymm0, ymm4);
+			ymm1 = __builtin_ia32_addpd256(ymm1, ymm5);
+			ymm2 = __builtin_ia32_addpd256(ymm2, ymm6);
+			ymm3 = __builtin_ia32_addpd256(ymm3, ymm7);
+
+		}
+        ymm0 = __builtin_ia32_addpd256(ymm0, ymm1);
+        ymm1 = __builtin_ia32_addpd256(ymm2, ymm3);
+
+        ymm0 = __builtin_ia32_addpd256(ymm0, ymm1);
+
+        __builtin_ia32_storeupd256(normal, ymm0);
+        for (int k=0; k<4; k++) {
+          sum += normal[k];
+        }/*/
+		for(long long i = 0; i < length; i++) {
+			double value = block_ptr[i];
+			sum += value;
+		}
+        /**/
+
+	} else {
+		for(long long i = 0; i < length; i++) {
+			double value = double_to_native(block_ptr[i]);
+			sum += value;
+		}
+	}
+	sum_ = sum;
+}
+
+
+PyObject* sum_(PyObject* self, PyObject* args) {
+	PyObject* result = NULL;
+	PyObject* block;
+	if(PyArg_ParseTuple(args, "O", &block)) {
+
+		long long length = -1;
+		double *block_ptr = NULL;
+		double sum__=0.;
+		bool native = true;
+		try {
+			object_to_numpy1d_nocopy_endian(block_ptr, block, length, native);
+			Py_BEGIN_ALLOW_THREADS
+			sum(block_ptr, length, native, sum__);
+			Py_END_ALLOW_THREADS
+			result = Py_BuildValue("d", sum__);
 		} catch(std::runtime_error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
@@ -859,6 +819,8 @@ void histogramNd(const double* const blocks[], const double* const weights, long
 	}
 }
 
+
+
 PyObject* histogramNd_(PyObject* self, PyObject* args) {
 	//object block, object weights, object counts, double min, double max) {
 	PyObject* result = NULL;
@@ -914,6 +876,299 @@ PyObject* histogramNd_(PyObject* self, PyObject* args) {
 			}
 			Py_BEGIN_ALLOW_THREADS
 			histogramNd(block_ptrs, weights_ptr, block_length, dimensions, counts_ptr, count_strides, count_sizes, minima, maxima);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(std::runtime_error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
+	}
+	return result;
+}
+
+struct functor_double_to_double {
+    inline double operator()(double value) {
+        return value;
+    }
+};
+
+struct functor_double_to_native {
+    inline double operator()(double value) {
+        return double_to_native(value);
+    }
+};
+
+template<typename T=double, typename ENDIAN=functor_double_to_double>
+struct op_add1 {
+    void operator()(const T* const inputs, T* const __restrict__ outputs) {
+        outputs[0] += 1;
+    }
+};
+template<typename T=double, typename ENDIAN=functor_double_to_double>
+struct op_count {
+    void operator()(const T* const inputs, T* const __restrict__ outputs) {
+        ENDIAN endian;
+        double value = endian(inputs[0]);
+        outputs[0] += (custom_isnan(value) ? 0 : 1);
+    }
+};
+
+template<typename T=double, typename ENDIAN=functor_double_to_double>
+struct op_add_weight_and_count {
+    void operator()(const T* const inputs, T* const __restrict__ outputs) {
+        ENDIAN endian;
+        double value = endian(inputs[0]);
+        if(!custom_isnan(value))
+        {
+            outputs[0] += value;
+            outputs[1] += 1;
+        }
+    }
+};
+
+template<typename T=double, typename ENDIAN=functor_double_to_double>
+struct op_min_max {
+    void operator()(const T* const __restrict__ inputs, T* const __restrict__ outputs) {
+        ENDIAN endian;
+        double value = endian(inputs[0]);
+        //if(!custom_isnan(value)) {
+        {
+            //outputs[0] = fmin(outputs[0], value);
+            //outputs[1] = fmax(outputs[1], value);
+            if(value < outputs[0]) {
+                outputs[0] = value;
+            } else if (value > outputs[1]) {
+                outputs[1] = value;
+            }
+        }
+    }
+};
+
+template<typename T=double, typename ENDIAN=functor_double_to_double>
+struct op_add_pow2_and_count {
+    void operator()(const T* const inputs, T* const __restrict__ outputs) {
+        ENDIAN endian;
+        double value = endian(inputs[0]);
+        if(!custom_isnan(value)) {
+            outputs[0] += value*value;
+            outputs[1] += 1;
+        }
+    }
+};
+
+
+template<typename OP>
+void statisticNd(const double* const __restrict__ blocks[], const double* const __restrict__ weights, long long block_length, const int dimensions, double* const __restrict__ counts, const long long * const __restrict__ count_strides, const int * const __restrict__ count_sizes, const double* const __restrict__ minima, const double* const __restrict__ maxima) {
+//void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, double* counts, const int counts_length_x, const int counts_length_y, const int counts_length_z, const double xmin, const double xmax, const double ymin, const double ymax, const double zmin, const double zmax, long long const offset_x, long long const offset_y, long long const offset_z){
+    OP op;
+
+	double scales[MAX_DIMENSIONS];
+	for(int d = 0; d < dimensions; d++) {
+		scales[d] = 1 / (maxima[d] - minima[d]);
+	}
+	if(dimensions == 0) { // optimization.. can we generalize it?
+        for(long long i = 0; i < block_length; i++) {
+            long long index = 0;
+            op(&weights[i], &counts[index]);
+        }
+    } else
+	if(dimensions == 1) { // optimization.. can we generalize it?
+        for(long long i = 0; i < block_length; i++) {
+            long long index = 0;
+            bool inside = true;
+            for(int d = 0; d < 1; d++) {
+                double value = blocks[1-1-d][i];
+                double scaled = (value - minima[d]) * scales[d];
+                if( (scaled >= 0) & (scaled < 1) ) {
+                    int sub_index = (int)(scaled * count_sizes[d]);
+                    index += count_strides[d] * sub_index;
+                } else {
+                    inside = false;
+                    break;
+                }
+            }
+            if(inside)
+                op(&weights[i], &counts[index]);
+        }
+    } else
+
+	if(dimensions == 2) { // optimization.. can we generalize it?
+        for(long long i = 0; i < block_length; i++) {
+            long long index = 0;
+            bool inside = true;
+            for(int d = 0; d < dimensions; d++) {
+                double value = blocks[dimensions-1-d][i];
+                double scaled = (value - minima[d]) * scales[d];
+                if( (scaled >= 0) & (scaled < 1) ) {
+                    int sub_index = (int)(scaled * count_sizes[d]);
+                    index += count_strides[d] * sub_index;
+                } else {
+                    inside = false;
+                    break;
+                }
+            }
+            if(inside)
+                op(&weights[i], &counts[index]);
+        }
+    } else {
+        for(long long i = 0; i < block_length; i++) {
+            long long index = 0;
+            bool inside = true;
+            for(int d = 0; d < dimensions; d++) {
+                double value = blocks[dimensions-1-d][i];
+                double scaled = (value - minima[d]) * scales[d];
+                if( (scaled >= 0) & (scaled < 1) ) {
+                    int sub_index = (int)(scaled * count_sizes[d]);
+                    index += count_strides[d] * sub_index;
+                } else {
+                    inside = false;
+                    break;
+                }
+            }
+            if(inside)
+                op(&weights[i], &counts[index]);
+        }
+    }
+}
+
+
+#define ENUM2STR(k) #k
+enum {
+    OP_ADD1,
+    OP_COUNT,
+    OP_MIN_MAX,
+    OP_ADD_WEIGHT_AND_COUNT,
+    OP_ADD_POW2_AND_COUNT
+} STATISTIC_OPS;
+
+static const char *statistic_op_names[] = {
+    ENUM2STR(OP_ADD1),
+    ENUM2STR(OP_COUNT),
+    ENUM2STR(OP_MIN_MAX),
+    ENUM2STR(OP_ADD_WEIGHT_AND_COUNT),
+    ENUM2STR(OP_ADD_POW2_AND_COUNT)
+};
+
+
+template<typename endian>
+void statisticNd_wrap_template_endian(
+        const double* const blocks[],
+        const double* const weights,
+        long long block_length,
+        int dimensions,
+        double* counts,
+        long long count_strides[],
+        int count_sizes[],
+        double minima[],
+        double maxima[],
+        int op_code) {
+        if(op_code == OP_ADD1) {
+            statisticNd<op_add1<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+        } else if(op_code == OP_COUNT) {
+            statisticNd<op_count<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+        } else if(op_code == OP_MIN_MAX) {
+            statisticNd<op_min_max<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+        } else if(op_code == OP_ADD_WEIGHT_AND_COUNT) {
+            statisticNd<op_add_weight_and_count<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+        } else if(op_code == OP_ADD_POW2_AND_COUNT) {
+            statisticNd<op_add_pow2_and_count<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+        } else {
+            printf("unknown op code for statistic: %i", op_code);
+        }
+
+}
+
+void statisticNd_wrap_template(
+        const double* const blocks[],
+        const double* const weights,
+        long long block_length,
+        int dimensions,
+        double* counts,
+        long long count_strides[],
+        int count_sizes[],
+        double minima[],
+        double maxima[],
+        bool native,
+        int op_code) {
+        if(native)
+            statisticNd_wrap_template_endian<functor_double_to_double>(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, op_code);
+        else
+            statisticNd_wrap_template_endian<functor_double_to_native>(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, op_code);
+}
+
+
+PyObject* statisticNd_(PyObject* self, PyObject* args) {
+	PyObject* result = NULL;
+	PyObject *blocklist, *weights, *counts_object, *minimalist, *maximalist;
+	//double xmin, xmax, ymin, ymax, zmin, zmax;
+	double minima[MAX_DIMENSIONS];
+	double maxima[MAX_DIMENSIONS];
+	int op_code;
+	if(PyArg_ParseTuple(args, "OOOOOi", &blocklist, &weights, &counts_object, &minimalist, &maximalist, &op_code)) {
+		long long block_length = -1;
+		int count_sizes[MAX_DIMENSIONS];
+		long long count_strides[MAX_DIMENSIONS];
+		int dimensions = -1;
+		int dimensions_grid = -1;
+		double *block_ptrs[MAX_DIMENSIONS];
+		bool block_native[MAX_DIMENSIONS];
+
+		double *weights_ptr = NULL;
+		double *counts_ptr = NULL;
+		try {
+			if(!PyList_Check(blocklist))
+				throw std::runtime_error("blocks is not a list of blocks");
+			dimensions = PyList_Size(blocklist);
+			dimensions_grid = dimensions + 1; // one dimension higher for multiple output values
+
+			if(!PyList_Check(minimalist))
+				throw std::runtime_error("minima is not a list of blocks");
+			if(PyList_Size(minimalist) != dimensions)
+				throw Error("minima is of length %ld, expected %d", PyList_Size(minimalist), dimensions);
+
+			if(!PyList_Check(maximalist))
+				throw std::runtime_error("maxima is not a list of blocks");
+			if(PyList_Size(maximalist) != dimensions)
+				throw Error("maxima is of length %ld, expected %d", PyList_Size(maximalist), dimensions);
+
+			for(int d = 0; d < dimensions; d++) {
+				//object_to_numpy1d_nocopy       (block_ptrs[d], PyList_GetItem(blocklist, d), block_length);
+    			object_to_numpy1d_nocopy_endian(block_ptrs[d], PyList_GetItem(blocklist, d), block_length, block_native[d]);
+				PyObject *min = PyList_GetItem(minimalist, d);
+				PyObject *max = PyList_GetItem(maximalist, d);
+				if(!PyFloat_Check(min))
+					throw Error("element %d of minima is not of type float", d);
+				if(!PyFloat_Check(max))
+					throw Error("element %d of maxima is not of type float", d);
+
+				if((d > 0) & (block_native[d-1] != block_native[d])  )
+					throw Error("mixed native and non-native arrays not supported");
+				minima[d] =  PyFloat_AsDouble(min);
+				maxima[d] =  PyFloat_AsDouble(max);
+				//printf("min/max[%d] = %f/%f\n", d, minima[d], maxima[d]);
+			}
+			if(weights != Py_None) {
+    			bool weight_native = true;
+				object_to_numpy1d_nocopy_endian(weights_ptr, weights, block_length, weight_native);
+				if(dimensions == 0) {
+				    block_native[0] = weight_native; // ugly, but works to support 0 dim
+				}
+				if(weight_native != block_native[0])
+					throw Error("mixed native and non-native arrays not supported");
+			}
+
+			object_to_numpyNd_nocopy(counts_ptr, counts_object, MAX_DIMENSIONS, dimensions_grid, &count_sizes[0], &count_strides[0]);
+			for(int d = 0; d < dimensions_grid; d++) {
+				count_strides[d] /= 8; // convert from byte stride to element stride
+			}
+			if(count_strides[dimensions_grid-1] != 1) {
+			    throw Error("last dimension in grid should have stride of 1, not %i", count_strides[dimensions_grid-1]);
+			}
+			/*if(weights != Py_None) {
+				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+			}*/
+			Py_BEGIN_ALLOW_THREADS
+			statisticNd_wrap_template(block_ptrs, weights_ptr, block_length, dimensions, counts_ptr, count_strides, count_sizes, minima, maxima, block_native[0], op_code);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
@@ -1297,11 +1552,13 @@ static PyObject* resize_(PyObject* self, PyObject *args) {
 static PyMethodDef pyvaex_functions[] = {
         {"range_check", (PyCFunction)range_check_, METH_VARARGS, ""},
         {"nansum", (PyCFunction)nansum_, METH_VARARGS, ""},
+        {"sum", (PyCFunction)sum_, METH_VARARGS, ""},
         {"find_nan_min_max", (PyCFunction)find_nan_min_max_, METH_VARARGS, ""},
         {"histogram1d", (PyCFunction)histogram1d_, METH_VARARGS, ""},
         {"histogram2d", (PyCFunction)histogram2d_, METH_VARARGS, ""},
         {"histogram3d", (PyCFunction)histogram3d_, METH_VARARGS, ""},
         {"histogramNd", (PyCFunction)histogramNd_, METH_VARARGS, ""},
+        {"statisticNd", (PyCFunction)statisticNd_, METH_VARARGS, ""},
         {"project", (PyCFunction)project_, METH_VARARGS, ""},
         {"pnpoly", (PyCFunction)pnpoly_, METH_VARARGS, ""},
         {"soneira_peebles", (PyCFunction)soneira_peebles_, METH_VARARGS, ""},
