@@ -11,7 +11,7 @@ from functools import reduce
 
 __author__ = 'breddels'
 
-buffer_size_default = 1e6 # TODO: this should not be fixed, larger means faster but also large memory usage
+buffer_size_default = 1024*1024 # TODO: this should not be fixed, larger means faster but also large memory usage
 #buffer_size_default = 1e4
 
 import threading
