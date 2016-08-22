@@ -284,7 +284,8 @@ class TaskHistogram(Task):
 			#	#print "speedup?"
 			#	histogram_numba(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
 			#else:
-				vaex.vaexfast.histogram2d(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
+			vaex.vaexfast.histogram2d(blocks[0], blocks[1], subblock_weight, data, *self.ranges_flat)
+			#vaex.vaexfast.statisticNd([blocks[0], blocks[1]], subblock_weight, data, self.minima, self.maxima, 0)
 		elif self.dimension == 3:
 			vaex.vaexfast.histogram3d(blocks[0], blocks[1], blocks[2], subblock_weight, data, *self.ranges_flat)
 		else:
@@ -736,6 +737,7 @@ class Subspace(object):
 	def image_rgba(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, weight_stat="mean", figsize=None,
 			 aspect="auto", f=lambda x: x, axes=None, xlabel=None, ylabel=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=10, cmap="afmhot",
+		     vmin=None, vmax=None,
 			 pre_blend=False, background_color="white", background_alpha=1., normalize=True, color=None):
 		f = _parse_f(f)
 		if grid is None:
@@ -790,9 +792,13 @@ class Subspace(object):
 				rgba[...,0:4] = color
 				data = f(grid)
 				mask = (grid > 0) & np.isfinite(data)
+				if vmin is None:
+					vmin = data[mask].min()
+				if vmax is None:
+					vmax = data[mask].max()
 				if mask.sum():
-					data -= data[mask].min()
-					data /= data[mask].max()
+					data -= vmin
+					data /= vmax
 					data[~mask] = 0
 				else:
 					data[:] = 0
@@ -802,12 +808,17 @@ class Subspace(object):
 				data = f(grid)
 				if normalize:
 					mask = (data > 0) & np.isfinite(data)
+					if vmin is None:
+						vmin = data[mask].min()
+					if vmax is None:
+						vmax = data[mask].max()
 					if mask.sum():
-						data -= data[mask].min()
-						data /= data[mask].max()
+						data -= vmin
+						data /= vmax
 					else:
 						data[:] = 0
 					data[~mask] = 0
+				data = np.clip(data, 0, 1)
 				rgba = cmap(data)
 				if normalize:
 					rgba[~mask,3] = 0
@@ -851,6 +862,7 @@ class Subspace(object):
 	def plot(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, weight_stat="mean", figsize=None,
 			 aspect="auto", f="identity", axes=None, xlabel=None, ylabel=None,
 			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=None,
+			 vmin=None, vmax=None,
 			 cmap="afmhot",
 			 **kwargs):
 		"""Plot the subspace using sane defaults to get a quick look at the data.
@@ -890,6 +902,7 @@ class Subspace(object):
 		rgba8 = self.image_rgba(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight, weight_stat=weight_stat,
 			 f=f, axes=axes,
 			 group_by=group_by, group_limits=group_limits, group_colors=group_colors, group_count=group_count,
+			vmin=vmin, vmax=vmax,
 			 cmap=cmap)
 		import matplotlib
 		if group_by:
@@ -1271,6 +1284,14 @@ class SubspaceLocal(Subspace):
 			#with lock:
 			#	print thread_index, i1, i2, blocks
 			return [vaex.vaexfast.find_nan_min_max(block) for block in blocks]
+			if 0: # TODO: implement using statisticNd and benchmark
+				minmaxes = np.zeros((len(blocks), 2), dtype=float)
+				minmaxes[:,0] = np.inf
+				minmaxes[:,1] = -np.inf
+				for i, block in enumerate(blocks):
+					vaex.vaexfast.statisticNd([], block, minmaxes[i,:], [], [], 2)
+				#minmaxes[~np.isfinite(minmaxes)] = np.nan
+				return minmaxes
 		task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self._toarray, info=True, name="minmax")
 		return self._task(task, progressbar=progressbar)
 
@@ -1388,7 +1409,7 @@ class SubspaceLocal(Subspace):
 	def sum(self):
 		nansum = lambda x: np.nansum(x, dtype=np.float64)
 		# TODO: we can speed up significantly using our own nansum, probably the same for var and mean
-		# nansum = vaex.vaexfast.nansum
+		nansum = vaex.vaexfast.nansum
 		if self.is_masked:
 			mask = self.dataset.mask
 			task = TaskMapReduce(self.dataset,\
@@ -1914,6 +1935,19 @@ class Dataset(object):
 			return self.columns[expression].dtype
 		else:
 			return np.zeros(1, dtype=np.float64).dtype
+
+	def label(self, expression, unit=None, output_unit=None, format="latex_inline"):
+		label = expression
+		unit = unit or self.unit(expression)
+		try: # if we can convert the unit, use that for the labeling
+			if output_unit and unit: # avoid unnecessary error msg'es
+				output_unit.to(unit)
+				unit = output_unit
+		except:
+			logger.exception("unit error")
+		if unit is not None:
+			label = "%s (%s)" % (label, unit.to_string('latex_inline')  )
+		return label
 
 	def unit(self, expression, default=None):
 		"""Returns the unit (an astropy.unit.Units object) for the expression
@@ -3001,15 +3035,97 @@ class DatasetLocal(Dataset):
 			return subspace.mean()[0]
 		else:
 			# todo, fix progressbar into two...
+			limits = self.limits(binby, limits)
 			subspace = self(*binby)
 			if selection:
 				subspace = subspace.selected()
-			counts = subspace.histogram(limits=limits, size=shape, progressbar=progressbar)
-			weighted = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
-									weight=expression)
-			mean = weighted/counts
+			counts = self.count(expression, binby=binby, limits=limits, shape=shape, progressbar=progressbar, selection=selection)
+			summed = self.sum  (expression, binby=binby, limits=limits, shape=shape, progressbar=progressbar, selection=selection)
+			mean = summed/counts
 			mean[counts==0] = np.nan
 			return mean
+
+	def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
+		if len(binby) == 0:
+			raise ValueError("only supported with binby argument given")
+		else:
+			# todo, fix progressbar into two...
+			try:
+				len(shape)
+				shape = tuple(shape)
+			except:
+				shape = len(binby) * (shape,)
+			shape = (mode_shape,) + shape
+			subspace = self(*(list(binby) + [expression]))
+			if selection:
+				subspace = subspace.selected()
+
+			limits = self.limits(list(binby), limits)
+			mode_limits = self.limits([expression], mode_limits)
+			limits = list(limits) + list(mode_limits)
+			counts = subspace.histogram(limits=limits, size=shape, progressbar=progressbar)
+
+			indices = np.argmax(counts, axis=0)
+			pmin, pmax = limits[-1]
+			centers = np.linspace(pmin, pmax, mode_shape+1)[:-1]# ignore last bin
+			centers += (centers[1] - centers[0])/2 # and move half a bin to the right
+
+			modes = centers[indices]
+			ok = counts.sum(axis=0) > 0
+			modes[~ok] = np.nan
+			return modes
+
+	def median(self, expression, binby=[], limits=None, shape=256, median_shape=1024*16, median_limits=None, progressbar=False, selection=None):
+		if len(binby) == 0:
+			return self.percentile(expression=expression, percentage=50, selection=selection)
+		else:
+			# todo, fix progressbar into two...
+			try:
+				len(shape)
+				shape = tuple(shape)
+			except:
+				shape = len(binby) * (shape,)
+			shape = (median_shape,) + shape
+			subspace = self(*(list(binby) + [expression]))
+			if selection:
+				subspace = subspace.selected()
+
+			limits = self.limits(list(binby), limits)
+			median_limits = self.limits([expression], median_limits)
+			limits = list(limits) + list(median_limits)
+			counts = subspace.histogram(limits=limits, size=shape, progressbar=progressbar)
+
+
+			# F is the 'cumulative distribution'
+			F = np.cumsum(counts, axis=0)
+			# we'll fill empty values with nan later on..
+			ok = F[-1,...] > 0
+			F /= np.max(F, axis=(0))
+			# find indices around 0.5 for each bin
+			i2 = np.apply_along_axis(lambda x: x.searchsorted(0.5, side='left'), axis = 0, arr = F)
+			i1 = i2 - 1
+			i1 = np.clip(i1, 0, median_shape-1)
+			i2 = np.clip(i2, 0, median_shape-1)
+
+			# interpolate between i1 and i2
+
+			# np.choose seems buggy, use the equivalent code instead
+			a = i1
+			c = F
+			F1 = np.array([c[a[I]][I] for I in np.ndindex(a.shape)])
+			F1 = F1.reshape(F.shape[1:])
+
+			a = i2
+			F2 = np.array([c[a[I]][I] for I in np.ndindex(a.shape)])
+			F2 = F2.reshape(F.shape[1:])
+
+			offset = (0.5-F1)/(F2-F1)
+			pmin, pmax = limits[-1]
+			median = pmin + (i1+offset) / float(median_shape-1.) * (pmax-pmin)
+
+			# empty values should be set to nan
+			median[~ok] = np.nan
+			return median
 
 	def sum(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
 		if len(binby) == 0:
@@ -3024,6 +3140,21 @@ class DatasetLocal(Dataset):
 				subspace = subspace.selected()
 			summed = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
 									weight=expression)
+			return summed
+
+	def count(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
+		if len(binby) == 0:
+			subspace = self("(%s)*0+1" % expression)
+			if selection:
+				subspace = subspace.selected()
+			return subspace.sum()[0]
+		else:
+			# todo, fix progressbar into two...
+			subspace = self(*binby)
+			if selection:
+				subspace = subspace.selected()
+			summed = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
+									weight="(%s)*0+1" % expression)
 			return summed
 
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
@@ -3108,8 +3239,11 @@ class DatasetLocal(Dataset):
 					functions = ["mean", "sum"]
 					if function in functions:
 						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
-					elif function == "count" and arguments == "*":
-						grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
+					elif function == "count":
+						if arguments == "*":
+							grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
+						else:
+							grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selection)
 					else:
 						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
 				else:
@@ -3153,13 +3287,13 @@ class DatasetLocal(Dataset):
 				axes.append(ax)
 				im = ax.imshow(rgrid[i], extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
 				v1, v2 = values[i], values[i+1]
-				pylab.xlabel(xlabel or x)
-				pylab.ylabel(ylabel or y)
+				pylab.xlabel(xlabel or self.label(x))
+				pylab.ylabel(ylabel or self.label(y))
 				ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
 				#pylab.show()
 		else:
-			pylab.xlabel(xlabel or x)
-			pylab.ylabel(ylabel or y)
+			pylab.xlabel(xlabel or self.label(x))
+			pylab.ylabel(ylabel or self.label(y))
 			axes.append(pylab.gca())
 
 			rgba = rgrid
@@ -3196,14 +3330,16 @@ class DatasetLocal(Dataset):
 		if tight_layout:
 			pylab.tight_layout()
 		if return_extra:
-			return im, grid, fgrid, ngrid, rgrid
+			return im, grid, fgrid, ngrid, rgrid, rgba8
 		else:
 			return im
 		#colorbar = None
 		#return im, colorbar
 
 	def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
-		xlabel=None, ylabel=None, tight_layout=True, **kwargs):
+		xlabel=None, ylabel=None, tight_layout=True,
+		selection=None,
+			   **kwargs):
 		"""
 
 		:param x: Expression to bin in the x direction
@@ -3265,19 +3401,19 @@ class DatasetLocal(Dataset):
 					arguments = groups[1].strip()
 					functions = ["mean", "sum"]
 					if function in functions:
-						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape)
+						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
 					elif function == "count" and arguments == "*":
-						grid = self.histogram(binby, shape=shape, limits=limits)
+						grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
 					elif function == "cumulative" and arguments == "*":
 						# TODO: comulative should also include the tails outside limits
-						grid = self.histogram(binby, shape=shape, limits=limits)
+						grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
 						grid = np.cumsum(grid)
 					else:
 						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
 				else:
 					raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
 			else:
-				grid = self.histogram(binby, size=shape, limits=limits)
+				grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
 		fgrid = f(grid)
 		if n is not None:
 			ngrid = n(fgrid, axis=normalize_axis)
