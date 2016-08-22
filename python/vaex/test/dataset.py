@@ -150,7 +150,6 @@ class TestDataset(unittest.TestCase):
 
 	def test_data_access(self):
 		assert (all(self.dataset.data.x == self.dataset.columns["x"]))
-		self.assertEqual(self.dataset.data.x.ucd, self.dataset.ucds["x"])
 
 	def test_subspace_basics(self):
 		self.assertIsNotNone(repr(self.dataset("x")))
