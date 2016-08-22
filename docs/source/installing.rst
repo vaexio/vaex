@@ -17,8 +17,9 @@ Download the binary
 
 The binary should be fully self contained, it should not need any other software. 
 
-OSX (10.7 is tested):
+OSX:
  
+* `Vaex 1.0.0-beta.1-osx <https://www.astro.rug.nl/~breddels/vaex/vaex-1.0.0-beta.1-osx.zip>`_ .
 * `Vaex 0.3.10-osx <https://www.astro.rug.nl/~breddels/vaex/vaex-0.3.10-osx.zip>`_ (`mirror <https://github.com/maartenbreddels/vaex/releases/download/0.3.10/vaex-0.3.10-osx.zip>`_).
 * `Vaex 0.2.1-osx <https://www.astro.rug.nl/~breddels/vaex/vaex-0.2.1-osx.zip>`_.
 * `Vaex 0.1.8-5-osx <https://www.astro.rug.nl/~breddels/vaex/vaex-0.1.8-5-osx.zip>`_.
@@ -35,7 +36,7 @@ Simpy unpack the tarball and run it like:
 	$ tar vaex-0.3.10-linux.tar.gz
 	$ ./vaex-0.3.10/vaex
 	
-
+* `Vaex 1.0.0-beta.1-linux <https://www.astro.rug.nl/~breddels/vaex/vaex-1.0.0-beta.1-linux.tar.gz>`_.
 * `Vaex 0.3.10-linux <https://www.astro.rug.nl/~breddels/vaex/vaex-0.3.10-linux.tar.gz>`_ (`mirror <https://github.com/maartenbreddels/vaex/releases/download/0.3.10/vaex-0.3.10-linux.tar.gz>`_).
 * `Vaex 0.2.1-linux <https://www.astro.rug.nl/~breddels/vaex/vaex-0.2.1-linux.tar.gz>`_.
 * `Vaex 0.1.8-5-linux <https://www.astro.rug.nl/~breddels/vaex/vaex-0.1.8-5-linux.tar.gz>`_.
