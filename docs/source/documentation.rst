@@ -6,7 +6,10 @@ Documentation
 .. toctree::
    :maxdepth: 2
 
-   gui_reference
+   program
+   api
    tutorial_ipython_notebook
-   reference
-   vaex
+   examples_hdf5
+   examples_notebooks
+   tipsandfaq
+

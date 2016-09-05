@@ -1783,7 +1783,7 @@ class PlotDialog(QtGui.QWidget):
 				#data = self.current_layer.dataset.get_selection().to_dict()
 				dataset = self.current_layer.dataset
 				if dataset.favorite_selections:
-					names = dataset.favorite_selections.keys()
+					names = list(dataset.favorite_selections.keys())
 					index = dialogs.choose(self, "Remove favorite", "Favorite", names)
 					if index is not None:
 						key = names[index]

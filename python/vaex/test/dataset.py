@@ -416,7 +416,7 @@ class TestDataset(unittest.TestCase):
 		r, = subspace.sum()
 		self.assertAlmostEqual(r, 1)
 
-	def test_sum(self):
+	def test_sum_old(self):
 		x, y = self.datasetxy("x", "y").sum()
 		self.assertAlmostEqual(x, 1)
 		self.assertAlmostEqual(y, 0)
@@ -439,6 +439,262 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(counter.last_args[0], 1.0)
 
 
+	def test_count(self):
+		self.dataset.select("x < 5")
+		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=None), 10)
+		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=True), 5)
+
+		# convert to float
+		self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
+		self.dataset.columns["x"][0] = np.nan
+		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=None), 9)
+		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=True), 4)
+		np.testing.assert_array_almost_equal(self.dataset.count("y", selection=None), 10)
+		np.testing.assert_array_almost_equal(self.dataset.count("y", selection=True), 5)
+		np.testing.assert_array_almost_equal(self.dataset.count(selection=None), 10)
+		# we modified the data.. so actually this should be 4..
+		np.testing.assert_array_almost_equal(self.dataset.count(selection=True), 5)
+		np.testing.assert_array_almost_equal(self.dataset.count("*", selection=None), 10)
+		np.testing.assert_array_almost_equal(self.dataset.count("*", selection=True), 5)
+
+		task = self.dataset.count("x", selection=True, async=True)
+		self.dataset.executor.execute()
+		np.testing.assert_array_almost_equal(task.get(), 4)
+
+
+		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=None, binby=["x"], limits=[0, 10], shape=1), [9])
+		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=True, binby=["x"], limits=[0, 10], shape=1), [4])
+		np.testing.assert_array_almost_equal(self.dataset.count("*", selection=None, binby=["x"], limits=[0, 10], shape=1), [9])
+		np.testing.assert_array_almost_equal(self.dataset.count("*", selection=True, binby=["x"], limits=[0, 10], shape=1), [4])
+		np.testing.assert_array_almost_equal(self.dataset.count("*", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [10])
+		np.testing.assert_array_almost_equal(self.dataset.count("*", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [5])
+		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [9])
+		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [4])
+
+		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=None, binby=["x"], limits=[0, 10], shape=2), [4, 5])
+		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=True, binby=["x"], limits=[0, 10], shape=2), [4, 0])
+
+		ds = self.dataset
+		a = ds.count("x", binby="y", limits=[0, 100], shape=2)
+		ds.select("(y >= 0) & (y < 50)")
+		b = ds.count("x", selection=True)
+		ds.select("(y >= 50) & (y < 100)")
+		c = ds.count("x", selection=True)
+		np.testing.assert_array_almost_equal(a, [b, c])
+
+
+	def test_sum(self):
+		self.dataset.select("x < 5")
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(self.x))
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(self.x[:5]))
+
+		# convert to float
+		x = self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
+		y = self.y
+		self.dataset.columns["x"][0] = np.nan
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(x))
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(x[:5]))
+
+		task = self.dataset.sum("x", selection=True, async=True)
+		self.dataset.executor.execute()
+		np.testing.assert_array_almost_equal(task.get(), np.nansum(x[:5]))
+
+
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["x"], limits=[0, 10], shape=1), [np.nansum(x)])
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["x"], limits=[0, 10], shape=1), [np.nansum(x[:5])])
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [np.nansum(x)])
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [np.nansum(x[:5])])
+
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["x"], limits=[0, 10], shape=2), [np.nansum(x[:5]), np.nansum(x[5:])])
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(x[:5]), 0])
+
+		i = 7
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["y"], limits=[0, 9**2+1], shape=2), [np.nansum(x[:i]), np.nansum(x[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["y"], limits=[0, 9**2+1], shape=2), [np.nansum(x[:5]), 0])
+
+		i = 5
+		np.testing.assert_array_almost_equal(self.dataset.sum("y", selection=None, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:i]), np.nansum(y[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.sum("y", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:5]), 0])
+
+
+	def test_cov(self):
+		# convert to float
+		x = self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
+		y = self.y
+		def cov(*args):
+			return np.cov(args, bias=1)
+		self.dataset.select("x < 5")
+
+
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=None), cov(x, y))
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=True), cov(x[:5], y[:5]))
+
+		#self.dataset.columns["x"][0] = np.nan
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=None), cov(x, y))
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=True), cov(x[:5], y[:5]))
+
+		task = self.dataset.cov("x", "y", selection=True, async=True)
+		self.dataset.executor.execute()
+		np.testing.assert_array_almost_equal(task.get(), cov(x[:5], y[:5]))
+
+
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=1), [cov(x, y)])
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=1), [cov(x[:5], y[:5])])
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [cov(x, y)])
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [cov(x[:5], y[:5])])
+
+		nan22 = [[np.nan, np.nan], [np.nan, np.nan]]
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=2), [cov(x[:5], y[:5]), cov(x[5:], y[5:])])
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [cov(x[:5], y[:5]), nan22])
+
+		i = 7
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=None, binby=["y"], limits=[0, 9**2+1], shape=2), [cov(x[:i], y[:i]), cov(x[i:], y[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=True, binby=["y"], limits=[0, 9**2+1], shape=2), [cov(x[:5], y[:5]), nan22])
+
+		i = 5
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=2), [cov(x[:i], y[:i]), cov(x[i:], y[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [cov(x[:i], y[:i]), nan22])
+
+		# include 3rd varialble
+		self.dataset.add_virtual_column("z", "x*y")
+		z = self.dataset.evaluate("z")
+		np.testing.assert_array_almost_equal(self.dataset.cov(["x", "y", "z"], selection=None), cov(x, y, z))
+
+		nan33 = [[np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan]]
+		np.testing.assert_array_almost_equal(self.dataset.cov(["x", "y", "z"], selection=None, binby=["x"], limits=[0, 10], shape=2), [cov(x[:5], y[:5], z[:5]), cov(x[5:], y[5:], z[5:])])
+		np.testing.assert_array_almost_equal(self.dataset.cov(["x", "y", "z"], selection=True, binby=["x"], limits=[0, 10], shape=2), [cov(x[:5], y[:5], z[:5]), nan33])
+
+		i = 7
+		np.testing.assert_array_almost_equal(self.dataset.cov(["x", "y", "z"], selection=None, binby=["y"], limits=[0, 9**2+1], shape=2), [cov(x[:i], y[:i], z[:i]), cov(x[i:], y[i:], z[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.cov(["x", "y", "z"], selection=True, binby=["y"], limits=[0, 9**2+1], shape=2), [cov(x[:5], y[:5], z[:5]), nan33])
+
+		i = 5
+		np.testing.assert_array_almost_equal(self.dataset.cov(["x", "y", "z"], selection=None, binby=["x"], limits=[0, 10], shape=2), [cov(x[:i], y[:i], z[:i]), cov(x[i:], y[i:], z[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.cov(["x", "y", "z"], selection=True, binby=["x"], limits=[0, 10], shape=2), [cov(x[:i], y[:i], z[:i]), nan33])
+
+
+	def test_correlation(self):
+		# convert to float
+		x = self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
+		y = self.y
+		def correlation(x, y):
+			c = np.cov([x, y], bias=1)
+			return c[0,1] / (c[0,0] * c[1,1])**0.5
+
+		np.testing.assert_array_almost_equal(self.dataset.correlation([["x", "y"], ["x", "x**2"]], selection=None), [correlation(x, y), correlation(x, x**2)])
+		return
+
+		self.dataset.select("x < 5")
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None), correlation(x, y))
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True), correlation(x[:5], y[:5]))
+
+		#self.dataset.columns["x"][0] = np.nan
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None), correlation(x, y))
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True), correlation(x[:5], y[:5]))
+
+		task = self.dataset.correlation("x", "y", selection=True, async=True)
+		self.dataset.executor.execute()
+		np.testing.assert_array_almost_equal(task.get(), correlation(x[:5], y[:5]))
+
+
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=1), [correlation(x, y)])
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=1), [correlation(x[:5], y[:5])])
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [correlation(x, y)])
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [correlation(x[:5], y[:5])])
+
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:5], y[:5]), correlation(x[5:], y[5:])])
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:5], y[:5]), np.nan])
+
+		i = 7
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None, binby=["y"], limits=[0, 9**2+1], shape=2), [correlation(x[:i], y[:i]), correlation(x[i:], y[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["y"], limits=[0, 9**2+1], shape=2), [correlation(x[:5], y[:5]), np.nan])
+
+		i = 5
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:i], y[:i]), correlation(x[i:], y[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:i], y[:i]), np.nan])
+
+		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["x"], limits=[[0, 10]], shape=2), [correlation(x[:i], y[:i]), np.nan])
+
+		self.assertGreater(self.dataset.correlation("x", "y", selection=None, binby=["x"], shape=1), 0)
+
+		self.assertGreater(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits="90%", shape=1), 0)
+		self.assertGreater(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits=["90%"], shape=1), 0)
+		self.assertGreater(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits="minmax", shape=1), 0)
+
+	def test_covar(self):
+		# convert to float
+		x = self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
+		y = self.y
+		def covar(x, y):
+			mask = np.isfinite(x * y)
+			#w = np.isfinite(x * y) * 1.0
+			x = x[mask]
+			y = y[mask]
+			return np.cov([x, y], bias=1)[1,0]
+		self.dataset.select("x < 5")
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=None), covar(x, y))
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=True), covar(x[:5], y[:5]))
+
+		#self.dataset.columns["x"][0] = np.nan
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=None), covar(x, y))
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=True), covar(x[:5], y[:5]))
+
+		task = self.dataset.covar("x", "y", selection=True, async=True)
+		self.dataset.executor.execute()
+		np.testing.assert_array_almost_equal(task.get(), covar(x[:5], y[:5]))
+
+
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=1), [covar(x, y)])
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=1), [covar(x[:5], y[:5])])
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [covar(x, y)])
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [covar(x[:5], y[:5])])
+
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=2), [covar(x[:5], y[:5]), covar(x[5:], y[5:])])
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [covar(x[:5], y[:5]), np.nan])
+
+		i = 7
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=None, binby=["y"], limits=[0, 9**2+1], shape=2), [covar(x[:i], y[:i]), covar(x[i:], y[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=True, binby=["y"], limits=[0, 9**2+1], shape=2), [covar(x[:5], y[:5]), np.nan])
+
+		i = 5
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=2), [covar(x[:i], y[:i]), covar(x[i:], y[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [covar(x[:i], y[:i]), np.nan])
+
+
+	def t_est_percentile(self):
+		self.dataset.select("x < 5")
+		np.testing.assert_array_almost_equal(self.dataset.percentile("x", selection=None, percentile_limits="minmax"), np.median(self.x))
+		return
+		np.testing.assert_array_almost_equal(self.dataset.percentile("x", selection=True), np.median(self.x[:5]))
+
+		# convert to float
+		x = self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
+		y = self.y
+		self.dataset.columns["x"][0] = np.nan
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(x))
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(x[:5]))
+
+		task = self.dataset.sum("x", selection=True, async=True)
+		self.dataset.executor.execute()
+		np.testing.assert_array_almost_equal(task.get(), np.nansum(x[:5]))
+
+
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["x"], limits=[0, 10], shape=1), [np.nansum(x)])
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["x"], limits=[0, 10], shape=1), [np.nansum(x[:5])])
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [np.nansum(x)])
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [np.nansum(x[:5])])
+
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["x"], limits=[0, 10], shape=2), [np.nansum(x[:5]), np.nansum(x[5:])])
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(x[:5]), 0])
+
+		i = 7
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["y"], limits=[0, 9**2+1], shape=2), [np.nansum(x[:i]), np.nansum(x[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["y"], limits=[0, 9**2+1], shape=2), [np.nansum(x[:5]), 0])
+
+		i = 5
+		np.testing.assert_array_almost_equal(self.dataset.sum("y", selection=None, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:i]), np.nansum(y[i:])])
+		np.testing.assert_array_almost_equal(self.dataset.sum("y", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:5]), 0])
+
 	def test_mean(self):
 		x, y = self.datasetxy("x", "y").mean()
 		self.assertAlmostEqual(x, 0.5)
@@ -449,31 +705,80 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(x, 0)
 		self.assertAlmostEqual(y, -1)
 
+
+		np.testing.assert_array_almost_equal(self.datasetxy.mean(["x", "y"], selection=None), [0.5, 0])
+		np.testing.assert_array_almost_equal(self.datasetxy.mean(["x", "y"], selection=True), [0, -1])
+
+
 	def test_minmax(self):
 		((xmin, xmax), ) = self.dataset("x").minmax()
 		self.assertAlmostEqual(xmin, 0)
 		self.assertAlmostEqual(xmax, 9)
+
+		np.testing.assert_array_almost_equal(self.dataset.minmax("x"), [0, 9.])
+		np.testing.assert_array_almost_equal(self.dataset.minmax("y"), [0, 9.**2])
+		np.testing.assert_array_almost_equal(self.dataset.minmax(["x", "y"]), [[0, 9.], [0, 9.**2]])
 
 		self.dataset.select("x < 5")
 		((xmin2, xmax2), ) = self.dataset("x").selected().minmax()
 		self.assertAlmostEqual(xmin2, 0)
 		self.assertAlmostEqual(xmax2, 4)
 
-	def test_var(self):
+		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=True), [0, 4])
+		np.testing.assert_array_almost_equal(self.dataset.minmax("y", selection=True), [0, 4**2])
+		np.testing.assert_array_almost_equal(self.dataset.minmax(["x", "y"], selection=True), [[0, 4], [0, 4**2]])
+
+		task = self.dataset.minmax("x", selection=True, async=True)
+		self.dataset.executor.execute()
+		np.testing.assert_array_almost_equal(task.get(), [0, 4])
+
+
+		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=None, binby=["x"], limits="minmax", shape=1), [[0, 8]])
+		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=True, binby=["x"], limits="minmax", shape=1), [[0, 3]])
+
+		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=None, binby=["x"], limits="minmax", shape=2), [[0, 4], [5, 8]])
+		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=True, binby=["x"], limits="minmax", shape=2), [[0, 1], [2, 3]])
+
+
+	def test_var_and_std(self):
+		# subspaces var uses non-central
 		x, y = self.datasetxy("x", "y").var()
 		self.assertAlmostEqual(x, 0.5)
 		self.assertAlmostEqual(y, 1.)
 
+		# newstyle var uses central
+		self.assertAlmostEqual(self.datasetxy.var("x"), 0.5**2)
+		self.assertAlmostEqual(self.datasetxy.var("y"), 1.)
+		self.assertAlmostEqual(self.datasetxy.std("x"), 0.5)
+		self.assertAlmostEqual(self.datasetxy.std("y"), 1.)
+
+
 		x, y = self.dataset("x", "y").var()
 		self.assertAlmostEqual(x, np.mean(self.x**2))
 		self.assertAlmostEqual(y, np.mean(self.y**2))
+
+		x, y = self.dataset.var(["x", "y"])
+		self.assertAlmostEqual(x, np.var(self.x))
+		self.assertAlmostEqual(y, np.var(self.y))
+		x, y = self.dataset.std(["x", "y"])
+		self.assertAlmostEqual(x, np.std(self.x))
+		self.assertAlmostEqual(y, np.std(self.y))
 
 		self.dataset.select("x < 5")
 		x, y = self.dataset("x", "y").selected().var()
 		self.assertAlmostEqual(x, np.mean(self.x[:5]**2))
 		self.assertAlmostEqual(y, np.mean(self.y[:5]**2))
 
-	def test_correlation(self):
+		x, y = self.dataset.var(["x", "y"], selection=True)
+		self.assertAlmostEqual(x, np.var(self.x[:5]))
+		self.assertAlmostEqual(y, np.var(self.y[:5]))
+
+		x, y = self.dataset.std(["x", "y"], selection=True)
+		self.assertAlmostEqual(x, np.std(self.x[:5]))
+		self.assertAlmostEqual(y, np.std(self.y[:5]))
+
+
+	def test_correlation_old(self):
 
 		subspace = self.datasetxy("y", "y")
 		means = subspace.mean()
@@ -486,6 +791,31 @@ class TestDataset(unittest.TestCase):
 		vars = subspace.var(means)
 		correlation = subspace.correlation(means, vars)
 		self.assertAlmostEqual(correlation, -1.0)
+
+	def test_limits(self):
+		np.testing.assert_array_almost_equal(self.dataset.limits("x", "minmax"), self.dataset.minmax("x"))
+		np.testing.assert_array_almost_equal(self.dataset.limits("x"), self.dataset.limits_percentage("x"))
+		np.testing.assert_array_almost_equal(self.dataset.limits(["x", "y"], "minmax"), self.dataset.minmax(["x", "y"]))
+		np.testing.assert_array_almost_equal(self.dataset.limits(["x", "y"], ["minmax", "minmax"]), self.dataset.minmax(["x", "y"]))
+
+		np.testing.assert_array_almost_equal(self.dataset.limits("x", [0, 10]), [0, 10])
+
+		np.testing.assert_array_almost_equal(self.dataset.limits("x", "90%"), self.dataset.limits_percentage("x", 90.))
+		np.testing.assert_array_almost_equal(self.dataset.limits([["x", "y"], ["x", "z"]], "minmax"),\
+										 [self.dataset.minmax(["x", "y"]), self.dataset.minmax(["x", "z"])])
+		np.testing.assert_array_almost_equal(
+			self.dataset.limits( [["x", "y"], ["x", "z"]], [[[0, 10], [0, 20]], "minmax"]),\
+											 [[[0, 10], [0, 20]], self.dataset.minmax(["x", "z"])])
+
+		#np.testing.assert_array_almost_equal(self.dataset.limits(["x"], [0, 10]), [[0, 10]])
+		if 0:
+			#print(">>>>>", self.dataset.limits("x", "minmax"), self.dataset.minmax("x"))
+			print(">>>>>", self.dataset.limits(["x", "y"], ["minmax", "minmax"]), self.dataset.minmax(["x", "y"]))
+
+
+
+
+
 
 
 	def test_concat(self):
@@ -580,7 +910,7 @@ class TestDataset(unittest.TestCase):
 							for selection in [False, True]:
 								for virtual in [False, True]:
 									for export in [dataset.export_fits, dataset.export_hdf5] if byteorder == ">" else [dataset.export_hdf5]:
-										print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length(), virtual)
+										#print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length(), virtual)
 										#print dataset.full_length()
 										#print len(dataset)
 										if export == dataset.export_hdf5:
@@ -607,7 +937,8 @@ class TestDataset(unittest.TestCase):
 										for column_name in column_names:
 											values = dataset.evaluate(column_name)
 											if selection:
-												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[dataset.mask]))
+												mask = dataset.evaluate_selection_mask(selection, 0, len(dataset))
+												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[mask]))
 											else:
 												if shuffle:
 													indices = compare.columns["random_index"]
@@ -759,8 +1090,21 @@ class TestDataset(unittest.TestCase):
 				self.assertEqual([value, value**2], values)
 
 	def test_selection(self):
+
 		total = self.dataset("x").sum()
 		self.dataset.select("x > 5")
+		self.dataset.select("x <= 5", name="inverse")
+
+
+		counts = self.dataset.count("x", selection=["default", "inverse"])
+		np.testing.assert_array_almost_equal(counts, [4, 6])
+
+
+		self.dataset.select("x <= 1", name="inverse", mode="subtract")
+		counts = self.dataset.count("x", selection=["default", "inverse"])
+		np.testing.assert_array_almost_equal(counts, [4, 4])
+
+
 		total_subset = self.dataset("x").selected().sum()
 		self.assertLess(total_subset, total)
 		for mode in vaex.dataset._select_functions.keys():

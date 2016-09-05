@@ -320,18 +320,22 @@ def filename_shorten(path, max_length=150):
 	else:
 		return path
 
-def listify(x):
-	if isinstance(x, six.string_types):
-		return False, [x]
+def listify(*args):
+	if isinstance(args[0], six.string_types):
+		return False, [[x] for x in args]
 	try:
-		_ = x[0]
-		return True, x
+		_ = args[0][0]
+		return True, args
 	except:
-		return False, [x]
+		return False, [[x] for x in args]
 
-def unlistify(waslist, x):
+def unlistify(waslist, *args):
 	if waslist:
-		return x
+		if len(args) == 1:
+			return args[0]
+		return args
 	else:
-		return x[0]
+		values =  [x[0] for x in args]
+		if len(values) == 1:
+			return values[0]
 

@@ -6,28 +6,32 @@ import vaex as vx
 import vaex.vaexfast
 
 class TestStatisticNd(unittest.TestCase):
-	def test_1(self):
+	def test_add(self):
 		x = np.arange(10, dtype=np.float64)
 		grid = np.zeros((10,2), dtype=np.float64)
 		w = x * 1
 		w[2] = np.nan
 		#grid[...,0] = np.inf
 		#grid[...,1] = -np.inf
-		vaex.vaexfast.statisticNd([x], w, grid, [0.], [10.], 3)
-		print grid
+		vaex.vaexfast.statisticNd([x], w, grid, [0.], [10.], 0)
+		print(grid)
 
-	def t_est_2(self):
+		grid0 = np.zeros((1,), dtype=np.float64)
+		vaex.vaexfast.statisticNd([], w, grid0, [], [], 0)
+		print(grid0)
+
+	def test_2(self):
 		x = np.arange(10, dtype=np.float64) + 10
 		grid = np.zeros((2), dtype=np.float64)
 		grid[...,0] = np.inf
 		grid[...,1] = -np.inf
 		w = x * 1
 		w[2] = np.nan
-		print np.nansum(w)
+		print(np.nansum(w))
 		#grid[...,0] = np.inf
 		#grid[...,1] = -np.inf
 		vaex.vaexfast.statisticNd([], w, grid, [], [], 2)
-		print grid
+		print(grid)
 
 
 if __name__ == '__main__':

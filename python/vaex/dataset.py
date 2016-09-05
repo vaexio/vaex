@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import mmap
 import os
 import math
 import time
@@ -8,18 +7,16 @@ import functools
 import collections
 import sys
 import platform
-import vaex.export
+import warnings
 import os
 import re
 from functools import reduce
 import threading
 import six
-from vaex.utils import ensure_string
 import vaex.utils
-
+import vaex.image
 import numpy as np
 import concurrent.futures
-import astropy.table
 import astropy.units
 
 from vaex.utils import Timer
@@ -31,8 +28,8 @@ import vaex.promise
 import vaex.execution
 import vaex.expresso
 import logging
-import astropy.io.fits as fits
 import vaex.kld
+from .delayed import delayed, delayed_args, delayed_list
 
 # py2/p3 compatibility
 try:
@@ -41,23 +38,17 @@ except ImportError:
 	from urlparse import urlparse
 
 
-# h5py doesn't want to build at readthedocs
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-try:
-	import h5py
-except:
-	if not on_rtd:
-		raise
 
 logger = logging.getLogger("vaex")
 lock = threading.Lock()
-dataset_type_map = {}
-
+default_shape = 128
 #executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 #executor = vaex.execution.default_executor
 
 def _parse_f(f):
-	if isinstance(f, six.string_types):
+	if f is None:
+		return lambda x: x
+	elif isinstance(f, six.string_types):
 		if f == "identity":
 			return lambda x: x
 		else:
@@ -79,9 +70,11 @@ def _normalize(a, axis=None):
 		for ax in axis:
 			allaxis.remove(ax)
 		axis=tuple(allaxis)
+	vmin = np.nanmin(a)
+	vmax = np.nanmax(a)
 	a = a - np.nanmin(a, axis=axis, keepdims=True)
 	a /= np.nanmax(a, axis=axis, keepdims=True)
-	return a
+	return a, vmin, vmax
 
 def _parse_n(n):
 	if isinstance(n, six.string_types):
@@ -146,6 +139,18 @@ def _parse_reduction(name, colormap, colors):
 
 	else:
 		raise ValueError("do not understand reduction = %s, should be a ..." % name)
+
+import numbers
+def _is_string(x):
+	return isinstance(x, six.string_types)
+def _issequence(x):
+	return isinstance(x, (tuple, list, np.ndarray))
+def _isnumber(x):
+	return isinstance(x, numbers.Number)
+def _is_limit(x):
+	return isinstance(x, (tuple, list, np.ndarray)) and all([_isnumber(k) for k in x])
+def _ensure_list(x):
+	return [x] if not _issequence(x) else x
 
 class Task(vaex.promise.Promise):
 	"""
@@ -265,10 +270,11 @@ class TaskHistogram(Task):
 		info.size = i2-i1
 		#print "bin", i1, i2, info.last
 		#self.grids["counts"].bin_block(info, *blocks)
-		mask = self.dataset.mask
+		#mask = self.dataset.mask
 		data = self.data[thread_index]
+		mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
 		if self.masked:
-			blocks = [block[mask[i1:i2]] for block in blocks]
+			blocks = [block[mask] for block in blocks]
 
 		subblock_weight = None
 		if len(blocks) == len(self.expressions) + 1:
@@ -300,6 +306,146 @@ class TaskHistogram(Task):
 			self.data[0] += self.data[i]
 		return self.data[0]
 		#return self.data
+
+class StatOp(object):
+	def __init__(self, code, fields, reduce_function=np.nansum):
+		self.code = code
+		self.fields = fields
+		self.reduce_function = reduce_function
+
+	def init(self, grid):
+		pass
+
+	def reduce(self, grid, axis=0):
+		return self.reduce_function(grid, axis=axis)
+
+class StatOpMinMax(StatOp):
+	def __init__(self, code, fields):
+		super(StatOpMinMax, self).__init__(code, fields)
+
+	def init(self, grid):
+		grid[...,0] = np.inf
+		grid[...,1] = -np.inf
+
+	def reduce(self, grid, axis=0):
+		out = np.zeros(grid.shape[1:], dtype=grid.dtype)
+		out[...,0] = np.nanmin(grid[...,0], axis=axis)
+		out[...,1] = np.nanmax(grid[...,1], axis=axis)
+		return out
+
+OP_ADD1 = StatOp(0, 1)
+OP_COUNT = StatOp(1, 1)
+OP_MIN_MAX = StatOpMinMax(2, 2)
+OP_ADD_WEIGHT_MOMENTS_01 = StatOp(3, 2, np.nansum)
+OP_ADD_WEIGHT_MOMENTS_012 = StatOp(4, 3, np.nansum)
+
+def _expand(x, dimension):
+	if _issequence(x):
+		assert len(x) == dimension, "wants to expand %r to dimension %d" % (x, dimension)
+		return tuple(x)
+	else:
+		return (x,) * dimension
+
+def _expand_shape(shape, dimension):
+	if isinstance(shape, (tuple, list)):
+		assert len(shape) == dimension, "wants to expand shape %r to dimension %d" % (shape, dimension)
+		return tuple(shape)
+	else:
+		return (shape,) * dimension
+
+def _expand_limits(limits, dimension):
+	if isinstance(limits, (tuple, list, np.ndarray)) and \
+			(isinstance(limits[0], (tuple, list, np.ndarray)) or isinstance(limits[0], six.string_types)):
+		assert len(limits) == dimension, "wants to expand shape %r to dimension %d" % (limits, dimension)
+		return tuple(limits)
+	else:
+		return [limits,] * dimension
+
+class TaskStatistic(Task):
+	def __init__(self, dataset, expressions, shape, limits, masked=False, weight=None, op=OP_ADD1, selection=None):
+		if not isinstance(expressions, (tuple, list)):
+			expressions = [expressions]
+		self.shape = _expand_shape(shape, len(expressions))
+		self.limits = limits
+		self.weight = weight
+		self.selection_waslist, [self.selections,] = vaex.utils.listify(selection)
+		Task.__init__(self, dataset, expressions, name="statisticNd")
+		self.dtype = np.float64
+		self.masked = masked
+		self.op = op
+
+		self.shape_total = (self.dataset.executor.thread_pool.nthreads,) + (len(self.selections), ) + self.shape + (op.fields,)
+		self.grid = np.zeros(self.shape_total, dtype=self.dtype)
+		self.op.init(self.grid)
+		self.minima = []
+		self.maxima = []
+		limits = np.array(self.limits)
+		if len(limits) != 0:
+			logger.debug("limits = %r", limits)
+			assert limits.shape[-1] == 2, "expected last dimension of limits to have a length of 2 (not %d, total shape: %s), of the form [[xmin, xmin], ... [zmin, zmax]], not %s" % (limits.shape[-1], limits.shape, limits)
+			if len(limits.shape) == 1: # short notation: [xmin, max], instead of [[xmin, xmax]]
+				limits = [limits]
+			logger.debug("limits = %r", limits)
+			for limit in limits:
+				vmin, vmax = limit
+				self.minima.append(float(vmin))
+				self.maxima.append(float(vmax))
+		if self.weight is not None:
+			self.expressions_all.append(weight)
+
+
+	def __repr__(self):
+		name = self.__class__.__module__ + "." +self.__class__.__name__
+		return "<%s(dataset=%r, expressions=%r, shape=%r, limits=%r, weight=%r, selections=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.shape, self.limits, self.weight, self.selections, id(self))
+
+	def map(self, thread_index, i1, i2, *blocks):
+		class Info(object):
+			pass
+		info = Info()
+		info.i1 = i1
+		info.i2 = i2
+		info.first = i1 == 0
+		info.last = i2 == len(self.dataset)
+		info.size = i2-i1
+
+		this_thread_grid = self.grid[thread_index]
+		for i, selection in enumerate(self.selections):
+			if selection:
+				mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2)
+				if mask is None:
+					raise ValueError("performing operation on selection while no selection present")
+				selection_blocks = [block[mask[i1:i2]] for block in blocks]
+			else:
+				selection_blocks = [block for block in blocks]
+			subblock_weight = None
+			if len(selection_blocks) == len(self.expressions) + 1:
+				subblock_weight = selection_blocks[-1]
+				selection_blocks = list(selection_blocks[:-1])
+			if len(selection_blocks) == 0 and subblock_weight is None:
+				if self.op == OP_ADD1: # special case for counting '*' (i.e. the number of rows)
+					if selection:
+						this_thread_grid[i][0] = np.sum(mask)
+					else:
+						this_thread_grid[i][0] = i2-i1
+				else:
+					raise ValueError("Nothing to compute for OP %s" % self.op.code)
+
+			blocks = list(blocks) # histogramNd wants blocks to be a list
+			vaex.vaexfast.statisticNd(selection_blocks, subblock_weight, this_thread_grid[i], self.minima, self.maxima, self.op.code)
+
+		return i1
+		#return map(self._map, blocks)#[self.map(block) for block in blocks]
+
+	def reduce(self, results):
+		#for i in range(1, self.subspace.executor.thread_pool.nthreads):
+		#	self.data[0] += self.data[i]
+		#return self.data[0]
+		#return self.data
+		grid = self.op.reduce(self.grid)
+		# If selection was a string, we just return the single selection
+		return grid if self.selection_waslist else grid[0]
+
+
 
 import scipy.ndimage.filters
 
@@ -1274,9 +1420,9 @@ class SubspaceLocal(Subspace):
 			return result
 		def min_max_map(thread_index, i1, i2, *blocks):
 			if self.is_masked:
-				mask = self.dataset.mask
-				blocks = [block[mask[i1:i2]] for block in blocks]
-				is_empty = all(~mask[i1:i2])
+				mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
+				blocks = [block[mask] for block in blocks]
+				is_empty = all(~mask)
 				if is_empty:
 					return None
 			#with lock:
@@ -1308,8 +1454,8 @@ class SubspaceLocal(Subspace):
 			return self._toarray(means_and_counts)[:,0]
 		def mean_map(thread_index, i1, i2, *blocks):
 			if self.is_masked:
-				mask = self.dataset.mask
-				return [(np.nanmean(block[mask[i1:i2]]**moment), np.count_nonzero(~np.isnan(block[mask[i1:i2]]))) for block in blocks]
+				mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
+				return [(np.nanmean(block[mask]**moment), np.count_nonzero(~np.isnan(block[mask]))) for block in blocks]
 			else:
 				return [(np.nanmean(block**moment), np.count_nonzero(~np.isnan(block))) for block in blocks]
 		task = TaskMapReduce(self.dataset, self.expressions, mean_map, mean_reduce, remove_counts, info=True)
@@ -1325,12 +1471,12 @@ class SubspaceLocal(Subspace):
 		def remove_counts(vars_and_counts):
 			return self._toarray(vars_and_counts)[:,0]
 		if self.is_masked:
-			mask = self.dataset.mask
 			def var_map(thread_index, i1, i2, *blocks):
+				mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
 				if means is not None:
-					return [(np.nanmean((block[mask[i1:i2]]-mean)**2), np.count_nonzero(~np.isnan(block[mask[i1:i2]]))) for block, mean in zip(blocks, means)]
+					return [(np.nanmean((block[mask]-mean)**2), np.count_nonzero(~np.isnan(block[mask]))) for block, mean in zip(blocks, means)]
 				else:
-					return [(np.nanmean(block[mask[i1:i2]]**2), np.count_nonzero(~np.isnan(block[mask[i1:i2]]))) for block in blocks]
+					return [(np.nanmean(block[mask]**2), np.count_nonzero(~np.isnan(block[mask]))) for block in blocks]
 			task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, remove_counts, info=True)
 		else:
 			def var_map(*blocks):
@@ -1411,9 +1557,9 @@ class SubspaceLocal(Subspace):
 		# TODO: we can speed up significantly using our own nansum, probably the same for var and mean
 		nansum = vaex.vaexfast.nansum
 		if self.is_masked:
-			mask = self.dataset.mask
 			task = TaskMapReduce(self.dataset,\
-								 self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[mask[i1:i2]]) for block in blocks],\
+								 self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)])
+																						  for block in blocks],\
 								 lambda a, b: np.array(a) + np.array(b), self._toarray, info=True)
 		else:
 			task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
@@ -1519,7 +1665,7 @@ class SubspaceLocal(Subspace):
 		metric = metric or [1.] * len(point)
 		def nearest_in_block(thread_index, i1, i2, *blocks):
 			if self.is_masked:
-				mask = self.dataset.mask[i1:i2]
+				mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
 				if mask.sum() == 0:
 					return None
 				blocks = [block[mask] for block in blocks]
@@ -1541,7 +1687,6 @@ class SubspaceLocal(Subspace):
 				return b
 		if self.is_masked:
 			pass
-		mask = self.dataset.mask
 		task = TaskMapReduce(self.dataset,\
 							 self.expressions,
 							 nearest_in_block,\
@@ -1690,6 +1835,21 @@ class SelectionExpression(Selection):
 			previous = self.previous_selection.to_dict()
 		return dict(type="expression", boolean_expression=self.boolean_expression, mode=self.mode, previous_selection=previous)
 
+	def evaluate(self, name, i1, i2):
+		if self.previous_selection:
+			previous_mask = self.dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+		else:
+			previous_mask = None
+		current_mask = self.dataset.evaluate(self.boolean_expression, i1, i2).astype(np.bool)
+		if previous_mask is None:
+			logger.debug("setting mask")
+			mask = current_mask
+		else:
+			logger.debug("combining previous mask with current mask using op %r", self.mode)
+			mode_function = _select_functions[self.mode]
+			mask = mode_function(previous_mask, current_mask)
+		return mask
+
 
 	def execute(self, executor, execute_fully=False):
 		super(SelectionExpression, self).execute(executor=executor, execute_fully=execute_fully)
@@ -1725,6 +1885,10 @@ class SelectionInvert(Selection):
 			previous = self.previous_selection.to_dict()
 		return dict(type="invert", previous_selection=previous)
 
+	def evaluate(self, name, i1, i2):
+		previous_mask = self.dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+		return ~previous_mask
+
 
 	def execute(self, executor, execute_fully=False):
 		super(SelectionInvert, self).execute(executor=executor, execute_fully=execute_fully)
@@ -1759,6 +1923,28 @@ class SelectionLasso(Selection):
 		self.boolean_expression_y = boolean_expression_y
 		self.xseq = xseq
 		self.yseq = yseq
+
+	def evaluate(self, name, i1, i2):
+		if self.previous_selection:
+			previous_mask = self.dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+		else:
+			previous_mask = None
+		current_mask = np.zeros(i2-i1, dtype=np.bool)
+		x, y = np.array(self.xseq, dtype=np.float64), np.array(self.yseq, dtype=np.float64)
+		meanx = x.mean()
+		meany = y.mean()
+		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
+		blockx = self.dataset.evaluate(self.boolean_expression_x, i1=i1, i2=i2)
+		blocky = self.dataset.evaluate(self.boolean_expression_y, i1=i1, i2=i2)
+		vaex.vaexfast.pnpoly(x, y, blockx, blocky, current_mask, meanx, meany, radius)
+		if previous_mask is None:
+			logger.debug("setting mask")
+			mask = current_mask
+		else:
+			logger.debug("combining previous mask with current mask using op %r", self.mode)
+			mode_function = _select_functions[self.mode]
+			mask = mode_function(previous_mask, current_mask)
+		return mask
 
 	def execute(self, executor, execute_fully=False):
 		super(SelectionLasso, self).execute(executor=executor, execute_fully=execute_fully)
@@ -1851,16 +2037,40 @@ def hourofday(x):
     return pd.Series(x).dt.hour.values.astype(np.float64)
 expression_namespace["hourofday"] = hourofday
 
+_doc_snippets = {}
+_doc_snippets["expression"] = "expression or list of expressions, e.g. 'x', or ['x, 'y']"
+_doc_snippets["expression_single"] = "if previous argument is not a list, this argument should be given"
+_doc_snippets["binby"] = "List of expressions for constructing a binned grid"
+_doc_snippets["limits"] = """description for the min and max values for the expressions, e.g. 'minmax', '99.7%', [0, 10], or a list of, e.g. [[0, 10], [0, 20], 'minmax']"""
+_doc_snippets["shape"] = """shape for the array where the statistic is calculated on, if only an integer is given, it is used for all dimensions, e.g. shape=128, shape=[128, 256]"""
+_doc_snippets["percentile_limits"] = """description for the min and max values to use for the cumulative histogram, should currently only be 'minmax'"""
+_doc_snippets["percentile_shape"] = """shape for the array where the cumulative histogram is calculated on, integer type"""
+_doc_snippets["selection"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False)"""
+_doc_snippets["async"] = """Do not return the result, but a proxy for asynchronous calculations (currently only for internal use)"""
+_doc_snippets["expression_limits"] = _doc_snippets["expression"]
 
+_doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a scalar when no binby argument is given, with the statistic"""
+_doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
+
+def docsubst(f):
+	f.__doc__ = f.__doc__.format(**_doc_snippets)
+	return f
+
+_functions_statistics_1d = []
+
+def stat_1d(f):
+	_functions_statistics_1d.append(f)
+	return f
 class Dataset(object):
 	"""All datasets are encapsulated in this class, local or remote dataets
 
 	Each dataset has a number of columns, and a number of rows, the length of the dataset.
-	Most operations on the data are not done directly on the dataset, but on subspaces of it, using the
-	Subspace class. Subspaces are created by 'calling' the dataset, like this:
 
-	>> subspace_xy = some_dataset("x", "y")
-	>> subspace_r = some_dataset("sqrt(x**2+y**2)")
+	The most common operations are:
+	Dataset.plot
+	>>>
+	>>>
+
 
 	All Datasets have one 'selection', and all calculations by Subspace are done on the whole dataset (default)
 	or for the selection. The following example shows how to use the selection.
@@ -1918,16 +2128,1697 @@ class Dataset(object):
 		self.selection_history_indices = collections.defaultdict(lambda: -1)
 		self._auto_fraction= False
 
+
+	@docsubst
+	def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, async=False):
+		"""Estimate the mutual information between and x and y on a grid with shape mi_shape and mi_limits, possible on a grid defined by binby
+
+		If sort is True, the mutual information is returned in sorted (descending) order and the list of expressions is returned in the same order
+
+		Examples:
+
+		>>> ds.mutual_information("x", "y")
+		array(0.1511814526380327)
+		>>> ds.mutual_information([["x", "y"], ["x", "z"], ["E", "Lz"]])
+		array([ 0.15118145,  0.18439181,  1.07067379])
+		>>> ds.mutual_information([["x", "y"], ["x", "z"], ["E", "Lz"]], sort=True)
+		(array([ 1.07067379,  0.18439181,  0.15118145]),
+		[['E', 'Lz'], ['x', 'z'], ['x', 'y']])
+
+
+		:param x: {expression}
+		:param y: {expression}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param sort: return mutual information in sorted (descending) order, and also return the correspond list of expressions when sorted is True
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar},
+		"""
+		if y is None:
+			waslist, [x,] = vaex.utils.listify(x)
+		else:
+			waslist, [x,y] = vaex.utils.listify(x, y)
+			x = list(zip(x, y))
+			if mi_limits:
+				mi_limits = [mi_limits]
+		#print("x, mi_limits", x, mi_limits)
+		limits = self.limits(binby, limits, async=True)
+		#print("$"*80)
+		mi_limits = self.limits(x, mi_limits, async=True)
+		#print("@"*80)
+
+		@delayed
+		def calculate(counts):
+			# TODO: mutual information doesn't take axis arguments, so ugly solution for now
+			fullshape = _expand_shape(shape, len(binby))
+			out = np.zeros((fullshape), dtype=float)
+			if len(fullshape) == 0:
+				out = vaex.kld.mutual_information(counts)
+				#print("count> ", np.sum(counts))
+			elif len(fullshape) == 1:
+				for i in range(fullshape[0]):
+					out[i] = vaex.kld.mutual_information(counts[...,i])
+					#print("counti> ", np.sum(counts[...,i]))
+				#print("countt> ", np.sum(counts))
+			elif len(fullshape) == 2:
+				for i in range(fullshape[0]):
+					for j in range(fullshape[1]):
+						out[i,j] = vaex.kld.mutual_information(counts[...,i,j])
+			elif len(fullshape) == 3:
+				for i in range(fullshape[0]):
+					for j in range(fullshape[1]):
+						for k in range(fullshape[2]):
+							out[i,j,k] = vaex.kld.mutual_information(counts[...,i,j,k])
+			else:
+				raise ValueError("binby with dim > 3 is not yet supported")
+			return out
+		@delayed
+		def has_limits(limits, mi_limits):
+			if not _issequence(binby):
+				limits = [list(limits)]
+			values = []
+			for expressions, expression_limits in zip(x, mi_limits):
+				#print("mi for", expressions, expression_limits)
+				#total_shape =  _expand_shape(mi_shape, len(expressions)) + _expand_shape(shape, len(binby))
+				total_shape =  _expand_shape(mi_shape, len(expressions)) + _expand_shape(shape, len(binby))
+				#print("expressions", expressions)
+				#print("total_shape", total_shape)
+				#print("limits", limits,expression_limits)
+				#print("limits>", list(limits) + list(expression_limits))
+				counts = self.count(binby=list(expressions) + list(binby), limits=list(expression_limits)+list(limits),
+						   shape=total_shape, async=True, selection=selection)
+				values.append(calculate(counts))
+			return values
+
+		@delayed
+		def finish(mi_list):
+			if sort:
+				mi_list = np.array(mi_list)
+				indices = np.argsort(mi_list)[::-1]
+				sorted_x = list([x[k] for k in indices])
+				return mi_list[indices], sorted_x
+			else:
+				return np.array(vaex.utils.unlistify(waslist, mi_list))
+		values = finish(delayed_list(has_limits(limits, mi_limits)))
+		return self._async(async, values)
+
+		if limits is None:
+			limits_done = Task.fulfilled(self.minmax())
+		else:
+			limits_done = Task.fulfilled(limits)
+		if grid is None:
+			if limits is None:
+				histogram_done = limits_done.then(lambda limits: self.histogram(limits, size=size))
+			else:
+				histogram_done = Task.fulfilled(self.histogram(limits, size=size))
+		else:
+			histogram_done = Task.fulfilled(grid)
+		mutual_information_promise = histogram_done.then(vaex.kld.mutual_information)
+		return mutual_information_promise if self.async else mutual_information_promise.get()
+
+	@docsubst
+	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Count the number of non-NaN values (or all, if expression is None or "*")
+
+		Examples:
+
+
+		>>> ds.count("*")
+		330000.0
+		>>> ds.count("*", binby=["x"], shape=4)
+		array([  10925.,  155427.,  152007.,   10748.])
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}
+		"""
+		@delayed
+		def calculate(expression, limits):
+			if expression in ["*", None]:
+				#if not binby: # if we have nothing to iterate over, the statisticNd code won't do anything
+				#\3	return np.array([self.length(selection=selection)], dtype=float)
+				#else:
+				task = TaskStatistic(self, binby, shape, limits, op=OP_ADD1, selection=selection)
+			else:
+				task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_COUNT, selection=selection)
+			self.executor.schedule(task)
+			return task
+		@delayed
+		def finish(*stats_args):
+			stats = np.array(stats_args)
+			counts = stats[...,0]
+			return vaex.utils.unlistify(waslist, counts)
+		waslist, [expressions,] = vaex.utils.listify(expression)
+		limits = self.limits(binby, limits, async=True)
+		stats = [calculate(expression, limits) for expression in expressions]
+		var = finish(*stats)
+		return self._async(async, var)
+
+	@docsubst
+	@stat_1d
+	def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Calculate the mean for expression, possible on a grid defined by binby.
+
+		Examples:
+
+		>>> ds.mean("x")
+		-0.067131491264005971
+		>>> ds.mean("(x**2+y**2)**0.5", binby="E", shape=4)
+		array([  2.43483742,   4.41840721,   8.26742458,  15.53846476])
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}
+		"""
+		logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, async=%r", expression, binby, limits, shape, selection, async)
+		@delayed
+		def calculate(expression, limits):
+			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
+			self.executor.schedule(task)
+			return task
+		@delayed
+		def finish(*stats_args):
+			stats = np.array(stats_args)
+			counts = stats[...,0]
+			mean = stats[...,1] / counts
+			return vaex.utils.unlistify(waslist, mean)
+		waslist, [expressions,] = vaex.utils.listify(expression)
+		limits = self.limits(binby, limits, async=True)
+		stats = [calculate(expression, limits) for expression in expressions]
+		var = finish(*stats)
+		return self._async(async, var)
+
+	@docsubst
+	@stat_1d
+	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Calculate the sum for the given expression, possible on a grid defined by binby
+
+		Examples:
+
+		>>> ds.sum("L")
+		304054882.49378014
+		>>> ds.sum("L", binby="E", shape=4)
+		array([  8.83517994e+06,   5.92217598e+07,   9.55218726e+07,
+				 1.40008776e+08])
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}
+		"""
+		@delayed
+		def calculate(expression, limits):
+			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
+			self.executor.schedule(task)
+			return task
+		@delayed
+		def finish(*stats_args):
+			print("stats_args", stats_args)
+			stats = np.array(stats_args)
+			sum = stats[...,1]
+			return vaex.utils.unlistify(waslist, sum)
+		waslist, [expressions,] = vaex.utils.listify(expression)
+		limits = self.limits(binby, limits, async=True)
+		stats = [calculate(expression, limits) for expression in expressions]
+		s = finish(*stats)
+		return self._async(async, s)
+
+	@docsubst
+	@stat_1d
+	def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Calculate the standard deviation for the given expression, possible on a grid defined by binby
+
+
+		>>> ds.std("vz")
+		110.31773397535071
+		>>> ds.std("vz", binby=["(x**2+y**2)**0.5"], shape=4)
+		array([ 123.57954851,   85.35190177,   61.14345748,   38.0740619 ])
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}
+		"""
+		@delayed
+		def finish(var):
+			return var**0.5
+		return self._async(async, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True)))
+
+	@docsubst
+	@stat_1d
+	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Calculate the sample variance for the given expression, possible on a grid defined by binby
+
+		Examples:
+
+		>>> ds.var("vz")
+		12170.002429456246
+		>>> ds.var("vz", binby=["(x**2+y**2)**0.5"], shape=4)
+		array([ 15271.90481083,   7284.94713504,   3738.52239232,   1449.63418988])
+		>>> ds.var("vz", binby=["(x**2+y**2)**0.5"], shape=4)**0.5
+		array([ 123.57954851,   85.35190177,   61.14345748,   38.0740619 ])
+		>>> ds.std("vz", binby=["(x**2+y**2)**0.5"], shape=4)
+		array([ 123.57954851,   85.35190177,   61.14345748,   38.0740619 ])
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}
+		"""
+		@delayed
+		def calculate(expression, limits):
+			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_012, selection=selection)
+			self.executor.schedule(task)
+			return task
+		@delayed
+		def finish(*stats_args):
+			stats = np.array(stats_args)
+			counts = stats[...,0]
+			mean = stats[...,1] / counts
+			raw_moments2 = stats[...,2] / counts
+			variance = (raw_moments2-mean**2)
+			return vaex.utils.unlistify(waslist, variance)
+		waslist, [expressions,] = vaex.utils.listify(expression)
+		limits = self.limits(binby, limits, async=True)
+		stats = [calculate(expression, limits) for expression in expressions]
+		var = finish(*stats)
+		return self._async(async, var)
+
+
+	@docsubst
+	def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Calculate the covariance cov[x,y] between and x and y, possible on a grid defined by binby
+
+		Examples:
+
+		>>> ds.covar("x**2+y**2+z**2", "-log(-E+1)")
+		array(52.69461456005138)
+		>>> ds.covar("x**2+y**2+z**2", "-log(-E+1)")/(ds.std("x**2+y**2+z**2") * ds.std("-log(-E+1)"))
+		0.63666373822156686
+		>>> ds.covar("x**2+y**2+z**2", "-log(-E+1)", binby="Lz", shape=4)
+		array([ 10.17387143,  51.94954078,  51.24902796,  20.2163929 ])
+
+
+
+		:param x: {expression}
+		:param y: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}
+		"""
+		@delayed
+		def cov(mean_x, mean_y, mean_xy):
+			return mean_xy - mean_x * mean_y
+
+		waslist, [xlist,ylist] = vaex.utils.listify(x, y)
+		#print("limits", limits)
+		limits = self.limits(binby, limits, selection=selection, async=True)
+		#print("limits", limits)
+
+		@delayed
+		def calculate(limits):
+			covars = [cov(
+						self.mean(x, binby=binby, limits=limits, shape=shape, selection=selection, async=True),
+						self.mean(y, binby=binby, limits=limits, shape=shape, selection=selection, async=True),
+						self.mean("(%s)*(%s)" % (x, y), binby=binby, limits=limits, shape=shape, selection=selection, async=True),
+					)
+					  for x, y in zip(xlist, ylist)]
+			return covars
+
+		covars = calculate(limits)
+		@delayed
+		def finish(covars):
+			value = np.array(vaex.utils.unlistify(waslist, covars))
+			return value
+		return self._async(async, finish(delayed_list(covars)))
+
+	@docsubst
+	def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, async=False):
+		"""Calculate the correlation coefficient cov[x,y]/(std[x]*std[y]) between and x and y, possible on a grid defined by binby
+
+		Examples:
+
+
+		>>> ds.correlation("x**2+y**2+z**2", "-log(-E+1)")
+		array(0.6366637382215669)
+		>>> ds.correlation("x**2+y**2+z**2", "-log(-E+1)", binby="Lz", shape=4)
+		array([ 0.40594394,  0.69868851,  0.61394099,  0.65266318])
+
+		:param x: {expression}
+		:param y: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}
+		"""
+		@delayed
+		def corr(cov):
+			return cov[...,0,1] / (cov[...,0,0] * cov[...,1,1])**0.5
+
+		if y is None:
+			if not isinstance(x, (tuple, list)):
+				raise ValueError("if y not given, x is expected to be a list or tuple, not %r" % x)
+			if _issequence(x) and not _issequence(x[0]) and len(x) == 2:
+				x = [x]
+			if not(_issequence(x) and all([_issequence(k) and len(k) == 2 for k in x])):
+				raise ValueError("if y not given, x is expected to be a list of lists with length 2, not %r" % x)
+			#waslist, [xlist,ylist] = vaex.utils.listify(*x)
+			waslist = True
+			xlist, ylist = zip(*x)
+			#print xlist, ylist
+		else:
+			waslist, [xlist,ylist] = vaex.utils.listify(x, y)
+		limits = self.limits(binby, limits, selection=selection, async=True)
+
+		@delayed
+		def echo(limits):
+			logger.debug(">>>>>>>>: %r %r", limits, np.array(limits).shape)
+		echo(limits)
+
+		@delayed
+		def calculate(limits):
+			correlation = [corr(
+						self.cov(x, y, binby=binby, limits=limits, shape=shape, selection=selection, async=True),
+					)
+					  for x, y in zip(xlist, ylist)]
+			return correlation
+
+		correlations = calculate(limits)
+		@delayed
+		def finish(correlations):
+			if sort:
+				correlations = np.array(correlations)
+				indices = np.argsort(sort_key(correlations) if sort_key else correlations)[::-1]
+				sorted_x = list([x[k] for k in indices])
+				return correlations[indices], sorted_x
+			value = np.array(vaex.utils.unlistify(waslist, correlations))
+			return value
+		return self._async(async, finish(delayed_list(correlations)))
+
+	@docsubst
+	def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Calculate the covariance matrix for x and y or more expressions, possible on a grid defined by binby
+
+		Either x and y are expressions, e.g:
+
+		>>> ds.cov("x", "y")
+
+		Or only the x argument is given with a list of expressions, e,g.:
+
+		>> ds.cov(["x, "y, "z"])
+
+		Examples:
+
+		>>> ds.cov("x", "y")
+		array([[ 53.54521742,  -3.8123135 ],
+       [ -3.8123135 ,  60.62257881]])
+       >>> ds.cov(["x", "y", "z"])
+       array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
+       [ -3.8123135 ,  60.62257881,   1.21381057],
+       [ -0.98260511,   1.21381057,  25.55517638]])
+
+		>>> ds.cov("x", "y", binby="E", shape=2)
+		array([[[  9.74852878e+00,  -3.02004780e-02],
+        [ -3.02004780e-02,   9.99288215e+00]],
+
+       [[  8.43996546e+01,  -6.51984181e+00],
+        [ -6.51984181e+00,   9.68938284e+01]]])
+
+
+		:param x: {expression}
+		:param y: {expression_single}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}, the last dimensions are of shape (2,2)
+		"""
+		@delayed
+		def cov_matrix(mean_x, mean_y, var_x, var_y, mean_xy):
+			cov = mean_xy - mean_x * mean_y
+			return np.array([[var_x, cov], [cov, var_y]]).T
+
+		if y is None:
+			if not _issequence(x):
+				raise ValueError("if y argument is not given, x is expected to be sequence, not %r", x)
+			expressions = x
+		else:
+			expressions = [x, y]
+		N = len(expressions)
+		binby = _ensure_list(binby)
+		shape = _expand_shape(shape, len(binby))
+		limits = self.limits(binby, limits, selection=selection, async=True)
+
+		@delayed
+		def calculate_matrix(means, vars, raw_mixed):
+			#print(">>> %r" % means)
+			raw_mixed = list(raw_mixed) # lists can pop
+			cov_matrix = np.zeros(shape + (N,N), dtype=float)
+			for i in range(N):
+				for j in range(i+1):
+					if i != j:
+						cov_matrix[...,i,j] = raw_mixed.pop(0) - means[i] * means[j]
+						cov_matrix[...,j,i] = cov_matrix[...,i,j]
+					else:
+						cov_matrix[...,i,j] = vars[i]
+			return cov_matrix
+
+
+		@delayed
+		def calculate(limits):
+			# calculate the right upper triangle
+			means = [self.mean(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True) for expression in expressions]
+			vars  = [self.var (expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True) for expression in expressions]
+			raw_mixed = []
+			for i in range(N):
+				for j in range(i+1):
+					if i != j:
+						raw_mixed.append(self.mean("(%s)*(%s)" % (expressions[i], expressions[j]), binby=binby, limits=limits, shape=shape, selection=selection, async=True))
+			return calculate_matrix(delayed_list(means), delayed_list(vars), delayed_list(raw_mixed))
+
+		covars = calculate(limits)
+		return self._async(async, covars)
+
+	@docsubst
+	@stat_1d
+	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Calculate the minimum and maximum for expressions, possible on a grid defined by binby
+
+
+		Example:
+
+		>>> ds.minmax("x")
+		array([-128.293991,  271.365997])
+		>>> ds.minmax(["x", "y"])
+		array([[-128.293991 ,  271.365997 ],
+			   [ -71.5523682,  146.465836 ]])
+		>>> ds.minmax("x", binby="x", shape=5, limits=[-10, 10])
+		array([[-9.99919128, -6.00010443],
+			   [-5.99972439, -2.00002384],
+			   [-1.99991322,  1.99998057],
+			   [ 2.0000093 ,  5.99983597],
+			   [ 6.0004878 ,  9.99984646]])
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}, the last dimension is of shape (2)
+		"""
+		@delayed
+		def calculate(expression, limits):
+			task =  TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_MIN_MAX, selection=selection)
+			self.executor.schedule(task)
+			return task
+		@delayed
+		def finish(*minmax_list):
+			value = vaex.utils.unlistify(waslist, np.array(minmax_list))
+			return value
+		waslist, [expressions,] = vaex.utils.listify(expression)
+		limits = self.limits(binby, limits, selection=selection, async=True)
+		tasks = [calculate(expression, limits) for expression in expressions]
+		result = finish(*tasks)
+		return self._async(async, result)
+
+	@docsubst
+	@stat_1d
+	def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Calculate the minimum for given expressions, possible on a grid defined by binby
+
+
+		Example:
+
+		>>> ds.min("x")
+		array(-128.293991)
+		>>> ds.min(["x", "y"])
+		array([-128.293991 ,  -71.5523682])
+		>>> ds.min("x", binby="x", shape=5, limits=[-10, 10])
+		array([-9.99919128, -5.99972439, -1.99991322,  2.0000093 ,  6.0004878 ])
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}, the last dimension is of shape (2)
+		"""
+		@delayed
+		def finish(result):
+			return result[...,0]
+		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async)))
+
+	@docsubst
+	@stat_1d
+	def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Calculate the maximum for given expressions, possible on a grid defined by binby
+
+
+		Example:
+
+		>>> ds.max("x")
+		array(271.365997)
+		>>> ds.max(["x", "y"])
+		array([ 271.365997,  146.465836])
+		>>> ds.max("x", binby="x", shape=5, limits=[-10, 10])
+		array([-6.00010443, -2.00002384,  1.99998057,  5.99983597,  9.99984646])
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}, the last dimension is of shape (2)
+		"""
+		@delayed
+		def finish(result):
+			return result[...,1]
+		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async)))
+
+	@docsubst
+	@stat_1d
+	def median(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024*16, percentile_limits="minmax", selection=False, async=False):
+		"""Calculate the median , possible on a grid defined by binby
+
+		NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
+		percentile_shape and percentile_limits
+
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param percentile_limits: {percentile_limits}
+		:param percentile_shape: {percentile_shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}
+		"""
+		return self.percentile(expression, 50, binby=binby, limits=limits, shape=shape, percentile_shape=percentile_shape, percentile_limits=percentile_limits, selection=selection, async=async)
+
+	@docsubst
+	def percentile(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024*16, percentile_limits="minmax", selection=False, async=False):
+		"""Calculate the percentile given by percentage, possible on a grid defined by binby
+
+		NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
+		percentile_shape and percentile_limits
+
+
+		>>> ds.percentile("x", 10), ds.percentile("x", 90)
+		(array([-8.3220355]), array([ 7.92080358]))
+		>>> ds.percentile("x", 50, binby="x", shape=5, limits=[-10, 10])
+		array([[-7.56462982],
+			   [-3.61036641],
+			   [-0.01296306],
+			   [ 3.56697863],
+			   [ 7.45838367]])
+
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param percentile_limits: {percentile_limits}
+		:param percentile_shape: {percentile_shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}
+		"""
+		if not isinstance(binby, (tuple, list)):
+			binby = [binby]
+		else:
+			binby = binby
+		@delayed
+		def calculate(expression, shape, limits):
+			#print(binby + [expression], shape, limits)
+			task =  TaskStatistic(self, [expression] + binby, shape, limits, op=OP_ADD1, selection=selection)
+			self.executor.schedule(task)
+			return task
+		@delayed
+		def finish(percentile_limits, *counts_list):
+			medians = []
+			for i, counts in enumerate(counts_list):
+				counts = counts[0]
+				#print("percentile_limits", percentile_limits)
+				#print("counts=", counts)
+				#print("counts shape=", counts.shape)
+				# F is the 'cumulative distribution'
+				F = np.cumsum(counts, axis=0)
+				# we'll fill empty values with nan later on..
+				ok = F[-1,...] > 0
+				F /= np.max(F, axis=(0))
+				#print(F[-1])
+				# find indices around 0.5 for each bin
+				i2 = np.apply_along_axis(lambda x: x.searchsorted(percentage/100., side='left'), axis = 0, arr = F)
+				i1 = i2 - 1
+				i1 = np.clip(i1, 0, percentile_shapes[i]-1)
+				i2 = np.clip(i2, 0, percentile_shapes[i]-1)
+
+				# interpolate between i1 and i2
+				#print("cum", F)
+				#print("i1", i1)
+				#print("i2", i2)
+				pmin, pmax = percentile_limits[i]
+
+				# np.choose seems buggy, use the equivalent code instead
+				#a = i1
+				#c = F
+				F1 = np.array([F[i1[I]][I] for I in np.ndindex(i1.shape)])
+				F1 = F1.reshape(F.shape[1:])
+
+				#a = i2
+				F2 = np.array([F[i2[I]][I] for I in np.ndindex(i2.shape)])
+				F2 = F2.reshape(F.shape[1:])
+
+				#print("F1,2", F1, F2)
+
+				offset = (percentage/100.-F1)/(F2-F1)
+				median = pmin + (i1+offset) / float(percentile_shapes[i]-1.) * (pmax-pmin)
+				#print("offset", offset)
+				#print(pmin + (i1+offset) / float(percentile_shapes[i]-1.) * (pmax-pmin))
+				#print(pmin + (i1) / float(percentile_shapes[i]-1.) * (pmax-pmin))
+				#print(median)
+
+				# empty values should be set to nan
+				median[~ok] = np.nan
+				medians.append(median)
+			value = np.array(vaex.utils.unlistify(waslist, medians))
+			return value
+		waslist, [expressions, ] = vaex.utils.listify(expression)
+		shape = _expand_shape(shape, len(binby))
+		percentile_shapes = _expand_shape(percentile_shape, len(expressions))
+		if percentile_limits:
+			percentile_limits = _expand_limits(percentile_limits, len(expressions))
+		limits = self.limits(binby, limits, selection=selection, async=True)
+		percentile_limits = self.limits(expressions, percentile_limits, selection=selection, async=True)
+		@delayed
+		def calculation(limits, percentile_limits):
+			tasks = [calculate(expression, (percentile_shape, ) + tuple(shape), list(percentile_limits) + list(limits))
+					 for    percentile_shape,  percentile_limit, expression
+					 in zip(percentile_shapes, percentile_limits, expressions)]
+			return finish(percentile_limits, delayed_args(*tasks))
+			#return tasks
+		result = calculation(limits, percentile_limits)
+		return self._async(async, result)
+
+	def _async(self, async, task, progressbar=False):
+		if async:
+			return task
+		else:
+			self.executor.execute()
+			return task.get()
+
+	@docsubst
+	def limits_percentage(self, expression, percentage=99.73, square=False, async=False):
+		"""Calculate the [min, max] range for expression, containing approximately a percentage of the data as defined
+		by percentage.
+
+		The range is symmetric around the median, i.e., for a percentage of 90, this gives the same results as:
+
+
+		>>> ds.limits_percentage("x", 90)
+		array([-12.35081376,  12.14858052]
+		>>> ds.percentile("x", 5), ds.percentile("x", 95)
+		(array([-12.36813152]), array([ 12.13275818]))
+
+		NOTE: this value is approximated by calculating the cumulative distribution on a grid.
+		NOTE 2: The values above are not exactly the same, since percentile and limits_percentage do not share the same code
+
+		:param expression: {expression_limits}
+		:param float percentage: Value between 0 and 100
+		:param async: {async}
+		:return: {return_limits}
+		"""
+		#percentiles = self.percentile(expression, [100-percentage/2, 100-(100-percentage/2.)], async=True)
+		#return self._async(async, percentiles)
+		#print(percentage)
+		logger.info("limits_percentage for %r, with percentage=%r", expression, percentage)
+		waslist, [expressions,] = vaex.utils.listify(expression)
+		limits = []
+		for expr in expressions:
+			subspace = self(expr)
+			limits_minmax = subspace.minmax()
+			vmin, vmax = limits_minmax[0]
+			size = 1024*16
+			counts = subspace.histogram(size=size, limits=limits_minmax)
+			cumcounts = np.concatenate([[0], np.cumsum(counts)])
+			cumcounts /= cumcounts.max()
+			# TODO: this is crude.. see the details!
+			f = (1-percentage/100.)/2
+			x = np.linspace(vmin, vmax, size+1)
+			l = scipy.interp([f,1-f], cumcounts, x)
+			limits.append(l)
+		#return limits
+		return vaex.utils.unlistify(waslist, limits)
+
+
+	def __percentile_old(self, expression, percentage=99.73, selection=False):
+		limits = []
+		waslist, percentages = vaex.utils.listify(percentage)
+		values = []
+		for percentage in percentages:
+			subspace = self(expression)
+			if selection:
+				subspace = subspace.selected()
+			limits_minmax = subspace.minmax()
+			vmin, vmax = limits_minmax[0]
+			size = 1024*16
+			counts = subspace.histogram(size=size, limits=limits_minmax)
+			cumcounts = np.concatenate([[0], np.cumsum(counts)])
+			cumcounts /= cumcounts.max()
+			# TODO: this is crude.. see the details!
+			f = percentage/100.
+			x = np.linspace(vmin, vmax, size+1)
+			l = scipy.interp([f], cumcounts, x)
+			values.append(l[0])
+		return vaex.utils.unlistify(waslist, values)
+
+	@docsubst
+	def limits(self, expression, value=None, square=False, selection=None, async=False):
+		"""Calculate the [min, max] range for expression, as described by value, which is '99.7%' by default.
+
+		If value is a list of the form [minvalue, maxvalue], it is simply returned, this is for convenience when using mixed
+		forms.
+
+		Example:
+
+		>>> ds.limits("x")
+		array([-28.86381927,  28.9261226 ])
+		>>> ds.limits(["x", "y"])
+		(array([-28.86381927,  28.9261226 ]), array([-28.60476934,  28.96535249]))
+		>>> ds.limits(["x", "y"], "minmax")
+		(array([-128.293991,  271.365997]), array([ -71.5523682,  146.465836 ]))
+		>>> ds.limits(["x", "y"], ["minmax", "90%"])
+		(array([-128.293991,  271.365997]), array([-13.37438402,  13.4224423 ]))
+		>>> ds.limits(["x", "y"], ["minmax", [0, 10]])
+		(array([-128.293991,  271.365997]), [0, 10])
+
+		:param expression: {expression_limits}
+		:param value: {limits}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_limits}
+		"""
+		if expression == []:
+			return []
+		waslist, [expressions, ] = vaex.utils.listify(expression)
+		#values =
+		#values = _expand_limits(value, len(expressions))
+		#logger.debug("limits %r", list(zip(expressions, values)))
+		if value is None:
+			value = "99.73%"
+		#print("value is seq/limit?", _issequence(value), _is_limit(value), value)
+		if _is_limit(value) or not _issequence(value):
+			values = (value,) * len(expressions)
+		else:
+			values = value
+
+		#print("expressions 1)", expressions)
+		#print("values      1)", values)
+
+		initial_expressions, initial_values = expressions, values
+		expression_values = dict()
+		for expression, value in zip(expressions, values):
+			#print(">>>", expression, value)
+			if _issequence(expression):
+				expressions = expression
+			else:
+				expressions = [expression]
+			if _is_limit(value) or not _issequence(value):
+				values = (value,) * len(expressions)
+			else:
+				values = value
+			#print("expressions 2)", expressions)
+			#print("values      2)", values)
+			for expression, value in zip(expressions, values):
+				if not _is_limit(value): # if a
+					#value = tuple(value) # list is not hashable
+					expression_values[(expression, value)] = None
+
+		#print("##### 1)", expression_values.keys())
+
+		limits_list = []
+		#for expression, value in zip(expressions, values):
+		for expression, value in expression_values.keys():
+			if isinstance(value, six.string_types):
+				if value == "minmax":
+					limits = self.minmax(expression, selection=selection, async=True)
+				else:
+					import re
+					match = re.match("([\d.]*)(\D*)", value)
+					if match is None:
+						raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
+					else:
+						number, type = match.groups()
+						import ast
+						number = ast.literal_eval(number)
+						type = type.strip()
+						if type in ["s", "sigma"]:
+							limits =  self.limits_sigma(number)
+						elif type in ["ss", "sigmasquare"]:
+							limits =  self.limits_sigma(number, square=True)
+						elif type in ["%", "percent"]:
+							limits =  self.limits_percentage(expression, number, async=True)
+						elif type in ["%s", "%square", "percentsquare"]:
+							limits =  self.limits_percentage(expression, number, square=True, async=async)
+			elif value is None:
+				limits = self.limits_percentage(expression, square=square, async=True)
+			else:
+				limits =  value
+			limits_list.append(limits)
+			if limits is None:
+				raise ValueError("limit %r not understood" % value)
+			expression_values[(expression, value)] = limits
+			logger.debug("!!!!!!!!!! limits: %r %r", limits, np.array(limits).shape)
+			@delayed
+			def echo(limits):
+				logger.debug(">>>>>>>> limits: %r %r", limits, np.array(limits).shape)
+			echo(limits)
+
+		limits_list = delayed_args(*limits_list)
+		@delayed
+		def finish(limits_list):
+			#print("##### 2)", expression_values.keys())
+			limits_outer = []
+			for expression, value in zip(initial_expressions, initial_values):
+				#print(">>>3", expression, value)
+				if _issequence(expression):
+					expressions = expression
+					waslist2 = True
+				else:
+					expressions = [expression]
+					waslist2 = False
+				if _is_limit(value) or not _issequence(value):
+					values = (value,) * len(expressions)
+				else:
+					values = value
+				#print("expressions 3)", expressions)
+				#print("values      3)", values)
+				limits = []
+				for expression, value in zip(expressions, values):
+					#print("get", (expression, value))
+					if not _is_limit(value):
+						value = expression_values[(expression, value)]
+						if not _is_limit(value):
+							#print(">>> value", value)
+							value = value.get()
+					limits.append(value)
+					#if not _is_limit(value): # if a
+					#	#value = tuple(value) # list is not hashable
+					#	expression_values[(expression, value)] = expression_values[(expression, value)].get()
+					#else:
+					#	#value = tuple(value) # list is not hashable
+					#	expression_values[(expression, value)] = ()
+				if waslist2:
+					limits_outer.append(limits)
+				else:
+					limits_outer.append(limits[0])
+			#logger.debug(">>>>>>>> complete list of limits: %r %r", limits_list, np.array(limits_list).shape)
+			#print("limits", limits_outer)
+			return vaex.utils.unlistify(waslist, limits_outer)
+		return self._async(async, finish(limits_list))
+
+	def __minmax__old(self, expression, progressbar=False, selection=None):
+		waslist, expressions = vaex.utils.listify(expression)
+		subspace = self(*expressions)
+		if selection:
+			subspace = subspace.selected()
+		return vaex.utils.unlistify(waslist, subspace.minmax())
+
+	def histogram(self, expressions, limits, shape=256, weight=None, progressbar=False, selection=None):
+		subspace = self(*expressions)
+		if selection:
+			subspace = subspace.selected()
+		return subspace.histogram(limits=limits, size=shape, weight=weight, progressbar=progressbar)
+
+	def __mean_old(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
+		if len(binby) == 0:
+			subspace = self(expression)
+			if selection:
+				subspace = subspace.selected()
+			return subspace.mean()[0]
+		else:
+			# todo, fix progressbar into two...
+			limits = self.limits(binby, limits)
+			subspace = self(*binby)
+			if selection:
+				subspace = subspace.selected()
+			counts = self.count(expression, binby=binby, limits=limits, shape=shape, progressbar=progressbar, selection=selection)
+			summed = self.sum  (expression, binby=binby, limits=limits, shape=shape, progressbar=progressbar, selection=selection)
+			mean = summed/counts
+			mean[counts==0] = np.nan
+			return mean
+
+	def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
+		if len(binby) == 0:
+			raise ValueError("only supported with binby argument given")
+		else:
+			# todo, fix progressbar into two...
+			try:
+				len(shape)
+				shape = tuple(shape)
+			except:
+				shape = len(binby) * (shape,)
+			shape = (mode_shape,) + shape
+			subspace = self(*(list(binby) + [expression]))
+			if selection:
+				subspace = subspace.selected()
+
+			limits = self.limits(list(binby), limits)
+			mode_limits = self.limits([expression], mode_limits)
+			limits = list(limits) + list(mode_limits)
+			counts = subspace.histogram(limits=limits, size=shape, progressbar=progressbar)
+
+			indices = np.argmax(counts, axis=0)
+			pmin, pmax = limits[-1]
+			centers = np.linspace(pmin, pmax, mode_shape+1)[:-1]# ignore last bin
+			centers += (centers[1] - centers[0])/2 # and move half a bin to the right
+
+			modes = centers[indices]
+			ok = counts.sum(axis=0) > 0
+			modes[~ok] = np.nan
+			return modes
+
+	def __sum_old(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
+		if len(binby) == 0:
+			subspace = self(expression)
+			if selection:
+				subspace = subspace.selected()
+			return subspace.sum()[0]
+		else:
+			# todo, fix progressbar into two...
+			subspace = self(*binby)
+			if selection:
+				subspace = subspace.selected()
+			summed = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
+									weight=expression)
+			return summed
+
+	def __count_old(self, expression=None, binby=[], limits=None, shape=256, progressbar=False, selection=None):
+		if len(binby) == 0:
+			subspace = self("(%s)*0+1" % expression)
+			if selection:
+				subspace = subspace.selected()
+			return subspace.sum()[0]
+		else:
+			limits = self.limits(list(binby), limits)
+			subspace = self(*binby)
+			if selection:
+				subspace = subspace.selected()
+			summed = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
+									weight=("(%s)*0+1" % expression) if expression is not None else None)
+			return summed
+
+	def plot_bq(self, x, y, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
+			 aspect="auto", f="identity", fig=None, axes=None, xlabel=None, ylabel=None, title=None,
+			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=None,
+			 cmap="afmhot", scales=None, tool_select=False, bq_cleanup=True,
+			 **kwargs):
+		"""Use bqplot to create an interactive plot, this method is subject to change, it is currently a tech demo"""
+		subspace = self(x, y)
+		return subspace.plot_bq(grid, size, limits, square, center, weight, figsize, aspect, f, fig, axes, xlabel, ylabel, title,
+								group_by, group_limits, group_colors, group_labels, group_count, cmap, scales, tool_select, bq_cleanup, **kwargs)
+
+
+	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
+	def plot(self, x=None, y=None, what="count(*)", extra=None, facet=None, facet_column_count=4, reduce=["colormap"], f=None,
+			 n="normalize", normalize_axis=["what"],
+			 vmin=None, vmax=None,
+			 shape=256, limits=None, grid=None, colormap="afmhot", colors=["red", "green", "blue"],
+			figsize=(8, 8), xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
+			colorbar=True,
+			selection=None,
+		 	background_color="white", pre_blend=False, background_alpha=1.,
+			visual=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column"),
+			wrap=True, wrap_columns=4,
+			return_extra=False, hardcopy=None):
+		"""Plot using matplotlib
+
+		:param x: Expression to bin in the x direction
+		:param y:                          y
+		:param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
+		:param extra: Possible extra axes
+		:param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
+		:param facet_column_count: number of columns to use for faceting
+		:param reduce:
+		:param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
+		:param n: normalization function, currently only 'normalize' is supported
+		:param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
+		:param vmin: instead of automatic normalization, (using n and normalization _axis) scale the data between vmin and vmax to [0, 1]
+		:param vmax: see vmin
+		:param shape: shape/size of the n-D histogram grid
+		:param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
+		:param grid: if the binning is done before by yourself, you can pass it
+		:param colormap: matplotlib colormap to use
+		:param colors:
+		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+		:param xlabel:
+		:param ylabel:
+		:param aspect:
+		:param tight_layout: call pylab.tight_layout or not
+		:param colorbar: plot a colorbar if True
+		:param interpolation: interpolation for imshow, possible options are: 'nearest', 'bilinear', 'bicubic', see matplotlib for more
+		:param return_extra:
+		:return:
+		"""
+		# axes order is.. [x,y,z,extra...,row,column]
+		import pylab
+		import matplotlib
+		n = _parse_n(n)
+		if type(shape) == int:
+			shape = (shape,) * 2
+		binby = []
+		for expression in [y,x]:
+			if expression is not None:
+				binby = [expression] + binby
+		if extra:
+			binby.extend(extra)
+		#limits = self.limits(binby, limits)
+		if figsize is not None:
+			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
+		fig = pylab.gcf()
+		import re
+		if facet is not None:
+			match = re.match("(.*):(.*),(.*),(.*)", facet)
+			if match:
+				groups = match.groups()
+				import ast
+				facet_expression = groups[0]
+				facet_limits = [ast.literal_eval(groups[1]), ast.literal_eval(groups[2])]
+				facet_count = ast.literal_eval(groups[3])
+				limits.append(facet_limits)
+				binby = binby + [facet_expression]
+				shape = (facet_count,) + shape
+			else:
+				raise ValueError("Could not understand 'facet' argument %r, expected something in form: 'column:-1,10:5'" % facet)
+
+		#axes.set_aspect(aspect)
+		what_units = None
+		whats = _ensure_list(what)
+		selections = _ensure_list(selection)
+
+		if y is None:
+			waslist, [x,] = vaex.utils.listify(x)
+		else:
+			waslist, [x,y] = vaex.utils.listify(x, y)
+			x = list(zip(x, y))
+
+		logger.debug("x: %s", x)
+		limits = self.limits(x, limits)
+		logger.debug("limits: %r", limits)
+
+		# z == 1
+		total_grid = np.zeros( (len(x), len(whats), len(selections), 1) + _expand_shape(shape, 2), dtype=float)
+		logger.debug("shape of total grid: %r", total_grid.shape)
+		axis = dict(plot=0, what=1, selection=2)
+		xlimits = limits
+		if xlabel is None:
+			xlabels = []
+			ylabels = []
+			for i, (binby, limits) in enumerate(zip(x, xlimits)):
+				xlabels.append(self.label(binby[0]))
+				ylabels.append(self.label(binby[1]))
+		else:
+			xlabels = _expand(xlabel, len(x))
+			ylabels = _expand(ylabel, len(x))
+		labels = {}
+		labels["subspace"] = (xlabels, ylabels)
+
+		grid_axes = dict(x=-1, y=-2, z=-3, selection=-4, what=-5, subspace=-6)
+		visual_axes = dict(x=-1, y=-2, layer=-3, fade=-4, column=-5, row=-6)
+		visual_default=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column")
+		invert = lambda x: dict((v, k) for k, v in x.iteritems())
+		#visual_default_reverse = invert(visual_default)
+		#visual_ = visual_default
+		#visual = dict(visual) # copy for modification
+		# add entries to avoid mapping multiple times to the same axis
+		free_visual_axes = visual_default.values()
+		#visual_reverse = invert(visual)
+		logger.debug("1: %r %r", visual, free_visual_axes)
+		for grid_name, visual_name in visual.items():
+			if visual_name in free_visual_axes:
+				free_visual_axes.remove(visual_name)
+			else:
+				raise ValueError("visual axes %s used multiple times" % visual_name)
+		logger.debug("2: %r %r", visual, free_visual_axes)
+		for grid_name, visual_name in visual_default.items():
+			if visual_name in free_visual_axes and grid_name not in visual:
+				free_visual_axes.remove(visual_name)
+				visual[grid_name] = visual_name
+		logger.debug("3: %r %r", visual, free_visual_axes)
+		for grid_name, visual_name in visual_default.items():
+			if visual_name not in free_visual_axes and grid_name not in visual:
+				visual[grid_name] = free_visual_axes.pop(0)
+
+		logger.debug("4: %r %r", visual, free_visual_axes)
+
+
+		#visual_.update(visual)
+		#visual = visual_
+		visual_reverse = invert(visual)
+		move = {}
+		for grid_name, visual_name in visual.items():
+			if visual_axes[visual_name] in visual.values():
+				index = visual.values().find(visual_name)
+				key = visual.keys()[index]
+				raise ValueError("trying to map %s to %s while, it is already mapped by %s" % (grid_name, visual_name, key))
+			move[grid_axes[grid_name]] = visual_axes[visual_name]
+		logger.debug("grid shape", total_grid.shape)
+		logger.debug("visual: %r", visual.items())
+		normalize_axis = _ensure_list(normalize_axis)
+
+		fs = _expand(f, total_grid.shape[grid_axes[normalize_axis[0]]])
+		#labels["y"] = ylabels
+		what_labels = []
+		if grid is None:
+			for i, (binby, limits) in enumerate(zip(x, xlimits)):
+				for j, what in enumerate(whats):
+					if what:
+						what = what.strip()
+						index = what.index("(")
+						import re
+						groups = re.match("(.*)\((.*)\)", what).groups()
+						if groups and len(groups) == 2:
+							function = groups[0]
+							arguments = groups[1].strip()
+							if "," in arguments:
+								arguments = arguments.split(",")
+							functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max"]
+							unit_expression = None
+							if function in ["mean", "sum", "std", "min", "max"]:
+								unit_expression = arguments
+							if function in ["var"]:
+								unit_expression = "(%s) * (%s)" % (arguments, arguments)
+							if function in ["covar"]:
+								unit_expression = "(%s) * (%s)" % arguments
+							if unit_expression:
+								unit = self.unit(unit_expression)
+								if unit:
+									what_units = unit.to_string('latex_inline')
+							if function in functions:
+								grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape, selection=selections)
+							elif function == "count":
+								grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections)
+							else:
+								raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
+							if i == 0:# and j == 0:
+								what_label = whats[j]
+								if what_units:
+									what_label += " (%s)" % what_units
+								if fs[j]:
+									what_label = fs[j] + " " + what_label
+								what_labels.append(what_label)
+						else:
+							raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
+					else:
+						grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
+					total_grid[i,j,:,0] = grid
+
+		#			visual=dict(x="x", y="y", selection="fade", subspace="facet1", what="facet2",)
+		labels["what"] = what_labels
+		def _selection_name(name):
+			if name in [None, False]:
+				return "selection: all"
+			elif name in ["default", True]:
+				return "selection: default"
+			else:
+				return "selection: %s" % name
+		labels["selection"] = list([_selection_name(k) for k in selections])
+
+		visual_grid = np.moveaxis(total_grid, move.keys(), move.values())
+		logger.debug("visual grid shape: %r", visual_grid.shape)
+		#grid = total_grid
+		#print(grid.shape)
+		#grid = self.reduce(grid, )
+		axes = []
+		#cax = pylab.subplot(1,1,1)
+
+		background_color = np.array(matplotlib.colors.colorConverter.to_rgb(background_color))
+
+
+		#if grid.shape[axis["selection"]] > 1:#  and not facet:
+		#	rgrid = vaex.image.fade(rgrid)
+		#	finite_mask = np.any(finite_mask, axis=0) # do we really need this
+		#	print(rgrid.shape)
+		#facet_row_axis = axis["what"]
+		import math
+		facet_columns = None
+		facets = visual_grid.shape[visual_axes["row"]] * visual_grid.shape[visual_axes["column"]]
+		if visual_grid.shape[visual_axes["column"]] ==  1 and wrap:
+			facet_columns = min(wrap_columns, visual_grid.shape[visual_axes["row"]])
+		elif visual_grid.shape[visual_axes["row"]] ==  1 and wrap:
+			facet_columns = min(wrap_columns, visual_grid.shape[visual_axes["column"]])
+		else:
+			facet_columns = visual_grid.shape[visual_axes["column"]]
+		facet_rows = int(math.ceil(facets/facet_columns))
+		logger.debug("facet_rows: %r", facet_rows)
+		logger.debug("facet_columns: %r", facet_columns)
+			#if visual_grid.shape[visual_axes["row"]] > 1: # and not wrap:
+			#	#facet_row_axis = axis["what"]
+			#	facet_columns = visual_grid.shape[visual_axes["column"]]
+			#else:
+			#	facet_columns = min(wrap_columns, facets)
+		#if grid.shape[axis["plot"]] > 1:#  and not facet:
+
+
+		if 1:
+
+
+			# this loop could be done using axis arguments everywhere
+			assert len(normalize_axis) == 1, "currently only 1 normalization axis supported"
+			grid = visual_grid * 1.
+			fgrid = visual_grid * 1.
+			ngrid = visual_grid * 1.
+			#colorgrid = np.zeros(ngrid.shape + (4,), float)
+			vmaxs = []
+			vmins = []
+			for name in normalize_axis:
+				axis = visual_axes[visual[name]]
+				for i in range(visual_grid.shape[axis]):
+					item = [slice(None, None, None), ] * len(visual_grid.shape)
+					item[axis] = i
+					item = tuple(item)
+					f = _parse_f(fs[i])
+					fgrid.__setitem__(item, f(grid.__getitem__(item)))
+					nsubgrid, vmin, vmax = n(fgrid.__getitem__(item))
+					vmins.append(vmin)
+					vmaxs.append(vmax)
+					ngrid.__setitem__(item, nsubgrid)
+
+			if 0: # TODO: above should be like the code below, with custom vmin and vmax
+				grid = visual_grid[i]
+				f = _parse_f(fs[i])
+				fgrid = f(grid)
+				finite_mask = np.isfinite(grid)
+				finite_mask = np.any(finite_mask, axis=0)
+				if vmin is not None and vmax is not None:
+					ngrid = fgrid * 1
+					ngrid -= vmin
+					ngrid /= (vmax-vmin)
+					ngrid = np.clip(ngrid, 0, 1)
+				else:
+					ngrid, vmin, vmax = n(fgrid)
+					#vmin, vmax = np.nanmin(fgrid), np.nanmax(fgrid)
+			# every 'what', should have its own colorbar, check if what corresponds to
+			# rows or columns in facets, if so, do a colorbar per row or per column
+
+
+			rows, columns = int(math.ceil(facets / float(facet_columns))), facet_columns
+			colorbar_location = "individual"
+			if visual["what"] == "row" and visual_grid.shape[1] == facet_columns:
+				colorbar_location = "per_row"
+			if visual["what"] == "column" and visual_grid.shape[0] == facet_rows:
+				colorbar_location = "per_column"
+			#values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
+			logger.debug("rows: %r, columns: %r", rows, columns)
+			import matplotlib.gridspec as gridspec
+			column_scale = 1
+			row_scale = 1
+			row_offset = 0
+			if colorbar_location == "per_row":
+				column_scale = 4
+				gs = gridspec.GridSpec(rows, columns*column_scale+1)
+			elif colorbar_location == "per_column":
+				row_offset = 1
+				row_scale = 4
+				gs = gridspec.GridSpec(rows*row_scale+1, columns)
+			else:
+				gs = gridspec.GridSpec(rows, columns)
+			facet_index = 0
+			fs = _expand(f, len(whats))
+			colormaps = _expand(colormap, len(whats))
+
+			# row
+			for i in range(visual_grid.shape[0]):
+				# column
+				for j in range(visual_grid.shape[1]):
+					if colorbar_location == "per_column" and i == 0:
+						norm = matplotlib.colors.Normalize(vmins[j], vmaxs[j])
+						sm = matplotlib.cm.ScalarMappable(norm, colormaps[j])
+						sm.set_array(1) # make matplotlib happy (strange behavious)
+						ax = pylab.subplot(gs[0, j])
+						colorbar = fig.colorbar(sm, cax=ax, orientation="horizontal")
+						label = labels["what"][j]
+						colorbar.ax.set_title(label)
+
+					if colorbar_location == "per_row" and j == 0:
+						norm = matplotlib.colors.Normalize(vmins[i], vmaxs[i])
+						sm = matplotlib.cm.ScalarMappable(norm, colormaps[i])
+						sm.set_array(1) # make matplotlib happy (strange behavious)
+						ax = pylab.subplot(gs[j, -1])
+						colorbar = fig.colorbar(sm, cax=ax)
+						label = labels["what"][j]
+						colorbar.ax.set_ylabel(label)
+
+					rgrid = ngrid[i,j] * 1.
+					if visual["what"] == "column":
+						what_index = j
+					elif visual["what"] == "row":
+						what_index = i
+					else:
+						what_index = 0
+					for r in reduce:
+						r = _parse_reduction(r, colormaps[what_index], colors)
+						rgrid = r(rgrid)
+					row = facet_index / facet_columns
+					column = facet_index % facet_columns
+					#print("i,j", i, j, "row, col", row, column)
+
+					if colorbar_location == "individual":
+						norm = matplotlib.colors.Normalize(vmins[what_index], vmaxs[what_index])
+						sm = matplotlib.cm.ScalarMappable(norm, colormaps[what_index])
+						sm.set_array(1) # make matplotlib happy (strange behavious)
+						ax = pylab.subplot(gs[row, column])
+						colorbar = fig.colorbar(sm, ax=ax)
+						label = labels["what"][what_index]
+						colorbar.ax.set_ylabel(label)
+
+
+					ax = pylab.subplot(gs[row_offset + row * row_scale:row_offset + (row+1) * row_scale, column*column_scale:(column+1)*column_scale])
+					axes.append(ax)
+					plot_rgrid = rgrid
+					assert plot_rgrid.shape[1] == 1, "no layers supported yet"
+					plot_rgrid = plot_rgrid[:,0]
+					if plot_rgrid.shape[0] > 1:
+						plot_rgrid = vaex.image.fade(plot_rgrid[::-1])
+						#plot_rgrid = plot_rgrid[1]
+					else:
+						plot_rgrid = plot_rgrid[0]
+						#finite_mask = np.any(finite_mask, axis=0) # do we really need this
+					#plot_rgrid[~finite_mask,3] = 0
+					#if len(plot_rgrid.shape):
+					#	raise ValueError("plot grid is expected ")
+					extend = None
+					if visual["subspace"] == "row":
+						extend = np.array(xlimits[i]).flatten()
+					if visual["subspace"] == "column":
+						extend = np.array(xlimits[j]).flatten()
+					logger.debug("plot rgrid: %r", plot_rgrid.shape)
+					plot_rgrid = np.transpose(plot_rgrid, (1,0,2))
+					im = ax.imshow(plot_rgrid, extent=extend, origin="lower", aspect=aspect)
+					#v1, v2 = values[i], values[i+1]
+					def label(index, label, expression):
+						if label and _issequence(label):
+							return label[i]
+						else:
+							return self.label(expression)
+					labels1 = visual_reverse["row"]
+					labelsxy = labels.get(visual_reverse["row"])
+					if isinstance(labelsxy, tuple):
+						labelsx, labelsy = labelsxy
+						pylab.xlabel(labelsx[i])
+						pylab.ylabel(labelsy[i])
+					#elif labelsxy is not None:
+					#	#ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
+					#	print("title", labelsxy[j])
+					#	ax.set_title(labelsxy[j])
+					labelsxy = labels.get(visual_reverse["column"])
+					if isinstance(labelsxy, tuple):
+						labelsx, labelsy = labelsxy
+						pylab.xlabel(labelsx[i])
+						pylab.ylabel(labelsy[i])
+					elif labelsxy is not None:
+						#print("title", labelsxy[i])
+						ax.set_title(labelsxy[j])
+
+					#pylab.xlabel(label(j, xlabel, x[j][0]))
+					#pylab.ylabel(label(j, ylabel, x[j][1]))
+					#pylab.ylabel(ylabel or self.label(y))
+					#ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
+
+					facet_index += 1
+		else:
+			if 0: #facet:
+				import math
+				rows, columns = int(math.ceil(facet_count / float(facet_column_count))), facet_column_count
+				values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
+				import matplotlib.gridspec as gridspec
+				column_scale = 4
+				gs = gridspec.GridSpec(rows, columns*column_scale+1)
+				for i in range(facet_count):
+					#ax = pylab.subplot(rows, columns, i+1)
+					row = i / facet_column_count
+					column = i % columns
+					ax = pylab.subplot(gs[row, column*column_scale:(column+1)*column_scale])
+					axes.append(ax)
+					im = ax.imshow(rgrid[i], extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+					v1, v2 = values[i], values[i+1]
+					pylab.xlabel(xlabel or self.label(x))
+					pylab.ylabel(ylabel or self.label(y))
+					ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
+					#pylab.show()
+			else:
+				pylab.xlabel(xlabel or self.label(x))
+				pylab.ylabel(ylabel or self.label(y))
+				axes.append(pylab.gca())
+
+				rgba = rgrid
+				rgba[~finite_mask,3] = 0
+
+				if pre_blend:
+				#	#rgba[...,3] = background_alpha
+					rgb = rgba[...,:3].T
+					alpha = rgba[...,3].T
+					rgb[:] = rgb * alpha + background_color[:3].reshape(3,1,1) * (1-alpha)
+					alpha[:] = alpha + background_alpha * (1-alpha)
+				rgba= np.clip(rgba, 0, 1)
+				rgba8 = (rgba*255).astype(np.uint8)
+
+				im = pylab.imshow(rgba8 , extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect, interpolation=interpolation)
+		if 0:
+			if normalize_axis is None and colorbar:
+				#pylab.subplot(1,1,1)
+				import matplotlib.colors
+				import matplotlib.cm
+				#from mpl_toolkits.axes_grid1 import make_axes_locatable
+				#divider = make_axes_locatable(cax)
+				#cax = divider.append_axes("right", "5%", pad="3%")
+
+				norm = matplotlib.colors.Normalize(vmin, vmax)
+				sm = matplotlib.cm.ScalarMappable(norm, colormap)
+				sm.set_array(1) # make matplotlib happy (strange behavious)
+				if facet:
+					ax = pylab.subplot(gs[:, -1])
+					colorbar = fig.colorbar(sm, cax=ax)
+				else:
+					colorbar = fig.colorbar(sm)
+				what_label = what
+				if what_units:
+					what_label += " (%s)" % what_units
+				colorbar.ax.set_ylabel(what_label)
+
+		if tight_layout:
+			pylab.tight_layout()
+		if hardcopy:
+			pylab.savefig(hardcopy)
+		if show:
+			pylab.show()
+		if return_extra:
+			return im, grid, fgrid, ngrid, rgrid, rgba8
+		else:
+			return im
+		#colorbar = None
+		#return im, colorbar
+
+	def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
+		xlabel=None, ylabel=None, tight_layout=True,
+		selection=None,
+			   **kwargs):
+		"""
+
+		:param x: Expression to bin in the x direction
+		:param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
+		:param grid:
+		:param grid: if the binning is done before by yourself, you can pass it
+		:param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
+		:param limits: list of [xmin, xmax], or a description such as 'minmax', '99%'
+		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+		:param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
+		:param n: normalization function, currently only 'normalize' is supported, or None for no normalization
+		:param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
+		:param normalize_axis:
+		:param xlabel: String for label on x axis (may contain latex)
+		:param ylabel: Same for y axis
+		:param: tight_layout: call pylab.tight_layout or not
+		:param kwargs: extra argument passed to pylab.plot
+		:return:
+		"""
+
+
+
+		import pylab
+		f = _parse_f(f)
+		n = _parse_n(n)
+		if type(shape) == int:
+			shape = (shape,)
+		binby = []
+		for expression in [x]:
+			if expression is not None:
+				binby = [expression] + binby
+		limits = self.limits(binby, limits)
+		if figsize is not None:
+			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
+		fig = pylab.gcf()
+		import re
+		if facet is not None:
+			match = re.match("(.*):(.*),(.*),(.*)", facet)
+			if match:
+				groups = match.groups()
+				import ast
+				facet_expression = groups[0]
+				facet_limits = [ast.literal_eval(groups[1]), ast.literal_eval(groups[2])]
+				facet_count = ast.literal_eval(groups[3])
+				limits.append(facet_limits)
+				binby.append(facet_expression)
+				shape = (facet_count,) + shape
+			else:
+				raise ValueError("Could not understand 'facet' argument %r, expected something in form: 'column:-1,10:5'" % facet)
+
+		if grid is None:
+			if what:
+				what = what.strip()
+				index = what.index("(")
+				import re
+				groups = re.match("(.*)\((.*)\)", what).groups()
+				if groups and len(groups) == 2:
+					function = groups[0]
+					arguments = groups[1].strip()
+					functions = ["mean", "sum"]
+					if function in functions:
+						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
+					elif function == "count" and arguments == "*":
+						grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
+					elif function == "cumulative" and arguments == "*":
+						# TODO: comulative should also include the tails outside limits
+						grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
+						grid = np.cumsum(grid)
+					else:
+						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
+				else:
+					raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
+			else:
+				grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
+		fgrid = f(grid)
+		if n is not None:
+			ngrid = n(fgrid, axis=normalize_axis)
+		else:
+			ngrid = fgrid
+			#reductions = [_parse_reduction(r, colormap, colors) for r in reduce]
+			#rgrid = ngrid * 1.
+			#for r in reduce:
+			#	r = _parse_reduction(r, colormap, colors)
+			#	rgrid = r(rgrid)
+			#grid = self.reduce(grid, )
+		xmin, xmax = limits[-1]
+		if facet:
+			N = len(grid[-1])
+		else:
+			N = len(grid)
+		xar = np.arange(N) / (N-1.0) * (xmax-xmin) + xmin
+		if facet:
+			import math
+			rows, columns = int(math.ceil(facet_count / 4.)), 4
+			values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
+			for i in range(facet_count):
+				ax = pylab.subplot(rows, columns, i+1)
+				value = ax.plot(xar, ngrid[i], drawstyle="steps", **kwargs)
+				v1, v2 = values[i], values[i+1]
+				pylab.xlabel(xlabel or x)
+				pylab.ylabel(ylabel or what)
+				ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
+				#pylab.show()
+		else:
+			#im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+			pylab.xlabel(xlabel or x)
+			pylab.ylabel(ylabel or what)
+			value = pylab.plot(xar, ngrid, drawstyle="steps", **kwargs)
+		if tight_layout:
+			pylab.tight_layout()
+		return value
+		#N = len(grid)
+		#xmin, xmax = limits[0]
+		#return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
+		#pylab.ylim(-1, 6)
+
+	@property
+	def stat(self):
+		class StatList(object):
+			pass
+		statslist = StatList()
+		for name in self.get_column_names(virtual=True):
+			class Stats(object):
+				pass
+			stats = Stats()
+			for f in _functions_statistics_1d:
+				fname = f.__name__
+				p = property(lambda self, name=name, f=f, ds=self: f(ds, name))
+				setattr(Stats, fname, p)
+			setattr(statslist, name, stats)
+		return statslist
+
+	@property
+	def col(self):
+		"""Gives direct access to the data as numpy-like arrays.
+
+		Convenient when working with ipython in combination with small datasets, since this gives tab-completion
+
+		Columns can be accesed by there names, which are attributes. The attribues are currently strings, so you cannot
+		do computations with them
+
+		:Example:
+		>>> ds = vx.example()
+		>>> ds.plot(ds.col.x, ds.col.y)
+
+		"""
+		class ColumnList(object):
+			pass
+		data = ColumnList()
+		for name in self.get_column_names(virtual=True):
+			setattr(data, name, name)
+		return data
+
+
 	def close_files(self):
-		"""Close any possible open file handles, the dataset not not be usable afterwards"""
+		"""Close any possible open file handles, the dataset will not be in a usable state afterwards"""
 		pass
 
 	def byte_size(self, selection=False):
+		"""Return the size in bytes the whole dataset requires (or the selection), respecting the active_fraction"""
 		bytes_per_row = 0
 		for column in list(self.get_column_names()):
 			dtype = self.dtype(column)
 			bytes_per_row += dtype.itemsize
-		return bytes_per_row * self.length(selection=selection)
+		return bytes_per_row * self.count(selection=selection)
 
 
 	def dtype(self, expression):
@@ -2010,7 +3901,7 @@ class Dataset(object):
 			return None if None in columns else columns
 
 	def selection_favorite_add(self, name, selection_name="default"):
-		selection = self.get_selection(selection_name=selection_name)
+		selection = self.get_selection(name=selection_name)
 		if selection:
 			self.favorite_selections[name] = selection
 			self.selections_favorite_store()
@@ -2022,7 +3913,7 @@ class Dataset(object):
 		self.selections_favorite_store()
 
 	def selection_favorite_apply(self, name, selection_name="default", executor=None):
-		self.set_selection(self.favorite_selections[name], selection_name=selection_name, executor=executor)
+		self.set_selection(self.favorite_selections[name], name=selection_name, executor=executor)
 
 	def selections_favorite_store(self):
 		path = os.path.join(self.get_private_dir(create=True), "favorite_selection.yaml")
@@ -2227,6 +4118,42 @@ class Dataset(object):
 			logger.debug("expression list generated: %r", expressions_list)
 		return Subspaces([self(*expressions, **kwargs) for expressions in expressions_list])
 
+	def combinations(self, expressions_list=None, dimension=2, exclude=None, **kwargs):
+		"""Generate a Subspaces object, based on a custom list of expressions or all possible combinations based on
+		dimension
+
+		:param expressions_list: list of list of expressions, where the inner list defines the subspace
+		:param dimensions: if given, generates a subspace with all possible combinations for that dimension
+		:param exclude: list of
+		"""
+		if dimension is not None:
+			expressions_list = list(itertools.combinations(self.get_column_names(), dimension))
+			if exclude is not None:
+				import six
+				def excluded(expressions):
+					if callable(exclude):
+						return exclude(expressions)
+					elif isinstance(exclude, six.string_types):
+						return exclude in expressions
+					elif isinstance(exclude, (list, tuple)):
+						#$#expressions = set(expressions)
+						for e in exclude:
+							if isinstance(e, six.string_types):
+								if e in expressions:
+									return True
+							elif isinstance(e, (list, tuple)):
+								if set(e).issubset(expressions):
+									return True
+							else:
+								raise ValueError("elements of exclude should contain a string or a sequence of strings")
+					else:
+						raise ValueError("exclude should contain a string, a sequence of strings, or should be a callable")
+					return False
+				# test if any of the elements of exclude are a subset of the expression
+				expressions_list = [expr for expr in expressions_list if not excluded(expr)]
+			logger.debug("expression list generated: %r", expressions_list)
+		return expressions_list
+
 
 	def __call__(self, *expressions, **kwargs):
 		"""Alias/shortcut for :func:`Dataset.subspace`"""
@@ -2266,6 +4193,29 @@ class Dataset(object):
 		else:
 			return self.variables[name]
 
+	def evaluate_selection_mask(self, name, i1, i2, selection=None):
+		#if _is_string(selection):
+		if name is True:
+			name = "default"
+		if selection is None:
+			selection = self.get_selection(name)
+		if selection is None:
+			return None
+		cache = self._selection_mask_caches[name]
+		key = (i1, i2)
+		value = cache.get(key)
+		logger.debug("cache for %r is %r", name, value)
+		if value is None or value[0] != selection:
+			logger.debug("creating new mask")
+			mask = selection.evaluate(name, i1, i2)
+			cache[key] = selection, mask
+		else:
+			selection_in_cache, mask = value
+		return mask
+
+
+
+
 	def evaluate(self, expression, i1=None, i2=None, out=None):
 		"""Evaluate an expression, and return a numpy array with the results for the full column or a part of it.
 
@@ -2293,7 +4243,7 @@ class Dataset(object):
 		variables = {key:self.evaluate_variable(key) for key in self.variables.keys()}
 		return _BlockScope(self, i1, i2, **variables)
 
-	def select(self, boolean_expression, mode="replace", selection_name="default"):
+	def select(self, boolean_expression, mode="replace", name="default"):
 		"""Select rows based on the boolean_expression, if there was a previous selection, the mode is taken into account.
 
 		if boolean_expression is None, remove the selection, has_selection() will returns false
@@ -2752,22 +4702,22 @@ class Dataset(object):
 		self.signal_active_fraction_changed.emit(self, self._active_fraction)
 
 
-	def get_selection(self, selection_name="default"):
+	def get_selection(self, name="default"):
 		"""Get the current selection object (mostly for internal use atm)"""
-		selection_history = self.selection_histories[selection_name]
-		index = self.selection_history_indices[selection_name]
+		selection_history = self.selection_histories[name]
+		index = self.selection_history_indices[name]
 		if index == -1:
 			return None
 		else:
 			return selection_history[index]
 
-	def selection_undo(self, selection_name="default", executor=None):
-		"""Undo selection, for the selection_name"""
+	def selection_undo(self, name="default", executor=None):
+		"""Undo selection, for the name"""
 		logger.debug("undo")
 		executor = executor or self.executor
-		assert self.selection_can_undo(selection_name=selection_name)
-		selection_history = self.selection_histories[selection_name]
-		index = self.selection_history_indices[selection_name]
+		assert self.selection_can_undo(name=name)
+		selection_history = self.selection_histories[name]
+		index = self.selection_history_indices[name]
 		if index == 0:
 			# special case, ugly solution to select nothing
 			if self.is_local():
@@ -2784,59 +4734,59 @@ class Dataset(object):
 			else:
 				self.signal_selection_changed.emit(self)
 				result = vaex.promise.Promise.fulfilled(None)
-		self.selection_history_indices[selection_name] -= 1
-		logger.debug("undo: selection history is %r, index is %r", selection_history, self.selection_history_indices[selection_name])
+		self.selection_history_indices[name] -= 1
+		logger.debug("undo: selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
 		return result
 
 
-	def selection_redo(self, selection_name="default", executor=None):
-		"""Redo selection, for the selection_name"""
+	def selection_redo(self, name="default", executor=None):
+		"""Redo selection, for the name"""
 		logger.debug("redo")
 		executor = executor or self.executor
-		assert self.selection_can_redo(selection_name=selection_name)
-		selection_history = self.selection_histories[selection_name]
-		index = self.selection_history_indices[selection_name]
+		assert self.selection_can_redo(name=name)
+		selection_history = self.selection_histories[name]
+		index = self.selection_history_indices[name]
 		next = selection_history[index+1]
 		if self.is_local():
 			result = next.execute(executor=executor)
 		else:
 			self.signal_selection_changed.emit(self)
 			result = vaex.promise.Promise.fulfilled(None)
-		self.selection_history_indices[selection_name] += 1
+		self.selection_history_indices[name] += 1
 		logger.debug("redo: selection history is %r, index is %r", selection_history, index)
 		return result
 
-	def selection_can_undo(self, selection_name="default"):
-		"""Can selection selection_name be undone?"""
-		return self.selection_history_indices[selection_name] > -1
+	def selection_can_undo(self, name="default"):
+		"""Can selection name be undone?"""
+		return self.selection_history_indices[name] > -1
 
-	def selection_can_redo(self, selection_name="default"):
-		"""Can selection selection_name be redone?"""
-		return (self.selection_history_indices[selection_name] + 1) < len(self.selection_histories[selection_name])
+	def selection_can_redo(self, name="default"):
+		"""Can selection name be redone?"""
+		return (self.selection_history_indices[name] + 1) < len(self.selection_histories[name])
 
-	def select(self, boolean_expression, mode="replace", selection_name="default", executor=None):
+	def select(self, boolean_expression, mode="replace", name="default", executor=None):
 		"""Perform a selection, defined by the boolean expression, and combined with the previous selection using the given mode
 
-		Selections are recorded in a history tree, per selection_name, undo/redo can be done for them seperately
+		Selections are recorded in a history tree, per name, undo/redo can be done for them seperately
 
 		:param str boolean_expression: Any valid column expression, with comparison operators
 		:param str mode: Possible boolean operator: replace/and/or/xor/subtract
-		:param str selection_name: history tree or selection 'slot' to use
+		:param str name: history tree or selection 'slot' to use
 		:param executor:
 		:return:
 		"""
-		if boolean_expression is None and not self.has_selection(selection_name=selection_name):
+		if boolean_expression is None and not self.has_selection(name=name):
 			pass # we don't want to pollute the history with many None selections
 			self.signal_selection_changed.emit(self) # TODO: unittest want to know, does this make sense?
 		else:
 			def create(current):
 				return SelectionExpression(self, boolean_expression, current, mode) if boolean_expression else None
-			return self._selection(create, selection_name)
+			return self._selection(create, name)
 
-	def select_nothing(self, selection_name="default"):
+	def select_nothing(self, name="default"):
 		"""Select nothing"""
 		logger.debug("selecting nothing")
-		self.select(None, selection_name=selection_name)
+		self.select(None, name=name)
 	#self.signal_selection_changed.emit(self)
 
 	def select_rectangle(self, expression_x, expression_y, limits, mode="replace"):
@@ -2847,7 +4797,7 @@ class Dataset(object):
 		expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
 		self.select(expression, mode=mode)
 
-	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", selection_name="default", executor=None):
+	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", name="default", executor=None):
 		"""For performance reasons, a lasso selection is handled differently.
 
 		:param str expression_x: Name/expression for the x coordinate
@@ -2855,7 +4805,7 @@ class Dataset(object):
 		:param xsequence: list of x numbers defining the lasso, together with y
 		:param ysequence:
 		:param str mode: Possible boolean operator: replace/and/or/xor/subtract
-		:param str selection_name:
+		:param str name:
 		:param executor:
 		:return:
 		"""
@@ -2863,12 +4813,12 @@ class Dataset(object):
 
 		def create(current):
 			return SelectionLasso(self, expression_x, expression_y, xsequence, ysequence, current, mode)
-		return self._selection(create, selection_name, executor=executor)
+		return self._selection(create, name, executor=executor)
 
-	def select_inverse(self, selection_name="default", executor=None):
+	def select_inverse(self, name="default", executor=None):
 		"""Invert the selection, i.e. what is selected will not be, and vice versa
 
-		:param str selection_name:
+		:param str name:
 		:param executor:
 		:return:
 		"""
@@ -2876,47 +4826,52 @@ class Dataset(object):
 
 		def create(current):
 			return SelectionInvert(self, current)
-		return self._selection(create, selection_name, executor=executor)
+		return self._selection(create, name, executor=executor)
 
-	def set_selection(self, selection, selection_name="default", executor=None):
+	def set_selection(self, selection, name="default", executor=None):
 		"""Sets the selection object
 
 		:param selection: Selection object
-		:param selection_name: selection 'slot'
+		:param name: selection 'slot'
 		:param executor:
 		:return:
 		"""
 		def create(current):
 			return selection
-		return self._selection(create, selection_name, executor=executor, execute_fully=True)
+		return self._selection(create, name, executor=executor, execute_fully=True)
 
 
-	def _selection(self, create_selection, selection_name, executor=None, execute_fully=False):
+	def _selection(self, create_selection, name, executor=None, execute_fully=False):
 		"""select_lasso and select almost share the same code"""
-		selection_history = self.selection_histories[selection_name]
-		previous_index = self.selection_history_indices[selection_name]
+		selection_history = self.selection_histories[name]
+		previous_index = self.selection_history_indices[name]
 		current = selection_history[previous_index] if selection_history else None
 		selection = create_selection(current)
 		executor = executor or self.executor
 		selection_history.append(selection)
-		self.selection_history_indices[selection_name] += 1
+		self.selection_history_indices[name] += 1
 		# clip any redo history
-		del selection_history[self.selection_history_indices[selection_name]:-1]
-		if self.is_local():
-			if selection:
-				result = selection.execute(executor=executor, execute_fully=execute_fully)
+		del selection_history[self.selection_history_indices[name]:-1]
+		if 0:
+			if self.is_local():
+				if selection:
+					#result = selection.execute(executor=executor, execute_fully=execute_fully)
+					result = vaex.promise.Promise.fulfilled(None)
+					self.signal_selection_changed.emit(self)
+				else:
+					result = vaex.promise.Promise.fulfilled(None)
+					self.signal_selection_changed.emit(self)
 			else:
-				result = vaex.promise.Promise.fulfilled(None)
 				self.signal_selection_changed.emit(self)
-		else:
-			self.signal_selection_changed.emit(self)
-			result = vaex.promise.Promise.fulfilled(None)
-		logger.debug("select selection history is %r, index is %r", selection_history, self.selection_history_indices[selection_name])
+				result = vaex.promise.Promise.fulfilled(None)
+		self.signal_selection_changed.emit(self)
+		result = vaex.promise.Promise.fulfilled(None)
+		logger.debug("select selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
 		return result
 
-	def has_selection(self, selection_name="default"):
+	def has_selection(self, name="default"):
 		"""Returns True of there is a selection"""
-		return self.get_selection(selection_name) != None
+		return self.get_selection(name) != None
 
 
 def _select_replace(maskold, masknew):
@@ -2947,535 +4902,7 @@ class DatasetLocal(Dataset):
 		self.path = path
 		self.mask = None
 		self.columns = collections.OrderedDict()
-
-
-	def limits_percentage(self, expressions, percentage=99.73, square=False):
-		limits = []
-		for expr in expressions:
-			subspace = self(expr)
-			limits_minmax = subspace.minmax()
-			vmin, vmax = limits_minmax[0]
-			size = 1024*16
-			counts = subspace.histogram(size=size, limits=limits_minmax)
-			cumcounts = np.concatenate([[0], np.cumsum(counts)])
-			cumcounts /= cumcounts.max()
-			# TODO: this is crude.. see the details!
-			f = (1-percentage/100.)/2
-			x = np.linspace(vmin, vmax, size+1)
-			l = scipy.interp([f,1-f], cumcounts, x)
-			limits.append(l)
-		return limits
-
-	def percentile(self, expression, percentage=99.73, selection=False):
-		limits = []
-		waslist, percentages = vaex.utils.listify(percentage)
-		values = []
-		for percentage in percentages:
-			subspace = self(expression)
-			if selection:
-				subspace = subspace.selected()
-			limits_minmax = subspace.minmax()
-			vmin, vmax = limits_minmax[0]
-			size = 1024*16
-			counts = subspace.histogram(size=size, limits=limits_minmax)
-			cumcounts = np.concatenate([[0], np.cumsum(counts)])
-			cumcounts /= cumcounts.max()
-			# TODO: this is crude.. see the details!
-			f = percentage/100.
-			x = np.linspace(vmin, vmax, size+1)
-			l = scipy.interp([f], cumcounts, x)
-			values.append(l[0])
-		return vaex.utils.unlistify(waslist, values)
-
-	def limits(self, expressions, value, square=False):
-		"""TODO: doc + server side implementation"""
-		if isinstance(value, six.string_types):
-			if value == "minmax":
-				return self.minmax(expressions)
-			import re
-			match = re.match("([\d.]*)(\D*)", value)
-			if match is None:
-				raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
-			else:
-				value, type = match.groups()
-				import ast
-				value = ast.literal_eval(value)
-				type = type.strip()
-				if type in ["s", "sigma"]:
-					return self.limits_sigma(value)
-				elif type in ["ss", "sigmasquare"]:
-					return self.limits_sigma(value, square=True)
-				elif type in ["%", "percent"]:
-					return self.limits_percentage(expressions, value)
-				elif type in ["%s", "%square", "percentsquare"]:
-					return self.limits_percentage(value, square=True)
-		if value is None:
-			return self.limits_percentage(expressions, square=square)
-		else:
-			return value
-
-	def minmax(self, expression, progressbar=False, selection=None):
-		waslist, expressions = vaex.utils.listify(expression)
-		subspace = self(*expressions)
-		if selection:
-			subspace = subspace.selected()
-		return vaex.utils.unlistify(waslist, subspace.minmax())
-
-	def histogram(self, expressions, limits, shape=256, weight=None, progressbar=False, selection=None):
-		subspace = self(*expressions)
-		if selection:
-			subspace = subspace.selected()
-		return subspace.histogram(limits=limits, size=shape, weight=weight, progressbar=progressbar)
-
-	def mean(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
-		if len(binby) == 0:
-			subspace = self(expression)
-			if selection:
-				subspace = subspace.selected()
-			return subspace.mean()[0]
-		else:
-			# todo, fix progressbar into two...
-			limits = self.limits(binby, limits)
-			subspace = self(*binby)
-			if selection:
-				subspace = subspace.selected()
-			counts = self.count(expression, binby=binby, limits=limits, shape=shape, progressbar=progressbar, selection=selection)
-			summed = self.sum  (expression, binby=binby, limits=limits, shape=shape, progressbar=progressbar, selection=selection)
-			mean = summed/counts
-			mean[counts==0] = np.nan
-			return mean
-
-	def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
-		if len(binby) == 0:
-			raise ValueError("only supported with binby argument given")
-		else:
-			# todo, fix progressbar into two...
-			try:
-				len(shape)
-				shape = tuple(shape)
-			except:
-				shape = len(binby) * (shape,)
-			shape = (mode_shape,) + shape
-			subspace = self(*(list(binby) + [expression]))
-			if selection:
-				subspace = subspace.selected()
-
-			limits = self.limits(list(binby), limits)
-			mode_limits = self.limits([expression], mode_limits)
-			limits = list(limits) + list(mode_limits)
-			counts = subspace.histogram(limits=limits, size=shape, progressbar=progressbar)
-
-			indices = np.argmax(counts, axis=0)
-			pmin, pmax = limits[-1]
-			centers = np.linspace(pmin, pmax, mode_shape+1)[:-1]# ignore last bin
-			centers += (centers[1] - centers[0])/2 # and move half a bin to the right
-
-			modes = centers[indices]
-			ok = counts.sum(axis=0) > 0
-			modes[~ok] = np.nan
-			return modes
-
-	def median(self, expression, binby=[], limits=None, shape=256, median_shape=1024*16, median_limits=None, progressbar=False, selection=None):
-		if len(binby) == 0:
-			return self.percentile(expression=expression, percentage=50, selection=selection)
-		else:
-			# todo, fix progressbar into two...
-			try:
-				len(shape)
-				shape = tuple(shape)
-			except:
-				shape = len(binby) * (shape,)
-			shape = (median_shape,) + shape
-			subspace = self(*(list(binby) + [expression]))
-			if selection:
-				subspace = subspace.selected()
-
-			limits = self.limits(list(binby), limits)
-			median_limits = self.limits([expression], median_limits)
-			limits = list(limits) + list(median_limits)
-			counts = subspace.histogram(limits=limits, size=shape, progressbar=progressbar)
-
-
-			# F is the 'cumulative distribution'
-			F = np.cumsum(counts, axis=0)
-			# we'll fill empty values with nan later on..
-			ok = F[-1,...] > 0
-			F /= np.max(F, axis=(0))
-			# find indices around 0.5 for each bin
-			i2 = np.apply_along_axis(lambda x: x.searchsorted(0.5, side='left'), axis = 0, arr = F)
-			i1 = i2 - 1
-			i1 = np.clip(i1, 0, median_shape-1)
-			i2 = np.clip(i2, 0, median_shape-1)
-
-			# interpolate between i1 and i2
-
-			# np.choose seems buggy, use the equivalent code instead
-			a = i1
-			c = F
-			F1 = np.array([c[a[I]][I] for I in np.ndindex(a.shape)])
-			F1 = F1.reshape(F.shape[1:])
-
-			a = i2
-			F2 = np.array([c[a[I]][I] for I in np.ndindex(a.shape)])
-			F2 = F2.reshape(F.shape[1:])
-
-			offset = (0.5-F1)/(F2-F1)
-			pmin, pmax = limits[-1]
-			median = pmin + (i1+offset) / float(median_shape-1.) * (pmax-pmin)
-
-			# empty values should be set to nan
-			median[~ok] = np.nan
-			return median
-
-	def sum(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
-		if len(binby) == 0:
-			subspace = self(expression)
-			if selection:
-				subspace = subspace.selected()
-			return subspace.sum()[0]
-		else:
-			# todo, fix progressbar into two...
-			subspace = self(*binby)
-			if selection:
-				subspace = subspace.selected()
-			summed = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
-									weight=expression)
-			return summed
-
-	def count(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
-		if len(binby) == 0:
-			subspace = self("(%s)*0+1" % expression)
-			if selection:
-				subspace = subspace.selected()
-			return subspace.sum()[0]
-		else:
-			# todo, fix progressbar into two...
-			subspace = self(*binby)
-			if selection:
-				subspace = subspace.selected()
-			summed = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
-									weight="(%s)*0+1" % expression)
-			return summed
-
-	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
-	def plot(self, x=None, y=None, what="count(*)", extra=None, facet=None, facet_column_count=4, reduce=["colormap"], f="identity", n="normalize", normalize_axis=None,
-			 vmin=None, vmax=None,
-			 shape=256, limits=None, grid=None, colormap="afmhot", colors=["red", "green", "blue"],
-			figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True,
-			colorbar=True,
-			selection=None,
-		 	background_color="white", pre_blend=False, background_alpha=1.,
-			return_extra=False):
-		"""
-
-		:param x: Expression to bin in the x direction
-		:param y:                          y
-		:param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
-		:param extra: Possible extra axes
-		:param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
-		:param:facet_column_count: number of columns to use for faceting
-		:param reduce:
-		:param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
-		:param n: normalization function, currently only 'normalize' is supported
-		:param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
-		:param vmin: instead of automatic normalization, (using n and normalization _axis) scale the data between vmin and vmax to [0, 1]
-		:param vmax: see vmin
-		:param shape: shape/size of the n-D histogram grid
-		:param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
-		:param grid: if the binning is done before by yourself, you can pass it
-		:param colormap: matplotlib colormap to use
-		:param colors:
-		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
-		:param xlabel:
-		:param ylabel:
-		:param aspect:
-		:param tight_layout: call pylab.tight_layout or not
-		:param colorbar: plot a colorbar if True
-		:param return_extra:
-		:return:
-		"""
-		# axes order is.. [x,y,z,extra...,row,column]
-		import pylab
-		import matplotlib
-		f = _parse_f(f)
-		n = _parse_n(n)
-		if type(shape) == int:
-			shape = (shape,) * 2
-		binby = []
-		for expression in [y,x]:
-			if expression is not None:
-				binby = [expression] + binby
-		if extra:
-			binby.extend(extra)
-		limits = self.limits(binby, limits)
-		if figsize is not None:
-			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
-		fig = pylab.gcf()
-		import re
-		if facet is not None:
-			match = re.match("(.*):(.*),(.*),(.*)", facet)
-			if match:
-				groups = match.groups()
-				import ast
-				facet_expression = groups[0]
-				facet_limits = [ast.literal_eval(groups[1]), ast.literal_eval(groups[2])]
-				facet_count = ast.literal_eval(groups[3])
-				limits.append(facet_limits)
-				binby = binby + [facet_expression]
-				shape = (facet_count,) + shape
-			else:
-				raise ValueError("Could not understand 'facet' argument %r, expected something in form: 'column:-1,10:5'" % facet)
-
-		#axes.set_aspect(aspect)
-		if grid is None:
-			if what:
-				what = what.strip()
-				index = what.index("(")
-				import re
-				groups = re.match("(.*)\((.*)\)", what).groups()
-				if groups and len(groups) == 2:
-					function = groups[0]
-					arguments = groups[1].strip()
-					functions = ["mean", "sum"]
-					if function in functions:
-						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
-					elif function == "count":
-						if arguments == "*":
-							grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
-						else:
-							grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selection)
-					else:
-						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
-				else:
-					raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
-			else:
-				grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
-		fgrid = f(grid)
-		finite_mask = np.isfinite(grid)
-		if vmin is not None and vmax is not None:
-			ngrid = fgrid * 1
-			ngrid -= vmin
-			ngrid /= (vmax-vmin)
-			ngrid = np.clip(ngrid, 0, 1)
-		else:
-			ngrid = n(fgrid, axis=normalize_axis)
-			vmin, vmax = np.nanmin(fgrid), np.nanmax(fgrid)
-
-		#reductions = [_parse_reduction(r, colormap, colors) for r in reduce]
-		rgrid = ngrid * 1.
-		for r in reduce:
-			r = _parse_reduction(r, colormap, colors)
-			rgrid = r(rgrid)
-		#grid = self.reduce(grid, )
-		axes = []
-		#cax = pylab.subplot(1,1,1)
-
-		background_color = np.array(matplotlib.colors.colorConverter.to_rgb(background_color))
-
-		if facet:
-			import math
-			rows, columns = int(math.ceil(facet_count / float(facet_column_count))), facet_column_count
-			values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
-			import matplotlib.gridspec as gridspec
-			column_scale = 4
-			gs = gridspec.GridSpec(rows, columns*column_scale+1)
-			for i in range(facet_count):
-				#ax = pylab.subplot(rows, columns, i+1)
-				row = i / facet_column_count
-				column = i % columns
-				ax = pylab.subplot(gs[row, column*column_scale:(column+1)*column_scale])
-				axes.append(ax)
-				im = ax.imshow(rgrid[i], extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
-				v1, v2 = values[i], values[i+1]
-				pylab.xlabel(xlabel or self.label(x))
-				pylab.ylabel(ylabel or self.label(y))
-				ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
-				#pylab.show()
-		else:
-			pylab.xlabel(xlabel or self.label(x))
-			pylab.ylabel(ylabel or self.label(y))
-			axes.append(pylab.gca())
-
-			rgba = rgrid
-			rgba[~finite_mask,3] = 0
-
-			if pre_blend:
-			#	#rgba[...,3] = background_alpha
-				rgb = rgba[...,:3].T
-				alpha = rgba[...,3].T
-				rgb[:] = rgb * alpha + background_color[:3].reshape(3,1,1) * (1-alpha)
-				alpha[:] = alpha + background_alpha * (1-alpha)
-			rgba= np.clip(rgba, 0, 1)
-			rgba8 = (rgba*255).astype(np.uint8)
-
-			im = pylab.imshow(rgba8 , extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
-		if normalize_axis is None and colorbar:
-			#pylab.subplot(1,1,1)
-			import matplotlib.colors
-			import matplotlib.cm
-			#from mpl_toolkits.axes_grid1 import make_axes_locatable
-			#divider = make_axes_locatable(cax)
-			#cax = divider.append_axes("right", "5%", pad="3%")
-
-			norm = matplotlib.colors.Normalize(vmin, vmax)
-			sm = matplotlib.cm.ScalarMappable(norm, colormap)
-			sm.set_array(1) # make matplotlib happy (strange behavious)
-			if facet:
-				ax = pylab.subplot(gs[:, -1])
-				colorbar = fig.colorbar(sm, cax=ax)
-			else:
-				colorbar = fig.colorbar(sm)
-			colorbar.ax.set_ylabel(what)
-
-		if tight_layout:
-			pylab.tight_layout()
-		if return_extra:
-			return im, grid, fgrid, ngrid, rgrid, rgba8
-		else:
-			return im
-		#colorbar = None
-		#return im, colorbar
-
-	def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
-		xlabel=None, ylabel=None, tight_layout=True,
-		selection=None,
-			   **kwargs):
-		"""
-
-		:param x: Expression to bin in the x direction
-		:param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
-		:param grid:
-		:param grid: if the binning is done before by yourself, you can pass it
-		:param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
-		:param limits: list of [xmin, xmax], or a description such as 'minmax', '99%'
-		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
-		:param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
-		:param n: normalization function, currently only 'normalize' is supported, or None for no normalization
-		:param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
-		:param normalize_axis:
-		:param xlabel: String for label on x axis (may contain latex)
-		:param ylabel: Same for y axis
-		:param: tight_layout: call pylab.tight_layout or not
-		:param kwargs: extra argument passed to pylab.plot
-		:return:
-		"""
-
-
-
-		import pylab
-		f = _parse_f(f)
-		n = _parse_n(n)
-		if type(shape) == int:
-			shape = (shape,)
-		binby = []
-		for expression in [x]:
-			if expression is not None:
-				binby = [expression] + binby
-		limits = self.limits(binby, limits)
-		if figsize is not None:
-			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
-		fig = pylab.gcf()
-		import re
-		if facet is not None:
-			match = re.match("(.*):(.*),(.*),(.*)", facet)
-			if match:
-				groups = match.groups()
-				import ast
-				facet_expression = groups[0]
-				facet_limits = [ast.literal_eval(groups[1]), ast.literal_eval(groups[2])]
-				facet_count = ast.literal_eval(groups[3])
-				limits.append(facet_limits)
-				binby.append(facet_expression)
-				shape = (facet_count,) + shape
-			else:
-				raise ValueError("Could not understand 'facet' argument %r, expected something in form: 'column:-1,10:5'" % facet)
-
-		if grid is None:
-			if what:
-				what = what.strip()
-				index = what.index("(")
-				import re
-				groups = re.match("(.*)\((.*)\)", what).groups()
-				if groups and len(groups) == 2:
-					function = groups[0]
-					arguments = groups[1].strip()
-					functions = ["mean", "sum"]
-					if function in functions:
-						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
-					elif function == "count" and arguments == "*":
-						grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
-					elif function == "cumulative" and arguments == "*":
-						# TODO: comulative should also include the tails outside limits
-						grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
-						grid = np.cumsum(grid)
-					else:
-						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
-				else:
-					raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
-			else:
-				grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
-		fgrid = f(grid)
-		if n is not None:
-			ngrid = n(fgrid, axis=normalize_axis)
-		else:
-			ngrid = fgrid
-			#reductions = [_parse_reduction(r, colormap, colors) for r in reduce]
-			#rgrid = ngrid * 1.
-			#for r in reduce:
-			#	r = _parse_reduction(r, colormap, colors)
-			#	rgrid = r(rgrid)
-			#grid = self.reduce(grid, )
-		xmin, xmax = limits[-1]
-		if facet:
-			N = len(grid[-1])
-		else:
-			N = len(grid)
-		xar = np.arange(N) / (N-1.0) * (xmax-xmin) + xmin
-		if facet:
-			import math
-			rows, columns = int(math.ceil(facet_count / 4.)), 4
-			values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
-			for i in range(facet_count):
-				ax = pylab.subplot(rows, columns, i+1)
-				value = ax.plot(xar, ngrid[i], drawstyle="steps", **kwargs)
-				v1, v2 = values[i], values[i+1]
-				pylab.xlabel(xlabel or x)
-				pylab.ylabel(ylabel or what)
-				ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
-				#pylab.show()
-		else:
-			#im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
-			pylab.xlabel(xlabel or x)
-			pylab.ylabel(ylabel or what)
-			value = pylab.plot(xar, ngrid, drawstyle="steps", **kwargs)
-		if tight_layout:
-			pylab.tight_layout()
-		return value
-		#N = len(grid)
-		#xmin, xmax = limits[0]
-		#return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
-		#pylab.ylim(-1, 6)
-	@property
-	def col(self):
-		"""Gives direct access to the data as numpy-like arrays.
-
-		Convenient when working with ipython in combination with small datasets, since this gives tab-completion
-
-		Columns can be accesed by there names, which are attributes. The attribues are currently strings, so you cannot
-		do computations with them
-
-		:Example:
-		>>> ds = vx.example()
-		>>> ds.plot(ds.col.x, ds.col.y)
-
-		"""
-		class ColumnList(object):
-			pass
-		data = ColumnList()
-		for name in self.get_column_names(virtual=True):
-			setattr(data, name, name)
-		return data
-
+		self._selection_mask_caches = collections.defaultdict(dict)
 
 
 	@property
@@ -3623,15 +5050,16 @@ class DatasetLocal(Dataset):
 		return not \
 			((column_name in self.column_names  \
 			and not isinstance(self.columns[column_name], vaex.dataset._ColumnConcatenatedLazy)\
-			and not isinstance(self.columns[column_name], vaex.dataset.DatasetTap.TapColumn)\
+			and not isinstance(self.columns[column_name], vaex.file.other.DatasetTap.TapColumn)\
 			and self.columns[column_name].dtype.type==np.float64 \
 			and self.columns[column_name].strides[0] == 8 \
 			and column_name not in self.virtual_columns) or self.dtype(column_name).kind == 'S')
 				#and False:
 
-	def selected_length(self):
+	def selected_length(self, selection="default"):
 		"""The local implementation of :func:`Dataset.selected_length`"""
-		return np.sum(self.mask) if self.has_selection() else None
+		return int(self.count(selection=selection).item())
+			#np.sum(self.mask) if self.has_selection() else None
 
 
 
@@ -3767,1116 +5195,9 @@ class DatasetArrays(DatasetLocal):
 		#self.set_active_fraction(self._active_fraction)
 
 
-class DatasetMemoryMapped(DatasetLocal):
-	"""Represents a dataset where the data is memory mapped for efficient reading"""
 
-		
-	# nommap is a hack to get in memory datasets working
-	def __init__(self, filename, write=False, nommap=False, name=None):
-		super(DatasetMemoryMapped, self).__init__(name=name or os.path.splitext(os.path.basename(filename))[0], path=os.path.abspath(filename) if filename is not None else None, column_names=[])
-		self.filename = filename or "no file"
-		self.write = write
-		#self.name = name or os.path.splitext(os.path.basename(self.filename))[0]
-		#self.path = os.path.abspath(filename) if filename is not None else None
-		self.nommap = nommap
-		if not nommap:
-			self.file = open(self.filename, "r+" if write else "r")
-			self.fileno = self.file.fileno()
-			self.mapping = mmap.mmap(self.fileno, 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
-			self.file_map = {filename: self.file}
-			self.fileno_map = {filename: self.fileno}
-			self.mapping_map = {filename: self.mapping}
-		else:
-			self.file_map = {}
-			self.fileno_map = {}
-			self.mapping_map = {}
-		self._length = None
-		#self._fraction_length = None
-		self.nColumns = 0
-		self.column_names = []
-		self.rank1s = {}
-		self.rank1names = []
-		self.virtual_columns = collections.OrderedDict()
-		
-		self.axes = {}
-		self.axis_names = []
-		
-		# these are replaced by variables
-		#self.properties = {}
-		#self.property_names = []
 
-		self.current_slice = None
-		self.fraction = 1.0
-		
-		
-		self.selected_row_index = None
-		self.selected_serie_index = 0
-		self.row_selection_listeners = []
-		self.serie_index_selection_listeners = []
-		#self.mask_listeners = []
 
-		self.all_columns = {}
-		self.all_column_names = []
-		self.global_links = {}
-		
-		self.offsets = {}
-		self.strides = {}
-		self.filenames = {}
-		self.dtypes = {}
-		self.samp_id = None
-		#self.variables = collections.OrderedDict()
-		
-		self.undo_manager = vaex.ui.undo.UndoManager()
-
-	def close_files(self):
-		for name, file in self.file_map.items():
-			file.close()
-
-	def has_snapshots(self):
-		return len(self.rank1s) > 0
-
-	def get_path(self):
-		return self.path
-		
-	def addFile(self, filename, write=False):
-		self.file_map[filename] = open(filename, "r+" if write else "r")
-		self.fileno_map[filename] = self.file_map[filename].fileno()
-		self.mapping_map[filename] = mmap.mmap(self.fileno_map[filename], 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
-
-
-	def selectSerieIndex(self, serie_index):
-		self.selected_serie_index = serie_index
-		for serie_index_selection_listener in self.serie_index_selection_listeners:
-			serie_index_selection_listener(serie_index)
-		self.signal_sequence_index_change.emit(self, serie_index)
-			
-	def matches_url(self, url):
-		filename = url
-		if filename.startswith("file:/"):
-			filename = filename[5:]
-		similar = os.path.splitext(os.path.abspath(self.filename))[0] == os.path.splitext(filename)[0]
-		logger.info("matching urls: %r == %r == %r" % (os.path.splitext(self.filename)[0], os.path.splitext(filename)[0], similar) )
-		return similar
-
-	def close(self):
-		self.file.close()
-		self.mapping.close()
-		
-	def addAxis(self, name, offset=None, length=None, dtype=np.float64, stride=1, filename=None):
-		if filename is None:
-			filename = self.filename
-		mapping = self.mapping_map[filename]
-		mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
-		if stride:
-			mmapped_array = mmapped_array[::stride]
-		self.axes[name] = mmapped_array
-		self.axis_names.append(name)
-	
-		
-	def addColumn(self, name, offset=None, length=None, dtype=np.float64, stride=1, filename=None, array=None):
-		if filename is None:
-			filename = self.filename
-		if not self.nommap:
-			mapping = self.mapping_map[filename]
-			
-		if array is not None:
-			length = len(array)
-			
-		if self._length is not None and length != self._length:
-			logger.error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
-		else:
-			if self.current_slice is None:
-				self.current_slice = (0, length)
-				self.fraction = 1.
-				self._full_length = length
-				self._length = length
-				self._index_end = self._full_length
-			self._length = length
-			#print self.mapping, dtype, length if stride is None else length * stride, offset
-			if array is not None:
-				length = len(array)
-				mmapped_array = array
-				stride = None
-				offset = None
-				dtype = array.dtype
-			else:
-				if offset is None:
-					print("offset is None")
-					sys.exit(0)
-				mmapped_array = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
-				if stride:
-					#import pdb
-					#pdb.set_trace()
-					mmapped_array = mmapped_array[::stride]
-			self.columns[name] = mmapped_array
-			self.column_names.append(name)
-			self.all_columns[name] = mmapped_array
-			self.all_column_names.append(name)
-			#self.column_names.sort()
-			self.nColumns += 1
-			self.nRows = self._length
-			self.offsets[name] = offset
-			self.strides[name] = stride
-			if filename is not None:
-				self.filenames[name] = os.path.abspath(filename)
-			self.dtypes[name] = dtype
-			
-	def addRank1(self, name, offset, length, length1, dtype=np.float64, stride=1, stride1=1, filename=None, transposed=False):
-		if filename is None:
-			filename = self.filename
-		mapping = self.mapping_map[filename]
-		if (not transposed and self._length is not None and length != self._length) or (transposed and self._length is not None and length1 != self._length):
-			logger.error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
-		else:
-			if self.current_slice is None:
-				self.current_slice = (0, length if not transposed else length1)
-				self.fraction = 1.
-				self._full_length = length if not transposed else length1
-				self._length = self._full_length
-				self._index_end = self._full_length
-			self._length = length if not transposed else length1
-			#print self.mapping, dtype, length if stride is None else length * stride, offset
-			rawlength = length * length1
-			rawlength *= stride
-			rawlength *= stride1
-
-			mmapped_array = np.frombuffer(mapping, dtype=dtype, count=rawlength, offset=offset)
-			mmapped_array = mmapped_array.reshape((length1*stride1, length*stride))
-			mmapped_array = mmapped_array[::stride1,::stride]
-
-			self.rank1s[name] = mmapped_array
-			self.rank1names.append(name)
-			self.all_columns[name] = mmapped_array
-			self.all_column_names.append(name)
-			
-
-
-import struct
-class HansMemoryMapped(DatasetMemoryMapped):
-	def __init__(self, filename, filename_extra=None):
-		super(HansMemoryMapped, self).__init__(filename)
-		self.pageSize, \
-		self.formatSize, \
-		self.numberParticles, \
-		self.numberTimes, \
-		self.numberParameters, \
-		self.numberCompute, \
-		self.dataOffset, \
-		self.dataHeaderSize = struct.unpack("Q"*8, self.mapping[:8*8])
-		zerooffset = offset = self.dataOffset
-		length = self.numberParticles+1
-		stride = self.formatSize/8 # stride in units of the size of the element (float64)
-		
-		# TODO: ask Hans for the self.numberTimes-2
-		lastoffset = offset + (self.numberParticles+1)*(self.numberTimes-2)*self.formatSize
-		t_index = 3
-		names = "x y z vx vy vz".split()
-		midoffset = offset + (self.numberParticles+1)*self.formatSize*t_index
-		names = "x y z vx vy vz".split()
-
-		for i, name in enumerate(names):
-			self.addColumn(name+"_0", offset+8*i, length, dtype=np.float64, stride=stride)
-			
-		for i, name in enumerate(names):
-			self.addColumn(name+"_last", lastoffset+8*i, length, dtype=np.float64, stride=stride)
-		
-
-		names = "x y z vx vy vz".split()
-
-		if 1:
-			stride = self.formatSize/8 
-			#stride1 = self.numberTimes #*self.formatSize/8 
-			for i, name in enumerate(names):
-				# TODO: ask Hans for the self.numberTimes-1
-				self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1)
-
-		if filename_extra is None:
-			basename = os.path.basename(filename)
-			if os.path.exists(basename + ".omega2"):
-				filename_extra = basename + ".omega2"
-
-		if filename_extra is not None:
-			self.addFile(filename_extra)
-			mapping = self.mapping_map[filename_extra]
-			names = "J_r J_theta J_phi Theta_r Theta_theta Theta_phi Omega_r Omega_theta Omega_phi r_apo r_peri".split()
-			offset = 0
-			stride = 11
-			#import pdb
-			#pdb.set_trace()
-			for i, name in enumerate(names):
-				# TODO: ask Hans for the self.numberTimes-1
-				self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
-
-				self.addColumn(name+"_0", offset+8*i, length, dtype=np.float64, stride=stride, filename=filename_extra)
-				self.addColumn(name+"_last", offset+8*i + (self.numberParticles+1)*(self.numberTimes-2)*11*8, length, dtype=np.float64, stride=stride, filename=filename_extra)
-			
-			
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		return os.path.splitext(path)[-1] == ".bin"
-		basename, ext = os.path.splitext(path)
-		#if os.path.exists(basename + ".omega2"):
-		#	return True
-		#return True
-
-	@classmethod
-	def get_options(cls, path):
-		return []
-
-	@classmethod
-	def option_to_args(cls, option):
-		return []
-dataset_type_map["buist"] = HansMemoryMapped
-
-def _python_save_name(name, used=[]):
-	first, rest = name[0], name[1:]
-	name = re.sub("[^a-zA-Z_]", "_", first) +  re.sub("[^a-zA-Z_0-9]", "_", rest)
-	if name in used:
-		nr = 1
-		while name + ("_%d" % nr) in used:
-			nr += 1
-		name = name + ("_%d" % nr)
-	return name
-
-class FitsBinTable(DatasetMemoryMapped):
-	def __init__(self, filename, write=False):
-		super(FitsBinTable, self).__init__(filename, write=write)
-		with fits.open(filename) as fitsfile:
-			for table in fitsfile:
-				if isinstance(table, fits.BinTableHDU):
-					table_offset = table._data_offset
-					#import pdb
-					#pdb.set_trace()
-					if table.columns[0].dim is not None: # for sure not a colfits
-						dim = eval(table.columns[0].dim) # TODO: can we not do an eval here? not so safe
-						if len(dim) == 2 and dim[0] <= dim[1]: # we have colfits format
-							logger.debug("colfits file!")
-							offset = table_offset
-							for i in range(len(table.columns)):
-								column = table.columns[i]
-								cannot_handle = False
-								column_name = _python_save_name(column.name, used=self.columns.keys())
-
-								ucd_header_name = "TUCD%d" % (i+1)
-								if ucd_header_name in table.header:
-									self.ucds[column_name] = table.header[ucd_header_name]
-								#unit_header_name = "TUCD%d" % (i+1)
-								#if ucd_header_name in table.header:
-								if column.unit:
-									try:
-										self.units[column_name] = astropy.units.Unit(column.unit)
-									except:
-										logger.debug("could not understand unit: %s" % column.unit)
-
-								# flatlength == length * arraylength
-								flatlength, fitstype = int(column.format[:-1]),column.format[-1]
-								arraylength, length = arrayshape = eval(column.dim)
-
-								# numpy dtype code, like f8, i4
-								dtypecode = astropy.io.fits.column.FITS2NUMPY[fitstype]
-
-
-								dtype = np.dtype((">" +dtypecode, arraylength))
-								if 0:
-									if arraylength > 1:
-										dtype = np.dtype((">" +dtypecode, arraylength))
-									else:
-										if dtypecode == "a": # I think numpy needs by default a length 1
-											dtype = np.dtype(dtypecode + "1")
-										else:
-											dtype = np.dtype(">" +dtypecode)
-									#	bytessize = 8
-
-								bytessize = dtype.itemsize
-								logger.debug("%r", (column.name, dtype, column.format, column.dim, length, bytessize, arraylength))
-								if (flatlength > 0): # and dtypecode != "a": # TODO: support strings
-									if dtypecode == "a": # for ascii, we need to add the length again..
-										dtypecode += str(arraylength)
-									logger.debug("column type: %r", (column.name, offset, dtype, length, column.format, column.dim))
-									if arraylength == 1 or dtypecode[0] == "a":
-										self.addColumn(column_name, offset=offset, dtype=dtype, length=length)
-									else:
-										for i in range(arraylength):
-											name = column_name+"_" +str(i)
-											self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
-								if flatlength > 0: # flatlength can be
-									offset += bytessize * length
-
-					else:
-						logger.debug("adding table: %r" % table)
-						for column in table.columns:
-							array = column.array[:]
-							array = column.array[:] # 2nd time it will be a real np array
-							#import pdb
-							#pdb.set_trace()
-							if array.dtype.kind in "fi":
-								self.addColumn(column.name, array=array)
-		self.update_meta()
-		self.update_virtual_meta()
-		self.selections_favorite_load()
-
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		return os.path.splitext(path)[1] == ".fits"
-	
-	@classmethod
-	def get_options(cls, path):
-		return [] # future: support multiple tables?
-	
-	@classmethod
-	def option_to_args(cls, option):
-		return []
-
-dataset_type_map["fits"] = FitsBinTable
-
-class Hdf5MemoryMapped(DatasetMemoryMapped):
-	"""Implements the vaex hdf5 file format"""
-	def __init__(self, filename, write=False):
-		super(Hdf5MemoryMapped, self).__init__(filename, write=write)
-		self.h5file = h5py.File(self.filename, "r+" if write else "r")
-		self.h5table_root_name = None
-		try:
-			self._load()
-		finally:
-			self.h5file.close()
-
-	def write_meta(self):
-		"""ucds, descriptions and units are written as attributes in the hdf5 file, instead of a seperate file as
-		 the default :func:`Dataset.write_meta`.
-		 """
-		with h5py.File(self.filename, "r+") as h5file_output:
-			h5table_root = h5file_output[self.h5table_root_name]
-			if self.description is not None:
-				h5table_root.attrs["description"] = self.description
-			for column_name in self.columns.keys():
-				h5dataset = h5table_root[column_name]
-				for name, values in [("ucd", self.ucds), ("unit", self.units), ("description", self.descriptions)]:
-					if column_name in values:
-						value = str(values[column_name])
-						h5dataset.attrs[name] = value
-	@classmethod
-	def create(cls, path, N, column_names, dtypes=None, write=True):
-		"""Create a new (empty) hdf5 file with columns given by column names, of length N
-
-		Optionally, numpy dtypes can be passed, default is floats
-		"""
-
-		dtypes = dtypes or [np.float] * len(column_names)
-
-		if N == 0:
-			raise ValueError("Cannot export empty table")
-		with h5py.File(path, "w") as h5file_output:
-			h5data_output = h5file_output.require_group("data")
-			for column_name, dtype in zip(column_names, dtypes):
-				shape = (N,)
-				print(dtype)
-				if dtype.type == np.datetime64:
-					array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=np.int64)
-					array.attrs["dtype"] = dtype.name
-				else:
-					array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype)
-				array[0] = array[0] # make sure the array really exists
-		return Hdf5MemoryMapped(path, write=write)
-
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		h5file = None
-		try:
-			with open(path, "rb") as f:
-				signature = f.read(4)
-				hdf5file = signature == b"\x89\x48\x44\x46"
-		except:
-			logger.error("could not read 4 bytes from %r", path)
-			return
-		if hdf5file:
-			try:
-				h5file = h5py.File(path, "r")
-			except:
-				logger.exception("could not open file as hdf5")
-				return False
-			if h5file is not None:
-				with h5file:
-					return ("data" in h5file) or ("columns" in h5file)
-			else:
-				logger.debug("file %s has no data or columns group" % path)
-		return False
-			
-	
-	@classmethod
-	def get_options(cls, path):
-		return []
-	
-	@classmethod
-	def option_to_args(cls, option):
-		return []
-
-	def _load(self):
-		if "data" in self.h5file:
-			self._load_columns(self.h5file["/data"])
-			self.h5table_root_name = "/data"
-		# TODO: shall we rename it vaex... ?
-		# if "vaex" in self.h5file:
-		#	self.load_columns(self.h5file["/vaex"])
-		#	h5table_root = "/vaex"
-		if "columns" in self.h5file:
-			self._load_columns(self.h5file["/columns"])
-			self.h5table_root_name = "/columns"
-		if "properties" in self.h5file:
-			self._load_variables(self.h5file["/properties"]) # old name, kept for portability
-		if "variables" in self.h5file:
-			self._load_variables(self.h5file["/variables"])
-		if "axes" in self.h5file:
-			self._load_axes(self.h5file["/axes"])
-		self.update_meta()
-		self.update_virtual_meta()
-		self.selections_favorite_load()
-
-	#def 
-	def _load_axes(self, axes_data):
-		for name in axes_data:
-			axis = axes_data[name]
-			logger.debug("loading axis %r" % name)
-			offset = axis.id.get_offset() 
-			shape = axis.shape
-			assert len(shape) == 1 # ony 1d axes
-			#print name, offset, len(axis), axis.dtype
-			self.addAxis(name, offset=offset, length=len(axis), dtype=axis.dtype)
-			#self.axis_names.append(axes_data)
-			#self.axes[name] = np.array(axes_data[name])
-			
-	def _load_variables(self, h5variables):
-		for key, value in list(h5variables.attrs.items()):
-			self.variables[key] = value
-			
-			
-	def _load_columns(self, h5data):
-		#print h5data
-		# make sure x y x etc are first
-		first = "x y z vx vy vz".split()
-		finished = set()
-		if "description" in h5data.attrs:
-			self.description = ensure_string(h5data.attrs["description"])
-		for column_name in first + list(h5data):
-			if column_name in h5data and column_name not in finished:
-				#print type(column_name)
-				column = h5data[column_name]
-				if "ucd" in column.attrs:
-					self.ucds[column_name] = ensure_string(column.attrs["ucd"])
-				if "description" in column.attrs:
-					self.descriptions[column_name] = ensure_string(column.attrs["description"])
-				if "unit" in column.attrs:
-					try:
-						unitname = ensure_string(column.attrs["unit"])
-						if unitname and unitname != "None":
-							self.units[column_name] = astropy.units.Unit(unitname)
-					except:
-						logger.exception("error parsing unit: %s", column.attrs["unit"])
-				if "units" in column.attrs: # Amuse case
-					unitname = ensure_string(column.attrs["units"])
-					logger.debug("amuse unit: %s", unitname)
-					if unitname == "(0.01 * system.get('S.I.').base('length'))":
-						self.units[column_name] = astropy.units.Unit("cm")
-					if unitname == "((0.01 * system.get('S.I.').base('length')) * (system.get('S.I.').base('time')**-1))":
-						self.units[column_name] = astropy.units.Unit("cm/s")
-					if unitname == "(0.001 * system.get('S.I.').base('mass'))":
-						self.units[column_name] = astropy.units.Unit("gram")
-
-
-				if hasattr(column, "dtype"):
-					#print column, column.shape
-					offset = column.id.get_offset() 
-					if offset is None:
-						raise Exception("columns doesn't really exist in hdf5 file")
-					shape = column.shape
-					if True: #len(shape) == 1:
-						dtype = column.dtype
-						if "dtype" in column.attrs:
-							dtype = column.attrs["dtype"]
-						logger.debug("adding column %r with dtype %r", column_name, dtype)
-						self.addColumn(column_name, offset, len(column), dtype=dtype)
-					else:
-
-						#transposed = self._length is None or shape[0] == self._length
-						transposed = shape[1] < shape[0]
-						self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1, transposed=transposed)
-						#if len(shape[0]) == self._length:
-						#	self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1)
-						#self.addColumn(column_name+"_0", offset, shape[1], dtype=column.dtype)
-						#self.addColumn(column_name+"_last", offset+(shape[0]-1)*shape[1]*column.dtype.itemsize, shape[1], dtype=column.dtype)
-						#self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
-			finished.add(column_name)
-			
-	def close(self):
-		super(Hdf5MemoryMapped, self).close()
-		self.h5file.close()
-		
-	def __expose_array(self, hdf5path, column_name):
-		array = self.h5file[hdf5path]
-		array[0] = array[0] # without this, get_offset returns None, probably the array isn't really created
-		offset = array.id.get_offset() 
-		self.remap()
-		self.addColumn(column_name, offset, len(array), dtype=array.dtype)
-		
-	def __add_column(self, column_name, dtype=np.float64, length=None):
-		array = self.h5data.create_dataset(column_name, shape=(self._length if length is None else length,), dtype=dtype)
-		array[0] = array[0] # see above
-		offset = array.id.get_offset() 
-		self.h5file.flush()
-		self.remap()
-		self.addColumn(column_name, offset, len(array), dtype=array.dtype)
-
-dataset_type_map["h5vaex"] = Hdf5MemoryMapped
-
-class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
-	"""Implements reading Amuse hdf5 files `amusecode.org <http://amusecode.org/>`_"""
-	def __init__(self, filename, write=False):
-		super(AmuseHdf5MemoryMapped, self).__init__(filename, write=write)
-		
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		h5file = None
-		try:
-			h5file = h5py.File(path, "r")
-		except:
-			return False
-		if h5file is not None:
-			with h5file:
-				return ("particles" in h5file)# or ("columns" in h5file)
-		return False
-
-	def _load(self):
-		particles = self.h5file["/particles"]
-		for group_name in particles:
-			#import pdb
-			#pdb.set_trace()
-			group = particles[group_name]
-			self.load_columns(group["attributes"])
-			
-			column_name = "keys"
-			column = group[column_name]
-			offset = column.id.get_offset() 
-			self.addColumn(column_name, offset, len(column), dtype=column.dtype)
-		self.update_meta()
-		self.update_virtual_meta()
-		self.selections_favorite_load()
-
-dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
-
-
-gadget_particle_names = "gas halo disk bulge stars dm".split()
-
-class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
-	"""Implements reading `Gadget2 <http://wwwmpa.mpa-garching.mpg.de/gadget/>`_ hdf5 files """
-	def __init__(self, filename, particle_name=None, particle_type=None):
-		if "#" in filename:
-			filename, index = filename.split("#")
-			index = int(index)
-			particle_type = index
-			particle_name = gadget_particle_names[particle_type]
-		elif particle_type is not None:
-			self.particle_name = gadget_particle_names[self.particle_type]
-			self.particle_type = particle_type
-		elif particle_name is not None:
-			if particle_name.lower() in gadget_particle_names:
-				self.particle_type = gadget_particle_names.index(particle_name.lower())
-				self.particle_name = particle_name.lower()
-			else:
-				raise ValueError("particle name not supported: %r, expected one of %r" % (particle_name, " ".join(gadget_particle_names)))
-		else:
-			raise Exception("expected particle type or name as argument, or #<nr> behind filename")
-		super(Hdf5MemoryMappedGadget, self).__init__(filename)
-		self.particle_type = particle_type
-		self.particle_name = particle_name
-		self.name = self.name + "-" + self.particle_name
-		h5file = h5py.File(self.filename, 'r')
-		#for i in range(1,4):
-		key = "/PartType%d" % self.particle_type
-		if key not in h5file:
-			raise KeyError("%s does not exist" % key)
-		particles = h5file[key]
-		for name in list(particles.keys()):
-			#name = "/PartType%d/Coordinates" % i
-			data = particles[name]
-			if isinstance(data, h5py.highlevel.Dataset): #array.shape
-				array = data
-				shape = array.shape
-				if len(shape) == 1:
-					offset = array.id.get_offset()
-					if offset is not None:
-						self.addColumn(name, offset, data.shape[0], dtype=data.dtype)
-				else:
-					if name == "Coordinates":
-						offset = data.id.get_offset() 
-						if offset is None:
-							print((name, "is not of continuous layout?"))
-							sys.exit(0)
-						bytesize = data.dtype.itemsize
-						self.addColumn("x", offset, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("y", offset+bytesize, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("z", offset+bytesize*2, data.shape[0], dtype=data.dtype, stride=3)
-					elif name == "Velocity":
-						offset = data.id.get_offset() 
-						self.addColumn("vx", offset, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("vy", offset+bytesize, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("vz", offset+bytesize*2, data.shape[0], dtype=data.dtype, stride=3)
-					elif name == "Velocities":
-						offset = data.id.get_offset() 
-						self.addColumn("vx", offset, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("vy", offset+bytesize, data.shape[0], dtype=data.dtype, stride=3)
-						self.addColumn("vz", offset+bytesize*2, data.shape[0], dtype=data.dtype, stride=3)
-					else:
-						logger.error("unsupported column: %r of shape %r" % (name, array.shape))
-		if "Header" in h5file:
-			for name in "Redshift Time_GYR".split():
-				if name in h5file["Header"].attrs:
-					value = h5file["Header"].attrs[name].decode("utf-8")
-					logger.debug("property[{name!r}] = {value}".format(**locals()))
-					self.variables[name] = value
-					#self.property_names.append(name)
-		
-		name = "particle_type"
-		value = particle_type
-		logger.debug("property[{name}] = {value}".format(**locals()))
-		self.variables[name] = value
-		#self.property_names.append(name)
-
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		if len(args) == 2:
-			particleName = args[0]
-			particleType = args[1]
-		elif "particle_name" in kwargs:
-			particle_type = gadget_particle_names.index(kwargs["particle_name"].lower())
-		elif "particle_type" in kwargs:
-			particle_type = kwargs["particle_type"]
-		elif "#" in path:
-			filename, index = path.split("#")
-			particle_type = gadget_particle_names[index]
-		else:
-			return False
-		h5file = None
-		try:
-			h5file = h5py.File(path, "r")
-		except:
-			return False
-		has_particles = False
-		#for i in range(1,6):
-		key = "/PartType%d" % particle_type
-		exists = key in h5file
-		h5file.close()
-		return exists
-
-		#has_particles = has_particles or (key in h5file)
-		#return has_particles
-			
-	
-	@classmethod
-	def get_options(cls, path):
-		return []
-	
-	@classmethod
-	def option_to_args(cls, option):
-		return []
-
-
-dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
-
-class InMemory(DatasetMemoryMapped):
-	def __init__(self, name):
-		super(InMemory, self).__init__(filename=None, nommap=True, name=name)
-
-
-class SoneiraPeebles(DatasetArrays):
-	def __init__(self, dimension, eta, max_level, L):
-		super(SoneiraPeebles, self).__init__(name="soneira-peebles")
-		#InMemory.__init__(self)
-		def todim(value):
-			if isinstance(value, (tuple, list)):
-				assert len(value) >= dimension, "either a scalar or sequence of length equal to or larger than the dimension"
-				return value[:dimension]
-			else:
-				return [value] * dimension
-
-		eta = eta
-		max_level = max_level
-		N = eta**(max_level)
-		# array[-1] is used as a temp storage
-		array = np.zeros((dimension+1, N), dtype=np.float64)
-		L = todim(L)
-
-		for d in range(dimension):
-			vaex.vaexfast.soneira_peebles(array[d], 0, 1, L[d], eta, max_level)
-		for d, name in zip(list(range(dimension)), "x y z w v u".split()):
-			self.add_column(name, array[d])
-		if 0:
-			order = np.zeros(N, dtype=np.int64)
-			vaex.vaexfast.shuffled_sequence(order);
-			for i, name in zip(list(range(dimension)), "x y z w v u".split()):
-				#np.take(array[i], order, out=array[i])
-				reorder(array[i], array[-1], order)
-				self.addColumn(name, array=array[i])
-
-dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
-
-
-class Zeldovich(InMemory):
-	def __init__(self, dim=2, N=256, n=-2.5, t=None, seed=None, scale=1, name="zeldovich approximation"):
-		super(Zeldovich, self).__init__(name=name)
-		
-		if seed is not None:
-			np.random.seed(seed)
-		#sys.exit(0)
-		shape = (N,) * dim
-		A = np.random.normal(0.0, 1.0, shape)
-		F = np.fft.fftn(A) 
-		K = np.fft.fftfreq(N, 1./(2*np.pi))[np.indices(shape)]
-		k = (K**2).sum(axis=0)
-		k_max = np.pi
-		F *= np.where(np.sqrt(k) > k_max, 0, np.sqrt(k**n) * np.exp(-k*4.0))
-		F.flat[0] = 0
-		#pylab.imshow(np.where(sqrt(k) > k_max, 0, np.sqrt(k**-2)), interpolation='nearest')
-		grf = np.fft.ifftn(F).real
-		Q = np.indices(shape) / float(N-1) - 0.5
-		s = np.array(np.gradient(grf)) / float(N)
-		#pylab.imshow(s[1], interpolation='nearest')
-		#pylab.show()
-		s /= s.max() * 100.
-		#X = np.zeros((4, 3, N, N, N))
-		#for i in range(4):
-		#if t is None:
-		#	s = s/s.max()
-		t = t or 1.
-		X = Q + s * t
-
-		for d, name in zip(list(range(dim)), "xyzw"):
-			self.addColumn(name, array=X[d].reshape(-1) * scale)
-		for d, name in zip(list(range(dim)), "xyzw"):
-			self.addColumn("v"+name, array=s[d].reshape(-1) * scale)
-		for d, name in zip(list(range(dim)), "xyzw"):
-			self.addColumn(name+"0", array=Q[d].reshape(-1) * scale)
-		return
-		
-dataset_type_map["zeldovich"] = Zeldovich
-		
-		
-class AsciiTable(DatasetMemoryMapped):
-	def __init__(self, filename):
-		super(AsciiTable, self).__init__(filename, nommap=True)
-		import asciitable
-		table = asciitable.read(filename)
-		logger.debug("done parsing ascii table")
-		#import pdb
-		#pdb.set_trace()
-		#names = table.array.dtype.names
-		names = table.dtype.names
-
-		#data = table.array.data
-		for i in range(len(table.dtype)):
-			name = table.dtype.names[i]
-			type = table.dtype[i]
-			if type.kind in ["f", "i"]: # only store float and int
-				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
-				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
-				self.addColumn(name, array=table[name])
-		#dataset.samp_id = table_id
-		#self.list.addDataset(dataset)
-		#return dataset
-
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		can_open = path.endswith(".asc")
-		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
-		return can_open
-dataset_type_map["ascii"] = AsciiTable
-
-class MemoryMappedGadget(DatasetMemoryMapped):
-	def __init__(self, filename):
-		super(MemoryMappedGadget, self).__init__(filename)
-		#h5file = h5py.File(self.filename)
-		import vaex.file.gadget
-		length, posoffset, veloffset, header = vaex.file.gadget.getinfo(filename)
-		self.addColumn("x", posoffset, length, dtype=np.float32, stride=3)
-		self.addColumn("y", posoffset+4, length, dtype=np.float32, stride=3)
-		self.addColumn("z", posoffset+8, length, dtype=np.float32, stride=3)
-		
-		self.addColumn("vx", veloffset, length, dtype=np.float32, stride=3)
-		self.addColumn("vy", veloffset+4, length, dtype=np.float32, stride=3)
-		self.addColumn("vz", veloffset+8, length, dtype=np.float32, stride=3)
-dataset_type_map["gadget-plain"] = MemoryMappedGadget
-
-class DatasetAstropyTable(DatasetArrays):
-	def __init__(self, filename=None, format=None, table=None, **kwargs):
-		if table is None:
-			self.filename = filename
-			self.format = format
-			DatasetArrays.__init__(self, filename)
-			self.read_table()
-		else:
-			#print vars(table)
-			#print dir(table)
-			DatasetArrays.__init__(self, table.meta["name"])
-			self.table = table
-			#self.name
-
-		#data = table.array.data
-		for i in range(len(self.table.dtype)):
-			name = self.table.dtype.names[i]
-			column = self.table[name]
-			type = self.table.dtype[i]
-			#clean_name = re.sub("[^a-zA-Z_]", "_", name)
-			clean_name = _python_save_name(name, self.columns.keys())
-			if type.kind in ["f", "i"]: # only store float and int
-				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
-				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
-				masked_array = self.table[name].data
-				if "ucd" in column._meta:
-					self.ucds[clean_name] = column._meta["ucd"]
-				if column.description:
-					self.descriptions[clean_name] = column.description
-				if hasattr(masked_array, "mask"):
-					if type.kind in ["f"]:
-						masked_array.data[masked_array.mask] = np.nan
-					if type.kind in ["i"]:
-						masked_array.data[masked_array.mask] = 0
-				self.add_column(clean_name, self.table[name].data)
-			if type.kind in ["S"]:
-				self.add_column(clean_name, self.table[name].data)
-
-		#dataset.samp_id = table_id
-		#self.list.addDataset(dataset)
-		#return dataset
-
-	def read_table(self):
-		self.table = astropy.table.Table.read(self.filename, format=self.format, **kwargs)
-
-import astropy.io.votable
-import string
-class VOTable(DatasetArrays):
-	def __init__(self, filename):
-		DatasetArrays.__init__(self, filename)
-		self.filename = filename
-		self.path = filename
-		votable = astropy.io.votable.parse(self.filename)
-
-		self.first_table = votable.get_first_table()
-		self.description = self.first_table.description
-
-		for field in self.first_table.fields:
-			name = field.name
-			data = self.first_table.array[name].data
-			type = self.first_table.array[name].dtype
-			clean_name = re.sub("[^a-zA-Z_0-9]", "_", name)
-			if clean_name in string.digits:
-				clean_name = "_" + clean_name
-			self.ucds[clean_name] = field.ucd
-			self.units[clean_name] = field.unit
-			self.descriptions[clean_name] = field.description
-			if type.kind in ["f", "i"]: # only store float and int
-				masked_array = self.first_table.array[name]
-				if type.kind in ["f"]:
-					masked_array.data[masked_array.mask] = np.nan
-				if type.kind in ["i"]:
-					masked_array.data[masked_array.mask] = 0
-				self.add_column(clean_name, self.first_table.array[name].data)
-			#if type.kind in ["S"]:
-			#	self.add_column(clean_name, self.first_table.array[name].data)
-
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		can_open = path.endswith(".vot")
-		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
-		return can_open
-
-dataset_type_map["votable"] = VOTable
-
-
-
-class DatasetNed(DatasetAstropyTable):
-	def __init__(self, code="2012AJ....144....4M"):
-		url = "http://ned.ipac.caltech.edu/cgi-bin/objsearch?refcode={code}&hconst=73&omegam=0.27&omegav=0.73&corr_z=1&out_csys=Equatorial&out_equinox=J2000.0&obj_sort=RA+or+Longitude&of=xml_main&zv_breaker=30000.0&list_limit=5&img_stamp=YES&search_type=Search"\
-			.format(code=code)
-		super(DatasetNed, self).__init__(url, format="votable", use_names_over_ids=True)
-		self.name = "ned:" + code
-
-class DatasetTap(DatasetArrays):
-	class TapColumn(object):
-		def __init__(self, tap_dataset, column_name, column_type, ucd):
-			self.tap_dataset = tap_dataset
-			self.column_name = column_name
-			self.column_type = column_type
-			self.ucd = ucd
-			self.alpha_min = 0
-			length = len(tap_dataset)
-			steps = length/1e6 # try to do it in chunks
-			self.alpha_step = 360/steps
-			self.alpha_max = self.alpha_min + self.alpha_step
-			logger.debug("stepping in alpha %f" % self.alpha_step)
-			self.data = []
-			self.offset = 0
-			self.shape = (length,)
-			self.dtype = DatasetTap.type_map[self.column_type]().dtype
-			self.left_over_chunk = None
-			self.rows_left = length
-			import tempfile
-			self.download_file = tempfile.mktemp(".vot")
-
-		def __getitem__(self, slice):
-			start, stop, step = slice.start, slice.stop, slice.step
-			required_length = stop - start
-			assert start >= self.offset
-			chunk_data = self.left_over_chunk
-			enough = False if chunk_data is None else len(chunk_data) >= required_length
-			if chunk_data is not None:
-				logger.debug("start %s offset %s chunk length %s", start, self.offset, len(chunk_data))
-				#assert len(chunk_data) == start - self.offset
-			if enough:
-				logger.debug("we can skip the query, already have results from previous query")
-			while not enough:
-				adql_query = "SELECT {column_name} FROM {table_name} WHERE alpha >= {alpha_min} AND alpha < {alpha_max} ORDER BY alpha ASC"\
-					.format(column_name=self.column_name, table_name=self.tap_dataset.table_name, alpha_min=self.alpha_min, alpha_max=self.alpha_max)
-				logger.debug("executing: %s" % adql_query)
-				logger.debug("executing: %s" % adql_query.replace(" ", "+"))
-
-
-				url = self.tap_dataset.tap_url + "/sync?REQUEST=doQuery&LANG=ADQL&MAXREC=10000000&FORMAT=votable&QUERY=" +adql_query.replace(" ", "+")
-				import urllib2
-				response = urllib2.urlopen(url)
-				with open(self.download_file, "w") as f:
-					f.write(response.read())
-				votable = astropy.io.votable.parse(self.download_file)
-				data = votable.get_first_table().array[self.column_name].data
-				# TODO: respect masked array
-				#table = astropy.table.Table.read(url, format="votable") #, show_progress=False)
-				#data = table[self.column_name].data.data.data
-				logger.debug("new chunk is of lenght %d", len(data))
-				self.rows_left -= len(data)
-				logger.debug("rows left %d", self.rows_left)
-				if chunk_data is None:
-					chunk_data = data
-				else:
-					chunk_data = np.concatenate([chunk_data, data])
-				if len(chunk_data) >= required_length:
-					enough = True
-				logger.debug("total chunk is of lenght %d, enough: %s", len(chunk_data), enough)
-				self.alpha_min += self.alpha_step
-				self.alpha_max += self.alpha_step
-
-
-			result, self.left_over_chunk = chunk_data[:required_length], chunk_data[required_length:]
-			#print(result)
-			logger.debug("left over is of length %d", len(self.left_over_chunk))
-			return result #np.zeros(N, dtype=self.dtype)
-
-
-
-	type_map = {
-		'REAL':np.float32,
-	    'SMALLINT':np.int32,
-		'DOUBLE':np.float64,
-		'BIGINT':np.int64,
-		'INTEGER':np.int32,
-		'BOOLEAN':np.bool8
-	}
-	#not supported types yet 'VARCHAR',', u'BOOLEAN', u'INTEGER', u'CHAR
-	def __init__(self, tap_url="http://gaia.esac.esa.int/tap-server/tap/g10_smc", table_name=None):
-		logger.debug("tap url: %r", tap_url)
-		self.tap_url = tap_url
-		self.table_name = table_name
-		if table_name is None: # let us try to infer the table name
-			if tap_url.endswith("tap") or tap_url.endswith("tap/"):
-				pass # this mean we really didn't provide one
-			else:
-				index = tap_url.rfind("tap/")
-				if index != -1:
-					self.tap_url, self.table_name = tap_url[:index+4], self.tap_url[index+4:]
-					logger.debug("inferred url is %s, and table name is %s", self.tap_url, self.table_name)
-
-		if self.tap_url.startswith("tap+"): # remove tap+ part from tap+http(s), only keep http(s) part
-			self.tap_url = self.tap_url[len("tap+"):]
-		import requests
-		super(DatasetTap, self).__init__(self.table_name)
-		self.req = requests.request("get", self.tap_url+"/tables/")
-		self.path = "tap+" +self.tap_url + "/" + table_name
-
-		#print dir(self.req)
-		from bs4 import BeautifulSoup
-			#self.soup = BeautifulSoup(req.response)
-		tables = BeautifulSoup(self.req.content, 'xml')
-		self.tap_tables = collections.OrderedDict()
-		for table in tables.find_all("table"):
-			#print table.find("name").string, table.description.string, table["gaiatap:size"]
-			table_name = unicode(table.find("name").string)
-			table_size = int(table["esatapplus:size"])
-			#print table_name, table_size
-			logger.debug("tap table %r ", table_name)
-			columns = []
-			for column in table.find_all("column"):
-				column_name = unicode(column.find("name").string)
-				column_type = unicode(column.dataType.string)
-				ucd = column.ucd.string if column.ucd else None
-				unit = column.unit.string if column.unit else None
-				description = column.description.string if column.description else None
-				#print "\t", column_name, column_type, ucd
-				#types.add()
-				columns.append((column_name, column_type, ucd, unit, description))
-			self.tap_tables[table_name] = (table_size, columns)
-		if not self.tap_tables:
-			raise ValueError("no tables or wrong url")
-		for name, (table_size, columns) in self.tap_tables.items():
-			logger.debug("table %s has length %d", name, table_size)
-		self._full_length, self._tap_columns = self.tap_tables[self.table_name]
-		self._length = self._full_length
-		logger.debug("selected table table %s has length %d", self.table_name, self._full_length)
-		#self.column_names = []
-		#self.columns = collections.OrderedDict()
-		for column_name, column_type, ucd, unit, description in self._tap_columns:
-			logger.debug("  column %s has type %s and ucd %s, unit %s and description %s", column_name, column_type, ucd, unit, description)
-			if column_type in self.type_map.keys():
-				self.column_names.append(column_name)
-				if ucd:
-					self.ucds[column_name] = ucd
-				if unit:
-					self.units[column_name] = unit
-				if description:
-					self.descriptions[column_name] = description
-				self.columns[column_name] = self.TapColumn(self, column_name, column_type, ucd)
-			else:
-				logger.warning("  type of column %s is not supported, it will be skipped", column_name)
-
-
-	@classmethod
-	def can_open(cls, path, *args, **kwargs):
-		can_open = False
-		url = None
-		try:
-			url = urlparse(path)
-		except:
-			return False
-		if url.scheme:
-			if url.scheme.startswith("tap+http"): # will also catch https
-				can_open = True
-		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
-		return can_open
-
-
-dataset_type_map["tap"] = DatasetTap
-
-def can_open(path, *args, **kwargs):
-	for name, class_ in list(dataset_type_map.items()):
-		if class_.can_open(path, *args):
-			return True
-		
-def load_file(path, *args, **kwargs):
-	dataset_class = None
-	for name, class_ in list(vaex.dataset.dataset_type_map.items()):
-		logger.debug("trying %r with class %r" % (path, class_))
-		if class_.can_open(path, *args, **kwargs):
-			logger.debug("can open!")
-			dataset_class = class_
-			break
-	if dataset_class:
-		dataset = dataset_class(path, *args)
-		return dataset
 
 from vaex.remote import ServerRest, SubspaceRemote, DatasetRemote
 from vaex.events import Signal
@@ -5003,4 +5324,5 @@ def stat_main(argv):
 			print("   \tunit: %s" % unit)
 		dtype = dataset.dtype(name)
 		print("   \ttype: %s" % dtype.name)
+
 

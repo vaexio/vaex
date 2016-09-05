@@ -3,35 +3,9 @@ from vaex.remote import ServerExecutor
 import numpy as np
 import logging
 import aplus
-
+from .delayed import delayed
 logger = logging.getLogger("vaex.distributed")
 
-def promisify(value):
-    # TODO, support futures etc..
-    if isinstance(value, aplus.Promise):
-        return value
-    else:
-        return aplus.Promise.fulfilled(value)
-def delayed(f):
-    def wrapped(*args, **kwargs):
-        #print "calling", f, "with", kwargs
-        #key_values = kwargs.items()
-        key_promise = [(key, promisify(value)) for key, value in kwargs.items()]
-        #key_promise = [(key, promisify(value)) for key, value in key_values]
-        arg_promises = [promisify(value) for value in args]
-        kwarg_promises = [promise for key, promise in key_promise]
-        promises = arg_promises + kwarg_promises
-        #print promises
-        allarguments = aplus.listPromise(*promises)
-        def call(_):
-            kwargs_real = {key:promise.get() for key, promise in key_promise}
-            args_real = [promise.get() for promise in arg_promises]
-            return f(*args_real, **kwargs_real)
-        def error(exc):
-            print("error", exc)
-            raise exc
-        return allarguments.then(call, error)
-    return wrapped
 """
 class sum:
     @classmethod

@@ -9,6 +9,7 @@ import vaex
 import vaex.utils
 import vaex.execution
 import vaex.file.colfits
+import vaex.file.other
 
 max_length = int(1e5)
 
@@ -88,8 +89,9 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 					values = values.view(np.int64)
 
 				if selection:
-					selection_block_length = np.sum(dataset_input.mask[i1:i2])
-					to_array[to_offset:to_offset+selection_block_length] = values[dataset_input.mask[i1:i2]]
+					mask = dataset_input.evaluate_selection_mask(selection, i1=i1, i2=i2)
+					selection_block_length = np.sum(mask)#np.sum(dataset_input.mask[i1:i2])
+					to_array[to_offset:to_offset+selection_block_length] = values[mask]
 					to_offset += selection_block_length
 				else:
 					if shuffle:
@@ -150,7 +152,7 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 		del column_names[-1]
 		del data_types[-1]
 		del data_shapes[-1]
-	dataset_output = vaex.dataset.FitsBinTable(path, write=True)
+	dataset_output = vaex.file.other.FitsBinTable(path, write=True)
 	_export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
 			column_names=column_names, selection=selection, shuffle=shuffle,
 			progress=progress)
@@ -209,7 +211,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 			shuffle_array[0] = shuffle_array[0]
 
 	# after this the file is closed,, and reopen it using out class
-	dataset_output = vaex.dataset.Hdf5MemoryMapped(path, write=True)
+	dataset_output = vaex.file.other.Hdf5MemoryMapped(path, write=True)
 
 	column_names = _export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
 			column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
@@ -289,7 +291,7 @@ def main(argv):
 		if vaex.utils.check_memory_usage(4*8*2**args.max_level, vaex.utils.confirm_on_console):
 			if not args.quiet:
 				print("generating soneira peebles dataset...")
-			dataset = vaex.dataset.SoneiraPeebles(args.dimension, 2, args.max_level, args.lambdas)
+			dataset = vaex.file.other.SoneiraPeebles(args.dimension, 2, args.max_level, args.lambdas)
 		else:
 			return 1
 	if args.task == "tap":
@@ -341,7 +343,7 @@ def main(argv):
 						numerics.append(False)
 				names_numeric = [name for name, numeric in zip(names, numerics) if numeric]
 				print (names_numeric)
-				output = vaex.dataset.Hdf5MemoryMapped.create(args.output, row_count, names_numeric)
+				output = vaex.file.other.Hdf5MemoryMapped.create(args.output, row_count, names_numeric)
 				Ncols = len(names)
 				cols = [output.columns[name] if numeric else None for name, numeric in zip(names, numerics)]
 				def copy(line, row_index):

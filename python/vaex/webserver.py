@@ -500,7 +500,11 @@ class WebServer(threading.Thread):
 		#self.application.listen(self.port, address=self.address)
 		from tornado.httpserver import HTTPServer
 		self.server = HTTPServer(self.application)
-		self.server.listen(self.port, self.address)
+		try:
+			self.server.listen(self.port, self.address)
+		except:
+			self.started.set()
+			raise
 		self.started.set()
 		#self.ioloop.add_callback(self.started.set)
 		#if not self.ioloop.is_running():

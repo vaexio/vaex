@@ -1,5 +1,50 @@
 """
-Vaex is...
+Vaex is a library for dealing with big tabular data.
+
+The most important class (datastructure) in vaex is the :class:`.Dataset`. A dataset is obtained by either, opening
+the example dataset:
+
+>>> import vaex as vx
+>>> t = vx.example()
+
+Or opening a file:
+
+>>> t1 = vx.open("somedata.hdf5")
+>>> t2 = vx.open("somedata.fits")
+>>> t3 = vx.open("somedata.csv")
+
+Or connecting to a remove server:
+
+>>> tbig = vx.open("http://bla.com/bigtable")
+
+The main purpose of vaex is to provide statistics, such as mean, count, sum, standard deviation, per columns, possibly
+with a selection, and on a regular grid.
+
+To count the number of rows:
+
+>>> t = vx.examples()
+>>> t.count()
+330000.0
+
+Or the number of valid values, which for this dataset is the same:
+
+>>> t.count("x")
+330000.0
+
+Count them on a regular grid:
+
+>>> t.count("x", binby=["x", "y"], shape=(4,4))
+array([[   902.,   5893.,   5780.,   1193.],
+       [  4097.,  71445.,  75916.,   4560.],
+       [  4743.,  71131.,  65560.,   4108.],
+       [  1115.,   6578.,   4382.,    821.]])
+
+Visualise it using matplotlib:
+
+>>> t.plot("x", "y", show=True)
+<matplotlib.image.AxesImage at 0x1165a5090>
+
+
 """# -*- coding: utf-8 -*-
 from __future__ import print_function
 
@@ -24,6 +69,9 @@ __build_name__ = __full_name__ + "-" +version.osname
 
 
 import vaex.dataset
+import vaex.file
+import vaex.export
+
 import vaex.datasets
 #import vaex.plot
 from vaex.dataset import Dataset
@@ -79,7 +127,7 @@ def open(path, *args, **kwargs):
 		import vaex.distributed
 		return vaex.distributed.open(path, *args, **kwargs)
 	else:
-		return vaex.dataset.load_file(path, *args, **kwargs)
+		return vaex.file.open(path, *args, **kwargs)
 
 def open_many(filenames):
 	"""Open a list of filenames, and return a dataset with all datasets cocatenated
@@ -130,6 +178,15 @@ def from_arrays(name="array", **arrays):
 	return dataset
 
 def from_pandas(df, name="pandas"):
+	"""Create an in memory dataset from a pandas dataframe
+
+	:param: pandas.DataFrame df: Pandas dataframe
+	:param: name: unique for the dataset
+
+	>>> import pandas as pd
+	>>> df = pd.from_csv("test.csv")
+	>>> ds = vx.from_pandas(df, name="test")
+	"""
 	dataset = vaex.dataset.DatasetArrays(name)
 	for name in df.columns:
 		dataset.add_column(name, df[name].values)

@@ -193,6 +193,7 @@ class Executor(object):
 			else:
 				task_queue = task_queue_all
 				for task in task_queue:
+					logger.debug("fulfill task: %r", task)
 					if not task.cancelled:
 						task._result = task.reduce(task._results)
 						task.fulfill(task._result)
