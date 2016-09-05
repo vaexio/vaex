@@ -17,6 +17,7 @@ import yaml
 import argparse
 import os
 import time
+import numpy as np
 
 logger = logging.getLogger("vaex.webserver")
 job_index = 0
@@ -148,7 +149,7 @@ def task_invoke(subspace, method_name, **arguments):
 	#for arg in args:
 	#	if arg in arguments:
 	#		kwargs[arg] = arguments[arg]
-	#print("calling %s with arguments %r" % (method_name, arguments))
+	print("!!!!!! calling %s with arguments %r" % (method_name, arguments))
 	values = method(**arguments)
 	return values
 
@@ -187,7 +188,9 @@ class ListHandler(tornado.web.RequestHandler):
 		if response is None:
 			response = yield self.submit_threaded(process, self.webserver, user_id, self.request.path, **arguments)
 			try:
-				self.cache[key] = response
+				# TODO: cache doesn't cooperate with unittest
+				#self.cache[key] = response
+				pass
 			except ValueError:
 				pass # raised when it doesn't fit in cache
 		else:
@@ -195,9 +198,16 @@ class ListHandler(tornado.web.RequestHandler):
 		#logger.debug("response is: %r", response)
 		if response is None:
 			response = self.error("unknown request or error")
-		if isinstance(response, str):
-			self.set_header("Content-Type", "application/octet-stream")
-		self.write(response)
+		if isinstance(response, (np.ndarray, float)):
+			response = np.array(response)
+			self.set_header("Content-Type", "application/numpy-array")
+			self.write(str(response.shape)+"\n")
+			self.write(str(response.dtype)+"\n")
+			self.write(response.tobytes())
+		else:
+			if isinstance(response, str):
+				self.set_header("Content-Type", "application/octet-stream")
+			self.write(response)
 
 
 class ProgressWebSocket(tornado.websocket.WebSocketHandler):
@@ -343,10 +353,6 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							logger.debug("setting active range to: %r", (i1, i2))
 							dataset.set_active_range(i1, i2)
 
-						if "selection" in arguments:
-							selection_values = arguments["selection"]
-							selection = vaex.dataset.selection_from_dict(dataset, selection_values)
-							dataset.set_selection(selection, executor=webserver.thread_local.executor)
 						if "variables" in arguments:
 							variables = arguments["variables"]
 							logger.debug("setting variables to: %r", variables)
@@ -370,14 +376,36 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								except (SyntaxError, KeyError, NameError) as e:
 									return exception(e)
 						subspace = dataset(*expressions, executor=webserver.thread_local.executor) if expressions else None
+						if subspace:
+							# old stype selection
+							if "selection" in arguments:
+								selection_values = arguments["selection"]
+								if selection_values:
+									selection = vaex.dataset.selection_from_dict(dataset, selection_values)
+									dataset.set_selection(selection, executor=webserver.thread_local.executor)
+						else:
+							if "selections" in arguments:
+								selection_values = arguments["selections"]
+								if selection_values:
+									for name, value in selection_values.items():
+										selection = vaex.dataset.selection_from_dict(dataset, value)
+										dataset.set_selection(selection, name=name)
 						try:
 							if subspace:
 								if "selection" in arguments:
 									subspace = subspace.selected()
-							for name in "job_id expressions active_fraction selection variables virtual_columns active_start_index active_end_index".split():
-								arguments.pop(name, None)
+							if subspace is None:
+								for name in "job_id expressions active_fraction selections variables virtual_columns active_start_index active_end_index".split():
+									arguments.pop(name, None)
+							else:
+								if subspace is not None:
+									for name in "job_id expressions active_fraction selection selections variables virtual_columns active_start_index active_end_index".split():
+										arguments.pop(name, None)
 							logger.debug("subspace: %r", subspace)
-							if method_name in ["minmax", "image_rgba_url", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
+							if subspace is None and method_name in "count".split():
+								grid = task_invoke(dataset, method_name, **arguments)
+								return grid
+							elif method_name in ["minmax", "image_rgba_url", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
 								#print "expressions", expressions
 								values = task_invoke(subspace, method_name, **arguments)
 								logger.debug("result: %r", values)
@@ -512,14 +540,20 @@ class WebServer(threading.Thread):
 			self.ioloop.start()
 		except RuntimeError:
 			pass # TODO: not sure why this happens in the unittest
-		self.ioloop.clear_current()
+		#self.ioloop.stop()
+		#try:
+		#	self.ioloop.close()
+		#except ValueError:
+		#	pass
+		#self.ioloop.clear_current()
 
 	def stop_serving(self):
 		logger.debug("stop server")
 		self.server.stop()
 		logger.debug("stop io loop")
-		#self.ioloop.stop()
-		self.ioloop.clear_current()
+		self.ioloop.stop()
+		#self.ioloop.close()
+		#self.ioloop.clear_current()
 		for thread_pool in self.thread_pools:
 			thread_pool.close()
 
