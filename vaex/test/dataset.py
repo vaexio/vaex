@@ -17,7 +17,7 @@ a = vaex.execution.buffer_size_default # will crash if we decide to rename it
 
 vx.set_log_level_exception()
 #vx.set_log_level_off()
-vx.set_log_level_debug()
+#vx.set_log_level_debug()
 
 class CallbackCounter(object):
 	def __init__(self, return_value=None):
