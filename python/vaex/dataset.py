@@ -2658,7 +2658,7 @@ class Dataset(object):
 		"""Representation for Jupyter"""
 		html = """<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))
 		html += """<table>"""
-		for column_name in self.get_column_names():
+		for column_name in self.get_column_names(strings=True):
 			html += "<tr><td>%s</td><td>%s</td></tr>" % (column_name, self.dtype(column_name).name)
 		html += "</table>"
 		return html
