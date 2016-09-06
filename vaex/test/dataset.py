@@ -1281,7 +1281,7 @@ class TestDatasetRemote(TestDataset):
 		#print "getting server object"
 		scheme = "ws" if self.use_websocket else "http"
 		self.server = vx.server("%s://localhost:%d" % (scheme, test_port))
-		#test_port += 1
+		test_port += 1
 		#print "get datasets"
 		datasets = self.server.datasets(as_dict=True)
 		#print "got it", datasets
@@ -1419,8 +1419,8 @@ class TestDatasetDistributed(unittest.TestCase):
 		assert(np.all(counts == 1))
 		return
 
-class TestDatasetRemotePlain(TestDatasetRemote):
-	use_websocket = False
+#class TestDatasetRemotePlain(TestDatasetRemote):
+#	use_websocket = False
 """
 
 
