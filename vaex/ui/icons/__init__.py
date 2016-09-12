@@ -11,7 +11,7 @@ elif __file__:
 
 def iconfile(name):
 	dirname_2 = os.path.join(os.path.dirname(sys.argv[0]))
-	for dirname in [dirname_2, "./python/vaex", ".", os.path.dirname(vaex.__file__), os.path.join(application_path), os.path.join(application_path, "..")] :
+	for dirname in [dirname_2, "./vaex", ".", os.path.dirname(vaex.__file__), os.path.join(application_path), os.path.join(application_path, "..")] :
 		path = os.path.join(dirname, "icons", name+".png")
 		if os.path.exists(path):
 			#print "icon path:", path

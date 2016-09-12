@@ -6,7 +6,7 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
 
         render: function() {
             var base_render_promise = Image.__super__.render.apply(this);
-            this.im = this.el.append("image")
+            this.im = this.d3el.append("image")
                 .attr("class", "dot_img")
                 .attr("xlink:href", this.model.get('src'))
                 .attr("x", 0) //this.model.get('x'))
@@ -20,6 +20,25 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
             this.map_id = widgets.uuid();
             this.display_el_classes = ["event_layer"];
             var that = this;
+            this.event_metadata = {
+            "mouse_over": {
+                "msg_name": "hover",
+                "lookup_data": false,
+                "hit_test": true
+            },
+            "legend_clicked":  {
+                "msg_name": "legend_click",
+                "hit_test": true
+            },
+            "element_clicked": {
+                "msg_name": "element_click",
+                "lookup_data": false,
+                "hit_test": true
+            },
+            "parent_clicked": {
+                "msg_name": "background_click",
+                "hit_test": false
+            }}
             return base_render_promise.then(function() {
                 that.event_listeners = {};
                 that.create_listeners();
@@ -58,7 +77,7 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
 	            var x_scale = this.scales.x, y_scale = this.scales.y;
 	            var that = this;
 	            var animation_duration = this.parent.model.get("animation_duration");// : 0;
-	            this.el.selectAll(".dot_img").transition()
+	            this.d3el.selectAll(".dot_img").transition()
 	                .duration(animation_duration)
 	                .attr("transform", function(d) {
                         var sx = x_scale.scale(1) - x_scale.scale(0);
@@ -86,6 +105,9 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
             this.listenTo(this.model, "change:width", this.update_width, this);
             this.listenTo(this.model, "change:height", this.update_height, this);
             this.listenTo(this.model, "change:preserve_aspect_ratio", this.update_preserve_aspect_ratio, this);
+            this.listenTo(this.parent, "bg_clicked", function() {
+                        this.event_dispatcher("parent_clicked");
+                    });
         },
 
         update_xy_position: function(animate) {
@@ -126,6 +148,12 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
         draw: function() {
             console.log("set_positional_scales");
             this.set_ranges();
+
+            this.im.on("click", _.bind(function(d, i) {
+            this.event_dispatcher("element_clicked",
+			      {"data": d, "index": 0});
+            }, this));
+
         },
 
     });
