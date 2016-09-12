@@ -914,14 +914,14 @@ struct op_count {
 };
 
 template<typename T=double, typename ENDIAN=functor_double_to_double>
-struct op_add_weight_and_count {
+struct op_add_weight_moment_01 {
     void operator()(const T* const inputs, T* const __restrict__ outputs) {
         ENDIAN endian;
         double value = endian(inputs[0]);
         if(!custom_isnan(value))
         {
-            outputs[0] += value;
-            outputs[1] += 1;
+            outputs[0] += 1;
+            outputs[1] += value;
         }
     }
 };
@@ -945,13 +945,14 @@ struct op_min_max {
 };
 
 template<typename T=double, typename ENDIAN=functor_double_to_double>
-struct op_add_pow2_and_count {
+struct op_add_weight_moment_012 {
     void operator()(const T* const inputs, T* const __restrict__ outputs) {
         ENDIAN endian;
         double value = endian(inputs[0]);
         if(!custom_isnan(value)) {
-            outputs[0] += value*value;
-            outputs[1] += 1;
+            outputs[0] += 1;
+            outputs[1] += value;
+            outputs[2] += value*value;
         }
     }
 };
@@ -977,7 +978,7 @@ void statisticNd(const double* const __restrict__ blocks[], const double* const 
             long long index = 0;
             bool inside = true;
             for(int d = 0; d < 1; d++) {
-                double value = blocks[1-1-d][i];
+                double value = blocks[d][i];
                 double scaled = (value - minima[d]) * scales[d];
                 if( (scaled >= 0) & (scaled < 1) ) {
                     int sub_index = (int)(scaled * count_sizes[d]);
@@ -997,7 +998,7 @@ void statisticNd(const double* const __restrict__ blocks[], const double* const 
             long long index = 0;
             bool inside = true;
             for(int d = 0; d < dimensions; d++) {
-                double value = blocks[dimensions-1-d][i];
+                double value = blocks[d][i];
                 double scaled = (value - minima[d]) * scales[d];
                 if( (scaled >= 0) & (scaled < 1) ) {
                     int sub_index = (int)(scaled * count_sizes[d]);
@@ -1015,7 +1016,7 @@ void statisticNd(const double* const __restrict__ blocks[], const double* const 
             long long index = 0;
             bool inside = true;
             for(int d = 0; d < dimensions; d++) {
-                double value = blocks[dimensions-1-d][i];
+                double value = blocks[d][i];
                 double scaled = (value - minima[d]) * scales[d];
                 if( (scaled >= 0) & (scaled < 1) ) {
                     int sub_index = (int)(scaled * count_sizes[d]);
@@ -1037,16 +1038,16 @@ enum {
     OP_ADD1,
     OP_COUNT,
     OP_MIN_MAX,
-    OP_ADD_WEIGHT_AND_COUNT,
-    OP_ADD_POW2_AND_COUNT
+    OP_ADD_WEIGHT_MOMENTS_01,
+    OP_ADD_WEIGHT_MOMENTS_012
 } STATISTIC_OPS;
 
 static const char *statistic_op_names[] = {
     ENUM2STR(OP_ADD1),
     ENUM2STR(OP_COUNT),
     ENUM2STR(OP_MIN_MAX),
-    ENUM2STR(OP_ADD_WEIGHT_AND_COUNT),
-    ENUM2STR(OP_ADD_POW2_AND_COUNT)
+    ENUM2STR(OP_ADD_WEIGHT_MOMENTS_01),
+    ENUM2STR(OP_ADD_WEIGHT_MOMENTS_012)
 };
 
 
@@ -1068,10 +1069,10 @@ void statisticNd_wrap_template_endian(
             statisticNd<op_count<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
         } else if(op_code == OP_MIN_MAX) {
             statisticNd<op_min_max<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
-        } else if(op_code == OP_ADD_WEIGHT_AND_COUNT) {
-            statisticNd<op_add_weight_and_count<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
-        } else if(op_code == OP_ADD_POW2_AND_COUNT) {
-            statisticNd<op_add_pow2_and_count<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+        } else if(op_code == OP_ADD_WEIGHT_MOMENTS_01) {
+            statisticNd<op_add_weight_moment_01<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+        } else if(op_code == OP_ADD_WEIGHT_MOMENTS_012) {
+            statisticNd<op_add_weight_moment_012<double, endian> >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
         } else {
             printf("unknown op code for statistic: %i", op_code);
         }

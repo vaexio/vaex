@@ -27,7 +27,7 @@ before_install:
   - source activate test-environment
   - pip install -r requirements.txt
 install:
-  - python setup.py install
+  - pip install .
 script:
  - python -m vaex.test.dataset
 # - export PACKAGE_NAME=`python -c "import vaex; print vaex.__build_name__"`

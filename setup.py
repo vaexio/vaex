@@ -21,12 +21,12 @@ def system(cmd):
 		print("error, return code is", ret)
 		sys.exit(ret)
 
-path_version_file = "python/vaex/version.py"
+path_version_file = "vaex/version.py"
 if not os.path.exists(path_version_file):
-	system("version=`git describe --tags --long`; python/vaex/setversion.py ${version}")
+	system("version=`git describe --tags --long`; vaex/setversion.py ${version}")
 
 version = imp.load_source('version', path_version_file)
-#system("version=`git describe --tags --long`; python/vaex/vaex/setversion.py ${version}")
+#system("version=`git describe --tags --long`; vaex/vaex/setversion.py ${version}")
 
 
 has_py2app = False
@@ -125,7 +125,7 @@ if 0:
 	for sub in "_static _images _sources".split():
 		DATA_FILES.append(["doc/" + sub, glob.glob("docs/build/html/" +sub +"/*")] )
 #print DATA_FILES
-OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/vaex/ui/icons'],
+OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['vaex/ui/icons'],
            'matplotlib_backends':'-',
            'no_chdir':True,
 		   'includes': ['h5py',
@@ -141,7 +141,7 @@ OPTIONS = {'argv_emulation': False, 'excludes':[], 'resources':['python/vaex/ui/
 				 "astropy.extern.bundled",
 				 ],
 		   "frameworks": [sys.prefix + "/lib/libmkl_avx2.dylib"],
-           'iconfile': 'python/vaex/ui/icons/vaex.icns'
+           'iconfile': 'vaex/ui/icons/vaex.icns'
 
 } #, 'debug_modulegraph':True}
 #, 'app':True
@@ -217,7 +217,7 @@ setup(
     entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },
     ext_modules=extensions,
     package_data={'vaex': ['ui/icons/*.png', 'ui/icons/*.icns']},
-    package_dir={'vaex':'python/vaex'},
+    package_dir={'vaex':'vaex'},
     cmdclass=cmdclass,
     description="Vaex is a graphical tool to visualize and explore large tabular datasets.",
     url="https://www.astro.rug.nl/~breddels/vaex",
