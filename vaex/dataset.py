@@ -4327,6 +4327,37 @@ class Dataset(object):
 			.format(**locals())
 		self.add_virtual_column("bearing", expr)
 
+	def add_virtual_columns_distance_from_parallax(self, parallax, distance_name, parallax_uncertainty=None, uncertainty_postfix="_uncertainty"):
+		unit = self.unit(parallax)
+		#if unit:
+			#convert = unit.to(astropy.units.mas)
+			#	distance_expression = "%f/(%s)" % (convert, parallax)
+			#else:
+		distance_expression = "1/%s" % (parallax)
+		self.ucds[distance_name] = "pos.distance"
+		self.descriptions[distance_name] = "Derived from parallax (%s)" % parallax
+		if unit:
+			if unit == astropy.units.milliarcsecond:
+				self.units[distance_name] = astropy.units.kpc
+			if unit == astropy.units.arcsecond:
+				self.units[distance_name] = astropy.units.parsec
+		self.add_virtual_column(distance_name, distance_expression)
+		if parallax_uncertainty:
+			"""
+			y = 1/x
+			sigma_y**2 = (1/x**2)**2 sigma_x**2
+			sigma_y = (1/x**2) sigma_x
+			sigma_y = y**2 sigma_x
+			sigma_y/y = (1/x) sigma_x
+			"""
+			name = distance_name + uncertainty_postfix
+			distance_uncertainty_expression = "{parallax_uncertainty}/({parallax})**2".format(**locals())
+			self.add_virtual_column(name, distance_uncertainty_expression)
+			self.descriptions[name] = "Uncertainty on parallax (%s)" % parallax
+			self.ucds[name] = "stat.error;pos.distance"
+
+
+
 	def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name, matrix_is_expression=False):
 		"""
 
@@ -4394,7 +4425,11 @@ class Dataset(object):
 		import kapteyn.celestial as c
 		self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
 
-	def add_virtual_columns_proper_motion_eq2gal(self, long_in, lat_in, pm_long, pm_lat, pm_long_out, pm_lat_out, name_prefix="__proper_motion_eq2gal", radians=False):
+	def add_virtual_columns_proper_motion_eq2gal(self, long_in, lat_in, pm_long, pm_lat, pm_long_out, pm_lat_out,
+												 cov_matrix_alpha_delta_pma_pmd=None,
+												 covariance_postfix="_covariance",
+												 uncertainty_postfix="_uncertainty",
+												 name_prefix="__proper_motion_eq2gal", radians=False):
 		"""Transform/rotate proper motions from equatorial to galactic coordinates
 
 		Taken from http://arxiv.org/abs/1306.2945
@@ -4423,14 +4458,109 @@ class Dataset(object):
 		self.add_virtual_column(c2, "cos(declination_galactic_pole) * sin({long_in}-right_ascension_galactic_pole)".format(**locals()))
 		self.add_virtual_column(pm_long_out, "({c1} * {pm_long} + {c2} * {pm_lat})/sqrt({c1}**2+{c2}**2)".format(**locals()))
 		self.add_virtual_column(pm_lat_out, "(-{c2} * {pm_long} + {c1} * {pm_lat})/sqrt({c1}**2+{c2}**2)".format(**locals()))
+		if cov_matrix_alpha_delta_pma_pmd:
+			# function and it's jacobian
+			# f(long, lat, pm_long, pm_lat) = [pm_long, pm_lat, c1, c2] = [pm_long, pm_lat, ..., ...]
+			J = [ [None, None, "1", None],
+                  [None, None, None, "1"],
+				  [                                                    "cos(declination_galactic_pole)*sin({lat_in})*sin({long_in}-right_ascension_galactic_pole)",
+				     "-sin(declination_galactic_pole) * sin({lat_in}) - cos(declination_galactic_pole)*cos({lat_in})*cos({long_in}-right_ascension_galactic_pole)",
+					 None, None],
+				  ["cos(declination_galactic_pole)*cos({long_in}-right_ascension_galactic_pole)", None, None, None],
+			  ]
+
+			cov_matrix_pm_long_pm_lat_c1_c2 = [[""] * 4 for i in range(4)]
+			for i in range(4):
+				for j in range(4):
+					for k in range(4):
+						for l in range(4):
+							sigma = cov_matrix_alpha_delta_pma_pmd[k][l]
+							if sigma and J[i][k] and J[j][l]:
+								cov_matrix_pm_long_pm_lat_c1_c2[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
+
+			cov_matrix_pml_pmb = [[""] * 2 for i in range(2)]
+
+			# function and it's jacobian
+			# f(pm_long, pm_lat, c1, c2) = [pm_l, pm_b] = [..., ...]
+			J = [
+				[" ({c1}                               )/sqrt({c1}**2+{c2}**2)",
+				 " (                    {c2}           )/sqrt({c1}**2+{c2}**2)",
+				 "( {c2} *  {pm_long} - {c1} * {pm_lat})/    ({c1}**2+{c2}**2)**(3./2)*{c2}",
+				 "(-{c2} *  {pm_long} + {c1} * {pm_lat})/    ({c1}**2+{c2}**2)**(3./2)*{c1}"],
+				["(-{c2}                               )/sqrt({c1}**2+{c2}**2)",
+				 " (                    {c1}           )/sqrt({c1}**2+{c2}**2)",
+				 "({c1} * {pm_long} + {c2} * {pm_lat})/      ({c1}**2+{c2}**2)**(3./2)*{c2}",
+				 "-({c1} * {pm_long} + {c2} * {pm_lat})/     ({c1}**2+{c2}**2)**(3./2)*{c1}"]
+			]
+			for i in range(2):
+				for j in range(2):
+					for k in range(4):
+						for l in range(4):
+							sigma = cov_matrix_pm_long_pm_lat_c1_c2[k][l]
+							if sigma and J[i][k] != "0" and J[j][l] != "0":
+								cov_matrix_pml_pmb[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
+			names = [pm_long_out, pm_lat_out]
+			#cnames = ["c1", "c2"]
+			for i in range(2):
+				for j in range(i+1):
+					sigma = cov_matrix_pml_pmb[i][j].format(**locals())
+					if i != j:
+						self.add_virtual_column(names[i]+"_" + names[j]+covariance_postfix, sigma)
+					else:
+						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
+						#sigma = cov_matrix_pm_long_pm_lat_c1_c2[i+2][j+2].format(**locals())
+						#self.add_virtual_column(cnames[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
+						#sigma = cov_matrix_vr_vl_vb[i][j].format(**locals())
 
 	#mu
 
 	#self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
 
-	def add_virtual_columns_lbrvr_proper_motion2vcartesian(self, long_in, lat_in, distance, pm_long, pm_lat, vr, vx, vy, vz, name_prefix="__lbvr_proper_motion2vcartesian", center_v=(0,0,0), center_v_name="solar_motion", radians=False):
+	def add_virtual_columns_lbrvr_proper_motion2vcartesian(self, long_in="l", lat_in="b", distance="distance", pm_long="pm_l", pm_lat="pm_b",
+														   vr="vr", vx="vx", vy="vy", vz="vz",
+														   cov_matrix_vr_distance_pm_long_pm_lat=None,
+														   uncertainty_postfix="_uncertainty", covariance_postfix="_covariance",
+														   name_prefix="__lbvr_proper_motion2vcartesian", center_v=(0,0,0), center_v_name="solar_motion", radians=False):
 		"""Convert radial velocity and galactic proper motions (and positions) to cartesian velocities wrt the center_v
 		Based on http://adsabs.harvard.edu/abs/1987AJ.....93..864J
+
+		v_long = k * pm_long * distance
+		v_lat  = k * pm_lat * distance
+		v_obs = [vr, v_long, v_lat]
+
+		v = T * v_obs  + v_ref
+
+		var_vr = sigma_vr
+		var_v_long = (k * distance * sigma_pm_l)**2 + (k * pm_long * sigma_distance)**2 + 2 k * pm_long * k *distance* covar_distance_long
+		covar_v_long_lat = k * distance
+
+		f_obs(distance, pm_long, pm_lat) = [v_long, v_lat] = (k * pm_long * distance, k * pm_lat * distance)
+		J = [[ k * pm_long,  k * distance,                     0],
+			  [k * pm_lat ,             0, k* distance]]
+		\Sigma_obs = [
+
+		(k * distance * sigma_pm_l)**2 + (k * pm_long * sigma_distance)**2 + 2 k * pm_long * k *distance* covar_distance_long
+		var_v_long = (k /pi * sigma_pm_l)**2 + (k * / pm**2 pm_long * sigma_distance)**2
+
+
+		var_v_lat  = idem
+		\Sigma_obs = [[var_vr,             0,        0],
+				  [     0,   var_v_long, covar_vlb],
+				  [     0,    covar_vlb, var_v_lat]]
+		e_v = T \Sigma T.T
+		\Sigma_v_ij = T_ik \Sigma_obs_kl T.T_lj
+		\Sigma_v_ij = T_ik \Sigma_obs_kl T_jl
+
+		A_ij = B_ik * C_kj
+
+
+		e_v_r**2 = var_vr
+		e_v_x**2 = T[1,1] * var_v_long T[1,1] + T[2,1] * covar_vlb * T[1,2]
+
+		f_v(l, b, distance, vr_r, pm_1, pm_2) = T(3,6) * v
+
+		m = 3, n = 6
+		v0 =
 
 		:param long_in: Name/expression for galactic longitude
 		:param lat_in: Name/expression for galactic latitude
@@ -4470,9 +4600,9 @@ class Dataset(object):
 				[0, 0, 1]])
 			T = a*b*c
 		self.add_variable("k", k)
-		A = [["cos({a})*cos({d})",  "-sin({a})", "-cos({a})*sin({d})"],
-			 ["sin({a})*cos({d})", "cos({a})", "-sin({a})*sin({d})"],
-			 ["sin({d})", "0", "cos({d})"]]
+		A = [["cos({a})*cos({d})", "-sin({a})", "-cos({a})*sin({d})"],
+			 ["sin({a})*cos({d})",  "cos({a})", "-sin({a})*sin({d})"],
+			 [         "sin({d})",         "0",           "cos({d})"]]
 		a = long_in
 		d = lat_in
 		if not radians:
@@ -4481,12 +4611,57 @@ class Dataset(object):
 		for i in range(3):
 			for j in range(3):
 				A[i][j] = A[i][j].format(**locals())
+		if 0: # used for testing
+			self.add_virtual_column("vl", "k*{pm_long}*{distance}".format(**locals()))
+			self.add_virtual_column("vb", "k* {pm_lat}*{distance}".format(**locals()))
 		self.add_virtual_columns_matrix3d(vr, "k*{pm_long}*{distance}".format(**locals()), "k*{pm_lat}*{distance}".format(**locals()), name_prefix +vx, name_prefix +vy, name_prefix +vz, \
 										  A, name_prefix+"_matrix", matrix_is_expression=True)
 		self.add_variable(center_v_name, center_v)
 		self.add_virtual_column(vx, "%s + %s[0]" % (name_prefix +vx, center_v_name))
 		self.add_virtual_column(vy, "%s + %s[1]" % (name_prefix +vy, center_v_name))
 		self.add_virtual_column(vz, "%s + %s[2]" % (name_prefix +vz, center_v_name))
+
+		if cov_matrix_vr_distance_pm_long_pm_lat:
+			# function and it's jacobian
+			# f_obs(vr, distance, pm_long, pm_lat) = [vr, v_long, v_lat] = (vr, k * pm_long * distance, k * pm_lat * distance)
+			J = [ ["1", "", "", ""],
+				 ["", "k * {pm_long}",  "k * {distance}", ""],
+				 ["", "k * {pm_lat}",                 "", "k * {distance}"]]
+
+			cov_matrix_vr_vl_vb = [[""] * 3 for i in range(3)]
+			for i in range(3):
+				for j in range(3):
+					for k in range(4):
+						for l in range(4):
+							sigma = cov_matrix_vr_distance_pm_long_pm_lat[k][l]
+							if sigma and J[i][k] and J[j][l]:
+								cov_matrix_vr_vl_vb[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
+
+			cov_matrix_vx_vy_vz = [[""] * 3 for i in range(3)]
+
+			# here A is the Jacobian
+			for i in range(3):
+				for j in range(3):
+					for k in range(3):
+						for l in range(3):
+							sigma = cov_matrix_vr_vl_vb[k][l]
+							if sigma and A[i][k] != "0" and A[j][l] != "0":
+								cov_matrix_vx_vy_vz[i][j] += "+(%s)*(%s)*(%s)" % (A[i][k], sigma, A[j][l])
+			vnames = [vx, vy, vz]
+			vrlb_names = ["vr", "vl", "vb"]
+			for i in range(3):
+				for j in range(i+1):
+					sigma = cov_matrix_vx_vy_vz[i][j].format(**locals())
+					if i != j:
+						self.add_virtual_column(vnames[i]+"_" + vnames[j]+covariance_postfix, sigma)
+					else:
+						self.add_virtual_column(vnames[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
+						#sigma = cov_matrix_vr_vl_vb[i][j].format(**locals())
+						#self.add_virtual_column(vrlb_names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
+
+
+			#self.add_virtual_column(vx, x)
+
 
 
 	def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial", radians=False):
@@ -4503,9 +4678,10 @@ class Dataset(object):
 		x_out = name_prefix+"_out_x"
 		y_out = name_prefix+"_out_y"
 		z_out = name_prefix+"_out_z"
-		self.add_virtual_column(x_in, "cos({long_in})*cos({lat_in})".format(**locals()))
-		self.add_virtual_column(y_in, "sin({long_in})*cos({lat_in})".format(**locals()))
-		self.add_virtual_column(z_in, "sin({lat_in})".format(**locals()))
+		#self.add_virtual_column(x_in, "cos({long_in})*cos({lat_in})".format(**locals()))
+		#self.add_virtual_column(y_in, "sin({long_in})*cos({lat_in})".format(**locals()))
+		#self.add_virtual_column(z_in, "sin({lat_in})".format(**locals()))
+		#self.add_virtual_columns_spherical_to_cartesian(long_in, lat_in, None, x_in, y_in, z_in, cov_matrix_alpha_delta=)
 		self.add_virtual_columns_matrix3d(x_in, y_in, z_in, x_out, y_out, z_out, \
 										  matrix, name_prefix+"_matrix")
 		#long_out_expr = "arctan2({y_out},{x_out})".format(**locals())
@@ -4546,7 +4722,11 @@ class Dataset(object):
 		self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y}".format(**locals())
 
 
-	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname, yname, zname, center=None, center_name="solar_position", radians=True):
+	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname="x", yname="y", zname="z",
+												   cov_matrix_alpha_delta_distance=None,
+												   covariance_postfix="_covariance",
+												   uncertainty_postfix="_uncertainty",
+												   center=None, center_name="solar_position", radians=True):
 		if not radians:
 			alpha = "pi/180.*%s" % alpha
 			delta = "pi/180.*%s" % delta
@@ -4567,6 +4747,34 @@ class Dataset(object):
 		else:
 			solar_mod = ""
 		self.add_virtual_column(zname, "sin(%s) * %s%s" % (delta, distance, solar_mod))
+		if cov_matrix_alpha_delta_distance:
+			# function and it's jacobian
+			# f_obs(alpha, delta, distance) = [x, y, z] = (cos(alpha) * cos(delta) * distance,
+			# 												sin(alpha) * cos(delta) * distance,
+			# 												sin(delta) * distance)
+			J = [ ["-sin({alpha})*cos({delta})*{distance}", "-cos({alpha})*sin({delta})*{distance}", "cos({alpha})*cos({delta})"],
+				  [" cos({alpha})*cos({delta})*{distance}", "-sin({alpha})*sin({delta})*{distance}", "sin({alpha})*cos({delta})"],
+				 [                              None,                     "cos({delta})*{distance}",              "sin({delta})"]]
+
+			cov_matrix_xyz = [[""] * 3 for i in range(3)]
+			for i in range(3):
+				for j in range(3):
+					for k in range(3):
+						for l in range(3):
+							sigma = cov_matrix_alpha_delta_distance[k][l]
+							if sigma and J[i][k] and J[j][l]:
+								cov_matrix_xyz[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
+							#if sigma and J[k][i] and J[l][j]:
+							#	cov_matrix_xyz[i][j] += "+(%s)*(%s)*(%s)" % (J[k][i], sigma, J[l][j])
+
+			names = [xname, yname, zname]
+			for i in range(3):
+				for j in range(i+1):
+					sigma = cov_matrix_xyz[i][j].format(**locals())
+					if i != j:
+						self.add_virtual_column(names[i]+"_" + names[j]+covariance_postfix, sigma)
+					else:
+						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
 
 	def add_virtual_columns_cartesian_to_spherical(self, x, y, z, alpha, delta, distance, radians=True, center=None, center_name="solar_position"):
 		transform = "" if radians else "*180./pi"

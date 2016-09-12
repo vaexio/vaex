@@ -41,7 +41,7 @@ class SubspaceDistributed(vaex.dataset.Subspace):
         promises = []
         print("calling %s (selection: %s)" % (name, self.is_masked))
         selection_name = "default"
-        selection = self.dataset.get_selection(selection_name=selection_name)
+        selection = self.dataset.get_selection(name=selection_name)
         if selection:
             print(selection, selection.to_dict())
         for dataset in self.dataset.datasets:

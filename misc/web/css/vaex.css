@@ -1,0 +1,346 @@
+/* GLOBAL STYLES
+-------------------------------------------------- */
+/* Padding below the footer and lighter body text */
+
+body {
+  padding-bottom: 40px;
+  color: #5a5a5a;
+}
+
+.jumbotron {
+  text-align: center;
+  background-color: transparent;
+}
+.alt-color {
+  color: black;
+}
+/* CUSTOMIZE THE NAVBAR
+-------------------------------------------------- */
+
+/* Special class on .container surrounding .navbar, used for positioning it into place. */
+.navbar-wrapper {
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 20;
+}
+
+.navbar {
+    margin-bottom: 0px;
+    border-bottom: 0px;
+}
+
+/* Flip around the padding for proper display in narrow viewports */
+.navbar-wrapper > .container {
+  padding-right: 0;
+  padding-left: 0;
+}
+.navbar-wrapper .navbar {
+  padding-right: 0px;
+  padding-left: 0px;
+}
+.navbar-wrapper .navbar .container {
+  width: auto;
+}
+
+
+/* CUSTOMIZE THE CAROUSEL
+-------------------------------------------------- */
+
+/* Carousel base class */
+
+.carousel-control.left, .carousel-control.right {
+  background-image: none;
+}
+
+
+.carousel {
+  height: 400px;
+  margin-bottom: 0px;
+  margin-top: 0px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+/* Since positioning the image, we need to help out the caption */
+.carousel-caption {
+  z-index: 10;
+}
+
+/* Declare heights because of positioning of img element */
+.carousel .item {
+  height: 400px;
+  background-color: white;
+}
+.carousel-inner > .item > img {
+  /*top: 0;
+  left: 0;
+  min-width: 100%;*/
+  margin: 0 auto;
+  margin-top; 0px;
+  height: 400px;
+}
+
+#myCarousel-code .carousel-control {
+  width: 30px;
+}
+
+#myCarousel .carousel-indicators li {
+  color: #333 !important;
+  background-color: #333 !important;
+  background-color: rgba(70,70,70,.25) !important;
+}
+
+#myCarousel .carousel-indicators .active {
+  background-color: #222 !important;
+}
+
+#myCarousel-code .carousel-indicators li {
+  background-color: #999 !important;
+  background-color: rgba(70,70,70,.25) !important;
+}
+
+#myCarousel-code .carousel-indicators .active {
+  background-color: #444 !important;
+}
+
+/* MARKETING CONTENT
+-------------------------------------------------- */
+
+/* Center align the text within the three columns below the carousel */
+.marketing .col-lg-4 {
+  margin-bottom: 20px;
+  text-align: center;
+}
+.marketing h2 {
+  font-weight: normal;
+}
+.marketing .col-lg-4 p {
+  margin-right: 10px;
+  margin-left: 10px;
+}
+
+
+/* Featurettes
+------------------------- */
+
+.featurette-divider {
+  margin: 80px 0; /* Space out the Bootstrap <hr> more */
+}
+
+/* Thin out the marketing headings */
+.featurette-heading {
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+
+/* RESPONSIVE CSS
+-------------------------------------------------- */
+
+@media (min-width: 768px) {
+  /* Navbar positioning foo */
+  .navbar-wrapper {
+    margin-top: 0px;
+    margin-left: 0px;
+  }
+  .navbar-wrapper .container {
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+  .navbar-wrapper .navbar {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  /* The navbar becomes detached from the top, so we round the corners */
+  .navbar-wrapper .navbar {
+    border-radius: 0px;
+  }
+
+  /* Bump up size of carousel content */
+  .carousel-caption p {
+    margin-bottom: 0px;
+    font-size: 21px;
+    line-height: 1.4;
+  }
+
+  .featurette-heading {
+    font-size: 50px;
+  }
+}
+
+@media (min-width: 992px) {
+  .featurette-heading {
+    margin-top: 20px;
+  }
+}
+
+i.fa {
+  margin-right: 5px;
+}
+
+i.fa-empty {
+display: inline;
+  height: 16px;
+  width: 16px;
+  margin-right: 5px;
+}
+
+.fa-big{font-size: 300px !important;}
+.falink-black { color: black }
+a:hover > .falink-black { color: grey; }
+
+
+code {
+  background-color: #333;
+  color: #ccc;
+}
+
+
+/* from https://github.com/miketricking/miketricking.github.io/ */
+.hovereffect {
+width:100%;
+height:100%;
+float:left;
+overflow:hidden;
+position:relative;
+text-align:center;
+cursor:default;
+}
+
+.hovereffect .overlay {
+width:100%;
+height:100%;
+position:absolute;
+overflow:hidden;
+top:0;
+left:0;
+opacity:0;
+background-color:rgba(0,0,0,0.5);
+-webkit-transition:all .4s ease-in-out;
+transition:all .4s ease-in-out
+}
+
+.hovereffect img {
+display:block;
+position:relative;
+-webkit-transition:all .4s linear;
+transition:all .4s linear;
+}
+
+.hovereffect h2 {
+/*text-transform:uppercase; */
+color:#fff;
+text-align:center;
+position:relative;
+font-size:17px;
+background:rgba(0,0,0,0.6);
+-webkit-transform:translatey(-100px);
+-ms-transform:translatey(-100px);
+transform:translatey(-100px);
+-webkit-transition:all .2s ease-in-out;
+transition:all .2s ease-in-out;
+padding:10px;
+}
+
+.hovereffect a.info {
+text-decoration:none;
+display:inline-block;
+text-transform:uppercase;
+color:#fff;
+border:1px solid #fff;
+background-color:transparent;
+opacity:0;
+filter:alpha(opacity=0);
+-webkit-transition:all .2s ease-in-out;
+transition:all .2s ease-in-out;
+margin:50px 0 0;
+padding:7px 14px;
+}
+
+.hovereffect a.info:hover {
+box-shadow:0 0 5px #fff;
+}
+
+.hovereffect:hover img {
+-ms-transform:scale(1.2);
+-webkit-transform:scale(1.2);
+transform:scale(1.2);
+}
+
+.hovereffect:hover .overlay {
+opacity:1;
+filter:alpha(opacity=100);
+}
+
+.hovereffect:hover h2,.hovereffect:hover a.info {
+opacity:1;
+filter:alpha(opacity=100);
+-ms-transform:translatey(0);
+-webkit-transform:translatey(0);
+transform:translatey(0);
+}
+
+.hovereffect:hover a.info {
+-webkit-transition-delay:.2s;
+transition-delay:.2s;
+}
+
+[class^="icon-spectabular"],
+[class*=" icon-spectabular"] {
+  display: inline-block;
+  width: 20px;
+  height: 16px;
+  *margin-right: .3em;
+  line-height: 16x;
+  vertical-align: text-top;
+  background-position: -4px -4px;
+  background-repeat: no-repeat;
+  margin-top: 1px;
+}
+
+.icon-spectabular {
+    background-image: url("tablescope16_inv.png");
+    background-position: center center;
+}
+
+
+
+@font-face {
+  font-family: 'icomoon';
+  src:  url('/fonts/icomoon.eot?chgdot');
+  src:  url('/fonts/icomoon.eot?chgdot#iefix') format('embedded-opentype'),
+    url('/fonts/icomoon.ttf?chgdot') format('truetype'),
+    url('/fonts/icomoon.woff?chgdot') format('woff'),
+    url('/fonts/icomoon.svg?chgdot#icomoon') format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+
+[class^="icon-"], [class*=" icon-"] {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: 'icomoon' !important;
+  speak: none;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-telescope3:before {
+  content: "\e900";
+}
+
+a .scope {
+	color: #666;
+}
+
+a:hover .scope {
+	color: #fff;
+}

@@ -3,13 +3,14 @@ import numpy as np
 import logging
 import threading
 import uuid
+import time
 
 try:
 	import __builtin__
 except ImportError:
 	import builtins as __builtin__
 
-from .dataset import Dataset, Subspace, Task
+from .dataset import Dataset, Subspace, Task, _issequence
 import vaex.promise
 import vaex.settings
 import vaex.utils
@@ -24,6 +25,7 @@ import tornado.httputil
 import tornado.websocket
 from tornado.concurrent import Future
 from tornado import gen
+from .dataset import default_shape
 
 logger = logging.getLogger("vaex.remote")
 
@@ -91,6 +93,7 @@ class ServerRest(object):
 			logger.debug("started tornado io_loop...")
 
 			self.io_loop.start()
+			self.io_loop.close()
 			logger.debug("stopped tornado io_loop")
 
 		io_loop = tornado.ioloop.IOLoop.current(instance=False)
@@ -126,6 +129,7 @@ class ServerRest(object):
 		if self.use_websocket:
 			if self.websocket:
 					self.websocket.close()
+		self.io_loop.stop()
 
 
 	def _websocket_connect(self):
@@ -278,17 +282,25 @@ class ServerRest(object):
 			data = response.body
 			is_json = False
 			logger.info("response is: %r", response.body)
-			try:
-				data = json.loads(response.body.decode("ascii"))
-				is_json = True
-			except Exception as e:
-				logger.info("couldn't convert to json (error is %s, assume it's raw data): %s", e, data)
-				#logger.info("couldn't convert to json (error is %s, assume it's raw data)", e)
-			if is_json:
-				self._check_exception(data)
-				return post_process(data["result"])
+			logger.info("content_type is: %r", response.headers["Content-Type"])
+			if response.headers["Content-Type"] == "application/numpy-array":
+				text = response.body.decode("ascii")
+				shape, dtype, data = text.split("\n", 3)
+				import ast
+				numpy_array = np.fromstring(data, dtype=np.dtype(dtype)).reshape(ast.literal_eval(shape))
+				return post_process(numpy_array)
 			else:
-				return post_process(data)
+				try:
+					data = json.loads(response.body.decode("ascii"))
+					is_json = True
+				except Exception as e:
+					logger.info("couldn't convert to json (error is %s, assume it's raw data): %s", e, data)
+					#logger.info("couldn't convert to json (error is %s, assume it's raw data)", e)
+				if is_json:
+					self._check_exception(data)
+					return post_process(data["result"])
+				else:
+					return post_process(data)
 
 		arguments = {key: listify(value) for key, value in arguments.items()}
 		import pdb
@@ -364,19 +376,29 @@ class ServerRest(object):
 		arguments.update(dict(expressions=expressions))
 		return self.submit(path, arguments, post_process=post_process, async=async)
 
-	def _call_dataset(self, method_name, dataset_remote, async, **kwargs):
+	def _call_dataset(self, method_name, dataset_remote, async, numpy=False, **kwargs):
 		def post_process(result):
 			#result = self._check_exception(json.loads(result.body))["result"]
-			try:
-				return np.array(result)
-			except ValueError:
-				return result
+			if numpy:
+				return np.fromstring(result, dtype=np.float64)
+			else:
+				try:
+					return np.array(result)
+				except ValueError:
+					return result
 		path = "datasets/%s/%s" % (dataset_remote.name, method_name)
 		arguments = dict(kwargs)
 		if not dataset_remote.get_auto_fraction():
 			arguments["active_fraction"] = dataset_remote.get_active_fraction()
 		arguments["variables"] = list(dataset_remote.variables.items())
 		arguments["virtual_columns"] = list(dataset_remote.virtual_columns.items())
+		selections = {}
+		for name in dataset_remote.selection_histories.keys():
+			selection = dataset_remote.get_selection(name)
+			if selection:
+				selection = selection.to_dict()
+			selections[name] = selection
+		arguments["selections"] = selections
 		#arguments["selection_name"] = json.dumps(dataset_remote.get_selection_name())
 		body = urlencode(arguments)
 
@@ -384,6 +406,23 @@ class ServerRest(object):
 		#return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 
+	def _schedule_call(self, method_name, dataset_remote, async, **kwargs):
+		def post_process(result):
+			#result = self._check_exception(json.loads(result.body))["result"]
+			try:
+				return np.array(result)
+			except ValueError:
+				return result
+		method = "%s/%s" % (dataset_remote.name, method_name)
+		#arguments = dict(kwargs)
+		#if not dataset_remote.get_auto_fraction():
+		#	arguments["active_fraction"] = dataset_remote.get_active_fraction()
+		#arguments["variables"] = list(dataset_remote.variables.items())
+		#arguments["virtual_columns"] = list(dataset_remote.virtual_columns.items())
+		#arguments["selection_name"] = json.dumps(dataset_remote.get_selection_name())
+		#body = urlencode(arguments)
+
+		return self.schedule(path, arguments, post_process=post_process, async=async)
 
 	def _check_exception(self, reply_json):
 		if "exception" in reply_json:
@@ -475,6 +514,19 @@ class DatasetRest(DatasetRemote):
 
 		self.executor = ServerExecutor()
 
+	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		#selection = self.get_selection(selection)
+		#self.server._call_dataset("count", self, async=False, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection)
+		return self._async(async, self.server._call_dataset("count", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+
+	def _async(self, async, task, progressbar=False):
+		if async:
+			return task
+		else:
+			result = task.get()
+			logger.debug("result = %r", result)
+			return result
+
 	def dtype(self, expression):
 		if expression in self.dtypes:
 			return self.dtypes[expression]
@@ -513,7 +565,95 @@ class TaskServer(Task):
 		vaex.dataset.Task.__init__(self, None, [])
 		self.post_process = post_process
 		self.async = async
+		self.task_queue = []
 
+	def schedule(self, task):
+		self.task_queue.append(task)
+		logger.info("task added, queue: %r", self.task_queue)
+		return task
+
+
+	def execute(self):
+		logger.debug("starting with execute")
+		if self._is_executing:
+			logger.debug("nested execute call")
+			# this situation may happen since in this methods, via a callback (to update a progressbar) we enter
+			# Qt's eventloop, which may execute code that will call execute again
+			# as long as that code is using async tasks (i.e. promises) we can simple return here, since after
+			# the execute is almost finished, any new tasks added to the task_queue will get executing
+			return
+		# u 'column' is uniquely identified by a tuple of (dataset, expression)
+		self._is_executing = True
+		try:
+			t0 = time.time()
+			task_queue_all = list(self.task_queue)
+			if not task_queue_all:
+				logger.info("only had cancelled tasks")
+			logger.info("clearing queue")
+			#self.task_queue = [] # Ok, this was stupid.. in the meantime there may have been new tasks, instead, remove the ones we copied
+			for task in task_queue_all:
+				logger.info("remove from queue: %r", task)
+				self.task_queue.remove(task)
+			logger.info("left in queue: %r", self.task_queue)
+			task_queue_all = [task for task in task_queue_all if not task.cancelled]
+			logger.debug("executing queue: %r" % (task_queue_all))
+
+			#for task in self.task_queue:
+			#$	print task, task.expressions_all
+			datasets = set(task.dataset for task in task_queue_all)
+			cancelled = [False]
+			def cancel():
+				logger.debug("cancelling")
+				self.signal_cancel.emit()
+				cancelled[0] = True
+			try:
+				# process tasks per dataset
+				self.signal_begin.emit()
+				for dataset in datasets:
+					task_queue = [task for task in task_queue_all if task.dataset == dataset]
+					expressions = list(set(expression for task in task_queue for expression in task.expressions_all))
+
+					for task in task_queue:
+						task._results = []
+						task.signal_progress.emit(0)
+					self.server.execute_queue(task_queue)
+					self._is_executing = False
+			except:
+				# on any error we flush the task queue
+				self.signal_cancel.emit()
+				logger.exception("error in task, flush task queue")
+				raise
+			logger.debug("executing took %r seconds" % (time.time() - t0))
+			# while processing the self.task_queue, new elements will be added to it, so copy it
+			logger.debug("cancelled: %r", cancelled)
+			if cancelled[0]:
+				logger.debug("execution aborted")
+				task_queue = task_queue_all
+				for task in task_queue:
+					#task._result = task.reduce(task._results)
+					#task.reject(UserAbort("cancelled"))
+					# remove references
+					task._result = None
+					task._results = None
+			else:
+				task_queue = task_queue_all
+				for task in task_queue:
+					logger.debug("fulfill task: %r", task)
+					if not task.cancelled:
+						task._result = task.reduce(task._results)
+						task.fulfill(task._result)
+						# remove references
+					task._result = None
+					task._results = None
+				self.signal_end.emit()
+				# if new tasks were added as a result of this, execute them immediately
+				# TODO: we may want to include infinite recursion protection
+				self._is_executing = False
+				if len(self.task_queue) > 0:
+					logger.debug("task queue not empty.. start over!")
+					self.execute()
+		finally:
+			self._is_executing = False
 
 if __name__ == "__main__":
 	import vaex

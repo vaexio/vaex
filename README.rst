@@ -4,7 +4,7 @@
 VaeX: Visualization and eXploration
 ===================================
 
-Veax is a graphical tool to visualize and explore large tabular datasets.
+Veax is a program (and Python library) to visualize and explore large tabular datasets using statistics on an N-dimensional grid.
 It mainly renders histograms, density plots and volume rendering  plots for visualization in the order of 10\ :sup:`9` rows in the order of 1 second.
 For exploration it support selection in 1 and 2d, but it can also analyse the columns (dimensions) to find subspaces
 which are richer in information than others.
