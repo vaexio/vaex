@@ -19,6 +19,9 @@ vx.set_log_level_exception()
 #vx.set_log_level_off()
 #vx.set_log_level_debug()
 
+def from_scalars(**kwargs):
+	return vx.from_arrays("test", **{k:np.array([v]) for k, v in kwargs.items()})
+
 class CallbackCounter(object):
 	def __init__(self, return_value=None):
 		self.counter = 0
@@ -85,6 +88,81 @@ class TestDataset(unittest.TestCase):
 		self.dataset.remove_virtual_meta()
 		self.dataset_concat.remove_virtual_meta()
 		self.dataset_concat_dup.remove_virtual_meta()
+
+	def test_uncertainty_propagation(self):
+
+		N = 1000000
+		# distance
+		parallaxes = np.random.normal(1, 0.1, N)
+		ds_many = vx.from_arrays("test", parallax=parallaxes)
+		ds_many.add_virtual_columns_distance_from_parallax("parallax", "distance")
+		distance_std_est = ds_many.std("distance").item()
+
+		ds_1 = vx.from_arrays("test", parallax=np.array([1.]), parallax_uncertainty=np.array([0.1]))
+		ds_1.add_virtual_columns_distance_from_parallax("parallax", "distance", "parallax_uncertainty")
+		distance_std = ds_1.evaluate("distance_uncertainty")[0]
+		self.assertAlmostEqual(distance_std, distance_std_est,2)
+
+	def test_add_virtual_columns_proper_motion_eq2gal(self):
+		def datasets(alpha, delta, pm_a, pm_d):
+			ds_1 = from_scalars(alpha=alpha, delta=delta, pm_a=pm_a, pm_d=pm_d, alpha_e=0.01, delta_e=0.02, pm_a_e=0.3, pm_d_e=0.4)
+			sigmas = ["alpha_e**2", "delta_e**2", "pm_a_e**2", "pm_d_e**2"]
+			cov = [[sigmas[i] if i == j else "" for i in range(4)] for j in range(4)]
+			ds_1.add_virtual_columns_proper_motion_eq2gal("alpha", "delta", "pm_a", "pm_d", "pm_l", "pm_b", cov_matrix_alpha_delta_pma_pmd=cov)
+			N = 1000000
+			# distance
+			alpha =        np.random.normal(0, 0.01, N)  + alpha
+			delta =        np.random.normal(0, 0.02, N)  + delta
+			pm_a =         np.random.normal(0, 0.3, N)  + pm_a
+			pm_d =         np.random.normal(0, 0.4, N)  + pm_d
+			ds_many = vx.from_arrays(alpha=alpha, delta=delta, pm_a=pm_a, pm_d=pm_d)
+			ds_many.add_virtual_columns_proper_motion_eq2gal("alpha", "delta", "pm_a", "pm_d", "pm_l", "pm_b")
+			return ds_1, ds_many
+		ds_1, ds_many = datasets(0, 0, 1, 2)
+
+		if 0: # only for testing the test
+			c1_e = ds_1.evaluate("c1_uncertainty")[0]
+			c2_e = ds_1.evaluate("c2_uncertainty")[0]
+			self.assertAlmostEqual(c1_e, ds_many.std("__proper_motion_eq2gal_C1").item(), delta=0.02)
+			self.assertAlmostEqual(c2_e, ds_many.std("__proper_motion_eq2gal_C2").item(), delta=0.02)
+
+		pm_l_e = ds_1.evaluate("pm_l_uncertainty")[0]
+		pm_b_e = ds_1.evaluate("pm_b_uncertainty")[0]
+		self.assertAlmostEqual(pm_l_e, ds_many.std("pm_l").item(), delta=0.02)
+		self.assertAlmostEqual(pm_b_e, ds_many.std("pm_b").item(), delta=0.02)
+
+	def test_virtual_columns_lbrvr_proper_motion2vcartesian(self):
+		def datasets(l, b, distance, vr, pm_l, pm_b):
+			ds_1 = from_scalars(l=l, b=b, pm_l=pm_l, pm_b=pm_b, vr=vr, distance=distance, distance_e=0.1, vr_e=0.2, pm_long_e=0.3, pm_lat_e=0.4)
+			sigmas = ["vr_e**2", "distance_e**2", "pm_long_e**2", "pm_lat_e**2"]
+			cov = [[sigmas[i] if i == j else "" for i in range(4)] for j in range(4)]
+			ds_1.add_virtual_columns_lbrvr_proper_motion2vcartesian(cov_matrix_vr_distance_pm_long_pm_lat=cov)
+			N = 1000000
+			# distance
+			l =        np.random.normal(0, 0.1, N) * 0 + l
+			b =        np.random.normal(0, 0.1, N) * 0 + b
+			distance = np.random.normal(0, 0.1, N)  + distance
+			vr =       np.random.normal(0, 0.2, N)  + vr
+			pm_l =     np.random.normal(0, 0.3, N)  + pm_l
+			pm_b =     np.random.normal(0, 0.4, N)  + pm_b
+			ds_many = vx.from_arrays(l=l, b=b, pm_l=pm_l, pm_b=pm_b, vr=vr, distance=distance)
+			ds_many.add_virtual_columns_lbrvr_proper_motion2vcartesian()
+			return ds_1, ds_many
+		ds_1, ds_many = datasets(0, 0, 1, 1, 2, 3)
+
+		vx_e = ds_1.evaluate("vx_uncertainty")[0]
+		vy_e = ds_1.evaluate("vy_uncertainty")[0]
+		vz_e = ds_1.evaluate("vz_uncertainty")[0]
+		self.assertAlmostEqual(vx_e, ds_many.std("vx").item(), delta=0.02)
+
+		self.assertAlmostEqual(vy_e, ds_many.std("vy").item(), delta=0.02)
+		self.assertAlmostEqual(vz_e, ds_many.std("vz").item(), delta=0.02)
+		self.assertAlmostEqual(vx_e, 0.2,2)
+		self.assertAlmostEqual(ds_1.evaluate("vx")[0], 1)
+		k = 4.74057
+		self.assertAlmostEqual(ds_1.evaluate("vy")[0], k*2)
+		self.assertAlmostEqual(ds_1.evaluate("vz")[0], k*3)
+
 
 
 	def test_strings(self):
@@ -369,14 +447,7 @@ class TestDataset(unittest.TestCase):
 
 
 	def test_virtual_columns_spherical(self):
-		alpha = np.array([0.])
-		delta = np.array([0.])
-		distance = np.array([1.])
-		dataset = vx.dataset.DatasetArrays()
-		dataset.add_column("alpha", alpha)
-		dataset.add_column("delta", delta)
-		dataset.add_column("distance", distance)
-
+		dataset = from_scalars(alpha=0, delta=0, distance=1)
 		dataset.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance", "x", "y", "z", radians=False)
 
 		subspace = dataset("x", "y", "z")
@@ -385,6 +456,33 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(x, 1)
 		self.assertAlmostEqual(y, 0)
 		self.assertAlmostEqual(z, 0)
+
+
+		def datasets(alpha, delta, distance):
+			ds_1 = from_scalars(alpha=alpha, delta=delta, distance=distance, alpha_e=0.1, delta_e=0.2, distance_e=0.3)
+			sigmas = ["alpha_e**2", "delta_e**2", "distance_e**2"]
+			cov = [[sigmas[i] if i == j else "" for i in range(3)] for j in range(3)]
+			ds_1.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance", cov_matrix_alpha_delta_distance=cov)
+			N = 1000000
+			# distance
+			alpha =        np.random.normal(0, 0.1, N) + alpha
+			delta =        np.random.normal(0, 0.2, N) + delta
+			distance =     np.random.normal(0, 0.3, N) + distance
+			ds_many = vx.from_arrays(alpha=alpha, delta=delta, distance=distance)
+			ds_many.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance")
+			return ds_1, ds_many
+
+		ds_1, ds_many = datasets(0, 0, 1.)
+		x_e = ds_1.evaluate("x_uncertainty")[0]
+		y_e = ds_1.evaluate("y_uncertainty")[0]
+		z_e = ds_1.evaluate("z_uncertainty")[0]
+		self.assertAlmostEqual(x_e, ds_many.std("x").item(), delta=0.02)
+
+		self.assertAlmostEqual(y_e, ds_many.std("y").item(), delta=0.02)
+		self.assertAlmostEqual(z_e, ds_many.std("z").item(), delta=0.02)
+		self.assertAlmostEqual(x_e, 0.3)
+
+		# TODO: from cartesian tot spherical errors
 
 
 		dataset.add_virtual_columns_cartesian_to_spherical("x", "y", "z", "theta", "phi", "r", radians=False)
