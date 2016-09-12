@@ -3171,10 +3171,10 @@ class Dataset(object):
 
 
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
-	def plot(self, x=None, y=None, what="count(*)", extra=None, facet=None, facet_column_count=4, reduce=["colormap"], f=None,
-			 n="normalize", normalize_axis=["what"],
+	def plot(self, x=None, y=None, what="count(*)", reduce=["colormap"], f=None,
+			 normalize="normalize", normalize_axis="what",
 			 vmin=None, vmax=None,
-			 shape=256, limits=None, grid=None, colormap="afmhot", colors=["red", "green", "blue"],
+			 shape=256, limits=None, grid=None, colormap="afmhot", #colors=["red", "green", "blue"],
 			figsize=(8, 8), xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
 			colorbar=True,
 			selection=None,
@@ -3182,48 +3182,46 @@ class Dataset(object):
 			visual=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column"),
 			wrap=True, wrap_columns=4,
 			return_extra=False, hardcopy=None):
-		"""Plot using matplotlib
+		"""Declarative plotting of statistical plots using matplotlib, supports subplots, selections, layers
+
+		Instead of passing x and y, pass a list as x argument for multiple panels. Give what a list of options to have multiple
+		panels. When both are present then will be origanized in a column/row order.
 
 		:param x: Expression to bin in the x direction
 		:param y:                          y
 		:param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
-		:param extra: Possible extra axes
 		:param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
 		:param facet_column_count: number of columns to use for faceting
 		:param reduce:
 		:param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
-		:param n: normalization function, currently only 'normalize' is supported
+		:param normalize: normalization function, currently only 'normalize' is supported
 		:param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
-		:param vmin: instead of automatic normalization, (using n and normalization _axis) scale the data between vmin and vmax to [0, 1]
+		:param vmin: instead of automatic normalization, (using normalize and normalization_axis) scale the data between vmin and vmax to [0, 1]
 		:param vmax: see vmin
 		:param shape: shape/size of the n-D histogram grid
 		:param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
 		:param grid: if the binning is done before by yourself, you can pass it
 		:param colormap: matplotlib colormap to use
-		:param colors:
 		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
 		:param xlabel:
 		:param ylabel:
 		:param aspect:
 		:param tight_layout: call pylab.tight_layout or not
-		:param colorbar: plot a colorbar if True
+		:param colorbar: plot a colorbar or not
 		:param interpolation: interpolation for imshow, possible options are: 'nearest', 'bilinear', 'bicubic', see matplotlib for more
 		:param return_extra:
 		:return:
 		"""
-		# axes order is.. [x,y,z,extra...,row,column]
 		import pylab
 		import matplotlib
-		n = _parse_n(n)
+		n = _parse_n(normalize)
 		if type(shape) == int:
 			shape = (shape,) * 2
 		binby = []
 		for expression in [y,x]:
 			if expression is not None:
 				binby = [expression] + binby
-		if extra:
-			binby.extend(extra)
-		#limits = self.limits(binby, limits)
+
 		if figsize is not None:
 			pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
 		fig = pylab.gcf()
