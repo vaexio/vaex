@@ -272,8 +272,8 @@ class TaskHistogram(Task):
 		#self.grids["counts"].bin_block(info, *blocks)
 		#mask = self.dataset.mask
 		data = self.data[thread_index]
-		mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
 		if self.masked:
+			mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
 			blocks = [block[mask] for block in blocks]
 
 		subblock_weight = None
@@ -339,12 +339,12 @@ OP_MIN_MAX = StatOpMinMax(2, 2)
 OP_ADD_WEIGHT_MOMENTS_01 = StatOp(3, 2, np.nansum)
 OP_ADD_WEIGHT_MOMENTS_012 = StatOp(4, 3, np.nansum)
 
-def _expand(x, dimension):
+def _expand(x, dimension, type=tuple):
 	if _issequence(x):
 		assert len(x) == dimension, "wants to expand %r to dimension %d" % (x, dimension)
-		return tuple(x)
+		return type(x)
 	else:
-		return (x,) * dimension
+		return type((x,) * dimension)
 
 def _expand_shape(shape, dimension):
 	if isinstance(shape, (tuple, list)):
@@ -1804,6 +1804,75 @@ class _BlockScope(object):
 			#logger.exception("error in evaluating: %r" % variable)
 			raise
 
+class _BlockScopeSelection(object):
+	def __init__(self, dataset, i1, i2, selection=None):
+		self.dataset = dataset
+		self.i1 = i1
+		self.i2 = i2
+		self.selection = selection
+
+	def evaluate(self, expression):
+		if expression is True:
+			expression = "default"
+		try:
+			return eval(expression, expression_namespace, self)
+		except:
+			import traceback as tb
+			tb.print_stack()
+			raise
+		#if selection is None:
+		selection = self.get_selection(name)
+		#if selection is None:
+		#	return None
+		cache = self._selection_mask_caches.get(expression)
+		if cache:
+			key = (i1, i2)
+			value = cache.get(key)
+			logger.debug("cache for %r is %r", name, value)
+			if value is None or value[0] != selection:
+				logger.debug("creating new mask")
+				mask = selection.evaluate(name, i1, i2)
+				cache[key] = selection, mask
+			else:
+				selection_in_cache, mask = value
+		return mask
+		result = eval(expression, expression_namespace, self)
+		return result
+
+	def __getitem__(self, variable):
+		logger.debug("getitem for selection: %s", variable)
+		try:
+			selection = self.selection or self.dataset.get_selection(variable)
+			logger.debug("selection: %s %r", selection, self.dataset.selection_histories)
+			key = (self.i1, self.i2)
+			if selection:
+				cache = self.dataset._selection_mask_caches.get(variable)
+				if cache:
+					selection_in_cache, mask = cache.get(key, (None, None))
+					logger.debug("mask for %r is %r", variable, mask)
+					if selection_in_cache == selection:
+						return mask
+				logger.debug("was not cached")
+				mask = selection.evaluate(variable, self.i1, self.i2)
+				if cache:
+					cache[key] = selection, mask
+				return mask
+			else:
+					if variable in self.dataset.get_column_names(strings=True):
+						return self.dataset.columns[variable][self.i1:self.i2]
+					elif variable in list(self.dataset.virtual_columns.keys()):
+						expression = self.dataset.virtual_columns[variable]
+						#self._ensure_buffer(variable)
+						return self.evaluate(expression)#, out=self.buffers[variable])
+						#self.values[variable] = self.buffers[variable]
+					raise KeyError("Unknown variables or column: %r" % (variable,))
+		except:
+			import traceback as tb
+			tb.print_exc()
+			logger.exception("error in evaluating: %r" % variable)
+			raise
+
+
 main_executor = None# vaex.execution.Executor(vaex.multithreading.pool)
 from vaex.execution import Executor
 def get_main_executor():
@@ -3172,80 +3241,95 @@ class Dataset(object):
 
 
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
-	def plot(self, x=None, y=None, z=None, what="count(*)", extra=None, facet=None, facet_column_count=4, reduce=["colormap"], f=None,
-			 n="normalize", normalize_axis=["what"],
+	def plot(self, x=None, y=None, z=None, what="count(*)", reduce=["colormap"], f=None,
+			 normalize="normalize", normalize_axis="what",
 			 vmin=None, vmax=None,
-			 shape=256, limits=None, grid=None, colormap="afmhot", colors=["red", "green", "blue"],
+			 shape=256, limits=None, grid=None, colormap="afmhot", # colors=["red", "green", "blue"],
 			figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
 			colorbar=True,
 			selection=None,
 		 	background_color="white", pre_blend=False, background_alpha=1.,
-			visual=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column"),
+			visual=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what"),
 			wrap=True, wrap_columns=4,
 			return_extra=False, hardcopy=None):
-		"""Plot using matplotlib
+		"""Declarative plotting of statistical plots using matplotlib, supports subplots, selections, layers
 
-		:param x: Expression to bin in the x direction
-		:param y:                          y
-		:param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
-		:param extra: Possible extra axes
-		:param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
-		:param facet_column_count: number of columns to use for faceting
+		Instead of passing x and y, pass a list as x argument for multiple panels. Give what a list of options to have multiple
+		panels. When both are present then will be origanized in a column/row order.
+
+		This methods creates a 6 dimensional 'grid', where each dimension can map the a visual dimension.
+		The grid dimensions are:
+
+		 * x: shape determined by shape, content by x argument or the first dimension of each space
+		 * y:   ,,
+		 * z:  related to the z argument
+		 * selection: shape equals length of selection argument
+		 * what: shape equals length of what argument
+		 * space: shape equals length of x argument if multiple values are given
+
+		 By default, this its shape is (1, 1, 1, 1, shape, shape) (where x is the last dimension)
+
+		The visual dimensions are
+
+		 * x: x coordinate on a plot / image (default maps to grid's x)
+		 * y: y   ,,                         (default maps to grid's y)
+		 * layer: each image in this dimension is blended togeher to one image (default maps to z)
+		 * fade: each image is shown faded after the next image (default mapt to selection)
+		 * row: rows of subplots (default maps to space)
+		 * columns: columns of subplot (default maps to what)
+
+		All these mappings can be changes by the visual argument, some examples:
+
+		>>> ds.plot('x', 'y', what=['mean(x)', 'correlation(vx, vy)'])
+
+		Will plot each 'what' as a column
+
+		>>> ds.plot('x', 'y', selection=['FeH < -3', '(FeH >= -3) & (FeH < -2)'], visual=dict(column='selection'))
+
+		Will plot each selection as a column, instead of a faded on top of each other.
+
+
+
+
+
+		:param x: Expression to bin in the x direction (by default maps to x), or list of pairs, like [['x', 'y'], ['x', 'z']], if multiple pairs are given, this dimension maps to rows by default
+		:param y:                          y           (by default maps to y)
+		:param z: Expression to bin in the z direction, followed by a :start,end,shape  signature, like 'FeH:-3,1:5' will produce 5 layers between -10 and 10 (by default maps to layer)
+		:param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum, std('x') the standard deviation, correlation('vx', 'vy') the correlation coefficient. Can also be a list of values, like ['count(x)', std('vx')], (by default maps to column)
 		:param reduce:
 		:param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
-		:param n: normalization function, currently only 'normalize' is supported
+		:param normalize: normalization function, currently only 'normalize' is supported
 		:param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
-		:param vmin: instead of automatic normalization, (using n and normalization _axis) scale the data between vmin and vmax to [0, 1]
+		:param vmin: instead of automatic normalization, (using normalize and normalization_axis) scale the data between vmin and vmax to [0, 1]
 		:param vmax: see vmin
 		:param shape: shape/size of the n-D histogram grid
 		:param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
 		:param grid: if the binning is done before by yourself, you can pass it
 		:param colormap: matplotlib colormap to use
-		:param colors:
 		:param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
 		:param xlabel:
 		:param ylabel:
 		:param aspect:
 		:param tight_layout: call pylab.tight_layout or not
-		:param colorbar: plot a colorbar if True
+		:param colorbar: plot a colorbar or not
 		:param interpolation: interpolation for imshow, possible options are: 'nearest', 'bilinear', 'bicubic', see matplotlib for more
 		:param return_extra:
 		:return:
 		"""
-		# axes order is.. [x,y,z,extra...,row,column]
 		import pylab
 		import matplotlib
-		n = _parse_n(n)
+		n = _parse_n(normalize)
 		if type(shape) == int:
 			shape = (shape,) * 2
 		binby = []
 		for expression in [y,x]:
 			if expression is not None:
 				binby = [expression] + binby
-		if extra:
-			binby.extend(extra)
-		#limits = self.limits(binby, limits)
-		#print pylab.gca()
 		fig = pylab.gcf()
 		if figsize is not None:
-			#pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
 			fig.set_size_inches(*figsize)
 		import re
-		if facet is not None:
-			match = re.match("(.*):(.*),(.*),(.*)", facet)
-			if match:
-				groups = match.groups()
-				import ast
-				facet_expression = groups[0]
-				facet_limits = [ast.literal_eval(groups[1]), ast.literal_eval(groups[2])]
-				facet_count = ast.literal_eval(groups[3])
-				limits.append(facet_limits)
-				binby = binby + [facet_expression]
-				shape = (facet_count,) + shape
-			else:
-				raise ValueError("Could not understand 'facet' argument %r, expected something in form: 'column:-1,10:5'" % facet)
 
-		#axes.set_aspect(aspect)
 		what_units = None
 		whats = _ensure_list(what)
 		selections = _ensure_list(selection)
@@ -3306,36 +3390,37 @@ class Dataset(object):
 
 		grid_axes = dict(x=-1, y=-2, z=-3, selection=-4, what=-5, subspace=-6)
 		visual_axes = dict(x=-1, y=-2, layer=-3, fade=-4, column=-5, row=-6)
-		visual_default=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column")
+		#visual_default=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column")
+		visual_default=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what")
 		invert = lambda x: dict((v, k) for k, v in x.iteritems())
 		#visual_default_reverse = invert(visual_default)
 		#visual_ = visual_default
 		#visual = dict(visual) # copy for modification
 		# add entries to avoid mapping multiple times to the same axis
-		free_visual_axes = visual_default.values()
+		free_visual_axes = visual_default.keys()
 		#visual_reverse = invert(visual)
 		logger.debug("1: %r %r", visual, free_visual_axes)
-		for grid_name, visual_name in visual.items():
+		for visual_name, grid_name in visual.items():
 			if visual_name in free_visual_axes:
 				free_visual_axes.remove(visual_name)
 			else:
 				raise ValueError("visual axes %s used multiple times" % visual_name)
 		logger.debug("2: %r %r", visual, free_visual_axes)
-		for grid_name, visual_name in visual_default.items():
-			if visual_name in free_visual_axes and grid_name not in visual:
+		for visual_name, grid_name in visual_default.items():
+			if visual_name in free_visual_axes and grid_name not in visual.values():
 				free_visual_axes.remove(visual_name)
-				visual[grid_name] = visual_name
+				visual[visual_name] = grid_name
 		logger.debug("3: %r %r", visual, free_visual_axes)
-		for grid_name, visual_name in visual_default.items():
-			if visual_name not in free_visual_axes and grid_name not in visual:
-				visual[grid_name] = free_visual_axes.pop(0)
+		for visual_name, grid_name in visual_default.items():
+			if visual_name not in free_visual_axes and grid_name not in visual.values():
+				visual[free_visual_axes.pop(0)] = grid_name
 
 		logger.debug("4: %r %r", visual, free_visual_axes)
 
 
-		#visual_.update(visual)
-		#visual = visual_
 		visual_reverse = invert(visual)
+		# TODO: the meaning of visual and visual_reverse is changed below this line, super confusing
+		visual, visual_reverse = visual_reverse, visual
 		move = {}
 		for grid_name, visual_name in visual.items():
 			if visual_axes[visual_name] in visual.values():
@@ -3345,9 +3430,9 @@ class Dataset(object):
 			move[grid_axes[grid_name]] = visual_axes[visual_name]
 		logger.debug("grid shape: %r", total_grid.shape)
 		logger.debug("visual: %r", visual.items())
-		normalize_axis = _ensure_list(normalize_axis)
+		#normalize_axis = _ensure_list(normalize_axis)
 
-		fs = _expand(f, total_grid.shape[grid_axes[normalize_axis[0]]])
+		fs = _expand(f, total_grid.shape[grid_axes[normalize_axis]])
 		#labels["y"] = ylabels
 		what_labels = []
 		if grid is None:
@@ -3392,7 +3477,7 @@ class Dataset(object):
 							raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
 					else:
 						grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
-					total_grid[i,j,:,:] = grid
+					total_grid[i,j,:,:] = grid[:,None,...]
 			labels["what"] = what_labels
 		else:
 			total_grid = np.broadcast_to(grid, (1,) * 4 + grid.shape)
@@ -3448,26 +3533,32 @@ class Dataset(object):
 
 		if 1:
 
-
 			# this loop could be done using axis arguments everywhere
-			assert len(normalize_axis) == 1, "currently only 1 normalization axis supported"
+			#assert len(normalize_axis) == 1, "currently only 1 normalization axis supported"
 			grid = visual_grid * 1.
 			fgrid = visual_grid * 1.
 			ngrid = visual_grid * 1.
 			#colorgrid = np.zeros(ngrid.shape + (4,), float)
-			vmaxs = []
-			vmins = []
-			for name in normalize_axis:
-				axis = visual_axes[visual[name]]
+			vmaxs = _expand(vmin, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
+			vmins = _expand(vmax, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
+			#for name in normalize_axis:
+			if 1:
+				axis = visual_axes[visual[normalize_axis]]
 				for i in range(visual_grid.shape[axis]):
 					item = [slice(None, None, None), ] * len(visual_grid.shape)
 					item[axis] = i
 					item = tuple(item)
 					f = _parse_f(fs[i])
 					fgrid.__setitem__(item, f(grid.__getitem__(item)))
-					nsubgrid, vmin, vmax = n(fgrid.__getitem__(item))
-					vmins.append(vmin)
-					vmaxs.append(vmax)
+					if vmins[i] is not None and vmaxs[i] is not None:
+						nsubgrid = fgrid.__getitem__(item) * 1
+						nsubgrid -= vmins[i]
+						nsubgrid /= (vmaxs[i]-vmins[i])
+						nsubgrid = np.clip(nsubgrid, 0, 1)
+					else:
+						nsubgrid, vmin, vmax = n(fgrid.__getitem__(item))
+						vmins[i] = vmin
+						vmaxs[i] = vmax
 					ngrid.__setitem__(item, nsubgrid)
 
 			if 0: # TODO: above should be like the code below, with custom vmin and vmax
@@ -3551,7 +3642,7 @@ class Dataset(object):
 					else:
 						what_index = 0
 					for r in reduce:
-						r = _parse_reduction(r, colormaps[what_index], colors)
+						r = _parse_reduction(r, colormaps[what_index], [])
 						rgrid = r(rgrid)
 					row = facet_index / facet_columns
 					column = facet_index % facet_columns
@@ -4251,24 +4342,12 @@ class Dataset(object):
 			return self.variables[name]
 
 	def evaluate_selection_mask(self, name, i1, i2, selection=None):
+		i1 = i1 or 0
+		i2 = i2 or len(self)
+		scope = _BlockScopeSelection(self, i1, i2, selection)
+		return scope.evaluate(name)
+
 		#if _is_string(selection):
-		if name is True:
-			name = "default"
-		if selection is None:
-			selection = self.get_selection(name)
-		if selection is None:
-			return None
-		cache = self._selection_mask_caches[name]
-		key = (i1, i2)
-		value = cache.get(key)
-		logger.debug("cache for %r is %r", name, value)
-		if value is None or value[0] != selection:
-			logger.debug("creating new mask")
-			mask = selection.evaluate(name, i1, i2)
-			cache[key] = selection, mask
-		else:
-			selection_in_cache, mask = value
-		return mask
 
 
 
@@ -4678,9 +4757,9 @@ class Dataset(object):
 		x_out = name_prefix+"_out_x"
 		y_out = name_prefix+"_out_y"
 		z_out = name_prefix+"_out_z"
-		#self.add_virtual_column(x_in, "cos({long_in})*cos({lat_in})".format(**locals()))
-		#self.add_virtual_column(y_in, "sin({long_in})*cos({lat_in})".format(**locals()))
-		#self.add_virtual_column(z_in, "sin({lat_in})".format(**locals()))
+		self.add_virtual_column(x_in, "cos({long_in})*cos({lat_in})".format(**locals()))
+		self.add_virtual_column(y_in, "sin({long_in})*cos({lat_in})".format(**locals()))
+		self.add_virtual_column(z_in, "sin({lat_in})".format(**locals()))
 		#self.add_virtual_columns_spherical_to_cartesian(long_in, lat_in, None, x_in, y_in, z_in, cov_matrix_alpha_delta=)
 		self.add_virtual_columns_matrix3d(x_in, y_in, z_in, x_out, y_out, z_out, \
 										  matrix, name_prefix+"_matrix")

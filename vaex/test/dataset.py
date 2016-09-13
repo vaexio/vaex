@@ -1194,14 +1194,13 @@ class TestDataset(unittest.TestCase):
 		self.dataset.select("x <= 5", name="inverse")
 
 
-		counts = self.dataset.count("x", selection=["default", "inverse"])
-		np.testing.assert_array_almost_equal(counts, [4, 6])
+		counts = self.dataset.count("x", selection=["default", "inverse", "x > 5", "default | inverse"])
+		np.testing.assert_array_almost_equal(counts, [4, 6, 4, 10])
 
 
 		self.dataset.select("x <= 1", name="inverse", mode="subtract")
 		counts = self.dataset.count("x", selection=["default", "inverse"])
 		np.testing.assert_array_almost_equal(counts, [4, 4])
-
 
 		total_subset = self.dataset("x").selected().sum()
 		self.assertLess(total_subset, total)
