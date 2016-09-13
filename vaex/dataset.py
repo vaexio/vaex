@@ -2418,7 +2418,6 @@ class Dataset(object):
 			return task
 		@delayed
 		def finish(*stats_args):
-			print("stats_args", stats_args)
 			stats = np.array(stats_args)
 			sum = stats[...,1]
 			return vaex.utils.unlistify(waslist, sum)
@@ -4529,10 +4528,13 @@ class Dataset(object):
 		if not radians:
 			long_in = "pi/180.*%s" % long_in
 			lat_in = "pi/180.*%s" % lat_in
+			to_radians = "*pi/180" # used for the derivatives
+		else:
+			to_radians = ""
 		c1 = name_prefix + "_C1"
 		c2 = name_prefix + "_C2"
-		self.add_variable("right_ascension_galactic_pole", np.radians(192.85).item())
-		self.add_variable("declination_galactic_pole", np.radians(27.12).item())
+		self.add_variable("right_ascension_galactic_pole", np.radians(192.85).item(), overwrite=False)
+		self.add_variable("declination_galactic_pole", np.radians(27.12).item(), overwrite=False)
 		self.add_virtual_column(c1, "sin(declination_galactic_pole) * cos({lat_in}) - cos(declination_galactic_pole)*sin({lat_in})*cos({long_in}-right_ascension_galactic_pole)".format(**locals()))
 		self.add_virtual_column(c2, "cos(declination_galactic_pole) * sin({long_in}-right_ascension_galactic_pole)".format(**locals()))
 		self.add_virtual_column(pm_long_out, "({c1} * {pm_long} + {c2} * {pm_lat})/sqrt({c1}**2+{c2}**2)".format(**locals()))
@@ -4542,10 +4544,10 @@ class Dataset(object):
 			# f(long, lat, pm_long, pm_lat) = [pm_long, pm_lat, c1, c2] = [pm_long, pm_lat, ..., ...]
 			J = [ [None, None, "1", None],
                   [None, None, None, "1"],
-				  [                                                    "cos(declination_galactic_pole)*sin({lat_in})*sin({long_in}-right_ascension_galactic_pole)",
-				     "-sin(declination_galactic_pole) * sin({lat_in}) - cos(declination_galactic_pole)*cos({lat_in})*cos({long_in}-right_ascension_galactic_pole)",
+				  [                                                    "cos(declination_galactic_pole)*sin({lat_in})*sin({long_in}-right_ascension_galactic_pole){to_radians}",
+				     "-sin(declination_galactic_pole) * sin({lat_in}){to_radians} - cos(declination_galactic_pole)*cos({lat_in})*cos({long_in}-right_ascension_galactic_pole){to_radians}",
 					 None, None],
-				  ["cos(declination_galactic_pole)*cos({long_in}-right_ascension_galactic_pole)", None, None, None],
+				  ["cos(declination_galactic_pole)*cos({long_in}-right_ascension_galactic_pole){to_radians}", None, None, None],
 			  ]
 
 			cov_matrix_pm_long_pm_lat_c1_c2 = [[""] * 4 for i in range(4)]
@@ -4591,9 +4593,38 @@ class Dataset(object):
 						#self.add_virtual_column(cnames[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
 						#sigma = cov_matrix_vr_vl_vb[i][j].format(**locals())
 
-	#mu
+	def add_virtual_columns_proper_motion2vperpendicular(self, distance="distance", pm_long="pm_l", pm_lat="pm_b",
+														   vl="vl", vb="vb",
+														   cov_matrix_distance_pm_long_pm_lat=None,
+														   uncertainty_postfix="_uncertainty", covariance_postfix="_covariance",
+														   radians=False):
+		k = 4.74057
+		self.add_variable("k", k, overwrite=False)
+		self.add_virtual_column(vl, "k*{pm_long}*{distance}".format(**locals()))
+		self.add_virtual_column(vb, "k* {pm_lat}*{distance}".format(**locals()))
+		if cov_matrix_distance_pm_long_pm_lat:
+			# function and it's jacobian
+			# f_obs(distance, pm_long, pm_lat) = [v_long, v_lat] = (k * pm_long * distance, k * pm_lat * distance)
+			J = [["k * {pm_long}",  "k * {distance}", ""],
+				 ["k * {pm_lat}",                 "", "k * {distance}"]]
 
-	#self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
+			cov_matrix_vl_vb = [[""] * 2 for i in range(2)]
+			for i in range(2):
+				for j in range(2):
+					for k in range(3):
+						for l in range(3):
+							sigma = cov_matrix_distance_pm_long_pm_lat[k][l]
+							if sigma and J[i][k] and J[j][l]:
+								cov_matrix_vl_vb[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
+
+			names = [vl, vb]
+			for i in range(2):
+				for j in range(i+1):
+					sigma = cov_matrix_vl_vb[i][j].format(**locals())
+					if i != j:
+						self.add_virtual_column(names[i]+"_" + names[j]+covariance_postfix, sigma)
+					else:
+						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
 
 	def add_virtual_columns_lbrvr_proper_motion2vcartesian(self, long_in="l", lat_in="b", distance="distance", pm_long="pm_l", pm_lat="pm_b",
 														   vr="vr", vx="vx", vy="vy", vz="vz",
@@ -4657,28 +4688,7 @@ class Dataset(object):
 		:return:
 		"""
 		k = 4.74057
-		if 0:
-			v_sun_lsr = array([10.0, 5.2, 7.2])
-			v_lsr_gsr = array([0., 220, 0])
-			theta0 = 122.932
-			#d_NGP = 27.128336111111111
-			#al_NGP = 192.10950833333334
-			al_NGP = 192.85948
-			d_NGP = 27.12825
-			c = numpy.matrix([
-				[cosd(al_NGP),  sind(al_NGP), 0],
-				[sind(al_NGP), -cosd(al_NGP), 0],
-				[0, 0, 1]])
-			b = numpy.matrix([
-				[-sind(d_NGP), 0, cosd(d_NGP)],
-				[0, -1, 0],
-				[cosd(d_NGP), 0, sind(d_NGP)]])
-			a = numpy.matrix([
-				[cosd(theta0),  sind(theta0), 0],
-				[sind(theta0), -cosd(theta0), 0],
-				[0, 0, 1]])
-			T = a*b*c
-		self.add_variable("k", k)
+		self.add_variable("k", k, overwrite=False)
 		A = [["cos({a})*cos({d})", "-sin({a})", "-cos({a})*sin({d})"],
 			 ["sin({a})*cos({d})",  "cos({a})", "-sin({a})*sin({d})"],
 			 [         "sin({d})",         "0",           "cos({d})"]]
@@ -4809,6 +4819,9 @@ class Dataset(object):
 		if not radians:
 			alpha = "pi/180.*%s" % alpha
 			delta = "pi/180.*%s" % delta
+			to_radians = "*pi/180" # used for the derivatives
+		else:
+			to_radians = ""
 		if center is not None:
 			self.add_variable(center_name, center)
 		if center:
@@ -4831,9 +4844,9 @@ class Dataset(object):
 			# f_obs(alpha, delta, distance) = [x, y, z] = (cos(alpha) * cos(delta) * distance,
 			# 												sin(alpha) * cos(delta) * distance,
 			# 												sin(delta) * distance)
-			J = [ ["-sin({alpha})*cos({delta})*{distance}", "-cos({alpha})*sin({delta})*{distance}", "cos({alpha})*cos({delta})"],
-				  [" cos({alpha})*cos({delta})*{distance}", "-sin({alpha})*sin({delta})*{distance}", "sin({alpha})*cos({delta})"],
-				 [                              None,                     "cos({delta})*{distance}",              "sin({delta})"]]
+			J = [ ["-sin({alpha})*cos({delta})*{distance}{to_radians}", "-cos({alpha})*sin({delta})*{distance}{to_radians}", "cos({alpha})*cos({delta})"],
+				  [" cos({alpha})*cos({delta})*{distance}{to_radians}", "-sin({alpha})*sin({delta})*{distance}{to_radians}", "sin({alpha})*cos({delta})"],
+				 [                              None,                     "cos({delta})*{distance}{to_radians}",              "sin({delta})"]]
 
 			cov_matrix_xyz = [[""] * 3 for i in range(3)]
 			for i in range(3):
@@ -4923,7 +4936,7 @@ class Dataset(object):
 		self.signal_column_changed.emit(self, name, "delete")
 		self.write_virtual_meta()
 
-	def add_variable(self, name, expression):
+	def add_variable(self, name, expression, overwrite=True):
 		"""Add a variable column to the dataset
 
 		:param: str name: name of virtual varible
@@ -4936,9 +4949,10 @@ class Dataset(object):
 		>>> dataset.add_virtual_column("x_prime", "x-center")
 		>>> dataset.select("x_prime < 0")
 		"""
-		self.variables[name] = expression
-		self.signal_variable_changed.emit(self, name, "add")
-		self.write_virtual_meta()
+		if overwrite or name not in self.variables:
+			self.variables[name] = expression
+			self.signal_variable_changed.emit(self, name, "add")
+			self.write_virtual_meta()
 
 	def delete_variable(self, name):
 		"""Deletes a variable from a dataset"""
