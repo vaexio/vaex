@@ -240,6 +240,14 @@ class ColumnsTable(QtGui.QWidget):
 		self.action_add.menu().addAction(self.action_gal_to_aitoff)
 		self.action_gal_to_aitoff.triggered.connect(lambda *args: add_aitoff(self, self.dataset, True))
 
+		self.action_eq2gal_pm = QtGui.QAction(QtGui.QIcon(iconfile('table-insert-column')), 'Equatorial to galactic proper motion', self)
+		#self.action_gal_to_aitoff.setShortcut("Ctrl+A")
+		self.action_add.menu().addAction(self.action_eq2gal_pm)
+		self.action_eq2gal_pm.triggered.connect(lambda *args: add_proper_motion_eq2gal(self, self.dataset))
+
+
+
+
 		#action_group_add.add(self.action_add)
 
 		self.action_add.triggered.connect(self.onAdd)
