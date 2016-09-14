@@ -325,7 +325,8 @@ class FitsBinTable(DatasetMemoryMapped):
 									try:
 										return astropy.units.Unit(unit)
 									except:
-										logger.exception("could not parse unit: %r", unit)
+										#logger.exception("could not parse unit: %r", unit)
+										pass
 									try:
 										unit = re.match(".*\[(.*)\]", unit).groups()[0]
 										return astropy.units.Unit(unit)
