@@ -2197,6 +2197,12 @@ class Dataset(object):
 		self.selection_history_indices = collections.defaultdict(lambda: -1)
 		self._auto_fraction= False
 
+	def map_reduce(self, map, reduce, arguments, async=False):
+		#def map_wrapper(*blocks):
+		task = TaskMapReduce(self, arguments, map, reduce, info=False)
+		self.executor.schedule(task)
+		return self._async(async, task)
+
 
 	@docsubst
 	def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, async=False):

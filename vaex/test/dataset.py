@@ -1387,7 +1387,7 @@ class TestDataset(unittest.TestCase):
 import sys
 test_port = 29110 + sys.version_info[0] * 10 + sys.version_info[1]
 
-class TestDatasetRemote(TestDataset):
+class T_estDatasetRemote(TestDataset):
 	use_websocket = False
 	def setUp(self):
 		global test_port
@@ -1459,7 +1459,7 @@ class TestDatasetRemote(TestDataset):
 		pass
 
 import vaex.distributed
-class TestDatasetDistributed(unittest.TestCase):
+class T_estDatasetDistributed(unittest.TestCase):
 	use_websocket = False
 	def setUp(self):
 		global test_port
