@@ -764,12 +764,14 @@ class LayerTable(object):
 
 								scale = self.plot_window.state.vector_grid_size / self.vector_scale
 								width = self.vector_head_width * 0.1/self.plot_window.state.vector_grid_size
+								xsign = 1 if self.state.ranges_grid[0][0] <= self.state.ranges_grid[0][1] else -1
+								ysign = 1 if self.state.ranges_grid[1][0] <= self.state.ranges_grid[1][1] else -1
 								if vz is not None and self.vectors_color_code_3rd:
 									colors = vz
 									colormap = self.state.colormap_vector
-									axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], colors[mask], cmap=colormap, scale_units="width", scale=scale, width=width)
+									axes.quiver(x2d[mask], y2d[mask], vx[mask] * xsign, vy[mask] * ysign, colors[mask], cmap=colormap, scale_units="width", scale=scale, width=width)
 								else:
-									axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], color=self.color, scale_units="width", scale=scale, width=width)
+									axes.quiver(x2d[mask], y2d[mask], vx[mask] * xsign, vy[mask] * ysign, color=self.color, scale_units="width", scale=scale, width=width)
 								logger.debug("quiver: %s", self.vector_scale)
 								colors = None
 		if 0: #if self.coordinates_picked_row is not None:

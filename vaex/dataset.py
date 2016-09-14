@@ -3245,10 +3245,10 @@ class Dataset(object):
 
 
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
-	def plot(self, x=None, y=None, z=None, what="count(*)", reduce=["colormap"], f=None,
+	def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,
 			 normalize="normalize", normalize_axis="what",
 			 vmin=None, vmax=None,
-			 shape=256, limits=None, grid=None, colormap="afmhot", # colors=["red", "green", "blue"],
+			 shape=256, vshape=32, limits=None, grid=None, colormap="afmhot", # colors=["red", "green", "blue"],
 			figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
 			colorbar=True,
 			selection=None,
@@ -3345,12 +3345,15 @@ class Dataset(object):
 			x = list(zip(x, y))
 			limits = [limits]
 
+		# every plot has its own vwhat for now
+		vwhats = _expand_limits(vwhat, len(x)) # TODO: we're abusing this function..
 		logger.debug("x: %s", x)
 		limits = self.limits(x, limits)
 		logger.debug("limits: %r", limits)
 
 		labels = {}
 		shape = _expand_shape(shape, 2)
+		vshape = _expand_shape(shape, 2)
 		if z is not None:
 			match = re.match("(.*):(.*),(.*),(.*)", z)
 			if match:
@@ -3364,6 +3367,7 @@ class Dataset(object):
 				x = [[z_expression] + list(k) for k in x]
 				limits = np.array([[z_limits]  + list(k) for k in limits])
 				shape =  (z_shape,)+ shape
+				vshape =  (z_shape,)+ vshape
 				logger.debug("x = %r", x)
 				values = np.linspace(z_limits[0], z_limits[1], num=z_shape+1)
 				labels["z"] = list(["%s <= %s < %s" % (v1, z_expression, v2) for v1, v2 in zip(values[:-1], values[1:])])
@@ -3376,8 +3380,10 @@ class Dataset(object):
 		# z == 1
 		if z is None:
 			total_grid = np.zeros( (len(x), len(whats), len(selections), 1) + shape, dtype=float)
+			total_vgrid = np.zeros( (len(x), len(whats), len(selections), 1) + vshape, dtype=float)
 		else:
 			total_grid = np.zeros( (len(x), len(whats), len(selections)) + shape, dtype=float)
+			total_vgrid = np.zeros( (len(x), len(whats), len(selections)) + vshape, dtype=float)
 		logger.debug("shape of total grid: %r", total_grid.shape)
 		axis = dict(plot=0, what=1, selection=2)
 		xlimits = limits
@@ -3437,6 +3443,7 @@ class Dataset(object):
 		#normalize_axis = _ensure_list(normalize_axis)
 
 		fs = _expand(f, total_grid.shape[grid_axes[normalize_axis]])
+		#assert len(vwhat)
 		#labels["y"] = ylabels
 		what_labels = []
 		if grid is None:
@@ -3543,8 +3550,8 @@ class Dataset(object):
 			fgrid = visual_grid * 1.
 			ngrid = visual_grid * 1.
 			#colorgrid = np.zeros(ngrid.shape + (4,), float)
-			vmaxs = _expand(vmin, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
-			vmins = _expand(vmax, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
+			vmins = _expand(vmin, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
+			vmaxs = _expand(vmax, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
 			#for name in normalize_axis:
 			if 1:
 				axis = visual_axes[visual[normalize_axis]]

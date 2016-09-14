@@ -321,13 +321,33 @@ class FitsBinTable(DatasetMemoryMapped):
 								ucd_header_name = "TUCD%d" % (i+1)
 								if ucd_header_name in table.header:
 									self.ucds[column_name] = table.header[ucd_header_name]
-								#unit_header_name = "TUCD%d" % (i+1)
-								#if ucd_header_name in table.header:
+								def _try_unit(unit):
+									try:
+										return astropy.units.Unit(unit)
+									except:
+										logger.exception("could not parse unit: %r", unit)
+									try:
+										unit = re.match(".*\[(.*)\]", unit).groups()[0]
+										return astropy.units.Unit(unit)
+									except:
+										pass#logger.exception("could not parse unit: %r", unit)
+								print(column.unit)
 								if column.unit:
 									try:
-										self.units[column_name] = astropy.units.Unit(column.unit)
+										unit = _try_unit(column.unit)
+										if unit:
+											self.units[column_name] = unit
 									except:
-										logger.debug("could not understand unit: %s" % column.unit)
+										logger.exception("could not understand unit: %s" % column.unit)
+								else: # we may want to try ourselves
+									unit_header_name = "TUNIT%d" % (i+1)
+									if unit_header_name in table.header:
+										unit_str = table.header[unit_header_name]
+										unit = _try_unit(unit_str)
+										if unit:
+											self.unit[column_name] = unit
+								#unit_header_name = "TUCD%d" % (i+1)
+								#if ucd_header_name in table.header:
 
 								# flatlength == length * arraylength
 								flatlength, fitstype = int(column.format[:-1]),column.format[-1]
