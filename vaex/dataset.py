@@ -424,16 +424,15 @@ class TaskStatistic(Task):
 			if len(selection_blocks) == 0 and subblock_weight is None:
 				if self.op == OP_ADD1: # special case for counting '*' (i.e. the number of rows)
 					if selection:
-						this_thread_grid[i][0] = np.sum(mask)
+						this_thread_grid[i][0] += np.sum(mask)
 					else:
-						this_thread_grid[i][0] = i2-i1
+						this_thread_grid[i][0] += i2-i1
 				else:
 					raise ValueError("Nothing to compute for OP %s" % self.op.code)
 
 			blocks = list(blocks) # histogramNd wants blocks to be a list
 			vaex.vaexfast.statisticNd(selection_blocks, subblock_weight, this_thread_grid[i], self.minima, self.maxima, self.op.code)
-
-		return i1
+		return i2-i1
 		#return map(self._map, blocks)#[self.map(block) for block in blocks]
 
 	def reduce(self, results):

@@ -9,6 +9,7 @@ import matplotlib.colors
 import traceback
 
 import vaex
+import vaex.delayed
 import vaex.ui.storage
 import vaex.ui.undo
 import vaex.ui.colormaps
@@ -892,7 +893,7 @@ class LayerTable(object):
 		#self.plot_window.queue_update(layer=self)
 		self.update()
 		#self.add_jobs()
-		self.label_selection_info_update()
+		#self.label_selection_info_update()
 		#self.plot()
 
 	def on_column_changed(self, dataset, column, type):
@@ -983,7 +984,7 @@ class LayerTable(object):
 			self.dataset._set_mask(mask)
 			self.execute()
 		self.check_selection_undo_redo()
-		self.label_selection_info_update()
+		#self.label_selection_info_update()
 
 	def execute(self):
 		error_text = self.dataset.executor.execute()
@@ -1093,6 +1094,13 @@ class LayerTable(object):
 				.then(None, self.on_error)
 			promises.append(histogram_promise)
 
+			@vaex.delayed.delayed
+			def update_count(count):
+				print("COUNT ", count)
+				self.label_selection_info_update(count)
+			update_count(self.dataset.count(selection=True, async=True))
+		else:
+			self.label_selection_info_update(None)
 
 		# the weighted ones
 		if self.state.weight_expression:
@@ -2130,7 +2138,7 @@ class LayerTable(object):
 
 		self.label_selection_info = QtGui.QLabel("should not see me", page)
 		self.layout_page_selection.addWidget(self.label_selection_info)
-		self.label_selection_info_update()
+		#self.label_selection_info_update()
 
 		def on_select_expression():
 			logger.debug("making selection by expression")
@@ -2198,13 +2206,13 @@ class LayerTable(object):
 
 
 
-	def label_selection_info_update(self):
+	def label_selection_info_update(self, count):
 		# TODO: support this again
 		#return
-		if self.dataset.mask is None:
+		if count is None:
 			self.label_selection_info.setText("no selection")
 		else:
-			N_sel = int(np.sum(self.dataset.mask))
+			N_sel = int(count)
 			N_total = len(self.dataset)
 			self.label_selection_info.setText("selected {:,} ({:.2f}%)".format(N_sel, N_sel*100./float(N_total)))
 
