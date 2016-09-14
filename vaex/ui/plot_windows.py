@@ -3277,7 +3277,13 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			axes.rgb_images = []
 			N = self.state.grid_size
 			background = np.ones((N, N, 4), dtype=np.float64)
-			background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(self.background_color)
+			background_color = self.background_color
+			if background_color == "auto":
+				if self.blend_mode in "screen lighten".split():
+					background_color = "black"
+				else:
+					background_color = "white"
+			background[:,:,0:3] = matplotlib.colors.colorConverter.to_rgb(background_color)
 			background[:,:,3] = 1.
 			axes.placeholder = axes.imshow(background, extent=ranges, origin="lower")
 			axes.rgb_images.append(background)
