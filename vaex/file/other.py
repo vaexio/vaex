@@ -331,7 +331,6 @@ class FitsBinTable(DatasetMemoryMapped):
 										return astropy.units.Unit(unit)
 									except:
 										pass#logger.exception("could not parse unit: %r", unit)
-								print(column.unit)
 								if column.unit:
 									try:
 										unit = _try_unit(column.unit)
