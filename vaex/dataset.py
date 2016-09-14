@@ -4516,6 +4516,50 @@ class Dataset(object):
 		import kapteyn.celestial as c
 		self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
 
+
+	def _covariance_matrix_guess(self, columns, full=False):
+		all_column_names = self.get_column_names(virtual=True)
+		def _guess(x, y):
+			if x == y:
+				postfixes = ["_error", "_uncertainty", "e"]
+				prefixes = ["e"]
+				for postfix in postfixes:
+					if x + postfix in all_column_names:
+						return x+postfix
+				for prefix in prefixes:
+					if prefix + x in all_column_names:
+						return prefix + x
+				if full:
+					raise ValueError("No uncertainty found for %r" % x)
+			else:
+
+				postfixes = ["_cov", "_covariance"]
+				for postfix in postfixes:
+					if x +"_" + y + postfix in all_column_names:
+						return x +"_" + y + postfix
+					if y +"_" + x + postfix in all_column_names:
+						return y +"_" + x + postfix
+				postfixes = ["_correlation", "_corr"]
+				for postfix in postfixes:
+					if x +"_" + y + postfix in all_column_names:
+						return x +"_" + y + postfix + " * " +  _guess(x, x) + " * " +  _guess(y, y)
+					if y +"_" + x + postfix in all_column_names:
+						return y +"_" + x + postfix  + " * " +  _guess(y, y) + " * " +  _guess(x, x)
+				if full:
+					raise ValueError("No covariance or correlation found for %r and %r" % (x, y))
+			return ""
+		N = len(columns)
+		cov_matrix = [[""] * N for i in range(N)]
+		for i in range(N):
+			for j in range(N):
+				cov = _guess(columns[i], columns[j])
+				if i == j and cov:
+					cov += "**2" # square the diagnal
+				cov_matrix[i][j] = cov
+		print(cov_matrix)
+		return cov_matrix
+
+
 	def add_virtual_columns_proper_motion_eq2gal(self, long_in, lat_in, pm_long, pm_lat, pm_long_out, pm_lat_out,
 												 cov_matrix_alpha_delta_pma_pmd=None,
 												 covariance_postfix="_covariance",
@@ -4538,6 +4582,8 @@ class Dataset(object):
 		import kapteyn.celestial as c
 		"""mu_gb =  mu_dec*(cdec*sdp-sdec*cdp*COS(ras))/cgb $
 		  - mu_ra*cdp*SIN(ras)/cgb"""
+		long_in_original = long_in
+		lat_in_original  =  lat_in
 		if not radians:
 			long_in = "pi/180.*%s" % long_in
 			lat_in = "pi/180.*%s" % lat_in
@@ -4562,6 +4608,10 @@ class Dataset(object):
 					 None, None],
 				  ["cos(declination_galactic_pole)*cos({long_in}-right_ascension_galactic_pole){to_radians}", None, None, None],
 			  ]
+
+			if cov_matrix_alpha_delta_pma_pmd in ["full", "auto"]:
+				names = [long_in_original, lat_in_original, pm_long, pm_lat]
+				cov_matrix_alpha_delta_pma_pmd = self._covariance_matrix_guess(names, full=cov_matrix_alpha_delta_pma_pmd=="full")
 
 			cov_matrix_pm_long_pm_lat_c1_c2 = [[""] * 4 for i in range(4)]
 			for i in range(4):
@@ -4620,6 +4670,10 @@ class Dataset(object):
 			# f_obs(distance, pm_long, pm_lat) = [v_long, v_lat] = (k * pm_long * distance, k * pm_lat * distance)
 			J = [["k * {pm_long}",  "k * {distance}", ""],
 				 ["k * {pm_lat}",                 "", "k * {distance}"]]
+			if cov_matrix_distance_pm_long_pm_lat in ["full", "auto"]:
+				names = [distance, pm_long, pm_lat]
+				cov_matrix_distance_pm_long_pm_lat = self._covariance_matrix_guess(names, full=cov_matrix_distance_pm_long_pm_lat=="full")
+
 
 			cov_matrix_vl_vb = [[""] * 2 for i in range(2)]
 			for i in range(2):
@@ -4730,6 +4784,10 @@ class Dataset(object):
 				 ["", "k * {pm_long}",  "k * {distance}", ""],
 				 ["", "k * {pm_lat}",                 "", "k * {distance}"]]
 
+			if cov_matrix_vr_distance_pm_long_pm_lat in ["full", "auto"]:
+				names = [vr, distance, pm_long, pm_lat]
+				cov_matrix_vr_distance_pm_long_pm_lat = self._covariance_matrix_guess(names, full=cov_matrix_vr_distance_pm_long_pm_lat=="full")
+
 			cov_matrix_vr_vl_vb = [[""] * 3 for i in range(3)]
 			for i in range(3):
 				for j in range(3):
@@ -4829,6 +4887,8 @@ class Dataset(object):
 												   covariance_postfix="_covariance",
 												   uncertainty_postfix="_uncertainty",
 												   center=None, center_name="solar_position", radians=True):
+		alpha_original = alpha
+		delta_original = delta
 		if not radians:
 			alpha = "pi/180.*%s" % alpha
 			delta = "pi/180.*%s" % delta
@@ -4860,6 +4920,10 @@ class Dataset(object):
 			J = [ ["-sin({alpha})*cos({delta})*{distance}{to_radians}", "-cos({alpha})*sin({delta})*{distance}{to_radians}", "cos({alpha})*cos({delta})"],
 				  [" cos({alpha})*cos({delta})*{distance}{to_radians}", "-sin({alpha})*sin({delta})*{distance}{to_radians}", "sin({alpha})*cos({delta})"],
 				 [                              None,                     "cos({delta})*{distance}{to_radians}",              "sin({delta})"]]
+
+			if cov_matrix_alpha_delta_distance in ["full", "auto"]:
+				names = [alpha_original, delta_original, distance]
+				cov_matrix_alpha_delta_distance = self._covariance_matrix_guess(names, full=cov_matrix_alpha_delta_distance=="full")
 
 			cov_matrix_xyz = [[""] * 3 for i in range(3)]
 			for i in range(3):
