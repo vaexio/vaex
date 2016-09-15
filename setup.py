@@ -214,7 +214,8 @@ setup(
     includes=["vaex", "md5", "astropy", "aplus", "six"],
     packages=["vaex", "vaex.ui", "vaex.test", "vaex.misc", "vaex.notebook", "vaex.file", "vaex.ui.plugin", "vaex.ui.icons", "vaex.ext"],
     install_requires=reqs,
-    entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },
+    #entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },
+    scripts=[os.path.join("bin", "vaex")],
     ext_modules=extensions,
     package_data={'vaex': ['ui/icons/*.png', 'ui/icons/*.icns']},
     package_dir={'vaex':'vaex'},
@@ -246,7 +247,7 @@ setup(
 		'Topic :: Scientific/Engineering :: Visualization',
 		'Topic :: Scientific/Engineering :: Information Analysis',
 
-		'Intended Audience :: Science/Research'
+		'Intended Audience :: Science/Research',
 
 		'Environment :: MacOS X',
 		'Environment :: X11 Applications'
