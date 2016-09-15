@@ -414,7 +414,7 @@ class TaskStatistic(Task):
 				mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2)
 				if mask is None:
 					raise ValueError("performing operation on selection while no selection present")
-				selection_blocks = [block[mask[i1:i2]] for block in blocks]
+				selection_blocks = [block[mask] for block in blocks]
 			else:
 				selection_blocks = [block for block in blocks]
 			subblock_weight = None
