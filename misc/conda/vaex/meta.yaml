@@ -1,11 +1,11 @@
 package:
   name: vaex
-  version: "1.0.0b1"
+  version: "1.0.0b2"
 
 source:
-  fn: vaex-1.0.0b1.tar.gz
-  url: https://files.pythonhosted.org/packages/2f/6c/742abe13313ec88e8c79a5cd46184eb7aef60016d1a1d2f3b366fc239ca3/vaex-1.0.0b1.tar.gz
-  md5: 2cb703a0e64084020b834f84eb6c4ee0
+  fn: vaex-1.0.0b2.tar.gz
+  url: https://pypi.python.org/packages/c5/f2/4956c264012df7cd936b8b5deba675f30ec830c707f55345e9ecba1eec36/vaex-1.0.0b2.tar.gz
+  md5: 012070a8a6ffe1de8c2bbfadf8958ba7
 #  patches:
    # List any patch files here
    # - fix.patch
@@ -45,12 +45,13 @@ requirements:
     - aplus
     - tornado >4.1
     - futures
-    - future >= 0.15.2
+    - future >=0.15.2
     - pyyaml
-    - layeredconfig
     - cachetools
     - progressbar2
     - attrdict
+    - pandas
+    - pillow
 
   run:
     - python
@@ -66,12 +67,13 @@ requirements:
     - aplus
     - tornado >4.1
     - futures
-    - future >= 0.15.2
+    - future >=0.15.2
     - pyyaml
-    - layeredconfig
     - cachetools
     - progressbar2
     - attrdict
+    - pandas
+    - pillow
     - python.app  # [osx]
 
 test:
