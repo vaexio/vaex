@@ -3297,6 +3297,8 @@ class VolumeRenderingPlotDialog(PlotDialog):
 				axes.set_aspect('auto')
 			else:
 				axes.set_aspect(self.state.aspect)
+			axes.set_xlabel(self.get_label(axes.xaxis_index))
+			axes.set_ylabel(self.get_label(axes.yaxis_index))
 
 
 		for layer in self.layers:
