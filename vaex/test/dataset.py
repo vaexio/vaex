@@ -84,6 +84,8 @@ class TestDataset(unittest.TestCase):
 		self.dataset_concat_local = self.dataset_concat
 		self.dataset_concat_dup_local = self.dataset_concat_dup
 
+		np.random.seed(0) # fix seed so that test never fails randomly
+
 	def tearDown(self):
 		self.dataset.remove_virtual_meta()
 		self.dataset_concat.remove_virtual_meta()
