@@ -2088,6 +2088,7 @@ exp
 expm1
 sqrt
 abs
+where
 """.strip().split()]
 expression_namespace = {}
 for name, numpy_name in function_mapping:
@@ -3138,6 +3139,7 @@ class Dataset(object):
 				else:
 					limits_outer.append(limits[0])
 			#logger.debug(">>>>>>>> complete list of limits: %r %r", limits_list, np.array(limits_list).shape)
+
 			#print("limits", limits_outer)
 			return vaex.utils.unlistify(waslist, limits_outer)
 		return self._async(async, finish(limits_list))
@@ -3243,6 +3245,136 @@ class Dataset(object):
 		return subspace.plot_bq(grid, size, limits, square, center, weight, figsize, aspect, f, fig, axes, xlabel, ylabel, title,
 								group_by, group_limits, group_colors, group_labels, group_count, cmap, scales, tool_select, bq_cleanup, **kwargs)
 
+
+	def healpix_count(self, expression=None, healpix_expression="source_id/34359738368", healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, **kwargs):
+		#if binby is None:
+		import healpy as hp
+		reduce_level = healpix_max_level - healpix_level
+		NSIDE = 2**healpix_level
+		nmax = hp.nside2npix(NSIDE)
+		scaling = 4**reduce_level
+		expr = "%s/%s" % (healpix_expression, scaling)
+		binby = [expr] + ([] if binby is None else _ensure_list(binby))
+		shape = (nmax,) + _expand_shape(shape, len(binby)-1)
+		limits = [[0, nmax]] + ([] if limits is None else limits)
+		return self.count(expression, binby=binby, limits=limits, shape=shape, **kwargs)
+
+	def healpix_plot(self, healpix_expression="source_id/34359738368", healpix_max_level=12, healpix_level=8, what="count(*)", selection=None,
+					 grid=None,
+					 healpix_input="equatorial", healpix_output="galactic", f=None,
+					 colormap="afmhot", grid_limits=None, image_size =800, nest=True,
+					 figsize=None, interactive=False,title="", smooth=None,
+					 rotation=(0,0,0)):
+		#plot_level = healpix_level #healpix_max_level-reduce_level
+		import healpy as hp
+		import pylab as plt
+		if grid is None:
+			reduce_level = healpix_max_level - healpix_level
+			NSIDE=2**healpix_level
+			nmax = hp.nside2npix(NSIDE)
+			#print nmax, np.sqrt(nmax)
+			scaling = 4**reduce_level
+			#print nmax
+			grid = self._stat(what=what, binby="%s/%s" % (healpix_expression, scaling), limits=[0., nmax], shape=nmax, selection=selection)
+		if grid_limits:
+			grid_min, grid_max = grid_limits
+		else:
+			grid_min = grid_max = None
+		f = _parse_f(f)
+		if smooth:
+			if nest:
+				grid = hp.reorder(grid, inp="NEST", out="RING")
+				nest = False
+			grid = hp.smoothing(grid, sigma=np.radians(smooth))
+		fgrid = f(grid)
+		coord_map = dict(equatorial='C', galactic='G', ecliptic="E")
+		fig = plt.gcf()
+		if figsize is not None:
+			fig.set_size_inches(*figsize)
+		f = hp.mollzoom if interactive else hp.mollview
+		f(fgrid, rot=rotation, nest=nest ,title=title, coord=[coord_map[healpix_input], coord_map[healpix_output]], cmap=colormap, hold=True, xsize=image_size,
+					min=grid_min, max=grid_max)#, min=6-1, max=8.7-1)
+
+	@docsubst
+	@stat_1d
+	def _stat(self, what="count(*)", what_kwargs={}, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		"""Calculate the sum for the given expression, possible on a grid defined by binby
+
+		Examples:
+
+		>>> ds.sum("L")
+		304054882.49378014
+		>>> ds.sum("L", binby="E", shape=4)
+		array([  8.83517994e+06,   5.92217598e+07,   9.55218726e+07,
+				 1.40008776e+08])
+
+		:param expression: {expression}
+		:param binby: {binby}
+		:param limits: {limits}
+		:param shape: {shape}
+		:param selection: {selection}
+		:param async: {async}
+		:return: {return_stat_scalar}
+		"""
+		waslist_what, [whats,] = vaex.utils.listify(what)
+		limits = self.limits(binby, limits, async=True)
+		waslist_selection, [selections] = vaex.utils.listify(selection)
+		binby = _ensure_list(binby)
+
+		what_labels = []
+		shape = _expand_shape(shape, len(binby))
+		total_grid = np.zeros( (len(whats), len(selections)) + shape, dtype=float)
+		@delayed
+		def copy_grids(grids):
+			total_grid[index] = grid
+		@delayed
+		def get_whats(limits):
+			grids = []
+			for j, what in enumerate(whats):
+				what = what.strip()
+				index = what.index("(")
+				import re
+				groups = re.match("(.*)\((.*)\)", what).groups()
+				if groups and len(groups) == 2:
+					function = groups[0]
+					arguments = groups[1].strip()
+					if "," in arguments:
+						arguments = arguments.split(",")
+					functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max"]
+					unit_expression = None
+					if function in ["mean", "sum", "std", "min", "max"]:
+						unit_expression = arguments
+					if function in ["var"]:
+						unit_expression = "(%s) * (%s)" % (arguments, arguments)
+					if function in ["covar"]:
+						unit_expression = "(%s) * (%s)" % arguments
+					if unit_expression:
+						unit = self.unit(unit_expression)
+						if unit:
+							what_units = unit.to_string('latex_inline')
+					if function in functions:
+						grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape, selection=selections)
+					elif function == "count":
+						grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections)
+					else:
+						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
+					#what_labels.append(what_label)
+					grids.append(grid)
+
+			#else:
+			#	raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
+			return grids
+
+		grids = get_whats(limits)
+		#print grids
+		#grids = delayed_args(*grids)
+		@delayed
+		def finish(grids):
+			for i, grid in enumerate(grids):
+				total_grid[i] = grid
+			return total_grid[slice(None, None, None) if waslist_what else 0, slice(None, None, None) if waslist_selection else 0]
+		s = finish(grids)
+		return self._async(async, s)
 
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
 	def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,
