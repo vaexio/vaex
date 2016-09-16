@@ -937,7 +937,8 @@ struct op_min_max {
             //outputs[1] = fmax(outputs[1], value);
             if(value < outputs[0]) {
                 outputs[0] = value;
-            } else if (value > outputs[1]) {
+            }
+            if (value > outputs[1]) {
                 outputs[1] = value;
             }
         }
