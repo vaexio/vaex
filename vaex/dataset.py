@@ -3263,7 +3263,7 @@ class Dataset(object):
 					 grid=None,
 					 healpix_input="equatorial", healpix_output="galactic", f=None,
 					 colormap="afmhot", grid_limits=None, image_size =800, nest=True,
-					 figsize=None, interactive=False,title="", smooth=None,
+					 figsize=None, interactive=False,title="", smooth=None, show=False,
 					 rotation=(0,0,0)):
 		#plot_level = healpix_level #healpix_max_level-reduce_level
 		import healpy as hp
@@ -3280,6 +3280,7 @@ class Dataset(object):
 			grid_min, grid_max = grid_limits
 		else:
 			grid_min = grid_max = None
+		f_org = f
 		f = _parse_f(f)
 		if smooth:
 			if nest:
@@ -3291,9 +3292,14 @@ class Dataset(object):
 		fig = plt.gcf()
 		if figsize is not None:
 			fig.set_size_inches(*figsize)
+		what_label = what
+		if f_org:
+			what_label = f_org + " " + what_label
 		f = hp.mollzoom if interactive else hp.mollview
-		f(fgrid, rot=rotation, nest=nest ,title=title, coord=[coord_map[healpix_input], coord_map[healpix_output]], cmap=colormap, hold=True, xsize=image_size,
+		f(fgrid, unit=what_label, rot=rotation, nest=nest ,title=title, coord=[coord_map[healpix_input], coord_map[healpix_output]], cmap=colormap, hold=True, xsize=image_size,
 					min=grid_min, max=grid_max)#, min=6-1, max=8.7-1)
+		if show:
+			plt.show()
 
 	@docsubst
 	@stat_1d
