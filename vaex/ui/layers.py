@@ -360,6 +360,16 @@ class LayerTable(object):
 		self.set_expression(value, 1)
 
 	@property
+	def z(self):
+		"""y expression"""
+		return self.state.expressions[2]
+
+	@y.setter
+	def z(self, value):
+		logger.debug("setting self.state.expressions[2] to %s" % value)
+		self.set_expression(value, 2)
+
+	@property
 	def vx(self):
 		"""vector x expression"""
 		return self.state.vector_expressions[0]
@@ -1995,6 +2005,20 @@ class LayerTable(object):
 			return self.plot_window.get_default_label(1)
 		self.option_label_y = TextOption(page, "label_y", self.state.labels[1], default, get, set, self.signal_plot_dirty.emit)
 		row = self.option_label_y.add_to_grid_layout(row, self.grid_layout_annotate)
+
+		if self.dimensions > 2:
+			self.state.labels.append(self.options.get("label_z"))
+			def get():
+				return self.state.labels[2]
+			def set(value):
+				self.state.labels[2] = value
+				self.plot_window.queue_history_change("changed label_x to %s" % (value))
+				self.plot_window.queue_push_full_state()
+			def default():
+				#return "default label"
+				return self.plot_window.get_default_label(2)
+			self.option_label_z = TextOption(page, "label_z", self.state.labels[2], default, get, set, self.signal_plot_dirty.emit)
+			row = self.option_label_z.add_to_grid_layout(row, self.grid_layout_annotate)
 
 
 		def get():
