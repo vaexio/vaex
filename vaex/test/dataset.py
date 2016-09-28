@@ -103,6 +103,33 @@ class TestDataset(unittest.TestCase):
 		distance_std = ds_1.evaluate("distance_uncertainty")[0]
 		self.assertAlmostEqual(distance_std, distance_std_est,2)
 
+	def test_add_virtual_columns_cartesian_to_polar(self):
+		for radians in [True, False]:
+			def datasets(x, y, radians=radians):
+				ds_1 = from_scalars(x=x, y=y, x_e=0.01, y_e=0.02)
+				#sigmas = ["alpha_e**2", "delta_e**2", "pm_a_e**2", "pm_d_e**2"]
+				#cov = [[sigmas[i] if i == j else "" for i in range(4)] for j in range(4)]
+				ds_1.add_virtual_columns_cartesian_to_polar(cov_matrix_x_y="full", radians=radians)
+				N = 100000
+				# distance
+				x =        np.random.normal(x, 0.01, N)  + alpha
+				y =        np.random.normal(y, 0.02, N)  + delta
+				ds_many = vx.from_arrays(x=x, y=y)
+				ds_many.add_virtual_columns_cartesian_to_polar(radians=radians)
+				return ds_1, ds_many
+			ds_1, ds_many = datasets(0, 2)
+
+			r_polar_e = ds_1.evaluate("r_polar_uncertainty")[0]
+			phi_polar_e = ds_1.evaluate("phi_polar_uncertainty")[0]
+			self.assertAlmostEqual(r_polar_e, ds_many.std("r_polar").item(), delta=0.02)
+			self.assertAlmostEqual(phi_polar_e, ds_many.std("phi_polar").item(), delta=0.02)
+
+			# rotation is anti clockwise
+			r_polar = ds_1.evaluate("r_polar")[0]
+			phi_polar = ds_1.evaluate("phi_polar")[0]
+			self.assertAlmostEqual(r_polar, 2)
+			self.assertAlmostEqual(phi_polar, np.pi/2 if radians else 90)
+
 	def test_add_virtual_columns_proper_motion_eq2gal(self):
 		for radians in [True, False]:
 			def datasets(alpha, delta, pm_a, pm_d, radians=radians):
@@ -131,7 +158,6 @@ class TestDataset(unittest.TestCase):
 			pm_b_e = ds_1.evaluate("pm_b_uncertainty")[0]
 			self.assertAlmostEqual(pm_l_e, ds_many.std("pm_l").item(), delta=0.02)
 			self.assertAlmostEqual(pm_b_e, ds_many.std("pm_b").item(), delta=0.02)
-
 
 	def test_add_virtual_columns_proper_motion2vperpendicular(self):
 		def datasets(distance, pm_l, pm_b):
