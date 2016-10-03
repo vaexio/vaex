@@ -2607,6 +2607,9 @@ class ScatterPlotDialog(PlotDialog):
 	def add_image_layer(self, rgba, intensity):
 		self.image_layers.append(rgba)
 
+	def post_draw(self, fig, axes):
+		pass
+
 	def plot(self):
 		self.fig.clf()
 		self.add_axes()
@@ -2791,6 +2794,7 @@ class ScatterPlotDialog(PlotDialog):
 		titles = [layer.state.title for layer in self.layers if layer.state.title]
 		if titles:
 			self.title = self.axes.set_title(",".join(titles))
+		self.post_draw(self.fig, self.axes)
 		self.canvas.draw()
 		self.fig.tight_layout()#1.008) #pad=pad, h_pad=h_pad, w_pad=w_pad, rect=rect)
 		self.canvas.draw()

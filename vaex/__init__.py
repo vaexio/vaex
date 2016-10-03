@@ -177,6 +177,15 @@ def from_arrays(name="array", **arrays):
 		dataset.add_column(name, array)
 	return dataset
 
+def from_scalars(name="scalars", **kwargs):
+	"""Similar to from_arrays, but convenient for a dataset of length 1
+
+	>>> ds = vx.from_arrays("test", x=1, y=2)
+	"""
+	import numpy as np
+	return from_arrays(name, **{k:np.array([v]) for k, v in kwargs.items()})
+
+
 def from_pandas(df, name="pandas"):
 	"""Create an in memory dataset from a pandas dataframe
 
