@@ -895,7 +895,7 @@ class DatasetAstropyTable(DatasetArrays):
 		else:
 			#print vars(table)
 			#print dir(table)
-			DatasetArrays.__init__(self, table.meta["name"])
+			DatasetArrays.__init__(self, table.meta.get("name", "unknown-astropy"))
 			self.table = table
 			#self.name
 
