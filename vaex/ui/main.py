@@ -21,7 +21,7 @@ try:
 except ImportError:
 	from urlparse import urlparse
 
-
+import vaex as vx
 
 # help py2app, it was missing this import
 
@@ -1501,8 +1501,9 @@ class VaexApp(QtGui.QMainWindow):
 		if self.samp: # TODO: check if connected
 			dataset = dataset or self.dataset_panel.dataset
 			rows = []
-			if dataset.mask is not None:
-				rows = np.arange(len(dataset))[dataset.mask]
+			print(dataset.has_selection(), dataset.evaluate_selection_mask())
+			if dataset.has_selection() is not None:
+				rows = np.arange(len(dataset))[dataset.evaluate_selection_mask()]
 			rowlist = list(map(str, rows))
 
 			kwargs = {"row-list": rowlist}
@@ -1807,7 +1808,7 @@ class VaexApp(QtGui.QMainWindow):
 				print(filename)
 				if os.path.exists(filename) and filename not in filenames:
 					filenames.append(filename)
-			filenames = list(filter(vaex.dataset.can_open, filenames))
+			filenames = list(filter(vaex.file.can_open, filenames))
 		options = []
 		for filename in filenames:
 			options.append(filename + " | read directly from file (faster)")
@@ -1828,14 +1829,10 @@ class VaexApp(QtGui.QMainWindow):
 
 	def load_file(self, path, samp_id=None):
 		dataset_class = None
-		for name, class_ in list(vaex.dataset.dataset_type_map.items()):
-			if class_.can_open(path):
-				dataset_class = class_
-				break
-		if dataset_class:
-			dataset = dataset_class(path)
-			dataset.samp_id = samp_id
-			self.dataset_selector.add(dataset)
+		ds = vx.open(path)
+		if ds:
+			ds.samp_id = samp_id
+			self.dataset_selector.add(ds)
 
 	def load_votable(self, url, table_id):
 		table = astropy.io.votable.parse_single_table(url)
