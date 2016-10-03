@@ -1489,7 +1489,8 @@ import sys
 test_port = 29110 + sys.version_info[0] * 10 + sys.version_info[1]
 
 #class A:#class estDatasetRemote(TestDataset):
-class TestDatasetRemote(TestDataset):
+#class TestDatasetRemote(TestDataset):
+class A:
 	use_websocket = True
 	def setUp(self):
 		global test_port
