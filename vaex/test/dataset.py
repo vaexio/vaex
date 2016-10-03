@@ -13,7 +13,7 @@ import vaex.execution
 a = vaex.execution.buffer_size_default # will crash if we decide to rename it
 
 # this will make the test execute more code and may show up bugs
-vaex.execution.buffer_size_default = 3
+#vaex.execution.buffer_size_default = 3
 
 vx.set_log_level_exception()
 #vx.set_log_level_off()
@@ -105,17 +105,55 @@ class TestDataset(unittest.TestCase):
 		distance_std = ds_1.evaluate("distance_uncertainty")[0]
 		self.assertAlmostEqual(distance_std, distance_std_est,2)
 
+	def test_add_virtual_columns_cartesian_velocities_to_polar(self):
+		if 1:
+			def datasets(x, y, velx, vely):
+				ds_1 = from_scalars(x=x, y=y, vx=velx, vy=vely, x_e=0.01, y_e=0.02, vx_e=0.03, vy_e=0.04)
+				#sigmas = ["alpha_e**2", "delta_e**2", "pm_a_e**2", "pm_d_e**2"]
+				#cov = [[sigmas[i] if i == j else "" for i in range(4)] for j in range(4)]
+				ds_1.add_virtual_columns_cartesian_velocities_to_polar(cov_matrix_x_y_vx_vy="auto")
+				N = 100000
+				# distance
+				x =        np.random.normal(x, 0.01, N)
+				y =        np.random.normal(y, 0.02, N)
+				velx =        np.random.normal(velx, 0.03, N)
+				vely =        np.random.normal(vely, 0.04, N)
+				ds_many = vx.from_arrays(x=x, y=y, vx=vely, vy=vely)
+				ds_many.add_virtual_columns_cartesian_velocities_to_polar()
+				return ds_1, ds_many
+			ds_1, ds_many = datasets(0, 2, 3, 4)
+
+			vr_polar_e = ds_1.evaluate("vr_polar_uncertainty")[0]
+			vphi_polar_e = ds_1.evaluate("vphi_polar_uncertainty")[0]
+			self.assertAlmostEqual(vr_polar_e, ds_many.std("vr_polar").item(), delta=0.02)
+			self.assertAlmostEqual(vphi_polar_e, ds_many.std("vphi_polar").item(), delta=0.02)
+
+			# rotation is anti clockwise
+			ds_1 = from_scalars(x=0, y=2, vx=0, vy=2)
+			ds_1.add_virtual_columns_cartesian_velocities_to_polar()
+			vr_polar = ds_1.evaluate("vr_polar")[0]
+			vphi_polar = ds_1.evaluate("vphi_polar")[0]
+			self.assertAlmostEqual(vr_polar, 2)
+			self.assertAlmostEqual(vphi_polar, 0)
+
+			ds_1 = from_scalars(x=0, y=2, vx=-2, vy=0)
+			ds_1.add_virtual_columns_cartesian_velocities_to_polar()
+			vr_polar = ds_1.evaluate("vr_polar")[0]
+			vphi_polar = ds_1.evaluate("vphi_polar")[0]
+			self.assertAlmostEqual(vr_polar, 0)
+			self.assertAlmostEqual(vphi_polar, 2)
+
 	def test_add_virtual_columns_cartesian_to_polar(self):
 		for radians in [True, False]:
 			def datasets(x, y, radians=radians):
 				ds_1 = from_scalars(x=x, y=y, x_e=0.01, y_e=0.02)
 				#sigmas = ["alpha_e**2", "delta_e**2", "pm_a_e**2", "pm_d_e**2"]
 				#cov = [[sigmas[i] if i == j else "" for i in range(4)] for j in range(4)]
-				ds_1.add_virtual_columns_cartesian_to_polar(cov_matrix_x_y="full", radians=radians)
+				ds_1.add_virtual_columns_cartesian_to_polar(cov_matrix_x_y="auto", radians=radians)
 				N = 100000
 				# distance
-				x =        np.random.normal(x, 0.01, N)  + alpha
-				y =        np.random.normal(y, 0.02, N)  + delta
+				x =        np.random.normal(x, 0.01, N)
+				y =        np.random.normal(y, 0.02, N)
 				ds_many = vx.from_arrays(x=x, y=y)
 				ds_many.add_virtual_columns_cartesian_to_polar(radians=radians)
 				return ds_1, ds_many
@@ -218,6 +256,33 @@ class TestDataset(unittest.TestCase):
 			self.assertAlmostEqual(ds_1.evaluate("vy")[0], k*2)
 			self.assertAlmostEqual(ds_1.evaluate("vz")[0], k*3)
 
+		ds = vx.from_scalars(l=90, b=0, pm_l=-1, pm_b=0, distance=1, vr=0)
+		ds.add_virtual_columns_lbrvr_proper_motion2vcartesian()
+		self.assertAlmostEqual(ds.evaluate("vx")[0], k*1)
+		self.assertAlmostEqual(ds.evaluate("vy")[0], 0)
+		ds = vx.from_scalars(l=90, b=0, pm_l=-1, pm_b=0, distance=2, vr=0)
+		ds.add_virtual_columns_lbrvr_proper_motion2vcartesian()
+		self.assertAlmostEqual(ds.evaluate("vx")[0], k*2)
+		self.assertAlmostEqual(ds.evaluate("vy")[0], 0)
+
+		ds = vx.from_scalars(l=0, b=90, pm_l=0, pm_b=-1, distance=1, vr=0)
+		ds.add_virtual_columns_lbrvr_proper_motion2vcartesian()
+		self.assertAlmostEqual(ds.evaluate("vx")[0], k*1)
+		self.assertAlmostEqual(ds.evaluate("vy")[0], 0)
+		ds = vx.from_scalars(l=0, b=90, pm_l=0, pm_b=-1, distance=2, vr=0)
+		ds.add_virtual_columns_lbrvr_proper_motion2vcartesian()
+		self.assertAlmostEqual(ds.evaluate("vx")[0], k*2)
+		self.assertAlmostEqual(ds.evaluate("vy")[0], 0)
+
+		ds = vx.from_scalars(l=90, b=0, pm_l=0, pm_b=0, distance=1, vr=1)
+		ds.add_virtual_columns_lbrvr_proper_motion2vcartesian()
+		self.assertAlmostEqual(ds.evaluate("vx")[0], 0)
+		self.assertAlmostEqual(ds.evaluate("vy")[0], 1)
+
+		ds = vx.from_scalars(l=90, b=0, pm_l=0, pm_b=0, distance=2, vr=1)
+		ds.add_virtual_columns_lbrvr_proper_motion2vcartesian()
+		self.assertAlmostEqual(ds.evaluate("vx")[0], 0)
+		self.assertAlmostEqual(ds.evaluate("vy")[0], 1)
 
 
 	def test_strings(self):
