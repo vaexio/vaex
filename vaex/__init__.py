@@ -153,10 +153,21 @@ def open_samp_single():
 	#samp.tableLoadCallbacks.
 	samp = SampSingle()
 	url = samp.wait_for_table()
-	table = Table.read(url)
-	return vaex.dataset.DatasetAstropyTable(table=table)
+	import os
+	import tempfile
+	tempdir = tempfile.mkdtemp()
+	path = os.path.join(tempdir, "out.vot.gz")
+	os.system("wget -c -O %s %s" % (path, url))
+	parts = os.path.split(url)
+	print("parts", parts)
+	path2 = os.path.join(tempdir, "out.vot")
+	os.system("gunzip %s > /dev/null; mv %s %s  > /dev/null" % (path, path, path2))
+	table = Table.read(path2, format="votable")
+	return from_astropy_table(table)
 
 
+def from_astropy_table(table):
+	return vaex.file.other.DatasetAstropyTable(table=table)
 
 def from_arrays(name="array", **arrays):
 	"""Create an in memory dataset from numpy arrays
@@ -201,7 +212,22 @@ def from_pandas(df, name="pandas"):
 		dataset.add_column(name, df[name].values)
 	return dataset
 
-
+def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **kwargs):
+	import vaex.ext.readcol as rc
+	ds = vaex.dataset.DatasetArrays(path)
+	if names not in [True, False]:
+		namelist = names
+		names = False
+	else:
+		namelist = None
+	data = rc.readcol(path, fsep=seperator, asdict=namelist is None, names=names, skipline=skip_lines, skipafter=skip_after, **kwargs)
+	if namelist:
+		for name, array in zip(namelist, data.T):
+			ds.add_column(name, array)
+	else:
+		for name, array in data.items():
+			ds.add_column(name, array)
+	return ds
 
 import vaex.settings
 aliases = vaex.settings.main.auto_store_dict("aliases")
