@@ -3703,7 +3703,6 @@ class Dataset(object):
 			visual_grid
 			if smooth_pre:
 				grid = vaex.grids.gf(grid, smooth_pre)
-				print grid.shape
 			if 1:
 				axis = visual_axes[visual[normalize_axis]]
 				for i in range(visual_grid.shape[axis]):
