@@ -37,7 +37,7 @@ try:
 except ImportError:
 	from urlparse import urlparse
 
-
+sys_is_le = sys.byteorder == 'little'
 
 logger = logging.getLogger("vaex")
 lock = threading.Lock()
@@ -417,6 +417,16 @@ class TaskStatistic(Task):
 				selection_blocks = [block[mask] for block in blocks]
 			else:
 				selection_blocks = [block for block in blocks]
+			little_endians = len([k for k in selection_blocks if k.dtype.byteorder in ["<", "="]])
+			if not ((len(selection_blocks) == little_endians) or little_endians == 0):
+				def _to_native(ar):
+					if ar.dtype.byteorder not in ["<", "="]:
+						dtype = ar.dtype.newbyteorder()
+						return ar.astype(dtype)
+					else:
+						return ar
+
+				selection_blocks = [_to_native(k) for k in selection_blocks]
 			subblock_weight = None
 			if len(selection_blocks) == len(self.expressions) + 1:
 				subblock_weight = selection_blocks[-1]
@@ -4526,7 +4536,7 @@ class Dataset(object):
 		else:
 			return self.variables[name]
 
-	def evaluate_selection_mask(self, name, i1, i2, selection=None):
+	def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None):
 		i1 = i1 or 0
 		i2 = i2 or len(self)
 		scope = _BlockScopeSelection(self, i1, i2, selection)
@@ -5860,7 +5870,7 @@ class DatasetConcatenated(DatasetLocal):
 		self._index_end = self._full_length
 
 def _is_dtype_ok(dtype):
-	return dtype in [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.float64] or\
+	return dtype.type in [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.float64] or\
 		dtype.type == np.string_
 
 def _is_array_type_ok(array):
