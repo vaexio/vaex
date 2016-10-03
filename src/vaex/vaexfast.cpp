@@ -338,7 +338,6 @@ PyObject* nansum_(PyObject* self, PyObject* args) {
 	}
 	return result;
 }
-#include <immintrin.h>
 
 void sum(const double* const __restrict__ block_ptr, const long long length, bool native, double &sum_) {
 	double sum = sum_;
