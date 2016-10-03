@@ -4,6 +4,7 @@ import logging
 import threading
 import uuid
 import time
+import ast
 
 try:
 	import __builtin__
@@ -169,7 +170,11 @@ class ServerRest(object):
 
 
 	def _on_websocket_message(self, msg):
-		response = json.loads(msg)
+		json_data, data = msg.split(b"\n", 1)
+		response = json.loads(json_data.decode("utf8"))
+		if data:
+			numpy_array = np.fromstring(data, dtype=np.dtype(response["dtype"])).reshape(ast.literal_eval(response["shape"]))
+			response["result"] = numpy_array
 		import sys
 		if sys.getsizeof(msg) > 1024*4:
 			logger.debug("socket read message: <large amount of data>",)
@@ -515,9 +520,27 @@ class DatasetRest(DatasetRemote):
 		self.executor = ServerExecutor()
 
 	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
-		#selection = self.get_selection(selection)
-		#self.server._call_dataset("count", self, async=False, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection)
 		return self._async(async, self.server._call_dataset("count", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+
+	def mean (self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		return self._async(async, self.server._call_dataset("mean", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+
+	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		return self._async(async, self.server._call_dataset("sum", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+
+	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		return self._async(async, self.server._call_dataset("var", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+
+	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		return self._async(async, self.server._call_dataset("minmax", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+
+	#def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def cov        (self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+		return self._async(async, self.server._call_dataset("cov", self, async=True, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
+
+	def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, async=False):
+		# TODO: sort and sort_key should be done locally
+		return self._async(async, self.server._call_dataset("correlation", self, async=True, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
 
 	def _async(self, async, task, progressbar=False):
 		if async:
