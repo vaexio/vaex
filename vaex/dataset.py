@@ -1857,7 +1857,9 @@ class _BlockScopeSelection(object):
 					cache[key] = selection, mask
 				return mask
 			else:
-					if variable in self.dataset.get_column_names(strings=True):
+					if variable in expression_namespace:
+						return expression_namespace[variable]
+					elif variable in self.dataset.get_column_names(strings=True):
 						return self.dataset.columns[variable][self.i1:self.i2]
 					elif variable in list(self.dataset.virtual_columns.keys()):
 						expression = self.dataset.virtual_columns[variable]
@@ -2074,6 +2076,7 @@ cos
 tan
 arcsin
 arccos
+arctan
 arctan2
 sinh
 cosh
@@ -3286,6 +3289,7 @@ class Dataset(object):
 			if nest:
 				grid = hp.reorder(grid, inp="NEST", out="RING")
 				nest = False
+			#grid[np.isnan(grid)] = np.nanmean(grid)
 			grid = hp.smoothing(grid, sigma=np.radians(smooth))
 		fgrid = f(grid)
 		coord_map = dict(equatorial='C', galactic='G', ecliptic="E")
@@ -3389,9 +3393,10 @@ class Dataset(object):
 			 shape=256, vshape=32, limits=None, grid=None, colormap="afmhot", # colors=["red", "green", "blue"],
 			figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
 			colorbar=True,
-			selection=None,
+			selection=None, selection_labels=None, title=None,
 		 	background_color="white", pre_blend=False, background_alpha=1.,
 			visual=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what"),
+			smooth_pre=None, smooth_post=None,
 			wrap=True, wrap_columns=4,
 			return_extra=False, hardcopy=None):
 		"""Declarative plotting of statistical plots using matplotlib, supports subplots, selections, layers
@@ -3597,9 +3602,9 @@ class Dataset(object):
 							arguments = groups[1].strip()
 							if "," in arguments:
 								arguments = arguments.split(",")
-							functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max"]
+							functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max", "median"]
 							unit_expression = None
-							if function in ["mean", "sum", "std", "min", "max"]:
+							if function in ["mean", "sum", "std", "min", "max", "median"]:
 								unit_expression = arguments
 							if function in ["var"]:
 								unit_expression = "(%s) * (%s)" % (arguments, arguments)
@@ -3639,7 +3644,10 @@ class Dataset(object):
 				return "selection: default"
 			else:
 				return "selection: %s" % name
-		labels["selection"] = list([_selection_name(k) for k in selections])
+		if selection_labels is None:
+			labels["selection"] = list([_selection_name(k) for k in selections])
+		else:
+			labels["selection"] = selection_labels
 
 		visual_grid = np.moveaxis(total_grid, move.keys(), move.values())
 		logger.debug("visual grid shape: %r", visual_grid.shape)
@@ -3688,9 +3696,14 @@ class Dataset(object):
 			fgrid = visual_grid * 1.
 			ngrid = visual_grid * 1.
 			#colorgrid = np.zeros(ngrid.shape + (4,), float)
+			#print "norma", normalize_axis, visual_grid.shape[visual_axes[visual[normalize_axis]]]
 			vmins = _expand(vmin, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
 			vmaxs = _expand(vmax, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
 			#for name in normalize_axis:
+			visual_grid
+			if smooth_pre:
+				grid = vaex.grids.gf(grid, smooth_pre)
+				print grid.shape
 			if 1:
 				axis = visual_axes[visual[normalize_axis]]
 				for i in range(visual_grid.shape[axis]):
@@ -3699,6 +3712,7 @@ class Dataset(object):
 					item = tuple(item)
 					f = _parse_f(fs[i])
 					fgrid.__setitem__(item, f(grid.__getitem__(item)))
+					#print vmins[i], vmaxs[i]
 					if vmins[i] is not None and vmaxs[i] is not None:
 						nsubgrid = fgrid.__getitem__(item) * 1
 						nsubgrid -= vmins[i]
@@ -3708,6 +3722,7 @@ class Dataset(object):
 						nsubgrid, vmin, vmax = n(fgrid.__getitem__(item))
 						vmins[i] = vmin
 						vmaxs[i] = vmax
+					#print "    ", vmins[i], vmaxs[i]
 					ngrid.__setitem__(item, nsubgrid)
 
 			if 0: # TODO: above should be like the code below, with custom vmin and vmax
@@ -3784,12 +3799,23 @@ class Dataset(object):
 						colorbar.ax.set_ylabel(label)
 
 					rgrid = ngrid[i,j] * 1.
+					#print rgrid.shape
+					for k in range(rgrid.shape[0]):
+						for l in range(rgrid.shape[0]):
+							if smooth_post is not None:
+								rgrid[k,l] = vaex.grids.gf(rgrid, smooth_post)
 					if visual["what"] == "column":
 						what_index = j
 					elif visual["what"] == "row":
 						what_index = i
 					else:
 						what_index = 0
+					if visual[normalize_axis] == "column":
+						normalize_index = j
+					elif visual[normalize_axis] == "row":
+						normalize_index = i
+					else:
+						normalize_index = 0
 					for r in reduce:
 						r = _parse_reduction(r, colormaps[what_index], [])
 						rgrid = r(rgrid)
@@ -3797,7 +3823,8 @@ class Dataset(object):
 					column = facet_index % facet_columns
 
 					if colorbar and colorbar_location == "individual":
-						norm = matplotlib.colors.Normalize(vmins[what_index], vmaxs[what_index])
+						#visual_grid.shape[visual_axes[visual[normalize_axis]]]
+						norm = matplotlib.colors.Normalize(vmins[normalize_index], vmaxs[normalize_index])
 						sm = matplotlib.cm.ScalarMappable(norm, colormaps[what_index])
 						sm.set_array(1) # make matplotlib happy (strange behavious)
 						if facets > 1:
@@ -3837,7 +3864,8 @@ class Dataset(object):
 					#	extend = np.array(xlimits[i]).flatten()
 					logger.debug("plot rgrid: %r", plot_rgrid.shape)
 					plot_rgrid = np.transpose(plot_rgrid, (1,0,2))
-					im = ax.imshow(plot_rgrid, extent=extend, origin="lower", aspect=aspect)
+					im = ax.imshow(plot_rgrid, extent=extend.tolist(), origin="lower", aspect=aspect, interpolation=interpolation)
+					import healpy
 					#v1, v2 = values[i], values[i+1]
 					def label(index, label, expression):
 						if label and _issequence(label):
@@ -3846,6 +3874,7 @@ class Dataset(object):
 							return self.label(expression)
 					labels1 = visual_reverse["row"]
 					labelsxy = labels.get(visual_reverse["row"])
+					has_title = False
 					if isinstance(labelsxy, tuple):
 						labelsx, labelsy = labelsxy
 						pylab.xlabel(labelsx[i])
@@ -3854,14 +3883,17 @@ class Dataset(object):
 						#ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
 						#print("title", labelsxy[i])
 						ax.set_title(labelsxy[i])
+						has_title = True
+					#print visual_reverse["row"], visual_reverse["column"], labels.get(visual_reverse["row"]), labels.get(visual_reverse["column"])
 					labelsxy = labels.get(visual_reverse["column"])
 					if isinstance(labelsxy, tuple):
 						labelsx, labelsy = labelsxy
 						pylab.xlabel(labelsx[i])
 						pylab.ylabel(labelsy[i])
-					elif labelsxy is not None and labels.get(visual_reverse["row"]) is None:
+					elif labelsxy is not None and not has_title:
 						#print("title", labelsxy[i])
 						ax.set_title(labelsxy[j])
+						pass
 
 					#pylab.xlabel(label(j, xlabel, x[j][0]))
 					#pylab.ylabel(label(j, ylabel, x[j][1]))
@@ -3929,8 +3961,13 @@ class Dataset(object):
 					what_label += " (%s)" % what_units
 				colorbar.ax.set_ylabel(what_label)
 
+		if title:
+			fig.suptitle(title, fontsize="x-large")
 		if tight_layout:
-			pylab.tight_layout()
+			if title:
+				pylab.tight_layout(rect=[0, 0.03, 1, 0.95])
+			else:
+				pylab.tight_layout()
 		if hardcopy:
 			pylab.savefig(hardcopy)
 		if show:
@@ -4541,6 +4578,14 @@ class Dataset(object):
 		"""
 		raise NotImplementedError
 
+	def add_column(self, name, f_or_array):
+		"""Add an in memory array as a column"""
+		if isinstance(f_or_array, np.ndarray):
+			self.columns[name] = f_or_array
+			self.column_names.append(name)
+		else:
+			raise ValueError("functions not yet implemented")
+
 	def add_virtual_column_bearing(self, name, lon1, lat1, lon2, lat2):
 		lon1 = "(pickup_longitude * pi / 180)"
 		lon2 = "(dropoff_longitude * pi / 180)"
@@ -4658,8 +4703,8 @@ class Dataset(object):
 		all_column_names = self.get_column_names(virtual=True)
 		def _guess(x, y):
 			if x == y:
-				postfixes = ["_error", "_uncertainty", "e"]
-				prefixes = ["e"]
+				postfixes = ["_error", "_uncertainty", "e", "_e"]
+				prefixes = ["e", "e_"]
 				for postfix in postfixes:
 					if x + postfix in all_column_names:
 						return x+postfix
@@ -4693,11 +4738,95 @@ class Dataset(object):
 				if i == j and cov:
 					cov += "**2" # square the diagnal
 				cov_matrix[i][j] = cov
-		print(cov_matrix)
 		return cov_matrix
 
+	def add_virtual_columns_cartesian_to_polar(self, x="x", y="y", radius_out="r_polar", azimuth_out="phi_polar",
+												 cov_matrix_x_y=None,
+												 covariance_postfix="_covariance",
+												 uncertainty_postfix="_uncertainty",
+												 radians=False):
+		if radians:
+			to_degrees = ""
+		else:
+			to_degrees = "*180/pi"
+		self.add_virtual_column(radius_out, "sqrt({x}**2 + {y}**2)".format(**locals()))
+		self.add_virtual_column(azimuth_out, "arctan2({y}, {x}){to_degrees}".format(**locals()))
+		if cov_matrix_x_y:
+			# function and it's jacobian
+			# f_obs(x, y) = [r, phi] = (..., ....)
+			J = [["-{x}/{radius_out}", "-{y}/{radius_out}"],
+				 ["-{y}/({x}**2+{y}**2){to_degrees}", "{x}/({x}**2+{y}**2){to_degrees}"]]
+			if cov_matrix_x_y in ["full", "auto"]:
+				names = [x, y]
+				cov_matrix_x_y = self._covariance_matrix_guess(names, full=cov_matrix_x_y=="full")
 
-	def add_virtual_columns_proper_motion_eq2gal(self, long_in, lat_in, pm_long, pm_lat, pm_long_out, pm_lat_out,
+			cov_matrix_r_phi = [[""] * 2 for i in range(2)]
+			for i in range(2):
+				for j in range(2):
+					for k in range(2):
+						for l in range(2):
+							sigma = cov_matrix_x_y[k][l]
+							if sigma and J[i][k] and J[j][l]:
+								cov_matrix_r_phi[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
+
+			names = [radius_out, azimuth_out]
+			for i in range(2):
+				for j in range(i+1):
+					sigma = cov_matrix_r_phi[i][j].format(**locals())
+					if i != j:
+						self.add_virtual_column(names[i]+"_" + names[j]+covariance_postfix, sigma)
+					else:
+						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
+
+	def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
+												 cov_matrix_x_y_vx_vy=None,
+												 covariance_postfix="_covariance",
+												 uncertainty_postfix="_uncertainty"):
+		if radius_polar is None:
+			radius_polar = "sqrt(({x})**2 + ({y})**2)".format(**locals())
+		self.add_virtual_column(vr_out,       "(({x})*({vx})+({y})*({vy}))/{radius_polar}".format(**locals()))
+		self.add_virtual_column(vazimuth_out, "(({x})*({vy})-({y})*({vx}))/{radius_polar}".format(**locals()))
+
+		if cov_matrix_x_y_vx_vy:
+			# function and it's jacobian
+			# f_obs(x, y, vx, vy) = [vr, vphi] = ( (x*vx+y*vy) /r , (x*vy - y * vx)/r )
+
+			J = [[
+					"-({x}*{vr_out})/({radius_polar})**2 + {vx}/({radius_polar})",
+					"-({y}*{vr_out})/({radius_polar})**2 + {vy}/({radius_polar})",
+					"{x}/({radius_polar})",
+					"{y}/({radius_polar})"
+				], [
+					"-({x}*{vazimuth_out})/({radius_polar})**2 + {vy}/({radius_polar})",
+					"-({y}*{vazimuth_out})/({radius_polar})**2 - {vx}/({radius_polar})",
+					"-{y}/({radius_polar})",
+					" {x}/({radius_polar})"
+				 ]]
+			if cov_matrix_x_y_vx_vy in ["full", "auto"]:
+				names = [x, y, vx, vy]
+				cov_matrix_x_y_vx_vy = self._covariance_matrix_guess(names, full=cov_matrix_x_y_vx_vy=="full")
+
+			cov_matrix_vr_vphi = [[""] * 2 for i in range(2)]
+			for i in range(2):
+				for j in range(2):
+					for k in range(4):
+						for l in range(4):
+							sigma = cov_matrix_x_y_vx_vy[k][l]
+							if sigma and J[i][k] and J[j][l]:
+								cov_matrix_vr_vphi[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
+
+			names = [vr_out, vazimuth_out]
+			for i in range(2):
+				for j in range(i+1):
+					sigma = cov_matrix_vr_vphi[i][j].format(**locals())
+					if i != j:
+						self.add_virtual_column(names[i]+"_" + names[j]+covariance_postfix, sigma)
+					else:
+						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
+
+
+
+	def add_virtual_columns_proper_motion_eq2gal(self, long_in="ra", lat_in="dec", pm_long="pm_ra", pm_lat="pm_dec", pm_long_out="pm_l", pm_lat_out="pm_b",
 												 cov_matrix_alpha_delta_pma_pmd=None,
 												 covariance_postfix="_covariance",
 												 uncertainty_postfix="_uncertainty",
@@ -4963,8 +5092,8 @@ class Dataset(object):
 
 	def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial", radians=False):
 		import kapteyn.celestial as c
-		input = input or c.equatorial
-		output = output or c.galactic
+		input = input if input is not None else c.equatorial
+		output = output if output is not None else c.galactic
 		matrix = c.skymatrix((input,'j2000',c.fk5), output)[0]
 		if not radians:
 			long_in = "pi/180.*%s" % long_in
