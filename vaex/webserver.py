@@ -188,8 +188,7 @@ class ListHandler(tornado.web.RequestHandler):
 		if response is None:
 			response = yield self.submit_threaded(process, self.webserver, user_id, self.request.path, **arguments)
 			try:
-				# TODO: cache doesn't cooperate with unittest
-				#self.cache[key] = response
+				self.cache[key] = response
 				pass
 			except ValueError:
 				pass # raised when it doesn't fit in cache
@@ -232,6 +231,8 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
 		path = arguments["path"]
 		arguments.pop("path")
 		user_id = arguments.pop("user_id", None)
+		job_id = arguments.pop("job_id")
+
 
 		if False: # disable user_id for the moment
 			user_id = self.get_cookie("user_id")
@@ -240,7 +241,6 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
 				if user_id == None:
 					self.write_json(error="no user id, do an http get request first")
 					return
-		job_id = arguments["job_id"]
 		last_progress = [None]
 		def progress(f):
 			def do():
@@ -250,25 +250,47 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
 			if last_progress[0] is None or (f - last_progress[0]) > 0.05 or f == 1.0:
 				tornado.ioloop.IOLoop.current().add_callback(do)
 			return True
-		response = yield self.submit_threaded(process, self.webserver, user_id, path, progress=progress, **arguments)
+		key = (path, "-".join([str(v) for v in sorted(arguments.items())]))
+		response = self.cache.get(key)
+		if response is None:
+			#response = yield self.submit_threaded(process, self.webserver, user_id, self.request.path, **arguments)
+			response = yield self.submit_threaded(process, self.webserver, user_id, path, progress=progress,
+												  **arguments)
+			try:
+				self.cache[key] = response
+				pass
+			except ValueError:
+				pass # raised when it doesn't fit in cache
 		progress(1)
+
 		if response is None:
 			response = self.error("unknown request or error")
-		#if isinstance(response, str):
-		#	#self.set_header("Content-Type", "application/octet-stream")
-		#	response = {"result": response.encode("base64")}
-		response["job_id"] = job_id
-		if "result" in response:
-			response["job_phase"] = "COMPLETED"
-		if "error" in response:
-			response["job_phase"] = "ERROR"
-		if "exception" in response:
-			response["job_phase"] = "EXCEPTION"
-		self.write_json(**response)
+
+		meta_data = dict(job_id=job_id)
+		if isinstance(response, (np.ndarray, float)):
+			response = np.array(response)
+			#self.set_header("Content-Type", "application/numpy-array")
+			meta_data["shape"] = str(response.shape)
+			meta_data["dtype"] = str(response.dtype)
+			meta_data["job_phase"] = "COMPLETED"
+			data_response = response.tobytes()
+		else: # it should be a dict
+			if "result" in response:
+				response["job_phase"] = "COMPLETED"
+			if "error" in response:
+				response["job_phase"] = "ERROR"
+			if "exception" in response:
+				response["job_phase"] = "EXCEPTION"
+			meta_data.update(response)
+			data_response = b""
+		text_response = json.dumps(meta_data).encode("utf8")\
+						+ b"\n" + data_response
+
+		self.write_message(text_response, binary=True)
 
 	def write_json(self, **kwargs):
 		logger.debug("writing json: %r", kwargs)
-		self.write_message(json.dumps(kwargs))
+		self.write_message(json.dumps(kwargs) + "\n", binary=True)
 
 	def on_close(self):
 		logger.debug("WebSocket closed")
@@ -402,7 +424,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 									for name in "job_id expressions active_fraction selection selections variables virtual_columns active_start_index active_end_index".split():
 										arguments.pop(name, None)
 							logger.debug("subspace: %r", subspace)
-							if subspace is None and method_name in "count".split():
+							if subspace is None and method_name in "count cov correlation covariance mean std minmax min max sum var".split():
 								grid = task_invoke(dataset, method_name, **arguments)
 								return grid
 							elif method_name in ["minmax", "image_rgba_url", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
@@ -421,10 +443,11 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								return ({"result": values})
 							elif method_name == "histogram":
 								grid = task_invoke(subspace, method_name, **arguments)
+								return grid
 								#self.set_header("Content-Type", "application/octet-stream")
 								#return (grid.tostring())
-								import base64
-								return grid.tostring()
+								#import base64
+								#return grid.tostring()
 								#result = base64.b64encode(grid.tostring()).decode("ascii")
 								#logger.debug("type: %s" % type(result))
 								#return {"result": result}
