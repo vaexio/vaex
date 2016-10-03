@@ -91,6 +91,14 @@ class TestDataset(unittest.TestCase):
 		self.dataset_concat.remove_virtual_meta()
 		self.dataset_concat_dup.remove_virtual_meta()
 
+	def test_mixed_endian(self):
+
+		x = np.arange(10., dtype=">f8")
+		y = np.arange(10, dtype="<f8")
+		ds = vx.from_arrays("mixed", x=x, y=y)
+		ds.count()
+		ds.count(binby=["x", "y"])
+
 	def test_uncertainty_propagation(self):
 
 		N = 100000
@@ -711,9 +719,9 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(self.x[:5]))
 
 		# convert to float
-		x = self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
+		x = self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
 		y = self.y
-		self.dataset.columns["x"][0] = np.nan
+		self.dataset_local.columns["x"][0] = np.nan
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(x))
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(x[:5]))
 
@@ -740,7 +748,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_cov(self):
 		# convert to float
-		x = self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
+		x = self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
 		y = self.y
 		def cov(*args):
 			return np.cov(args, bias=1)
@@ -795,7 +803,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_correlation(self):
 		# convert to float
-		x = self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
+		x = self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
 		y = self.y
 		def correlation(x, y):
 			c = np.cov([x, y], bias=1)
@@ -843,7 +851,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_covar(self):
 		# convert to float
-		x = self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
+		x = self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
 		y = self.y
 		def covar(x, y):
 			mask = np.isfinite(x * y)
@@ -1480,8 +1488,9 @@ class TestDataset(unittest.TestCase):
 import sys
 test_port = 29110 + sys.version_info[0] * 10 + sys.version_info[1]
 
-class A:#class estDatasetRemote(TestDataset):
-	use_websocket = False
+#class A:#class estDatasetRemote(TestDataset):
+class TestDatasetRemote(TestDataset):
+	use_websocket = True
 	def setUp(self):
 		global test_port
 		# run all tests from TestDataset, but now served at the server
@@ -1492,7 +1501,7 @@ class A:#class estDatasetRemote(TestDataset):
 		self.dataset_concat_dup_local = self.dataset_concat_dup
 
 		datasets = [self.dataset_local, self.datasetxy_local, self.dataset_concat_local, self.dataset_concat_dup_local]
-		self.webserver = vaex.webserver.WebServer(datasets=datasets, port=test_port)
+		self.webserver = vaex.webserver.WebServer(datasets=datasets, port=test_port, cache_byte_size=0)
 		#print "serving"
 		self.webserver.serve_threaded()
 		#print "getting server object"
@@ -1534,22 +1543,22 @@ class A:#class estDatasetRemote(TestDataset):
 
 	#def test_count(self):
 	#	pass
-	def test_sum(self):
-		pass
-	def test_cov(self):
-		pass
-	def test_correlation(self):
-		pass
-	def test_covar(self):
-		pass
-	def test_mean(self):
-		pass
-	def test_minmax(self):
-		pass
-	def test_var_and_std(self):
-		pass
-	def test_limits(self):
-		pass
+	#def test_sum(self):
+	#	pass
+	#def test_cov(self):
+	#	pass
+	#def test_correlation(self):
+	#	pass
+	#def test_covar(self):
+	#	pass
+	#def test_mean(self):
+	#	pass
+	#def test_minmax(self):
+	#	pass
+	#def test_var_and_std(self):
+	#	pass
+	#def test_limits(self):
+	#	pass
 
 import vaex.distributed
 class A:#class T_estDatasetDistributed(unittest.TestCase):
