@@ -1106,7 +1106,6 @@ class LayerTable(object):
 
 			@vaex.delayed.delayed
 			def update_count(count):
-				print("COUNT ", count)
 				self.label_selection_info_update(count)
 			update_count(self.dataset.count(selection=True, async=True))
 		else:
