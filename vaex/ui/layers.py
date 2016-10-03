@@ -2012,7 +2012,7 @@ class LayerTable(object):
 				return self.state.labels[2]
 			def set(value):
 				self.state.labels[2] = value
-				self.plot_window.queue_history_change("changed label_x to %s" % (value))
+				self.plot_window.queue_history_change("changed label_z to %s" % (value))
 				self.plot_window.queue_push_full_state()
 			def default():
 				#return "default label"
