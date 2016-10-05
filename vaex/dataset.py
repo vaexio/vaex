@@ -1714,9 +1714,6 @@ import cgi
 # mutex for numexpr (is not thread save)
 ne_lock = threading.Lock()
 
-globals_for_eval = {}
-globals_for_eval.update(np.__dict__)
-
 class UnitScope(object):
 	def __init__(self, dataset, value=None):
 		self.dataset = dataset
@@ -1727,7 +1724,7 @@ class UnitScope(object):
 			unit = self.dataset.units[variable]
 			return (self.value * unit) if self.value is not None else unit
 		elif variable in self.dataset.virtual_columns:
-			return eval(self.dataset.virtual_columns[variable], globals_for_eval, self)
+			return eval(self.dataset.virtual_columns[variable], expression_namespace, self)
 		elif variable in self.dataset.variables:
 			return astropy.units.dimensionless_unscaled # TODO units for variables?
 		else:
@@ -3874,7 +3871,6 @@ class Dataset(object):
 					logger.debug("plot rgrid: %r", plot_rgrid.shape)
 					plot_rgrid = np.transpose(plot_rgrid, (1,0,2))
 					im = ax.imshow(plot_rgrid, extent=extend.tolist(), origin="lower", aspect=aspect, interpolation=interpolation)
-					import healpy
 					#v1, v2 = values[i], values[i+1]
 					def label(index, label, expression):
 						if label and _issequence(label):
@@ -4202,13 +4198,13 @@ class Dataset(object):
 		"""
 		try:
 			# if an expression like pi * <some_expr> it will evaluate to a quantity instead of a unit
-			unit_or_quantity = eval(expression, globals_for_eval, UnitScope(self))
+			unit_or_quantity = eval(expression, expression_namespace, UnitScope(self))
 			return unit_or_quantity.unit if hasattr(unit_or_quantity, "unit") else unit_or_quantity
 		except:
 			#logger.exception("error evaluating unit expression: %s", expression)
 			# astropy doesn't add units, so we try with a quatiti
 			try:
-				return eval(expression, globals_for_eval, UnitScope(self, 1.)).unit
+				return eval(expression, expression_namespace, UnitScope(self, 1.)).unit
 			except:
 				#logger.exception("error evaluating unit expression: %s", expression)
 				return default
