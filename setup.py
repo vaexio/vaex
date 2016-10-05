@@ -157,7 +157,8 @@ else:
 	#extra_compile_args = ["-mfpmath=sse", "-msse4", "-Ofast", "-flto", "-march=native", "-funroll-loops"]
 	extra_compile_args = ["-mfpmath=sse", "-msse4", "-Ofast", "-flto", "-funroll-loops"]
 	#extra_compile_args = ["-mfpmath=sse", "-O3", "-funroll-loops"]
-	extra_compile_args = ["-mfpmath=sse", "-mavx", "-O3", "-funroll-loops"]
+	#extra_compile_args = ["-mfpmath=sse", "-mavx", "-O3", "-funroll-loops"]
+	extra_compile_args = ["-mfpmath=sse", "-msse4a", "-O3", "-funroll-loops"]
 extra_compile_args.extend(["-std=c++0x"])
 
 include_dirs.append(os.path.join(get_python_inc(plat_specific=1), "numpy"))
@@ -217,7 +218,7 @@ setup(
     #entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },
     scripts=[os.path.join("bin", "vaex")],
     ext_modules=extensions,
-    package_data={'vaex': ['ui/icons/*.png', 'ui/icons/*.icns']},
+    package_data={'vaex': ['ui/icons/*.png', 'ui/icons/*.icns', 'ext/*.js']},
     package_dir={'vaex':'vaex'},
     cmdclass=cmdclass,
     description="Vaex is a graphical tool to visualize and explore large tabular datasets.",
