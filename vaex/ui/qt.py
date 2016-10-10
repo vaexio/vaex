@@ -16,18 +16,29 @@ try:
 	sip.setapi('QVariant', 2)
 	#from PyQt4.QtWebKit import QWebView
 	qt_version = QtCore.PYQT_VERSION_STR
+	qt_mayor = int(qt_version[0])
 except ImportError as e1:
-	try:
-		from PySide import QtGui, QtCore, QtTest #, QtNetwork
-		#from PySide.QtWebKit import QWebView
-		QtCore.pyqtSignal= QtCore.Signal 
-		qt_version = QtCore.__version__
+	# try:
+		from PyQt5 import QtGui, QtCore, QtTest, QtWidgets #, QtNetwork
+		for name in dir(QtWidgets):
+			if name[0].lower() == "q":
+				setattr(QtGui, name, getattr(QtWidgets, name))
+		qt_version = QtCore.PYQT_VERSION_STR
+		qt_mayor = int(qt_version[0])
+		QtGui.QStringListModel = QtCore.QStringListModel
+	except ImportError as e1b:
+		try:
+			from PySide import QtGui, QtCore, QtTest #, QtNetwork
+			#from PySide.QtWebKit import QWebView
+			QtCore.pyqtSignal= QtCore.Signal
+			qt_version = QtCore.__version__
+			qt_mayor = 4
 		#QtCore.Slot = QtCore.pyqtSlot
-	except ImportError as e2:
-		print("could not import PyQt4 or PySide, please install", file=sys.stderr)
-		print("errors: ", repr(e1), repr(e2), file=sys.stderr)
-		sys.exit(1)
-
+		except ImportError as e2:
+			print("could not import PyQt4 or PySide, please install", file=sys.stderr)
+			print("errors: ", repr(e1), repr(e2), file=sys.stderr)
+			sys.exit(1)
+print(qt_version)
 def attrsetter(object, attr_name):
 	def setter(value):
 		setattr(object, attr_name, value)
@@ -681,6 +692,13 @@ class QuickDialog(QtGui.QDialog):
 
 	def add_text(self, name, label="", value="", placeholder=None):
 		self.widgets[name] = widget = QtGui.QLineEdit(value, self)
+		if placeholder:
+			widget.setPlaceholderText(placeholder)
+		self.layout.addRow(label, widget)
+
+	def add_password(self, name, label="", value="", placeholder=None):
+		self.widgets[name] = widget = QtGui.QLineEdit(value, self)
+		widget.setEchoMode(QtGui.QLineEdit.Password)
 		if placeholder:
 			widget.setPlaceholderText(placeholder)
 		self.layout.addRow(label, widget)
