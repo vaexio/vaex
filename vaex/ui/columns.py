@@ -179,8 +179,10 @@ class ColumnsTable(QtGui.QWidget):
 		#self.tableView.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows);
 		#self.header = self.dataset.column_names
 		#self.tableView.pressed.connect(self.onSelectRow)
-
-		self.tableView.verticalHeader().setResizeMode(QtGui.QHeaderView.Interactive)
+		if qt_mayor == 5:
+			self.tableView.verticalHeader().setSectionResizeMode(QtGui.QHeaderView.Interactive)
+		else:
+			self.tableView.verticalHeader().setResizeMode(QtGui.QHeaderView.Interactive)
 		self.unit_delegate = vaex.ui.completer.UnitDelegate(self.tableView)
 		self.ucd_delegate = vaex.ui.completer.UCDDelegate(self.tableView)
 		self.tableView.setItemDelegateForColumn(4, self.unit_delegate)
