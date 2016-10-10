@@ -11,7 +11,11 @@ from functools import reduce
 import threading
 
 
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from vaex.ui.qt import *
+if qt_mayor == 5:
+	from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+else:
+	from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib
 import matplotlib.colors
@@ -37,7 +41,6 @@ import vaex.ui.templates
 import vaex.promise
 import vaex.ui.volumerendering
 
-from vaex.ui.qt import *
 import vaex.ui.qt as dialogs
 from vaex.ui.icons import iconfile
 import vaex.vaexfast
@@ -2638,6 +2641,11 @@ class ScatterPlotDialog(PlotDialog):
 		background[:,:,3] = 1.
 
 		ranges = []
+		# this happens when for instance the plotting isn't done, and you change the display %
+		if first_layer.state.ranges_grid is None:
+			return
+		if None in first_layer.state.ranges_grid:
+			return
 		for minimum, maximum in first_layer.state.ranges_grid:
 			ranges.append(minimum)
 			ranges.append(maximum)
