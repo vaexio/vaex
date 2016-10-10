@@ -18,7 +18,7 @@ try:
 	qt_version = QtCore.PYQT_VERSION_STR
 	qt_mayor = int(qt_version[0])
 except ImportError as e1:
-	# try:
+	try:
 		from PyQt5 import QtGui, QtCore, QtTest, QtWidgets #, QtNetwork
 		for name in dir(QtWidgets):
 			if name[0].lower() == "q":
