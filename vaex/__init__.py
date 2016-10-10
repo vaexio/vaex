@@ -142,28 +142,15 @@ def open_many(filenames):
 			datasets.append(open(filename))
 	return vaex.dataset.DatasetConcatenated(datasets=datasets)
 
-def open_samp_single():
+def from_samp(username=None, password=None):
 	"""Connect to a SAMP Hub and wait for a single table load event, disconnect, download the table and return the dataset
 
 	Useful if you want to send a single table from say TOPCAT to vaex in a python console or notebook
 	"""
-	from vaex.samp import SampSingle
-	from astropy.table import Table
-	#samp = Samp(daemon=False)
-	#samp.tableLoadCallbacks.
-	samp = SampSingle()
-	url = samp.wait_for_table()
-	import os
-	import tempfile
-	tempdir = tempfile.mkdtemp()
-	path = os.path.join(tempdir, "out.vot.gz")
-	os.system("wget -c -O %s %s" % (path, url))
-	parts = os.path.split(url)
-	print("parts", parts)
-	path2 = os.path.join(tempdir, "out.vot")
-	os.system("gunzip %s > /dev/null; mv %s %s  > /dev/null" % (path, path, path2))
-	table = Table.read(path2, format="votable")
-	return from_astropy_table(table)
+	print("Waiting for SAMP message...")
+	import vaex.samp
+	t = vaex.samp.single_table(username=username, password=password)
+	return from_astropy_table(t.to_table())
 
 
 def from_astropy_table(table):
