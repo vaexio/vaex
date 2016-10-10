@@ -3168,7 +3168,7 @@ class Dataset(object):
 		subspace = self(*expressions)
 		if selection:
 			subspace = subspace.selected()
-		return subspace.histogram(limits=limits, size=shape, weight=weight, progressbar=progressbar)
+		return subspace.histogram(limits=limits, size=shape, weight=weight)#, progressbar=progressbar)
 
 	def __mean_old(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
 		if len(binby) == 0:
@@ -4055,10 +4055,10 @@ class Dataset(object):
 					if function in functions:
 						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
 					elif function == "count" and arguments == "*":
-						grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
+						grid = self.count(binby=binby, shape=shape, limits=limits, selection=selection)
 					elif function == "cumulative" and arguments == "*":
 						# TODO: comulative should also include the tails outside limits
-						grid = self.histogram(binby, shape=shape, limits=limits, selection=selection)
+						grid = self.count(binby=binby, shape=shape, limits=limits, selection=selection)
 						grid = np.cumsum(grid)
 					else:
 						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
@@ -4098,7 +4098,7 @@ class Dataset(object):
 				#pylab.show()
 		else:
 			#im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
-			pylab.xlabel(xlabel or x)
+			pylab.xlabel(xlabel or self.label(x))
 			pylab.ylabel(ylabel or what)
 			value = pylab.plot(xar, ngrid, drawstyle="steps", label=label or x, **kwargs)
 		if tight_layout:
