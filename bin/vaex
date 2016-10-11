@@ -4,6 +4,8 @@ import sys
 import os
 import platform
 
+import requests.auth # this should not confuse pyinstaller any more
+
 darwin = "darwin" in platform.system().lower()
 frozen = getattr(sys, 'frozen', False)
 if frozen and len(sys.argv) > 1 and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just stars without arguments
