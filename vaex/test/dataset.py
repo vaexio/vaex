@@ -12,6 +12,7 @@ import astropy.units
 import vaex.execution
 a = vaex.execution.buffer_size_default # will crash if we decide to rename it
 
+basedir = os.path.dirname(__file__)
 # this will make the test execute more code and may show up bugs
 #vaex.execution.buffer_size_default = 3
 
@@ -85,6 +86,14 @@ class TestDataset(unittest.TestCase):
 		self.dataset_concat_dup_local = self.dataset_concat_dup
 
 		np.random.seed(0) # fix seed so that test never fails randomly
+
+	def test_amuse(self):
+		ds = vx.open(os.path.join(basedir, "files", "default_amuse_plummer.hdf5"))
+		self.assertGreater(len(ds), 0)
+		self.assertGreater(len(ds.get_column_names()), 0)
+		self.assertIsNotNone(ds.unit("x"))
+		self.assertIsNotNone(ds.unit("vx"))
+		self.assertIsNotNone(ds.unit("mass"))
 
 	def tearDown(self):
 		self.dataset.remove_virtual_meta()
@@ -1526,6 +1535,9 @@ class A:
 		#print "stop serving"
 		self.server.close()
 		self.webserver.stop_serving()
+
+	def test_amuse(self):
+		pass # no need
 
 	def test_export(self):
 		pass # we can't export atm
