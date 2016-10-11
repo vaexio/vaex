@@ -35,37 +35,37 @@ def main(argv):
 	#sums = subspace.sum()
 
 	limits = subspace.minmax()
-	print limits
+	print(limits)
 
 	N = args.N
-	print "benchmarking minmax"
+	print("benchmarking minmax")
 	expr = "subspace.minmax()"
 	times = timeit.repeat(expr, setup="from vaex.benchmark import subspace, dataset, np", repeat=args.repeat, number=N)
-	print "minimum time", min(times)/N
+	print("minimum time", min(times)/N)
 	bandwidth = [byte_size/1024.**3/(time/N) for time in times]
-	print "%f GiB/s" % max(bandwidth)
+	print("%f GiB/s" % max(bandwidth))
 
 	speed = [len(dataset)/(time/N)/1e9 for time in times]
-	print "%f billion rows/s " % max(speed)
+	print("%f billion rows/s " % max(speed))
 
-	print
-	print "benchmarking histogram"
+	print()
+	print("benchmarking histogram")
 	expr = "subspace.histogram(limits, 256)"
 	times = timeit.repeat(expr, setup="from vaex.benchmark import subspace, dataset, np, limits", repeat=args.repeat, number=N)
-	print "minimum time", min(times)/N
+	print("minimum time", min(times)/N)
 	bandwidth = [byte_size/1024.**3/(time/N) for time in times]
-	print "%f GiB/s" % max(bandwidth)
+	print("%f GiB/s" % max(bandwidth))
 
 	speed = [len(dataset)/(time/N)/1e9 for time in times]
-	print "%f billion rows/s " % max(speed)
-	print
+	print("%f billion rows/s " % max(speed))
+	print()
 
 	#expr = "np.nansum(dataset.columns['x'])"
-	print "sum=", subspace.sum()
-	print "benchmarking sum"
+	print("sum=", subspace.sum())
+	print("benchmarking sum")
 	expr = "subspace.sum()"
 	times = timeit.repeat(expr, setup="from vaex.benchmark import subspace, dataset, np", repeat=args.repeat, number=N)
-	print "minimum time", min(times)/N
+	print("minimum time", min(times)/N)
 	bandwidth = [byte_size/1024.**3/(time/N) for time in times]
-	print "%f GiB/s" % max(bandwidth)
+	print("%f GiB/s" % max(bandwidth))
 
