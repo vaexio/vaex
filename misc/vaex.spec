@@ -7,7 +7,8 @@ astropy_base_dir = os.path.dirname(astropy.__file__)
 
 a = Analysis(['bin/vaex'],
              pathex=['/net/theon/data/users/breddels/vaex/src/SubspaceFinding'],
-             hiddenimports=["h5py.h5ac", "six", "sip", "PyQt5", "PyQt5.QtGui", "PyQt5.QtCore", "PyQt5.QtTest", "PyQt5.Widgets"],
+             hiddenimports=["h5py.h5ac", "six", "sip", "PyQt5", "PyQt5.QtGui", "PyQt5.QtCore", "PyQt5.QtTest", "PyQt5.Widgets",\
+             "numpy.lib.recfunctions"],
              hookspath=None,)
 #             runtime_hooks=["vaex/ui/rthook_pyqt4.py"])
 pyz = PYZ(a.pure)
