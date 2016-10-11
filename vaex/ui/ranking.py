@@ -2,7 +2,7 @@ import itertools
 
 import numpy as np
 #from pyjavaproperties import Properties
-import jprops
+from vaex.ext import jprops
 import collections
 
 from vaex.ui.qt import *
