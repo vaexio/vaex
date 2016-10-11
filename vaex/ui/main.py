@@ -2010,7 +2010,7 @@ def main(argv=sys.argv[1:]):
 		app = QtGui.QApplication(argv)
 		if not (frozen and darwin): # osx app has its own icon file
 			import vaex.ui.icons
-			icon = QtGui.QIcon(vaex.ui.icons.iconfile('vaex32'))
+			icon = QtGui.QIcon(vaex.ui.icons.iconfile('vaex128'))
 			app.setWindowIcon(icon)
 	#import vaex.ipkernel_qtapp
 	#ipython_window = vaex.ipkernel_qtapp.SimpleWindow(app)
