@@ -46,16 +46,11 @@ from vaex.ui.icons import iconfile
 import vaex.vaexfast
 from vaex.ui import qt, undo
 
-from attrdict import AttrDict
+from vaex.utils import AttrDict
 try:
 	from StringIO import StringIO
 except ImportError:
 	from io import StringIO
-
-class AttrDict(AttrDict):
-	def __init__(self, *args, **kwargs):
-		super(AttrDict, self).__init__(*args, **kwargs)
-		self._setattr("_sequence_type", None)
 
 grid_resolutions = [32, 64, 128, 256, 512, 1024]
 vector_grid_resolutions = [8,16,32, 64, 128, 256]
