@@ -62,9 +62,9 @@ def background(shape, color="white", alpha=1, bit8=True):
 def fade(image_list, opacity=0.5, blend_mode="multiply"):
 	result = image_list[0] * 1.
 	for i in range(1, len(image_list)):
-		result[...,3] = 1
+		result[result[...,3] > 0,3] = 1
 		layer = image_list[i] * 1.0
-		layer[...,3] = opacity
+		layer[layer[...,3] > 0,3] = opacity
 		result = blend([result, layer], blend_mode=blend_mode)
 	return result
 
