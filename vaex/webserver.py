@@ -252,6 +252,7 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
 			return True
 		key = (path, "-".join([str(v) for v in sorted(arguments.items())]))
 		response = self.cache.get(key)
+		progress(0)
 		if response is None:
 			#response = yield self.submit_threaded(process, self.webserver, user_id, self.request.path, **arguments)
 			response = yield self.submit_threaded(process, self.webserver, user_id, path, progress=progress,
