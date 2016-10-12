@@ -41,7 +41,7 @@ class Hdf5Download(object):
 	def wget_command(self, i):
 		assert i == 0
 		url = self.url_list[i]
-		return "wget -c -P %s %s" % (data_dir, url)
+		return "wget --progress=bar:force -c -P %s %s" % (data_dir, url)
 
 
 
