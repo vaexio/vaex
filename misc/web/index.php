@@ -48,7 +48,7 @@
               </button>
                 <!--<a class="navbar-brand" href="#"><span class="glyphicon icon-spectabular"></span>vaex</a> -->
                <!--  <a class="navbar-brand" href="#"><span class="glyphicon icon-spectabular"></span>V&#xe6;X</a>-->
-              <a class="navbar-brand" href="#"><li class="glyphicon icon-telescope3" style="color: white"></li>vaex</i></a>
+              <a class="navbar-brand" href="http://vaex.astro.rug.nl"><li class="glyphicon icon-telescope3" style="color: white"></li>vaex</i>(beta)</a>
             </div>
             <div id="navbar" class="navbar-collapse collapse">
               <ul class="nav navbar-nav">
@@ -61,19 +61,19 @@
                     <li><a href="#example" class="page-scroll"><i class="fa fa-file-code-o"></i>Example code</a></li>
                   </ul>
               </li>
-                <li><a href="//vaex.astro.rug.nl/latest/"><i class="fa fa-book"></i>Documentation</a></li>
+                <li><a href="http://vaex.astro.rug.nl/latest/"><i class="fa fa-book"></i>Documentation</a></li>
                 <li class="dropdown">
                   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">More <span class="caret"></span></a>
                   <ul class="dropdown-menu">
                     <li><a href="https://github.com/maartenbreddels/vaex"><i class="fa fa-github"></i>Github</a></li>
-                    <li><a href="http://vaex.astro.rug.nl/latest/installing.html"><i class="fa fa-download"></i>Download/Install instructions</a></li>
+                    <li><a href="http:http://vaex.astro.rug.nl/latest/installing.html"><i class="fa fa-download"></i>Download/Install instructions</a></li>
                     <li><a href="https://pypi.python.org/pypi/vaex/"><i class="fa fa-archive"></i>Vaex on pypi</a></li>
-                    <li><a href="http://vaex.astro.rug.nl/latest/gallery.html"><i class="fa fa-picture-o"></i>Gallery</a></li>
+                    <li><a href="http:http://vaex.astro.rug.nl/latest/gallery.html"><i class="fa fa-picture-o"></i>Gallery</a></li>
                     <li role="separator" class="divider"></li>
                     <li class="dropdown-header"><i class="fa fa-book"></i>Documentation</li>
-                    <li><a href="//vaex.astro.rug.nl/latest/"><i class="fa-empty"></i>Home</a></li>
-                    <li><a href="//vaex.astro.rug.nl/latest/tutorial_ipython_notebook.html"><i class="fa-empty"></i>Tutorials</a></li>
-                    <li><a href="//vaex.astro.rug.nl/latest/api.html"><i class="fa "></i>API</a></li>
+                    <li><a href="http://vaex.astro.rug.nl/latest/"><i class="fa-empty"></i>Home</a></li>
+                    <li><a href="http://vaex.astro.rug.nl/latest/tutorial_ipython_notebook.html"><i class="fa-empty"></i>Tutorials</a></li>
+                    <li><a href="http://vaex.astro.rug.nl/latest/api.html"><i class="fa "></i>API</a></li>
                   </ul>
                 </li>
               </ul>
@@ -911,8 +911,8 @@
         <div class="col-md-7">
           <h2 class="featurette-heading">Download.</h2>
 
-          <p class="lead">Desktop user? Download the standalone <a href="https://github.com/maartenbreddels/vaex/releases/download/0.3.10/vaex-0.3.10-osx.zip">OSX</a> or
-            <a href="https://github.com/maartenbreddels/vaex/releases/download/0.3.10/vaex-0.3.10-linux.tar.gz">Linux</a> version. *
+          <p class="lead">Desktop user? Download the standalone <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.2-osx.zip">OSX</a> or
+            <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.2-linux.tar.gz">Linux</a> version. *
 
           </p>
           <p class="lead">For programming? Install the python package:
@@ -926,7 +926,13 @@
             <code>
               $ conda install -c maartenbreddels vaex
           </code>
-          <p class="lead">Or see the <a href="https://www.astro.rug.nl/~breddels/vaex/installing.html#from-source">detailed instructions</a>.</p>
+          <p class="lead">Latest from git:
+            <br/>
+            <code>
+              $ pip install git+https://github.com/maartenbreddels/vaex/
+          </code>
+          </p>
+          <p class="lead">Or see the <a href="http://vaex.astro.rug.nl/latest/installing.html#from-source">detailed instructions</a>.</p>
 
           <span class="text-muted" style="font-size: 80%">*Not possible to combine with the IPython/Jupyter notebook</span>.
 
@@ -1034,15 +1040,52 @@ You will need about, ~15BG or free memory for a proper performance, or replace <
 
       <hr class="featurette-divider">
 
+       <a id="gaia" name="gaia"></a>
+      <hr class="featurette-divider">
+      <div class="row featurette">
+        <h2 class="featurette-heading">Gaia data.</h2>
+        <div class="col-lg-8 col-md-4 col-sm-6 col-xs-12">
+            <ul>
+                <li>
+                    See the <a href="http://www.cosmos.esa.int/web/gaia/home">Gaia Science Homepage for details</a>, and you may want to try the <a href="https://archives.esac.esa.int/gaia">Gaia Archive</a> for ADQL (SQL like) queries.
+                </li>
+                <li>
+                    Use a torrent client like <a href="https://transmissionbt.com/">transmission</a> to download the files, and keep seeding/sharing.
+                </li>
+            </ul>
+            Data:
+            <ul>
+                <li>
+                    Single hdf5 file, copy of <a href="http://cdn.gea.esac.esa.int/Gaia/gaia_source/fits/">full Gaia DR1 catalogue</a> in random row order: <a href="data/gaia-dr1.hdf5.torrent">gaia-dr1.hdf5.torrent</a>(342G).
+                </li>
+                <li>
+                    random 1% of the catalogue, useful for on your laptop: <a href="data/gaia-dr1-1percent.hdf5.torrent">gaia-dr1-1percent.hdf5.torrent</a> (<a href="http://129.125.6.22/gaia-dr1-1percent.hdf5">direct link</a>) (3.5G).
+                </li>
+                <li>
+                    All rows, but just l,b,ra,dec and g magnitude: <a href="data/gaia-dr1-essential.hdf5.torrent">gaia-dr1-essential.hdf5.torrent</a> (43G).
+                </li>
+                <li>
+                    Single hdf5 file, copy of <a href="http://cdn.gea.esac.esa.int/Gaia/gaia_source/fits/">full TGAS catalogue</a>: <a href="data/tgas.hdf5">tgas-hdf5</a> (0.6G).
+                </li>
+            </ul>
+        </div>
+      </div>
+
+      <hr class="featurette-divider">
+
+
         <div class="row featurette">
         <a id="about" name="about"></a>
         <div class="col-md-12">
           <h2 class="featurette-heading">Acknowledgements.</h2>
-            Vaex acknowledges funding from:<br>
-        <div class="col-lg-6 col-md-4 col-sm-6 col-xs-12">
+            Vaex is funded by:<br>
+        <div class="col-lg-4 col-md-4 col-sm-6 col-xs-12">
+            <a href="http://www.rug.nl/research/kapteyn/"><img width="300px" src="logos/rug_bigger.gif"></img</a>
+        </div>
+        <div class="col-lg-4 col-md-4 col-sm-6 col-xs-12">
             <a href="https://erc.europa.eu"><img width="300px" src="logos/erc2.jpg"></img</a>
         </div>
-        <div class="col-lg-6 col-md-4 col-sm-6 col-xs-12">
+        <div class="col-lg-4 col-md-4 col-sm-6 col-xs-12">
             <a href="http://www.nova-astronomy.nl/"><img width="300px" src="logos/nova.jpg"></img</a>
         </div>
           <p class="lead">.</p>
@@ -1125,9 +1168,9 @@ You will need about, ~15BG or free memory for a proper performance, or replace <
                         e.preventDefault();
                         console.log($.client.os)
                         if($.client.os == "Linux")
-                          window.location.href = "https://github.com/maartenbreddels/vaex/releases/download/0.3.10/vaex-0.3.10-linux.tar.gz"
+                          window.location.href = "http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.2-osx.zip"
                         if($.client.os == "Mac")
-                          window.location.href = "https://github.com/maartenbreddels/vaex/releases/download/0.3.10/vaex-0.3.10-osx.zip"
+                          window.location.href = "http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.2-linux.tar.gz"
 
                     });
                 }
@@ -1200,8 +1243,7 @@ You will need about, ~15BG or free memory for a proper performance, or replace <
 			});
 		</script>
 
-		<script>
-<script>
+<script type="text/javascript">
   (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
   (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
   m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
