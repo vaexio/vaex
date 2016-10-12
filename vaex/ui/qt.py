@@ -9,23 +9,24 @@ import logging
 logger = logging.getLogger("vaex.ui.qt")
 
 try:
-	import sip
-	sip.setapi('QVariant', 2)
-	sip.setapi('QString', 2)
-	from PyQt4 import QtGui, QtCore, QtTest #, QtNetwork
-	sip.setapi('QVariant', 2)
-	#from PyQt4.QtWebKit import QWebView
+	from PyQt5 import QtGui, QtCore, QtTest, QtWidgets  # , QtNetwork
+
+	for name in dir(QtWidgets):
+		if name[0].lower() == "q":
+			setattr(QtGui, name, getattr(QtWidgets, name))
 	qt_version = QtCore.PYQT_VERSION_STR
 	qt_mayor = int(qt_version[0])
+	QtGui.QStringListModel = QtCore.QStringListModel
 except ImportError as e1:
 	try:
-		from PyQt5 import QtGui, QtCore, QtTest, QtWidgets #, QtNetwork
-		for name in dir(QtWidgets):
-			if name[0].lower() == "q":
-				setattr(QtGui, name, getattr(QtWidgets, name))
+		import sip
+		sip.setapi('QVariant', 2)
+		sip.setapi('QString', 2)
+		from PyQt4 import QtGui, QtCore, QtTest #, QtNetwork
+		sip.setapi('QVariant', 2)
+		#from PyQt4.QtWebKit import QWebView
 		qt_version = QtCore.PYQT_VERSION_STR
 		qt_mayor = int(qt_version[0])
-		QtGui.QStringListModel = QtCore.QStringListModel
 	except ImportError as e1b:
 		try:
 			from PySide import QtGui, QtCore, QtTest #, QtNetwork
