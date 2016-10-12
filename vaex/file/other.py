@@ -562,6 +562,12 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 					if unitname == "(0.001 * system.get('S.I.').base('mass'))":
 						self.units[column_name] = astropy.units.Unit("gram")
 
+					if unitname == "system.get('S.I.').base('length')":
+						self.units[column_name] = astropy.units.Unit("m")
+					if unitname == "(system.get('S.I.').base('length') * (system.get('S.I.').base('time')**-1))":
+						self.units[column_name] = astropy.units.Unit("m/s")
+					if unitname == "system.get('S.I.').base('mass')":
+						self.units[column_name] = astropy.units.Unit("kg")
 
 				if hasattr(column, "dtype"):
 					#print column, column.shape
@@ -631,7 +637,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
 			#import pdb
 			#pdb.set_trace()
 			group = particles[group_name]
-			self.load_columns(group["attributes"])
+			self._load_columns(group["attributes"])
 
 			column_name = "keys"
 			column = group[column_name]

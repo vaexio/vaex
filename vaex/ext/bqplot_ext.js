@@ -6,7 +6,8 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
 
         render: function() {
             var base_render_promise = Image.__super__.render.apply(this);
-            this.im = this.d3el.append("image")
+            var el = this.el || this.d3el;
+            this.im = el.append("image")
                 .attr("class", "dot_img")
                 .attr("xlink:href", this.model.get('src'))
                 .attr("x", 0) //this.model.get('x'))
@@ -77,7 +78,8 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
 	            var x_scale = this.scales.x, y_scale = this.scales.y;
 	            var that = this;
 	            var animation_duration = this.parent.model.get("animation_duration");// : 0;
-	            this.d3el.selectAll(".dot_img").transition()
+	            var el = this.el || this.d3el;
+	            el.selectAll(".dot_img").transition()
 	                .duration(animation_duration)
 	                .attr("transform", function(d) {
                         var sx = x_scale.scale(1) - x_scale.scale(0);

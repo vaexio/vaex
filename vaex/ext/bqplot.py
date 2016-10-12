@@ -144,7 +144,7 @@ class BqplotHistogram(Bqplot):
 		xmin, xmax = self.limits[0]
 		dx = (xmax - xmin) / size
 		x = np.linspace(xmin, xmax-dx, size)+ dx/2
-		print xmin, xmax, x
+		#print xmin, xmax, x
 
 		self.scale_x = bq.LinearScale(min=xmin+dx/2, max=xmax-dx/2)
 		self.scale_y = bq.LinearScale()

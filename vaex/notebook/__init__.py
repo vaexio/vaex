@@ -21,8 +21,10 @@ base_path = os.path.dirname(__file__)
 import uuid
 from base64 import b64encode
 import json
-from cStringIO import StringIO
-
+try:
+	from cStringIO import StringIO
+except ImportError:
+	from io import StringIO
 class volr(object):
 	def __init__(self, subspace_gridded, **settings):
 		self.subspace_gridded = subspace_gridded
@@ -57,10 +59,10 @@ class volr(object):
 				""" % (id, cube64, json.dumps(self.settings)), raw=True)
 
 class init(object):
-    def __init__(self, ):
-        pass
+	def __init__(self, ):
+		pass
 
-    def _ipython_display_(self):
+	def _ipython_display_(self):
 		display_javascript(file(os.path.join(base_path, "glMatrix-0.9.5.min.js")).read(), raw=True)
 		display_javascript(file(os.path.join(base_path, "volumerenderer.js")).read(), raw=True)
 		#cube64 = b64encode(file(os.path.join(base_path, "cube.png")).read())
@@ -80,22 +82,22 @@ class init(object):
 
 
 
-    def ____ipython_display_(self):
-        #base64 = file(os.path.join(base_path, "data.png")).read().encode("base64").replace("\n", "")
-        #base64_colormap  = file(os.path.join(base_path, "colormap.png")).read().encode("base64").replace("\n", "")
-        #print base64[:10]
-        #code = "base64 = '" + base64 + "'; base64_colormap = '" + base64_colormap + "';"
-        display_javascript(file(os.path.join(base_path, "all.js")).read(), raw=True)
-        display_javascript(file(os.path.join(base_path, "vaex_volumerendering.js")).read(), raw=True)
-        display_html(file(os.path.join(base_path, "snippet.js")).read(), raw=True)
-        html1 = file(os.path.join(base_path, "snippet.html")).read()
-        display_html(html1, raw=True)
-        #print "ok"
-        display_html("""<div>BLAAT</div> """, raw=True)
+	def ____ipython_display_(self):
+		#base64 = file(os.path.join(base_path, "data.png")).read().encode("base64").replace("\n", "")
+		#base64_colormap  = file(os.path.join(base_path, "colormap.png")).read().encode("base64").replace("\n", "")
+		#print base64[:10]
+		#code = "base64 = '" + base64 + "'; base64_colormap = '" + base64_colormap + "';"
+		display_javascript(file(os.path.join(base_path, "all.js")).read(), raw=True)
+		display_javascript(file(os.path.join(base_path, "vaex_volumerendering.js")).read(), raw=True)
+		display_html(file(os.path.join(base_path, "snippet.js")).read(), raw=True)
+		html1 = file(os.path.join(base_path, "snippet.html")).read()
+		display_html(html1, raw=True)
+		#print "ok"
+		display_html("""<div>BLAAT</div> """, raw=True)
 
-        if 0:
-            js1 = file(os.path.join(base_path, "snippet.js")).read()
-            js2 = file(os.path.join(base_path, "vaex_volumerendering.js")).read()
-            js_lib = file(os.path.join(base_path, "all.js")).read()
-            html1 = file(os.path.join(base_path, "snippet.html")).read()
-            HTML("<script>"+js_lib +"\n" + code +"</script>"+"<script>"+js2+"</script>"+html1+js1)
+		if 0:
+			js1 = file(os.path.join(base_path, "snippet.js")).read()
+			js2 = file(os.path.join(base_path, "vaex_volumerendering.js")).read()
+			js_lib = file(os.path.join(base_path, "all.js")).read()
+			html1 = file(os.path.join(base_path, "snippet.html")).read()
+			HTML("<script>"+js_lib +"\n" + code +"</script>"+"<script>"+js2+"</script>"+html1+js1)

@@ -926,7 +926,7 @@ class VaexApp(QtGui.QMainWindow):
 		#self.setGeometry(300, 300, 250, 150)
 		self.resize(700,500)
 		#self.center()
-		self.setWindowTitle('V\xe6X v' + vaex.__version__)
+		self.setWindowTitle(u'V\xe6X v' + vaex.__version__)
 		#self.statusBar().showMessage('Ready')
 
 		self.toolbar = self.addToolBar('Main toolbar')
@@ -1835,22 +1835,47 @@ class VaexApp(QtGui.QMainWindow):
 			self.dataset_selector.add(ds)
 
 	def load_votable(self, url, table_id):
-		table = astropy.io.votable.parse_single_table(url)
-		print("done parsing table")
-		names = table.array.dtype.names
-		dataset = DatasetMemoryMapped(table_id, nommap=True)
+		dialog = QtGui.QProgressDialog("Downloading VO table", "cancel", 0, 0, self)
+		#self.dialog.show()
+		dialog.setWindowModality(QtCore.Qt.WindowModal)
+		dialog.setMinimumDuration(0)
+		dialog.setAutoClose(True)
+		dialog.setAutoReset(True)
+		dialog.setMinimum(0)
+		dialog.setMaximum(0)
+		dialog.show()
+		try:
+			def ask(username, password):
+				d = QuickDialog(self, "Username/password")
+				d.add_text("username", "Username", username)
+				d.add_password("password", "Password", password)
+				values = d.get()
+				if values:
+					return values["username"], values["password"]
+				else:
+					return None
+			t = vaex.samp.fetch_votable(url, ask=ask)
+			if t:
+				dataset = vx.from_astropy_table(t.to_table())
+			#table = astropy.io.votable.parse_single_table(url)
+			#print("done parsing table")
+			#names = table.array.dtype.names
+			#dataset = DatasetMemoryMapped(table_id, nommap=True)
 
-		data = table.array.data
-		for i in range(len(data.dtype)):
-			name = data.dtype.names[i]
-			type = data.dtype[i]
-			if type.kind in ["f", "i"]: # only store float
-				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
-				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
-				dataset.addColumn(name, array=table.array[name])
-		dataset.samp_id = table_id
-		self.dataset_selector.add(dataset)
-		return dataset
+			# data = table.array.data
+			# for i in range(len(data.dtype)):
+			# 	name = data.dtype.names[i]
+			# 	type = data.dtype[i]
+			# 	if type.kind in ["f", "i"]: # only store float
+			# 		#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
+			# 		#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
+			# 		dataset.addColumn(name, array=table.array[name])
+				dataset.samp_id = table_id
+				dataset.name = table_id
+				self.dataset_selector.add(dataset)
+				return dataset
+		finally:
+			dialog.hide()
 
 	def message(self, text, index=0):
 		print(text)
@@ -1985,7 +2010,7 @@ def main(argv=sys.argv[1:]):
 		app = QtGui.QApplication(argv)
 		if not (frozen and darwin): # osx app has its own icon file
 			import vaex.ui.icons
-			icon = QtGui.QIcon(vaex.ui.icons.iconfile('vaex32'))
+			icon = QtGui.QIcon(vaex.ui.icons.iconfile('vaex128'))
 			app.setWindowIcon(icon)
 	#import vaex.ipkernel_qtapp
 	#ipython_window = vaex.ipkernel_qtapp.SimpleWindow(app)

@@ -12,6 +12,13 @@ is_frozen = getattr(sys, 'frozen', False)
 
 osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
 
+class AttrDict(dict):
+	def __getattr__(self, name):
+		try:
+			return self.__dict__[name]
+		except:
+			dict.__getattr__(self, name)
+
 def subdivide(length, parts=None, max_length=None):
 	"""Generates a list with start end stop indices of length parts, [(0, length/parts), ..., (.., length)]"""
 	if max_length:

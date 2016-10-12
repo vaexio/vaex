@@ -140,9 +140,10 @@ if __name__ == '__main__':
 			vaex.distributed.main([os.path.basename(sys.argv[0]) +" " +sys.argv[1]]  + sys.argv[2:])
 		else:
 			if frozen: # pyinstaller and py2app need this
-				os.environ["QT_API"] = "pyqt" # somehow the new matplotlib under pyinstaller doesn't use pyside
+				os.environ["MPLBACKEND"] = "qt5agg"
+				#os.environ["QT_API"] = "pyqt" # somehow the new matplotlib under pyinstaller doesn't use pyside
 				# fix for qt_console, which uses imp.find_module which doesn't work
-				import qtconsole.qt_loaders
-				qtconsole.qt_loaders.load_qt = lambda *args: qtconsole.qt_loaders.import_pyqt4()
+				#import qtconsole.qt_loaders
+				#qtconsole.qt_loaders.load_qt = lambda *args: qtconsole.qt_loaders.import_pyqt4()
 			import vaex.ui.main
 			vaex.ui.main.main(sys.argv[1:])

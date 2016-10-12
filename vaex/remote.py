@@ -289,8 +289,9 @@ class ServerRest(object):
 			logger.info("response is: %r", response.body)
 			logger.info("content_type is: %r", response.headers["Content-Type"])
 			if response.headers["Content-Type"] == "application/numpy-array":
-				text = response.body.decode("ascii")
-				shape, dtype, data = text.split("\n", 3)
+				shape, dtype, data = response.body.split(b"\n", 2)
+				shape = shape.decode("ascii")
+				dtype = dtype.decode("ascii")
 				import ast
 				numpy_array = np.fromstring(data, dtype=np.dtype(dtype)).reshape(ast.literal_eval(shape))
 				return post_process(numpy_array)

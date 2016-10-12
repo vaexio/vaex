@@ -171,8 +171,8 @@ def readcol(filename,skipline=0,skipafter=0,names=False,fsep=None,twod=True,
             ncols,nrows = mode(nperline)
             if nrows != len(splitarr):
                 if verbose:
-                    print "Removing %i rows that don't match most common length %i.  \
-                     \n%i rows read into array." % (len(splitarr) - nrows,ncols,nrows)
+                    print("Removing %i rows that don't match most common length %i.  \
+                     \n%i rows read into array." % (len(splitarr) - nrows,ncols,nrows))
                 for i in xrange(len(splitarr)-1,-1,-1):  # need to go backwards
                     if nperline[i] != ncols:
                         splitarr.pop(i)
@@ -181,7 +181,7 @@ def readcol(filename,skipline=0,skipafter=0,names=False,fsep=None,twod=True,
         x = numpy.asarray( splitarr , dtype='float')
     except ValueError:
         if verbose: 
-            print "WARNING: reading as string array because %s array failed" % 'float'
+            print("WARNING: reading as string array because %s array failed" % 'float')
         try:
             x = numpy.asarray( splitarr , dtype='S')
         except ValueError:

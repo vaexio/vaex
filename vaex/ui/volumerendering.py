@@ -139,8 +139,12 @@ try:
 	from PyQt4 import QtGui, QtCore
 	from PyQt4 import QtOpenGL
 except ImportError:
-	from PySide import QtGui, QtCore
-	from PySide import QtOpenGL
+	try:
+		from PyQt5 import QtGui, QtCore
+		from PyQt5 import QtOpenGL
+	except ImportError:
+		from PySide import QtGui, QtCore
+		from PySide import QtOpenGL
 from OpenGL.GL import * # import GL
 from OpenGL.GL.framebufferobjects import *
 from OpenGL.GL.ARB.shadow import *
