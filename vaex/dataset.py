@@ -3694,190 +3694,192 @@ class Dataset(object):
 			#	facet_columns = min(wrap_columns, facets)
 		#if grid.shape[axis["plot"]] > 1:#  and not facet:
 
-
+		# this loop could be done using axis arguments everywhere
+		#assert len(normalize_axis) == 1, "currently only 1 normalization axis supported"
+		grid = visual_grid * 1.
+		fgrid = visual_grid * 1.
+		ngrid = visual_grid * 1.
+		#colorgrid = np.zeros(ngrid.shape + (4,), float)
+		#print "norma", normalize_axis, visual_grid.shape[visual_axes[visual[normalize_axis]]]
+		vmins = _expand(vmin, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
+		vmaxs = _expand(vmax, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
+		#for name in normalize_axis:
+		visual_grid
+		if smooth_pre:
+			grid = vaex.grids.gf(grid, smooth_pre)
 		if 1:
-
-			# this loop could be done using axis arguments everywhere
-			#assert len(normalize_axis) == 1, "currently only 1 normalization axis supported"
-			grid = visual_grid * 1.
-			fgrid = visual_grid * 1.
-			ngrid = visual_grid * 1.
-			#colorgrid = np.zeros(ngrid.shape + (4,), float)
-			#print "norma", normalize_axis, visual_grid.shape[visual_axes[visual[normalize_axis]]]
-			vmins = _expand(vmin, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
-			vmaxs = _expand(vmax, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
-			#for name in normalize_axis:
-			visual_grid
-			if smooth_pre:
-				grid = vaex.grids.gf(grid, smooth_pre)
-			if 1:
-				axis = visual_axes[visual[normalize_axis]]
-				for i in range(visual_grid.shape[axis]):
-					item = [slice(None, None, None), ] * len(visual_grid.shape)
-					item[axis] = i
-					item = tuple(item)
-					f = _parse_f(fs[i])
-					fgrid.__setitem__(item, f(grid.__getitem__(item)))
-					#print vmins[i], vmaxs[i]
-					if vmins[i] is not None and vmaxs[i] is not None:
-						nsubgrid = fgrid.__getitem__(item) * 1
-						nsubgrid -= vmins[i]
-						nsubgrid /= (vmaxs[i]-vmins[i])
-						nsubgrid = np.clip(nsubgrid, 0, 1)
-					else:
-						nsubgrid, vmin, vmax = n(fgrid.__getitem__(item))
-						vmins[i] = vmin
-						vmaxs[i] = vmax
-					#print "    ", vmins[i], vmaxs[i]
-					ngrid.__setitem__(item, nsubgrid)
-
-			if 0: # TODO: above should be like the code below, with custom vmin and vmax
-				grid = visual_grid[i]
+			axis = visual_axes[visual[normalize_axis]]
+			for i in range(visual_grid.shape[axis]):
+				item = [slice(None, None, None), ] * len(visual_grid.shape)
+				item[axis] = i
+				item = tuple(item)
 				f = _parse_f(fs[i])
-				fgrid = f(grid)
-				finite_mask = np.isfinite(grid)
-				finite_mask = np.any(finite_mask, axis=0)
-				if vmin is not None and vmax is not None:
-					ngrid = fgrid * 1
-					ngrid -= vmin
-					ngrid /= (vmax-vmin)
-					ngrid = np.clip(ngrid, 0, 1)
+				fgrid.__setitem__(item, f(grid.__getitem__(item)))
+				#print vmins[i], vmaxs[i]
+				if vmins[i] is not None and vmaxs[i] is not None:
+					nsubgrid = fgrid.__getitem__(item) * 1
+					nsubgrid -= vmins[i]
+					nsubgrid /= (vmaxs[i]-vmins[i])
+					nsubgrid = np.clip(nsubgrid, 0, 1)
 				else:
-					ngrid, vmin, vmax = n(fgrid)
-					#vmin, vmax = np.nanmin(fgrid), np.nanmax(fgrid)
-			# every 'what', should have its own colorbar, check if what corresponds to
-			# rows or columns in facets, if so, do a colorbar per row or per column
+					nsubgrid, vmin, vmax = n(fgrid.__getitem__(item))
+					vmins[i] = vmin
+					vmaxs[i] = vmax
+				#print "    ", vmins[i], vmaxs[i]
+				ngrid.__setitem__(item, nsubgrid)
+
+		if 0: # TODO: above should be like the code below, with custom vmin and vmax
+			grid = visual_grid[i]
+			f = _parse_f(fs[i])
+			fgrid = f(grid)
+			finite_mask = np.isfinite(grid)
+			finite_mask = np.any(finite_mask, axis=0)
+			if vmin is not None and vmax is not None:
+				ngrid = fgrid * 1
+				ngrid -= vmin
+				ngrid /= (vmax-vmin)
+				ngrid = np.clip(ngrid, 0, 1)
+			else:
+				ngrid, vmin, vmax = n(fgrid)
+				#vmin, vmax = np.nanmin(fgrid), np.nanmax(fgrid)
+		# every 'what', should have its own colorbar, check if what corresponds to
+		# rows or columns in facets, if so, do a colorbar per row or per column
 
 
-			rows, columns = int(math.ceil(facets / float(facet_columns))), facet_columns
-			colorbar_location = "individual"
-			if visual["what"] == "row" and visual_grid.shape[1] == facet_columns:
-				colorbar_location = "per_row"
-			if visual["what"] == "column" and visual_grid.shape[0] == facet_rows:
-				colorbar_location = "per_column"
-			#values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
-			logger.debug("rows: %r, columns: %r", rows, columns)
-			import matplotlib.gridspec as gridspec
-			column_scale = 1
-			row_scale = 1
-			row_offset = 0
-			if facets > 1:
-				if colorbar_location == "per_row":
-					column_scale = 4
-					gs = gridspec.GridSpec(rows, columns*column_scale+1)
-				elif colorbar_location == "per_column":
-					row_offset = 1
-					row_scale = 4
-					gs = gridspec.GridSpec(rows*row_scale+1, columns)
-				else:
-					gs = gridspec.GridSpec(rows, columns)
-			facet_index = 0
-			fs = _expand(f, len(whats))
-			colormaps = _expand(colormap, len(whats))
+		rows, columns = int(math.ceil(facets / float(facet_columns))), facet_columns
+		colorbar_location = "individual"
+		if visual["what"] == "row" and visual_grid.shape[1] == facet_columns:
+			colorbar_location = "per_row"
+		if visual["what"] == "column" and visual_grid.shape[0] == facet_rows:
+			colorbar_location = "per_column"
+		#values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
+		logger.debug("rows: %r, columns: %r", rows, columns)
+		import matplotlib.gridspec as gridspec
+		column_scale = 1
+		row_scale = 1
+		row_offset = 0
+		if facets > 1:
+			if colorbar_location == "per_row":
+				column_scale = 4
+				gs = gridspec.GridSpec(rows, columns*column_scale+1)
+			elif colorbar_location == "per_column":
+				row_offset = 1
+				row_scale = 4
+				gs = gridspec.GridSpec(rows*row_scale+1, columns)
+			else:
+				gs = gridspec.GridSpec(rows, columns)
+		facet_index = 0
+		fs = _expand(f, len(whats))
+		colormaps = _expand(colormap, len(whats))
 
-			# row
-			for i in range(visual_grid.shape[0]):
-				# column
-				for j in range(visual_grid.shape[1]):
-					if colorbar and colorbar_location == "per_column" and i == 0:
-						norm = matplotlib.colors.Normalize(vmins[j], vmaxs[j])
-						sm = matplotlib.cm.ScalarMappable(norm, colormaps[j])
-						sm.set_array(1) # make matplotlib happy (strange behavious)
-						if facets > 1:
-							ax = pylab.subplot(gs[0, j])
-							colorbar = fig.colorbar(sm, cax=ax, orientation="horizontal")
-						else:
-							colorbar = fig.colorbar(sm)
-						if "what" in labels:
-							label = labels["what"][j]
-							colorbar.ax.set_title(label)
-
-					if colorbar and colorbar_location == "per_row" and j == 0:
-						norm = matplotlib.colors.Normalize(vmins[i], vmaxs[i])
-						sm = matplotlib.cm.ScalarMappable(norm, colormaps[i])
-						sm.set_array(1) # make matplotlib happy (strange behavious)
-						if facets > 1:
-							ax = pylab.subplot(gs[j, -1])
-							colorbar = fig.colorbar(sm, cax=ax)
-						else:
-							colorbar = fig.colorbar(sm)
-						label = labels["what"][j]
-						colorbar.ax.set_ylabel(label)
-
-					rgrid = ngrid[i,j] * 1.
-					#print rgrid.shape
-					for k in range(rgrid.shape[0]):
-						for l in range(rgrid.shape[0]):
-							if smooth_post is not None:
-								rgrid[k,l] = vaex.grids.gf(rgrid, smooth_post)
-					if visual["what"] == "column":
-						what_index = j
-					elif visual["what"] == "row":
-						what_index = i
-					else:
-						what_index = 0
-					if visual[normalize_axis] == "column":
-						normalize_index = j
-					elif visual[normalize_axis] == "row":
-						normalize_index = i
-					else:
-						normalize_index = 0
-					for r in reduce:
-						r = _parse_reduction(r, colormaps[what_index], [])
-						rgrid = r(rgrid)
-					row = facet_index / facet_columns
-					column = facet_index % facet_columns
-
-					if colorbar and colorbar_location == "individual":
-						#visual_grid.shape[visual_axes[visual[normalize_axis]]]
-						norm = matplotlib.colors.Normalize(vmins[normalize_index], vmaxs[normalize_index])
-						sm = matplotlib.cm.ScalarMappable(norm, colormaps[what_index])
-						sm.set_array(1) # make matplotlib happy (strange behavious)
-						if facets > 1:
-							ax = pylab.subplot(gs[row, column])
-							colorbar = fig.colorbar(sm, ax=ax)
-						else:
-							colorbar = fig.colorbar(sm)
-						label = labels["what"][what_index]
-						colorbar.ax.set_ylabel(label)
-
+		# row
+		for i in range(visual_grid.shape[0]):
+			# column
+			for j in range(visual_grid.shape[1]):
+				if colorbar and colorbar_location == "per_column" and i == 0:
+					norm = matplotlib.colors.Normalize(vmins[j], vmaxs[j])
+					sm = matplotlib.cm.ScalarMappable(norm, colormaps[j])
+					sm.set_array(1) # make matplotlib happy (strange behavious)
 					if facets > 1:
-						ax = pylab.subplot(gs[row_offset + row * row_scale:row_offset + (row+1) * row_scale, column*column_scale:(column+1)*column_scale])
+						ax = pylab.subplot(gs[0, j])
+						colorbar = fig.colorbar(sm, cax=ax, orientation="horizontal")
 					else:
-						ax = pylab.gca()
-					axes.append(ax)
-					logger.debug("rgrid: %r", rgrid.shape)
-					plot_rgrid = rgrid
-					assert plot_rgrid.shape[1] == 1, "no layers supported yet"
-					plot_rgrid = plot_rgrid[:,0]
-					if plot_rgrid.shape[0] > 1:
-						plot_rgrid = vaex.image.fade(plot_rgrid[::-1])
-						#plot_rgrid = plot_rgrid[1]
-					else:
-						plot_rgrid = plot_rgrid[0]
-						#finite_mask = np.any(finite_mask, axis=0) # do we really need this
-					#plot_rgrid[~finite_mask,3] = 0
-					#if len(plot_rgrid.shape):
-					#	raise ValueError("plot grid is expected ")
-					extend = None
-					if visual["subspace"] == "row":
-						subplot_index = i
-					elif visual["subspace"] == "column":
-						subplot_index = j
-					else:
-						subplot_index = 0
-					extend = np.array(xlimits[subplot_index][-2:]).flatten()
-					#	extend = np.array(xlimits[i]).flatten()
-					logger.debug("plot rgrid: %r", plot_rgrid.shape)
-					plot_rgrid = np.transpose(plot_rgrid, (1,0,2))
-					im = ax.imshow(plot_rgrid, extent=extend.tolist(), origin="lower", aspect=aspect, interpolation=interpolation)
-					#v1, v2 = values[i], values[i+1]
-					def label(index, label, expression):
-						if label and _issequence(label):
-							return label[i]
+						colorbar = fig.colorbar(sm)
+					if "what" in labels:
+						label = labels["what"][j]
+						if facets > 1:
+							colorbar.ax.set_title(label)
 						else:
-							return self.label(expression)
-					labels1 = visual_reverse["row"]
+							colorbar.ax.set_ylabel(label)
+
+				if colorbar and colorbar_location == "per_row" and j == 0:
+					norm = matplotlib.colors.Normalize(vmins[i], vmaxs[i])
+					sm = matplotlib.cm.ScalarMappable(norm, colormaps[i])
+					sm.set_array(1) # make matplotlib happy (strange behavious)
+					if facets > 1:
+						ax = pylab.subplot(gs[i, -1])
+						colorbar = fig.colorbar(sm, cax=ax)
+					else:
+						colorbar = fig.colorbar(sm)
+					label = labels["what"][i]
+					colorbar.ax.set_ylabel(label)
+
+				rgrid = ngrid[i,j] * 1.
+				#print rgrid.shape
+				for k in range(rgrid.shape[0]):
+					for l in range(rgrid.shape[0]):
+						if smooth_post is not None:
+							rgrid[k,l] = vaex.grids.gf(rgrid, smooth_post)
+				if visual["what"] == "column":
+					what_index = j
+				elif visual["what"] == "row":
+					what_index = i
+				else:
+					what_index = 0
+
+
+				if visual[normalize_axis] == "column":
+					normalize_index = j
+				elif visual[normalize_axis] == "row":
+					normalize_index = i
+				else:
+					normalize_index = 0
+				for r in reduce:
+					r = _parse_reduction(r, colormaps[what_index], [])
+					rgrid = r(rgrid)
+
+				finite_mask = np.isfinite(ngrid[i,j])
+				rgrid[~finite_mask,3] = 0
+				row = facet_index / facet_columns
+				column = facet_index % facet_columns
+
+				if colorbar and colorbar_location == "individual":
+					#visual_grid.shape[visual_axes[visual[normalize_axis]]]
+					norm = matplotlib.colors.Normalize(vmins[normalize_index], vmaxs[normalize_index])
+					sm = matplotlib.cm.ScalarMappable(norm, colormaps[what_index])
+					sm.set_array(1) # make matplotlib happy (strange behavious)
+					if facets > 1:
+						ax = pylab.subplot(gs[row, column])
+						colorbar = fig.colorbar(sm, ax=ax)
+					else:
+						colorbar = fig.colorbar(sm)
+					label = labels["what"][what_index]
+					colorbar.ax.set_ylabel(label)
+
+
+				if facets > 1:
+					ax = pylab.subplot(gs[row_offset + row * row_scale:row_offset + (row+1) * row_scale, column*column_scale:(column+1)*column_scale])
+				else:
+					ax = pylab.gca()
+				axes.append(ax)
+				logger.debug("rgrid: %r", rgrid.shape)
+				plot_rgrid = rgrid
+				assert plot_rgrid.shape[1] == 1, "no layers supported yet"
+				plot_rgrid = plot_rgrid[:,0]
+				if plot_rgrid.shape[0] > 1:
+					plot_rgrid = vaex.image.fade(plot_rgrid[::-1])
+				else:
+					plot_rgrid = plot_rgrid[0]
+				extend = None
+				if visual["subspace"] == "row":
+					subplot_index = i
+				elif visual["subspace"] == "column":
+					subplot_index = j
+				else:
+					subplot_index = 0
+				extend = np.array(xlimits[subplot_index][-2:]).flatten()
+				#	extend = np.array(xlimits[i]).flatten()
+				logger.debug("plot rgrid: %r", plot_rgrid.shape)
+				plot_rgrid = np.transpose(plot_rgrid, (1,0,2))
+				im = ax.imshow(plot_rgrid, extent=extend.tolist(), origin="lower", aspect=aspect, interpolation=interpolation)
+				#v1, v2 = values[i], values[i+1]
+				def label(index, label, expression):
+					if label and _issequence(label):
+						return label[i]
+					else:
+						return self.label(expression)
+				# we don't need titles when we have a colorbar
+				if (visual_reverse["row"] != "what") or not colorbar:
 					labelsxy = labels.get(visual_reverse["row"])
 					has_title = False
 					if isinstance(labelsxy, tuple):
@@ -3885,87 +3887,19 @@ class Dataset(object):
 						pylab.xlabel(labelsx[i])
 						pylab.ylabel(labelsy[i])
 					elif labelsxy is not None:
-						#ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
-						#print("title", labelsxy[i])
 						ax.set_title(labelsxy[i])
 						has_title = True
 					#print visual_reverse["row"], visual_reverse["column"], labels.get(visual_reverse["row"]), labels.get(visual_reverse["column"])
+				if (visual_reverse["column"] != "what")  or not colorbar:
 					labelsxy = labels.get(visual_reverse["column"])
 					if isinstance(labelsxy, tuple):
 						labelsx, labelsy = labelsxy
-						pylab.xlabel(labelsx[i])
-						pylab.ylabel(labelsy[i])
+						pylab.xlabel(labelsx[j])
+						pylab.ylabel(labelsy[j])
 					elif labelsxy is not None and not has_title:
-						#print("title", labelsxy[i])
 						ax.set_title(labelsxy[j])
 						pass
-
-					#pylab.xlabel(label(j, xlabel, x[j][0]))
-					#pylab.ylabel(label(j, ylabel, x[j][1]))
-					#pylab.ylabel(ylabel or self.label(y))
-					#ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
-
-					facet_index += 1
-		else:
-			if 0: #facet:
-				import math
-				rows, columns = int(math.ceil(facet_count / float(facet_column_count))), facet_column_count
-				values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
-				import matplotlib.gridspec as gridspec
-				column_scale = 4
-				gs = gridspec.GridSpec(rows, columns*column_scale+1)
-				for i in range(facet_count):
-					#ax = pylab.subplot(rows, columns, i+1)
-					row = i / facet_column_count
-					column = i % columns
-					ax = pylab.subplot(gs[row, column*column_scale:(column+1)*column_scale])
-					axes.append(ax)
-					im = ax.imshow(rgrid[i], extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
-					v1, v2 = values[i], values[i+1]
-					pylab.xlabel(xlabel or self.label(x))
-					pylab.ylabel(ylabel or self.label(y))
-					ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
-					#pylab.show()
-			else:
-				pylab.xlabel(xlabel or self.label(x))
-				pylab.ylabel(ylabel or self.label(y))
-				axes.append(pylab.gca())
-
-				rgba = rgrid
-				rgba[~finite_mask,3] = 0
-
-				if pre_blend:
-				#	#rgba[...,3] = background_alpha
-					rgb = rgba[...,:3].T
-					alpha = rgba[...,3].T
-					rgb[:] = rgb * alpha + background_color[:3].reshape(3,1,1) * (1-alpha)
-					alpha[:] = alpha + background_alpha * (1-alpha)
-				rgba= np.clip(rgba, 0, 1)
-				rgba8 = (rgba*255).astype(np.uint8)
-
-				im = pylab.imshow(rgba8 , extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect, interpolation=interpolation)
-		if 0:
-			if normalize_axis is None and colorbar:
-				#pylab.subplot(1,1,1)
-				import matplotlib.colors
-				import matplotlib.cm
-				#from mpl_toolkits.axes_grid1 import make_axes_locatable
-				#divider = make_axes_locatable(cax)
-				#cax = divider.append_axes("right", "5%", pad="3%")
-
-				norm = matplotlib.colors.Normalize(vmin, vmax)
-				sm = matplotlib.cm.ScalarMappable(norm, colormap)
-				sm.set_array(1) # make matplotlib happy (strange behavious)
-				if facet:
-					ax = pylab.subplot(gs[:, -1])
-					colorbar = fig.colorbar(sm, cax=ax)
-				else:
-					colorbar = fig.colorbar(sm)
-				what_label = what
-				if what_units:
-					what_label += " (%s)" % what_units
-				colorbar.ax.set_ylabel(what_label)
-
+				facet_index += 1
 		if title:
 			fig.suptitle(title, fontsize="x-large")
 		if tight_layout:
