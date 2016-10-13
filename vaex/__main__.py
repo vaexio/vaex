@@ -123,12 +123,6 @@ def main(args=None):
 			import vaex.test.__main__
 			vaex.test.__main__.main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
 		else:
-			if frozen: # pyinstaller and py2app need this
-				os.environ["MPLBACKEND"] = "qt5agg"
-				#os.environ["QT_API"] = "pyqt" # somehow the new matplotlib under pyinstaller doesn't use pyside
-				# fix for qt_console, which uses imp.find_module which doesn't work
-				#import qtconsole.qt_loaders
-				#qtconsole.qt_loaders.load_qt = lambda *args: qtconsole.qt_loaders.import_pyqt4()
 			import vaex.ui.main
 			vaex.ui.main.main(args[1:])
 
