@@ -202,7 +202,7 @@ else:
 #print "requirements", reqs
 #print "ver#sion", vaex.__release__
 setup(
-	app=["bin/vaex"],
+	entry_points={'console_scripts': ['vaex = vaex.__main__:main']},
 	name="vaex", #vaex.__program_name__,
 	author="Maarten A. Breddels",
 	author_email="maartenbreddels@gmail.com",
