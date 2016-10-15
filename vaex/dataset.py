@@ -2326,7 +2326,7 @@ class Dataset(object):
 		return mutual_information_promise if self.async else mutual_information_promise.get()
 
 	@docsubst
-	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Count the number of non-NaN values (or all, if expression is None or "*")
 
 		Examples:
@@ -2356,6 +2356,9 @@ class Dataset(object):
 			else:
 				task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_COUNT, selection=selection)
 			self.executor.schedule(task)
+			i = expressions.index(expression)
+			task.signal_progress.connect(progressbars[i])
+			task.signal_progress.connect(progressbar)
 			return task
 		@delayed
 		def finish(*stats_args):
@@ -2363,6 +2366,7 @@ class Dataset(object):
 			counts = stats[...,0]
 			return vaex.utils.unlistify(waslist, counts)
 		waslist, [expressions,] = vaex.utils.listify(expression)
+		progressbar, progressbars = vaex.utils.progressbars(progress, len(expressions))
 		limits = self.limits(binby, limits, async=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		var = finish(*stats)
