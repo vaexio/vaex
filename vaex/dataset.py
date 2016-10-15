@@ -4013,14 +4013,14 @@ class Dataset(object):
 			N = len(grid[-1])
 		else:
 			N = len(grid)
-		xar = np.arange(N) / (N-1.0) * (xmax-xmin) + xmin
+		xar = np.arange(N+1) / (N-0.) * (xmax-xmin) + xmin
 		if facet:
 			import math
 			rows, columns = int(math.ceil(facet_count / 4.)), 4
 			values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
 			for i in range(facet_count):
 				ax = pylab.subplot(rows, columns, i+1)
-				value = ax.plot(xar, ngrid[i], drawstyle="steps", label=label or x, **kwargs)
+				value = ax.plot(xar, ngrid[i], drawstyle="steps-mid", label=label or x, **kwargs)
 				v1, v2 = values[i], values[i+1]
 				pylab.xlabel(xlabel or x)
 				pylab.ylabel(ylabel or what)
@@ -4030,7 +4030,10 @@ class Dataset(object):
 			#im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
 			pylab.xlabel(xlabel or self.label(x))
 			pylab.ylabel(ylabel or what)
-			value = pylab.plot(xar, ngrid, drawstyle="steps", label=label or x, **kwargs)
+			#print(xar, ngrid)
+			# repeat the first element, that's how plot/steps likes it..
+			g = np.concatenate([ngrid[0:1], ngrid])
+			value = pylab.plot(xar, g, drawstyle="steps-pre", label=label or x, **kwargs)
 		if tight_layout:
 			pylab.tight_layout()
 		if hardcopy:
