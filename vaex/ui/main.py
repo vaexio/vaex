@@ -1079,11 +1079,11 @@ class VaexApp(QtGui.QMainWindow):
 			def do(ignore=None, level=level):
 				if level < 29:
 					if check_memory(4*8*2**level):
-						sp = SoneiraPeebles(dimension=4, eta=2, max_level=level, L=[1.1, 1.3, 1.6, 2.])
+						sp = vx.file.other.SoneiraPeebles(dimension=4, eta=2, max_level=level, L=[1.1, 1.3, 1.6, 2.])
 						self.dataset_selector.add(sp)
 				else:
 					if check_memory(2*8*2**level):
-						sp = SoneiraPeebles(dimension=2, eta=2, max_level=level, L=[1.6, 2.])
+						sp = vx.file.other.SoneiraPeebles(dimension=2, eta=2, max_level=level, L=[1.6, 2.])
 						self.dataset_selector.add(sp)
 			action.triggered.connect(do)
 			self.menu_data.addAction(action)
@@ -1100,7 +1100,7 @@ class VaexApp(QtGui.QMainWindow):
 					action = QtGui.QAction('Generate '+name, self)
 					def do(ignore=None, dim=dim, N=N, power=power, name=name):
 						t = None
-						z = vaex.dataset.Zeldovich(dim, N, power, t, name=name)
+						z = vx.file.other.Zeldovich(dim, N, power, t, name=name)
 						self.dataset_selector.add(z)
 					action.triggered.connect(do)
 					self.menu_data.addAction(action)
