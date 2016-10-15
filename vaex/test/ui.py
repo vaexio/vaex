@@ -53,7 +53,7 @@ class CallCounter(object):
 		self.counter += 1
 		return self.return_value
 
-class TestMain(unittest.TestCase):
+class TestApp(unittest.TestCase):
 	def setUp(self):
 		self.dataset = vaex.dataset.DatasetArrays("dataset")
 
@@ -65,6 +65,20 @@ class TestMain(unittest.TestCase):
 		self.dataset.add_virtual_column("z", "x+t*y")
 
 		self.app = vx.ui.main.VaexApp()
+
+	def test_generate_data(self):
+		actions = self.app.menu_data.actions()
+		for action in actions:
+			if "Soneira Peebles" in action.text():
+				action.trigger()
+				self.assertIsInstance(self.app.current_dataset, vx.file.other.SoneiraPeebles)
+				break
+
+		for action in actions:
+			if "Zeldovich" in action.text():
+				action.trigger()
+				self.assertIsInstance(self.app.current_dataset, vx.file.other.Zeldovich)
+				break
 
 	def test_default(self):
 		app = vx.ui.main.VaexApp(open_default=False)
@@ -190,6 +204,7 @@ class NoTest:
 			import sys
 			def testExceptionHook(type, value, tback):
 				self.no_exceptions = False
+				self.exception_info = (type, value, tback)
 				sys.__excepthook__(type, value, tback)
 
 			sys.excepthook = testExceptionHook
@@ -238,11 +253,21 @@ class NoTest:
 			with dialogs.assertError():
 				self.window.action_selection_add_favorites.trigger()
 
+		#def test_bla(self):
+		#	self.window.current_layer.x = "dsadsa"
+		#	self.window._wait()
 		def tearDown(self):
+			#vx.promise.rereaise_unhandled()
 			for dataset in self.app.dataset_selector.datasets:
 				dataset.close_files()
 				dataset.remove_virtual_meta()
 			self.window.close()
+			if not self.no_exceptions:
+				type, value, tback = self.exception_info
+				import traceback
+				print("printing traceback:")
+				traceback.print_exception(type, value, tback)
+
 			self.assertTrue(self.no_exceptions)
 			self.assertTrue(self.no_error_in_field)
 
@@ -279,8 +304,48 @@ class NoTest:
 				#image1.close()
 				#image2.close()
 
+		def test_navigation_history(self):
+			self.window._wait()
+			self._assert_default_image()
+
+			self._do_zoom()
+			self.window._wait()
+			self._assert_zoom_image()
+
+			self.window.action_undo.trigger()
+			self.window._wait()
+			self._assert_default_image()
+
+			self.window.action_redo.trigger()
+			self.window._wait()
+			self._assert_zoom_image()
+
+		def test_empty_region(self):
+			self._move_to_empty_region()
+			self._assert_empty_image()
+			self.window._wait()
+
 
 class TestPlotPanel1d(NoTest.TestPlotPanel):
+	def _move_to_empty_region(self):
+		x = 1e4
+		self.window.current_layer.xlim = [-10+x, 10+x]
+
+	def _do_zoom(self):
+		self.window.current_layer.xlim = [-10, 10]
+
+	def _assert_default_image(self):
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("default1d"))
+
+	def _assert_empty_image(self):
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("empty1d"))
+
+	def _assert_zoom_image(self):
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("zoom1d"))
+
 	def open_window(self):
 		button = self.app.dataset_panel.button_histogram
 		self.assert_(len(self.app.windows) == 0)
@@ -306,6 +371,27 @@ class TestPlotPanel2d(NoTest.TestPlotPanel):
 		button = self.app.dataset_panel.button_2d
 		self.assert_(len(self.app.windows) == 0)
 		QtTest.QTest.mouseClick(button, QtCore.Qt.LeftButton)
+
+	def _move_to_empty_region(self):
+		y = x = 1e4
+		self.window.current_layer.xlim = [-10+x, 10+x]
+		self.window.current_layer.ylim = [-10+y, 10+y]
+
+	def _do_zoom(self):
+		self.window.current_layer.xlim = [-10, 10]
+		self.window.current_layer.ylim = [-10, 10]
+
+	def _assert_default_image(self):
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("default2d"))
+
+	def _assert_empty_image(self):
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("empty2d"))
+
+	def _assert_zoom_image(self):
+		filename = self.window.plot_to_png()
+		self.compare(filename, get_comparison_image("zoom2d"))
 
 
 	def test_xy(self):
