@@ -1,3 +1,2 @@
 include vaex/icons/*.png
 include requirements.txt
-recursive-include docs/build/html *.html *.png *.js *.css *.gif
