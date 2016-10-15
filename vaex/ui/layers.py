@@ -292,6 +292,7 @@ class LayerTable(object):
 		for dim in range(self.dimensions):
 			logger.debug("set expression[%i] to %s", dim, self.state.expressions[dim])
 			self.set_expression(self.state.expressions[dim], dim)
+		for dim in range(self.vector_dimensions):
 			logger.debug("set vector expression[%i] to %s", dim, self.state.vector_expressions[dim])
 			self.set_vector_expression(self.state.vector_expressions[dim], dim)
 		logger.debug("set weight expression to %s", dim, self.state.weight_expression)
@@ -867,7 +868,10 @@ class LayerTable(object):
 		amplitude_marginalized = amplitude
 		amplitude_marginalized_selected = amplitude_selection
 		mask = ~(np.isnan(amplitude_marginalized) | np.isinf(amplitude_marginalized))
-		vmin, vmax = amplitude_marginalized[mask].min(), amplitude_marginalized[mask].max()
+		if np.sum(mask) == 0: # if nothing to show
+			vmin, vmax = 0, 1
+		else:
+			vmin, vmax = amplitude_marginalized[mask].min(), amplitude_marginalized[mask].max()
 		self.level_ranges = [vmin + self.level_min * (vmax - vmin), vmin + self.level_max * (vmax - vmin)]
 		logger.debug("level ranges: %r" % self.level_ranges)
 
