@@ -43,7 +43,25 @@ if has_py2app:
 		def check(self, cmd, graph):
 			return dict(packages=["astropy"])
 	py2app.recipes.astropy = astropy()
+	# see http://stackoverflow.com/questions/31240052/py2app-typeerror-dyld-find-got-an-unexpected-keyword-argument-loader
+	"""
+	Monkey-patch macholib to fix "dyld_find() got an unexpected keyword argument 'loader'".
 
+	Add 'import macholib_patch' to the top of set_py2app.py
+	"""
+
+	import macholib
+	if macholib.__version__ <= "1.7":
+		print("Applying macholib patch...")
+		import macholib.dyld
+		import macholib.MachOGraph
+		dyld_find_1_7 = macholib.dyld.dyld_find
+		def dyld_find(name, loader=None, **kwargs):
+			#print("~"*60 + "calling alternate dyld_find")
+			if loader is not None:
+				kwargs['loader_path'] = loader
+			return dyld_find_1_7(name, **kwargs)
+		macholib.MachOGraph.dyld_find = dyld_find
 #full_name = vaex.__full_name__
 cmdclass = {}
 
@@ -92,7 +110,7 @@ if has_py2app and sys.argv[1] == "py2app":
 			os.system("cd dist")
 			zipname = "%s.zip" % vaex.__build_name__
 			os.system("cd dist;rm %s" % zipname)
-			os.system("cd dist;zip -r %s %s.app" % (zipname, vaex.__program_name__))
+			os.system("cd dist;zip -q -r %s %s.app" % (zipname, vaex.__program_name__))
 			retvalue = os.system("git diff --quiet")
 			if retvalue != 0:
 				print("WARNING UNCOMMITED CHANGES, VERSION NUMBER WILL NOT MATCH")
@@ -222,6 +240,7 @@ setup(
     package_dir={'vaex':'vaex'},
     cmdclass=cmdclass,
     description="Vaex is a graphical tool to visualize and explore large tabular datasets.",
+    long_description=open("README.rst").read(),
     url="https://www.astro.rug.nl/~breddels/vaex",
 	classifiers=[
         # How mature is this project? Common values are

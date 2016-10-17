@@ -9,24 +9,6 @@ if frozen and len(sys.argv) > 1 and sys.argv[1].startswith("-psn"): # is the 'ap
 	dirname = os.path.join(os.path.dirname(sys.argv[0]), "..", "..", "..")
 	os.chdir(dirname)
 
-import inspect
-import re
-
-if hasattr(sys, "_MEIPASS"): # we are frozen using PyInstaller
-	sys.path.insert(0, os.path.join(sys._MEIPASS, "astropy"))
-	#print("path is: %r" % sys.path)
-	if 1:
-		old_getabsfile = inspect.getabsfile
-		def inspect_getabsfile_wrapper(*args, **kwargs):
-			#return old_getabsfile(*args, **kwargs).replace("/Users/users/breddels/src/astropy", )
-			path = old_getabsfile(*args, **kwargs)
-			# replace everything before astropy with the sys._MEIPASS location
-			# this is easier to do when the path is reversed
-			last_part = re.sub("(.*?yportsa).*", r"\1", path[::-1])[::-1]
-			fixed_path = os.path.join(sys._MEIPASS, last_part)
-			#print("fixed path from %s to %s" % (path, fixed_path))
-			return fixed_path
-		inspect.getabsfile = inspect_getabsfile_wrapper
 
 if darwin and frozen: # on newer osx versions we get a lot of broken pipes when writing to stdout
 	directory = os.path.expanduser("~/.vaex")
@@ -141,12 +123,6 @@ def main(args=None):
 			import vaex.test.__main__
 			vaex.test.__main__.main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
 		else:
-			if frozen: # pyinstaller and py2app need this
-				os.environ["MPLBACKEND"] = "qt5agg"
-				#os.environ["QT_API"] = "pyqt" # somehow the new matplotlib under pyinstaller doesn't use pyside
-				# fix for qt_console, which uses imp.find_module which doesn't work
-				#import qtconsole.qt_loaders
-				#qtconsole.qt_loaders.load_qt = lambda *args: qtconsole.qt_loaders.import_pyqt4()
 			import vaex.ui.main
 			vaex.ui.main.main(args[1:])
 

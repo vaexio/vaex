@@ -13,11 +13,14 @@ is_frozen = getattr(sys, 'frozen', False)
 osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
 
 class AttrDict(dict):
+	def __init__(self, *args, **kwargs):
+		dict.__init__(self, *args, **kwargs)
+
 	def __getattr__(self, name):
-		try:
-			return self.__dict__[name]
-		except:
-			dict.__getattr__(self, name)
+		return self[name]
+
+	def __setattr__(self, key, value):
+		self[key] = value
 
 def subdivide(length, parts=None, max_length=None):
 	"""Generates a list with start end stop indices of length parts, [(0, length/parts), ..., (.., length)]"""
@@ -218,14 +221,65 @@ def progressbar(name="processing", max_value=1):
 	return bar
 	#FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')
 
+class _progressbar_wrapper(object):
+	def __init__(self, bar):
+		self.bar = bar
+
+	def __call__(self, fraction):
+		self.bar.update(fraction)
+		if fraction == 1:
+			self.bar.finish()
+		return True
+
+	def status(self, name):
+		self.bar.bla = name
+
+class _progressbar_wrapper_count(object):
+	def __init__(self):
+		self.fraction = 0
+
+	def __call__(self, fraction):
+		self.fraction = fraction
+		return True
+
+	def status(self, name):
+		pass
+
+class _progressbar_wrapper_sum(object):
+	def __init__(self, counters, bar=None):
+		self.bar = bar
+		self.counters = counters
+		self.finished = False
+		self.last_fraction = 0
+
+	def __call__(self, fraction):
+		# ignore fraction
+		self.fraction = sum([c.fraction for c in self.counters])/len(self.counters)
+		if fraction != self.last_fraction: # avoid too many calls
+			if fraction == 1 and not self.finished: # make sure we call finish only once
+				self.finished = True
+				self.bar.finish()
+			elif fraction != 1:
+				self.bar.update(fraction)
+		self.last_fraction = fraction
+		return True
+
+	def status(self, name):
+		pass
+
+def progressbars(f, count):
+	counters = list([_progressbar_wrapper_count() for k in range(count)])
+	if f in [None, False]:
+		return _progressbar_wrapper_count(), counters
+	else:
+		return _progressbar_wrapper_sum(counters, bar=progressbar()), counters
+
+
 def progressbar_callable(name="processing", max_value=1):
 	bar = progressbar(name, max_value=max_value)
-	def update(fraction):
-		bar.update(fraction)
-		if fraction == 1:
-			bar.finish()
-		return True
-	return update
+	return _progressbar_wrapper(bar)
+
+
 
 
 def confirm_on_console(topic, msg):

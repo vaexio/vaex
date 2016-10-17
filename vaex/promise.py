@@ -9,6 +9,12 @@ def check_unhandled():
 		print("Unhandled exceptions in Promises:")
 		for exctype, value, tb in Promise.unhandled_exceptions:
 			traceback.print_exception(exctype, value, tb)
+def rereaise_unhandled():
+	if Promise.unhandled_exceptions:
+		for exctype, value, tb in Promise.unhandled_exceptions:
+			if value:
+				raise value.with_traceback(tb)
+			#traceback.print_exception(exctype, value, tb)
 atexit.register(check_unhandled)
 
 

@@ -1353,7 +1353,8 @@ class PlotDialog(QtGui.QWidget):
 
 
 	def set_range(self, min, max, dimension=0):
-		was_equal = list(self.state.ranges_viewport[dimension]) == [min, max]
+		was_equal = self.state.ranges_viewport[dimension] is not None and \
+					list(self.state.ranges_viewport[dimension]) == [min, max]
 		dimension_names = "xyz"
 		dim_name = dimension_names[dimension]
 		action = undo.ActionZoom(self.undoManager, "change range in dimension %s" % dim_name,

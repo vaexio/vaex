@@ -1,6 +1,8 @@
 __author__ = 'breddels'
 
 import unittest
+import vaex as vx
+import vaex.utils
 import vaex.image
 import numpy as np
 default_size = 2
@@ -28,6 +30,21 @@ class TestImage(unittest.TestCase):
         raw_data = vaex.image.pil_2_data(im)
         url = vaex.image.rgba_to_url(white)
 
+
+class TestAttrDict(unittest.TestCase):
+    def test_attrdict(self):
+        d = vx.utils.AttrDict()
+        d.a = 1
+        self.assertEqual(d.a, 1)
+        with self.assertRaises(KeyError):
+            a = d.doesnotexist
+
+
+        d = vx.utils.AttrDict(a=1)
+        print(d.__dict__)
+        self.assertEqual(d.a, 1)
+        with self.assertRaises(KeyError):
+            a = d.doesnotexist
 
 if __name__ == '__main__':
     unittest.main()
