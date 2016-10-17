@@ -51,7 +51,6 @@ if has_py2app:
 	"""
 
 	import macholib
-	#print("~"*60 + "macholib verion: "+macholib.__version__)
 	if macholib.__version__ <= "1.7":
 		print("Applying macholib patch...")
 		import macholib.dyld
@@ -64,7 +63,6 @@ if has_py2app:
 			return dyld_find_1_7(name, **kwargs)
 		macholib.MachOGraph.dyld_find = dyld_find
 #full_name = vaex.__full_name__
-import matplotlib
 cmdclass = {}
 
 if has_py2app and sys.argv[1] == "py2app":
@@ -242,6 +240,7 @@ setup(
     package_dir={'vaex':'vaex'},
     cmdclass=cmdclass,
     description="Vaex is a graphical tool to visualize and explore large tabular datasets.",
+    long_description=open("README.rst").read(),
     url="https://www.astro.rug.nl/~breddels/vaex",
 	classifiers=[
         # How mature is this project? Common values are
