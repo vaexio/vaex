@@ -239,7 +239,23 @@ class FakeProgressExecution(object):
 	def progress(self, percentage):
 		return True
 
-class Codeline(object):
+class OptionBase(object):
+	def setVisible(self, value):
+		if value:
+			self.show()
+		else:
+			self.hide()
+
+	def show(self):
+		self.combobox.show()
+		self.label.show()
+
+	def hide(self):
+		self.combobox.hide()
+		self.label.hide()
+
+
+class Codeline(OptionBase):
 	def __init__(self, parent, label, options, getter, setter, update=lambda: None):
 		self.update = update
 		self.options = options
@@ -277,7 +293,7 @@ class Codeline(object):
 
 
 
-class Option(object):
+class Option(OptionBase):
 	def __init__(self, parent, label, options, getter, setter, update=lambda: None):
 		self.update = update
 		self.options = options
@@ -304,7 +320,7 @@ class Option(object):
 		grid_layout.addWidget(self.combobox, row, 1)
 		return row + 1
 
-class TextOption(object):
+class TextOption(OptionBase):
 	def __init__(self, parent, label, value, placeholder, getter, setter, update=lambda: None):
 		self.update = update
 		self.value = value

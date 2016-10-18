@@ -221,7 +221,9 @@ def progressbar(name="processing", max_value=1):
 	return bar
 	#FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')
 
-class _progressbar_wrapper(object):
+class _progressbar(object):
+	pass
+class _progressbar_wrapper(_progressbar):
 	def __init__(self, bar):
 		self.bar = bar
 
@@ -234,45 +236,78 @@ class _progressbar_wrapper(object):
 	def status(self, name):
 		self.bar.bla = name
 
-class _progressbar_wrapper_count(object):
-	def __init__(self):
-		self.fraction = 0
-
-	def __call__(self, fraction):
-		self.fraction = fraction
-		return True
-
-	def status(self, name):
-		pass
-
-class _progressbar_wrapper_sum(object):
-	def __init__(self, counters, bar=None):
-		self.bar = bar
-		self.counters = counters
+class _progressbar_wrapper_sum(_progressbar):
+	def __init__(self, children=None, next=None, bar=None, parent=None, name=None):
+		self.next = next
+		self.children = children or list()
 		self.finished = False
-		self.last_fraction = 0
+		self.last_fraction = None
+		self.fraction = 0
+		self.bar = bar
+		self.parent = parent
+		self.name = name
+		self.cancelled = False
+		self.oncancel = lambda : None
+
+	def cancel(self):
+		self.cancelled = True
+
+	def __repr__(self):
+		name = self.__class__.__module__ + "." +self.__class__.__name__
+		return "<%s(name=%r)> instance at 0x%x" % (name, self.name, id(self))
+
+	def add(self, name=None):
+		pb = _progressbar_wrapper_sum(parent=self, name=name)
+		self.children.append(pb)
+		return pb
+
+	def add_task(self, task, name=None):
+		pb = self.add(name)
+		pb.oncancel = task.cancel
+		task.signal_progress.connect(pb)
 
 	def __call__(self, fraction):
+		if self.cancelled:
+			return False
 		# ignore fraction
-		self.fraction = sum([c.fraction for c in self.counters])/len(self.counters)
+		result = True
+		if len(self.children) == 0:
+			self.fraction = fraction
+		else:
+			self.fraction = sum([c.fraction for c in self.children])/len(self.children)
+		fraction = self.fraction
 		if fraction != self.last_fraction: # avoid too many calls
 			if fraction == 1 and not self.finished: # make sure we call finish only once
 				self.finished = True
-				self.bar.finish()
+				if self.bar:
+					self.bar.finish()
 			elif fraction != 1:
-				self.bar.update(fraction)
+				if self.bar:
+					self.bar.update(fraction)
+			if self.next:
+				result = self.next(fraction)
+		if self.parent:
+			assert self in self.parent.children
+			result = self.parent(None) in [None, True] and result # fraction is not used anyway..
+			if result is False:
+				self.oncancel()
 		self.last_fraction = fraction
-		return True
+		return result
 
 	def status(self, name):
 		pass
 
-def progressbars(f, count):
-	counters = list([_progressbar_wrapper_count() for k in range(count)])
+def progressbars(f=True,next=None, name=None):
+	if callable(f):
+		next = f
+		f = False
 	if f in [None, False]:
-		return _progressbar_wrapper_count(), counters
+		return _progressbar_wrapper_sum(next=next, name=name)
 	else:
-		return _progressbar_wrapper_sum(counters, bar=progressbar()), counters
+		if f is True:
+			return _progressbar_wrapper_sum(bar=progressbar(), next=next, name=name)
+		else:
+			return _progressbar_wrapper_sum(next=next, name=name)
 
 
 def progressbar_callable(name="processing", max_value=1):

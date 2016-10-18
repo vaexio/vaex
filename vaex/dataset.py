@@ -2356,9 +2356,7 @@ class Dataset(object):
 			else:
 				task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_COUNT, selection=selection)
 			self.executor.schedule(task)
-			i = expressions.index(expression)
-			task.signal_progress.connect(progressbars[i])
-			task.signal_progress.connect(progressbar)
+			progressbar.add_task(task, "count for %s" % expression)
 			return task
 		@delayed
 		def finish(*stats_args):
@@ -2366,7 +2364,7 @@ class Dataset(object):
 			counts = stats[...,0]
 			return vaex.utils.unlistify(waslist, counts)
 		waslist, [expressions,] = vaex.utils.listify(expression)
-		progressbar, progressbars = vaex.utils.progressbars(progress, len(expressions))
+		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, async=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		var = finish(*stats)
@@ -2374,7 +2372,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the mean for expression, possible on a grid defined by binby.
 
 		Examples:
@@ -2397,6 +2395,7 @@ class Dataset(object):
 		def calculate(expression, limits):
 			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
 			self.executor.schedule(task)
+			progressbar.add_task(task, "mean for %s" % expression)
 			return task
 		@delayed
 		def finish(*stats_args):
@@ -2405,6 +2404,7 @@ class Dataset(object):
 			mean = stats[...,1] / counts
 			return vaex.utils.unlistify(waslist, mean)
 		waslist, [expressions,] = vaex.utils.listify(expression)
+		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, async=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		var = finish(*stats)
@@ -2412,7 +2412,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the sum for the given expression, possible on a grid defined by binby
 
 		Examples:
@@ -2435,6 +2435,7 @@ class Dataset(object):
 		def calculate(expression, limits):
 			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
 			self.executor.schedule(task)
+			progressbar.add_task(task, "sum for %s" % expression)
 			return task
 		@delayed
 		def finish(*stats_args):
@@ -2442,6 +2443,7 @@ class Dataset(object):
 			sum = stats[...,1]
 			return vaex.utils.unlistify(waslist, sum)
 		waslist, [expressions,] = vaex.utils.listify(expression)
+		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, async=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		s = finish(*stats)
@@ -2449,7 +2451,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the standard deviation for the given expression, possible on a grid defined by binby
 
 
@@ -2469,11 +2471,11 @@ class Dataset(object):
 		@delayed
 		def finish(var):
 			return var**0.5
-		return self._async(async, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True)))
+		return self._async(async, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=None)))
 
 	@docsubst
 	@stat_1d
-	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the sample variance for the given expression, possible on a grid defined by binby
 
 		Examples:
@@ -2498,6 +2500,7 @@ class Dataset(object):
 		@delayed
 		def calculate(expression, limits):
 			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_012, selection=selection)
+			progressbar.add_task(task, "var for %s" % expression)
 			self.executor.schedule(task)
 			return task
 		@delayed
@@ -2509,6 +2512,7 @@ class Dataset(object):
 			variance = (raw_moments2-mean**2)
 			return vaex.utils.unlistify(waslist, variance)
 		waslist, [expressions,] = vaex.utils.listify(expression)
+		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, async=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		var = finish(*stats)
@@ -2717,7 +2721,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the minimum and maximum for expressions, possible on a grid defined by binby
 
 
@@ -2747,12 +2751,14 @@ class Dataset(object):
 		def calculate(expression, limits):
 			task =  TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_MIN_MAX, selection=selection)
 			self.executor.schedule(task)
+			progressbar.add_task(task, "minmax for %s" % expression)
 			return task
 		@delayed
 		def finish(*minmax_list):
 			value = vaex.utils.unlistify(waslist, np.array(minmax_list))
 			return value
 		waslist, [expressions,] = vaex.utils.listify(expression)
+		progressbar = vaex.utils.progressbars(progress, name="minmaxes" )
 		limits = self.limits(binby, limits, selection=selection, async=True)
 		tasks = [calculate(expression, limits) for expression in expressions]
 		result = finish(*tasks)
@@ -2760,7 +2766,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the minimum for given expressions, possible on a grid defined by binby
 
 
@@ -2784,11 +2790,11 @@ class Dataset(object):
 		@delayed
 		def finish(result):
 			return result[...,0]
-		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async)))
+		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async, progress=progress)))
 
 	@docsubst
 	@stat_1d
-	def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the maximum for given expressions, possible on a grid defined by binby
 
 
@@ -2812,7 +2818,7 @@ class Dataset(object):
 		@delayed
 		def finish(result):
 			return result[...,1]
-		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async)))
+		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async, progress=progress)))
 
 	@docsubst
 	@stat_1d
