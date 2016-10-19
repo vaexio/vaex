@@ -412,8 +412,9 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								selection_values = arguments["selections"]
 								if selection_values:
 									for name, value in selection_values.items():
-										selection = vaex.dataset.selection_from_dict(dataset, value)
-										dataset.set_selection(selection, name=name)
+										if value:
+											selection = vaex.dataset.selection_from_dict(dataset, value)
+											dataset.set_selection(selection, name=name)
 						try:
 							if subspace:
 								if "selection" in arguments:
