@@ -63,7 +63,7 @@ Getting started
 
 If you want to try out vaex as a graphical tool only, :ref:`download the binary <installing_from_binary>` and read the :ref:`quickstart <quickstart>`.
 
-If you want to use vaex as a library, from your script or IPython notebook, :ref:`install vaex as a library <installing_from_source`, and go through the :ref:`tutorial`.
+If you want to use vaex as a library, from your script or IPython notebook, :ref:`install vaex as a library <installing_from_source>`, and go through the :ref:`tutorial`.
 
 
 Links
