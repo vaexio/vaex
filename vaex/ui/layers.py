@@ -204,7 +204,9 @@ class LayerTable(object):
 
 		self.reset_progressbar()
 
-		self.state.weight_expression = None
+		self.state.weight = self.options.get("weight", self.dataset.get_column_names()[0])
+		self.state.statistic = self.options.get("statistic", "count")
+		self.state.weight_count = self.options.get("weight_count", "*")
 		self.state.amplitudes = {}
 		self.state.show_disjoined = False
 		self.state.dataset_path = self.dataset.path
@@ -298,10 +300,14 @@ class LayerTable(object):
 		for dim in range(self.vector_dimensions):
 			logger.debug("set vector expression[%i] to %s", dim, self.state.vector_expressions[dim])
 			self.set_vector_expression(self.state.vector_expressions[dim], dim)
-		logger.debug("set weight expression to %s", dim, self.state.weight_expression)
-		self.set_weight_expression(self.state.weight_expression)
+		#logger.debug("set weight expression to %s", dim, self.state.weight_expression)
+		#self.set_weight_expression(self.state.weight_expression)
+		#
 		# make sure it's refected in the gui
 		self.amplitude = self.amplitude
+		self.weight = self.weight
+		self.weight_count = self.weight_count
+		self.statistic = self.statistic
 
 
 		self.colorbar_checkbox.set_value(self.state.colorbar)
@@ -396,6 +402,8 @@ class LayerTable(object):
 	def statistic(self, value):
 		logger.debug("setting self.state.statistic to %s" % value)
 		self.state.statistic = value
+		if self.option_statistic.combobox.currentText() != value:
+			self.option_statistic.set_value(value)
 		self.check_statistics_weights()
 		self.amplitude = self.amplitude # trigger setting the right text
 		self.plot_window.queue_history_change("changed statistic to %s" % (value))
@@ -466,6 +474,58 @@ class LayerTable(object):
 		vmin, vmax = value
 		self.plot_window.set_range(vmin, vmax, 2)
 		self.update()
+
+	@property
+	def weight_count(self):
+		return self.state.weight_count
+
+	@weight_count.setter
+	def weight_count(self, expression):
+		if expression is not None:
+			expression = expression.strip()
+		if expression == "":
+			expression = None
+		widget = self.option_weight_count.combobox
+		if expression:
+			if expression != "*": # * is special
+				try:
+					self.dataset.validate_expression(expression)
+				except Exception as e:
+					self.error_in_field(widget, "weight", e)
+					return
+		self.state.weight_count = expression
+		self.plot_window.queue_history_change("changed weight expression to %s" % (expression))
+		if widget.currentText() != expression:
+			widget.setCurrentIndex(self.option_weight_count.options.index(expression))
+			self.range_level = None
+			self.plot_window.range_level_show = None
+			self.update()
+
+	@property
+	def weight(self):
+		return self.state.weight
+
+	@weight.setter
+	def weight(self, expression):
+		if expression is not None:
+			expression = expression.strip()
+		if expression == "":
+			expression = None
+		widget = self.option_weight_statistic.combobox
+		if expression:
+			try:
+				self.dataset.validate_expression(expression)
+			except Exception as e:
+				self.error_in_field(widget, "weight", e)
+				return
+		self.state.weight = expression
+		self.plot_window.queue_history_change("changed weight expression to %s" % (expression))
+		if widget.currentText() != expression:
+			widget.lineEdit().setText(expression)
+			self.range_level = None
+			self.plot_window.range_level_show = None
+			self.update()
+
 
 
 
@@ -937,7 +997,8 @@ class LayerTable(object):
 		options = collections.OrderedDict()
 		#options["type-names"] = map(str.strip, self.names.split(","))
 		options["expressions"] = self.state.expressions
-		options["weight"] = self.state.weight_expression
+		options["weight"] = self.state.weight
+		options["weight_count"] = self.state.weight_count
 		options["amplitude"] = self.amplitude
 		options["ranges_grid"] = self.state.ranges_grid
 		options["vx"] = self.vx
@@ -953,7 +1014,7 @@ class LayerTable(object):
 
 	def apply_options(self, options, update=True):
 		#map = {"expressions",}
-		recognize = "expressions weight amplitude_expression ranges_grid aspect vx vy vz".split()
+		recognize = "expressions weight weight_count amplitude_expression ranges_grid aspect vx vy vz".split()
 		for key in recognize:
 			if key in list(options.keys()):
 				value = options[key]
@@ -962,6 +1023,8 @@ class LayerTable(object):
 					self.amplitude_box.lineEdit().setText(value)
 				if key == "weight":
 					self.weight = value
+				if key == "weight":
+					self.weight_count = value
 				if key == "vx":
 					self.weight_x_box.lineEdit().setText(value or "")
 				if key == "vy":
@@ -1120,7 +1183,7 @@ class LayerTable(object):
 		if self.statistic == "count":
 			args.append(self.weight_count)
 		elif self.statistic in ["sum", "mean", "std", "var", "min", "max"]:
-			args.append(self.weight_statistic)
+			args.append(self.weight)
 		histogram_promise = f(*args, binby=all_expressions, limits=ranges, shape=self.plot_window.state.grid_size, progress=self.progressbar.add(self.statistic), async=True)\
 			.then(self.grid_main.setter("grid"))\
 			.then(None, self.on_error)
@@ -1138,25 +1201,6 @@ class LayerTable(object):
 			update_count(self.dataset.count(selection=True, async=True))
 		else:
 			self.label_selection_info_update(None)
-
-		# the weighted ones
-		if self.state.weight_expression:
-			histogram_weighted_promise = self.add_task(self.subspace.histogram(limits=ranges
-					, weight=self.state.weight_expression, size=self.plot_window.state.grid_size))\
-				.then(self.grid_main.setter("weighted"))\
-				.then(None, self.on_error)
-			promises.append(histogram_weighted_promise)
-
-			if self.dataset.has_selection():
-				histogram_weighted_promise = self.add_task(self.subspace.selected().histogram(limits=ranges
-						, weight=self.state.weight_expression, size=self.plot_window.state.grid_size))\
-					.then(self.grid_main_selection.setter("weighted"))\
-					.then(None, self.on_error)
-				promises.append(histogram_weighted_promise)
-
-		else:
-			self.grid_main["weighted"] = None
-			self.grid_main_selection["weighted"] = None
 
 		# the vector fields only use the selection if there is one, otherwise the whole dataset
 		selection = False
@@ -1461,35 +1505,35 @@ class LayerTable(object):
 		#if error_text:
 		#	dialog_error(self, "Error in expression", "Error: " +error_text)
 
-	def onWeightExpr(self):
-		text = str(self.weight_box.lineEdit().text())
-		if (text == self.state.weight_expression) or (text == "" and self.state.weight_expression == None):
-			logger.debug("same weight expression, will not update")
-			return
-		else:
-			self.set_weight_expression(text)
-
-	def set_weight_expression(self, expression):
-		expression = expression or ""
-		if expression.strip() == "":
-			self.state.weight_expression = None
-		else:
-			self.state.weight_expression = expression
-		if expression:
-			try:
-				self.dataset.validate_expression(expression)
-			except Exception as e:
-				self.error_in_field(self.weight_box, "weight", e)
-				return
-		self.weight_box.lineEdit().setText(expression)
-		self.plot_window.queue_history_change("changed weight expression to %s" % (expression))
-		self.range_level = None
-		self.plot_window.range_level_show = None
-		#self.plot_window.queue_update(layer=self)
-		self.update()
-		#self.add_jobs()
-		#self.execute()
-		#self.plot()
+	# def onWeightExpr(self):
+	# 	text = str(self.weight_box.lineEdit().text())
+	# 	if (text == self.state.weight_expression) or (text == "" and self.state.weight_expression == None):
+	# 		logger.debug("same weight expression, will not update")
+	# 		return
+	# 	else:
+	# 		self.set_weight_expression(text)
+	#
+	# def set_weight_expression(self, expression):
+	# 	expression = expression or ""
+	# 	if expression.strip() == "":
+	# 		self.state.weight_expression = None
+	# 	else:
+	# 		self.state.weight_expression = expression
+	# 	if expression:
+	# 		try:
+	# 			self.dataset.validate_expression(expression)
+	# 		except Exception as e:
+	# 			self.error_in_field(self.weight_box, "weight", e)
+	# 			return
+	# 	self.weight_box.lineEdit().setText(expression)
+	# 	self.plot_window.queue_history_change("changed weight expression to %s" % (expression))
+	# 	self.range_level = None
+	# 	self.plot_window.range_level_show = None
+	# 	#self.plot_window.queue_update(layer=self)
+	# 	self.update()
+	# 	#self.add_jobs()
+	# 	#self.execute()
+	# 	#self.plot()
 
 	def onTitleExpr(self):
 		self.title_expression = str(self.title_box.lineEdit().text())
@@ -1700,17 +1744,13 @@ class LayerTable(object):
 		self.layout_frame_options_main.addLayout(self.grid_layout, 0)
 		#self.layout_frame_options_main.addLayout(self.form_layout, 0) # TODO: form layout can be removed?
 
-		self.state.statistic = "count"
 		self.option_statistic = Option(page, "Statistic", ["count", "mean", "sum", "std", "var", "min", "max"], getter=attrgetter(self, "statistic"), setter=attrsetter(self, "statistic"), update=self.update)
 		row = self.option_statistic.add_to_grid_layout(row, self.grid_layout)
 
-		self.weight_count = "*"
-
-		self.option_weight_count = Option(page, "Count", ["*"] + self.dataset.get_column_names(virtual=True), getter=attrgetter(self, "weight_count"), setter=attrsetter(self, "weight_count"), update=self.update)
+		self.option_weight_count = Option(page, "Weight", ["*"] + self.dataset.get_column_names(virtual=True), getter=attrgetter(self, "weight_count"), setter=attrsetter(self, "weight_count"), update=self.update)
 		row = self.option_weight_count.add_to_grid_layout(row, self.grid_layout)
 
-		self.weight_statistic = self.dataset.get_column_names(virtual=True)[0]
-		self.option_weight_statistic = Codeline(page, "Value", self.dataset.get_column_names(virtual=True), getter=attrgetter(self, "weight_statistic"), setter=attrsetter(self, "weight_statistic"), update=self.update)
+		self.option_weight_statistic = Codeline(page, "Weight", self.dataset.get_column_names(virtual=True), getter=attrgetter(self, "weight"), setter=attrsetter(self, "weight"), update=self.update)
 		row = self.option_weight_statistic.add_to_grid_layout(row, self.grid_layout)
 
 		self.check_statistics_weights()
@@ -2672,13 +2712,13 @@ class LayerTable(object):
 
 		try:
 			if self.weight_count and self.weight_count.strip() != "*":
-				self.dataset.validate_expression(self.self.weight_count)
+				self.dataset.validate_expression(self.weight_count)
 		except Exception as e:
 			self.error_in_field(self.option_weight_count.combobox, "weight", e)
 			return False
 		try:
-			if self.weight_statistic:
-				self.dataset.validate_expression(self.weight_statistic)
+			if self.weight:
+				self.dataset.validate_expression(self.weight)
 		except Exception as e:
 			self.error_in_field(self.option_weight_statistic.combobox, "weight", e)
 			return False
