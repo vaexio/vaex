@@ -2471,7 +2471,7 @@ class Dataset(object):
 		@delayed
 		def finish(var):
 			return var**0.5
-		return self._async(async, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=None)))
+		return self._async(async, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progress)))
 
 	@docsubst
 	@stat_1d
