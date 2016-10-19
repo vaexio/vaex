@@ -180,7 +180,7 @@ class Executor(object):
 				raise
 			logger.debug("executing took %r seconds" % (time.time() - t0))
 			# while processing the self.task_queue, new elements will be added to it, so copy it
-			logger.error("cancelled: %r", cancelled)
+			logger.debug("cancelled: %r", cancelled)
 			if cancelled[0]:
 				logger.debug("execution aborted")
 				task_queue = task_queue_all
