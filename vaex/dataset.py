@@ -3556,12 +3556,12 @@ class Dataset(object):
 		visual_axes = dict(x=-1, y=-2, layer=-3, fade=-4, column=-5, row=-6)
 		#visual_default=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column")
 		visual_default=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what")
-		invert = lambda x: dict((v, k) for k, v in x.iteritems())
+		invert = lambda x: dict((v, k) for k, v in x.items())
 		#visual_default_reverse = invert(visual_default)
 		#visual_ = visual_default
 		#visual = dict(visual) # copy for modification
 		# add entries to avoid mapping multiple times to the same axis
-		free_visual_axes = visual_default.keys()
+		free_visual_axes = list(visual_default.keys())
 		#visual_reverse = invert(visual)
 		logger.debug("1: %r %r", visual, free_visual_axes)
 		for visual_name, grid_name in visual.items():
