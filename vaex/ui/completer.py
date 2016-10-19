@@ -196,13 +196,12 @@ class UCDDelegate(QtGui.QItemDelegate):
 	def setModelData(self, editor, model, index):
 		model.setData(index, editor.text())
 
-	@QtCore.pyqtSlot()
 	def currentIndexChanged(self):
 		self.commitData.emit(self.sender())
 
 class UnitDelegate(QtGui.QStyledItemDelegate):
 	def __init__(self, parent):
-		QtGui.QItemDelegate.__init__(self, parent)
+		QtGui.QStyledItemDelegate.__init__(self, parent)
 		self.lastEditor = None
 
 	def createEditor(self, parent, option, index):
@@ -222,9 +221,8 @@ class UnitDelegate(QtGui.QStyledItemDelegate):
 	def setModelData(self, editor, model, index):
 		model.setData(index, editor.text())
 
-	@QtCore.pyqtSlot()
 	def currentIndexChanged(self):
-		self.commitData.emit(self.sender())
+	 	self.commitData.emit(self.sender())
 
 
 
