@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import division, print_function
+
 import os
 import math
 import time
@@ -2356,9 +2358,7 @@ class Dataset(object):
 			else:
 				task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_COUNT, selection=selection)
 			self.executor.schedule(task)
-			i = expressions.index(expression)
-			task.signal_progress.connect(progressbars[i])
-			task.signal_progress.connect(progressbar)
+			progressbar.add_task(task, "count for %s" % expression)
 			return task
 		@delayed
 		def finish(*stats_args):
@@ -2366,7 +2366,7 @@ class Dataset(object):
 			counts = stats[...,0]
 			return vaex.utils.unlistify(waslist, counts)
 		waslist, [expressions,] = vaex.utils.listify(expression)
-		progressbar, progressbars = vaex.utils.progressbars(progress, len(expressions))
+		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, async=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		var = finish(*stats)
@@ -2374,7 +2374,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the mean for expression, possible on a grid defined by binby.
 
 		Examples:
@@ -2397,14 +2397,17 @@ class Dataset(object):
 		def calculate(expression, limits):
 			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
 			self.executor.schedule(task)
+			progressbar.add_task(task, "mean for %s" % expression)
 			return task
 		@delayed
 		def finish(*stats_args):
 			stats = np.array(stats_args)
 			counts = stats[...,0]
-			mean = stats[...,1] / counts
+			with np.errstate(divide='ignore'):
+				mean = stats[...,1] / counts
 			return vaex.utils.unlistify(waslist, mean)
 		waslist, [expressions,] = vaex.utils.listify(expression)
+		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, async=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		var = finish(*stats)
@@ -2412,7 +2415,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the sum for the given expression, possible on a grid defined by binby
 
 		Examples:
@@ -2435,6 +2438,7 @@ class Dataset(object):
 		def calculate(expression, limits):
 			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
 			self.executor.schedule(task)
+			progressbar.add_task(task, "sum for %s" % expression)
 			return task
 		@delayed
 		def finish(*stats_args):
@@ -2442,6 +2446,7 @@ class Dataset(object):
 			sum = stats[...,1]
 			return vaex.utils.unlistify(waslist, sum)
 		waslist, [expressions,] = vaex.utils.listify(expression)
+		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, async=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		s = finish(*stats)
@@ -2449,7 +2454,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the standard deviation for the given expression, possible on a grid defined by binby
 
 
@@ -2469,11 +2474,11 @@ class Dataset(object):
 		@delayed
 		def finish(var):
 			return var**0.5
-		return self._async(async, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True)))
+		return self._async(async, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=None)))
 
 	@docsubst
 	@stat_1d
-	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the sample variance for the given expression, possible on a grid defined by binby
 
 		Examples:
@@ -2498,17 +2503,20 @@ class Dataset(object):
 		@delayed
 		def calculate(expression, limits):
 			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_012, selection=selection)
+			progressbar.add_task(task, "var for %s" % expression)
 			self.executor.schedule(task)
 			return task
 		@delayed
 		def finish(*stats_args):
 			stats = np.array(stats_args)
 			counts = stats[...,0]
-			mean = stats[...,1] / counts
-			raw_moments2 = stats[...,2] / counts
+			with np.errstate(divide='ignore'):
+				mean = stats[...,1] / counts
+				raw_moments2 = stats[...,2] / counts
 			variance = (raw_moments2-mean**2)
 			return vaex.utils.unlistify(waslist, variance)
 		waslist, [expressions,] = vaex.utils.listify(expression)
+		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, async=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		var = finish(*stats)
@@ -2717,7 +2725,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the minimum and maximum for expressions, possible on a grid defined by binby
 
 
@@ -2747,12 +2755,14 @@ class Dataset(object):
 		def calculate(expression, limits):
 			task =  TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_MIN_MAX, selection=selection)
 			self.executor.schedule(task)
+			progressbar.add_task(task, "minmax for %s" % expression)
 			return task
 		@delayed
 		def finish(*minmax_list):
 			value = vaex.utils.unlistify(waslist, np.array(minmax_list))
 			return value
 		waslist, [expressions,] = vaex.utils.listify(expression)
+		progressbar = vaex.utils.progressbars(progress, name="minmaxes" )
 		limits = self.limits(binby, limits, selection=selection, async=True)
 		tasks = [calculate(expression, limits) for expression in expressions]
 		result = finish(*tasks)
@@ -2760,7 +2770,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the minimum for given expressions, possible on a grid defined by binby
 
 
@@ -2784,11 +2794,11 @@ class Dataset(object):
 		@delayed
 		def finish(result):
 			return result[...,0]
-		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async)))
+		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async, progress=progress)))
 
 	@docsubst
 	@stat_1d
-	def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the maximum for given expressions, possible on a grid defined by binby
 
 
@@ -2812,7 +2822,7 @@ class Dataset(object):
 		@delayed
 		def finish(result):
 			return result[...,1]
-		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async)))
+		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async, progress=progress)))
 
 	@docsubst
 	@stat_1d
@@ -3556,12 +3566,12 @@ class Dataset(object):
 		visual_axes = dict(x=-1, y=-2, layer=-3, fade=-4, column=-5, row=-6)
 		#visual_default=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column")
 		visual_default=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what")
-		invert = lambda x: dict((v, k) for k, v in x.iteritems())
+		invert = lambda x: dict((v, k) for k, v in x.items())
 		#visual_default_reverse = invert(visual_default)
 		#visual_ = visual_default
 		#visual = dict(visual) # copy for modification
 		# add entries to avoid mapping multiple times to the same axis
-		free_visual_axes = visual_default.keys()
+		free_visual_axes = list(visual_default.keys())
 		#visual_reverse = invert(visual)
 		logger.debug("1: %r %r", visual, free_visual_axes)
 		for visual_name, grid_name in visual.items():
@@ -3834,7 +3844,7 @@ class Dataset(object):
 
 				finite_mask = np.isfinite(ngrid[i,j])
 				rgrid[~finite_mask,3] = 0
-				row = facet_index / facet_columns
+				row = facet_index // facet_columns
 				column = facet_index % facet_columns
 
 				if colorbar and colorbar_location == "individual":

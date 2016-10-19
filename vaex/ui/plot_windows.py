@@ -439,7 +439,7 @@ class PlotDialog(QtGui.QWidget):
 
 	def get_progress_fraction(self):
 		total_fraction = 0
-		updating_layers = [layer for layer in self.layers if layer.tasks]
+		updating_layers = [layer for layer in self.layers]# if layer.tasks]
 		total_fraction = sum([layer.get_progress_fraction() for layer in updating_layers])
 		return total_fraction/len(updating_layers)
 
@@ -1233,6 +1233,7 @@ class PlotDialog(QtGui.QWidget):
 			msg = e.args[0]
 			qt.dialog_error(self, "Unknown variable", "Unknown variable or column: %s " % msg)
 
+		print(promises)
 		promise_ranges_done = vaex.promise.listPromise(promises)
 		promise_ranges_done.then(self._update_step2, self.on_error_or_cancel).end()
 		logger.debug("waiting for promises %r to finish", promises)
@@ -2646,6 +2647,7 @@ class ScatterPlotDialog(PlotDialog):
 			ranges.append(minimum)
 			ranges.append(maximum)
 
+		background = np.transpose(background, (1,0,2))
 		placeholder = self.axes.imshow(background, extent=ranges, origin="lower")
 		self.add_image_layer(background, None)
 
@@ -2675,6 +2677,7 @@ class ScatterPlotDialog(PlotDialog):
 		for c in range(4):
 			#rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** 3.5)*2.6, 0., 1.)
 			rgba[:,:,c] = np.clip((rgba[:,:,c] ** self.layer_gamma)*self.layer_brightness, 0., 1.)
+		rgba = np.transpose(rgba, (1,0,2))
 		placeholder.set_data((rgba * 255).astype(np.uint8))
 
 
@@ -3709,6 +3712,8 @@ class Mover(object):
 			self.moved = True
 			dx = self.last_x - x_data
 			dy = self.last_y - y_data
+			if self.plot.state.ranges_viewport is None or None in self.plot.state.ranges_viewport:
+				return # this means we didn't even have a viewport, and already want to zoom/pan
 			xmin, xmax = self.plot.state.ranges_viewport[self.current_axes.xaxis_index][0] + dx, self.plot.state.ranges_viewport[self.current_axes.xaxis_index][1] + dx
 			if self.plot.dimensions == 1:
 				ymin, ymax = self.plot.state.range_level_show[0] + dy, self.plot.state.range_level_show[1] + dy

@@ -202,7 +202,10 @@ class LayerTable(object):
 
 		self.widget = None # each layer has a widget, atm only a qt widget is implemented
 
+		self.reset_progressbar()
+
 		self.state.weight_expression = None
+		self.state.amplitudes = {}
 		self.state.show_disjoined = False
 		self.state.dataset_path = self.dataset.path
 		self.state.name = self.dataset.name
@@ -297,6 +300,8 @@ class LayerTable(object):
 			self.set_vector_expression(self.state.vector_expressions[dim], dim)
 		logger.debug("set weight expression to %s", dim, self.state.weight_expression)
 		self.set_weight_expression(self.state.weight_expression)
+		# make sure it's refected in the gui
+		self.amplitude = self.amplitude
 
 
 		self.colorbar_checkbox.set_value(self.state.colorbar)
@@ -313,32 +318,12 @@ class LayerTable(object):
 
 
 	def flag_needs_update(self):
+		print("_needs_update set to True")
 		self._needs_update = True
 		self.signal_needs_update.emit()
 
 	def get_needs_update(self):
 		return self._needs_update
-
-	@property
-	def weight(self):
-		"""Expression that is used for the weight"""
-		return self.state.weight_expression
-
-	@weight.setter
-	def weight(self, value):
-		logger.debug("setting self.state.weight_expression to %s" % value)
-		self.set_weight_expression(value)
-		#self.state.weight_expression = value
-		#self.weight_box.lineEdit().setText(value)
-		#self.plot_window.queue_update()
-		#self.update()
-
-	@weight.deleter
-	def weight(self):
-		self.state.weight_expression = None
-		self.weight_box.lineEdit().setText("")
-		#self.plot_window.queue_update()
-		self.update()
 
 	@property
 	def x(self):
@@ -403,17 +388,32 @@ class LayerTable(object):
 		self.set_vector_expression(value, 2)
 
 	@property
+	def statistic(self):
+		"""vector z expression"""
+		return self.state.statistic
+
+	@statistic.setter
+	def statistic(self, value):
+		logger.debug("setting self.state.statistic to %s" % value)
+		self.state.statistic = value
+		self.check_statistics_weights()
+		self.amplitude = self.amplitude # trigger setting the right text
+		self.plot_window.queue_history_change("changed statistic to %s" % (value))
+
+	@property
 	def amplitude(self):
 		"""amplitude expression"""
-		return self.amplitude_expression
+		#return self.amplitude
+		return self.state.amplitudes[self.statistic]
 
 	@amplitude.setter
 	def amplitude(self, value):
-		logger.debug("setting self.amplitude_expression to %s" % value)
-		self.amplitude_expression = value
+		logger.debug("setting self.amplitude to %s" % value)
+		self.state.amplitudes[self.statistic] = value
 		self.amplitude_box.lineEdit().setText(value)
 		#self.plot_window.queue_update()
-		self.update()
+		self.signal_plot_dirty.emit()
+		self.plot_window.queue_history_change("changed amplitude to %s" % (value))
 
 	def set_range(self, min, max, dimension=0):
 		#was_equal = list(self.plot_window.state.ranges_viewport[dimension]) == [min, max]
@@ -721,14 +721,14 @@ class LayerTable(object):
 					if 1:
 						#grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map.items())}
 						#grid_context = self.grid_vector
-						#amplitude = grid_context(self.amplitude_expression, locals=grid_map_2d)
+						#amplitude = grid_context(self.amplitude, locals=grid_map_2d)
 
 						grid = self.grid_main.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
 						#grid = self.grid_main.marginal2d(axes.xaxis_index, axes.yaxis_index)
 						if self.state.show_disjoined:
 							grid = grid.disjoined()
 						try:
-							amplitude = grid.evaluate(self.amplitude_expression)
+							amplitude = grid.evaluate(self.amplitude)
 						except Exception as e:
 							self.error_in_field(self.amplitude_box, "amplitude of layer %s" % self.name, e)
 							return
@@ -737,7 +737,7 @@ class LayerTable(object):
 							grid_selection = self.grid_main_selection.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
 							if self.state.show_disjoined:
 								grid_selection = grid_selection.disjoined()
-							amplitude_selection = grid_selection.evaluate(self.amplitude_expression)
+							amplitude_selection = grid_selection.evaluate(self.amplitude)
 						else:
 							amplitude_selection = None
 						#print("total amplit")
@@ -938,7 +938,7 @@ class LayerTable(object):
 		#options["type-names"] = map(str.strip, self.names.split(","))
 		options["expressions"] = self.state.expressions
 		options["weight"] = self.state.weight_expression
-		options["amplitude_expression"] = self.amplitude_expression
+		options["amplitude"] = self.amplitude
 		options["ranges_grid"] = self.state.ranges_grid
 		options["vx"] = self.vx
 		if self.dimensions > 1:
@@ -958,7 +958,7 @@ class LayerTable(object):
 			if key in list(options.keys()):
 				value = options[key]
 				setattr(self, key, copy.copy(value))
-				if key == "amplitude_expression":
+				if key == "amplitude":
 					self.amplitude_box.lineEdit().setText(value)
 				if key == "weight":
 					self.weight = value
@@ -1011,7 +1011,7 @@ class LayerTable(object):
 		pass
 
 	def on_error(self, exception):
-		logger.exception("unhandled error occured")
+		logger.exception("unhandled error occured: %r", exception)
 		self.finished_tasks()
 		import traceback
 		traceback.print_exc()
@@ -1031,6 +1031,7 @@ class LayerTable(object):
 		return True
 
 	def get_progress_fraction(self):
+		return self.progressbar.fraction
 		total_fraction = 0
 		for task in self.tasks:
 			total_fraction += task.progress_fraction
@@ -1044,14 +1045,22 @@ class LayerTable(object):
 		self._task_signals = []
 
 	def cancel_tasks(self):
+		print("cancelling progressbar")
+		self.progressbar.cancel()
 		logger.info("cancelling tasks for layer %r", self)
 		for task in self.tasks:
 			task.cancel()
 		self.finished_tasks()
 
+	def reset_progressbar(self):
+		def update(fraction):
+			return self.plot_window.set_layer_progress(self, fraction)
+		self.progressbar = vaex.utils.progressbars(False, next=update, name="layer")
+
 	def add_tasks_ranges(self):
 		logger.info("adding ranges jobs for layer: %r, previous ranges_grid = %r", self, self.state.ranges_grid)
 		assert not self.tasks, "still were tasks in queue: %r for %r" % (self.tasks, self)
+		self.reset_progressbar()
 		missing = False
 		# TODO, optimize for the case when some dimensions are already known
 		for range in self.state.ranges_grid:
@@ -1061,15 +1070,17 @@ class LayerTable(object):
 				vmin, vmax = range
 				if vmin is None or vmax is None:
 					missing = True
-		self.subspace = self.dataset(*self.state.expressions, async=True)
-		subspace_ranges = self.subspace
+		#self.subspace = self.dataset(*self.state.expressions, async=True)
+		#subspace_ranges = self.subspace
+		all_expressions = self.state.expressions
 		if self.layer_slice_source:
 			all_expressions = self.state.expressions + self.layer_slice_source.expressions
-			self.subspace = self.dataset(*all_expressions, async=True)
+			#self.subspace = self.dataset(*all_expressions, async=True)
 
 		if missing:
 			logger.debug("first we calculate min max for this layer")
-			return self.add_task(subspace_ranges.minmax()).then(self.got_limits, self.on_error).then(None, self.on_error)
+			#return self.add_task(subspace_ranges.minmax()).then(self.got_limits, self.on_error).then(None, self.on_error)
+			return self.dataset.minmax(all_expressions, async=True, progress=self.progressbar.add(name="for minmaxes")).then(self.got_limits, self.on_error).then(None, self.on_error)
 		else:
 			#self.got_limits(self.state.ranges_grid)
 			return vaex.promise.Promise.fulfilled(self)
@@ -1084,6 +1095,12 @@ class LayerTable(object):
 		self._histogram_counter += 1
 		assert not self.tasks
 
+		self.reset_progressbar()
+		all_expressions = self.state.expressions
+		if self.layer_slice_source:
+			all_expressions = self.state.expressions + self.layer_slice_source.expressions
+			#self.subspace = self.dataset(*all_expressions, async=True)
+
 		histogram_counter = self._histogram_counter
 		self._can_plot = False
 		promises = []
@@ -1097,8 +1114,15 @@ class LayerTable(object):
 			ranges = np.array(self.state.ranges_grid + self.layer_slice_source.ranges_grid)
 		ranges = np.array(ranges)
 		# add the main grid
-		histogram_promise = self.add_task(self.subspace.histogram(limits=ranges, size=self.plot_window.state.grid_size))\
-			.then(self.grid_main.setter("counts"))\
+
+		f = getattr(self.dataset, self.statistic)
+		args = []
+		if self.statistic == "count":
+			args.append(self.weight_count)
+		elif self.statistic in ["sum", "mean", "std", "var", "min", "max"]:
+			args.append(self.weight_statistic)
+		histogram_promise = f(*args, binby=all_expressions, limits=ranges, shape=self.plot_window.state.grid_size, progress=self.progressbar.add(self.statistic), async=True)\
+			.then(self.grid_main.setter("grid"))\
 			.then(None, self.on_error)
 		promises.append(histogram_promise)
 
@@ -1135,9 +1159,9 @@ class LayerTable(object):
 			self.grid_main_selection["weighted"] = None
 
 		# the vector fields only use the selection if there is one, otherwise the whole dataset
-		subspace = self.subspace
+		selection = False
 		if self.dataset.has_selection():
-			subspace = subspace.selected()
+			selection = True
 
 		for i, expression in enumerate(self.state.vector_expressions):
 			name = "xyzw"[i]
@@ -1194,6 +1218,7 @@ class LayerTable(object):
 			total = len(self.dataset)
 			fraction = float(visible)/total
 			self.label_visible.setText("{:,} of {:,} ({}) visible".format(visible, total, fraction*100))
+		print("_needs_update set to False...")
 		self._needs_update = False
 		return self
 
@@ -1238,7 +1263,7 @@ class LayerTable(object):
 				grid = grid.slice(self.slice_selection_grid)
 			if self.state.show_disjoined:
 				grid = grid.disjoined()
-			self.amplitude_grid = grid.evaluate(self.amplitude_expression)
+			self.amplitude_grid = grid.evaluate(self.amplitude)
 		except Exception as e:
 			logger.exception("amplitude field")
 			#traceback.print_exc()
@@ -1253,7 +1278,7 @@ class LayerTable(object):
 				grid = grid.slice(self.slice_selection_grid)
 			if self.state.show_disjoined:
 				grid = grid.disjoined()
-			self.amplitude_grid_selection = grid.evaluate(self.amplitude_expression)
+			self.amplitude_grid_selection = grid.evaluate(self.amplitude)
 
 		vmin = None
 		vmax = None
@@ -1528,14 +1553,18 @@ class LayerTable(object):
 
 	def onAmplitudeExpr(self):
 		text = str(self.amplitude_box.lineEdit().text())
-		if len(text) == 0 or text == self.amplitude_expression:
+		if len(text) == 0 or text == self.amplitude:
 			logger.debug("same expression, skip")
 			return
-		self.amplitude_expression = text
+		self.amplitude = text
 		self.calculate_amplitudes()
 		self.plot_window.calculate_range_level_show()
 		self.plot_window.plot()
 		#self.plot()
+
+	def check_statistics_weights(self):
+		self.option_weight_count.setVisible(self.statistic == "count")
+		self.option_weight_statistic.setVisible(self.statistic in ["mean", "sum", "std", "var", "min", "max"])
 
 	def page_main(self, page):
 		self.frame_options_main = page #QtGui.QFrame(self)
@@ -1671,15 +1700,45 @@ class LayerTable(object):
 		self.layout_frame_options_main.addLayout(self.grid_layout, 0)
 		#self.layout_frame_options_main.addLayout(self.form_layout, 0) # TODO: form layout can be removed?
 
+		self.state.statistic = "count"
+		self.option_statistic = Option(page, "Statistic", ["count", "mean", "sum", "std", "var", "min", "max"], getter=attrgetter(self, "statistic"), setter=attrsetter(self, "statistic"), update=self.update)
+		row = self.option_statistic.add_to_grid_layout(row, self.grid_layout)
+
+		self.weight_count = "*"
+
+		self.option_weight_count = Option(page, "Count", ["*"] + self.dataset.get_column_names(virtual=True), getter=attrgetter(self, "weight_count"), setter=attrsetter(self, "weight_count"), update=self.update)
+		row = self.option_weight_count.add_to_grid_layout(row, self.grid_layout)
+
+		self.weight_statistic = self.dataset.get_column_names(virtual=True)[0]
+		self.option_weight_statistic = Codeline(page, "Value", self.dataset.get_column_names(virtual=True), getter=attrgetter(self, "weight_statistic"), setter=attrsetter(self, "weight_statistic"), update=self.update)
+		row = self.option_weight_statistic.add_to_grid_layout(row, self.grid_layout)
+
+		self.check_statistics_weights()
+
+
+		self.transform = "log10(grid)"
+		self.state.amplitudes["mean"] = "grid"
+		self.state.amplitudes["sum"] = "grid"
+		self.state.amplitudes["std"] = "grid"
+		self.state.amplitudes["var"] = "grid"
+		self.state.amplitudes["min"] = "grid"
+		self.state.amplitudes["max"] = "grid"
+		#self.option_transform = Codeline(page, "Amplitude", ["grid", "log10(grid)", "log10(grid+1)", "sqrt(grid)"], getter=attrgetter(self, "transform"), setter=attrsetter(self, "transform"), update=self.signal_plot_dirty.emit)
+		#row = self.option_transform .add_to_grid_layout(row, self.grid_layout)
+
 		self.amplitude_box = QtGui.QComboBox(page)
 		self.amplitude_box.setEditable(True)
 		if "amplitude" in self.options:
 			self.amplitude_box.addItems([self.options["amplitude"]])
-		self.amplitude_box.addItems(["log(counts) if weighted is None else average", "counts", "counts**2", "average", "sqrt(counts)"])
-		self.amplitude_box.addItems(["log(counts+1)"])
-		self.amplitude_box.addItems(["gf(log(counts+1),1)"])
-		self.amplitude_box.addItems(["gf(log(counts+1),2)"])
-		self.amplitude_box.addItems(["dog(counts, 2, 2.1)"])
+		if self.dimensions == 1:
+			self.amplitude_box.addItems(["grid", "log10(grid)"])
+		else:
+			self.amplitude_box.addItems(["log10(grid)", "grid"])
+		#self.amplitude_box.addItems(["log(counts) if weighted is None else average", "counts", "counts**2", "average", "sqrt(counts)"])
+		self.amplitude_box.addItems(["log(grid+1)"])
+		self.amplitude_box.addItems(["gf(log(grid+1),1)"])
+		self.amplitude_box.addItems(["gf(log(grid+1),2)"])
+		self.amplitude_box.addItems(["dog(grid, 2, 2.1)"])
 		if 0:
 			self.amplitude_box.addItems(["counts/peak_columns # divide by peak value in every row"])
 			self.amplitude_box.addItems(["counts/sum_columns # normalize columns"])
@@ -1711,7 +1770,7 @@ class LayerTable(object):
 		self.amplitude_box.lineEdit().editingFinished.connect(functools.partial(onchange_line, event="editingFinished"))
 
 
-		self.amplitude_expression = str(self.amplitude_box.lineEdit().text())
+		self.amplitude = str(self.amplitude_box.lineEdit().text())
 
 		row += 1
 
@@ -1728,18 +1787,19 @@ class LayerTable(object):
 			self.title_expression = str(self.title_box.lineEdit().text())
 			row += 1
 
-		self.weight_box = vaex.ui.completer.ExpressionCombobox(page, self.dataset, variables=True)#QtGui.QComboBox(page)
-		self.weight_box.setEditable(True)
-		self.weight_box.addItems([self.options.get("weight", "")] + self.get_expression_list())
-		self.weight_box.setMinimumContentsLength(10)
-		self.grid_layout.addWidget(QtGui.QLabel("weight="), row, 0)
-		self.grid_layout.addWidget(self.weight_box, row, 1)
-		self.weight_box.lineEdit().editingFinished.connect(self.onWeightExpr)
-		self.weight_box.currentIndexChanged.connect(lambda _: self.onWeightExpr())
-		self.state.weight_expression = str(self.weight_box.lineEdit().text())
-		if len(self.state.weight_expression.strip()) == 0:
-			self.state.weight_expression = None
-		row += 1
+		if 0:
+			self.weight_box = vaex.ui.completer.ExpressionCombobox(page, self.dataset, variables=True)#QtGui.QComboBox(page)
+			self.weight_box.setEditable(True)
+			self.weight_box.addItems([self.options.get("weight", "")] + self.get_expression_list())
+			self.weight_box.setMinimumContentsLength(10)
+			self.grid_layout.addWidget(QtGui.QLabel("weight="), row, 0)
+			self.grid_layout.addWidget(self.weight_box, row, 1)
+			self.weight_box.lineEdit().editingFinished.connect(self.onWeightExpr)
+			self.weight_box.currentIndexChanged.connect(lambda _: self.onWeightExpr())
+			self.state.weight_expression = str(self.weight_box.lineEdit().text())
+			if len(self.state.weight_expression.strip()) == 0:
+				self.state.weight_expression = None
+			row += 1
 
 
 		if 0:
@@ -2611,15 +2671,22 @@ class LayerTable(object):
 				return False
 
 		try:
-			if self.state.weight_expression:
-				self.dataset.validate_expression(self.state.weight_expression)
+			if self.weight_count and self.weight_count.strip() != "*":
+				self.dataset.validate_expression(self.self.weight_count)
 		except Exception as e:
-			self.error_in_field(self.weight_box, "weight", e)
+			self.error_in_field(self.option_weight_count.combobox, "weight", e)
+			return False
+		try:
+			if self.weight_statistic:
+				self.dataset.validate_expression(self.weight_statistic)
+		except Exception as e:
+			self.error_in_field(self.option_weight_statistic.combobox, "weight", e)
 			return False
 		return True
 
 	def update(self):
 		if self.validate_all_fields():
+			print("flag_needs_update set to true")
 			self.flag_needs_update()
 			self.plot_window.queue_update()
 

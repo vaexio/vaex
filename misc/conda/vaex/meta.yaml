@@ -110,7 +110,7 @@ about:
   home: https://www.astro.rug.nl/~breddels/vaex
   license: MIT
 #  license_file: LICENSE
-  summary: 'Vaex is a graphical tool to visualize and explore large tabular datasets.'
+  summary: 'Vaex is a graphical tool and library to visualize and explore large tabular datasets.'
 
 # See
 # http://docs.continuum.io/conda/build.html for
