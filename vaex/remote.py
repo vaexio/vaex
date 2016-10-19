@@ -238,10 +238,12 @@ class ServerRest(object):
 		io_loop = tornado.ioloop.IOLoop.instance()
 		io_loop.start()
 
-	def submit_websocket(self, path, arguments, async=False, post_process=lambda x: x):
+	def submit_websocket(self, path, arguments, async=False, progress=None, post_process=lambda x: x):
 		assert self.use_websocket
 
 		task = TaskServer(post_process=post_process, async=async)
+		progressbars = vaex.utils.progressbars(progress)
+		progressbars.add_task(task)
 		logger.debug("created task: %r, %r (async=%r)" % (path, arguments, async))
 		job_id = str(uuid.uuid4())
 		self.jobs[job_id] = task
@@ -271,7 +273,7 @@ class ServerRest(object):
 		else:
 			return task.get()
 
-	def submit_http(self, path, arguments, post_process, async, **kwargs):
+	def submit_http(self, path, arguments, post_process, async, progress=None, **kwargs):
 		def pre_post_process(response):
 			cookie = Cookie.SimpleCookie()
 			for cookieset in response.headers.get_list("Set-Cookie"):
@@ -382,7 +384,7 @@ class ServerRest(object):
 		arguments.update(dict(expressions=expressions))
 		return self.submit(path, arguments, post_process=post_process, async=async)
 
-	def _call_dataset(self, method_name, dataset_remote, async, numpy=False, **kwargs):
+	def _call_dataset(self, method_name, dataset_remote, async, numpy=False, progress=None, **kwargs):
 		def post_process(result):
 			#result = self._check_exception(json.loads(result.body))["result"]
 			if numpy:
@@ -408,7 +410,7 @@ class ServerRest(object):
 		#arguments["selection_name"] = json.dumps(dataset_remote.get_selection_name())
 		body = urlencode(arguments)
 
-		return self.submit(path, arguments, post_process=post_process, async=async)
+		return self.submit(path, arguments, post_process=post_process, progress=progress, async=async)
 		#return self.fetch(url+"?"+body, wrap, async=async, method="GET")
 		#return self._return(result, wrap)
 
@@ -520,28 +522,28 @@ class DatasetRest(DatasetRemote):
 
 		self.executor = ServerExecutor()
 
-	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
-		return self._async(async, self.server._call_dataset("count", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+		return self._async(async, self.server._call_dataset("count", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def mean (self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
-		return self._async(async, self.server._call_dataset("mean", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def mean (self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+		return self._async(async, self.server._call_dataset("mean", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
-		return self._async(async, self.server._call_dataset("sum", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+		return self._async(async, self.server._call_dataset("sum", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
-		return self._async(async, self.server._call_dataset("var", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+		return self._async(async, self.server._call_dataset("var", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False):
-		return self._async(async, self.server._call_dataset("minmax", self, async=True, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+		return self._async(async, self.server._call_dataset("minmax", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
 	#def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
-	def cov        (self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
-		return self._async(async, self.server._call_dataset("cov", self, async=True, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
+	def cov        (self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+		return self._async(async, self.server._call_dataset("cov", self, async=True, progress=progress, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, async=False):
+	def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, async=False, progress=None):
 		# TODO: sort and sort_key should be done locally
-		return self._async(async, self.server._call_dataset("correlation", self, async=True, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
+		return self._async(async, self.server._call_dataset("correlation", self, async=True, progress=progress, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
 
 	def _async(self, async, task, progressbar=False):
 		if async:
