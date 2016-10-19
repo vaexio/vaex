@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import division, print_function
+
 import os
 import math
 import time
@@ -2401,7 +2403,8 @@ class Dataset(object):
 		def finish(*stats_args):
 			stats = np.array(stats_args)
 			counts = stats[...,0]
-			mean = stats[...,1] / counts
+			with np.errstate(divide='ignore'):
+				mean = stats[...,1] / counts
 			return vaex.utils.unlistify(waslist, mean)
 		waslist, [expressions,] = vaex.utils.listify(expression)
 		progressbar = vaex.utils.progressbars(progress)
@@ -2507,8 +2510,9 @@ class Dataset(object):
 		def finish(*stats_args):
 			stats = np.array(stats_args)
 			counts = stats[...,0]
-			mean = stats[...,1] / counts
-			raw_moments2 = stats[...,2] / counts
+			with np.errstate(divide='ignore'):
+				mean = stats[...,1] / counts
+				raw_moments2 = stats[...,2] / counts
 			variance = (raw_moments2-mean**2)
 			return vaex.utils.unlistify(waslist, variance)
 		waslist, [expressions,] = vaex.utils.listify(expression)
@@ -3840,7 +3844,7 @@ class Dataset(object):
 
 				finite_mask = np.isfinite(ngrid[i,j])
 				rgrid[~finite_mask,3] = 0
-				row = facet_index / facet_columns
+				row = facet_index // facet_columns
 				column = facet_index % facet_columns
 
 				if colorbar and colorbar_location == "individual":
