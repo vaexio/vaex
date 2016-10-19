@@ -394,10 +394,7 @@ class PlotDialog(QtGui.QWidget):
 				if self.dimensions > 1:
 					expr = first_layer.y
 				else:
-					if not first_layer.state.weight_expression:
-						return "counts"
-					else:
-						return first_layer.state.weight_expression
+					return first_layer.amplitude_label()
 			if axis == 2:
 				expr = first_layer.z
 			label = expr
@@ -2713,7 +2710,7 @@ class ScatterPlotDialog(PlotDialog):
 		if first_layer.state.colorbar:
 			wrapper = ColorbarWrapper(first_layer)
 			self.colorbar = self.fig.colorbar(wrapper, use_gridspec=True)
-			self.colorbar.ax.set_ylabel("counts")
+			self.colorbar.ax.set_ylabel(first_layer.amplitude_label())
 			ymin, ymax = self.colorbar.ax.get_ylim()
 			if (layer.level_ranges[0] > layer.level_ranges[1]) != (ymin > ymax):
 				self.colorbar.ax.invert_yaxis()
@@ -3316,9 +3313,9 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			layer.plot(axes_list, self.add_image_layer)
 		#for image in self.image_layers:
 		if first_layer.amplitude_grid_selection is not None:
-			self.widget_volume.setGrid(first_layer.amplitude_grid_selection, first_layer.amplitude_grid, first_layer.vector_grid)
+			self.widget_volume.setGrid(first_layer.amplitude_grid_selection.T, first_layer.amplitude_grid.T, first_layer.vector_grid)
 		else:
-			self.widget_volume.setGrid(first_layer.amplitude_grid, vectorgrid=first_layer.vector_grid)
+			self.widget_volume.setGrid(first_layer.amplitude_grid.T, vectorgrid=first_layer.vector_grid)
 
 		for axes in axes_list:
 			rgba = vaex.ui.imageblending.blend(axes.rgb_images, self.blend_mode)
@@ -3326,6 +3323,7 @@ class VolumeRenderingPlotDialog(PlotDialog):
 			for c in range(4):
 				#rgba_dest[:,:,c] = np.clip((rgba_dest[:,:,c] ** 3.5)*2.6, 0., 1.)
 				rgba[:,:,c] = np.clip((rgba[:,:,c] ** self.layer_gamma)*self.layer_brightness, 0., 1.)
+			rgba = np.transpose(rgba, (1, 0, 2))
 			axes.placeholder.set_data((rgba * 255).astype(np.uint8))
 
 		#if self.state.aspect is None:
