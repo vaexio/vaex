@@ -312,8 +312,8 @@ class Option(OptionBase):
 		def on_change(index):
 			setter(self.options[index])
 			update()
-		self.combobox.currentIndexChanged.connect(on_change)
 		self.combobox.setCurrentIndex(options.index(getter()))
+		self.combobox.currentIndexChanged.connect(on_change)
 
 	def add_to_grid_layout(self, row, grid_layout):
 		grid_layout.addWidget(self.label, row, 0)
