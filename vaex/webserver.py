@@ -360,7 +360,8 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							expressions = None
 						# make a shallow copy, such that selection and active_fraction is not shared
 						dataset = webserver.datasets_map[dataset_name].shallow_copy(virtual=False)
-	
+						# TODO: executor should be an argument to the stats functions..
+						dataset.executor = webserver.thread_local.executor
 						if dataset.mask is not None:
 							logger.debug("selection: %r", dataset.mask.sum())
 						if "active_fraction" in arguments:
