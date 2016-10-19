@@ -208,6 +208,13 @@ class LayerTable(object):
 		self.state.statistic = self.options.get("statistic", "count")
 		self.state.weight_count = self.options.get("weight_count", "*")
 		self.state.amplitudes = {}
+		self.state.amplitudes["count"] = "log10(grid)"
+		self.state.amplitudes["mean"] = "grid"
+		self.state.amplitudes["sum"] = "grid"
+		self.state.amplitudes["std"] = "grid"
+		self.state.amplitudes["var"] = "grid"
+		self.state.amplitudes["min"] = "grid"
+		self.state.amplitudes["max"] = "grid"
 		self.state.show_disjoined = False
 		self.state.dataset_path = self.dataset.path
 		self.state.name = self.dataset.name
@@ -290,6 +297,24 @@ class LayerTable(object):
 	def __repr__(self):
 		classname = self.__class__.__module__ + "." +self.__class__.__name__
 		return "<%s(name=%r, expressions=%r)> instance at 0x%x" % (classname, self.name, self.state.expressions, id(self))
+
+	def amplitude_label(self):
+		unit_expression = None
+		what_units = None
+		statistics = self.statistic
+		if statistics in ["mean", "sum", "std", "min", "max", "median"]:
+			unit_expression = self.weight
+		if statistics in ["var"]:
+			unit_expression = "(%s) * (%s)" % (self.weight, self.weight)
+		if unit_expression:
+			unit = self.dataset.unit(unit_expression)
+			if unit:
+				what_units = unit.to_string('latex_inline')
+		label = "%s(%s)" % (self.statistic, self.weight)
+		label = self.amplitude.replace("grid", label)
+		if what_units:
+			label += " (%s)" % what_units
+		return label
 
 	def restore_state(self, state):
 		logger.debug("restoring layer %r to state %r ", self, state)
@@ -729,30 +754,30 @@ class LayerTable(object):
 					grid_vector = grid_vector.slice(self.slice_selection_grid)
 				vector_grids = None
 				if any(self.state.vector_expressions):
-					vector_counts = grid_vector.evaluate("counts")
+					vector_counts = grid_vector.evaluate("countx") # TODO: what should the mask be..
 					vector_mask = vector_counts > 0
-					if grid_vector.evaluate("weightx") is not None:
+					if grid_vector.evaluate("sumx") is not None:
 						vector_x = grid_vector.evaluate("x")
-						vx = grid_vector.evaluate("weightx/counts")
+						vx = grid_vector.evaluate("sumx/countx")
 						if self.vectors_subtract_mean:
 							vx -= vx[vector_mask].mean()
 					else:
 						vector_x = None
 						vx = None
-					if grid_vector.evaluate("weighty") is not None:
+					if grid_vector.evaluate("sumy") is not None:
 						vector_y = grid_vector.evaluate("y")
-						vy = grid_vector.evaluate("weighty/counts")
+						vy = grid_vector.evaluate("sumy/county")
 						if self.vectors_subtract_mean:
 							vy -= vy[vector_mask].mean()
 					else:
 						vector_y = None
 						vy = None
-					if grid_vector.evaluate("weightz") is not None:
+					if grid_vector.evaluate("sumz") is not None:
 						if self.dimensions >= 3:
 							vector_z = grid_vector.evaluate("z")
 						else:
 							vector_z = None
-						vz = grid_vector.evaluate("weightz/counts")
+						vz = grid_vector.evaluate("sumz/countz")
 						if self.vectors_subtract_mean:
 							vz -= vz[vector_mask].mean()
 					else:
@@ -761,10 +786,10 @@ class LayerTable(object):
 					logger.debug("vx=%s vy=%s vz=%s", vx, vy, vz)
 					if vx is not None and vy is not None and vz is not None:
 						self.vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
-						self.vector_grid[0] = vx
-						self.vector_grid[1] = vy
-						self.vector_grid[2] = vz
-						self.vector_grid[3] = vector_counts
+						self.vector_grid[0] = vx.T
+						self.vector_grid[1] = vy.T
+						self.vector_grid[2] = vz.T
+						self.vector_grid[3] = vector_counts.T
 						self.vector_grid = np.swapaxes(self.vector_grid, 0, 3)
 						self.vector_grid = self.vector_grid * 1.
 
@@ -775,33 +800,37 @@ class LayerTable(object):
 				#if 0:
 					# create marginalized grid
 					all_axes = list(range(self.dimensions))
-					all_axes.remove(self.dimensions-1-axes.xaxis_index)
-					all_axes.remove(self.dimensions-1-axes.yaxis_index)
+					# all_axes.remove(self.dimensions-1-axes.xaxis_index)
+					# all_axes.remove(self.dimensions-1-axes.yaxis_index)
+					all_axes.remove(axes.xaxis_index)
+					all_axes.remove(axes.yaxis_index)
 
-					if 1:
-						#grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map.items())}
-						#grid_context = self.grid_vector
-						#amplitude = grid_context(self.amplitude, locals=grid_map_2d)
+					#if 1:
+					#grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map.items())}
+					#grid_context = self.grid_vector
+					#amplitude = grid_context(self.amplitude, locals=grid_map_2d)
 
-						grid = self.grid_main.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
-						#grid = self.grid_main.marginal2d(axes.xaxis_index, axes.yaxis_index)
+					#grid = self.grid_main.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
+					grid = self.grid_main.marginal2d(axes.xaxis_index, axes.yaxis_index)
+					print(grid, np.nansum(grid))
+					if self.state.show_disjoined:
+						grid = grid.disjoined()
+					try:
+						amplitude = grid.evaluate(self.amplitude)
+					except Exception as e:
+						self.error_in_field(self.amplitude_box, "amplitude of layer %s" % self.name, e)
+						return
+					if self.dataset.has_selection():
+						#grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
+						#grid_selection = self.grid_main_selection.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
+						grid_selection = self.grid_main_selection.marginal2d(axes.xaxis_index, axes.yaxis_index)
 						if self.state.show_disjoined:
-							grid = grid.disjoined()
-						try:
-							amplitude = grid.evaluate(self.amplitude)
-						except Exception as e:
-							self.error_in_field(self.amplitude_box, "amplitude of layer %s" % self.name, e)
-							return
-						if self.dataset.has_selection():
-							#grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
-							grid_selection = self.grid_main_selection.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
-							if self.state.show_disjoined:
-								grid_selection = grid_selection.disjoined()
-							amplitude_selection = grid_selection.evaluate(self.amplitude)
-						else:
-							amplitude_selection = None
-						#print("total amplit")
-						self.plot_density(axes, amplitude, amplitude_selection, stack_image)
+							grid_selection = grid_selection.disjoined()
+						amplitude_selection = grid_selection.evaluate(self.amplitude)
+					else:
+						amplitude_selection = None
+					#print("total amplit")
+					self.plot_density(axes, amplitude, amplitude_selection, stack_image)
 
 					if len(all_axes) > 2:
 						other_axis = all_axes[0]
@@ -813,7 +842,7 @@ class LayerTable(object):
 						#vector_grids[vector_grids==np.inf] = np.nan
 						U = vector_grids[axes.xaxis_index]
 						V = vector_grids[axes.yaxis_index]
-						W = vector_grids[self.dimensions-1-other_axis]
+						W = vector_grids[other_axis]
 						vx = None if U is None else vaex.utils.multisum(U, all_axes)
 						vy = None if V is None else vaex.utils.multisum(V, all_axes)
 						vz = None if W is None else vaex.utils.multisum(W, all_axes)
@@ -822,9 +851,12 @@ class LayerTable(object):
 							count_max = vector_counts_2d.max()
 							mask = (vector_counts_2d > (self.vector_level_min * count_max)) & \
 									(vector_counts_2d <= (self.vector_level_max * count_max))
+							print("DEBUG " * 10, axes.xaxis_index, axes.yaxis_index)
 							x = vector_positions[axes.xaxis_index]
 							y = vector_positions[axes.yaxis_index]
 							x2d, y2d = np.meshgrid(x, y)
+							#x2d, y2d = x2d.T, y2d.T
+							#mask = mask.T
 							colors, colormap = None, None
 							if True:
 								if self.vector_auto_scale:
@@ -840,9 +872,9 @@ class LayerTable(object):
 								if vz is not None and self.vectors_color_code_3rd:
 									colors = vz
 									colormap = self.state.colormap_vector
-									axes.quiver(x2d[mask], y2d[mask], vx[mask] * xsign, vy[mask] * ysign, colors[mask], cmap=colormap, scale_units="width", scale=scale, width=width)
+									axes.quiver(x2d[mask.T], y2d[mask.T], vx.T[mask.T] * xsign, vy.T[mask.T] * ysign, colors[mask], cmap=colormap, scale_units="width", scale=scale, width=width)
 								else:
-									axes.quiver(x2d[mask], y2d[mask], vx[mask] * xsign, vy[mask] * ysign, color=self.color, scale_units="width", scale=scale, width=width)
+									axes.quiver(x2d[mask.T], y2d[mask.T], vx.T[mask.T] * xsign, vy.T[mask.T] * ysign, color=self.color, scale_units="width", scale=scale, width=width)
 								logger.debug("quiver: %s", self.vector_scale)
 								colors = None
 		if 0: #if self.coordinates_picked_row is not None:
@@ -1190,8 +1222,13 @@ class LayerTable(object):
 		promises.append(histogram_promise)
 
 		if self.dataset.has_selection():
-			histogram_promise = self.add_task(self.subspace.selected().histogram(limits=ranges, size=self.plot_window.state.grid_size))\
-				.then(self.grid_main_selection.setter("counts"))\
+			# histogram_promise = self.add_task(self.subspace.selected().histogram(limits=ranges, size=self.plot_window.state.grid_size))\
+			# 	.then(self.grid_main_selection.setter("counts"))\
+			# 	.then(None, self.on_error)
+			# promises.append(histogram_promise)
+			histogram_promise = f(*args, binby=all_expressions, limits=ranges, shape=self.plot_window.state.grid_size,
+								  progress=self.progressbar.add(self.statistic), async=True, selection=True) \
+				.then(self.grid_main_selection.setter("grid")) \
 				.then(None, self.on_error)
 			promises.append(histogram_promise)
 
@@ -1219,19 +1256,35 @@ class LayerTable(object):
 				self.grid_vector[name] = x
 
 			if self.state.vector_expressions[i]:
-				histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
-						, weight=self.state.vector_expressions[i], size=self.plot_window.state.vector_grid_size))\
-					.then(self.grid_vector.setter("weight"+name))\
+				# histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
+				# 		, weight=self.state.vector_expressions[i], size=self.plot_window.state.vector_grid_size))\
+				# 	.then(self.grid_vector.setter("weight"+name))\
+				# 	.then(None, self.on_error)
+				histogram_vector_promise = self.dataset.sum(self.state.vector_expressions[i],
+															binby=all_expressions, limits=ranges,
+									  shape=self.plot_window.state.vector_grid_size,
+									  progress=self.progressbar.add("sum of " + self.state.vector_expressions[i]), async=True, selection=selection) \
+					.then(self.grid_vector.setter("sum" + name)) \
+					.then(None, self.on_error)
+				promises.append(histogram_vector_promise)
+
+				histogram_vector_promise = self.dataset.count(self.state.vector_expressions[i],
+															binby=all_expressions, limits=ranges,
+									  shape=self.plot_window.state.vector_grid_size,
+									  progress=self.progressbar.add("sum of " + self.state.vector_expressions[i]), async=True, selection=selection) \
+					.then(self.grid_vector.setter("count" + name)) \
 					.then(None, self.on_error)
 				promises.append(histogram_vector_promise)
 			else:
-				self.grid_vector["weight" +name] = None
-		if any(self.state.vector_expressions):
-			histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
-					,size=self.plot_window.state.vector_grid_size))\
-				.then(self.grid_vector.setter("counts"))\
-				.then(None, self.on_error)
-			promises.append(histogram_vector_promise)
+				self.grid_vector["sum" +name] = None
+				self.grid_vector["count" + name] = None
+
+		# if any(self.state.vector_expressions):
+		# 	histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
+		# 			,size=self.plot_window.state.vector_grid_size))\
+		# 		.then(self.grid_vector.setter("counts"))\
+		# 		.then(None, self.on_error)
+		# 	promises.append(histogram_vector_promise)
 
 		#else:
 		#	for name in "xyz":
@@ -1757,12 +1810,6 @@ class LayerTable(object):
 
 
 		self.transform = "log10(grid)"
-		self.state.amplitudes["mean"] = "grid"
-		self.state.amplitudes["sum"] = "grid"
-		self.state.amplitudes["std"] = "grid"
-		self.state.amplitudes["var"] = "grid"
-		self.state.amplitudes["min"] = "grid"
-		self.state.amplitudes["max"] = "grid"
 		#self.option_transform = Codeline(page, "Amplitude", ["grid", "log10(grid)", "log10(grid+1)", "sqrt(grid)"], getter=attrgetter(self, "transform"), setter=attrsetter(self, "transform"), update=self.signal_plot_dirty.emit)
 		#row = self.option_transform .add_to_grid_layout(row, self.grid_layout)
 
