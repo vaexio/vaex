@@ -310,7 +310,7 @@ class LayerTable(object):
 			unit = self.dataset.unit(unit_expression)
 			if unit:
 				what_units = unit.to_string('latex_inline')
-		label = "%s(%s)" % (self.statistic, self.weight)
+		label = "%s(%s)" % (self.statistic, self.weight if self.statistic is not "count" else self.weight_count)
 		label = self.amplitude.replace("grid", label)
 		if what_units:
 			label += " (%s)" % what_units
