@@ -173,6 +173,8 @@ class ServerRest(object):
 		json_data, data = msg.split(b"\n", 1)
 		response = json.loads(json_data.decode("utf8"))
 		if data:
+			import zlib
+			data = zlib.decompress(data)
 			numpy_array = np.fromstring(data, dtype=np.dtype(response["dtype"])).reshape(ast.literal_eval(response["shape"]))
 			response["result"] = numpy_array
 		import sys

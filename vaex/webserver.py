@@ -274,7 +274,8 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
 			meta_data["shape"] = str(response.shape)
 			meta_data["dtype"] = str(response.dtype)
 			meta_data["job_phase"] = "COMPLETED"
-			data_response = response.tobytes()
+			import zlib
+			data_response = zlib.compress(response.tobytes())
 		else: # it should be a dict
 			if "result" in response:
 				response["job_phase"] = "COMPLETED"
