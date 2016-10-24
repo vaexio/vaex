@@ -2515,10 +2515,12 @@ class HistogramPlotDialog(PlotDialog):
 		#values =
 		if len(self.layers) == 0:
 			return
+		first_layer = self.layers[0]
+		if self.state.range_level_show is None:
+			self.state.range_level_show = first_layer.range_level
 		if self.state.range_level_show is None:
 			logger.error("cannot plot when range_level_show is None")
 			return
-		first_layer = self.layers[0]
 
 		#for i in range(self.dimensions):
 		#	if self.state.ranges_viewport[i] is None:
