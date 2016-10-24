@@ -2039,12 +2039,16 @@ class LayerTable(object):
 			row = self.option_display_type.add_to_grid_layout(row, grid_layout)
 
 
+			def update():
+				self.plot_window.state.range_level_show = None
+				self.calculate_amplitudes()
+				self.signal_plot_dirty.emit()
 			self._normalize = eval(self.options.get("normalize", "False"))
-			self.checkbox_normalize = Checkbox(page_widget, "normalize", getter=attrgetter(self, "_normalize"), setter=attrsetter(self, "_normalize"), update=self.signal_plot_dirty.emit)
+			self.checkbox_normalize = Checkbox(page_widget, "normalize", getter=attrgetter(self, "_normalize"), setter=attrsetter(self, "_normalize"), update=update)
 			row = self.checkbox_normalize.add_to_grid_layout(row, grid_layout)
 
 			self._cumulative = eval(self.options.get("cumulative", "False"))
-			self.checkbox_cumulative = Checkbox(page_widget, "cumulative", getter=attrgetter(self, "_cumulative"), setter=attrsetter(self, "_cumulative"), update=self.signal_plot_dirty.emit)
+			self.checkbox_cumulative = Checkbox(page_widget, "cumulative", getter=attrgetter(self, "_cumulative"), setter=attrsetter(self, "_cumulative"), update=update)
 			row = self.checkbox_cumulative.add_to_grid_layout(row, grid_layout)
 
 
