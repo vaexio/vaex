@@ -2128,7 +2128,13 @@ _doc_snippets["percentile_limits"] = """description for the min and max values t
 _doc_snippets["percentile_shape"] = """shape for the array where the cumulative histogram is calculated on, integer type"""
 _doc_snippets["selection"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False)"""
 _doc_snippets["async"] = """Do not return the result, but a proxy for asynchronous calculations (currently only for internal use)"""
+_doc_snippets["progress"] = """A callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False"""
 _doc_snippets["expression_limits"] = _doc_snippets["expression"]
+_doc_snippets["grid"] = """If grid is given, instead if compuation a statistic given by what, use this Nd-numpy array instead, this is often useful when a custom computation/statistic is calculated, but you still want to use the plotting machinery."""
+
+_doc_snippets["healpix_expression"] = """Expression which maps to a healpix index, for the Gaia catalogue this is for instance 'source_id/34359738368', other catalogues may simply have a healpix column."""
+_doc_snippets["healpix_max_level"] = """The healpix level associated to the healpix_expression, for Gaia this is 12"""
+_doc_snippets["healpix_level"] = """The healpix level to use for the binning, this defines the size of the first dimension of the grid."""
 
 _doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a scalar when no binby argument is given, with the statistic"""
 _doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
@@ -2334,17 +2340,20 @@ class Dataset(object):
 		Examples:
 
 
+		>>> ds.count()
+		330000.0
 		>>> ds.count("*")
 		330000.0
 		>>> ds.count("*", binby=["x"], shape=4)
 		array([  10925.,  155427.,  152007.,   10748.])
 
-		:param expression: {expression}
+		:param expression: Expression or column for which to count non-missing values, or None or '*' for counting the rows
 		:param binby: {binby}
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
 		:param async: {async}
+		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
 		logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
@@ -2375,7 +2384,7 @@ class Dataset(object):
 	@docsubst
 	@stat_1d
 	def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
-		"""Calculate the mean for expression, possible on a grid defined by binby.
+		"""Calculate the mean for expression, possibly on a grid defined by binby.
 
 		Examples:
 
@@ -2390,6 +2399,7 @@ class Dataset(object):
 		:param shape: {shape}
 		:param selection: {selection}
 		:param async: {async}
+		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
 		logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, async=%r", expression, binby, limits, shape, selection, async)
@@ -2432,6 +2442,7 @@ class Dataset(object):
 		:param shape: {shape}
 		:param selection: {selection}
 		:param async: {async}
+		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
 		@delayed
@@ -2469,12 +2480,13 @@ class Dataset(object):
 		:param shape: {shape}
 		:param selection: {selection}
 		:param async: {async}
+		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
 		@delayed
 		def finish(var):
 			return var**0.5
-		return self._async(async, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=None)))
+		return self._async(async, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progress)))
 
 	@docsubst
 	@stat_1d
@@ -2498,6 +2510,7 @@ class Dataset(object):
 		:param shape: {shape}
 		:param selection: {selection}
 		:param async: {async}
+		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
 		@delayed
@@ -2545,6 +2558,7 @@ class Dataset(object):
 		:param shape: {shape}
 		:param selection: {selection}
 		:param async: {async}
+		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
 		@delayed
@@ -2592,6 +2606,7 @@ class Dataset(object):
 		:param shape: {shape}
 		:param selection: {selection}
 		:param async: {async}
+		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
 		@delayed
@@ -2749,6 +2764,7 @@ class Dataset(object):
 		:param shape: {shape}
 		:param selection: {selection}
 		:param async: {async}
+		:param progress: {progress}
 		:return: {return_stat_scalar}, the last dimension is of shape (2)
 		"""
 		@delayed
@@ -2789,6 +2805,7 @@ class Dataset(object):
 		:param shape: {shape}
 		:param selection: {selection}
 		:param async: {async}
+		:param progress: {progress}
 		:return: {return_stat_scalar}, the last dimension is of shape (2)
 		"""
 		@delayed
@@ -2817,6 +2834,7 @@ class Dataset(object):
 		:param shape: {shape}
 		:param selection: {selection}
 		:param async: {async}
+		:param progress: {progress}
 		:return: {return_stat_scalar}, the last dimension is of shape (2)
 		"""
 		@delayed
@@ -2826,7 +2844,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def median(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024*16, percentile_limits="minmax", selection=False, async=False):
+	def median_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024*16, percentile_limits="minmax", selection=False, async=False):
 		"""Calculate the median , possible on a grid defined by binby
 
 		NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
@@ -2843,19 +2861,19 @@ class Dataset(object):
 		:param async: {async}
 		:return: {return_stat_scalar}
 		"""
-		return self.percentile(expression, 50, binby=binby, limits=limits, shape=shape, percentile_shape=percentile_shape, percentile_limits=percentile_limits, selection=selection, async=async)
+		return self.percentile_approx(expression, 50, binby=binby, limits=limits, shape=shape, percentile_shape=percentile_shape, percentile_limits=percentile_limits, selection=selection, async=async)
 
 	@docsubst
-	def percentile(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024*16, percentile_limits="minmax", selection=False, async=False):
+	def percentile_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024*16, percentile_limits="minmax", selection=False, async=False):
 		"""Calculate the percentile given by percentage, possible on a grid defined by binby
 
 		NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
 		percentile_shape and percentile_limits
 
 
-		>>> ds.percentile("x", 10), ds.percentile("x", 90)
+		>>> ds.percentile_approx("x", 10), ds.percentile_approx("x", 90)
 		(array([-8.3220355]), array([ 7.92080358]))
-		>>> ds.percentile("x", 50, binby="x", shape=5, limits=[-10, 10])
+		>>> ds.percentile_approx("x", 50, binby="x", shape=5, limits=[-10, 10])
 		array([[-7.56462982],
 			   [-3.61036641],
 			   [-0.01296306],
@@ -2967,7 +2985,7 @@ class Dataset(object):
 
 		>>> ds.limits_percentage("x", 90)
 		array([-12.35081376,  12.14858052]
-		>>> ds.percentile("x", 5), ds.percentile("x", 95)
+		>>> ds.percentile_approx("x", 5), ds.percentile_approx("x", 95)
 		(array([-12.36813152]), array([ 12.13275818]))
 
 		NOTE: this value is approximated by calculating the cumulative distribution on a grid.
@@ -3270,9 +3288,29 @@ class Dataset(object):
 								group_by, group_limits, group_colors, group_labels, group_count, cmap, scales, tool_select, bq_cleanup, **kwargs)
 
 
-	def healpix_count(self, expression=None, healpix_expression="source_id/34359738368", healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, **kwargs):
+	def healpix_count(self, expression=None, healpix_expression=None, healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, async=False, progress=None):
+		"""Count non missing value for expression on an array which represents healpix data.
+
+		:param expression: Expression or column for which to count non-missing values, or None or '*' for counting the rows
+		:param healpix_expression: {healpix_max_level}
+		:param healpix_max_level: {healpix_max_level}
+		:param healpix_level: {healpix_level}
+		:param binby: {binby}, these dimension follow the first healpix dimension.
+		:param limits: {limits}
+		:param shape: {shape}
+		:param async: {async}
+		:param progress: {progress}
+		:return:
+		"""
 		#if binby is None:
 		import healpy as hp
+		if healpix_expression is None:
+			if self.ucds.get("source_id", None) == 'meta.id;meta.main': # we now assume we have gaia data
+				healpix_expression = "source_id/34359738368"
+
+		if healpix_expression is None:
+			raise ValueError("no healpix_expression given, and was unable to guess")
+
 		reduce_level = healpix_max_level - healpix_level
 		NSIDE = 2**healpix_level
 		nmax = hp.nside2npix(NSIDE)
@@ -3281,7 +3319,7 @@ class Dataset(object):
 		binby = [expr] + ([] if binby is None else _ensure_list(binby))
 		shape = (nmax,) + _expand_shape(shape, len(binby)-1)
 		limits = [[0, nmax]] + ([] if limits is None else limits)
-		return self.count(expression, binby=binby, limits=limits, shape=shape, **kwargs)
+		return self.count(expression, binby=binby, limits=limits, shape=shape, async=async, progress=progress)
 
 	def healpix_plot(self, healpix_expression="source_id/34359738368", healpix_max_level=12, healpix_level=8, what="count(*)", selection=None,
 					 grid=None,
@@ -3289,6 +3327,29 @@ class Dataset(object):
 					 colormap="afmhot", grid_limits=None, image_size =800, nest=True,
 					 figsize=None, interactive=False,title="", smooth=None, show=False,
 					 rotation=(0,0,0)):
+		"""
+
+		:param healpix_expression: {healpix_max_level}
+		:param healpix_max_level: {healpix_max_level}
+		:param healpix_level: {healpix_level}
+		:param what: {what}
+		:param selection: {selection}
+		:param grid: {grid}
+		:param healpix_input: Specificy if the healpix index is in "equatorial", "galactic" or "ecliptic".
+		:param healpix_output: Plot in "equatorial", "galactic" or "ecliptic".
+		:param f: function to apply to the data
+		:param colormap: matplotlib colormap
+		:param grid_limits: Optional sequence [minvalue, maxvalue] that determine the min and max value that map to the colormap (values below and above these are clipped to the the min/max). (default is [min(f(grid)), max(f(grid)))
+		:param image_size: size for the image that healpy uses for rendering
+		:param nest: If the healpix data is in nested (True) or ring (False)
+		:param figsize: If given, modify the matplotlib figure size. Example (14,9)
+		:param interactive: (Experimental, uses healpy.mollzoom is True)
+		:param title: Title of figure
+		:param smooth: apply gaussian smoothing, in degrees
+		:param show: Call matplotlib's show (True) or not (False, defaut)
+		:param rotation: Rotatate the plot, in format (lon, lat, psi) such that (lon, lat) is the center, and rotate on the screen by angle psi. All angles are degrees.
+		:return:
+		"""
 		#plot_level = healpix_level #healpix_max_level-reduce_level
 		import healpy as hp
 		import pylab as plt

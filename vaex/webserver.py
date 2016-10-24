@@ -274,7 +274,8 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
 			meta_data["shape"] = str(response.shape)
 			meta_data["dtype"] = str(response.dtype)
 			meta_data["job_phase"] = "COMPLETED"
-			data_response = response.tobytes()
+			import zlib
+			data_response = zlib.compress(response.tobytes())
 		else: # it should be a dict
 			if "result" in response:
 				response["job_phase"] = "COMPLETED"
@@ -360,7 +361,8 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							expressions = None
 						# make a shallow copy, such that selection and active_fraction is not shared
 						dataset = webserver.datasets_map[dataset_name].shallow_copy(virtual=False)
-	
+						# TODO: executor should be an argument to the stats functions..
+						dataset.executor = webserver.thread_local.executor
 						if dataset.mask is not None:
 							logger.debug("selection: %r", dataset.mask.sum())
 						if "active_fraction" in arguments:
@@ -411,8 +413,9 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								selection_values = arguments["selections"]
 								if selection_values:
 									for name, value in selection_values.items():
-										selection = vaex.dataset.selection_from_dict(dataset, value)
-										dataset.set_selection(selection, name=name)
+										if value:
+											selection = vaex.dataset.selection_from_dict(dataset, value)
+											dataset.set_selection(selection, name=name)
 						try:
 							if subspace:
 								if "selection" in arguments:

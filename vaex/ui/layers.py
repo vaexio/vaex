@@ -204,8 +204,17 @@ class LayerTable(object):
 
 		self.reset_progressbar()
 
-		self.state.weight_expression = None
+		self.state.weight = self.options.get("weight", self.dataset.get_column_names()[0])
+		self.state.statistic = self.options.get("statistic", "count")
+		self.state.weight_count = self.options.get("weight_count", "*")
 		self.state.amplitudes = {}
+		self.state.amplitudes["count"] = "log10(grid)"
+		self.state.amplitudes["mean"] = "grid"
+		self.state.amplitudes["sum"] = "grid"
+		self.state.amplitudes["std"] = "grid"
+		self.state.amplitudes["var"] = "grid"
+		self.state.amplitudes["min"] = "grid"
+		self.state.amplitudes["max"] = "grid"
 		self.state.show_disjoined = False
 		self.state.dataset_path = self.dataset.path
 		self.state.name = self.dataset.name
@@ -289,6 +298,24 @@ class LayerTable(object):
 		classname = self.__class__.__module__ + "." +self.__class__.__name__
 		return "<%s(name=%r, expressions=%r)> instance at 0x%x" % (classname, self.name, self.state.expressions, id(self))
 
+	def amplitude_label(self):
+		unit_expression = None
+		what_units = None
+		statistics = self.statistic
+		if statistics in ["mean", "sum", "std", "min", "max", "median"]:
+			unit_expression = self.weight
+		if statistics in ["var"]:
+			unit_expression = "(%s) * (%s)" % (self.weight, self.weight)
+		if unit_expression:
+			unit = self.dataset.unit(unit_expression)
+			if unit:
+				what_units = unit.to_string('latex_inline')
+		label = "%s(%s)" % (self.statistic, self.weight if self.statistic is not "count" else self.weight_count)
+		label = self.amplitude.replace("grid", label)
+		if what_units:
+			label += " (%s)" % what_units
+		return label
+
 	def restore_state(self, state):
 		logger.debug("restoring layer %r to state %r ", self, state)
 		self.state = AttrDict(state)
@@ -298,10 +325,14 @@ class LayerTable(object):
 		for dim in range(self.vector_dimensions):
 			logger.debug("set vector expression[%i] to %s", dim, self.state.vector_expressions[dim])
 			self.set_vector_expression(self.state.vector_expressions[dim], dim)
-		logger.debug("set weight expression to %s", dim, self.state.weight_expression)
-		self.set_weight_expression(self.state.weight_expression)
+		#logger.debug("set weight expression to %s", dim, self.state.weight_expression)
+		#self.set_weight_expression(self.state.weight_expression)
+		#
 		# make sure it's refected in the gui
 		self.amplitude = self.amplitude
+		self.weight = self.weight
+		self.weight_count = self.weight_count
+		self.statistic = self.statistic
 
 
 		self.colorbar_checkbox.set_value(self.state.colorbar)
@@ -396,6 +427,8 @@ class LayerTable(object):
 	def statistic(self, value):
 		logger.debug("setting self.state.statistic to %s" % value)
 		self.state.statistic = value
+		if self.option_statistic.combobox.currentText() != value:
+			self.option_statistic.set_value(value)
 		self.check_statistics_weights()
 		self.amplitude = self.amplitude # trigger setting the right text
 		self.plot_window.queue_history_change("changed statistic to %s" % (value))
@@ -466,6 +499,58 @@ class LayerTable(object):
 		vmin, vmax = value
 		self.plot_window.set_range(vmin, vmax, 2)
 		self.update()
+
+	@property
+	def weight_count(self):
+		return self.state.weight_count
+
+	@weight_count.setter
+	def weight_count(self, expression):
+		if expression is not None:
+			expression = expression.strip()
+		if expression == "":
+			expression = None
+		widget = self.option_weight_count.combobox
+		if expression:
+			if expression != "*": # * is special
+				try:
+					self.dataset.validate_expression(expression)
+				except Exception as e:
+					self.error_in_field(widget, "weight", e)
+					return
+		self.state.weight_count = expression
+		self.plot_window.queue_history_change("changed weight expression to %s" % (expression))
+		if widget.currentText() != expression:
+			widget.setCurrentIndex(self.option_weight_count.options.index(expression))
+			self.range_level = None
+			self.plot_window.range_level_show = None
+			self.update()
+
+	@property
+	def weight(self):
+		return self.state.weight
+
+	@weight.setter
+	def weight(self, expression):
+		if expression is not None:
+			expression = expression.strip()
+		if expression == "":
+			expression = None
+		widget = self.option_weight_statistic.combobox
+		if expression:
+			try:
+				self.dataset.validate_expression(expression)
+			except Exception as e:
+				self.error_in_field(widget, "weight", e)
+				return
+		self.state.weight = expression
+		self.plot_window.queue_history_change("changed weight expression to %s" % (expression))
+		if widget.currentText() != expression:
+			widget.lineEdit().setText(expression)
+			self.range_level = None
+			self.plot_window.range_level_show = None
+			self.update()
+
 
 
 
@@ -669,30 +754,30 @@ class LayerTable(object):
 					grid_vector = grid_vector.slice(self.slice_selection_grid)
 				vector_grids = None
 				if any(self.state.vector_expressions):
-					vector_counts = grid_vector.evaluate("counts")
+					vector_counts = grid_vector.evaluate("countx") # TODO: what should the mask be..
 					vector_mask = vector_counts > 0
-					if grid_vector.evaluate("weightx") is not None:
+					if grid_vector.evaluate("sumx") is not None:
 						vector_x = grid_vector.evaluate("x")
-						vx = grid_vector.evaluate("weightx/counts")
+						vx = grid_vector.evaluate("sumx/countx")
 						if self.vectors_subtract_mean:
 							vx -= vx[vector_mask].mean()
 					else:
 						vector_x = None
 						vx = None
-					if grid_vector.evaluate("weighty") is not None:
+					if grid_vector.evaluate("sumy") is not None:
 						vector_y = grid_vector.evaluate("y")
-						vy = grid_vector.evaluate("weighty/counts")
+						vy = grid_vector.evaluate("sumy/county")
 						if self.vectors_subtract_mean:
 							vy -= vy[vector_mask].mean()
 					else:
 						vector_y = None
 						vy = None
-					if grid_vector.evaluate("weightz") is not None:
+					if grid_vector.evaluate("sumz") is not None:
 						if self.dimensions >= 3:
 							vector_z = grid_vector.evaluate("z")
 						else:
 							vector_z = None
-						vz = grid_vector.evaluate("weightz/counts")
+						vz = grid_vector.evaluate("sumz/countz")
 						if self.vectors_subtract_mean:
 							vz -= vz[vector_mask].mean()
 					else:
@@ -701,10 +786,10 @@ class LayerTable(object):
 					logger.debug("vx=%s vy=%s vz=%s", vx, vy, vz)
 					if vx is not None and vy is not None and vz is not None:
 						self.vector_grid = np.zeros((4, ) + ((vx.shape[0],) * 3), dtype=np.float32)
-						self.vector_grid[0] = vx
-						self.vector_grid[1] = vy
-						self.vector_grid[2] = vz
-						self.vector_grid[3] = vector_counts
+						self.vector_grid[0] = vx.T
+						self.vector_grid[1] = vy.T
+						self.vector_grid[2] = vz.T
+						self.vector_grid[3] = vector_counts.T
 						self.vector_grid = np.swapaxes(self.vector_grid, 0, 3)
 						self.vector_grid = self.vector_grid * 1.
 
@@ -715,33 +800,37 @@ class LayerTable(object):
 				#if 0:
 					# create marginalized grid
 					all_axes = list(range(self.dimensions))
-					all_axes.remove(self.dimensions-1-axes.xaxis_index)
-					all_axes.remove(self.dimensions-1-axes.yaxis_index)
+					# all_axes.remove(self.dimensions-1-axes.xaxis_index)
+					# all_axes.remove(self.dimensions-1-axes.yaxis_index)
+					all_axes.remove(axes.xaxis_index)
+					all_axes.remove(axes.yaxis_index)
 
-					if 1:
-						#grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map.items())}
-						#grid_context = self.grid_vector
-						#amplitude = grid_context(self.amplitude, locals=grid_map_2d)
+					#if 1:
+					#grid_map_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map.items())}
+					#grid_context = self.grid_vector
+					#amplitude = grid_context(self.amplitude, locals=grid_map_2d)
 
-						grid = self.grid_main.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
-						#grid = self.grid_main.marginal2d(axes.xaxis_index, axes.yaxis_index)
+					#grid = self.grid_main.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
+					grid = self.grid_main.marginal2d(axes.xaxis_index, axes.yaxis_index)
+					print(grid, np.nansum(grid))
+					if self.state.show_disjoined:
+						grid = grid.disjoined()
+					try:
+						amplitude = grid.evaluate(self.amplitude)
+					except Exception as e:
+						self.error_in_field(self.amplitude_box, "amplitude of layer %s" % self.name, e)
+						return
+					if self.dataset.has_selection():
+						#grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
+						#grid_selection = self.grid_main_selection.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
+						grid_selection = self.grid_main_selection.marginal2d(axes.xaxis_index, axes.yaxis_index)
 						if self.state.show_disjoined:
-							grid = grid.disjoined()
-						try:
-							amplitude = grid.evaluate(self.amplitude)
-						except Exception as e:
-							self.error_in_field(self.amplitude_box, "amplitude of layer %s" % self.name, e)
-							return
-						if self.dataset.has_selection():
-							#grid_map_selection_2d = {key:None if grid is None else (grid if grid.ndim != 3 else vaex.utils.multisum(grid, all_axes)) for key, grid in list(grid_map_selection.items())}
-							grid_selection = self.grid_main_selection.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
-							if self.state.show_disjoined:
-								grid_selection = grid_selection.disjoined()
-							amplitude_selection = grid_selection.evaluate(self.amplitude)
-						else:
-							amplitude_selection = None
-						#print("total amplit")
-						self.plot_density(axes, amplitude, amplitude_selection, stack_image)
+							grid_selection = grid_selection.disjoined()
+						amplitude_selection = grid_selection.evaluate(self.amplitude)
+					else:
+						amplitude_selection = None
+					#print("total amplit")
+					self.plot_density(axes, amplitude, amplitude_selection, stack_image)
 
 					if len(all_axes) > 2:
 						other_axis = all_axes[0]
@@ -753,7 +842,7 @@ class LayerTable(object):
 						#vector_grids[vector_grids==np.inf] = np.nan
 						U = vector_grids[axes.xaxis_index]
 						V = vector_grids[axes.yaxis_index]
-						W = vector_grids[self.dimensions-1-other_axis]
+						W = vector_grids[other_axis]
 						vx = None if U is None else vaex.utils.multisum(U, all_axes)
 						vy = None if V is None else vaex.utils.multisum(V, all_axes)
 						vz = None if W is None else vaex.utils.multisum(W, all_axes)
@@ -762,9 +851,12 @@ class LayerTable(object):
 							count_max = vector_counts_2d.max()
 							mask = (vector_counts_2d > (self.vector_level_min * count_max)) & \
 									(vector_counts_2d <= (self.vector_level_max * count_max))
+							print("DEBUG " * 10, axes.xaxis_index, axes.yaxis_index)
 							x = vector_positions[axes.xaxis_index]
 							y = vector_positions[axes.yaxis_index]
 							x2d, y2d = np.meshgrid(x, y)
+							#x2d, y2d = x2d.T, y2d.T
+							#mask = mask.T
 							colors, colormap = None, None
 							if True:
 								if self.vector_auto_scale:
@@ -780,9 +872,9 @@ class LayerTable(object):
 								if vz is not None and self.vectors_color_code_3rd:
 									colors = vz
 									colormap = self.state.colormap_vector
-									axes.quiver(x2d[mask], y2d[mask], vx[mask] * xsign, vy[mask] * ysign, colors[mask], cmap=colormap, scale_units="width", scale=scale, width=width)
+									axes.quiver(x2d[mask.T], y2d[mask.T], vx.T[mask.T] * xsign, vy.T[mask.T] * ysign, colors[mask], cmap=colormap, scale_units="width", scale=scale, width=width)
 								else:
-									axes.quiver(x2d[mask], y2d[mask], vx[mask] * xsign, vy[mask] * ysign, color=self.color, scale_units="width", scale=scale, width=width)
+									axes.quiver(x2d[mask.T], y2d[mask.T], vx.T[mask.T] * xsign, vy.T[mask.T] * ysign, color=self.color, scale_units="width", scale=scale, width=width)
 								logger.debug("quiver: %s", self.vector_scale)
 								colors = None
 		if 0: #if self.coordinates_picked_row is not None:
@@ -937,7 +1029,8 @@ class LayerTable(object):
 		options = collections.OrderedDict()
 		#options["type-names"] = map(str.strip, self.names.split(","))
 		options["expressions"] = self.state.expressions
-		options["weight"] = self.state.weight_expression
+		options["weight"] = self.state.weight
+		options["weight_count"] = self.state.weight_count
 		options["amplitude"] = self.amplitude
 		options["ranges_grid"] = self.state.ranges_grid
 		options["vx"] = self.vx
@@ -953,7 +1046,7 @@ class LayerTable(object):
 
 	def apply_options(self, options, update=True):
 		#map = {"expressions",}
-		recognize = "expressions weight amplitude_expression ranges_grid aspect vx vy vz".split()
+		recognize = "expressions weight weight_count amplitude_expression ranges_grid aspect vx vy vz".split()
 		for key in recognize:
 			if key in list(options.keys()):
 				value = options[key]
@@ -962,6 +1055,8 @@ class LayerTable(object):
 					self.amplitude_box.lineEdit().setText(value)
 				if key == "weight":
 					self.weight = value
+				if key == "weight":
+					self.weight_count = value
 				if key == "vx":
 					self.weight_x_box.lineEdit().setText(value or "")
 				if key == "vy":
@@ -1120,15 +1215,20 @@ class LayerTable(object):
 		if self.statistic == "count":
 			args.append(self.weight_count)
 		elif self.statistic in ["sum", "mean", "std", "var", "min", "max"]:
-			args.append(self.weight_statistic)
+			args.append(self.weight)
 		histogram_promise = f(*args, binby=all_expressions, limits=ranges, shape=self.plot_window.state.grid_size, progress=self.progressbar.add(self.statistic), async=True)\
 			.then(self.grid_main.setter("grid"))\
 			.then(None, self.on_error)
 		promises.append(histogram_promise)
 
 		if self.dataset.has_selection():
-			histogram_promise = self.add_task(self.subspace.selected().histogram(limits=ranges, size=self.plot_window.state.grid_size))\
-				.then(self.grid_main_selection.setter("counts"))\
+			# histogram_promise = self.add_task(self.subspace.selected().histogram(limits=ranges, size=self.plot_window.state.grid_size))\
+			# 	.then(self.grid_main_selection.setter("counts"))\
+			# 	.then(None, self.on_error)
+			# promises.append(histogram_promise)
+			histogram_promise = f(*args, binby=all_expressions, limits=ranges, shape=self.plot_window.state.grid_size,
+								  progress=self.progressbar.add(self.statistic), async=True, selection=True) \
+				.then(self.grid_main_selection.setter("grid")) \
 				.then(None, self.on_error)
 			promises.append(histogram_promise)
 
@@ -1138,25 +1238,6 @@ class LayerTable(object):
 			update_count(self.dataset.count(selection=True, async=True))
 		else:
 			self.label_selection_info_update(None)
-
-		# the weighted ones
-		if self.state.weight_expression:
-			histogram_weighted_promise = self.add_task(self.subspace.histogram(limits=ranges
-					, weight=self.state.weight_expression, size=self.plot_window.state.grid_size))\
-				.then(self.grid_main.setter("weighted"))\
-				.then(None, self.on_error)
-			promises.append(histogram_weighted_promise)
-
-			if self.dataset.has_selection():
-				histogram_weighted_promise = self.add_task(self.subspace.selected().histogram(limits=ranges
-						, weight=self.state.weight_expression, size=self.plot_window.state.grid_size))\
-					.then(self.grid_main_selection.setter("weighted"))\
-					.then(None, self.on_error)
-				promises.append(histogram_weighted_promise)
-
-		else:
-			self.grid_main["weighted"] = None
-			self.grid_main_selection["weighted"] = None
 
 		# the vector fields only use the selection if there is one, otherwise the whole dataset
 		selection = False
@@ -1175,19 +1256,35 @@ class LayerTable(object):
 				self.grid_vector[name] = x
 
 			if self.state.vector_expressions[i]:
-				histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
-						, weight=self.state.vector_expressions[i], size=self.plot_window.state.vector_grid_size))\
-					.then(self.grid_vector.setter("weight"+name))\
+				# histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
+				# 		, weight=self.state.vector_expressions[i], size=self.plot_window.state.vector_grid_size))\
+				# 	.then(self.grid_vector.setter("weight"+name))\
+				# 	.then(None, self.on_error)
+				histogram_vector_promise = self.dataset.sum(self.state.vector_expressions[i],
+															binby=all_expressions, limits=ranges,
+									  shape=self.plot_window.state.vector_grid_size,
+									  progress=self.progressbar.add("sum of " + self.state.vector_expressions[i]), async=True, selection=selection) \
+					.then(self.grid_vector.setter("sum" + name)) \
+					.then(None, self.on_error)
+				promises.append(histogram_vector_promise)
+
+				histogram_vector_promise = self.dataset.count(self.state.vector_expressions[i],
+															binby=all_expressions, limits=ranges,
+									  shape=self.plot_window.state.vector_grid_size,
+									  progress=self.progressbar.add("sum of " + self.state.vector_expressions[i]), async=True, selection=selection) \
+					.then(self.grid_vector.setter("count" + name)) \
 					.then(None, self.on_error)
 				promises.append(histogram_vector_promise)
 			else:
-				self.grid_vector["weight" +name] = None
-		if any(self.state.vector_expressions):
-			histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
-					,size=self.plot_window.state.vector_grid_size))\
-				.then(self.grid_vector.setter("counts"))\
-				.then(None, self.on_error)
-			promises.append(histogram_vector_promise)
+				self.grid_vector["sum" +name] = None
+				self.grid_vector["count" + name] = None
+
+		# if any(self.state.vector_expressions):
+		# 	histogram_vector_promise = self.add_task(subspace.histogram(limits=ranges
+		# 			,size=self.plot_window.state.vector_grid_size))\
+		# 		.then(self.grid_vector.setter("counts"))\
+		# 		.then(None, self.on_error)
+		# 	promises.append(histogram_vector_promise)
 
 		#else:
 		#	for name in "xyz":
@@ -1461,35 +1558,35 @@ class LayerTable(object):
 		#if error_text:
 		#	dialog_error(self, "Error in expression", "Error: " +error_text)
 
-	def onWeightExpr(self):
-		text = str(self.weight_box.lineEdit().text())
-		if (text == self.state.weight_expression) or (text == "" and self.state.weight_expression == None):
-			logger.debug("same weight expression, will not update")
-			return
-		else:
-			self.set_weight_expression(text)
-
-	def set_weight_expression(self, expression):
-		expression = expression or ""
-		if expression.strip() == "":
-			self.state.weight_expression = None
-		else:
-			self.state.weight_expression = expression
-		if expression:
-			try:
-				self.dataset.validate_expression(expression)
-			except Exception as e:
-				self.error_in_field(self.weight_box, "weight", e)
-				return
-		self.weight_box.lineEdit().setText(expression)
-		self.plot_window.queue_history_change("changed weight expression to %s" % (expression))
-		self.range_level = None
-		self.plot_window.range_level_show = None
-		#self.plot_window.queue_update(layer=self)
-		self.update()
-		#self.add_jobs()
-		#self.execute()
-		#self.plot()
+	# def onWeightExpr(self):
+	# 	text = str(self.weight_box.lineEdit().text())
+	# 	if (text == self.state.weight_expression) or (text == "" and self.state.weight_expression == None):
+	# 		logger.debug("same weight expression, will not update")
+	# 		return
+	# 	else:
+	# 		self.set_weight_expression(text)
+	#
+	# def set_weight_expression(self, expression):
+	# 	expression = expression or ""
+	# 	if expression.strip() == "":
+	# 		self.state.weight_expression = None
+	# 	else:
+	# 		self.state.weight_expression = expression
+	# 	if expression:
+	# 		try:
+	# 			self.dataset.validate_expression(expression)
+	# 		except Exception as e:
+	# 			self.error_in_field(self.weight_box, "weight", e)
+	# 			return
+	# 	self.weight_box.lineEdit().setText(expression)
+	# 	self.plot_window.queue_history_change("changed weight expression to %s" % (expression))
+	# 	self.range_level = None
+	# 	self.plot_window.range_level_show = None
+	# 	#self.plot_window.queue_update(layer=self)
+	# 	self.update()
+	# 	#self.add_jobs()
+	# 	#self.execute()
+	# 	#self.plot()
 
 	def onTitleExpr(self):
 		self.title_expression = str(self.title_box.lineEdit().text())
@@ -1700,29 +1797,19 @@ class LayerTable(object):
 		self.layout_frame_options_main.addLayout(self.grid_layout, 0)
 		#self.layout_frame_options_main.addLayout(self.form_layout, 0) # TODO: form layout can be removed?
 
-		self.state.statistic = "count"
 		self.option_statistic = Option(page, "Statistic", ["count", "mean", "sum", "std", "var", "min", "max"], getter=attrgetter(self, "statistic"), setter=attrsetter(self, "statistic"), update=self.update)
 		row = self.option_statistic.add_to_grid_layout(row, self.grid_layout)
 
-		self.weight_count = "*"
-
-		self.option_weight_count = Option(page, "Count", ["*"] + self.dataset.get_column_names(virtual=True), getter=attrgetter(self, "weight_count"), setter=attrsetter(self, "weight_count"), update=self.update)
+		self.option_weight_count = Option(page, "Weight", ["*"] + self.dataset.get_column_names(virtual=True), getter=attrgetter(self, "weight_count"), setter=attrsetter(self, "weight_count"), update=self.update)
 		row = self.option_weight_count.add_to_grid_layout(row, self.grid_layout)
 
-		self.weight_statistic = self.dataset.get_column_names(virtual=True)[0]
-		self.option_weight_statistic = Codeline(page, "Value", self.dataset.get_column_names(virtual=True), getter=attrgetter(self, "weight_statistic"), setter=attrsetter(self, "weight_statistic"), update=self.update)
+		self.option_weight_statistic = Codeline(page, "Weight", self.dataset.get_column_names(virtual=True), getter=attrgetter(self, "weight"), setter=attrsetter(self, "weight"), update=self.update)
 		row = self.option_weight_statistic.add_to_grid_layout(row, self.grid_layout)
 
 		self.check_statistics_weights()
 
 
 		self.transform = "log10(grid)"
-		self.state.amplitudes["mean"] = "grid"
-		self.state.amplitudes["sum"] = "grid"
-		self.state.amplitudes["std"] = "grid"
-		self.state.amplitudes["var"] = "grid"
-		self.state.amplitudes["min"] = "grid"
-		self.state.amplitudes["max"] = "grid"
 		#self.option_transform = Codeline(page, "Amplitude", ["grid", "log10(grid)", "log10(grid+1)", "sqrt(grid)"], getter=attrgetter(self, "transform"), setter=attrsetter(self, "transform"), update=self.signal_plot_dirty.emit)
 		#row = self.option_transform .add_to_grid_layout(row, self.grid_layout)
 
@@ -1952,12 +2039,16 @@ class LayerTable(object):
 			row = self.option_display_type.add_to_grid_layout(row, grid_layout)
 
 
+			def update():
+				self.plot_window.state.range_level_show = None
+				self.calculate_amplitudes()
+				self.signal_plot_dirty.emit()
 			self._normalize = eval(self.options.get("normalize", "False"))
-			self.checkbox_normalize = Checkbox(page_widget, "normalize", getter=attrgetter(self, "_normalize"), setter=attrsetter(self, "_normalize"), update=self.signal_plot_dirty.emit)
+			self.checkbox_normalize = Checkbox(page_widget, "normalize", getter=attrgetter(self, "_normalize"), setter=attrsetter(self, "_normalize"), update=update)
 			row = self.checkbox_normalize.add_to_grid_layout(row, grid_layout)
 
 			self._cumulative = eval(self.options.get("cumulative", "False"))
-			self.checkbox_cumulative = Checkbox(page_widget, "cumulative", getter=attrgetter(self, "_cumulative"), setter=attrsetter(self, "_cumulative"), update=self.signal_plot_dirty.emit)
+			self.checkbox_cumulative = Checkbox(page_widget, "cumulative", getter=attrgetter(self, "_cumulative"), setter=attrsetter(self, "_cumulative"), update=update)
 			row = self.checkbox_cumulative.add_to_grid_layout(row, grid_layout)
 
 
@@ -2672,13 +2763,13 @@ class LayerTable(object):
 
 		try:
 			if self.weight_count and self.weight_count.strip() != "*":
-				self.dataset.validate_expression(self.self.weight_count)
+				self.dataset.validate_expression(self.weight_count)
 		except Exception as e:
 			self.error_in_field(self.option_weight_count.combobox, "weight", e)
 			return False
 		try:
-			if self.weight_statistic:
-				self.dataset.validate_expression(self.weight_statistic)
+			if self.weight:
+				self.dataset.validate_expression(self.weight)
 		except Exception as e:
 			self.error_in_field(self.option_weight_statistic.combobox, "weight", e)
 			return False
