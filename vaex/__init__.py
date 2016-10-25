@@ -243,13 +243,15 @@ def server(url, **kwargs):
 	hostname = url.hostname
 	return vaex.remote.ServerRest(hostname, base_path=base_path, port=port, websocket=websocket, **kwargs)
 
-def example():
+def example(download=True):
 	"""Returns an example dataset which comes with vaex for testing/learning purposes
 
 	:rtype: vaex.dataset.Dataset
 	"""
 	from . import utils
 	path = utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5")
+	if path is None and download:
+		return vaex.datasets.helmi_de_zeeuw_10percent.fetch()
 	return open(path) if path else None
 
 
