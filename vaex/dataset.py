@@ -2138,6 +2138,7 @@ _doc_snippets["healpix_level"] = """The healpix level to use for the binning, th
 
 _doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a scalar when no binby argument is given, with the statistic"""
 _doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
+_doc_snippets["cov_matrix"] = """List all convariance values as a double list of expressions, or "full" to guess all entries (which gives an error when values are not found), or "auto" to guess, but allow for missing values"""
 
 def docsubst(f):
 	f.__doc__ = f.__doc__.format(**_doc_snippets)
@@ -4624,7 +4625,19 @@ class Dataset(object):
 			.format(**locals())
 		self.add_virtual_column("bearing", expr)
 
-	def add_virtual_columns_distance_from_parallax(self, parallax, distance_name, parallax_uncertainty=None, uncertainty_postfix="_uncertainty"):
+	def add_virtual_columns_distance_from_parallax(self, parallax="parallax", distance_name="distance", parallax_uncertainty=None, uncertainty_postfix="_uncertainty"):
+		"""Convert parallax to distance (i.e. 1/parallax)
+
+		:param parallax: expression for the parallax, e.g. "parallax"
+		:param distance_name: name for the virtual column of the distance, e.g. "distance"
+		:param parallax_uncertainty: expression for the uncertainty on the parallax, e.g. "parallax_error"
+		:param uncertainty_postfix: distance_name + uncertainty_postfix is the name for the virtual column, e.g. "distance_uncertainty" by default
+		:return:
+		"""
+		"""
+
+
+		"""
 		unit = self.unit(parallax)
 		#if unit:
 			#convert = unit.to(astropy.units.mas)
@@ -4690,7 +4703,7 @@ class Dataset(object):
 			self.virtual_columns[znew] = "{m}[2][0] * {x} + {m}[2][1] * {y} + {m}[2][2] * {z}".format(**locals())
 		self.write_virtual_meta()
 
-	def add_virtual_columns_eq2ecl(self, long_in, lat_in, long_out="lambda_", lat_out="beta", input=None, output=None, name_prefix="__celestial_eq2ecl", radians=False):
+	def add_virtual_columns_eq2ecl(self, long_in="ra", lat_in="dec", long_out="lambda_", lat_out="beta", input=None, output=None, name_prefix="__celestial_eq2ecl", radians=False):
 		"""Add ecliptic coordates (long_out, lat_out) from equatorial coordinates.
 
 		:param long_in: Name/expression for right ascension
@@ -4706,7 +4719,7 @@ class Dataset(object):
 		import kapteyn.celestial as c
 		self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.ecliptic, name_prefix=name_prefix, radians=radians)
 
-	def add_virtual_columns_eq2gal(self, long_in, lat_in, long_out="l", lat_out="b", input=None, output=None, name_prefix="__celestial_eq2gal", radians=False):
+	def add_virtual_columns_eq2gal(self, long_in="ra", lat_in="dec", long_out="l", lat_out="b", input=None, output=None, name_prefix="__celestial_eq2gal", radians=False):
 		"""Add galactic coordates (long_out, lat_out) from equatorial coordinates.
 
 		:param long_in: Name/expression for right ascension
@@ -4764,11 +4777,24 @@ class Dataset(object):
 				cov_matrix[i][j] = cov
 		return cov_matrix
 
+	@docsubst
 	def add_virtual_columns_cartesian_to_polar(self, x="x", y="y", radius_out="r_polar", azimuth_out="phi_polar",
 												 cov_matrix_x_y=None,
 												 covariance_postfix="_covariance",
 												 uncertainty_postfix="_uncertainty",
 												 radians=False):
+		"""Convert cartesian to polar coordinates
+
+		:param x: expression for x
+		:param y: expression for y
+		:param radius_out: name for the virtual column for the radius
+		:param azimuth_out: name for the virtual column for the azimuth angle
+		:param cov_matrix_x_y: {cov_matrix}
+		:param covariance_postfix:
+		:param uncertainty_postfix:
+		:param radians: if True, azimuth is in radians, defaults to degrees
+		:return:
+		"""
 		if radians:
 			to_degrees = ""
 		else:
@@ -4806,6 +4832,20 @@ class Dataset(object):
 												 cov_matrix_x_y_vx_vy=None,
 												 covariance_postfix="_covariance",
 												 uncertainty_postfix="_uncertainty"):
+		"""Convert cartesian to polar velocities.
+
+		:param x:
+		:param y:
+		:param vx:
+		:param radius_polar: Optional expression for the radius, may lead to a better performance when given.
+		:param vy:
+		:param vr_out:
+		:param vazimuth_out:
+		:param cov_matrix_x_y_vx_vy:
+		:param covariance_postfix:
+		:param uncertainty_postfix:
+		:return:
+		"""
 		if radius_polar is None:
 			radius_polar = "sqrt(({x})**2 + ({y})**2)".format(**locals())
 		self.add_virtual_column(vr_out,       "(({x})*({vx})+({y})*({vy}))/{radius_polar}".format(**locals()))
@@ -4951,6 +4991,19 @@ class Dataset(object):
 														   cov_matrix_distance_pm_long_pm_lat=None,
 														   uncertainty_postfix="_uncertainty", covariance_postfix="_covariance",
 														   radians=False):
+		"""Convert proper motion to perpendicular velocities.
+
+		:param distance:
+		:param pm_long:
+		:param pm_lat:
+		:param vl:
+		:param vb:
+		:param cov_matrix_distance_pm_long_pm_lat:
+		:param uncertainty_postfix:
+		:param covariance_postfix:
+		:param radians:
+		:return:
+		"""
 		k = 4.74057
 		self.add_variable("k", k, overwrite=False)
 		self.add_virtual_column(vl, "k*{pm_long}*{distance}".format(**locals()))
@@ -4989,45 +5042,9 @@ class Dataset(object):
 														   uncertainty_postfix="_uncertainty", covariance_postfix="_covariance",
 														   name_prefix="__lbvr_proper_motion2vcartesian", center_v=(0,0,0), center_v_name="solar_motion", radians=False):
 		"""Convert radial velocity and galactic proper motions (and positions) to cartesian velocities wrt the center_v
+
 		Based on http://adsabs.harvard.edu/abs/1987AJ.....93..864J
 
-		v_long = k * pm_long * distance
-		v_lat  = k * pm_lat * distance
-		v_obs = [vr, v_long, v_lat]
-
-		v = T * v_obs  + v_ref
-
-		var_vr = sigma_vr
-		var_v_long = (k * distance * sigma_pm_l)**2 + (k * pm_long * sigma_distance)**2 + 2 k * pm_long * k *distance* covar_distance_long
-		covar_v_long_lat = k * distance
-
-		f_obs(distance, pm_long, pm_lat) = [v_long, v_lat] = (k * pm_long * distance, k * pm_lat * distance)
-		J = [[ k * pm_long,  k * distance,                     0],
-			  [k * pm_lat ,             0, k* distance]]
-		\Sigma_obs = [
-
-		(k * distance * sigma_pm_l)**2 + (k * pm_long * sigma_distance)**2 + 2 k * pm_long * k *distance* covar_distance_long
-		var_v_long = (k /pi * sigma_pm_l)**2 + (k * / pm**2 pm_long * sigma_distance)**2
-
-
-		var_v_lat  = idem
-		\Sigma_obs = [[var_vr,             0,        0],
-				  [     0,   var_v_long, covar_vlb],
-				  [     0,    covar_vlb, var_v_lat]]
-		e_v = T \Sigma T.T
-		\Sigma_v_ij = T_ik \Sigma_obs_kl T.T_lj
-		\Sigma_v_ij = T_ik \Sigma_obs_kl T_jl
-
-		A_ij = B_ik * C_kj
-
-
-		e_v_r**2 = var_vr
-		e_v_x**2 = T[1,1] * var_v_long T[1,1] + T[2,1] * covar_vlb * T[1,2]
-
-		f_v(l, b, distance, vr_r, pm_1, pm_2) = T(3,6) * v
-
-		m = 3, n = 6
-		v0 =
 
 		:param long_in: Name/expression for galactic longitude
 		:param lat_in: Name/expression for galactic latitude
@@ -5176,7 +5193,25 @@ class Dataset(object):
 												   cov_matrix_alpha_delta_distance=None,
 												   covariance_postfix="_covariance",
 												   uncertainty_postfix="_uncertainty",
-												   center=None, center_name="solar_position", radians=True):
+												   center=None, center_name="solar_position", radians=False):
+		"""Convert spherical to cartesian coordinates.
+
+
+
+		:param alpha:
+		:param delta: polar angle, ranging from the -90 (south pole) to 90 (north pole)
+		:param distance: radial distance, determines the units of x, y and z
+		:param xname:
+		:param yname:
+		:param zname:
+		:param cov_matrix_alpha_delta_distance:
+		:param covariance_postfix:
+		:param uncertainty_postfix:
+		:param center:
+		:param center_name:
+		:param radians:
+		:return:
+		"""
 		alpha_original = alpha
 		delta_original = delta
 		if not radians:
@@ -5236,6 +5271,21 @@ class Dataset(object):
 						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
 
 	def add_virtual_columns_cartesian_to_spherical(self, x, y, z, alpha, delta, distance, radians=True, center=None, center_name="solar_position"):
+		"""Convert cartesian to spherical coordinates.
+
+
+
+		:param x:
+		:param y:
+		:param z:
+		:param alpha:
+		:param delta: name for polar angle, ranges from -90 to 90 (or -pi to pi when radians is True).
+		:param distance:
+		:param radians:
+		:param center:
+		:param center_name:
+		:return:
+		"""
 		transform = "" if radians else "*180./pi"
 
 		if center is not None:
@@ -5285,12 +5335,12 @@ class Dataset(object):
 	def add_virtual_column(self, name, expression):
 		"""Add a virtual column to the dataset
 
-		:param: str name: name of virtual column
-		:param: expression: expression for the column
-
-		:Example:
+		Example:
 		>>> dataset.add_virtual_column("r", "sqrt(x**2 + y**2 + z**2)")
 		>>> dataset.select("r < 10")
+
+		:param: str name: name of virtual column
+		:param: expression: expression for the column
 		"""
 		type = "change" if name in self.virtual_columns else "add"
 		self.virtual_columns[name] = expression
