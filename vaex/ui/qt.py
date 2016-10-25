@@ -15,7 +15,6 @@ try:
 	QtCore.pyqtSignal = QtCore.Signal
 	qt_version = QtCore.__version__
 	qt_mayor = 4
-	print("using pyside")
 except ImportError as e1:
 	try:
 		import sip
@@ -41,7 +40,7 @@ except ImportError as e1:
 			print("could not import PyQt4 or PySide, please install", file=sys.stderr)
 			print("errors: ", repr(e1), repr(e2), file=sys.stderr)
 			sys.exit(1)
-print(qt_version)
+
 def attrsetter(object, attr_name):
 	def setter(value):
 		setattr(object, attr_name, value)
@@ -574,7 +573,6 @@ class ColorOption(object):
 			self.combobox.setCurrentIndex(index)
 			self.combobox.palette().setColor(QtGui.QPalette.Background, self.qt_colors[index]);
 			self.combobox.palette().setColor(QtGui.QPalette.Highlight, self.qt_colors[index]);
-			print("SETTING"*100, repr(value))
 			setter([c/255. for c in value])
 			if update:
 				self.update()
@@ -583,7 +581,6 @@ class ColorOption(object):
 		setattr(self, "set_value", wrap_setter)
 
 		def on_change(index):
-			print("setter", index, color_list[index])
 			self.set_value(color_list[index])
 			update()
 		self.combobox.currentIndexChanged.connect(on_change)
@@ -611,7 +608,6 @@ class Checkbox(object):
 
 		def on_change(state):
 			value = state == QtCore.Qt.Checked
-			print(label_text, "set to", value)
 			setter(value)
 			self.update()
 		self.checkbox.setChecked(getter())
@@ -651,7 +647,6 @@ class Slider(object):
 			self.label_value.setText(format.format(getter()))
 		def on_change(index, slider=self.slider):
 			value = numeric_type(index/float(value_steps) * (inverse(value_max) - inverse(value_min)) + inverse(value_min))
-			print(label_text, "set to", value)
 			setter(transform(value))
 			self.update()
 			update_text()
