@@ -105,8 +105,11 @@ class TableDialog(QtGui.QDialog):
 		self.tableView.setModel(self.tableModel)
 		self.tableView.pressed.connect(self.onSelectRow)
 
-		self.tableView.verticalHeader().setResizeMode(QtGui.QHeaderView.Interactive)
-		
+		if qt_mayor == 5:
+			self.tableView.verticalHeader().setSectionResizeMode(QtGui.QHeaderView.Interactive)
+		else:
+			self.tableView.verticalHeader().setResizeMode(QtGui.QHeaderView.Interactive)
+
 		if 0:
 			for name in self.dataset.column_names:
 				item = QtGui.QListWidgetItem(self.list1d)
@@ -114,7 +117,7 @@ class TableDialog(QtGui.QDialog):
 				item.setCheckState(False)
 				#self.list1d.
 
-		print((len(self.dataset)))
+
 		pages = int(math.ceil(len(self.dataset)*1./self.tableModel.page_size))
 
 		self.boxlayout = QtGui.QVBoxLayout(self)
