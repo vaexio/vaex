@@ -408,7 +408,8 @@ class TestPlotPanel2d(NoTest.TestPlotPanel):
 
 	def test_xy_weight_r(self):
 		self.layer.weight = "sqrt(x**2+y**2)"
-		self.layer.amplitude = "clip(average, 0, 40)"
+		self.layer.statistic = "mean"
+		self.layer.amplitude = "clip(grid, 0, 40)"
 		self.window._wait()
 		filename = self.window.plot_to_png()
 		self.compare(filename, get_comparison_image("example_xy_weight_r"))
@@ -558,9 +559,13 @@ class TestPlotPanel2d(NoTest.TestPlotPanel):
 			self.layer.vy = "x(vx)"
 		with dialogs.assertError(1):
 			self.layer.weight = "hoeba(vx)"
+			self.layer.statistic = "mean"
+		with dialogs.assertError(1):
+			self.layer.statistic = "blaat"
 		self.layer.x = "x"
 		self.layer.y = "y"
 		self.layer.weight = "z"
+		self.layer.statistic = "mean"
 		#self.window._wait()
 		# since this will be triggered, overrule it
 		self.no_error_in_field = True
