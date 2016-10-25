@@ -349,7 +349,6 @@ class LayerTable(object):
 
 
 	def flag_needs_update(self):
-		print("_needs_update set to True")
 		self._needs_update = True
 		self.signal_needs_update.emit()
 
@@ -812,7 +811,6 @@ class LayerTable(object):
 
 					#grid = self.grid_main.marginal2d(self.dimensions-1-axes.xaxis_index, self.dimensions-1-axes.yaxis_index)
 					grid = self.grid_main.marginal2d(axes.xaxis_index, axes.yaxis_index)
-					print(grid, np.nansum(grid))
 					if self.state.show_disjoined:
 						grid = grid.disjoined()
 					try:
@@ -851,7 +849,6 @@ class LayerTable(object):
 							count_max = vector_counts_2d.max()
 							mask = (vector_counts_2d > (self.vector_level_min * count_max)) & \
 									(vector_counts_2d <= (self.vector_level_max * count_max))
-							print("DEBUG " * 10, axes.xaxis_index, axes.yaxis_index)
 							x = vector_positions[axes.xaxis_index]
 							y = vector_positions[axes.yaxis_index]
 							x2d, y2d = np.meshgrid(x, y)
@@ -1140,7 +1137,6 @@ class LayerTable(object):
 		self._task_signals = []
 
 	def cancel_tasks(self):
-		print("cancelling progressbar")
 		self.progressbar.cancel()
 		logger.info("cancelling tasks for layer %r", self)
 		for task in self.tasks:
@@ -1165,7 +1161,7 @@ class LayerTable(object):
 				vmin, vmax = range
 				if vmin is None or vmax is None:
 					missing = True
-		#self.subspace = self.dataset(*self.state.expressions, async=True)
+		self.subspace = self.dataset(*self.state.expressions, async=True)
 		#subspace_ranges = self.subspace
 		all_expressions = self.state.expressions
 		if self.layer_slice_source:
@@ -1315,7 +1311,6 @@ class LayerTable(object):
 			total = len(self.dataset)
 			fraction = float(visible)/total
 			self.label_visible.setText("{:,} of {:,} ({}) visible".format(visible, total, fraction*100))
-		print("_needs_update set to False...")
 		self._needs_update = False
 		return self
 
@@ -2777,7 +2772,6 @@ class LayerTable(object):
 
 	def update(self):
 		if self.validate_all_fields():
-			print("flag_needs_update set to true")
 			self.flag_needs_update()
 			self.plot_window.queue_update()
 
