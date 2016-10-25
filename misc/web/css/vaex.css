@@ -309,11 +309,11 @@ transition-delay:.2s;
 
 @font-face {
   font-family: 'icomoon';
-  src:  url('/fonts/icomoon.eot?chgdot');
-  src:  url('/fonts/icomoon.eot?chgdot#iefix') format('embedded-opentype'),
-    url('/fonts/icomoon.ttf?chgdot') format('truetype'),
-    url('/fonts/icomoon.woff?chgdot') format('woff'),
-    url('/fonts/icomoon.svg?chgdot#icomoon') format('svg');
+  src:  url('../fonts/icomoon.eot?chgdot');
+  src:  url('../fonts/icomoon.eot?chgdot#iefix') format('embedded-opentype'),
+    url('../fonts/icomoon.ttf?chgdot') format('truetype'),
+    url('../fonts/icomoon.woff?chgdot') format('woff'),
+    url('../fonts/icomoon.svg?chgdot#icomoon') format('svg');
   font-weight: normal;
   font-style: normal;
 }
