@@ -1230,7 +1230,6 @@ class PlotDialog(QtGui.QWidget):
 			msg = e.args[0]
 			qt.dialog_error(self, "Unknown variable", "Unknown variable or column: %s " % msg)
 
-		print(promises)
 		promise_ranges_done = vaex.promise.listPromise(promises)
 		promise_ranges_done.then(self._update_step2, self.on_error_or_cancel).end()
 		logger.debug("waiting for promises %r to finish", promises)
@@ -1741,7 +1740,6 @@ class PlotDialog(QtGui.QWidget):
 			f.seek(0)
 			data = vaex.utils.yaml_load(f)
 			for layer in self.active_layers():
-				print("paste!", data)
 				selection = vaex.dataset.selection_from_dict(layer.dataset, data)
 				layer.dataset.set_selection(selection)
 
@@ -2790,7 +2788,6 @@ class ScatterPlotDialog(PlotDialog):
 				unit = first_layer.dataset.unit(first_layer.state.expressions[dim])
 				try:
 					scale = astropy.units.Unit(first_layer.state.output_units[dim]).to(unit)
-					print("scale", scale)
 					axis = self.axes.xaxis if dim == 0 else self.axes.yaxis
 					axis.set_major_locator(ScaledLocator(dx=scale))
 					axis.set_major_formatter(ScaledFormatter(dx=scale))
