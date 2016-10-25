@@ -66,9 +66,9 @@
                   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">More <span class="caret"></span></a>
                   <ul class="dropdown-menu">
                     <li><a href="https://github.com/maartenbreddels/vaex"><i class="fa fa-github"></i>Github</a></li>
-                    <li><a href="http:http://vaex.astro.rug.nl/latest/installing.html"><i class="fa fa-download"></i>Download/Install instructions</a></li>
+                    <li><a href="http://vaex.astro.rug.nl/latest/installing.html"><i class="fa fa-download"></i>Download/Install instructions</a></li>
                     <li><a href="https://pypi.python.org/pypi/vaex/"><i class="fa fa-archive"></i>Vaex on pypi</a></li>
-                    <li><a href="http:http://vaex.astro.rug.nl/latest/gallery.html"><i class="fa fa-picture-o"></i>Gallery</a></li>
+                    <li><a href="http://vaex.astro.rug.nl/latest/gallery.html"><i class="fa fa-picture-o"></i>Gallery</a></li>
                     <li role="separator" class="divider"></li>
                     <li class="dropdown-header"><i class="fa fa-book"></i>Documentation</li>
                     <li><a href="http://vaex.astro.rug.nl/latest/"><i class="fa-empty"></i>Home</a></li>
