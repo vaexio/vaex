@@ -472,10 +472,12 @@ class DatasetPanel(QtGui.QFrame):
 			self.serieSlice.setText('serie slice')
 			self.form_layout.addRow('', self.serieSlice)
 
-		self.statistics = QtGui.QPushButton('Statistics', self)
-		self.statistics.setIcon(QtGui.QIcon(vp.iconfile('table-sum')))
-		#self.statistics.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
-		self.form_layout.addRow('Data:', self.statistics)
+		if 0:
+			self.statistics = QtGui.QPushButton('Statistics', self)
+			self.statistics.setDisabled(True)
+			self.statistics.setIcon(QtGui.QIcon(vp.iconfile('table-sum')))
+			#self.statistics.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+			self.form_layout.addRow('Data:', self.statistics)
 
 		self.rank = QtGui.QPushButton('Rank subspaces', self)
 		self.rank.setIcon(QtGui.QIcon(vp.iconfile('sort-quantity')))
@@ -489,7 +491,7 @@ class DatasetPanel(QtGui.QFrame):
 
 
 		self.button_histogram.clicked.connect(self.onOpenHistogram)
-		self.statistics.clicked.connect(self.onOpenStatistics)
+		#self.statistics.clicked.connect(self.onOpenStatistics)
 		self.button_2d.clicked.connect(self.onOpenScatter)
 		self.button_3d.clicked.connect(self.onOpenScatter3d)
 		#self.scatter1dSeries.clicked.connect(self.onOpenScatter1dSeries)
@@ -2005,6 +2007,7 @@ def main(argv=sys.argv[1:]):
 	global kernel
 	global ipython_console
 	global current
+	vaex.set_log_level_warning()
 
 	if app is None:
 		app = QtGui.QApplication(argv)
