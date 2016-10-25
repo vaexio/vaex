@@ -185,7 +185,7 @@ def convert(names, ext="html", include_source=True, include_dest=True):
 			should_make = time_source > time_dest
 		cwd = os.getcwd()
 		#cmd = "cd docs; cd source; jupyter-nbconvert {source} --to {ext} --output-dir={cwd} --output={dest}".format(source=source, cwd=cwd, ext=ext, dest=dest)
-		cmd = "cd docs; cd source; jupyter-nbconvert {source} --to {ext}".format(source=source, cwd=cwd, ext=ext, dest=dest)
+		cmd = "cd docs; cd source; jupyter-nbconvert {source} --to {ext} --output-dir={cwd} ".format(source=source, cwd=cwd, ext=ext, dest=dest)
 		if should_make:
 			print("executing %s" % cmd)
 			os.system(cmd)
