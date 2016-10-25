@@ -33,6 +33,7 @@ define('hello', ["jupyter-js-widgets", "underscore"], function(widgets, _) {
             console.log("url: " +this.get("url"))
             console.log(this.get('listeners'))
             this.previous_listeners = null;
+            this.update_counter = 0;
             var obj = this.on('change:custom_json', function(model, value) {
                 //console.log("changed json!!!!!!" + value)
                 //console.log(">>>" +this.get('custom_json'))
@@ -69,6 +70,8 @@ define('hello', ["jupyter-js-widgets", "underscore"], function(widgets, _) {
                 }, this);
         },
         _real_trigger_ajax: function() {
+            this.update_counter += 1;
+            var counter = this.update_counter;
             console.log("debounched ajax call");
             var payload = this.get('data_input');
             console.log(this)
@@ -90,9 +93,10 @@ define('hello', ["jupyter-js-widgets", "underscore"], function(widgets, _) {
                 },
                 method: this.get("method"),
                 success: function(data, status) {
-                    this._succes(data, status)
+                    console.log("counter was/is: " + counter + " / " +this.update_counter);
+                    if(counter == this.update_counter)
+                        this._succes(data, status)
                 }
-                
             })
         },
         _succes: function(data, status) {
