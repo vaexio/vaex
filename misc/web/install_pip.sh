@@ -9,28 +9,39 @@ while [[ "$#" > 0 ]]; do case $1 in
   esac; shift;
 done
 
+
+pyversion=${python:-"3"}
+echo "python version set to $pyversion"
+PY="python$pyversion"
+PIP="pip$pyversion"
+
+
 wget --continue https://bootstrap.pypa.io/get-pip.py
-python get-pip.py --user
+$PY get-pip.py --user
 export PATH=$HOME/.local/bin:$PATH
-pip install virtualenv --user
+$PIP install virtualenv --user
 virtualenv vaex-env
 source vaex-env/bin/activate
-pip install numpy
+$PIP install numpy
 
 if [ -z ${dev+x} ]; then
-    echo "installing latest released version"
-    pip install --pre vaex
+    echo "installing latest released version";
+    $PIP install --pre vaex;
 else
-    echo "installing development version"
-    git clone https://github.com/maartenbreddels/vaex/
-    pip install -r vaex/requirements.txt
-    pip install -e ./vaex
+    echo "installing development version";
+    git clone https://github.com/maartenbreddels/vaex/;
+    $PIP install -r vaex/requirements.txt;
+    $PIP install -e ./vaex;
 fi
 
+echo "============================================="
+echo '# Attempt to install PyQt5, if this fails you may want to switch to Vanilla Python 3.5 for Linux, or use anaconda: '
+echo "============================================="
+$PIP install PyQt5
 
 echo "============================================="
 echo '# to run vaex, execute: '
-echo "# $ source $PWD/vaex-env/bin/activate'
+echo "# $ source $PWD/vaex-env/bin/activate"
 echo '# $ vaex'
 echo '# for future use, you may want to put this in your .bashrc (.bash_profile on OSX)'
 echo "============================================="
