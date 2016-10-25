@@ -3604,6 +3604,7 @@ class Dataset(object):
 			move[grid_axes[grid_name]] = visual_axes[visual_name]
 		logger.debug("grid shape: %r", total_grid.shape)
 		logger.debug("visual: %r", visual.items())
+
 		#normalize_axis = _ensure_list(normalize_axis)
 
 		fs = _expand(f, total_grid.shape[grid_axes[normalize_axis]])
@@ -3670,7 +3671,13 @@ class Dataset(object):
 		else:
 			labels["selection"] = selection_labels
 
-		visual_grid = np.moveaxis(total_grid, move.keys(), move.values())
+		#visual_grid = np.moveaxis(total_grid, move.keys(), move.values())
+		# np.moveaxis is in np 1.11 only?, use transpose
+		axes = [None] * len(move)
+		for key, value in move.items():
+			axes[key] = value
+		visual_grid = np.transpose(total_grid, axes)
+
 		logger.debug("visual grid shape: %r", visual_grid.shape)
 		#grid = total_grid
 		#print(grid.shape)
