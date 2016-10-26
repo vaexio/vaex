@@ -221,7 +221,7 @@ else:
 #print "ver#sion", vaex.__release__
 setup(
 	entry_points={'console_scripts': ['vaex = vaex.__main__:main']},
-	app="bin/vaex",
+	app=["bin/vaex"],
 	name="vaex", #vaex.__program_name__,
 	author="Maarten A. Breddels",
 	author_email="maartenbreddels@gmail.com",
@@ -235,7 +235,7 @@ setup(
     packages=["vaex", "vaex.ui", "vaex.test", "vaex.misc", "vaex.notebook", "vaex.file", "vaex.ui.plugin", "vaex.ui.icons", "vaex.ext"],
     install_requires=reqs,
     #entry_points={ 'console_scripts': [ 'vaex=vaex.ui.main:main']  },
-    scripts=[os.path.join("bin", "vaex")],
+    #scripts=[os.path.join("bin", "vaex")],
     ext_modules=extensions,
     package_data={'vaex': ['ui/icons/*.png', 'ui/icons/*.icns', 'ext/*.js']},
     package_dir={'vaex':'vaex'},
