@@ -5,7 +5,7 @@ import numpy
 
 h5file = h5py.File("example.hdf5", "w")
 
-h5columns = h5file.create_group("columns") # vaex reads all datasets in the columns group
+h5columns = h5file.create_group("data") # vaex reads all datasets in the columns group
 
 csv_file = open(sys.argv[1])
 
