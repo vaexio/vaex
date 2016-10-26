@@ -320,8 +320,8 @@
         <div class="col-md-7">
           <h2 class="featurette-heading">Download.</h2>
 
-          <p class="lead">Desktop user? Download the standalone <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.3-osx.zip">OSX</a> or
-            <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.3-linux.tar.gz">Linux</a> version. *
+          <p class="lead">Desktop user? Download the standalone <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-osx.zip">OSX</a> or
+            <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-linux.tar.gz">Linux</a> version. *
 
           </p>
           <p class="lead">For programming? Install the python package:
@@ -341,7 +341,7 @@
               $ pip install git+https://github.com/maartenbreddels/vaex/
           </code>
           </p>
-          <p class="lead">Or see the <a href="http://vaex.astro.rug.nl/latest/installing.html#from-source">detailed instructions</a>.</p>
+          <p class="lead">Or see <a href="http://vaex.astro.rug.nl/latest/installing.html">more detailed instructions</a>.</p>
 
           <span class="text-muted" style="font-size: 80%">*Not possible to combine with the IPython/Jupyter notebook</span>.
 
@@ -592,9 +592,9 @@ You will need about, ~15BG or free memory for a proper performance, or replace <
                         e.preventDefault();
                         console.log($.client.os)
                         if($.client.os == "Mac")
-                          window.location.href = "http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.3-osx.zip"
+                          window.location.href = "http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-osx.zip"
                         if($.client.os == "Linux")
-                          window.location.href = "http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.3-linux.tar.gz"
+                          window.location.href = "http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-linux.tar.gz"
 
                     });
                 }
