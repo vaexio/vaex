@@ -9,7 +9,9 @@ Documentation
    program
    api
    tutorial_ipython_notebook
-   examples_hdf5
+   advanced_plotting
+   getting_data_in_vaex
    examples_notebooks
+   fileformat
    tipsandfaq
 
