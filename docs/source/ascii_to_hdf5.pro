@@ -4,7 +4,7 @@ h5file_id = H5F_CREATE('/tmp/test.hdf5')
 
 N = 3300000; nr of rows
 
-h5group_columns = H5G_CREATE(h5file_id, "columns") ; for vaex, all columns should be grouped under columns
+h5group_columns = H5G_CREATE(h5file_id, "data") ; for vaex, all columns should be grouped under columns
 h5type_id = H5T_IDL_CREATE(1.0d) ; create double datatype
 h5data_id = H5S_CREATE_SIMPLE(N)
 

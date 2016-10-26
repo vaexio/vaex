@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 	
 	// create the file and the group 'columns', which vaex will expect
 	file = H5Fcreate(filename_output, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-	hid_t group = H5Gcreate1(file, "columns", 0);
+	hid_t group = H5Gcreate1(file, "data", 0);
 	
 	// find the column names in the first line
 	for(int i=0; i<no_columns; i++) {
