@@ -25,7 +25,7 @@ Using TOPCAT, you can convert many files efficiently to a single colfits file fr
 From Python
 -----------
 
-Using the following methods, you can convert Pandas dataframes, ascii (whitespace or comma seperated) files
+Using the following methods, you can convert Pandas dataframes, ascii (whitespace or comma seperated) files, or from numpy arrays.
 
 * `vx.from_pandas <api.html#vaex.from_pandas>`_ .
 * `vx.from_ascii <api.html#vaex.from_ascii>`_ .
