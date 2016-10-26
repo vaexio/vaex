@@ -200,6 +200,21 @@ def from_pandas(df, name="pandas"):
 	return dataset
 
 def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **kwargs):
+	"""
+	Create an in memory dataset from an ascii file (whitespace seperated by default).
+
+	>>> ds = vx.from_ascii("table.asc")
+	>>> ds = vx.from_ascii("table.csv", seperator=",", names=["x", "y", "z"])
+
+	:param path: file path
+	:param seperator: value seperator, by default whitespace, use "," for comma seperated values.
+	:param names: If True, the first line is used for the column names, otherwise provide a list of strings with names
+	:param skip_lines: skip lines at the start of the file
+	:param skip_after: skip lines at the end of the file
+	:param kwargs:
+	:return:
+	"""
+
 	import vaex.ext.readcol as rc
 	ds = vaex.dataset.DatasetArrays(path)
 	if names not in [True, False]:
