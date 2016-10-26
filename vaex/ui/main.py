@@ -194,6 +194,7 @@ class DatasetSelector(QtGui.QListWidget):
 		if isinstance(dataset, vaex.dataset.DatasetArrays):
 			icon = self.icon_memory
 		item.setIcon(icon)
+		# TODO: this hangs on pyside 1.2.1, linux
 		item.setData(QtCore.Qt.UserRole, dataset)
 		self.setCurrentItem(item)
 		self.signal_add_dataset.emit(dataset)
