@@ -9,35 +9,35 @@ import logging
 logger = logging.getLogger("vaex.ui.qt")
 
 try:
-	from PySide import QtGui, QtCore, QtTest  # , QtNetwork
-
-	# from PySide.QtWebKit import QWebView
-	QtCore.pyqtSignal = QtCore.Signal
-	qt_version = QtCore.__version__
-	qt_mayor = 4
+	import sip
+	sip.setapi('QVariant', 2)
+	sip.setapi('QString', 2)
+	from PyQt4 import QtGui, QtCore, QtTest #, QtNetwork
+	sip.setapi('QVariant', 2)
+	#from PyQt4.QtWebKit import QWebView
+	qt_version = QtCore.PYQT_VERSION_STR
+	qt_mayor = int(qt_version[0])
 except ImportError as e1:
 	try:
-		import sip
-		sip.setapi('QVariant', 2)
-		sip.setapi('QString', 2)
-		from PyQt4 import QtGui, QtCore, QtTest #, QtNetwork
-		sip.setapi('QVariant', 2)
-		#from PyQt4.QtWebKit import QWebView
+		from PyQt5 import QtGui, QtCore, QtTest, QtWidgets  # , QtNetwork
+
+		for name in dir(QtWidgets):
+			if name[0].lower() == "q":
+				setattr(QtGui, name, getattr(QtWidgets, name))
 		qt_version = QtCore.PYQT_VERSION_STR
 		qt_mayor = int(qt_version[0])
+		QtGui.QStringListModel = QtCore.QStringListModel
+		#QtCore.Slot = QtCore.pyqtSlot
 	except ImportError as e1b:
 		try:
-			from PyQt5 import QtGui, QtCore, QtTest, QtWidgets  # , QtNetwork
+			from PySide import QtGui, QtCore, QtTest  # , QtNetwork
 
-			for name in dir(QtWidgets):
-				if name[0].lower() == "q":
-					setattr(QtGui, name, getattr(QtWidgets, name))
-			qt_version = QtCore.PYQT_VERSION_STR
-			qt_mayor = int(qt_version[0])
-			QtGui.QStringListModel = QtCore.QStringListModel
-		#QtCore.Slot = QtCore.pyqtSlot
+			# from PySide.QtWebKit import QWebView
+			QtCore.pyqtSignal = QtCore.Signal
+			qt_version = QtCore.__version__
+			qt_mayor = 4
 		except ImportError as e2:
-			print("could not import PyQt4 or PySide, please install", file=sys.stderr)
+			print("could not import PyQt4, PyQt5, or PySide, please install", file=sys.stderr)
 			print("errors: ", repr(e1), repr(e2), file=sys.stderr)
 			sys.exit(1)
 
