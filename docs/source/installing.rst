@@ -1,24 +1,34 @@
 .. _installing:
 
+.. note::
+
+    For the impatient:
+
+    - If you want a standalone Python environment with vaex installed that does not interfere with you system Python, execute ``curl http://vaex.astro.rug.nl/install_conda.sh | sh -`` on your terminal.
+    - To remove, execute ``rm -rf ~/miniconda-vaex ~/.condarc ~/.conda ~/.continuum``
+
 Download and installing
 =======================
 
-VaeX is available as binary for OSX and Linux, without any dependencies. See the next section how to get it. For development, other plaforms, or for more optimized compiling of the source, you may want to build from source.
+The vaex program (with this you cannot do any Python programming) is available for OSX and Linux.
+See the next section how to get it. For using vaex as a library, install vaex using pip or conda.
 
- * **Standalone version**: download ( `osx <https://www.astro.rug.nl/~breddels/vaex/vaex-1.0.0-beta.1-osx.zip>`_ | `linux <https://www.astro.rug.nl/~breddels/vaex/vaex-1.0.0-beta.1-linux.tar.gz>`_ )
+ * **Standalone version**: download ( `osx <//vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-osx.zip>`_ | `linux <//vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-linux.tar.gz>`_ )
  * **Python package**: ``pip install --pre vaex`` (no root? use ``pip install --pre --user vaex``)
  * **Anaconda users**: ``conda install -c conda-forge vaex``
 
 
 .. _installing_from_binary:
 
-Download the binary
--------------------
+Vaex program (all versions)
+---------------------------
 
 The binary should be fully self contained, it should not need any other software. 
 
 OSX:
  
+* `Vaex 1.0.0-beta.4-osx <//vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-osx.zip>`_ .
+* `Vaex 1.0.0-beta.3-osx <//vaex.astro.rug.nl/program/vaex-1.0.0-beta.3-osx.zip>`_ .
 * `Vaex 1.0.0-beta.2-osx <//vaex.astro.rug.nl/program/vaex-1.0.0-beta.2-osx.zip>`_ .
 * `Vaex 1.0.0-beta.1-osx <https://www.astro.rug.nl/~breddels/vaex/vaex-1.0.0-beta.1-osx.zip>`_ .
 * `Vaex 0.3.10-osx <https://www.astro.rug.nl/~breddels/vaex/vaex-0.3.10-osx.zip>`_ (`mirror <https://github.com/maartenbreddels/vaex/releases/download/0.3.10/vaex-0.3.10-osx.zip>`_).
@@ -32,11 +42,15 @@ Linux:
 	
 Simpy unpack the tarball and run it like:
 
-.. code-block:: python
+::
 	
 	$ tar vaex-0.3.10-linux.tar.gz
-	$ ./vaex-0.3.10/vaex
+	$ ./vaex-0.3.10/vaex-0.3.10
 
+Linux distributions with glibc 2.14 are supported, for instance Scientific Linux 6 will not work, but 7 does.
+
+* `Vaex 1.0.0-beta.4-linux <//vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-linux.tar.gz>`_.
+* `Vaex 1.0.0-beta.3-linux <//vaex.astro.rug.nl/program/vaex-1.0.0-beta.3-linux.tar.gz>`_.
 * `Vaex 1.0.0-beta.2-linux <//vaex.astro.rug.nl/program/vaex-1.0.0-beta.2-linux.tar.gz>`_.
 * `Vaex 1.0.0-beta.1-linux <https://www.astro.rug.nl/~breddels/vaex/vaex-1.0.0-beta.1-linux.tar.gz>`_.
 * `Vaex 0.3.10-linux <https://www.astro.rug.nl/~breddels/vaex/vaex-0.3.10-linux.tar.gz>`_ (`mirror <https://github.com/maartenbreddels/vaex/releases/download/0.3.10/vaex-0.3.10-linux.tar.gz>`_).
@@ -47,39 +61,32 @@ Simpy unpack the tarball and run it like:
 
 .. _installing_from_source:
 
-From source
------------
 
-If for some reason the binaries above don't work, or you want to work on the source code, this method of installing is preferred. Make sure you have a Python version (2.7) with PyQt4 or PySide installed (check by running 'python -c "import PyQt4"', or 'python -c "import PySide"). If you have any issues getting PyQt working, get Anaconda (for Python 2.7) from http://continuum.io/downloads (it's a Python distribution with many packages). Also numpy and scipy may have issues installing from pip, check if you have these packages, or again go for Anaconda.
+Using Anaconda
+^^^^^^^^^^^^^^
 
-Vaex has several dependencies, besides PyQt4/PySide and possibly numpy and scipy, for all steps below the required software can be installed by running:
+It is recommended to not use your Operating system's Python (it may break your system), but install `Anaconda <http://continuum.io/downloads>`_. Anaconda is a Python distribution that makes installing Python packages much easier.
 
-.. code-block:: python
-	
-	$ pip install -r requirements.txt
-
-For this you need to have pip installed (try running 'pip'), or get pip from https://pip.pypa.io/en/latest/installing.html (pip makes installing easier).
+After installing Anaconda, you can install vaex using ``conda install -c maartenbreddels vaex``
 
 
 Using PIP
 ^^^^^^^^^
 
-* install using
+If you plan to not use Anaconda, you can use pip to install vaex. However, it may be difficult to get PyQt installed. If running ``pip install PyQt5`` fails, you may want to try your favorite package manager (brew, macports) to install it instead. If you manage to run one of the following commands
 
- * ``pip install veax`` (if you have admin rights)
- * ``pip install vaex --user`` (this will install in the ~/.local/ directory, start by running ~/.local/bin/vaex or adding this directory to your PATH env var
+* ``python -c "import PyQt4"``
+* ``python -c "import PyQt5"``
+* ``python -c "import PySide"``
 
-From a tarball
-^^^^^^^^^^^^^^
+You will probably have no trouble installing vaex, and can continue, otherwise we recommend following the Anaconda route described above.
 
-If you download the tarball from github or pypi, unpack and install by running:
+* Continue installing vaex using
 
-* ``tar zxfv vaex-X.Y.Z.tar.gz`` (where X.Y.Z refers to the version number)
-* ``cd vaex-X.Y.Z``
-* install using:
+ * ``pip install --pre vaex --user`` (this will install in the ~/.local/ directory, start by running ~/.local/bin/vaex or adding this directory to your PATH env var)
+ * ``pip install --pre vaex`` (if you have want to install it system wide)
 
- * ``python setup.py install`` (if you have admin rights)
- * ``python setup.py install --user``  (this will install in the ~/.local/ directory, start by running ~/.local/bin/vaex or adding this directory to your PATH env var
+Your platform may not support
 
 From github
 ^^^^^^^^^^^
@@ -87,5 +94,6 @@ From github
 * ``cd vaex``
 * install using:
 
- * ``python setup.py install``  (if you have admin rights)
- * ``python setup.py install --user``  (this will install in the ~/.local/ directory, start by running ~/.local/bin/vaex or adding this directory to your PATH env var
+ * ``pip install -e --user .``  (this will install in the ~/.local/ directory, start by running ~/.local/bin/vaex or adding this directory to your PATH env var)
+ * ``pip install -e .``  (if you have want to install it system wide)
+
