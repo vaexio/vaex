@@ -2,7 +2,7 @@ API documentation for vaex library
 ==================================
 
 .. automodule:: vaex
-    :members: open, server, example, from_arrays, from_pandas, open_many, app, zeldovich, set_log_level_debug, set_log_level_info, set_log_level_warning, set_log_level_exception, set_log_level_off
+    :members: open, server, example, from_arrays, from_pandas, from_ascii, from_samp, open_many, app, zeldovich, set_log_level_debug, set_log_level_info, set_log_level_warning, set_log_level_exception, set_log_level_off
     :undoc-members:
     :show-inheritance:
 
