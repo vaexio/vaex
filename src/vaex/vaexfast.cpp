@@ -4,6 +4,30 @@
 #include <cstdio>
 //#include <omp.h>
 
+// from http://stackoverflow.com/questions/126279/c99-stdint-h-header-and-ms-visual-studio
+#ifdef _MSC_VER
+typedef __int32 int32_t;
+typedef unsigned __int32 uint32_t;
+typedef __int64 int64_t;
+typedef unsigned __int64 uint64_t;
+#define __attribute__(x)
+#define __builtin_bswap64 _byteswap_uint64
+
+// from http://stackoverflow.com/questions/2538339/infinity-in-msvc
+#include <limits>
+#define INFINITY std::numeric_limits<float>::infinity()
+
+// for isfinite
+#define isfinite _finite
+#include <float.h>
+
+#define __restrict__ __restrict
+#else
+#include <stdint.h>
+#endif
+
+
+
 #include <numpy/arrayobject.h>
 
 
@@ -1341,8 +1365,8 @@ static PyObject* soneira_peebles_(PyObject* self, PyObject *args) {
 		double *coordinates_ptr = NULL;
 		try {
 			object_to_numpy1d_nocopy(coordinates_ptr, coordinates, length);
-			if(length != pow(eta, max_level))
-				throw Error("length of coordinates != eta**max_level (%lld != %f)", length, pow(eta, max_level));
+			if(length != pow((double)eta, (int)max_level))
+				throw Error("length of coordinates != eta**max_level (%lld != %f)", length, pow((double)eta, (int)max_level));
 			Py_BEGIN_ALLOW_THREADS
 			soneira_peebles(coordinates_ptr, center, width, lambda, eta, 1, max_level);
 			Py_END_ALLOW_THREADS
@@ -1357,7 +1381,7 @@ static PyObject* soneira_peebles_(PyObject* self, PyObject *args) {
 	return result;
 }
 
-#ifdef  __APPLE__
+#if  defined(__APPLE__) || defined(_MSC_VER)
 #else
 
 #include <iostream>
@@ -1373,10 +1397,10 @@ Fill array of length 'length ' with a shuffled sequence of numbers between 0 and
 important to use a 64 bit rng, mt19937_64 seems to be the only one
 */
 void shuffled_sequence_(long long * array, long long length, bool native) {
-#ifdef  __APPLE__
+#if  defined(__APPLE__) || defined(_MSC_VER)
 	for(long long i=0; i < length; i++) {
-		uint_fast64_t r = rand();
-		uint_fast64_t j =  r * i / RAND_MAX;
+		uint64_t r = rand();
+		uint64_t j =  r * i / RAND_MAX;
 		array[i] = array[j];
 		array[j] = 	native ? i : __builtin_bswap64(i);
 i;
