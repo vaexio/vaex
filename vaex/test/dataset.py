@@ -1145,7 +1145,7 @@ class TestDataset(unittest.TestCase):
 							for selection in [False, True]:
 								for virtual in [False, True]:
 									for export in [dataset.export_fits, dataset.export_hdf5]: #if byteorder == ">" else [dataset.export_hdf5]:
-										print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length(), virtual)
+										#print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length(), virtual)
 										byteorder = "<"
 										if export == dataset.export_fits and byteorder != ">":
 											continue # fits only does big endian
