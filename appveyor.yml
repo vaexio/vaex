@@ -6,7 +6,7 @@ environment:
       MINICONDA: C:\Miniconda35-x64
 
 init:
-  - "ECHO %PYTHON_VERSION% %MINICONDA%"install:
+  - "ECHO %PYTHON_VERSION% %MINICONDA%"
 
 
 build: false
