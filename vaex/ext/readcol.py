@@ -113,111 +113,112 @@ def readcol(filename,skipline=0,skipafter=0,names=False,fsep=None,twod=True,
     contain data.  If you have scipy and columns of varying length, readcol will
     read in all of the rows with length=mode(row lengths).
     """
-    f=open(filename,'r').readlines()
+    with open(filename,'r') as f:
+        f = f.readlines()
     
-    null=[f.pop(0) for i in range(skipline)]
+        null=[f.pop(0) for i in range(skipline)]
 
-    commentfilter = make_commentfilter(comment)
+        commentfilter = make_commentfilter(comment)
 
-    if not asStruct:
-        asStruct = asRecArray
+        if not asStruct:
+            asStruct = asRecArray
 
-    if namecomment is False and (names or asdict or asStruct):
-        while 1:
-            line = f.pop(0)
-            if line[0] != comment:
-                nameline = line
+        if namecomment is False and (names or asdict or asStruct):
+            while 1:
+                line = f.pop(0)
+                if line[0] != comment:
+                    nameline = line
+                    if header_badchars:
+                        for c in header_badchars:
+                            nameline = nameline.replace(c,' ')
+                    nms=nameline.split(fsep)
+                    break
+                elif len(f) == 0:
+                    raise Exception("No uncommented lines found.")
+        else:
+            if names or asdict or asStruct:
+                # can specify name line
+                if type(names) == type(1):
+                    nameline = f.pop(names)
+                else:
+                    nameline = f.pop(0)
+                if nameline[0]==comment:
+                    nameline = nameline[1:]
                 if header_badchars:
                     for c in header_badchars:
                         nameline = nameline.replace(c,' ')
-                nms=nameline.split(fsep)
-                break
-            elif len(f) == 0:
-                raise Exception("No uncommented lines found.")
-    else:
-        if names or asdict or asStruct:
-            # can specify name line 
-            if type(names) == type(1):
-                nameline = f.pop(names)
-            else:
-                nameline = f.pop(0)
-            if nameline[0]==comment:
-                nameline = nameline[1:]
-            if header_badchars:
-                for c in header_badchars:
-                    nameline = nameline.replace(c,' ')
-            nms=nameline.split(fsep)
+                nms=list([name.strip() for name in nameline.split(fsep)])
 
-    null=[f.pop(0) for i in range(skipafter)]
-    
-    if fixedformat:
-        myreadff = lambda x: readff(x,fixedformat)
-        splitarr = map(myreadff,f)
-        splitarr = filter(commentfilter,splitarr)
-    else:
-        fstrip = map(string.strip,f)
-        fseps = [ fsep for i in range(len(f)) ]
-        splitarr = map(string.split,fstrip,fseps)
-        if removeblanks:
-            for i in xrange(splitarr.count([''])):
-                splitarr.remove([''])
+        null=[f.pop(0) for i in range(skipafter)]
 
-        splitarr = filter(commentfilter,splitarr)
-
-        # check to make sure each line has the same number of columns to avoid 
-        # "ValueError: setting an array element with a sequence."
-        nperline = map(len,splitarr)
-        if hasmode:
-            ncols,nrows = mode(nperline)
-            if nrows != len(splitarr):
-                if verbose:
-                    print("Removing %i rows that don't match most common length %i.  \
-                     \n%i rows read into array." % (len(splitarr) - nrows,ncols,nrows))
-                for i in xrange(len(splitarr)-1,-1,-1):  # need to go backwards
-                    if nperline[i] != ncols:
-                        splitarr.pop(i)
-
-    try:
-        x = numpy.asarray( splitarr , dtype='float')
-    except ValueError:
-        if verbose: 
-            print("WARNING: reading as string array because %s array failed" % 'float')
-        try:
-            x = numpy.asarray( splitarr , dtype='S')
-        except ValueError:
-            if hasmode:
-                raise Exception( "ValueError when converting data to array." + \
-                        "  You have scipy.mode on your system, so this is " + \
-                        "probably not an issue of differing row lengths." )
-            else:
-                raise Exception( "Conversion to array error.  You probably " + \
-                        "have different row lengths and scipy.mode was not " + \
-                        "imported." )
-
-    if nullval is not None:
-        x[x==nullval] = numpy.nan
-        x = get_autotype(x)
-
-    if asdict or asStruct:
-        mydict = OrderedDict(zip(nms,x.T))
-        for k,v in mydict.iteritems():
-            mydict[k] = get_autotype(v)
-        if asdict:
-            return mydict
-        elif asRecArray:
-            return Struct(mydict).as_recarray()
-        elif asStruct:
-            return Struct(mydict)
-    elif names and twod:
-        return nms,x
-    elif names:
-        # if not returning a twod array, try to return each vector as the spec. type
-        return nms,[ get_autotype(x.T[i]) for i in xrange(x.shape[1]) ]
-    else:
-        if twod:
-            return x
+        if fixedformat:
+            myreadff = lambda x: readff(x,fixedformat)
+            splitarr = list(map(myreadff,f))
+            splitarr = list(filter(commentfilter,splitarr))
         else:
-            return [ get_autotype(x.T[i]) for i in xrange(x.shape[1]) ]
+            fstrip = list(map(str.strip,f))
+            fseps = [ fsep for i in range(len(f)) ]
+            splitarr = list(map(str.split,fstrip,fseps))
+            if removeblanks:
+                for i in range(splitarr.count([''])):
+                    splitarr.remove([''])
+
+            splitarr = list(filter(commentfilter,splitarr))
+
+            # check to make sure each line has the same number of columns to avoid
+            # "ValueError: setting an array element with a sequence."
+            nperline = list(map(len,splitarr))
+            if hasmode:
+                ncols,nrows = mode(nperline)
+                if nrows != len(splitarr):
+                    if verbose:
+                        print("Removing %i rows that don't match most common length %i.  \
+                         \n%i rows read into array." % (len(splitarr) - nrows,ncols,nrows))
+                    for i in range(len(splitarr)-1,-1,-1):  # need to go backwards
+                        if nperline[i] != ncols:
+                            splitarr.pop(i)
+
+        try:
+            x = numpy.asarray( splitarr , dtype='float')
+        except ValueError:
+            if verbose:
+                print("WARNING: reading as string array because %s array failed" % 'float')
+            try:
+                x = numpy.asarray( splitarr , dtype='S')
+            except ValueError:
+                if hasmode:
+                    raise Exception( "ValueError when converting data to array." + \
+                            "  You have scipy.mode on your system, so this is " + \
+                            "probably not an issue of differing row lengths." )
+                else:
+                    raise Exception( "Conversion to array error.  You probably " + \
+                            "have different row lengths and scipy.mode was not " + \
+                            "imported." )
+
+        if nullval is not None:
+            x[x==nullval] = numpy.nan
+            x = get_autotype(x)
+
+        if asdict or asStruct:
+            mydict = OrderedDict(zip(nms,x.T))
+            for k,v in mydict.items():
+                mydict[k] = get_autotype(v)
+            if asdict:
+                return mydict
+            elif asRecArray:
+                return Struct(mydict).as_recarray()
+            elif asStruct:
+                return Struct(mydict)
+        elif names and twod:
+            return nms,x
+        elif names:
+            # if not returning a twod array, try to return each vector as the spec. type
+            return nms,[ get_autotype(x.T[i]) for i in range(x.shape[1]) ]
+        else:
+            if twod:
+                return x
+            else:
+                return [ get_autotype(x.T[i]) for i in range(x.shape[1]) ]
 
 def get_autotype(arr):
     """
@@ -227,7 +228,7 @@ def get_autotype(arr):
     """
     try:
         narr = arr.astype('float')
-        if (narr < sys.maxint).all() and (narr % 1).sum() == 0:
+        if (narr < sys.maxsize).all() and (narr % 1).sum() == 0:
             return narr.astype('int')
         else:
             return narr
