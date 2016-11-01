@@ -9,7 +9,7 @@ import tempfile
 import vaex.webserver
 import astropy.io.fits
 import astropy.units
-
+import pandas as pd
 import vaex.execution
 a = vaex.execution.buffer_size_default # will crash if we decide to rename it
 
@@ -100,23 +100,34 @@ class TestDataset(unittest.TestCase):
 	def test_ascii(self):
 		for seperator in " 	\t,":
 			for use_header in [True, False]:
+				print(">>>", repr(seperator), use_header)
 				fn = tempfile.mktemp("asc")
 				with open(fn, "w") as f:
 					if use_header:
-						print(seperator.join(["x", "y"]), file=f)
-					for x, y in zip(self.x, self.y):
-						print(seperator.join(map(str, [x, y])), file=f)
+						print(seperator.join(["x", "y", "names"]), file=f)
+					for x, y, name in zip(self.x, self.y, self.dataset.data.name):
+						name = str(name)
+						print(name)
+						print(seperator.join(map(repr, [x, y, name])), file=f)
+				with open(fn) as f:
+					print(f.read())
 				sep = seperator
 				if seperator == " ":
 					sep = None
 				if use_header:
 					ds = vx.from_ascii(fn, seperator=sep)
 				else:
-					ds = vx.from_ascii(fn, seperator=seperator, names="x y".split())
+					ds = vx.from_ascii(fn, seperator=seperator, names="x y names".split())
 
 				np.testing.assert_array_almost_equal(ds.data.x, self.x)
 				np.testing.assert_array_almost_equal(ds.data.y, self.y)
-
+				np.testing.assert_array_equal(ds.data.names, self.dataset.data.name)
+				if seperator == ",":
+					df = pd.read_csv(fn)
+					ds = vx.from_pandas(df)
+					np.testing.assert_array_almost_equal(ds.data.x, self.x)
+					np.testing.assert_array_almost_equal(ds.data.y, self.y)
+					np.testing.assert_array_equal(ds.data.names, self.dataset.data.name)
 
 	def tearDown(self):
 		self.dataset.remove_virtual_meta()
@@ -970,7 +981,6 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.datasetxy.mean(["x", "y"], selection=True), [0, -1])
 
 	def test_minmax(self):
-		print(self.dataset.data.x)
 		((xmin, xmax), ) = self.dataset("x").minmax()
 		self.assertAlmostEqual(xmin, 0)
 		self.assertAlmostEqual(xmax, 9)
