@@ -979,7 +979,6 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.datasetxy.mean(["x", "y"], selection=True), [0, -1])
 
 	def test_minmax(self):
-		print(self.dataset.data.x)
 		((xmin, xmax), ) = self.dataset("x").minmax()
 		self.assertAlmostEqual(xmin, 0)
 		self.assertAlmostEqual(xmax, 9)
