@@ -1587,6 +1587,9 @@ class TestDatasetRemote(TestDataset):
 	def test_amuse(self):
 		pass # no need
 
+	def test_ascii(self):
+		pass  # no need
+
 	def test_export(self):
 		pass # we can't export atm
 
