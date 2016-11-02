@@ -22,7 +22,7 @@ with a selection, and on a regular grid.
 
 To count the number of rows:
 
->>> t = vx.examples()
+>>> t = vx.example()
 >>> t.count()
 330000.0
 
