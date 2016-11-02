@@ -3289,7 +3289,7 @@ class Dataset(object):
 								group_by, group_limits, group_colors, group_labels, group_count, cmap, scales, tool_select, bq_cleanup, **kwargs)
 
 
-	def healpix_count(self, expression=None, healpix_expression=None, healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, async=False, progress=None):
+	def healpix_count(self, expression=None, healpix_expression=None, healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, async=False, progress=None, selection=None):
 		"""Count non missing value for expression on an array which represents healpix data.
 
 		:param expression: Expression or column for which to count non-missing values, or None or '*' for counting the rows
@@ -3299,6 +3299,7 @@ class Dataset(object):
 		:param binby: {binby}, these dimension follow the first healpix dimension.
 		:param limits: {limits}
 		:param shape: {shape}
+		:param selection: {selection}
 		:param async: {async}
 		:param progress: {progress}
 		:return:
@@ -3320,7 +3321,7 @@ class Dataset(object):
 		binby = [expr] + ([] if binby is None else _ensure_list(binby))
 		shape = (nmax,) + _expand_shape(shape, len(binby)-1)
 		limits = [[0, nmax]] + ([] if limits is None else limits)
-		return self.count(expression, binby=binby, limits=limits, shape=shape, async=async, progress=progress)
+		return self.count(expression, binby=binby, limits=limits, shape=shape, async=async, progress=progress, selection=selection)
 
 	def healpix_plot(self, healpix_expression="source_id/34359738368", healpix_max_level=12, healpix_level=8, what="count(*)", selection=None,
 					 grid=None,
