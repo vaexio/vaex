@@ -575,20 +575,39 @@ test_port = 29310 + sys.version_info[0] * 10 + sys.version_info[1]
 
 class TestPlotPanel2dRemote(TestPlotPanel2d):
 	use_websocket = False
+	@classmethod
+	def setUpClass(cls):
+		global test_port
+		cls.webserver = vaex.webserver.WebServer(datasets=[], port=test_port, cache_byte_size=0)
+		#print "serving"
+		cls.webserver.serve_threaded()
+		#print "getting server object"
+		scheme = "ws" if cls.use_websocket else "http"
+		cls.server = vx.server("%s://localhost:%d" % (scheme, test_port))
+		test_port += 1
+
+
+	@classmethod
+	def tearDownClass(cls):
+		cls.server.close()
+		cls.webserver.stop_serving()
+
 	def create_app(self):
 		logger.debug("create app")
 		global test_port
 		self.app = vx.ui.main.VaexApp([], open_default=False)
 		self.dataset_default = vaex.example()
 		datasets = [self.dataset_default]
-		self.webserver = vaex.webserver.WebServer(datasets=datasets, port=test_port)
+		self.webserver.set_datasets(datasets)
+		#self.webserver = vaex.webserver.WebServer(datasets=datasets, port=test_port)
 		#print "serving"
 		logger.debug("serve server")
-		self.webserver.serve_threaded()
+		#self.webserver.serve_threaded()
 		#print "getting server object"
-		scheme = "ws" if self.use_websocket else "http"
-		logger.debug("get from server")
-		self.server = vx.server("%s://localhost:%d" % (scheme, test_port), thread_mover=self.app.call_in_main_thread)
+		#scheme = "ws" if self.use_websocket else "http"
+		#logger.debug("get from server")
+		#self.server = vx.server("%s://localhost:%d" % (scheme, test_port), thread_mover=self.app.call_in_main_thread)
+		self.server.thread_mover=self.app.call_in_main_thread
 		datasets = self.server.datasets(as_dict=True)
 		logger.debug("got it")
 
@@ -601,8 +620,8 @@ class TestPlotPanel2dRemote(TestPlotPanel2d):
 		logger.debug("closing all")
 		#print "stop serving"
 		TestPlotPanel2d.tearDown(self)
-		self.webserver.stop_serving()
-		self.server.close()
+		#self.webserver.stop_serving()
+		#self.server.close()
 
 
 	def test_select_by_lasso(self):

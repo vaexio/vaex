@@ -1,0 +1,29 @@
+environment:
+  matrix:
+    - PYTHON_VERSION: 2.7
+      MINICONDA: C:\Miniconda-x64
+    - PYTHON_VERSION: 3.5
+      MINICONDA: C:\Miniconda35-x64
+
+init:
+  - "ECHO %PYTHON_VERSION% %MINICONDA%"
+
+
+build: false
+
+
+install:
+  - "set PATH=%MINICONDA%;%MINICONDA%\\Scripts;%PATH%"
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  - conda info -a
+  - "conda create -q -n test-environment python=%PYTHON_VERSION% numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython pandas runipy"
+  - activate test-environment
+  - pip install -r requirements.txt
+  - pip install coverage
+  - pip install -e .
+
+test_script:
+ - python -m vaex.test.dataset
+ - runipy examples/tutorial_ipython_notebook.ipynb
+ - runipy examples/advanced_plotting.ipynb

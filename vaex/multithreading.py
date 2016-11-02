@@ -111,6 +111,11 @@ class ThreadPoolIndex(object):
 							done = yielded == count
 			return results
 		finally:
+			# clean up in case of an exception
+			for other_job in alljobs:
+				other_job.cancel()
+			while not self.queue_out.empty():
+				self.queue_out.get()
 			self._working = False
 			#self.jobs = []
 			self.new_jobs_event.clear()

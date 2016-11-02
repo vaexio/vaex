@@ -1556,7 +1556,7 @@ class VaexApp(QtGui.QMainWindow):
 		dataset = self.dataset_panel.dataset
 		name = dataset.name + "-mysubset.hdf5"
 		options = ["All: %r records, filesize: %r" % (len(dataset), vaex.utils.filesize_format(dataset.byte_size())) ]
-		options += ["Selection: %r records, filesize: %r" % (dataset.length(selection=True), vaex.utils.filesize_format(dataset.byte_size(selection=True))) ]
+		options += ["Selection: %r records, filesize: %r" % (dataset.count(selection=True), vaex.utils.filesize_format(dataset.byte_size(selection=True))) ]
 
 		index = dialogs.choose(self, "What do you want to export?", "Choose what to export:", options)
 		if index is None:

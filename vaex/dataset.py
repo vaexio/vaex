@@ -828,7 +828,7 @@ class Subspace(object):
 			data = self.image_rgba_data(**kwargs)
 		from IPython.display import display, Image
 		return Image(data=data)
-		
+
 	def image_rgba_data(self, rgba8=None, format="png", pil_draw=False, **kwargs):
 		import PIL.Image
 		import PIL.ImageDraw
@@ -4304,7 +4304,8 @@ class Dataset(object):
 
 		"""
 		if self.is_local():
-			name = os.path.abspath(self.path).replace("/", "_")[:250]  # should not be too long for most os'es
+			name = os.path.abspath(self.path).replace(os.path.sep, "_")[:250]  # should not be too long for most os'es
+			name = name.replace(":", "_") # for windows drive names
 		else:
 			server = self.server
 			name = "%s_%s_%s_%s" % (server.hostname, server.port, server.base_path.replace("/", "_"), self.name)
@@ -6100,5 +6101,3 @@ def stat_main(argv):
 			print("   \tunit: %s" % unit)
 		dtype = dataset.dtype(name)
 		print("   \ttype: %s" % dtype.name)
-
-

@@ -43,7 +43,12 @@ class DatasetMemoryMapped(DatasetLocal):
 		if not nommap:
 			self.file = open(self.filename, "r+" if write else "r")
 			self.fileno = self.file.fileno()
-			self.mapping = mmap.mmap(self.fileno, 0, prot=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE )
+			kwargs = {}
+			if vaex.utils.osname == "windows":
+				kwargs["access"]=mmap.ACCESS_READ | 0 if not write else mmap.ACCESS_WRITE
+			else:
+				kwargs["prot"]=mmap.PROT_READ | 0 if not write else mmap.PROT_WRITE
+			self.mapping = mmap.mmap(self.fileno, 0, **kwargs)
 			self.file_map = {filename: self.file}
 			self.fileno_map = {filename: self.fileno}
 			self.mapping_map = {filename: self.mapping}
@@ -92,6 +97,8 @@ class DatasetMemoryMapped(DatasetLocal):
 	def close_files(self):
 		for name, file in self.file_map.items():
 			file.close()
+		for name, memmap in self.mapping_map.items():
+			memmap.close()
 
 	def has_snapshots(self):
 		return len(self.rank1s) > 0
@@ -1146,4 +1153,3 @@ class DatasetTap(DatasetArrays):
 		return can_open
 
 dataset_type_map["tap"] = DatasetTap
-

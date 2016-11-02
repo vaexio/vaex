@@ -149,7 +149,7 @@ def task_invoke(subspace, method_name, **arguments):
 	#for arg in args:
 	#	if arg in arguments:
 	#		kwargs[arg] = arguments[arg]
-	print("!!!!!! calling %s with arguments %r" % (method_name, arguments))
+	#print("!!!!!! calling %s with arguments %r" % (method_name, arguments))
 	values = method(**arguments)
 	return values
 
@@ -162,8 +162,6 @@ class ListHandler(tornado.web.RequestHandler):
 	def initialize(self, webserver, submit_threaded, cache, cache_selection, datasets=None):
 		self.webserver = webserver
 		self.submit_threaded = submit_threaded
-		self.datasets = datasets or [vx.example()]
-		self.datasets_map = collections.OrderedDict([(ds.name,ds) for ds in self.datasets])
 		self.cache = cache
 		self.cache_selection = cache_selection
 
@@ -213,8 +211,6 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
 	def initialize(self, webserver, submit_threaded, cache, cache_selection, datasets=None):
 		self.webserver = webserver
 		self.submit_threaded = submit_threaded
-		self.datasets = datasets or [vx.example()]
-		self.datasets_map = collections.OrderedDict([(ds.name,ds) for ds in self.datasets])
 		self.cache = cache
 		self.cache_selection = cache_selection
 
@@ -488,8 +484,7 @@ class WebServer(threading.Thread):
 		self.address = address
 		self.port = port
 		self.started = threading.Event()
-		self.datasets = datasets
-		self.datasets_map = dict([(ds.name,ds) for ds in self.datasets])
+		self.set_datasets(datasets)
 
 		self.webserver_thread_count = webserver_thread_count
 		self.threads_per_job = threads_per_job
@@ -518,6 +513,10 @@ class WebServer(threading.Thread):
 		logger.debug("compression set to %r", compress)
 		logger.debug("cache size set to %s", vaex.utils.filesize_format(cache_byte_size))
 		logger.debug("thread count set to %r", self.webserver_thread_count)
+
+	def set_datasets(self, datasets):
+		self.datasets = list(datasets)
+		self.datasets_map = dict([(ds.name,ds) for ds in self.datasets])
 
 	def submit_threaded(self, callable, *args, **kwargs):
 		job = JobFlexible(4., callable, args=args, kwargs=kwargs)
