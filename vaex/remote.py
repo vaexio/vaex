@@ -11,7 +11,8 @@ try:
 except ImportError:
 	import builtins as __builtin__
 
-from .dataset import Dataset, Subspace, Task, _issequence
+from .dataset import Dataset, Task, _issequence
+from .legacy import Subspace
 import vaex.promise
 import vaex.settings
 import vaex.utils
@@ -19,7 +20,6 @@ try:
 	import Cookie  # py2
 except ImportError:
 	import http.cookies as Cookie  # py3
-
 
 from tornado.httpclient import AsyncHTTPClient, HTTPClient
 import tornado.httputil
