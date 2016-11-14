@@ -510,7 +510,7 @@ class TestDataset(unittest.TestCase):
 			self.assertEqual(values.tolist(), self.dataset("x", "y").mutual_information(limits=minmax[0]).flatten().tolist())
 
 	def test_not_implemented(self):
-		subspace = vaex.dataset.Subspace(self.dataset, ["x", "y"], self.dataset.executor, False)
+		subspace = vaex.legacy.Subspace(self.dataset, ["x", "y"], self.dataset.executor, False)
 		with self.assertRaises(NotImplementedError):
 			subspace.minmax()
 		with self.assertRaises(NotImplementedError):
