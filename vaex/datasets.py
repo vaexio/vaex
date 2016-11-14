@@ -3,7 +3,6 @@ import sys
 import vaex.utils
 import vaex as vx
 import os
-import pandas as pd
 #data_dir = "/tmp/vaex/data"
 import vaex.utils
 data_dir = vaex.utils.get_private_dir("data")
@@ -94,6 +93,7 @@ class NYCTaxi(object):
 		pass
 
 	def convert(self, force=False):
+		import pandas as pd
 		skips = ["store_and_fwd_flag"]
 		for i, (input, output) in enumerate(zip(self.filenames, self.filenames_vaex)):
 			date_names = ["tpep_pickup_datetime","tpep_dropoff_datetime"]
