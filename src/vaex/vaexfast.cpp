@@ -978,7 +978,11 @@ struct op_add_weight_moment_012 {
 
 
 template<typename OP, typename ENDIAN>
-void statisticNd(const double* const __restrict__ blocks[], const double* const __restrict__ weights, long long block_length, const int dimensions, double* const __restrict__ counts, const long long * const __restrict__ count_strides, const int * const __restrict__ count_sizes, const double* const __restrict__ minima, const double* const __restrict__ maxima) {
+void statisticNd(
+    const double* const __restrict__ blocks[], const double* const __restrict__ weights, long long block_length,
+    const int dimensions, double* const __restrict__ counts, const long long * const __restrict__ count_strides,
+    const int * const __restrict__ count_sizes,
+    const double* const __restrict__ minima, const double* const __restrict__ maxima) {
 //void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, double* counts, const int counts_length_x, const int counts_length_y, const int counts_length_z, const double xmin, const double xmax, const double ymin, const double ymax, const double zmin, const double zmax, long long const offset_x, long long const offset_y, long long const offset_z){
     OP op;
     ENDIAN endian;
@@ -987,10 +991,10 @@ void statisticNd(const double* const __restrict__ blocks[], const double* const 
 	for(int d = 0; d < dimensions; d++) {
 		scales[d] = 1 / (maxima[d] - minima[d]);
 	}
+	// the (gcc) compiler does better when we put the same statements in if's...
 	if(dimensions == 0) { // optimization.. can we generalize it?
         for(long long i = 0; i < block_length; i++) {
-            long long index = 0;
-            op(&weights[i], &counts[index]);
+            op(&weights[i], &counts[0]);
         }
     } else
 	if(dimensions == 1) { // optimization.. can we generalize it?
