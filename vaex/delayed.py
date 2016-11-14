@@ -1,6 +1,19 @@
 __author__ = 'maartenbreddels'
 import aplus
 
+"""
+Mini library to make working with promises/futures a bit more Python like.
+
+Example:
+
+@delayed
+def f(grid):
+	return grid**2
+
+f(ds.count(async=True))
+
+"""
+
 def promisify(value):
 	# TODO, support futures etc..
 	if isinstance(value, aplus.Promise):
