@@ -4565,7 +4565,7 @@ class Dataset(object):
 
 
 
-	def evaluate(self, expression, i1=None, i2=None, out=None):
+	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None):
 		"""Evaluate an expression, and return a numpy array with the results for the full column or a part of it.
 
 		Note that this is not how vaex should be used, since it means a copy of the data needs to fit in memory.
@@ -4577,6 +4577,7 @@ class Dataset(object):
 		:param int i2: End row index, default is the length of the dataset
 		:param ndarray out: Output array, to which the result may be written (may be used to reuse an array, or write to
 		a memory mapped array)
+		:param selection: selection to apply
 		:return:
 		"""
 		raise NotImplementedError
@@ -5793,14 +5794,18 @@ class DatasetLocal(Dataset):
 			datasets.extend([other])
 		return DatasetConcatenated(datasets)
 
-	def evaluate(self, expression, i1=None, i2=None, out=None):
+	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None):
 		"""The local implementation of :func:`Dataset.evaluate`"""
 		i1 = i1 or 0
 		i2 = i2 or len(self)
 		scope = _BlockScope(self, i1, i2, **self.variables)
 		if out is not None:
 			scope.buffers[expression] = out
-		return scope.evaluate(expression)
+		value = scope.evaluate(expression)
+		if selection is not None:
+			mask = self.evaluate_selection_mask(name, i1, i2)
+			value = value[mask]
+		return value
 
 	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False):
 		"""Exports the dataset to a vaex hdf5 file
