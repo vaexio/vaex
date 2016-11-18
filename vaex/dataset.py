@@ -5566,13 +5566,13 @@ class Dataset(object):
 		self.select(None, name=name)
 	#self.signal_selection_changed.emit(self)
 
-	def select_rectangle(self, expression_x, expression_y, limits, mode="replace"):
+	def select_rectangle(self, expression_x, expression_y, limits, mode="replace", name="default"):
 		(x1, x2), (y1, y2) = limits
 		xmin, xmax = min(x1, x2), max(x1, x2)
 		ymin, ymax = min(y1, y2), max(y1, y2)
 		args = (expression_x, xmin, expression_x, xmax, expression_y, ymin, expression_y, ymax)
 		expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
-		self.select(expression, mode=mode)
+		self.select(expression, mode=mode, name=name)
 
 	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", name="default", executor=None):
 		"""For performance reasons, a lasso selection is handled differently.
