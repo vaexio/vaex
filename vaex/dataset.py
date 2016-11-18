@@ -5763,6 +5763,16 @@ class DatasetLocal(Dataset):
 		else:
 			return self(arg)
 
+
+	def _hstack(self, other, prefix=None):
+		"""Join the columns of the other dataset to this one, assuming the ordering is the same"""
+		assert len(self) == len(other), "does not make sense to horizontally stack datasets with different lengths"
+		for name in other.get_column_names():
+			if prefix:
+				name = prefix + name
+			self.add_column(name, other.columns[name])
+
+
 	def concat(self, other):
 		"""Concatenates two datasets, adding the rows of one the other dataset to the current, returned in a new dataset.
 
