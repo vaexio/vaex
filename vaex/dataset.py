@@ -5803,7 +5803,7 @@ class DatasetLocal(Dataset):
 			scope.buffers[expression] = out
 		value = scope.evaluate(expression)
 		if selection is not None:
-			mask = self.evaluate_selection_mask(name, i1, i2)
+			mask = self.evaluate_selection_mask(selection, i1, i2)
 			value = value[mask]
 		return value
 
