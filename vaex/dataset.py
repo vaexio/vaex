@@ -2033,7 +2033,7 @@ class Dataset(object):
 		expr = "%s/%s" % (healpix_expression, scaling)
 		binby = [expr] + ([] if binby is None else _ensure_list(binby))
 		shape = (nmax,) + _expand_shape(shape, len(binby)-1)
-		limits = [[0, nmax]] + ([] if limits is None else limits)
+		limits = [[-0.5, nmax-0.5]] + ([] if limits is None else limits)
 		return self.count(expression, binby=binby, limits=limits, shape=shape, async=async, progress=progress, selection=selection)
 
 	def healpix_plot(self, healpix_expression="source_id/34359738368", healpix_max_level=12, healpix_level=8, what="count(*)", selection=None,
@@ -2075,7 +2075,7 @@ class Dataset(object):
 			#print nmax, np.sqrt(nmax)
 			scaling = 4**reduce_level
 			#print nmax
-			grid = self._stat(what=what, binby="%s/%s" % (healpix_expression, scaling), limits=[0., nmax], shape=nmax, selection=selection)
+			grid = self._stat(what=what, binby="%s/%s" % (healpix_expression, scaling), limits=[-0.5, nmax-0.5], shape=nmax, selection=selection)
 		if grid_limits:
 			grid_min, grid_max = grid_limits
 		else:

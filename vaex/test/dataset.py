@@ -140,6 +140,22 @@ class TestDataset(unittest.TestCase):
 		ds.count()
 		ds.count(binby=["x", "y"])
 
+	def test_healpix_count(self):
+		# only test when healpy is present
+		try:
+			import healpy as hp
+		except ImportError:
+			return
+		for order in [0,1,2,4,6]:
+			nside = hp.order2nside(order)
+			npix = hp.nside2npix(nside)
+			healpix = np.arange(npix)
+			ds = vx.from_arrays("test", healpix=healpix)
+			counts = ds.healpix_count(healpix_expression="healpix", healpix_max_level=order, healpix_level=order)
+			ones = np.ones(npix)
+			np.testing.assert_array_almost_equal(counts, ones)
+			self.assertEqual(counts.sum(), npix)
+
 	def test_uncertainty_propagation(self):
 
 		N = 100000
