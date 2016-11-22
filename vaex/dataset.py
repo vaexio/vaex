@@ -3470,6 +3470,32 @@ class Dataset(object):
 		s = finish(grids)
 		return self._async(async, s)
 
+	def scatter(self, x, y, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, **kwargs):
+		"""Convenience wrapper around pylab.scatter when for working with small datasets or selections
+
+		:param x: Expression for x axis
+		:param y: Idem for y
+		:param s_expr: When given, use if for the s (size) argument of pylab.scatter
+		:param c_expr: When given, use if for the c (color) argument of pylab.scatter
+		:param selection: Single selection expression, or None
+		:param length_limit: maximum number of rows it will plot
+		:param length_check: should we do the maximum row check or not?
+		:param kwargs: extra arguments passed to pylab.scatter
+		:return:
+		"""
+		import pylab as plt
+		if length_check:
+			count = self.count(selection=selection)
+			if count > length_limit:
+				raise ValueError("the number of rows (%d) is above the limit (%d), pass length_check=False, or increase length_limit" % (count, length_limit))
+		x = self.evaluate(x, selection=selection)
+		y = self.evaluate(y, selection=selection)
+		if s_expr:
+			kwargs["s"] = self.evaluate(s_expr, selection=selection)
+		if c_expr:
+			kwargs["c"] = self.evaluate(c_expr, selection=selection)
+		return plt.scatter(x, y, **kwargs)
+
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
 	def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,
 			 normalize="normalize", normalize_axis="what",
