@@ -570,8 +570,8 @@ class DatasetRest(DatasetRemote):
 	def __call__(self, *expressions, **kwargs):
 		return SubspaceRemote(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
 
-	def evaluate(self, expression, i1=None, i2=None, out=None, async=False):
-		result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, async=async)
+	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, async=False):
+		result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, selection=selection, async=async)
 		# TODO: we ignore out
 		return result
 
