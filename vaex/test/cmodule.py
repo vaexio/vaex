@@ -34,6 +34,46 @@ class TestStatisticNd(unittest.TestCase):
 		print(grid)
 
 
+class TestGridInterpolate(unittest.TestCase):
+	def test_interpolate(self):
+		x = np.array([[0., 1.]])
+		y = np.array([2.])
+		vaex.vaexfast.grid_interpolate(x, y, 0.5)
+		self.assertEqual(y[0], 0.5)
+
+		x = np.array([[0.5, 0.5, 0.5, 0.5, 0.5, 1,1,1,1,1]])
+
+		vaex.vaexfast.grid_interpolate(x, y, 0.5)
+		self.assertEqual(y[0], 1./4)
+
+		x = np.array([[0, 0.5, 0.75, 1]])
+
+		vaex.vaexfast.grid_interpolate(x, y, 0.5)
+		self.assertEqual(y[0], 1./3)
+
+		vaex.vaexfast.grid_interpolate(x, y, 0.75)
+		self.assertEqual(y[0], 2./3)
+
+		vaex.vaexfast.grid_interpolate(x, y, 0.5+0.25/2)
+		self.assertEqual(y[0], 0.5)
+
+
+		x = np.array([[0, 0.5, 0.75, 1], [0.5, 0.5, 0.75, 1], [0, 0.5, 1.0, 1]])
+		y = np.array([2., 2., 2.])
+		vaex.vaexfast.grid_interpolate(x, y, 0.5)
+		np.testing.assert_array_almost_equal(y, np.array([1/3., 1./3/2, 1./3.]) )
+
+
+		x = np.array([[0, 0.5, 0.75, 1], [0.5, 0.5, 0.75, 1], [0, 0.5, 1.0, 1]])
+		vaex.vaexfast.grid_interpolate(x, y, 0.75)
+		np.testing.assert_array_almost_equal(y, np.array([2 / 3., 2./3, 1./2]))
+
+
+		print("#######")
+		x = np.array([[0, 0.5, 0.75, 1], [0.5, 0.5, 0.75, 1], [0, 0.5, 1.0, 1]])
+		vaex.vaexfast.grid_interpolate(x, y, 1.0)
+		np.testing.assert_array_almost_equal(y, np.array([1., 1, 5./6]))
+
 if __name__ == '__main__':
     unittest.main()
 

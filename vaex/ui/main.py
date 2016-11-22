@@ -10,6 +10,7 @@ import vaex.export
 import vaex.utils
 import vaex.promise
 import vaex.settings
+import vaex.remote
 
 import vaex.ui.qt as dialogs
 
@@ -188,7 +189,7 @@ class DatasetSelector(QtGui.QListWidget):
 		icon = self.icon
 		if hasattr(dataset, "filename"):
 			item.setToolTip("file: " +dataset.filename)
-		if isinstance(dataset, vaex.dataset.DatasetRemote):
+		if isinstance(dataset, vaex.remote.DatasetRemote):
 			icon = self.icon_server
 			item.setToolTip("source: " +dataset.path)
 		if isinstance(dataset, vaex.dataset.DatasetArrays):
@@ -1171,7 +1172,7 @@ class VaexApp(QtGui.QMainWindow):
 				#	self.dataset_selector.open(f)
 				#self.dataset_selector.open(os.path.join(application_path, "data/Aq-A-2-999-shuffled-fraction.hdf5"))
 				dataset_example = vaex.example(download=False)
-				if dataset_example:
+				if dataset_example is not None:
 					self.dataset_selector.add(dataset_example)
 		for pluginpath in [os.path.expanduser('~/.vaex/plugin')]:
 			logger.debug("pluginpath: %s" % pluginpath)

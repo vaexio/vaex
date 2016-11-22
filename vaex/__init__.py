@@ -69,14 +69,13 @@ __build_name__ = __full_name__ + "-" +version.osname
 
 
 import vaex.dataset
-import vaex.file
-import vaex.export
+#import vaex.file
+#import vaex.export
 
 import vaex.datasets
 #import vaex.plot
-from vaex.dataset import Dataset
-from vaex.remote import ServerRest
-del ServerRest, Dataset
+#from vaex.dataset import Dataset
+#del ServerRest, Dataset
 
 def app(*args, **kwargs):
 	"""Create a vaex app, the QApplication mainloop must be started.
@@ -127,6 +126,7 @@ def open(path, *args, **kwargs):
 		import vaex.distributed
 		return vaex.distributed.open(path, *args, **kwargs)
 	else:
+		import vaex.file
 		return vaex.file.open(path, *args, **kwargs)
 
 def open_many(filenames):
@@ -154,6 +154,7 @@ def from_samp(username=None, password=None):
 
 
 def from_astropy_table(table):
+	import vaex.file.other
 	return vaex.file.other.DatasetAstropyTable(table=table)
 
 def from_arrays(name="array", **arrays):
@@ -259,6 +260,7 @@ def server(url, **kwargs):
 	:return vaex.dataset.ServerRest: returns a server object, note that it does not connect to the server yet, so this will always succeed
 	:rtype: ServerRest
 	"""
+	from vaex.remote import ServerRest
 	url = urlparse(url)
 	if url.scheme == "ws":
 		websocket = True

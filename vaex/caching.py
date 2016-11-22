@@ -83,7 +83,7 @@ class NumpyFileDict(object): #collections.MutableMapping):
 			path = self.path(key)
 			return np.load(path)
 		else:
-			raise KeyError, key
+			raise KeyError(key)
 
 	def __setitem__(self, key, value):
 		logger.debug("set %r", key)
@@ -105,14 +105,14 @@ if __name__ == "__main__":
 	np_dict = NumpyFileDict()
 	#np_dict[(1,2)] = np.arange(10)
 	cache = Cache(2, missing=f, dict_value=np_dict)
-	print "cache[1,3] =", cache[(1, 3)], "..."
-	print "cache[1,13] =", cache[(1, 13)], "..."
-	print cache[(2, 3)]
-	print cache[(3, 4)]
-	print cache[(3, 5)]
-	print cache[(3, 6)]
-	print "keys", cache.keys()
+	print("cache[1,3] =", cache[(1, 3)], "...")
+	print("cache[1,13] =", cache[(1, 13)], "...")
+	print(cache[(2, 3)])
+	print(cache[(3, 4)])
+	print(cache[(3, 5)])
+	print(cache[(3, 6)])
+	print("keys", cache.keys())
 	for ar in np_dict:
-		print "-->", ar
+		print("-->", ar)
 
 

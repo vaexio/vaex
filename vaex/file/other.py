@@ -97,8 +97,9 @@ class DatasetMemoryMapped(DatasetLocal):
 	def close_files(self):
 		for name, file in self.file_map.items():
 			file.close()
-		for name, memmap in self.mapping_map.items():
-			memmap.close()
+		if vaex.utils.osname != "osx": # on osx this will give random bus errors
+			for name, memmap in self.mapping_map.items():
+				memmap.close()
 
 	def has_snapshots(self):
 		return len(self.rank1s) > 0

@@ -5,7 +5,7 @@ import logging
 import aplus
 from .delayed import delayed
 logger = logging.getLogger("vaex.distributed")
-
+import vaex.legacy
 """
 class sum:
     @classmethod
@@ -19,7 +19,7 @@ class sum:
         reduce(cls.reduce_one, x initial)
 def multi_map_reduce(self):
 """
-class SubspaceDistributed(vaex.dataset.Subspace):
+class SubspaceDistributed(vaex.legacy.Subspace):
     def toarray(self, list):
         return np.array(list)
 
