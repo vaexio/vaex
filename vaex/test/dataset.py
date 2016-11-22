@@ -930,11 +930,17 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [covar(x[:i], y[:i]), np.nan])
 
 
-	def t_est_percentile(self):
+	def test_percentile(self):
 		self.dataset.select("x < 5")
-		np.testing.assert_array_almost_equal(self.dataset.percentile("x", selection=None, percentile_limits="minmax"), np.median(self.x))
+		np.testing.assert_array_almost_equal(
+			self.dataset.percentile_approx(["x", "y"], selection=None, percentile_shape=20000),
+			[np.median(self.x), np.median(self.y)],
+			decimal=2)
+		np.testing.assert_array_almost_equal(
+			self.dataset.percentile_approx("x", selection=None, percentile_limits="minmax"),
+			np.median(self.x))
 		return
-		np.testing.assert_array_almost_equal(self.dataset.percentile("x", selection=True), np.median(self.x[:5]))
+		np.testing.assert_array_almost_equal(self.dataset.percentile_approx("x", selection=True), np.median(self.x[:5]))
 
 		# convert to float
 		x = self.dataset.columns["x"] = self.dataset.columns["x"] * 1.
