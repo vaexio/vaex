@@ -369,8 +369,8 @@
                 <h2 class="featurette-heading">Python example.</h2>
       Run <code>python</code></codfe>, and paste:
 <pre><code class="python">import vaex as vx
-dataset = vx.examples.helmi_de_zeeuw.get() # get a cup of coffee while this downloads
-dataset.plot("L", "E", f="log", show=True)
+dataset = vx.datasets.helmi_de_zeeuw.fetch() # get a cup of coffee while this downloads
+dataset.plot("Lz", "E", f="log1p", show=True)
 </code></pre>
 <a href="#" data-target="#myCarousel-code" data-slide-to="1">See next example, with a larger dataset</a>
               </div>
@@ -389,8 +389,8 @@ dataset.plot("L", "E", f="log", show=True)
               <h2 class="featurette-heading">Notebook example.</h2>
       From the IPython/Jupter notebook, run
 <pre><code class="python">import vaex as vx
-dataset = vx.examples.nyc_taxi.get() # get a cup of coffee while this downloads
-dataset.plot_bq("pickup_longitude","pickup_latitude", f="log")
+dataset = vx.datasets.nyctaxi_yellow_201x.fetch() # get a cup of coffee while this downloads
+dataset.plot_bq("pickup_longitude","pickup_latitude", f="log1p")
 </code></pre>
 The plot is interactive, meaning you can zoom in and out and the plot will be updated.
 You will need about, ~15BG or free memory for a proper performance, or replace <code>nyc_taxi</code> by <code>nyc_taxi_2015</code> for a subset.
@@ -460,16 +460,18 @@ You will need about, ~15BG or free memory for a proper performance, or replace <
                     See the <a href="http://www.cosmos.esa.int/web/gaia/home">Gaia Science Homepage for details</a>, and you may want to try the <a href="https://archives.esac.esa.int/gaia">Gaia Archive</a> for ADQL (SQL like) queries.
                 </li>
                 <li>
-                    Use a torrent client like <a href="https://transmissionbt.com/">transmission</a> to download the files, and keep seeding/sharing.
+                    If you use a torrent client like <a href="https://transmissionbt.com/">transmission</a> to download the files, please keep seeding/sharing.
                 </li>
             </ul>
             Data:
             <ul>
                 <li>
-                    Single hdf5 file, copy of <a href="http://cdn.gea.esac.esa.int/Gaia/gaia_source/fits/">full Gaia DR1 catalogue</a> in random row order: <a href="data/gaia-dr1.hdf5.torrent">gaia-dr1.hdf5.torrent</a>(342G).
+                    Single hdf5 file, copy of <a href="http://cdn.gea.esac.esa.int/Gaia/gaia_source/fits/">full Gaia DR1 catalogue</a> in random row order: <a href="data/gaia-dr1.hdf5.torrent">torrent</a> or <a href="https://goo.gl/xM9icm">direct download</a> (342G).
                 </li>
+		<li>
+			random 10% of the catalogue, useful for on your laptop: <a href="https://goo.gl/ZwUa0T">direct link</a> (35G).
                 <li>
-                    random 1% of the catalogue, useful for on your laptop: <a href="data/gaia-dr1-1percent.hdf5.torrent">gaia-dr1-1percent.hdf5.torrent</a> (<a href="http://129.125.6.22/gaia-dr1-1percent.hdf5">direct link</a>) (3.5G).
+                    random 1% of the catalogue, useful for on your laptop: <a href="data/gaia-dr1-1percent.hdf5.torrent">torrent</a> or <a href="https://goo.gl/uo2a2t">direct link</a> (3.4G).
                 </li>
                 <li>
                     All rows, but just l,b,ra,dec and g magnitude: <a href="data/gaia-dr1-essential.hdf5.torrent">gaia-dr1-essential.hdf5.torrent</a> (43G).
