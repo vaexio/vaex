@@ -1142,7 +1142,7 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 		double *counts_ptr = NULL;
 		try {
 			if(!PyList_Check(blocklist))
-				throw std::runtime_error("blocks is not a list of blocks");
+				throw Error("blocks is not a list of blocks");
 			dimensions = PyList_Size(blocklist);
 			dimensions_grid = dimensions + 1; // one dimension higher for multiple output values
 
@@ -1194,6 +1194,175 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 			}*/
 			Py_BEGIN_ALLOW_THREADS
 			statisticNd_wrap_template(block_ptrs, weights_ptr, block_length, dimensions, counts_ptr, count_strides, count_sizes, minima, maxima, block_native[0], op_code);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(Error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
+	}
+	return result;
+}
+
+double interpolate_1d(double* const __restrict__ grid, const int grid_size, double value) {
+    /**
+     * Say we have grid of size 3, with 4 edges:
+     *bin:    0   1   2
+     *      |   |   |   |
+     *edge: 0   1   2   3
+     * we have explicitly the cumulative count on the right of the bins, so at 1,2,3, and an implicit 0 on the left
+     *
+     */
+    int index_left = 0; // index of left edge, left holds it's value
+    int index_right = 1;// index of right edge, right holds it's value
+    int i = 1; // points to the value of the current right edge, so +1 gives the edge index
+    double left_y  = 0;
+    double right_y = grid[i-1];
+    //double next_y = grid[i-1];
+    //*
+    // y is the value of the right edge
+    // we will find the edge such that
+    int current_edge = 0;
+    double current_value = 0;
+    double next_value = grid[0];
+
+
+    while(1) {
+        //printf("left) %i %f %f\n", current_edge, left_y, value);
+        if(current_edge == grid_size) // at end
+            break;
+        if(next_value <= value) { // is next edge still smaller or equal?
+            bool exact_match = next_value == value;
+            current_edge += 1;
+            current_value = left_y = grid[current_edge-1];
+            next_value = grid[current_edge]; // TODO: is this ok... out of bounds check?
+            index_left = current_edge;
+            if(exact_match) { // for the left edge we stop at the first match
+                //printf("left exact) %i %f %f\n", current_edge, left_y, value);
+                break;
+            }
+        } else { // we found an index, such that the next edge has a larger value than 'value'
+            break;
+        }
+    }
+
+    right_y = left_y;
+    index_right = current_edge;
+
+    while(1) {
+        //printf("right) %i %f %f\n", current_edge, right_y, value);
+        if(current_edge == grid_size) // at end
+            break;
+        if(current_value <= value) { // the current satisfies this, so take the next
+            if((current_value == value) && (next_value > value)) {
+                break;
+            }
+            current_edge += 1;
+            current_value = right_y = grid[current_edge-1];
+            next_value = grid[current_edge]; // TODO: is this ok... out of bounds check?
+            index_right = current_edge;
+        } else {
+            break;
+        }
+    }
+
+    //printf("left/right) %f %f %f\n", left_y, right_y, value);
+    double x1 = ((double)index_left / grid_size);
+    double x2 = ((double)index_right / grid_size);
+    //printf("%f - %f\n", x1, x2);
+    //printf("%d - %d\n", index_left, index_right);
+    double x;
+    if(left_y == right_y)
+        x = (x1 + x2) / 2;
+    else if(index_left == index_right)
+        x = x1;
+    else
+        x = (value - left_y) / (right_y - left_y) * (x2 - x1) + x1;
+    //printf("x = %f\n", x);
+    return x;
+    //double sum = (index_left) + (index_right);
+    //return (sum/2) / (grid_size); // TODO: interpolate instead of taking center
+    /*/
+    return 1;
+    /**/
+}
+
+void grid_interpolate(const int dimensions,
+    double* const __restrict__ grid, const long long * const __restrict__ grid_strides, const int * const __restrict__ grid_sizes,
+    double* const __restrict__ output, const long long * const __restrict__ output_strides, const int * const __restrict__ output_sizes,
+    double value
+    ) {
+    long long length_1d = 1;//grid_strides[0];
+    for(int d = 0; d < dimensions; d++) {
+        length_1d *= grid_sizes[d];
+    }
+    //length_1d *= grid_strides[0];
+    /*for(int d = 0; d < dimensions+1; d++) {
+        printf("strides[%d] = %d size[%d] = %d\n", d, grid_strides[d], d, grid_sizes[d]);
+    }
+    for(int d = 0; d < dimensions; d++) {
+        printf("strides[%d] = %d\n", d, output_strides[d]);
+    }*/
+    //printf("length_1d = %d\n", length_1d);
+    //printf("output = %p\n", output);
+    for(long long int i = 0; i < length_1d; i++) {
+        //printf("i = %d\n", i);
+        double v = interpolate_1d(&grid[i*grid_strides[0]], grid_sizes[dimensions], value);
+        //printf("v = %f\n", v);
+        output[i] = v;
+    }
+
+}
+//void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, double* counts, const int counts_length_x, const int counts_length_y, const int counts_length_z, const double xmin, const double xmax, const double ymin, const double ymax, const double zmin, const double zmax, long long const offset_x, long long const offset_y, long long const offset_z){
+
+PyObject* grid_interpolate_(PyObject* self, PyObject* args) {
+	PyObject* result = NULL;
+	PyObject *grid_object, *output_object;
+	//double xmin, xmax, ymin, ymax, zmin, zmax;
+	//double minima[MAX_DIMENSIONS];
+	//double maxima[MAX_DIMENSIONS];
+	//int op_code;
+	double value;
+	if(PyArg_ParseTuple(args, "OOd",  &grid_object, &output_object, &value)) {
+		long long block_length = -1;
+
+		int grid_sizes[MAX_DIMENSIONS];
+		long long grid_strides[MAX_DIMENSIONS];
+		int output_sizes[MAX_DIMENSIONS];
+		long long output_strides[MAX_DIMENSIONS];
+
+		int dimensions = -1;
+		int dimensions_grid = -1;
+		double *block_ptrs[MAX_DIMENSIONS];
+		bool block_native[MAX_DIMENSIONS];
+
+		double *grid_ptr = NULL;
+		double *output_ptr = NULL;
+		try {
+			int dimensions_grid = -1;
+			object_to_numpyNd_nocopy(grid_ptr, grid_object, MAX_DIMENSIONS, dimensions_grid, &grid_sizes[0], &grid_strides[0]);
+
+			int dimensions_output = dimensions_grid-1;
+			object_to_numpyNd_nocopy(output_ptr, output_object, MAX_DIMENSIONS, dimensions_output, &output_sizes[0], &output_strides[0]);
+
+			for(int d = 0; d < dimensions_grid; d++) {
+				grid_strides[d] /= 8; // convert from byte stride to element stride
+			}
+			for(int d = 0; d < dimensions_output; d++) {
+				output_strides[d] /= 8; // convert from byte stride to element stride
+			}
+			if(!grid_ptr)
+				throw Error("grid is null");
+			if(!output_ptr)
+				throw Error("output is null");
+			//if(count_strides[dimensions_grid-1] != 1) {
+			//    throw Error("last dimension in grid should have stride of 1, not %i", count_strides[dimensions_grid-1]);
+			//}
+			/*if(weights != Py_None) {
+				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+			}*/
+			Py_BEGIN_ALLOW_THREADS
+	        grid_interpolate(dimensions_output, grid_ptr, grid_strides, grid_sizes, output_ptr, output_strides, output_sizes, value);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
@@ -1584,6 +1753,7 @@ static PyMethodDef pyvaex_functions[] = {
         {"histogram3d", (PyCFunction)histogram3d_, METH_VARARGS, ""},
         {"histogramNd", (PyCFunction)histogramNd_, METH_VARARGS, ""},
         {"statisticNd", (PyCFunction)statisticNd_, METH_VARARGS, ""},
+        {"grid_interpolate", (PyCFunction)grid_interpolate_, METH_VARARGS, ""},
         {"project", (PyCFunction)project_, METH_VARARGS, ""},
         {"pnpoly", (PyCFunction)pnpoly_, METH_VARARGS, ""},
         {"soneira_peebles", (PyCFunction)soneira_peebles_, METH_VARARGS, ""},

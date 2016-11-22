@@ -1555,6 +1555,20 @@ class Dataset(object):
 			   [ 7.45838367]])
 
 
+
+		0:1:0.1
+		1:1:0.2
+		2:1:0.3
+		3:1:0.4
+		4:1:0.5
+
+		5:1:0.6
+		6:1:0.7
+		7:1:0.8
+		8:1:0.9
+		9:1:1.0
+
+
 		:param expression: {expression}
 		:param binby: {binby}
 		:param limits: {limits}
@@ -1565,67 +1579,89 @@ class Dataset(object):
 		:param async: {async}
 		:return: {return_stat_scalar}
 		"""
+		waslist, [expressions,] = vaex.utils.listify(expression)
 		if not isinstance(binby, (tuple, list)):
 			binby = [binby]
 		else:
 			binby = binby
 		@delayed
 		def calculate(expression, shape, limits):
-			#print(binby + [expression], shape, limits)
-			task =  TaskStatistic(self, [expression] + binby, shape, limits, op=OP_ADD1, selection=selection)
-			self.executor.schedule(task)
-			return task
+			#task =  TaskStatistic(self, [expression] + binby, shape, limits, op=OP_ADD1, selection=selection)
+			#self.executor.schedule(task)
+			#return task
+			return self.count(binby=[expression] + binby, shape=shape, limits=limits, selection=selection, async=True)
 		@delayed
-		def finish(percentile_limits, *counts_list):
+		def finish(percentile_limits, counts_list):
 			medians = []
 			for i, counts in enumerate(counts_list):
-				counts = counts[0]
+				#print(counts, counts.shape)
+				#counts = counts[...,0]
 				#print("percentile_limits", percentile_limits)
 				#print("counts=", counts)
 				#print("counts shape=", counts.shape)
 				# F is the 'cumulative distribution'
-				F = np.cumsum(counts, axis=0)
-				# we'll fill empty values with nan later on..
-				ok = F[-1,...] > 0
-				F /= np.max(F, axis=(0))
-				#print(F[-1])
-				# find indices around 0.5 for each bin
-				i2 = np.apply_along_axis(lambda x: x.searchsorted(percentage/100., side='left'), axis = 0, arr = F)
-				i1 = i2 - 1
-				i1 = np.clip(i1, 0, percentile_shapes[i]-1)
-				i2 = np.clip(i2, 0, percentile_shapes[i]-1)
+				shape = counts.shape
+				#counts[-1] += 1
+				#print("shape", shape)
+				F = np.cumsum(counts, axis=-1).reshape((1,) + shape)
+				F /= len(self) #np.max(F, axis=(-1))
+				if 1:
+					#for i in range(len(counts)):
+					#	print(i, F[0,i])
+					#print(counts.shape, F.shape)
+					#print("counts", counts, counts.dtype)
+					#print(F)
+					y = np.zeros((1,) + shape[:-1])
+					vaex.vaexfast.grid_interpolate(F, y, percentage/100.)
+					#print("fraction", percentage/100.)
+					#print("y = ", y, y * shape[0], shape[0])
+					#print("y >>> ", y * (percentile_limits[i][1] - percentile_limits[i][0]) + percentile_limits[i][0])
+					#return 0
+					#print(percentile_limits)
+					#dx = (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[0]-1)
+					medians.append(y[0] * (percentile_limits[i][1] - percentile_limits[i][0]) + percentile_limits[i][0])
+				else:
+					# we'll fill empty values with nan later on..
+					ok = F[...,-1] > 0
+					#F /= np.max(F, axis=(0))
+					#print(F[-1])
+					# find indices around 0.5 for each bin
+					i2 = np.apply_along_axis(lambda x: x.searchsorted(percentage/100., side='left'), axis = -1, arr = F)
+					i1 = i2 - 1
+					i1 = np.clip(i1, 0, percentile_shapes[i]-1)
+					i2 = np.clip(i2, 0, percentile_shapes[i]-1)
 
-				# interpolate between i1 and i2
-				#print("cum", F)
-				#print("i1", i1)
-				#print("i2", i2)
-				pmin, pmax = percentile_limits[i]
+					# interpolate between i1 and i2
+					#print("cum", F)
+					#print("i1", i1)
+					#print("i2", i2)
+					pmin, pmax = percentile_limits[i]
 
-				# np.choose seems buggy, use the equivalent code instead
-				#a = i1
-				#c = F
-				F1 = np.array([F[i1[I]][I] for I in np.ndindex(i1.shape)])
-				F1 = F1.reshape(F.shape[1:])
+					# np.choose seems buggy, use the equivalent code instead
+					#a = i1
+					#c = F
+					F1 = np.array([F[i1[I]][I] for I in np.ndindex(i1.shape)])
+					F1 = F1.reshape(F.shape[1:])
 
-				#a = i2
-				F2 = np.array([F[i2[I]][I] for I in np.ndindex(i2.shape)])
-				F2 = F2.reshape(F.shape[1:])
+					#a = i2
+					F2 = np.array([F[i2[I]][I] for I in np.ndindex(i2.shape)])
+					F2 = F2.reshape(F.shape[1:])
 
-				#print("F1,2", F1, F2)
+					#print("F1,2", F1, F2)
 
-				offset = (percentage/100.-F1)/(F2-F1)
-				median = pmin + (i1+offset) / float(percentile_shapes[i]-1.) * (pmax-pmin)
-				#print("offset", offset)
-				#print(pmin + (i1+offset) / float(percentile_shapes[i]-1.) * (pmax-pmin))
-				#print(pmin + (i1) / float(percentile_shapes[i]-1.) * (pmax-pmin))
-				#print(median)
+					offset = (percentage/100.-F1)/(F2-F1)
+					median = pmin + (i1+offset) / float(percentile_shapes[i]-1.) * (pmax-pmin)
+					#print("offset", offset)
+					#print(pmin + (i1+offset) / float(percentile_shapes[i]-1.) * (pmax-pmin))
+					#print(pmin + (i1) / float(percentile_shapes[i]-1.) * (pmax-pmin))
+					#print(median)
 
-				# empty values should be set to nan
-				median[~ok] = np.nan
-				medians.append(median)
-			value = np.array(vaex.utils.unlistify(waslist, medians))
-			return value
-		waslist, [expressions, ] = vaex.utils.listify(expression)
+					# empty values should be set to nan
+					median[~ok] = np.nan
+					medians.append(median)
+			medians = np.array(medians)
+			#value = np.array(vaex.utils.unlistify(waslist, medians))
+			return medians
 		shape = _expand_shape(shape, len(binby))
 		percentile_shapes = _expand_shape(percentile_shape, len(expressions))
 		if percentile_limits:
@@ -1634,13 +1670,17 @@ class Dataset(object):
 		percentile_limits = self.limits(expressions, percentile_limits, selection=selection, async=True)
 		@delayed
 		def calculation(limits, percentile_limits):
-			tasks = [calculate(expression, (percentile_shape, ) + tuple(shape), list(percentile_limits) + list(limits))
+			tasks = [calculate(expression, tuple(shape) + (percentile_shape, ), list(limits) + list(percentile_limit))
 					 for    percentile_shape,  percentile_limit, expression
 					 in zip(percentile_shapes, percentile_limits, expressions)]
 			return finish(percentile_limits, delayed_args(*tasks))
 			#return tasks
 		result = calculation(limits, percentile_limits)
-		return self._async(async, result)
+		@delayed
+		def finish2(grid):
+			value = vaex.utils.unlistify(waslist, np.array(grid))
+			return value
+		return self._async(async, finish2(result))
 
 	def _async(self, async, task, progressbar=False):
 		if async:
