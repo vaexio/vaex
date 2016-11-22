@@ -587,6 +587,8 @@ class TestDataset(unittest.TestCase):
 			z = self.dataset.evaluate("z")
 			z_test = x + t * y
 			np.testing.assert_array_almost_equal(z, z_test)
+		x = self.dataset.evaluate("x", selection="x < 4")
+		self.assertEqual(x.tolist(), x[:4].tolist())
 
 
 	def test_subspace_errors(self):

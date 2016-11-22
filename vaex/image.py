@@ -105,3 +105,55 @@ def blend(image_list, blend_mode="multiply"):
 		rgba = (rgba*255).astype(np.uint8)
 	return rgba
 
+def monochrome(I, color, vmin=None, vmax=None):
+	"""Turns a intensity array to a monochrome 'image' by replacing each intensity by a scaled 'color'
+
+	Values in I between vmin  and vmax get scaled between 0 and 1, and values outside this range are clipped to this.
+
+	Example
+	>>> I = np.arange(16.).reshape(4,4)
+	>>> color = (0, 0, 1) # red
+	>>> rgb = vx.image.monochrome(I, color) # shape is (4,4,3)
+
+	:param I: ndarray of any shape (2d for image)
+	:param color: sequence of a (r, g and b) value
+	:param vmin: normalization minimum for I, or np.nanmin(I) when None
+	:param vmax: normalization maximum for I, or np.nanmax(I) when None
+	:return:
+	"""
+	if vmin is None:
+		vmin = np.nanmin(I)
+	if vmax is None:
+		vmax = np.nanmax(I)
+	normalized = (I - vmin) / (vmax - vmin)
+	return np.clip(normalized[...,np.newaxis], 0, 1) * np.array(color)
+
+def polychrome(I, colors, vmin=None, vmax=None, axis=-1):
+	"""Similar to monochrome, but now do it for multiple colors
+
+	Example
+	>>> I = np.arange(32.).reshape(4,4,2)
+	>>> colors = [(0, 0, 1), (0, 1, 0)] # red and green
+	>>> rgb = vx.image.polychrome(I, colors) # shape is (4,4,3)
+
+	:param I: ndarray of any shape (3d will result in a 2d image)
+	:param colors: sequence of [(r,g,b), ...] values
+	:param vmin: normalization minimum for I, or np.nanmin(I) when None
+	:param vmax: normalization maximum for I, or np.nanmax(I) when None
+	:param axis: axis which to sum over, by default the last
+	:return:
+	"""
+	axes_length = len(I.shape)
+	allaxes = list(range(axes_length))
+	otheraxes = list(allaxes)
+	otheraxes.remove((axis + axes_length) % axes_length)
+	otheraxes = tuple(otheraxes)
+
+	if vmin is None:
+		vmin = np.nanmin(I, axis=otheraxes)
+	if vmax is None:
+		vmax = np.nanmax(I, axis=otheraxes)
+	normalized = (I - vmin) / (vmax - vmin)
+	return np.clip(normalized, 0, 1).dot(colors)
+
+#c_r + c_g + c_b

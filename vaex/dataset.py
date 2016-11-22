@@ -2183,6 +2183,32 @@ class Dataset(object):
 		s = finish(grids)
 		return self._async(async, s)
 
+	def scatter(self, x, y, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, **kwargs):
+		"""Convenience wrapper around pylab.scatter when for working with small datasets or selections
+
+		:param x: Expression for x axis
+		:param y: Idem for y
+		:param s_expr: When given, use if for the s (size) argument of pylab.scatter
+		:param c_expr: When given, use if for the c (color) argument of pylab.scatter
+		:param selection: Single selection expression, or None
+		:param length_limit: maximum number of rows it will plot
+		:param length_check: should we do the maximum row check or not?
+		:param kwargs: extra arguments passed to pylab.scatter
+		:return:
+		"""
+		import pylab as plt
+		if length_check:
+			count = self.count(selection=selection)
+			if count > length_limit:
+				raise ValueError("the number of rows (%d) is above the limit (%d), pass length_check=False, or increase length_limit" % (count, length_limit))
+		x = self.evaluate(x, selection=selection)
+		y = self.evaluate(y, selection=selection)
+		if s_expr:
+			kwargs["s"] = self.evaluate(s_expr, selection=selection)
+		if c_expr:
+			kwargs["c"] = self.evaluate(c_expr, selection=selection)
+		return plt.scatter(x, y, **kwargs)
+
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
 	def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,
 			 normalize="normalize", normalize_axis="what",
@@ -3280,7 +3306,7 @@ class Dataset(object):
 
 
 
-	def evaluate(self, expression, i1=None, i2=None, out=None):
+	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None):
 		"""Evaluate an expression, and return a numpy array with the results for the full column or a part of it.
 
 		Note that this is not how vaex should be used, since it means a copy of the data needs to fit in memory.
@@ -3292,6 +3318,7 @@ class Dataset(object):
 		:param int i2: End row index, default is the length of the dataset
 		:param ndarray out: Output array, to which the result may be written (may be used to reuse an array, or write to
 		a memory mapped array)
+		:param selection: selection to apply
 		:return:
 		"""
 		raise NotImplementedError
@@ -4282,13 +4309,13 @@ class Dataset(object):
 		self.select(None, name=name)
 	#self.signal_selection_changed.emit(self)
 
-	def select_rectangle(self, expression_x, expression_y, limits, mode="replace"):
+	def select_rectangle(self, expression_x, expression_y, limits, mode="replace", name="default"):
 		(x1, x2), (y1, y2) = limits
 		xmin, xmax = min(x1, x2), max(x1, x2)
 		ymin, ymax = min(y1, y2), max(y1, y2)
 		args = (expression_x, xmin, expression_x, xmax, expression_y, ymin, expression_y, ymax)
 		expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
-		self.select(expression, mode=mode)
+		self.select(expression, mode=mode, name=name)
 
 	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", name="default", executor=None):
 		"""For performance reasons, a lasso selection is handled differently.
@@ -4480,6 +4507,16 @@ class DatasetLocal(Dataset):
 		else:
 			return self(arg)
 
+
+	def _hstack(self, other, prefix=None):
+		"""Join the columns of the other dataset to this one, assuming the ordering is the same"""
+		assert len(self) == len(other), "does not make sense to horizontally stack datasets with different lengths"
+		for name in other.get_column_names():
+			if prefix:
+				name = prefix + name
+			self.add_column(name, other.columns[name])
+
+
 	def concat(self, other):
 		"""Concatenates two datasets, adding the rows of one the other dataset to the current, returned in a new dataset.
 
@@ -4500,14 +4537,18 @@ class DatasetLocal(Dataset):
 			datasets.extend([other])
 		return DatasetConcatenated(datasets)
 
-	def evaluate(self, expression, i1=None, i2=None, out=None):
+	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None):
 		"""The local implementation of :func:`Dataset.evaluate`"""
 		i1 = i1 or 0
 		i2 = i2 or len(self)
 		scope = _BlockScope(self, i1, i2, **self.variables)
 		if out is not None:
 			scope.buffers[expression] = out
-		return scope.evaluate(expression)
+		value = scope.evaluate(expression)
+		if selection is not None:
+			mask = self.evaluate_selection_mask(selection, i1, i2)
+			value = value[mask]
+		return value
 
 	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False):
 		"""Exports the dataset to a vaex hdf5 file

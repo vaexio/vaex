@@ -195,9 +195,21 @@ def from_pandas(df, name="pandas"):
 	>>> df = pd.from_csv("test.csv")
 	>>> ds = vx.from_pandas(df, name="test")
 	"""
+	import six
 	dataset = vaex.dataset.DatasetArrays(name)
 	for name in df.columns:
-		dataset.add_column(name, df[name].values)
+		values = df[name].values
+		if isinstance(values[0], six.string_types):
+			values = values.astype("S")
+		try:
+			dataset.add_column(name, values)
+		except Exception as e:
+			print("could not convert column %s, error: %r, will try to convert it to string" % (name, e))
+			try:
+				values = values.astype("S")
+				dataset.add_column(name, values)
+			except Exception as e:
+				print("Giving up column %s, error: %r" (name, e))
 	return dataset
 
 def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **kwargs):
