@@ -56,11 +56,11 @@ class NYCTaxi(object):
 
 	@property
 	def filenames(self):
-		return map(lambda url: _url_to_filename(url, subdir=self.subdir), self.url_list)
+		return list(map(lambda url: _url_to_filename(url, subdir=self.subdir), self.url_list))
 
 	@property
 	def filenames_vaex(self):
-		return map(lambda x: _url_to_filename(x, ".hdf5", subdir=self.subdir), self.url_list)
+		return list(map(lambda x: _url_to_filename(x, ".hdf5", subdir=self.subdir), self.url_list))
 
 	def fetch(self):
 		ds = self.fetch_multi()
