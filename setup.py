@@ -172,8 +172,9 @@ defines = []
 if "darwin" in platform.system().lower():
 	extra_compile_args = ["-mfpmath=sse", "-O3", "-funroll-loops"]
 else:
+	extra_compile_args = []
 	#extra_compile_args = ["-mfpmath=sse", "-msse4", "-Ofast", "-flto", "-march=native", "-funroll-loops"]
-	extra_compile_args = ["-mfpmath=sse", "-msse4", "-Ofast", "-flto", "-funroll-loops"]
+	#extra_compile_args = ["-mfpmath=sse", "-msse4", "-Ofast", "-flto", "-funroll-loops"]
 	#extra_compile_args = ["-mfpmath=sse", "-O3", "-funroll-loops"]
 	#extra_compile_args = ["-mfpmath=sse", "-mavx", "-O3", "-funroll-loops"]
 	extra_compile_args = ["-mfpmath=sse", "-msse4a", "-O3", "-funroll-loops"]
