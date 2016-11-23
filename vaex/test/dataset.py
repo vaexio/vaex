@@ -429,6 +429,31 @@ class TestDataset(unittest.TestCase):
 
 		self.assertEqual(self.dataset.subspace("x", "y").expressions, self.dataset("x", "y").expressions)
 
+	def test_mutual_information(self):
+		limits = self.dataset.limits(["x", "y"], "minmax")
+		subspace = self.dataset("x", "y")
+		mi1 = subspace.mutual_information(limits=limits, size=256)
+
+		mi2 = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256)
+
+		self.assertEqual(mi1, mi2)
+
+		# no test, just for coverage
+		mi1d = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby="x", limits=[0, 10], shape=2)
+		self.assertEqual(mi1d.shape, (2,))
+
+		mi2d = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y"], limits=[[0, 10], [0, 100]], shape=(2, 3))
+		self.assertEqual(mi2d.shape, (2,3))
+
+		mi3d = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y", "z"], limits=[[0, 10], [0, 100], [-100, 100]], shape=(2, 3, 4))
+		self.assertEqual(mi3d.shape, (2,3,4))
+
+
+		mi_list, subspaces = self.dataset.mutual_information([["x", "y"], ["x", "z"]], sort=True)
+		mi1 = self.dataset.mutual_information("x", "y")
+		mi2 = self.dataset.mutual_information("x", "z")
+		self.assertEqual(mi_list.tolist(), list(sorted([mi1, mi2])))
+
 	def test_subspaces(self):
 		dataset = vaex.from_arrays("arrays", x=np.array([1]), y=np.array([2]), z=np.array([3]))
 		subspaces = dataset.subspaces(dimensions=2)
@@ -1420,6 +1445,14 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(total_subset_inverse + total_subset, total)
 
 
+		self.dataset.select("x > 5")
+		self.dataset.select("x <= 5", name="inverse")
+		self.dataset.select_inverse(name="inverse")
+		counts = self.dataset.count("x", selection=["default", "inverse"])
+		np.testing.assert_array_almost_equal(counts, [4, 4])
+
+
+
 		pass # TODO
 
 	def test_selection_in_handler(self):
@@ -1508,7 +1541,6 @@ class TestDataset(unittest.TestCase):
 		self.assertTrue(self.dataset.selection_can_redo())
 
 	def test_selection_serialize(self):
-		selection_lasso = vaex.dataset.SelectionLasso(self.dataset, "x", "y", [0, 10, 0], [-1, -1, 1], None, "replace")
 		selection_expression = vaex.dataset.SelectionExpression(self.dataset, "x > 5", None, "and")
 		self.dataset.set_selection(selection_expression)
 		total_subset = self.dataset("x").selected().sum()
@@ -1521,6 +1553,13 @@ class TestDataset(unittest.TestCase):
 		self.dataset.set_selection(vaex.dataset.selection_from_dict(self.dataset, values))
 		total_subset_same2 = self.dataset("x").selected().sum()
 		self.assertEqual(total_subset, total_subset_same2)
+
+		selection_expression = vaex.dataset.SelectionExpression(self.dataset, "x > 5", None, "and")
+		selection_lasso = vaex.dataset.SelectionLasso(self.dataset, "x", "y", [0, 10, 10, 0], [-1, -1, 100, 100], selection_expression, "and")
+		self.dataset.set_selection(selection_lasso)
+		total_2 = self.dataset.sum("x", selection=True)
+		self.assertEqual(total_2, total_subset)
+
 
 
 	def test_nearest(self):
@@ -1626,8 +1665,8 @@ class TestDatasetRemote(TestDataset):
 	def test_byte_size(self):
 		pass # we don't know the selection's length for dataset remote..
 
-	def test_selection(self):
-		pass
+	#def test_selection(self):
+	#	pass
 
 	#def test_count(self):
 	#	pass
