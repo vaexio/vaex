@@ -500,42 +500,24 @@ class _BlockScopeSelection(object):
 			import traceback as tb
 			tb.print_stack()
 			raise
-		#if selection is None:
-		selection = self.get_selection(name)
-		#if selection is None:
-		#	return None
-		cache = self._selection_mask_caches.get(expression)
-		if cache:
-			key = (i1, i2)
-			value = cache.get(key)
-			logger.debug("cache for %r is %r", name, value)
-			if value is None or value[0] != selection:
-				logger.debug("creating new mask")
-				mask = selection.evaluate(name, i1, i2)
-				cache[key] = selection, mask
-			else:
-				selection_in_cache, mask = value
-		return mask
-		result = eval(expression, expression_namespace, self)
-		return result
 
 	def __getitem__(self, variable):
-		logger.debug("getitem for selection: %s", variable)
+		#logger.debug("getitem for selection: %s", variable)
 		try:
 			selection = self.selection or self.dataset.get_selection(variable)
-			logger.debug("selection: %s %r", selection, self.dataset.selection_histories)
+			#logger.debug("selection for %r: %s %r", variable, selection, self.dataset.selection_histories)
 			key = (self.i1, self.i2)
 			if selection:
-				cache = self.dataset._selection_mask_caches.get(variable)
-				if cache:
-					selection_in_cache, mask = cache.get(key, (None, None))
-					logger.debug("mask for %r is %r", variable, mask)
-					if selection_in_cache == selection:
-						return mask
-				logger.debug("was not cached")
+				cache = self.dataset._selection_mask_caches[variable]
+				#logger.debug("selection cache: %r" % cache)
+				selection_in_cache, mask = cache.get(key, (None, None))
+				#logger.debug("mask for %r is %r", variable, mask)
+				if selection_in_cache == selection:
+					return mask
+				#logger.debug("was not cached")
 				mask = selection.evaluate(variable, self.i1, self.i2)
-				if cache:
-					cache[key] = selection, mask
+				#logger.debug("put selection in mask with key %r" % (key,))
+				cache[key] = selection, mask
 				return mask
 			else:
 					if variable in expression_namespace:
