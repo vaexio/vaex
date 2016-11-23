@@ -25,11 +25,22 @@ Using TOPCAT, you can convert many files efficiently to a single colfits file fr
 From Python
 -----------
 
-Using the following methods, you can convert Pandas dataframes, ascii (whitespace or comma seperated) files, or from numpy arrays.
+Using the following methods, you can convert Pandas dataframes, ascii (whitespace or comma seperated) files, or numpy arrays to vaex datasets.
 
 * `vx.from_pandas <api.html#vaex.from_pandas>`_ .
 * `vx.from_ascii <api.html#vaex.from_ascii>`_ .
 * `vx.from_arrays <api.html#vaex.from_arrays>`_ .
+
+Then using the `vx.export_hdf5 <api.html#vaex.dataset.DatasetLocal.export_hdf5>`_ method to export it to a singe hdf5 file, e.g.:
+
+.. code-block:: python
+
+    import vaex as vx
+    import numpy as np
+    x = np.arange(0, 100)
+    ds = vx.from_arrays("test-dataset", x=x, y=x**2)
+    ds.export_hdf5("/tmp/test.hdf5", progress=True)
+
 
 
 Producing a hdf5 file
