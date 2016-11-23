@@ -902,20 +902,6 @@ class Dataset(object):
 		values = finish(delayed_list(has_limits(limits, mi_limits)))
 		return self._async(async, values)
 
-		if limits is None:
-			limits_done = Task.fulfilled(self.minmax())
-		else:
-			limits_done = Task.fulfilled(limits)
-		if grid is None:
-			if limits is None:
-				histogram_done = limits_done.then(lambda limits: self.histogram(limits, size=size))
-			else:
-				histogram_done = Task.fulfilled(self.histogram(limits, size=size))
-		else:
-			histogram_done = Task.fulfilled(grid)
-		mutual_information_promise = histogram_done.then(vaex.kld.mutual_information)
-		return mutual_information_promise if self.async else mutual_information_promise.get()
-
 	@docsubst
 	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Count the number of non-NaN values (or all, if expression is None or "*")
@@ -1809,36 +1795,6 @@ class Dataset(object):
 			return vaex.utils.unlistify(waslist, limits_outer)
 		return self._async(async, finish(limits_list))
 
-	def __minmax__old(self, expression, progressbar=False, selection=None):
-		waslist, expressions = vaex.utils.listify(expression)
-		subspace = self(*expressions)
-		if selection:
-			subspace = subspace.selected()
-		return vaex.utils.unlistify(waslist, subspace.minmax())
-
-	def histogram(self, expressions, limits, shape=256, weight=None, progressbar=False, selection=None):
-		subspace = self(*expressions)
-		if selection:
-			subspace = subspace.selected()
-		return subspace.histogram(limits=limits, size=shape, weight=weight)#, progressbar=progressbar)
-
-	def __mean_old(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
-		if len(binby) == 0:
-			subspace = self(expression)
-			if selection:
-				subspace = subspace.selected()
-			return subspace.mean()[0]
-		else:
-			# todo, fix progressbar into two...
-			limits = self.limits(binby, limits)
-			subspace = self(*binby)
-			if selection:
-				subspace = subspace.selected()
-			counts = self.count(expression, binby=binby, limits=limits, shape=shape, progressbar=progressbar, selection=selection)
-			summed = self.sum  (expression, binby=binby, limits=limits, shape=shape, progressbar=progressbar, selection=selection)
-			mean = summed/counts
-			mean[counts==0] = np.nan
-			return mean
 
 	def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
 		if len(binby) == 0:
@@ -1870,35 +1826,6 @@ class Dataset(object):
 			modes[~ok] = np.nan
 			return modes
 
-	def __sum_old(self, expression, binby=[], limits=None, shape=256, progressbar=False, selection=None):
-		if len(binby) == 0:
-			subspace = self(expression)
-			if selection:
-				subspace = subspace.selected()
-			return subspace.sum()[0]
-		else:
-			# todo, fix progressbar into two...
-			subspace = self(*binby)
-			if selection:
-				subspace = subspace.selected()
-			summed = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
-									weight=expression)
-			return summed
-
-	def __count_old(self, expression=None, binby=[], limits=None, shape=256, progressbar=False, selection=None):
-		if len(binby) == 0:
-			subspace = self("(%s)*0+1" % expression)
-			if selection:
-				subspace = subspace.selected()
-			return subspace.sum()[0]
-		else:
-			limits = self.limits(list(binby), limits)
-			subspace = self(*binby)
-			if selection:
-				subspace = subspace.selected()
-			summed = subspace.histogram(limits=limits, size=shape, progressbar=progressbar,
-									weight=("(%s)*0+1" % expression) if expression is not None else None)
-			return summed
 
 	def plot_bq(self, x, y, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
 			 aspect="auto", f="identity", fig=None, axes=None, xlabel=None, ylabel=None, title=None,
@@ -2777,22 +2704,6 @@ class Dataset(object):
 		#xmin, xmax = limits[0]
 		#return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
 		#pylab.ylim(-1, 6)
-
-	@property
-	def stat(self):
-		class StatList(object):
-			pass
-		statslist = StatList()
-		for name in self.get_column_names(virtual=True):
-			class Stats(object):
-				pass
-			stats = Stats()
-			for f in _functions_statistics_1d:
-				fname = f.__name__
-				p = property(lambda self, name=name, f=f, ds=self: f(ds, name))
-				setattr(Stats, fname, p)
-			setattr(statslist, name, stats)
-		return statslist
 
 	@property
 	def col(self):
