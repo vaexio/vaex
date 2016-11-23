@@ -97,7 +97,9 @@ class DatasetMemoryMapped(DatasetLocal):
 	def close_files(self):
 		for name, file in self.file_map.items():
 			file.close()
-		if vaex.utils.osname != "osx": # on osx this will give random bus errors
+		# on osx and linux this will give random bus errors (osx) or segfaults (linux)
+		# on win32 however, we'll run out of file handles
+		if vaex.utils.osname not in ["osx", "linux"]:
 			for name, memmap in self.mapping_map.items():
 				memmap.close()
 
