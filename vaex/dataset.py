@@ -602,30 +602,6 @@ class SelectionExpression(Selection):
 		return mask
 
 
-	def execute(self, executor, execute_fully=False):
-		super(SelectionExpression, self).execute(executor=executor, execute_fully=execute_fully)
-		mode_function = _select_functions[self.mode]
-		if self.boolean_expression is None:
-			self.dataset._set_mask(None)
-			promise = vaex.promise.Promise()
-			promise.fulfill(None)
-			return promise
-		else:
-			logger.debug("executing selection: %r, mode: %r", self.boolean_expression, self.mode)
-			mask = np.zeros(len(self.dataset), dtype=np.bool)
-			def map(thread_index, i1, i2, block):
-				mask[i1:i2] = mode_function(None if self.dataset.mask is None else self.dataset.mask[i1:i2], block == 1)
-				return 0
-			def reduce(*args):
-				None
-			expr = self.dataset(self.boolean_expression, executor=executor)
-			task = TaskMapReduce(self.dataset, [self.boolean_expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
-			def apply_mask(*args):
-				#print "Setting mask"
-				self.dataset._set_mask(mask)
-			task.then(apply_mask)
-			return expr._task(task)
-
 class SelectionInvert(Selection):
 	def __init__(self, dataset, previous_selection):
 		super(SelectionInvert, self).__init__(dataset, previous_selection, "")
@@ -639,33 +615,6 @@ class SelectionInvert(Selection):
 	def evaluate(self, name, i1, i2):
 		previous_mask = self.dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
 		return ~previous_mask
-
-
-	def execute(self, executor, execute_fully=False):
-		super(SelectionInvert, self).execute(executor=executor, execute_fully=execute_fully)
-		self.dataset.mask = ~self.dataset.mask
-		self.dataset._set_mask(self.dataset.mask)
-		return
-		if self.boolean_expression is None:
-			self.dataset._set_mask(None)
-			promise = vaex.promise.Promise()
-			promise.fulfill(None)
-			return promise
-		else:
-			logger.debug("executing selection: %r, mode: %r", self.boolean_expression, self.mode)
-			mask = np.zeros(len(self.dataset), dtype=np.bool)
-			def map(thread_index, i1, i2, block):
-				mask[i1:i2] = mode_function(None if self.dataset.mask is None else self.dataset.mask[i1:i2], block == 1)
-				return 0
-			def reduce(*args):
-				None
-			expr = self.dataset(self.boolean_expression, executor=executor)
-			task = TaskMapReduce(self.dataset, [self.boolean_expression], lambda thread_index, i1, i2, *blocks: [map(thread_index, i1, i2, block) for block in blocks], reduce, info=True)
-			def apply_mask(*args):
-				#print "Setting mask"
-				self.dataset._set_mask(mask)
-			task.then(apply_mask)
-			return expr._task(task)
 
 class SelectionLasso(Selection):
 	def __init__(self, dataset, boolean_expression_x, boolean_expression_y, xseq, yseq, previous_selection, mode):
@@ -697,28 +646,6 @@ class SelectionLasso(Selection):
 			mask = mode_function(previous_mask, current_mask)
 		return mask
 
-	def execute(self, executor, execute_fully=False):
-		super(SelectionLasso, self).execute(executor=executor, execute_fully=execute_fully)
-		mode_function = _select_functions[self.mode]
-		x, y = np.array(self.xseq, dtype=np.float64), np.array(self.yseq, dtype=np.float64)
-		meanx = x.mean()
-		meany = y.mean()
-		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
-
-		mask = np.zeros(len(self.dataset), dtype=np.bool)
-		def lasso(thread_index, i1, i2, blockx, blocky):
-			vaex.vaexfast.pnpoly(x, y, blockx, blocky, mask[i1:i2], meanx, meany, radius)
-			mask[i1:i2] = mode_function(None if self.dataset.mask is None else self.dataset.mask[i1:i2], mask[i1:i2])
-			return 0
-		def reduce(*args):
-			None
-		subspace = self.dataset(self.boolean_expression_x, self.boolean_expression_y, executor=executor)
-		task = TaskMapReduce(self.dataset, subspace.expressions, lambda thread_index, i1, i2, blockx, blocky: lasso(thread_index, i1, i2, blockx, blocky), reduce, info=True)
-		def apply_mask(*args):
-			#print "Setting mask"
-			self.dataset._set_mask(mask)
-		task.then(apply_mask)
-		return subspace._task(task)
 
 	def to_dict(self):
 		previous = None
