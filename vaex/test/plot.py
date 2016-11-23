@@ -100,5 +100,15 @@ class TestPlot(unittest.TestCase):
 		with check_output("slice"):
 			self.dataset.plot("Lz", "E", z="FeH:-3,-1,10", show=True, visual=dict(row="z"), figsize=(12,8), f="log", wrap_columns=3);
 
+	def test_plot1d(self):
+		with check_output("plot1d"):
+			self.dataset.plot1d("Lz");
+
+	def test_healpix(self):
+		self.dataset.add_virtual_columns_cartesian_to_spherical()
+		self.dataset.add_column_healpix(longitude="l", latitude="b")
+		with check_output("plot_healpix"):
+			self.dataset.healpix_plot("healpix");
+
 if __name__ == '__main__':
     unittest.main()
