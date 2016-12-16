@@ -17,3 +17,14 @@ Vaex uses several sites:
 * Github for source, bugs, wiki, releases: https://github.com/maartenbreddels/vaex
 * Python Package Index for installing the source in your Python tree: https://pypi.python.org/pypi/vaex/
 * Documentation, similar to the homepage, but also has older versions: http://vaex.readthedocs.org/
+
+Installation
+============
+
+Using pip
+::
+ $ pip install --user --pre vaex
+
+Using conda
+::
+ conda install -c conda-forge vaex
