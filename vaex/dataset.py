@@ -406,7 +406,7 @@ class UnitScope(object):
 			raise KeyError("unkown variable %s" % variable)
 
 class _BlockScope(object):
-	def __init__(self, dataset, i1, i2, **variables):
+	def __init__(self, dataset, i1, i2, mask=None, **variables):
 		"""
 
 		:param DatasetLocal dataset: the *local*  dataset
@@ -421,6 +421,7 @@ class _BlockScope(object):
 		self.variables = variables
 		self.values = dict(self.variables)
 		self.buffers = {}
+		self.mask = mask if mask is not None else slice(None, None, None)
 
 	def move(self, i1, i2):
 		length_new = i2 - i1
@@ -463,15 +464,15 @@ class _BlockScope(object):
 		if variable in expression_namespace:
 			return expression_namespace[variable]
 		try:
-			if variable in self.dataset.get_column_names(strings=True):
+			if variable in self.values:
+				return self.values[variable]
+			elif variable in self.dataset.get_column_names(strings=True):
 				if self.dataset._needs_copy(variable):
 					#self._ensure_buffer(variable)
 					#self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
-					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
+					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask].astype(np.float64)
 				else:
-					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2]
-			elif variable in self.values:
-				return self.values[variable]
+					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask]
 			elif variable in list(self.dataset.virtual_columns.keys()):
 				expression = self.dataset.virtual_columns[variable]
 				#self._ensure_buffer(variable)
@@ -525,6 +526,8 @@ class _BlockScopeSelection(object):
 						return expression_namespace[variable]
 					elif variable in self.dataset.get_column_names(strings=True):
 						return self.dataset.columns[variable][self.i1:self.i2]
+					elif variable in self.dataset.variables:
+						return self.dataset.variables[variable]
 					elif variable in list(self.dataset.virtual_columns.keys()):
 						expression = self.dataset.virtual_columns[variable]
 						#self._ensure_buffer(variable)
@@ -574,7 +577,7 @@ class SelectionExpression(Selection):
 			previous_mask = self.dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
 		else:
 			previous_mask = None
-		current_mask = self.dataset.evaluate(self.boolean_expression, i1, i2).astype(np.bool)
+		current_mask = self.dataset.evaluate_selection_mask(self.boolean_expression, i1, i2).astype(np.bool)
 		if previous_mask is None:
 			logger.debug("setting mask")
 			mask = current_mask
@@ -4381,13 +4384,12 @@ class DatasetLocal(Dataset):
 		"""The local implementation of :func:`Dataset.evaluate`"""
 		i1 = i1 or 0
 		i2 = i2 or len(self)
-		scope = _BlockScope(self, i1, i2, **self.variables)
+		mask = self.evaluate_selection_mask(selection, i1, i2) if selection is not None else None
+		scope = _BlockScope(self, i1, i2, mask=mask, **self.variables)
+		#	value = value[mask]
 		if out is not None:
 			scope.buffers[expression] = out
 		value = scope.evaluate(expression)
-		if selection is not None:
-			mask = self.evaluate_selection_mask(selection, i1, i2)
-			value = value[mask]
 		return value
 
 	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False):
