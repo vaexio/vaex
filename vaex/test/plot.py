@@ -34,6 +34,9 @@ class check_output(object):
 		pass
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
+		if exc_type is not None:
+			plt.close()
+			return
 		fn = tempfile.mktemp(".png")
 		plt.savefig(fn)
 		if not os.path.exists(self.fn):
