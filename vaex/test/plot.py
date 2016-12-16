@@ -48,7 +48,7 @@ class check_output(object):
 		diff = PIL.ImageChops.difference(image1, image2)
 		extrema = diff.getextrema()
 		for i, (vmin, vmax) in enumerate(extrema):
-			msg = "difference found between {im1} and {im2} in band {band}\n $ cp {im1} {im2}".format(im1=self.fn, im2=fn,
+			msg = "difference found between {im1} and {im2} in band {band}\n $ cp {im2} {im1}".format(im1=self.fn, im2=fn,
 																									  band=i)
 			if vmin != vmax and overwrite_images:
 				image1.show()
