@@ -64,6 +64,7 @@ class check_output(object):
 						return
 			assert vmin == 0, msg
 			assert vmax == 0, msg
+		plt.close()
 
 
 class TestPlot(unittest.TestCase):
