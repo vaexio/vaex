@@ -2298,7 +2298,8 @@ class Dataset(object):
 					total_grid[i,j,:,:] = grid[:,None,...]
 			labels["what"] = what_labels
 		else:
-			total_grid = np.broadcast_to(grid, (1,) * 4 + grid.shape)
+			dims_left = 6-len(grid.shape)
+			total_grid = np.broadcast_to(grid, (1,) * dims_left + grid.shape)
 
 		#			visual=dict(x="x", y="y", selection="fade", subspace="facet1", what="facet2",)
 		def _selection_name(name):
