@@ -113,21 +113,25 @@ def open(path, *args, **kwargs):
 	<vaex.dataset.Hdf5MemoryMappedGadget at 0x1136ef3d0>
 	"""
 	import vaex
-	if path in aliases:
-		path = aliases[path]
-	if path.startswith("http://") or path.startswith("ws://"): # TODO: think about https and wss
-		server, dataset = path.rsplit("/", 1)
-		server = vaex.server(server, **kwargs)
-		datasets = server.datasets(as_dict=True)
-		if dataset not in datasets:
-			raise KeyError("no such dataset '%s' at server, possible dataset names: %s" %  (dataset, " ".join(datasets.keys())))
-		return datasets[dataset]
-	if path.startswith("cluster"):
-		import vaex.distributed
-		return vaex.distributed.open(path, *args, **kwargs)
-	else:
-		import vaex.file
-		return vaex.file.open(path, *args, **kwargs)
+	try:
+		if path in aliases:
+			path = aliases[path]
+		if path.startswith("http://") or path.startswith("ws://"): # TODO: think about https and wss
+			server, dataset = path.rsplit("/", 1)
+			server = vaex.server(server, **kwargs)
+			datasets = server.datasets(as_dict=True)
+			if dataset not in datasets:
+				raise KeyError("no such dataset '%s' at server, possible dataset names: %s" %  (dataset, " ".join(datasets.keys())))
+			return datasets[dataset]
+		if path.startswith("cluster"):
+			import vaex.distributed
+			return vaex.distributed.open(path, *args, **kwargs)
+		else:
+			import vaex.file
+			return vaex.file.open(path, *args, **kwargs)
+	except:
+		logging.getLogger("vaex").error("error opening %r" % path)
+		raise
 
 def open_many(filenames):
 	"""Open a list of filenames, and return a dataset with all datasets cocatenated
