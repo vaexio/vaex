@@ -79,6 +79,14 @@ class TestPlot(unittest.TestCase):
 		with check_output("single_xy"):
 			self.dataset.plot("x", "y", title="face on")
 
+	def test_single_nan(self):
+		with check_output("single_xy_no_nan"):
+			self.dataset.plot("x", "y", f="log")
+		cm = plt.cm.inferno
+		cm.set_bad("orange")
+		with check_output("single_xy_nan"):
+			self.dataset.plot("x", "y", f="log", colormap=cm)
+
 	def test_multiplot(self):
 		with check_output("multiplot_xy"):
 			self.dataset.plot([["x", "y"], ["x", "z"]], title="Face on and edge on", figsize=(10, 4));
