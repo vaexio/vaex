@@ -4357,8 +4357,10 @@ class DatasetLocal(Dataset):
 		assert len(self) == len(other), "does not make sense to horizontally stack datasets with different lengths"
 		for name in other.get_column_names():
 			if prefix:
-				name = prefix + name
-			self.add_column(name, other.columns[name])
+				new_name = prefix + name
+			else:
+				new_name = name
+			self.add_column(new_name, other.columns[name])
 
 
 	def concat(self, other):
