@@ -110,7 +110,7 @@ class TestPlot(unittest.TestCase):
 
 	def test_slice(self):
 		with check_output("slice"):
-			self.dataset.plot("Lz", "E", z="FeH:-3,-1,10", show=True, visual=dict(row="z"), figsize=(12,8), f="log", wrap_columns=3);
+			self.dataset.plot("Lz", "E", z="FeH:-3,-1,10", visual=dict(row="z"), figsize=(12,8), f="log", wrap_columns=3);
 
 	def test_plot1d(self):
 		with check_output("plot1d"):
