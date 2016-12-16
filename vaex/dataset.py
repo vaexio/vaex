@@ -98,7 +98,8 @@ def _parse_reduction(name, colormap, colors):
 		import matplotlib
 		cmap = matplotlib.cm.get_cmap(colormap)
 		def f(grid):
-			return cmap(grid)
+			masked_grid = np.ma.masked_invalid(grid) # convert inf/nan to a mask so that mpl colors bad values correcty
+			return cmap(masked_grid)
 		return f
 	elif name.startswith("stack.color"):
 		def f(grid, colors=colors, colormap=colormap):
@@ -2047,9 +2048,9 @@ class Dataset(object):
 
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
 	def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,
-			 normalize="normalize", normalize_axis="what",
-			 vmin=None, vmax=None,
-			 shape=256, vshape=32, limits=None, grid=None, colormap="afmhot", # colors=["red", "green", "blue"],
+			normalize="normalize", normalize_axis="what",
+			vmin=None, vmax=None,
+		 	shape=256, vshape=32, limits=None, grid=None, colormap="afmhot", # colors=["red", "green", "blue"],
 			figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
 			colorbar=True,
 			selection=None, selection_labels=None, title=None,
@@ -2476,7 +2477,6 @@ class Dataset(object):
 				else:
 					what_index = 0
 
-
 				if visual[normalize_axis] == "column":
 					normalize_index = j
 				elif visual[normalize_axis] == "row":
@@ -2487,8 +2487,7 @@ class Dataset(object):
 					r = _parse_reduction(r, colormaps[what_index], [])
 					rgrid = r(rgrid)
 
-				finite_mask = np.isfinite(ngrid[i,j])
-				rgrid[~finite_mask,3] = 0
+
 				row = facet_index // facet_columns
 				column = facet_index % facet_columns
 
