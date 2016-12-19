@@ -208,6 +208,25 @@ class TestDataset(unittest.TestCase):
 			self.assertAlmostEqual(vr_polar, 0)
 			self.assertAlmostEqual(vphi_polar, 2)
 
+
+	def test_add_virtual_columns_cartesian_velocities_to_spherical(self):
+		if 0: # TODO: errors in spherical velocities
+			pass
+
+		def test(vr_expect, vlong_expect, vlat_expect, **kwargs):
+			ds_1 = from_scalars(**kwargs)
+			ds_1.add_virtual_columns_cartesian_velocities_to_spherical()
+			vr, vlong, vlat = ds_1.evaluate("vr")[0], ds_1.evaluate("vlong")[0], ds_1.evaluate("vlat")[0]
+			self.assertAlmostEqual(vr, vr_expect)
+			self.assertAlmostEqual(vlong, vlong_expect)
+			self.assertAlmostEqual(vlat, vlat_expect)
+
+		test(0, -1,  0, x=1, y=0, z=0, vx=0, vy=-1, vz=0)
+		test(0,  0,  1, x=1, y=0, z=0, vx=0, vy= 0, vz=1)
+		test(1,  0,  0, x=1, y=0, z=0, vx=1, vy= 0, vz=0)
+		a = 1./np.sqrt(2.)
+		test(0,  0,  1, x=a, y=0, z=a, vx=-a, vy= 0, vz=a)
+
 	def test_add_virtual_columns_cartesian_to_polar(self):
 		for radians in [True, False]:
 			def datasets(x, y, radians=radians):

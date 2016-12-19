@@ -3417,6 +3417,27 @@ class Dataset(object):
 					else:
 						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
 
+	def add_virtual_columns_cartesian_velocities_to_spherical(self, x="x", y="y", z="z", vx="vx", vy="vy", vz="vz", vr="vr", vlong="vlong", vlat="vlat"):
+		"""Concert velocities from a cartesian to a spherical coordinate system
+
+		TODO: errors
+
+		:param x: name of x column (input)
+		:param y:         y
+		:param z:         z
+		:param vx:       vx
+		:param vy:       vy
+		:param vz:       vz
+		:param vr: name of the column for the radial velocity in the r direction (output)
+		:param vlong: name of the column for the velocity componennt in the longitude direction  (output)
+		:param vlat: name of the column for the velocity componennt in the latitude direction, positive points to the north pole (output)
+		:return:
+		"""
+		#see http://www.astrosurf.com/jephem/library/li110spherCart_en.htm
+		self.add_virtual_column(vr, "({x}*{vx}+{y}*{vy}+{z}*{vz})/sqrt({x}**2+{y}**2+{z}**2)".format(**locals()))
+		self.add_virtual_column(vlong, "-({vx}*{y}-{x}*{vy})/sqrt({x}**2+{y}**2) * sqrt({x}**2+{y}**2+{z}**2)".format(**locals()))
+		self.add_virtual_column(vlat, "-({z}*({x}*{vx}+{y}*{vy}) - ({x}**2+{y}**2)*{vz})/( sqrt({x}**2+{y}**2+{z}**2)*sqrt({x}**2+{y}**2) )".format(**locals()))
+
 	def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
 												 cov_matrix_x_y_vx_vy=None,
 												 covariance_postfix="_covariance",
@@ -3624,6 +3645,7 @@ class Dataset(object):
 						self.add_virtual_column(names[i]+"_" + names[j]+covariance_postfix, sigma)
 					else:
 						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
+
 
 	def add_virtual_columns_lbrvr_proper_motion2vcartesian(self, long_in="l", lat_in="b", distance="distance", pm_long="pm_l", pm_lat="pm_b",
 														   vr="vr", vx="vx", vy="vy", vz="vz",
