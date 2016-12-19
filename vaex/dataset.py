@@ -3417,7 +3417,7 @@ class Dataset(object):
 					else:
 						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
 
-	def add_virtual_columns_cartesian_velocities_to_spherical(self, x="x", y="y", z="z", vx="vx", vy="vy", vz="vz", vr="vr", vlong="vlong", vlat="vlat"):
+	def add_virtual_columns_cartesian_velocities_to_spherical(self, x="x", y="y", z="z", vx="vx", vy="vy", vz="vz", vr="vr", vlong="vlong", vlat="vlat", distance=None):
 		"""Concert velocities from a cartesian to a spherical coordinate system
 
 		TODO: errors
@@ -3429,14 +3429,44 @@ class Dataset(object):
 		:param vy:       vy
 		:param vz:       vz
 		:param vr: name of the column for the radial velocity in the r direction (output)
-		:param vlong: name of the column for the velocity componennt in the longitude direction  (output)
-		:param vlat: name of the column for the velocity componennt in the latitude direction, positive points to the north pole (output)
+		:param vlong: name of the column for the velocity component in the longitude direction  (output)
+		:param vlat: name of the column for the velocity component in the latitude direction, positive points to the north pole (output)
+		:param distance: Expression for distance, if not given defaults to sqrt(x**2+y**2+z**2), but if this column already exists, passing this expression may lead to a better performance
 		:return:
 		"""
 		#see http://www.astrosurf.com/jephem/library/li110spherCart_en.htm
-		self.add_virtual_column(vr, "({x}*{vx}+{y}*{vy}+{z}*{vz})/sqrt({x}**2+{y}**2+{z}**2)".format(**locals()))
-		self.add_virtual_column(vlong, "-({vx}*{y}-{x}*{vy})/sqrt({x}**2+{y}**2) * sqrt({x}**2+{y}**2+{z}**2)".format(**locals()))
-		self.add_virtual_column(vlat, "-({z}*({x}*{vx}+{y}*{vy}) - ({x}**2+{y}**2)*{vz})/( sqrt({x}**2+{y}**2+{z}**2)*sqrt({x}**2+{y}**2) )".format(**locals()))
+		if distance is None:
+			distance = "sqrt({x}**2+{y}**2+{z}**2)".format(**locals())
+		self.add_virtual_column(vr, "({x}*{vx}+{y}*{vy}+{z}*{vz})/{distance}".format(**locals()))
+		self.add_virtual_column(vlong, "-({vx}*{y}-{x}*{vy})/sqrt({x}**2+{y}**2)".format(**locals()))
+		self.add_virtual_column(vlat, "-({z}*({x}*{vx}+{y}*{vy}) - ({x}**2+{y}**2)*{vz})/( {distance}*sqrt({x}**2+{y}**2) )".format(**locals()))
+
+
+	def add_virtual_columns_cartesian_velocities_to_pmvr(self, x="x", y="y", z="z", vx="vx", vy="vy", vz="vz", vr="vr", pm_long="pm_long", pm_lat="pm_lat", distance=None):
+		"""Concert velocities from a cartesian to system to proper motions and radial velocities
+
+		TODO: errors
+
+		:param x: name of x column (input)
+		:param y:         y
+		:param z:         z
+		:param vx:       vx
+		:param vy:       vy
+		:param vz:       vz
+		:param vr: name of the column for the radial velocity in the r direction (output)
+		:param pm_long: name of the column for the proper motion component in the longitude direction  (output)
+		:param pm_lat: name of the column for the proper motion component in the latitude direction, positive points to the north pole (output)
+		:param distance: Expression for distance, if not given defaults to sqrt(x**2+y**2+z**2), but if this column already exists, passing this expression may lead to a better performance
+		:return:
+		"""
+		if distance is None:
+			distance = "sqrt({x}**2+{y}**2+{z}**2)".format(**locals())
+		k = 4.74057
+		self.add_variable("k", k, overwrite=False)
+		self.add_virtual_column(vr, "({x}*{vx}+{y}*{vy}+{z}*{vz})/{distance}".format(**locals()))
+		self.add_virtual_column(pm_long, "-({vx}*{y}-{x}*{vy})/sqrt({x}**2+{y}**2)/{distance}/k".format(**locals()))
+		self.add_virtual_column(pm_lat, "-({z}*({x}*{vx}+{y}*{vy}) - ({x}**2+{y}**2)*{vz})/( ({x}**2+{y}**2+{z}**2) * sqrt({x}**2+{y}**2) )/k".format(**locals()))
+
 
 	def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
 												 cov_matrix_x_y_vx_vy=None,
