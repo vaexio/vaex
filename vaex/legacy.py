@@ -2,8 +2,8 @@
 from __future__ import division, print_function
 import numpy as np
 import vaex
-
 from .dataset import Task, TaskMapReduce
+import scipy
 
 class TaskHistogram(Task):
 	def __init__(self, dataset, subspace, expressions, size, limits, masked=False, weight=None):
@@ -115,7 +115,7 @@ class SubspaceGridded(object):
 
 	def volr(self,  **kwargs):
 		import vaex.notebook
-		return vaex.notebook.volr(self, **kwargs)
+		return vaex.notebook.volr(subspace_gridded=self, **kwargs)
 
 	def plot(self, axes=None, **kwargs):
 		self.subspace_bounded.subspace.plot(np.log1p(self.grid), limits=self.subspace_bounded.bounds, axes=axes, **kwargs)
