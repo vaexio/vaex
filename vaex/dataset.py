@@ -3443,7 +3443,7 @@ class Dataset(object):
 
 
 	def add_virtual_columns_cartesian_velocities_to_pmvr(self, x="x", y="y", z="z", vx="vx", vy="vy", vz="vz", vr="vr", pm_long="pm_long", pm_lat="pm_lat", distance=None):
-		"""Concert velocities from a cartesian to system to proper motions and radial velocities
+		"""Concert velocities from a cartesian system to proper motions and radial velocities
 
 		TODO: errors
 
