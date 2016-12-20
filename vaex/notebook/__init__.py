@@ -25,13 +25,15 @@ base_path = os.path.dirname(__file__)
 import uuid
 from base64 import b64encode
 import json
+import warnings
+
 try:
 	from cStringIO import StringIO
 except ImportError:
 	#from io import StringIO
 	from io import BytesIO as StringIO
 
-def cube_png(grid, f=np.log1p, colormap="afmhot", file="cube.png"):
+def cube_png(grid, file):
 	if grid.shape != ((128,) *3):
 		logger.error("only 128**3 cubes are supported")
 		return None
@@ -62,10 +64,10 @@ def cube_png(grid, f=np.log1p, colormap="afmhot", file="cube.png"):
 				img = PIL.Image.frombuffer("RGB", (128, 128), subdata[:,:,0:3] * 1)
 				print(("saving to", filename))
 				img.save(filename)
-	img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data, 'raw') #, "RGBA", 0, -1)
-	#filename = "cube.png"
-	#print "saving to", file
-	img.save(file, "png")
+	with warnings.catch_warnings():
+		warnings.simplefilter("ignore")
+		img = PIL.Image.frombuffer("RGBA", (128*16, 128*8), data, 'raw') #, "RGBA", 0, -1)
+		img.save(file, "png")
 
 class volr(object):
 	def __init__(self, data=None, subspace_gridded=None, **settings):
