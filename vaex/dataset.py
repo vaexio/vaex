@@ -3825,7 +3825,7 @@ class Dataset(object):
 		m = matrix_name = x +"_" +y + "_rot"
 		for i in range(2):
 			for j in range(2):
-				self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
+				self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j].item())
 		self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y}".format(**locals())
 		self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y}".format(**locals())
 
