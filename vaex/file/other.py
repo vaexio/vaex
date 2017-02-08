@@ -236,7 +236,7 @@ class HansMemoryMapped(DatasetMemoryMapped):
 		self.dataHeaderSize = struct.unpack("Q"*8, self.mapping[:8*8])
 		zerooffset = offset = self.dataOffset
 		length = self.numberParticles+1
-		stride = self.formatSize/8 # stride in units of the size of the element (float64)
+		stride = self.formatSize//8 # stride in units of the size of the element (float64)
 
 		# TODO: ask Hans for the self.numberTimes-2
 		lastoffset = offset + (self.numberParticles+1)*(self.numberTimes-2)*self.formatSize
@@ -255,7 +255,7 @@ class HansMemoryMapped(DatasetMemoryMapped):
 		names = "x y z vx vy vz".split()
 
 		if 1:
-			stride = self.formatSize/8
+			stride = self.formatSize//8
 			#stride1 = self.numberTimes #*self.formatSize/8
 			for i, name in enumerate(names):
 				# TODO: ask Hans for the self.numberTimes-1
