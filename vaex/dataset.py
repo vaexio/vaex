@@ -4585,7 +4585,7 @@ class DatasetConcatenated(DatasetLocal):
 		for name in list(first.virtual_columns.keys()):
 			if all([first.virtual_columns[name] == dataset.virtual_columns.get(name, None) for dataset in tail]):
 				self.virtual_columns[name] = first.virtual_columns[name]
-		for dataset in datasets:
+		for dataset in datasets[:1]:
 			for name, value in list(dataset.variables.items()):
 				self.set_variable(name, value)
 
