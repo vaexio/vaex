@@ -1,5 +1,5 @@
-Getting your data into vaex
-===========================
+Getting your data in and out of vaex
+====================================
 
 Vaex most efficiently reads hdf5 files (column based), however other datasets may be in different formats. The most flexible way to get data into vaex is to try to open your file with `TOPCAT <http://www.star.bris.ac.uk/~mbt/topcat/>`_ and export it using the colfits format. Although vaex can read these column based fits files fine, because the data is stored in big endian format (instead of the now more common little endian), which can give a 30% performance penalty.
 
@@ -30,6 +30,7 @@ Using the following methods, you can convert Pandas dataframes, ascii (whitespac
 * `vx.from_pandas <api.html#vaex.from_pandas>`_ .
 * `vx.from_ascii <api.html#vaex.from_ascii>`_ .
 * `vx.from_arrays <api.html#vaex.from_arrays>`_ .
+* `vx.from_astropy_table <api.html#vaex.from_astropy_table>`_ .
 
 Then using the `vx.export_hdf5 <api.html#vaex.dataset.DatasetLocal.export_hdf5>`_ method to export it to a singe hdf5 file, e.g.:
 
@@ -40,6 +41,28 @@ Then using the `vx.export_hdf5 <api.html#vaex.dataset.DatasetLocal.export_hdf5>`
     x = np.arange(0, 100)
     ds = vx.from_arrays("test-dataset", x=x, y=x**2)
     ds.export_hdf5("/tmp/test.hdf5", progress=True)
+
+Getting your data out
+---------------------
+
+In case you have a vaex dataset, and you want to access the underlying data, they are accessible as numpy arrays using the `Dataset.columns` dictionary, or by converting them to other data structures, see for instance:
+
+* `Dataset.to_items <api.html#vaex.dataset.Dataset.to_items>`_ .
+* `Dataset.to_dict <api.html#vaex.dataset.Dataset.to_items>`_ .
+* `Dataset.to_pandas_df <api.html#vaex.dataset.Dataset.to_pandas_df>`_ .
+* `Dataset.to_astropy_table <api.html#vaex.dataset.Dataset.to_astropy_table>`_ .
+
+Example:
+
+.. code-block:: python
+
+    import vaex as vx
+    import pylab as plt
+    ds = vx.example()
+    ds.select("x > -2")
+    values = ds.to_dict(selection=True)
+    plt.scatter(values["x"], values["y"])
+
 
 
 
