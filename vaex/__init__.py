@@ -161,7 +161,7 @@ def from_astropy_table(table):
 	import vaex.file.other
 	return vaex.file.other.DatasetAstropyTable(table=table)
 
-def from_arrays(name="array", **arrays):
+def from_arrays(**arrays):
 	"""Create an in memory dataset from numpy arrays
 
 
@@ -171,25 +171,25 @@ def from_arrays(name="array", **arrays):
 	:Example:
 	>>> x = np.arange(10)
 	>>> y = x ** 2
-	>>> dataset = vx.from_arrays("test", x=x, y=y)
+	>>> dataset = vx.from_arrays(x=x, y=y)
 
 
 	"""
-	dataset = vaex.dataset.DatasetArrays(name)
+	dataset = vaex.dataset.DatasetArrays("array")
 	for name, array in arrays.items():
 		dataset.add_column(name, array)
 	return dataset
 
-def from_scalars(name="scalars", **kwargs):
+def from_scalars(**kwargs):
 	"""Similar to from_arrays, but convenient for a dataset of length 1
 
-	>>> ds = vx.from_arrays("test", x=1, y=2)
+	>>> ds = vx.from_scalars(x=1, y=2)
 	"""
 	import numpy as np
-	return from_arrays(name, **{k:np.array([v]) for k, v in kwargs.items()})
+	return from_arrays( **{k:np.array([v]) for k, v in kwargs.items()})
 
 
-def from_pandas(df, name="pandas"):
+def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
 	"""Create an in memory dataset from a pandas dataframe
 
 	:param: pandas.DataFrame df: Pandas dataframe
