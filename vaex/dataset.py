@@ -2023,7 +2023,7 @@ class Dataset(object):
 		s = finish(grids)
 		return self._async(async, s)
 
-	def scatter(self, x, y, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, xlabel=None, ylabel=None, **kwargs):
+	def scatter(self, x, y, xerr=None, yerr=None, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, xlabel=None, ylabel=None, errorbar_kwargs={}, **kwargs):
 		"""Convenience wrapper around pylab.scatter when for working with small datasets or selections
 
 		:param x: Expression for x axis
@@ -2035,6 +2035,7 @@ class Dataset(object):
 		:param length_check: should we do the maximum row check or not?
 		:param xlabel: label for x axis, if None .label(x) is used
 		:param ylabel: label for y axis, if None .label(y) is used
+		:param errorbar_kwargs: extra dict with arguments passed to plt.errorbar
 		:param kwargs: extra arguments passed to pylab.scatter
 		:return:
 		"""
@@ -2051,7 +2052,24 @@ class Dataset(object):
 			kwargs["c"] = self.evaluate(c_expr, selection=selection)
 		plt.xlabel(xlabel or self.label(x))
 		plt.ylabel(ylabel or self.label(y))
-		return plt.scatter(x_values, y_values, **kwargs)
+		s = plt.scatter(x_values, y_values, **kwargs)
+		xerr_values = None
+		yerr_values = None
+		if xerr is not None:
+			if _issequence(xerr):
+				assert len(xerr) == 2, "if xerr is a sequence it should be of length 2"
+				xerr_values = [self.evaluate(xerr[0], selection=selection), self.evaluate(xerr[1], selection=selection)]
+			else:
+				xerr_values = self.evaluate(xerr, selection=selection)
+		if yerr is not None:
+			if _issequence(yerr):
+				assert len(yerr) == 2, "if yerr is a sequence it should be of length 2"
+				yerr_values = [self.evaluate(yerr[0], selection=selection), self.evaluate(yerr[1], selection=selection)]
+			else:
+				yerr_values = self.evaluate(yerr, selection=selection)
+		if xerr_values is not None or yerr_values is not None:
+			plt.errorbar(x_values, y_values, yerr=yerr_values, xerr=xerr_values, **errorbar_kwargs)
+		return s
 
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
 	def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,

@@ -116,6 +116,18 @@ class TestPlot(unittest.TestCase):
 		with check_output("plot1d"):
 			self.dataset.plot1d("Lz");
 
+	def test_scatter(self):
+		self.dataset.set_active_fraction(0.01)
+		with check_output("scatter"):
+			self.dataset.scatter("Lz", "E", length_check=False);
+		with check_output("scatter_xerr"):
+			self.dataset.scatter("Lz", "Lz", xerr="abs(Lz*0.1)", length_check=False);
+		with check_output("scatter_xerr_yerr"):
+			self.dataset.scatter("Lz", "Lz", xerr="abs(Lz*0.1)", yerr="abs(Lz*0.4)", length_check=False);
+		with check_output("scatter_xerr_yerr_asym"):
+			self.dataset.scatter("Lz", "Lz", xerr=["abs(Lz*0.1)", "abs(Lz*0.2)"], yerr=["abs(Lz*0.2)", "abs(Lz)"], length_check=False);
+
+
 	def test_healpix(self):
 		self.dataset.add_virtual_columns_cartesian_to_spherical()
 		self.dataset.add_column_healpix(longitude="l", latitude="b")
