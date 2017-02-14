@@ -201,8 +201,8 @@ def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
 	"""
 	import six
 	dataset = vaex.dataset.DatasetArrays(name)
-	for name in df.columns:
-		values = df[name].values
+	def add(name, column):
+		values = column.values
 		if isinstance(values[0], six.string_types):
 			values = values.astype("S")
 		try:
@@ -214,6 +214,10 @@ def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
 				dataset.add_column(name, values)
 			except Exception as e:
 				print("Giving up column %s, error: %r" (name, e))
+	for name in df.columns:
+		add(name, df[name])
+	if copy_index:
+		add(index_name, df.index)
 	return dataset
 
 def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **kwargs):

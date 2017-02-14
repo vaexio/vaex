@@ -3150,6 +3150,86 @@ class Dataset(object):
 		"""
 		raise NotImplementedError
 
+	@docsubst
+	def to_items(self, column_names=None, selection=None, strings=True, virtual=False):
+		"""Return a list of [(column_name, ndarray), ...)] pairs where the ndarray corresponds to the evaluated data
+
+		:param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+		:param selection: {selection}
+		:param strings: argument passed to Dataset.get_column_names when column_names is None
+		:param virtual: argument passed to Dataset.get_column_names when column_names is None
+		:return: list of (name, ndarray) pairs
+		"""
+		items = []
+		for name in column_names or self.get_column_names(strings=strings, virtual=virtual):
+			items.append((name, self.evaluate(name, selection=selection)))
+		return items
+
+	def to_dict(self, column_names=None, selection=None, strings=True, virtual=False):
+		"""Return a dict containing the ndarray corresponding to the evaluated data
+
+		:param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+		:param selection: {selection}
+		:param strings: argument passed to Dataset.get_column_names when column_names is None
+		:param virtual: argument passed to Dataset.get_column_names when column_names is None
+		:return: dict
+		"""
+		return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
+
+	def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None):
+		"""Return a pandas DataFrame containing the ndarray corresponding to the evaluated data
+
+		 If index is given, that column is used for the index of the dataframe.
+
+		 :Example:
+		 >>> df = ds.to_pandas_df(["x", "y", "z"])
+		 >>> ds_copy = vx.from_pandas(df)
+
+		:param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+		:param selection: {selection}
+		:param strings: argument passed to Dataset.get_column_names when column_names is None
+		:param virtual: argument passed to Dataset.get_column_names when column_names is None
+		:param index_column: if this column is given it is used for the index of the DataFrame
+		:return: pandas.DataFrame object
+		"""
+		import pandas as pd
+		data = self.to_dict(column_names=column_names, selection=selection, strings=strings, virtual=virtual)
+		if index_name is not None:
+			if index_name in data:
+				index = data.pop(index_name)
+			else:
+				index = self.evaluate(index_name, selection=selection)
+		else:
+			index = None
+		df = pd.DataFrame(data=data, index=index)
+		if index is not None:
+			df.index.name = index_name
+		return df
+
+	def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=False, index=None):
+		"""Returns a astropy table object containing the ndarrays corresponding to the evaluated data
+
+		:param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+		:param selection: {selection}
+		:param strings: argument passed to Dataset.get_column_names when column_names is None
+		:param virtual: argument passed to Dataset.get_column_names when column_names is None
+		:param index: if this column is given it is used for the index of the DataFrame
+		:return: astropy.table.Table object
+		"""
+		from astropy.table import Table, Column
+		meta = dict()
+		meta["name"] = self.name
+		meta["description"] = self.description
+
+		table = Table(meta=meta)
+		for name, data in self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual):
+			meta = dict()
+			if name in self.ucds:
+				meta["ucd"] = self.ucds[name]
+			table[name] = Column(data, unit=self.unit(name), description=self.descriptions.get(name), meta=meta)
+		return table
+
+
 	def validate_expression(self, expression):
 		"""Validate an expression (may throw Exceptions)"""
 		#return self.evaluate(expression, 0, 2)

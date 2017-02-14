@@ -97,6 +97,41 @@ class TestDataset(unittest.TestCase):
 		self.assertIsNotNone(ds.unit("mass"))
 		ds.close_files()
 
+	def test_to(self):
+		def test_equal(ds1, ds2, units=True, ucds=True, description=True, descriptions=True):
+			if description:
+				self.assertEqual(ds1.description, ds2.description)
+			for name in ds1.get_column_names(strings=True):
+				self.assertIn(name, ds2.get_column_names(strings=True))
+				np.testing.assert_array_equal(ds1.columns[name], ds2.columns[name])
+				if units:
+					self.assertEqual(ds1.units.get(name), ds2.units.get(name))
+				if ucds:
+					self.assertEqual(ds1.ucds.get(name), ds2.ucds.get(name))
+				if descriptions:
+					self.assertEqual(ds1.descriptions.get(name), ds2.descriptions.get(name))
+
+		# as numpy dict
+		ds2 = vx.from_arrays(**self.dataset.to_dict())
+		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
+
+		# as pandas
+		ds2 = vx.from_pandas(self.dataset.to_pandas_df())
+		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
+
+		df = self.dataset.to_pandas_df(index_name="name")
+		ds2 = vx.from_pandas(df, index_name="name")
+		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
+
+		ds2 = vx.from_pandas(self.dataset.to_pandas_df(index_name="name"), copy_index=False)
+		assert "name" not in ds2.get_column_names()
+
+		# as astropy table
+		ds2 = vx.from_astropy_table(self.dataset.to_astropy_table())
+		test_equal(self.dataset, ds2)
+
+
+
 	def test_ascii(self):
 		for seperator in " 	\t,":
 			for use_header in [True, False]:
@@ -1687,6 +1722,9 @@ class TestDatasetRemote(TestDataset):
 	def tearDown(self):
 		TestDataset.tearDown(self)
 		#print "stop serving"
+
+	def test_to(self):
+		pass # not supported
 
 	def test_amuse(self):
 		pass # no need
