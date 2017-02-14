@@ -22,7 +22,7 @@ vx.set_log_level_exception()
 #vx.set_log_level_debug()
 
 def from_scalars(**kwargs):
-	return vx.from_arrays("test", **{k:np.array([v]) for k, v in kwargs.items()})
+	return vx.from_arrays(**{k:np.array([v]) for k, v in kwargs.items()})
 
 class CallbackCounter(object):
 	def __init__(self, return_value=None):
@@ -136,7 +136,7 @@ class TestDataset(unittest.TestCase):
 
 		x = np.arange(10., dtype=">f8")
 		y = np.arange(10, dtype="<f8")
-		ds = vx.from_arrays("mixed", x=x, y=y)
+		ds = vx.from_arrays(x=x, y=y)
 		ds.count()
 		ds.count(binby=["x", "y"])
 
@@ -150,7 +150,7 @@ class TestDataset(unittest.TestCase):
 			nside = hp.order2nside(order)
 			npix = hp.nside2npix(nside)
 			healpix = np.arange(npix)
-			ds = vx.from_arrays("test", healpix=healpix)
+			ds = vx.from_arrays(healpix=healpix)
 			counts = ds.healpix_count(healpix_expression="healpix", healpix_max_level=order, healpix_level=order)
 			ones = np.ones(npix)
 			np.testing.assert_array_almost_equal(counts, ones)
@@ -161,11 +161,11 @@ class TestDataset(unittest.TestCase):
 		N = 100000
 		# distance
 		parallaxes = np.random.normal(1, 0.1, N)
-		ds_many = vx.from_arrays("test", parallax=parallaxes)
+		ds_many = vx.from_arrays(parallax=parallaxes)
 		ds_many.add_virtual_columns_distance_from_parallax("parallax", "distance")
 		distance_std_est = ds_many.std("distance").item()
 
-		ds_1 = vx.from_arrays("test", parallax=np.array([1.]), parallax_uncertainty=np.array([0.1]))
+		ds_1 = vx.from_arrays(parallax=np.array([1.]), parallax_uncertainty=np.array([0.1]))
 		ds_1.add_virtual_columns_distance_from_parallax("parallax", "distance", "parallax_uncertainty")
 		distance_std = ds_1.evaluate("distance_uncertainty")[0]
 		self.assertAlmostEqual(distance_std, distance_std_est,2)
@@ -496,7 +496,7 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(mi_list.tolist(), list(sorted([mi1, mi2])))
 
 	def test_subspaces(self):
-		dataset = vaex.from_arrays("arrays", x=np.array([1]), y=np.array([2]), z=np.array([3]))
+		dataset = vaex.from_arrays(x=np.array([1]), y=np.array([2]), z=np.array([3]))
 		subspaces = dataset.subspaces(dimensions=2)
 		self.assertEqual(len(subspaces), 3)
 		subspaces = dataset.subspaces(dimensions=2, exclude="x")
