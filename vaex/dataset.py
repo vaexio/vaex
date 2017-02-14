@@ -2023,7 +2023,7 @@ class Dataset(object):
 		s = finish(grids)
 		return self._async(async, s)
 
-	def scatter(self, x, y, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, **kwargs):
+	def scatter(self, x, y, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, xlabel=None, ylabel=None, **kwargs):
 		"""Convenience wrapper around pylab.scatter when for working with small datasets or selections
 
 		:param x: Expression for x axis
@@ -2033,6 +2033,8 @@ class Dataset(object):
 		:param selection: Single selection expression, or None
 		:param length_limit: maximum number of rows it will plot
 		:param length_check: should we do the maximum row check or not?
+		:param xlabel: label for x axis, if None .label(x) is used
+		:param ylabel: label for y axis, if None .label(y) is used
 		:param kwargs: extra arguments passed to pylab.scatter
 		:return:
 		"""
@@ -2041,13 +2043,15 @@ class Dataset(object):
 			count = self.count(selection=selection)
 			if count > length_limit:
 				raise ValueError("the number of rows (%d) is above the limit (%d), pass length_check=False, or increase length_limit" % (count, length_limit))
-		x = self.evaluate(x, selection=selection)
-		y = self.evaluate(y, selection=selection)
+		x_values = self.evaluate(x, selection=selection)
+		y_values = self.evaluate(y, selection=selection)
 		if s_expr:
 			kwargs["s"] = self.evaluate(s_expr, selection=selection)
 		if c_expr:
 			kwargs["c"] = self.evaluate(c_expr, selection=selection)
-		return plt.scatter(x, y, **kwargs)
+		plt.xlabel(xlabel or self.label(x))
+		plt.ylabel(ylabel or self.label(y))
+		return plt.scatter(x_values, y_values, **kwargs)
 
 	#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
 	def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,
