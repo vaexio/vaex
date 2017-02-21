@@ -1302,11 +1302,12 @@ class TestDataset(unittest.TestCase):
 			for fraction in [1, 0.5]:
 				dataset.set_active_fraction(fraction)
 				dataset.select("x > 3")
+				dataset.select("x > 2", name="named")
 				length = len(dataset)
 				for column_names in [["x", "y", "z"], ["x"], ["y"], ["z"], None]:
 					for byteorder in "<=>":
 						for shuffle in [False, True]:
-							for selection in [False, True]:
+							for selection in [False, True, "named"]:
 								for virtual in [False, True]:
 									for export in [dataset.export_fits, dataset.export_hdf5]: #if byteorder == ">" else [dataset.export_hdf5]:
 										#print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length(), virtual)
