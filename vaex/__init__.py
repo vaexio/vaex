@@ -161,6 +161,23 @@ def from_astropy_table(table):
 	import vaex.file.other
 	return vaex.file.other.DatasetAstropyTable(table=table)
 
+def from_items(*items):
+	"""Create an in memory dataset from numpy arrays, in contrast to from_arrays this keeps the order of columns intact
+
+	:param: items: list of [(name, numpy array), ...]
+
+	:Example:
+	>>> x = np.arange(10)
+	>>> y = x ** 2
+	>>> dataset = vx.from_items(('x', x), ('y', y))
+
+
+	"""
+	dataset = vaex.dataset.DatasetArrays("array")
+	for name, array in items:
+		dataset.add_column(name, array)
+	return dataset
+
 def from_arrays(**arrays):
 	"""Create an in memory dataset from numpy arrays
 

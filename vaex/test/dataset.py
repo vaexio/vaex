@@ -130,6 +130,10 @@ class TestDataset(unittest.TestCase):
 		ds2 = vx.from_astropy_table(self.dataset.to_astropy_table())
 		test_equal(self.dataset, ds2)
 
+		# return a copy
+		ds2 = self.dataset	.to_copy()
+		test_equal(self.dataset, ds2)
+
 
 
 	def test_ascii(self):

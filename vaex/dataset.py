@@ -3183,6 +3183,7 @@ class Dataset(object):
 			items.append((name, self.evaluate(name, selection=selection)))
 		return items
 
+	@docsubst
 	def to_dict(self, column_names=None, selection=None, strings=True, virtual=False):
 		"""Return a dict containing the ndarray corresponding to the evaluated data
 
@@ -3194,6 +3195,28 @@ class Dataset(object):
 		"""
 		return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
 
+	@docsubst
+	def to_copy(self, column_names=None, selection=None, strings=True, virtual=False):
+		"""Return a copy of the Dataset, if selection is None, it does not copy the data, it just has a reference
+
+		:param column_names: list of column names, to copy, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+		:param selection: {selection}
+		:param strings: argument passed to Dataset.get_column_names when column_names is None
+		:param virtual: argument passed to Dataset.get_column_names when column_names is None
+		:return: dict
+		"""
+		ds = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
+		for name in ds.get_column_names():
+			if name in self.units:
+				ds.units[name] = self.units[name]
+			if name in self.descriptions:
+				ds.descriptions[name] = self.descriptions[name]
+			if name in self.ucds:
+				ds.ucds[name] = self.ucds[name]
+		ds.description = self.description
+		return ds
+
+	@docsubst
 	def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None):
 		"""Return a pandas DataFrame containing the ndarray corresponding to the evaluated data
 
@@ -3224,6 +3247,7 @@ class Dataset(object):
 			df.index.name = index_name
 		return df
 
+	@docsubst
 	def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=False, index=None):
 		"""Returns a astropy table object containing the ndarrays corresponding to the evaluated data
 
