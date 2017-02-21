@@ -134,7 +134,10 @@ class TestDataset(unittest.TestCase):
 		ds2 = self.dataset	.to_copy()
 		test_equal(self.dataset, ds2)
 
-
+	def test_add_column(self):
+		columns = self.dataset.get_column_names()
+		self.dataset.add_column("x", self.dataset.data.x)
+		self.assertSequenceEqual(columns, self.dataset.get_column_names())
 
 	def test_ascii(self):
 		for seperator in " 	\t,":

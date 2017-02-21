@@ -3324,7 +3324,8 @@ class Dataset(object):
 		"""Add an in memory array as a column"""
 		if isinstance(f_or_array, np.ndarray):
 			self.columns[name] = f_or_array
-			self.column_names.append(name)
+			if name not in self.column_names:
+				self.column_names.append(name)
 		else:
 			raise ValueError("functions not yet implemented")
 
@@ -4768,8 +4769,7 @@ class DatasetArrays(DatasetLocal):
 		:param data: numpy array with the data
 		"""
 		assert _is_array_type_ok(data), "dtype not supported: %r, %r" % (data.dtype, data.dtype.type)
-		self.column_names.append(name)
-		self.columns[name] = data
+		super(DatasetArrays, self).add_column(name, data)
 		#self._length = len(data)
 		if self._full_length is None:
 			self._full_length = len(data)
