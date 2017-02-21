@@ -2602,6 +2602,30 @@ class Dataset(object):
 		#colorbar = None
 		#return im, colorbar
 
+	def _plot3d(self, x, y, z, vx=None, vy=None, vz=None, vwhat=None, limits=None, what="count(*)", shape=128, selection=None, f=None,
+			   smooth_pre=None, smooth_post=None,
+			   lighting=True, level=[0.1, 0.5, 0.9], opacity=[0.01, 0.05, 0.1], level_width=0.1,
+			   show=False):
+		"""Use at own risk, requires ipyvolume"""
+
+		import ipyvolume.pylab as p3
+		binby = [x,y,z]
+		limits = self.limits(binby, limits)
+		print(limits)
+		p3.clear()
+		volume_data = self._stat(what=what, binby=binby, limits=limits, shape=shape, selection=selection)
+		if smooth_pre:
+			volume_data = grid = vaex.grids.gf(volume_data, smooth_pre)
+		f = _parse_f(f)
+		volume_data = f(volume_data)
+		if smooth_post:
+			volume_data = grid = vaex.grids.gf(volume_data, smooth_post)
+		p3.volshow(volume_data, lighting=lighting, level=level, opacity=opacity, level_width=level_width)
+		if show:
+			p3.show()
+		return p3.gcc()
+
+
 	def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
 		xlabel=None, ylabel=None, label=None,
 		selection=None, show=False, tight_layout=True, hardcopy=None,
