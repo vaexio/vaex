@@ -3251,7 +3251,7 @@ class Dataset(object):
 		"""Alias/shortcut for :func:`Dataset.subspace`"""
 		raise NotImplementedError
 
-	def set_variable(self, name, expression_or_value):
+	def set_variable(self, name, expression_or_value, write=True):
 		"""Set the variable to an expression or value defined by expression_or_value
 
 		:Example:
@@ -3263,10 +3263,12 @@ class Dataset(object):
 		4.0
 
 		:param name: Name of the variable
+		:param write: write variable to meta file
 		:param expression: value or expression
 		"""
 		self.variables[name] = expression_or_value
-		self.write_virtual_meta()
+		if write:
+			self.write_virtual_meta()
 
 	def get_variable(self, name):
 		"""Returns the variable given by name, it will not evaluate it.
@@ -4680,8 +4682,9 @@ class DatasetConcatenated(DatasetLocal):
 				self.virtual_columns[name] = first.virtual_columns[name]
 		for dataset in datasets:
 			for name, value in list(dataset.variables.items()):
-				self.set_variable(name, value)
-
+				if name not in self.variables:
+					self.set_variable(name, value, write=False)
+		self.write_virtual_meta()
 
 		self._full_length = sum(ds.full_length() for ds in self.datasets)
 		self._length = self.full_length()
