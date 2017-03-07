@@ -1827,7 +1827,7 @@ class Dataset(object):
 						elif type in ["%", "percent"]:
 							limits =  self.limits_percentage(expression, number, async=True)
 						elif type in ["%s", "%square", "percentsquare"]:
-							limits =  self.limits_percentage(expression, number, square=True, async=async)
+							limits =  self.limits_percentage(expression, number, square=True, async=True)
 			elif value is None:
 				limits = self.limits_percentage(expression, square=square, async=True)
 			else:
