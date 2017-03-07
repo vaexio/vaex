@@ -515,7 +515,9 @@ class _BlockScopeSelection(object):
 				if selection_in_cache == selection:
 					return mask
 				#logger.debug("was not cached")
-				mask = selection.evaluate(variable, self.i1, self.i2)
+				if variable in self.dataset.variables:
+					return self.dataset.variables[variable]
+				mask = selection.evaluate_selection_mask(variable, self.i1, self.i2)
 				#logger.debug("put selection in mask with key %r" % (key,))
 				cache[key] = selection, mask
 				return mask
@@ -524,6 +526,8 @@ class _BlockScopeSelection(object):
 						return expression_namespace[variable]
 					elif variable in self.dataset.get_column_names(strings=True):
 						return self.dataset.columns[variable][self.i1:self.i2]
+					elif variable in self.dataset.variables:
+						return self.dataset.variables[variable]
 					elif variable in list(self.dataset.virtual_columns.keys()):
 						expression = self.dataset.virtual_columns[variable]
 						#self._ensure_buffer(variable)
