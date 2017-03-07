@@ -287,7 +287,8 @@ def example(download=True):
 def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
 	"""Creates a zeldovich dataset
 	"""
-	return vaex.dataset.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
+	import vaex.file
+	return vaex.file.other.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
 
 def set_log_level_debug():
 	"""set log level to debug"""
