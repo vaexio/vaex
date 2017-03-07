@@ -12,19 +12,23 @@ widgets.IntSlider
 from IPython.display import HTML
 """
 
-
-from IPython.display import HTML, display_html, display_javascript
 import os
-base_path = os.path.dirname(__file__)
-#print base_path
-
+import logging
 import uuid
 from base64 import b64encode
 import json
+import time
 try:
 	from cStringIO import StringIO
 except ImportError:
 	from io import StringIO
+
+from IPython.display import HTML, display_html, display_javascript
+import IPython, zmq
+
+base_path = os.path.dirname(__file__)
+logger = logging.getLogger("vaex.notebook")
+
 class volr(object):
 	def __init__(self, subspace_gridded, **settings):
 		self.subspace_gridded = subspace_gridded
@@ -101,3 +105,32 @@ class init(object):
 			js_lib = file(os.path.join(base_path, "all.js")).read()
 			html1 = file(os.path.join(base_path, "snippet.html")).read()
 			HTML("<script>"+js_lib +"\n" + code +"</script>"+"<script>"+js2+"</script>"+html1+js1)
+
+
+
+
+def get_ioloop():
+    ipython = IPython.get_ipython()
+    if ipython and hasattr(ipython, 'kernel'):
+        return zmq.eventloop.ioloop.IOLoop.instance()
+
+def debounced(delay_seconds=0.5):
+	"""Debounce decorator for Jupyter notebook"""
+	def wrapped(f):
+		locals = {"counter": 0}
+		def execute(*args, **kwargs):
+			locals["counter"] += 1
+			#print "counter", locals["counter"]
+			def debounced_execute(counter=locals["counter"]):
+				#$print "counter is", locals["counter"]
+				if counter == locals["counter"]:
+					logger.info("debounced call")
+					f(*args, **kwargs)
+				else:
+					logger.info("debounced call skipped")
+			ioloop = get_ioloop()
+			def thread_safe():
+				ioloop.add_timeout(time.time() + delay_seconds, debounced_execute)
+			ioloop.add_callback(thread_safe)
+		return execute
+	return wrapped
