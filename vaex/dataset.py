@@ -2400,47 +2400,51 @@ class Dataset(object):
 		#labels["y"] = ylabels
 		what_labels = []
 		if grid is None:
+			grid_of_grids = []
+			for i, (binby, limits) in enumerate(zip(x, xlimits)):
+				grid_of_grids.append([])
+				for j, what in enumerate(whats):
+					what = what.strip()
+					index = what.index("(")
+					import re
+					groups = re.match("(.*)\((.*)\)", what).groups()
+					if groups and len(groups) == 2:
+						function = groups[0]
+						arguments = groups[1].strip()
+						if "," in arguments:
+							arguments = arguments.split(",")
+						functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max", "median"]
+						unit_expression = None
+						if function in ["mean", "sum", "std", "min", "max", "median"]:
+							unit_expression = arguments
+						if function in ["var"]:
+							unit_expression = "(%s) * (%s)" % (arguments, arguments)
+						if function in ["covar"]:
+							unit_expression = "(%s) * (%s)" % arguments
+						if unit_expression:
+							unit = self.unit(unit_expression)
+							if unit:
+								what_units = unit.to_string('latex_inline')
+						if function in functions:
+							grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape, selection=selections, async=True)
+						elif function == "count":
+							grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections, async=True)
+						else:
+							raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
+						if i == 0:# and j == 0:
+							what_label = whats[j]
+							if what_units:
+								what_label += " (%s)" % what_units
+							if fs[j]:
+								what_label = fs[j] + " " + what_label
+							what_labels.append(what_label)
+					else:
+						raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
+					grid_of_grids[-1].append(grid)
+			self.executor.execute()
 			for i, (binby, limits) in enumerate(zip(x, xlimits)):
 				for j, what in enumerate(whats):
-					if what:
-						what = what.strip()
-						index = what.index("(")
-						import re
-						groups = re.match("(.*)\((.*)\)", what).groups()
-						if groups and len(groups) == 2:
-							function = groups[0]
-							arguments = groups[1].strip()
-							if "," in arguments:
-								arguments = arguments.split(",")
-							functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max", "median"]
-							unit_expression = None
-							if function in ["mean", "sum", "std", "min", "max", "median"]:
-								unit_expression = arguments
-							if function in ["var"]:
-								unit_expression = "(%s) * (%s)" % (arguments, arguments)
-							if function in ["covar"]:
-								unit_expression = "(%s) * (%s)" % arguments
-							if unit_expression:
-								unit = self.unit(unit_expression)
-								if unit:
-									what_units = unit.to_string('latex_inline')
-							if function in functions:
-								grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape, selection=selections)
-							elif function == "count":
-								grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections)
-							else:
-								raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
-							if i == 0:# and j == 0:
-								what_label = whats[j]
-								if what_units:
-									what_label += " (%s)" % what_units
-								if fs[j]:
-									what_label = fs[j] + " " + what_label
-								what_labels.append(what_label)
-						else:
-							raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
-					else:
-						grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
+					grid = grid_of_grids[i][j].get()
 					total_grid[i,j,:,:] = grid[:,None,...]
 			labels["what"] = what_labels
 		else:
