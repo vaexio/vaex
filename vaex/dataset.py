@@ -328,6 +328,14 @@ class TaskStatistic(Task):
 		info.last = i2 == len(self.dataset)
 		info.size = i2-i1
 
+		def asfloat(a):
+			if a.dtype.type==np.float64 and a.strides[0] == 8:
+				return a
+			else:
+				return a.astype(np.float64, copy=False)
+
+		blocks = [asfloat(block) for block in blocks]
+
 		this_thread_grid = self.grid[thread_index]
 		for i, selection in enumerate(self.selections):
 			if selection:
@@ -470,7 +478,8 @@ class _BlockScope(object):
 				if self.dataset._needs_copy(variable):
 					#self._ensure_buffer(variable)
 					#self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
-					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask].astype(np.float64)
+					#Previously we casted anything to .astype(np.float64), this led to rounding off of int64, when exporting
+					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask]
 				else:
 					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask]
 			elif variable in list(self.dataset.virtual_columns.keys()):

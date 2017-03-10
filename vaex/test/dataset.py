@@ -43,8 +43,13 @@ class TestDataset(unittest.TestCase):
 
 		self.x = x = np.arange(10, dtype=">f8")
 		self.y = y = x ** 2
+		self.ints = x = np.arange(10, dtype="i8")
+		self.ints[0] = 2**62+1
+		self.ints[1] = -2**62+1
+		self.ints[2] = -2**62-1
 		self.dataset.add_column("x", x)
 		self.dataset.add_column("y", y)
+		self.dataset.add_column("ints", self.ints)
 		self.dataset.set_variable("t", 1.)
 		self.dataset.add_virtual_column("z", "x+t*y")
 		self.dataset.units["x"] = astropy.units.Unit("km")
@@ -1311,10 +1316,12 @@ class TestDataset(unittest.TestCase):
 								for virtual in [False, True]:
 									for export in [dataset.export_fits, dataset.export_hdf5]: #if byteorder == ">" else [dataset.export_hdf5]:
 										#print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.full_length(), virtual)
-										byteorder = "<"
+										#byteorder = "<"
 										if export == dataset.export_fits and byteorder != ">":
+											#print("skip", export == dataset.export_fits, byteorder != ">", byteorder)
 											continue # fits only does big endian
 										if vx.utils.osname == "windows" and export == dataset.export_hdf5 and byteorder == ">":
+											#print("skip", vx.utils.osname)
 											continue # TODO: IS this a bug for h5py on win32?, leads to an open file
 										#print dataset.full_length()
 										#print len(dataset)
@@ -1333,23 +1340,25 @@ class TestDataset(unittest.TestCase):
 													os.remove(path_fits_astropy)
 										compare = vx.open(path)
 										if column_names is None:
-											column_names = ["x", "y", "f", "z", "name"] if virtual else ["x", "y", "f", "name"]
+											column_names = ["x", "y", "f", "z", "name", "ints"] if virtual else ["x", "y", "f", "name", "ints"]
 										#if not virtual:
 										#	if "z" in column_names:
 										#		column_names.remove("z")
 										# TODO: does the order matter?
 										self.assertEqual(sorted(compare.get_column_names(strings=True)), sorted(column_names + (["random_index"] if shuffle else [])))
 										for column_name in column_names:
-											values = dataset.evaluate(column_name)
+											values = dataset.columns[column_name] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
 											if selection:
 												mask = dataset.evaluate_selection_mask(selection, 0, len(dataset))
-												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[mask]))
+												# for concatenated columns, we get a plain numpy array copy using [::]
+												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[::][mask]))
 											else:
 												if shuffle:
 													indices = compare.columns["random_index"]
-													self.assertEqual(sorted(compare.columns[column_name]), sorted(values[indices]))
+													self.assertEqual(sorted(compare.columns[column_name]), sorted(values[::][indices]))
 												else:
-													self.assertEqual(sorted(compare.columns[column_name]), sorted(values[:length]))
+													dtype = compare.columns[column_name].dtype # we don't want any casting
+													np.testing.assert_array_equal(compare.columns[column_name], values[:length].astype(dtype))
 										compare.close_files()
 										os.remove(path)
 
