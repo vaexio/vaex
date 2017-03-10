@@ -282,14 +282,16 @@ def _expand_limits(limits, dimension):
 		return [limits,] * dimension
 
 class TaskStatistic(Task):
-	def __init__(self, dataset, expressions, shape, limits, masked=False, weight=None, op=OP_ADD1, selection=None):
+	def __init__(self, dataset, expressions, shape, limits, masked=False, weight=None, op=OP_ADD1, selection=None, edges=False):
 		if not isinstance(expressions, (tuple, list)):
 			expressions = [expressions]
-		self.shape = _expand_shape(shape, len(expressions))
+		# edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension
+		self.shape = tuple([k +3 if edges else k for k in _expand_shape(shape, len(expressions))])
 		self.limits = limits
 		self.weight = weight
 		self.selection_waslist, [self.selections,] = vaex.utils.listify(selection)
 		self.op = op
+		self.edges = edges
 		Task.__init__(self, dataset, expressions, name="statisticNd")
 		self.dtype = np.float64
 		self.masked = masked
@@ -369,7 +371,7 @@ class TaskStatistic(Task):
 					raise ValueError("Nothing to compute for OP %s" % self.op.code)
 
 			blocks = list(blocks) # histogramNd wants blocks to be a list
-			vaex.vaexfast.statisticNd(selection_blocks, subblock_weight, this_thread_grid[i], self.minima, self.maxima, self.op.code)
+			vaex.vaexfast.statisticNd(selection_blocks, subblock_weight, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
 		return i2-i1
 		#return map(self._map, blocks)#[self.map(block) for block in blocks]
 
@@ -726,6 +728,7 @@ _doc_snippets["async"] = """Do not return the result, but a proxy for asynchrono
 _doc_snippets["progress"] = """A callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False"""
 _doc_snippets["expression_limits"] = _doc_snippets["expression"]
 _doc_snippets["grid"] = """If grid is given, instead if compuation a statistic given by what, use this Nd-numpy array instead, this is often useful when a custom computation/statistic is calculated, but you still want to use the plotting machinery."""
+_doc_snippets["edges"] = """Currently for internal use only (it includes nan's and values outside the limits at borders, nan and 0, smaller than at 1, and larger at -1"""
 
 _doc_snippets["healpix_expression"] = """Expression which maps to a healpix index, for the Gaia catalogue this is for instance 'source_id/34359738368', other catalogues may simply have a healpix column."""
 _doc_snippets["healpix_max_level"] = """The healpix level associated to the healpix_expression, for Gaia this is 12"""
@@ -916,7 +919,7 @@ class Dataset(object):
 		return self._async(async, values)
 
 	@docsubst
-	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, edges=False, progress=None):
 		"""Count the number of non-NaN values (or all, if expression is None or "*")
 
 		Examples:
@@ -936,6 +939,7 @@ class Dataset(object):
 		:param selection: {selection}
 		:param async: {async}
 		:param progress: {progress}
+		:param edges: {edges}
 		:return: {return_stat_scalar}
 		"""
 		logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
@@ -945,9 +949,9 @@ class Dataset(object):
 				#if not binby: # if we have nothing to iterate over, the statisticNd code won't do anything
 				#\3	return np.array([self.length(selection=selection)], dtype=float)
 				#else:
-				task = TaskStatistic(self, binby, shape, limits, op=OP_ADD1, selection=selection)
+				task = TaskStatistic(self, binby, shape, limits, op=OP_ADD1, selection=selection, edges=edges)
 			else:
-				task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_COUNT, selection=selection)
+				task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_COUNT, selection=selection, edges=edges)
 			self.executor.schedule(task)
 			progressbar.add_task(task, "count for %s" % expression)
 			return task

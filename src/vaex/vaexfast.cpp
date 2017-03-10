@@ -979,79 +979,112 @@ struct op_add_weight_moment_012 {
 
 template<typename OP, typename ENDIAN>
 void statisticNd(
-    const double* const __restrict__ blocks[], const double* const __restrict__ weights, long long block_length,
-    const int dimensions, double* const __restrict__ counts, const long long * const __restrict__ count_strides,
+    const double* const __restrict__ blocks[],
+    const double* const __restrict__ weights,
+    long long block_length,
+    const int dimensions,
+    double* const __restrict__ counts,
+    const long long * const __restrict__ count_strides,
     const int * const __restrict__ count_sizes,
-    const double* const __restrict__ minima, const double* const __restrict__ maxima) {
+    const double* const __restrict__ minima,
+    const double* const __restrict__ maxima,
+    int use_edges
+    ) {
 //void histogram3d(const double* const blockx, const double* const blocky, const double* const blockz, const double* const weights, long long block_length, double* counts, const int counts_length_x, const int counts_length_y, const int counts_length_z, const double xmin, const double xmax, const double ymin, const double ymax, const double zmin, const double zmax, long long const offset_x, long long const offset_y, long long const offset_z){
     OP op;
     ENDIAN endian;
 
 	double scales[MAX_DIMENSIONS];
-	for(int d = 0; d < dimensions; d++) {
-		scales[d] = 1 / (maxima[d] - minima[d]);
-	}
-	// the (gcc) compiler does better when we put the same statements in if's...
-	if(dimensions == 0) { // optimization.. can we generalize it?
-        for(long long i = 0; i < block_length; i++) {
-            op(&weights[i], &counts[0]);
-        }
-    } else
-	if(dimensions == 1) { // optimization.. can we generalize it?
-        for(long long i = 0; i < block_length; i++) {
+    for(int d = 0; d < dimensions; d++) {
+        scales[d] = 1 / (maxima[d] - minima[d]);
+    }
+	if(use_edges) {
+	    // this is the unoptimized path (so no if(dimension == X)), since it won't be used as much and less
+	    // burden to maintain
+       for(long long i = 0; i < block_length; i++) {
             long long index = 0;
             bool inside = true;
-            for(int d = 0; d < 1; d++) {
+            for(int d = 0; d < dimensions; d++) {
                 double value = endian(blocks[d][i]);
                 double scaled = (value - minima[d]) * scales[d];
-                if( (scaled >= 0) & (scaled < 1) ) {
-                    int sub_index = (int)(scaled * count_sizes[d]);
-                    index += count_strides[d] * sub_index;
+                if(scaled != scaled) { // nan check
+                    index += count_strides[d] * 0; // nans are put at offset 0
+                } else
+                if(scaled < 0) { // smaller values are put at offset 1
+                    index += count_strides[d] * 1;
+                } else
+                if(scaled >= 1) { // bigger values are put at offset -1 (last)
+                    index += count_strides[d] * (count_sizes[d]-1);
                 } else {
-                    inside = false;
-                    break;
+                    int sub_index = (int)(scaled * (count_sizes[d]-3)) + 2; // we start
+                    index += count_strides[d] * sub_index;
                 }
             }
-            if(inside)
-                op(&weights[i], &counts[index]);
+            op(&weights[i], &counts[index]);
         }
-    } else
+	} else {
+        // the (gcc) compiler does better when we put the same statements in if's...
+        if(dimensions == 0) { // optimization.. can we generalize it?
+            for(long long i = 0; i < block_length; i++) {
+                op(&weights[i], &counts[0]);
+            }
+        } else
+        if(dimensions == 1) { // optimization.. can we generalize it?
+            for(long long i = 0; i < block_length; i++) {
+                long long index = 0;
+                bool inside = true;
+                for(int d = 0; d < 1; d++) {
+                    double value = endian(blocks[d][i]);
+                    double scaled = (value - minima[d]) * scales[d];
+                    if( (scaled >= 0) & (scaled < 1) ) {
+                        int sub_index = (int)(scaled * count_sizes[d]);
+                        index += count_strides[d] * sub_index;
+                    } else {
+                        inside = false;
+                        break;
+                    }
+                }
+                if(inside)
+                    op(&weights[i], &counts[index]);
+            }
+        } else
 
-	if(dimensions == 2) { // optimization.. can we generalize it?
-        for(long long i = 0; i < block_length; i++) {
-            long long index = 0;
-            bool inside = true;
-            for(int d = 0; d < dimensions; d++) {
-                double value = endian(blocks[d][i]);
-                double scaled = (value - minima[d]) * scales[d];
-                if( (scaled >= 0) & (scaled < 1) ) {
-                    int sub_index = (int)(scaled * count_sizes[d]);
-                    index += count_strides[d] * sub_index;
-                } else {
-                    inside = false;
-                    break;
+        if(dimensions == 2) { // optimization.. can we generalize it?
+            for(long long i = 0; i < block_length; i++) {
+                long long index = 0;
+                bool inside = true;
+                for(int d = 0; d < dimensions; d++) {
+                    double value = endian(blocks[d][i]);
+                    double scaled = (value - minima[d]) * scales[d];
+                    if( (scaled >= 0) & (scaled < 1) ) {
+                        int sub_index = (int)(scaled * count_sizes[d]);
+                        index += count_strides[d] * sub_index;
+                    } else {
+                        inside = false;
+                        break;
+                    }
                 }
+                if(inside)
+                    op(&weights[i], &counts[index]);
             }
-            if(inside)
-                op(&weights[i], &counts[index]);
-        }
-    } else {
-        for(long long i = 0; i < block_length; i++) {
-            long long index = 0;
-            bool inside = true;
-            for(int d = 0; d < dimensions; d++) {
-                double value = endian(blocks[d][i]);
-                double scaled = (value - minima[d]) * scales[d];
-                if( (scaled >= 0) & (scaled < 1) ) {
-                    int sub_index = (int)(scaled * count_sizes[d]);
-                    index += count_strides[d] * sub_index;
-                } else {
-                    inside = false;
-                    break;
+        } else {
+            for(long long i = 0; i < block_length; i++) {
+                long long index = 0;
+                bool inside = true;
+                for(int d = 0; d < dimensions; d++) {
+                    double value = endian(blocks[d][i]);
+                    double scaled = (value - minima[d]) * scales[d];
+                    if( (scaled >= 0) & (scaled < 1) ) {
+                        int sub_index = (int)(scaled * count_sizes[d]);
+                        index += count_strides[d] * sub_index;
+                    } else {
+                        inside = false;
+                        break;
+                    }
                 }
+                if(inside)
+                    op(&weights[i], &counts[index]);
             }
-            if(inside)
-                op(&weights[i], &counts[index]);
         }
     }
 }
@@ -1086,17 +1119,18 @@ void statisticNd_wrap_template_endian(
         int count_sizes[],
         double minima[],
         double maxima[],
-        int op_code) {
+        int op_code,
+        int use_edges) {
         if(op_code == OP_ADD1) {
-            statisticNd<op_add1<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+            statisticNd<op_add1<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else if(op_code == OP_COUNT) {
-            statisticNd<op_count<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+            statisticNd<op_count<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else if(op_code == OP_MIN_MAX) {
-            statisticNd<op_min_max<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+            statisticNd<op_min_max<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else if(op_code == OP_ADD_WEIGHT_MOMENTS_01) {
-            statisticNd<op_add_weight_moment_01<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+            statisticNd<op_add_weight_moment_01<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else if(op_code == OP_ADD_WEIGHT_MOMENTS_012) {
-            statisticNd<op_add_weight_moment_012<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima);
+            statisticNd<op_add_weight_moment_012<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else {
             printf("unknown op code for statistic: %i", op_code);
         }
@@ -1114,11 +1148,12 @@ void statisticNd_wrap_template(
         double minima[],
         double maxima[],
         bool native,
-        int op_code) {
+        int op_code,
+        int use_edges) {
         if(native)
-            statisticNd_wrap_template_endian<functor_double_to_double>(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, op_code);
+            statisticNd_wrap_template_endian<functor_double_to_double>(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, op_code, use_edges);
         else
-            statisticNd_wrap_template_endian<functor_double_to_native>(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, op_code);
+            statisticNd_wrap_template_endian<functor_double_to_native>(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, op_code, use_edges);
 }
 
 
@@ -1129,7 +1164,8 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 	double minima[MAX_DIMENSIONS];
 	double maxima[MAX_DIMENSIONS];
 	int op_code;
-	if(PyArg_ParseTuple(args, "OOOOOi", &blocklist, &weights, &counts_object, &minimalist, &maximalist, &op_code)) {
+	int use_edges = 0;
+	if(PyArg_ParseTuple(args, "OOOOOi|i", &blocklist, &weights, &counts_object, &minimalist, &maximalist, &op_code, &use_edges)) {
 		long long block_length = -1;
 		int count_sizes[MAX_DIMENSIONS];
 		long long count_strides[MAX_DIMENSIONS];
@@ -1193,7 +1229,7 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
 			}*/
 			Py_BEGIN_ALLOW_THREADS
-			statisticNd_wrap_template(block_ptrs, weights_ptr, block_length, dimensions, counts_ptr, count_strides, count_sizes, minima, maxima, block_native[0], op_code);
+			statisticNd_wrap_template(block_ptrs, weights_ptr, block_length, dimensions, counts_ptr, count_strides, count_sizes, minima, maxima, block_native[0], op_code, use_edges);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
