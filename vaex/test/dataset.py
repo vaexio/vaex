@@ -43,7 +43,7 @@ class TestDataset(unittest.TestCase):
 
 		self.x = x = np.arange(10, dtype=">f8")
 		self.y = y = x ** 2
-		self.ints = x = np.arange(10, dtype="i8")
+		self.ints = np.arange(10, dtype="i8")
 		self.ints[0] = 2**62+1
 		self.ints[1] = -2**62+1
 		self.ints[2] = -2**62-1
@@ -440,9 +440,9 @@ class TestDataset(unittest.TestCase):
 
 	def test_strings(self):
 		# TODO: concatenated datasets with strings of different length
-		self.assertEqual(["x", "y", "f"], self.dataset.get_column_names())
+		self.assertEqual(["x", "y", "ints", "f"], self.dataset.get_column_names())
 
-		names = ["x", "y", "f", "name"]
+		names = ["x", "y", "ints", "f", "name"]
 		self.assertEqual(names, self.dataset.get_column_names(strings=True))
 
 		if self.dataset.is_local():
@@ -486,9 +486,9 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(self.dataset.dtype("x*f"), np.float64)
 
 	def test_byte_size(self):
-		self.assertEqual(self.dataset.byte_size(), 8*3*len(self.dataset))
+		self.assertEqual(self.dataset.byte_size(), 8*4*len(self.dataset))
 		self.dataset.select("x < 1")
-		self.assertEqual(self.dataset.byte_size(selection=True), 8*3)
+		self.assertEqual(self.dataset.byte_size(selection=True), 8*4)
 
 	def test_ucd_find(self):
 		self.dataset.ucds["x"] = "a;b;c"
@@ -1340,12 +1340,12 @@ class TestDataset(unittest.TestCase):
 													os.remove(path_fits_astropy)
 										compare = vx.open(path)
 										if column_names is None:
-											column_names = ["x", "y", "f", "z", "name", "ints"] if virtual else ["x", "y", "f", "name", "ints"]
+											column_names = ["x", "y", "ints", "f", "z", "name"] if virtual else ["x", "y", "ints", "f", "name"]
 										#if not virtual:
 										#	if "z" in column_names:
 										#		column_names.remove("z")
 										# TODO: does the order matter?
-										self.assertEqual(sorted(compare.get_column_names(strings=True)), sorted(column_names + (["random_index"] if shuffle else [])))
+										self.assertEqual((compare.get_column_names(strings=True)), (column_names + (["random_index"] if shuffle else [])))
 										for column_name in column_names:
 											values = dataset.columns[column_name] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
 											if selection:

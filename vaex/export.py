@@ -214,12 +214,16 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 				array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype.newbyteorder(byteorder))
 			array[0] = array[0] # make sure the array really exists
 		random_index_name = None
+		column_order = list(column_names) # copy
 		if shuffle:
 			random_index_name = "random_index"
 			while random_index_name in dataset.get_column_names():
 				random_index_name += "_new"
 			shuffle_array = h5file_output.require_dataset("/data/" + random_index_name, shape=(N,), dtype=byteorder+"i8")
 			shuffle_array[0] = shuffle_array[0]
+			column_order.append(random_index_name) # last item
+		h5data_output.attrs["column_order"] = ",".join(column_order) # keep track or the ordering of columns
+
 
 	# after this the file is closed,, and reopen it using out class
 	dataset_output = vaex.file.other.Hdf5MemoryMapped(path, write=True)
