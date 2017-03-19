@@ -282,14 +282,16 @@ def _expand_limits(limits, dimension):
 		return [limits,] * dimension
 
 class TaskStatistic(Task):
-	def __init__(self, dataset, expressions, shape, limits, masked=False, weight=None, op=OP_ADD1, selection=None):
+	def __init__(self, dataset, expressions, shape, limits, masked=False, weight=None, op=OP_ADD1, selection=None, edges=False):
 		if not isinstance(expressions, (tuple, list)):
 			expressions = [expressions]
-		self.shape = _expand_shape(shape, len(expressions))
+		# edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension
+		self.shape = tuple([k +3 if edges else k for k in _expand_shape(shape, len(expressions))])
 		self.limits = limits
 		self.weight = weight
 		self.selection_waslist, [self.selections,] = vaex.utils.listify(selection)
 		self.op = op
+		self.edges = edges
 		Task.__init__(self, dataset, expressions, name="statisticNd")
 		self.dtype = np.float64
 		self.masked = masked
@@ -328,6 +330,14 @@ class TaskStatistic(Task):
 		info.last = i2 == len(self.dataset)
 		info.size = i2-i1
 
+		def asfloat(a):
+			if a.dtype.type==np.float64 and a.strides[0] == 8:
+				return a
+			else:
+				return a.astype(np.float64, copy=False)
+
+		blocks = [asfloat(block) for block in blocks]
+
 		this_thread_grid = self.grid[thread_index]
 		for i, selection in enumerate(self.selections):
 			if selection:
@@ -361,7 +371,7 @@ class TaskStatistic(Task):
 					raise ValueError("Nothing to compute for OP %s" % self.op.code)
 
 			blocks = list(blocks) # histogramNd wants blocks to be a list
-			vaex.vaexfast.statisticNd(selection_blocks, subblock_weight, this_thread_grid[i], self.minima, self.maxima, self.op.code)
+			vaex.vaexfast.statisticNd(selection_blocks, subblock_weight, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
 		return i2-i1
 		#return map(self._map, blocks)#[self.map(block) for block in blocks]
 
@@ -470,7 +480,8 @@ class _BlockScope(object):
 				if self.dataset._needs_copy(variable):
 					#self._ensure_buffer(variable)
 					#self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
-					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask].astype(np.float64)
+					#Previously we casted anything to .astype(np.float64), this led to rounding off of int64, when exporting
+					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask]
 				else:
 					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask]
 			elif variable in list(self.dataset.virtual_columns.keys()):
@@ -719,6 +730,7 @@ _doc_snippets["async"] = """Do not return the result, but a proxy for asynchrono
 _doc_snippets["progress"] = """A callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False"""
 _doc_snippets["expression_limits"] = _doc_snippets["expression"]
 _doc_snippets["grid"] = """If grid is given, instead if compuation a statistic given by what, use this Nd-numpy array instead, this is often useful when a custom computation/statistic is calculated, but you still want to use the plotting machinery."""
+_doc_snippets["edges"] = """Currently for internal use only (it includes nan's and values outside the limits at borders, nan and 0, smaller than at 1, and larger at -1"""
 
 _doc_snippets["healpix_expression"] = """Expression which maps to a healpix index, for the Gaia catalogue this is for instance 'source_id/34359738368', other catalogues may simply have a healpix column."""
 _doc_snippets["healpix_max_level"] = """The healpix level associated to the healpix_expression, for Gaia this is 12"""
@@ -909,7 +921,7 @@ class Dataset(object):
 		return self._async(async, values)
 
 	@docsubst
-	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, edges=False, progress=None):
 		"""Count the number of non-NaN values (or all, if expression is None or "*")
 
 		Examples:
@@ -929,6 +941,7 @@ class Dataset(object):
 		:param selection: {selection}
 		:param async: {async}
 		:param progress: {progress}
+		:param edges: {edges}
 		:return: {return_stat_scalar}
 		"""
 		logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
@@ -938,9 +951,9 @@ class Dataset(object):
 				#if not binby: # if we have nothing to iterate over, the statisticNd code won't do anything
 				#\3	return np.array([self.length(selection=selection)], dtype=float)
 				#else:
-				task = TaskStatistic(self, binby, shape, limits, op=OP_ADD1, selection=selection)
+				task = TaskStatistic(self, binby, shape, limits, op=OP_ADD1, selection=selection, edges=edges)
 			else:
-				task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_COUNT, selection=selection)
+				task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_COUNT, selection=selection, edges=edges)
 			self.executor.schedule(task)
 			progressbar.add_task(task, "count for %s" % expression)
 			return task
@@ -2608,6 +2621,30 @@ class Dataset(object):
 		#colorbar = None
 		#return im, colorbar
 
+	def _plot3d(self, x, y, z, vx=None, vy=None, vz=None, vwhat=None, limits=None, what="count(*)", shape=128, selection=None, f=None,
+			   smooth_pre=None, smooth_post=None,
+			   lighting=True, level=[0.1, 0.5, 0.9], opacity=[0.01, 0.05, 0.1], level_width=0.1,
+			   show=False):
+		"""Use at own risk, requires ipyvolume"""
+
+		import ipyvolume.pylab as p3
+		binby = [x,y,z]
+		limits = self.limits(binby, limits)
+		print(limits)
+		p3.clear()
+		volume_data = self._stat(what=what, binby=binby, limits=limits, shape=shape, selection=selection)
+		if smooth_pre:
+			volume_data = grid = vaex.grids.gf(volume_data, smooth_pre)
+		f = _parse_f(f)
+		volume_data = f(volume_data)
+		if smooth_post:
+			volume_data = grid = vaex.grids.gf(volume_data, smooth_post)
+		p3.volshow(volume_data, lighting=lighting, level=level, opacity=opacity, level_width=level_width)
+		if show:
+			p3.show()
+		return p3.gcc()
+
+
 	def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
 		xlabel=None, ylabel=None, label=None,
 		selection=None, show=False, tight_layout=True, hardcopy=None,
@@ -3191,6 +3228,7 @@ class Dataset(object):
 			items.append((name, self.evaluate(name, selection=selection)))
 		return items
 
+	@docsubst
 	def to_dict(self, column_names=None, selection=None, strings=True, virtual=False):
 		"""Return a dict containing the ndarray corresponding to the evaluated data
 
@@ -3202,6 +3240,28 @@ class Dataset(object):
 		"""
 		return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
 
+	@docsubst
+	def to_copy(self, column_names=None, selection=None, strings=True, virtual=False):
+		"""Return a copy of the Dataset, if selection is None, it does not copy the data, it just has a reference
+
+		:param column_names: list of column names, to copy, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+		:param selection: {selection}
+		:param strings: argument passed to Dataset.get_column_names when column_names is None
+		:param virtual: argument passed to Dataset.get_column_names when column_names is None
+		:return: dict
+		"""
+		ds = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
+		for name in ds.get_column_names():
+			if name in self.units:
+				ds.units[name] = self.units[name]
+			if name in self.descriptions:
+				ds.descriptions[name] = self.descriptions[name]
+			if name in self.ucds:
+				ds.ucds[name] = self.ucds[name]
+		ds.description = self.description
+		return ds
+
+	@docsubst
 	def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None):
 		"""Return a pandas DataFrame containing the ndarray corresponding to the evaluated data
 
@@ -3232,6 +3292,7 @@ class Dataset(object):
 			df.index.name = index_name
 		return df
 
+	@docsubst
 	def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=False, index=None):
 		"""Returns a astropy table object containing the ndarrays corresponding to the evaluated data
 
@@ -3284,7 +3345,8 @@ class Dataset(object):
 		"""Add an in memory array as a column"""
 		if isinstance(f_or_array, np.ndarray):
 			self.columns[name] = f_or_array
-			self.column_names.append(name)
+			if name not in self.column_names:
+				self.column_names.append(name)
 		else:
 			raise ValueError("functions not yet implemented")
 
@@ -4729,8 +4791,7 @@ class DatasetArrays(DatasetLocal):
 		:param data: numpy array with the data
 		"""
 		assert _is_array_type_ok(data), "dtype not supported: %r, %r" % (data.dtype, data.dtype.type)
-		self.column_names.append(name)
-		self.columns[name] = data
+		super(DatasetArrays, self).add_column(name, data)
 		#self._length = len(data)
 		if self._full_length is None:
 			self._full_length = len(data)

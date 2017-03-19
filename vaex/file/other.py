@@ -540,14 +540,21 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 			self.variables[key] = value
 
 
-	def _load_columns(self, h5data):
+	def _load_columns(self, h5data, first=[]):
 		#print h5data
 		# make sure x y x etc are first
-		first = "x y z vx vy vz".split()
 		finished = set()
 		if "description" in h5data.attrs:
 			self.description = ensure_string(h5data.attrs["description"])
-		for column_name in first + list(h5data):
+		# hdf5, or h5py doesn't keep the order of columns, so manually track that, also enables reordering later
+		if "column_order" in h5data.attrs:
+			column_order = h5data.attrs["column_order"].split(",")
+		else:
+			column_order = []
+		for name in list(h5data):
+			if name not in column_order:
+				column_order.append(name)
+		for column_name in column_order:
 			if column_name in h5data and column_name not in finished:
 				#print type(column_name)
 				column = h5data[column_name]

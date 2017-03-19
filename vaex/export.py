@@ -36,9 +36,11 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 	"""
 
 	if selection:
-		assert dataset_input.has_selection(), "cannot export selection is there is none"
+		if selection == True: # easier to work with the name
+			selection = "default"
+		assert dataset_input.has_selection(selection), "cannot export selection is there is none"
 
-	N = len(dataset_input) if not selection else dataset_input.selected_length()
+	N = len(dataset_input) if not selection else dataset_input.selected_length(selection)
 	if N == 0:
 		raise ValueError("Cannot export empty table")
 
@@ -133,7 +135,7 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 
 	column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True)
 	logger.debug("exporting columns(fits): %r" % column_names)
-	N = len(dataset) if not selection else dataset.selected_length()
+	N = len(dataset) if not selection else dataset.selected_length(selection)
 	data_types = []
 	data_shapes = []
 	for column_name in column_names:
@@ -180,13 +182,15 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 	"""
 
 	if selection:
-		assert dataset.has_selection(), "cannot export selection is there is none"
+		if selection == True: # easier to work with the name
+			selection = "default"
+		assert dataset.has_selection(selection), "cannot export selection is there is none"
 	# first open file using h5py api
 	with h5py.File(path, "w") as h5file_output:
 
 		h5data_output = h5file_output.require_group("data")
 		#i1, i2 = dataset.current_slice
-		N = len(dataset) if not selection else dataset.selected_length()
+		N = len(dataset) if not selection else dataset.selected_length(selection)
 		if N == 0:
 			raise ValueError("Cannot export empty table")
 		logger.debug("virtual=%r", virtual)
@@ -210,12 +214,16 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 				array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype.newbyteorder(byteorder))
 			array[0] = array[0] # make sure the array really exists
 		random_index_name = None
+		column_order = list(column_names) # copy
 		if shuffle:
 			random_index_name = "random_index"
 			while random_index_name in dataset.get_column_names():
 				random_index_name += "_new"
 			shuffle_array = h5file_output.require_dataset("/data/" + random_index_name, shape=(N,), dtype=byteorder+"i8")
 			shuffle_array[0] = shuffle_array[0]
+			column_order.append(random_index_name) # last item
+		h5data_output.attrs["column_order"] = ",".join(column_order) # keep track or the ordering of columns
+
 
 	# after this the file is closed,, and reopen it using out class
 	dataset_output = vaex.file.other.Hdf5MemoryMapped(path, write=True)
