@@ -34,6 +34,9 @@ class check_output(object):
 		pass
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
+		if exc_type is not None:
+			plt.close()
+			return
 		fn = tempfile.mktemp(".png")
 		plt.savefig(fn)
 		if not os.path.exists(self.fn):
@@ -45,7 +48,7 @@ class check_output(object):
 		diff = PIL.ImageChops.difference(image1, image2)
 		extrema = diff.getextrema()
 		for i, (vmin, vmax) in enumerate(extrema):
-			msg = "difference found between {im1} and {im2} in band {band}\n $ cp {im1} {im2}".format(im1=self.fn, im2=fn,
+			msg = "difference found between {im1} and {im2} in band {band}\n $ cp {im2} {im1}".format(im1=self.fn, im2=fn,
 																									  band=i)
 			if vmin != vmax and overwrite_images:
 				image1.show()
@@ -61,6 +64,7 @@ class check_output(object):
 						return
 			assert vmin == 0, msg
 			assert vmax == 0, msg
+		plt.close()
 
 
 class TestPlot(unittest.TestCase):
@@ -74,6 +78,14 @@ class TestPlot(unittest.TestCase):
 	def test_single(self):
 		with check_output("single_xy"):
 			self.dataset.plot("x", "y", title="face on")
+
+	def test_single_nan(self):
+		with check_output("single_xy_no_nan"):
+			self.dataset.plot("x", "y", f="log")
+		cm = plt.cm.inferno
+		cm.set_bad("orange")
+		with check_output("single_xy_nan"):
+			self.dataset.plot("x", "y", f="log", colormap=cm)
 
 	def test_multiplot(self):
 		with check_output("multiplot_xy"):
@@ -98,7 +110,29 @@ class TestPlot(unittest.TestCase):
 
 	def test_slice(self):
 		with check_output("slice"):
-			self.dataset.plot("Lz", "E", z="FeH:-3,-1,10", show=True, visual=dict(row="z"), figsize=(12,8), f="log", wrap_columns=3);
+			self.dataset.plot("Lz", "E", z="FeH:-3,-1,10", visual=dict(row="z"), figsize=(12,8), f="log", wrap_columns=3);
+
+	def test_plot1d(self):
+		with check_output("plot1d"):
+			self.dataset.plot1d("Lz");
+
+	def test_scatter(self):
+		self.dataset.set_active_fraction(0.01)
+		with check_output("scatter"):
+			self.dataset.scatter("Lz", "E", length_check=False);
+		with check_output("scatter_xerr"):
+			self.dataset.scatter("Lz", "Lz", xerr="abs(Lz*0.1)", length_check=False);
+		with check_output("scatter_xerr_yerr"):
+			self.dataset.scatter("Lz", "Lz", xerr="abs(Lz*0.1)", yerr="abs(Lz*0.4)", length_check=False);
+		with check_output("scatter_xerr_yerr_asym"):
+			self.dataset.scatter("Lz", "Lz", xerr=["abs(Lz*0.1)", "abs(Lz*0.2)"], yerr=["abs(Lz*0.2)", "abs(Lz)"], length_check=False);
+
+
+	def test_healpix(self):
+		self.dataset.add_virtual_columns_cartesian_to_spherical()
+		self.dataset.add_column_healpix(longitude="l", latitude="b")
+		with check_output("plot_healpix"):
+			self.dataset.healpix_plot("healpix");
 
 if __name__ == '__main__':
     unittest.main()

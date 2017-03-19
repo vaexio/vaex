@@ -84,16 +84,23 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 				block_scope.move(i1, i2)
 				#	block_scope.move(i1-i1, i2-i1)
 
-				values = block_scope.evaluate(column_name)
-				if values.dtype.type == np.datetime64:
-					values = values.view(np.int64)
+				#values = block_scope.evaluate(column_name)
+				#if values.dtype.type == np.datetime64:
+				#	values = values.view(np.int64)
 
 				if selection:
 					mask = dataset_input.evaluate_selection_mask(selection, i1=i1, i2=i2)
 					selection_block_length = np.sum(mask)#np.sum(dataset_input.mask[i1:i2])
-					to_array[to_offset:to_offset+selection_block_length] = values[mask]
-					to_offset += selection_block_length
+					if selection_block_length:
+						values = block_scope.evaluate(column_name)
+						if values.dtype.type == np.datetime64:
+							values = values.view(np.int64)
+						to_array[to_offset:to_offset+selection_block_length] = values[mask]
+						to_offset += selection_block_length
 				else:
+					values = block_scope.evaluate(column_name)
+					if values.dtype.type == np.datetime64:
+						values = values.view(np.int64)
 					if shuffle:
 						indices = shuffle_array[i1:i2]
 						to_array[indices] = values

@@ -571,6 +571,7 @@ class DatasetRest(DatasetRemote):
 		return SubspaceRemote(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
 
 	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, async=False):
+		"""basic support for evaluate at server, at least to run some unittest, do not expect this to work from strings"""
 		result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, selection=selection, async=async)
 		# TODO: we ignore out
 		return result

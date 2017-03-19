@@ -113,21 +113,25 @@ def open(path, *args, **kwargs):
 	<vaex.dataset.Hdf5MemoryMappedGadget at 0x1136ef3d0>
 	"""
 	import vaex
-	if path in aliases:
-		path = aliases[path]
-	if path.startswith("http://") or path.startswith("ws://"): # TODO: think about https and wss
-		server, dataset = path.rsplit("/", 1)
-		server = vaex.server(server, **kwargs)
-		datasets = server.datasets(as_dict=True)
-		if dataset not in datasets:
-			raise KeyError("no such dataset '%s' at server, possible dataset names: %s" %  (dataset, " ".join(datasets.keys())))
-		return datasets[dataset]
-	if path.startswith("cluster"):
-		import vaex.distributed
-		return vaex.distributed.open(path, *args, **kwargs)
-	else:
-		import vaex.file
-		return vaex.file.open(path, *args, **kwargs)
+	try:
+		if path in aliases:
+			path = aliases[path]
+		if path.startswith("http://") or path.startswith("ws://"): # TODO: think about https and wss
+			server, dataset = path.rsplit("/", 1)
+			server = vaex.server(server, **kwargs)
+			datasets = server.datasets(as_dict=True)
+			if dataset not in datasets:
+				raise KeyError("no such dataset '%s' at server, possible dataset names: %s" %  (dataset, " ".join(datasets.keys())))
+			return datasets[dataset]
+		if path.startswith("cluster"):
+			import vaex.distributed
+			return vaex.distributed.open(path, *args, **kwargs)
+		else:
+			import vaex.file
+			return vaex.file.open(path, *args, **kwargs)
+	except:
+		logging.getLogger("vaex").error("error opening %r" % path)
+		raise
 
 def open_many(filenames):
 	"""Open a list of filenames, and return a dataset with all datasets cocatenated
@@ -157,7 +161,7 @@ def from_astropy_table(table):
 	import vaex.file.other
 	return vaex.file.other.DatasetAstropyTable(table=table)
 
-def from_arrays(name="array", **arrays):
+def from_arrays(**arrays):
 	"""Create an in memory dataset from numpy arrays
 
 
@@ -167,25 +171,25 @@ def from_arrays(name="array", **arrays):
 	:Example:
 	>>> x = np.arange(10)
 	>>> y = x ** 2
-	>>> dataset = vx.from_arrays("test", x=x, y=y)
+	>>> dataset = vx.from_arrays(x=x, y=y)
 
 
 	"""
-	dataset = vaex.dataset.DatasetArrays(name)
+	dataset = vaex.dataset.DatasetArrays("array")
 	for name, array in arrays.items():
 		dataset.add_column(name, array)
 	return dataset
 
-def from_scalars(name="scalars", **kwargs):
+def from_scalars(**kwargs):
 	"""Similar to from_arrays, but convenient for a dataset of length 1
 
-	>>> ds = vx.from_arrays("test", x=1, y=2)
+	>>> ds = vx.from_scalars(x=1, y=2)
 	"""
 	import numpy as np
-	return from_arrays(name, **{k:np.array([v]) for k, v in kwargs.items()})
+	return from_arrays( **{k:np.array([v]) for k, v in kwargs.items()})
 
 
-def from_pandas(df, name="pandas"):
+def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
 	"""Create an in memory dataset from a pandas dataframe
 
 	:param: pandas.DataFrame df: Pandas dataframe
@@ -197,8 +201,8 @@ def from_pandas(df, name="pandas"):
 	"""
 	import six
 	dataset = vaex.dataset.DatasetArrays(name)
-	for name in df.columns:
-		values = df[name].values
+	def add(name, column):
+		values = column.values
 		if isinstance(values[0], six.string_types):
 			values = values.astype("S")
 		try:
@@ -210,6 +214,10 @@ def from_pandas(df, name="pandas"):
 				dataset.add_column(name, values)
 			except Exception as e:
 				print("Giving up column %s, error: %r" (name, e))
+	for name in df.columns:
+		add(name, df[name])
+	if copy_index:
+		add(index_name, df.index)
 	return dataset
 
 def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **kwargs):

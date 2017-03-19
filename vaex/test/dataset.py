@@ -22,7 +22,7 @@ vx.set_log_level_exception()
 #vx.set_log_level_debug()
 
 def from_scalars(**kwargs):
-	return vx.from_arrays("test", **{k:np.array([v]) for k, v in kwargs.items()})
+	return vx.from_arrays(**{k:np.array([v]) for k, v in kwargs.items()})
 
 class CallbackCounter(object):
 	def __init__(self, return_value=None):
@@ -97,6 +97,41 @@ class TestDataset(unittest.TestCase):
 		self.assertIsNotNone(ds.unit("mass"))
 		ds.close_files()
 
+	def test_to(self):
+		def test_equal(ds1, ds2, units=True, ucds=True, description=True, descriptions=True):
+			if description:
+				self.assertEqual(ds1.description, ds2.description)
+			for name in ds1.get_column_names(strings=True):
+				self.assertIn(name, ds2.get_column_names(strings=True))
+				np.testing.assert_array_equal(ds1.columns[name], ds2.columns[name])
+				if units:
+					self.assertEqual(ds1.units.get(name), ds2.units.get(name))
+				if ucds:
+					self.assertEqual(ds1.ucds.get(name), ds2.ucds.get(name))
+				if descriptions:
+					self.assertEqual(ds1.descriptions.get(name), ds2.descriptions.get(name))
+
+		# as numpy dict
+		ds2 = vx.from_arrays(**self.dataset.to_dict())
+		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
+
+		# as pandas
+		ds2 = vx.from_pandas(self.dataset.to_pandas_df())
+		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
+
+		df = self.dataset.to_pandas_df(index_name="name")
+		ds2 = vx.from_pandas(df, index_name="name")
+		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
+
+		ds2 = vx.from_pandas(self.dataset.to_pandas_df(index_name="name"), copy_index=False)
+		assert "name" not in ds2.get_column_names()
+
+		# as astropy table
+		ds2 = vx.from_astropy_table(self.dataset.to_astropy_table())
+		test_equal(self.dataset, ds2)
+
+
+
 	def test_ascii(self):
 		for seperator in " 	\t,":
 			for use_header in [True, False]:
@@ -136,7 +171,7 @@ class TestDataset(unittest.TestCase):
 
 		x = np.arange(10., dtype=">f8")
 		y = np.arange(10, dtype="<f8")
-		ds = vx.from_arrays("mixed", x=x, y=y)
+		ds = vx.from_arrays(x=x, y=y)
 		ds.count()
 		ds.count(binby=["x", "y"])
 
@@ -150,7 +185,7 @@ class TestDataset(unittest.TestCase):
 			nside = hp.order2nside(order)
 			npix = hp.nside2npix(nside)
 			healpix = np.arange(npix)
-			ds = vx.from_arrays("test", healpix=healpix)
+			ds = vx.from_arrays(healpix=healpix)
 			counts = ds.healpix_count(healpix_expression="healpix", healpix_max_level=order, healpix_level=order)
 			ones = np.ones(npix)
 			np.testing.assert_array_almost_equal(counts, ones)
@@ -161,11 +196,11 @@ class TestDataset(unittest.TestCase):
 		N = 100000
 		# distance
 		parallaxes = np.random.normal(1, 0.1, N)
-		ds_many = vx.from_arrays("test", parallax=parallaxes)
+		ds_many = vx.from_arrays(parallax=parallaxes)
 		ds_many.add_virtual_columns_distance_from_parallax("parallax", "distance")
 		distance_std_est = ds_many.std("distance").item()
 
-		ds_1 = vx.from_arrays("test", parallax=np.array([1.]), parallax_uncertainty=np.array([0.1]))
+		ds_1 = vx.from_arrays(parallax=np.array([1.]), parallax_uncertainty=np.array([0.1]))
 		ds_1.add_virtual_columns_distance_from_parallax("parallax", "distance", "parallax_uncertainty")
 		distance_std = ds_1.evaluate("distance_uncertainty")[0]
 		self.assertAlmostEqual(distance_std, distance_std_est,2)
@@ -207,6 +242,47 @@ class TestDataset(unittest.TestCase):
 			vphi_polar = ds_1.evaluate("vphi_polar")[0]
 			self.assertAlmostEqual(vr_polar, 0)
 			self.assertAlmostEqual(vphi_polar, 2)
+
+
+	def test_add_virtual_columns_cartesian_velocities_to_spherical(self):
+		if 0: # TODO: errors in spherical velocities
+			pass
+
+		def test(vr_expect, vlong_expect, vlat_expect, **kwargs):
+			ds_1 = from_scalars(**kwargs)
+			ds_1.add_virtual_columns_cartesian_velocities_to_spherical()
+			vr, vlong, vlat = ds_1.evaluate("vr")[0], ds_1.evaluate("vlong")[0], ds_1.evaluate("vlat")[0]
+			self.assertAlmostEqual(vr, vr_expect)
+			self.assertAlmostEqual(vlong, vlong_expect)
+			self.assertAlmostEqual(vlat, vlat_expect)
+
+		test(0, -1,  0, x=1, y=0, z=0, vx=0, vy=-1, vz=0)
+		test(0, -1,  0, x=10, y=0, z=0, vx=0, vy=-1, vz=0)
+		test(0,  0,  1, x=1, y=0, z=0, vx=0, vy= 0, vz=1)
+		test(1,  0,  0, x=1, y=0, z=0, vx=1, vy= 0, vz=0)
+		a = 1./np.sqrt(2.)
+		test(0,  0,  1, x=a, y=0, z=a, vx=-a, vy= 0, vz=a)
+
+	def test_add_virtual_columns_cartesian_velocities_to_pmvr(self):
+		if 0: # TODO: errors in spherical velocities
+			pass
+
+		def test(vr_expect, pm_long_expect, pm_lat_expect, **kwargs):
+			ds_1 = from_scalars(**kwargs)
+			ds_1.add_variable("k", 1) # easier for comparison
+			ds_1.add_virtual_columns_cartesian_velocities_to_pmvr()
+			vr, pm_long, pm_lat = ds_1.evaluate("vr")[0], ds_1.evaluate("pm_long")[0], ds_1.evaluate("pm_lat")[0]
+			self.assertAlmostEqual(vr, vr_expect)
+			self.assertAlmostEqual(pm_long, pm_long_expect)
+			self.assertAlmostEqual(pm_lat, pm_lat_expect)
+
+		test(0, -1,  0, x=1, y=0, z=0, vx=0, vy=-1, vz=0)
+		test(0, -0.1,  0, x=10, y=0, z=0, vx=0, vy=-1, vz=0)
+		test(0,  0,  1, x=1, y=0, z=0, vx=0, vy= 0, vz=1)
+		test(1,  0,  0, x=1, y=0, z=0, vx=1, vy= 0, vz=0)
+		a = 1./np.sqrt(2.)
+		test(0,  0,  1, x=a, y=0, z=a, vx=-a, vy= 0, vz=a)
+		test(0,  0,  1*10, x=a/10, y=0, z=a/10, vx=-a, vy= 0, vz=a)
 
 	def test_add_virtual_columns_cartesian_to_polar(self):
 		for radians in [True, False]:
@@ -429,8 +505,33 @@ class TestDataset(unittest.TestCase):
 
 		self.assertEqual(self.dataset.subspace("x", "y").expressions, self.dataset("x", "y").expressions)
 
+	def test_mutual_information(self):
+		limits = self.dataset.limits(["x", "y"], "minmax")
+		subspace = self.dataset("x", "y")
+		mi1 = subspace.mutual_information(limits=limits, size=256)
+
+		mi2 = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256)
+
+		self.assertEqual(mi1, mi2)
+
+		# no test, just for coverage
+		mi1d = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby="x", limits=[0, 10], shape=2)
+		self.assertEqual(mi1d.shape, (2,))
+
+		mi2d = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y"], limits=[[0, 10], [0, 100]], shape=(2, 3))
+		self.assertEqual(mi2d.shape, (2,3))
+
+		mi3d = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y", "z"], limits=[[0, 10], [0, 100], [-100, 100]], shape=(2, 3, 4))
+		self.assertEqual(mi3d.shape, (2,3,4))
+
+
+		mi_list, subspaces = self.dataset.mutual_information([["x", "y"], ["x", "z"]], sort=True)
+		mi1 = self.dataset.mutual_information("x", "y")
+		mi2 = self.dataset.mutual_information("x", "z")
+		self.assertEqual(mi_list.tolist(), list(sorted([mi1, mi2])))
+
 	def test_subspaces(self):
-		dataset = vaex.from_arrays("arrays", x=np.array([1]), y=np.array([2]), z=np.array([3]))
+		dataset = vaex.from_arrays(x=np.array([1]), y=np.array([2]), z=np.array([3]))
 		subspaces = dataset.subspaces(dimensions=2)
 		self.assertEqual(len(subspaces), 3)
 		subspaces = dataset.subspaces(dimensions=2, exclude="x")
@@ -1420,6 +1521,14 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(total_subset_inverse + total_subset, total)
 
 
+		self.dataset.select("x > 5")
+		self.dataset.select("x <= 5", name="inverse")
+		self.dataset.select_inverse(name="inverse")
+		counts = self.dataset.count("x", selection=["default", "inverse"])
+		np.testing.assert_array_almost_equal(counts, [4, 4])
+
+
+
 		pass # TODO
 
 	def test_selection_in_handler(self):
@@ -1508,7 +1617,6 @@ class TestDataset(unittest.TestCase):
 		self.assertTrue(self.dataset.selection_can_redo())
 
 	def test_selection_serialize(self):
-		selection_lasso = vaex.dataset.SelectionLasso(self.dataset, "x", "y", [0, 10, 0], [-1, -1, 1], None, "replace")
 		selection_expression = vaex.dataset.SelectionExpression(self.dataset, "x > 5", None, "and")
 		self.dataset.set_selection(selection_expression)
 		total_subset = self.dataset("x").selected().sum()
@@ -1521,6 +1629,13 @@ class TestDataset(unittest.TestCase):
 		self.dataset.set_selection(vaex.dataset.selection_from_dict(self.dataset, values))
 		total_subset_same2 = self.dataset("x").selected().sum()
 		self.assertEqual(total_subset, total_subset_same2)
+
+		selection_expression = vaex.dataset.SelectionExpression(self.dataset, "x > 5", None, "and")
+		selection_lasso = vaex.dataset.SelectionLasso(self.dataset, "x", "y", [0, 10, 10, 0], [-1, -1, 100, 100], selection_expression, "and")
+		self.dataset.set_selection(selection_lasso)
+		total_2 = self.dataset.sum("x", selection=True)
+		self.assertEqual(total_2, total_subset)
+
 
 
 	def test_nearest(self):
@@ -1608,6 +1723,9 @@ class TestDatasetRemote(TestDataset):
 		TestDataset.tearDown(self)
 		#print "stop serving"
 
+	def test_to(self):
+		pass # not supported
+
 	def test_amuse(self):
 		pass # no need
 
@@ -1626,8 +1744,8 @@ class TestDatasetRemote(TestDataset):
 	def test_byte_size(self):
 		pass # we don't know the selection's length for dataset remote..
 
-	def test_selection(self):
-		pass
+	#def test_selection(self):
+	#	pass
 
 	#def test_count(self):
 	#	pass

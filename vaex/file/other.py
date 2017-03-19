@@ -97,7 +97,9 @@ class DatasetMemoryMapped(DatasetLocal):
 	def close_files(self):
 		for name, file in self.file_map.items():
 			file.close()
-		if vaex.utils.osname != "osx": # on osx this will give random bus errors
+		# on osx and linux this will give random bus errors (osx) or segfaults (linux)
+		# on win32 however, we'll run out of file handles
+		if vaex.utils.osname not in ["osx", "linux"]:
 			for name, memmap in self.mapping_map.items():
 				memmap.close()
 
@@ -234,7 +236,7 @@ class HansMemoryMapped(DatasetMemoryMapped):
 		self.dataHeaderSize = struct.unpack("Q"*8, self.mapping[:8*8])
 		zerooffset = offset = self.dataOffset
 		length = self.numberParticles+1
-		stride = self.formatSize/8 # stride in units of the size of the element (float64)
+		stride = self.formatSize//8 # stride in units of the size of the element (float64)
 
 		# TODO: ask Hans for the self.numberTimes-2
 		lastoffset = offset + (self.numberParticles+1)*(self.numberTimes-2)*self.formatSize
@@ -253,7 +255,7 @@ class HansMemoryMapped(DatasetMemoryMapped):
 		names = "x y z vx vy vz".split()
 
 		if 1:
-			stride = self.formatSize/8
+			stride = self.formatSize//8
 			#stride1 = self.numberTimes #*self.formatSize/8
 			for i, name in enumerate(names):
 				# TODO: ask Hans for the self.numberTimes-1
@@ -910,6 +912,7 @@ class DatasetAstropyTable(DatasetArrays):
 			#print vars(table)
 			#print dir(table)
 			DatasetArrays.__init__(self, table.meta.get("name", "unknown-astropy"))
+			self.description = table.meta.get("description")
 			self.table = table
 			#self.name
 
@@ -926,6 +929,8 @@ class DatasetAstropyTable(DatasetArrays):
 				masked_array = self.table[name].data
 				if "ucd" in column._meta:
 					self.ucds[clean_name] = column._meta["ucd"]
+				if column.unit:
+					self.units[clean_name] = column.unit
 				if column.description:
 					self.descriptions[clean_name] = column.description
 				if hasattr(masked_array, "mask"):

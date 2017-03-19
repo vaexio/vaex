@@ -114,11 +114,11 @@ def main(args=None):
 			import vaex.meta
 			vaex.meta.main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
 		elif len(args) > 1 and args[1] == "alias":
-			import vaex.dataset
-			vaex.dataset.alias_main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
+			import vaex.misc_cmdline
+			vaex.misc_cmdline.alias_main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
 		elif len(args) > 1 and args[1] == "stat":
-			import vaex.dataset
-			vaex.dataset.stat_main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
+			import vaex.misc_cmdline
+			vaex.misc_cmdline.stat_main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
 		elif len(args) > 1 and args[1] == "test":
 			import vaex.test.__main__
 			vaex.test.__main__.main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])

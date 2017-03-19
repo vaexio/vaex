@@ -56,13 +56,6 @@ vaex.kld module
     :undoc-members:
     :show-inheritance:
 
-vaex.logging module
--------------------
-
-.. automodule:: vaex.logging
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
 vaex.multithreading module
 --------------------------

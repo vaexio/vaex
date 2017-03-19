@@ -66,6 +66,20 @@ class TestApp(unittest.TestCase):
 
 		self.app = vx.ui.main.VaexApp()
 
+	def test_table(self):
+		ds = vx.example()
+		self.app.dataset_selector.add(ds)
+		self.dataset.set_current_row(3)
+		table = self.app.dataset_panel.tableview()
+		self.dataset.set_current_row(0)
+		model = table.tableModel.createIndex(1, 1)
+		table.tableView.pressed.emit(model)
+		self.assertEqual(ds.get_current_row(), 1)
+		QtTest.QTest.qWait(100) # make sure it gets rendered (is this the good way?)
+		#QtTest.QTest.mouseClick(table.count_from_zero, QtCore.Qt.LeftButton)
+		table.count_from_zero.setCheckState(QtCore.Qt.Checked)
+		QtTest.QTest.qWait(10000) # make sure it gets rendered (is this the good way?)
+
 	def test_generate_data(self):
 		actions = self.app.menu_data.actions()
 		for action in actions:
@@ -219,7 +233,6 @@ class NoTest:
 			def log_error(*args):
 				print("dialog error", args)
 			dialogs.dialog_error = log_error
-
 
 		def test_favorite_selections(self):
 			with dialogs.assertError():
