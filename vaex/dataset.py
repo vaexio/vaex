@@ -519,7 +519,7 @@ class _BlockScopeSelection(object):
 				#logger.debug("was not cached")
 				if variable in self.dataset.variables:
 					return self.dataset.variables[variable]
-				mask = selection.evaluate_selection_mask(variable, self.i1, self.i2)
+				mask = selection.evaluate(variable, self.i1, self.i2)
 				#logger.debug("put selection in mask with key %r" % (key,))
 				cache[key] = selection, mask
 				return mask
