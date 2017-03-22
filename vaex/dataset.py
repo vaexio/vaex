@@ -2717,13 +2717,15 @@ class Dataset(object):
 		#colorbar = None
 		#return im, colorbar
 
-	def _plot3d(self, x, y, z, vx=None, vy=None, vz=None, vwhat=None, limits=None, what="count(*)", shape=128, selection=None, f=None,
+	def _plot3d(self, x, y, z, vx=None, vy=None, vz=None, vwhat=None, limits=None, what="count(*)", shape=128, vshape=16, vmin=2, selection=None, f=None,
 			   smooth_pre=None, smooth_post=None,
 			   lighting=True, level=[0.1, 0.5, 0.9], opacity=[0.01, 0.05, 0.1], level_width=0.1,
+				vsize=5, vcolor="white",
 			   show=False):
 		"""Use at own risk, requires ipyvolume"""
 
 		import ipyvolume.pylab as p3
+		import ipyvolume.examples
 		binby = [x,y,z]
 		limits = self.limits(binby, limits)
 		print(limits)
@@ -2735,7 +2737,24 @@ class Dataset(object):
 		volume_data = f(volume_data)
 		if smooth_post:
 			volume_data = grid = vaex.grids.gf(volume_data, smooth_post)
-		p3.volshow(volume_data, lighting=lighting, level=level, opacity=opacity, level_width=level_width)
+		p3.volshow(volume_data.T, lighting=lighting, level=level, opacity=opacity, level_width=level_width)
+
+		#p3.xyzlabel(self.label(x), self.label(y), self.label(z))
+		if vx and vy and vz:
+			# TODO: we want to count vx vy and vz... should we multiply or add them?
+			vcount = self.count(vx, binby=[x, y, z], limits=limits, shape=vshape, selection=selection)
+			vx = self.mean(vx, binby=[x, y, z], limits=limits, shape=vshape, selection=selection)
+			vy = self.mean(vy, binby=[x, y, z], limits=limits, shape=vshape, selection=selection)
+			vz = self.mean(vz, binby=[x, y, z], limits=limits, shape=vshape, selection=selection)
+			ok = np.isfinite(vx) & np.isfinite(vy) & np.isfinite(vz) & (vcount > vmin)
+			x, y, z = ipyvolume.examples.xyz(16, limits=limits, sparse=False, centers=True)
+			v1d = [k[ok] for k in [x,y,z,vx,vy,vz]]
+			q = p3.quiver(*v1d, size=vsize, color=vcolor)
+		p3.xlim(*limits[0])
+		p3.ylim(*limits[1])
+		p3.zlim(*limits[2])
+
+
 		if show:
 			p3.show()
 		return p3.gcc()
