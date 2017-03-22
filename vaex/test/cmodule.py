@@ -70,6 +70,25 @@ class TestStatisticNd(unittest.TestCase):
 		self.assertEqual(grid[-1, 0], 2)  # this is where y[-1] and y[-2] are both nan
 
 
+	def test_find_edges(self):
+		grid = np.zeros((10+3,1), dtype=np.float64)
+		x = np.arange(10, dtype=np.float64)
+		#vaex.vaexfast.statisticNd([x], None, grid, [-0.5], [10.-0.5], 0, True)
+		vaex.vaexfast.statisticNd([x], None, grid, [0.], [10.], 0, True)
+		print(grid.T)
+		#return
+		c = np.cumsum(grid[1:], axis=0)
+		print(c.T, c.shape)
+		c = c.reshape(( -1))
+		print(c, c.shape)
+		values = np.array(4.5)
+		print(values.T, values.shape)
+		edges = np.zeros((2), dtype=np.int64)
+		vaex.vaexfast.grid_find_edges(c, values, edges)
+		print(edges)
+
+
+
 class TestGridInterpolate(unittest.TestCase):
 	def test_interpolate(self):
 		x = np.array([[0., 1.]])
