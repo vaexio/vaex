@@ -93,10 +93,12 @@ def blend(image_list, blend_mode="multiply"):
 			xB = rgba_dest[...,c]
 			if blend_mode in pdf_modes:
 				f = pdf_modes[blend_mode](xB, xA)
-				result = ((1.-aB) * aA * xA  + (1.-aA) * aB * xB + aA * aB * f) / aR
+				with np.errstate(divide='ignore', invalid='ignore'): # these are fine, we are ok with nan's in vaex
+					result = ((1.-aB) * aA * xA  + (1.-aA) * aB * xB + aA * aB * f) / aR
 			else:
 				result = cairo_modes[blend_mode][1](aA, xA, aB, xB, aR)
-			result = (np.minimum(aA, 1-aB)*xA + aB*xB)/aR
+			with np.errstate(divide='ignore', invalid='ignore'): # these are fine, we are ok with nan's in vaex
+				result = (np.minimum(aA, 1-aB)*xA + aB*xB)/aR
 			#print(result)
 			rgba_dest[:,:,c][[mask]] = np.clip(result[[mask]], 0, 1)
 		rgba_dest[:,:,3] = np.clip(aR, 0., 1)

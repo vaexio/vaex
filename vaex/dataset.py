@@ -999,7 +999,7 @@ class Dataset(object):
 		def finish(*stats_args):
 			stats = np.array(stats_args)
 			counts = stats[...,0]
-			with np.errstate(divide='ignore'):
+			with np.errstate(divide='ignore', invalid='ignore'):
 				mean = stats[...,1] / counts
 			return vaex.utils.unlistify(waslist, mean)
 		waslist, [expressions,] = vaex.utils.listify(expression)
@@ -1110,8 +1110,9 @@ class Dataset(object):
 			stats = np.array(stats_args)
 			counts = stats[...,0]
 			with np.errstate(divide='ignore'):
-				mean = stats[...,1] / counts
-				raw_moments2 = stats[...,2] / counts
+				with np.errstate(divide='ignore', invalid='ignore'): # these are fine, we are ok with nan's in vaex
+					mean = stats[...,1] / counts
+					raw_moments2 = stats[...,2] / counts
 			variance = (raw_moments2-mean**2)
 			return vaex.utils.unlistify(waslist, variance)
 		waslist, [expressions,] = vaex.utils.listify(expression)
@@ -1197,7 +1198,8 @@ class Dataset(object):
 		"""
 		@delayed
 		def corr(cov):
-			return cov[...,0,1] / (cov[...,0,0] * cov[...,1,1])**0.5
+			with np.errstate(divide='ignore', invalid='ignore'): # these are fine, we are ok with nan's in vaex
+	 			return cov[...,0,1] / (cov[...,0,0] * cov[...,1,1])**0.5
 
 		if y is None:
 			if not isinstance(x, (tuple, list)):
@@ -2515,7 +2517,8 @@ class Dataset(object):
 				item[axis] = i
 				item = tuple(item)
 				f = _parse_f(fs[i])
-				fgrid.__setitem__(item, f(grid.__getitem__(item)))
+				with np.errstate(divide='ignore', invalid='ignore'): # these are fine, we are ok with nan's in vaex
+					fgrid.__setitem__(item, f(grid.__getitem__(item)))
 				#print vmins[i], vmaxs[i]
 				if vmins[i] is not None and vmaxs[i] is not None:
 					nsubgrid = fgrid.__getitem__(item) * 1
