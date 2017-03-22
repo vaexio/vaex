@@ -4964,7 +4964,7 @@ class DatasetConcatenated(DatasetLocal):
 		self._index_end = self._full_length
 
 def _is_dtype_ok(dtype):
-	return dtype.type in [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.float64] or\
+	return dtype.type in [np.bool_, np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.float64] or\
 		dtype.type == np.string_
 
 def _is_array_type_ok(array):
