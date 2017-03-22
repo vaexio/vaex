@@ -178,6 +178,20 @@ class TestDataset(unittest.TestCase):
 		self.dataset.add_column("x", self.dataset.data.x)
 		self.assertSequenceEqual(columns, self.dataset.get_column_names())
 
+	def test_csv(self):
+		separator = ","
+		fn = tempfile.mktemp(".csv")
+		with open(fn, "w") as f:
+			print(separator.join(["x", "y", "name", "ints", "f"]), file=f)
+			for x, y, name, i, f_ in zip(self.x, self.y, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
+				print(separator.join(map(str, [x, y, name.decode("utf8"), i, f_])), file=f)
+		ds = vx.from_csv(fn, index_col=False)
+		changes = self.dataset._compare(ds, report_difference=True)
+		diff = changes[0]
+		print(diff)
+		self.assertEqual(changes[0], [], "changes in dataset")
+		self.assertEqual(changes[1], ['index'], "mssing columns")
+
 	def test_ascii(self):
 		for seperator in " 	\t,":
 			for use_header in [True, False]:

@@ -269,6 +269,12 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
 			ds.add_column(name, array)
 	return ds
 
+def from_csv(filename_or_buffer, **kwargs):
+	"""Shortcut to read a csv file using pandas and convert to a dataset directly"""
+	import pandas as pd
+	return from_pandas(pd.read_csv(filename_or_buffer, **kwargs))
+
+
 import vaex.settings
 aliases = vaex.settings.main.auto_store_dict("aliases")
 
