@@ -3364,15 +3364,18 @@ class Dataset(object):
 		:return: dict
 		"""
 		ds = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
-		for name in ds.get_column_names():
-			if name in self.units:
-				ds.units[name] = self.units[name]
-			if name in self.descriptions:
-				ds.descriptions[name] = self.descriptions[name]
-			if name in self.ucds:
-				ds.ucds[name] = self.ucds[name]
-		ds.description = self.description
+		ds.copy_metadata(self)
 		return ds
+
+	def copy_metadata(self, other):
+		for name in self.get_column_names(strings=True):
+			if name in other.units:
+				self.units[name] = other.units[name]
+			if name in other.descriptions:
+				self.descriptions[name] = other.descriptions[name]
+			if name in other.ucds:
+				self.ucds[name] = other.ucds[name]
+		self.description = other.description
 
 	@docsubst
 	def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None):
