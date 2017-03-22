@@ -4816,6 +4816,90 @@ class DatasetLocal(Dataset):
 		value = scope.evaluate(expression)
 		return value
 
+	def _compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None):
+		column_names = self.get_column_names(strings=True)
+		for other_column_name in other.get_column_names(strings=True):
+			if other_column_name not in column_names:
+				column_names.append(other_column_name)
+		different_values = []
+		missing = []
+		type_mismatch = []
+		meta_mismatch = []
+		assert len(self) == len(other)
+		if orderby:
+			index1 = np.argsort(self.columns[orderby])
+			index2 = np.argsort(other.columns[orderby])
+		for column_name in column_names:
+			if column_name not in self.get_column_names(strings=True):
+				missing.append(column_name)
+				if report_missing:
+					print("%s missing from this dataset" % column_name)
+			elif column_name not in other.get_column_names(strings=True):
+				missing.append(column_name)
+				if report_missing:
+					print("%s missing from other dataset" % column_name)
+			else:
+				ucd1 = self.ucds.get(column_name)
+				ucd2 = other.ucds.get(column_name)
+				if ucd1 != ucd2:
+					print("ucd mismatch : %r vs %r for %s" % (ucd1, ucd2, column_name))
+					meta_mismatch.append(column_name)
+				unit1 = self.units.get(column_name)
+				unit2 = other.units.get(column_name)
+				if unit1 != unit2:
+					print("unit mismatch : %r vs %r for %s" % (unit1, unit2, column_name))
+					meta_mismatch.append(column_name)
+				if self.dtype(column_name).type != other.dtype(column_name).type:
+					print("different dtypes: %s vs %s for %s" % (self.dtype(column_name), other.dtype(column_name), column_name))
+					type_mismatch.append(column_name)
+				else:
+					a = self.columns[column_name]
+					b = other.columns[column_name]
+					if orderby:
+						a = a[index1]
+						b = b[index2]
+					def normalize(ar):
+						if ar.dtype.kind == "f" and hasattr(ar, "mask"):
+							mask = ar.mask
+							ar = ar.copy()
+							ar[mask] = np.nan
+						if ar.dtype.kind in "SU":
+							if hasattr(ar, "mask"):
+								data = ar.data
+							else:
+								data = ar
+							values = [value.strip() for value in data.tolist()]
+							if hasattr(ar, "mask"):
+								ar = np.ma.masked_array(values, ar.mask)
+							else:
+								ar = np.array(values)
+						return ar
+					def equal_mask(a, b):
+						a = normalize(a)
+						b = normalize(b)
+						boolean_mask = (a == b)
+						if self.dtype(column_name).kind == 'f': # floats with nan won't equal itself, i.e. NaN != NaN
+							boolean_mask |= (np.isnan(a) & np.isnan(b))
+						return boolean_mask
+					boolean_mask = equal_mask(a, b)
+					all_equal = np.all(boolean_mask)
+					if not all_equal:
+						count = np.sum(~boolean_mask)
+						print("%s does not match for both datasets, %d rows are diffent out of %d" % (column_name, count, len(self)))
+						different_values.append(column_name)
+						if report_difference:
+							indices = np.arange(len(self))[~boolean_mask]
+							values1 = self.columns[column_name][~boolean_mask]
+							values2 = other.columns[column_name][~boolean_mask]
+							print("\tshowing difference for the first 10")
+							for i in range(min(len(values1), show)):
+								try:
+									diff = values1[i] - values2[i]
+								except:
+									diff = "does not exists"
+								print("%s[%d] == %s != %s other.%s[%d] (diff = %s)" % (column_name, indices[i], values1[i], values2[i], column_name, indices[i], diff))
+		return different_values, missing, type_mismatch, meta_mismatch
+
 	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False):
 		"""Exports the dataset to a vaex hdf5 file
 
