@@ -982,7 +982,7 @@ class DatasetAstropyTable(DatasetArrays):
 			type = self.table.dtype[i]
 			#clean_name = re.sub("[^a-zA-Z_]", "_", name)
 			clean_name = _python_save_name(name, self.columns.keys())
-			if type.kind in ["f", "i"]: # only store float and int
+			if type.kind in "fiuSU": # only store float and int
 				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
 				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
 				masked_array = self.table[name].data
