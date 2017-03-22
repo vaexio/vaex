@@ -4566,7 +4566,7 @@ class Dataset(object):
 		else:
 			def create(current):
 				return SelectionExpression(self, boolean_expression, current, mode) if boolean_expression else None
-			return self._selection(create, name)
+			self._selection(create, name)
 
 	def select_nothing(self, name="default"):
 		"""Select nothing"""
@@ -4598,7 +4598,7 @@ class Dataset(object):
 
 		def create(current):
 			return SelectionLasso(self, expression_x, expression_y, xsequence, ysequence, current, mode)
-		return self._selection(create, name, executor=executor)
+		self._selection(create, name, executor=executor)
 
 	def select_inverse(self, name="default", executor=None):
 		"""Invert the selection, i.e. what is selected will not be, and vice versa
@@ -4611,7 +4611,7 @@ class Dataset(object):
 
 		def create(current):
 			return SelectionInvert(self, current)
-		return self._selection(create, name, executor=executor)
+		self._selection(create, name, executor=executor)
 
 	def set_selection(self, selection, name="default", executor=None):
 		"""Sets the selection object
@@ -4623,7 +4623,7 @@ class Dataset(object):
 		"""
 		def create(current):
 			return selection
-		return self._selection(create, name, executor=executor, execute_fully=True)
+		self._selection(create, name, executor=executor, execute_fully=True)
 
 
 	def _selection(self, create_selection, name, executor=None, execute_fully=False):
