@@ -1450,7 +1450,7 @@ class Dataset(object):
 		return self.percentile_approx(expression, 50, binby=binby, limits=limits, shape=shape, percentile_shape=percentile_shape, percentile_limits=percentile_limits, selection=selection, async=async)
 
 	@docsubst
-	def percentile_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024*16, percentile_limits="minmax", selection=False, async=False):
+	def percentile_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024, percentile_limits="minmax", selection=False, async=False):
 		"""Calculate the percentile given by percentage, possible on a grid defined by binby
 
 		NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
@@ -1501,21 +1501,117 @@ class Dataset(object):
 			#task =  TaskStatistic(self, [expression] + binby, shape, limits, op=OP_ADD1, selection=selection)
 			#self.executor.schedule(task)
 			#return task
-			return self.count(binby=[expression] + binby, shape=shape, limits=limits, selection=selection, async=True)
+			print("calc", expression, shape, limits)
+			return self.count(binby=list(binby) + [expression], shape=shape, limits=limits, selection=selection, async=True, edges=True)
 		@delayed
 		def finish(percentile_limits, counts_list):
-			medians = []
+			print(">>>", percentile_limits)
+			results = []
 			for i, counts in enumerate(counts_list):
+				print(percentile_limits)
 				#print(counts, counts.shape)
 				#counts = counts[...,0]
 				#print("percentile_limits", percentile_limits)
 				#print("counts=", counts)
 				#print("counts shape=", counts.shape)
 				# F is the 'cumulative distribution'
-				shape = counts.shape
+				if 1:
+					# remove the nan and boundary edges from the first dimension,
+					#print("sums", counts.sum(), counts[2:-1].sum())
+					#import pdb
+					#pdb.set_trace()
+					nonnans = list([slice(2, -1, None) for k in range(len(counts.shape)-1)])
+					nonnans.append(slice(1,None, None)) # we're gonna get rid only of the nan's, and keep the overflow edges
+					#print(counts.shape)
+					#print("nonnans", nonnans)
+					cumulative_grid = np.cumsum(counts.__getitem__(nonnans), -1) # convert to cumulative grid
+
+					# keep the nans in the last dim, since we need it for the total counts
+					nonnans = list([slice(2, -1, None) for k in range(len(counts.shape)-1)])
+					nonnans.append(slice(0,None, None))
+					totalcounts =  np.sum(counts.__getitem__(nonnans), -1)
+					empty = totalcounts == 0
+
+					original_shape = counts.shape
+					shape = cumulative_grid.shape# + (original_shape[-1] - 1,) #
+
+					#print("original_shape", original_shape)
+					#print("shape", shape)
+					counts = np.sum(counts, -1)
+					edges_floor = np.zeros(shape[:-1] + (2,), dtype=np.int64)
+					edges_ceil = np.zeros(shape[:-1] + (2,), dtype=np.int64)
+					# if we have an off  # of elements, say, N=3, the center is at i=1=(N-1)/2
+					# if we have an even # of elements, say, N=4, the center is between i=1=(N-2)/2 and i=2=(N/2)
+					#index = (shape[-1] -1-3) * percentage/100. # the -3 is for the edges
+					values = np.array((totalcounts+1) * percentage/100.) # make sure it's an ndarray
+					values[empty] = 0
+					floor_values = np.array(np.floor(values))
+					ceil_values = np.array(np.ceil(values))
+					#print("totalcounts", repr(totalcounts))
+					#print("values       ", repr(values))
+					#print("floor_values ", repr(floor_values))
+					#print("ceil_values ", repr(ceil_values))
+					#print(totalcounts, percentage, values)
+					#print(">>", floor_values[8], cumulative_grid[8])
+					#print(cumulative_grid.strides)
+					#print(edges.shape)
+					#print([k.shape for k in (cumulative_grid, values, edges)])
+					#print(cumulative_grid, repr(values), edges)
+					#print("shapes", [k.shape for k in [cumulative_grid, floor_values, edges_floor]])
+					#print("strides", [k.strides for k in [cumulative_grid, floor_values, edges_floor]])
+					#print("cumulative_grid", cumulative_grid)
+					vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
+					vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
+					#print(floor_values)
+
+					def index_choose(a, indices):
+						# alternative to np.choise, which doesn't like the last dim to be >= 32
+						out = np.zeros(a.shape[:-1])
+						for i in np.ndindex(out.shape):
+							out[i] = a[i+(indices[i],)]
+						return out
+					def calculate_x(edges, values):
+						left, right = edges[...,0], edges[...,1]
+						#left_value, right_value = cumulative_grid[...,left], cumulative_grid[...,right]
+						#print(left.shape, cumulative_grid.shape)
+						#import pdb
+						#pdb.set_trace()
+						left_value = index_choose(cumulative_grid, left)
+						right_value = index_choose(cumulative_grid, right)
+						#print("edges_left", edges)
+						#print("edges_right", edges)
+						#print("left_value", left_value)
+						#print("right_value", right_value)
+						u = np.array((values - left_value)/(right_value - left_value))
+						#u[left==right] = 0
+						#print("percentile_limits", percentile_limits)
+						#print("shape", shape)
+						# TODO: should it really be -3? not -2
+						xleft, xright = percentile_limits[i][0] + (left-0.5)  * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1]-3),\
+										percentile_limits[i][0] + (right-0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1]-3)
+						x = xleft + (xright - xleft) * u #/2
+						#print("u ", u)
+						#print("xleft", xleft)
+						#print("xright", xright)
+						#print("# left", self.count(selection="x < %f" % xleft))
+						#print("# right ", self.count(selection="x < %f" % xright))
+						#print("x", x)
+						return x
+
+					x1 = calculate_x(edges_floor, floor_values)
+					x2 = calculate_x(edges_ceil, ceil_values)
+					u = values - floor_values
+					x = x1 + (x2 - x1) * u
+					#print("x1, x2, u, x", x1, x2, u, x)
+
+
+
+
+					results.append(x)
+					continue
 				#counts[-1] += 1
 				#print("shape", shape)
-				F = np.cumsum(counts, axis=-1).reshape((1,) + shape)
+				#F = np.cumsum(counts, axis=-1).reshape((1,) + shape)
 				F /= len(self) #np.max(F, axis=(-1))
 				if 1:
 					#for i in range(len(counts)):
@@ -1571,9 +1667,11 @@ class Dataset(object):
 					# empty values should be set to nan
 					median[~ok] = np.nan
 					medians.append(median)
-			medians = np.array(medians)
+			#medians = np.array(medians)
 			#value = np.array(vaex.utils.unlistify(waslist, medians))
-			return medians
+			#return medians
+			return results
+
 		shape = _expand_shape(shape, len(binby))
 		percentile_shapes = _expand_shape(percentile_shape, len(expressions))
 		if percentile_limits:
@@ -1582,7 +1680,11 @@ class Dataset(object):
 		percentile_limits = self.limits(expressions, percentile_limits, selection=selection, async=True)
 		@delayed
 		def calculation(limits, percentile_limits):
-			tasks = [calculate(expression, tuple(shape) + (percentile_shape, ), list(limits) + list(percentile_limit))
+			#print(">>>", expressions, percentile_limits)
+			#print(percentile_limits[0], list(percentile_limits[0]))
+			#print(list(np.array(limits).tolist()) + list(percentile_limits[0]))
+			#print("limits", limits, expressions, percentile_limits, ">>", list(limits) + [list(percentile_limits[0]))
+			tasks = [calculate(expression, tuple(shape) + (percentile_shape, ), list(limits) + [list(percentile_limit)])
 					 for    percentile_shape,  percentile_limit, expression
 					 in zip(percentile_shapes, percentile_limits, expressions)]
 			return finish(percentile_limits, delayed_args(*tasks))
@@ -2301,7 +2403,7 @@ class Dataset(object):
 							arguments = groups[1].strip()
 							if "," in arguments:
 								arguments = arguments.split(",")
-							functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max", "median"]
+							functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max", "median_approx"]
 							unit_expression = None
 							if function in ["mean", "sum", "std", "min", "max", "median"]:
 								unit_expression = arguments
