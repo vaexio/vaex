@@ -157,6 +157,8 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 		column_names.append(random_index_name)
 		data_types.append(np.int64().dtype)
 		data_shapes.append((N,))
+		ucds.append(None)
+		units.append(None)
 	else:
 		random_index_name = None
 
