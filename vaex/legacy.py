@@ -6,6 +6,13 @@ from .dataset import Task, TaskMapReduce, _parse_f
 import scipy
 import six
 
+def _asfloat(a):
+	if a.dtype.type==np.float64 and a.strides[0] == 8:
+		return a
+	else:
+		return a.astype(np.float64, copy=False)
+
+
 class TaskHistogram(Task):
 	def __init__(self, dataset, subspace, expressions, size, limits, masked=False, weight=None):
 		self.size = size
@@ -56,13 +63,7 @@ class TaskHistogram(Task):
 		#mask = self.dataset.mask
 		data = self.data[thread_index]
 
-		def asfloat(a):
-			if a.dtype.type==np.float64 and a.strides[0] == 8:
-				return a
-			else:
-				return a.astype(np.float64, copy=False)
-
-		blocks = [asfloat(block) for block in blocks]
+		blocks = [_asfloat(block) for block in blocks]
 
 		if self.masked:
 			mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
@@ -1080,6 +1081,7 @@ class SubspaceLocal(Subspace):
 			#print blocks
 			#with lock:
 			#	print thread_index, i1, i2, blocks
+			blocks = [_asfloat(block) for block in blocks]
 			return [vaex.vaexfast.find_nan_min_max(block) for block in blocks]
 			if 0: # TODO: implement using statisticNd and benchmark
 				minmaxes = np.zeros((len(blocks), 2), dtype=float)
