@@ -1,0 +1,844 @@
+SIMPLE  =                    T / Standard FITS format                           BITPIX  =                    8 / Character data                                 NAXIS   =                    1 / Text string                                    NAXIS1  =                44621 / Number of characters                           VOTMETA =                    T / Table metadata in VOTable format               EXTEND  =                    T / There are standard extensions                  COMMENT                                                                         COMMENT The data in this primary HDU consists of bytes which                    COMMENT comprise a VOTABLE document.                                            COMMENT The VOTable describes the metadata of the table contained               COMMENT in the following BINTABLE extension.                                    COMMENT Such a BINTABLE extension can be used on its own as a perfectly         COMMENT good table, but the information from this HDU may provide some          COMMENT useful additional metadata.                                             COMMENT There is one following BINTABLE.                                        NTABLE  =                    1 / Number of following BINTABLE HDUs              END                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             <?xml version='1.0' encoding='UTF-8'?>
+<VOTABLE version='1.1'>
+<!--
+ !  VOTable written by uk.ac.starlink.votable.FitsPlusTableWriter
+ !  Describes BINTABLE extensions in following HDUs
+ !-->
+<RESOURCE>
+<TABLE name="gaia-small.vot" nrows="26">
+<PARAM arraysize="2" datatype="char" name="QUERY_STATUS" value="OK"/>
+<PARAM arraysize="*" datatype="char" name="QUERY" value="">
+<DESCRIPTION>SELECT *
+
+  
+FROM gaiadr1.gaia_source
+JOIN gaiadr1.tmass_best_neighbour
+ON gaiadr1.gaia_source.source_id = gaiadr1.tmass_best_neighbour.source_id
+JOIN gaiadr1.tmass_original_valid
+ON gaiadr1.tmass_best_neighbour.tmass_oid = gaiadr1.tmass_original_valid.tmass_oid
+
+WHERE
+
+gaiadr1.gaia_source.ra &lt; 0.1 and 
+gaiadr1.gaia_source.dec &lt; 0.1 and
+gaiadr1.gaia_source.ra &gt; -0.1 and
+gaiadr1.gaia_source.dec &gt; -0.1</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="*" datatype="char" name="CAPTION" value="">
+<DESCRIPTION>If you use public Gaia DR1 data in your paper, please take note of our guide on how to acknowledge and cite Gaia DR1: http://gaia.esac.esa.int/documentation/GDR1/Miscellaneous/sec_credit_and_citation_instructions.html</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="*" datatype="char" name="PAGE" value=""/>
+<PARAM arraysize="*" datatype="char" name="PAGE_SIZE" value=""/>
+<PARAM arraysize="*" datatype="char" name="JOBID" value="">
+<DESCRIPTION>1490181948554O</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="*" datatype="char" name="JOBNAME" value=""/>
+<FIELD datatype="long" name="solution_id" ucd="meta.id;meta.version">
+<DESCRIPTION>All Gaia data processed by the Data Processing and Analysis Consortium
+comes tagged with a solution identifier. This is a numeric field
+attached to each table row that can be used to unequivocally identify
+the version of all the subsystems that where used in the generation of
+the data as well as the input data used. It is mainly for internal DPAC
+use but is included in the published data releases to enable end users
+to examine the provenance of processed data products. To decode a given
+solution ID visit</DESCRIPTION>
+<VALUES null='-9223372036854775808'/>
+</FIELD>
+<FIELD datatype="long" name="source_id" ucd="meta.id;meta.main">
+<DESCRIPTION>Unique identifier of the Gaia source, the attribute corresponds to
+GaiaSource.sourceId</DESCRIPTION>
+<VALUES null='-9223372036854775808'/>
+</FIELD>
+<FIELD datatype="long" name="random_index" ucd="meta.code">
+<DESCRIPTION>Random index which can be used to select smaller subsets of the data
+that are still representative. The column contains a random permutation
+of the numbers from 0 to N-1, where N is the number of rows.
+
+The random index can be useful for validation (testing on 10 different
+random subsets), visualization (displaying 1% of the data), and
+statistical exploration of the data, without the need to download all
+the data.</DESCRIPTION>
+<VALUES null='-9223372036854775808'/>
+</FIELD>
+<FIELD datatype="double" name="ref_epoch" ucd="meta.ref;time.epoch" unit="Time[Julian Years]">
+<DESCRIPTION>Reference epoch to which the astrometic source parameters are referred,
+expressed as a Julian Year in TCB.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="ra" ucd="pos.eq.ra;meta.main" unit="Angle[deg]" utype="Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C1">
+<DESCRIPTION>J2000 right ascension with respect to the ICRS</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="ra_error" ucd="stat.error;pos.eq.ra" unit="Angle[mas]">
+<DESCRIPTION>Standard error \sigma_{\alpha *} \equiv \sigma_\alpha\cos\delta of the
+right ascension of the source in ICRS at the reference epoch refEpoch.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="dec" ucd="pos.eq.dec;meta.main" unit="Angle[deg]" utype="Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C2">
+<DESCRIPTION>J2000 declination with respect to the ICRS</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="dec_error" ucd="stat.error;pos.eq.dec" unit="Angle[mas]">
+<DESCRIPTION>Standard error \sigma_\delta of the declination of the source in ICRS at
+the reference epoch refEpoch</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="parallax" ucd="pos.parallax" unit="Angle[mas]">
+<DESCRIPTION>Absolute barycentric stellar parallax \varpi of the soure at the
+reference epoch refEpoch</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="parallax_error" ucd="stat.error;pos.parallax" unit="Angle[mas]">
+<DESCRIPTION>Standard error \sigma_\varpi of the stellar parallax at the reference
+epoch refEpoch</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="pmra" ucd="pos.pm;pos.eq.ra" unit="Angular Velocity[mas/year]">
+<DESCRIPTION>Proper motion in right ascension \mu_{\alpha *} of the source in ICRS at
+the reference epoch refEpoch. This is the projection of the proper
+motion vector in the direction of increasing right ascension.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="pmra_error" ucd="stat.error;pos.pm;pos.eq.ra" unit="Angular Velocity[mas/year]">
+<DESCRIPTION>Standard error \sigma_{\mu\alpha *} of the proper motion vector in right
+ascension at the reference epoch refEpoch</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="pmdec" ucd="pos.pm;pos.eq.dec" unit="Angular Velocity[mas/year]">
+<DESCRIPTION>Proper motion in declination \mu_\delta of the source at the reference
+epoch refEpoch. This is the projection of the proper motion vector in
+the direction of increasing declination.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="pmdec_error" ucd="stat.error;pos.pm;pos.eq.dec" unit="Angular Velocity[mas/year]">
+<DESCRIPTION>Standard error \sigma_{\mu\delta} of the proper motion in declination at
+the reference epoch refEpoch</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ra_dec_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between right ascension and declination, in dimensionless
+units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ra_parallax_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between right ascension and parallax, in dimensionless units
+[-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ra_pmra_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between right ascension and proper motion in right
+ascension, in dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ra_pmdec_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between right ascension and proper motion in declination, in
+dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="dec_parallax_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between declination and parallax, in dimensionless units
+[-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="dec_pmra_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between declination and proper motion in right ascension, in
+dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="dec_pmdec_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between declination and proper motion in declination, in
+dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="parallax_pmra_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between parallax and proper motion in right ascension, in
+dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="parallax_pmdec_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between parallax and proper motion in declination, in
+dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="pmra_pmdec_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between proper motion in right ascension and proper motion
+in declination, in dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_obs_al" ucd="meta.number">
+<DESCRIPTION>Total number of AL observations (= CCD transits) used in the astrometric
+solution of the source, independent of their weight. Note that some
+observations may be strongly downweighted (see astrometricNBadObsAl).</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_obs_ac" ucd="meta.number">
+<DESCRIPTION>Total number of AC observations (= CCD transits) used in the astrometric
+solution of the source, independent of their weight. Note that some
+observations may be strongly downweighted (see astrometricNBadObsAc).
+Nearly all sources having G¬†&lt;13 will have AC observations from 2d
+windows, while fainter than that limit only \sim1% of stars (the
+so‚Äìcalled ‚Äòcalibration faint stars‚Äô) are assigned 2d windows resulting
+in AC observations.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_good_obs_al" ucd="meta.number">
+<DESCRIPTION>Number of AL observations (= CCD transits) that were not strongly
+downweighted in the astrometric solution of the source. Strongly
+downweighted observations (with downweighting factor w&lt;0.2) are instead
+counted in astrometricNBadObsAl. The sum of astrometricNGoodObsAl and
+astrometricNBadObsAl equals astrometricNObsAl, the total number of AL
+observations used in the astrometric solution of the source.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_good_obs_ac" ucd="meta.number">
+<DESCRIPTION>Number of AC observations (= CCD transits) that were not strongly
+downweighted in the astrometric solution of the source. Strongly
+downweighted observations (with downweighting factor w&lt;0.2) are instead
+counted in astrometricNBadObsAc. The sum of astrometricNGoodObsAc and
+astrometricNBadObsAc equals astrometricNObsAc, the total number of AC
+observations used in the astrometric solution of the source.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_bad_obs_al" ucd="meta.number">
+<DESCRIPTION>Number of AL observations (= CCD transits) that were strongly
+downweighted in the astrometric solution of the source, and therefore
+contributed little to the determination of the astrometric parameters.
+An observation is considered to be strongly downweighted if its
+downweighting factor w&lt;0.2, which means that the absolute value of the
+astrometric residual exceeds 4.83 times the total uncertainty of the
+observation, calculated as the quadratic sum of the centroiding
+uncertainty, excess source noise, and excess attitude noise.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_bad_obs_ac" ucd="meta.number">
+<DESCRIPTION>Number of AC observations (= CCD transits) that were strongly
+downweighted in the astrometric solution of the source, and therefore
+contributed little to the determination of the astrometric parameters.
+An observation is considered to be strongly downweighted if its
+downweighting factor w&lt;0.2, which means that the absolute value of the
+astrometric residual exceeds 4.83 times the total uncertainty of the
+observation, calculated as the quadratic sum of the centroiding
+uncertainty, excess source noise, and excess attitude noise.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="float" name="astrometric_delta_q" ucd="stat.value">
+<DESCRIPTION>In the TGAS solution \tt astrometricDeltaQ (\Delta Q) indicates the
+discrepancy between the Hipparcos proper motion and the TGAS proper
+motion. A large value of \tt deltaQ could indicate non-linear motion
+(e.g.¬†in a binary).
+
+The precise definition is
+
+\Delta Q = 
+\begin{bmatrix} 
+\Delta\mu_{\alpha *} &amp; \Delta\mu_{\delta} 
+\end{bmatrix}
+\left(\vec{C}_\text{pm,\,T}+\vec{C}_\text{pm,\,H}\right)^{-1}
+\begin{bmatrix} 
+\Delta\mu_{\alpha *} \\ \Delta\mu_{\delta} 
+\end{bmatrix}
+
+where \Delta\mu_{\alpha *} = \mu_{\alpha *,\rm T}-\mu_{\alpha *,\rm H},
+\Delta\mu_{\delta} = \mu_{\delta,\rm T}-\mu_{\delta,\rm H}, with T and H
+indicating values from the Gaia DR1 (TGAS) solution and Hipparcos
+catalogue. \vec{C}_\text{pm,\,T} and \vec{C}_\text{pm,\,H} are the
+corresponding 2\times 2 covariance matrices.
+
+In order to compute \Delta Q the two sets of proper motions must use the
+same reference frame and the same reference epoch. Thus, the proper
+motion components as given in the Hipparcos catalogue were rotated to
+the Gaia DR1 reference frame, and then propagated to the Gaia reference
+epoch.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="astrometric_excess_noise" ucd="stat.value" unit="Angle[mas]">
+<DESCRIPTION>This is the excess noise \epsilon_i of the source. It measures the
+disagreement, expressed as an angle, between the observations of a
+source and the best-fitting standard astrometric model (using five
+astrometric parameters). The assumed observational noise in each
+observation is quadratically increased by \epsilon_i in order to
+statistically match the residuals in the astrometric solution. A value
+of 0 signifies that the source is astrometrically well-behaved, i.e.¬†
+that the residuals of the fit statistically agree with the assumed
+observational noise. A positive value signifies that the residuals are
+statistically larger than expected.
+
+The significance of \epsilon_i is given by \tt 
+astrometricExcessNoiseSig (D). If D\le 2 then \epsilon_i is probably not
+significant, and the source may be astrometrically well-behaved even if
+\epsilon_i is large.
+
+The excess noise \epsilon_i may absorb all kinds of modelling errors
+that are not accounted for by the observational noise (image centroiding
+error) or the excess attitude noise. Such modelling errors include LSF
+and PSF calibration errors, geometric instrument calibration errors, and
+part of the high-frequency attitude noise. These modelling errors are
+particularly important in the early data releases, but should decrease
+as the astrometric modelling of the instrument and attitude improves
+over the years.
+
+Additionally, sources that deviate from the standard five-parameter
+astrometric model (e.g.¬†unresolved binaries, exoplanet systems, etc.)
+may have positive \epsilon_i. Given the many other possible
+contributions to the excess noise, the user must study the empirical
+distributions of \epsilon_i and D to make sensible cutoffs before
+filtering out sources for their particular application.
+
+In Gaia DR1, the excess source noise has the same interpretation as
+described above for both the primary (TGAS) and secondary data sets. It
+measures the disagreement between the five-parameter model and the
+observations, augmented by the different priors used. Thus, in TGAS the
+excess noise may be increased if the proper motion seen during the 14
+months of Gaia observations are not in agreement with the proper motion
+inferred from the Tycho-2/Gaia comparison. In the secondary solution the
+excess noise may be increased if the Gaia observations indicate a proper
+motion or parallax several times larger than the prior uncertainty.
+
+The excess source noise is further explained in Sects.¬†3.6 and 5.1.2 of
+Lindegren et al. (2012).
+
+Lindegren, L., U. Lammers, D. Hobbs, O‚ÄôMullaneW., U. Bastian, and J.
+Hernandez. 2012. ‚ÄúThe Astrometric Core Solution for the Gaia Mission.
+Overview of Models, Algorithms, and Software Implementation.‚Äù Astronomy
+and Astrophysics 538 (February).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="astrometric_excess_noise_sig" ucd="stat.value">
+<DESCRIPTION>A dimensionless measure (D) of the significance of the calculated \tt 
+astrometricExcessNoise (\epsilon_i). A value D&gt;2 indicates that the
+given \epsilon_i is probably significant.
+
+For good fits in the limit of a large number of observations, D should
+be zero in half of the cases and approximately follow the positive half
+of a normal distribution with zero mean and unit standard deviation for
+the other half. Consequently, D is expected to be greater than 2 for
+only a few percent of the sources with well-behaved astrometric
+solutions.
+
+In the early data releases \epsilon_i will however include instrument
+and attitude modelling errors that are statistically significant and
+could result in large values of \epsilon_i and D. The user must study
+the empirical distributions of these statistics and make sensible
+cutoffs before filtering out sources for their particular application.
+
+The excess noise significance is further explained in Sect.¬†5.1.2 of
+Lindegren et al. (2012).
+
+Lindegren, L., U. Lammers, D. Hobbs, O‚ÄôMullaneW., U. Bastian, and J.
+Hernandez. 2012. ‚ÄúThe Astrometric Core Solution for the Gaia Mission.
+Overview of Models, Algorithms, and Software Implementation.‚Äù Astronomy
+and Astrophysics 538 (February).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="boolean" name="astrometric_primary_flag" ucd="meta.code">
+<DESCRIPTION>Flag indicating if this source was used as a primary source (\tt true)
+or secondary source (\tt false). Only primary sources contribute to the
+estimation of attitude, calibration, and global parameters. The
+estimation of source parameters is otherwise done in exactly the same
+way for primary and secondary sources.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="astrometric_relegation_factor" ucd="arith.factor">
+<DESCRIPTION>Relegation factor of the source calculated as per Eq.¬†(118) in Lindegren
+et al. (2012) used for the primary selection process.
+
+Lindegren, L., U. Lammers, D. Hobbs, O‚ÄôMullaneW., U. Bastian, and J.
+Hernandez. 2012. ‚ÄúThe Astrometric Core Solution for the Gaia Mission.
+Overview of Models, Algorithms, and Software Implementation.‚Äù Astronomy
+and Astrophysics 538 (February).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="astrometric_weight_al" ucd="stat.weight;stat.mean" unit="Angle[mas^-2]">
+<DESCRIPTION>Mean astrometric weight of the source in the AL direction.
+
+The mean astrometric weight of the source is calculated as per Eq.¬†(119)
+in Lindegren et al. (2012).
+
+Lindegren, L., U. Lammers, D. Hobbs, O‚ÄôMullaneW., U. Bastian, and J.
+Hernandez. 2012. ‚ÄúThe Astrometric Core Solution for the Gaia Mission.
+Overview of Models, Algorithms, and Software Implementation.‚Äù Astronomy
+and Astrophysics 538 (February).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="astrometric_weight_ac" ucd="stat.weight;stat.mean" unit="Angle[mas^-2]">
+<DESCRIPTION>Mean astrometric weight of the source in the AC direction
+
+The mean astrometric weight of the source is calculated as per Eq.¬†(119)
+in Lindegren et al. (2012).
+
+Lindegren, L., U. Lammers, D. Hobbs, O‚ÄôMullaneW., U. Bastian, and J.
+Hernandez. 2012. ‚ÄúThe Astrometric Core Solution for the Gaia Mission.
+Overview of Models, Algorithms, and Software Implementation.‚Äù Astronomy
+and Astrophysics 538 (February).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="astrometric_priors_used">
+<DESCRIPTION>Type of prior used in the astrometric solution:
+
+-   0: No prior used
+
+-   1: Galaxy Bayesian Prior for parallax and proper motion
+
+-   2: Galaxy Bayesian Prior for parallax and proper motion relaxed by
+    factor 10
+
+-   3: Hipparcos prior for position
+
+-   4: Hipparcos prior for position and proper motion
+
+-   5: Tycho2 prior for position
+
+-   6: Quasar prior for proper motion
+
+The Galaxy Bayesian Prior is defined in , where it is denoted
+\sigma_{\varpi,F90} (for the parallax) and
+\sigma_{\mu,F90}={\cal R}\sigma_{\varpi,F90}, with {\cal 
+R}=10¬†yr^{-1} (for proper motion). The Galaxy Bayesian Prior relaxed by
+a factor 10 is 10\sigma_{\varpi,F90} and 10\sigma_{\mu,F90},
+respectively.
+
+For Gaia DR1 the only types of priors used are 2 (for the secondary data
+set), 3 (for the Hipparcos subset of the primary data set), or 5 (for
+the non-Hipparcos subset of the primary data set). Type 6 was used for
+internal calibration purposes and alignment of the reference frame, but
+the corresponding astrometric results are in general not published.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="short" name="matched_observations" ucd="meta.number">
+<DESCRIPTION>This field indicates the number of observations (detection transits)
+that have been matched to a given source during the last internal
+crossmatch revision.</DESCRIPTION>
+<VALUES null='-32768'/>
+</FIELD>
+<FIELD datatype="boolean" name="duplicated_source">
+<DESCRIPTION>During data processing, this source happened to been duplicated and one
+source only has been kept. This may indicate observational,
+cross-matching or processing problems, or stellar multiplicity, and
+probable astrometric or photometric problems in all cases. In DR1, for
+close doubles with separations below some 2 arcsec, truncated windows
+have not been processed, neither in astrometry and photometry. The
+transmitted window is centred on the brighter part of the acquired
+window, so the brighter component has a better chance to be selected,
+even when processing the fainter transit. If more than two images are
+contained in a window, the result of the image parameter determination
+is un-predictable in the sense that it might refer to either (or
+neither) image, and no consistency is assured.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_strength_k1">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionStrength[k-1] (k=1,2,3,4) is the absolute value of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+The scanDirectionStrength is a number between 0 and 1, where 0 means
+that the scan directions are well spread out in different directions,
+while 1 means that they are concentrated in a single direction (given by
+scanAngleMean).
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionStrength[0] is the degree of
+concentration when the sense of direction is taken into account, while
+scanDirectionStrength[1] is the degree of concentration without regard
+to the sense of direction. A large value of scanDirectionStrength[3]
+indicates that the scans are concentrated in two nearly orthogonal
+directions.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_strength_k2">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionStrength[k-1] (k=1,2,3,4) is the absolute value of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+The scanDirectionStrength is a number between 0 and 1, where 0 means
+that the scan directions are well spread out in different directions,
+while 1 means that they are concentrated in a single direction (given by
+scanAngleMean).
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionStrength[0] is the degree of
+concentration when the sense of direction is taken into account, while
+scanDirectionStrength[1] is the degree of concentration without regard
+to the sense of direction. A large value of scanDirectionStrength[3]
+indicates that the scans are concentrated in two nearly orthogonal
+directions.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_strength_k3">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionStrength[k-1] (k=1,2,3,4) is the absolute value of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+The scanDirectionStrength is a number between 0 and 1, where 0 means
+that the scan directions are well spread out in different directions,
+while 1 means that they are concentrated in a single direction (given by
+scanAngleMean).
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionStrength[0] is the degree of
+concentration when the sense of direction is taken into account, while
+scanDirectionStrength[1] is the degree of concentration without regard
+to the sense of direction. A large value of scanDirectionStrength[3]
+indicates that the scans are concentrated in two nearly orthogonal
+directions.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_strength_k4">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionStrength[k-1] (k=1,2,3,4) is the absolute value of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+The scanDirectionStrength is a number between 0 and 1, where 0 means
+that the scan directions are well spread out in different directions,
+while 1 means that they are concentrated in a single direction (given by
+scanAngleMean).
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionStrength[0] is the degree of
+concentration when the sense of direction is taken into account, while
+scanDirectionStrength[1] is the degree of concentration without regard
+to the sense of direction. A large value of scanDirectionStrength[3]
+indicates that the scans are concentrated in two nearly orthogonal
+directions.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_mean_k1" unit="Angle[deg]">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionMean[k-1] (k=1,2,3,4) is 1/k times the argument of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+scanDirectionMean[k-1] is an angle between -180^\circ/k and
++180^\circ/k, giving the mean position angle of the scans at order k.
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionMean[0] is the mean
+direction when the sense of direction is taken into account, while
+scanDirectionMean[1] is the mean direction without regard to the sense
+of the direction. For example, scanDirectionMean[0] = 0 means that the
+scans preferentially go towards North, while scanDirectionMean[1] = 0
+means that they preferentially go in the North-South direction, and
+scanDirectionMean[4] = 0 that they preferentially go either in the
+North-South or in the East-West direction.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_mean_k2" unit="Angle[deg]">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionMean[k-1] (k=1,2,3,4) is 1/k times the argument of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+scanDirectionMean[k-1] is an angle between -180^\circ/k and
++180^\circ/k, giving the mean position angle of the scans at order k.
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionMean[0] is the mean
+direction when the sense of direction is taken into account, while
+scanDirectionMean[1] is the mean direction without regard to the sense
+of the direction. For example, scanDirectionMean[0] = 0 means that the
+scans preferentially go towards North, while scanDirectionMean[1] = 0
+means that they preferentially go in the North-South direction, and
+scanDirectionMean[4] = 0 that they preferentially go either in the
+North-South or in the East-West direction.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_mean_k3" unit="Angle[deg]">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionMean[k-1] (k=1,2,3,4) is 1/k times the argument of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+scanDirectionMean[k-1] is an angle between -180^\circ/k and
++180^\circ/k, giving the mean position angle of the scans at order k.
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionMean[0] is the mean
+direction when the sense of direction is taken into account, while
+scanDirectionMean[1] is the mean direction without regard to the sense
+of the direction. For example, scanDirectionMean[0] = 0 means that the
+scans preferentially go towards North, while scanDirectionMean[1] = 0
+means that they preferentially go in the North-South direction, and
+scanDirectionMean[4] = 0 that they preferentially go either in the
+North-South or in the East-West direction.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_mean_k4" unit="Angle[deg]">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionMean[k-1] (k=1,2,3,4) is 1/k times the argument of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+scanDirectionMean[k-1] is an angle between -180^\circ/k and
++180^\circ/k, giving the mean position angle of the scans at order k.
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionMean[0] is the mean
+direction when the sense of direction is taken into account, while
+scanDirectionMean[1] is the mean direction without regard to the sense
+of the direction. For example, scanDirectionMean[0] = 0 means that the
+scans preferentially go towards North, while scanDirectionMean[1] = 0
+means that they preferentially go in the North-South direction, and
+scanDirectionMean[4] = 0 that they preferentially go either in the
+North-South or in the East-West direction.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="phot_g_n_obs" ucd="meta.number">
+<DESCRIPTION>Number of observations (CCD transits) that contributed to the G mean
+flux and mean flux error.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="double" name="phot_g_mean_flux" ucd="phot.flux;stat.mean;em.opt" unit="Flux[e-/s]">
+<DESCRIPTION>Mean flux in the G-band.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="phot_g_mean_flux_error" ucd="stat.error;phot.flux;stat.mean;em.opt" unit="Flux[e-/s]">
+<DESCRIPTION>Error on the mean flux in the G-band.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="phot_g_mean_mag" ucd="phot.mag;stat.mean;em.opt" unit="Magnitude[mag]">
+<DESCRIPTION>Mean magnitude in the G band. This is computed from the G-band mean flux
+applying the magnitude zero-point in the Vega scale.</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="13" datatype="char" name="phot_variable_flag" ucd="meta.code;src.var" unit="Dimensionless[see description]">
+<DESCRIPTION>Flag indicating if variability was identified in the photometric G band:
+
+-   source not processed and/or exported to catalogue
+
+-   Source not identified as variable
+
+-   source identified and processed as variable, see tables
+    PhotVariableSummary, PhotVariableTimeSeriesGfov,
+    PhotVariableTimeSeriesGfovStatisticalParameters, and Cepheid or
+    Rrlyrae for more details.
+
+Note that for this data release only a small subset of (variable)
+sources was processed and/or exported, so for many (known) variable
+sources this flag is set to ‚ÄúNOT AVAILABLE‚Äù. No ‚ÄúCONSTANT‚Äù sources were
+exported either.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="l" ucd="pos.galactic.lon" unit="Angle[deg]">
+<DESCRIPTION>Galactic Longitude of the object at reference epoch refEpoch, see ESA,
+1997, ‚ÄôThe Hipparcos and Tycho Catalogues‚Äô, ESA SP-1200, Volume 1,
+Section 1.5.3, for the conversion details.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="b" ucd="pos.galactic.lat" unit="Angle[deg]">
+<DESCRIPTION>Galactic Latitude of the object at reference epoch refEpoch, see ESA,
+1997, ‚ÄôThe Hipparcos and Tycho Catalogues‚Äô, ESA SP-1200, Volume 1,
+Section 1.5.3, for the conversion details.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="ecl_lon" ucd="pos.ecliptic.lon" unit="Angle[deg]">
+<DESCRIPTION>Ecliptic Longitude of the object at reference epoch refEpoch, see ESA,
+1997, ‚ÄôThe Hipparcos and Tycho Catalogues‚Äô, ESA SP-1200, Volume 1,
+Section 1.5.3, for the conversion details.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="ecl_lat" ucd="pos.ecliptic.lat" unit="Angle[deg]">
+<DESCRIPTION>Ecliptic Latitude of the object at reference epoch refEpoch, see ESA,
+1997, ‚ÄôThe Hipparcos and Tycho Catalogues‚Äô, ESA SP-1200, Volume 1,
+Section 1.5.3, for the conversion details.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="long" name="tmass_oid" ucd="meta.id;meta.main">
+<DESCRIPTION>Incremental unique numeric identifier (increasing with declination).
+This is the only field which was not in the original 2MASS catalogue,
+but was added for cross-match purposes.</DESCRIPTION>
+<VALUES null='-9223372036854775808'/>
+</FIELD>
+<FIELD arraysize="17" datatype="char" name="original_ext_source_id" ucd="meta.id.cross">
+<DESCRIPTION>The unique source identifier in the original External catalogue.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="angular_distance" ucd="pos.angDistance" unit="Angle[arcsec]">
+<DESCRIPTION>Angular distance between a Gaia source and its nearest neighbour in the
+External Catalogue</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="number_of_neighbours" ucd="meta.number">
+<DESCRIPTION>Number of sources in the External Catalogue which match the Gaia source
+within position errors.  
+The identifiers of all the neighbours can be found in the Neighbourhood
+table.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="short" name="number_of_mates" ucd="meta.number">
+<DESCRIPTION>Number of other Gaia sources that have as best-neighbour the same
+External Catalogue source.  
+In case there are no other Gaia sources with the same best-neighbour in
+the external catalogue, the number of mates is equal to zero.  
+Given the Gaia high angular resolution, it will happen that what appears
+as a single object in an external catalogue will be resolved by Gaia and
+as such will be the best-match of more than one Gaia object.</DESCRIPTION>
+<VALUES null='-32768'/>
+</FIELD>
+<FIELD datatype="short" name="best_neighbour_multiplicity" ucd="meta.number">
+<DESCRIPTION>The best-match to a Gaia source in an external catalogue is the source
+in the external catalogue that has the highest probability to be the
+best-match.  
+As the probability is based on positional and density properties, it
+could happen that there is more than one source in the external
+catalogue with the same probability.  
+Even if a single best-match is always chosen, this field tells the user
+if there were more ‚Äúbest‚Äù neighbours. Those neighbours can be found in
+the Neighbourhood table.</DESCRIPTION>
+<VALUES null='-32768'/>
+</FIELD>
+<FIELD datatype="short" name="proper_motion_flag" ucd="meta.code.status">
+<DESCRIPTION>This flag is set to 0 if Gaia proper motions were not available and were
+thus not used in the XMatch.  
+This flag is set to 1 if Gaia proper motions were available and were
+thus used in the XMatch (for the First Gaia release the TGASS
+sub-sample.</DESCRIPTION>
+<VALUES null='-32768'/>
+</FIELD>
+<FIELD arraysize="3" datatype="char" name="ph_qual" ucd="meta.code.qual;phot">
+<DESCRIPTION>Photometric quality flag. Three character flag, one character per band
+[JHKs], that provides a summary of the net quality of the default
+photometry in each band.  
+The value for ph_qual is set for a band according to the precedence of
+the table below. For example, a source that is tested and meets the
+conditions for category ‚ÄúX‚Äù is not tested for subsequent qualities.
+
+-   ‚ÄúX‚Äù - There is a detection at this location, but no valid brightness
+    estimate can be extracted using any algorithm. Default magnitude is
+    null.
+
+-   ‚ÄúU‚Äù - Upper limit on magnitude. Source is not detected in this band,
+    or it is detected, but not resolved in a consistent fashion with
+    other bands. A value of ph_qual=‚ÄúU‚Äù does not necessarily mean that
+    there is no flux detected in this band at the location.
+
+-   ‚ÄúF‚Äù - This category includes sources where a reliable estimate of
+    the photometric error could not be determined. The uncertainties
+    reported for these sources in [jhk]_msigcom are flags and have
+    numeric values &gt;8.0.
+
+-   ‚ÄúE‚Äù - This category includes detections where the goodness-of-fit
+    quality of the profile-fit photometry was very poor, or detections
+    where psf fit photometry did not converge and an aperture magnitude
+    is reported, or detections where the number of frames was too small
+    in relation to the number of frames in which a detection was
+    geometrically possible.
+
+-   ‚ÄúA‚Äù - Detections in any brightness regime where valid measurements
+    were made with [jhk]_snr&gt;10 AND [jhk]_cmsig&lt;0.10857.
+
+-   ‚ÄúB‚Äù - Detections in any brightness regime where valid measurements
+    were made with [jhk]_snr&gt;7 AND [jhk]_cmsig&lt;0.15510.
+
+-   ‚ÄúC‚Äù - Detections in any brightness regime where valid measurements
+    were made with [jhk]_snr&gt;5 AND [jhk]_cmsig&lt;0.21714.
+
+-   ‚ÄúD‚Äù - Detections in any brightness regime where valid measurements
+    were made with no [jhk]_snr or [jhk]_cmsig requirement.</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="17" datatype="char" name="designation" ucd="meta.id.cross">
+<DESCRIPTION>Sexagesimal, equatorial position-based source name in the form:
+hmmssss+ddmmsss[ABC...] The prefix ‚Äú2MASS J‚Äù in not explicitely listed
+in the designation.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="err_maj" ucd="stat.error" unit="Angle[arcsec]">
+<DESCRIPTION>Semi-major axis length of the one sigma position uncertainty ellipse</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="err_min" ucd="stat.error" unit="Angle[arcsec]">
+<DESCRIPTION>Semi-minor axis length of the one sigma position uncertainty ellipse</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="err_ang" ucd="position angle" unit="Angle[deg]">
+<DESCRIPTION>Position angle on the sky of the semi-major axis of the position
+uncertainty ellipse (East of North)</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="float" name="j_m" ucd="phot.mag;em.IR.J" unit="Magnitude[mag]">
+<DESCRIPTION>Default J-band magnitude.  
+In case of a source not detected in the J-band, it is an upper limit and
+the corresponding total photometric uncertainty is NULL.  
+In case of a source detected in the J-band and with no useful brightness
+estimate, it is set to NULL.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="j_msigcom" ucd="stat.error;phot.mag;em.IR.J" unit="Magnitude[mag]">
+<DESCRIPTION>Total photometric uncertainty for the default J-band magnitude. This
+column is NULL if the default magnitude is a 95% confidence upper limit
+(i.e. the source is not detected, or inconsistently deblended in the
+J-band).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="h_m" ucd="phot.mag;em.IR.H" unit="Magnitude[mag]">
+<DESCRIPTION>Default H-band magnitude.  
+In case of a source not detected in the H-band, it is an upper limit and
+the corresponding total photometric uncertainty is NULL.  
+In case of a source detected in the H-band and with no useful brightness
+estimate, it is set to NULL.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="h_msigcom" ucd="stat.error;phot.mag;em.IR.H" unit="Magnitude[mag]">
+<DESCRIPTION>Total photometric uncertainty for the default H-band magnitude. This
+column is NULL if the default magnitude is a 95% confidence upper limit
+(i.e. the source is not detected, or inconsistently deblended in the
+H-band).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ks_m" ucd="phot.mag;em.IR.K" unit="Magnitude[mag]">
+<DESCRIPTION>Default Ks-band magnitude.  
+In case of a source not detected in the Ks-band, it is an upper limit
+and the corresponding total photometric uncertainty is NULL.  
+In case of a source detected in the Ks-band and with no useful
+brightness estimate, it is set to NULL.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ks_msigcom" ucd="stat.error;phot.mag;em.IR.K" unit="Magnitude[mag]">
+<DESCRIPTION>Total photometric uncertainty for the default Ks-band magnitude. This
+column is NULL if the default magnitude is a 95% confidence upper limit
+(i.e. the source is not detected, or inconsistently deblended in the
+Ks-band.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="long" name="ext_key" ucd="meta.id.cross">
+<DESCRIPTION>Unique identification number of the record in the XSC (2MASS Extended
+Source Catalogue) that corresponds to this point source. Can be NULL if
+no corresponding extended source is present in the XSC.</DESCRIPTION>
+<VALUES null='-9223372036854775808'/>
+</FIELD>
+<FIELD datatype="double" name="j_date" ucd="time.epoch" unit="Time[Julian Date (day)]">
+<DESCRIPTION>The Julian Date of the source measurement accurate to +30 seconds. This
+value is extrapolated from the start time of the Survey scan using the
+difference between the declinations of the source and the first row in
+the Tile divided by the scanning rate of the telescope (approximately
+5sec). The scanning rate of the two 2MASS telescopes was slightly
+different because of the need to optimize the dithering of images on the
+arrays.</DESCRIPTION>
+</FIELD>
+<!-- Dummy VOTable - no DATA element -->
+</TABLE>
+</RESOURCE>
+</VOTABLE>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   XTENSION= 'BINTABLE'           / binary table extension                         BITPIX  =                    8 / 8-bit bytes                                    NAXIS   =                    2 / 2-dimensional table                            NAXIS1  =                  436 / width of table in bytes                        NAXIS2  =                   26 / number of rows in table                        PCOUNT  =                    0 / size of special data area                      GCOUNT  =                    1 / one data group                                 TFIELDS =                   77 / number of columns                              EXTNAME = 'gaia-small.vot'     / table name                                     TTYPE1  = 'solution_id'        / label for column 1                             TFORM1  = 'K       '           / format for column 1                            TUCD1   = 'meta.id;meta.version'                                                TTYPE2  = 'source_id'          / label for column 2                             TFORM2  = 'K       '           / format for column 2                            TUCD2   = 'meta.id;meta.main'                                                   TTYPE3  = 'random_index'       / label for column 3                             TFORM3  = 'K       '           / format for column 3                            TUCD3   = 'meta.code'                                                           TTYPE4  = 'ref_epoch'          / label for column 4                             TFORM4  = 'D       '           / format for column 4                            TUNIT4  = 'Time[Julian Years]' / units for column 4                             TUCD4   = 'meta.ref;time.epoch'                                                 TTYPE5  = 'ra      '           / label for column 5                             TFORM5  = 'D       '           / format for column 5                            TUNIT5  = 'Angle[deg]'         / units for column 5                             TCOMM5  = 'J2000 right ascension with respect to the ICRS'                      TUCD5   = 'pos.eq.ra;meta.main'                                                 TUTYP5  = 'Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C1'       TTYPE6  = 'ra_error'           / label for column 6                             TFORM6  = 'D       '           / format for column 6                            TUNIT6  = 'Angle[mas]'         / units for column 6                             TUCD6   = 'stat.error;pos.eq.ra'                                                TTYPE7  = 'dec     '           / label for column 7                             TFORM7  = 'D       '           / format for column 7                            TUNIT7  = 'Angle[deg]'         / units for column 7                             TCOMM7  = 'J2000 declination with respect to the ICRS'                          TUCD7   = 'pos.eq.dec;meta.main'                                                TUTYP7  = 'Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C2'       TTYPE8  = 'dec_error'          / label for column 8                             TFORM8  = 'D       '           / format for column 8                            TUNIT8  = 'Angle[mas]'         / units for column 8                             TUCD8   = 'stat.error;pos.eq.dec'                                               TTYPE9  = 'parallax'           / label for column 9                             TFORM9  = 'D       '           / format for column 9                            TUNIT9  = 'Angle[mas]'         / units for column 9                             TUCD9   = 'pos.parallax'                                                        TTYPE10 = 'parallax_error'     / label for column 10                            TFORM10 = 'D       '           / format for column 10                           TUNIT10 = 'Angle[mas]'         / units for column 10                            TUCD10  = 'stat.error;pos.parallax'                                             TTYPE11 = 'pmra    '           / label for column 11                            TFORM11 = 'D       '           / format for column 11                           TUNIT11 = 'Angular Velocity[mas/year]' / units for column 11                    TUCD11  = 'pos.pm;pos.eq.ra'                                                    TTYPE12 = 'pmra_error'         / label for column 12                            TFORM12 = 'D       '           / format for column 12                           TUNIT12 = 'Angular Velocity[mas/year]' / units for column 12                    TUCD12  = 'stat.error;pos.pm;pos.eq.ra'                                         TTYPE13 = 'pmdec   '           / label for column 13                            TFORM13 = 'D       '           / format for column 13                           TUNIT13 = 'Angular Velocity[mas/year]' / units for column 13                    TUCD13  = 'pos.pm;pos.eq.dec'                                                   TTYPE14 = 'pmdec_error'        / label for column 14                            TFORM14 = 'D       '           / format for column 14                           TUNIT14 = 'Angular Velocity[mas/year]' / units for column 14                    TUCD14  = 'stat.error;pos.pm;pos.eq.dec'                                        TTYPE15 = 'ra_dec_corr'        / label for column 15                            TFORM15 = 'E       '           / format for column 15                           TUNIT15 = 'Dimensionless[see description]' / units for column 15                TUCD15  = 'stat.correlation'                                                    TTYPE16 = 'ra_parallax_corr'   / label for column 16                            TFORM16 = 'E       '           / format for column 16                           TUNIT16 = 'Dimensionless[see description]' / units for column 16                TUCD16  = 'stat.correlation'                                                    TTYPE17 = 'ra_pmra_corr'       / label for column 17                            TFORM17 = 'E       '           / format for column 17                           TUNIT17 = 'Dimensionless[see description]' / units for column 17                TUCD17  = 'stat.correlation'                                                    TTYPE18 = 'ra_pmdec_corr'      / label for column 18                            TFORM18 = 'E       '           / format for column 18                           TUNIT18 = 'Dimensionless[see description]' / units for column 18                TUCD18  = 'stat.correlation'                                                    TTYPE19 = 'dec_parallax_corr'  / label for column 19                            TFORM19 = 'E       '           / format for column 19                           TUNIT19 = 'Dimensionless[see description]' / units for column 19                TUCD19  = 'stat.correlation'                                                    TTYPE20 = 'dec_pmra_corr'      / label for column 20                            TFORM20 = 'E       '           / format for column 20                           TUNIT20 = 'Dimensionless[see description]' / units for column 20                TUCD20  = 'stat.correlation'                                                    TTYPE21 = 'dec_pmdec_corr'     / label for column 21                            TFORM21 = 'E       '           / format for column 21                           TUNIT21 = 'Dimensionless[see description]' / units for column 21                TUCD21  = 'stat.correlation'                                                    TTYPE22 = 'parallax_pmra_corr' / label for column 22                            TFORM22 = 'E       '           / format for column 22                           TUNIT22 = 'Dimensionless[see description]' / units for column 22                TUCD22  = 'stat.correlation'                                                    TTYPE23 = 'parallax_pmdec_corr' / label for column 23                           TFORM23 = 'E       '           / format for column 23                           TUNIT23 = 'Dimensionless[see description]' / units for column 23                TUCD23  = 'stat.correlation'                                                    TTYPE24 = 'pmra_pmdec_corr'    / label for column 24                            TFORM24 = 'E       '           / format for column 24                           TUNIT24 = 'Dimensionless[see description]' / units for column 24                TUCD24  = 'stat.correlation'                                                    TTYPE25 = 'astrometric_n_obs_al' / label for column 25                          TFORM25 = 'J       '           / format for column 25                           TUCD25  = 'meta.number'                                                         TTYPE26 = 'astrometric_n_obs_ac' / label for column 26                          TFORM26 = 'J       '           / format for column 26                           TUCD26  = 'meta.number'                                                         TTYPE27 = 'astrometric_n_good_obs_al' / label for column 27                     TFORM27 = 'J       '           / format for column 27                           TUCD27  = 'meta.number'                                                         TTYPE28 = 'astrometric_n_good_obs_ac' / label for column 28                     TFORM28 = 'J       '           / format for column 28                           TUCD28  = 'meta.number'                                                         TTYPE29 = 'astrometric_n_bad_obs_al' / label for column 29                      TFORM29 = 'J       '           / format for column 29                           TUCD29  = 'meta.number'                                                         TTYPE30 = 'astrometric_n_bad_obs_ac' / label for column 30                      TFORM30 = 'J       '           / format for column 30                           TUCD30  = 'meta.number'                                                         TTYPE31 = 'astrometric_delta_q' / label for column 31                           TFORM31 = 'E       '           / format for column 31                           TUCD31  = 'stat.value'                                                          TTYPE32 = 'astrometric_excess_noise' / label for column 32                      TFORM32 = 'D       '           / format for column 32                           TUNIT32 = 'Angle[mas]'         / units for column 32                            TUCD32  = 'stat.value'                                                          TTYPE33 = 'astrometric_excess_noise_sig' / label for column 33                  TFORM33 = 'D       '           / format for column 33                           TUCD33  = 'stat.value'                                                          TTYPE34 = 'astrometric_primary_flag' / label for column 34                      TFORM34 = 'L       '           / format for column 34                           TUCD34  = 'meta.code'                                                           TTYPE35 = 'astrometric_relegation_factor' / label for column 35                 TFORM35 = 'E       '           / format for column 35                           TUCD35  = 'arith.factor'                                                        TTYPE36 = 'astrometric_weight_al' / label for column 36                         TFORM36 = 'E       '           / format for column 36                           TUNIT36 = 'Angle[mas^-2]'      / units for column 36                            TUCD36  = 'stat.weight;stat.mean'                                               TTYPE37 = 'astrometric_weight_ac' / label for column 37                         TFORM37 = 'E       '           / format for column 37                           TUNIT37 = 'Angle[mas^-2]'      / units for column 37                            TUCD37  = 'stat.weight;stat.mean'                                               TTYPE38 = 'astrometric_priors_used' / label for column 38                       TFORM38 = 'J       '           / format for column 38                           TTYPE39 = 'matched_observations' / label for column 39                          TFORM39 = 'I       '           / format for column 39                           TUCD39  = 'meta.number'                                                         TTYPE40 = 'duplicated_source'  / label for column 40                            TFORM40 = 'L       '           / format for column 40                           TTYPE41 = 'scan_direction_strength_k1' / label for column 41                    TFORM41 = 'E       '           / format for column 41                           TTYPE42 = 'scan_direction_strength_k2' / label for column 42                    TFORM42 = 'E       '           / format for column 42                           TTYPE43 = 'scan_direction_strength_k3' / label for column 43                    TFORM43 = 'E       '           / format for column 43                           TTYPE44 = 'scan_direction_strength_k4' / label for column 44                    TFORM44 = 'E       '           / format for column 44                           TTYPE45 = 'scan_direction_mean_k1' / label for column 45                        TFORM45 = 'E       '           / format for column 45                           TUNIT45 = 'Angle[deg]'         / units for column 45                            TTYPE46 = 'scan_direction_mean_k2' / label for column 46                        TFORM46 = 'E       '           / format for column 46                           TUNIT46 = 'Angle[deg]'         / units for column 46                            TTYPE47 = 'scan_direction_mean_k3' / label for column 47                        TFORM47 = 'E       '           / format for column 47                           TUNIT47 = 'Angle[deg]'         / units for column 47                            TTYPE48 = 'scan_direction_mean_k4' / label for column 48                        TFORM48 = 'E       '           / format for column 48                           TUNIT48 = 'Angle[deg]'         / units for column 48                            TTYPE49 = 'phot_g_n_obs'       / label for column 49                            TFORM49 = 'J       '           / format for column 49                           TUCD49  = 'meta.number'                                                         TTYPE50 = 'phot_g_mean_flux'   / label for column 50                            TFORM50 = 'D       '           / format for column 50                           TUNIT50 = 'Flux[e-/s]'         / units for column 50                            TCOMM50 = 'Mean flux in the G-band.'                                            TUCD50  = 'phot.flux;stat.mean;em.opt'                                          TTYPE51 = 'phot_g_mean_flux_error' / label for column 51                        TFORM51 = 'D       '           / format for column 51                           TUNIT51 = 'Flux[e-/s]'         / units for column 51                            TCOMM51 = 'Error on the mean flux in the G-band.'                               TUCD51  = 'stat.error;phot.flux;stat.mean;em.opt'                               TTYPE52 = 'phot_g_mean_mag'    / label for column 52                            TFORM52 = 'D       '           / format for column 52                           TUNIT52 = 'Magnitude[mag]'     / units for column 52                            TUCD52  = 'phot.mag;stat.mean;em.opt'                                           TTYPE53 = 'phot_variable_flag' / label for column 53                            TFORM53 = '13A     '           / format for column 53                           TUNIT53 = 'Dimensionless[see description]' / units for column 53                TUCD53  = 'meta.code;src.var'                                                   TTYPE54 = 'l       '           / label for column 54                            TFORM54 = 'D       '           / format for column 54                           TUNIT54 = 'Angle[deg]'         / units for column 54                            TUCD54  = 'pos.galactic.lon'                                                    TTYPE55 = 'b       '           / label for column 55                            TFORM55 = 'D       '           / format for column 55                           TUNIT55 = 'Angle[deg]'         / units for column 55                            TUCD55  = 'pos.galactic.lat'                                                    TTYPE56 = 'ecl_lon '           / label for column 56                            TFORM56 = 'D       '           / format for column 56                           TUNIT56 = 'Angle[deg]'         / units for column 56                            TUCD56  = 'pos.ecliptic.lon'                                                    TTYPE57 = 'ecl_lat '           / label for column 57                            TFORM57 = 'D       '           / format for column 57                           TUNIT57 = 'Angle[deg]'         / units for column 57                            TUCD57  = 'pos.ecliptic.lat'                                                    TTYPE58 = 'tmass_oid'          / label for column 58                            TFORM58 = 'K       '           / format for column 58                           TUCD58  = 'meta.id;meta.main'                                                   TTYPE59 = 'original_ext_source_id' / label for column 59                        TFORM59 = '17A     '           / format for column 59                           TCOMM59 = 'The unique source identifier in the original External catalogue.'    TUCD59  = 'meta.id.cross'                                                       TTYPE60 = 'angular_distance'   / label for column 60                            TFORM60 = 'D       '           / format for column 60                           TUNIT60 = 'Angle[arcsec]'      / units for column 60                            TUCD60  = 'pos.angDistance'                                                     TTYPE61 = 'number_of_neighbours' / label for column 61                          TFORM61 = 'J       '           / format for column 61                           TUCD61  = 'meta.number'                                                         TTYPE62 = 'number_of_mates'    / label for column 62                            TFORM62 = 'I       '           / format for column 62                           TUCD62  = 'meta.number'                                                         TTYPE63 = 'best_neighbour_multiplicity' / label for column 63                   TFORM63 = 'I       '           / format for column 63                           TUCD63  = 'meta.number'                                                         TTYPE64 = 'proper_motion_flag' / label for column 64                            TFORM64 = 'I       '           / format for column 64                           TUCD64  = 'meta.code.status'                                                    TTYPE65 = 'ph_qual '           / label for column 65                            TFORM65 = '3A      '           / format for column 65                           TUCD65  = 'meta.code.qual;phot'                                                 TTYPE66 = 'designation'        / label for column 66                            TFORM66 = '17A     '           / format for column 66                           TUCD66  = 'meta.id.cross'                                                       TTYPE67 = 'err_maj '           / label for column 67                            TFORM67 = 'E       '           / format for column 67                           TUNIT67 = 'Angle[arcsec]'      / units for column 67                            TCOMM67 = 'Semi-major axis length of the one sigma position uncertainty ellipse'TUCD67  = 'stat.error'                                                          TTYPE68 = 'err_min '           / label for column 68                            TFORM68 = 'E       '           / format for column 68                           TUNIT68 = 'Angle[arcsec]'      / units for column 68                            TCOMM68 = 'Semi-minor axis length of the one sigma position uncertainty ellipse'TUCD68  = 'stat.error'                                                          TTYPE69 = 'err_ang '           / label for column 69                            TFORM69 = 'J       '           / format for column 69                           TUNIT69 = 'Angle[deg]'         / units for column 69                            TUCD69  = 'position angle'                                                      TTYPE70 = 'j_m     '           / label for column 70                            TFORM70 = 'E       '           / format for column 70                           TUNIT70 = 'Magnitude[mag]'     / units for column 70                            TUCD70  = 'phot.mag;em.IR.J'                                                    TTYPE71 = 'j_msigcom'          / label for column 71                            TFORM71 = 'E       '           / format for column 71                           TUNIT71 = 'Magnitude[mag]'     / units for column 71                            TUCD71  = 'stat.error;phot.mag;em.IR.J'                                         TTYPE72 = 'h_m     '           / label for column 72                            TFORM72 = 'E       '           / format for column 72                           TUNIT72 = 'Magnitude[mag]'     / units for column 72                            TUCD72  = 'phot.mag;em.IR.H'                                                    TTYPE73 = 'h_msigcom'          / label for column 73                            TFORM73 = 'E       '           / format for column 73                           TUNIT73 = 'Magnitude[mag]'     / units for column 73                            TUCD73  = 'stat.error;phot.mag;em.IR.H'                                         TTYPE74 = 'ks_m    '           / label for column 74                            TFORM74 = 'E       '           / format for column 74                           TUNIT74 = 'Magnitude[mag]'     / units for column 74                            TUCD74  = 'phot.mag;em.IR.K'                                                    TTYPE75 = 'ks_msigcom'         / label for column 75                            TFORM75 = 'E       '           / format for column 75                           TUNIT75 = 'Magnitude[mag]'     / units for column 75                            TUCD75  = 'stat.error;phot.mag;em.IR.K'                                         TTYPE76 = 'ext_key '           / label for column 76                            TFORM76 = 'K       '           / format for column 76                           TNULL76 = -9223372036854775808 / blank value for column 76                      TUCD76  = 'meta.id.cross'                                                       TTYPE77 = 'j_date  '           / label for column 77                            TFORM77 = 'D       '           / format for column 77                           TUNIT77 = 'Time[Julian Date (day)]' / units for column 77                       TUCD77  = 'time.epoch'                                                          DATE-HDU= '2017-03-22T11:37:11' / Date of HDU creation (UTC)                    STILVERS= '3.1     '           / Version of STIL software                       STILCLAS= 'uk.ac.starlink.votable.FitsPlusTableWriter' / Author class in STIL soEND                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             ≤     !ˇˇà îÄ    3wî∂@ü|     ?ìınN#ß9?’S¬wÕ«ø≠%”ü‰e?¬xûÖ≠v¯      ¯      ¯      ¯      ¯      ¯      ?c‡ﬂ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿                     ¿                  F?Ä  ?Ê5“¿      "F>¡0€?Qo9>Êµ€>u+¿ìC¡mB¡ÖÔ¡kj&  @†õÚÙ$≠@fÀ‰c¡@14¥8rNOT_AVAILABLE@X˜NkàB¿Nœ»≈‹@vÏèl◊ΩøÆ∂`îup    wõ[00000468-0003259 ?Ñ[@Ö        ABC00000468-0003259 >è\)>u¬è   _AÄ°À=¬è\Az1'>
+=qAwS¯>W
+=Ä       AB≥ULFsÇ≤     !ˇˇ† 0SÄ    ÇñO@ü|     ?ö{cÒW¶?ﬂF´]ˆﬂ{øß»>´@*? e5„õ„¯      ¯      ¯      ¯      ¯      ¯      ?m2a¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿    5      5            ¿  ?ÔÚv⁄Œ0Ç@ffŸsÀëF@a¢?lI¿      #F>ãÚÜ?W>™V?ö¿ÍY¢¡rv)¡2eè¡ra`  1@–≠Aaπ˛@"  ƒ´∑«@-˘‹êŒtCNOT_AVAILABLE@XAÙæ¿NË+¨¯C?uêè¬Ë=€ø´ å9o    x#v00000614-0002471 ?ÎµåêPéA        AAA00000614-0002471 >Ä  =ÃÃÕ    AHj<ƒõ¶A>ı√<ÃÃÕA:»¥<ºjÄ       AB≥Ù]œ™Œ≤     !ˇ˛‡       =¬µè@ü|     ?£$‘€˜?◊3ˆâq’ø∞Ø'Hœˇ?¬Ï®Iïÿ«@íoî¯~?€X5£4ÆÊ¿Krâ"ò?˜≠∫ÖIü¿U´dvﬁ©U?‰Ü;Œ›j?nú+?4ø¬ø\Qèø[Û¢??í~øa€Àø`´øc®qødLt?nπ™   ﬂ   ◊   “   ”      ¿  ?◊QÁí/…ß@rí»Ø¨VãT@jÁù@”äJ7”Ã´    T>Øßo?X¬©>⁄p?nª¡≤†¡Äï¡•KÕ¡åd.   ÂA/‰\†èıD@ñﬁ≠tªkR@$Ù1kQoNOT_AVAILABLE@X£>Ô`,¿N!ÆÌlÇö?Ä÷¡T{˘#ø≥Íûv˚›    w;00000898-0003534 ?æm≤’(ßŸ       AAA00000898-0003534 >u¬è=ÃÃÕ    A•„<ƒõ¶Aìu<ƒõ¶A;d<¥9XÄ       AB≥Ù]œ™Œ≤     !ˇ˛–  Ä    A∏›H@ü|     ?Ü4Ùˇ–"-?«JóÃ±)ø≤ùO –Éµ?≥8BØwP¯      ¯      ¯      ¯      ¯      ¯      ?k/Ï¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿    *      )           ¿  ?◊%!îÈ@a©i9ÆÀÓF@[HÜ@ﬂeö¿      "F>Å¥F?UÖY>¶u?tk¿V4ä¡cZƒ¡	ô¯¡\'Ì  #@ˆ˚Ã‹dI@;tóT:qÌ@*.?u#èNOT_AVAILABLE@X!É é¿N!9D⁄ @v≤V ëyø≤/'∫ŸA∂    vŸ 00000258-0004216 ?—•ƒu*Íj        AAA00000258-0004216 =∏QÏ=u¬è   ZABãD<‘˝ÙA=ëh<‘˝ÙA<¨<¨1Ä       AB≥ULFsÇ≤     !ˇˇ®   Ä    (◊+÷@ü|     ?†±$«xΩ:@ê¥{Œ∫ø§∆lWmä@∞î{tPä¯      ¯      ¯      ¯      ¯      ¯      ?k=¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿     Ù       Ú           ¿  @%Üu≥GY(@rdÏ}}BKFB!q˙<C˚¿      "F>¿…ç?Qî›>È	À>ıÂÂ¡¯¡~0û¡8Ö)¡Ö$   @}îÿΩ6ı@ôöa;Ï@2÷@áµ¯NOT_AVAILABLE@X[:öyΩ¿Nèë+∑?å;Y©–pø©¥yà&    xm00000783-0002261 ?¿∏œuBéÃ        BBA00000783-0002261 >Ä  =·GÆ    Aq7L=Ôù≤Ag°À>JAa%=ﬂ;d     ∆AB≥Ù]œ™Œ≤     !ˇ˛¿  Ä    ∂Û@ü|     ?íÒF˚∫'–@≥ÀGâ™øµV{œÃò„@J‘ùö\¯      ¯      ¯      ¯      ¯      ¯      ?eq¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿     ≥       ≥            ¿  @%	πqz_¡@èô ÷¿÷#FBRwè< ”¿      !F>ÕÚ•?JEj?Sa>œπÖ¿´ï®¡RÕ‡¡7ò¡@Ê‘   ∞@ïK2R˘…Ä@/hR å(¬@1∞N'`NOT_AVAILABLE@X}7≥Xâ¿N"‹¸»Ÿ4@vΩ≈Æ[ìøµv]gô¡˚    vSˆ00000443-0005000 ?∏b„úˆ≈ƒ        AAA00000443-0005000 =∏QÏ=u¬è   YAdz·=¥9XAZE¢=‘˝ÙAS=üæw     „TAB≥ULFsÇ≤     !ˇ˚¯ çÄ    7Ó@ü|     ?∂6±x”É?Ÿµ‹ó–§¥øµ®›I∏T?∆Öb‡îﬁ¯      ¯      ¯      ¯      ¯      ¯      ?d!¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿     ¯       ¯            ¿  ?⁄/√aÊÎë@I~c˜» F?ë\è?Ø.e¿      F>ÂΩí?U“Æ? tˇ?˙V¿"zõ¡zÒ;¿‚†w¡h—$   ˆ@ü˚ÍÜ~j@w+ìlR@1?:É5÷∆NOT_AVAILABLE@Xs|$H¿N&vå‡¡?ßLD røº®n„ò⁄6    vDy00002067-0005044 ?Ÿ∞U¶î        ABC00002067-0005044 >ôôö>W
+=   AÄ^5=ºjAyx’>∏Avì>>v…Ä       AB≥Ù]œ™Œ≤     !ˇ˛h ç     !˙O£@ü|     ?z>üõ@PÊÈø∑¥œ3ª.?˘{Ø8∂≠Y¯      ¯      ¯      ¯      ¯      ¯      ?d•z¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿     ˝       ˝            ¿  @I÷ù'≥!@f®…Á¢FAF€b<t}[¿      !F>ﬁÑµ?Qhü>ˇ¥¶>]Œ¿Ë.R¡cÖR¡≈H¡aû   ˜@Äíùfƒdü@?Ωµ‡ë@2∂¢••∂NOT_AVAILABLE@XñÁr_|¿N#UMuƒå@vÅÇR;Vø∂h_W∏{"    u‡<00000156-0005331 ?“êw¡Ä        ABB00000156-0005331 =ÃÃÕ=è\)   YA|õ¶=ù≤-AtV=˚ÁmAhr∞=„S¯Ä       AB≥ULFsÇ≤     !ˇ˛à åÄ    !o@ü|     ?´g( "Ë∑?€K≥©‰%ø∑ZëÑÖ?»¡äã¯      ¯      ¯      ¯      ¯      ¯      ?gHÄ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿                      ¿  ?“Íí0†
+?˜–*T#˘åF?à%?£®y¿       F> ÉÁ?V]Ê>ÂR˛?>¿-
+¡Ö&ó¿`Z¡Å±æ   ˛@öìP¶¥aC?˛^
+
+‘ùn@1r∑ÊOíFNOT_AVAILABLE@X;H‡…F¿N%íπP"?äIË≤òWø∫‡de¥µ›    u¡00001284-0005284 ?ûVoØ3"        BDU00001284-0005284 >Æ{>îz·   ØAÉÌë>ôöAÇbN>e`BAÄ©¸¿  Ä       AB≥Ù]œ™Œ≤     !ˇ˛– è     ‰!b@ü|     ?kß¡ùYn?¯&?õXø≥—áe◊®?Â'Ω6híQ¯      ¯      ¯      ¯      ¯      ¯      ?bè\¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿          
+           ¿  ?˚≈®ùLl@ î·@¯F?Ø»2=µE‘¿      "F>¿dK?R¯È>Êãg>˙õV¿ë°¨¡w≥¡
+ç4¡w˙  
+@t/.æûÏ@ Ggnlª∑@3@~ÿG™NOT_AVAILABLE@X|SK¿N!d∞ùá=@véü±;ïø≤Üœ.in¨    v†ó00000083-0004380 ?ÁaJ‰Â8Í        ABD00000083-0004380 >≥33>ôôö   AÇ=¿ÉA|5?>üæAzz·>Çè\Ä       AB≥ULFsÇ≤     !ˇ˛ò é     3êQ@ü|     ?£¬ô©ﬂ?ÏLBÏxÍ˛øµoÁ¸#_?◊‹óKT˜¯      ¯      ¯      ¯      ¯      ¯      ?k,•¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿                     ¿  ?˜∑ú\@6gè?∏¨®F?ÍI©>ëN¿      !F>ß•7?[S>πUL?∫>¿zõî¡Ét¡:¡?b  @ì=íÆd¸á@‚Ñ»` û@1Ã|πÜ∆÷NOT_AVAILABLE@XØÜx#Ò¿N#›8¯v©?LG‰9x	ø∑u»V)    vNX00000891-0005016 ?œ‡“VÉ1        AAA00000891-0005016 >kÖ=ÃÃÕ    AoçP=<jAgôö=PÂ`A_ﬂ;=LÃÕÄ       AB≥Ù]œ™Œ≤     !ˇˇ∏ ñ     (´µﬁ@ü|     ?ëªßuz˚?‹¿X˜Ï√ø†˚‘0k?»ì∞ÛXÙ<¯      ¯      ¯      ¯      ¯      ¯      ?h|Ö¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿    
+                 ¿  ?‡ÂFjB˛@@y“ûΩ,F?úç?î“¿       F>¥n‡?RøR>⁄ıÂ>˘^ ¿≤a¡|mÒ¡,|¡ÄÛ  @†v¡6ë@‘R-¡@17%dNOT_AVAILABLE@XÌÃ∏qÃ¿NÈÜ∂xc?f*/vŒø£ûó0    xÕí00000417-0001586 ?Îmz\®        AAB00000417-0001586 =·GÆ=£◊
+   [Aytº=q©¸Ap^5=ïÅAq†>≤-Ä       AB≥ULFsÇ≤     !ˇˇ∏ ñÄ    *‰-Ë@ü|     ?ï¯∑q.Bê?ÔªdËë™±øò]ëØ™-?⁄Ù¬
+Kè¯      ¯      ¯      ¯      ¯      ¯      ?gﬂ;¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿    !                  ¿  ?◊Kswô˝0?ŸÂ#ÑÕ¥F?ÇM‘>dÇ®¿      #F>≥À>?U≠‘>”3‰?∫õ¡Ô¡zc'¡20˝¡Äq*  @{Ò÷ A'?ı·ßŸèﬂ@2ÊÆÉämNOT_AVAILABLE@XÊYT‘Ñ¿N™π)ü?Ñˆ©x˙E/øüZ÷"\    yBá00000516-0001254 ?◊C$ÔKÉ        DCU00000516-0001254 >Ωp§>Ä     Aà33>aGÆA}tº>"–ÂAâ›/¿  Ä       AB≥Ù]œ™Œ≤     !ˇ˚ âÄ     î)W@ü|     ?±ˇqﬂ,G??Ïq)Ôõ\ø∏õY{GDz?ÿ‡1œPÊ_¯      ¯      ¯      ¯      ¯      ¯      ?gs¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿     ˝       ˝            ¿  ?ÒÁÓLËG@@S=”F?≠h>ñV ¿      F>È‘Û?W
+±>˛°?Ç¿ñ¸:¡ÑáÍ¡$—¡~ñÁ   ˚@à÷˚ò~≈@këi›¯c@2F&è“ONOT_AVAILABLE@X˜Î•o¿N' ÍrC˜?öÈΩ◊f‚ÇøΩº≠Mò<:    u≥∏00001684-0005458 ?ﬁ=Ût°º        AAB00001684-0005458 >kÖ=·GÆ    A}|Ó=è\)At·H=∂E¢Anff=˘€#Ä       AB≥Ù]œ™Œ≤     !ˇ˛∞       /s’@ü|     ?¨qEÓSo˙?»çd¬åOø¥)√31öß?¥ÅjŒ)C¯      ¯      ¯      ¯      ¯      ¯      ?nV¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿                      ¿  ?÷É„fP@RgóªáûF@R#@ﬂ•Œ¿      !F>àY?[ ^>ü+˛?
+¿f8÷¡Ñªl¡ìù¡Äw˜  @ÍÕ]`™@0Ä_¿{_Ó@+Z&EH°™NOT_AVAILABLE@X∑6&∑¿N$6ƒÎFÁ?î¶Ûﬁ7ø∏(c* ;d    vçé00001333-0004435 ?ùAÃ’e§Æ        AAA00001333-0004435 >u¬è=ÃÃÕ    AJá+<ºjAF{<‘˝ÙAE?}<‘˝ÙÄ       AB≥Ù]œ™Œ≤     #UUH ·     	Z=ﬁ@ü|     ?üa7PT§?ÀªM¨æêŒøy∑À'.ó?∂ó¥¸¢Çi¯      ¯      ¯      ¯      ¯      ¯      ?mîØ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿                     ¿  ?“}OΩO@"Ï…ÌL8∏F?ß@® ã¿      !F>£zØ?K÷¥>ß√€>Ò•¡S««¡u˚ˆ¡@F¡StT  @¬ÑÛº¢ù@(IÂçƒŒ@/*],XúiNOT_AVAILABLE@X‚.É‡π¿Nn˘nâ(?ö?PÖ
+Uøíc)sFæΩ    zÉ00000734-0000226 ?«0ÁXÓ>        AAA00000734-0000226 >Ö∏=ÃÃÕ    Af·H=•„Aa\)=æwA^ƒú=e`BÄ       AB≥Ù]œ™Œ≤     #UUP ÌÄ     £–@ü|     ?ÉTqxCÖã?ÚGM5âÛøM/v!´^y?ﬂ–Xfvéï¯      ¯      ¯      ¯      ¯      ¯      ?f?¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿    %      #           ¿  ?Ú‚˘_#cÙ@ˇ\'¯uøF?ôº≥>_\¿      $F>”•é?Tä>õ≠? Øs¿’ı®¡w 7¡†ÿ¡yÇj  "@yèØÎyo?˘‰N@¢@2˛Ÿ¸NΩZNOT_AVAILABLE@XßÇª√ø¿N∏x‡ÿç?Å	√—u◊'ør¿
+ë52    zbs00000229-0000029 ?‡8£’üo        BDU00000229-0000029 >ä=q>Ä     ÇAÉ`B=·GÆAÄÂ`>hr∞As\)¿  Ä       AB≥ULFsÇ≤     #UU       ‚\@ü|     ?®E‹w‹È?ÀA∫ÛÇ]©ø{•èk_?∂ù⁄{]2â¯      ¯      ¯      ¯      ¯      ¯      ?n5?¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿    .      ,           ¿  ?ÿ¬F–Ù@HLfÁΩôF@ ¿r@®ˆ¿      "F>mø;?L⁄¯>Ü¸@>ı_£¡¥°¡zøJ¡¬™¡]æ  +@Ÿ%†ï›Ñ@#Ã%:<V@,˛‡UcÒ,NOT_AVAILABLE@X◊I
+Ï^¿NW{ŸÚ*?§Á˛HUøô®s]c˝    zè00001137-0000241 ? XDmZ«Ù        AAA00001137-0000241 >Ö∏=ÃÃÕ    AX9X<ÌëhAS%<˝Û∂AR¨=+Ä       AB≥Ù]œ™Œ≤     #UU  é     3<ü^@ü|     ?°⁄ s¿?⁄2‹èß[øúÎ∞iV:?∆˝¶ù‡.!¯      ¯      ¯      ¯      ¯      ¯      ?ic¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿    
+                 ¿  ?ﬁDFœπ$@ˇmårQΩF?ôéû?Øá¯¿      !F>≤nu?QW‹>€5Ê>ÚS’¿≠Õ¡{ë≈¡˙˘¡Äs“  @¢XkÔ∂&D@˘tX_Å'@1ƒb|NOT_AVAILABLE@XA ﬁñÚ¿N:WÌÃb?ïD¶Xpùõø§_Â.¸ﬂ    yñ00000836-0001418 ?Œ‘ÚGà        AAB00000836-0001418 >Ö∏=·GÆ    AzM”=çOﬂAuÆ=ƒõ¶Arb>nòÄ       AB≥Ù]œ™Œ≤     &  ‡ ˘Ä    )|b@ü|     ?¶“ÁˇéM?ﬁe◊ÂPí?∂òÚûúÕt?….%Üéê}¯      ¯      ¯      ¯      ¯      ¯      ?h  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿     ı       Ù           ¿  ?ËÜ]µ&#@3ÿ´WÅF?Ÿ?Ü°d¿      F>û…e?SœÔ>»{?À⁄¿ö»≥¡gø¯¡¬1¡[B—   Ô@¨jñ§ì£^@5_π8Áµ@0üqdwYNOT_AVAILABLE@X[ê‘ƒ¿N•œ›?≥vm	"÷?∞1(Êû>    ~ı£00001072+0005183 ?Ês%Ër^À        AAA00001072+0005183 >îz·=ÃÃÕ    AeK«=•„A[Ö<˝Û∂AXºj=0 ≈Ä       AB≥Ù]“Ò™≤     &  ¿ ÙÄ    !˛ë @ü|     ?îu§‘◊@Ò?ÿ∆§Â¥?ÆÜ"wò?≈usMé$K¯      ¯      ¯      ¯      ¯      ¯      ?fÈy¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿            ˇ           ¿  ?„A–∑–Í¸@.iwì~ÀF?¿ﬂ?…È˛¿      !F>…∑L?WÎç>ÊÀ¢?	Õ∆¿’Â¡Ü≤ú¿Í;Æ¡ÇM#   ¸@∞K÷mù9}@OÜ–*ÿ@0yT„˜∂jNOT_AVAILABLE@X˛£•¬ï¿N&∂ﬂ’Ê?•à’J˚π¢?ßÓ√¢µº†    }}"00000480+0003350 ?ﬁˇ[»:–∫        AAA00000480+0003350 =ÃÃÕ=u¬è   ZAhÈy=çPA^›/=\)A\Â`=]/Ä       AB≥ULI∫^≤     &  ( Ù     5)Ù@ü|     ?ùúYüM:?⁄˚∏ma0?•&9…›i?«Ç£•j;î¯      ¯      ¯      ¯      ¯      ¯      ?iGÆ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿     È       Ë           ¿  ?’¿ΩXHL£@^¨øF?ãÚ?∑Öµ¿      F>≠O?NeÒ>„li>Á¿´H˝¡z™¡`Æ¡|wè   ‰@üÚ5W|ÓK@3•i$~@1?éÏ—˚˙NOT_AVAILABLE@X¥H£¿Nªæ?•ƒ}>6lØ?õ:kwßqc    |å900000683+0002288 ? ˜Ò¸‰ô        AAA00000683+0002288 >è\)=·GÆ    A{˚Á=ìtºArÂ`=∂E¢AmV=ﬂ;dÄ       AB≥Ù]“Ò™≤     #UU– ,Ä    «i·@ü|     ?©ÑÔtÂ7E?ﬁ|»¿œ¿€?§´Sı∞Âá? ûLK≠9¯      ¯      ¯      ¯      ¯      ¯      ?f´6¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿     ˘       ˜           ¿  ?„€Ø”∞ Ì@ÜTÌ*F?ú’#?ÄiP¿       F>»Ú?P ë>Ò∂\>Îª¿å≤¡nË÷¡	%¡g™    ı@ùâ»B◊O@¶π¡ñ;_@1UWf0™NOT_AVAILABLE@Xây˜8µ¿NÓ\'?Ø§xÜrZß?ëû}ÆÖKÆ    |⁄00001197+0002253 ?…05ıGó=        BBB00001197+0002253 >ôôö>8QÏ   AÖ5?>CñA}∏>ôöAm"—=„S¯Ä       AB≥Ù]“Ò™≤     #UU( ∫     40	ß@ü|     ?≥.PG @ÑÁkö?fæ±l˘Å?˙À¡Ú¯      ¯      ¯      ¯      ¯      ¯      ?kdZ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿     ò       ñ           ¿  @ KütKc‡@DV∑.ùF?≥˚$=öâË¿      T>)ÏË?IR˛>±Ó*>Ã∆NBcA¡íf@ë›¡áíú   ï@s9√KΩC6@ Æq¯'ﬁ @3NK∞‡éNOT_AVAILABLE@XîÒZø¿Nû ç¶“?±‚@Ûj©øõÍ\,“    zí∆00001799+0000103 ?Ÿ}û√_õc        CCC00001799+0000103 >Ωp§>ä=q   AÜ¨>VAÅı√>S˜œAy"—>PÂ`Ä       AB≥Ù]œ™Œ≤     #UUH ∏Ä    %L,@ü|     ?§Å√k\?‡~t%É◊ˆ?YvvJ#≈?Àﬂ~≠e¯      ¯      ¯      ¯      ¯      ¯      ?t<ü¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿                      ¿  ?Î˚Ñèî@a≠ºCJ˙F@NE?ôl)¿      !F>?Ô?MÃÆ>hÙV>¸DŒ¡á4£¡éR_¡eåi¡Ü{  #@—“A?„¶S@ O≥Ó•x@-æK∞“$ZNOT_AVAILABLE@XK—ö
+	¿NÚ˜g,?¢Ω^rt˜øçé«iô”    zÅ00000935+0000055 ?Í≈ﬂ^‚        AAA00000935+0000055 >Ö∏=ÃÃÕ    AJÈy<¥9XAAâ7<ÃÃÕA=Å<¥9XÄ       AB≥Ù]œ™Œ≤     #UU8 ÃÄ    *Éí@ü|     ?≥v≠FπH?–÷9Lî9?ÑC=‚ë+K?ºv∆e…π¯      ¯      ¯      ¯      ¯      ¯      ?gŒŸ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿  ¿    &      %           ¿  ?›Ø£˝°@.à6Ä	F?æ5è@2í¿      #F>…¬ ?OÌ
+>Ãu£?≥¿ª¯w¡ÄÍ?¿«ÿÅ¡Xù‘  "@∫“lÑΩ≥@!ZEö˙V@/ÌêÈì5eNOT_AVAILABLE@XÊõá;¿N√ [v`?≤Ö,å¬¸øïMbV<Ç    zÔÊ00001788+0000357 ?∆ù¬«%«        AAA00001788+0000357 >Ö∏=ÃÃÕ    Ak°À=tºAe†=Dõ¶A`õ¶=Å%Ä       AB≥Ù]œ™Œ                                                                                                                                                                                        

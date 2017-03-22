@@ -1,0 +1,2881 @@
+<?xml version='1.0'?>
+<VOTABLE version="1.2"
+ xmlns="http://www.ivoa.net/xml/VOTable/v1.2">
+<!--
+ !  VOTable written by STIL version 3.1 (uk.ac.starlink.votable.VOTableWriter)
+ !  at 2017-03-22T12:17:13
+ !-->
+<RESOURCE>
+<TABLE name="gaia-small.vot" nrows="26">
+<PARAM arraysize="2" datatype="char" name="QUERY_STATUS" value="OK"/>
+<PARAM arraysize="*" datatype="char" name="QUERY" value="">
+<DESCRIPTION>SELECT *
+
+  
+FROM gaiadr1.gaia_source
+JOIN gaiadr1.tmass_best_neighbour
+ON gaiadr1.gaia_source.source_id = gaiadr1.tmass_best_neighbour.source_id
+JOIN gaiadr1.tmass_original_valid
+ON gaiadr1.tmass_best_neighbour.tmass_oid = gaiadr1.tmass_original_valid.tmass_oid
+
+WHERE
+
+gaiadr1.gaia_source.ra &lt; 0.1 and 
+gaiadr1.gaia_source.dec &lt; 0.1 and
+gaiadr1.gaia_source.ra &gt; -0.1 and
+gaiadr1.gaia_source.dec &gt; -0.1</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="*" datatype="char" name="CAPTION" value="">
+<DESCRIPTION>If you use public Gaia DR1 data in your paper, please take note of our guide on how to acknowledge and cite Gaia DR1: http://gaia.esac.esa.int/documentation/GDR1/Miscellaneous/sec_credit_and_citation_instructions.html</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="*" datatype="char" name="PAGE" value=""/>
+<PARAM arraysize="*" datatype="char" name="PAGE_SIZE" value=""/>
+<PARAM arraysize="*" datatype="char" name="JOBID" value="">
+<DESCRIPTION>1490181948554O</DESCRIPTION>
+</PARAM>
+<PARAM arraysize="*" datatype="char" name="JOBNAME" value=""/>
+<FIELD datatype="long" name="solution_id" ucd="meta.id;meta.version">
+<DESCRIPTION>All Gaia data processed by the Data Processing and Analysis Consortium
+comes tagged with a solution identifier. This is a numeric field
+attached to each table row that can be used to unequivocally identify
+the version of all the subsystems that where used in the generation of
+the data as well as the input data used. It is mainly for internal DPAC
+use but is included in the published data releases to enable end users
+to examine the provenance of processed data products. To decode a given
+solution ID visit</DESCRIPTION>
+<VALUES null='-9223372036854775808'/>
+</FIELD>
+<FIELD datatype="long" name="source_id" ucd="meta.id;meta.main">
+<DESCRIPTION>Unique identifier of the Gaia source, the attribute corresponds to
+GaiaSource.sourceId</DESCRIPTION>
+<VALUES null='-9223372036854775808'/>
+</FIELD>
+<FIELD datatype="long" name="random_index" ucd="meta.code">
+<DESCRIPTION>Random index which can be used to select smaller subsets of the data
+that are still representative. The column contains a random permutation
+of the numbers from 0 to N-1, where N is the number of rows.
+
+The random index can be useful for validation (testing on 10 different
+random subsets), visualization (displaying 1% of the data), and
+statistical exploration of the data, without the need to download all
+the data.</DESCRIPTION>
+<VALUES null='-9223372036854775808'/>
+</FIELD>
+<FIELD datatype="double" name="ref_epoch" ucd="meta.ref;time.epoch" unit="Time[Julian Years]">
+<DESCRIPTION>Reference epoch to which the astrometic source parameters are referred,
+expressed as a Julian Year in TCB.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="ra" ucd="pos.eq.ra;meta.main" unit="Angle[deg]" utype="Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C1">
+<DESCRIPTION>J2000 right ascension with respect to the ICRS</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="ra_error" ucd="stat.error;pos.eq.ra" unit="Angle[mas]">
+<DESCRIPTION>Standard error \sigma_{\alpha *} \equiv \sigma_\alpha\cos\delta of the
+right ascension of the source in ICRS at the reference epoch refEpoch.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="dec" ucd="pos.eq.dec;meta.main" unit="Angle[deg]" utype="Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C2">
+<DESCRIPTION>J2000 declination with respect to the ICRS</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="dec_error" ucd="stat.error;pos.eq.dec" unit="Angle[mas]">
+<DESCRIPTION>Standard error \sigma_\delta of the declination of the source in ICRS at
+the reference epoch refEpoch</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="parallax" ucd="pos.parallax" unit="Angle[mas]">
+<DESCRIPTION>Absolute barycentric stellar parallax \varpi of the soure at the
+reference epoch refEpoch</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="parallax_error" ucd="stat.error;pos.parallax" unit="Angle[mas]">
+<DESCRIPTION>Standard error \sigma_\varpi of the stellar parallax at the reference
+epoch refEpoch</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="pmra" ucd="pos.pm;pos.eq.ra" unit="Angular Velocity[mas/year]">
+<DESCRIPTION>Proper motion in right ascension \mu_{\alpha *} of the source in ICRS at
+the reference epoch refEpoch. This is the projection of the proper
+motion vector in the direction of increasing right ascension.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="pmra_error" ucd="stat.error;pos.pm;pos.eq.ra" unit="Angular Velocity[mas/year]">
+<DESCRIPTION>Standard error \sigma_{\mu\alpha *} of the proper motion vector in right
+ascension at the reference epoch refEpoch</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="pmdec" ucd="pos.pm;pos.eq.dec" unit="Angular Velocity[mas/year]">
+<DESCRIPTION>Proper motion in declination \mu_\delta of the source at the reference
+epoch refEpoch. This is the projection of the proper motion vector in
+the direction of increasing declination.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="pmdec_error" ucd="stat.error;pos.pm;pos.eq.dec" unit="Angular Velocity[mas/year]">
+<DESCRIPTION>Standard error \sigma_{\mu\delta} of the proper motion in declination at
+the reference epoch refEpoch</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ra_dec_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between right ascension and declination, in dimensionless
+units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ra_parallax_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between right ascension and parallax, in dimensionless units
+[-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ra_pmra_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between right ascension and proper motion in right
+ascension, in dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ra_pmdec_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between right ascension and proper motion in declination, in
+dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="dec_parallax_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between declination and parallax, in dimensionless units
+[-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="dec_pmra_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between declination and proper motion in right ascension, in
+dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="dec_pmdec_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between declination and proper motion in declination, in
+dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="parallax_pmra_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between parallax and proper motion in right ascension, in
+dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="parallax_pmdec_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between parallax and proper motion in declination, in
+dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="pmra_pmdec_corr" ucd="stat.correlation" unit="Dimensionless[see description]">
+<DESCRIPTION>Correlation between proper motion in right ascension and proper motion
+in declination, in dimensionless units [-1:+1]</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_obs_al" ucd="meta.number">
+<DESCRIPTION>Total number of AL observations (= CCD transits) used in the astrometric
+solution of the source, independent of their weight. Note that some
+observations may be strongly downweighted (see astrometricNBadObsAl).</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_obs_ac" ucd="meta.number">
+<DESCRIPTION>Total number of AC observations (= CCD transits) used in the astrometric
+solution of the source, independent of their weight. Note that some
+observations may be strongly downweighted (see astrometricNBadObsAc).
+Nearly all sources having G &lt;13 will have AC observations from 2d
+windows, while fainter than that limit only \sim1% of stars (the
+so–called ‘calibration faint stars’) are assigned 2d windows resulting
+in AC observations.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_good_obs_al" ucd="meta.number">
+<DESCRIPTION>Number of AL observations (= CCD transits) that were not strongly
+downweighted in the astrometric solution of the source. Strongly
+downweighted observations (with downweighting factor w&lt;0.2) are instead
+counted in astrometricNBadObsAl. The sum of astrometricNGoodObsAl and
+astrometricNBadObsAl equals astrometricNObsAl, the total number of AL
+observations used in the astrometric solution of the source.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_good_obs_ac" ucd="meta.number">
+<DESCRIPTION>Number of AC observations (= CCD transits) that were not strongly
+downweighted in the astrometric solution of the source. Strongly
+downweighted observations (with downweighting factor w&lt;0.2) are instead
+counted in astrometricNBadObsAc. The sum of astrometricNGoodObsAc and
+astrometricNBadObsAc equals astrometricNObsAc, the total number of AC
+observations used in the astrometric solution of the source.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_bad_obs_al" ucd="meta.number">
+<DESCRIPTION>Number of AL observations (= CCD transits) that were strongly
+downweighted in the astrometric solution of the source, and therefore
+contributed little to the determination of the astrometric parameters.
+An observation is considered to be strongly downweighted if its
+downweighting factor w&lt;0.2, which means that the absolute value of the
+astrometric residual exceeds 4.83 times the total uncertainty of the
+observation, calculated as the quadratic sum of the centroiding
+uncertainty, excess source noise, and excess attitude noise.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="int" name="astrometric_n_bad_obs_ac" ucd="meta.number">
+<DESCRIPTION>Number of AC observations (= CCD transits) that were strongly
+downweighted in the astrometric solution of the source, and therefore
+contributed little to the determination of the astrometric parameters.
+An observation is considered to be strongly downweighted if its
+downweighting factor w&lt;0.2, which means that the absolute value of the
+astrometric residual exceeds 4.83 times the total uncertainty of the
+observation, calculated as the quadratic sum of the centroiding
+uncertainty, excess source noise, and excess attitude noise.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="float" name="astrometric_delta_q" ucd="stat.value">
+<DESCRIPTION>In the TGAS solution \tt astrometricDeltaQ (\Delta Q) indicates the
+discrepancy between the Hipparcos proper motion and the TGAS proper
+motion. A large value of \tt deltaQ could indicate non-linear motion
+(e.g. in a binary).
+
+The precise definition is
+
+\Delta Q = 
+\begin{bmatrix} 
+\Delta\mu_{\alpha *} &amp; \Delta\mu_{\delta} 
+\end{bmatrix}
+\left(\vec{C}_\text{pm,\,T}+\vec{C}_\text{pm,\,H}\right)^{-1}
+\begin{bmatrix} 
+\Delta\mu_{\alpha *} \\ \Delta\mu_{\delta} 
+\end{bmatrix}
+
+where \Delta\mu_{\alpha *} = \mu_{\alpha *,\rm T}-\mu_{\alpha *,\rm H},
+\Delta\mu_{\delta} = \mu_{\delta,\rm T}-\mu_{\delta,\rm H}, with T and H
+indicating values from the Gaia DR1 (TGAS) solution and Hipparcos
+catalogue. \vec{C}_\text{pm,\,T} and \vec{C}_\text{pm,\,H} are the
+corresponding 2\times 2 covariance matrices.
+
+In order to compute \Delta Q the two sets of proper motions must use the
+same reference frame and the same reference epoch. Thus, the proper
+motion components as given in the Hipparcos catalogue were rotated to
+the Gaia DR1 reference frame, and then propagated to the Gaia reference
+epoch.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="astrometric_excess_noise" ucd="stat.value" unit="Angle[mas]">
+<DESCRIPTION>This is the excess noise \epsilon_i of the source. It measures the
+disagreement, expressed as an angle, between the observations of a
+source and the best-fitting standard astrometric model (using five
+astrometric parameters). The assumed observational noise in each
+observation is quadratically increased by \epsilon_i in order to
+statistically match the residuals in the astrometric solution. A value
+of 0 signifies that the source is astrometrically well-behaved, i.e. 
+that the residuals of the fit statistically agree with the assumed
+observational noise. A positive value signifies that the residuals are
+statistically larger than expected.
+
+The significance of \epsilon_i is given by \tt 
+astrometricExcessNoiseSig (D). If D\le 2 then \epsilon_i is probably not
+significant, and the source may be astrometrically well-behaved even if
+\epsilon_i is large.
+
+The excess noise \epsilon_i may absorb all kinds of modelling errors
+that are not accounted for by the observational noise (image centroiding
+error) or the excess attitude noise. Such modelling errors include LSF
+and PSF calibration errors, geometric instrument calibration errors, and
+part of the high-frequency attitude noise. These modelling errors are
+particularly important in the early data releases, but should decrease
+as the astrometric modelling of the instrument and attitude improves
+over the years.
+
+Additionally, sources that deviate from the standard five-parameter
+astrometric model (e.g. unresolved binaries, exoplanet systems, etc.)
+may have positive \epsilon_i. Given the many other possible
+contributions to the excess noise, the user must study the empirical
+distributions of \epsilon_i and D to make sensible cutoffs before
+filtering out sources for their particular application.
+
+In Gaia DR1, the excess source noise has the same interpretation as
+described above for both the primary (TGAS) and secondary data sets. It
+measures the disagreement between the five-parameter model and the
+observations, augmented by the different priors used. Thus, in TGAS the
+excess noise may be increased if the proper motion seen during the 14
+months of Gaia observations are not in agreement with the proper motion
+inferred from the Tycho-2/Gaia comparison. In the secondary solution the
+excess noise may be increased if the Gaia observations indicate a proper
+motion or parallax several times larger than the prior uncertainty.
+
+The excess source noise is further explained in Sects. 3.6 and 5.1.2 of
+Lindegren et al. (2012).
+
+Lindegren, L., U. Lammers, D. Hobbs, O’MullaneW., U. Bastian, and J.
+Hernandez. 2012. “The Astrometric Core Solution for the Gaia Mission.
+Overview of Models, Algorithms, and Software Implementation.” Astronomy
+and Astrophysics 538 (February).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="astrometric_excess_noise_sig" ucd="stat.value">
+<DESCRIPTION>A dimensionless measure (D) of the significance of the calculated \tt 
+astrometricExcessNoise (\epsilon_i). A value D&gt;2 indicates that the
+given \epsilon_i is probably significant.
+
+For good fits in the limit of a large number of observations, D should
+be zero in half of the cases and approximately follow the positive half
+of a normal distribution with zero mean and unit standard deviation for
+the other half. Consequently, D is expected to be greater than 2 for
+only a few percent of the sources with well-behaved astrometric
+solutions.
+
+In the early data releases \epsilon_i will however include instrument
+and attitude modelling errors that are statistically significant and
+could result in large values of \epsilon_i and D. The user must study
+the empirical distributions of these statistics and make sensible
+cutoffs before filtering out sources for their particular application.
+
+The excess noise significance is further explained in Sect. 5.1.2 of
+Lindegren et al. (2012).
+
+Lindegren, L., U. Lammers, D. Hobbs, O’MullaneW., U. Bastian, and J.
+Hernandez. 2012. “The Astrometric Core Solution for the Gaia Mission.
+Overview of Models, Algorithms, and Software Implementation.” Astronomy
+and Astrophysics 538 (February).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="boolean" name="astrometric_primary_flag" ucd="meta.code">
+<DESCRIPTION>Flag indicating if this source was used as a primary source (\tt true)
+or secondary source (\tt false). Only primary sources contribute to the
+estimation of attitude, calibration, and global parameters. The
+estimation of source parameters is otherwise done in exactly the same
+way for primary and secondary sources.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="astrometric_relegation_factor" ucd="arith.factor">
+<DESCRIPTION>Relegation factor of the source calculated as per Eq. (118) in Lindegren
+et al. (2012) used for the primary selection process.
+
+Lindegren, L., U. Lammers, D. Hobbs, O’MullaneW., U. Bastian, and J.
+Hernandez. 2012. “The Astrometric Core Solution for the Gaia Mission.
+Overview of Models, Algorithms, and Software Implementation.” Astronomy
+and Astrophysics 538 (February).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="astrometric_weight_al" ucd="stat.weight;stat.mean" unit="Angle[mas^-2]">
+<DESCRIPTION>Mean astrometric weight of the source in the AL direction.
+
+The mean astrometric weight of the source is calculated as per Eq. (119)
+in Lindegren et al. (2012).
+
+Lindegren, L., U. Lammers, D. Hobbs, O’MullaneW., U. Bastian, and J.
+Hernandez. 2012. “The Astrometric Core Solution for the Gaia Mission.
+Overview of Models, Algorithms, and Software Implementation.” Astronomy
+and Astrophysics 538 (February).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="astrometric_weight_ac" ucd="stat.weight;stat.mean" unit="Angle[mas^-2]">
+<DESCRIPTION>Mean astrometric weight of the source in the AC direction
+
+The mean astrometric weight of the source is calculated as per Eq. (119)
+in Lindegren et al. (2012).
+
+Lindegren, L., U. Lammers, D. Hobbs, O’MullaneW., U. Bastian, and J.
+Hernandez. 2012. “The Astrometric Core Solution for the Gaia Mission.
+Overview of Models, Algorithms, and Software Implementation.” Astronomy
+and Astrophysics 538 (February).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="astrometric_priors_used">
+<DESCRIPTION>Type of prior used in the astrometric solution:
+
+-   0: No prior used
+
+-   1: Galaxy Bayesian Prior for parallax and proper motion
+
+-   2: Galaxy Bayesian Prior for parallax and proper motion relaxed by
+    factor 10
+
+-   3: Hipparcos prior for position
+
+-   4: Hipparcos prior for position and proper motion
+
+-   5: Tycho2 prior for position
+
+-   6: Quasar prior for proper motion
+
+The Galaxy Bayesian Prior is defined in , where it is denoted
+\sigma_{\varpi,F90} (for the parallax) and
+\sigma_{\mu,F90}={\cal R}\sigma_{\varpi,F90}, with {\cal 
+R}=10 yr^{-1} (for proper motion). The Galaxy Bayesian Prior relaxed by
+a factor 10 is 10\sigma_{\varpi,F90} and 10\sigma_{\mu,F90},
+respectively.
+
+For Gaia DR1 the only types of priors used are 2 (for the secondary data
+set), 3 (for the Hipparcos subset of the primary data set), or 5 (for
+the non-Hipparcos subset of the primary data set). Type 6 was used for
+internal calibration purposes and alignment of the reference frame, but
+the corresponding astrometric results are in general not published.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="short" name="matched_observations" ucd="meta.number">
+<DESCRIPTION>This field indicates the number of observations (detection transits)
+that have been matched to a given source during the last internal
+crossmatch revision.</DESCRIPTION>
+<VALUES null='-32768'/>
+</FIELD>
+<FIELD datatype="boolean" name="duplicated_source">
+<DESCRIPTION>During data processing, this source happened to been duplicated and one
+source only has been kept. This may indicate observational,
+cross-matching or processing problems, or stellar multiplicity, and
+probable astrometric or photometric problems in all cases. In DR1, for
+close doubles with separations below some 2 arcsec, truncated windows
+have not been processed, neither in astrometry and photometry. The
+transmitted window is centred on the brighter part of the acquired
+window, so the brighter component has a better chance to be selected,
+even when processing the fainter transit. If more than two images are
+contained in a window, the result of the image parameter determination
+is un-predictable in the sense that it might refer to either (or
+neither) image, and no consistency is assured.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_strength_k1">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionStrength[k-1] (k=1,2,3,4) is the absolute value of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+The scanDirectionStrength is a number between 0 and 1, where 0 means
+that the scan directions are well spread out in different directions,
+while 1 means that they are concentrated in a single direction (given by
+scanAngleMean).
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionStrength[0] is the degree of
+concentration when the sense of direction is taken into account, while
+scanDirectionStrength[1] is the degree of concentration without regard
+to the sense of direction. A large value of scanDirectionStrength[3]
+indicates that the scans are concentrated in two nearly orthogonal
+directions.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_strength_k2">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionStrength[k-1] (k=1,2,3,4) is the absolute value of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+The scanDirectionStrength is a number between 0 and 1, where 0 means
+that the scan directions are well spread out in different directions,
+while 1 means that they are concentrated in a single direction (given by
+scanAngleMean).
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionStrength[0] is the degree of
+concentration when the sense of direction is taken into account, while
+scanDirectionStrength[1] is the degree of concentration without regard
+to the sense of direction. A large value of scanDirectionStrength[3]
+indicates that the scans are concentrated in two nearly orthogonal
+directions.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_strength_k3">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionStrength[k-1] (k=1,2,3,4) is the absolute value of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+The scanDirectionStrength is a number between 0 and 1, where 0 means
+that the scan directions are well spread out in different directions,
+while 1 means that they are concentrated in a single direction (given by
+scanAngleMean).
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionStrength[0] is the degree of
+concentration when the sense of direction is taken into account, while
+scanDirectionStrength[1] is the degree of concentration without regard
+to the sense of direction. A large value of scanDirectionStrength[3]
+indicates that the scans are concentrated in two nearly orthogonal
+directions.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_strength_k4">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionStrength[k-1] (k=1,2,3,4) is the absolute value of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+The scanDirectionStrength is a number between 0 and 1, where 0 means
+that the scan directions are well spread out in different directions,
+while 1 means that they are concentrated in a single direction (given by
+scanAngleMean).
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionStrength[0] is the degree of
+concentration when the sense of direction is taken into account, while
+scanDirectionStrength[1] is the degree of concentration without regard
+to the sense of direction. A large value of scanDirectionStrength[3]
+indicates that the scans are concentrated in two nearly orthogonal
+directions.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_mean_k1" unit="Angle[deg]">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionMean[k-1] (k=1,2,3,4) is 1/k times the argument of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+scanDirectionMean[k-1] is an angle between -180^\circ/k and
++180^\circ/k, giving the mean position angle of the scans at order k.
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionMean[0] is the mean
+direction when the sense of direction is taken into account, while
+scanDirectionMean[1] is the mean direction without regard to the sense
+of the direction. For example, scanDirectionMean[0] = 0 means that the
+scans preferentially go towards North, while scanDirectionMean[1] = 0
+means that they preferentially go in the North-South direction, and
+scanDirectionMean[4] = 0 that they preferentially go either in the
+North-South or in the East-West direction.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_mean_k2" unit="Angle[deg]">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionMean[k-1] (k=1,2,3,4) is 1/k times the argument of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+scanDirectionMean[k-1] is an angle between -180^\circ/k and
++180^\circ/k, giving the mean position angle of the scans at order k.
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionMean[0] is the mean
+direction when the sense of direction is taken into account, while
+scanDirectionMean[1] is the mean direction without regard to the sense
+of the direction. For example, scanDirectionMean[0] = 0 means that the
+scans preferentially go towards North, while scanDirectionMean[1] = 0
+means that they preferentially go in the North-South direction, and
+scanDirectionMean[4] = 0 that they preferentially go either in the
+North-South or in the East-West direction.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_mean_k3" unit="Angle[deg]">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionMean[k-1] (k=1,2,3,4) is 1/k times the argument of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+scanDirectionMean[k-1] is an angle between -180^\circ/k and
++180^\circ/k, giving the mean position angle of the scans at order k.
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionMean[0] is the mean
+direction when the sense of direction is taken into account, while
+scanDirectionMean[1] is the mean direction without regard to the sense
+of the direction. For example, scanDirectionMean[0] = 0 means that the
+scans preferentially go towards North, while scanDirectionMean[1] = 0
+means that they preferentially go in the North-South direction, and
+scanDirectionMean[4] = 0 that they preferentially go either in the
+North-South or in the East-West direction.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="scan_direction_mean_k4" unit="Angle[deg]">
+<DESCRIPTION>The scanDirectionStrength and scanDirectionMean quantify the
+distribution of AL scan directions across the source.
+scanDirectionMean[k-1] (k=1,2,3,4) is 1/k times the argument of the
+trigonometric moments m_k=\langle\exp(ik\theta)\rangle, where \theta is
+the position angle of the scan and the mean value is taken over the
+nObs[0] AL observations contributing to the astrometric parameters of
+the source. \theta is defined in the usual astronomical sense: \theta=0
+when the FoV is moving towards local North, and \theta=90^\circ towards
+local East.
+
+scanDirectionMean[k-1] is an angle between -180^\circ/k and
++180^\circ/k, giving the mean position angle of the scans at order k.
+
+The different orders k are statistics of the scan directions modulo
+360^\circ/k. For example, at first order (k=1), \theta=10^\circ and
+\theta=190^\circ count as different directions, but at second order
+(k=2) they are the same. Thus, scanDirectionMean[0] is the mean
+direction when the sense of direction is taken into account, while
+scanDirectionMean[1] is the mean direction without regard to the sense
+of the direction. For example, scanDirectionMean[0] = 0 means that the
+scans preferentially go towards North, while scanDirectionMean[1] = 0
+means that they preferentially go in the North-South direction, and
+scanDirectionMean[4] = 0 that they preferentially go either in the
+North-South or in the East-West direction.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="phot_g_n_obs" ucd="meta.number">
+<DESCRIPTION>Number of observations (CCD transits) that contributed to the G mean
+flux and mean flux error.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="double" name="phot_g_mean_flux" ucd="phot.flux;stat.mean;em.opt" unit="Flux[e-/s]">
+<DESCRIPTION>Mean flux in the G-band.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="phot_g_mean_flux_error" ucd="stat.error;phot.flux;stat.mean;em.opt" unit="Flux[e-/s]">
+<DESCRIPTION>Error on the mean flux in the G-band.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="phot_g_mean_mag" ucd="phot.mag;stat.mean;em.opt" unit="Magnitude[mag]">
+<DESCRIPTION>Mean magnitude in the G band. This is computed from the G-band mean flux
+applying the magnitude zero-point in the Vega scale.</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="phot_variable_flag" ucd="meta.code;src.var" unit="Dimensionless[see description]">
+<DESCRIPTION>Flag indicating if variability was identified in the photometric G band:
+
+-   source not processed and/or exported to catalogue
+
+-   Source not identified as variable
+
+-   source identified and processed as variable, see tables
+    PhotVariableSummary, PhotVariableTimeSeriesGfov,
+    PhotVariableTimeSeriesGfovStatisticalParameters, and Cepheid or
+    Rrlyrae for more details.
+
+Note that for this data release only a small subset of (variable)
+sources was processed and/or exported, so for many (known) variable
+sources this flag is set to “NOT AVAILABLE”. No “CONSTANT” sources were
+exported either.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="l" ucd="pos.galactic.lon" unit="Angle[deg]">
+<DESCRIPTION>Galactic Longitude of the object at reference epoch refEpoch, see ESA,
+1997, ’The Hipparcos and Tycho Catalogues’, ESA SP-1200, Volume 1,
+Section 1.5.3, for the conversion details.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="b" ucd="pos.galactic.lat" unit="Angle[deg]">
+<DESCRIPTION>Galactic Latitude of the object at reference epoch refEpoch, see ESA,
+1997, ’The Hipparcos and Tycho Catalogues’, ESA SP-1200, Volume 1,
+Section 1.5.3, for the conversion details.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="ecl_lon" ucd="pos.ecliptic.lon" unit="Angle[deg]">
+<DESCRIPTION>Ecliptic Longitude of the object at reference epoch refEpoch, see ESA,
+1997, ’The Hipparcos and Tycho Catalogues’, ESA SP-1200, Volume 1,
+Section 1.5.3, for the conversion details.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="ecl_lat" ucd="pos.ecliptic.lat" unit="Angle[deg]">
+<DESCRIPTION>Ecliptic Latitude of the object at reference epoch refEpoch, see ESA,
+1997, ’The Hipparcos and Tycho Catalogues’, ESA SP-1200, Volume 1,
+Section 1.5.3, for the conversion details.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="long" name="tmass_oid" ucd="meta.id;meta.main">
+<DESCRIPTION>Incremental unique numeric identifier (increasing with declination).
+This is the only field which was not in the original 2MASS catalogue,
+but was added for cross-match purposes.</DESCRIPTION>
+<VALUES null='-9223372036854775808'/>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="original_ext_source_id" ucd="meta.id.cross">
+<DESCRIPTION>The unique source identifier in the original External catalogue.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="angular_distance" ucd="pos.angDistance" unit="Angle[arcsec]">
+<DESCRIPTION>Angular distance between a Gaia source and its nearest neighbour in the
+External Catalogue</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="number_of_neighbours" ucd="meta.number">
+<DESCRIPTION>Number of sources in the External Catalogue which match the Gaia source
+within position errors.  
+The identifiers of all the neighbours can be found in the Neighbourhood
+table.</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="short" name="number_of_mates" ucd="meta.number">
+<DESCRIPTION>Number of other Gaia sources that have as best-neighbour the same
+External Catalogue source.  
+In case there are no other Gaia sources with the same best-neighbour in
+the external catalogue, the number of mates is equal to zero.  
+Given the Gaia high angular resolution, it will happen that what appears
+as a single object in an external catalogue will be resolved by Gaia and
+as such will be the best-match of more than one Gaia object.</DESCRIPTION>
+<VALUES null='-32768'/>
+</FIELD>
+<FIELD datatype="short" name="best_neighbour_multiplicity" ucd="meta.number">
+<DESCRIPTION>The best-match to a Gaia source in an external catalogue is the source
+in the external catalogue that has the highest probability to be the
+best-match.  
+As the probability is based on positional and density properties, it
+could happen that there is more than one source in the external
+catalogue with the same probability.  
+Even if a single best-match is always chosen, this field tells the user
+if there were more “best” neighbours. Those neighbours can be found in
+the Neighbourhood table.</DESCRIPTION>
+<VALUES null='-32768'/>
+</FIELD>
+<FIELD datatype="short" name="proper_motion_flag" ucd="meta.code.status">
+<DESCRIPTION>This flag is set to 0 if Gaia proper motions were not available and were
+thus not used in the XMatch.  
+This flag is set to 1 if Gaia proper motions were available and were
+thus used in the XMatch (for the First Gaia release the TGASS
+sub-sample.</DESCRIPTION>
+<VALUES null='-32768'/>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="ph_qual" ucd="meta.code.qual;phot">
+<DESCRIPTION>Photometric quality flag. Three character flag, one character per band
+[JHKs], that provides a summary of the net quality of the default
+photometry in each band.  
+The value for ph_qual is set for a band according to the precedence of
+the table below. For example, a source that is tested and meets the
+conditions for category “X” is not tested for subsequent qualities.
+
+-   “X” - There is a detection at this location, but no valid brightness
+    estimate can be extracted using any algorithm. Default magnitude is
+    null.
+
+-   “U” - Upper limit on magnitude. Source is not detected in this band,
+    or it is detected, but not resolved in a consistent fashion with
+    other bands. A value of ph_qual=“U” does not necessarily mean that
+    there is no flux detected in this band at the location.
+
+-   “F” - This category includes sources where a reliable estimate of
+    the photometric error could not be determined. The uncertainties
+    reported for these sources in [jhk]_msigcom are flags and have
+    numeric values &gt;8.0.
+
+-   “E” - This category includes detections where the goodness-of-fit
+    quality of the profile-fit photometry was very poor, or detections
+    where psf fit photometry did not converge and an aperture magnitude
+    is reported, or detections where the number of frames was too small
+    in relation to the number of frames in which a detection was
+    geometrically possible.
+
+-   “A” - Detections in any brightness regime where valid measurements
+    were made with [jhk]_snr&gt;10 AND [jhk]_cmsig&lt;0.10857.
+
+-   “B” - Detections in any brightness regime where valid measurements
+    were made with [jhk]_snr&gt;7 AND [jhk]_cmsig&lt;0.15510.
+
+-   “C” - Detections in any brightness regime where valid measurements
+    were made with [jhk]_snr&gt;5 AND [jhk]_cmsig&lt;0.21714.
+
+-   “D” - Detections in any brightness regime where valid measurements
+    were made with no [jhk]_snr or [jhk]_cmsig requirement.</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="designation" ucd="meta.id.cross">
+<DESCRIPTION>Sexagesimal, equatorial position-based source name in the form:
+hmmssss+ddmmsss[ABC...] The prefix “2MASS J” in not explicitely listed
+in the designation.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="err_maj" ucd="stat.error" unit="Angle[arcsec]">
+<DESCRIPTION>Semi-major axis length of the one sigma position uncertainty ellipse</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="err_min" ucd="stat.error" unit="Angle[arcsec]">
+<DESCRIPTION>Semi-minor axis length of the one sigma position uncertainty ellipse</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="err_ang" ucd="position angle" unit="Angle[deg]">
+<DESCRIPTION>Position angle on the sky of the semi-major axis of the position
+uncertainty ellipse (East of North)</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="float" name="j_m" ucd="phot.mag;em.IR.J" unit="Magnitude[mag]">
+<DESCRIPTION>Default J-band magnitude.  
+In case of a source not detected in the J-band, it is an upper limit and
+the corresponding total photometric uncertainty is NULL.  
+In case of a source detected in the J-band and with no useful brightness
+estimate, it is set to NULL.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="j_msigcom" ucd="stat.error;phot.mag;em.IR.J" unit="Magnitude[mag]">
+<DESCRIPTION>Total photometric uncertainty for the default J-band magnitude. This
+column is NULL if the default magnitude is a 95% confidence upper limit
+(i.e. the source is not detected, or inconsistently deblended in the
+J-band).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="h_m" ucd="phot.mag;em.IR.H" unit="Magnitude[mag]">
+<DESCRIPTION>Default H-band magnitude.  
+In case of a source not detected in the H-band, it is an upper limit and
+the corresponding total photometric uncertainty is NULL.  
+In case of a source detected in the H-band and with no useful brightness
+estimate, it is set to NULL.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="h_msigcom" ucd="stat.error;phot.mag;em.IR.H" unit="Magnitude[mag]">
+<DESCRIPTION>Total photometric uncertainty for the default H-band magnitude. This
+column is NULL if the default magnitude is a 95% confidence upper limit
+(i.e. the source is not detected, or inconsistently deblended in the
+H-band).</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ks_m" ucd="phot.mag;em.IR.K" unit="Magnitude[mag]">
+<DESCRIPTION>Default Ks-band magnitude.  
+In case of a source not detected in the Ks-band, it is an upper limit
+and the corresponding total photometric uncertainty is NULL.  
+In case of a source detected in the Ks-band and with no useful
+brightness estimate, it is set to NULL.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="ks_msigcom" ucd="stat.error;phot.mag;em.IR.K" unit="Magnitude[mag]">
+<DESCRIPTION>Total photometric uncertainty for the default Ks-band magnitude. This
+column is NULL if the default magnitude is a 95% confidence upper limit
+(i.e. the source is not detected, or inconsistently deblended in the
+Ks-band.</DESCRIPTION>
+</FIELD>
+<FIELD datatype="long" name="ext_key" ucd="meta.id.cross">
+<DESCRIPTION>Unique identification number of the record in the XSC (2MASS Extended
+Source Catalogue) that corresponds to this point source. Can be NULL if
+no corresponding extended source is present in the XSC.</DESCRIPTION>
+<VALUES null='-9223372036854775808'/>
+</FIELD>
+<FIELD datatype="double" name="j_date" ucd="time.epoch" unit="Time[Julian Date (day)]">
+<DESCRIPTION>The Julian Date of the source measurement accurate to +30 seconds. This
+value is extrapolated from the start time of the Survey scan using the
+difference between the declinations of the source and the first row in
+the Tile divided by the scanning rate of the telescope (approximately
+5sec). The scanning rate of the two 2MASS telescopes was slightly
+different because of the need to optimize the dithering of images on the
+arrays.</DESCRIPTION>
+</FIELD>
+<DATA>
+<TABLEDATA>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449957681893708928</TD>
+    <TD>863474870</TD>
+    <TD>2015.0</TD>
+    <TD>0.0194909320061136</TD>
+    <TD>0.33319229117406873</TD>
+    <TD>-0.056923175652578796</TD>
+    <TD>0.14430600638057073</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.89015</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>274</TD>
+    <TD>0</TD>
+    <TD>273</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.0</TD>
+    <TD>0.0</TD>
+    <TD>F</TD>
+    <TD>1.0</TD>
+    <TD>1.7985175</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>34</TD>
+    <TD>F</TD>
+    <TD>0.37732586</TD>
+    <TD>0.8181034</TD>
+    <TD>0.4506062</TD>
+    <TD>0.46964392</TD>
+    <TD>-4.6019363</TD>
+    <TD>-14.819643</TD>
+    <TD>-8.407699</TD>
+    <TD>-14.713415</TD>
+    <TD>270</TD>
+    <TD>2125.9745185715933</TD>
+    <TD>3.42519357833632</TD>
+    <TD>17.205874926672045</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.32759438039014</TD>
+    <TD>-60.24852857266694</TD>
+    <TD>359.995253968398</TD>
+    <TD>-0.05998516287420841</TD>
+    <TD>293051227</TD>
+    <TD>00000468-0003259 </TD>
+    <TD>1.0323133509409967</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>ABC</TD>
+    <TD>00000468-0003259 </TD>
+    <TD>0.28</TD>
+    <TD>0.24</TD>
+    <TD>95</TD>
+    <TD>16.079</TD>
+    <TD>0.095</TD>
+    <TD>15.637</TD>
+    <TD>0.135</TD>
+    <TD>15.458</TD>
+    <TD>0.21</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451114.5959</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449957784975856512</TD>
+    <TD>461542991</TD>
+    <TD>2015.0</TD>
+    <TD>0.0258613087319969</TD>
+    <TD>0.48868831802564444</TD>
+    <TD>-0.04644962158643666</TD>
+    <TD>0.2037168992166861</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.92655</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>309</TD>
+    <TD>0</TD>
+    <TD>309</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.9983476899665364</TD>
+    <TD>179.2140444732579</TD>
+    <TD>F</TD>
+    <TD>3.5255187</TD>
+    <TD>0.92299014</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>35</TD>
+    <TD>F</TD>
+    <TD>0.27333468</TD>
+    <TD>0.8401191</TD>
+    <TD>0.33386487</TD>
+    <TD>0.53360164</TD>
+    <TD>-7.3234415</TD>
+    <TD>-15.153848</TD>
+    <TD>-11.149795</TD>
+    <TD>-15.148773</TD>
+    <TD>305</TD>
+    <TD>16394.707115584977</TD>
+    <TD>9.06275000187078</TD>
+    <TD>14.988010907365725</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.347775636263</TD>
+    <TD>-60.24146028466978</TD>
+    <TD>0.005264817779348142</TD>
+    <TD>-0.05290985416478377</TD>
+    <TD>293086070</TD>
+    <TD>00000614-0002471 </TD>
+    <TD>0.8659117525716696</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00000614-0002471 </TD>
+    <TD>0.25</TD>
+    <TD>0.1</TD>
+    <TD>0</TD>
+    <TD>12.526</TD>
+    <TD>0.024</TD>
+    <TD>11.935</TD>
+    <TD>0.025</TD>
+    <TD>11.674</TD>
+    <TD>0.023</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449956960338968832</TD>
+    <TD>1036170639</TD>
+    <TD>2015.0</TD>
+    <TD>0.03720200327591521</TD>
+    <TD>0.3625465719417467</TD>
+    <TD>-0.06517262962006178</TD>
+    <TD>0.14784720986398822</TD>
+    <TD>7.3930018481897815</TD>
+    <TD>0.4272588819319324</TD>
+    <TD>-54.89146532215199</TD>
+    <TD>1.4799142080744117</TD>
+    <TD>-86.67800685638697</TD>
+    <TD>0.6413859391313228</TD>
+    <TD>0.93207043</TD>
+    <TD>0.706051</TD>
+    <TD>-0.8606195</TD>
+    <TD>-0.8591863</TD>
+    <TD>0.74832904</TD>
+    <TD>-0.88226</TD>
+    <TD>-0.87761</TD>
+    <TD>-0.88928896</TD>
+    <TD>-0.8917916</TD>
+    <TD>0.9325205</TD>
+    <TD>223</TD>
+    <TD>215</TD>
+    <TD>210</TD>
+    <TD>211</TD>
+    <TD>13</TD>
+    <TD>4</TD>
+    <TD>NaN</TD>
+    <TD>0.364374058494969</TD>
+    <TD>297.17399566001467</TD>
+    <TD>T</TD>
+    <TD>3.6703866</TD>
+    <TD>6.610631</TD>
+    <TD>2.5248466E-5</TD>
+    <TD>5</TD>
+    <TD>29</TD>
+    <TD>T</TD>
+    <TD>0.3430743</TD>
+    <TD>0.8467203</TD>
+    <TD>0.42663953</TD>
+    <TD>0.56028336</TD>
+    <TD>-22.259583</TD>
+    <TD>-16.010538</TD>
+    <TD>-20.662012</TD>
+    <TD>-17.548916</TD>
+    <TD>229</TD>
+    <TD>1045038.3135983129</TD>
+    <TD>1463.6693906101468</TD>
+    <TD>10.476939531313034</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.35371373535662</TD>
+    <TD>-60.263150861724355</TD>
+    <TD>0.00822211302829296</TD>
+    <TD>-0.07459894531983431</TD>
+    <TD>293026586</TD>
+    <TD>00000898-0003534 </TD>
+    <TD>0.11886136726448572</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>AAA</TD>
+    <TD>00000898-0003534 </TD>
+    <TD>0.24</TD>
+    <TD>0.1</TD>
+    <TD>0</TD>
+    <TD>9.478</TD>
+    <TD>0.024</TD>
+    <TD>9.161</TD>
+    <TD>0.024</TD>
+    <TD>9.077</TD>
+    <TD>0.022</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449956891619492224</TD>
+    <TD>1102634312</TD>
+    <TD>2015.0</TD>
+    <TD>0.010843195015710705</TD>
+    <TD>0.17987949764336378</TD>
+    <TD>-0.07271284628997317</TD>
+    <TD>0.0750743305975139</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.9187</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>298</TD>
+    <TD>0</TD>
+    <TD>297</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.3616411868312215</TD>
+    <TD>141.29409488811456</TD>
+    <TD>F</TD>
+    <TD>3.4263015</TD>
+    <TD>6.9811525</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>34</TD>
+    <TD>F</TD>
+    <TD>0.2533285</TD>
+    <TD>0.834066</TD>
+    <TD>0.32435194</TD>
+    <TD>0.5174014</TD>
+    <TD>-3.3469567</TD>
+    <TD>-14.20966</TD>
+    <TD>-8.60009</TD>
+    <TD>-13.7597475</TD>
+    <TD>291</TD>
+    <TD>94140.80371321844</TD>
+    <TD>27.45543409754639</TD>
+    <TD>13.090325309561903</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.29892042285266</TD>
+    <TD>-60.25956020975195</TD>
+    <TD>359.9810390493581</TD>
+    <TD>-0.07103203117117726</TD>
+    <TD>293001674</TD>
+    <TD>00000258-0004216 </TD>
+    <TD>0.27574263994362147</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00000258-0004216 </TD>
+    <TD>0.09</TD>
+    <TD>0.06</TD>
+    <TD>90</TD>
+    <TD>12.159</TD>
+    <TD>0.026</TD>
+    <TD>11.848</TD>
+    <TD>0.026</TD>
+    <TD>11.792</TD>
+    <TD>0.021</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451114.5959</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449957819332427904</TD>
+    <TD>685190102</TD>
+    <TD>2015.0</TD>
+    <TD>0.03260149893719207</TD>
+    <TD>5.641313478514059</TD>
+    <TD>-0.0405763489045184</TD>
+    <TD>2.4612207074042702</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.9189</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>244</TD>
+    <TD>0</TD>
+    <TD>242</TD>
+    <TD>0</TD>
+    <TD>2</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>10.762616732081895</TD>
+    <TD>294.3077368634155</TD>
+    <TD>F</TD>
+    <TD>40.361305</TD>
+    <TD>0.008011813</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>34</TD>
+    <TD>F</TD>
+    <TD>0.3765377</TD>
+    <TD>0.8186777</TD>
+    <TD>0.45515284</TD>
+    <TD>0.48026958</TD>
+    <TD>-8.752922</TD>
+    <TD>-15.886869</TD>
+    <TD>-11.53251</TD>
+    <TD>-16.634834</TD>
+    <TD>240</TD>
+    <TD>473.3029146761249</TD>
+    <TD>4.150002974779477</TD>
+    <TD>18.836922116510294</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.3649431713629</TD>
+    <TD>-60.23875631937525</TD>
+    <TD>0.013785076591126905</TD>
+    <TD>-0.050202324233463824</TD>
+    <TD>293104911</TD>
+    <TD>00000783-0002261 </TD>
+    <TD>0.13063996530137556</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>BBA</TD>
+    <TD>00000783-0002261 </TD>
+    <TD>0.25</TD>
+    <TD>0.11</TD>
+    <TD>0</TD>
+    <TD>15.076</TD>
+    <TD>0.117</TD>
+    <TD>14.477</TD>
+    <TD>0.127</TD>
+    <TD>14.064</TD>
+    <TD>0.109</TD>
+    <TD>1182662</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449956822900015744</TD>
+    <TD>330701299</TD>
+    <TD>2015.0</TD>
+    <TD>0.018498524774748948</TD>
+    <TD>5.772170234910314</TD>
+    <TD>-0.08335088561270569</TD>
+    <TD>2.5011192904087647</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.89495</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>179</TD>
+    <TD>0</TD>
+    <TD>179</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>10.518992944896924</TD>
+    <TD>1011.1410346093511</TD>
+    <TD>F</TD>
+    <TD>52.616756</TD>
+    <TD>0.008552748</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>33</TD>
+    <TD>F</TD>
+    <TD>0.40224186</TD>
+    <TD>0.7901217</TD>
+    <TD>0.5051785</TD>
+    <TD>0.40571228</TD>
+    <TD>-5.3620186</TD>
+    <TD>-13.175262</TD>
+    <TD>-9.201073</TD>
+    <TD>-12.0563545</TD>
+    <TD>176</TD>
+    <TD>1362.7991446522938</TD>
+    <TD>15.703750626668242</TD>
+    <TD>17.688690433052557</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.30451767458193</TD>
+    <TD>-60.272369001455814</TD>
+    <TD>359.9838311014984</TD>
+    <TD>-0.08383735446273725</TD>
+    <TD>292967414</TD>
+    <TD>00000443-0005000 </TD>
+    <TD>0.09525892812850772</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00000443-0005000 </TD>
+    <TD>0.09</TD>
+    <TD>0.06</TD>
+    <TD>89</TD>
+    <TD>14.28</TD>
+    <TD>0.088</TD>
+    <TD>13.642</TD>
+    <TD>0.104</TD>
+    <TD>13.188</TD>
+    <TD>0.078</TD>
+    <TD>582484</TD>
+    <TD>2451114.5959</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449953764883533184</TD>
+    <TD>339153646</TD>
+    <TD>2015.0</TD>
+    <TD>0.0862611945420451</TD>
+    <TD>0.4017249567574013</TD>
+    <TD>-0.08460791618992519</TD>
+    <TD>0.1759456249799178</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.8911</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>248</TD>
+    <TD>0</TD>
+    <TD>248</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.40916523514504727</TD>
+    <TD>3.535885601996597</TD>
+    <TD>F</TD>
+    <TD>1.1356372</TD>
+    <TD>1.3686033</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>31</TD>
+    <TD>F</TD>
+    <TD>0.44871193</TD>
+    <TD>0.83524597</TD>
+    <TD>0.5017852</TD>
+    <TD>0.5155386</TD>
+    <TD>-2.5387332</TD>
+    <TD>-15.683894</TD>
+    <TD>-7.082088</TD>
+    <TD>-14.55106</TD>
+    <TD>246</TD>
+    <TD>2046.9790286720622</TD>
+    <TD>3.630598392902848</TD>
+    <TD>17.24698658050945</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.4289236340129</TD>
+    <TD>-60.30049286783788</TD>
+    <TD>0.04550213422519182</TD>
+    <TD>-0.11194508606499984</TD>
+    <TD>292963449</TD>
+    <TD>00002067-0005044 </TD>
+    <TD>0.40137198505417726</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>ABC</TD>
+    <TD>00002067-0005044 </TD>
+    <TD>0.3</TD>
+    <TD>0.21</TD>
+    <TD>3</TD>
+    <TD>16.046</TD>
+    <TD>0.092</TD>
+    <TD>15.592</TD>
+    <TD>0.13</TD>
+    <TD>15.381</TD>
+    <TD>0.186</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449956444943125760</TD>
+    <TD>570052515</TD>
+    <TD>2015.0</TD>
+    <TD>0.006468799876506954</TD>
+    <TD>3.664100460040119</TD>
+    <TD>-0.09259127434391409</TD>
+    <TD>1.59269640115493</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.89315</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>253</TD>
+    <TD>0</TD>
+    <TD>253</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>7.822107749507979</TD>
+    <TD>181.25290389290657</TD>
+    <TD>F</TD>
+    <TD>12.42856</TD>
+    <TD>0.014922465</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>33</TD>
+    <TD>F</TD>
+    <TD>0.43460622</TD>
+    <TD>0.81800264</TD>
+    <TD>0.4994251</TD>
+    <TD>0.46946567</TD>
+    <TD>-7.2556543</TD>
+    <TD>-14.220049</TD>
+    <TD>-9.923164</TD>
+    <TD>-14.101096</TD>
+    <TD>247</TD>
+    <TD>530.3268561690528</TD>
+    <TD>6.06224454507914</TD>
+    <TD>18.71341101211666</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.27483545464742</TD>
+    <TD>-60.27604072809581</TD>
+    <TD>359.9691184246234</TD>
+    <TD>-0.08753009692780414</TD>
+    <TD>292937788</TD>
+    <TD>00000156-0005331 </TD>
+    <TD>0.2900674406011561</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>ABB</TD>
+    <TD>00000156-0005331 </TD>
+    <TD>0.1</TD>
+    <TD>0.07</TD>
+    <TD>89</TD>
+    <TD>15.788</TD>
+    <TD>0.077</TD>
+    <TD>15.271</TD>
+    <TD>0.123</TD>
+    <TD>14.528</TD>
+    <TD>0.111</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451114.5959</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449956582382079104</TD>
+    <TD>554375023</TD>
+    <TD>2015.0</TD>
+    <TD>0.05352141826138406</TD>
+    <TD>0.42646019501950355</TD>
+    <TD>-0.09121784964874464</TD>
+    <TD>0.18795031780265634</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.90345</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>258</TD>
+    <TD>0</TD>
+    <TD>256</TD>
+    <TD>0</TD>
+    <TD>2</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.29556708096069484</TD>
+    <TD>1.4883216177691763</TD>
+    <TD>F</TD>
+    <TD>1.0625349</TD>
+    <TD>1.2785789</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>32</TD>
+    <TD>F</TD>
+    <TD>0.39553759</TD>
+    <TD>0.8373703</TD>
+    <TD>0.4478988</TD>
+    <TD>0.51974857</TD>
+    <TD>-2.703739</TD>
+    <TD>-16.643843</TD>
+    <TD>-7.5117617</TD>
+    <TD>-16.211788</TD>
+    <TD>254</TD>
+    <TD>1700.8287609276165</TD>
+    <TD>1.897958795840022</TD>
+    <TD>17.44811858599339</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.36299344970493</TD>
+    <TD>-60.293540157439615</TD>
+    <TD>0.012834674931877439</TD>
+    <TD>-0.1049864528947277</TD>
+    <TD>292942017</TD>
+    <TD>00001284-0005284 </TD>
+    <TD>0.029625198785470215</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>BDU</TD>
+    <TD>00001284-0005284 </TD>
+    <TD>0.34</TD>
+    <TD>0.29</TD>
+    <TD>175</TD>
+    <TD>16.491</TD>
+    <TD>0.15</TD>
+    <TD>16.298</TD>
+    <TD>0.224</TD>
+    <TD>16.083</TD>
+    <TD>NaN</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449956891619725056</TD>
+    <TD>417603938</TD>
+    <TD>2015.0</TD>
+    <TD>0.0033758908783008234</TD>
+    <TD>1.5034544449242357</TD>
+    <TD>-0.07740810685740362</TD>
+    <TD>0.6611009657540966</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.885</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>271</TD>
+    <TD>0</TD>
+    <TD>266</TD>
+    <TD>0</TD>
+    <TD>5</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>1.7356039606572962</TD>
+    <TD>4.697833556738271</TD>
+    <TD>F</TD>
+    <TD>1.373297</TD>
+    <TD>0.08851209</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>34</TD>
+    <TD>F</TD>
+    <TD>0.37576517</TD>
+    <TD>0.82411057</TD>
+    <TD>0.4502823</TD>
+    <TD>0.48946637</TD>
+    <TD>-4.5509853</TD>
+    <TD>-15.481206</TD>
+    <TD>-8.659473</TD>
+    <TD>-15.442865</TD>
+    <TD>266</TD>
+    <TD>322.948912258902</TD>
+    <TD>2.0348652483875997</TD>
+    <TD>19.251935498561274</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.28134060681366</TD>
+    <TD>-60.26088531200228</TD>
+    <TD>359.9723202632097</TD>
+    <TD>-0.07236952670194324</TD>
+    <TD>292987031</TD>
+    <TD>00000083-0004380 </TD>
+    <TD>0.730626532613113</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>ABD</TD>
+    <TD>00000083-0004380 </TD>
+    <TD>0.35</TD>
+    <TD>0.3</TD>
+    <TD>8</TD>
+    <TD>16.252</TD>
+    <TD>0.094</TD>
+    <TD>15.763</TD>
+    <TD>0.151</TD>
+    <TD>15.655</TD>
+    <TD>0.255</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451114.5959</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449956651101556224</TD>
+    <TD>865095955</TD>
+    <TD>2015.0</TD>
+    <TD>0.0372219687095201</TD>
+    <TD>0.8843092554664904</TD>
+    <TD>-0.08373875124028761</TD>
+    <TD>0.3728388057387378</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.91865</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>280</TD>
+    <TD>0</TD>
+    <TD>279</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>1.4821845055028053</TD>
+    <TD>22.404529554926427</TD>
+    <TD>F</TD>
+    <TD>1.8303729</TD>
+    <TD>0.2832207</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>33</TD>
+    <TD>F</TD>
+    <TD>0.32743236</TD>
+    <TD>0.8557331</TD>
+    <TD>0.3619789</TD>
+    <TD>0.5692481</TD>
+    <TD>-3.9157457</TD>
+    <TD>-16.431683</TD>
+    <TD>-8.701677</TD>
+    <TD>-15.952974</TD>
+    <TD>274</TD>
+    <TD>1231.3932433871394</TD>
+    <TD>3.8606048254526533</TD>
+    <TD>17.79877814808318</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.33883821232281</TD>
+    <TD>-60.28018867618568</TD>
+    <TD>8.552409203266285E-4</TD>
+    <TD>-0.09164096927818534</TD>
+    <TD>292965976</TD>
+    <TD>00000891-0005016 </TD>
+    <TD>0.2490485117363122</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00000891-0005016 </TD>
+    <TD>0.23</TD>
+    <TD>0.1</TD>
+    <TD>0</TD>
+    <TD>14.972</TD>
+    <TD>0.046</TD>
+    <TD>14.475</TD>
+    <TD>0.051</TD>
+    <TD>13.992</TD>
+    <TD>0.05</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449957888052139520</TD>
+    <TD>682341854</TD>
+    <TD>2015.0</TD>
+    <TD>0.017315039845352747</TD>
+    <TD>0.4394379490692694</TD>
+    <TD>-0.033171301756326134</TD>
+    <TD>0.1920071781368352</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.90815</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>266</TD>
+    <TD>0</TD>
+    <TD>260</TD>
+    <TD>0</TD>
+    <TD>6</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.5279876780913995</TD>
+    <TD>5.5160897168528145</TD>
+    <TD>F</TD>
+    <TD>1.2189804</TD>
+    <TD>1.1568244</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>32</TD>
+    <TD>F</TD>
+    <TD>0.3524084</TD>
+    <TD>0.8232318</TD>
+    <TD>0.42765728</TD>
+    <TD>0.4870513</TD>
+    <TD>-5.574343</TD>
+    <TD>-15.776841</TD>
+    <TD>-9.32336</TD>
+    <TD>-16.118683</TD>
+    <TD>259</TD>
+    <TD>2107.3773656060225</TD>
+    <TD>4.957344727475573</TD>
+    <TD>17.215414285895417</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.34263914119873</TD>
+    <TD>-60.22587665471726</TD>
+    <TD>0.0027055816185413755</TD>
+    <TD>-0.037327724394430224</TD>
+    <TD>293129618</TD>
+    <TD>00000417-0001586 </TD>
+    <TD>0.8475863822849492</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAB</TD>
+    <TD>00000417-0001586 </TD>
+    <TD>0.11</TD>
+    <TD>0.08</TD>
+    <TD>91</TD>
+    <TD>15.591</TD>
+    <TD>0.059</TD>
+    <TD>15.023</TD>
+    <TD>0.073</TD>
+    <TD>15.069</TD>
+    <TD>0.154</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451114.5959</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449957888052139648</TD>
+    <TD>719597032</TD>
+    <TD>2015.0</TD>
+    <TD>0.021456590922357466</TD>
+    <TD>0.9916252653468601</TD>
+    <TD>-0.023792394535045048</TD>
+    <TD>0.42118884533663786</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.90575</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>289</TD>
+    <TD>0</TD>
+    <TD>288</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.3639801662429418</TD>
+    <TD>0.4046105191119935</TD>
+    <TD>F</TD>
+    <TD>1.0180001</TD>
+    <TD>0.22315466</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>35</TD>
+    <TD>F</TD>
+    <TD>0.35116</TD>
+    <TD>0.83468366</TD>
+    <TD>0.41250527</TD>
+    <TD>0.5184724</TD>
+    <TD>-8.257308</TD>
+    <TD>-15.649207</TD>
+    <TD>-11.13696</TD>
+    <TD>-16.055256</TD>
+    <TD>284</TD>
+    <TD>447.11475447660126</TD>
+    <TD>1.314180045760615</TD>
+    <TD>18.898722560038028</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.35780938419526</TD>
+    <TD>-60.218922939692895</TD>
+    <TD>0.010236095432704843</TD>
+    <TD>-0.030370158493300145</TD>
+    <TD>293159559</TD>
+    <TD>00000516-0001254 </TD>
+    <TD>0.3634653435412291</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>DCU</TD>
+    <TD>00000516-0001254 </TD>
+    <TD>0.37</TD>
+    <TD>0.25</TD>
+    <TD>1</TD>
+    <TD>17.025</TD>
+    <TD>0.22</TD>
+    <TD>15.841</TD>
+    <TD>0.159</TD>
+    <TD>17.233</TD>
+    <TD>NaN</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449953730523793792</TD>
+    <TD>9709911</TD>
+    <TD>2015.0</TD>
+    <TD>0.07030402849730154</TD>
+    <TD>0.8888137339352897</TD>
+    <TD>-0.09612044582105908</TD>
+    <TD>0.388683750588461</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.9041</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>253</TD>
+    <TD>0</TD>
+    <TD>253</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>1.1191237453644518</TD>
+    <TD>7.1240549135977345</TD>
+    <TD>F</TD>
+    <TD>1.3547391</TD>
+    <TD>0.2936309</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>31</TD>
+    <TD>F</TD>
+    <TD>0.4567028</TD>
+    <TD>0.8400069</TD>
+    <TD>0.49732226</TD>
+    <TD>0.52767193</TD>
+    <TD>-4.7182894</TD>
+    <TD>-16.566364</TD>
+    <TD>-8.758988</TD>
+    <TD>-15.911841</TD>
+    <TD>251</TD>
+    <TD>794.8728494500325</TD>
+    <TD>2.1775234480729053</TD>
+    <TD>18.274025906346022</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.39013186603232</TD>
+    <TD>-60.30471544818277</TD>
+    <TD>0.026282278320396653</TD>
+    <TD>-0.11616023201371287</TD>
+    <TD>292926392</TD>
+    <TD>00001684-0005458 </TD>
+    <TD>0.47004650855026475</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAB</TD>
+    <TD>00001684-0005458 </TD>
+    <TD>0.23</TD>
+    <TD>0.11</TD>
+    <TD>0</TD>
+    <TD>15.843</TD>
+    <TD>0.07</TD>
+    <TD>15.305</TD>
+    <TD>0.089</TD>
+    <TD>14.9</TD>
+    <TD>0.122</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2449956754180538880</TD>
+    <TD>472871893</TD>
+    <TD>2015.0</TD>
+    <TD>0.055551705687065536</TD>
+    <TD>0.19181498979296172</TD>
+    <TD>-0.0787622451767712</TD>
+    <TD>0.08009970556137085</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.931</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>285</TD>
+    <TD>0</TD>
+    <TD>285</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.35179975572941774</TD>
+    <TD>73.61863601917155</TD>
+    <TD>F</TD>
+    <TD>2.2706382</TD>
+    <TD>6.98899</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>33</TD>
+    <TD>F</TD>
+    <TD>0.26630458</TD>
+    <TD>0.85596263</TD>
+    <TD>0.3108825</TD>
+    <TD>0.57458556</TD>
+    <TD>-3.597219</TD>
+    <TD>-16.591515</TD>
+    <TD>-9.473538</TD>
+    <TD>-16.058577</TD>
+    <TD>281</TD>
+    <TD>54888.167648350194</TD>
+    <TD>16.50146105777815</TD>
+    <TD>13.676073231807852</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.37675266540724</TD>
+    <TD>-60.282921423798875</TD>
+    <TD>0.01965199340298007</TD>
+    <TD>-0.0943662622014308</TD>
+    <TD>292982158</TD>
+    <TD>00001333-0004435 </TD>
+    <TD>0.02857132008049195</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00001333-0004435 </TD>
+    <TD>0.24</TD>
+    <TD>0.1</TD>
+    <TD>0</TD>
+    <TD>12.658</TD>
+    <TD>0.023</TD>
+    <TD>12.38</TD>
+    <TD>0.026</TD>
+    <TD>12.328</TD>
+    <TD>0.026</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2546034932074144000</TD>
+    <TD>156909022</TD>
+    <TD>2015.0</TD>
+    <TD>0.0306442873616858</TD>
+    <TD>0.2166535466650487</TD>
+    <TD>-0.006278794829005968</TD>
+    <TD>0.08825236480562072</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.92805</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>286</TD>
+    <TD>0</TD>
+    <TD>284</TD>
+    <TD>0</TD>
+    <TD>2</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.28888609103065205</TD>
+    <TD>9.462478080324544</TD>
+    <TD>F</TD>
+    <TD>1.3052394</TD>
+    <TD>5.2539725</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>33</TD>
+    <TD>F</TD>
+    <TD>0.31929538</TD>
+    <TD>0.79624486</TD>
+    <TD>0.32766613</TD>
+    <TD>0.47196233</TD>
+    <TD>-13.236274</TD>
+    <TD>-15.374014</TD>
+    <TD>-12.000799</TD>
+    <TD>-13.2159</TD>
+    <TD>283</TD>
+    <TD>9480.062125758554</TD>
+    <TD>12.14432945879744</TD>
+    <TD>15.582742105309267</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.38880503538793</TD>
+    <TD>-60.206511668179076</TD>
+    <TD>0.02563215076453614</TD>
+    <TD>-0.017956397686872395</TD>
+    <TD>293215619</TD>
+    <TD>00000734-0000226 </TD>
+    <TD>0.17987643524416969</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00000734-0000226 </TD>
+    <TD>0.26</TD>
+    <TD>0.1</TD>
+    <TD>0</TD>
+    <TD>14.43</TD>
+    <TD>0.038</TD>
+    <TD>14.085</TD>
+    <TD>0.039</TD>
+    <TD>13.923</TD>
+    <TD>0.056</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2546034966433885568</TD>
+    <TD>547606529</TD>
+    <TD>2015.0</TD>
+    <TD>0.00943840645089968</TD>
+    <TD>1.1424076167451804</TD>
+    <TD>-8.906676115100896E-4</TD>
+    <TD>0.49709138876117126</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.8994</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>293</TD>
+    <TD>0</TD>
+    <TD>291</TD>
+    <TD>0</TD>
+    <TD>2</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>1.1804136005723622</TD>
+    <TD>3.874687492627998</TD>
+    <TD>F</TD>
+    <TD>1.2010711</TD>
+    <TD>0.15173095</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>36</TD>
+    <TD>F</TD>
+    <TD>0.41337246</TD>
+    <TD>0.83023196</TD>
+    <TD>0.4699377</TD>
+    <TD>0.50267714</TD>
+    <TD>-6.6862373</TD>
+    <TD>-15.437552</TD>
+    <TD>-9.7267685</TD>
+    <TD>-15.594339</TD>
+    <TD>290</TD>
+    <TD>408.9804487916617</TD>
+    <TD>1.6182384686552287</TD>
+    <TD>18.99551369593005</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.35397404037847</TD>
+    <TD>-60.19312964419178</TD>
+    <TD>0.008319406347009185</TD>
+    <TD>-0.004577676084696102</TD>
+    <TD>293233267</TD>
+    <TD>00000229-0000029 </TD>
+    <TD>0.5069140598602376</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>BDU</TD>
+    <TD>00000229-0000029 </TD>
+    <TD>0.27</TD>
+    <TD>0.25</TD>
+    <TD>130</TD>
+    <TD>16.422</TD>
+    <TD>0.11</TD>
+    <TD>16.112</TD>
+    <TD>0.227</TD>
+    <TD>15.21</TD>
+    <TD>NaN</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451114.5959</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2546034725915459840</TD>
+    <TD>520938076</TD>
+    <TD>2015.0</TD>
+    <TD>0.0474079985964922</TD>
+    <TD>0.21294342889880838</TD>
+    <TD>-0.006749687412387354</TD>
+    <TD>0.08834615241830525</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.9305</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>302</TD>
+    <TD>0</TD>
+    <TD>300</TD>
+    <TD>0</TD>
+    <TD>2</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.38685770341163633</TD>
+    <TD>48.596890418603024</TD>
+    <TD>F</TD>
+    <TD>2.011746</TD>
+    <TD>5.280041</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>34</TD>
+    <TD>F</TD>
+    <TD>0.2321748</TD>
+    <TD>0.8002162</TD>
+    <TD>0.26364326</TD>
+    <TD>0.47924528</TD>
+    <TD>-9.606599</TD>
+    <TD>-15.671701</TD>
+    <TD>-8.860025</TD>
+    <TD>-13.816832</TD>
+    <TD>299</TD>
+    <TD>25750.51468416817</TD>
+    <TD>9.898721523156393</TD>
+    <TD>14.497805279207192</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.41938997332315</TD>
+    <TD>-60.21360729352848</TD>
+    <TD>0.040825247564649565</TD>
+    <TD>-0.025056650710209526</TD>
+    <TD>293214351</TD>
+    <TD>00001137-0000241 </TD>
+    <TD>0.20581870402889957</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00001137-0000241 </TD>
+    <TD>0.26</TD>
+    <TD>0.1</TD>
+    <TD>0</TD>
+    <TD>13.514</TD>
+    <TD>0.029</TD>
+    <TD>13.189</TD>
+    <TD>0.031</TD>
+    <TD>13.167</TD>
+    <TD>0.033</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2546034622836477440</TD>
+    <TD>859610974</TD>
+    <TD>2015.0</TD>
+    <TD>0.03486707183208196</TD>
+    <TD>0.4093542234610276</TD>
+    <TD>-0.028242832593154278</TD>
+    <TD>0.17961580952429393</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.9121</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>266</TD>
+    <TD>0</TD>
+    <TD>264</TD>
+    <TD>0</TD>
+    <TD>2</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.47035319247415175</TD>
+    <TD>7.499441332318779</TD>
+    <TD>F</TD>
+    <TD>1.1996648</TD>
+    <TD>1.3713369</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>33</TD>
+    <TD>F</TD>
+    <TD>0.34849897</TD>
+    <TD>0.8177469</TD>
+    <TD>0.4281456</TD>
+    <TD>0.47329584</TD>
+    <TD>-5.408545</TD>
+    <TD>-15.723088</TD>
+    <TD>-9.373773</TD>
+    <TD>-16.056553</TD>
+    <TD>260</TD>
+    <TD>2348.2108132287703</TD>
+    <TD>2.8718039421220456</TD>
+    <TD>17.097927354854622</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.37901565301198</TD>
+    <TD>-60.228343001472936</TD>
+    <TD>0.020769690654700673</TD>
+    <TD>-0.039787736393458444</TD>
+    <TD>293144726</TD>
+    <TD>00000836-0001418 </TD>
+    <TD>0.23534643001817934</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAB</TD>
+    <TD>00000836-0001418 </TD>
+    <TD>0.26</TD>
+    <TD>0.11</TD>
+    <TD>0</TD>
+    <TD>15.644</TD>
+    <TD>0.069</TD>
+    <TD>15.355</TD>
+    <TD>0.096</TD>
+    <TD>15.129</TD>
+    <TD>0.143</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2738189535514327424</TD>
+    <TD>689470562</TD>
+    <TD>2015.0</TD>
+    <TD>0.044577836938538874</TD>
+    <TD>0.4749660240643233</TD>
+    <TD>0.08827129719138843</TD>
+    <TD>0.19672078199539902</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.90625</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>245</TD>
+    <TD>0</TD>
+    <TD>244</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.7664021051463731</TD>
+    <TD>19.846360346186962</TD>
+    <TD>F</TD>
+    <TD>1.6956512</TD>
+    <TD>1.0518003</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>31</TD>
+    <TD>F</TD>
+    <TD>0.31013027</TD>
+    <TD>0.82739156</TD>
+    <TD>0.39156345</TD>
+    <TD>0.5070168</TD>
+    <TD>-4.8369994</TD>
+    <TD>-14.484367</TD>
+    <TD>-9.67241</TD>
+    <TD>-13.703813</TD>
+    <TD>239</TD>
+    <TD>3637.294224370663</TD>
+    <TD>5.802122968767368</TD>
+    <TD>16.622823981362988</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.48996372964938</TD>
+    <TD>-60.125263817055135</TD>
+    <TD>0.07602578614215302</TD>
+    <TD>0.0632491803031536</TD>
+    <TD>293533091</TD>
+    <TD>00001072+0005183 </TD>
+    <TD>0.7015561618781815</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00001072+0005183 </TD>
+    <TD>0.29</TD>
+    <TD>0.1</TD>
+    <TD>0</TD>
+    <TD>14.331</TD>
+    <TD>0.038</TD>
+    <TD>13.72</TD>
+    <TD>0.031</TD>
+    <TD>13.546</TD>
+    <TD>0.043</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.733</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2738189398075372672</TD>
+    <TD>570331424</TD>
+    <TD>2015.0</TD>
+    <TD>0.01998002575948105</TD>
+    <TD>0.3767163219341356</TD>
+    <TD>0.059616659123585325</TD>
+    <TD>0.16764680182339683</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.902</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>256</TD>
+    <TD>0</TD>
+    <TD>255</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.6017840948255464</TD>
+    <TD>15.205990418651298</TD>
+    <TD>F</TD>
+    <TD>1.506834</TD>
+    <TD>1.5774534</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>33</TD>
+    <TD>F</TD>
+    <TD>0.39397657</TD>
+    <TD>0.84343797</TD>
+    <TD>0.45077235</TD>
+    <TD>0.5382961</TD>
+    <TD>-2.263055</TD>
+    <TD>-16.837212</TD>
+    <TD>-7.319785</TD>
+    <TD>-16.287664</TD>
+    <TD>252</TD>
+    <TD>4171.837610079322</TD>
+    <TD>5.577662706559487</TD>
+    <TD>16.473951576210688</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.421791946292</TD>
+    <TD>-60.141806468290994</TD>
+    <TD>0.04205957928012373</TD>
+    <TD>0.04674350129322957</TD>
+    <TD>293436706</TD>
+    <TD>00000480+0003350 </TD>
+    <TD>0.4843358474129321</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00000480+0003350 </TD>
+    <TD>0.1</TD>
+    <TD>0.06</TD>
+    <TD>90</TD>
+    <TD>14.557</TD>
+    <TD>0.037</TD>
+    <TD>13.929</TD>
+    <TD>0.035</TD>
+    <TD>13.806</TD>
+    <TD>0.054</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451114.596</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2738188745240343552</TD>
+    <TD>891883508</TD>
+    <TD>2015.0</TD>
+    <TD>0.028414195032224067</TD>
+    <TD>0.42161379510503155</TD>
+    <TD>0.041307264133986284</TD>
+    <TD>0.1836742932977954</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.91125</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>233</TD>
+    <TD>0</TD>
+    <TD>232</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.3398888933308603</TD>
+    <TD>2.1271324431325804</TD>
+    <TD>F</TD>
+    <TD>1.0933253</TD>
+    <TD>1.4337679</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>31</TD>
+    <TD>F</TD>
+    <TD>0.3381066</TD>
+    <TD>0.806243</TD>
+    <TD>0.44418648</TD>
+    <TD>0.4511876</TD>
+    <TD>-5.3526597</TD>
+    <TD>-15.666733</TD>
+    <TD>-9.898603</TD>
+    <TD>-15.779189</TD>
+    <TD>228</TD>
+    <TD>2044.5520915527766</TD>
+    <TD>4.050434327285187</TD>
+    <TD>17.248274613633818</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.4227298985084</TD>
+    <TD>-60.1619596610509</TD>
+    <TD>0.04251471886092283</TD>
+    <TD>0.026590041330437752</TD>
+    <TD>293375033</TD>
+    <TD>00000683+0002288 </TD>
+    <TD>0.21069157961190824</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00000683+0002288 </TD>
+    <TD>0.28</TD>
+    <TD>0.11</TD>
+    <TD>0</TD>
+    <TD>15.749</TD>
+    <TD>0.072</TD>
+    <TD>15.181</TD>
+    <TD>0.089</TD>
+    <TD>14.816</TD>
+    <TD>0.109</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.733</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2546035516189912192</TD>
+    <TD>348613089</TD>
+    <TD>2015.0</TD>
+    <TD>0.04984234144158831</TD>
+    <TD>0.4763662226605569</TD>
+    <TD>0.04036962865979903</TD>
+    <TD>0.2079558721955921</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.90105</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>249</TD>
+    <TD>0</TD>
+    <TD>247</TD>
+    <TD>0</TD>
+    <TD>2</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.6205672392398164</TD>
+    <TD>7.131180166101808</TD>
+    <TD>F</TD>
+    <TD>1.2252544</TD>
+    <TD>1.0032139</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>32</TD>
+    <TD>F</TD>
+    <TD>0.39247164</TD>
+    <TD>0.8129969</TD>
+    <TD>0.47209442</TD>
+    <TD>0.4604117</TD>
+    <TD>-4.376794</TD>
+    <TD>-14.931845</TD>
+    <TD>-8.593541</TD>
+    <TD>-14.479197</TD>
+    <TD>245</TD>
+    <TD>1890.44556464018</TD>
+    <TD>6.1628179786629</TD>
+    <TD>17.33335962290645</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.4615158952973</TD>
+    <TD>-60.17132656097059</TD>
+    <TD>0.06180168763346688</TD>
+    <TD>0.017206157471558896</TD>
+    <TD>293371866</TD>
+    <TD>00001197+0002253 </TD>
+    <TD>0.19678377605958444</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>BBB</TD>
+    <TD>00001197+0002253 </TD>
+    <TD>0.3</TD>
+    <TD>0.18</TD>
+    <TD>2</TD>
+    <TD>16.651</TD>
+    <TD>0.136</TD>
+    <TD>15.82</TD>
+    <TD>0.15</TD>
+    <TD>14.821</TD>
+    <TD>0.111</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.733</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2546034794635377152</TD>
+    <TD>875563431</TD>
+    <TD>2015.0</TD>
+    <TD>0.07492250514067322</TD>
+    <TD>2.31489451977684</TD>
+    <TD>0.0027764757791423626</TD>
+    <TD>1.0612294746392814</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.9195</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>152</TD>
+    <TD>0</TD>
+    <TD>150</TD>
+    <TD>0</TD>
+    <TD>2</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>2.036925228644108</TD>
+    <TD>5.8167370412953945</TD>
+    <TD>F</TD>
+    <TD>1.4061017</TD>
+    <TD>0.07545835</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>21</TD>
+    <TD>T</TD>
+    <TD>0.16594279</TD>
+    <TD>0.7864226</TD>
+    <TD>0.34752017</TD>
+    <TD>0.39995044</TD>
+    <TD>39.846928</TD>
+    <TD>-18.367382</TD>
+    <TD>2.0245278</TD>
+    <TD>-16.946587</TD>
+    <TD>149</TD>
+    <TD>307.61017965250664</TD>
+    <TD>2.0851783167998734</TD>
+    <TD>19.304768305476095</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.47784074591526</TD>
+    <TD>-60.215783423581925</TD>
+    <TD>0.06985860770024417</TD>
+    <TD>-0.027261197810007732</TD>
+    <TD>293245638</TD>
+    <TD>00001799+0000103 </TD>
+    <TD>0.39829224662246626</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>CCC</TD>
+    <TD>00001799+0000103 </TD>
+    <TD>0.37</TD>
+    <TD>0.27</TD>
+    <TD>6</TD>
+    <TD>16.764</TD>
+    <TD>0.139</TD>
+    <TD>16.245</TD>
+    <TD>0.207</TD>
+    <TD>15.571</TD>
+    <TD>0.204</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2546034932074330240</TD>
+    <TD>621038636</TD>
+    <TD>2015.0</TD>
+    <TD>0.039203696350959716</TD>
+    <TD>0.5154362423625105</TD>
+    <TD>0.0015541222357191447</TD>
+    <TD>0.21774626732563288</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.95405</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>285</TD>
+    <TD>0</TD>
+    <TD>285</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.8743908481233</TD>
+    <TD>141.42921412604466</TD>
+    <TD>F</TD>
+    <TD>3.2201092</TD>
+    <TD>1.1986133</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>33</TD>
+    <TD>F</TD>
+    <TD>0.18655752</TD>
+    <TD>0.8039044</TD>
+    <TD>0.22749457</TD>
+    <TD>0.49271244</TD>
+    <TD>-16.900702</TD>
+    <TD>-17.79022</TD>
+    <TD>-14.34678</TD>
+    <TD>-16.763418</TD>
+    <TD>291</TD>
+    <TD>18249.019524490763</TD>
+    <TD>8.05529558456577</TD>
+    <TD>14.871671224262332</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.41087760966197</TD>
+    <TD>-60.20272720810166</TD>
+    <TD>0.03660100994714271</TD>
+    <TD>-0.014174571476542141</TD>
+    <TD>293241114</TD>
+    <TD>00000935+0000055 </TD>
+    <TD>0.8366543629819017</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00000935+0000055 </TD>
+    <TD>0.26</TD>
+    <TD>0.1</TD>
+    <TD>0</TD>
+    <TD>12.682</TD>
+    <TD>0.022</TD>
+    <TD>12.096</TD>
+    <TD>0.025</TD>
+    <TD>11.844</TD>
+    <TD>0.022</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+  <TR>
+    <TD>1635378410781933568</TD>
+    <TD>2546034863354858624</TD>
+    <TD>405439378</TD>
+    <TD>2015.0</TD>
+    <TD>0.07454625826242023</TD>
+    <TD>0.2630751368581659</TD>
+    <TD>0.00989387843778435</TD>
+    <TD>0.11118736252840138</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>0.9055</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>NaN</TD>
+    <TD>294</TD>
+    <TD>0</TD>
+    <TD>293</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>NaN</TD>
+    <TD>0.45432641603107454</TD>
+    <TD>15.266595544468162</TD>
+    <TD>F</TD>
+    <TD>1.4860095</TD>
+    <TD>2.790168</TD>
+    <TD>NaN</TD>
+    <TD>2</TD>
+    <TD>35</TD>
+    <TD>F</TD>
+    <TD>0.39406425</TD>
+    <TD>0.8122107</TD>
+    <TD>0.399335</TD>
+    <TD>0.5042984</TD>
+    <TD>-5.87408</TD>
+    <TD>-16.114378</TD>
+    <TD>-6.2451787</TD>
+    <TD>-13.538532</TD>
+    <TD>290</TD>
+    <TD>6672.8219683612</TD>
+    <TD>8.67631228267889</TD>
+    <TD>15.96399621889095</TD>
+    <TD>NOT_AVAILABLE</TD>
+    <TD>96.48282516700867</TD>
+    <TD>-60.209100050601364</TD>
+    <TD>0.07234454493733361</TD>
+    <TD>-0.02058144486141745</TD>
+    <TD>293269478</TD>
+    <TD>00001788+0000357 </TD>
+    <TD>0.17666682730332026</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>AAA</TD>
+    <TD>00001788+0000357 </TD>
+    <TD>0.26</TD>
+    <TD>0.1</TD>
+    <TD>0</TD>
+    <TD>14.727</TD>
+    <TD>0.036</TD>
+    <TD>14.319</TD>
+    <TD>0.048</TD>
+    <TD>14.038</TD>
+    <TD>0.063</TD>
+    <TD>-9223372036854775808</TD>
+    <TD>2451432.7329</TD>
+  </TR>
+</TABLEDATA>
+</DATA>
+</TABLE>
+</RESOURCE>
+</VOTABLE>
