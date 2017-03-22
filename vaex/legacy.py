@@ -55,6 +55,15 @@ class TaskHistogram(Task):
 		#self.grids["counts"].bin_block(info, *blocks)
 		#mask = self.dataset.mask
 		data = self.data[thread_index]
+
+		def asfloat(a):
+			if a.dtype.type==np.float64 and a.strides[0] == 8:
+				return a
+			else:
+				return a.astype(np.float64, copy=False)
+
+		blocks = [asfloat(block) for block in blocks]
+
 		if self.masked:
 			mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
 			blocks = [block[mask] for block in blocks]
