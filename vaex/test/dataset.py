@@ -102,6 +102,40 @@ class TestDataset(unittest.TestCase):
 		self.assertIsNotNone(ds.unit("mass"))
 		ds.close_files()
 
+	def test_formats(self):
+		ds_fits = vx.open(os.path.join(basedir, "files", "gaia-small-fits-basic.fits"))
+		ds_fits_plus = vx.open(os.path.join(basedir, "files", "gaia-small-fits-plus.fits"))
+		ds_colfits = vx.open(os.path.join(basedir, "files", "gaia-small-colfits-basic.fits"))
+		ds_colfits_plus = vx.open(os.path.join(basedir, "files", "gaia-small-colfits-plus.fits"))
+		ds_vot = vx.open(os.path.join(basedir, "files", "gaia-small-votable.vot"))
+		dslist = [ds_fits, ds_fits_plus, ds_colfits, ds_colfits_plus, ds_vot]
+		for ds1 in dslist:
+			path_hdf5 = tempfile.mktemp(".hdf5")
+			ds1.export_hdf5(path_hdf5)
+			ds2 = vx.open(path_hdf5)
+			diff, missing, type, meta = ds1._compare(ds2)
+			self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
+			self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
+			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
+
+			path_fits = tempfile.mktemp(".fits")
+			ds1.export_fits(path_fits)
+			ds2 = vx.open(path_fits)
+			diff, missing, type, meta = ds1._compare(ds2)
+			self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
+			self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
+			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
+
+		if 0:
+			N = len(dslist)
+			for i in range(N):
+				for j in range(i+1, N):
+					ds1 = dslist[i]
+					ds2 = dslist[j]
+					diff, missing, type, meta = ds1._compare(ds2)
+					self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
+					self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
+			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
 	def test_to(self):
 		def test_equal(ds1, ds2, units=True, ucds=True, description=True, descriptions=True):
 			if description:

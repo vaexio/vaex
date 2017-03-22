@@ -138,6 +138,8 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 	N = len(dataset) if not selection else dataset.selected_length(selection)
 	data_types = []
 	data_shapes = []
+	ucds = []
+	units = []
 	for column_name in column_names:
 		if column_name in dataset.get_column_names(strings=True):
 			column = dataset.columns[column_name]
@@ -146,6 +148,8 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 		else:
 			dtype = np.float64().dtype
 			shape = (N,)
+		ucds.append(dataset.ucds.get(column_name))
+		units.append(dataset.units.get(column_name))
 		data_types.append(dtype)
 		data_shapes.append(shape)
 
@@ -156,7 +160,7 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 	else:
 		random_index_name = None
 
-	vaex.file.colfits.empty(path, N, column_names, data_types, data_shapes)
+	vaex.file.colfits.empty(path, N, column_names, data_types, data_shapes, ucds, units)
 	if shuffle:
 		del column_names[-1]
 		del data_types[-1]
@@ -231,24 +235,16 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 	column_names = _export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
 			column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
 			progress=progress)
-	description = dataset.description
-	if description is None:
-		description = ""
-	else:
-		description += ", "
 	import getpass
 	import datetime
 	user = getpass.getuser()
 	date = str(datetime.datetime.now())
 	source = dataset.path
-	description += "file exported by vaex, by user %s, on date %s, from source %s" % (user, date, source)
+	description = "file exported by vaex, by user %s, on date %s, from source %s" % (user, date, source)
+	if dataset.description:
+		description += "previous description:\n" + dataset.description
+	dataset_output.copy_metadata(dataset)
 	dataset_output.description = description
-	for column_name in column_names:
-		for name in "ucds units descriptions".split():
-			dest = getattr(dataset_output, name)
-			source = getattr(dataset, name)
-			if column_name in source:
-				dest[column_name] = source[column_name]
 	logger.debug("writing meta information")
 	dataset_output.write_meta()
 	dataset_output.close_files()

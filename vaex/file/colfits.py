@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger("vaex.file.colfits")
 
-def empty(filename, length, column_names, data_types, data_shapes):
+def empty(filename, length, column_names, data_types, data_shapes, ucds, units):
 	with open(filename, "wb") as f:
 		logger.debug("preparing empty fits file: %s", filename)
 		class Scope(object):
@@ -71,6 +71,12 @@ def empty(filename, length, column_names, data_types, data_shapes):
 				# TODO: support rank1 arrays
 				write("TFORM%d" % i , repr("{length}{type}".format(length=length, type=fits_type)), "")
 				write("TDIM%d" % i, repr("(1,{length})".format(length=length)), "")
+			ucd = ucds[i-1]
+			if ucd:
+				write("TUCD%d" % i, repr(str(ucd)))
+			unit = units[i-1]
+			if unit:
+				write("TUNIT%d" % i, repr(str(unit)))
 
 		finish_header()
 

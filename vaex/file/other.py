@@ -6,6 +6,7 @@ import functools
 import collections
 import logging
 import numpy as np
+import numpy.ma
 import vaex
 import astropy.table
 import astropy.units
@@ -309,6 +310,21 @@ def _python_save_name(name, used=[]):
 		name = name + ("_%d" % nr)
 	return name
 
+def _try_unit(unit):
+	try:
+		unit = astropy.units.Unit(str(unit))
+		if not isinstance(astropy.units.UnrecognizedUnit):
+			return unit
+	except:
+		#logger.exception("could not parse unit: %r", unit)
+		pass
+	try:
+		unit_mangle = re.match(".*\[(.*)\]", str(unit)).groups()[0]
+		unit = astropy.units.Unit(unit_mangle)
+	except:
+		pass#logger.exception("could not parse unit: %r", unit)
+	return unit
+
 class FitsBinTable(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
 		super(FitsBinTable, self).__init__(filename, write=write)
@@ -326,38 +342,9 @@ class FitsBinTable(DatasetMemoryMapped):
 							for i in range(len(table.columns)):
 								column = table.columns[i]
 								cannot_handle = False
-								column_name = _python_save_name(column.name, used=self.columns.keys())
+								column_name = _python_save_name(column.name.strip(), used=self.columns.keys())
+								self._get_column_meta_data(table, column_name, column, i)
 
-								ucd_header_name = "TUCD%d" % (i+1)
-								if ucd_header_name in table.header:
-									self.ucds[column_name] = table.header[ucd_header_name]
-								def _try_unit(unit):
-									try:
-										return astropy.units.Unit(unit)
-									except:
-										#logger.exception("could not parse unit: %r", unit)
-										pass
-									try:
-										unit = re.match(".*\[(.*)\]", unit).groups()[0]
-										return astropy.units.Unit(unit)
-									except:
-										pass#logger.exception("could not parse unit: %r", unit)
-								if column.unit:
-									try:
-										unit = _try_unit(column.unit)
-										if unit:
-											self.units[column_name] = unit
-									except:
-										logger.exception("could not understand unit: %s" % column.unit)
-								else: # we may want to try ourselves
-									unit_header_name = "TUNIT%d" % (i+1)
-									if unit_header_name in table.header:
-										unit_str = table.header[unit_header_name]
-										unit = _try_unit(unit_str)
-										if unit:
-											self.unit[column_name] = unit
-								#unit_header_name = "TUCD%d" % (i+1)
-								#if ucd_header_name in table.header:
 
 								# flatlength == length * arraylength
 								flatlength, fitstype = int(column.format[:-1]),column.format[-1]
@@ -392,20 +379,82 @@ class FitsBinTable(DatasetMemoryMapped):
 											self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
 								if flatlength > 0: # flatlength can be
 									offset += bytessize * length
+								self._check_null(table, column_name, column, i)
 
 					else:
 						logger.debug("adding table: %r" % table)
-						for column in table.columns:
+						for i, column in enumerate(table.columns):
 							array = column.array[:]
 							array = column.array[:] # 2nd time it will be a real np array
 							#import pdb
 							#pdb.set_trace()
-							if array.dtype.kind in "fi":
-								self.addColumn(column.name, array=array)
+							if array.dtype.kind in "fiubSU":
+								column_name = _python_save_name(column.name, used=self.columns.keys())
+								self.addColumn(column_name, array=array)
+								self._get_column_meta_data(table, column_name, column, i)
+								self._check_null(table, column_name, column, i)
+			self._try_votable(fitsfile[0])
+
 		self.update_meta()
 		self.update_virtual_meta()
 		self.selections_favorite_load()
 
+	def _check_null(self, table, column_name, column, i):
+		null_name = "TNULL%d" % (i+1)
+		if null_name in table.header:
+			mask_value = table.header[null_name]
+			array = self.columns[column_name]
+			mask = array == mask_value
+			self.columns[column_name] = numpy.ma.masked_array(array, mask)
+
+	def _try_votable(self, table):
+		try:
+			from io import BytesIO as StringIO
+		except:
+			from StringIO import StringIO
+		if table.data is None:
+			return
+		vodata = table.data.tostring()
+		if vodata.startswith(b"<?xml"):
+			f = StringIO()
+			f.write(vodata)
+			votable = astropy.io.votable.parse(f)
+			first_table = votable.get_first_table()
+			used_names = []
+			for field in first_table.fields:
+				name = field.name.strip()
+				clean_name = _python_save_name(name, used=used_names)
+				used_names.append(name)
+				if field.ucd:
+					self.ucds[clean_name] = field.ucd
+				unit = _try_unit(field.unit)
+				if unit:
+					self.units[clean_name] = unit
+				if unit is None and field.unit:
+					print("unit error for: %r", field.unit)
+				self.descriptions[clean_name] = field.description
+			self.description = first_table.description
+
+	def _get_column_meta_data(self, table, column_name, column, i):
+		ucd_header_name = "TUCD%d" % (i+1)
+		if ucd_header_name in table.header:
+			self.ucds[column_name] = table.header[ucd_header_name]
+		if column.unit:
+			try:
+				unit = _try_unit(column.unit)
+				if unit:
+					self.units[column_name] = unit
+			except:
+				logger.exception("could not understand unit: %s" % column.unit)
+		else: # we may want to try ourselves
+			unit_header_name = "TUNIT%d" % (i+1)
+			if unit_header_name in table.header:
+				unit_str = table.header[unit_header_name]
+				unit = _try_unit(unit_str)
+				if unit:
+					self.unit[column_name] = unit
+		#unit_header_name = "TUCD%d" % (i+1)
+		#if ucd_header_name in table.header:
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
 		return os.path.splitext(path)[1] == ".fits"
@@ -445,6 +494,9 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 					if column_name in values:
 						value = str(values[column_name])
 						h5dataset.attrs[name] = value
+					else:
+						if name in h5dataset.attrs:
+							del h5dataset.attrs[name]
 	@classmethod
 	def create(cls, path, N, column_names, dtypes=None, write=True):
 		"""Create a new (empty) hdf5 file with columns given by column names, of length N
@@ -548,7 +600,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 			self.description = ensure_string(h5data.attrs["description"])
 		# hdf5, or h5py doesn't keep the order of columns, so manually track that, also enables reordering later
 		if "column_order" in h5data.attrs:
-			column_order = h5data.attrs["column_order"].split(",")
+			column_order = ensure_string(h5data.attrs["column_order"]).split(",")
 		else:
 			column_order = []
 		for name in list(h5data):
@@ -566,7 +618,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 					try:
 						unitname = ensure_string(column.attrs["unit"])
 						if unitname and unitname != "None":
-							self.units[column_name] = astropy.units.Unit(unitname)
+							self.units[column_name] = _try_unit(unitname)
 					except:
 						logger.exception("error parsing unit: %s", column.attrs["unit"])
 				if "units" in column.attrs: # Amuse case
@@ -946,7 +998,7 @@ class DatasetAstropyTable(DatasetArrays):
 					if type.kind in ["i"]:
 						masked_array.data[masked_array.mask] = 0
 				self.add_column(clean_name, self.table[name].data)
-			if type.kind in ["S"]:
+			if type.kind in ["SU"]:
 				self.add_column(clean_name, self.table[name].data)
 
 		#dataset.samp_id = table_id
@@ -970,21 +1022,26 @@ class VOTable(DatasetArrays):
 
 		for field in self.first_table.fields:
 			name = field.name
-			data = self.first_table.array[name].data
+			data = self.first_table.array[name]
 			type = self.first_table.array[name].dtype
-			clean_name = re.sub("[^a-zA-Z_0-9]", "_", name)
-			if clean_name in string.digits:
-				clean_name = "_" + clean_name
-			self.ucds[clean_name] = field.ucd
-			self.units[clean_name] = field.unit
-			self.descriptions[clean_name] = field.description
-			if type.kind in ["f", "i"]: # only store float and int
-				masked_array = self.first_table.array[name]
-				if type.kind in ["f"]:
-					masked_array.data[masked_array.mask] = np.nan
-				if type.kind in ["i"]:
-					masked_array.data[masked_array.mask] = 0
-				self.add_column(clean_name, self.first_table.array[name].data)
+			clean_name = _python_save_name(name, self.columns.keys())
+			if field.ucd:
+				self.ucds[clean_name] = field.ucd
+			if field.unit:
+				unit = _try_unit(field.unit)
+				if unit:
+					self.units[clean_name] = unit
+			if field.description:
+				self.descriptions[clean_name] = field.description
+			if type.kind in "fiubSU": # only store float and int and boolean
+				self.add_column(clean_name, data) #self.first_table.array[name].data)
+			if type.kind == "O":
+				print("column %r is of unsupported object type , will try to convert it to string" % (name,))
+				try:
+					data = data.astype("S")
+					self.add_column(name, data)
+				except Exception as e:
+					print("Giving up column %s, error: %r" (name, e))
 			#if type.kind in ["S"]:
 			#	self.add_column(clean_name, self.first_table.array[name].data)
 
