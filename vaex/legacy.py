@@ -176,7 +176,7 @@ class SubspaceGridded(object):
 		ax.set_ylabel(self.subspace_bounded.subspace.expressions[1])
 		#pylab.savefig
 		#from .io import StringIO
-		from cStringIO import StringIO
+		from six import StringIO
 		file_object = StringIO()
 		fig.canvas.print_png(file_object)
 		pylab.close(fig)
@@ -463,7 +463,7 @@ class Subspace(object):
 	def image_rgba_data(self, rgba8=None, format="png", pil_draw=False, **kwargs):
 		import PIL.Image
 		import PIL.ImageDraw
-		import StringIO
+		from six import StringIO
 		if rgba8 is None:
 			rgba8 = self.image_rgba(**kwargs)
 		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
@@ -471,7 +471,7 @@ class Subspace(object):
 			draw = PIL.ImageDraw.Draw(img)
 			pil_draw(draw)
 
-		f = StringIO.StringIO()
+		f = StringIO()
 		img.save(f, format)
 		return f.getvalue()
 
@@ -480,8 +480,8 @@ class Subspace(object):
 			rgba8 = self.image_rgba(**kwargs)
 		import PIL.Image
 		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
-		import StringIO
-		f = StringIO.StringIO()
+		from six import StringIO
+		f = StringIO()
 		img.save(f, "png")
 		from base64 import b64encode
 		imgurl = "data:image/png;base64," + b64encode(f.getvalue()) + ""
