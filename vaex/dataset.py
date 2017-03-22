@@ -4284,16 +4284,119 @@ class Dataset(object):
 		self.signal_variable_changed.emit(self, name, "delete")
 		self.write_virtual_meta()
 
+	def info(self, description=True):
+		from IPython import display
+		self._output_css()
+		display.display(display.HTML(self._info(description=description)))
 
+	def _info(self, description=True):
+		parts = ["""<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))]
+		#if self.path:
+		#	parts += ["<div>path:%s</div>""" % (cgi.escape(path))]
+		parts += ["<table class='table-striped'>"]
+
+		parts += ["<thead><tr>"]
+		for header in "column type unit description expression".split():
+			if description or header != "description":
+				parts += ["<th>%s</th>" % header]
+		parts += ["</tr></thead>"]
+		for name in self.get_column_names(virtual=True):
+			parts += ["<tr>"]
+			parts += ["<td>%s</td>" % name]
+			virtual = name not in self.column_names
+			if name in self.column_names:
+				type = self.dtype(name).name
+			else:
+				type = "</i>virtual column</i>"
+			parts += ["<td>%s</td>" % type]
+			units = self.unit(name)
+			units = units.to_string("latex_inline") if units else ""
+			parts += ["<td>%s</td>" % units]
+			if description:
+				parts += ["<td ><pre>%s</pre></td>" % self.descriptions.get(name, "")]
+			if virtual:
+				parts += ["<td><code>%s</code></td>" % self.virtual_columns[name]]
+			else:
+				parts += ["<td></td>"]
+			parts += ["</tr>"]
+		parts += "</table>"
+		return "".join(parts) + self._head_and_tail()
+
+	def head(self, n=10):
+		self.cat(i1=0, i2=n)
+
+	def tail(self, n=10):
+		N = len(self)
+		self.cat(i1=N-n, i2=N)
+
+	def _head_and_tail(self, n=10):
+		N = len(self)
+		if N <= n*2:
+			return self._as_html_table(0, N)
+		else:
+			return self._as_html_table(0, n, N-n, N)
+	def head_and_tail(self, n=10):
+		from IPython import display
+		display.display(display.HTML(self._head_and_tail(n)))
+
+	def cat(self, i1, i2):
+		from IPython import display
+		html = self._as_html_table(i1, i2)
+		display.display(display.HTML(html))
+
+	def _as_html_table(self, i1, i2, j1=None, j2=None):
+		parts = [] #"""<div>%s (length=%d)</div>""" % (self.name, len(self))]
+		parts += ["<table class='table-striped'>"]
+
+		column_names = self.get_column_names(virtual=True)
+		parts += ["<thead><tr>"]
+		for name in ["#"] + column_names:
+			parts += ["<th>%s</th>" % name]
+		parts += ["</tr></thead>"]
+		def table_part(k1, k2, parts):
+			data_parts = {}
+			N = k2-k1
+			for name in column_names:
+				try:
+					data_parts[name] = self.evaluate(name, i1=k1, i2=k2)
+				except:
+					data_parts[name] = ["error"] * (N)
+			for i in range(k2-k1):
+				parts += ["<tr>"]
+				parts += ["<td>%r</td>" % (i+k1)]
+				for name in column_names:
+					parts += ["<td>%r</td>" % data_parts[name][i]]
+				parts += ["</tr>"]
+			return parts
+		parts = table_part(i1, i2, parts)
+		if j1 is not None and j2 is not None:
+			for i in range(len(column_names)+1):
+				parts += ["<td>...</td>"]
+			parts = table_part(j1, j2, parts)
+		parts += "</table>"
+		html = "".join(parts)
+		return html
+
+	def _output_css(self):
+		css = """.vaex-description pre {
+		  max-width : 450px;
+		  white-space : nowrap;
+		  overflow : hidden;
+		  text-overflow: ellipsis;
+		}
+
+		.vex-description pre:hover {
+		  max-width : initial;
+		  white-space: pre;
+		}"""
+		from IPython import display
+		style = "<style>%s</style>" % css
+		display.display(display.HTML(style))
 
 	def _repr_html_(self):
 		"""Representation for Jupyter"""
-		html = """<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))
-		html += """<table>"""
-		for column_name in self.get_column_names():
-			html += "<tr><td>%s</td><td>%s</td></tr>" % (column_name, self.dtype(column_name).name)
-		html += "</table>"
-		return html
+		self._output_css()
+		return self._info()
 
 
 	def __current_sequence_index(self):
