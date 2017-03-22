@@ -4315,11 +4315,11 @@ class Dataset(object):
 		display.display(display.HTML(self._info(description=description)))
 
 	def _info(self, description=True):
-		parts = ["""<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))]
-		#if self.path:
-		#	parts += ["<div>path:%s</div>""" % (cgi.escape(path))]
+		parts = ["""<div>%s %d rows</div>""" % (self.name, len(self))]
+		if hasattr(self, 'path'):
+			parts += ["""<div>path: <i>%s</i></div>""" % (self.path)]
+		parts += ["<h2>Columns:</h2>"]
 		parts += ["<table class='table-striped'>"]
-
 		parts += ["<thead><tr>"]
 		for header in "column type unit description expression".split():
 			if description or header != "description":
@@ -4345,7 +4345,30 @@ class Dataset(object):
 				parts += ["<td></td>"]
 			parts += ["</tr>"]
 		parts += "</table>"
-		return "".join(parts) + self._head_and_tail()
+
+		parts += ["<h2>Variables:</h2>"]
+		parts += ["<table class='table-striped'>"]
+		parts += ["<thead><tr>"]
+		for header in "variable type unit description expression".split():
+			if description or header != "description":
+				parts += ["<th>%s</th>" % header]
+		parts += ["</tr></thead>"]
+		for name in self.variables.keys():
+			parts += ["<tr>"]
+			parts += ["<td>%s</td>" % name]
+			type = self.dtype(name).name
+			parts += ["<td>%s</td>" % type]
+			units = self.unit(name)
+			units = units.to_string("latex_inline") if units else ""
+			parts += ["<td>%s</td>" % units]
+			if description:
+				parts += ["<td ><pre>%s</pre></td>" % self.descriptions.get(name, "")]
+			parts += ["<td><code>%s</code></td>" % self.variables[name]]
+			parts += ["</tr>"]
+		parts += "</table>"
+
+
+		return "".join(parts)+ "<h2>Data:</h2>" +self._head_and_tail()
 
 	def head(self, n=10):
 		self.cat(i1=0, i2=n)
