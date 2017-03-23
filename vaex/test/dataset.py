@@ -178,6 +178,17 @@ class TestDataset(unittest.TestCase):
 		self.dataset.add_column("x", self.dataset.data.x)
 		self.assertSequenceEqual(columns, self.dataset.get_column_names())
 
+	def test_rename_column(self):
+		self.dataset.rename_column("x", "xx")
+		self.assertNotIn("x", self.dataset.columns)
+		self.assertNotIn("x", self.dataset.column_names)
+		self.assertNotIn("x", self.dataset.units)
+		self.assertNotIn("x", self.dataset.ucds)
+		self.assertIn("xx", self.dataset.columns)
+		self.assertIn("xx", self.dataset.column_names)
+		self.assertIn("xx", self.dataset.units)
+		self.assertIn("xx", self.dataset.ucds)
+
 	def test_csv(self):
 		separator = ","
 		fn = tempfile.mktemp(".csv")
