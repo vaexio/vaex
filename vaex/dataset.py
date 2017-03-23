@@ -3479,6 +3479,17 @@ class Dataset(object):
 		else:
 			raise ValueError("functions not yet implemented")
 
+	def rename_column(self, name, new_name):
+		"""Renames a column, not this is only the in memory name, this will not be reflected on disk"""
+		data = self.columns[name]
+		del self.columns[name]
+		self.column_names[self.column_names.index(name)] = new_name
+		self.columns[new_name] = data
+		for d in [self.ucds, self.units, self.descriptions]:
+			if name in d:
+				d[new_name] = d[name]
+				del d[name]
+
 	def add_column_healpix(self, name="healpix", longitude="ra", latitude="dec", degrees=True, healpix_order=12, nest=True):
 		"""Add a healpix (in memory) column based on a longitude and latitude
 
