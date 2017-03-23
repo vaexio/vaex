@@ -113,7 +113,7 @@ class TestDataset(unittest.TestCase):
 			path_hdf5 = tempfile.mktemp(".hdf5")
 			ds1.export_hdf5(path_hdf5)
 			ds2 = vx.open(path_hdf5)
-			diff, missing, type, meta = ds1._compare(ds2)
+			diff, missing, type, meta = ds1.compare(ds2)
 			self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
@@ -121,7 +121,7 @@ class TestDataset(unittest.TestCase):
 			path_fits = tempfile.mktemp(".fits")
 			ds1.export_fits(path_fits)
 			ds2 = vx.open(path_fits)
-			diff, missing, type, meta = ds1._compare(ds2)
+			diff, missing, type, meta = ds1.compare(ds2)
 			self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
@@ -132,7 +132,7 @@ class TestDataset(unittest.TestCase):
 				for j in range(i+1, N):
 					ds1 = dslist[i]
 					ds2 = dslist[j]
-					diff, missing, type, meta = ds1._compare(ds2)
+					diff, missing, type, meta = ds1.compare(ds2)
 					self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
 					self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
@@ -186,7 +186,7 @@ class TestDataset(unittest.TestCase):
 			for x, y, name, i, f_ in zip(self.x, self.y, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
 				print(separator.join(map(str, [x, y, name.decode("utf8"), i, f_])), file=f)
 		ds = vx.from_csv(fn, index_col=False)
-		changes = self.dataset._compare(ds, report_difference=True)
+		changes = self.dataset.compare(ds, report_difference=True)
 		diff = changes[0]
 		print(diff)
 		self.assertEqual(changes[0], [], "changes in dataset")
