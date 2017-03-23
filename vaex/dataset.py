@@ -4872,11 +4872,13 @@ class DatasetLocal(Dataset):
 		value = scope.evaluate(expression)
 		return value
 
-	def _compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None):
-		column_names = self.get_column_names(strings=True)
-		for other_column_name in other.get_column_names(strings=True):
-			if other_column_name not in column_names:
-				column_names.append(other_column_name)
+	def compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None, column_names=None):
+		"""Compare two datasets and report their difference, use with care for large datasets"""
+		if column_names is None:
+			column_names = self.get_column_names(strings=True)
+			for other_column_name in other.get_column_names(strings=True):
+				if other_column_name not in column_names:
+					column_names.append(other_column_name)
 		different_values = []
 		missing = []
 		type_mismatch = []
