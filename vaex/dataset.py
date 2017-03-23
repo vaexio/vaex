@@ -78,6 +78,14 @@ def _normalize(a, axis=None):
 	a /= np.nanmax(a, axis=axis, keepdims=True)
 	return a, vmin, vmax
 
+def _normalize_selection_name(name):
+	if name is True:
+		return "default"
+	elif name is False:
+		return None
+	else:
+		return name
+
 def _parse_n(n):
 	if isinstance(n, six.string_types):
 		if n == "normalize":
@@ -517,7 +525,9 @@ class _BlockScopeSelection(object):
 	def __getitem__(self, variable):
 		#logger.debug("getitem for selection: %s", variable)
 		try:
-			selection = self.selection or self.dataset.get_selection(variable)
+			selection = self.selection
+			if selection is None and self.dataset.has_selection(variable):
+				selection = self.dataset.get_selection(variable)
 			#logger.debug("selection for %r: %s %r", variable, selection, self.dataset.selection_histories)
 			key = (self.i1, self.i2)
 			if selection:
@@ -4537,6 +4547,7 @@ class Dataset(object):
 
 	def get_selection(self, name="default"):
 		"""Get the current selection object (mostly for internal use atm)"""
+		name = _normalize_selection_name(name)
 		selection_history = self.selection_histories[name]
 		index = self.selection_history_indices[name]
 		if index == -1:
