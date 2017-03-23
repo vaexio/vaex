@@ -4325,7 +4325,7 @@ class Dataset(object):
 		display.display(display.HTML(self._info(description=description)))
 
 	def _info(self, description=True):
-		parts = ["""<div>%s %d rows</div>""" % (self.name, len(self))]
+		parts = ["""<div>{} {:,} rows</div>""".format(self.name, len(self))]
 		if hasattr(self, 'path'):
 			parts += ["""<div>path: <i>%s</i></div>""" % (self.path)]
 		parts += ["<h2>Columns:</h2>"]
