@@ -4807,7 +4807,7 @@ class DatasetLocal(Dataset):
 	def echo(self, arg): return arg
 
 	def __getitem__(self, arg):
-		"""Alias for call, to mimic Pandas a bit
+		"""Alias to dataset.data.<name>, to mimic Pandas a bit
 
 		:Example:
 		>> ds["Lz"]
@@ -4815,10 +4815,7 @@ class DatasetLocal(Dataset):
 		>> ds[ds.names.Lz]
 
 		"""
-		if isinstance(arg, tuple):
-			return self(*arg)
-		else:
-			return self(arg)
+		return self.columns[arg]
 
 
 	def _hstack(self, other, prefix=None):
