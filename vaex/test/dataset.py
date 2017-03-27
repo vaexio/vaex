@@ -102,6 +102,40 @@ class TestDataset(unittest.TestCase):
 		self.assertIsNotNone(ds.unit("mass"))
 		ds.close_files()
 
+	def test_formats(self):
+		ds_fits = vx.open(os.path.join(basedir, "files", "gaia-small-fits-basic.fits"))
+		ds_fits_plus = vx.open(os.path.join(basedir, "files", "gaia-small-fits-plus.fits"))
+		ds_colfits = vx.open(os.path.join(basedir, "files", "gaia-small-colfits-basic.fits"))
+		ds_colfits_plus = vx.open(os.path.join(basedir, "files", "gaia-small-colfits-plus.fits"))
+		ds_vot = vx.open(os.path.join(basedir, "files", "gaia-small-votable.vot"))
+		dslist = [ds_fits, ds_fits_plus, ds_colfits, ds_colfits_plus, ds_vot]
+		for ds1 in dslist:
+			path_hdf5 = tempfile.mktemp(".hdf5")
+			ds1.export_hdf5(path_hdf5)
+			ds2 = vx.open(path_hdf5)
+			diff, missing, type, meta = ds1._compare(ds2)
+			self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
+			self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
+			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
+
+			path_fits = tempfile.mktemp(".fits")
+			ds1.export_fits(path_fits)
+			ds2 = vx.open(path_fits)
+			diff, missing, type, meta = ds1._compare(ds2)
+			self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
+			self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
+			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
+
+		if 0:
+			N = len(dslist)
+			for i in range(N):
+				for j in range(i+1, N):
+					ds1 = dslist[i]
+					ds2 = dslist[j]
+					diff, missing, type, meta = ds1._compare(ds2)
+					self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
+					self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
+			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
 	def test_to(self):
 		def test_equal(ds1, ds2, units=True, ucds=True, description=True, descriptions=True):
 			if description:
@@ -143,6 +177,20 @@ class TestDataset(unittest.TestCase):
 		columns = self.dataset.get_column_names()
 		self.dataset.add_column("x", self.dataset.data.x)
 		self.assertSequenceEqual(columns, self.dataset.get_column_names())
+
+	def test_csv(self):
+		separator = ","
+		fn = tempfile.mktemp(".csv")
+		with open(fn, "w") as f:
+			print(separator.join(["x", "y", "name", "ints", "f"]), file=f)
+			for x, y, name, i, f_ in zip(self.x, self.y, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
+				print(separator.join(map(str, [x, y, name.decode("utf8"), i, f_])), file=f)
+		ds = vx.from_csv(fn, index_col=False)
+		changes = self.dataset._compare(ds, report_difference=True)
+		diff = changes[0]
+		print(diff)
+		self.assertEqual(changes[0], [], "changes in dataset")
+		self.assertEqual(changes[1], ['index'], "mssing columns")
 
 	def test_ascii(self):
 		for seperator in " 	\t,":
@@ -1067,14 +1115,50 @@ class TestDataset(unittest.TestCase):
 
 
 	def test_percentile(self):
+
+		ds = vx.example()
+		#ds.median_approx('z', binby=['x'], limits=[-10, 10], shape=16)
+		#ds.median_approx('z', binby=['x', 'y'], limits=[-10, 10], shape=4)
+		#m = ds.median_approx('z+x/10', binby=['x'], limits=[-10, 10], shape=32, percentile_shape=128*10 , percentile_limits=[-10,10])
+		m = ds.median_approx('z+x/10', binby=['x'], limits=[6.875000, 7.500000], shape=1, percentile_shape=128*10 , percentile_limits=[-10,10])
+		mc = ds.median_approx("z+x/10", selection='(x > 6.875000) & (x <= 7.500000)', percentile_shape=128*10 , percentile_limits=[-10,10])
+
+
+		#print(m, m[32-5], mc)
+		print(m, mc)
+
+		return
+		dsodd = vx.from_arrays(x=np.arange(3)) # 0,1,2
+		dseven = vx.from_arrays(x=np.arange(4)) # 0,1,2,3
 		self.dataset.select("x < 5")
+		o = 0#10/30/2.
+
+		#x = dsodd.data.x
+		ds = dsodd
+		#ds = dseven
+		x = ds.data.x
+		print("median", np.median(x))
+		for offset in [-0.99, -0.5, 0.0]:#[0:1]:
+			print()
+			print("offset", offset)
+			limits = [0+offset, x.max()+1+offset]
+			print(">>>", ds.percentile_approx("x", selection=None, percentile_limits=limits, percentile_shape=len(x)),)
+			#np.testing.assert_array_almost_equal(
+			#	ds.percentile_approx("x", selection=None, percentile_limits=limits, percentile_shape=4),
+			#	np.median(x), decimal=2)
+		#return
+
+
 		np.testing.assert_array_almost_equal(
-			self.dataset.percentile_approx(["x", "y"], selection=None, percentile_shape=20000),
+			self.dataset.percentile_approx("x", selection=None, percentile_limits=[0-o, 10-o], percentile_shape=100),
+			np.median(self.x), decimal=1)
+		np.testing.assert_array_almost_equal(
+			self.dataset.percentile_approx("x", selection=None, percentile_limits=[0-o, 10-o], percentile_shape=1000),
+			np.median(self.x), decimal=2)
+		np.testing.assert_array_almost_equal(
+			self.dataset.percentile_approx(["x", "y"], selection=None, percentile_shape=10000),
 			[np.median(self.x), np.median(self.y)],
-			decimal=2)
-		np.testing.assert_array_almost_equal(
-			self.dataset.percentile_approx("x", selection=None, percentile_limits="minmax"),
-			np.median(self.x))
+			decimal=3)
 		return
 		np.testing.assert_array_almost_equal(self.dataset.percentile_approx("x", selection=True), np.median(self.x[:5]))
 
@@ -1766,6 +1850,8 @@ class TestDatasetRemote(TestDataset):
 	def test_byte_size(self):
 		pass # we don't know the selection's length for dataset remote..
 
+	def test_add_column(self):
+		pass # can't add column to remove objects
 	#def test_selection(self):
 	#	pass
 

@@ -221,7 +221,10 @@ else:
 #print "requirements", reqs
 #print "ver#sion", vaex.__release__
 setup(
-	entry_points={'console_scripts': ['vaex = vaex.__main__:main']},
+	entry_points={
+		'console_scripts': ['vaex = vaex.__main__:main'],
+		'gui_scripts': ['vaexgui = vaex.__main__:main'] # sometimes in osx, you need to run with this
+  	},
 	app=["bin/vaex"],
 	name="vaex", #vaex.__program_name__,
 	author="Maarten A. Breddels",

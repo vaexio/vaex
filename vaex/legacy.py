@@ -6,6 +6,13 @@ from .dataset import Task, TaskMapReduce, _parse_f
 import scipy
 import six
 
+def _asfloat(a):
+	if a.dtype.type==np.float64 and a.strides[0] == 8:
+		return a
+	else:
+		return a.astype(np.float64, copy=False)
+
+
 class TaskHistogram(Task):
 	def __init__(self, dataset, subspace, expressions, size, limits, masked=False, weight=None):
 		self.size = size
@@ -55,6 +62,9 @@ class TaskHistogram(Task):
 		#self.grids["counts"].bin_block(info, *blocks)
 		#mask = self.dataset.mask
 		data = self.data[thread_index]
+
+		blocks = [_asfloat(block) for block in blocks]
+
 		if self.masked:
 			mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
 			blocks = [block[mask] for block in blocks]
@@ -176,7 +186,7 @@ class SubspaceGridded(object):
 		ax.set_ylabel(self.subspace_bounded.subspace.expressions[1])
 		#pylab.savefig
 		#from .io import StringIO
-		from cStringIO import StringIO
+		from six import StringIO
 		file_object = StringIO()
 		fig.canvas.print_png(file_object)
 		pylab.close(fig)
@@ -463,7 +473,7 @@ class Subspace(object):
 	def image_rgba_data(self, rgba8=None, format="png", pil_draw=False, **kwargs):
 		import PIL.Image
 		import PIL.ImageDraw
-		import StringIO
+		from six import StringIO
 		if rgba8 is None:
 			rgba8 = self.image_rgba(**kwargs)
 		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
@@ -471,7 +481,7 @@ class Subspace(object):
 			draw = PIL.ImageDraw.Draw(img)
 			pil_draw(draw)
 
-		f = StringIO.StringIO()
+		f = StringIO()
 		img.save(f, format)
 		return f.getvalue()
 
@@ -480,8 +490,8 @@ class Subspace(object):
 			rgba8 = self.image_rgba(**kwargs)
 		import PIL.Image
 		img = PIL.Image.frombuffer("RGBA", rgba8.shape[:2], rgba8, 'raw') #, "RGBA", 0, -1)
-		import StringIO
-		f = StringIO.StringIO()
+		from six import StringIO
+		f = StringIO()
 		img.save(f, "png")
 		from base64 import b64encode
 		imgurl = "data:image/png;base64," + b64encode(f.getvalue()) + ""
@@ -1071,6 +1081,7 @@ class SubspaceLocal(Subspace):
 			#print blocks
 			#with lock:
 			#	print thread_index, i1, i2, blocks
+			blocks = [_asfloat(block) for block in blocks]
 			return [vaex.vaexfast.find_nan_min_max(block) for block in blocks]
 			if 0: # TODO: implement using statisticNd and benchmark
 				minmaxes = np.zeros((len(blocks), 2), dtype=float)

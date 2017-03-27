@@ -1001,7 +1001,7 @@ class Dataset(object):
 		def finish(*stats_args):
 			stats = np.array(stats_args)
 			counts = stats[...,0]
-			with np.errstate(divide='ignore'):
+			with np.errstate(divide='ignore', invalid='ignore'):
 				mean = stats[...,1] / counts
 			return vaex.utils.unlistify(waslist, mean)
 		waslist, [expressions,] = vaex.utils.listify(expression)
@@ -1112,8 +1112,9 @@ class Dataset(object):
 			stats = np.array(stats_args)
 			counts = stats[...,0]
 			with np.errstate(divide='ignore'):
-				mean = stats[...,1] / counts
-				raw_moments2 = stats[...,2] / counts
+				with np.errstate(divide='ignore', invalid='ignore'): # these are fine, we are ok with nan's in vaex
+					mean = stats[...,1] / counts
+					raw_moments2 = stats[...,2] / counts
 			variance = (raw_moments2-mean**2)
 			return vaex.utils.unlistify(waslist, variance)
 		waslist, [expressions,] = vaex.utils.listify(expression)
@@ -1199,7 +1200,8 @@ class Dataset(object):
 		"""
 		@delayed
 		def corr(cov):
-			return cov[...,0,1] / (cov[...,0,0] * cov[...,1,1])**0.5
+			with np.errstate(divide='ignore', invalid='ignore'): # these are fine, we are ok with nan's in vaex
+	 			return cov[...,0,1] / (cov[...,0,0] * cov[...,1,1])**0.5
 
 		if y is None:
 			if not isinstance(x, (tuple, list)):
@@ -1452,7 +1454,7 @@ class Dataset(object):
 		return self.percentile_approx(expression, 50, binby=binby, limits=limits, shape=shape, percentile_shape=percentile_shape, percentile_limits=percentile_limits, selection=selection, async=async)
 
 	@docsubst
-	def percentile_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024*16, percentile_limits="minmax", selection=False, async=False):
+	def percentile_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024, percentile_limits="minmax", selection=False, async=False):
 		"""Calculate the percentile given by percentage, possible on a grid defined by binby
 
 		NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
@@ -1503,21 +1505,117 @@ class Dataset(object):
 			#task =  TaskStatistic(self, [expression] + binby, shape, limits, op=OP_ADD1, selection=selection)
 			#self.executor.schedule(task)
 			#return task
-			return self.count(binby=[expression] + binby, shape=shape, limits=limits, selection=selection, async=True)
+			print("calc", expression, shape, limits)
+			return self.count(binby=list(binby) + [expression], shape=shape, limits=limits, selection=selection, async=True, edges=True)
 		@delayed
 		def finish(percentile_limits, counts_list):
-			medians = []
+			print(">>>", percentile_limits)
+			results = []
 			for i, counts in enumerate(counts_list):
+				print(percentile_limits)
 				#print(counts, counts.shape)
 				#counts = counts[...,0]
 				#print("percentile_limits", percentile_limits)
 				#print("counts=", counts)
 				#print("counts shape=", counts.shape)
 				# F is the 'cumulative distribution'
-				shape = counts.shape
+				if 1:
+					# remove the nan and boundary edges from the first dimension,
+					#print("sums", counts.sum(), counts[2:-1].sum())
+					#import pdb
+					#pdb.set_trace()
+					nonnans = list([slice(2, -1, None) for k in range(len(counts.shape)-1)])
+					nonnans.append(slice(1,None, None)) # we're gonna get rid only of the nan's, and keep the overflow edges
+					#print(counts.shape)
+					#print("nonnans", nonnans)
+					cumulative_grid = np.cumsum(counts.__getitem__(nonnans), -1) # convert to cumulative grid
+
+					# keep the nans in the last dim, since we need it for the total counts
+					nonnans = list([slice(2, -1, None) for k in range(len(counts.shape)-1)])
+					nonnans.append(slice(0,None, None))
+					totalcounts =  np.sum(counts.__getitem__(nonnans), -1)
+					empty = totalcounts == 0
+
+					original_shape = counts.shape
+					shape = cumulative_grid.shape# + (original_shape[-1] - 1,) #
+
+					#print("original_shape", original_shape)
+					#print("shape", shape)
+					counts = np.sum(counts, -1)
+					edges_floor = np.zeros(shape[:-1] + (2,), dtype=np.int64)
+					edges_ceil = np.zeros(shape[:-1] + (2,), dtype=np.int64)
+					# if we have an off  # of elements, say, N=3, the center is at i=1=(N-1)/2
+					# if we have an even # of elements, say, N=4, the center is between i=1=(N-2)/2 and i=2=(N/2)
+					#index = (shape[-1] -1-3) * percentage/100. # the -3 is for the edges
+					values = np.array((totalcounts+1) * percentage/100.) # make sure it's an ndarray
+					values[empty] = 0
+					floor_values = np.array(np.floor(values))
+					ceil_values = np.array(np.ceil(values))
+					#print("totalcounts", repr(totalcounts))
+					#print("values       ", repr(values))
+					#print("floor_values ", repr(floor_values))
+					#print("ceil_values ", repr(ceil_values))
+					#print(totalcounts, percentage, values)
+					#print(">>", floor_values[8], cumulative_grid[8])
+					#print(cumulative_grid.strides)
+					#print(edges.shape)
+					#print([k.shape for k in (cumulative_grid, values, edges)])
+					#print(cumulative_grid, repr(values), edges)
+					#print("shapes", [k.shape for k in [cumulative_grid, floor_values, edges_floor]])
+					#print("strides", [k.strides for k in [cumulative_grid, floor_values, edges_floor]])
+					#print("cumulative_grid", cumulative_grid)
+					vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
+					vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
+					#print(floor_values)
+
+					def index_choose(a, indices):
+						# alternative to np.choise, which doesn't like the last dim to be >= 32
+						out = np.zeros(a.shape[:-1])
+						for i in np.ndindex(out.shape):
+							out[i] = a[i+(indices[i],)]
+						return out
+					def calculate_x(edges, values):
+						left, right = edges[...,0], edges[...,1]
+						#left_value, right_value = cumulative_grid[...,left], cumulative_grid[...,right]
+						#print(left.shape, cumulative_grid.shape)
+						#import pdb
+						#pdb.set_trace()
+						left_value = index_choose(cumulative_grid, left)
+						right_value = index_choose(cumulative_grid, right)
+						#print("edges_left", edges)
+						#print("edges_right", edges)
+						#print("left_value", left_value)
+						#print("right_value", right_value)
+						u = np.array((values - left_value)/(right_value - left_value))
+						#u[left==right] = 0
+						#print("percentile_limits", percentile_limits)
+						#print("shape", shape)
+						# TODO: should it really be -3? not -2
+						xleft, xright = percentile_limits[i][0] + (left-0.5)  * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1]-3),\
+										percentile_limits[i][0] + (right-0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1]-3)
+						x = xleft + (xright - xleft) * u #/2
+						#print("u ", u)
+						#print("xleft", xleft)
+						#print("xright", xright)
+						#print("# left", self.count(selection="x < %f" % xleft))
+						#print("# right ", self.count(selection="x < %f" % xright))
+						#print("x", x)
+						return x
+
+					x1 = calculate_x(edges_floor, floor_values)
+					x2 = calculate_x(edges_ceil, ceil_values)
+					u = values - floor_values
+					x = x1 + (x2 - x1) * u
+					#print("x1, x2, u, x", x1, x2, u, x)
+
+
+
+
+					results.append(x)
+					continue
 				#counts[-1] += 1
 				#print("shape", shape)
-				F = np.cumsum(counts, axis=-1).reshape((1,) + shape)
+				#F = np.cumsum(counts, axis=-1).reshape((1,) + shape)
 				F /= len(self) #np.max(F, axis=(-1))
 				if 1:
 					#for i in range(len(counts)):
@@ -1573,9 +1671,11 @@ class Dataset(object):
 					# empty values should be set to nan
 					median[~ok] = np.nan
 					medians.append(median)
-			medians = np.array(medians)
+			#medians = np.array(medians)
 			#value = np.array(vaex.utils.unlistify(waslist, medians))
-			return medians
+			#return medians
+			return results
+
 		shape = _expand_shape(shape, len(binby))
 		percentile_shapes = _expand_shape(percentile_shape, len(expressions))
 		if percentile_limits:
@@ -1584,7 +1684,11 @@ class Dataset(object):
 		percentile_limits = self.limits(expressions, percentile_limits, selection=selection, async=True)
 		@delayed
 		def calculation(limits, percentile_limits):
-			tasks = [calculate(expression, tuple(shape) + (percentile_shape, ), list(limits) + list(percentile_limit))
+			#print(">>>", expressions, percentile_limits)
+			#print(percentile_limits[0], list(percentile_limits[0]))
+			#print(list(np.array(limits).tolist()) + list(percentile_limits[0]))
+			#print("limits", limits, expressions, percentile_limits, ">>", list(limits) + [list(percentile_limits[0]))
+			tasks = [calculate(expression, tuple(shape) + (percentile_shape, ), list(limits) + [list(percentile_limit)])
 					 for    percentile_shape,  percentile_limit, expression
 					 in zip(percentile_shapes, percentile_limits, expressions)]
 			return finish(percentile_limits, delayed_args(*tasks))
@@ -2419,7 +2523,8 @@ class Dataset(object):
 				item[axis] = i
 				item = tuple(item)
 				f = _parse_f(fs[i])
-				fgrid.__setitem__(item, f(grid.__getitem__(item)))
+				with np.errstate(divide='ignore', invalid='ignore'): # these are fine, we are ok with nan's in vaex
+					fgrid.__setitem__(item, f(grid.__getitem__(item)))
 				#print vmins[i], vmaxs[i]
 				if vmins[i] is not None and vmaxs[i] is not None:
 					nsubgrid = fgrid.__getitem__(item) * 1
@@ -2621,13 +2726,15 @@ class Dataset(object):
 		#colorbar = None
 		#return im, colorbar
 
-	def _plot3d(self, x, y, z, vx=None, vy=None, vz=None, vwhat=None, limits=None, what="count(*)", shape=128, selection=None, f=None,
+	def _plot3d(self, x, y, z, vx=None, vy=None, vz=None, vwhat=None, limits=None, what="count(*)", shape=128, vshape=16, vmin=2, selection=None, f=None,
 			   smooth_pre=None, smooth_post=None,
 			   lighting=True, level=[0.1, 0.5, 0.9], opacity=[0.01, 0.05, 0.1], level_width=0.1,
+				vsize=5, vcolor="white",
 			   show=False):
 		"""Use at own risk, requires ipyvolume"""
 
 		import ipyvolume.pylab as p3
+		import ipyvolume.examples
 		binby = [x,y,z]
 		limits = self.limits(binby, limits)
 		print(limits)
@@ -2639,7 +2746,24 @@ class Dataset(object):
 		volume_data = f(volume_data)
 		if smooth_post:
 			volume_data = grid = vaex.grids.gf(volume_data, smooth_post)
-		p3.volshow(volume_data, lighting=lighting, level=level, opacity=opacity, level_width=level_width)
+		p3.volshow(volume_data.T, lighting=lighting, level=level, opacity=opacity, level_width=level_width)
+
+		#p3.xyzlabel(self.label(x), self.label(y), self.label(z))
+		if vx and vy and vz:
+			# TODO: we want to count vx vy and vz... should we multiply or add them?
+			vcount = self.count(vx, binby=[x, y, z], limits=limits, shape=vshape, selection=selection)
+			vx = self.mean(vx, binby=[x, y, z], limits=limits, shape=vshape, selection=selection)
+			vy = self.mean(vy, binby=[x, y, z], limits=limits, shape=vshape, selection=selection)
+			vz = self.mean(vz, binby=[x, y, z], limits=limits, shape=vshape, selection=selection)
+			ok = np.isfinite(vx) & np.isfinite(vy) & np.isfinite(vz) & (vcount > vmin)
+			x, y, z = ipyvolume.examples.xyz(16, limits=limits, sparse=False, centers=True)
+			v1d = [k[ok] for k in [x,y,z,vx,vy,vz]]
+			q = p3.quiver(*v1d, size=vsize, color=vcolor)
+		p3.xlim(*limits[0])
+		p3.ylim(*limits[1])
+		p3.zlim(*limits[2])
+
+
 		if show:
 			p3.show()
 		return p3.gcc()
@@ -3251,15 +3375,18 @@ class Dataset(object):
 		:return: dict
 		"""
 		ds = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
-		for name in ds.get_column_names():
-			if name in self.units:
-				ds.units[name] = self.units[name]
-			if name in self.descriptions:
-				ds.descriptions[name] = self.descriptions[name]
-			if name in self.ucds:
-				ds.ucds[name] = self.ucds[name]
-		ds.description = self.description
+		ds.copy_metadata(self)
 		return ds
+
+	def copy_metadata(self, other):
+		for name in self.get_column_names(strings=True):
+			if name in other.units:
+				self.units[name] = other.units[name]
+			if name in other.descriptions:
+				self.descriptions[name] = other.descriptions[name]
+			if name in other.ucds:
+				self.ucds[name] = other.ucds[name]
+		self.description = other.description
 
 	@docsubst
 	def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None):
@@ -4190,16 +4317,142 @@ class Dataset(object):
 		self.signal_variable_changed.emit(self, name, "delete")
 		self.write_virtual_meta()
 
+	def info(self, description=True):
+		from IPython import display
+		self._output_css()
+		display.display(display.HTML(self._info(description=description)))
 
+	def _info(self, description=True):
+		parts = ["""<div>%s %d rows</div>""" % (self.name, len(self))]
+		if hasattr(self, 'path'):
+			parts += ["""<div>path: <i>%s</i></div>""" % (self.path)]
+		parts += ["<h2>Columns:</h2>"]
+		parts += ["<table class='table-striped'>"]
+		parts += ["<thead><tr>"]
+		for header in "column type unit description expression".split():
+			if description or header != "description":
+				parts += ["<th>%s</th>" % header]
+		parts += ["</tr></thead>"]
+		for name in self.get_column_names(virtual=True):
+			parts += ["<tr>"]
+			parts += ["<td>%s</td>" % name]
+			virtual = name not in self.column_names
+			if name in self.column_names:
+				type = self.dtype(name).name
+			else:
+				type = "</i>virtual column</i>"
+			parts += ["<td>%s</td>" % type]
+			units = self.unit(name)
+			units = units.to_string("latex_inline") if units else ""
+			parts += ["<td>%s</td>" % units]
+			if description:
+				parts += ["<td ><pre>%s</pre></td>" % self.descriptions.get(name, "")]
+			if virtual:
+				parts += ["<td><code>%s</code></td>" % self.virtual_columns[name]]
+			else:
+				parts += ["<td></td>"]
+			parts += ["</tr>"]
+		parts += "</table>"
+
+		parts += ["<h2>Variables:</h2>"]
+		parts += ["<table class='table-striped'>"]
+		parts += ["<thead><tr>"]
+		for header in "variable type unit description expression".split():
+			if description or header != "description":
+				parts += ["<th>%s</th>" % header]
+		parts += ["</tr></thead>"]
+		for name in self.variables.keys():
+			parts += ["<tr>"]
+			parts += ["<td>%s</td>" % name]
+			type = self.dtype(name).name
+			parts += ["<td>%s</td>" % type]
+			units = self.unit(name)
+			units = units.to_string("latex_inline") if units else ""
+			parts += ["<td>%s</td>" % units]
+			if description:
+				parts += ["<td ><pre>%s</pre></td>" % self.descriptions.get(name, "")]
+			parts += ["<td><code>%s</code></td>" % self.variables[name]]
+			parts += ["</tr>"]
+		parts += "</table>"
+
+
+		return "".join(parts)+ "<h2>Data:</h2>" +self._head_and_tail()
+
+	def head(self, n=10):
+		self.cat(i1=0, i2=n)
+
+	def tail(self, n=10):
+		N = len(self)
+		self.cat(i1=N-n, i2=N)
+
+	def _head_and_tail(self, n=10):
+		N = len(self)
+		if N <= n*2:
+			return self._as_html_table(0, N)
+		else:
+			return self._as_html_table(0, n, N-n, N)
+	def head_and_tail(self, n=10):
+		from IPython import display
+		display.display(display.HTML(self._head_and_tail(n)))
+
+	def cat(self, i1, i2):
+		from IPython import display
+		html = self._as_html_table(i1, i2)
+		display.display(display.HTML(html))
+
+	def _as_html_table(self, i1, i2, j1=None, j2=None):
+		parts = [] #"""<div>%s (length=%d)</div>""" % (self.name, len(self))]
+		parts += ["<table class='table-striped'>"]
+
+		column_names = self.get_column_names(virtual=True)
+		parts += ["<thead><tr>"]
+		for name in ["#"] + column_names:
+			parts += ["<th>%s</th>" % name]
+		parts += ["</tr></thead>"]
+		def table_part(k1, k2, parts):
+			data_parts = {}
+			N = k2-k1
+			for name in column_names:
+				try:
+					data_parts[name] = self.evaluate(name, i1=k1, i2=k2)
+				except:
+					data_parts[name] = ["error"] * (N)
+			for i in range(k2-k1):
+				parts += ["<tr>"]
+				parts += ["<td>%r</td>" % (i+k1)]
+				for name in column_names:
+					parts += ["<td>%r</td>" % data_parts[name][i]]
+				parts += ["</tr>"]
+			return parts
+		parts = table_part(i1, i2, parts)
+		if j1 is not None and j2 is not None:
+			for i in range(len(column_names)+1):
+				parts += ["<td>...</td>"]
+			parts = table_part(j1, j2, parts)
+		parts += "</table>"
+		html = "".join(parts)
+		return html
+
+	def _output_css(self):
+		css = """.vaex-description pre {
+		  max-width : 450px;
+		  white-space : nowrap;
+		  overflow : hidden;
+		  text-overflow: ellipsis;
+		}
+
+		.vex-description pre:hover {
+		  max-width : initial;
+		  white-space: pre;
+		}"""
+		from IPython import display
+		style = "<style>%s</style>" % css
+		display.display(display.HTML(style))
 
 	def _repr_html_(self):
 		"""Representation for Jupyter"""
-		html = """<div>%s - %s (length=%d)</div>""" % (cgi.escape(repr(self.__class__)), self.name, len(self))
-		html += """<table>"""
-		for column_name in self.get_column_names():
-			html += "<tr><td>%s</td><td>%s</td></tr>" % (column_name, self.dtype(column_name).name)
-		html += "</table>"
-		return html
+		self._output_css()
+		return self._info()
 
 
 	def __current_sequence_index(self):
@@ -4369,7 +4622,7 @@ class Dataset(object):
 		else:
 			def create(current):
 				return SelectionExpression(self, boolean_expression, current, mode) if boolean_expression else None
-			return self._selection(create, name)
+			self._selection(create, name)
 
 	def select_nothing(self, name="default"):
 		"""Select nothing"""
@@ -4401,7 +4654,7 @@ class Dataset(object):
 
 		def create(current):
 			return SelectionLasso(self, expression_x, expression_y, xsequence, ysequence, current, mode)
-		return self._selection(create, name, executor=executor)
+		self._selection(create, name, executor=executor)
 
 	def select_inverse(self, name="default", executor=None):
 		"""Invert the selection, i.e. what is selected will not be, and vice versa
@@ -4414,7 +4667,7 @@ class Dataset(object):
 
 		def create(current):
 			return SelectionInvert(self, current)
-		return self._selection(create, name, executor=executor)
+		self._selection(create, name, executor=executor)
 
 	def set_selection(self, selection, name="default", executor=None):
 		"""Sets the selection object
@@ -4426,7 +4679,7 @@ class Dataset(object):
 		"""
 		def create(current):
 			return selection
-		return self._selection(create, name, executor=executor, execute_fully=True)
+		self._selection(create, name, executor=executor, execute_fully=True)
 
 
 	def _selection(self, create_selection, name, executor=None, execute_fully=False):
@@ -4619,6 +4872,90 @@ class DatasetLocal(Dataset):
 		value = scope.evaluate(expression)
 		return value
 
+	def _compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None):
+		column_names = self.get_column_names(strings=True)
+		for other_column_name in other.get_column_names(strings=True):
+			if other_column_name not in column_names:
+				column_names.append(other_column_name)
+		different_values = []
+		missing = []
+		type_mismatch = []
+		meta_mismatch = []
+		assert len(self) == len(other)
+		if orderby:
+			index1 = np.argsort(self.columns[orderby])
+			index2 = np.argsort(other.columns[orderby])
+		for column_name in column_names:
+			if column_name not in self.get_column_names(strings=True):
+				missing.append(column_name)
+				if report_missing:
+					print("%s missing from this dataset" % column_name)
+			elif column_name not in other.get_column_names(strings=True):
+				missing.append(column_name)
+				if report_missing:
+					print("%s missing from other dataset" % column_name)
+			else:
+				ucd1 = self.ucds.get(column_name)
+				ucd2 = other.ucds.get(column_name)
+				if ucd1 != ucd2:
+					print("ucd mismatch : %r vs %r for %s" % (ucd1, ucd2, column_name))
+					meta_mismatch.append(column_name)
+				unit1 = self.units.get(column_name)
+				unit2 = other.units.get(column_name)
+				if unit1 != unit2:
+					print("unit mismatch : %r vs %r for %s" % (unit1, unit2, column_name))
+					meta_mismatch.append(column_name)
+				if self.dtype(column_name).type != other.dtype(column_name).type:
+					print("different dtypes: %s vs %s for %s" % (self.dtype(column_name), other.dtype(column_name), column_name))
+					type_mismatch.append(column_name)
+				else:
+					a = self.columns[column_name]
+					b = other.columns[column_name]
+					if orderby:
+						a = a[index1]
+						b = b[index2]
+					def normalize(ar):
+						if ar.dtype.kind == "f" and hasattr(ar, "mask"):
+							mask = ar.mask
+							ar = ar.copy()
+							ar[mask] = np.nan
+						if ar.dtype.kind in "SU":
+							if hasattr(ar, "mask"):
+								data = ar.data
+							else:
+								data = ar
+							values = [value.strip() for value in data.tolist()]
+							if hasattr(ar, "mask"):
+								ar = np.ma.masked_array(values, ar.mask)
+							else:
+								ar = np.array(values)
+						return ar
+					def equal_mask(a, b):
+						a = normalize(a)
+						b = normalize(b)
+						boolean_mask = (a == b)
+						if self.dtype(column_name).kind == 'f': # floats with nan won't equal itself, i.e. NaN != NaN
+							boolean_mask |= (np.isnan(a) & np.isnan(b))
+						return boolean_mask
+					boolean_mask = equal_mask(a, b)
+					all_equal = np.all(boolean_mask)
+					if not all_equal:
+						count = np.sum(~boolean_mask)
+						print("%s does not match for both datasets, %d rows are diffent out of %d" % (column_name, count, len(self)))
+						different_values.append(column_name)
+						if report_difference:
+							indices = np.arange(len(self))[~boolean_mask]
+							values1 = self.columns[column_name][~boolean_mask]
+							values2 = other.columns[column_name][~boolean_mask]
+							print("\tshowing difference for the first 10")
+							for i in range(min(len(values1), show)):
+								try:
+									diff = values1[i] - values2[i]
+								except:
+									diff = "does not exists"
+								print("%s[%d] == %s != %s other.%s[%d] (diff = %s)" % (column_name, indices[i], values1[i], values2[i], column_name, indices[i], diff))
+		return different_values, missing, type_mismatch, meta_mismatch
+
 	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False):
 		"""Exports the dataset to a vaex hdf5 file
 
@@ -4768,7 +5105,7 @@ class DatasetConcatenated(DatasetLocal):
 		self._index_end = self._full_length
 
 def _is_dtype_ok(dtype):
-	return dtype.type in [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.float64] or\
+	return dtype.type in [np.bool_, np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.float64] or\
 		dtype.type == np.string_
 
 def _is_array_type_ok(array):

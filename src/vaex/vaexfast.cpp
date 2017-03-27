@@ -1003,7 +1003,6 @@ void statisticNd(
 	    // burden to maintain
        for(long long i = 0; i < block_length; i++) {
             long long index = 0;
-            bool inside = true;
             for(int d = 0; d < dimensions; d++) {
                 double value = endian(blocks[d][i]);
                 double scaled = (value - minima[d]) * scales[d];
@@ -1410,6 +1409,133 @@ PyObject* grid_interpolate_(PyObject* self, PyObject* args) {
 }
 
 
+void grid_find_edges(
+    const int dimensions,
+    const int * const grid_sizes,
+    double* const __restrict__ cumulative_grid,
+    const long long * const __restrict__ cumulative_grid_strides,
+    double* const __restrict__ values_grid,
+    const long long * const __restrict__ values_strides,
+    long long * const __restrict__ edges_grid,
+    const long long * const __restrict__ edges_strides
+) {
+    long long length_1d = 1;//grid_strides[0];
+    //printf("dimension: %d\n", dimensions);
+    for(int d = 0; d < dimensions-1; d++) {
+        //printf("length_1d = %d, mul by %d\n", length_1d, grid_sizes[d]);
+        length_1d *= grid_sizes[d];
+    }
+    //length_1d *= grid_strides[0];
+    /*for(int d = 0; d < dimensions+1; d++) {
+        printf("strides[%d] = %d size[%d] = %d\n", d, grid_strides[d], d, grid_sizes[d]);
+    }
+    for(int d = 0; d < dimensions; d++) {
+        printf("strides[%d] = %d\n", d, output_strides[d]);
+    }*/
+    //printf("length_1d = %d\n", length_1d);
+    //printf("output = %p\n", output);
+    long long cumulative_grid1d_length = grid_sizes[dimensions-1];
+    //printf("grid sizes: %d %d\n", grid_sizes[0], grid_sizes[1]);
+    //printf("edges_strides: %d %d\n", edges_strides[0], edges_strides[1]);
+    //printf("values_strides: %d %d\n", values_strides[0], values_strides[1]);
+    //printf("cumulative_grid_strides: %d %d %d\n", cumulative_grid_strides[0], cumulative_grid_strides[1], cumulative_grid_strides[2]);
+    //printf("dimensions: %d\n", dimensions);
+
+    for(long long int i = 0; i < length_1d; i++) {
+        double* const __restrict__ cumulative_grid1d = &cumulative_grid[i*cumulative_grid_strides[dimensions-2]];
+        double value = values_grid[i*values_strides[dimensions-2]];
+        long long left = 0; //  'edge' index if left of the value we are looking for
+        //printf("first/last value: %f / %f, looking for %f %dn", cumulative_grid1d[0], cumulative_grid1d[cumulative_grid_strides[dimensions-2]-1], value, left);
+        while(cumulative_grid1d[left+1] < value) {
+            left+= 1;
+        }
+        long long right = left; // 'edge' index that is right of the value
+        while (cumulative_grid1d[right] < value) {
+            right+= 1;
+        }
+        //while (cumulative_grid[right+1] == cumulative_grid[right]) { // make sure we get the right most bin
+        //    right+= 1;
+        //}
+        //printf("setting: %d(%d) %d(%d)\n", i*edges_strides[0]+edges_strides[dimensions-1]*0, left, i*edges_strides[0]+edges_strides[dimensions-1]*1, right);
+        edges_grid[i*edges_strides[dimensions-2]+edges_strides[dimensions-1]*0] = left;
+        edges_grid[i*edges_strides[dimensions-2]+edges_strides[dimensions-1]*1] = right;
+    }
+
+
+
+}
+
+
+PyObject* grid_find_edges_(PyObject* self, PyObject* args) {
+	PyObject* result = NULL;
+	PyObject *cumulative_grid, *values_grid, *edges_grid;
+	//double xmin, xmax, ymin, ymax, zmin, zmax;
+	//double minima[MAX_DIMENSIONS];
+	//double maxima[MAX_DIMENSIONS];
+	//int op_code;
+	double value;
+	if(PyArg_ParseTuple(args, "OOO",  &cumulative_grid, &values_grid, &edges_grid)) {
+		long long block_length = -1;
+
+		int cumulative_grid_sizes[MAX_DIMENSIONS];
+		long long cumulative_grid_strides[MAX_DIMENSIONS];
+
+		int values_sizes[MAX_DIMENSIONS];
+		long long values_strides[MAX_DIMENSIONS];
+
+		int edges_sizes[MAX_DIMENSIONS];
+		long long edges_strides[MAX_DIMENSIONS];
+
+		int dimensions = -1;
+		int dimensions_grid = -1;
+		double *block_ptrs[MAX_DIMENSIONS];
+		bool block_native[MAX_DIMENSIONS];
+
+		double *cumulative_grid_ptr = NULL;
+		double *values_ptr = NULL;
+		long long *edges_ptr = NULL;
+		try {
+			int dimensions_cumulative_grid= -1;
+			object_to_numpyNd_nocopy(cumulative_grid_ptr, cumulative_grid, MAX_DIMENSIONS, dimensions_cumulative_grid, &cumulative_grid_sizes[0], &cumulative_grid_strides[0]);
+
+
+			int dimensions_values = dimensions_cumulative_grid-1;
+			object_to_numpyNd_nocopy(values_ptr, values_grid, MAX_DIMENSIONS, dimensions_values, &values_sizes[0], &values_strides[0]);
+
+			int dimensions_edges = dimensions_cumulative_grid;
+			object_to_numpyNd_nocopy(edges_ptr, edges_grid, MAX_DIMENSIONS, dimensions_edges, &edges_sizes[0], &edges_strides[0], NPY_INT64);
+
+			for(int d = 0; d < dimensions_cumulative_grid; d++) {
+				cumulative_grid_strides[d] /= 8; // convert from byte stride to element stride
+				edges_strides[d] /= 8; // convert from byte stride to element stride
+			}
+			for(int d = 0; d < dimensions_values; d++) {
+				values_strides[d] /= 8; // convert from byte stride to element stride
+                if(cumulative_grid_sizes[d] != values_sizes[d])
+                    throw Error("cumulative_grid and values_grid dont match shape in dimension: %d", d);
+                if(cumulative_grid_sizes[d] != edges_sizes[d])
+                    throw Error("cumulative_grid and edges_grid dont match shape in dimension: %d (%d vs %d)", d, cumulative_grid_sizes[d], edges_sizes[d]);
+			}
+			if(!cumulative_grid_ptr)
+				throw Error("cumulative_grid is null");
+			if(!values_ptr)
+				throw Error("values is null");
+			if(!edges_ptr)
+				throw Error("edges is null");
+			Py_BEGIN_ALLOW_THREADS
+	        grid_find_edges(dimensions_cumulative_grid, cumulative_grid_sizes, cumulative_grid_ptr, cumulative_grid_strides, values_ptr, values_strides, edges_ptr, edges_strides);
+			Py_END_ALLOW_THREADS
+			Py_INCREF(Py_None);
+			result = Py_None;
+		} catch(Error e) {
+			PyErr_SetString(PyExc_RuntimeError, e.what());
+		}
+	}
+	return result;
+}
+
+
+
 void project(double* cube_, const int cube_length_x, const int cube_length_y, const int cube_length_z, double* surface_, const int surface_length_x, const int surface_length_y, const double* const projection_, const double* const offset_)
 {
 	double* const surface = surface_;
@@ -1789,6 +1915,7 @@ static PyMethodDef pyvaex_functions[] = {
         {"histogram3d", (PyCFunction)histogram3d_, METH_VARARGS, ""},
         {"histogramNd", (PyCFunction)histogramNd_, METH_VARARGS, ""},
         {"statisticNd", (PyCFunction)statisticNd_, METH_VARARGS, ""},
+        {"grid_find_edges", (PyCFunction)grid_find_edges_, METH_VARARGS, ""},
         {"grid_interpolate", (PyCFunction)grid_interpolate_, METH_VARARGS, ""},
         {"project", (PyCFunction)project_, METH_VARARGS, ""},
         {"pnpoly", (PyCFunction)pnpoly_, METH_VARARGS, ""},
