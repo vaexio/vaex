@@ -313,7 +313,7 @@ def _python_save_name(name, used=[]):
 def _try_unit(unit):
 	try:
 		unit = astropy.units.Unit(str(unit))
-		if not isinstance(astropy.units.UnrecognizedUnit):
+		if not isinstance(unit, astropy.units.UnrecognizedUnit):
 			return unit
 	except:
 		#logger.exception("could not parse unit: %r", unit)
@@ -323,7 +323,10 @@ def _try_unit(unit):
 		unit = astropy.units.Unit(unit_mangle)
 	except:
 		pass#logger.exception("could not parse unit: %r", unit)
-	return unit
+	if isinstance(unit, astropy.units.UnrecognizedUnit):
+		return None
+	else:
+		return unit
 
 class FitsBinTable(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
