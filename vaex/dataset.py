@@ -95,7 +95,7 @@ def _parse_reduction(name, colormap, colors):
 			return grid[...,-1] # return last..
 		return _reduce_stack_fade
 	elif name.startswith("colormap"):
-		import matplotlib
+		import matplotlib.cm
 		cmap = matplotlib.cm.get_cmap(colormap)
 		def f(grid):
 			masked_grid = np.ma.masked_invalid(grid) # convert inf/nan to a mask so that mpl colors bad values correcty
@@ -103,7 +103,7 @@ def _parse_reduction(name, colormap, colors):
 		return f
 	elif name.startswith("stack.color"):
 		def f(grid, colors=colors, colormap=colormap):
-			import matplotlib
+			import matplotlib.cm
 			colormap = matplotlib.cm.get_cmap(colormap)
 			if isinstance(colors, six.string_types):
 				colors = matplotlib.cm.get_cmap(colors)
@@ -1505,7 +1505,6 @@ class Dataset(object):
 			#task =  TaskStatistic(self, [expression] + binby, shape, limits, op=OP_ADD1, selection=selection)
 			#self.executor.schedule(task)
 			#return task
-			print("calc", expression, shape, limits)
 			return self.count(binby=list(binby) + [expression], shape=shape, limits=limits, selection=selection, async=True, edges=True)
 		@delayed
 		def finish(percentile_limits, counts_list):
@@ -1950,15 +1949,27 @@ class Dataset(object):
 			return modes
 
 
-	def plot_bq(self, x, y, grid=None, size=256, limits=None, square=False, center=None, weight=None, figsize=None,
-			 aspect="auto", f="identity", fig=None, axes=None, xlabel=None, ylabel=None, title=None,
-			 group_by=None, group_limits=None, group_colors='jet', group_labels=None, group_count=None,
-			 cmap="afmhot", scales=None, tool_select=False, bq_cleanup=True,
+	def plot_bq(self, x, y, grid=None, shape=256, limits=None, what="count(*)", figsize=None,
+			 f="identity", figure_key=None, fig=None, axes=None, xlabel=None, ylabel=None, title=None,
+			 show=True, selection=[None, True], colormap="afmhot", grid_limits=None, normalize="normalize",
+			 grid_before=None,
+			 what_kwargs={}, type="default",
+			 scales=None, tool_select=False, bq_cleanup=True,
 			 **kwargs):
-		"""Use bqplot to create an interactive plot, this method is subject to change, it is currently a tech demo"""
-		subspace = self(x, y)
-		return subspace.plot_bq(grid, size, limits, square, center, weight, figsize, aspect, f, fig, axes, xlabel, ylabel, title,
-								group_by, group_limits, group_colors, group_labels, group_count, cmap, scales, tool_select, bq_cleanup, **kwargs)
+		import vaex.ext.bqplot
+		cls = vaex.ext.bqplot.get_class(type)
+		plot2d = cls(dataset=self, x=x, y=y, grid=grid, shape=shape, limits=limits, what=what,
+				f=f, figure_key=figure_key, fig=fig,
+				selection=selection, grid_before=grid_before,
+				grid_limits=grid_limits, normalize=normalize, colormap=colormap, what_kwargs=what_kwargs, **kwargs)
+		if show:
+			plot2d.show()
+		return plot2d
+
+	#"""Use bqplot to create an interactive plot, this method is subject to change, it is currently a tech demo"""
+		#subspace = self(x, y)
+		#return subspace.plot_bq(grid, size, limits, square, center, weight, figsize, aspect, f, fig, axes, xlabel, ylabel, title,
+		#						group_by, group_limits, group_colors, group_labels, group_count, cmap, scales, tool_select, bq_cleanup, **kwargs)
 
 
 	def healpix_count(self, expression=None, healpix_expression=None, healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, async=False, progress=None, selection=None):
@@ -2063,7 +2074,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def _stat(self, what="count(*)", what_kwargs={}, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def _stat(self, what="count(*)", what_kwargs={}, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the sum for the given expression, possible on a grid defined by binby
 
 		Examples:
@@ -2119,9 +2130,11 @@ class Dataset(object):
 						if unit:
 							what_units = unit.to_string('latex_inline')
 					if function in functions:
-						grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape, selection=selections)
+						grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape,
+								   selection=selections, progress=progress, async=async)
 					elif function == "count":
-						grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections)
+						grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections,
+								  progress=progress, async=async)
 					else:
 						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
 					#what_labels.append(what_label)
@@ -2130,7 +2143,6 @@ class Dataset(object):
 			#else:
 			#	raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
 			return grids
-
 		grids = get_whats(limits)
 		#print grids
 		#grids = delayed_args(*grids)
@@ -2139,7 +2151,7 @@ class Dataset(object):
 			for i, grid in enumerate(grids):
 				total_grid[i] = grid
 			return total_grid[slice(None, None, None) if waslist_what else 0, slice(None, None, None) if waslist_selection else 0]
-		s = finish(grids)
+		s = finish(delayed_list(grids))
 		return self._async(async, s)
 
 	def scatter(self, x, y, xerr=None, yerr=None, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, xlabel=None, ylabel=None, errorbar_kwargs={}, **kwargs):
@@ -2726,12 +2738,24 @@ class Dataset(object):
 		#colorbar = None
 		#return im, colorbar
 
-	def _plot3d(self, x, y, z, vx=None, vy=None, vz=None, vwhat=None, limits=None, what="count(*)", shape=128, vshape=16, vmin=2, selection=None, f=None,
-			   smooth_pre=None, smooth_post=None,
+	def plot3d(self, x, y, z, vx=None, vy=None, vz=None, vwhat=None, limits=None, grid=None, what="count(*)", shape=128, selection=[None, True], f=None,
+			   vcount_limits=None,
+			   smooth_pre=None, smooth_post=None, grid_limits=None, normalize="normalize", colormap="afmhot",
+			   figure_key=None, fig=None,
 			   lighting=True, level=[0.1, 0.5, 0.9], opacity=[0.01, 0.05, 0.1], level_width=0.1,
-				vsize=5, vcolor="white",
-			   show=False):
+			   show=True, **kwargs):
 		"""Use at own risk, requires ipyvolume"""
+		import vaex.ext.ipyvolume
+		#vaex.ext.ipyvolume.
+		cls = vaex.ext.ipyvolume.PlotDefault
+		plot3d = cls(dataset=self, x=x, y=y, z=z, vx=vx, vy=vy, vz=vz,
+					 grid=grid, shape=shape, limits=limits, what=what,
+				f=f, figure_key=figure_key, fig=fig,
+				selection=selection, smooth_pre=smooth_pre, smooth_post=smooth_post,
+				grid_limits=grid_limits, vcount_limits=vcount_limits, normalize=normalize, colormap=colormap, **kwargs)
+		if show:
+			plot3d.show()
+		return plot3d
 
 		import ipyvolume.pylab as p3
 		import ipyvolume.examples
@@ -4630,13 +4654,35 @@ class Dataset(object):
 		self.select(None, name=name)
 	#self.signal_selection_changed.emit(self)
 
-	def select_rectangle(self, expression_x, expression_y, limits, mode="replace", name="default"):
-		(x1, x2), (y1, y2) = limits
-		xmin, xmax = min(x1, x2), max(x1, x2)
-		ymin, ymax = min(y1, y2), max(y1, y2)
-		args = (expression_x, xmin, expression_x, xmax, expression_y, ymin, expression_y, ymax)
-		expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
-		self.select(expression, mode=mode, name=name)
+	def select_rectangle(self, x, y, limits, mode="replace"):
+		"""Select a 2d rectangular box in the space given by x and y, bounds by limits
+
+		Example:
+		>>> ds.select_box('x', 'y', [(0, 10), (0, 1)])
+
+		:param x: expression for the x space
+		:param y: expression fo the y space
+		:param limits: sequence of shape [(x1, x2), (y1, y2)]
+		:param mode:
+		:return:
+		"""
+		self.select_box([x, y], limits, mode=mode)
+
+	def select_box(self, spaces, limits, mode="replace"):
+		"""Select a n-dimensional rectangular box bounded by limits
+
+		The following examples are equivalent:
+		>>> ds.select_box(['x', 'y'], [(0, 10), (0, 1)])
+		>>> ds.select_rectangle('x', 'y', [(0, 10), (0, 1)])
+		:param spaces: list of expressions
+		:param limits: sequence of shape [(x1, x2), (y1, y2)]
+		:param mode:
+		:return:
+		"""
+		sorted_limits = [(min(l), max(l)) for l in limits]
+		expressions = ["((%s) >= %f) & ((%s) <= %f)" % (expression, lmin, expression, lmax) for\
+					   (expression, (lmin, lmax)) in zip(spaces, sorted_limits)]
+		self.select("&".join(expressions), mode=mode)
 
 	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", name="default", executor=None):
 		"""For performance reasons, a lasso selection is handled differently.

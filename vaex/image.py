@@ -28,6 +28,9 @@ def pil_2_data(im, format="png"):
 	return f.getvalue()
 
 def rgba_to_url(rgba):
+	bit8 = rgba.dtype == np.uint8
+	if not bit8:
+		rgba = (rgba*255.).astype(np.uint8)
 	im = rgba_2_pil(rgba)
 	data = pil_2_data(im)
 	data = b64encode(data)

@@ -1,12 +1,25 @@
 define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
        function(widgets, bqplot, _) {
     "use strict";
+/*
+widgets.BoxView.prototype.remove_original = widgets.BoxView.prototype.remove
+widgets.BoxView.prototype.remove = function() {
+    console.log("remove monkey patch")
+    if(this.children_views)
+        this.children_views.remove()
+    if(!this._is_removed) // protect against inf loop, if we monkey patch twice (during dev that can happen)
+        this.remove_original()
+    else
+        this._is_removed = true
+}*/
 
     var Image = bqplot.Mark.extend({
 
         render: function() {
             var base_render_promise = Image.__super__.render.apply(this);
-            var el = this.el || this.d3el;
+            var el = this.d3el || this.el;
+            window.last_el = el;
+            window.last_image = this;
             this.im = el.append("image")
                 .attr("class", "dot_img")
                 .attr("xlink:href", this.model.get('src'))
@@ -40,13 +53,28 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
                 "msg_name": "background_click",
                 "hit_test": false
             }}
+            console.log('listen to...')
+            this.is_removed = false;
+            this.model.set("view_count", this.model.get("view_count")+1)
+            this.model.save_changes()
             return base_render_promise.then(function() {
+                console.log("promise...")
                 that.event_listeners = {};
                 that.create_listeners();
                 that.draw();
             });
         },
-
+        remove: function() {
+            var result = Image.__super__.remove.apply(this, arguments);
+            console.log("remove")
+            if(!this.is_removed) {
+                console.log("removed")
+                this.model.set("view_count", this.model.get("view_count")-1)
+                this.model.save_changes()
+                this.is_removed = true;
+            }
+            return result;
+        },
         set_positional_scales: function() {
             var x_scale = this.scales.x,
                 y_scale = this.scales.y;
@@ -78,7 +106,7 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
 	            var x_scale = this.scales.x, y_scale = this.scales.y;
 	            var that = this;
 	            var animation_duration = this.parent.model.get("animation_duration");// : 0;
-	            var el = this.el || this.d3el;
+                var el = this.d3el || this.el;
 	            el.selectAll(".dot_img").transition()
 	                .duration(animation_duration)
 	                .attr("transform", function(d) {
@@ -88,10 +116,10 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
                         var ty = y_scale.scale(that.model.get('y')) + y_scale.offset
                         sx *= that.model.get('width')
                         sy *= that.model.get('height')
-                        console.log(that.model)
-                        console.log(that.model.get('width'))
-                        console.log(sx)
-                        console.log(sy)
+                        //console.log(that.model)
+                        //console.log(that.model.get('width'))
+                        //console.log(sx)
+                        //console.log(sy)
 	                    return "translate(" + tx +
 	                                    "," + ty + ") scale(" + sx + ", " + sy + ")"});
 	            //this.x_pixels = this.model.mark_data.map(function(el) { return x_scale.scale(el.x) + x_scale.offset; });
@@ -113,13 +141,12 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
         },
 
         update_xy_position: function(animate) {
-            console.log("update_xy_position");
-
+            //console.log("update_xy_position");
         },
 
         update_src: function(model, new_x) {
           //this.im.attr('x', new_x);
-          console.log("update src")
+          //console.log("update src")
             this.im.attr("xlink:href", this.model.get('src'))
             //this.set_ranges();
         },
@@ -148,9 +175,7 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
         },
 
         draw: function() {
-            console.log("set_positional_scales");
             this.set_ranges();
-
             this.im.on("click", _.bind(function(d, i) {
             this.event_dispatcher("element_clicked",
 			      {"data": d, "index": 0});
@@ -162,21 +187,22 @@ define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
 
 
    var ImageModel = bqplot.MarkModel.extend({
-
-        defaults: _.extend({}, bqplot.MarkModel.prototype.defaults, {
-            _model_name: "ImageModel",
-            _view_name: "Image",
-            _view_module: "vaex.ext.bqplot",
-            _model_module: "vaex.ext.bqplot",
-
-            x: 0,
-            y: 0,
-            width: 1,
-            height: 1,
-        }),
-
+        defaults: function() {
+            var more_defaults =  {
+                    _model_name: "ImageModel",
+                    _view_name: "Image",
+                    _view_module: "vaex.ext.bqplot",
+                    _model_module: "vaex.ext.bqplot",
+                    x: 0,
+                    y: 0,
+                    width: 1,
+                    height: 1,
+                    view_count: 0,
+                }
+            return _.extend(bqplot.MarkModel.prototype.defaults(), more_defaults);
+        },
         initialize: function() {
-            ImageModel.__super__.initialize.apply(this);
+            ImageModel.__super__.initialize.apply(this, arguments);
         },
 
     });
