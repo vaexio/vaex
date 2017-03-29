@@ -61,6 +61,7 @@ widgets.BoxView.prototype.remove = function() {
                 console.log("promise...")
                 that.event_listeners = {};
                 that.create_listeners();
+                console.log("drawing...")
                 that.draw();
             });
         },
@@ -94,6 +95,7 @@ widgets.BoxView.prototype.remove = function() {
             });
         },
         set_ranges: function() {
+                console.log("set ranges")
 	            var x_scale = this.scales.x,
 	                y_scale = this.scales.y
 	                ;
@@ -175,6 +177,7 @@ widgets.BoxView.prototype.remove = function() {
         },
 
         draw: function() {
+            console.log("in draw")
             this.set_ranges();
             this.im.on("click", _.bind(function(d, i) {
             this.event_dispatcher("element_clicked",
