@@ -840,9 +840,9 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 
 dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
 
-class InMemory(DatasetMemoryMapped):
-	def __init__(self, name):
-		super(InMemory, self).__init__(filename=None, nommap=True, name=name)
+# class InMemory(DatasetMemoryMapped):
+# 	def __init__(self, name):
+# 		super(InMemory, self).__init__(filename=None, nommap=True, name=name)
 
 
 class SoneiraPeebles(DatasetArrays):
@@ -878,7 +878,7 @@ class SoneiraPeebles(DatasetArrays):
 dataset_type_map["soneira-peebles"] = Hdf5MemoryMappedGadget
 
 
-class Zeldovich(InMemory):
+class Zeldovich(DatasetArrays):
 	def __init__(self, dim=2, N=256, n=-2.5, t=None, seed=None, scale=1, name="zeldovich approximation"):
 		super(Zeldovich, self).__init__(name=name)
 
@@ -908,11 +908,11 @@ class Zeldovich(InMemory):
 		X = Q + s * t
 
 		for d, name in zip(list(range(dim)), "xyzw"):
-			self.addColumn(name, array=X[d].reshape(-1) * scale)
+			self.add_column(name, X[d].reshape(-1) * scale)
 		for d, name in zip(list(range(dim)), "xyzw"):
-			self.addColumn("v"+name, array=s[d].reshape(-1) * scale)
+			self.add_column("v"+name, s[d].reshape(-1) * scale)
 		for d, name in zip(list(range(dim)), "xyzw"):
-			self.addColumn(name+"0", array=Q[d].reshape(-1) * scale)
+			self.add_column(name+"0", Q[d].reshape(-1) * scale)
 		return
 
 dataset_type_map["zeldovich"] = Zeldovich

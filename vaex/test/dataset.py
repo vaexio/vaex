@@ -276,6 +276,11 @@ class TestDataset(unittest.TestCase):
 		distance_std = ds_1.evaluate("distance_uncertainty")[0]
 		self.assertAlmostEqual(distance_std, distance_std_est,2)
 
+	def test_virtual_column_storage(self):
+		self.dataset.write_meta()
+		ds = vaex.zeldovich()
+		ds.write_meta()
+
 	def test_add_virtual_columns_cartesian_velocities_to_polar(self):
 		if 1:
 			def datasets(x, y, velx, vely):

@@ -538,6 +538,8 @@ class _BlockScopeSelection(object):
 				if selection_in_cache == selection:
 					return mask
 				#logger.debug("was not cached")
+				if variable in self.dataset.variables:
+					return self.dataset.variables[variable]
 				mask = selection.evaluate(variable, self.i1, self.i2)
 				#logger.debug("put selection in mask with key %r" % (key,))
 				cache[key] = selection, mask
@@ -1867,7 +1869,7 @@ class Dataset(object):
 						elif type in ["%", "percent"]:
 							limits =  self.limits_percentage(expression, number, async=True)
 						elif type in ["%s", "%square", "percentsquare"]:
-							limits =  self.limits_percentage(expression, number, square=True, async=async)
+							limits =  self.limits_percentage(expression, number, square=True, async=True)
 			elif value is None:
 				limits = self.limits_percentage(expression, square=square, async=True)
 			else:
@@ -2403,47 +2405,51 @@ class Dataset(object):
 		#labels["y"] = ylabels
 		what_labels = []
 		if grid is None:
+			grid_of_grids = []
+			for i, (binby, limits) in enumerate(zip(x, xlimits)):
+				grid_of_grids.append([])
+				for j, what in enumerate(whats):
+					what = what.strip()
+					index = what.index("(")
+					import re
+					groups = re.match("(.*)\((.*)\)", what).groups()
+					if groups and len(groups) == 2:
+						function = groups[0]
+						arguments = groups[1].strip()
+						if "," in arguments:
+							arguments = arguments.split(",")
+						functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max", "median"]
+						unit_expression = None
+						if function in ["mean", "sum", "std", "min", "max", "median"]:
+							unit_expression = arguments
+						if function in ["var"]:
+							unit_expression = "(%s) * (%s)" % (arguments, arguments)
+						if function in ["covar"]:
+							unit_expression = "(%s) * (%s)" % arguments
+						if unit_expression:
+							unit = self.unit(unit_expression)
+							if unit:
+								what_units = unit.to_string('latex_inline')
+						if function in functions:
+							grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape, selection=selections, async=True)
+						elif function == "count":
+							grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections, async=True)
+						else:
+							raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
+						if i == 0:# and j == 0:
+							what_label = whats[j]
+							if what_units:
+								what_label += " (%s)" % what_units
+							if fs[j]:
+								what_label = fs[j] + " " + what_label
+							what_labels.append(what_label)
+					else:
+						raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
+					grid_of_grids[-1].append(grid)
+			self.executor.execute()
 			for i, (binby, limits) in enumerate(zip(x, xlimits)):
 				for j, what in enumerate(whats):
-					if what:
-						what = what.strip()
-						index = what.index("(")
-						import re
-						groups = re.match("(.*)\((.*)\)", what).groups()
-						if groups and len(groups) == 2:
-							function = groups[0]
-							arguments = groups[1].strip()
-							if "," in arguments:
-								arguments = arguments.split(",")
-							functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max", "median_approx"]
-							unit_expression = None
-							if function in ["mean", "sum", "std", "min", "max", "median"]:
-								unit_expression = arguments
-							if function in ["var"]:
-								unit_expression = "(%s) * (%s)" % (arguments, arguments)
-							if function in ["covar"]:
-								unit_expression = "(%s) * (%s)" % arguments
-							if unit_expression:
-								unit = self.unit(unit_expression)
-								if unit:
-									what_units = unit.to_string('latex_inline')
-							if function in functions:
-								grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape, selection=selections)
-							elif function == "count":
-								grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections)
-							else:
-								raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
-							if i == 0:# and j == 0:
-								what_label = whats[j]
-								if what_units:
-									what_label += " (%s)" % what_units
-								if fs[j]:
-									what_label = fs[j] + " " + what_label
-								what_labels.append(what_label)
-						else:
-							raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
-					else:
-						grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
+					grid = grid_of_grids[i][j].get()
 					total_grid[i,j,:,:] = grid[:,None,...]
 			labels["what"] = what_labels
 		else:
@@ -3277,7 +3283,7 @@ class Dataset(object):
 		"""Alias/shortcut for :func:`Dataset.subspace`"""
 		raise NotImplementedError
 
-	def set_variable(self, name, expression_or_value):
+	def set_variable(self, name, expression_or_value, write=True):
 		"""Set the variable to an expression or value defined by expression_or_value
 
 		:Example:
@@ -3289,10 +3295,12 @@ class Dataset(object):
 		4.0
 
 		:param name: Name of the variable
+		:param write: write variable to meta file
 		:param expression: value or expression
 		"""
 		self.variables[name] = expression_or_value
-		self.write_virtual_meta()
+		if write:
+			self.write_virtual_meta()
 
 	def get_variable(self, name):
 		"""Returns the variable given by name, it will not evaluate it.
@@ -5137,8 +5145,9 @@ class DatasetConcatenated(DatasetLocal):
 				self.virtual_columns[name] = first.virtual_columns[name]
 		for dataset in datasets[:1]:
 			for name, value in list(dataset.variables.items()):
-				self.set_variable(name, value)
-
+				if name not in self.variables:
+					self.set_variable(name, value, write=False)
+		self.write_virtual_meta()
 
 		self._full_length = sum(ds.full_length() for ds in self.datasets)
 		self._length = self.full_length()
