@@ -1860,6 +1860,9 @@ class TestDatasetRemote(TestDataset):
 
 	def test_add_column(self):
 		pass # can't add column to remove objects
+
+	def test_rename_column(self):
+		pass # TODO: we cannot do that now
 	#def test_selection(self):
 	#	pass
 
