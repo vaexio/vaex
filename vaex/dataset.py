@@ -78,6 +78,14 @@ def _normalize(a, axis=None):
 	a /= np.nanmax(a, axis=axis, keepdims=True)
 	return a, vmin, vmax
 
+def _normalize_selection_name(name):
+	if name is True:
+		return "default"
+	elif name is False:
+		return None
+	else:
+		return name
+
 def _parse_n(n):
 	if isinstance(n, six.string_types):
 		if n == "normalize":
@@ -517,7 +525,9 @@ class _BlockScopeSelection(object):
 	def __getitem__(self, variable):
 		#logger.debug("getitem for selection: %s", variable)
 		try:
-			selection = self.selection or self.dataset.get_selection(variable)
+			selection = self.selection
+			if selection is None and self.dataset.has_selection(variable):
+				selection = self.dataset.get_selection(variable)
 			#logger.debug("selection for %r: %s %r", variable, selection, self.dataset.selection_histories)
 			key = (self.i1, self.i2)
 			if selection:
@@ -3501,6 +3511,17 @@ class Dataset(object):
 		else:
 			raise ValueError("functions not yet implemented")
 
+	def rename_column(self, name, new_name):
+		"""Renames a column, not this is only the in memory name, this will not be reflected on disk"""
+		data = self.columns[name]
+		del self.columns[name]
+		self.column_names[self.column_names.index(name)] = new_name
+		self.columns[new_name] = data
+		for d in [self.ucds, self.units, self.descriptions]:
+			if name in d:
+				d[new_name] = d[name]
+				del d[name]
+
 	def add_column_healpix(self, name="healpix", longitude="ra", latitude="dec", degrees=True, healpix_order=12, nest=True):
 		"""Add a healpix (in memory) column based on a longitude and latitude
 
@@ -4347,9 +4368,11 @@ class Dataset(object):
 		display.display(display.HTML(self._info(description=description)))
 
 	def _info(self, description=True):
-		parts = ["""<div>%s %d rows</div>""" % (self.name, len(self))]
+		parts = ["""<div><h2>{}</h2> {:,} rows</div>""".format(self.name, len(self))]
 		if hasattr(self, 'path'):
 			parts += ["""<div>path: <i>%s</i></div>""" % (self.path)]
+		if self.description:
+			parts += ["""<div>Description: {}</div>""".format(self.description)]
 		parts += ["<h2>Columns:</h2>"]
 		parts += ["<table class='table-striped'>"]
 		parts += ["<thead><tr>"]
@@ -4569,6 +4592,7 @@ class Dataset(object):
 
 	def get_selection(self, name="default"):
 		"""Get the current selection object (mostly for internal use atm)"""
+		name = _normalize_selection_name(name)
 		selection_history = self.selection_histories[name]
 		index = self.selection_history_indices[name]
 		if index == -1:
@@ -4860,8 +4884,8 @@ class DatasetLocal(Dataset):
 
 	def echo(self, arg): return arg
 
-	def __getitem__(self, arg):
-		"""Alias for call, to mimic Pandas a bit
+	def __getitem__(self, item):
+		"""Alias to dataset.to_copy(column_names), to mimic Pandas a bit
 
 		:Example:
 		>> ds["Lz"]
@@ -4869,10 +4893,33 @@ class DatasetLocal(Dataset):
 		>> ds[ds.names.Lz]
 
 		"""
-		if isinstance(arg, tuple):
-			return self(*arg)
+		#print(arg)
+		if _issequence(item):
+			return self.to_copy(column_names=item)
 		else:
-			return self(arg)
+			return self.to_copy(column_names=[item])
+
+	def __iter__(self):
+		"""Iterator over the column names (for the moment non-virtual and non-strings only)"""
+		return iter(list(self.get_column_names(virtual=False, strings=False)))
+
+	def __array__(self, dtype=None):
+		"""Casts the dataset to a numpy array
+
+		Example:
+		>>> ar = np.array(ds)
+		"""
+		if dtype is None:
+			dtype = np.float64
+		chunks = []
+		for name in self.get_column_names():
+			if not np.can_cast(self.dtype(name), dtype):
+				if self.dtype(name) != dtype:
+					raise ValueError("Cannot cast %r (of type %r) to %r" % (name, self.dtype(name), dtype))
+			else:
+				chunks.append(self.evaluate(name))
+		return np.array(chunks, dtype=dtype).T
+
 
 
 	def _hstack(self, other, prefix=None):
@@ -4918,11 +4965,13 @@ class DatasetLocal(Dataset):
 		value = scope.evaluate(expression)
 		return value
 
-	def _compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None):
-		column_names = self.get_column_names(strings=True)
-		for other_column_name in other.get_column_names(strings=True):
-			if other_column_name not in column_names:
-				column_names.append(other_column_name)
+	def compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None, column_names=None):
+		"""Compare two datasets and report their difference, use with care for large datasets"""
+		if column_names is None:
+			column_names = self.get_column_names(strings=True)
+			for other_column_name in other.get_column_names(strings=True):
+				if other_column_name not in column_names:
+					column_names.append(other_column_name)
 		different_values = []
 		missing = []
 		type_mismatch = []
@@ -5152,7 +5201,7 @@ class DatasetConcatenated(DatasetLocal):
 
 def _is_dtype_ok(dtype):
 	return dtype.type in [np.bool_, np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.float64] or\
-		dtype.type == np.string_
+		dtype.type == np.string_ or dtype.type == np.unicode_
 
 def _is_array_type_ok(array):
 	return _is_dtype_ok(array.dtype)

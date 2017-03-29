@@ -113,7 +113,7 @@ class TestDataset(unittest.TestCase):
 			path_hdf5 = tempfile.mktemp(".hdf5")
 			ds1.export_hdf5(path_hdf5)
 			ds2 = vx.open(path_hdf5)
-			diff, missing, type, meta = ds1._compare(ds2)
+			diff, missing, type, meta = ds1.compare(ds2)
 			self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
@@ -121,7 +121,7 @@ class TestDataset(unittest.TestCase):
 			path_fits = tempfile.mktemp(".fits")
 			ds1.export_fits(path_fits)
 			ds2 = vx.open(path_fits)
-			diff, missing, type, meta = ds1._compare(ds2)
+			diff, missing, type, meta = ds1.compare(ds2)
 			self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
@@ -132,7 +132,7 @@ class TestDataset(unittest.TestCase):
 				for j in range(i+1, N):
 					ds1 = dslist[i]
 					ds2 = dslist[j]
-					diff, missing, type, meta = ds1._compare(ds2)
+					diff, missing, type, meta = ds1.compare(ds2)
 					self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
 					self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
@@ -178,6 +178,17 @@ class TestDataset(unittest.TestCase):
 		self.dataset.add_column("x", self.dataset.data.x)
 		self.assertSequenceEqual(columns, self.dataset.get_column_names())
 
+	def test_rename_column(self):
+		self.dataset.rename_column("x", "xx")
+		self.assertNotIn("x", self.dataset.columns)
+		self.assertNotIn("x", self.dataset.column_names)
+		self.assertNotIn("x", self.dataset.units)
+		self.assertNotIn("x", self.dataset.ucds)
+		self.assertIn("xx", self.dataset.columns)
+		self.assertIn("xx", self.dataset.column_names)
+		self.assertIn("xx", self.dataset.units)
+		self.assertIn("xx", self.dataset.ucds)
+
 	def test_csv(self):
 		separator = ","
 		fn = tempfile.mktemp(".csv")
@@ -186,7 +197,7 @@ class TestDataset(unittest.TestCase):
 			for x, y, name, i, f_ in zip(self.x, self.y, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
 				print(separator.join(map(str, [x, y, name.decode("utf8"), i, f_])), file=f)
 		ds = vx.from_csv(fn, index_col=False)
-		changes = self.dataset._compare(ds, report_difference=True)
+		changes = self.dataset.compare(ds, report_difference=True)
 		diff = changes[0]
 		print(diff)
 		self.assertEqual(changes[0], [], "changes in dataset")
@@ -1838,6 +1849,8 @@ class TestDatasetRemote(TestDataset):
 	def test_ascii(self):
 		pass  # no need
 
+	def test_csv(self):
+		pass # no need
 	def test_export(self):
 		pass # we can't export atm
 
@@ -1852,6 +1865,9 @@ class TestDatasetRemote(TestDataset):
 
 	def test_add_column(self):
 		pass # can't add column to remove objects
+
+	def test_rename_column(self):
+		pass # TODO: we cannot do that now
 	#def test_selection(self):
 	#	pass
 
