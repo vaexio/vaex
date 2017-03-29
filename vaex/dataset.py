@@ -4828,8 +4828,8 @@ class DatasetLocal(Dataset):
 
 	def echo(self, arg): return arg
 
-	def __getitem__(self, arg):
-		"""Alias to dataset.data.<name>, to mimic Pandas a bit
+	def __getitem__(self, item):
+		"""Alias to dataset.to_copy(column_names), to mimic Pandas a bit
 
 		:Example:
 		>> ds["Lz"]
@@ -4837,7 +4837,33 @@ class DatasetLocal(Dataset):
 		>> ds[ds.names.Lz]
 
 		"""
-		return self.columns[arg]
+		#print(arg)
+		if _issequence(item):
+			return self.to_copy(column_names=item)
+		else:
+			return self.to_copy(column_names=[item])
+
+	def __iter__(self):
+		"""Iterator over the column names (for the moment non-virtual and non-strings only)"""
+		return iter(list(self.get_column_names(virtual=False, strings=False)))
+
+	def __array__(self, dtype=None):
+		"""Casts the dataset to a numpy array
+
+		Example:
+		>>> ar = np.array(ds)
+		"""
+		if dtype is None:
+			dtype = np.float64
+		chunks = []
+		for name in self.get_column_names():
+			if not np.can_cast(self.dtype(name), dtype):
+				if self.dtype(name) != dtype:
+					raise ValueError("Cannot cast %r (of type %r) to %r" % (name, self.dtype(name), dtype))
+			else:
+				chunks.append(self.evaluate(name))
+		return np.array(chunks, dtype=dtype).T
+
 
 
 	def _hstack(self, other, prefix=None):
