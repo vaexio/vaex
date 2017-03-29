@@ -459,22 +459,16 @@ You will need about, ~15BG or free memory for a proper performance, or replace <
                 <li>
                     See the <a href="http://www.cosmos.esa.int/web/gaia/home">Gaia Science Homepage for details</a>, and you may want to try the <a href="https://archives.esac.esa.int/gaia">Gaia Archive</a> for ADQL (SQL like) queries.
                 </li>
-                <li>
-                    If you use a torrent client like <a href="https://transmissionbt.com/">transmission</a> to download the files, please keep seeding/sharing.
-                </li>
             </ul>
             Data:
             <ul>
                 <li>
-                    Single hdf5 file, copy of <a href="http://cdn.gea.esac.esa.int/Gaia/gaia_source/fits/">full Gaia DR1 catalogue</a> in random row order: <a href="data/gaia-dr1.hdf5.torrent">torrent</a> or <a href="https://goo.gl/xM9icm">direct download</a> (342G).
+                    Single hdf5 file, copy of <a href="http://cdn.gea.esac.esa.int/Gaia/gaia_source/fits/">full Gaia DR1 catalogue</a> in random row order: <a href="https://drive.google.com/file/d/0B8gjQokMGa4nUVc1bURQWVJNcnM/view?usp=sharing">direct download</a> (351G).
                 </li>
 		<li>
-			random 10% of the catalogue, useful for on your laptop: <a href="https://goo.gl/ZwUa0T">direct link</a> (35G).
+			random 10% of the catalogue, useful for on your laptop: <a href="https://drive.google.com/file/d/0B8gjQokMGa4nZWRvVXY5blQyaDg/view?usp=sharing">direct link</a> (35G).
                 <li>
-                    random 1% of the catalogue, useful for on your laptop: <a href="data/gaia-dr1-1percent.hdf5.torrent">torrent</a> or <a href="https://goo.gl/uo2a2t">direct link</a> (3.4G).
-                </li>
-                <li>
-                    All rows, but just l,b,ra,dec and g magnitude: <a href="data/gaia-dr1-essential.hdf5.torrent">gaia-dr1-essential.hdf5.torrent</a> (43G).
+                    All rows, less columns (ra, dec, l, b,ra,dec, g magnitude, etc): <a href="https://drive.google.com/file/d/0B8gjQokMGa4nOF9YT2s5TE1aeW8/view?usp=sharing">direct download</a> (43G).
                 </li>
                 <li>
                     Single hdf5 file, copy of <a href="http://cdn.gea.esac.esa.int/Gaia/gaia_source/fits/">full TGAS catalogue</a>: <a href="data/tgas.hdf5">tgas-hdf5</a> (0.6G).
