@@ -35,6 +35,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
+	'nbsphinx',
 ]
 import os
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
