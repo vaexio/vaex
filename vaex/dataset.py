@@ -4336,9 +4336,11 @@ class Dataset(object):
 		display.display(display.HTML(self._info(description=description)))
 
 	def _info(self, description=True):
-		parts = ["""<div>{} {:,} rows</div>""".format(self.name, len(self))]
+		parts = ["""<div><h2>{}</h2> {:,} rows</div>""".format(self.name, len(self))]
 		if hasattr(self, 'path'):
 			parts += ["""<div>path: <i>%s</i></div>""" % (self.path)]
+		if self.description:
+			parts += ["""<div>Description: {}</div>""".format(self.description)]
 		parts += ["<h2>Columns:</h2>"]
 		parts += ["<table class='table-striped'>"]
 		parts += ["<thead><tr>"]
