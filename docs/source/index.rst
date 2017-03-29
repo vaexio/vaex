@@ -86,6 +86,7 @@ Contents:
     
    installing
    documentation
+   datasets
    gallery
    credits
 	
