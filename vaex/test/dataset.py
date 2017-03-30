@@ -1399,8 +1399,8 @@ class TestDataset(unittest.TestCase):
 		path_fits_astropy = tempfile.mktemp(".fits")
 		#print path
 
-		with self.assertRaises(AssertionError):
-			self.dataset.export_hdf5(path, selection=True)
+		#with self.assertRaises(AssertionError):
+		#	self.dataset.export_hdf5(path, selection=True)
 
 		for dataset in [self.dataset_concat_dup, self.dataset]:
 			#print dataset.virtual_columns
