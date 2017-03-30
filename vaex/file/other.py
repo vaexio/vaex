@@ -992,7 +992,9 @@ class DatasetAstropyTable(DatasetArrays):
 				if "ucd" in column._meta:
 					self.ucds[clean_name] = column._meta["ucd"]
 				if column.unit:
-					self.units[clean_name] = column.unit
+					unit = _try_unit(column.unit)
+					if unit:
+						self.units[clean_name] = unit
 				if column.description:
 					self.descriptions[clean_name] = column.description
 				if hasattr(masked_array, "mask"):
