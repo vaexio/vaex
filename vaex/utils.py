@@ -381,8 +381,12 @@ def check_memory_usage(bytes_needed, confirm):
 	return True
 
 import six
-
-def ensure_string(string_or_bytes, encoding="utf-8"):
+def ensure_string(string_or_bytes, encoding="utf-8", cast=False):
+	if cast:
+		if six.PY2:
+			string_or_bytes = unicode(string_or_bytes)
+		else:
+			string_or_bytes = str(string_or_bytes)
 	if isinstance(string_or_bytes, six.string_types):
 		return string_or_bytes
 	else:

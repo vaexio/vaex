@@ -498,7 +498,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 				h5dataset = h5table_root[column_name]
 				for name, values in [("ucd", self.ucds), ("unit", self.units), ("description", self.descriptions)]:
 					if column_name in values:
-						value = str(values[column_name])
+						value = ensure_string(values[column_name], cast=True)
 						h5dataset.attrs[name] = value
 					else:
 						if name in h5dataset.attrs:
