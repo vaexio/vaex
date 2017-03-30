@@ -252,13 +252,15 @@ class TestDataset(unittest.TestCase):
 			import healpy as hp
 		except ImportError:
 			return
-		for order in [0,1,2,4,6]:
-			nside = hp.order2nside(order)
-			npix = hp.nside2npix(nside)
-			healpix = np.arange(npix)
-			ds = vx.from_arrays(healpix=healpix)
-			counts = ds.healpix_count(healpix_expression="healpix", healpix_max_level=order, healpix_level=order)
-			ones = np.ones(npix)
+		max_order = 6
+		nside = hp.order2nside(max_order)
+		npix = hp.nside2npix(nside)
+		healpix = np.arange(npix)
+		ds = vx.from_arrays(healpix=healpix)
+		for order in range(max_order):
+			counts = ds.healpix_count(healpix_expression="healpix", healpix_max_level=max_order, healpix_level=order)
+			scaling = 4**(max_order-order)
+			ones = np.ones(npix//scaling) * scaling
 			np.testing.assert_array_almost_equal(counts, ones)
 			self.assertEqual(counts.sum(), npix)
 
