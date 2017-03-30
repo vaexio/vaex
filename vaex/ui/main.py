@@ -1633,6 +1633,7 @@ class VaexApp(QtGui.QMainWindow):
 		self.dataset_selector.add(dataset)
 
 	def open(self, path):
+		"""Add a dataset and add it to the UI"""
 		logger.debug("open dataset: %r", path)
 		if path.startswith("http") or path.startswith("ws"):
 			dataset = vaex.open(path, thread_mover=self.call_in_main_thread)
@@ -1642,6 +1643,9 @@ class VaexApp(QtGui.QMainWindow):
 		self.dataset_selector.add(dataset)
 		return dataset
 
+	def add(self, dataset):
+		"""Add an dataset to the UI"""
+		self.dataset_selector.add(dataset)
 
 	def openGenerator(self, callback_, description, filemask):
 		#print repr(callback_)
