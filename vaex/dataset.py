@@ -1136,7 +1136,7 @@ class Dataset(object):
 
 
 	@docsubst
-	def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the covariance cov[x,y] between and x and y, possible on a grid defined by binby
 
 		Examples:
@@ -1171,14 +1171,16 @@ class Dataset(object):
 
 		@delayed
 		def calculate(limits):
-			covars = [cov(
-						self.mean(x, binby=binby, limits=limits, shape=shape, selection=selection, async=True),
-						self.mean(y, binby=binby, limits=limits, shape=shape, selection=selection, async=True),
-						self.mean("(%s)*(%s)" % (x, y), binby=binby, limits=limits, shape=shape, selection=selection, async=True),
-					)
-					  for x, y in zip(xlist, ylist)]
-			return covars
+			results = []
+			for x, y in zip(xlist, ylist):
+				mx = self.mean(x, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar),
+				my = self.mean(y, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar),
+				cxy = self.mean("(%s)*(%s)" % (x, y), binby=binby, limits=limits, shape=shape, selection=selection,
+						  async=True, progress=progressbar)
+				results.append(cov(mx, my, cxy))
+			return results
 
+		progressbar = vaex.utils.progressbars(progress)
 		covars = calculate(limits)
 		@delayed
 		def finish(covars):
@@ -1187,7 +1189,7 @@ class Dataset(object):
 		return self._async(async, finish(delayed_list(covars)))
 
 	@docsubst
-	def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, async=False):
+	def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, async=False, progress=None):
 		"""Calculate the correlation coefficient cov[x,y]/(std[x]*std[y]) between and x and y, possible on a grid defined by binby
 
 		Examples:
@@ -1235,12 +1237,14 @@ class Dataset(object):
 
 		@delayed
 		def calculate(limits):
-			correlation = [corr(
-						self.cov(x, y, binby=binby, limits=limits, shape=shape, selection=selection, async=True),
-					)
-					  for x, y in zip(xlist, ylist)]
-			return correlation
+			results = []
+			for x, y in zip(xlist, ylist):
+				task = self.cov(x, y, binby=binby, limits=limits, shape=shape, selection=selection, async=True,
+							 progress=progressbar)
+				results.append(corr(task))
+			return results
 
+		progressbar = vaex.utils.progressbars(progress)
 		correlations = calculate(limits)
 		@delayed
 		def finish(correlations):
@@ -1254,7 +1258,7 @@ class Dataset(object):
 		return self._async(async, finish(delayed_list(correlations)))
 
 	@docsubst
-	def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
+	def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		"""Calculate the covariance matrix for x and y or more expressions, possible on a grid defined by binby
 
 		Either x and y are expressions, e.g:
@@ -1306,6 +1310,7 @@ class Dataset(object):
 		N = len(expressions)
 		binby = _ensure_list(binby)
 		shape = _expand_shape(shape, len(binby))
+		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, selection=selection, async=True)
 
 		@delayed
@@ -1326,13 +1331,13 @@ class Dataset(object):
 		@delayed
 		def calculate(limits):
 			# calculate the right upper triangle
-			means = [self.mean(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True) for expression in expressions]
-			vars  = [self.var (expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True) for expression in expressions]
+			means = [self.mean(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar) for expression in expressions]
+			vars  = [self.var (expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar) for expression in expressions]
 			raw_mixed = []
 			for i in range(N):
 				for j in range(i+1):
 					if i != j:
-						raw_mixed.append(self.mean("(%s)*(%s)" % (expressions[i], expressions[j]), binby=binby, limits=limits, shape=shape, selection=selection, async=True))
+						raw_mixed.append(self.mean("(%s)*(%s)" % (expressions[i], expressions[j]), binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar))
 			return calculate_matrix(delayed_list(means), delayed_list(vars), delayed_list(raw_mixed))
 
 		covars = calculate(limits)
