@@ -38,7 +38,6 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 	if selection:
 		if selection == True: # easier to work with the name
 			selection = "default"
-		assert dataset_input.has_selection(selection), "cannot export selection is there is none"
 
 	N = len(dataset_input) if not selection else dataset_input.selected_length(selection)
 	if N == 0:
@@ -190,7 +189,6 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 	if selection:
 		if selection == True: # easier to work with the name
 			selection = "default"
-		assert dataset.has_selection(selection), "cannot export selection is there is none"
 	# first open file using h5py api
 	with h5py.File(path, "w") as h5file_output:
 
