@@ -2430,8 +2430,6 @@ class Dataset(object):
 				key = visual.keys()[index]
 				raise ValueError("trying to map %s to %s while, it is already mapped by %s" % (grid_name, visual_name, key))
 			move[grid_axes[grid_name]] = visual_axes[visual_name]
-		logger.debug("grid shape: %r", total_grid.shape)
-		logger.debug("visual: %r", visual.items())
 
 		#normalize_axis = _ensure_list(normalize_axis)
 
@@ -2508,9 +2506,12 @@ class Dataset(object):
 		# np.moveaxis is in np 1.11 only?, use transpose
 		axes = [None] * len(move)
 		for key, value in move.items():
-			axes[key] = value
+			axes[value] = key
 		visual_grid = np.transpose(total_grid, axes)
 
+		logger.debug("grid shape: %r", total_grid.shape)
+		logger.debug("visual: %r", visual.items())
+		logger.debug("move: %r", move)
 		logger.debug("visual grid shape: %r", visual_grid.shape)
 		#grid = total_grid
 		#print(grid.shape)
