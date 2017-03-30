@@ -1444,7 +1444,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def median_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024*16, percentile_limits="minmax", selection=False, async=False):
+	def median_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=256, percentile_limits="minmax", selection=False, async=False):
 		"""Calculate the median , possible on a grid defined by binby
 
 		NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
@@ -2430,7 +2430,7 @@ class Dataset(object):
 						arguments = groups[1].strip()
 						if "," in arguments:
 							arguments = arguments.split(",")
-						functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max", "median"]
+						functions = ["mean", "sum", "std", "var", "correlation", "covar", "min", "max", "median_approx"]
 						unit_expression = None
 						if function in ["mean", "sum", "std", "min", "max", "median"]:
 							unit_expression = arguments
