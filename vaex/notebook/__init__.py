@@ -30,6 +30,7 @@ base_path = os.path.dirname(__file__)
 logger = logging.getLogger("vaex.notebook")
 import numpy as np
 
+from .utils import debounced, interactive_selection, interactive_cleanup
 
 
 def cube_png(grid, file):
@@ -154,28 +155,28 @@ class init(object):
 
 
 
-def get_ioloop():
-    ipython = IPython.get_ipython()
-    if ipython and hasattr(ipython, 'kernel'):
-        return zmq.eventloop.ioloop.IOLoop.instance()
+# def get_ioloop():
+#     ipython = IPython.get_ipython()
+#     if ipython and hasattr(ipython, 'kernel'):
+#         return zmq.eventloop.ioloop.IOLoop.instance()
 
-def debounced(delay_seconds=0.5):
-	"""Debounce decorator for Jupyter notebook"""
-	def wrapped(f):
-		locals = {"counter": 0}
-		def execute(*args, **kwargs):
-			locals["counter"] += 1
-			#print "counter", locals["counter"]
-			def debounced_execute(counter=locals["counter"]):
-				#$print "counter is", locals["counter"]
-				if counter == locals["counter"]:
-					logger.info("debounced call")
-					f(*args, **kwargs)
-				else:
-					logger.info("debounced call skipped")
-			ioloop = get_ioloop()
-			def thread_safe():
-				ioloop.add_timeout(time.time() + delay_seconds, debounced_execute)
-			ioloop.add_callback(thread_safe)
-		return execute
-	return wrapped
+# def debounced(delay_seconds=0.5):
+# 	"""Debounce decorator for Jupyter notebook"""
+# 	def wrapped(f):
+# 		locals = {"counter": 0}
+# 		def execute(*args, **kwargs):
+# 			locals["counter"] += 1
+# 			#print "counter", locals["counter"]
+# 			def debounced_execute(counter=locals["counter"]):
+# 				#$print "counter is", locals["counter"]
+# 				if counter == locals["counter"]:
+# 					logger.info("debounced call")
+# 					f(*args, **kwargs)
+# 				else:
+# 					logger.info("debounced call skipped")
+# 			ioloop = get_ioloop()
+# 			def thread_safe():
+# 				ioloop.add_timeout(time.time() + delay_seconds, debounced_execute)
+# 			ioloop.add_callback(thread_safe)
+# 		return execute
+# 	return wrapped

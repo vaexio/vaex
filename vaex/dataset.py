@@ -1959,6 +1959,24 @@ class Dataset(object):
 			return modes
 
 
+	def plot_widget(self, x, y, z=None, grid=None, shape=256, limits=None, what="count(*)", figsize=None,
+			 f="identity", figure_key=None, fig=None, axes=None, xlabel=None, ylabel=None, title=None,
+			 show=True, selection=[None, True], colormap="afmhot", grid_limits=None, normalize="normalize",
+			 grid_before=None,
+			 what_kwargs={}, type="default",
+			 scales=None, tool_select=False, bq_cleanup=True,
+			 backend="bqplot",
+			 **kwargs):
+		import vaex.notebook.plot
+		backend = vaex.notebook.plot.create_backend(backend)
+		cls = vaex.notebook.plot.get_type(type)
+		plot2d = cls(backend=backend, dataset=self, x=x, y=y, z=z, grid=grid, shape=shape, limits=limits, what=what,
+				f=f, figure_key=figure_key, fig=fig,
+				selection=selection, grid_before=grid_before,
+				grid_limits=grid_limits, normalize=normalize, colormap=colormap, what_kwargs=what_kwargs, **kwargs)
+		if show:
+			plot2d.show()
+		return plot2d
 	def plot_bq(self, x, y, grid=None, shape=256, limits=None, what="count(*)", figsize=None,
 			 f="identity", figure_key=None, fig=None, axes=None, xlabel=None, ylabel=None, title=None,
 			 show=True, selection=[None, True], colormap="afmhot", grid_limits=None, normalize="normalize",
