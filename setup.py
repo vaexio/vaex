@@ -216,7 +216,9 @@ if on_rtd:
 else:
 	reqs = [str(ir.req) for ir in install_reqs]
 
-
+if sys.version_info >= (3,0):
+	# remove future for py3
+	reqs.remove("futures>=2.2.0")
 
 #print "requirements", reqs
 #print "ver#sion", vaex.__release__
