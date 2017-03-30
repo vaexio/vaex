@@ -13,6 +13,7 @@ import astropy.units
 from vaex.utils import ensure_string
 import astropy.io.fits as fits
 import re
+import six
 
 from vaex.dataset import DatasetLocal, DatasetArrays
 logger = logging.getLogger("vaex.file")
@@ -323,7 +324,9 @@ def _try_unit(unit):
 		unit = astropy.units.Unit(unit_mangle)
 	except:
 		pass#logger.exception("could not parse unit: %r", unit)
-	if isinstance(unit, astropy.units.UnrecognizedUnit):
+	if isinstance(unit, six.string_types):
+		return None
+	elif isinstance(unit, astropy.units.UnrecognizedUnit):
 		return None
 	else:
 		return unit
