@@ -1173,8 +1173,8 @@ class Dataset(object):
 		def calculate(limits):
 			results = []
 			for x, y in zip(xlist, ylist):
-				mx = self.mean(x, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar),
-				my = self.mean(y, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar),
+				mx = self.mean(x, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar)
+				my = self.mean(y, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar)
 				cxy = self.mean("(%s)*(%s)" % (x, y), binby=binby, limits=limits, shape=shape, selection=selection,
 						  async=True, progress=progressbar)
 				results.append(cov(mx, my, cxy))
