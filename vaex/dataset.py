@@ -4633,24 +4633,9 @@ class Dataset(object):
 		assert self.selection_can_undo(name=name)
 		selection_history = self.selection_histories[name]
 		index = self.selection_history_indices[name]
-		if index == 0:
-			# special case, ugly solution to select nothing
-			if self.is_local():
-				result =  SelectionExpression(self, None, None, "replace").execute(executor=executor)
-			else:
-				# for remote we don't have to do anything, the index == -1 is enough
-				# just emit the signal
-				result = vaex.promise.Promise.fulfilled(None)
-		else:
-			previous = selection_history[index-1]
-			if self.is_local():
-				result = previous.execute(executor=executor, execute_fully=True) if previous else vaex.promise.Promise.fulfilled(None)
-			else:
-				result = vaex.promise.Promise.fulfilled(None)
 		self.selection_history_indices[name] -= 1
 		self.signal_selection_changed.emit(self)
 		logger.debug("undo: selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
-		return result
 
 
 	def selection_redo(self, name="default", executor=None):
@@ -4661,14 +4646,9 @@ class Dataset(object):
 		selection_history = self.selection_histories[name]
 		index = self.selection_history_indices[name]
 		next = selection_history[index+1]
-		if self.is_local():
-			result = next.execute(executor=executor)
-		else:
-			result = vaex.promise.Promise.fulfilled(None)
 		self.selection_history_indices[name] += 1
 		self.signal_selection_changed.emit(self)
 		logger.debug("redo: selection history is %r, index is %r", selection_history, index)
-		return result
 
 	def selection_can_undo(self, name="default"):
 		"""Can selection name be undone?"""
