@@ -2,9 +2,11 @@ import traitlets
 import ipywidgets as widgets
 import six
 import vaex.utils
+import vaex.delayed
 import numpy as np
+import importlib
 from IPython.display import display
-
+import copy
 from .utils import debounced
 
 type_map = {}
@@ -20,45 +22,55 @@ def get_type(name):
         raise ValueError("% not found, options are %r" % (name, type_map.keys()))
     return type_map[name]
 
+backends = {}
+backends['ipyleaflet'] = ('vaex.notebook.ipyleaflet', 'IpyleafletBackend')
+backends['bqplot'] = ('vaex.notebook.bqplot', 'BqplotBackend')
+backends['ipyvolume'] = ('vaex.notebook.ipyvolume', 'IpyvolumeBackend')
 
 def create_backend(name):
-    if name == "ipyleaflet":
-        from . import ipyleaflet
-        return ipyleaflet.IpyleafletBackend()
-    elif name == "bqplot":
-        from . import bqplot
-        return bqplot.BqplotBackend()
-    else:
-        raise ValueError("unknown backend: %s" % name)
+    if name not in backends:
+        raise NameError("Unknown backend: %s, known ones are: %r" % (name, backends.keys()))
+    module_name, class_name = backends[name]
+    module = importlib.import_module(module_name)
+    cls = getattr(module, class_name, None)
+    if cls is None:
+        raise NameError("Could not find classname %s in module %s for backend %s" % (class_name, module_name, name))
+    return cls()
 
 class BackendBase(widgets.Widget):
+    dim = 2
     limits = traitlets.List(traitlets.Tuple(traitlets.CFloat(), traitlets.CFloat()))
+    @staticmethod
+    def wants_colors():
+        return True
+    def update_vectors(self, vcount, vgrids, vcount_limits):
+        pass
 
 class PlotBase(widgets.Widget):
 
-    x = traitlets.Unicode(allow_none=False)
-    y = traitlets.Unicode(allow_none=True)
-    z = traitlets.Unicode(allow_none=True)
-    w = traitlets.Unicode(allow_none=True)
-    vx = traitlets.Unicode(allow_none=True)
-    vy = traitlets.Unicode(allow_none=True)
-    vz = traitlets.Unicode(allow_none=True)
-    smooth_pre = traitlets.CFloat(None, allow_none=True)
-    smooth_post = traitlets.CFloat(None, allow_none=True)
+    x = traitlets.Unicode(allow_none=False).tag(sync=True)
+    y = traitlets.Unicode(allow_none=True).tag(sync=True)
+    z = traitlets.Unicode(allow_none=True).tag(sync=True)
+    w = traitlets.Unicode(allow_none=True).tag(sync=True)
+    vx = traitlets.Unicode(allow_none=True).tag(sync=True)
+    vy = traitlets.Unicode(allow_none=True).tag(sync=True)
+    vz = traitlets.Unicode(allow_none=True).tag(sync=True)
+    smooth_pre = traitlets.CFloat(None, allow_none=True).tag(sync=True)
+    smooth_post = traitlets.CFloat(None, allow_none=True).tag(sync=True)
+    what = traitlets.Unicode(allow_none=False).tag(sync=True)
+    vcount_limits = traitlets.List([None, None], allow_none=True).tag(sync=True)
 
     def __init__(self, backend, dataset, x, y=None, z=None, w=None, grid=None, limits=None, shape=128, what="count(*)", f=None,
                  vshape=16,
                  selection=None, grid_limits=None, normalize=None, colormap="afmhot",
                  figure_key=None, fig=None, what_kwargs={}, grid_before=None, vcount_limits=None,**kwargs):
-        super(PlotBase, self).__init__(x=x, y=y, z=z, w=w, **kwargs)
+        super(PlotBase, self).__init__(x=x, y=y, z=z, w=w, what=what, vcount_limits=vcount_limits, **kwargs)
         self.backend = backend
         self.vgrids = [None, None, None]
-        self.vcount_limits = vcount_limits
         self.vcount = None
         self.dataset = dataset
         self.limits = self.get_limits(limits)
         self.shape = shape
-        self.what = what
         self.f = f
         self.selection = selection
         self.grid_limits = grid_limits
@@ -97,6 +109,15 @@ class PlotBase(widgets.Widget):
             self._progressbar.cancel()
             self.update_grid()
         self.backend.observe(_on_limits_change, "limits")
+        for attrname in "x y z vx vy vz".split():
+            def _on_change(*args, attrname=attrname):
+                limits_index = {'x': 0, 'y': 1, 'z':2}.get(attrname)
+                if limits_index is not None:
+                    self.backend.limits[limits_index] = None
+                self.update_grid()
+            self.observe(_on_change, attrname)
+        self.observe(lambda *args: self.update_grid(), "what")
+        self.observe(lambda *args: self.update_image(), "vcount_limits")
 
         #self.update_image() # sometimes bqplot doesn't update the image correcly
 
@@ -119,12 +140,6 @@ class PlotBase(widgets.Widget):
 
     def show(self):
         display(self.widget)
-
-    def _update_limits(self, *args):
-        with self.output:
-            self._progressbar.cancel()
-            self.limits[0:2] = [[scale.min, scale.max] for scale in [self.scale_x, self.scale_y]]
-            self.update_grid()
 
     def add_control_widget(self, widget):
         self.control_widget.children += (widget,)
@@ -154,8 +169,22 @@ class PlotBase(widgets.Widget):
     @debounced(.5, method=True)
     def update_grid(self):
         with self.output:
-            self.limits[:2] = self.backend.limits[:2]
-            self._update_grid()
+            limits = self.backend.limits[:self.backend.dim]
+            xyz = [self.x, self.y, self.z]
+            for i, limit in enumerate(limits):
+                if limits[i] is None:
+                    limits[i] = self.dataset.limits(xyz[i], async=True)
+            @vaex.delayed.delayed
+            def limits_done(limits):
+                with self.output:
+                    self.limits[:self.backend.dim] = np.array(limits).tolist()
+                    limits_backend = copy.deepcopy(self.backend.limits)
+                    limits_backend[:self.backend.dim] = self.limits[:self.backend.dim]
+                    self.backend.limits = limits_backend
+
+                    self._update_grid()
+            limits_done(vaex.delayed.delayed_list(limits))
+            self._execute()
 
     def _update_grid(self):
         with self.output:
@@ -221,28 +250,34 @@ class PlotBase(widgets.Widget):
 
     def _update_image(self):
         with self.output:
-            grid = self.get_grid()
+            grid = self.get_grid().copy() # we may modify inplace
             if self.smooth_pre:
-                grid  = vaex.grids.gf(grid, self.smooth_pre)
+                for i in range(grid.shape[0]): # seperately for every selection
+                    grid[i] = vaex.grids.gf(grid[i], self.smooth_pre)
             f = vaex.dataset._parse_f(self.f)
             with np.errstate(divide='ignore', invalid='ignore'):
                 fgrid = f(grid)
             if self.smooth_post:
-                fgrid = vaex.grids.gf(fgrid, self.smooth_post)
+                for i in range(grid.shape[0]):
+                    fgrid[i] = vaex.grids.gf(fgrid[i], self.smooth_post)
             ngrid, fmin, fmax = self.normalise(fgrid)
-            color_grid = self.colorize(ngrid)
-            if len(color_grid.shape) > 3:
-                if len(color_grid.shape) == 4:
-                        if color_grid.shape[0] > 1:
-                            color_grid = vaex.image.fade(color_grid[::-1])
-                        else:
-                            color_grid = color_grid[0]
-                else:
-                    raise ValueError("image shape is %r, don't know what to do with that, expected (L, M, N, 3)" % (color_grid.shape,))
-            I = np.transpose(color_grid, (1,0,2)).copy()
-            # if self.what == "count(*)":
-            #     I[...,3] = self.normalise(np.sqrt(grid))[0]
-            self.backend.update_image(I)
+            if self.backend.wants_colors():
+                color_grid = self.colorize(ngrid)
+                if len(color_grid.shape) > 3:
+                    if len(color_grid.shape) == 4:
+                            if color_grid.shape[0] > 1:
+                                color_grid = vaex.image.fade(color_grid[::-1])
+                            else:
+                                color_grid = color_grid[0]
+                    else:
+                        raise ValueError("image shape is %r, don't know what to do with that, expected (L, M, N, 3)" % (color_grid.shape,))
+                I = np.transpose(color_grid, (1,0,2)).copy()
+                # if self.what == "count(*)":
+                #     I[...,3] = self.normalise(np.sqrt(grid))[0]
+                self.backend.update_image(I)
+            else:
+                self.backend.update_image(ngrid[-1])
+            self.backend.update_vectors(self.vcount, self.vgrids, self.vcount_limits)
             return
             src = vaex.image.rgba_to_url(I)
             self.image.src = src
@@ -318,7 +353,7 @@ class PlotBase(widgets.Widget):
 
 @register_type("default")
 class Plot2dDefault(PlotBase):
-    y = traitlets.Unicode(allow_none=False)
+    y = traitlets.Unicode(allow_none=False).tag(sync=True)
     def __init__(self, **kwargs):
         super(Plot2dDefault, self).__init__(**kwargs)
 
@@ -373,12 +408,12 @@ class Plot2dDefault(PlotBase):
 
 @register_type("slice")
 class Plot2dSliced(PlotBase):
-    z = traitlets.Unicode(allow_none=False)
-    z_slice = traitlets.CInt(default_value=0)#.tag(sync=True) # TODO: do linking at python side
-    z_shape = traitlets.CInt(default_value=10)
-    z_relative = traitlets.CBool(False)
-    z_min = traitlets.CFloat(default_value=None, allow_none=True)#.tag(sync=True)
-    z_max = traitlets.CFloat(default_value=None, allow_none=True)#.tag(sync=True)
+    z = traitlets.Unicode(allow_none=False).tag(sync=True)
+    z_slice = traitlets.CInt(default_value=0).tag(sync=True)#.tag(sync=True) # TODO: do linking at python side
+    z_shape = traitlets.CInt(default_value=10).tag(sync=True)
+    z_relative = traitlets.CBool(False).tag(sync=True)
+    z_min = traitlets.CFloat(default_value=None, allow_none=True).tag(sync=True)#.tag(sync=True)
+    z_max = traitlets.CFloat(default_value=None, allow_none=True).tag(sync=True)#.tag(sync=True)
     def __init__(self, **kwargs):
         self.z_min_extreme, self.z_max_extreme = kwargs["dataset"].minmax(kwargs["z"])
         super(Plot2dSliced, self).__init__(**kwargs)
@@ -386,6 +421,7 @@ class Plot2dSliced(PlotBase):
 
     def get_limits(self, limits):
         limits = self.dataset.limits(self.get_binby(), limits)
+        limits = list([list(k) for k in limits])
         if self.z_min is None:
             self.z_min = limits[2][0]
         if self.z_max is None:
