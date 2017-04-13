@@ -26,8 +26,12 @@ backends = {}
 backends['ipyleaflet'] = ('vaex.notebook.ipyleaflet', 'IpyleafletBackend')
 backends['bqplot'] = ('vaex.notebook.bqplot', 'BqplotBackend')
 backends['ipyvolume'] = ('vaex.notebook.ipyvolume', 'IpyvolumeBackend')
+backends['matplotlib'] = ('vaex.notebook.ipympl', 'MatplotlibBackend')
+backends['ipympl'] = backends['mpl'] = backends['matplotlib']
 
 def create_backend(name):
+    if callable(name):
+        return name()
     if name not in backends:
         raise NameError("Unknown backend: %s, known ones are: %r" % (name, backends.keys()))
     module_name, class_name = backends[name]
