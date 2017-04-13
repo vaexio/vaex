@@ -4406,7 +4406,7 @@ class Dataset(object):
 			if description or header != "description":
 				parts += ["<th>%s</th>" % header]
 		parts += ["</tr></thead>"]
-		for name in self.get_column_names(virtual=True):
+		for name in self.get_column_names(virtual=True, strings=True):
 			parts += ["<tr>"]
 			parts += ["<td>%s</td>" % name]
 			virtual = name not in self.column_names
