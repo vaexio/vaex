@@ -160,6 +160,9 @@ class PlotBase(widgets.Widget):
     def select_rectangle(self, x1, y1, x2, y2, mode="replace"):
         self.dataset.select_rectangle(self.x, self.y, limits=[[x1, x2], [y1, y2]], mode=mode)
 
+    def select_lasso(self, x, y, mode="replace"):
+        self.dataset.select_lasso(self.x, self.y, x, y, mode=mode)
+
     def get_shape(self):
         return vaex.dataset._expand_shape(self.shape, len(self.get_binby()))
 
@@ -440,6 +443,9 @@ class Plot2dSliced(PlotBase):
         spaces = [self.x, self.y, self.z]
         limits = [[x1, x2], [y1, y2], [z1, z2]]
         self.dataset.select_box(spaces, limits=limits, mode=mode)
+
+    def select_lasso(self, x, y, mode="replace"):
+        raise NotImplementedError("todo")
 
     def get_grid(self):
         zslice = self.grid[...,self.z_slice]
