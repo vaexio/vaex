@@ -190,6 +190,7 @@ class PlotBase(widgets.Widget):
         with self.output:
             self._progressbar.cancel()
             self._new_progressbar()
+            current_pb = self._progressbar
             async = True
             promises = []
             pb = self._progressbar.add("grid")
@@ -225,11 +226,13 @@ class PlotBase(widgets.Widget):
             @vaex.delayed.delayed
             def assign(grid, vx, vy, vz, vcount):
                 with self.output:
-                    self.progress.value = 0
-                    self.grid = grid
-                    self.vgrids = [vx, vy, vz]
-                    self.vcount = vcount
-                    self._update_image()
+                    if not current_pb.cancelled: # TODO: remote dataset jobs cannot be cancelled
+                        self.progress.value = 0
+                        self.grid = grid
+                        self.vgrids = [vx, vy, vz]
+                        self.vcount = vcount
+                        #print("assign")
+                        self._update_image()
             if async:
                 for promise in promises:
                     if promise:
