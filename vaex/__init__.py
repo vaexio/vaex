@@ -182,7 +182,6 @@ def from_arrays(**arrays):
 	"""Create an in memory dataset from numpy arrays
 
 
-	:param: str name: name of dataset
 	:param: arrays: keyword arguments with arrays
 
 	:Example:
