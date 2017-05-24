@@ -8,7 +8,7 @@ Vaex: Interactive visualization and exploration of more than a billion objects
 What is Vaex?
 =============
 
-* Veax is a **program** and **python library** to visualize and explore large tabular datasets.
+* Vaex is a **program** and **python library** to visualize and explore large tabular datasets.
 * It mainly renders **histograms**, **density plots** and **volume rendering**  plots for visualization in the order of a **billion** (10\ :sup:`9`) objects in the order of **1 second**.
 * *Statistics* such as mean, sum, count, standard deviation etc, can all be calculated on an *N-dimensional grid*.
 * For **exploration** it support selection in 1 and 2d, but it can also analyse the columns (dimensions) to find subspaces which are richer in information than others.
