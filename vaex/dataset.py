@@ -684,9 +684,8 @@ def selection_from_dict(dataset, values):
 	else:
 		raise ValueError("unknown type: %r, in dict: %r" % (values["type"], values))
 
-# name maps to 
 
-function
+# name maps to numpy function
 # <vaex name>:<numpy name>
 function_mapping = [name.strip().split(":") if ":" in name else (name, name) for name in """
 sinc
