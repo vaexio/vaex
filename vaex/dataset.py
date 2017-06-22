@@ -2122,7 +2122,9 @@ class Dataset(object):
 		if f_org:
 			what_label = f_org + " " + what_label
 		f = hp.mollzoom if interactive else hp.mollview
-		f(fgrid, unit=what_label, rot=rotation, nest=nest ,title=title, coord=[coord_map[healpix_input], coord_map[healpix_output]], cmap=colormap, hold=True, xsize=image_size,
+		with warnings.catch_warnings():
+			warnings.simplefilter("ignore")
+			f(fgrid, unit=what_label, rot=rotation, nest=nest ,title=title, coord=[coord_map[healpix_input], coord_map[healpix_output]], cmap=colormap, hold=True, xsize=image_size,
 					min=grid_min, max=grid_max, cbar=colorbar)#, min=6-1, max=8.7-1)
 		if show:
 			plt.show()
