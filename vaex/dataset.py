@@ -5124,6 +5124,42 @@ class DatasetLocal(Dataset):
 								print("%s[%d] == %s != %s other.%s[%d] (diff = %s)" % (column_name, indices[i], values1[i], values2[i], column_name, indices[i], diff))
 		return different_values, missing, type_mismatch, meta_mismatch
 
+
+	def _join(self, key, other, key_other, column_names=None, prefix=None):
+		N = len(self)
+		N_other = len(other)
+		if column_names is None:
+			column_names = other.get_column_names()
+		key = self.evaluate(key)
+		key_other = other.evaluate(key_other)
+		index = dict(zip(key, range(N)))
+		index_other = dict(zip(key_other, range(N_other)))
+
+		from_indices = np.zeros(N, dtype=np.int64)
+		to_indices = np.zeros(N, dtype=np.int64)
+		for i in range(N):
+			to_indices[i] = index[key[i]]
+			from_indices[i] = index_other[key[i]]
+			# try:
+			# 	tmass_index = tmass_id_to_index[xmatch.data.original_ext_source_id[i]+b" "]
+			# except:
+			# 	tmass_index = tmass_id_to_index[xmatch.data.original_ext_source_id[i]]
+
+		for column_name in column_names:
+			dtype = other.dtype(column_name)
+			data = np.zeros(N)
+			if data.dtype.kind == "f":
+				data[:] = np.nan
+			else:
+				raise ValueError("types other than float not yet supported (%r)" % dtype)
+			data[to_indices] = other.evaluate(column_name)[from_indices]
+			if prefix:
+				new_name = prefix + column_name
+			else:
+				new_name = column_name
+			self.add_column(new_name, data)
+
+
 	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False):
 		"""Exports the dataset to a vaex hdf5 file
 
