@@ -77,6 +77,7 @@ class BqplotBackend(BackendBase):
         self.scale_x.observe(self._update_limits, "max")
         self.scale_y.observe(self._update_limits, "min")
         self.scale_y.observe(self._update_limits, "max")
+        self.observe(self._update_scales, "limits")
 
         self.image.observe(self._on_view_count_change, 'view_count')
         self.control_widget = widgets.VBox()
@@ -89,12 +90,20 @@ class BqplotBackend(BackendBase):
             limits = copy.deepcopy(self.limits)
             limits[0:2] = [[scale.min, scale.max] for scale in [self.scale_x, self.scale_y]]
             self.limits = limits
-            #self.update_grid()
+
+    def _update_scales(self, *args):
+        with self.scale_x.hold_trait_notifications():
+            self.scale_x.min = self.limits[0][0]
+            self.scale_x.max = self.limits[0][1]
+        with self.scale_y.hold_trait_notifications():
+            self.scale_y.min = self.limits[1][0]
+            self.scale_y.max = self.limits[1][1]
+        #self.update_grid()
 
     def create_tools(self):
         self.tools = []
         tool_actions = []
-        tool_actions_map = {u"m": self.panzoom}
+        tool_actions_map = {u"pan/zoom": self.panzoom}
         tool_actions.append(u"pan/zoom")
 
         #self.control_widget.set_title(0, "Main")
@@ -103,8 +112,8 @@ class BqplotBackend(BackendBase):
         self._main_widget_2 = widgets.HBox()
         if 1:#tool_select:
             self.brush = bqplot.interacts.BrushSelector(x_scale=self.scale_x, y_scale=self.scale_y, color="green")
-            tool_actions_map["b"] = self.brush
-            tool_actions.append("brush")
+            tool_actions_map["select"] = self.brush
+            tool_actions.append("select")
 
             self.brush.observe(self.update_brush, "selected")
             # fig.interaction = brush
@@ -121,9 +130,11 @@ class BqplotBackend(BackendBase):
             self.start_limits = copy.deepcopy(self.limits)
             def reset(*args):
                 self.limits = copy.deepcopy(self.start_limits)
-                self.scale_y.min, self.scale_y.max = self.limits[1]
-                self.scale_x.min, self.scale_x.max = self.limits[0]
-                self.update_grid()
+                with self.scale_y.hold_trait_notifications():
+                    self.scale_y.min, self.scale_y.max = self.limits[1]
+                with self.scale_x.hold_trait_notifications():
+                    self.scale_x.min, self.scale_x.max = self.limits[0]
+                self.plot.update_grid()
             self.button_reset.on_click(reset)
 
             def select_nothing(button):
@@ -140,16 +151,16 @@ class BqplotBackend(BackendBase):
                 # print "change", args
                 self.figure.interaction = tool_actions_map[self.button_action.value]
 
-            tool_actions = ["m", "b"]
+            tool_actions = ["pan/zoom", "select"]
             # tool_actions = [("m", "m"), ("b", "b")]
             self.button_action = widgets.ToggleButtons(description='', options=[(action, action) for action in tool_actions],
                                                   icons=["arrows", "pencil-square-o"])
             self.button_action.observe(change_interact, "value")
             self.tools.insert(0, self.button_action)
-            self.button_action.value = "m"#""pan/zoom"  # tool_actions[-1]
+            self.button_action.value = "pan/zoom"  # tool_actions[-1]
             if len(self.tools) == 1:
                 tools = []
-            self._main_widget_1.children += (self.button_reset,)
+            #self._main_widget_1.children += (self.button_reset,)
             self._main_widget_1.children += (self.button_action,)
             self._main_widget_1.children += (self.button_select_nothing,)
             #self._main_widget_2.children += (self.button_selection_mode,)
@@ -172,12 +183,14 @@ class BqplotBackend(BackendBase):
     @debounced(0.5, method=True)
     def update_brush(self, *args):
         with self.output:
-            self.figure.interaction = None
+            if not self.brush.brushing: # if we ended brushing, reset it
+                self.figure.interaction = None
             if self.brush.selected:
                 (x1, y1), (x2, y2) = self.brush.selected
                 mode = self.modes_names[self.modes_labels.index(self.button_selection_mode.value)]
                 self.plot.select_rectangle(x1, y1, x2, y2, mode=mode)
             else:
                 self.dataset.select_nothing()
-        self.figure.interaction = self.brush
+            if not self.brush.brushing: # but then put it back again so the rectangle is gone,
+                self.figure.interaction = self.brush
 

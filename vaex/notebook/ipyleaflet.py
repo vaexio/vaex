@@ -43,10 +43,11 @@ class IpyleafletBackend(BackendBase):
 
     @debounced(0.1, method=True)
     def update_image(self, rgb_image):
-        if self.last_image_layer:
-            self.map.remove_layer(self.last_image_layer)
-        url = vaex.image.rgba_to_url(rgb_image[::-1,::].copy())
-        image = ll.ImageOverlay(url=url, bounds=self.map.bounds)
-        #print("add ", self.limits, self.map.bounds)
-        self.last_image_layer = image
-        self.map.add_layer(image)
+        with self.output:
+            if self.last_image_layer:
+                self.map.remove_layer(self.last_image_layer)
+            url = vaex.image.rgba_to_url(rgb_image[::-1,::].copy())
+            image = ll.ImageOverlay(url=url, bounds=list(self.map.bounds))
+            #print("add ", self.limits, self.map.bounds)
+            self.map.add_layer(image)
+            self.last_image_layer = image

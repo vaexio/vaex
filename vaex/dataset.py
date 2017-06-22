@@ -688,6 +688,7 @@ def selection_from_dict(dataset, values):
 	else:
 		raise ValueError("unknown type: %r, in dict: %r" % (values["type"], values))
 
+
 # name maps to numpy function
 # <vaex name>:<numpy name>
 function_mapping = [name.strip().split(":") if ":" in name else (name, name) for name in """
@@ -713,6 +714,10 @@ expm1
 sqrt
 abs
 where
+rad2deg
+deg2rad
+minimum
+maximum
 """.strip().split()]
 expression_namespace = {}
 for name, numpy_name in function_mapping:
@@ -739,7 +744,7 @@ _doc_snippets["limits"] = """description for the min and max values for the expr
 _doc_snippets["shape"] = """shape for the array where the statistic is calculated on, if only an integer is given, it is used for all dimensions, e.g. shape=128, shape=[128, 256]"""
 _doc_snippets["percentile_limits"] = """description for the min and max values to use for the cumulative histogram, should currently only be 'minmax'"""
 _doc_snippets["percentile_shape"] = """shape for the array where the cumulative histogram is calculated on, integer type"""
-_doc_snippets["selection"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False)"""
+_doc_snippets["selection"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False), or a list of selections"""
 _doc_snippets["async"] = """Do not return the result, but a proxy for asynchronous calculations (currently only for internal use)"""
 _doc_snippets["progress"] = """A callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False"""
 _doc_snippets["expression_limits"] = _doc_snippets["expression"]
@@ -4455,7 +4460,7 @@ class Dataset(object):
 			if description or header != "description":
 				parts += ["<th>%s</th>" % header]
 		parts += ["</tr></thead>"]
-		for name in self.get_column_names(virtual=True):
+		for name in self.get_column_names(virtual=True, strings=True):
 			parts += ["<tr>"]
 			parts += ["<td>%s</td>" % name]
 			virtual = name not in self.column_names
@@ -4681,24 +4686,9 @@ class Dataset(object):
 		assert self.selection_can_undo(name=name)
 		selection_history = self.selection_histories[name]
 		index = self.selection_history_indices[name]
-		if index == 0:
-			# special case, ugly solution to select nothing
-			if self.is_local():
-				result =  SelectionExpression(self, None, None, "replace").execute(executor=executor)
-			else:
-				# for remote we don't have to do anything, the index == -1 is enough
-				# just emit the signal
-				result = vaex.promise.Promise.fulfilled(None)
-		else:
-			previous = selection_history[index-1]
-			if self.is_local():
-				result = previous.execute(executor=executor, execute_fully=True) if previous else vaex.promise.Promise.fulfilled(None)
-			else:
-				result = vaex.promise.Promise.fulfilled(None)
 		self.selection_history_indices[name] -= 1
 		self.signal_selection_changed.emit(self)
 		logger.debug("undo: selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
-		return result
 
 
 	def selection_redo(self, name="default", executor=None):
@@ -4709,14 +4699,9 @@ class Dataset(object):
 		selection_history = self.selection_histories[name]
 		index = self.selection_history_indices[name]
 		next = selection_history[index+1]
-		if self.is_local():
-			result = next.execute(executor=executor)
-		else:
-			result = vaex.promise.Promise.fulfilled(None)
 		self.selection_history_indices[name] += 1
 		self.signal_selection_changed.emit(self)
 		logger.debug("redo: selection history is %r, index is %r", selection_history, index)
-		return result
 
 	def selection_can_undo(self, name="default"):
 		"""Can selection name be undone?"""
