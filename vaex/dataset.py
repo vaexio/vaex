@@ -4493,19 +4493,18 @@ class Dataset(object):
 			parts += ["<td>%s</td>" % units]
 			if description:
 				parts += ["<td ><pre>%s</pre></td>" % self.descriptions.get(name, "")]
-			parts += ["<td><code>%s</code></td>" % self.variables[name]]
+			parts += ["<td><code>%s</code></td>" % (self.variables[name], )]
 			parts += ["</tr>"]
 		parts += "</table>"
-
 
 		return "".join(parts)+ "<h2>Data:</h2>" +self._head_and_tail()
 
 	def head(self, n=10):
-		self.cat(i1=0, i2=n)
+		self.cat(i1=0, i2=min(len(self), n))
 
 	def tail(self, n=10):
 		N = len(self)
-		self.cat(i1=N-n, i2=N)
+		self.cat(i1=max(0, N-n), i2=min(len(self), N))
 
 	def _head_and_tail(self, n=10):
 		N = len(self)
