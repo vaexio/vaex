@@ -934,6 +934,22 @@ class Dataset(object):
 		values = finish(delayed_list(has_limits(limits, mi_limits)))
 		return self._async(async, values)
 
+	def bins(self, expression, limits, shape=default_shape, edges=True):
+		vmin, vmax = limits
+		if edges:
+			bins = np.ogrid[limits[0]:limits[1]:(shape+1)*1j]
+			return bins
+		else:
+			dx = (limits[1] - limits[0])/shape
+			bins = np.ogrid[limits[0]:limits[1]-dx:(shape)*1j]
+			return bins + dx/2
+
+	def nearest_bin(self, value, limits, shape):
+		bins = self.bins('', limits=limits, edges=False, shape=shape)
+		index = np.argmin(np.abs(bins-value))
+		print(bins, value, index)
+		return index
+
 	@docsubst
 	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, edges=False, progress=None):
 		"""Count the number of non-NaN values (or all, if expression is None or "*")
