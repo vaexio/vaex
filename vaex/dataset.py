@@ -2211,7 +2211,7 @@ class Dataset(object):
 		s = finish(delayed_list(grids))
 		return self._async(async, s)
 
-	def scatter(self, x, y, xerr=None, yerr=None, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, xlabel=None, ylabel=None, errorbar_kwargs={}, **kwargs):
+	def scatter(self, x, y, xerr=None, yerr=None, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, **kwargs):
 		"""Convenience wrapper around pylab.scatter when for working with small datasets or selections
 
 		:param x: Expression for x axis
@@ -2241,6 +2241,10 @@ class Dataset(object):
 		plt.xlabel(xlabel or self.label(x))
 		plt.ylabel(ylabel or self.label(y))
 		s = plt.scatter(x_values, y_values, **kwargs)
+		if label:
+			label_values = self.evaluate(label)
+			for i, label_value in enumerate(label_values):
+				plt.annotate(label_value, (x_values[i],y_values[i]))
 		xerr_values = None
 		yerr_values = None
 		if xerr is not None:
