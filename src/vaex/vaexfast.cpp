@@ -51,14 +51,14 @@ int stride_default = 1;
 template<typename T>
 void object_to_numpy1d_nocopy(T* &ptr, PyObject* obj, long long  &count, int& stride=stride_default, int type=NPY_DOUBLE) {
 		if(obj == NULL)
-			throw std::runtime_error("cannot convert to numpy array");
+			throw Error("cannot convert to numpy array");
 		if((int)PyArray_NDIM(obj) != 1)
-			throw std::runtime_error("array is not 1d");
+			throw Error("array is not 1d");
 		long long size = PyArray_DIMS(obj)[0];
 		if((count >= 0) && (size != count))
-			throw std::runtime_error("arrays not of equal size");
+			throw Error("arrays not of equal size");
 		if(PyArray_TYPE(obj) != type)
-			throw std::runtime_error("is not of proper type");
+			throw Error("is not of proper type");
 		npy_intp* strides =  PyArray_STRIDES(obj);
 		if(stride == -1) {
 			stride = strides[0];
@@ -75,14 +75,14 @@ void object_to_numpy1d_nocopy(T* &ptr, PyObject* obj, long long  &count, int& st
 template<typename T>
 void object_to_numpy1d_nocopy_endian(T* &ptr, PyObject* obj, long long  &count, bool &native, int& stride=stride_default, int type=NPY_DOUBLE) {
 		if(obj == NULL)
-			throw std::runtime_error("cannot convert to numpy array");
+			throw Error("cannot convert to numpy array");
 		if((int)PyArray_NDIM(obj) != 1)
-			throw std::runtime_error("array is not 1d");
+			throw Error("array is not 1d");
 		long long size = PyArray_DIMS(obj)[0];
 		if((count >= 0) && (size != count))
-			throw std::runtime_error("arrays not of equal size");
+			throw Error("arrays not of equal size");
 		if(PyArray_TYPE(obj) != type)
-			throw std::runtime_error("is not of proper type");
+			throw Error("is not of proper type");
 		npy_intp* strides =  PyArray_STRIDES(obj);
 		if(stride == -1) {
 			stride = strides[0];
@@ -99,24 +99,24 @@ void object_to_numpy1d_nocopy_endian(T* &ptr, PyObject* obj, long long  &count, 
 template<typename T>
 void object_to_numpy2d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y, int type=NPY_DOUBLE) {
 		if(obj == NULL)
-			throw std::runtime_error("cannot convert to numpy array");
+			throw Error("cannot convert to numpy array");
 		if((int)PyArray_NDIM(obj) != 2)
-			throw std::runtime_error("array is not 2d");
+			throw Error("array is not 2d");
 		int size_x = PyArray_DIMS(obj)[1];
 		if((count_x >= 0) && (size_x != count_x))
-			throw std::runtime_error("arrays not of equal size");
+			throw Error("arrays not of equal size");
 		int size_y = PyArray_DIMS(obj)[0];
 		if((count_y >= 0) && (size_y != count_y))
-			throw std::runtime_error("arrays not of equal size");
+			throw Error("arrays not of equal size");
 		if(PyArray_TYPE(obj) != type)
-			throw std::runtime_error("is not of proper type");
+			throw Error("is not of proper type");
 		npy_intp* strides =  PyArray_STRIDES(obj);
 		//printf("strides: %d %d (%d %d)\n", strides[0],strides[1], size_x, size_y);
 		if(strides[1] != PyArray_ITEMSIZE(obj)) {
-			throw std::runtime_error("stride[0] is not 1");
+			throw Error("stride[0] is not 1");
 		}
 		if(strides[0] != PyArray_ITEMSIZE(obj)*size_x) {
-			throw std::runtime_error("stride[1] is not 1");
+			throw Error("stride[1] is not 1");
 		}
 
 		ptr = (T*)PyArray_DATA(obj);
@@ -127,30 +127,30 @@ void object_to_numpy2d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y
 template<typename T>
 void object_to_numpy3d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y, int &count_z, int type=NPY_DOUBLE) {
 		if(obj == NULL)
-			throw std::runtime_error("cannot convert to numpy array");
+			throw Error("cannot convert to numpy array");
 		if((int)PyArray_NDIM(obj) != 3)
-			throw std::runtime_error("array is not 3d");
+			throw Error("array is not 3d");
 		int size_x = PyArray_DIMS(obj)[2];
 		if((count_x >= 0) && (size_x != count_x))
-			throw std::runtime_error("arrays not of equal size");
+			throw Error("arrays not of equal size");
 		int size_y = PyArray_DIMS(obj)[1];
 		if((count_y >= 0) && (size_y != count_y))
-			throw std::runtime_error("arrays not of equal size");
+			throw Error("arrays not of equal size");
 		int size_z = PyArray_DIMS(obj)[0];
 		if((count_z >= 0) && (size_z != count_z))
-			throw std::runtime_error("arrays not of equal size");
+			throw Error("arrays not of equal size");
 		if(PyArray_TYPE(obj) != type)
-			throw std::runtime_error("is not of proper type");
+			throw Error("is not of proper type");
 		npy_intp* strides =  PyArray_STRIDES(obj);
 		//printf("strides: %d %d %d(%d %d %d)\n", strides[0], strides[1], strides[2], size_x, size_y, size_z);
 		if(strides[2] != PyArray_ITEMSIZE(obj)) {
-			throw std::runtime_error("stride[0] is not 1");
+			throw Error("stride[0] is not 1");
 		}
 		if(strides[1] != PyArray_ITEMSIZE(obj)*size_x) {
-			throw std::runtime_error("stride[1] is not 1");
+			throw Error("stride[1] is not 1");
 		}
 		if(strides[0] != PyArray_ITEMSIZE(obj)*size_y*size_x) {
-			throw std::runtime_error("stride[2] is not 1");
+			throw Error("stride[2] is not 1");
 		}
 
 		ptr = (T*)PyArray_DATA(obj);
@@ -164,7 +164,7 @@ void object_to_numpy3d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y
 template<typename T>
 void object_to_numpynd_nocopy__(T* &ptr, PyObject* obj, int dimensions, int *counts, int type=NPY_DOUBLE) {
 		if(obj == NULL)
-			throw std::runtime_error("cannot convert to numpy array");
+			throw Error("cannot convert to numpy array");
 		if((int)PyArray_NDIM(obj) != dimension)
 			throw Error("array is not %d dimensional, but %d", dimensions, PyArray_NDIM(obj));
 		int* sizes = PyArray_DIMS(obj);
@@ -174,17 +174,17 @@ void object_to_numpynd_nocopy__(T* &ptr, PyObject* obj, int dimensions, int *cou
 			counts[d] = sizes[d];
 		}
 		if(PyArray_TYPE(obj) != type)
-			throw std::runtime_error("is not of proper type");
+			throw Error("is not of proper type");
 		npy_intp* strides =  PyArray_STRIDES(obj);
 		//printf("strides: %d %d %d(%d %d %d)\n", strides[0], strides[1], strides[2], size_x, size_y, size_z);
 		/*if(strides[2] != PyArray_ITEMSIZE(obj)) {
-			throw std::runtime_error("stride[0] is not 1");
+			throw Error("stride[0] is not 1");
 		}
 		if(strides[1] != PyArray_ITEMSIZE(obj)*size_y) {
-			throw std::runtime_error("stride[1] is not 1");
+			throw Error("stride[1] is not 1");
 		}
 		if(strides[0] != PyArray_ITEMSIZE(obj)*size_y*size_x) {
-			throw std::runtime_error("stride[2] is not 1");
+			throw Error("stride[2] is not 1");
 		}*/
 
 		//ptr = (T*)PyArray_DATA(obj);
@@ -196,12 +196,12 @@ void object_to_numpynd_nocopy__(T* &ptr, PyObject* obj, int dimensions, int *cou
 template<typename T>
 void object_to_numpyNd_nocopy(T* &ptr, PyObject* obj, int max_dimension, int& dimension, int* sizes, long long int* strides, int type=NPY_DOUBLE) {
 		if(obj == NULL)
-			throw std::runtime_error("cannot convert to numpy array");
+			throw Error("cannot convert to numpy array");
 		//printf("dim = %i maxdim = %i %i\n", dimension, max_dimension,  (int)PyArray_NDIM(obj));
 		dimension = (int)PyArray_NDIM(obj);
 		if(dimension > max_dimension) {
 			printf("dim = %i maxdim = %i\n", dimension, max_dimension);
-			throw std::runtime_error("array dimension is bigger than allowed");
+			throw Error("array dimension is bigger than allowed");
 		}
 
 		for(int i = 0; i < dimension; i++) {
@@ -236,7 +236,7 @@ PyObject* range_check_(PyObject* self, PyObject *args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		} catch(...) {
 			PyErr_SetString(PyExc_RuntimeError, "unknown exception");
@@ -316,7 +316,7 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 			find_nan_min_max(block_ptr, length, native, min, max);
 			Py_END_ALLOW_THREADS
 			result = Py_BuildValue("dd", min, max);
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -356,7 +356,7 @@ PyObject* nansum_(PyObject* self, PyObject* args) {
 			nansum(block_ptr, length, native, sum);
 			Py_END_ALLOW_THREADS
 			result = Py_BuildValue("d", sum);
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -428,7 +428,7 @@ PyObject* sum_(PyObject* self, PyObject* args) {
 			sum(block_ptr, length, native, sum__);
 			Py_END_ALLOW_THREADS
 			result = Py_BuildValue("d", sum__);
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -567,7 +567,7 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -686,7 +686,7 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -804,7 +804,7 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -862,16 +862,16 @@ PyObject* histogramNd_(PyObject* self, PyObject* args) {
 		double *counts_ptr = NULL;
 		try {
 			if(!PyList_Check(blocklist))
-				throw std::runtime_error("blocks is not a list of blocks");
+				throw Error("blocks is not a list of blocks");
 			dimensions = PyList_Size(blocklist);
 
 			if(!PyList_Check(minimalist))
-				throw std::runtime_error("minima is not a list of blocks");
+				throw Error("minima is not a list of blocks");
 			if(PyList_Size(minimalist) != dimensions)
 				throw Error("minima is of length %ld, expected %d", PyList_Size(minimalist), dimensions);
 
 			if(!PyList_Check(maximalist))
-				throw std::runtime_error("maxima is not a list of blocks");
+				throw Error("maxima is not a list of blocks");
 			if(PyList_Size(maximalist) != dimensions)
 				throw Error("maxima is of length %ld, expected %d", PyList_Size(maximalist), dimensions);
 
@@ -902,7 +902,7 @@ PyObject* histogramNd_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -1182,12 +1182,12 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 			dimensions_grid = dimensions + 1; // one dimension higher for multiple output values
 
 			if(!PyList_Check(minimalist))
-				throw std::runtime_error("minima is not a list of blocks");
+				throw Error("minima is not a list of blocks");
 			if(PyList_Size(minimalist) != dimensions)
 				throw Error("minima is of length %ld, expected %d", PyList_Size(minimalist), dimensions);
 
 			if(!PyList_Check(maximalist))
-				throw std::runtime_error("maxima is not a list of blocks");
+				throw Error("maxima is not a list of blocks");
 			if(PyList_Size(maximalist) != dimensions)
 				throw Error("maxima is of length %ld, expected %d", PyList_Size(maximalist), dimensions);
 
@@ -1583,15 +1583,15 @@ PyObject* project_(PyObject* self, PyObject* args) {
 			//	object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
 			//}
 			if(projection_length != 8)
-				throw std::runtime_error("projection array should be of length 8");
+				throw Error("projection array should be of length 8");
 			if(offset_length != 3)
-				throw std::runtime_error("center array should be of length 3");
+				throw Error("center array should be of length 3");
 			Py_BEGIN_ALLOW_THREADS
 			project(cube_ptr, cube_length_x, cube_length_y, cube_length_z, surface_ptr, surface_length_x, surface_length_y, projection_ptr, offset_ptr);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -1644,7 +1644,7 @@ static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -1703,7 +1703,7 @@ static PyObject* soneira_peebles_(PyObject* self, PyObject *args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
@@ -1773,7 +1773,7 @@ static PyObject* shuffled_sequence_(PyObject* self, PyObject *args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
@@ -1804,7 +1804,7 @@ void resize(double* source, int size, int dimension, double* target, int new_siz
 	int target_end_index = 1;
 	// TODO: check if both are a power of two, and new_size <= size
 	if(new_size > size)
-		throw std::runtime_error("target size should be smaller than source size");
+		throw Error("target size should be smaller than source size");
 	int block_size_1d = size/new_size;
 
 	for(int i = 0; i < dimension; i++) {
@@ -1877,14 +1877,14 @@ static PyObject* resize_(PyObject* self, PyObject *args) {
 			int size1 = sizes[0];
 			for(int i = 1; i < dimension; i++) {
 				if(sizes[i] != size1)
-					throw std::runtime_error("array sizes aren't equal in all dimensions");
+					throw Error("array sizes aren't equal in all dimensions");
 			}
 			// check the array is 'normally' shaped, continuous, not transposed etc
 			int stride = 8;
 			for(int i = 0; i < dimension; i++) {
 				//printf("strides[dimension-1-i] = %i\n", strides[dimension-1-i]);
 				if(strides[dimension-1-i] != stride)
-					throw std::runtime_error("array strides don't match that of a continuous array");
+					throw Error("array strides don't match that of a continuous array");
 				stride *= size1;
 			}
 			PyObject* new_array = PyArray_SimpleNew(dimension, new_sizes, NPY_DOUBLE);
@@ -1895,7 +1895,7 @@ static PyObject* resize_(PyObject* self, PyObject *args) {
 			//Py_END_ALLOW_THREADS
 			//Py_INCREF(Py_None);
 			result = new_array;
-		} catch(std::runtime_error e) {
+		} catch(Error e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}

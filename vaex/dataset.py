@@ -208,6 +208,7 @@ class TaskMapReduce(Task):
 		self.info = info
 
 	def map(self, thread_index, i1, i2, *blocks):
+		blocks = [as_flat_float(block) for block in blocks]
 		if self.info:
 			return self._map(thread_index, i1, i2, *blocks)
 		else:
@@ -289,6 +290,13 @@ def _expand_limits(limits, dimension):
 	else:
 		return [limits,] * dimension
 
+def as_flat_float(a):
+	if a.dtype.type==np.float64 and a.strides[0] == 8:
+		return a
+	else:
+		return a.astype(np.float64, copy=False)
+
+
 class TaskStatistic(Task):
 	def __init__(self, dataset, expressions, shape, limits, masked=False, weight=None, op=OP_ADD1, selection=None, edges=False):
 		if not isinstance(expressions, (tuple, list)):
@@ -338,13 +346,7 @@ class TaskStatistic(Task):
 		info.last = i2 == len(self.dataset)
 		info.size = i2-i1
 
-		def asfloat(a):
-			if a.dtype.type==np.float64 and a.strides[0] == 8:
-				return a
-			else:
-				return a.astype(np.float64, copy=False)
-
-		blocks = [asfloat(block) for block in blocks]
+		blocks = [as_flat_float(block) for block in blocks]
 
 		this_thread_grid = self.grid[thread_index]
 		for i, selection in enumerate(self.selections):
@@ -645,6 +647,8 @@ class SelectionLasso(Selection):
 		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
 		blockx = self.dataset.evaluate(self.boolean_expression_x, i1=i1, i2=i2)
 		blocky = self.dataset.evaluate(self.boolean_expression_y, i1=i1, i2=i2)
+		blockx = as_flat_float(blockx)
+		blocky = as_flat_float(blocky)
 		vaex.vaexfast.pnpoly(x, y, blockx, blocky, current_mask, meanx, meany, radius)
 		if previous_mask is None:
 			logger.debug("setting mask")

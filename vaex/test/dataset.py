@@ -41,7 +41,10 @@ class TestDataset(unittest.TestCase):
 	def setUp(self):
 		self.dataset = dataset.DatasetArrays("dataset")
 
-		self.x = x = np.arange(10, dtype=">f8")
+
+		# x is non-c
+		# same as np.arange(10, dtype=">f8")., but with strides == 16, instead of 8
+		self.x = x = np.arange(20, dtype=">f8").reshape((-1,10)).T.copy()[:,0]
 		self.y = y = x ** 2
 		self.ints = np.arange(10, dtype="i8")
 		self.ints[0] = 2**62+1
