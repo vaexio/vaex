@@ -215,7 +215,10 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 				array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=np.int64)
 				array.attrs["dtype"] = dtype.name
 			else:
-				array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype.newbyteorder(byteorder))
+				try:
+					array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype.newbyteorder(byteorder))
+				except:
+					logging.exception("error creating dataset for %r, with type %r " % (column_name, dtype))
 			array[0] = array[0] # make sure the array really exists
 		random_index_name = None
 		column_order = list(column_names) # copy
