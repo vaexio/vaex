@@ -4360,6 +4360,28 @@ class Dataset(object):
 		self.add_virtual_column(x, "2*cos({delta}{transform})*sin({alpha}{transform}/2)/sinc({aitoff_alpha}/pi)/pi".format(**locals()))
 		self.add_virtual_column(y, "sin({delta}{transform})/sinc({aitoff_alpha}/pi)/pi".format(**locals()))
 
+	def add_virtual_columns_projection_gnomic(self, alpha, delta, alpha0=0, delta0=0, x="x", y="y", radians=False, postfix=""):
+		if not radians:
+			alpha = "pi/180.*%s" % alpha
+			delta = "pi/180.*%s" % delta
+			alpha0 = alpha0 * np.pi/180
+			delta0 = delta0 * np.pi/180
+		transform = "" if radians else "*180./pi"
+		# aliases
+		ra = alpha
+		dec = delta
+		ra_center = alpha0
+		dec_center = delta0
+		gnomic_denominator = 'sin({dec_center}) * tan({dec}) + cos({dec_center}) * cos({ra} - {ra_center})'.format(**locals())
+		denominator_name = 'gnomic_denominator' + postfix
+		xi = 'sin({ra} - {ra_center})/{denominator_name}{transform}'.format(**locals())
+		eta = '(cos({dec_center}) * tan({dec}) - sin({dec_center}) * cos({ra} - {ra_center}))/{denominator_name}{transform}'.format(**locals())
+		self.add_virtual_column(denominator_name, gnomic_denominator)
+		self.add_virtual_column(x, xi)
+		self.add_virtual_column(y, eta)
+		#return xi, eta
+
+
 	def add_virtual_columns_equatorial_to_galactic_cartesian(self, alpha, delta, distance, xname, yname, zname, radians=True, alpha_gp=np.radians(192.85948), delta_gp=np.radians(27.12825), l_omega=np.radians(32.93192)):
 		"""From http://arxiv.org/pdf/1306.2945v2.pdf"""
 		if not radians:
