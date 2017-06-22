@@ -1891,7 +1891,7 @@ class Dataset(object):
 						elif type in ["ss", "sigmasquare"]:
 							limits =  self.limits_sigma(number, square=True)
 						elif type in ["%", "percent"]:
-							limits =  self.limits_percentage(expression, number, async=True)
+							limits =  self.limits_percentage(expression, number, async=False)
 						elif type in ["%s", "%square", "percentsquare"]:
 							limits =  self.limits_percentage(expression, number, square=True, async=True)
 			elif value is None:
