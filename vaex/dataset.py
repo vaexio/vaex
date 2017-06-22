@@ -2918,7 +2918,7 @@ class Dataset(object):
 				if groups and len(groups) == 2:
 					function = groups[0]
 					arguments = groups[1].strip()
-					functions = ["mean", "sum"]
+					functions = ["mean", "sum", "std"]
 					if function in functions:
 						grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
 					elif function == "count" and arguments == "*":
@@ -3000,7 +3000,7 @@ class Dataset(object):
 		class ColumnList(object):
 			pass
 		data = ColumnList()
-		for name in self.get_column_names(virtual=True):
+		for name in self.get_column_names(virtual=True, strings=True):
 			setattr(data, name, name)
 		return data
 
@@ -3057,7 +3057,8 @@ class Dataset(object):
 		try:
 			# if an expression like pi * <some_expr> it will evaluate to a quantity instead of a unit
 			unit_or_quantity = eval(expression, expression_namespace, UnitScope(self))
-			return unit_or_quantity.unit if hasattr(unit_or_quantity, "unit") else unit_or_quantity
+			unit = unit_or_quantity.unit if hasattr(unit_or_quantity, "unit") else unit_or_quantity
+			return unit if isinstance(unit, astropy.units.Unit) else None
 		except:
 			#logger.exception("error evaluating unit expression: %s", expression)
 			# astropy doesn't add units, so we try with a quatiti
@@ -4503,7 +4504,7 @@ class Dataset(object):
 		parts = [] #"""<div>%s (length=%d)</div>""" % (self.name, len(self))]
 		parts += ["<table class='table-striped'>"]
 
-		column_names = self.get_column_names(virtual=True)
+		column_names = self.get_column_names(virtual=True, strings=True)
 		parts += ["<thead><tr>"]
 		for name in ["#"] + column_names:
 			parts += ["<th>%s</th>" % name]
