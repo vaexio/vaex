@@ -23,7 +23,7 @@ except:
 
 logger = logging.getLogger("vaex.export")
 
-def _export(dataset_input, dataset_output, random_index_column, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
+def _export(dataset_input, dataset_output, random_index_column, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
 	"""
 	:param DatasetLocal dataset: dataset to export
 	:param str path: path for file
@@ -43,6 +43,9 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 	if N == 0:
 		raise ValueError("Cannot export empty table")
 
+	if shuffle and sort:
+		raise ValueError("Cannot shuffle and sort at the same time")
+
 	if shuffle:
 		shuffle_array = dataset_output.columns[random_index_column]
 
@@ -57,11 +60,25 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 		#shuffle_array[:] = shuffle_array_full[:N]
 		shuffle_array[:] = shuffle_array_full[shuffle_array_full<N]
 		del shuffle_array_full
+		order_array = shuffle_array
 	elif shuffle:
 		# better to do this in memory
 		shuffle_array_memory = np.zeros_like(shuffle_array)
 		vaex.vaexfast.shuffled_sequence(shuffle_array_memory)
 		shuffle_array[:] = shuffle_array_memory
+
+	if sort:
+		if selection:
+			raise ValueError("sorting selections not yet supported")
+		# these indices sort the input array, but we evaluate the input in sequential order and write it out in sorted order
+		# e.g., not b[:] = a[indices]
+		# but b[indices_r] = a
+		indices = np.argsort(dataset_input.evaluate(sort))
+		indices_r = np.zeros_like(indices)
+		indices_r[indices] = np.arange(len(indices))
+		del indices
+		order_array = indices_r if ascending else indices_r[::-1]
+		#indices_target
 
 	#i1, i2 = 0, N #len(dataset)
 	#print "creating shuffled array"
@@ -102,8 +119,8 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 					values = block_scope.evaluate(column_name)
 					if values.dtype.type == np.datetime64:
 						values = values.view(np.int64)
-					if shuffle:
-						indices = shuffle_array[i1:i2]
+					if shuffle or sort:
+						indices = order_array[i1:i2]
 						to_array[indices] = values
 					else:
 						to_array[i1:i2] = values
@@ -115,7 +132,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 				to_array_disk[:] = to_array
 	return column_names
 
-def export_fits(dataset, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=True):
+def export_fits(dataset, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
 	"""
 	:param DatasetLocal dataset: dataset to export
 	:param str path: path for file
@@ -169,10 +186,10 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 	dataset_output = vaex.file.other.FitsBinTable(path, write=True)
 	_export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
 			column_names=column_names, selection=selection, shuffle=shuffle,
-			progress=progress)
+			progress=progress, sort=sort, ascending=ascending)
 	dataset_output.close_files()
 
-def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
+def export_hdf5_v1(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
 	"""
 	:param DatasetLocal dataset: dataset to export
 	:param str path: path for file
@@ -253,6 +270,96 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 	dataset_output.close_files()
 	return
 
+def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
+	"""
+	:param DatasetLocal dataset: dataset to export
+	:param str path: path for file
+	:param lis[str] column_names: list of column names to export or None for all columns
+	:param str byteorder: = for native, < for little endian and > for big endian
+	:param bool shuffle: export rows in random order
+	:param bool selection: export selection or not
+	:param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+		or a default progress bar when progress=True
+	:param: bool virtual: When True, export virtual columns
+	:return:
+	"""
+
+	if selection:
+		if selection == True: # easier to work with the name
+			selection = "default"
+	# first open file using h5py api
+	with h5py.File(path, "w") as h5file_output:
+
+		h5table_output = h5file_output.require_group("/table")
+		h5table_output.attrs["type"] = "table"
+		h5columns_output = h5file_output.require_group("/table/columns")
+		#i1, i2 = dataset.current_slice
+		N = len(dataset) if not selection else dataset.selected_length(selection)
+		if N == 0:
+			raise ValueError("Cannot export empty table")
+		logger.debug("virtual=%r", virtual)
+		logger.debug("exporting %d rows to file %s" % (N, path))
+		#column_names = column_names or (dataset.get_column_names() + (list(dataset.virtual_columns.keys()) if virtual else []))
+		column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True)
+
+		logger.debug("exporting columns(hdf5): %r" % column_names)
+		for column_name in column_names:
+			if column_name in dataset.get_column_names(strings=True):
+				column = dataset.columns[column_name]
+				shape = (N,) + column.shape[1:]
+				dtype = column.dtype
+			else:
+				dtype = np.float64().dtype
+				shape = (N,)
+			h5column_output = h5columns_output.require_group(column_name)
+			if dtype.type == np.datetime64:
+				array = h5column_output.require_dataset('data', shape=shape, dtype=np.int64)
+				array.attrs["dtype"] = dtype.name
+			else:
+				try:
+					array = h5column_output.require_dataset('data', shape=shape, dtype=dtype.newbyteorder(byteorder))
+				except:
+					logging.exception("error creating dataset for %r, with type %r " % (column_name, dtype))
+			array[0] = array[0] # make sure the array really exists
+
+			data = dataset.evalulate(column_name, 0, 1)
+			if np.ma.isMaskedArray(data):
+				print(column_name, "is masked array")
+				mask = h5column_output.require_dataset('mask', shape=shape, dtype=np.bool)
+				mask[0] = mask[0]# make sure the array really exists
+		random_index_name = None
+		column_order = list(column_names) # copy
+		if shuffle:
+			random_index_name = "random_index"
+			while random_index_name in dataset.get_column_names():
+				random_index_name += "_new"
+			shuffle_array = h5columns_output.require_dataset(random_index_name+"/data", shape=(N,), dtype=byteorder+"i8")
+			shuffle_array[0] = shuffle_array[0]
+			column_order.append(random_index_name) # last item
+		h5columns_output.attrs["column_order"] = ",".join(column_order) # keep track or the ordering of columns
+
+
+	# after this the file is closed,, and reopen it using out class
+	dataset_output = vaex.file.other.Hdf5MemoryMapped(path, write=True)
+
+	column_names = _export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
+			column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
+			progress=progress, sort=sort, ascending=ascending)
+	import getpass
+	import datetime
+	user = getpass.getuser()
+	date = str(datetime.datetime.now())
+	source = dataset.path
+	description = "file exported by vaex, by user %s, on date %s, from source %s" % (user, date, source)
+	if dataset.description:
+		description += "previous description:\n" + dataset.description
+	dataset_output.copy_metadata(dataset)
+	dataset_output.description = description
+	logger.debug("writing meta information")
+	dataset_output.write_meta()
+	dataset_output.close_files()
+	return
+
 
 if __name__ == "__main__":
 	sys.exit(main(sys.argv))
@@ -266,6 +373,7 @@ def main(argv):
 	parser.add_argument('--progress', help="show progress (default: %(default)s)", default=True, action='store_true')
 	parser.add_argument('--no-progress', dest="progress", action='store_false')
 	parser.add_argument('--shuffle', "-s", dest="shuffle", action='store_true', default=False)
+	parser.add_argument('--sort', dest="sort", default=None)
 	parser.add_argument('--virtual', dest="virtual", action='store_true', default=False, help="Also export virtual columns")
 	parser.add_argument('--fraction', "-f", dest="fraction", type=float, default=1.0, help="fraction of input dataset to export")
 

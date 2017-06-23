@@ -481,6 +481,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 		super(Hdf5MemoryMapped, self).__init__(filename, write=write)
 		self.h5file = h5py.File(self.filename, "r+" if write else "r")
 		self.h5table_root_name = None
+		self._version = 1
 		try:
 			self._load()
 		finally:
@@ -492,16 +493,18 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 		 """
 		with h5py.File(self.filename, "r+") as h5file_output:
 			h5table_root = h5file_output[self.h5table_root_name]
+			print(self.description, self.descriptions, self.units)
 			if self.description is not None:
 				h5table_root.attrs["description"] = self.description
+			h5columns = h5table_root if self._version == 1 else h5table_root['columns']
 			for column_name in self.columns.keys():
-				h5dataset = h5table_root[column_name]
+				h5dataset = h5columns[column_name]
 				for name, values in [("ucd", self.ucds), ("unit", self.units), ("description", self.descriptions)]:
 					if column_name in values:
 						value = ensure_string(values[column_name], cast=True)
 						h5dataset.attrs[name] = value
 					else:
-						if name in h5dataset.attrs:
+						if name in h5columns.attrs:
 							del h5dataset.attrs[name]
 	@classmethod
 	def create(cls, path, N, column_names, dtypes=None, write=True):
@@ -545,7 +548,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 				return False
 			if h5file is not None:
 				with h5file:
-					return ("data" in h5file) or ("columns" in h5file)
+					return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file)
 			else:
 				logger.debug("file %s has no data or columns group" % path)
 		return False
@@ -563,6 +566,10 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 		if "data" in self.h5file:
 			self._load_columns(self.h5file["/data"])
 			self.h5table_root_name = "/data"
+		if "table" in self.h5file:
+			self._version = 2
+			self._load_columns(self.h5file["/table"])
+			self.h5table_root_name = "/table"
 		# TODO: shall we rename it vaex... ?
 		# if "vaex" in self.h5file:
 		#	self.load_columns(self.h5file["/vaex"])
@@ -601,21 +608,22 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 	def _load_columns(self, h5data, first=[]):
 		#print h5data
 		# make sure x y x etc are first
+
 		finished = set()
 		if "description" in h5data.attrs:
 			self.description = ensure_string(h5data.attrs["description"])
 		# hdf5, or h5py doesn't keep the order of columns, so manually track that, also enables reordering later
-		if "column_order" in h5data.attrs:
-			column_order = ensure_string(h5data.attrs["column_order"]).split(",")
+		h5columns = h5data if self._version == 1 else h5data['columns']
+		if "column_order" in h5columns.attrs:
+			column_order = ensure_string(h5columns.attrs["column_order"]).split(",")
 		else:
 			column_order = []
-		for name in list(h5data):
+		for name in list(h5columns):
 			if name not in column_order:
 				column_order.append(name)
 		for column_name in column_order:
-			if column_name in h5data and column_name not in finished:
-				#print type(column_name)
-				column = h5data[column_name]
+			if column_name in h5columns and column_name not in finished:
+				column = h5columns[column_name]
 				if "ucd" in column.attrs:
 					self.ucds[column_name] = ensure_string(column.attrs["ucd"])
 				if "description" in column.attrs:
@@ -643,24 +651,32 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 						self.units[column_name] = astropy.units.Unit("m/s")
 					if unitname == "system.get('S.I.').base('mass')":
 						self.units[column_name] = astropy.units.Unit("kg")
-
-				if hasattr(column, "dtype"):
+				data = column if self._version == 1 else column['data']
+				if hasattr(data, "dtype"):
 					#print column, column.shape
-					offset = column.id.get_offset()
+					offset = data.id.get_offset()
 					if offset is None:
 						raise Exception("columns doesn't really exist in hdf5 file")
-					shape = column.shape
+					shape = data.shape
 					if True: #len(shape) == 1:
-						dtype = column.dtype
-						if "dtype" in column.attrs:
-							dtype = column.attrs["dtype"]
+						dtype = data.dtype
+						if "dtype" in data.attrs:
+							dtype = data.attrs["dtype"]
 						logger.debug("adding column %r with dtype %r", column_name, dtype)
-						self.addColumn(column_name, offset, len(column), dtype=dtype)
+						self.addColumn(column_name, offset, len(data), dtype=dtype)
+						if 'mask' in column:
+							mask = column['mask']
+							offset = mask.id.get_offset()
+							self.addColumn("temp_mask", offset, len(data), dtype=mask.dtype)
+							mask_array = self.columns['temp_mask']
+							del self.columns['temp_mask']
+							self.columns[column_name] = np.ma.array(self.columns[column_name], mask=mask_array)
+
 					else:
 
 						#transposed = self._length is None or shape[0] == self._length
 						transposed = shape[1] < shape[0]
-						self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1, transposed=transposed)
+						self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=data.dtype, stride=1, stride1=1, transposed=transposed)
 						#if len(shape[0]) == self._length:
 						#	self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1)
 						#self.addColumn(column_name+"_0", offset, shape[1], dtype=column.dtype)

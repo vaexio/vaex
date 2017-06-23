@@ -52,6 +52,11 @@ class TestDataset(unittest.TestCase):
 		self.ints[2] = -2**62-1
 		self.dataset.add_column("x", x)
 		self.dataset.add_column("y", y)
+		m = x.copy()
+		ma_value = 99999
+		m[-1] = ma_value
+		m = np.ma.array(m, mask=m==ma_value)
+		self.dataset.add_column("m", m)
 		self.dataset.add_column("ints", self.ints)
 		self.dataset.set_variable("t", 1.)
 		self.dataset.add_virtual_column("z", "x+t*y")
@@ -1395,6 +1400,14 @@ class TestDataset(unittest.TestCase):
 
 		path_hdf5 = tempfile.mktemp(".hdf5")
 		self.dataset_concat.export_hdf5(path_hdf5)
+
+	def test_export_sorted(self):
+		self.dataset.add_column("s", 100-self.x)
+		path_hdf5 = tempfile.mktemp(".hdf5")
+		self.dataset.export_hdf5(path_hdf5, sort="s")
+		ds2 = vaex.open(path_hdf5)
+		np.testing.assert_array_equal(self.dataset.data.x, ds2.data.x[::-1])
+
 
 
 	def test_export(self):
