@@ -921,6 +921,10 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=None), 10)
 		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=True), 5)
 
+		self.dataset.select("x >= 5")
+		np.testing.assert_array_almost_equal(self.dataset.count("m", selection=None), 9)
+		np.testing.assert_array_almost_equal(self.dataset.count("m", selection=True), 4)
+
 		# convert to float
 		self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
 		self.dataset_local.columns["x"][0] = np.nan
@@ -964,6 +968,10 @@ class TestDataset(unittest.TestCase):
 		self.dataset.select("x < 5")
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(self.x))
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(self.x[:5]))
+
+		self.dataset.select("x > 5")
+		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=None), np.nansum(self.m))
+		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=True), np.nansum(self.m[:5]))
 
 		# convert to float
 		x = self.dataset_local.columns["x"]# = self.dataset_local.columns["x"] * 1.

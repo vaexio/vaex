@@ -322,7 +322,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 					logging.exception("error creating dataset for %r, with type %r " % (column_name, dtype))
 			array[0] = array[0] # make sure the array really exists
 
-			data = dataset.evalulate(column_name, 0, 1)
+			data = dataset.evaluate(column_name, 0, 1)
 			if np.ma.isMaskedArray(data):
 				print(column_name, "is masked array")
 				mask = h5column_output.require_dataset('mask', shape=shape, dtype=np.bool)

@@ -346,15 +346,26 @@ class TaskStatistic(Task):
 		info.last = i2 == len(self.dataset)
 		info.size = i2-i1
 
+		masks = [block.mask for block in blocks if np.ma.isMaskedArray(block)]
+		blocks = [block.data if np.ma.isMaskedArray(block) else block for block in blocks]
+		mask = None
+		if masks:
+			mask = masks[0].copy()
+			for other in masks[1:]:
+				mask |= other
+			blocks = [block[~mask] for block in blocks]
+
 		blocks = [as_flat_float(block) for block in blocks]
 
 		this_thread_grid = self.grid[thread_index]
 		for i, selection in enumerate(self.selections):
 			if selection:
-				mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2)
-				if mask is None:
+				selection_mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2) # TODO
+				if selection_mask is None:
 					raise ValueError("performing operation on selection while no selection present")
-				selection_blocks = [block[mask] for block in blocks]
+				if mask is not None:
+					selection_mask = selection_mask[~mask]
+				selection_blocks = [block[selection_mask] for block in blocks]
 			else:
 				selection_blocks = [block for block in blocks]
 			little_endians = len([k for k in selection_blocks if k.dtype.byteorder in ["<", "="]])
@@ -374,7 +385,7 @@ class TaskStatistic(Task):
 			if len(selection_blocks) == 0 and subblock_weight is None:
 				if self.op == OP_ADD1: # special case for counting '*' (i.e. the number of rows)
 					if selection:
-						this_thread_grid[i][0] += np.sum(mask)
+						this_thread_grid[i][0] += np.sum(selection_mask)
 					else:
 						this_thread_grid[i][0] += i2-i1
 				else:
