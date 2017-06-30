@@ -664,7 +664,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 							dtype = data.attrs["dtype"]
 						logger.debug("adding column %r with dtype %r", column_name, dtype)
 						self.addColumn(column_name, offset, len(data), dtype=dtype)
-						if 'mask' in column:
+						if self._version > 1 and 'mask' in column:
 							mask = column['mask']
 							offset = mask.id.get_offset()
 							self.addColumn("temp_mask", offset, len(data), dtype=mask.dtype)

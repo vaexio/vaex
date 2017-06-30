@@ -5145,7 +5145,7 @@ class DatasetLocal(Dataset):
 			self.add_column(new_name, data)
 
 
-	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False):
+	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
 		"""Exports the dataset to a vaex hdf5 file
 
 		:param DatasetLocal dataset: dataset to export
@@ -5157,12 +5157,14 @@ class DatasetLocal(Dataset):
 		:param progress: progress callback that gets a progress fraction as argument and should return True to continue,
 			or a default progress bar when progress=True
 		:param: bool virtual: When True, export virtual columns
+		:param str sort: expression used for sorting the output
+		:param bool ascending: sort ascending (True) or descending
 		:return:
 		"""
 		import vaex.export
-		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual)
+		vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
-	def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=False):
+	def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
 		"""Exports the dataset to a fits file that is compatible with TOPCAT colfits format
 
 		:param DatasetLocal dataset: dataset to export
@@ -5173,10 +5175,12 @@ class DatasetLocal(Dataset):
 		:param progress: progress callback that gets a progress fraction as argument and should return True to continue,
 			or a default progress bar when progress=True
 		:param: bool virtual: When True, export virtual columns
+		:param str sort: expression used for sorting the output
+		:param bool ascending: sort ascending (True) or descending
 		:return:
 		"""
 		import vaex.export
-		vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual)
+		vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
 	def _needs_copy(self, column_name):
 		import vaex.file.other
