@@ -515,9 +515,9 @@ def main(argv):
 					progressbar.update(p)
 				return True
 			if output_ext == ".hdf5":
-				export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
+				export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort)
 			elif output_ext == ".fits":
-				export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle)
+				export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort)
 			if progressbar:
 				progressbar.finish()
 			if not args.quiet:
