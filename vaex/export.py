@@ -97,7 +97,10 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 			to_array = dataset_output.columns[column_name]
 			if shuffle or sort: # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
 				to_array_disk = to_array
-				to_array = np.zeros_like(to_array_disk)
+				if np.ma.isMaskedArray(to_array):
+					to_array = np.empty_like(to_array_disk)
+				else:
+					to_array = np.zeros_like(to_array_disk)
 			to_offset = 0 # we need this for selections
 			for i1, i2 in vaex.utils.subdivide(len(dataset_input), max_length=max_length):
 				logger.debug("from %d to %d (total length: %d, output length: %d)", i1, i2, len(dataset_input), N)
@@ -135,7 +138,11 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 				if not progress(progress_value/float(progress_total)):
 					break
 			if shuffle or sort: # write to disk in one go
-				to_array_disk[:] = to_array
+				if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(to_array_disk):
+					to_array_disk.data[:] = to_array.data
+					to_array_disk.mask[:] = to_array.mask
+				else:
+					to_array_disk[:] = to_array
 	return column_names
 
 def export_fits(dataset, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
@@ -330,7 +337,6 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 
 			data = dataset.evaluate(column_name, 0, 1)
 			if np.ma.isMaskedArray(data):
-				print(column_name, "is masked array")
 				mask = h5column_output.require_dataset('mask', shape=shape, dtype=np.bool)
 				mask[0] = mask[0]# make sure the array really exists
 		random_index_name = None

@@ -113,7 +113,7 @@ class TestDataset(unittest.TestCase):
 	def test_masked_array_output(self):
 		fn = tempfile.mktemp(".hdf5")
 		print(fn)
-		self.dataset.export_hdf5(fn)
+		self.dataset.export_hdf5(fn, sort="x")
 		output = vaex.open(fn)
 		self.assertEqual(self.dataset.sum("m"), output.sum("m"))
 
