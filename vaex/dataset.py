@@ -4231,7 +4231,7 @@ class Dataset(object):
 		self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y}".format(**locals())
 		self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y}".format(**locals())
 
-
+	@docsubst
 	def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname="x", yname="y", zname="z",
 												   cov_matrix_alpha_delta_distance=None,
 												   covariance_postfix="_covariance",
@@ -4247,7 +4247,7 @@ class Dataset(object):
 		:param xname:
 		:param yname:
 		:param zname:
-		:param cov_matrix_alpha_delta_distance:
+		:param cov_matrix_alpha_delta_distance: {cov_matrix}
 		:param covariance_postfix:
 		:param uncertainty_postfix:
 		:param center:
