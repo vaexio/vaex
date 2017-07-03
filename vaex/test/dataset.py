@@ -110,6 +110,22 @@ class TestDataset(unittest.TestCase):
 		self.assertIsNotNone(ds.unit("mass"))
 		ds.close_files()
 
+	def test_masked_array_output(self):
+		fn = tempfile.mktemp(".hdf5")
+		print(fn)
+		self.dataset.export_hdf5(fn)
+		output = vaex.open(fn)
+		self.assertEqual(self.dataset.sum("m"), output.sum("m"))
+
+		table = self.dataset.to_astropy_table()
+		fn = tempfile.mktemp(".vot")
+		print(fn)
+		from astropy.io.votable import from_table, writeto
+		votable = from_table(table)
+		writeto(votable, fn)
+		output = vaex.open(fn)
+		self.assertEqual(self.dataset.sum("m"), output.sum("m"))
+
 	def test_formats(self):
 		ds_fits = vx.open(os.path.join(basedir, "files", "gaia-small-fits-basic.fits"))
 		ds_fits_plus = vx.open(os.path.join(basedir, "files", "gaia-small-fits-plus.fits"))
@@ -921,6 +937,10 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=None), 10)
 		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=True), 5)
 
+		self.dataset.select("x >= 5")
+		np.testing.assert_array_almost_equal(self.dataset.count("m", selection=None), 9)
+		np.testing.assert_array_almost_equal(self.dataset.count("m", selection=True), 4)
+
 		# convert to float
 		self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
 		self.dataset_local.columns["x"][0] = np.nan
@@ -964,6 +984,10 @@ class TestDataset(unittest.TestCase):
 		self.dataset.select("x < 5")
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(self.x))
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(self.x[:5]))
+
+		self.dataset.select("x > 5")
+		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=None), np.nansum(self.m))
+		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=True), np.nansum(self.m[:5]))
 
 		# convert to float
 		x = self.dataset_local.columns["x"]# = self.dataset_local.columns["x"] * 1.
