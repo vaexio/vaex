@@ -73,11 +73,13 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 		# these indices sort the input array, but we evaluate the input in sequential order and write it out in sorted order
 		# e.g., not b[:] = a[indices]
 		# but b[indices_r] = a
+		logger.info("sorting...")
 		indices = np.argsort(dataset_input.evaluate(sort))
 		indices_r = np.zeros_like(indices)
 		indices_r[indices] = np.arange(len(indices))
 		del indices
 		order_array = indices_r if ascending else indices_r[::-1]
+		logger.info("sorting done")
 		#indices_target
 
 	#i1, i2 = 0, N #len(dataset)
@@ -93,7 +95,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 		if 1:
 			block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
 			to_array = dataset_output.columns[column_name]
-			if shuffle: # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
+			if shuffle or sort: # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
 				to_array_disk = to_array
 				to_array = np.zeros_like(to_array_disk)
 			to_offset = 0 # we need this for selections
@@ -128,7 +130,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 				progress_value += i2-i1
 				if not progress(progress_value/float(progress_total)):
 					break
-			if shuffle: # write to disk in one go
+			if shuffle or sort: # write to disk in one go
 				to_array_disk[:] = to_array
 	return column_names
 
