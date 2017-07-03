@@ -382,7 +382,7 @@ class FitsBinTable(DatasetMemoryMapped):
 									else:
 										for i in range(arraylength):
 											name = column_name+"_" +str(i)
-											self.addColumn(name, offset=offset+bytessize*i/arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
+											self.addColumn(name, offset=offset+bytessize*i//arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
 								if flatlength > 0: # flatlength can be
 									offset += bytessize * length
 								self._check_null(table, column_name, column, i)
