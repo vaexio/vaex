@@ -3533,7 +3533,7 @@ class Dataset(object):
 		:param index: if this column is given it is used for the index of the DataFrame
 		:return: astropy.table.Table object
 		"""
-		from astropy.table import Table, Column
+		from astropy.table import Table, Column, MaskedColumn
 		meta = dict()
 		meta["name"] = self.name
 		meta["description"] = self.description
@@ -3543,7 +3543,11 @@ class Dataset(object):
 			meta = dict()
 			if name in self.ucds:
 				meta["ucd"] = self.ucds[name]
-			table[name] = Column(data, unit=self.unit(name), description=self.descriptions.get(name), meta=meta)
+			if np.ma.isMaskedArray(data):
+				cls = MaskedColumn
+			else:
+				cls = Column
+			table[name] = cls(data, unit=self.unit(name), description=self.descriptions.get(name), meta=meta)
 		return table
 
 

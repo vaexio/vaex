@@ -123,7 +123,11 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 						indices = order_array[i1:i2]
 						to_array[indices] = values
 					else:
-						to_array[i1:i2] = values
+						if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+							to_array.data[i1:i2] = values.data
+							to_array.mask[i1:i2] = values.mask
+						else:
+							to_array[i1:i2] = values
 
 				progress_value += i2-i1
 				if not progress(progress_value/float(progress_total)):
@@ -524,4 +528,3 @@ def main(argv):
 				print("\noutput to %s" % os.path.abspath(args.output))
 			dataset.close_files()
 	return 0
-

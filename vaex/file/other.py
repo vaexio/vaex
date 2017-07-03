@@ -670,7 +670,9 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 							self.addColumn("temp_mask", offset, len(data), dtype=mask.dtype)
 							mask_array = self.columns['temp_mask']
 							del self.columns['temp_mask']
-							self.columns[column_name] = np.ma.array(self.columns[column_name], mask=mask_array)
+							self.column_names.remove('temp_mask')
+							ar = self.columns[column_name] = np.ma.array(self.columns[column_name], mask=mask_array, shrink=False)
+							assert ar.mask is mask_array, "masked array was copied"
 
 					else:
 
