@@ -5126,24 +5126,48 @@ class DatasetLocal(Dataset):
 
 
 	def _join(self, key, other, key_other, column_names=None, prefix=None):
+		"""Experimental joining of tables, (equivalent to SQL left join)
+
+
+		Example:
+		>>> x = np.arange(10)
+		>>> y = x**2
+		>>> z = x**3
+		>>> ds = vaex.from_arrays(x=x, y=y)
+		>>> ds2 = vaex.from_arrays(x=x[:4], z=z[:4])
+		>>> ds._join('x', ds2, 'x', column_names=['z'])
+
+		:param key: key for the left table (self)
+		:param other: Other dataset to join with (the right side)
+		:param key_other: key on which to join
+		:param column_names: column names to add to this dataset
+		:param prefix: add a prefix to the new column (or not when None)
+		:return:
+		"""
 		N = len(self)
 		N_other = len(other)
 		if column_names is None:
 			column_names = other.get_column_names()
+		for column_name in column_names:
+			if prefix is None and column_name in self:
+				raise ValueError("column %s already exists" % 	column_name)
 		key = self.evaluate(key)
 		key_other = other.evaluate(key_other)
 		index = dict(zip(key, range(N)))
 		index_other = dict(zip(key_other, range(N_other)))
 
-		from_indices = np.zeros(N, dtype=np.int64)
-		to_indices = np.zeros(N, dtype=np.int64)
-		for i in range(N):
-			to_indices[i] = index[key[i]]
-			from_indices[i] = index_other[key[i]]
-			# try:
-			# 	tmass_index = tmass_id_to_index[xmatch.data.original_ext_source_id[i]+b" "]
-			# except:
-			# 	tmass_index = tmass_id_to_index[xmatch.data.original_ext_source_id[i]]
+		from_indices = np.zeros(N_other, dtype=np.int64)
+		to_indices = np.zeros(N_other, dtype=np.int64)
+		for i in range(N_other):
+			if key_other[i] in index:
+				to_indices[i] = index[key_other[i]]
+				from_indices[i] = index_other[key_other[i]]
+			else:
+				to_indices[i] = -1
+				from_indices[i] = -1
+		mask = to_indices != -1
+		to_indices = to_indices[mask]
+		from_indices = from_indices[mask]
 
 		for column_name in column_names:
 			dtype = other.dtype(column_name)
@@ -5151,7 +5175,7 @@ class DatasetLocal(Dataset):
 			if data.dtype.kind == "f":
 				data[:] = np.nan
 			else:
-				raise ValueError("types other than float not yet supported (%r)" % dtype)
+				raise ValueError("types other than float not yet supported (%r for column %s)" % (dtype, column_name))
 			data[to_indices] = other.evaluate(column_name)[from_indices]
 			if prefix:
 				new_name = prefix + column_name

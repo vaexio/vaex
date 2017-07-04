@@ -270,6 +270,37 @@ class TestDataset(unittest.TestCase):
 		ds.count()
 		ds.count(binby=["x", "y"])
 
+	def test_join(self):
+		np.random.seed(42)
+		x = np.arange(10)
+		indices = np.arange(10)
+		np.random.shuffle(indices)
+		xs = x[indices]
+		y = x**2
+		z = ys = y[indices]
+		ds = vaex.from_arrays(x=x, y=y)
+		ds2 = vaex.from_arrays(x=xs, z=ys)
+		ds._join('x', ds2, 'x', column_names=['z'])
+		self.assertEqual(ds.sum('x*y'), np.sum(x*y))
+		self.assertEqual(ds.sum('x*z'), np.sum(x*y))
+		self.assertEqual(ds.sum('x*y'), np.sum(x[indices]*z))
+
+		# test with incomplete data
+		ds = vaex.from_arrays(x=x, y=y)
+		ds2 = vaex.from_arrays(x=xs[:4], z=ys[:4])
+		ds._join('x', ds2, 'x', column_names=['z'])
+		self.assertEqual(ds.sum('x*y'), np.sum(x*y))
+		self.assertEqual(ds.sum('x*z'), np.sum(x[indices][:4]*y[indices][:4]))
+		#self.assertEqual(ds.sum('x*y'), np.sum(x[indices][:4]*z[:4]))
+
+		# test with incomplete data, but other way around
+		ds = vaex.from_arrays(x=x[:4], y=y[:4])
+		ds2 = vaex.from_arrays(x=xs, z=ys)
+		ds._join('x', ds2, 'x', column_names=['z'])
+		self.assertEqual(ds.sum('x*y'), np.sum(x[:4]*y[:4]))
+		self.assertEqual(ds.sum('x*z'), np.sum(x[:4]*y[:4]))
+
+
 	def test_healpix_count(self):
 		# only test when healpy is present
 		try:
