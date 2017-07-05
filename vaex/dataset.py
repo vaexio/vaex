@@ -346,7 +346,7 @@ class TaskStatistic(Task):
 		info.last = i2 == len(self.dataset)
 		info.size = i2-i1
 
-		masks = [block.mask for block in blocks if np.ma.isMaskedArray(block)]
+		masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
 		blocks = [block.data if np.ma.isMaskedArray(block) else block for block in blocks]
 		mask = None
 		if masks:
@@ -3031,6 +3031,8 @@ class Dataset(object):
 		for column in list(self.get_column_names()):
 			dtype = self.dtype(column)
 			bytes_per_row += dtype.itemsize
+			if np.ma.isMaskedArray(self.columns[column]):
+				bytes_per_row += 1
 		return bytes_per_row * self.count(selection=selection)
 
 
@@ -3039,6 +3041,11 @@ class Dataset(object):
 			return self.columns[expression].dtype
 		else:
 			return np.zeros(1, dtype=np.float64).dtype
+
+	def is_masked(self, column):
+		if column in self.columns:
+			return np.ma.isMaskedArray(self.columns[column])
+		return False
 
 	def label(self, expression, unit=None, output_unit=None, format="latex_inline"):
 		label = expression
@@ -5171,12 +5178,17 @@ class DatasetLocal(Dataset):
 
 		for column_name in column_names:
 			dtype = other.dtype(column_name)
-			data = np.zeros(N)
-			if data.dtype.kind == "f":
+			if dtype.kind == "f":
+				data = np.zeros(N, dtype=dtype)
 				data[:] = np.nan
+				data[to_indices] = other.evaluate(column_name)[from_indices]
 			else:
-				raise ValueError("types other than float not yet supported (%r for column %s)" % (dtype, column_name))
-			data[to_indices] = other.evaluate(column_name)[from_indices]
+				data = np.ma.masked_all(N, dtype=dtype)
+				values = other.evaluate(column_name)[from_indices]
+				data[to_indices] = values
+				data.mask[to_indices] = np.ma.masked
+				if not np.ma.is_masked(data): # forget the mask if we do not need it
+					data = data.data
 			if prefix:
 				new_name = prefix + column_name
 			else:
@@ -5250,6 +5262,9 @@ class _ColumnConcatenatedLazy(object):
 		self.datasets = datasets
 		self.column_name = column_name
 		dtypes = [dataset.columns[self.column_name].dtype for dataset in datasets]
+		self.is_masked = any([np.ma.isMaskedArray(dataset.columns[self.column_name]) for dataset in datasets])
+		if self.is_masked:
+			self.fill_value = datasets[0].columns[self.column_name].fill_value
 		# np.datetime64 and find_common_type don't mix very well
 		if all([dtype.type == np.datetime64 for dtype in dtypes]):
 			self.dtype = dtypes[0]
@@ -5291,7 +5306,11 @@ class _ColumnConcatenatedLazy(object):
 		if stop <= offset + len(current_dataset):
 			return current_dataset.columns[self.column_name][start-offset:stop-offset].astype(self.dtype)
 		else:
-			copy = np.zeros(stop-start, dtype=self.dtype)
+			if self.is_masked:
+				copy = np.ma.empty(stop-start, dtype=self.dtype)
+				copy.fill_value = self.fill_value
+			else:
+				copy = np.zeros(stop-start, dtype=self.dtype)
 			copy_offset = 0
 			#print "!!>", start, stop, offset, len(current_dataset), current_dataset.columns[self.column_name]
 			while offset < stop: #> offset + len(current_dataset):
@@ -5335,6 +5354,11 @@ class DatasetConcatenated(DatasetLocal):
 		self._full_length = sum(ds.full_length() for ds in self.datasets)
 		self._length = self.full_length()
 		self._index_end = self._full_length
+
+	def is_masked(self, column):
+		if column in self.columns:
+			return self.columns[column].is_masked
+		return False
 
 def _is_dtype_ok(dtype):
 	return dtype.type in [np.bool_, np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.float64] or\

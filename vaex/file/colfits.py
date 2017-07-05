@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger("vaex.file.colfits")
 
-def empty(filename, length, column_names, data_types, data_shapes, ucds, units):
+def empty(filename, length, column_names, data_types, data_shapes, ucds, units, null_values={}):
 	with open(filename, "wb") as f:
 		logger.debug("preparing empty fits file: %s", filename)
 		class Scope(object):
@@ -77,6 +77,8 @@ def empty(filename, length, column_names, data_types, data_shapes, ucds, units):
 			unit = units[i-1]
 			if unit:
 				write("TUNIT%d" % i, repr(str(unit)))
+			if column_name in null_values:
+				write("TNULL%d" % i, str(null_values[column_name]))
 
 		finish_header()
 

@@ -66,6 +66,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 		shuffle_array_memory = np.zeros_like(shuffle_array)
 		vaex.vaexfast.shuffled_sequence(shuffle_array_memory)
 		shuffle_array[:] = shuffle_array_memory
+		order_array = shuffle_array
 
 	if sort:
 		if selection:
@@ -116,21 +117,41 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 					selection_block_length = np.sum(mask)#np.sum(dataset_input.mask[i1:i2])
 					if selection_block_length:
 						values = block_scope.evaluate(column_name)
+						fill_value = np.nan if values.dtype.kind == "f" else None
+						#assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
+						#			 (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)
 						if values.dtype.type == np.datetime64:
 							values = values.view(np.int64)
-						to_array[to_offset:to_offset+selection_block_length] = values[mask]
+						if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+							to_array.data[to_offset:to_offset+selection_block_length] = values.filled(fill_value)[mask]
+							to_array.mask[to_offset:to_offset+selection_block_length] = values.mask[mask]
+						elif not np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+							to_array[to_offset:to_offset+selection_block_length] = values[mask].filled(fill_value)
+						else:
+							to_array[to_offset:to_offset+selection_block_length] = values[mask]
 						to_offset += selection_block_length
 				else:
 					values = block_scope.evaluate(column_name)
+					fill_value = np.nan if values.dtype.kind == "f" else None
+					#assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
+					#			 (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)
 					if values.dtype.type == np.datetime64:
 						values = values.view(np.int64)
 					if shuffle or sort:
 						indices = order_array[i1:i2]
-						to_array[indices] = values
+						if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+							to_array.data[indices] = values.filled(fill_value)
+							to_array.mask[indices] = values.mask
+						elif not np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+							to_array[indices] = values.filled(fill_value)
+						else:
+							to_array[indices] = values
 					else:
 						if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-							to_array.data[i1:i2] = values.data
+							to_array.data[i1:i2] = values.filled(fill_value)
 							to_array.mask[i1:i2] = values.mask
+						elif np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+							to_array[i1:i2] = values.filled(fill_value)
 						else:
 							to_array[i1:i2] = values
 
@@ -191,7 +212,9 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
 	else:
 		random_index_name = None
 
-	vaex.file.colfits.empty(path, N, column_names, data_types, data_shapes, ucds, units)
+	# TODO: all expressions can have missing values.. how to support that?
+	null_values = {key:dataset.columns[key].fill_value for key in dataset.get_column_names() if dataset.is_masked(key) and dataset.dtype(key).kind != "f"}
+	vaex.file.colfits.empty(path, N, column_names, data_types, data_shapes, ucds, units, null_values=null_values)
 	if shuffle:
 		del column_names[-1]
 		del data_types[-1]

@@ -493,7 +493,6 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 		 """
 		with h5py.File(self.filename, "r+") as h5file_output:
 			h5table_root = h5file_output[self.h5table_root_name]
-			print(self.description, self.descriptions, self.units)
 			if self.description is not None:
 				h5table_root.attrs["description"] = self.description
 			h5columns = h5table_root if self._version == 1 else h5table_root['columns']

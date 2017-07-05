@@ -53,10 +53,12 @@ class TestDataset(unittest.TestCase):
 		self.dataset.add_column("x", x)
 		self.dataset.add_column("y", y)
 		m = x.copy()
-		ma_value = 99999
+		ma_value = 77777
 		m[-1] = ma_value
-		m = np.ma.array(m, mask=m==ma_value)
+		self.m = m = np.ma.array(m, mask=m==ma_value)
+		self.mi = mi = np.ma.array(m.data.astype(np.int64), mask=m.data==ma_value, fill_value=88888)
 		self.dataset.add_column("m", m)
+		self.dataset.add_column("mi", mi)
 		self.dataset.add_column("ints", self.ints)
 		self.dataset.set_variable("t", 1.)
 		self.dataset.add_virtual_column("z", "x+t*y")
@@ -216,14 +218,15 @@ class TestDataset(unittest.TestCase):
 	def test_csv(self):
 		separator = ","
 		fn = tempfile.mktemp(".csv")
+		#print(fn)
 		with open(fn, "w") as f:
-			print(separator.join(["x", "y", "name", "ints", "f"]), file=f)
-			for x, y, name, i, f_ in zip(self.x, self.y, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
-				print(separator.join(map(str, [x, y, name.decode("utf8"), i, f_])), file=f)
+			print(separator.join(["x", "y", "m", "mi",  "name", "ints", "f"]), file=f)
+			for x, y, m, mi, name, i, f_ in zip(self.x, self.y, self.dataset.data.m, self.dataset.data.mi, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
+				print(separator.join(map(str, [x, y, m, mi, name.decode("utf8"), i, f_])), file=f)
 		ds = vx.from_csv(fn, index_col=False)
 		changes = self.dataset.compare(ds, report_difference=True)
 		diff = changes[0]
-		print(diff)
+		#print(diff)
 		self.assertEqual(changes[0], [], "changes in dataset")
 		self.assertEqual(changes[1], ['index'], "mssing columns")
 
@@ -272,33 +275,41 @@ class TestDataset(unittest.TestCase):
 
 	def test_join(self):
 		np.random.seed(42)
-		x = np.arange(10)
+		x = np.arange(10, dtype=np.float64)
 		indices = np.arange(10)
+		i = x.astype(np.int64)
 		np.random.shuffle(indices)
 		xs = x[indices]
 		y = x**2
 		z = ys = y[indices]
+		names = np.array(list(map(lambda x: str(x) + "bla", self.x)), dtype='S')[indices]
 		ds = vaex.from_arrays(x=x, y=y)
-		ds2 = vaex.from_arrays(x=xs, z=ys)
-		ds._join('x', ds2, 'x', column_names=['z'])
+		ds2 = vaex.from_arrays(x=xs, z=ys, i=i, names=names)
+		ds._join('x', ds2, 'x', column_names=['z', 'i', 'names'])
 		self.assertEqual(ds.sum('x*y'), np.sum(x*y))
 		self.assertEqual(ds.sum('x*z'), np.sum(x*y))
 		self.assertEqual(ds.sum('x*y'), np.sum(x[indices]*z))
+		self.assertEqual(ds.sum('x*y'), np.sum(x[indices]*z))
+		self.assertFalse(np.ma.isMaskedArray(ds.data.i))
+		self.assertFalse(np.ma.isMaskedArray(ds.data.names))
 
 		# test with incomplete data
 		ds = vaex.from_arrays(x=x, y=y)
-		ds2 = vaex.from_arrays(x=xs[:4], z=ys[:4])
-		ds._join('x', ds2, 'x', column_names=['z'])
+		ds2 = vaex.from_arrays(x=xs[:4], z=ys[:4], i=i[:4], names=names[:4])
+		ds._join('x', ds2, 'x', column_names=['z', 'i', 'names'])
 		self.assertEqual(ds.sum('x*y'), np.sum(x*y))
 		self.assertEqual(ds.sum('x*z'), np.sum(x[indices][:4]*y[indices][:4]))
-		#self.assertEqual(ds.sum('x*y'), np.sum(x[indices][:4]*z[:4]))
+		self.assertTrue(np.ma.isMaskedArray(ds.data.i))
+		self.assertTrue(np.ma.isMaskedArray(ds.data.names))
 
 		# test with incomplete data, but other way around
 		ds = vaex.from_arrays(x=x[:4], y=y[:4])
-		ds2 = vaex.from_arrays(x=xs, z=ys)
-		ds._join('x', ds2, 'x', column_names=['z'])
+		ds2 = vaex.from_arrays(x=xs, z=ys, i=i, names=names)
+		ds._join('x', ds2, 'x', column_names=['z', 'i', 'names'])
 		self.assertEqual(ds.sum('x*y'), np.sum(x[:4]*y[:4]))
 		self.assertEqual(ds.sum('x*z'), np.sum(x[:4]*y[:4]))
+		self.assertFalse(np.ma.isMaskedArray(ds.data.i))
+		self.assertFalse(np.ma.isMaskedArray(ds.data.names))
 
 
 	def test_healpix_count(self):
@@ -561,9 +572,9 @@ class TestDataset(unittest.TestCase):
 
 	def test_strings(self):
 		# TODO: concatenated datasets with strings of different length
-		self.assertEqual(["x", "y", "ints", "f"], self.dataset.get_column_names())
+		self.assertEqual(["x", "y", "m", "mi", "ints", "f"], self.dataset.get_column_names())
 
-		names = ["x", "y", "ints", "f", "name"]
+		names = ["x", "y", "m", "mi", "ints", "f", "name"]
 		self.assertEqual(names, self.dataset.get_column_names(strings=True))
 
 		if self.dataset.is_local():
@@ -607,9 +618,9 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(self.dataset.dtype("x*f"), np.float64)
 
 	def test_byte_size(self):
-		self.assertEqual(self.dataset.byte_size(), 8*4*len(self.dataset))
+		self.assertEqual(self.dataset.byte_size(), (8*6+2)*len(self.dataset))
 		self.dataset.select("x < 1")
-		self.assertEqual(self.dataset.byte_size(selection=True), 8*4)
+		self.assertEqual(self.dataset.byte_size(selection=True), 8*6+2)
 
 	def test_ucd_find(self):
 		self.dataset.ucds["x"] = "a;b;c"
@@ -1018,8 +1029,9 @@ class TestDataset(unittest.TestCase):
 
 		self.dataset.select("x > 5")
 		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=None), np.nansum(self.m))
-		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=True), np.nansum(self.m[:5]))
+		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=True), np.nansum(self.m[6:9]))
 
+		self.dataset.select("x < 5")
 		# convert to float
 		x = self.dataset_local.columns["x"]# = self.dataset_local.columns["x"] * 1.
 		y = self.y
@@ -1513,22 +1525,34 @@ class TestDataset(unittest.TestCase):
 													os.remove(path_fits_astropy)
 										compare = vx.open(path)
 										if column_names is None:
-											column_names = ["x", "y", "ints", "f", "z", "name"] if virtual else ["x", "y", "ints", "f", "name"]
+											column_names = ["x", "y", "m", "mi", "ints", "f", "z", "name"] if virtual else ["x", "y", "m", "mi", "ints", "f", "name"]
 										#if not virtual:
 										#	if "z" in column_names:
 										#		column_names.remove("z")
 										# TODO: does the order matter?
 										self.assertEqual((compare.get_column_names(strings=True)), (column_names + (["random_index"] if shuffle else [])))
+										def make_masked(ar):
+											if export == dataset.export_fits: # for fits the missing values will be filled in with nan
+												if ar.dtype.kind == "f":
+													nanmask = np.isnan(ar)
+													if np.any(nanmask):
+														ar = np.ma.array(ar, mask=nanmask)
+											return ar
+
 										for column_name in column_names:
 											values = dataset.columns[column_name] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
 											if selection:
-												mask = dataset.evaluate_selection_mask(selection, 0, len(dataset))
+												mask = dataset.evaluate_selection_mask(selection)#, 0, len(dataset))
 												# for concatenated columns, we get a plain numpy array copy using [::]
-												self.assertEqual(sorted(compare.columns[column_name]), sorted(values[::][mask]))
+												a = np.ma.compressed(make_masked(compare.columns[column_name]))
+												b = np.ma.compressed(make_masked(values[::][mask]))
+												self.assertEqual(sorted(a), sorted(b))
 											else:
 												if shuffle:
 													indices = compare.columns["random_index"]
-													self.assertEqual(sorted(compare.columns[column_name]), sorted(values[::][indices]))
+													a = np.ma.compressed(make_masked(compare.columns[column_name]))
+													b = np.ma.compressed(make_masked(values[::][indices]))
+													self.assertEqual(sorted(a), sorted(b))
 												else:
 													dtype = compare.columns[column_name].dtype # we don't want any casting
 													np.testing.assert_array_equal(compare.columns[column_name], values[:length].astype(dtype))
