@@ -390,7 +390,7 @@ dataset.plot("Lz", "E", f="log1p", show=True)
       From the IPython/Jupter notebook, run
 <pre><code class="python">import vaex as vx
 dataset = vx.datasets.nyctaxi_yellow_201x.fetch() # get a cup of coffee while this downloads
-dataset.plot_bq("pickup_longitude","pickup_latitude", f="log1p")
+dataset.plot_widget("pickup_longitude","pickup_latitude", f="log1p")
 </code></pre>
 The plot is interactive, meaning you can zoom in and out and the plot will be updated.
 You will need about, ~15BG or free memory for a proper performance, or replace <code>nyc_taxi</code> by <code>nyc_taxi_2015</code> for a subset.
