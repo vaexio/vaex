@@ -174,7 +174,7 @@
       <!-- Three columns of text below the carousel -->
       <div class="row">
         <div class="col-sm-4">
-          <a href="nyc_taxi_full.png" data-toggle="lightbox" data-title="New York City Taxi pickup locations" data-footer=""  data-gallery="gallery-1" data-parent="" >
+          <a href="image/nyc_taxi_full.png" data-toggle="lightbox" data-title="New York City Taxi pickup locations" data-footer=""  data-gallery="gallery-1" data-parent="" >
             <img class="img-circle" src="image/nyc_taxi_square.png" alt="Generic placeholder image" width="140" height="140">
           </a>
           <h2>Why use vaex</h2>
@@ -184,7 +184,7 @@
           <p><a class="btn btn-default page-scroll" href="#fast" role="button">Read more &raquo;</a></p>
         </div><!-- /.col-lg-4 -->
         <div class="col-sm-4">
-          <a href="linked_views.png" data-toggle="lightbox" data-title="Helmi and de Zeeuw 2000" data-footer="Selection made on the right, also visible in the left"  data-gallery="gallery-1" data-parent="" >
+          <a href="image/linked_views.png" data-toggle="lightbox" data-title="Helmi and de Zeeuw 2000" data-footer="Selection made on the right, also visible in the left"  data-gallery="gallery-1" data-parent="" >
             <img class="img-circle" src="image/linked_views.png" alt="Generic placeholder image" width="140" height="140">
           </a>
           <h2>How does it work</h2>
@@ -192,7 +192,7 @@
           <p><a class="btn btn-default page-scroll" href="#explore" role="button">Read more &raquo;</a></p>
         </div><!-- /.col-lg-4 -->
         <div class="col-sm-4">
-          <a href="notebook.png" data-toggle="lightbox" data-title="New York City Taxi pickup locations" data-footer=""  data-gallery="gallery-2" data-parent="" >
+          <a href="image/notebook.png" data-toggle="lightbox" data-title="Vaex in the Jupyter notebook" data-footer=""  data-gallery="gallery-1" data-parent="" >
             <img class="img-circle" src="image/notebook.png" alt="Generic placeholder image" width="140" height="140">
           </a>
           <h2>What is vaex</h2>
@@ -225,7 +225,7 @@
             </p>
         </div>
         <div class="col-md-4">
-          <a href="nyc_taxi_full.png" data-toggle="lightbox" data-title="New York City Taxi pickup locations" data-footer=""  data-gallery="gallery-2" data-parent="" >
+          <a href="image/nyc_taxi_full.png" data-toggle="lightbox" data-title="New York City Taxi pickup locations" data-footer=""  data-gallery="gallery-2" data-parent="" >
           <img class="featurette-image img-responsive center-block" src="image/nyc_taxi_square.png" alt="Generic placeholder image">
           </a>
         </div>
@@ -250,7 +250,7 @@
           </p>-->
         </div>
         <div class="col-md-5 col-md-pull-7">
-          <a href="linked_views.png" data-toggle="lightbox" data-title="Helmi and de Zeeuw 2000" data-footer="Selection made on the right, also visible in the left"  data-gallery="global-gallery-2" data-parent="" >
+          <a href="image/linked_views.png" data-toggle="lightbox" data-title="Helmi and de Zeeuw 2000" data-footer="Selection made on the right, also visible in the left"  data-gallery="global-gallery-2" data-parent="" >
             <img class="featurette-image img-responsive center-block" src="image/linked_views.png" alt="Generic placeholder image">
           </a>
         </div>
@@ -375,7 +375,7 @@ dataset.plot("Lz", "E", f="log1p", show=True)
 <a href="#" data-target="#myCarousel-code" data-slide-to="1">See next example, with a larger dataset</a>
               </div>
               <div class="col-md-4">
-                <a href="Lz-E.png" data-toggle="lightbox" data-title="New York City Taxi pickup locations" data-footer=""  data-gallery="gallery-2" data-parent="" >
+                <a href="image/Lz-E.png" data-toggle="lightbox" data-title="Energy vs angular momented" data-footer=""  data-gallery="gallery-2" data-parent="" >
                 <img class="featurette-image img-responsive center-block" src="image/Lz-E.png" alt="Generic placeholder image">
                 </a>
               </div>
@@ -396,7 +396,7 @@ The plot is interactive, meaning you can zoom in and out and the plot will be up
 You will need about, ~15BG or free memory for a proper performance, or replace <code>nyc_taxi</code> by <code>nyc_taxi_2015</code> for a subset.
               </div>
               <div class="col-md-4">
-                <a href="nyc_taxi_full.png" data-toggle="lightbox" data-title="New York City Taxi pickup locations" data-footer=""  data-gallery="gallery-2" data-parent="" >
+                <a href="image/nyc_taxi_full.png" data-toggle="lightbox" data-title="New York City Taxi pickup locations" data-footer=""  data-gallery="gallery-2" data-parent="" >
                 <img class="featurette-image img-responsive center-block" src="image/nyc_taxi_square.png" alt="Generic placeholder image">
                 </a>
               </div>
