@@ -7,6 +7,10 @@ import os
 import vaex.utils
 data_dir = vaex.utils.get_private_dir("data")
 
+try:
+    from urllib import urlretrieve # py2
+except ImportError:
+    from urllib.request import urlretrieve # py3
 
 def _url_to_filename(url, replace_ext=None, subdir=None):
 	if subdir:
@@ -32,6 +36,12 @@ class Hdf5Download(object):
 		if not os.path.exists(self.filename) or force:
 			print("Downloading %s to %s" % (self.url, self.filename))
 			code = os.system(self.wget_command(0))
+			if not os.path.exists(self.filename):
+				print("wget failed, using urlretrieve")
+				self.download_urlretrieve()
+
+	def download_urlretrieve(self, ):
+		urlretrieve(self.url, self.filename)
 
 	def fetch(self, force_download=False):
 		self.download(force=force_download)
@@ -40,7 +50,7 @@ class Hdf5Download(object):
 	def wget_command(self, i):
 		assert i == 0
 		url = self.url_list[i]
-		return "wget --progress=bar:force -c -P %s %s" % (data_dir, url)
+		return "wget --progress=bar:force -c -P %s %s" % (data_dir, url+"w")
 
 
 
@@ -78,7 +88,10 @@ class NYCTaxi(object):
 
 	def wget_command(self, i):
 		url = self.url_list[i]
-		return "wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url)
+		return "wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url+"w")
+
+	def download_urlretrieve(self, ):
+		urlretrieve(self.url_list[i], self.filenames[i])
 
 	def download(self, force=False):
 		for i, url in enumerate(self.url_list):
@@ -86,8 +99,11 @@ class NYCTaxi(object):
 				print("Downloading %s (%d out of %d)" % (url, i+1, len(self.url_list)))
 				#code = os.system("wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url))
 				code = os.system(self.wget_command(i))
-				if code != 0:
-					raise RuntimeError("wget finished with an error")
+				if not os.path.exists(self.filenames[i]):
+					print("wget failed, try urlretrieve")
+					self.download_urlretrieve(i)
+					if not os.path.exists(self.filenames[i]):
+						raise RuntimeError("could not download file: " + self.filenames[i])
 
 	def fix(self):
 		pass
