@@ -1540,9 +1540,12 @@ class TestDataset(unittest.TestCase):
 											return ar
 
 										for column_name in column_names:
-											values = dataset.columns[column_name] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
+											values = dataset.columns[column_name][dataset._index_start:dataset._index_end] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
 											if selection:
 												mask = dataset.evaluate_selection_mask(selection)#, 0, len(dataset))
+												if len(values[::]) != len(mask):
+													import pdb
+													pdb.set_trace()
 												# for concatenated columns, we get a plain numpy array copy using [::]
 												a = np.ma.compressed(make_masked(compare.columns[column_name]))
 												b = np.ma.compressed(make_masked(values[::][mask]))
@@ -1965,6 +1968,16 @@ class TestDatasetRemote(TestDataset):
 
 	def test_rename_column(self):
 		pass # TODO: we cannot do that now
+
+	def test_masked_array_output(self):
+		pass # cannot test exporting
+
+	def test_export_sorted(self):
+		pass # cannot test exporting
+
+	def test_formats(self):
+		pass # cannot test exporting
+
 	#def test_selection(self):
 	#	pass
 
