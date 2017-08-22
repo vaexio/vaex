@@ -4335,7 +4335,7 @@ class Dataset(object):
 					else:
 						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
 
-	def add_virtual_columns_cartesian_to_spherical(self, x="x", y="y", z="z", alpha="l", delta="b", distance="distance", radians=False, center=None, center_name="solar_position"):
+	def add_virtual_columns_cartesian_to_spherical(self, x="x", y="y", z="z", alpha="ra", delta="dec", distance="distance", radians=False, center=None, center_name="solar_position"):
 		"""Convert cartesian to spherical coordinates.
 
 
@@ -4364,7 +4364,7 @@ class Dataset(object):
 		self.add_virtual_column(distance, "sqrt({x}**2 + {y}**2 + {z}**2)".format(**locals()))
 		#self.add_virtual_column(alpha, "((arctan2({y}, {x}) + 2*pi) % (2*pi)){transform}".format(**locals()))
 		self.add_virtual_column(alpha, "arctan2({y}, {x}){transform}".format(**locals()))
-		self.add_virtual_column(delta, "(-arccos({z}/{distance})+pi/2){transform}".format(**locals()))
+		self.add_virtual_column(delta, "(-arccos({z}/{distance})-pi/2){transform}".format(**locals()))
 	#self.add_virtual_column(long_out, "((arctan2({y}, {x})+2*pi) % (2*pi)){transform}".format(**locals()))
 	#self.add_virtual_column(lat_out, "(-arccos({z}/sqrt({x}**2+{y}**2+{z}**2))+pi/2){transform}".format(**locals()))
 
