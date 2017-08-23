@@ -4335,11 +4335,8 @@ class Dataset(object):
 					else:
 						self.add_virtual_column(names[i]+uncertainty_postfix, "sqrt(%s)" % sigma)
 
-	def add_virtual_columns_cartesian_to_spherical(self, x="x", y="y", z="z", alpha="ra", delta="dec", distance="distance", radians=False, center=None, center_name="solar_position"):
-		"""Convert cartesian to spherical coordinates.
-
-
-
+	def add_virtual_columns_cartesian_to_spherical(self, x="x", y="y", z="z", alpha="l", delta="b", distance="distance", radians=False, center=None, center_name="solar_position"):
+		"""Convert cartesian to spherical (galactic) coordinates.
 		:param x:
 		:param y:
 		:param z:
