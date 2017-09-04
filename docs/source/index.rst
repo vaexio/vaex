@@ -87,9 +87,9 @@ Contents:
    installing
    documentation
    datasets
+   gaia
    gallery
    credits
-	
 
 
 
