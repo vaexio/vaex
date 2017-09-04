@@ -14,7 +14,7 @@ The vaex program (with this you cannot do any Python programming) is available f
 See the next section how to get it. For using vaex as a library, install vaex using pip or conda.
 
  * **Standalone version**: download ( `osx <//vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-osx.zip>`_ | `linux <//vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-linux.tar.gz>`_ )
- * **Python package**: ``pip install --pre vaex`` (no root? use ``pip install --pre --user vaex``)
+ * **Python package**: ``pip install --pre --user vaex`` (for system-wide install, use ``pip install --pre vaex``)
  * **Anaconda users**: ``conda install -c conda-forge vaex``
 
 
