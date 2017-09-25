@@ -311,7 +311,7 @@ import numpy as np
 import math
 import sys
 
-valid_binary_operators = [_ast.Add, _ast.Sub, _ast.Mult, _ast.Pow, _ast.Div, _ast.BitAnd, _ast.BitOr, _ast.BitXor, _ast.Mod]
+valid_binary_operators = [_ast.Add, _ast.Sub, _ast.Mult, _ast.Pow, _ast.Div, _ast.FloorDiv, _ast.BitAnd, _ast.BitOr, _ast.BitXor, _ast.Mod]
 valid_compare_operators = [_ast.Lt, _ast.LtE, _ast.Gt, _ast.GtE, _ast.Eq, _ast.NotEq]
 valid_unary_operators = [_ast.USub, _ast.UAdd]
 valid_id_characters = string.ascii_letters + string.digits + "_"
@@ -325,10 +325,14 @@ def math_parse(expression, macros=[]):
 	expr = node.body[0]
 	if not isinstance(expr, _ast.Expr):
 		raise ValueError("expected an expression got a %r" % type(node.body))
+
 	validate_expression(expr.value)
 	return MathExpression(expression, macros)
 import six
-def validate_expression(expr, variable_set, function_set):
+last_func = None
+def validate_expression(expr, variable_set, function_set=[], names=None):
+	global last_func
+	names = names if names is not None else []
 	if isinstance(expr, six.string_types):
 		node = ast.parse(expr)
 		if len(node.body) != 1:
@@ -336,39 +340,50 @@ def validate_expression(expr, variable_set, function_set):
 		first_expr = node.body[0]
 		if not isinstance(first_expr, _ast.Expr):
 			raise ValueError("expected an expression got a %r" % type(node.body))
-		validate_expression(first_expr.value, variable_set, function_set)
+		validate_expression(first_expr.value, variable_set, function_set, names)
 	elif isinstance(expr, _ast.BinOp):
 		if expr.op.__class__ in valid_binary_operators:
-			validate_expression(expr.right, variable_set, function_set)
-			validate_expression(expr.left, variable_set, function_set)
+			validate_expression(expr.right, variable_set, function_set, names)
+			validate_expression(expr.left, variable_set, function_set, names)
 		else:
 			raise ValueError("Binary operator not allowed: %r" % expr.op)
 	elif isinstance(expr, _ast.UnaryOp):
 		if expr.op.__class__ in valid_unary_operators:
-			validate_expression(expr.operand, variable_set, function_set)
+			validate_expression(expr.operand, variable_set, function_set, names)
 		else:
 			raise ValueError("Unary operator not allowed: %r" % expr.op)
 	elif isinstance(expr, _ast.Name):
 		validate_id(expr.id)
 		if expr.id not in variable_set:
-			raise NameError("variable %r is not defined (available are: %s]" % (expr.id, ", ".join(list(variable_set))))
+			raise NameError("variable %r is not defined (available are: %s)" % (expr.id, ", ".join(list(variable_set))))
+		names.append(expr.id)
 	elif isinstance(expr, _ast.Num):
 		pass # numbers are fine
 	elif isinstance(expr, _ast.Call):
 		validate_func(expr.func, function_set)
+		last_func = expr
+		for arg in expr.args:
+			validate_expression(arg, variable_set, function_set, names)
+		for arg in expr.keywords:
+			validate_expression(arg, variable_set, function_set, names)
 	elif isinstance(expr, _ast.Compare):
-		validate_expression(expr.left, variable_set, function_set)
+		validate_expression(expr.left, variable_set, function_set, names)
 		for op in expr.ops:
 			if op.__class__ not in valid_compare_operators:
 				raise ValueError("Compare operator not allowed: %r" % op)
 		for comparator in expr.comparators:
-			validate_expression(comparator, variable_set, function_set)
-		#if expr.op.__class__ in valid_binary_operators:
-		#import pdb
-		#pdb.set_trace()
+			validate_expression(comparator, variable_set, function_set, names)
+	elif isinstance(expr, _ast.keyword):
+		validate_expression(expr.value, variable_set, function_set, names)
+	elif isinstance(expr, _ast.Subscript):
+		validate_expression(expr.value, variable_set, function_set, names)
+		if isinstance(expr.slice.value, _ast.Num):
+			pass # numbers are fine
+		else:
+			raise ValueError("Only subscript/slices with numbers allowed, not: %r" % expr.slice.value)
 	else:
+		last_func = expr
 		raise ValueError("Unknown expression type: %r" % type(expr))
-
 
 def validate_func(name, function_set):
 	if name.id not in function_set:
