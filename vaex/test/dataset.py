@@ -1748,6 +1748,27 @@ class TestDataset(unittest.TestCase):
 
 		pass # TODO
 
+	def test_dropna(self):
+		ds = self.dataset
+		ds.dropna(column_names=['m'])
+		self.assertEqual(ds.count(selection=True), 9)
+		ds.dropna(drop_masked=False, column_names=['m'])
+		self.assertEqual(ds.count(selection=True), 10)
+
+		self.dataset_local.data.x[0] = np.nan
+		ds.dropna(column_names=['x'])
+		self.assertEqual(ds.count(selection=True), 9)
+		ds.dropna(drop_nan=False, column_names=['x'])
+		self.assertEqual(ds.count(selection=True), 10)
+
+		ds.dropna()
+		self.assertEqual(ds.count(selection=True), 8)
+		ds.dropna(drop_masked=False)
+		self.assertEqual(ds.count(selection=True), 9)
+		ds.dropna(drop_nan=False)
+		self.assertEqual(ds.count(selection=True), 9)
+
+
 	def test_selection_in_handler(self):
 		self.dataset.select("x > 5")
 		# in the handler, we should know there is not selection

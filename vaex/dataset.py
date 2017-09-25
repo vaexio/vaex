@@ -597,6 +597,44 @@ class Selection(object):
 		if execute_fully and self.previous_selection:
 			self.previous_selection.execute(executor=executor, execute_fully=execute_fully)
 
+
+class SelectionDropNa(Selection):
+	def __init__(self, dataset, drop_nan, drop_masked, column_names, previous_selection, mode):
+		super(SelectionDropNa, self).__init__(dataset, previous_selection, mode)
+		self.drop_nan = drop_nan
+		self.drop_masked = drop_masked
+		self.column_names = column_names
+
+	def to_dict(self):
+		previous = None
+		if self.previous_selection:
+			previous = self.previous_selection.to_dict()
+		return dict(type="dropna", drop_nan=self.drop_nan, drop_masked=self.drop_masked, column_names=self.column_names,
+					mode=self.mode, previous_selection=previous)
+
+	def evaluate(self, name, i1, i2):
+		if self.previous_selection:
+			previous_mask = self.dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+		else:
+			previous_mask = None
+		mask = np.ones(i2-i1, dtype=np.bool)
+		for name in self.column_names:
+			data = self.dataset.evaluate(name, i1, i2)
+			if self.drop_nan and data.dtype.kind == "f":
+				if np.ma.isMaskedArray(data):
+					mask = mask & ~np.isnan(data.data)
+				else:
+					mask = mask & ~np.isnan(data)
+			if self.drop_masked and np.ma.isMaskedArray(data):
+				mask = mask & ~data.mask #~np.ma.getmaskarray(data)
+		if previous_mask is None:
+			logger.debug("setting mask")
+		else:
+			logger.debug("combining previous mask with current mask using op %r", self.mode)
+			mode_function = _select_functions[self.mode]
+			mask = mode_function(previous_mask, mask)
+		return mask
+
 class SelectionExpression(Selection):
 	def __init__(self, dataset, boolean_expression, previous_selection, mode):
 		super(SelectionExpression, self).__init__(dataset, previous_selection, mode)
@@ -696,6 +734,9 @@ def selection_from_dict(dataset, values):
 	elif values["type"] == "invert":
 		kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
 		return SelectionInvert(**kwargs)
+	elif values["type"] == "dropna":
+		kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
+		return SelectionDropNa(**kwargs)
 	else:
 		raise ValueError("unknown type: %r, in dict: %r" % (values["type"], values))
 
@@ -4751,6 +4792,26 @@ class Dataset(object):
 			def create(current):
 				return SelectionExpression(self, boolean_expression, current, mode) if boolean_expression else None
 			self._selection(create, name)
+
+	def select_non_missing(self, drop_nan=True, drop_masked=True, column_names=None, mode="replace", name="default"):
+		"""Alias of dropna"""
+		self.dropna(**locals())
+	def dropna(self, drop_nan=True, drop_masked=True, column_names=None, mode="replace", name="default"):
+		"""Create a selection that selects rows having non missing values for all columns in column_names
+
+		The name reflect Panda's, no rows are really dropped, but a mask is kept to keep track of the selection
+
+		:param drop_nan: drop rows when there is a NaN in any of the columns (will only affect float values)
+		:param drop_masked: drop rows when there is a masked value in any of the columns
+		:param column_names: The columns to consider, default: all (real, non-virtual) columns
+		:param str mode: Possible boolean operator: replace/and/or/xor/subtract
+		:param str name: history tree or selection 'slot' to use
+		:return:
+		"""
+		column_names = column_names or self.get_column_names(virtual=False)
+		def create(current):
+			return SelectionDropNa(self, drop_nan, drop_masked, column_names, current, mode)
+		self._selection(create, name)
 
 	def select_nothing(self, name="default"):
 		"""Select nothing"""
