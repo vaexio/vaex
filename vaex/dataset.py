@@ -343,7 +343,7 @@ class TaskStatistic(Task):
 		info.i1 = i1
 		info.i2 = i2
 		info.first = i1 == 0
-		info.last = i2 == len(self.dataset)
+		info.last = i2 == self.dataset.full_length()
 		info.size = i2-i1
 
 		masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
@@ -359,7 +359,7 @@ class TaskStatistic(Task):
 
 		this_thread_grid = self.grid[thread_index]
 		for i, selection in enumerate(self.selections):
-			if selection:
+			if selection or self.dataset.selection_global:
 				selection_mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2) # TODO
 				if selection_mask is None:
 					raise ValueError("performing operation on selection while no selection present")
@@ -384,7 +384,7 @@ class TaskStatistic(Task):
 				selection_blocks = list(selection_blocks[:-1])
 			if len(selection_blocks) == 0 and subblock_weight is None:
 				if self.op == OP_ADD1: # special case for counting '*' (i.e. the number of rows)
-					if selection:
+					if selection or self.dataset.selection_global:
 						this_thread_grid[i][0] += np.sum(selection_mask)
 					else:
 						this_thread_grid[i][0] += i2-i1
@@ -619,7 +619,7 @@ class SelectionDropNa(Selection):
 			previous_mask = None
 		mask = np.ones(i2-i1, dtype=np.bool)
 		for name in self.column_names:
-			data = self.dataset.evaluate(name, i1, i2)
+			data = self.dataset._evaluate(name, i1, i2)
 			if self.drop_nan and data.dtype.kind == "f":
 				if np.ma.isMaskedArray(data):
 					mask = mask & ~np.isnan(data.data)
@@ -648,10 +648,10 @@ class SelectionExpression(Selection):
 
 	def evaluate(self, name, i1, i2):
 		if self.previous_selection:
-			previous_mask = self.dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+			previous_mask = self.dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
 		else:
 			previous_mask = None
-		current_mask = self.dataset.evaluate_selection_mask(self.boolean_expression, i1, i2).astype(np.bool)
+		current_mask = self.dataset._evaluate_selection_mask(self.boolean_expression, i1, i2).astype(np.bool)
 		if previous_mask is None:
 			logger.debug("setting mask")
 			mask = current_mask
@@ -673,7 +673,7 @@ class SelectionInvert(Selection):
 		return dict(type="invert", previous_selection=previous)
 
 	def evaluate(self, name, i1, i2):
-		previous_mask = self.dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+		previous_mask = self.dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
 		return ~previous_mask
 
 class SelectionLasso(Selection):
@@ -686,7 +686,7 @@ class SelectionLasso(Selection):
 
 	def evaluate(self, name, i1, i2):
 		if self.previous_selection:
-			previous_mask = self.dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+			previous_mask = self.dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
 		else:
 			previous_mask = None
 		current_mask = np.zeros(i2-i1, dtype=np.bool)
@@ -694,8 +694,8 @@ class SelectionLasso(Selection):
 		meanx = x.mean()
 		meany = y.mean()
 		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
-		blockx = self.dataset.evaluate(self.boolean_expression_x, i1=i1, i2=i2)
-		blocky = self.dataset.evaluate(self.boolean_expression_y, i1=i1, i2=i2)
+		blockx = self.dataset._evaluate(self.boolean_expression_x, i1=i1, i2=i2)
+		blocky = self.dataset._evaluate(self.boolean_expression_y, i1=i1, i2=i2)
 		blockx = as_flat_float(blockx)
 		blocky = as_flat_float(blocky)
 		vaex.vaexfast.pnpoly(x, y, blockx, blocky, current_mask, meanx, meany, radius)
@@ -878,6 +878,7 @@ class Dataset(object):
 		self.descriptions = {}
 
 		self.favorite_selections = collections.OrderedDict()
+		self.selection_global = None
 
 		self.mask = None # a bitmask for the selection does not work for server side
 
@@ -3460,11 +3461,29 @@ class Dataset(object):
 		else:
 			return self.variables[name]
 
-	def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None):
+	def _evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None):
+		"""Internal use, ignore the selection_global"""
 		i1 = i1 or 0
 		i2 = i2 or len(self)
 		scope = _BlockScopeSelection(self, i1, i2, selection)
 		return scope.evaluate(name)
+
+	def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None):
+		i1 = i1 or 0
+		i2 = i2 or len(self)
+		if name in [None, False] and self.selection_global:
+			scope_global = _BlockScopeSelection(self, i1, i2, None)
+			mask_global = scope_global.evaluate(self.selection_global)
+			return mask_global
+		elif self.selection_global and name != self.selection_global:
+			scope = _BlockScopeSelection(self, i1, i2, selection)
+			scope_global = _BlockScopeSelection(self, i1, i2, None)
+			mask = scope.evaluate(name)
+			mask_global = scope_global.evaluate(self.selection_global)
+			return mask & mask_global
+		else:
+			scope = _BlockScopeSelection(self, i1, i2, selection)
+			return scope.evaluate(name)
 
 		#if _is_string(selection):
 
@@ -3626,6 +3645,16 @@ class Dataset(object):
 	def add_column(self, name, f_or_array):
 		"""Add an in memory array as a column"""
 		if isinstance(f_or_array, np.ndarray):
+			ar = f_or_array
+			# it can be None when we have an 'empty' DatasetArrays
+			if self._full_length is not None:
+				if len(ar) != self.full_length():
+					if self.selection_global:
+						# give a better warning to avoid confusion
+						if len(self) == len(ar):
+							raise ValueError("Array is of length %s, while the length of the dataset is %s due to the .selection_global, the (full) length is %s." % (len(ar), len(self), self.full_length()))
+					raise ValueError("array is of length %s, while the length of the dataset is %s" % (len(ar), self.full_length()))
+			#assert self.full_length() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.full_length(), len(data))
 			self.columns[name] = f_or_array
 			if name not in self.column_names:
 				self.column_names.append(name)
@@ -4684,15 +4713,22 @@ class Dataset(object):
 
 	def __len__(self):
 		"""Returns the number of rows in the dataset, if active_fraction != 1, then floor(active_fraction*full_length) is returned"""
-		return self._length
+		if self.selection_global is None:
+			return self._length
+		else:
+			return int(self.count(selection=self.selection_global))
 
 	def selected_length(self):
 		"""Returns the number of rows that are selected"""
 		raise NotImplementedError
 
 	def full_length(self):
-		"""the full length of the dataset, independant what active_fraction is"""
+		"""the full length of the dataset, independant what active_fraction is. This is the real length of the underlying ndarrays"""
 		return self._full_length
+
+	def active_length(self):
+		"""The length of the arrays that should be considered"""
+		return self._length
 
 	def get_active_fraction(self):
 		"""Value in the range (0, 1], to work only with a subset of rows
@@ -4996,6 +5032,12 @@ class DatasetLocal(Dataset):
 			dataset.virtual_columns.update(self.virtual_columns)
 		if variables:
 			dataset.variables.update(self.variables)
+		dataset.selection_global = self.selection_global
+		# half shallow/deep copy
+		# for key, value in self.selection_histories.items():
+		# 	dataset.selection_histories[key] = list(value)
+		# for key, value in self.selection_history_indices.items():
+		# 	dataset.selection_history_indices[key] = value
 		return dataset
 
 	def is_local(self):
@@ -5094,11 +5136,18 @@ class DatasetLocal(Dataset):
 			datasets.extend([other])
 		return DatasetConcatenated(datasets)
 
+	def _evaluate(self, expression, i1, i2, out=None, selection=None):
+		scope = _BlockScope(self, i1, i2, **self.variables)
+		if out is not None:
+			scope.buffers[expression] = out
+		value = scope.evaluate(expression)
+		return value
+
 	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None):
 		"""The local implementation of :func:`Dataset.evaluate`"""
 		i1 = i1 or 0
 		i2 = i2 or len(self)
-		mask = self.evaluate_selection_mask(selection, i1, i2) if selection is not None else None
+		mask = self.evaluate_selection_mask(selection, i1, i2) if (selection is not None or self.selection_global) else None
 		scope = _BlockScope(self, i1, i2, mask=mask, **self.variables)
 		#	value = value[mask]
 		if out is not None:
@@ -5147,6 +5196,10 @@ class DatasetLocal(Dataset):
 				else:
 					a = self.columns[column_name]
 					b = other.columns[column_name]
+					if self.selection_global:
+						a = a[self.evaluate_selection_mask(None)]
+					if other.selection_global:
+						b = b[other.evaluate_selection_mask(None)]
 					if orderby:
 						a = a[index1]
 						b = b[index2]
@@ -5365,7 +5418,11 @@ class _ColumnConcatenatedLazy(object):
 			#	break
 		# this is the fast path, no copy needed
 		if stop <= offset + len(current_dataset):
-			return current_dataset.columns[self.column_name][start-offset:stop-offset].astype(self.dtype)
+			ar = current_dataset.columns[self.column_name]
+			if current_dataset.selection_global: # TODO this may get slow! we're evaluating everything
+				warnings.warn("might be slow, you have concatenated datasets with a selection_global set")
+				ar = ar[current_dataset.evaluate_selection_mask(None)]
+			return ar[start-offset:stop-offset].astype(self.dtype)
 		else:
 			if self.is_masked:
 				copy = np.ma.empty(stop-start, dtype=self.dtype)
@@ -5373,9 +5430,14 @@ class _ColumnConcatenatedLazy(object):
 			else:
 				copy = np.zeros(stop-start, dtype=self.dtype)
 			copy_offset = 0
-			#print "!!>", start, stop, offset, len(current_dataset), current_dataset.columns[self.column_name]
+			#print("!!>", start, stop, offset, len(current_dataset), current_dataset.columns[self.column_name])
 			while offset < stop: #> offset + len(current_dataset):
-				part = current_dataset.columns[self.column_name][start-offset:min(len(current_dataset), stop-offset)]
+				#print(offset, stop)
+				ar = current_dataset.columns[self.column_name]
+				if current_dataset.selection_global: # TODO this may get slow! we're evaluating everything
+					warnings.warn("might be slow, you have concatenated datasets with a selection_global set")
+					ar = ar[current_dataset.evaluate_selection_mask(None)]
+				part = ar[start-offset:min(len(current_dataset), stop-offset)]
 				#print "part", part, copy_offset,copy_offset+len(part)
 				copy[copy_offset:copy_offset+len(part)] = part
 				#print copy[copy_offset:copy_offset+len(part)]
@@ -5396,6 +5458,8 @@ class DatasetConcatenated(DatasetLocal):
 		self.name = name or "-".join(ds.name for ds in self.datasets)
 		self.path =  "-".join(ds.path for ds in self.datasets)
 		first, tail = datasets[0], datasets[1:]
+		for dataset in datasets:
+			assert dataset.selection_global is None, "we don't support selected_global for concatenated datasets"
 		for column_name in first.get_column_names(strings=True):
 			if all([column_name in dataset.get_column_names(strings=True) for dataset in tail]):
 				self.column_names.append(column_name)
@@ -5412,8 +5476,8 @@ class DatasetConcatenated(DatasetLocal):
 					self.set_variable(name, value, write=False)
 		self.write_virtual_meta()
 
-		self._full_length = sum(ds.full_length() for ds in self.datasets)
-		self._length = self.full_length()
+		self._full_length = sum(len(ds) for ds in self.datasets)
+		self._length = self._full_length
 		self._index_end = self._full_length
 
 	def is_masked(self, column):
@@ -5449,6 +5513,7 @@ class DatasetArrays(DatasetLocal):
 		#self._length = len(data)
 		if self._full_length is None:
 			self._full_length = len(data)
+			self._length = len(data)
 			self._index_end = self._full_length
 		else:
 			assert self.full_length() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.full_length(), len(data))

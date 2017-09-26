@@ -44,17 +44,35 @@ class TestDataset(unittest.TestCase):
 
 		# x is non-c
 		# same as np.arange(10, dtype=">f8")., but with strides == 16, instead of 8
-		self.x = x = np.arange(20, dtype=">f8").reshape((-1,10)).T.copy()[:,0]
-		self.y = y = x ** 2
-		self.ints = np.arange(10, dtype="i8")
-		self.ints[0] = 2**62+1
-		self.ints[1] = -2**62+1
-		self.ints[2] = -2**62-1
-		self.dataset.add_column("x", x)
-		self.dataset.add_column("y", y)
-		m = x.copy()
-		ma_value = 77777
-		m[-1] = ma_value
+		use_global_selection = True
+		if use_global_selection:
+			self.x = x = np.arange(40, dtype=">f8").reshape((-1,20)).T.copy()[:,0]
+			self.y = y = x ** 2
+			self.ints = np.arange(20, dtype="i8")
+			self.ints[0] = 2**62+1
+			self.ints[1] = -2**62+1
+			self.ints[2] = -2**62-1
+			self.ints[0+10] = 2**62+1
+			self.ints[1+10] = -2**62+1
+			self.ints[2+10] = -2**62-1
+			self.dataset.add_column("x", x)
+			self.dataset.add_column("y", y)
+			m = x.copy()
+			ma_value = 77777
+			m[-1+10] = ma_value
+			m[-1+20] = ma_value
+		else:
+			self.x = x = np.arange(20, dtype=">f8").reshape((-1,10)).T.copy()[:,0]
+			self.y = y = x ** 2
+			self.ints = np.arange(10, dtype="i8")
+			self.ints[0] = 2**62+1
+			self.ints[1] = -2**62+1
+			self.ints[2] = -2**62-1
+			self.dataset.add_column("x", x)
+			self.dataset.add_column("y", y)
+			m = x.copy()
+			ma_value = 77777
+			m[-1] = ma_value
 		self.m = m = np.ma.array(m, mask=m==ma_value)
 		self.mi = mi = np.ma.array(m.data.astype(np.int64), mask=m.data==ma_value, fill_value=88888)
 		self.dataset.add_column("m", m)
@@ -68,9 +86,24 @@ class TestDataset(unittest.TestCase):
 		self.dataset.add_column("f", np.arange(len(self.dataset), dtype=np.float64))
 		self.dataset.ucds["x"] = "some;ucd"
 
+
 		name = np.array(list(map(lambda x: str(x) + "bla", self.x)), dtype='S') #, dtype=np.string_)
 		self.names = self.dataset.get_column_names()
 		self.dataset.add_column("name", np.array(name))
+		if use_global_selection:
+			self.dataset.select('x < 10', name='__global__')
+			self.dataset.selection_global = '__global__'
+			self.x = x = self.x[:10]
+			self.y = y = self.y[:10]
+			self.m = m = self.m[:10]
+			self.ints = ints = self.ints[:10]
+
+		# TODO; better virtual and variables support
+		# TODO: this is a copy since concatenated datasets do not yet support
+		# global selections
+		self.dataset_no_global = self.dataset.to_copy(virtual=False, strings=True)
+		self.dataset_no_global.add_virtual_column("z", "x+t*y")
+		self.dataset_no_global.set_variable("t", 1.)
 
 
 		#self.jobsManager = dataset.JobsManager()
@@ -95,7 +128,7 @@ class TestDataset(unittest.TestCase):
 		dataset3.add_column("y", x3**2)
 		self.dataset_concat = vx.dataset.DatasetConcatenated([dataset1, dataset2, dataset3], name="dataset_concat")
 
-		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset, self.dataset, self.dataset], name="dataset_concat_dup")
+		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset_no_global, self.dataset_no_global, self.dataset_no_global], name="dataset_concat_dup")
 		self.dataset_local = self.dataset
 		self.datasetxy_local = self.datasetxy
 		self.dataset_concat_local = self.dataset_concat
@@ -168,7 +201,7 @@ class TestDataset(unittest.TestCase):
 				self.assertEqual(ds1.description, ds2.description)
 			for name in ds1.get_column_names(strings=True):
 				self.assertIn(name, ds2.get_column_names(strings=True))
-				np.testing.assert_array_equal(ds1.columns[name], ds2.columns[name])
+				np.testing.assert_array_equal(ds1.evaluate(name), ds2.evaluate(name))
 				if units:
 					self.assertEqual(ds1.units.get(name), ds2.units.get(name))
 				if ucds:
@@ -203,6 +236,14 @@ class TestDataset(unittest.TestCase):
 		columns = self.dataset.get_column_names()
 		self.dataset.add_column("x", self.dataset.data.x)
 		self.assertSequenceEqual(columns, self.dataset.get_column_names())
+		self.dataset.add_column("extra", self.dataset.data.x)
+		extra = self.dataset.evaluate("extra")
+		np.testing.assert_array_almost_equal(extra, self.dataset.data.x[:10])
+		with self.assertRaises(ValueError):
+			self.dataset.add_column("unequal", self.dataset.data.x[:10])
+		with self.assertRaises(ValueError):
+			self.dataset.add_column("unequal", self.dataset.data.x[:11])
+
 
 	def test_rename_column(self):
 		self.dataset.rename_column("x", "xx")
@@ -818,7 +859,7 @@ class TestDataset(unittest.TestCase):
 
 
 	def test_length(self):
-		assert len(self.dataset) == 10
+		self.assertEqual(len(self.dataset), 10)
 
 	def t_est_length_mask(self):
 		self.dataset._set_mask(self.dataset.columns['x'] < 5)
@@ -1033,7 +1074,7 @@ class TestDataset(unittest.TestCase):
 
 		self.dataset.select("x < 5")
 		# convert to float
-		x = self.dataset_local.columns["x"]# = self.dataset_local.columns["x"] * 1.
+		x = self.dataset_local.columns["x"][:10]# = self.dataset_local.columns["x"] * 1.
 		y = self.y
 		self.dataset_local.columns["x"][0] = np.nan
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(x))
@@ -1061,7 +1102,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_cov(self):
 		# convert to float
-		x = self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
+		x = self.dataset_local.columns["x"][:10] = self.dataset_local.columns["x"][:10] * 1.
 		y = self.y
 		def cov(*args):
 			return np.cov(args, bias=1)
@@ -1116,7 +1157,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_correlation(self):
 		# convert to float
-		x = self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
+		x = self.dataset_local.columns["x"][:10] = self.dataset_local.columns["x"][:10] * 1.
 		y = self.y
 		def correlation(x, y):
 			c = np.cov([x, y], bias=1)
@@ -1164,7 +1205,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_covar(self):
 		# convert to float
-		x = self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
+		x = self.dataset_local.columns["x"][:10] = self.dataset_local.columns["x"][:10] * 1.
 		y = self.y
 		def covar(x, y):
 			mask = np.isfinite(x * y)
@@ -1400,6 +1441,10 @@ class TestDataset(unittest.TestCase):
 
 
 	def test_concat(self):
+		dc = self.dataset_concat_dup
+		self.assertEqual(len(self.dataset_concat_dup), len(self.dataset)*3)
+
+
 		self.assertEqual(self.dataset_concat.get_column_names(), ["x"])
 		N = len(self.x_concat)
 		# try out every possible slice
@@ -1469,11 +1514,11 @@ class TestDataset(unittest.TestCase):
 		self.dataset_concat.export_hdf5(path_hdf5)
 
 	def test_export_sorted(self):
-		self.dataset.add_column("s", 100-self.x)
+		self.dataset.add_column("s", 100-self.dataset.data.x)
 		path_hdf5 = tempfile.mktemp(".hdf5")
 		self.dataset.export_hdf5(path_hdf5, sort="s")
 		ds2 = vaex.open(path_hdf5)
-		np.testing.assert_array_equal(self.dataset.data.x, ds2.data.x[::-1])
+		np.testing.assert_array_equal(self.dataset.data.x[:10], ds2.data.x[::-1])
 
 
 
@@ -1540,20 +1585,24 @@ class TestDataset(unittest.TestCase):
 											return ar
 
 										for column_name in column_names:
-											values = dataset.columns[column_name][dataset._index_start:dataset._index_end] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
+											#values = dataset.columns[column_name][dataset._index_start:dataset._index_end] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
+											values = dataset.evaluate(column_name)
 											if selection:
 												mask = dataset.evaluate_selection_mask(selection)#, 0, len(dataset))
 												if len(values[::]) != len(mask):
 													import pdb
 													pdb.set_trace()
 												# for concatenated columns, we get a plain numpy array copy using [::]
-												a = np.ma.compressed(make_masked(compare.columns[column_name]))
+												a = np.ma.compressed(make_masked(compare.evaluate(column_name)))
 												b = np.ma.compressed(make_masked(values[::][mask]))
+												if len(a) != len(b):
+													import pdb
+													pdb.set_trace()
 												self.assertEqual(sorted(a), sorted(b))
 											else:
 												if shuffle:
 													indices = compare.columns["random_index"]
-													a = np.ma.compressed(make_masked(compare.columns[column_name]))
+													a = np.ma.compressed(make_masked(compare.evaluate(column_name)))
 													b = np.ma.compressed(make_masked(values[::][indices]))
 													self.assertEqual(sorted(a), sorted(b))
 												else:
@@ -1593,7 +1642,8 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(counter_current_row.counter, 1)
 
 		# test for event and the effect of the length
-		self.dataset.set_active_fraction(0.5)
+		# the active_fraction only applies to the underlying length, which is 20
+		self.dataset.set_active_fraction(0.25)
 		self.assertEqual(counter_selection.counter, 2)
 		self.assertEqual(counter_current_row.counter, 2)
 		self.assertEqual(length/2, len(self.dataset))
@@ -1602,21 +1652,21 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(counter_selection.counter, 3)
 		self.assertEqual(counter_current_row.counter, 2)
 		self.assertTrue(self.dataset.has_selection())
-		self.dataset.set_active_fraction(0.5) # nothing should happen, still the same
+		self.dataset.set_active_fraction(0.25) # nothing should happen, still the same
 		self.assertTrue(self.dataset.has_selection())
 		self.dataset.set_active_fraction(0.4999)
 		self.assertFalse(self.dataset.has_selection())
 
 		self.dataset.set_current_row(1)
 		self.assertTrue(self.dataset.has_current_row())
-		self.dataset.set_active_fraction(0.5)
+		self.dataset.set_active_fraction(0.25)
 		self.assertFalse(self.dataset.has_current_row())
 
 		if self.dataset.is_local(): # this part doesn't work for remote datasets
 			for dataset in [self.dataset, self.dataset_concat]:
 				dataset.set_active_fraction(1.0)
 				x = dataset.columns["x"][:] * 1. # make a copy
-				dataset.set_active_fraction(0.5)
+				dataset.set_active_fraction(0.25)
 				length = len(dataset)
 				a = x[:length]
 				b = dataset.columns["x"][:len(dataset)]
@@ -1626,14 +1676,14 @@ class TestDataset(unittest.TestCase):
 		# TODO: test if statistics and histogram work on the active_fraction
 		self.dataset.set_active_fraction(1)
 		total, = self.dataset("x").sum()
-		self.dataset.set_active_fraction(0.5)
+		self.dataset.set_active_fraction(0.25)
 		total_half, = self.dataset("x").sum()
 		self.assertLess(total_half, total)
 
 		limits = [(-100, 100)]
 		self.dataset.set_active_fraction(1)
 		total = self.dataset("x").histogram(limits).sum()
-		self.dataset.set_active_fraction(0.5)
+		self.dataset.set_active_fraction(0.25)
 		total_half = self.dataset("x").histogram(limits).sum()
 		self.assertLess(total_half, total)
 

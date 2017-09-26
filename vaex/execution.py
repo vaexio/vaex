@@ -165,7 +165,7 @@ class Executor(object):
 								#self.thread_mover(task.signal_progress, float(i2)/length)
 #								time.sleep(0.1)
 
-					length = len(dataset)
+					length = dataset.active_length()
 					#print self.thread_pool.map()
 					for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=self.buffer_size),\
 														progress=lambda p: all(self.signal_progress.emit(p)) and\

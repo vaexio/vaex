@@ -501,7 +501,7 @@ class DatasetRemote(Dataset):
 import astropy.units
 
 class DatasetRest(DatasetRemote):
-	def __init__(self, server, name, column_names, dtypes, ucds, descriptions, units, description, full_length, virtual_columns=None):
+	def __init__(self, server, name, column_names, dtypes, ucds, descriptions, units, description, full_length, virtual_columns=None, selection_global=None):
 		DatasetRemote.__init__(self, name, server.hostname, column_names)
 		self.server = server
 		self.name = name
@@ -518,6 +518,7 @@ class DatasetRest(DatasetRemote):
 		self._index_end = self._length
 		#self.filename = #"http://%s:%s/%s" % (server.hostname, server.port, name)
 		self.path = self.filename = self.server._build_url("%s" % name)
+		self.selection_global = selection_global
 
 
 		self.fraction = 1

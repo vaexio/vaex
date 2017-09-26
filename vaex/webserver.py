@@ -337,7 +337,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 										 "description": ds.description, "descriptions":ds.descriptions,
 										 "ucds":ds.ucds, "units":{name:str(unit) for name, unit in ds.units.items()},
 										 "dtypes":{name:str(ds.columns[name].dtype) for name in ds.get_column_names(strings=True)},
-										 "virtual_columns":dict(ds.virtual_columns),
+										 "virtual_columns":dict(ds.virtual_columns), "selection_global": ds.selection_global
 										 } for ds in webserver.datasets])
 				logger.debug("response: %r", response)
 				return response
@@ -350,13 +350,23 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 				else:
 					if len(parts) > 2:
 						method_name = parts[2]
-						logger.debug("method: %r args: %r" % (method_name, arguments))
 						if "expressions" in arguments:
 							expressions = arguments["expressions"]
 						else:
 							expressions = None
 						# make a shallow copy, such that selection and active_fraction is not shared
-						dataset = webserver.datasets_map[dataset_name].shallow_copy(virtual=False)
+						dataset_original = webserver.datasets_map[dataset_name]
+						dataset = dataset_original.shallow_copy(virtual=False)
+						if dataset_original.selection_global:
+							# copy the selection
+							selection = dataset_original.get_selection(dataset_original.selection_global)
+							dataset.set_selection(selection, name=dataset_original.selection_global)
+
+							# copy the cache
+							cache_for_global = dataset_original._selection_mask_caches[dataset_original.selection_global]
+							dataset._selection_mask_caches[dataset_original.selection_global] = dict(cache_for_global)
+							logger.info("set selection: %r to %r" % (dataset_original.selection_global, selection))
+						logger.info("method: %r args: %r" % (method_name, arguments))
 						# TODO: executor should be an argument to the stats functions..
 						dataset.executor = webserver.thread_local.executor
 						if dataset.mask is not None:
