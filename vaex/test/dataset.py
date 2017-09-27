@@ -102,6 +102,7 @@ class TestDataset(unittest.TestCase):
 		# TODO: this is a copy since concatenated datasets do not yet support
 		# global selections
 		self.dataset_no_global = self.dataset.to_copy(virtual=False, strings=True)
+		self.dataset_no_global.selection_global = None
 		self.dataset_no_global.add_virtual_column("z", "x+t*y")
 		self.dataset_no_global.set_variable("t", 1.)
 
@@ -135,6 +136,8 @@ class TestDataset(unittest.TestCase):
 		self.dataset_concat_dup_local = self.dataset_concat_dup
 
 		np.random.seed(0) # fix seed so that test never fails randomly
+
+		self.df = self.dataset.to_pandas_df()
 
 	def test_amuse(self):
 		ds = vx.open(os.path.join(basedir, "files", "default_amuse_plummer.hdf5"))
@@ -229,7 +232,9 @@ class TestDataset(unittest.TestCase):
 		test_equal(self.dataset, ds2)
 
 		# return a copy
-		ds2 = self.dataset	.to_copy()
+		ds2 = self.dataset.to_copy(virtual=True)
+		assert "z" not in ds2.columns
+		assert "z" in ds2.virtual_columns
 		test_equal(self.dataset, ds2)
 
 	def test_add_column(self):
@@ -1017,26 +1022,54 @@ class TestDataset(unittest.TestCase):
 
 	def test_count(self):
 		self.dataset.select("x < 5")
+		ds = self.dataset[self.dataset.x < 5]
+		df = self.df[self.df.x < 5]
 		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=None), 10)
 		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=True), 5)
+		np.testing.assert_array_almost_equal(self.dataset['x'].count(), 10)
+		np.testing.assert_array_almost_equal(self.df['x'].count(), 10)
+		np.testing.assert_array_almost_equal(ds['x'].count(), 5)
+		np.testing.assert_array_almost_equal(df['x'].count(), 5)
 
 		self.dataset.select("x >= 5")
+		ds = self.dataset[self.dataset.x >= 5]
+		df = self.df[self.df.x >= 5]
 		np.testing.assert_array_almost_equal(self.dataset.count("m", selection=None), 9)
 		np.testing.assert_array_almost_equal(self.dataset.count("m", selection=True), 4)
+		np.testing.assert_array_almost_equal(self.dataset['m'].count(), 9)
+		np.testing.assert_array_almost_equal(self.df['m'].count(), 9)
+		np.testing.assert_array_almost_equal(ds['m'].count(), 4)
+		np.testing.assert_array_almost_equal(df['m'].count(), 4)
 
 		# convert to float
 		self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
 		self.dataset_local.columns["x"][0] = np.nan
+		self.df = self.dataset_local.to_pandas_df()
 		self.dataset.select("x < 5")
+		ds = self.dataset[self.dataset.x < 5]
+		df = self.df[self.df.x < 5]
 		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=None), 9)
+		np.testing.assert_array_almost_equal(self.dataset['x'].count(), 9)
+		np.testing.assert_array_almost_equal(self.df['x'].count(), 9)
 		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=True), 4)
+		np.testing.assert_array_almost_equal(ds['x'].count(), 4)
+		np.testing.assert_array_almost_equal(df['x'].count(), 4)
 		np.testing.assert_array_almost_equal(self.dataset.count("y", selection=None), 10)
+		np.testing.assert_array_almost_equal(self.dataset['y'].count(), 10)
+		np.testing.assert_array_almost_equal(self.df['y'].count(), 10)
 		np.testing.assert_array_almost_equal(self.dataset.count("y", selection=True), 4)
+		np.testing.assert_array_almost_equal(ds['y'].count(), 4)
+		np.testing.assert_array_almost_equal(df['y'].count(), 4)
 		np.testing.assert_array_almost_equal(self.dataset.count(selection=None), 10)
+		np.testing.assert_array_almost_equal(self.dataset.count(), 10)
+		#np.testing.assert_array_almost_equal(self.df.count(), 9) # TODO: this is different in pandas
 		# we modified the data.. so actually this should be 4..
 		np.testing.assert_array_almost_equal(self.dataset.count(selection=True), 4)
+		np.testing.assert_array_almost_equal(ds.count(), 4)
 		np.testing.assert_array_almost_equal(self.dataset.count("*", selection=None), 10)
+		np.testing.assert_array_almost_equal(self.dataset.count(), 10)
 		np.testing.assert_array_almost_equal(self.dataset.count("*", selection=True), 4)
+		np.testing.assert_array_almost_equal(ds.count(), 4)
 
 		task = self.dataset.count("x", selection=True, async=True)
 		self.dataset.executor.execute()
@@ -1061,6 +1094,19 @@ class TestDataset(unittest.TestCase):
 		b = ds.count("x", selection=True)
 		ds.select("(y >= 50) & (y < 100)")
 		c = ds.count("x", selection=True)
+		np.testing.assert_array_almost_equal(a, [b, c])
+
+		ds = self.dataset[(self.dataset.y >= 0) & (self.dataset.y < 50)]
+		b = ds.count('x')
+		ds = self.dataset[(self.dataset.y >= 50) & (self.dataset.y < 100)]
+		c = ds.count('x')
+		np.testing.assert_array_almost_equal(a, [b, c])
+
+
+		df = self.df[(self.df.y >= 0) & (self.df.y < 50)]
+		b = df['x'].count()
+		df = self.df[(self.df.y >= 50) & (self.df.y < 100)]
+		c = df['x'].count()
 		np.testing.assert_array_almost_equal(a, [b, c])
 
 	def test_sum(self):

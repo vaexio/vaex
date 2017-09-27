@@ -162,6 +162,13 @@ def _is_limit(x):
 	return isinstance(x, (tuple, list, np.ndarray)) and all([_isnumber(k) for k in x])
 def _ensure_list(x):
 	return [x] if not _issequence(x) else x
+def _ensure_string_from_expression(expression):
+	if isinstance(expression, six.string_types):
+		return expression
+	elif isinstance(expression, Expression):
+		return expression.expression
+	else:
+		raise ValueError('%r is not of string or Expression type, but %r' % (expression, type(expression)))
 
 class Task(vaex.promise.Promise):
 	"""
@@ -472,6 +479,8 @@ class _BlockScope(object):
 			self.buffers[column] = np.zeros(self.i2-self.i1)
 
 	def evaluate(self, expression, out=None):
+		if isinstance(expression, Expression):
+			expression = expression.expression
 		try:
 			#logger.debug("try avoid evaluating: %s", expression)
 			result = self[expression]
@@ -777,6 +786,11 @@ for name, numpy_name in function_mapping:
 		raise SystemError("numpy does not have: %s" % numpy_name)
 	else:
 		expression_namespace[name] = getattr(np, numpy_name)
+
+# we import after function_mapping is defined
+from .expression import Expression
+
+
 def dayofweek(x):
 	import pandas as pd
 	x = x.astype("<M8[ns]")
@@ -2404,6 +2418,8 @@ class Dataset(object):
 		if type(shape) == int:
 			shape = (shape,) * 2
 		binby = []
+		x = _ensure_string_from_expression(x)
+		y = _ensure_string_from_expression(y)
 		for expression in [y,x]:
 			if expression is not None:
 				binby = [expression] + binby
@@ -3059,7 +3075,10 @@ class Dataset(object):
 			pass
 		data = ColumnList()
 		for name in self.get_column_names(virtual=True, strings=True):
-			setattr(data, name, name)
+			expression = getattr(self, name, None)
+			if not isinstance(expression, Expression):
+				expression = Expression(self, name)
+			setattr(data, name, expression)
 		return data
 
 
@@ -3660,6 +3679,16 @@ class Dataset(object):
 				self.column_names.append(name)
 		else:
 			raise ValueError("functions not yet implemented")
+
+		self._save_assign_expression(name, Expression(self, name))
+
+	def _save_assign_expression(self, name, expression):
+		obj = getattr(self, name, None)
+		# it's ok to set it if it does not exists, or we overwrite an older expression
+		if obj is None or isinstance(obj, Expression):
+			setattr(self, name, expression)
+
+
 
 	def rename_column(self, name, new_name):
 		"""Renames a column, not this is only the in memory name, this will not be reflected on disk"""
@@ -4501,6 +4530,8 @@ class Dataset(object):
 		"""
 		type = "change" if name in self.virtual_columns else "add"
 		self.virtual_columns[name] = expression
+		expression = Expression(self, name)
+		self._save_assign_expression(name, expression)
 		self.signal_column_changed.emit(self, name, "add")
 		self.write_virtual_meta()
 
@@ -5076,11 +5107,26 @@ class DatasetLocal(Dataset):
 		>> ds[ds.names.Lz]
 
 		"""
-		#print(arg)
-		if _issequence(item):
-			return self.to_copy(column_names=item)
-		else:
-			return self.to_copy(column_names=[item])
+		if isinstance(item, six.string_types):
+			return Expression(self, item) # TODO we'd like to return the same expression if possible
+		elif isinstance(item, Expression):
+			expression = item.expression
+			ds = self.to_copy(virtual=True)
+			if ds.selection_global:
+				ds.select(expression, name=ds.selection_global, mode="and")
+			else:
+				ds.select(expression, name='__global__')
+				ds.selection_global = '__global__'
+			return ds
+		elif isinstance(item, (tuple, list)):
+			ds = self.ds.to_copy(column_names=item)
+			return ds
+
+
+		# if _issequence(item):
+		# 	return self.to_copy(column_names=item)
+		# else:
+		# 	return self.to_copy(column_names=[item])
 
 	def __iter__(self):
 		"""Iterator over the column names (for the moment non-virtual and non-strings only)"""

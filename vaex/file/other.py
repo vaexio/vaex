@@ -29,6 +29,7 @@ except:
 	if not on_rtd:
 		raise
 
+from vaex.expression import Expression
 
 class DatasetMemoryMapped(DatasetLocal):
 	"""Represents a dataset where the data is memory mapped for efficient reading"""
@@ -183,6 +184,7 @@ class DatasetMemoryMapped(DatasetLocal):
 					mmapped_array = mmapped_array[::stride]
 			self.columns[name] = mmapped_array
 			self.column_names.append(name)
+			self._save_assign_expression(name, Expression(self, name))
 			self.all_columns[name] = mmapped_array
 			self.all_column_names.append(name)
 			#self.column_names.sort()
