@@ -6,7 +6,7 @@ import vaex.events
 from . import multithreading
 import time
 import math
-import vaex.ui.expressions as expr
+#import vaex.ui.expressions as expr
 from functools import reduce
 
 __author__ = 'breddels'
