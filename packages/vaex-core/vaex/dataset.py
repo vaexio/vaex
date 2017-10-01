@@ -16,14 +16,14 @@ from functools import reduce
 import threading
 import six
 import vaex.utils
-import vaex.image
+#import vaex.image
 import numpy as np
 import concurrent.futures
 
 
 from vaex.utils import Timer
 import vaex.events
-import vaex.ui.undo
+#import vaex.ui.undo
 import vaex.grids
 import vaex.multithreading
 import vaex.promise
@@ -871,7 +871,6 @@ class Dataset(object):
 		self.signal_column_changed = vaex.events.Signal("a column changed") # (dataset, column_name, change_type=["add", "remove", "change"])
 		self.signal_variable_changed = vaex.events.Signal("a variable changed")
 
-		self.undo_manager = vaex.ui.undo.UndoManager()
 		self.variables = collections.OrderedDict()
 		self.variables["pi"] = np.pi
 		self.variables["e"] = np.e
