@@ -19,7 +19,6 @@ _binary_ops = [
     dict(code="<<", name='lshift',  op=operator.lshift),
     dict(code="%", name='mod',  op=operator.mod),
     dict(code="*", name='mul',  op=operator.mul),
-    dict(code="@", name='matmul',  op=operator.matmul),
 
     dict(code=">>", name='rshift',  op=operator.rshift),
     dict(code="-", name='sub',  op=operator.sub),
@@ -31,6 +30,7 @@ _binary_ops = [
     dict(code=">=", name='ge',  op=operator.ge),
     dict(code=">",  name='gt',  op=operator.gt),
 ]
+#    dict(code="@", name='matmul',  op=operator.matmul),
 
 reversable = 'add sub mul matmul truediv floordiv mod divmod pow lshift rshift and xor or'.split()
 
