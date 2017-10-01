@@ -8,6 +8,7 @@ import numpy as np
 import math
 import concurrent.futures
 import six
+import re
 is_frozen = getattr(sys, 'frozen', False)
 
 osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
@@ -439,3 +440,12 @@ def unlistify(waslist, *args):
 		if len(values) == 1:
 			return values[0]
 
+def _python_save_name(name, used=[]):
+	first, rest = name[0], name[1:]
+	name = re.sub("[^a-zA-Z_]", "_", first) +  re.sub("[^a-zA-Z_0-9]", "_", rest)
+	if name in used:
+		nr = 1
+		while name + ("_%d" % nr) in used:
+			nr += 1
+		name = name + ("_%d" % nr)
+	return name
