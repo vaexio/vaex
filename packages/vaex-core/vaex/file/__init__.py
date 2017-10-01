@@ -8,7 +8,7 @@ try:
 except ImportError:
 	hdf5 = None
 if hdf5:
-	import vaex.hdf5.main
+	import vaex.hdf5.dataset
 
 def can_open(path, *args, **kwargs):
 	for name, class_ in list(vaex.file.other.dataset_type_map.items()):
@@ -20,7 +20,7 @@ def open(path, *args, **kwargs):
 	dataset_class = None
 	openers = []
 	if hdf5:
-		openers.extend(hdf5.main.dataset_type_map.items())
+		openers.extend(hdf5.dataset.dataset_type_map.items())
 	openers.extend(vaex.file.other.dataset_type_map.items())
 	for name, class_ in list(openers):
 		logger.debug("trying %r with class %r" % (path, class_))
