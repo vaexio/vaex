@@ -1,14 +1,8 @@
-
-major = 1
-minor = 0
-patch = 0
-pre_release = "beta.6"
-
-#versiontring = '0.2.42-g54a6613'
-versiontuple = (major, minor, patch)
-versionstring = "%d.%d.%d" % versiontuple
-if pre_release:
-	versionstring += "-" + pre_release
+from ._version import *
+versiontuple = __version_tuple__
+versionstring = __version__
+#if pre_release:
+#	versionstring += "-" + pre_release
 
 import platform
 # from vaex.utils import osname, setup.py doesn't want imports...
