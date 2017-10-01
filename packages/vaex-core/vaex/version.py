@@ -1,4 +1,4 @@
-from ._version import *
+from ._version import __version_tuple__, __version__
 versiontuple = __version_tuple__
 versionstring = __version__
 #if pre_release:
