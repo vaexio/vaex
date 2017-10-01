@@ -19,7 +19,7 @@ install_requires_server = ["tornado>4.1", "cachetools"]
 
 setup(name=name+'-server',
     version=version,
-    description='Visualization for vaex',
+    description='Webserver and client for vaex for a remove dataset',
     url=url,
     author=author,
     author_email=author_email,
