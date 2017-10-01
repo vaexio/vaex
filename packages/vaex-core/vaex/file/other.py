@@ -87,8 +87,6 @@ class DatasetMemoryMapped(DatasetLocal):
 		self.samp_id = None
 		#self.variables = collections.OrderedDict()
 
-		self.undo_manager = vaex.ui.undo.UndoManager()
-
 	def close_files(self):
 		for name, file in self.file_map.items():
 			file.close()
