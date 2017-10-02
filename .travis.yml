@@ -26,7 +26,7 @@ before_install:
   - conda create -q -n test -c conda-forge python=$PYTHON_VERSION numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy
   - source activate test
   - conda install -c conda-forge pandas kapteyn # these extra installs should disappear
-  # - conda create --name dev --clone test
+  - conda create --name dev --clone test
 #  - pip install -r requirements.txt
 install:
   - source activate test
