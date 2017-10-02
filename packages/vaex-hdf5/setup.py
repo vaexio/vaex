@@ -18,7 +18,7 @@ install_requires_hdf5 = ["vaex-core>=0.1", "h5py"]
 
 setup(name=name+'-hdf5',
     version=version,
-    description='Visualization for vaex',
+    description='hdf5 file support for vaex',
     url=url,
     author=author,
     author_email=author_email,
