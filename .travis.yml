@@ -23,18 +23,29 @@ before_install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython pandas runipy
-  - source activate test-environment
+  - conda create -q -n test -c conda-forge python=$PYTHON_VERSION numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy
+  - source activate test
+  - conda install -c conda-forge pandas kapteyn # these extra installs should disappear
+  # - conda create --name dev --clone test
 #  - pip install -r requirements.txt
 install:
+  - source activate test
   - (cd packages/vaex-core; pip install -v .)
   - (cd packages/vaex-hdf5; pip install -v .)
   - (cd packages/vaex-viz; pip install -v .)
   - (cd packages/vaex-server; pip install -v .)
+  - source activate dev
+  - (cd packages/vaex-core; pip install -v -e .)
+  - (cd packages/vaex-hdf5; pip install -v .)
+  - (cd packages/vaex-viz; pip install -v .)
+  - (cd packages/vaex-server; pip install -v .)
 script:
- - python -m vaex.test.dataset
- - runipy examples/tutorial_ipython_notebook.ipynb
- - runipy examples/advanced_plotting.ipynb
+  - source activate test
+  - python -m vaex.test.dataset
+  - runipy examples/tutorial_ipython_notebook.ipynb
+  - runipy examples/advanced_plotting.ipynb
+  - source activate dev
+  - python -m vaex.test.dataset
 # - export PACKAGE_NAME=`python -c "import vaex; print vaex.__build_name__"`
 # - python bin/make_dropbox_uploader_conf.py ~/.dropbox_uploader
 # - curl "https://raw.githubusercontent.com/andreafabrizi/Dropbox-Uploader/master/dropbox_uploader.sh" -o dropbox_uploader.sh
