@@ -5118,6 +5118,14 @@ class DatasetLocal(Dataset):
 
 	def echo(self, arg): return arg
 
+	def __setitem__(self, name, value):
+		if isinstance(name, six.string_types):
+			if isinstance(value, Expression):
+				value = value.expression
+			self.add_virtual_column(name, value)
+		else:
+			raise TypeError('__setitem__ only takes strings as arguments, not {}'.format(type(name)))
+
 	def __getitem__(self, item):
 		"""Alias to dataset.to_copy(column_names), to mimic Pandas a bit
 
