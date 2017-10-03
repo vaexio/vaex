@@ -169,6 +169,8 @@ def _ensure_string_from_expression(expression):
 		return expression.expression
 	else:
 		raise ValueError('%r is not of string or Expression type, but %r' % (expression, type(expression)))
+def _ensure_strings_from_expressions(expressions):
+	return [_ensure_string_from_expression(k) for k in expressions]
 
 class Task(vaex.promise.Promise):
 	"""
@@ -3562,6 +3564,8 @@ class Dataset(object):
 		:param virtual: argument passed to Dataset.get_column_names when column_names is None
 		:return: dict
 		"""
+		if column_names:
+			column_names = _ensure_strings_from_expressions(column_names)
 		ds = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
 		ds.copy_metadata(self)
 		return ds
@@ -5190,6 +5194,7 @@ class DatasetLocal(Dataset):
 
 	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None):
 		"""The local implementation of :func:`Dataset.evaluate`"""
+		expression = _ensure_string_from_expression(expression)
 		i1 = i1 or 0
 		i2 = i2 or len(self)
 		mask = self.evaluate_selection_mask(selection, i1, i2) if (selection is not None or self.selection_global) else None
