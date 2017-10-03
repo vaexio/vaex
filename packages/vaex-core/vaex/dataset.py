@@ -209,15 +209,17 @@ class Task(vaex.promise.Promise):
 		return ret
 
 class TaskMapReduce(Task):
-	def __init__(self, dataset, expressions, map, reduce, converter=lambda x: x, info=False, name="task"):
+	def __init__(self, dataset, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False, name="task"):
 		Task.__init__(self, dataset, expressions, name=name)
 		self._map = map
 		self._reduce = reduce
 		self.converter = converter
 		self.info = info
+		self.to_float = to_float
 
 	def map(self, thread_index, i1, i2, *blocks):
-		blocks = [as_flat_float(block) for block in blocks]
+		if self.to_float:
+			blocks = [as_flat_float(block) for block in blocks]
 		if self.info:
 			return self._map(thread_index, i1, i2, *blocks)
 		else:
