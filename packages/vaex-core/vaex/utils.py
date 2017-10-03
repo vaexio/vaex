@@ -449,3 +449,48 @@ def _python_save_name(name, used=[]):
 			nr += 1
 		name = name + ("_%d" % nr)
 	return name
+
+
+import contextlib
+@contextlib.contextmanager
+def write_to(f, mode):
+    """Flexible writing, where f can be a filename or f object, if filename, closed after writing"""
+    if hasattr(f, 'write'):
+        yield f
+    else:
+        f = open(f, mode)
+        yield f
+        f.close()
+
+
+# these are used to add namespace to vaex' dataset
+# like ds.viz.plot2d(ds.x, ds.y)
+
+class BoundMethods(object):
+
+    def __init__(self, obj, methods):
+        for name, value in methods.items():
+            setattr(self, name, value.__get__(obj))
+
+
+class InnerNamespace(object):
+
+    def __init__(self, methods):
+        self._methods = methods
+
+    def _add(self, **kwargs):
+        self._methods.update(kwargs)
+        self.__dict__.update(kwargs)
+
+    # def __getattr__(self, name):
+    # 	if name in self._methods:
+    # 		return self._methods[name]
+    # 	else:
+    # 		return object.__getattr__(self, name)
+
+    def __get__(self, obj, objtype):
+        #print("get", obj, objtype)
+        if obj is None:
+            return self
+        else:
+            return BoundMethods(obj, self._methods)
