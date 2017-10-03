@@ -4866,9 +4866,6 @@ class Dataset(object):
 			self._selection(create, name)
 
 	def select_non_missing(self, drop_nan=True, drop_masked=True, column_names=None, mode="replace", name="default"):
-		"""Alias of dropna"""
-		self.dropna(**locals())
-	def dropna(self, drop_nan=True, drop_masked=True, column_names=None, mode="replace", name="default"):
 		"""Create a selection that selects rows having non missing values for all columns in column_names
 
 		The name reflect Panda's, no rows are really dropped, but a mask is kept to keep track of the selection
@@ -4884,6 +4881,24 @@ class Dataset(object):
 		def create(current):
 			return SelectionDropNa(self, drop_nan, drop_masked, column_names, current, mode)
 		self._selection(create, name)
+
+	def dropna(self, drop_nan=True, drop_masked=True, column_names=None):
+		"""Create a shallow copy dataset, with the global selection set using select_non_missing
+
+		:param drop_nan: drop rows when there is a NaN in any of the columns (will only affect float values)
+		:param drop_masked: drop rows when there is a masked value in any of the columns
+		:param column_names: The columns to consider, default: all (real, non-virtual) columns
+		:return: Dataset
+		"""
+		assert self.selection_global is None, 'TODO: not implemented'
+		args = dict(**locals())
+		del args['self']
+		copy = self.to_copy(virtual=True)
+		copy.select_non_missing(**args)
+		name = '__global__'
+		copy.select_non_missing(drop_nan=drop_nan, drop_masked=drop_masked, column_names=column_names, name=name)
+		copy.selection_global = name
+		return copy
 
 	def select_nothing(self, name="default"):
 		"""Select nothing"""
