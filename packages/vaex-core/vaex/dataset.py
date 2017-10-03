@@ -5147,7 +5147,7 @@ class DatasetLocal(Dataset):
 				ds.selection_global = '__global__'
 			return ds
 		elif isinstance(item, (tuple, list)):
-			ds = self.ds.to_copy(column_names=item)
+			ds = self.to_copy(column_names=item)
 			return ds
 
 
