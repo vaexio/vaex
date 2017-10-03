@@ -359,3 +359,12 @@ if os.path.exists(import_script):
 	except:
 		import traceback
 		traceback.print_tb()
+
+import logging
+logger = logging.getLogger('vaex')
+
+import pkg_resources
+for entry in pkg_resources.iter_entry_points(group='vaex.namespace'):
+    logger.debug('adding vaex namespace: ' + entry.name)
+    add_namespace = entry.load()
+    add_namespace()
