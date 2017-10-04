@@ -365,6 +365,9 @@ logger = logging.getLogger('vaex')
 
 import pkg_resources
 for entry in pkg_resources.iter_entry_points(group='vaex.namespace'):
-    logger.debug('adding vaex namespace: ' + entry.name)
-    add_namespace = entry.load()
-    add_namespace()
+	logger.debug('adding vaex namespace: ' + entry.name)
+	try:
+	    add_namespace = entry.load()
+	    add_namespace()
+	except ModuleNotFoundError:
+		logger.error('issue loading ' + entry.name)
