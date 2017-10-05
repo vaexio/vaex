@@ -520,9 +520,14 @@ class _BlockScope(object):
 					self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask]
 			elif variable in list(self.dataset.virtual_columns.keys()):
 				expression = self.dataset.virtual_columns[variable]
-				#self._ensure_buffer(variable)
-				self.values[variable] = self.evaluate(expression)#, out=self.buffers[variable])
-				#self.values[variable] = self.buffers[variable]
+				if isinstance(expression, dict):
+					function = expression['function']
+					arguments = [self.evaluate(k) for k in expression['arguments']]
+					self.values[variable] = function(*arguments)
+				else:
+					#self._ensure_buffer(variable)
+					self.values[variable] = self.evaluate(expression)#, out=self.buffers[variable])
+					#self.values[variable] = self.buffers[variable]
 			if variable not in self.values:
 				raise KeyError("Unknown variables or column: %r" % (variable,))
 
@@ -4521,7 +4526,13 @@ class Dataset(object):
 		self.virtual_columns[zname] = "{distance} * (cos({delta}) * cos({delta_gp}) * cos({alpha} - {alpha_gp}) + sin({delta}) * sin({delta_gp}))".format(**locals())
 		self.virtual_columns[xname] = "{distance} * (cos({delta}) * sin({alpha} - {alpha_gp}))".format(**locals())
 		self.virtual_columns[yname] = "{distance} * (sin({delta}) * cos({delta_gp}) - cos({delta}) * sin({delta_gp}) * cos({alpha} - {alpha_gp}))".format(**locals())
-		self.write_virtual_meta()
+		#self.write_virtual_meta()
+
+	def add_virtual_column_function(self, name, f, arguments, unique=False):
+		name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(virtual=True, strings=True))
+		self.virtual_columns[name] = dict(function=f,
+										  arguments=list(arguments))
+		self._save_assign_expression(name)
 
 	def add_virtual_column(self, name, expression):
 		"""Add a virtual column to the dataset
