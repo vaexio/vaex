@@ -4719,13 +4719,13 @@ class Dataset(object):
 		N = len(self)
 		self.cat(i1=max(0, N-n), i2=min(len(self), N))
 
-	def _head_and_tail(self, n=10):
+	def _head_and_tail(self, n=5):
 		N = len(self)
 		if N <= n*2:
 			return self._as_html_table(0, N)
 		else:
 			return self._as_html_table(0, n, N-n, N)
-	def head_and_tail(self, n=10):
+	def head_and_tail(self, n=5):
 		from IPython import display
 		display.display(display.HTML(self._head_and_tail(n)))
 
@@ -4786,7 +4786,7 @@ class Dataset(object):
 	def _repr_html_(self):
 		"""Representation for Jupyter"""
 		self._output_css()
-		return self._info()
+		return self._head_and_tail()
 
 
 	def __current_sequence_index(self):
