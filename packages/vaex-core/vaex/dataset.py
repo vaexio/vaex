@@ -3244,6 +3244,59 @@ class Dataset(object):
 			os.makedirs(dir)
 		return dir
 
+	def state_get(self):
+		virtual_names = list(self.virtual_columns.keys())  + list(self.variables.keys())
+		units = {key:str(value) for key, value in self.units.items() if key in virtual_names}
+		ucds = {key:value for key, value in self.ucds.items() if key in virtual_names}
+		descriptions = {key:value for key, value in self.descriptions.items() if key in virtual_names}
+		import vaex.serialize
+		def check(key, value):
+			if isinstance(value, dict):
+				function = value['function']
+				if not vaex.serialize.can_serialize(function):
+					warnings.warn('Cannot serialize function for virtual column {} (use vaex.serialize.register)'.format(key))
+					return False
+			return True
+		def clean(value):
+			if isinstance(value, dict):
+				value = dict(value)
+				value['function'] = vaex.serialize.to_dict(value['function'])
+			return value
+		virtual_columns = {key:clean(value) for key, value in self.virtual_columns.items() if check(key, value)}
+		selections = {name:self.get_selection(name) for name, history in self.selection_histories.items()}
+		selections = {name:selection.to_dict() if selection is not None else None for name, selection in selections.items() }
+	    #if selection is not None}
+		state = dict(virtual_columns=virtual_columns,
+					 variables=self.variables,
+					 selections=selections,
+					 ucds=ucds,
+					 units=units,
+					 descriptions=descriptions)
+		return state
+
+	def state_set(self, state):
+		for name, value in state['virtual_columns'].items():
+			if isinstance(value, dict):
+				value['function'] = vaex.serialize.from_dict(value['function'])
+		self.virtual_columns = state['virtual_columns']
+		for name, value in state['virtual_columns'].items():
+			self._save_assign_expression(name)
+		self.variables = state['variables']
+		for name, selection_dict in state['selections'].items():
+			# TODO: make selection use the vaex.serialize framework
+			if selection_dict is None:
+				selection = None
+			else:
+				selection = vaex.dataset.selection_from_dict(self, selection_dict)
+			self.set_selection(selection, name=name)
+
+	def state_write(self, f):
+	    vaex.utils.write_json_or_yaml(f, self.state_get())
+
+	def state_load(self, f):
+	    state = vaex.utils.read_json_or_yaml(f)
+	    self.state_set(state)
+
 
 	def remove_virtual_meta(self):
 		"""Removes the file with the virtual column etc, it does not change the current virtual columns etc"""
@@ -3468,8 +3521,8 @@ class Dataset(object):
 		:param expression: value or expression
 		"""
 		self.variables[name] = expression_or_value
-		if write:
-			self.write_virtual_meta()
+		#if write:
+		#	self.write_virtual_meta()
 
 	def get_variable(self, name):
 		"""Returns the variable given by name, it will not evaluate it.
@@ -3823,7 +3876,7 @@ class Dataset(object):
 			self.virtual_columns[xnew] = "{m}[0][0] * {x} + {m}[0][1] * {y} + {m}[0][2] * {z}".format(**locals())
 			self.virtual_columns[ynew] = "{m}[1][0] * {x} + {m}[1][1] * {y} + {m}[1][2] * {z}".format(**locals())
 			self.virtual_columns[znew] = "{m}[2][0] * {x} + {m}[2][1] * {y} + {m}[2][2] * {z}".format(**locals())
-		self.write_virtual_meta()
+		#self.write_virtual_meta()
 
 	def add_virtual_columns_eq2ecl(self, long_in="ra", lat_in="dec", long_out="lambda_", lat_out="beta", input=None, output=None, name_prefix="__celestial_eq2ecl", radians=False):
 		"""Add ecliptic coordates (long_out, lat_out) from equatorial coordinates.
@@ -4549,13 +4602,13 @@ class Dataset(object):
 		expression = Expression(self, name)
 		self._save_assign_expression(name, expression)
 		self.signal_column_changed.emit(self, name, "add")
-		self.write_virtual_meta()
+		#self.write_virtual_meta()
 
 	def delete_virtual_column(self, name):
 		"""Deletes a virtual column from a dataset"""
 		del self.virtual_columns[name]
 		self.signal_column_changed.emit(self, name, "delete")
-		self.write_virtual_meta()
+		#self.write_virtual_meta()
 
 	def add_variable(self, name, expression, overwrite=True):
 		"""Add a variable column to the dataset
@@ -4573,13 +4626,13 @@ class Dataset(object):
 		if overwrite or name not in self.variables:
 			self.variables[name] = expression
 			self.signal_variable_changed.emit(self, name, "add")
-			self.write_virtual_meta()
+			#self.write_virtual_meta()
 
 	def delete_variable(self, name):
 		"""Deletes a variable from a dataset"""
 		del self.variables[name]
 		self.signal_variable_changed.emit(self, name, "delete")
-		self.write_virtual_meta()
+		#self.write_virtual_meta()
 
 	def info(self, description=True):
 		from IPython import display
@@ -5560,7 +5613,7 @@ class DatasetConcatenated(DatasetLocal):
 			for name, value in list(dataset.variables.items()):
 				if name not in self.variables:
 					self.set_variable(name, value, write=False)
-		self.write_virtual_meta()
+		#self.write_virtual_meta()
 
 		self._full_length = sum(len(ds) for ds in self.datasets)
 		self._length = self._full_length

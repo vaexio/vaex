@@ -615,6 +615,30 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(ds.evaluate("vx")[0], 0)
 		self.assertAlmostEqual(ds.evaluate("vy")[0], 1)
 
+	def test_state(self):
+		import vaex.serialize
+		@vaex.serialize.register
+		class Multiply(object):
+			def __init__(self, scale=0): self.scale = scale
+			def state_set(self, state): self.scale = state
+			def state_get(self): return self.scale
+			def __call__(self, x): return x * self.scale
+		mul = Multiply(3)
+		ds = self.dataset
+		copy = ds.to_copy(virtual=False)
+		statefile = tempfile.mktemp('.json')
+		print(statefile)
+		ds.select('x > 5', name='test')
+		ds.add_virtual_column('xx', 'x**2')
+		ds.add_virtual_column_function('mul', mul, ['x'])
+		count = ds.count('x', selection='test')
+		sum = ds.sum('xx', selection='test')
+		summul = ds.sum('mul', selection='test')
+		ds.state_write(statefile)
+		copy.state_load(statefile)
+		self.assertEqual(count, copy.count('x', selection='test'))
+		self.assertEqual(sum, copy.sum('xx', selection='test'))
+		self.assertEqual(summul, copy.sum('3*x', selection='test'))
 
 	def test_strings(self):
 		# TODO: concatenated datasets with strings of different length
