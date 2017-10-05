@@ -369,5 +369,5 @@ for entry in pkg_resources.iter_entry_points(group='vaex.namespace'):
 	try:
 	    add_namespace = entry.load()
 	    add_namespace()
-	except ModuleNotFoundError:
+	except Exception:
 		logger.error('issue loading ' + entry.name)
