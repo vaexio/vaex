@@ -4602,7 +4602,7 @@ class Dataset(object):
 										  arguments=list(arguments))
 		self._save_assign_expression(name)
 
-	def add_virtual_column(self, name, expression):
+	def add_virtual_column(self, name, expression, unique=False):
 		"""Add a virtual column to the dataset
 
 		Example:
@@ -4611,11 +4611,12 @@ class Dataset(object):
 
 		:param: str name: name of virtual column
 		:param: expression: expression for the column
+		:param str unique: if name is already used, make it unique by adding a postfix, e.g. _1, or _2
 		"""
 		type = "change" if name in self.virtual_columns else "add"
+		name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(virtual=True, strings=True))
 		self.virtual_columns[name] = expression
-		expression = Expression(self, name)
-		self._save_assign_expression(name, expression)
+		self._save_assign_expression(name)
 		self.signal_column_changed.emit(self, name, "add")
 		#self.write_virtual_meta()
 
