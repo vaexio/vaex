@@ -339,7 +339,8 @@ def yaml_load(f):
 def write_json_or_yaml(filename, data):
 	base, ext = os.path.splitext(filename)
 	if ext == ".json":
-		json.dump(data, filename)
+		with open(filename, "w") as f:
+			json.dump(data, f, indent=2)
 	elif ext == ".yaml":
 		with open(filename, "w") as f:
 			yaml_dump(f, data)
