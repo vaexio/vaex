@@ -26,4 +26,6 @@ setup(name=name+'-viz',
     install_requires=install_requires_viz,
     license=license,
     packages=['vaex.viz'],
-    zip_safe=False,)
+    zip_safe=False,
+    entry_points={'vaex.namespace': ['ml = vaex.viz:add_namespace']}
+    )
