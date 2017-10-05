@@ -3758,10 +3758,12 @@ class Dataset(object):
 
 		self._save_assign_expression(name, Expression(self, name))
 
-	def _save_assign_expression(self, name, expression):
+	def _save_assign_expression(self, name, expression=None):
 		obj = getattr(self, name, None)
 		# it's ok to set it if it does not exists, or we overwrite an older expression
 		if obj is None or isinstance(obj, Expression):
+			if expression is None:
+				expression = Expression(self, name)
 			setattr(self, name, expression)
 
 
