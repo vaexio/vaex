@@ -139,6 +139,11 @@ class TestDataset(unittest.TestCase):
 
 		self.df = self.dataset.to_pandas_df()
 
+	def test_unique(self):
+	    ds = vaex.from_arrays(x=np.array([2,2,1,0,1,1,2]))
+	    classes = ds.unique('x')
+	    assert np.sort(classes).tolist() == [0, 1, 2]
+
 	def test_amuse(self):
 		ds = vx.open(os.path.join(basedir, "files", "default_amuse_plummer.hdf5"))
 		self.assertGreater(len(ds), 0)
