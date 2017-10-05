@@ -441,7 +441,7 @@ def unlistify(waslist, *args):
 		if len(values) == 1:
 			return values[0]
 
-def _python_save_name(name, used=[]):
+def find_valid_name(name, used=[]):
 	first, rest = name[0], name[1:]
 	name = re.sub("[^a-zA-Z_]", "_", first) +  re.sub("[^a-zA-Z_0-9]", "_", rest)
 	if name in used:
@@ -450,7 +450,7 @@ def _python_save_name(name, used=[]):
 			nr += 1
 		name = name + ("_%d" % nr)
 	return name
-
+_python_save_name = find_valid_name
 
 import contextlib
 @contextlib.contextmanager
