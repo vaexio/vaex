@@ -3563,8 +3563,15 @@ class Dataset(object):
 		:param virtual: argument passed to Dataset.get_column_names when column_names is None
 		:return: dict
 		"""
-		ds = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
+		ds = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=False))
+		ds.selection_global = self.selection_global
+		if virtual:
+			for name, value in self.virtual_columns.items():
+				ds.add_virtual_column(name, value)
+		if self.selection_global:
+			ds.set_selection(self.get_selection(self.selection_global), name=self.selection_global)
 		ds.copy_metadata(self)
+
 		return ds
 
 	def copy_metadata(self, other):
