@@ -93,53 +93,48 @@ class Meta(type):
 		return type(future_class_name, future_class_parents, attrs)
 
 class Expression(with_metaclass(Meta)):
-	def __init__(self, ds, expression, selection=False):
-		self.ds = ds
-		self.expression = expression
-		self.selection = selection
+    def __init__(self, ds, expression, selection=False):
+    	self.ds = ds
+    	self.expression = expression
+    	self.selection = selection
 
-	def __repr__(self):
-		name = self.__class__.__module__ + "." +self.__class__.__name__
-		return "<%s(expressions=%r, selections=%r)> instance at 0x%x" % (name, self.expression, self.selection, id(self))
-	def count(self):
-		return self.ds.count(self.expression, selection=self.selection)
-	def sum(self):
-		return self.ds.sum(self.expression, selection=self.selection)
+    def __repr__(self):
+    	name = self.__class__.__module__ + "." +self.__class__.__name__
+    	return "<%s(expressions=%r, selections=%r)> instance at 0x%x" % (name, self.expression, self.selection, id(self))
+    def count(self):
+    	return self.ds.count(self.expression, selection=self.selection)
+    def sum(self):
+    	return self.ds.sum(self.expression, selection=self.selection)
 
-	#def optmized_tensorflow(self):
+    def evaluate(self, i1=None, i2=None, out=None, selection=None):
+        return self.ds.evaluate(self, i1, i2, out=out, selection=selection)
 
 
-	def optimized(self):
-		import pythran
-		import imp
-		import hashlib
-		#self._import_all(module)
-		names =  []
-		funcs = set(vaex.dataset.expression_namespace.keys())
-		vaex.expresso.validate_expression(self.expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
-		names = list(set(names))
-		types = ", ".join(str(self.ds.dtype(name)) + "[]" for name in names)
-		argstring = ", ".join(names)
-		code = '''
-from numpy import *
-#pythran export f({2})
-def f({0}):
-	return {1}'''.format(argstring, self.expression, types)
-		print(code)
-		m = hashlib.md5()
-		m.update(code.encode('utf-8'))
-		module_name = "pythranized_" + m.hexdigest()
-		print(m.hexdigest())
-		module_path = pythran.compile_pythrancode(module_name, code, extra_compile_args=["-DBOOST_SIMD", "-march=native"])
-		module = imp.load_dynamic(module_name, module_path)
-		function_name = "f_" +m.hexdigest()
-		vaex.dataset.expression_namespace[function_name] = module.f
+    def optimized(self):
+    	import pythran
+    	import imp
+    	import hashlib
+    	#self._import_all(module)
+    	names =  []
+    	funcs = set(vaex.dataset.expression_namespace.keys())
+    	vaex.expresso.validate_expression(self.expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
+    	names = list(set(names))
+    	types = ", ".join(str(self.ds.dtype(name)) + "[]" for name in names)
+    	argstring = ", ".join(names)
+    	code = '''
+    from numpy import *
+    #pythran export f({2})
+    def f({0}):
+    return {1}'''.format(argstring, self.expression, types)
+    	print(code)
+    	m = hashlib.md5()
+    	m.update(code.encode('utf-8'))
+    	module_name = "pythranized_" + m.hexdigest()
+    	print(m.hexdigest())
+    	module_path = pythran.compile_pythrancode(module_name, code, extra_compile_args=["-DBOOST_SIMD", "-march=native"])
+    	module = imp.load_dynamic(module_name, module_path)
+    	function_name = "f_" +m.hexdigest()
+    	vaex.dataset.expression_namespace[function_name] = module.f
 
-		return Expression(self.ds, "{0}({1})".format(function_name, argstring), selection=self.selection)
+    	return Expression(self.ds, "{0}({1})".format(function_name, argstring), selection=self.selection)
 
-	def 	__lt__(self, other):
-		#self._binop()
-		if isinstance(other, Expression):
-			assert other.ds == self.ds
-			other = other.expression
-		return Expression(self.ds, "({} < {})".format(self.expression, other))
