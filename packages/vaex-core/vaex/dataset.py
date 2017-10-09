@@ -4978,21 +4978,16 @@ class Dataset(object):
 		self._selection(create, name)
 
 	def dropna(self, drop_nan=True, drop_masked=True, column_names=None):
-		"""Create a shallow copy dataset, with the global selection set using select_non_missing
+		"""Create a shallow copy dataset, with filtering set using select_non_missing
 
 		:param drop_nan: drop rows when there is a NaN in any of the columns (will only affect float values)
 		:param drop_masked: drop rows when there is a masked value in any of the columns
 		:param column_names: The columns to consider, default: all (real, non-virtual) columns
 		:return: Dataset
 		"""
-		assert self.selection_global is None, 'TODO: not implemented'
-		args = dict(**locals())
-		del args['self']
-		copy = self.to_copy(virtual=True)
-		copy.select_non_missing(**args)
-		name = '__global__'
-		copy.select_non_missing(drop_nan=drop_nan, drop_masked=drop_masked, column_names=column_names, name=name)
-		copy.selection_global = name
+		copy = self.copy()
+		copy.select_non_missing(drop_nan=drop_nan, drop_masked=drop_masked, column_names=column_names,
+								name=FILTER_SELECTION_NAME, mode='and')
 		return copy
 
 	def select_nothing(self, name="default"):

@@ -1923,22 +1923,22 @@ class TestDataset(unittest.TestCase):
 
 	def test_dropna(self):
 		ds = self.dataset
-		ds.dropna(column_names=['m'])
+		ds.select_non_missing(column_names=['m'])
 		self.assertEqual(ds.count(selection=True), 9)
-		ds.dropna(drop_masked=False, column_names=['m'])
+		ds.select_non_missing(drop_masked=False, column_names=['m'])
 		self.assertEqual(ds.count(selection=True), 10)
 
 		self.dataset_local.data.x[0] = np.nan
-		ds.dropna(column_names=['x'])
+		ds.select_non_missing(column_names=['x'])
 		self.assertEqual(ds.count(selection=True), 9)
-		ds.dropna(drop_nan=False, column_names=['x'])
+		ds.select_non_missing(drop_nan=False, column_names=['x'])
 		self.assertEqual(ds.count(selection=True), 10)
 
-		ds.dropna()
+		ds.select_non_missing()
 		self.assertEqual(ds.count(selection=True), 8)
-		ds.dropna(drop_masked=False)
+		ds.select_non_missing(drop_masked=False)
 		self.assertEqual(ds.count(selection=True), 9)
-		ds.dropna(drop_nan=False)
+		ds.select_non_missing(drop_nan=False)
 		self.assertEqual(ds.count(selection=True), 9)
 
 
