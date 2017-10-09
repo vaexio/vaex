@@ -3632,24 +3632,27 @@ class Dataset(object):
 		return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
 
 	@docsubst
-	def to_copy(self, column_names=None, selection=None, strings=True, virtual=False):
+	def to_copy(self, column_names=None, selection=None, strings=True, virtual=False, selections=True):
 		"""Return a copy of the Dataset, if selection is None, it does not copy the data, it just has a reference
 
 		:param column_names: list of column names, to copy, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
 		:param selection: {selection}
 		:param strings: argument passed to Dataset.get_column_names when column_names is None
 		:param virtual: argument passed to Dataset.get_column_names when column_names is None
+		:param selections: copy selections to new dataset
 		:return: dict
 		"""
 		if column_names:
 			column_names = _ensure_strings_from_expressions(column_names)
 		ds = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=False))
-		ds.selection_global = self.selection_global
 		if virtual:
 			for name, value in self.virtual_columns.items():
 				ds.add_virtual_column(name, value)
-		if self.selection_global:
-			ds.set_selection(self.get_selection(self.selection_global), name=self.selection_global)
+		if selections:
+			for key, value in self.selection_histories.items():
+				ds.selection_histories[key] = list(value)
+			for key, value in self.selection_history_indices.items():
+				ds.selection_history_indices[key] = value
 		ds.copy_metadata(self)
 		return ds
 
@@ -5157,6 +5160,21 @@ class DatasetLocal(Dataset):
 		for name, array in self.columns.items():
 			setattr(datas, name, array)
 		return datas
+
+
+	def copy(self):
+		ds = DatasetArrays()
+		for name in self.get_column_names(strings=True, virtual=True):
+			if name in self.columns:
+				ds.add_column(name, self.columns[name])
+			else:
+				ds.add_virtual_column(name, self.virtual_columns[name])
+		for key, value in self.selection_histories.items():
+			ds.selection_histories[key] = list(value)
+		for key, value in self.selection_history_indices.items():
+			ds.selection_history_indices[key] = value
+		ds.copy_metadata(self)
+		return ds
 
 	def shallow_copy(self, virtual=True, variables=True):
 		"""Creates a (shallow) copy of the dataset
