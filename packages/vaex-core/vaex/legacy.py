@@ -56,7 +56,7 @@ class TaskHistogram(Task):
 		info.i1 = i1
 		info.i2 = i2
 		info.first = i1 == 0
-		info.last = i2 == self.dataset.full_length()
+		info.last = i2 == self.dataset.length_unfiltered()
 		info.size = i2-i1
 		#print "bin", i1, i2, info.last
 		#self.grids["counts"].bin_block(info, *blocks)
@@ -65,7 +65,7 @@ class TaskHistogram(Task):
 
 		blocks = [_asfloat(block) for block in blocks]
 
-		if self.masked or self.dataset.selection_global:
+		if self.masked or self.dataset.filtered:
 			mask = self.dataset.evaluate_selection_mask("default" if self.masked else None, i1=i1, i2=i2)
 			blocks = [block[mask] for block in blocks]
 
@@ -1071,7 +1071,7 @@ class SubspaceLocal(Subspace):
 				result.append((min(min1, min2), max(max1, max2)))
 			return result
 		def min_max_map(thread_index, i1, i2, *blocks):
-			if self.is_masked or self.dataset.selection_global:
+			if self.is_masked or self.dataset.filtered:
 				mask = self.dataset.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
 				blocks = [block[mask] for block in blocks]
 				is_empty = all(~mask)
@@ -1106,7 +1106,7 @@ class SubspaceLocal(Subspace):
 		def remove_counts(means_and_counts):
 			return self._toarray(means_and_counts)[:,0]
 		def mean_map(thread_index, i1, i2, *blocks):
-			if self.is_masked or self.dataset.selection_global:
+			if self.is_masked or self.dataset.filtered:
 				mask = self.dataset.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
 				return [(np.nanmean(block[mask]**moment), np.count_nonzero(~np.isnan(block[mask]))) for block in blocks]
 			else:
@@ -1123,7 +1123,7 @@ class SubspaceLocal(Subspace):
 			return vars_and_counts
 		def remove_counts(vars_and_counts):
 			return self._toarray(vars_and_counts)[:,0]
-		if self.is_masked or self.dataset.selection_global:
+		if self.is_masked or self.dataset.filtered:
 			def var_map(thread_index, i1, i2, *blocks):
 				mask = self.dataset.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
 				if means is not None:
@@ -1209,7 +1209,7 @@ class SubspaceLocal(Subspace):
 		nansum = lambda x: np.nansum(x, dtype=np.float64)
 		# TODO: we can speed up significantly using our own nansum, probably the same for var and mean
 		nansum = vaex.vaexfast.nansum
-		if self.is_masked or self.dataset.selection_global:
+		if self.is_masked or self.dataset.filtered:
 			task = TaskMapReduce(self.dataset,\
 								 self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[self.dataset.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)])
 																						  for block in blocks],\
