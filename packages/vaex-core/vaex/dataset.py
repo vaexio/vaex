@@ -374,8 +374,8 @@ class TaskStatistic(Task):
 
 		this_thread_grid = self.grid[thread_index]
 		for i, selection in enumerate(self.selections):
-			if selection or self.dataset.selection_global:
-				selection_mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2) # TODO
+			if selection or self.dataset.filtered:
+				selection_mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True) # TODO
 				if selection_mask is None:
 					raise ValueError("performing operation on selection while no selection present")
 				if mask is not None:
@@ -541,11 +541,12 @@ class _BlockScope(object):
 			raise
 
 class _BlockScopeSelection(object):
-	def __init__(self, dataset, i1, i2, selection=None):
+	def __init__(self, dataset, i1, i2, selection=None, cache=False):
 		self.dataset = dataset
 		self.i1 = i1
 		self.i2 = i2
 		self.selection = selection
+		self.store_in_cache = cache
 
 	def evaluate(self, expression):
 		if expression is True:
@@ -577,7 +578,8 @@ class _BlockScopeSelection(object):
 					return self.dataset.variables[variable]
 				mask = selection.evaluate(variable, self.i1, self.i2)
 				#logger.debug("put selection in mask with key %r" % (key,))
-				cache[key] = selection, mask
+				if self.store_in_cache:
+					cache[key] = selection, mask
 				return mask
 			else:
 					if variable in expression_namespace:
@@ -3556,14 +3558,14 @@ class Dataset(object):
 		else:
 			return self.variables[name]
 
-	def _evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None):
-		"""Internal use, ignore the selection_global"""
+	def _evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False):
+		"""Internal use, ignores the filter"""
 		i1 = i1 or 0
 		i2 = i2 or len(self)
-		scope = _BlockScopeSelection(self, i1, i2, selection)
+		scope = _BlockScopeSelection(self, i1, i2, selection, cache=cache)
 		return scope.evaluate(name)
 
-	def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None):
+	def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False):
 		i1 = i1 or 0
 		i2 = i2 or len(self)
 		if name in [None, False] and self.filtered:
@@ -3577,7 +3579,7 @@ class Dataset(object):
 			mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
 			return mask & mask_global
 		else:
-			scope = _BlockScopeSelection(self, i1, i2, selection)
+			scope = _BlockScopeSelection(self, i1, i2, selection, cache=cache)
 			return scope.evaluate(name)
 
 		#if _is_string(selection):
