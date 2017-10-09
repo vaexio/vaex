@@ -4764,6 +4764,7 @@ class Dataset(object):
 					data_parts[name] = self.evaluate(name, i1=k1, i2=k2)
 				except:
 					data_parts[name] = ["error"] * (N)
+					logger.exception('error evaluating: %s at rows %i-%i' % (name, k1, k2))
 			for i in range(k2-k1):
 				parts += ["<tr>"]
 				parts += ["<td>%r</td>" % (i+k1)]
