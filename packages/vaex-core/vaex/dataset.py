@@ -165,7 +165,9 @@ def _is_limit(x):
 def _ensure_list(x):
 	return [x] if not _issequence(x) else x
 def _ensure_string_from_expression(expression):
-	if isinstance(expression, six.string_types):
+	if expression is None:
+		return None
+	elif isinstance(expression, six.string_types):
 		return expression
 	elif isinstance(expression, Expression):
 		return expression.expression
@@ -4943,6 +4945,7 @@ class Dataset(object):
 		:param executor:
 		:return:
 		"""
+		boolean_expression = _ensure_string_from_expression(boolean_expression)
 		if boolean_expression is None and not self.has_selection(name=name):
 			pass # we don't want to pollute the history with many None selections
 			self.signal_selection_changed.emit(self) # TODO: unittest want to know, does this make sense?
