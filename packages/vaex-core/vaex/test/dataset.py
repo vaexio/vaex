@@ -1168,7 +1168,8 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(df['x'].count(), 4)
 		np.testing.assert_array_almost_equal(self.dataset.count("y", selection=None), 10)
 		np.testing.assert_array_almost_equal(self.dataset['y'].count(), 10)
-		np.testing.assert_array_almost_equal(self.df['y'].count(), 10)
+
+		np.testing.assert_array_almost_equal(self.df['y'].count(), 9)
 		np.testing.assert_array_almost_equal(self.dataset.count("y", selection=True), 4)
 		np.testing.assert_array_almost_equal(ds['y'].count(), 4)
 		np.testing.assert_array_almost_equal(df['y'].count(), 4)
