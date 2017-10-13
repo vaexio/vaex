@@ -5749,7 +5749,6 @@ class DatasetArrays(DatasetLocal):
 		:param data: numpy array with the data
 		"""
 		assert _is_array_type_ok(data), "dtype not supported: %r, %r" % (data.dtype, data.dtype.type)
-		super(DatasetArrays, self).add_column(name, data)
 		#self._length = len(data)
 		if self._length_unfiltered is None:
 			self._length_unfiltered = len(data)
@@ -5757,5 +5756,6 @@ class DatasetArrays(DatasetLocal):
 			self._index_end = self._length_unfiltered
 		else:
 			assert self.length_original() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
+		super(DatasetArrays, self).add_column(name, data)
 		self._length_unfiltered = int(round(self._length_original * self._active_fraction))
 		#self.set_active_fraction(self._active_fraction)
