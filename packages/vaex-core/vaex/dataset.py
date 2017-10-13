@@ -39,6 +39,8 @@ try:
 except ImportError:
 	from urlparse import urlparse
 
+FILTER_SELECTION_NAME = '__filter__'
+
 sys_is_le = sys.byteorder == 'little'
 
 logger = logging.getLogger("vaex")
@@ -163,7 +165,9 @@ def _is_limit(x):
 def _ensure_list(x):
 	return [x] if not _issequence(x) else x
 def _ensure_string_from_expression(expression):
-	if isinstance(expression, six.string_types):
+	if expression is None:
+		return None
+	elif isinstance(expression, six.string_types):
 		return expression
 	elif isinstance(expression, Expression):
 		return expression.expression
@@ -354,7 +358,7 @@ class TaskStatistic(Task):
 		info.i1 = i1
 		info.i2 = i2
 		info.first = i1 == 0
-		info.last = i2 == self.dataset.full_length()
+		info.last = i2 == self.dataset.length_unfiltered()
 		info.size = i2-i1
 
 		masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
@@ -370,8 +374,8 @@ class TaskStatistic(Task):
 
 		this_thread_grid = self.grid[thread_index]
 		for i, selection in enumerate(self.selections):
-			if selection or self.dataset.selection_global:
-				selection_mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2) # TODO
+			if selection or self.dataset.filtered:
+				selection_mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True) # TODO
 				if selection_mask is None:
 					raise ValueError("performing operation on selection while no selection present")
 				if mask is not None:
@@ -395,7 +399,7 @@ class TaskStatistic(Task):
 				selection_blocks = list(selection_blocks[:-1])
 			if len(selection_blocks) == 0 and subblock_weight is None:
 				if self.op == OP_ADD1: # special case for counting '*' (i.e. the number of rows)
-					if selection or self.dataset.selection_global:
+					if selection or self.dataset.filtered:
 						this_thread_grid[i][0] += np.sum(selection_mask)
 					else:
 						this_thread_grid[i][0] += i2-i1
@@ -537,11 +541,12 @@ class _BlockScope(object):
 			raise
 
 class _BlockScopeSelection(object):
-	def __init__(self, dataset, i1, i2, selection=None):
+	def __init__(self, dataset, i1, i2, selection=None, cache=False):
 		self.dataset = dataset
 		self.i1 = i1
 		self.i2 = i2
 		self.selection = selection
+		self.store_in_cache = cache
 
 	def evaluate(self, expression):
 		if expression is True:
@@ -573,7 +578,8 @@ class _BlockScopeSelection(object):
 					return self.dataset.variables[variable]
 				mask = selection.evaluate(variable, self.i1, self.i2)
 				#logger.debug("put selection in mask with key %r" % (key,))
-				cache[key] = selection, mask
+				if self.store_in_cache:
+					cache[key] = selection, mask
 				return mask
 			else:
 					if variable in expression_namespace:
@@ -888,7 +894,7 @@ class Dataset(object):
 		# leads to k = 4.74047 to go from au/year to km/s
 		self.virtual_columns = collections.OrderedDict()
 		self._length = None
-		self._full_length = None
+		self._length_unfiltered = None
 		self._active_fraction = 1
 		self._current_row = None
 		self._index_start = 0
@@ -900,7 +906,6 @@ class Dataset(object):
 		self.descriptions = {}
 
 		self.favorite_selections = collections.OrderedDict()
-		self.selection_global = None
 
 		self.mask = None # a bitmask for the selection does not work for server side
 
@@ -908,7 +913,12 @@ class Dataset(object):
 		self.selection_histories = collections.defaultdict(list)
 		# after an undo, the last one in the history list is not the active one, -1 means no selection
 		self.selection_history_indices = collections.defaultdict(lambda: -1)
+		assert self.filtered is False
 		self._auto_fraction= False
+
+	@property
+	def filtered(self):
+		return self.has_selection(FILTER_SELECTION_NAME)
 
 	def map_reduce(self, map, reduce, arguments, async=False):
 		#def map_wrapper(*blocks):
@@ -3435,28 +3445,28 @@ class Dataset(object):
 		else:
 			return self.variables[name]
 
-	def _evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None):
-		"""Internal use, ignore the selection_global"""
+	def _evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False):
+		"""Internal use, ignores the filter"""
 		i1 = i1 or 0
 		i2 = i2 or len(self)
-		scope = _BlockScopeSelection(self, i1, i2, selection)
+		scope = _BlockScopeSelection(self, i1, i2, selection, cache=cache)
 		return scope.evaluate(name)
 
-	def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None):
+	def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False):
 		i1 = i1 or 0
 		i2 = i2 or len(self)
-		if name in [None, False] and self.selection_global:
-			scope_global = _BlockScopeSelection(self, i1, i2, None)
-			mask_global = scope_global.evaluate(self.selection_global)
+		if name in [None, False] and self.filtered:
+			scope_global = _BlockScopeSelection(self, i1, i2, None, cache=cache)
+			mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
 			return mask_global
-		elif self.selection_global and name != self.selection_global:
+		elif self.filtered and name != FILTER_SELECTION_NAME:
 			scope = _BlockScopeSelection(self, i1, i2, selection)
-			scope_global = _BlockScopeSelection(self, i1, i2, None)
+			scope_global = _BlockScopeSelection(self, i1, i2, None, cache=cache)
 			mask = scope.evaluate(name)
-			mask_global = scope_global.evaluate(self.selection_global)
+			mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
 			return mask & mask_global
 		else:
-			scope = _BlockScopeSelection(self, i1, i2, selection)
+			scope = _BlockScopeSelection(self, i1, i2, selection, cache=cache)
 			return scope.evaluate(name)
 
 		#if _is_string(selection):
@@ -3509,24 +3519,27 @@ class Dataset(object):
 		return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
 
 	@docsubst
-	def to_copy(self, column_names=None, selection=None, strings=True, virtual=False):
+	def to_copy(self, column_names=None, selection=None, strings=True, virtual=False, selections=True):
 		"""Return a copy of the Dataset, if selection is None, it does not copy the data, it just has a reference
 
 		:param column_names: list of column names, to copy, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
 		:param selection: {selection}
 		:param strings: argument passed to Dataset.get_column_names when column_names is None
 		:param virtual: argument passed to Dataset.get_column_names when column_names is None
+		:param selections: copy selections to new dataset
 		:return: dict
 		"""
 		if column_names:
 			column_names = _ensure_strings_from_expressions(column_names)
 		ds = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=False))
-		ds.selection_global = self.selection_global
 		if virtual:
 			for name, value in self.virtual_columns.items():
 				ds.add_virtual_column(name, value)
-		if self.selection_global:
-			ds.set_selection(self.get_selection(self.selection_global), name=self.selection_global)
+		if selections:
+			for key, value in self.selection_histories.items():
+				ds.selection_histories[key] = list(value)
+			for key, value in self.selection_history_indices.items():
+				ds.selection_history_indices[key] = value
 		ds.copy_metadata(self)
 		return ds
 
@@ -3629,14 +3642,14 @@ class Dataset(object):
 		if isinstance(f_or_array, np.ndarray):
 			ar = f_or_array
 			# it can be None when we have an 'empty' DatasetArrays
-			if self._full_length is not None:
-				if len(ar) != self.full_length():
-					if self.selection_global:
+			if self._length_unfiltered is not None:
+				if len(ar) != self.length_unfiltered():
+					if self.filtered:
 						# give a better warning to avoid confusion
 						if len(self) == len(ar):
-							raise ValueError("Array is of length %s, while the length of the dataset is %s due to the .selection_global, the (full) length is %s." % (len(ar), len(self), self.full_length()))
-					raise ValueError("array is of length %s, while the length of the dataset is %s" % (len(ar), self.full_length()))
-			#assert self.full_length() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.full_length(), len(data))
+							raise ValueError("Array is of length %s, while the length of the dataset is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
+					raise ValueError("array is of length %s, while the length of the dataset is %s" % (len(ar), self.length_unfiltered()))
+			#assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
 			self.columns[name] = f_or_array
 			if name not in self.column_names:
 				self.column_names.append(name)
@@ -4638,6 +4651,7 @@ class Dataset(object):
 					data_parts[name] = self.evaluate(name, i1=k1, i2=k2)
 				except:
 					data_parts[name] = ["error"] * (N)
+					logger.exception('error evaluating: %s at rows %i-%i' % (name, k1, k2))
 			for i in range(k2-k1):
 				parts += ["<tr>"]
 				parts += ["<td>%r</td>" % (i+k1)]
@@ -4715,19 +4729,19 @@ class Dataset(object):
 			   + ([key for key in self.virtual_columns.keys() if (hidden or (not key.startswith("__")))] if virtual else [])
 
 	def __len__(self):
-		"""Returns the number of rows in the dataset, if active_fraction != 1, then floor(active_fraction*full_length) is returned"""
-		if self.selection_global is None:
+		"""Returns the number of rows in the dataset (filtering applied)"""
+		if not self.filtered:
 			return self._length
 		else:
-			return int(self.count(selection=self.selection_global))
+			return int(self.count())
 
 	def selected_length(self):
 		"""Returns the number of rows that are selected"""
 		raise NotImplementedError
 
-	def full_length(self):
-		"""the full length of the dataset, independant what active_fraction is. This is the real length of the underlying ndarrays"""
-		return self._full_length
+	def length_unfiltered(self):
+		"""the full length of the dataset, independant what active_fraction is, or filtering. This is the real length of the underlying ndarrays"""
+		return self._length_unfiltered
 
 	def active_length(self):
 		"""The length of the arrays that should be considered"""
@@ -4748,7 +4762,7 @@ class Dataset(object):
 			#self._fraction_length = int(self._length * self._active_fraction)
 			self.select(None)
 			self.set_current_row(None)
-			self._length = int(round(self.full_length() * self._active_fraction))
+			self._length = int(round(self.length_unfiltered() * self._active_fraction))
 			self._index_start = 0
 			self._index_end = self._length
 			self.signal_active_fraction_changed.emit(self, value)
@@ -4761,7 +4775,7 @@ class Dataset(object):
 		TODO: we may be able to keep the selection, if we keep the expression, and also the picked row
 		"""
 		logger.debug("set active range to: %r", (i1, i2))
-		self._active_fraction = (i2-i1) / float(self.full_length())
+		self._active_fraction = (i2-i1) / float(self.length_unfiltered())
 		#self._fraction_length = int(self._length * self._active_fraction)
 		self._index_start = i1
 		self._index_end = i2
@@ -4824,6 +4838,7 @@ class Dataset(object):
 		:param executor:
 		:return:
 		"""
+		boolean_expression = _ensure_string_from_expression(boolean_expression)
 		if boolean_expression is None and not self.has_selection(name=name):
 			pass # we don't want to pollute the history with many None selections
 			self.signal_selection_changed.emit(self) # TODO: unittest want to know, does this make sense?
@@ -4850,21 +4865,16 @@ class Dataset(object):
 		self._selection(create, name)
 
 	def dropna(self, drop_nan=True, drop_masked=True, column_names=None):
-		"""Create a shallow copy dataset, with the global selection set using select_non_missing
+		"""Create a shallow copy dataset, with filtering set using select_non_missing
 
 		:param drop_nan: drop rows when there is a NaN in any of the columns (will only affect float values)
 		:param drop_masked: drop rows when there is a masked value in any of the columns
 		:param column_names: The columns to consider, default: all (real, non-virtual) columns
 		:return: Dataset
 		"""
-		assert self.selection_global is None, 'TODO: not implemented'
-		args = dict(**locals())
-		del args['self']
-		copy = self.to_copy(virtual=True)
-		copy.select_non_missing(**args)
-		name = '__global__'
-		copy.select_non_missing(drop_nan=drop_nan, drop_masked=drop_masked, column_names=column_names, name=name)
-		copy.selection_global = name
+		copy = self.copy()
+		copy.select_non_missing(drop_nan=drop_nan, drop_masked=drop_masked, column_names=column_names,
+								name=FILTER_SELECTION_NAME, mode='and')
 		return copy
 
 	def select_nothing(self, name="default"):
@@ -5034,6 +5044,21 @@ class DatasetLocal(Dataset):
 			setattr(datas, name, array)
 		return datas
 
+
+	def copy(self):
+		ds = DatasetArrays()
+		for name in self.get_column_names(strings=True, virtual=True):
+			if name in self.columns:
+				ds.add_column(name, self.columns[name])
+			else:
+				ds.add_virtual_column(name, self.virtual_columns[name])
+		for key, value in self.selection_histories.items():
+			ds.selection_histories[key] = list(value)
+		for key, value in self.selection_history_indices.items():
+			ds.selection_history_indices[key] = value
+		ds.copy_metadata(self)
+		return ds
+
 	def shallow_copy(self, virtual=True, variables=True):
 		"""Creates a (shallow) copy of the dataset
 
@@ -5042,15 +5067,14 @@ class DatasetLocal(Dataset):
 		"""
 		dataset = DatasetLocal(self.name, self.path, self.column_names)
 		dataset.columns.update(self.columns)
-		dataset._full_length = self._full_length
-		dataset._index_end = self._full_length
+		dataset._length_unfiltered = self._length_unfiltered
+		dataset._index_end = self._length_unfiltered
 		dataset._length = self._length
 		dataset._active_fraction = self._active_fraction
 		if virtual:
 			dataset.virtual_columns.update(self.virtual_columns)
 		if variables:
 			dataset.variables.update(self.variables)
-		dataset.selection_global = self.selection_global
 		# half shallow/deep copy
 		# for key, value in self.selection_histories.items():
 		# 	dataset.selection_histories[key] = list(value)
@@ -5106,22 +5130,12 @@ class DatasetLocal(Dataset):
 			return Expression(self, item) # TODO we'd like to return the same expression if possible
 		elif isinstance(item, Expression):
 			expression = item.expression
-			ds = self.to_copy(virtual=True)
-			if ds.selection_global:
-				ds.select(expression, name=ds.selection_global, mode="and")
-			else:
-				ds.select(expression, name='__global__')
-				ds.selection_global = '__global__'
+			ds = self.copy()
+			ds.select(expression, name=FILTER_SELECTION_NAME, mode='and')
 			return ds
 		elif isinstance(item, (tuple, list)):
-			ds = self.to_copy(column_names=item)
+			ds = self.copy(column_names=item)
 			return ds
-
-
-		# if _issequence(item):
-		# 	return self.to_copy(column_names=item)
-		# else:
-		# 	return self.to_copy(column_names=[item])
 
 	def __iter__(self):
 		"""Iterator over the column names (for the moment non-virtual and non-strings only)"""
@@ -5177,6 +5191,39 @@ class DatasetLocal(Dataset):
 			datasets.extend([other])
 		return DatasetConcatenated(datasets)
 
+	def _invalidate_selection_cache(self):
+		self._selection_mask_caches.clear()
+
+	def _filtered_range_to_unfiltered_indices(self, i1, i2):
+		assert self.filtered
+		count = self.count() # force the cache to be filled
+		assert i2 <= count
+		cache = self._selection_mask_caches[FILTER_SELECTION_NAME]
+		mask_blocks = iter(sorted(
+			[(i1, i2, block) for (i1, i2), (selection, block) in cache.items()],
+			key=lambda item: item[0]))
+		done = False
+
+		offset_unfiltered = 0  # points to the unfiltered arrays
+		offset_filtered = 0    # points to the filtered array
+		indices = []
+		while not done:
+			unfiltered_i1, unfiltered_i2, block = next(mask_blocks)
+			count = block.sum()
+			if (offset_filtered + count) < i1:  # i1 does not start in this block
+				assert unfiltered_i2 == offset_unfiltered + len(block)
+				offset_unfiltered = unfiltered_i2
+				offset_filtered += count
+			else:
+				for block_index in range(len(block)):
+					if block[block_index]:  # if not filtered, we go to the next index
+						if i1 <= offset_filtered < i2:  # if this is in the range we want...
+							indices.append(offset_unfiltered)
+						offset_filtered += 1
+					offset_unfiltered += 1
+			done = offset_filtered >= i2
+		return np.array(indices, dtype=np.int64)
+
 	def _evaluate(self, expression, i1, i2, out=None, selection=None):
 		scope = _BlockScope(self, i1, i2, **self.variables)
 		if out is not None:
@@ -5189,7 +5236,13 @@ class DatasetLocal(Dataset):
 		expression = _ensure_string_from_expression(expression)
 		i1 = i1 or 0
 		i2 = i2 or len(self)
-		mask = self.evaluate_selection_mask(selection, i1, i2) if (selection is not None or self.selection_global) else None
+		mask = None
+		if self.filtered:  # if we filter, i1:i2 has a different meaning
+			indices = self._filtered_range_to_unfiltered_indices(i1, i2)
+			i1 = indices[0]
+			i2 = indices[-1]+1  # +1 to make it inclusive
+		if selection is not None or self.filtered:
+			mask = self.evaluate_selection_mask(selection, i1, i2)
 		scope = _BlockScope(self, i1, i2, mask=mask, **self.variables)
 		#	value = value[mask]
 		if out is not None:
@@ -5238,9 +5291,9 @@ class DatasetLocal(Dataset):
 				else:
 					a = self.columns[column_name]
 					b = other.columns[column_name]
-					if self.selection_global:
+					if self.filtered:
 						a = a[self.evaluate_selection_mask(None)]
-					if other.selection_global:
+					if other.filtered:
 						b = b[other.evaluate_selection_mask(None)]
 					if orderby:
 						a = a[index1]
@@ -5461,8 +5514,8 @@ class _ColumnConcatenatedLazy(object):
 		# this is the fast path, no copy needed
 		if stop <= offset + len(current_dataset):
 			ar = current_dataset.columns[self.column_name]
-			if current_dataset.selection_global: # TODO this may get slow! we're evaluating everything
-				warnings.warn("might be slow, you have concatenated datasets with a selection_global set")
+			if current_dataset.filtered: # TODO this may get slow! we're evaluating everything
+				warnings.warn("might be slow, you have concatenated datasets with a filter set")
 				ar = ar[current_dataset.evaluate_selection_mask(None)]
 			return ar[start-offset:stop-offset].astype(self.dtype)
 		else:
@@ -5476,8 +5529,8 @@ class _ColumnConcatenatedLazy(object):
 			while offset < stop: #> offset + len(current_dataset):
 				#print(offset, stop)
 				ar = current_dataset.columns[self.column_name]
-				if current_dataset.selection_global: # TODO this may get slow! we're evaluating everything
-					warnings.warn("might be slow, you have concatenated datasets with a selection_global set")
+				if current_dataset.filtered: # TODO this may get slow! we're evaluating everything
+					warnings.warn("might be slow, you have concatenated datasets with a filter set")
 					ar = ar[current_dataset.evaluate_selection_mask(None)]
 				part = ar[start-offset:min(len(current_dataset), stop-offset)]
 				#print "part", part, copy_offset,copy_offset+len(part)
@@ -5501,7 +5554,7 @@ class DatasetConcatenated(DatasetLocal):
 		self.path =  "-".join(ds.path for ds in self.datasets)
 		first, tail = datasets[0], datasets[1:]
 		for dataset in datasets:
-			assert dataset.selection_global is None, "we don't support selected_global for concatenated datasets"
+			assert dataset.filtered is False, "we don't support filtering for concatenated datasets"
 		for column_name in first.get_column_names(strings=True):
 			if all([column_name in dataset.get_column_names(strings=True) for dataset in tail]):
 				self.column_names.append(column_name)
@@ -5518,9 +5571,9 @@ class DatasetConcatenated(DatasetLocal):
 					self.set_variable(name, value, write=False)
 		#self.write_virtual_meta()
 
-		self._full_length = sum(len(ds) for ds in self.datasets)
-		self._length = self._full_length
-		self._index_end = self._full_length
+		self._length_unfiltered = sum(len(ds) for ds in self.datasets)
+		self._length = self._length_unfiltered
+		self._index_end = self._length_unfiltered
 
 	def is_masked(self, column):
 		if column in self.columns:
@@ -5553,11 +5606,11 @@ class DatasetArrays(DatasetLocal):
 		assert _is_array_type_ok(data), "dtype not supported: %r, %r" % (data.dtype, data.dtype.type)
 		super(DatasetArrays, self).add_column(name, data)
 		#self._length = len(data)
-		if self._full_length is None:
-			self._full_length = len(data)
+		if self._length_unfiltered is None:
+			self._length_unfiltered = len(data)
 			self._length = len(data)
-			self._index_end = self._full_length
+			self._index_end = self._length_unfiltered
 		else:
-			assert self.full_length() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.full_length(), len(data))
-		self._length = int(round(self.full_length() * self._active_fraction))
+			assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
+		self._length = int(round(self.length_unfiltered() * self._active_fraction))
 		#self.set_active_fraction(self._active_fraction)
