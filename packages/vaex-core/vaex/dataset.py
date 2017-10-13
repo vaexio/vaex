@@ -4990,6 +4990,45 @@ class Dataset(object):
 		return self.get_selection(name) != None
 
 
+	def __setitem__(self, name, value):
+		'''Convenient way to add a virtual column / expression to this dataset
+
+		Examples:
+		    >>> ds['r'] = np.sqrt(ds.x**2 + ds.y**2 + ds.z**2)
+		'''
+		if isinstance(name, six.string_types):
+			if isinstance(value, Expression):
+				value = value.expression
+			self.add_virtual_column(name, value)
+		else:
+			raise TypeError('__setitem__ only takes strings as arguments, not {}'.format(type(name)))
+
+	def __getitem__(self, item):
+		"""Convenient way to get expressions, (shallow) copies of a few columns, or to apply filtering
+
+		Examples
+			>> ds['Lz']  # the expression 'Lz
+			>> ds['Lz/2'] # the expression 'Lz/2'
+			>> ds[["Lz", "E"]] # a shallow copy with just two columns
+			>> ds[ds.Lz < 0]  # a shallow copy with the filter Lz < 0 applied
+
+		"""
+		if isinstance(item, six.string_types):
+			return Expression(self, item) # TODO we'd like to return the same expression if possible
+		elif isinstance(item, Expression):
+			expression = item.expression
+			ds = self.copy()
+			ds.select(expression, name=FILTER_SELECTION_NAME, mode='and')
+			return ds
+		elif isinstance(item, (tuple, list)):
+			ds = self.copy(column_names=item)
+			return ds
+
+	def __iter__(self):
+		"""Iterator over the column names (for the moment non-virtual and non-strings only)"""
+		return iter(list(self.get_column_names(virtual=False, strings=False)))
+
+
 def _select_replace(maskold, masknew):
 	return masknew
 
@@ -5108,38 +5147,6 @@ class DatasetLocal(Dataset):
 		return vaex.legacy.SubspaceLocal(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
 
 	def echo(self, arg): return arg
-
-	def __setitem__(self, name, value):
-		if isinstance(name, six.string_types):
-			if isinstance(value, Expression):
-				value = value.expression
-			self.add_virtual_column(name, value)
-		else:
-			raise TypeError('__setitem__ only takes strings as arguments, not {}'.format(type(name)))
-
-	def __getitem__(self, item):
-		"""Alias to dataset.to_copy(column_names), to mimic Pandas a bit
-
-		:Example:
-		>> ds["Lz"]
-		>> ds["Lz", "E"]
-		>> ds[ds.names.Lz]
-
-		"""
-		if isinstance(item, six.string_types):
-			return Expression(self, item) # TODO we'd like to return the same expression if possible
-		elif isinstance(item, Expression):
-			expression = item.expression
-			ds = self.copy()
-			ds.select(expression, name=FILTER_SELECTION_NAME, mode='and')
-			return ds
-		elif isinstance(item, (tuple, list)):
-			ds = self.copy(column_names=item)
-			return ds
-
-	def __iter__(self):
-		"""Iterator over the column names (for the moment non-virtual and non-strings only)"""
-		return iter(list(self.get_column_names(virtual=False, strings=False)))
 
 	def __array__(self, dtype=None):
 		"""Casts the dataset to a numpy array
