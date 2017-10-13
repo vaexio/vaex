@@ -5482,17 +5482,18 @@ class DatasetLocal(Dataset):
 		value = scope.evaluate(expression)
 		return value
 
-	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None):
+	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True):
 		"""The local implementation of :func:`Dataset.evaluate`"""
 		expression = _ensure_string_from_expression(expression)
 		i1 = i1 or 0
-		i2 = i2 or len(self)
+		i2 = i2 or (len(self) if (self.filtered and filtered) else self.length_unfiltered())
 		mask = None
-		if self.filtered:  # if we filter, i1:i2 has a different meaning
+		if self.filtered and filtered:  # if we filter, i1:i2 has a different meaning
 			indices = self._filtered_range_to_unfiltered_indices(i1, i2)
 			i1 = indices[0]
 			i2 = indices[-1]+1  # +1 to make it inclusive
-		if selection is not None or self.filtered:
+		# for both a selection or filtering we have a mask
+		if selection is not None or (self.filtered and filtered):
 			mask = self.evaluate_selection_mask(selection, i1, i2)
 		scope = _BlockScope(self, i1, i2, mask=mask, **self.variables)
 		#	value = value[mask]
