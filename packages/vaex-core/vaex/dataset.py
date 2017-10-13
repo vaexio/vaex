@@ -3766,13 +3766,12 @@ class Dataset(object):
 		if isinstance(f_or_array, np.ndarray):
 			ar = f_or_array
 			# it can be None when we have an 'empty' DatasetArrays
-			if self._length_unfiltered is not None:
-				if len(ar) != self.length_unfiltered():
-					if self.filtered:
-						# give a better warning to avoid confusion
-						if len(self) == len(ar):
-							raise ValueError("Array is of length %s, while the length of the dataset is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
-					raise ValueError("array is of length %s, while the length of the dataset is %s" % (len(ar), self.length_unfiltered()))
+			if len(ar) != self.length_original():
+				if self.filtered:
+					# give a better warning to avoid confusion
+					if len(self) == len(ar):
+						raise ValueError("Array is of length %s, while the length of the dataset is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
+				raise ValueError("array is of length %s, while the length of the dataset is %s" % (len(ar), self.length_unfiltered()))
 			#assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
 			self.columns[name] = f_or_array
 			if name not in self.column_names:
@@ -4903,7 +4902,7 @@ class Dataset(object):
 		TODO: we may be able to keep the selection, if we keep the expression, and also the picked row
 		"""
 		logger.debug("set active range to: %r", (i1, i2))
-		self._active_fraction = (i2-i1) / float(self.length_unfiltered())
+		self._active_fraction = (i2-i1) / float(self.length_original())
 		#self._fraction_length = int(self._length * self._active_fraction)
 		self._index_start = i1
 		self._index_end = i2
@@ -5757,6 +5756,6 @@ class DatasetArrays(DatasetLocal):
 			self._length_original = len(data)
 			self._index_end = self._length_unfiltered
 		else:
-			assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
+			assert self.length_original() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
 		self._length_unfiltered = int(round(self._length_original * self._active_fraction))
 		#self.set_active_fraction(self._active_fraction)

@@ -157,13 +157,14 @@ class DatasetMemoryMapped(DatasetLocal):
 		if self._length_original is not None and length != self._length_original:
 			logger.error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
 		else:
+			self._length_unfiltered = length
+			self._length_original = length
 			if self.current_slice is None:
 				self.current_slice = (0, length)
 				self.fraction = 1.
 				self._length = length
 				self._index_end = self._length_unfiltered
-			self._length_unfiltered = length
-			self._length_original = length
+				self._index_start = 0
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			if array is not None:
 				length = len(array)
