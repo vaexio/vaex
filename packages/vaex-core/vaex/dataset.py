@@ -212,6 +212,68 @@ class Task(vaex.promise.Promise):
 		self.signal_progress.connect(ret.signal_progress.emit)
 		return ret
 
+class TaskBase(Task):
+	def __init__(self, dataset, expressions, selection=None, to_float=False, dtype=np.float64, name="TaskBase"):
+		if not isinstance(expressions, (tuple, list)):
+			expressions = [expressions]
+		# edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension
+		self.selection_waslist, [self.selections,] = vaex.utils.listify(selection)
+		Task.__init__(self, dataset, expressions, name=name)
+		self.to_float = to_float
+		self.dtype = dtype
+
+
+	def map(self, thread_index, i1, i2, *blocks):
+		class Info(object):
+			pass
+		info = Info()
+		info.i1 = i1
+		info.i2 = i2
+		info.first = i1 == 0
+		info.last = i2 == self.dataset.length_unfiltered()
+		info.size = i2-i1
+
+		masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
+		blocks = [block.data if np.ma.isMaskedArray(block) else block for block in blocks]
+		mask = None
+		if masks:
+			# find all 'rows', where all columns are present (not masked)
+			mask = masks[0].copy()
+			for other in masks[1:]:
+				mask |= other
+			# masked arrays mean mask==1 is masked, for vaex we use mask==1 is used
+			#blocks = [block[~mask] for block in blocks]
+
+		if self.to_float:
+			blocks = [as_flat_float(block) for block in blocks]
+
+		for i, selection in enumerate(self.selections):
+			if selection or self.dataset.filtered:
+				selection_mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True) # TODO
+				if selection_mask is None:
+					raise ValueError("performing operation on selection while no selection present")
+				if mask is not None:
+					selection_mask = selection_mask[~mask]
+				selection_blocks = [block[selection_mask] for block in blocks]
+			else:
+				selection_blocks = [block for block in blocks]
+			little_endians = len([k for k in selection_blocks if k.dtype.byteorder in ["<", "="]])
+			if not ((len(selection_blocks) == little_endians) or little_endians == 0):
+				def _to_native(ar):
+					if ar.dtype.byteorder not in ["<", "="]:
+						dtype = ar.dtype.newbyteorder()
+						return ar.astype(dtype)
+					else:
+						return ar
+
+				selection_blocks = [_to_native(k) for k in selection_blocks]
+			subblock_weight = None
+			if len(selection_blocks) == len(self.expressions) + 1:
+				subblock_weight = selection_blocks[-1]
+				selection_blocks = list(selection_blocks[:-1])
+			self.map_processed(thread_index, i1, i2, mask, *blocks)
+		return i2-i1
+
 class TaskMapReduce(Task):
 	def __init__(self, dataset, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False, name="task"):
 		Task.__init__(self, dataset, expressions, name=name)
@@ -231,6 +293,43 @@ class TaskMapReduce(Task):
 
 	def reduce(self, results):
 		return self.converter(reduce(self._reduce, results))
+
+class TaskApply(TaskBase):
+	def __init__(self, dataset, expressions, f, info=False, to_float=False, name="apply", masked=False, dtype=np.float64):
+		TaskBase.__init__(self, dataset, expressions, selection=None, to_float=to_float, name=name)
+		self.f = f
+		self.dtype = dtype
+		self.data = np.zeros(dataset.length_unfiltered(), dtype=self.dtype)
+		self.mask = None
+		if masked:
+			self.mask = np.zeros(dataset.length_unfiltered(), dtype=np.bool)
+			self.array = np.ma.array(self.data, mask=self.mask, shrink=False)
+		else:
+			self.array = self.data
+		self.info = info
+		self.to_float = to_float
+
+
+	def map_processed(self, thread_index, i1, i2, mask, *blocks):
+		if self.to_float:
+			blocks = [as_flat_float(block) for block in blocks]
+		print(len(self.array), i1, i2)
+		for i in range(i1,i2):
+			print(i)
+			if mask is None or mask[i]:
+				v = [block[i-i1] for block in blocks]
+				self.data[i] = self.f(*v)
+				if mask is not None:
+					self.mask[i] = False
+			else:
+				self.mask[i] = True
+
+			print(v)
+			print(self.array, self.array.dtype)
+		return None
+
+	def reduce(self, results):
+		return None
 
 
 #import numba
@@ -925,6 +1024,31 @@ class Dataset(object):
 		task = TaskMapReduce(self, arguments, map, reduce, info=False)
 		self.executor.schedule(task)
 		return self._async(async, task)
+
+	def apply(self, f, arguments=None, dtype=None, async=False, vectorize=False):
+		assert arguments is not None, 'for now, you need to supply arguments'
+		import types
+		if isinstance(f, types.LambdaType):
+			name = 'lambda_function'
+		else:
+			name = f.__name__
+		if not vectorize:
+			f = vaex.expression.FunctionToScalar(f)
+		lazy_function = self.add_function(name, f)
+		arguments = _ensure_strings_from_expressions(arguments)
+		return lazy_function(*arguments)
+		if dtype is None:
+			# invoke once to get the dtype
+			print(arguments)
+			arguments0 = [self.evaluate(k, 0, 1)[0] for k in arguments]
+			result0 = f(*arguments0)
+			dtype = result0.dtype
+		task = TaskApply(self, arguments, f, info=False, dtype=dtype)
+		self.executor.schedule(task)
+		return self._async(async, task)
+
+
+
 
 	def unique(self, expression):
 		def map(ar): # this will be called with a chunk of the data
