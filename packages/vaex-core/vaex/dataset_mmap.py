@@ -59,7 +59,7 @@ class DatasetMemoryMapped(DatasetLocal):
 			self.file_map = {}
 			self.fileno_map = {}
 			self.mapping_map = {}
-		self._length = None
+		self._length_original = None
 		#self._fraction_length = None
 		self.nColumns = 0
 		self.column_names = []
@@ -154,16 +154,16 @@ class DatasetMemoryMapped(DatasetLocal):
 		if array is not None:
 			length = len(array)
 
-		if self._length is not None and length != self._length:
+		if self._length_original is not None and length != self._length_original:
 			logger.error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
 		else:
 			if self.current_slice is None:
 				self.current_slice = (0, length)
 				self.fraction = 1.
-				self._full_length = length
 				self._length = length
-				self._index_end = self._full_length
-			self._length = length
+				self._index_end = self._length_unfiltered
+			self._length_unfiltered = length
+			self._length_original = length
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			if array is not None:
 				length = len(array)
@@ -187,7 +187,7 @@ class DatasetMemoryMapped(DatasetLocal):
 			self.all_column_names.append(name)
 			#self.column_names.sort()
 			self.nColumns += 1
-			self.nRows = self._length
+			self.nRows = self._length_original
 			self.offsets[name] = offset
 			self.strides[name] = stride
 			if filename is not None:
@@ -204,9 +204,9 @@ class DatasetMemoryMapped(DatasetLocal):
 			if self.current_slice is None:
 				self.current_slice = (0, length if not transposed else length1)
 				self.fraction = 1.
-				self._full_length = length if not transposed else length1
-				self._length = self._full_length
-				self._index_end = self._full_length
+				self._length_unfiltered = length if not transposed else length1
+				self._length = self._length_unfiltered
+				self._index_end = self._length_unfiltered
 			self._length = length if not transposed else length1
 			#print self.mapping, dtype, length if stride is None else length * stride, offset
 			rawlength = length * length1

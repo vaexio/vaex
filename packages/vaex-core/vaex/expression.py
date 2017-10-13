@@ -98,6 +98,9 @@ class Expression(with_metaclass(Meta)):
     	self.expression = expression
     	self.selection = selection
 
+    def __str__(self):
+        return self.expression
+
     def __repr__(self):
     	name = self.__class__.__module__ + "." +self.__class__.__name__
     	return "<%s(expressions=%r, selections=%r)> instance at 0x%x" % (name, self.expression, self.selection, id(self))
@@ -138,3 +141,62 @@ class Expression(with_metaclass(Meta)):
 
     	return Expression(self.ds, "{0}({1})".format(function_name, argstring), selection=self.selection)
 
+import types
+import vaex.serialize
+import base64
+import pickle
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import BytesIO as StringIO
+
+
+@vaex.serialize.register
+class FunctionSerializable(object):
+    def __init__(self, f=None):
+        self.f = f
+
+    def pickle(self, function):
+        return pickle.dumps(function)
+
+    def unpickle(self, data):
+        return pickle.loads(data)
+
+    def state_get(self):
+        data = self.pickle(self.f)
+        return dict(pickled=base64.encodebytes(data).decode('ascii'))
+
+    def state_set(self, state):
+        data = state['pickled']
+        data = base64.decodebytes(data.encode('ascii'))
+        self.f = self.unpickle(data)
+
+    def __call__(self, *args, **kwargs):
+        '''Forward the call to the real function'''
+        return self.f(*args, **kwargs)
+
+import numpy as np
+
+class FunctionToScalar(FunctionSerializable):
+    def __call__(self, *args, **kwargs):
+        length = len(args[0])
+        result = []
+        for i in range(length):
+            scalar_result = self.f(*[k[i] for k in args], **{key:value[i] for key, value in kwargs.items()})
+            result.append(scalar_result)
+        result = np.array(result)
+        print(result, result.dtype)
+        return result
+
+
+class Function(object):
+    
+    def __init__(self, dataset, name, f):
+        self.dataset = dataset
+        self.name = name
+        self.f = FunctionSerializable(f)
+
+    def __call__(self, *args, **kwargs):
+        arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+        expression = "{}({})".format(self.name, arg_string)
+        return Expression(self.dataset, expression)

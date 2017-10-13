@@ -27,6 +27,17 @@ def small_buffer(ds, size=3):
 	ds.executor.buffer_size = previous
 
 
+# these need to be global for pickling
+def function_upper(x):
+	return np.array(x.decode('ascii').upper())
+import vaex.serialize
+@vaex.serialize.register
+class Multiply(object):
+	def __init__(self, scale=0): self.scale = scale
+	def state_set(self, state): self.scale = state
+	def state_get(self): return self.scale
+	def __call__(self, x): return x * self.scale
+
 
 vx.set_log_level_exception()
 #vx.set_log_level_off()
@@ -149,6 +160,35 @@ class TestDataset(unittest.TestCase):
 		np.random.seed(0) # fix seed so that test never fails randomly
 
 		self.df = self.dataset.to_pandas_df()
+
+	def test_function(self):
+		def multiply(factor=2):
+			def f(x):
+				return x*factor
+			return f
+		ds = self.dataset
+		f = ds.add_function('mul2', multiply(2))
+		ds['x2'] = f(ds.x)
+		self.assertEqual((self.x * 2).tolist(), ds.evaluate('x2').tolist())
+
+
+	def test_apply(self):
+		ds_copy = self.dataset.copy()
+		ds = self.dataset
+		with small_buffer(ds, 2):
+			upper = ds.apply(function_upper, arguments=[ds['name']])
+			print(upper)
+			ds['NAME'] = upper
+
+			print(ds.evaluate('NAME'), ds.evaluate('name'))
+			name = ds.evaluate('NAME')
+			self.assertEquals(name[0], '0.0BLA')
+			print(ds.state_get())
+			print(name.dtype)
+			ds_copy.state_set(ds.state_get())
+			name = ds_copy.evaluate('NAME')
+			self.assertEquals(name[0], '0.0BLA')
+
 
 	def test_filter(self):
 		ds = self.dataset
@@ -670,21 +710,14 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(ds.evaluate("vy")[0], 1)
 
 	def test_state(self):
-		import vaex.serialize
-		@vaex.serialize.register
-		class Multiply(object):
-			def __init__(self, scale=0): self.scale = scale
-			def state_set(self, state): self.scale = state
-			def state_get(self): return self.scale
-			def __call__(self, x): return x * self.scale
 		mul = Multiply(3)
 		ds = self.dataset
 		copy = ds.to_copy(virtual=False)
 		statefile = tempfile.mktemp('.json')
-		print(statefile)
 		ds.select('x > 5', name='test')
 		ds.add_virtual_column('xx', 'x**2')
-		ds.add_virtual_column_function('mul', mul, ['x'])
+		fmul = ds.add_function('fmul', mul)
+		ds['mul'] = fmul(ds.x)
 		count = ds.count('x', selection='test')
 		sum = ds.sum('xx', selection='test')
 		summul = ds.sum('mul', selection='test')
@@ -693,6 +726,7 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(count, copy.count('x', selection='test'))
 		self.assertEqual(sum, copy.sum('xx', selection='test'))
 		self.assertEqual(summul, copy.sum('3*x', selection='test'))
+		self.assertEqual(summul, copy.sum('mul', selection='test'))
 
 	def test_strings(self):
 		# TODO: concatenated datasets with strings of different length
@@ -1795,7 +1829,7 @@ class TestDataset(unittest.TestCase):
 				a = x[:length]
 				b = dataset.columns["x"][:len(dataset)]
 				np.testing.assert_array_almost_equal(a, b)
-				self.assertLess(length, dataset.length_unfiltered())
+				self.assertLess(length, dataset.length_original())
 
 		# TODO: test if statistics and histogram work on the active_fraction
 		self.dataset.set_active_fraction(1)

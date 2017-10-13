@@ -631,6 +631,8 @@ class _BlockScope(object):
 					#self._ensure_buffer(variable)
 					self.values[variable] = self.evaluate(expression)#, out=self.buffers[variable])
 					#self.values[variable] = self.buffers[variable]
+			elif variable in self.dataset.functions:
+				return self.dataset.functions[variable].f
 			if variable not in self.values:
 				raise KeyError("Unknown variables or column: %r" % (variable,))
 
@@ -992,7 +994,8 @@ class Dataset(object):
 		self.variables["seconds_per_year"] = 31557600
 		# leads to k = 4.74047 to go from au/year to km/s
 		self.virtual_columns = collections.OrderedDict()
-		self._length = None
+		self.functions = collections.OrderedDict()
+		self._length_original = None
 		self._length_unfiltered = None
 		self._active_fraction = 1
 		self._current_row = None
@@ -3392,23 +3395,20 @@ class Dataset(object):
 		descriptions = {key:value for key, value in self.descriptions.items() if key in virtual_names}
 		import vaex.serialize
 		def check(key, value):
-			if isinstance(value, dict):
-				function = value['function']
-				if not vaex.serialize.can_serialize(function):
-					warnings.warn('Cannot serialize function for virtual column {} (use vaex.serialize.register)'.format(key))
-					return False
+			if not vaex.serialize.can_serialize(value.f):
+				warnings.warn('Cannot serialize function for virtual column {} (use vaex.serialize.register)'.format(key))
+				return False
 			return True
 		def clean(value):
-			if isinstance(value, dict):
-				value = dict(value)
-				value['function'] = vaex.serialize.to_dict(value['function'])
-			return value
-		virtual_columns = {key:clean(value) for key, value in self.virtual_columns.items() if check(key, value)}
+			return vaex.serialize.to_dict(value.f)
+		functions = {key:clean(value) for key, value in self.functions.items() if check(key, value)}
+		virtual_columns = {key:value for key, value in self.virtual_columns.items()}
 		selections = {name:self.get_selection(name) for name, history in self.selection_histories.items()}
 		selections = {name:selection.to_dict() if selection is not None else None for name, selection in selections.items() }
 	    #if selection is not None}
 		state = dict(virtual_columns=virtual_columns,
 					 variables=self.variables,
+					 functions=functions,
 					 selections=selections,
 					 ucds=ucds,
 					 units=units,
@@ -3416,9 +3416,8 @@ class Dataset(object):
 		return state
 
 	def state_set(self, state):
-		for name, value in state['virtual_columns'].items():
-			if isinstance(value, dict):
-				value['function'] = vaex.serialize.from_dict(value['function'])
+		for name, value in state['functions'].items():
+			self.add_function(name, vaex.serialize.from_dict(value))
 		self.virtual_columns = state['virtual_columns']
 		for name, value in state['virtual_columns'].items():
 			self._save_assign_expression(name)
@@ -3777,6 +3776,7 @@ class Dataset(object):
 				ds.selection_histories[key] = list(value)
 			for key, value in self.selection_history_indices.items():
 				ds.selection_history_indices[key] = value
+		ds.functions.update(self.functions)
 		ds.copy_metadata(self)
 		return ds
 
@@ -4733,11 +4733,12 @@ class Dataset(object):
 		self.virtual_columns[yname] = "{distance} * (sin({delta}) * cos({delta_gp}) - cos({delta}) * sin({delta_gp}) * cos({alpha} - {alpha_gp}))".format(**locals())
 		#self.write_virtual_meta()
 
-	def add_virtual_column_function(self, name, f, arguments, unique=False):
+	def add_function(self, name, f, unique=False):
 		name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(virtual=True, strings=True))
-		self.virtual_columns[name] = dict(function=f,
-										  arguments=list(arguments))
-		self._save_assign_expression(name)
+		function = vaex.expression.Function(self, name, f)
+		self.functions[name] = function
+		return function
+
 
 	def add_virtual_column(self, name, expression, unique=False):
 		"""Add a virtual column to the dataset
@@ -4968,7 +4969,7 @@ class Dataset(object):
 	def __len__(self):
 		"""Returns the number of rows in the dataset (filtering applied)"""
 		if not self.filtered:
-			return self._length
+			return self._length_unfiltered
 		else:
 			return int(self.count())
 
@@ -4976,13 +4977,16 @@ class Dataset(object):
 		"""Returns the number of rows that are selected"""
 		raise NotImplementedError
 
-	def length_unfiltered(self):
+	def length_original(self):
 		"""the full length of the dataset, independant what active_fraction is, or filtering. This is the real length of the underlying ndarrays"""
+		return self._length_original
+
+	def length_unfiltered(self):
+		"""The length of the arrays that should be considered (respecting active range), but without filtering"""
 		return self._length_unfiltered
 
 	def active_length(self):
-		"""The length of the arrays that should be considered"""
-		return self._length
+		return self._length_unfiltered
 
 	def get_active_fraction(self):
 		"""Value in the range (0, 1], to work only with a subset of rows
@@ -4999,9 +5003,9 @@ class Dataset(object):
 			#self._fraction_length = int(self._length * self._active_fraction)
 			self.select(None)
 			self.set_current_row(None)
-			self._length = int(round(self.length_unfiltered() * self._active_fraction))
+			self._length_unfiltered = int(round(self._length_original * self._active_fraction))
 			self._index_start = 0
-			self._index_end = self._length
+			self._index_end = self._length_unfiltered
 			self.signal_active_fraction_changed.emit(self, value)
 
 	def get_active_range(self):
@@ -5018,7 +5022,7 @@ class Dataset(object):
 		self._index_end = i2
 		self.select(None)
 		self.set_current_row(None)
-		self._length = i2-i1
+		self._length_unfiltered = i2-i1
 		self.signal_active_fraction_changed.emit(self, self._active_fraction)
 
 
@@ -5282,13 +5286,22 @@ class DatasetLocal(Dataset):
 		return datas
 
 
-	def copy(self):
+	def copy(self, column_names=None):
 		ds = DatasetArrays()
-		for name in self.get_column_names(strings=True, virtual=True):
+		ds._length_unfiltered = self._length_unfiltered
+		ds._length_original = self._length_original
+		ds._index_end = self._index_end
+		ds._index_start = self._index_start
+		ds._active_fraction = self._active_fraction
+		column_names = column_names or self.get_column_names(strings=True, virtual=True)
+		for name in column_names:
 			if name in self.columns:
 				ds.add_column(name, self.columns[name])
-			else:
+			elif name in self.virtual_columns:
 				ds.add_virtual_column(name, self.virtual_columns[name])
+			else:
+				ds.add_column(vaex.utils.find_valid_name(name), self.evaluate(name, filtered=False))
+		ds.functions.update(self.functions)
 		for key, value in self.selection_histories.items():
 			ds.selection_histories[key] = list(value)
 		for key, value in self.selection_history_indices.items():
@@ -5305,8 +5318,9 @@ class DatasetLocal(Dataset):
 		dataset = DatasetLocal(self.name, self.path, self.column_names)
 		dataset.columns.update(self.columns)
 		dataset._length_unfiltered = self._length_unfiltered
-		dataset._index_end = self._length_unfiltered
-		dataset._length = self._length
+		dataset._length_original = self._length_original
+		dataset._index_end = self._index_end
+		dataset._index_start = self._index_start
 		dataset._active_fraction = self._active_fraction
 		if virtual:
 			dataset.virtual_columns.update(self.virtual_columns)
@@ -5809,7 +5823,7 @@ class DatasetConcatenated(DatasetLocal):
 		#self.write_virtual_meta()
 
 		self._length_unfiltered = sum(len(ds) for ds in self.datasets)
-		self._length = self._length_unfiltered
+		self._length_original = self._length_unfiltered
 		self._index_end = self._length_unfiltered
 
 	def is_masked(self, column):
@@ -5845,9 +5859,9 @@ class DatasetArrays(DatasetLocal):
 		#self._length = len(data)
 		if self._length_unfiltered is None:
 			self._length_unfiltered = len(data)
-			self._length = len(data)
+			self._length_original = len(data)
 			self._index_end = self._length_unfiltered
 		else:
 			assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
-		self._length = int(round(self.length_unfiltered() * self._active_fraction))
+		self._length_unfiltered = int(round(self._length_original * self._active_fraction))
 		#self.set_active_fraction(self._active_fraction)
