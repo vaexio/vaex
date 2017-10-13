@@ -1767,171 +1767,58 @@ class Dataset(object):
 			return self.count(binby=list(binby) + [expression], shape=shape, limits=limits, selection=selection, async=True, edges=True)
 		@delayed
 		def finish(percentile_limits, counts_list):
-			print(">>>", percentile_limits)
 			results = []
 			for i, counts in enumerate(counts_list):
-				print(percentile_limits)
-				#print(counts, counts.shape)
-				#counts = counts[...,0]
-				#print("percentile_limits", percentile_limits)
-				#print("counts=", counts)
-				#print("counts shape=", counts.shape)
-				# F is the 'cumulative distribution'
-				if 1:
-					# remove the nan and boundary edges from the first dimension,
-					#print("sums", counts.sum(), counts[2:-1].sum())
-					#import pdb
-					#pdb.set_trace()
-					nonnans = list([slice(2, -1, None) for k in range(len(counts.shape)-1)])
-					nonnans.append(slice(1,None, None)) # we're gonna get rid only of the nan's, and keep the overflow edges
-					#print(counts.shape)
-					#print("nonnans", nonnans)
-					cumulative_grid = np.cumsum(counts.__getitem__(nonnans), -1) # convert to cumulative grid
+				# remove the nan and boundary edges from the first dimension,
+				nonnans = list([slice(2, -1, None) for k in range(len(counts.shape)-1)])
+				nonnans.append(slice(1,None, None)) # we're gonna get rid only of the nan's, and keep the overflow edges
+				cumulative_grid = np.cumsum(counts.__getitem__(nonnans), -1) # convert to cumulative grid
 
-					# keep the nans in the last dim, since we need it for the total counts
-					nonnans = list([slice(2, -1, None) for k in range(len(counts.shape)-1)])
-					nonnans.append(slice(0,None, None))
-					totalcounts =  np.sum(counts.__getitem__(nonnans), -1)
-					empty = totalcounts == 0
+				totalcounts =  np.sum(counts.__getitem__(nonnans), -1)
+				empty = totalcounts == 0
 
-					original_shape = counts.shape
-					shape = cumulative_grid.shape# + (original_shape[-1] - 1,) #
+				original_shape = counts.shape
+				shape = cumulative_grid.shape# + (original_shape[-1] - 1,) #
 
-					#print("original_shape", original_shape)
-					#print("shape", shape)
-					counts = np.sum(counts, -1)
-					edges_floor = np.zeros(shape[:-1] + (2,), dtype=np.int64)
-					edges_ceil = np.zeros(shape[:-1] + (2,), dtype=np.int64)
-					# if we have an off  # of elements, say, N=3, the center is at i=1=(N-1)/2
-					# if we have an even # of elements, say, N=4, the center is between i=1=(N-2)/2 and i=2=(N/2)
-					#index = (shape[-1] -1-3) * percentage/100. # the -3 is for the edges
-					values = np.array((totalcounts+1) * percentage/100.) # make sure it's an ndarray
-					values[empty] = 0
-					floor_values = np.array(np.floor(values))
-					ceil_values = np.array(np.ceil(values))
-					#print("totalcounts", repr(totalcounts))
-					#print("values       ", repr(values))
-					#print("floor_values ", repr(floor_values))
-					#print("ceil_values ", repr(ceil_values))
-					#print(totalcounts, percentage, values)
-					#print(">>", floor_values[8], cumulative_grid[8])
-					#print(cumulative_grid.strides)
-					#print(edges.shape)
-					#print([k.shape for k in (cumulative_grid, values, edges)])
-					#print(cumulative_grid, repr(values), edges)
-					#print("shapes", [k.shape for k in [cumulative_grid, floor_values, edges_floor]])
-					#print("strides", [k.strides for k in [cumulative_grid, floor_values, edges_floor]])
-					#print("cumulative_grid", cumulative_grid)
-					vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
-					vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
-					#print(floor_values)
+				counts = np.sum(counts, -1)
+				edges_floor = np.zeros(shape[:-1] + (2,), dtype=np.int64)
+				edges_ceil = np.zeros(shape[:-1] + (2,), dtype=np.int64)
+				# if we have an off  # of elements, say, N=3, the center is at i=1=(N-1)/2
+				# if we have an even # of elements, say, N=4, the center is between i=1=(N-2)/2 and i=2=(N/2)
+				#index = (shape[-1] -1-3) * percentage/100. # the -3 is for the edges
+				values = np.array((totalcounts+1) * percentage/100.) # make sure it's an ndarray
+				values[empty] = 0
+				floor_values = np.array(np.floor(values))
+				ceil_values = np.array(np.ceil(values))
+				vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
+				vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
 
-					def index_choose(a, indices):
-						# alternative to np.choise, which doesn't like the last dim to be >= 32
-						out = np.zeros(a.shape[:-1])
-						for i in np.ndindex(out.shape):
-							out[i] = a[i+(indices[i],)]
-						return out
-					def calculate_x(edges, values):
-						left, right = edges[...,0], edges[...,1]
-						#left_value, right_value = cumulative_grid[...,left], cumulative_grid[...,right]
-						#print(left.shape, cumulative_grid.shape)
-						#import pdb
-						#pdb.set_trace()
-						left_value = index_choose(cumulative_grid, left)
-						right_value = index_choose(cumulative_grid, right)
-						#print("edges_left", edges)
-						#print("edges_right", edges)
-						#print("left_value", left_value)
-						#print("right_value", right_value)
-						u = np.array((values - left_value)/(right_value - left_value))
-						#u[left==right] = 0
-						#print("percentile_limits", percentile_limits)
-						#print("shape", shape)
-						# TODO: should it really be -3? not -2
-						xleft, xright = percentile_limits[i][0] + (left-0.5)  * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1]-3),\
-										percentile_limits[i][0] + (right-0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1]-3)
-						x = xleft + (xright - xleft) * u #/2
-						#print("u ", u)
-						#print("xleft", xleft)
-						#print("xright", xright)
-						#print("# left", self.count(selection="x < %f" % xleft))
-						#print("# right ", self.count(selection="x < %f" % xright))
-						#print("x", x)
-						return x
+				def index_choose(a, indices):
+					# alternative to np.choise, which doesn't like the last dim to be >= 32
+					#print(a, indices)
+					out = np.zeros(a.shape[:-1])
+					#print(out.shape)
+					for i in np.ndindex(out.shape):
+						#print(i, indices[i])
+						out[i] = a[i+(indices[i],)]
+					return out
+				def calculate_x(edges, values):
+					left, right = edges[...,0], edges[...,1]
+					left_value = index_choose(cumulative_grid, left)
+					right_value = index_choose(cumulative_grid, right)
+					u = np.array((values - left_value)/(right_value - left_value))
+					# TODO: should it really be -3? not -2
+					xleft, xright = percentile_limits[i][0] + (left-0.5)  * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1]-3),\
+									percentile_limits[i][0] + (right-0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1]-3)
+					x = xleft + (xright - xleft) * u #/2
+					return x
 
-					x1 = calculate_x(edges_floor, floor_values)
-					x2 = calculate_x(edges_ceil, ceil_values)
-					u = values - floor_values
-					x = x1 + (x2 - x1) * u
-					#print("x1, x2, u, x", x1, x2, u, x)
+				x1 = calculate_x(edges_floor, floor_values)
+				x2 = calculate_x(edges_ceil, ceil_values)
+				u = values - floor_values
+				x = x1 + (x2 - x1) * u
+				results.append(x)
 
-
-
-
-					results.append(x)
-					continue
-				#counts[-1] += 1
-				#print("shape", shape)
-				#F = np.cumsum(counts, axis=-1).reshape((1,) + shape)
-				F /= len(self) #np.max(F, axis=(-1))
-				if 1:
-					#for i in range(len(counts)):
-					#	print(i, F[0,i])
-					#print(counts.shape, F.shape)
-					#print("counts", counts, counts.dtype)
-					#print(F)
-					y = np.zeros((1,) + shape[:-1])
-					vaex.vaexfast.grid_interpolate(F, y, percentage/100.)
-					#print("fraction", percentage/100.)
-					#print("y = ", y, y * shape[0], shape[0])
-					#print("y >>> ", y * (percentile_limits[i][1] - percentile_limits[i][0]) + percentile_limits[i][0])
-					#return 0
-					#print(percentile_limits)
-					#dx = (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[0]-1)
-					medians.append(y[0] * (percentile_limits[i][1] - percentile_limits[i][0]) + percentile_limits[i][0])
-				else:
-					# we'll fill empty values with nan later on..
-					ok = F[...,-1] > 0
-					#F /= np.max(F, axis=(0))
-					#print(F[-1])
-					# find indices around 0.5 for each bin
-					i2 = np.apply_along_axis(lambda x: x.searchsorted(percentage/100., side='left'), axis = -1, arr = F)
-					i1 = i2 - 1
-					i1 = np.clip(i1, 0, percentile_shapes[i]-1)
-					i2 = np.clip(i2, 0, percentile_shapes[i]-1)
-
-					# interpolate between i1 and i2
-					#print("cum", F)
-					#print("i1", i1)
-					#print("i2", i2)
-					pmin, pmax = percentile_limits[i]
-
-					# np.choose seems buggy, use the equivalent code instead
-					#a = i1
-					#c = F
-					F1 = np.array([F[i1[I]][I] for I in np.ndindex(i1.shape)])
-					F1 = F1.reshape(F.shape[1:])
-
-					#a = i2
-					F2 = np.array([F[i2[I]][I] for I in np.ndindex(i2.shape)])
-					F2 = F2.reshape(F.shape[1:])
-
-					#print("F1,2", F1, F2)
-
-					offset = (percentage/100.-F1)/(F2-F1)
-					median = pmin + (i1+offset) / float(percentile_shapes[i]-1.) * (pmax-pmin)
-					#print("offset", offset)
-					#print(pmin + (i1+offset) / float(percentile_shapes[i]-1.) * (pmax-pmin))
-					#print(pmin + (i1) / float(percentile_shapes[i]-1.) * (pmax-pmin))
-					#print(median)
-
-					# empty values should be set to nan
-					median[~ok] = np.nan
-					medians.append(median)
-			#medians = np.array(medians)
-			#value = np.array(vaex.utils.unlistify(waslist, medians))
-			#return medians
 			return results
 
 		shape = _expand_shape(shape, len(binby))
@@ -5231,6 +5118,45 @@ class Dataset(object):
 		return self.get_selection(name) != None
 
 
+	def __setitem__(self, name, value):
+		'''Convenient way to add a virtual column / expression to this dataset
+
+		Examples:
+		    >>> ds['r'] = np.sqrt(ds.x**2 + ds.y**2 + ds.z**2)
+		'''
+		if isinstance(name, six.string_types):
+			if isinstance(value, Expression):
+				value = value.expression
+			self.add_virtual_column(name, value)
+		else:
+			raise TypeError('__setitem__ only takes strings as arguments, not {}'.format(type(name)))
+
+	def __getitem__(self, item):
+		"""Convenient way to get expressions, (shallow) copies of a few columns, or to apply filtering
+
+		Examples
+			>> ds['Lz']  # the expression 'Lz
+			>> ds['Lz/2'] # the expression 'Lz/2'
+			>> ds[["Lz", "E"]] # a shallow copy with just two columns
+			>> ds[ds.Lz < 0]  # a shallow copy with the filter Lz < 0 applied
+
+		"""
+		if isinstance(item, six.string_types):
+			return Expression(self, item) # TODO we'd like to return the same expression if possible
+		elif isinstance(item, Expression):
+			expression = item.expression
+			ds = self.copy()
+			ds.select(expression, name=FILTER_SELECTION_NAME, mode='and')
+			return ds
+		elif isinstance(item, (tuple, list)):
+			ds = self.copy(column_names=item)
+			return ds
+
+	def __iter__(self):
+		"""Iterator over the column names (for the moment non-virtual and non-strings only)"""
+		return iter(list(self.get_column_names(virtual=False, strings=False)))
+
+
 def _select_replace(maskold, masknew):
 	return masknew
 
@@ -5359,38 +5285,6 @@ class DatasetLocal(Dataset):
 		return vaex.legacy.SubspaceLocal(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
 
 	def echo(self, arg): return arg
-
-	def __setitem__(self, name, value):
-		if isinstance(name, six.string_types):
-			if isinstance(value, Expression):
-				value = value.expression
-			self.add_virtual_column(name, value)
-		else:
-			raise TypeError('__setitem__ only takes strings as arguments, not {}'.format(type(name)))
-
-	def __getitem__(self, item):
-		"""Alias to dataset.to_copy(column_names), to mimic Pandas a bit
-
-		:Example:
-		>> ds["Lz"]
-		>> ds["Lz", "E"]
-		>> ds[ds.names.Lz]
-
-		"""
-		if isinstance(item, six.string_types):
-			return Expression(self, item) # TODO we'd like to return the same expression if possible
-		elif isinstance(item, Expression):
-			expression = item.expression
-			ds = self.copy()
-			ds.select(expression, name=FILTER_SELECTION_NAME, mode='and')
-			return ds
-		elif isinstance(item, (tuple, list)):
-			ds = self.copy(column_names=item)
-			return ds
-
-	def __iter__(self):
-		"""Iterator over the column names (for the moment non-virtual and non-strings only)"""
-		return iter(list(self.get_column_names(virtual=False, strings=False)))
 
 	def __array__(self, dtype=None):
 		"""Casts the dataset to a numpy array

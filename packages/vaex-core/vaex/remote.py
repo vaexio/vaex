@@ -501,7 +501,8 @@ class DatasetRemote(Dataset):
 import astropy.units
 
 class DatasetRest(DatasetRemote):
-	def __init__(self, server, name, column_names, dtypes, ucds, descriptions, units, description, full_length, virtual_columns=None, selection_global=None):
+	def __init__(self, server, name, column_names, dtypes, ucds, descriptions, units, description, length_unfiltered,
+				 virtual_columns=None, selections={}, variables={}):
 		DatasetRemote.__init__(self, name, server.hostname, column_names)
 		self.server = server
 		self.name = name
@@ -510,20 +511,41 @@ class DatasetRest(DatasetRemote):
 		self.dtypes = {name: np.dtype(dtype) for name, dtype in dtypes.items()}
 		self.units = {name: astropy.units.Unit(unit) for name, unit in units.items()}
 		self.virtual_columns.update(virtual_columns or {})
+		self.variables.update(variables)
+		for column_name in self.get_column_names(virtual=True, strings=True):
+			self._save_assign_expression(column_name)
 		self.ucds = ucds
 		self.descriptions = descriptions
 		self.description = description
-		self._full_length = full_length
-		self._length = full_length
+		self._length_unfiltered = length_unfiltered
+		self._length = length_unfiltered
 		self._index_end = self._length
 		#self.filename = #"http://%s:%s/%s" % (server.hostname, server.port, name)
 		self.path = self.filename = self.server._build_url("%s" % name)
-		self.selection_global = selection_global
-
+		for name, value in selections.items():
+			self.set_selection(value, name=name)
 
 		self.fraction = 1
 
 		self.executor = ServerExecutor()
+
+	@staticmethod
+	def argument_to_json(dataset):
+		ds = dataset
+		selections = {}
+		for name, value in ds.selection_histories.items():
+			selections[name] = ds.get_selection(name)
+		return {"server":ds.server, "name":ds.name, "length_unfiltered":ds.length_unfiltered(), "column_names":ds.get_column_names(strings=True),
+				 "description": ds.description, "descriptions":ds.descriptions,
+				 "ucds":ds.ucds, "units":{name:str(unit) for name, unit in ds.units.items()},
+				 "dtypes":{name:ds.dtype(name) for name in ds.get_column_names(strings=True)},
+				 "virtual_columns":dict(ds.virtual_columns),
+				 "variables": ds.variables,
+				 "selections": selections}
+
+	def copy(self):
+		ds = DatasetRest(**DatasetRest.argument_to_json(self))
+		return ds
 
 	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
 		return self._async(async, self.server._call_dataset("count", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))

@@ -50,7 +50,7 @@ def main(argv):
 
 	print()
 	print("benchmarking histogram")
-	expr = "subspace.histogram(limits, 256)"
+	expr = "dataset.count(binby=['{}', '{}'])".format(*expressions)
 	times = timeit.repeat(expr, setup="from vaex.benchmark import subspace, dataset, np, limits", repeat=args.repeat, number=N)
 	print("minimum time", min(times)/N)
 	bandwidth = [byte_size/1024.**3/(time/N) for time in times]

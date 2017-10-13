@@ -312,7 +312,7 @@ def error(msg):
 def process(webserver, user_id, path, fraction=None, progress=None, **arguments):
 	if not hasattr(webserver.thread_local, "executor"):
 		logger.debug("creating thread pool and executor")
-		webserver.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex(nthreads=webserver.threads_per_job)
+		webserver.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex(max_workers=webserver.threads_per_job)
 		webserver.thread_local.executor = vaex.execution.Executor(thread_pool=webserver.thread_local.thread_pool)
 		webserver.thread_pools.append(webserver.thread_local.thread_pool)
 
@@ -333,11 +333,12 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 		elif parts[0] == "datasets":
 			if len(parts) == 1:
 				#
-				response = dict(result=[{"name":ds.name, "full_length":ds.full_length(), "column_names":ds.get_column_names(strings=True),
+				response = dict(result=[{"name":ds.name, "length_unfiltered":ds.length_unfiltered(), "column_names":ds.get_column_names(strings=True),
 										 "description": ds.description, "descriptions":ds.descriptions,
 										 "ucds":ds.ucds, "units":{name:str(unit) for name, unit in ds.units.items()},
 										 "dtypes":{name:str(ds.columns[name].dtype) for name in ds.get_column_names(strings=True)},
-										 "virtual_columns":dict(ds.virtual_columns), "selection_global": ds.selection_global
+										 "virtual_columns":dict(ds.virtual_columns),
+										 "variables":dict(ds.variables)
 										 } for ds in webserver.datasets])
 				logger.debug("response: %r", response)
 				return response
@@ -356,16 +357,10 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 							expressions = None
 						# make a shallow copy, such that selection and active_fraction is not shared
 						dataset_original = webserver.datasets_map[dataset_name]
-						dataset = dataset_original.shallow_copy(virtual=False)
-						if dataset_original.selection_global:
-							# copy the selection
-							selection = dataset_original.get_selection(dataset_original.selection_global)
-							dataset.set_selection(selection, name=dataset_original.selection_global)
-
-							# copy the cache
-							cache_for_global = dataset_original._selection_mask_caches[dataset_original.selection_global]
-							dataset._selection_mask_caches[dataset_original.selection_global] = dict(cache_for_global)
-							logger.info("set selection: %r to %r" % (dataset_original.selection_global, selection))
+						dataset = dataset_original.copy()
+						# copy the cache, 2 level deep clone
+						# currently not working, could be a good optimization
+						# dataset._selection_mask_caches = {key:dict(value) for key, value in dataset_original._selection_mask_caches.items()}
 						logger.info("method: %r args: %r" % (method_name, arguments))
 						# TODO: executor should be an argument to the stats functions..
 						dataset.executor = webserver.thread_local.executor
@@ -421,6 +416,15 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 									for name, value in selection_values.items():
 										if value:
 											selection = vaex.dataset.selection_from_dict(dataset, value)
+											previous_selection = dataset.get_selection(name)
+											if previous_selection:
+												# UGLY: we 'stitch' the current selection at the end of the
+												# selection 'list'
+												selection_end = selection
+												while selection_end.previous_selection:
+													selection_end = selection_end.previous_selection
+												selection_end.previous_selection = previous_selection
+												selection_end.mode = "and"
 											dataset.set_selection(selection, name=name)
 						try:
 							if subspace:
@@ -591,7 +595,7 @@ class WebServer(threading.Thread):
 		#self.ioloop.close()
 		#self.ioloop.clear_current()
 		for thread_pool in self.thread_pools:
-			thread_pool.close()
+			thread_pool.shutdown()
 
 defaults_yaml = """
 address: 0.0.0.0

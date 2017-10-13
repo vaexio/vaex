@@ -170,7 +170,7 @@ class Executor(object):
 					for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=self.buffer_size),\
 														progress=lambda p: all(self.signal_progress.emit(p)) and\
 																all([all(task.signal_progress.emit(p)) for task in task_queue]),
-														cancel=cancel):
+														cancel=cancel, unpack=True):
 						pass # just eat all element
 					self._is_executing = False
 			except:
