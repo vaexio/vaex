@@ -109,7 +109,7 @@ class TestDataset(unittest.TestCase):
 		self.dataset.ucds["x"] = "some;ucd"
 
 
-		name = np.array(list(map(lambda x: str(x) + "bla", self.x)), dtype='S') #, dtype=np.string_)
+		name = np.array(list(map(lambda x: str(x) + "bla" + ('_' * int(x)), self.x)), dtype='S') #, dtype=np.string_)
 		self.names = self.dataset.get_column_names()
 		self.dataset.add_column("name", np.array(name))
 		if use_filtering:
