@@ -101,6 +101,19 @@ class Expression(with_metaclass(Meta)):
     def __str__(self):
         return self.expression
 
+    def __array__(self, dtype=None):
+        '''For casting to a numpy array
+
+        Example:
+            >>> np.array(ds.x**2)
+
+        '''
+        return self.ds.evaluate(self)
+
+    def tolist(self):
+        '''Short for np.array(expr).tolist()'''
+        return np.array(self).tolist()
+
     def __repr__(self):
     	name = self.__class__.__module__ + "." +self.__class__.__name__
     	return "<%s(expressions=%r, selections=%r)> instance at 0x%x" % (name, self.expression, self.selection, id(self))
