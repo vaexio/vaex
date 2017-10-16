@@ -904,6 +904,23 @@ for name, numpy_name in function_mapping:
 	else:
 		expression_namespace[name] = getattr(np, numpy_name)
 
+def fillna(ar, value, fill_nan=True, fill_masked=True):
+	'''Returns an array where missing values are replaced by value
+
+	'''
+	if ar.dtype.kind == 'f' and fill_nan:
+		mask = np.isnan(ar)
+		if np.any(mask):
+			ar = ar.copy()
+			ar[mask] = value
+	if fill_masked and np.ma.isMaskedArray(ar):
+		mask = ar.mask
+		if np.any(mask):
+			ar = ar.data.copy()
+			ar[mask] = value
+	return ar
+expression_namespace['fillna'] = fillna
+
 # we import after function_mapping is defined
 from .expression import Expression
 
