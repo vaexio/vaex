@@ -5380,6 +5380,29 @@ class Dataset(object):
 		elif isinstance(item, (tuple, list)):
 			ds = self.copy(column_names=item)
 			return ds
+		elif isinstance(item, slice):
+			ds = self.extract()
+			start, stop, step = item.start, item.stop, item.step
+			start = start or 0
+			stop = stop or len(ds)
+			assert step in [None, 1]
+			ds.set_active_range(start, stop)
+			return ds.trim()
+
+
+	def __delitem__(self, item):
+		if isinstance(item, Expression):
+			name = item.expression
+		else:
+			name = item
+		if name in self.columns:
+			del self.columns[name]
+			self.column_names.remove(name)
+		elif name in self.virtual_columns:
+			del self.virtual_columns[name]
+		else:
+			raise KeyError('no such column or virtual_columns named %r' % name)
+
 
 	def __iter__(self):
 		"""Iterator over the column names (for the moment non-virtual and non-strings only)"""
