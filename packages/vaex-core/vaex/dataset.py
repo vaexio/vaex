@@ -3390,6 +3390,8 @@ class Dataset(object):
 			path = os.path.join(self.get_private_dir(create=False), "virtual_meta.yaml")
 			if os.path.exists(path):
 				meta_info = vaex.utils.read_json_or_yaml(path)
+				if 'virtual_columns' not in meta_info:
+					return
 				self.virtual_columns.update(meta_info["virtual_columns"])
 				self.variables.update(meta_info["variables"])
 				self.ucds.update(meta_info["ucds"])
