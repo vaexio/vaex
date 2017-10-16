@@ -4764,24 +4764,25 @@ class Dataset(object):
 			parts += ["</tr>"]
 		parts += "</table>"
 
-		return "".join(parts)+ "<h2>Data:</h2>" +self._head_and_tail()
+		return "".join(parts)+ "<h2>Data:</h2>" +self._head_and_tail_table()
 
 	def head(self, n=10):
-		self.cat(i1=0, i2=min(len(self), n))
+		return self[:min(n, len(self))]
 
 	def tail(self, n=10):
 		N = len(self)
-		self.cat(i1=max(0, N-n), i2=min(len(self), N))
+		#self.cat(i1=max(0, N-n), i2=min(len(self), N))
+		return self[max(0, N-n):min(len(self), N)]
 
-	def _head_and_tail(self, n=5):
+	def _head_and_tail_table(self, n=5):
 		N = len(self)
 		if N <= n*2:
 			return self._as_html_table(0, N)
 		else:
 			return self._as_html_table(0, n, N-n, N)
-	def head_and_tail(self, n=5):
+	def head_and_tail_print(self, n=5):
 		from IPython import display
-		display.display(display.HTML(self._head_and_tail(n)))
+		display.display(display.HTML(self._head_and_tail_table(n)))
 
 	def cat(self, i1, i2):
 		from IPython import display
@@ -4841,7 +4842,7 @@ class Dataset(object):
 	def _repr_html_(self):
 		"""Representation for Jupyter"""
 		self._output_css()
-		return self._head_and_tail()
+		return self._head_and_tail_table()
 
 
 	def __current_sequence_index(self):
