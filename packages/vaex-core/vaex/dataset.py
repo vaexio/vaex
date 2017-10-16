@@ -1077,8 +1077,8 @@ class Dataset(object):
 	def unique(self, expression):
 		def map(ar): # this will be called with a chunk of the data
 			return np.unique(ar)  # returns the unique elements
-		def reduce(list_of_uniques):  # gets called with a list of the return values of map
-			joined = np.concatenate(*list_of_uniques) # put all 'sub-unique' together
+		def reduce(a, b):  # gets called with a list of the return values of map
+			joined = np.concatenate([a, b]) # put all 'sub-unique' together
 			return np.unique(joined)  # find all the unique items
 		return self.map_reduce(map, reduce, [expression])
 

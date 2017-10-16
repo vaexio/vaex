@@ -228,9 +228,10 @@ class TestDataset(unittest.TestCase):
 			assert x[0] == 3+4
 
 	def test_unique(self):
-	    ds = vaex.from_arrays(x=np.array([2,2,1,0,1,1,2]))
-	    classes = ds.unique('x')
-	    assert np.sort(classes).tolist() == [0, 1, 2]
+		ds = vaex.from_arrays(x=np.array([2,2,1,0,1,1,2]))
+		with small_buffer(ds):
+		    classes = ds.unique('x')
+		    assert np.sort(classes).tolist() == [0, 1, 2]
 
 	def test_amuse(self):
 		ds = vx.open(os.path.join(basedir, "files", "default_amuse_plummer.hdf5"))
