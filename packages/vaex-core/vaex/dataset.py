@@ -3786,7 +3786,7 @@ class Dataset(object):
 
 	def add_column(self, name, f_or_array):
 		"""Add an in memory array as a column"""
-		if isinstance(f_or_array, np.ndarray):
+		if isinstance(f_or_array, (np.ndarray, Column)):
 			ar = f_or_array
 			# it can be None when we have an 'empty' DatasetArrays
 			if len(ar) != self.length_original():
@@ -5614,7 +5614,7 @@ class DatasetLocal(Dataset):
 		import vaex.file.other
 		return not \
 			((column_name in self.column_names  \
-			and not isinstance(self.columns[column_name], vaex.dataset._ColumnConcatenatedLazy)\
+			and not isinstance(self.columns[column_name], Column)\
 			and not isinstance(self.columns[column_name], vaex.file.other.DatasetTap.TapColumn)\
 			and self.columns[column_name].dtype.type==np.float64 \
 			and self.columns[column_name].strides[0] == 8 \
@@ -5633,8 +5633,36 @@ class DatasetLocal(Dataset):
 		self._has_selection = mask is not None
 		self.signal_selection_changed.emit(self)
 
+class Column(object):
+	pass
 
-class _ColumnConcatenatedLazy(object):
+class ColumnIndexed(Column):
+	def __init__(self, dataset, indices, name):
+		self.dataset = dataset
+		self.indices = indices
+		self.name = name
+		self.dtype = self.dataset.dtype(name)
+
+	def __len__(self):
+		return len(self.indices)
+
+	def trim(self, i1, i2):
+		return ColumnIndexed(self.dataset, self.indices[i1:i2], self.name)
+
+	def __getitem__(self, slice):
+		start, stop, step = slice.start, slice.stop, slice.step
+		start = start or 0
+		stop = stop or len(self)
+		assert step in [None, 1]
+		indices = self.indices[start:stop]
+		ar = self.dataset.columns[self.name][indices]
+		if np.ma.isMaskedArray(indices):
+			mask = self.indices.mask[start:stop]
+			return np.ma.array(ar, mask=mask)
+		else:
+			return ar
+
+class _ColumnConcatenatedLazy(Column):
 	def __init__(self, datasets, column_name):
 		self.datasets = datasets
 		self.column_name = column_name
