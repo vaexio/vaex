@@ -3814,16 +3814,23 @@ class Dataset(object):
 
 
 
-	def rename_column(self, name, new_name):
+	def rename_column(self, name, new_name, unique=False):
 		"""Renames a column, not this is only the in memory name, this will not be reflected on disk"""
-		data = self.columns[name]
-		del self.columns[name]
-		self.column_names[self.column_names.index(name)] = new_name
-		self.columns[new_name] = data
+		new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else list(self))
+		data = self.columns.get(name)
+		if data is not None:
+			del self.columns[name]
+			self.column_names[self.column_names.index(name)] = new_name
+			self.columns[new_name] = data
+		else:
+			expression = self.virtual_columns[name]
+			del self.virtual_columns[name]
+			self.virtual_columns[new_name] = expression
 		for d in [self.ucds, self.units, self.descriptions]:
 			if name in d:
 				d[new_name] = d[name]
 				del d[name]
+		return new_name
 
 	def add_column_healpix(self, name="healpix", longitude="ra", latitude="dec", degrees=True, healpix_order=12, nest=True):
 		"""Add a healpix (in memory) column based on a longitude and latitude
