@@ -5839,8 +5839,8 @@ class DatasetLocal(Dataset):
 		:param on: default key for the left table (self)
 		:param left_on: key for the left table (self), overrides on
 		:param right_on: default key for the right table (other), overrides on
-		:param lsuffix: suffix to add to the left column names in case of a name collision 
-		:param rsuffix: similar for the right 
+		:param lsuffix: suffix to add to the left column names in case of a name collision
+		:param rsuffix: similar for the right
 		:param how: how to join, 'left' keeps all rows on the left, and adds columns (with possible missing values)
 			'right' is similar with self and other swapped.
 		:return:
