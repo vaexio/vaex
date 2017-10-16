@@ -115,8 +115,19 @@ class Expression(with_metaclass(Meta)):
         return np.array(self).tolist()
 
     def __repr__(self):
-    	name = self.__class__.__module__ + "." +self.__class__.__name__
-    	return "<%s(expressions=%r, selections=%r)> instance at 0x%x" % (name, self.expression, self.selection, id(self))
+        name = self.__class__.__module__ + "." +self.__class__.__name__
+        try:
+            N = len(self.ds)
+            if N <= 10:
+                values = ", ".join(str(k) for k in np.array(self))
+            else:
+                values_head = ", ".join(str(k) for k in self.evaluate(0, 5))
+                values_tail = ", ".join(str(k) for k in self.evaluate(N-5, N))
+                values = '{} ... (total {} values) ... {}'.format(  values_head, N, values_tail)
+        except Exception as e:
+            values = 'Error evaluating: %r' % e
+        return "<%s(expressions=%r, selections=%r)> instance at 0x%x, [%s] " % (name, self.expression, self.selection, id(self), values)
+
     def count(self):
     	return self.ds.count(self.expression, selection=self.selection)
     def sum(self):
