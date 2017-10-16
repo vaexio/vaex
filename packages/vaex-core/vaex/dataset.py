@@ -895,6 +895,7 @@ rad2deg
 deg2rad
 minimum
 maximum
+clip
 """.strip().split()]
 expression_namespace = {}
 for name, numpy_name in function_mapping:
