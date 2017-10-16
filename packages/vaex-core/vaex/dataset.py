@@ -4809,7 +4809,7 @@ class Dataset(object):
 					logger.exception('error evaluating: %s at rows %i-%i' % (name, k1, k2))
 			for i in range(k2-k1):
 				parts += ["<tr>"]
-				parts += ["<td>%r</td>" % (i+k1)]
+				parts += ["<td><i style='opacity: 0.6'>{:,}</i></td>".format(i+k1)]
 				for name in column_names:
 					parts += ["<td>%r</td>" % data_parts[name][i]]
 				parts += ["</tr>"]
