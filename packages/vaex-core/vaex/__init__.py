@@ -68,6 +68,7 @@ __full_name__ = __program_name__ + "-" + __version__
 __build_name__ = __full_name__ + "-" +version.osname
 
 
+import glob
 import vaex.dataset
 #import vaex.file
 #import vaex.export
@@ -272,6 +273,67 @@ def from_csv(filename_or_buffer, **kwargs):
 	"""Shortcut to read a csv file using pandas and convert to a dataset directly"""
 	import pandas as pd
 	return from_pandas(pd.read_csv(filename_or_buffer, **kwargs))
+
+def read_csv(filepath_or_buffer, **kwargs):
+	'''Alias to from_csv'''
+	return from_csv(filenames, **kwargs)
+
+def _convert_name(filenames, shuffle=False):
+	'''Convert a filename (or list of) to a filename with .hdf5 and optionally a -shuffle suffix'''
+	if not isinstance(filenames, (list, tuple)):
+		filenames = [filenames]
+	base = filenames[0]
+	if shuffle:
+		base += '-shuffle'
+	if len(filenames) > 1:
+		return base + "_and_{}_more.hdf5".format(len(filenames))
+	else:
+		return base + ".hdf5"
+
+def read_csv_and_convert(path, shuffle=False, copy_index=True, **kwargs):
+	'''Convert a path (or glob pattern) to a single hdf5 file, will open the hdf5 file if exists
+
+	Example:
+		>>> vaex.read_csv_and_convert('test-*.csv', shuffle=True)  # this may take a while
+		>>> vaex.read_csv_and_convert('test-*.csv', shuffle=True)  # 2nd time it is instant
+
+	:param str path: path of file or glob pattern for multiple files
+	:param bool shuffle: shuffle dataset when converting to hdf5
+	:param bool copy_index: by default pandas will create an index (row number), set to false if you want to drop that
+	:param kwargs: parameters passed to pandas' read_cvs
+
+	'''
+	from concurrent.futures import ProcessPoolExecutor
+	import pandas as pd
+	filenames = glob.glob(path)
+	if len(filenames) > 1:
+		filename_hdf5 = _convert_name(filenames, shuffle=shuffle)
+		filename_hdf5_noshuffle = _convert_name(filenames, shuffle=False)
+		if not os.path.exists(filename_hdf5):
+			if not os.path.exists(filename_hdf5_noshuffle):
+				#with ProcessPoolExecutor() as executor:
+				#	executor.submit(read_csv_and_convert, filenames, shuffle=shuffle, **kwargs)
+				for filename in filenames:
+					read_csv_and_convert(filename, shuffle=shuffle, copy_index=copy_index, **kwargs)
+				ds = open_many([_convert_name(k, shuffle=shuffle) for k in filenames])
+			else:
+				ds = open(filename_hdf5_noshuffle)
+			ds.export_hdf5(filename_hdf5, shuffle=shuffle)
+		return open(filename_hdf5)
+	else:
+		filename = filenames[0]
+		filename_hdf5 = _convert_name(filename, shuffle=shuffle)
+		filename_hdf5_noshuffle = _convert_name(filename, shuffle=False)
+		if not os.path.exists(filename_hdf5):
+			if not os.path.exists(filename_hdf5_noshuffle):
+				df = pd.read_csv(filename, **kwargs)
+				ds = from_pandas(df, copy_index=copy_index)
+			else:
+				ds = open(filename_hdf5_noshuffle)
+			ds.export_hdf5(filename_hdf5, shuffle=shuffle)
+		return open(filename_hdf5)
+
+
 
 
 import vaex.settings
