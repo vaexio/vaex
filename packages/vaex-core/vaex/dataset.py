@@ -5405,8 +5405,8 @@ class Dataset(object):
 
 
 	def __iter__(self):
-		"""Iterator over the column names (for the moment non-virtual and non-strings only)"""
-		return iter(list(self.get_column_names(virtual=False, strings=False)))
+		"""Iterator over the column names"""
+		return iter(list(self.get_column_names(virtual=True, strings=True)))
 
 
 def _select_replace(maskold, masknew):
