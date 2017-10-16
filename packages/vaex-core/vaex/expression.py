@@ -229,3 +229,16 @@ class Function(object):
         arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
         expression = "{}({})".format(self.name, arg_string)
         return Expression(self.dataset, expression)
+
+class FunctionBuiltin(object):
+
+    def __init__(self, dataset, name, **kwargs):
+        self.dataset = dataset
+        self.name = name
+        self.kwargs = kwargs
+
+    def __call__(self, *args, **kwargs):
+        kwargs = dict(kwargs, **self.kwargs)
+        arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+        expression = "{}({})".format(self.name, arg_string)
+        return Expression(self.dataset, expression)
