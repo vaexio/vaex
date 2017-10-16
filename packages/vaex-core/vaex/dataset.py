@@ -4942,6 +4942,205 @@ class Dataset(object):
 		self._length_unfiltered = i2-i1
 		self.signal_active_fraction_changed.emit(self, self._active_fraction)
 
+	@docsubst
+	def trim(self):
+		'''Return a dataset, where all columns are 'trimmed' by the active range.
+
+		For returned datasets, ds.get_active_range() returns (0, ds.length_original()).
+
+		{note_copy}
+
+		'''
+		ds = self.copy()
+		for name in ds:
+			column = ds.columns.get(name)
+			if column is not None:
+				if isinstance(column, np.ndarray):  # real array
+					ds.columns[name] = column[self._index_start:self._index_end]
+				else:
+					ds.columns[name] = column.trim(self._index_start, self._index_end)
+		ds._length_original = self.length_unfiltered()
+		ds._length_unfiltered = ds._length_original
+		ds._index_start = 0
+		ds._index_end = ds._length_original
+		ds._active_fraction = 1
+		return ds
+
+	@docsubst
+	def take(self, indices):
+		'''Returns a dataset containing only rows indexed by indices
+
+		{note_copy}
+
+		Example:
+			>>> a = np.array(['a', 'b', 'c'])
+			>>> x = np.arange(1,4)
+			>>> ds = vaex.from_arrays(a=a, x=x)
+			>>> ds.take([0,2])
+
+		'''
+		ds = self.copy()
+		# if the columns in ds already have a ColumnIndex
+		# we could do, direct_indices = ds.column['bla'].indices[indices]
+		# which should be shared among multiple ColumnIndex'es, so we store
+		# them in this dict
+		direct_indices_map = {}
+		indices = np.array(indices)
+		for name in ds:
+			column = ds.columns.get(name)
+			if column is not None:
+				# we optimize this somewhere, so we don't do multiple
+				# levels of indirection
+				if isinstance(column, ColumnIndexed):
+					# TODO: think about what happpens when the indices are masked.. ?
+					if id(column.indices) not in direct_indices_map:
+						direct_indices = column.indices[indices]
+						direct_indices_map[id(column.indices)] = direct_indices
+					else:
+						direct_indices = direct_indices_map[id(column.indices)]
+					ds.columns[name] = ColumnIndexed(column.dataset, direct_indices, column.name)
+				else:
+					ds.columns[name] = ColumnIndexed(self, indices, name)
+		ds._length_original = len(indices)
+		ds._length_unfiltered = ds._length_original
+		ds.set_selection(None, name=FILTER_SELECTION_NAME)
+		return ds
+
+	@docsubst
+	def extract(self):
+		'''Return a dataset containing only the filtered rows.
+
+		{note_copy}
+
+		The resulting dataset may be more efficient to work with when the original dataset is
+		heavily filtered (contains just a small number of rows).
+
+		If no filtering is applied, it returns a trimmed view.
+		For returned datasets, len(ds) == ds.length_original() == ds.length_unfiltered()
+
+		'''
+		trimmed = self.trim()
+		if trimmed.filtered:
+			indices = trimmed._filtered_range_to_unfiltered_indices(0, len(trimmed))
+			return trimmed.take(indices)
+		else:
+			return trimmed
+
+	@docsubst
+	def sample(self, n=None, frac=None, replace=False, weights=None, random_state=None):
+		'''Returns a dataset with a random set of rows
+
+		{note_copy}
+
+		Provide either n or frac.
+
+		:param int n: number of samples to take (default 1 if frac is None)
+		:param float frac: fractional number of takes to take
+		:param bool replace: If true, a row may be drawn multiple times
+		:param str or expression weights: (unnormalized) probability that a row can be drawn
+		:param int or RandomState: seed or RandomState for reproducability, when None a random seed it chosen
+
+		Example:
+			>>> a = np.array(['a', 'b', 'c'])
+			>>> x = np.arange(1,4)
+			>>> ds = vaex.from_arrays(a=a, x=x)
+			>>> ds.sample(n=2, random_state=42) # 2 random rows, fixed seed
+			>>> ds.sample(frac=1) # 'shuffling'
+			>>> ds.sample(frac=1, replace=True) # useful for bootstrap (may contain repeated samples)
+		'''
+		self = self.extract()
+		if type(random_state) == int or random_state is None:
+			random_state = np.random.RandomState(seed=random_state)
+		if n is None and frac is None:
+			n = 1
+		elif frac is not None:
+			n = int(round(frac*len(self)))
+		weights_values = None
+		if weights is not None:
+			weights_values = self.evaluate(weights)
+			weights_values /= self.sum(weights)
+		indices = random_state.choice(len(self), n, replace=replace, p=weights_values)
+		return self.take(indices)
+
+	def split_random(self, frac, random_state=None):
+		self = self.extract()
+		if type(random_state) == int or random_state is None:
+			random_state = np.random.RandomState(seed=random_state)
+		indices = random_state.choice(len(self), len(self), replace=False)
+		return self.take(indices).split(frac)
+
+	def split(self, frac):
+		self = self.extract()
+		if _issequence(frac):
+			# make sure it is normalized
+			total = sum(frac)
+			frac = [k/total for k in frac]
+		else:
+			assert frac <= 1, "fraction should be <= 1"
+			frac = [frac, 1-frac]
+		offsets = np.round(np.cumsum(frac) * len(self)).astype(np.int64)
+		start = 0
+		for offset in offsets:
+			yield self[start:offset]
+			start = offset
+
+	@docsubst
+	def sort(self, by, ascending=True, kind='quicksort'):
+		'''Return a sorted dataset, sorted by the expression 'by'
+
+		{note_copy}
+
+		{note_filter}
+
+		Example:
+			>>> a = np.array(['a', 'b', 'c'])
+			>>> x = np.arange(1,4)
+			>>> ds = vaex.from_arrays(a=a, x=x)
+			>>> ds.sort('(x-1.8)**2', ascending=False)  # b, c, a will be the order of a
+
+
+		:param str or expression by: expression to sort by
+		:param bool ascending: ascending (default, True) or descending (False)
+		:param str kind: kind of algorithm to use (passed to numpy.argsort)
+		'''
+		self = self.trim()
+		values = self.evaluate(by, filtered=False)
+		indices = np.argsort(values, kind=kind)
+		if not ascending:
+			indices = indices[::-1].copy()  # this may be used a lot, so copy for performance
+		return self.take(indices)
+
+	@docsubst
+	def fillna(self, value, fill_nan=True, fill_masked=True, column_names=None, prefix='__original_'):
+		'''Return a copy dataset, where missing values/NaN are filled with 'value'
+
+		{note_copy}
+
+		{note_filter}
+
+		Example:
+			>>> a = np.array(['a', 'b', 'c'])
+			>>> x = np.arange(1,4)
+			>>> ds = vaex.from_arrays(a=a, x=x)
+			>>> ds.sort('(x-1.8)**2', ascending=False)  # b, c, a will be the order of a
+
+
+		:param str or expression by: expression to sort by
+		:param bool ascending: ascending (default, True) or descending (False)
+		:param str kind: kind of algorithm to use (passed to numpy.argsort)
+		'''
+		ds = self.trim()
+		column_names = column_names or list(self)
+		for name in column_names:
+			column = ds.columns.get(name)
+			if column is not None:
+				new_name = ds.rename_column(name, prefix+name)
+				expr = ds[new_name]
+				ds[name] = ds.func.fillna(expr, value, fill_nan=fill_nan, fill_masked=fill_masked)
+			else:
+				ds[name] = ds.func.fillna(ds[name], value, fill_nan=fill_nan, fill_masked=fill_masked)
+		return ds
+
 
 	def get_selection(self, name="default"):
 		"""Get the current selection object (mostly for internal use atm)"""
@@ -5580,6 +5779,89 @@ class DatasetLocal(Dataset):
 				new_name = column_name
 			self.add_column(new_name, data)
 
+	def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left'):
+		"""Return a dataset joined with other datasets, matched by columns/expression on/left_on/right_on
+
+		Note: The filters will be ignored when joining, the full dataset will be joined (since filters may
+		change). If either dataset is heavily filtered (contains just a small number of rows) consider running
+		:py:method:`Dataset.extract` first.
+
+		Example:
+			>>> a = np.array(['a', 'b', 'c'])
+			>>> x = np.arange(1,4)
+			>>> ds1 = vaex.from_arrays(a=a, x=x)
+			>>> b = np.array(['a', 'b', 'd'])
+			>>> y = x**2
+			>>> ds2 = vaex.from_arrays(b=b, y=y)
+			>>> ds1.join(ds2, left_on='a', right_on='b')
+
+		:param other: Other dataset to join with (the right side)
+		:param on: default key for the left table (self)
+		:param left_on: key for the left table (self), overrides on
+		:param right_on: default key for the right table (other), overrides on
+		:param lsuffix: suffix to add to the left column names in case of a name collision 
+		:param rsuffix: similar for the right 
+		:param how: how to join, 'left' keeps all rows on the left, and adds columns (with possible missing values)
+			'right' is similar with self and other swapped.
+		:return:
+		"""
+		ds = self.copy()
+		if how == 'left':
+			left = ds
+			right = other
+		elif how == 'right':
+			left = other
+			right = ds
+			lsuffix, rsuffix = rsuffix, lsuffix
+			left_on, right_on = right_on, left_on
+		else:
+			raise ValueError('join type not supported: {}, only left and right'.format(how))
+
+		for name in right:
+			if name in left and name + rsuffix == name + lsuffix:
+				raise ValueError('column name collision: {} exists in both column, and no proper suffix given'
+					.format(name))
+
+		right = right.extract()  # get rid of filters and active_range
+		assert left.length_unfiltered() == left.length_original()
+		N = left.length_unfiltered()
+		N_other = len(right)
+		left_on = left_on or on
+		right_on = right_on or on
+		left_values = left.evaluate(left_on, filtered=False)
+		right_values = right.evaluate(right_on)
+		# maps from the left_values to row #
+		index_left = dict(zip(left_values, range(N)))
+		# idem for right
+		index_other = dict(zip(right_values, range(N_other)))
+
+		# we do a left join, find all rows of the right dataset
+		# that has an entry on the left
+		# for each row in the right
+		# find which row it needs to go to in the right
+		#from_indices = np.zeros(N_other, dtype=np.int64)  # row # of right
+		#to_indices = np.zeros(N_other, dtype=np.int64)    # goes to row # on the left
+		# keep a boolean mask of which rows are found
+		left_mask = np.ones(N, dtype=np.bool)
+		# and which row they point to in the right
+		left_row_to_right = np.zeros(N, dtype=np.int64) - 1
+		for i in range(N_other):
+			left_row = index_left.get(right_values[i])
+			if left_row is not None:
+				left_mask[left_row] = False # unmask, it exists
+				left_row_to_right[left_row] = i
+
+		lookup = np.ma.array(left_row_to_right, mask=left_mask)
+		for name in right:
+			right_name = name
+			if name in left:
+				left.rename_column(name, name + lsuffix)
+				right_name = name + rsuffix
+			if name in right.virtual_columns:
+				left.add_virtual_column(right_name, right.virtual_columns[name])
+			else:
+				left.add_column(right_name, ColumnIndexed(right, lookup, name))
+		return left
 
 	def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
 		"""Exports the dataset to a vaex hdf5 file
