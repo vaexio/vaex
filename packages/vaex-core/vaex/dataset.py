@@ -959,6 +959,9 @@ _doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a 
 _doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
 _doc_snippets["cov_matrix"] = """List all convariance values as a double list of expressions, or "full" to guess all entries (which gives an error when values are not found), or "auto" to guess, but allow for missing values"""
 
+_doc_snippets['note_copy'] = 'Note that no copy of the underlying data is made, only a view/reference is make.'
+_doc_snippets['note_filter'] = 'Note that filtering will be ignored (since they may change), you may want to consider running :py:`Dataset.extract` first.'
+
 def docsubst(f):
 	f.__doc__ = f.__doc__.format(**_doc_snippets)
 	return f
