@@ -5463,6 +5463,23 @@ class DatasetLocal(Dataset):
 			setattr(datas, name, array)
 		return datas
 
+	@property
+	def func(self):
+		class Functions(object):
+			pass
+
+		import functools
+		functions = Functions()
+		for name, value in expression_namespace.items():
+			f = vaex.expression.FunctionBuiltin(self, name)
+			f = functools.wraps(value)(f)
+			setattr(functions, name, f)
+		for name, value in self.functions.items():
+			setattr(functions, name, value)
+
+		return functions
+
+
 
 	def copy(self, column_names=None):
 		ds = DatasetArrays()
