@@ -519,16 +519,7 @@ class TaskStatistic(Task):
 		# If selection was a string, we just return the single selection
 		return grid if self.selection_waslist else grid[0]
 
-
-
-import scipy.ndimage.filters
-
-
-
-
-
 import vaex.events
-import cgi
 
 # mutex for numexpr (is not thread save)
 ne_lock = threading.Lock()
@@ -1897,6 +1888,7 @@ class Dataset(object):
 		#percentiles = self.percentile(expression, [100-percentage/2, 100-(100-percentage/2.)], async=True)
 		#return self._async(async, percentiles)
 		#print(percentage)
+		import scipy
 		logger.info("limits_percentage for %r, with percentage=%r", expression, percentage)
 		waslist, [expressions,] = vaex.utils.listify(expression)
 		limits = []

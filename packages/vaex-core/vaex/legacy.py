@@ -3,7 +3,6 @@ from __future__ import division, print_function
 import numpy as np
 import vaex
 from .dataset import Task, TaskMapReduce, _parse_f
-import scipy
 import six
 
 def _asfloat(a):
@@ -116,6 +115,7 @@ class SubspaceGridded(object):
 		return SubspaceGridded(self.subspace_bounded, self.grid, vx=vx, vy=vy, vcounts=counts)
 
 	def filter_gaussian(self, sigmas=1):
+		import scipy.ndimage
 		return SubspaceGridded(self.subspace_bounded, scipy.ndimage.filters.gaussian_filter(self.grid, sigmas))
 
 	def clip_relative(self, v1, v2):
@@ -1266,6 +1266,7 @@ class SubspaceLocal(Subspace):
 
 
 	def limits_percentage(self, percentage=99.73, square=False):
+		import scipy.ndimage
 		limits = []
 		for expr in self.expressions:
 			subspace = self.dataset(expr)

@@ -4,7 +4,6 @@ import vaex.vaexfast
 from vaex.utils import filesize_format
 import logging
 import vaex.utils
-import scipy.ndimage
 total_bytes = 0
 
 logger = logging.getLogger("vaex.grids")
@@ -13,6 +12,7 @@ def dog(grid, sigma1, sigma2):
 	return gf(grid, sigma1) - gf(grid, sigma2)
 
 def gf(grid, sigma, **kwargs):
+	import scipy.ndimage
 	return scipy.ndimage.gaussian_filter(grid, sigma=sigma, **kwargs)
 
 functions = {}
