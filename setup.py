@@ -27,7 +27,7 @@ class DevelopCmd(develop):
             # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name
             # otherwise development install do not work
             if package != 'vaex-core':
-                with cwd(package):
+                with cwd(os.path.join('packages', package)):
                     pip.main(['install', '-v', '-e', '.'])
                 name = package.split('-')[1]
                 source = os.path.abspath(os.path.join(package, 'vaex', name))
@@ -39,7 +39,7 @@ class InstallCmd(install):
     """ Add custom steps for the install command """
     def run(self):
         for package in packages:
-            with cwd(package):
+            with cwd(os.path.join('packages', package)):
                 pip.main(['install', '-v', '.'])
 setup(
     name='vaex-meta',
