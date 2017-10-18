@@ -1262,7 +1262,7 @@ class Dataset(object):
 		:return: {return_stat_scalar}
 		"""
 		logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, async=%r", expression, binby, limits, shape, selection, async)
-		expression = _ensure_string_from_expression(expression)
+		expression = _ensure_strings_from_expressions(expression)
 		binby = _ensure_strings_from_expressions(binby)
 		@delayed
 		def calculate(expression, limits):
