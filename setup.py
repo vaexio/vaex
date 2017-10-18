@@ -22,16 +22,14 @@ packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server']
 class DevelopCmd(develop):
     def run(self):
         for package in packages:
-            with cwd(package):
+            with cwd(os.path.join('packages', package)):
                 pip.main(['install', '-v', '-e', '.'])
             # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name
             # otherwise development install do not work
             if package != 'vaex-core':
-                with cwd(os.path.join('packages', package)):
-                    pip.main(['install', '-v', '-e', '.'])
                 name = package.split('-')[1]
-                source = os.path.abspath(os.path.join(package, 'vaex', name))
-                target = os.path.abspath(os.path.join(packages[0], 'vaex', name))
+                source = os.path.abspath(os.path.join('packages', package, 'vaex', name))
+                target = os.path.abspath(os.path.join('packages', packages[0], 'vaex', name))
                 if not os.path.exists(target):
                     os.symlink(source, target)
 
