@@ -1,7 +1,8 @@
 import operator
 import six
+import functools
 from future.utils import with_metaclass
-from vaex.dataset import function_mapping
+from vaex.dataset import expression_namespace
 
 _binary_ops = [
     dict(code="+", name='add',  op=operator.add),

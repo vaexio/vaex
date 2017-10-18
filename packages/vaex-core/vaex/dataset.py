@@ -5473,8 +5473,14 @@ class DatasetLocal(Dataset):
 		import functools
 		functions = Functions()
 		for name, value in expression_namespace.items():
-			f = vaex.expression.FunctionBuiltin(self, name)
-			f = functools.wraps(value)(f)
+			#f = vaex.expression.FunctionBuiltin(self, name)
+			def closure(name=name, value=value):
+				def wrap(*args, **kwargs):
+					arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+					expression = "{}({})".format(name, arg_string)
+					return vaex.expression.Expression(self, expression)
+				return wrap
+			f = functools.wraps(value)(closure())
 			setattr(functions, name, f)
 		for name, value in self.functions.items():
 			setattr(functions, name, value)
