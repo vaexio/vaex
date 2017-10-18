@@ -95,26 +95,24 @@ class Meta(type):
         return type(future_class_name, future_class_parents, attrs)
 
 class Expression(with_metaclass(Meta)):
-    def __init__(self, ds, expression, selection=False):
-    	self.ds = ds
-    	self.expression = expression
-    	self.selection = selection
-
+    def __init__(self, ds, expression):
+        self.ds = ds
+        self.expression = expression
     def __str__(self):
         return self.expression
 
-    def __array__(self, dtype=None):
-        '''For casting to a numpy array
+    # def __array__(self, dtype=None):
+    #     '''For casting to a numpy array
 
-        Example:
-            >>> np.array(ds.x**2)
+    #     Example:
+    #         >>> np.array(ds.x**2)
 
-        '''
-        return self.ds.evaluate(self)
+    #     '''
+    #     return self.ds.evaluate(self)
 
     def tolist(self):
-        '''Short for np.array(expr).tolist()'''
-        return np.array(self).tolist()
+        '''Short for expr.evaluate().tolist()'''
+        return self.evaluate().tolist()
 
     def __repr__(self):
         name = self.__class__.__module__ + "." +self.__class__.__name__
