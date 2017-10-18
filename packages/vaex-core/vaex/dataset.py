@@ -4709,11 +4709,11 @@ class Dataset(object):
 		display.display(display.HTML(self._info(description=description)))
 
 	def _info(self, description=True):
-		parts = ["""<div><h2>{}</h2> {:,} rows</div>""".format(self.name, len(self))]
+		parts = ["""<div><h2>{}</h2> <b>rows</b>: {:,}</div>""".format(self.name, len(self))]
 		if hasattr(self, 'path'):
-			parts += ["""<div>path: <i>%s</i></div>""" % (self.path)]
+			parts += ["""<div><b>path</b>: <i>%s</i></div>""" % (self.path)]
 		if self.description:
-			parts += ["""<div>Description: {}</div>""".format(self.description)]
+			parts += ["""<div><b>Description</b>: {}</div>""".format(self.description)]
 		parts += ["<h2>Columns:</h2>"]
 		parts += ["<table class='table-striped'>"]
 		parts += ["<thead><tr>"]
@@ -4742,26 +4742,29 @@ class Dataset(object):
 			parts += ["</tr>"]
 		parts += "</table>"
 
-		parts += ["<h2>Variables:</h2>"]
-		parts += ["<table class='table-striped'>"]
-		parts += ["<thead><tr>"]
-		for header in "variable type unit description expression".split():
-			if description or header != "description":
-				parts += ["<th>%s</th>" % header]
-		parts += ["</tr></thead>"]
-		for name in self.variables.keys():
-			parts += ["<tr>"]
-			parts += ["<td>%s</td>" % name]
-			type = self.dtype(name).name
-			parts += ["<td>%s</td>" % type]
-			units = self.unit(name)
-			units = units.to_string("latex_inline") if units else ""
-			parts += ["<td>%s</td>" % units]
-			if description:
-				parts += ["<td ><pre>%s</pre></td>" % self.descriptions.get(name, "")]
-			parts += ["<td><code>%s</code></td>" % (self.variables[name], )]
-			parts += ["</tr>"]
-		parts += "</table>"
+		ignore_list = 'pi e km_in_au seconds_per_year'.split()
+		variable_names = [name for name in self.variables.keys() if name not in ignore_list]
+		if variable_names:
+			parts += ["<h2>Variables:</h2>"]
+			parts += ["<table class='table-striped'>"]
+			parts += ["<thead><tr>"]
+			for header in "variable type unit description expression".split():
+				if description or header != "description":
+					parts += ["<th>%s</th>" % header]
+			parts += ["</tr></thead>"]
+			for name in variable_names:
+				parts += ["<tr>"]
+				parts += ["<td>%s</td>" % name]
+				type = self.dtype(name).name
+				parts += ["<td>%s</td>" % type]
+				units = self.unit(name)
+				units = units.to_string("latex_inline") if units else ""
+				parts += ["<td>%s</td>" % units]
+				if description:
+					parts += ["<td ><pre>%s</pre></td>" % self.descriptions.get(name, "")]
+				parts += ["<td><code>%s</code></td>" % (self.variables[name], )]
+				parts += ["</tr>"]
+			parts += "</table>"
 
 		return "".join(parts)+ "<h2>Data:</h2>" +self._head_and_tail_table()
 
