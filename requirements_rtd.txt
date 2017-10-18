@@ -2,17 +2,15 @@ sphinxcontrib-googleanalytics
 future
 pyyaml
 astropy
-numexpr
 psutil>=1.2.1
 numpy>=1.7.2
-scipy>=0.1
 aplus
 tornado==4.1
 futures==2.2.0
-http://www.astro.rug.nl/software/kapteyn/kapteyn-2.3.tar.gz
+kapteyn
 cachetools
-#healpy # this is only used in the gui
 progressbar2
 jupyter
 nbconvert
 nbsphinx
+ipython
