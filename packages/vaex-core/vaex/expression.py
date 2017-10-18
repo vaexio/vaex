@@ -88,7 +88,11 @@ class Meta(type):
                     #print(name, expressions)
                     expression = '{0}({1})'.format(name, ", ".join(expressions))
                     return Expression(self.ds, expression=expression)
-                f = functools.wraps(func_real)(f)
+                try:
+                    f = functools.wraps(func_real)(f)
+                except AttributeError:
+                    pass # numpy ufuncs don't have a __module__, which may choke wraps
+
                 attrs['%s' % name] = f
             if name not in attrs:
                 wrap(name)
