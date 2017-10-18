@@ -6144,8 +6144,6 @@ class DatasetArrays(DatasetLocal):
 			self._length_unfiltered = len(data)
 			self._length_original = len(data)
 			self._index_end = self._length_unfiltered
-		else:
-			assert self.length_original() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
 		super(DatasetArrays, self).add_column(name, data)
 		self._length_unfiltered = int(round(self._length_original * self._active_fraction))
 		#self.set_active_fraction(self._active_fraction)
