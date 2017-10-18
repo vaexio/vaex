@@ -41,57 +41,58 @@ _unary_ops = [
     dict(code="+", name='pos',  op=operator.pos),
 ]
 class Meta(type):
-	def __new__(upperattr_metaclass, future_class_name,
-				future_class_parents, attrs):
-		#attrs = {}
-		for op in _binary_ops:
-			def wrap(op=op):
-				def f(a, b):
-					self = a
-					#print(op, a, b)
-					if isinstance(b, Expression):
-						assert b.ds == a.ds
-						b = b.expression
-					expression = '({0}) {1} ({2})'.format(a.expression, op['code'], b)
-					return Expression(self.ds, expression=expression, selection=self.selection)
-				attrs['__%s__' % op['name']] = f
-				if op['name'] in reversable:
-					def f(a, b):
-						self = a
-						#print(op, a, b)
-						if isinstance(b, Expression):
-							assert b.ds == a.ds
-							b = b.expression
-						expression = '({2}) {1} ({0})'.format(a.expression, op['code'], b)
-						return Expression(self.ds, expression=expression, selection=self.selection)
-					attrs['__r%s__' % op['name']] = f
+    def __new__(upperattr_metaclass, future_class_name,
+                future_class_parents, attrs):
+        #attrs = {}
+        for op in _binary_ops:
+            def wrap(op=op):
+                def f(a, b):
+                    self = a
+                    #print(op, a, b)
+                    if isinstance(b, Expression):
+                        assert b.ds == a.ds
+                        b = b.expression
+                    expression = '({0}) {1} ({2})'.format(a.expression, op['code'], b)
+                    return Expression(self.ds, expression=expression)
+                attrs['__%s__' % op['name']] = f
+                if op['name'] in reversable:
+                    def f(a, b):
+                        self = a
+                        #print(op, a, b)
+                        if isinstance(b, Expression):
+                            assert b.ds == a.ds
+                            b = b.expression
+                        expression = '({2}) {1} ({0})'.format(a.expression, op['code'], b)
+                        return Expression(self.ds, expression=expression)
+                    attrs['__r%s__' % op['name']] = f
 
-			wrap(op)
-		for op in _unary_ops:
-			def wrap(op=op):
-				def f(a):
-					self = a
-					expression = '{0}({1})'.format(op['code'], a.expression)
-					return Expression(self.ds, expression=expression, selection=self.selection)
-				attrs['__%s__' % op['name']] = f
-			wrap(op)
-		for name, __ in function_mapping:
-			def wrap(name=name):
-				def f(*args, **kwargs):
-					self = args[0]
-					def to_expression(expression):
-						if isinstance(expression, Expression):
-							assert expression.ds == self.ds
-							expression = expression.expression
-						return expression
-					expressions = [to_expression(e) for e in args]
-					#print(name, expressions)
-					expression = '{0}({1})'.format(name, ", ".join(expressions))
-					return Expression(self.ds, expression=expression, selection=self.selection)
-				attrs['%s' % name] = f
-			if name not in attrs:
-				wrap(name)
-		return type(future_class_name, future_class_parents, attrs)
+            wrap(op)
+        for op in _unary_ops:
+            def wrap(op=op):
+                def f(a):
+                    self = a
+                    expression = '{0}({1})'.format(op['code'], a.expression)
+                    return Expression(self.ds, expression=expression)
+                attrs['__%s__' % op['name']] = f
+            wrap(op)
+        for name, func_real in expression_namespace.items():
+            def wrap(name=name):
+                def f(*args, **kwargs):
+                    self = args[0]
+                    def to_expression(expression):
+                        if isinstance(expression, Expression):
+                            assert expression.ds == self.ds
+                            expression = expression.expression
+                        return expression
+                    expressions = [to_expression(e) for e in args]
+                    #print(name, expressions)
+                    expression = '{0}({1})'.format(name, ", ".join(expressions))
+                    return Expression(self.ds, expression=expression)
+                f = functools.wraps(func_real)(f)
+                attrs['%s' % name] = f
+            if name not in attrs:
+                wrap(name)
+        return type(future_class_name, future_class_parents, attrs)
 
 class Expression(with_metaclass(Meta)):
     def __init__(self, ds, expression, selection=False):
