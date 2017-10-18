@@ -174,7 +174,10 @@ def _ensure_string_from_expression(expression):
 	else:
 		raise ValueError('%r is not of string or Expression type, but %r' % (expression, type(expression)))
 def _ensure_strings_from_expressions(expressions):
-	return [_ensure_string_from_expression(k) for k in expressions]
+	if _issequence(expressions):
+		return [_ensure_string_from_expression(k) for k in expressions]
+	else:
+		return _ensure_string_from_expression(expressions)
 
 class Task(vaex.promise.Promise):
 	"""
@@ -1211,6 +1214,8 @@ class Dataset(object):
 		:return: {return_stat_scalar}
 		"""
 		logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
+		expression = _ensure_string_from_expression(expression)
+		binby = _ensure_strings_from_expressions(binby)
 		@delayed
 		def calculate(expression, limits):
 			if expression in ["*", None]:
@@ -1257,6 +1262,8 @@ class Dataset(object):
 		:return: {return_stat_scalar}
 		"""
 		logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, async=%r", expression, binby, limits, shape, selection, async)
+		expression = _ensure_string_from_expression(expression)
+		binby = _ensure_strings_from_expressions(binby)
 		@delayed
 		def calculate(expression, limits):
 			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
