@@ -294,12 +294,14 @@ class TestDataset(unittest.TestCase):
 					self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
 	def test_to(self):
-		def test_equal(ds1, ds2, units=True, ucds=True, description=True, descriptions=True):
+		def test_equal(ds1, ds2, units=True, ucds=True, description=True, descriptions=True, skip=[]):
 			if description:
 				self.assertEqual(ds1.description, ds2.description)
 			for name in ds1.get_column_names(strings=True):
+				if name in skip:
+					continue
 				self.assertIn(name, ds2.get_column_names(strings=True))
-				np.testing.assert_array_equal(ds1.evaluate(name), ds2.evaluate(name))
+				np.testing.assert_array_equal(ds1.evaluate(name), ds2.evaluate(name), err_msg='mismatch in ' +name)
 				if units:
 					self.assertEqual(ds1.units.get(name), ds2.units.get(name))
 				if ucds:
@@ -312,13 +314,13 @@ class TestDataset(unittest.TestCase):
 		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
 
 		# as pandas
-		print(self.dataset.to_pandas_df())
 		ds2 = vx.from_pandas(self.dataset.to_pandas_df())
-		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
+		# skip masked arrays, pandas doesn't understand that, converts it to nan, so we can't compare
+		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False, skip=['m', 'mi'])
 
 		df = self.dataset.to_pandas_df(index_name="name")
 		ds2 = vx.from_pandas(df, index_name="name")
-		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
+		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False, skip=['m', 'mi'])
 
 		ds2 = vx.from_pandas(self.dataset.to_pandas_df(index_name="name"), copy_index=False)
 		assert "name" not in ds2.get_column_names()
