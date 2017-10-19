@@ -5622,7 +5622,7 @@ class DatasetLocal(Dataset):
 		assert i2 <= count
 		cache = self._selection_mask_caches[FILTER_SELECTION_NAME]
 		mask_blocks = iter(sorted(
-			[(i1, i2, block) for (i1, i2), (selection, block) in cache.items()],
+			[(k1, k2, block) for (k1, k2), (selection, block) in cache.items()],
 			key=lambda item: item[0]))
 		done = False
 
