@@ -5712,12 +5712,14 @@ class DatasetLocal(Dataset):
 					print("different dtypes: %s vs %s for %s" % (self.dtype(column_name), other.dtype(column_name), column_name))
 					type_mismatch.append(column_name)
 				else:
-					a = self.columns[column_name]
-					b = other.columns[column_name]
-					if self.filtered:
-						a = a[self.evaluate_selection_mask(None)]
-					if other.filtered:
-						b = b[other.evaluate_selection_mask(None)]
+					# a = self.columns[column_name]
+					# b = other.columns[column_name]
+					# if self.filtered:
+					# 	a = a[self.evaluate_selection_mask(None)]
+					# if other.filtered:
+					# 	b = b[other.evaluate_selection_mask(None)]
+					a = self.evaluate(column_name)
+					b = other.evaluate(column_name)
 					if orderby:
 						a = a[index1]
 						b = b[index2]
