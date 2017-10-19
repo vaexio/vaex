@@ -23,7 +23,7 @@ before_install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - conda create -q -n test -c conda-forge python=$PYTHON_VERSION numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy
+  - conda create -q -n test -c conda-forge python=$PYTHON_VERSION numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas
   - source activate test
   # - conda install -c conda-forge pandas kapteyn # these extra installs should disappear
   # - conda create --name dev --clone test
