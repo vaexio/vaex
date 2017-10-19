@@ -312,6 +312,7 @@ class TestDataset(unittest.TestCase):
 		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
 
 		# as pandas
+		print(self.dataset.to_pandas_df())
 		ds2 = vx.from_pandas(self.dataset.to_pandas_df())
 		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
 
