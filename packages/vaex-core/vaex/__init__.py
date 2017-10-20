@@ -432,4 +432,12 @@ for entry in pkg_resources.iter_entry_points(group='vaex.namespace'):
 	    add_namespace = entry.load()
 	    add_namespace()
 	except Exception:
-		logger.error('issue loading ' + entry.name)
+		logger.exception('issue loading ' + entry.name)
+
+for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
+	logger.debug('adding vaex plugin: ' + entry.name)
+	try:
+	    add_namespace = entry.load()
+	    add_namespace()
+	except Exception:
+		logger.exception('issue loading ' + entry.name)
