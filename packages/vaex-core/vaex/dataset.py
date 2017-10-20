@@ -5497,19 +5497,21 @@ class DatasetLocal(Dataset):
 
 
 
-	def copy(self, column_names=None):
+	def copy(self, column_names=None, virtual=True):
 		ds = DatasetArrays()
 		ds._length_unfiltered = self._length_unfiltered
 		ds._length_original = self._length_original
 		ds._index_end = self._index_end
 		ds._index_start = self._index_start
 		ds._active_fraction = self._active_fraction
+		ds.units.update(self.units)
 		column_names = column_names or self.get_column_names(strings=True, virtual=True)
 		for name in column_names:
 			if name in self.columns:
 				ds.add_column(name, self.columns[name])
 			elif name in self.virtual_columns:
-				ds.add_virtual_column(name, self.virtual_columns[name])
+				if virtual:
+					ds.add_virtual_column(name, self.virtual_columns[name])
 			else:
 				ds.add_column(vaex.utils.find_valid_name(name), self.evaluate(name, filtered=False))
 		ds.functions.update(self.functions)
