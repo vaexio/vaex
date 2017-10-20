@@ -23,8 +23,10 @@ basedir = os.path.dirname(__file__)
 def small_buffer(ds, size=3):
 	previous = ds.executor.buffer_size
 	ds.executor.buffer_size = size
-	yield
-	ds.executor.buffer_size = previous
+	try:
+		yield
+	finally:
+		ds.executor.buffer_size = previous
 
 
 # these need to be global for pickling
