@@ -281,7 +281,12 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
 				response["job_phase"] = "EXCEPTION"
 			meta_data.update(response)
 			data_response = b""
-		text_response = json.dumps(meta_data).encode("utf8")\
+		try:
+			text_response = json.dumps(meta_data).encode("utf8")\
+						+ b"\n" + data_response
+		except Exception as e:
+			meta_data = dict(job_id=job_id, job_phase='EXCEPTION', **exception(e))
+			text_response = json.dumps(meta_data).encode("utf8")\
 						+ b"\n" + data_response
 
 		self.write_message(text_response, binary=True)
