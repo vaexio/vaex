@@ -21,12 +21,15 @@ basedir = os.path.dirname(__file__)
 
 @contextlib.contextmanager
 def small_buffer(ds, size=3):
-	previous = ds.executor.buffer_size
-	ds.executor.buffer_size = size
-	try:
-		yield
-	finally:
-		ds.executor.buffer_size = previous
+	if ds.is_local():
+		previous = ds.executor.buffer_size
+		ds.executor.buffer_size = size
+		try:
+			yield
+		finally:
+			ds.executor.buffer_size = previous
+	else:
+		yield # for remote datasets we don't support this ... or should we?
 
 
 # these need to be global for pickling
