@@ -175,6 +175,7 @@ class TestDataset(unittest.TestCase):
 		f = ds.add_function('mul2', multiply(2))
 		ds['x2'] = f(ds.x)
 		self.assertEqual((self.x * 2).tolist(), ds.evaluate('x2').tolist())
+		ds.state_get()
 
 
 	def test_apply(self):
