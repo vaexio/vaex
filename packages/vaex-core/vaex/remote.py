@@ -343,7 +343,14 @@ class ServerRest(object):
 	def datasets(self, as_dict=False, async=False):
 		def post(result):
 			logger.debug("datasets result: %r", result)
-			datasets = [DatasetRest(self, **kwargs) for kwargs in result]
+			def create(server, state):
+				dataset = DatasetRest(self, name=state['name'],
+							          length_original=state['length_original'],
+							          column_names=state['column_names'],
+							          dtypes=state['dtypes'])
+				dataset.state_set(state['state'])
+				return dataset
+			datasets = [create(self, kwargs) for kwargs in result]
 			logger.debug("datasets: %r", datasets)
 			return datasets if not as_dict else dict([(ds.name, ds) for ds in datasets])
 		return self.submit(path="datasets", arguments={}, post_process=post, async=async)
@@ -375,14 +382,10 @@ class ServerRest(object):
 		path = "datasets/%s/%s" % (dataset_name, method_name)
 		url = self._build_url(path)
 		arguments = dict(kwargs)
-		if not subspace.dataset.get_auto_fraction():
-			arguments["active_fraction"] = subspace.dataset.get_active_fraction()
-			arguments["active_start_index"], arguments["active_end_index"] = subspace.dataset.get_active_range()
-		selection = subspace.get_selection()
-		if selection is not None:
-			arguments["selection"] = selection.to_dict()
-		arguments["variables"] = list(subspace.dataset.variables.items())
-		arguments["virtual_columns"] = list(subspace.dataset.virtual_columns.items())
+		dataset_remote = subspace.dataset
+		arguments["selection"] = subspace.is_masked
+		arguments['state'] = dataset_remote.state_get()
+		arguments['auto_fraction'] = dataset_remote.get_auto_fraction()
 		arguments.update(dict(expressions=expressions))
 		return self.submit(path, arguments, post_process=post_process, async=async)
 
@@ -398,23 +401,11 @@ class ServerRest(object):
 					return result
 		path = "datasets/%s/%s" % (dataset_remote.name, method_name)
 		arguments = dict(kwargs)
-		if not dataset_remote.get_auto_fraction():
-			arguments["active_fraction"] = dataset_remote.get_active_fraction()
-		arguments["variables"] = list(dataset_remote.variables.items())
-		arguments["virtual_columns"] = list(dataset_remote.virtual_columns.items())
-		selections = {}
-		for name in dataset_remote.selection_histories.keys():
-			selection = dataset_remote.get_selection(name)
-			if selection:
-				selection = selection.to_dict()
-			selections[name] = selection
-		arguments["selections"] = selections
-		#arguments["selection_name"] = json.dumps(dataset_remote.get_selection_name())
+		arguments['state'] = dataset_remote.state_get()
+		arguments['auto_fraction'] = dataset_remote.get_auto_fraction()
 		body = urlencode(arguments)
 
 		return self.submit(path, arguments, post_process=post_process, progress=progress, async=async)
-		#return self.fetch(url+"?"+body, wrap, async=async, method="GET")
-		#return self._return(result, wrap)
 
 	def _schedule_call(self, method_name, dataset_remote, async, **kwargs):
 		def post_process(result):
@@ -424,14 +415,6 @@ class ServerRest(object):
 			except ValueError:
 				return result
 		method = "%s/%s" % (dataset_remote.name, method_name)
-		#arguments = dict(kwargs)
-		#if not dataset_remote.get_auto_fraction():
-		#	arguments["active_fraction"] = dataset_remote.get_active_fraction()
-		#arguments["variables"] = list(dataset_remote.variables.items())
-		#arguments["virtual_columns"] = list(dataset_remote.virtual_columns.items())
-		#arguments["selection_name"] = json.dumps(dataset_remote.get_selection_name())
-		#body = urlencode(arguments)
-
 		return self.schedule(path, arguments, post_process=post_process, async=async)
 
 	def _check_exception(self, reply_json):
@@ -501,50 +484,28 @@ class DatasetRemote(Dataset):
 import astropy.units
 
 class DatasetRest(DatasetRemote):
-	def __init__(self, server, name, column_names, dtypes, ucds, descriptions, units, description, length_unfiltered,
-				 virtual_columns=None, selections={}, variables={}):
+	def __init__(self, server, name, column_names, dtypes, length_original):
 		DatasetRemote.__init__(self, name, server.hostname, column_names)
 		self.server = server
 		self.name = name
 		self.column_names = column_names
-		#self.dtypes = {name: np.zeros(1, dtype=getattr(np, dtype)).dtype for name, dtype in dtypes.items()}
 		self.dtypes = {name: np.dtype(dtype) for name, dtype in dtypes.items()}
-		self.units = {name: astropy.units.Unit(unit) for name, unit in units.items()}
-		self.virtual_columns.update(virtual_columns or {})
-		self.variables.update(variables)
 		for column_name in self.get_column_names(virtual=True, strings=True):
 			self._save_assign_expression(column_name)
-		self.ucds = ucds
-		self.descriptions = descriptions
-		self.description = description
-		self._length_unfiltered = length_unfiltered
-		self._length = length_unfiltered
-		self._index_end = self._length
-		#self.filename = #"http://%s:%s/%s" % (server.hostname, server.port, name)
+		self._length_original = length_original
+		self._length_unfiltered = length_original
+		self._index_end = length_original
 		self.path = self.filename = self.server._build_url("%s" % name)
-		for name, value in selections.items():
-			self.set_selection(value, name=name)
-
 		self.fraction = 1
-
 		self.executor = ServerExecutor()
 
-	@staticmethod
-	def argument_to_json(dataset):
-		ds = dataset
-		selections = {}
-		for name, value in ds.selection_histories.items():
-			selections[name] = ds.get_selection(name)
-		return {"server":ds.server, "name":ds.name, "length_unfiltered":ds.length_unfiltered(), "column_names":ds.get_column_names(strings=True),
-				 "description": ds.description, "descriptions":ds.descriptions,
-				 "ucds":ds.ucds, "units":{name:str(unit) for name, unit in ds.units.items()},
-				 "dtypes":{name:ds.dtype(name) for name in ds.get_column_names(strings=True)},
-				 "virtual_columns":dict(ds.virtual_columns),
-				 "variables": ds.variables,
-				 "selections": selections}
-
-	def copy(self):
-		ds = DatasetRest(**DatasetRest.argument_to_json(self))
+	def copy(self, column_names=None, virtual=True):
+		dtypes = {name:self.dtype(name) for name in self.get_column_names(strings=True, virtual=False)}
+		ds = DatasetRest(self.server, self.name, self.column_names, dtypes=dtypes, length_original=self._length_original)
+		state = self.state_get()
+		if not virtual:
+			state['virtual_columns'] = {}
+		ds.state_set(state)
 		return ds
 
 	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
@@ -594,6 +555,7 @@ class DatasetRest(DatasetRemote):
 		return SubspaceRemote(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
 
 	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, async=False):
+		expression = vaex.dataset._ensure_strings_from_expressions(expression)
 		"""basic support for evaluate at server, at least to run some unittest, do not expect this to work from strings"""
 		result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, selection=selection, async=async)
 		# TODO: we ignore out
