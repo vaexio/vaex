@@ -3297,9 +3297,9 @@ class Dataset(object):
 
 	def state_get(self):
 		virtual_names = list(self.virtual_columns.keys())  + list(self.variables.keys())
-		units = {key:str(value) for key, value in self.units.items() if key in virtual_names}
+		units = {key:str(value) for key, value in self.units.items()}
 		ucds = {key:value for key, value in self.ucds.items() if key in virtual_names}
-		descriptions = {key:value for key, value in self.descriptions.items() if key in virtual_names}
+		descriptions = {key:value for key, value in self.descriptions.items()}
 		import vaex.serialize
 		def check(key, value):
 			if not vaex.serialize.can_serialize(value.f):
@@ -3319,16 +3319,24 @@ class Dataset(object):
 					 selections=selections,
 					 ucds=ucds,
 					 units=units,
-					 descriptions=descriptions)
+					 descriptions=descriptions,
+					 description=self.description,
+					 active_range=[self._index_start, self._index_end])
 		return state
 
 	def state_set(self, state):
+		self.description = state['description']
+		self._index_start, self._index_end = state['active_range']
+		self._length_unfiltered = self._index_end - self._index_start
 		for name, value in state['functions'].items():
 			self.add_function(name, vaex.serialize.from_dict(value))
 		self.virtual_columns = state['virtual_columns']
 		for name, value in state['virtual_columns'].items():
 			self._save_assign_expression(name)
 		self.variables = state['variables']
+		import astropy  # TODO: make this dep optional?
+		units = {key:astropy.units.Unit(value) for key, value in state["units"].items()}
+		self.units.update(units)
 		for name, selection_dict in state['selections'].items():
 			# TODO: make selection use the vaex.serialize framework
 			if selection_dict is None:
