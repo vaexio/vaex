@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 import time
 import platform
 import os
@@ -9,7 +8,10 @@ import math
 import concurrent.futures
 import six
 import re
+
 is_frozen = getattr(sys, 'frozen', False)
+PY2 = sys.version_info[0] == 2
+PY3 = sys.version_info[0] == 3
 
 osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
 

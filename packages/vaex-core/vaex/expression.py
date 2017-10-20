@@ -197,11 +197,18 @@ class FunctionSerializable(object):
 
     def state_get(self):
         data = self.pickle(self.f)
-        return dict(pickled=base64.encodebytes(data).decode('ascii'))
+        if vaex.utils.PY2:
+            pickled = base64.encodestring(data)
+        else:
+            pickled = base64.encodebytes(data).decode('ascii')
+        return dict(pickled=pickled)
 
     def state_set(self, state):
         data = state['pickled']
-        data = base64.decodebytes(data.encode('ascii'))
+        if vaex.utils.PY2:
+            data = base64.decodestring(data)
+        else:
+            data = base64.decodebytes(data.encode('ascii'))
         self.f = self.unpickle(data)
 
     def __call__(self, *args, **kwargs):
