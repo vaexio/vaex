@@ -177,7 +177,7 @@ class Expression(with_metaclass(Meta)):
 import types
 import vaex.serialize
 import base64
-import pickle
+import cloudpickle as pickle
 try:
     from StringIO import StringIO
 except ImportError:

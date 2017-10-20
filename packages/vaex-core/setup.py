@@ -16,7 +16,7 @@ url         = 'https://www.github.com/maartenbreddels/vaex'
 # TODO: after python2 supports frops, future and futures can also be dropped
 # TODO: would be nice to have astropy only as dep in vaex-astro
 install_requires_core = ["numpy>=1.11", "astropy>=1", "aplus", "futures>=2.2.0",
-    "future>=0.15.2", "pyyaml", "progressbar2", "psutil>=1.2.1", "requests", "six",]
+    "future>=0.15.2", "pyyaml", "progressbar2", "psutil>=1.2.1", "requests", "six", "cloudpickle"]
 install_requires_viz = ["matplotlib>=1.3.1", ]
 install_requires_astro = ["kapteyn"]
 
