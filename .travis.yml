@@ -42,7 +42,7 @@ install:
   # - (cd packages/vaex-server; pip install -v .)
 script:
   - source activate test
-  - python -m vaex.test.dataset TestDataset
+  - python -m vaex.test.dataset
   # - runipy examples/tutorial_ipython_notebook.ipynb
   # - runipy examples/advanced_plotting.ipynb
   # - source activate dev
