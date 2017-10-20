@@ -27,5 +27,6 @@ setup(name=name+'-viz',
     license=license,
     packages=['vaex.viz'],
     zip_safe=False,
-    entry_points={'vaex.namespace': ['ml = vaex.viz:add_namespace']}
+    entry_points={'vaex.namespace': ['ml = vaex.viz:add_namespace'],
+                  'vaex.plugin': ['plot = vaex.viz.mpl:add_plugin']}
     )
