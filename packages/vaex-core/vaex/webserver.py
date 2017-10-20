@@ -338,12 +338,11 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 		elif parts[0] == "datasets":
 			if len(parts) == 1:
 				#
-				response = dict(result=[{"name":ds.name, "length_unfiltered":ds.length_unfiltered(), "column_names":ds.get_column_names(strings=True),
-										 "description": ds.description, "descriptions":ds.descriptions,
-										 "ucds":ds.ucds, "units":{name:str(unit) for name, unit in ds.units.items()},
-										 "dtypes":{name:str(ds.columns[name].dtype) for name in ds.get_column_names(strings=True)},
-										 "virtual_columns":dict(ds.virtual_columns),
-										 "variables":dict(ds.variables)
+				response = dict(result=[{'name':ds.name,
+										'length_original':ds.length_original(),
+										'column_names':ds.get_column_names(strings=True),
+										 'dtypes':{name:str(ds.columns[name].dtype) for name in ds.get_column_names(strings=True)},
+										 'state': ds.state_get()
 										 } for ds in webserver.datasets])
 				logger.debug("response: %r", response)
 				return response
@@ -371,35 +370,8 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 						dataset.executor = webserver.thread_local.executor
 						if dataset.mask is not None:
 							logger.debug("selection: %r", dataset.mask.sum())
-						if "active_fraction" in arguments:
-							active_fraction = arguments["active_fraction"]
-							logger.debug("setting active fraction to: %r", active_fraction)
-							dataset.set_active_fraction(active_fraction)
-						else:
-							if fraction is not None:
-								dataset.set_active_fraction(fraction)
-								logger.debug("auto fraction set to %f", fraction)
-						if "active_start_index" in arguments and "active_end_index" in arguments:
-							i1, i2 = arguments["active_start_index"], arguments["active_end_index"]
-							logger.debug("setting active range to: %r", (i1, i2))
-							dataset.set_active_range(i1, i2)
-
-						if "variables" in arguments:
-							variables = arguments["variables"]
-							logger.debug("setting variables to: %r", variables)
-							for key, value in variables:
-								dataset.set_variable(key, value)
-						if "virtual_columns" in arguments:
-							virtual_columns = arguments["virtual_columns"]
-							logger.debug("setting virtual_columns to: %r", virtual_columns)
-							for key, value in virtual_columns:
-								dataset.add_virtual_column(key, value)
-							for key, value in virtual_columns:
-								try:
-									dataset.validate_expression(value)
-								except (SyntaxError, KeyError, NameError) as e:
-									logger.exception("state was: %r", arguments)
-									return exception(e)
+						if 'state' in arguments:
+							dataset.state_set(arguments['state'])
 						if expressions:
 							for expression in expressions:
 								try:
@@ -407,40 +379,29 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								except (SyntaxError, KeyError, NameError) as e:
 									return exception(e)
 						subspace = dataset(*expressions, executor=webserver.thread_local.executor) if expressions else None
-						if subspace:
-							# old stype selection
-							if "selection" in arguments:
-								selection_values = arguments["selection"]
-								if selection_values:
-									selection = vaex.dataset.selection_from_dict(dataset, selection_values)
-									dataset.set_selection(selection, executor=webserver.thread_local.executor)
-						else:
-							if "selections" in arguments:
-								selection_values = arguments["selections"]
-								if selection_values:
-									for name, value in selection_values.items():
-										if value:
-											selection = vaex.dataset.selection_from_dict(dataset, value)
-											previous_selection = dataset.get_selection(name)
-											if previous_selection:
-												# UGLY: we 'stitch' the current selection at the end of the
-												# selection 'list'
-												selection_end = selection
-												while selection_end.previous_selection:
-													selection_end = selection_end.previous_selection
-												selection_end.previous_selection = previous_selection
-												selection_end.mode = "and"
-											dataset.set_selection(selection, name=name)
+						if dataset_original.has_selection(vaex.dataset.FILTER_SELECTION_NAME):
+							selection_original = dataset_original.get_selection(vaex.dataset.FILTER_SELECTION_NAME)
+							if not dataset.has_selection(vaex.dataset.FILTER_SELECTION_NAME):
+								dataset.set_selection(selection_original, name=vaex.dataset.FILTER_SELECTION_NAME)
+							else:
+								selection = dataset.get_selection(vaex.dataset.FILTER_SELECTION_NAME)
+								# UGLY: we 'stitch' the current selection at the end of the
+								# selection 'list'
+								selection_end = selection
+								while selection_end.previous_selection:
+									selection_end = selection_end.previous_selection
+								selection_end.previous_selection = selection_original
+								selection_end.mode = "and"
 						try:
 							if subspace:
-								if "selection" in arguments:
+								if 'selection' in arguments and arguments['selection']:
 									subspace = subspace.selected()
 							if subspace is None:
-								for name in "job_id expressions active_fraction selections variables virtual_columns active_start_index active_end_index".split():
+								for name in "job_id state auto_fraction expressions active_fraction selections variables virtual_columns active_start_index active_end_index".split():
 									arguments.pop(name, None)
 							else:
 								if subspace is not None:
-									for name in "job_id expressions active_fraction selection selections variables virtual_columns active_start_index active_end_index".split():
+									for name in "job_id state auto_fraction expressions active_fraction selection selections variables virtual_columns active_start_index active_end_index".split():
 										arguments.pop(name, None)
 							logger.debug("subspace: %r", subspace)
 							if subspace is None and method_name in "count cov correlation covariance mean std minmax min max sum var".split():
@@ -478,8 +439,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
 								return ({"result": result})
 							elif method_name in ["evaluate"]:
 								result = task_invoke(dataset, method_name, **arguments)
-								result = result.tolist() if hasattr(result, "tolist") else result
-								return ({"result": result})
+								return result
 							else:
 								logger.error("unknown method: %r", method_name)
 								return error("unknown method: " + method_name)
