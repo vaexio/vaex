@@ -1,0 +1,19 @@
+from common import *
+import collections
+
+def test_sample(ds):
+    x = np.arange(10).tolist()
+    dss = ds.sample(frac=1, random_state=42)
+    assert dss.x.evaluate().tolist() != x
+    assert list(sorted(dss.x.evaluate().tolist())) == x
+
+    dss = ds.sample(n=1, random_state=42)
+    assert len(dss) == 1
+
+    dss = ds.sample(n=100, random_state=42, replace=True)
+    assert len(dss) == 100
+
+
+    dss = ds.sample(n=100, random_state=42, replace=True, weights='x')
+    assert 0 not in dss.x.evaluate().tolist()
+    assert 'bla' not in dss.x.evaluate().tolist()
