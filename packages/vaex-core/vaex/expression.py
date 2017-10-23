@@ -55,7 +55,7 @@ class Meta(type):
                     if isinstance(b, Expression):
                         assert b.ds == a.ds
                         b = b.expression
-                    expression = '({0}) {1} ({2})'.format(a.expression, op['code'], b)
+                    expression = '({0} {1} {2})'.format(a.expression, op['code'], b)
                     return Expression(self.ds, expression=expression)
                 attrs['__%s__' % op['name']] = f
                 if op['name'] in reversable:
@@ -65,7 +65,7 @@ class Meta(type):
                         if isinstance(b, Expression):
                             assert b.ds == a.ds
                             b = b.expression
-                        expression = '({2}) {1} ({0})'.format(a.expression, op['code'], b)
+                        expression = '({2} {1} {0})'.format(a.expression, op['code'], b)
                         return Expression(self.ds, expression=expression)
                     attrs['__r%s__' % op['name']] = f
 
