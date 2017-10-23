@@ -5,6 +5,7 @@ from vaex.dataset import Dataset, _parse_n, _parse_f, _ensure_string_from_expres
     _ensure_strings_from_expressions, _ensure_list,\
     _expand_limits, _expand_shape, _expand, _parse_reduction
 import vaex.utils
+import vaex.image
 
 logger = logging.getLogger("vaex.viz")
 
