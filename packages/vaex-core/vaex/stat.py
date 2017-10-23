@@ -9,17 +9,17 @@ class Meta(type):
         for op in _binary_ops:
             def wrap(op=op):
                 def f(a, b):
-                    return _StatisticsCalculation(op['name'], op['op'], a, b, binary=True, code=op['code'])
+                    return _StatisticsCalculation(op['name'], op['op'], [a, b], binary=True, code=op['code'])
                 attrs['__%s__' % op['name']] = f
                 if op['name'] in reversable:
                     def f(a, b):
-                        return _StatisticsCalculation(op['name'], op['op'], b, a, binary=True, code=op['code'])
+                        return _StatisticsCalculation(op['name'], op['op'], [b, a], binary=True, code=op['code'])
                     attrs['__r%s__' % op['name']] = f
             wrap(op)
         for op in _unary_ops:
             def wrap(op=op):
                 def f(a):
-                    return _StatisticsCalculation(op['name'], op['op'], a, unary=True, code=op['code'])
+                    return _StatisticsCalculation(op['name'], op['op'], [a], unary=True, code=op['code'])
                 attrs['__%s__' % op['name']] = f
             wrap(op)
         for name, func_real in expression_namespace.items():
@@ -41,7 +41,7 @@ class Expression(with_metaclass(Meta)):
         return '{}'.format(self)
 
 class _StatisticsCalculation(Expression):
-    def __init__(self, name, op, *args, binary=False, unary=False, code='"<??>"'):
+    def __init__(self, name, op, args, binary=False, unary=False, code='"<??>"'):
         self.name = name
         self.op = op
         self.args = args
