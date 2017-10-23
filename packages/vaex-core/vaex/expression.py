@@ -149,7 +149,39 @@ class Expression(with_metaclass(Meta)):
     def clip(self, lower=None, upper=None):
         return self.ds.func.clip(self, lower, upper)
 
-    def optimized(self):
+    def jit_numba(self):
+        import numba
+        import imp
+        import hashlib
+        #self._import_all(module)
+        names =  []
+        funcs = set(vaex.dataset.expression_namespace.keys())
+        vaex.expresso.validate_expression(self.expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
+        names = list(set(names))
+        type_names = [str(self.ds.dtype(name)) for name in names]
+        # import IPython
+        # IPython.embed()
+        types = [getattr(numba, type_name) for type_name in type_names]
+        argstring = ", ".join(names)
+        code = '''
+from numpy import *
+def f({0}):
+    return {1}'''.format(argstring, self.expression, types)
+        print(code)
+        scope = {}
+        exec(code, scope)
+        f = scope['f']
+        # TODO: for now only float64 output supported
+        print(types)
+        print(f)
+        vectorizer = numba.vectorize([numba.float64(*types)])
+        f = vectorizer(f)
+        function = self.ds.add_function('_jit', f, unique=True)
+        return function(*names)
+        return Expression(self.ds, "{0}({1})".format(function_name, argstring))
+
+
+    def jit(self):
         import pythran
         import imp
         import hashlib
@@ -161,9 +193,9 @@ class Expression(with_metaclass(Meta)):
         types = ", ".join(str(self.ds.dtype(name)) + "[]" for name in names)
         argstring = ", ".join(names)
         code = '''
-    from numpy import *
-    #pythran export f({2})
-    def f({0}):
+from numpy import *
+#pythran export f({2})
+def f({0}):
     return {1}'''.format(argstring, self.expression, types)
         print(code)
         m = hashlib.md5()
