@@ -1042,7 +1042,7 @@ class Dataset(object):
 
 	def execute(self):
 		'''Execute all delayed jobs'''
-		self.executor.executor()
+		self.executor.execute()
 
 	@property
 	def filtered(self):
