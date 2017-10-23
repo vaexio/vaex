@@ -29,13 +29,13 @@ class SubspaceDistributed(vaex.legacy.Subspace):
 
     def _task(self, promise):
         """Helper function for returning tasks results, result when immediate is True, otherwise the task itself, which is a promise"""
-        if self.async:
+        if self.delay:
             return promise
         else:
             return promise.get()
 
-    def sleep(self, seconds, async=False):
-        return self.dataset.server.call("sleep", seconds, async=async)
+    def sleep(self, seconds, delay=False):
+        return self.dataset.server.call("sleep", seconds, delay=delay)
 
     def _apply_all(self, name, *args, **kwargs):
         promises = []
@@ -46,7 +46,7 @@ class SubspaceDistributed(vaex.legacy.Subspace):
             print(selection, selection.to_dict())
         for dataset in self.dataset.datasets:
             dataset.set_selection(selection)#, selection_name=selection_name)
-            subspace = dataset(*self.expressions, async=True)
+            subspace = dataset(*self.expressions, delay=True)
             if self.is_masked:
                 subspace = subspace.selected()
             print(subspace.get_selection(), dataset.get_selection("default"), subspace.is_masked, self.is_masked)
@@ -153,7 +153,7 @@ class DatasetDistributed(vaex.dataset.Dataset):
             return np.zeros(1, dtype=np.float64).dtype
     def is_local(self): return False
     def __call__(self, *expressions, **kwargs):
-        return SubspaceDistributed(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
+        return SubspaceDistributed(self, expressions, kwargs.get("executor") or self.executor, delay=kwargs.get("delay", False))
 
 if __name__ == "__main__":
 	sys.exit(main(sys.argv))

@@ -1161,17 +1161,17 @@ class LayerTable(object):
 				vmin, vmax = range
 				if vmin is None or vmax is None:
 					missing = True
-		self.subspace = self.dataset(*self.state.expressions, async=True)
+		self.subspace = self.dataset(*self.state.expressions, delay=True)
 		#subspace_ranges = self.subspace
 		all_expressions = self.state.expressions
 		if self.layer_slice_source:
 			all_expressions = self.state.expressions + self.layer_slice_source.expressions
-			#self.subspace = self.dataset(*all_expressions, async=True)
+			#self.subspace = self.dataset(*all_expressions, delay=True)
 
 		if missing:
 			logger.debug("first we calculate min max for this layer")
 			#return self.add_task(subspace_ranges.minmax()).then(self.got_limits, self.on_error).then(None, self.on_error)
-			return self.dataset.minmax(all_expressions, async=True, progress=self.progressbar.add(name="for minmaxes")).then(self.got_limits, self.on_error).then(None, self.on_error)
+			return self.dataset.minmax(all_expressions, delay=True, progress=self.progressbar.add(name="for minmaxes")).then(self.got_limits, self.on_error).then(None, self.on_error)
 		else:
 			#self.got_limits(self.state.ranges_grid)
 			return vaex.promise.Promise.fulfilled(self)
@@ -1190,7 +1190,7 @@ class LayerTable(object):
 		all_expressions = self.state.expressions
 		if self.layer_slice_source:
 			all_expressions = self.state.expressions + self.layer_slice_source.expressions
-			#self.subspace = self.dataset(*all_expressions, async=True)
+			#self.subspace = self.dataset(*all_expressions, delay=True)
 
 		histogram_counter = self._histogram_counter
 		self._can_plot = False
@@ -1212,7 +1212,7 @@ class LayerTable(object):
 			args.append(self.weight_count)
 		elif self.statistic in ["sum", "mean", "std", "var", "min", "max"]:
 			args.append(self.weight)
-		histogram_promise = f(*args, binby=all_expressions, limits=ranges, shape=self.plot_window.state.grid_size, progress=self.progressbar.add(self.statistic), async=True)\
+		histogram_promise = f(*args, binby=all_expressions, limits=ranges, shape=self.plot_window.state.grid_size, progress=self.progressbar.add(self.statistic), delay=True)\
 			.then(self.grid_main.setter("grid"))\
 			.then(None, self.on_error)
 		promises.append(histogram_promise)
@@ -1223,7 +1223,7 @@ class LayerTable(object):
 			# 	.then(None, self.on_error)
 			# promises.append(histogram_promise)
 			histogram_promise = f(*args, binby=all_expressions, limits=ranges, shape=self.plot_window.state.grid_size,
-								  progress=self.progressbar.add(self.statistic), async=True, selection=True) \
+								  progress=self.progressbar.add(self.statistic), delay=True, selection=True) \
 				.then(self.grid_main_selection.setter("grid")) \
 				.then(None, self.on_error)
 			promises.append(histogram_promise)
@@ -1231,7 +1231,7 @@ class LayerTable(object):
 			@vaex.delayed.delayed
 			def update_count(count):
 				self.label_selection_info_update(count)
-			update_count(self.dataset.count(selection=True, async=True))
+			update_count(self.dataset.count(selection=True, delay=True))
 		else:
 			self.label_selection_info_update(None)
 
@@ -1259,7 +1259,7 @@ class LayerTable(object):
 				histogram_vector_promise = self.dataset.sum(self.state.vector_expressions[i],
 															binby=all_expressions, limits=ranges,
 									  shape=self.plot_window.state.vector_grid_size,
-									  progress=self.progressbar.add("sum of " + self.state.vector_expressions[i]), async=True, selection=selection) \
+									  progress=self.progressbar.add("sum of " + self.state.vector_expressions[i]), delay=True, selection=selection) \
 					.then(self.grid_vector.setter("sum" + name)) \
 					.then(None, self.on_error)
 				promises.append(histogram_vector_promise)
@@ -1267,7 +1267,7 @@ class LayerTable(object):
 				histogram_vector_promise = self.dataset.count(self.state.vector_expressions[i],
 															binby=all_expressions, limits=ranges,
 									  shape=self.plot_window.state.vector_grid_size,
-									  progress=self.progressbar.add("sum of " + self.state.vector_expressions[i]), async=True, selection=selection) \
+									  progress=self.progressbar.add("sum of " + self.state.vector_expressions[i]), delay=True, selection=selection) \
 					.then(self.grid_vector.setter("count" + name)) \
 					.then(None, self.on_error)
 				promises.append(histogram_vector_promise)

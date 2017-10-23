@@ -423,7 +423,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
             grid_of_grids.append([])
             for j, what in enumerate(whats):
                 if isinstance(what, vaex.stat.Expression):
-                    grid = what.calculate(self, binby=binby, shape=shape, limits=limits, selection=selections, async=True)
+                    grid = what.calculate(self, binby=binby, shape=shape, limits=limits, selection=selections, delay=True)
                 else:
                     what = what.strip()
                     index = what.index("(")
@@ -447,9 +447,9 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                             if unit:
                                 what_units = unit.to_string('latex_inline')
                         if function in functions:
-                            grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape, selection=selections, async=True)
+                            grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape, selection=selections, delay=True)
                         elif function == "count":
-                            grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections, async=True)
+                            grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections, delay=True)
                         else:
                             raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
                     else:

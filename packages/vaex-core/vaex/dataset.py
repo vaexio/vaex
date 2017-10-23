@@ -944,7 +944,7 @@ _doc_snippets["shape"] = """shape for the array where the statistic is calculate
 _doc_snippets["percentile_limits"] = """description for the min and max values to use for the cumulative histogram, should currently only be 'minmax'"""
 _doc_snippets["percentile_shape"] = """shape for the array where the cumulative histogram is calculated on, integer type"""
 _doc_snippets["selection"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False), or a list of selections"""
-_doc_snippets["async"] = """Do not return the result, but a proxy for asynchronous calculations (currently only for internal use)"""
+_doc_snippets["delay"] = """Do not return the result, but a proxy for delayhronous calculations (currently only for internal use)"""
 _doc_snippets["progress"] = """A callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False"""
 _doc_snippets["expression_limits"] = _doc_snippets["expression"]
 _doc_snippets["grid"] = """If grid is given, instead if compuation a statistic given by what, use this Nd-numpy array instead, this is often useful when a custom computation/statistic is calculated, but you still want to use the plotting machinery."""
@@ -1046,13 +1046,13 @@ class Dataset(object):
 	def filtered(self):
 		return self.has_selection(FILTER_SELECTION_NAME)
 
-	def map_reduce(self, map, reduce, arguments, async=False):
+	def map_reduce(self, map, reduce, arguments, delay=False):
 		#def map_wrapper(*blocks):
 		task = TaskMapReduce(self, arguments, map, reduce, info=False)
 		self.executor.schedule(task)
-		return self._async(async, task)
+		return self._delay(delay, task)
 
-	def apply(self, f, arguments=None, dtype=None, async=False, vectorize=False):
+	def apply(self, f, arguments=None, dtype=None, delay=False, vectorize=False):
 		assert arguments is not None, 'for now, you need to supply arguments'
 		import types
 		if isinstance(f, types.LambdaType):
@@ -1072,7 +1072,7 @@ class Dataset(object):
 			dtype = result0.dtype
 		task = TaskApply(self, arguments, f, info=False, dtype=dtype)
 		self.executor.schedule(task)
-		return self._async(async, task)
+		return self._delay(delay, task)
 
 
 
@@ -1086,7 +1086,7 @@ class Dataset(object):
 		return self.map_reduce(map, reduce, [expression])
 
 	@docsubst
-	def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, async=False):
+	def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
 		"""Estimate the mutual information between and x and y on a grid with shape mi_shape and mi_limits, possible on a grid defined by binby
 
 		If sort is True, the mutual information is returned in sorted (descending) order and the list of expressions is returned in the same order
@@ -1111,7 +1111,7 @@ class Dataset(object):
 		:param shape: {shape}
 		:param sort: return mutual information in sorted (descending) order, and also return the correspond list of expressions when sorted is True
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:return: {return_stat_scalar},
 		"""
 		if y is None:
@@ -1122,9 +1122,9 @@ class Dataset(object):
 			if mi_limits:
 				mi_limits = [mi_limits]
 		#print("x, mi_limits", x, mi_limits)
-		limits = self.limits(binby, limits, async=True)
+		limits = self.limits(binby, limits, delay=True)
 		#print("$"*80)
-		mi_limits = self.limits(x, mi_limits, async=True)
+		mi_limits = self.limits(x, mi_limits, delay=True)
 		#print("@"*80)
 
 		@delayed
@@ -1166,7 +1166,7 @@ class Dataset(object):
 				#print("limits", limits,expression_limits)
 				#print("limits>", list(limits) + list(expression_limits))
 				counts = self.count(binby=list(expressions) + list(binby), limits=list(expression_limits)+list(limits),
-						   shape=total_shape, async=True, selection=selection)
+						   shape=total_shape, delay=True, selection=selection)
 				values.append(calculate(counts))
 			return values
 
@@ -1180,7 +1180,7 @@ class Dataset(object):
 			else:
 				return np.array(vaex.utils.unlistify(waslist, mi_list))
 		values = finish(delayed_list(has_limits(limits, mi_limits)))
-		return self._async(async, values)
+		return self._delay(delay, values)
 
 	def bins(self, expression, limits, shape=default_shape, edges=True):
 		vmin, vmax = limits
@@ -1199,7 +1199,7 @@ class Dataset(object):
 		return index
 
 	@docsubst
-	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, edges=False, progress=None):
+	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
 		"""Count the number of non-NaN values (or all, if expression is None or "*")
 
 		Examples:
@@ -1217,7 +1217,7 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:param edges: {edges}
 		:return: {return_stat_scalar}
@@ -1244,14 +1244,14 @@ class Dataset(object):
 			return vaex.utils.unlistify(waslist, counts)
 		waslist, [expressions,] = vaex.utils.listify(expression)
 		progressbar = vaex.utils.progressbars(progress)
-		limits = self.limits(binby, limits, async=True)
+		limits = self.limits(binby, limits, delay=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		var = finish(*stats)
-		return self._async(async, var)
+		return self._delay(delay, var)
 
 	@docsubst
 	@stat_1d
-	def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		"""Calculate the mean for expression, possibly on a grid defined by binby.
 
 		Examples:
@@ -1266,11 +1266,11 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
-		logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, async=%r", expression, binby, limits, shape, selection, async)
+		logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, delay=%r", expression, binby, limits, shape, selection, delay)
 		expression = _ensure_strings_from_expressions(expression)
 		binby = _ensure_strings_from_expressions(binby)
 		@delayed
@@ -1288,14 +1288,14 @@ class Dataset(object):
 			return vaex.utils.unlistify(waslist, mean)
 		waslist, [expressions,] = vaex.utils.listify(expression)
 		progressbar = vaex.utils.progressbars(progress)
-		limits = self.limits(binby, limits, async=True)
+		limits = self.limits(binby, limits, delay=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		var = finish(*stats)
-		return self._async(async, var)
+		return self._delay(delay, var)
 
 	@docsubst
 	@stat_1d
-	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		"""Calculate the sum for the given expression, possible on a grid defined by binby
 
 		Examples:
@@ -1311,7 +1311,7 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
@@ -1330,14 +1330,14 @@ class Dataset(object):
 		binby = _ensure_strings_from_expressions(binby)
 		waslist, [expressions,] = vaex.utils.listify(expression)
 		progressbar = vaex.utils.progressbars(progress)
-		limits = self.limits(binby, limits, async=True)
+		limits = self.limits(binby, limits, delay=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		s = finish(*stats)
-		return self._async(async, s)
+		return self._delay(delay, s)
 
 	@docsubst
 	@stat_1d
-	def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		"""Calculate the standard deviation for the given expression, possible on a grid defined by binby
 
 
@@ -1351,18 +1351,18 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
 		@delayed
 		def finish(var):
 			return var**0.5
-		return self._async(async, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progress)))
+		return self._delay(delay, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)))
 
 	@docsubst
 	@stat_1d
-	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		"""Calculate the sample variance for the given expression, possible on a grid defined by binby
 
 		Examples:
@@ -1381,7 +1381,7 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
@@ -1405,14 +1405,14 @@ class Dataset(object):
 		binby = _ensure_strings_from_expressions(binby)
 		waslist, [expressions,] = vaex.utils.listify(expression)
 		progressbar = vaex.utils.progressbars(progress)
-		limits = self.limits(binby, limits, async=True)
+		limits = self.limits(binby, limits, delay=True)
 		stats = [calculate(expression, limits) for expression in expressions]
 		var = finish(*stats)
-		return self._async(async, var)
+		return self._delay(delay, var)
 
 
 	@docsubst
-	def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		"""Calculate the covariance cov[x,y] between and x and y, possible on a grid defined by binby
 
 		Examples:
@@ -1432,7 +1432,7 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
@@ -1442,17 +1442,17 @@ class Dataset(object):
 
 		waslist, [xlist,ylist] = vaex.utils.listify(x, y)
 		#print("limits", limits)
-		limits = self.limits(binby, limits, selection=selection, async=True)
+		limits = self.limits(binby, limits, selection=selection, delay=True)
 		#print("limits", limits)
 
 		@delayed
 		def calculate(limits):
 			results = []
 			for x, y in zip(xlist, ylist):
-				mx = self.mean(x, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar)
-				my = self.mean(y, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar)
+				mx = self.mean(x, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar)
+				my = self.mean(y, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar)
 				cxy = self.mean("(%s)*(%s)" % (x, y), binby=binby, limits=limits, shape=shape, selection=selection,
-						  async=True, progress=progressbar)
+						  delay=True, progress=progressbar)
 				results.append(cov(mx, my, cxy))
 			return results
 
@@ -1462,10 +1462,10 @@ class Dataset(object):
 		def finish(covars):
 			value = np.array(vaex.utils.unlistify(waslist, covars))
 			return value
-		return self._async(async, finish(delayed_list(covars)))
+		return self._delay(delay, finish(delayed_list(covars)))
 
 	@docsubst
-	def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, async=False, progress=None):
+	def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, delay=False, progress=None):
 		"""Calculate the correlation coefficient cov[x,y]/(std[x]*std[y]) between and x and y, possible on a grid defined by binby
 
 		Examples:
@@ -1482,7 +1482,7 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
@@ -1504,7 +1504,7 @@ class Dataset(object):
 			#print xlist, ylist
 		else:
 			waslist, [xlist,ylist] = vaex.utils.listify(x, y)
-		limits = self.limits(binby, limits, selection=selection, async=True)
+		limits = self.limits(binby, limits, selection=selection, delay=True)
 
 		@delayed
 		def echo(limits):
@@ -1515,7 +1515,7 @@ class Dataset(object):
 		def calculate(limits):
 			results = []
 			for x, y in zip(xlist, ylist):
-				task = self.cov(x, y, binby=binby, limits=limits, shape=shape, selection=selection, async=True,
+				task = self.cov(x, y, binby=binby, limits=limits, shape=shape, selection=selection, delay=True,
 							 progress=progressbar)
 				results.append(corr(task))
 			return results
@@ -1531,10 +1531,10 @@ class Dataset(object):
 				return correlations[indices], sorted_x
 			value = np.array(vaex.utils.unlistify(waslist, correlations))
 			return value
-		return self._async(async, finish(delayed_list(correlations)))
+		return self._delay(delay, finish(delayed_list(correlations)))
 
 	@docsubst
-	def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		"""Calculate the covariance matrix for x and y or more expressions, possible on a grid defined by binby
 
 		Either x and y are expressions, e.g:
@@ -1569,7 +1569,7 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:return: {return_stat_scalar}, the last dimensions are of shape (2,2)
 		"""
 		@delayed
@@ -1587,7 +1587,7 @@ class Dataset(object):
 		binby = _ensure_list(binby)
 		shape = _expand_shape(shape, len(binby))
 		progressbar = vaex.utils.progressbars(progress)
-		limits = self.limits(binby, limits, selection=selection, async=True)
+		limits = self.limits(binby, limits, selection=selection, delay=True)
 
 		@delayed
 		def calculate_matrix(means, vars, raw_mixed):
@@ -1607,21 +1607,21 @@ class Dataset(object):
 		@delayed
 		def calculate(limits):
 			# calculate the right upper triangle
-			means = [self.mean(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar) for expression in expressions]
-			vars  = [self.var (expression, binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar) for expression in expressions]
+			means = [self.mean(expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar) for expression in expressions]
+			vars  = [self.var (expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar) for expression in expressions]
 			raw_mixed = []
 			for i in range(N):
 				for j in range(i+1):
 					if i != j:
-						raw_mixed.append(self.mean("(%s)*(%s)" % (expressions[i], expressions[j]), binby=binby, limits=limits, shape=shape, selection=selection, async=True, progress=progressbar))
+						raw_mixed.append(self.mean("(%s)*(%s)" % (expressions[i], expressions[j]), binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar))
 			return calculate_matrix(delayed_list(means), delayed_list(vars), delayed_list(raw_mixed))
 
 		covars = calculate(limits)
-		return self._async(async, covars)
+		return self._delay(delay, covars)
 
 	@docsubst
 	@stat_1d
-	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		"""Calculate the minimum and maximum for expressions, possible on a grid defined by binby
 
 
@@ -1644,7 +1644,7 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:return: {return_stat_scalar}, the last dimension is of shape (2)
 		"""
@@ -1660,14 +1660,14 @@ class Dataset(object):
 			return value
 		waslist, [expressions,] = vaex.utils.listify(expression)
 		progressbar = vaex.utils.progressbars(progress, name="minmaxes" )
-		limits = self.limits(binby, limits, selection=selection, async=True)
+		limits = self.limits(binby, limits, selection=selection, delay=True)
 		tasks = [calculate(expression, limits) for expression in expressions]
 		result = finish(*tasks)
-		return self._async(async, result)
+		return self._delay(delay, result)
 
 	@docsubst
 	@stat_1d
-	def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		"""Calculate the minimum for given expressions, possible on a grid defined by binby
 
 
@@ -1685,18 +1685,18 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:return: {return_stat_scalar}, the last dimension is of shape (2)
 		"""
 		@delayed
 		def finish(result):
 			return result[...,0]
-		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async, progress=progress)))
+		return self._delay(delay, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=delay, progress=progress)))
 
 	@docsubst
 	@stat_1d
-	def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		"""Calculate the maximum for given expressions, possible on a grid defined by binby
 
 
@@ -1714,18 +1714,18 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:return: {return_stat_scalar}, the last dimension is of shape (2)
 		"""
 		@delayed
 		def finish(result):
 			return result[...,1]
-		return self._async(async, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, async=async, progress=progress)))
+		return self._delay(delay, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=delay, progress=progress)))
 
 	@docsubst
 	@stat_1d
-	def median_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=256, percentile_limits="minmax", selection=False, async=False):
+	def median_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=256, percentile_limits="minmax", selection=False, delay=False):
 		"""Calculate the median , possible on a grid defined by binby
 
 		NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
@@ -1739,13 +1739,13 @@ class Dataset(object):
 		:param percentile_limits: {percentile_limits}
 		:param percentile_shape: {percentile_shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:return: {return_stat_scalar}
 		"""
-		return self.percentile_approx(expression, 50, binby=binby, limits=limits, shape=shape, percentile_shape=percentile_shape, percentile_limits=percentile_limits, selection=selection, async=async)
+		return self.percentile_approx(expression, 50, binby=binby, limits=limits, shape=shape, percentile_shape=percentile_shape, percentile_limits=percentile_limits, selection=selection, delay=delay)
 
 	@docsubst
-	def percentile_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024, percentile_limits="minmax", selection=False, async=False):
+	def percentile_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024, percentile_limits="minmax", selection=False, delay=False):
 		"""Calculate the percentile given by percentage, possible on a grid defined by binby
 
 		NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
@@ -1783,7 +1783,7 @@ class Dataset(object):
 		:param percentile_limits: {percentile_limits}
 		:param percentile_shape: {percentile_shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:return: {return_stat_scalar}
 		"""
 		waslist, [expressions,] = vaex.utils.listify(expression)
@@ -1796,7 +1796,7 @@ class Dataset(object):
 			#task =  TaskStatistic(self, [expression] + binby, shape, limits, op=OP_ADD1, selection=selection)
 			#self.executor.schedule(task)
 			#return task
-			return self.count(binby=list(binby) + [expression], shape=shape, limits=limits, selection=selection, async=True, edges=True)
+			return self.count(binby=list(binby) + [expression], shape=shape, limits=limits, selection=selection, delay=True, edges=True)
 		@delayed
 		def finish(percentile_limits, counts_list):
 			results = []
@@ -1857,8 +1857,8 @@ class Dataset(object):
 		percentile_shapes = _expand_shape(percentile_shape, len(expressions))
 		if percentile_limits:
 			percentile_limits = _expand_limits(percentile_limits, len(expressions))
-		limits = self.limits(binby, limits, selection=selection, async=True)
-		percentile_limits = self.limits(expressions, percentile_limits, selection=selection, async=True)
+		limits = self.limits(binby, limits, selection=selection, delay=True)
+		percentile_limits = self.limits(expressions, percentile_limits, selection=selection, delay=True)
 		@delayed
 		def calculation(limits, percentile_limits):
 			#print(">>>", expressions, percentile_limits)
@@ -1875,17 +1875,17 @@ class Dataset(object):
 		def finish2(grid):
 			value = vaex.utils.unlistify(waslist, np.array(grid))
 			return value
-		return self._async(async, finish2(result))
+		return self._delay(delay, finish2(result))
 
-	def _async(self, async, task, progressbar=False):
-		if async:
+	def _delay(self, delay, task, progressbar=False):
+		if delay:
 			return task
 		else:
 			self.executor.execute()
 			return task.get()
 
 	@docsubst
-	def limits_percentage(self, expression, percentage=99.73, square=False, async=False):
+	def limits_percentage(self, expression, percentage=99.73, square=False, delay=False):
 		"""Calculate the [min, max] range for expression, containing approximately a percentage of the data as defined
 		by percentage.
 
@@ -1902,11 +1902,11 @@ class Dataset(object):
 
 		:param expression: {expression_limits}
 		:param float percentage: Value between 0 and 100
-		:param async: {async}
+		:param delay: {delay}
 		:return: {return_limits}
 		"""
-		#percentiles = self.percentile(expression, [100-percentage/2, 100-(100-percentage/2.)], async=True)
-		#return self._async(async, percentiles)
+		#percentiles = self.percentile(expression, [100-percentage/2, 100-(100-percentage/2.)], delay=True)
+		#return self._delay(delay, percentiles)
 		#print(percentage)
 		import scipy
 		logger.info("limits_percentage for %r, with percentage=%r", expression, percentage)
@@ -1951,7 +1951,7 @@ class Dataset(object):
 		return vaex.utils.unlistify(waslist, values)
 
 	@docsubst
-	def limits(self, expression, value=None, square=False, selection=None, async=False):
+	def limits(self, expression, value=None, square=False, selection=None, delay=False):
 		"""Calculate the [min, max] range for expression, as described by value, which is '99.7%' by default.
 
 		If value is a list of the form [minvalue, maxvalue], it is simply returned, this is for convenience when using mixed
@@ -1973,7 +1973,7 @@ class Dataset(object):
 		:param expression: {expression_limits}
 		:param value: {limits}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:return: {return_limits}
 		"""
 		if expression == []:
@@ -2019,7 +2019,7 @@ class Dataset(object):
 		for expression, value in expression_values.keys():
 			if isinstance(value, six.string_types):
 				if value == "minmax":
-					limits = self.minmax(expression, selection=selection, async=True)
+					limits = self.minmax(expression, selection=selection, delay=True)
 				else:
 					import re
 					match = re.match("([\d.]*)(\D*)", value)
@@ -2035,11 +2035,11 @@ class Dataset(object):
 						elif type in ["ss", "sigmasquare"]:
 							limits =  self.limits_sigma(number, square=True)
 						elif type in ["%", "percent"]:
-							limits =  self.limits_percentage(expression, number, async=False)
+							limits =  self.limits_percentage(expression, number, delay=False)
 						elif type in ["%s", "%square", "percentsquare"]:
-							limits =  self.limits_percentage(expression, number, square=True, async=True)
+							limits =  self.limits_percentage(expression, number, square=True, delay=True)
 			elif value is None:
-				limits = self.limits_percentage(expression, square=square, async=True)
+				limits = self.limits_percentage(expression, square=square, delay=True)
 			else:
 				limits =  value
 			limits_list.append(limits)
@@ -2094,7 +2094,7 @@ class Dataset(object):
 
 			#print("limits", limits_outer)
 			return vaex.utils.unlistify(waslist, limits_outer)
-		return self._async(async, finish(limits_list))
+		return self._delay(delay, finish(limits_list))
 
 
 	def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
@@ -2169,7 +2169,7 @@ class Dataset(object):
 		#						group_by, group_limits, group_colors, group_labels, group_count, cmap, scales, tool_select, bq_cleanup, **kwargs)
 
 
-	def healpix_count(self, expression=None, healpix_expression=None, healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, async=False, progress=None, selection=None):
+	def healpix_count(self, expression=None, healpix_expression=None, healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, delay=False, progress=None, selection=None):
 		"""Count non missing value for expression on an array which represents healpix data.
 
 		:param expression: Expression or column for which to count non-missing values, or None or '*' for counting the rows
@@ -2180,7 +2180,7 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:param progress: {progress}
 		:return:
 		"""
@@ -2202,7 +2202,7 @@ class Dataset(object):
 		shape = (nmax,) + _expand_shape(shape, len(binby)-1)
 		epsilon = 1./scaling/2
 		limits = [[-epsilon, nmax-epsilon]] + ([] if limits is None else limits)
-		return self.count(expression, binby=binby, limits=limits, shape=shape, async=async, progress=progress, selection=selection)
+		return self.count(expression, binby=binby, limits=limits, shape=shape, delay=delay, progress=progress, selection=selection)
 
 	def healpix_plot(self, healpix_expression="source_id/34359738368", healpix_max_level=12, healpix_level=8, what="count(*)", selection=None,
 					 grid=None,
@@ -2275,7 +2275,7 @@ class Dataset(object):
 
 	@docsubst
 	@stat_1d
-	def _stat(self, what="count(*)", what_kwargs={}, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
+	def _stat(self, what="count(*)", what_kwargs={}, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		"""Calculate the sum for the given expression, possible on a grid defined by binby
 
 		Examples:
@@ -2291,11 +2291,11 @@ class Dataset(object):
 		:param limits: {limits}
 		:param shape: {shape}
 		:param selection: {selection}
-		:param async: {async}
+		:param delay: {delay}
 		:return: {return_stat_scalar}
 		"""
 		waslist_what, [whats,] = vaex.utils.listify(what)
-		limits = self.limits(binby, limits, async=True)
+		limits = self.limits(binby, limits, delay=True)
 		waslist_selection, [selections] = vaex.utils.listify(selection)
 		binby = _ensure_list(binby)
 
@@ -2332,10 +2332,10 @@ class Dataset(object):
 							what_units = unit.to_string('latex_inline')
 					if function in functions:
 						grid = getattr(self, function)(arguments, binby=binby, limits=limits, shape=shape,
-								   selection=selections, progress=progress, async=async)
+								   selection=selections, progress=progress, delay=delay)
 					elif function == "count":
 						grid = self.count(arguments, binby, shape=shape, limits=limits, selection=selections,
-								  progress=progress, async=async)
+								  progress=progress, delay=delay)
 					else:
 						raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
 					#what_labels.append(what_label)
@@ -2353,7 +2353,7 @@ class Dataset(object):
 				total_grid[i] = grid
 			return total_grid[slice(None, None, None) if waslist_what else 0, slice(None, None, None) if waslist_selection else 0]
 		s = finish(delayed_list(grids))
-		return self._async(async, s)
+		return self._delay(delay, s)
 
 	plot = _requires('viz')
 	plot1d = _requires('viz')
@@ -4449,7 +4449,7 @@ class DatasetLocal(Dataset):
 	def __call__(self, *expressions, **kwargs):
 		"""The local implementation of :func:`Dataset.__call__`"""
 		import vaex.legacy
-		return vaex.legacy.SubspaceLocal(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
+		return vaex.legacy.SubspaceLocal(self, expressions, kwargs.get("executor") or self.executor, delay=kwargs.get("delay", False))
 
 	def echo(self, arg): return arg
 

@@ -269,17 +269,17 @@ class Subspaces(object):
 		self.subspaces = subspaces
 		self.expressions = set()
 		first_subspace = self.subspaces[0]
-		self.async = first_subspace.async
+		self.delay = first_subspace.delay
 		self.dimension = first_subspace.dimension
 		self.dataset = self.subspaces[0].dataset
 		for subspace in self.subspaces:
 			assert subspace.dataset == self.subspaces[0].dataset
-			assert subspace.async == self.subspaces[0].async
+			assert subspace.delay == self.subspaces[0].delay
 			assert subspace.dimension == self.subspaces[0].dimension, "subspace is of dimension %s, while first subspace if of dimension %s" % (subspace.dimension, self.subspaces[0].dimension)
-			#assert subspace.sele== self.subspaces[0].async
+			#assert subspace.sele== self.subspaces[0].delay
 			self.expressions.update(subspace.expressions)
 		self.expressions = list(self.expressions)
-		self.subspace = self.dataset(*list(self.expressions), async=self.async, executor=first_subspace.executor)
+		self.subspace = self.dataset(*list(self.expressions), delay=self.delay, executor=first_subspace.executor)
 
 	#def _repr_html_(self):
 
@@ -316,13 +316,13 @@ class Subspaces(object):
 
 
 	def minmax(self):
-		if self.async:
+		if self.delay:
 			return self.subspace.minmax().then(self._unpack)
 		else:
 			return self._unpack(self.subspace.minmax())
 
 	def limits_sigma(self, sigmas=3, square=False):
-		if self.async:
+		if self.delay:
 			return self.subspace.limits_sigma(sigmas=sigmas, square=square).then(self._unpack)
 		else:
 			return self._unpack(self.subspace.limits_sigma(sigmas=sigmas, square=square))
@@ -339,12 +339,12 @@ class Subspaces(object):
 			limits_promise = vaex.promise.Promise.fulfilled(limits)
 		limits_promise = limits_promise.then(self._unpack)
 		promise = limits_promise.then(mutual_information)
-		return promise if self.async else promise.get()
+		return promise if self.delay else promise.get()
 
 
 
 	def mean(self):
-		if self.async:
+		if self.delay:
 			return self.subspace.mean().then(self._unpack)
 		else:
 			means = self.subspace.mean()
@@ -356,7 +356,7 @@ class Subspaces(object):
 			means = self._pack(means)
 		def var(means):
 			return self.subspace.var(means=means)
-		if self.async:
+		if self.delay:
 			#if means is None:
 			#	return self.subspace.mean().then(var).then(self._unpack)
 			#else:
@@ -379,7 +379,7 @@ class Subspaces(object):
 			means = self._pack(means)
 		if vars is not None:
 			vars = self._pack(vars)
-		if self.async:
+		if self.delay:
 			if means is None:
 				mean_promise = self.subspace.mean()
 			else:
@@ -418,25 +418,25 @@ class Subspace(object):
 	See `vaex.dataset.Dataset` for more documentation.
 
 	"""
-	def __init__(self, dataset, expressions, executor, async, masked=False):
+	def __init__(self, dataset, expressions, executor, delay, masked=False):
 		"""
 
 		:param Dataset dataset: the dataset the subspace refers to
 		:param list[str] expressions: list of expressions that forms the subspace
 		:param Executor executor: responsible for executing the tasks
-		:param bool async: return answers directly, or as a promise
+		:param bool delay: return answers directly, or as a promise
 		:param bool masked: work on the selection or not
 		:return:
 		"""
 		self.dataset = dataset
 		self.expressions = expressions
 		self.executor = executor
-		self.async = async
+		self.delay = delay
 		self.is_masked = masked
 
 	def __repr__(self):
 		name = self.__class__.__module__ + "." +self.__class__.__name__
-		return "<%s(dataset=%r, expressions=%r, async=%r, is_masked=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.async, self.is_masked, id(self))
+		return "<%s(dataset=%r, expressions=%r, delay=%r, is_masked=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.delay, self.is_masked, id(self))
 
 	@property
 	def dimension(self):
@@ -449,10 +449,10 @@ class Subspace(object):
 		return self.is_masked
 
 	def selected(self):
-		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=self.async, masked=True)
+		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, delay=self.delay, masked=True)
 
-	def asynchronous(self):
-		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, async=True, masked=self.is_masked)
+	def delayhronous(self):
+		return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, delay=True, masked=self.is_masked)
 
 	def image_rgba_save(self, filename, data=None, rgba8=None, **kwargs):
 		if rgba8 is not None:
@@ -1034,7 +1034,7 @@ class SubspaceLocal(Subspace):
 
 	def _task(self, task, progressbar=False):
 		"""Helper function for returning tasks results, result when immediate is True, otherwise the task itself, which is a promise"""
-		if self.async:
+		if self.delay:
 			# should return a task or a promise nesting it
 			return self.executor.schedule(task)
 		else:
@@ -1177,7 +1177,7 @@ class SubspaceLocal(Subspace):
 			task = TaskMapReduce(self.dataset, self.expressions, covar_map, covars_reduce, remove_counts_and_normalize, info=True)
 			return self._task(task)
 		if means is None:
-			if self.async:
+			if self.delay:
 				means_wrapper = [None]
 				def do_vars(means):
 					means_wrapper[0] = means
@@ -1191,7 +1191,7 @@ class SubspaceLocal(Subspace):
 				return do_correlation(means, vars)
 		else:
 			if vars is None:
-				if self.async:
+				if self.delay:
 					def do_correlation_wrapper(vars):
 						return do_correlation(means, vars)
 					return self.vars(means=means).then(do_correlation_wrapper)
@@ -1262,7 +1262,7 @@ class SubspaceLocal(Subspace):
 		else:
 			histogram_done = Task.fulfilled(grid)
 		mutual_information_promise = histogram_done.then(vaex.kld.mutual_information)
-		return mutual_information_promise if self.async else mutual_information_promise.get()
+		return mutual_information_promise if self.delay else mutual_information_promise.get()
 
 
 	def limits_percentage(self, percentage=99.73, square=False):
@@ -1286,7 +1286,7 @@ class SubspaceLocal(Subspace):
 		return limits
 
 	def limits_sigma(self, sigmas=3, square=False):
-		if self.async:
+		if self.delay:
 			means_wrapper = [None]
 			def do_vars(means):
 				means_wrapper[0] = means

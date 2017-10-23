@@ -1219,7 +1219,7 @@ class PlotDialog(QtGui.QWidget):
 		# this can be
 		promises = [layer.add_tasks_ranges() for layer in layers]
 		executors = list(set([layer.dataset.executor for layer in layers]))
-		# execute may do things async, like at a server
+		# execute may do things delay, like at a server
 		try:
 			for executor in executors:
 				executor.execute()

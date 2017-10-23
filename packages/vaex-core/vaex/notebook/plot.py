@@ -180,7 +180,7 @@ class PlotBase(widgets.Widget):
             xyz = [self.x, self.y, self.z]
             for i, limit in enumerate(limits):
                 if limits[i] is None:
-                    limits[i] = self.dataset.limits(xyz[i], async=True)
+                    limits[i] = self.dataset.limits(xyz[i], delay=True)
             @vaex.delayed.delayed
             def limits_done(limits):
                 with self.output:
@@ -198,13 +198,13 @@ class PlotBase(widgets.Widget):
             self._progressbar.cancel()
             self._new_progressbar()
             current_pb = self._progressbar
-            async = True
+            delay = True
             promises = []
             pb = self._progressbar.add("grid")
             result = self.dataset._stat(binby=self.get_binby(), what=self.what, limits=self.limits,
                       shape=self.get_shape(), progress=pb,
-                                          selection=self.active_selections(), async=True)
-            if async:
+                                          selection=self.active_selections(), delay=True)
+            if delay:
                 promises.append(result)
             else:
                 self.grid = result
@@ -215,8 +215,8 @@ class PlotBase(widgets.Widget):
                 if v:
                     result = self.dataset.mean(v, binby=self.get_binby(), limits=self.limits,
                            shape=self.get_vshape(), progress=self._progressbar.add("v"+str(i)),
-                           selection=self.active_selections(), async=async)
-                if async:
+                           selection=self.active_selections(), delay=delay)
+                if delay:
                     promises.append(result)
                 else:
                     self.vgrids[i] = result
@@ -225,8 +225,8 @@ class PlotBase(widgets.Widget):
                 expr = "*".join([v for v in vs if v])
                 result = self.dataset.count(expr, binby=self.get_binby(), limits=self.limits,
                                                    shape=self.get_vshape(), progress=self._progressbar.add("vcount"),
-                                                   selection=self.active_selections(), async=async)
-            if async:
+                                                   selection=self.active_selections(), delay=delay)
+            if delay:
                 promises.append(result)
             else:
                 self.vgrids[i] = result
@@ -240,7 +240,7 @@ class PlotBase(widgets.Widget):
                         self.vcount = vcount
                         #print("assign")
                         self._update_image()
-            if async:
+            if delay:
                 for promise in promises:
                     if promise:
                         promise.end()

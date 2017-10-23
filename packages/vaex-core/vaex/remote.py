@@ -79,7 +79,7 @@ class ServerRest(object):
 		self.hostname = hostname
 		self.port = port
 		self.base_path = base_path if base_path.endswith("/") else (base_path + "/")
-		#if async:
+		#if delay:
 		event = threading.Event()
 		self.thread_mover = thread_mover or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
 		logger.debug("thread mover: %r", self.thread_mover)
@@ -193,9 +193,9 @@ class ServerRest(object):
 					result = response["result"]#[0]
 					#logger.debug("completed job %r, result=%r", job_id, result)
 					task = self.jobs[job_id]
-					logger.debug("completed job %r (async=%r, thread_mover=%r)", job_id, task.async, self.thread_mover)
+					logger.debug("completed job %r (delay=%r, thread_mover=%r)", job_id, task.delay, self.thread_mover)
 					processed_result = task.post_process(result)
-					if task.async:
+					if task.delay:
 						self.thread_mover(task.fulfill, processed_result)
 					else:
 						task.fulfill(processed_result)
@@ -206,7 +206,7 @@ class ServerRest(object):
 					exception = getattr(__builtin__, class_name)(msg)
 					logger.debug("error in job %r, exception=%r", job_id, exception)
 					task = self.jobs[job_id]
-					if task.async:
+					if task.delay:
 						self.thread_mover(task.reject, exception)
 					else:
 						task.reject(exception)
@@ -215,7 +215,7 @@ class ServerRest(object):
 					msg = response["error"]
 					exception = RuntimeError("error at server: %r" % msg)
 					task = self.jobs[job_id]
-					if task.async:
+					if task.delay:
 						self.thread_mover(task.reject, exception)
 					else:
 						task.reject(exception)
@@ -223,14 +223,14 @@ class ServerRest(object):
 					fraction = response["progress"]
 					logger.debug("pending?: %r", phase)
 					task = self.jobs[job_id]
-					if task.async:
+					if task.delay:
 						self.thread_mover(task.signal_progress.emit, fraction)
 					else:
 						task.signal_progress.emit(fraction)
 			except Exception as e:
 				logger.exception("error in handling job", e)
 				task = self.jobs[job_id]
-				if task.async:
+				if task.delay:
 					self.thread_mover(task.reject, e)
 				else:
 					task.reject(e)
@@ -240,13 +240,13 @@ class ServerRest(object):
 		io_loop = tornado.ioloop.IOLoop.instance()
 		io_loop.start()
 
-	def submit_websocket(self, path, arguments, async=False, progress=None, post_process=lambda x: x):
+	def submit_websocket(self, path, arguments, delay=False, progress=None, post_process=lambda x: x):
 		assert self.use_websocket
 
-		task = TaskServer(post_process=post_process, async=async)
+		task = TaskServer(post_process=post_process, delay=delay)
 		progressbars = vaex.utils.progressbars(progress)
 		progressbars.add_task(task)
-		logger.debug("created task: %r, %r (async=%r)" % (path, arguments, async))
+		logger.debug("created task: %r, %r (delay=%r)" % (path, arguments, delay))
 		job_id = str(uuid.uuid4())
 		self.jobs[job_id] = task
 		arguments["job_id"] = job_id
@@ -270,12 +270,12 @@ class ServerRest(object):
 
 		self.io_loop.add_callback(do)
 		logger.debug("we can continue (main thread is %r)", threading.currentThread())
-		if async:
+		if delay:
 			return task
 		else:
 			return task.get()
 
-	def submit_http(self, path, arguments, post_process, async, progress=None, **kwargs):
+	def submit_http(self, path, arguments, post_process, delay, progress=None, **kwargs):
 		def pre_post_process(response):
 			cookie = Cookie.SimpleCookie()
 			for cookieset in response.headers.get_list("Set-Cookie"):
@@ -318,17 +318,17 @@ class ServerRest(object):
 		headers = tornado.httputil.HTTPHeaders()
 
 		url = self._build_url(path +"?" + urlencode(arguments_json))
-		logger.debug("fetch %s, async=%r", url, async)
+		logger.debug("fetch %s, delay=%r", url, delay)
 
 		if self.user_id is not None:
 			headers.add("Cookie", "user_id=%s" % self.user_id)
 			logger.debug("adding user_id %s to request", self.user_id)
-		if async:
-			task = TaskServer(pre_post_process, async=async)
+		if delay:
+			task = TaskServer(pre_post_process, delay=delay)
 			# tornado doesn't like that we call fetch while ioloop is running in another thread, we should use ioloop.add_callbacl
 			def do():
 				self.thread_mover(task.signal_progress.emit, 0.5)
-				future = self.http_client_async.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
+				future = self.http_client_delay.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
 				def thread_save_succes(value):
 					self.thread_mover(task.signal_progress.emit, 1.0)
 					self.thread_mover(task.fulfill, value)
@@ -340,7 +340,7 @@ class ServerRest(object):
 		else:
 			return pre_post_process(self.http_client.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs))
 
-	def datasets(self, as_dict=False, async=False):
+	def datasets(self, as_dict=False, delay=False):
 		def post(result):
 			logger.debug("datasets result: %r", result)
 			def create(server, state):
@@ -353,7 +353,7 @@ class ServerRest(object):
 			datasets = [create(self, kwargs) for kwargs in result]
 			logger.debug("datasets: %r", datasets)
 			return datasets if not as_dict else dict([(ds.name, ds) for ds in datasets])
-		return self.submit(path="datasets", arguments={}, post_process=post, async=async)
+		return self.submit(path="datasets", arguments={}, post_process=post, delay=delay)
 
 	def _build_url(self, method):
 		protocol = "ws" if self.use_websocket else "http"
@@ -378,7 +378,7 @@ class ServerRest(object):
 					return result
 		dataset_name = subspace.dataset.name
 		expressions = subspace.expressions
-		async = subspace.async
+		delay = subspace.delay
 		path = "datasets/%s/%s" % (dataset_name, method_name)
 		url = self._build_url(path)
 		arguments = dict(kwargs)
@@ -387,9 +387,9 @@ class ServerRest(object):
 		arguments['state'] = dataset_remote.state_get()
 		arguments['auto_fraction'] = dataset_remote.get_auto_fraction()
 		arguments.update(dict(expressions=expressions))
-		return self.submit(path, arguments, post_process=post_process, async=async)
+		return self.submit(path, arguments, post_process=post_process, delay=delay)
 
-	def _call_dataset(self, method_name, dataset_remote, async, numpy=False, progress=None, **kwargs):
+	def _call_dataset(self, method_name, dataset_remote, delay, numpy=False, progress=None, **kwargs):
 		def post_process(result):
 			#result = self._check_exception(json.loads(result.body))["result"]
 			if numpy:
@@ -405,9 +405,9 @@ class ServerRest(object):
 		arguments['auto_fraction'] = dataset_remote.get_auto_fraction()
 		body = urlencode(arguments)
 
-		return self.submit(path, arguments, post_process=post_process, progress=progress, async=async)
+		return self.submit(path, arguments, post_process=post_process, progress=progress, delay=delay)
 
-	def _schedule_call(self, method_name, dataset_remote, async, **kwargs):
+	def _schedule_call(self, method_name, dataset_remote, delay, **kwargs):
 		def post_process(result):
 			#result = self._check_exception(json.loads(result.body))["result"]
 			try:
@@ -415,7 +415,7 @@ class ServerRest(object):
 			except ValueError:
 				return result
 		method = "%s/%s" % (dataset_remote.name, method_name)
-		return self.schedule(path, arguments, post_process=post_process, async=async)
+		return self.schedule(path, arguments, post_process=post_process, delay=delay)
 
 	def _check_exception(self, reply_json):
 		if "exception" in reply_json:
@@ -438,13 +438,13 @@ class SubspaceRemote(Subspace):
 
 	def _task(self, promise):
 		"""Helper function for returning tasks results, result when immediate is True, otherwise the task itself, which is a promise"""
-		if self.async:
+		if self.delay:
 			return promise
 		else:
 			return promise
 
-	def sleep(self, seconds, async=False):
-		return self.dataset.server.call("sleep", seconds, async=async)
+	def sleep(self, seconds, delay=False):
+		return self.dataset.server.call("sleep", seconds, delay=delay)
 
 	def minmax(self):
 		return self._task(self.dataset.server._call_subspace("minmax", self))
@@ -508,31 +508,31 @@ class DatasetRest(DatasetRemote):
 		ds.state_set(state)
 		return ds
 
-	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
-		return self._async(async, self.server._call_dataset("count", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+		return self._delay(delay, self.server._call_dataset("count", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def mean (self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
-		return self._async(async, self.server._call_dataset("mean", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def mean (self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+		return self._delay(delay, self.server._call_dataset("mean", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
-		return self._async(async, self.server._call_dataset("sum", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+		return self._delay(delay, self.server._call_dataset("sum", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
-		return self._async(async, self.server._call_dataset("var", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+		return self._delay(delay, self.server._call_dataset("var", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
-		return self._async(async, self.server._call_dataset("minmax", self, async=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+		return self._delay(delay, self.server._call_dataset("minmax", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	#def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, async=False):
-	def cov        (self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, async=False, progress=None):
-		return self._async(async, self.server._call_dataset("cov", self, async=True, progress=progress, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
+	#def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False):
+	def cov        (self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+		return self._delay(delay, self.server._call_dataset("cov", self, delay=True, progress=progress, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, async=False, progress=None):
+	def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, delay=False, progress=None):
 		# TODO: sort and sort_key should be done locally
-		return self._async(async, self.server._call_dataset("correlation", self, async=True, progress=progress, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
+		return self._delay(delay, self.server._call_dataset("correlation", self, delay=True, progress=progress, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
 
-	def _async(self, async, task, progressbar=False):
-		if async:
+	def _delay(self, delay, task, progressbar=False):
+		if delay:
 			return task
 		else:
 			result = task.get()
@@ -552,12 +552,12 @@ class DatasetRest(DatasetRemote):
 		return "<%s(server=%r, name=%r, column_names=%r, __len__=%r)> instance at 0x%x" % (name, self.server, self.name, self.column_names, len(self), id(self))
 
 	def __call__(self, *expressions, **kwargs):
-		return SubspaceRemote(self, expressions, kwargs.get("executor") or self.executor, async=kwargs.get("async", False))
+		return SubspaceRemote(self, expressions, kwargs.get("executor") or self.executor, delay=kwargs.get("delay", False))
 
-	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, async=False):
+	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, delay=False):
 		expression = vaex.dataset._ensure_strings_from_expressions(expression)
 		"""basic support for evaluate at server, at least to run some unittest, do not expect this to work from strings"""
-		result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, selection=selection, async=async)
+		result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, selection=selection, delay=delay)
 		# TODO: we ignore out
 		return result
 
@@ -575,10 +575,10 @@ class ServerExecutor(object):
 
 from vaex.dataset import Task
 class TaskServer(Task):
-	def __init__(self, post_process, async):
+	def __init__(self, post_process, delay):
 		vaex.dataset.Task.__init__(self, None, [])
 		self.post_process = post_process
-		self.async = async
+		self.delay = delay
 		self.task_queue = []
 
 	def schedule(self, task):
@@ -593,7 +593,7 @@ class TaskServer(Task):
 			logger.debug("nested execute call")
 			# this situation may happen since in this methods, via a callback (to update a progressbar) we enter
 			# Qt's eventloop, which may execute code that will call execute again
-			# as long as that code is using async tasks (i.e. promises) we can simple return here, since after
+			# as long as that code is using delay tasks (i.e. promises) we can simple return here, since after
 			# the execute is almost finished, any new tasks added to the task_queue will get executing
 			return
 		# u 'column' is uniquely identified by a tuple of (dataset, expression)

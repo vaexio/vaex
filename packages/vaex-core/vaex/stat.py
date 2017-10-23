@@ -56,15 +56,15 @@ class _StatisticsCalculation(Expression):
             return "{0}{1}".format(self.code, repr(self.args[0]))
         return "{0}({1})".format(self.name, ", ".join(repr(k) for k in self.args))
 
-    def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, async=False):
+    def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, delay=False):
         def to_value(v):
             if isinstance(v, (_Statistic, _StatisticsCalculation)):
-                return v.calculate(ds, binby=binby, shape=shape, limits=limits, selection=selection, async=async)
+                return v.calculate(ds, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay)
             return v
         values = [to_value(v) for v in self.args]
         #print(values, self.op)
         op = self.op
-        if async:
+        if delay:
             op = delayed(op)
         return op(*values)
 
@@ -78,9 +78,9 @@ class _Statistic(Expression):
     def __str__(self):
         return "{0}({1})".format(self.name, ", ".join(str(k) for k in self.args))
 
-    def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, async=False):
+    def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, delay=False):
         method = getattr(ds, self.name)
-        return method(self.expression, binby=binby, shape=shape, limits=limits, selection=selection, async=async)
+        return method(self.expression, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay)
 
 def count(expression='*'):
     '''Creates a count statistic'''  

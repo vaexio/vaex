@@ -852,7 +852,7 @@ class RankDialog(QtGui.QDialog):
 		self.range_map = {}
 		try:
 			with dialogs.ProgressExecution(self, "Calculating min/max", executor=executor) as progress:
-				subspace = self.dataset.subspace(*expressions, executor=executor, async=True)
+				subspace = self.dataset.subspace(*expressions, executor=executor, delay=True)
 				minmax = subspace.minmax()
 				progress.add_task(minmax).end()
 				progress.execute()
@@ -876,7 +876,7 @@ class RankDialog(QtGui.QDialog):
 			executor = vaex.execution.Executor()
 		else:
 			executor = vaex.remote.ServerExecutor()
-		subspace = self.dataset.subspace(*expressions, executor=executor, async=True)
+		subspace = self.dataset.subspace(*expressions, executor=executor, delay=True)
 		means = subspace.mean()
 		with dialogs.ProgressExecution(self, "Calculating mean", executor=executor) as progress:
 			progress.add_task(means).end()
@@ -945,8 +945,8 @@ class RankDialog(QtGui.QDialog):
 		def on_error(exc):
 			raise exc
 		if 1:
-			#subspace = self.dataset(*expressions, executor=executor, async=True)
-			subspaces = self.dataset.subspaces(pairs, executor=executor, async=True)
+			#subspace = self.dataset(*expressions, executor=executor, delay=True)
+			subspaces = self.dataset.subspaces(pairs, executor=executor, delay=True)
 			means_promise = subspaces.mean()
 			#print means_promise, type(means_promise), subs
 			with dialogs.ProgressExecution(self, "Calculating means", executor=executor) as progress:
@@ -981,7 +981,7 @@ class RankDialog(QtGui.QDialog):
 			def on_error(exc):
 				raise exc
 			for expression in expressions:
-				subspace = self.dataset(expression, executor=executor, async=True)
+				subspace = self.dataset(expression, executor=executor, delay=True)
 				def assign(mean_list, expression=expression):
 					logger.debug("assigning %r to %s", mean_list, expression)
 					mean_map[expression] = mean_list
@@ -991,7 +991,7 @@ class RankDialog(QtGui.QDialog):
 
 			var_map = {}
 			for expression in expressions:
-				subspace = self.dataset(expression, executor=executor, async=True)
+				subspace = self.dataset(expression, executor=executor, delay=True)
 				def assign(mean_list, expression=expression):
 					logger.debug("assigning %r to %s", mean_list, expression)
 					var_map[expression] = mean_list[0].tolist()
@@ -1006,7 +1006,7 @@ class RankDialog(QtGui.QDialog):
 		for pair in pairs:
 			means = [mean_map[expression] for expression in pair]
 			vars = [var_map[expression] for expression in pair]
-			subspace = self.dataset(*pair, executor=executor, async=True)
+			subspace = self.dataset(*pair, executor=executor, delay=True)
 			def assign(correlation, pair=pair):
 				logger.debug("assigning %r to %s", correlation, pair)
 				correlation_map[pair] = correlation
@@ -1115,7 +1115,7 @@ class RankDialog(QtGui.QDialog):
 		with dialogs.ProgressExecution(self, "Calculating mutual information", executor=executor) as progress:
 			for pair in pairs:
 				limits = [self.range_map[expr] for expr in pair]
-				task = self.dataset(*pair, executor=executor, async=True).mutual_information(limits=limits, size=self.grid_size)
+				task = self.dataset(*pair, executor=executor, delay=True).mutual_information(limits=limits, size=self.grid_size)
 				progress.add_task(task).end()
 				tasks.append(task)
 			if not progress.execute():

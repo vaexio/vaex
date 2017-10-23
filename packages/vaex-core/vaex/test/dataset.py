@@ -863,10 +863,10 @@ class TestDataset(unittest.TestCase):
 
 		self.assertIsNotNone(subspaces.selected().subspaces[0].is_masked)
 
-		for async in [False, True]:
-			subspaces = self.dataset.subspaces([("x", "y")], async=async)
+		for delay in [False, True]:
+			subspaces = self.dataset.subspaces([("x", "y")], delay=delay)
 			result = subspaces.minmax()
-			if async:
+			if delay:
 				subspaces.subspace.executor.execute()
 				result = result.get()
 			minmax = result
@@ -874,14 +874,14 @@ class TestDataset(unittest.TestCase):
 			self.assertEqual(values.tolist(), self.dataset("x", "y").minmax().flatten().tolist())
 
 			result = subspaces.limits_sigma()
-			if async:
+			if delay:
 				subspaces.subspace.executor.execute()
 				result = result.get()
 			values = np.array(result).flatten()
 			self.assertEqual(values.tolist(), self.dataset("x", "y").limits_sigma().flatten().tolist())
 
 			result = subspaces.mean()
-			if async:
+			if delay:
 				subspaces.subspace.executor.execute()
 				result = result.get()
 			means = result
@@ -889,7 +889,7 @@ class TestDataset(unittest.TestCase):
 			self.assertEqual(values.tolist(), self.dataset("x", "y").mean().flatten().tolist())
 
 			result = subspaces.var()
-			if async:
+			if delay:
 				subspaces.subspace.executor.execute()
 				result = result.get()
 			vars = result
@@ -897,7 +897,7 @@ class TestDataset(unittest.TestCase):
 			self.assertEqual(values.tolist(), self.dataset("x", "y").var().flatten().tolist())
 
 			result = subspaces.var(means=means)
-			if async:
+			if delay:
 				subspaces.subspace.executor.execute()
 				result = result.get()
 			vars = result
@@ -906,7 +906,7 @@ class TestDataset(unittest.TestCase):
 
 			#means = [0, 0]
 			result = subspaces.var(means=means)
-			if async:
+			if delay:
 				subspaces.subspace.executor.execute()
 				result = result.get()
 			values = np.array(result).flatten()
@@ -915,24 +915,24 @@ class TestDataset(unittest.TestCase):
 			for means_ in [means, None]:
 				for vars_ in [vars, None]:
 					result = subspaces.correlation(means=means_, vars=vars_)
-					if async:
+					if delay:
 						subspaces.subspace.executor.execute()
 						result = result.get()
 					values = np.array(result).flatten()
-					#print async, means_, vars_
+					#print delay, means_, vars_
 					#print values, self.dataset("x", "y").correlation(), self.dataset("x", "y").correlation(means=means_[0] if means_ else None, vars=vars_[0] if vars_ else None).flatten().tolist()
 					self.assertEqual(values.tolist(), self.dataset("x", "y").correlation(means=means_[0] if means_ else None, vars=vars_[0] if vars_ else None).flatten().tolist())
 
 
 			result = subspaces.mutual_information()
-			if async:
+			if delay:
 				subspaces.subspace.executor.execute()
 				result = result.get()
 			values = np.array(result).flatten()
 			self.assertEqual(values.tolist(), self.dataset("x", "y").mutual_information().flatten().tolist())
 
 			result = subspaces.mutual_information(limits=minmax)
-			if async:
+			if delay:
 				subspaces.subspace.executor.execute()
 				result = result.get()
 			values = np.array(result).flatten()
@@ -1131,7 +1131,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_progress(self):
 		x, y = self.datasetxy("x", "y").sum()
-		task = self.datasetxy("x", "y", async=True).sum()
+		task = self.datasetxy("x", "y", delay=True).sum()
 		counter = CallbackCounter(True)
 		task.signal_progress.connect(counter)
 		self.datasetxy.executor.execute()
@@ -1203,7 +1203,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.count("*", selection=True), 4)
 		np.testing.assert_array_almost_equal(ds.count(), 4)
 
-		task = self.dataset.count("x", selection=True, async=True)
+		task = self.dataset.count("x", selection=True, delay=True)
 		self.dataset.executor.execute()
 		np.testing.assert_array_almost_equal(task.get(), 4)
 
@@ -1259,7 +1259,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(x))
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(x[:5]))
 
-		task = self.dataset.sum("x", selection=True, async=True)
+		task = self.dataset.sum("x", selection=True, delay=True)
 		self.dataset.executor.execute()
 		np.testing.assert_array_almost_equal(task.get(), np.nansum(x[:5]))
 
@@ -1295,7 +1295,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=None), cov(x, y))
 		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=True), cov(x[:5], y[:5]))
 
-		task = self.dataset.cov("x", "y", selection=True, async=True)
+		task = self.dataset.cov("x", "y", selection=True, delay=True)
 		self.dataset.executor.execute()
 		np.testing.assert_array_almost_equal(task.get(), cov(x[:5], y[:5]))
 
@@ -1353,7 +1353,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None), correlation(x, y))
 		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True), correlation(x[:5], y[:5]))
 
-		task = self.dataset.correlation("x", "y", selection=True, async=True)
+		task = self.dataset.correlation("x", "y", selection=True, delay=True)
 		self.dataset.executor.execute()
 		np.testing.assert_array_almost_equal(task.get(), correlation(x[:5], y[:5]))
 
@@ -1400,7 +1400,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=None), covar(x, y))
 		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=True), covar(x[:5], y[:5]))
 
-		task = self.dataset.covar("x", "y", selection=True, async=True)
+		task = self.dataset.covar("x", "y", selection=True, delay=True)
 		self.dataset.executor.execute()
 		np.testing.assert_array_almost_equal(task.get(), covar(x[:5], y[:5]))
 
@@ -1477,7 +1477,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(x))
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(x[:5]))
 
-		task = self.dataset.sum("x", selection=True, async=True)
+		task = self.dataset.sum("x", selection=True, delay=True)
 		self.dataset.executor.execute()
 		np.testing.assert_array_almost_equal(task.get(), np.nansum(x[:5]))
 
@@ -1530,7 +1530,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.minmax("y", selection=True), [0, 4**2])
 		np.testing.assert_array_almost_equal(self.dataset.minmax(["x", "y"], selection=True), [[0, 4], [0, 4**2]])
 
-		task = self.dataset.minmax("x", selection=True, async=True)
+		task = self.dataset.minmax("x", selection=True, delay=True)
 		self.dataset.executor.execute()
 		np.testing.assert_array_almost_equal(task.get(), [0, 4])
 

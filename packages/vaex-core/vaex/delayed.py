@@ -10,7 +10,7 @@ Example:
 def f(grid):
 	return grid**2
 
-f(ds.count(async=True))
+f(ds.count(delay=True))
 
 """
 

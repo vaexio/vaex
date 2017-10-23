@@ -42,7 +42,7 @@ def sigma3(plot_window):
 			executor = vaex.execution.Executor()
 		else:
 			executor = vaex.remote.ServerExecutor()
-		subspace = layer.dataset.subspace(*layer.state.expressions, executor=executor, async=True)
+		subspace = layer.dataset.subspace(*layer.state.expressions, executor=executor, delay=True)
 		means = subspace.mean()
 		with dialogs.ProgressExecution(plot_window, "Calculating mean", executor=executor) as progress:
 			progress.add_task(means)
@@ -76,7 +76,7 @@ def subtract_mean(plot_window):
 		layer = plot_window.layers[0]
 
 		executor = vaex.execution.Executor()
-		subspace = layer.dataset.subspace(*layer.state.expressions, executor=executor, async=True)
+		subspace = layer.dataset.subspace(*layer.state.expressions, executor=executor, delay=True)
 		means = subspace.mean()
 		with dialogs.ProgressExecution(plot_window, "Calculating mean", executor=executor):
 			executor.execute()
