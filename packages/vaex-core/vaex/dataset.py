@@ -1038,6 +1038,10 @@ class Dataset(object):
 		assert self.filtered is False
 		self._auto_fraction= False
 
+	def execute(self):
+		'''Execute all delayed jobs'''
+		self.executor.executor()
+
 	@property
 	def filtered(self):
 		return self.has_selection(FILTER_SELECTION_NAME)
