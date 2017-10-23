@@ -17,13 +17,18 @@ def cwd(path):
 
 # inspired by https://blog.shazam.com/python-microlibs-5be9461ad979
 
-packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server']
+packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro']
+# run pip twice, once to upgrade but not the deps
+# and then make sure it get the deps
+pip_args = 'install -v -e .'.split()
+pip_args_upgrade = 'install -v -e --upgrade --no-deps .'.split()
 
 class DevelopCmd(develop):
     def run(self):
         for package in packages:
             with cwd(os.path.join('packages', package)):
-                pip.main(['install', '-v', '-e', '.'])
+                pip.main(pip_args)
+                pip.main(pip_args_upgrade)
             # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name
             # otherwise development install do not work
             if package != 'vaex-core':
@@ -38,7 +43,8 @@ class InstallCmd(install):
     def run(self):
         for package in packages:
             with cwd(os.path.join('packages', package)):
-                pip.main(['install', '-v', '.'])
+                pip.main(pip_args)
+                pip.main(pip_args_upgrade)
 setup(
     name='vaex-meta',
     version="0.1.0",
