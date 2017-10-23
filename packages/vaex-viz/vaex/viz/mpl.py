@@ -1,7 +1,8 @@
 import ast
 import numpy as np
 import logging
-from vaex.dataset import Dataset, _parse_n, _parse_f, _ensure_string_from_expression, _ensure_list,\
+from vaex.dataset import Dataset, _parse_n, _parse_f, _ensure_string_from_expression, \
+    _ensure_strings_from_expressions, _ensure_list,\
     _expand_limits, _expand_shape, _expand, _parse_reduction
 import vaex.utils
 
@@ -52,6 +53,7 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
     if type(shape) == int:
         shape = (shape,)
     binby = []
+    x = _ensure_strings_from_expressions(x)
     for expression in [x]:
         if expression is not None:
             binby = [expression] + binby
@@ -170,6 +172,9 @@ def scatter(self, x, y, xerr=None, yerr=None, s_expr=None, c_expr=None, selectio
     :return:
     """
     import pylab as plt
+    x = _ensure_strings_from_expressions(x)
+    y = _ensure_strings_from_expressions(y)
+    selection = _ensure_strings_from_expressions(selection)
     if length_check:
         count = self.count(selection=selection)
         if count > length_limit:
@@ -290,8 +295,8 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     if type(shape) == int:
         shape = (shape,) * 2
     binby = []
-    x = _ensure_string_from_expression(x)
-    y = _ensure_string_from_expression(y)
+    x = _ensure_strings_from_expressions(x)
+    y = _ensure_strings_from_expressions(y)
     for expression in [y,x]:
         if expression is not None:
             binby = [expression] + binby
@@ -303,6 +308,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     what_units = None
     whats = _ensure_list(what)
     selections = _ensure_list(selection)
+    selections = _ensure_strings_from_expressions(selections)
 
     if y is None:
         waslist, [x,] = vaex.utils.listify(x)

@@ -180,7 +180,7 @@ def _ensure_string_from_expression(expression):
 		raise ValueError('%r is not of string or Expression type, but %r' % (expression, type(expression)))
 def _ensure_strings_from_expressions(expressions):
 	if _issequence(expressions):
-		return [_ensure_string_from_expression(k) for k in expressions]
+		return [_ensure_strings_from_expressions(k) for k in expressions]
 	else:
 		return _ensure_string_from_expression(expressions)
 
@@ -1322,6 +1322,8 @@ class Dataset(object):
 			stats = np.array(stats_args)
 			sum = stats[...,1]
 			return vaex.utils.unlistify(waslist, sum)
+		expression = _ensure_strings_from_expressions(expression)
+		binby = _ensure_strings_from_expressions(binby)
 		waslist, [expressions,] = vaex.utils.listify(expression)
 		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, async=True)
@@ -1379,6 +1381,7 @@ class Dataset(object):
 		:param progress: {progress}
 		:return: {return_stat_scalar}
 		"""
+		expression = _ensure_strings_from_expressions(expression)
 		@delayed
 		def calculate(expression, limits):
 			task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_012, selection=selection)
@@ -1395,6 +1398,7 @@ class Dataset(object):
 					raw_moments2 = stats[...,2] / counts
 			variance = (raw_moments2-mean**2)
 			return vaex.utils.unlistify(waslist, variance)
+		binby = _ensure_strings_from_expressions(binby)
 		waslist, [expressions,] = vaex.utils.listify(expression)
 		progressbar = vaex.utils.progressbars(progress)
 		limits = self.limits(binby, limits, async=True)
@@ -4538,6 +4542,7 @@ class DatasetLocal(Dataset):
 	def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True):
 		"""The local implementation of :func:`Dataset.evaluate`"""
 		expression = _ensure_string_from_expression(expression)
+		selection = _ensure_strings_from_expressions(selection)
 		i1 = i1 or 0
 		i2 = i2 or (len(self) if (self.filtered and filtered) else self.length_unfiltered())
 		mask = None
