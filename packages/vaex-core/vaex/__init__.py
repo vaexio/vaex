@@ -4,25 +4,25 @@ Vaex is a library for dealing with big tabular data.
 The most important class (datastructure) in vaex is the :class:`.Dataset`. A dataset is obtained by either, opening
 the example dataset:
 
->>> import vaex as vx
->>> t = vx.example()
+>>> import vaex
+>>> t = vaex.example()
 
-Or opening a file:
+Or using :func:`open` or :func:`from_csv`, to open a file:
 
->>> t1 = vx.open("somedata.hdf5")
->>> t2 = vx.open("somedata.fits")
->>> t3 = vx.open("somedata.csv")
+>>> t1 = vaex.open("somedata.hdf5")
+>>> t2 = vaex.open("somedata.fits")
+>>> t3 = vaex.from_csv("somedata.csv")
 
 Or connecting to a remove server:
 
->>> tbig = vx.open("http://bla.com/bigtable")
+>>> tbig = vaex.open("http://bla.com/bigtable")
 
 The main purpose of vaex is to provide statistics, such as mean, count, sum, standard deviation, per columns, possibly
 with a selection, and on a regular grid.
 
 To count the number of rows:
 
->>> t = vx.example()
+>>> t = vaex.example()
 >>> t.count()
 330000.0
 
