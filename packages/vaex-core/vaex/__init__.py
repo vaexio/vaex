@@ -73,6 +73,7 @@ import vaex.dataset
 from . import stat
 #import vaex.file
 #import vaex.export
+from .delayed import delayed
 
 import vaex.datasets
 #import vaex.plot
