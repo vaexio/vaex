@@ -172,6 +172,8 @@ def _ensure_list(x):
 def _ensure_string_from_expression(expression):
 	if expression is None:
 		return None
+	elif isinstance(expression, bool):
+		return expression
 	elif isinstance(expression, six.string_types):
 		return expression
 	elif isinstance(expression, Expression):
