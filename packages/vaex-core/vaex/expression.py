@@ -149,14 +149,19 @@ class Expression(with_metaclass(Meta)):
     def clip(self, lower=None, upper=None):
         return self.ds.func.clip(self, lower, upper)
 
-    def jit_numba(self):
+    def jit_numba(self, verbose=False):
         import numba
         import imp
         import hashlib
         #self._import_all(module)
         names =  []
         funcs = set(vaex.dataset.expression_namespace.keys())
-        vaex.expresso.validate_expression(self.expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
+        expression = self.expression
+        # if it's a virtual column, we probably want to optimize that
+        # TODO: fully extract the virtual columns, i.e. depending ones?
+        if self.expression in self.ds.virtual_columns:
+            expression = self.ds.virtual_columns[self.expression]
+        vaex.expresso.validate_expression(expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
         names = list(set(names))
         type_names = [str(self.ds.dtype(name)) for name in names]
         # import IPython
@@ -166,14 +171,13 @@ class Expression(with_metaclass(Meta)):
         code = '''
 from numpy import *
 def f({0}):
-    return {1}'''.format(argstring, self.expression, types)
-        print(code)
+    return {1}'''.format(argstring, expression, types)
+        if verbose:
+            print('Generated code:\n' +code)
         scope = {}
         exec(code, scope)
         f = scope['f']
         # TODO: for now only float64 output supported
-        print(types)
-        print(f)
         vectorizer = numba.vectorize([numba.float64(*types)])
         f = vectorizer(f)
         function = self.ds.add_function('_jit', f, unique=True)
