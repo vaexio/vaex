@@ -3081,6 +3081,8 @@ class Dataset(object):
 		if obj is None or isinstance(obj, Expression):
 			if expression is None:
 				expression = Expression(self, name)
+			if isinstance(expression, six.string_types):
+				expression = Expression(self, expression)
 			setattr(self, name, expression)
 
 
