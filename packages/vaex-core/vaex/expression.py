@@ -31,7 +31,10 @@ _binary_ops = [
     dict(code=">=", name='ge',  op=operator.ge),
     dict(code=">",  name='gt',  op=operator.gt),
 ]
-#    dict(code="@", name='matmul',  op=operator.matmul),
+if hasattr(operator, 'div'):
+    _binary_ops.append(dict(code="/", name='div',  op=operator.div))
+if hasattr(operator, 'matmul'):
+    _binary_ops.append(dict(code="@", name='matmul',  op=operator.matmul))
 
 reversable = 'add sub mul matmul truediv floordiv mod divmod pow lshift rshift and xor or'.split()
 
