@@ -70,6 +70,7 @@ __build_name__ = __full_name__ + "-" +version.osname
 
 import glob
 import vaex.dataset
+from . import stat
 #import vaex.file
 #import vaex.export
 
