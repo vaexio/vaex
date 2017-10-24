@@ -21,9 +21,9 @@ install:
   - activate test-environment
   - pip install -r requirements.txt
   - pip install coverage
-  - pip install -e .
+  - pip install .
 
 test_script:
  - python -m vaex.test.dataset
- - runipy examples/tutorial_ipython_notebook.ipynb
- - runipy examples/advanced_plotting.ipynb
+# - runipy examples/tutorial_ipython_notebook.ipynb
+# - runipy examples/advanced_plotting.ipynb
