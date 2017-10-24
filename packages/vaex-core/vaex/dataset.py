@@ -4284,6 +4284,10 @@ class Dataset(object):
 
 		"""
 		if isinstance(item, six.string_types):
+			if hasattr(self, item) and isinstance(getattr(self, item), Expression):
+				return getattr(self, item)
+			# if item in self.virtual_columns:
+			# 	return Expression(self, self.virtual_columns[item])
 			return Expression(self, item) # TODO we'd like to return the same expression if possible
 		elif isinstance(item, Expression):
 			expression = item.expression
