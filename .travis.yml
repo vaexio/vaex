@@ -24,7 +24,7 @@ before_install:
   - conda update -q conda
   - conda info -a
   # future: kapteyn should only be needed for astro package testing  
-  - conda create -q -n test -c conda-forge python=$PYTHON_VERSION numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas kapteyn pytest
+  - conda create -q -n test -c conda-forge python=$PYTHON_VERSION numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas kapteyn pytest numba
   - source activate test
   # - conda install -c conda-forge pandas kapteyn # these extra installs should disappear
   # - conda create --name dev --clone test
