@@ -25,7 +25,7 @@ class Meta(type):
         for name, func_real in expression_namespace.items():
             def wrap(name=name, func_real=func_real):
                 def f(*args, **kwargs):
-                    return _StatisticsCalculation(name, func_real, *args)
+                    return _StatisticsCalculation(name, func_real, args)
                 attrs['%s' % name] = f
             if name not in attrs:
                 wrap(name)
@@ -58,7 +58,7 @@ class _StatisticsCalculation(Expression):
 
     def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, delay=False):
         def to_value(v):
-            if isinstance(v, (_Statistic, _StatisticsCalculation)):
+            if isinstance(v, Expression):
                 return v.calculate(ds, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay)
             return v
         values = [to_value(v) for v in self.args]
