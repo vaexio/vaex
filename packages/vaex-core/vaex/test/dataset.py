@@ -1788,7 +1788,7 @@ class TestDataset(unittest.TestCase):
 													dtype = compare.columns[column_name].dtype # we don't want any casting
 													np.testing.assert_array_equal(compare.columns[column_name], values[:length].astype(dtype))
 										compare.close_files()
-										os.remove(path)
+										#os.remove(path)
 
 				# self.dataset_concat_dup references self.dataset, so set it's active_fraction to 1 again
 				dataset.set_active_fraction(1)
