@@ -21,7 +21,15 @@ install:
   - activate test-environment
   - pip install -r requirements.txt
   - pip install coverage
+  - cd packages\vaex-core
   - pip install .
+  - cd ..
+  - cd ..
+  - pushd packages\vaex-hdf5   && pip install . && popd
+  - pushd packages\vaex-viz    && pip install . && popd
+  - pushd packages\vaex-viz    && pip install . && popd
+  - pushd packages\vaex-astro  && pip install . && popd
+  - pushd packages\vaex-server && pip install . && popd
 
 test_script:
  - python -m vaex.test.dataset
