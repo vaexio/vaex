@@ -24,17 +24,18 @@ before_install:
   - conda update -q conda
   - conda info -a
   # future: kapteyn should only be needed for astro package testing  
-  - conda create -q -n test -c conda-forge python=$PYTHON_VERSION numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas kapteyn
+  - conda create -q -n test -c conda-forge python=$PYTHON_VERSION numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas kapteyn pytest
   - source activate test
   # - conda install -c conda-forge pandas kapteyn # these extra installs should disappear
   # - conda create --name dev --clone test
 #  - pip install -r requirements.txt
 install:
   - source activate test
-  - (cd packages/vaex-core; pip install -v .)
-  - (cd packages/vaex-hdf5; pip install -v .)
-  - (cd packages/vaex-viz; pip install -v .)
-  - (cd packages/vaex-server; pip install -v .)
+  - (cd packages/vaex-core; pip install .)
+  - (cd packages/vaex-hdf5; pip install .)
+  - (cd packages/vaex-viz; pip install .)
+  - (cd packages/vaex-server; pip install .)
+  - (cd packages/vaex-astro; pip install .)
   # - source activate dev
   # - (cd packages/vaex-core; pip install -v -.)
   # - (cd packages/vaex-hdf5; pip install -v .)
@@ -43,6 +44,7 @@ install:
 script:
   - source activate test
   - python -m vaex.test.dataset
+  - py.test tests/
   # - runipy examples/tutorial_ipython_notebook.ipynb
   # - runipy examples/advanced_plotting.ipynb
   # - source activate dev
