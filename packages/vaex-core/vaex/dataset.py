@@ -4035,6 +4035,25 @@ class Dataset(object):
 				ds[name] = ds.func.fillna(ds[name], value, fill_nan=fill_nan, fill_masked=fill_masked)
 		return ds
 
+	def materialize(self, virtual_column):
+		'''Returns a new dataset where the virtual column is turned into an in memory numpy array
+
+		Example:
+			>>> x = np.arange(1,4)
+			>>> y = np.arange(2,5)
+			>>> ds = vaex.from_arrays(x=x, y=y)
+			>>> ds['r'] = (ds.x**2 + ds.y**2)**0.5 # 'r' is a virtual column (computed on the fly)
+			>>> ds = ds.materialize('r')  # now 'r' is a 'real' column (i.e. a numpy array)
+		'''
+		ds = self.trim()
+		virtual_column = _ensure_string_from_expression(virtual_column)
+		if virtual_column not in ds.virtual_columns:
+			raise KeyError('Virtual column not found: %r' % virtual_column)
+		ar = ds.evaluate(virtual_column, filtered=False)
+		del ds[virtual_column]
+		ds.add_column(virtual_column, ar)
+		return ds
+
 
 	def get_selection(self, name="default"):
 		"""Get the current selection object (mostly for internal use atm)"""
