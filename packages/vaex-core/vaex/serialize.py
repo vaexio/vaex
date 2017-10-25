@@ -1,5 +1,4 @@
 import vaex.utils
-from traitlets import *
   
 registry = {}
 
