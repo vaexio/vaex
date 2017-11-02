@@ -2,7 +2,7 @@ import traitlets
 import ipywidgets as widgets
 import six
 import vaex.utils
-import vaex.delayed
+from vaex.delayed import delayed, delayed_list
 import numpy as np
 import importlib
 from IPython.display import display
@@ -181,7 +181,7 @@ class PlotBase(widgets.Widget):
             for i, limit in enumerate(limits):
                 if limits[i] is None:
                     limits[i] = self.dataset.limits(xyz[i], delay=True)
-            @vaex.delayed.delayed
+            @delayed
             def limits_done(limits):
                 with self.output:
                     self.limits[:self.backend.dim] = np.array(limits).tolist()
@@ -190,7 +190,7 @@ class PlotBase(widgets.Widget):
                     self.backend.limits = limits_backend
 
                     self._update_grid()
-            limits_done(vaex.delayed.delayed_list(limits))
+            limits_done(delayed_list(limits))
             self._execute()
 
     def _update_grid(self):
@@ -230,7 +230,7 @@ class PlotBase(widgets.Widget):
                 promises.append(result)
             else:
                 self.vgrids[i] = result
-            @vaex.delayed.delayed
+            @delayed
             def assign(grid, vx, vy, vz, vcount):
                 with self.output:
                     if not current_pb.cancelled: # TODO: remote dataset jobs cannot be cancelled
