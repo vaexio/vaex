@@ -1280,6 +1280,7 @@ class Dataset(object):
 		"""
 		logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, delay=%r", expression, binby, limits, shape, selection, delay)
 		expression = _ensure_strings_from_expressions(expression)
+		selection = _ensure_strings_from_expressions(selection)
 		binby = _ensure_strings_from_expressions(binby)
 		@delayed
 		def calculate(expression, limits):
@@ -1580,6 +1581,7 @@ class Dataset(object):
 		:param delay: {delay}
 		:return: {return_stat_scalar}, the last dimensions are of shape (2,2)
 		"""
+		selection = _ensure_strings_from_expressions(selection)
 		@delayed
 		def cov_matrix(mean_x, mean_y, var_x, var_y, mean_xy):
 			cov = mean_xy - mean_x * mean_y
