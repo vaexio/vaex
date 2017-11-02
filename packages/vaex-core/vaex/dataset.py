@@ -1603,7 +1603,7 @@ class Dataset(object):
 		def calculate_matrix(means, vars, raw_mixed):
 			#print(">>> %r" % means)
 			raw_mixed = list(raw_mixed) # lists can pop
-			cov_matrix = np.zeros(shape + (N,N), dtype=float)
+			cov_matrix = np.zeros(means[0].shape + (N,N), dtype=float)
 			for i in range(N):
 				for j in range(i+1):
 					if i != j:
