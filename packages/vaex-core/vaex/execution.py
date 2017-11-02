@@ -64,6 +64,7 @@ class Executor(object):
 		self._is_executing = False
 		self.lock = threading.Lock()
 		self.thread = None
+		self.passes = 0  # how many times we passed over the data
 
 	def schedule(self, task):
 		self.task_queue.append(task)
@@ -144,6 +145,7 @@ class Executor(object):
 				# process tasks per dataset
 				self.signal_begin.emit()
 				for dataset in datasets:
+					self.passes += 1
 					task_queue = [task for task in task_queue_all if task.dataset == dataset]
 					expressions = list(set(expression for task in task_queue for expression in task.expressions_all))
 
