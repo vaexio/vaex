@@ -1989,6 +1989,8 @@ class Dataset(object):
 		if expression == []:
 			return []
 		waslist, [expressions, ] = vaex.utils.listify(expression)
+		expressions = _ensure_strings_from_expressions(expressions)
+		selection = _ensure_strings_from_expressions(selection)
 		#values =
 		#values = _expand_limits(value, len(expressions))
 		#logger.debug("limits %r", list(zip(expressions, values)))
