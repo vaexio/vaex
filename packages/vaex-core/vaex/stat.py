@@ -70,17 +70,17 @@ class _StatisticsCalculation(Expression):
 
 
 class _Statistic(Expression):
-    def __init__(self, name, expression):
+    def __init__(self, name, *expression):
         self.name = name
         self.expression = expression
-        self.args = [self.expression]
+        self.args = self.expression
 
     def __str__(self):
         return "{0}({1})".format(self.name, ", ".join(str(k) for k in self.args))
 
     def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, delay=False):
         method = getattr(ds, self.name)
-        return method(self.expression, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay)
+        return method(*self.args, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay)
 
 def count(expression='*'):
     '''Creates a count statistic'''  
@@ -97,3 +97,11 @@ def mean(expression):
 def std(expression):
    '''Creates a standard deviation statistic'''
    return _Statistic('std', expression)
+
+def covar(x, y):
+   '''Creates a standard deviation statistic'''
+   return _Statistic('covar', x, y)
+
+def correlation(x, y):
+   '''Creates a standard deviation statistic'''
+   return _Statistic('correlation', x, y)
