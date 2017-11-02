@@ -3,6 +3,7 @@ import six
 import functools
 from future.utils import with_metaclass
 from vaex.dataset import expression_namespace
+import numpy as np
 
 _binary_ops = [
     dict(code="+", name='add',  op=operator.add),
@@ -150,39 +151,23 @@ class Expression(with_metaclass(Meta)):
         return self.ds.func.clip(self, lower, upper)
 
     def jit_numba(self, verbose=False):
-        import numba
         import imp
         import hashlib
-        #self._import_all(module)
         names =  []
         funcs = set(vaex.dataset.expression_namespace.keys())
-        expression = self.expression
         # if it's a virtual column, we probably want to optimize that
         # TODO: fully extract the virtual columns, i.e. depending ones?
         if self.expression in self.ds.virtual_columns:
             expression = self.ds.virtual_columns[self.expression]
         vaex.expresso.validate_expression(expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
-        names = list(set(names))
-        type_names = [str(self.ds.dtype(name)) for name in names]
-        # import IPython
-        # IPython.embed()
-        types = [getattr(numba, type_name) for type_name in type_names]
-        argstring = ", ".join(names)
-        code = '''
-from numpy import *
-def f({0}):
-    return {1}'''.format(argstring, expression, types)
-        if verbose:
-            print('Generated code:\n' +code)
-        scope = {}
-        exec(code, scope)
-        f = scope['f']
+        arguments = list(set(names))
+        argument_dtypes = [self.ds.dtype(argument) for argument in arguments]
+        # argument_dtypes = [getattr(np, dtype_name) for dtype_name in dtype_names]
+
         # TODO: for now only float64 output supported
-        vectorizer = numba.vectorize([numba.float64(*types)])
-        f = vectorizer(f)
+        f = FunctionSerializableNumba(expression, arguments, argument_dtypes, return_dtype=np.dtype(np.float64))
         function = self.ds.add_function('_jit', f, unique=True)
-        return function(*names)
-        return Expression(self.ds, "{0}({1})".format(function_name, argstring))
+        return function(*arguments)
 
 
     def jit(self):
@@ -222,9 +207,11 @@ try:
 except ImportError:
     from io import BytesIO as StringIO
 
+class FunctionSerializable(object):
+    pass
 
 @vaex.serialize.register
-class FunctionSerializable(object):
+class FunctionSerializablePickle(FunctionSerializable):
     def __init__(self, f=None):
         self.f = f
 
@@ -242,6 +229,12 @@ class FunctionSerializable(object):
             pickled = base64.encodebytes(data).decode('ascii')
         return dict(pickled=pickled)
 
+    @classmethod
+    def state_from(cls, state):
+        obj = cls()
+        obj.state_set(state)
+        return obj
+
     def state_set(self, state):
         data = state['pickled']
         if vaex.utils.PY2:
@@ -254,9 +247,55 @@ class FunctionSerializable(object):
         '''Forward the call to the real function'''
         return self.f(*args, **kwargs)
 
-import numpy as np
+@vaex.serialize.register
+class FunctionSerializableNumba(FunctionSerializable):
+    def __init__(self, expression, arguments, argument_dtypes, return_dtype, verbose=False):
+        self.expression = expression
+        self.arguments = arguments
+        self.argument_dtypes = argument_dtypes
+        self.return_dtype = return_dtype
+        self.verbose = verbose
+        import numba
+        argument_dtypes_numba = [getattr(numba, argument_dtype.name) for argument_dtype in argument_dtypes]
+        argstring = ", ".join(arguments)
+        code = '''
+from numpy import *
+def f({0}):
+    return {1}'''.format(argstring, expression)
+        if verbose:
+            print('Generated code:\n' +code)
+        scope = {}
+        exec(code, scope)
+        f = scope['f']
+        return_dtype_numba = getattr(numba, return_dtype.name)
+        vectorizer = numba.vectorize([return_dtype_numba(*argument_dtypes_numba)])
+        self.f = vectorizer(f)
 
-class FunctionToScalar(FunctionSerializable):
+    def __call__(self, *args, **kwargs):
+        '''Forward the call to the numba function'''
+        return self.f(*args, **kwargs)
+
+
+    def state_get(self):
+        return dict(expression=self.expression,
+                    arguments=self.arguments,
+                    argument_dtypes=list(map(str, self.argument_dtypes)),
+                    return_dtype=str(self.return_dtype),
+                    verbose=self.verbose)
+
+    @classmethod
+    def state_from(cls, state):
+        return cls(expression=state['expression'],
+                    arguments=state['arguments'],
+                    argument_dtypes=list(map(np.dtype, state['argument_dtypes'])),
+                    return_dtype=np.dtype(state['return_dtype']),
+                    verbose=state['verbose'])
+
+
+# TODO: this is not the right abstraction, since this won't allow a 
+# numba version for the function
+@vaex.serialize.register
+class FunctionToScalar(FunctionSerializablePickle):
     def __call__(self, *args, **kwargs):
         length = len(args[0])
         result = []
@@ -273,12 +312,16 @@ class Function(object):
     def __init__(self, dataset, name, f):
         self.dataset = dataset
         self.name = name
-        self.f = FunctionSerializable(f)
+        # if not serializable, assume we can use pickle
+        if not isinstance(f, FunctionSerializable):
+            f = FunctionSerializablePickle(f)
+        self.f = f
 
     def __call__(self, *args, **kwargs):
         arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
         expression = "{}({})".format(self.name, arg_string)
         return Expression(self.dataset, expression)
+
 
 class FunctionBuiltin(object):
 
