@@ -1290,6 +1290,7 @@ class TestDataset(unittest.TestCase):
 
 		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=None), cov(x, y))
 		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=True), cov(x[:5], y[:5]))
+		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=[False, True]), [cov(x, y), cov(x[:5], y[:5])])
 
 		#self.dataset.columns["x"][0] = np.nan
 		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=None), cov(x, y))
