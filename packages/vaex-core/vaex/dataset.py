@@ -1184,6 +1184,12 @@ class Dataset(object):
 		values = finish(delayed_list(has_limits(limits, mi_limits)))
 		return self._delay(delay, values)
 
+	def bin_edges(self, expression, limits, shape=default_shape):
+		return self.bins(expression, limits, shape=shape, edges=True)
+
+	def bin_centers(self, expression, limits, shape=default_shape):
+		return self.bins(expression, limits, shape=shape, edges=False)
+
 	def bins(self, expression, limits, shape=default_shape, edges=True):
 		vmin, vmax = limits
 		if edges:
