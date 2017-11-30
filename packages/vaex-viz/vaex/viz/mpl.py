@@ -20,6 +20,11 @@ def patch(f):
     setattr(Dataset, name, f)
     return f
 
+from .vector import plot2d_vector
+patch(plot2d_vector)
+
+from .tensor import plot2d_tensor
+patch(plot2d_tensor)
 
 @patch
 def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
