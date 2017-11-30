@@ -632,9 +632,9 @@ class DatasetPanel(QtGui.QFrame):
 
 	def update_length(self):
 		if self.dataset.get_active_fraction() == 1:
-			self.label_length.setText("{:,}".format(self.dataset.full_length()))
+			self.label_length.setText("{:,}".format(self.dataset.length_original()))
 		else:
-			self.label_length.setText("{:,} of {:,}".format(len(self.dataset), self.dataset.full_length()))
+			self.label_length.setText("{:,} of {:,}".format(len(self.dataset), self.dataset.length_original()))
 
 	def on_column_change(self, *args):
 		logger.debug("updating columns")
@@ -655,7 +655,7 @@ class DatasetPanel(QtGui.QFrame):
 		self.description.setText(dataset.description if dataset.description else "")
 		self.label_columns.setText(str(dataset.column_count()))
 		self.update_length()
-		self.label_length.setText("{:,}".format(self.dataset.full_length()))
+		self.label_length.setText("{:,}".format(self.dataset.length_original()))
 		self.update_active_fraction()
 		self.button_2d.setEnabled(self.dataset.column_count() > 0)
 		self.auto_fraction_checkbox.setEnabled(not dataset.is_local())
@@ -1576,7 +1576,7 @@ class VaexApp(QtGui.QMainWindow):
 
 		shuffle = dialogs.dialog_confirm(self, "Shuffle?", "Do you want the dataset to be shuffled (output the rows in random order)")
 		logger.debug("export shuffled: %r", shuffle)
-		if shuffle and dataset.full_length() != len(dataset):
+		if shuffle and dataset.length_original() != len(dataset):
 			dialogs.dialog_info(self, "Shuffle", "You selected shuffling while not exporting the full dataset, will select random rows from the full dataset")
 			partial_shuffle = True
 		else:
