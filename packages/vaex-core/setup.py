@@ -52,4 +52,9 @@ setup(name=name+'-core',
     package_data={'vaex': ['test/files/*.fits', 'test/files/*.vot', 'test/files/*.hdf5']},
     packages=['vaex', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext'],
     ext_modules=[extension_vaexfast],
-    zip_safe=False,)
+    zip_safe=False,
+    entry_points={
+        'console_scripts': ['vaex = vaex.__main__:main'],
+        'gui_scripts': ['vaexgui = vaex.__main__:main'] # sometimes in osx, you need to run with this
+        }
+    )
