@@ -968,14 +968,14 @@ class LayerTable(object):
 			if self.contour_count > 0:
 				if self.show == "total+selection":
 					if use_selection and self.show:
-						axes.contour(self._normalize_values(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4*self.state.alpha)
-						axes.contour(self._normalize_values(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.state.alpha)
+						axes.contour(self._normalize_values(amplitude_marginalized).T, origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=0.4*self.state.alpha)
+						axes.contour(self._normalize_values(amplitude_marginalized_selected).T, origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.state.alpha)
 					else:
-						axes.contour(self._normalize_values(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.state.alpha)
+						axes.contour(self._normalize_values(amplitude_marginalized).T, origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.state.alpha)
 				elif self.show == "total":
-					axes.contour(self._normalize_values(amplitude_marginalized), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.state.alpha)
+					axes.contour(self._normalize_values(amplitude_marginalized).T, origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color, alpha=self.state.alpha)
 				elif self.show == "selection":
-					axes.contour(self._normalize_values(amplitude_marginalized_selected), origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.state.alpha)
+					axes.contour(self._normalize_values(amplitude_marginalized_selected).T, origin="lower", extent=ranges, levels=levels, linewidths=1, colors=self.color_alt, alpha=self.state.alpha)
 		else:
 			if self.show == "total+selection":
 				I = self._normalize_values(amplitude_marginalized)
