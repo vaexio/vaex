@@ -1,6 +1,7 @@
 from common import *
 
-def test_extract(ds, ds_trimmed):
+def test_extract(ds_local, ds_trimmed):
+    ds = ds_local
     print(ds, ds_trimmed)
     ds_extracted = ds.extract()
     ds_extracted.evaluate('x').tolist() == ds_trimmed.evaluate('x').tolist()

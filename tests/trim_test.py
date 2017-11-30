@@ -1,6 +1,7 @@
 from common import *
 
-def test_trim(ds):
+def test_trim(ds_local):
+    ds = ds_local
     ds_trimmed = ds.trim()
     assert ds_trimmed.length_original() == ds_trimmed.length_unfiltered() >= 10
     assert ds_trimmed.get_active_range() == (0, ds_trimmed.length_original())# == (0, 10)

@@ -1,7 +1,8 @@
 from common import *
 import collections
 
-def test_sample(ds):
+def test_sample(ds_local):
+    ds = ds_local
     x = np.arange(10).tolist()
     dss = ds.sample(frac=1, random_state=42)
     assert dss.x.evaluate().tolist() != x

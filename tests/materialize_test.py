@@ -1,6 +1,7 @@
 from common import *
 
-def test_materialize(ds):
+def test_materialize(ds_local):
+    ds = ds_local
     print(ds)
     ds['r'] = np.sqrt(ds.x**2 + ds.y**2)
     assert 'r' in ds.virtual_columns

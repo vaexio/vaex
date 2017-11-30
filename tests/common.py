@@ -1,6 +1,32 @@
 import pytest
 import vaex
+import vaex.webserver
 import numpy as np
+
+import sys
+test_port = 29110 + sys.version_info[0] * 10 + sys.version_info[1]
+scheme = 'ws'
+
+@pytest.fixture(scope='module')
+def webserver():
+    webserver = vaex.webserver.WebServer(datasets=[], port=test_port, cache_byte_size=0)
+    webserver.serve_threaded()
+    yield webserver
+    webserver.stop_serving()
+    #return webserver
+
+@pytest.fixture(scope='module')
+def server(webserver):
+    server = vaex.server("%s://localhost:%d" % (scheme, test_port))
+    yield server
+    server.close()
+
+@pytest.fixture()
+def ds_remote(webserver, server):
+    ds = ds_trimmed()
+    ds.name = 'ds_trimmed'
+    webserver.set_datasets([ds])
+    return server.datasets(as_dict=True)['ds_trimmed']
 
 @pytest.fixture()
 def ds_filtered():
@@ -18,9 +44,16 @@ def ds_trimmed():
     ds.set_active_range(0, 10)
     return ds.trim()
 
-@pytest.fixture(params=[ds_filtered, ds_half, ds_trimmed], ids=['ds_filtered', 'ds_half', 'ds_trimmed'])
-def ds(request):
-    return request.param()
+@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote'])
+def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote):
+    named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, ds_remote=ds_remote)
+    return named[request.param]
+
+@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed'])
+def ds_local(request, ds_filtered, ds_half, ds_trimmed):
+    named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed)
+    return named[request.param]
+
 
 @pytest.fixture(params=[ds_half, ds_trimmed], ids=['ds_half', 'ds_trimmed'])
 def ds_no_filter(request):

@@ -1,6 +1,7 @@
 from common import *
 
-def test_sort(ds):
+def test_sort(ds_local):
+    ds = ds_local
     print(ds, ds_trimmed)
     x = np.arange(10).tolist()
     dss = ds.sample(frac=1, random_state=42)

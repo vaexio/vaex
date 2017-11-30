@@ -1,6 +1,7 @@
 from common import *
 
-def test_slice(ds):
+def test_slice(ds_local):
+    ds = ds_local
     ds_sliced = ds[:]
     assert ds_sliced.length_original() == ds_sliced.length_unfiltered() >= 10
     assert ds_sliced.get_active_range() == (0, ds_sliced.length_original())# == (0, 10)

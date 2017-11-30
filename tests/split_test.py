@@ -1,6 +1,7 @@
 from common import *
 
-def test_split(ds):
+def test_split(ds_local):
+    ds = ds_local
     ds1, ds2 = ds.split(0.5)
     assert len(ds1) == len(ds2)
     assert ds1.x.tolist() + ds2.x.tolist() == ds.x.tolist()
