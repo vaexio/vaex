@@ -1,0 +1,86 @@
+options:
+    1d:
+        x:
+            default: null
+            type: str
+            help: expression for the x axis
+
+    2d:
+        x:
+        y:
+            help: expression for the y axis
+        weight: null
+        amplitude: log(counts)
+        visible: true
+        show: total, selection, total+selection
+        transparancy: intensity, constant, none
+        opacity: 1.0
+        level:
+            min: 0.0
+            max: 1.0
+
+
+        colormap:
+            default: amfhot
+            type: colormap
+
+interface:
+    modes:
+        - move
+        - pick
+        - select
+            - lasso
+            - yrange
+            - xrange
+        - zoom:
+            - zoom to rect
+            - zoom x
+            - zoom y
+    2d:
+        pages:
+            - Main:
+                - button: exchange x and y
+                - options: [x, y, amplitude, weight]
+            - Visual:
+                - options: [visible, show, level.min, level.max]
+
+        toolbars:
+            top:
+                - options: fullscreen, toolbars
+                - modes: move, pick
+                - nested:
+                    - modes: lasso, yrange, xrange
+                    - seperator
+                    - no selection
+                    - invert
+                - choice:
+                    - replace
+                    - or
+                    - and
+                    - xor
+                    - subtract
+_templates:
+    widget:
+        id: main_panel
+        layout: hbox
+
+app:
+    mainwindow:
+        size: [500,500]
+        title: "Yabuiler"
+        layout: vbox
+        children:
+            - button:
+                size: [200, 200]
+                text: "blaat"
+            - ref: #mainpanel
+        menubar:
+            children:
+             - menu:
+                title: File
+                children:
+                    - menu: {title: Open}
+                    - menu: {title: Save}
+
+
+

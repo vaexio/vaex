@@ -17,7 +17,7 @@ def cwd(path):
 
 # inspired by https://blog.shazam.com/python-microlibs-5be9461ad979
 
-packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro']
+packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui']
 # run pip twice, once to upgrade but not the deps
 # and then make sure it get the deps
 pip_args = 'install -e .'.split()
@@ -35,8 +35,8 @@ class DevelopCmd(develop):
                 name = package.split('-')[1]
                 source = os.path.abspath(os.path.join('packages', package, 'vaex', name))
                 target = os.path.abspath(os.path.join('packages', packages[0], 'vaex', name))
-                #if not os.path.exists(target):
-                os.remove(target)
+                if os.path.exists(target):
+                    os.remove(target)
                 os.symlink(source, target)
 
 class InstallCmd(install):
