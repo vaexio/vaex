@@ -1887,6 +1887,9 @@ class Dataset(object):
 			return value
 		return self._delay(delay, finish2(result))
 
+	def _use_delay(self, delay):
+		return delay == True
+
 	def _delay(self, delay, task, progressbar=False):
 		if delay:
 			return task
