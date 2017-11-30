@@ -20,23 +20,24 @@ def cwd(path):
 packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro']
 # run pip twice, once to upgrade but not the deps
 # and then make sure it get the deps
-pip_args = 'install -v -e .'.split()
-pip_args_upgrade = 'install -v -e --upgrade --no-deps .'.split()
+pip_args = 'install -e .'.split()
+pip_args_upgrade = 'install -e --upgrade --no-deps .'.split()
 
 class DevelopCmd(develop):
     def run(self):
         for package in packages:
             with cwd(os.path.join('packages', package)):
                 pip.main(pip_args)
-                pip.main(pip_args_upgrade)
+                # pip.main(pip_args_upgrade)
             # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name
             # otherwise development install do not work
             if package != 'vaex-core':
                 name = package.split('-')[1]
                 source = os.path.abspath(os.path.join('packages', package, 'vaex', name))
                 target = os.path.abspath(os.path.join('packages', packages[0], 'vaex', name))
-                if not os.path.exists(target):
-                    os.symlink(source, target)
+                #if not os.path.exists(target):
+                os.remove(target)
+                os.symlink(source, target)
 
 class InstallCmd(install):
     """ Add custom steps for the install command """
