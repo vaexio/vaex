@@ -1067,9 +1067,6 @@ class Dataset(object):
 		arguments = _ensure_strings_from_expressions(arguments)
 		return lazy_function(*arguments)
 
-
-
-
 	def unique(self, expression):
 		def map(ar): # this will be called with a chunk of the data
 			return np.unique(ar)  # returns the unique elements
