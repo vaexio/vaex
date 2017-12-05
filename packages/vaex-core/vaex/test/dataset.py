@@ -183,17 +183,17 @@ class TestDataset(unittest.TestCase):
 		ds = self.dataset
 		with small_buffer(ds, 2):
 			upper = ds.apply(function_upper, arguments=[ds['name']])
-			print(upper)
 			ds['NAME'] = upper
 
-			print(ds.evaluate('NAME'), ds.evaluate('name'))
 			name = ds.evaluate('NAME')
 			self.assertEquals(name[0], '0.0BLA')
-			print(ds.state_get())
-			print(name.dtype)
 			ds_copy.state_set(ds.state_get())
 			name = ds_copy.evaluate('NAME')
 			self.assertEquals(name[0], '0.0BLA')
+
+		ds['a1'] = ds.apply(lambda x: x+1, arguments=['x'])
+		ds['a2'] = ds.apply(lambda x: x+2, arguments=['x'])
+		assert (ds['a1']+1).evaluate().tolist() == ds['a2'].evaluate().tolist()
 
 
 	def test_filter(self):

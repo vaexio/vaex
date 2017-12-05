@@ -1063,7 +1063,7 @@ class Dataset(object):
 			name = f.__name__
 		if not vectorize:
 			f = vaex.expression.FunctionToScalar(f)
-		lazy_function = self.add_function(name, f)
+		lazy_function = self.add_function(name, f, unique=True)
 		arguments = _ensure_strings_from_expressions(arguments)
 		return lazy_function(*arguments)
 
@@ -3542,7 +3542,7 @@ class Dataset(object):
 
 
 	def add_function(self, name, f, unique=False):
-		name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(virtual=True, strings=True))
+		name = vaex.utils.find_valid_name(name, used=[] if not unique else self.functions.keys())
 		function = vaex.expression.Function(self, name, f)
 		self.functions[name] = function
 		return function
