@@ -303,7 +303,6 @@ class FunctionToScalar(FunctionSerializablePickle):
             scalar_result = self.f(*[k[i] for k in args], **{key:value[i] for key, value in kwargs.items()})
             result.append(scalar_result)
         result = np.array(result)
-        print(result, result.dtype)
         return result
 
 

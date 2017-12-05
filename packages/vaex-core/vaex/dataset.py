@@ -1066,15 +1066,6 @@ class Dataset(object):
 		lazy_function = self.add_function(name, f)
 		arguments = _ensure_strings_from_expressions(arguments)
 		return lazy_function(*arguments)
-		if dtype is None:
-			# invoke once to get the dtype
-			print(arguments)
-			arguments0 = [self.evaluate(k, 0, 1)[0] for k in arguments]
-			result0 = f(*arguments0)
-			dtype = result0.dtype
-		task = TaskApply(self, arguments, f, info=False, dtype=dtype)
-		self.executor.schedule(task)
-		return self._delay(delay, task)
 
 
 
