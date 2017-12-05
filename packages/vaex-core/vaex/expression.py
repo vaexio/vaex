@@ -3,6 +3,7 @@ import six
 import functools
 from future.utils import with_metaclass
 from vaex.dataset import expression_namespace
+from vaex.dataset import default_shape
 import numpy as np
 
 _binary_ops = [
@@ -136,10 +137,61 @@ class Expression(with_metaclass(Meta)):
             values = 'Error evaluating: %r' % e
         return "<%s(expressions=%r)> instance at 0x%x [%s] " % (name, self.expression, id(self), values)
 
-    def count(self):
-        return self.ds.count(self.expression)
-    def sum(self):
-        return self.ds.sum(self.expression)
+    def count(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
+        '''Shortcut for ds.count(expression, ...), see `Dataset.count`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.ds.count(**kwargs)
+
+    def sum(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for ds.sum(expression, ...), see `Dataset.sum`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.ds.sum(**kwargs)
+
+    def mean(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for ds.mean(expression, ...), see `Dataset.mean`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.ds.mean(**kwargs)
+
+    def std(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for ds.std(expression, ...), see `Dataset.std`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.ds.std(**kwargs)
+
+    def var(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for ds.std(expression, ...), see `Dataset.var`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.ds.var(**kwargs)
+
+    def minmax(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for ds.minmax(expression, ...), see `Dataset.minmax`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.ds.minmax(**kwargs)
+
+    def min(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for ds.min(expression, ...), see `Dataset.min`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.ds.min(**kwargs)
+
+    def max(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for ds.max(expression, ...), see `Dataset.max`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.ds.max(**kwargs)
 
     def evaluate(self, i1=None, i2=None, out=None, selection=None):
         return self.ds.evaluate(self, i1, i2, out=out, selection=selection)

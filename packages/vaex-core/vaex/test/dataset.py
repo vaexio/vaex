@@ -1148,6 +1148,7 @@ class TestDataset(unittest.TestCase):
 		df = self.df[self.df.x < 5]
 		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=None), 10)
 		np.testing.assert_array_almost_equal(self.dataset.count("x", selection=True), 5)
+		np.testing.assert_array_almost_equal(self.dataset.x.count(selection=True), 5)
 		np.testing.assert_array_almost_equal(self.dataset['x'].count(), 10)
 		np.testing.assert_array_almost_equal(self.df['x'].count(), 10)
 		np.testing.assert_array_almost_equal(ds['x'].count(), 5)
@@ -1250,6 +1251,7 @@ class TestDataset(unittest.TestCase):
 		self.dataset.select("x > 5")
 		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=None), np.nansum(self.m))
 		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=True), np.nansum(self.m[6:9]))
+		np.testing.assert_array_almost_equal(self.dataset.m.sum(selection=True), np.nansum(self.m[6:9]))
 
 		self.dataset.select("x < 5")
 		# convert to float
@@ -1512,6 +1514,7 @@ class TestDataset(unittest.TestCase):
 
 		np.testing.assert_array_almost_equal(self.datasetxy.mean(["x", "y"], selection=None), [0.5, 0])
 		np.testing.assert_array_almost_equal(self.datasetxy.mean(["x", "y"], selection=True), [0, -1])
+		np.testing.assert_array_almost_equal(self.datasetxy.y.mean(selection=True), -1)
 
 	def test_minmax(self):
 		((xmin, xmax), ) = self.dataset("x").minmax()
@@ -1530,6 +1533,9 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=True), [0, 4])
 		np.testing.assert_array_almost_equal(self.dataset.minmax("y", selection=True), [0, 4**2])
 		np.testing.assert_array_almost_equal(self.dataset.minmax(["x", "y"], selection=True), [[0, 4], [0, 4**2]])
+		np.testing.assert_array_almost_equal(self.dataset.x.minmax(selection=True), [0, 4])
+		np.testing.assert_array_almost_equal(self.dataset.x.min(selection=True), 0)
+		np.testing.assert_array_almost_equal(self.dataset.x.max(selection=True), 4)
 
 		task = self.dataset.minmax("x", selection=True, delay=True)
 		self.dataset.executor.execute()
@@ -1570,6 +1576,8 @@ class TestDataset(unittest.TestCase):
 		x, y = self.dataset("x", "y").selected().var()
 		self.assertAlmostEqual(x, np.mean(self.x[:5]**2))
 		self.assertAlmostEqual(y, np.mean(self.y[:5]**2))
+		# the legacy var does not subtract the mean
+		self.assertAlmostEqual(np.var(self.y[:5]), self.dataset.y.var(selection=True))
 
 		x, y = self.dataset.var(["x", "y"], selection=True)
 		self.assertAlmostEqual(x, np.var(self.x[:5]))
@@ -1578,6 +1586,7 @@ class TestDataset(unittest.TestCase):
 		x, y = self.dataset.std(["x", "y"], selection=True)
 		self.assertAlmostEqual(x, np.std(self.x[:5]))
 		self.assertAlmostEqual(y, np.std(self.y[:5]))
+		self.assertAlmostEqual(y, self.dataset.y.std(selection=True))
 
 
 	def test_correlation_old(self):
