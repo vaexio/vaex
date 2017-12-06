@@ -2,7 +2,7 @@ import vaex
 import numpy as np
 
 def plot2d_vector(self, x, y, vx, vy, shape=16, limits=None, delay=None, show=False, normalize=False,
-                  selection=None, min_count=0):
+                  selection=None, min_count=0, **kwargs):
     import matplotlib.pylab as plt
     shape = vaex.dataset._expand_shape(shape, 2)
     @vaex.delayed
@@ -16,11 +16,12 @@ def plot2d_vector(self, x, y, vx, vy, shape=16, limits=None, delay=None, show=Fa
         Y, X = np.meshgrid(x_centers, y_centers)#, indexing='ij')
         count = count.flatten()
         mask = count >= min_count
+        kwargs['alpha'] = kwargs.get('alpha', 0.7)
         plt.quiver(X.flatten()[mask],
                    Y.flatten()[mask],
                    mean_vx.flatten()[mask],
                    mean_vy.flatten()[mask],
-         color="white", alpha=0.75)
+                   **kwargs)
         if show:
             plt.show()
         return
