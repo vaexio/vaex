@@ -1048,9 +1048,11 @@ class Dataset(object):
 	def filtered(self):
 		return self.has_selection(FILTER_SELECTION_NAME)
 
-	def map_reduce(self, map, reduce, arguments, delay=False):
+	def map_reduce(self, map, reduce, arguments, progress=False, delay=False, name='map reduce (custom)'):
 		#def map_wrapper(*blocks):
 		task = TaskMapReduce(self, arguments, map, reduce, info=False)
+		progressbar = vaex.utils.progressbars(progress)
+		progressbar.add_task(task, name)
 		self.executor.schedule(task)
 		return self._delay(delay, task)
 
@@ -1067,13 +1069,13 @@ class Dataset(object):
 		arguments = _ensure_strings_from_expressions(arguments)
 		return lazy_function(*arguments)
 
-	def unique(self, expression):
+	def unique(self, expression, progress=False, delay=False):
 		def map(ar): # this will be called with a chunk of the data
 			return np.unique(ar)  # returns the unique elements
 		def reduce(a, b):  # gets called with a list of the return values of map
 			joined = np.concatenate([a, b]) # put all 'sub-unique' together
 			return np.unique(joined)  # find all the unique items
-		return self.map_reduce(map, reduce, [expression])
+		return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='unique')
 
 	@docsubst
 	def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
