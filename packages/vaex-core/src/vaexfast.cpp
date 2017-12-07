@@ -812,6 +812,7 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 }
 
 const int MAX_DIMENSIONS = 50;
+const int MAX_WEIGHTS = 2000;
 
 // __restrict__
 void histogramNd(const double* const blocks[], const double* const weights, long long block_length, int dimensions, double* counts, long long count_strides[], int count_sizes[], double minima[], double maxima[]) {
@@ -923,24 +924,24 @@ struct functor_double_to_native {
 
 template<typename T=double, typename ENDIAN=functor_double_to_double>
 struct op_add1 {
-    void operator()(const T* const inputs, T* const __restrict__ outputs) {
+    void operator()(T* const __restrict__ outputs, const T* const __restrict__ inputs[], const long long int input_offsets, const int inputs_count) {
         outputs[0] += 1;
     }
 };
 template<typename T=double, typename ENDIAN=functor_double_to_double>
 struct op_count {
-    void operator()(const T* const inputs, T* const __restrict__ outputs) {
+    void operator()(T* const __restrict__ outputs, const T* const __restrict__ inputs[], const long long int input_offsets, const int inputs_count) {
         ENDIAN endian;
-        double value = endian(inputs[0]);
+        double value = endian(inputs[0][input_offsets]);
         outputs[0] += (custom_isnan(value) ? 0 : 1);
     }
 };
 
 template<typename T=double, typename ENDIAN=functor_double_to_double>
 struct op_add_weight_moment_01 {
-    void operator()(const T* const inputs, T* const __restrict__ outputs) {
+    void operator()(T* const __restrict__ outputs, const T* const __restrict__ inputs[], const long long int input_offsets, const int inputs_count) {
         ENDIAN endian;
-        double value = endian(inputs[0]);
+        double value = endian(inputs[0][input_offsets]);
         if(!custom_isnan(value))
         {
             outputs[0] += 1;
@@ -951,9 +952,9 @@ struct op_add_weight_moment_01 {
 
 template<typename T=double, typename ENDIAN=functor_double_to_double>
 struct op_min_max {
-    void operator()(const T* const __restrict__ inputs, T* const __restrict__ outputs) {
+    void operator()(T* const __restrict__ outputs, const T* const __restrict__ inputs[], const long long int input_offsets, const int inputs_count) {
         ENDIAN endian;
-        double value = endian(inputs[0]);
+        double value = endian(inputs[0][input_offsets]);
         if(value < outputs[0]) {
             outputs[0] = value;
         }
@@ -965,9 +966,9 @@ struct op_min_max {
 
 template<typename T=double, typename ENDIAN=functor_double_to_double>
 struct op_add_weight_moment_012 {
-    void operator()(const T* const inputs, T* const __restrict__ outputs) {
+    void operator()(T* const __restrict__ outputs, const T* const __restrict__ inputs[], const long long int input_offsets, const int inputs_count) {
         ENDIAN endian;
-        double value = endian(inputs[0]);
+        double value = endian(inputs[0][input_offsets]);
         if(!custom_isnan(value)) {
             outputs[0] += 1;
             outputs[1] += value;
@@ -976,12 +977,50 @@ struct op_add_weight_moment_012 {
     }
 };
 
+template<typename T=double, typename ENDIAN=functor_double_to_double>
+struct op_cov {
+    void operator()(T* const __restrict__ outputs, const T* const __restrict__ inputs[], const long long int input_offsets, const int inputs_count) {
+        ENDIAN endian;
+        // 
+        //int N_lower_triangle = ((inputs_count+1)*inputs_count)/2;
+        // we keep counts, sum and lower_triangle counts and sums a in 1 1d array
+        // N x N matrix
+        int N = inputs_count;
+        int Nsquare = N * N;
+        for(int col = 0; col < N; col++) {
+	        double value = endian(inputs[col][input_offsets]);
+	        if(!custom_isnan(value)) {
+	            outputs[col] += 1;
+	            outputs[col+N] += value;
+	            // diagonal elements
+	            outputs[N*2 + col + col * N] += 1;
+	            outputs[N*2 + Nsquare + col + col * N] += value*value;
+		        double value_x = value;
+		        // off diagonal
+		        for(int row = col+1; row < N; row++) {
+			        double value_y = endian(inputs[row][input_offsets]);
+			        if(!custom_isnan(value_y)) {
+			    	    int index_1d_a = row + col * N;
+			    	    int index_1d_b = col + row * N;
+			            outputs[N*2 + index_1d_a] += 1;
+			            outputs[N*2 + index_1d_b] = outputs[N*2 + index_1d_a];
+			            outputs[N*2 + Nsquare + index_1d_a] += value_x * value_y;
+			            outputs[N*2 + Nsquare + index_1d_b] = outputs[N*2 + Nsquare + index_1d_a];
+			        }
+			    }
+	        }
+        }
+    }
+};
+
+
 
 template<typename OP, typename ENDIAN>
 void statisticNd(
     const double* const __restrict__ blocks[],
-    const double* const __restrict__ weights,
+    const double* const __restrict__ weights[],
     long long block_length,
+    const int weights_count,
     const int dimensions,
     double* const __restrict__ counts,
     const long long * const __restrict__ count_strides,
@@ -1019,13 +1058,13 @@ void statisticNd(
                     index += count_strides[d] * sub_index;
                 }
             }
-            op(&weights[i], &counts[index]);
+            op(&counts[index], weights, i, weights_count);
         }
 	} else {
         // the (gcc) compiler does better when we put the same statements in if's...
         if(dimensions == 0) { // optimization.. can we generalize it?
             for(long long i = 0; i < block_length; i++) {
-                op(&weights[i], &counts[0]);
+            	op(&counts[0], weights, i, weights_count);
             }
         } else
         if(dimensions == 1) { // optimization.. can we generalize it?
@@ -1044,7 +1083,7 @@ void statisticNd(
                     }
                 }
                 if(inside)
-                    op(&weights[i], &counts[index]);
+		            op(&counts[index], weights, i, weights_count);
             }
         } else
 
@@ -1064,7 +1103,7 @@ void statisticNd(
                     }
                 }
                 if(inside)
-                    op(&weights[i], &counts[index]);
+          		  op(&counts[index], weights, i, weights_count);
             }
         } else {
             for(long long i = 0; i < block_length; i++) {
@@ -1082,7 +1121,7 @@ void statisticNd(
                     }
                 }
                 if(inside)
-                    op(&weights[i], &counts[index]);
+           			op(&counts[index], weights, i, weights_count);
             }
         }
     }
@@ -1095,7 +1134,8 @@ enum {
     OP_COUNT,
     OP_MIN_MAX,
     OP_ADD_WEIGHT_MOMENTS_01,
-    OP_ADD_WEIGHT_MOMENTS_012
+    OP_ADD_WEIGHT_MOMENTS_012,
+    OP_COV
 } STATISTIC_OPS;
 
 static const char *statistic_op_names[] = {
@@ -1104,14 +1144,16 @@ static const char *statistic_op_names[] = {
     ENUM2STR(OP_MIN_MAX),
     ENUM2STR(OP_ADD_WEIGHT_MOMENTS_01),
     ENUM2STR(OP_ADD_WEIGHT_MOMENTS_012)
+    ENUM2STR(OP_COV)
 };
 
 
 template<typename endian>
 void statisticNd_wrap_template_endian(
         const double* const blocks[],
-        const double* const weights,
+        const double* const weights[],
         long long block_length,
+        int weights_count,
         int dimensions,
         double* counts,
         long long count_strides[],
@@ -1121,15 +1163,17 @@ void statisticNd_wrap_template_endian(
         int op_code,
         int use_edges) {
         if(op_code == OP_ADD1) {
-            statisticNd<op_add1<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
+            statisticNd<op_add1<double, endian>, endian >(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else if(op_code == OP_COUNT) {
-            statisticNd<op_count<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
+            statisticNd<op_count<double, endian>, endian >(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else if(op_code == OP_MIN_MAX) {
-            statisticNd<op_min_max<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
+            statisticNd<op_min_max<double, endian>, endian >(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else if(op_code == OP_ADD_WEIGHT_MOMENTS_01) {
-            statisticNd<op_add_weight_moment_01<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
+            statisticNd<op_add_weight_moment_01<double, endian>, endian >(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else if(op_code == OP_ADD_WEIGHT_MOMENTS_012) {
-            statisticNd<op_add_weight_moment_012<double, endian>, endian >(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
+            statisticNd<op_add_weight_moment_012<double, endian>, endian >(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
+        } else if(op_code == OP_COV) {
+            statisticNd<op_cov<double, endian>, endian >(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else {
             printf("unknown op code for statistic: %i", op_code);
         }
@@ -1138,8 +1182,9 @@ void statisticNd_wrap_template_endian(
 
 void statisticNd_wrap_template(
         const double* const blocks[],
-        const double* const weights,
+        const double* const weights[],
         long long block_length,
+        int weights_count,
         int dimensions,
         double* counts,
         long long count_strides[],
@@ -1150,36 +1195,39 @@ void statisticNd_wrap_template(
         int op_code,
         int use_edges) {
         if(native)
-            statisticNd_wrap_template_endian<functor_double_to_double>(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, op_code, use_edges);
+            statisticNd_wrap_template_endian<functor_double_to_double>(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, op_code, use_edges);
         else
-            statisticNd_wrap_template_endian<functor_double_to_native>(blocks, weights, block_length, dimensions, counts, count_strides, count_sizes, minima, maxima, op_code, use_edges);
+            statisticNd_wrap_template_endian<functor_double_to_native>(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, op_code, use_edges);
 }
 
 
 PyObject* statisticNd_(PyObject* self, PyObject* args) {
 	PyObject* result = NULL;
-	PyObject *blocklist, *weights, *counts_object, *minimalist, *maximalist;
+	PyObject *blocklist, *weightslist, *counts_object, *minimalist, *maximalist;
 	//double xmin, xmax, ymin, ymax, zmin, zmax;
 	double minima[MAX_DIMENSIONS];
 	double maxima[MAX_DIMENSIONS];
 	int op_code;
 	int use_edges = 0;
-	if(PyArg_ParseTuple(args, "OOOOOi|i", &blocklist, &weights, &counts_object, &minimalist, &maximalist, &op_code, &use_edges)) {
+	if(PyArg_ParseTuple(args, "OOOOOi|i", &blocklist, &weightslist, &counts_object, &minimalist, &maximalist, &op_code, &use_edges)) {
 		long long block_length = -1;
 		int count_sizes[MAX_DIMENSIONS];
 		long long count_strides[MAX_DIMENSIONS];
 		int dimensions = -1;
 		int dimensions_grid = -1;
+		int weights_count = -1;
 		double *block_ptrs[MAX_DIMENSIONS];
-		bool block_native[MAX_DIMENSIONS];
+		bool native;
 
-		double *weights_ptr = NULL;
+		double *weights_ptrs[MAX_WEIGHTS];
 		double *counts_ptr = NULL;
 		try {
 			if(!PyList_Check(blocklist))
 				throw Error("blocks is not a list of blocks");
 			dimensions = PyList_Size(blocklist);
 			dimensions_grid = dimensions + 1; // one dimension higher for multiple output values
+
+			weights_count = PyList_Size(weightslist);
 
 			if(!PyList_Check(minimalist))
 				throw Error("minima is not a list of blocks");
@@ -1193,7 +1241,8 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 
 			for(int d = 0; d < dimensions; d++) {
 				//object_to_numpy1d_nocopy       (block_ptrs[d], PyList_GetItem(blocklist, d), block_length);
-    			object_to_numpy1d_nocopy_endian(block_ptrs[d], PyList_GetItem(blocklist, d), block_length, block_native[d]);
+				bool native_current;
+    			object_to_numpy1d_nocopy_endian(block_ptrs[d], PyList_GetItem(blocklist, d), block_length, native_current);
 				PyObject *min = PyList_GetItem(minimalist, d);
 				PyObject *max = PyList_GetItem(maximalist, d);
 				if(!PyFloat_Check(min))
@@ -1201,13 +1250,17 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 				if(!PyFloat_Check(max))
 					throw Error("element %d of maxima is not of type float", d);
 
-				if((d > 0) & (block_native[d-1] != block_native[d])  )
+				if(d == 0) {
+					native = native_current;
+				}
+				else if(native != native_current) {
 					throw Error("mixed native and non-native arrays not supported");
+				}
 				minima[d] =  PyFloat_AsDouble(min);
 				maxima[d] =  PyFloat_AsDouble(max);
 				//printf("min/max[%d] = %f/%f\n", d, minima[d], maxima[d]);
 			}
-			if(weights != Py_None) {
+			/*if(weights != Py_None) {
     			bool weight_native = true;
 				object_to_numpy1d_nocopy_endian(weights_ptr, weights, block_length, weight_native);
 				if(dimensions == 0) {
@@ -1215,6 +1268,16 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 				}
 				if(weight_native != block_native[0])
 					throw Error("mixed native and non-native arrays not supported");
+			}*/
+			for(int d = 0; d < weights_count; d++) {
+				bool native_current;
+    			object_to_numpy1d_nocopy_endian(weights_ptrs[d], PyList_GetItem(weightslist, d), block_length, native_current);
+				if((d == 0) & (dimensions == 0)) {
+					native = native_current;
+				}
+				else if(native != native_current) {
+					throw Error("mixed native and non-native arrays not supported");
+				}
 			}
 
 			object_to_numpyNd_nocopy(counts_ptr, counts_object, MAX_DIMENSIONS, dimensions_grid, &count_sizes[0], &count_strides[0]);
@@ -1228,7 +1291,7 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 				object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
 			}*/
 			Py_BEGIN_ALLOW_THREADS
-			statisticNd_wrap_template(block_ptrs, weights_ptr, block_length, dimensions, counts_ptr, count_strides, count_sizes, minima, maxima, block_native[0], op_code, use_edges);
+			statisticNd_wrap_template(block_ptrs, weights_ptrs, block_length, weights_count, dimensions, counts_ptr, count_strides, count_sizes, minima, maxima, native, op_code, use_edges);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;

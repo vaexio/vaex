@@ -363,11 +363,14 @@ class TaskApply(TaskBase):
 class StatOp(object):
 	def __init__(self, code, fields, reduce_function=np.nansum):
 		self.code = code
-		self.fields = fields
+		self.fixed_fields = fields
 		self.reduce_function = reduce_function
 
 	def init(self, grid):
 		pass
+
+	def fields(self, weights):
+		return self.fixed_fields
 
 	def reduce(self, grid, axis=0):
 		return self.reduce_function(grid, axis=axis)
@@ -386,11 +389,21 @@ class StatOpMinMax(StatOp):
 		out[...,1] = np.nanmax(grid[...,1], axis=axis)
 		return out
 
+class StatOpCov(StatOp):
+	def __init__(self, code, fields=None, reduce_function=np.sum):
+		super(StatOpCov, self).__init__(code, fields, reduce_function=reduce_function)
+
+	def fields(self, weights):
+		N = len(weights)
+		# counts, sums, cross product sums
+		return N*2 + N**2 * 2 #((N+1) * N) // 2 *2
+
 OP_ADD1 = StatOp(0, 1)
 OP_COUNT = StatOp(1, 1)
 OP_MIN_MAX = StatOpMinMax(2, 2)
 OP_ADD_WEIGHT_MOMENTS_01 = StatOp(3, 2, np.nansum)
 OP_ADD_WEIGHT_MOMENTS_012 = StatOp(4, 3, np.nansum)
+OP_COV = StatOpCov(5)
 
 def _expand(x, dimension, type=tuple):
 	if _issequence(x):
@@ -422,13 +435,17 @@ def as_flat_float(a):
 
 
 class TaskStatistic(Task):
-	def __init__(self, dataset, expressions, shape, limits, masked=False, weight=None, op=OP_ADD1, selection=None, edges=False):
+	def __init__(self, dataset, expressions, shape, limits, masked=False, weights=[], weight=None, op=OP_ADD1, selection=None, edges=False):
 		if not isinstance(expressions, (tuple, list)):
 			expressions = [expressions]
 		# edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension
 		self.shape = tuple([k +3 if edges else k for k in _expand_shape(shape, len(expressions))])
 		self.limits = limits
-		self.weight = weight
+		if weight is not None: # shortcut for weights=[weight]
+			assert weights == [], 'only provide weight or weights, not both'
+			weights = [weight]
+			del weight
+		self.weights = weights
 		self.selection_waslist, [self.selections,] = vaex.utils.listify(selection)
 		self.op = op
 		self.edges = edges
@@ -436,7 +453,8 @@ class TaskStatistic(Task):
 		self.dtype = np.float64
 		self.masked = masked
 
-		self.shape_total = (self.dataset.executor.thread_pool.nthreads,) + (len(self.selections), ) + self.shape + (op.fields,)
+		self.fields = op.fields(weights)
+		self.shape_total = (self.dataset.executor.thread_pool.nthreads,) + (len(self.selections), ) + self.shape + (self.fields,)
 		self.grid = np.zeros(self.shape_total, dtype=self.dtype)
 		self.op.init(self.grid)
 		self.minima = []
@@ -452,13 +470,13 @@ class TaskStatistic(Task):
 				vmin, vmax = limit
 				self.minima.append(float(vmin))
 				self.maxima.append(float(vmax))
-		if self.weight is not None:
-			self.expressions_all.append(weight)
+		#if self.weight is not None:
+		self.expressions_all.extend(weights)
 
 
 	def __repr__(self):
 		name = self.__class__.__module__ + "." +self.__class__.__name__
-		return "<%s(dataset=%r, expressions=%r, shape=%r, limits=%r, weight=%r, selections=%r, op=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.shape, self.limits, self.weight, self.selections, self.op, id(self))
+		return "<%s(dataset=%r, expressions=%r, shape=%r, limits=%r, weights=%r, selections=%r, op=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.shape, self.limits, self.weights, self.selections, self.op, id(self))
 
 	def map(self, thread_index, i1, i2, *blocks):
 		class Info(object):
@@ -503,10 +521,9 @@ class TaskStatistic(Task):
 
 				selection_blocks = [_to_native(k) for k in selection_blocks]
 			subblock_weight = None
-			if len(selection_blocks) == len(self.expressions) + 1:
-				subblock_weight = selection_blocks[-1]
-				selection_blocks = list(selection_blocks[:-1])
-			if len(selection_blocks) == 0 and subblock_weight is None:
+			subblock_weights = selection_blocks[len(self.expressions):]
+			selection_blocks = list(selection_blocks[:len(self.expressions)])
+			if len(selection_blocks) == 0 and subblock_weights == []:
 				if self.op == OP_ADD1: # special case for counting '*' (i.e. the number of rows)
 					if selection or self.dataset.filtered:
 						this_thread_grid[i][0] += np.sum(selection_mask)
@@ -516,7 +533,7 @@ class TaskStatistic(Task):
 					raise ValueError("Nothing to compute for OP %s" % self.op.code)
 
 			blocks = list(blocks) # histogramNd wants blocks to be a list
-			vaex.vaexfast.statisticNd(selection_blocks, subblock_weight, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
+			vaex.vaexfast.statisticNd(selection_blocks, subblock_weights, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
 		return i2-i1
 		#return map(self._map, blocks)#[self.map(block) for block in blocks]
 
@@ -1572,11 +1589,6 @@ class Dataset(object):
 		:return: {return_stat_scalar}, the last dimensions are of shape (2,2)
 		"""
 		selection = _ensure_strings_from_expressions(selection)
-		@delayed
-		def cov_matrix(mean_x, mean_y, var_x, var_y, mean_xy):
-			cov = mean_xy - mean_x * mean_y
-			return np.array([[var_x, cov], [cov, var_y]]).T
-
 		if y is None:
 			if not _issequence(x):
 				raise ValueError("if y argument is not given, x is expected to be sequence, not %r", x)
@@ -1590,34 +1602,41 @@ class Dataset(object):
 		limits = self.limits(binby, limits, selection=selection, delay=True)
 
 		@delayed
-		def calculate_matrix(means, vars, raw_mixed):
-			#print(">>> %r" % means)
-			raw_mixed = list(raw_mixed) # lists can pop
-			cov_matrix = np.zeros(means[0].shape + (N,N), dtype=float)
-			for i in range(N):
-				for j in range(i+1):
-					if i != j:
-						cov_matrix[...,i,j] = raw_mixed.pop(0) - means[i] * means[j]
-						cov_matrix[...,j,i] = cov_matrix[...,i,j]
-					else:
-						cov_matrix[...,i,j] = vars[i]
-			return cov_matrix
-
-
+		def calculate(expressions, limits):
+			#print('limits', limits)
+			task = TaskStatistic(self, binby, shape, limits, weights=expressions, op=OP_COV, selection=selection)
+			self.executor.schedule(task)
+			progressbar.add_task(task, "covariance values for %r" % expressions)
+			return task
 		@delayed
-		def calculate(limits):
-			# calculate the right upper triangle
-			means = [self.mean(expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar) for expression in expressions]
-			vars  = [self.var (expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar) for expression in expressions]
-			raw_mixed = []
-			for i in range(N):
-				for j in range(i+1):
-					if i != j:
-						raw_mixed.append(self.mean("(%s)*(%s)" % (expressions[i], expressions[j]), binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar))
-			return calculate_matrix(delayed_list(means), delayed_list(vars), delayed_list(raw_mixed))
+		def finish(values):
+			print("values", values)
+			# stats = np.array(stats_args)
+			# counts = stats[...,0]
+			# with np.errstate(divide='ignore', invalid='ignore'):
+			# 	mean = stats[...,1] / counts
+			N = len(expressions)
+			#print(values.shape)
+			counts = values[...,:N]
+			sums = values[...,N:2*N]
+			with np.errstate(divide='ignore', invalid='ignore'):
+				means = sums / counts
+			# matrix of means * means.T
+			meansxy = means[...,None] * means[...,None,:]
 
-		covars = calculate(limits)
-		return self._delay(delay, covars)
+			counts = values[...,2*N:2*N + N**2]
+			sums = values[...,2*N + N**2:]
+			shape = counts.shape[:-1] + (N, N)
+			counts = counts.reshape(shape)
+			sums = sums.reshape(shape)
+			with np.errstate(divide='ignore', invalid='ignore'):
+				moments2 = sums/counts
+			cov_matrix = moments2 - meansxy
+			return cov_matrix
+		progressbar = vaex.utils.progressbars(progress)
+		values = calculate(expressions, limits)
+		cov_matrix = finish(values)
+		return self._delay(delay, cov_matrix)
 
 	@docsubst
 	@stat_1d

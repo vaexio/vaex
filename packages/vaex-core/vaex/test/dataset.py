@@ -1337,6 +1337,13 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.cov(["x", "y", "z"], selection=None, binby=["x"], limits=[0, 10], shape=2), [cov(x[:i], y[:i], z[:i]), cov(x[i:], y[i:], z[i:])])
 		np.testing.assert_array_almost_equal(self.dataset.cov(["x", "y", "z"], selection=True, binby=["x"], limits=[0, 10], shape=2), [cov(x[:i], y[:i], z[:i]), nan33])
 
+		# including nan
+		n = np.arange(20.)
+		n[1] = np.nan
+		self.dataset_local.add_column('n', n)
+		assert not np.any(np.isnan(self.dataset.cov("x", "n")))
+
+
 	def test_correlation(self):
 		# convert to float
 		x = self.dataset_local.columns["x"][:10] = self.dataset_local.columns["x"][:10] * 1.
