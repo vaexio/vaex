@@ -508,8 +508,8 @@ class DatasetRest(DatasetRemote):
 		ds.state_set(state)
 		return ds
 
-	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
-		return self._delay(delay, self.server._call_dataset("count", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+	def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
+		return self._delay(delay, self.server._call_dataset("count", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges))
 
 	def mean (self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
 		return self._delay(delay, self.server._call_dataset("mean", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
