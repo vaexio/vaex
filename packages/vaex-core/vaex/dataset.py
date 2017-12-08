@@ -1610,13 +1610,7 @@ class Dataset(object):
 			return task
 		@delayed
 		def finish(values):
-			print("values", values)
-			# stats = np.array(stats_args)
-			# counts = stats[...,0]
-			# with np.errstate(divide='ignore', invalid='ignore'):
-			# 	mean = stats[...,1] / counts
 			N = len(expressions)
-			#print(values.shape)
 			counts = values[...,:N]
 			sums = values[...,N:2*N]
 			with np.errstate(divide='ignore', invalid='ignore'):
@@ -2163,6 +2157,12 @@ class Dataset(object):
 		import vaex.notebook.plot
 		backend = vaex.notebook.plot.create_backend(backend)
 		cls = vaex.notebook.plot.get_type(type)
+		x = _ensure_strings_from_expressions(x)
+		y = _ensure_strings_from_expressions(y)
+		z = _ensure_strings_from_expressions(z)
+		for name in 'vx vy vz'.split():
+			if name in kwargs:
+				kwargs[name] = _ensure_strings_from_expressions(kwargs[name])
 		plot2d = cls(backend=backend, dataset=self, x=x, y=y, z=z, grid=grid, shape=shape, limits=limits, what=what,
 				f=f, figure_key=figure_key, fig=fig,
 				selection=selection, grid_before=grid_before,
