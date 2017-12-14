@@ -17,7 +17,7 @@ def cwd(path):
 
 # inspired by https://blog.shazam.com/python-microlibs-5be9461ad979
 
-packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui']
+packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-distributed']
 # run pip twice, once to upgrade but not the deps
 # and then make sure it get the deps
 pip_args = 'install -e .'.split()
