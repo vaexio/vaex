@@ -3,7 +3,7 @@ from vaex.remote import ServerExecutor
 import numpy as np
 import logging
 import aplus
-from .delayed import delayed
+from ..delayed import delayed
 logger = logging.getLogger("vaex.distributed")
 import vaex.legacy
 """
@@ -155,9 +155,6 @@ class DatasetDistributed(vaex.dataset.Dataset):
     def __call__(self, *expressions, **kwargs):
         return SubspaceDistributed(self, expressions, kwargs.get("executor") or self.executor, delay=kwargs.get("delay", False))
 
-if __name__ == "__main__":
-	sys.exit(main(sys.argv))
-
 import vaex.settings
 import vaex as vx
 import socket
@@ -240,7 +237,7 @@ def main(argv):
                     names = set([k.name for k in datasets])
                     common = names if common is None else common.union(names)
             print("Cluster: " + name + " has %d hosts connected, to connect to a dataset, use the following urls:" % (len(clusterlist))  )
-            for dsname in common:
+            for dsname in common or []:
                 print("\tcluster://%s/%s" % (name, dsname))
             if args.clean:
                 vaex.settings.cluster.store("clusters." + name, clusterlist)
