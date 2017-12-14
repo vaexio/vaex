@@ -914,6 +914,7 @@ deg2rad
 minimum
 maximum
 clip
+nan
 """.strip().split()]
 expression_namespace = {}
 for name, numpy_name in function_mapping:
@@ -953,6 +954,9 @@ def hourofday(x):
 	x = x.astype("<M8[ns]")
 	return pd.Series(x).dt.hour.values.astype(np.float64)
 expression_namespace["hourofday"] = hourofday
+def _float(x):
+	return x.astype(np.float64)
+expression_namespace["float"] = _float
 
 _doc_snippets = {}
 _doc_snippets["expression"] = "expression or list of expressions, e.g. 'x', or ['x, 'y']"
