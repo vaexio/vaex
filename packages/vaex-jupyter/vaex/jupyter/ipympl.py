@@ -1,10 +1,9 @@
 import numpy as np
 import vaex.image
-from vaex.notebook.plot import BackendBase
+from .plot import BackendBase
 import copy
-from vaex.notebook.utils import debounced
+from .utils import debounced
 import pylab as plt
-import vaex.notebook
 import matplotlib.widgets
 import ipywidgets as widgets
 

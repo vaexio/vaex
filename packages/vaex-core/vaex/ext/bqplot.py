@@ -15,7 +15,7 @@ import bqplot as bq
 import bqplot.interacts
 import traitlets
 import ipywidgets as widgets
-from vaex.notebook import debounced
+from vaex.jupyter import debounced
 import vaex.grids
 import time
 

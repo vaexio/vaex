@@ -27,6 +27,4 @@ setup(name=name+'-jupyter',
     license=license,
     packages=['vaex.jupyter'],
     zip_safe=False,
-    entry_points={'vaex.namespace': ['ml = vaex.jupyter:add_namespace'],
-                  'vaex.plugin': ['plot = vaex.jupyter.add_plugin']}
     )

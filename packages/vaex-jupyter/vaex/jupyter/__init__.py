@@ -27,7 +27,7 @@ from IPython.display import HTML, display_html, display_javascript
 import IPython, zmq
 
 base_path = os.path.dirname(__file__)
-logger = logging.getLogger("vaex.notebook")
+logger = logging.getLogger("vaex.jupyter")
 import numpy as np
 
 from .utils import debounced, interactive_selection, interactive_cleanup

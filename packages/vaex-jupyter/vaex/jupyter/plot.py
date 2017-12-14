@@ -23,10 +23,10 @@ def get_type(name):
     return type_map[name]
 
 backends = {}
-backends['ipyleaflet'] = ('vaex.notebook.ipyleaflet', 'IpyleafletBackend')
-backends['bqplot'] = ('vaex.notebook.bqplot', 'BqplotBackend')
-backends['ipyvolume'] = ('vaex.notebook.ipyvolume', 'IpyvolumeBackend')
-backends['matplotlib'] = ('vaex.notebook.ipympl', 'MatplotlibBackend')
+backends['ipyleaflet'] = ('vaex.jupyter.ipyleaflet', 'IpyleafletBackend')
+backends['bqplot'] = ('vaex.jupyter.bqplot', 'BqplotBackend')
+backends['ipyvolume'] = ('vaex.jupyter.ipyvolume', 'IpyvolumeBackend')
+backends['matplotlib'] = ('vaex.jupyter.ipympl', 'MatplotlibBackend')
 backends['ipympl'] = backends['mpl'] = backends['matplotlib']
 
 def create_backend(name):

@@ -2154,9 +2154,9 @@ class Dataset(object):
 			 scales=None, tool_select=False, bq_cleanup=True,
 			 backend="bqplot",
 			 **kwargs):
-		import vaex.notebook.plot
-		backend = vaex.notebook.plot.create_backend(backend)
-		cls = vaex.notebook.plot.get_type(type)
+		import vaex.jupyter.plot
+		backend = vaex.jupyter.plot.create_backend(backend)
+		cls = vaex.jupyter.plot.get_type(type)
 		x = _ensure_strings_from_expressions(x)
 		y = _ensure_strings_from_expressions(y)
 		z = _ensure_strings_from_expressions(z)
