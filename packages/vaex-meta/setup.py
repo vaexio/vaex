@@ -27,5 +27,6 @@ setup(name=name,
     author_email=author_email,
     install_requires=install_requires,
     license=license,
+    packages=['vaex.meta'],
     zip_safe=False,
     )
