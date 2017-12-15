@@ -47,7 +47,7 @@ install:
   # - (cd packages/vaex-viz; pip install -v .)
   # - (cd packages/vaex-server; pip install -v .)
 script:
-  - source activate test
+  - source activate test-environment
   - python -m vaex.test.dataset
   - py.test tests/
   # - runipy examples/tutorial_ipython_notebook.ipynb
