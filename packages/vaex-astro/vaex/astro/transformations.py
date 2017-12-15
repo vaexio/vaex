@@ -42,6 +42,23 @@ def add_virtual_columns_eq2gal(self, long_in="ra", lat_in="dec", long_out="l", l
     self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
 
 @patch
+def add_virtual_columns_gal2eq(self, long_in='l', lat_in='b', long_out='ra', lat_out='dec', input=None, output=None, name_prefix="__celestial_gal2eq", radians=False):
+    """
+    Convert from galactic (l,b) to equatorial (ra,dec) spherical coordinate system.
+    :param long_in: longitudinal angle l
+    :param lat_in: latitudinal angle b
+    :param long_out: right ascension
+    :param lat_out: declination
+    :param input:
+    :param output:
+    :param name_prefix:
+    :param radians: input and output in radians (True), or degrees (False)
+    """
+
+    import kapteyn.celestial as c
+    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.galactic, output=output or c.equatorial, name_prefix=name_prefix, radians=radians)
+
+@patch
 def add_virtual_columns_distance_from_parallax(self, parallax="parallax", distance_name="distance", parallax_uncertainty=None, uncertainty_postfix="_uncertainty"):
     """Convert parallax to distance (i.e. 1/parallax)
 
