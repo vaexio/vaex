@@ -4209,6 +4209,61 @@ class Dataset(object):
 					   (expression, (lmin, lmax)) in zip(spaces, sorted_limits)]
 		self.select("&".join(expressions), mode=mode)
 
+	def select_circle(self, x , y, xc, yc, r, mode="replace", name="default"):
+		"""
+		Select a circular region centred on xc, yc, with a radius of r.
+
+		:param x: expression for the x space
+		:param y: expression for the y space
+		:param xc: location of the centre of the circle in x
+		:param yc: location of the centre of the circle in y
+		:param r: the radius of the circle
+		:param name: name of the selection
+		:param mode: 
+		:return: 
+
+		Example:
+		>>> ds.select_circle('x','y',2,3,1)
+		"""
+
+		expr = "({x}-{xc})**2 + ({y}-{yc})**2 <={r}**2".format(**locals())
+		self.select(boolean_expression=expr, mode=mode, name=name)
+
+	def select_ellipse(self, x, y, xc, yc, width, height, angle=0, mode="replace", name="default", radians=False):
+		"""
+		Select an elliptical region centred on xc, yc, with a certain width, height
+		and angle. 
+
+		:param x: expression for the x space
+		:param y: expression for the y space
+		:param xc: location of the centre of the ellipse in x
+		:param yc: location of the centre of the ellipse in y
+		:param width: the width of the ellipse (diameter)
+		:param height: the width of the ellipse (diameter)
+		:param angle: (degrees) orientation of the ellipse, counter-clockwise 
+		              measured from the y axis
+		:param name: name of the selection
+		:param mode:
+		:return:
+
+		Example:
+		>>> ds.select_ellipse('x','y', 2, -1, 5,1, 30, name='my_ellipse')
+		"""
+
+		# Computing the properties of the ellipse prior to selection
+		if radians:
+			pass
+		else:
+			alpha = np.deg2rad(angle)
+		xr = width/2
+		yr = height/2
+		r = max(xr,yr)
+		a = xr/r
+		b = yr/r
+
+		expr = "(({x}-{xc})*cos({alpha})+({y}-{yc})*sin({alpha}))**2/{a}**2 + (({x}-{xc})*sin({alpha})-({y}-{yc})*cos({alpha}))**2/{b}**2 <= {r}**2".format(**locals())
+		self.select(boolean_expression=expr, mode=mode, name=name)
+
 	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", name="default", executor=None):
 		"""For performance reasons, a lasso selection is handled differently.
 
