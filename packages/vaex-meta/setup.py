@@ -15,7 +15,8 @@ author_email= 'maartenbreddels@gmail.com'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/maartenbreddels/vaex'
-install_requires = ['vaex-core', 'vaex-viz', 'vaex-server', 'vaex-ui', 'vaex-hdf5', 'vaex-astro']
+
+install_requires = 'vaex-core vaex-viz vaex-server vaex-ui vaex-hdf5 vaex-astro'.split()
 
 setup(name=name,
     version=version,
