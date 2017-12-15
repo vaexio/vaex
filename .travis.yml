@@ -31,11 +31,7 @@ before_install:
 #  - pip install -r requirements.txt
 install:
   - source activate test
-  - (cd packages/vaex-core; pip install .)
-  - (cd packages/vaex-hdf5; pip install .)
-  - (cd packages/vaex-viz; pip install .)
-  - (cd packages/vaex-server; pip install .)
-  - (cd packages/vaex-astro; pip install .)
+  - pip install .
   # - source activate dev
   # - (cd packages/vaex-core; pip install -v -.)
   # - (cd packages/vaex-hdf5; pip install -v .)

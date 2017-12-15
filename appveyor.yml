@@ -25,11 +25,7 @@ install:
   - pip install .
   - cd ..
   - cd ..
-  - pushd packages\vaex-hdf5   && pip install . && popd
-  - pushd packages\vaex-viz    && pip install . && popd
-  - pushd packages\vaex-viz    && pip install . && popd
-  - pushd packages\vaex-astro  && pip install . && popd
-  - pushd packages\vaex-server && pip install . && popd
+  - pip install .
 
 test_script:
  - python -m vaex.test.dataset
