@@ -33,7 +33,14 @@ before_install:
 #  - pip install -r requirements.txt
 install:
   - source activate test-environment
-  - pip install -U --force -vvv .
+  - (cd packages/vaex-core; pip install -v .)
+  - (cd packages/vaex-hdf5; pip install -v .)
+  - (cd packages/vaex-viz; pip install -v .)
+  - (cd packages/vaex-server; pip install -v .)
+  - (cd packages/vaex-astro; pip install -v .)
+  - (cd packages/vaex-distributed; pip install -v .)
+  - (cd packages/vaex-jupyter; pip install -v .)
+  - (cd packages/vaex-ui; pip install -v .)
   # - source activate dev
   # - (cd packages/vaex-core; pip install -v -.)
   # - (cd packages/vaex-hdf5; pip install -v .)
