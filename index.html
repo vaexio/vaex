@@ -10,7 +10,7 @@
     <meta name="author" content="">
     <link rel="icon" href="logos/vaex_alt.png">
 
-    <title>Vaex: Visualization and exploration of big tabular data</title>
+    <title>Vaex: Out-of-Core DataFrames to visualize and explore big tabular datasets.</title>
 
     <!-- Bootstrap core CSS -->
     <link href="css/bootstrap.min.css" rel="stylesheet">
@@ -48,7 +48,7 @@
               </button>
                 <!--<a class="navbar-brand" href="#"><span class="glyphicon icon-spectabular"></span>vaex</a> -->
                <!--  <a class="navbar-brand" href="#"><span class="glyphicon icon-spectabular"></span>V&#xe6;X</a>-->
-              <a class="navbar-brand" href="http://vaex.astro.rug.nl"><li class="glyphicon icon-telescope3" style="color: white"></li>vaex</i>(beta)</a>
+              <a class="navbar-brand" href="https://vaex.io"><li class="glyphicon icon-telescope3" style="color: white"></li>Vaex.io</i></a>
             </div>
             <div id="navbar" class="navbar-collapse collapse">
               <ul class="nav navbar-nav">
@@ -61,7 +61,7 @@
                     <li><a href="#example" class="page-scroll"><i class="fa fa-file-code-o"></i>Example code</a></li>
                   </ul>
               </li>
-                <li><a href="//docs.vaex.io/"><i class="fa fa-book"></i>Documentation</a></li>
+                <li><a href="http://docs.vaex.io/"><i class="fa fa-book"></i>Documentation</a></li>
                 <li class="dropdown">
                   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">More <span class="caret"></span></a>
                   <ul class="dropdown-menu">
@@ -157,14 +157,12 @@
     </div><!-- /.carousel -->
 
 
-    <!-- Marketing messaging and featurettes
-    ================================================== -->
-    <!-- Wrap the rest of the page in another container to center all the content. -->
     <div class="jumbotron">
-    <h1><li class="glyphicon icon-telescope3"></li>vaex: visualization and exploration of big tabular data</h1>
-        <p class="lead">A billion objects per second on a single computer. <span class="text-muted">Standalone or Python library.</span></p>
+    <h1><li class="glyphicon icon-telescope3"></li>Vaex: Out-of-Core DataFrames to visualize and explore big tabular datasets.</h1>
+        <p class="lead">A billion rows per second on a single computer. <span class="text-muted">Python library.</span></p>
         <p>
-          <a class="btn btn-lg btn-success page-scroll" href="#download" role="button"><i class="fa fa-download"></i>Download</a>
+          <a class="btn btn-lg btn-success page-scroll" href="https://docs.vaex.io/en/latest/tutorial.html" role="button"><i class="fa fa-book"></i>Tutorial</a>
+          <a class="btn btn-lg btn-success page-scroll" href="#install" role="button"><i class="fa fa-download"></i>Install</a>
           <a id="bla" class="btn btn-lg btn-success" href="https://www.youtube.com/watch?v=NpWLef7-0Yg" data-toggle="lightbox" data-width="1024" role="button"><i class="fa fa-film"></i>Demo movie</a>
         </p>
     </div>
@@ -213,10 +211,10 @@
             <ul>
                 <li>Visualize and explore <b>big tabular data</b> interactively</li>
                 <li>Process more than a <b>billion objects</b> per second on a single computer.</li>
-                <li>Custom mathematical expressions can <b>transform</b> data on the fly.</li>
-                <li><b>Explore</b> the dataset by using visual queries and boolean expressions to visualize subsets of the data.</li>
-                <li>vaex has a <b>graphical interface</b> for most common uses cases.</li>
-                <li>vaex is also Python library for custom plots and applications, such as in the <b>Jupyter/IPython notebook</b>.</li>
+                <li><b>Transform</b> the data (lazily) on the fly using regular numpy, without using memory.</li>
+                <li><b>Filter</b> the dataset by using visual queries and boolean expressions to visualize subsets of the or to do data cleansing.</li>
+                <li>Vaex has a <b>graphical interface</b> for most common uses cases.</li>
+                <li>Vaex integrates well in the <b>Jupyter/IPython notebook/lab</b> ecosystem.</li>
                 <li><b>Client/server</b> architecture: Delegate computations to a remote server. (<i>in development</i>)</li>
                 <li>Use a <b>cluster</b> to visualize and explore even larger datasets (10-100 billion). (<i>in development</i>)</li>
                 <li>With a focus on astronomy and astrophysics, but widely applicable.</li>
@@ -237,11 +235,12 @@
         <div class="col-md-7 col-md-push-5">
           <h2 class="featurette-heading">How does it work?<!--<span class="text-muted">Make interactive selection.</span>--></h2>
             <p class="lead">
-                vaex does this by
+                Vaex does this by:
                 <ul>
                     <li><b>Binning</b> or <b>aggregating</b> the data on a grid, using simple optimized algorithms</li>
+                    <li><b>Virtual columns</b> behave like regular columns, but are only computed in chunks when needed not to waste memory.</li>
                     <li><b>Columnar</b> storage of data avoids reading unneeded data and enables maximum performance of hard drives.</li>
-                    <li><b>Memory mapped</b> files avoids unneeded reading, and copying of data.</li>
+                    <li><b>Memory mapped</b> files avoids unneeded reading, and copying of data. Open a <b>terrabytes</b> file in <b>milliseconds</b>.</li>
                 </ul>
             </p>
 
@@ -263,12 +262,6 @@
         <div class="col-md-7">
           <h2 class="featurette-heading">What is vaex?</h2>
             <ul>
-                <li>A program that</li>
-                <ul>
-                    <li>Visualizes 1d histograms, 2d density plots, averages quantities, and 3d volume rendering </li>
-                    <li>Allows interactive <b>navigation</b> and <b>selection</b></li>
-                    <li>Overlay <b>vector</b> and <b>tensor</b> quantities in 2 and 3d.</li>
-                </ul>
                 <li>A Python library/package for (data) scientists:</li>
                 <ul>
                     <li>Is <b>pip</b> and <b>conda</b> installable.</li>
@@ -278,6 +271,13 @@
                     <li>Publication quality plots with <b>matplotlib</b>.</li>
                     <li>Interactive plots with <b>bqplot</b> or <b>bokeh</b>.</li>
                     <li>Combine the notebook with the graphical interface in one kernel</li>
+                </ul>
+                <li>Has a standalone program/gui that</li>
+                <ul>
+                    <li>Requires no programming knowledge</li>
+                    <li>Visualizes 1d histograms, 2d density plots, averages quantities, and 3d volume rendering </li>
+                    <li>Allows interactive <b>navigation</b> and <b>selection</b></li>
+                    <li>Overlay <b>vector</b> and <b>tensor</b> quantities in 2 and 3d.</li>
                 </ul>
             </ul>
           <!--<p class="lead">
@@ -903,12 +903,12 @@
       <hr class="featurette-divider">
 
       <div class="row featurette">
-        <a id="download" name="download"></a>
+        <a id="install" name="install"></a>
         <div class="col-md-5">
-          <a class="download-vaex" href="#download"><i class="fa fa-download fa-big falink-black" aria-hidden="true"></i> </a>
+          <a class="download-vaex" href="#install"><i class="fa fa-download fa-big falink-black" aria-hidden="true"></i> </a>
         </div>
         <div class="col-md-7">
-          <h2 class="featurette-heading">Download.</h2>
+          <h2 class="featurette-heading">Installation</h2>
 
           <p class="lead">Desktop user? Download the standalone <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-osx.zip">OSX</a> or
             <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-linux.tar.gz">Linux</a> version. *
@@ -931,7 +931,7 @@
               $ pip install git+https://github.com/maartenbreddels/vaex/
           </code>
           </p>
-          <p class="lead">Or see <a href="http://vaex.astro.rug.nl/latest/installing.html">more detailed instructions</a>.</p>
+          <p class="lead">Or see <a href="https://docs.vaex.io/en/latest/installing.html">more detailed instructions</a>.</p>
 
           <span class="text-muted" style="font-size: 80%">*Not possible to combine with the IPython/Jupyter notebook</span>.
 
@@ -959,8 +959,8 @@
                 <h2 class="featurette-heading">Python example.</h2>
       Run <code>python</code></codfe>, and paste:
 <pre><code class="python">import vaex as vx
-dataset = vx.datasets.helmi_de_zeeuw.fetch() # get a cup of coffee while this downloads
-dataset.plot("Lz", "E", f="log1p", show=True)
+ds = vx.datasets.helmi_de_zeeuw.fetch() # get a cup of coffee while this downloads
+ds.plot(ds.Lz, ds.E, f="log1p", show=True)
 </code></pre>
 <a href="#" data-target="#myCarousel-code" data-slide-to="1">See next example, with a larger dataset</a>
               </div>
@@ -979,8 +979,8 @@ dataset.plot("Lz", "E", f="log1p", show=True)
               <h2 class="featurette-heading">Notebook example.</h2>
       From the IPython/Jupter notebook, run
 <pre><code class="python">import vaex as vx
-dataset = vx.datasets.nyctaxi_yellow_201x.fetch() # get a cup of coffee while this downloads
-dataset.plot_widget("pickup_longitude","pickup_latitude", f="log1p")
+ds = vx.datasets.nyctaxi_yellow_201x.fetch() # get a cup of coffee while this downloads
+ds.plot_widget(ds.pickup_longitude, ds.pickup_latitude, f="log1p")
 </code></pre>
 The plot is interactive, meaning you can zoom in and out and the plot will be updated.
 You will need about, ~15BG or free memory for a proper performance, or replace <code>nyc_taxi</code> by <code>nyc_taxi_2015</code> for a subset.
@@ -1430,7 +1430,7 @@ You will need about, ~15BG or free memory for a proper performance, or replace <
 
 <p>
             <ul>Contact the main author by email or on twitter:
-                <li> <a href="mailto:breddels@astro.rug.nl"><i class="fa fa-envelope"></i> breddels@astro.rug.nl</a>
+                <li> <a href="mailto:maartenbreddels@gmail.com"><i class="fa fa-envelope"></i>maartenbreddels@gmail.com</a>
                 </li>
 
 
