@@ -61,6 +61,7 @@ Dataset class
 
 .. autoclass:: vaex.dataset.Dataset
      :members:
+     :special-members:
 
 
 vaex.stat module
