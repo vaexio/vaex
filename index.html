@@ -25,9 +25,9 @@
     <![endif]-->
 
     <link href="css/vaex.css" rel="stylesheet">
-    <link href="//cdnjs.cloudflare.com/ajax/libs/ekko-lightbox/4.0.1/ekko-lightbox.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css">
-    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.5.0/styles/monokai-sublime.min.css">
+    <link href="http://cdnjs.cloudflare.com/ajax/libs/ekko-lightbox/4.0.1/ekko-lightbox.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css">
+    <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.5.0/styles/monokai-sublime.min.css">
 
 
   </head>
@@ -158,11 +158,11 @@
 
 
     <div class="jumbotron">
-    <h1><li class="glyphicon icon-telescope3"></li>Vaex: Out-of-Core DataFrames for Python to visualize and explore big tabular datasets.</h1>
-        <p class="lead">A billion rows per second on a single computer. <span class="text-muted">Python library.</span></p>
+    <h1 style="font-size: 350%;"><li class="glyphicon icon-telescope3"></li>Vaex: Out-of-Core DataFrames for Python.</h1>
+        <p class="lead">Visualize and explore big tabular datasets. A billion rows per second on a single computer.</p>
         <p>
-          <a class="btn btn-lg btn-success page-scroll" href="#docs" role="button"><i class="fa fa-book"></i>Docs</a>
           <a class="btn btn-lg btn-success page-scroll" href="#install" role="button"><i class="fa fa-download"></i>Install</a>
+          <a class="btn btn-lg btn-success page-scroll" href="#docs" role="button"><i class="fa fa-book"></i>Docs</a>
           <a id="bla" class="btn btn-lg btn-success" href="https://www.youtube.com/watch?v=NpWLef7-0Yg" data-toggle="lightbox" data-width="1024" role="button"><i class="fa fa-film"></i>Demo movie</a>
         </p>
     </div>
@@ -218,7 +218,7 @@
                 <li><b>Client/server</b> architecture: Delegate computations to a remote server. (<i>in development</i>)</li>
                 <li>Use a <b>cluster</b> to visualize and explore even larger datasets (10-100 billion). (<i>in development</i>)</li>
                 <li>With a focus on astronomy and astrophysics, but widely applicable.</li>
-                <li>Can visualize the whole <a href="#gaia"><b>Gaia catalogue</b></a> in one second.</li>
+                <li>Can visualize the whole <a href="#gaia" class="page-scroll"><b>Gaia catalogue</b></a> in one second.</li>
             </ul>
             </p>
         </div>
@@ -985,7 +985,7 @@
                 <h2 class="featurette-heading">Python example.</h2>
       Run <code>python</code></codfe>, and paste:
 <pre><code class="python">import vaex as vx
-ds = vx.datasets.helmi_de_zeeuw.fetch() # get a cup of coffee while this downloads
+ds = vx.datasets.helmi_de_zeeuw.fetch() # may take a bit
 ds.plot(ds.Lz, ds.E, f="log1p", show=True)
 </code></pre>
 <a href="#" data-target="#myCarousel-code" data-slide-to="1">See next example, with a larger dataset</a>
@@ -1005,7 +1005,7 @@ ds.plot(ds.Lz, ds.E, f="log1p", show=True)
               <h2 class="featurette-heading">Notebook example.</h2>
       From the IPython/Jupter notebook, run
 <pre><code class="python">import vaex as vx
-ds = vx.datasets.nyctaxi_yellow_201x.fetch() # get a cup of coffee while this downloads
+ds = vx.datasets.nyctaxi_yellow_201x.fetch() # may take a bit
 ds.plot_widget(ds.pickup_longitude, ds.pickup_latitude, f="log1p")
 </code></pre>
 The plot is interactive, meaning you can zoom in and out and the plot will be updated.
@@ -1503,20 +1503,20 @@ You will need about, ~15BG or free memory for a proper performance, or replace <
     <!-- Bootstrap core JavaScript
     ================================================== -->
     <!-- Placed at the end of the document so the pages load faster -->
-    <script async src="//platform.twitter.com/widgets.js" charset="utf-8"></script>
+    <script async src="http://platform.twitter.com/widgets.js" charset="utf-8"></script>
     <script src="https://npmcdn.com/jupyter-js-widgets@~1.1.2/dist/embed.js">
-    <script src="//code.jquery.com/jquery.js"></script>
+    <script src="http://code.jquery.com/jquery.js"></script>
     <script src="js/jquery.client.js"></script>
     <script>window.jQuery || document.write('<script src="../../assets/js/vendor/jquery.min.js"><\/script>')</script>
     <script src="js/jquery.easing.min.js"></script>
-    <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
-    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.5.0/highlight.min.js"></script>
-    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.5.0/languages/python.min.js"></script>
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.5.0/highlight.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.5.0/languages/python.min.js"></script>
     <script>hljs.initHighlightingOnLoad();</script>
     <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
     <!--<script src="../../assets/js/ie10-viewport-bug-workaround.js"></script>-->
 
-		<script src="//cdnjs.cloudflare.com/ajax/libs/ekko-lightbox/4.0.1/ekko-lightbox.js"></script>
+		<script src="http://cdnjs.cloudflare.com/ajax/libs/ekko-lightbox/4.0.1/ekko-lightbox.js"></script>
 		<script type="text/javascript">
 			$(document).ready(function ($) {
 			    if(($.client.os == "Linux") || ($.client.os == "Mac")) {
