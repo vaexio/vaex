@@ -11,7 +11,7 @@ kapteyn
 cachetools
 progressbar2
 jupyter
-nbconvert
-nbsphinx
+nbconvert>=5.1.1
+nbsphinx>=0.2.13
 ipython
 jupyter-sphinx>=0.1.2
