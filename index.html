@@ -52,7 +52,8 @@
             </div>
             <div id="navbar" class="navbar-collapse collapse">
               <ul class="nav navbar-nav">
-                <li><a href="#download" class="page-scroll" ><i class="fa fa-download"></i>Download</a></li>
+                <li><a href="#install" class="page-scroll" ><i class="fa fa-download"></i>Install</a></li>
+                <li><a href="#docs"    class="page-scroll"><i class="fa fa-book"></i>Documentation</a></li>
                 <li class="dropdown">
                   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><i class="fa fa-eye"></i>Demonstration<span class="caret"></span></a>
                   <ul class="dropdown-menu">
@@ -60,20 +61,19 @@
                     <li> <a href="#demo" class="page-scroll"><i class="fa fa-desktop"></i>Live demonstration</a> </li>
                     <li><a href="#example" class="page-scroll"><i class="fa fa-file-code-o"></i>Example code</a></li>
                   </ul>
-              </li>
-                <li><a href="http://docs.vaex.io/"><i class="fa fa-book"></i>Documentation</a></li>
+                </li>
                 <li class="dropdown">
                   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">More <span class="caret"></span></a>
                   <ul class="dropdown-menu">
                     <li><a href="https://github.com/maartenbreddels/vaex"><i class="fa fa-github"></i>Github</a></li>
-                    <li><a href="http://vaex.astro.rug.nl/latest/installing.html"><i class="fa fa-download"></i>Download/Install instructions</a></li>
+                    <li><a href="https://docs.vaex.io/en/latest/installing.html"><i class="fa fa-download"></i>Installation/download instructions</a></li>
                     <li><a href="https://pypi.python.org/pypi/vaex/"><i class="fa fa-archive"></i>Vaex on pypi</a></li>
-                    <li><a href="http://vaex.astro.rug.nl/latest/gallery.html"><i class="fa fa-picture-o"></i>Gallery</a></li>
+                    <li><a href="https://docs.vaex.io/latest/gallery.html"><i class="fa fa-picture-o"></i>Gallery</a></li>
                     <li role="separator" class="divider"></li>
                     <li class="dropdown-header"><i class="fa fa-book"></i>Documentation</li>
-                    <li><a href="//docs.vaex.io/"><i class="fa-empty"></i>Home</a></li>
-                    <li><a href="//docs.vaex.io/en/latest/tutorial_ipython_notebook.html"><i class="fa-empty"></i>Tutorials</a></li>
-                    <li><a href="//docs.vaex.io/en/latest/api.html"><i class="fa "></i>API</a></li>
+                    <li><a href="https://docs.vaex.io/"><i class="fa-book"></i>Main page</a></li>
+                    <li><a href="https://docs.vaex.io/en/latest/tutorial.html"><i class="fa fa-university"></i>Tutorial</a></li>
+                    <li><a href="https://docs.vaex.io/en/latest/api.html"><i class="fa fa-cogs"></i>API</a></li>
                   </ul>
                 </li>
               </ul>
@@ -161,7 +161,7 @@
     <h1><li class="glyphicon icon-telescope3"></li>Vaex: Out-of-Core DataFrames to visualize and explore big tabular datasets.</h1>
         <p class="lead">A billion rows per second on a single computer. <span class="text-muted">Python library.</span></p>
         <p>
-          <a class="btn btn-lg btn-success page-scroll" href="https://docs.vaex.io/en/latest/tutorial.html" role="button"><i class="fa fa-book"></i>Tutorial</a>
+          <a class="btn btn-lg btn-success page-scroll" href="#docs" role="button"><i class="fa fa-book"></i>Docs</a>
           <a class="btn btn-lg btn-success page-scroll" href="#install" role="button"><i class="fa fa-download"></i>Install</a>
           <a id="bla" class="btn btn-lg btn-success" href="https://www.youtube.com/watch?v=NpWLef7-0Yg" data-toggle="lightbox" data-width="1024" role="button"><i class="fa fa-film"></i>Demo movie</a>
         </p>
@@ -294,6 +294,71 @@
           <img class="featurette-image img-responsive center-block" src="image/notebook.png"" alt="Generic placeholder image">
         </div>
       </div>
+
+
+
+
+      <hr class="featurette-divider">
+
+      <div class="row featurette">
+        <a id="install" name="install"></a>
+        <div class="col-md-5">
+          <a class="download-vaex" href="#install"><i class="fa fa-download fa-big falink-black" aria-hidden="true"></i> </a>
+        </div>
+        <div class="col-md-7">
+          <h2 class="featurette-heading">Installation</h2>
+
+          <p class="lead">Desktop user? Download the standalone <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-osx.zip">OSX</a> or
+            <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-linux.tar.gz">Linux</a> version. *
+
+          </p>
+          <p class="lead">For programming? Install the python package:
+            <br/>
+            <code>
+              $ pip install --user --pre vaex
+          </code>
+          </p>
+          <p class="lead">Or for anaconda users:
+            <br/>
+            <code>
+              $ conda install -c conda-forge vaex
+          </code>
+          <p class="lead">Latest from git:
+            <br/>
+            <code>
+              $ pip install git+https://github.com/maartenbreddels/vaex/
+          </code>
+          </p>
+          <p class="lead">Or see <a href="https://docs.vaex.io/en/latest/installing.html">more detailed instructions</a>.</p>
+
+          <span class="text-muted" style="font-size: 80%">*Not possible to combine with the IPython/Jupyter notebook</span>.
+
+        </div>
+      </div>
+
+
+
+      <hr class="featurette-divider">
+
+      <div class="row featurette">
+        <a id="docs" name="docs"></a>
+        <div class="col-md-5">
+          <a class="download-vaex" href="https://docs.vaex.io"><i class="fa fa-book fa-big falink-black" aria-hidden="true"></i> </a>
+        </div>
+        <div class="col-md-7">
+          <h2 class="featurette-heading">Documentation</h2>
+
+          <li>
+            <ul><a href="https://docs.vaex.io/"><i class="fa fa-book"></i>Main documentation page</ul>
+            <ul><a href="https://docs.vaex.io/en/latest/tutorial.html"><i class="fa fa-university"></i>Tutorial</ul>
+            <ul><a href="https://docs.vaex.io/en/latest/api.html"><i class="fa fa-cogs"></i>API documentation</ul>
+          </li>
+
+        </div>
+      </div>
+
+
+
 
       <hr class="featurette-divider">
       <a id="demo" name="demo"></a>
@@ -898,45 +963,6 @@
         </div>
       </div>
 
-
-
-      <hr class="featurette-divider">
-
-      <div class="row featurette">
-        <a id="install" name="install"></a>
-        <div class="col-md-5">
-          <a class="download-vaex" href="#install"><i class="fa fa-download fa-big falink-black" aria-hidden="true"></i> </a>
-        </div>
-        <div class="col-md-7">
-          <h2 class="featurette-heading">Installation</h2>
-
-          <p class="lead">Desktop user? Download the standalone <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-osx.zip">OSX</a> or
-            <a href="http://vaex.astro.rug.nl/program/vaex-1.0.0-beta.4-linux.tar.gz">Linux</a> version. *
-
-          </p>
-          <p class="lead">For programming? Install the python package:
-            <br/>
-            <code>
-              $ pip install --user --pre vaex
-          </code>
-          </p>
-          <p class="lead">Or for anaconda users:
-            <br/>
-            <code>
-              $ conda install -c conda-forge vaex
-          </code>
-          <p class="lead">Latest from git:
-            <br/>
-            <code>
-              $ pip install git+https://github.com/maartenbreddels/vaex/
-          </code>
-          </p>
-          <p class="lead">Or see <a href="https://docs.vaex.io/en/latest/installing.html">more detailed instructions</a>.</p>
-
-          <span class="text-muted" style="font-size: 80%">*Not possible to combine with the IPython/Jupyter notebook</span>.
-
-        </div>
-      </div>
 
 
 
