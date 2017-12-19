@@ -2162,30 +2162,16 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(sumy, 0+1+4)
 
 	def test_select_circle(self):
-		# Generate test data
-		x = np.arange(-2,3)
-		x, y = np.meshgrid(x,x)
+		# Circular selection
+		self.dataset.select_circle('x', 'y', 0.5, 0.5, 1, name='circ')
+		# Assert
+		np.testing.assert_equal(2, self.dataset.count(selection='circ'))
 
-		# add to dataset
-		ds = vx.from_arrays(x=x, y=y)
-		# do the selection
-		ds.select_circle('x', 'y', 0.5, 0.5, 1, name='circ')
-
-		# assert
-		np.testing.assert_equal(4, ds.selected_length('circ'))
-
-	def test_select_circle(self):
-		# Generate test data
-		x = np.arange(-2,3)
-		x, y = np.meshgrid(x,x)
-
-		# add to dataset
-		ds = vx.from_arrays(x=x, y=y)
-		# do the selection
-		ds.select_ellipse('x', 'y', -0.5, -0.5, 1, 2.5, 30, name='elli')
-
-		# assert
-		np.testing.assert_equal(2, ds.selected_length('elli'))
+	def test_select_ellipse(self):
+		# Ellipse election
+		self.dataset.select_ellipse('x', 'y', 3, 10, 2, 15, -10, name='elli')
+		# Assert
+		np.testing.assert_equal(3, self.dataset.count(selection='elli'))
 
 
 # allow multiple python versions on one machine to run the test
