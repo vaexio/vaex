@@ -45,29 +45,35 @@ Quick list for statistics.
     vaex.dataset.Dataset.mutual_information
 
 
+.. toctree::
+
+vaex module
+-----------
+
 .. automodule:: vaex
     :members: open, from_arrays, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, server, example, app, zeldovich, set_log_level_debug, set_log_level_info, set_log_level_warning, set_log_level_exception, set_log_level_off, delayed
     :undoc-members:
     :show-inheritance:
+
+
+Dataset class
+-------------
+
+.. autoclass:: vaex.dataset.Dataset
+     :members:
+     :special-members:
+
+
+vaex.stat module
+----------------
 
 .. automodule:: vaex.stat
     :members:
 
 
 .. autoclass:: vaex.stat.Statistic
-     :members:
+    :members:
 
-
-.. autoclass:: vaex.dataset.Dataset
-     :members:
-     :nested: viz, ml
-
-
-
-.. .. .. automodule:: vaex
-.. ..     :members: open, server, example, from_arrays, from_pandas, from_ascii, from_samp, open_many, app, zeldovich, set_log_level_debug, set_log_level_info, set_log_level_warning, set_log_level_exception, set_log_level_off
-.. ..     :undoc-members:
-.. ..     :show-inheritance:
 
 .. .. Subpackages
 .. .. -----------
