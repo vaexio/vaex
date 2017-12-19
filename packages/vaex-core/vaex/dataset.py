@@ -4209,7 +4209,7 @@ class Dataset(object):
 					   (expression, (lmin, lmax)) in zip(spaces, sorted_limits)]
 		self.select("&".join(expressions), mode=mode)
 
-	def select_circle(self, x , y, xc, yc, r, mode="replace", name="default"):
+	def select_circle(self, x , y, xc, yc, r, mode="replace", name="default", inclusive=True):
 		"""
 		Select a circular region centred on xc, yc, with a radius of r.
 
@@ -4226,10 +4226,15 @@ class Dataset(object):
 		>>> ds.select_circle('x','y',2,3,1)
 		"""
 
-		expr = "({x}-{xc})**2 + ({y}-{yc})**2 <={r}**2".format(**locals())
+		# expr = "({x}-{xc})**2 + ({y}-{yc})**2 <={r}**2".format(**locals())
+		if inclusive:
+			expr = (self[x] - xc)**2 + (self[y] - yc)**2 <= r**2
+		else:
+			expr = (self[x] - xc)**2 + (self[y] - yc)**2 < r**2
+		
 		self.select(boolean_expression=expr, mode=mode, name=name)
 
-	def select_ellipse(self, x, y, xc, yc, width, height, angle=0, mode="replace", name="default", radians=False):
+	def select_ellipse(self, x, y, xc, yc, width, height, angle=0, mode="replace", name="default", radians=False, inclusive=True):
 		"""
 		Select an elliptical region centred on xc, yc, with a certain width, height
 		and angle. 
@@ -4262,6 +4267,12 @@ class Dataset(object):
 		b = yr/r
 
 		expr = "(({x}-{xc})*cos({alpha})+({y}-{yc})*sin({alpha}))**2/{a}**2 + (({x}-{xc})*sin({alpha})-({y}-{yc})*cos({alpha}))**2/{b}**2 <= {r}**2".format(**locals())
+
+		if inclusive:
+			expr = ((self[x] - xc)*np.cos(alpha) + (self[y] - yc)*np.sin(alpha))**2/a**2 + ((self[x] - xc)*np.sin(alpha) - (self[y] - yc)*np.cos(alpha))**2/b**2 <= r**2
+		else:
+			expr = ((self[x] - xc)*np.cos(alpha) + (self[y] - yc)*np.sin(alpha))**2/a**2 + ((self[x] - xc)*np.sin(alpha) - (self[y] - yc)*np.cos(alpha))**2/b**2 < r**2
+
 		self.select(boolean_expression=expr, mode=mode, name=name)
 
 	def select_lasso(self, expression_x, expression_y, xsequence, ysequence, mode="replace", name="default", executor=None):
