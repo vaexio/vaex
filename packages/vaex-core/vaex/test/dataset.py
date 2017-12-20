@@ -2161,6 +2161,17 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(sumx, 0+1+2)
 		self.assertAlmostEqual(sumy, 0+1+4)
 
+	def test_select_circle(self):
+		# Circular selection
+		self.dataset.select_circle('x', 'y', 0.5, 0.5, 1, name='circ')
+		# Assert
+		np.testing.assert_equal(2, self.dataset.count(selection='circ'))
+
+	def test_select_ellipse(self):
+		# Ellipse election
+		self.dataset.select_ellipse('x', 'y', 3, 10, 2, 15, -10, name='elli')
+		# Assert
+		np.testing.assert_equal(3, self.dataset.count(selection='elli'))
 
 
 # allow multiple python versions on one machine to run the test
