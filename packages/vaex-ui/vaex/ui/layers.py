@@ -1228,7 +1228,7 @@ class LayerTable(object):
 				.then(None, self.on_error)
 			promises.append(histogram_promise)
 
-			@vaex.delayed.delayed
+			@vaex.delayed
 			def update_count(count):
 				self.label_selection_info_update(count)
 			update_count(self.dataset.count(selection=True, delay=True))

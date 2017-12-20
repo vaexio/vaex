@@ -1120,8 +1120,6 @@ class PlotDialog(QtGui.QWidget):
 			boolean_expression = "((%s) >= %f) & ((%s) < %f)" % (expr, vmin, expr, vmax)
 			logger.debug("expression: %s", boolean_expression)
 			layer.dataset.select(boolean_expression, self.select_mode)
-			mask = layer.dataset.mask
-			action = undo.ActionMask(layer.dataset.undo_manager, "select %s range[%f,%f]" % (name, vmin, vmax), mask, layer.apply_mask)
 
 	def onSelectX(self, xmin, xmax, axes):
 		self.select("x", xmin, xmax)
@@ -1136,15 +1134,11 @@ class PlotDialog(QtGui.QWidget):
 		y = np.ascontiguousarray(y, dtype=np.float64)
 		for layer in self.active_layers():
 			layer.dataset.select_lasso(layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], x, y, mode=self.select_mode)
-			#self.dataset.evaluate(select, layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], **self.getVariableDict())
 			meanx = x.mean()
 			meany = y.mean()
 			mask = layer.dataset.mask
-			action = undo.ActionMask(layer.dataset.undo_manager, "lasso around [%f,%f]" % (meanx, meany), mask, layer.apply_mask)
-			#action.do()
 			self.checkUndoRedo()
 			self.queue_update()
-			#self.setMode(self.lastAction)
 		return
 
 	def on_select_rectangle(self, pos1, pos2, axes):
@@ -1158,10 +1152,6 @@ class PlotDialog(QtGui.QWidget):
 			expression = "((%s) >= %f) & ((%s) <= %f) & ((%s) >= %f) & ((%s) <= %f)" % args
 			logger.debug("rectangle selection using expression: %r" % expression)
 			layer.dataset.select(expression, mode=self.select_mode)
-			#layer.dataset.evaluate(select, layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], **self.getVariableDict())
-			mask = layer.dataset.mask
-			action = undo.ActionMask(layer.dataset.undo_manager, "rectangle from [%f,%f] to [%f,%f]" % (pos1.xdata, pos1.ydata, pos2.xdata, pos2.ydata), mask, layer.apply_mask)
-			#action.do()
 			self.checkUndoRedo()
 			self.queue_update()
 		return
@@ -2373,35 +2363,15 @@ class PlotDialog(QtGui.QWidget):
 			layer.dataset.select(expression, mode=self.select_mode)
 			#self.dataset.evaluate(select, layer.state.expressions[axes.xaxis_index], layer.state.expressions[axes.yaxis_index], **self.getVariableDict())
 			mask = layer.dataset.mask
-			action = undo.ActionMask(layer.dataset.undo_manager, "selected (%d-D)viewport" % (self.dimensions), mask, layer.apply_mask)
-			#action.do()
-			#self.checkUndoRedo()
 			self.queue_update()
 
 	def onActionSelectNone(self):
-		#self.dataset.selectMask(None)
-		#self.dataset.executor.execute()
-		#layer = self.current_layer
-		#if layer is not None:
 		for layer in self.active_layers():
 			layer.dataset.select(None)
-			action = undo.ActionMask(layer.dataset.undo_manager, "clear selection", None, layer.apply_mask)
-			#action.do()
-		#self.checkUndoRedo()
 
 	def onActionSelectInvert(self):
 		for layer in self.active_layers():
 			layer.dataset.select_inverse()
-			self.queue_update()
-			return
-			mask = layer.dataset.mask
-			if mask is not None:
-				mask = ~mask
-			else:
-				mask = np.ones(len(layer.dataset), dtype=np.bool)
-			action = undo.ActionMask(layer.dataset.undo_manager, "invert selection", mask, layer.apply_mask)
-			#action.do()
-			#self.checkUndoRedo()
 			self.queue_update()
 
 	def onActionSelect(self):

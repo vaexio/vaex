@@ -1,1 +1,2 @@
+include vaex/ui/icons/*.png
 include LICENSE.txt

@@ -23,7 +23,8 @@ setup(name=name+'-ui',
     author=author,
     author_email=author_email,
     install_requires=install_requires_ui,
+    include_package_data=True,  # include files listed in manifest.in
     license=license,
-    packages=['vaex.ui'],
+    packages=['vaex.ui', 'vaex.ui.plugin', 'vaex.ui.icons'],
     zip_safe=False
     )
