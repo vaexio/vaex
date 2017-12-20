@@ -4,18 +4,18 @@
 #try:
 #	import sampy
 #except ImportError:
-#import astropy.vo.samp as sampy
+#import astropy.samp as sampy
 import logging
 import threading
 import time
-import astropy.vo.samp
+import astropy.samp
 
 logger = logging.getLogger("vaex.samp")
 
 
 class Samp(object):
 	def __init__(self, daemon=True, name=None):
-		self.client = astropy.vo.samp.SAMPIntegratedClient(metadata = {"samp.name":"Gavi client" if name is None else name,
+		self.client = astropy.samp.SAMPIntegratedClient(metadata = {"samp.name":"Gavi client" if name is None else name,
 										"samp.description.text": "Gavi client" if name is None else name,
 										"gavi.samp.version":"0.01"}, callable=True)
 
@@ -33,7 +33,7 @@ class Samp(object):
 		try:
 			self.client.connect()
 			connected = True
-		except astropy.vo.samp.SAMPHubError as e:
+		except astropy.samp.SAMPHubError as e:
 			#print "error connecting to hub", e
 			pass
 
@@ -93,7 +93,7 @@ class Samp(object):
 class SampSingle(object):
 	def __init__(self, name="vaex - single table load"):
 		self.done = False
-		self.client = astropy.vo.samp.SAMPIntegratedClient(name=name)
+		self.client = astropy.samp.SAMPIntegratedClient(name=name)
 		self.client.connect()
 
 		def call(private_key, sender_id, msg_id, mtype, params, extra):

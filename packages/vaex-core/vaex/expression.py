@@ -209,7 +209,8 @@ class Expression(with_metaclass(Meta)):
         funcs = set(vaex.dataset.expression_namespace.keys())
         # if it's a virtual column, we probably want to optimize that
         # TODO: fully extract the virtual columns, i.e. depending ones?
-        if self.expression in self.ds.virtual_columns:
+        expression = self.expression
+        if expression in self.ds.virtual_columns:
             expression = self.ds.virtual_columns[self.expression]
         vaex.expresso.validate_expression(expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
         arguments = list(set(names))
