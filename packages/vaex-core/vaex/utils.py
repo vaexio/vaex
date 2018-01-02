@@ -210,7 +210,7 @@ class CpuUsage(progressbar.widgets.FormatWidgetMixin, progressbar.widgets.TimeSe
 		#utime0, stime0, child_utime0, child_stime0, walltime0 = os.times()
 		return progressbar_mod.widgets.FormatWidgetMixin.__call__(self, progress, data)
 progressbar_mod = progressbar
-def progressbar(name="processing", max_value=1):
+def _progressbar_progressbar2(type=None, name="processing", max_value=1):
 	widgets = [
 		name,
         ': ', progressbar_mod.widgets.Percentage(),
@@ -224,6 +224,47 @@ def progressbar(name="processing", max_value=1):
 	return bar
 	#FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')
 
+def _progressbar_vaex(type=None, name="processing", max_value=1):
+	import vaex.misc.progressbar as pb
+	return pb.ProgressBar(0, 1)
+
+
+class _ProgressBarWidget(object):
+	def __init__(self, name=None):
+		import ipywidgets as widgets
+		from IPython.display import display
+		self.value = 0
+		self.widget = widgets.FloatProgress(min=0, max=1)
+		self.widget.description = name or 'Progress:'
+		display(self.widget)
+
+	def __call__(self, value):
+		self.value = value
+		self.widget.value = value
+
+	def update(self, value):
+		self(value)
+
+	def finish(self):
+		self.widget.description = 'Finished:'
+		self(1)
+
+	# def add_child(self, progress, task, name):
+	# 	#print('add', name)
+	# 	pb = _ProgressBarWidget(name=name)
+	# 	task.signal_progress.connect(pb)
+
+_progressbar_typemap = {}
+_progressbar_typemap['progressbar2'] = _progressbar_progressbar2
+_progressbar_typemap['vaex'] = _progressbar_vaex
+_progressbar_typemap['widget'] = _ProgressBarWidget
+
+def progressbar(type_name=None, name="processing", max_value=1):
+	type_name = type_name or 'vaex'
+	return _progressbar_typemap[type_name](name=name)
+
+def progressbar_widget():
+	pass
 class _progressbar(object):
 	pass
 class _progressbar_wrapper(_progressbar):
@@ -268,6 +309,8 @@ class _progressbar_wrapper_sum(_progressbar):
 		pb = self.add(name)
 		pb.oncancel = task.cancel
 		task.signal_progress.connect(pb)
+		if self.bar and hasattr(self.bar, 'add_child'):
+			self.bar.add_child(pb, task, name)
 
 	def __call__(self, fraction):
 		if self.cancelled:
@@ -301,6 +344,8 @@ class _progressbar_wrapper_sum(_progressbar):
 		pass
 
 def progressbars(f=True,next=None, name=None):
+	if isinstance(f, _progressbar_wrapper_sum):
+		return f
 	if callable(f):
 		next = f
 		f = False
@@ -309,6 +354,8 @@ def progressbars(f=True,next=None, name=None):
 	else:
 		if f is True:
 			return _progressbar_wrapper_sum(bar=progressbar(), next=next, name=name)
+		elif isinstance(f, six.string_types):
+			return _progressbar_wrapper_sum(bar=progressbar(f), next=next, name=name)
 		else:
 			return _progressbar_wrapper_sum(next=next, name=name)
 
