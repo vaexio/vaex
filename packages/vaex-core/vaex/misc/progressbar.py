@@ -38,10 +38,24 @@ class ProgressBar(object):
 		self.starttime = self.prevtime
 		self.prevfraction = 0
 		self.firsttimedone = False
+		self.value = self.min_value
 		
 	## Updates the progress bar, writing a \\t char to stdout, and the progress bar
 	# @param value the current progress of the bar, should be in the range min_value and max_value 
 	def update(self, value):
+		self.value = value
+		print(repr(self), file=self.output, end=' ')
+		self.output.flush()
+
+	def finish(self):
+		self.value = 1
+		print(repr(self), file=self.output, end=' ')
+		self.output.flush()
+
+
+	def __repr__(self):
+		output = ''
+		value = self.value
 		currenttime = time.time()
 		if (self.max_value-self.min_value) == 0:
 			fraction = 1.
@@ -72,16 +86,16 @@ class ProgressBar(object):
 		if (fraction != 1) or (not self.firsttimedone): # last time print a newline char
 			if not self.firsttime:
 				self.firsttime = True
-				print(s, end=' ', file=self.output)
+				output += '\r'+ s#, end=' ', file=self.output)
 			else:
-				print("\r", end=' ', file=sys.stderr)
-				print("\r" + s, end=' ', file=self.output)
-			#print >>self.output, s,
+				output += '\r' + s
 		if (fraction == 1) and (not self.firsttimedone): # last time print a newline char
 			self.firsttimedone = True
-			print("", file=self.output)
+			output += '\n'
+
+		return output
 			
-		self.output.flush()
+		#self.output.flush()
 		#if fraction > 0:
 		#	self.prevtime = currenttime
 		#	self.prevfraction = fraction
