@@ -419,7 +419,9 @@ import os
 import_script = os.path.expanduser("~/.vaex/vaex_import.py")
 if os.path.exists(import_script):
 	try:
-		execfile(import_script)
+		with open(import_script) as f:
+			code = compile(f.read(), import_script, 'exec')
+			exec(code)
 	except:
 		import traceback
 		traceback.print_tb()
