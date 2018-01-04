@@ -4,8 +4,10 @@ import functools
 import ipywidgets as widgets
 from IPython.display import display, clear_output
 
+
 def get_ioloop():
-    import IPython, zmq
+    import IPython
+    import zmq
     ipython = IPython.get_ipython()
     if ipython and hasattr(ipython, 'kernel'):
         return zmq.eventloop.ioloop.IOLoop.instance()
@@ -17,13 +19,14 @@ def debounced(delay_seconds=0.5, method=False):
 
         @functools.wraps(f)
         def execute(*args, **kwargs):
-            if method: # if it is a method, we want to have a counter per instance
+            if method:  # if it is a method, we want to have a counter per instance
                 key = args[0]
             else:
                 key = None
             counters[key] += 1
+
             def debounced_execute(counter=counters[key]):
-                if counter == counters[key]: # only execute if the counter wasn't changed in the meantime
+                if counter == counters[key]:  # only execute if the counter wasn't changed in the meantime
                     f(*args, **kwargs)
             ioloop = get_ioloop()
 
@@ -34,7 +37,10 @@ def debounced(delay_seconds=0.5, method=False):
         return execute
     return wrapped
 
+
 _selection_hooks = []
+
+
 def interactive_cleanup():
     for dataset, f in _selection_hooks:
         dataset.signal_selection_changed.disconnect(f)
@@ -42,9 +48,11 @@ def interactive_cleanup():
 
 def interactive_selection(dataset):
     global _selection_hooks
+
     def wrapped(f_interact):
         if not hasattr(f_interact, "widget"):
             output = widgets.Output()
+
             def _selection_changed(dataset):
                 with output:
                     clear_output(wait=True)

@@ -47,6 +47,7 @@ class MatplotlibBackend(BackendBase):
         self.button_action = widgets.ToggleButtons(description='',
                                                    options=[(action, action) for action in actions],
                                                    icons=["rectangle", "pencil-square-o"])
+
         def change_interact(*args):
             with self.output:
                 print(self.button_action.value)
@@ -65,7 +66,7 @@ class MatplotlibBackend(BackendBase):
         with self.output:
             xlim = self.ax.get_xlim()
             ylim = self.ax.get_ylim()
-            limits = copy.deepcopy(self.limits) # could be higher D
+            limits = copy.deepcopy(self.limits)  # could be higher D
             limits[0] = xlim
             limits[1] = ylim
             if self.limits != limits:

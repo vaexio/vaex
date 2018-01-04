@@ -8,40 +8,42 @@ from IPython.display import HTML, display_html, display_javascript, display
 import numpy as np
 from .utils import debounced
 
+
 def xyz(shape=128, limits=[-3, 3], spherical=False, sparse=True, centers=False):
-	dim = 3
-	try:
-		shape[0]
-	except:
-		shape = [shape] * dim
-	try:
-		limits[0][0]
-	except:
-		limits = [limits] * dim
-	if centers:
-		v = [slice(vmin+(vmax-vmin)/float(N)/2, vmax-(vmax-vmin)/float(N)/4, (vmax-vmin)/float(N)) for (vmin, vmax), N in zip(limits, shape)]
-	else:
-		v = [slice(vmin, vmax+(vmax-vmin)/float(N)/2, (vmax-vmin)/float(N-1)) for (vmin, vmax), N in zip(limits, shape)]
-	if sparse:
-		x, y, z = np.ogrid.__getitem__(v)
-	else:
-		x, y, z = np.mgrid.__getitem__(v)
-	if spherical:
-		r = np.linalg.norm([x, y, z])
-		theta = np.arctan2(y, x)
-		phi = np.arccos(z / r)
-		return x, y, z, r, theta, phi
-	else:
-		return x, y, z
+    dim = 3
+    try:
+        shape[0]
+    except:
+        shape = [shape] * dim
+    try:
+        limits[0][0]
+    except:
+        limits = [limits] * dim
+    if centers:
+        v = [slice(vmin + (vmax - vmin) / float(N) / 2, vmax - (vmax - vmin) / float(N) / 4, (vmax - vmin) / float(N)) for (vmin, vmax), N in zip(limits, shape)]
+    else:
+        v = [slice(vmin, vmax + (vmax - vmin) / float(N) / 2, (vmax - vmin) / float(N - 1)) for (vmin, vmax), N in zip(limits, shape)]
+    if sparse:
+        x, y, z = np.ogrid.__getitem__(v)
+    else:
+        x, y, z = np.mgrid.__getitem__(v)
+    if spherical:
+        r = np.linalg.norm([x, y, z])
+        theta = np.arctan2(y, x)
+        phi = np.arccos(z / r)
+        return x, y, z, r, theta, phi
+    else:
+        return x, y, z
 
 
 class IpyvolumeBackend(BackendBase):
     dim = 3
+
     @staticmethod
     def wants_colors():
         return False
 
-    #def __init__(self):
+    # def __init__(self):
     #    self._first_time = Tr
     def create_widget(self, output, plot, dataset, limits):
         self.output = output
@@ -65,7 +67,7 @@ class IpyvolumeBackend(BackendBase):
     def update_vectors(self, vcount, vgrids, vcount_limits):
         vx, vy, vz = vgrids[:3]
         if vx is not None and vy is not None and vz is not None and vcount is not None:
-            vcount = vcount[-1] # no multivolume render, just take the last selection
+            vcount = vcount[-1]  # no multivolume render, just take the last selection
             vx = vx[-1]
             vy = vy[-1]
             vz = vz[-1]
