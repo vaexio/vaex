@@ -5,20 +5,20 @@ import platform
 
 darwin = "darwin" in platform.system().lower()
 frozen = getattr(sys, 'frozen', False)
-if frozen and len(sys.argv) > 1 and sys.argv[1].startswith("-psn"): # is the 'app' is opened in osx, just stars without arguments
-	dirname = os.path.join(os.path.dirname(sys.argv[0]), "..", "..", "..")
-	os.chdir(dirname)
+if frozen and len(sys.argv) > 1 and sys.argv[1].startswith("-psn"):  # is the 'app' is opened in osx, just stars without arguments
+    dirname = os.path.join(os.path.dirname(sys.argv[0]), "..", "..", "..")
+    os.chdir(dirname)
 
 
-if darwin and frozen: # on newer osx versions we get a lot of broken pipes when writing to stdout
-	directory = os.path.expanduser("~/.vaex")
-	if not os.path.exists(directory):
-		os.makedirs(directory)
-	sys.stdout = open(os.path.expanduser('~/.vaex/stdout.txt'), 'w')
-	sys.stderr = open(os.path.expanduser('~/.vaex/stderr.txt'), 'w')
+if darwin and frozen:  # on newer osx versions we get a lot of broken pipes when writing to stdout
+    directory = os.path.expanduser("~/.vaex")
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    sys.stdout = open(os.path.expanduser('~/.vaex/stdout.txt'), 'w')
+    sys.stderr = open(os.path.expanduser('~/.vaex/stderr.txt'), 'w')
 
 
-#print darwin, platform.system()
+# print darwin, platform.system()
 
 
 usage = """usage veax [-h] {webserver,convert,...}
@@ -84,47 +84,49 @@ vaex example.hdf5 x y amplitude="log(counts+1)" ++ example2.hdf5 x y amplitude="
 see more examples at http://TODO
 
 """
+
+
 def main(args=None):
-	if args is None:
-		args = sys.argv
-	if frozen and len(args) > 1 and args[1].startswith("-psn"): # is the 'app' is opened in osx, just start without arguments
-		import vaex.ui.main
-		vaex.ui.main.main([])
-	else:
-		if len(args) > 1 and args[1] in ["-h", "--help"]:
-			print(usage)
-			sys.exit(0)
-		if len(args) > 1 and args[1] == "version":
-			import vaex.version
-			if frozen:
-				extra = " (build on %s using Python %s)" % (vaex.version.osname, sys.version)
-			else:
-				extra = " (using Python %s)" % (sys.version)
-			print(vaex.__full_name__ + extra)
-		elif len(args) > 1 and args[1] == "webserver":
-			import vaex.webserver
-			vaex.webserver.main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
-		elif len(args) > 1 and args[1] == "benchmark":
-			import vaex.benchmark
-			vaex.benchmark.main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
-		elif len(args) > 1 and args[1] == "convert":
-			import vaex.export
-			vaex.export.main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
-		elif len(args) > 1 and args[1] == "meta":
-			import vaex.meta
-			vaex.meta.main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
-		elif len(args) > 1 and args[1] == "alias":
-			import vaex.misc_cmdline
-			vaex.misc_cmdline.alias_main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
-		elif len(args) > 1 and args[1] == "stat":
-			import vaex.misc_cmdline
-			vaex.misc_cmdline.stat_main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
-		elif len(args) > 1 and args[1] == "test":
-			import vaex.test.__main__
-			vaex.test.__main__.main([os.path.basename(args[0]) +" " +args[1]]  + args[2:])
-		else:
-			import vaex.ui.main
-			vaex.ui.main.main(args[1:])
+    if args is None:
+        args = sys.argv
+    if frozen and len(args) > 1 and args[1].startswith("-psn"):  # is the 'app' is opened in osx, just start without arguments
+        import vaex.ui.main
+        vaex.ui.main.main([])
+    else:
+        if len(args) > 1 and args[1] in ["-h", "--help"]:
+            print(usage)
+            sys.exit(0)
+        if len(args) > 1 and args[1] == "version":
+            import vaex.version
+            if frozen:
+                extra = " (build on %s using Python %s)" % (vaex.version.osname, sys.version)
+            else:
+                extra = " (using Python %s)" % (sys.version)
+            print(vaex.__full_name__ + extra)
+        elif len(args) > 1 and args[1] == "webserver":
+            import vaex.webserver
+            vaex.webserver.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+        elif len(args) > 1 and args[1] == "benchmark":
+            import vaex.benchmark
+            vaex.benchmark.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+        elif len(args) > 1 and args[1] == "convert":
+            import vaex.export
+            vaex.export.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+        elif len(args) > 1 and args[1] == "meta":
+            import vaex.meta
+            vaex.meta.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+        elif len(args) > 1 and args[1] == "alias":
+            import vaex.misc_cmdline
+            vaex.misc_cmdline.alias_main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+        elif len(args) > 1 and args[1] == "stat":
+            import vaex.misc_cmdline
+            vaex.misc_cmdline.stat_main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+        elif len(args) > 1 and args[1] == "test":
+            import vaex.test.__main__
+            vaex.test.__main__.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+        else:
+            import vaex.ui.main
+            vaex.ui.main.main(args[1:])
 
 
 if __name__ == "__main__":
