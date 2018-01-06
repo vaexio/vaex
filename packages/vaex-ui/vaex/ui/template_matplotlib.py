@@ -20,21 +20,20 @@ grid = np.load(filename_grid)
 xmin, xmax, ymin, ymax = meta["extent"]
 
 if has_selection:
-	grid_selection = np.load(filename_grid_selection)
-	pylab.imshow(grid, extent=meta["extent"], origin="lower", cmap="binary")
-	pylab.imshow(grid_selection, alpha=0.4, extent=meta["extent"], origin="lower")
+    grid_selection = np.load(filename_grid_selection)
+    pylab.imshow(grid, extent=meta["extent"], origin="lower", cmap="binary")
+    pylab.imshow(grid_selection, alpha=0.4, extent=meta["extent"], origin="lower")
 else:
-	pylab.imshow(grid, extent=meta["extent"], origin="lower")
+    pylab.imshow(grid, extent=meta["extent"], origin="lower")
 
 if has_vectors:
-	vx, vy, vz = np.load(filename_grid_vector)
-	N = vx.shape[0]
-	dx = (xmax-xmin)/float(N)
-	dy = (ymax-ymin)/float(N)
-	x = np.linspace(xmin+dx/2, xmax-dx/2, N)
-	y = np.linspace(ymin+dy/2, ymax-dy/2, N)
-	x2d, y2d = np.meshgrid(x, y)
-	pylab.quiver(x2d, y2d, vx, vy, color="white")
+    vx, vy, vz = np.load(filename_grid_vector)
+    N = vx.shape[0]
+    dx = (xmax - xmin) / float(N)
+    dy = (ymax - ymin) / float(N)
+    x = np.linspace(xmin + dx / 2, xmax - dx / 2, N)
+    y = np.linspace(ymin + dy / 2, ymax - dy / 2, N)
+    x2d, y2d = np.meshgrid(x, y)
+    pylab.quiver(x2d, y2d, vx, vy, color="white")
 
 pylab.show()
-
