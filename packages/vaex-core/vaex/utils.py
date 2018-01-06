@@ -525,12 +525,17 @@ class BoundMethods(object):
 
 class InnerNamespace(object):
 
-    def __init__(self, methods):
+    def __init__(self, methods, cls=None, prefix=''):
         self._methods = methods
+        self.cls = cls
+        self.prefix = prefix
 
     def _add(self, **kwargs):
         self._methods.update(kwargs)
         self.__dict__.update(kwargs)
+        if self.cls:
+            for name, value in kwargs.items():
+                setattr(self.cls, self.prefix + name, value)
 
     # def __getattr__(self, name):
     # 	if name in self._methods:
