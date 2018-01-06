@@ -10,6 +10,8 @@ import copy
 from .utils import debounced
 
 type_map = {}
+
+
 def register_type(name):
     def reg(cls):
         assert cls not in type_map
@@ -17,10 +19,12 @@ def register_type(name):
         return cls
     return reg
 
+
 def get_type(name):
     if name not in type_map:
         raise ValueError("% not found, options are %r" % (name, type_map.keys()))
     return type_map[name]
+
 
 backends = {}
 backends['ipyleaflet'] = ('vaex.jupyter.ipyleaflet', 'IpyleafletBackend')
@@ -28,6 +32,7 @@ backends['bqplot'] = ('vaex.jupyter.bqplot', 'BqplotBackend')
 backends['ipyvolume'] = ('vaex.jupyter.ipyvolume', 'IpyvolumeBackend')
 backends['matplotlib'] = ('vaex.jupyter.ipympl', 'MatplotlibBackend')
 backends['ipympl'] = backends['mpl'] = backends['matplotlib']
+
 
 def create_backend(name):
     if callable(name):
@@ -41,14 +46,18 @@ def create_backend(name):
         raise NameError("Could not find classname %s in module %s for backend %s" % (class_name, module_name, name))
     return cls()
 
+
 class BackendBase(widgets.Widget):
     dim = 2
     limits = traitlets.List(traitlets.Tuple(traitlets.CFloat(), traitlets.CFloat()))
+
     @staticmethod
     def wants_colors():
         return True
+
     def update_vectors(self, vcount, vgrids, vcount_limits):
         pass
+
 
 class PlotBase(widgets.Widget):
 
@@ -67,7 +76,7 @@ class PlotBase(widgets.Widget):
     def __init__(self, backend, dataset, x, y=None, z=None, w=None, grid=None, limits=None, shape=128, what="count(*)", f=None,
                  vshape=16,
                  selection=None, grid_limits=None, normalize=None, colormap="afmhot",
-                 figure_key=None, fig=None, what_kwargs={}, grid_before=None, vcount_limits=None,**kwargs):
+                 figure_key=None, fig=None, what_kwargs={}, grid_before=None, vcount_limits=None, **kwargs):
         super(PlotBase, self).__init__(x=x, y=y, z=z, w=w, what=what, vcount_limits=vcount_limits, **kwargs)
         self.backend = backend
         self.vgrids = [None, None, None]
@@ -89,7 +98,7 @@ class PlotBase(widgets.Widget):
         self._new_progressbar()
 
         self.output = widgets.Output()
-        #with self.output:
+        # with self.output:
         if 1:
             self._cleanups = []
 
@@ -101,7 +110,7 @@ class PlotBase(widgets.Widget):
             self.backend.create_widget(self.output, self, self.dataset, self.limits)
             self.control_widget = widgets.VBox()
 
-            #self.create_tools()
+            # self.create_tools()
             self.widget = widgets.VBox([self.control_widget, self.backend.widget, self.progress, self.output])
             if grid is None:
                 self.update_grid()
@@ -109,13 +118,14 @@ class PlotBase(widgets.Widget):
                 self.grid = grid
 
         callback = self.dataset.signal_selection_changed.connect(lambda *x: self.update_grid())
+
         def _on_limits_change(*args):
             self._progressbar.cancel()
             self.update_grid()
         self.backend.observe(_on_limits_change, "limits")
         for attrname in "x y z vx vy vz".split():
             def _on_change(*args, attrname=attrname):
-                limits_index = {'x': 0, 'y': 1, 'z':2}.get(attrname)
+                limits_index = {'x': 0, 'y': 1, 'z': 2}.get(attrname)
                 if limits_index is not None:
                     self.backend.limits[limits_index] = None
                 self.update_grid()
@@ -123,13 +133,14 @@ class PlotBase(widgets.Widget):
         self.observe(lambda *args: self.update_grid(), "what")
         self.observe(lambda *args: self.update_image(), "vcount_limits")
 
-        #self.update_image() # sometimes bqplot doesn't update the image correcly
+        # self.update_image() # sometimes bqplot doesn't update the image correcly
 
     def get_limits(self, limits):
         return self.dataset.limits(self.get_binby(), limits)
 
     def active_selections(self):
         selections = vaex.dataset._ensure_list(self.selection)
+
         def translate(selection):
             if selection is False:
                 selection = None
@@ -181,6 +192,7 @@ class PlotBase(widgets.Widget):
             for i, limit in enumerate(limits):
                 if limits[i] is None:
                     limits[i] = self.dataset.limits(xyz[i], delay=True)
+
             @delayed
             def limits_done(limits):
                 with self.output:
@@ -202,8 +214,8 @@ class PlotBase(widgets.Widget):
             promises = []
             pb = self._progressbar.add("grid")
             result = self.dataset._stat(binby=self.get_binby(), what=self.what, limits=self.limits,
-                      shape=self.get_shape(), progress=pb,
-                                          selection=self.active_selections(), delay=True)
+                                        shape=self.get_shape(), progress=pb,
+                                        selection=self.active_selections(), delay=True)
             if delay:
                 promises.append(result)
             else:
@@ -214,8 +226,8 @@ class PlotBase(widgets.Widget):
                 result = None
                 if v:
                     result = self.dataset.mean(v, binby=self.get_binby(), limits=self.limits,
-                           shape=self.get_vshape(), progress=self._progressbar.add("v"+str(i)),
-                           selection=self.active_selections(), delay=delay)
+                                               shape=self.get_vshape(), progress=self._progressbar.add("v" + str(i)),
+                                               selection=self.active_selections(), delay=delay)
                 if delay:
                     promises.append(result)
                 else:
@@ -224,21 +236,22 @@ class PlotBase(widgets.Widget):
             if any(vs):
                 expr = "*".join([v for v in vs if v])
                 result = self.dataset.count(expr, binby=self.get_binby(), limits=self.limits,
-                                                   shape=self.get_vshape(), progress=self._progressbar.add("vcount"),
-                                                   selection=self.active_selections(), delay=delay)
+                                            shape=self.get_vshape(), progress=self._progressbar.add("vcount"),
+                                            selection=self.active_selections(), delay=delay)
             if delay:
                 promises.append(result)
             else:
                 self.vgrids[i] = result
+
             @delayed
             def assign(grid, vx, vy, vz, vcount):
                 with self.output:
-                    if not current_pb.cancelled: # TODO: remote dataset jobs cannot be cancelled
+                    if not current_pb.cancelled:  # TODO: remote dataset jobs cannot be cancelled
                         self.progress.value = 0
                         self.grid = grid
                         self.vgrids = [vx, vy, vz]
                         self.vcount = vcount
-                        #print("assign")
+                        # print("assign")
                         self._update_image()
             if delay:
                 for promise in promises:
@@ -260,9 +273,9 @@ class PlotBase(widgets.Widget):
 
     def _update_image(self):
         with self.output:
-            grid = self.get_grid().copy() # we may modify inplace
+            grid = self.get_grid().copy()  # we may modify inplace
             if self.smooth_pre:
-                for i in range(grid.shape[0]): # seperately for every selection
+                for i in range(grid.shape[0]):  # seperately for every selection
                     grid[i] = vaex.grids.gf(grid[i], self.smooth_pre)
             f = vaex.dataset._parse_f(self.f)
             with np.errstate(divide='ignore', invalid='ignore'):
@@ -275,13 +288,13 @@ class PlotBase(widgets.Widget):
                 color_grid = self.colorize(ngrid)
                 if len(color_grid.shape) > 3:
                     if len(color_grid.shape) == 4:
-                            if color_grid.shape[0] > 1:
-                                color_grid = vaex.image.fade(color_grid[::-1])
-                            else:
-                                color_grid = color_grid[0]
+                        if color_grid.shape[0] > 1:
+                            color_grid = vaex.image.fade(color_grid[::-1])
+                        else:
+                            color_grid = color_grid[0]
                     else:
                         raise ValueError("image shape is %r, don't know what to do with that, expected (L, M, N, 3)" % (color_grid.shape,))
-                I = np.transpose(color_grid, (1,0,2)).copy()
+                I = np.transpose(color_grid, (1, 0, 2)).copy()
                 # if self.what == "count(*)":
                 #     I[...,3] = self.normalise(np.sqrt(grid))[0]
                 self.backend.update_image(I)
@@ -291,8 +304,8 @@ class PlotBase(widgets.Widget):
             return
             src = vaex.image.rgba_to_url(I)
             self.image.src = src
-            #self.scale_x.min, self.scale_x.max = self.limits[0]
-            #self.scale_y.min, self.scale_y.max = self.limits[1]
+            # self.scale_x.min, self.scale_x.max = self.limits[0]
+            # self.scale_y.min, self.scale_y.max = self.limits[1]
             self.image.x = self.scale_x.min
             self.image.y = self.scale_y.max
             self.image.width = self.scale_x.max - self.scale_x.min
@@ -300,7 +313,7 @@ class PlotBase(widgets.Widget):
 
             vx, vy, vz, vcount = self.get_vgrids()
             if vx is not None and vy is not None and vcount is not None:
-                #print(vx.shape)
+                # print(vx.shape)
                 vx = vx[-1]
                 vy = vy[-1]
                 vcount = vcount[-1].flatten()
@@ -313,32 +326,31 @@ class PlotBase(widgets.Widget):
                 centers_x += (centers_x[1] - centers_x[0]) / 2
                 centers_y = np.linspace(ymin, ymax, self.vshape, endpoint=False)
                 centers_y += (centers_y[1] - centers_y[0]) / 2
-                #y, x = np.meshgrid(centers_y, centers_x)
+                # y, x = np.meshgrid(centers_y, centers_x)
                 x, y = np.meshgrid(centers_x, centers_y)
                 x = x.T
                 y = y.T
                 x = x.flatten()
                 y = y.flatten()
                 mask = vcount > 5
-                #print(xmin, xmax, x)
+                # print(xmin, xmax, x)
                 self.scatter.x = x * 1.
                 self.scatter.y = y * 1.
-                angle = -np.arctan2(vy, vx) + np.pi/2
+                angle = -np.arctan2(vy, vx) + np.pi / 2
                 self.scale_rotation.min = 0
                 self.scale_rotation.max = np.pi
                 angle[~mask] = 0
                 self.scatter.rotation = angle
-                #self.scale.size = mask * 3
+                # self.scale.size = mask * 3
                 # self.scale.size = mask.asdtype(np.float64) * 3
                 self.vmask = mask
-                self.scatter.size = self.vmask * 2-1
+                self.scatter.size = self.vmask * 2 - 1
                 # .asdtype(np.float64)
 
                 self.scatter.visible = True
                 self.scatter.visible = len(x[mask]) > 0
-                #self.scatter.marker = "arrow"
-                #print("UpDated")
-
+                # self.scatter.marker = "arrow"
+                # print("UpDated")
 
     def get_grid(self):
         return self.grid
@@ -361,9 +373,11 @@ class PlotBase(widgets.Widget):
         grid = np.clip(grid, 0, 1)
         return grid, vmin, vmax
 
+
 @register_type("default")
 class Plot2dDefault(PlotBase):
     y = traitlets.Unicode(allow_none=False).tag(sync=True)
+
     def __init__(self, **kwargs):
         super(Plot2dDefault, self).__init__(**kwargs)
 
@@ -380,21 +394,22 @@ class Plot2dDefault(PlotBase):
             colors = colormap(z)
             cgrid = np.dot(grid, colors)
             cgrid = (cgrid.T / total.T).T
-            #alpha = cgrid[...,3]
-            #rgb = cgrid[...,0:2]
-            #alpha[mask] = 0
-            #rgb[mask] = 0
+            # alpha = cgrid[...,3]
+            # rgb = cgrid[...,0:2]
+            # alpha[mask] = 0
+            # rgb[mask] = 0
             n = vaex.dataset._parse_n(self.normalize)
             ntotal, __, __ = n(total)
-            #print("totao", ntotal.shape, total.shape)
-            #cgrid[...,3] = ntotal
-            cgrid[mask,3] = 0
-            #print("cgrid", cgrid.shape, total.shape, np.nanmax(grid), np.nanmin(grid))
-            #print(cgrid)
+            # print("totao", ntotal.shape, total.shape)
+            # cgrid[...,3] = ntotal
+            cgrid[mask, 3] = 0
+            # print("cgrid", cgrid.shape, total.shape, np.nanmax(grid), np.nanmin(grid))
+            # print(cgrid)
             return cgrid
-            #colors = vaex.dataset._parse_reduction("colormap", self.colormap, [])(grid)
+            # colors = vaex.dataset._parse_reduction("colormap", self.colormap, [])(grid)
         else:
             return vaex.dataset._parse_reduction("colormap", self.colormap, [])(grid)
+
     def get_shape(self):
         if self.z:
             if ":" in self.z:
@@ -419,11 +434,12 @@ class Plot2dDefault(PlotBase):
 @register_type("slice")
 class Plot2dSliced(PlotBase):
     z = traitlets.Unicode(allow_none=False).tag(sync=True)
-    z_slice = traitlets.CInt(default_value=0).tag(sync=True)#.tag(sync=True) # TODO: do linking at python side
+    z_slice = traitlets.CInt(default_value=0).tag(sync=True)  # .tag(sync=True) # TODO: do linking at python side
     z_shape = traitlets.CInt(default_value=10).tag(sync=True)
     z_relative = traitlets.CBool(False).tag(sync=True)
-    z_min = traitlets.CFloat(default_value=None, allow_none=True).tag(sync=True)#.tag(sync=True)
-    z_max = traitlets.CFloat(default_value=None, allow_none=True).tag(sync=True)#.tag(sync=True)
+    z_min = traitlets.CFloat(default_value=None, allow_none=True).tag(sync=True)  # .tag(sync=True)
+    z_max = traitlets.CFloat(default_value=None, allow_none=True).tag(sync=True)  # .tag(sync=True)
+
     def __init__(self, **kwargs):
         self.z_min_extreme, self.z_max_extreme = kwargs["dataset"].minmax(kwargs["z"])
         super(Plot2dSliced, self).__init__(**kwargs)
@@ -443,7 +459,7 @@ class Plot2dSliced(PlotBase):
     def select_rectangle(self, x1, y1, x2, y2, mode="replace"):
         dz = self.z_max - self.z_min
         z1 = self.z_min + dz * self.z_slice / self.z_shape
-        z2 = self.z_min + dz * (self.z_slice+1) / self.z_shape
+        z2 = self.z_min + dz * (self.z_slice + 1) / self.z_shape
         spaces = [self.x, self.y, self.z]
         limits = [[x1, x2], [y1, y2], [z1, z2]]
         self.dataset.select_box(spaces, limits=limits, mode=mode)
@@ -452,37 +468,37 @@ class Plot2dSliced(PlotBase):
         raise NotImplementedError("todo")
 
     def get_grid(self):
-        zslice = self.grid[...,self.z_slice]
+        zslice = self.grid[..., self.z_slice]
         if self.z_relative:
             with np.errstate(divide='ignore', invalid='ignore'):
                 zslice = zslice / self.grid.sum(axis=-1)
         return zslice
-        #return self.grid[...,self.z_slice]
+        # return self.grid[...,self.z_slice]
 
     def get_vgrids(self):
         def zsliced(grid):
-            return grid[...,self.z_slice] if grid is not None else None
+            return grid[..., self.z_slice] if grid is not None else None
         return [zsliced(grid) for grid in super(Plot2dSliced, self).get_vgrids()]
 
     def create_tools(self):
-        #super(Plot2dSliced, self).create_tools()
-        self.z_slice_slider = widgets.IntSlider(value=self.z_slice, min=0, max=self.z_shape-1)
-        #self.add_control_widget(self.z_slice_slider)
+        # super(Plot2dSliced, self).create_tools()
+        self.z_slice_slider = widgets.IntSlider(value=self.z_slice, min=0, max=self.z_shape - 1)
+        # self.add_control_widget(self.z_slice_slider)
         self.z_slice_slider.observe(self._z_slice_changed, "value")
         self.observe(self._z_slice_changed, "z_slice")
 
         dz = self.z_max_extreme - self.z_min_extreme
 
         self.z_range_slider = widgets.FloatRangeSlider(min=min(self.z_min, self.z_min_extreme), value=[self.z_min, self.z_max],
-                                                       max=max(self.z_max, self.z_max_extreme), step=dz/1000)
+                                                       max=max(self.z_max, self.z_max_extreme), step=dz / 1000)
         self.z_range_slider.observe(self._z_range_changed_, names=["value"])
-        #self.observe(self.z_range_slider, "z_min")
+        # self.observe(self.z_range_slider, "z_min")
 
         self.z_control = widgets.VBox([self.z_slice_slider, self.z_range_slider])
         self.add_control_widget(self.z_control)
 
     def _z_range_changed_(self, changes, **kwargs):
-        #print("changes1", changes, repr(changes), kwargs)
+        # print("changes1", changes, repr(changes), kwargs)
         self.limits[2][0], self.limits[2][1] =\
             self.z_min, self.z_max = self.z_range_slider.value = changes["new"]
         self.update_grid()
