@@ -1,11 +1,15 @@
+import vaex as vx
 import vaex.dataset
+import vaex.settings
+import vaex.legacy
 from vaex.remote import ServerExecutor
+import socket
 import numpy as np
 import logging
 import aplus
 from ..delayed import delayed
+
 logger = logging.getLogger("vaex.distributed")
-import vaex.legacy
 """
 class sum:
     @classmethod
@@ -19,6 +23,8 @@ class sum:
         reduce(cls.reduce_one, x initial)
 def multi_map_reduce(self):
 """
+
+
 class SubspaceDistributed(vaex.legacy.Subspace):
     def toarray(self, list):
         return np.array(list)
@@ -45,23 +51,25 @@ class SubspaceDistributed(vaex.legacy.Subspace):
         if selection:
             print(selection, selection.to_dict())
         for dataset in self.dataset.datasets:
-            dataset.set_selection(selection)#, selection_name=selection_name)
+            dataset.set_selection(selection)  # , selection_name=selection_name)
             subspace = dataset(*self.expressions, delay=True)
             if self.is_masked:
                 subspace = subspace.selected()
             print(subspace.get_selection(), dataset.get_selection("default"), subspace.is_masked, self.is_masked)
             import time
             t0 = time.time()
+
             def timit(o, dataset=dataset, t0=t0):
                 print("took %s %f" % (dataset.server.hostname, time.time() - t0))
                 return o
+
             def error(e, dataset=dataset):
                 print("issues with %s (%r)" % (dataset.server.hostname, e))
                 try:
                     raise e
                 except:
                     logger.exception("error in error handler")
-            #subspace.histogram(limits, size=size, weight=weight).then(timit, error)
+            # subspace.histogram(limits, size=size, weight=weight).then(timit, error)
             f = getattr(subspace, name)
             promise = f(*args, **kwargs).then(timit, error)
             promises.append(promise)
@@ -79,6 +87,7 @@ class SubspaceDistributed(vaex.legacy.Subspace):
                 min2, max2 = minmax2[d]
                 result.append((min(min1, min2), max(max1, max2)))
             return result
+
         @delayed
         def reduce_minmaxes(minmaxes):
             if None in minmaxes:
@@ -88,7 +97,7 @@ class SubspaceDistributed(vaex.legacy.Subspace):
         promise = reduce_minmaxes(minmaxes)
         task = vaex.dataset.Task()
         promise.then(task.fulfill)
-        return self._task(task)#, progressbar=progressbar)
+        return self._task(task)  # , progressbar=progressbar)
 
     def histogram(self, limits, size=256, weight=None, progressbar=False, group_by=None, group_limits=None, delay=None):
         @delayed
@@ -99,9 +108,7 @@ class SubspaceDistributed(vaex.legacy.Subspace):
         promise = sum(self._apply_all("histogram", limits=limits, size=size, weight=weight))
         task = vaex.dataset.Task()
         promise.then(task.fulfill)
-        return self._task(task)#, progressbar=progressbar)
-
-
+        return self._task(task)  # , progressbar=progressbar)
 
     def nearest(self, point, metric=None):
         point = vaex.utils.make_list(point)
@@ -126,13 +133,14 @@ class SubspaceDistributed(vaex.legacy.Subspace):
     def mutual_information(self, limits=None, size=256):
         return self.dataset.server._call_subspace("mutual_information", self, limits=limits, size=size)
 
+
 class DatasetDistributed(vaex.dataset.Dataset):
     def __init__(self, datasets):
         super(DatasetDistributed, self).__init__(datasets[0].name, datasets[0].column_names)
         self.datasets = datasets
         self.executor = ServerExecutor()
-        #self.name = self.datasets[0].name
-        #self.column_names = self.datasets[0].column_names
+        # self.name = self.datasets[0].name
+        #   self.column_names = self.datasets[0].column_names
         self.dtypes = self.datasets[0].dtypes
         self.units = self.datasets[0].units
         self.virtual_columns.update(self.datasets[0].units)
@@ -141,8 +149,8 @@ class DatasetDistributed(vaex.dataset.Dataset):
         self.description = self.datasets[0].description
         self._full_length = self.datasets[0].full_length()
         self._length = self._full_length
-        self.path = self.datasets[0].path # may we should use some cluster name oroso
-        parts = np.linspace(0, self._length, len(self.datasets)+1, dtype=int)
+        self.path = self.datasets[0].path  # may we should use some cluster name oroso
+        parts = np.linspace(0, self._length, len(self.datasets) + 1, dtype=int)
         for dataset, i1, i2 in zip(self.datasets, parts[0:-1], parts[1:]):
             dataset.set_active_range(i1, i2)
 
@@ -151,18 +159,18 @@ class DatasetDistributed(vaex.dataset.Dataset):
             return self.dtypes[expression]
         else:
             return np.zeros(1, dtype=np.float64).dtype
+
     def is_local(self): return False
+
     def __call__(self, *expressions, **kwargs):
         return SubspaceDistributed(self, expressions, kwargs.get("executor") or self.executor, delay=kwargs.get("delay", False))
 
-import vaex.settings
-import vaex as vx
-import socket
 
 try:
-	from urllib.parse import urlparse
+    from urllib.parse import urlparse
 except ImportError:
-	from urlparse import urlparse
+    from urlparse import urlparse
+
 
 def open(url, thread_mover=None):
     url = urlparse(url)
@@ -184,11 +192,11 @@ def open(url, thread_mover=None):
             else:
                 dataset = datasets_dict[base_path]
                 datasets.append(dataset)
-            #datasets.append(vx.server(url).datasets()[0])
-        dsd=DatasetDistributed(datasets=datasets)
+            # datasets.append(vx.server(url).datasets()[0])
+        dsd = DatasetDistributed(datasets=datasets)
         return dsd
 
-	#return vaex.remote.ServerRest(hostname, base_path=base_path, port=port, websocket=websocket, **kwargs)
+        # return vaex.remote.ServerRest(hostname, base_path=base_path, port=port, websocket=websocket, **kwargs)
 
 
 def main(argv):
@@ -232,11 +240,11 @@ def main(argv):
                         clusterlist.remove(hostname)
                 else:
                     for dataset in datasets:
-                        print("\t" +dataset.name)
-                        #if common is None:
+                        print("\t" + dataset.name)
+                        # if common is None:
                     names = set([k.name for k in datasets])
                     common = names if common is None else common.union(names)
-            print("Cluster: " + name + " has %d hosts connected, to connect to a dataset, use the following urls:" % (len(clusterlist))  )
+            print("Cluster: " + name + " has %d hosts connected, to connect to a dataset, use the following urls:" % (len(clusterlist)))
             for dsname in common or []:
                 print("\tcluster://%s/%s" % (name, dsname))
             if args.clean:

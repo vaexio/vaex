@@ -5,55 +5,64 @@ from future.utils import with_metaclass
 from vaex.dataset import expression_namespace
 from vaex.dataset import default_shape
 import numpy as np
+import vaex.serialize
+import base64
+import cloudpickle as pickle
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import BytesIO as StringIO
 
 _binary_ops = [
-    dict(code="+", name='add',  op=operator.add),
-    dict(code="in", name='contains',  op=operator.contains),
-    dict(code="/", name='truediv',  op=operator.truediv),
-    dict(code="//", name='floordiv',  op=operator.floordiv),
-    dict(code="&", name='and',  op=operator.and_),
-    dict(code="^", name='xor',  op=operator.xor),
+    dict(code="+", name='add', op=operator.add),
+    dict(code="in", name='contains', op=operator.contains),
+    dict(code="/", name='truediv', op=operator.truediv),
+    dict(code="//", name='floordiv', op=operator.floordiv),
+    dict(code="&", name='and', op=operator.and_),
+    dict(code="^", name='xor', op=operator.xor),
 
-    dict(code="|", name='or',  op=operator.or_),
-    dict(code="**", name='pow',  op=operator.pow),
-    dict(code="is", name='is',  op=operator.is_),
-    dict(code="is not", name='is_not',  op=operator.is_not),
+    dict(code="|", name='or', op=operator.or_),
+    dict(code="**", name='pow', op=operator.pow),
+    dict(code="is", name='is', op=operator.is_),
+    dict(code="is not", name='is_not', op=operator.is_not),
 
-    dict(code="<<", name='lshift',  op=operator.lshift),
-    dict(code="%", name='mod',  op=operator.mod),
-    dict(code="*", name='mul',  op=operator.mul),
+    dict(code="<<", name='lshift', op=operator.lshift),
+    dict(code="%", name='mod', op=operator.mod),
+    dict(code="*", name='mul', op=operator.mul),
 
-    dict(code=">>", name='rshift',  op=operator.rshift),
-    dict(code="-", name='sub',  op=operator.sub),
+    dict(code=">>", name='rshift', op=operator.rshift),
+    dict(code="-", name='sub', op=operator.sub),
 
-    dict(code="<",  name='lt',   op=operator.lt),
-    dict(code="<=", name='le',  op=operator.le),
-    dict(code="==", name='eq',  op=operator.eq),
-    dict(code="!=", name='ne',  op=operator.ne),
-    dict(code=">=", name='ge',  op=operator.ge),
-    dict(code=">",  name='gt',  op=operator.gt),
+    dict(code="<", name='lt', op=operator.lt),
+    dict(code="<=", name='le', op=operator.le),
+    dict(code="==", name='eq', op=operator.eq),
+    dict(code="!=", name='ne', op=operator.ne),
+    dict(code=">=", name='ge', op=operator.ge),
+    dict(code=">", name='gt', op=operator.gt),
 ]
 if hasattr(operator, 'div'):
-    _binary_ops.append(dict(code="/", name='div',  op=operator.div))
+    _binary_ops.append(dict(code="/", name='div', op=operator.div))
 if hasattr(operator, 'matmul'):
-    _binary_ops.append(dict(code="@", name='matmul',  op=operator.matmul))
+    _binary_ops.append(dict(code="@", name='matmul', op=operator.matmul))
 
 reversable = 'add sub mul matmul truediv floordiv mod divmod pow lshift rshift and xor or'.split()
 
 _unary_ops = [
-    dict(code="~", name='invert',  op=operator.invert),
-    dict(code="-", name='neg',  op=operator.neg),
-    dict(code="+", name='pos',  op=operator.pos),
+    dict(code="~", name='invert', op=operator.invert),
+    dict(code="-", name='neg', op=operator.neg),
+    dict(code="+", name='pos', op=operator.pos),
 ]
+
+
 class Meta(type):
     def __new__(upperattr_metaclass, future_class_name,
                 future_class_parents, attrs):
-        #attrs = {}
+        # attrs = {}
         for op in _binary_ops:
             def wrap(op=op):
                 def f(a, b):
                     self = a
-                    #print(op, a, b)
+                    # print(op, a, b)
                     if isinstance(b, Expression):
                         assert b.ds == a.ds
                         b = b.expression
@@ -63,7 +72,7 @@ class Meta(type):
                 if op['name'] in reversable:
                     def f(a, b):
                         self = a
-                        #print(op, a, b)
+                        # print(op, a, b)
                         if isinstance(b, Expression):
                             assert b.ds == a.ds
                             b = b.expression
@@ -84,29 +93,32 @@ class Meta(type):
             def wrap(name=name):
                 def f(*args, **kwargs):
                     self = args[0]
+
                     def to_expression(expression):
                         if isinstance(expression, Expression):
                             assert expression.ds == self.ds
                             expression = expression.expression
                         return expression
                     expressions = [to_expression(e) for e in args]
-                    #print(name, expressions)
+                    # print(name, expressions)
                     expression = '{0}({1})'.format(name, ", ".join(expressions))
                     return Expression(self.ds, expression=expression)
                 try:
                     f = functools.wraps(func_real)(f)
                 except AttributeError:
-                    pass # numpy ufuncs don't have a __module__, which may choke wraps
+                    pass  # numpy ufuncs don't have a __module__, which may choke wraps
 
                 attrs['%s' % name] = f
             if name not in attrs:
                 wrap(name)
         return type(future_class_name, future_class_parents, attrs)
 
+
 class Expression(with_metaclass(Meta)):
     def __init__(self, ds, expression):
         self.ds = ds
         self.expression = expression
+
     def __str__(self):
         return self.expression
 
@@ -124,15 +136,15 @@ class Expression(with_metaclass(Meta)):
         return self.evaluate().tolist()
 
     def __repr__(self):
-        name = self.__class__.__module__ + "." +self.__class__.__name__
+        name = self.__class__.__module__ + "." + self.__class__.__name__
         try:
             N = len(self.ds)
             if N <= 10:
                 values = ", ".join(str(k) for k in np.array(self))
             else:
                 values_head = ", ".join(str(k) for k in self.evaluate(0, 5))
-                values_tail = ", ".join(str(k) for k in self.evaluate(N-5, N))
-                values = '{} ... (total {} values) ... {}'.format(  values_head, N, values_tail)
+                values_tail = ", ".join(str(k) for k in self.evaluate(N - 5, N))
+                values = '{} ... (total {} values) ... {}'.format(values_head, N, values_tail)
         except Exception as e:
             values = 'Error evaluating: %r' % e
         return "<%s(expressions=%r)> instance at 0x%x [%s] " % (name, self.expression, id(self), values)
@@ -205,7 +217,7 @@ class Expression(with_metaclass(Meta)):
     def jit_numba(self, verbose=False):
         import imp
         import hashlib
-        names =  []
+        names = []
         funcs = set(vaex.dataset.expression_namespace.keys())
         # if it's a virtual column, we probably want to optimize that
         # TODO: fully extract the virtual columns, i.e. depending ones?
@@ -222,13 +234,12 @@ class Expression(with_metaclass(Meta)):
         function = self.ds.add_function('_jit', f, unique=True)
         return function(*arguments)
 
-
     def jit(self):
         import pythran
         import imp
         import hashlib
-        #self._import_all(module)
-        names =  []
+        # self._import_all(module)
+        names = []
         funcs = set(vaex.dataset.expression_namespace.keys())
         vaex.expresso.validate_expression(self.expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
         names = list(set(names))
@@ -246,22 +257,15 @@ def f({0}):
         print(m.hexdigest())
         module_path = pythran.compile_pythrancode(module_name, code, extra_compile_args=["-DBOOST_SIMD", "-march=native"])
         module = imp.load_dynamic(module_name, module_path)
-        function_name = "f_" +m.hexdigest()
+        function_name = "f_" + m.hexdigest()
         vaex.dataset.expression_namespace[function_name] = module.f
 
         return Expression(self.ds, "{0}({1})".format(function_name, argstring))
 
-import types
-import vaex.serialize
-import base64
-import cloudpickle as pickle
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import BytesIO as StringIO
 
 class FunctionSerializable(object):
     pass
+
 
 @vaex.serialize.register
 class FunctionSerializablePickle(FunctionSerializable):
@@ -300,6 +304,7 @@ class FunctionSerializablePickle(FunctionSerializable):
         '''Forward the call to the real function'''
         return self.f(*args, **kwargs)
 
+
 @vaex.serialize.register
 class FunctionSerializableNumba(FunctionSerializable):
     def __init__(self, expression, arguments, argument_dtypes, return_dtype, verbose=False):
@@ -316,7 +321,7 @@ from numpy import *
 def f({0}):
     return {1}'''.format(argstring, expression)
         if verbose:
-            print('Generated code:\n' +code)
+            print('Generated code:\n' + code)
         scope = {}
         exec(code, scope)
         f = scope['f']
@@ -328,7 +333,6 @@ def f({0}):
         '''Forward the call to the numba function'''
         return self.f(*args, **kwargs)
 
-
     def state_get(self):
         return dict(expression=self.expression,
                     arguments=self.arguments,
@@ -339,13 +343,13 @@ def f({0}):
     @classmethod
     def state_from(cls, state):
         return cls(expression=state['expression'],
-                    arguments=state['arguments'],
-                    argument_dtypes=list(map(np.dtype, state['argument_dtypes'])),
-                    return_dtype=np.dtype(state['return_dtype']),
-                    verbose=state['verbose'])
+                   arguments=state['arguments'],
+                   argument_dtypes=list(map(np.dtype, state['argument_dtypes'])),
+                   return_dtype=np.dtype(state['return_dtype']),
+                   verbose=state['verbose'])
 
 
-# TODO: this is not the right abstraction, since this won't allow a 
+# TODO: this is not the right abstraction, since this won't allow a
 # numba version for the function
 @vaex.serialize.register
 class FunctionToScalar(FunctionSerializablePickle):
@@ -353,14 +357,14 @@ class FunctionToScalar(FunctionSerializablePickle):
         length = len(args[0])
         result = []
         for i in range(length):
-            scalar_result = self.f(*[k[i] for k in args], **{key:value[i] for key, value in kwargs.items()})
+            scalar_result = self.f(*[k[i] for k in args], **{key: value[i] for key, value in kwargs.items()})
             result.append(scalar_result)
         result = np.array(result)
         return result
 
 
 class Function(object):
-    
+
     def __init__(self, dataset, name, f):
         self.dataset = dataset
         self.name = name

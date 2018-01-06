@@ -6,6 +6,8 @@ from vaex.dataset import Dataset, _parse_n, _parse_f, _ensure_string_from_expres
     _expand_limits, _expand_shape, _expand, _parse_reduction
 import vaex.utils
 import vaex.image
+from .vector import plot2d_vector
+from .tensor import plot2d_tensor
 
 logger = logging.getLogger("vaex.viz")
 
@@ -20,16 +22,15 @@ def patch(f):
     setattr(Dataset, name, f)
     return f
 
-from .vector import plot2d_vector
-patch(plot2d_vector)
 
-from .tensor import plot2d_tensor
+patch(plot2d_vector)
 patch(plot2d_tensor)
+
 
 @patch
 def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
-    xlabel=None, ylabel=None, label=None,
-    selection=None, show=False, tight_layout=True, hardcopy=None,
+           xlabel=None, ylabel=None, label=None,
+           selection=None, show=False, tight_layout=True, hardcopy=None,
            **kwargs):
     """
 
@@ -51,8 +52,6 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
     :return:
     """
 
-
-
     import pylab
     f = _parse_f(f)
     n = _parse_n(n)
@@ -72,7 +71,6 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
         match = re.match("(.*):(.*),(.*),(.*)", facet)
         if match:
             groups = match.groups()
-            import ast
             facet_expression = groups[0]
             facet_limits = [ast.literal_eval(groups[1]), ast.literal_eval(groups[2])]
             facet_count = ast.literal_eval(groups[3])
@@ -96,7 +94,7 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
                     arguments = groups[1].strip()
                     functions = ["mean", "sum", "std", "count"]
                     if function in functions:
-                        #grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
+                        # grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
                         grid = getattr(vaex.stat, function)(arguments).calculate(self, binby=binby, limits=limits, shape=shape, selection=selection)
                     elif function == "count" and arguments == "*":
                         grid = self.count(binby=binby, shape=shape, limits=limits, selection=selection)
@@ -112,39 +110,39 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
             grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
     fgrid = f(grid)
     if n is not None:
-        #ngrid = n(fgrid, axis=normalize_axis)
+        # ngrid = n(fgrid, axis=normalize_axis)
         ngrid = fgrid / fgrid.sum()
     else:
         ngrid = fgrid
-        #reductions = [_parse_reduction(r, colormap, colors) for r in reduce]
-        #rgrid = ngrid * 1.
-        #for r in reduce:
+        # reductions = [_parse_reduction(r, colormap, colors) for r in reduce]
+        # rgrid = ngrid * 1.
+        # for r in reduce:
         #   r = _parse_reduction(r, colormap, colors)
         #   rgrid = r(rgrid)
-        #grid = self.reduce(grid, )
+        # grid = self.reduce(grid, )
     xmin, xmax = limits[-1]
     if facet:
         N = len(grid[-1])
     else:
         N = len(grid)
-    xar = np.arange(N+1) / (N-0.) * (xmax-xmin) + xmin
+    xar = np.arange(N + 1) / (N - 0.) * (xmax - xmin) + xmin
     if facet:
         import math
         rows, columns = int(math.ceil(facet_count / 4.)), 4
-        values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
+        values = np.linspace(facet_limits[0], facet_limits[1], facet_count + 1)
         for i in range(facet_count):
-            ax = pylab.subplot(rows, columns, i+1)
+            ax = pylab.subplot(rows, columns, i + 1)
             value = ax.plot(xar, ngrid[i], drawstyle="steps-mid", label=label or x, **kwargs)
-            v1, v2 = values[i], values[i+1]
+            v1, v2 = values[i], values[i + 1]
             pylab.xlabel(xlabel or x)
             pylab.ylabel(ylabel or what)
             ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
-            #pylab.show()
+            # pylab.show()
     else:
-        #im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+        # im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
         pylab.xlabel(xlabel or self.label(x))
         pylab.ylabel(ylabel or what)
-        #print(xar, ngrid)
+        # print(xar, ngrid)
         # repeat the first element, that's how plot/steps likes it..
         g = np.concatenate([ngrid[0:1], ngrid])
         value = pylab.plot(xar, g, drawstyle="steps-pre", label=label or x, **kwargs)
@@ -155,10 +153,11 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
     if show:
         pylab.show()
     return value
-    #N = len(grid)
-    #xmin, xmax = limits[0]
-    #return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
-    #pylab.ylim(-1, 6)
+    # N = len(grid)
+    # xmin, xmax = limits[0]
+    # return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
+    # pylab.ylim(-1, 6)
+
 
 @patch
 def scatter(self, x, y, xerr=None, yerr=None, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, **kwargs):
@@ -197,7 +196,7 @@ def scatter(self, x, y, xerr=None, yerr=None, s_expr=None, c_expr=None, selectio
     if label:
         label_values = self.evaluate(label)
         for i, label_value in enumerate(label_values):
-            plt.annotate(label_value, (x_values[i],y_values[i]))
+            plt.annotate(label_value, (x_values[i], y_values[i]))
     xerr_values = None
     yerr_values = None
     if xerr is not None:
@@ -216,21 +215,22 @@ def scatter(self, x, y, xerr=None, yerr=None, s_expr=None, c_expr=None, selectio
         plt.errorbar(x_values, y_values, yerr=yerr_values, xerr=xerr_values, **errorbar_kwargs)
     return s
 
-#def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
+# def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
+
 
 @patch
 def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,
-        normalize="normalize", normalize_axis="what",
-        vmin=None, vmax=None,
-        shape=256, vshape=32, limits=None, grid=None, colormap="afmhot", # colors=["red", "green", "blue"],
-        figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
-        colorbar=True,
-        selection=None, selection_labels=None, title=None,
-        background_color="white", pre_blend=False, background_alpha=1.,
-        visual=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what"),
-        smooth_pre=None, smooth_post=None,
-        wrap=True, wrap_columns=4,
-        return_extra=False, hardcopy=None):
+         normalize="normalize", normalize_axis="what",
+         vmin=None, vmax=None,
+         shape=256, vshape=32, limits=None, grid=None, colormap="afmhot",  # colors=["red", "green", "blue"],
+         figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
+         colorbar=True,
+         selection=None, selection_labels=None, title=None,
+         background_color="white", pre_blend=False, background_alpha=1.,
+         visual=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what"),
+         smooth_pre=None, smooth_post=None,
+         wrap=True, wrap_columns=4,
+         return_extra=False, hardcopy=None):
     """Declarative plotting of statistical plots using matplotlib, supports subplots, selections, layers
 
     Instead of passing x and y, pass a list as x argument for multiple panels. Give what a list of options to have multiple
@@ -303,7 +303,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     binby = []
     x = _ensure_strings_from_expressions(x)
     y = _ensure_strings_from_expressions(y)
-    for expression in [y,x]:
+    for expression in [y, x]:
         if expression is not None:
             binby = [expression] + binby
     fig = pylab.gcf()
@@ -317,14 +317,14 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     selections = _ensure_strings_from_expressions(selections)
 
     if y is None:
-        waslist, [x,] = vaex.utils.listify(x)
+        waslist, [x, ] = vaex.utils.listify(x)
     else:
-        waslist, [x,y] = vaex.utils.listify(x, y)
+        waslist, [x, y] = vaex.utils.listify(x, y)
         x = list(zip(x, y))
         limits = [limits]
 
     # every plot has its own vwhat for now
-    vwhats = _expand_limits(vwhat, len(x)) # TODO: we're abusing this function..
+    vwhats = _expand_limits(vwhat, len(x))  # TODO: we're abusing this function..
     logger.debug("x: %s", x)
     limits = self.limits(x, limits)
     logger.debug("limits: %r", limits)
@@ -341,27 +341,26 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
             logger.debug("found groups: %r", list(groups))
             z_limits = [ast.literal_eval(groups[1]), ast.literal_eval(groups[2])]
             z_shape = ast.literal_eval(groups[3])
-            #for pair in x:
+            # for pair in x:
             x = [[z_expression] + list(k) for k in x]
-            limits = np.array([[z_limits]  + list(k) for k in limits])
-            shape =  (z_shape,)+ shape
-            vshape =  (z_shape,)+ vshape
+            limits = np.array([[z_limits] + list(k) for k in limits])
+            shape = (z_shape,) + shape
+            vshape = (z_shape,) + vshape
             logger.debug("x = %r", x)
-            values = np.linspace(z_limits[0], z_limits[1], num=z_shape+1)
+            values = np.linspace(z_limits[0], z_limits[1], num=z_shape + 1)
             labels["z"] = list(["%s <= %s < %s" % (v1, z_expression, v2) for v1, v2 in zip(values[:-1], values[1:])])
         else:
             raise ValueError("Could not understand 'z' argument %r, expected something in form: 'column:-1,10:5'" % facet)
     else:
         z_shape = 1
 
-
     # z == 1
     if z is None:
-        total_grid = np.zeros( (len(x), len(whats), len(selections), 1) + shape, dtype=float)
-        total_vgrid = np.zeros( (len(x), len(whats), len(selections), 1) + vshape, dtype=float)
+        total_grid = np.zeros((len(x), len(whats), len(selections), 1) + shape, dtype=float)
+        total_vgrid = np.zeros((len(x), len(whats), len(selections), 1) + vshape, dtype=float)
     else:
-        total_grid = np.zeros( (len(x), len(whats), len(selections)) + shape, dtype=float)
-        total_vgrid = np.zeros( (len(x), len(whats), len(selections)) + vshape, dtype=float)
+        total_grid = np.zeros((len(x), len(whats), len(selections)) + shape, dtype=float)
+        total_vgrid = np.zeros((len(x), len(whats), len(selections)) + vshape, dtype=float)
     logger.debug("shape of total grid: %r", total_grid.shape)
     axis = dict(plot=0, what=1, selection=2)
     xlimits = limits
@@ -378,15 +377,16 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
 
     grid_axes = dict(x=-1, y=-2, z=-3, selection=-4, what=-5, subspace=-6)
     visual_axes = dict(x=-1, y=-2, layer=-3, fade=-4, column=-5, row=-6)
-    #visual_default=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column")
-    visual_default=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what")
-    invert = lambda x: dict((v, k) for k, v in x.items())
-    #visual_default_reverse = invert(visual_default)
-    #visual_ = visual_default
-    #visual = dict(visual) # copy for modification
+    # visual_default=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column")
+    visual_default = dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what")
+
+    def invert(x): return dict((v, k) for k, v in x.items())
+    # visual_default_reverse = invert(visual_default)
+    # visual_ = visual_default
+    # visual = dict(visual) # copy for modification
     # add entries to avoid mapping multiple times to the same axis
     free_visual_axes = list(visual_default.keys())
-    #visual_reverse = invert(visual)
+    # visual_reverse = invert(visual)
     logger.debug("1: %r %r", visual, free_visual_axes)
     for visual_name, grid_name in visual.items():
         if visual_name in free_visual_axes:
@@ -405,7 +405,6 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
 
     logger.debug("4: %r %r", visual, free_visual_axes)
 
-
     visual_reverse = invert(visual)
     # TODO: the meaning of visual and visual_reverse is changed below this line, super confusing
     visual, visual_reverse = visual_reverse, visual
@@ -417,11 +416,11 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
             raise ValueError("trying to map %s to %s while, it is already mapped by %s" % (grid_name, visual_name, key))
         move[grid_axes[grid_name]] = visual_axes[visual_name]
 
-    #normalize_axis = _ensure_list(normalize_axis)
+    # normalize_axis = _ensure_list(normalize_axis)
 
     fs = _expand(f, total_grid.shape[grid_axes[normalize_axis]])
-    #assert len(vwhat)
-    #labels["y"] = ylabels
+    # assert len(vwhat)
+    # labels["y"] = ylabels
     what_labels = []
     if grid is None:
         grid_of_grids = []
@@ -460,7 +459,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                             raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
                     else:
                         raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
-                if i == 0:# and j == 0:
+                if i == 0:  # and j == 0:
                     what_label = str(whats[j])
                     if what_units:
                         what_label += " (%s)" % what_units
@@ -472,10 +471,10 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
         for i, (binby, limits) in enumerate(zip(x, xlimits)):
             for j, what in enumerate(whats):
                 grid = grid_of_grids[i][j].get()
-                total_grid[i,j,:,:] = grid[:,None,...]
+                total_grid[i, j, :, :] = grid[:, None, ...]
         labels["what"] = what_labels
     else:
-        dims_left = 6-len(grid.shape)
+        dims_left = 6 - len(grid.shape)
         total_grid = np.broadcast_to(grid, (1,) * dims_left + grid.shape)
 
     #           visual=dict(x="x", y="y", selection="fade", subspace="facet1", what="facet2",)
@@ -491,7 +490,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     else:
         labels["selection"] = selection_labels
 
-    #visual_grid = np.moveaxis(total_grid, move.keys(), move.values())
+    # visual_grid = np.moveaxis(total_grid, move.keys(), move.values())
     # np.moveaxis is in np 1.11 only?, use transpose
     axes = [None] * len(move)
     for key, value in move.items():
@@ -502,52 +501,51 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     logger.debug("visual: %r", visual.items())
     logger.debug("move: %r", move)
     logger.debug("visual grid shape: %r", visual_grid.shape)
-    #grid = total_grid
-    #print(grid.shape)
-    #grid = self.reduce(grid, )
+    # grid = total_grid
+    # print(grid.shape)
+    # grid = self.reduce(grid, )
     axes = []
-    #cax = pylab.subplot(1,1,1)
+    # cax = pylab.subplot(1,1,1)
 
     background_color = np.array(matplotlib.colors.colorConverter.to_rgb(background_color))
 
-
-    #if grid.shape[axis["selection"]] > 1:#  and not facet:
+    # if grid.shape[axis["selection"]] > 1:#  and not facet:
     #   rgrid = vaex.image.fade(rgrid)
     #   finite_mask = np.any(finite_mask, axis=0) # do we really need this
     #   print(rgrid.shape)
-    #facet_row_axis = axis["what"]
+    # facet_row_axis = axis["what"]
     import math
     facet_columns = None
     facets = visual_grid.shape[visual_axes["row"]] * visual_grid.shape[visual_axes["column"]]
-    if visual_grid.shape[visual_axes["column"]] ==  1 and wrap:
+    if visual_grid.shape[visual_axes["column"]] == 1 and wrap:
         facet_columns = min(wrap_columns, visual_grid.shape[visual_axes["row"]])
         wrapped = True
-    elif visual_grid.shape[visual_axes["row"]] ==  1 and wrap:
+    elif visual_grid.shape[visual_axes["row"]] == 1 and wrap:
         facet_columns = min(wrap_columns, visual_grid.shape[visual_axes["column"]])
         wrapped = True
     else:
         wrapped = False
         facet_columns = visual_grid.shape[visual_axes["column"]]
-    facet_rows = int(math.ceil(facets/facet_columns))
+    facet_rows = int(math.ceil(facets / facet_columns))
     logger.debug("facet_rows: %r", facet_rows)
     logger.debug("facet_columns: %r", facet_columns)
-        #if visual_grid.shape[visual_axes["row"]] > 1: # and not wrap:
-        #   #facet_row_axis = axis["what"]
-        #   facet_columns = visual_grid.shape[visual_axes["column"]]
-        #else:
-        #   facet_columns = min(wrap_columns, facets)
-    #if grid.shape[axis["plot"]] > 1:#  and not facet:
+    # if visual_grid.shape[visual_axes["row"]] > 1: # and not wrap:
+    #   #facet_row_axis = axis["what"]
+    #   facet_columns = visual_grid.shape[visual_axes["column"]]
+    # else:
+    #   facet_columns = min(wrap_columns, facets)
+    # if grid.shape[axis["plot"]] > 1:#  and not facet:
 
     # this loop could be done using axis arguments everywhere
-    #assert len(normalize_axis) == 1, "currently only 1 normalization axis supported"
+    # assert len(normalize_axis) == 1, "currently only 1 normalization axis supported"
     grid = visual_grid * 1.
     fgrid = visual_grid * 1.
     ngrid = visual_grid * 1.
-    #colorgrid = np.zeros(ngrid.shape + (4,), float)
-    #print "norma", normalize_axis, visual_grid.shape[visual_axes[visual[normalize_axis]]]
+    # colorgrid = np.zeros(ngrid.shape + (4,), float)
+    # print "norma", normalize_axis, visual_grid.shape[visual_axes[visual[normalize_axis]]]
     vmins = _expand(vmin, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
     vmaxs = _expand(vmax, visual_grid.shape[visual_axes[visual[normalize_axis]]], type=list)
-    #for name in normalize_axis:
+    # for name in normalize_axis:
     visual_grid
     if smooth_pre:
         grid = vaex.grids.gf(grid, smooth_pre)
@@ -558,22 +556,22 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
             item[axis] = i
             item = tuple(item)
             f = _parse_f(fs[i])
-            with np.errstate(divide='ignore', invalid='ignore'): # these are fine, we are ok with nan's in vaex
+            with np.errstate(divide='ignore', invalid='ignore'):  # these are fine, we are ok with nan's in vaex
                 fgrid.__setitem__(item, f(grid.__getitem__(item)))
-            #print vmins[i], vmaxs[i]
+            # print vmins[i], vmaxs[i]
             if vmins[i] is not None and vmaxs[i] is not None:
                 nsubgrid = fgrid.__getitem__(item) * 1
                 nsubgrid -= vmins[i]
-                nsubgrid /= (vmaxs[i]-vmins[i])
+                nsubgrid /= (vmaxs[i] - vmins[i])
                 nsubgrid = np.clip(nsubgrid, 0, 1)
             else:
                 nsubgrid, vmin, vmax = n(fgrid.__getitem__(item))
                 vmins[i] = vmin
                 vmaxs[i] = vmax
-            #print "    ", vmins[i], vmaxs[i]
+            # print "    ", vmins[i], vmaxs[i]
             ngrid.__setitem__(item, nsubgrid)
 
-    if 0: # TODO: above should be like the code below, with custom vmin and vmax
+    if 0:  # TODO: above should be like the code below, with custom vmin and vmax
         grid = visual_grid[i]
         f = _parse_f(fs[i])
         fgrid = f(grid)
@@ -582,14 +580,13 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
         if vmin is not None and vmax is not None:
             ngrid = fgrid * 1
             ngrid -= vmin
-            ngrid /= (vmax-vmin)
+            ngrid /= (vmax - vmin)
             ngrid = np.clip(ngrid, 0, 1)
         else:
             ngrid, vmin, vmax = n(fgrid)
-            #vmin, vmax = np.nanmin(fgrid), np.nanmax(fgrid)
+            # vmin, vmax = np.nanmin(fgrid), np.nanmax(fgrid)
     # every 'what', should have its own colorbar, check if what corresponds to
     # rows or columns in facets, if so, do a colorbar per row or per column
-
 
     rows, columns = int(math.ceil(facets / float(facet_columns))), facet_columns
     colorbar_location = "individual"
@@ -597,7 +594,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
         colorbar_location = "per_row"
     if visual["what"] == "column" and visual_grid.shape[0] == facet_rows:
         colorbar_location = "per_column"
-    #values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
+    # values = np.linspace(facet_limits[0], facet_limits[1], facet_count+1)
     logger.debug("rows: %r, columns: %r", rows, columns)
     import matplotlib.gridspec as gridspec
     column_scale = 1
@@ -606,11 +603,11 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     if facets > 1:
         if colorbar_location == "per_row":
             column_scale = 4
-            gs = gridspec.GridSpec(rows, columns*column_scale+1)
+            gs = gridspec.GridSpec(rows, columns * column_scale + 1)
         elif colorbar_location == "per_column":
             row_offset = 1
             row_scale = 4
-            gs = gridspec.GridSpec(rows*row_scale+1, columns)
+            gs = gridspec.GridSpec(rows * row_scale + 1, columns)
         else:
             gs = gridspec.GridSpec(rows, columns)
     facet_index = 0
@@ -624,7 +621,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
             if colorbar and colorbar_location == "per_column" and i == 0:
                 norm = matplotlib.colors.Normalize(vmins[j], vmaxs[j])
                 sm = matplotlib.cm.ScalarMappable(norm, colormaps[j])
-                sm.set_array(1) # make matplotlib happy (strange behavious)
+                sm.set_array(1)  # make matplotlib happy (strange behavious)
                 if facets > 1:
                     ax = pylab.subplot(gs[0, j])
                     colorbar = fig.colorbar(sm, cax=ax, orientation="horizontal")
@@ -640,7 +637,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
             if colorbar and colorbar_location == "per_row" and j == 0:
                 norm = matplotlib.colors.Normalize(vmins[i], vmaxs[i])
                 sm = matplotlib.cm.ScalarMappable(norm, colormaps[i])
-                sm.set_array(1) # make matplotlib happy (strange behavious)
+                sm.set_array(1)  # make matplotlib happy (strange behavious)
                 if facets > 1:
                     ax = pylab.subplot(gs[i, -1])
                     colorbar = fig.colorbar(sm, cax=ax)
@@ -649,12 +646,12 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 label = labels["what"][i]
                 colorbar.ax.set_ylabel(label)
 
-            rgrid = ngrid[i,j] * 1.
-            #print rgrid.shape
+            rgrid = ngrid[i, j] * 1.
+            # print rgrid.shape
             for k in range(rgrid.shape[0]):
                 for l in range(rgrid.shape[0]):
                     if smooth_post is not None:
-                        rgrid[k,l] = vaex.grids.gf(rgrid, smooth_post)
+                        rgrid[k, l] = vaex.grids.gf(rgrid, smooth_post)
             if visual["what"] == "column":
                 what_index = j
             elif visual["what"] == "row":
@@ -672,15 +669,14 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 r = _parse_reduction(r, colormaps[what_index], [])
                 rgrid = r(rgrid)
 
-
             row = facet_index // facet_columns
             column = facet_index % facet_columns
 
             if colorbar and colorbar_location == "individual":
-                #visual_grid.shape[visual_axes[visual[normalize_axis]]]
+                # visual_grid.shape[visual_axes[visual[normalize_axis]]]
                 norm = matplotlib.colors.Normalize(vmins[normalize_index], vmaxs[normalize_index])
                 sm = matplotlib.cm.ScalarMappable(norm, colormaps[what_index])
-                sm.set_array(1) # make matplotlib happy (strange behavious)
+                sm.set_array(1)  # make matplotlib happy (strange behavious)
                 if facets > 1:
                     ax = pylab.subplot(gs[row, column])
                     colorbar = fig.colorbar(sm, ax=ax)
@@ -689,16 +685,15 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 label = labels["what"][what_index]
                 colorbar.ax.set_ylabel(label)
 
-
             if facets > 1:
-                ax = pylab.subplot(gs[row_offset + row * row_scale:row_offset + (row+1) * row_scale, column*column_scale:(column+1)*column_scale])
+                ax = pylab.subplot(gs[row_offset + row * row_scale:row_offset + (row + 1) * row_scale, column * column_scale:(column + 1) * column_scale])
             else:
                 ax = pylab.gca()
             axes.append(ax)
             logger.debug("rgrid: %r", rgrid.shape)
             plot_rgrid = rgrid
             assert plot_rgrid.shape[1] == 1, "no layers supported yet"
-            plot_rgrid = plot_rgrid[:,0]
+            plot_rgrid = plot_rgrid[:, 0]
             if plot_rgrid.shape[0] > 1:
                 plot_rgrid = vaex.image.fade(plot_rgrid[::-1])
             else:
@@ -713,9 +708,10 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
             extend = np.array(xlimits[subplot_index][-2:]).flatten()
             #   extend = np.array(xlimits[i]).flatten()
             logger.debug("plot rgrid: %r", plot_rgrid.shape)
-            plot_rgrid = np.transpose(plot_rgrid, (1,0,2))
+            plot_rgrid = np.transpose(plot_rgrid, (1, 0, 2))
             im = ax.imshow(plot_rgrid, extent=extend.tolist(), origin="lower", aspect=aspect, interpolation=interpolation)
-            #v1, v2 = values[i], values[i+1]
+            # v1, v2 = values[i], values[i+1]
+
             def label(index, label, expression):
                 if label and _issequence(label):
                     return label[i]
@@ -732,8 +728,8 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 elif labelsxy is not None:
                     ax.set_title(labelsxy[i])
                     has_title = True
-                #print visual_reverse["row"], visual_reverse["column"], labels.get(visual_reverse["row"]), labels.get(visual_reverse["column"])
-            if (visual_reverse["column"] != "what")  or not colorbar:
+                # print visual_reverse["row"], visual_reverse["column"], labels.get(visual_reverse["row"]), labels.get(visual_reverse["column"])
+            if (visual_reverse["column"] != "what") or not colorbar:
                 labelsxy = labels.get(visual_reverse["column"])
                 if isinstance(labelsxy, tuple):
                     labelsx, labelsy = labelsxy
@@ -758,5 +754,5 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
         return im, grid, fgrid, ngrid, rgrid, rgba8
     else:
         return im
-    #colorbar = None
-    #return im, colorbar
+    # colorbar = None
+    # return im, colorbar

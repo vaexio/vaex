@@ -1,6 +1,5 @@
 import copy
 import logging
-
 import bqplot.marks
 import bqplot as bq
 import bqplot.interacts
@@ -14,6 +13,7 @@ from .plot import BackendBase
 from .utils import debounced
 
 logger = logging.getLogger("vaex.nb.bqplot")
+
 
 class BqplotBackend(BackendBase):
     def __init__(self, figure=None, figure_key=None):
@@ -46,8 +46,8 @@ class BqplotBackend(BackendBase):
         self.scale_rotation = bqplot.LinearScale(min=0, max=1)
         self.scale_size = bqplot.LinearScale(min=0, max=1)
         self.scale_opacity = bqplot.LinearScale(min=0, max=1)
-        self.scales = {'x': self.scale_x, 'y':self.scale_y, 'rotation':self.scale_rotation,
-                       'size':self.scale_size, 'opacity': self.scale_opacity}
+        self.scales = {'x': self.scale_x, 'y': self.scale_y, 'rotation': self.scale_rotation,
+                       'size': self.scale_size, 'opacity': self.scale_opacity}
 
         margin = {'bottom': 30, 'left': 60, 'right': 0, 'top': 0}
         self.figure = plt.figure(self.figure_key, fig=self.figure, scales=self.scales, fig_margin=margin)
@@ -57,21 +57,21 @@ class BqplotBackend(BackendBase):
         y = x ** 2
         self._fix_scatter = s = plt.scatter(x, y, visible=False, rotation=x, scales=self.scales)
         self._fix_scatter.visible = False
-        #self.scale_rotation = self.scales['rotation']
-        src = ""#vaex.image.rgba_to_url(self._create_rgb_grid())
-        #self.scale_x.min, self.scale_x.max = self.limits[0]
-        #self.scale_y.min, self.scale_y.max = self.limits[1]
+        # self.scale_rotation = self.scales['rotation']
+        src = ""  # vaex.image.rgba_to_url(self._create_rgb_grid())
+        # self.scale_x.min, self.scale_x.max = self.limits[0]
+        # self.scale_y.min, self.scale_y.max = self.limits[1]
         self.image = vaex.ext.bqplot.Image(scales=self.scales, src=src, x=self.scale_x.min, y=self.scale_y.max,
-                           width=self.scale_x.max-self.scale_x.min, height=-(self.scale_y.max-self.scale_y.min))
+                                           width=self.scale_x.max - self.scale_x.min, height=-(self.scale_y.max - self.scale_y.min))
         self.figure.marks = self.figure.marks + [self.image]
-        #self.figure.animation_duration = 500
+        # self.figure.animation_duration = 500
         self.figure.layout.width = '100%'
         self.figure.layout.max_width = '500px'
         self.scatter = s = plt.scatter(x, y, visible=False, rotation=x, scales=self.scales, size=x, marker="arrow")
         self.panzoom = bqplot.PanZoom(scales={'x': [self.scale_x], 'y': [self.scale_y]})
         self.figure.interaction = self.panzoom
-        #self.figure.axes[0].label = self.x
-        #self.figure.axes[1].label = self.y
+        # self.figure.axes[0].label = self.x
+        # self.figure.axes[1].label = self.y
 
         self.scale_x.observe(self._update_limits, "min")
         self.scale_x.observe(self._update_limits, "max")
@@ -83,7 +83,6 @@ class BqplotBackend(BackendBase):
         self.control_widget = widgets.VBox()
         self.widget = widgets.VBox(children=[self.control_widget, self.figure])
         self.create_tools()
-
 
     def _update_limits(self, *args):
         with self.output:
@@ -98,7 +97,7 @@ class BqplotBackend(BackendBase):
         with self.scale_y.hold_trait_notifications():
             self.scale_y.min = self.limits[1][0]
             self.scale_y.max = self.limits[1][1]
-        #self.update_grid()
+        # self.update_grid()
 
     def create_tools(self):
         self.tools = []
@@ -106,11 +105,11 @@ class BqplotBackend(BackendBase):
         tool_actions_map = {u"pan/zoom": self.panzoom}
         tool_actions.append(u"pan/zoom")
 
-        #self.control_widget.set_title(0, "Main")
+        # self.control_widget.set_title(0, "Main")
         self._main_widget = widgets.VBox()
         self._main_widget_1 = widgets.HBox()
         self._main_widget_2 = widgets.HBox()
-        if 1:#tool_select:
+        if 1:  # tool_select:
             self.brush = bqplot.interacts.BrushSelector(x_scale=self.scale_x, y_scale=self.scale_y, color="green")
             tool_actions_map["select"] = self.brush
             tool_actions.append("select")
@@ -118,16 +117,17 @@ class BqplotBackend(BackendBase):
             self.brush.observe(self.update_brush, "selected")
             # fig.interaction = brush
             # callback = self.dataset.signal_selection_changed.connect(lambda dataset: update_image())
-            #callback = self.dataset.signal_selection_changed.connect(lambda *x: self.update_grid())
+            # callback = self.dataset.signal_selection_changed.connect(lambda *x: self.update_grid())
 
-            #def cleanup(callback=callback):
+            # def cleanup(callback=callback):
             #    self.dataset.signal_selection_changed.disconnect(callback=callback)
-            #self._cleanups.append(cleanup)
+            # self._cleanups.append(cleanup)
 
             self.button_select_nothing = widgets.Button(description="", icon="trash-o")
             self.button_reset = widgets.Button(description="", icon="refresh")
             import copy
             self.start_limits = copy.deepcopy(self.limits)
+
             def reset(*args):
                 self.limits = copy.deepcopy(self.start_limits)
                 with self.scale_y.hold_trait_notifications():
@@ -154,21 +154,20 @@ class BqplotBackend(BackendBase):
             tool_actions = ["pan/zoom", "select"]
             # tool_actions = [("m", "m"), ("b", "b")]
             self.button_action = widgets.ToggleButtons(description='', options=[(action, action) for action in tool_actions],
-                                                  icons=["arrows", "pencil-square-o"])
+                                                       icons=["arrows", "pencil-square-o"])
             self.button_action.observe(change_interact, "value")
             self.tools.insert(0, self.button_action)
             self.button_action.value = "pan/zoom"  # tool_actions[-1]
             if len(self.tools) == 1:
                 tools = []
-            #self._main_widget_1.children += (self.button_reset,)
+            # self._main_widget_1.children += (self.button_reset,)
             self._main_widget_1.children += (self.button_action,)
             self._main_widget_1.children += (self.button_select_nothing,)
-            #self._main_widget_2.children += (self.button_selection_mode,)
+            # self._main_widget_2.children += (self.button_selection_mode,)
         self._main_widget.children = [self._main_widget_1, self._main_widget_2]
         self.control_widget.children += (self._main_widget,)
-        self._update_grid_counter = 0 # keep track of t
+        self._update_grid_counter = 0  # keep track of t
         self._update_grid_counter_scheduled = 0  # keep track of t
-
 
     def _on_view_count_change(self, *args):
         with self.output:
@@ -183,7 +182,7 @@ class BqplotBackend(BackendBase):
     @debounced(0.5, method=True)
     def update_brush(self, *args):
         with self.output:
-            if not self.brush.brushing: # if we ended brushing, reset it
+            if not self.brush.brushing:  # if we ended brushing, reset it
                 self.figure.interaction = None
             if self.brush.selected:
                 (x1, y1), (x2, y2) = self.brush.selected
@@ -191,6 +190,5 @@ class BqplotBackend(BackendBase):
                 self.plot.select_rectangle(x1, y1, x2, y2, mode=mode)
             else:
                 self.dataset.select_nothing()
-            if not self.brush.brushing: # but then put it back again so the rectangle is gone,
+            if not self.brush.brushing:  # but then put it back again so the rectangle is gone,
                 self.figure.interaction = self.brush
-

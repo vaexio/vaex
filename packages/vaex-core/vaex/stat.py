@@ -3,6 +3,7 @@ from future.utils import with_metaclass
 from vaex.dataset import expression_namespace
 from vaex.delayed import delayed
 
+
 class Meta(type):
     def __new__(upperattr_metaclass, future_class_name,
                 future_class_parents, attrs):
@@ -31,14 +32,17 @@ class Meta(type):
                 wrap(name)
         return type(future_class_name, future_class_parents, attrs)
 
+
 class Expression(with_metaclass(Meta)):
     '''Describes an expression for a statistic'''
+
     def calculate(self, ds, binby=[], shape=256, limits=None, selection=None):
         '''Calculate the statistic for a :class:`Dataset`'''
         raise NotImplementedError()
 
     def __repr__(self):
         return '{}'.format(self)
+
 
 class _StatisticsCalculation(Expression):
     def __init__(self, name, op, args, binary=False, unary=False, code='"<??>"'):
@@ -62,7 +66,7 @@ class _StatisticsCalculation(Expression):
                 return v.calculate(ds, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay)
             return v
         values = [to_value(v) for v in self.args]
-        #print(values, self.op)
+        # print(values, self.op)
         op = self.op
         if delay:
             op = delayed(op)
@@ -82,26 +86,32 @@ class _Statistic(Expression):
         method = getattr(ds, self.name)
         return method(*self.args, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay)
 
+
 def count(expression='*'):
-    '''Creates a count statistic'''  
+    '''Creates a count statistic'''
     return _Statistic('count', expression)
+
 
 def sum(expression):
     '''Creates a sum statistic'''
     return _Statistic('sum', expression)
 
+
 def mean(expression):
     '''Creates a mean statistic'''
     return _Statistic('mean', expression)
 
+
 def std(expression):
-   '''Creates a standard deviation statistic'''
-   return _Statistic('std', expression)
+    '''Creates a standard deviation statistic'''
+    return _Statistic('std', expression)
+
 
 def covar(x, y):
-   '''Creates a standard deviation statistic'''
-   return _Statistic('covar', x, y)
+    '''Creates a standard deviation statistic'''
+    return _Statistic('covar', x, y)
+
 
 def correlation(x, y):
-   '''Creates a standard deviation statistic'''
-   return _Statistic('correlation', x, y)
+    '''Creates a standard deviation statistic'''
+    return _Statistic('correlation', x, y)

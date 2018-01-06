@@ -1,10 +1,12 @@
 import vaex
 import numpy as np
 
+
 def plot2d_vector(self, x, y, vx, vy, shape=16, limits=None, delay=None, show=False, normalize=False,
                   selection=None, min_count=0, **kwargs):
     import matplotlib.pylab as plt
     shape = vaex.dataset._expand_shape(shape, 2)
+
     @vaex.delayed
     def on_means(limits, count, mean_vx, mean_vy):
         if normalize:
@@ -13,7 +15,7 @@ def plot2d_vector(self, x, y, vx, vy, shape=16, limits=None, delay=None, show=Fa
             mean_vy = mean_vy / length
         x_centers = self.bin_centers(x, limits[0], shape=shape[0])
         y_centers = self.bin_centers(y, limits[1], shape=shape[1])
-        Y, X = np.meshgrid(x_centers, y_centers)#, indexing='ij')
+        Y, X = np.meshgrid(x_centers, y_centers)  # , indexing='ij')
         count = count.flatten()
         mask = count >= min_count
         kwargs['alpha'] = kwargs.get('alpha', 0.7)
@@ -25,7 +27,6 @@ def plot2d_vector(self, x, y, vx, vy, shape=16, limits=None, delay=None, show=Fa
         if show:
             plt.show()
         return
-
 
     @vaex.delayed
     def on_limits(limits):
