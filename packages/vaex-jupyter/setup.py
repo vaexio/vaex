@@ -26,4 +26,5 @@ setup(name=name + '-jupyter',
       license=license,
       packages=['vaex.jupyter'],
       zip_safe=False,
+      include_package_data=True,  # include files listed in manifest.in
       )

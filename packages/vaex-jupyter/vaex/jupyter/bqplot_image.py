@@ -7,7 +7,6 @@ import vaex.dataset
 import logging
 import vaex as vx
 import vaex.delayed
-from .common import Job
 import os
 from IPython.display import HTML, display_html, display_javascript, display
 import bqplot.marks
@@ -60,41 +59,3 @@ def patch(force=False):
 # if (bqplot.__version__ == (0, 6, 1)) or (bqplot.__version__ == "0.6.1"):
 # else:
 #	warnings.warn("This version (%s) of bqplot is not supppored" % bqplot.__version__)
-
-
-if 0:
-    class _BqplotHistogram(Plot2d):
-        def __init__(self, subspace, color, size, limits):
-            self.color = color
-            super(BqplotHistogram, self).__init__(subspace, size, limits)
-
-        def create(self, data):
-            size = data.shape[0]
-            assert len(data.shape) == 1
-            xmin, xmax = self.limits[0]
-            dx = (xmax - xmin) / size
-            x = np.linspace(xmin, xmax - dx, size) + dx / 2
-            # print xmin, xmax, x
-
-            self.scale_x = bq.LinearScale(min=xmin + dx / 2, max=xmax - dx / 2)
-            self.scale_y = bq.LinearScale()
-
-            self.axis_x = bq.Axis(label='X', scale=self.scale_x)
-            self.axis_y = bq.Axis(label='Y', scale=self.scale_y, orientation='vertical')
-            self.bars = bq.Bars(x=x,
-                                y=data, scales={'x': self.scale_x, 'y': self.scale_y}, colors=[self.color])
-
-            self.fig = bq.Figure(axes=[self.axis_x, self.axis_y], marks=[self.bars], padding_x=0)
-
-        def update(self, data):
-            self.bars.y = data
-
-
-    def BqplotHistogram2d(Bqplot):
-        def __init__(self, subspace, color, size, limits):
-            self.color = color
-            super(BqplotHistogram, self).__init__(subspace, size, limits)
-
-        def create(self, data):
-            pass
-

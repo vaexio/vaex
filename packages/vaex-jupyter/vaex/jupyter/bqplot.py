@@ -5,7 +5,7 @@ import bqplot as bq
 import bqplot.interacts
 import ipywidgets as widgets
 import vaex
-import vaex.ext.bqplot
+from . import bqplot_image
 import bqplot.pyplot as plt
 import numpy as np
 import vaex.events
@@ -17,7 +17,7 @@ logger = logging.getLogger("vaex.nb.bqplot")
 
 class BqplotBackend(BackendBase):
     def __init__(self, figure=None, figure_key=None):
-        vaex.ext.bqplot.patch()
+        bqplot_image.patch()
 
         self._dirty = False
         self.figure_key = figure_key
@@ -61,7 +61,7 @@ class BqplotBackend(BackendBase):
         src = ""  # vaex.image.rgba_to_url(self._create_rgb_grid())
         # self.scale_x.min, self.scale_x.max = self.limits[0]
         # self.scale_y.min, self.scale_y.max = self.limits[1]
-        self.image = vaex.ext.bqplot.Image(scales=self.scales, src=src, x=self.scale_x.min, y=self.scale_y.max,
+        self.image = bqplot_image.Image(scales=self.scales, src=src, x=self.scale_x.min, y=self.scale_y.max,
                                            width=self.scale_x.max - self.scale_x.min, height=-(self.scale_y.max - self.scale_y.min))
         self.figure.marks = self.figure.marks + [self.image]
         # self.figure.animation_duration = 500
