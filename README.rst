@@ -9,9 +9,9 @@ Vaex is a python library for Out-of-Core DataFrames (similar to Pandas), to visu
 Vaex uses several sites:
 
 * Main page: https://vaex.io/
-* Github for source, bugs, wiki, releases: https://github.com/maartenbreddels/vaex
+* Documentation: https://docs.vaex.io/
+* Github: https://github.com/maartenbreddels/vaex
 * PyPi: https://pypi.python.org/pypi/vaex/
-* Documentation: http://docs.vaex.readthedocs.org/
 
 Installation
 ============
