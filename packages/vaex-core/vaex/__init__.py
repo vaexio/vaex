@@ -103,10 +103,30 @@ def app(*args, **kwargs):
     return vaex.ui.main.VaexApp()
 
 
-def open(path, *args, **kwargs):
+def _convert_name(filenames, shuffle=False):
+    '''Convert a filename (or list of) to a filename with .hdf5 and optionally a -shuffle suffix'''
+    if not isinstance(filenames, (list, tuple)):
+        filenames = [filenames]
+    base = filenames[0]
+    if shuffle:
+        base += '-shuffle'
+    if len(filenames) > 1:
+        return base + "_and_{}_more.hdf5".format(len(filenames)-1)
+    else:
+        return base + ".hdf5"
+
+
+def open(path, convert=False, shuffle=False, *args, **kwargs):
     """Open a dataset from file given by path
 
-    :param str path: local or absolute path to file
+    Example:
+
+    >>> ds = vaex.open('sometable.hdf5')
+    >>> ds = vaex.open('somedata*.csv', convert='bigdata.hdf5')
+
+    :param str path: local or absolute path to file, or glob string
+    :param convert: convert files to an hdf5 file for optimization, can also be a path
+    :param bool shuffle: shuffle converted dataset or not
     :param args: extra arguments for file readers that need it
     :param kwargs: extra keyword arguments
     :return: return dataset if file is supported, otherwise None
@@ -136,7 +156,51 @@ def open(path, *args, **kwargs):
             return vaex.distributed.open(path, *args, **kwargs)
         else:
             import vaex.file
-            return vaex.file.open(path, *args, **kwargs)
+            import glob
+            filenames = glob.glob(path)
+            ds = None
+            if len(filenames) == 0:
+                raise IOError('Could not open file: {}, it does not exists'.format(path))
+            filename_hdf5 = _convert_name(filenames, shuffle=shuffle)
+            filename_hdf5_noshuffle = _convert_name(filenames, shuffle=False)
+            if len(filenames) == 1:
+                path = filenames[0]
+                ext = os.path.splitext(path)[1]
+                if os.path.exists(filename_hdf5) and convert:  # also check mtime?
+                    ds = vaex.file.open(filename_hdf5, *args, **kwargs)
+                else:
+                    if ext == '.csv':  # special support for csv.. should probably approach it a different way
+                        ds = from_csv(path, **kwargs)
+                    else:
+                        ds = vaex.file.open(path, *args, **kwargs)
+                    if convert:
+                        ds.export_hdf5(filename_hdf5, shuffle=shuffle)
+                        ds = vaex.file.open(filename_hdf5, *args, **kwargs)
+                if ds is None:
+                    if os.path.exists(path):
+                        raise IOError('Could not open file: {}, did you install vaex-hdf5?'.format(path))
+                    if os.path.exists(path):
+                        raise IOError('Could not open file: {}, it does not exist?'.format(path))
+            elif len(filenames) > 1:
+                if convert not in [True, False]:
+                    filename_hdf5 = convert
+                else:
+                    filename_hdf5 = _convert_name(filenames, shuffle=shuffle)
+                if os.path.exists(filename_hdf5) and convert:  # also check mtime
+                    ds = open(filename_hdf5)
+                else:
+                    # with ProcessPoolExecutor() as executor:
+                    # executor.submit(read_csv_and_convert, filenames, shuffle=shuffle, **kwargs)
+                    for filename in filenames:
+                        open(filename, convert=convert is not False, shuffle=shuffle, **kwargs)
+                    ds = open_many([_convert_name(k, shuffle=shuffle) for k in filenames])
+                if convert:
+                    ds.export_hdf5(filename_hdf5, shuffle=shuffle)
+                    ds = vaex.file.open(filename_hdf5, *args, **kwargs)
+
+        if ds is None:
+            raise IOError('Unknown error opening: {}'.format(path))
+        return ds
     except:
         logging.getLogger("vaex").error("error opening %r" % path)
         raise
@@ -293,19 +357,6 @@ def from_csv(filename_or_buffer, **kwargs):
 def read_csv(filepath_or_buffer, **kwargs):
     '''Alias to from_csv'''
     return from_csv(filenames, **kwargs)
-
-
-def _convert_name(filenames, shuffle=False):
-    '''Convert a filename (or list of) to a filename with .hdf5 and optionally a -shuffle suffix'''
-    if not isinstance(filenames, (list, tuple)):
-        filenames = [filenames]
-    base = filenames[0]
-    if shuffle:
-        base += '-shuffle'
-    if len(filenames) > 1:
-        return base + "_and_{}_more.hdf5".format(len(filenames))
-    else:
-        return base + ".hdf5"
 
 
 def read_csv_and_convert(path, shuffle=False, copy_index=True, **kwargs):
