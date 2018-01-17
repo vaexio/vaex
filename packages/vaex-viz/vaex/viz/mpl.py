@@ -225,6 +225,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
          shape=256, vshape=32, limits=None, grid=None, colormap="afmhot",  # colors=["red", "green", "blue"],
          figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
          colorbar=True,
+         colorbar_label=None,
          selection=None, selection_labels=None, title=None,
          background_color="white", pre_blend=False, background_alpha=1.,
          visual=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what"),
@@ -632,7 +633,10 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                     if facets > 1:
                         colorbar.ax.set_title(label)
                     else:
-                        colorbar.ax.set_ylabel(label)
+                        if colorbar_label is not None:
+                            colorbar.ax.set_ylabel(colorbar_label)
+                        else:
+                            colorbar.ax.set_ylabel(label)
 
             if colorbar and colorbar_location == "per_row" and j == 0:
                 norm = matplotlib.colors.Normalize(vmins[i], vmaxs[i])
@@ -643,8 +647,11 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                     colorbar = fig.colorbar(sm, cax=ax)
                 else:
                     colorbar = fig.colorbar(sm)
-                label = labels["what"][i]
-                colorbar.ax.set_ylabel(label)
+                if colorbar_label is not None:
+                    colorbar.ax.set_ylabel(colorbar_label)
+                else:
+                    label = labels["what"][what_index]
+                    colorbar.ax.set_ylabel(label)
 
             rgrid = ngrid[i, j] * 1.
             # print rgrid.shape
@@ -682,8 +689,11 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                     colorbar = fig.colorbar(sm, ax=ax)
                 else:
                     colorbar = fig.colorbar(sm)
-                label = labels["what"][what_index]
-                colorbar.ax.set_ylabel(label)
+                if colorbar_label is not None:
+                    colorbar.ax.set_ylabel(colorbar_label)
+                else:
+                    label = labels["what"][what_index]
+                    colorbar.ax.set_ylabel(label)
 
             if facets > 1:
                 ax = pylab.subplot(gs[row_offset + row * row_scale:row_offset + (row + 1) * row_scale, column * column_scale:(column + 1) * column_scale])
