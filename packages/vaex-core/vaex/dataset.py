@@ -434,6 +434,17 @@ def as_flat_float(a):
 		return a.astype(np.float64, copy=False)
 
 
+def _split_and_combine_mask(arrays):
+	'''Combines all masks from a list of arrays, and logically ors them into a single mask'''
+	masks = [np.ma.getmaskarray(block) for block in arrays if np.ma.isMaskedArray(block)]
+	arrays = [block.data if np.ma.isMaskedArray(block) else block for block in arrays]
+	mask = None
+	if masks:
+		mask = masks[0].copy()
+		for other in masks[1:]:
+			mask |= other
+	return arrays, mask
+
 class TaskStatistic(Task):
 	def __init__(self, dataset, expressions, shape, limits, masked=False, weights=[], weight=None, op=OP_ADD1, selection=None, edges=False):
 		if not isinstance(expressions, (tuple, list)):
@@ -839,6 +850,8 @@ class SelectionLasso(Selection):
 		radius = np.sqrt((meanx-x)**2 + (meany-y)**2).max()
 		blockx = self.dataset._evaluate(self.boolean_expression_x, i1=i1, i2=i2)
 		blocky = self.dataset._evaluate(self.boolean_expression_y, i1=i1, i2=i2)
+		# for masked arrays being true means excluded
+		(blockx, blocky), excluding_mask = _split_and_combine_mask([blockx, blocky])
 		blockx = as_flat_float(blockx)
 		blocky = as_flat_float(blocky)
 		vaex.vaexfast.pnpoly(x, y, blockx, blocky, current_mask, meanx, meany, radius)
@@ -849,6 +862,8 @@ class SelectionLasso(Selection):
 			logger.debug("combining previous mask with current mask using op %r", self.mode)
 			mode_function = _select_functions[self.mode]
 			mask = mode_function(previous_mask, current_mask)
+		if excluding_mask is not None:
+			mask = mask & (~excluding_mask)
 		return mask
 
 

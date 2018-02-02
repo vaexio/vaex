@@ -84,7 +84,7 @@ class TestDataset(unittest.TestCase):
 			self.ints[2+10] = -2**62-1
 			self.dataset.add_column("x", x)
 			self.dataset.add_column("y", y)
-			m = x.copy()
+			m = np.arange(40, dtype=">f8").reshape((-1,20)).T.copy()[:,0]
 			ma_value = 77777
 			m[-1+10] = ma_value
 			m[-1+20] = ma_value
@@ -2150,9 +2150,6 @@ class TestDataset(unittest.TestCase):
 
 
 	def test_lasso(self):
-		# this doesn't really test much, just that the code gets executed
-		self.x = x = np.arange(10)
-		self.y = y = x ** 2
 
 		x = [-0.1, 5.1, 5.1, -0.1]
 		y = [-0.1, -0.1, 4.1, 4.1]
@@ -2160,6 +2157,15 @@ class TestDataset(unittest.TestCase):
 		sumx, sumy = self.dataset("x", "y").selected().sum()
 		self.assertAlmostEqual(sumx, 0+1+2)
 		self.assertAlmostEqual(sumy, 0+1+4)
+
+		# not test with masked arrays, m ~= x
+		x = [8-0.1, 9+0.1, 9+0.1, 8-0.1]
+		y = [-0.1, -0.1, 1000, 1000]
+		self.dataset._invalidate_selection_cache()
+		self.dataset.select_lasso("m", "y", x, y)
+		sumx, sumy = self.dataset.sum(['m', 'y'], selection=True)
+		self.assertAlmostEqual(sumx, 8)
+		self.assertAlmostEqual(sumy, 8**2)
 
 
 
