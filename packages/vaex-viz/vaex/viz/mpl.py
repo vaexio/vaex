@@ -633,10 +633,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                     if facets > 1:
                         colorbar.ax.set_title(label)
                     else:
-                        if colorbar_label is not None:
-                            colorbar.ax.set_ylabel(colorbar_label)
-                        else:
-                            colorbar.ax.set_ylabel(label)
+                        colorbar.ax.set_ylabel(colorbar_label or label)
 
             if colorbar and colorbar_location == "per_row" and j == 0:
                 norm = matplotlib.colors.Normalize(vmins[i], vmaxs[i])
@@ -647,11 +644,8 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                     colorbar = fig.colorbar(sm, cax=ax)
                 else:
                     colorbar = fig.colorbar(sm)
-                if colorbar_label is not None:
-                    colorbar.ax.set_ylabel(colorbar_label)
-                else:
-                    label = labels["what"][what_index]
-                    colorbar.ax.set_ylabel(label)
+                label = labels["what"][what_index]
+                colorbar.ax.set_ylabel(colorbar_label or label)
 
             rgrid = ngrid[i, j] * 1.
             # print rgrid.shape
@@ -689,11 +683,8 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                     colorbar = fig.colorbar(sm, ax=ax)
                 else:
                     colorbar = fig.colorbar(sm)
-                if colorbar_label is not None:
-                    colorbar.ax.set_ylabel(colorbar_label)
-                else:
-                    label = labels["what"][what_index]
-                    colorbar.ax.set_ylabel(label)
+                label = labels["what"][what_index]
+                colorbar.ax.set_ylabel(colorbar_label or label)
 
             if facets > 1:
                 ax = pylab.subplot(gs[row_offset + row * row_scale:row_offset + (row + 1) * row_scale, column * column_scale:(column + 1) * column_scale])
