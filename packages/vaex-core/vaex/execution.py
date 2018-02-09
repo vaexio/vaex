@@ -57,7 +57,7 @@ ne_lock = threading.Lock()
 
 
 class Executor(object):
-    def __init__(self, thread_pool=None, buffer_size=None, thread_mover=None):
+    def __init__(self, thread_pool=None, buffer_size=None, thread_mover=None, zigzag=True):
         self.thread_pool = thread_pool or vaex.multithreading.ThreadPoolIndex()
         self.task_queue = []
         self.buffer_size = buffer_size or buffer_size_default
@@ -70,6 +70,8 @@ class Executor(object):
         self.lock = threading.Lock()
         self.thread = None
         self.passes = 0  # how many times we passed over the data
+        self.zig = True # zig or zag
+        self.zigzag = zigzag
 
     def schedule(self, task):
         self.task_queue.append(task)
@@ -175,8 +177,12 @@ class Executor(object):
 # time.sleep(0.1)
 
                     length = dataset.active_length()
-                    # print self.thread_pool.map()
-                    for element in self.thread_pool.map(process, vaex.utils.subdivide(length, max_length=self.buffer_size),
+                    parts = vaex.utils.subdivide(length, max_length=self.buffer_size)
+                    if not self.zig:
+                        parts = list(parts)[::-1]
+                    if self.zigzag:
+                        self.zig = not self.zig
+                    for element in self.thread_pool.map(process, parts,
                                                         progress=lambda p: all(self.signal_progress.emit(p)) and
                                                         all([all(task.signal_progress.emit(p)) for task in task_queue]),
                                                         cancel=cancel, unpack=True):
