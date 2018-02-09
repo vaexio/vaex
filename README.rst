@@ -3,23 +3,20 @@
 VaeX: Visualization and eXploration
 ===================================
 
+Vaex is a python library for Out-of-Core DataFrames (similar to Pandas), to visualize and explore big tabular datasets. It can calculate statistics such as mean, sum, count, standard deviation etc, on an N-dimensional grid up to a billion (10\ :sup:`9`) objects/rows per second. Visualization is done using histograms, density plots and 3d volume rendering, allowing interactive exploration of big data. Vaex uses memory mapping, zero memory copy policy and lazy computations for best performance (no memory wasted).
 
-Vaex is a program (and Python library) to visualize and explore large tabular datasets using statistics on an N-dimensional grid.
-It mainly renders histograms, density plots and volume rendering  plots for visualization in the order of 10\ :sup:`9` rows in the order of 1 second.
-For exploration it support selection in 1 and 2d, but it can also analyse the columns (dimensions) to find subspaces
-which are richer in information than others.
-
-.. image:: http://vaex.readthedocs.org/en/latest/_images/overview.png
 
 Vaex uses several sites:
 
-* Main page: http://vaex.astro.rug.nl/
-* Github for source, bugs, wiki, releases: https://github.com/maartenbreddels/vaex
-* Python Package Index for installing the source in your Python tree: https://pypi.python.org/pypi/vaex/
-* Documentation, similar to the homepage, but also has older versions: http://vaex.readthedocs.org/
+* Main page: https://vaex.io/
+* Documentation: https://docs.vaex.io/
+* Github: https://github.com/maartenbreddels/vaex
+* PyPi: https://pypi.python.org/pypi/vaex/
 
 Installation
 ============
+
+See https://docs.vaex.io/en/latest/installing.html or:
 
 Using pip
 ::
