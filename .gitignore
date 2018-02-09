@@ -2,7 +2,7 @@
 *.so
 *.mkv
 *.mk4
-/*.png
+#/*.png
 *.eps
 *.hdf5
 *.pgm
