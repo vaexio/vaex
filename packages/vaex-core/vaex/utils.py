@@ -282,9 +282,9 @@ _progressbar_typemap['vaex'] = _progressbar_vaex
 _progressbar_typemap['widget'] = _ProgressBarWidget
 
 
-def progressbar(type_name=None, name="processing", max_value=1):
+def progressbar(type_name=None, title="processing", max_value=1):
     type_name = type_name or 'vaex'
-    return _progressbar_typemap[type_name](name=name)
+    return _progressbar_typemap[type_name](name=title)
 
 
 def progressbar_widget():
@@ -390,8 +390,8 @@ def progressbars(f=True, next=None, name=None):
             return _progressbar_wrapper_sum(next=next, name=name)
 
 
-def progressbar_callable(name="processing", max_value=1):
-    bar = progressbar(name, max_value=max_value)
+def progressbar_callable(title="processing", max_value=1):
+    bar = progressbar(title=title, max_value=max_value)
     return _progressbar_wrapper(bar)
 
 
