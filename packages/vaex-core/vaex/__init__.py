@@ -160,7 +160,7 @@ def open(path, convert=False, shuffle=False, *args, **kwargs):
             filenames = glob.glob(path)
             ds = None
             if len(filenames) == 0:
-                raise IOError('Could not open file: {}, it does not exists'.format(path))
+                raise IOError('Could not open file: {}, it does not exist'.format(path))
             filename_hdf5 = _convert_name(filenames, shuffle=shuffle)
             filename_hdf5_noshuffle = _convert_name(filenames, shuffle=False)
             if len(filenames) == 1:
