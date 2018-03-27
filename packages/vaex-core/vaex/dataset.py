@@ -461,6 +461,12 @@ def as_flat_float(a):
     else:
         return a.astype(np.float64, copy=False)
 
+def as_flat_array(a, dtype=np.float64):
+    if a.dtype.type == dtype and a.strides[0] == 8:
+        return a
+    else:
+        return a.astype(dtype, copy=False)
+
 
 def _split_and_combine_mask(arrays):
 	'''Combines all masks from a list of arrays, and logically ors them into a single mask'''
@@ -489,6 +495,7 @@ class TaskStatistic(Task):
         self.op = op
         self.edges = edges
         Task.__init__(self, dataset, expressions, name="statisticNd")
+        #self.dtype = np.int64 if self.op == OP_ADD1 else np.float64 # TODO: use int64 fir count and ADD1
         self.dtype = np.float64
         self.masked = masked
 
@@ -535,7 +542,25 @@ class TaskStatistic(Task):
                 mask |= other
             blocks = [block[~mask] for block in blocks]
 
-        blocks = [as_flat_float(block) for block in blocks]
+        #blocks = [as_flat_float(block) for block in blocks]
+        if len(blocks) != 0:
+            dtype = np.find_common_type([block.dtype for block in blocks], [])
+            histogram2d = vaex.vaexfast.histogram2d
+            if dtype.str in ">f8 <f8 =f8":
+                statistic_function = vaex.vaexfast.statisticNd_f8
+            elif dtype.str in ">f4 <f4 =f4":
+                statistic_function = vaex.vaexfast.statisticNd_f4
+                histogram2d = vaex.vaexfast.histogram2d_f4
+            elif dtype.str in ">i8 <i8 =i8":
+                dtype = np.dtype(np.float64)
+                statistic_function = vaex.vaexfast.statisticNd_f8
+            else:
+                dtype = np.dtype(np.float32)
+                statistic_function = vaex.vaexfast.statisticNd_f4
+                histogram2d = vaex.vaexfast.histogram2d_f4
+            #print(dtype, statistic_function, histogram2d)
+
+        blocks = [as_flat_array(block, dtype) for block in blocks]
 
         this_thread_grid = self.grid[thread_index]
         for i, selection in enumerate(self.selections):
@@ -569,9 +594,16 @@ class TaskStatistic(Task):
                         this_thread_grid[i][0] += i2 - i1
                 else:
                     raise ValueError("Nothing to compute for OP %s" % self.op.code)
-
-            blocks = list(blocks)  # histogramNd wants blocks to be a list
-            vaex.vaexfast.statisticNd(selection_blocks, subblock_weights, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
+            else:
+                #blocks = list(blocks)  # histogramNd wants blocks to be a list
+                # if False: #len(selection_blocks) == 2 and self.op == OP_ADD1:  # special case, slighty faster
+                #     #print('fast case!')
+                #     assert len(subblock_weights) <= 1
+                #     histogram2d(selection_blocks[0], selection_blocks[1], subblock_weights[0] if len(subblock_weights) else None,
+                #                 this_thread_grid[i,...,0],
+                #                 self.minima[0], self.maxima[0], self.minima[1], self.maxima[1])
+                # else:
+                    statistic_function(selection_blocks, subblock_weights, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
         return i2 - i1
         # return map(self._map, blocks)#[self.map(block) for block in blocks]
 
@@ -821,10 +853,20 @@ class SelectionDropNa(Selection):
         return mask
 
 
+def _rename_expression_string(dataset, e, old, new):
+    return Expression(self.dataset, self.boolean_expression)._rename(old, new).expression
+
 class SelectionExpression(Selection):
     def __init__(self, dataset, boolean_expression, previous_selection, mode):
         super(SelectionExpression, self).__init__(dataset, previous_selection, mode)
-        self.boolean_expression = boolean_expression
+        self.boolean_expression = Expression(dataset, _ensure_string_from_expression(boolean_expression))
+
+    def _rename(self, old, new):
+        boolean_expression = self.boolean_expression._rename(old, new)
+        previous_selection = None
+        if self.previous_selection:
+            previous_selection = self.previous_selection._rename(old, new)
+        return SelectionExpression(self.dataset, boolean_expression, previous_selection, self.mode)
 
     def to_dict(self):
         previous = None
@@ -1014,8 +1056,12 @@ expression_namespace["hourofday"] = hourofday
 def _float(x):
     return x.astype(np.float64)
 
+def _astype(x, dtype):
+    return x.astype(dtype)
+
 
 expression_namespace["float"] = _float
+expression_namespace["astype"] = _astype
 
 _doc_snippets = {}
 _doc_snippets["expression"] = "expression or list of expressions, e.g. 'x', or ['x, 'y']"
@@ -2530,6 +2576,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if expression in self.columns.keys():
             return self.columns[expression].dtype
         else:
+            return self.evaluate(expression, 0, 1).dtype
             return np.zeros(1, dtype=np.float64).dtype
 
     def is_masked(self, column):
@@ -3654,11 +3701,29 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param str unique: if name is already used, make it unique by adding a postfix, e.g. _1, or _2
         """
         type = "change" if name in self.virtual_columns else "add"
+        if name in self.get_column_names():
+            renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names(virtual=True, strings=True))
+            expression = self._rename(name, renamed, expression)[0].expression
+
         name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(virtual=True, strings=True))
         self.virtual_columns[name] = expression
         self._save_assign_expression(name)
         self.signal_column_changed.emit(self, name, "add")
         # self.write_virtual_meta()
+
+    def _rename(self, old, new, *expressions):
+        #for name, expr in self.virtual_columns.items():
+        if old in self.columns:
+            self.columns[new] = self.columns.pop(old)
+        if new in self.virtual_columns:
+            self.virtual_columns[new] = self.virtual_columns.pop(old)
+        index = self.column_names.index(old)
+        self.column_names[index] = new
+        self.virtual_columns = {k:self[v]._rename(old, new).expression for k, v in self.virtual_columns.items()}
+        for key, value in self.selection_histories.items():
+            self.selection_histories[key] = list([k._rename(old, new) for k in value])
+        return [self[_ensure_string_from_expression(e)]._rename(old, new) for e in expressions]
+
 
     def delete_virtual_column(self, name):
         """Deletes a virtual column from a dataset"""
@@ -3870,8 +3935,14 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param hidden: If True, also return hidden columns
         :rtype: list of str
         """
-        return list([name for name in self.column_names if strings or self.dtype(name).type != np.string_]) \
-            + ([key for key in self.virtual_columns.keys() if (hidden or (not key.startswith("__")))] if virtual else [])
+        names = [name for name in self.column_names if strings or (self.dtype(name).type != np.string_)]
+        if virtual:
+            names += [key for key in self.virtual_columns.keys()]
+        if not hidden:
+            names = [name for name in names if not name.startswith('__')]
+        return names
+        # return list([name for name in self.column_names if (strings or (self.dtype(name).type != np.string_)) and (hidden or not name.startswith("__"))]) \
+        #     + ([key for key in self.virtual_columns.keys() if (hidden or (not key.startswith("__")))] if virtual else [])
 
     def __len__(self):
         """Returns the number of rows in the dataset (filtering applied)"""
@@ -4553,7 +4624,12 @@ class DatasetLocal(Dataset):
             # f = vaex.expression.FunctionBuiltin(self, name)
             def closure(name=name, value=value):
                 def wrap(*args, **kwargs):
-                    arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+                    def myrepr(k):
+                        if isinstance(k, Expression):
+                            return str(k)
+                        else:
+                            return repr(k)
+                    arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
                     expression = "{}({})".format(name, arg_string)
                     return vaex.expression.Expression(self, expression)
                 return wrap

@@ -53,12 +53,11 @@ def export_hdf5_v1(dataset, path, column_names=None, byteorder="=", shuffle=Fals
 
         logger.debug("exporting columns(hdf5): %r" % column_names)
         for column_name in column_names:
+            dtype = dataset.dtype(column_name)
             if column_name in dataset.get_column_names(strings=True):
                 column = dataset.columns[column_name]
                 shape = (N,) + column.shape[1:]
-                dtype = column.dtype
             else:
-                dtype = np.float64().dtype
                 shape = (N,)
             if dtype.type == np.datetime64:
                 array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=np.int64)
@@ -136,12 +135,11 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 
         logger.debug("exporting columns(hdf5): %r" % column_names)
         for column_name in column_names:
+            dtype = dataset.dtype(column_name)
             if column_name in dataset.get_column_names(strings=True):
                 column = dataset.columns[column_name]
                 shape = (N,) + column.shape[1:]
-                dtype = column.dtype
             else:
-                dtype = np.float64().dtype
                 shape = (N,)
             h5column_output = h5columns_output.require_group(column_name)
             if dtype.type == np.datetime64:

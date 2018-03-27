@@ -32,26 +32,29 @@ def main(argv):
     expressions = args.expressions
     # print "subspace", expressions
     subspace = dataset(*expressions)
-    byte_size = len(dataset) * len(expressions) * 8
+    itemsize = dataset.columns[expressions[0]].dtype.itemsize
+    byte_size = len(dataset) * len(expressions) * itemsize
+    byte_size1 = len(dataset) * itemsize
     # sums = subspace.sum()
 
     limits = subspace.minmax()
     print(limits)
 
     N = args.N
-    print("benchmarking minmax")
-    expr = "subspace.minmax()"
-    times = timeit.repeat(expr, setup="from vaex.benchmark import subspace, dataset, np", repeat=args.repeat, number=N)
-    print("minimum time", min(times) / N)
-    bandwidth = [byte_size / 1024.**3 / (time / N) for time in times]
-    print("%f GiB/s" % max(bandwidth))
+    # print("benchmarking minmax")
+    # expr = "subspace.minmax()"
+    # expr = "dataset.count('{}')".format(expressions[0])
+    # times = timeit.repeat(expr, setup="from vaex.benchmark import subspace, dataset, np", repeat=args.repeat, number=N)
+    # print("minimum time", min(times) / N)
+    # bandwidth = [byte_size1 / 1024.**3 / (time / N) for time in times]
+    # print("%f GiB/s" % max(bandwidth))
 
-    speed = [len(dataset) / (time / N) / 1e9 for time in times]
-    print("%f billion rows/s " % max(speed))
+    # speed = [len(dataset) / (time / N) / 1e9 for time in times]
+    # print("%f billion rows/s " % max(speed))
 
     print()
     print("benchmarking histogram")
-    expr = "dataset.count(binby=['{}', '{}'])".format(*expressions)
+    expr = "dataset.count(binby=['{}', '{}'], limits=limits)".format(*expressions)
     times = timeit.repeat(expr, setup="from vaex.benchmark import subspace, dataset, np, limits", repeat=args.repeat, number=N)
     print("minimum time", min(times) / N)
     bandwidth = [byte_size / 1024.**3 / (time / N) for time in times]
@@ -62,10 +65,10 @@ def main(argv):
     print()
 
     # expr = "np.nansum(dataset.columns['x'])"
-    print("sum=", subspace.sum())
-    print("benchmarking sum")
-    expr = "subspace.sum()"
-    times = timeit.repeat(expr, setup="from vaex.benchmark import subspace, dataset, np", repeat=args.repeat, number=N)
-    print("minimum time", min(times) / N)
-    bandwidth = [byte_size / 1024.**3 / (time / N) for time in times]
-    print("%f GiB/s" % max(bandwidth))
+    # print("sum=", subspace.sum())
+    # print("benchmarking sum")
+    # expr = "subspace.sum()"
+    # times = timeit.repeat(expr, setup="from vaex.benchmark import subspace, dataset, np", repeat=args.repeat, number=N)
+    # print("minimum time", min(times) / N)
+    # bandwidth = [byte_size / 1024.**3 / (time / N) for time in times]
+    # print("%f GiB/s" % max(bandwidth))
