@@ -117,6 +117,8 @@ class Meta(type):
 class Expression(with_metaclass(Meta)):
     def __init__(self, ds, expression):
         self.ds = ds
+        if isinstance(expression, Expression):
+            expression = self.expression
         self.expression = expression
 
     def __str__(self):
@@ -234,14 +236,17 @@ class Expression(with_metaclass(Meta)):
         function = self.ds.add_function('_jit', f, unique=True)
         return function(*arguments)
 
-    def jit(self):
+    def jit_pythran(self):
         import pythran
         import imp
         import hashlib
         # self._import_all(module)
         names = []
         funcs = set(vaex.dataset.expression_namespace.keys())
-        vaex.expresso.validate_expression(self.expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
+        expression = self.expression
+        if expression in self.ds.virtual_columns:
+            expression = self.ds.virtual_columns[self.expression]
+        vaex.expresso.validate_expression(expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
         names = list(set(names))
         types = ", ".join(str(self.ds.dtype(name)) + "[]" for name in names)
         argstring = ", ".join(names)
@@ -249,7 +254,7 @@ class Expression(with_metaclass(Meta)):
 from numpy import *
 #pythran export f({2})
 def f({0}):
-    return {1}'''.format(argstring, self.expression, types)
+    return {1}'''.format(argstring, expression, types)
         print(code)
         m = hashlib.md5()
         m.update(code.encode('utf-8'))
@@ -380,7 +385,7 @@ class Function(object):
         self.f = f
 
     def __call__(self, *args, **kwargs):
-        arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+        arg_string = ", ".join([str(k) for k in args] + ['{}={:r}'.format(name, value) for name, value in kwargs.items()])
         expression = "{}({})".format(self.name, arg_string)
         return Expression(self.dataset, expression)
 
@@ -394,6 +399,6 @@ class FunctionBuiltin(object):
 
     def __call__(self, *args, **kwargs):
         kwargs = dict(kwargs, **self.kwargs)
-        arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+        arg_string = ", ".join([str(k) for k in args] + ['{}={:r}'.format(name, value) for name, value in kwargs.items()])
         expression = "{}({})".format(self.name, arg_string)
         return Expression(self.dataset, expression)

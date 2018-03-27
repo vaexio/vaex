@@ -23,7 +23,9 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
     This is useful if you keep a piece of memory (like ndgrid) per array
     """
 
-    def __init__(self, max_workers=thread_count_default, *args, **kwargs):
+    def __init__(self, max_workers=None, *args, **kwargs):
+        if max_workers is None:
+            max_workers = thread_count_default
         super(ThreadPoolIndex, self).__init__(max_workers, *args, **kwargs)
         self.lock = threading.Lock()
         self.thread_indices = iter(range(1000000))  # enough threads until 2100?
