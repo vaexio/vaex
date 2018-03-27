@@ -702,7 +702,7 @@ class _BlockScope(object):
         try:
             if variable in self.values:
                 return self.values[variable]
-            elif variable in self.dataset.get_column_names(strings=True):
+            elif variable in self.dataset.get_column_names(strings=True, hidden=True):
                 if self.dataset._needs_copy(variable):
                     # self._ensure_buffer(variable)
                     # self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
@@ -743,6 +743,7 @@ class _BlockScopeSelection(object):
         if expression is True:
             expression = "default"
         try:
+            expression = _ensure_string_from_expression(expression)
             return eval(expression, expression_namespace, self)
         except:
             import traceback as tb
@@ -775,7 +776,7 @@ class _BlockScopeSelection(object):
             else:
                 if variable in expression_namespace:
                     return expression_namespace[variable]
-                elif variable in self.dataset.get_column_names(strings=True):
+                elif variable in self.dataset.get_column_names(strings=True, hidden=True):
                     return self.dataset.columns[variable][self.i1:self.i2]
                 elif variable in self.dataset.variables:
                     return self.dataset.variables[variable]
