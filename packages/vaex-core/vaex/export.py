@@ -52,8 +52,9 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 
     if partial_shuffle:
         # if we only export a portion, we need to create the full length random_index array, and
-        shuffle_array_full = np.zeros(len(dataset_input), dtype=byteorder + "i8")
-        vaex.vaexfast.shuffled_sequence(shuffle_array_full)
+        #shuffle_array_full = np.zeros(len(dataset_input), dtype=byteorder + "i8")
+        #vaex.vaexfast.shuffled_sequence(shuffle_array_full)
+        shuffle_array_full = np.random.choice(len(dataset_input), len(dataset_input), replace=False)
         # then take a section of it
         # shuffle_array[:] = shuffle_array_full[:N]
         shuffle_array[:] = shuffle_array_full[shuffle_array_full < N]
@@ -61,8 +62,9 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
         order_array = shuffle_array
     elif shuffle:
         # better to do this in memory
-        shuffle_array_memory = np.zeros_like(shuffle_array)
-        vaex.vaexfast.shuffled_sequence(shuffle_array_memory)
+        #shuffle_array_memory = np.zeros_like(shuffle_array)
+        # vaex.vaexfast.shuffled_sequence(shuffle_array_memory)
+        shuffle_array_memory = np.random.choice(len(dataset_input), len(dataset_input), replace=False)
         shuffle_array[:] = shuffle_array_memory
         order_array = shuffle_array
 
