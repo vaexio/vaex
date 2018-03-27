@@ -400,16 +400,20 @@ class MemoryMappedGadget(DatasetMemoryMapped):
 		self.addColumn("vz", veloffset+8, length, dtype=np.float32, stride=3)
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
-		with open(path, 'rb') as f:
-			first_words = struct.unpack('4I',f.read(4*4))
-			if first_words[0] == 8 and first_words[2] == 8 and first_words[3] == 256:
-				logg.debug('gadget file SnapFormat=2 detected')
-				return True
-			elif first_words[0] == 256:
-				f.seek(256+4)
-				if struct.unpack('I',f.read(4))[0] == 256:
-					logger.debug('gadget file SnapFormat=1 detected')
+		try:
+			with open(path, 'rb') as f:
+				first_words = struct.unpack('4I',f.read(4*4))
+				if first_words[0] == 8 and first_words[2] == 8 and first_words[3] == 256:
+					logg.debug('gadget file SnapFormat=2 detected')
 					return True
+				elif first_words[0] == 256:
+					f.seek(256+4)
+					if struct.unpack('I',f.read(4))[0] == 256:
+						logger.debug('gadget file SnapFormat=1 detected')
+						return True
+		except:
+			pass
+
 		return False
 
 

@@ -15,7 +15,7 @@ core.release_targets.append(ReleaseTargetSourceDist(core))
 #core.release_targets.append(gitpush)
 core.release_targets.append(ReleaseTargetCondaForge(core, '../feedstocks/vaex-core-feedstock'))
 
-packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-distributed']
+packages = ['vaex-core', 'vaex-meta', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-distributed']
 names = [k[5:] for k in packages[1:]]
 
 for name in names:
@@ -30,6 +30,6 @@ for name in names:
     package.release_targets.append(ReleaseTargetSourceDist(package))
     # also ok to add twice, it will only execute for the last package
     package.release_targets.append(gitpush)
-    if name in ['hdf5', 'viz']:
-        package.release_targets.append(ReleaseTargetCondaForge(core, '../feedstocks/vaex-' + name + '-feedstock'))
+    #if name in ['hdf5', 'viz']:
+    package.release_targets.append(ReleaseTargetCondaForge(package, '../feedstocks/vaex-' + name + '-feedstock'))
 
