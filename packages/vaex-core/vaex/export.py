@@ -86,7 +86,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
     # i1, i2 = 0, N #len(dataset)
     # print "creating shuffled array"
     if progress == True:
-        progress = vaex.utils.progressbar_callable("exporting")
+        progress = vaex.utils.progressbar_callable(title="exporting")
     progress = progress or (lambda value: True)
     progress_total = len(column_names) * len(dataset_input)
     progress_value = 0
@@ -356,7 +356,7 @@ def main(argv):
                 row = 0
                 copy(line, row)
                 row += 1
-                progressbar = vaex.utils.progressbar("exporting") if args.progress else None
+                progressbar = vaex.utils.progressbar(title="exporting") if args.progress else None
                 for line in lines:
                     # print line
                     copy(line, row)
@@ -387,7 +387,7 @@ def main(argv):
             if not args.quiet:
                 print("exporting %d rows and %d columns" % (len(dataset), len(columns)))
                 print("columns: " + " ".join(columns))
-            progressbar = vaex.utils.progressbar("exporting") if args.progress else None
+            progressbar = vaex.utils.progressbar(title="exporting") if args.progress else None
 
             def update(p):
                 if progressbar:
