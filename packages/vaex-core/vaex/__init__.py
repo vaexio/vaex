@@ -116,7 +116,7 @@ def _convert_name(filenames, shuffle=False):
         return base + ".hdf5"
 
 
-def open(path, convert=False, shuffle=False, *args, **kwargs):
+def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
     """Open a dataset from file given by path
 
     Example:
@@ -129,6 +129,7 @@ def open(path, convert=False, shuffle=False, *args, **kwargs):
     :param bool shuffle: shuffle converted dataset or not
     :param args: extra arguments for file readers that need it
     :param kwargs: extra keyword arguments
+    :param bool copy_index: copy index when source is read via pandas
     :return: return dataset if file is supported, otherwise None
     :rtype: Dataset
 
@@ -167,15 +168,18 @@ def open(path, convert=False, shuffle=False, *args, **kwargs):
                 path = filenames[0]
                 ext = os.path.splitext(path)[1]
                 if os.path.exists(filename_hdf5) and convert:  # also check mtime?
-                    ds = vaex.file.open(filename_hdf5, *args, **kwargs)
+                    if convert:
+                        ds = vaex.file.open(filename_hdf5)
+                    else:
+                        ds = vaex.file.open(filename_hdf5, *args, **kwargs)
                 else:
                     if ext == '.csv':  # special support for csv.. should probably approach it a different way
-                        ds = from_csv(path, **kwargs)
+                        ds = from_csv(path, copy_index=copy_index, **kwargs)
                     else:
                         ds = vaex.file.open(path, *args, **kwargs)
                     if convert:
                         ds.export_hdf5(filename_hdf5, shuffle=shuffle)
-                        ds = vaex.file.open(filename_hdf5, *args, **kwargs)
+                        ds = vaex.file.open(filename_hdf5) # argument were meant for pandas?
                 if ds is None:
                     if os.path.exists(path):
                         raise IOError('Could not open file: {}, did you install vaex-hdf5?'.format(path))
@@ -348,10 +352,10 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
     return ds
 
 
-def from_csv(filename_or_buffer, **kwargs):
+def from_csv(filename_or_buffer, copy_index=True, **kwargs):
     """Shortcut to read a csv file using pandas and convert to a dataset directly"""
     import pandas as pd
-    return from_pandas(pd.read_csv(filename_or_buffer, **kwargs))
+    return from_pandas(pd.read_csv(filename_or_buffer, **kwargs), copy_index=copy_index)
 
 
 def read_csv(filepath_or_buffer, **kwargs):
