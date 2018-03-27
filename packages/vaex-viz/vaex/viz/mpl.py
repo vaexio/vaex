@@ -364,16 +364,6 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     logger.debug("shape of total grid: %r", total_grid.shape)
     axis = dict(plot=0, what=1, selection=2)
     xlimits = limits
-    if xlabel is None:
-        xlabels = []
-        ylabels = []
-        for i, (binby, limits) in enumerate(zip(x, xlimits)):
-            xlabels.append(self.label(binby[0]))
-            ylabels.append(self.label(binby[1]))
-    else:
-        xlabels = _expand(xlabel, len(x))
-        ylabels = _expand(ylabel, len(x))
-    labels["subspace"] = (xlabels, ylabels)
 
     grid_axes = dict(x=-1, y=-2, z=-3, selection=-4, what=-5, subspace=-6)
     visual_axes = dict(x=-1, y=-2, layer=-3, fade=-4, column=-5, row=-6)
@@ -501,6 +491,19 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     logger.debug("visual: %r", visual.items())
     logger.debug("move: %r", move)
     logger.debug("visual grid shape: %r", visual_grid.shape)
+
+    if xlabel is None:
+        xlabels = []
+        ylabels = []
+        for i, (binby, limits) in enumerate(zip(x, xlimits)):
+            xlabels.append(self.label(binby[0]))
+            ylabels.append(self.label(binby[1]))
+    else:
+        Nl = visual_grid.shape[visual_axes['row']]
+        xlabels = _expand(xlabel, Nl)
+        ylabels = _expand(ylabel, Nl)
+    labels[visual_reverse["row"]] = (xlabels, ylabels)
+
     # grid = total_grid
     # print(grid.shape)
     # grid = self.reduce(grid, )
