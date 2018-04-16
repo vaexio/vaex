@@ -873,7 +873,7 @@ class SelectionExpression(Selection):
         previous = None
         if self.previous_selection:
             previous = self.previous_selection.to_dict()
-        return dict(type="expression", boolean_expression=self.boolean_expression, mode=self.mode, previous_selection=previous)
+        return dict(type="expression", boolean_expression=str(self.boolean_expression), mode=self.mode, previous_selection=previous)
 
     def evaluate(self, name, i1, i2):
         if self.previous_selection:
