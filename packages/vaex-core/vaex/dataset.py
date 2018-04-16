@@ -3226,7 +3226,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
     def _save_assign_expression(self, name, expression=None):
         obj = getattr(self, name, None)
-        # it's ok to set it if it does not exists, or we overwrite an older expression
+        # it's ok to set it if it does not exist, or we overwrite an older expression
         if obj is None or isinstance(obj, Expression):
             if expression is None:
                 expression = Expression(self, name)
