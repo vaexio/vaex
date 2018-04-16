@@ -1089,7 +1089,7 @@ _doc_snippets["cov_matrix"] = """List all convariance values as a double list of
 
 _doc_snippets['note_copy'] = 'Note that no copy of the underlying data is made, only a view/reference is make.'
 _doc_snippets['note_filter'] = 'Note that filtering will be ignored (since they may change), you may want to consider running :py:`Dataset.extract` first.'
-
+_doc_snippets['inplace'] = 'Make modifications to self or return a new dataset'
 
 def docsubst(f):
     f.__doc__ = f.__doc__.format(**_doc_snippets)
@@ -4006,15 +4006,16 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.signal_active_fraction_changed.emit(self, self._active_fraction)
 
     @docsubst
-    def trim(self):
+    def trim(self, inplace=False):
         '''Return a dataset, where all columns are 'trimmed' by the active range.
 
         For returned datasets, ds.get_active_range() returns (0, ds.length_original()).
 
         {note_copy}
 
+        :param inplace: {inplace}
         '''
-        ds = self.copy()
+        ds = self if inplace else self.copy()
         for name in ds:
             column = ds.columns.get(name)
             if column is not None:
@@ -4174,8 +4175,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return self.take(indices)
 
     @docsubst
-    def fillna(self, value, fill_nan=True, fill_masked=True, column_names=None, prefix='__original_'):
-        '''Return a copy dataset, where missing values/NaN are filled with 'value'
+    def fillna(self, value, fill_nan=True, fill_masked=True, column_names=None, prefix='__original_', inplace=False):
+        '''Return a dataset, where missing values/NaN are filled with 'value'
 
         {note_copy}
 
@@ -4191,8 +4192,9 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param str or expression by: expression to sort by
         :param bool ascending: ascending (default, True) or descending (False)
         :param str kind: kind of algorithm to use (passed to numpy.argsort)
+        :param inplace: {inplace}
         '''
-        ds = self.trim()
+        ds = self.trim(inplace=inplace)
         column_names = column_names or list(self)
         for name in column_names:
             column = ds.columns.get(name)
@@ -4204,7 +4206,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 ds[name] = ds.func.fillna(ds[name], value, fill_nan=fill_nan, fill_masked=fill_masked)
         return ds
 
-    def materialize(self, virtual_column):
+    def materialize(self, virtual_column, inplace=False):
         '''Returns a new dataset where the virtual column is turned into an in memory numpy array
 
         Example:
@@ -4213,8 +4215,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 >>> ds = vaex.from_arrays(x=x, y=y)
                 >>> ds['r'] = (ds.x**2 + ds.y**2)**0.5 # 'r' is a virtual column (computed on the fly)
                 >>> ds = ds.materialize('r')  # now 'r' is a 'real' column (i.e. a numpy array)
+
+        :param inplace: {inplace}
         '''
-        ds = self.trim()
+        ds = self.trim(inplace=inplace)
         virtual_column = _ensure_string_from_expression(virtual_column)
         if virtual_column not in ds.virtual_columns:
             raise KeyError('Virtual column not found: %r' % virtual_column)
@@ -4981,7 +4985,8 @@ class DatasetLocal(Dataset):
                 new_name = column_name
             self.add_column(new_name, data)
 
-    def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left'):
+    @docsubst
+    def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left', inplace=False):
         """Return a dataset joined with other datasets, matched by columns/expression on/left_on/right_on
 
         Note: The filters will be ignored when joining, the full dataset will be joined (since filters may
@@ -5005,9 +5010,10 @@ class DatasetLocal(Dataset):
         :param rsuffix: similar for the right
         :param how: how to join, 'left' keeps all rows on the left, and adds columns (with possible missing values)
                 'right' is similar with self and other swapped.
+        :param inplace: {inplace}
         :return:
         """
-        ds = self.copy()
+        ds = self if inplace else self.copy()
         if how == 'left':
             left = ds
             right = other
