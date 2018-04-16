@@ -46,12 +46,6 @@ try:
 except ImportError:
     from io import StringIO
 
-from vaex.ui.layers import LayerTable
-import vaex.ui.layers
-try:
-    from vaex.ui.main import VaexApp
-except:
-    pass
 
 from vaex.ui.qt import *
 if qt_mayor == 5:
@@ -3737,3 +3731,10 @@ class Queue(object):
             call(counter=self.counter, callable=callable)
         else:
             QtCore.QTimer.singleShot(delay, functools.partial(call, counter=self.counter, callable=callable))
+
+from vaex.ui.layers import LayerTable
+import vaex.ui.layers
+try:
+    from vaex.ui.main import VaexApp
+except:
+    pass

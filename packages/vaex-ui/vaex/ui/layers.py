@@ -33,8 +33,6 @@ except BaseException:
     healpy = None
 
 import vaex.dataset
-from vaex.dataset import Dataset, Task
-from vaex.ui.plot_windows import PlotDialog
 import vaex.ui.completer
 
 # from attrdict import AttrDict
@@ -2738,3 +2736,6 @@ class LayerTable(object):
         if self.validate_all_fields():
             self.flag_needs_update()
             self.plot_window.queue_update()
+
+from vaex.dataset import Dataset, Task
+from vaex.ui.plot_windows import PlotDialog
