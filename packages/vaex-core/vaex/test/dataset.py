@@ -2161,7 +2161,8 @@ class TestDataset(unittest.TestCase):
 		# not test with masked arrays, m ~= x
 		x = [8-0.1, 9+0.1, 9+0.1, 8-0.1]
 		y = [-0.1, -0.1, 1000, 1000]
-		self.dataset._invalidate_selection_cache()
+		if self.dataset.is_local():
+			self.dataset._invalidate_selection_cache()
 		self.dataset.select_lasso("m", "y", x, y)
 		sumx, sumy = self.dataset.sum(['m', 'y'], selection=True)
 		self.assertAlmostEqual(sumx, 8)
