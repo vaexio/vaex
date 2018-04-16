@@ -254,9 +254,10 @@ def from_items(*items):
 
 
     """
+    import numpy as np
     dataset = vaex.dataset.DatasetArrays("array")
     for name, array in items:
-        dataset.add_column(name, array)
+        dataset.add_column(name, np.asanyarray(array))
     return dataset
 
 
@@ -273,9 +274,10 @@ def from_arrays(**arrays):
 
 
     """
+    import numpy as np
     dataset = vaex.dataset.DatasetArrays("array")
     for name, array in arrays.items():
-        dataset.add_column(name, array)
+        dataset.add_column(name, np.asanyarray(array))
     return dataset
 
 
