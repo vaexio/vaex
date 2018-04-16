@@ -4740,6 +4740,7 @@ class DatasetLocal(Dataset):
                 chunks.append(self.evaluate(name))
         return np.array(chunks, dtype=dtype).T
 
+    @vaex.utils.deprecated('use ds.join(other)')
     def _hstack(self, other, prefix=None):
         """Join the columns of the other dataset to this one, assuming the ordering is the same"""
         assert len(self) == len(other), "does not make sense to horizontally stack datasets with different lengths"
@@ -4992,6 +4993,9 @@ class DatasetLocal(Dataset):
     def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left', inplace=False):
         """Return a dataset joined with other datasets, matched by columns/expression on/left_on/right_on
 
+        If neither on/left_on/right_on is given, the join is done by simply adding the columns (i.e. on the implicit
+        row index).
+
         Note: The filters will be ignored when joining, the full dataset will be joined (since filters may
         change). If either dataset is heavily filtered (contains just a small number of rows) consider running
         :py:method:`Dataset.extract` first.
@@ -5039,39 +5043,50 @@ class DatasetLocal(Dataset):
         N_other = len(right)
         left_on = left_on or on
         right_on = right_on or on
-        left_values = left.evaluate(left_on, filtered=False)
-        right_values = right.evaluate(right_on)
-        # maps from the left_values to row #
-        index_left = dict(zip(left_values, range(N)))
-        # idem for right
-        index_other = dict(zip(right_values, range(N_other)))
+        if left_on is None and right_on is None:
+            for name in right:
+                right_name = name
+                if name in left:
+                    left.rename_column(name, name + lsuffix)
+                    right_name = name + rsuffix
+                if name in right.virtual_columns:
+                    left.add_virtual_column(right_name, right.virtual_columns[name])
+                else:
+                    left.add_column(right_name, right.columns[name])
+        else:
+            left_values = left.evaluate(left_on, filtered=False)
+            right_values = right.evaluate(right_on)
+            # maps from the left_values to row #
+            index_left = dict(zip(left_values, range(N)))
+            # idem for right
+            index_other = dict(zip(right_values, range(N_other)))
 
-        # we do a left join, find all rows of the right dataset
-        # that has an entry on the left
-        # for each row in the right
-        # find which row it needs to go to in the right
-        # from_indices = np.zeros(N_other, dtype=np.int64)  # row # of right
-        # to_indices = np.zeros(N_other, dtype=np.int64)    # goes to row # on the left
-        # keep a boolean mask of which rows are found
-        left_mask = np.ones(N, dtype=np.bool)
-        # and which row they point to in the right
-        left_row_to_right = np.zeros(N, dtype=np.int64) - 1
-        for i in range(N_other):
-            left_row = index_left.get(right_values[i])
-            if left_row is not None:
-                left_mask[left_row] = False  # unmask, it exists
-                left_row_to_right[left_row] = i
+            # we do a left join, find all rows of the right dataset
+            # that has an entry on the left
+            # for each row in the right
+            # find which row it needs to go to in the right
+            # from_indices = np.zeros(N_other, dtype=np.int64)  # row # of right
+            # to_indices = np.zeros(N_other, dtype=np.int64)    # goes to row # on the left
+            # keep a boolean mask of which rows are found
+            left_mask = np.ones(N, dtype=np.bool)
+            # and which row they point to in the right
+            left_row_to_right = np.zeros(N, dtype=np.int64) - 1
+            for i in range(N_other):
+                left_row = index_left.get(right_values[i])
+                if left_row is not None:
+                    left_mask[left_row] = False  # unmask, it exists
+                    left_row_to_right[left_row] = i
 
-        lookup = np.ma.array(left_row_to_right, mask=left_mask)
-        for name in right:
-            right_name = name
-            if name in left:
-                left.rename_column(name, name + lsuffix)
-                right_name = name + rsuffix
-            if name in right.virtual_columns:
-                left.add_virtual_column(right_name, right.virtual_columns[name])
-            else:
-                left.add_column(right_name, ColumnIndexed(right, lookup, name))
+            lookup = np.ma.array(left_row_to_right, mask=left_mask)
+            for name in right:
+                right_name = name
+                if name in left:
+                    left.rename_column(name, name + lsuffix)
+                    right_name = name + rsuffix
+                if name in right.virtual_columns:
+                    left.add_virtual_column(right_name, right.virtual_columns[name])
+                else:
+                    left.add_column(right_name, ColumnIndexed(right, lookup, name))
         return left
 
     def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):

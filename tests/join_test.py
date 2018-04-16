@@ -11,6 +11,11 @@ df_b = vaex.from_arrays(b=np.array(['A', 'B', 'D']),
                         x=np.array([2., 1., 0.]),
                         y=np.ma.array([9., 1., 2.], mask=[True, False, False])
                         )
+def test_no_on():
+    # just adds the columns
+    df = df_a.join(df_b, rsuffix='_r')
+    assert df.columns['b'] is df_b.columns['b']
+
 def test_left_a_b():
     df = df_a.join(other=df_b, left_on='a', right_on='b', rsuffix='_r')
     assert df.evaluate('a').tolist() == ['A', 'B', 'C']

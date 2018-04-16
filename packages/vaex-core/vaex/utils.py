@@ -14,6 +14,8 @@ import json
 import yaml
 import contextlib
 import collections
+import warnings
+import functools
 
 is_frozen = getattr(sys, 'frozen', False)
 PY2 = sys.version_info[0] == 2
@@ -31,6 +33,16 @@ class AttrDict(dict):
 
     def __setattr__(self, key, value):
         self[key] = value
+
+def deprecated(reason):
+    def wraps(f):
+        @functools.wraps(f)
+        def wraps2(*args, **kwargs):
+            warnings.warn("Call to deprecated function {}: {}".format(f.__name__, reason),
+                      category=DeprecationWarning, stacklevel=2)
+            return f(*args, **kwargs)
+        return wraps2
+    return wraps
 
 
 def subdivide(length, parts=None, max_length=None):
