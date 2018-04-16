@@ -4019,10 +4019,13 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         for name in ds:
             column = ds.columns.get(name)
             if column is not None:
-                if isinstance(column, np.ndarray):  # real array
-                    ds.columns[name] = column[self._index_start:self._index_end]
+                if self._index_start == 0 and len(column) == self._index_end:
+                    pass  # we already assigned it in .copy
                 else:
-                    ds.columns[name] = column.trim(self._index_start, self._index_end)
+                    if isinstance(column, np.ndarray):  # real array
+                        ds.columns[name] = column[self._index_start:self._index_end]
+                    else:
+                        ds.columns[name] = column.trim(self._index_start, self._index_end)
         ds._length_original = self.length_unfiltered()
         ds._length_unfiltered = ds._length_original
         ds._index_start = 0
