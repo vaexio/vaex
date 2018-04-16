@@ -113,7 +113,7 @@ def _convert_name(filenames, shuffle=False):
     if len(filenames) > 1:
         return base + "_and_{}_more.hdf5".format(len(filenames)-1)
     else:
-        return base + ".hdf5"
+        return base
 
 
 def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
