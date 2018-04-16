@@ -644,7 +644,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                     colorbar = fig.colorbar(sm, cax=ax)
                 else:
                     colorbar = fig.colorbar(sm)
-                label = labels["what"][what_index]
+                label = labels["what"][i]
                 colorbar.ax.set_ylabel(colorbar_label or label)
 
             rgrid = ngrid[i, j] * 1.
