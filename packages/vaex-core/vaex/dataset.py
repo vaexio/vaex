@@ -459,13 +459,13 @@ def as_flat_float(a):
     if a.dtype.type == np.float64 and a.strides[0] == 8:
         return a
     else:
-        return a.astype(np.float64, copy=False)
+        return a.astype(np.float64, copy=True)
 
 def as_flat_array(a, dtype=np.float64):
     if a.dtype.type == dtype and a.strides[0] == 8:
         return a
     else:
-        return a.astype(dtype, copy=False)
+        return a.astype(dtype, copy=True)
 
 
 def _split_and_combine_mask(arrays):
