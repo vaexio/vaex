@@ -158,7 +158,8 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
         else:
             import vaex.file
             import glob
-            filenames = glob.glob(path)
+            # sort to get predicatable behaviour (useful for testing)
+            filenames = list(sorted(glob.glob(path)))
             ds = None
             if len(filenames) == 0:
                 raise IOError('Could not open file: {}, it does not exists'.format(path))
@@ -195,9 +196,10 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
                 else:
                     # with ProcessPoolExecutor() as executor:
                     # executor.submit(read_csv_and_convert, filenames, shuffle=shuffle, **kwargs)
+                    datasets = []
                     for filename in filenames:
-                        open(filename, convert=convert is not False, shuffle=shuffle, **kwargs)
-                    ds = open_many([_convert_name(k, shuffle=shuffle) for k in filenames])
+                        datasets.append(open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
+                    ds = vaex.dataset.DatasetConcatenated(datasets)
                 if convert:
                     ds.export_hdf5(filename_hdf5, shuffle=shuffle)
                     ds = vaex.file.open(filename_hdf5, *args, **kwargs)
