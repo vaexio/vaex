@@ -27,6 +27,8 @@ patch(plot2d_vector)
 patch(plot2d_tensor)
 
 
+max_labels = 10
+
 @patch
 def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
            xlabel=None, ylabel=None, label=None,
@@ -125,6 +127,7 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
         N = len(grid[-1])
     else:
         N = len(grid)
+    xexpression = binby[0]
     xar = np.arange(N + 1) / (N - 0.) * (xmax - xmin) + xmin
     if facet:
         import math
@@ -137,7 +140,10 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
             pylab.xlabel(xlabel or x)
             pylab.ylabel(ylabel or what)
             ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
-            # pylab.show()
+            if self.iscategory(xexpression):
+                labels = self.category_labels(xexpression)
+                step = len(labels) // max_labels
+                pylab.xticks(range(len(labels))[::step], labels[::step], size='small')
     else:
         # im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
         pylab.xlabel(xlabel or self.label(x))
@@ -146,6 +152,10 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
         # repeat the first element, that's how plot/steps likes it..
         g = np.concatenate([ngrid[0:1], ngrid])
         value = pylab.plot(xar, g, drawstyle="steps-pre", label=label or x, **kwargs)
+        if self.iscategory(xexpression):
+            labels = self.category_labels(xexpression)
+            step = len(labels) // max_labels
+            pylab.xticks(range(len(labels))[::step], labels[::step], size='small')
     if tight_layout:
         pylab.tight_layout()
     if hardcopy:
@@ -327,7 +337,8 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     # every plot has its own vwhat for now
     vwhats = _expand_limits(vwhat, len(x))  # TODO: we're abusing this function..
     logger.debug("x: %s", x)
-    limits = self.limits(x, limits)
+    limits, shape = self.limits(x, limits, shape=shape)
+    shape = shape[0]
     logger.debug("limits: %r", limits)
 
     labels = {}
@@ -493,6 +504,11 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     logger.debug("move: %r", move)
     logger.debug("visual grid shape: %r", visual_grid.shape)
 
+    xexpressions = []
+    yexpressions = []
+    for i, (binby, limits) in enumerate(zip(x, xlimits)):
+        xexpressions.append(binby[0])
+        yexpressions.append(binby[1])
     if xlabel is None:
         xlabels = []
         ylabels = []
@@ -742,6 +758,17 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 elif labelsxy is not None and not has_title:
                     ax.set_title(labelsxy[j])
                     pass
+            max_labels = 10
+            xexpression = xexpressions[i]
+            if self.iscategory(xexpression):
+                labels = self.category_labels(xexpression)
+                step = len(labels) // max_labels
+                pylab.xticks(np.arange(len(labels))[::step], labels[::step], size='small')
+            yexpression = yexpressions[i]
+            if self.iscategory(yexpression):
+                labels = self.category_labels(yexpression)
+                step = len(labels) // max_labels
+                pylab.yticks(np.arange(len(labels))[::step], labels[::step], size='small')
             facet_index += 1
     if title:
         fig.suptitle(title, fontsize="x-large")

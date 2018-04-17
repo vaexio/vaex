@@ -1202,14 +1202,17 @@ class Dataset(object):
         arguments = _ensure_strings_from_expressions(arguments)
         return lazy_function(*arguments)
 
-    def unique(self, expression, progress=False, delay=False):
+    def unique(self, expression, return_inverse=False, progress=False, delay=False):
         def map(ar):  # this will be called with a chunk of the data
             return np.unique(ar)  # returns the unique elements
 
         def reduce(a, b):  # gets called with a list of the return values of map
             joined = np.concatenate([a, b])  # put all 'sub-unique' together
             return np.unique(joined)  # find all the unique items
-        return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='unique')
+        if return_inverse:  # TODO: optimize this path
+            return np.unique(self.evaluate(expression), return_inverse=return_inverse)
+        else:
+            return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='unique')
 
     @docsubst
     def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
@@ -1360,14 +1363,18 @@ class Dataset(object):
         binby = _ensure_strings_from_expressions(binby)
 
         @delayed
-        def calculate(expression, limits):
+        def calculate(expression, limits_and_shapes):
+            if shape:
+                limits, shapes = limits_and_shapes
+            else:
+                limits, shapes = limits_and_shapes, shape
             if expression in ["*", None]:
                 # if not binby: # if we have nothing to iterate over, the statisticNd code won't do anything
                 # \3 return np.array([self.length(selection=selection)], dtype=float)
                 # else:
-                task = TaskStatistic(self, binby, shape, limits, op=OP_ADD1, selection=selection, edges=edges)
+                task = TaskStatistic(self, binby, shapes, limits, op=OP_ADD1, selection=selection, edges=edges)
             else:
-                task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_COUNT, selection=selection, edges=edges)
+                task = TaskStatistic(self, binby, shapes, limits, weight=expression, op=OP_COUNT, selection=selection, edges=edges)
             self.executor.schedule(task)
             progressbar.add_task(task, "count for %s" % expression)
             return task
@@ -1379,8 +1386,8 @@ class Dataset(object):
             return vaex.utils.unlistify(waslist, counts)
         waslist, [expressions, ] = vaex.utils.listify(expression)
         progressbar = vaex.utils.progressbars(progress)
-        limits = self.limits(binby, limits, delay=True)
-        stats = [calculate(expression, limits) for expression in expressions]
+        limits_and_shapes = self.limits(binby, limits, delay=True, shape=shape)
+        stats = [calculate(expression, limits_and_shapes) for expression in expressions]
         var = finish(*stats)
         return self._delay(delay, var)
 
@@ -2099,7 +2106,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return vaex.utils.unlistify(waslist, values)
 
     @docsubst
-    def limits(self, expression, value=None, square=False, selection=None, delay=False):
+    def limits(self, expression, value=None, square=False, selection=None, delay=False, shape=None):
         """Calculate the [min, max] range for expression, as described by value, which is '99.7%' by default.
 
         If value is a list of the form [minvalue, maxvalue], it is simply returned, this is for convenience when using mixed
@@ -2125,7 +2132,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :return: {return_limits}
         """
         if expression == []:
-            return []
+            return [] if shape is None else ([], [])
         waslist, [expressions, ] = vaex.utils.listify(expression)
         expressions = _ensure_strings_from_expressions(expressions)
         selection = _ensure_strings_from_expressions(selection)
@@ -2142,10 +2149,16 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
         # print("expressions 1)", expressions)
         # print("values      1)", values)
+        if shape is not None:
+            if _issequence(shape):
+                shapes = shape
+            else:
+                shapes = (shape, ) * len(expressions)
 
         initial_expressions, initial_values = expressions, values
         expression_values = dict()
-        for expression, value in zip(expressions, values):
+        expression_shapes = dict()
+        for i, (expression, value) in enumerate(zip(expressions, values)):
             # print(">>>", expression, value)
             if _issequence(expression):
                 expressions = expression
@@ -2161,36 +2174,45 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 if not _is_limit(value):  # if a
                     # value = tuple(value) # list is not hashable
                     expression_values[(expression, value)] = None
+                if self.iscategory(expression):
+                    N = self._categories[_ensure_string_from_expression(expression)]['N']
+                    expression_shapes[expression] = min(N, shapes[i] if shape is not None else default_shape)
+                else:
+                    expression_shapes[expression] = shapes[i] if shape is not None else default_shape
 
         # print("##### 1)", expression_values.keys())
 
         limits_list = []
         # for expression, value in zip(expressions, values):
         for expression, value in expression_values.keys():
-            if isinstance(value, six.string_types):
-                if value == "minmax":
-                    limits = self.minmax(expression, selection=selection, delay=True)
-                else:
-                    match = re.match("([\d.]*)(\D*)", value)
-                    if match is None:
-                        raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
-                    else:
-                        number, type = match.groups()
-                        import ast
-                        number = ast.literal_eval(number)
-                        type = type.strip()
-                        if type in ["s", "sigma"]:
-                            limits = self.limits_sigma(number)
-                        elif type in ["ss", "sigmasquare"]:
-                            limits = self.limits_sigma(number, square=True)
-                        elif type in ["%", "percent"]:
-                            limits = self.limits_percentage(expression, number, delay=False)
-                        elif type in ["%s", "%square", "percentsquare"]:
-                            limits = self.limits_percentage(expression, number, square=True, delay=True)
-            elif value is None:
-                limits = self.limits_percentage(expression, square=square, delay=True)
+            if self.iscategory(expression):
+                N = self._categories[_ensure_string_from_expression(expression)]['N']
+                limits = [-0.5, N-0.5]
             else:
-                limits = value
+                if isinstance(value, six.string_types):
+                    if value == "minmax":
+                        limits = self.minmax(expression, selection=selection, delay=True)
+                    else:
+                        match = re.match("([\d.]*)(\D*)", value)
+                        if match is None:
+                            raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
+                        else:
+                            number, type = match.groups()
+                            import ast
+                            number = ast.literal_eval(number)
+                            type = type.strip()
+                            if type in ["s", "sigma"]:
+                                limits = self.limits_sigma(number)
+                            elif type in ["ss", "sigmasquare"]:
+                                limits = self.limits_sigma(number, square=True)
+                            elif type in ["%", "percent"]:
+                                limits = self.limits_percentage(expression, number, delay=False)
+                            elif type in ["%s", "%square", "percentsquare"]:
+                                limits = self.limits_percentage(expression, number, square=True, delay=True)
+                elif value is None:
+                    limits = self.limits_percentage(expression, square=square, delay=True)
+                else:
+                    limits = value
             limits_list.append(limits)
             if limits is None:
                 raise ValueError("limit %r not understood" % value)
@@ -2208,8 +2230,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         def finish(limits_list):
             # print("##### 2)", expression_values.keys())
             limits_outer = []
+            shapes_list = []
             for expression, value in zip(initial_expressions, initial_values):
-                # print(">>>3", expression, value)
                 if _issequence(expression):
                     expressions = expression
                     waslist2 = True
@@ -2223,14 +2245,15 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 # print("expressions 3)", expressions)
                 # print("values      3)", values)
                 limits = []
+                shapes = []
                 for expression, value in zip(expressions, values):
-                    # print("get", (expression, value))
                     if not _is_limit(value):
                         value = expression_values[(expression, value)]
                         if not _is_limit(value):
                             # print(">>> value", value)
                             value = value.get()
                     limits.append(value)
+                    shapes.append(expression_shapes[expression])
                     # if not _is_limit(value): # if a
                     #   #value = tuple(value) # list is not hashable
                     #   expression_values[(expression, value)] = expression_values[(expression, value)].get()
@@ -2239,12 +2262,17 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                     #   expression_values[(expression, value)] = ()
                 if waslist2:
                     limits_outer.append(limits)
+                    shapes_list.append(shapes)
                 else:
                     limits_outer.append(limits[0])
+                    shapes_list.append(shapes[0])
             # logger.debug(">>>>>>>> complete list of limits: %r %r", limits_list, np.array(limits_list).shape)
 
             # print("limits", limits_outer)
-            return vaex.utils.unlistify(waslist, limits_outer)
+            if shape:
+                return vaex.utils.unlistify(waslist, limits_outer), vaex.utils.unlistify(waslist, shapes_list)
+            else:
+                return vaex.utils.unlistify(waslist, limits_outer)
         return self._delay(delay, finish(limits_list))
 
     def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
@@ -4597,7 +4625,46 @@ class DatasetLocal(Dataset):
         self.path = path
         self.mask = None
         self.columns = collections.OrderedDict()
+        self._categories = collections.OrderedDict()
         self._selection_mask_caches = collections.defaultdict(dict)
+
+    def iscategory(self, column):
+        """Returns true if column is a category"""
+        column = _ensure_string_from_expression(column)
+        return column in self._categories
+
+    def category_labels(self, column):
+        column = _ensure_string_from_expression(column)
+        return self._categories[column]['labels']
+
+    def label_encode(self, column, values=None, inplace=False):
+        """Label encode column and mark it as categorical
+
+        The existing column is renamed to a hidden column and replaced by a numerical columns
+        with values between [0, len(values)-1].
+        """
+        column = _ensure_string_from_expression(column)
+        ds = self if inplace else self.copy()
+        found_values, codes = ds.unique(column, return_inverse=True)
+        if values is None:
+            values = found_values
+        else:
+            translation = np.zeros(len(found_values), dtype=np.uint64)
+            missing_value = len(found_values)
+            for i, found_value in enumerate(found_values):
+                if found_value not in values:  # not present, we need a missing value
+                    translation[i] = missing_value
+                else:
+                    translation[i] = values.index(found_value)
+            codes = translation[codes]
+            if missing_value in translation:
+                codes = np.ma.masked_array(codes, codes==missing_value)
+
+        original_column = ds.rename_column(column, '__original_' + column, unique=True)
+        labels = [str(k) for k in values]
+        ds.add_column(column, codes)
+        ds._categories[column] = dict(labels=labels, N=len(values))
+        return ds
 
     @property
     def data(self):
@@ -4656,6 +4723,7 @@ class DatasetLocal(Dataset):
         ds._index_start = self._index_start
         ds._active_fraction = self._active_fraction
         ds.units.update(self.units)
+        ds._categories.update(self._categories)
         column_names = column_names or self.get_column_names(strings=True, virtual=True)
         for name in column_names:
             if name in self.columns:
