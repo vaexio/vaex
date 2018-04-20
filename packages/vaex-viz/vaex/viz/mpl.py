@@ -3,7 +3,7 @@ import numpy as np
 import logging
 from vaex.dataset import Dataset, _parse_n, _parse_f, _ensure_string_from_expression, \
     _ensure_strings_from_expressions, _ensure_list,\
-    _expand_limits, _expand_shape, _expand, _parse_reduction
+    _expand_limits, _expand_shape, _expand, _parse_reduction, _issequence
 import vaex.utils
 import vaex.image
 from .vector import plot2d_vector
@@ -170,7 +170,8 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
 
 
 @patch
-def scatter(self, x, y, xerr=None, yerr=None, s_expr=None, c_expr=None, selection=None, length_limit=50000, length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, **kwargs):
+def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, c_expr=None, selection=None, length_limit=50000,
+    length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, ellipse_kwargs={}, **kwargs,):
     """Convenience wrapper around pylab.scatter when for working with small datasets or selections
 
     :param x: Expression for x axis
@@ -209,20 +210,57 @@ def scatter(self, x, y, xerr=None, yerr=None, s_expr=None, c_expr=None, selectio
             plt.annotate(label_value, (x_values[i], y_values[i]))
     xerr_values = None
     yerr_values = None
-    if xerr is not None:
-        if _issequence(xerr):
-            assert len(xerr) == 2, "if xerr is a sequence it should be of length 2"
-            xerr_values = [self.evaluate(xerr[0], selection=selection), self.evaluate(xerr[1], selection=selection)]
-        else:
-            xerr_values = self.evaluate(xerr, selection=selection)
-    if yerr is not None:
-        if _issequence(yerr):
-            assert len(yerr) == 2, "if yerr is a sequence it should be of length 2"
-            yerr_values = [self.evaluate(yerr[0], selection=selection), self.evaluate(yerr[1], selection=selection)]
-        else:
-            yerr_values = self.evaluate(yerr, selection=selection)
-    if xerr_values is not None or yerr_values is not None:
-        plt.errorbar(x_values, y_values, yerr=yerr_values, xerr=xerr_values, **errorbar_kwargs)
+    if cov is not None or corr is not None:
+        from matplotlib.patches import Ellipse
+        sx = self.evaluate(xerr, selection=selection)
+        sy = self.evaluate(yerr, selection=selection)
+        if corr is not None:
+            sxy = self.evaluate(corr, selection=selection) * sx * sy
+        elif cov is not None:
+            sxy = self.evaluate(cov, selection=selection)
+        cov_matrix = np.zeros((len(sx), 2, 2))
+        cov_matrix[:,0,0] = sx**2
+        cov_matrix[:,1,1] = sy**2
+        cov_matrix[:,0,1] = cov_matrix[:,1,0] = sxy
+        ax = plt.gca()
+        ellipse_kwargs = dict(ellipse_kwargs) 
+        ellipse_kwargs['facecolor'] = ellipse_kwargs.get('facecolor', 'none')
+        ellipse_kwargs['edgecolor'] = ellipse_kwargs.get('edgecolor', 'black')
+        for i in range(len(sx)):
+            eigen_values, eigen_vectors = np.linalg.eig(cov_matrix[i])
+            indices = np.argsort(eigen_values)[::-1]
+            eigen_values = eigen_values[indices]
+            eigen_vectors = eigen_vectors[:,indices]
+            v1 = eigen_vectors[:, 0]
+            v2 = eigen_vectors[:, 1]
+            varx = cov_matrix[i, 0, 0]
+            vary = cov_matrix[i, 1, 1]
+            angle = np.arctan2(v1[1], v1[0])
+            # round off errors cause negative values?
+            if eigen_values[1] < 0 and abs((eigen_values[1]/eigen_values[0])) < 1e-10:
+                eigen_values[1] = 0
+            if eigen_values[0] < 0 or eigen_values[1] < 0:
+                raise ValueError('neg val')
+            width, height = np.sqrt(np.max(eigen_values)), np.sqrt(np.min(eigen_values))
+            e = Ellipse(xy=(x_values[i], y_values[i]), width=width, height=height, angle=np.degrees(angle), **ellipse_kwargs)
+            ax.add_artist(e)
+    else:
+        if xerr is not None:
+            if _issequence(xerr):
+                assert len(xerr) == 2, "if xerr is a sequence it should be of length 2"
+                xerr_values = [self.evaluate(xerr[0], selection=selection), self.evaluate(xerr[1], selection=selection)]
+            else:
+                xerr_values = self.evaluate(xerr, selection=selection)
+        if yerr is not None:
+            if _issequence(yerr):
+                assert len(yerr) == 2, "if yerr is a sequence it should be of length 2"
+                yerr_values = [self.evaluate(yerr[0], selection=selection), self.evaluate(yerr[1], selection=selection)]
+            else:
+                yerr_values = self.evaluate(yerr, selection=selection)
+        if xerr_values is not None or yerr_values is not None:
+            errorbar_kwargs = dict(errorbar_kwargs)
+            errorbar_kwargs['fmt'] = errorbar_kwargs.get('fmt', 'none')
+            plt.errorbar(x_values, y_values, yerr=yerr_values, xerr=xerr_values, **errorbar_kwargs)
     return s
 
 # def plot(self, x=None, y=None, z=None, axes=[], row=None, agg=None, extra=["selection:none,default"], reduce=["colormap", "stack.fade"], f="log", n="normalize", naxis=None,
