@@ -2317,7 +2317,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                      healpix_input="equatorial", healpix_output="galactic", f=None,
                      colormap="afmhot", grid_limits=None, image_size=800, nest=True,
                      figsize=None, interactive=False, title="", smooth=None, show=False, colorbar=True,
-                     rotation=(0, 0, 0)):
+                     rotation=(0, 0, 0), **kwargs):
         """
 
         :param healpix_expression: {healpix_max_level}
@@ -2376,8 +2376,11 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         f = hp.mollzoom if interactive else hp.mollview
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            f(fgrid, unit=what_label, rot=rotation, nest=nest, title=title, coord=[coord_map[healpix_input], coord_map[healpix_output]], cmap=colormap, hold=True, xsize=image_size,
-              min=grid_min, max=grid_max, cbar=colorbar)  # , min=6-1, max=8.7-1)
+            coord = coord_map[healpix_input], coord_map[healpix_output]
+            if coord_map[healpix_input] == coord_map[healpix_output]:
+                coord = None
+            f(fgrid, unit=what_label, rot=rotation, nest=nest, title=title, coord=coord,
+              cmap=colormap, hold=True, xsize=image_size, min=grid_min, max=grid_max, cbar=colorbar, **kwargs)
         if show:
             plt.show()
 
