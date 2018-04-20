@@ -3,11 +3,12 @@ import six
 import functools
 from future.utils import with_metaclass
 from vaex.dataset import expression_namespace
-from vaex.dataset import default_shape
+from vaex.dataset import default_shape, _ensure_strings_from_expressions
 import numpy as np
 import vaex.serialize
 import base64
 import cloudpickle as pickle
+from . import expresso
 try:
     from StringIO import StringIO
 except ImportError:
@@ -118,8 +119,27 @@ class Expression(with_metaclass(Meta)):
     def __init__(self, ds, expression):
         self.ds = ds
         if isinstance(expression, Expression):
-            expression = self.expression
+            expression = expression.expression
         self.expression = expression
+
+    def derivative(self, var, optimize=True):
+        var = vaex.dataset._ensure_string_from_expression(var)
+        return self.__class__(self, expresso.derivative(self.expression, var))
+
+    def expand(self, stop=[]):
+        stop = _ensure_strings_from_expressions(stop)
+        def translate(id):
+            if id in self.ds.virtual_columns and id not in stop:
+                return self.ds.virtual_columns[id]
+        expr = expresso.translate(self.expression, translate)
+        return Expression(self.ds, expr)
+
+    def variables(self):
+        variables = set()
+        def record(id):
+            variables.add(id)
+        expresso.translate(self.expand().expression, record)
+        return variables
 
     def __str__(self):
         return self.expression

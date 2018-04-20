@@ -1086,7 +1086,7 @@ _doc_snippets["healpix_level"] = """The healpix level to use for the binning, th
 _doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a scalar when no binby argument is given, with the statistic"""
 _doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
 _doc_snippets["cov_matrix"] = """List all convariance values as a double list of expressions, or "full" to guess all entries (which gives an error when values are not found), or "auto" to guess, but allow for missing values"""
-
+_doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :py:`Dataset.propagate_uncertainties` for details"""
 _doc_snippets['note_copy'] = 'Note that no copy of the underlying data is made, only a view/reference is make.'
 _doc_snippets['note_filter'] = 'Note that filtering will be ignored (since they may change), you may want to consider running :py:`Dataset.extract` first.'
 _doc_snippets['inplace'] = 'Make modifications to self or return a new dataset'
@@ -3315,7 +3315,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             .format(**locals())
         self.add_virtual_column("bearing", expr)
 
-    def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name, matrix_is_expression=False):
+    def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name='deprecated', matrix_is_expression=False, translation=[0, 0, 0], propagate_uncertainties=False):
         """
 
         :param str x: name of x column
@@ -3328,27 +3328,15 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param str matrix_name:
         :return:
         """
-        m = matrix_name
-        matrix_list = [[None for i in range(3)] for j in range(3)]
-        for i in range(3):
-            for j in range(3):
-                if matrix_is_expression:
-                    self.add_virtual_column(matrix_name + "_%d%d" % (i, j), matrix[i][j])
-                else:
-                    # self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
-                    matrix_list[i][j] = matrix[i, j].item()
-        if not matrix_is_expression:
-            self.add_variable(matrix_name, matrix_list)
+        m = matrix
+        x, y, z = self._expr(x, y, z)
 
-        if matrix_is_expression:
-            self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y} + {m}_02 * {z}".format(**locals())
-            self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y} + {m}_12 * {z}".format(**locals())
-            self.virtual_columns[znew] = "{m}_20 * {x} + {m}_21 * {y} + {m}_22 * {z}".format(**locals())
-        else:
-            self.virtual_columns[xnew] = "{m}[0][0] * {x} + {m}[0][1] * {y} + {m}[0][2] * {z}".format(**locals())
-            self.virtual_columns[ynew] = "{m}[1][0] * {x} + {m}[1][1] * {y} + {m}[1][2] * {z}".format(**locals())
-            self.virtual_columns[znew] = "{m}[2][0] * {x} + {m}[2][1] * {y} + {m}[2][2] * {z}".format(**locals())
-        # self.write_virtual_meta()
+        self[xnew] = m[0][0] * x + m[0][1] * y + m[0][2] * z + translation[0]
+        self[ynew] = m[1][0] * x + m[1][1] * y + m[1][2] * z + translation[1]
+        self[znew] = m[2][0] * x + m[2][1] * y + m[2][2] * z + translation[2]
+
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[xnew], self[ynew], self[znew]], [x, y, z])
 
     # wrap these with an informative msg
     add_virtual_columns_eq2ecl = _requires('astro')
@@ -3361,8 +3349,9 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     add_virtual_columns_celestial = _requires('astro')
     add_virtual_columns_proper_motion2vperpendicular = _requires('astro')
 
-    def _covariance_matrix_guess(self, columns, full=False):
+    def _covariance_matrix_guess(self, columns, full=False, as_expression=False):
         all_column_names = self.get_column_names(virtual=True)
+        columns = _ensure_strings_from_expressions(columns)
 
         def _guess(x, y):
             if x == y:
@@ -3392,7 +3381,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                         return y + "_" + x + postfix + " * " + _guess(y, y) + " * " + _guess(x, x)
                 if full:
                     raise ValueError("No covariance or correlation found for %r and %r" % (x, y))
-            return ""
+            return "0"
         N = len(columns)
         cov_matrix = [[""] * N for i in range(N)]
         for i in range(N):
@@ -3401,13 +3390,80 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 if i == j and cov:
                     cov += "**2"  # square the diagnal
                 cov_matrix[i][j] = cov
-        return cov_matrix
+        if as_expression:
+            return [[self[k] for k in row] for row in cov_matrix]
+        else:
+            return cov_matrix
 
-    @docsubst
+    def _jacobian(self, expressions, variables):
+        expressions = _ensure_strings_from_expressions(expressions)
+        return [[self[expression].expand(stop=[var]).derivative(var) for var in variables] for expression in expressions]
+
+    def propagate_uncertainties(self, columns, depending_variables=None, cov_matrix='auto',
+                                covariance_format="{}_{}_covariance",
+                                uncertainty_format="{}_uncertainty"):
+        """Propagates uncertainties (full covariance matrix) for a set of virtual columns.
+
+        Covariance matrix of the depending variables is guessed by finding columns prefixed by:
+        'e' or 'e_' or postfixed by '_error', '_uncertainty', 'e' and '_e'.
+        Off diagonals (covariance or correlation) by postfixes with '_correlation' or '_corr' for
+        correlation or '_covariance' or '_cov' for covariances.
+        (Note that x_y_cov = x_e * y_e * x_y_correlation) 
+
+
+        Example: (Present columns are x, y, and x_e and y_e representing the error/uncertainties)
+        >>> ds = vaex.from_scalars(x=1, y=2, e_x=0.1, e_y=0.2)
+        >>> ds['u'] = ds.x + ds.y
+        >>> ds['v'] = np.log10(ds.x)
+        >>> ds.propagate_uncertainties([ds.u, ds.v])
+        >>> ds.u_uncertainty, ds.v_uncertainty
+
+        :param columns: list of columns for which to calculate the covariance matrix.
+        :param depending_variables: If not given, it is found out automatically, otherwise a list of columns which have uncertainties.
+        :param cov_matrix: List of list with expressions giving the covariance matrix, in the same order as depending_variables. If 'full' or 'auto',
+            the covariance matrix for the depending_variables will be guessed, where 'full' gives an error if an entry was not found.
+        """
+
+        names = _ensure_strings_from_expressions(columns)
+        virtual_columns = self._expr(*columns, always_list=True)
+
+        if depending_variables is None:
+            depending_variables = set()
+            for expression in virtual_columns:
+                depending_variables |= expression.variables()
+            depending_variables = list(sorted(list(depending_variables)))
+
+        fs = [self[self.virtual_columns[name]] for name in names]
+        jacobian = self._jacobian(fs, depending_variables)
+        m = len(fs)
+        n = len(depending_variables)
+
+        # n x n matrix
+        cov_matrix = self._covariance_matrix_guess(depending_variables, full=cov_matrix == "full", as_expression=True)
+
+        # empty m x m matrix
+        cov_matrix_out = [[self['0'] for __ in range(m)] for __ in range(m)]
+        for i in range(m):
+            for j in range(m):
+                for k in range(n):
+                    for l in range(n):
+                        if jacobian[i][k].expression == '0' or jacobian[j][l].expression == '0' or cov_matrix[k][l].expression == '0':
+                            pass
+                        else:
+                            cov_matrix_out[i][j] = cov_matrix_out[i][j] + jacobian[i][k] * cov_matrix[k][l] * jacobian[j][l]
+        for i in range(m):
+            for j in range(i + 1):
+                sigma = cov_matrix_out[i][j]
+                sigma = self._expr(vaex.expresso.simplify(_ensure_string_from_expression(sigma)))
+                if i != j:
+                    self.add_virtual_column(covariance_format.format(names[i], names[j]), sigma)
+                else:
+                    self.add_virtual_column(uncertainty_format.format(names[i]), np.sqrt(sigma))
+
+
+
     def add_virtual_columns_cartesian_to_polar(self, x="x", y="y", radius_out="r_polar", azimuth_out="phi_polar",
-                                               cov_matrix_x_y=None,
-                                               covariance_postfix="_covariance",
-                                               uncertainty_postfix="_uncertainty",
+                                               propagate_uncertainties=False,
                                                radians=False):
         """Convert cartesian to polar coordinates
 
@@ -3415,44 +3471,25 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param y: expression for y
         :param radius_out: name for the virtual column for the radius
         :param azimuth_out: name for the virtual column for the azimuth angle
-        :param cov_matrix_x_y: {cov_matrix}
-        :param covariance_postfix:
-        :param uncertainty_postfix:
+        :param propagate_uncertainties: {propagate_uncertainties}
         :param radians: if True, azimuth is in radians, defaults to degrees
         :return:
         """
+        x = self[x]
+        y = self[y]
         if radians:
             to_degrees = ""
         else:
             to_degrees = "*180/pi"
-        self.add_virtual_column(radius_out, "sqrt({x}**2 + {y}**2)".format(**locals()))
-        self.add_virtual_column(azimuth_out, "arctan2({y}, {x}){to_degrees}".format(**locals()))
-        if cov_matrix_x_y:
-            # function and it's jacobian
-            # f_obs(x, y) = [r, phi] = (..., ....)
-            J = [["-{x}/{radius_out}", "-{y}/{radius_out}"],
-                 ["-{y}/({x}**2+{y}**2){to_degrees}", "{x}/({x}**2+{y}**2){to_degrees}"]]
-            if cov_matrix_x_y in ["full", "auto"]:
-                names = [x, y]
-                cov_matrix_x_y = self._covariance_matrix_guess(names, full=cov_matrix_x_y == "full")
-
-            cov_matrix_r_phi = [[""] * 2 for i in range(2)]
-            for i in range(2):
-                for j in range(2):
-                    for k in range(2):
-                        for l in range(2):
-                            sigma = cov_matrix_x_y[k][l]
-                            if sigma and J[i][k] and J[j][l]:
-                                cov_matrix_r_phi[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
-
-            names = [radius_out, azimuth_out]
-            for i in range(2):
-                for j in range(i + 1):
-                    sigma = cov_matrix_r_phi[i][j].format(**locals())
-                    if i != j:
-                        self.add_virtual_column(names[i] + "_" + names[j] + covariance_postfix, sigma)
-                    else:
-                        self.add_virtual_column(names[i] + uncertainty_postfix, "sqrt(%s)" % sigma)
+        r = np.sqrt(x**2 + y**2)
+        self[radius_out] = r
+        phi = np.arctan2(y, x)
+        if not radians:
+            phi = phi * 180/np.pi
+        self[azimuth_out] = phi
+        names_out = [radius_out, azimuth_out]
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[radius_out], self[azimuth_out]])
 
     def add_virtual_columns_cartesian_velocities_to_spherical(self, x="x", y="y", z="z", vx="vx", vy="vy", vz="vz", vr="vr", vlong="vlong", vlat="vlat", distance=None):
         """Concert velocities from a cartesian to a spherical coordinate system
@@ -3478,10 +3515,11 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.add_virtual_column(vlong, "-({vx}*{y}-{x}*{vy})/sqrt({x}**2+{y}**2)".format(**locals()))
         self.add_virtual_column(vlat, "-({z}*({x}*{vx}+{y}*{vy}) - ({x}**2+{y}**2)*{vz})/( {distance}*sqrt({x}**2+{y}**2) )".format(**locals()))
 
+    def _expr(self, *expressions, always_list=False):
+        return Expression(self, expressions[0]) if len(expressions) == 1 and not always_list else [Expression(self, k) for k in expressions]
+
     def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
-                                                          cov_matrix_x_y_vx_vy=None,
-                                                          covariance_postfix="_covariance",
-                                                          uncertainty_postfix="_uncertainty"):
+                                                          propagate_uncertainties=False,):
         """Convert cartesian to polar velocities.
 
         :param x:
@@ -3491,54 +3529,22 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param vy:
         :param vr_out:
         :param vazimuth_out:
-        :param cov_matrix_x_y_vx_vy:
-        :param covariance_postfix:
-        :param uncertainty_postfix:
+        :param propagate_uncertainties: {propagate_uncertainties}
         :return:
         """
+        x = self._expr(x)
+        y = self._expr(y)
+        vx = self._expr(vx)
+        vy = self._expr(vy)
         if radius_polar is None:
-            radius_polar = "sqrt(({x})**2 + ({y})**2)".format(**locals())
-        self.add_virtual_column(vr_out, "(({x})*({vx})+({y})*({vy}))/{radius_polar}".format(**locals()))
-        self.add_virtual_column(vazimuth_out, "(({x})*({vy})-({y})*({vx}))/{radius_polar}".format(**locals()))
+            radius_polar = np.sqrt(x**2 + y**2)
+        radius_polar = self._expr(radius_polar)
+        vr_expr = self[vr_out]       = (x*vx + y*vy) / radius_polar
+        vaz_expr = self[vazimuth_out] = (x*vy - y*vx) / radius_polar
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[vr_out], self[vazimuth_out]])
 
-        if cov_matrix_x_y_vx_vy:
-            # function and it's jacobian
-            # f_obs(x, y, vx, vy) = [vr, vphi] = ( (x*vx+y*vy) /r , (x*vy - y * vx)/r )
-
-            J = [[
-                "-({x}*{vr_out})/({radius_polar})**2 + {vx}/({radius_polar})",
-                "-({y}*{vr_out})/({radius_polar})**2 + {vy}/({radius_polar})",
-                "{x}/({radius_polar})",
-                "{y}/({radius_polar})"
-            ], [
-                "-({x}*{vazimuth_out})/({radius_polar})**2 + {vy}/({radius_polar})",
-                "-({y}*{vazimuth_out})/({radius_polar})**2 - {vx}/({radius_polar})",
-                "-{y}/({radius_polar})",
-                " {x}/({radius_polar})"
-            ]]
-            if cov_matrix_x_y_vx_vy in ["full", "auto"]:
-                names = [x, y, vx, vy]
-                cov_matrix_x_y_vx_vy = self._covariance_matrix_guess(names, full=cov_matrix_x_y_vx_vy == "full")
-
-            cov_matrix_vr_vphi = [[""] * 2 for i in range(2)]
-            for i in range(2):
-                for j in range(2):
-                    for k in range(4):
-                        for l in range(4):
-                            sigma = cov_matrix_x_y_vx_vy[k][l]
-                            if sigma and J[i][k] and J[j][l]:
-                                cov_matrix_vr_vphi[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
-
-            names = [vr_out, vazimuth_out]
-            for i in range(2):
-                for j in range(i + 1):
-                    sigma = cov_matrix_vr_vphi[i][j].format(**locals())
-                    if i != j:
-                        self.add_virtual_column(names[i] + "_" + names[j] + covariance_postfix, sigma)
-                    else:
-                        self.add_virtual_column(names[i] + uncertainty_postfix, "sqrt(%s)" % sigma)
-
-    def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees):
+    def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees, propagate_uncertainties=False):
         """Rotation in 2d
 
         :param str x: Name/expression of x column
@@ -3548,21 +3554,23 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param float angle_degrees: rotation in degrees, anti clockwise
         :return:
         """
+        x = _ensure_string_from_expression(x)
+        y = _ensure_string_from_expression(y)
         theta = np.radians(angle_degrees)
         matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
         m = matrix_name = x + "_" + y + "_rot"
         for i in range(2):
             for j in range(2):
                 self.set_variable(matrix_name + "_%d%d" % (i, j), matrix[i, j].item())
-        self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y}".format(**locals())
-        self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y}".format(**locals())
+        self[xnew] = self._expr("{m}_00 * {x} + {m}_01 * {y}".format(**locals()))
+        self[ynew] = self._expr("{m}_10 * {x} + {m}_11 * {y}".format(**locals()))
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[xnew], self[ynew]])
 
     @docsubst
     def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname="x", yname="y", zname="z",
-                                                   cov_matrix_alpha_delta_distance=None,
-                                                   covariance_postfix="_covariance",
-                                                   uncertainty_postfix="_uncertainty",
-                                                   center=None, center_name="solar_position", radians=False):
+                                                   propagate_uncertainties=False,
+                                                   center=[0, 0, 0], center_name="solar_position", radians=False):
         """Convert spherical to cartesian coordinates.
 
 
@@ -3573,71 +3581,23 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param xname:
         :param yname:
         :param zname:
-        :param cov_matrix_alpha_delta_distance: {cov_matrix}
-        :param covariance_postfix:
-        :param uncertainty_postfix:
+        :param propagate_uncertainties: {propagate_uncertainties}
         :param center:
         :param center_name:
         :param radians:
         :return:
         """
-        alpha_original = alpha
-        delta_original = delta
+        alpha_original = alpha = self._expr(alpha)
+        delta_original = delta = self._expr(delta)
+        distance = self._expr(distance)
         if not radians:
-            alpha = "pi/180.*%s" % alpha
-            delta = "pi/180.*%s" % delta
-            to_radians = "*pi/180"  # used for the derivatives
-        else:
-            to_radians = ""
-        if center is not None:
-            self.add_variable(center_name, center)
-        if center:
-            solar_mod = " + " + center_name + "[0]"
-        else:
-            solar_mod = ""
-        self.add_virtual_column(xname, "cos(%s) * cos(%s) * %s%s" % (alpha, delta, distance, solar_mod))
-        if center:
-            solar_mod = " + " + center_name + "[1]"
-        else:
-            solar_mod = ""
-        self.add_virtual_column(yname, "sin(%s) * cos(%s) * %s%s" % (alpha, delta, distance, solar_mod))
-        if center:
-            solar_mod = " + " + center_name + "[2]"
-        else:
-            solar_mod = ""
-        self.add_virtual_column(zname, "sin(%s) * %s%s" % (delta, distance, solar_mod))
-        if cov_matrix_alpha_delta_distance:
-            # function and it's jacobian
-            # f_obs(alpha, delta, distance) = [x, y, z] = (cos(alpha) * cos(delta) * distance,
-            #                                               sin(alpha) * cos(delta) * distance,
-            #                                               sin(delta) * distance)
-            J = [["-sin({alpha})*cos({delta})*{distance}{to_radians}", "-cos({alpha})*sin({delta})*{distance}{to_radians}", "cos({alpha})*cos({delta})"],
-                 [" cos({alpha})*cos({delta})*{distance}{to_radians}", "-sin({alpha})*sin({delta})*{distance}{to_radians}", "sin({alpha})*cos({delta})"],
-                 [None, "cos({delta})*{distance}{to_radians}", "sin({delta})"]]
-
-            if cov_matrix_alpha_delta_distance in ["full", "auto"]:
-                names = [alpha_original, delta_original, distance]
-                cov_matrix_alpha_delta_distance = self._covariance_matrix_guess(names, full=cov_matrix_alpha_delta_distance == "full")
-
-            cov_matrix_xyz = [[""] * 3 for i in range(3)]
-            for i in range(3):
-                for j in range(3):
-                    for k in range(3):
-                        for l in range(3):
-                            sigma = cov_matrix_alpha_delta_distance[k][l]
-                            if sigma and J[i][k] and J[j][l]:
-                                cov_matrix_xyz[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
-                            # if sigma and J[k][i] and J[l][j]:
-                            #   cov_matrix_xyz[i][j] += "+(%s)*(%s)*(%s)" % (J[k][i], sigma, J[l][j])
-
-            names = [xname, yname, zname]
-            for i in range(3):
-                for j in range(i + 1):
-                    sigma = cov_matrix_xyz[i][j].format(**locals())
-                    if i != j:
-                        self.add_virtual_column(names[i] + "_" + names[j] + covariance_postfix, sigma)
-                    else:
-                        self.add_virtual_column(names[i] + uncertainty_postfix, "sqrt(%s)" % sigma)
+            alpha = alpha * np.pi/180
+            delta = alpha * np.pi/180
+        self[xname] = np.cos(alpha) * np.cos(delta) * distance + center[0]
+        self[yname] = np.sin(alpha) * np.cos(delta) * distance + center[1]
+        self[zname] = np.sin(alpha) * distance + center[2]
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[xname], self[yname], self[zname]])
 
     def add_virtual_columns_cartesian_to_spherical(self, x="x", y="y", z="z", alpha="l", delta="b", distance="distance", radians=False, center=None, center_name="solar_position"):
         """Convert cartesian to spherical coordinates.
@@ -3730,6 +3690,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param str unique: if name is already used, make it unique by adding a postfix, e.g. _1, or _2
         """
         type = "change" if name in self.virtual_columns else "add"
+        expression = _ensure_string_from_expression(expression)
         if name in self.get_column_names():
             renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names(virtual=True, strings=True))
             expression = self._rename(name, renamed, expression)[0].expression

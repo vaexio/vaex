@@ -504,9 +504,7 @@ class TestDataset(unittest.TestCase):
 		if 1:
 			def datasets(x, y, velx, vely):
 				ds_1 = from_scalars(x=x, y=y, vx=velx, vy=vely, x_e=0.01, y_e=0.02, vx_e=0.03, vy_e=0.04)
-				#sigmas = ["alpha_e**2", "delta_e**2", "pm_a_e**2", "pm_d_e**2"]
-				#cov = [[sigmas[i] if i == j else "" for i in range(4)] for j in range(4)]
-				ds_1.add_virtual_columns_cartesian_velocities_to_polar(cov_matrix_x_y_vx_vy="auto")
+				ds_1.add_virtual_columns_cartesian_velocities_to_polar(propagate_uncertainties=True)
 				N = 100000
 				# distance
 				x =        np.random.normal(x, 0.01, N)
@@ -583,9 +581,7 @@ class TestDataset(unittest.TestCase):
 		for radians in [True, False]:
 			def datasets(x, y, radians=radians):
 				ds_1 = from_scalars(x=x, y=y, x_e=0.01, y_e=0.02)
-				#sigmas = ["alpha_e**2", "delta_e**2", "pm_a_e**2", "pm_d_e**2"]
-				#cov = [[sigmas[i] if i == j else "" for i in range(4)] for j in range(4)]
-				ds_1.add_virtual_columns_cartesian_to_polar(cov_matrix_x_y="auto", radians=radians)
+				ds_1.add_virtual_columns_cartesian_to_polar(propagate_uncertainties=True, radians=radians)
 				N = 100000
 				# distance
 				x =        np.random.normal(x, 0.01, N)
@@ -610,9 +606,7 @@ class TestDataset(unittest.TestCase):
 		for radians in [True, False]:
 			def datasets(alpha, delta, pm_a, pm_d, radians=radians):
 				ds_1 = from_scalars(alpha=alpha, delta=delta, pm_a=pm_a, pm_d=pm_d, alpha_e=0.01, delta_e=0.02, pm_a_e=0.003, pm_d_e=0.004)
-				sigmas = ["alpha_e**2", "delta_e**2", "pm_a_e**2", "pm_d_e**2"]
-				cov = [[sigmas[i] if i == j else "" for i in range(4)] for j in range(4)]
-				ds_1.add_virtual_columns_proper_motion_eq2gal("alpha", "delta", "pm_a", "pm_d", "pm_l", "pm_b", cov_matrix_alpha_delta_pma_pmd=cov, radians=radians)
+				ds_1.add_virtual_columns_proper_motion_eq2gal("alpha", "delta", "pm_a", "pm_d", "pm_l", "pm_b", propagate_uncertainties=True, radians=radians)
 				N = 100000
 				# distance
 				alpha =        np.random.normal(0, 0.01, N)  + alpha
@@ -637,10 +631,8 @@ class TestDataset(unittest.TestCase):
 
 	def test_add_virtual_columns_proper_motion2vperpendicular(self):
 		def datasets(distance, pm_l, pm_b):
-			ds_1 = from_scalars(pm_l=pm_l, pm_b=pm_b, distance=distance, distance_e=0.1, pm_long_e=0.3, pm_lat_e=0.4)
-			sigmas = ["distance_e**2", "pm_long_e**2", "pm_lat_e**2"]
-			cov = [[sigmas[i] if i == j else "" for i in range(3)] for j in range(3)]
-			ds_1.add_virtual_columns_proper_motion2vperpendicular(cov_matrix_distance_pm_long_pm_lat=cov)
+			ds_1 = from_scalars(pm_l=pm_l, pm_b=pm_b, distance=distance, distance_e=0.1, pm_l_e=0.3, pm_b_e=0.4)
+			ds_1.add_virtual_columns_proper_motion2vperpendicular(propagate_uncertainties=True)
 			N = 100000
 			# distance
 			distance = np.random.normal(0, 0.1, N)  + distance
@@ -662,10 +654,8 @@ class TestDataset(unittest.TestCase):
 	def test_virtual_columns_lbrvr_proper_motion2vcartesian(self):
 		for radians in [True, False]:
 			def datasets(l, b, distance, vr, pm_l, pm_b, radians=radians):
-				ds_1 = from_scalars(l=l, b=b, pm_l=pm_l, pm_b=pm_b, vr=vr, distance=distance, distance_e=0.1, vr_e=0.2, pm_long_e=0.3, pm_lat_e=0.4)
-				sigmas = ["vr_e**2", "distance_e**2", "pm_long_e**2", "pm_lat_e**2"]
-				cov = [[sigmas[i] if i == j else "" for i in range(4)] for j in range(4)]
-				ds_1.add_virtual_columns_lbrvr_proper_motion2vcartesian(cov_matrix_vr_distance_pm_long_pm_lat=cov, radians=radians)
+				ds_1 = from_scalars(l=l, b=b, pm_l=pm_l, pm_b=pm_b, vr=vr, distance=distance, distance_e=0.1, vr_e=0.2, pm_l_e=0.3, pm_b_e=0.4)
+				ds_1.add_virtual_columns_lbrvr_proper_motion2vcartesian(propagate_uncertainties=True, radians=radians)
 				N = 100000
 				# distance
 				l =        np.random.normal(0, 0.1, N) * 0 + l
@@ -1061,9 +1051,7 @@ class TestDataset(unittest.TestCase):
 		for radians in [True, False]:
 			def datasets(alpha, delta, distance, radians=radians):
 				ds_1 = from_scalars(alpha=alpha, delta=delta, distance=distance, alpha_e=0.1, delta_e=0.2, distance_e=0.3)
-				sigmas = ["alpha_e**2", "delta_e**2", "distance_e**2"]
-				cov = [[sigmas[i] if i == j else "" for i in range(3)] for j in range(3)]
-				ds_1.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance", cov_matrix_alpha_delta_distance=cov, radians=radians)
+				ds_1.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance", propagate_uncertainties=True, radians=radians)
 				N = 1000000
 				# distance
 				alpha =        np.random.normal(0, 0.1, N) + alpha
