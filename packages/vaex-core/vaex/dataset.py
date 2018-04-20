@@ -2643,6 +2643,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :return: The resulting unit of the expression
         :rtype: astropy.units.Unit
         """
+        expression = _ensure_string_from_expression(expression)
         try:
             # if an expression like pi * <some_expr> it will evaluate to a quantity instead of a unit
             unit_or_quantity = eval(expression, expression_namespace, UnitScope(self))
