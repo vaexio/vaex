@@ -3411,7 +3411,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         (Note that x_y_cov = x_e * y_e * x_y_correlation) 
 
 
-        Example: (Present columns are x, y, and x_e and y_e representing the error/uncertainties)
+        Example:
+
         >>> ds = vaex.from_scalars(x=1, y=2, e_x=0.1, e_y=0.2)
         >>> ds['u'] = ds.x + ds.y
         >>> ds['v'] = np.log10(ds.x)
