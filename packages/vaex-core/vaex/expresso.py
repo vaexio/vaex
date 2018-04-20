@@ -310,6 +310,9 @@ class SimplifyExpression(ast.NodeTransformer):
                 return num(0)
             elif isinstance(left, ast.Num) and left.n == 1:
                 return right
+        if isinstance(node.op, ast.Div):
+            if isinstance(left, ast.Num) and left.n == 0:
+                return num(0)
         if isinstance(node.op, ast.Add):
             if isinstance(right, ast.Num) and right.n == 0:
                 return left
