@@ -3589,15 +3589,15 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param radians:
         :return:
         """
-        alpha_original = alpha = self._expr(alpha)
-        delta_original = delta = self._expr(delta)
+        alpha = self._expr(alpha)
+        delta = self._expr(delta)
         distance = self._expr(distance)
         if not radians:
             alpha = alpha * np.pi/180
-            delta = alpha * np.pi/180
+            delta = delta * np.pi/180
         self[xname] = np.cos(alpha) * np.cos(delta) * distance + center[0]
         self[yname] = np.sin(alpha) * np.cos(delta) * distance + center[1]
-        self[zname] = np.sin(alpha) * distance + center[2]
+        self[zname] =                 np.sin(delta) * distance + center[2]
         if propagate_uncertainties:
             self.propagate_uncertainties([self[xname], self[yname], self[zname]])
 

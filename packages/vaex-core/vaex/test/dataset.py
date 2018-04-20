@@ -1086,6 +1086,10 @@ class TestDataset(unittest.TestCase):
 		dataset.evaluate("l")
 		dataset.evaluate("b")
 
+		ds = vaex.from_scalars(x=1, y=0, z=0)
+		ds.add_virtual_columns_cartesian_to_spherical()
+		assert ds.evaluate('b')[0] == 0
+
 	def test_virtual_columns_equatorial(self):
 		alpha = np.array([0.])
 		delta = np.array([0.])
