@@ -171,7 +171,7 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
 
 @patch
 def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, c_expr=None, selection=None, length_limit=50000,
-    length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, ellipse_kwargs={}, **kwargs,):
+    length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, ellipse_kwargs={}, **kwargs):
     """Convenience wrapper around pylab.scatter when for working with small datasets or selections
 
     :param x: Expression for x axis

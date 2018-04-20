@@ -4662,6 +4662,7 @@ class DatasetLocal(Dataset):
         for name, value in expression_namespace.items():
             # f = vaex.expression.FunctionBuiltin(self, name)
             def closure(name=name, value=value):
+                local_name = name
                 def wrap(*args, **kwargs):
                     def myrepr(k):
                         if isinstance(k, Expression):
@@ -4669,10 +4670,14 @@ class DatasetLocal(Dataset):
                         else:
                             return repr(k)
                     arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
-                    expression = "{}({})".format(name, arg_string)
+                    expression = "{}({})".format(local_name, arg_string)
                     return vaex.expression.Expression(self, expression)
                 return wrap
-            f = functools.wraps(value)(closure())
+            f = closure()
+            try:
+                f = functools.wraps(value)(f)
+            except AttributeError:
+                pass # python2 quicks.. ?
             setattr(functions, name, f)
         for name, value in self.functions.items():
             setattr(functions, name, value)
