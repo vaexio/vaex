@@ -1,4 +1,4 @@
-define("vaex.ext.bqplot", ["jupyter-js-widgets", "bqplot", "underscore"],
+define("vaex.ext.bqplot", ["@jupyter-widgets/base", "bqplot", "underscore"],
        function(widgets, bqplot, _) {
     "use strict";
 /*
