@@ -27,6 +27,8 @@ patch(plot2d_vector)
 patch(plot2d_tensor)
 
 
+max_labels = 10
+
 @patch
 def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
            xlabel=None, ylabel=None, label=None,
@@ -125,6 +127,7 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
         N = len(grid[-1])
     else:
         N = len(grid)
+    xexpression = binby[0]
     xar = np.arange(N + 1) / (N - 0.) * (xmax - xmin) + xmin
     if facet:
         import math
@@ -137,7 +140,10 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
             pylab.xlabel(xlabel or x)
             pylab.ylabel(ylabel or what)
             ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
-            # pylab.show()
+            if self.iscategory(xexpression):
+                labels = self.category_labels(xexpression)
+                step = len(labels) // max_labels
+                pylab.xticks(range(len(labels))[::step], labels[::step], size='small')
     else:
         # im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
         pylab.xlabel(xlabel or self.label(x))
@@ -146,6 +152,10 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
         # repeat the first element, that's how plot/steps likes it..
         g = np.concatenate([ngrid[0:1], ngrid])
         value = pylab.plot(xar, g, drawstyle="steps-pre", label=label or x, **kwargs)
+        if self.iscategory(xexpression):
+            labels = self.category_labels(xexpression)
+            step = len(labels) // max_labels
+            pylab.xticks(range(len(labels))[::step], labels[::step], size='small')
     if tight_layout:
         pylab.tight_layout()
     if hardcopy:
@@ -225,6 +235,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
          shape=256, vshape=32, limits=None, grid=None, colormap="afmhot",  # colors=["red", "green", "blue"],
          figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
          colorbar=True,
+         colorbar_label=None,
          selection=None, selection_labels=None, title=None,
          background_color="white", pre_blend=False, background_alpha=1.,
          visual=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what"),
@@ -326,7 +337,8 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     # every plot has its own vwhat for now
     vwhats = _expand_limits(vwhat, len(x))  # TODO: we're abusing this function..
     logger.debug("x: %s", x)
-    limits = self.limits(x, limits)
+    limits, shape = self.limits(x, limits, shape=shape)
+    shape = shape[0]
     logger.debug("limits: %r", limits)
 
     labels = {}
@@ -364,16 +376,6 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     logger.debug("shape of total grid: %r", total_grid.shape)
     axis = dict(plot=0, what=1, selection=2)
     xlimits = limits
-    if xlabel is None:
-        xlabels = []
-        ylabels = []
-        for i, (binby, limits) in enumerate(zip(x, xlimits)):
-            xlabels.append(self.label(binby[0]))
-            ylabels.append(self.label(binby[1]))
-    else:
-        xlabels = _expand(xlabel, len(x))
-        ylabels = _expand(ylabel, len(x))
-    labels["subspace"] = (xlabels, ylabels)
 
     grid_axes = dict(x=-1, y=-2, z=-3, selection=-4, what=-5, subspace=-6)
     visual_axes = dict(x=-1, y=-2, layer=-3, fade=-4, column=-5, row=-6)
@@ -501,6 +503,24 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     logger.debug("visual: %r", visual.items())
     logger.debug("move: %r", move)
     logger.debug("visual grid shape: %r", visual_grid.shape)
+
+    xexpressions = []
+    yexpressions = []
+    for i, (binby, limits) in enumerate(zip(x, xlimits)):
+        xexpressions.append(binby[0])
+        yexpressions.append(binby[1])
+    if xlabel is None:
+        xlabels = []
+        ylabels = []
+        for i, (binby, limits) in enumerate(zip(x, xlimits)):
+            xlabels.append(self.label(binby[0]))
+            ylabels.append(self.label(binby[1]))
+    else:
+        Nl = visual_grid.shape[visual_axes['row']]
+        xlabels = _expand(xlabel, Nl)
+        ylabels = _expand(ylabel, Nl)
+    labels[visual_reverse["row"]] = (xlabels, ylabels)
+
     # grid = total_grid
     # print(grid.shape)
     # grid = self.reduce(grid, )
@@ -632,7 +652,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                     if facets > 1:
                         colorbar.ax.set_title(label)
                     else:
-                        colorbar.ax.set_ylabel(label)
+                        colorbar.ax.set_ylabel(colorbar_label or label)
 
             if colorbar and colorbar_location == "per_row" and j == 0:
                 norm = matplotlib.colors.Normalize(vmins[i], vmaxs[i])
@@ -644,7 +664,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 else:
                     colorbar = fig.colorbar(sm)
                 label = labels["what"][i]
-                colorbar.ax.set_ylabel(label)
+                colorbar.ax.set_ylabel(colorbar_label or label)
 
             rgrid = ngrid[i, j] * 1.
             # print rgrid.shape
@@ -683,7 +703,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 else:
                     colorbar = fig.colorbar(sm)
                 label = labels["what"][what_index]
-                colorbar.ax.set_ylabel(label)
+                colorbar.ax.set_ylabel(colorbar_label or label)
 
             if facets > 1:
                 ax = pylab.subplot(gs[row_offset + row * row_scale:row_offset + (row + 1) * row_scale, column * column_scale:(column + 1) * column_scale])
@@ -738,6 +758,17 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 elif labelsxy is not None and not has_title:
                     ax.set_title(labelsxy[j])
                     pass
+            max_labels = 10
+            xexpression = xexpressions[i]
+            if self.iscategory(xexpression):
+                labels = self.category_labels(xexpression)
+                step = len(labels) // max_labels
+                pylab.xticks(np.arange(len(labels))[::step], labels[::step], size='small')
+            yexpression = yexpressions[i]
+            if self.iscategory(yexpression):
+                labels = self.category_labels(yexpression)
+                step = len(labels) // max_labels
+                pylab.yticks(np.arange(len(labels))[::step], labels[::step], size='small')
             facet_index += 1
     if title:
         fig.suptitle(title, fontsize="x-large")

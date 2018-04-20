@@ -14,6 +14,8 @@ import json
 import yaml
 import contextlib
 import collections
+import warnings
+import functools
 
 is_frozen = getattr(sys, 'frozen', False)
 PY2 = sys.version_info[0] == 2
@@ -31,6 +33,16 @@ class AttrDict(dict):
 
     def __setattr__(self, key, value):
         self[key] = value
+
+def deprecated(reason):
+    def wraps(f):
+        @functools.wraps(f)
+        def wraps2(*args, **kwargs):
+            warnings.warn("Call to deprecated function {}: {}".format(f.__name__, reason),
+                      category=DeprecationWarning, stacklevel=2)
+            return f(*args, **kwargs)
+        return wraps2
+    return wraps
 
 
 def subdivide(length, parts=None, max_length=None):
@@ -282,9 +294,9 @@ _progressbar_typemap['vaex'] = _progressbar_vaex
 _progressbar_typemap['widget'] = _ProgressBarWidget
 
 
-def progressbar(type_name=None, name="processing", max_value=1):
+def progressbar(type_name=None, title="processing", max_value=1):
     type_name = type_name or 'vaex'
-    return _progressbar_typemap[type_name](name=name)
+    return _progressbar_typemap[type_name](name=title)
 
 
 def progressbar_widget():
@@ -390,8 +402,8 @@ def progressbars(f=True, next=None, name=None):
             return _progressbar_wrapper_sum(next=next, name=name)
 
 
-def progressbar_callable(name="processing", max_value=1):
-    bar = progressbar(name, max_value=max_value)
+def progressbar_callable(title="processing", max_value=1):
+    bar = progressbar(title=title, max_value=max_value)
     return _progressbar_wrapper(bar)
 
 

@@ -3,11 +3,12 @@ import six
 import functools
 from future.utils import with_metaclass
 from vaex.dataset import expression_namespace
-from vaex.dataset import default_shape
+from vaex.dataset import default_shape, _ensure_strings_from_expressions
 import numpy as np
 import vaex.serialize
 import base64
 import cloudpickle as pickle
+from . import expresso
 try:
     from StringIO import StringIO
 except ImportError:
@@ -117,7 +118,28 @@ class Meta(type):
 class Expression(with_metaclass(Meta)):
     def __init__(self, ds, expression):
         self.ds = ds
+        if isinstance(expression, Expression):
+            expression = expression.expression
         self.expression = expression
+
+    def derivative(self, var, optimize=True):
+        var = vaex.dataset._ensure_string_from_expression(var)
+        return self.__class__(self, expresso.derivative(self.expression, var))
+
+    def expand(self, stop=[]):
+        stop = _ensure_strings_from_expressions(stop)
+        def translate(id):
+            if id in self.ds.virtual_columns and id not in stop:
+                return self.ds.virtual_columns[id]
+        expr = expresso.translate(self.expression, translate)
+        return Expression(self.ds, expr)
+
+    def variables(self):
+        variables = set()
+        def record(id):
+            variables.add(id)
+        expresso.translate(self.expand().expression, record)
+        return variables
 
     def __str__(self):
         return self.expression
@@ -234,14 +256,17 @@ class Expression(with_metaclass(Meta)):
         function = self.ds.add_function('_jit', f, unique=True)
         return function(*arguments)
 
-    def jit(self):
+    def jit_pythran(self):
         import pythran
         import imp
         import hashlib
         # self._import_all(module)
         names = []
         funcs = set(vaex.dataset.expression_namespace.keys())
-        vaex.expresso.validate_expression(self.expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
+        expression = self.expression
+        if expression in self.ds.virtual_columns:
+            expression = self.ds.virtual_columns[self.expression]
+        vaex.expresso.validate_expression(expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
         names = list(set(names))
         types = ", ".join(str(self.ds.dtype(name)) + "[]" for name in names)
         argstring = ", ".join(names)
@@ -249,7 +274,7 @@ class Expression(with_metaclass(Meta)):
 from numpy import *
 #pythran export f({2})
 def f({0}):
-    return {1}'''.format(argstring, self.expression, types)
+    return {1}'''.format(argstring, expression, types)
         print(code)
         m = hashlib.md5()
         m.update(code.encode('utf-8'))
@@ -261,6 +286,12 @@ def f({0}):
         vaex.dataset.expression_namespace[function_name] = module.f
 
         return Expression(self.ds, "{0}({1})".format(function_name, argstring))
+
+    def _rename(self, old, new):
+        return Expression(self.ds, self.expression.replace(old, new))  # TODO: support more complicated cases
+ 
+    def astype(self, dtype):
+        return self.ds.func.astype(self, str(dtype))
 
 
 class FunctionSerializable(object):
@@ -374,7 +405,7 @@ class Function(object):
         self.f = f
 
     def __call__(self, *args, **kwargs):
-        arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+        arg_string = ", ".join([str(k) for k in args] + ['{}={:r}'.format(name, value) for name, value in kwargs.items()])
         expression = "{}({})".format(self.name, arg_string)
         return Expression(self.dataset, expression)
 
@@ -388,6 +419,6 @@ class FunctionBuiltin(object):
 
     def __call__(self, *args, **kwargs):
         kwargs = dict(kwargs, **self.kwargs)
-        arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+        arg_string = ", ".join([str(k) for k in args] + ['{}={:r}'.format(name, value) for name, value in kwargs.items()])
         expression = "{}({})".format(self.name, arg_string)
         return Expression(self.dataset, expression)

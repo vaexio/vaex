@@ -459,7 +459,13 @@ def as_flat_float(a):
     if a.dtype.type == np.float64 and a.strides[0] == 8:
         return a
     else:
-        return a.astype(np.float64, copy=False)
+        return a.astype(np.float64, copy=True)
+
+def as_flat_array(a, dtype=np.float64):
+    if a.dtype.type == dtype and a.strides[0] == 8:
+        return a
+    else:
+        return a.astype(dtype, copy=True)
 
 
 def _split_and_combine_mask(arrays):
@@ -489,6 +495,7 @@ class TaskStatistic(Task):
         self.op = op
         self.edges = edges
         Task.__init__(self, dataset, expressions, name="statisticNd")
+        #self.dtype = np.int64 if self.op == OP_ADD1 else np.float64 # TODO: use int64 fir count and ADD1
         self.dtype = np.float64
         self.masked = masked
 
@@ -535,7 +542,25 @@ class TaskStatistic(Task):
                 mask |= other
             blocks = [block[~mask] for block in blocks]
 
-        blocks = [as_flat_float(block) for block in blocks]
+        #blocks = [as_flat_float(block) for block in blocks]
+        if len(blocks) != 0:
+            dtype = np.find_common_type([block.dtype for block in blocks], [])
+            histogram2d = vaex.vaexfast.histogram2d
+            if dtype.str in ">f8 <f8 =f8":
+                statistic_function = vaex.vaexfast.statisticNd_f8
+            elif dtype.str in ">f4 <f4 =f4":
+                statistic_function = vaex.vaexfast.statisticNd_f4
+                histogram2d = vaex.vaexfast.histogram2d_f4
+            elif dtype.str in ">i8 <i8 =i8":
+                dtype = np.dtype(np.float64)
+                statistic_function = vaex.vaexfast.statisticNd_f8
+            else:
+                dtype = np.dtype(np.float32)
+                statistic_function = vaex.vaexfast.statisticNd_f4
+                histogram2d = vaex.vaexfast.histogram2d_f4
+            #print(dtype, statistic_function, histogram2d)
+
+        blocks = [as_flat_array(block, dtype) for block in blocks]
 
         this_thread_grid = self.grid[thread_index]
         for i, selection in enumerate(self.selections):
@@ -569,9 +594,16 @@ class TaskStatistic(Task):
                         this_thread_grid[i][0] += i2 - i1
                 else:
                     raise ValueError("Nothing to compute for OP %s" % self.op.code)
-
-            blocks = list(blocks)  # histogramNd wants blocks to be a list
-            vaex.vaexfast.statisticNd(selection_blocks, subblock_weights, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
+            else:
+                #blocks = list(blocks)  # histogramNd wants blocks to be a list
+                # if False: #len(selection_blocks) == 2 and self.op == OP_ADD1:  # special case, slighty faster
+                #     #print('fast case!')
+                #     assert len(subblock_weights) <= 1
+                #     histogram2d(selection_blocks[0], selection_blocks[1], subblock_weights[0] if len(subblock_weights) else None,
+                #                 this_thread_grid[i,...,0],
+                #                 self.minima[0], self.maxima[0], self.minima[1], self.maxima[1])
+                # else:
+                    statistic_function(selection_blocks, subblock_weights, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
         return i2 - i1
         # return map(self._map, blocks)#[self.map(block) for block in blocks]
 
@@ -670,7 +702,7 @@ class _BlockScope(object):
         try:
             if variable in self.values:
                 return self.values[variable]
-            elif variable in self.dataset.get_column_names(strings=True):
+            elif variable in self.dataset.get_column_names(strings=True, hidden=True):
                 if self.dataset._needs_copy(variable):
                     # self._ensure_buffer(variable)
                     # self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
@@ -711,6 +743,7 @@ class _BlockScopeSelection(object):
         if expression is True:
             expression = "default"
         try:
+            expression = _ensure_string_from_expression(expression)
             return eval(expression, expression_namespace, self)
         except:
             import traceback as tb
@@ -743,7 +776,7 @@ class _BlockScopeSelection(object):
             else:
                 if variable in expression_namespace:
                     return expression_namespace[variable]
-                elif variable in self.dataset.get_column_names(strings=True):
+                elif variable in self.dataset.get_column_names(strings=True, hidden=True):
                     return self.dataset.columns[variable][self.i1:self.i2]
                 elif variable in self.dataset.variables:
                     return self.dataset.variables[variable]
@@ -821,16 +854,26 @@ class SelectionDropNa(Selection):
         return mask
 
 
+def _rename_expression_string(dataset, e, old, new):
+    return Expression(self.dataset, self.boolean_expression)._rename(old, new).expression
+
 class SelectionExpression(Selection):
     def __init__(self, dataset, boolean_expression, previous_selection, mode):
         super(SelectionExpression, self).__init__(dataset, previous_selection, mode)
-        self.boolean_expression = boolean_expression
+        self.boolean_expression = Expression(dataset, _ensure_string_from_expression(boolean_expression))
+
+    def _rename(self, old, new):
+        boolean_expression = self.boolean_expression._rename(old, new)
+        previous_selection = None
+        if self.previous_selection:
+            previous_selection = self.previous_selection._rename(old, new)
+        return SelectionExpression(self.dataset, boolean_expression, previous_selection, self.mode)
 
     def to_dict(self):
         previous = None
         if self.previous_selection:
             previous = self.previous_selection.to_dict()
-        return dict(type="expression", boolean_expression=self.boolean_expression, mode=self.mode, previous_selection=previous)
+        return dict(type="expression", boolean_expression=str(self.boolean_expression), mode=self.mode, previous_selection=previous)
 
     def evaluate(self, name, i1, i2):
         if self.previous_selection:
@@ -1014,8 +1057,12 @@ expression_namespace["hourofday"] = hourofday
 def _float(x):
     return x.astype(np.float64)
 
+def _astype(x, dtype):
+    return x.astype(dtype)
+
 
 expression_namespace["float"] = _float
+expression_namespace["astype"] = _astype
 
 _doc_snippets = {}
 _doc_snippets["expression"] = "expression or list of expressions, e.g. 'x', or ['x, 'y']"
@@ -1039,10 +1086,10 @@ _doc_snippets["healpix_level"] = """The healpix level to use for the binning, th
 _doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a scalar when no binby argument is given, with the statistic"""
 _doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
 _doc_snippets["cov_matrix"] = """List all convariance values as a double list of expressions, or "full" to guess all entries (which gives an error when values are not found), or "auto" to guess, but allow for missing values"""
-
+_doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :py:`Dataset.propagate_uncertainties` for details"""
 _doc_snippets['note_copy'] = 'Note that no copy of the underlying data is made, only a view/reference is make.'
 _doc_snippets['note_filter'] = 'Note that filtering will be ignored (since they may change), you may want to consider running :py:`Dataset.extract` first.'
-
+_doc_snippets['inplace'] = 'Make modifications to self or return a new dataset'
 
 def docsubst(f):
     f.__doc__ = f.__doc__.format(**_doc_snippets)
@@ -1155,14 +1202,17 @@ class Dataset(object):
         arguments = _ensure_strings_from_expressions(arguments)
         return lazy_function(*arguments)
 
-    def unique(self, expression, progress=False, delay=False):
+    def unique(self, expression, return_inverse=False, progress=False, delay=False):
         def map(ar):  # this will be called with a chunk of the data
             return np.unique(ar)  # returns the unique elements
 
         def reduce(a, b):  # gets called with a list of the return values of map
             joined = np.concatenate([a, b])  # put all 'sub-unique' together
             return np.unique(joined)  # find all the unique items
-        return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='unique')
+        if return_inverse:  # TODO: optimize this path
+            return np.unique(self.evaluate(expression), return_inverse=return_inverse)
+        else:
+            return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='unique')
 
     @docsubst
     def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
@@ -1313,14 +1363,18 @@ class Dataset(object):
         binby = _ensure_strings_from_expressions(binby)
 
         @delayed
-        def calculate(expression, limits):
+        def calculate(expression, limits_and_shapes):
+            if shape:
+                limits, shapes = limits_and_shapes
+            else:
+                limits, shapes = limits_and_shapes, shape
             if expression in ["*", None]:
                 # if not binby: # if we have nothing to iterate over, the statisticNd code won't do anything
                 # \3 return np.array([self.length(selection=selection)], dtype=float)
                 # else:
-                task = TaskStatistic(self, binby, shape, limits, op=OP_ADD1, selection=selection, edges=edges)
+                task = TaskStatistic(self, binby, shapes, limits, op=OP_ADD1, selection=selection, edges=edges)
             else:
-                task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_COUNT, selection=selection, edges=edges)
+                task = TaskStatistic(self, binby, shapes, limits, weight=expression, op=OP_COUNT, selection=selection, edges=edges)
             self.executor.schedule(task)
             progressbar.add_task(task, "count for %s" % expression)
             return task
@@ -1332,8 +1386,8 @@ class Dataset(object):
             return vaex.utils.unlistify(waslist, counts)
         waslist, [expressions, ] = vaex.utils.listify(expression)
         progressbar = vaex.utils.progressbars(progress)
-        limits = self.limits(binby, limits, delay=True)
-        stats = [calculate(expression, limits) for expression in expressions]
+        limits_and_shapes = self.limits(binby, limits, delay=True, shape=shape)
+        stats = [calculate(expression, limits_and_shapes) for expression in expressions]
         var = finish(*stats)
         return self._delay(delay, var)
 
@@ -2052,7 +2106,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return vaex.utils.unlistify(waslist, values)
 
     @docsubst
-    def limits(self, expression, value=None, square=False, selection=None, delay=False):
+    def limits(self, expression, value=None, square=False, selection=None, delay=False, shape=None):
         """Calculate the [min, max] range for expression, as described by value, which is '99.7%' by default.
 
         If value is a list of the form [minvalue, maxvalue], it is simply returned, this is for convenience when using mixed
@@ -2078,7 +2132,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :return: {return_limits}
         """
         if expression == []:
-            return []
+            return [] if shape is None else ([], [])
         waslist, [expressions, ] = vaex.utils.listify(expression)
         expressions = _ensure_strings_from_expressions(expressions)
         selection = _ensure_strings_from_expressions(selection)
@@ -2095,10 +2149,16 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
         # print("expressions 1)", expressions)
         # print("values      1)", values)
+        if shape is not None:
+            if _issequence(shape):
+                shapes = shape
+            else:
+                shapes = (shape, ) * len(expressions)
 
         initial_expressions, initial_values = expressions, values
         expression_values = dict()
-        for expression, value in zip(expressions, values):
+        expression_shapes = dict()
+        for i, (expression, value) in enumerate(zip(expressions, values)):
             # print(">>>", expression, value)
             if _issequence(expression):
                 expressions = expression
@@ -2114,36 +2174,45 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 if not _is_limit(value):  # if a
                     # value = tuple(value) # list is not hashable
                     expression_values[(expression, value)] = None
+                if self.iscategory(expression):
+                    N = self._categories[_ensure_string_from_expression(expression)]['N']
+                    expression_shapes[expression] = min(N, shapes[i] if shape is not None else default_shape)
+                else:
+                    expression_shapes[expression] = shapes[i] if shape is not None else default_shape
 
         # print("##### 1)", expression_values.keys())
 
         limits_list = []
         # for expression, value in zip(expressions, values):
         for expression, value in expression_values.keys():
-            if isinstance(value, six.string_types):
-                if value == "minmax":
-                    limits = self.minmax(expression, selection=selection, delay=True)
-                else:
-                    match = re.match("([\d.]*)(\D*)", value)
-                    if match is None:
-                        raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
-                    else:
-                        number, type = match.groups()
-                        import ast
-                        number = ast.literal_eval(number)
-                        type = type.strip()
-                        if type in ["s", "sigma"]:
-                            limits = self.limits_sigma(number)
-                        elif type in ["ss", "sigmasquare"]:
-                            limits = self.limits_sigma(number, square=True)
-                        elif type in ["%", "percent"]:
-                            limits = self.limits_percentage(expression, number, delay=False)
-                        elif type in ["%s", "%square", "percentsquare"]:
-                            limits = self.limits_percentage(expression, number, square=True, delay=True)
-            elif value is None:
-                limits = self.limits_percentage(expression, square=square, delay=True)
+            if self.iscategory(expression):
+                N = self._categories[_ensure_string_from_expression(expression)]['N']
+                limits = [-0.5, N-0.5]
             else:
-                limits = value
+                if isinstance(value, six.string_types):
+                    if value == "minmax":
+                        limits = self.minmax(expression, selection=selection, delay=True)
+                    else:
+                        match = re.match("([\d.]*)(\D*)", value)
+                        if match is None:
+                            raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
+                        else:
+                            number, type = match.groups()
+                            import ast
+                            number = ast.literal_eval(number)
+                            type = type.strip()
+                            if type in ["s", "sigma"]:
+                                limits = self.limits_sigma(number)
+                            elif type in ["ss", "sigmasquare"]:
+                                limits = self.limits_sigma(number, square=True)
+                            elif type in ["%", "percent"]:
+                                limits = self.limits_percentage(expression, number, delay=False)
+                            elif type in ["%s", "%square", "percentsquare"]:
+                                limits = self.limits_percentage(expression, number, square=True, delay=True)
+                elif value is None:
+                    limits = self.limits_percentage(expression, square=square, delay=True)
+                else:
+                    limits = value
             limits_list.append(limits)
             if limits is None:
                 raise ValueError("limit %r not understood" % value)
@@ -2161,8 +2230,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         def finish(limits_list):
             # print("##### 2)", expression_values.keys())
             limits_outer = []
+            shapes_list = []
             for expression, value in zip(initial_expressions, initial_values):
-                # print(">>>3", expression, value)
                 if _issequence(expression):
                     expressions = expression
                     waslist2 = True
@@ -2176,14 +2245,15 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 # print("expressions 3)", expressions)
                 # print("values      3)", values)
                 limits = []
+                shapes = []
                 for expression, value in zip(expressions, values):
-                    # print("get", (expression, value))
                     if not _is_limit(value):
                         value = expression_values[(expression, value)]
                         if not _is_limit(value):
                             # print(">>> value", value)
                             value = value.get()
                     limits.append(value)
+                    shapes.append(expression_shapes[expression])
                     # if not _is_limit(value): # if a
                     #   #value = tuple(value) # list is not hashable
                     #   expression_values[(expression, value)] = expression_values[(expression, value)].get()
@@ -2192,12 +2262,17 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                     #   expression_values[(expression, value)] = ()
                 if waslist2:
                     limits_outer.append(limits)
+                    shapes_list.append(shapes)
                 else:
                     limits_outer.append(limits[0])
+                    shapes_list.append(shapes[0])
             # logger.debug(">>>>>>>> complete list of limits: %r %r", limits_list, np.array(limits_list).shape)
 
             # print("limits", limits_outer)
-            return vaex.utils.unlistify(waslist, limits_outer)
+            if shape:
+                return vaex.utils.unlistify(waslist, limits_outer), vaex.utils.unlistify(waslist, shapes_list)
+            else:
+                return vaex.utils.unlistify(waslist, limits_outer)
         return self._delay(delay, finish(limits_list))
 
     def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
@@ -2533,6 +2608,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if expression in self.columns.keys():
             return self.columns[expression].dtype
         else:
+            return self.evaluate(expression, 0, 1).dtype
             return np.zeros(1, dtype=np.float64).dtype
 
     def is_masked(self, column):
@@ -3181,7 +3257,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
     def _save_assign_expression(self, name, expression=None):
         obj = getattr(self, name, None)
-        # it's ok to set it if it does not exists, or we overwrite an older expression
+        # it's ok to set it if it does not exist, or we overwrite an older expression
         if obj is None or isinstance(obj, Expression):
             if expression is None:
                 expression = Expression(self, name)
@@ -3242,7 +3318,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             .format(**locals())
         self.add_virtual_column("bearing", expr)
 
-    def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name, matrix_is_expression=False):
+    def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name='deprecated', matrix_is_expression=False, translation=[0, 0, 0], propagate_uncertainties=False):
         """
 
         :param str x: name of x column
@@ -3255,27 +3331,15 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param str matrix_name:
         :return:
         """
-        m = matrix_name
-        matrix_list = [[None for i in range(3)] for j in range(3)]
-        for i in range(3):
-            for j in range(3):
-                if matrix_is_expression:
-                    self.add_virtual_column(matrix_name + "_%d%d" % (i, j), matrix[i][j])
-                else:
-                    # self.set_variable(matrix_name +"_%d%d" % (i,j), matrix[i,j])
-                    matrix_list[i][j] = matrix[i, j].item()
-        if not matrix_is_expression:
-            self.add_variable(matrix_name, matrix_list)
+        m = matrix
+        x, y, z = self._expr(x, y, z)
 
-        if matrix_is_expression:
-            self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y} + {m}_02 * {z}".format(**locals())
-            self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y} + {m}_12 * {z}".format(**locals())
-            self.virtual_columns[znew] = "{m}_20 * {x} + {m}_21 * {y} + {m}_22 * {z}".format(**locals())
-        else:
-            self.virtual_columns[xnew] = "{m}[0][0] * {x} + {m}[0][1] * {y} + {m}[0][2] * {z}".format(**locals())
-            self.virtual_columns[ynew] = "{m}[1][0] * {x} + {m}[1][1] * {y} + {m}[1][2] * {z}".format(**locals())
-            self.virtual_columns[znew] = "{m}[2][0] * {x} + {m}[2][1] * {y} + {m}[2][2] * {z}".format(**locals())
-        # self.write_virtual_meta()
+        self[xnew] = m[0][0] * x + m[0][1] * y + m[0][2] * z + translation[0]
+        self[ynew] = m[1][0] * x + m[1][1] * y + m[1][2] * z + translation[1]
+        self[znew] = m[2][0] * x + m[2][1] * y + m[2][2] * z + translation[2]
+
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[xnew], self[ynew], self[znew]], [x, y, z])
 
     # wrap these with an informative msg
     add_virtual_columns_eq2ecl = _requires('astro')
@@ -3288,8 +3352,9 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     add_virtual_columns_celestial = _requires('astro')
     add_virtual_columns_proper_motion2vperpendicular = _requires('astro')
 
-    def _covariance_matrix_guess(self, columns, full=False):
+    def _covariance_matrix_guess(self, columns, full=False, as_expression=False):
         all_column_names = self.get_column_names(virtual=True)
+        columns = _ensure_strings_from_expressions(columns)
 
         def _guess(x, y):
             if x == y:
@@ -3319,7 +3384,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                         return y + "_" + x + postfix + " * " + _guess(y, y) + " * " + _guess(x, x)
                 if full:
                     raise ValueError("No covariance or correlation found for %r and %r" % (x, y))
-            return ""
+            return "0"
         N = len(columns)
         cov_matrix = [[""] * N for i in range(N)]
         for i in range(N):
@@ -3328,13 +3393,81 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 if i == j and cov:
                     cov += "**2"  # square the diagnal
                 cov_matrix[i][j] = cov
-        return cov_matrix
+        if as_expression:
+            return [[self[k] for k in row] for row in cov_matrix]
+        else:
+            return cov_matrix
 
-    @docsubst
+    def _jacobian(self, expressions, variables):
+        expressions = _ensure_strings_from_expressions(expressions)
+        return [[self[expression].expand(stop=[var]).derivative(var) for var in variables] for expression in expressions]
+
+    def propagate_uncertainties(self, columns, depending_variables=None, cov_matrix='auto',
+                                covariance_format="{}_{}_covariance",
+                                uncertainty_format="{}_uncertainty"):
+        """Propagates uncertainties (full covariance matrix) for a set of virtual columns.
+
+        Covariance matrix of the depending variables is guessed by finding columns prefixed by:
+        'e' or 'e_' or postfixed by '_error', '_uncertainty', 'e' and '_e'.
+        Off diagonals (covariance or correlation) by postfixes with '_correlation' or '_corr' for
+        correlation or '_covariance' or '_cov' for covariances.
+        (Note that x_y_cov = x_e * y_e * x_y_correlation) 
+
+
+        Example:
+
+        >>> ds = vaex.from_scalars(x=1, y=2, e_x=0.1, e_y=0.2)
+        >>> ds['u'] = ds.x + ds.y
+        >>> ds['v'] = np.log10(ds.x)
+        >>> ds.propagate_uncertainties([ds.u, ds.v])
+        >>> ds.u_uncertainty, ds.v_uncertainty
+
+        :param columns: list of columns for which to calculate the covariance matrix.
+        :param depending_variables: If not given, it is found out automatically, otherwise a list of columns which have uncertainties.
+        :param cov_matrix: List of list with expressions giving the covariance matrix, in the same order as depending_variables. If 'full' or 'auto',
+            the covariance matrix for the depending_variables will be guessed, where 'full' gives an error if an entry was not found.
+        """
+
+        names = _ensure_strings_from_expressions(columns)
+        virtual_columns = self._expr(*columns, always_list=True)
+
+        if depending_variables is None:
+            depending_variables = set()
+            for expression in virtual_columns:
+                depending_variables |= expression.variables()
+            depending_variables = list(sorted(list(depending_variables)))
+
+        fs = [self[self.virtual_columns[name]] for name in names]
+        jacobian = self._jacobian(fs, depending_variables)
+        m = len(fs)
+        n = len(depending_variables)
+
+        # n x n matrix
+        cov_matrix = self._covariance_matrix_guess(depending_variables, full=cov_matrix == "full", as_expression=True)
+
+        # empty m x m matrix
+        cov_matrix_out = [[self['0'] for __ in range(m)] for __ in range(m)]
+        for i in range(m):
+            for j in range(m):
+                for k in range(n):
+                    for l in range(n):
+                        if jacobian[i][k].expression == '0' or jacobian[j][l].expression == '0' or cov_matrix[k][l].expression == '0':
+                            pass
+                        else:
+                            cov_matrix_out[i][j] = cov_matrix_out[i][j] + jacobian[i][k] * cov_matrix[k][l] * jacobian[j][l]
+        for i in range(m):
+            for j in range(i + 1):
+                sigma = cov_matrix_out[i][j]
+                sigma = self._expr(vaex.expresso.simplify(_ensure_string_from_expression(sigma)))
+                if i != j:
+                    self.add_virtual_column(covariance_format.format(names[i], names[j]), sigma)
+                else:
+                    self.add_virtual_column(uncertainty_format.format(names[i]), np.sqrt(sigma))
+
+
+
     def add_virtual_columns_cartesian_to_polar(self, x="x", y="y", radius_out="r_polar", azimuth_out="phi_polar",
-                                               cov_matrix_x_y=None,
-                                               covariance_postfix="_covariance",
-                                               uncertainty_postfix="_uncertainty",
+                                               propagate_uncertainties=False,
                                                radians=False):
         """Convert cartesian to polar coordinates
 
@@ -3342,44 +3475,25 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param y: expression for y
         :param radius_out: name for the virtual column for the radius
         :param azimuth_out: name for the virtual column for the azimuth angle
-        :param cov_matrix_x_y: {cov_matrix}
-        :param covariance_postfix:
-        :param uncertainty_postfix:
+        :param propagate_uncertainties: {propagate_uncertainties}
         :param radians: if True, azimuth is in radians, defaults to degrees
         :return:
         """
+        x = self[x]
+        y = self[y]
         if radians:
             to_degrees = ""
         else:
             to_degrees = "*180/pi"
-        self.add_virtual_column(radius_out, "sqrt({x}**2 + {y}**2)".format(**locals()))
-        self.add_virtual_column(azimuth_out, "arctan2({y}, {x}){to_degrees}".format(**locals()))
-        if cov_matrix_x_y:
-            # function and it's jacobian
-            # f_obs(x, y) = [r, phi] = (..., ....)
-            J = [["-{x}/{radius_out}", "-{y}/{radius_out}"],
-                 ["-{y}/({x}**2+{y}**2){to_degrees}", "{x}/({x}**2+{y}**2){to_degrees}"]]
-            if cov_matrix_x_y in ["full", "auto"]:
-                names = [x, y]
-                cov_matrix_x_y = self._covariance_matrix_guess(names, full=cov_matrix_x_y == "full")
-
-            cov_matrix_r_phi = [[""] * 2 for i in range(2)]
-            for i in range(2):
-                for j in range(2):
-                    for k in range(2):
-                        for l in range(2):
-                            sigma = cov_matrix_x_y[k][l]
-                            if sigma and J[i][k] and J[j][l]:
-                                cov_matrix_r_phi[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
-
-            names = [radius_out, azimuth_out]
-            for i in range(2):
-                for j in range(i + 1):
-                    sigma = cov_matrix_r_phi[i][j].format(**locals())
-                    if i != j:
-                        self.add_virtual_column(names[i] + "_" + names[j] + covariance_postfix, sigma)
-                    else:
-                        self.add_virtual_column(names[i] + uncertainty_postfix, "sqrt(%s)" % sigma)
+        r = np.sqrt(x**2 + y**2)
+        self[radius_out] = r
+        phi = np.arctan2(y, x)
+        if not radians:
+            phi = phi * 180/np.pi
+        self[azimuth_out] = phi
+        names_out = [radius_out, azimuth_out]
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[radius_out], self[azimuth_out]])
 
     def add_virtual_columns_cartesian_velocities_to_spherical(self, x="x", y="y", z="z", vx="vx", vy="vy", vz="vz", vr="vr", vlong="vlong", vlat="vlat", distance=None):
         """Concert velocities from a cartesian to a spherical coordinate system
@@ -3405,10 +3519,12 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.add_virtual_column(vlong, "-({vx}*{y}-{x}*{vy})/sqrt({x}**2+{y}**2)".format(**locals()))
         self.add_virtual_column(vlat, "-({z}*({x}*{vx}+{y}*{vy}) - ({x}**2+{y}**2)*{vz})/( {distance}*sqrt({x}**2+{y}**2) )".format(**locals()))
 
+    def _expr(self, *expressions, **kwargs):
+        always_list = kwargs.pop('always_list', False)
+        return Expression(self, expressions[0]) if len(expressions) == 1 and not always_list else [Expression(self, k) for k in expressions]
+
     def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
-                                                          cov_matrix_x_y_vx_vy=None,
-                                                          covariance_postfix="_covariance",
-                                                          uncertainty_postfix="_uncertainty"):
+                                                          propagate_uncertainties=False,):
         """Convert cartesian to polar velocities.
 
         :param x:
@@ -3418,54 +3534,22 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param vy:
         :param vr_out:
         :param vazimuth_out:
-        :param cov_matrix_x_y_vx_vy:
-        :param covariance_postfix:
-        :param uncertainty_postfix:
+        :param propagate_uncertainties: {propagate_uncertainties}
         :return:
         """
+        x = self._expr(x)
+        y = self._expr(y)
+        vx = self._expr(vx)
+        vy = self._expr(vy)
         if radius_polar is None:
-            radius_polar = "sqrt(({x})**2 + ({y})**2)".format(**locals())
-        self.add_virtual_column(vr_out, "(({x})*({vx})+({y})*({vy}))/{radius_polar}".format(**locals()))
-        self.add_virtual_column(vazimuth_out, "(({x})*({vy})-({y})*({vx}))/{radius_polar}".format(**locals()))
+            radius_polar = np.sqrt(x**2 + y**2)
+        radius_polar = self._expr(radius_polar)
+        vr_expr = self[vr_out]       = (x*vx + y*vy) / radius_polar
+        vaz_expr = self[vazimuth_out] = (x*vy - y*vx) / radius_polar
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[vr_out], self[vazimuth_out]])
 
-        if cov_matrix_x_y_vx_vy:
-            # function and it's jacobian
-            # f_obs(x, y, vx, vy) = [vr, vphi] = ( (x*vx+y*vy) /r , (x*vy - y * vx)/r )
-
-            J = [[
-                "-({x}*{vr_out})/({radius_polar})**2 + {vx}/({radius_polar})",
-                "-({y}*{vr_out})/({radius_polar})**2 + {vy}/({radius_polar})",
-                "{x}/({radius_polar})",
-                "{y}/({radius_polar})"
-            ], [
-                "-({x}*{vazimuth_out})/({radius_polar})**2 + {vy}/({radius_polar})",
-                "-({y}*{vazimuth_out})/({radius_polar})**2 - {vx}/({radius_polar})",
-                "-{y}/({radius_polar})",
-                " {x}/({radius_polar})"
-            ]]
-            if cov_matrix_x_y_vx_vy in ["full", "auto"]:
-                names = [x, y, vx, vy]
-                cov_matrix_x_y_vx_vy = self._covariance_matrix_guess(names, full=cov_matrix_x_y_vx_vy == "full")
-
-            cov_matrix_vr_vphi = [[""] * 2 for i in range(2)]
-            for i in range(2):
-                for j in range(2):
-                    for k in range(4):
-                        for l in range(4):
-                            sigma = cov_matrix_x_y_vx_vy[k][l]
-                            if sigma and J[i][k] and J[j][l]:
-                                cov_matrix_vr_vphi[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
-
-            names = [vr_out, vazimuth_out]
-            for i in range(2):
-                for j in range(i + 1):
-                    sigma = cov_matrix_vr_vphi[i][j].format(**locals())
-                    if i != j:
-                        self.add_virtual_column(names[i] + "_" + names[j] + covariance_postfix, sigma)
-                    else:
-                        self.add_virtual_column(names[i] + uncertainty_postfix, "sqrt(%s)" % sigma)
-
-    def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees):
+    def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees, propagate_uncertainties=False):
         """Rotation in 2d
 
         :param str x: Name/expression of x column
@@ -3475,21 +3559,23 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param float angle_degrees: rotation in degrees, anti clockwise
         :return:
         """
+        x = _ensure_string_from_expression(x)
+        y = _ensure_string_from_expression(y)
         theta = np.radians(angle_degrees)
         matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
         m = matrix_name = x + "_" + y + "_rot"
         for i in range(2):
             for j in range(2):
                 self.set_variable(matrix_name + "_%d%d" % (i, j), matrix[i, j].item())
-        self.virtual_columns[xnew] = "{m}_00 * {x} + {m}_01 * {y}".format(**locals())
-        self.virtual_columns[ynew] = "{m}_10 * {x} + {m}_11 * {y}".format(**locals())
+        self[xnew] = self._expr("{m}_00 * {x} + {m}_01 * {y}".format(**locals()))
+        self[ynew] = self._expr("{m}_10 * {x} + {m}_11 * {y}".format(**locals()))
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[xnew], self[ynew]])
 
     @docsubst
     def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname="x", yname="y", zname="z",
-                                                   cov_matrix_alpha_delta_distance=None,
-                                                   covariance_postfix="_covariance",
-                                                   uncertainty_postfix="_uncertainty",
-                                                   center=None, center_name="solar_position", radians=False):
+                                                   propagate_uncertainties=False,
+                                                   center=[0, 0, 0], center_name="solar_position", radians=False):
         """Convert spherical to cartesian coordinates.
 
 
@@ -3500,71 +3586,23 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param xname:
         :param yname:
         :param zname:
-        :param cov_matrix_alpha_delta_distance: {cov_matrix}
-        :param covariance_postfix:
-        :param uncertainty_postfix:
+        :param propagate_uncertainties: {propagate_uncertainties}
         :param center:
         :param center_name:
         :param radians:
         :return:
         """
-        alpha_original = alpha
-        delta_original = delta
+        alpha_original = alpha = self._expr(alpha)
+        delta_original = delta = self._expr(delta)
+        distance = self._expr(distance)
         if not radians:
-            alpha = "pi/180.*%s" % alpha
-            delta = "pi/180.*%s" % delta
-            to_radians = "*pi/180"  # used for the derivatives
-        else:
-            to_radians = ""
-        if center is not None:
-            self.add_variable(center_name, center)
-        if center:
-            solar_mod = " + " + center_name + "[0]"
-        else:
-            solar_mod = ""
-        self.add_virtual_column(xname, "cos(%s) * cos(%s) * %s%s" % (alpha, delta, distance, solar_mod))
-        if center:
-            solar_mod = " + " + center_name + "[1]"
-        else:
-            solar_mod = ""
-        self.add_virtual_column(yname, "sin(%s) * cos(%s) * %s%s" % (alpha, delta, distance, solar_mod))
-        if center:
-            solar_mod = " + " + center_name + "[2]"
-        else:
-            solar_mod = ""
-        self.add_virtual_column(zname, "sin(%s) * %s%s" % (delta, distance, solar_mod))
-        if cov_matrix_alpha_delta_distance:
-            # function and it's jacobian
-            # f_obs(alpha, delta, distance) = [x, y, z] = (cos(alpha) * cos(delta) * distance,
-            #                                               sin(alpha) * cos(delta) * distance,
-            #                                               sin(delta) * distance)
-            J = [["-sin({alpha})*cos({delta})*{distance}{to_radians}", "-cos({alpha})*sin({delta})*{distance}{to_radians}", "cos({alpha})*cos({delta})"],
-                 [" cos({alpha})*cos({delta})*{distance}{to_radians}", "-sin({alpha})*sin({delta})*{distance}{to_radians}", "sin({alpha})*cos({delta})"],
-                 [None, "cos({delta})*{distance}{to_radians}", "sin({delta})"]]
-
-            if cov_matrix_alpha_delta_distance in ["full", "auto"]:
-                names = [alpha_original, delta_original, distance]
-                cov_matrix_alpha_delta_distance = self._covariance_matrix_guess(names, full=cov_matrix_alpha_delta_distance == "full")
-
-            cov_matrix_xyz = [[""] * 3 for i in range(3)]
-            for i in range(3):
-                for j in range(3):
-                    for k in range(3):
-                        for l in range(3):
-                            sigma = cov_matrix_alpha_delta_distance[k][l]
-                            if sigma and J[i][k] and J[j][l]:
-                                cov_matrix_xyz[i][j] += "+(%s)*(%s)*(%s)" % (J[i][k], sigma, J[j][l])
-                            # if sigma and J[k][i] and J[l][j]:
-                            #   cov_matrix_xyz[i][j] += "+(%s)*(%s)*(%s)" % (J[k][i], sigma, J[l][j])
-
-            names = [xname, yname, zname]
-            for i in range(3):
-                for j in range(i + 1):
-                    sigma = cov_matrix_xyz[i][j].format(**locals())
-                    if i != j:
-                        self.add_virtual_column(names[i] + "_" + names[j] + covariance_postfix, sigma)
-                    else:
-                        self.add_virtual_column(names[i] + uncertainty_postfix, "sqrt(%s)" % sigma)
+            alpha = alpha * np.pi/180
+            delta = alpha * np.pi/180
+        self[xname] = np.cos(alpha) * np.cos(delta) * distance + center[0]
+        self[yname] = np.sin(alpha) * np.cos(delta) * distance + center[1]
+        self[zname] = np.sin(alpha) * distance + center[2]
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[xname], self[yname], self[zname]])
 
     def add_virtual_columns_cartesian_to_spherical(self, x="x", y="y", z="z", alpha="l", delta="b", distance="distance", radians=False, center=None, center_name="solar_position"):
         """Convert cartesian to spherical coordinates.
@@ -3657,11 +3695,30 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param str unique: if name is already used, make it unique by adding a postfix, e.g. _1, or _2
         """
         type = "change" if name in self.virtual_columns else "add"
+        expression = _ensure_string_from_expression(expression)
+        if name in self.get_column_names():
+            renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names(virtual=True, strings=True))
+            expression = self._rename(name, renamed, expression)[0].expression
+
         name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(virtual=True, strings=True))
         self.virtual_columns[name] = expression
         self._save_assign_expression(name)
         self.signal_column_changed.emit(self, name, "add")
         # self.write_virtual_meta()
+
+    def _rename(self, old, new, *expressions):
+        #for name, expr in self.virtual_columns.items():
+        if old in self.columns:
+            self.columns[new] = self.columns.pop(old)
+        if new in self.virtual_columns:
+            self.virtual_columns[new] = self.virtual_columns.pop(old)
+        index = self.column_names.index(old)
+        self.column_names[index] = new
+        self.virtual_columns = {k:self[v]._rename(old, new).expression for k, v in self.virtual_columns.items()}
+        for key, value in self.selection_histories.items():
+            self.selection_histories[key] = list([k._rename(old, new) for k in value])
+        return [self[_ensure_string_from_expression(e)]._rename(old, new) for e in expressions]
+
 
     def delete_virtual_column(self, name):
         """Deletes a virtual column from a dataset"""
@@ -3873,8 +3930,14 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param hidden: If True, also return hidden columns
         :rtype: list of str
         """
-        return list([name for name in self.column_names if strings or self.dtype(name).type != np.string_]) \
-            + ([key for key in self.virtual_columns.keys() if (hidden or (not key.startswith("__")))] if virtual else [])
+        names = [name for name in self.column_names if strings or (self.dtype(name).type != np.string_)]
+        if virtual:
+            names += [key for key in self.virtual_columns.keys()]
+        if not hidden:
+            names = [name for name in names if not name.startswith('__')]
+        return names
+        # return list([name for name in self.column_names if (strings or (self.dtype(name).type != np.string_)) and (hidden or not name.startswith("__"))]) \
+        #     + ([key for key in self.virtual_columns.keys() if (hidden or (not key.startswith("__")))] if virtual else [])
 
     def __len__(self):
         """Returns the number of rows in the dataset (filtering applied)"""
@@ -3937,22 +4000,26 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.signal_active_fraction_changed.emit(self, self._active_fraction)
 
     @docsubst
-    def trim(self):
+    def trim(self, inplace=False):
         '''Return a dataset, where all columns are 'trimmed' by the active range.
 
         For returned datasets, ds.get_active_range() returns (0, ds.length_original()).
 
         {note_copy}
 
+        :param inplace: {inplace}
         '''
-        ds = self.copy()
+        ds = self if inplace else self.copy()
         for name in ds:
             column = ds.columns.get(name)
             if column is not None:
-                if isinstance(column, np.ndarray):  # real array
-                    ds.columns[name] = column[self._index_start:self._index_end]
+                if self._index_start == 0 and len(column) == self._index_end:
+                    pass  # we already assigned it in .copy
                 else:
-                    ds.columns[name] = column.trim(self._index_start, self._index_end)
+                    if isinstance(column, np.ndarray):  # real array
+                        ds.columns[name] = column[self._index_start:self._index_end]
+                    else:
+                        ds.columns[name] = column.trim(self._index_start, self._index_end)
         ds._length_original = self.length_unfiltered()
         ds._length_unfiltered = ds._length_original
         ds._index_start = 0
@@ -4105,8 +4172,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return self.take(indices)
 
     @docsubst
-    def fillna(self, value, fill_nan=True, fill_masked=True, column_names=None, prefix='__original_'):
-        '''Return a copy dataset, where missing values/NaN are filled with 'value'
+    def fillna(self, value, fill_nan=True, fill_masked=True, column_names=None, prefix='__original_', inplace=False):
+        '''Return a dataset, where missing values/NaN are filled with 'value'
 
         {note_copy}
 
@@ -4122,8 +4189,9 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param str or expression by: expression to sort by
         :param bool ascending: ascending (default, True) or descending (False)
         :param str kind: kind of algorithm to use (passed to numpy.argsort)
+        :param inplace: {inplace}
         '''
-        ds = self.trim()
+        ds = self.trim(inplace=inplace)
         column_names = column_names or list(self)
         for name in column_names:
             column = ds.columns.get(name)
@@ -4135,7 +4203,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 ds[name] = ds.func.fillna(ds[name], value, fill_nan=fill_nan, fill_masked=fill_masked)
         return ds
 
-    def materialize(self, virtual_column):
+    def materialize(self, virtual_column, inplace=False):
         '''Returns a new dataset where the virtual column is turned into an in memory numpy array
 
         Example:
@@ -4144,8 +4212,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 >>> ds = vaex.from_arrays(x=x, y=y)
                 >>> ds['r'] = (ds.x**2 + ds.y**2)**0.5 # 'r' is a virtual column (computed on the fly)
                 >>> ds = ds.materialize('r')  # now 'r' is a 'real' column (i.e. a numpy array)
+
+        :param inplace: {inplace}
         '''
-        ds = self.trim()
+        ds = self.trim(inplace=inplace)
         virtual_column = _ensure_string_from_expression(virtual_column)
         if virtual_column not in ds.virtual_columns:
             raise KeyError('Virtual column not found: %r' % virtual_column)
@@ -4521,7 +4591,46 @@ class DatasetLocal(Dataset):
         self.path = path
         self.mask = None
         self.columns = collections.OrderedDict()
+        self._categories = collections.OrderedDict()
         self._selection_mask_caches = collections.defaultdict(dict)
+
+    def iscategory(self, column):
+        """Returns true if column is a category"""
+        column = _ensure_string_from_expression(column)
+        return column in self._categories
+
+    def category_labels(self, column):
+        column = _ensure_string_from_expression(column)
+        return self._categories[column]['labels']
+
+    def label_encode(self, column, values=None, inplace=False):
+        """Label encode column and mark it as categorical
+
+        The existing column is renamed to a hidden column and replaced by a numerical columns
+        with values between [0, len(values)-1].
+        """
+        column = _ensure_string_from_expression(column)
+        ds = self if inplace else self.copy()
+        found_values, codes = ds.unique(column, return_inverse=True)
+        if values is None:
+            values = found_values
+        else:
+            translation = np.zeros(len(found_values), dtype=np.uint64)
+            missing_value = len(found_values)
+            for i, found_value in enumerate(found_values):
+                if found_value not in values:  # not present, we need a missing value
+                    translation[i] = missing_value
+                else:
+                    translation[i] = values.index(found_value)
+            codes = translation[codes]
+            if missing_value in translation:
+                codes = np.ma.masked_array(codes, codes==missing_value)
+
+        original_column = ds.rename_column(column, '__original_' + column, unique=True)
+        labels = [str(k) for k in values]
+        ds.add_column(column, codes)
+        ds._categories[column] = dict(labels=labels, N=len(values))
+        return ds
 
     @property
     def data(self):
@@ -4556,7 +4665,12 @@ class DatasetLocal(Dataset):
             # f = vaex.expression.FunctionBuiltin(self, name)
             def closure(name=name, value=value):
                 def wrap(*args, **kwargs):
-                    arg_string = ", ".join([str(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+                    def myrepr(k):
+                        if isinstance(k, Expression):
+                            return str(k)
+                        else:
+                            return repr(k)
+                    arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
                     expression = "{}({})".format(name, arg_string)
                     return vaex.expression.Expression(self, expression)
                 return wrap
@@ -4575,6 +4689,7 @@ class DatasetLocal(Dataset):
         ds._index_start = self._index_start
         ds._active_fraction = self._active_fraction
         ds.units.update(self.units)
+        ds._categories.update(self._categories)
         column_names = column_names or self.get_column_names(strings=True, virtual=True)
         for name in column_names:
             if name in self.columns:
@@ -4659,6 +4774,7 @@ class DatasetLocal(Dataset):
                 chunks.append(self.evaluate(name))
         return np.array(chunks, dtype=dtype).T
 
+    @vaex.utils.deprecated('use ds.join(other)')
     def _hstack(self, other, prefix=None):
         """Join the columns of the other dataset to this one, assuming the ordering is the same"""
         assert len(self) == len(other), "does not make sense to horizontally stack datasets with different lengths"
@@ -4907,8 +5023,12 @@ class DatasetLocal(Dataset):
                 new_name = column_name
             self.add_column(new_name, data)
 
-    def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left'):
+    @docsubst
+    def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left', inplace=False):
         """Return a dataset joined with other datasets, matched by columns/expression on/left_on/right_on
+
+        If neither on/left_on/right_on is given, the join is done by simply adding the columns (i.e. on the implicit
+        row index).
 
         Note: The filters will be ignored when joining, the full dataset will be joined (since filters may
         change). If either dataset is heavily filtered (contains just a small number of rows) consider running
@@ -4931,9 +5051,10 @@ class DatasetLocal(Dataset):
         :param rsuffix: similar for the right
         :param how: how to join, 'left' keeps all rows on the left, and adds columns (with possible missing values)
                 'right' is similar with self and other swapped.
+        :param inplace: {inplace}
         :return:
         """
-        ds = self.copy()
+        ds = self if inplace else self.copy()
         if how == 'left':
             left = ds
             right = other
@@ -4956,39 +5077,50 @@ class DatasetLocal(Dataset):
         N_other = len(right)
         left_on = left_on or on
         right_on = right_on or on
-        left_values = left.evaluate(left_on, filtered=False)
-        right_values = right.evaluate(right_on)
-        # maps from the left_values to row #
-        index_left = dict(zip(left_values, range(N)))
-        # idem for right
-        index_other = dict(zip(right_values, range(N_other)))
+        if left_on is None and right_on is None:
+            for name in right:
+                right_name = name
+                if name in left:
+                    left.rename_column(name, name + lsuffix)
+                    right_name = name + rsuffix
+                if name in right.virtual_columns:
+                    left.add_virtual_column(right_name, right.virtual_columns[name])
+                else:
+                    left.add_column(right_name, right.columns[name])
+        else:
+            left_values = left.evaluate(left_on, filtered=False)
+            right_values = right.evaluate(right_on)
+            # maps from the left_values to row #
+            index_left = dict(zip(left_values, range(N)))
+            # idem for right
+            index_other = dict(zip(right_values, range(N_other)))
 
-        # we do a left join, find all rows of the right dataset
-        # that has an entry on the left
-        # for each row in the right
-        # find which row it needs to go to in the right
-        # from_indices = np.zeros(N_other, dtype=np.int64)  # row # of right
-        # to_indices = np.zeros(N_other, dtype=np.int64)    # goes to row # on the left
-        # keep a boolean mask of which rows are found
-        left_mask = np.ones(N, dtype=np.bool)
-        # and which row they point to in the right
-        left_row_to_right = np.zeros(N, dtype=np.int64) - 1
-        for i in range(N_other):
-            left_row = index_left.get(right_values[i])
-            if left_row is not None:
-                left_mask[left_row] = False  # unmask, it exists
-                left_row_to_right[left_row] = i
+            # we do a left join, find all rows of the right dataset
+            # that has an entry on the left
+            # for each row in the right
+            # find which row it needs to go to in the right
+            # from_indices = np.zeros(N_other, dtype=np.int64)  # row # of right
+            # to_indices = np.zeros(N_other, dtype=np.int64)    # goes to row # on the left
+            # keep a boolean mask of which rows are found
+            left_mask = np.ones(N, dtype=np.bool)
+            # and which row they point to in the right
+            left_row_to_right = np.zeros(N, dtype=np.int64) - 1
+            for i in range(N_other):
+                left_row = index_left.get(right_values[i])
+                if left_row is not None:
+                    left_mask[left_row] = False  # unmask, it exists
+                    left_row_to_right[left_row] = i
 
-        lookup = np.ma.array(left_row_to_right, mask=left_mask)
-        for name in right:
-            right_name = name
-            if name in left:
-                left.rename_column(name, name + lsuffix)
-                right_name = name + rsuffix
-            if name in right.virtual_columns:
-                left.add_virtual_column(right_name, right.virtual_columns[name])
-            else:
-                left.add_column(right_name, ColumnIndexed(right, lookup, name))
+            lookup = np.ma.array(left_row_to_right, mask=left_mask)
+            for name in right:
+                right_name = name
+                if name in left:
+                    left.rename_column(name, name + lsuffix)
+                    right_name = name + rsuffix
+                if name in right.virtual_columns:
+                    left.add_virtual_column(right_name, right.virtual_columns[name])
+                else:
+                    left.add_column(right_name, ColumnIndexed(right, lookup, name))
         return left
 
     def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
@@ -5096,6 +5228,9 @@ class _ColumnConcatenatedLazy(Column):
         else:
             if all([dtype == dtypes[0] for dtype in dtypes]):  # find common types doesn't always behave well
                 self.dtype = dtypes[0]
+            if all([dtype.kind in 'SU' for dtype in dtypes]):  # strings are also done manually
+                index = np.argmax([dtype.itemsize for dtype in dtypes])
+                self.dtype = dtypes[index]
             else:
                 self.dtype = np.find_common_type(dtypes, [])
             logger.debug("common type for %r is %r", dtypes, self.dtype)

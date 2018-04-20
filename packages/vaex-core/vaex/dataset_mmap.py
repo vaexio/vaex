@@ -1,6 +1,7 @@
 __author__ = 'maartenbreddels'
 import os
 import mmap
+import math
 import itertools
 import functools
 import collections

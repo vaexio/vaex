@@ -116,7 +116,7 @@ def _convert_name(filenames, shuffle=False):
         return base + ".hdf5"
 
 
-def open(path, convert=False, shuffle=False, *args, **kwargs):
+def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
     """Open a dataset from file given by path
 
     Example:
@@ -129,6 +129,7 @@ def open(path, convert=False, shuffle=False, *args, **kwargs):
     :param bool shuffle: shuffle converted dataset or not
     :param args: extra arguments for file readers that need it
     :param kwargs: extra keyword arguments
+    :param bool copy_index: copy index when source is read via pandas
     :return: return dataset if file is supported, otherwise None
     :rtype: Dataset
 
@@ -157,25 +158,29 @@ def open(path, convert=False, shuffle=False, *args, **kwargs):
         else:
             import vaex.file
             import glob
-            filenames = glob.glob(path)
+            # sort to get predicatable behaviour (useful for testing)
+            filenames = list(sorted(glob.glob(path)))
             ds = None
             if len(filenames) == 0:
-                raise IOError('Could not open file: {}, it does not exists'.format(path))
+                raise IOError('Could not open file: {}, it does not exist'.format(path))
             filename_hdf5 = _convert_name(filenames, shuffle=shuffle)
             filename_hdf5_noshuffle = _convert_name(filenames, shuffle=False)
             if len(filenames) == 1:
                 path = filenames[0]
                 ext = os.path.splitext(path)[1]
                 if os.path.exists(filename_hdf5) and convert:  # also check mtime?
-                    ds = vaex.file.open(filename_hdf5, *args, **kwargs)
+                    if convert:
+                        ds = vaex.file.open(filename_hdf5)
+                    else:
+                        ds = vaex.file.open(filename_hdf5, *args, **kwargs)
                 else:
                     if ext == '.csv':  # special support for csv.. should probably approach it a different way
-                        ds = from_csv(path, **kwargs)
+                        ds = from_csv(path, copy_index=copy_index, **kwargs)
                     else:
                         ds = vaex.file.open(path, *args, **kwargs)
                     if convert:
                         ds.export_hdf5(filename_hdf5, shuffle=shuffle)
-                        ds = vaex.file.open(filename_hdf5, *args, **kwargs)
+                        ds = vaex.file.open(filename_hdf5) # argument were meant for pandas?
                 if ds is None:
                     if os.path.exists(path):
                         raise IOError('Could not open file: {}, did you install vaex-hdf5?'.format(path))
@@ -191,9 +196,10 @@ def open(path, convert=False, shuffle=False, *args, **kwargs):
                 else:
                     # with ProcessPoolExecutor() as executor:
                     # executor.submit(read_csv_and_convert, filenames, shuffle=shuffle, **kwargs)
+                    datasets = []
                     for filename in filenames:
-                        open(filename, convert=convert is not False, shuffle=shuffle, **kwargs)
-                    ds = open_many([_convert_name(k, shuffle=shuffle) for k in filenames])
+                        datasets.append(open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
+                    ds = vaex.dataset.DatasetConcatenated(datasets)
                 if convert:
                     ds.export_hdf5(filename_hdf5, shuffle=shuffle)
                     ds = vaex.file.open(filename_hdf5, *args, **kwargs)
@@ -248,9 +254,10 @@ def from_items(*items):
 
 
     """
+    import numpy as np
     dataset = vaex.dataset.DatasetArrays("array")
     for name, array in items:
-        dataset.add_column(name, array)
+        dataset.add_column(name, np.asanyarray(array))
     return dataset
 
 
@@ -267,9 +274,10 @@ def from_arrays(**arrays):
 
 
     """
+    import numpy as np
     dataset = vaex.dataset.DatasetArrays("array")
     for name, array in arrays.items():
-        dataset.add_column(name, array)
+        dataset.add_column(name, np.asanyarray(array))
     return dataset
 
 
@@ -348,10 +356,10 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
     return ds
 
 
-def from_csv(filename_or_buffer, **kwargs):
+def from_csv(filename_or_buffer, copy_index=True, **kwargs):
     """Shortcut to read a csv file using pandas and convert to a dataset directly"""
     import pandas as pd
-    return from_pandas(pd.read_csv(filename_or_buffer, **kwargs))
+    return from_pandas(pd.read_csv(filename_or_buffer, **kwargs), copy_index=copy_index)
 
 
 def read_csv(filepath_or_buffer, **kwargs):
