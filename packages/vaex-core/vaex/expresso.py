@@ -324,7 +324,12 @@ class ExpressionString(ast.NodeVisitor):
 
 
 class SimplifyExpression(ast.NodeTransformer):
-    def visit_Num(self, node):
+
+    def visit_UnaryOp(self, node):
+        node.operand = self.visit(node.operand)
+        if isinstance(node.op, ast.USub):
+            if isinstance(node.operand, ast.Num) and node.operand.n == 0:
+                node = node.operand
         return node
 
     def visit_BinOp(self, node):
