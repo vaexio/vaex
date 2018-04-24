@@ -4521,7 +4521,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 >> ds[ds.Lz < 0]  # a shallow copy with the filter Lz < 0 applied
 
         """
-        if isinstance(item, six.string_types):
+        if isinstance(item, int):
+            names = self.get_column_names(strings=True, virtual=True)
+            return [self.evaluate(name, item, item+1)[0] for name in names]
+        elif isinstance(item, six.string_types):
             if hasattr(self, item) and isinstance(getattr(self, item), Expression):
                 return getattr(self, item)
             # if item in self.virtual_columns:
