@@ -145,9 +145,9 @@ class Expression(with_metaclass(Meta)):
     def values(self):
         return self.evaluate()
 
-    def derivative(self, var, optimize=True):
+    def derivative(self, var, simplify=True):
         var = vaex.dataset._ensure_string_from_expression(var)
-        return self.__class__(self, expresso.derivative(self.expression, var))
+        return self.__class__(self, expresso.derivative(self.expression, var, simplify=simplify))
 
     def expand(self, stop=[]):
         stop = _ensure_strings_from_expressions(stop)
