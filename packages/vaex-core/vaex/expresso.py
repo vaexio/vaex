@@ -273,6 +273,9 @@ class Derivative(ast.NodeTransformer):
 
 
 class ExpressionString(ast.NodeVisitor):
+    def __init__(self, pretty=False):
+        self.pretty = pretty
+        self.indent = 0
     def visit_UnaryOp(self, node):
         if isinstance(node.op, ast.USub):
             if isinstance(node.operand, (ast.Name, ast.Num)):
@@ -298,18 +301,28 @@ class ExpressionString(ast.NodeVisitor):
         return repr(node.s)
 
     def visit_BinOp(self, node):
-        if isinstance(node.op, ast.Mult):
-            return "({} * {})".format(self.visit(node.left), self.visit(node.right))
-        if isinstance(node.op, ast.Div):
-            return "({} / {})".format(self.visit(node.left), self.visit(node.right))
-        if isinstance(node.op, ast.Add):
-            return "({} + {})".format(self.visit(node.left), self.visit(node.right))
-        if isinstance(node.op, ast.Sub):
-            return "({} - {})".format(self.visit(node.left), self.visit(node.right))
-        if isinstance(node.op, ast.Pow):
-            return "({} ** {})".format(self.visit(node.left), self.visit(node.right))
-        else:
-            return "error"
+        newline = indent = ""
+        if self.pretty:
+            indent = "  " * self.indent
+            newline = "\n"
+        self.indent += 1
+        left = "{}{}{}".format(newline, indent, self.visit(node.left))
+        right = "{}{}{}".format(newline, indent, self.visit(node.right))
+        try:
+            if isinstance(node.op, ast.Mult):
+                return "({left} * {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.Div):
+                return "({left} / {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.Add):
+                return "({left} + {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.Sub):
+                return "({left} - {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.Pow):
+                return "({left} ** {right})".format(left=left, right=right)
+            else:
+                return "error"
+        finally:
+            self.indent -= 1
 
     op_translate = {ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">=", ast.Eq: "==", ast.NotEq: "!="}
     def visit_Compare(self, node):
@@ -411,8 +424,8 @@ def parse_expression(expression_string):
     return expr.value
 
 
-def node_to_string(node):
-    return ExpressionString().visit(node)
+def node_to_string(node, pretty=False):
+    return ExpressionString(pretty=pretty).visit(node)
 
 
 def validate_func(name, function_set):
