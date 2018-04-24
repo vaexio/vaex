@@ -114,6 +114,21 @@ class Meta(type):
                 wrap(name)
         return type(future_class_name, future_class_parents, attrs)
 
+class DateTime(object):
+    def __init__(self, expression):
+        self.expression = expression
+
+    @property
+    def year(self):
+        return self.expression.ds.func.dt_year(self.expression)
+
+    @property
+    def dayofweek(self):
+        return self.expression.ds.func.dt_dayofweek(self.expression)
+
+    @property
+    def hour(self):
+        return self.expression.ds.func.dt_hour(self.expression)
 
 class Expression(with_metaclass(Meta)):
     def __init__(self, ds, expression):
@@ -121,6 +136,14 @@ class Expression(with_metaclass(Meta)):
         if isinstance(expression, Expression):
             expression = expression.expression
         self.expression = expression
+
+    @property
+    def dt(self):
+        return DateTime(self)
+
+    @property
+    def values(self):
+        return self.evaluate()
 
     def derivative(self, var, optimize=True):
         var = vaex.dataset._ensure_string_from_expression(var)

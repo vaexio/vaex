@@ -1036,22 +1036,25 @@ expression_namespace['fillna'] = fillna
 from .expression import Expression
 
 
-def dayofweek(x):
+def dt_dayofweek(x):
     import pandas as pd
-    x = x.astype("<M8[ns]")
-    return pd.Series(x).dt.dayofweek.values.astype(np.float64)
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.dayofweek.values
 
-
-expression_namespace["dayofweek"] = dayofweek
-
-
-def hourofday(x):
+def dt_year(x):
     import pandas as pd
-    x = x.astype("<M8[ns]")
-    return pd.Series(x).dt.hour.values.astype(np.float64)
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.year.values
+
+def dt_hour(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.hour.values
 
 
-expression_namespace["hourofday"] = hourofday
+expression_namespace["dt_dayofweek"] = dt_dayofweek
+expression_namespace["dt_year"] = dt_year
+expression_namespace["dt_hour"] = dt_hour
 
 
 def _float(x):
@@ -2602,7 +2605,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return bytes_per_row * self.count(selection=selection)
 
     def dtype(self, expression):
-        if expression in self.columns.keys():
+        expression = _ensure_string_from_expression(expression)
+        if expression in self.variables:
+            return np.float64(1).dtype
+        elif expression in self.columns.keys():
             return self.columns[expression].dtype
         else:
             return self.evaluate(expression, 0, 1).dtype
