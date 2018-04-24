@@ -4705,7 +4705,7 @@ class DatasetLocal(Dataset):
         ds._active_fraction = self._active_fraction
         ds.units.update(self.units)
         ds._categories.update(self._categories)
-        column_names = column_names or self.get_column_names(strings=True, virtual=True)
+        column_names = column_names or self.get_column_names(strings=True, virtual=True, hidden=True)
         for name in column_names:
             if name in self.columns:
                 ds.add_column(name, self.columns[name])
