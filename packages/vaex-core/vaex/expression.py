@@ -269,7 +269,8 @@ class Expression(with_metaclass(Meta)):
         expression = self.expression
         if expression in self.ds.virtual_columns:
             expression = self.ds.virtual_columns[self.expression]
-        vaex.expresso.validate_expression(expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
+        all_vars = self.ds.get_column_names(virtual=True, strings=True, hidden=True) + list(self.ds.variables.keys())
+        vaex.expresso.validate_expression(expression, all_vars, funcs, names)
         arguments = list(set(names))
         argument_dtypes = [self.ds.dtype(argument) for argument in arguments]
         # argument_dtypes = [getattr(np, dtype_name) for dtype_name in dtype_names]
@@ -289,7 +290,8 @@ class Expression(with_metaclass(Meta)):
         expression = self.expression
         if expression in self.ds.virtual_columns:
             expression = self.ds.virtual_columns[self.expression]
-        vaex.expresso.validate_expression(expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
+        all_vars = self.ds.get_column_names(virtual=True, strings=True, hidden=True) + list(self.ds.variables.keys())
+        vaex.expresso.validate_expression(expression, all_vars, funcs, names)
         names = list(set(names))
         types = ", ".join(str(self.ds.dtype(name)) + "[]" for name in names)
         argstring = ", ".join(names)
