@@ -4504,7 +4504,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if isinstance(name, six.string_types):
             if isinstance(value, Expression):
                 value = value.expression
-            self.add_virtual_column(name, value)
+            if isinstance(value, np.ndarray):
+                self.add_column(name, value)
+            else:
+                self.add_virtual_column(name, value)
         else:
             raise TypeError('__setitem__ only takes strings as arguments, not {}'.format(type(name)))
 
