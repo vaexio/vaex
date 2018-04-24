@@ -9,6 +9,7 @@ import numpy as np
 import math
 import sys
 import six
+import copy
 
 logger = logging.getLogger("expr")
 logger.setLevel(logging.ERROR)
@@ -224,6 +225,10 @@ class Derivative(ast.NodeTransformer):
             for term in terms[1:]:
                 result = add(result, term)
         return result
+
+    def generic_visit(self, node):
+        # it's annoying that the default one modifies in place
+        return super(Derivative, self).generic_visit(copy.deepcopy(node))
 
     def visit_BinOp(self, node):
         solution = None
