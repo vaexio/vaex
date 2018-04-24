@@ -313,7 +313,11 @@ def f({0}):
         return Expression(self.ds, "{0}({1})".format(function_name, argstring))
 
     def _rename(self, old, new):
-        return Expression(self.ds, self.expression.replace(old, new))  # TODO: support more complicated cases
+        def translate(id):
+            if id == old:
+                return new
+        expr = expresso.translate(self.expression, translate)
+        return Expression(self.ds, expr)
  
     def astype(self, dtype):
         return self.ds.func.astype(self, str(dtype))
