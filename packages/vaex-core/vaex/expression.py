@@ -185,14 +185,14 @@ class Expression(with_metaclass(Meta)):
         try:
             N = len(self.ds)
             if N <= 10:
-                values = ", ".join(str(k) for k in np.array(self))
+                values = ", ".join(str(k) for k in self.evaluate(0, N))
             else:
                 values_head = ", ".join(str(k) for k in self.evaluate(0, 5))
                 values_tail = ", ".join(str(k) for k in self.evaluate(N - 5, N))
                 values = '{} ... (total {} values) ... {}'.format(values_head, N, values_tail)
         except Exception as e:
             values = 'Error evaluating: %r' % e
-        return "<%s(expressions=%r)> instance at 0x%x [%s] " % (name, self.expression, id(self), values)
+        return "<%s(expressions=%r)> instance at 0x%x values=[%s] " % (name, self.expression, id(self), values)
 
     def count(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
         '''Shortcut for ds.count(expression, ...), see `Dataset.count`'''
