@@ -138,6 +138,9 @@ def pow(left, right):
 def sqr(node):
     return ast.BinOp(left=node, right=num(2), op=ast.Pow())
 
+def sqrt(node):
+    return call('sqrt', [node])
+
 
 def neg(node):
     return ast.UnaryOp(op=ast.USub(), operand=node)
@@ -170,6 +173,11 @@ def _dcos(n, args):
     assert len(args) == 1
     return neg(call('sin', args=args))
 
+def _darccos(n, args):
+    assert n == 0
+    assert len(args) == 1
+    a = sqrt(sub(num(1), sqr(args[0])))
+    return neg(div(num(1), a))
 
 def _darctan2(n, args):
     # derivative of arctan2(y, x)
@@ -188,6 +196,7 @@ standard_function_derivatives['cos'] = _dcos
 standard_function_derivatives['log10'] = _dlog10
 standard_function_derivatives['sqrt'] = _dsqrt
 standard_function_derivatives['arctan2'] = _darctan2
+standard_function_derivatives['arccos'] = _darccos
 
 
 class Derivative(ast.NodeTransformer):
