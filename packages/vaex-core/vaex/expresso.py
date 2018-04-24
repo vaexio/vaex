@@ -280,6 +280,9 @@ class ExpressionString(ast.NodeVisitor):
         args = [self.visit(k) for k in node.args]
         return "{}({})".format(node.func.id, ", ".join(args))
 
+    def visit_Str(self, node):
+        return repr(node.s)
+
     def visit_BinOp(self, node):
         if isinstance(node.op, ast.Mult):
             return "({} * {})".format(self.visit(node.left), self.visit(node.right))
@@ -293,6 +296,17 @@ class ExpressionString(ast.NodeVisitor):
             return "({} ** {})".format(self.visit(node.left), self.visit(node.right))
         else:
             return "error"
+
+    op_translate = {ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">=", ast.Eq: "==", ast.NotEq: "!="}
+    def visit_Compare(self, node):
+        s = ""
+        left = self.visit(node.left)
+        for op, comp in zip(node.ops, node.comparators):
+            right = self.visit(comp)
+            op = ExpressionString.op_translate[op.__class__]
+            s = "({left} {op} {right})".format(left=left, op=op, right=right)
+            left = right
+        return s
 
 
 class SimplifyExpression(ast.NodeTransformer):
