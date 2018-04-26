@@ -1036,22 +1036,25 @@ expression_namespace['fillna'] = fillna
 from .expression import Expression
 
 
-def dayofweek(x):
+def dt_dayofweek(x):
     import pandas as pd
-    x = x.astype("<M8[ns]")
-    return pd.Series(x).dt.dayofweek.values.astype(np.float64)
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.dayofweek.values
 
-
-expression_namespace["dayofweek"] = dayofweek
-
-
-def hourofday(x):
+def dt_year(x):
     import pandas as pd
-    x = x.astype("<M8[ns]")
-    return pd.Series(x).dt.hour.values.astype(np.float64)
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.year.values
+
+def dt_hour(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.hour.values
 
 
-expression_namespace["hourofday"] = hourofday
+expression_namespace["dt_dayofweek"] = dt_dayofweek
+expression_namespace["dt_year"] = dt_year
+expression_namespace["dt_hour"] = dt_hour
 
 
 def _float(x):
@@ -2605,7 +2608,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return bytes_per_row * self.count(selection=selection)
 
     def dtype(self, expression):
-        if expression in self.columns.keys():
+        expression = _ensure_string_from_expression(expression)
+        if expression in self.variables:
+            return np.float64(1).dtype
+        elif expression in self.columns.keys():
             return self.columns[expression].dtype
         else:
             return self.evaluate(expression, 0, 1).dtype
@@ -2646,6 +2652,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :return: The resulting unit of the expression
         :rtype: astropy.units.Unit
         """
+        expression = _ensure_string_from_expression(expression)
         try:
             # if an expression like pi * <some_expr> it will evaluate to a quantity instead of a unit
             unit_or_quantity = eval(expression, expression_namespace, UnitScope(self))
@@ -3592,15 +3599,15 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param radians:
         :return:
         """
-        alpha_original = alpha = self._expr(alpha)
-        delta_original = delta = self._expr(delta)
+        alpha = self._expr(alpha)
+        delta = self._expr(delta)
         distance = self._expr(distance)
         if not radians:
             alpha = alpha * np.pi/180
-            delta = alpha * np.pi/180
+            delta = delta * np.pi/180
         self[xname] = np.cos(alpha) * np.cos(delta) * distance + center[0]
         self[yname] = np.sin(alpha) * np.cos(delta) * distance + center[1]
-        self[zname] = np.sin(alpha) * distance + center[2]
+        self[zname] =                 np.sin(delta) * distance + center[2]
         if propagate_uncertainties:
             self.propagate_uncertainties([self[xname], self[yname], self[zname]])
 
@@ -4500,7 +4507,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if isinstance(name, six.string_types):
             if isinstance(value, Expression):
                 value = value.expression
-            self.add_virtual_column(name, value)
+            if isinstance(value, np.ndarray):
+                self.add_column(name, value)
+            else:
+                self.add_virtual_column(name, value)
         else:
             raise TypeError('__setitem__ only takes strings as arguments, not {}'.format(type(name)))
 
@@ -4514,7 +4524,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 >> ds[ds.Lz < 0]  # a shallow copy with the filter Lz < 0 applied
 
         """
-        if isinstance(item, six.string_types):
+        if isinstance(item, int):
+            names = self.get_column_names(strings=True, virtual=True)
+            return [self.evaluate(name, item, item+1)[0] for name in names]
+        elif isinstance(item, six.string_types):
             if hasattr(self, item) and isinstance(getattr(self, item), Expression):
                 return getattr(self, item)
             # if item in self.virtual_columns:
@@ -4664,6 +4677,7 @@ class DatasetLocal(Dataset):
         for name, value in expression_namespace.items():
             # f = vaex.expression.FunctionBuiltin(self, name)
             def closure(name=name, value=value):
+                local_name = name
                 def wrap(*args, **kwargs):
                     def myrepr(k):
                         if isinstance(k, Expression):
@@ -4671,10 +4685,14 @@ class DatasetLocal(Dataset):
                         else:
                             return repr(k)
                     arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
-                    expression = "{}({})".format(name, arg_string)
+                    expression = "{}({})".format(local_name, arg_string)
                     return vaex.expression.Expression(self, expression)
                 return wrap
-            f = functools.wraps(value)(closure())
+            f = closure()
+            try:
+                f = functools.wraps(value)(f)
+            except AttributeError:
+                pass # python2 quicks.. ?
             setattr(functions, name, f)
         for name, value in self.functions.items():
             setattr(functions, name, value)
@@ -4690,7 +4708,7 @@ class DatasetLocal(Dataset):
         ds._active_fraction = self._active_fraction
         ds.units.update(self.units)
         ds._categories.update(self._categories)
-        column_names = column_names or self.get_column_names(strings=True, virtual=True)
+        column_names = column_names or self.get_column_names(strings=True, virtual=True, hidden=True)
         for name in column_names:
             if name in self.columns:
                 ds.add_column(name, self.columns[name])

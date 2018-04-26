@@ -114,6 +114,21 @@ class Meta(type):
                 wrap(name)
         return type(future_class_name, future_class_parents, attrs)
 
+class DateTime(object):
+    def __init__(self, expression):
+        self.expression = expression
+
+    @property
+    def year(self):
+        return self.expression.ds.func.dt_year(self.expression)
+
+    @property
+    def dayofweek(self):
+        return self.expression.ds.func.dt_dayofweek(self.expression)
+
+    @property
+    def hour(self):
+        return self.expression.ds.func.dt_hour(self.expression)
 
 class Expression(with_metaclass(Meta)):
     def __init__(self, ds, expression):
@@ -122,9 +137,17 @@ class Expression(with_metaclass(Meta)):
             expression = expression.expression
         self.expression = expression
 
-    def derivative(self, var, optimize=True):
+    @property
+    def dt(self):
+        return DateTime(self)
+
+    @property
+    def values(self):
+        return self.evaluate()
+
+    def derivative(self, var, simplify=True):
         var = vaex.dataset._ensure_string_from_expression(var)
-        return self.__class__(self, expresso.derivative(self.expression, var))
+        return self.__class__(self, expresso.derivative(self.expression, var, simplify=simplify))
 
     def expand(self, stop=[]):
         stop = _ensure_strings_from_expressions(stop)
@@ -162,14 +185,14 @@ class Expression(with_metaclass(Meta)):
         try:
             N = len(self.ds)
             if N <= 10:
-                values = ", ".join(str(k) for k in np.array(self))
+                values = ", ".join(str(k) for k in self.evaluate(0, N))
             else:
                 values_head = ", ".join(str(k) for k in self.evaluate(0, 5))
                 values_tail = ", ".join(str(k) for k in self.evaluate(N - 5, N))
                 values = '{} ... (total {} values) ... {}'.format(values_head, N, values_tail)
         except Exception as e:
             values = 'Error evaluating: %r' % e
-        return "<%s(expressions=%r)> instance at 0x%x [%s] " % (name, self.expression, id(self), values)
+        return "<%s(expressions=%r)> instance at 0x%x values=[%s] " % (name, self.expression, id(self), values)
 
     def count(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
         '''Shortcut for ds.count(expression, ...), see `Dataset.count`'''
@@ -246,7 +269,8 @@ class Expression(with_metaclass(Meta)):
         expression = self.expression
         if expression in self.ds.virtual_columns:
             expression = self.ds.virtual_columns[self.expression]
-        vaex.expresso.validate_expression(expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
+        all_vars = self.ds.get_column_names(virtual=True, strings=True, hidden=True) + list(self.ds.variables.keys())
+        vaex.expresso.validate_expression(expression, all_vars, funcs, names)
         arguments = list(set(names))
         argument_dtypes = [self.ds.dtype(argument) for argument in arguments]
         # argument_dtypes = [getattr(np, dtype_name) for dtype_name in dtype_names]
@@ -266,7 +290,8 @@ class Expression(with_metaclass(Meta)):
         expression = self.expression
         if expression in self.ds.virtual_columns:
             expression = self.ds.virtual_columns[self.expression]
-        vaex.expresso.validate_expression(expression, self.ds.get_column_names(virtual=True, strings=True), funcs, names)
+        all_vars = self.ds.get_column_names(virtual=True, strings=True, hidden=True) + list(self.ds.variables.keys())
+        vaex.expresso.validate_expression(expression, all_vars, funcs, names)
         names = list(set(names))
         types = ", ".join(str(self.ds.dtype(name)) + "[]" for name in names)
         argstring = ", ".join(names)
@@ -288,7 +313,11 @@ def f({0}):
         return Expression(self.ds, "{0}({1})".format(function_name, argstring))
 
     def _rename(self, old, new):
-        return Expression(self.ds, self.expression.replace(old, new))  # TODO: support more complicated cases
+        def translate(id):
+            if id == old:
+                return new
+        expr = expresso.translate(self.expression, translate)
+        return Expression(self.ds, expr)
  
     def astype(self, dtype):
         return self.ds.func.astype(self, str(dtype))

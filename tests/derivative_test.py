@@ -33,5 +33,19 @@ def test_basics(ds):
 	assert z.derivative(x).expression == '(-y / ((x ** 2) + (y ** 2)))'
 	assert z.derivative(y).expression == '(x / ((x ** 2) + (y ** 2)))'
 
+	z = np.arccos(x)
+	assert z.derivative(x).expression == '-((1 / sqrt((1 - (x ** 2)))))'
+	assert z.derivative(y).expression == '0'
+
+	z = np.sqrt(x**2)
+	assert z.derivative(x).expression == '((0.5 * ((x ** 2) ** -0.5)) * (2 * x))'
+
+	z = x**2 * x **2
+	assert z.derivative(x).expression == '(((2 * x) * (x ** 2)) + ((x ** 2) * (2 * x)))'
+
+	z = -1 * x **2
+	assert z.derivative(x).expression == '(-1 * (2 * x))'
+
+
 def test_propagate_uncertainty():
 	pass

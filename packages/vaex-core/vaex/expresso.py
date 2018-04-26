@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import division
 import logging
 import collections
 import ast
@@ -8,6 +9,7 @@ import numpy as np
 import math
 import sys
 import six
+import copy
 
 logger = logging.getLogger("expr")
 logger.setLevel(logging.ERROR)
@@ -136,6 +138,9 @@ def pow(left, right):
 def sqr(node):
     return ast.BinOp(left=node, right=num(2), op=ast.Pow())
 
+def sqrt(node):
+    return call('sqrt', [node])
+
 
 def neg(node):
     return ast.UnaryOp(op=ast.USub(), operand=node)
@@ -168,6 +173,11 @@ def _dcos(n, args):
     assert len(args) == 1
     return neg(call('sin', args=args))
 
+def _darccos(n, args):
+    assert n == 0
+    assert len(args) == 1
+    a = sqrt(sub(num(1), sqr(args[0])))
+    return neg(div(num(1), a))
 
 def _darctan2(n, args):
     # derivative of arctan2(y, x)
@@ -186,6 +196,7 @@ standard_function_derivatives['cos'] = _dcos
 standard_function_derivatives['log10'] = _dlog10
 standard_function_derivatives['sqrt'] = _dsqrt
 standard_function_derivatives['arctan2'] = _darctan2
+standard_function_derivatives['arccos'] = _darccos
 
 
 class Derivative(ast.NodeTransformer):
@@ -224,6 +235,10 @@ class Derivative(ast.NodeTransformer):
                 result = add(result, term)
         return result
 
+    def generic_visit(self, node):
+        # it's annoying that the default one modifies in place
+        return super(Derivative, self).generic_visit(copy.deepcopy(node))
+
     def visit_BinOp(self, node):
         solution = None
         if isinstance(node.op, ast.Mult):
@@ -258,6 +273,9 @@ class Derivative(ast.NodeTransformer):
 
 
 class ExpressionString(ast.NodeVisitor):
+    def __init__(self, pretty=False):
+        self.pretty = pretty
+        self.indent = 0
     def visit_UnaryOp(self, node):
         if isinstance(node.op, ast.USub):
             if isinstance(node.operand, (ast.Name, ast.Num)):
@@ -279,23 +297,52 @@ class ExpressionString(ast.NodeVisitor):
         args = [self.visit(k) for k in node.args]
         return "{}({})".format(node.func.id, ", ".join(args))
 
+    def visit_Str(self, node):
+        return repr(node.s)
+
     def visit_BinOp(self, node):
-        if isinstance(node.op, ast.Mult):
-            return "({} * {})".format(self.visit(node.left), self.visit(node.right))
-        if isinstance(node.op, ast.Div):
-            return "({} / {})".format(self.visit(node.left), self.visit(node.right))
-        if isinstance(node.op, ast.Add):
-            return "({} + {})".format(self.visit(node.left), self.visit(node.right))
-        if isinstance(node.op, ast.Sub):
-            return "({} - {})".format(self.visit(node.left), self.visit(node.right))
-        if isinstance(node.op, ast.Pow):
-            return "({} ** {})".format(self.visit(node.left), self.visit(node.right))
-        else:
-            return "error"
+        newline = indent = ""
+        if self.pretty:
+            indent = "  " * self.indent
+            newline = "\n"
+        self.indent += 1
+        left = "{}{}{}".format(newline, indent, self.visit(node.left))
+        right = "{}{}{}".format(newline, indent, self.visit(node.right))
+        try:
+            if isinstance(node.op, ast.Mult):
+                return "({left} * {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.Div):
+                return "({left} / {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.Add):
+                return "({left} + {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.Sub):
+                return "({left} - {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.Pow):
+                return "({left} ** {right})".format(left=left, right=right)
+            else:
+                return "error"
+        finally:
+            self.indent -= 1
+
+    op_translate = {ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">=", ast.Eq: "==", ast.NotEq: "!="}
+    def visit_Compare(self, node):
+        s = ""
+        left = self.visit(node.left)
+        for op, comp in zip(node.ops, node.comparators):
+            right = self.visit(comp)
+            op = ExpressionString.op_translate[op.__class__]
+            s = "({left} {op} {right})".format(left=left, op=op, right=right)
+            left = right
+        return s
 
 
 class SimplifyExpression(ast.NodeTransformer):
-    def visit_Num(self, node):
+
+    def visit_UnaryOp(self, node):
+        node.operand = self.visit(node.operand)
+        if isinstance(node.op, ast.USub):
+            if isinstance(node.operand, ast.Num) and node.operand.n == 0:
+                node = node.operand
         return node
 
     def visit_BinOp(self, node):
@@ -310,6 +357,9 @@ class SimplifyExpression(ast.NodeTransformer):
                 return num(0)
             elif isinstance(left, ast.Num) and left.n == 1:
                 return right
+        if isinstance(node.op, ast.Div):
+            if isinstance(left, ast.Num) and left.n == 0:
+                return num(0)
         if isinstance(node.op, ast.Add):
             if isinstance(right, ast.Num) and right.n == 0:
                 return left
@@ -374,8 +424,8 @@ def parse_expression(expression_string):
     return expr.value
 
 
-def node_to_string(node):
-    return ExpressionString().visit(node)
+def node_to_string(node, pretty=False):
+    return ExpressionString(pretty=pretty).visit(node)
 
 
 def validate_func(name, function_set):

@@ -22,7 +22,7 @@ for name in names:
     # hdf5 package
     package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex.' + name)
     version = VersionSource(package, '{path}/vaex/' +name +'/_version.py')
-    gittag = ReleaseTargetGitTagVersion(version_source=version, prefix=name + '-v')
+    gittag = ReleaseTargetGitTagVersion(version_source=version, prefix=name + '-v', msg='Release {version} of vaex-' +name)
     package.version_source = version
     package.version_targets.append(VersionTarget(package, '{path}/vaex/' + name + '/_version.py'))
     # it is ok to add this twice, it will only tag once
