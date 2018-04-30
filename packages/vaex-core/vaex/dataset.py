@@ -4326,7 +4326,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.select(None, name=name)
     # self.signal_selection_changed.emit(self)
 
-    def select_rectangle(self, x, y, limits, mode="replace"):
+    def select_rectangle(self, x, y, limits, mode="replace", name="default"):
         """Select a 2d rectangular box in the space given by x and y, bounds by limits
 
         Example:
@@ -4338,9 +4338,9 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param mode:
         :return:
         """
-        self.select_box([x, y], limits, mode=mode)
+        self.select_box([x, y], limits, mode=mode, name=name)
 
-    def select_box(self, spaces, limits, mode="replace"):
+    def select_box(self, spaces, limits, mode="replace", name="default"):
         """Select a n-dimensional rectangular box bounded by limits
 
         The following examples are equivalent:
@@ -4349,12 +4349,13 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param spaces: list of expressions
         :param limits: sequence of shape [(x1, x2), (y1, y2)]
         :param mode:
+        :param name:
         :return:
         """
         sorted_limits = [(min(l), max(l)) for l in limits]
         expressions = ["((%s) >= %f) & ((%s) <= %f)" % (expression, lmin, expression, lmax) for
                        (expression, (lmin, lmax)) in zip(spaces, sorted_limits)]
-        self.select("&".join(expressions), mode=mode)
+        self.select("&".join(expressions), mode=mode, name=name)
 
     def select_circle(self, x, y, xc, yc, r, mode="replace", name="default", inclusive=True):
         """
