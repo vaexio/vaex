@@ -137,10 +137,7 @@ class BqplotBackend(BackendBase):
                 self.plot.update_grid()
             self.button_reset.on_click(reset)
 
-            def select_nothing(button):
-                self.dataset.select_nothing()
-
-            self.button_select_nothing.on_click(select_nothing)
+            self.button_select_nothing.on_click(lambda *ignore: self.plot.select_nothing())
             self.tools.append(self.button_select_nothing)
             self.modes_names = "replace and or xor subtract".split()
             self.modes_labels = "replace and or xor subtract".split()
