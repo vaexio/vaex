@@ -58,6 +58,14 @@ class BackendBase(widgets.Widget):
     def update_vectors(self, vcount, vgrids, vcount_limits):
         pass
 
+def _translate_selection(selection):
+    if selection in [None, False]:
+        return None
+    if selection == True:
+        return 'default'
+    else:
+        return selection
+
 
 class PlotBase(widgets.Widget):
 
@@ -72,21 +80,24 @@ class PlotBase(widgets.Widget):
     smooth_post = traitlets.CFloat(None, allow_none=True).tag(sync=True)
     what = traitlets.Unicode(allow_none=False).tag(sync=True)
     vcount_limits = traitlets.List([None, None], allow_none=True).tag(sync=True)
+    f = traitlets.Unicode(allow_none=True)
+    grid_limits = traitlets.List(allow_none=True)
+    grid_limits_min = traitlets.CFloat(None, allow_none=True)
+    grid_limits_max = traitlets.CFloat(None, allow_none=True)
 
     def __init__(self, backend, dataset, x, y=None, z=None, w=None, grid=None, limits=None, shape=128, what="count(*)", f=None,
                  vshape=16,
                  selection=None, grid_limits=None, normalize=None, colormap="afmhot",
                  figure_key=None, fig=None, what_kwargs={}, grid_before=None, vcount_limits=None, **kwargs):
-        super(PlotBase, self).__init__(x=x, y=y, z=z, w=w, what=what, vcount_limits=vcount_limits, **kwargs)
+        super(PlotBase, self).__init__(x=x, y=y, z=z, w=w, what=what, vcount_limits=vcount_limits, grid_limits=grid_limits, f=f, **kwargs)
         self.backend = backend
         self.vgrids = [None, None, None]
         self.vcount = None
         self.dataset = dataset
         self.limits = self.get_limits(limits)
         self.shape = shape
-        self.f = f
         self.selection = selection
-        self.grid_limits = grid_limits
+        #self.grid_limits = grid_limits
         self.normalize = normalize
         self.colormap = colormap
         self.what_kwargs = what_kwargs
@@ -117,6 +128,54 @@ class PlotBase(widgets.Widget):
             else:
                 self.grid = grid
 
+            self.widget_f = widgets.Dropdown(options=[('identity', 'identity'), ('log', 'log'), ('log10', 'log10'), ('log1p', 'log1p')])
+            widgets.link((self, 'f'), (self.widget_f, 'value'))
+            self.observe(lambda *__: self.update_image(), 'f')
+            self.add_control_widget(self.widget_f)
+
+            self.widget_grid_limits_min = widgets.FloatSlider(value=0,  min=0, max=100, step=0.1, description='vmin%')
+            self.widget_grid_limits_max = widgets.FloatSlider(value=100, min=0, max=100, step=0.1, description='vmax%')
+            widgets.link((self.widget_grid_limits_min, 'value'), (self, 'grid_limits_min'))
+            widgets.link((self.widget_grid_limits_max, 'value'), (self, 'grid_limits_max'))
+            #widgets.link((self.widget_grid_limits_min, 'f'), (self.widget_f, 'value'))
+            self.observe(lambda *__: self.update_image(), ['grid_limits_min', 'grid_limits_max'])
+            self.add_control_widget(self.widget_grid_limits_min)
+            self.add_control_widget(self.widget_grid_limits_max)
+
+            self.widget_grid_limits = None
+
+        selections = vaex.dataset._ensure_list(self.selection)
+        selections = [_translate_selection(k) for k in selections]
+        selections = [k for k in selections if k]
+        self.widget_selection_active = widgets.ToggleButtons(options=list(zip(selections, selections)), description='selection')
+        self.add_control_widget(self.widget_selection_active)
+
+        modes = ['replace', 'and', 'or', 'xor', 'subtract']
+        self.widget_selection_mode = widgets.ToggleButtons(options=modes, description='mode')
+        self.add_control_widget(self.widget_selection_mode)
+
+        self.widget_selection_undo = widgets.Button(options=modes, description='undo', icon='arrow-left')
+        self.widget_selection_redo = widgets.Button(options=modes, description='redo', icon='arrow-right')
+        self.add_control_widget(widgets.HBox([widgets.Label('history', layout={'width': '80px'}), self.widget_selection_undo, self.widget_selection_redo]))
+        def redo(*ignore):
+            selection = _translate_selection(self.widget_selection_active.value)
+            self.dataset.selection_redo(name=selection)
+            check_undo_redo()
+        self.widget_selection_redo.on_click(redo)
+        def undo(*ignore):
+            selection = _translate_selection(self.widget_selection_active.value)
+            self.dataset.selection_undo(name=selection)
+            check_undo_redo()
+        self.widget_selection_undo.on_click(undo)
+        def check_undo_redo(*ignore):
+            selection = _translate_selection(self.widget_selection_active.value)
+            self.widget_selection_undo.disabled = not self.dataset.selection_can_undo(selection)
+            self.widget_selection_redo.disabled = not self.dataset.selection_can_redo(selection)
+        self.widget_selection_active.observe(check_undo_redo, 'value')
+        check_undo_redo()
+
+
+        callback = self.dataset.signal_selection_changed.connect(check_undo_redo)
         callback = self.dataset.signal_selection_changed.connect(lambda *x: self.update_grid())
 
         def _on_limits_change(*args):
@@ -173,10 +232,16 @@ class PlotBase(widgets.Widget):
         self._progressbar = vaex.utils.progressbars(False, next=update, name="bqplot")
 
     def select_rectangle(self, x1, y1, x2, y2, mode="replace"):
-        self.dataset.select_rectangle(self.x, self.y, limits=[[x1, x2], [y1, y2]], mode=mode)
+        name = _translate_selection(self.widget_selection_active.value)
+        self.dataset.select_rectangle(self.x, self.y, limits=[[x1, x2], [y1, y2]], mode=self.widget_selection_mode.value, name=name)
 
     def select_lasso(self, x, y, mode="replace"):
-        self.dataset.select_lasso(self.x, self.y, x, y, mode=mode)
+        name = _translate_selection(self.widget_selection_active.value)
+        self.dataset.select_lasso(self.x, self.y, x, y, mode=self.widget_selection_mode.value, name=name)
+
+    def select_nothing(self):
+        name = _translate_selection(self.widget_selection_active.value)
+        self.dataset.select_nothing(name=name)
 
     def get_shape(self):
         return vaex.dataset._expand_shape(self.shape, len(self.get_binby()))
@@ -280,6 +345,11 @@ class PlotBase(widgets.Widget):
             f = vaex.dataset._parse_f(self.f)
             with np.errstate(divide='ignore', invalid='ignore'):
                 fgrid = f(grid)
+            try:
+                vmin, vmax = np.nanpercentile(fgrid, [self.grid_limits_min, self.grid_limits_max])
+                self.grid_limits = [vmin, vmax]
+            except:
+                pass
             if self.smooth_post:
                 for i in range(grid.shape[0]):
                     fgrid[i] = vaex.grids.gf(fgrid[i], self.smooth_post)
@@ -366,7 +436,10 @@ class PlotBase(widgets.Widget):
             vmin, vmax = self.grid_limits
             grid = grid.copy()
             grid -= vmin
-            grid /= (vmax - vmin)
+            if vmin == vmax:
+                grid = grid * 0
+            else:
+                grid /= (vmax - vmin)
         else:
             n = vaex.dataset._parse_n(self.normalize)
             grid, vmin, vmax = n(grid)
@@ -439,6 +512,7 @@ class Plot2dSliced(PlotBase):
     z_relative = traitlets.CBool(False).tag(sync=True)
     z_min = traitlets.CFloat(default_value=None, allow_none=True).tag(sync=True)  # .tag(sync=True)
     z_max = traitlets.CFloat(default_value=None, allow_none=True).tag(sync=True)  # .tag(sync=True)
+    z_select = traitlets.CBool(default_value=True)
 
     def __init__(self, **kwargs):
         self.z_min_extreme, self.z_max_extreme = kwargs["dataset"].minmax(kwargs["z"])
@@ -457,12 +531,16 @@ class Plot2dSliced(PlotBase):
         return limits
 
     def select_rectangle(self, x1, y1, x2, y2, mode="replace"):
+        name = _translate_selection(self.widget_selection_active.value)
         dz = self.z_max - self.z_min
         z1 = self.z_min + dz * self.z_slice / self.z_shape
         z2 = self.z_min + dz * (self.z_slice + 1) / self.z_shape
-        spaces = [self.x, self.y, self.z]
-        limits = [[x1, x2], [y1, y2], [z1, z2]]
-        self.dataset.select_box(spaces, limits=limits, mode=mode)
+        spaces = [self.x, self.y]
+        limits = [[x1, x2], [y1, y2]]
+        if self.z_select:
+            spaces += [self.z]
+            limits += [[z1, z2]]
+        self.dataset.select_box(spaces, limits=limits, mode=self.widget_selection_mode.value, name=name)
 
     def select_lasso(self, x, y, mode="replace"):
         raise NotImplementedError("todo")
@@ -496,6 +574,11 @@ class Plot2dSliced(PlotBase):
 
         self.z_control = widgets.VBox([self.z_slice_slider, self.z_range_slider])
         self.add_control_widget(self.z_control)
+
+        self.widget_z_select = widgets.Checkbox(description='select z range', value=self.z_select)
+        widgets.link((self, 'z_select'), (self.widget_z_select, 'value'))
+        self.add_control_widget(self.widget_z_select)
+
 
     def _z_range_changed_(self, changes, **kwargs):
         # print("changes1", changes, repr(changes), kwargs)

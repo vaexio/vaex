@@ -15,7 +15,7 @@ def plot2d_vector(self, x, y, vx, vy, shape=16, limits=None, delay=None, show=Fa
             mean_vy = mean_vy / length
         x_centers = self.bin_centers(x, limits[0], shape=shape[0])
         y_centers = self.bin_centers(y, limits[1], shape=shape[1])
-        Y, X = np.meshgrid(x_centers, y_centers)  # , indexing='ij')
+        Y, X = np.meshgrid(y_centers, x_centers)  # , indexing='ij')
         count = count.flatten()
         mask = count >= min_count
         kwargs['alpha'] = kwargs.get('alpha', 0.7)
@@ -31,9 +31,9 @@ def plot2d_vector(self, x, y, vx, vy, shape=16, limits=None, delay=None, show=Fa
     @vaex.delayed
     def on_limits(limits):
         # we add them to really count, i.e. if one of them is missing, it won't be counted
-        count = self.count(vx + vy, binby=['x', 'y'], limits=limits, shape=shape, selection=selection, delay=True)
-        mean_vx = self.mean(vx, binby=['x', 'y'], limits=limits, shape=shape, selection=selection, delay=True)
-        mean_vy = self.mean(vy, binby=['x', 'y'], limits=limits, shape=shape, selection=selection, delay=True)
+        count = self.count(vx + vy, binby=[x, y], limits=limits, shape=shape, selection=selection, delay=True)
+        mean_vx = self.mean(vx, binby=[x, y], limits=limits, shape=shape, selection=selection, delay=True)
+        mean_vy = self.mean(vy, binby=[x, y], limits=limits, shape=shape, selection=selection, delay=True)
         return on_means(limits, count, mean_vx, mean_vy)
 
     task = on_limits(self.limits([x, y], limits, selection=selection, delay=True))
