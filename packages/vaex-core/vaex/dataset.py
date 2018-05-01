@@ -3603,11 +3603,22 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         delta = self._expr(delta)
         distance = self._expr(distance)
         if not radians:
-            alpha = alpha * np.pi/180
-            delta = delta * np.pi/180
-        self[xname] = np.cos(alpha) * np.cos(delta) * distance + center[0]
-        self[yname] = np.sin(alpha) * np.cos(delta) * distance + center[1]
-        self[zname] =                 np.sin(delta) * distance + center[2]
+            alpha = alpha * self._expr('pi')/180
+            delta = delta * self._expr('pi')/180
+
+        # TODO: use sth like .optimize by default to get rid of the +0 ?
+        if center[0]:
+            self[xname] = np.cos(alpha) * np.cos(delta) * distance + center[0]
+        else:
+            self[xname] = np.cos(alpha) * np.cos(delta) * distance
+        if center[1]:
+            self[yname] = np.sin(alpha) * np.cos(delta) * distance + center[1]
+        else:
+            self[yname] = np.sin(alpha) * np.cos(delta) * distance
+        if center[2]:
+            self[zname] =                 np.sin(delta) * distance + center[2]
+        else:
+            self[zname] =                 np.sin(delta) * distance
         if propagate_uncertainties:
             self.propagate_uncertainties([self[xname], self[yname], self[zname]])
 
