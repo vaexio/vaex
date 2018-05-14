@@ -4797,7 +4797,7 @@ class DatasetLocal(Dataset):
         if dtype is None:
             dtype = np.float64
         chunks = []
-        for name in self.get_column_names():
+        for name in self.get_column_names(virtual=True):
             if not np.can_cast(self.dtype(name), dtype):
                 if self.dtype(name) != dtype:
                     raise ValueError("Cannot cast %r (of type %r) to %r" % (name, self.dtype(name), dtype))
