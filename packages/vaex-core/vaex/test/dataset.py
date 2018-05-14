@@ -73,20 +73,21 @@ class TestDataset(unittest.TestCase):
 		# same as np.arange(10, dtype=">f8")., but with strides == 16, instead of 8
 		use_filtering = True
 		if use_filtering:
-			self.x = x = np.arange(40, dtype=">f8").reshape((-1,20)).T.copy()[:,0]
+			self.zero_index = 2
+			self.x = x = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
 			self.y = y = x ** 2
-			self.ints = np.arange(20, dtype="i8")
-			self.ints[0] = 2**62+1
-			self.ints[1] = -2**62+1
-			self.ints[2] = -2**62-1
-			self.ints[0+10] = 2**62+1
-			self.ints[1+10] = -2**62+1
-			self.ints[2+10] = -2**62-1
+			self.ints = np.arange(-2,19, dtype="i8")
+			self.ints[1] = 2**62+1
+			self.ints[2] = -2**62+1
+			self.ints[3] = -2**62-1
+			self.ints[1+10] = 2**62+1
+			self.ints[2+10] = -2**62+1
+			self.ints[3+10] = -2**62-1
 			self.dataset.add_column("x", x)
 			self.dataset.add_column("y", y)
-			m = np.arange(40, dtype=">f8").reshape((-1,20)).T.copy()[:,0]
+			mo = m = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
 			ma_value = 77777
-			m[-1+10] = ma_value
+			m[-1+10+2] = ma_value
 			m[-1+20] = ma_value
 		else:
 			self.x = x = np.arange(20, dtype=">f8").reshape((-1,10)).T.copy()[:,0]
@@ -118,11 +119,11 @@ class TestDataset(unittest.TestCase):
 		self.names = self.dataset.get_column_names()
 		self.dataset.add_column("name", np.array(name))
 		if use_filtering:
-			self.dataset.select('x < 10', name=vaex.dataset.FILTER_SELECTION_NAME)
-			self.x = x = self.x[:10]
-			self.y = y = self.y[:10]
-			self.m = m = self.m[:10]
-			self.ints = ints = self.ints[:10]
+			self.dataset.select('(x >= 0) & (x < 10)', name=vaex.dataset.FILTER_SELECTION_NAME)
+			self.x = x = self.x[2:12]
+			self.y = y = self.y[2:12]
+			self.m = m = self.m[2:12]
+			self.ints = ints = self.ints[2:12]
 
 		# TODO; better virtual and variables support
 		# TODO: this is a copy since concatenated datasets do not yet support
@@ -218,11 +219,11 @@ class TestDataset(unittest.TestCase):
 		ds._invalidate_selection_cache()
 		with small_buffer(ds):
 			indices = ds._filtered_range_to_unfiltered_indices(0, 2)
-			self.assertEqual(indices.tolist(), [0, 1])
+			self.assertEqual(indices.tolist(), [self.zero_index+0, self.zero_index+1])
 
 			ds = ds[ds.x > 2]
 			indices = ds._filtered_range_to_unfiltered_indices(0, 2)
-			assert indices.tolist() == [3, 4]
+			assert indices.tolist() == [self.zero_index+3, self.zero_index+4]
 
 			x = ds.x.evaluate(0, 2)
 			indices = ds._filtered_range_to_unfiltered_indices(0, 2)
@@ -348,7 +349,7 @@ class TestDataset(unittest.TestCase):
 		self.assertSequenceEqual(columns, self.dataset.get_column_names())
 		self.dataset.add_column("extra", self.dataset.data.x)
 		extra = self.dataset.evaluate("extra")
-		np.testing.assert_array_almost_equal(extra, self.dataset.data.x[:10])
+		np.testing.assert_array_almost_equal(extra, self.dataset.data.x[self.zero_index:self.zero_index+10])
 		with self.assertRaises(ValueError):
 			self.dataset.add_column("unequal", self.dataset.data.x[:10])
 		with self.assertRaises(ValueError):
@@ -372,7 +373,8 @@ class TestDataset(unittest.TestCase):
 		#print(fn)
 		with open(fn, "w") as f:
 			print(separator.join(["x", "y", "m", "mi",  "name", "ints", "f"]), file=f)
-			for x, y, m, mi, name, i, f_ in zip(self.x, self.y, self.dataset.data.m, self.dataset.data.mi, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
+			values = [self.dataset.evaluate(k) for k in 'x y m mi name ints f'.split()]
+			for x, y, m, mi, name, i, f_ in zip(*values):#zip(self.x, self.y, self.dataset.data.m, self.dataset.data.mi, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
 				print(separator.join(map(str, [x, y, m, mi, name.decode("utf8"), i, f_])), file=f)
 		ds = vx.from_csv(fn, index_col=False)
 		changes = self.dataset.compare(ds, report_difference=True)
@@ -1158,7 +1160,7 @@ class TestDataset(unittest.TestCase):
 
 		# convert to float
 		self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
-		self.dataset_local.columns["x"][0] = np.nan
+		self.dataset_local.columns["x"][self.zero_index] = np.nan
 		if self.dataset.is_local():
 			self.dataset._invalidate_selection_cache()
 		self.df = self.dataset_local.to_pandas_df()
@@ -1247,9 +1249,9 @@ class TestDataset(unittest.TestCase):
 
 		self.dataset.select("x < 5")
 		# convert to float
-		x = self.dataset_local.columns["x"][:10]# = self.dataset_local.columns["x"] * 1.
+		x = self.dataset_local.columns["x"][self.zero_index:+self.zero_index+10]# = self.dataset_local.columns["x"] * 1.
 		y = self.y
-		self.dataset_local.columns["x"][0] = np.nan
+		self.dataset_local.columns["x"][self.zero_index] = np.nan
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(x))
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(x[:5]))
 
@@ -1330,15 +1332,15 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.cov(["x", "y", "z"], selection=True, binby=["x"], limits=[0, 10], shape=2), [cov(x[:i], y[:i], z[:i]), nan33])
 
 		# including nan
-		n = np.arange(20.)
-		n[1] = np.nan
+		n = np.arange(-self.zero_index, 20.-1)
+		n[self.zero_index+1] = np.nan
 		self.dataset_local.add_column('n', n)
 		assert not np.any(np.isnan(self.dataset.cov("x", "n")))
 
 
 	def test_correlation(self):
 		# convert to float
-		x = self.dataset_local.columns["x"][:10] = self.dataset_local.columns["x"][:10] * 1.
+		x = self.x #self.dataset_local.columns["x"][self.zero_index:10] = self.dataset_local.columns["x"][:10] * 1.
 		y = self.y
 		def correlation(x, y):
 			c = np.cov([x, y], bias=1)
@@ -1706,7 +1708,7 @@ class TestDataset(unittest.TestCase):
 		path_hdf5 = tempfile.mktemp(".hdf5")
 		self.dataset.export_hdf5(path_hdf5, sort="s")
 		ds2 = vaex.open(path_hdf5)
-		np.testing.assert_array_equal(self.dataset.data.x[:10], ds2.data.x[::-1])
+		np.testing.assert_array_equal(self.dataset.data.x[self.zero_index:self.zero_index+10], ds2.data.x[::-1])
 
 
 
@@ -1774,8 +1776,9 @@ class TestDataset(unittest.TestCase):
 
 										for column_name in column_names:
 											#values = dataset.columns[column_name][dataset._index_start:dataset._index_end] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
-											values = dataset.evaluate(column_name)
+											values = dataset.evaluate(column_name, filtered=False)
 											if selection:
+												values = dataset.evaluate(column_name, filtered=False)
 												mask = dataset.evaluate_selection_mask(selection)#, 0, len(dataset))
 												if len(values[::]) != len(mask):
 													import pdb
@@ -1788,6 +1791,7 @@ class TestDataset(unittest.TestCase):
 													pdb.set_trace()
 												self.assertEqual(sorted(a), sorted(b))
 											else:
+												values = dataset.evaluate(column_name, filtered=True)
 												if shuffle:
 													indices = compare.columns["random_index"]
 													a = np.ma.compressed(make_masked(compare.evaluate(column_name)))
@@ -1834,7 +1838,7 @@ class TestDataset(unittest.TestCase):
 		self.dataset.set_active_fraction(0.25)
 		self.assertEqual(counter_selection.counter, 2)
 		self.assertEqual(counter_current_row.counter, 2)
-		self.assertEqual(length/2, len(self.dataset))
+		self.assertEqual(length/2 - self.zero_index, len(self.dataset))
 
 		self.dataset.select("x > 5")
 		self.assertEqual(counter_selection.counter, 3)
@@ -1993,7 +1997,7 @@ class TestDataset(unittest.TestCase):
 		ds.select_non_missing(drop_masked=False, column_names=['m'])
 		self.assertEqual(ds.count(selection=True), 10)
 
-		self.dataset_local.data.x[0] = np.nan
+		self.dataset_local.data.x[self.zero_index] = np.nan
 		ds.select_non_missing(column_names=['x'])
 		self.assertEqual(ds.count(selection=True), 9)
 		ds.select_non_missing(drop_nan=False, column_names=['x'])
@@ -2102,7 +2106,7 @@ class TestDataset(unittest.TestCase):
 		self.assertTrue(self.dataset.selection_can_redo())
 
 	def test_selection_serialize(self):
-		selection_expression = vaex.dataset.SelectionExpression(self.dataset, "x > 5", None, "and")
+		selection_expression = vaex.dataset.SelectionExpression("x > 5", None, "and")
 		self.dataset.set_selection(selection_expression)
 		total_subset = self.dataset("x").selected().sum()
 
@@ -2111,12 +2115,12 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(total_subset, total_subset_same)
 
 		values = selection_expression.to_dict()
-		self.dataset.set_selection(vaex.dataset.selection_from_dict(self.dataset, values))
+		self.dataset.set_selection(vaex.dataset.selection_from_dict(values))
 		total_subset_same2 = self.dataset("x").selected().sum()
 		self.assertEqual(total_subset, total_subset_same2)
 
-		selection_expression = vaex.dataset.SelectionExpression(self.dataset, "x > 5", None, "and")
-		selection_lasso = vaex.dataset.SelectionLasso(self.dataset, "x", "y", [0, 10, 10, 0], [-1, -1, 100, 100], selection_expression, "and")
+		selection_expression = vaex.dataset.SelectionExpression("x > 5", None, "and")
+		selection_lasso = vaex.dataset.SelectionLasso("x", "y", [0, 10, 10, 0], [-1, -1, 100, 100], selection_expression, "and")
 		self.dataset.set_selection(selection_lasso)
 		total_2 = self.dataset.sum("x", selection=True)
 		self.assertEqual(total_2, total_subset)
@@ -2125,18 +2129,18 @@ class TestDataset(unittest.TestCase):
 
 	def test_nearest(self):
 		index, distance, (value,) = self.dataset("x").nearest([3])
-		self.assertEqual(index, 3)
+		self.assertEqual(index, 3 + self.zero_index)
 		self.assertEqual(distance, 0)
 		self.assertEqual(value, 3)
 
 		index, distance, (value,) = self.dataset("x").nearest([3.7])
-		self.assertEqual(index, 4)
+		self.assertEqual(index, 4 + self.zero_index)
 		self.assertAlmostEqual(distance, 0.3)
 		self.assertEqual(value, 4)
 
 		self.dataset.select("x > 5")
 		index, distance, (value,) = self.dataset("x").selected().nearest([3.7])
-		self.assertEqual(index, 6)
+		self.assertEqual(index, 6 + self.zero_index)
 		self.assertEqual(distance, 2.3)
 		self.assertEqual(value, 6)
 

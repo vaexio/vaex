@@ -768,7 +768,7 @@ class _BlockScopeSelection(object):
                 # logger.debug("was not cached")
                 if variable in self.dataset.variables:
                     return self.dataset.variables[variable]
-                mask = selection.evaluate(variable, self.i1, self.i2)
+                mask = selection.evaluate(self.dataset, variable, self.i1, self.i2)
                 # logger.debug("put selection in mask with key %r" % (key,))
                 if self.store_in_cache:
                     cache[key] = selection, mask
@@ -805,20 +805,19 @@ def get_main_executor():
 
 
 class Selection(object):
-    def __init__(self, dataset, previous_selection, mode):
-        self.dataset = dataset
+    def __init__(self, previous_selection, mode):
         # we don't care about the previous selection if we simply replace the current selection
         self.previous_selection = previous_selection if mode != "replace" else None
         self.mode = mode
 
-    def execute(self, executor, execute_fully=False):
+    def execute(self, datexecutor, execute_fully=False):
         if execute_fully and self.previous_selection:
             self.previous_selection.execute(executor=executor, execute_fully=execute_fully)
 
 
 class SelectionDropNa(Selection):
-    def __init__(self, dataset, drop_nan, drop_masked, column_names, previous_selection, mode):
-        super(SelectionDropNa, self).__init__(dataset, previous_selection, mode)
+    def __init__(self, drop_nan, drop_masked, column_names, previous_selection, mode):
+        super(SelectionDropNa, self).__init__(previous_selection, mode)
         self.drop_nan = drop_nan
         self.drop_masked = drop_masked
         self.column_names = column_names
@@ -830,14 +829,14 @@ class SelectionDropNa(Selection):
         return dict(type="dropna", drop_nan=self.drop_nan, drop_masked=self.drop_masked, column_names=self.column_names,
                     mode=self.mode, previous_selection=previous)
 
-    def evaluate(self, name, i1, i2):
+    def evaluate(self, dataset, name, i1, i2):
         if self.previous_selection:
-            previous_mask = self.dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+            previous_mask = dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
         else:
             previous_mask = None
         mask = np.ones(i2 - i1, dtype=np.bool)
         for name in self.column_names:
-            data = self.dataset._evaluate(name, i1, i2)
+            data = dataset._evaluate(name, i1, i2)
             if self.drop_nan and data.dtype.kind == "f":
                 if np.ma.isMaskedArray(data):
                     mask = mask & ~np.isnan(data.data)
@@ -858,16 +857,16 @@ def _rename_expression_string(dataset, e, old, new):
     return Expression(self.dataset, self.boolean_expression)._rename(old, new).expression
 
 class SelectionExpression(Selection):
-    def __init__(self, dataset, boolean_expression, previous_selection, mode):
-        super(SelectionExpression, self).__init__(dataset, previous_selection, mode)
-        self.boolean_expression = Expression(dataset, _ensure_string_from_expression(boolean_expression))
+    def __init__(self,  boolean_expression, previous_selection, mode):
+        super(SelectionExpression, self).__init__(previous_selection, mode)
+        self.boolean_expression = boolean_expression
 
-    def _rename(self, old, new):
-        boolean_expression = self.boolean_expression._rename(old, new)
+    def _rename(self, dataset, old, new):
+        boolean_expression = Expression(dataset, self.boolean_expression)._rename(old, new).expression
         previous_selection = None
         if self.previous_selection:
-            previous_selection = self.previous_selection._rename(old, new)
-        return SelectionExpression(self.dataset, boolean_expression, previous_selection, self.mode)
+            previous_selection = self.previous_selection._rename(dataset, old, new)
+        return SelectionExpression(boolean_expression, previous_selection, self.mode)
 
     def to_dict(self):
         previous = None
@@ -875,12 +874,12 @@ class SelectionExpression(Selection):
             previous = self.previous_selection.to_dict()
         return dict(type="expression", boolean_expression=str(self.boolean_expression), mode=self.mode, previous_selection=previous)
 
-    def evaluate(self, name, i1, i2):
+    def evaluate(self, dataset, name, i1, i2):
         if self.previous_selection:
-            previous_mask = self.dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+            previous_mask = dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
         else:
             previous_mask = None
-        current_mask = self.dataset._evaluate_selection_mask(self.boolean_expression, i1, i2).astype(np.bool)
+        current_mask = dataset._evaluate_selection_mask(self.boolean_expression, i1, i2).astype(np.bool)
         if previous_mask is None:
             logger.debug("setting mask")
             mask = current_mask
@@ -892,8 +891,8 @@ class SelectionExpression(Selection):
 
 
 class SelectionInvert(Selection):
-    def __init__(self, dataset, previous_selection):
-        super(SelectionInvert, self).__init__(dataset, previous_selection, "")
+    def __init__(self, previous_selection):
+        super(SelectionInvert, self).__init__(previous_selection, "")
 
     def to_dict(self):
         previous = None
@@ -901,22 +900,22 @@ class SelectionInvert(Selection):
             previous = self.previous_selection.to_dict()
         return dict(type="invert", previous_selection=previous)
 
-    def evaluate(self, name, i1, i2):
-        previous_mask = self.dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+    def evaluate(self, dataset, name, i1, i2):
+        previous_mask = dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
         return ~previous_mask
 
 
 class SelectionLasso(Selection):
-    def __init__(self, dataset, boolean_expression_x, boolean_expression_y, xseq, yseq, previous_selection, mode):
-        super(SelectionLasso, self).__init__(dataset, previous_selection, mode)
+    def __init__(self, boolean_expression_x, boolean_expression_y, xseq, yseq, previous_selection, mode):
+        super(SelectionLasso, self).__init__(previous_selection, mode)
         self.boolean_expression_x = boolean_expression_x
         self.boolean_expression_y = boolean_expression_y
         self.xseq = xseq
         self.yseq = yseq
 
-    def evaluate(self, name, i1, i2):
+    def evaluate(self, dataset, name, i1, i2):
         if self.previous_selection:
-            previous_mask = self.dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+            previous_mask = dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
         else:
             previous_mask = None
         current_mask = np.zeros(i2 - i1, dtype=np.bool)
@@ -924,8 +923,8 @@ class SelectionLasso(Selection):
         meanx = x.mean()
         meany = y.mean()
         radius = np.sqrt((meanx - x)**2 + (meany - y)**2).max()
-        blockx = self.dataset._evaluate(self.boolean_expression_x, i1=i1, i2=i2)
-        blocky = self.dataset._evaluate(self.boolean_expression_y, i1=i1, i2=i2)
+        blockx = dataset._evaluate(self.boolean_expression_x, i1=i1, i2=i2)
+        blocky = dataset._evaluate(self.boolean_expression_y, i1=i1, i2=i2)
         (blockx, blocky), excluding_mask = _split_and_combine_mask([blockx, blocky])
         blockx = as_flat_float(blockx)
         blocky = as_flat_float(blocky)
@@ -953,9 +952,8 @@ class SelectionLasso(Selection):
                     mode=self.mode,
                     previous_selection=previous)
 
-def selection_from_dict(dataset, values):
+def selection_from_dict(values):
     kwargs = dict(values)
-    kwargs["dataset"] = dataset
     del kwargs["type"]
     if values["type"] == "lasso":
         kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
@@ -1809,6 +1807,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         def finish(*minmax_list):
             value = vaex.utils.unlistify(waslist, np.array(minmax_list))
             return value
+        expression = _ensure_strings_from_expressions(expression)
         waslist, [expressions, ] = vaex.utils.listify(expression)
         progressbar = vaex.utils.progressbars(progress, name="minmaxes")
         limits = self.limits(binby, limits, selection=selection, delay=True)
@@ -2796,7 +2795,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             if selection_dict is None:
                 selection = None
             else:
-                selection = vaex.dataset.selection_from_dict(self, selection_dict)
+                selection = vaex.dataset.selection_from_dict(selection_dict)
             self.set_selection(selection, name=name)
 
     def state_write(self, f):
@@ -3059,7 +3058,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
     def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False):
         i1 = i1 or 0
-        i2 = i2 or len(self)
+        i2 = i2 or self.length_unfiltered()
         if name in [None, False] and self.filtered:
             scope_global = _BlockScopeSelection(self, i1, i2, None, cache=cache)
             mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
@@ -3138,10 +3137,13 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             for name, value in self.virtual_columns.items():
                 ds.add_virtual_column(name, value)
         if selections:
+            # the filter selection does not need copying
             for key, value in self.selection_histories.items():
-                ds.selection_histories[key] = list(value)
+                if key != FILTER_SELECTION_NAME:
+                    ds.selection_histories[key] = list(value)
             for key, value in self.selection_history_indices.items():
-                ds.selection_history_indices[key] = value
+                if key != FILTER_SELECTION_NAME:
+                    ds.selection_history_indices[key] = value
         ds.functions.update(self.functions)
         ds.copy_metadata(self)
         return ds
@@ -3720,7 +3722,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.column_names[index] = new
         self.virtual_columns = {k:self[v]._rename(old, new).expression for k, v in self.virtual_columns.items()}
         for key, value in self.selection_histories.items():
-            self.selection_histories[key] = list([k._rename(old, new) for k in value])
+            self.selection_histories[key] = list([k._rename(self, old, new) for k in value])
         return [self[_ensure_string_from_expression(e)]._rename(old, new) for e in expressions]
 
 
@@ -4286,7 +4288,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             self.signal_selection_changed.emit(self)  # TODO: unittest want to know, does this make sense?
         else:
             def create(current):
-                return SelectionExpression(self, boolean_expression, current, mode) if boolean_expression else None
+                return SelectionExpression(boolean_expression, current, mode) if boolean_expression else None
             self._selection(create, name)
 
     def select_non_missing(self, drop_nan=True, drop_masked=True, column_names=None, mode="replace", name="default"):
@@ -4304,7 +4306,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         column_names = column_names or self.get_column_names(virtual=False)
 
         def create(current):
-            return SelectionDropNa(self, drop_nan, drop_masked, column_names, current, mode)
+            return SelectionDropNa(drop_nan, drop_masked, column_names, current, mode)
         self._selection(create, name)
 
     def dropna(self, drop_nan=True, drop_masked=True, column_names=None):
@@ -4437,7 +4439,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """
 
         def create(current):
-            return SelectionLasso(self, expression_x, expression_y, xsequence, ysequence, current, mode)
+            return SelectionLasso(expression_x, expression_y, xsequence, ysequence, current, mode)
         self._selection(create, name, executor=executor)
 
     def select_inverse(self, name="default", executor=None):
@@ -4449,7 +4451,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """
 
         def create(current):
-            return SelectionInvert(self, current)
+            return SelectionInvert(current)
         self._selection(create, name, executor=executor)
 
     def set_selection(self, selection, name="default", executor=None):
