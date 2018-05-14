@@ -4616,6 +4616,19 @@ class DatasetLocal(Dataset):
         column = _ensure_string_from_expression(column)
         return self._categories[column]['labels']
 
+    def category_count(self, column):
+        column = _ensure_string_from_expression(column)
+        return self._categories[column]['N']
+
+    def categorize(self, column, labels, check=True):
+        """Mark column as categorical, with given labels, assuming zero indexing"""
+        column = _ensure_string_from_expression(column)
+        if check:
+            vmin, vmax = self.minmax(column)
+            if vmax >= len(labels):
+                raise ValueError('value of {} found, which is larger than number of labels {}'.format(vmax, len(labels)))
+        self._categories[column] = dict(labels=labels, N=len(labels))
+
     def label_encode(self, column, values=None, inplace=False):
         """Label encode column and mark it as categorical
 
