@@ -1,6 +1,7 @@
 __author__ = 'maartenbreddels'
 import os
 import sys
+import collections
 import numpy as np
 import logging
 import vaex
@@ -134,7 +135,15 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
         column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True)
 
         logger.debug("exporting columns(hdf5): %r" % column_names)
+        sparse_groups = collections.defaultdict(list)
+        sparse_matrices = {}  # alternative to a set of matrices, since they are not hashable
         for column_name in column_names:
+            sparse_matrix = dataset._sparse_matrix(column_name)
+            if sparse_matrix is not None:
+                # sparse columns are stored differently
+                sparse_groups[id(sparse_matrix)].append(column_name)
+                sparse_matrices[id(sparse_matrix)] = sparse_matrix
+                continue
             dtype = dataset.dtype(column_name)
             if column_name in dataset.get_column_names(strings=True):
                 column = dataset.columns[column_name]
@@ -166,6 +175,25 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
             shuffle_array[0] = shuffle_array[0]
             column_order.append(random_index_name)  # last item
         h5columns_output.attrs["column_order"] = ",".join(column_order)  # keep track or the ordering of columns
+
+        sparse_index = 0
+        for sparse_matrix in sparse_matrices.values():
+            columns = sorted(sparse_groups[id(sparse_matrix)], key=lambda col: dataset.columns[col].column_index)
+            name = "sparse" + str(sparse_index)
+            sparse_index += 1
+            # TODO: slice columns
+            # sparse_matrix = sparse_matrix[:,]
+            sparse_group = h5columns_output.require_group(name)
+            sparse_group.attrs['type'] = 'csr_matrix'
+            ar = sparse_group.require_dataset('data', shape=(len(sparse_matrix.data), ), dtype=sparse_matrix.dtype)
+            ar[0] = ar[0]
+            ar = sparse_group.require_dataset('indptr', shape=(len(sparse_matrix.indptr), ), dtype=sparse_matrix.indptr.dtype)
+            ar[0] = ar[0]
+            ar = sparse_group.require_dataset('indices', shape=(len(sparse_matrix.indices), ), dtype=sparse_matrix.indices.dtype)
+            ar[0] = ar[0]
+            for i, column_name in enumerate(columns):
+                h5column = sparse_group.require_group(column_name)
+                h5column.attrs['column_index'] = i
 
     # after this the file is closed,, and reopen it using out class
     dataset_output = vaex.hdf5.dataset.Hdf5MemoryMapped(path, write=True)

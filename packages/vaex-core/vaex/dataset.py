@@ -1174,6 +1174,8 @@ class Dataset(object):
         assert self.filtered is False
         self._auto_fraction = False
 
+        self._sparse_matrices = {}  # record which sparse columns belong to which sparse matrix
+
     def execute(self):
         '''Execute all delayed jobs'''
         self.executor.execute()
@@ -3247,8 +3249,12 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def add_column(self, name, f_or_array):
         """Add an in memory array as a column"""
         if isinstance(f_or_array, (np.ndarray, Column)):
-            ar = f_or_array
+            data = ar = f_or_array
             # it can be None when we have an 'empty' DatasetArrays
+            if self._length_original is None:
+                self._length_unfiltered = len(data)
+                self._length_original = len(data)
+                self._index_end = self._length_unfiltered
             if len(ar) != self.length_original():
                 if self.filtered:
                     # give a better warning to avoid confusion
@@ -3263,6 +3269,23 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             raise ValueError("functions not yet implemented")
 
         self._save_assign_expression(name, Expression(self, name))
+
+    def _sparse_matrix(self, column):
+        column = _ensure_string_from_expression(column)
+        return self._sparse_matrices.get(column)
+
+    def add_columns(self, names, columns):
+        from scipy.sparse import csc_matrix, csr_matrix
+        if isinstance(columns, csr_matrix):
+            if len(names) != columns.shape[1]:
+                raise ValueError('number of columns ({}) does not match number of column names ({})'.format(columns.shape[1], len(names)))
+            for i, name in enumerate(names):
+                self.columns[name] = ColumnSparse(columns, i)
+                self.column_names.append(name)
+                self._sparse_matrices[name] = columns
+                self._save_assign_expression(name, Expression(self, name))
+        else:
+            raise ValueError('only scipy.sparse.csr_matrix is supported')
 
     def _save_assign_expression(self, name, expression=None):
         obj = getattr(self, name, None)
@@ -5231,6 +5254,19 @@ class DatasetLocal(Dataset):
 class Column(object):
     pass
 
+class ColumnSparse(object):
+    def __init__(self, matrix, column_index):
+        self.matrix = matrix
+        self.column_index = column_index
+        self.shape = self.matrix.shape[:1]
+        self.dtype = self.matrix.dtype
+
+    def __len__(self):
+        return self.shape[0]
+
+    def __getitem__(self, slice):
+        # not sure if this is the fastest
+        return self.matrix[slice, self.column_index].A[:,0]
 
 class ColumnIndexed(Column):
     def __init__(self, dataset, indices, name):
@@ -5405,12 +5441,12 @@ class DatasetArrays(DatasetLocal):
         :param str name: name of column
         :param data: numpy array with the data
         """
-        assert _is_array_type_ok(data), "dtype not supported: %r, %r" % (data.dtype, data.dtype.type)
+        # assert _is_array_type_ok(data), "dtype not supported: %r, %r" % (data.dtype, data.dtype.type)
         # self._length = len(data)
-        if self._length_unfiltered is None:
-            self._length_unfiltered = len(data)
-            self._length_original = len(data)
-            self._index_end = self._length_unfiltered
+        # if self._length_unfiltered is None:
+        #     self._length_unfiltered = len(data)
+        #     self._length_original = len(data)
+        #     self._index_end = self._length_unfiltered
         super(DatasetArrays, self).add_column(name, data)
         self._length_unfiltered = int(round(self._length_original * self._active_fraction))
         # self.set_active_fraction(self._active_fraction)

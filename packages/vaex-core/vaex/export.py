@@ -1,6 +1,7 @@
 __author__ = 'maartenbreddels'
 import os
 import sys
+import collections
 import numpy as np
 import logging
 import vaex
@@ -90,10 +91,22 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
     progress = progress or (lambda value: True)
     progress_total = len(column_names) * len(dataset_input)
     progress_value = 0
+    if selection:
+        full_mask = dataset_input.evaluate_selection_mask(selection)
+        # print('full mask', full_mask)
+    sparse_groups = collections.defaultdict(list)
+    sparse_matrices = {}  # alternative to a set of matrices, since they are not hashable
     for column_name in column_names:
+        sparse_matrix = dataset_output._sparse_matrix(column_name)
+        if sparse_matrix is not None:
+            # sparse columns are written differently
+            sparse_groups[id(sparse_matrix)].append(column_name)
+            sparse_matrices[id(sparse_matrix)] = sparse_matrix
+            continue
         logger.debug("  exporting column: %s " % column_name)
         # with vaex.utils.Timer("copying column %s" % column_name, logger):
         if 1:
+            block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
             to_array = dataset_output.columns[column_name]
             if shuffle or sort:  # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
                 to_array_disk = to_array
@@ -102,10 +115,16 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
                 else:
                     to_array = np.zeros_like(to_array_disk)
             to_offset = 0  # we need this for selections
-            for i1, i2 in vaex.utils.subdivide(len(dataset_input), max_length=max_length):
+            count = len(dataset_input) if not selection else dataset_input.length_unfiltered()
+            for i1, i2 in vaex.utils.subdivide(count, max_length=max_length):
                 logger.debug("from %d to %d (total length: %d, output length: %d)", i1, i2, len(dataset_input), N)
+                block_scope.move(i1, i2)
                 if selection:
-                    values = dataset_input.evaluate(column_name, i1=i1, i2=i2, selection=selection)
+                    mask = full_mask[i1:i2]
+                    values = dataset_input.evaluate(column_name, i1=i1, i2=i2, filtered=False) #selection=selection)
+                    # print('v,m', values, mask)
+                    values = values[mask]
+                    # values = values[mask]
                     no_values = len(values)
                     if no_values:
                         fill_value = np.nan if values.dtype.kind == "f" else None
@@ -123,6 +142,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
                         to_offset += no_values
                 else:
                     values = dataset_input.evaluate(column_name, i1=i1, i2=i2)
+                    assert len(values) == (i2-i1)
                     fill_value = np.nan if values.dtype.kind == "f" else None
                     # assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
                     # (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)
@@ -155,6 +175,15 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
                     to_array_disk.mask[:] = to_array.mask
                 else:
                     to_array_disk[:] = to_array
+    for sparse_matrix_id, column_names in sparse_groups.items():
+        sparse_matrix = sparse_matrices[sparse_matrix_id]
+        for column_name in column_names:
+            assert not shuffle
+            assert selection in [None, False]
+            column = dataset_output.columns[column_name]
+            column.matrix.data[:] = dataset_input.columns[column_name].matrix.data
+            column.matrix.indptr[:] = dataset_input.columns[column_name].matrix.indptr
+            column.matrix.indices[:] = dataset_input.columns[column_name].matrix.indices
     return column_names
 
 
