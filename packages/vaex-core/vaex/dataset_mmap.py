@@ -95,8 +95,8 @@ if no_mmap:
             
 
             #print(values[:2])
-            # make sure we write at a multiple of the page size
-            if True:
+            # make sure we write at a multiple of the page size, if the content is smaller than
+            if N * itemsize >= page_size:
                 offset_optimal = math.ceil(offset/page_size) * page_size
                 padding = offset_optimal - offset
                 #ar_ptr_pad = ar_bytes[:padding].ctypes.data_as(ctypes.POINTER(ctypes.c_byte))
