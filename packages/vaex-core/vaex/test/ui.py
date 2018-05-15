@@ -570,11 +570,11 @@ class TestPlotPanel2d(NoTest.TestPlotPanel):
 		with dialogs.assertError(2):
 			self.layer.vx = "hoeba(vx)"
 			self.layer.vy = "x(vx)"
-		with dialogs.assertError(1):
+		with dialogs.assertError(3):
 			self.layer.weight = "hoeba(vx)"
 			self.layer.statistic = "mean"
-		with dialogs.assertError(1):
-			self.layer.statistic = "blaat"
+		# with dialogs.assertError(1):
+		# 	self.layer.statistic = "blaat"
 		self.layer.x = "x"
 		self.layer.y = "y"
 		self.layer.weight = "z"
