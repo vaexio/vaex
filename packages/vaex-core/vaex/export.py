@@ -246,6 +246,7 @@ def main(argv):
     parser.add_argument('--sort', dest="sort", default=None)
     parser.add_argument('--virtual', dest="virtual", action='store_true', default=False, help="Also export virtual columns")
     parser.add_argument('--fraction', "-f", dest="fraction", type=float, default=1.0, help="fraction of input dataset to export")
+    parser.add_argument('--filter', dest="filter", default=None, help="filter to apply before exporting")
 
     subparsers = parser.add_subparsers(help='type of input source', dest="task")
 
@@ -384,10 +385,15 @@ def main(argv):
                 if progressbar:
                     progressbar.update(p)
                 return True
+            if args.filter:
+                dataset.select(args.filter, name='export')
+                selection = 'export'
+            else:
+                selection = None
             if output_ext == ".hdf5":
-                export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort)
+                export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort, selection=selection)
             elif output_ext == ".fits":
-                export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort)
+                export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort, selection=selection)
             if progressbar:
                 progressbar.finish()
             if not args.quiet:
