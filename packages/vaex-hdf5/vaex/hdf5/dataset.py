@@ -77,7 +77,18 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                 h5table_root.attrs["description"] = self.description
             h5columns = h5table_root if self._version == 1 else h5table_root['columns']
             for column_name in self.columns.keys():
-                h5dataset = h5columns[column_name]
+                h5dataset = None
+                if column_name in h5columns:
+                    h5dataset = h5columns[column_name]
+                else:
+                    for group in h5columns.values():
+                        if 'type' in group.attrs:
+                            if group.attrs['type'] in ['csr_matrix']: 
+                                for name, column in group.items():
+                                    if name == column_name:
+                                        h5dataset = column
+                if h5dataset is None:
+                    raise ValueError('column {} not found'.format(column_name))
                 for name, values in [("ucd", self.ucds), ("unit", self.units), ("description", self.descriptions)]:
                     if column_name in values:
                         value = ensure_string(values[column_name], cast=True)
@@ -183,6 +194,24 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         for key, value in list(h5variables.attrs.items()):
             self.variables[key] = value
 
+
+    def _map_hdf5_array(self, data, mask=None):
+        offset = data.id.get_offset()
+        if offset is None:
+            raise Exception("columns doesn't really exist in hdf5 file")
+        shape = data.shape
+        dtype = data.dtype
+        if "dtype" in data.attrs:
+            dtype = data.attrs["dtype"]
+        #self.addColumn(column_name, offset, len(data), dtype=dtype)
+        array = self._map_array(data.id.get_offset(), dtype=dtype, length=len(data))
+        if mask is not None:
+            mask_array = self._map_hdf5_array(mask)
+            return np.ma.array(array, mask=mask_array, shrink=False)
+            assert ar.mask is mask_array, "masked array was copied"
+        else:
+            return array
+
     def _load_columns(self, h5data, first=[]):
         # print h5data
         # make sure x y x etc are first
@@ -196,11 +225,35 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             column_order = ensure_string(h5columns.attrs["column_order"]).split(",")
         else:
             column_order = []
-        for name in list(h5columns):
-            if name not in column_order:
-                column_order.append(name)
-        for column_name in column_order:
-            if column_name in h5columns and column_name not in finished:
+        # for name in list(h5columns):
+        #     if name not in column_order:
+        #         column_order.append(name)
+        # for column_name in column_order:
+            # if column_name in h5columns and column_name not in finished:
+        for group_name in list(h5columns):
+            group = h5columns[group_name]
+            if 'type' in group.attrs:
+                if group.attrs['type'] in ['csr_matrix']:
+                    from scipy.sparse import csc_matrix, csr_matrix
+                    class csr_matrix_nocheck(csr_matrix):
+                        def check_format(self, *args, **kwargs):
+                            pass
+                    data = self._map_hdf5_array(group['data'])
+                    indptr = self._map_hdf5_array(group['indptr'])
+                    indices = self._map_hdf5_array(group['indices'])
+                    #column_names = ensure_string(group.attrs["column_names"]).split(",")
+                    # make sure we keep the original order
+                    groups = [(name, value) for name, value in group.items() if isinstance(value, h5py.Group)]
+                    column_names = [None] * len(groups)
+                    for name, column in groups:
+                        column_names[column.attrs['column_index']] = name
+                    matrix = csr_matrix_nocheck((data, indices, indptr), shape=(len(indptr)-1, len(column_names)))
+                    assert matrix.data is data
+                    # assert matrix.indptr is indptr
+                    assert matrix.indices is indices
+                    self.add_columns(column_names, matrix)
+            else:
+                column_name = group_name
                 column = h5columns[column_name]
                 if "ucd" in column.attrs:
                     self.ucds[column_name] = ensure_string(column.attrs["ucd"])
@@ -231,26 +284,31 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                         self.units[column_name] = astropy.units.Unit("kg")
                 data = column if self._version == 1 else column['data']
                 if hasattr(data, "dtype"):
+
+                    #logger.debug("adding column %r with dtype %r", column_name, dtype)
                     # print column, column.shape
-                    offset = data.id.get_offset()
-                    if offset is None:
-                        raise Exception("columns doesn't really exist in hdf5 file")
+                    # offset = data.id.get_offset()
+                    # if offset is None:
+                        # raise Exception("columns doesn't really exist in hdf5 file")
                     shape = data.shape
                     if True:  # len(shape) == 1:
                         dtype = data.dtype
                         if "dtype" in data.attrs:
                             dtype = data.attrs["dtype"]
                         logger.debug("adding column %r with dtype %r", column_name, dtype)
-                        self.addColumn(column_name, offset, len(data), dtype=dtype)
+                        # self.addColumn(column_name, offset, len(data), dtype=dtype)
                         if self._version > 1 and 'mask' in column:
-                            mask = column['mask']
-                            offset = mask.id.get_offset()
-                            self.addColumn("temp_mask", offset, len(data), dtype=mask.dtype)
-                            mask_array = self.columns['temp_mask']
-                            del self.columns['temp_mask']
-                            self.column_names.remove('temp_mask')
-                            ar = self.columns[column_name] = np.ma.array(self.columns[column_name], mask=mask_array, shrink=False)
-                            assert ar.mask is mask_array, "masked array was copied"
+                            self.add_column(column_name, self._map_hdf5_array(data, column['mask']))
+                        else:
+                            self.add_column(column_name, self._map_hdf5_array(data))
+                            # mask = column['mask']
+                            # offset = mask.id.get_offset()
+                            # self.addColumn("temp_mask", offset, len(data), dtype=mask.dtype)
+                            # mask_array = self.columns['temp_mask']
+                            # del self.columns['temp_mask']
+                            # self.column_names.remove('temp_mask')
+                            # ar = self.columns[column_name] = np.ma.array(self.columns[column_name], mask=mask_array, shrink=False)
+                            # assert ar.mask is mask_array, "masked array was copied"
 
                     else:
 
@@ -262,7 +320,17 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                         # self.addColumn(column_name+"_0", offset, shape[1], dtype=column.dtype)
                         # self.addColumn(column_name+"_last", offset+(shape[0]-1)*shape[1]*column.dtype.itemsize, shape[1], dtype=column.dtype)
                         # self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
-            finished.add(column_name)
+            # finished.add(column_name)
+        all_columns = dict(**self.columns)
+        # print(all_columns, column_order)
+        self.column_names = []
+        for name in column_order:
+            self.columns[name] = all_columns.pop(name)
+            self.column_names.append(name)
+        # add the rest
+        for name, col in all_columns.items():
+            self.columns[name] = col
+            self.column_names.append(name)
 
     def close(self):
         super(Hdf5MemoryMapped, self).close()

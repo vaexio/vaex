@@ -277,7 +277,7 @@ class DatasetMemoryMapped(DatasetLocal):
         self.axes[name] = mmapped_array
         self.axis_names.append(name)
 
-    def addColumn(self, name, offset=None, length=None, dtype=np.float64, stride=1, filename=None, array=None):
+    def _map_array(self, offset=None, length=None, dtype=np.float64, stride=1, filename=None, array=None, name='unknown'):
         if filename is None:
             filename = self.filename
         if not self.nommap:
@@ -286,18 +286,19 @@ class DatasetMemoryMapped(DatasetLocal):
         if array is not None:
             length = len(array)
 
-        if self._length_original is not None and length != self._length_original:
-            logger.error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
-        else:
-            self._length_unfiltered = length
-            self._length_original = length
-            if self.current_slice is None:
-                self.current_slice = (0, length)
-                self.fraction = 1.
-                self._length = length
-                self._index_end = self._length_unfiltered
-                self._index_start = 0
+        # if self._length_original is not None and length != self._length_original:
+        #     logger.error("inconsistent length", "length of column %s is %d, while %d was expected" % (name, length, self._length))
+        # else:
+            # self._length_unfiltered = length
+            # self._length_original = length
+            # if self.current_slice is None:
+            #     self.current_slice = (0, length)
+            #     self.fraction = 1.
+            #     self._length = length
+            #     self._index_end = self._length_unfiltered
+            #     self._index_start = 0
             # print self.mapping, dtype, length if stride is None else length * stride, offset
+        if 1:
             if array is not None:
                 length = len(array)
                 mmapped_array = array
@@ -320,10 +321,19 @@ class DatasetMemoryMapped(DatasetLocal):
                     column = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
                     if stride and stride != 1:
                         column = column[::stride]
-            self.columns[name] = column
+            return column
+
+    def addColumn(self, name, offset=None, length=None, dtype=np.float64, stride=1, filename=None, array=None):
+        array = self._map_array(offset, length, dtype, stride, filename, array, name=name)
+        if array is not None:
+            if self._length_original is None:
+                self._length_unfiltered = len(array)
+                self._length_original = len(array)
+                self._index_end = self._length_unfiltered
+            self.columns[name] = array
             self.column_names.append(name)
             self._save_assign_expression(name, Expression(self, name))
-            self.all_columns[name] = column
+            self.all_columns[name] = array
             self.all_column_names.append(name)
             # self.column_names.sort()
             self.nColumns += 1
