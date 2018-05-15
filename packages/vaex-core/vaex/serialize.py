@@ -19,6 +19,10 @@ def to_dict(obj):
 def from_dict(d):
     cls_name = d['cls']
     if cls_name not in registry:
+        # lets load the module, so we give it a chance to register
+        module, dot, cls = cls_name.rpartition('.')
+        __import__(module)
+    if cls_name not in registry:
         raise ValueError('unknown class: ' + cls_name)
     else:
         obj = registry[cls_name].state_from(d['state'])

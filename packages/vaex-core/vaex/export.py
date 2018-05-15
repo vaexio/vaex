@@ -94,7 +94,6 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
         logger.debug("  exporting column: %s " % column_name)
         # with vaex.utils.Timer("copying column %s" % column_name, logger):
         if 1:
-            block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
             to_array = dataset_output.columns[column_name]
             if shuffle or sort:  # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
                 to_array_disk = to_array
@@ -105,33 +104,25 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
             to_offset = 0  # we need this for selections
             for i1, i2 in vaex.utils.subdivide(len(dataset_input), max_length=max_length):
                 logger.debug("from %d to %d (total length: %d, output length: %d)", i1, i2, len(dataset_input), N)
-                block_scope.move(i1, i2)
-                # block_scope.move(i1-i1, i2-i1)
-
-                # values = block_scope.evaluate(column_name)
-                # if values.dtype.type == np.datetime64:
-                # values = values.view(np.int64)
-
                 if selection:
-                    mask = dataset_input.evaluate_selection_mask(selection, i1=i1, i2=i2)
-                    selection_block_length = np.sum(mask)  # np.sum(dataset_input.mask[i1:i2])
-                    if selection_block_length:
-                        values = block_scope.evaluate(column_name)
+                    values = dataset_input.evaluate(column_name, i1=i1, i2=i2, selection=selection)
+                    no_values = len(values)
+                    if no_values:
                         fill_value = np.nan if values.dtype.kind == "f" else None
                         # assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
                         # (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)
                         if values.dtype.type == np.datetime64:
                             values = values.view(np.int64)
                         if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                            to_array.data[to_offset:to_offset + selection_block_length] = values.filled(fill_value)[mask]
-                            to_array.mask[to_offset:to_offset + selection_block_length] = values.mask[mask]
+                            to_array.data[to_offset:to_offset + no_values] = values.filled(fill_value)
+                            to_array.mask[to_offset:to_offset + no_values] = values.mask
                         elif not np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                            to_array[to_offset:to_offset + selection_block_length] = values[mask].filled(fill_value)
+                            to_array[to_offset:to_offset + no_values] = values.filled(fill_value)
                         else:
-                            to_array[to_offset:to_offset + selection_block_length] = values[mask]
-                        to_offset += selection_block_length
+                            to_array[to_offset:to_offset + no_values] = values
+                        to_offset += no_values
                 else:
-                    values = block_scope.evaluate(column_name)
+                    values = dataset_input.evaluate(column_name, i1=i1, i2=i2)
                     fill_value = np.nan if values.dtype.kind == "f" else None
                     # assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
                     # (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)

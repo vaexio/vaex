@@ -32,6 +32,12 @@ def test_count_cat():
 	assert ds.count(binby=ds.colors).tolist() == [1, 1, 2]
 
 
+def test_categorize():
+	ds0 = vaex.from_arrays(c=[0, 1, 1, 3])
+	ds0.categorize('c', ['a', 'b', 'c', 'd'])
+	assert ds0.iscategory(ds0.c)
+	assert ds0.category_labels(ds0.c) == ['a', 'b', 'c', 'd']
+	assert ds0.category_count(ds0.c) == 4
 
 # def test_plot_cat():
 # 	ds = vaex.from_arrays(colors=['red', 'green', 'blue', 'green'], counts=[4, ])
