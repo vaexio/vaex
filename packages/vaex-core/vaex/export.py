@@ -134,7 +134,6 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
             except concurrent.futures.TimeoutError:
                 done = False
                 break
-        print('...')
         if not done:
             if not progress(progress_status.value / float(progress_total)):
                 progress_status.cancelled = True
