@@ -4,6 +4,9 @@ import sys
 import collections
 import numpy as np
 import logging
+import concurrent.futures
+import threading
+
 import vaex
 import vaex.utils
 import vaex.execution
@@ -21,7 +24,10 @@ except:
 # from vaex.dataset import DatasetLocal
 
 logger = logging.getLogger("vaex.export")
+progress_lock = threading.Lock()
 
+class ProgressStatus(object):
+    pass
 
 def _export(dataset_input, dataset_output, random_index_column, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
     """
@@ -51,6 +57,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
 
     partial_shuffle = shuffle and len(dataset_input) != N
 
+    order_array = None
     if partial_shuffle:
         # if we only export a portion, we need to create the full length random_index array, and
         #shuffle_array_full = np.zeros(len(dataset_input), dtype=byteorder + "i8")
@@ -90,21 +97,64 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
         progress = vaex.utils.progressbar_callable(title="exporting")
     progress = progress or (lambda value: True)
     progress_total = len(column_names) * len(dataset_input)
-    progress_value = 0
+    # progress_value = [0]
+    progress_status = ProgressStatus()
+    progress_status.cancelled = False
+    progress_status.value = 0
     if selection:
         full_mask = dataset_input.evaluate_selection_mask(selection)
+    else:
+        full_mask = None
         # print('full mask', full_mask)
     sparse_groups = collections.defaultdict(list)
     sparse_matrices = {}  # alternative to a set of matrices, since they are not hashable
-    for column_name in column_names:
-        sparse_matrix = dataset_output._sparse_matrix(column_name)
-        if sparse_matrix is not None:
-            # sparse columns are written differently
-            sparse_groups[id(sparse_matrix)].append(column_name)
-            sparse_matrices[id(sparse_matrix)] = sparse_matrix
-            continue
-        logger.debug("  exporting column: %s " % column_name)
-        # with vaex.utils.Timer("copying column %s" % column_name, logger):
+    futures = []
+    # with concurrent.futures.ThreadPoolExecutor() as thread_pool:
+    thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=1) 
+    if True:
+        for column_name in column_names:
+            sparse_matrix = dataset_output._sparse_matrix(column_name)
+            if sparse_matrix is not None:
+                # sparse columns are written differently
+                sparse_groups[id(sparse_matrix)].append(column_name)
+                sparse_matrices[id(sparse_matrix)] = sparse_matrix
+                continue
+            logger.debug("  exporting column: %s " % column_name)
+            future = thread_pool.submit(_export_column, dataset_input, dataset_output, column_name, full_mask,
+                shuffle, sort, selection, N, order_array, progress_status)
+            futures.append(future)
+    # for future in futures:
+    #     future.result()
+    done = False
+    while not done:
+        done = True
+        for future in futures:
+            try:
+                future.result(0.1/4)
+            except concurrent.futures.TimeoutError:
+                done = False
+                break
+        print('...')
+        if not done:
+            if not progress(progress_status.value / float(progress_total)):
+                progress_status.cancelled = True
+
+
+            # with vaex.utils.Timer("copying column %s" % column_name, logger):
+    for sparse_matrix_id, column_names in sparse_groups.items():
+        sparse_matrix = sparse_matrices[sparse_matrix_id]
+        for column_name in column_names:
+            assert not shuffle
+            assert selection in [None, False]
+            column = dataset_output.columns[column_name]
+            column.matrix.data[:] = dataset_input.columns[column_name].matrix.data
+            column.matrix.indptr[:] = dataset_input.columns[column_name].matrix.indptr
+            column.matrix.indices[:] = dataset_input.columns[column_name].matrix.indices
+    return column_names
+
+def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffle, sort, selection, N, 
+    order_array, progress_status):
+
         if 1:
             block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
             to_array = dataset_output.columns[column_name]
@@ -165,26 +215,18 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
                             to_array[i1:i2] = values.filled(fill_value)
                         else:
                             to_array[i1:i2] = values
-
-                progress_value += i2 - i1
-                if not progress(progress_value / float(progress_total)):
+                with progress_lock:
+                    progress_status.value += i2 - i1
+                if progress_status.cancelled:
                     break
+                #if not progress(progress_value / float(progress_total)):
+                #    break
             if shuffle or sort:  # write to disk in one go
                 if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(to_array_disk):
                     to_array_disk.data[:] = to_array.data
                     to_array_disk.mask[:] = to_array.mask
                 else:
                     to_array_disk[:] = to_array
-    for sparse_matrix_id, column_names in sparse_groups.items():
-        sparse_matrix = sparse_matrices[sparse_matrix_id]
-        for column_name in column_names:
-            assert not shuffle
-            assert selection in [None, False]
-            column = dataset_output.columns[column_name]
-            column.matrix.data[:] = dataset_input.columns[column_name].matrix.data
-            column.matrix.indptr[:] = dataset_input.columns[column_name].matrix.indptr
-            column.matrix.indices[:] = dataset_input.columns[column_name].matrix.indices
-    return column_names
 
 
 def export_fits(dataset, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
