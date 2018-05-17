@@ -1182,7 +1182,7 @@ void statisticNd(
                 long long index = 0;
                 bool inside = true;
                 for(int d = 0; d < dimensions; d++) {
-                    T value = (blocks[d][i]);
+                    T value = endian(blocks[d][i]);
                     T scaled = (value - minima[d]) * scales[d];
                     if( (scaled >= 0) & (scaled < 1) ) {
                         int sub_index = (int)(scaled * count_sizes[d]);
