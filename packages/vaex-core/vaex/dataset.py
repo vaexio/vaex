@@ -5274,6 +5274,7 @@ class ColumnIndexed(Column):
         self.indices = indices
         self.name = name
         self.dtype = self.dataset.dtype(name)
+        self.shape = (len(indices),)
 
     def __len__(self):
         return len(self.indices)
