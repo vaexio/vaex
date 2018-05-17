@@ -621,7 +621,6 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 nsubgrid = fgrid.__getitem__(item) * 1
                 nsubgrid -= vmins[i]
                 nsubgrid /= (vmaxs[i] - vmins[i])
-                nsubgrid = np.clip(nsubgrid, 0, 1)
             else:
                 nsubgrid, vmin, vmax = n(fgrid.__getitem__(item))
                 vmins[i] = vmin
