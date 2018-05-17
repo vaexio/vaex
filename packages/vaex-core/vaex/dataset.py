@@ -5399,6 +5399,7 @@ class DatasetConcatenated(DatasetLocal):
         self.columns = {}
         for column_name in self.get_column_names(strings=True):
             self.columns[column_name] = _ColumnConcatenatedLazy(datasets, column_name)
+            self._save_assign_expression(column_name)
 
         for name in list(first.virtual_columns.keys()):
             if all([first.virtual_columns[name] == dataset.virtual_columns.get(name, None) for dataset in tail]):
