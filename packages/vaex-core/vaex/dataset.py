@@ -5309,9 +5309,13 @@ class _ColumnConcatenatedLazy(Column):
         else:
             if all([dtype == dtypes[0] for dtype in dtypes]):  # find common types doesn't always behave well
                 self.dtype = dtypes[0]
-            if all([dtype.kind in 'SU' for dtype in dtypes]):  # strings are also done manually
-                index = np.argmax([dtype.itemsize for dtype in dtypes])
-                self.dtype = dtypes[index]
+            if any([dtype.kind in 'SU' for dtype in dtypes]):  # strings are also done manually
+                if all([dtype.kind in 'SU' for dtype in dtypes]):
+                    index = np.argmax([dtype.itemsize for dtype in dtypes])
+                    self.dtype = dtypes[index]
+                else:
+                    index = np.argmax([dataset.columns[self.column_name].astype('O').astype('S').dtype.itemsize for dataset in datasets])
+                    self.dtype = datasets[index].columns[self.column_name].astype('O').astype('S').dtype
             else:
                 self.dtype = np.find_common_type(dtypes, [])
             logger.debug("common type for %r is %r", dtypes, self.dtype)

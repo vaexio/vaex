@@ -275,9 +275,17 @@ def from_arrays(**arrays):
 
     """
     import numpy as np
+    import six
     dataset = vaex.dataset.DatasetArrays("array")
     for name, array in arrays.items():
-        dataset.add_column(name, np.asanyarray(array))
+        if not isinstance(array, np.ndarray) and isinstance(array[0], six.string_types):
+            try:
+                array = np.array(array, dtype='S')
+            except UnicodeEncodeError:
+                array = np.array(array, dtype='U')
+        else:
+            array = np.asanyarray(array)
+        dataset.add_column(name, array)
     return dataset
 
 
