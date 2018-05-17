@@ -29,6 +29,7 @@ def main(argv):
     parser_import.add_argument("output", help="output dataset")
     parser_import.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
     parser_import.add_argument('--overwrite', help="overwrite existing entries", default=False, action='store_true')
+    parser_import.add_argument('--description', help="overwrite description", default=None)
 
     args = parser.parse_args(argv[1:])
 
@@ -65,11 +66,23 @@ def main(argv):
 
         units = data["units"]
         ucds = data["ucds"]
-        for column_name in ds.get_column_names():
+        descriptions = data["descriptions"]
+        if args.description:
+            ds.description = args.description
+        else:
+            if ds.description is None or args.overwrite:
+                ds.description = data["description"]
+        for column_name in ds.get_column_names(strings=True):
+            if column_name not in descriptions:
+                print(column_name, 'missing description')
+            else:
+                print('>>>', column_name, descriptions[column_name])
             if (args.overwrite or column_name not in ds.units) and column_name in units:
                 ds.units[column_name] = astropy.units.Unit(units[column_name])
             if (args.overwrite or column_name not in ds.ucds) and column_name in ucds:
                 ds.ucds[column_name] = ucds[column_name]
+            if (args.overwrite or column_name not in ds.descriptions) and column_name in descriptions:
+                ds.descriptions[column_name] = descriptions[column_name]
         ds.write_meta()
         print("updated meta data in %s" % args.output)
 
