@@ -129,13 +129,14 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
         N = len(grid)
     xexpression = binby[0]
     xar = np.arange(N + 1) / (N - 0.) * (xmax - xmin) + xmin
+    label = str(label or selection or x)
     if facet:
         import math
         rows, columns = int(math.ceil(facet_count / 4.)), 4
         values = np.linspace(facet_limits[0], facet_limits[1], facet_count + 1)
         for i in range(facet_count):
             ax = pylab.subplot(rows, columns, i + 1)
-            value = ax.plot(xar, ngrid[i], drawstyle="steps-mid", label=label or x, **kwargs)
+            value = ax.plot(xar, ngrid[i], drawstyle="steps-mid", label=label, **kwargs)
             v1, v2 = values[i], values[i + 1]
             pylab.xlabel(xlabel or x)
             pylab.ylabel(ylabel or what)
@@ -151,7 +152,7 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
         # print(xar, ngrid)
         # repeat the first element, that's how plot/steps likes it..
         g = np.concatenate([ngrid[0:1], ngrid])
-        value = pylab.plot(xar, g, drawstyle="steps-pre", label=label or x, **kwargs)
+        value = pylab.plot(xar, g, drawstyle="steps-pre", label=label, **kwargs)
         if self.iscategory(xexpression):
             labels = self.category_labels(xexpression)
             step = len(labels) // max_labels
@@ -170,7 +171,7 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
 
 
 @patch
-def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, c_expr=None, selection=None, length_limit=50000,
+def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, c_expr=None, labels=None, selection=None, length_limit=50000,
     length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, ellipse_kwargs={}, **kwargs):
     """Convenience wrapper around pylab.scatter when for working with small datasets or selections
 
@@ -178,9 +179,11 @@ def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, 
     :param y: Idem for y
     :param s_expr: When given, use if for the s (size) argument of pylab.scatter
     :param c_expr: When given, use if for the c (color) argument of pylab.scatter
+    :param labels: Annotate the points with these text values
     :param selection: Single selection expression, or None
     :param length_limit: maximum number of rows it will plot
     :param length_check: should we do the maximum row check or not?
+    :param label: label for the legend
     :param xlabel: label for x axis, if None .label(x) is used
     :param ylabel: label for y axis, if None .label(y) is used
     :param errorbar_kwargs: extra dict with arguments passed to plt.errorbar
@@ -190,6 +193,7 @@ def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, 
     import pylab as plt
     x = _ensure_strings_from_expressions(x)
     y = _ensure_strings_from_expressions(y)
+    label = str(label or selection)
     selection = _ensure_strings_from_expressions(selection)
     if length_check:
         count = self.count(selection=selection)
@@ -203,9 +207,9 @@ def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, 
         kwargs["c"] = self.evaluate(c_expr, selection=selection)
     plt.xlabel(xlabel or self.label(x))
     plt.ylabel(ylabel or self.label(y))
-    s = plt.scatter(x_values, y_values, **kwargs)
-    if label:
-        label_values = self.evaluate(label)
+    s = plt.scatter(x_values, y_values, label=label, **kwargs)
+    if labels:
+        label_values = self.evaluate(labels, selection=selection)
         for i, label_value in enumerate(label_values):
             plt.annotate(label_value, (x_values[i], y_values[i]))
     xerr_values = None
