@@ -145,6 +145,10 @@ class Expression(with_metaclass(Meta)):
     def values(self):
         return self.evaluate()
 
+    @property
+    def dtype(self):
+        return self.ds.dtype(self.expression)
+
     def derivative(self, var, simplify=True):
         var = vaex.dataset._ensure_string_from_expression(var)
         return self.__class__(self, expresso.derivative(self.expression, var, simplify=simplify))
