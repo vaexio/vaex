@@ -1615,14 +1615,19 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.limits("x", "90%"), self.dataset.limits_percentage("x", 90.))
 		np.testing.assert_array_almost_equal(self.dataset.limits([["x", "y"], ["x", "z"]], "minmax"),\
 										 [self.dataset.minmax(["x", "y"]), self.dataset.minmax(["x", "z"])])
+		np.testing.assert_array_almost_equal(self.dataset.limits([["x", "y"], ["x", "z"], ['y', 'z']], "minmax", shape=(10, 10))[0],\
+										 [self.dataset.minmax(["x", "y"]), self.dataset.minmax(["x", "z"]), self.dataset.minmax(["y", "z"])],
+											 )
 		np.testing.assert_array_almost_equal(
 			self.dataset.limits( [["x", "y"], ["x", "z"]], [[[0, 10], [0, 20]], "minmax"]),\
 											 [[[0, 10], [0, 20]], self.dataset.minmax(["x", "z"])])
 
+		assert self.dataset.limits(["x", 'y'], "minmax", shape=10)[1] == [10, 10]
+		assert self.dataset.limits(["x", 'y'], "minmax", shape=(10, 12))[1] == [10, 12]
 		#np.testing.assert_array_almost_equal(self.dataset.limits(["x"], [0, 10]), [[0, 10]])
-		if 0:
+		# if 0:
 			#print(">>>>>", self.dataset.limits("x", "minmax"), self.dataset.minmax("x"))
-			print(">>>>>", self.dataset.limits(["x", "y"], ["minmax", "minmax"]), self.dataset.minmax(["x", "y"]))
+			# print(">>>>>", self.dataset.limits(["x", "y"], ["minmax", "minmax"]), self.dataset.minmax(["x", "y"]))
 
 
 

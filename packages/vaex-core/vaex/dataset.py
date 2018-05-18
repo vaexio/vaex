@@ -2153,12 +2153,6 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
         # print("expressions 1)", expressions)
         # print("values      1)", values)
-        if shape is not None:
-            if _issequence(shape):
-                shapes = shape
-            else:
-                shapes = (shape, ) * len(expressions)
-
         initial_expressions, initial_values = expressions, values
         expression_values = dict()
         expression_shapes = dict()
@@ -2166,23 +2160,33 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             # print(">>>", expression, value)
             if _issequence(expression):
                 expressions = expression
+                nested = True
             else:
                 expressions = [expression]
+                nested = False
             if _is_limit(value) or not _issequence(value):
                 values = (value,) * len(expressions)
             else:
                 values = value
             # print("expressions 2)", expressions)
             # print("values      2)", values)
-            for expression, value in zip(expressions, values):
+            for j, (expression, value) in enumerate(zip(expressions, values)):
+                if shape is not None:
+                    if _issequence(shape):
+                        shapes = shape
+                    else:
+                        shapes = (shape, ) * (len(expressions) if nested else len(initial_expressions))
+
+                shape_index = j if nested else i
+
                 if not _is_limit(value):  # if a
                     # value = tuple(value) # list is not hashable
                     expression_values[(expression, value)] = None
                 if self.iscategory(expression):
                     N = self._categories[_ensure_string_from_expression(expression)]['N']
-                    expression_shapes[expression] = min(N, shapes[i] if shape is not None else default_shape)
+                    expression_shapes[expression] = min(N, shapes[shape_index] if shape is not None else default_shape)
                 else:
-                    expression_shapes[expression] = shapes[i] if shape is not None else default_shape
+                    expression_shapes[expression] = shapes[shape_index] if shape is not None else default_shape
 
         # print("##### 1)", expression_values.keys())
 
