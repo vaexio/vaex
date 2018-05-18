@@ -4685,6 +4685,10 @@ class DatasetLocal(Dataset):
             translation = np.zeros(len(found_values), dtype=np.uint64)
             missing_value = len(found_values)
             for i, found_value in enumerate(found_values):
+                try:
+                    found_value = found_value.decode('ascii')
+                except:
+                    pass
                 if found_value not in values:  # not present, we need a missing value
                     translation[i] = missing_value
                 else:
