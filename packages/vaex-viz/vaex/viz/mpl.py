@@ -383,6 +383,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     shape = shape[0]
     logger.debug("limits: %r", limits)
 
+    # mapping of a grid axis to a label
     labels = {}
     shape = _expand_shape(shape, 2)
     vshape = _expand_shape(shape, 2)
@@ -422,6 +423,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     grid_axes = dict(x=-1, y=-2, z=-3, selection=-4, what=-5, subspace=-6)
     visual_axes = dict(x=-1, y=-2, layer=-3, fade=-4, column=-5, row=-6)
     # visual_default=dict(x="x", y="y", z="layer", selection="fade", subspace="row", what="column")
+    # visual: mapping of a plot axis, to a grid axis
     visual_default = dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what")
 
     def invert(x): return dict((v, k) for k, v in x.items())
@@ -452,6 +454,8 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     visual_reverse = invert(visual)
     # TODO: the meaning of visual and visual_reverse is changed below this line, super confusing
     visual, visual_reverse = visual_reverse, visual
+    # so now, visual: mapping of a grid axis to plot axis
+    # visual_reverse: mapping of a grid axis to plot axis
     move = {}
     for grid_name, visual_name in visual.items():
         if visual_axes[visual_name] in visual.values():
@@ -555,13 +559,19 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
         xlabels = []
         ylabels = []
         for i, (binby, limits) in enumerate(zip(x, xlimits)):
-            xlabels.append(self.label(binby[0]))
-            ylabels.append(self.label(binby[1]))
+            if z is not None:
+                xlabels.append(self.label(binby[1]))
+                ylabels.append(self.label(binby[2]))
+            else:
+                xlabels.append(self.label(binby[0]))
+                ylabels.append(self.label(binby[1]))
     else:
         Nl = visual_grid.shape[visual_axes['row']]
         xlabels = _expand(xlabel, Nl)
         ylabels = _expand(ylabel, Nl)
-    # labels[visual_reverse["row"]] = (xlabels, ylabels)
+    #labels[visual["x"]] = (xlabels, ylabels)
+    labels["x"] = xlabels
+    labels["y"] = ylabels
 
     # grid = total_grid
     # print(grid.shape)
@@ -778,27 +788,19 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                     return label[i]
                 else:
                     return self.label(expression)
-            # we don't need titles when we have a colorbar
-            if (visual_reverse["row"] != "what") or not colorbar:
-                labelsxy = labels.get(visual_reverse["row"])
-                has_title = False
-                if isinstance(labelsxy, tuple):
-                    labelsx, labelsy = labelsxy
-                    pylab.xlabel(labelsx[i])
-                    pylab.ylabel(labelsy[i])
-                elif labelsxy is not None:
-                    ax.set_title(labelsxy[i])
-                    has_title = True
-                # print visual_reverse["row"], visual_reverse["column"], labels.get(visual_reverse["row"]), labels.get(visual_reverse["column"])
-            if (visual_reverse["column"] != "what") or not colorbar:
-                labelsxy = labels.get(visual_reverse["column"])
-                if isinstance(labelsxy, tuple):
-                    labelsx, labelsy = labelsxy
-                    pylab.xlabel(labelsx[j])
-                    pylab.ylabel(labelsy[j])
-                elif labelsxy is not None and not has_title:
-                    ax.set_title(labelsxy[j])
-                    pass
+            if visual_reverse["x"] =='x':
+                labelsx = labels['x']
+                pylab.xlabel(labelsx[subplot_index])
+            if visual_reverse["x"] =='x':
+                labelsy = labels['y']
+                pylab.ylabel(labelsy[subplot_index])
+            if visual["z"] in ['row']:
+                labelsz = labels['z']
+                ax.set_title(labelsz[i])
+            if visual["z"] in ['column']:
+                labelsz = labels['z']
+                ax.set_title(labelsz[j])
+
             max_labels = 10
             # xexpression = xexpressions[i]
             # if self.iscategory(xexpression):
