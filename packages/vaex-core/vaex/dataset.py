@@ -3909,7 +3909,12 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 parts += ["<tr>"]
                 parts += ["<td><i style='opacity: 0.6'>{:,}</i></td>".format(i + k1)]
                 for name in column_names:
-                    parts += ["<td>%r</td>" % data_parts[name][i]]
+                    value = data_parts[name][i]
+                    if isinstance(value, np.ma.core.MaskedConstant):
+                        value = str(value)
+                        parts += ["<td>%s</td>" % value]
+                    else:
+                        parts += ["<td>%r</td>" % value]
                 parts += ["</tr>"]
             return parts
         parts = table_part(i1, i2, parts)
