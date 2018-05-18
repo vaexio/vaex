@@ -187,10 +187,10 @@ class TestDataset(unittest.TestCase):
 			ds['NAME'] = upper
 
 			name = ds.evaluate('NAME')
-			self.assertEquals(name[0], '0.0BLA')
+			self.assertEquals(name[0], u'0.0BLA')
 			ds_copy.state_set(ds.state_get())
 			name = ds_copy.evaluate('NAME')
-			self.assertEquals(name[0], '0.0BLA')
+			self.assertEquals(name[0], u'0.0BLA')
 
 		ds['a1'] = ds.apply(lambda x: x+1, arguments=['x'])
 		ds['a2'] = ds.apply(lambda x: x+2, arguments=['x'])
