@@ -31,7 +31,7 @@ class check_output(object):
 
 
 	def __enter__(self):
-		pass
+		plt.figure()
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
 		if exc_type is not None:
