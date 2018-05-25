@@ -703,13 +703,14 @@ class _BlockScope(object):
             if variable in self.values:
                 return self.values[variable]
             elif variable in self.dataset.get_column_names(strings=True, hidden=True):
+                offset = self.dataset._index_start
                 if self.dataset._needs_copy(variable):
                     # self._ensure_buffer(variable)
                     # self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
                     # Previously we casted anything to .astype(np.float64), this led to rounding off of int64, when exporting
-                    self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask]
+                    self.values[variable] = self.dataset.columns[variable][offset+self.i1:offset+self.i2][self.mask]
                 else:
-                    self.values[variable] = self.dataset.columns[variable][self.i1:self.i2][self.mask]
+                    self.values[variable] = self.dataset.columns[variable][offset+self.i1:offset+self.i2][self.mask]
             elif variable in list(self.dataset.virtual_columns.keys()):
                 expression = self.dataset.virtual_columns[variable]
                 if isinstance(expression, dict):
@@ -774,10 +775,11 @@ class _BlockScopeSelection(object):
                     cache[key] = selection, mask
                 return mask
             else:
+                offset = self.dataset._index_start
                 if variable in expression_namespace:
                     return expression_namespace[variable]
                 elif variable in self.dataset.get_column_names(strings=True, hidden=True):
-                    return self.dataset.columns[variable][self.i1:self.i2]
+                    return self.dataset.columns[variable][offset+self.i1:offset+self.i2]
                 elif variable in self.dataset.variables:
                     return self.dataset.variables[variable]
                 elif variable in list(self.dataset.virtual_columns.keys()):
@@ -1337,6 +1339,26 @@ class Dataset(object):
         print(bins, value, index)
         return index
 
+    @delayed
+    def _count_calculation(self, expression, binby, limits, shape, selection, edges, progressbar):
+        if shape:
+            limits, shapes = limits
+        else:
+            limits, shapes = limits, shape
+        # print(limits, shapes)
+        if expression in ["*", None]:
+            task = TaskStatistic(self, binby, shapes, limits, op=OP_ADD1, selection=selection, edges=edges)
+        else:
+            task = TaskStatistic(self, binby, shapes, limits, weight=expression, op=OP_COUNT, selection=selection, edges=edges)
+        self.executor.schedule(task)
+        progressbar.add_task(task, "count for %s" % expression)
+        @delayed
+        def finish(counts):
+            counts = np.array(counts)
+            counts = counts[...,0]
+            return counts
+        return finish(task)
+
     @docsubst
     def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
         """Count the number of non-NaN values (or all, if expression is None or "*")
@@ -1362,35 +1384,16 @@ class Dataset(object):
         :return: {return_stat_scalar}
         """
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
+        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
         expression = _ensure_string_from_expression(expression)
         binby = _ensure_strings_from_expressions(binby)
-
+        waslist, [expressions,] = vaex.utils.listify(expression)
         @delayed
-        def calculate(expression, limits_and_shapes):
-            if shape:
-                limits, shapes = limits_and_shapes
-            else:
-                limits, shapes = limits_and_shapes, shape
-            if expression in ["*", None]:
-                # if not binby: # if we have nothing to iterate over, the statisticNd code won't do anything
-                # \3 return np.array([self.length(selection=selection)], dtype=float)
-                # else:
-                task = TaskStatistic(self, binby, shapes, limits, op=OP_ADD1, selection=selection, edges=edges)
-            else:
-                task = TaskStatistic(self, binby, shapes, limits, weight=expression, op=OP_COUNT, selection=selection, edges=edges)
-            self.executor.schedule(task)
-            progressbar.add_task(task, "count for %s" % expression)
-            return task
-
-        @delayed
-        def finish(*stats_args):
-            stats = np.array(stats_args)
-            counts = stats[..., 0]
+        def finish(*counts):
             return vaex.utils.unlistify(waslist, counts)
-        waslist, [expressions, ] = vaex.utils.listify(expression)
         progressbar = vaex.utils.progressbars(progress)
-        limits_and_shapes = self.limits(binby, limits, delay=True, shape=shape)
-        stats = [calculate(expression, limits_and_shapes) for expression in expressions]
+        limits = self.limits(binby, limits, delay=True, shape=shape)
+        stats = [self._count_calculation(expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
         var = finish(*stats)
         return self._delay(delay, var)
 
@@ -1441,6 +1444,17 @@ class Dataset(object):
         var = finish(*stats)
         return self._delay(delay, var)
 
+    @delayed
+    def _sum_calculation(self, expression, binby, limits, shape, selection, progressbar):
+        task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
+        self.executor.schedule(task)
+        progressbar.add_task(task, "sum for %s" % expression)
+        @delayed
+        def finish(sum_grid):
+            stats = np.array(sum_grid)
+            return stats[...,1]
+        return finish(task)
+
     @docsubst
     @stat_1d
     def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
@@ -1464,24 +1478,16 @@ class Dataset(object):
         :return: {return_stat_scalar}
         """
         @delayed
-        def calculate(expression, limits):
-            task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
-            self.executor.schedule(task)
-            progressbar.add_task(task, "sum for %s" % expression)
-            return task
-
-        @delayed
-        def finish(*stats_args):
-            stats = np.array(stats_args)
-            sum = stats[..., 1]
-            return vaex.utils.unlistify(waslist, sum)
+        def finish(*sums):
+            return vaex.utils.unlistify(waslist, sums)
         expression = _ensure_strings_from_expressions(expression)
         binby = _ensure_strings_from_expressions(binby)
         waslist, [expressions, ] = vaex.utils.listify(expression)
         progressbar = vaex.utils.progressbars(progress)
         limits = self.limits(binby, limits, delay=True)
-        stats = [calculate(expression, limits) for expression in expressions]
-        s = finish(*stats)
+        # stats = [calculate(expression, limits) for expression in expressions]
+        sums = [self._sum_calculation(expression, binby=binby, limits=limits, shape=shape, selection=selection, progressbar=progressbar) for expression in expressions]
+        s = finish(*sums)
         return self._delay(delay, s)
 
     @docsubst

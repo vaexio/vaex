@@ -2304,24 +2304,27 @@ class TestDatasetRemote(TestDataset):
 	#	pass
 
 import vaex.distributed
-class A:#class T_estDatasetDistributed(unittest.TestCase):
+#class A:#class T_estDatasetDistributed(unittest.TestCase):
 #class TestDatasetDistributed(unittest.TestCase):
+class TestDatasetDistributed(TestDatasetRemote):
 
 	use_websocket = False
 
 	def setUp(self):
+		TestDataset.setUp(self)
 		global test_port
-		self.dataset_local = self.dataset = dataset.DatasetArrays("dataset")
+		# self.dataset_local = self.dataset = dataset.DatasetArrays("dataset")
+		self.dataset_local = self.dataset
 
-		self.x = x = np.arange(10)
-		self.y = y = x ** 2
-		self.dataset.add_column("x", x)
-		self.dataset.add_column("y", y)
+		datasets = [self.dataset]
+		datasets_copy = [k.copy() for k in datasets] # otherwise we share the selection cache
+		for ds in datasets_copy:
+			ds.name = self.dataset_local.name
 		datasets = [self.dataset]
 		self.webserver1 = vaex.webserver.WebServer(datasets=datasets, port=test_port)
 		self.webserver1.serve_threaded()
 		test_port += 1
-		self.webserver2 = vaex.webserver.WebServer(datasets=datasets, port=test_port)
+		self.webserver2 = vaex.webserver.WebServer(datasets=datasets_copy, port=test_port)
 		self.webserver2.serve_threaded()
 		test_port += 1
 

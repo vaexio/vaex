@@ -96,8 +96,9 @@ class SubspaceDistributed(vaex.legacy.Subspace):
         minmaxes = self._apply_all("minmax")
         promise = reduce_minmaxes(minmaxes)
         task = vaex.dataset.Task()
-        promise.then(task.fulfill)
-        return self._task(task)  # , progressbar=progressbar)
+        self.dataset.executor.schedule(task)
+        #promise.then(task.fulfill)
+        return self.dataset._delay(False, task) #self._task(task)#, progressbar=progressbar)
 
     def histogram(self, limits, size=256, weight=None, progressbar=False, group_by=None, group_limits=None, delay=None):
         @delayed
@@ -147,12 +148,17 @@ class DatasetDistributed(vaex.dataset.Dataset):
         self.ucds = self.datasets[0].ucds
         self.descriptions = self.datasets[0].descriptions
         self.description = self.datasets[0].description
-        self._full_length = self.datasets[0].full_length()
-        self._length = self._full_length
-        self.path = self.datasets[0].path  # may we should use some cluster name oroso
-        parts = np.linspace(0, self._length, len(self.datasets) + 1, dtype=int)
+        self._length_original = self.datasets[0].length_original()
+        self._length_unfiltered = self.datasets[0].length_unfiltered()
+        self.path = self.datasets[0].path # may we should use some cluster name oroso
+        parts = np.linspace(0, self._length_original, len(self.datasets)+1, dtype=int)
         for dataset, i1, i2 in zip(self.datasets, parts[0:-1], parts[1:]):
-            dataset.set_active_range(i1, i2)
+            dataset.set_active_range(i1.item(), i2.item())
+        for column_name in self.get_column_names(virtual=True, strings=True):
+            self._save_assign_expression(column_name)
+
+    def copy(self):
+        return DatasetDistributed([k.copy() for k in self.datasets])
 
     def dtype(self, expression):
         if expression in self.dtypes:
@@ -165,6 +171,67 @@ class DatasetDistributed(vaex.dataset.Dataset):
     def __call__(self, *expressions, **kwargs):
         return SubspaceDistributed(self, expressions, kwargs.get("executor") or self.executor, delay=kwargs.get("delay", False))
 
+    def _apply_all(self, name, *args, **kwargs):
+        promises = []
+        logger.info("calling %s (args: %r, kwargs: %r)", name, args, kwargs)
+        kwargs['delay'] = True
+        for dataset in self.datasets:
+            import time
+            t0 = time.time()
+            def timit(o, dataset=dataset, t0=t0):
+                logger.info("took %s %f for %r" % (dataset.server.hostname, time.time() - t0, o))
+                return o
+            def error(e, dataset=dataset):
+                logger.error("issues with %s (%r)" % (dataset.server.hostname, e))
+                try:
+                    raise e
+                except:
+                    logger.exception("error in error handler")
+            f = getattr(dataset, name)
+            promise = f(*args, **kwargs).then(timit, error)
+            promises.append(promise)
+        return aplus.listPromise(promises)    
+
+    @delayed
+    def _sum_calculation(self, expression, binby, limits, shape, selection, progressbar):
+        @delayed
+        def sum_reduce(sums):
+            return np.sum(sums, axis=0)
+        promise = sum_reduce(self._apply_all("sum", expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+        return promise
+
+    @delayed
+    def _count_calculation(self, expression, binby, limits, shape, selection, edges, progressbar):
+        @delayed
+        def count_reduce(counts):
+            print(counts)
+            counts = np.array(counts)
+            return np.sum(counts, axis=0)
+        print('expression', expression)
+        promise = count_reduce(self._apply_all("count", expression=expression, binby=binby, limits=limits, shape=shape, edges=edges, selection=selection))
+        return promise
+
+    @delayed
+    def _minmax_calculation(self, expression, binby, limits, shape, selection, progressbar):
+        # TODO: this should take all expressions as argument, more efficient
+        @delayed
+        def minmax_reduce(minmaxes):
+            minmaxes = np.array(minmaxes)
+            mins = minmaxes[...,0]
+            maxs = minmaxes[...,1]
+            minmax = np.stack([np.nanmin(mins, axis=0), np.nanmax(maxs, axis=0)], axis=-1)
+            return minmax
+        promise = minmax_reduce(self._apply_all("minmax", expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+        return promise
+
+    def select(self, *args, **kwargs):
+        for dataset in self.datasets:
+            dataset.select(*args, **kwargs)
+
+
+import vaex.settings
+import vaex as vx
+import socket
 
 try:
     from urllib.parse import urlparse

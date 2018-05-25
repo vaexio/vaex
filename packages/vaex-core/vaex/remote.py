@@ -327,7 +327,7 @@ class ServerRest(object):
 
             def do():
                 self.thread_mover(task.signal_progress.emit, 0.5)
-                future = self.http_client_delay.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
+                future = self.http_client_async.fetch(url, headers=headers, request_timeout=DEFAULT_REQUEST_TIMEOUT, **kwargs)
 
                 def thread_save_succes(value):
                     self.thread_mover(task.signal_progress.emit, 1.0)

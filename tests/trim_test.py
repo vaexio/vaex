@@ -8,7 +8,10 @@ def test_trim(ds_local):
     assert ds_trimmed.evaluate('x').tolist() == np.arange(10.).tolist()
 
     # trimming with a non-zero start index
-    ds.set_active_range(5, 10)
+    start = ds.get_active_range()[0]
+    if ds.filtered:
+        start = 2  # dirty hack
+    ds.set_active_range(start+5, start+10)
     ds_trimmed = ds.trim()
     assert ds_trimmed.length_original() == ds_trimmed.length_unfiltered() == 5
     assert ds_trimmed.get_active_range() == (0, ds_trimmed.length_original()) == (0, 5)

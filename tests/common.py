@@ -35,13 +35,13 @@ def ds_filtered():
 @pytest.fixture()
 def ds_half():
     ds = create_base_ds()
-    ds.set_active_range(0, 10)
+    ds.set_active_range(2, 12)
     return ds
 
 @pytest.fixture()
 def ds_trimmed():
     ds = create_base_ds()
-    ds.set_active_range(0, 10)
+    ds.set_active_range(2, 12)
     return ds.trim()
 
 @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote'])
@@ -61,14 +61,14 @@ def ds_no_filter(request):
 
 def create_filtered():
     ds = create_base_ds()
-    ds.select('x < 10', name=vaex.dataset.FILTER_SELECTION_NAME)
+    ds.select('(x >= 0) & (x < 10)', name=vaex.dataset.FILTER_SELECTION_NAME)
     return ds
 
 def create_base_ds():
     dataset = vaex.dataset.DatasetArrays("dataset")
-    x = x = np.arange(40, dtype=">f8").reshape((-1,20)).T.copy()[:,0]
+    x = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
     y = y = x ** 2
-    ints = np.arange(20, dtype="i8")
+    ints = np.arange(-2,19, dtype="i8")
     ints[0] = 2**62+1
     ints[1] = -2**62+1
     ints[2] = -2**62-1
@@ -77,7 +77,8 @@ def create_base_ds():
     ints[2+10] = -2**62-1
     dataset.add_column("x", x)
     dataset.add_column("y", y)
-    m = x.copy()
+    # m = x.copy()
+    m = m = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
     ma_value = 77777
     m[-1+10] = ma_value
     m[-1+20] = ma_value

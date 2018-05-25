@@ -165,7 +165,7 @@ class Executor(object):
                     def process(thread_index, i1, i2):
                         if not cancelled[0]:
                             block_scope = block_scopes[thread_index]
-                            block_scope.move(i1 + dataset._index_start, i2 + dataset._index_start)
+                            block_scope.move(i1, i2)
                             # with ne_lock:
                             block_dict = {expression: block_scope.evaluate(expression) for expression in expressions}
                             for task in task_queue:
