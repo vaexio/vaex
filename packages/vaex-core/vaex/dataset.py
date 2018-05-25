@@ -958,16 +958,16 @@ def selection_from_dict(values):
     kwargs = dict(values)
     del kwargs["type"]
     if values["type"] == "lasso":
-        kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
+        kwargs["previous_selection"] = selection_from_dict(values["previous_selection"]) if values["previous_selection"] else None
         return SelectionLasso(**kwargs)
     elif values["type"] == "expression":
-        kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
+        kwargs["previous_selection"] = selection_from_dict(values["previous_selection"]) if values["previous_selection"] else None
         return SelectionExpression(**kwargs)
     elif values["type"] == "invert":
-        kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
+        kwargs["previous_selection"] = selection_from_dict(values["previous_selection"]) if values["previous_selection"] else None
         return SelectionInvert(**kwargs)
     elif values["type"] == "dropna":
-        kwargs["previous_selection"] = selection_from_dict(dataset, values["previous_selection"]) if values["previous_selection"] else None
+        kwargs["previous_selection"] = selection_from_dict(values["previous_selection"]) if values["previous_selection"] else None
         return SelectionDropNa(**kwargs)
     else:
         raise ValueError("unknown type: %r, in dict: %r" % (values["type"], values))
