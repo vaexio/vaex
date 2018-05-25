@@ -1178,6 +1178,22 @@ class Dataset(object):
 
         self._sparse_matrices = {}  # record which sparse columns belong to which sparse matrix
 
+        self._categories = collections.OrderedDict()
+        self._selection_mask_caches = collections.defaultdict(dict)
+
+    def iscategory(self, column):
+        """Returns true if column is a category"""
+        column = _ensure_string_from_expression(column)
+        return column in self._categories
+
+    def category_labels(self, column):
+        column = _ensure_string_from_expression(column)
+        return self._categories[column]['labels']
+
+    def category_count(self, column):
+        column = _ensure_string_from_expression(column)
+        return self._categories[column]['N']
+
     def execute(self):
         '''Execute all delayed jobs'''
         self.executor.execute()
@@ -4651,21 +4667,6 @@ class DatasetLocal(Dataset):
         self.path = path
         self.mask = None
         self.columns = collections.OrderedDict()
-        self._categories = collections.OrderedDict()
-        self._selection_mask_caches = collections.defaultdict(dict)
-
-    def iscategory(self, column):
-        """Returns true if column is a category"""
-        column = _ensure_string_from_expression(column)
-        return column in self._categories
-
-    def category_labels(self, column):
-        column = _ensure_string_from_expression(column)
-        return self._categories[column]['labels']
-
-    def category_count(self, column):
-        column = _ensure_string_from_expression(column)
-        return self._categories[column]['N']
 
     def categorize(self, column, labels, check=True):
         """Mark column as categorical, with given labels, assuming zero indexing"""
