@@ -1057,6 +1057,12 @@ expression_namespace["dt_year"] = dt_year
 expression_namespace["dt_hour"] = dt_hour
 
 
+def str_strip(x, chars=None):
+    # don't change the dtype, otherwise for each block the dtype may be different (string length)
+    return np.char.strip(x, chars).astype(x.dtype)
+
+expression_namespace['str_strip'] = str_strip
+
 def _float(x):
     return x.astype(np.float64)
 

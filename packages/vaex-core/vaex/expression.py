@@ -130,6 +130,13 @@ class DateTime(object):
     def hour(self):
         return self.expression.ds.func.dt_hour(self.expression)
 
+class StringOperations(object):
+    def __init__(self, expression):
+        self.expression = expression
+
+    def strip(self, chars=None):
+        return self.expression.ds.func.str_strip(self.expression)
+
 class Expression(with_metaclass(Meta)):
     def __init__(self, ds, expression):
         self.ds = ds
@@ -140,6 +147,10 @@ class Expression(with_metaclass(Meta)):
     @property
     def dt(self):
         return DateTime(self)
+
+    @property
+    def str(self):
+        return StringOperations(self)
 
     @property
     def values(self):

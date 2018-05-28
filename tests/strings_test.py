@@ -26,3 +26,8 @@ def test_concat_mixed():
 	ds = ds1.concat(ds2)
 	assert len(ds) == len(ds1) + len(ds2)
 	assert ds.dtype(ds.names) == ds1.names.dtype
+
+def test_strip():
+	ds = vaex.from_arrays(names=['this ', ' has', ' space'])
+	ds['stripped'] = ds.names.str.strip()
+	ds.stripped.tolist() == ['this', 'has', 'space']
