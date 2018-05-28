@@ -5,16 +5,23 @@ import numpy.ma
 
 df_a = vaex.from_arrays(a=np.array(   ['A', 'B', 'C']),
                         x=np.array(   [0., 1., 2.]),
-                        y=np.ma.array([0., 9., 2.], mask=[False, True, False])
+                        y=np.ma.array([0., 9., 2.], mask=[False, True, False]),
+                        m=np.ma.array([1, 2, 3], mask=[False, True, False])
                         )
 df_b = vaex.from_arrays(b=np.array(['A', 'B', 'D']),
                         x=np.array([2., 1., 0.]),
-                        y=np.ma.array([9., 1., 2.], mask=[True, False, False])
+                        y=np.ma.array([9., 1., 2.], mask=[True, False, False]),
+                        m=np.ma.array([3, 1, 2], mask=[True, True, False])
                         )
 def test_no_on():
     # just adds the columns
     df = df_a.join(df_b, rsuffix='_r')
     assert df.columns['b'] is df_b.columns['b']
+
+def test_join_masked():
+    df = df_a.join(other=df_b, left_on='m', right_on='m', rsuffix='_r')
+    assert df.evaluate('m').tolist() == [1, None, 3]
+    assert df.evaluate('m_r').tolist() == [None, None, None]
 
 def test_left_a_b():
     df = df_a.join(other=df_b, left_on='a', right_on='b', rsuffix='_r')

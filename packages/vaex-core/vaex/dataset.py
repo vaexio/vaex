@@ -5185,9 +5185,19 @@ class DatasetLocal(Dataset):
             left_values = left.evaluate(left_on, filtered=False)
             right_values = right.evaluate(right_on)
             # maps from the left_values to row #
-            index_left = dict(zip(left_values, range(N)))
+            if np.ma.isMaskedArray(left_values):
+                mask = ~left_values.mask
+                left_values = left_values.data
+                index_left = dict(zip(left_values[mask], np.arange(N)[mask]))
+            else:
+                index_left = dict(zip(left_values, np.arange(N)))
             # idem for right
-            index_other = dict(zip(right_values, range(N_other)))
+            if np.ma.isMaskedArray(right_values):
+                mask = ~right_values.mask
+                right_values = right_values.data
+                index_other = dict(zip(right_values[mask], np.arange(N_other)[mask]))
+            else:
+                index_other = dict(zip(right_values, np.arange(N_other)))
 
             # we do a left join, find all rows of the right dataset
             # that has an entry on the left
