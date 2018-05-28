@@ -140,7 +140,7 @@ def add_virtual_columns_proper_motion_eq2gal(self, long_in="ra", lat_in="dec", p
                                             right_ascension_galactic_pole=192.85,
                                             declination_galactic_pole=27.12,
                                             propagate_uncertainties=False,
-                                            radians=False):
+                                            radians=False, inverse=False):
     """Transform/rotate proper motions from equatorial to galactic coordinates
 
     Taken from http://arxiv.org/abs/1306.2945
@@ -153,6 +153,7 @@ def add_virtual_columns_proper_motion_eq2gal(self, long_in="ra", lat_in="dec", p
     :param pm_lat_out: Output name for output proper motion on b direction
     :param name_prefix:
     :param radians: input and output in radians (True), or degrees (False)
+    :parap inverse: (For internal use) convert from galactic to equatorial instead
     :return:
     """
     # import kapteyn.celestial as c
@@ -173,10 +174,30 @@ def add_virtual_columns_proper_motion_eq2gal(self, long_in="ra", lat_in="dec", p
     self[c2_name] = c2 = np.cos(declination_galactic_pole) * np.sin(long_in - right_ascension_galactic_pole)
     c1 = self[c1_name]
     c2 = self[c2_name]
-    self[pm_long_out] = ( c1 * pm_long + c2 * pm_lat)/np.sqrt(c1**2+c2**2)
-    self[pm_lat_out] =  (-c2 * pm_long + c1 * pm_lat)/np.sqrt(c1**2+c2**2)
+    if inverse:
+        self[pm_long_out] = ( c1 * pm_long + -c2 * pm_lat)/np.sqrt(c1**2+c2**2)
+        self[pm_lat_out] =  ( c2 * pm_long +  c1 * pm_lat)/np.sqrt(c1**2+c2**2)
+    else:
+        self[pm_long_out] = ( c1 * pm_long + c2 * pm_lat)/np.sqrt(c1**2+c2**2)
+        self[pm_lat_out] =  (-c2 * pm_long + c1 * pm_lat)/np.sqrt(c1**2+c2**2)
     if propagate_uncertainties:
         self.propagate_uncertainties([self[pm_long_out], self[pm_lat_out]])
+
+@patch
+def add_virtual_columns_proper_motion_gal2eq(self, long_in="ra", lat_in="dec", pm_long="pm_l", pm_lat="pm_b", pm_long_out="pm_ra", pm_lat_out="pm_dec",
+                                            name_prefix="__proper_motion_gal2eq",
+                                            right_ascension_galactic_pole=192.85,
+                                            declination_galactic_pole=27.12,
+                                            propagate_uncertainties=False,
+                                            radians=False):
+    """Transform/rotate proper motions from galactic to equatorial coordinates.
+
+    Inverse of :py:`add_virtual_columns_proper_motion_eq2gal`
+    """
+    kwargs = dict(**locals())
+    kwargs.pop('self')
+    kwargs['inverse'] = True
+    self.add_virtual_columns_proper_motion_eq2gal(**kwargs)
 
 
 @patch

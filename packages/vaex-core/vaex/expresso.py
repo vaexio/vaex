@@ -319,8 +319,14 @@ class ExpressionString(ast.NodeVisitor):
                 return "({left} - {right})".format(left=left, right=right)
             if isinstance(node.op, ast.Pow):
                 return "({left} ** {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.BitAnd):
+                return "({left} & {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.BitOr):
+                return "({left} | {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.BitXor):
+                return "({left} ^ {right})".format(left=left, right=right)
             else:
-                return "error"
+                return "do_not_understand_expression"
         finally:
             self.indent -= 1
 
