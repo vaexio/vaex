@@ -31,3 +31,12 @@ def test_strip():
 	ds = vaex.from_arrays(names=['this ', ' has', ' space'])
 	ds['stripped'] = ds.names.str.strip()
 	ds.stripped.tolist() == ['this', 'has', 'space']
+
+def test_unicode(tmpdir):
+	path = str(tmpdir.join('utf32.hdf5'))
+	ds = vaex.from_arrays(names=["vaex", "or", "væx!"])
+	assert str(ds.names.dtype) == '<U4'
+	ds.export_hdf5(path)
+	ds = vaex.open(path)
+	assert str(ds.names.dtype) == '<U4'
+	assert ds.names.tolist() == ["vaex", "or", "væx!"]

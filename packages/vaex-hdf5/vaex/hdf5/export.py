@@ -154,6 +154,13 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
             if dtype.type == np.datetime64:
                 array = h5column_output.require_dataset('data', shape=shape, dtype=np.int64)
                 array.attrs["dtype"] = dtype.name
+            elif dtype.kind == 'U':
+                # numpy uses utf32 for unicode
+                char_length = dtype.itemsize // 4
+                shape = (N, char_length)
+                array = h5column_output.require_dataset('data', shape=shape, dtype=np.uint8)
+                array.attrs["dtype"] = 'utf32'
+                array.attrs["dlength"] = char_length
             else:
                 try:
                     array = h5column_output.require_dataset('data', shape=shape, dtype=dtype.newbyteorder(byteorder))
