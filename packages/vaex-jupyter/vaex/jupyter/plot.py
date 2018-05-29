@@ -88,7 +88,8 @@ class PlotBase(widgets.Widget):
     def __init__(self, backend, dataset, x, y=None, z=None, w=None, grid=None, limits=None, shape=128, what="count(*)", f=None,
                  vshape=16,
                  selection=None, grid_limits=None, normalize=None, colormap="afmhot",
-                 figure_key=None, fig=None, what_kwargs={}, grid_before=None, vcount_limits=None, **kwargs):
+                 figure_key=None, fig=None, what_kwargs={}, grid_before=None, vcount_limits=None, 
+                 controls_selection=False, **kwargs):
         super(PlotBase, self).__init__(x=x, y=y, z=z, w=w, what=what, vcount_limits=vcount_limits, grid_limits=grid_limits, f=f, **kwargs)
         self.backend = backend
         self.vgrids = [None, None, None]
@@ -148,35 +149,37 @@ class PlotBase(widgets.Widget):
         selections = [_translate_selection(k) for k in selections]
         selections = [k for k in selections if k]
         self.widget_selection_active = widgets.ToggleButtons(options=list(zip(selections, selections)), description='selection')
-        self.add_control_widget(self.widget_selection_active)
+        self.controls_selection = controls_selection
+        if self.controls_selection:
+            self.add_control_widget(self.widget_selection_active)
 
-        modes = ['replace', 'and', 'or', 'xor', 'subtract']
-        self.widget_selection_mode = widgets.ToggleButtons(options=modes, description='mode')
-        self.add_control_widget(self.widget_selection_mode)
+            modes = ['replace', 'and', 'or', 'xor', 'subtract']
+            self.widget_selection_mode = widgets.ToggleButtons(options=modes, description='mode')
+            self.add_control_widget(self.widget_selection_mode)
 
-        self.widget_selection_undo = widgets.Button(options=modes, description='undo', icon='arrow-left')
-        self.widget_selection_redo = widgets.Button(options=modes, description='redo', icon='arrow-right')
-        self.add_control_widget(widgets.HBox([widgets.Label('history', layout={'width': '80px'}), self.widget_selection_undo, self.widget_selection_redo]))
-        def redo(*ignore):
-            selection = _translate_selection(self.widget_selection_active.value)
-            self.dataset.selection_redo(name=selection)
+            self.widget_selection_undo = widgets.Button(options=modes, description='undo', icon='arrow-left')
+            self.widget_selection_redo = widgets.Button(options=modes, description='redo', icon='arrow-right')
+            self.add_control_widget(widgets.HBox([widgets.Label('history', layout={'width': '80px'}), self.widget_selection_undo, self.widget_selection_redo]))
+            def redo(*ignore):
+                selection = _translate_selection(self.widget_selection_active.value)
+                self.dataset.selection_redo(name=selection)
+                check_undo_redo()
+            self.widget_selection_redo.on_click(redo)
+            def undo(*ignore):
+                selection = _translate_selection(self.widget_selection_active.value)
+                self.dataset.selection_undo(name=selection)
+                check_undo_redo()
+            self.widget_selection_undo.on_click(undo)
+            def check_undo_redo(*ignore):
+                selection = _translate_selection(self.widget_selection_active.value)
+                self.widget_selection_undo.disabled = not self.dataset.selection_can_undo(selection)
+                self.widget_selection_redo.disabled = not self.dataset.selection_can_redo(selection)
+            self.widget_selection_active.observe(check_undo_redo, 'value')
             check_undo_redo()
-        self.widget_selection_redo.on_click(redo)
-        def undo(*ignore):
-            selection = _translate_selection(self.widget_selection_active.value)
-            self.dataset.selection_undo(name=selection)
-            check_undo_redo()
-        self.widget_selection_undo.on_click(undo)
-        def check_undo_redo(*ignore):
-            selection = _translate_selection(self.widget_selection_active.value)
-            self.widget_selection_undo.disabled = not self.dataset.selection_can_undo(selection)
-            self.widget_selection_redo.disabled = not self.dataset.selection_can_redo(selection)
-        self.widget_selection_active.observe(check_undo_redo, 'value')
-        check_undo_redo()
 
 
-        callback = self.dataset.signal_selection_changed.connect(check_undo_redo)
-        callback = self.dataset.signal_selection_changed.connect(lambda *x: self.update_grid())
+            callback = self.dataset.signal_selection_changed.connect(check_undo_redo)
+            callback = self.dataset.signal_selection_changed.connect(lambda *x: self.update_grid())
 
         def _on_limits_change(*args):
             self._progressbar.cancel()
@@ -575,9 +578,10 @@ class Plot2dSliced(PlotBase):
         self.z_control = widgets.VBox([self.z_slice_slider, self.z_range_slider])
         self.add_control_widget(self.z_control)
 
-        self.widget_z_select = widgets.Checkbox(description='select z range', value=self.z_select)
-        widgets.link((self, 'z_select'), (self.widget_z_select, 'value'))
-        self.add_control_widget(self.widget_z_select)
+        if self.controls_selection:
+            self.widget_z_select = widgets.Checkbox(description='select z range', value=self.z_select)
+            widgets.link((self, 'z_select'), (self.widget_z_select, 'value'))
+            self.add_control_widget(self.widget_z_select)
 
 
     def _z_range_changed_(self, changes, **kwargs):
