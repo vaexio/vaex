@@ -349,7 +349,8 @@ class PlotBase(widgets.Widget):
             with np.errstate(divide='ignore', invalid='ignore'):
                 fgrid = f(grid)
             try:
-                vmin, vmax = np.nanpercentile(fgrid, [self.grid_limits_min, self.grid_limits_max])
+                mask = np.isfinite(fgrid)
+                vmin, vmax = np.percentile(fgrid[mask], [self.grid_limits_min, self.grid_limits_max])
                 self.grid_limits = [vmin, vmax]
             except:
                 pass
@@ -446,7 +447,7 @@ class PlotBase(widgets.Widget):
         else:
             n = vaex.dataset._parse_n(self.normalize)
             grid, vmin, vmax = n(grid)
-        grid = np.clip(grid, 0, 1)
+        # grid = np.clip(grid, 0, 1)
         return grid, vmin, vmax
 
 
