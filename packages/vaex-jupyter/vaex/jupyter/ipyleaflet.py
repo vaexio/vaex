@@ -24,10 +24,10 @@ class IpyleafletBackend(BackendBase):
             center = center[1], center[0]
             self.map = ll.Map(center=center, zoom=self._zoom)
 
-        self.map.observe(self._update_limits, "_north")
-        self.map.observe(self._update_limits, "_east")
-        self.map.observe(self._update_limits, "_south")
-        self.map.observe(self._update_limits, "_west")
+        self.map.observe(self._update_limits, "north")
+        self.map.observe(self._update_limits, "east")
+        self.map.observe(self._update_limits, "south")
+        self.map.observe(self._update_limits, "west")
         # self.map.bounds = self.limits
         # self.limits = self.map.bounds[1], self.map.bounds[0] # np.array(limits).tolist()
         # print(self.map.bounds, self.map.west)
@@ -38,8 +38,8 @@ class IpyleafletBackend(BackendBase):
         with self.output:
             # self._progressbar.cancel()
             limits = copy.deepcopy(self.limits)
-            limits[0] = (self.map._west, self.map._east)
-            limits[1] = (self.map._north, self.map._south)
+            limits[0] = (self.map.west, self.map.east)
+            limits[1] = (self.map.north, self.map.south)
             self.limits = limits
 
     @debounced(0.1, method=True)
