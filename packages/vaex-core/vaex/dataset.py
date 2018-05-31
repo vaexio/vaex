@@ -3585,7 +3585,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if propagate_uncertainties:
             self.propagate_uncertainties([self[vr_out], self[vazimuth_out]])
 
-    def add_virtual_columns_polar_velocities_to_cartesian(self, x='x', y='y', azimuth=None, vr='vr', vazimuth='vazimuth', vx_out='vx', vy_out='vy', propagate_uncertainties=False):
+    def add_virtual_columns_polar_velocities_to_cartesian(self, x='x', y='y', azimuth=None, vr='vr_polar', vazimuth='vphi_polar', vx_out='vx', vy_out='vy', propagate_uncertainties=False):
         """ Convert cylindrical polar velocities to Cartesian.
 
         :param x:
@@ -3595,7 +3595,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param vazimuth:
         :param vx_out:
         :param vy_out:
-        :param propagate_uncertainties: not yet implemented
+        :param propagate_uncertainties: {propagate_uncertainties}
         """
         x = self._expr(x)
         y = self._expr(y)
@@ -3607,8 +3607,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         else:
             azimuth = np.arctan2(y, x)
         azimuth = self._expr(azimuth)
-        vx_expr = self[vx_out] = vr * np.cos(azimuth) + vazimuth * np.sin(azimuth)
-        vy_expr = self[vy_out] = vr * np.sin(azimuth) - vazimuth * np.cos(azimuth)
+        self[vx_out] = vr * np.cos(azimuth) + vazimuth * np.sin(azimuth)
+        self[vy_out] = vr * np.sin(azimuth) - vazimuth * np.cos(azimuth)
         if propagate_uncertainties:
             self.propagate_uncertainties([self[vx_out], self[vy_out]])
 
