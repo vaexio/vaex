@@ -3607,8 +3607,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         else:
             azimuth = np.arctan2(y, x)
         azimuth = self._expr(azimuth)
-        self[vx_out] = vr * np.cos(azimuth) + vazimuth * np.sin(azimuth)
-        self[vy_out] = vr * np.sin(azimuth) - vazimuth * np.cos(azimuth)
+        self[vx_out] = vr * np.cos(azimuth) - vazimuth * np.sin(azimuth)
+        self[vy_out] = vr * np.sin(azimuth) + vazimuth * np.cos(azimuth)
         if propagate_uncertainties:
             self.propagate_uncertainties([self[vx_out], self[vy_out]])
 
