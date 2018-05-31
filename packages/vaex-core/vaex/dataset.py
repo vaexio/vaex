@@ -3613,6 +3613,33 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if propagate_uncertainties:
             self.propagate_uncertainties([self[vr_out], self[vazimuth_out]])
 
+    def add_virtual_columns_polar_velocities_to_cartesian(self, x='x', y='y', azimuth=None, vr='vr_polar', vazimuth='vphi_polar', vx_out='vx', vy_out='vy', propagate_uncertainties=False):
+        """ Convert cylindrical polar velocities to Cartesian.
+
+        :param x:
+        :param y:
+        :param azimuth: Optional expression for the azimuth in degrees , may lead to a better performance when given. 
+        :param vr:
+        :param vazimuth:
+        :param vx_out:
+        :param vy_out:
+        :param propagate_uncertainties: {propagate_uncertainties}
+        """
+        x = self._expr(x)
+        y = self._expr(y)
+        vr = self._expr(vr)
+        vazimuth = self._expr(vazimuth)
+        if azimuth is not None:
+            azimuth = self._expr(azimuth)
+            azimuth = np.deg2rad(azimuth)
+        else:
+            azimuth = np.arctan2(y, x)
+        azimuth = self._expr(azimuth)
+        self[vx_out] = vr * np.cos(azimuth) - vazimuth * np.sin(azimuth)
+        self[vy_out] = vr * np.sin(azimuth) + vazimuth * np.cos(azimuth)
+        if propagate_uncertainties:
+            self.propagate_uncertainties([self[vx_out], self[vy_out]])
+
     def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees, propagate_uncertainties=False):
         """Rotation in 2d
 
