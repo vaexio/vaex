@@ -5,13 +5,38 @@ import pylab as plt
 
 def plot2d_contour(self, x=None, y=None, what="count(*)", limits=None, shape=256,
                    selection=None, f="identity", figsize=None,
-                   xlabel=None, ylabel=None, title=None,
+                   xlabel=None, ylabel=None,
                    aspect="auto", levels=None, fill=False,
                    colorbar=False, colorbar_label=None,
                    colormap=None, colors=None, linewidths=None, linestyles=None,
                    vmin=None, vmax=None,
-                   grid=None, show=None,
-                   delay=None, **kwargs):
+                   grid=None, show=None, **kwargs):
+    """
+    Plot conting contours on 2D grid.
+
+    :param x: Expression to bin in the x direction
+    :param y: Expression to bin in the y direction
+    :param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum, std('x') the standard deviation, correlation('vx', 'vy') the correlation coefficient. Can also be a list of values, like ['count(x)', std('vx')], (by default maps to column)
+    :param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
+    :param shape: shape/size of the 2-dimensional histogram grid
+    :param selection:
+    :param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
+    :param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+    :param xlabel: label of the x-axis (defaults to param x)
+    :param ylabel: label of the y-axis (defaults to param y)
+    :param aspect: the aspect ratio of the figure
+    :param levels: the contour levels to be passed on pylab.contour or pylab.contourf
+    :param colorbar: plot a colorbar or not
+    :param colorbar_label: the label of the colourbar (defaults to param what)
+    :param colormap: matplotlib colormap to pass on to pylab.contour or pylab.contourf
+    :param colors: the colours of the contours
+    :params linewidths: the widths of the contours
+    :params linestyles: the style of the contour lines
+    :param vmin: instead of automatic normalization, scale the data between vmin and vmax
+    :param vmax: see vmin
+    :param grid: already binned 2-dimensional grid on which to determine the contours
+    :param show:
+    """
 
 
     # Get the function out of the string
