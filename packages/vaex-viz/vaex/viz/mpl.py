@@ -8,6 +8,7 @@ import vaex.utils
 import vaex.image
 from .vector import plot2d_vector
 from .tensor import plot2d_tensor
+from .contour import plot2d_contour
 
 logger = logging.getLogger("vaex.viz")
 
@@ -25,6 +26,7 @@ def patch(f):
 
 patch(plot2d_vector)
 patch(plot2d_tensor)
+patch(plot2d_contour)
 
 
 max_labels = 10
@@ -227,7 +229,7 @@ def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, 
         cov_matrix[:,1,1] = sy**2
         cov_matrix[:,0,1] = cov_matrix[:,1,0] = sxy
         ax = plt.gca()
-        ellipse_kwargs = dict(ellipse_kwargs) 
+        ellipse_kwargs = dict(ellipse_kwargs)
         ellipse_kwargs['facecolor'] = ellipse_kwargs.get('facecolor', 'none')
         ellipse_kwargs['edgecolor'] = ellipse_kwargs.get('edgecolor', 'black')
         for i in range(len(sx)):
