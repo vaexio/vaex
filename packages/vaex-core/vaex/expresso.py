@@ -300,6 +300,9 @@ class ExpressionString(ast.NodeVisitor):
     def visit_Str(self, node):
         return repr(node.s)
 
+    def visit_List(self, node):
+        return "[{}]".format(", ".join([self.visit(k) for k in node.elts]))
+
     def visit_BinOp(self, node):
         newline = indent = ""
         if self.pretty:
