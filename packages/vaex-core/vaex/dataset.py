@@ -1004,6 +1004,7 @@ minimum
 maximum
 clip
 nan
+searchsorted
 """.strip().split()]
 expression_namespace = {}
 for name, numpy_name in function_mapping:
