@@ -831,6 +831,9 @@ class SelectionDropNa(Selection):
         return dict(type="dropna", drop_nan=self.drop_nan, drop_masked=self.drop_masked, column_names=self.column_names,
                     mode=self.mode, previous_selection=previous)
 
+    def _rename(self, dataset, old, new):
+        pass  # TODO: do we need to rename the column_names?
+
     def evaluate(self, dataset, name, i1, i2):
         if self.previous_selection:
             previous_mask = dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
@@ -1186,6 +1189,7 @@ class Dataset(object):
 
         self._categories = collections.OrderedDict()
         self._selection_mask_caches = collections.defaultdict(dict)
+        self._renamed_columns = []
 
     def iscategory(self, column):
         """Returns true if column is a category"""
@@ -2804,6 +2808,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         selections = {name: selection.to_dict() if selection is not None else None for name, selection in selections.items()}
     # if selection is not None}
         state = dict(virtual_columns=virtual_columns,
+                     renamed_columns=self._renamed_columns,
                      variables=self.variables,
                      functions=functions,
                      selections=selections,
@@ -2823,6 +2828,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.virtual_columns = state['virtual_columns']
         for name, value in state['virtual_columns'].items():
             self._save_assign_expression(name)
+        for old, new in state['renamed_columns']:
+            self._rename(old, new)
         self.variables = state['variables']
         import astropy  # TODO: make this dep optional?
         units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
@@ -3329,7 +3336,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 expression = Expression(self, expression)
             setattr(self, name, expression)
 
-    def rename_column(self, name, new_name, unique=False):
+    def rename_column(self, name, new_name, unique=False, store_in_state=True):
         """Renames a column, not this is only the in memory name, this will not be reflected on disk"""
         new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else list(self))
         data = self.columns.get(name)
@@ -3341,6 +3348,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             expression = self.virtual_columns[name]
             del self.virtual_columns[name]
             self.virtual_columns[new_name] = expression
+        if store_in_state:
+            self._renamed_columns.append((name, new_name))
         for d in [self.ucds, self.units, self.descriptions]:
             if name in d:
                 d[new_name] = d[name]
@@ -3787,6 +3796,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             self.columns[new] = self.columns.pop(old)
         if new in self.virtual_columns:
             self.virtual_columns[new] = self.virtual_columns.pop(old)
+        self._renamed_columns.append((old, new))
         index = self.column_names.index(old)
         self.column_names[index] = new
         self.virtual_columns = {k:self[v]._rename(old, new).expression for k, v in self.virtual_columns.items()}
