@@ -16,8 +16,14 @@ def test_rename(ds_filtered):
 def test_rename_state_transfer():
     ds = vaex.from_scalars(x=3, y=4)
     ds['r'] = (ds.x**2 + ds.y**2)**0.5
-    ds._rename('x', 'a')
+    ds['x'] = ds.x + 1
+    ds['q'] = ds.x + 10
+    # ds._rename('x', 'a')
+    # ds.add_column('x', np.array([6.]))
+    # ds['q'] = ds.x+1
     assert ds.r.tolist() == [5]
+    assert ds.q.tolist() == [14]
     ds2 = vaex.from_scalars(x=3, y=4)
     ds2.state_set(ds.state_get())
     assert ds2.r.tolist() == [5]
+    assert ds2.q.tolist() == [14]

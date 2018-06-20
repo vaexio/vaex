@@ -2824,13 +2824,14 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.description = state['description']
         self._index_start, self._index_end = state['active_range']
         self._length_unfiltered = self._index_end - self._index_start
+        if 'renamed_columns' in state:
+            for old, new in state['renamed_columns']:
+                self._rename(old, new)
         for name, value in state['functions'].items():
             self.add_function(name, vaex.serialize.from_dict(value))
         self.virtual_columns = state['virtual_columns']
         for name, value in state['virtual_columns'].items():
             self._save_assign_expression(name)
-        for old, new in state['renamed_columns']:
-            self._rename(old, new)
         self.variables = state['variables']
         import astropy  # TODO: make this dep optional?
         units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
