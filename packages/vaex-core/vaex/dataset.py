@@ -4820,6 +4820,7 @@ class DatasetLocal(Dataset):
         ds._index_end = self._index_end
         ds._index_start = self._index_start
         ds._active_fraction = self._active_fraction
+        ds._renamed_columns = list(self._renamed_columns)
         ds.units.update(self.units)
         ds._categories.update(self._categories)
         column_names = column_names or self.get_column_names(strings=True, virtual=True, hidden=True)
