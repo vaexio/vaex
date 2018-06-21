@@ -2820,9 +2820,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                      active_range=[self._index_start, self._index_end])
         return state
 
-    def state_set(self, state):
+    def state_set(self, state, use_active_range=False):
         self.description = state['description']
-        self._index_start, self._index_end = state['active_range']
+        if use_active_range:
+            self._index_start, self._index_end = state['active_range']
         self._length_unfiltered = self._index_end - self._index_start
         if 'renamed_columns' in state:
             for old, new in state['renamed_columns']:
@@ -2847,9 +2848,9 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def state_write(self, f):
         vaex.utils.write_json_or_yaml(f, self.state_get())
 
-    def state_load(self, f):
+    def state_load(self, f, use_active_range=False):
         state = vaex.utils.read_json_or_yaml(f)
-        self.state_set(state)
+        self.state_set(state, use_active_range=use_active_range)
 
     def remove_virtual_meta(self):
         """Removes the file with the virtual column etc, it does not change the current virtual columns etc"""
