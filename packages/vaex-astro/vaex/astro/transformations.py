@@ -301,5 +301,37 @@ def add_virtual_columns_proper_motion2vperpendicular(self, distance="distance", 
     if propagate_uncertainties:
         self.propagate_uncertainties([self[vl], self[vb]])
 
+
+@patch
+def add_virtual_columns_cartesian_angular_momenta(self, x='x', y='y', z='z',
+                                                  vx='vx', vy='vy', vz='vz',
+                                                  Lx='Lx', Ly='Ly', Lz='Lz',
+                                                  propagate_uncertainties=False):
+    """
+    Calculate the angular momentum components provided Cartesian positions and velocities.
+    Be mindful of the point of origin: ex. if considering Galactic dynamics, and positions and
+    velocities should be as seen from the Galactic centre.
+
+    :param x: x-position Cartesian component
+    :param y: y-position Cartesian component
+    :param z: z-position Cartesian component
+    :param vx: x-velocity Cartesian component
+    :param vy: y-velocity Cartesian component
+    :param vz: z-velocity Cartesian component
+    :param Lx: name of virtual column
+    :param Ly: name of virtual column
+    :param Lz: name of virtial column
+    :propagate_uncertainties: (bool) whether to propagate the uncertainties of
+    the positions and velocities to the angular momentum components
+    """
+
+    x, y, z, vx, vy, vz = self._expr(x, y, z, vx, vy, vz)
+    self.add_virtual_column(Lx, y * vz - z * vy)
+    self.add_virtual_column(Ly, z * vx - x * vz)
+    self.add_virtual_column(Lz, x * vy - y * vx)
+    if propagate_uncertainties:
+        self.propagate_uncertainties([self[Lx], self[Ly], self[Lz]])
+
+
 def add_plugin():
     pass  # importing this module already does the job

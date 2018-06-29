@@ -16,3 +16,10 @@ def test_add_virtual_columns_polar_velocities_to_cartesian():
     np.testing.assert_almost_equal(ds.evaluate('vx'), ds.evaluate('vx_'), err_msg='error with converting polar to Cartesian velocities')
     np.testing.assert_almost_equal(ds.evaluate('vy'), ds.evaluate('vy_'), err_msg='error with converting polar to Cartesian velocities')
 
+    # this tests the angular momentum conversion
+    ds.add_virtual_columns_cartesian_angular_momenta(Lx='Lx_', Ly='Ly_', Lz='Lz_')
+    ds['L_'] = np.sqrt(ds.Lx_**2. + ds.Ly_**2. + ds.Lz_**2.)
+    np.testing.assert_almost_equal(ds.Lz.values, ds.Lz_.values, err_msg='error when calculating Lz', decimal=3)
+    np.testing.assert_almost_equal(ds.L.values, ds.L_.values, err_msg='error when calculating the Ltotal', decimal=3)
+
+
