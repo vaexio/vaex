@@ -63,6 +63,7 @@ import vaex.settings
 import logging
 import pkg_resources
 import os
+from functools import reduce
 
 try:
     from . import version
@@ -531,3 +532,11 @@ for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
         add_namespace()
     except Exception:
         logger.exception('issue loading ' + entry.name)
+
+
+def concat(datasets):
+    '''
+    Concatinate a list of datasets.
+    '''
+    ds = reduce((lambda x, y: x.concat(y)), datasets)
+    return ds
