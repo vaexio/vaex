@@ -312,15 +312,12 @@ def add_virtual_columns_cartesian_angular_momenta(self, x='x', y='y', z='z',
     Be mindful of the point of origin: ex. if considering Galactic dynamics, and positions and
     velocities should be as seen from the Galactic centre.
 
-    :param x: position in kpc
-    :param y: position in kpc
-    :param z: position in kpc
-    :param vx: velocity in km/s
-    :param vy: velocity in km/s
-    :param vz: velocity in km/s
-    :param Lx: angular momentum in km/s kpc
-    :param Ly: angular momentum in km/s kpc
-    :param Lz: angular momentum in km/s kpc
+    :param x: x-position Cartesian component
+    :param y: y-position Cartesian component
+    :param z: z-position Cartesian component
+    :param vx: x-velocity Cartesian component
+    :param vy: y-velocity Cartesian component
+    :param vz: z-velocity Cartesian component
     :propagate_uncertainties: (bool) whether to propagate the uncertainties of
     the positiona and velocities to the angular momentum components
     """
