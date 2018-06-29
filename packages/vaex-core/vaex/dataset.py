@@ -3487,7 +3487,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         'e' or 'e_' or postfixed by '_error', '_uncertainty', 'e' and '_e'.
         Off diagonals (covariance or correlation) by postfixes with '_correlation' or '_corr' for
         correlation or '_covariance' or '_cov' for covariances.
-        (Note that x_y_cov = x_e * y_e * x_y_correlation) 
+        (Note that x_y_cov = x_e * y_e * x_y_correlation)
 
 
         Example:
@@ -3567,7 +3567,6 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if not radians:
             phi = phi * 180/np.pi
         self[azimuth_out] = phi
-        names_out = [radius_out, azimuth_out]
         if propagate_uncertainties:
             self.propagate_uncertainties([self[radius_out], self[azimuth_out]])
 
@@ -3620,8 +3619,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if radius_polar is None:
             radius_polar = np.sqrt(x**2 + y**2)
         radius_polar = self._expr(radius_polar)
-        vr_expr = self[vr_out]       = (x*vx + y*vy) / radius_polar
-        vaz_expr = self[vazimuth_out] = (x*vy - y*vx) / radius_polar
+        self[vr_out]       = (x*vx + y*vy) / radius_polar
+        self[vazimuth_out] = (x*vy - y*vx) / radius_polar
         if propagate_uncertainties:
             self.propagate_uncertainties([self[vr_out], self[vazimuth_out]])
 
@@ -3630,7 +3629,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
         :param x:
         :param y:
-        :param azimuth: Optional expression for the azimuth in degrees , may lead to a better performance when given. 
+        :param azimuth: Optional expression for the azimuth in degrees , may lead to a better performance when given.
         :param vr:
         :param vazimuth:
         :param vx_out:
