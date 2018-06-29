@@ -318,8 +318,11 @@ def add_virtual_columns_cartesian_angular_momenta(self, x='x', y='y', z='z',
     :param vx: x-velocity Cartesian component
     :param vy: y-velocity Cartesian component
     :param vz: z-velocity Cartesian component
+    :param Lx: name of virtual column
+    :param Ly: name of virtual column
+    :param Lz: name of virtial column
     :propagate_uncertainties: (bool) whether to propagate the uncertainties of
-    the positiona and velocities to the angular momentum components
+    the positions and velocities to the angular momentum components
     """
 
     x, y, z, vx, vy, vz = self._expr(x, y, z, vx, vy, vz)
