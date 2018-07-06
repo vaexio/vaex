@@ -31,3 +31,16 @@ def test_concat():
     dd1 = vaex.concat([ds1, ds2])
     dd2 = vaex.concat([dd1, ds3])
     assert (np.array(dd2.evaluate('x,y,z,w')) == np.array(ds.evaluate('x,y,z,w'))).all()
+
+def test_concat_unequals_virtual_columns():
+    ds1 = vaex.from_scalars(x=1, y=2)
+    ds2 = vaex.from_scalars(x=2, y=3)
+    # w has same expression
+    ds1['w'] = ds1.x + ds1.y
+    ds2['w'] = ds2.x + ds2.y
+    # z does not
+    ds1['z'] = ds1.x + ds1.y
+    ds2['z'] = ds2.x * ds2.y
+    ds = vaex.concat([ds1, ds2])
+    assert ds.w.tolist() == [1+2, 2+3]
+    assert ds.z.tolist() == [1+2, 2*3]

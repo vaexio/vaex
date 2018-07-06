@@ -5376,8 +5376,8 @@ class _ColumnConcatenatedLazy(Column):
     def __init__(self, datasets, column_name):
         self.datasets = datasets
         self.column_name = column_name
-        dtypes = [dataset.columns[self.column_name].dtype for dataset in datasets]
-        self.is_masked = any([np.ma.isMaskedArray(dataset.columns[self.column_name]) for dataset in datasets])
+        dtypes = [dataset.dtype(column_name) for dataset in datasets]
+        self.is_masked = any([dataset.is_masked(column_name) for dataset in datasets])
         if self.is_masked:
             self.fill_value = datasets[0].columns[self.column_name].fill_value
         # np.datetime64 and find_common_type don't mix very well
@@ -5396,12 +5396,11 @@ class _ColumnConcatenatedLazy(Column):
             else:
                 self.dtype = np.find_common_type(dtypes, [])
             logger.debug("common type for %r is %r", dtypes, self.dtype)
-        self.shape = (len(self), ) + self.datasets[0].columns[self.column_name].shape[1:]
+        self.shape = (len(self), ) + self.datasets[0].evaluate(self.column_name, i1=0, i2=1).shape[1:]
         for i in range(1, len(datasets)):
-            c0 = self.datasets[0].columns[self.column_name]
-            ci = self.datasets[i].columns[self.column_name]
-            if c0.shape[1:] != ci.shape[1:]:
-                raise ValueError("shape of of column %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.column_name, c0.shape, i, ci.shape))
+            shape_i = (len(self), ) + self.datasets[i].evaluate(self.column_name, i1=0, i2=1).shape[1:]
+            if self.shape != shape_i:
+                raise ValueError("shape of of column %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.column_name, self.shape, i, shape_i))
 
     def __len__(self):
         return sum(len(ds) for ds in self.datasets)
@@ -5426,11 +5425,9 @@ class _ColumnConcatenatedLazy(Column):
             #   break
         # this is the fast path, no copy needed
         if stop <= offset + len(current_dataset):
-            ar = current_dataset.columns[self.column_name]
             if current_dataset.filtered:  # TODO this may get slow! we're evaluating everything
                 warnings.warn("might be slow, you have concatenated datasets with a filter set")
-                ar = ar[current_dataset.evaluate_selection_mask(None)]
-            return ar[start - offset:stop - offset].astype(self.dtype)
+            return current_dataset.evaluate(self.column_name, i1=start - offset, i2=stop - offset)
         else:
             if self.is_masked:
                 copy = np.ma.empty(stop - start, dtype=self.dtype)
@@ -5441,11 +5438,9 @@ class _ColumnConcatenatedLazy(Column):
             # print("!!>", start, stop, offset, len(current_dataset), current_dataset.columns[self.column_name])
             while offset < stop:  # > offset + len(current_dataset):
                 # print(offset, stop)
-                ar = current_dataset.columns[self.column_name]
                 if current_dataset.filtered:  # TODO this may get slow! we're evaluating everything
                     warnings.warn("might be slow, you have concatenated datasets with a filter set")
-                    ar = ar[current_dataset.evaluate_selection_mask(None)]
-                part = ar[start - offset:min(len(current_dataset), stop - offset)]
+                part = current_dataset.evaluate(self.column_name, i1=start-offset, i2=min(len(current_dataset), stop - offset))
                 # print "part", part, copy_offset,copy_offset+len(part)
                 copy[copy_offset:copy_offset + len(part)] = part
                 # print copy[copy_offset:copy_offset+len(part)]
@@ -5480,6 +5475,12 @@ class DatasetConcatenated(DatasetLocal):
         for name in list(first.virtual_columns.keys()):
             if all([first.virtual_columns[name] == dataset.virtual_columns.get(name, None) for dataset in tail]):
                 self.virtual_columns[name] = first.virtual_columns[name]
+            else:
+                self.columns[name] = _ColumnConcatenatedLazy(datasets, name)
+                self.column_names.append(name)
+            self._save_assign_expression(name)
+
+
         for dataset in datasets[:1]:
             for name, value in list(dataset.variables.items()):
                 if name not in self.variables:
