@@ -30,7 +30,7 @@ h5_datasets = []
 numpy_arrays = []
 for column_name in columns:
 	dataset = h5columns.create_dataset(column_name, (line_count, ), dtype='f8')
-	# dataset.attrs['unit'] = 'cm3'  # Optional. Example showing how to add a astropy unit to this channel. Must be a string
+	# dataset.attrs['unit'] = 'cm3'  # Optional. Example showing how to add an  Astropy unit to this channel. Must be a string
 	h5_datasets.append(dataset)
 	numpy_arrays.append(numpy.zeros((Nbatch, ), dtype='f8'))
 
