@@ -73,16 +73,16 @@ if 1:
 	# The full version, including alpha/beta/rc tags.
 	release = vaex.version
 else:
-	print "failed finding vaex module, try finding version"
+	print("failed finding vaex module, try finding version")
 	import sys
 	import os
 	import imp
 
 	def system(cmd):
-		print "Executing: ", cmd
+		print("Executing: ", cmd)
 		ret = os.system(cmd)
 		if ret != 0:
-			print "error, return code is", ret
+			print("error, return code is", ret)
 			sys.exit(ret)
 
 	path_version_file = os.path.join(os.path.dirname(__file__), "../../python/vaex/vaex/version.py")
@@ -140,7 +140,7 @@ try:
 	html_theme = "sphinx_rtd_theme"
 	html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 except:
-	print "rtd theme not found"
+	print("rtd theme not found")
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
