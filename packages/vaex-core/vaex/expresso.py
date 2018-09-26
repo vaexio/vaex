@@ -189,10 +189,16 @@ def _darctan2(n, args):
     if n == 0:  # derivative wrt 1st argument (y)
         return div(x, add(sqr(x), sqr(y)))
 
+def _dtan(n, args):
+    assert n == 0
+    assert len(args) == 1
+#     a = div(sub(num(1), sqr(args[0])))
+    return div(num(1), sqr(call('cos', args=args)))
 
 standard_function_derivatives = {}
 standard_function_derivatives['sin'] = 'cos'
 standard_function_derivatives['cos'] = _dcos
+standard_function_derivatives['tan'] = _dtan
 standard_function_derivatives['log10'] = _dlog10
 standard_function_derivatives['sqrt'] = _dsqrt
 standard_function_derivatives['arctan2'] = _darctan2
