@@ -1163,6 +1163,11 @@ class TestDataset(unittest.TestCase):
 		self.dataset_local.columns["x"][self.zero_index] = np.nan
 		if self.dataset.is_local():
 			self.dataset._invalidate_selection_cache()
+		else:
+			if hasattr(self, 'webserver1'):
+				self.webserver1.datasets[0]._invalidate_selection_cache()
+				self.webserver2.datasets[0]._invalidate_selection_cache()
+			self.dataset_local._invalidate_selection_cache()
 		self.df = self.dataset_local.to_pandas_df()
 		self.dataset.select("x < 5")
 		ds = self.dataset[self.dataset.x < 5]
