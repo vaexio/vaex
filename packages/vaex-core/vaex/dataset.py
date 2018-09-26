@@ -864,7 +864,7 @@ def _rename_expression_string(dataset, e, old, new):
 class SelectionExpression(Selection):
     def __init__(self,  boolean_expression, previous_selection, mode):
         super(SelectionExpression, self).__init__(previous_selection, mode)
-        self.boolean_expression = boolean_expression
+        self.boolean_expression = str(boolean_expression)
 
     def _rename(self, dataset, old, new):
         boolean_expression = Expression(dataset, self.boolean_expression)._rename(old, new).expression
@@ -950,8 +950,8 @@ class SelectionLasso(Selection):
         if self.previous_selection:
             previous = self.previous_selection.to_dict()
         return dict(type="lasso",
-                    boolean_expression_x=self.boolean_expression_x,
-                    boolean_expression_y=self.boolean_expression_y,
+                    boolean_expression_x=str(self.boolean_expression_x),
+                    boolean_expression_y=str(self.boolean_expression_y),
                     xseq=vaex.utils.make_list(self.xseq),
                     yseq=vaex.utils.make_list(self.yseq),
                     mode=self.mode,
