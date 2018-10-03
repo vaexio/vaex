@@ -14,12 +14,12 @@ def plot2d_contour(self, x=None, y=None, what="count(*)", limits=None, shape=256
     """
     Plot conting contours on 2D grid.
 
-    :param x: Expression to bin in the x direction
-    :param y: Expression to bin in the y direction
+    :param x: {expression}
+    :param y: {expression}
     :param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum, std('x') the standard deviation, correlation('vx', 'vy') the correlation coefficient. Can also be a list of values, like ['count(x)', std('vx')], (by default maps to column)
-    :param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
-    :param shape: shape/size of the 2-dimensional histogram grid
-    :param selection:
+    :param limits: {limits}
+    :param shape: {shape}
+    :param selection: {selection}
     :param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
     :param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
     :param xlabel: label of the x-axis (defaults to param x)
@@ -34,7 +34,7 @@ def plot2d_contour(self, x=None, y=None, what="count(*)", limits=None, shape=256
     :params linestyles: the style of the contour lines
     :param vmin: instead of automatic normalization, scale the data between vmin and vmax
     :param vmax: see vmin
-    :param grid: already binned 2-dimensional grid on which to determine the contours
+    :param grid: {grid}
     :param show:
     """
 
