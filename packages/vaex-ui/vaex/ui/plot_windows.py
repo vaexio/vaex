@@ -472,7 +472,8 @@ class PlotDialog(QtGui.QWidget):
         self.axes.xaxis_index = 0
         if self.dimensions > 1:
             self.axes.yaxis_index = 1
-        self.axes.hold(True)
+        if int(matplotlib.__version__.split('.')[0]) < 3:
+            self.axes.hold(True)
 
     def plug_toolbar(self, callback, order):
         self.plugin_queue_toolbar.append((callback, order))
@@ -2872,7 +2873,8 @@ class ScatterPlotMatrixDialog(PlotDialog):
                     # for label in axes.get_xticklabels():
                     # label.set_visible(False)
                     # axes.xaxis.offsetText.set_visible(False)
-                self.axes_grid[i][j].hold(True)
+                if int(matplotlib.__version__.split('.')[0]) < 3:
+                    self.axes_grid[i][j].hold(True)
                 index += 1
         self.fig.subplots_adjust(hspace=0, wspace=0)
 
