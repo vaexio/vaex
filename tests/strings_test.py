@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import vaex
 import numpy as np
+import pytest
+import sys
 
 def test_concat():
 	ds1 = vaex.from_arrays(names=['hi', 'is', 'l2'])
@@ -33,6 +35,8 @@ def test_strip():
 	ds['stripped'] = ds.names.str.strip()
 	ds.stripped.tolist() == ['this', 'has', 'space']
 
+@pytest.mark.skipif(sys.version_info < (3,3),
+                    reason="requires python3.4 or higher")
 def test_unicode(tmpdir):
 	path = str(tmpdir.join('utf32.hdf5'))
 	ds = vaex.from_arrays(names=["vaex", "or", "væx!"])
