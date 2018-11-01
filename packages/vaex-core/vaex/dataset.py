@@ -3938,7 +3938,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.column_names[index] = new
         self.virtual_columns = {k:self[v]._rename(old, new).expression for k, v in self.virtual_columns.items()}
         for key, value in self.selection_histories.items():
-            self.selection_histories[key] = list([k._rename(self, old, new) for k in value])
+            self.selection_histories[key] = list([k if k is None else k._rename(self, old, new) for k in value])
         return [self[_ensure_string_from_expression(e)]._rename(old, new) for e in expressions]
 
 
