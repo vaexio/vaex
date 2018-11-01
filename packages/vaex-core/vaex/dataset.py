@@ -4771,6 +4771,19 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         else:
             raise KeyError('no such column or virtual_columns named %r' % name)
 
+    def drop(self, columns, inplace=False):
+        ds = self if inplace else self.copy()
+        for column in columns:
+            del column[column]
+        return ds
+
+    def iterrows(self):
+        columns = self.get_column_names(virtual=True, strings=True)
+        for i in range(len(self)):
+            yield i, {key: self.evaluate(key, i, i+1)[0] for key in columns}
+            #return self[i]
+
+
     def __iter__(self):
         """Iterator over the column names"""
         return iter(list(self.get_column_names(virtual=True, strings=True)))
