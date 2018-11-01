@@ -2,6 +2,11 @@ __author__ = 'breddels'
 import logging
 logger = logging.getLogger("vaex.file")
 
+opener_classes = []
+
+def register(cls):
+	opener_classes.append(cls)
+
 import vaex.file.other
 try:
 	import vaex.hdf5 as hdf5
@@ -19,6 +24,9 @@ def can_open(path, *args, **kwargs):
 def open(path, *args, **kwargs):
 	dataset_class = None
 	openers = []
+	for opener in opener_classes:
+		if opener.can_open(path, *args, **kwargs):
+			return opener.open(path, *args, **kwargs)
 	if hdf5:
 		openers.extend(hdf5.dataset.dataset_type_map.items())
 	openers.extend(vaex.file.other.dataset_type_map.items())
