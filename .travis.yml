@@ -24,7 +24,7 @@ before_install:
   - conda update -q conda
   - conda info -a
   # future: kapteyn should only be needed for astro package testing  
-  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas kapteyn pytest numba
+  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas kapteyn pytest numba pyarrow
   - which pip
   - source activate test-environment
   - which pip
@@ -35,6 +35,7 @@ install:
   - source activate test-environment
   - (cd packages/vaex-core; pip install -v .)
   - (cd packages/vaex-hdf5; pip install -v .)
+  - (cd packages/vaex-arrow; pip install -v .)
   - (cd packages/vaex-viz; pip install -v .)
   - (cd packages/vaex-server; pip install -v .)
   - (cd packages/vaex-astro; pip install -v .)
