@@ -4826,12 +4826,15 @@ class DatasetLocal(Dataset):
         self.mask = None
         self.columns = collections.OrderedDict()
 
-    def categorize(self, column, labels, check=True):
+    def categorize(self, column, labels=None, check=True):
         """Mark column as categorical, with given labels, assuming zero indexing"""
         column = _ensure_string_from_expression(column)
         if check:
             vmin, vmax = self.minmax(column)
-            if vmax >= len(labels):
+            if labels is None:
+                N = int(vmax - vmin + 1)
+                labels = list(map(str, range(N)))
+            if (vmax - vmin) >= len(labels):
                 raise ValueError('value of {} found, which is larger than number of labels {}'.format(vmax, len(labels)))
         self._categories[column] = dict(labels=labels, N=len(labels))
 
