@@ -6,6 +6,7 @@ import pyarrow as pa
 
 import vaex.dataset
 import vaex.file.other
+from .convert import numpy_array_from_arrow_array
 logger = logging.getLogger("vaex_arrow")
 
 
@@ -32,34 +33,8 @@ class DatasetArrow(vaex.dataset.DatasetLocal):
             name = col.name
             # TODO: keep the arrow columns, and support and test chunks
             arrow_array = col.data.chunks[0]
-            arrow_type = arrow_array.type
-            buffers = arrow_array.buffers()
-            assert len(buffers) == 2
-            mask = None
-            bitmap_buffer = buffers[0]
-            data_buffer = buffers[1]
-            if bitmap_buffer is not None:
-                # arrow uses a bitmap https://github.com/apache/arrow/blob/master/format/Layout.md
-                bitmap = np.frombuffer(bitmap_buffer, np.uint8, len(bitmap_buffer))
-                # we do have to change the ordering of the bits
-                mask = 1-np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:len(arrow_array)]
-            if isinstance(arrow_type, type(pa.binary(1))):
-                # mimics python/pyarrow/array.pxi::Array::to_numpy
-                # print(name, "seems to be a bytes type")
-                buffers = arrow_array.buffers()
-                assert len(buffers) == 2
-                dtype = "S" + str(arrow_type.byte_width)
-                # arrow seems to do padding, check if it is all ok
-                expected_length = arrow_type.byte_width * len(arrow_array)
-                actual_length = len(buffers[-1])
-                if actual_length < expected_length:
-                    raise ValueError('buffer is smaller (%d) than expected (%d)' % (actual_length, expected_length))
-                array = np.frombuffer(buffers[-1], dtype, len(arrow_array))# TODO: deal with offset ? [arrow_array.offset:arrow_array.offset + len(arrow_array)]
-            else:
-                dtype = arrow_array.type.to_pandas_dtype()
-            array = np.frombuffer(data_buffer, dtype, len(arrow_array))
-            if mask is not None:
-                array = np.ma.MaskedArray(array, mask=mask)
+            array = numpy_array_from_arrow_array(arrow_array)
+
             self.columns[name] = array
             self.column_names.append(name)
             self._save_assign_expression(name, vaex.expression.Expression(self, name))
