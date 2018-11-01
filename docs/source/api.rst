@@ -8,6 +8,7 @@ Quick list for opening/reading in your data.
 .. autosummary::
     
     vaex.open
+    vaex.from_arrow_table
     vaex.from_arrays
     vaex.from_csv
     vaex.from_ascii
@@ -60,6 +61,14 @@ Dataset class
 -------------
 
 .. autoclass:: vaex.dataset.Dataset
+     :members:
+     :special-members:
+
+
+DatasetLocal class
+-------------
+
+.. autoclass:: vaex.dataset.DatasetLocal
      :members:
      :special-members:
 

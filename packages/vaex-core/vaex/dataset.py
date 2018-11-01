@@ -3332,6 +3332,19 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return df
 
     @docsubst
+    def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=False):
+        """Returns an arrow Table object containing the arrays corresponding to the evaluated data
+
+        :param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+        :param selection: {selection}
+        :param strings: argument passed to Dataset.get_column_names when column_names is None
+        :param virtual: argument passed to Dataset.get_column_names when column_names is None
+        :return: pyarrow.Table object
+        """
+        from vaex_arrow.convert import arrow_table_from_vaex_dataset
+        return arrow_table_from_vaex_dataset(self, column_names, selection, strings, virtual)
+
+    @docsubst
     def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=False, index=None):
         """Returns a astropy table object containing the ndarrays corresponding to the evaluated data
 
@@ -5377,6 +5390,48 @@ class DatasetLocal(Dataset):
                 else:
                     left.add_column(right_name, ColumnIndexed(right, lookup, name))
         return left
+
+    def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+        """Exports the dataset to a file written with arrow
+
+        :param DatasetLocal dataset: dataset to export
+        :param str path: path for file
+        :param lis[str] column_names: list of column names to export or None for all columns
+        :param str byteorder: = for native, < for little endian and > for big endian (not supported for fits)
+        :param bool shuffle: export rows in random order
+        :param bool selection: export selection or not
+        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+                or a default progress bar when progress=True
+        :param: bool virtual: When True, export virtual columns
+        :param str sort: expression used for sorting the output
+        :param bool ascending: sort ascending (True) or descending
+        :return:
+        """
+        if path.endswith('.arrow'):
+            self.export_arrow(path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+        elif path.endswith('.hdf5'):
+            self.export_hdf5(path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+        if path.endswith('.fits'):
+            self.export_fits(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+
+    def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+        """Exports the dataset to a file written with arrow
+
+        :param DatasetLocal dataset: dataset to export
+        :param str path: path for file
+        :param lis[str] column_names: list of column names to export or None for all columns
+        :param str byteorder: = for native, < for little endian and > for big endian
+        :param bool shuffle: export rows in random order
+        :param bool selection: export selection or not
+        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+                or a default progress bar when progress=True
+        :param: bool virtual: When True, export virtual columns
+        :param str sort: expression used for sorting the output
+        :param bool ascending: sort ascending (True) or descending
+        :return:
+        """
+        import vaex_arrow.export
+        vaex_arrow.export.export(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
         """Exports the dataset to a vaex hdf5 file

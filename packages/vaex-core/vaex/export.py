@@ -441,9 +441,9 @@ def main(argv):
                     return 1
 
             base, output_ext = os.path.splitext(args.output)
-            if output_ext not in [".hdf5", ".fits"]:
+            if output_ext not in [".hdf5", ".fits", ".arrow"]:
                 if not args.quiet:
-                    print("extension %s not supported, only .fits and .hdf5 are" % output_ext)
+                    print("extension %s not supported, only .hdf5, .arrow and .fits are" % output_ext)
                 return 1
 
             if not args.quiet:
@@ -462,6 +462,9 @@ def main(argv):
                 selection = None
             if output_ext == ".hdf5":
                 export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort, selection=selection)
+            elif output_ext == ".arrow":
+                from vaex_arrow.export import export as export_arrow
+                export_arrow(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort, selection=selection)
             elif output_ext == ".fits":
                 export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort, selection=selection)
             if progressbar:
