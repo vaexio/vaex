@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import vaex
 import numpy as np
 
