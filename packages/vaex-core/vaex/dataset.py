@@ -1074,10 +1074,20 @@ def dt_dayofweek(x):
     # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.dayofweek.values
 
+def dt_dayofyear(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.dayofyear.values
+
 def dt_year(x):
     import pandas as pd
     # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.year.values
+
+def dt_weekofyear(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.weekofyear.values
 
 def dt_hour(x):
     import pandas as pd
@@ -1086,7 +1096,9 @@ def dt_hour(x):
 
 
 expression_namespace["dt_dayofweek"] = dt_dayofweek
+expression_namespace["dt_dayofyear"] = dt_dayofyear
 expression_namespace["dt_year"] = dt_year
+expression_namespace["dt_weekofyear"] = dt_weekofyear
 expression_namespace["dt_hour"] = dt_hour
 
 

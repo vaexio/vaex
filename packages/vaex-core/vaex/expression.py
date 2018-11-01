@@ -127,8 +127,16 @@ class DateTime(object):
         return self.expression.ds.func.dt_dayofweek(self.expression)
 
     @property
+    def dayofyear(self):
+        return self.expression.ds.func.dt_dayofyear(self.expression)
+
+    @property
     def hour(self):
         return self.expression.ds.func.dt_hour(self.expression)
+
+    @property
+    def weekofyear(self):
+        return self.expression.ds.func.dt_weekofyear(self.expression)
 
 class StringOperations(object):
     def __init__(self, expression):
