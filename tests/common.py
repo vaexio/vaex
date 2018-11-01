@@ -2,10 +2,24 @@ import pytest
 import vaex
 import vaex.webserver
 import numpy as np
+import contextlib
 
 import sys
 test_port = 29110 + sys.version_info[0] * 10 + sys.version_info[1]
 scheme = 'ws'
+
+@contextlib.contextmanager
+def small_buffer(ds, size=3):
+	if ds.is_local():
+		previous = ds.executor.buffer_size
+		ds.executor.buffer_size = size
+		try:
+			yield
+		finally:
+			ds.executor.buffer_size = previous
+	else:
+		yield # for remote datasets we don't support this ... or should we?
+
 
 @pytest.fixture(scope='module')
 def webserver():
@@ -107,4 +121,4 @@ def create_base_ds():
     dataset.add_column("name", np.array(name))
     return dataset
 
-dsf = create_filtered()
+# dsf = create_filtered()
