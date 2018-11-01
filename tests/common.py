@@ -10,15 +10,16 @@ scheme = 'ws'
 
 @contextlib.contextmanager
 def small_buffer(ds, size=3):
-	if ds.is_local():
-		previous = ds.executor.buffer_size
-		ds.executor.buffer_size = size
-		try:
-			yield
-		finally:
-			ds.executor.buffer_size = previous
-	else:
-		yield # for remote datasets we don't support this ... or should we?
+    if ds.is_local():
+        previous = ds.executor.buffer_size
+        ds.executor.buffer_size = size
+        ds._invalidate_selection_cache()
+        try:
+            yield
+        finally:
+            ds.executor.buffer_size = previous
+    else:
+        yield # for remote datasets we don't support this ... or should we?
 
 
 @pytest.fixture(scope='module')
