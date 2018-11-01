@@ -20,11 +20,18 @@ names = [k[5:] for k in packages[1:]]
 
 for name in names:
     # hdf5 package
-    package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex.' + name)
-    version = VersionSource(package, '{path}/vaex/' +name +'/_version.py')
+    if name == 'arrow':
+        package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex_' + name)
+        version = VersionSource(package, '{path}/vaex_' +name +'/_version.py')
+    else:
+        package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex.' + name)
+        version = VersionSource(package, '{path}/vaex/' +name +'/_version.py')
     gittag = ReleaseTargetGitTagVersion(version_source=version, prefix=name + '-v', msg='Release {version} of vaex-' +name)
     package.version_source = version
-    package.version_targets.append(VersionTarget(package, '{path}/vaex/' + name + '/_version.py'))
+    if name == 'arrow':
+        package.version_targets.append(VersionTarget(package, '{path}/vaex_' + name + '/_version.py'))
+    else:
+        package.version_targets.append(VersionTarget(package, '{path}/vaex/' + name + '/_version.py'))
     # it is ok to add this twice, it will only tag once
     package.release_targets.append(gittag)
     package.release_targets.append(ReleaseTargetSourceDist(package))
