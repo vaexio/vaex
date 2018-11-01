@@ -530,6 +530,15 @@ class WebServer(threading.Thread):
 
     def serve_threaded(self):
         logger.debug("start thread")
+        asyncio = None
+        try:
+            import asyncio
+        except:
+            pass
+        if asyncio and tornado.version_info[0] >= 5:
+            from tornado.platform.asyncio import AnyThreadEventLoopPolicy
+            # see https://github.com/tornadoweb/tornado/issues/2308
+            asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
         self.start()
         logger.debug("wait for thread to run")
         self.started.wait()
