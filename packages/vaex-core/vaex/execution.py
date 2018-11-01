@@ -138,7 +138,7 @@ class Executor(object):
                 self.task_queue.remove(task)
             logger.info("left in queue: %r", self.task_queue)
             task_queue_all = [task for task in task_queue_all if not task.cancelled]
-            logger.debug("executing queue: %r" % (task_queue_all))
+            # logger.debug("executing queue: %r" % (task_queue_all))
 
             # for task in self.task_queue:
             # print task, task.expressions_all

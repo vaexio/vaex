@@ -421,6 +421,34 @@ class StatOpCov(StatOp):
         # counts, sums, cross product sums
         return N * 2 + N**2 * 2  # ((N+1) * N) // 2 *2
 
+class StatOpFirst(StatOp):
+    def __init__(self, code):
+        super(StatOpFirst, self).__init__(code, 2, reduce_function=self._reduce_function)
+
+    def init(self, grid):
+        grid[..., 0] = np.nan
+        grid[..., 1] = np.inf
+
+    def _reduce_function(self, grid, axis=0):
+        values = grid[...,0]
+        order_values = grid[...,1]
+        indices = np.argmin(order_values, axis=0)
+
+        # see e.g. https://stackoverflow.com/questions/46840848/numpy-how-to-use-argmax-results-to-get-the-actual-max?noredirect=1&lq=1
+        # and https://jakevdp.github.io/PythonDataScienceHandbook/02.07-fancy-indexing.html
+        if len(values.shape) == 2:  # no binby
+            return values[indices, np.arange(values.shape[1])[:,None]][0]
+        if len(values.shape) == 3:  # 1d binby
+            return values[indices, np.arange(values.shape[1])[:,None], np.arange(values.shape[2])]
+        if len(values.shape) == 4:  # 2d binby
+            return values[indices, np.arange(values.shape[1])[:,None], np.arange(values.shape[2])[None,:,None], np.arange(values.shape[3])]
+        else:
+            raise ValueError('dimension %d not yet supported' % len(values.shape))
+
+    def fields(self, weights):
+        # the value found, and the value by which it is ordered
+        return 2
+
 
 OP_ADD1 = StatOp(0, 1)
 OP_COUNT = StatOp(1, 1)
@@ -428,6 +456,7 @@ OP_MIN_MAX = StatOpMinMax(2, 2)
 OP_ADD_WEIGHT_MOMENTS_01 = StatOp(3, 2, np.nansum)
 OP_ADD_WEIGHT_MOMENTS_012 = StatOp(4, 3, np.nansum)
 OP_COV = StatOpCov(5)
+OP_FIRST = StatOpFirst(6)
 
 
 def _expand(x, dimension, type=tuple):
@@ -1421,6 +1450,60 @@ class Dataset(object):
         progressbar = vaex.utils.progressbars(progress)
         limits = self.limits(binby, limits, delay=True, shape=shape)
         stats = [self._count_calculation(expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
+        var = finish(*stats)
+        return self._delay(delay, var)
+
+    @delayed
+    def _first_calculation(self, expression, order_expression, binby, limits, shape, selection, edges, progressbar):
+        if shape:
+            limits, shapes = limits
+        else:
+            limits, shapes = limits, shape
+        task = TaskStatistic(self, binby, shapes, limits, weights=[expression, order_expression], op=OP_FIRST, selection=selection, edges=edges)
+        self.executor.schedule(task)
+        progressbar.add_task(task, "count for %s" % expression)
+        @delayed
+        def finish(counts):
+            counts = np.array(counts)
+            return counts
+        return finish(task)
+
+    @docsubst
+    def first(self, expression, order_expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
+        """Count the number of non-NaN values (or all, if expression is None or "*")
+
+        Examples:
+
+
+        >>> ds.count()
+        330000.0
+        >>> ds.count("*")
+        330000.0
+        >>> ds.count("*", binby=["x"], shape=4)
+        array([  10925.,  155427.,  152007.,   10748.])
+
+        :param expression: Expression or column for which to count non-missing values, or None or '*' for counting the rows
+        :param binby: {binby}
+        :param limits: {limits}
+        :param shape: {shape}
+        :param selection: {selection}
+        :param delay: {delay}
+        :param progress: {progress}
+        :param edges: {edges}
+        :return: {return_stat_scalar}
+        """
+        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
+        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
+        expression = _ensure_string_from_expression(expression)
+        order_expression = _ensure_string_from_expression(order_expression)
+        binby = _ensure_strings_from_expressions(binby)
+        waslist, [expressions,] = vaex.utils.listify(expression)
+        @delayed
+        def finish(*counts):
+            return vaex.utils.unlistify(waslist, counts)
+        progressbar = vaex.utils.progressbars(progress)
+        limits = self.limits(binby, limits, delay=True, shape=shape)
+        stats = [self._first_calculation(expression, order_expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
         var = finish(*stats)
         return self._delay(delay, var)
 

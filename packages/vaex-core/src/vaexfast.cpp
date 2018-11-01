@@ -1104,6 +1104,19 @@ struct op_cov {
 };
 
 
+template<typename T=double, typename Tout=double, typename ENDIAN=functor_double_to_double<T> >
+struct op_first {
+    void operator()(Tout* const __restrict__ outputs, const T* const __restrict__ inputs[], const long long int input_offsets, const int inputs_count) {
+        ENDIAN endian;
+        double value = endian(inputs[0][input_offsets]);
+		double order_value = endian(inputs[1][input_offsets]);
+        if(order_value < outputs[1]) {
+			outputs[0] = value;
+            outputs[1] = order_value;
+        }
+    }
+};
+
 
 template<typename T, typename OP, typename ENDIAN>
 void statisticNd(
@@ -1224,7 +1237,8 @@ enum {
     OP_MIN_MAX,
     OP_ADD_WEIGHT_MOMENTS_01,
     OP_ADD_WEIGHT_MOMENTS_012,
-    OP_COV
+    OP_COV,
+    OP_FIRST
 };// STATISTIC_OPS;
 
 /*
@@ -1265,6 +1279,8 @@ void statisticNd_wrap_template_endian(
             statisticNd<T, op_add_weight_moment_012<T, double, endian>, endian >(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else if(op_code == OP_COV) {
             statisticNd<T, op_cov<T, double, endian>, endian >(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
+        } else if(op_code == OP_FIRST) {
+            statisticNd<T, op_first<T, double, endian>, endian >(blocks, weights, block_length, weights_count, dimensions, counts, count_strides, count_sizes, minima, maxima, use_edges);
         } else {
             printf("unknown op code for statistic: %i", op_code);
         }
