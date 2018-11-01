@@ -289,6 +289,10 @@ def from_arrays(**arrays):
         dataset.add_column(name, array)
     return dataset
 
+def from_arrow_table(table):
+    """Creates a vaex dataset from an arrow Table"""
+    from vaex_arrow.convert import vaex_dataset_from_arrow_table
+    return vaex_dataset_from_arrow_table(table=table)
 
 def from_scalars(**kwargs):
     """Similar to from_arrays, but convenient for a dataset of length 1

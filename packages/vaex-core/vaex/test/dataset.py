@@ -301,6 +301,7 @@ class TestDataset(unittest.TestCase):
 					self.assertEqual(diff, [], "difference between %s and %s" % (ds1.path, ds2.path))
 					self.assertEqual(missing, [], "missing columns %s and %s" % (ds1.path, ds2.path))
 			self.assertEqual(meta, [], "meta mismatch between columns %s and %s" % (ds1.path, ds2.path))
+
 	def test_to(self):
 		def test_equal(ds1, ds2, units=True, ucds=True, description=True, descriptions=True, skip=[]):
 			if description:
@@ -336,6 +337,10 @@ class TestDataset(unittest.TestCase):
 		# as astropy table
 		ds2 = vx.from_astropy_table(self.dataset.to_astropy_table())
 		test_equal(self.dataset, ds2)
+
+		# as arrow table
+		ds2 = vx.from_arrow_table(self.dataset.to_arrow_table())
+		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False, )
 
 		# return a copy
 		ds2 = self.dataset.to_copy(virtual=True)
@@ -1720,13 +1725,18 @@ class TestDataset(unittest.TestCase):
 		ds2 = vaex.open(path_hdf5)
 		np.testing.assert_array_equal(self.dataset.data.x[self.zero_index:self.zero_index+10], ds2.data.x[::-1])
 
-
+	def test_export_sorted_arrow(self):
+		self.dataset.add_column("s", 100-self.dataset.data.x)
+		path_arrow = tempfile.mktemp(".arrow")
+		self.dataset.export_arrow(path_arrow, sort="s")
+		ds2 = vaex.open(path_arrow)
+		np.testing.assert_array_equal(self.dataset.data.x[self.zero_index:self.zero_index+10], ds2.data.x[::-1])
 
 	def test_export(self):
-
 		path = path_hdf5 = tempfile.mktemp(".hdf5")
 		path_fits = tempfile.mktemp(".fits")
 		path_fits_astropy = tempfile.mktemp(".fits")
+		path_arrow = tempfile.mktemp(".arrow")
 		#print path
 
 		#with self.assertRaises(AssertionError):
@@ -1744,12 +1754,14 @@ class TestDataset(unittest.TestCase):
 						for shuffle in [False, True]:
 							for selection in [False, True, "named"]:
 								for virtual in [False, True]:
-									for export in [dataset.export_fits, dataset.export_hdf5]: #if byteorder == ">" else [dataset.export_hdf5]:
+									for export in [dataset.export_fits, dataset.export_hdf5, dataset.export_arrow]: #if byteorder == ">" else [dataset.export_hdf5]:
 										#print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.length_unfiltered(), virtual)
 										#byteorder = "<"
 										if export == dataset.export_fits and byteorder != ">":
 											#print("skip", export == dataset.export_fits, byteorder != ">", byteorder)
 											continue # fits only does big endian
+										if export == dataset.export_fits and byteorder == ">":
+											continue # arrow only little endian
 										if vx.utils.osname == "windows" and export == dataset.export_hdf5 and byteorder == ">":
 											#print("skip", vx.utils.osname)
 											continue # TODO: IS this a bug for h5py on win32?, leads to an open file
@@ -1757,6 +1769,9 @@ class TestDataset(unittest.TestCase):
 										#print len(dataset)
 										if export == dataset.export_hdf5:
 											path = path_hdf5
+											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
+										elif export == dataset.export_arrow:
+											path = path_arrow
 											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
 										else:
 											path = path_fits
