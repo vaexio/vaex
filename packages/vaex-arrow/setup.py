@@ -15,7 +15,7 @@ version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
 install_requires = ["vaex-core>=0.4.2", "matplotlib>=1.3.1", "pillow", "pyarrow"]
 
-setup(name=name + '_arrow',
+setup(name=name + '-arrow',
       version=version,
       description='Arrow support for vaex',
       url=url,
