@@ -303,37 +303,48 @@ class Expression(with_metaclass(Meta)):
         function = self.ds.add_function('_jit', f, unique=True)
         return function(*arguments)
 
-    def jit_pythran(self):
-        import pythran
-        import imp
-        import hashlib
-        # self._import_all(module)
-        names = []
-        funcs = set(vaex.dataset.expression_namespace.keys())
-        expression = self.expression
-        if expression in self.ds.virtual_columns:
-            expression = self.ds.virtual_columns[self.expression]
-        all_vars = self.ds.get_column_names(virtual=True, strings=True, hidden=True) + list(self.ds.variables.keys())
-        vaex.expresso.validate_expression(expression, all_vars, funcs, names)
-        names = list(set(names))
-        types = ", ".join(str(self.ds.dtype(name)) + "[]" for name in names)
-        argstring = ", ".join(names)
-        code = '''
+    def jit_pythran(self, verbose=False):
+        import logging
+        logger = logging.getLogger('pythran')
+        log_level = logger.getEffectiveLevel()
+        try:
+            if not verbose:
+                logger.setLevel(logging.ERROR)
+            import pythran
+            import imp
+            import hashlib
+            # self._import_all(module)
+            names = []
+            funcs = set(vaex.dataset.expression_namespace.keys())
+            expression = self.expression
+            if expression in self.ds.virtual_columns:
+                expression = self.ds.virtual_columns[self.expression]
+            all_vars = self.ds.get_column_names(virtual=True, strings=True, hidden=True) + list(self.ds.variables.keys())
+            vaex.expresso.validate_expression(expression, all_vars, funcs, names)
+            names = list(set(names))
+            types = ", ".join(str(self.ds.dtype(name)) + "[]" for name in names)
+            argstring = ", ".join(names)
+            code = '''
 from numpy import *
 #pythran export f({2})
 def f({0}):
     return {1}'''.format(argstring, expression, types)
-        print(code)
-        m = hashlib.md5()
-        m.update(code.encode('utf-8'))
-        module_name = "pythranized_" + m.hexdigest()
-        print(m.hexdigest())
-        module_path = pythran.compile_pythrancode(module_name, code, extra_compile_args=["-DBOOST_SIMD", "-march=native"])
-        module = imp.load_dynamic(module_name, module_path)
-        function_name = "f_" + m.hexdigest()
-        vaex.dataset.expression_namespace[function_name] = module.f
+            if verbose:
+                print("generated code")
+                print(code)
+            m = hashlib.md5()
+            m.update(code.encode('utf-8'))
+            module_name = "pythranized_" + m.hexdigest()
+            # print(m.hexdigest())
+            module_path = pythran.compile_pythrancode(module_name, code, extra_compile_args=["-DBOOST_SIMD", "-march=native"] + [] if verbose else ["-w"])
 
-        return Expression(self.ds, "{0}({1})".format(function_name, argstring))
+            module = imp.load_dynamic(module_name, module_path)
+            function_name = "f_" + m.hexdigest()
+            vaex.dataset.expression_namespace[function_name] = module.f
+
+            return Expression(self.ds, "{0}({1})".format(function_name, argstring))
+        finally:
+                logger.setLevel(log_level)
 
     def _rename(self, old, new):
         def translate(id):
