@@ -660,7 +660,7 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 }
 
 
-template<typename Tout=long long int>
+template<typename Tout>
 void histogram2d_f4(const float* const __restrict__ blockx, const float* const __restrict__ blocky, const float* const weights, const long long block_length, bool blockx_native, bool blocky_native, bool weights_native, Tout* const __restrict__ counts, const int counts_length_x, const int counts_length_y, const double xmin_, const double xmax_, const double ymin_, const double ymax_, const long long offset_x, const long long offset_y) {
 	long long i_x = offset_x;
 	long long i_y = offset_y;
@@ -772,7 +772,7 @@ PyObject* histogram2d_f4_(PyObject* self, PyObject* args) {
 			/*if(!counts_native)
 				throw Error("counts is not in native byteorder");*/
 			Py_BEGIN_ALLOW_THREADS
-			histogram2d_f4(blockx_ptr, blocky_ptr, weights_ptr, block_length, blockx_native, blocky_native, weights_native, counts_ptr, counts_length_x, counts_length_y, xmin, xmax, ymin, ymax, offset_x, offset_y);
+			histogram2d_f4<long long int>(blockx_ptr, blocky_ptr, weights_ptr, block_length, blockx_native, blocky_native, weights_native, counts_ptr, counts_length_x, counts_length_y, xmin, xmax, ymin, ymax, offset_x, offset_y);
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
