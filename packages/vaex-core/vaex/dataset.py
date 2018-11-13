@@ -4806,7 +4806,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def drop(self, columns, inplace=False):
         ds = self if inplace else self.copy()
         for column in columns:
-            del column[column]
+            del ds[column]
         return ds
 
     def iterrows(self):
