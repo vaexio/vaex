@@ -4056,23 +4056,24 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         from IPython import display
         display.display(display.HTML(self._head_and_tail_table(n)))
 
-    def describe(self, strings=True, virtual=True):
+    def describe(self, strings=True, virtual=True, selection=None):
         import pandas as pd
         N = len(self)
         columns = {}
         for feature in self.get_column_names(strings=strings, virtual=virtual)[:]:
             dtype = str(self.dtype(feature))
             if self.dtype(feature).kind in ['S', 'U', '']:
-                columns[feature] = ((dtype, '--', '--', '--', '--', '--'))
+                columns[feature] = ((dtype, '--', '--', '--', '--', '--', '--'))
             else:
-                count = self.count(feature, delay=True)
-                mean = self.mean(feature, delay=True)
-                minmax = self.minmax(feature, delay=True)
+                count = self.count(feature, selection=selection, delay=True)
+                mean = self.mean(feature, selection=selection, delay=True)
+                std = self.std(feature, selection=selection, delay=True)
+                minmax = self.minmax(feature, selection=selection, delay=True)
                 self.execute()
-                count, mean, minmax = count.get(), mean.get(), minmax.get()
+                count, mean, std, minmax = count.get(), mean.get(), std.get(), minmax.get()
                 count = int(count)
-                columns[feature] = ((dtype, count, N-count, mean, minmax[0], minmax[1]))
-        return pd.DataFrame(data=columns, index=['dtype', 'count', 'missing', 'mean', 'min', 'max'])
+                columns[feature] = ((dtype, count, N-count, mean, std, minmax[0], minmax[1]))
+        return pd.DataFrame(data=columns, index=['dtype', 'count', 'missing', 'mean', 'std', 'min', 'max'])
 
     def cat(self, i1, i2):
         from IPython import display
