@@ -99,6 +99,7 @@ class PlotBase(widgets.Widget):
         self.shape = shape
         self.selection = selection
         #self.grid_limits = grid_limits
+        self.grid_limits_visible = None
         self.normalize = normalize
         self.colormap = colormap
         self.what_kwargs = what_kwargs
@@ -123,7 +124,7 @@ class PlotBase(widgets.Widget):
             self.control_widget = widgets.VBox()
 
             # self.create_tools()
-            self.widget = widgets.VBox([self.control_widget, self.backend.widget, self.progress, self.output])
+            self.widget = widgets.VBox([widgets.HBox([self.backend.widget, self.control_widget]), self.progress, self.output])
             if grid is None:
                 self.update_grid()
             else:
@@ -436,7 +437,7 @@ class PlotBase(widgets.Widget):
         return vaex.dataset._parse_reduction("colormap", self.colormap, [])(grid)
 
     def normalise(self, grid):
-        if self.grid_limits is not None:
+        if self.grid_limits_visible is not None:
             vmin, vmax = self.grid_limits
             grid = grid.copy()
             grid -= vmin
