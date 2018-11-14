@@ -114,7 +114,7 @@ class BqplotBackend(BackendBase):
             tool_actions_map["select"] = self.brush
             tool_actions.append("select")
 
-            self.brush.observe(self.update_brush, "selected")
+            self.brush.observe(self.update_brush, ["selected", "selected_x"])
             # fig.interaction = brush
             # callback = self.dataset.signal_selection_changed.connect(lambda dataset: update_image())
             # callback = self.dataset.signal_selection_changed.connect(lambda *x: self.update_grid())
@@ -181,7 +181,7 @@ class BqplotBackend(BackendBase):
         with self.output:
             if not self.brush.brushing:  # if we ended brushing, reset it
                 self.figure.interaction = None
-            if self.brush.selected:
+            if self.brush.selected is not None:
                 (x1, y1), (x2, y2) = self.brush.selected
                 mode = self.modes_names[self.modes_labels.index(self.button_selection_mode.value)]
                 self.plot.select_rectangle(x1, y1, x2, y2, mode=mode)
