@@ -51,6 +51,7 @@ class BqplotBackend(BackendBase):
 
         margin = {'bottom': 30, 'left': 60, 'right': 0, 'top': 0}
         self.figure = plt.figure(self.figure_key, fig=self.figure, scales=self.scales, fig_margin=margin)
+        self.figure.layout.min_width = '900px'
         plt.figure(fig=self.figure)
         self.figure.padding_y = 0
         x = np.arange(0, 10)
