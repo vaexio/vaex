@@ -1,3 +1,5 @@
+import copy
+
 from .plot import BackendBase
 import ipyvolume.pylab as p3
 import ipyvolume.examples
@@ -55,14 +57,41 @@ class IpyvolumeBackend(BackendBase):
         self.figure = p3.figure()
         self.widget = p3.gcc()
 
+        self.figure.observe(self._update_limits, 'xlim ylim zlim'.split())
+
+    def _update_limits(self, *args):
+        with self.output:
+            # self._progressbar.cancel()
+            limits = copy.deepcopy(self.limits)
+            limits[0] = self.figure.xlim
+            limits[1] = self.figure.ylim
+            limits[2] = self.figure.zlim
+            self.limits = limits
+
+
     @debounced(0.1, method=True)
     def update_image(self, intensity_image):
         with self.output:
-            p3.volshow(intensity_image.T, controls=self._first_time)
-            self._first_time = False
-            p3.xlim(*self.limits[0])
-            p3.ylim(*self.limits[1])
-            p3.zlim(*self.limits[2])
+            with self.figure:
+                limits = copy.deepcopy(self.limits)
+                if self._first_time:
+                    self.volume = p3.volshow(intensity_image.T, controls=self._first_time, extent=limits)
+                if 1: #hasattr(self.figure, 'extent_original'): # v0.5 check
+                    self.volume.data_original = None
+                    self.volume.data = intensity_image.T
+                    self.volume.extent = copy.deepcopy(self.limits)
+                    self.volume.data_min = np.nanmin(intensity_image)
+                    self.volume.data_max = np.nanmax(intensity_image)
+                    self.volume.show_min = self.volume.data_min
+                    self.volume.show_max = self.volume.data_max
+
+                self._first_time = False
+                self.figure.xlim = limits[0]
+                self.figure.ylim = limits[1]
+                self.figure.zlim = limits[2]
+                # p3.xlim(*self.limits[0])
+                # p3.ylim(*self.limits[1])
+                # p3.zlim(*self.limits[2])
 
     def update_vectors(self, vcount, vgrids, vcount_limits):
         vx, vy, vz = vgrids[:3]
