@@ -871,7 +871,13 @@ class SelectionDropNa(Selection):
         mask = np.ones(i2 - i1, dtype=np.bool)
         for name in self.column_names:
             data = dataset._evaluate(name, i1, i2)
-            if self.drop_nan and data.dtype.kind == "f":
+            if self.drop_nan and data.dtype.kind in 'O':
+                if np.ma.isMaskedArray(data):
+                    strings = data.data.astype(str)
+                else:
+                    strings = data.astype(str)
+                mask = mask & (strings != 'nan')
+            elif self.drop_nan and data.dtype.kind == "f":
                 if np.ma.isMaskedArray(data):
                     mask = mask & ~np.isnan(data.data)
                 else:
