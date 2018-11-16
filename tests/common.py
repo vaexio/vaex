@@ -37,8 +37,8 @@ def server(webserver):
     server.close()
 
 @pytest.fixture()
-def ds_remote(webserver, server):
-    ds = ds_trimmed()
+def ds_remote(webserver, server, ds_trimmed):
+    ds = ds_trimmed
     ds.name = 'ds_trimmed'
     webserver.set_datasets([ds])
     return server.datasets(as_dict=True)['ds_trimmed']
