@@ -1,12 +1,22 @@
 from common import *
 
 
-def test_filna(ds_local):
+def test_fillna_column(ds_local):
+    ds = ds_local
+    ds['ok'] = ds['obj'].fillna(value='NA')
+    assert ds.ok.values[5] == 'NA'
+
+
+def test_fillna(ds_local):
     ds = ds_local
     ds_copy = ds.copy()
 
+    ds_string_filled = ds.fillna(value='NA')
+    assert ds_string_filled.obj.values[5] == 'NA'
+
     ds_filled = ds.fillna(value=0)
     assert ds_filled.obj.values[5] == 0
+
     assert ds_filled.to_pandas_df(virtual=True).isna().any().any() == False
     assert ds_filled.to_pandas_df(virtual=True).isna().any().any() == False
 

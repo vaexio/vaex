@@ -4949,7 +4949,7 @@ class DatasetLocal(Dataset):
                             return str(k)
                         else:
                             return repr(k)
-                    arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+                    arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])
                     expression = "{}({})".format(local_name, arg_string)
                     return vaex.expression.Expression(self, expression)
                 return wrap
