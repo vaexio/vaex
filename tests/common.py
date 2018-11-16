@@ -117,9 +117,15 @@ def create_base_ds():
     dataset.add_column("mi", mi)
     dataset.add_column("ints", ints)
 
-
     name = np.array(list(map(lambda x: str(x) + "bla" + ('_' * int(x)), x)), dtype='S') #, dtype=np.string_)
     dataset.add_column("name", np.array(name))
+
+    obj_data = np.array(['train', 'false' , True, 1, 30., np.nan, 'something', 'something a bit longer resembling a sentence?!', -10000, 'this should be masked'], dtype='object')
+    obj_mask = np.array([False] * 9 + [True])
+    obj = nm.copy().astype('object')
+    obj[2:12] = np.ma.MaskedArray(data=obj_data, mask=obj_mask, dtype='object')
+    dataset.add_column("obj", obj)
+
     return dataset
 
 # dsf = create_filtered()
