@@ -37,8 +37,8 @@ def server(webserver):
     server.close()
 
 @pytest.fixture()
-def ds_remote(webserver, server):
-    ds = ds_trimmed()
+def ds_remote(webserver, server, ds_trimmed):
+    ds = ds_trimmed
     ds.name = 'ds_trimmed'
     webserver.set_datasets([ds])
     return server.datasets(as_dict=True)['ds_trimmed']
@@ -93,7 +93,7 @@ def create_base_ds():
     dataset.add_column("x", x)
     dataset.add_column("y", y)
     # m = x.copy()
-    m = m = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
+    m = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
     ma_value = 77777
     m[-1+10] = ma_value
     m[-1+20] = ma_value
@@ -110,16 +110,22 @@ def create_base_ds():
     nm[-1+20] = ma_value
     nm = np.ma.array(nm, mask=nm==ma_value)
 
-    mi = mi = np.ma.array(m.data.astype(np.int64), mask=m.data==ma_value, fill_value=88888)
+    mi = np.ma.array(m.data.astype(np.int64), mask=m.data==ma_value, fill_value=88888)
     dataset.add_column("m", m)
     dataset.add_column('n', n)
     dataset.add_column('nm', nm)
     dataset.add_column("mi", mi)
     dataset.add_column("ints", ints)
 
-
     name = np.array(list(map(lambda x: str(x) + "bla" + ('_' * int(x)), x)), dtype='S') #, dtype=np.string_)
     dataset.add_column("name", np.array(name))
+
+    obj_data = np.array(['train', 'false' , True, 1, 30., np.nan, 'something', 'something a bit longer resembling a sentence?!', -10000, 'this should be masked'], dtype='object')
+    obj_mask = np.array([False] * 9 + [True])
+    obj = nm.copy().astype('object')
+    obj[2:12] = np.ma.MaskedArray(data=obj_data, mask=obj_mask, dtype='object')
+    dataset.add_column("obj", obj)
+
     return dataset
 
 # dsf = create_filtered()
