@@ -93,7 +93,7 @@ def create_base_ds():
     dataset.add_column("x", x)
     dataset.add_column("y", y)
     # m = x.copy()
-    m = m = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
+    m = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
     ma_value = 77777
     m[-1+10] = ma_value
     m[-1+20] = ma_value
@@ -110,7 +110,7 @@ def create_base_ds():
     nm[-1+20] = ma_value
     nm = np.ma.array(nm, mask=nm==ma_value)
 
-    mi = mi = np.ma.array(m.data.astype(np.int64), mask=m.data==ma_value, fill_value=88888)
+    mi = np.ma.array(m.data.astype(np.int64), mask=m.data==ma_value, fill_value=88888)
     dataset.add_column("m", m)
     dataset.add_column('n', n)
     dataset.add_column('nm', nm)
