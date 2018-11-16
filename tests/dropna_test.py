@@ -11,6 +11,7 @@ def test_dropna_objects(ds_local):
 
 def test_dropna(ds_local):
     ds = ds_local
+    ds_copy = ds.copy()
 
     ds_dropped = ds.dropna()
     assert len(ds_dropped) == 6
