@@ -1047,10 +1047,17 @@ for name, numpy_name in function_mapping:
 
 
 def fillna(ar, value, fill_nan=True, fill_masked=True):
-    '''Returns an array where missing values are replaced by value
+    '''Returns an array where missing values are replaced by value.
 
+    If the dtype is object, nan values and 'nan' string values
+    are replaced by value when fill_nan==True.
     '''
-    if ar.dtype.kind == 'f' and fill_nan:
+    if ar.dtype.kind in 'O' and fill_nan:
+        strings = ar.astype(str)
+        mask = strings == 'nan'
+        ar = ar.copy()
+        ar[mask] = value
+    elif ar.dtype.kind in 'f' and fill_nan:
         mask = np.isnan(ar)
         if np.any(mask):
             ar = ar.copy()

@@ -6,6 +6,8 @@ def test_filna(ds_local):
     ds_copy = ds.copy()
 
     ds_filled = ds.fillna(value=0)
+    assert ds_filled.obj.values[5] == 0
+    assert ds_filled.to_pandas_df(virtual=True).isna().any().any() == False
     assert ds_filled.to_pandas_df(virtual=True).isna().any().any() == False
 
     ds_filled = ds.fillna(value=10, fill_masked=False)
