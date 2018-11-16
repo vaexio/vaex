@@ -276,8 +276,11 @@ class Expression(with_metaclass(Meta)):
     def evaluate(self, i1=None, i2=None, out=None, selection=None):
         return self.ds.evaluate(self, i1, i2, out=out, selection=selection)
 
-    # def fillna(self, value, fill_nan=True, fill_masked=True):
-    #     return self.ds.func.fillna(self, value, fill_nan=fill_nan, fill_masked=fill_masked)
+    # TODO: it is not so elegant we need to have a custom version of this
+    # it now also misses the docstring, reconsider how the the meta class auto
+    # adds this method
+    def fillna(self, value, fill_nan=True, fill_masked=True):
+        return self.ds.func.fillna(self, value=value, fill_nan=fill_nan, fill_masked=fill_masked)
 
     def clip(self, lower=None, upper=None):
         return self.ds.func.clip(self, lower, upper)

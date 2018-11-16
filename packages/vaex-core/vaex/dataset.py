@@ -1047,10 +1047,17 @@ for name, numpy_name in function_mapping:
 
 
 def fillna(ar, value, fill_nan=True, fill_masked=True):
-    '''Returns an array where missing values are replaced by value
+    '''Returns an array where missing values are replaced by value.
 
+    If the dtype is object, nan values and 'nan' string values
+    are replaced by value when fill_nan==True.
     '''
-    if ar.dtype.kind == 'f' and fill_nan:
+    if ar.dtype.kind in 'O' and fill_nan:
+        strings = ar.astype(str)
+        mask = strings == 'nan'
+        ar = ar.copy()
+        ar[mask] = value
+    elif ar.dtype.kind in 'f' and fill_nan:
         mask = np.isnan(ar)
         if np.any(mask):
             ar = ar.copy()
@@ -4804,6 +4811,11 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             raise KeyError('no such column or virtual_columns named %r' % name)
 
     def drop(self, columns, inplace=False):
+        """Drop columns (or single column)
+
+        :param columns: list of columns or single column name
+        """
+        columns = _ensure_list(columns)
         ds = self if inplace else self.copy()
         for column in columns:
             del ds[column]
@@ -4942,7 +4954,7 @@ class DatasetLocal(Dataset):
                             return str(k)
                         else:
                             return repr(k)
-                    arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
+                    arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])
                     expression = "{}({})".format(local_name, arg_string)
                     return vaex.expression.Expression(self, expression)
                 return wrap
