@@ -4811,6 +4811,11 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             raise KeyError('no such column or virtual_columns named %r' % name)
 
     def drop(self, columns, inplace=False):
+        """Drop columns (or single column)
+
+        :param columns: list of columns or single column name
+        """
+        columns = _ensure_list(columns)
         ds = self if inplace else self.copy()
         for column in columns:
             del ds[column]
