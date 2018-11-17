@@ -4,8 +4,8 @@ from common import *
 def test_values(ds_local):
     ds = ds_local
 
-    np.testing.assert_array_equal(ds['x'].values, np.array(ds.evaluate('x')).T)
-    np.testing.assert_array_equal(ds['name'].values, np.array(ds.evaluate('name')).T)
+    np.testing.assert_array_equal(ds['x'].values, np.array(ds.evaluate('x')))
+    np.testing.assert_array_equal(ds['name'].values, np.array(ds.evaluate('name')))
 
     np.testing.assert_array_equal(ds['obj'].values.mask, ds.evaluate('obj').mask)
     ind = ds['obj'].values.data == ds.evaluate('obj').data
