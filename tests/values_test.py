@@ -12,7 +12,7 @@ def test_values(ds_local):
     assert np.concatenate((ind[:5], ind[6:])).all()
     assert np.isnan(ds['obj'].values.data[5])
 
-    np.testing.assert_array_equal(ds[['x', 'y']].values, np.array(ds.evaluate('x, y')).T)
-    # The missing values should be converted to nan, on the whole ndarray should be case to masked array
-    np.testing.assert_array_equal(ds[['x', 'y', 'nm']].values, np.array(ds.evaluate('x, y, nm')).T)
-    np.testing.assert_array_equal(ds[['x', 'name', 'nm', 'obj']].values, np.array(ds.evaluate('x, name, nm, obj')).T)
+    np.testing.assert_array_equal(ds[['x', 'y']].values, np.array([ds.evaluate('x'), ds.evaluate('y')]).T)
+    # The missing values are included. This may not be the correct behaviour
+    np.testing.assert_array_equal(ds[['x', 'y', 'nm']].values, np.array([ds.evaluate('x'), ds.evaluate('y'), ds.evaluate('nm')]).T)
+    np.testing.assert_array_equal(ds[['x', 'name', 'nm', 'obj']].values[:5], np.array([ds.evaluate('x'), ds.evaluate('name'), ds.evaluate('nm'), ds.evaluate('obj')]).T[:5])
