@@ -5839,3 +5839,7 @@ class DatasetArrays(DatasetLocal):
         super(DatasetArrays, self).add_column(name, data)
         self._length_unfiltered = int(round(self._length_original * self._active_fraction))
         # self.set_active_fraction(self._active_fraction)
+
+    @property
+    def values(self):
+        return np.array([self[column].values for column in self.column_names]).T
