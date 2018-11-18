@@ -5842,4 +5842,4 @@ class DatasetArrays(DatasetLocal):
 
     @property
     def values(self):
-        return np.array([self[column].values for column in self.column_names]).T
+        return self.__array__()

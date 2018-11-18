@@ -1,3 +1,4 @@
+import pytest
 from common import *
 
 
@@ -15,4 +16,8 @@ def test_values(ds_local):
     np.testing.assert_array_equal(ds[['x', 'y']].values, np.array([ds.evaluate('x'), ds.evaluate('y')]).T)
     # The missing values are included. This may not be the correct behaviour
     np.testing.assert_array_equal(ds[['x', 'y', 'nm']].values, np.array([ds.evaluate('x'), ds.evaluate('y'), ds.evaluate('nm')]).T)
-    np.testing.assert_array_equal(ds[['x', 'name', 'nm', 'obj']].values[:5], np.array([ds.evaluate('x'), ds.evaluate('name'), ds.evaluate('nm'), ds.evaluate('obj')]).T[:5])
+
+def test_object_column_values(ds_local):
+    ds = ds_local
+    with pytest.raises(Exception) as e_info:
+        ds[['x', 'name', 'nm', 'obj']].values
