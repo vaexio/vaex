@@ -5842,4 +5842,10 @@ class DatasetArrays(DatasetLocal):
 
     @property
     def values(self):
+        """
+        Return a numpy representation of the Dataset.
+        Only the values in the Dataset are returned, the column labels are removed.
+
+        Does not preserve the mask if any of the converted columns are masked arrays.
+        """
         return self.__array__()
