@@ -5138,10 +5138,16 @@ class DatasetLocal(Dataset):
     def echo(self, arg): return arg
 
     def __array__(self, dtype=None):
-        """Casts the dataset to a numpy array
+        """Gives a full memory copy of the dataset into a 2d numpy array of shape (n_rows, n_columns).
+        Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
 
-        Example:
-        >>> ar = np.array(ds)
+        Note this returns the same result as:
+
+        >>> np.array(ds)
+
+        except this can optionally take a dtype argument
+
+        Masked values are replaced by NaN's when the dtype if float, for other types the behaviour is undefined.
         """
         if dtype is None:
             dtype = np.float64
@@ -5842,10 +5848,15 @@ class DatasetArrays(DatasetLocal):
 
     @property
     def values(self):
-        """
-        Return a numpy representation of the Dataset.
-        Only the values in the Dataset are returned, the column labels are removed.
+        """Gives a full memory copy of the dataset into a 2d numpy array of shape (n_rows, n_columns).
+        Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
 
-        Does not preserve the mask if any of the converted columns are masked arrays.
+        Note this returns the same result as:
+
+        >>> np.array(ds)
+
+        except this can optionally take a dtype argument
+
+        Masked values are replaced by NaN's when the dtype if float, for other types the behaviour is undefined.
         """
         return self.__array__()
