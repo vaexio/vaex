@@ -492,7 +492,7 @@ class DatasetRest(DatasetRemote):
         self.server = server
         self.name = name
         self.column_names = column_names
-        self.dtypes = {name: np.dtype(dtype) for name, dtype in dtypes.items()}
+        self._dtypes = {name: np.dtype(dtype) for name, dtype in dtypes.items()}
         for column_name in self.get_column_names(virtual=True, strings=True):
             self._save_assign_expression(column_name)
         self._length_original = length_original
@@ -543,8 +543,8 @@ class DatasetRest(DatasetRemote):
             return result
 
     def dtype(self, expression):
-        if expression in self.dtypes:
-            return self.dtypes[expression]
+        if expression in self._dtypes:
+            return self._dtypes[expression]
         else:
             return np.zeros(1, dtype=np.float64).dtype
 

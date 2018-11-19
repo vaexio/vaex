@@ -2754,6 +2754,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return bytes_per_row * self.count(selection=selection)
 
     def dtype(self, expression):
+        """Return the numpy dtype for the given expression> If not a column, the first row will be evaluated to get the dtype"""
         expression = _ensure_string_from_expression(expression)
         if expression in self.variables:
             return np.float64(1).dtype
@@ -2761,7 +2762,12 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             return self.columns[expression].dtype
         else:
             return self.evaluate(expression, 0, 1).dtype
-            return np.zeros(1, dtype=np.float64).dtype
+
+    @property
+    def dtypes(self):
+        """Gives a Pandas series object containing all numpy dtypes of all columns (except hidden)."""
+        from pandas import Series
+        return Series({column_name:self.dtype(column_name) for column_name in self.get_column_names()})
 
     def is_masked(self, column):
         if column in self.columns:

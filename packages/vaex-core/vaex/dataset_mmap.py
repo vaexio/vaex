@@ -225,7 +225,6 @@ class DatasetMemoryMapped(DatasetLocal):
         self.offsets = {}
         self.strides = {}
         self.filenames = {}
-        self.dtypes = {}
         self.samp_id = None
         # self.variables = collections.OrderedDict()
 
