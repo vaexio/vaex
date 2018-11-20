@@ -5,7 +5,7 @@ astropy
 psutil>=1.2.1
 numpy>=1.7.2
 aplus
-tornado==4.1
+tornado>=5.0
 futures==2.2.0
 kapteyn
 cachetools
@@ -15,3 +15,4 @@ nbconvert>=5.1.1
 nbsphinx>=0.2.18
 ipython
 jupyter-sphinx>=0.1.2
+pip>=10.0
