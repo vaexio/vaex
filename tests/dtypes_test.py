@@ -9,4 +9,4 @@ def test_dtype(ds_local):
 
 def test_dtypes(ds_local):
   ds = ds_local
-  assert ds.dtypes.values.tolist() == [ds[name].dtype for name in ds.column_names]
+  assert ds.dtypes.values.tolist() == [ds.dtypes[name] for name in ds.column_names]
