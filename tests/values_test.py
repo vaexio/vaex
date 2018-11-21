@@ -10,6 +10,7 @@ def test_values(ds_local):
     assert ds['obj'].values.data.tolist() == ds.evaluate('obj').data.tolist()
     assert ds[['x', 'y']].values.tolist() == np.array([ds.evaluate('x'), ds.evaluate('y')]).T.tolist()
     assert ds[['x', 'y']].values.shape == (len(ds), 2)
+    assert ds[['m']].values[7][0] == 77777.0
     assert ds[['m','x']].values[7][0] == 77777
     # The missing values are included. This may not be the correct behaviour
     assert ds[['x', 'y', 'nm']].values.tolist(), np.array([ds.evaluate('x'), ds.evaluate('y'), ds.evaluate('nm')]).T.tolist()
