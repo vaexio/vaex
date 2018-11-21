@@ -5145,9 +5145,7 @@ class DatasetLocal(Dataset):
 
         >>> np.array(ds)
 
-        except this can optionally take a dtype argument
-
-        Masked values are replaced by NaN's when the dtype if float, for other types the behaviour is undefined.
+        If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
         """
         if dtype is None:
             dtype = np.float64
@@ -5855,8 +5853,6 @@ class DatasetArrays(DatasetLocal):
 
         >>> np.array(ds)
 
-        except this can optionally take a dtype argument
-
-        Masked values are replaced by NaN's when the dtype if float, for other types the behaviour is undefined.
+        If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
         """
         return self.__array__()
