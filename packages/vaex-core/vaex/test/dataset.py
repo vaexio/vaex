@@ -307,10 +307,10 @@ class TestDataset(unittest.TestCase):
 		def test_equal(ds1, ds2, units=True, ucds=True, description=True, descriptions=True, skip=[]):
 			if description:
 				self.assertEqual(ds1.description, ds2.description)
-			for name in ds1.get_column_names(strings=True):
+			for name in ds1.get_column_names(virtual=False):
 				if name in skip:
 					continue
-				self.assertIn(name, ds2.get_column_names(strings=True))
+				self.assertIn(name, ds2.get_column_names(virtual=False))
 				np.testing.assert_array_equal(ds1.evaluate(name), ds2.evaluate(name), err_msg='mismatch in ' +name)
 				if units:
 					self.assertEqual(ds1.units.get(name), ds2.units.get(name))
@@ -739,10 +739,10 @@ class TestDataset(unittest.TestCase):
 
 	def test_strings(self):
 		# TODO: concatenated datasets with strings of different length
-		self.assertEqual(["x", "y", "m", "mi", "ints", "f"], self.dataset.get_column_names())
+		self.assertEqual(["x", "y", "m", "mi", "ints", "f"], self.dataset.get_column_names(virtual=False, strings=False))
 
 		names = ["x", "y", "m", "mi", "ints", "f", "name"]
-		self.assertEqual(names, self.dataset.get_column_names(strings=True))
+		self.assertEqual(names, self.dataset.get_column_names(strings=True, virtual=False))
 
 		if self.dataset.is_local():
 			# check if strings are exported
@@ -785,9 +785,9 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(self.dataset.dtype("x*f"), np.float64)
 
 	def test_byte_size(self):
-		self.assertEqual(self.dataset.byte_size(), (8*6+2)*len(self.dataset))
+		self.assertEqual(self.dataset.byte_size(), (8*6 + 2 + self.dataset.col.name.dtype.itemsize)*len(self.dataset))
 		self.dataset.select("x < 1")
-		self.assertEqual(self.dataset.byte_size(selection=True), 8*6+2)
+		self.assertEqual(self.dataset.byte_size(selection=True), 8*6 + 2 + self.dataset.col.name.dtype.itemsize)
 
 	def test_ucd_find(self):
 		self.dataset.ucds["x"] = "a;b;c"

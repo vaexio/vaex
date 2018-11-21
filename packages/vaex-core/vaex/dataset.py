@@ -731,7 +731,7 @@ class _BlockScope(object):
         try:
             if variable in self.values:
                 return self.values[variable]
-            elif variable in self.dataset.get_column_names(strings=True, hidden=True):
+            elif variable in self.dataset.get_column_names(virtual=False, hidden=True):
                 offset = self.dataset._index_start
                 if self.dataset._needs_copy(variable):
                     # self._ensure_buffer(variable)
@@ -807,7 +807,7 @@ class _BlockScopeSelection(object):
                 offset = self.dataset._index_start
                 if variable in expression_namespace:
                     return expression_namespace[variable]
-                elif variable in self.dataset.get_column_names(strings=True, hidden=True):
+                elif variable in self.dataset.get_column_names(hidden=True, virtual=False):
                     return self.dataset.columns[variable][offset+self.i1:offset+self.i2]
                 elif variable in self.dataset.variables:
                     return self.dataset.variables[variable]
@@ -2732,7 +2732,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         class ColumnList(object):
             pass
         data = ColumnList()
-        for name in self.get_column_names(virtual=True, strings=True):
+        for name in self.get_column_names():
             expression = getattr(self, name, None)
             if not isinstance(expression, Expression):
                 expression = Expression(self, name)
@@ -2743,10 +2743,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """Close any possible open file handles, the dataset will not be in a usable state afterwards"""
         pass
 
-    def byte_size(self, selection=False):
+    def byte_size(self, selection=False, virtual=False):
         """Return the size in bytes the whole dataset requires (or the selection), respecting the active_fraction"""
         bytes_per_row = 0
-        for column in list(self.get_column_names()):
+        for column in list(self.get_column_names(virtual=virtual)):
             dtype = self.dtype(column)
             bytes_per_row += dtype.itemsize
             if np.ma.isMaskedArray(self.columns[column]):
@@ -2754,6 +2754,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return bytes_per_row * self.count(selection=selection)
 
     def dtype(self, expression):
+        """Return the numpy dtype for the given expression> If not a column, the first row will be evaluated to get the dtype"""
         expression = _ensure_string_from_expression(expression)
         if expression in self.variables:
             return np.float64(1).dtype
@@ -2761,7 +2762,12 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             return self.columns[expression].dtype
         else:
             return self.evaluate(expression, 0, 1).dtype
-            return np.zeros(1, dtype=np.float64).dtype
+
+    @property
+    def dtypes(self):
+        """Gives a Pandas series object containing all numpy dtypes of all columns (except hidden)."""
+        from pandas import Series
+        return Series({column_name:self.dtype(column_name) for column_name in self.get_column_names()})
 
     def is_masked(self, column):
         if column in self.columns:
@@ -2835,9 +2841,9 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             ucd = ucds[0]
             if ucd[0] == "^":  # we want it to start with
                 ucd = ucd[1:]
-                columns = [name for name in self.get_column_names(virtual=True) if self.ucds.get(name, "").startswith(ucd) and name not in exclude]
+                columns = [name for name in self.get_column_names() if self.ucds.get(name, "").startswith(ucd) and name not in exclude]
             else:
-                columns = [name for name in self.get_column_names(virtual=True) if ucd in self.ucds.get(name, "") and name not in exclude]
+                columns = [name for name in self.get_column_names() if ucd in self.ucds.get(name, "") and name not in exclude]
             return None if len(columns) == 0 else columns[0]
         else:
             columns = [self.ucd_find([ucd], exclude=exclude) for ucd in ucds]
@@ -3388,7 +3394,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def validate_expression(self, expression):
         """Validate an expression (may throw Exceptions)"""
         # return self.evaluate(expression, 0, 2)
-        vars = set(self.get_column_names(True, True)) | set(self.variables.keys())
+        vars = set(self.get_column_names()) | set(self.variables.keys())
         funcs = set(expression_namespace.keys())
         return vaex.expresso.validate_expression(expression, vars, funcs)
 
@@ -3550,7 +3556,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     add_virtual_columns_proper_motion2vperpendicular = _requires('astro')
 
     def _covariance_matrix_guess(self, columns, full=False, as_expression=False):
-        all_column_names = self.get_column_names(virtual=True)
+        all_column_names = self.get_column_names()
         columns = _ensure_strings_from_expressions(columns)
 
         def _guess(x, y):
@@ -3930,11 +3936,11 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """
         type = "change" if name in self.virtual_columns else "add"
         expression = _ensure_string_from_expression(expression)
-        if name in self.get_column_names():
-            renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names(virtual=True, strings=True))
+        if name in self.get_column_names(virtual=False):
+            renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names())
             expression = self._rename(name, renamed, expression)[0].expression
 
-        name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(virtual=True, strings=True))
+        name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names())
         self.virtual_columns[name] = expression
         self._save_assign_expression(name)
         self.signal_column_changed.emit(self, name, "add")
@@ -4003,7 +4009,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             if description or header != "description":
                 parts += ["<th>%s</th>" % header]
         parts += ["</tr></thead>"]
-        for name in self.get_column_names(virtual=True, strings=True):
+        for name in self.get_column_names():
             parts += ["<tr>"]
             parts += ["<td>%s</td>" % name]
             virtual = name not in self.column_names
@@ -4097,7 +4103,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
         parts += ["<table class='table-striped'>"]
 
-        column_names = self.get_column_names(virtual=True, strings=True)
+        column_names = self.get_column_names()
         parts += ["<thead><tr>"]
         for name in ["#"] + column_names:
             parts += ["<th>%s</th>" % name]
@@ -4181,12 +4187,13 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """Returns the number of columns, not counting virtual ones"""
         return len(self.column_names)
 
-    def get_column_names(self, virtual=False, hidden=False, strings=False):
+    def get_column_names(self, virtual=True, strings=True, hidden=False):
         """Return a list of column names
 
 
-        :param virtual: If True, also return virtual columns
-        :param hidden: If True, also return hidden columns
+        :param virtual: If False, skip virtual columns
+        :param hidden: If False, skip hidden columns
+        :param strings: If False, skip string columns
         :rtype: list of str
         """
         names = [name for name in self.column_names if strings or (self.dtype(name).type != np.string_)]
@@ -4778,7 +4785,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
         """
         if isinstance(item, int):
-            names = self.get_column_names(strings=True, virtual=True)
+            names = self.get_column_names()
             return [self.evaluate(name, item, item+1)[0] for name in names]
         elif isinstance(item, six.string_types):
             if hasattr(self, item) and isinstance(getattr(self, item), Expression):
@@ -4828,7 +4835,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return ds
 
     def iterrows(self):
-        columns = self.get_column_names(virtual=True, strings=True)
+        columns = self.get_column_names()
         for i in range(len(self)):
             yield i, {key: self.evaluate(key, i, i+1)[0] for key in columns}
             #return self[i]
@@ -4836,7 +4843,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
     def __iter__(self):
         """Iterator over the column names"""
-        return iter(list(self.get_column_names(virtual=True, strings=True)))
+        return iter(list(self.get_column_names()))
 
 
 def _select_replace(maskold, masknew):
@@ -4985,7 +4992,7 @@ class DatasetLocal(Dataset):
         ds._renamed_columns = list(self._renamed_columns)
         ds.units.update(self.units)
         ds._categories.update(self._categories)
-        column_names = column_names or self.get_column_names(strings=True, virtual=True, hidden=True)
+        column_names = column_names or self.get_column_names(hidden=True)
         for name in column_names:
             if name in self.columns:
                 ds.add_column(name, self.columns[name])
@@ -5061,7 +5068,7 @@ class DatasetLocal(Dataset):
         if dtype is None:
             dtype = np.float64
         chunks = []
-        for name in self.get_column_names(virtual=True):
+        for name in self.get_column_names(string=False):
             if not np.can_cast(self.dtype(name), dtype):
                 if self.dtype(name) != dtype:
                     raise ValueError("Cannot cast %r (of type %r) to %r" % (name, self.dtype(name), dtype))
@@ -5164,8 +5171,8 @@ class DatasetLocal(Dataset):
     def compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None, column_names=None):
         """Compare two datasets and report their difference, use with care for large datasets"""
         if column_names is None:
-            column_names = self.get_column_names(strings=True)
-            for other_column_name in other.get_column_names(strings=True):
+            column_names = self.get_column_names(virtual=False)
+            for other_column_name in other.get_column_names(virtual=False):
                 if other_column_name not in column_names:
                     column_names.append(other_column_name)
         different_values = []
@@ -5177,11 +5184,11 @@ class DatasetLocal(Dataset):
             index1 = np.argsort(self.columns[orderby])
             index2 = np.argsort(other.columns[orderby])
         for column_name in column_names:
-            if column_name not in self.get_column_names(strings=True):
+            if column_name not in self.get_column_names(virtual=False):
                 missing.append(column_name)
                 if report_missing:
                     print("%s missing from this dataset" % column_name)
-            elif column_name not in other.get_column_names(strings=True):
+            elif column_name not in other.get_column_names(virtual=False):
                 missing.append(column_name)
                 if report_missing:
                     print("%s missing from other dataset" % column_name)
@@ -5277,7 +5284,7 @@ class DatasetLocal(Dataset):
         N = len(self)
         N_other = len(other)
         if column_names is None:
-            column_names = other.get_column_names()
+            column_names = other.get_column_names(virtual=False)
         for column_name in column_names:
             if prefix is None and column_name in self:
                 raise ValueError("column %s already exists" % column_name)
@@ -5685,11 +5692,11 @@ class DatasetConcatenated(DatasetLocal):
         first, tail = datasets[0], datasets[1:]
         for dataset in datasets:
             assert dataset.filtered is False, "we don't support filtering for concatenated datasets"
-        for column_name in first.get_column_names(strings=True):
-            if all([column_name in dataset.get_column_names(strings=True) for dataset in tail]):
+        for column_name in first.get_column_names(virtual=False):
+            if all([column_name in dataset.get_column_names(virtual=False) for dataset in tail]):
                 self.column_names.append(column_name)
         self.columns = {}
-        for column_name in self.get_column_names(strings=True):
+        for column_name in self.get_column_names(virtual=False):
             self.columns[column_name] = _ColumnConcatenatedLazy(datasets, column_name)
             self._save_assign_expression(column_name)
 
