@@ -845,6 +845,16 @@ class Selection(object):
         if execute_fully and self.previous_selection:
             self.previous_selection.execute(executor=executor, execute_fully=execute_fully)
 
+    def _depending_columns(self, ds):
+        '''Find all columns that this selection depends on for dataset ds'''
+        depending = set()
+        for expression in self.expressions:
+            expression = ds._expr(expression)  # make sure it is an expression
+            depending |= expression.variables()
+        if self.previous_selection:
+            depending |= self.previous_selection._depending_columns(ds)
+        return depending
+
 
 class SelectionDropNa(Selection):
     def __init__(self, drop_nan, drop_masked, column_names, previous_selection, mode):
@@ -852,6 +862,7 @@ class SelectionDropNa(Selection):
         self.drop_nan = drop_nan
         self.drop_masked = drop_masked
         self.column_names = column_names
+        self.expressions = self.column_names
 
     def to_dict(self):
         previous = None
@@ -900,6 +911,7 @@ class SelectionExpression(Selection):
     def __init__(self,  boolean_expression, previous_selection, mode):
         super(SelectionExpression, self).__init__(previous_selection, mode)
         self.boolean_expression = str(boolean_expression)
+        self.expressions = [self.boolean_expression]
 
     def _rename(self, dataset, old, new):
         boolean_expression = Expression(dataset, self.boolean_expression)._rename(old, new).expression
@@ -933,6 +945,7 @@ class SelectionExpression(Selection):
 class SelectionInvert(Selection):
     def __init__(self, previous_selection):
         super(SelectionInvert, self).__init__(previous_selection, "")
+        self.expressions = []
 
     def to_dict(self):
         previous = None
@@ -952,6 +965,7 @@ class SelectionLasso(Selection):
         self.boolean_expression_y = boolean_expression_y
         self.xseq = xseq
         self.yseq = yseq
+        self.expressions = [boolean_expression_x, boolean_expression_y]
 
     def evaluate(self, dataset, name, i1, i2):
         if self.previous_selection:
@@ -4811,6 +4825,11 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             return ds.trim()
 
     def __delitem__(self, item):
+        '''Removes a (virtual) column from the dataset
+
+        Note: this does not remove check if the column is used in a virtual expression or in the filter and may lead
+              to issues. It is safer to use :py:method:`Dataset.drop`.
+        '''
         if isinstance(item, Expression):
             name = item.expression
         else:
@@ -4823,23 +4842,56 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         else:
             raise KeyError('no such column or virtual_columns named %r' % name)
 
-    def drop(self, columns, inplace=False):
+    @docsubst
+    def drop(self, columns, inplace=False, check=True):
         """Drop columns (or single column)
 
-        :param columns: list of columns or single column name
+        :param columns: List of columns or single column name
+        :param inplace: {inplace}
+        :param check: When true, it will check if the column is used in virtual columns or the filter, and hide it instead.
         """
         columns = _ensure_list(columns)
+        columns = _ensure_strings_from_expressions(columns)
         ds = self if inplace else self.copy()
+        depending_columns = ds._depending_columns(columns_exclude=columns)
         for column in columns:
-            del ds[column]
+            if check and column in depending_columns:
+                ds._hide_column(column)
+            else:
+                del ds[column]
         return ds
+
+    def _hide_column(self, column):
+        '''Hides a column by prefixing the name with \'__\''''
+        column = _ensure_string_from_expression(column)
+        new_name = self._find_valid_name('__' + column)
+        self._rename(column, new_name)
+
+    def _find_valid_name(self, initial_name):
+        '''Finds a non-colliding name by optional postfixing'''
+        return vaex.utils.find_valid_name(initial_name, used=self.get_column_names(hidden=True))
+
+    def _depending_columns(self, columns=None, columns_exclude=None, check_filter=True):
+        '''Find all depending column for a set of column (default all), minus the excluded ones'''
+        columns = set(columns or self.get_column_names(hidden=True))
+        if columns_exclude:
+            columns -= set(columns_exclude)
+        depending_columns = set()
+        for column in columns:
+            expression = self._expr(column)
+            depending_columns |= expression.variables()
+        depending_columns -= set(columns)
+        if check_filter:
+            if self.filtered:
+                selection = self.get_selection(FILTER_SELECTION_NAME)
+                depending_columns |= selection._depending_columns(self)
+        return depending_columns
 
     def iterrows(self):
         columns = self.get_column_names()
         for i in range(len(self)):
             yield i, {key: self.evaluate(key, i, i+1)[0] for key in columns}
             #return self[i]
-
 
     def __iter__(self):
         """Iterator over the column names"""
@@ -4993,7 +5045,19 @@ class DatasetLocal(Dataset):
         ds.units.update(self.units)
         ds._categories.update(self._categories)
         column_names = column_names or self.get_column_names(hidden=True)
-        for name in column_names:
+        all_column_names = self.get_column_names(hidden=True)
+
+        # put in the selections (thus filters) in place
+        # so drop moves instead of really dropping it
+        ds.functions.update(self.functions)
+        for key, value in self.selection_histories.items():
+            ds.selection_histories[key] = list(value)
+        for key, value in self.selection_history_indices.items():
+            ds.selection_history_indices[key] = value
+
+        # we copy all columns, but drop the ones that are not wanted
+        # this makes sure that needed columns are hidden instead
+        for name in all_column_names:
             if name in self.columns:
                 ds.add_column(name, self.columns[name])
             elif name in self.virtual_columns:
@@ -5001,11 +5065,13 @@ class DatasetLocal(Dataset):
                     ds.add_virtual_column(name, self.virtual_columns[name])
             else:
                 ds.add_column(vaex.utils.find_valid_name(name), self.evaluate(name, filtered=False))
-        ds.functions.update(self.functions)
-        for key, value in self.selection_histories.items():
-            ds.selection_histories[key] = list(value)
-        for key, value in self.selection_history_indices.items():
-            ds.selection_history_indices[key] = value
+        for name in all_column_names:
+            # if the column should not have been added, drop it. This checks if columns need
+            # to be hidden instead, and expressions be rewritten.
+            if name not in column_names:
+                ds.drop(name, inplace=True)
+                assert name not in ds.get_column_names(hidden=True)
+
         ds.copy_metadata(self)
         return ds
 
@@ -5068,7 +5134,7 @@ class DatasetLocal(Dataset):
         if dtype is None:
             dtype = np.float64
         chunks = []
-        for name in self.get_column_names(string=False):
+        for name in self.get_column_names(strings=False):
             if not np.can_cast(self.dtype(name), dtype):
                 if self.dtype(name) != dtype:
                     raise ValueError("Cannot cast %r (of type %r) to %r" % (name, self.dtype(name), dtype))
