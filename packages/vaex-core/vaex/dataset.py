@@ -5057,15 +5057,25 @@ class DatasetLocal(Dataset):
 
         # we copy all columns, but drop the ones that are not wanted
         # this makes sure that needed columns are hidden instead
-        for name in all_column_names:
-            if name in self.columns:
-                ds.add_column(name, self.columns[name])
-            elif name in self.virtual_columns:
-                if virtual:
-                    ds.add_virtual_column(name, self.virtual_columns[name])
-            else:
-                ds.add_column(vaex.utils.find_valid_name(name), self.evaluate(name, filtered=False))
-        for name in all_column_names:
+        def add_columns(columns):
+            for name in columns:
+                if name in self.columns:
+                    ds.add_column(name, self.columns[name])
+                elif name in self.virtual_columns:
+                    if virtual:
+                        ds.add_virtual_column(name, self.virtual_columns[name])
+                else:
+                    # this might be an expression, create a valid name
+                    expression = name
+                    name = vaex.utils.find_valid_name(name)
+                    ds[name] = ds._expr(expression)
+        # to preserve the order, we first add the ones we want, then the rest
+        add_columns(column_names)
+        # then the rest
+        rest = set(all_column_names) - set(column_names)
+        add_columns(rest)
+        # and remove them
+        for name in rest:
             # if the column should not have been added, drop it. This checks if columns need
             # to be hidden instead, and expressions be rewritten.
             if name not in column_names:
