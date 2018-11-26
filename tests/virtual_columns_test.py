@@ -23,3 +23,16 @@ def test_add_virtual_columns_polar_velocities_to_cartesian():
     np.testing.assert_almost_equal(ds.L.values, ds.L_.values, err_msg='error when calculating the Ltotal', decimal=3)
 
 
+def test_access_data_after_virtual_column_creation(ds_local):
+    ds = ds_local
+    features = ['x', 'y', 'nm']
+    ds[features]
+    ds['x_virtual'] = ds.x * 2
+    ds['y_virtual'] = ds.x * 3
+    ds['nm_virtual'] = ds.x * 10
+    ds[['m','n']]
+    features_virtual = ['x_virtual', 'y_virtual', 'nm_virtual']
+    ds[features]
+    ds[features].values
+    ds[features]
+    ds[features_virtual].values
