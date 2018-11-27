@@ -5138,10 +5138,14 @@ class DatasetLocal(Dataset):
     def echo(self, arg): return arg
 
     def __array__(self, dtype=None):
-        """Casts the dataset to a numpy array
+        """Gives a full memory copy of the dataset into a 2d numpy array of shape (n_rows, n_columns).
+        Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
 
-        Example:
-        >>> ar = np.array(ds)
+        Note this returns the same result as:
+
+        >>> np.array(ds)
+
+        If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
         """
         if dtype is None:
             dtype = np.float64
@@ -5839,3 +5843,16 @@ class DatasetArrays(DatasetLocal):
         super(DatasetArrays, self).add_column(name, data)
         self._length_unfiltered = int(round(self._length_original * self._active_fraction))
         # self.set_active_fraction(self._active_fraction)
+
+    @property
+    def values(self):
+        """Gives a full memory copy of the dataset into a 2d numpy array of shape (n_rows, n_columns).
+        Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
+
+        Note this returns the same result as:
+
+        >>> np.array(ds)
+
+        If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
+        """
+        return self.__array__()
