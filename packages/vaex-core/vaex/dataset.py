@@ -2937,6 +2937,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         selections = {name: selection.to_dict() if selection is not None else None for name, selection in selections.items()}
     # if selection is not None}
         state = dict(virtual_columns=virtual_columns,
+                     column_names=self.column_names,
                      renamed_columns=self._renamed_columns,
                      variables=self.variables,
                      functions=functions,
@@ -2958,9 +2959,14 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 self._rename(old, new)
         for name, value in state['functions'].items():
             self.add_function(name, vaex.serialize.from_dict(value))
-        self.virtual_columns = state['virtual_columns']
+        # we clear all columns, and add them later on, since otherwise self[name] = ... will try
+        # to rename the columns (which is unsupported for remote datasets)
+        self.column_names = []
+        self.virtual_columns = collections.OrderedDict()
         for name, value in state['virtual_columns'].items():
-            self._save_assign_expression(name)
+            self[name] = self._expr(value)
+            # self._save_assign_expression(name)
+        self.column_names = state['column_names']
         self.variables = state['variables']
         import astropy  # TODO: make this dep optional?
         units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
@@ -4841,6 +4847,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             self.column_names.remove(name)
         elif name in self.virtual_columns:
             del self.virtual_columns[name]
+            self.column_names.remove(name)
         else:
             raise KeyError('no such column or virtual_columns named %r' % name)
 
