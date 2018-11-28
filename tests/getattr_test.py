@@ -73,3 +73,11 @@ def test_expression_virtual(ds_local):
     assert 'r' in dss.get_column_names()[0]
     assert 'x' in dss.get_column_names()[1]
     assert np.array(dss).T.tolist() == [(ds.x/5).values.tolist(), (ds.r/10).values.tolist()]
+
+def test_access_data_after_virtual_column_creation(ds_local):
+    ds = ds_local
+    # we can access the x column
+    assert ds[['x']].values[:,0].tolist() == ds.x.values.tolist()
+    ds['virtual'] = ds.x * 2
+    # it should also work after we added a virtual column
+    assert ds[['x']].values[:,0].tolist() == ds.x.values.tolist()
