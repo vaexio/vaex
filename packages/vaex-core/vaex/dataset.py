@@ -1024,6 +1024,37 @@ def selection_from_dict(values):
     else:
         raise ValueError("unknown type: %r, in dict: %r" % (values["type"], values))
 
+_doc_snippets = {}
+_doc_snippets["expression"] = "expression or list of expressions, e.g. 'x', or ['x, 'y']"
+_doc_snippets["expression_one"] = "expression in the form of a string, e.g. 'x' or 'x+y' or object, e.g. ds.x or ds.x+ds.y "
+_doc_snippets["expression_single"] = "if previous argument is not a list, this argument should be given"
+_doc_snippets["binby"] = "List of expressions for constructing a binned grid"
+_doc_snippets["limits"] = """description for the min and max values for the expressions, e.g. 'minmax', '99.7%', [0, 10], or a list of, e.g. [[0, 10], [0, 20], 'minmax']"""
+_doc_snippets["shape"] = """shape for the array where the statistic is calculated on, if only an integer is given, it is used for all dimensions, e.g. shape=128, shape=[128, 256]"""
+_doc_snippets["percentile_limits"] = """description for the min and max values to use for the cumulative histogram, should currently only be 'minmax'"""
+_doc_snippets["percentile_shape"] = """shape for the array where the cumulative histogram is calculated on, integer type"""
+_doc_snippets["selection"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False), or a list of selections"""
+_doc_snippets["delay"] = """Do not return the result, but a proxy for delayhronous calculations (currently only for internal use)"""
+_doc_snippets["progress"] = """A callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False"""
+_doc_snippets["expression_limits"] = _doc_snippets["expression"]
+_doc_snippets["grid"] = """If grid is given, instead if compuation a statistic given by what, use this Nd-numpy array instead, this is often useful when a custom computation/statistic is calculated, but you still want to use the plotting machinery."""
+_doc_snippets["edges"] = """Currently for internal use only (it includes nan's and values outside the limits at borders, nan and 0, smaller than at 1, and larger at -1"""
+
+_doc_snippets["healpix_expression"] = """Expression which maps to a healpix index, for the Gaia catalogue this is for instance 'source_id/34359738368', other catalogues may simply have a healpix column."""
+_doc_snippets["healpix_max_level"] = """The healpix level associated to the healpix_expression, for Gaia this is 12"""
+_doc_snippets["healpix_level"] = """The healpix level to use for the binning, this defines the size of the first dimension of the grid."""
+
+_doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a scalar when no binby argument is given, with the statistic"""
+_doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
+_doc_snippets["cov_matrix"] = """List all convariance values as a double list of expressions, or "full" to guess all entries (which gives an error when values are not found), or "auto" to guess, but allow for missing values"""
+_doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :py:`Dataset.propagate_uncertainties` for details"""
+_doc_snippets['note_copy'] = 'Note that no copy of the underlying data is made, only a view/reference is make.'
+_doc_snippets['note_filter'] = 'Note that filtering will be ignored (since they may change), you may want to consider running :py:`Dataset.extract` first.'
+_doc_snippets['inplace'] = 'Make modifications to self or return a new dataset'
+
+def docsubst(f):
+    f.__doc__ = f.__doc__.format(**_doc_snippets)
+    return f
 
 # name maps to numpy function
 # <vaex name>:<numpy name>
@@ -1121,12 +1152,223 @@ def dt_hour(x):
     # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.hour.values
 
-
 expression_namespace["dt_dayofweek"] = dt_dayofweek
 expression_namespace["dt_dayofyear"] = dt_dayofyear
 expression_namespace["dt_year"] = dt_year
 expression_namespace["dt_weekofyear"] = dt_weekofyear
 expression_namespace["dt_hour"] = dt_hour
+
+
+@docsubst
+def _inside_polygon(x, y, px, py):
+    """Test if points defined by x and y are inside the polygon px, py
+
+    :param x: {expression_one}
+    :param y: {expression_one}
+    :param px: list of x coordinates for the polygon
+    :param px: list of y coordinates for the polygon
+    :return: true if inside, else false
+    """
+    x = as_flat_array(x, np.float64)
+    y = as_flat_array(y, np.float64)
+    px = as_flat_array(np.asarray(px), np.float64)
+    py = as_flat_array(np.asarray(py), np.float64)
+    mask = np.zeros(len(x), dtype=np.bool)
+    meanx = px.mean()
+    meany = py.mean()
+    radius = np.sqrt((meanx - px)**2 + (meany - py)**2).max()
+    vaex.vaexfast.pnpoly(px, py, x, y, mask, meanx, meany, radius)
+    return mask
+
+@docsubst
+def _inside_polygons(x, y, pxs, pys, any=True):
+    """Test if points defined by x and y are inside all or any of the the polygons px, py
+
+    :param x: {expression_one}
+    :param y: {expression_one}
+    :param pxs: list of N ndarrays with x coordinates for the polygon, N is the number of polygons
+    :param pxs: list of N ndarrays with y coordinates for the polygon
+    :param any: return true if in any polygon, or all polygons
+    :return: true if inside, else false
+    """
+    x = as_flat_array(x, np.float64)
+    y = as_flat_array(y, np.float64)
+    pxs = as_flat_array(np.asarray(pxs), np.float64)
+    pys = as_flat_array(np.asarray(pys), np.float64)
+    mask = np.zeros(len(x), dtype=np.bool)
+    meanx = pxs.mean()
+    meany = pys.mean()
+    radius = np.sqrt((meanx - pxs)**2 + (meany - pys)**2).max()
+    N = len(pxs)
+    if N > 0:
+        vaex.vaexfast.pnpoly(pxs[0], pys[0], x, y, mask, meanx, meany, radius)
+    if N > 1:
+        submask = np.zeros(len(x), dtype=np.bool)
+        for i in range(1, N):
+            vaex.vaexfast.pnpoly(pxs[i], pys[i], x, y, submask, meanx, meany, radius)
+        if any:
+            mask = mask | submask
+        else:
+            mask = mask & submask
+    return mask
+
+def _inside_which_polygon(x, y, pxs, pys):
+    """Find in which polygon (0 based index) a point resides
+
+    :param x: {expression_one}
+    :param y: {expression_one}
+    :param px: list of N ndarrays with x coordinates for the polygon, N is the number of polygons
+    :param px: list of N ndarrays with y coordinates for the polygon
+    :param any: return true if in any polygon, or all polygons
+    :return: true if inside, else false
+    """
+    x = as_flat_array(x, np.float64)
+    y = as_flat_array(y, np.float64)
+    pxs = as_flat_array(np.asarray(pxs), np.float64)
+    pys = as_flat_array(np.asarray(pys), np.float64)
+    polygon_indices = np.zeros(len(x), dtype=np.int32)
+    polygon_mask = np.ones(len(x), dtype=np.bool)
+    polygon_indices = np.ma.array(polygon_indices, mask=polygon_mask)
+    indices = np.arange(len(x), dtype=np.uint32)
+    inside_mask = np.zeros(len(x), dtype=np.bool)
+
+    meanx = pxs.mean()
+    meany = pys.mean()
+    radius = np.sqrt((meanx - pxs)**2 + (meany - pys)**2).max()
+    N = len(pxs)
+    # mask = mask | submask
+    for i in range(N):
+        vaex.vaexfast.pnpoly(pxs[i], pys[i], x, y, inside_mask, meanx, meany, radius)
+        # mark all points that are inside with the index of the polygon
+        polygon_indices.data[indices[inside_mask]] = i
+        polygon_indices.mask[indices[inside_mask]] = False
+        # print(">>>", i, inside_mask, indices, polygon_indices)
+        # no remove all values that found a matching polygon
+        x = x[~inside_mask]
+        y = y[~inside_mask]
+        # and keep track of where they point to in the polygon_indices array
+        indices = indices[~inside_mask]
+        # trim mask
+        inside_mask = inside_mask[:len(x)]
+        if len(x) == 0:
+            break
+    return polygon_indices
+
+def _inside_which_polygons(x, y, pxss, pyss=None, any=True):
+    """Find in which set of polygons (0 based index) a point resides
+
+    :param x: {expression_one}
+    :param y: {expression_one}
+    :param px: list of N ndarrays with x coordinates for the polygon, N is the number of polygons
+    :param px: list of N ndarrays with y coordinates for the polygon, if None, the shape of the ndarrays
+               of the last dimention of the x arrays should be 2 (i.e. have the x and y coordinates)
+    :param any: return true if in any polygon, or all polygons
+    :return: true if inside, else false
+    """
+    if pyss is None:
+        list_of_polygons = pxss
+        list_of_polygons = [[as_flat_array(np.asarray(vertices), np.float64) for vertices in polygons]
+                                for polygons in list_of_polygons]
+        pxss = [[as_flat_array(vertices[0]) for vertices in polygons] for polygons in list_of_polygons]
+        pyss = [[as_flat_array(vertices[1]) for vertices in polygons] for polygons in list_of_polygons]
+        # print(pxss)
+        # print(pyss)
+    else:
+        pxss = [[as_flat_array(np.asarray(pxs), np.float64) for pxs in polygons_x]
+                                for polygons_x in pxss]
+        pyss = [[as_flat_array(np.asarray(pys), np.float64) for pys in polygons_y]
+                                for polygons_y in pyss]
+    #meanx = pxs.mean()
+    #meany = pys.mean()
+    # if 0:
+    N = len(pxss)
+
+    # iterate over polygon sets
+    meanxss = []
+    meanyss = []
+    radiii = []
+    for region_index in range(N):
+        pxs = pxss[region_index]
+        pys = pyss[region_index]
+        meanxs = []
+        meanys = []
+        radii = []
+
+        for polygon_index in range(len(pxs)):
+            # sumx = np.sum([px.sum() for px in pxs])
+            # sumy = np.sum([py.sum() for py in pys])
+            # Npx = np.sum([len(px) for px in pxs])
+            # Npy = np.sum([len(py) for py in pys])
+            meanx = pxs[polygon_index].mean()
+            meany = pys[polygon_index].mean()
+            radius = np.sqrt((meanx - pxs[polygon_index])**2 + (meany - pys[polygon_index])**2).max()
+            # radius = np.max([np.sqrt((px - meanx)**2 + (py - meany)**2).max()
+            #                             for px, py   in zip(pxs, pys)
+            #                         ])
+            # meanx, meany = 0, 0
+            # radius = 1e6
+            meanxs.append(meanx)
+            meanys.append(meany)
+            radii.append(radius)
+        meanxss.append(meanxs)
+        meanyss.append(meanys)
+        radiii.append(radii)
+    print('hi there!')
+    return [x, y, pxss, pyss, meanxss, meanyss, radiii], {'any': any}
+    # return _inside_which_polygons_impl(x, y, pxss, pyss, meanxss, meanyss, radiii, any=any)
+
+def _inside_which_polygons_impl(x, y, pxss, pyss, meanxss, meanyss, radiii, any):
+    x = as_flat_array(x, np.float64)
+    y = as_flat_array(y, np.float64)
+    polygon_indices = np.zeros(len(x), dtype=np.int32)
+    polygon_mask = np.ones(len(x), dtype=np.bool)
+    polygon_indices = np.ma.array(polygon_indices, mask=polygon_mask)
+    indices = np.arange(len(x), dtype=np.uint32)
+    inside_mask = np.zeros(len(x), dtype=np.bool)
+    N = len(pxss)
+    for i in range(N):
+        pxs = pxss[i]
+        pys = pyss[i]
+        meanxs = meanxss[i]
+        meanys = meanyss[i]
+        radii = radiii[i]
+        M = len(pxs)
+        if M > 0:
+            vaex.vaexfast.pnpoly(pxs[0], pys[0], x, y, inside_mask, meanxs[0], meanys[0], radii[0])
+            # print('mask', inside_mask)
+        if M > 1:
+            inside_sub_mask = np.zeros(len(x), dtype=np.bool)
+            # find out if points are inside any/all polygons
+            for j in range(1, M):
+                vaex.vaexfast.pnpoly(pxs[j], pys[j], x, y, inside_sub_mask, meanxs[j], meanys[j], radii[j])
+            if any:
+                inside_mask = inside_mask | inside_sub_mask
+            else:
+                inside_mask = inside_mask & inside_sub_mask
+            # print('mask', inside_mask)
+
+        # mark all points that are inside with the index of the polygon
+        polygon_indices.data[indices[inside_mask]] = i
+        polygon_indices.mask[indices[inside_mask]] = False
+        # no remove all values that found a matching polygon
+        x = x[~inside_mask]
+        y = y[~inside_mask]
+        # and keep track of where they point to in the polygon_indices array
+        indices = indices[~inside_mask]
+        # trim mask
+        inside_mask = inside_mask[:len(x)]
+        if len(x) == 0:
+            break
+    return polygon_indices
+
+expression_namespace["inside_polygon"] = _inside_polygon
+expression_namespace["inside_polygons"] = _inside_polygons
+expression_namespace["inside_which_polygon"] = _inside_which_polygon
+expression_namespace["inside_which_polygons"] = _inside_which_polygons_impl
+functions_precompute = {}#
+functions_precompute['inside_which_polygons'] = _inside_which_polygons
+
+
 
 
 def str_strip(x, chars=None):
@@ -1144,38 +1386,6 @@ def _astype(x, dtype):
 
 expression_namespace["float"] = _float
 expression_namespace["astype"] = _astype
-
-_doc_snippets = {}
-_doc_snippets["expression"] = "expression or list of expressions, e.g. 'x', or ['x, 'y']"
-_doc_snippets["expression_single"] = "if previous argument is not a list, this argument should be given"
-_doc_snippets["binby"] = "List of expressions for constructing a binned grid"
-_doc_snippets["limits"] = """description for the min and max values for the expressions, e.g. 'minmax', '99.7%', [0, 10], or a list of, e.g. [[0, 10], [0, 20], 'minmax']"""
-_doc_snippets["shape"] = """shape for the array where the statistic is calculated on, if only an integer is given, it is used for all dimensions, e.g. shape=128, shape=[128, 256]"""
-_doc_snippets["percentile_limits"] = """description for the min and max values to use for the cumulative histogram, should currently only be 'minmax'"""
-_doc_snippets["percentile_shape"] = """shape for the array where the cumulative histogram is calculated on, integer type"""
-_doc_snippets["selection"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False), or a list of selections"""
-_doc_snippets["delay"] = """Do not return the result, but a proxy for delayhronous calculations (currently only for internal use)"""
-_doc_snippets["progress"] = """A callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False"""
-_doc_snippets["expression_limits"] = _doc_snippets["expression"]
-_doc_snippets["grid"] = """If grid is given, instead if compuation a statistic given by what, use this Nd-numpy array instead, this is often useful when a custom computation/statistic is calculated, but you still want to use the plotting machinery."""
-_doc_snippets["edges"] = """Currently for internal use only (it includes nan's and values outside the limits at borders, nan and 0, smaller than at 1, and larger at -1"""
-
-_doc_snippets["healpix_expression"] = """Expression which maps to a healpix index, for the Gaia catalogue this is for instance 'source_id/34359738368', other catalogues may simply have a healpix column."""
-_doc_snippets["healpix_max_level"] = """The healpix level associated to the healpix_expression, for Gaia this is 12"""
-_doc_snippets["healpix_level"] = """The healpix level to use for the binning, this defines the size of the first dimension of the grid."""
-
-_doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a scalar when no binby argument is given, with the statistic"""
-_doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
-_doc_snippets["cov_matrix"] = """List all convariance values as a double list of expressions, or "full" to guess all entries (which gives an error when values are not found), or "auto" to guess, but allow for missing values"""
-_doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :py:`Dataset.propagate_uncertainties` for details"""
-_doc_snippets['note_copy'] = 'Note that no copy of the underlying data is made, only a view/reference is make.'
-_doc_snippets['note_filter'] = 'Note that filtering will be ignored (since they may change), you may want to consider running :py:`Dataset.extract` first.'
-_doc_snippets['inplace'] = 'Make modifications to self or return a new dataset'
-
-def docsubst(f):
-    f.__doc__ = f.__doc__.format(**_doc_snippets)
-    return f
-
 
 _functions_statistics_1d = []
 
@@ -3988,7 +4198,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.signal_column_changed.emit(self, name, "delete")
         # self.write_virtual_meta()
 
-    def add_variable(self, name, expression, overwrite=True):
+    def add_variable(self, name, expression, overwrite=True, unique=False):
         """Add a variable column to the dataset
 
         :param: str name: name of virtual varible
@@ -4001,10 +4211,14 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         >>> dataset.add_virtual_column("x_prime", "x-center")
         >>> dataset.select("x_prime < 0")
         """
+        # what about scoping rules, variables, columns and virtual columns?
+        used = list(self.variables.keys()) + list(self.columns.keys()) + list(self.virtual_columns.keys())
+        name = vaex.utils.find_valid_name(name, used=[] if not unique else used)
         if overwrite or name not in self.variables:
             self.variables[name] = expression
             self.signal_variable_changed.emit(self, name, "add")
             # self.write_virtual_meta()
+        return name
 
     def delete_variable(self, name):
         """Deletes a variable from a dataset"""
@@ -5012,6 +5226,20 @@ class DatasetLocal(Dataset):
             setattr(datas, name, array)
         return datas
 
+    def _make_reprable(self, value):
+        """Turn 'json' like structure into sth that can be put into repr(value)
+        Effectively it will transform ndarrays into variables
+        """
+        if isinstance(value, np.ndarray):
+            name = self.add_variable('__arg_', value, unique=True)
+            return name
+        elif isinstance(value, Expression):
+            return str(value)
+        elif isinstance(value, (list, tuple)):
+            return "[" +  ", ".join([self._make_reprable(k) for k in value]) + "]"
+        else:
+            return repr(value)
+
     @property
     def func(self):
         class Functions(object):
@@ -5019,22 +5247,22 @@ class DatasetLocal(Dataset):
 
         functions = Functions()
         for name, value in expression_namespace.items():
+            precompute = functions_precompute.get(name)
             # f = vaex.expression.FunctionBuiltin(self, name)
-            def closure(name=name, value=value):
+            def closure(name=name, value=value, precompute=precompute):
                 local_name = name
                 def wrap(*args, **kwargs):
-                    def myrepr(k):
-                        if isinstance(k, Expression):
-                            return str(k)
-                        else:
-                            return repr(k)
-                    arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])
+                    if precompute:
+                        args, kwargs = precompute(*args, **kwargs)
+                    args = list(args)  # copy
+                    args = [self._make_reprable(arg) for arg in args]
+                    arg_string = ", ".join([(k) for k in args] + ['{}={}'.format(name, value) for name, value in kwargs.items()])
                     expression = "{}({})".format(local_name, arg_string)
                     return vaex.expression.Expression(self, expression)
                 return wrap
             f = closure()
             try:
-                f = functools.wraps(value)(f)
+                f = functools.wraps(precompute or value)(f)
             except AttributeError:
                 pass # python2 quicks.. ?
             setattr(functions, name, f)
