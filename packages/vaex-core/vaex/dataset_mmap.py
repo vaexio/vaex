@@ -41,6 +41,7 @@ if no_mmap:
     libc = cdll.LoadLibrary("libc.dylib")
     import ctypes
     import io
+    import fcntl
 
     from cachetools import LRUCache
     import threading
