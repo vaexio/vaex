@@ -331,3 +331,7 @@ texinfo_documents = [
 #texinfo_no_detailmenu = False
 
 autoclass_content = 'both'
+
+autodoc_default_options = {
+	'show-inheritance': True
+}

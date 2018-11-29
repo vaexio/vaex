@@ -66,7 +66,7 @@ Dataset class
 
 
 DatasetLocal class
--------------
+------------------
 
 .. autoclass:: vaex.dataset.DatasetLocal
      :members:
@@ -204,26 +204,61 @@ Machine learning with vaex.ml
 
 Note that vaex.ml does not fall under the MIT, but the `CC BY-CC-ND <https://creativecommons.org/licenses/by-nc-nd/4.0/>`_ LICENSE, which means it's ok for personal or academic use. You can install vaex-ml using `pip install vaex-ml`.
 
+
+Clustering
+~~~~~~~~~~
+
 .. autoclass:: vaex.ml.cluster.KMeans
      :members:
-     :special-members:
 
-.. autoclass:: vaex.ml.transformations.MinMaxScaler
+PCA
+~~~
+
+.. autoclass:: vaex.ml.transformations.PCA
      :members:
-     :special-members:
+
+Encoders
+~~~~~~~~
+
+.. autoclass:: vaex.ml.transformations.LabelEncoder
+     :members:
 
 .. autoclass:: vaex.ml.transformations.OneHotEncoder
      :members:
 
 .. autoclass:: vaex.ml.transformations.StandardScaler
      :members:
-     :special-members:
 
-.. autoclass:: vaex.ml.transformations.PCA
+.. autoclass:: vaex.ml.transformations.MinMaxScaler
      :members:
-     :special-members:
 
-.. autoclass:: vaex.ml.xgboost.XGBoost
+.. autoclass:: vaex.ml.transformations.MaxAbsScaler
      :members:
-     :special-members:
 
+.. autoclass:: vaex.ml.transformations.RobustScaler
+     :members:
+
+Boosted trees
+~~~~~~~~~~~~~
+
+.. autoclass:: vaex.ml.lightgbm.LightGBMModel
+     :members:
+
+.. autoclass:: vaex.ml.lightgbm.LightGBMClassifier
+     :members:
+
+.. autoclass:: vaex.ml.xgboost.XGBModel
+     :members:
+
+PyGBM support is in the incubator phase, which means support may disappear in future versions
+
+.. autoclass:: vaex.ml.incubator.pygbm.PyGBMModel
+     :members:
+
+Nearest neighbour
+~~~~~~~~~~~~~~~~~
+
+Annoy support is in the incubator phase, which means support may disappear in future versions
+
+.. autoclass:: vaex.ml.incubator.annoy.ANNOYModel
+     :members:
