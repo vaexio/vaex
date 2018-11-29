@@ -2767,6 +2767,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 bytes_per_row += 1
         return bytes_per_row * self.count(selection=selection)
 
+    @property
+    def nbytes(self):
+        return self.byte_size()
+
     def dtype(self, expression):
         """Return the numpy dtype for the given expression> If not a column, the first row will be evaluated to get the dtype"""
         expression = _ensure_string_from_expression(expression)
