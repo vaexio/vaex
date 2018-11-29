@@ -212,6 +212,9 @@ Note that vaex.ml does not fall under the MIT, but the `CC BY-CC-ND <https://cre
      :members:
      :special-members:
 
+.. autoclass:: vaex.ml.transformations.OneHotEncoder
+     :members:
+
 .. autoclass:: vaex.ml.transformations.StandardScaler
      :members:
      :special-members:
