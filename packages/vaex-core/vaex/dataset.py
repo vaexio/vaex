@@ -1176,7 +1176,6 @@ def docsubst(f):
     f.__doc__ = f.__doc__.format(**_doc_snippets)
     return f
 
-
 _functions_statistics_1d = []
 
 
@@ -2439,6 +2438,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return self._delay(delay, finish(limits_list))
 
     def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
+        """Calculate/estimate the mode"""
         if len(binby) == 0:
             raise ValueError("only supported with binby argument given")
         else:
@@ -2476,6 +2476,18 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                     scales=None, tool_select=False, bq_cleanup=True,
                     backend="bqplot",
                     **kwargs):
+        """Viz 1d, 2d or 3d in a Jupyter notebook
+
+        .. note::
+            This API is not fully settled and may change in the future
+
+        Examples
+        >>> ds.plot_widget(ds.x, ds.y, backend='bqplot')
+        >>> ds.plot_widget(ds.pickup_longitude, ds.pickup_latitude, backend='ipyleaflet')
+
+        :param backend: Widget backend to use: 'bqplot', 'ipyleaflet', 'ipyvolume', 'matplotlib'
+
+        """
         import vaex.jupyter.plot
         backend = vaex.jupyter.plot.create_backend(backend)
         cls = vaex.jupyter.plot.get_type(type)
@@ -2493,6 +2505,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             plot2d.show()
         return plot2d
 
+    @vaex.utils.deprecated('use plot_widget')
     def plot_bq(self, x, y, grid=None, shape=256, limits=None, what="count(*)", figsize=None,
                 f="identity", figure_key=None, fig=None, axes=None, xlabel=None, ylabel=None, title=None,
                 show=True, selection=[None, True], colormap="afmhot", grid_limits=None, normalize="normalize",
@@ -2556,7 +2569,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                      colormap="afmhot", grid_limits=None, image_size=800, nest=True,
                      figsize=None, interactive=False, title="", smooth=None, show=False, colorbar=True,
                      rotation=(0, 0, 0), **kwargs):
-        """
+        """Viz data in 2d using a healpix column.
 
         :param healpix_expression: {healpix_max_level}
         :param healpix_max_level: {healpix_max_level}

@@ -1,49 +1,35 @@
 """
-Vaex is a library for dealing with big tabular data.
+Vaex is a library for dealing with larger than memory DataFrames (out of core).
 
 The most important class (datastructure) in vaex is the :class:`.Dataset`. A dataset is obtained by either, opening
 the example dataset:
 
 >>> import vaex
->>> t = vaex.example()
+>>> df = vaex.example()
 
-Or using :func:`open` or :func:`from_csv`, to open a file:
+Or using :func:`open` to open a file.
 
->>> t1 = vaex.open("somedata.hdf5")
->>> t2 = vaex.open("somedata.fits")
->>> t3 = vaex.from_csv("somedata.csv")
+>>> df1 = vaex.open("somedata.hdf5")
+>>> df2 = vaex.open("somedata.fits")
+>>> df2 = vaex.open("somedata.arrow")
+>>> df4 = vaex.open("somedata.csv")
 
 Or connecting to a remove server:
 
->>> tbig = vaex.open("http://bla.com/bigtable")
+>>> df_remote = vaex.open("http://try.vaex.io/nyc_taxi_2015")
 
-The main purpose of vaex is to provide statistics, such as mean, count, sum, standard deviation, per columns, possibly
-with a selection, and on a regular grid.
 
-To count the number of rows:
+A few strong features of vaex are:
 
->>> t = vaex.example()
->>> t.count()
-330000.0
+ * Performance: Works with huge tabular data, process $\\gt 10^9$ rows/second.
+ * Expression system / Virtual columns: compute on the fly, without wasting ram.
+ * Memory efficient: no memory copies when doing filtering/selections/subsets.
+ * Visualization: directly supported, a one-liner is often enough.\n",
+ * User friendly API:** You will only need to deal with a Dataset object, and tab completion + docstring will help you out: `ds.mean<tab>`, feels very similar to Pandas.\n",
+ * Very fast statiscs on N dimensional grids such as histograms, running mean, heatmaps.
 
-Or the number of valid values, which for this dataset is the same:
 
->>> t.count("x")
-330000.0
-
-Count them on a regular grid:
-
->>> t.count("x", binby=["x", "y"], shape=(4,4))
-array([[   902.,   5893.,   5780.,   1193.],
-       [  4097.,  71445.,  75916.,   4560.],
-       [  4743.,  71131.,  65560.,   4108.],
-       [  1115.,   6578.,   4382.,    821.]])
-
-Visualise it using matplotlib:
-
->>> t.plot("x", "y", show=True)
-<matplotlib.image.AxesImage at 0x1165a5090>
-
+Follow the :`tutorial<https://docs.vaex.io/en/latest/tutorial.html>_` to learn how to use vaex.
 
 """  # -*- coding: utf-8 -*-
 from __future__ import print_function
@@ -239,6 +225,7 @@ def from_samp(username=None, password=None):
 
 
 def from_astropy_table(table):
+    """Create a vaex dataset from an Astropy Table"""
     import vaex.file.other
     return vaex.file.other.DatasetAstropyTable(table=table)
 
