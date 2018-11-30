@@ -4516,6 +4516,20 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         ds.add_column(virtual_column, ar)
         return ds
 
+    def persist(self, virtual_column, overwrite=False, progress=False, basepath=None):
+        """Materializes a virtual column to a file"""
+        virtual_column = _ensure_string_from_expression(virtual_column)
+        dirname, filename = os.path.split(basepath or self.path)
+        basename, extname = os.path.splitext(filename)
+        cachename = os.path.join(dirname, '.{basename}_{virtual_column}{extname}'.format(**locals()))
+        if not os.path.exists(cachename) or overwrite:
+            self.export(cachename, column_names=[virtual_column], progress=progress)
+        ds = vaex.open(cachename)
+        column = ds[virtual_column]
+        del self[virtual_column]
+        self.add_column(virtual_column, column.values)
+
+
     def get_selection(self, name="default"):
         """Get the current selection object (mostly for internal use atm)"""
         name = _normalize_selection_name(name)
