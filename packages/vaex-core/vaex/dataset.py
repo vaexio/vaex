@@ -1167,9 +1167,9 @@ _doc_snippets["healpix_level"] = """The healpix level to use for the binning, th
 _doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a scalar when no binby argument is given, with the statistic"""
 _doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
 _doc_snippets["cov_matrix"] = """List all convariance values as a double list of expressions, or "full" to guess all entries (which gives an error when values are not found), or "auto" to guess, but allow for missing values"""
-_doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :py:`Dataset.propagate_uncertainties` for details"""
+_doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :meth:`propagate_uncertainties` for details"""
 _doc_snippets['note_copy'] = 'Note that no copy of the underlying data is made, only a view/reference is make.'
-_doc_snippets['note_filter'] = 'Note that filtering will be ignored (since they may change), you may want to consider running :py:`Dataset.extract` first.'
+_doc_snippets['note_filter'] = 'Note that filtering will be ignored (since they may change), you may want to consider running :meth:`extract` first.'
 _doc_snippets['inplace'] = 'Make modifications to self or return a new dataset'
 
 def docsubst(f):
@@ -1189,23 +1189,11 @@ class Dataset(object):
 
     Each dataset has a number of columns, and a number of rows, the length of the dataset.
 
-    The most common operations are:
-    Dataset.plot
-    >>>
-    >>>
-
-
-    All Datasets have one 'selection', and all calculations by Subspace are done on the whole dataset (default)
+    All Datasets have multiple 'selection', and all calculations are done on the whole dataset (default)
     or for the selection. The following example shows how to use the selection.
 
-    >>> some_dataset.select("x < 0")
-    >>> subspace_xy = some_dataset("x", "y")
-    >>> subspace_xy_selected = subspace_xy.selected()
-
-
-    TODO: active fraction, length and shuffled
-
-
+    >>> df.select("x < 0")
+    >>> df.sum(df.y, selection=True)
 
     :type signal_selection_changed: events.Signal
     :type executor: Executor
@@ -2482,6 +2470,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             This API is not fully settled and may change in the future
 
         Examples
+
         >>> ds.plot_widget(ds.x, ds.y, backend='bqplot')
         >>> ds.plot_widget(ds.pickup_longitude, ds.pickup_latitude, backend='ipyleaflet')
 
@@ -2744,15 +2733,16 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
     @property
     def col(self):
-        """Gives direct access to the data as numpy-like arrays.
+        """Gives direct access to the columns only (useful for tab completion)
 
         Convenient when working with ipython in combination with small datasets, since this gives tab-completion
 
-        Columns can be accesed by there names, which are attributes. The attribues are currently strings, so you cannot
+        Columns can be accesed by there names, which are attributes. The attribues are currently expressions, so you can
         do computations with them
 
         :Example:
-        >>> ds = vx.example()
+    
+        >>> ds = vaex.example()
         >>> ds.plot(ds.col.x, ds.col.y)
 
         """
@@ -3207,6 +3197,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             logger.debug("expression list generated: %r", expressions_list)
         return expressions_list
 
+    @vaex.utils.deprecated('legacy system')
     def __call__(self, *expressions, **kwargs):
         """Alias/shortcut for :func:`Dataset.subspace`"""
         raise NotImplementedError
@@ -3964,6 +3955,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """Add a virtual column to the dataset
 
         Example:
+    
         >>> dataset.add_virtual_column("r", "sqrt(x**2 + y**2 + z**2)")
         >>> dataset.select("r < 10")
 
@@ -4715,6 +4707,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :return:
 
         Example:
+
         >>> ds.select_ellipse('x','y', 2, -1, 5,1, 30, name='my_ellipse')
         """
 
@@ -4830,11 +4823,12 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def __getitem__(self, item):
         """Convenient way to get expressions, (shallow) copies of a few columns, or to apply filtering
 
-        Examples
-                >> ds['Lz']  # the expression 'Lz
-                >> ds['Lz/2'] # the expression 'Lz/2'
-                >> ds[["Lz", "E"]] # a shallow copy with just two columns
-                >> ds[ds.Lz < 0]  # a shallow copy with the filter Lz < 0 applied
+        Examples:
+
+        >>> ds['Lz']  # the expression 'Lz
+        >>> ds['Lz/2'] # the expression 'Lz/2'
+        >>> ds[["Lz", "E"]] # a shallow copy with just two columns
+        >>> ds[ds.Lz < 0]  # a shallow copy with the filter Lz < 0 applied
 
         """
         if isinstance(item, int):
@@ -4867,7 +4861,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         '''Removes a (virtual) column from the dataset
 
         Note: this does not remove check if the column is used in a virtual expression or in the filter and may lead
-              to issues. It is safer to use :py:method:`Dataset.drop`.
+              to issues. It is safer to use :meth:`drop`.
         '''
         if isinstance(item, Expression):
             name = item.expression
@@ -5030,7 +5024,8 @@ class DatasetLocal(Dataset):
 
         Columns can be accesed by there names, which are attributes. The attribues are of type numpy.ndarray
 
-        :Example:
+        Example:
+
         >>> ds = vx.example()
         >>> r = np.sqrt(ds.data.x**2 + ds.data.y**2)
 
@@ -5387,6 +5382,7 @@ class DatasetLocal(Dataset):
 
 
         Example:
+    
         >>> x = np.arange(10)
         >>> y = x**2
         >>> z = x**3
@@ -5454,16 +5450,17 @@ class DatasetLocal(Dataset):
 
         Note: The filters will be ignored when joining, the full dataset will be joined (since filters may
         change). If either dataset is heavily filtered (contains just a small number of rows) consider running
-        :py:method:`Dataset.extract` first.
+        :func:`Dataset.extract` first.
 
         Example:
-                >>> a = np.array(['a', 'b', 'c'])
-                >>> x = np.arange(1,4)
-                >>> ds1 = vaex.from_arrays(a=a, x=x)
-                >>> b = np.array(['a', 'b', 'd'])
-                >>> y = x**2
-                >>> ds2 = vaex.from_arrays(b=b, y=y)
-                >>> ds1.join(ds2, left_on='a', right_on='b')
+
+        >>> a = np.array(['a', 'b', 'c'])
+        >>> x = np.arange(1,4)
+        >>> ds1 = vaex.from_arrays(a=a, x=x)
+        >>> b = np.array(['a', 'b', 'd'])
+        >>> y = x**2
+        >>> ds2 = vaex.from_arrays(b=b, y=y)
+        >>> ds1.join(ds2, left_on='a', right_on='b')
 
         :param other: Other dataset to join with (the right side)
         :param on: default key for the left table (self)
