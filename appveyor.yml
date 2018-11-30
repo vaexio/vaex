@@ -36,6 +36,7 @@ install:
   - pushd packages\vaex-ui   && pip install . && popd
 
 test_script:
- - python -m vaex.test.dataset
+ - python -m vaex.test.dataset TestDataset
+ - py.test tests/
 # - runipy examples/tutorial_ipython_notebook.ipynb
 # - runipy examples/advanced_plotting.ipynb
