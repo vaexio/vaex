@@ -27,6 +27,7 @@ install:
   # - cd ..
   - pushd packages\vaex-core   && pip install . && popd
   - pushd packages\vaex-hdf5   && pip install . && popd
+  - pushd packages\vaex-arrow   && pip install . && popd
   - pushd packages\vaex-viz   && pip install . && popd
   - pushd packages\vaex-server   && pip install . && popd
   - pushd packages\vaex-astro   && pip install . && popd
