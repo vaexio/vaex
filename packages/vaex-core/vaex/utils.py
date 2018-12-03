@@ -1,21 +1,22 @@
 # -*- coding: utf-8 -*-
-import time
-import platform
-import os
-import sys
-import numpy as np
-import math
-import concurrent.futures
-import six
-import re
-import psutil
-import progressbar
-import json
-import yaml
-import contextlib
 import collections
-import warnings
+import concurrent.futures
+import contextlib
 import functools
+import json
+import math
+import os
+import platform
+import re
+import sys
+import time
+import warnings
+
+import numpy as np
+import progressbar
+import psutil
+import six
+import yaml
 
 is_frozen = getattr(sys, 'frozen', False)
 PY2 = sys.version_info[0] == 2
@@ -34,14 +35,17 @@ class AttrDict(dict):
     def __setattr__(self, key, value):
         self[key] = value
 
+
 def deprecated(reason):
     def wraps(f):
         @functools.wraps(f)
         def wraps2(*args, **kwargs):
             warnings.warn("Call to deprecated function {}: {}".format(f.__name__, reason),
-                      category=DeprecationWarning, stacklevel=2)
+                          category=DeprecationWarning, stacklevel=2)
             return f(*args, **kwargs)
+
         return wraps2
+
     return wraps
 
 
@@ -426,11 +430,28 @@ def yaml_load(f):
     return yaml.safe_load(f)
 
 
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.bytes_):
+            return obj.decode('UTF-8')
+        elif isinstance(obj, bytes):
+            return str(obj, encoding='utf-8');
+
+        else:
+            return super(NumpyEncoder, self).default(obj)
+
+
 def write_json_or_yaml(filename, data):
     base, ext = os.path.splitext(filename)
     if ext == ".json":
         with open(filename, "w") as f:
-            json.dump(data, f, indent=2)
+            json.dump(data, f, indent=2, cls=NumpyEncoder)
     elif ext == ".yaml":
         with open(filename, "w") as f:
             yaml_dump(f, data)
@@ -470,10 +491,12 @@ yaml.add_constructor(_mapping_tag, dict_constructor, yaml.SafeLoader)
 def check_memory_usage(bytes_needed, confirm):
     if bytes_needed > psutil.virtual_memory().available:
         if bytes_needed < (psutil.virtual_memory().available + psutil.swap_memory().free):
-            text = "Action requires %s, you have enough swap memory available but it will make your computer slower, do you want to continue?" % (filesize_format(bytes_needed),)
+            text = "Action requires %s, you have enough swap memory available but it will make your computer slower, do you want to continue?" % (
+            filesize_format(bytes_needed),)
             return confirm("Memory usage issue", text)
         else:
-            text = "Action requires %s, you do not have enough swap memory available, do you want try anyway?" % (filesize_format(bytes_needed),)
+            text = "Action requires %s, you do not have enough swap memory available, do you want try anyway?" % (
+            filesize_format(bytes_needed),)
             return confirm("Memory usage issue", text)
     return True
 
