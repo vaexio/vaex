@@ -4208,22 +4208,28 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """Returns the number of columns, not counting virtual ones"""
         return len(self.column_names)
 
-    def get_column_names(self, virtual=True, strings=True, hidden=False):
+    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None):
         """Return a list of column names
 
         :param virtual: If False, skip virtual columns
         :param hidden: If False, skip hidden columns
         :param strings: If False, skip string columns
+        :param regex: If not None, return columns matched with the regular expression and virtual, hidden or strings  as requested
         :rtype: list of str
         """
+
         def column_filter(name):
             '''Return True if column with specified name should be returned'''
+            if regex is not None:
+                if re.compile(r'{}'.format(regex)).match(name) is None:
+                    return False
             if not virtual and name in self.virtual_columns:
                 return False
             if not strings and self.dtype(name).type == np.string_:
                 return False
             if not hidden and name.startswith('__'):
                 return False
+
             return True
         return [name for name in self.column_names if column_filter(name)]
 
