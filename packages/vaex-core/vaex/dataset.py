@@ -4228,7 +4228,6 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         >>> df.get_column_names(regex='x.*')
         ['x', 'x2']
         """
-
         def column_filter(name):
             '''Return True if column with specified name should be returned'''
             if regex and not re.match(regex, name):
@@ -4239,7 +4238,6 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 return False
             if not hidden and name.startswith('__'):
                 return False
-
             return True
         return [name for name in self.column_names if column_filter(name)]
 
@@ -5879,4 +5877,3 @@ class DatasetArrays(DatasetLocal):
         If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
         """
         return self.__array__()
-    
