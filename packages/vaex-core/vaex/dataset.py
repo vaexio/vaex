@@ -5879,3 +5879,4 @@ class DatasetArrays(DatasetLocal):
         If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
         """
         return self.__array__()
+    
