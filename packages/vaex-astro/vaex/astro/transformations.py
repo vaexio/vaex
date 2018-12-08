@@ -5,7 +5,7 @@ import math
 def patch(f):
     '''Adds method f to the Dataset class'''
     name = f.__name__
-    setattr(Dataset, name, f)
+    Dataset.__hidden__[name] = f
     return f
 
 
