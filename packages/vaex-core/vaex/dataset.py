@@ -39,6 +39,7 @@ try:
 except ImportError:
     from urlparse import urlparse
 
+DEFAULT_REPR_FORMAT = 'plain'
 FILTER_SELECTION_NAME = '__filter__'
 
 sys_is_le = sys.byteorder == 'little'
@@ -4289,10 +4290,77 @@ class Dataset(object):
                 columns[feature] = ((dtype, count, N-count, mean, std, minmax[0], minmax[1]))
         return pd.DataFrame(data=columns, index=['dtype', 'count', 'missing', 'mean', 'std', 'min', 'max'])
 
-    def cat(self, i1, i2):
+    def cat(self, i1, i2, format='html'):
+        """Display the dataset from row i1 till i2
+
+        For format, see https://pypi.org/project/tabulate/
+
+        :param int i1: Start row
+        :param int i2: End row.
+        :param str format: Format to use, e.g. 'html', 'plain', 'latex'
+        """
         from IPython import display
-        html = self._as_html_table(i1, i2)
-        display.display(display.HTML(html))
+        if format == 'html':
+            output = self._as_html_table(i1, i2)
+            display.display(display.HTML(output))
+        else:
+            output = self._as_table(i1, i2, format=format)
+            print(output)
+
+    def _as_table(self, i1, i2, j1=None, j2=None, format='html'):
+        parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
+        parts += ["<table class='table-striped'>"]
+
+        column_names = self.get_column_names()
+        values_list = []
+        values_list.append(['#', []])
+        # parts += ["<thead><tr>"]
+        for name in column_names:
+            values_list.append([name, []])
+            # parts += ["<th>%s</th>" % name]
+        # parts += ["</tr></thead>"]
+
+        def table_part(k1, k2, parts):
+            values = {}
+            N = k2 - k1
+            for i, name in enumerate(column_names):
+                try:
+                    values[name] = self.evaluate(name, i1=k1, i2=k2)
+                except:
+                    values[name] = ["error"] * (N)
+                    logger.exception('error evaluating: %s at rows %i-%i' % (name, k1, k2))
+                # values_list[i].append(value)
+            for i in range(k2 - k1):
+                # parts += ["<tr>"]
+                # parts += ["<td><i style='opacity: 0.6'>{:,}</i></td>".format(i + k1)]
+                values_list[0][1].append(i+k1)
+                for j, name in enumerate(column_names):
+                    value = values[name][i]
+                    if isinstance(value, np.ma.core.MaskedConstant):
+                        value = str(value)
+                        # parts += ["<td>%s</td>" % value]
+                        # value = 
+                    # else:
+                        # parts += ["<td>%r</td>" % value]
+                    values_list[j+1][1].append(value)
+                # parts += ["</tr>"]
+            # return values_list
+        parts = table_part(i1, i2, parts)
+        if j1 is not None and j2 is not None:
+            values_list[0][1].append('...')
+            for i in range(len(column_names)):
+                # parts += ["<td>...</td>"]
+               values_list[i+1][1].append('...')
+
+            # parts = table_part(j1, j2, parts)
+            table_part(j1, j2, parts)
+        # parts += "</table>"
+        # html = "".join(parts)
+        # return html
+        values_list = dict(values_list)
+        # print(values_list)
+        import tabulate
+        return tabulate.tabulate(values_list, headers="keys", tablefmt=format)
 
     def _as_html_table(self, i1, i2, j1=None, j2=None):
         parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
@@ -4349,6 +4417,9 @@ class Dataset(object):
         from IPython import display
         style = "<style>%s</style>" % css
         display.display(display.HTML(style))
+
+    def __repr__(self):
+        return self._head_and_tail_table(format=DEFAULT_REPR_FORMAT)
 
     def _repr_html_(self):
         """Representation for Jupyter"""
