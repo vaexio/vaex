@@ -1252,6 +1252,13 @@ class Dataset(object):
         self._selection_mask_caches = collections.defaultdict(dict)
         self._renamed_columns = []
 
+    def __getattr__(self, name):
+        # will support the hidden methods
+        if name in self.__hidden__:
+            return self.__hidden__[name].__get__(self)
+        else:
+            return super(type(self)).__getattr__(name)
+
     def iscategory(self, column):
         """Returns true if column is a category"""
         column = _ensure_string_from_expression(column)
@@ -2507,6 +2514,7 @@ class Dataset(object):
         # return subspace.plot_bq(grid, size, limits, square, center, weight, figsize, aspect, f, fig, axes, xlabel, ylabel, title,
         #                       group_by, group_limits, group_colors, group_labels, group_count, cmap, scales, tool_select, bq_cleanup, **kwargs)
 
+    # @_hidden
     def healpix_count(self, expression=None, healpix_expression=None, healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, delay=False, progress=None, selection=None):
         """Count non missing value for expression on an array which represents healpix data.
 
@@ -2542,6 +2550,7 @@ class Dataset(object):
         limits = [[-epsilon, nmax - epsilon]] + ([] if limits is None else limits)
         return self.count(expression, binby=binby, limits=limits, shape=shape, delay=delay, progress=progress, selection=selection)
 
+    # @_hidden
     def healpix_plot(self, healpix_expression="source_id/34359738368", healpix_max_level=12, healpix_level=8, what="count(*)", selection=None,
                      grid=None,
                      healpix_input="equatorial", healpix_output="galactic", f=None,
@@ -2845,6 +2854,8 @@ class Dataset(object):
             columns = [self.ucd_find([ucd], exclude=exclude) for ucd in ucds]
             return None if None in columns else columns
 
+    @vaex.utils.deprecated('Will most likely disappear or move')
+    @_hidden
     def selection_favorite_add(self, name, selection_name="default"):
         selection = self.get_selection(name=selection_name)
         if selection:
@@ -2853,18 +2864,26 @@ class Dataset(object):
         else:
             raise ValueError("no selection exists")
 
+    @vaex.utils.deprecated('Will most likely disappear or move')
+    @_hidden
     def selection_favorite_remove(self, name):
         del self.favorite_selections[name]
         self.selections_favorite_store()
 
+    @vaex.utils.deprecated('Will most likely disappear or move')
+    @_hidden
     def selection_favorite_apply(self, name, selection_name="default", executor=None):
         self.set_selection(self.favorite_selections[name], name=selection_name, executor=executor)
 
+    @vaex.utils.deprecated('Will most likely disappear or move')
+    @_hidden
     def selections_favorite_store(self):
         path = os.path.join(self.get_private_dir(create=True), "favorite_selection.yaml")
         selections = collections.OrderedDict([(key, value.to_dict()) for key, value in self.favorite_selections.items()])
         vaex.utils.write_json_or_yaml(path, selections)
 
+    @vaex.utils.deprecated('Will most likely disappear or move')
+    @_hidden
     def selections_favorite_load(self):
         try:
             path = os.path.join(self.get_private_dir(create=True), "favorite_selection.yaml")
@@ -2919,7 +2938,7 @@ class Dataset(object):
         'variables': {},
         'virtual_columns': {'r': '(((x ** 2) + (y ** 2)) ** 0.5)'}}
         """
-        
+
         virtual_names = list(self.virtual_columns.keys()) + list(self.variables.keys())
         units = {key: str(value) for key, value in self.units.items()}
         ucds = {key: value for key, value in self.ucds.items() if key in virtual_names}
@@ -3102,6 +3121,7 @@ class Dataset(object):
     #   path = os.path.join(self.get_private_dir(create=True), "meta.yaml")
     #   os.remove(path)
 
+    @_hidden
     def write_virtual_meta(self):
         """Writes virtual columns, variables and their ucd,description and units
 
@@ -3124,6 +3144,7 @@ class Dataset(object):
                          ucds=ucds, units=units, descriptions=descriptions)
         vaex.utils.write_json_or_yaml(path, meta_info)
 
+    @_hidden
     def update_virtual_meta(self):
         """Will read back the virtual column etc, written by :func:`Dataset.write_virtual_meta`. This will be done when opening a dataset."""
         import astropy.units
@@ -3142,6 +3163,7 @@ class Dataset(object):
         except:
             logger.exception("non fatal error")
 
+    @_hidden
     def write_meta(self):
         """Writes all meta data, ucd,description and units
 
@@ -3163,6 +3185,7 @@ class Dataset(object):
                          )
         vaex.utils.write_json_or_yaml(path, meta_info)
 
+    @_hidden
     def update_meta(self):
         """Will read back the ucd, descriptions, units etc, written by :func:`Dataset.write_meta`. This will be done when opening a dataset."""
         import astropy.units
@@ -3203,6 +3226,7 @@ class Dataset(object):
     def option_to_args(cls, option):
         return []
 
+    @_hidden
     def subspace(self, *expressions, **kwargs):
         """Return a :class:`Subspace` for this dataset with the given expressions:
 
@@ -3217,6 +3241,7 @@ class Dataset(object):
         """
         return self(*expressions, **kwargs)
 
+    @_hidden
     def subspaces(self, expressions_list=None, dimensions=None, exclude=None, **kwargs):
         """Generate a Subspaces object, based on a custom list of expressions or all possible combinations based on
         dimension
@@ -3292,6 +3317,7 @@ class Dataset(object):
         return expressions_list
 
     @vaex.utils.deprecated('legacy system')
+    @_hidden
     def __call__(self, *expressions, **kwargs):
         """Alias/shortcut for :func:`Dataset.subspace`"""
         raise NotImplementedError
@@ -3610,6 +3636,7 @@ class Dataset(object):
                 del d[name]
         return new_name
 
+    @_hidden
     def add_column_healpix(self, name="healpix", longitude="ra", latitude="dec", degrees=True, healpix_order=12, nest=True):
         """Add a healpix (in memory) column based on a longitude and latitude
 
@@ -3631,6 +3658,7 @@ class Dataset(object):
         hp_index = hp.ang2pix(hp.order2nside(healpix_order), theta, phi, nest=nest)
         self.add_column("healpix", hp_index)
 
+    @_hidden
     def add_virtual_column_bearing(self, name, lon1, lat1, lon2, lat2):
         lon1 = "(pickup_longitude * pi / 180)"
         lon2 = "(dropoff_longitude * pi / 180)"
@@ -3645,6 +3673,7 @@ class Dataset(object):
             .format(**locals())
         self.add_virtual_column("bearing", expr)
 
+    @_hidden
     def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name='deprecated', matrix_is_expression=False, translation=[0, 0, 0], propagate_uncertainties=False):
         """
 
@@ -3669,15 +3698,15 @@ class Dataset(object):
             self.propagate_uncertainties([self[xnew], self[ynew], self[znew]], [x, y, z])
 
     # wrap these with an informative msg
-    add_virtual_columns_eq2ecl = _requires('astro')
-    add_virtual_columns_eq2gal = _requires('astro')
-    add_virtual_columns_distance_from_parallax = _requires('astro')
-    add_virtual_columns_cartesian_velocities_to_pmvr = _requires('astro')
-    add_virtual_columns_proper_motion_eq2gal = _requires('astro')
-    add_virtual_columns_lbrvr_proper_motion2vcartesian = _requires('astro')
-    add_virtual_columns_equatorial_to_galactic_cartesian = _requires('astro')
-    add_virtual_columns_celestial = _requires('astro')
-    add_virtual_columns_proper_motion2vperpendicular = _requires('astro')
+    # add_virtual_columns_eq2ecl = _requires('astro')
+    # add_virtual_columns_eq2gal = _requires('astro')
+    # add_virtual_columns_distance_from_parallax = _requires('astro')
+    # add_virtual_columns_cartesian_velocities_to_pmvr = _requires('astro')
+    # add_virtual_columns_proper_motion_eq2gal = _requires('astro')
+    # add_virtual_columns_lbrvr_proper_motion2vcartesian = _requires('astro')
+    # add_virtual_columns_equatorial_to_galactic_cartesian = _requires('astro')
+    # add_virtual_columns_celestial = _requires('astro')
+    # add_virtual_columns_proper_motion2vperpendicular = _requires('astro')
 
     def _covariance_matrix_guess(self, columns, full=False, as_expression=False):
         all_column_names = self.get_column_names()
@@ -3791,8 +3820,7 @@ class Dataset(object):
                 else:
                     self.add_virtual_column(uncertainty_format.format(names[i]), np.sqrt(sigma))
 
-
-
+    @_hidden
     def add_virtual_columns_cartesian_to_polar(self, x="x", y="y", radius_out="r_polar", azimuth_out="phi_polar",
                                                propagate_uncertainties=False,
                                                radians=False):
@@ -3821,6 +3849,7 @@ class Dataset(object):
         if propagate_uncertainties:
             self.propagate_uncertainties([self[radius_out], self[azimuth_out]])
 
+    @_hidden
     def add_virtual_columns_cartesian_velocities_to_spherical(self, x="x", y="y", z="z", vx="vx", vy="vy", vz="vz", vr="vr", vlong="vlong", vlat="vlat", distance=None):
         """Concert velocities from a cartesian to a spherical coordinate system
 
@@ -3849,6 +3878,7 @@ class Dataset(object):
         always_list = kwargs.pop('always_list', False)
         return Expression(self, expressions[0]) if len(expressions) == 1 and not always_list else [Expression(self, k) for k in expressions]
 
+    @_hidden
     def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
                                                           propagate_uncertainties=False,):
         """Convert cartesian to polar velocities.
@@ -3875,6 +3905,7 @@ class Dataset(object):
         if propagate_uncertainties:
             self.propagate_uncertainties([self[vr_out], self[vazimuth_out]])
 
+    @_hidden
     def add_virtual_columns_polar_velocities_to_cartesian(self, x='x', y='y', azimuth=None, vr='vr_polar', vazimuth='vphi_polar', vx_out='vx', vy_out='vy', propagate_uncertainties=False):
         """ Convert cylindrical polar velocities to Cartesian.
 
@@ -3902,6 +3933,7 @@ class Dataset(object):
         if propagate_uncertainties:
             self.propagate_uncertainties([self[vx_out], self[vy_out]])
 
+    @_hidden
     def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees, propagate_uncertainties=False):
         """Rotation in 2d
 
@@ -3926,6 +3958,7 @@ class Dataset(object):
             self.propagate_uncertainties([self[xnew], self[ynew]])
 
     @docsubst
+    @_hidden
     def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname="x", yname="y", zname="z",
                                                    propagate_uncertainties=False,
                                                    center=[0, 0, 0], center_name="solar_position", radians=False):
@@ -3968,6 +4001,7 @@ class Dataset(object):
         if propagate_uncertainties:
             self.propagate_uncertainties([self[xname], self[yname], self[zname]])
 
+    @_hidden
     def add_virtual_columns_cartesian_to_spherical(self, x="x", y="y", z="z", alpha="l", delta="b", distance="distance", radians=False, center=None, center_name="solar_position"):
         """Convert cartesian to spherical coordinates.
 
@@ -4001,6 +4035,7 @@ class Dataset(object):
     # self.add_virtual_column(long_out, "((arctan2({y}, {x})+2*pi) % (2*pi)){transform}".format(**locals()))
     # self.add_virtual_column(lat_out, "(-arccos({z}/sqrt({x}**2+{y}**2+{z}**2))+pi/2){transform}".format(**locals()))
 
+    @_hidden
     def add_virtual_columns_aitoff(self, alpha, delta, x, y, radians=True):
         """Add aitoff (https://en.wikipedia.org/wiki/Aitoff_projection) projection
 
@@ -4020,6 +4055,7 @@ class Dataset(object):
         self.add_virtual_column(x, "2*cos({delta}{transform})*sin({alpha}{transform}/2)/sinc({aitoff_alpha}/pi)/pi".format(**locals()))
         self.add_virtual_column(y, "sin({delta}{transform})/sinc({aitoff_alpha}/pi)/pi".format(**locals()))
 
+    @_hidden
     def add_virtual_columns_projection_gnomic(self, alpha, delta, alpha0=0, delta0=0, x="x", y="y", radians=False, postfix=""):
         if not radians:
             alpha = "pi/180.*%s" % alpha
@@ -5120,6 +5156,13 @@ class Dataset(object):
         return iter(list(self.get_column_names()))
 
 
+Dataset.__hidden__ = {}
+hidden = [name for name, func in vars(Dataset).items() if getattr(func, '__hidden__', False)]
+for name in hidden:
+    Dataset.__hidden__[name] = getattr(Dataset, name)
+    delattr(Dataset, name)
+del hidden
+
 def _select_replace(maskold, masknew):
     return masknew
 
@@ -5351,6 +5394,7 @@ class DatasetLocal(Dataset):
         else:
             return len(self)
 
+    @_hidden
     def __call__(self, *expressions, **kwargs):
         """The local implementation of :func:`Dataset.__call__`"""
         import vaex.legacy
