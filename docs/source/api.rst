@@ -2,8 +2,10 @@ API documentation for vaex library
 ==================================
 
 
-Quick list for opening/reading in your data.
---------------------------------------------
+Quick lists
+-----------
+Opening/reading in your data.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autosummary::
     
@@ -15,8 +17,8 @@ Quick list for opening/reading in your data.
     vaex.from_pandas
     vaex.from_astropy_table
 
-Quick list for visualization.
------------------------------
+Visualization.
+~~~~~~~~~~~~~~
 
 .. autosummary::
     
@@ -27,8 +29,8 @@ Quick list for visualization.
     vaex.dataset.Dataset.healpix_plot
 
 
-Quick list for statistics.
---------------------------
+Statistics.
+~~~~~~~~~~~
 
 .. autosummary::
     
@@ -48,17 +50,17 @@ Quick list for statistics.
 
 .. toctree::
 
-vaex module
------------
+vaex-core
+---------
 
 .. automodule:: vaex
-    :members: open, from_arrays, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, server, example, app, zeldovich, set_log_level_debug, set_log_level_info, set_log_level_warning, set_log_level_exception, set_log_level_off, delayed
+    :members: open, from_arrays, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, server, example, app, delayed
     :undoc-members:
     :show-inheritance:
 
 
 Dataset class
--------------
+~~~~~~~~~~~~~
 
 .. autoclass:: vaex.dataset.Dataset
      :members:
@@ -66,7 +68,7 @@ Dataset class
 
 
 DatasetLocal class
-------------------
+~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.dataset.DatasetLocal
      :members:
@@ -74,14 +76,14 @@ DatasetLocal class
 
 
 vaex.stat module
-----------------
+~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.stat
     :members:
 
 
-.. autoclass:: vaex.stat.Statistic
-    :members:
+.. .. autoclass:: vaex.stat.Statistic
+..     :members:
 
 
 .. .. Subpackages
