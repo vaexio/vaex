@@ -21,15 +21,15 @@ Or connecting to a remove server:
 
 A few strong features of vaex are:
 
- * Performance: Works with huge tabular data, process $\\gt 10^9$ rows/second.
+ * Performance: Works with huge tabular data, process over a billion (> 10:sup:`9`) rows/second.
  * Expression system / Virtual columns: compute on the fly, without wasting ram.
  * Memory efficient: no memory copies when doing filtering/selections/subsets.
- * Visualization: directly supported, a one-liner is often enough.\n",
- * User friendly API:** You will only need to deal with a Dataset object, and tab completion + docstring will help you out: `ds.mean<tab>`, feels very similar to Pandas.\n",
+ * Visualization: directly supported, a one-liner is often enough.
+ * User friendly API: You will only need to deal with a Dataset object, and tab completion + docstring will help you out: `ds.mean<tab>`, feels very similar to Pandas.
  * Very fast statiscs on N dimensional grids such as histograms, running mean, heatmaps.
 
 
-Follow the :`tutorial<https://docs.vaex.io/en/latest/tutorial.html>_` to learn how to use vaex.
+Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how to use vaex.
 
 """  # -*- coding: utf-8 -*-
 from __future__ import print_function
@@ -75,12 +75,17 @@ def app(*args, **kwargs):
     """Create a vaex app, the QApplication mainloop must be started.
 
     In ipython notebook/jupyter do the following:
-    import vaex.ui.main # this causes the qt api level to be set properly
-    import vaex as xs
+
+    >>> import vaex.ui.main # this causes the qt api level to be set properly
+    >>> import vaex
+
     Next cell:
-    %gui qt
-    Next cell
-    app = vx.app()
+
+    >>> %gui qt
+
+    Next cell:
+
+    >>> app = vaex.app()
 
     From now on, you can run the app along with jupyter
 
@@ -231,15 +236,22 @@ def from_astropy_table(table):
 
 
 def from_items(*items):
-    """Create an in memory dataset from numpy arrays, in contrast to from_arrays this keeps the order of columns intact
+    """Create an in memory dataset from numpy arrays, in contrast to from_arrays this keeps the order of columns intact (for Python < 3.6)
 
-    :param: items: list of [(name, numpy array), ...]
+    Example
 
-    :Example:
-    >>> x = np.arange(10)
+    >>> import vaex, numpy as np
+    >>> x = np.arange(5)
     >>> y = x ** 2
-    >>> dataset = vx.from_items(('x', x), ('y', y))
+    >>> vaex.from_items(('x', x), ('y', y))
+      #    x    y
+      0    0    0
+      1    1    1
+      2    2    4
+      3    3    9
+      4    4   16
 
+    :param items: list of [(name, numpy array), ...]
 
     """
     import numpy as np
@@ -252,15 +264,28 @@ def from_items(*items):
 def from_arrays(**arrays):
     """Create an in memory dataset from numpy arrays
 
+    Example
 
-    :param: arrays: keyword arguments with arrays
-
-    :Example:
-    >>> x = np.arange(10)
+    >>> import vaex, numpy as np
+    >>> x = np.arange(5)
     >>> y = x ** 2
-    >>> dataset = vx.from_arrays(x=x, y=y)
+    >>> vaex.from_arrays(x=x, y=y)
+      #    x    y
+      0    0    0
+      1    1    1
+      2    2    4
+      3    3    9
+      4    4   16
+    >>> some_dict = {'x': x, 'y': y}
+    >>> vaex.from_arrays(**some_dict)  # in case you have your columns in a dict
+      #    x    y
+      0    0    0
+      1    1    1
+      2    2    4
+      3    3    9
+      4    4   16
 
-
+    :param arrays: keyword arguments with arrays
     """
     import numpy as np
     import six
