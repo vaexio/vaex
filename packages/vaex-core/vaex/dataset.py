@@ -553,6 +553,7 @@ class TaskStatistic(Task):
         name = self.__class__.__module__ + "." + self.__class__.__name__
         return "<%s(dataset=%r, expressions=%r, shape=%r, limits=%r, weights=%r, selections=%r, op=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.shape, self.limits, self.weights, self.selections, self.op, id(self))
 
+
     def map(self, thread_index, i1, i2, *blocks):
         class Info(object):
             pass
@@ -5102,9 +5103,9 @@ class Dataset(object):
         >>> df = vaex.example()
         >>> df['r'] = np.sqrt(df.x**2 + df.y**2 + df.z**2)
         >>> df.r
-        <vaex.expression.Expression(expressions='r')> instance at 0x121687e80 values=[2.9655450396553587, 5.77829281049018, 6.99079603950256, 9.431842752707537, 0.8825613121347967 ... (total 330000 values) ... 7.453831761514681, 15.398412491068198, 8.864250273925633, 17.601047186042507, 14.540181524970293] 
+        <vaex.expression.Expression(expressions='r')> instance at 0x121687e80 values=[2.9655450396553587, 5.77829281049018, 6.99079603950256, 9.431842752707537, 0.8825613121347967 ... (total 330000 values) ... 7.453831761514681, 15.398412491068198, 8.864250273925633, 17.601047186042507, 14.540181524970293]
         '''
-        
+
         if isinstance(name, six.string_types):
             if isinstance(value, Expression):
                 value = value.expression
