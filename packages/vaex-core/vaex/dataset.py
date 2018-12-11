@@ -1261,7 +1261,12 @@ class Dataset(object):
         else:
             return object.__getattribute__(self, name)
 
+    @_hidden
+    @vaex.utils.deprecated('use is_category')
     def iscategory(self, column):
+        return self.is_category(column)
+
+    def is_category(self, column):
         """Returns true if column is a category"""
         column = _ensure_string_from_expression(column)
         return column in self._categories
