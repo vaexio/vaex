@@ -18,7 +18,7 @@ url = 'https://www.github.com/maartenbreddels/vaex'
 # TODO: can we do without requests and progressbar2?
 # TODO: after python2 supports frops, future and futures can also be dropped
 # TODO: would be nice to have astropy only as dep in vaex-astro
-install_requires_core = ["numpy>=1.11", "astropy>=2", "aplus", "tabulate"
+install_requires_core = ["numpy>=1.11", "astropy>=2", "aplus", "tabulate",
                          "future>=0.15.2", "pyyaml", "progressbar2", "psutil>=1.2.1", "requests", "six", "cloudpickle"]
 if sys.version_info[0] == 2:
     install_requires_core.append("futures>=2.2.0")
