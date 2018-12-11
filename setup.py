@@ -43,7 +43,7 @@ class InstallCmd(install):
         for package in packages:
             with cwd(os.path.join('packages', package)):
                 os.system('python -m pip install --upgrade .')
-        os.system('python -m pip install vaex-ml')
+        os.system('python -m pip install vaex-ml==0.3.0')
 
 setup(
     name='vaex-meta',
