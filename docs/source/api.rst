@@ -2,8 +2,10 @@ API documentation for vaex library
 ==================================
 
 
-Quick list for opening/reading in your data.
---------------------------------------------
+Quick lists
+-----------
+Opening/reading in your data.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autosummary::
     
@@ -15,8 +17,8 @@ Quick list for opening/reading in your data.
     vaex.from_pandas
     vaex.from_astropy_table
 
-Quick list for visualization.
------------------------------
+Visualization.
+~~~~~~~~~~~~~~
 
 .. autosummary::
     
@@ -27,8 +29,8 @@ Quick list for visualization.
     vaex.dataset.Dataset.healpix_plot
 
 
-Quick list for statistics.
---------------------------
+Statistics.
+~~~~~~~~~~~
 
 .. autosummary::
     
@@ -48,17 +50,17 @@ Quick list for statistics.
 
 .. toctree::
 
-vaex module
------------
+vaex-core
+---------
 
 .. automodule:: vaex
-    :members: open, from_arrays, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, server, example, app, zeldovich, set_log_level_debug, set_log_level_info, set_log_level_warning, set_log_level_exception, set_log_level_off, delayed
+    :members: open, from_arrays, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, server, example, app, delayed
     :undoc-members:
     :show-inheritance:
 
 
 Dataset class
--------------
+~~~~~~~~~~~~~
 
 .. autoclass:: vaex.dataset.Dataset
      :members:
@@ -66,7 +68,7 @@ Dataset class
 
 
 DatasetLocal class
--------------
+~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.dataset.DatasetLocal
      :members:
@@ -74,14 +76,14 @@ DatasetLocal class
 
 
 vaex.stat module
-----------------
+~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.stat
     :members:
 
 
-.. autoclass:: vaex.stat.Statistic
-    :members:
+.. .. autoclass:: vaex.stat.Statistic
+..     :members:
 
 
 .. .. Subpackages
@@ -204,26 +206,61 @@ Machine learning with vaex.ml
 
 Note that vaex.ml does not fall under the MIT, but the `CC BY-CC-ND <https://creativecommons.org/licenses/by-nc-nd/4.0/>`_ LICENSE, which means it's ok for personal or academic use. You can install vaex-ml using `pip install vaex-ml`.
 
+
+Clustering
+~~~~~~~~~~
+
 .. autoclass:: vaex.ml.cluster.KMeans
      :members:
-     :special-members:
 
-.. autoclass:: vaex.ml.transformations.MinMaxScaler
+PCA
+~~~
+
+.. autoclass:: vaex.ml.transformations.PCA
      :members:
-     :special-members:
+
+Encoders
+~~~~~~~~
+
+.. autoclass:: vaex.ml.transformations.LabelEncoder
+     :members:
 
 .. autoclass:: vaex.ml.transformations.OneHotEncoder
      :members:
 
 .. autoclass:: vaex.ml.transformations.StandardScaler
      :members:
-     :special-members:
 
-.. autoclass:: vaex.ml.transformations.PCA
+.. autoclass:: vaex.ml.transformations.MinMaxScaler
      :members:
-     :special-members:
 
-.. autoclass:: vaex.ml.xgboost.XGBoost
+.. autoclass:: vaex.ml.transformations.MaxAbsScaler
      :members:
-     :special-members:
 
+.. autoclass:: vaex.ml.transformations.RobustScaler
+     :members:
+
+Boosted trees
+~~~~~~~~~~~~~
+
+.. autoclass:: vaex.ml.lightgbm.LightGBMModel
+     :members:
+
+.. autoclass:: vaex.ml.lightgbm.LightGBMClassifier
+     :members:
+
+.. autoclass:: vaex.ml.xgboost.XGBModel
+     :members:
+
+PyGBM support is in the incubator phase, which means support may disappear in future versions
+
+.. autoclass:: vaex.ml.incubator.pygbm.PyGBMModel
+     :members:
+
+Nearest neighbour
+~~~~~~~~~~~~~~~~~
+
+Annoy support is in the incubator phase, which means support may disappear in future versions
+
+.. autoclass:: vaex.ml.incubator.annoy.ANNOYModel
+     :members:

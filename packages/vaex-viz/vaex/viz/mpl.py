@@ -36,12 +36,23 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
            xlabel=None, ylabel=None, label=None,
            selection=None, show=False, tight_layout=True, hardcopy=None,
            **kwargs):
-    """
+    """Viz data in 1d (histograms, running means etc)
+
+    Example
+
+    >>> ds.plot1d(ds.x)
+    >>> ds.plot1d(ds.x, limits=[0, 100], shape=100)
+    >>> ds.plot1d(ds.x, what='mean(y)', limits=[0, 100], shape=100)
+
+    If you want to do a computation yourself, pass the grid argument, but you are responsible for passing the
+    same limits arguments:
+
+    >>> counts = ds.mean(ds.y, binby=ds.x, limits=[0, 100], shape=100)/100.
+    >>> ds.plot1d(ds.x, limits=[0, 100], shape=100, grid=means, label='mean(y)/100')
 
     :param x: Expression to bin in the x direction
     :param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
-    :param grid:
-    :param grid: if the binning is done before by yourself, you can pass it
+    :param grid: If the binning is done before by yourself, you can pass it
     :param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
     :param limits: list of [xmin, xmax], or a description such as 'minmax', '99%'
     :param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
@@ -175,7 +186,9 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
 @patch
 def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, c_expr=None, labels=None, selection=None, length_limit=50000,
     length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, ellipse_kwargs={}, **kwargs):
-    """Convenience wrapper around pylab.scatter when for working with small datasets or selections
+    """Viz (small amounts) of data in 2d using a scatter plot
+
+    Convenience wrapper around pylab.scatter when for working with small datasets or selections
 
     :param x: Expression for x axis
     :param y: Idem for y
@@ -286,7 +299,9 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
          smooth_pre=None, smooth_post=None,
          wrap=True, wrap_columns=4,
          return_extra=False, hardcopy=None):
-    """Declarative plotting of statistical plots using matplotlib, supports subplots, selections, layers
+    """Viz data in a 2d histogram/heatmap.
+
+    Declarative plotting of statistical plots using matplotlib, supports subplots, selections, layers
 
     Instead of passing x and y, pass a list as x argument for multiple panels. Give what a list of options to have multiple
     panels. When both are present then will be origanized in a column/row order.

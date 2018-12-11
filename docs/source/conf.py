@@ -41,11 +41,11 @@ extensions = [
 ]
 import os
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if not on_rtd:
-	extensions.append('sphinxcontrib.googleanalytics')
+# if not on_rtd:
+# 	extensions.append('sphinxcontrib.googleanalytics')
 
-	googleanalytics_id = 'UA-60052576-1'
-	analytics_id = 'UA-60052576-1'
+# 	googleanalytics_id = 'UA-60052576-1'
+# 	analytics_id = 'UA-60052576-1'
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['ntemplates']
 
@@ -331,3 +331,7 @@ texinfo_documents = [
 #texinfo_no_detailmenu = False
 
 autoclass_content = 'both'
+
+autodoc_default_options = {
+	'show-inheritance': True
+}

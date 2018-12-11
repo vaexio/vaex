@@ -23,13 +23,13 @@ Virtual columns
  * Download notebook: `example_virtual_columns.ipynb <example_virtual_columns.ipynb>`_
  
 Working with tables
----------------
+-------------------
  
  * Example output: `example_tables.html <example_tables.html>`_
  * Download notebook: `example_tables.ipynb <example_tables.ipynb>`_
  
 Volume rendering (3d)
----------------
+---------------------
 
  * Example output: `example_volume_rendering.html <example_volume_rendering.html>`_
  * Download notebook: `example_volume_rendering.ipynb <example_volume_rendering.ipynb>`_

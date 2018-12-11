@@ -39,6 +39,7 @@ try:
 except ImportError:
     from urlparse import urlparse
 
+DEFAULT_REPR_FORMAT = 'plain'
 FILTER_SELECTION_NAME = '__filter__'
 
 sys_is_le = sys.byteorder == 'little'
@@ -551,6 +552,7 @@ class TaskStatistic(Task):
     def __repr__(self):
         name = self.__class__.__module__ + "." + self.__class__.__name__
         return "<%s(dataset=%r, expressions=%r, shape=%r, limits=%r, weights=%r, selections=%r, op=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.shape, self.limits, self.weights, self.selections, self.op, id(self))
+
 
     def map(self, thread_index, i1, i2, *blocks):
         class Info(object):
@@ -1167,15 +1169,15 @@ _doc_snippets["healpix_level"] = """The healpix level to use for the binning, th
 _doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a scalar when no binby argument is given, with the statistic"""
 _doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
 _doc_snippets["cov_matrix"] = """List all convariance values as a double list of expressions, or "full" to guess all entries (which gives an error when values are not found), or "auto" to guess, but allow for missing values"""
-_doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :py:`Dataset.propagate_uncertainties` for details"""
-_doc_snippets['note_copy'] = 'Note that no copy of the underlying data is made, only a view/reference is make.'
-_doc_snippets['note_filter'] = 'Note that filtering will be ignored (since they may change), you may want to consider running :py:`Dataset.extract` first.'
+_doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :meth:`propagate_uncertainties` for details"""
+_doc_snippets['note_copy'] = '.. note:: Note that no copy of the underlying data is made, only a view/reference is make.'
+_doc_snippets['note_filter'] = '.. note:: Note that filtering will be ignored (since they may change), you may want to consider running :meth:`extract` first.'
 _doc_snippets['inplace'] = 'Make modifications to self or return a new dataset'
-
+_doc_snippets['return_shallow_copy'] = 'Returns a new dataset with a shallow copy/view of the underlying data'
 def docsubst(f):
-    f.__doc__ = f.__doc__.format(**_doc_snippets)
+    if f.__doc__:
+        f.__doc__ = f.__doc__.format(**_doc_snippets)
     return f
-
 
 _functions_statistics_1d = []
 
@@ -1184,29 +1186,21 @@ def stat_1d(f):
     _functions_statistics_1d.append(f)
     return f
 
+def _hidden(meth):
+    """Mark a method as hidden"""
+    meth.__hidden__ = True
+    return meth
 
 class Dataset(object):
     """All datasets are encapsulated in this class, local or remote dataets
 
     Each dataset has a number of columns, and a number of rows, the length of the dataset.
 
-    The most common operations are:
-    Dataset.plot
-    >>>
-    >>>
-
-
-    All Datasets have one 'selection', and all calculations by Subspace are done on the whole dataset (default)
+    All Datasets have multiple 'selection', and all calculations are done on the whole dataset (default)
     or for the selection. The following example shows how to use the selection.
 
-    >>> some_dataset.select("x < 0")
-    >>> subspace_xy = some_dataset("x", "y")
-    >>> subspace_xy_selected = subspace_xy.selected()
-
-
-    TODO: active fraction, length and shuffled
-
-
+    >>> df.select("x < 0")
+    >>> df.sum(df.y, selection=True)
 
     :type signal_selection_changed: events.Signal
     :type executor: Executor
@@ -1260,7 +1254,19 @@ class Dataset(object):
         self._selection_mask_caches = collections.defaultdict(dict)
         self._renamed_columns = []
 
+    def __getattr__(self, name):
+        # will support the hidden methods
+        if name in self.__hidden__:
+            return self.__hidden__[name].__get__(self)
+        else:
+            return object.__getattribute__(self, name)
+
+    @_hidden
+    @vaex.utils.deprecated('use is_category')
     def iscategory(self, column):
+        return self.is_category(column)
+
+    def is_category(self, column):
         """Returns true if column is a category"""
         column = _ensure_string_from_expression(column)
         return column in self._categories
@@ -1460,7 +1466,6 @@ class Dataset(object):
 
         Examples:
 
-
         >>> ds.count()
         330000.0
         >>> ds.count("*")
@@ -1512,7 +1517,6 @@ class Dataset(object):
         """Count the number of non-NaN values (or all, if expression is None or "*")
 
         Examples:
-
 
         >>> ds.count()
         330000.0
@@ -1850,24 +1854,23 @@ class Dataset(object):
 
         Or only the x argument is given with a list of expressions, e,g.:
 
-        >> ds.cov(["x, "y, "z"])
+        >>> ds.cov(["x, "y, "z"])
 
         Examples:
 
         >>> ds.cov("x", "y")
         array([[ 53.54521742,  -3.8123135 ],
-[ -3.8123135 ,  60.62257881]])
->>> ds.cov(["x", "y", "z"])
-array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
-[ -3.8123135 ,  60.62257881,   1.21381057],
-[ -0.98260511,   1.21381057,  25.55517638]])
+        [ -3.8123135 ,  60.62257881]])
+        >>> ds.cov(["x", "y", "z"])
+        array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
+        [ -3.8123135 ,  60.62257881,   1.21381057],
+        [ -0.98260511,   1.21381057,  25.55517638]])
 
         >>> ds.cov("x", "y", binby="E", shape=2)
         array([[[  9.74852878e+00,  -3.02004780e-02],
-[ -3.02004780e-02,   9.99288215e+00]],
-
-[[  8.43996546e+01,  -6.51984181e+00],
-[ -6.51984181e+00,   9.68938284e+01]]])
+        [ -3.02004780e-02,   9.99288215e+00]],
+        [[  8.43996546e+01,  -6.51984181e+00],
+        [ -6.51984181e+00,   9.68938284e+01]]])
 
 
         :param x: {expression}
@@ -2059,6 +2062,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         percentile_shape and percentile_limits
 
 
+        Example:
+
         >>> ds.percentile_approx("x", 10), ds.percentile_approx("x", 90)
         (array([-8.3220355]), array([ 7.92080358]))
         >>> ds.percentile_approx("x", 50, binby="x", shape=5, limits=[-10, 10])
@@ -2067,21 +2072,6 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                    [-0.01296306],
                    [ 3.56697863],
                    [ 7.45838367]])
-
-
-
-        0:1:0.1
-        1:1:0.2
-        2:1:0.3
-        3:1:0.4
-        4:1:0.5
-
-        5:1:0.6
-        6:1:0.7
-        7:1:0.8
-        8:1:0.9
-        9:1:1.0
-
 
         :param expression: {expression}
         :param binby: {binby}
@@ -2206,6 +2196,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
         The range is symmetric around the median, i.e., for a percentage of 90, this gives the same results as:
 
+        Example:
 
         >>> ds.limits_percentage("x", 90)
         array([-12.35081376,  12.14858052]
@@ -2356,7 +2347,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                     if value == "minmax":
                         limits = self.minmax(expression, selection=selection, delay=True)
                     else:
-                        match = re.match("([\d.]*)(\D*)", value)
+                        match = re.match(r"([\d.]*)(\D*)", value)
                         if match is None:
                             raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
                         else:
@@ -2439,6 +2430,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return self._delay(delay, finish(limits_list))
 
     def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
+        """Calculate/estimate the mode"""
         if len(binby) == 0:
             raise ValueError("only supported with binby argument given")
         else:
@@ -2476,6 +2468,19 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                     scales=None, tool_select=False, bq_cleanup=True,
                     backend="bqplot",
                     **kwargs):
+        """Viz 1d, 2d or 3d in a Jupyter notebook
+
+        .. note::
+            This API is not fully settled and may change in the future
+
+        Examples
+
+        >>> ds.plot_widget(ds.x, ds.y, backend='bqplot')
+        >>> ds.plot_widget(ds.pickup_longitude, ds.pickup_latitude, backend='ipyleaflet')
+
+        :param backend: Widget backend to use: 'bqplot', 'ipyleaflet', 'ipyvolume', 'matplotlib'
+
+        """
         import vaex.jupyter.plot
         backend = vaex.jupyter.plot.create_backend(backend)
         cls = vaex.jupyter.plot.get_type(type)
@@ -2493,6 +2498,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             plot2d.show()
         return plot2d
 
+    @vaex.utils.deprecated('use plot_widget')
     def plot_bq(self, x, y, grid=None, shape=256, limits=None, what="count(*)", figsize=None,
                 f="identity", figure_key=None, fig=None, axes=None, xlabel=None, ylabel=None, title=None,
                 show=True, selection=[None, True], colormap="afmhot", grid_limits=None, normalize="normalize",
@@ -2515,6 +2521,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         # return subspace.plot_bq(grid, size, limits, square, center, weight, figsize, aspect, f, fig, axes, xlabel, ylabel, title,
         #                       group_by, group_limits, group_colors, group_labels, group_count, cmap, scales, tool_select, bq_cleanup, **kwargs)
 
+    # @_hidden
     def healpix_count(self, expression=None, healpix_expression=None, healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, delay=False, progress=None, selection=None):
         """Count non missing value for expression on an array which represents healpix data.
 
@@ -2550,13 +2557,14 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         limits = [[-epsilon, nmax - epsilon]] + ([] if limits is None else limits)
         return self.count(expression, binby=binby, limits=limits, shape=shape, delay=delay, progress=progress, selection=selection)
 
+    # @_hidden
     def healpix_plot(self, healpix_expression="source_id/34359738368", healpix_max_level=12, healpix_level=8, what="count(*)", selection=None,
                      grid=None,
                      healpix_input="equatorial", healpix_output="galactic", f=None,
                      colormap="afmhot", grid_limits=None, image_size=800, nest=True,
                      figsize=None, interactive=False, title="", smooth=None, show=False, colorbar=True,
                      rotation=(0, 0, 0), **kwargs):
-        """
+        """Viz data in 2d using a healpix column.
 
         :param healpix_expression: {healpix_max_level}
         :param healpix_max_level: {healpix_max_level}
@@ -2625,24 +2633,6 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     @docsubst
     @stat_1d
     def _stat(self, what="count(*)", what_kwargs={}, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
-        """Calculate the sum for the given expression, possible on a grid defined by binby
-
-        Examples:
-
-        >>> ds.sum("L")
-        304054882.49378014
-        >>> ds.sum("L", binby="E", shape=4)
-        array([  8.83517994e+06,   5.92217598e+07,   9.55218726e+07,
-                         1.40008776e+08])
-
-        :param expression: {expression}
-        :param binby: {binby}
-        :param limits: {limits}
-        :param shape: {shape}
-        :param selection: {selection}
-        :param delay: {delay}
-        :return: {return_stat_scalar}
-        """
         waslist_what, [whats, ] = vaex.utils.listify(what)
         limits = self.limits(binby, limits, delay=True)
         waslist_selection, [selections] = vaex.utils.listify(selection)
@@ -2662,7 +2652,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             for j, what in enumerate(whats):
                 what = what.strip()
                 index = what.index("(")
-                groups = re.match("(.*)\((.*)\)", what).groups()
+                groups = re.match(r"(.*)\((.*)\)", what).groups()
                 if groups and len(groups) == 2:
                     function = groups[0]
                     arguments = groups[1].strip()
@@ -2731,15 +2721,16 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
     @property
     def col(self):
-        """Gives direct access to the data as numpy-like arrays.
+        """Gives direct access to the columns only (useful for tab completion)
 
         Convenient when working with ipython in combination with small datasets, since this gives tab-completion
 
-        Columns can be accesed by there names, which are attributes. The attribues are currently strings, so you cannot
+        Columns can be accesed by there names, which are attributes. The attribues are currently expressions, so you can
         do computations with them
 
-        :Example:
-        >>> ds = vx.example()
+        Example
+    
+        >>> ds = vaex.example()
         >>> ds.plot(ds.col.x, ds.col.y)
 
         """
@@ -2769,10 +2760,11 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
     @property
     def nbytes(self):
+        """Alias for `df.byte_size()`, see :meth:`Dataset.byte_size`"""
         return self.byte_size()
 
     def dtype(self, expression):
-        """Return the numpy dtype for the given expression> If not a column, the first row will be evaluated to get the dtype"""
+        """Return the numpy dtype for the given expression, if not a column, the first row will be evaluated to get the dtype"""
         expression = _ensure_string_from_expression(expression)
         if expression in self.variables:
             return np.float64(1).dtype
@@ -2788,6 +2780,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return Series({column_name:self.dtype(column_name) for column_name in self.get_column_names()})
 
     def is_masked(self, column):
+        '''Return if a column is a masked (numpy.ma) column'''
         if column in self.columns:
             return np.ma.isMaskedArray(self.columns[column])
         return False
@@ -2808,9 +2801,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def unit(self, expression, default=None):
         """Returns the unit (an astropy.unit.Units object) for the expression
 
-        :Example:
-        >>> import vaex as vx
-        >>> ds = vx.example()
+        Example
+
+        >>> import vaex
+        >>> ds = vaex.example()
         >>> ds.unit("x")
         Unit("kpc")
         >>> ds.unit("x*L")
@@ -2842,7 +2836,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
         Prefixed with a ^, it will only match the first part of the ucd
 
-        :Example:
+        Example
+
         >>> dataset.ucd_find('pos.eq.ra', 'pos.eq.dec')
         ['RA', 'DEC']
         >>> dataset.ucd_find('pos.eq.ra', 'doesnotexist')
@@ -2851,7 +2846,6 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         >>> dataset.ucd_find('meta.main')]
         'dec'
         >>> dataset.ucd_find('^meta.main')]
-        >>>
         """
         if isinstance(ucds, six.string_types):
             ucds = [ucds]
@@ -2867,6 +2861,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             columns = [self.ucd_find([ucd], exclude=exclude) for ucd in ucds]
             return None if None in columns else columns
 
+    @vaex.utils.deprecated('Will most likely disappear or move')
+    @_hidden
     def selection_favorite_add(self, name, selection_name="default"):
         selection = self.get_selection(name=selection_name)
         if selection:
@@ -2875,18 +2871,26 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         else:
             raise ValueError("no selection exists")
 
+    @vaex.utils.deprecated('Will most likely disappear or move')
+    @_hidden
     def selection_favorite_remove(self, name):
         del self.favorite_selections[name]
         self.selections_favorite_store()
 
+    @vaex.utils.deprecated('Will most likely disappear or move')
+    @_hidden
     def selection_favorite_apply(self, name, selection_name="default", executor=None):
         self.set_selection(self.favorite_selections[name], name=selection_name, executor=executor)
 
+    @vaex.utils.deprecated('Will most likely disappear or move')
+    @_hidden
     def selections_favorite_store(self):
         path = os.path.join(self.get_private_dir(create=True), "favorite_selection.yaml")
         selections = collections.OrderedDict([(key, value.to_dict()) for key, value in self.favorite_selections.items()])
         vaex.utils.write_json_or_yaml(path, selections)
 
+    @vaex.utils.deprecated('Will most likely disappear or move')
+    @_hidden
     def selections_favorite_load(self):
         try:
             path = os.path.join(self.get_private_dir(create=True), "favorite_selection.yaml")
@@ -2900,14 +2904,14 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def get_private_dir(self, create=False):
         """Each datasets has a directory where files are stored for metadata etc
 
-        :Example:
-        >>> import vaex as vx
-        >>> ds = vx.example()
-        >>> ds.get_private_dir()
+        Example
+
+        >>> import vaex
+        >>> ds = vaex.example()
+        >>> vaex.get_private_dir()
         '/Users/users/breddels/.vaex/datasets/_Users_users_breddels_vaex-testing_data_helmi-dezeeuw-2000-10p.hdf5'
 
         :param bool create: is True, it will create the directory if it does not exist
-
         """
         if self.is_local():
             name = os.path.abspath(self.path).replace(os.path.sep, "_")[:250]  # should not be too long for most os'es
@@ -2921,6 +2925,27 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return dir
 
     def state_get(self):
+        """Return the internal state of the dataset in a dictionary
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.from_scalars(x=1, y=2)
+        >>> df['r'] = (df.x**2 + df.y**2)**0.5
+        >>> df.state_get()
+        {'active_range': [0, 1],
+        'column_names': ['x', 'y', 'r'],
+        'description': None,
+        'descriptions': {},
+        'functions': {},
+        'renamed_columns': [],
+        'selections': {'__filter__': None},
+        'ucds': {},
+        'units': {},
+        'variables': {},
+        'virtual_columns': {'r': '(((x ** 2) + (y ** 2)) ** 0.5)'}}
+        """
+
         virtual_names = list(self.virtual_columns.keys()) + list(self.variables.keys())
         units = {key: str(value) for key, value in self.units.items()}
         ucds = {key: value for key, value in self.ucds.items() if key in virtual_names}
@@ -2954,6 +2979,38 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return state
 
     def state_set(self, state, use_active_range=False):
+        """Sets the internal state of the dataset
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.from_scalars(x=1, y=2)
+        >>> df
+          #    x    y        r
+          0    1    2  2.23607
+        >>> df['r'] = (df.x**2 + df.y**2)**0.5
+        >>> state = df.state_get()
+        >>> state
+        {'active_range': [0, 1],
+        'column_names': ['x', 'y', 'r'],
+        'description': None,
+        'descriptions': {},
+        'functions': {},
+        'renamed_columns': [],
+        'selections': {'__filter__': None},
+        'ucds': {},
+        'units': {},
+        'variables': {},
+        'virtual_columns': {'r': '(((x ** 2) + (y ** 2)) ** 0.5)'}}
+        >>> df2 = vaex.from_scalars(x=3, y=4)
+        >>> df2.state_set(state)  # now the virtual functions are 'copied'
+        >>> df2
+          #    x    y    r
+          0    3    4    5    
+
+        :param state: dict as returned by :meth:`Dataset.state_get`.
+        :param bool use_active_range: Whether to use the active range or not.
+        """
         self.description = state['description']
         if use_active_range:
             self._index_start, self._index_end = state['active_range']
@@ -2984,9 +3041,75 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             self.set_selection(selection, name=name)
 
     def state_write(self, f):
+        """Write the internal state to a json or yaml file (see :meth:`Dataset.state_get`)
+
+        Example
+
+        >>> import vaex
+        >>> df = vaex.from_scalars(x=1, y=2)
+        >>> df['r'] = (df.x**2 + df.y**2)**0.5
+        >>> df.state_write('state.json')
+        >>> print(open('state.json').read())
+        {
+        "virtual_columns": {
+            "r": "(((x ** 2) + (y ** 2)) ** 0.5)"
+        },
+        "column_names": [
+            "x",
+            "y",
+            "r"
+        ],
+        "renamed_columns": [],
+        "variables": {
+            "pi": 3.141592653589793,
+            "e": 2.718281828459045,
+            "km_in_au": 149597870.7,
+            "seconds_per_year": 31557600
+        },
+        "functions": {},
+        "selections": {
+            "__filter__": null
+        },
+        "ucds": {},
+        "units": {},
+        "descriptions": {},
+        "description": null,
+        "active_range": [
+            0,
+            1
+        ]
+        }
+        >>> df.state_write('state.yaml')
+        >>> print(open('state.yaml').read())
+        active_range:
+        - 0
+        - 1
+        column_names:
+        - x
+        - y
+        - r
+        description: null
+        descriptions: {}
+        functions: {}
+        renamed_columns: []
+        selections:
+        __filter__: null
+        ucds: {}
+        units: {}
+        variables:
+        pi: 3.141592653589793
+        e: 2.718281828459045
+        km_in_au: 149597870.7
+        seconds_per_year: 31557600
+        virtual_columns:
+        r: (((x ** 2) + (y ** 2)) ** 0.5)
+
+        :param str f: filename (ending in .json or .yaml)
+        """
         vaex.utils.write_json_or_yaml(f, self.state_get())
 
     def state_load(self, f, use_active_range=False):
+        """Load a state previously stored by :meth:`Dataset.state_store`, see also :meth:`Dataset.state_set`"""
         state = vaex.utils.read_json_or_yaml(f)
         self.state_set(state, use_active_range=use_active_range)
 
@@ -3005,6 +3128,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     #   path = os.path.join(self.get_private_dir(create=True), "meta.yaml")
     #   os.remove(path)
 
+    @_hidden
     def write_virtual_meta(self):
         """Writes virtual columns, variables and their ucd,description and units
 
@@ -3027,6 +3151,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                          ucds=ucds, units=units, descriptions=descriptions)
         vaex.utils.write_json_or_yaml(path, meta_info)
 
+    @_hidden
     def update_virtual_meta(self):
         """Will read back the virtual column etc, written by :func:`Dataset.write_virtual_meta`. This will be done when opening a dataset."""
         import astropy.units
@@ -3045,6 +3170,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         except:
             logger.exception("non fatal error")
 
+    @_hidden
     def write_meta(self):
         """Writes all meta data, ucd,description and units
 
@@ -3066,6 +3192,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                          )
         vaex.utils.write_json_or_yaml(path, meta_info)
 
+    @_hidden
     def update_meta(self):
         """Will read back the ucd, descriptions, units etc, written by :func:`Dataset.write_meta`. This will be done when opening a dataset."""
         import astropy.units
@@ -3106,6 +3233,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def option_to_args(cls, option):
         return []
 
+    @_hidden
     def subspace(self, *expressions, **kwargs):
         """Return a :class:`Subspace` for this dataset with the given expressions:
 
@@ -3120,6 +3248,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """
         return self(*expressions, **kwargs)
 
+    @_hidden
     def subspaces(self, expressions_list=None, dimensions=None, exclude=None, **kwargs):
         """Generate a Subspaces object, based on a custom list of expressions or all possible combinations based on
         dimension
@@ -3194,6 +3323,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             logger.debug("expression list generated: %r", expressions_list)
         return expressions_list
 
+    @vaex.utils.deprecated('legacy system')
+    @_hidden
     def __call__(self, *expressions, **kwargs):
         """Alias/shortcut for :func:`Dataset.subspace`"""
         raise NotImplementedError
@@ -3201,7 +3332,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def set_variable(self, name, expression_or_value, write=True):
         """Set the variable to an expression or value defined by expression_or_value
 
-        :Example:
+        Example
+
         >>> ds.set_variable("a", 2.)
         >>> ds.set_variable("b", "a**2")
         >>> ds.get_variable("b")
@@ -3265,13 +3397,13 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
         Note that this is not how vaex should be used, since it means a copy of the data needs to fit in memory.
 
-        To get partial results, use i1 and i2/
+        To get partial results, use i1 and i2
 
         :param str expression: Name/expression to evaluate
         :param int i1: Start row index, default is the start (0)
         :param int i2: End row index, default is the length of the dataset
         :param ndarray out: Output array, to which the result may be written (may be used to reuse an array, or write to
-        a memory mapped array)
+            a memory mapped array)
         :param selection: selection to apply
         :return:
         """
@@ -3349,9 +3481,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
          If index is given, that column is used for the index of the dataframe.
 
-         :Example:
+         Example
+
          >>> df = ds.to_pandas_df(["x", "y", "z"])
-         >>> ds_copy = vx.from_pandas(df)
+         >>> ds_copy = vaex.from_pandas(df)
 
         :param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
@@ -3510,6 +3643,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 del d[name]
         return new_name
 
+    @_hidden
     def add_column_healpix(self, name="healpix", longitude="ra", latitude="dec", degrees=True, healpix_order=12, nest=True):
         """Add a healpix (in memory) column based on a longitude and latitude
 
@@ -3531,6 +3665,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         hp_index = hp.ang2pix(hp.order2nside(healpix_order), theta, phi, nest=nest)
         self.add_column("healpix", hp_index)
 
+    @_hidden
     def add_virtual_column_bearing(self, name, lon1, lat1, lon2, lat2):
         lon1 = "(pickup_longitude * pi / 180)"
         lon2 = "(dropoff_longitude * pi / 180)"
@@ -3545,6 +3680,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             .format(**locals())
         self.add_virtual_column("bearing", expr)
 
+    @_hidden
     def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name='deprecated', matrix_is_expression=False, translation=[0, 0, 0], propagate_uncertainties=False):
         """
 
@@ -3569,15 +3705,15 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             self.propagate_uncertainties([self[xnew], self[ynew], self[znew]], [x, y, z])
 
     # wrap these with an informative msg
-    add_virtual_columns_eq2ecl = _requires('astro')
-    add_virtual_columns_eq2gal = _requires('astro')
-    add_virtual_columns_distance_from_parallax = _requires('astro')
-    add_virtual_columns_cartesian_velocities_to_pmvr = _requires('astro')
-    add_virtual_columns_proper_motion_eq2gal = _requires('astro')
-    add_virtual_columns_lbrvr_proper_motion2vcartesian = _requires('astro')
-    add_virtual_columns_equatorial_to_galactic_cartesian = _requires('astro')
-    add_virtual_columns_celestial = _requires('astro')
-    add_virtual_columns_proper_motion2vperpendicular = _requires('astro')
+    # add_virtual_columns_eq2ecl = _requires('astro')
+    # add_virtual_columns_eq2gal = _requires('astro')
+    # add_virtual_columns_distance_from_parallax = _requires('astro')
+    # add_virtual_columns_cartesian_velocities_to_pmvr = _requires('astro')
+    # add_virtual_columns_proper_motion_eq2gal = _requires('astro')
+    # add_virtual_columns_lbrvr_proper_motion2vcartesian = _requires('astro')
+    # add_virtual_columns_equatorial_to_galactic_cartesian = _requires('astro')
+    # add_virtual_columns_celestial = _requires('astro')
+    # add_virtual_columns_proper_motion2vperpendicular = _requires('astro')
 
     def _covariance_matrix_guess(self, columns, full=False, as_expression=False):
         all_column_names = self.get_column_names()
@@ -3634,18 +3770,18 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                                 uncertainty_format="{}_uncertainty"):
         """Propagates uncertainties (full covariance matrix) for a set of virtual columns.
 
-        Covariance matrix of the depending variables is guessed by finding columns prefixed by:
-        'e' or 'e_' or postfixed by '_error', '_uncertainty', 'e' and '_e'.
-        Off diagonals (covariance or correlation) by postfixes with '_correlation' or '_corr' for
-        correlation or '_covariance' or '_cov' for covariances.
+        Covariance matrix of the depending variables is guessed by finding columns prefixed by "e"
+        or `"e_"` or postfixed by "_error", "_uncertainty", "e" and `"_e"`.
+        Off diagonals (covariance or correlation) by postfixes with "_correlation" or "_corr" for
+        correlation or "_covariance" or "_cov" for covariances.
         (Note that x_y_cov = x_e * y_e * x_y_correlation)
 
 
-        Example:
+        Example
 
         >>> ds = vaex.from_scalars(x=1, y=2, e_x=0.1, e_y=0.2)
-        >>> ds['u'] = ds.x + ds.y
-        >>> ds['v'] = np.log10(ds.x)
+        >>> ds["u"] = ds.x + ds.y
+        >>> ds["v"] = np.log10(ds.x)
         >>> ds.propagate_uncertainties([ds.u, ds.v])
         >>> ds.u_uncertainty, ds.v_uncertainty
 
@@ -3691,8 +3827,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 else:
                     self.add_virtual_column(uncertainty_format.format(names[i]), np.sqrt(sigma))
 
-
-
+    @_hidden
     def add_virtual_columns_cartesian_to_polar(self, x="x", y="y", radius_out="r_polar", azimuth_out="phi_polar",
                                                propagate_uncertainties=False,
                                                radians=False):
@@ -3721,6 +3856,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if propagate_uncertainties:
             self.propagate_uncertainties([self[radius_out], self[azimuth_out]])
 
+    @_hidden
     def add_virtual_columns_cartesian_velocities_to_spherical(self, x="x", y="y", z="z", vx="vx", vy="vy", vz="vz", vr="vr", vlong="vlong", vlat="vlat", distance=None):
         """Concert velocities from a cartesian to a spherical coordinate system
 
@@ -3749,6 +3885,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         always_list = kwargs.pop('always_list', False)
         return Expression(self, expressions[0]) if len(expressions) == 1 and not always_list else [Expression(self, k) for k in expressions]
 
+    @_hidden
     def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
                                                           propagate_uncertainties=False,):
         """Convert cartesian to polar velocities.
@@ -3775,6 +3912,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if propagate_uncertainties:
             self.propagate_uncertainties([self[vr_out], self[vazimuth_out]])
 
+    @_hidden
     def add_virtual_columns_polar_velocities_to_cartesian(self, x='x', y='y', azimuth=None, vr='vr_polar', vazimuth='vphi_polar', vx_out='vx', vy_out='vy', propagate_uncertainties=False):
         """ Convert cylindrical polar velocities to Cartesian.
 
@@ -3802,6 +3940,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if propagate_uncertainties:
             self.propagate_uncertainties([self[vx_out], self[vy_out]])
 
+    @_hidden
     def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees, propagate_uncertainties=False):
         """Rotation in 2d
 
@@ -3826,6 +3965,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
             self.propagate_uncertainties([self[xnew], self[ynew]])
 
     @docsubst
+    @_hidden
     def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname="x", yname="y", zname="z",
                                                    propagate_uncertainties=False,
                                                    center=[0, 0, 0], center_name="solar_position", radians=False):
@@ -3868,6 +4008,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         if propagate_uncertainties:
             self.propagate_uncertainties([self[xname], self[yname], self[zname]])
 
+    @_hidden
     def add_virtual_columns_cartesian_to_spherical(self, x="x", y="y", z="z", alpha="l", delta="b", distance="distance", radians=False, center=None, center_name="solar_position"):
         """Convert cartesian to spherical coordinates.
 
@@ -3901,6 +4042,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     # self.add_virtual_column(long_out, "((arctan2({y}, {x})+2*pi) % (2*pi)){transform}".format(**locals()))
     # self.add_virtual_column(lat_out, "(-arccos({z}/sqrt({x}**2+{y}**2+{z}**2))+pi/2){transform}".format(**locals()))
 
+    @_hidden
     def add_virtual_columns_aitoff(self, alpha, delta, x, y, radians=True):
         """Add aitoff (https://en.wikipedia.org/wiki/Aitoff_projection) projection
 
@@ -3920,6 +4062,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         self.add_virtual_column(x, "2*cos({delta}{transform})*sin({alpha}{transform}/2)/sinc({aitoff_alpha}/pi)/pi".format(**locals()))
         self.add_virtual_column(y, "sin({delta}{transform})/sinc({aitoff_alpha}/pi)/pi".format(**locals()))
 
+    @_hidden
     def add_virtual_columns_projection_gnomic(self, alpha, delta, alpha0=0, delta0=0, x="x", y="y", radians=False, postfix=""):
         if not radians:
             alpha = "pi/180.*%s" % alpha
@@ -3951,6 +4094,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """Add a virtual column to the dataset
 
         Example:
+    
         >>> dataset.add_virtual_column("r", "sqrt(x**2 + y**2 + z**2)")
         >>> dataset.select("r < 10")
 
@@ -3993,17 +4137,18 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         # self.write_virtual_meta()
 
     def add_variable(self, name, expression, overwrite=True):
-        """Add a variable column to the dataset
-
-        :param: str name: name of virtual varible
-        :param: expression: expression for the variable
+        """Add a variable to to a dataset
 
         Variable may refer to other variables, and virtual columns and expression may refer to variables
 
-        :Example:
-        >>> dataset.add_variable("center")
-        >>> dataset.add_virtual_column("x_prime", "x-center")
-        >>> dataset.select("x_prime < 0")
+        Example
+
+        >>> df.add_variable("center")
+        >>> df.add_virtual_column("x_prime", "x-center")
+        >>> df.select("x_prime < 0")
+
+        :param: str name: name of virtual varible
+        :param: expression: expression for the variable
         """
         if overwrite or name not in self.variables:
             self.variables[name] = expression
@@ -4082,25 +4227,57 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return "".join(parts) + "<h2>Data:</h2>" + self._head_and_tail_table()
 
     def head(self, n=10):
+        """Return a shallow copy dataset with the first n rows"""
         return self[:min(n, len(self))]
 
     def tail(self, n=10):
+        """Return a shallow copy dataset with the last n rows"""
         N = len(self)
         # self.cat(i1=max(0, N-n), i2=min(len(self), N))
         return self[max(0, N - n):min(len(self), N)]
 
-    def _head_and_tail_table(self, n=5):
+    def _head_and_tail_table(self, n=5, format='html'):
         N = len(self)
         if N <= n * 2:
-            return self._as_html_table(0, N)
+            return self._as_table(0, N, format=format)
         else:
-            return self._as_html_table(0, n, N - n, N)
+            return self._as_table(0, n, N - n, N, format=format)
 
     def head_and_tail_print(self, n=5):
+        """Display the first and last n elements."""
         from IPython import display
         display.display(display.HTML(self._head_and_tail_table(n)))
 
     def describe(self, strings=True, virtual=True, selection=None):
+        """Give a description of the dataset
+
+        >>> import vaex
+        >>> df = vaex.example()[['x', 'y', 'z']]
+        >>> df.describe()
+                         x          y          z
+        dtype      float64    float64    float64
+        count       330000     330000     330000
+        missing          0          0          0
+        mean    -0.0671315 -0.0535899  0.0169582
+        std        7.31746    7.78605    5.05521
+        min       -128.294   -71.5524   -44.3342
+        max        271.366    146.466    50.7185
+        >>> df.describe(selection=df.x > 0)
+                           x         y          z
+        dtype        float64   float64    float64
+        count         164060    164060     164060
+        missing       165940    165940     165940
+        mean         5.13572 -0.486786 -0.0868073
+        std          5.18701   7.61621    5.02831
+        min      1.51635e-05  -71.5524   -44.3342
+        max          271.366   78.0724    40.2191
+
+        :param bool strings: Describe string columns or not
+        :param bool virtual: Describe virtual columns or not
+        :param selection: Optional selection to use.
+        :return: Pandas dataframe
+
+        """
         import pandas as pd
         N = len(self)
         columns = {}
@@ -4119,10 +4296,77 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
                 columns[feature] = ((dtype, count, N-count, mean, std, minmax[0], minmax[1]))
         return pd.DataFrame(data=columns, index=['dtype', 'count', 'missing', 'mean', 'std', 'min', 'max'])
 
-    def cat(self, i1, i2):
+    def cat(self, i1, i2, format='html'):
+        """Display the dataset from row i1 till i2
+
+        For format, see https://pypi.org/project/tabulate/
+
+        :param int i1: Start row
+        :param int i2: End row.
+        :param str format: Format to use, e.g. 'html', 'plain', 'latex'
+        """
         from IPython import display
-        html = self._as_html_table(i1, i2)
-        display.display(display.HTML(html))
+        if format == 'html':
+            output = self._as_html_table(i1, i2)
+            display.display(display.HTML(output))
+        else:
+            output = self._as_table(i1, i2, format=format)
+            print(output)
+
+    def _as_table(self, i1, i2, j1=None, j2=None, format='html'):
+        parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
+        parts += ["<table class='table-striped'>"]
+
+        column_names = self.get_column_names()
+        values_list = []
+        values_list.append(['#', []])
+        # parts += ["<thead><tr>"]
+        for name in column_names:
+            values_list.append([name, []])
+            # parts += ["<th>%s</th>" % name]
+        # parts += ["</tr></thead>"]
+
+        def table_part(k1, k2, parts):
+            values = {}
+            N = k2 - k1
+            for i, name in enumerate(column_names):
+                try:
+                    values[name] = self.evaluate(name, i1=k1, i2=k2)
+                except:
+                    values[name] = ["error"] * (N)
+                    logger.exception('error evaluating: %s at rows %i-%i' % (name, k1, k2))
+                # values_list[i].append(value)
+            for i in range(k2 - k1):
+                # parts += ["<tr>"]
+                # parts += ["<td><i style='opacity: 0.6'>{:,}</i></td>".format(i + k1)]
+                values_list[0][1].append(i+k1)
+                for j, name in enumerate(column_names):
+                    value = values[name][i]
+                    if isinstance(value, np.ma.core.MaskedConstant):
+                        value = str(value)
+                        # parts += ["<td>%s</td>" % value]
+                        # value = 
+                    # else:
+                        # parts += ["<td>%r</td>" % value]
+                    values_list[j+1][1].append(value)
+                # parts += ["</tr>"]
+            # return values_list
+        parts = table_part(i1, i2, parts)
+        if j1 is not None and j2 is not None:
+            values_list[0][1].append('...')
+            for i in range(len(column_names)):
+                # parts += ["<td>...</td>"]
+               values_list[i+1][1].append('...')
+
+            # parts = table_part(j1, j2, parts)
+            table_part(j1, j2, parts)
+        # parts += "</table>"
+        # html = "".join(parts)
+        # return html
+        values_list = dict(values_list)
+        # print(values_list)
+        import tabulate
+        return tabulate.tabulate(values_list, headers="keys", tablefmt=format)
 
     def _as_html_table(self, i1, i2, j1=None, j2=None):
         parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
@@ -4180,6 +4424,11 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         style = "<style>%s</style>" % css
         display.display(display.HTML(style))
 
+    def _repr_mimebundle_(self, include=None, exclude=None, **kwargs):
+        # TODO: optimize, since we use the same data in both versions
+        # TODO: include latex version
+        return {'text/html':self._head_and_tail_table(format='html'), 'text/plain': self._head_and_tail_table(format='plain')}
+
     def _repr_html_(self):
         """Representation for Jupyter"""
         self._output_css()
@@ -4209,11 +4458,23 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return False
 
     def column_count(self):
-        """Returns the number of columns, not counting virtual ones"""
+        """Returns the number of columns (including virtual columns)"""
         return len(self.column_names)
 
     def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None):
         """Return a list of column names
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.from_scalars(x=1, x2=2, y=3, s='string')
+        >>> df['r'] = (df.x**2 + df.y**2)**2
+        >>> df.get_column_names()
+        ['x', 'x2', 'y', 's', 'r']
+        >>> df.get_column_names(virtual=False)
+        ['x', 'x2', 'y', 's']
+        >>> df.get_column_names(regex='x.*')
+        ['x', 'x2']
 
         :param virtual: If False, skip virtual columns
         :param hidden: If False, skip hidden columns
@@ -4340,11 +4601,16 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         {note_copy}
 
         Example:
-                >>> a = np.array(['a', 'b', 'c'])
-                >>> x = np.arange(1,4)
-                >>> ds = vaex.from_arrays(a=a, x=x)
-                >>> ds.take([0,2])
 
+        >>> import vaex, numpy as np
+        >>> df = vaex.from_arrays(s=np.array(['a', 'b', 'c', 'd']), x=np.arange(1,5))
+        >>> df.take([0,2])
+         #  s      x
+         0  a      1
+         1  c      3
+
+        :param indices: sequence (list or numpy array) with row numbers
+        :return: Dataset which is a shallow copy of the original data.
         '''
         ds = self.copy()
         # if the columns in ds already have a ColumnIndex
@@ -4401,19 +4667,39 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
 
         Provide either n or frac.
 
+        Example:
+
+        >>> import vaex, numpy as np
+        >>> df = vaex.from_arrays(s=np.array(['a', 'b', 'c', 'd']), x=np.arange(1,5))
+        >>> df
+          #  s      x
+          0  a      1
+          1  b      2
+          2  c      3
+          3  d      4
+        >>> df.sample(n=2, random_state=42) # 2 random rows, fixed seed
+          #  s      x
+          0  b      2
+          1  d      4
+        >>> df.sample(frac=1, random_state=42) # 'shuffling'
+          #  s      x
+          0  c      3
+          1  a      1
+          2  d      4
+          3  b      2
+        >>> df.sample(frac=1, replace=True, random_state=42) # useful for bootstrap (may contain repeated samples)
+          #  s      x
+          0  d      4
+          1  a      1
+          2  a      1
+          3  d      4
+
         :param int n: number of samples to take (default 1 if frac is None)
         :param float frac: fractional number of takes to take
         :param bool replace: If true, a row may be drawn multiple times
         :param str or expression weights: (unnormalized) probability that a row can be drawn
         :param int or RandomState: seed or RandomState for reproducability, when None a random seed it chosen
-
-        Example:
-                >>> a = np.array(['a', 'b', 'c'])
-                >>> x = np.arange(1,4)
-                >>> ds = vaex.from_arrays(a=a, x=x)
-                >>> ds.sample(n=2, random_state=42) # 2 random rows, fixed seed
-                >>> ds.sample(frac=1) # 'shuffling'
-                >>> ds.sample(frac=1, replace=True) # useful for bootstrap (may contain repeated samples)
+        :return: {return_shallow_copy}
         '''
         self = self.extract()
         if type(random_state) == int or random_state is None:
@@ -4460,11 +4746,22 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         {note_filter}
 
         Example:
-                >>> a = np.array(['a', 'b', 'c'])
-                >>> x = np.arange(1,4)
-                >>> ds = vaex.from_arrays(a=a, x=x)
-                >>> ds.sort('(x-1.8)**2', ascending=False)  # b, c, a will be the order of a
 
+        >>> import vaex, numpy as np
+        >>> df = vaex.from_arrays(s=np.array(['a', 'b', 'c', 'd']), x=np.arange(1,5))
+        >>> df['y'] = (df.x-1.8)**2
+        >>> df
+          #  s      x     y
+          0  a      1  0.64
+          1  b      2  0.04
+          2  c      3  1.44
+          3  d      4  4.84
+        >>> df.sort('y', ascending=False)  # Note: passing '(x-1.8)**2' gives the same result
+          #  s      x     y
+          0  d      4  4.84
+          1  c      3  1.44
+          2  a      1  0.64
+          3  b      2  0.04
 
         :param str or expression by: expression to sort by
         :param bool ascending: ascending (default, True) or descending (False)
@@ -4632,6 +4929,7 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """Select a 2d rectangular box in the space given by x and y, bounds by limits
 
         Example:
+
         >>> ds.select_box('x', 'y', [(0, 10), (0, 1)])
 
         :param x: expression for the x space
@@ -4646,8 +4944,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """Select a n-dimensional rectangular box bounded by limits
 
         The following examples are equivalent:
+
         >>> ds.select_box(['x', 'y'], [(0, 10), (0, 1)])
         >>> ds.select_rectangle('x', 'y', [(0, 10), (0, 1)])
+
         :param spaces: list of expressions
         :param limits: sequence of shape [(x1, x2), (y1, y2)]
         :param mode:
@@ -4663,6 +4963,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """
         Select a circular region centred on xc, yc, with a radius of r.
 
+        Example:
+
+        >>> ds.select_circle('x','y',2,3,1)
+
         :param x: expression for the x space
         :param y: expression for the y space
         :param xc: location of the centre of the circle in x
@@ -4671,9 +4975,6 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param name: name of the selection
         :param mode:
         :return:
-
-        Example:
-        >>> ds.select_circle('x','y',2,3,1)
         """
 
         # expr = "({x}-{xc})**2 + ({y}-{yc})**2 <={r}**2".format(**locals())
@@ -4689,6 +4990,10 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         Select an elliptical region centred on xc, yc, with a certain width, height
         and angle.
 
+        Example:
+
+        >>> ds.select_ellipse('x','y', 2, -1, 5,1, 30, name='my_ellipse')
+
         :param x: expression for the x space
         :param y: expression for the y space
         :param xc: location of the centre of the ellipse in x
@@ -4701,8 +5006,6 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         :param mode:
         :return:
 
-        Example:
-        >>> ds.select_ellipse('x','y', 2, -1, 5,1, 30, name='my_ellipse')
         """
 
         # Computing the properties of the ellipse prior to selection
@@ -4795,15 +5098,21 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         return result
 
     def has_selection(self, name="default"):
-        """Returns True of there is a selection"""
+        """Returns True if there is a selection with the given name."""
         return self.get_selection(name) is not None
 
     def __setitem__(self, name, value):
         '''Convenient way to add a virtual column / expression to this dataset
 
-        Examples:
-            >>> ds['r'] = np.sqrt(ds.x**2 + ds.y**2 + ds.z**2)
+        Example:
+
+        >>> import vaex, numpy as np
+        >>> df = vaex.example()
+        >>> df['r'] = np.sqrt(df.x**2 + df.y**2 + df.z**2)
+        >>> df.r
+        <vaex.expression.Expression(expressions='r')> instance at 0x121687e80 values=[2.9655450396553587, 5.77829281049018, 6.99079603950256, 9.431842752707537, 0.8825613121347967 ... (total 330000 values) ... 7.453831761514681, 15.398412491068198, 8.864250273925633, 17.601047186042507, 14.540181524970293]
         '''
+
         if isinstance(name, six.string_types):
             if isinstance(value, Expression):
                 value = value.expression
@@ -4817,11 +5126,12 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def __getitem__(self, item):
         """Convenient way to get expressions, (shallow) copies of a few columns, or to apply filtering
 
-        Examples
-                >> ds['Lz']  # the expression 'Lz
-                >> ds['Lz/2'] # the expression 'Lz/2'
-                >> ds[["Lz", "E"]] # a shallow copy with just two columns
-                >> ds[ds.Lz < 0]  # a shallow copy with the filter Lz < 0 applied
+        Examples:
+
+        >>> df['Lz']  # the expression 'Lz
+        >>> df['Lz/2'] # the expression 'Lz/2'
+        >>> df[["Lz", "E"]] # a shallow copy with just two columns
+        >>> df[df.Lz < 0]  # a shallow copy with the filter Lz < 0 applied
 
         """
         if isinstance(item, int):
@@ -4853,8 +5163,8 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
     def __delitem__(self, item):
         '''Removes a (virtual) column from the dataset
 
-        Note: this does not remove check if the column is used in a virtual expression or in the filter and may lead
-              to issues. It is safer to use :py:method:`Dataset.drop`.
+        Note: this does not remove check if the column is used in a virtual expression or in the filter\
+            and may lead to issues. It is safer to use :meth:`drop`.
         '''
         if isinstance(item, Expression):
             name = item.expression
@@ -4924,6 +5234,13 @@ array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         """Iterator over the column names"""
         return iter(list(self.get_column_names()))
 
+
+Dataset.__hidden__ = {}
+hidden = [name for name, func in vars(Dataset).items() if getattr(func, '__hidden__', False)]
+for name in hidden:
+    Dataset.__hidden__[name] = getattr(Dataset, name)
+    delattr(Dataset, name)
+del hidden
 
 def _select_replace(maskold, masknew):
     return masknew
@@ -5017,8 +5334,9 @@ class DatasetLocal(Dataset):
 
         Columns can be accesed by there names, which are attributes. The attribues are of type numpy.ndarray
 
-        :Example:
-        >>> ds = vx.example()
+        Example:
+
+        >>> ds = vaex.example()
         >>> r = np.sqrt(ds.data.x**2 + ds.data.y**2)
 
         """
@@ -5155,6 +5473,7 @@ class DatasetLocal(Dataset):
         else:
             return len(self)
 
+    @_hidden
     def __call__(self, *expressions, **kwargs):
         """The local implementation of :func:`Dataset.__call__`"""
         import vaex.legacy
@@ -5374,6 +5693,7 @@ class DatasetLocal(Dataset):
 
 
         Example:
+    
         >>> x = np.arange(10)
         >>> y = x**2
         >>> z = x**3
@@ -5441,16 +5761,17 @@ class DatasetLocal(Dataset):
 
         Note: The filters will be ignored when joining, the full dataset will be joined (since filters may
         change). If either dataset is heavily filtered (contains just a small number of rows) consider running
-        :py:method:`Dataset.extract` first.
+        :func:`Dataset.extract` first.
 
         Example:
-                >>> a = np.array(['a', 'b', 'c'])
-                >>> x = np.arange(1,4)
-                >>> ds1 = vaex.from_arrays(a=a, x=x)
-                >>> b = np.array(['a', 'b', 'd'])
-                >>> y = x**2
-                >>> ds2 = vaex.from_arrays(b=b, y=y)
-                >>> ds1.join(ds2, left_on='a', right_on='b')
+
+        >>> a = np.array(['a', 'b', 'c'])
+        >>> x = np.arange(1,4)
+        >>> ds1 = vaex.from_arrays(a=a, x=x)
+        >>> b = np.array(['a', 'b', 'd'])
+        >>> y = x**2
+        >>> ds2 = vaex.from_arrays(b=b, y=y)
+        >>> ds1.join(ds2, left_on='a', right_on='b')
 
         :param other: Other dataset to join with (the right side)
         :param on: default key for the left table (self)

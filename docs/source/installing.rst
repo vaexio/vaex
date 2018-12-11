@@ -3,12 +3,12 @@
 Installing
 ==========
 
-.. note::
+.. .. note::
 
-    For the impatient:
+..     For the impatient:
 
-    - If you want a standalone Python environment with vaex installed that does not interfere with you system Python, execute ``curl http://vaex.astro.rug.nl/install_conda.sh | bash -`` on your terminal.
-    - To remove, execute ``rm -rf ~/miniconda-vaex ~/.condarc ~/.conda ~/.continuum``
+..     - If you want a standalone Python environment with vaex installed that does not interfere with you system Python, execute ``curl http://vaex.astro.rug.nl/install_conda.sh | bash -`` on your terminal.
+..     - To remove, execute ``rm -rf ~/miniconda-vaex ~/.condarc ~/.conda ~/.continuum``
 
 
 .. warning::

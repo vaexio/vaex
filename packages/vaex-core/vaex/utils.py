@@ -38,6 +38,9 @@ class AttrDict(dict):
 
 def deprecated(reason):
     def wraps(f):
+        if not f.__doc__:
+            f.__doc__ = ""
+        f.__doc__ = "Deprecated: {}\n\n{}".format(reason, f.__doc__)
         @functools.wraps(f)
         def wraps2(*args, **kwargs):
             warnings.warn("Call to deprecated function {}: {}".format(f.__name__, reason),

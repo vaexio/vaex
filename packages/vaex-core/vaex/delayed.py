@@ -26,6 +26,21 @@ def promisify(value):
 
 
 def delayed(f):
+    '''Decorator to transparantly accept delayed computation.
+
+    Example:
+
+    >>> delayed_sum = ds.sum(ds.E, binby=ds.x, limits=limits,
+    >>>                   shape=4, delay=True)
+    >>> @vaex.delayed
+    >>> def total_sum(sums):
+    >>>     return sums.sum()
+    >>> sum_of_sums = total_sum(delayed_sum)
+    >>> ds.execute()
+    >>> sum_of_sums.get()
+    See the tutorial for a more complete example https://docs.vaex.io/en/latest/tutorial.html#Parallel-computations
+    '''
+
     def wrapped(*args, **kwargs):
         # print "calling", f, "with", kwargs
         # key_values = kwargs.items()
