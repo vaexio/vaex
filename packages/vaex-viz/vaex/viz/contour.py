@@ -30,8 +30,8 @@ def plot2d_contour(self, x=None, y=None, what="count(*)", limits=None, shape=256
     :param colorbar_label: the label of the colourbar (defaults to param what)
     :param colormap: matplotlib colormap to pass on to pylab.contour or pylab.contourf
     :param colors: the colours of the contours
-    :params linewidths: the widths of the contours
-    :params linestyles: the style of the contour lines
+    :param linewidths: the widths of the contours
+    :param linestyles: the style of the contour lines
     :param vmin: instead of automatic normalization, scale the data between vmin and vmax
     :param vmax: see vmin
     :param grid: {grid}
