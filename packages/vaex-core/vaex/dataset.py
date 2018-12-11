@@ -4419,7 +4419,7 @@ class Dataset(object):
         style = "<style>%s</style>" % css
         display.display(display.HTML(style))
 
-    def __repr__(self):
+    def _repr_pretty_(self):
         return self._head_and_tail_table(format=DEFAULT_REPR_FORMAT)
 
     def _repr_html_(self):
