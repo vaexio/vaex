@@ -1,0 +1,131 @@
+/* Responsive CSS Document */
+
+/* 
+    Created on : 1/15/2017. 
+    Theme Name : BizPro.
+    Description: BizPro- Responsive html5 template.
+    Version    : 1.1.
+    Author     : @SRThemes.
+   
+*/
+
+
+
+@media (min-width: 992px) {
+	.container {
+		padding-left: 0 !important;
+		padding-right: 0 !important;
+	}
+}
+
+@media (max-width: 1366px) {
+  .scroll-top {bottom: 30px; right:30px;}
+
+}
+@media (max-width: 1199px) {
+  #team-section .team-member-wrapper .single-team-member .img .opacity p {padding: 0 15px;}
+  #team-section .team-member-wrapper .single-team-member .img .opacity {padding-top: 20px;}
+  .habilidades_contenedor {margin-top: 100px;}
+}
+/*(max-width: 1199px)*/
+
+@media (max-width: 991px) {
+  .theme-title p,#skill-section .img img {width: 100%;}
+  #skill-section {padding-bottom: 30px;}
+  .blog-details-page aside {margin-top: 100px;}
+  .blog-details-post-wrapper>.row p {margin-bottom: 30px;}
+}
+/*(max-width: 991px)*/
+
+@media (min-width: 992px) and (max-width: 1199px) {
+  .theme-main-header .logo {width: 15%;}
+  .theme-main-menu .navbar-nav>li>a {padding: 9px 12px;}
+  .theme-title p {width: 95%;}
+  #our-client .client-slider p {width: 70%;}
+  .recent-single-post .post {width: 75%;}
+}
+/*(min-width: 992px) and (max-width: 1199px)*/
+
+@media (min-width: 768px) and (max-width: 991px) {
+  .theme-main-header .logo {width: 22%; margin: 0 auto;float:none; display: block;}
+  .theme-main-menu.navbar {float:none;margin-top: 30px;}
+  .theme-main-menu .navbar-nav>li>a {padding: 9px 8px;}
+  .theme-main-header.fixed .logo {display: none;}
+  .theme-main-header.fixed .theme-main-menu.navbar {margin-top: 0;}
+  #project-section .project-gallery .grid-item,
+  #team-section .team-member-wrapper .float-left {width: 50%;}
+  #our-client .client-slider p {width: 90%;}
+  .inner-page-banner .opacity {padding-top: 210px;}
+}
+/*(min-width: 768px) and (max-width: 991px)*/
+
+@media (max-width: 767px) {
+  .scroll-top {bottom: 10px; right:5px;}
+  .theme-main-header {padding-top: 15px;}
+  .theme-main-header .logo {position: absolute;top:15px;left:15px;z-index: 99;}
+  .theme-main-menu.navbar {float:none;width: 100%;}
+  .theme-main-header.fixed {background: #1e1e1e;max-height: 100%;overflow-y:auto;}
+  .theme-main-menu .navbar-collapse {padding: 0 15px;box-shadow: none;border:none;background: #1e1e1e;margin-top: 15px;}
+  .theme-main-header li.dropdown-holder .fa {display: block;}
+  .theme-main-menu .navbar-nav>li>a {padding: 0;line-height: 44px;}
+  .theme-main-menu.navbar .nav>li ul.sub-menu {
+    position: static;
+    width: 100%;
+    opacity: 1;
+    background: #000;
+    visibility: visible;
+    display: none;
+    padding-left: 25px;
+    -webkit-transition: none;
+       -moz-transition: none;
+        -ms-transition: none;
+         -o-transition: none;
+            transition: none;
+  }
+  #pricing-section .single-price-table {margin-bottom: 50px;}
+  #project-section .project-gallery .grid-item {width: 50%;}
+  #team-section .team-member-wrapper .float-left,
+  #team-section .team-member-wrapper .float-left img,
+  #our-client .client-slider p {width: 100%;}
+  #team-section .team-member-wrapper .float-left,
+  #project-section .project-gallery .grid-item,
+  #service-section .row [class*="col-"],#skill-section [class*="col-"],
+  #pricing-section [class*="col-"],#contact-section .send-message,
+  #contact-section .contact-address-content [class*="col-"],
+  #blog-section [class*="col-"],.theme-main-header .container,
+  .blog-details-page .p-fix {padding-left: 0;padding-right: 0;}
+  
+}
+/*(max-width: 767px)*/
+
+@media (max-width: 650px) {
+  #success, #error {
+    width: 84%;
+    height: auto;
+    top: calc(50% - 50px);
+    left: 8%;
+    padding: 30px 10px;
+    margin:0;
+  }
+  .blog-details-post-wrapper .list-img-wrapper img,
+  .blog-details-post-wrapper .post-share-area ul {float:none; width: 100%;}
+  .blog-details-post-wrapper .list-img-wrapper ul {float:none;padding: 30px 0 0 0;}
+  .blog-details-post-wrapper .post-share-area .share-icon li:first-child {margin-top: 30px;}
+}
+
+@media (max-width: 550px) {
+  #project-section .project-gallery .grid-item,
+  #project-section .project-gallery .grid-item img {width: 100%;}
+  #project-section .project-menu ul li {font-size: 14px;margin: 15px 2px 0;border-bottom: 1px solid #fff;}
+  #team-section .team-member-wrapper .single-team-member .img .opacity span {margin: 5px 0;}
+  #team-section .team-member-wrapper .single-team-member .member-name ul li a {width: 40px;line-height: 38px;}
+  .banner h1 {font-size: 35px;}
+  .blog-details-post-wrapper .comment-area .single-comment.reply-comment {margin-left: 60px;}
+}
+
+@media (max-width: 430px) {
+  .banner h1 {font-size: 27px;}
+  .banner h6 {font-size: 14px;}
+  .hermes.tparrows {display: none;}
+  .recent-single-post .post {width: 100%;padding: 12px 0 0 0;}
+}

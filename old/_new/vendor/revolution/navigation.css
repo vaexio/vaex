@@ -1,0 +1,2642 @@
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ ARES SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+.ares.tparrows {
+  cursor:pointer;
+  background:#fff;
+  min-width:60px;
+    min-height:60px;
+  position:absolute;
+  display:block;
+  z-index:100;
+    border-radius:50%;
+}
+.ares.tparrows:hover {
+}
+.ares.tparrows:before {
+  font-family: "revicons";
+  font-size:25px;
+  color:#aaa;
+  display:block;
+  line-height: 60px;
+  text-align: center;
+    -webkit-transition: color 0.3s;
+    -moz-transition: color 0.3s;
+    transition: color 0.3s;
+    z-index:2;
+    position:relative;
+}
+.ares.tparrows.tp-leftarrow:before {
+  content: "\e81f";
+}
+.ares.tparrows.tp-rightarrow:before {
+  content: "\e81e";
+}
+.ares.tparrows:hover:before {
+ color:#000;
+      }
+.ares .tp-title-wrap { 
+  position:absolute;
+  z-index:1;
+  display:inline-block;
+  background:#fff;
+  min-height:60px;
+  line-height:60px;
+  top:0px;
+  margin-left:30px;
+  border-radius:0px 30px 30px 0px;
+  overflow:hidden;
+  -webkit-transition: -webkit-transform 0.3s;
+  transition: transform 0.3s;
+  transform:scaleX(0);  
+  -webkit-transform:scaleX(0);  
+  transform-origin:0% 50%; 
+   -webkit-transform-origin:0% 50%;
+}
+ .ares.tp-rightarrow .tp-title-wrap { 
+   right:0px;
+   margin-right:30px;margin-left:0px;
+   -webkit-transform-origin:100% 50%;
+border-radius:30px 0px 0px 30px;
+ }
+.ares.tparrows:hover .tp-title-wrap {
+  transform:scaleX(1) scaleY(1);
+    -webkit-transform:scaleX(1) scaleY(1);
+}
+.ares .tp-arr-titleholder {
+  position:relative;
+  -webkit-transition: -webkit-transform 0.3s;
+  transition: transform 0.3s;
+  transform:translateX(200px);  
+  text-transform:uppercase;
+  color:#000;
+  font-weight:400;
+  font-size:14px;
+  line-height:60px;
+  white-space:nowrap;
+  padding:0px 20px;
+  margin-left:10px;
+  opacity:0;
+}
+
+.ares.tp-rightarrow .tp-arr-titleholder {
+   transform:translateX(-200px); 
+   margin-left:0px; margin-right:10px;
+      }
+
+.ares.tparrows:hover .tp-arr-titleholder {
+   transform:translateX(0px);
+   -webkit-transform:translateX(0px);
+  transition-delay: 0.1s;
+  opacity:1;
+}
+
+/* BULLETS */
+.ares.tp-bullets {
+}
+.ares.tp-bullets:before {
+	content:" ";
+	position:absolute;
+	width:100%;
+	height:100%;
+	background:transparent;
+	padding:10px;
+	margin-left:-10px;margin-top:-10px;
+	box-sizing:content-box;
+}
+.ares .tp-bullet {
+	width:13px;
+	height:13px;
+	position:absolute;
+	background:#e5e5e5;
+	border-radius:50%;
+	cursor: pointer;
+	box-sizing:content-box;
+}
+.ares .tp-bullet:hover,
+.ares .tp-bullet.selected {
+	background:#fff;
+}
+.ares .tp-bullet-title {
+  position:absolute;
+  color:#888;
+  font-size:12px;
+  padding:0px 10px;
+  font-weight:600;
+  right:27px;
+  top:-4px;
+  background:#fff;
+  background:rgba(255,255,255,0.75);
+  visibility:hidden;
+  transform:translateX(-20px);
+  -webkit-transform:translateX(-20px);
+  transition:transform 0.3s;
+  -webkit-transition:transform 0.3s;
+  line-height:20px;
+  white-space:nowrap;
+}     
+
+.ares .tp-bullet-title:after {
+    width: 0px;
+	height: 0px;
+	border-style: solid;
+	border-width: 10px 0 10px 10px;
+	border-color: transparent transparent transparent rgba(255,255,255,0.75);
+	content:" ";
+    position:absolute;
+    right:-10px;
+	top:0px;
+}
+    
+.ares .tp-bullet:hover .tp-bullet-title{
+  visibility:visible;
+   transform:translateX(0px);
+  -webkit-transform:translateX(0px);
+}
+
+.ares .tp-bullet.selected:hover .tp-bullet-title {
+    background:#fff;
+        }
+.ares .tp-bullet.selected:hover .tp-bullet-title:after {
+  border-color:transparent transparent transparent #fff;
+}
+.ares.tp-bullets:hover .tp-bullet-title {
+        visibility:hidden;
+}
+.ares.tp-bullets:hover .tp-bullet:hover .tp-bullet-title {
+    visibility:visible;
+      }
+
+/* TABS */
+.ares .tp-tab { 
+  opacity:1;      
+  padding:10px;
+  box-sizing:border-box;
+  font-family: "Roboto", sans-serif;
+  border-bottom: 1px solid #e5e5e5;
+ }
+.ares .tp-tab-image 
+{ 
+  width:60px;
+  height:60px; max-height:100%; max-width:100%;
+  position:relative;
+  display:inline-block;
+  float:left;
+
+}
+.ares .tp-tab-content 
+{
+    background:rgba(0,0,0,0); 
+    position:relative;
+    padding:15px 15px 15px 85px;
+ left:0px;
+ overflow:hidden;
+ margin-top:-15px;
+    box-sizing:border-box;
+    color:#333;
+    display: inline-block;
+    width:100%;
+    height:100%;
+ position:absolute; }
+.ares .tp-tab-date
+  {
+  display:block;
+  color: #aaa;
+  font-weight:500;
+  font-size:12px;
+  margin-bottom:0px;
+  }
+.ares .tp-tab-title 
+{
+    display:block;	
+    text-align:left;
+    color:#333;
+    font-size:14px;
+    font-weight:500;
+    text-transform:none;
+    line-height:17px;
+}
+.ares .tp-tab:hover,
+.ares .tp-tab.selected {
+	background:#eee; 
+}
+
+.ares .tp-tab-mask {
+}
+
+/* MEDIA QUERIES */
+@media only screen and (max-width: 960px) {
+
+}
+@media only screen and (max-width: 768px) {
+
+}
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ CUSTOM SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.custom.tparrows {
+	cursor:pointer;
+	background:#000;
+	background:rgba(0,0,0,0.5);
+	width:40px;
+	height:40px;
+	position:absolute;
+	display:block;
+	z-index:100;
+}
+.custom.tparrows:hover {
+	background:#000;
+}
+.custom.tparrows:before {
+	font-family: "revicons";
+	font-size:15px;
+	color:#fff;
+	display:block;
+	line-height: 40px;
+	text-align: center;
+}
+.custom.tparrows.tp-leftarrow:before {
+	content: "\e824";
+}
+.custom.tparrows.tp-rightarrow:before {
+	content: "\e825";
+}
+
+
+
+/* BULLETS */
+.custom.tp-bullets {
+}
+.custom.tp-bullets:before {
+	content:" ";
+	position:absolute;
+	width:100%;
+	height:100%;
+	background:transparent;
+	padding:10px;
+	margin-left:-10px;margin-top:-10px;
+	box-sizing:content-box;
+}
+.custom .tp-bullet {
+	width:12px;
+	height:12px;
+	position:absolute;
+	background:#aaa;
+    background:rgba(125,125,125,0.5);
+	cursor: pointer;
+	box-sizing:content-box;
+}
+.custom .tp-bullet:hover,
+.custom .tp-bullet.selected {
+	background:rgb(125,125,125);
+}
+.custom .tp-bullet-image {
+}
+.custom .tp-bullet-title {
+}
+
+
+/* THUMBS */
+
+
+/* TABS */
+
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ DIONE SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.dione.tparrows {
+  height:100%;
+  width:100px;
+  background:transparent;
+  background:rgba(0,0,0,0);
+  line-height:100%;
+  transition:all 0.3s;
+-webkit-transition:all 0.3s;
+}
+
+.dione.tparrows:hover {
+ background:rgba(0,0,0,0.45);
+ }
+.dione .tp-arr-imgwrapper {
+ width:100px;
+ left:0px;
+ position:absolute;
+ height:100%;
+ top:0px;
+ overflow:hidden;
+ }
+.dione.tp-rightarrow .tp-arr-imgwrapper {
+left:auto;
+right:0px;
+}
+
+.dione .tp-arr-imgholder {
+background-position:center center;
+background-size:cover;
+width:100px;
+height:100%;
+top:0px;
+visibility:hidden;
+transform:translateX(-50px);
+-webkit-transform:translateX(-50px);
+transition:all 0.3s;
+-webkit-transition:all 0.3s;
+opacity:0;
+left:0px;
+}
+
+.dione.tparrows.tp-rightarrow .tp-arr-imgholder {
+  right:0px;
+  left:auto;
+  transform:translateX(50px);
+ -webkit-transform:translateX(50px);
+}
+
+.dione.tparrows:before {
+position:absolute;
+line-height:30px;
+margin-left:-22px;
+top:50%;
+left:50%;
+font-size:30px;
+margin-top:-15px;
+transition:all 0.3s;
+-webkit-transition:all 0.3s;
+}
+
+.dione.tparrows.tp-rightarrow:before {
+margin-left:6px;
+}
+
+.dione.tparrows:hover:before {
+  transform:translateX(-20px);
+-webkit-transform:translateX(-20px);
+opacity:0;
+}
+
+.dione.tparrows.tp-rightarrow:hover:before {
+  transform:translateX(20px);
+-webkit-transform:translateX(20px);
+}
+
+.dione.tparrows:hover .tp-arr-imgholder {
+ transform:translateX(0px);
+-webkit-transform:translateX(0px);
+opacity:1;
+visibility:visible;
+}
+
+
+
+/* BULLETS */
+.dione .tp-bullet { 
+    opacity:1;
+    width:50px;
+    height:50px;    
+    padding:3px;
+    background:#000;
+    background-color:rgba(0,0,0,0.25);
+    margin:0px;
+    box-sizing:border-box;
+    transition:all 0.3s;
+    -webkit-transition:all 0.3s;
+
+  }
+
+.dione .tp-bullet-image {
+   display:block;
+   box-sizing:border-box;
+   position:relative;
+    -webkit-box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+  -moz-box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+  box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+  width:44px;
+  height:44px;
+  background-size:cover;
+  background-position:center center;
+ }  
+.dione .tp-bullet-title { 
+     position:absolute; 
+   bottom:65px;
+     display:inline-block;
+     left:50%;
+     background:#000;
+     background:rgba(0,0,0,0.75);
+     color:#fff;
+     padding:10px 30px;
+     border-radius:4px;
+   -webkit-border-radius:4px;
+     opacity:0;
+      transition:all 0.3s;
+    -webkit-transition:all 0.3s;
+    transform: translateZ(0.001px) translateX(-50%) translateY(14px);
+    transform-origin:50% 100%;
+    -webkit-transform: translateZ(0.001px) translateX(-50%) translateY(14px);
+    -webkit-transform-origin:50% 100%;
+    opacity:0;
+    white-space:nowrap;
+ }
+
+.dione .tp-bullet:hover .tp-bullet-title {
+     transform:rotateX(0deg) translateX(-50%);
+    -webkit-transform:rotateX(0deg) translateX(-50%);
+    opacity:1;
+}
+
+.dione .tp-bullet.selected,
+.dione .tp-bullet:hover  {
+  
+   background: rgba(255,255,255,1);
+  background: -moz-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -webkit-gradient(left top, left bottom, color-stop(0%, rgba(255,255,255,1)), color-stop(100%, rgba(119,119,119,1)));
+  background: -webkit-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -o-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -ms-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr="#ffffff", endColorstr="#777777", GradientType=0 );
+ 
+      }
+.dione .tp-bullet-title:after {
+        content:" ";
+        position:absolute;
+        left:50%;
+        margin-left:-8px;
+        width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 8px 8px 0 8px;
+    border-color: rgba(0,0,0,0.75) transparent transparent transparent;
+        bottom:-8px;
+   }
+
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ ERINYEN SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.erinyen.tparrows {
+  cursor:pointer;
+  background:#000;
+  background:rgba(0,0,0,0.5);
+  min-width:70px;
+  min-height:70px;
+  position:absolute;
+  display:block;
+  z-index:100;
+  border-radius:35px;   
+}
+
+.erinyen.tparrows:before {
+  font-family: "revicons";
+  font-size:20px;
+  color:#fff;
+  display:block;
+  line-height: 70px;
+  text-align: center;    
+  z-index:2;
+  position:relative;
+}
+.erinyen.tparrows.tp-leftarrow:before {
+  content: "\e824";
+}
+.erinyen.tparrows.tp-rightarrow:before {
+  content: "\e825";
+}
+
+.erinyen .tp-title-wrap { 
+  position:absolute;
+  z-index:1;
+  display:inline-block;
+  background:#000;
+  background:rgba(0,0,0,0.5);
+  min-height:70px;
+  line-height:70px;
+  top:0px;
+  margin-left:0px;
+  border-radius:35px;
+  overflow:hidden; 
+  transition: opacity 0.3s;
+  -webkit-transition:opacity 0.3s;
+  -moz-transition:opacity 0.3s;
+  -webkit-transform: scale(0);
+  -moz-transform: scale(0);
+  transform: scale(0);  
+  visibility:hidden;
+  opacity:0;
+}
+
+.erinyen.tparrows:hover .tp-title-wrap{
+  -webkit-transform: scale(1);
+  -moz-transform: scale(1);
+  transform: scale(1);
+  opacity:1;
+  visibility:visible;
+}
+        
+ .erinyen.tp-rightarrow .tp-title-wrap { 
+   right:0px;
+   margin-right:0px;margin-left:0px;
+   -webkit-transform-origin:100% 50%;
+  border-radius:35px;
+  padding-right:20px;
+  padding-left:10px;
+ }
+
+
+.erinyen.tp-leftarrow .tp-title-wrap { 
+   padding-left:20px;
+  padding-right:10px;
+}
+
+.erinyen .tp-arr-titleholder {
+  letter-spacing: 3px;
+   position:relative;
+  -webkit-transition: -webkit-transform 0.3s;
+  transition: transform 0.3s;
+  transform:translateX(200px);  
+  text-transform:uppercase;
+  color:#fff;
+  font-weight:600;
+  font-size:13px;
+  line-height:70px;
+  white-space:nowrap;
+  padding:0px 20px;
+  margin-left:11px;
+  opacity:0;  
+}
+
+.erinyen .tp-arr-imgholder {
+  width:100%;
+  height:100%;
+  position:absolute;
+  top:0px;
+  left:0px;
+  background-position:center center;
+  background-size:cover;
+    }
+ .erinyen .tp-arr-img-over {
+   width:100%;
+  height:100%;
+  position:absolute;
+  top:0px;
+  left:0px;
+   background:#000;
+   background:rgba(0,0,0,0.5);
+        }
+.erinyen.tp-rightarrow .tp-arr-titleholder {
+   transform:translateX(-200px); 
+   margin-left:0px; margin-right:11px;
+      }
+
+.erinyen.tparrows:hover .tp-arr-titleholder {
+   transform:translateX(0px);
+   -webkit-transform:translateX(0px);
+  transition-delay: 0.1s;
+  opacity:1;
+}
+
+/* BULLETS */
+.erinyen.tp-bullets {
+}
+.erinyen.tp-bullets:before {
+	content:" ";
+	position:absolute;
+	width:100%;
+	height:100%;
+	background: #555555; /* old browsers */
+    background: -moz-linear-gradient(top,  #555555 0%, #222222 100%); /* ff3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#555555), color-stop(100%,#222222)); /* chrome,safari4+ */
+    background: -webkit-linear-gradient(top,  #555555 0%,#222222 100%); /* chrome10+,safari5.1+ */
+    background: -o-linear-gradient(top,  #555555 0%,#222222 100%); /* opera 11.10+ */
+    background: -ms-linear-gradient(top,  #555555 0%,#222222 100%); /* ie10+ */
+    background: linear-gradient(to bottom,  #555555 0%,#222222 100%); /* w3c */
+    filter: progid:dximagetransform.microsoft.gradient( startcolorstr="#555555", endcolorstr="#222222",gradienttype=0 ); /* ie6-9 */
+	padding:10px 15px;
+	margin-left:-15px;margin-top:-10px;
+	box-sizing:content-box;
+   border-radius:10px;
+   box-shadow:0px 0px 2px 1px rgba(33,33,33,0.3);
+}
+.erinyen .tp-bullet {
+	width:13px;
+	height:13px;
+	position:absolute;
+	background:#111;	
+	border-radius:50%;
+	cursor: pointer;
+	box-sizing:content-box;
+}
+.erinyen .tp-bullet:hover,
+.erinyen .tp-bullet.selected {
+	background: #e5e5e5; /* old browsers */
+background: -moz-linear-gradient(top,  #e5e5e5 0%, #999999 100%); /* ff3.6+ */
+background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#e5e5e5), color-stop(100%,#999999)); /* chrome,safari4+ */
+background: -webkit-linear-gradient(top,  #e5e5e5 0%,#999999 100%); /* chrome10+,safari5.1+ */
+background: -o-linear-gradient(top,  #e5e5e5 0%,#999999 100%); /* opera 11.10+ */
+background: -ms-linear-gradient(top,  #e5e5e5 0%,#999999 100%); /* ie10+ */
+background: linear-gradient(to bottom,  #e5e5e5 0%,#999999 100%); /* w3c */
+filter: progid:dximagetransform.microsoft.gradient( startcolorstr="#e5e5e5", endcolorstr="#999999",gradienttype=0 ); /* ie6-9 */
+  border:1px solid #555;
+  width:12px;height:12px;
+}
+.erinyen .tp-bullet-image {
+}
+.erinyen .tp-bullet-title {
+}
+
+
+/* THUMBS */
+.erinyen .tp-thumb {
+opacity:1
+}
+
+.erinyen .tp-thumb-over {
+  background:#000;
+  background:rgba(0,0,0,0.25);
+  width:100%;
+  height:100%;
+  position:absolute;
+  top:0px;
+  left:0px;
+  z-index:1;
+  -webkit-transition:all 0.3s;
+  transition:all 0.3s;
+}
+
+.erinyen .tp-thumb-more:before {
+  font-family: "revicons";
+  font-size:12px;
+  color:#aaa;
+  color:rgba(255,255,255,0.75);
+  display:block;
+  line-height: 12px;
+  text-align: left;    
+  z-index:2;
+  position:absolute;
+  top:20px;
+  right:20px;
+  z-index:2;
+}
+.erinyen .tp-thumb-more:before {
+  content: "\e825";
+}
+
+.erinyen .tp-thumb-title {
+  font-family:"Raleway";
+  letter-spacing:1px;
+  font-size:12px;
+  color:#fff;
+  display:block;
+  line-height: 15px;
+  text-align: left;    
+  z-index:2;
+  position:absolute;
+  top:0px;
+  left:0px;
+  z-index:2;
+  padding:20px 35px 20px 20px;
+  width:100%;
+  height:100%;
+  box-sizing:border-box;
+  transition:all 0.3s;
+  -webkit-transition:all 0.3s;
+  font-weight:500;
+}
+
+.erinyen .tp-thumb.selected .tp-thumb-more:before,
+.erinyen .tp-thumb:hover .tp-thumb-more:before {
+ color:#aaa;
+
+}
+
+.erinyen .tp-thumb.selected .tp-thumb-over,
+.erinyen .tp-thumb:hover .tp-thumb-over {
+ background:#fff;
+}
+.erinyen .tp-thumb.selected .tp-thumb-title,
+.erinyen .tp-thumb:hover .tp-thumb-title {
+  color:#000;
+
+}
+
+
+/* TABS */
+.erinyen .tp-tab-title {
+    color:#a8d8ee;
+    font-size:13px;
+    font-weight:700;
+    text-transform:uppercase;
+    font-family:"Roboto Slab"
+    margin-bottom:5px;
+}
+
+.erinyen .tp-tab-desc {
+	font-size:18px;
+    font-weight:400;
+    color:#fff;
+    line-height:25px;
+	font-family:"Roboto Slab";
+}
+      
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ GYGES SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+
+
+/* BULLETS */
+.gyges.tp-bullets {
+}
+.gyges.tp-bullets:before {
+	content:" ";
+	position:absolute;
+	width:100%;
+	height:100%;
+	background: #777777; /* Old browsers */
+    background: -moz-linear-gradient(top,  #777777 0%, #666666 100%); 
+    background: -webkit-gradient(linear, left top, left bottom, 
+    color-stop(0%,#777777), color-stop(100%,#666666)); 
+    background: -webkit-linear-gradient(top,  #777777 0%,#666666 100%); 
+    background: -o-linear-gradient(top,  #777777 0%,#666666 100%); 
+    background: -ms-linear-gradient(top,  #777777 0%,#666666 100%); 
+    background: linear-gradient(to bottom,  #777777 0%,#666666 100%); 
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr="#777777", 
+    endColorstr="#666666",GradientType=0 ); 
+	padding:10px;
+	margin-left:-10px;margin-top:-10px;
+	box-sizing:content-box;
+  border-radius:10px;
+}
+.gyges .tp-bullet {
+	width:12px;
+	height:12px;
+	position:absolute;
+	background:#333;
+	border:3px solid #444;
+	border-radius:50%;
+	cursor: pointer;
+	box-sizing:content-box;
+}
+.gyges .tp-bullet:hover,
+.gyges .tp-bullet.selected {
+	background: #ffffff; /* Old browsers */
+    background: -moz-linear-gradient(top,  #ffffff 0%, #e1e1e1 100%); /* FF3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, 
+    color-stop(0%,#ffffff), color-stop(100%,#e1e1e1)); /* Chrome,Safari4+ */
+    background: -webkit-linear-gradient(top,  #ffffff 0%,#e1e1e1 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-linear-gradient(top,  #ffffff 0%,#e1e1e1 100%); /* Opera 11.10+ */
+    background: -ms-linear-gradient(top,  #ffffff 0%,#e1e1e1 100%); /* IE10+ */
+    background: linear-gradient(to bottom,  #ffffff 0%,#e1e1e1 100%); /* W3C */
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr="#ffffff", 
+    endColorstr="#e1e1e1",GradientType=0 ); /* IE6-9 */
+
+}
+.gyges .tp-bullet-image {
+}
+.gyges .tp-bullet-title {
+}
+	
+
+/* THUMBS */
+.gyges .tp-thumb { 
+      opacity:1
+  }
+.gyges .tp-thumb-img-wrap {
+  padding:3px;
+    background:#000;
+  background-color:rgba(0,0,0,0.25);
+  display:inline-block;
+
+  width:100%;
+  height:100%;
+  position:relative;
+  margin:0px;
+  box-sizing:border-box;
+    transition:all 0.3s;
+    -webkit-transition:all 0.3s;
+}
+.gyges .tp-thumb-image {
+   padding:3px; 
+   display:block;
+   box-sizing:border-box;
+   position:relative;
+    -webkit-box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+  -moz-box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+  box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+ }  
+.gyges .tp-thumb-title { 
+     position:absolute; 
+     bottom:100%; 
+     display:inline-block;
+     left:50%;
+     background:rgba(255,255,255,0.8);
+     padding:10px 30px;
+     border-radius:4px;
+	 -webkit-border-radius:4px;
+     margin-bottom:20px;
+     opacity:0;
+      transition:all 0.3s;
+    -webkit-transition:all 0.3s;
+    transform: translateZ(0.001px) translateX(-50%) translateY(14px);
+    transform-origin:50% 100%;
+    -webkit-transform: translateZ(0.001px) translateX(-50%) translateY(14px);
+    -webkit-transform-origin:50% 100%;
+    white-space:nowrap;
+ }
+.gyges .tp-thumb:hover .tp-thumb-title {
+  	 transform:rotateX(0deg) translateX(-50%);
+    -webkit-transform:rotateX(0deg) translateX(-50%);
+    opacity:1;
+}
+
+.gyges .tp-thumb:hover .tp-thumb-img-wrap,
+ .gyges .tp-thumb.selected .tp-thumb-img-wrap {
+
+  background: rgba(255,255,255,1);
+  background: -moz-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -webkit-gradient(left top, left bottom, color-stop(0%, rgba(255,255,255,1)), color-stop(100%, rgba(119,119,119,1)));
+  background: -webkit-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -o-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -ms-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr="#ffffff", endColorstr="#777777", GradientType=0 );
+ }
+.gyges .tp-thumb-title:after {
+        content:" ";
+        position:absolute;
+        left:50%;
+        margin-left:-8px;
+        width: 0;
+		height: 0;
+		border-style: solid;
+		border-width: 8px 8px 0 8px;
+		border-color: rgba(255,255,255,0.8) transparent transparent transparent;
+        bottom:-8px;
+   }
+
+
+/* TABS */
+.gyges .tp-tab { 
+  opacity:1;      
+  padding:10px;
+  box-sizing:border-box;
+  font-family: "Roboto", sans-serif;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+ }
+.gyges .tp-tab-image 
+{ 
+  width:60px;
+  height:60px; max-height:100%; max-width:100%;
+  position:relative;
+  display:inline-block;
+  float:left;
+
+}
+.gyges .tp-tab-content 
+{
+    background:rgba(0,0,0,0); 
+    position:relative;
+    padding:15px 15px 15px 85px;
+ left:0px;
+  overflow:hidden;
+ margin-top:-15px;
+    box-sizing:border-box;
+    color:#333;
+    display: inline-block;
+    width:100%;
+    height:100%;
+ position:absolute; }
+.gyges .tp-tab-date
+  {
+  display:block;
+  color: rgba(255,255,255,0.25);
+  font-weight:500;
+  font-size:12px;
+  margin-bottom:0px;
+  }
+.gyges .tp-tab-title 
+{
+    display:block;  
+    text-align:left;
+    color:#fff;
+    font-size:14px;
+    font-weight:500;
+    text-transform:none;
+    line-height:17px;
+}
+.gyges .tp-tab:hover,
+.gyges .tp-tab.selected {
+  background:rgba(0,0,0,0.5); 
+}
+
+.gyges .tp-tab-mask {
+}
+
+/* MEDIA QUERIES */
+@media only screen and (max-width: 960px) {
+
+}
+@media only screen and (max-width: 768px) {
+
+}
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ HADES SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.hades.tparrows {
+	cursor:pointer;
+	background:#000;
+	background:rgba(0,0,0,0.15);
+	width:100px;
+	height:100px;
+	position:absolute;
+	display:block;
+	z-index:100;
+}
+
+.hades.tparrows:before {
+	font-family: "revicons";
+	font-size:30px;
+	color:#fff;
+	display:block;
+	line-height: 100px;
+	text-align: center;
+  transition: background 0.3s, color 0.3s;
+}
+.hades.tparrows.tp-leftarrow:before {
+	content: "\e824";
+}
+.hades.tparrows.tp-rightarrow:before {
+	content: "\e825";
+}
+
+.hades.tparrows:hover:before {
+   color:#aaa;
+   background:#fff;
+   background:rgba(255,255,255,1);
+ }
+.hades .tp-arr-allwrapper {
+  position:absolute;
+  left:100%;
+  top:0px;
+  background:#888; 
+  width:100px;height:100px;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -ms-filter: "progid:dximagetransform.microsoft.alpha(opacity=0)";
+  filter: alpha(opacity=0);
+  -moz-opacity: 0.0;
+  -khtml-opacity: 0.0;
+  opacity: 0.0;
+  -webkit-transform: rotatey(-90deg);
+  transform: rotatey(-90deg);
+  -webkit-transform-origin: 0% 50%;
+  transform-origin: 0% 50%;
+}
+.hades.tp-rightarrow .tp-arr-allwrapper {
+   left:auto;
+   right:100%;
+   -webkit-transform-origin: 100% 50%;
+  transform-origin: 100% 50%;
+   -webkit-transform: rotatey(90deg);
+  transform: rotatey(90deg);
+}
+
+.hades:hover .tp-arr-allwrapper {
+   -ms-filter: "progid:dximagetransform.microsoft.alpha(opacity=100)";
+  filter: alpha(opacity=100);
+  -moz-opacity: 1;
+  -khtml-opacity: 1;
+  opacity: 1;  
+    -webkit-transform: rotatey(0deg);
+  transform: rotatey(0deg);
+
+ }
+    
+.hades .tp-arr-iwrapper {
+}
+.hades .tp-arr-imgholder {
+  background-size:cover;
+  position:absolute;
+  top:0px;left:0px;
+  width:100%;height:100%;
+}
+.hades .tp-arr-titleholder {
+}
+.hades .tp-arr-subtitleholder {
+}
+
+
+/* BULLETS */
+.hades.tp-bullets {
+}
+.hades.tp-bullets:before {
+	content:" ";
+	position:absolute;
+	width:100%;
+	height:100%;
+	background:transparent;
+	padding:10px;
+	margin-left:-10px;margin-top:-10px;
+	box-sizing:content-box;
+}
+.hades .tp-bullet {
+	width:3px;
+	height:3px;
+	position:absolute;
+	background:#888;	
+	cursor: pointer;
+    border:5px solid #fff;
+	box-sizing:content-box;
+    box-shadow:0px 0px 3px 1px rgba(0,0,0,0.2);
+    -webkit-perspective:400;
+    perspective:400;
+    -webkit-transform:translatez(0.01px);
+    transform:translatez(0.01px);
+}
+.hades .tp-bullet:hover,
+.hades .tp-bullet.selected {
+	background:#555;
+  
+}
+
+.hades .tp-bullet-image {
+  position:absolute;top:-80px; left:-60px;width:120px;height:60px;
+  background-position:center center;
+  background-size:cover;
+  visibility:hidden;
+  opacity:0;
+  transition:all 0.3s;
+  -webkit-transform-style:flat;
+  transform-style:flat;
+  perspective:600;
+  -webkit-perspective:600;
+  transform: rotatex(-90deg);
+  -webkit-transform: rotatex(-90deg);
+  box-shadow:0px 0px 3px 1px rgba(0,0,0,0.2);
+  transform-origin:50% 100%;
+  -webkit-transform-origin:50% 100%;
+  
+  
+}
+.hades .tp-bullet:hover .tp-bullet-image {
+  display:block;
+  opacity:1;
+  transform: rotatex(0deg);
+  -webkit-transform: rotatex(0deg);
+  visibility:visible;
+    }
+.hades .tp-bullet-title {
+}
+
+
+/* THUMBS */
+.hades .tp-thumb { 
+      opacity:1
+  }
+.hades .tp-thumb-img-wrap {
+  border-radius:50%;
+  padding:3px;
+  display:inline-block;
+background:#000;
+  background-color:rgba(0,0,0,0.25);
+  width:100%;
+  height:100%;
+  position:relative;
+  margin:0px;
+  box-sizing:border-box;
+    transition:all 0.3s;
+    -webkit-transition:all 0.3s;
+}
+.hades .tp-thumb-image {
+   padding:3px; 
+   border-radius:50%;
+   display:block;
+   box-sizing:border-box;
+   position:relative;
+    -webkit-box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+  -moz-box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+  box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+ }  
+
+
+.hades .tp-thumb:hover .tp-thumb-img-wrap,
+.hades .tp-thumb.selected .tp-thumb-img-wrap {
+  
+   background: rgba(255,255,255,1);
+  background: -moz-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -webkit-gradient(left top, left bottom, color-stop(0%, rgba(255,255,255,1)), color-stop(100%, rgba(119,119,119,1)));
+  background: -webkit-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -o-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -ms-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr="#ffffff", endColorstr="#777777", GradientType=0 );
+ 
+      }
+.hades .tp-thumb-title:after {
+        content:" ";
+        position:absolute;
+        left:50%;
+        margin-left:-8px;
+        width: 0;
+		height: 0;
+		border-style: solid;
+		border-width: 8px 8px 0 8px;
+		border-color: rgba(0,0,0,0.75) transparent transparent transparent;
+        bottom:-8px;
+   }
+
+
+/* TABS */
+.hades .tp-tab {
+  opacity:1;
+ }
+    
+.hades .tp-tab-title
+ {
+      display:block;
+      color:#333;
+      font-weight:600;
+      font-size:18px;
+      text-align:center;
+      line-height:25px;      
+    } 
+.hades .tp-tab-price
+ {
+	display:block;
+    text-align:center;
+    color:#999;
+    font-size:16px;
+    margin-top:10px;
+   line-height:20px
+}
+
+.hades .tp-tab-button {
+    display:inline-block;
+    margin-top:15px;
+    text-align:center;
+	padding:5px 15px;
+  	color:#fff;
+  	font-size:14px;
+  	background:#219bd7;
+   	border-radius:4px;
+   font-weight:400;
+}
+.hades .tp-tab-inner {
+	text-align:center;
+}
+
+              
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ HEBE SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.hebe.tparrows {
+  cursor:pointer;
+  background:#fff;
+  min-width:70px;
+    min-height:70px;
+  position:absolute;
+  display:block;
+  z-index:100;
+}
+.hebe.tparrows:hover {
+}
+.hebe.tparrows:before {
+  font-family: "revicons";
+  font-size:30px;
+  color:#aaa;
+  display:block;
+  line-height: 70px;
+  text-align: center;
+  -webkit-transition: color 0.3s;
+  -moz-transition: color 0.3s;
+  transition: color 0.3s;
+  z-index:2;
+  position:relative;
+   background:#fff;
+  min-width:70px;
+    min-height:70px;
+}
+.hebe.tparrows.tp-leftarrow:before {
+  content: "\e824";
+}
+.hebe.tparrows.tp-rightarrow:before {
+  content: "\e825";
+}
+.hebe.tparrows:hover:before {
+ color:#000;
+      }
+.hebe .tp-title-wrap { 
+  position:absolute;
+  z-index:0;
+  display:inline-block;
+  background:#000;
+  background:rgba(0,0,0,0.75);
+  min-height:60px;
+  line-height:60px;
+  top:-10px;
+  margin-left:0px;
+  -webkit-transition: -webkit-transform 0.3s;
+  transition: transform 0.3s;
+  transform:scaleX(0);  
+  -webkit-transform:scaleX(0);  
+  transform-origin:0% 50%; 
+   -webkit-transform-origin:0% 50%;
+}
+ .hebe.tp-rightarrow .tp-title-wrap { 
+   right:0px;
+   -webkit-transform-origin:100% 50%;
+ }
+.hebe.tparrows:hover .tp-title-wrap {
+  transform:scaleX(1);
+  -webkit-transform:scaleX(1);
+}
+.hebe .tp-arr-titleholder {
+  position:relative;
+  text-transform:uppercase;
+  color:#fff;
+  font-weight:600;
+  font-size:12px;
+  line-height:90px;
+  white-space:nowrap;
+  padding:0px 20px 0px 90px;
+}
+
+.hebe.tp-rightarrow .tp-arr-titleholder {
+   margin-left:0px; 
+   padding:0px 90px 0px 20px;
+ }
+
+.hebe.tparrows:hover .tp-arr-titleholder {
+   transform:translateX(0px);
+   -webkit-transform:translateX(0px);
+  transition-delay: 0.1s;
+  opacity:1;
+}
+
+.hebe .tp-arr-imgholder{
+      width:90px;
+      height:90px;
+      position:absolute;
+      left:100%;
+      display:block;
+      background-size:cover;
+      background-position:center center;
+  	 top:0px; right:-90px;
+    }
+.hebe.tp-rightarrow .tp-arr-imgholder{
+        right:auto;left:-90px;
+      }
+
+/* BULLETS */
+.hebe.tp-bullets {
+}
+.hebe.tp-bullets:before {
+  content:" ";
+  position:absolute;
+  width:100%;
+  height:100%;
+  background:transparent;
+  padding:10px;
+  margin-left:-10px;margin-top:-10px;
+  box-sizing:content-box;
+}
+
+.hebe .tp-bullet {
+  width:3px;
+  height:3px;
+  position:absolute;
+  background:#fff;  
+  cursor: pointer;
+  border:5px solid #222;
+  border-radius:50%;
+  box-sizing:content-box;
+  -webkit-perspective:400;
+  perspective:400;
+  -webkit-transform:translateZ(0.01px);
+  transform:translateZ(0.01px);
+   transition:all 0.3s;
+}
+.hebe .tp-bullet:hover,
+.hebe .tp-bullet.selected {
+  background:#222;
+  border-color:#fff;
+}
+
+.hebe .tp-bullet-image {
+  position:absolute;
+  top:-90px; left:-40px;
+  width:70px;
+  height:70px;
+  background-position:center center;
+  background-size:cover;
+  visibility:hidden;
+  opacity:0;
+  transition:all 0.3s;
+  -webkit-transform-style:flat;
+  transform-style:flat;
+  perspective:600;
+  -webkit-perspective:600;
+  transform: scale(0);
+  -webkit-transform: scale(0);
+  transform-origin:50% 100%;
+  -webkit-transform-origin:50% 100%;
+border-radius:6px;
+  
+  
+}
+.hebe .tp-bullet:hover .tp-bullet-image {
+  display:block;
+  opacity:1;
+  transform: scale(1);
+  -webkit-transform: scale(1);
+  visibility:visible;
+    }
+.hebe .tp-bullet-title {
+}
+
+
+/* TABS */
+.hebe .tp-tab-title {
+    color:#a8d8ee;
+    font-size:13px;
+    font-weight:700;
+    text-transform:uppercase;
+    font-family:"Roboto Slab"
+    margin-bottom:5px;
+}
+
+.hebe .tp-tab-desc {
+	font-size:18px;
+    font-weight:400;
+    color:#fff;
+    line-height:25px;
+	font-family:"Roboto Slab";
+}
+
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ HEPHAISTOS SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.hephaistos.tparrows {
+	cursor:pointer;
+	background:#000;
+	background:rgba(0,0,0,0.5);
+	width:40px;
+	height:40px;
+	position:absolute;
+	display:block;
+	z-index:100;
+    border-radius:50%;
+}
+.hephaistos.tparrows:hover {
+	background:#000;
+}
+.hephaistos.tparrows:before {
+	font-family: "revicons";
+	font-size:18px;
+	color:#fff;
+	display:block;
+	line-height: 40px;
+	text-align: center;
+}
+.hephaistos.tparrows.tp-leftarrow:before {
+	content: "\e82c";
+  margin-left:-2px;
+  
+}
+.hephaistos.tparrows.tp-rightarrow:before {
+	content: "\e82d";
+   margin-right:-2px;
+}
+
+
+
+/* BULLETS */
+.hephaistos.tp-bullets {
+}
+.hephaistos.tp-bullets:before {
+	content:" ";
+	position:absolute;
+	width:100%;
+	height:100%;
+	background:transparent;
+	padding:10px;
+	margin-left:-10px;margin-top:-10px;
+	box-sizing:content-box;
+}
+.hephaistos .tp-bullet {
+	width:12px;
+	height:12px;
+	position:absolute;
+	background:#999;
+	border:3px solid #f5f5f5;
+	border-radius:50%;
+	cursor: pointer;
+	box-sizing:content-box;
+  box-shadow: 0px 0px 2px 1px rgba(130,130,130, 0.3);
+
+}
+.hephaistos .tp-bullet:hover,
+.hephaistos .tp-bullet.selected {
+	background:#fff;
+    border-color:#000;
+}
+.hephaistos .tp-bullet-image {
+}
+.hephaistos .tp-bullet-title {
+}
+
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ HERMES SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.hermes.tparrows {
+	cursor:pointer;
+	background:#000;
+	background:rgba(0,0,0,0.5);
+	width:30px;
+	height:110px;
+	position:absolute;
+	display:block;
+	z-index:100;
+}
+
+.hermes.tparrows:before {
+	font-family: "revicons";
+	font-size:15px;
+	color:#fff;
+	display:block;
+	line-height: 110px;
+	text-align: center;
+    transform:translateX(0px);
+    -webkit-transform:translateX(0px);
+    transition:all 0.3s;
+    -webkit-transition:all 0.3s;
+}
+.hermes.tparrows.tp-leftarrow:before {
+	content: "\e824";
+}
+.hermes.tparrows.tp-rightarrow:before {
+	content: "\e825";
+}
+.hermes.tparrows.tp-leftarrow:hover:before {
+    transform:translateX(-20px);
+    -webkit-transform:translateX(-20px);
+     opacity:0;
+}
+.hermes.tparrows.tp-rightarrow:hover:before {
+    transform:translateX(20px);
+    -webkit-transform:translateX(20px);
+     opacity:0;
+}
+
+.hermes .tp-arr-allwrapper {
+    overflow:hidden;
+    position:absolute;
+	width:180px;
+    height:140px;
+    top:0px;
+    left:0px;
+    visibility:hidden;
+      -webkit-transition: -webkit-transform 0.3s 0.3s;
+  transition: transform 0.3s 0.3s;
+  -webkit-perspective: 1000px;
+  perspective: 1000px;
+    }
+.hermes.tp-rightarrow .tp-arr-allwrapper {
+   right:0px;left:auto;
+      }
+.hermes.tparrows:hover .tp-arr-allwrapper {
+   visibility:visible;
+          }
+.hermes .tp-arr-imgholder {
+  width:180px;position:absolute;
+  left:0px;top:0px;height:110px;
+  transform:translateX(-180px);
+  -webkit-transform:translateX(-180px);
+  transition:all 0.3s;
+  transition-delay:0.3s;
+}
+.hermes.tp-rightarrow .tp-arr-imgholder{
+    transform:translateX(180px);
+  -webkit-transform:translateX(180px);
+      }
+  
+.hermes.tparrows:hover .tp-arr-imgholder {
+   transform:translateX(0px);
+   -webkit-transform:translateX(0px);            
+}
+.hermes .tp-arr-titleholder {
+  top:110px;
+  width:180px;
+  text-align:left; 
+  display:block;
+  padding:0px 10px;
+  line-height:30px; background:#000;
+  background:rgba(0,0,0,0.75);color:#fff;
+  font-weight:600; position:absolute;
+  font-size:12px;
+  white-space:nowrap;
+  letter-spacing:1px;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  -webkit-transform: rotateX(-90deg);
+  transform: rotateX(-90deg);
+  -webkit-transform-origin: 50% 0;
+  transform-origin: 50% 0;
+  box-sizing:border-box;
+
+}
+.hermes.tparrows:hover .tp-arr-titleholder {
+    -webkit-transition-delay: 0.6s;
+  transition-delay: 0.6s;
+  -webkit-transform: rotateX(0deg);
+  transform: rotateX(0deg);
+}
+
+
+/* BULLETS */
+.hermes.tp-bullets {
+}
+
+.hermes .tp-bullet {
+    overflow:hidden;
+    border-radius:50%;
+    width:16px;
+    height:16px;
+    background-color: rgba(0, 0, 0, 0);
+    box-shadow: inset 0 0 0 2px #FFF;
+    -webkit-transition: background 0.3s ease;
+    transition: background 0.3s ease;
+    position:absolute;
+}
+
+.hermes .tp-bullet:hover {
+	  background-color: rgba(0, 0, 0, 0.2);
+}
+.hermes .tp-bullet:after {
+  content: ' ';
+  position: absolute;
+  bottom: 0;
+  height: 0;
+  left: 0;
+  width: 100%;
+  background-color: #FFF;
+  box-shadow: 0 0 1px #FFF;
+  -webkit-transition: height 0.3s ease;
+  transition: height 0.3s ease;
+}
+.hermes .tp-bullet.selected:after {
+  height:100%;
+}
+
+
+/* TABS */
+.hermes .tp-tab { 
+  opacity:1;  
+  padding-right:10px;
+  box-sizing:border-box;
+ }
+.hermes .tp-tab-image 
+{ 
+  width:100%;
+  height:60%;
+  position:relative;
+}
+.hermes .tp-tab-content 
+{
+    background:rgb(54,54,54); 
+    position:absolute;
+    padding:20px 20px 20px 30px;
+    box-sizing:border-box;
+    color:#fff;
+  display:block;
+  width:100%;
+  min-height:40%;
+  bottom:0px;
+  left:-10px;
+  }
+.hermes .tp-tab-date
+  {
+  display:block;
+  color:#888;
+  font-weight:600;
+  font-size:12px;
+  margin-bottom:10px;
+  }
+.hermes .tp-tab-title 
+{
+    display:block;	
+    color:#fff;
+    font-size:16px;
+    font-weight:800;
+    text-transform:uppercase;
+   line-height:19px;
+}
+
+.hermes .tp-tab.selected .tp-tab-title:after {
+    width: 0px;
+	height: 0px;
+	border-style: solid;
+	border-width: 30px 0 30px 10px;
+	border-color: transparent transparent transparent rgb(54,54,54);
+	content:" ";
+    position:absolute;
+    right:-9px;
+    bottom:50%;
+    margin-bottom:-30px;
+}
+.hermes .tp-tab-mask {
+     padding-right:10px !important;
+          }
+
+/* MEDIA QUERIES */
+@media only screen and (max-width: 960px) {
+  .hermes .tp-tab .tp-tab-title {font-size:14px;line-height:16px;}
+  .hermes .tp-tab-date { font-size:11px; line-height:13px;margin-bottom:10px;}
+  .hermes .tp-tab-content { padding:15px 15px 15px 25px;}
+}
+@media only screen and (max-width: 768px) {
+  .hermes .tp-tab .tp-tab-title {font-size:12px;line-height:14px;}
+  .hermes .tp-tab-date {font-size:10px; line-height:12px;margin-bottom:5px;}
+  .hermes .tp-tab-content {padding:10px 10px 10px 20px;}
+}
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ HESPERIDEN SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.hesperiden.tparrows {
+	cursor:pointer;
+	background:#000;
+	background:rgba(0,0,0,0.5);
+	width:40px;
+	height:40px;
+	position:absolute;
+	display:block;
+	z-index:100;
+    border-radius: 50%;
+}
+.hesperiden.tparrows:hover {
+	background:#000;
+}
+.hesperiden.tparrows:before {
+	font-family: "revicons";
+	font-size:20px;
+	color:#fff;
+	display:block;
+	line-height: 40px;
+	text-align: center;
+}
+.hesperiden.tparrows.tp-leftarrow:before {
+	content: "\e82c";
+    margin-left:-3px;
+}
+.hesperiden.tparrows.tp-rightarrow:before {
+	content: "\e82d";
+    margin-right:-3px;
+}
+
+/* BULLETS */
+.hesperiden.tp-bullets {
+}
+.hesperiden.tp-bullets:before {
+	content:" ";
+	position:absolute;
+	width:100%;
+	height:100%;
+	background:transparent;
+	padding:10px;
+	margin-left:-10px;margin-top:-10px;
+	box-sizing:content-box;
+   border-radius:8px;
+  
+}
+.hesperiden .tp-bullet {
+	width:12px;
+	height:12px;
+	position:absolute;
+	background: #999999; /* old browsers */
+    background: -moz-linear-gradient(top,  #999999 0%, #e1e1e1 100%); /* ff3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#999999), 
+    color-stop(100%,#e1e1e1)); /* chrome,safari4+ */
+    background: -webkit-linear-gradient(top,  #999999 0%,#e1e1e1 100%); /* chrome10+,safari5.1+ */
+    background: -o-linear-gradient(top,  #999999 0%,#e1e1e1 100%); /* opera 11.10+ */
+    background: -ms-linear-gradient(top,  #999999 0%,#e1e1e1 100%); /* ie10+ */
+    background: linear-gradient(to bottom,  #999999 0%,#e1e1e1 100%); /* w3c */
+    filter: progid:dximagetransform.microsoft.gradient( 
+    startcolorstr="#999999", endcolorstr="#e1e1e1",gradienttype=0 ); /* ie6-9 */
+	border:3px solid #e5e5e5;
+	border-radius:50%;
+	cursor: pointer;
+	box-sizing:content-box;
+}
+.hesperiden .tp-bullet:hover,
+.hesperiden .tp-bullet.selected {
+	background:#666;
+}
+.hesperiden .tp-bullet-image {
+}
+.hesperiden .tp-bullet-title {
+}
+
+
+/* THUMBS */
+.hesperiden .tp-thumb {
+  opacity:1;
+  -webkit-perspective: 600px;
+  perspective: 600px;
+}
+.hesperiden .tp-thumb .tp-thumb-title {
+    font-size:12px;
+    position:absolute;
+    margin-top:-10px;
+    color:#fff;
+    display:block;
+    z-index:1000;
+    background-color:#000;
+    padding:5px 10px; 
+    bottom:0px;
+    left:0px;
+    width:100%;
+  box-sizing:border-box;
+    text-align:center;
+    overflow:hidden;
+    white-space:nowrap;
+    transition:all 0.3s;
+    -webkit-transition:all 0.3s;
+    transform:rotatex(90deg) translatez(0.001px);
+    transform-origin:50% 100%;
+    -webkit-transform:rotatex(90deg) translatez(0.001px);
+    -webkit-transform-origin:50% 100%;
+    opacity:0;
+ }
+.hesperiden .tp-thumb:hover .tp-thumb-title {
+  	 transform:rotatex(0deg);
+    -webkit-transform:rotatex(0deg);
+    opacity:1;
+}
+
+/* TABS */
+.hesperiden .tp-tab { 
+  opacity:1;      
+  padding:10px;
+  box-sizing:border-box;
+  font-family: "Roboto", sans-serif;
+  border-bottom: 1px solid #e5e5e5;
+ }
+.hesperiden .tp-tab-image 
+{ 
+  width:60px;
+  height:60px; max-height:100%; max-width:100%;
+  position:relative;
+  display:inline-block;
+  float:left;
+
+}
+.hesperiden .tp-tab-content 
+{
+    background:rgba(0,0,0,0); 
+    position:relative;
+    padding:15px 15px 15px 85px;
+ left:0px;
+ overflow:hidden;
+ margin-top:-15px;
+    box-sizing:border-box;
+    color:#333;
+    display: inline-block;
+    width:100%;
+    height:100%;
+ position:absolute; }
+.hesperiden .tp-tab-date
+  {
+  display:block;
+  color: #aaa;
+  font-weight:500;
+  font-size:12px;
+  margin-bottom:0px;
+  }
+.hesperiden .tp-tab-title 
+{
+    display:block;	
+    text-align:left;
+    color:#333;
+    font-size:14px;
+    font-weight:500;
+    text-transform:none;
+    line-height:17px;
+}
+.hesperiden .tp-tab:hover,
+.hesperiden .tp-tab.selected {
+	background:#eee; 
+}
+
+.hesperiden .tp-tab-mask {
+}
+
+/* MEDIA QUERIES */
+@media only screen and (max-width: 960px) {
+
+}
+@media only screen and (max-width: 768px) {
+
+}
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ METIS SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.metis.tparrows {
+  background:#fff;
+  padding:10px;
+  transition:all 0.3s;
+  -webkit-transition:all 0.3s;
+  width:60px;
+  height:60px;
+  box-sizing:border-box;
+ }
+ 
+ .metis.tparrows:hover {
+   background:#fff;
+   background:rgba(255,255,255,0.75);
+ }
+ 
+ .metis.tparrows:before {
+  color:#000;  
+   transition:all 0.3s;
+  -webkit-transition:all 0.3s;
+ }
+ 
+ .metis.tparrows:hover:before {
+   transform:scale(1.5);
+  }
+ 
+
+/* BULLETS */
+.metis .tp-bullet { 
+    opacity:1;
+    width:50px;
+    height:50px;    
+    padding:3px;
+    background:#000;
+    background-color:rgba(0,0,0,0.25);
+    margin:0px;
+    box-sizing:border-box;
+    transition:all 0.3s;
+    -webkit-transition:all 0.3s;
+    border-radius:50%;
+  }
+
+.metis .tp-bullet-image {
+
+   border-radius:50%;
+   display:block;
+   box-sizing:border-box;
+   position:relative;
+    -webkit-box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+  -moz-box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+  box-shadow: inset 5px 5px 10px 0px rgba(0,0,0,0.25);
+  width:44px;
+  height:44px;
+  background-size:cover;
+  background-position:center center;
+ }  
+.metis .tp-bullet-title { 
+     position:absolute; 
+	 bottom:65px;
+     display:inline-block;
+     left:50%;
+     background:#000;
+     background:rgba(0,0,0,0.75);
+     color:#fff;
+     padding:10px 30px;
+     border-radius:4px;
+	 -webkit-border-radius:4px;
+     opacity:0;
+      transition:all 0.3s;
+    -webkit-transition:all 0.3s;
+    transform: translateZ(0.001px) translateX(-50%) translateY(14px);
+    transform-origin:50% 100%;
+    -webkit-transform: translateZ(0.001px) translateX(-50%) translateY(14px);
+    -webkit-transform-origin:50% 100%;
+    opacity:0;
+    white-space:nowrap;
+ }
+
+.metis .tp-bullet:hover .tp-bullet-title {
+  	 transform:rotateX(0deg) translateX(-50%);
+    -webkit-transform:rotateX(0deg) translateX(-50%);
+    opacity:1;
+}
+
+.metis .tp-bullet.selected,
+.metis .tp-bullet:hover  {
+  
+   background: rgba(255,255,255,1);
+  background: -moz-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -webkit-gradient(left top, left bottom, color-stop(0%, rgba(255,255,255,1)), color-stop(100%, rgba(119,119,119,1)));
+  background: -webkit-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -o-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: -ms-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  background: linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(119,119,119,1) 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr="#ffffff", endColorstr="#777777", GradientType=0 );
+ 
+      }
+.metis .tp-bullet-title:after {
+        content:" ";
+        position:absolute;
+        left:50%;
+        margin-left:-8px;
+        width: 0;
+		height: 0;
+		border-style: solid;
+		border-width: 8px 8px 0 8px;
+		border-color: rgba(0,0,0,0.75) transparent transparent transparent;
+        bottom:-8px;
+   }
+
+.metis .tp-tab-number {
+        color: #fff;
+        font-size: 40px;
+        line-height: 30px;
+        font-weight: 400;
+        font-family: "Playfair Display";
+        width: 50px;
+        margin-right: 17px;
+        display: inline-block;
+        float: left;
+    }
+    .metis .tp-tab-mask {
+        padding-left: 20px;
+        left: 0px;
+        max-width: 90px !important;
+        transition: 0.4s padding-left, 0.4s left, 0.4s max-width;
+    }
+    .metis:hover .tp-tab-mask {
+        padding-left: 0px;
+        left: 50px;
+        max-width: 500px !important;
+    }
+    .metis .tp-tab-divider {
+        border-right: 1px solid transparent;
+        height: 30px;
+        width: 1px;
+        margin-top: 5px;
+        display: inline-block;
+        float: left;
+    }
+    .metis .tp-tab-title {
+        color: #fff;
+        font-size: 20px;
+        line-height: 20px;
+        font-weight: 400;
+        font-family: "Playfair Display";
+        position: relative;
+        padding-top: 10px;
+        padding-left: 30px;
+        display: inline-block;
+        transform: translateX(-100%);
+        transition: 0.4s all;
+    }
+    .metis .tp-tab-title-mask {
+        position: absolute;
+        overflow: hidden;
+        left: 67px;
+    }
+    .metis:hover .tp-tab-title {
+        transform: translateX(0);
+    }
+    .metis .tp-tab {
+        opacity: 0.15;
+        transition: 0.4s all;
+    }
+    .metis .tp-tab:hover,
+    .metis .tp-tab.selected {
+        opacity: 1;
+    }
+    .metis .tp-tab.selected .tp-tab-divider {
+        border-right: 1px solid #cdb083;
+    }
+    .metis.tp-tabs {
+        max-width: 118px !important;
+        padding-left: 50px;
+    }
+    .metis.tp-tabs:before {
+        content: " ";
+        height: 100%;
+        width: 88px;
+        background: rgba(0, 0, 0, 0.15);
+        border-right: 1px solid rgba(255, 255, 255, 0.10);
+        left: 0px;
+        top: 0px;
+        position: absolute;
+        transition: 0.4s all;
+    }
+    .metis.tp-tabs:hover:before {
+        width: 118px;
+    }
+    @media (max-width: 499px) {
+        .metis.tp-tabs:before {
+            background: rgba(0, 0, 0, 0.75);
+        }
+    }
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ PERSEPHONE SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.persephone.tparrows {
+	cursor:pointer;
+	background:#aaa;
+	background:rgba(200,200,200,0.5);
+	width:40px;
+	height:40px;
+	position:absolute;
+	display:block;
+	z-index:100;
+  border:1px solid #f5f5f5;
+}
+.persephone.tparrows:hover {
+	background:#333;
+}
+.persephone.tparrows:before {
+	font-family: "revicons";
+	font-size:15px;
+	color:#fff;
+	display:block;
+	line-height: 40px;
+	text-align: center;
+}
+.persephone.tparrows.tp-leftarrow:before {
+	content: "\e824";
+}
+.persephone.tparrows.tp-rightarrow:before {
+	content: "\e825";
+}
+
+
+
+/* BULLETS */
+.persephone.tp-bullets {
+}
+.persephone.tp-bullets:before {
+	content:" ";
+	position:absolute;
+	width:100%;
+	height:100%;
+	background:#transparent;
+	padding:10px;
+	margin-left:-10px;margin-top:-10px;
+	box-sizing:content-box;
+}
+.persephone .tp-bullet {
+	width:12px;
+	height:12px;
+	position:absolute;
+	background:#aaa;
+	border:1px solid #e5e5e5;	
+	cursor: pointer;
+	box-sizing:content-box;
+}
+.persephone .tp-bullet:hover,
+.persephone .tp-bullet.selected {
+	background:#222;
+}
+.persephone .tp-bullet-image {
+}
+.persephone .tp-bullet-title {
+}
+
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ URANUS SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.uranus.tparrows {
+  width:50px;
+  height:50px;
+  background:transparent;
+ }
+ .uranus.tparrows:before {
+ width:50px;
+ height:50px;
+ line-height:50px;
+ font-size:40px;
+ transition:all 0.3s;
+-webkit-transition:all 0.3s;
+ }
+ 
+  .uranus.tparrows:hover:before {
+    opacity:0.75;
+  }
+
+/* BULLETS */
+.uranus .tp-bullet{
+	border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0);
+  -webkit-transition: box-shadow 0.3s ease;
+  transition: box-shadow 0.3s ease;
+  background:transparent;
+}
+.uranus .tp-bullet.selected,
+.uranus .tp-bullet:hover {
+  box-shadow: 0 0 0 2px #FFF;
+  border:none;
+  border-radius: 50%;
+
+   background:transparent;
+}
+
+
+
+.uranus .tp-bullet-inner {
+  background-color: rgba(255, 255, 255, 0.7);
+  -webkit-transition: background-color 0.3s ease, -webkit-transform 0.3s ease;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  border-radius: 50%;
+  background-color: #FFF;
+  background-color: rgba(255, 255, 255, 0.3);
+  text-indent: -999em;
+  cursor: pointer;
+  position: absolute;
+}
+
+.uranus .tp-bullet.selected .tp-bullet-inner,
+.uranus .tp-bullet:hover .tp-bullet-inner{
+ transform: scale(0.4);
+ -webkit-transform: scale(0.4);
+ background-color:#fff;
+}
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ ZEUS SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+/* ARROWS */
+.zeus.tparrows {
+  cursor:pointer;
+  min-width:70px;
+  min-height:70px;
+  position:absolute;
+  display:block;
+  z-index:100;
+  border-radius:35px;   
+  overflow:hidden;
+  background:rgba(0,0,0,0.10);
+}
+
+.zeus.tparrows:before {
+  font-family: "revicons";
+  font-size:20px;
+  color:#fff;
+  display:block;
+  line-height: 70px;
+  text-align: center;    
+  z-index:2;
+  position:relative;
+}
+.zeus.tparrows.tp-leftarrow:before {
+  content: "\e824";
+}
+.zeus.tparrows.tp-rightarrow:before {
+  content: "\e825";
+}
+
+.zeus .tp-title-wrap {
+  background:#000;
+  background:rgba(0,0,0,0.5);
+  width:100%;
+  height:100%;
+  top:0px;
+  left:0px;
+  position:absolute;
+  opacity:0;
+  transform:scale(0);
+  -webkit-transform:scale(0);
+   transition: all 0.3s;
+  -webkit-transition:all 0.3s;
+  -moz-transition:all 0.3s;
+   border-radius:50%;
+ }
+.zeus .tp-arr-imgholder {
+  width:100%;
+  height:100%;
+  position:absolute;
+  top:0px;
+  left:0px;
+  background-position:center center;
+  background-size:cover;
+  border-radius:50%;
+  transform:translateX(-100%);
+  -webkit-transform:translateX(-100%);
+   transition: all 0.3s;
+  -webkit-transition:all 0.3s;
+  -moz-transition:all 0.3s;
+
+ }
+.zeus.tp-rightarrow .tp-arr-imgholder {
+    transform:translateX(100%);
+  -webkit-transform:translateX(100%);
+      }
+.zeus.tparrows:hover .tp-arr-imgholder {
+  transform:translateX(0);
+  -webkit-transform:translateX(0);
+  opacity:1;
+}
+      
+.zeus.tparrows:hover .tp-title-wrap {
+  transform:scale(1);
+  -webkit-transform:scale(1);
+  opacity:1;
+}
+ 
+
+/* BULLETS */
+.zeus .tp-bullet {
+     box-sizing:content-box; -webkit-box-sizing:content-box; border-radius:50%;
+      background-color: rgba(0, 0, 0, 0);
+      -webkit-transition: opacity 0.3s ease;
+      transition: opacity 0.3s ease;
+	  width:13px;height:13px;
+	  border:2px solid #fff;
+ }
+.zeus .tp-bullet:after {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  border-radius: 50%;
+  background-color: #FFF;
+  -webkit-transform: scale(0);
+  transform: scale(0);
+  -webkit-transform-origin: 50% 50%;
+  transform-origin: 50% 50%;
+  -webkit-transition: -webkit-transform 0.3s ease;
+  transition: transform 0.3s ease;
+}
+.zeus .tp-bullet:hover:after,
+.zeus .tp-bullet.selected:after{
+    -webkit-transform: scale(1.2);
+  transform: scale(1.2);
+}
+  
+ .zeus .tp-bullet-image,
+ .zeus .tp-bullet-imageoverlay{
+        width:135px;
+        height:60px;
+        position:absolute;
+        background:#000;
+        background:rgba(0,0,0,0.5);
+        bottom:25px;
+        left:50%;
+        margin-left:-65px;
+        box-sizing:border-box;
+        background-size:cover;
+        background-position:center center;
+        visibility:hidden;
+        opacity:0;
+         -webkit-backface-visibility: hidden; 
+      	backface-visibility: hidden;
+        -webkit-transform-origin: 50% 50%;
+		transform-origin: 50% 50%;
+  		-webkit-transition: all 0.3s ease;
+  		transition: all 0.3s ease;
+        border-radius:4px;
+
+}
+          
+
+.zeus .tp-bullet-title,
+.zeus .tp-bullet-imageoverlay {
+        z-index:2;
+        -webkit-transition: all 0.5s ease;
+	  	transition: all 0.5s ease;
+}     
+.zeus .tp-bullet-title { 
+        color:#fff;
+        text-align:center;
+        line-height:15px;
+        font-size:13px;
+        font-weight:600;  
+        z-index:3;
+         visibility:hidden;
+        opacity:0;
+         -webkit-backface-visibility: hidden; 
+      	backface-visibility: hidden;
+        -webkit-transform-origin: 50% 50%;
+		transform-origin: 50% 50%;
+  		-webkit-transition: all 0.3s ease;
+  		transition: all 0.3s ease;
+        position:absolute;
+        bottom:45px;
+        width:135px;
+    	vertical-align:middle;
+        left:-57px;
+}
+      
+.zeus .tp-bullet:hover .tp-bullet-title,
+.zeus .tp-bullet:hover .tp-bullet-image,
+.zeus .tp-bullet:hover .tp-bullet-imageoverlay{
+      opacity:1;
+      visibility:visible;
+	  -webkit-transform:translateY(0px);
+      transform:translateY(0px);         
+    }
+
+/* THUMBS */
+.zeus .tp-thumb {
+opacity:1
+}
+
+.zeus .tp-thumb-over {
+  background:#000;
+  background:rgba(0,0,0,0.25);
+  width:100%;
+  height:100%;
+  position:absolute;
+  top:0px;
+  left:0px;
+  z-index:1;
+  -webkit-transition:all 0.3s;
+  transition:all 0.3s;
+}
+
+.zeus .tp-thumb-more:before {
+  font-family: "revicons";
+  font-size:12px;
+  color:#aaa;
+  color:rgba(255,255,255,0.75);
+  display:block;
+  line-height: 12px;
+  text-align: left;    
+  z-index:2;
+  position:absolute;
+  top:20px;
+  right:20px;
+  z-index:2;
+}
+.zeus .tp-thumb-more:before {
+  content: "\e825";
+}
+
+.zeus .tp-thumb-title {
+  font-family:"Raleway";
+  letter-spacing:1px;
+  font-size:12px;
+  color:#fff;
+  display:block;
+  line-height: 15px;
+  text-align: left;    
+  z-index:2;
+  position:absolute;
+  top:0px;
+  left:0px;
+  z-index:2;
+  padding:20px 35px 20px 20px;
+  width:100%;
+  height:100%;
+  box-sizing:border-box;
+  transition:all 0.3s;
+  -webkit-transition:all 0.3s;
+  font-weight:500;
+}
+
+.zeus .tp-thumb.selected .tp-thumb-more:before,
+.zeus .tp-thumb:hover .tp-thumb-more:before {
+ color:#aaa;
+
+}
+
+.zeus .tp-thumb.selected .tp-thumb-over,
+.zeus .tp-thumb:hover .tp-thumb-over {
+ background:#000;
+}
+.zeus .tp-thumb.selected .tp-thumb-title,
+.zeus .tp-thumb:hover .tp-thumb-title {
+  color:#fff;
+
+}
+
+
+/* TABS */
+.zeus .tp-tab { 
+  opacity:1;      
+  box-sizing:border-box;
+}
+
+.zeus .tp-tab-title { 
+display: block;
+text-align: center;
+background: rgba(0,0,0,0.25);
+font-family: "Roboto Slab", serif; 
+font-weight: 700; 
+font-size: 13px; 
+line-height: 13px;
+color: #fff; 
+padding: 9px 10px; }
+
+.zeus .tp-tab:hover .tp-tab-title,
+.zeus .tp-tab.selected .tp-tab-title {
+ color: #000;
+  background:rgba(255,255,255,1); 
+}
+
+
+
+/*-----------------------------------------------------------------------------
+
+- Revolution Slider 5.0 Navigatin Skin Style  -
+
+ ZEUS SKIN
+
+author:  ThemePunch
+email:      info@themepunch.com
+website:    http://www.themepunch.com
+-----------------------------------------------------------------------------*/
+
+
+.post-tabs .tp-thumb {
+opacity:1
+}
+
+.post-tabs .tp-thumb-over {
+  background:#252525;
+  width:100%;
+  height:100%;
+  position:absolute;
+  top:0px;
+  left:0px;
+  z-index:1;
+  -webkit-transition:all 0.3s;
+  transition:all 0.3s;
+}
+
+.post-tabs .tp-thumb-more:before {
+  font-family: "revicons";
+  font-size:12px;
+  color:#aaa;
+  color:rgba(255,255,255,0.75);
+  display:block;
+  line-height: 12px;
+  text-align: left;    
+  z-index:2;
+  position:absolute;
+  top:15px;
+  right:15px;
+  z-index:2;
+}
+.post-tabs .tp-thumb-more:before {
+  content: "\e825";
+}
+
+.post-tabs .tp-thumb-title {
+  font-family:"raleway";
+  letter-spacing:1px;
+  font-size:12px;
+  color:#fff;
+  display:block;
+  line-height: 15px;
+  text-align: left;    
+  z-index:2;
+  position:absolute;
+  top:0px;
+  left:0px;
+  z-index:2;
+  padding:15px 30px 15px 15px;
+  width:100%;
+  height:100%;
+  box-sizing:border-box;
+  transition:all 0.3s;
+  -webkit-transition:all 0.3s;
+  font-weight:500;
+}
+
+.post-tabs .tp-thumb.selected .tp-thumb-more:before,
+.post-tabs .tp-thumb:hover .tp-thumb-more:before {
+ color:#aaa;
+
+}
+
+.post-tabs .tp-thumb.selected .tp-thumb-over,
+.post-tabs .tp-thumb:hover .tp-thumb-over {
+ background:#fff;
+}
+.post-tabs .tp-thumb.selected .tp-thumb-title,
+.post-tabs .tp-thumb:hover .tp-thumb-title {
+  color:#000;
+
+}

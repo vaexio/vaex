@@ -1,0 +1,198 @@
+
+.habilidades_contenedor {
+	width: 70%;
+	margin-left: 20%;
+
+}
+
+
+#codeconSkills {
+font-size: 20px;
+height: auto;
+margin: 0 auto;
+padding: 10px;
+width: 75%;
+}
+#codeconSkills img {
+width: 50px;
+height:50px;
+
+position: absolute;
+right: -70px;
+display: none;
+}
+.codeconSkillbar {
+width: 90%;
+height: 50px;
+position: relative;
+background: rgba(17, 17, 17, .3);
+margin: 20px auto;
+}
+#codeconHTML {
+width: 100%;
+animation: Animate-HTML 4s;
+-webkit-animation: Animate-HTML 4s;
+-moz-animation: Animate-HTML 4s;
+-o-animation: Animate-HTML 4s;
+height: 50px;
+position: absolute;
+background-color: #ea8564;
+}
+@keyframes Animate-HTML {
+from {
+width: 10px;
+}
+to {
+width: 100%}
+}@-webkit-keyframes Animate-HTML {
+from {
+width: 10px;
+}
+to {
+width: 100%}
+}@-moz-keyframes Animate-HTML {
+from {
+width: 10px;
+}
+to {
+width: 100%}
+}@-o-keyframes Animate-HTML {
+from {
+width: 10px;
+}
+to {
+width: 100%}
+}
+#codeconCSS {
+animation: Animate-CSS 5s;
+-webkit-animation: Animate-CSS 5s;
+-moz-animation: Animate-CSS 5s;
+-o-animation: Animate-CSS 5s;
+width: 70%;
+height: 50px;
+position: absolute;
+background-color: #55a69f;
+}
+@keyframes Animate-CSS {
+from {
+width: 10px;
+}
+to {
+width: 70%}
+}@-webkit-keyframes Animate-CSS {
+from {
+width: 10px;
+}
+to {
+width: 70%}
+}@-moz-keyframes Animate-CSS {
+from {
+width: 10px;
+}
+to {
+width: 70%}
+}@-o-keyframes Animate-CSS {
+from {
+width: 10px;
+}
+to {
+width: 70%}
+}
+#codeconjQuery {
+animation: Animate-jQuery 5s;
+-webkit-animation: Animate-jQuery 5s;
+-moz-animation: Animate-jQuery 5s;
+-o-animation: Animate-jQuery 5s;
+width: 50%;
+height: 50px;
+position: absolute;
+background-color: #99856d;
+}
+
+.skillBar {
+	width: 5%;
+	height: 50px;
+	position: absolute;
+	background-color: transparent;
+	transition: 3s;
+	-webkit-transform: translateZ(0);
+   -moz-transform: translateZ(0);
+   -ms-transform: translateZ(0);
+   -o-transform: translateZ(0);
+   transform: translateZ(0);
+} 
+
+@keyframes Animate-jQuery {
+from {
+	width: 10px;
+}
+to {
+	width: 50%}
+}
+@-webkit-keyframes Animate-jQuery {
+	from {
+		width: 10px;
+	}
+	to {
+		width: 50%
+	}
+}
+@-moz-keyframes Animate-jQuery {
+	from {
+		width: 10px;
+	}
+	to {
+		width: 50%
+	}
+}
+@-o-keyframes Animate-jQuery {
+	from {
+		width: 10px;
+	}
+	to {
+		width: 50%
+	}
+}
+#codeconCakePHP {
+	animation: Animate-CakePHP 5s;
+	/*-webkit-animation: Animate-jQuery 5s;
+	-moz-animation: Animate-jQuery 5s;
+	-o-animation: Animate-jQuery 5s;*/
+	width: 60%;
+	height: 50px;
+	position: absolute;
+	background-color: #2f96b4;
+}
+
+@keyframes Animate-CakePHP {
+from {
+		width: 10px;
+}
+to {
+		width: 60%
+	}
+}
+
+
+.codeconSkillArea {
+z-index: 1;
+float: left;
+//position: absolute;
+margin-top: 15px;
+margin-left: 15px;
+text-shadow: none;
+color: #fff;
+//font-family: Lato-Regular, sans-serif;
+font-size: 18px;
+}
+.PercentText {
+z-index: 3;
+position: relative;
+padding-right: 15px;
+margin-top: 15px;
+float: right;
+text-shadow: none;
+color: #fff;
+//font-family: Lato-Regular, sans-serif;
+font-size: 18px;
+}
