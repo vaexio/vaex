@@ -2347,7 +2347,7 @@ class Dataset(object):
                     if value == "minmax":
                         limits = self.minmax(expression, selection=selection, delay=True)
                     else:
-                        match = re.match("([\d.]*)(\D*)", value)
+                        match = re.match(r"([\d.]*)(\D*)", value)
                         if match is None:
                             raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
                         else:
@@ -2652,7 +2652,7 @@ class Dataset(object):
             for j, what in enumerate(whats):
                 what = what.strip()
                 index = what.index("(")
-                groups = re.match("(.*)\((.*)\)", what).groups()
+                groups = re.match(r"(.*)\((.*)\)", what).groups()
                 if groups and len(groups) == 2:
                     function = groups[0]
                     arguments = groups[1].strip()
