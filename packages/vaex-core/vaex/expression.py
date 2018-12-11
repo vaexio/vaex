@@ -465,8 +465,8 @@ class Function(object):
     def __init__(self, dataset, name, f):
         self.dataset = dataset
         self.name = name
-        # if not serializable, assume we can use pickle
-        if not isinstance(f, FunctionSerializable):
+
+        if not vaex.serialize.can_serialize(f): # if not serializable, assume we can use pickle
             f = FunctionSerializablePickle(f)
         self.f = f
 

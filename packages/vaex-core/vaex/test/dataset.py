@@ -38,9 +38,11 @@ def function_upper(x):
 	return np.array(x.decode('ascii').upper())
 import vaex.serialize
 @vaex.serialize.register
-class Multiply(object):
+class Multiply:
 	def __init__(self, scale=0): self.scale = scale
-	def state_set(self, state): self.scale = state
+	@classmethod
+	def state_from(cls, state):
+		return cls(scale=state)
 	def state_get(self): return self.scale
 	def __call__(self, x): return x * self.scale
 
