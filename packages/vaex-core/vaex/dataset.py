@@ -4419,8 +4419,10 @@ class Dataset(object):
         style = "<style>%s</style>" % css
         display.display(display.HTML(style))
 
-    def _repr_pretty_(self):
-        return self._head_and_tail_table(format=DEFAULT_REPR_FORMAT)
+    def _repr_mimebundle_(self, include=None, exclude=None, **kwargs):
+        # TODO: optimize, since we use the same data in both versions
+        # TODO: include latex version
+        return {'text/html':self._head_and_tail_table(format='html'), 'text/plain': self._head_and_tail_table(format='plain')}
 
     def _repr_html_(self):
         """Representation for Jupyter"""

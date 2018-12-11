@@ -2,7 +2,7 @@ from common import *
 
 def test_repr_default(ds_local):
     ds = ds_local
-    code = ds._repr_pretty_()
+    code = ds._repr_mimebundle_()['text/plain']
     assert 'x' in code
 
 def test_repr_html(ds_local):
@@ -16,6 +16,6 @@ def test_mask(ds_local):
     assert "'--'" not in code
     assert "--" in code
 
-    code = ds._repr_pretty_()
+    code = ds._repr_mimebundle_()['text/plain']
     assert "'--'" not in code
     assert "--" in code
