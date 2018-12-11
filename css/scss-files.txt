@@ -1,0 +1,1 @@
+The scss source files are available in the pro version.
