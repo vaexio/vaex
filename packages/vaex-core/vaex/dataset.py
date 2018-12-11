@@ -1259,7 +1259,7 @@ class Dataset(object):
         if name in self.__hidden__:
             return self.__hidden__[name].__get__(self)
         else:
-            return super(type(self)).__getattr__(name)
+            return object.__getattribute__(self, name)
 
     def iscategory(self, column):
         """Returns true if column is a category"""
