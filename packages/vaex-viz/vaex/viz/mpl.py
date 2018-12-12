@@ -19,7 +19,7 @@ def add_plugin():
 
 
 def patch(f):
-    '''Adds method f to the Dataset class'''
+    '''Adds method f to the DataFrame class'''
     name = f.__name__
     setattr(DataFrame, name, f)
     return f
@@ -41,15 +41,15 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
 
     Example
 
-    >>> ds.plot1d(ds.x)
-    >>> ds.plot1d(ds.x, limits=[0, 100], shape=100)
-    >>> ds.plot1d(ds.x, what='mean(y)', limits=[0, 100], shape=100)
+    >>> df.plot1d(df.x)
+    >>> df.plot1d(df.x, limits=[0, 100], shape=100)
+    >>> df.plot1d(df.x, what='mean(y)', limits=[0, 100], shape=100)
 
     If you want to do a computation yourself, pass the grid argument, but you are responsible for passing the
     same limits arguments:
 
-    >>> counts = ds.mean(ds.y, binby=ds.x, limits=[0, 100], shape=100)/100.
-    >>> ds.plot1d(ds.x, limits=[0, 100], shape=100, grid=means, label='mean(y)/100')
+    >>> counts = df.mean(df.y, binby=df.x, limits=[0, 100], shape=100)/100.
+    >>> df.plot1d(df.x, limits=[0, 100], shape=100, grid=means, label='mean(y)/100')
 
     :param x: Expression to bin in the x direction
     :param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
@@ -189,7 +189,7 @@ def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, 
     length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, ellipse_kwargs={}, **kwargs):
     """Viz (small amounts) of data in 2d using a scatter plot
 
-    Convenience wrapper around pylab.scatter when for working with small datasets or selections
+    Convenience wrapper around pylab.scatter when for working with small DataFrames or selections
 
     :param x: Expression for x axis
     :param y: Idem for y
@@ -302,7 +302,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
          return_extra=False, hardcopy=None):
     """Viz data in a 2d histogram/heatmap.
 
-    Declarative plotting of statistical plots using matplotlib, supports subplots, selections, layers
+    Declarative plotting of statistical plots using matplotlib, supports subplots, selections, layers.
 
     Instead of passing x and y, pass a list as x argument for multiple panels. Give what a list of options to have multiple
     panels. When both are present then will be origanized in a column/row order.
@@ -330,11 +330,11 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
 
     All these mappings can be changes by the visual argument, some examples:
 
-    >>> ds.plot('x', 'y', what=['mean(x)', 'correlation(vx, vy)'])
+    >>> df.plot('x', 'y', what=['mean(x)', 'correlation(vx, vy)'])
 
-    Will plot each 'what' as a column
+    Will plot each 'what' as a column.
 
-    >>> ds.plot('x', 'y', selection=['FeH < -3', '(FeH >= -3) & (FeH < -2)'], visual=dict(column='selection'))
+    >>> df.plot('x', 'y', selection=['FeH < -3', '(FeH >= -3) & (FeH < -2)'], visual=dict(column='selection'))
 
     Will plot each selection as a column, instead of a faded on top of each other.
 

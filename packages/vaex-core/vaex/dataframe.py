@@ -117,8 +117,8 @@ _doc_snippets["cov_matrix"] = """List all convariance values as a double list of
 _doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :meth:`propagate_uncertainties` for details"""
 _doc_snippets['note_copy'] = '.. note:: Note that no copy of the underlying data is made, only a view/reference is make.'
 _doc_snippets['note_filter'] = '.. note:: Note that filtering will be ignored (since they may change), you may want to consider running :meth:`extract` first.'
-_doc_snippets['inplace'] = 'Make modifications to self or return a new df'
-_doc_snippets['return_shallow_copy'] = 'Returns a new df with a shallow copy/view of the underlying data'
+_doc_snippets['inplace'] = 'Make modifications to self or return a new DataFrame'
+_doc_snippets['return_shallow_copy'] = 'Returns a new DataFrame with a shallow copy/view of the underlying data'
 def docsubst(f):
     if f.__doc__:
         f.__doc__ = f.__doc__.format(**_doc_snippets)
@@ -140,9 +140,9 @@ class DataFrame(object):
     """All local or remote datasets are encapsulated in this class, which provides a pandas
     like API to your dataset.
 
-    Each DataFrame (df) has a number of columns, and a number of rows, the length of the df.
+    Each DataFrame (df) has a number of columns, and a number of rows, the length of the DataFrame.
 
-    All DataFrames have multiple 'selection', and all calculations are done on the whole df (default)
+    All DataFrames have multiple 'selection', and all calculations are done on the whole DataFrame (default)
     or for the selection. The following example shows how to use the selection.
 
     >>> df.select("x < 0")
@@ -214,7 +214,7 @@ class DataFrame(object):
         return self.is_category(column)
 
     def is_category(self, column):
-        """Returns true if column is a category"""
+        """Returns true if column is a category."""
         column = _ensure_string_from_expression(column)
         return column in self._categories
 
@@ -227,7 +227,7 @@ class DataFrame(object):
         return self._categories[column]['N']
 
     def execute(self):
-        '''Execute all delayed jobs'''
+        '''Execute all delayed jobs.'''
         self.executor.execute()
 
     @property
@@ -269,9 +269,9 @@ class DataFrame(object):
 
     @docsubst
     def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
-        """Estimate the mutual information between and x and y on a grid with shape mi_shape and mi_limits, possible on a grid defined by binby
+        """Estimate the mutual information between and x and y on a grid with shape mi_shape and mi_limits, possibly on a grid defined by binby.
 
-        If sort is True, the mutual information is returned in sorted (descending) order and the list of expressions is returned in the same order
+        If sort is True, the mutual information is returned in sorted (descending) order and the list of expressions is returned in the same order.
 
         Examples:
 
@@ -409,7 +409,7 @@ class DataFrame(object):
 
     @docsubst
     def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
-        """Count the number of non-NaN values (or all, if expression is None or "*")
+        """Count the number of non-NaN values (or all, if expression is None or "*").
 
         Examples:
 
@@ -461,7 +461,7 @@ class DataFrame(object):
 
     @docsubst
     def first(self, expression, order_expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
-        """Count the number of non-NaN values (or all, if expression is None or "*")
+        """Count the number of non-NaN values (or all, if expression is None or "*").
 
         Examples:
 
@@ -669,7 +669,7 @@ class DataFrame(object):
 
     @docsubst
     def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
-        """Calculate the covariance cov[x,y] between and x and y, possible on a grid defined by binby
+        """Calculate the covariance cov[x,y] between and x and y, possibly on a grid defined by binby.
 
         Examples:
 
@@ -723,7 +723,7 @@ class DataFrame(object):
 
     @docsubst
     def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, delay=False, progress=None):
-        """Calculate the correlation coefficient cov[x,y]/(std[x]*std[y]) between and x and y, possible on a grid defined by binby
+        """Calculate the correlation coefficient cov[x,y]/(std[x]*std[y]) between and x and y, possibly on a grid defined by binby.
 
         Examples:
 
@@ -792,7 +792,7 @@ class DataFrame(object):
 
     @docsubst
     def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
-        """Calculate the covariance matrix for x and y or more expressions, possible on a grid defined by binby
+        """Calculate the covariance matrix for x and y or more expressions, possibly on a grid defined by binby.
 
         Either x and y are expressions, e.g:
 
@@ -876,7 +876,7 @@ class DataFrame(object):
     @docsubst
     @stat_1d
     def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
-        """Calculate the minimum and maximum for expressions, possible on a grid defined by binby
+        """Calculate the minimum and maximum for expressions, possibly on a grid defined by binby.
 
 
         Example:
@@ -924,7 +924,7 @@ class DataFrame(object):
     @docsubst
     @stat_1d
     def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
-        """Calculate the minimum for given expressions, possible on a grid defined by binby
+        """Calculate the minimum for given expressions, possibly on a grid defined by binby.
 
 
         Example:
@@ -953,7 +953,7 @@ class DataFrame(object):
     @docsubst
     @stat_1d
     def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
-        """Calculate the maximum for given expressions, possible on a grid defined by binby
+        """Calculate the maximum for given expressions, possibly on a grid defined by binby.
 
 
         Example:
@@ -982,7 +982,7 @@ class DataFrame(object):
     @docsubst
     @stat_1d
     def median_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=256, percentile_limits="minmax", selection=False, delay=False):
-        """Calculate the median , possible on a grid defined by binby
+        """Calculate the median , possibly on a grid defined by binby.
 
         NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
         percentile_shape and percentile_limits
@@ -1002,10 +1002,10 @@ class DataFrame(object):
 
     @docsubst
     def percentile_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024, percentile_limits="minmax", selection=False, delay=False):
-        """Calculate the percentile given by percentage, possible on a grid defined by binby
+        """Calculate the percentile given by percentage, possibly on a grid defined by binby.
 
         NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
-        percentile_shape and percentile_limits
+        percentile_shape and percentile_limits.
 
 
         Example:
@@ -1376,7 +1376,7 @@ class DataFrame(object):
         return self._delay(delay, finish(limits_list))
 
     def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
-        """Calculate/estimate the mode"""
+        """Calculate/estimate the mode."""
         if len(binby) == 0:
             raise ValueError("only supported with binby argument given")
         else:
@@ -1667,15 +1667,15 @@ class DataFrame(object):
 
     @property
     def col(self):
-        """Gives direct access to the columns only (useful for tab completion)
+        """Gives direct access to the columns only (useful for tab completion).
 
-        Convenient when working with ipython in combination with small dfs, since this gives tab-completion
+        Convenient when working with ipython in combination with small DataFrames, since this gives tab-completion.
 
         Columns can be accesed by there names, which are attributes. The attribues are currently expressions, so you can
-        do computations with them
+        do computations with them.
 
         Example
-    
+
         >>> ds = vaex.example()
         >>> df.plot(df.col.x, df.col.y)
 
@@ -1691,11 +1691,11 @@ class DataFrame(object):
         return data
 
     def close_files(self):
-        """Close any possible open file handles, the DataFrame will not be in a usable state afterwards"""
+        """Close any possible open file handles, the DataFrame will not be in a usable state afterwards."""
         pass
 
     def byte_size(self, selection=False, virtual=False):
-        """Return the size in bytes the whole df requires (or the selection), respecting the active_fraction"""
+        """Return the size in bytes the whole DataFrame requires (or the selection), respecting the active_fraction."""
         bytes_per_row = 0
         for column in list(self.get_column_names(virtual=virtual)):
             dtype = self.dtype(column)
@@ -1706,11 +1706,11 @@ class DataFrame(object):
 
     @property
     def nbytes(self):
-        """Alias for `df.byte_size()`, see :meth:`DataFrame.byte_size`"""
+        """Alias for `df.byte_size()`, see :meth:`DataFrame.byte_size`."""
         return self.byte_size()
 
     def dtype(self, expression):
-        """Return the numpy dtype for the given expression, if not a column, the first row will be evaluated to get the dtype"""
+        """Return the numpy dtype for the given expression, if not a column, the first row will be evaluated to get the dtype."""
         expression = _ensure_string_from_expression(expression)
         if expression in self.variables:
             return np.float64(1).dtype
@@ -1726,7 +1726,7 @@ class DataFrame(object):
         return Series({column_name:self.dtype(column_name) for column_name in self.get_column_names()})
 
     def is_masked(self, column):
-        '''Return if a column is a masked (numpy.ma) column'''
+        '''Return if a column is a masked (numpy.ma) column.'''
         if column in self.columns:
             return np.ma.isMaskedArray(self.columns[column])
         return False
@@ -1745,7 +1745,7 @@ class DataFrame(object):
         return label
 
     def unit(self, expression, default=None):
-        """Returns the unit (an astropy.unit.Units object) for the expression
+        """Returns the unit (an astropy.unit.Units object) for the expression.
 
         Example
 
@@ -1778,9 +1778,9 @@ class DataFrame(object):
                 return default
 
     def ucd_find(self, ucds, exclude=[]):
-        """Find a set of columns (names) which have the ucd, or part of the ucd
+        """Find a set of columns (names) which have the ucd, or part of the ucd.
 
-        Prefixed with a ^, it will only match the first part of the ucd
+        Prefixed with a ^, it will only match the first part of the ucd.
 
         Example
 
@@ -1848,7 +1848,7 @@ class DataFrame(object):
             logger.exception("non fatal error")
 
     def get_private_dir(self, create=False):
-        """Each dfs has a directory where files are stored for metadata etc
+        """Each DataFrame has a directory where files are stored for metadata etc.
 
         Example
 
@@ -1871,7 +1871,7 @@ class DataFrame(object):
         return dir
 
     def state_get(self):
-        """Return the internal state of the df in a dictionary
+        """Return the internal state of the DataFrame in a dictionary
 
         Example:
 
@@ -1952,7 +1952,7 @@ class DataFrame(object):
         >>> df2.state_set(state)  # now the virtual functions are 'copied'
         >>> df2
           #    x    y    r
-          0    3    4    5    
+          0    3    4    5
 
         :param state: dict as returned by :meth:`DataFrame.state_get`.
         :param bool use_active_range: Whether to use the active range or not.
@@ -2055,12 +2055,12 @@ class DataFrame(object):
         vaex.utils.write_json_or_yaml(f, self.state_get())
 
     def state_load(self, f, use_active_range=False):
-        """Load a state previously stored by :meth:`DataFrame.state_store`, see also :meth:`DataFrame.state_set`"""
+        """Load a state previously stored by :meth:`DataFrame.state_store`, see also :meth:`DataFrame.state_set`."""
         state = vaex.utils.read_json_or_yaml(f)
         self.state_set(state, use_active_range=use_active_range)
 
     def remove_virtual_meta(self):
-        """Removes the file with the virtual column etc, it does not change the current virtual columns etc"""
+        """Removes the file with the virtual column etc, it does not change the current virtual columns etc."""
         dir = self.get_private_dir(create=True)
         path = os.path.join(dir, "virtual_meta.yaml")
         try:
@@ -2076,15 +2076,15 @@ class DataFrame(object):
 
     @_hidden
     def write_virtual_meta(self):
-        """Writes virtual columns, variables and their ucd,description and units
+        """Writes virtual columns, variables and their ucd,description and units.
 
         The default implementation is to write this to a file called virtual_meta.yaml in the directory defined by
-        :func:`DataFrame.get_private_dir`. Other implementation may store this in the df file itself.
+        :func:`DataFrame.get_private_dir`. Other implementation may store this in the DataFrame file itself.
 
         This method is called after virtual columns or variables are added. Upon opening a file, :func:`DataFrame.update_virtual_meta`
         is called, so that the information is not lost between sessions.
 
-        Note: opening a df twice may result in corruption of this file.
+        Note: opening a DataFrame twice may result in corruption of this file.
 
         """
         path = os.path.join(self.get_private_dir(create=True), "virtual_meta.yaml")
@@ -2099,7 +2099,7 @@ class DataFrame(object):
 
     @_hidden
     def update_virtual_meta(self):
-        """Will read back the virtual column etc, written by :func:`DataFrame.write_virtual_meta`. This will be done when opening a df."""
+        """Will read back the virtual column etc, written by :func:`DataFrame.write_virtual_meta`. This will be done when opening a DataFrame."""
         import astropy.units
         try:
             path = os.path.join(self.get_private_dir(create=False), "virtual_meta.yaml")
@@ -2121,13 +2121,13 @@ class DataFrame(object):
         """Writes all meta data, ucd,description and units
 
         The default implementation is to write this to a file called meta.yaml in the directory defined by
-        :func:`DataFrame.get_private_dir`. Other implementation may store this in the df file itself.
+        :func:`DataFrame.get_private_dir`. Other implementation may store this in the DataFrame file itself.
         (For instance the vaex hdf5 implementation does this)
 
         This method is called after virtual columns or variables are added. Upon opening a file, :func:`DataFrame.update_meta`
         is called, so that the information is not lost between sessions.
 
-        Note: opening a df twice may result in corruption of this file.
+        Note: opening a DataFrame twice may result in corruption of this file.
 
         """
         # raise NotImplementedError
@@ -2140,7 +2140,7 @@ class DataFrame(object):
 
     @_hidden
     def update_meta(self):
-        """Will read back the ucd, descriptions, units etc, written by :func:`DataFrame.write_meta`. This will be done when opening a df."""
+        """Will read back the ucd, descriptions, units etc, written by :func:`DataFrame.write_meta`. This will be done when opening a DataFrame."""
         import astropy.units
         try:
             path = os.path.join(self.get_private_dir(create=False), "meta.yaml")
@@ -2157,7 +2157,7 @@ class DataFrame(object):
             logger.exception("non fatal error, but could read/understand %s", path)
 
     def is_local(self):
-        """Returns True if the df is a local df, False when a remote df"""
+        """Returns True if the DataFrame is local, False when a DataFrame is remote."""
         raise NotImplementedError
 
     def get_auto_fraction(self):
@@ -2181,7 +2181,7 @@ class DataFrame(object):
 
     @_hidden
     def subspace(self, *expressions, **kwargs):
-        """Return a :class:`Subspace` for this df with the given expressions:
+        """Return a :class:`Subspace` for this DataFrame with the given expressions:
 
         Example:
 
@@ -2234,7 +2234,7 @@ class DataFrame(object):
         return vaex.legacy.Subspaces([self(*expressions, **kwargs) for expressions in expressions_list])
 
     def combinations(self, expressions_list=None, dimension=2, exclude=None, **kwargs):
-        """Generate a list of combinations for the possible expressions for the given dimension
+        """Generate a list of combinations for the possible expressions for the given dimension.
 
         :param expressions_list: list of list of expressions, where the inner list defines the subspace
         :param dimensions: if given, generates a subspace with all possible combinations for that dimension
@@ -2276,7 +2276,7 @@ class DataFrame(object):
         raise NotImplementedError
 
     def set_variable(self, name, expression_or_value, write=True):
-        """Set the variable to an expression or value defined by expression_or_value
+        """Set the variable to an expression or value defined by expression_or_value.
 
         Example
 
@@ -2304,7 +2304,7 @@ class DataFrame(object):
         return self.variables[name]
 
     def evaluate_variable(self, name):
-        """Evaluates the variable given by name"""
+        """Evaluates the variable given by name."""
         if isinstance(self.variables[name], six.string_types):
             # TODO: this does not allow more than one level deep variable, like a depends on b, b on c, c is a const
             value = eval(self.variables[name], expression_namespace, self.variables)
@@ -2347,7 +2347,7 @@ class DataFrame(object):
 
         :param str expression: Name/expression to evaluate
         :param int i1: Start row index, default is the start (0)
-        :param int i2: End row index, default is the length of the df
+        :param int i2: End row index, default is the length of the DataFrame
         :param ndarray out: Output array, to which the result may be written (may be used to reuse an array, or write to
             a memory mapped array)
         :param selection: selection to apply
@@ -2390,7 +2390,7 @@ class DataFrame(object):
         :param selection: {selection}
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
-        :param selections: copy selections to new df
+        :param selections: copy selections to a new DataFrame
         :return: dict
         """
         if column_names:
@@ -2510,7 +2510,7 @@ class DataFrame(object):
 
         if boolean_expression is None, remove the selection, has_selection() will returns false
 
-        Note that per df, only one selection is possible.
+        Note that per DataFrame, only one selection is possible.
 
         :param str boolean_expression: boolean expression, such as 'x < 0', '(x < 0) || (y > -10)' or None to remove the selection
         :param str mode: boolean operation to perform with the previous selection, "replace", "and", "or", "xor", "subtract"
@@ -2519,7 +2519,7 @@ class DataFrame(object):
         raise NotImplementedError
 
     def add_column(self, name, f_or_array):
-        """Add an in memory array as a column"""
+        """Add an in memory array as a column."""
         if isinstance(f_or_array, (np.ndarray, Column)):
             data = ar = f_or_array
             # it can be None when we have an 'empty' DataFrameArrays
@@ -2531,8 +2531,8 @@ class DataFrame(object):
                 if self.filtered:
                     # give a better warning to avoid confusion
                     if len(self) == len(ar):
-                        raise ValueError("Array is of length %s, while the length of the df is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
-                raise ValueError("array is of length %s, while the length of the df is %s" % (len(ar), self.length_unfiltered()))
+                        raise ValueError("Array is of length %s, while the length of the DataFrame is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
+                raise ValueError("array is of length %s, while the length of the DataFrame is %s" % (len(ar), self.length_unfiltered()))
             # assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
             self.columns[name] = f_or_array
             if name not in self.column_names:
@@ -2720,7 +2720,7 @@ class DataFrame(object):
         or `"e_"` or postfixed by "_error", "_uncertainty", "e" and `"_e"`.
         Off diagonals (covariance or correlation) by postfixes with "_correlation" or "_corr" for
         correlation or "_covariance" or "_cov" for covariances.
-        (Note that x_y_cov = x_e * y_e * x_y_correlation)
+        (Note that x_y_cov = x_e * y_e * x_y_correlation.)
 
 
         Example
@@ -2888,7 +2888,7 @@ class DataFrame(object):
 
     @_hidden
     def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees, propagate_uncertainties=False):
-        """Rotation in 2d
+        """Rotation in 2d.
 
         :param str x: Name/expression of x column
         :param str y: idem for y
@@ -3037,10 +3037,10 @@ class DataFrame(object):
         return function
 
     def add_virtual_column(self, name, expression, unique=False):
-        """Add a virtual column to the df
+        """Add a virtual column to the DataFrame.
 
         Example:
-    
+
         >>> df.add_virtual_column("r", "sqrt(x**2 + y**2 + z**2)")
         >>> df.select("r < 10")
 
@@ -3077,15 +3077,15 @@ class DataFrame(object):
 
 
     def delete_virtual_column(self, name):
-        """Deletes a virtual column from a df"""
+        """Deletes a virtual column from a DataFrame."""
         del self.virtual_columns[name]
         self.signal_column_changed.emit(self, name, "delete")
         # self.write_virtual_meta()
 
     def add_variable(self, name, expression, overwrite=True):
-        """Add a variable to to a df
+        """Add a variable to to a DataFrame.
 
-        Variable may refer to other variables, and virtual columns and expression may refer to variables
+        A variable may refer to other variables, and virtual columns and expression may refer to variables.
 
         Example
 
@@ -3102,7 +3102,7 @@ class DataFrame(object):
             # self.write_virtual_meta()
 
     def delete_variable(self, name):
-        """Deletes a variable from a df"""
+        """Deletes a variable from a DataFrame."""
         del self.variables[name]
         self.signal_variable_changed.emit(self, name, "delete")
         # self.write_virtual_meta()
@@ -3173,11 +3173,11 @@ class DataFrame(object):
         return "".join(parts) + "<h2>Data:</h2>" + self._head_and_tail_table()
 
     def head(self, n=10):
-        """Return a shallow copy df with the first n rows"""
+        """Return a shallow copy a DataFrame with the first n rows."""
         return self[:min(n, len(self))]
 
     def tail(self, n=10):
-        """Return a shallow copy df with the last n rows"""
+        """Return a shallow copy a DataFrame with the last n rows."""
         N = len(self)
         # self.cat(i1=max(0, N-n), i2=min(len(self), N))
         return self[max(0, N - n):min(len(self), N)]
@@ -3190,12 +3190,12 @@ class DataFrame(object):
             return self._as_table(0, n, N - n, N, format=format)
 
     def head_and_tail_print(self, n=5):
-        """Display the first and last n elements."""
+        """Display the first and last n elements of a DataFrame."""
         from IPython import display
         display.display(display.HTML(self._head_and_tail_table(n)))
 
     def describe(self, strings=True, virtual=True, selection=None):
-        """Give a description of the df
+        """Give a description of the DataFrame.
 
         >>> import vaex
         >>> df = vaex.example()[['x', 'y', 'z']]
@@ -3243,7 +3243,7 @@ class DataFrame(object):
         return pd.DataFrame(data=columns, index=['dtype', 'count', 'missing', 'mean', 'std', 'min', 'max'])
 
     def cat(self, i1, i2, format='html'):
-        """Display the df from row i1 till i2
+        """Display the DataFrame from row i1 till i2
 
         For format, see https://pypi.org/project/tabulate/
 
@@ -3295,7 +3295,7 @@ class DataFrame(object):
                     if isinstance(value, np.ma.core.MaskedConstant):
                         value = str(value)
                         # parts += ["<td>%s</td>" % value]
-                        # value = 
+                        # value =
                     # else:
                         # parts += ["<td>%r</td>" % value]
                     values_list[j+1][1].append(value)
@@ -3380,7 +3380,7 @@ class DataFrame(object):
         return {'text/html':self._head_and_tail_table(format='html'), 'text/plain': self._head_and_tail_table(format='plain')}
 
     def _repr_html_(self):
-        """Representation for Jupyter"""
+        """Representation for Jupyter."""
         self._output_css()
         return self._head_and_tail_table()
 
@@ -3389,15 +3389,15 @@ class DataFrame(object):
         return 0
 
     def has_current_row(self):
-        """Returns True/False is there currently is a picked row"""
+        """Returns True/False is there currently is a picked row."""
         return self._current_row is not None
 
     def get_current_row(self):
-        """Individual rows can be 'picked', this is the index (integer) of the current row, or None there is nothing picked"""
+        """Individual rows can be 'picked', this is the index (integer) of the current row, or None there is nothing picked."""
         return self._current_row
 
     def set_current_row(self, value):
-        """Set the current row, and emit the signal signal_pick"""
+        """Set the current row, and emit the signal signal_pick."""
         if (value is not None) and ((value < 0) or (value >= len(self))):
             raise IndexError("index %d out of range [0,%d]" % (value, len(self)))
         self._current_row = value
@@ -3408,7 +3408,7 @@ class DataFrame(object):
         return False
 
     def column_count(self):
-        """Returns the number of columns (including virtual columns)"""
+        """Returns the number of columns (including virtual columns)."""
         return len(self.column_names)
 
     def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None):
@@ -3457,34 +3457,34 @@ class DataFrame(object):
         return [name for name in self.column_names if column_filter(name)]
 
     def __len__(self):
-        """Returns the number of rows in the df (filtering applied)"""
+        """Returns the number of rows in the DataFrame (filtering applied)."""
         if not self.filtered:
             return self._length_unfiltered
         else:
             return int(self.count())
 
     def selected_length(self):
-        """Returns the number of rows that are selected"""
+        """Returns the number of rows that are selected."""
         raise NotImplementedError
 
     def length_original(self):
-        """the full length of the df, independant what active_fraction is, or filtering. This is the real length of the underlying ndarrays"""
+        """the full length of the DataFrame, independent what active_fraction is, or filtering. This is the real length of the underlying ndarrays."""
         return self._length_original
 
     def length_unfiltered(self):
-        """The length of the arrays that should be considered (respecting active range), but without filtering"""
+        """The length of the arrays that should be considered (respecting active range), but without filtering."""
         return self._length_unfiltered
 
     def active_length(self):
         return self._length_unfiltered
 
     def get_active_fraction(self):
-        """Value in the range (0, 1], to work only with a subset of rows
+        """Value in the range (0, 1], to work only with a subset of rows.
         """
         return self._active_fraction
 
     def set_active_fraction(self, value):
-        """Sets the active_fraction, set picked row to None, and remove selection
+        """Sets the active_fraction, set picked row to None, and remove selection.
 
         TODO: we may be able to keep the selection, if we keep the expression, and also the picked row
         """
@@ -3502,7 +3502,7 @@ class DataFrame(object):
         return self._index_start, self._index_end
 
     def set_active_range(self, i1, i2):
-        """Sets the active_fraction, set picked row to None, and remove selection
+        """Sets the active_fraction, set picked row to None, and remove selection.
 
         TODO: we may be able to keep the selection, if we keep the expression, and also the picked row
         """
@@ -3547,7 +3547,7 @@ class DataFrame(object):
 
     @docsubst
     def take(self, indices):
-        '''Returns a df containing only rows indexed by indices
+        '''Returns a DataFrame containing only rows indexed by indices
 
         {note_copy}
 
@@ -3597,7 +3597,7 @@ class DataFrame(object):
 
         {note_copy}
 
-        The resulting df may be more efficient to work with when the original df is
+        The resulting DataFrame may be more efficient to work with when the original DataFrame is
         heavily filtered (contains just a small number of rows).
 
         If no filtering is applied, it returns a trimmed view.
@@ -3730,7 +3730,7 @@ class DataFrame(object):
 
     @docsubst
     def fillna(self, value, fill_nan=True, fill_masked=True, column_names=None, prefix='__original_', inplace=False):
-        '''Return a df, where missing values/NaN are filled with 'value'
+        '''Return a DataFrame, where missing values/NaN are filled with 'value'
 
         {note_copy}
 
@@ -3762,7 +3762,7 @@ class DataFrame(object):
         return df
 
     def materialize(self, virtual_column, inplace=False):
-        '''Returns a new df where the virtual column is turned into an in memory numpy array
+        '''Returns a new DataFrame where the virtual column is turned into an in memory numpy array.
 
         Example:
 
@@ -3784,7 +3784,7 @@ class DataFrame(object):
         return df
 
     def get_selection(self, name="default"):
-        """Get the current selection object (mostly for internal use atm)"""
+        """Get the current selection object (mostly for internal use atm)."""
         name = _normalize_selection_name(name)
         selection_history = self.selection_histories[name]
         index = self.selection_history_indices[name]
@@ -3794,7 +3794,7 @@ class DataFrame(object):
             return selection_history[index]
 
     def selection_undo(self, name="default", executor=None):
-        """Undo selection, for the name"""
+        """Undo selection, for the name."""
         logger.debug("undo")
         executor = executor or self.executor
         assert self.selection_can_undo(name=name)
@@ -3805,7 +3805,7 @@ class DataFrame(object):
         logger.debug("undo: selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
 
     def selection_redo(self, name="default", executor=None):
-        """Redo selection, for the name"""
+        """Redo selection, for the name."""
         logger.debug("redo")
         executor = executor or self.executor
         assert self.selection_can_redo(name=name)
@@ -3825,9 +3825,9 @@ class DataFrame(object):
         return (self.selection_history_indices[name] + 1) < len(self.selection_histories[name])
 
     def select(self, boolean_expression, mode="replace", name="default", executor=None):
-        """Perform a selection, defined by the boolean expression, and combined with the previous selection using the given mode
+        """Perform a selection, defined by the boolean expression, and combined with the previous selection using the given mode.
 
-        Selections are recorded in a history tree, per name, undo/redo can be done for them seperately
+        Selections are recorded in a history tree, per name, undo/redo can be done for them separately.
 
         :param str boolean_expression: Any valid column expression, with comparison operators
         :param str mode: Possible boolean operator: replace/and/or/xor/subtract
@@ -3845,7 +3845,7 @@ class DataFrame(object):
             self._selection(create, name)
 
     def select_non_missing(self, drop_nan=True, drop_masked=True, column_names=None, mode="replace", name="default"):
-        """Create a selection that selects rows having non missing values for all columns in column_names
+        """Create a selection that selects rows having non missing values for all columns in column_names.
 
         The name reflect Panda's, no rows are really dropped, but a mask is kept to keep track of the selection
 
@@ -3863,7 +3863,7 @@ class DataFrame(object):
         self._selection(create, name)
 
     def dropna(self, drop_nan=True, drop_masked=True, column_names=None):
-        """Create a shallow copy df, with filtering set using select_non_missing
+        """Create a shallow copy of a DataFrame, with filtering set using select_non_missing.
 
         :param drop_nan: drop rows when there is a NaN in any of the columns (will only affect float values)
         :param drop_masked: drop rows when there is a masked value in any of the columns
@@ -3876,13 +3876,13 @@ class DataFrame(object):
         return copy
 
     def select_nothing(self, name="default"):
-        """Select nothing"""
+        """Select nothing."""
         logger.debug("selecting nothing")
         self.select(None, name=name)
     # self.signal_selection_changed.emit(self)
 
     def select_rectangle(self, x, y, limits, mode="replace", name="default"):
-        """Select a 2d rectangular box in the space given by x and y, bounds by limits
+        """Select a 2d rectangular box in the space given by x and y, bounds by limits.
 
         Example:
 
@@ -3896,7 +3896,7 @@ class DataFrame(object):
         self.select_box([x, y], limits, mode=mode, name=name)
 
     def select_box(self, spaces, limits, mode="replace", name="default"):
-        """Select a n-dimensional rectangular box bounded by limits
+        """Select a n-dimensional rectangular box bounded by limits.
 
         The following examples are equivalent:
 
@@ -4057,7 +4057,7 @@ class DataFrame(object):
         return self.get_selection(name) is not None
 
     def __setitem__(self, name, value):
-        '''Convenient way to add a virtual column / expression to this df
+        '''Convenient way to add a virtual column / expression to this DataFrame.
 
         Example:
 
@@ -4079,7 +4079,7 @@ class DataFrame(object):
             raise TypeError('__setitem__ only takes strings as arguments, not {}'.format(type(name)))
 
     def __getitem__(self, item):
-        """Convenient way to get expressions, (shallow) copies of a few columns, or to apply filtering
+        """Convenient way to get expressions, (shallow) copies of a few columns, or to apply filtering.
 
         Examples:
 
@@ -4116,7 +4116,7 @@ class DataFrame(object):
             return df.trim()
 
     def __delitem__(self, item):
-        '''Removes a (virtual) column from the DataFrame
+        '''Removes a (virtual) column from the DataFrame.
 
         Note: this does not remove check if the column is used in a virtual expression or in the filter\
             and may lead to issues. It is safer to use :meth:`drop`.
@@ -4136,9 +4136,9 @@ class DataFrame(object):
 
     @docsubst
     def drop(self, columns, inplace=False, check=True):
-        """Drop columns (or single column)
+        """Drop columns (or a single column).
 
-        :param columns: List of columns or single column name
+        :param columns: List of columns or a single column name
         :param inplace: {inplace}
         :param check: When true, it will check if the column is used in virtual columns or the filter, and hide it instead.
         """
@@ -4186,7 +4186,7 @@ class DataFrame(object):
             #return self[i]
 
     def __iter__(self):
-        """Iterator over the column names"""
+        """Iterator over the column names."""
         return iter(list(self.get_column_names()))
 
 
@@ -4200,7 +4200,7 @@ del hidden
 
 
 class DataFrameLocal(DataFrame):
-    """Base class for dfs that work with local file/data"""
+    """Base class for DataFrames that work with local file/data"""
 
     def __init__(self, name, path, column_names):
         super(DataFrameLocal, self).__init__(name, column_names)
@@ -4257,11 +4257,11 @@ class DataFrameLocal(DataFrame):
     def data(self):
         """Gives direct access to the data as numpy arrays.
 
-        Convenient when working with IPython in combination with small dfs, since this gives tab-completion.
+        Convenient when working with IPython in combination with small DataFrames, since this gives tab-completion.
         Only real columns (i.e. no virtual) columns can be accessed, for getting the data from virtual columns, use
-        DataFrame.evalulate(...)
+        DataFrame.evalulate(...).
 
-        Columns can be accesed by there names, which are attributes. The attribues are of type numpy.ndarray
+        Columns can be accesed by there names, which are attributes. The attribues are of type numpy.ndarray.
 
         Example:
 
@@ -4360,9 +4360,9 @@ class DataFrameLocal(DataFrame):
         return df
 
     def shallow_copy(self, virtual=True, variables=True):
-        """Creates a (shallow) copy of the df
+        """Creates a (shallow) copy of the DataFrame.
 
-        It will link to the same data, but will have its own state, e.g. virtual columns, variables, selection etc
+        It will link to the same data, but will have its own state, e.g. virtual columns, variables, selection etc.
 
         """
         df = DataFrameLocal(self.name, self.path, self.column_names)
@@ -4384,13 +4384,13 @@ class DataFrameLocal(DataFrame):
         return df
 
     def is_local(self):
-        """The local implementation of :func:`DataFrame.evaluate`, always returns True"""
+        """The local implementation of :func:`DataFrame.evaluate`, always returns True."""
         return True
 
     def length(self, selection=False):
-        """Get the length of the dfs, for the selection of the whole df.
+        """Get the length of the DataFrames, for the selection of the whole DataFrame.
 
-        If selection is False, it returns len(df)
+        If selection is False, it returns len(df).
 
         TODO: Implement this in DataFrameRemote, and move the method up in :func:`DataFrame.length`
 
@@ -4411,7 +4411,7 @@ class DataFrameLocal(DataFrame):
     def echo(self, arg): return arg
 
     def __array__(self, dtype=None):
-        """Gives a full memory copy of the df into a 2d numpy array of shape (n_rows, n_columns).
+        """Gives a full memory copy of the DataFrame into a 2d numpy array of shape (n_rows, n_columns).
         Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
 
         Note this returns the same result as:
@@ -4431,10 +4431,10 @@ class DataFrameLocal(DataFrame):
                 chunks.append(self.evaluate(name))
         return np.array(chunks, dtype=dtype).T
 
-    @vaex.utils.deprecated('use df.join(other)')
+    @vaex.utils.deprecated('use DataFrame.join(other)')
     def _hstack(self, other, prefix=None):
-        """Join the columns of the other df to this one, assuming the ordering is the same"""
-        assert len(self) == len(other), "does not make sense to horizontally stack dfs with different lengths"
+        """Join the columns of the other DataFrame to this one, assuming the ordering is the same"""
+        assert len(self) == len(other), "does not make sense to horizontally stack DataFrames with different lengths"
         for name in other.get_column_names():
             if prefix:
                 new_name = prefix + name
@@ -4443,12 +4443,12 @@ class DataFrameLocal(DataFrame):
             self.add_column(new_name, other.columns[name])
 
     def concat(self, other):
-        """Concatenates two dfs, adding the rows of one the other df to the current, returned in a new df.
+        """Concatenates two DataFrames, adding the rows of one the other DataFrame to the current, returned in a new DataFrame.
 
         No copy of the data is made.
 
-        :param other: The other df that is concatenated with this df
-        :return: New df with the rows concatenated
+        :param other: The other DataFrame that is concatenated with this DataFrame
+        :return: New DataFrame with the rows concatenated
         :rtype: DataFrameConcatenated
         """
         dfs = []
@@ -4524,7 +4524,7 @@ class DataFrameLocal(DataFrame):
         return value
 
     def compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None, column_names=None):
-        """Compare two dfs and report their difference, use with care for large dfs"""
+        """Compare two DataFrames and report their difference, use with care for large DataFrames"""
         if column_names is None:
             column_names = self.get_column_names(virtual=False)
             for other_column_name in other.get_column_names(virtual=False):
@@ -4542,11 +4542,11 @@ class DataFrameLocal(DataFrame):
             if column_name not in self.get_column_names(virtual=False):
                 missing.append(column_name)
                 if report_missing:
-                    print("%s missing from this df" % column_name)
+                    print("%s missing from this DataFrame" % column_name)
             elif column_name not in other.get_column_names(virtual=False):
                 missing.append(column_name)
                 if report_missing:
-                    print("%s missing from other df" % column_name)
+                    print("%s missing from other DataFrame" % column_name)
             else:
                 ucd1 = self.ucds.get(column_name)
                 ucd2 = other.ucds.get(column_name)
@@ -4602,7 +4602,7 @@ class DataFrameLocal(DataFrame):
                     all_equal = np.all(boolean_mask)
                     if not all_equal:
                         count = np.sum(~boolean_mask)
-                        print("%s does not match for both dfs, %d rows are diffent out of %d" % (column_name, count, len(self)))
+                        print("%s does not match for both DataFrames, %d rows are diffent out of %d" % (column_name, count, len(self)))
                         different_values.append(column_name)
                         if report_difference:
                             indices = np.arange(len(self))[~boolean_mask]
@@ -4622,7 +4622,7 @@ class DataFrameLocal(DataFrame):
 
 
         Example:
-    
+
         >>> x = np.arange(10)
         >>> y = x**2
         >>> z = x**3
@@ -4631,9 +4631,9 @@ class DataFrameLocal(DataFrame):
         >>> df._join('x', df2, 'x', column_names=['z'])
 
         :param key: key for the left table (self)
-        :param other: Other df to join with (the right side)
+        :param other: Other DataFrame to join with (the right side)
         :param key_other: key on which to join
-        :param column_names: column names to add to this df
+        :param column_names: column names to add to this DataFrame
         :param prefix: add a prefix to the new column (or not when None)
         :return:
         """
@@ -4683,13 +4683,13 @@ class DataFrameLocal(DataFrame):
 
     @docsubst
     def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left', inplace=False):
-        """Return a df joined with other dfs, matched by columns/expression on/left_on/right_on
+        """Return a DataFrame joined with other DataFrames, matched by columns/expression on/left_on/right_on
 
         If neither on/left_on/right_on is given, the join is done by simply adding the columns (i.e. on the implicit
         row index).
 
-        Note: The filters will be ignored when joining, the full df will be joined (since filters may
-        change). If either df is heavily filtered (contains just a small number of rows) consider running
+        Note: The filters will be ignored when joining, the full DataFrame will be joined (since filters may
+        change). If either DataFrame is heavily filtered (contains just a small number of rows) consider running
         :func:`DataFrame.extract` first.
 
         Example:
@@ -4702,7 +4702,7 @@ class DataFrameLocal(DataFrame):
         >>> ds2 = vaex.from_arrays(b=b, y=y)
         >>> ds1.join(ds2, left_on='a', right_on='b')
 
-        :param other: Other df to join with (the right side)
+        :param other: Other DataFrame to join with (the right side)
         :param on: default key for the left table (self)
         :param left_on: key for the left table (self), overrides on
         :param right_on: default key for the right table (other), overrides on
@@ -4764,7 +4764,7 @@ class DataFrameLocal(DataFrame):
             else:
                 index_other = dict(zip(right_values, np.arange(N_other)))
 
-            # we do a left join, find all rows of the right df
+            # we do a left join, find all rows of the right DataFrame
             # that has an entry on the left
             # for each row in the right
             # find which row it needs to go to in the right
@@ -4793,9 +4793,9 @@ class DataFrameLocal(DataFrame):
         return left
 
     def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
-        """Exports the df to a file written with arrow
+        """Exports the DataFrame to a file written with arrow
 
-        :param DataFrameLocal df: df to export
+        :param DataFrameLocal df: DataFrame to export
         :param str path: path for file
         :param lis[str] column_names: list of column names to export or None for all columns
         :param str byteorder: = for native, < for little endian and > for big endian (not supported for fits)
@@ -4816,9 +4816,9 @@ class DataFrameLocal(DataFrame):
             self.export_fits(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
-        """Exports the df to a file written with arrow
+        """Exports the DataFrame to a file written with arrow
 
-        :param DataFrameLocal df: df to export
+        :param DataFrameLocal df: DataFrame to export
         :param str path: path for file
         :param lis[str] column_names: list of column names to export or None for all columns
         :param str byteorder: = for native, < for little endian and > for big endian
@@ -4835,9 +4835,9 @@ class DataFrameLocal(DataFrame):
         vaex_arrow.export.export(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
-        """Exports the df to a vaex hdf5 file
+        """Exports the DataFrame to a vaex hdf5 file
 
-        :param DataFrameLocal df: df to export
+        :param DataFrameLocal df: DataFrame to export
         :param str path: path for file
         :param lis[str] column_names: list of column names to export or None for all columns
         :param str byteorder: = for native, < for little endian and > for big endian
@@ -4854,9 +4854,9 @@ class DataFrameLocal(DataFrame):
         vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
-        """Exports the df to a fits file that is compatible with TOPCAT colfits format
+        """Exports the DataFrame to a fits file that is compatible with TOPCAT colfits format
 
-        :param DataFrameLocal df: df to export
+        :param DataFrameLocal df: DataFrame to export
         :param str path: path for file
         :param lis[str] column_names: list of column names to export or None for all columns
         :param bool shuffle: export rows in random order
@@ -5024,7 +5024,7 @@ class _ColumnConcatenatedLazy(Column):
             while offset < stop:  # > offset + len(current_df):
                 # print(offset, stop)
                 if current_df.filtered:  # TODO this may get slow! we're evaluating everything
-                    warnings.warn("might be slow, you have concatenated dfs with a filter set")
+                    warnings.warn("might be slow, you have concatenated DataFrames with a filter set")
                 part = current_df.evaluate(self.column_name, i1=start-offset, i2=min(len(current_df), stop - offset))
                 # print "part", part, copy_offset,copy_offset+len(part)
                 copy[copy_offset:copy_offset + len(part)] = part
@@ -5038,7 +5038,7 @@ class _ColumnConcatenatedLazy(Column):
 
 
 class DataFrameConcatenated(DataFrameLocal):
-    """Represents a set of dfs all concatenated. See :func:`DataFrameLocal.concat` for usage.
+    """Represents a set of DataFrames all concatenated. See :func:`DataFrameLocal.concat` for usage.
     """
 
     def __init__(self, dfs, name=None):
@@ -5048,7 +5048,7 @@ class DataFrameConcatenated(DataFrameLocal):
         self.path = "-".join(df.path for df in self.dfs)
         first, tail = dfs[0], dfs[1:]
         for df in dfs:
-            assert df.filtered is False, "we don't support filtering for concatenated dfs"
+            assert df.filtered is False, "we don't support filtering for concatenated DataFrames"
         for column_name in first.get_column_names(virtual=False):
             if all([column_name in df.get_column_names(virtual=False) for df in tail]):
                 self.column_names.append(column_name)
@@ -5093,7 +5093,7 @@ def _is_array_type_ok(array):
 
 
 class DataFrameArrays(DataFrameLocal):
-    """Represent an in-memory df of numpy arrays, see :func:`from_arrays` for usage."""
+    """Represent an in-memory DataFrame of numpy arrays, see :func:`from_arrays` for usage."""
 
     def __init__(self, name="arrays"):
         super(DataFrameArrays, self).__init__(None, None, [])
@@ -5104,7 +5104,7 @@ class DataFrameArrays(DataFrameLocal):
     #   return len(self.columns.values()[0])
 
     def add_column(self, name, data):
-        """Add a column to the df
+        """Add a column to the DataFrame
 
         :param str name: name of column
         :param data: numpy array with the data
@@ -5121,7 +5121,7 @@ class DataFrameArrays(DataFrameLocal):
 
     @property
     def values(self):
-        """Gives a full memory copy of the df into a 2d numpy array of shape (n_rows, n_columns).
+        """Gives a full memory copy of the DataFrame into a 2d numpy array of shape (n_rows, n_columns).
         Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
 
         Note this returns the same result as:

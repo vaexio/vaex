@@ -110,7 +110,7 @@ def _convert_name(filenames, shuffle=False):
 
 
 def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
-    """Open a DataFrame from file given by path
+    """Open a DataFrame from file given by path.
 
     Example:
 
@@ -199,7 +199,7 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
 
 
 def open_many(filenames):
-    """Open a list of filenames, and return a DataFrame with all DataFrames cocatenated
+    """Open a list of filenames, and return a DataFrame with all DataFrames cocatenated.
 
     :param list[str] filenames: list of filenames/paths
     :rtype: DataFrame
@@ -213,9 +213,9 @@ def open_many(filenames):
 
 
 def from_samp(username=None, password=None):
-    """Connect to a SAMP Hub and wait for a single table load event, disconnect, download the table and return the DataFrame
+    """Connect to a SAMP Hub and wait for a single table load event, disconnect, download the table and return the DataFrame.
 
-    Useful if you want to send a single table from say TOPCAT to vaex in a python console or notebook
+    Useful if you want to send a single table from say TOPCAT to vaex in a python console or notebook.
     """
     print("Waiting for SAMP message...")
     import vaex.samp
@@ -224,13 +224,13 @@ def from_samp(username=None, password=None):
 
 
 def from_astropy_table(table):
-    """Create a vaex DataFrame from an Astropy Table"""
+    """Create a vaex DataFrame from an Astropy Table."""
     import vaex.file.other
     return vaex.file.other.DatasetAstropyTable(table=table)
 
 
 def from_items(*items):
-    """Create an in memory DataFrame from numpy arrays, in contrast to from_arrays this keeps the order of columns intact (for Python < 3.6)
+    """Create an in memory DataFrame from numpy arrays, in contrast to from_arrays this keeps the order of columns intact (for Python < 3.6).
 
     Example
 
@@ -257,7 +257,7 @@ def from_items(*items):
 
 
 def from_arrays(**arrays):
-    """Create an in memory DataFrame from numpy arrays
+    """Create an in memory DataFrame from numpy arrays.
 
     Example
 
@@ -298,15 +298,15 @@ def from_arrays(**arrays):
     return df
 
 def from_arrow_table(table):
-    """Creates a vaex DataFrame from an arrow Table
-    
+    """Creates a vaex DataFrame from an arrow Table.
+
     :rtype: DataFrame
     """
     from vaex_arrow.convert import vaex_df_from_arrow_table
     return vaex_df_from_arrow_table(table=table)
 
 def from_scalars(**kwargs):
-    """Similar to from_arrays, but convenient for a DataFrame of length 1
+    """Similar to from_arrays, but convenient for a DataFrame of length 1.
 
     Example:
 
@@ -320,7 +320,7 @@ def from_scalars(**kwargs):
 
 
 def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
-    """Create an in memory DataFrame from a pandas DataFrame
+    """Create an in memory DataFrame from a pandas DataFrame.
 
     :param: pandas.DataFrame df: Pandas DataFrame
     :param: name: unique for the DataFrame
@@ -388,8 +388,8 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
 
 
 def from_csv(filename_or_buffer, copy_index=True, **kwargs):
-    """Shortcut to read a csv file using pandas and convert to a DataFrame directly
-    
+    """Shortcut to read a csv file using pandas and convert to a DataFrame directly.
+
     :rtype: DataFrame
     """
     import pandas as pd
@@ -397,12 +397,12 @@ def from_csv(filename_or_buffer, copy_index=True, **kwargs):
 
 
 def read_csv(filepath_or_buffer, **kwargs):
-    '''Alias to from_csv'''
+    '''Alias to from_csv.'''
     return from_csv(filenames, **kwargs)
 
 
 def read_csv_and_convert(path, shuffle=False, copy_index=True, **kwargs):
-    '''Convert a path (or glob pattern) to a single hdf5 file, will open the hdf5 file if exists
+    '''Convert a path (or glob pattern) to a single hdf5 file, will open the hdf5 file if exists.
 
     Example:
             >>> vaex.read_csv_and_convert('test-*.csv', shuffle=True)  # this may take a while
@@ -455,7 +455,7 @@ except ImportError:
 
 
 def server(url, **kwargs):
-    """Connect to hostname supporting the vaex web api
+    """Connect to hostname supporting the vaex web api.
 
     :param str hostname: hostname or ip address of server
     :return vaex.dataframe.ServerRest: returns a server object, note that it does not connect to the server yet, so this will always succeed
@@ -475,7 +475,7 @@ def server(url, **kwargs):
 
 
 def example(download=True):
-    """Returns an example DataFrame which comes with vaex for testing/learning purposes
+    """Returns an example DataFrame which comes with vaex for testing/learning purposes.
 
     :rtype: DataFrame
     """
@@ -487,7 +487,7 @@ def example(download=True):
 
 
 def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
-    """Creates a zeldovich DataFrame
+    """Creates a zeldovich DataFrame.
     """
     import vaex.file
     return vaex.file.other.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
