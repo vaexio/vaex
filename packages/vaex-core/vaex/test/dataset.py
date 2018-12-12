@@ -30,7 +30,7 @@ def small_buffer(ds, size=3):
 		finally:
 			ds.executor.buffer_size = previous
 	else:
-		yield # for remote datasets we don't support this ... or should we?
+		yield # for remote dfs we don't support this ... or should we?
 
 
 # these need to be global for pickling
@@ -129,7 +129,7 @@ class TestDataset(unittest.TestCase):
 			self.ints = ints = self.ints[2:12]
 
 		# TODO; better virtual and variables support
-		# TODO: this is a copy since concatenated datasets do not yet support
+		# TODO: this is a copy since concatenated dfs do not yet support
 		# global selections
 
 		# a 'deep' copy
@@ -512,7 +512,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_add_virtual_columns_cartesian_velocities_to_polar(self):
 		if 1:
-			def datasets(x, y, velx, vely):
+			def dfs(x, y, velx, vely):
 				ds_1 = from_scalars(x=x, y=y, vx=velx, vy=vely, x_e=0.01, y_e=0.02, vx_e=0.03, vy_e=0.04)
 				ds_1.add_virtual_columns_cartesian_velocities_to_polar(propagate_uncertainties=True)
 				N = 100000
@@ -524,7 +524,7 @@ class TestDataset(unittest.TestCase):
 				ds_many = vx.from_arrays(x=x, y=y, vx=vely, vy=vely)
 				ds_many.add_virtual_columns_cartesian_velocities_to_polar()
 				return ds_1, ds_many
-			ds_1, ds_many = datasets(0, 2, 3, 4)
+			ds_1, ds_many = dfs(0, 2, 3, 4)
 
 			vr_polar_e = ds_1.evaluate("vr_polar_uncertainty")[0]
 			vphi_polar_e = ds_1.evaluate("vphi_polar_uncertainty")[0]
@@ -589,7 +589,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_add_virtual_columns_cartesian_to_polar(self):
 		for radians in [True, False]:
-			def datasets(x, y, radians=radians):
+			def dfs(x, y, radians=radians):
 				ds_1 = from_scalars(x=x, y=y, x_e=0.01, y_e=0.02)
 				ds_1.add_virtual_columns_cartesian_to_polar(propagate_uncertainties=True, radians=radians)
 				N = 100000
@@ -599,7 +599,7 @@ class TestDataset(unittest.TestCase):
 				ds_many = vx.from_arrays(x=x, y=y)
 				ds_many.add_virtual_columns_cartesian_to_polar(radians=radians)
 				return ds_1, ds_many
-			ds_1, ds_many = datasets(0, 2)
+			ds_1, ds_many = dfs(0, 2)
 
 			r_polar_e = ds_1.evaluate("r_polar_uncertainty")[0]
 			phi_polar_e = ds_1.evaluate("phi_polar_uncertainty")[0]
@@ -614,7 +614,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_add_virtual_columns_proper_motion_eq2gal(self):
 		for radians in [True, False]:
-			def datasets(alpha, delta, pm_a, pm_d, radians=radians):
+			def dfs(alpha, delta, pm_a, pm_d, radians=radians):
 				ds_1 = from_scalars(alpha=alpha, delta=delta, pm_a=pm_a, pm_d=pm_d, alpha_e=0.01, delta_e=0.02, pm_a_e=0.003, pm_d_e=0.004)
 				ds_1.add_virtual_columns_proper_motion_eq2gal("alpha", "delta", "pm_a", "pm_d", "pm_l", "pm_b", propagate_uncertainties=True, radians=radians)
 				N = 100000
@@ -626,7 +626,7 @@ class TestDataset(unittest.TestCase):
 				ds_many = vx.from_arrays(alpha=alpha, delta=delta, pm_a=pm_a, pm_d=pm_d)
 				ds_many.add_virtual_columns_proper_motion_eq2gal("alpha", "delta", "pm_a", "pm_d", "pm_l", "pm_b", radians=radians)
 				return ds_1, ds_many
-			ds_1, ds_many = datasets(0, 0, 1, 2)
+			ds_1, ds_many = dfs(0, 0, 1, 2)
 
 			if 0: # only for testing the test
 				c1_e = ds_1.evaluate("c1_uncertainty")[0]
@@ -640,7 +640,7 @@ class TestDataset(unittest.TestCase):
 			self.assertAlmostEqual(pm_b_e, ds_many.std("pm_b").item(), delta=0.02)
 
 	def test_add_virtual_columns_proper_motion2vperpendicular(self):
-		def datasets(distance, pm_l, pm_b):
+		def dfs(distance, pm_l, pm_b):
 			ds_1 = from_scalars(pm_l=pm_l, pm_b=pm_b, distance=distance, distance_e=0.1, pm_l_e=0.3, pm_b_e=0.4)
 			ds_1.add_virtual_columns_proper_motion2vperpendicular(propagate_uncertainties=True)
 			N = 100000
@@ -651,7 +651,7 @@ class TestDataset(unittest.TestCase):
 			ds_many = vx.from_arrays(pm_l=pm_l, pm_b=pm_b, distance=distance)
 			ds_many.add_virtual_columns_proper_motion2vperpendicular()
 			return ds_1, ds_many
-		ds_1, ds_many = datasets(2, 3, 4)
+		ds_1, ds_many = dfs(2, 3, 4)
 
 		vl_e = ds_1.evaluate("vl_uncertainty")[0]
 		vb_e = ds_1.evaluate("vb_uncertainty")[0]
@@ -663,7 +663,7 @@ class TestDataset(unittest.TestCase):
 
 	def test_virtual_columns_lbrvr_proper_motion2vcartesian(self):
 		for radians in [True, False]:
-			def datasets(l, b, distance, vr, pm_l, pm_b, radians=radians):
+			def dfs(l, b, distance, vr, pm_l, pm_b, radians=radians):
 				ds_1 = from_scalars(l=l, b=b, pm_l=pm_l, pm_b=pm_b, vr=vr, distance=distance, distance_e=0.1, vr_e=0.2, pm_l_e=0.3, pm_b_e=0.4)
 				ds_1.add_virtual_columns_lbrvr_proper_motion2vcartesian(propagate_uncertainties=True, radians=radians)
 				N = 100000
@@ -677,7 +677,7 @@ class TestDataset(unittest.TestCase):
 				ds_many = vx.from_arrays(l=l, b=b, pm_l=pm_l, pm_b=pm_b, vr=vr, distance=distance)
 				ds_many.add_virtual_columns_lbrvr_proper_motion2vcartesian(radians=radians)
 				return ds_1, ds_many
-			ds_1, ds_many = datasets(0, 0, 1, 1, 2, 3)
+			ds_1, ds_many = dfs(0, 0, 1, 1, 2, 3)
 
 			vx_e = ds_1.evaluate("vx_uncertainty")[0]
 			vy_e = ds_1.evaluate("vy_uncertainty")[0]
@@ -740,7 +740,7 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(summul, copy.sum('mul', selection='test'))
 
 	def test_strings(self):
-		# TODO: concatenated datasets with strings of different length
+		# TODO: concatenated dfs with strings of different length
 		self.assertEqual(["x", "y", "m", "mi", "ints", "f"], self.dataset.get_column_names(virtual=False, strings=False))
 
 		names = ["x", "y", "m", "mi", "ints", "f", "name"]
@@ -1059,7 +1059,7 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(z, 0)
 
 		for radians in [True, False]:
-			def datasets(alpha, delta, distance, radians=radians):
+			def dfs(alpha, delta, distance, radians=radians):
 				ds_1 = from_scalars(alpha=alpha, delta=delta, distance=distance, alpha_e=0.1, delta_e=0.2, distance_e=0.3)
 				ds_1.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance", propagate_uncertainties=True, radians=radians)
 				N = 1000000
@@ -1071,7 +1071,7 @@ class TestDataset(unittest.TestCase):
 				ds_many.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance", radians=radians)
 				return ds_1, ds_many
 
-			ds_1, ds_many = datasets(0, 0, 1.)
+			ds_1, ds_many = dfs(0, 0, 1.)
 			x_e = ds_1.evaluate("x_uncertainty")[0]
 			y_e = ds_1.evaluate("y_uncertainty")[0]
 			z_e = ds_1.evaluate("z_uncertainty")[0]
@@ -1173,8 +1173,8 @@ class TestDataset(unittest.TestCase):
 			self.dataset._invalidate_selection_cache()
 		else:
 			if hasattr(self, 'webserver1'):
-				self.webserver1.datasets[0]._invalidate_selection_cache()
-				self.webserver2.datasets[0]._invalidate_selection_cache()
+				self.webserver1.dfs[0]._invalidate_selection_cache()
+				self.webserver2.dfs[0]._invalidate_selection_cache()
 			self.dataset_local._invalidate_selection_cache()
 		self.df = self.dataset_local.to_pandas_df()
 		self.dataset.select("x < 5")
@@ -1667,10 +1667,10 @@ class TestDataset(unittest.TestCase):
 		def concat(*types):
 			arrays = [np.arange(3, dtype=dtype) for dtype in types]
 			N = len(arrays)
-			datasets = [vx.dataset.DatasetArrays("dataset-%i" % i)  for i in range(N)]
-			for dataset, array in zip(datasets, arrays):
+			dfs = [vx.dataset.DatasetArrays("dataset-%i" % i)  for i in range(N)]
+			for dataset, array in zip(dfs, arrays):
 				dataset.add_column("x", array)
-			dataset_concat = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
+			dataset_concat = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
 			return dataset_concat
 
 		self.assertEqual(concat(np.float32, np.float64).columns["x"].dtype, np.float64)
@@ -1682,29 +1682,29 @@ class TestDataset(unittest.TestCase):
 		ar2 = np.zeros((20))
 		arrays = [ar1, ar2]
 		N = len(arrays)
-		datasets = [vx.dataset.DatasetArrays("dataset1") for i in range(N)]
-		for dataset, array in zip(datasets, arrays):
+		dfs = [vx.dataset.DatasetArrays("dataset1") for i in range(N)]
+		for dataset, array in zip(dfs, arrays):
 			dataset.add_column("x", array)
 		with self.assertRaises(ValueError):
-			dataset_concat = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
+			dataset_concat = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
 
 
 		ar1 = np.zeros((10))
 		ar2 = np.zeros((20))
 		arrays = [ar1, ar2]
 		N = len(arrays)
-		datasets = [vx.dataset.DatasetArrays("dataset1") for i in range(N)]
-		for dataset, array in zip(datasets, arrays):
+		dfs = [vx.dataset.DatasetArrays("dataset1") for i in range(N)]
+		for dataset, array in zip(dfs, arrays):
 			dataset.add_column("x", array)
-		dataset_concat = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
+		dataset_concat = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
 
 
-		dataset_concat1 = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
-		dataset_concat2 = vx.dataset.DatasetConcatenated(datasets, name="dataset_concat")
-		self.assertEqual(len(dataset_concat1.concat(dataset_concat2).datasets), 4)
-		self.assertEqual(len(dataset_concat1.concat(datasets[0]).datasets), 3)
-		self.assertEqual(len(datasets[0].concat(dataset_concat1).datasets), 3)
-		self.assertEqual(len(datasets[0].concat(datasets[0]).datasets), 2)
+		dataset_concat1 = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
+		dataset_concat2 = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
+		self.assertEqual(len(dataset_concat1.concat(dataset_concat2).dfs), 4)
+		self.assertEqual(len(dataset_concat1.concat(dfs[0]).dfs), 3)
+		self.assertEqual(len(dfs[0].concat(dataset_concat1).dfs), 3)
+		self.assertEqual(len(dfs[0].concat(dfs[0]).dfs), 2)
 
 	def test_export_concat(self):
 		x1 = np.arange(1000, dtype=np.float32)
@@ -1882,7 +1882,7 @@ class TestDataset(unittest.TestCase):
 		self.dataset.set_active_fraction(0.25)
 		self.assertFalse(self.dataset.has_current_row())
 
-		if self.dataset.is_local(): # this part doesn't work for remote datasets
+		if self.dataset.is_local(): # this part doesn't work for remote dfs
 			for dataset in [self.dataset, self.dataset_concat]:
 				dataset.set_active_fraction(1.0)
 				x = dataset.columns["x"][:] * 1. # make a copy
@@ -1991,7 +1991,7 @@ class TestDataset(unittest.TestCase):
 
 		total_subset = self.dataset("x").selected().sum()
 		self.assertLess(total_subset, total)
-		for mode in vaex.dataset._select_functions.keys():
+		for mode in vaex.selections._select_functions.keys():
 			self.dataset.select("x > 5")
 			self.dataset.select("x > 5", mode)
 			self.dataset.select(None)
@@ -2134,7 +2134,7 @@ class TestDataset(unittest.TestCase):
 		self.assertTrue(self.dataset.selection_can_redo())
 
 	def test_selection_serialize(self):
-		selection_expression = vaex.dataset.SelectionExpression("x > 5", None, "and")
+		selection_expression = vaex.selections.SelectionExpression("x > 5", None, "and")
 		self.dataset.set_selection(selection_expression)
 		total_subset = self.dataset("x").selected().sum()
 
@@ -2143,12 +2143,12 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(total_subset, total_subset_same)
 
 		values = selection_expression.to_dict()
-		self.dataset.set_selection(vaex.dataset.selection_from_dict(values))
+		self.dataset.set_selection(vaex.selections.selection_from_dict(values))
 		total_subset_same2 = self.dataset("x").selected().sum()
 		self.assertEqual(total_subset, total_subset_same2)
 
-		selection_expression = vaex.dataset.SelectionExpression("x > 5", None, "and")
-		selection_lasso = vaex.dataset.SelectionLasso("x", "y", [0, 10, 10, 0], [-1, -1, 100, 100], selection_expression, "and")
+		selection_expression = vaex.selections.SelectionExpression("x > 5", None, "and")
+		selection_lasso = vaex.selections.SelectionLasso("x", "y", [0, 10, 10, 0], [-1, -1, 100, 100], selection_expression, "and")
 		self.dataset.set_selection(selection_lasso)
 		total_2 = self.dataset.sum("x", selection=True)
 		self.assertEqual(total_2, total_subset)
@@ -2217,7 +2217,7 @@ class TestDatasetRemote(TestDataset):
 	@classmethod
 	def setUpClass(cls):
 		global test_port
-		cls.webserver = vaex.webserver.WebServer(datasets=[], port=test_port, cache_byte_size=0)
+		cls.webserver = vaex.webserver.WebServer(dfs=[], port=test_port, cache_byte_size=0)
 		#print "serving"
 		cls.webserver.serve_threaded()
 		#print "getting server object"
@@ -2245,16 +2245,16 @@ class TestDatasetRemote(TestDataset):
 		self.dataset_concat_local = self.dataset_concat
 		self.dataset_concat_dup_local = self.dataset_concat_dup
 
-		datasets = [self.dataset_local, self.datasetxy_local, self.dataset_concat_local, self.dataset_concat_dup_local]
-		#print "get datasets"
-		self.webserver.set_datasets(datasets)
-		datasets = self.server.datasets(as_dict=True)
-		#print "got it", datasets
+		dfs = [self.dataset_local, self.datasetxy_local, self.dataset_concat_local, self.dataset_concat_dup_local]
+		#print "get dfs"
+		self.webserver.set_dfs(dfs)
+		dfs = self.server.dfs(as_dict=True)
+		#print "got it", dfs
 
-		self.dataset = datasets["dataset"]
-		self.datasetxy = datasets["datasetxy"]
-		self.dataset_concat = datasets["dataset_concat"]
-		self.dataset_concat_dup = datasets["dataset_concat_dup"]
+		self.dataset = dfs["dataset"]
+		self.datasetxy = dfs["datasetxy"]
+		self.dataset_concat = dfs["dataset_concat"]
+		self.dataset_concat_dup = dfs["dataset_concat_dup"]
 		#print "all done"
 
 
@@ -2339,15 +2339,15 @@ class TestDatasetDistributed(TestDatasetRemote):
 		# self.dataset_local = self.dataset = dataset.DatasetArrays("dataset")
 		self.dataset_local = self.dataset
 
-		datasets = [self.dataset]
-		datasets_copy = [k.copy() for k in datasets] # otherwise we share the selection cache
-		for ds in datasets_copy:
+		dfs = [self.dataset]
+		dfs_copy = [k.copy() for k in dfs] # otherwise we share the selection cache
+		for ds in dfs_copy:
 			ds.name = self.dataset_local.name
-		datasets = [self.dataset]
-		self.webserver1 = vaex.webserver.WebServer(datasets=datasets, port=test_port)
+		dfs = [self.dataset]
+		self.webserver1 = vaex.webserver.WebServer(dfs=dfs, port=test_port)
 		self.webserver1.serve_threaded()
 		test_port += 1
-		self.webserver2 = vaex.webserver.WebServer(datasets=datasets_copy, port=test_port)
+		self.webserver2 = vaex.webserver.WebServer(dfs=dfs_copy, port=test_port)
 		self.webserver2.serve_threaded()
 		test_port += 1
 
@@ -2355,10 +2355,10 @@ class TestDatasetDistributed(TestDatasetRemote):
 		self.server1 = vx.server("%s://localhost:%d" % (scheme, test_port-2))
 		self.server2 = vx.server("%s://localhost:%d" % (scheme, test_port-1))
 		test_port += 1
-		datasets1 = self.server1.datasets(as_dict=True)
-		datasets2 = self.server2.datasets(as_dict=True)
-		self.datasets = [datasets1["dataset"], datasets2["dataset"]]
-		self.dataset = vaex.distributed.DatasetDistributed(self.datasets)
+		dfs1 = self.server1.dfs(as_dict=True)
+		dfs2 = self.server2.dfs(as_dict=True)
+		self.dfs = [dfs1["dataset"], dfs2["dataset"]]
+		self.dataset = vaex.distributed.DatasetDistributed(self.dfs)
 
 
 
@@ -2432,18 +2432,18 @@ class T_stWebServer(unittest.TestCase):
 		self.dataset.add_column("x", x)
 		self.dataset.add_column("y", y)
 
-		self.webserver = vaex.webserver.WebServer(datasets=[self.dataset], port=test_port)
+		self.webserver = vaex.webserver.WebServer(dfs=[self.dataset], port=test_port)
 		self.webserver.serve_threaded()
 		self.server = vx.server("http://localhost:%d" % test_port)
-		self.dataset_remote = self.server.datasets()[0]
+		self.dataset_remote = self.server.dfs()[0]
 
 	def tearDown(self):
 		self.webserver.stop_serving()
 
 	def test_list(self):
-		datasets = self.server.datasets()
-		self.assertTrue(len(datasets) == 1)
-		dataset_remote = datasets[0]
+		dfs = self.server.dfs()
+		self.assertTrue(len(dfs) == 1)
+		dataset_remote = dfs[0]
 		self.assertEqual(dataset_remote.name, self.dataset.name)
 		self.assertEqual(dataset_remote.get_column_names(), self.dataset.get_column_names())
 		self.assertEqual(len(dataset_remote), len(self.dataset))

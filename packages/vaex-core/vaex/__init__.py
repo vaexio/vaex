@@ -1,7 +1,7 @@
 """
 Vaex is a library for dealing with larger than memory DataFrames (out of core).
 
-The most important class (datastructure) in vaex is the :class:`.Dataset`. A dataset is obtained by either, opening
+The most important class (datastructure) in vaex is the :class:`.DataFrame`. A DataFrame is obtained by either, opening
 the example dataset:
 
 >>> import vaex
@@ -25,7 +25,7 @@ A few strong features of vaex are:
  * Expression system / Virtual columns: compute on the fly, without wasting ram.
  * Memory efficient: no memory copies when doing filtering/selections/subsets.
  * Visualization: directly supported, a one-liner is often enough.
- * User friendly API: You will only need to deal with a Dataset object, and tab completion + docstring will help you out: `ds.mean<tab>`, feels very similar to Pandas.
+ * User friendly API: You will only need to deal with a DataFrame object, and tab completion + docstring will help you out: `ds.mean<tab>`, feels very similar to Pandas.
  * Very fast statiscs on N dimensional grids such as histograms, running mean, heatmaps.
 
 
@@ -34,6 +34,7 @@ Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how
 """  # -*- coding: utf-8 -*-
 from __future__ import print_function
 import glob
+import vaex.dataframe
 import vaex.dataset
 from . import stat
 # import vaex.file
@@ -42,8 +43,8 @@ from .delayed import delayed
 
 import vaex.datasets
 # import vaex.plot
-# from vaex.dataset import Dataset
-# del ServerRest, Dataset
+# from vaex.dataframe import DataFrame
+# del ServerRest, DataFrame
 
 import vaex.settings
 import logging
@@ -109,7 +110,7 @@ def _convert_name(filenames, shuffle=False):
 
 
 def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
-    """Open a dataset from file given by path
+    """Open a DataFrame from file given by path.
 
     Example:
 
@@ -118,32 +119,25 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
 
     :param str path: local or absolute path to file, or glob string
     :param convert: convert files to an hdf5 file for optimization, can also be a path
-    :param bool shuffle: shuffle converted dataset or not
+    :param bool shuffle: shuffle converted DataFrame or not
     :param args: extra arguments for file readers that need it
     :param kwargs: extra keyword arguments
     :param bool copy_index: copy index when source is read via pandas
-    :return: return dataset if file is supported, otherwise None
-    :rtype: Dataset
+    :return: return a DataFrame on succes, otherwise None
+    :rtype: DataFrame
 
-    :Example:
-
-    >>> import vaex as vx
-    >>> vx.open('myfile.hdf5')
-    <vaex.dataset.Hdf5MemoryMapped at 0x1136ee3d0>
-    >>> vx.open('gadget_file.hdf5', 3) # this will read only particle type 3
-    <vaex.dataset.Hdf5MemoryMappedGadget at 0x1136ef3d0>
     """
     import vaex
     try:
         if path in aliases:
             path = aliases[path]
         if path.startswith("http://") or path.startswith("ws://"):  # TODO: think about https and wss
-            server, dataset = path.rsplit("/", 1)
+            server, DataFrame = path.rsplit("/", 1)
             server = vaex.server(server, **kwargs)
-            datasets = server.datasets(as_dict=True)
-            if dataset not in datasets:
-                raise KeyError("no such dataset '%s' at server, possible dataset names: %s" % (dataset, " ".join(datasets.keys())))
-            return datasets[dataset]
+            DataFrames = server.DataFrames(as_dict=True)
+            if DataFrame not in DataFrames:
+                raise KeyError("no such DataFrame '%s' at server, possible DataFrame names: %s" % (DataFrame, " ".join(DataFrames.keys())))
+            return DataFrames[DataFrame]
         if path.startswith("cluster"):
             import vaex.distributed
             return vaex.distributed.open(path, *args, **kwargs)
@@ -188,10 +182,10 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
                 else:
                     # with ProcessPoolExecutor() as executor:
                     # executor.submit(read_csv_and_convert, filenames, shuffle=shuffle, **kwargs)
-                    datasets = []
+                    DataFrames = []
                     for filename in filenames:
-                        datasets.append(open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
-                    ds = vaex.dataset.DatasetConcatenated(datasets)
+                        DataFrames.append(open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
+                    ds = vaex.dataframe.DataFrameConcatenated(DataFrames)
                 if convert:
                     ds.export_hdf5(filename_hdf5, shuffle=shuffle)
                     ds = vaex.file.open(filename_hdf5, *args, **kwargs)
@@ -205,23 +199,23 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
 
 
 def open_many(filenames):
-    """Open a list of filenames, and return a dataset with all datasets cocatenated
+    """Open a list of filenames, and return a DataFrame with all DataFrames cocatenated.
 
     :param list[str] filenames: list of filenames/paths
-    :rtype: Dataset
+    :rtype: DataFrame
     """
-    datasets = []
+    dfs = []
     for filename in filenames:
         filename = filename.strip()
         if filename and filename[0] != "#":
-            datasets.append(open(filename))
-    return vaex.dataset.DatasetConcatenated(datasets=datasets)
+            dfs.append(open(filename))
+    return vaex.dataframe.DataFrameConcatenated(dfs=dfs)
 
 
 def from_samp(username=None, password=None):
-    """Connect to a SAMP Hub and wait for a single table load event, disconnect, download the table and return the dataset
+    """Connect to a SAMP Hub and wait for a single table load event, disconnect, download the table and return the DataFrame.
 
-    Useful if you want to send a single table from say TOPCAT to vaex in a python console or notebook
+    Useful if you want to send a single table from say TOPCAT to vaex in a python console or notebook.
     """
     print("Waiting for SAMP message...")
     import vaex.samp
@@ -230,13 +224,13 @@ def from_samp(username=None, password=None):
 
 
 def from_astropy_table(table):
-    """Create a vaex dataset from an Astropy Table"""
+    """Create a vaex DataFrame from an Astropy Table."""
     import vaex.file.other
     return vaex.file.other.DatasetAstropyTable(table=table)
 
 
 def from_items(*items):
-    """Create an in memory dataset from numpy arrays, in contrast to from_arrays this keeps the order of columns intact (for Python < 3.6)
+    """Create an in memory DataFrame from numpy arrays, in contrast to from_arrays this keeps the order of columns intact (for Python < 3.6).
 
     Example
 
@@ -252,17 +246,18 @@ def from_items(*items):
       4    4   16
 
     :param items: list of [(name, numpy array), ...]
+    :rtype: DataFrame
 
     """
     import numpy as np
-    dataset = vaex.dataset.DatasetArrays("array")
+    df = vaex.dataframe.DataFrameArrays("array")
     for name, array in items:
-        dataset.add_column(name, np.asanyarray(array))
-    return dataset
+        df.add_column(name, np.asanyarray(array))
+    return df
 
 
 def from_arrays(**arrays):
-    """Create an in memory dataset from numpy arrays
+    """Create an in memory DataFrame from numpy arrays.
 
     Example
 
@@ -286,10 +281,11 @@ def from_arrays(**arrays):
       4    4   16
 
     :param arrays: keyword arguments with arrays
+    :rtype: DataFrame
     """
     import numpy as np
     import six
-    dataset = vaex.dataset.DatasetArrays("array")
+    df = vaex.dataframe.DataFrameArrays("array")
     for name, array in arrays.items():
         if not isinstance(array, np.ndarray) and isinstance(array[0], six.string_types):
             try:
@@ -298,59 +294,69 @@ def from_arrays(**arrays):
                 array = np.array(array, dtype='U')
         else:
             array = np.asanyarray(array)
-        dataset.add_column(name, array)
-    return dataset
+        df.add_column(name, array)
+    return df
 
 def from_arrow_table(table):
-    """Creates a vaex dataset from an arrow Table"""
-    from vaex_arrow.convert import vaex_dataset_from_arrow_table
-    return vaex_dataset_from_arrow_table(table=table)
+    """Creates a vaex DataFrame from an arrow Table.
+
+    :rtype: DataFrame
+    """
+    from vaex_arrow.convert import vaex_df_from_arrow_table
+    return vaex_df_from_arrow_table(table=table)
 
 def from_scalars(**kwargs):
-    """Similar to from_arrays, but convenient for a dataset of length 1
+    """Similar to from_arrays, but convenient for a DataFrame of length 1.
 
-    >>> ds = vx.from_scalars(x=1, y=2)
+    Example:
+
+    >>> import vaex
+    >>> df = vaex.from_scalars(x=1, y=2)
+
+    :rtype: DataFrame
     """
     import numpy as np
     return from_arrays(**{k: np.array([v]) for k, v in kwargs.items()})
 
 
 def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
-    """Create an in memory dataset from a pandas dataframe
+    """Create an in memory DataFrame from a pandas DataFrame.
 
-    :param: pandas.DataFrame df: Pandas dataframe
-    :param: name: unique for the dataset
+    :param: pandas.DataFrame df: Pandas DataFrame
+    :param: name: unique for the DataFrame
 
-    >>> import pandas as pd
-    >>> df = pd.from_csv("test.csv")
-    >>> ds = vx.from_pandas(df, name="test")
+    >>> import vaex, pandas as pd
+    >>> df_pandas = pd.from_csv('test.csv')
+    >>> df = vaex.from_pandas(df_pandas)
+
+    :rtype: DataFrame
     """
     import six
-    dataset = vaex.dataset.DatasetArrays(name)
+    vaex_df = vaex.dataframe.DataFrameArrays(name)
 
     def add(name, column):
         values = column.values
         if isinstance(values[0], six.string_types):
             values = values.astype("S")
         try:
-            dataset.add_column(name, values)
+            vaex_df.add_column(name, values)
         except Exception as e:
             print("could not convert column %s, error: %r, will try to convert it to string" % (name, e))
             try:
                 values = values.astype("S")
-                dataset.add_column(name, values)
+                vaex_df.add_column(name, values)
             except Exception as e:
-                print("Giving up column %s, error: %r" (name, e))
+                print("Giving up column %s, error: %r" % (name, e))
     for name in df.columns:
         add(name, df[name])
     if copy_index:
         add(index_name, df.index)
-    return dataset
+    return vaex_df
 
 
 def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **kwargs):
     """
-    Create an in memory dataset from an ascii file (whitespace seperated by default).
+    Create an in memory DataFrame from an ascii file (whitespace seperated by default).
 
     >>> ds = vx.from_ascii("table.asc")
     >>> ds = vx.from_ascii("table.csv", seperator=",", names=["x", "y", "z"])
@@ -361,11 +367,11 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
     :param skip_lines: skip lines at the start of the file
     :param skip_after: skip lines at the end of the file
     :param kwargs:
-    :return:
+    :rtype: DataFrame
     """
 
     import vaex.ext.readcol as rc
-    ds = vaex.dataset.DatasetArrays(path)
+    ds = vaex.dataframe.DataFrameArrays(path)
     if names not in [True, False]:
         namelist = names
         names = False
@@ -382,25 +388,28 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
 
 
 def from_csv(filename_or_buffer, copy_index=True, **kwargs):
-    """Shortcut to read a csv file using pandas and convert to a dataset directly"""
+    """Shortcut to read a csv file using pandas and convert to a DataFrame directly.
+
+    :rtype: DataFrame
+    """
     import pandas as pd
     return from_pandas(pd.read_csv(filename_or_buffer, **kwargs), copy_index=copy_index)
 
 
 def read_csv(filepath_or_buffer, **kwargs):
-    '''Alias to from_csv'''
+    '''Alias to from_csv.'''
     return from_csv(filenames, **kwargs)
 
 
 def read_csv_and_convert(path, shuffle=False, copy_index=True, **kwargs):
-    '''Convert a path (or glob pattern) to a single hdf5 file, will open the hdf5 file if exists
+    '''Convert a path (or glob pattern) to a single hdf5 file, will open the hdf5 file if exists.
 
     Example:
             >>> vaex.read_csv_and_convert('test-*.csv', shuffle=True)  # this may take a while
             >>> vaex.read_csv_and_convert('test-*.csv', shuffle=True)  # 2nd time it is instant
 
     :param str path: path of file or glob pattern for multiple files
-    :param bool shuffle: shuffle dataset when converting to hdf5
+    :param bool shuffle: shuffle DataFrame when converting to hdf5
     :param bool copy_index: by default pandas will create an index (row number), set to false if you want to drop that
     :param kwargs: parameters passed to pandas' read_cvs
 
@@ -446,10 +455,10 @@ except ImportError:
 
 
 def server(url, **kwargs):
-    """Connect to hostname supporting the vaex web api
+    """Connect to hostname supporting the vaex web api.
 
     :param str hostname: hostname or ip address of server
-    :return vaex.dataset.ServerRest: returns a server object, note that it does not connect to the server yet, so this will always succeed
+    :return vaex.dataframe.ServerRest: returns a server object, note that it does not connect to the server yet, so this will always succeed
     :rtype: ServerRest
     """
     from vaex.remote import ServerRest
@@ -466,9 +475,9 @@ def server(url, **kwargs):
 
 
 def example(download=True):
-    """Returns an example dataset which comes with vaex for testing/learning purposes
+    """Returns an example DataFrame which comes with vaex for testing/learning purposes.
 
-    :rtype: vaex.dataset.Dataset
+    :rtype: DataFrame
     """
     from . import utils
     path = utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5")
@@ -478,7 +487,7 @@ def example(download=True):
 
 
 def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
-    """Creates a zeldovich dataset
+    """Creates a zeldovich DataFrame.
     """
     import vaex.file
     return vaex.file.other.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
@@ -550,9 +559,10 @@ for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
         logger.exception('issue loading ' + entry.name)
 
 
-def concat(datasets):
+def concat(dfs):
+    '''Concatenate a list of DataFrames.
+
+    :rtype: DataFrame
     '''
-    Concatinate a list of datasets.
-    '''
-    ds = reduce((lambda x, y: x.concat(y)), datasets)
+    ds = reduce((lambda x, y: x.concat(y)), dfs)
     return ds

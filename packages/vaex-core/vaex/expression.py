@@ -2,8 +2,8 @@ import operator
 import six
 import functools
 from future.utils import with_metaclass
-from vaex.dataset import expression_namespace
-from vaex.dataset import default_shape, _ensure_strings_from_expressions
+from vaex.functions import expression_namespace
+from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 import numpy as np
 import vaex.serialize
 import base64
@@ -13,6 +13,9 @@ try:
     from StringIO import StringIO
 except ImportError:
     from io import BytesIO as StringIO
+
+# TODO: repeated from dataframe.py
+default_shape = 128
 
 _binary_ops = [
     dict(code="+", name='add', op=operator.add),
@@ -169,7 +172,7 @@ class Expression(with_metaclass(Meta)):
         return self.ds.dtype(self.expression)
 
     def derivative(self, var, simplify=True):
-        var = vaex.dataset._ensure_string_from_expression(var)
+        var = _ensure_string_from_expression(var)
         return self.__class__(self, expresso.derivative(self.expression, var, simplify=simplify))
 
     def expand(self, stop=[]):

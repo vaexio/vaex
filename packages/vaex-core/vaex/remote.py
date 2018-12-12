@@ -5,7 +5,9 @@ import threading
 import uuid
 import time
 import ast
-from .dataset import Dataset, Task, _issequence
+from .dataset import Dataset
+from .utils import _issequence
+from .tasks import Task
 from .legacy import Subspace
 import vaex.promise
 import vaex.settings
@@ -19,6 +21,8 @@ from .dataset import default_shape
 import tornado.ioloop
 import json
 import astropy.units
+from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
+
 
 try:
     import __builtin__
@@ -558,7 +562,7 @@ class DatasetRest(DatasetRemote):
         return SubspaceRemote(self, expressions, kwargs.get("executor") or self.executor, delay=kwargs.get("delay", False))
 
     def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, delay=False):
-        expression = vaex.dataset._ensure_strings_from_expressions(expression)
+        expression = _ensure_strings_from_expressions(expression)
         """basic support for evaluate at server, at least to run some unittest, do not expect this to work from strings"""
         result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, selection=selection, delay=delay)
         # TODO: we ignore out
@@ -579,7 +583,7 @@ class ServerExecutor(object):
 
 class TaskServer(Task):
     def __init__(self, post_process, delay):
-        vaex.dataset.Task.__init__(self, None, [])
+        Task.__init__(self, None, [])
         self.post_process = post_process
         self.delay = delay
         self.task_queue = []

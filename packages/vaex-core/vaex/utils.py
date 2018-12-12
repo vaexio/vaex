@@ -11,12 +11,14 @@ import re
 import sys
 import time
 import warnings
+import numbers
 
 import numpy as np
 import progressbar
 import psutil
 import six
 import yaml
+
 
 is_frozen = getattr(sys, 'frozen', False)
 PY2 = sys.version_info[0] == 2
@@ -627,3 +629,203 @@ class InnerNamespace(object):
             return self
         else:
             return BoundMethods(obj, self._methods)
+
+
+def _parse_f(f):
+    if f is None:
+        return lambda x: x
+    elif isinstance(f, six.string_types):
+        if f == "identity":
+            return lambda x: x
+        else:
+            if hasattr(np, f):
+                return getattr(np, f)
+            else:
+                raise ValueError("do not understand f = %s, should be a function, string 'identity' or a function from numpy such as 'log', 'log1p'" % f)
+    else:
+        return f
+
+
+def _normalize(a, axis=None):
+    a = np.copy(a)  # we're gonna modify inplace, better copy iy
+    mask = np.isfinite(a)
+    a[~mask] = np.nan  # put inf to nan
+    allaxis = list(range(len(a.shape)))
+    if axis is not None:
+        if type(axis) == int:
+            axis = [axis]
+        for ax in axis:
+            allaxis.remove(ax)
+        axis = tuple(allaxis)
+    vmin = np.nanmin(a)
+    vmax = np.nanmax(a)
+    a = a - np.nanmin(a, axis=axis, keepdims=True)
+    a /= np.nanmax(a, axis=axis, keepdims=True)
+    return a, vmin, vmax
+
+
+def _normalize_selection_name(name):
+    if name is True:
+        return "default"
+    elif name is False:
+        return None
+    else:
+        return name
+
+
+def _parse_n(n):
+    if isinstance(n, six.string_types):
+        if n == "normalize":
+            return _normalize
+            # return lambda x: x
+        else:
+            raise ValueError("do not understand n = %s, should be a function, or string 'normalize'" % n)
+    else:
+        return n
+
+
+def _parse_reduction(name, colormap, colors):
+    if name.startswith("stack.fade"):
+        def _reduce_stack_fade(grid):
+            return grid[..., -1]  # return last..
+        return _reduce_stack_fade
+    elif name.startswith("colormap"):
+        import matplotlib.cm
+        cmap = matplotlib.cm.get_cmap(colormap)
+
+        def f(grid):
+            masked_grid = np.ma.masked_invalid(grid)  # convert inf/nan to a mask so that mpl colors bad values correcty
+            return cmap(masked_grid)
+        return f
+    elif name.startswith("stack.color"):
+        def f(grid, colors=colors, colormap=colormap):
+            import matplotlib.cm
+            colormap = matplotlib.cm.get_cmap(colormap)
+            if isinstance(colors, six.string_types):
+                colors = matplotlib.cm.get_cmap(colors)
+            if isinstance(colors, matplotlib.colors.Colormap):
+                group_count = grid.shape[-1]
+                colors = [colors(k / float(group_count - 1.)) for k in range(group_count)]
+            else:
+                colors = [matplotlib.colors.colorConverter.to_rgba(k) for k in colors]
+            # print grid.shape
+            total = np.nansum(grid, axis=0) / grid.shape[0]
+            # grid /= total
+            # mask = total > 0
+            # alpha = total - total[mask].min()
+            # alpha[~mask] = 0
+            # alpha = total / alpha.max()
+            # print np.nanmax(total), np.nanmax(grid)
+            return colormap(total)
+            rgba = grid.dot(colors)
+            # def _norm(data):
+            #   mask = np.isfinite(data)
+            #   data = data - data[mask].min()
+            #   data /= data[mask].max()
+            #   return data
+            # rgba[...,3] = (f(alpha))
+            # rgba[...,3] = 1
+            rgba[total == 0, 3] = 0.
+            # mask = alpha > 0
+            # if 1:
+            #   for i in range(3):
+            #       rgba[...,i] /= total
+            #       #rgba[...,i] /= rgba[...,0:3].max()
+            #       rgba[~mask,i] = background_color[i]
+            # rgba = (np.swapaxes(rgba, 0, 1))
+            return rgba
+        return f
+
+    else:
+        raise ValueError("do not understand reduction = %s, should be a ..." % name)
+
+
+def _is_string(x):
+    return isinstance(x, six.string_types)
+
+
+def _issequence(x):
+    return isinstance(x, (tuple, list, np.ndarray))
+
+
+def _isnumber(x):
+    return isinstance(x, numbers.Number)
+
+
+def _is_limit(x):
+    return isinstance(x, (tuple, list, np.ndarray)) and all([_isnumber(k) for k in x])
+
+
+def _ensure_list(x):
+    return [x] if not _issequence(x) else x
+
+
+def _ensure_string_from_expression(expression):
+    import vaex.expression
+    if expression is None:
+        return None
+    elif isinstance(expression, bool):
+        return expression
+    elif isinstance(expression, six.string_types):
+        return expression
+    elif isinstance(expression, vaex.expression.Expression):
+        return expression.expression
+    else:
+        raise ValueError('%r is not of string or Expression type, but %r' % (expression, type(expression)))
+
+
+def _ensure_strings_from_expressions(expressions):
+    if _issequence(expressions):
+        return [_ensure_strings_from_expressions(k) for k in expressions]
+    else:
+        return _ensure_string_from_expression(expressions)
+
+
+def _expand(x, dimension, type=tuple):
+    if _issequence(x):
+        assert len(x) == dimension, "wants to expand %r to dimension %d" % (x, dimension)
+        return type(x)
+    else:
+        return type((x,) * dimension)
+
+
+def _expand_shape(shape, dimension):
+    if isinstance(shape, (tuple, list)):
+        assert len(shape) == dimension, "wants to expand shape %r to dimension %d" % (shape, dimension)
+        return tuple(shape)
+    else:
+        return (shape,) * dimension
+
+
+def _expand_limits(limits, dimension):
+    if isinstance(limits, (tuple, list, np.ndarray)) and \
+            (isinstance(limits[0], (tuple, list, np.ndarray)) or isinstance(limits[0], six.string_types)):
+        assert len(limits) == dimension, "wants to expand shape %r to dimension %d" % (limits, dimension)
+        return tuple(limits)
+    else:
+        return [limits, ] * dimension
+
+
+def as_flat_float(a):
+    if a.dtype.type == np.float64 and a.strides[0] == 8:
+        return a
+    else:
+        return a.astype(np.float64, copy=True)
+
+def as_flat_array(a, dtype=np.float64):
+    if a.dtype.type == dtype and a.strides[0] == 8:
+        return a
+    else:
+        return a.astype(dtype, copy=True)
+
+def _split_and_combine_mask(arrays):
+	'''Combines all masks from a list of arrays, and logically ors them into a single mask'''
+	masks = [np.ma.getmaskarray(block) for block in arrays if np.ma.isMaskedArray(block)]
+	arrays = [block.data if np.ma.isMaskedArray(block) else block for block in arrays]
+	mask = None
+	if masks:
+		mask = masks[0].copy()
+		for other in masks[1:]:
+			mask |= other
+	return arrays, mask
+
