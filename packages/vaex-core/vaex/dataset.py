@@ -211,9 +211,9 @@ class Task(vaex.promise.Promise):
     :type: signal_progress: Signal
     """
 
-    def __init__(self, dataset=None, expressions=[], name="task"):
+    def __init__(self, df=None, expressions=[], name="task"):
         vaex.promise.Promise.__init__(self)
-        self.dataset = dataset
+        self.df = df
         self.expressions = expressions
         self.expressions_all = list(expressions)
         self.signal_progress = vaex.events.Signal("progress (float)")
@@ -239,18 +239,18 @@ class Task(vaex.promise.Promise):
         return ret
 
     def create_next(self):
-        ret = Task(self.dataset, [])
+        ret = Task(self.df, [])
         self.signal_progress.connect(ret.signal_progress.emit)
         return ret
 
 
 class TaskBase(Task):
-    def __init__(self, dataset, expressions, selection=None, to_float=False, dtype=np.float64, name="TaskBase"):
+    def __init__(self, df, expressions, selection=None, to_float=False, dtype=np.float64, name="TaskBase"):
         if not isinstance(expressions, (tuple, list)):
             expressions = [expressions]
         # edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension
         self.selection_waslist, [self.selections, ] = vaex.utils.listify(selection)
-        Task.__init__(self, dataset, expressions, name=name)
+        Task.__init__(self, df, expressions, name=name)
         self.to_float = to_float
         self.dtype = dtype
 
@@ -261,7 +261,7 @@ class TaskBase(Task):
         info.i1 = i1
         info.i2 = i2
         info.first = i1 == 0
-        info.last = i2 == self.dataset.length_unfiltered()
+        info.last = i2 == self.df.length_unfiltered()
         info.size = i2 - i1
 
         masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
@@ -279,8 +279,8 @@ class TaskBase(Task):
             blocks = [as_flat_float(block) for block in blocks]
 
         for i, selection in enumerate(self.selections):
-            if selection or self.dataset.filtered:
-                selection_mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
+            if selection or self.df.filtered:
+                selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
                 if selection_mask is None:
                     raise ValueError("performing operation on selection while no selection present")
                 if mask is not None:
@@ -307,8 +307,8 @@ class TaskBase(Task):
 
 
 class TaskMapReduce(Task):
-    def __init__(self, dataset, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False, name="task"):
-        Task.__init__(self, dataset, expressions, name=name)
+    def __init__(self, df, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False, name="task"):
+        Task.__init__(self, df, expressions, name=name)
         self._map = map
         self._reduce = reduce
         self.converter = converter
@@ -328,14 +328,14 @@ class TaskMapReduce(Task):
 
 
 class TaskApply(TaskBase):
-    def __init__(self, dataset, expressions, f, info=False, to_float=False, name="apply", masked=False, dtype=np.float64):
-        TaskBase.__init__(self, dataset, expressions, selection=None, to_float=to_float, name=name)
+    def __init__(self, df, expressions, f, info=False, to_float=False, name="apply", masked=False, dtype=np.float64):
+        TaskBase.__init__(self, df, expressions, selection=None, to_float=to_float, name=name)
         self.f = f
         self.dtype = dtype
-        self.data = np.zeros(dataset.length_unfiltered(), dtype=self.dtype)
+        self.data = np.zeros(df.length_unfiltered(), dtype=self.dtype)
         self.mask = None
         if masked:
-            self.mask = np.zeros(dataset.length_unfiltered(), dtype=np.bool)
+            self.mask = np.zeros(df.length_unfiltered(), dtype=np.bool)
             self.array = np.ma.array(self.data, mask=self.mask, shrink=False)
         else:
             self.array = self.data
@@ -510,7 +510,7 @@ def _split_and_combine_mask(arrays):
 	return arrays, mask
 
 class TaskStatistic(Task):
-    def __init__(self, dataset, expressions, shape, limits, masked=False, weights=[], weight=None, op=OP_ADD1, selection=None, edges=False):
+    def __init__(self, df, expressions, shape, limits, masked=False, weights=[], weight=None, op=OP_ADD1, selection=None, edges=False):
         if not isinstance(expressions, (tuple, list)):
             expressions = [expressions]
         # edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension
@@ -524,13 +524,13 @@ class TaskStatistic(Task):
         self.selection_waslist, [self.selections, ] = vaex.utils.listify(selection)
         self.op = op
         self.edges = edges
-        Task.__init__(self, dataset, expressions, name="statisticNd")
+        Task.__init__(self, df, expressions, name="statisticNd")
         #self.dtype = np.int64 if self.op == OP_ADD1 else np.float64 # TODO: use int64 fir count and ADD1
         self.dtype = np.float64
         self.masked = masked
 
         self.fields = op.fields(weights)
-        self.shape_total = (self.dataset.executor.thread_pool.nthreads,) + (len(self.selections), ) + self.shape + (self.fields,)
+        self.shape_total = (self.df.executor.thread_pool.nthreads,) + (len(self.selections), ) + self.shape + (self.fields,)
         self.grid = np.zeros(self.shape_total, dtype=self.dtype)
         self.op.init(self.grid)
         self.minima = []
@@ -551,7 +551,7 @@ class TaskStatistic(Task):
 
     def __repr__(self):
         name = self.__class__.__module__ + "." + self.__class__.__name__
-        return "<%s(dataset=%r, expressions=%r, shape=%r, limits=%r, weights=%r, selections=%r, op=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.shape, self.limits, self.weights, self.selections, self.op, id(self))
+        return "<%s(df=%r, expressions=%r, shape=%r, limits=%r, weights=%r, selections=%r, op=%r)> instance at 0x%x" % (name, self.df, self.expressions, self.shape, self.limits, self.weights, self.selections, self.op, id(self))
 
 
     def map(self, thread_index, i1, i2, *blocks):
@@ -561,7 +561,7 @@ class TaskStatistic(Task):
         info.i1 = i1
         info.i2 = i2
         info.first = i1 == 0
-        info.last = i2 == self.dataset.length_unfiltered()
+        info.last = i2 == self.df.length_unfiltered()
         info.size = i2 - i1
 
         masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
@@ -595,8 +595,8 @@ class TaskStatistic(Task):
 
         this_thread_grid = self.grid[thread_index]
         for i, selection in enumerate(self.selections):
-            if selection or self.dataset.filtered:
-                selection_mask = self.dataset.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
+            if selection or self.df.filtered:
+                selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
                 if selection_mask is None:
                     raise ValueError("performing operation on selection while no selection present")
                 if mask is not None:
@@ -619,7 +619,7 @@ class TaskStatistic(Task):
             selection_blocks = list(selection_blocks[:len(self.expressions)])
             if len(selection_blocks) == 0 and subblock_weights == []:
                 if self.op == OP_ADD1:  # special case for counting '*' (i.e. the number of rows)
-                    if selection or self.dataset.filtered:
+                    if selection or self.df.filtered:
                         this_thread_grid[i][0] += np.sum(selection_mask)
                     else:
                         this_thread_grid[i][0] += i2 - i1
@@ -653,34 +653,34 @@ ne_lock = threading.Lock()
 
 
 class UnitScope(object):
-    def __init__(self, dataset, value=None):
-        self.dataset = dataset
+    def __init__(self, df, value=None):
+        self.df = df
         self.value = value
 
     def __getitem__(self, variable):
         import astropy.units
-        if variable in self.dataset.units:
-            unit = self.dataset.units[variable]
+        if variable in self.df.units:
+            unit = self.df.units[variable]
             return (self.value * unit) if self.value is not None else unit
-        elif variable in self.dataset.virtual_columns:
-            return eval(self.dataset.virtual_columns[variable], expression_namespace, self)
-        elif variable in self.dataset.variables:
+        elif variable in self.df.virtual_columns:
+            return eval(self.df.virtual_columns[variable], expression_namespace, self)
+        elif variable in self.df.variables:
             return astropy.units.dimensionless_unscaled  # TODO units for variables?
         else:
             raise KeyError("unkown variable %s" % variable)
 
 
 class _BlockScope(object):
-    def __init__(self, dataset, i1, i2, mask=None, **variables):
+    def __init__(self, df, i1, i2, mask=None, **variables):
         """
 
-        :param DatasetLocal dataset: the *local*  dataset
+        :param DataFrameLocal DataFrame: the *local*  DataFrame
         :param i1: start index
         :param i2: end index
         :param values:
         :return:
         """
-        self.dataset = dataset
+        self.df = df
         self.i1 = int(i1)
         self.i2 = int(i2)
         self.variables = variables
@@ -727,23 +727,23 @@ class _BlockScope(object):
 
     def __getitem__(self, variable):
         # logger.debug("get " + variable)
-        # return self.dataset.columns[variable][self.i1:self.i2]
+        # return self.df.columns[variable][self.i1:self.i2]
         if variable in expression_namespace:
             return expression_namespace[variable]
         try:
             if variable in self.values:
                 return self.values[variable]
-            elif variable in self.dataset.get_column_names(virtual=False, hidden=True):
-                offset = self.dataset._index_start
-                if self.dataset._needs_copy(variable):
+            elif variable in self.df.get_column_names(virtual=False, hidden=True):
+                offset = self.df._index_start
+                if self.df._needs_copy(variable):
                     # self._ensure_buffer(variable)
-                    # self.values[variable] = self.buffers[variable] = self.dataset.columns[variable][self.i1:self.i2].astype(np.float64)
+                    # self.values[variable] = self.buffers[variable] = self.df.columns[variable][self.i1:self.i2].astype(np.float64)
                     # Previously we casted anything to .astype(np.float64), this led to rounding off of int64, when exporting
-                    self.values[variable] = self.dataset.columns[variable][offset+self.i1:offset+self.i2][self.mask]
+                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][self.mask]
                 else:
-                    self.values[variable] = self.dataset.columns[variable][offset+self.i1:offset+self.i2][self.mask]
-            elif variable in list(self.dataset.virtual_columns.keys()):
-                expression = self.dataset.virtual_columns[variable]
+                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][self.mask]
+            elif variable in list(self.df.virtual_columns.keys()):
+                expression = self.df.virtual_columns[variable]
                 if isinstance(expression, dict):
                     function = expression['function']
                     arguments = [self.evaluate(k) for k in expression['arguments']]
@@ -752,8 +752,8 @@ class _BlockScope(object):
                     # self._ensure_buffer(variable)
                     self.values[variable] = self.evaluate(expression)  # , out=self.buffers[variable])
                     # self.values[variable] = self.buffers[variable]
-            elif variable in self.dataset.functions:
-                return self.dataset.functions[variable].f
+            elif variable in self.df.functions:
+                return self.df.functions[variable].f
             if variable not in self.values:
                 raise KeyError("Unknown variables or column: %r" % (variable,))
 
@@ -764,8 +764,8 @@ class _BlockScope(object):
 
 
 class _BlockScopeSelection(object):
-    def __init__(self, dataset, i1, i2, selection=None, cache=False):
-        self.dataset = dataset
+    def __init__(self, df, i1, i2, selection=None, cache=False):
+        self.df = df
         self.i1 = i1
         self.i2 = i2
         self.selection = selection
@@ -786,35 +786,35 @@ class _BlockScopeSelection(object):
         # logger.debug("getitem for selection: %s", variable)
         try:
             selection = self.selection
-            if selection is None and self.dataset.has_selection(variable):
-                selection = self.dataset.get_selection(variable)
-            # logger.debug("selection for %r: %s %r", variable, selection, self.dataset.selection_histories)
+            if selection is None and self.df.has_selection(variable):
+                selection = self.df.get_selection(variable)
+            # logger.debug("selection for %r: %s %r", variable, selection, self.df.selection_histories)
             key = (self.i1, self.i2)
             if selection:
-                cache = self.dataset._selection_mask_caches[variable]
+                cache = self.df._selection_mask_caches[variable]
                 # logger.debug("selection cache: %r" % cache)
                 selection_in_cache, mask = cache.get(key, (None, None))
                 # logger.debug("mask for %r is %r", variable, mask)
                 if selection_in_cache == selection:
                     return mask
                 # logger.debug("was not cached")
-                if variable in self.dataset.variables:
-                    return self.dataset.variables[variable]
-                mask = selection.evaluate(self.dataset, variable, self.i1, self.i2)
+                if variable in self.df.variables:
+                    return self.df.variables[variable]
+                mask = selection.evaluate(self.df, variable, self.i1, self.i2)
                 # logger.debug("put selection in mask with key %r" % (key,))
                 if self.store_in_cache:
                     cache[key] = selection, mask
                 return mask
             else:
-                offset = self.dataset._index_start
+                offset = self.df._index_start
                 if variable in expression_namespace:
                     return expression_namespace[variable]
-                elif variable in self.dataset.get_column_names(hidden=True, virtual=False):
-                    return self.dataset.columns[variable][offset+self.i1:offset+self.i2]
-                elif variable in self.dataset.variables:
-                    return self.dataset.variables[variable]
-                elif variable in list(self.dataset.virtual_columns.keys()):
-                    expression = self.dataset.virtual_columns[variable]
+                elif variable in self.df.get_column_names(hidden=True, virtual=False):
+                    return self.df.columns[variable][offset+self.i1:offset+self.i2]
+                elif variable in self.df.variables:
+                    return self.df.variables[variable]
+                elif variable in list(self.df.virtual_columns.keys()):
+                    expression = self.df.virtual_columns[variable]
                     # self._ensure_buffer(variable)
                     return self.evaluate(expression)  # , out=self.buffers[variable])
                     # self.values[variable] = self.buffers[variable]
@@ -848,7 +848,7 @@ class Selection(object):
             self.previous_selection.execute(executor=executor, execute_fully=execute_fully)
 
     def _depending_columns(self, ds):
-        '''Find all columns that this selection depends on for dataset ds'''
+        '''Find all columns that this selection depends on for df ds'''
         depending = set()
         for expression in self.expressions:
             expression = ds._expr(expression)  # make sure it is an expression
@@ -873,17 +873,17 @@ class SelectionDropNa(Selection):
         return dict(type="dropna", drop_nan=self.drop_nan, drop_masked=self.drop_masked, column_names=self.column_names,
                     mode=self.mode, previous_selection=previous)
 
-    def _rename(self, dataset, old, new):
+    def _rename(self, df, old, new):
         pass  # TODO: do we need to rename the column_names?
 
-    def evaluate(self, dataset, name, i1, i2):
+    def evaluate(self, df, name, i1, i2):
         if self.previous_selection:
-            previous_mask = dataset.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+            previous_mask = df.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
         else:
             previous_mask = None
         mask = np.ones(i2 - i1, dtype=np.bool)
         for name in self.column_names:
-            data = dataset._evaluate(name, i1, i2)
+            data = df._evaluate(name, i1, i2)
             if self.drop_nan and data.dtype.kind in 'O':
                 if np.ma.isMaskedArray(data):
                     strings = data.data.astype(str)
@@ -906,8 +906,8 @@ class SelectionDropNa(Selection):
         return mask
 
 
-def _rename_expression_string(dataset, e, old, new):
-    return Expression(self.dataset, self.boolean_expression)._rename(old, new).expression
+def _rename_expression_string(df, e, old, new):
+    return Expression(self.df, self.boolean_expression)._rename(old, new).expression
 
 class SelectionExpression(Selection):
     def __init__(self,  boolean_expression, previous_selection, mode):
@@ -915,11 +915,11 @@ class SelectionExpression(Selection):
         self.boolean_expression = str(boolean_expression)
         self.expressions = [self.boolean_expression]
 
-    def _rename(self, dataset, old, new):
-        boolean_expression = Expression(dataset, self.boolean_expression)._rename(old, new).expression
+    def _rename(self, df, old, new):
+        boolean_expression = Expression(df, self.boolean_expression)._rename(old, new).expression
         previous_selection = None
         if self.previous_selection:
-            previous_selection = self.previous_selection._rename(dataset, old, new)
+            previous_selection = self.previous_selection._rename(df, old, new)
         return SelectionExpression(boolean_expression, previous_selection, self.mode)
 
     def to_dict(self):
@@ -928,12 +928,12 @@ class SelectionExpression(Selection):
             previous = self.previous_selection.to_dict()
         return dict(type="expression", boolean_expression=str(self.boolean_expression), mode=self.mode, previous_selection=previous)
 
-    def evaluate(self, dataset, name, i1, i2):
+    def evaluate(self, df, name, i1, i2):
         if self.previous_selection:
-            previous_mask = dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+            previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
         else:
             previous_mask = None
-        current_mask = dataset._evaluate_selection_mask(self.boolean_expression, i1, i2).astype(np.bool)
+        current_mask = df._evaluate_selection_mask(self.boolean_expression, i1, i2).astype(np.bool)
         if previous_mask is None:
             logger.debug("setting mask")
             mask = current_mask
@@ -955,8 +955,8 @@ class SelectionInvert(Selection):
             previous = self.previous_selection.to_dict()
         return dict(type="invert", previous_selection=previous)
 
-    def evaluate(self, dataset, name, i1, i2):
-        previous_mask = dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+    def evaluate(self, df, name, i1, i2):
+        previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
         return ~previous_mask
 
 
@@ -969,9 +969,9 @@ class SelectionLasso(Selection):
         self.yseq = yseq
         self.expressions = [boolean_expression_x, boolean_expression_y]
 
-    def evaluate(self, dataset, name, i1, i2):
+    def evaluate(self, df, name, i1, i2):
         if self.previous_selection:
-            previous_mask = dataset._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+            previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
         else:
             previous_mask = None
         current_mask = np.zeros(i2 - i1, dtype=np.bool)
@@ -979,8 +979,8 @@ class SelectionLasso(Selection):
         meanx = x.mean()
         meany = y.mean()
         radius = np.sqrt((meanx - x)**2 + (meany - y)**2).max()
-        blockx = dataset._evaluate(self.boolean_expression_x, i1=i1, i2=i2)
-        blocky = dataset._evaluate(self.boolean_expression_y, i1=i1, i2=i2)
+        blockx = df._evaluate(self.boolean_expression_x, i1=i1, i2=i2)
+        blocky = df._evaluate(self.boolean_expression_y, i1=i1, i2=i2)
         (blockx, blocky), excluding_mask = _split_and_combine_mask([blockx, blocky])
         blockx = as_flat_float(blockx)
         blocky = as_flat_float(blocky)
@@ -1172,8 +1172,8 @@ _doc_snippets["cov_matrix"] = """List all convariance values as a double list of
 _doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :meth:`propagate_uncertainties` for details"""
 _doc_snippets['note_copy'] = '.. note:: Note that no copy of the underlying data is made, only a view/reference is make.'
 _doc_snippets['note_filter'] = '.. note:: Note that filtering will be ignored (since they may change), you may want to consider running :meth:`extract` first.'
-_doc_snippets['inplace'] = 'Make modifications to self or return a new dataset'
-_doc_snippets['return_shallow_copy'] = 'Returns a new dataset with a shallow copy/view of the underlying data'
+_doc_snippets['inplace'] = 'Make modifications to self or return a new df'
+_doc_snippets['return_shallow_copy'] = 'Returns a new df with a shallow copy/view of the underlying data'
 def docsubst(f):
     if f.__doc__:
         f.__doc__ = f.__doc__.format(**_doc_snippets)
@@ -1191,12 +1191,12 @@ def _hidden(meth):
     meth.__hidden__ = True
     return meth
 
-class Dataset(object):
-    """All datasets are encapsulated in this class, local or remote dataets
+class DataFrame(object):
+    """All dfs are encapsulated in this class, local or remote dataets
 
-    Each dataset has a number of columns, and a number of rows, the length of the dataset.
+    Each df has a number of columns, and a number of rows, the length of the df.
 
-    All Datasets have multiple 'selection', and all calculations are done on the whole dataset (default)
+    All DataFrames have multiple 'selection', and all calculations are done on the whole df (default)
     or for the selection. The following example shows how to use the selection.
 
     >>> df.select("x < 0")
@@ -1214,7 +1214,7 @@ class Dataset(object):
         self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
         self.signal_selection_changed = vaex.events.Signal("selection changed")
         self.signal_active_fraction_changed = vaex.events.Signal("active fraction changed")
-        self.signal_column_changed = vaex.events.Signal("a column changed")  # (dataset, column_name, change_type=["add", "remove", "change"])
+        self.signal_column_changed = vaex.events.Signal("a column changed")  # (df, column_name, change_type=["add", "remove", "change"])
         self.signal_variable_changed = vaex.events.Signal("a variable changed")
 
         self.variables = collections.OrderedDict()
@@ -2490,7 +2490,7 @@ class Dataset(object):
         for name in 'vx vy vz'.split():
             if name in kwargs:
                 kwargs[name] = _ensure_strings_from_expressions(kwargs[name])
-        plot2d = cls(backend=backend, dataset=self, x=x, y=y, z=z, grid=grid, shape=shape, limits=limits, what=what,
+        plot2d = cls(backend=backend, df=self, x=x, y=y, z=z, grid=grid, shape=shape, limits=limits, what=what,
                      f=f, figure_key=figure_key, fig=fig,
                      selection=selection, grid_before=grid_before,
                      grid_limits=grid_limits, normalize=normalize, colormap=colormap, what_kwargs=what_kwargs, **kwargs)
@@ -2508,7 +2508,7 @@ class Dataset(object):
                 **kwargs):
         import vaex.ext.bqplot
         cls = vaex.ext.bqplot.get_class(type)
-        plot2d = cls(dataset=self, x=x, y=y, grid=grid, shape=shape, limits=limits, what=what,
+        plot2d = cls(df=self, x=x, y=y, grid=grid, shape=shape, limits=limits, what=what,
                      f=f, figure_key=figure_key, fig=fig,
                      selection=selection, grid_before=grid_before,
                      grid_limits=grid_limits, normalize=normalize, colormap=colormap, what_kwargs=what_kwargs, **kwargs)
@@ -2710,7 +2710,7 @@ class Dataset(object):
         import vaex.ext.ipyvolume
         # vaex.ext.ipyvolume.
         cls = vaex.ext.ipyvolume.PlotDefault
-        plot3d = cls(dataset=self, x=x, y=y, z=z, vx=vx, vy=vy, vz=vz,
+        plot3d = cls(df=self, x=x, y=y, z=z, vx=vx, vy=vy, vz=vz,
                      grid=grid, shape=shape, limits=limits, what=what,
                      f=f, figure_key=figure_key, fig=fig,
                      selection=selection, smooth_pre=smooth_pre, smooth_post=smooth_post,
@@ -2723,7 +2723,7 @@ class Dataset(object):
     def col(self):
         """Gives direct access to the columns only (useful for tab completion)
 
-        Convenient when working with ipython in combination with small datasets, since this gives tab-completion
+        Convenient when working with ipython in combination with small dfs, since this gives tab-completion
 
         Columns can be accesed by there names, which are attributes. The attribues are currently expressions, so you can
         do computations with them
@@ -2745,11 +2745,11 @@ class Dataset(object):
         return data
 
     def close_files(self):
-        """Close any possible open file handles, the dataset will not be in a usable state afterwards"""
+        """Close any possible open file handles, the df will not be in a usable state afterwards"""
         pass
 
     def byte_size(self, selection=False, virtual=False):
-        """Return the size in bytes the whole dataset requires (or the selection), respecting the active_fraction"""
+        """Return the size in bytes the whole df requires (or the selection), respecting the active_fraction"""
         bytes_per_row = 0
         for column in list(self.get_column_names(virtual=virtual)):
             dtype = self.dtype(column)
@@ -2760,7 +2760,7 @@ class Dataset(object):
 
     @property
     def nbytes(self):
-        """Alias for `df.byte_size()`, see :meth:`Dataset.byte_size`"""
+        """Alias for `df.byte_size()`, see :meth:`DataFrame.byte_size`"""
         return self.byte_size()
 
     def dtype(self, expression):
@@ -2838,14 +2838,14 @@ class Dataset(object):
 
         Example
 
-        >>> dataset.ucd_find('pos.eq.ra', 'pos.eq.dec')
+        >>> df.ucd_find('pos.eq.ra', 'pos.eq.dec')
         ['RA', 'DEC']
-        >>> dataset.ucd_find('pos.eq.ra', 'doesnotexist')
-        >>> dataset.ucds[dataset.ucd_find('pos.eq.ra')]
+        >>> df.ucd_find('pos.eq.ra', 'doesnotexist')
+        >>> df.ucds[df.ucd_find('pos.eq.ra')]
         'pos.eq.ra;meta.main'
-        >>> dataset.ucd_find('meta.main')]
+        >>> df.ucd_find('meta.main')]
         'dec'
-        >>> dataset.ucd_find('^meta.main')]
+        >>> df.ucd_find('^meta.main')]
         """
         if isinstance(ucds, six.string_types):
             ucds = [ucds]
@@ -2902,14 +2902,14 @@ class Dataset(object):
             logger.exception("non fatal error")
 
     def get_private_dir(self, create=False):
-        """Each datasets has a directory where files are stored for metadata etc
+        """Each dfs has a directory where files are stored for metadata etc
 
         Example
 
         >>> import vaex
         >>> ds = vaex.example()
         >>> vaex.get_private_dir()
-        '/Users/users/breddels/.vaex/datasets/_Users_users_breddels_vaex-testing_data_helmi-dezeeuw-2000-10p.hdf5'
+        '/Users/users/breddels/.vaex/dfs/_Users_users_breddels_vaex-testing_data_helmi-dezeeuw-2000-10p.hdf5'
 
         :param bool create: is True, it will create the directory if it does not exist
         """
@@ -2919,13 +2919,13 @@ class Dataset(object):
         else:
             server = self.server
             name = "%s_%s_%s_%s" % (server.hostname, server.port, server.base_path.replace("/", "_"), self.name)
-        dir = os.path.join(vaex.utils.get_private_dir(), "datasets", name)
+        dir = os.path.join(vaex.utils.get_private_dir(), "dfs", name)
         if create and not os.path.exists(dir):
             os.makedirs(dir)
         return dir
 
     def state_get(self):
-        """Return the internal state of the dataset in a dictionary
+        """Return the internal state of the df in a dictionary
 
         Example:
 
@@ -2979,7 +2979,7 @@ class Dataset(object):
         return state
 
     def state_set(self, state, use_active_range=False):
-        """Sets the internal state of the dataset
+        """Sets the internal state of the df
 
         Example:
 
@@ -3008,7 +3008,7 @@ class Dataset(object):
           #    x    y    r
           0    3    4    5    
 
-        :param state: dict as returned by :meth:`Dataset.state_get`.
+        :param state: dict as returned by :meth:`DataFrame.state_get`.
         :param bool use_active_range: Whether to use the active range or not.
         """
         self.description = state['description']
@@ -3021,7 +3021,7 @@ class Dataset(object):
         for name, value in state['functions'].items():
             self.add_function(name, vaex.serialize.from_dict(value))
         # we clear all columns, and add them later on, since otherwise self[name] = ... will try
-        # to rename the columns (which is unsupported for remote datasets)
+        # to rename the columns (which is unsupported for remote dfs)
         self.column_names = []
         self.virtual_columns = collections.OrderedDict()
         for name, value in state['virtual_columns'].items():
@@ -3037,11 +3037,11 @@ class Dataset(object):
             if selection_dict is None:
                 selection = None
             else:
-                selection = vaex.dataset.selection_from_dict(selection_dict)
+                selection = vaex.dataframe.selection_from_dict(selection_dict)
             self.set_selection(selection, name=name)
 
     def state_write(self, f):
-        """Write the internal state to a json or yaml file (see :meth:`Dataset.state_get`)
+        """Write the internal state to a json or yaml file (see :meth:`DataFrame.state_get`)
 
         Example
 
@@ -3109,7 +3109,7 @@ class Dataset(object):
         vaex.utils.write_json_or_yaml(f, self.state_get())
 
     def state_load(self, f, use_active_range=False):
-        """Load a state previously stored by :meth:`Dataset.state_store`, see also :meth:`Dataset.state_set`"""
+        """Load a state previously stored by :meth:`DataFrame.state_store`, see also :meth:`DataFrame.state_set`"""
         state = vaex.utils.read_json_or_yaml(f)
         self.state_set(state, use_active_range=use_active_range)
 
@@ -3133,12 +3133,12 @@ class Dataset(object):
         """Writes virtual columns, variables and their ucd,description and units
 
         The default implementation is to write this to a file called virtual_meta.yaml in the directory defined by
-        :func:`Dataset.get_private_dir`. Other implementation may store this in the dataset file itself.
+        :func:`DataFrame.get_private_dir`. Other implementation may store this in the df file itself.
 
-        This method is called after virtual columns or variables are added. Upon opening a file, :func:`Dataset.update_virtual_meta`
+        This method is called after virtual columns or variables are added. Upon opening a file, :func:`DataFrame.update_virtual_meta`
         is called, so that the information is not lost between sessions.
 
-        Note: opening a dataset twice may result in corruption of this file.
+        Note: opening a df twice may result in corruption of this file.
 
         """
         path = os.path.join(self.get_private_dir(create=True), "virtual_meta.yaml")
@@ -3153,7 +3153,7 @@ class Dataset(object):
 
     @_hidden
     def update_virtual_meta(self):
-        """Will read back the virtual column etc, written by :func:`Dataset.write_virtual_meta`. This will be done when opening a dataset."""
+        """Will read back the virtual column etc, written by :func:`DataFrame.write_virtual_meta`. This will be done when opening a df."""
         import astropy.units
         try:
             path = os.path.join(self.get_private_dir(create=False), "virtual_meta.yaml")
@@ -3175,13 +3175,13 @@ class Dataset(object):
         """Writes all meta data, ucd,description and units
 
         The default implementation is to write this to a file called meta.yaml in the directory defined by
-        :func:`Dataset.get_private_dir`. Other implementation may store this in the dataset file itself.
+        :func:`DataFrame.get_private_dir`. Other implementation may store this in the df file itself.
         (For instance the vaex hdf5 implementation does this)
 
-        This method is called after virtual columns or variables are added. Upon opening a file, :func:`Dataset.update_meta`
+        This method is called after virtual columns or variables are added. Upon opening a file, :func:`DataFrame.update_meta`
         is called, so that the information is not lost between sessions.
 
-        Note: opening a dataset twice may result in corruption of this file.
+        Note: opening a df twice may result in corruption of this file.
 
         """
         # raise NotImplementedError
@@ -3194,7 +3194,7 @@ class Dataset(object):
 
     @_hidden
     def update_meta(self):
-        """Will read back the ucd, descriptions, units etc, written by :func:`Dataset.write_meta`. This will be done when opening a dataset."""
+        """Will read back the ucd, descriptions, units etc, written by :func:`DataFrame.write_meta`. This will be done when opening a df."""
         import astropy.units
         try:
             path = os.path.join(self.get_private_dir(create=False), "meta.yaml")
@@ -3211,7 +3211,7 @@ class Dataset(object):
             logger.exception("non fatal error, but could read/understand %s", path)
 
     def is_local(self):
-        """Returns True if the dataset is a local dataset, False when a remote dataset"""
+        """Returns True if the df is a local df, False when a remote df"""
         raise NotImplementedError
 
     def get_auto_fraction(self):
@@ -3235,11 +3235,11 @@ class Dataset(object):
 
     @_hidden
     def subspace(self, *expressions, **kwargs):
-        """Return a :class:`Subspace` for this dataset with the given expressions:
+        """Return a :class:`Subspace` for this df with the given expressions:
 
         Example:
 
-        >>> subspace_xy = some_dataset("x", "y")
+        >>> subspace_xy = some_df("x", "y")
 
         :rtype: Subspace
         :param list[str] expressions: list of expressions
@@ -3326,7 +3326,7 @@ class Dataset(object):
     @vaex.utils.deprecated('legacy system')
     @_hidden
     def __call__(self, *expressions, **kwargs):
-        """Alias/shortcut for :func:`Dataset.subspace`"""
+        """Alias/shortcut for :func:`DataFrame.subspace`"""
         raise NotImplementedError
 
     def set_variable(self, name, expression_or_value, write=True):
@@ -3352,7 +3352,7 @@ class Dataset(object):
     def get_variable(self, name):
         """Returns the variable given by name, it will not evaluate it.
 
-        For evaluation, see :func:`Dataset.evaluate_variable`, see also :func:`Dataset.set_variable`
+        For evaluation, see :func:`DataFrame.evaluate_variable`, see also :func:`DataFrame.set_variable`
 
         """
         return self.variables[name]
@@ -3401,7 +3401,7 @@ class Dataset(object):
 
         :param str expression: Name/expression to evaluate
         :param int i1: Start row index, default is the start (0)
-        :param int i2: End row index, default is the length of the dataset
+        :param int i2: End row index, default is the length of the df
         :param ndarray out: Output array, to which the result may be written (may be used to reuse an array, or write to
             a memory mapped array)
         :param selection: selection to apply
@@ -3413,10 +3413,10 @@ class Dataset(object):
     def to_items(self, column_names=None, selection=None, strings=True, virtual=False):
         """Return a list of [(column_name, ndarray), ...)] pairs where the ndarray corresponds to the evaluated data
 
-        :param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+        :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
-        :param strings: argument passed to Dataset.get_column_names when column_names is None
-        :param virtual: argument passed to Dataset.get_column_names when column_names is None
+        :param strings: argument passed to DataFrame.get_column_names when column_names is None
+        :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :return: list of (name, ndarray) pairs
         """
         items = []
@@ -3428,23 +3428,23 @@ class Dataset(object):
     def to_dict(self, column_names=None, selection=None, strings=True, virtual=False):
         """Return a dict containing the ndarray corresponding to the evaluated data
 
-        :param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+        :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
-        :param strings: argument passed to Dataset.get_column_names when column_names is None
-        :param virtual: argument passed to Dataset.get_column_names when column_names is None
+        :param strings: argument passed to DataFrame.get_column_names when column_names is None
+        :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :return: dict
         """
         return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
 
     @docsubst
     def to_copy(self, column_names=None, selection=None, strings=True, virtual=False, selections=True):
-        """Return a copy of the Dataset, if selection is None, it does not copy the data, it just has a reference
+        """Return a copy of the DataFrame, if selection is None, it does not copy the data, it just has a reference
 
-        :param column_names: list of column names, to copy, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+        :param column_names: list of column names, to copy, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
-        :param strings: argument passed to Dataset.get_column_names when column_names is None
-        :param virtual: argument passed to Dataset.get_column_names when column_names is None
-        :param selections: copy selections to new dataset
+        :param strings: argument passed to DataFrame.get_column_names when column_names is None
+        :param virtual: argument passed to DataFrame.get_column_names when column_names is None
+        :param selections: copy selections to new df
         :return: dict
         """
         if column_names:
@@ -3486,10 +3486,10 @@ class Dataset(object):
          >>> df = ds.to_pandas_df(["x", "y", "z"])
          >>> ds_copy = vaex.from_pandas(df)
 
-        :param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+        :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
-        :param strings: argument passed to Dataset.get_column_names when column_names is None
-        :param virtual: argument passed to Dataset.get_column_names when column_names is None
+        :param strings: argument passed to DataFrame.get_column_names when column_names is None
+        :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :param index_column: if this column is given it is used for the index of the DataFrame
         :return: pandas.DataFrame object
         """
@@ -3511,23 +3511,23 @@ class Dataset(object):
     def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=False):
         """Returns an arrow Table object containing the arrays corresponding to the evaluated data
 
-        :param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+        :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
-        :param strings: argument passed to Dataset.get_column_names when column_names is None
-        :param virtual: argument passed to Dataset.get_column_names when column_names is None
+        :param strings: argument passed to DataFrame.get_column_names when column_names is None
+        :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :return: pyarrow.Table object
         """
-        from vaex_arrow.convert import arrow_table_from_vaex_dataset
-        return arrow_table_from_vaex_dataset(self, column_names, selection, strings, virtual)
+        from vaex_arrow.convert import arrow_table_from_vaex_df
+        return arrow_table_from_vaex_df(self, column_names, selection, strings, virtual)
 
     @docsubst
     def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=False, index=None):
         """Returns a astropy table object containing the ndarrays corresponding to the evaluated data
 
-        :param column_names: list of column names, to export, when None Dataset.get_column_names(strings=strings, virtual=virtual) is used
+        :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
-        :param strings: argument passed to Dataset.get_column_names when column_names is None
-        :param virtual: argument passed to Dataset.get_column_names when column_names is None
+        :param strings: argument passed to DataFrame.get_column_names when column_names is None
+        :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :param index: if this column is given it is used for the index of the DataFrame
         :return: astropy.table.Table object
         """
@@ -3564,7 +3564,7 @@ class Dataset(object):
 
         if boolean_expression is None, remove the selection, has_selection() will returns false
 
-        Note that per dataset, only one selection is possible.
+        Note that per df, only one selection is possible.
 
         :param str boolean_expression: boolean expression, such as 'x < 0', '(x < 0) || (y > -10)' or None to remove the selection
         :param str mode: boolean operation to perform with the previous selection, "replace", "and", "or", "xor", "subtract"
@@ -3576,7 +3576,7 @@ class Dataset(object):
         """Add an in memory array as a column"""
         if isinstance(f_or_array, (np.ndarray, Column)):
             data = ar = f_or_array
-            # it can be None when we have an 'empty' DatasetArrays
+            # it can be None when we have an 'empty' DataFrameArrays
             if self._length_original is None:
                 self._length_unfiltered = len(data)
                 self._length_original = len(data)
@@ -3585,8 +3585,8 @@ class Dataset(object):
                 if self.filtered:
                     # give a better warning to avoid confusion
                     if len(self) == len(ar):
-                        raise ValueError("Array is of length %s, while the length of the dataset is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
-                raise ValueError("array is of length %s, while the length of the dataset is %s" % (len(ar), self.length_unfiltered()))
+                        raise ValueError("Array is of length %s, while the length of the df is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
+                raise ValueError("array is of length %s, while the length of the df is %s" % (len(ar), self.length_unfiltered()))
             # assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
             self.columns[name] = f_or_array
             if name not in self.column_names:
@@ -4091,12 +4091,12 @@ class Dataset(object):
         return function
 
     def add_virtual_column(self, name, expression, unique=False):
-        """Add a virtual column to the dataset
+        """Add a virtual column to the df
 
         Example:
     
-        >>> dataset.add_virtual_column("r", "sqrt(x**2 + y**2 + z**2)")
-        >>> dataset.select("r < 10")
+        >>> df.add_virtual_column("r", "sqrt(x**2 + y**2 + z**2)")
+        >>> df.select("r < 10")
 
         :param: str name: name of virtual column
         :param: expression: expression for the column
@@ -4131,13 +4131,13 @@ class Dataset(object):
 
 
     def delete_virtual_column(self, name):
-        """Deletes a virtual column from a dataset"""
+        """Deletes a virtual column from a df"""
         del self.virtual_columns[name]
         self.signal_column_changed.emit(self, name, "delete")
         # self.write_virtual_meta()
 
     def add_variable(self, name, expression, overwrite=True):
-        """Add a variable to to a dataset
+        """Add a variable to to a df
 
         Variable may refer to other variables, and virtual columns and expression may refer to variables
 
@@ -4156,7 +4156,7 @@ class Dataset(object):
             # self.write_virtual_meta()
 
     def delete_variable(self, name):
-        """Deletes a variable from a dataset"""
+        """Deletes a variable from a df"""
         del self.variables[name]
         self.signal_variable_changed.emit(self, name, "delete")
         # self.write_virtual_meta()
@@ -4227,11 +4227,11 @@ class Dataset(object):
         return "".join(parts) + "<h2>Data:</h2>" + self._head_and_tail_table()
 
     def head(self, n=10):
-        """Return a shallow copy dataset with the first n rows"""
+        """Return a shallow copy df with the first n rows"""
         return self[:min(n, len(self))]
 
     def tail(self, n=10):
-        """Return a shallow copy dataset with the last n rows"""
+        """Return a shallow copy df with the last n rows"""
         N = len(self)
         # self.cat(i1=max(0, N-n), i2=min(len(self), N))
         return self[max(0, N - n):min(len(self), N)]
@@ -4249,7 +4249,7 @@ class Dataset(object):
         display.display(display.HTML(self._head_and_tail_table(n)))
 
     def describe(self, strings=True, virtual=True, selection=None):
-        """Give a description of the dataset
+        """Give a description of the df
 
         >>> import vaex
         >>> df = vaex.example()[['x', 'y', 'z']]
@@ -4297,7 +4297,7 @@ class Dataset(object):
         return pd.DataFrame(data=columns, index=['dtype', 'count', 'missing', 'mean', 'std', 'min', 'max'])
 
     def cat(self, i1, i2, format='html'):
-        """Display the dataset from row i1 till i2
+        """Display the df from row i1 till i2
 
         For format, see https://pypi.org/project/tabulate/
 
@@ -4511,7 +4511,7 @@ class Dataset(object):
         return [name for name in self.column_names if column_filter(name)]
 
     def __len__(self):
-        """Returns the number of rows in the dataset (filtering applied)"""
+        """Returns the number of rows in the df (filtering applied)"""
         if not self.filtered:
             return self._length_unfiltered
         else:
@@ -4522,7 +4522,7 @@ class Dataset(object):
         raise NotImplementedError
 
     def length_original(self):
-        """the full length of the dataset, independant what active_fraction is, or filtering. This is the real length of the underlying ndarrays"""
+        """the full length of the df, independant what active_fraction is, or filtering. This is the real length of the underlying ndarrays"""
         return self._length_original
 
     def length_unfiltered(self):
@@ -4572,9 +4572,9 @@ class Dataset(object):
 
     @docsubst
     def trim(self, inplace=False):
-        '''Return a dataset, where all columns are 'trimmed' by the active range.
+        '''Return a df, where all columns are 'trimmed' by the active range.
 
-        For returned datasets, ds.get_active_range() returns (0, ds.length_original()).
+        For returned dfs, ds.get_active_range() returns (0, ds.length_original()).
 
         {note_copy}
 
@@ -4600,7 +4600,7 @@ class Dataset(object):
 
     @docsubst
     def take(self, indices):
-        '''Returns a dataset containing only rows indexed by indices
+        '''Returns a df containing only rows indexed by indices
 
         {note_copy}
 
@@ -4614,7 +4614,7 @@ class Dataset(object):
          1  c      3
 
         :param indices: sequence (list or numpy array) with row numbers
-        :return: Dataset which is a shallow copy of the original data.
+        :return: DataFrame which is a shallow copy of the original data.
         '''
         ds = self.copy()
         # if the columns in ds already have a ColumnIndex
@@ -4635,7 +4635,7 @@ class Dataset(object):
                         direct_indices_map[id(column.indices)] = direct_indices
                     else:
                         direct_indices = direct_indices_map[id(column.indices)]
-                    ds.columns[name] = ColumnIndexed(column.dataset, direct_indices, column.name)
+                    ds.columns[name] = ColumnIndexed(column.df, direct_indices, column.name)
                 else:
                     ds.columns[name] = ColumnIndexed(self, indices, name)
         ds._length_original = len(indices)
@@ -4645,15 +4645,15 @@ class Dataset(object):
 
     @docsubst
     def extract(self):
-        '''Return a dataset containing only the filtered rows.
+        '''Return a df containing only the filtered rows.
 
         {note_copy}
 
-        The resulting dataset may be more efficient to work with when the original dataset is
+        The resulting df may be more efficient to work with when the original df is
         heavily filtered (contains just a small number of rows).
 
         If no filtering is applied, it returns a trimmed view.
-        For returned datasets, len(ds) == ds.length_original() == ds.length_unfiltered()
+        For returned dfs, len(ds) == ds.length_original() == ds.length_unfiltered()
 
         '''
         trimmed = self.trim()
@@ -4665,7 +4665,7 @@ class Dataset(object):
 
     @docsubst
     def sample(self, n=None, frac=None, replace=False, weights=None, random_state=None):
-        '''Returns a dataset with a random set of rows
+        '''Returns a df with a random set of rows
 
         {note_copy}
 
@@ -4743,7 +4743,7 @@ class Dataset(object):
 
     @docsubst
     def sort(self, by, ascending=True, kind='quicksort'):
-        '''Return a sorted dataset, sorted by the expression 'by'
+        '''Return a sorted df, sorted by the expression 'by'
 
         {note_copy}
 
@@ -4780,7 +4780,7 @@ class Dataset(object):
 
     @docsubst
     def fillna(self, value, fill_nan=True, fill_masked=True, column_names=None, prefix='__original_', inplace=False):
-        '''Return a dataset, where missing values/NaN are filled with 'value'
+        '''Return a df, where missing values/NaN are filled with 'value'
 
         {note_copy}
 
@@ -4811,7 +4811,7 @@ class Dataset(object):
         return ds
 
     def materialize(self, virtual_column, inplace=False):
-        '''Returns a new dataset where the virtual column is turned into an in memory numpy array
+        '''Returns a new df where the virtual column is turned into an in memory numpy array
 
         Example:
                 >>> x = np.arange(1,4)
@@ -4911,12 +4911,12 @@ class Dataset(object):
         self._selection(create, name)
 
     def dropna(self, drop_nan=True, drop_masked=True, column_names=None):
-        """Create a shallow copy dataset, with filtering set using select_non_missing
+        """Create a shallow copy df, with filtering set using select_non_missing
 
         :param drop_nan: drop rows when there is a NaN in any of the columns (will only affect float values)
         :param drop_masked: drop rows when there is a masked value in any of the columns
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
-        :return: Dataset
+        :return: DataFrame
         """
         copy = self.copy()
         copy.select_non_missing(drop_nan=drop_nan, drop_masked=drop_masked, column_names=column_names,
@@ -5106,7 +5106,7 @@ class Dataset(object):
         return self.get_selection(name) is not None
 
     def __setitem__(self, name, value):
-        '''Convenient way to add a virtual column / expression to this dataset
+        '''Convenient way to add a virtual column / expression to this df
 
         Example:
 
@@ -5165,7 +5165,7 @@ class Dataset(object):
             return ds.trim()
 
     def __delitem__(self, item):
-        '''Removes a (virtual) column from the dataset
+        '''Removes a (virtual) column from the df
 
         Note: this does not remove check if the column is used in a virtual expression or in the filter\
             and may lead to issues. It is safer to use :meth:`drop`.
@@ -5239,11 +5239,11 @@ class Dataset(object):
         return iter(list(self.get_column_names()))
 
 
-Dataset.__hidden__ = {}
-hidden = [name for name, func in vars(Dataset).items() if getattr(func, '__hidden__', False)]
+DataFrame.__hidden__ = {}
+hidden = [name for name, func in vars(DataFrame).items() if getattr(func, '__hidden__', False)]
 for name in hidden:
-    Dataset.__hidden__[name] = getattr(Dataset, name)
-    delattr(Dataset, name)
+    DataFrame.__hidden__[name] = getattr(DataFrame, name)
+    delattr(DataFrame, name)
 del hidden
 
 def _select_replace(maskold, masknew):
@@ -5274,11 +5274,11 @@ _select_functions = {"replace": _select_replace,
                      }
 
 
-class DatasetLocal(Dataset):
-    """Base class for datasets that work with local file/data"""
+class DataFrameLocal(DataFrame):
+    """Base class for dfs that work with local file/data"""
 
     def __init__(self, name, path, column_names):
-        super(DatasetLocal, self).__init__(name, column_names)
+        super(DataFrameLocal, self).__init__(name, column_names)
         self.path = path
         self.mask = None
         self.columns = collections.OrderedDict()
@@ -5332,9 +5332,9 @@ class DatasetLocal(Dataset):
     def data(self):
         """Gives direct access to the data as numpy arrays.
 
-        Convenient when working with IPython in combination with small datasets, since this gives tab-completion.
+        Convenient when working with IPython in combination with small dfs, since this gives tab-completion.
         Only real columns (i.e. no virtual) columns can be accessed, for getting the data from virtual columns, use
-        Dataset.evalulate(...)
+        DataFrame.evalulate(...)
 
         Columns can be accesed by there names, which are attributes. The attribues are of type numpy.ndarray
 
@@ -5384,7 +5384,7 @@ class DatasetLocal(Dataset):
         return functions
 
     def copy(self, column_names=None, virtual=True):
-        ds = DatasetArrays()
+        ds = DataFrameArrays()
         ds._length_unfiltered = self._length_unfiltered
         ds._length_original = self._length_original
         ds._index_end = self._index_end
@@ -5435,39 +5435,39 @@ class DatasetLocal(Dataset):
         return ds
 
     def shallow_copy(self, virtual=True, variables=True):
-        """Creates a (shallow) copy of the dataset
+        """Creates a (shallow) copy of the df
 
         It will link to the same data, but will have its own state, e.g. virtual columns, variables, selection etc
 
         """
-        dataset = DatasetLocal(self.name, self.path, self.column_names)
-        dataset.columns.update(self.columns)
-        dataset._length_unfiltered = self._length_unfiltered
-        dataset._length_original = self._length_original
-        dataset._index_end = self._index_end
-        dataset._index_start = self._index_start
-        dataset._active_fraction = self._active_fraction
+        df = DataFrameLocal(self.name, self.path, self.column_names)
+        df.columns.update(self.columns)
+        df._length_unfiltered = self._length_unfiltered
+        df._length_original = self._length_original
+        df._index_end = self._index_end
+        df._index_start = self._index_start
+        df._active_fraction = self._active_fraction
         if virtual:
-            dataset.virtual_columns.update(self.virtual_columns)
+            df.virtual_columns.update(self.virtual_columns)
         if variables:
-            dataset.variables.update(self.variables)
+            df.variables.update(self.variables)
         # half shallow/deep copy
         # for key, value in self.selection_histories.items():
-        # dataset.selection_histories[key] = list(value)
+        # df.selection_histories[key] = list(value)
         # for key, value in self.selection_history_indices.items():
-        # dataset.selection_history_indices[key] = value
-        return dataset
+        # df.selection_history_indices[key] = value
+        return df
 
     def is_local(self):
-        """The local implementation of :func:`Dataset.evaluate`, always returns True"""
+        """The local implementation of :func:`DataFrame.evaluate`, always returns True"""
         return True
 
     def length(self, selection=False):
-        """Get the length of the datasets, for the selection of the whole dataset.
+        """Get the length of the dfs, for the selection of the whole df.
 
-        If selection is False, it returns len(dataset)
+        If selection is False, it returns len(df)
 
-        TODO: Implement this in DatasetRemote, and move the method up in :func:`Dataset.length`
+        TODO: Implement this in DataFrameRemote, and move the method up in :func:`DataFrame.length`
 
         :param selection: When True, will return the number of selected rows
         :return:
@@ -5479,14 +5479,14 @@ class DatasetLocal(Dataset):
 
     @_hidden
     def __call__(self, *expressions, **kwargs):
-        """The local implementation of :func:`Dataset.__call__`"""
+        """The local implementation of :func:`DataFrame.__call__`"""
         import vaex.legacy
         return vaex.legacy.SubspaceLocal(self, expressions, kwargs.get("executor") or self.executor, delay=kwargs.get("delay", False))
 
     def echo(self, arg): return arg
 
     def __array__(self, dtype=None):
-        """Gives a full memory copy of the dataset into a 2d numpy array of shape (n_rows, n_columns).
+        """Gives a full memory copy of the df into a 2d numpy array of shape (n_rows, n_columns).
         Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
 
         Note this returns the same result as:
@@ -5508,8 +5508,8 @@ class DatasetLocal(Dataset):
 
     @vaex.utils.deprecated('use ds.join(other)')
     def _hstack(self, other, prefix=None):
-        """Join the columns of the other dataset to this one, assuming the ordering is the same"""
-        assert len(self) == len(other), "does not make sense to horizontally stack datasets with different lengths"
+        """Join the columns of the other df to this one, assuming the ordering is the same"""
+        assert len(self) == len(other), "does not make sense to horizontally stack dfs with different lengths"
         for name in other.get_column_names():
             if prefix:
                 new_name = prefix + name
@@ -5518,24 +5518,24 @@ class DatasetLocal(Dataset):
             self.add_column(new_name, other.columns[name])
 
     def concat(self, other):
-        """Concatenates two datasets, adding the rows of one the other dataset to the current, returned in a new dataset.
+        """Concatenates two dfs, adding the rows of one the other df to the current, returned in a new df.
 
         No copy of the data is made.
 
-        :param other: The other dataset that is concatenated with this dataset
-        :return: New dataset with the rows concatenated
-        :rtype: DatasetConcatenated
+        :param other: The other df that is concatenated with this df
+        :return: New df with the rows concatenated
+        :rtype: DataFrameConcatenated
         """
-        datasets = []
-        if isinstance(self, DatasetConcatenated):
-            datasets.extend(self.datasets)
+        dfs = []
+        if isinstance(self, DataFrameConcatenated):
+            dfs.extend(self.dfs)
         else:
-            datasets.extend([self])
-        if isinstance(other, DatasetConcatenated):
-            datasets.extend(other.datasets)
+            dfs.extend([self])
+        if isinstance(other, DataFrameConcatenated):
+            dfs.extend(other.dfs)
         else:
-            datasets.extend([other])
-        return DatasetConcatenated(datasets)
+            dfs.extend([other])
+        return DataFrameConcatenated(dfs)
 
     def _invalidate_selection_cache(self):
         self._selection_mask_caches.clear()
@@ -5578,7 +5578,7 @@ class DatasetLocal(Dataset):
         return value
 
     def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True):
-        """The local implementation of :func:`Dataset.evaluate`"""
+        """The local implementation of :func:`DataFrame.evaluate`"""
         expression = _ensure_string_from_expression(expression)
         selection = _ensure_strings_from_expressions(selection)
         i1 = i1 or 0
@@ -5599,7 +5599,7 @@ class DatasetLocal(Dataset):
         return value
 
     def compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None, column_names=None):
-        """Compare two datasets and report their difference, use with care for large datasets"""
+        """Compare two dfs and report their difference, use with care for large dfs"""
         if column_names is None:
             column_names = self.get_column_names(virtual=False)
             for other_column_name in other.get_column_names(virtual=False):
@@ -5617,11 +5617,11 @@ class DatasetLocal(Dataset):
             if column_name not in self.get_column_names(virtual=False):
                 missing.append(column_name)
                 if report_missing:
-                    print("%s missing from this dataset" % column_name)
+                    print("%s missing from this df" % column_name)
             elif column_name not in other.get_column_names(virtual=False):
                 missing.append(column_name)
                 if report_missing:
-                    print("%s missing from other dataset" % column_name)
+                    print("%s missing from other df" % column_name)
             else:
                 ucd1 = self.ucds.get(column_name)
                 ucd2 = other.ucds.get(column_name)
@@ -5677,7 +5677,7 @@ class DatasetLocal(Dataset):
                     all_equal = np.all(boolean_mask)
                     if not all_equal:
                         count = np.sum(~boolean_mask)
-                        print("%s does not match for both datasets, %d rows are diffent out of %d" % (column_name, count, len(self)))
+                        print("%s does not match for both dfs, %d rows are diffent out of %d" % (column_name, count, len(self)))
                         different_values.append(column_name)
                         if report_difference:
                             indices = np.arange(len(self))[~boolean_mask]
@@ -5706,9 +5706,9 @@ class DatasetLocal(Dataset):
         >>> ds._join('x', ds2, 'x', column_names=['z'])
 
         :param key: key for the left table (self)
-        :param other: Other dataset to join with (the right side)
+        :param other: Other df to join with (the right side)
         :param key_other: key on which to join
-        :param column_names: column names to add to this dataset
+        :param column_names: column names to add to this df
         :param prefix: add a prefix to the new column (or not when None)
         :return:
         """
@@ -5758,14 +5758,14 @@ class DatasetLocal(Dataset):
 
     @docsubst
     def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left', inplace=False):
-        """Return a dataset joined with other datasets, matched by columns/expression on/left_on/right_on
+        """Return a df joined with other dfs, matched by columns/expression on/left_on/right_on
 
         If neither on/left_on/right_on is given, the join is done by simply adding the columns (i.e. on the implicit
         row index).
 
-        Note: The filters will be ignored when joining, the full dataset will be joined (since filters may
-        change). If either dataset is heavily filtered (contains just a small number of rows) consider running
-        :func:`Dataset.extract` first.
+        Note: The filters will be ignored when joining, the full df will be joined (since filters may
+        change). If either df is heavily filtered (contains just a small number of rows) consider running
+        :func:`DataFrame.extract` first.
 
         Example:
 
@@ -5777,7 +5777,7 @@ class DatasetLocal(Dataset):
         >>> ds2 = vaex.from_arrays(b=b, y=y)
         >>> ds1.join(ds2, left_on='a', right_on='b')
 
-        :param other: Other dataset to join with (the right side)
+        :param other: Other df to join with (the right side)
         :param on: default key for the left table (self)
         :param left_on: key for the left table (self), overrides on
         :param right_on: default key for the right table (other), overrides on
@@ -5839,7 +5839,7 @@ class DatasetLocal(Dataset):
             else:
                 index_other = dict(zip(right_values, np.arange(N_other)))
 
-            # we do a left join, find all rows of the right dataset
+            # we do a left join, find all rows of the right df
             # that has an entry on the left
             # for each row in the right
             # find which row it needs to go to in the right
@@ -5868,9 +5868,9 @@ class DatasetLocal(Dataset):
         return left
 
     def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
-        """Exports the dataset to a file written with arrow
+        """Exports the df to a file written with arrow
 
-        :param DatasetLocal dataset: dataset to export
+        :param DataFrameLocal df: df to export
         :param str path: path for file
         :param lis[str] column_names: list of column names to export or None for all columns
         :param str byteorder: = for native, < for little endian and > for big endian (not supported for fits)
@@ -5891,9 +5891,9 @@ class DatasetLocal(Dataset):
             self.export_fits(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
-        """Exports the dataset to a file written with arrow
+        """Exports the df to a file written with arrow
 
-        :param DatasetLocal dataset: dataset to export
+        :param DataFrameLocal df: df to export
         :param str path: path for file
         :param lis[str] column_names: list of column names to export or None for all columns
         :param str byteorder: = for native, < for little endian and > for big endian
@@ -5910,9 +5910,9 @@ class DatasetLocal(Dataset):
         vaex_arrow.export.export(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
-        """Exports the dataset to a vaex hdf5 file
+        """Exports the df to a vaex hdf5 file
 
-        :param DatasetLocal dataset: dataset to export
+        :param DataFrameLocal df: df to export
         :param str path: path for file
         :param lis[str] column_names: list of column names to export or None for all columns
         :param str byteorder: = for native, < for little endian and > for big endian
@@ -5929,9 +5929,9 @@ class DatasetLocal(Dataset):
         vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
-        """Exports the dataset to a fits file that is compatible with TOPCAT colfits format
+        """Exports the df to a fits file that is compatible with TOPCAT colfits format
 
-        :param DatasetLocal dataset: dataset to export
+        :param DataFrameLocal df: df to export
         :param str path: path for file
         :param lis[str] column_names: list of column names to export or None for all columns
         :param bool shuffle: export rows in random order
@@ -5959,7 +5959,7 @@ class DatasetLocal(Dataset):
         # and False:
 
     def selected_length(self, selection="default"):
-        """The local implementation of :func:`Dataset.selected_length`"""
+        """The local implementation of :func:`DataFrame.selected_length`"""
         return int(self.count(selection=selection).item())
         # np.sum(self.mask) if self.has_selection() else None
 
@@ -6005,18 +6005,18 @@ class ColumnSparse(object):
         return self.matrix[slice, self.column_index].A[:,0]
 
 class ColumnIndexed(Column):
-    def __init__(self, dataset, indices, name):
-        self.dataset = dataset
+    def __init__(self, df, indices, name):
+        self.df = df
         self.indices = indices
         self.name = name
-        self.dtype = self.dataset.dtype(name)
+        self.dtype = self.df.dtype(name)
         self.shape = (len(indices),)
 
     def __len__(self):
         return len(self.indices)
 
     def trim(self, i1, i2):
-        return ColumnIndexed(self.dataset, self.indices[i1:i2], self.name)
+        return ColumnIndexed(self.df, self.indices[i1:i2], self.name)
 
     def __getitem__(self, slice):
         start, stop, step = slice.start, slice.stop, slice.step
@@ -6024,7 +6024,7 @@ class ColumnIndexed(Column):
         stop = stop or len(self)
         assert step in [None, 1]
         indices = self.indices[start:stop]
-        ar = self.dataset.columns[self.name][indices]
+        ar = self.df.columns[self.name][indices]
         if np.ma.isMaskedArray(indices):
             mask = self.indices.mask[start:stop]
             return np.ma.array(ar, mask=mask)
@@ -6033,13 +6033,13 @@ class ColumnIndexed(Column):
 
 
 class _ColumnConcatenatedLazy(Column):
-    def __init__(self, datasets, column_name):
-        self.datasets = datasets
+    def __init__(self, dfs, column_name):
+        self.dfs = dfs
         self.column_name = column_name
-        dtypes = [dataset.dtype(column_name) for dataset in datasets]
-        self.is_masked = any([dataset.is_masked(column_name) for dataset in datasets])
+        dtypes = [df.dtype(column_name) for df in dfs]
+        self.is_masked = any([df.is_masked(column_name) for df in dfs])
         if self.is_masked:
-            self.fill_value = datasets[0].columns[self.column_name].fill_value
+            self.fill_value = dfs[0].columns[self.column_name].fill_value
         # np.datetime64 and find_common_type don't mix very well
         if all([dtype.type == np.datetime64 for dtype in dtypes]):
             self.dtype = dtypes[0]
@@ -6051,43 +6051,43 @@ class _ColumnConcatenatedLazy(Column):
                     index = np.argmax([dtype.itemsize for dtype in dtypes])
                     self.dtype = dtypes[index]
                 else:
-                    index = np.argmax([dataset.columns[self.column_name].astype('O').astype('S').dtype.itemsize for dataset in datasets])
-                    self.dtype = datasets[index].columns[self.column_name].astype('O').astype('S').dtype
+                    index = np.argmax([df.columns[self.column_name].astype('O').astype('S').dtype.itemsize for df in dfs])
+                    self.dtype = dfs[index].columns[self.column_name].astype('O').astype('S').dtype
             else:
                 self.dtype = np.find_common_type(dtypes, [])
             logger.debug("common type for %r is %r", dtypes, self.dtype)
-        self.shape = (len(self), ) + self.datasets[0].evaluate(self.column_name, i1=0, i2=1).shape[1:]
-        for i in range(1, len(datasets)):
-            shape_i = (len(self), ) + self.datasets[i].evaluate(self.column_name, i1=0, i2=1).shape[1:]
+        self.shape = (len(self), ) + self.dfs[0].evaluate(self.column_name, i1=0, i2=1).shape[1:]
+        for i in range(1, len(dfs)):
+            shape_i = (len(self), ) + self.dfs[i].evaluate(self.column_name, i1=0, i2=1).shape[1:]
             if self.shape != shape_i:
                 raise ValueError("shape of of column %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.column_name, self.shape, i, shape_i))
 
     def __len__(self):
-        return sum(len(ds) for ds in self.datasets)
+        return sum(len(ds) for ds in self.dfs)
 
     def __getitem__(self, slice):
         start, stop, step = slice.start, slice.stop, slice.step
         start = start or 0
         stop = stop or len(self)
         assert step in [None, 1]
-        datasets = iter(self.datasets)
-        current_dataset = next(datasets)
+        dfs = iter(self.dfs)
+        current_df = next(dfs)
         offset = 0
-        # print "#@!", start, stop, [len(dataset) for dataset in self.datasets]
-        while start >= offset + len(current_dataset):
+        # print "#@!", start, stop, [len(df) for df in self.dfs]
+        while start >= offset + len(current_df):
             # print offset
-            offset += len(current_dataset)
+            offset += len(current_df)
             # try:
-            current_dataset = next(datasets)
+            current_df = next(dfs)
             # except StopIteration:
-            # logger.exception("requested start:stop %d:%d when max was %d, offset=%d" % (start, stop, offset+len(current_dataset), offset))
+            # logger.exception("requested start:stop %d:%d when max was %d, offset=%d" % (start, stop, offset+len(current_df), offset))
             # raise
             #   break
         # this is the fast path, no copy needed
-        if stop <= offset + len(current_dataset):
-            if current_dataset.filtered:  # TODO this may get slow! we're evaluating everything
-                warnings.warn("might be slow, you have concatenated datasets with a filter set")
-            return current_dataset.evaluate(self.column_name, i1=start - offset, i2=stop - offset)
+        if stop <= offset + len(current_df):
+            if current_df.filtered:  # TODO this may get slow! we're evaluating everything
+                warnings.warn("might be slow, you have concatenated dfs with a filter set")
+            return current_df.evaluate(self.column_name, i1=start - offset, i2=stop - offset)
         else:
             if self.is_masked:
                 copy = np.ma.empty(stop - start, dtype=self.dtype)
@@ -6095,59 +6095,59 @@ class _ColumnConcatenatedLazy(Column):
             else:
                 copy = np.zeros(stop - start, dtype=self.dtype)
             copy_offset = 0
-            # print("!!>", start, stop, offset, len(current_dataset), current_dataset.columns[self.column_name])
-            while offset < stop:  # > offset + len(current_dataset):
+            # print("!!>", start, stop, offset, len(current_df), current_df.columns[self.column_name])
+            while offset < stop:  # > offset + len(current_df):
                 # print(offset, stop)
-                if current_dataset.filtered:  # TODO this may get slow! we're evaluating everything
-                    warnings.warn("might be slow, you have concatenated datasets with a filter set")
-                part = current_dataset.evaluate(self.column_name, i1=start-offset, i2=min(len(current_dataset), stop - offset))
+                if current_df.filtered:  # TODO this may get slow! we're evaluating everything
+                    warnings.warn("might be slow, you have concatenated dfs with a filter set")
+                part = current_df.evaluate(self.column_name, i1=start-offset, i2=min(len(current_df), stop - offset))
                 # print "part", part, copy_offset,copy_offset+len(part)
                 copy[copy_offset:copy_offset + len(part)] = part
                 # print copy[copy_offset:copy_offset+len(part)]
-                offset += len(current_dataset)
+                offset += len(current_df)
                 copy_offset += len(part)
                 start = offset
                 if offset < stop:
-                    current_dataset = next(datasets)
+                    current_df = next(dfs)
             return copy
 
 
-class DatasetConcatenated(DatasetLocal):
-    """Represents a set of datasets all concatenated. See :func:`DatasetLocal.concat` for usage.
+class DataFrameConcatenated(DataFrameLocal):
+    """Represents a set of dfs all concatenated. See :func:`DataFrameLocal.concat` for usage.
     """
 
-    def __init__(self, datasets, name=None):
-        super(DatasetConcatenated, self).__init__(None, None, [])
-        self.datasets = datasets
-        self.name = name or "-".join(ds.name for ds in self.datasets)
-        self.path = "-".join(ds.path for ds in self.datasets)
-        first, tail = datasets[0], datasets[1:]
-        for dataset in datasets:
-            assert dataset.filtered is False, "we don't support filtering for concatenated datasets"
+    def __init__(self, dfs, name=None):
+        super(DataFrameConcatenated, self).__init__(None, None, [])
+        self.dfs = dfs
+        self.name = name or "-".join(ds.name for ds in self.dfs)
+        self.path = "-".join(ds.path for ds in self.dfs)
+        first, tail = dfs[0], dfs[1:]
+        for df in dfs:
+            assert df.filtered is False, "we don't support filtering for concatenated dfs"
         for column_name in first.get_column_names(virtual=False):
-            if all([column_name in dataset.get_column_names(virtual=False) for dataset in tail]):
+            if all([column_name in df.get_column_names(virtual=False) for df in tail]):
                 self.column_names.append(column_name)
         self.columns = {}
         for column_name in self.get_column_names(virtual=False):
-            self.columns[column_name] = _ColumnConcatenatedLazy(datasets, column_name)
+            self.columns[column_name] = _ColumnConcatenatedLazy(dfs, column_name)
             self._save_assign_expression(column_name)
 
         for name in list(first.virtual_columns.keys()):
-            if all([first.virtual_columns[name] == dataset.virtual_columns.get(name, None) for dataset in tail]):
+            if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
                 self.virtual_columns[name] = first.virtual_columns[name]
             else:
-                self.columns[name] = _ColumnConcatenatedLazy(datasets, name)
+                self.columns[name] = _ColumnConcatenatedLazy(dfs, name)
                 self.column_names.append(name)
             self._save_assign_expression(name)
 
 
-        for dataset in datasets[:1]:
-            for name, value in list(dataset.variables.items()):
+        for df in dfs[:1]:
+            for name, value in list(df.variables.items()):
                 if name not in self.variables:
                     self.set_variable(name, value, write=False)
         # self.write_virtual_meta()
 
-        self._length_unfiltered = sum(len(ds) for ds in self.datasets)
+        self._length_unfiltered = sum(len(ds) for ds in self.dfs)
         self._length_original = self._length_unfiltered
         self._index_end = self._length_unfiltered
 
@@ -6167,11 +6167,11 @@ def _is_array_type_ok(array):
     return _is_dtype_ok(array.dtype)
 
 
-class DatasetArrays(DatasetLocal):
-    """Represent an in-memory dataset of numpy arrays, see :func:`from_arrays` for usage."""
+class DataFrameArrays(DataFrameLocal):
+    """Represent an in-memory df of numpy arrays, see :func:`from_arrays` for usage."""
 
     def __init__(self, name="arrays"):
-        super(DatasetArrays, self).__init__(None, None, [])
+        super(DataFrameArrays, self).__init__(None, None, [])
         self.name = name
         self.path = "/has/no/path/" + name
 
@@ -6179,7 +6179,7 @@ class DatasetArrays(DatasetLocal):
     #   return len(self.columns.values()[0])
 
     def add_column(self, name, data):
-        """Add a column to the dataset
+        """Add a column to the df
 
         :param str name: name of column
         :param data: numpy array with the data
@@ -6190,13 +6190,13 @@ class DatasetArrays(DatasetLocal):
         #     self._length_unfiltered = len(data)
         #     self._length_original = len(data)
         #     self._index_end = self._length_unfiltered
-        super(DatasetArrays, self).add_column(name, data)
+        super(DataFrameArrays, self).add_column(name, data)
         self._length_unfiltered = int(round(self._length_original * self._active_fraction))
         # self.set_active_fraction(self._active_fraction)
 
     @property
     def values(self):
-        """Gives a full memory copy of the dataset into a 2d numpy array of shape (n_rows, n_columns).
+        """Gives a full memory copy of the df into a 2d numpy array of shape (n_rows, n_columns).
         Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
 
         Note this returns the same result as:
@@ -6206,3 +6206,10 @@ class DatasetArrays(DatasetLocal):
         If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
         """
         return self.__array__()
+
+# alias kept for backward compatibility
+Dataset = DataFrame
+DatasetLocal = DataFrameLocal
+DatasetArrays = DataFrameArrays
+DatasetConcatenated = DataFrameConcatenated
+import vaex.dataframe

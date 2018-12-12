@@ -14,15 +14,15 @@ def _asfloat(a):
 
 
 class TaskHistogram(Task):
-    def __init__(self, dataset, subspace, expressions, size, limits, masked=False, weight=None):
+    def __init__(self, df, subspace, expressions, size, limits, masked=False, weight=None):
         self.size = size
         self.limits = limits
-        Task.__init__(self, dataset, expressions, name="histogram")
+        Task.__init__(self, df, expressions, name="histogram")
         self.subspace = subspace
         self.dtype = np.float64
         self.masked = masked
         self.weight = weight
-        # self.grids = vaex.grids.Grids(self.dataset, self.dataset.executor.thread_pool, *expressions)
+        # self.grids = vaex.grids.Grids(self.df, self.df.executor.thread_pool, *expressions)
         # self.grids.ranges = limits
         # self.grids.grids["counts"] = vaex.grids.Grid(self.grids, size, self.dimension, None)
         shape1 = (self.size,) * self.dimension
@@ -47,7 +47,7 @@ class TaskHistogram(Task):
 
     def __repr__(self):
         name = self.__class__.__module__ + "." + self.__class__.__name__
-        return "<%s(dataset=%r, expressions=%r, size=%r, limits=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.size, self.limits, id(self))
+        return "<%s(df=%r, expressions=%r, size=%r, limits=%r)> instance at 0x%x" % (name, self.df, self.expressions, self.size, self.limits, id(self))
 
     def map(self, thread_index, i1, i2, *blocks):
         class Info(object):
@@ -56,17 +56,17 @@ class TaskHistogram(Task):
         info.i1 = i1
         info.i2 = i2
         info.first = i1 == 0
-        info.last = i2 == self.dataset.length_unfiltered()
+        info.last = i2 == self.df.length_unfiltered()
         info.size = i2 - i1
         # print "bin", i1, i2, info.last
         # self.grids["counts"].bin_block(info, *blocks)
-        # mask = self.dataset.mask
+        # mask = self.df.mask
         data = self.data[thread_index]
 
         blocks = [_asfloat(block) for block in blocks]
 
-        if self.masked or self.dataset.filtered:
-            mask = self.dataset.evaluate_selection_mask("default" if self.masked else None, i1=i1, i2=i2)
+        if self.masked or self.df.filtered:
+            mask = self.df.evaluate_selection_mask("default" if self.masked else None, i1=i1, i2=i2)
             blocks = [block[mask] for block in blocks]
 
         subblock_weight = None
@@ -271,15 +271,15 @@ class Subspaces(object):
         first_subspace = self.subspaces[0]
         self.delay = first_subspace.delay
         self.dimension = first_subspace.dimension
-        self.dataset = self.subspaces[0].dataset
+        self.df = self.subspaces[0].df
         for subspace in self.subspaces:
-            assert subspace.dataset == self.subspaces[0].dataset
+            assert subspace.df == self.subspaces[0].df
             assert subspace.delay == self.subspaces[0].delay
             assert subspace.dimension == self.subspaces[0].dimension, "subspace is of dimension %s, while first subspace if of dimension %s" % (subspace.dimension, self.subspaces[0].dimension)
             # assert subspace.sele== self.subspaces[0].delay
             self.expressions.update(subspace.expressions)
         self.expressions = list(self.expressions)
-        self.subspace = self.dataset(*list(self.expressions), delay=self.delay, executor=first_subspace.executor)
+        self.subspace = self.df(*list(self.expressions), delay=self.delay, executor=first_subspace.executor)
 
     # def _repr_html_(self):
 
@@ -403,28 +403,28 @@ class Subspaces(object):
 
 
 class Subspace(object):
-    """A Subspace represent a subset of columns or expressions from a dataset.
+    """A Subspace represent a subset of columns or expressions from a df.
 
-    subspace are not instantiated directly, but by 'calling' the dataset like this:
+    subspace are not instantiated directly, but by 'calling' the df like this:
 
-    >>> subspace_xy = some_dataset("x", "y")
-    >>> subspace_r = some_dataset("sqrt(x**2+y**2)")
+    >>> subspace_xy = some_df("x", "y")
+    >>> subspace_r = some_df("sqrt(x**2+y**2)")
 
-    See `vaex.dataset.Dataset` for more documentation.
+    See `vaex.df.Dataset` for more documentation.
 
     """
 
-    def __init__(self, dataset, expressions, executor, delay, masked=False):
+    def __init__(self, df, expressions, executor, delay, masked=False):
         """
 
-        :param Dataset dataset: the dataset the subspace refers to
+        :param Dataset df: the df the subspace refers to
         :param list[str] expressions: list of expressions that forms the subspace
         :param Executor executor: responsible for executing the tasks
         :param bool delay: return answers directly, or as a promise
         :param bool masked: work on the selection or not
         :return:
         """
-        self.dataset = dataset
+        self.df = df
         self.expressions = expressions
         self.executor = executor
         self.delay = delay
@@ -432,23 +432,23 @@ class Subspace(object):
 
     def __repr__(self):
         name = self.__class__.__module__ + "." + self.__class__.__name__
-        return "<%s(dataset=%r, expressions=%r, delay=%r, is_masked=%r)> instance at 0x%x" % (name, self.dataset, self.expressions, self.delay, self.is_masked, id(self))
+        return "<%s(df=%r, expressions=%r, delay=%r, is_masked=%r)> instance at 0x%x" % (name, self.df, self.expressions, self.delay, self.is_masked, id(self))
 
     @property
     def dimension(self):
         return len(self.expressions)
 
     def get_selection(self):
-        return self.dataset.get_selection("default") if self.is_masked else None
+        return self.df.get_selection("default") if self.is_masked else None
 
     def is_selected(self):
         return self.is_masked
 
     def selected(self):
-        return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, delay=self.delay, masked=True)
+        return self.__class__(self.df, expressions=self.expressions, executor=self.executor, delay=self.delay, masked=True)
 
     def delayhronous(self):
-        return self.__class__(self.dataset, expressions=self.expressions, executor=self.executor, delay=True, masked=self.is_masked)
+        return self.__class__(self.df, expressions=self.expressions, executor=self.executor, delay=True, masked=self.is_masked)
 
     def image_rgba_save(self, filename, data=None, rgba8=None, **kwargs):
         if rgba8 is not None:
@@ -539,7 +539,7 @@ class Subspace(object):
             if limits is None:
                 limits = self.limits_sigma()
             if group_limits is None and group_by:
-                group_limits = tuple(self.dataset(group_by).minmax()[0]) + (group_count,)
+                group_limits = tuple(self.df(group_by).minmax()[0]) + (group_count,)
             if weight_stat == "mean" and weight is not None:
                 grid = self.bin_mean(weight, limits=limits, size=size, group_limits=group_limits, group_by=group_by)
             else:
@@ -682,7 +682,7 @@ class Subspace(object):
             limits = self.limits_sigma()
         # if grid is None:
         if group_limits is None and group_by:
-            group_limits = tuple(self.dataset(group_by).minmax()[0]) + (group_count,)
+            group_limits = tuple(self.df(group_by).minmax()[0]) + (group_count,)
         # grid = self.histogram(limits=limits, size=size, weight=weight, group_limits=group_limits, group_by=group_by)
         if figsize is not None:
             pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
@@ -782,7 +782,7 @@ class Subspace(object):
             self._bqplot["cleanups"] = []
 
         def cleanup(callback=plot.callback):
-            self.dataset.signal_selection_changed.disconnect(callback=callback)
+            self.df.signal_selection_changed.disconnect(callback=callback)
         self._bqplot["cleanups"].append(cleanup)
 
         return plot
@@ -832,7 +832,7 @@ class Subspace(object):
             # p.ylim(*limits[1])
             # if grid is None:
         if group_limits is None and group_by:
-            group_limits = tuple(self.dataset(group_by).minmax()[0]) + (group_count,)
+            group_limits = tuple(self.df(group_by).minmax()[0]) + (group_count,)
         # fig = p.
         # if xlabel:
         fig.axes[0].label = xlabel or self.expressions[0]
@@ -868,7 +868,7 @@ class Subspace(object):
         def make_image(executor, limits):
             # print "make image" * 100
             self.executor = executor
-            if self.dataset.has_selection():
+            if self.df.has_selection():
                 sub = self.selected()
             else:
                 sub = self
@@ -880,7 +880,7 @@ class Subspace(object):
             limits = [x_scale.min, x_scale.max], [y_scale.min, y_scale.max]
             # print limits
             # print "update...", limits
-            # vxbq.debounced_threaded_update(self.dataset, im, make_image2, limits=limits)
+            # vxbq.debounced_threaded_update(self.df, im, make_image2, limits=limits)
             updater.update(limits)
 
         def update(*args):
@@ -909,23 +909,23 @@ class Subspace(object):
                         (x1, y1), (x2, y2) = brush.selected
                         ex1, ex2 = self.expressions
                         mode = modes_names[modes_labels.index(button_selection_mode.value)]
-                        self.dataset.select_rectangle(ex1, ex2, limits=[[x1, x2], [y1, y2]], mode=mode)
+                        self.df.select_rectangle(ex1, ex2, limits=[[x1, x2], [y1, y2]], mode=mode)
                     else:
-                        self.dataset.select_nothing()
+                        self.df.select_nothing()
                 updater.update_select(f)
             brush.observe(update_selection, "selected")
             # fig.interaction = brush
-            # callback = self.dataset.signal_selection_changed.connect(lambda dataset: update_image())
-            callback = self.dataset.signal_selection_changed.connect(lambda dataset: updater.update_direct_safe())
+            # callback = self.df.signal_selection_changed.connect(lambda df: update_image())
+            callback = self.df.signal_selection_changed.connect(lambda df: updater.update_direct_safe())
 
             def cleanup(callback=callback):
-                self.dataset.signal_selection_changed.disconnect(callback=callback)
+                self.df.signal_selection_changed.disconnect(callback=callback)
             self._bqplot["cleanups"].append(cleanup)
 
             button_select_nothing = widgets.Button(icon="fa-trash-o")
 
             def select_nothing(button):
-                self.dataset.select_nothing()
+                self.df.select_nothing()
             button_select_nothing.on_click(select_nothing)
             tools.append(button_select_nothing)
             modes_names = "replace and or xor subtract".split()
@@ -1020,7 +1020,7 @@ class Subspace(object):
         raise NotImplementedError
 
     def row(self, index):
-        return np.array([self.dataset.evaluate(expression, i1=index, i2=index + 1)[0] for expression in self.expressions])
+        return np.array([self.df.evaluate(expression, i1=index, i2=index + 1)[0] for expression in self.expressions])
 
 
 class SubspaceLocal(Subspace):
@@ -1078,8 +1078,8 @@ class SubspaceLocal(Subspace):
             return result
 
         def min_max_map(thread_index, i1, i2, *blocks):
-            if self.is_masked or self.dataset.filtered:
-                mask = self.dataset.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
+            if self.is_masked or self.df.filtered:
+                mask = self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
                 blocks = [block[mask] for block in blocks]
                 is_empty = all(~mask)
                 if is_empty:
@@ -1098,7 +1098,7 @@ class SubspaceLocal(Subspace):
                     vaex.vaexfast.statisticNd([], block, minmaxes[i, :], [], [], 2)
                 # minmaxes[~np.isfinite(minmaxes)] = np.nan
                 return minmaxes
-        task = TaskMapReduce(self.dataset, self.expressions, min_max_map, min_max_reduce, self._toarray, info=True, name="minmax")
+        task = TaskMapReduce(self.df, self.expressions, min_max_map, min_max_reduce, self._toarray, info=True, name="minmax")
         return self._task(task, progressbar=progressbar)
 
     def mean(self):
@@ -1115,12 +1115,12 @@ class SubspaceLocal(Subspace):
             return self._toarray(means_and_counts)[:, 0]
 
         def mean_map(thread_index, i1, i2, *blocks):
-            if self.is_masked or self.dataset.filtered:
-                mask = self.dataset.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
+            if self.is_masked or self.df.filtered:
+                mask = self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
                 return [(np.nanmean(block[mask]**moment), np.count_nonzero(~np.isnan(block[mask]))) for block in blocks]
             else:
                 return [(np.nanmean(block**moment), np.count_nonzero(~np.isnan(block))) for block in blocks]
-        task = TaskMapReduce(self.dataset, self.expressions, mean_map, mean_reduce, remove_counts, info=True)
+        task = TaskMapReduce(self.df, self.expressions, mean_map, mean_reduce, remove_counts, info=True)
         return self._task(task)
 
     def var(self, means=None):
@@ -1133,21 +1133,21 @@ class SubspaceLocal(Subspace):
 
         def remove_counts(vars_and_counts):
             return self._toarray(vars_and_counts)[:, 0]
-        if self.is_masked or self.dataset.filtered:
+        if self.is_masked or self.df.filtered:
             def var_map(thread_index, i1, i2, *blocks):
-                mask = self.dataset.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
+                mask = self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
                 if means is not None:
                     return [(np.nanmean((block[mask] - mean)**2), np.count_nonzero(~np.isnan(block[mask]))) for block, mean in zip(blocks, means)]
                 else:
                     return [(np.nanmean(block[mask]**2), np.count_nonzero(~np.isnan(block[mask]))) for block in blocks]
-            task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, remove_counts, info=True)
+            task = TaskMapReduce(self.df, self.expressions, var_map, vars_reduce, remove_counts, info=True)
         else:
             def var_map(*blocks):
                 if means is not None:
                     return [(np.nanmean((block - mean)**2), np.count_nonzero(~np.isnan(block))) for block, mean in zip(blocks, means)]
                 else:
                     return [(np.nanmean(block**2), np.count_nonzero(~np.isnan(block))) for block in blocks]
-            task = TaskMapReduce(self.dataset, self.expressions, var_map, vars_reduce, remove_counts)
+            task = TaskMapReduce(self.df, self.expressions, var_map, vars_reduce, remove_counts)
         return self._task(task)
 
     def correlation(self, means=None, vars=None):
@@ -1172,7 +1172,7 @@ class SubspaceLocal(Subspace):
                     covar2, count2 = covar_and_count2
                     return [np.nansum([covar1, covar2]), count1 + count2]
 
-            mask = self.dataset.mask
+            mask = self.df.mask
 
             def covar_map(thread_index, i1, i2, *blocks):
                 # return [(np.nanmean((block[mask[i1:i2]]-mean)**2), np.count_nonzero(~np.isnan(block[mask[i1:i2]]))) for block, mean in zip(blocks, means)]
@@ -1185,7 +1185,7 @@ class SubspaceLocal(Subspace):
                 else:
                     return np.nansum((blockx - meanx) * (blocky - meany)), counts
 
-            task = TaskMapReduce(self.dataset, self.expressions, covar_map, covars_reduce, remove_counts_and_normalize, info=True)
+            task = TaskMapReduce(self.df, self.expressions, covar_map, covars_reduce, remove_counts_and_normalize, info=True)
             return self._task(task)
         if means is None:
             if self.delay:
@@ -1222,13 +1222,13 @@ class SubspaceLocal(Subspace):
         def nansum(x): return np.nansum(x, dtype=np.float64)
         # TODO: we can speed up significantly using our own nansum, probably the same for var and mean
         nansum = vaex.vaexfast.nansum
-        if self.is_masked or self.dataset.filtered:
-            task = TaskMapReduce(self.dataset,
-                                 self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[self.dataset.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)])
+        if self.is_masked or self.df.filtered:
+            task = TaskMapReduce(self.df,
+                                 self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)])
                                                                                           for block in blocks],
                                  lambda a, b: np.array(a) + np.array(b), self._toarray, info=True)
         else:
-            task = TaskMapReduce(self.dataset, self.expressions, lambda *blocks: [nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
+            task = TaskMapReduce(self.df, self.expressions, lambda *blocks: [nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
         return self._task(task)
 
     def histogram(self, limits, size=256, weight=None, progressbar=False, group_by=None, group_limits=None):
@@ -1238,7 +1238,7 @@ class SubspaceLocal(Subspace):
             limits = list(limits) + [group_limits[:2]]  # [[group_limits[0] - 0,5, group_limits[1]+0.5]]
             # assert group_limits[2] == 1
             size = (group_limits[2],) + (size,) * (len(expressions) - 1)
-        task = TaskHistogram(self.dataset, self, expressions, size, limits, masked=self.is_masked, weight=weight)
+        task = TaskHistogram(self.df, self, expressions, size, limits, masked=self.is_masked, weight=weight)
         return self._task(task, progressbar=progressbar)
 
     def bin_mean(self, expression, limits, size=256, progressbar=False, group_by=None, group_limits=None):
@@ -1281,7 +1281,7 @@ class SubspaceLocal(Subspace):
         import scipy.ndimage
         limits = []
         for expr in self.expressions:
-            subspace = self.dataset(expr)
+            subspace = self.df(expr)
             if self.is_selected():
                 subspace = subspace.selected()
             limits_minmax = subspace.minmax()
@@ -1320,14 +1320,14 @@ class SubspaceLocal(Subspace):
             return np.array(list(zip(means - sigmas * stds, means + sigmas * stds)))
 
     def _not_needed_current(self):
-        index = self.dataset.get_current_row()
+        index = self.df.get_current_row()
 
         def find(thread_index, i1, i2, *blocks):
             if (index >= i1) and (index < i2):
                 return [block[index - i1] for block in blocks]
             else:
                 return None
-        task = TaskMapReduce(self.dataset, self.expressions, find, lambda a, b: a if b is None else b, info=True)
+        task = TaskMapReduce(self.df, self.expressions, find, lambda a, b: a if b is None else b, info=True)
         return self._task(task)
 
     def nearest(self, point, metric=None):
@@ -1335,7 +1335,7 @@ class SubspaceLocal(Subspace):
 
         def nearest_in_block(thread_index, i1, i2, *blocks):
             if self.is_masked:
-                mask = self.dataset.evaluate_selection_mask("default", i1=i1, i2=i2)
+                mask = self.df.evaluate_selection_mask("default", i1=i1, i2=i2)
                 if mask.sum() == 0:
                     return None
                 blocks = [block[mask] for block in blocks]
@@ -1358,7 +1358,7 @@ class SubspaceLocal(Subspace):
                 return b
         if self.is_masked:
             pass
-        task = TaskMapReduce(self.dataset,
+        task = TaskMapReduce(self.df,
                              self.expressions,
                              nearest_in_block,
                              nearest_reduce, info=True)

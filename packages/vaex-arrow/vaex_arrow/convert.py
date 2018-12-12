@@ -46,7 +46,7 @@ def numpy_array_from_arrow_array(arrow_array):
     return array
 
 
-def arrow_table_from_vaex_dataset(ds, column_names=None, selection=None, strings=True, virtual=False):
+def arrow_table_from_vaex_df(ds, column_names=None, selection=None, strings=True, virtual=False):
     """Implementation of Dataset.to_arrow_table"""
     names = []
     arrays = []
@@ -55,6 +55,6 @@ def arrow_table_from_vaex_dataset(ds, column_names=None, selection=None, strings
         arrays.append(arrow_array_from_numpy_array(array))
     return pyarrow.Table.from_arrays(arrays, names)
 
-def vaex_dataset_from_arrow_table(table):
+def vaex_df_from_arrow_table(table):
     from .dataset import DatasetArrow
     return DatasetArrow(table=table)

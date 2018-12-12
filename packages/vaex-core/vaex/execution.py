@@ -35,14 +35,14 @@ class UserAbort(Exception):
         super(UserAbort, self).__init__(reason)
 
 
-class Column(collections.namedtuple('Column', ['dataset', 'expression'])):
+class Column(collections.namedtuple('Column', ['df', 'expression'])):
     def needs_copy(self):
         return not \
-            (self.expression in self.dataset.column_names and not
-             isinstance(self.dataset.columns[self.expression], vaex.dataset._ColumnConcatenatedLazy) and
-             self.dataset.columns[self.expression].dtype.type == np.float64 and
-             self.dataset.columns[self.expression].strides[0] == 8 and
-             self.expression not in self.dataset.virtual_columns)
+            (self.expression in self.df.column_names and not
+             isinstance(self.df.columns[self.expression], vaex.df._ColumnConcatenatedLazy) and
+             self.df.columns[self.expression].dtype.type == np.float64 and
+             self.df.columns[self.expression].strides[0] == 8 and
+             self.expression not in self.df.virtual_columns)
         # and False:
 
 
@@ -124,7 +124,7 @@ class Executor(object):
             # as long as that code is using delay tasks (i.e. promises) we can simple return here, since after
             # the execute is almost finished, any new tasks added to the task_queue will get executing
             return
-        # u 'column' is uniquely identified by a tuple of (dataset, expression)
+        # u 'column' is uniquely identified by a tuple of (df, expression)
         self._is_executing = True
         try:
             t0 = time.time()
@@ -142,7 +142,7 @@ class Executor(object):
 
             # for task in self.task_queue:
             # print task, task.expressions_all
-            datasets = set(task.dataset for task in task_queue_all)
+            dfs = set(task.df for task in task_queue_all)
             cancelled = [False]
 
             def cancel():
@@ -150,17 +150,17 @@ class Executor(object):
                 self.signal_cancel.emit()
                 cancelled[0] = True
             try:
-                # process tasks per dataset
+                # process tasks per df
                 self.signal_begin.emit()
-                for dataset in datasets:
+                for df in dfs:
                     self.passes += 1
-                    task_queue = [task for task in task_queue_all if task.dataset == dataset]
+                    task_queue = [task for task in task_queue_all if task.df == df]
                     expressions = list(set(expression for task in task_queue for expression in task.expressions_all))
 
                     for task in task_queue:
                         task._results = []
                         task.signal_progress.emit(0)
-                    block_scopes = [dataset._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
+                    block_scopes = [df._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
 
                     def process(thread_index, i1, i2):
                         if not cancelled[0]:
@@ -176,7 +176,7 @@ class Executor(object):
                                 # self.thread_mover(task.signal_progress, float(i2)/length)
 # time.sleep(0.1)
 
-                    length = dataset.active_length()
+                    length = df.active_length()
                     parts = vaex.utils.subdivide(length, max_length=self.buffer_size)
                     if not self.zig:
                         parts = list(parts)[::-1]
