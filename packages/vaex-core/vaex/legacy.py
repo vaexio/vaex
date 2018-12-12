@@ -2,7 +2,8 @@
 from __future__ import division, print_function
 import numpy as np
 import vaex
-from .dataset import Task, TaskMapReduce, _parse_f
+from .tasks import Task, TaskMapReduce
+from .utils import _parse_f
 import six
 
 

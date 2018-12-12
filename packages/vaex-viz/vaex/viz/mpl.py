@@ -1,7 +1,8 @@
 import ast
 import numpy as np
 import logging
-from vaex.dataset import Dataset, _parse_n, _parse_f, _ensure_string_from_expression, \
+from vaex.dataframe import DataFrame
+from vaex.utils import _parse_n, _parse_f, _ensure_string_from_expression, \
     _ensure_strings_from_expressions, _ensure_list,\
     _expand_limits, _expand_shape, _expand, _parse_reduction, _issequence
 import vaex.utils
@@ -20,7 +21,7 @@ def add_plugin():
 def patch(f):
     '''Adds method f to the Dataset class'''
     name = f.__name__
-    setattr(Dataset, name, f)
+    setattr(DataFrame, name, f)
     return f
 
 

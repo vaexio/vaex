@@ -22,11 +22,11 @@ Visualization.
 
 .. autosummary::
     
-    vaex.dataset.Dataset.plot
-    vaex.dataset.Dataset.plot1d
-    vaex.dataset.Dataset.scatter
-    vaex.dataset.Dataset.plot_widget
-    vaex.dataset.Dataset.healpix_plot
+    vaex.dataframe.DataFrame.plot
+    vaex.dataframe.DataFrame.plot1d
+    vaex.dataframe.DataFrame.scatter
+    vaex.dataframe.DataFrame.plot_widget
+    vaex.dataframe.DataFrame.healpix_plot
 
 
 Statistics.
@@ -34,18 +34,18 @@ Statistics.
 
 .. autosummary::
     
-    vaex.dataset.Dataset.count
-    vaex.dataset.Dataset.mean
-    vaex.dataset.Dataset.std
-    vaex.dataset.Dataset.var
-    vaex.dataset.Dataset.cov
-    vaex.dataset.Dataset.correlation
-    vaex.dataset.Dataset.median_approx
-    vaex.dataset.Dataset.mode
-    vaex.dataset.Dataset.min
-    vaex.dataset.Dataset.max
-    vaex.dataset.Dataset.minmax
-    vaex.dataset.Dataset.mutual_information
+    vaex.dataframe.DataFrame.count
+    vaex.dataframe.DataFrame.mean
+    vaex.dataframe.DataFrame.std
+    vaex.dataframe.DataFrame.var
+    vaex.dataframe.DataFrame.cov
+    vaex.dataframe.DataFrame.correlation
+    vaex.dataframe.DataFrame.median_approx
+    vaex.dataframe.DataFrame.mode
+    vaex.dataframe.DataFrame.min
+    vaex.dataframe.DataFrame.max
+    vaex.dataframe.DataFrame.minmax
+    vaex.dataframe.DataFrame.mutual_information
 
 
 .. toctree::
@@ -59,18 +59,18 @@ vaex-core
     :show-inheritance:
 
 
-Dataset class
+DataFrame class
 ~~~~~~~~~~~~~
 
-.. autoclass:: vaex.dataset.Dataset
+.. autoclass:: vaex.dataframe.DataFrame
      :members:
      :special-members:
 
 
-DatasetLocal class
+DataFrameLocal class
 ~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: vaex.dataset.DatasetLocal
+.. autoclass:: vaex.dataframe.DataFrameLocal
      :members:
      :special-members:
 
@@ -98,10 +98,10 @@ vaex.stat module
 .. ----------
 
 
-.. vaex.dataset module
+.. vaex.dataframe module
 .. -------------------
 
-.. .. automodule:: vaex.dataset
+.. .. automodule:: vaex.dataframe
 ..     :members:
 ..     :undoc-members:
 ..     :show-inheritance:
@@ -109,10 +109,10 @@ vaex.stat module
 
 
 
-.. vaex.dataset module
+.. vaex.dataframe module
 .. -------------------
 
-.. .. automodule:: vaex.dataset
+.. .. automodule:: vaex.dataframe
 ..     :members: Dataset, DatasetLocal, DatasetConcatenated, DatasetArrays, DatasetMemoryMapped
 ..     :undoc-members:
 ..     :show-inheritance:

@@ -1991,7 +1991,7 @@ class TestDataset(unittest.TestCase):
 
 		total_subset = self.dataset("x").selected().sum()
 		self.assertLess(total_subset, total)
-		for mode in vaex.dataset._select_functions.keys():
+		for mode in vaex.selections._select_functions.keys():
 			self.dataset.select("x > 5")
 			self.dataset.select("x > 5", mode)
 			self.dataset.select(None)
@@ -2134,7 +2134,7 @@ class TestDataset(unittest.TestCase):
 		self.assertTrue(self.dataset.selection_can_redo())
 
 	def test_selection_serialize(self):
-		selection_expression = vaex.dataset.SelectionExpression("x > 5", None, "and")
+		selection_expression = vaex.selections.SelectionExpression("x > 5", None, "and")
 		self.dataset.set_selection(selection_expression)
 		total_subset = self.dataset("x").selected().sum()
 
@@ -2143,12 +2143,12 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(total_subset, total_subset_same)
 
 		values = selection_expression.to_dict()
-		self.dataset.set_selection(vaex.dataset.selection_from_dict(values))
+		self.dataset.set_selection(vaex.selections.selection_from_dict(values))
 		total_subset_same2 = self.dataset("x").selected().sum()
 		self.assertEqual(total_subset, total_subset_same2)
 
-		selection_expression = vaex.dataset.SelectionExpression("x > 5", None, "and")
-		selection_lasso = vaex.dataset.SelectionLasso("x", "y", [0, 10, 10, 0], [-1, -1, 100, 100], selection_expression, "and")
+		selection_expression = vaex.selections.SelectionExpression("x > 5", None, "and")
+		selection_lasso = vaex.selections.SelectionLasso("x", "y", [0, 10, 10, 0], [-1, -1, 100, 100], selection_expression, "and")
 		self.dataset.set_selection(selection_lasso)
 		total_2 = self.dataset.sum("x", selection=True)
 		self.assertEqual(total_2, total_subset)

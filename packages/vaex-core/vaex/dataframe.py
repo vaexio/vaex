@@ -30,6 +30,8 @@ import vaex.execution
 import vaex.expresso
 import logging
 import vaex.kld
+from . import selections, tasks, scopes
+from .functions import expression_namespace
 from .delayed import delayed, delayed_args, delayed_list
 import vaex.events
 
@@ -56,775 +58,24 @@ def _requires(name):
         raise RuntimeError('this function is wrapped by a placeholder, you probably want to install vaex-' + name)
     return wrap
 
-
-def _parse_f(f):
-    if f is None:
-        return lambda x: x
-    elif isinstance(f, six.string_types):
-        if f == "identity":
-            return lambda x: x
-        else:
-            if hasattr(np, f):
-                return getattr(np, f)
-            else:
-                raise ValueError("do not understand f = %s, should be a function, string 'identity' or a function from numpy such as 'log', 'log1p'" % f)
-    else:
-        return f
-
-
-def _normalize(a, axis=None):
-    a = np.copy(a)  # we're gonna modify inplace, better copy iy
-    mask = np.isfinite(a)
-    a[~mask] = np.nan  # put inf to nan
-    allaxis = list(range(len(a.shape)))
-    if axis is not None:
-        if type(axis) == int:
-            axis = [axis]
-        for ax in axis:
-            allaxis.remove(ax)
-        axis = tuple(allaxis)
-    vmin = np.nanmin(a)
-    vmax = np.nanmax(a)
-    a = a - np.nanmin(a, axis=axis, keepdims=True)
-    a /= np.nanmax(a, axis=axis, keepdims=True)
-    return a, vmin, vmax
-
-
-def _normalize_selection_name(name):
-    if name is True:
-        return "default"
-    elif name is False:
-        return None
-    else:
-        return name
-
-
-def _parse_n(n):
-    if isinstance(n, six.string_types):
-        if n == "normalize":
-            return _normalize
-            # return lambda x: x
-        else:
-            raise ValueError("do not understand n = %s, should be a function, or string 'normalize'" % n)
-    else:
-        return n
-
-
-def _parse_reduction(name, colormap, colors):
-    if name.startswith("stack.fade"):
-        def _reduce_stack_fade(grid):
-            return grid[..., -1]  # return last..
-        return _reduce_stack_fade
-    elif name.startswith("colormap"):
-        import matplotlib.cm
-        cmap = matplotlib.cm.get_cmap(colormap)
-
-        def f(grid):
-            masked_grid = np.ma.masked_invalid(grid)  # convert inf/nan to a mask so that mpl colors bad values correcty
-            return cmap(masked_grid)
-        return f
-    elif name.startswith("stack.color"):
-        def f(grid, colors=colors, colormap=colormap):
-            import matplotlib.cm
-            colormap = matplotlib.cm.get_cmap(colormap)
-            if isinstance(colors, six.string_types):
-                colors = matplotlib.cm.get_cmap(colors)
-            if isinstance(colors, matplotlib.colors.Colormap):
-                group_count = grid.shape[-1]
-                colors = [colors(k / float(group_count - 1.)) for k in range(group_count)]
-            else:
-                colors = [matplotlib.colors.colorConverter.to_rgba(k) for k in colors]
-            # print grid.shape
-            total = np.nansum(grid, axis=0) / grid.shape[0]
-            # grid /= total
-            # mask = total > 0
-            # alpha = total - total[mask].min()
-            # alpha[~mask] = 0
-            # alpha = total / alpha.max()
-            # print np.nanmax(total), np.nanmax(grid)
-            return colormap(total)
-            rgba = grid.dot(colors)
-            # def _norm(data):
-            #   mask = np.isfinite(data)
-            #   data = data - data[mask].min()
-            #   data /= data[mask].max()
-            #   return data
-            # rgba[...,3] = (f(alpha))
-            # rgba[...,3] = 1
-            rgba[total == 0, 3] = 0.
-            # mask = alpha > 0
-            # if 1:
-            #   for i in range(3):
-            #       rgba[...,i] /= total
-            #       #rgba[...,i] /= rgba[...,0:3].max()
-            #       rgba[~mask,i] = background_color[i]
-            # rgba = (np.swapaxes(rgba, 0, 1))
-            return rgba
-        return f
-
-    else:
-        raise ValueError("do not understand reduction = %s, should be a ..." % name)
-
-
-def _is_string(x):
-    return isinstance(x, six.string_types)
-
-
-def _issequence(x):
-    return isinstance(x, (tuple, list, np.ndarray))
-
-
-def _isnumber(x):
-    return isinstance(x, numbers.Number)
-
-
-def _is_limit(x):
-    return isinstance(x, (tuple, list, np.ndarray)) and all([_isnumber(k) for k in x])
-
-
-def _ensure_list(x):
-    return [x] if not _issequence(x) else x
-
-
-def _ensure_string_from_expression(expression):
-    if expression is None:
-        return None
-    elif isinstance(expression, bool):
-        return expression
-    elif isinstance(expression, six.string_types):
-        return expression
-    elif isinstance(expression, Expression):
-        return expression.expression
-    else:
-        raise ValueError('%r is not of string or Expression type, but %r' % (expression, type(expression)))
-
-
-def _ensure_strings_from_expressions(expressions):
-    if _issequence(expressions):
-        return [_ensure_strings_from_expressions(k) for k in expressions]
-    else:
-        return _ensure_string_from_expression(expressions)
-
-
-class Task(vaex.promise.Promise):
-    """
-    :type: signal_progress: Signal
-    """
-
-    def __init__(self, df=None, expressions=[], name="task"):
-        vaex.promise.Promise.__init__(self)
-        self.df = df
-        self.expressions = expressions
-        self.expressions_all = list(expressions)
-        self.signal_progress = vaex.events.Signal("progress (float)")
-        self.progress_fraction = 0
-        self.signal_progress.connect(self._set_progress)
-        self.cancelled = False
-        self.name = name
-
-    def _set_progress(self, fraction):
-        self.progress_fraction = fraction
-        return not self.cancelled  # don't cancel
-
-    def cancel(self):
-        self.cancelled = True
-
-    @property
-    def dimension(self):
-        return len(self.expressions)
-
-    @classmethod
-    def create(cls):
-        ret = Task()
-        return ret
-
-    def create_next(self):
-        ret = Task(self.df, [])
-        self.signal_progress.connect(ret.signal_progress.emit)
-        return ret
-
-
-class TaskBase(Task):
-    def __init__(self, df, expressions, selection=None, to_float=False, dtype=np.float64, name="TaskBase"):
-        if not isinstance(expressions, (tuple, list)):
-            expressions = [expressions]
-        # edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension
-        self.selection_waslist, [self.selections, ] = vaex.utils.listify(selection)
-        Task.__init__(self, df, expressions, name=name)
-        self.to_float = to_float
-        self.dtype = dtype
-
-    def map(self, thread_index, i1, i2, *blocks):
-        class Info(object):
-            pass
-        info = Info()
-        info.i1 = i1
-        info.i2 = i2
-        info.first = i1 == 0
-        info.last = i2 == self.df.length_unfiltered()
-        info.size = i2 - i1
-
-        masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
-        blocks = [block.data if np.ma.isMaskedArray(block) else block for block in blocks]
-        mask = None
-        if masks:
-            # find all 'rows', where all columns are present (not masked)
-            mask = masks[0].copy()
-            for other in masks[1:]:
-                mask |= other
-            # masked arrays mean mask==1 is masked, for vaex we use mask==1 is used
-            # blocks = [block[~mask] for block in blocks]
-
-        if self.to_float:
-            blocks = [as_flat_float(block) for block in blocks]
-
-        for i, selection in enumerate(self.selections):
-            if selection or self.df.filtered:
-                selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
-                if selection_mask is None:
-                    raise ValueError("performing operation on selection while no selection present")
-                if mask is not None:
-                    selection_mask = selection_mask[~mask]
-                selection_blocks = [block[selection_mask] for block in blocks]
-            else:
-                selection_blocks = [block for block in blocks]
-            little_endians = len([k for k in selection_blocks if k.dtype.byteorder in ["<", "="]])
-            if not ((len(selection_blocks) == little_endians) or little_endians == 0):
-                def _to_native(ar):
-                    if ar.dtype.byteorder not in ["<", "="]:
-                        dtype = ar.dtype.newbyteorder()
-                        return ar.astype(dtype)
-                    else:
-                        return ar
-
-                selection_blocks = [_to_native(k) for k in selection_blocks]
-            subblock_weight = None
-            if len(selection_blocks) == len(self.expressions) + 1:
-                subblock_weight = selection_blocks[-1]
-                selection_blocks = list(selection_blocks[:-1])
-            self.map_processed(thread_index, i1, i2, mask, *blocks)
-        return i2 - i1
-
-
-class TaskMapReduce(Task):
-    def __init__(self, df, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False, name="task"):
-        Task.__init__(self, df, expressions, name=name)
-        self._map = map
-        self._reduce = reduce
-        self.converter = converter
-        self.info = info
-        self.to_float = to_float
-
-    def map(self, thread_index, i1, i2, *blocks):
-        if self.to_float:
-            blocks = [as_flat_float(block) for block in blocks]
-        if self.info:
-            return self._map(thread_index, i1, i2, *blocks)
-        else:
-            return self._map(*blocks)  # [self.map(block) for block in blocks]
-
-    def reduce(self, results):
-        return self.converter(reduce(self._reduce, results))
-
-
-class TaskApply(TaskBase):
-    def __init__(self, df, expressions, f, info=False, to_float=False, name="apply", masked=False, dtype=np.float64):
-        TaskBase.__init__(self, df, expressions, selection=None, to_float=to_float, name=name)
-        self.f = f
-        self.dtype = dtype
-        self.data = np.zeros(df.length_unfiltered(), dtype=self.dtype)
-        self.mask = None
-        if masked:
-            self.mask = np.zeros(df.length_unfiltered(), dtype=np.bool)
-            self.array = np.ma.array(self.data, mask=self.mask, shrink=False)
-        else:
-            self.array = self.data
-        self.info = info
-        self.to_float = to_float
-
-    def map_processed(self, thread_index, i1, i2, mask, *blocks):
-        if self.to_float:
-            blocks = [as_flat_float(block) for block in blocks]
-        print(len(self.array), i1, i2)
-        for i in range(i1, i2):
-            print(i)
-            if mask is None or mask[i]:
-                v = [block[i - i1] for block in blocks]
-                self.data[i] = self.f(*v)
-                if mask is not None:
-                    self.mask[i] = False
-            else:
-                self.mask[i] = True
-
-            print(v)
-            print(self.array, self.array.dtype)
-        return None
-
-    def reduce(self, results):
-        return None
-
-
-# import numba
-# @numba.jit(nopython=True, nogil=True)
-# def histogram_numba(x, y, weight, grid, xmin, xmax, ymin, ymax):
-#    scale_x = 1./ (xmax-xmin);
-#    scale_y = 1./ (ymax-ymin);
-#    counts_length_y, counts_length_x = grid.shape
-#    for i in range(len(x)):
-#        value_x = x[i];
-#        value_y = y[i];
-#        scaled_x = (value_x - xmin) * scale_x;
-#        scaled_y = (value_y - ymin) * scale_y;
-#
-#        if ( (scaled_x >= 0) & (scaled_x < 1) &  (scaled_y >= 0) & (scaled_y < 1) ) :
-#            index_x = (int)(scaled_x * counts_length_x);
-#            index_y = (int)(scaled_y * counts_length_y);
-#            grid[index_y, index_x] += 1;
-
-
-class StatOp(object):
-    def __init__(self, code, fields, reduce_function=np.nansum):
-        self.code = code
-        self.fixed_fields = fields
-        self.reduce_function = reduce_function
-
-    def init(self, grid):
-        pass
-
-    def fields(self, weights):
-        return self.fixed_fields
-
-    def reduce(self, grid, axis=0):
-        return self.reduce_function(grid, axis=axis)
-
-
-class StatOpMinMax(StatOp):
-    def __init__(self, code, fields):
-        super(StatOpMinMax, self).__init__(code, fields)
-
-    def init(self, grid):
-        grid[..., 0] = np.inf
-        grid[..., 1] = -np.inf
-
-    def reduce(self, grid, axis=0):
-        out = np.zeros(grid.shape[1:], dtype=grid.dtype)
-        out[..., 0] = np.nanmin(grid[..., 0], axis=axis)
-        out[..., 1] = np.nanmax(grid[..., 1], axis=axis)
-        return out
-
-
-class StatOpCov(StatOp):
-    def __init__(self, code, fields=None, reduce_function=np.sum):
-        super(StatOpCov, self).__init__(code, fields, reduce_function=reduce_function)
-
-    def fields(self, weights):
-        N = len(weights)
-        # counts, sums, cross product sums
-        return N * 2 + N**2 * 2  # ((N+1) * N) // 2 *2
-
-class StatOpFirst(StatOp):
-    def __init__(self, code):
-        super(StatOpFirst, self).__init__(code, 2, reduce_function=self._reduce_function)
-
-    def init(self, grid):
-        grid[..., 0] = np.nan
-        grid[..., 1] = np.inf
-
-    def _reduce_function(self, grid, axis=0):
-        values = grid[...,0]
-        order_values = grid[...,1]
-        indices = np.argmin(order_values, axis=0)
-
-        # see e.g. https://stackoverflow.com/questions/46840848/numpy-how-to-use-argmax-results-to-get-the-actual-max?noredirect=1&lq=1
-        # and https://jakevdp.github.io/PythonDataScienceHandbook/02.07-fancy-indexing.html
-        if len(values.shape) == 2:  # no binby
-            return values[indices, np.arange(values.shape[1])[:,None]][0]
-        if len(values.shape) == 3:  # 1d binby
-            return values[indices, np.arange(values.shape[1])[:,None], np.arange(values.shape[2])]
-        if len(values.shape) == 4:  # 2d binby
-            return values[indices, np.arange(values.shape[1])[:,None], np.arange(values.shape[2])[None,:,None], np.arange(values.shape[3])]
-        else:
-            raise ValueError('dimension %d not yet supported' % len(values.shape))
-
-    def fields(self, weights):
-        # the value found, and the value by which it is ordered
-        return 2
-
-
-OP_ADD1 = StatOp(0, 1)
-OP_COUNT = StatOp(1, 1)
-OP_MIN_MAX = StatOpMinMax(2, 2)
-OP_ADD_WEIGHT_MOMENTS_01 = StatOp(3, 2, np.nansum)
-OP_ADD_WEIGHT_MOMENTS_012 = StatOp(4, 3, np.nansum)
-OP_COV = StatOpCov(5)
-OP_FIRST = StatOpFirst(6)
-
-
-def _expand(x, dimension, type=tuple):
-    if _issequence(x):
-        assert len(x) == dimension, "wants to expand %r to dimension %d" % (x, dimension)
-        return type(x)
-    else:
-        return type((x,) * dimension)
-
-
-def _expand_shape(shape, dimension):
-    if isinstance(shape, (tuple, list)):
-        assert len(shape) == dimension, "wants to expand shape %r to dimension %d" % (shape, dimension)
-        return tuple(shape)
-    else:
-        return (shape,) * dimension
-
-
-def _expand_limits(limits, dimension):
-    if isinstance(limits, (tuple, list, np.ndarray)) and \
-            (isinstance(limits[0], (tuple, list, np.ndarray)) or isinstance(limits[0], six.string_types)):
-        assert len(limits) == dimension, "wants to expand shape %r to dimension %d" % (limits, dimension)
-        return tuple(limits)
-    else:
-        return [limits, ] * dimension
-
-
-def as_flat_float(a):
-    if a.dtype.type == np.float64 and a.strides[0] == 8:
-        return a
-    else:
-        return a.astype(np.float64, copy=True)
-
-def as_flat_array(a, dtype=np.float64):
-    if a.dtype.type == dtype and a.strides[0] == 8:
-        return a
-    else:
-        return a.astype(dtype, copy=True)
-
-
-def _split_and_combine_mask(arrays):
-	'''Combines all masks from a list of arrays, and logically ors them into a single mask'''
-	masks = [np.ma.getmaskarray(block) for block in arrays if np.ma.isMaskedArray(block)]
-	arrays = [block.data if np.ma.isMaskedArray(block) else block for block in arrays]
-	mask = None
-	if masks:
-		mask = masks[0].copy()
-		for other in masks[1:]:
-			mask |= other
-	return arrays, mask
-
-class TaskStatistic(Task):
-    def __init__(self, df, expressions, shape, limits, masked=False, weights=[], weight=None, op=OP_ADD1, selection=None, edges=False):
-        if not isinstance(expressions, (tuple, list)):
-            expressions = [expressions]
-        # edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension
-        self.shape = tuple([k + 3 if edges else k for k in _expand_shape(shape, len(expressions))])
-        self.limits = limits
-        if weight is not None:  # shortcut for weights=[weight]
-            assert weights == [], 'only provide weight or weights, not both'
-            weights = [weight]
-            del weight
-        self.weights = weights
-        self.selection_waslist, [self.selections, ] = vaex.utils.listify(selection)
-        self.op = op
-        self.edges = edges
-        Task.__init__(self, df, expressions, name="statisticNd")
-        #self.dtype = np.int64 if self.op == OP_ADD1 else np.float64 # TODO: use int64 fir count and ADD1
-        self.dtype = np.float64
-        self.masked = masked
-
-        self.fields = op.fields(weights)
-        self.shape_total = (self.df.executor.thread_pool.nthreads,) + (len(self.selections), ) + self.shape + (self.fields,)
-        self.grid = np.zeros(self.shape_total, dtype=self.dtype)
-        self.op.init(self.grid)
-        self.minima = []
-        self.maxima = []
-        limits = np.array(self.limits)
-        if len(limits) != 0:
-            logger.debug("limits = %r", limits)
-            assert limits.shape[-1] == 2, "expected last dimension of limits to have a length of 2 (not %d, total shape: %s), of the form [[xmin, xmin], ... [zmin, zmax]], not %s" % (limits.shape[-1], limits.shape, limits)
-            if len(limits.shape) == 1:  # short notation: [xmin, max], instead of [[xmin, xmax]]
-                limits = [limits]
-            logger.debug("limits = %r", limits)
-            for limit in limits:
-                vmin, vmax = limit
-                self.minima.append(float(vmin))
-                self.maxima.append(float(vmax))
-        # if self.weight is not None:
-        self.expressions_all.extend(weights)
-
-    def __repr__(self):
-        name = self.__class__.__module__ + "." + self.__class__.__name__
-        return "<%s(df=%r, expressions=%r, shape=%r, limits=%r, weights=%r, selections=%r, op=%r)> instance at 0x%x" % (name, self.df, self.expressions, self.shape, self.limits, self.weights, self.selections, self.op, id(self))
-
-
-    def map(self, thread_index, i1, i2, *blocks):
-        class Info(object):
-            pass
-        info = Info()
-        info.i1 = i1
-        info.i2 = i2
-        info.first = i1 == 0
-        info.last = i2 == self.df.length_unfiltered()
-        info.size = i2 - i1
-
-        masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
-        blocks = [block.data if np.ma.isMaskedArray(block) else block for block in blocks]
-        mask = None
-        if masks:
-            mask = masks[0].copy()
-            for other in masks[1:]:
-                mask |= other
-            blocks = [block[~mask] for block in blocks]
-
-        #blocks = [as_flat_float(block) for block in blocks]
-        if len(blocks) != 0:
-            dtype = np.find_common_type([block.dtype for block in blocks], [])
-            histogram2d = vaex.vaexfast.histogram2d
-            if dtype.str in ">f8 <f8 =f8":
-                statistic_function = vaex.vaexfast.statisticNd_f8
-            elif dtype.str in ">f4 <f4 =f4":
-                statistic_function = vaex.vaexfast.statisticNd_f4
-                histogram2d = vaex.vaexfast.histogram2d_f4
-            elif dtype.str in ">i8 <i8 =i8":
-                dtype = np.dtype(np.float64)
-                statistic_function = vaex.vaexfast.statisticNd_f8
-            else:
-                dtype = np.dtype(np.float32)
-                statistic_function = vaex.vaexfast.statisticNd_f4
-                histogram2d = vaex.vaexfast.histogram2d_f4
-            #print(dtype, statistic_function, histogram2d)
-
-        blocks = [as_flat_array(block, dtype) for block in blocks]
-
-        this_thread_grid = self.grid[thread_index]
-        for i, selection in enumerate(self.selections):
-            if selection or self.df.filtered:
-                selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
-                if selection_mask is None:
-                    raise ValueError("performing operation on selection while no selection present")
-                if mask is not None:
-                    selection_mask = selection_mask[~mask]
-                selection_blocks = [block[selection_mask] for block in blocks]
-            else:
-                selection_blocks = [block for block in blocks]
-            little_endians = len([k for k in selection_blocks if k.dtype.byteorder in ["<", "="]])
-            if not ((len(selection_blocks) == little_endians) or little_endians == 0):
-                def _to_native(ar):
-                    if ar.dtype.byteorder not in ["<", "="]:
-                        dtype = ar.dtype.newbyteorder()
-                        return ar.astype(dtype)
-                    else:
-                        return ar
-
-                selection_blocks = [_to_native(k) for k in selection_blocks]
-            subblock_weight = None
-            subblock_weights = selection_blocks[len(self.expressions):]
-            selection_blocks = list(selection_blocks[:len(self.expressions)])
-            if len(selection_blocks) == 0 and subblock_weights == []:
-                if self.op == OP_ADD1:  # special case for counting '*' (i.e. the number of rows)
-                    if selection or self.df.filtered:
-                        this_thread_grid[i][0] += np.sum(selection_mask)
-                    else:
-                        this_thread_grid[i][0] += i2 - i1
-                else:
-                    raise ValueError("Nothing to compute for OP %s" % self.op.code)
-            else:
-                #blocks = list(blocks)  # histogramNd wants blocks to be a list
-                # if False: #len(selection_blocks) == 2 and self.op == OP_ADD1:  # special case, slighty faster
-                #     #print('fast case!')
-                #     assert len(subblock_weights) <= 1
-                #     histogram2d(selection_blocks[0], selection_blocks[1], subblock_weights[0] if len(subblock_weights) else None,
-                #                 this_thread_grid[i,...,0],
-                #                 self.minima[0], self.maxima[0], self.minima[1], self.maxima[1])
-                # else:
-                    statistic_function(selection_blocks, subblock_weights, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
-        return i2 - i1
-        # return map(self._map, blocks)#[self.map(block) for block in blocks]
-
-    def reduce(self, results):
-        # for i in range(1, self.subspace.executor.thread_pool.nthreads):
-        #   self.data[0] += self.data[i]
-        # return self.data[0]
-        # return self.data
-        grid = self.op.reduce(self.grid)
-        # If selection was a string, we just return the single selection
-        return grid if self.selection_waslist else grid[0]
-
-
-# mutex for numexpr (is not thread save)
-ne_lock = threading.Lock()
-
-
-class UnitScope(object):
-    def __init__(self, df, value=None):
-        self.df = df
-        self.value = value
-
-    def __getitem__(self, variable):
-        import astropy.units
-        if variable in self.df.units:
-            unit = self.df.units[variable]
-            return (self.value * unit) if self.value is not None else unit
-        elif variable in self.df.virtual_columns:
-            return eval(self.df.virtual_columns[variable], expression_namespace, self)
-        elif variable in self.df.variables:
-            return astropy.units.dimensionless_unscaled  # TODO units for variables?
-        else:
-            raise KeyError("unkown variable %s" % variable)
-
-
-class _BlockScope(object):
-    def __init__(self, df, i1, i2, mask=None, **variables):
-        """
-
-        :param DataFrameLocal DataFrame: the *local*  DataFrame
-        :param i1: start index
-        :param i2: end index
-        :param values:
-        :return:
-        """
-        self.df = df
-        self.i1 = int(i1)
-        self.i2 = int(i2)
-        self.variables = variables
-        self.values = dict(self.variables)
-        self.buffers = {}
-        self.mask = mask if mask is not None else slice(None, None, None)
-
-    def move(self, i1, i2):
-        length_new = i2 - i1
-        length_old = self.i2 - self.i1
-        if length_new > length_old:  # old buffers are too small, discard them
-            self.buffers = {}
-        else:
-            for name in list(self.buffers.keys()):
-                self.buffers[name] = self.buffers[name][:length_new]
-        self.i1 = int(i1)
-        self.i2 = int(i2)
-        self.values = dict(self.variables)
-
-    def _ensure_buffer(self, column):
-        if column not in self.buffers:
-            logger.debug("creating column for: %s", column)
-            self.buffers[column] = np.zeros(self.i2 - self.i1)
-
-    def evaluate(self, expression, out=None):
-        if isinstance(expression, Expression):
-            expression = expression.expression
-        try:
-            # logger.debug("try avoid evaluating: %s", expression)
-            result = self[expression]
-        except:
-            # logger.debug("no luck, eval: %s", expression)
-            # result = ne.evaluate(expression, local_dict=self, out=out)
-            # logger.debug("in eval")
-            # eval("def f(")
-            result = eval(expression, expression_namespace, self)
-            self.values[expression] = result
-            # if out is not None:
-            #   out[:] = result
-            #   result = out
-            # logger.debug("out eval")
-        # logger.debug("done with eval of %s", expression)
-        return result
-
-    def __getitem__(self, variable):
-        # logger.debug("get " + variable)
-        # return self.df.columns[variable][self.i1:self.i2]
-        if variable in expression_namespace:
-            return expression_namespace[variable]
-        try:
-            if variable in self.values:
-                return self.values[variable]
-            elif variable in self.df.get_column_names(virtual=False, hidden=True):
-                offset = self.df._index_start
-                if self.df._needs_copy(variable):
-                    # self._ensure_buffer(variable)
-                    # self.values[variable] = self.buffers[variable] = self.df.columns[variable][self.i1:self.i2].astype(np.float64)
-                    # Previously we casted anything to .astype(np.float64), this led to rounding off of int64, when exporting
-                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][self.mask]
-                else:
-                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][self.mask]
-            elif variable in list(self.df.virtual_columns.keys()):
-                expression = self.df.virtual_columns[variable]
-                if isinstance(expression, dict):
-                    function = expression['function']
-                    arguments = [self.evaluate(k) for k in expression['arguments']]
-                    self.values[variable] = function(*arguments)
-                else:
-                    # self._ensure_buffer(variable)
-                    self.values[variable] = self.evaluate(expression)  # , out=self.buffers[variable])
-                    # self.values[variable] = self.buffers[variable]
-            elif variable in self.df.functions:
-                return self.df.functions[variable].f
-            if variable not in self.values:
-                raise KeyError("Unknown variables or column: %r" % (variable,))
-
-            return self.values[variable]
-        except:
-            # logger.exception("error in evaluating: %r" % variable)
-            raise
-
-
-class _BlockScopeSelection(object):
-    def __init__(self, df, i1, i2, selection=None, cache=False):
-        self.df = df
-        self.i1 = i1
-        self.i2 = i2
-        self.selection = selection
-        self.store_in_cache = cache
-
-    def evaluate(self, expression):
-        if expression is True:
-            expression = "default"
-        try:
-            expression = _ensure_string_from_expression(expression)
-            return eval(expression, expression_namespace, self)
-        except:
-            import traceback as tb
-            tb.print_stack()
-            raise
-
-    def __getitem__(self, variable):
-        # logger.debug("getitem for selection: %s", variable)
-        try:
-            selection = self.selection
-            if selection is None and self.df.has_selection(variable):
-                selection = self.df.get_selection(variable)
-            # logger.debug("selection for %r: %s %r", variable, selection, self.df.selection_histories)
-            key = (self.i1, self.i2)
-            if selection:
-                cache = self.df._selection_mask_caches[variable]
-                # logger.debug("selection cache: %r" % cache)
-                selection_in_cache, mask = cache.get(key, (None, None))
-                # logger.debug("mask for %r is %r", variable, mask)
-                if selection_in_cache == selection:
-                    return mask
-                # logger.debug("was not cached")
-                if variable in self.df.variables:
-                    return self.df.variables[variable]
-                mask = selection.evaluate(self.df, variable, self.i1, self.i2)
-                # logger.debug("put selection in mask with key %r" % (key,))
-                if self.store_in_cache:
-                    cache[key] = selection, mask
-                return mask
-            else:
-                offset = self.df._index_start
-                if variable in expression_namespace:
-                    return expression_namespace[variable]
-                elif variable in self.df.get_column_names(hidden=True, virtual=False):
-                    return self.df.columns[variable][offset+self.i1:offset+self.i2]
-                elif variable in self.df.variables:
-                    return self.df.variables[variable]
-                elif variable in list(self.df.virtual_columns.keys()):
-                    expression = self.df.virtual_columns[variable]
-                    # self._ensure_buffer(variable)
-                    return self.evaluate(expression)  # , out=self.buffers[variable])
-                    # self.values[variable] = self.buffers[variable]
-                raise KeyError("Unknown variables or column: %r" % (variable,))
-        except:
-            import traceback as tb
-            tb.print_exc()
-            logger.exception("error in evaluating: %r" % variable)
-            raise
-
+from .utils import (_ensure_strings_from_expressions,
+    _ensure_string_from_expression,
+    _ensure_list,
+    _is_limit,
+    _isnumber,
+    _issequence,
+    _is_string,
+    _parse_reduction,
+    _parse_n,
+    _normalize_selection_name,
+    _normalize,
+    _parse_f,
+    _expand,
+    _expand_shape,
+    _expand_limits,
+    as_flat_float,
+    as_flat_array,
+    _split_and_combine_mask)
 
 main_executor = None  # vaex.execution.Executor(vaex.multithreading.pool)
 from vaex.execution import Executor
@@ -837,315 +88,9 @@ def get_main_executor():
     return main_executor
 
 
-class Selection(object):
-    def __init__(self, previous_selection, mode):
-        # we don't care about the previous selection if we simply replace the current selection
-        self.previous_selection = previous_selection if mode != "replace" else None
-        self.mode = mode
-
-    def execute(self, datexecutor, execute_fully=False):
-        if execute_fully and self.previous_selection:
-            self.previous_selection.execute(executor=executor, execute_fully=execute_fully)
-
-    def _depending_columns(self, ds):
-        '''Find all columns that this selection depends on for df ds'''
-        depending = set()
-        for expression in self.expressions:
-            expression = ds._expr(expression)  # make sure it is an expression
-            depending |= expression.variables()
-        if self.previous_selection:
-            depending |= self.previous_selection._depending_columns(ds)
-        return depending
-
-
-class SelectionDropNa(Selection):
-    def __init__(self, drop_nan, drop_masked, column_names, previous_selection, mode):
-        super(SelectionDropNa, self).__init__(previous_selection, mode)
-        self.drop_nan = drop_nan
-        self.drop_masked = drop_masked
-        self.column_names = column_names
-        self.expressions = self.column_names
-
-    def to_dict(self):
-        previous = None
-        if self.previous_selection:
-            previous = self.previous_selection.to_dict()
-        return dict(type="dropna", drop_nan=self.drop_nan, drop_masked=self.drop_masked, column_names=self.column_names,
-                    mode=self.mode, previous_selection=previous)
-
-    def _rename(self, df, old, new):
-        pass  # TODO: do we need to rename the column_names?
-
-    def evaluate(self, df, name, i1, i2):
-        if self.previous_selection:
-            previous_mask = df.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
-        else:
-            previous_mask = None
-        mask = np.ones(i2 - i1, dtype=np.bool)
-        for name in self.column_names:
-            data = df._evaluate(name, i1, i2)
-            if self.drop_nan and data.dtype.kind in 'O':
-                if np.ma.isMaskedArray(data):
-                    strings = data.data.astype(str)
-                else:
-                    strings = data.astype(str)
-                mask = mask & (strings != 'nan')
-            elif self.drop_nan and data.dtype.kind == "f":
-                if np.ma.isMaskedArray(data):
-                    mask = mask & ~np.isnan(data.data)
-                else:
-                    mask = mask & ~np.isnan(data)
-            if self.drop_masked and np.ma.isMaskedArray(data):
-                mask = mask & ~data.mask  # ~np.ma.getmaskarray(data)
-        if previous_mask is None:
-            logger.debug("setting mask")
-        else:
-            logger.debug("combining previous mask with current mask using op %r", self.mode)
-            mode_function = _select_functions[self.mode]
-            mask = mode_function(previous_mask, mask)
-        return mask
-
-
-def _rename_expression_string(df, e, old, new):
-    return Expression(self.df, self.boolean_expression)._rename(old, new).expression
-
-class SelectionExpression(Selection):
-    def __init__(self,  boolean_expression, previous_selection, mode):
-        super(SelectionExpression, self).__init__(previous_selection, mode)
-        self.boolean_expression = str(boolean_expression)
-        self.expressions = [self.boolean_expression]
-
-    def _rename(self, df, old, new):
-        boolean_expression = Expression(df, self.boolean_expression)._rename(old, new).expression
-        previous_selection = None
-        if self.previous_selection:
-            previous_selection = self.previous_selection._rename(df, old, new)
-        return SelectionExpression(boolean_expression, previous_selection, self.mode)
-
-    def to_dict(self):
-        previous = None
-        if self.previous_selection:
-            previous = self.previous_selection.to_dict()
-        return dict(type="expression", boolean_expression=str(self.boolean_expression), mode=self.mode, previous_selection=previous)
-
-    def evaluate(self, df, name, i1, i2):
-        if self.previous_selection:
-            previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
-        else:
-            previous_mask = None
-        current_mask = df._evaluate_selection_mask(self.boolean_expression, i1, i2).astype(np.bool)
-        if previous_mask is None:
-            logger.debug("setting mask")
-            mask = current_mask
-        else:
-            logger.debug("combining previous mask with current mask using op %r", self.mode)
-            mode_function = _select_functions[self.mode]
-            mask = mode_function(previous_mask, current_mask)
-        return mask
-
-
-class SelectionInvert(Selection):
-    def __init__(self, previous_selection):
-        super(SelectionInvert, self).__init__(previous_selection, "")
-        self.expressions = []
-
-    def to_dict(self):
-        previous = None
-        if self.previous_selection:
-            previous = self.previous_selection.to_dict()
-        return dict(type="invert", previous_selection=previous)
-
-    def evaluate(self, df, name, i1, i2):
-        previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
-        return ~previous_mask
-
-
-class SelectionLasso(Selection):
-    def __init__(self, boolean_expression_x, boolean_expression_y, xseq, yseq, previous_selection, mode):
-        super(SelectionLasso, self).__init__(previous_selection, mode)
-        self.boolean_expression_x = boolean_expression_x
-        self.boolean_expression_y = boolean_expression_y
-        self.xseq = xseq
-        self.yseq = yseq
-        self.expressions = [boolean_expression_x, boolean_expression_y]
-
-    def evaluate(self, df, name, i1, i2):
-        if self.previous_selection:
-            previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
-        else:
-            previous_mask = None
-        current_mask = np.zeros(i2 - i1, dtype=np.bool)
-        x, y = np.array(self.xseq, dtype=np.float64), np.array(self.yseq, dtype=np.float64)
-        meanx = x.mean()
-        meany = y.mean()
-        radius = np.sqrt((meanx - x)**2 + (meany - y)**2).max()
-        blockx = df._evaluate(self.boolean_expression_x, i1=i1, i2=i2)
-        blocky = df._evaluate(self.boolean_expression_y, i1=i1, i2=i2)
-        (blockx, blocky), excluding_mask = _split_and_combine_mask([blockx, blocky])
-        blockx = as_flat_float(blockx)
-        blocky = as_flat_float(blocky)
-        vaex.vaexfast.pnpoly(x, y, blockx, blocky, current_mask, meanx, meany, radius)
-        if previous_mask is None:
-            logger.debug("setting mask")
-            mask = current_mask
-        else:
-            logger.debug("combining previous mask with current mask using op %r", self.mode)
-            mode_function = _select_functions[self.mode]
-            mask = mode_function(previous_mask, current_mask)
-        if excluding_mask is not None:
-            mask = mask & (~excluding_mask)
-        return mask
-
-    def to_dict(self):
-        previous = None
-        if self.previous_selection:
-            previous = self.previous_selection.to_dict()
-        return dict(type="lasso",
-                    boolean_expression_x=str(self.boolean_expression_x),
-                    boolean_expression_y=str(self.boolean_expression_y),
-                    xseq=vaex.utils.make_list(self.xseq),
-                    yseq=vaex.utils.make_list(self.yseq),
-                    mode=self.mode,
-                    previous_selection=previous)
-
-def selection_from_dict(values):
-    kwargs = dict(values)
-    del kwargs["type"]
-    if values["type"] == "lasso":
-        kwargs["previous_selection"] = selection_from_dict(values["previous_selection"]) if values["previous_selection"] else None
-        return SelectionLasso(**kwargs)
-    elif values["type"] == "expression":
-        kwargs["previous_selection"] = selection_from_dict(values["previous_selection"]) if values["previous_selection"] else None
-        return SelectionExpression(**kwargs)
-    elif values["type"] == "invert":
-        kwargs["previous_selection"] = selection_from_dict(values["previous_selection"]) if values["previous_selection"] else None
-        return SelectionInvert(**kwargs)
-    elif values["type"] == "dropna":
-        kwargs["previous_selection"] = selection_from_dict(values["previous_selection"]) if values["previous_selection"] else None
-        return SelectionDropNa(**kwargs)
-    else:
-        raise ValueError("unknown type: %r, in dict: %r" % (values["type"], values))
-
-
-# name maps to numpy function
-# <vaex name>:<numpy name>
-function_mapping = [name.strip().split(":") if ":" in name else (name, name) for name in """
-sinc
-sin
-cos
-tan
-arcsin
-arccos
-arctan
-arctan2
-sinh
-cosh
-tanh
-arcsinh
-arccosh
-arctanh
-log
-log10
-log1p
-exp
-expm1
-sqrt
-abs
-where
-rad2deg
-deg2rad
-minimum
-maximum
-clip
-nan
-searchsorted
-""".strip().split()]
-expression_namespace = {}
-for name, numpy_name in function_mapping:
-    if not hasattr(np, numpy_name):
-        raise SystemError("numpy does not have: %s" % numpy_name)
-    else:
-        expression_namespace[name] = getattr(np, numpy_name)
-
-
-def fillna(ar, value, fill_nan=True, fill_masked=True):
-    '''Returns an array where missing values are replaced by value.
-
-    If the dtype is object, nan values and 'nan' string values
-    are replaced by value when fill_nan==True.
-    '''
-    if ar.dtype.kind in 'O' and fill_nan:
-        strings = ar.astype(str)
-        mask = strings == 'nan'
-        ar = ar.copy()
-        ar[mask] = value
-    elif ar.dtype.kind in 'f' and fill_nan:
-        mask = np.isnan(ar)
-        if np.any(mask):
-            ar = ar.copy()
-            ar[mask] = value
-    if fill_masked and np.ma.isMaskedArray(ar):
-        mask = ar.mask
-        if np.any(mask):
-            ar = ar.data.copy()
-            ar[mask] = value
-    return ar
-
-
-expression_namespace['fillna'] = fillna
-
 # we import after function_mapping is defined
 from .expression import Expression
 
-
-def dt_dayofweek(x):
-    import pandas as pd
-    # x = x.astype("<M8[ns]")
-    return pd.Series(x).dt.dayofweek.values
-
-def dt_dayofyear(x):
-    import pandas as pd
-    # x = x.astype("<M8[ns]")
-    return pd.Series(x).dt.dayofyear.values
-
-def dt_year(x):
-    import pandas as pd
-    # x = x.astype("<M8[ns]")
-    return pd.Series(x).dt.year.values
-
-def dt_weekofyear(x):
-    import pandas as pd
-    # x = x.astype("<M8[ns]")
-    return pd.Series(x).dt.weekofyear.values
-
-def dt_hour(x):
-    import pandas as pd
-    # x = x.astype("<M8[ns]")
-    return pd.Series(x).dt.hour.values
-
-
-expression_namespace["dt_dayofweek"] = dt_dayofweek
-expression_namespace["dt_dayofyear"] = dt_dayofyear
-expression_namespace["dt_year"] = dt_year
-expression_namespace["dt_weekofyear"] = dt_weekofyear
-expression_namespace["dt_hour"] = dt_hour
-
-
-def str_strip(x, chars=None):
-    # don't change the dtype, otherwise for each block the dtype may be different (string length)
-    return np.char.strip(x, chars).astype(x.dtype)
-
-expression_namespace['str_strip'] = str_strip
-
-def _float(x):
-    return x.astype(np.float64)
-
-def _astype(x, dtype):
-    return x.astype(dtype)
-
-
-expression_namespace["float"] = _float
-expression_namespace["astype"] = _astype
 
 _doc_snippets = {}
 _doc_snippets["expression"] = "expression or list of expressions, e.g. 'x', or ['x, 'y']"
@@ -1289,7 +234,7 @@ class DataFrame(object):
 
     def map_reduce(self, map, reduce, arguments, progress=False, delay=False, name='map reduce (custom)'):
         # def map_wrapper(*blocks):
-        task = TaskMapReduce(self, arguments, map, reduce, info=False)
+        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=False)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, name)
         self.executor.schedule(task)
@@ -1448,9 +393,9 @@ class DataFrame(object):
             limits, shapes = limits, shape
         # print(limits, shapes)
         if expression in ["*", None]:
-            task = TaskStatistic(self, binby, shapes, limits, op=OP_ADD1, selection=selection, edges=edges)
+            task = tasks.TaskStatistic(self, binby, shapes, limits, op=tasks.OP_ADD1, selection=selection, edges=edges)
         else:
-            task = TaskStatistic(self, binby, shapes, limits, weight=expression, op=OP_COUNT, selection=selection, edges=edges)
+            task = tasks.TaskStatistic(self, binby, shapes, limits, weight=expression, op=tasks.OP_COUNT, selection=selection, edges=edges)
         self.executor.schedule(task)
         progressbar.add_task(task, "count for %s" % expression)
         @delayed
@@ -1503,7 +448,7 @@ class DataFrame(object):
             limits, shapes = limits
         else:
             limits, shapes = limits, shape
-        task = TaskStatistic(self, binby, shapes, limits, weights=[expression, order_expression], op=OP_FIRST, selection=selection, edges=edges)
+        task = tasks.TaskStatistic(self, binby, shapes, limits, weights=[expression, order_expression], op=tasks.OP_FIRST, selection=selection, edges=edges)
         self.executor.schedule(task)
         progressbar.add_task(task, "count for %s" % expression)
         @delayed
@@ -1578,7 +523,7 @@ class DataFrame(object):
 
         @delayed
         def calculate(expression, limits):
-            task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
+            task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
             self.executor.schedule(task)
             progressbar.add_task(task, "mean for %s" % expression)
             return task
@@ -1599,7 +544,7 @@ class DataFrame(object):
 
     @delayed
     def _sum_calculation(self, expression, binby, limits, shape, selection, progressbar):
-        task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
+        task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
         self.executor.schedule(task)
         progressbar.add_task(task, "sum for %s" % expression)
         @delayed
@@ -1697,7 +642,7 @@ class DataFrame(object):
 
         @delayed
         def calculate(expression, limits):
-            task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_ADD_WEIGHT_MOMENTS_012, selection=selection)
+            task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_ADD_WEIGHT_MOMENTS_012, selection=selection)
             progressbar.add_task(task, "var for %s" % expression)
             self.executor.schedule(task)
             return task
@@ -1898,7 +843,7 @@ class DataFrame(object):
         @delayed
         def calculate(expressions, limits):
             # print('limits', limits)
-            task = TaskStatistic(self, binby, shape, limits, weights=expressions, op=OP_COV, selection=selection)
+            task = tasks.TaskStatistic(self, binby, shape, limits, weights=expressions, op=tasks.OP_COV, selection=selection)
             self.executor.schedule(task)
             progressbar.add_task(task, "covariance values for %r" % expressions)
             return task
@@ -1958,7 +903,7 @@ class DataFrame(object):
         """
         @delayed
         def calculate(expression, limits):
-            task = TaskStatistic(self, binby, shape, limits, weight=expression, op=OP_MIN_MAX, selection=selection)
+            task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_MIN_MAX, selection=selection)
             self.executor.schedule(task)
             progressbar.add_task(task, "minmax for %s" % expression)
             return task
@@ -1971,8 +916,8 @@ class DataFrame(object):
         waslist, [expressions, ] = vaex.utils.listify(expression)
         progressbar = vaex.utils.progressbars(progress, name="minmaxes")
         limits = self.limits(binby, limits, selection=selection, delay=True)
-        tasks = [calculate(expression, limits) for expression in expressions]
-        result = finish(*tasks)
+        all_tasks = [calculate(expression, limits) for expression in expressions]
+        result = finish(*all_tasks)
         return self._delay(delay, result)
 
     @docsubst
@@ -2819,14 +1764,14 @@ class DataFrame(object):
         expression = _ensure_string_from_expression(expression)
         try:
             # if an expression like pi * <some_expr> it will evaluate to a quantity instead of a unit
-            unit_or_quantity = eval(expression, expression_namespace, UnitScope(self))
+            unit_or_quantity = eval(expression, expression_namespace, scopes.UnitScope(self))
             unit = unit_or_quantity.unit if hasattr(unit_or_quantity, "unit") else unit_or_quantity
             return unit if isinstance(unit, astropy.units.Unit) else None
         except:
             # logger.exception("error evaluating unit expression: %s", expression)
             # astropy doesn't add units, so we try with a quatiti
             try:
-                return eval(expression, expression_namespace, UnitScope(self, 1.)).unit
+                return eval(expression, expression_namespace, scopes.UnitScope(self, 1.)).unit
             except:
                 # logger.exception("error evaluating unit expression: %s", expression)
                 return default
@@ -2897,7 +1842,7 @@ class DataFrame(object):
             if os.path.exists(path):
                 selections_dict = vaex.utils.read_json_or_yaml(path)
                 for key, value in selections_dict.items():
-                    self.favorite_selections[key] = selection_from_dict(self, value)
+                    self.favorite_selections[key] = selections.selection_from_dict(self, value)
         except:
             logger.exception("non fatal error")
 
@@ -3037,7 +1982,7 @@ class DataFrame(object):
             if selection_dict is None:
                 selection = None
             else:
-                selection = vaex.dataframe.selection_from_dict(selection_dict)
+                selection = selections.selection_from_dict(selection_dict)
             self.set_selection(selection, name=name)
 
     def state_write(self, f):
@@ -3370,24 +2315,24 @@ class DataFrame(object):
         """Internal use, ignores the filter"""
         i1 = i1 or 0
         i2 = i2 or len(self)
-        scope = _BlockScopeSelection(self, i1, i2, selection, cache=cache)
+        scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache)
         return scope.evaluate(name)
 
     def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False):
         i1 = i1 or 0
         i2 = i2 or self.length_unfiltered()
         if name in [None, False] and self.filtered:
-            scope_global = _BlockScopeSelection(self, i1, i2, None, cache=cache)
+            scope_global = scopes._BlockScopeSelection(self, i1, i2, None, cache=cache)
             mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
             return mask_global
         elif self.filtered and name != FILTER_SELECTION_NAME:
-            scope = _BlockScopeSelection(self, i1, i2, selection)
-            scope_global = _BlockScopeSelection(self, i1, i2, None, cache=cache)
+            scope = scopes._BlockScopeSelection(self, i1, i2, selection)
+            scope_global = scopes._BlockScopeSelection(self, i1, i2, None, cache=cache)
             mask = scope.evaluate(name)
             mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
             return mask & mask_global
         else:
-            scope = _BlockScopeSelection(self, i1, i2, selection, cache=cache)
+            scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache)
             return scope.evaluate(name)
 
         # if _is_string(selection):
@@ -3557,7 +2502,7 @@ class DataFrame(object):
 
     def _block_scope(self, i1, i2):
         variables = {key: self.evaluate_variable(key) for key in self.variables.keys()}
-        return _BlockScope(self, i1, i2, **variables)
+        return scopes._BlockScope(self, i1, i2, **variables)
 
     def select(self, boolean_expression, mode="replace", name="default"):
         """Select rows based on the boolean_expression, if there was a previous selection, the mode is taken into account.
@@ -4889,7 +3834,7 @@ class DataFrame(object):
             self.signal_selection_changed.emit(self)  # TODO: unittest want to know, does this make sense?
         else:
             def create(current):
-                return SelectionExpression(boolean_expression, current, mode) if boolean_expression else None
+                return selections.SelectionExpression(boolean_expression, current, mode) if boolean_expression else None
             self._selection(create, name)
 
     def select_non_missing(self, drop_nan=True, drop_masked=True, column_names=None, mode="replace", name="default"):
@@ -4907,7 +3852,7 @@ class DataFrame(object):
         column_names = column_names or self.get_column_names(virtual=False)
 
         def create(current):
-            return SelectionDropNa(drop_nan, drop_masked, column_names, current, mode)
+            return selections.SelectionDropNa(drop_nan, drop_masked, column_names, current, mode)
         self._selection(create, name)
 
     def dropna(self, drop_nan=True, drop_masked=True, column_names=None):
@@ -5046,7 +3991,7 @@ class DataFrame(object):
         """
 
         def create(current):
-            return SelectionLasso(expression_x, expression_y, xsequence, ysequence, current, mode)
+            return selections.SelectionLasso(expression_x, expression_y, xsequence, ysequence, current, mode)
         self._selection(create, name, executor=executor)
 
     def select_inverse(self, name="default", executor=None):
@@ -5058,7 +4003,7 @@ class DataFrame(object):
         """
 
         def create(current):
-            return SelectionInvert(current)
+            return selections.SelectionInvert(current)
         self._selection(create, name, executor=executor)
 
     def set_selection(self, selection, name="default", executor=None):
@@ -5246,32 +4191,6 @@ for name in hidden:
     delattr(DataFrame, name)
 del hidden
 
-def _select_replace(maskold, masknew):
-    return masknew
-
-
-def _select_and(maskold, masknew):
-    return masknew if maskold is None else maskold & masknew
-
-
-def _select_or(maskold, masknew):
-    return masknew if maskold is None else maskold | masknew
-
-
-def _select_xor(maskold, masknew):
-    return masknew if maskold is None else maskold ^ masknew
-
-
-def _select_subtract(maskold, masknew):
-    return ~masknew if maskold is None else (maskold) & ~masknew
-
-
-_select_functions = {"replace": _select_replace,
-                     "and": _select_and,
-                     "or": _select_or,
-                     "xor": _select_xor,
-                     "subtract": _select_subtract
-                     }
 
 
 class DataFrameLocal(DataFrame):
@@ -5571,7 +4490,7 @@ class DataFrameLocal(DataFrame):
         return np.array(indices, dtype=np.int64)
 
     def _evaluate(self, expression, i1, i2, out=None, selection=None):
-        scope = _BlockScope(self, i1, i2, **self.variables)
+        scope = scopes._BlockScope(self, i1, i2, **self.variables)
         if out is not None:
             scope.buffers[expression] = out
         value = scope.evaluate(expression)
@@ -5591,7 +4510,7 @@ class DataFrameLocal(DataFrame):
         # for both a selection or filtering we have a mask
         if selection is not None or (self.filtered and filtered):
             mask = self.evaluate_selection_mask(selection, i1, i2)
-        scope = _BlockScope(self, i1, i2, mask=mask, **self.variables)
+        scope = scopes._BlockScope(self, i1, i2, mask=mask, **self.variables)
         # value = value[mask]
         if out is not None:
             scope.buffers[expression] = out
@@ -6207,9 +5126,3 @@ class DataFrameArrays(DataFrameLocal):
         """
         return self.__array__()
 
-# alias kept for backward compatibility
-Dataset = DataFrame
-DatasetLocal = DataFrameLocal
-DatasetArrays = DataFrameArrays
-DatasetConcatenated = DataFrameConcatenated
-import vaex.dataframe

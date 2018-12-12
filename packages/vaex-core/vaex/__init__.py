@@ -34,8 +34,8 @@ Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how
 """  # -*- coding: utf-8 -*-
 from __future__ import print_function
 import glob
-import vaex.dataset
 import vaex.dataframe
+import vaex.dataset
 from . import stat
 # import vaex.file
 # import vaex.export
@@ -303,7 +303,10 @@ def from_arrow_table(table):
 def from_scalars(**kwargs):
     """Similar to from_arrays, but convenient for a DataFrame of length 1
 
-    >>> ds = vx.from_scalars(x=1, y=2)
+    Example:
+
+    >>> import vaex
+    >>> df = vaex.from_scalars(x=1, y=2)
     """
     import numpy as np
     return from_arrays(**{k: np.array([v]) for k, v in kwargs.items()})

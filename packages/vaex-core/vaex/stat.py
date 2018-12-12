@@ -1,6 +1,6 @@
 from .expression import _unary_ops, _binary_ops, reversable
 from future.utils import with_metaclass
-from vaex.dataset import expression_namespace
+from vaex.functions import expression_namespace
 from vaex.delayed import delayed
 
 
