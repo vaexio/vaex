@@ -50,7 +50,7 @@ class Hdf5Download(object):
     def wget_command(self, i):
         assert i == 0
         url = self.url_list[i]
-        return "wget --progress=bar:force -c -P %s %s" % (data_dir, url + "w")
+        return "wget --progress=bar:force -c -P %s %s" % (data_dir, url)
 
 
 class NYCTaxi(object):
@@ -87,7 +87,7 @@ class NYCTaxi(object):
 
     def wget_command(self, i):
         url = self.url_list[i]
-        return "wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url + "w")
+        return "wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url)
 
     def download_urlretrieve(self, ):
         urlretrieve(self.url_list[i], self.filenames[i])
