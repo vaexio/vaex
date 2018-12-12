@@ -137,15 +137,17 @@ def _hidden(meth):
     return meth
 
 class DataFrame(object):
-    """All dfs are encapsulated in this class, local or remote dataets
+    """All local or remote datasets are encapsulated in this class, which provides a pandas
+    like API to your dataset.
 
-    Each df has a number of columns, and a number of rows, the length of the df.
+    Each DataFrame (df) has a number of columns, and a number of rows, the length of the df.
 
     All DataFrames have multiple 'selection', and all calculations are done on the whole df (default)
     or for the selection. The following example shows how to use the selection.
 
     >>> df.select("x < 0")
     >>> df.sum(df.y, selection=True)
+    >>> df.sum(df.y, selection=[df.x < 0, df.x > 0])
 
     :type signal_selection_changed: events.Signal
     :type executor: Executor
@@ -273,11 +275,11 @@ class DataFrame(object):
 
         Examples:
 
-        >>> ds.mutual_information("x", "y")
+        >>> df.mutual_information("x", "y")
         array(0.1511814526380327)
-        >>> ds.mutual_information([["x", "y"], ["x", "z"], ["E", "Lz"]])
+        >>> df.mutual_information([["x", "y"], ["x", "z"], ["E", "Lz"]])
         array([ 0.15118145,  0.18439181,  1.07067379])
-        >>> ds.mutual_information([["x", "y"], ["x", "z"], ["E", "Lz"]], sort=True)
+        >>> df.mutual_information([["x", "y"], ["x", "z"], ["E", "Lz"]], sort=True)
         (array([ 1.07067379,  0.18439181,  0.15118145]),
         [['E', 'Lz'], ['x', 'z'], ['x', 'y']])
 
@@ -411,11 +413,11 @@ class DataFrame(object):
 
         Examples:
 
-        >>> ds.count()
+        >>> df.count()
+        330000
+        >>> df.count("*")
         330000.0
-        >>> ds.count("*")
-        330000.0
-        >>> ds.count("*", binby=["x"], shape=4)
+        >>> df.count("*", binby=["x"], shape=4)
         array([  10925.,  155427.,  152007.,   10748.])
 
         :param expression: Expression or column for which to count non-missing values, or None or '*' for counting the rows
@@ -463,11 +465,11 @@ class DataFrame(object):
 
         Examples:
 
-        >>> ds.count()
+        >>> df.count()
         330000.0
-        >>> ds.count("*")
+        >>> df.count("*")
         330000.0
-        >>> ds.count("*", binby=["x"], shape=4)
+        >>> df.count("*", binby=["x"], shape=4)
         array([  10925.,  155427.,  152007.,   10748.])
 
         :param expression: Expression or column for which to count non-missing values, or None or '*' for counting the rows
@@ -502,9 +504,9 @@ class DataFrame(object):
 
         Examples:
 
-        >>> ds.mean("x")
+        >>> df.mean("x")
         -0.067131491264005971
-        >>> ds.mean("(x**2+y**2)**0.5", binby="E", shape=4)
+        >>> df.mean("(x**2+y**2)**0.5", binby="E", shape=4)
         array([  2.43483742,   4.41840721,   8.26742458,  15.53846476])
 
         :param expression: {expression}
@@ -560,9 +562,9 @@ class DataFrame(object):
 
         Examples:
 
-        >>> ds.sum("L")
+        >>> df.sum("L")
         304054882.49378014
-        >>> ds.sum("L", binby="E", shape=4)
+        >>> df.sum("L", binby="E", shape=4)
         array([  8.83517994e+06,   5.92217598e+07,   9.55218726e+07,
                          1.40008776e+08])
 
@@ -594,9 +596,9 @@ class DataFrame(object):
         """Calculate the standard deviation for the given expression, possible on a grid defined by binby
 
 
-        >>> ds.std("vz")
+        >>> df.std("vz")
         110.31773397535071
-        >>> ds.std("vz", binby=["(x**2+y**2)**0.5"], shape=4)
+        >>> df.std("vz", binby=["(x**2+y**2)**0.5"], shape=4)
         array([ 123.57954851,   85.35190177,   61.14345748,   38.0740619 ])
 
         :param expression: {expression}
@@ -620,13 +622,13 @@ class DataFrame(object):
 
         Examples:
 
-        >>> ds.var("vz")
+        >>> df.var("vz")
         12170.002429456246
-        >>> ds.var("vz", binby=["(x**2+y**2)**0.5"], shape=4)
+        >>> df.var("vz", binby=["(x**2+y**2)**0.5"], shape=4)
         array([ 15271.90481083,   7284.94713504,   3738.52239232,   1449.63418988])
-        >>> ds.var("vz", binby=["(x**2+y**2)**0.5"], shape=4)**0.5
+        >>> df.var("vz", binby=["(x**2+y**2)**0.5"], shape=4)**0.5
         array([ 123.57954851,   85.35190177,   61.14345748,   38.0740619 ])
-        >>> ds.std("vz", binby=["(x**2+y**2)**0.5"], shape=4)
+        >>> df.std("vz", binby=["(x**2+y**2)**0.5"], shape=4)
         array([ 123.57954851,   85.35190177,   61.14345748,   38.0740619 ])
 
         :param expression: {expression}
@@ -671,11 +673,11 @@ class DataFrame(object):
 
         Examples:
 
-        >>> ds.covar("x**2+y**2+z**2", "-log(-E+1)")
+        >>> df.covar("x**2+y**2+z**2", "-log(-E+1)")
         array(52.69461456005138)
-        >>> ds.covar("x**2+y**2+z**2", "-log(-E+1)")/(ds.std("x**2+y**2+z**2") * ds.std("-log(-E+1)"))
+        >>> df.covar("x**2+y**2+z**2", "-log(-E+1)")/(df.std("x**2+y**2+z**2") * df.std("-log(-E+1)"))
         0.63666373822156686
-        >>> ds.covar("x**2+y**2+z**2", "-log(-E+1)", binby="Lz", shape=4)
+        >>> df.covar("x**2+y**2+z**2", "-log(-E+1)", binby="Lz", shape=4)
         array([ 10.17387143,  51.94954078,  51.24902796,  20.2163929 ])
 
 
@@ -725,10 +727,9 @@ class DataFrame(object):
 
         Examples:
 
-
-        >>> ds.correlation("x**2+y**2+z**2", "-log(-E+1)")
+        >>> df.correlation("x**2+y**2+z**2", "-log(-E+1)")
         array(0.6366637382215669)
-        >>> ds.correlation("x**2+y**2+z**2", "-log(-E+1)", binby="Lz", shape=4)
+        >>> df.correlation("x**2+y**2+z**2", "-log(-E+1)", binby="Lz", shape=4)
         array([ 0.40594394,  0.69868851,  0.61394099,  0.65266318])
 
         :param x: {expression}
@@ -795,23 +796,23 @@ class DataFrame(object):
 
         Either x and y are expressions, e.g:
 
-        >>> ds.cov("x", "y")
+        >>> df.cov("x", "y")
 
         Or only the x argument is given with a list of expressions, e,g.:
 
-        >>> ds.cov(["x, "y, "z"])
+        >>> df.cov(["x, "y, "z"])
 
         Examples:
 
-        >>> ds.cov("x", "y")
+        >>> df.cov("x", "y")
         array([[ 53.54521742,  -3.8123135 ],
         [ -3.8123135 ,  60.62257881]])
-        >>> ds.cov(["x", "y", "z"])
+        >>> df.cov(["x", "y", "z"])
         array([[ 53.54521742,  -3.8123135 ,  -0.98260511],
         [ -3.8123135 ,  60.62257881,   1.21381057],
         [ -0.98260511,   1.21381057,  25.55517638]])
 
-        >>> ds.cov("x", "y", binby="E", shape=2)
+        >>> df.cov("x", "y", binby="E", shape=2)
         array([[[  9.74852878e+00,  -3.02004780e-02],
         [ -3.02004780e-02,   9.99288215e+00]],
         [[  8.43996546e+01,  -6.51984181e+00],
@@ -880,12 +881,12 @@ class DataFrame(object):
 
         Example:
 
-        >>> ds.minmax("x")
+        >>> df.minmax("x")
         array([-128.293991,  271.365997])
-        >>> ds.minmax(["x", "y"])
+        >>> df.minmax(["x", "y"])
         array([[-128.293991 ,  271.365997 ],
                    [ -71.5523682,  146.465836 ]])
-        >>> ds.minmax("x", binby="x", shape=5, limits=[-10, 10])
+        >>> df.minmax("x", binby="x", shape=5, limits=[-10, 10])
         array([[-9.99919128, -6.00010443],
                    [-5.99972439, -2.00002384],
                    [-1.99991322,  1.99998057],
@@ -928,11 +929,11 @@ class DataFrame(object):
 
         Example:
 
-        >>> ds.min("x")
+        >>> df.min("x")
         array(-128.293991)
-        >>> ds.min(["x", "y"])
+        >>> df.min(["x", "y"])
         array([-128.293991 ,  -71.5523682])
-        >>> ds.min("x", binby="x", shape=5, limits=[-10, 10])
+        >>> df.min("x", binby="x", shape=5, limits=[-10, 10])
         array([-9.99919128, -5.99972439, -1.99991322,  2.0000093 ,  6.0004878 ])
 
         :param expression: {expression}
@@ -957,11 +958,11 @@ class DataFrame(object):
 
         Example:
 
-        >>> ds.max("x")
+        >>> df.max("x")
         array(271.365997)
-        >>> ds.max(["x", "y"])
+        >>> df.max(["x", "y"])
         array([ 271.365997,  146.465836])
-        >>> ds.max("x", binby="x", shape=5, limits=[-10, 10])
+        >>> df.max("x", binby="x", shape=5, limits=[-10, 10])
         array([-6.00010443, -2.00002384,  1.99998057,  5.99983597,  9.99984646])
 
         :param expression: {expression}
@@ -1009,9 +1010,9 @@ class DataFrame(object):
 
         Example:
 
-        >>> ds.percentile_approx("x", 10), ds.percentile_approx("x", 90)
+        >>> df.percentile_approx("x", 10), df.percentile_approx("x", 90)
         (array([-8.3220355]), array([ 7.92080358]))
-        >>> ds.percentile_approx("x", 50, binby="x", shape=5, limits=[-10, 10])
+        >>> df.percentile_approx("x", 50, binby="x", shape=5, limits=[-10, 10])
         array([[-7.56462982],
                    [-3.61036641],
                    [-0.01296306],
@@ -1143,9 +1144,9 @@ class DataFrame(object):
 
         Example:
 
-        >>> ds.limits_percentage("x", 90)
+        >>> df.limits_percentage("x", 90)
         array([-12.35081376,  12.14858052]
-        >>> ds.percentile_approx("x", 5), ds.percentile_approx("x", 95)
+        >>> df.percentile_approx("x", 5), df.percentile_approx("x", 95)
         (array([-12.36813152]), array([ 12.13275818]))
 
         NOTE: this value is approximated by calculating the cumulative distribution on a grid.
@@ -1209,15 +1210,15 @@ class DataFrame(object):
 
         Example:
 
-        >>> ds.limits("x")
+        >>> df.limits("x")
         array([-28.86381927,  28.9261226 ])
-        >>> ds.limits(["x", "y"])
+        >>> df.limits(["x", "y"])
         (array([-28.86381927,  28.9261226 ]), array([-28.60476934,  28.96535249]))
-        >>> ds.limits(["x", "y"], "minmax")
+        >>> df.limits(["x", "y"], "minmax")
         (array([-128.293991,  271.365997]), array([ -71.5523682,  146.465836 ]))
-        >>> ds.limits(["x", "y"], ["minmax", "90%"])
+        >>> df.limits(["x", "y"], ["minmax", "90%"])
         (array([-128.293991,  271.365997]), array([-13.37438402,  13.4224423 ]))
-        >>> ds.limits(["x", "y"], ["minmax", [0, 10]])
+        >>> df.limits(["x", "y"], ["minmax", [0, 10]])
         (array([-128.293991,  271.365997]), [0, 10])
 
         :param expression: {expression_limits}
@@ -1420,8 +1421,8 @@ class DataFrame(object):
 
         Examples
 
-        >>> ds.plot_widget(ds.x, ds.y, backend='bqplot')
-        >>> ds.plot_widget(ds.pickup_longitude, ds.pickup_latitude, backend='ipyleaflet')
+        >>> df.plot_widget(df.x, df.y, backend='bqplot')
+        >>> df.plot_widget(df.pickup_longitude, df.pickup_latitude, backend='ipyleaflet')
 
         :param backend: Widget backend to use: 'bqplot', 'ipyleaflet', 'ipyvolume', 'matplotlib'
 
@@ -1435,7 +1436,7 @@ class DataFrame(object):
         for name in 'vx vy vz'.split():
             if name in kwargs:
                 kwargs[name] = _ensure_strings_from_expressions(kwargs[name])
-        plot2d = cls(backend=backend, df=self, x=x, y=y, z=z, grid=grid, shape=shape, limits=limits, what=what,
+        plot2d = cls(backend=backend, dataset=self, x=x, y=y, z=z, grid=grid, shape=shape, limits=limits, what=what,
                      f=f, figure_key=figure_key, fig=fig,
                      selection=selection, grid_before=grid_before,
                      grid_limits=grid_limits, normalize=normalize, colormap=colormap, what_kwargs=what_kwargs, **kwargs)
@@ -1676,7 +1677,7 @@ class DataFrame(object):
         Example
     
         >>> ds = vaex.example()
-        >>> ds.plot(ds.col.x, ds.col.y)
+        >>> df.plot(df.col.x, df.col.y)
 
         """
         class ColumnList(object):
@@ -1690,7 +1691,7 @@ class DataFrame(object):
         return data
 
     def close_files(self):
-        """Close any possible open file handles, the df will not be in a usable state afterwards"""
+        """Close any possible open file handles, the DataFrame will not be in a usable state afterwards"""
         pass
 
     def byte_size(self, selection=False, virtual=False):
@@ -1750,9 +1751,9 @@ class DataFrame(object):
 
         >>> import vaex
         >>> ds = vaex.example()
-        >>> ds.unit("x")
+        >>> df.unit("x")
         Unit("kpc")
-        >>> ds.unit("x*L")
+        >>> df.unit("x*L")
         Unit("km kpc2 / s")
 
 
@@ -2167,7 +2168,7 @@ class DataFrame(object):
 
     @classmethod
     def can_open(cls, path, *args, **kwargs):
-        """Tests if this class can open the file given by path"""
+        # """Tests if this class can open the file given by path"""
         return False
 
     @classmethod
@@ -2279,11 +2280,11 @@ class DataFrame(object):
 
         Example
 
-        >>> ds.set_variable("a", 2.)
-        >>> ds.set_variable("b", "a**2")
-        >>> ds.get_variable("b")
+        >>> df.set_variable("a", 2.)
+        >>> df.set_variable("b", "a**2")
+        >>> df.get_variable("b")
         'a**2'
-        >>> ds.evaluate_variable("b")
+        >>> df.evaluate_variable("b")
         4.0
 
         :param name: Name of the variable
@@ -2394,21 +2395,21 @@ class DataFrame(object):
         """
         if column_names:
             column_names = _ensure_strings_from_expressions(column_names)
-        ds = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=False))
+        df = vaex.from_items(*self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=False))
         if virtual:
             for name, value in self.virtual_columns.items():
-                ds.add_virtual_column(name, value)
+                df.add_virtual_column(name, value)
         if selections:
             # the filter selection does not need copying
             for key, value in self.selection_histories.items():
                 if key != FILTER_SELECTION_NAME:
-                    ds.selection_histories[key] = list(value)
+                    df.selection_histories[key] = list(value)
             for key, value in self.selection_history_indices.items():
                 if key != FILTER_SELECTION_NAME:
-                    ds.selection_history_indices[key] = value
-        ds.functions.update(self.functions)
-        ds.copy_metadata(self)
-        return ds
+                    df.selection_history_indices[key] = value
+        df.functions.update(self.functions)
+        df.copy_metadata(self)
+        return df
 
     def copy_metadata(self, other):
         for name in self.get_column_names(strings=True):
@@ -2428,8 +2429,8 @@ class DataFrame(object):
 
          Example
 
-         >>> df = ds.to_pandas_df(["x", "y", "z"])
-         >>> ds_copy = vaex.from_pandas(df)
+         >>> df_pandas = df.to_pandas_df(["x", "y", "z"])
+         >>> df_copy = vaex.from_pandas(df_pandas)
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
@@ -2724,11 +2725,11 @@ class DataFrame(object):
 
         Example
 
-        >>> ds = vaex.from_scalars(x=1, y=2, e_x=0.1, e_y=0.2)
-        >>> ds["u"] = ds.x + ds.y
-        >>> ds["v"] = np.log10(ds.x)
-        >>> ds.propagate_uncertainties([ds.u, ds.v])
-        >>> ds.u_uncertainty, ds.v_uncertainty
+        >>> df = vaex.from_scalars(x=1, y=2, e_x=0.1, e_y=0.2)
+        >>> df["u"] = df.x + df.y
+        >>> df["v"] = np.log10(df.x)
+        >>> df.propagate_uncertainties([df.u, df.v])
+        >>> df.u_uncertainty, df.v_uncertainty
 
         :param columns: list of columns for which to calculate the covariance matrix.
         :param depending_variables: If not given, it is found out automatically, otherwise a list of columns which have uncertainties.
@@ -3088,9 +3089,9 @@ class DataFrame(object):
 
         Example
 
-        >>> df.add_variable("center")
-        >>> df.add_virtual_column("x_prime", "x-center")
-        >>> df.select("x_prime < 0")
+        >>> df.add_variable('center', 0)
+        >>> df.add_virtual_column('x_prime', 'x-center')
+        >>> df.select('x_prime < 0')
 
         :param: str name: name of virtual varible
         :param: expression: expression for the variable
@@ -3517,31 +3518,32 @@ class DataFrame(object):
 
     @docsubst
     def trim(self, inplace=False):
-        '''Return a df, where all columns are 'trimmed' by the active range.
+        '''Return a DataFrame, where all columns are 'trimmed' by the active range.
 
-        For returned dfs, ds.get_active_range() returns (0, ds.length_original()).
+        For the returned DataFrame, df.get_active_range() returns (0, df.length_original()).
 
         {note_copy}
 
         :param inplace: {inplace}
+        :rtype: DataFrame
         '''
-        ds = self if inplace else self.copy()
-        for name in ds:
-            column = ds.columns.get(name)
+        df = self if inplace else self.copy()
+        for name in df:
+            column = df.columns.get(name)
             if column is not None:
                 if self._index_start == 0 and len(column) == self._index_end:
                     pass  # we already assigned it in .copy
                 else:
                     if isinstance(column, np.ndarray):  # real array
-                        ds.columns[name] = column[self._index_start:self._index_end]
+                        df.columns[name] = column[self._index_start:self._index_end]
                     else:
-                        ds.columns[name] = column.trim(self._index_start, self._index_end)
-        ds._length_original = self.length_unfiltered()
-        ds._length_unfiltered = ds._length_original
-        ds._index_start = 0
-        ds._index_end = ds._length_original
-        ds._active_fraction = 1
-        return ds
+                        df.columns[name] = column.trim(self._index_start, self._index_end)
+        df._length_original = self.length_unfiltered()
+        df._length_unfiltered = df._length_original
+        df._index_start = 0
+        df._index_end = df._length_original
+        df._active_fraction = 1
+        return df
 
     @docsubst
     def take(self, indices):
@@ -3560,16 +3562,17 @@ class DataFrame(object):
 
         :param indices: sequence (list or numpy array) with row numbers
         :return: DataFrame which is a shallow copy of the original data.
+        :rtype: DataFrame
         '''
-        ds = self.copy()
+        df = self.copy()
         # if the columns in ds already have a ColumnIndex
-        # we could do, direct_indices = ds.column['bla'].indices[indices]
+        # we could do, direct_indices = df.column['bla'].indices[indices]
         # which should be shared among multiple ColumnIndex'es, so we store
         # them in this dict
         direct_indices_map = {}
         indices = np.array(indices)
-        for name in ds:
-            column = ds.columns.get(name)
+        for name in df:
+            column = df.columns.get(name)
             if column is not None:
                 # we optimize this somewhere, so we don't do multiple
                 # levels of indirection
@@ -3580,17 +3583,17 @@ class DataFrame(object):
                         direct_indices_map[id(column.indices)] = direct_indices
                     else:
                         direct_indices = direct_indices_map[id(column.indices)]
-                    ds.columns[name] = ColumnIndexed(column.df, direct_indices, column.name)
+                    df.columns[name] = ColumnIndexed(column.df, direct_indices, column.name)
                 else:
-                    ds.columns[name] = ColumnIndexed(self, indices, name)
-        ds._length_original = len(indices)
-        ds._length_unfiltered = ds._length_original
-        ds.set_selection(None, name=FILTER_SELECTION_NAME)
-        return ds
+                    df.columns[name] = ColumnIndexed(self, indices, name)
+        df._length_original = len(indices)
+        df._length_unfiltered = df._length_original
+        df.set_selection(None, name=FILTER_SELECTION_NAME)
+        return df
 
     @docsubst
     def extract(self):
-        '''Return a df containing only the filtered rows.
+        '''Return a DataFrame containing only the filtered rows.
 
         {note_copy}
 
@@ -3598,8 +3601,9 @@ class DataFrame(object):
         heavily filtered (contains just a small number of rows).
 
         If no filtering is applied, it returns a trimmed view.
-        For returned dfs, len(ds) == ds.length_original() == ds.length_unfiltered()
+        For the returned df, len(df) == df.length_original() == df.length_unfiltered()
 
+        :rtype: DataFrame
         '''
         trimmed = self.trim()
         if trimmed.filtered:
@@ -3610,7 +3614,7 @@ class DataFrame(object):
 
     @docsubst
     def sample(self, n=None, frac=None, replace=False, weights=None, random_state=None):
-        '''Returns a df with a random set of rows
+        '''Returns a DataFrame with a random set of rows
 
         {note_copy}
 
@@ -3649,6 +3653,7 @@ class DataFrame(object):
         :param str or expression weights: (unnormalized) probability that a row can be drawn
         :param int or RandomState: seed or RandomState for reproducability, when None a random seed it chosen
         :return: {return_shallow_copy}
+        :rtype: DataFrame
         '''
         self = self.extract()
         if type(random_state) == int or random_state is None:
@@ -3688,7 +3693,7 @@ class DataFrame(object):
 
     @docsubst
     def sort(self, by, ascending=True, kind='quicksort'):
-        '''Return a sorted df, sorted by the expression 'by'
+        '''Return a sorted DataFrame, sorted by the expression 'by'
 
         {note_copy}
 
@@ -3732,10 +3737,11 @@ class DataFrame(object):
         {note_filter}
 
         Example:
-                >>> a = np.array(['a', 'b', 'c'])
-                >>> x = np.arange(1,4)
-                >>> ds = vaex.from_arrays(a=a, x=x)
-                >>> ds.sort('(x-1.8)**2', ascending=False)  # b, c, a will be the order of a
+
+        >>> a = np.array(['a', 'b', 'c'])
+        >>> x = np.arange(1,4)
+        >>> df = vaex.from_arrays(a=a, x=x)
+        >>> df.sort('(x-1.8)**2', ascending=False)  # b, c, a will be the order of a
 
 
         :param str or expression by: expression to sort by
@@ -3743,38 +3749,39 @@ class DataFrame(object):
         :param str kind: kind of algorithm to use (passed to numpy.argsort)
         :param inplace: {inplace}
         '''
-        ds = self.trim(inplace=inplace)
+        df = self.trim(inplace=inplace)
         column_names = column_names or list(self)
         for name in column_names:
-            column = ds.columns.get(name)
+            column = df.columns.get(name)
             if column is not None:
-                new_name = ds.rename_column(name, prefix + name)
-                expr = ds[new_name]
-                ds[name] = ds.func.fillna(expr, value, fill_nan=fill_nan, fill_masked=fill_masked)
+                new_name = df.rename_column(name, prefix + name)
+                expr = df[new_name]
+                df[name] = df.func.fillna(expr, value, fill_nan=fill_nan, fill_masked=fill_masked)
             else:
-                ds[name] = ds.func.fillna(ds[name], value, fill_nan=fill_nan, fill_masked=fill_masked)
-        return ds
+                df[name] = df.func.fillna(df[name], value, fill_nan=fill_nan, fill_masked=fill_masked)
+        return df
 
     def materialize(self, virtual_column, inplace=False):
         '''Returns a new df where the virtual column is turned into an in memory numpy array
 
         Example:
-                >>> x = np.arange(1,4)
-                >>> y = np.arange(2,5)
-                >>> ds = vaex.from_arrays(x=x, y=y)
-                >>> ds['r'] = (ds.x**2 + ds.y**2)**0.5 # 'r' is a virtual column (computed on the fly)
-                >>> ds = ds.materialize('r')  # now 'r' is a 'real' column (i.e. a numpy array)
+
+        >>> x = np.arange(1,4)
+        >>> y = np.arange(2,5)
+        >>> df = vaex.from_arrays(x=x, y=y)
+        >>> df['r'] = (df.x**2 + df.y**2)**0.5 # 'r' is a virtual column (computed on the fly)
+        >>> df = df.materialize('r')  # now 'r' is a 'real' column (i.e. a numpy array)
 
         :param inplace: {inplace}
         '''
-        ds = self.trim(inplace=inplace)
+        df = self.trim(inplace=inplace)
         virtual_column = _ensure_string_from_expression(virtual_column)
-        if virtual_column not in ds.virtual_columns:
+        if virtual_column not in df.virtual_columns:
             raise KeyError('Virtual column not found: %r' % virtual_column)
-        ar = ds.evaluate(virtual_column, filtered=False)
-        del ds[virtual_column]
-        ds.add_column(virtual_column, ar)
-        return ds
+        ar = df.evaluate(virtual_column, filtered=False)
+        del df[virtual_column]
+        df.add_column(virtual_column, ar)
+        return df
 
     def get_selection(self, name="default"):
         """Get the current selection object (mostly for internal use atm)"""
@@ -3861,7 +3868,7 @@ class DataFrame(object):
         :param drop_nan: drop rows when there is a NaN in any of the columns (will only affect float values)
         :param drop_masked: drop rows when there is a masked value in any of the columns
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
-        :return: DataFrame
+        :rtype: DataFrame
         """
         copy = self.copy()
         copy.select_non_missing(drop_nan=drop_nan, drop_masked=drop_masked, column_names=column_names,
@@ -3879,13 +3886,12 @@ class DataFrame(object):
 
         Example:
 
-        >>> ds.select_box('x', 'y', [(0, 10), (0, 1)])
+        >>> df.select_box('x', 'y', [(0, 10), (0, 1)])
 
         :param x: expression for the x space
         :param y: expression fo the y space
         :param limits: sequence of shape [(x1, x2), (y1, y2)]
         :param mode:
-        :return:
         """
         self.select_box([x, y], limits, mode=mode, name=name)
 
@@ -3894,8 +3900,8 @@ class DataFrame(object):
 
         The following examples are equivalent:
 
-        >>> ds.select_box(['x', 'y'], [(0, 10), (0, 1)])
-        >>> ds.select_rectangle('x', 'y', [(0, 10), (0, 1)])
+        >>> df.select_box(['x', 'y'], [(0, 10), (0, 1)])
+        >>> df.select_rectangle('x', 'y', [(0, 10), (0, 1)])
 
         :param spaces: list of expressions
         :param limits: sequence of shape [(x1, x2), (y1, y2)]
@@ -3914,7 +3920,7 @@ class DataFrame(object):
 
         Example:
 
-        >>> ds.select_circle('x','y',2,3,1)
+        >>> df.select_circle('x','y',2,3,1)
 
         :param x: expression for the x space
         :param y: expression for the y space
@@ -3941,7 +3947,7 @@ class DataFrame(object):
 
         Example:
 
-        >>> ds.select_ellipse('x','y', 2, -1, 5,1, 30, name='my_ellipse')
+        >>> df.select_ellipse('x','y', 2, -1, 5,1, 30, name='my_ellipse')
 
         :param x: expression for the x space
         :param y: expression for the y space
@@ -4094,23 +4100,23 @@ class DataFrame(object):
             return Expression(self, item)  # TODO we'd like to return the same expression if possible
         elif isinstance(item, Expression):
             expression = item.expression
-            ds = self.copy()
-            ds.select(expression, name=FILTER_SELECTION_NAME, mode='and')
-            return ds
+            df = self.copy()
+            df.select(expression, name=FILTER_SELECTION_NAME, mode='and')
+            return df
         elif isinstance(item, (tuple, list)):
-            ds = self.copy(column_names=item)
-            return ds
+            df = self.copy(column_names=item)
+            return df
         elif isinstance(item, slice):
-            ds = self.extract()
+            df = self.extract()
             start, stop, step = item.start, item.stop, item.step
             start = start or 0
-            stop = stop or len(ds)
+            stop = stop or len(df)
             assert step in [None, 1]
-            ds.set_active_range(start, stop)
-            return ds.trim()
+            df.set_active_range(start, stop)
+            return df.trim()
 
     def __delitem__(self, item):
-        '''Removes a (virtual) column from the df
+        '''Removes a (virtual) column from the DataFrame
 
         Note: this does not remove check if the column is used in a virtual expression or in the filter\
             and may lead to issues. It is safer to use :meth:`drop`.
@@ -4138,14 +4144,14 @@ class DataFrame(object):
         """
         columns = _ensure_list(columns)
         columns = _ensure_strings_from_expressions(columns)
-        ds = self if inplace else self.copy()
-        depending_columns = ds._depending_columns(columns_exclude=columns)
+        df = self if inplace else self.copy()
+        depending_columns = df._depending_columns(columns_exclude=columns)
         for column in columns:
             if check and column in depending_columns:
-                ds._hide_column(column)
+                df._hide_column(column)
             else:
-                del ds[column]
-        return ds
+                del df[column]
+        return df
 
     def _hide_column(self, column):
         '''Hides a column by prefixing the name with \'__\''''
@@ -4221,8 +4227,8 @@ class DataFrameLocal(DataFrame):
         with values between [0, len(values)-1].
         """
         column = _ensure_string_from_expression(column)
-        ds = self if inplace else self.copy()
-        found_values, codes = ds.unique(column, return_inverse=True)
+        df = self if inplace else self.copy()
+        found_values, codes = df.unique(column, return_inverse=True)
         if values is None:
             values = found_values
         else:
@@ -4241,11 +4247,11 @@ class DataFrameLocal(DataFrame):
             if missing_value in translation:
                 codes = np.ma.masked_array(codes, codes==missing_value)
 
-        original_column = ds.rename_column(column, '__original_' + column, unique=True)
+        original_column = df.rename_column(column, '__original_' + column, unique=True)
         labels = [str(k) for k in values]
-        ds.add_column(column, codes)
-        ds._categories[column] = dict(labels=labels, N=len(values))
-        return ds
+        df.add_column(column, codes)
+        df._categories[column] = dict(labels=labels, N=len(values))
+        return df
 
     @property
     def data(self):
@@ -4259,8 +4265,8 @@ class DataFrameLocal(DataFrame):
 
         Example:
 
-        >>> ds = vaex.example()
-        >>> r = np.sqrt(ds.data.x**2 + ds.data.y**2)
+        >>> df = vaex.example()
+        >>> r = np.sqrt(df.data.x**2 + df.data.y**2)
 
         """
         class Datas(object):
@@ -4303,40 +4309,40 @@ class DataFrameLocal(DataFrame):
         return functions
 
     def copy(self, column_names=None, virtual=True):
-        ds = DataFrameArrays()
-        ds._length_unfiltered = self._length_unfiltered
-        ds._length_original = self._length_original
-        ds._index_end = self._index_end
-        ds._index_start = self._index_start
-        ds._active_fraction = self._active_fraction
-        ds._renamed_columns = list(self._renamed_columns)
-        ds.units.update(self.units)
-        ds._categories.update(self._categories)
+        df = DataFrameArrays()
+        df._length_unfiltered = self._length_unfiltered
+        df._length_original = self._length_original
+        df._index_end = self._index_end
+        df._index_start = self._index_start
+        df._active_fraction = self._active_fraction
+        df._renamed_columns = list(self._renamed_columns)
+        df.units.update(self.units)
+        df._categories.update(self._categories)
         column_names = column_names or self.get_column_names(hidden=True)
         all_column_names = self.get_column_names(hidden=True)
 
         # put in the selections (thus filters) in place
         # so drop moves instead of really dropping it
-        ds.functions.update(self.functions)
+        df.functions.update(self.functions)
         for key, value in self.selection_histories.items():
-            ds.selection_histories[key] = list(value)
+            df.selection_histories[key] = list(value)
         for key, value in self.selection_history_indices.items():
-            ds.selection_history_indices[key] = value
+            df.selection_history_indices[key] = value
 
         # we copy all columns, but drop the ones that are not wanted
         # this makes sure that needed columns are hidden instead
         def add_columns(columns):
             for name in columns:
                 if name in self.columns:
-                    ds.add_column(name, self.columns[name])
+                    df.add_column(name, self.columns[name])
                 elif name in self.virtual_columns:
                     if virtual:
-                        ds.add_virtual_column(name, self.virtual_columns[name])
+                        df.add_virtual_column(name, self.virtual_columns[name])
                 else:
                     # this might be an expression, create a valid name
                     expression = name
                     name = vaex.utils.find_valid_name(name)
-                    ds[name] = ds._expr(expression)
+                    df[name] = df._expr(expression)
         # to preserve the order, we first add the ones we want, then the rest
         add_columns(column_names)
         # then the rest
@@ -4347,11 +4353,11 @@ class DataFrameLocal(DataFrame):
             # if the column should not have been added, drop it. This checks if columns need
             # to be hidden instead, and expressions be rewritten.
             if name not in column_names:
-                ds.drop(name, inplace=True)
-                assert name not in ds.get_column_names(hidden=True)
+                df.drop(name, inplace=True)
+                assert name not in df.get_column_names(hidden=True)
 
-        ds.copy_metadata(self)
-        return ds
+        df.copy_metadata(self)
+        return df
 
     def shallow_copy(self, virtual=True, variables=True):
         """Creates a (shallow) copy of the df
@@ -4425,7 +4431,7 @@ class DataFrameLocal(DataFrame):
                 chunks.append(self.evaluate(name))
         return np.array(chunks, dtype=dtype).T
 
-    @vaex.utils.deprecated('use ds.join(other)')
+    @vaex.utils.deprecated('use df.join(other)')
     def _hstack(self, other, prefix=None):
         """Join the columns of the other df to this one, assuming the ordering is the same"""
         assert len(self) == len(other), "does not make sense to horizontally stack dfs with different lengths"
@@ -4620,9 +4626,9 @@ class DataFrameLocal(DataFrame):
         >>> x = np.arange(10)
         >>> y = x**2
         >>> z = x**3
-        >>> ds = vaex.from_arrays(x=x, y=y)
-        >>> ds2 = vaex.from_arrays(x=x[:4], z=z[:4])
-        >>> ds._join('x', ds2, 'x', column_names=['z'])
+        >>> df = vaex.from_arrays(x=x, y=y)
+        >>> df2 = vaex.from_arrays(x=x[:4], z=z[:4])
+        >>> df._join('x', df2, 'x', column_names=['z'])
 
         :param key: key for the left table (self)
         :param other: Other df to join with (the right side)
@@ -4891,17 +4897,17 @@ class DataFrameLocal(DataFrame):
         return GroupBy(self, by=by)
 
 class GroupBy(object):
-    def __init__(self, ds, by):
-        self.ds = ds
+    def __init__(self, df, by):
+        self.df = df
         self.by = by
         self._waslist, [self.by, ] = vaex.utils.listify(by)
 
     def size(self):
         import pandas as pd
-        result = self.ds.count(binby=self.by, shape=[10000] * len(self.by)).astype(np.int64)
+        result = self.df.count(binby=self.by, shape=[10000] * len(self.by)).astype(np.int64)
         #values = vaex.utils.unlistify(self._waslist, result)
         values = result
-        series = pd.Series(values, index=self.ds.category_labels(self.by[0]))
+        series = pd.Series(values, index=self.df.category_labels(self.by[0]))
         return series
 
 
@@ -5038,8 +5044,8 @@ class DataFrameConcatenated(DataFrameLocal):
     def __init__(self, dfs, name=None):
         super(DataFrameConcatenated, self).__init__(None, None, [])
         self.dfs = dfs
-        self.name = name or "-".join(ds.name for ds in self.dfs)
-        self.path = "-".join(ds.path for ds in self.dfs)
+        self.name = name or "-".join(df.name for df in self.dfs)
+        self.path = "-".join(df.path for df in self.dfs)
         first, tail = dfs[0], dfs[1:]
         for df in dfs:
             assert df.filtered is False, "we don't support filtering for concatenated dfs"

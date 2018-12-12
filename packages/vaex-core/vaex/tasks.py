@@ -203,10 +203,11 @@ class TaskApply(TaskBase):
 
 
 class StatOp(object):
-    def __init__(self, code, fields, reduce_function=np.nansum):
+    def __init__(self, code, fields, reduce_function=np.nansum, dtype=None):
         self.code = code
         self.fixed_fields = fields
         self.reduce_function = reduce_function
+        self.dtype = dtype
 
     def init(self, grid):
         pass
@@ -215,7 +216,11 @@ class StatOp(object):
         return self.fixed_fields
 
     def reduce(self, grid, axis=0):
-        return self.reduce_function(grid, axis=axis)
+        value = self.reduce_function(grid, axis=axis)
+        if self.dtype:
+            return value.astype(self.dtype)
+        else:
+            return value
 
 
 class StatOpMinMax(StatOp):

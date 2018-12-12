@@ -8,6 +8,7 @@ import importlib
 from IPython.display import display
 import copy
 from .utils import debounced
+from vaex.utils import _ensure_list, _expand, _parse_f, _parse_n, _parse_reduction, _expand_shape
 
 type_map = {}
 
@@ -146,7 +147,7 @@ class PlotBase(widgets.Widget):
 
             self.widget_grid_limits = None
 
-        selections = vaex.dataset._ensure_list(self.selection)
+        selections = _ensure_list(self.selection)
         selections = [_translate_selection(k) for k in selections]
         selections = [k for k in selections if k]
         self.widget_selection_active = widgets.ToggleButtons(options=list(zip(selections, selections)), description='selection')
@@ -202,7 +203,7 @@ class PlotBase(widgets.Widget):
         return self.dataset.limits(self.get_binby(), limits)
 
     def active_selections(self):
-        selections = vaex.dataset._ensure_list(self.selection)
+        selections = _ensure_list(self.selection)
 
         def translate(selection):
             if selection is False:
@@ -248,10 +249,10 @@ class PlotBase(widgets.Widget):
         self.dataset.select_nothing(name=name)
 
     def get_shape(self):
-        return vaex.dataset._expand_shape(self.shape, len(self.get_binby()))
+        return _expand_shape(self.shape, len(self.get_binby()))
 
     def get_vshape(self):
-        return vaex.dataset._expand_shape(self.vshape, len(self.get_binby()))
+        return _expand_shape(self.vshape, len(self.get_binby()))
 
     @debounced(.5, method=True)
     def update_grid(self):
@@ -346,7 +347,7 @@ class PlotBase(widgets.Widget):
             if self.smooth_pre:
                 for i in range(grid.shape[0]):  # seperately for every selection
                     grid[i] = vaex.grids.gf(grid[i], self.smooth_pre)
-            f = vaex.dataset._parse_f(self.f)
+            f = _parse_f(self.f)
             with np.errstate(divide='ignore', invalid='ignore'):
                 fgrid = f(grid)
             try:
@@ -434,7 +435,7 @@ class PlotBase(widgets.Widget):
         return self.vgrids[0], self.vgrids[1], self.vgrids[2], self.vcount
 
     def colorize(self, grid):
-        return vaex.dataset._parse_reduction("colormap", self.colormap, [])(grid)
+        return _parse_reduction("colormap", self.colormap, [])(grid)
 
     def normalise(self, grid):
         if self.grid_limits_visible is not None:
@@ -446,7 +447,7 @@ class PlotBase(widgets.Widget):
             else:
                 grid /= (vmax - vmin)
         else:
-            n = vaex.dataset._parse_n(self.normalize)
+            n = _parse_n(self.normalize)
             grid, vmin, vmax = n(grid)
         # grid = np.clip(grid, 0, 1)
         return grid, vmin, vmax
@@ -476,7 +477,7 @@ class Plot2dDefault(PlotBase):
             # rgb = cgrid[...,0:2]
             # alpha[mask] = 0
             # rgb[mask] = 0
-            n = vaex.dataset._parse_n(self.normalize)
+            n = _parse_n(self.normalize)
             ntotal, __, __ = n(total)
             # print("totao", ntotal.shape, total.shape)
             # cgrid[...,3] = ntotal
@@ -484,17 +485,17 @@ class Plot2dDefault(PlotBase):
             # print("cgrid", cgrid.shape, total.shape, np.nanmax(grid), np.nanmin(grid))
             # print(cgrid)
             return cgrid
-            # colors = vaex.dataset._parse_reduction("colormap", self.colormap, [])(grid)
+            # colors = _parse_reduction("colormap", self.colormap, [])(grid)
         else:
-            return vaex.dataset._parse_reduction("colormap", self.colormap, [])(grid)
+            return _parse_reduction("colormap", self.colormap, [])(grid)
 
     def get_shape(self):
         if self.z:
             if ":" in self.z:
                 shapez = int(self.z.split(":")[1])
-                shape = vaex.dataset._expand_shape(self.shape, 2) + (shapez,)
+                shape = _expand_shape(self.shape, 2) + (shapez,)
             else:
-                shape = vaex.dataset._expand_shape(self.shape, 3)
+                shape = _expand_shape(self.shape, 3)
             return shape
         else:
             return super(Plot2dDefault, self).get_shape()
@@ -597,10 +598,10 @@ class Plot2dSliced(PlotBase):
         self._update_image()
 
     def get_shape(self):
-        return vaex.dataset._expand_shape(self.shape, 2) + (self.z_shape, )
+        return _expand_shape(self.shape, 2) + (self.z_shape, )
 
     def get_vshape(self):
-        return vaex.dataset._expand_shape(self.vshape, 2) + (self.z_shape, )
+        return _expand_shape(self.vshape, 2) + (self.z_shape, )
 
     def get_binby(self):
         return [self.x, self.y, self.z]

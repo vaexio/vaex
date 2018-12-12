@@ -246,6 +246,7 @@ def from_items(*items):
       4    4   16
 
     :param items: list of [(name, numpy array), ...]
+    :rtype: DataFrame
 
     """
     import numpy as np
@@ -280,6 +281,7 @@ def from_arrays(**arrays):
       4    4   16
 
     :param arrays: keyword arguments with arrays
+    :rtype: DataFrame
     """
     import numpy as np
     import six
@@ -296,7 +298,10 @@ def from_arrays(**arrays):
     return df
 
 def from_arrow_table(table):
-    """Creates a vaex DataFrame from an arrow Table"""
+    """Creates a vaex DataFrame from an arrow Table
+    
+    :rtype: DataFrame
+    """
     from vaex_arrow.convert import vaex_df_from_arrow_table
     return vaex_df_from_arrow_table(table=table)
 
@@ -307,6 +312,8 @@ def from_scalars(**kwargs):
 
     >>> import vaex
     >>> df = vaex.from_scalars(x=1, y=2)
+
+    :rtype: DataFrame
     """
     import numpy as np
     return from_arrays(**{k: np.array([v]) for k, v in kwargs.items()})
@@ -321,6 +328,8 @@ def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
     >>> import vaex, pandas as pd
     >>> df_pandas = pd.from_csv('test.csv')
     >>> df = vaex.from_pandas(df_pandas)
+
+    :rtype: DataFrame
     """
     import six
     vaex_df = vaex.dataframe.DataFrameArrays(name)
@@ -358,7 +367,7 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
     :param skip_lines: skip lines at the start of the file
     :param skip_after: skip lines at the end of the file
     :param kwargs:
-    :return:
+    :rtype: DataFrame
     """
 
     import vaex.ext.readcol as rc
@@ -379,7 +388,10 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
 
 
 def from_csv(filename_or_buffer, copy_index=True, **kwargs):
-    """Shortcut to read a csv file using pandas and convert to a DataFrame directly"""
+    """Shortcut to read a csv file using pandas and convert to a DataFrame directly
+    
+    :rtype: DataFrame
+    """
     import pandas as pd
     return from_pandas(pd.read_csv(filename_or_buffer, **kwargs), copy_index=copy_index)
 
@@ -465,7 +477,7 @@ def server(url, **kwargs):
 def example(download=True):
     """Returns an example DataFrame which comes with vaex for testing/learning purposes
 
-    :rtype: vaex.dataframe.DataFrame
+    :rtype: DataFrame
     """
     from . import utils
     path = utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5")
@@ -548,8 +560,9 @@ for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
 
 
 def concat(dfs):
-    '''
-    Concatinate a list of DataFrames.
+    '''Concatenate a list of DataFrames.
+
+    :rtype: DataFrame
     '''
     ds = reduce((lambda x, y: x.concat(y)), dfs)
     return ds
