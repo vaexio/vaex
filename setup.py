@@ -18,6 +18,9 @@ def cwd(path):
 # inspired by https://blog.shazam.com/python-microlibs-5be9461ad979
 
 packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-distributed']
+import os
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+
 
 class DevelopCmd(develop):
     def run(self):
@@ -43,7 +46,8 @@ class InstallCmd(install):
         for package in packages:
             with cwd(os.path.join('packages', package)):
                 os.system('python -m pip install --upgrade .')
-        os.system('python -m pip install vaex-ml==0.3.0')
+        if on_rtd:
+            os.system('python -m pip install vaex-ml==0.3')
 
 setup(
     name='vaex-meta',
