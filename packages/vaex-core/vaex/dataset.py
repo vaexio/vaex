@@ -4339,7 +4339,11 @@ class Dataset(object):
             for i in range(k2 - k1):
                 # parts += ["<tr>"]
                 # parts += ["<td><i style='opacity: 0.6'>{:,}</i></td>".format(i + k1)]
-                values_list[0][1].append(i+k1)
+                if format == 'html':
+                    value = "<i style='opacity: 0.6'>{:,}</i>".format(i + k1)
+                else:
+                    value = "{:,}".format(i + k1)
+                values_list[0][1].append(value)
                 for j, name in enumerate(column_names):
                     value = values[name][i]
                     if isinstance(value, np.ma.core.MaskedConstant):
