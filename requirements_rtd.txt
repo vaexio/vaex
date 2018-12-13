@@ -3,7 +3,7 @@ future
 pyyaml
 astropy
 psutil>=1.2.1
-numpy>=1.7.2
+numpy>=1.13
 aplus
 tornado>=5.0
 futures==2.2.0
