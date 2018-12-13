@@ -252,10 +252,10 @@ Boosted trees
 .. autoclass:: vaex.ml.xgboost.XGBModel
      :members:
 
-PyGBM support is in the incubator phase, which means support may disappear in future versions
+.. PyGBM support is in the incubator phase, which means support may disappear in future versions
 
-.. autoclass:: vaex.ml.incubator.pygbm.PyGBMModel
-     :members:
+.. .. autoclass:: vaex.ml.incubator.pygbm.PyGBMModel
+..      :members:
 
 Nearest neighbour
 ~~~~~~~~~~~~~~~~~
