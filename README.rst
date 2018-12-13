@@ -4,7 +4,7 @@ Vaex uses several sites:
 
 * Main page: https://vaex.io/
 * Documentation: https://docs.vaex.io/
-* Github: https://github.com/maartenbreddels/vaex
+* Github: https://github.com/vaexio/vaex
 * PyPi: https://pypi.python.org/pypi/vaex/
 
 
