@@ -7,6 +7,11 @@ Vaex uses several sites:
 * Github: https://github.com/maartenbreddels/vaex
 * PyPi: https://pypi.python.org/pypi/vaex/
 
+
+Vaex is open source software, if you need support, contact us at https://vaex.io
+
+
+
 What is Vaex?
 -------------
 
