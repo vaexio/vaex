@@ -53,7 +53,7 @@ Why vaex
       / cluster into a single dataset for distributed computations.
    -  ``vaex-qt``: Program written using Qt GUI.
    -  ``vaex``: meta package that installs all of the above.
-   -  ``vaex-ml``: `Machine learning <ml.ipynb>`__
+   -  ``vaex-ml``: `Machine learning <http://docs.vaex.io/en/latest/ml.html>`__ with automatic pipelines.
 
 -  **Jupyter integration**: vaex-jupyter will give you interactive
    visualization and selection in the Jupyter notebook and Jupyter lab.
