@@ -1,0 +1,186 @@
+<!-- ORIGINAL CONTACT HTML -->
+<section id="contact">
+      <div class="container wow fadeInUp">
+        <div class="section-header">
+          <h2 class="section-title">Contact</h2>
+          <p class="section-description">Contact us to learn more about our mission, team and services.</p>
+        </div>
+      </div>
+
+      <!-- Uncomment below if you wan to use dynamic maps -->
+      <!-- <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d22864.11283411948!2d-73.96468908098944!3d40.630720240038435!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c24fa5d33f083b%3A0xc80b8f06e177fe62!2sNew+York%2C+NY%2C+USA!5e0!3m2!1sen!2sbg!4v1540447494452" width="100%" height="380" frameborder="0" style="border:0" allowfullscreen></iframe> -->
+
+      <div class="container wow fadeInUp mt-5">
+        <div class="row justify-content-center">
+
+          <!-- <div class="col-lg-3 col-md-4"> -->
+          <div>
+            <div class="info">
+              <div>
+                <i class="fa fa-map-marker"></i>
+                <p>Based the Netherlands.</p>
+              </div>
+
+              <div>
+                <i class="fa fa-envelope"></i>
+                <p><a href="mailto:contact@vaex.io"> contact@vaex.io </a></p>
+                <!-- <p>contact@vaex.io</p> -->
+              </div>
+
+              <div>
+                <i class="fa fa-phone"></i>
+                <p>+31 6 24640838</p>
+              </div>
+            </div>
+
+            <div class="social-links">
+              <a href="https://github.com/maartenbreddels/vaex" class="github"><i class="fa fa-github"></i></a>
+              <a href="https://twitter.com/vaex_io" class="twitter"><i class="fa fa-twitter"></i></a>
+              <a href="mailto:contact@vaex.io" class="github"><i class="fa fa-at"></i></a>
+              <a href="https://medium.com/vaex" class="medium"><i class="fa fa-medium"></i></a>
+              <!-- <a href="#" class="instagram"><i class="fa fa-instagram"></i></a> -->
+              <!-- <a href="#" class="google-plus"><i class="fa fa-google-plus"></i></a> -->
+              <!-- <a href="#" class="linkedin"><i class="fa fa-linkedin"></i></a> -->
+            </div>
+
+          </div>
+
+          <!-- <div class="col-lg-5 col-md-8">
+            <div class="form">
+              <div id="sendmessage">Your message has been sent. Thank you!</div>
+              <div id="errormessage"></div>
+              <form action="" method="post" role="form" class="contactForm">
+                <div class="form-group">
+                  <input type="text" name="name" class="form-control" id="name" placeholder="Your Name" data-rule="minlen:4" data-msg="Please enter at least 4 chars" />
+                  <div class="validation"></div>
+                </div>
+                <div class="form-group">
+                  <input type="email" class="form-control" name="email" id="email" placeholder="Your Email" data-rule="email" data-msg="Please enter a valid email" />
+                  <div class="validation"></div>
+                </div>
+                <div class="form-group">
+                  <input type="text" class="form-control" name="subject" id="subject" placeholder="Subject" data-rule="minlen:4" data-msg="Please enter at least 8 chars of subject" />
+                  <div class="validation"></div>
+                </div>
+                <div class="form-group">
+                  <textarea class="form-control" name="message" rows="5" data-rule="required" data-msg="Please write something for us" placeholder="Message"></textarea>
+                  <div class="validation"></div>
+                </div>
+                <div class="text-center"><button type="submit">Send Message</button></div>
+              </form>
+            </div> -->
+          </div>
+
+        </div>
+
+      </div>
+    </section><!-- #contact -->
+
+
+
+
+
+<!-- ORIGINAL CONTACT CSS -->
+#contact {
+  background: #f7f7f7;
+  padding: 80px 0 40px 0;
+}
+
+#contact #google-map {
+  height: 300px;
+  margin-bottom: 20px;
+}
+
+#contact .info {
+  color: #333333;
+}
+
+#contact .info i {
+  font-size: 32px;
+  color: #EE6E00;
+  float: left;
+}
+
+#contact .info p {
+  padding: 0 0 10px 50px;
+  margin-bottom: 20px;
+  line-height: 22px;
+  font-size: 14px;
+}
+
+#contact .info .email p {
+  padding-top: 5px;
+}
+
+#contact .social-links {
+  padding-bottom: 20px;
+}
+
+#contact .social-links a {
+  font-size: 18px;
+  display: inline-block;
+  background: #333;
+  color: #fff;
+  line-height: 1;
+  padding: 8px 0;
+  border-radius: 50%;
+  text-align: center;
+  width: 36px;
+  height: 36px;
+  transition: 0.3s;
+}
+
+#contact .social-links a:hover {
+  background: #EE6E00;
+  color: #fff;
+}
+
+#contact .form #sendmessage {
+  color: #EE6E00;
+  border: 1px solid #EE6E00;
+  display: none;
+  text-align: center;
+  padding: 15px;
+  font-weight: 600;
+  margin-bottom: 15px;
+}
+
+#contact .form #errormessage {
+  color: red;
+  display: none;
+  border: 1px solid red;
+  text-align: center;
+  padding: 15px;
+  font-weight: 600;
+  margin-bottom: 15px;
+}
+
+#contact .form #sendmessage.show, #contact .form #errormessage.show, #contact .form .show {
+  display: block;
+}
+
+#contact .form .validation {
+  color: red;
+  display: none;
+  margin: 0 0 20px;
+  font-weight: 400;
+  font-size: 13px;
+}
+
+#contact .form input, #contact .form textarea {
+  border-radius: 0;
+  box-shadow: none;
+  font-size: 14px;
+}
+
+#contact .form button[type="submit"] {
+  background: #EE6E00;
+  border: 0;
+  padding: 10px 24px;
+  color: #fff;
+  transition: 0.4s;
+}
+
+#contact .form button[type="submit"]:hover {
+  background: #51d8ad;
+}

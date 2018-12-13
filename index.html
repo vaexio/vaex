@@ -19,6 +19,7 @@
 
   <!-- Libraries CSS Files -->
   <link href="lib/font-awesome/css/font-awesome.min.css" rel="stylesheet">
+  <link href="lib/ionicons/css/ionicons.css" rel="stylesheet">
   <link href="lib/animate/animate.min.css" rel="stylesheet">
 
   <!-- Main Stylesheet File -->
@@ -52,6 +53,7 @@
           <li class="menu-active"><a href="#hero">Home</a></li>
           <li><a href="#about">vaex.io</a></li>
           <li><a href="#services">Services</a></li>
+          <li><a href="#tech">Technology</a></li>
           <!-- <li><a href="#portfolio">Portfolio</a></li> -->
           <li><a href="#team">Team</a></li>
 <!--           <li class="menu-has-children"><a href="">Drop Down</a>
@@ -109,19 +111,19 @@
 
             <div class="icon-box wow fadeInUp">
               <div class="icon"><i class="fa fa-refresh"></i></div>
-              <h4 class="title"><a href="">Be Agile</a></h4>
+              <h4 class="title">Be Agile</h4>
               <p class="description">Cut developement time by 80%. Your prototype is your solution. Create automatic pipelines for any model.</p>
             </div>
 
             <div class="icon-box wow fadeInUp" data-wow-delay="0.2s">
               <div class="icon"><i class="fa fa-tachometer"></i></div>
-              <h4 class="title"><a href="">Make Impact</a></h4>
+              <h4 class="title">Make Impact</h4>
               <p class="description">Improve your business right away. Deploy your models to Amazon Web Services or Google Cloud Platform with a single command.</p>
             </div>
 
             <div class="icon-box wow fadeInUp" data-wow-delay="0.4s">
               <div class="icon"><i class="fa fa-laptop"></i></div>
-              <h4 class="title"><a href="">Be Resourceful</a></h4>
+              <h4 class="title">Be Resourceful</h4>
               <p class="description">Empower your data scientists. Turn any laptop into a big data powerhouse. No clusters, no engineers.</p>
             </div>
 
@@ -175,57 +177,74 @@
     <section id="services">
       <div class="container wow fadeIn">
         <div class="section-header">
-          <h3 class="section-title">Services</h3>
+          <h2 class="section-title">Services</h2>
           <p class="section-description">We offer a range of consultancy and training services. Contact us to find out more.</p>
         </div>
         <div class="row">
           <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.2s">
             <div class="box">
-              <div class="icon"><a href=""><i class="fa fa-desktop"></i></a></div>
-              <h4 class="title"><a href="">Consultancy</a></h4>
+              <div class="icon"><i class="fa fa-desktop"></i></div>
+              <h4 class="title">Consultancy</h4>
               <p class="description">We provide reliable and fast data driven solutions. With our state-of-the-art technology we build and deploy machine learning models faster than anyone on the market.</p>
             </div>
           </div>
           <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.4s">
             <div class="box">
-              <div class="icon"><a href=""><i class="fa fa-mortar-board"></i></a></div>
-              <h4 class="title"><a href="">Training</a></h4>
+              <div class="icon"><i class="fa fa-mortar-board"></i></div>
+              <h4 class="title">Training</h4>
               <p class="description">Turn your data scientist into big data engineers. We provide comprehensive training of your employees, enabling you to take full advantage of our technology.</p>
             </div>
           </div>
           <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.6s">
             <div class="box">
-              <div class="icon"><a href=""><i class="fa fa-users"></i></a></div>
-              <h4 class="title"><a href="">Opportunities</a></h4>
+              <div class="icon"><i class="fa fa-users"></i></div>
+              <h4 class="title">Opportunities</h4>
               <p class="description">Are you interested in vaex and our team, and would like to get involved? <a href="mailto:contact@vaex.io"> Contact us</a> if you have any ideas on how we can help each other and make our dreams grow together. </p>
             </div>
           </div>
+      </div>
+    </section>
+    <!-- #services -->
 
-          <!-- <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.2s">
-            <div class="box">
-              <div class="icon"><a href=""><i class="fa fa-photo"></i></a></div>
-              <h4 class="title"><a href="">Magni Dolores</a></h4>
-              <p class="description">Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum</p>
-            </div>
+    <!--==========================
+    Technology
+    ============================-->
+    <section id="tech">
+      <div class="container wow fadeIn">
+        <div class="section-header">
+          <h2 class="section-title">Technology</h2>
+          <p class="section-description">Harness the full power of our very own <strong>vaex</strong> library.</p>
+        </div>
+
+        <div class="row">
+
+          <div class="col-lg-6 col-md-6 box wow bounceInUp" data-wow-delay="0.2s", data-wow-duration="2.0s">
+            <div class="icon"><i class="icon ion-social-python"></i></div>
+            <h4 class="title">Ecosystem</h4>
+            <p class="description">Builds on top of the Python data science stack (e.g. pandas, scikit-learn, arrow, xgboost, lightgbm). Standard API makes for easy adoption. Tailored for the Jupyter environment.</p>
           </div>
-          <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.4s">
-            <div class="box">
-              <div class="icon"><a href=""><i class="fa fa-road"></i></a></div>
-              <h4 class="title"><a href="">Nemo Enim</a></h4>
-              <p class="description">At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque</p>
-            </div>
+          <div class="col-lg-6 col-md-6 box wow bounceInUp" data-wow-delay="0.2s", data-wow-duration="2.0s">
+            <div class="icon"><i class="ion-ios-monitor"></i></div>
+            <h4 class="title">Computing</h4>
+            <p class="description">Combines memory mapping, a sophisticated expression system, and fast out-of-core algorithms. Efficiently visualize and explore big datasets, and build machine learning models on a single machine.</p>
           </div>
-          <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.6s">
-            <div class="box">
-              <div class="icon"><a href=""><i class="fa fa-shopping-bag"></i></a></div>
-              <h4 class="title"><a href="">Eiusmod Tempor</a></h4>
-              <p class="description">Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi</p>
-            </div>
+          <div class="col-lg-6 col-md-6 box wow bounceInUp" data-wow-delay="0.4s", data-wow-duration="2.0s">
+            <div class="icon"><i class="ion-plane"></i></div>
+            <h4 class="title">Rapid Delivery</h4>
+            <p class="description">The expression system makes everything serializable, including the machine learning models. A Jupyter notebook prototype becomes a production pipeline instantly, easily deployed with a single command.</p>
           </div>
-        </div> -->
+          <div class="col-lg-6 col-md-6 box wow bounceInUp" data-wow-delay="0.4s", data-wow-duration="2.0s">
+            <div class="icon"><i class="ion-ios-speedometer"></i></div>
+            <h4 class="title">Benchmarks</h4>
+            <p class="description">Visualize 1 billion samples per second. PCA transformation is x10 faster compared to standard implementations, processing 1 billion samples in 2 minutes. Fully out-of-core.</p>
+          </div>
+
+        </div>
 
       </div>
-    </section><!-- #services -->
+    </section>
+    <!-- #technology -->
+
 
     <!--==========================
     Call To Action Section
@@ -251,7 +270,7 @@
     <section id="team">
       <div class="container wow fadeInUp">
         <div class="section-header">
-          <h3 class="section-title">Team</h3>
+          <h2 class="section-title">Team</h2>
           <p class="section-description"> The perfect balance between industry and research experience. </p>
         </div>
         <div class="row">
@@ -321,78 +340,52 @@
     <section id="contact">
       <div class="container wow fadeInUp">
         <div class="section-header">
-          <h3 class="section-title">Contact</h3>
+          <h2 class="section-title">Contact</h2>
           <p class="section-description">Contact us to learn more about our mission, team and services.</p>
         </div>
       </div>
 
-      <!-- Uncomment below if you wan to use dynamic maps -->
-      <!-- <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d22864.11283411948!2d-73.96468908098944!3d40.630720240038435!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c24fa5d33f083b%3A0xc80b8f06e177fe62!2sNew+York%2C+NY%2C+USA!5e0!3m2!1sen!2sbg!4v1540447494452" width="100%" height="380" frameborder="0" style="border:0" allowfullscreen></iframe> -->
+        <div class="row contact-info">
 
-      <div class="container wow fadeInUp mt-5">
-        <div class="row justify-content-center">
-
-          <!-- <div class="col-lg-3 col-md-4"> -->
-          <div>
-            <div class="info">
-              <div>
-                <i class="fa fa-map-marker"></i>
-                <p>Based the Netherlands.</p>
-              </div>
-
-              <div>
-                <i class="fa fa-envelope"></i>
-                <p><a href="mailto:contact@vaex.io"> contact@vaex.io </a></p>
-                <!-- <p>contact@vaex.io</p> -->
-              </div>
-
-              <div>
-                <i class="fa fa-phone"></i>
-                <p>+31 6 24640838</p>
-              </div>
+          <div class="col-md-4">
+            <div class="contact-address">
+              <!-- <i class="ion-ios-location-outline"></i> -->
+              <i class="fa fa-map-marker"></i>
+              <h3>Location</h3>
+              <address>Based in the Netherlands</address>
             </div>
+          </div>
 
-            <div class="social-links">
-              <a href="https://github.com/maartenbreddels/vaex" class="github"><i class="fa fa-github"></i></a>
-              <a href="https://twitter.com/vaex_io" class="twitter"><i class="fa fa-twitter"></i></a>
-              <a href="mailto:contact@vaex.io" class="github"><i class="fa fa-at"></i></a>
-              <a href="https://medium.com/vaex" class="medium"><i class="fa fa-medium"></i></a>
-              <!-- <a href="#" class="instagram"><i class="fa fa-instagram"></i></a> -->
-              <!-- <a href="#" class="google-plus"><i class="fa fa-google-plus"></i></a> -->
-              <!-- <a href="#" class="linkedin"><i class="fa fa-linkedin"></i></a> -->
+          <div class="col-md-4">
+            <div class="contact-phone">
+              <!-- <i class="ion-ios-telephone-outline"></i> -->
+              <i class="fa fa-phone"></i>
+              <h3>Phone Number</h3>
+              <p><a href="tel:+31624640838">+31 62 4640838</a></p>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="contact-email">
+              <!-- <i class="ion-ios-email-outline"></i> -->
+              <i class="fa fa-envelope"></i>
+              <h3>Email</h3>
+              <p><a href="mailto:contact@vaex.io">contact@vaex.io</a></p>
             </div>
 
           </div>
 
-          <!-- <div class="col-lg-5 col-md-8">
-            <div class="form">
-              <div id="sendmessage">Your message has been sent. Thank you!</div>
-              <div id="errormessage"></div>
-              <form action="" method="post" role="form" class="contactForm">
-                <div class="form-group">
-                  <input type="text" name="name" class="form-control" id="name" placeholder="Your Name" data-rule="minlen:4" data-msg="Please enter at least 4 chars" />
-                  <div class="validation"></div>
-                </div>
-                <div class="form-group">
-                  <input type="email" class="form-control" name="email" id="email" placeholder="Your Email" data-rule="email" data-msg="Please enter a valid email" />
-                  <div class="validation"></div>
-                </div>
-                <div class="form-group">
-                  <input type="text" class="form-control" name="subject" id="subject" placeholder="Subject" data-rule="minlen:4" data-msg="Please enter at least 8 chars of subject" />
-                  <div class="validation"></div>
-                </div>
-                <div class="form-group">
-                  <textarea class="form-control" name="message" rows="5" data-rule="required" data-msg="Please write something for us" placeholder="Message"></textarea>
-                  <div class="validation"></div>
-                </div>
-                <div class="text-center"><button type="submit">Send Message</button></div>
-              </form>
-            </div> -->
-          </div>
 
         </div>
-
       </div>
+
+        <div class="social-links">
+          <a href="https://github.com/maartenbreddels/vaex" class="github"><i class="fa fa-github"></i></a>
+          <a href="https://twitter.com/vaex_io" class="twitter"><i class="fa fa-twitter"></i></a>
+          <a href="mailto:contact@vaex.io" class="github"><i class="fa fa-at"></i></a>
+          <a href="https://medium.com/vaex" class="medium"><i class="fa fa-medium"></i></a>
+        </div>
+
     </section><!-- #contact -->
 
   </main>
@@ -409,16 +402,10 @@
 
     <div class="container">
       <div class="copyright">
-        &copy; Copyright <strong>Regna</strong>. All Rights Reserved
+       Designed by <strong>vaex.io</strong>.
       </div>
       <div class="credits">
-        <!--
-          All the links in the footer should remain intact.
-          You can delete the links only if you purchased the pro version.
-          Licensing information: https://bootstrapmade.com/license/
-          Purchase the pro version with working PHP/AJAX contact form: https://bootstrapmade.com/buy/?theme=Regna
-        -->
-        Designed by <a href="https://bootstrapmade.com/">BootstrapMade</a>
+        Original template by <a href="https://bootstrapmade.com/">BootstrapMade</a>. All Rights Reserved.
       </div>
     </div>
   </footer><!-- #footer -->
