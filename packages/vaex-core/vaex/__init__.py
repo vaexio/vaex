@@ -247,6 +247,8 @@ def from_dict(data):
     """Create an in memory dataset from a dict with column names as keys and list/numpy-arrays as values
 
     :param: data: A dict of {columns:[value, value,...]}
+    :return: return dataset if dict structure is valid, otherwise raise error
+    :rtype: Dataset
 
     :Example:
     >>> data = {'A':[1,2,3],'B':['a','b','c']}
