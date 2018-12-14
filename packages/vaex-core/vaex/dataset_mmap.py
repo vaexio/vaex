@@ -20,7 +20,6 @@ import vaex.dataset
 import vaex.file
 from vaex.expression import Expression
 import struct
-import fcntl
 
 logger = logging.getLogger("vaex.file")
 
@@ -45,6 +44,7 @@ if no_mmap:
 
     from cachetools import LRUCache
     import threading
+    import fcntl
     GB = 1024**3
     def getsizeof(ar):
         return ar.nbytes
