@@ -20,9 +20,6 @@ import vaex.dataset
 import vaex.file
 from vaex.expression import Expression
 import struct
-import sys
-if sys.platform != 'win32': # fcntl is not available for Windows OS
-    import fcntl
 
 logger = logging.getLogger("vaex.file")
 
