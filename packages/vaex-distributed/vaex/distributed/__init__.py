@@ -8,6 +8,7 @@ import numpy as np
 import logging
 import aplus
 from ..delayed import delayed
+from functools import reduce
 
 logger = logging.getLogger("vaex.distributed")
 """

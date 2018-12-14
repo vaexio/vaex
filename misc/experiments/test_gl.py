@@ -4,6 +4,7 @@
 #!/usr/bin/env python
 
 """PySide port of the opengl/hellogl example from Qt v4.x"""
+from __future__ import print_function
 
 import sys
 import math
@@ -85,9 +86,9 @@ verty = points[:,1]
 
 testx, testy = np.array([vertx.mean(), 120], dtype='f32'), np.array([verty.mean(), 260], dtype='f32')
 inside = np.zeros(2, dtype=np.uint8)
-print (vertx, verty, testx, testy, inside, 0., 0., 10000.)
-print pnpoly(vertx, verty, testx, testy, inside, 0., 0., 10000.)
-print inside
+print((vertx, verty, testx, testy, inside, 0., 0., 10000.))
+print(pnpoly(vertx, verty, testx, testy, inside, 0., 0., 10000.))
+print(inside)
 #sys.exit(0)
 	
 class MemoryMapped(object):
@@ -307,14 +308,14 @@ class GLWidget(QtOpenGL.QGLWidget):
 					#GL.glDrawArrays(GL.GL_POINTS, 0, length);
 					indices_selected_ptr = indices_selected.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
 					GL.glDrawElements(GL.GL_POINTS, len(indices_selected), GL.GL_UNSIGNED_INT, indices_selected_ptr);
-					print  len(indices_selected), "selected"
+					print(len(indices_selected), "selected")
 					GL.glDisableClientState(GL.GL_VERTEX_ARRAY);
 
 		if 1:
 			self.model = GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
 			self.proj = GL.glGetDoublev(GL.GL_PROJECTION_MATRIX)
 			self.view = GL.glGetIntegerv(GL.GL_VIEWPORT)
-			print "view", self.view
+			print("view", self.view)
 			#print model, proj, view
 			#i = 0
 			#winxi,winyi,winzi = GLU.gluProject(data_x[i], data_y[i], data_z[i],model.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),proj.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),view.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
@@ -348,7 +349,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 		GL.glDisable(GL.GL_DEPTH_TEST)
 		GL.glLineWidth(2.5); 
 		z = 1.
-		print "lasso list:", self.lasso_list
+		print("lasso list:", self.lasso_list)
 		if len(self.lasso_list) >= 3:
 			points = np.array(self.lasso_list)
 			hull = scipy.spatial.ConvexHull(points)
@@ -387,7 +388,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 				GL.glVertex3d(x, self.height() - y - 1, z)
 			GL.glEnd()
 			#print hullx, hully
-			print "inside", np.sum(inside), len(inside)
+			print("inside", np.sum(inside), len(inside))
 			if 1:
 				GL.glColor4f(1., 1.0, 1.0, 0.27);
 				if 0:
@@ -443,24 +444,24 @@ class GLWidget(QtOpenGL.QGLWidget):
 			N = len(winz_inside)
 			indices = np.argsort(winz_inside)
 			i1, i2 = indices[int(N*fraction)], indices[int(N*(1-fraction))]
-			print i1, i2
+			print(i1, i2)
 			zmin = winz_inside[i1]
 			zmax = winz_inside[i2]
 			xmin, xmax = winx_inside.min(), winx_inside.max()
 			ymin, ymax = winy_inside.min(), winy_inside.max()
 			#zmin, zmax = winz_inside.min(), winz_inside.max()
-			print 
-			print "x:", xmin, xmax
-			print "y:", ymin, ymax
-			print "z:", zmin, zmax
+			print() 
+			print("x:", xmin, xmax)
+			print("y:", ymin, ymax)
+			print("z:", zmin, zmax)
 			
 			
 			M = np.matrix(self.model)
 			P = np.matrix(self.proj)
 			T = (P * M)
-			print "M", self.model
-			print "P", self.proj
-			print "v", self.view
+			print("M", self.model)
+			print("P", self.proj)
+			print("v", self.view)
 			#xmin, xmax = 0, 1
 			#ymin, ymax = 0, 1
 			#zmin, zmax = 0, 1
@@ -474,31 +475,31 @@ class GLWidget(QtOpenGL.QGLWidget):
 						clip = np.array([[xc, yc, zc, 1]]).T
 						#view = P.I * clip
 						eye = (P.T*M.T).I * clip
-						print eye
+						print(eye)
 						eye[0:3] /= eye[3]
-						print x, y, z
-						print "->", eye
+						print(x, y, z)
+						print("->", eye)
 						#print clip
 						#print (P*M) * (P*M).I
 						#print GLU.gluUnProject
 						self.bbox.append((eye[0], eye[1], eye[2]))
 					
 						xu,yu,zu = GLU.gluUnProject(x, y, z, self.model.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), self.proj.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), self.view.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
-						print "glu:", xu, yu, zu
+						print("glu:", xu, yu, zu)
 			indices_selected = np.arange(len(winx), dtype=np.uint32)[inside==1]
 			indices_all = np.arange(len(winx), dtype=np.uint32)[inside==0]
-			print data_x[indices_selected].min(), data_x[indices_selected].max()
-			print data_y[indices_selected].min(), data_y[indices_selected].max()
-			print data_z[indices_selected].min(), data_z[indices_selected].max()
+			print(data_x[indices_selected].min(), data_x[indices_selected].max())
+			print(data_y[indices_selected].min(), data_y[indices_selected].max())
+			print(data_z[indices_selected].min(), data_z[indices_selected].max())
 			#import pdb
 			#pdb.set_trace()
 			
 			
 			x, y, z = 1,1,1
 			xu,yu,zu = GLU.gluUnProject(x, y, z, self.model.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), self.proj.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), self.view.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
-			print
-			print xu, yu, zu
-			print GLU.gluProject(xu, yu, zu, self.model.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), self.proj.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), self.view.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
+			print()
+			print(xu, yu, zu)
+			print(GLU.gluProject(xu, yu, zu, self.model.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), self.proj.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), self.view.ctypes.data_as(ctypes.POINTER(ctypes.c_float))))
 			
 			
 			
@@ -520,7 +521,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 			if self.dragging:
 				pos = event.x(), event.y() 
 				self.lasso_list.append(pos)
-			print self.lasso_list
+			print(self.lasso_list)
 			self.update()
 		else:
 			dx = event.x() - self.lastPos.x()

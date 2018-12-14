@@ -933,8 +933,7 @@ class PlotDialog(QtGui.QWidget):
         else:
             self.messages[index] = text
         text = ""
-        keys = list(self.messages.keys())
-        keys.sort()
+        keys = sorted(self.messages.keys())
         text_parts = [self.messages[key] for key in keys]
         self.status_bar.showMessage(" | ".join(text_parts))
 

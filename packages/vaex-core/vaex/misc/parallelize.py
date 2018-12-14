@@ -46,7 +46,7 @@ class InfoThread(threading.Thread):
 		return n
 		
 	def run(self):
-		while 1:
+		while True:
 			count = self.n_done() #self.fullsize - self.taskQueue.qsize()
 			print("%d out of %d tasks completed (%5.2f%%)" % (count, self.fullsize, float(count)/self.fullsize*100))
 			time.sleep(0.1)
@@ -60,7 +60,7 @@ class Watchdog(threading.Thread):
 		self.setDaemon(True)
 		
 	def run(self):
-		while 1:
+		while True:
 			time.sleep(0.5)
 			for execution in self.executions:
 				print(execution.isAlive(), execution.error)

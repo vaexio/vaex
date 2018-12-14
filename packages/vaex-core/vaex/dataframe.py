@@ -3656,7 +3656,7 @@ class DataFrame(object):
         :rtype: DataFrame
         '''
         self = self.extract()
-        if type(random_state) == int or random_state is None:
+        if isinstance(random_state, int) or random_state is None:
             random_state = np.random.RandomState(seed=random_state)
         if n is None and frac is None:
             n = 1
@@ -3671,7 +3671,7 @@ class DataFrame(object):
 
     def split_random(self, frac, random_state=None):
         self = self.extract()
-        if type(random_state) == int or random_state is None:
+        if isinstance(random_state, int) or random_state is None:
             random_state = np.random.RandomState(seed=random_state)
         indices = random_state.choice(len(self), len(self), replace=False)
         return self.take(indices).split(frac)

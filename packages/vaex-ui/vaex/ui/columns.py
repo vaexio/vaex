@@ -14,8 +14,7 @@ logger = logging.getLogger("vaex.ui.columns")
 
 completerContents = "blaat schaap aap koe".split()
 words = astropy.io.votable.ucd.UCDWords()
-ucd_words = list(words._primary.union(words._secondary))
-ucd_words.sort()
+ucd_words = sorted(words._primary.union(words._secondary))
 
 
 class ColumnsTableModel(QtCore.QAbstractTableModel):

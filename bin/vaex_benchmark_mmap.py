@@ -1,3 +1,4 @@
+from __future__ import print_function
 __author__ = 'breddels'
 from ctypes import *
 import h5py
@@ -74,13 +75,13 @@ def sum_read():
 
 #for i in range(3):
 #	print sum_read()
-print "benchmarking read mmap", sum_read()
+print("benchmarking read mmap", sum_read())
 expr = "sum_read()"
-print sum_read()
+print(sum_read())
 times = timeit.repeat(expr, setup="from __main__ import sum_read", repeat=5, number=N)
-print "minimum time", min(times)/N
+print("minimum time", min(times)/N)
 bandwidth = [byte_size/1024.**3/(time/N) for time in times]
-print "%f GiB/s" % max(bandwidth)
+print("%f GiB/s" % max(bandwidth))
 
 
 
@@ -98,13 +99,13 @@ def sum_mmap():
 	total = sum([future.result() for future in vaex.utils.submit_subdivide(8, sum_mmap_part, length, int(1e6))])
 	return total
 
-print "benchmarking sum mmap", sum_mmap(), sum_mmap(), sum_mmap()
+print("benchmarking sum mmap", sum_mmap(), sum_mmap(), sum_mmap())
 expr = "sum_mmap()"
-print sum_mmap()
+print(sum_mmap())
 times = timeit.repeat(expr, setup="from __main__ import sum_mmap", repeat=5, number=N)
-print "minimum time", min(times)/N
+print("minimum time", min(times)/N)
 bandwidth = [byte_size/1024.**3/(time/N) for time in times]
-print "%f GiB/s" % max(bandwidth)
+print("%f GiB/s" % max(bandwidth))
 
 
 

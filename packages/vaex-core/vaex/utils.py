@@ -652,7 +652,7 @@ def _normalize(a, axis=None):
     a[~mask] = np.nan  # put inf to nan
     allaxis = list(range(len(a.shape)))
     if axis is not None:
-        if type(axis) == int:
+        if isinstance(axis, int):
             axis = [axis]
         for ax in axis:
             allaxis.remove(ax)

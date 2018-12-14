@@ -124,7 +124,7 @@ def readcol(filename,skipline=0,skipafter=0,names=False,fsep=None,twod=True,
             asStruct = asRecArray
 
         if namecomment is False and (names or asdict or asStruct):
-            while 1:
+            while True:
                 line = f.pop(0)
                 if line[0] != comment:
                     nameline = line
@@ -138,7 +138,7 @@ def readcol(filename,skipline=0,skipafter=0,names=False,fsep=None,twod=True,
         else:
             if names or asdict or asStruct:
                 # can specify name line
-                if type(names) == type(1):
+                if isinstance(names, type(1)):
                     nameline = f.pop(names)
                 else:
                     nameline = f.pop(0)

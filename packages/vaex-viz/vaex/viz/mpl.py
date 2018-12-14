@@ -71,7 +71,7 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
     import pylab
     f = _parse_f(f)
     n = _parse_n(n)
-    if type(shape) == int:
+    if isinstance(shape, int):
         shape = (shape,)
     binby = []
     x = _ensure_strings_from_expressions(x)
@@ -369,7 +369,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     import pylab
     import matplotlib
     n = _parse_n(normalize)
-    if type(shape) == int:
+    if isinstance(shape, int):
         shape = (shape,) * 2
     binby = []
     x = _ensure_strings_from_expressions(x)

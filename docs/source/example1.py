@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 import h5py
 import sys
 import numpy
@@ -14,15 +15,15 @@ line_count = -1
 for line in csv_file:
 	line_count += 1
 
-print "file contains", line_count, "rows"
+print("file contains", line_count, "rows")
 
 csv_file.seek(0) # start from the beginning of the file again
 lines = iter(csv_file) # explicitly create an iterator over the lines
 
 # first line should contain the column names
-header = lines.next()
+header = next(lines)
 columns = header.strip().split(",")
-print "columns", columns
+print("columns", columns)
 
 # assume all values are floats
 Nbatch = 10000
@@ -43,7 +44,7 @@ for line in lines:
 		index = row-int(row/Nbatch)*Nbatch
 		numpy_arrays[i][index] = values[i]
 	if ((row % 10000) == 0) and row > 0:
-		print "at", row, "of", line_count
+		print("at", row, "of", line_count)
 		# write out the array to disk
 		for i in range(len(columns)):
 			start = (int(row/Nbatch)-1)*Nbatch
@@ -52,7 +53,7 @@ for line in lines:
 	row += 1
 	
 if (row % 10000) > 0:
-	print "writing out last part"
+	print("writing out last part")
 	for i in range(len(columns)):
 		start = (int(row/Nbatch))*Nbatch
 		end = line_count

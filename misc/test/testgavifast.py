@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 __author__ = 'maartenbreddels'
 
 import unittest
@@ -11,7 +12,7 @@ class MyTestCase(unittest.TestCase):
 	def test_histogram1d(self):
 
 		x = np.arange(-5-0.1, 5-0.1, dtype=np.float64)
-		print x, sum(x)
+		print(x, sum(x))
 		for N in [1, 2, 4, 256, 512]:
 			counts = np.zeros(N, dtype=np.float64)
 			min, max = -5, 5
@@ -27,11 +28,11 @@ class MyTestCase(unittest.TestCase):
 			vaex.vaexfast.histogram3d(x, x, x, None, counts, min, max, min, max, min, max)
 			self.assertEqual(np.sum(counts), 9, "histogram3d test") # 1 should fall outside
 			if 0:
-				print np.sum(counts)
+				print(np.sum(counts))
 
 				counts = np.zeros((N, N, N), dtype=np.float64)
 				vaex.vaexfast.histogram3d(x, x, x, None, counts, 0., 9., 0., 9., 0., 9.)
-				print np.sum(counts)
+				print(np.sum(counts))
 	def _test_resize(self):
 		if 1:
 			input1d = np.arange(4) * 1.
@@ -69,10 +70,10 @@ class MyTestCase(unittest.TestCase):
 				input2d = input2d[::2,::] + input2d[1::2,::]
 				input2d = input2d[::,::2] + input2d[::,1::2]
 			if 0:
-				print "input"
-				print input2d
-				print "output"
-				print output2d
+				print("input")
+				print(input2d)
+				print("output")
+				print(output2d)
 			np.testing.assert_equal(input2d, output2d)
 			np.testing.assert_equal(np.sum(input2d), np.sum(output2d))
 
