@@ -829,3 +829,38 @@ def _split_and_combine_mask(arrays):
 			mask |= other
 	return arrays, mask
 
+def listify(fn=None, wrapper=list):
+    '''A decorator which wraps a function's return value in ``list(...)``.
+
+    Useful when an algorithm can be expressed more cleanly as a generator but
+    the function should return an list.
+
+    Example:
+
+    >>> @listify
+    ... def get_lengths(iterable):
+    ...     for i in iterable:
+    ...         yield len(i)
+    >>> get_lengths(["spam", "eggs"])
+    [4, 4]
+    >>>
+    >>> @listify(wrapper=tuple)
+    ... def get_lengths_tuple(iterable):
+    ...     for i in iterable:
+    ...         yield len(i)
+    >>> get_lengths_tuple(["foo", "bar"])
+    (3, 3)
+
+    :param fn: generator function to be converted list or touple
+    :wrapper (str/tuple) wrapper:
+    :return: list or tuple, depending on the wrapper input parameter
+    :rtype: list or tuple
+    '''
+    def listify_return(fn):
+        @functools.wraps(fn)
+        def listify_helper(*args, **kw):
+            return wrapper(fn(*args, **kw))
+        return listify_helper
+    if fn is None:
+        return listify_return
+    return listify_return(fn)
