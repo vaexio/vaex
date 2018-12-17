@@ -3669,14 +3669,68 @@ class DataFrame(object):
         indices = random_state.choice(len(self), n, replace=replace, p=weights_values)
         return self.take(indices)
 
-    def split_random(self, frac, random_state=None):
+    @docsubst
+    def split_random(self, frac=0.8, random_state=None):
+        '''Returns a generator that generates random portions of the DataFrame.
+
+        {note_copy}
+
+        Example:
+
+        >>> import vaex, import numpy as np
+        >>> np.random.seed(111)
+        >>> df = vaex.from_arrays(x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        >>> splitter = df.split(frac=0.3)
+        >>> for split in splitter:
+        ...     print(split.x.values)
+        ...
+        [8 1 5]
+        [0 7 2 9 4 3 6]
+        >>> splitter = df.split(frac=[0.2, 0.3, 0.5])
+        >>> for split in splitter:
+        ...     print(len(split))
+        [8 1]
+        [5 0 7]
+        [2 9 4 3 6]
+
+        :param int/list frac: If int (default, 0.8) will split the DataFrame in two portions, the first of which will have size as specified by this parameter. If list, the generator will generate as many portions as elements in the list, where each element defines the relative fraction of that portion.
+        :param int random_state: (default, None) Random number seed for reproducibility.
+        :return: A generator.
+        :rtype: generator
+        '''
         self = self.extract()
         if type(random_state) == int or random_state is None:
             random_state = np.random.RandomState(seed=random_state)
         indices = random_state.choice(len(self), len(self), replace=False)
         return self.take(indices).split(frac)
 
-    def split(self, frac):
+    @docsubst
+    def split(self, frac=0.8):
+        '''Returns a generator that generates ordered portions of the DataFrame.
+
+        {note_copy}
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.from_arrays(x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        >>> splitter = df.split(frac=0.3)
+        >>> for split in splitter:
+        ...     print(split.x.values)
+        ...
+        [0 1 3]
+        [3 4 5 6 7 8 9]
+        >>> splitter = df.split(frac=[0.2, 0.3, 0.5])
+        >>> for split in splitter:
+        ...     print(len(split))
+        [0 1]
+        [2 3 4]
+        [5 6 7 8 9]
+
+        :param int/list frac: If int (default, 0.8) will split the DataFrame in two portions, the first of which will have size as specified by this parameter. If list, the generator will generate as many portions as elements in the list, where each element defines the relative fraction of that portion.
+        :return: A generator.
+        :rtype: generator
+        '''
         self = self.extract()
         if _issequence(frac):
             # make sure it is normalized
