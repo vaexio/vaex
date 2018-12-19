@@ -829,7 +829,7 @@ def _split_and_combine_mask(arrays):
 			mask |= other
 	return arrays, mask
 
-def listify(fn=None, wrapper=list):
+def gen_to_list(fn=None, wrapper=list):
     '''A decorator which wraps a function's return value in ``list(...)``.
 
     Useful when an algorithm can be expressed more cleanly as a generator but
@@ -837,14 +837,14 @@ def listify(fn=None, wrapper=list):
 
     Example:
 
-    >>> @listify
+    >>> @gen_to_list
     ... def get_lengths(iterable):
     ...     for i in iterable:
     ...         yield len(i)
     >>> get_lengths(["spam", "eggs"])
     [4, 4]
     >>>
-    >>> @listify(wrapper=tuple)
+    >>> @gen_to_list(wrapper=tuple)
     ... def get_lengths_tuple(iterable):
     ...     for i in iterable:
     ...         yield len(i)

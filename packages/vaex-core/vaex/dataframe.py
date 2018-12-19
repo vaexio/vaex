@@ -3670,7 +3670,7 @@ class DataFrame(object):
         return self.take(indices)
 
     @docsubst
-    @vaex.utils.listify
+    @vaex.utils.gen_to_list
     def split_random(self, frac, random_state=None):
         '''Returns a list containing random portions of the DataFrame.
 
@@ -3704,7 +3704,7 @@ class DataFrame(object):
         return self.take(indices).split(frac)
 
     @docsubst
-    @vaex.utils.listify
+    @vaex.utils.gen_to_list
     def split(self, frac):
         '''Returns a list containing ordered subsets of the DataFrame.
 
