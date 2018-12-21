@@ -1274,7 +1274,7 @@ class DataFrame(object):
                 if not _is_limit(value):  # if a
                     # value = tuple(value) # list is not hashable
                     expression_values[(expression, value)] = None
-                if self.iscategory(expression):
+                if self.is_category(expression):
                     N = self._categories[_ensure_string_from_expression(expression)]['N']
                     expression_shapes[expression] = min(N, shapes[shape_index] if shape is not None else default_shape)
                 else:
@@ -1285,7 +1285,7 @@ class DataFrame(object):
         limits_list = []
         # for expression, value in zip(expressions, values):
         for expression, value in expression_values.keys():
-            if self.iscategory(expression):
+            if self.is_category(expression):
                 N = self._categories[_ensure_string_from_expression(expression)]['N']
                 limits = [-0.5, N-0.5]
             else:
