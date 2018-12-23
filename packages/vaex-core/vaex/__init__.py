@@ -235,7 +235,11 @@ def from_dict(data):
     Example
 
     >>> data = {'A':[1,2,3],'B':['a','b','c']}
-    >>> dataset = vaex.from_dict(data)
+    >>> vaex.from_dict(data)
+      #    A    B
+      0    1   'a'
+      1    2   'b'
+      2    3   'c'
 
     :param: data: A dict of {columns:[value, value,...]}
     :rtype: DataFrame
