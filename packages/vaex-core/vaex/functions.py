@@ -36,6 +36,10 @@ maximum
 clip
 nan
 searchsorted
+gradient
+isnan
+isfinite
+roll
 """.strip().split()]
 expression_namespace = {}
 for name, numpy_name in function_mapping:
@@ -104,6 +108,28 @@ expression_namespace["dt_dayofyear"] = dt_dayofyear
 expression_namespace["dt_year"] = dt_year
 expression_namespace["dt_weekofyear"] = dt_weekofyear
 expression_namespace["dt_hour"] = dt_hour
+
+
+def rollingMean(x,window):
+    """
+    Rolling mean using Pandas. See https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.rolling.html
+    
+    window : int, Size of the moving window. This is the number of observations used for calculating the statistic. Each window will be a fixed size. 
+    """
+    import pandas as pd
+    return pd.Series(data=x).rolling(window).mean().values
+
+def rollingSum(x,window):
+    """
+    Rolling sum using Pandas. See https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.rolling.html
+    
+    window : int, Size of the moving window. This is the number of observations used for calculating the statistic. Each window will be a fixed size. 
+    """    
+    import pandas as pd
+    return pd.Series(data=x).rolling(window).sum().values
+
+expression_namespace["rollingMean"] = rollingMean
+expression_namespace["rollingSum"] = rollingSum
 
 
 def str_strip(x, chars=None):
