@@ -229,6 +229,25 @@ def from_astropy_table(table):
     return vaex.file.other.DatasetAstropyTable(table=table)
 
 
+def from_dict(data):
+    """Create an in memory dataset from a dict with column names as keys and list/numpy-arrays as values
+
+    Example
+
+    >>> data = {'A':[1,2,3],'B':['a','b','c']}
+    >>> vaex.from_dict(data)
+      #    A    B
+      0    1   'a'
+      1    2   'b'
+      2    3   'c'
+
+    :param data: A dict of {columns:[value, value,...]}
+    :rtype: DataFrame
+
+    """
+    return vaex.from_arrays(**data)
+
+
 def from_items(*items):
     """Create an in memory DataFrame from numpy arrays, in contrast to from_arrays this keeps the order of columns intact (for Python < 3.6).
 

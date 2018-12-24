@@ -157,7 +157,7 @@ normal array.
     import numpy as np
     # creates an expression (nothing is computed)
     r = np.sqrt(ds.x**2 + ds.y**2 + ds.z**2)
-    r  # for convinience, we print out some values
+    r  # for convenience, we print out some values
 
 
 

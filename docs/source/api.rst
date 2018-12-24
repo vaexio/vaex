@@ -12,6 +12,7 @@ Opening/reading in your data.
     vaex.open
     vaex.from_arrow_table
     vaex.from_arrays
+    vaex.from_dict
     vaex.from_csv
     vaex.from_ascii
     vaex.from_pandas
@@ -54,7 +55,7 @@ vaex-core
 ---------
 
 .. automodule:: vaex
-    :members: open, from_arrays, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, server, example, app, delayed
+    :members: open, from_arrays, from_dict, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, server, example, app, delayed
     :undoc-members:
     :show-inheritance:
 
