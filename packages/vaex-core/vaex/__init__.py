@@ -241,7 +241,7 @@ def from_dict(data):
       1    2   'b'
       2    3   'c'
 
-    :param: data: A dict of {columns:[value, value,...]}
+    :param data: A dict of {columns:[value, value,...]}
     :rtype: DataFrame
 
     """
