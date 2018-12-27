@@ -2,12 +2,14 @@ import operator
 import six
 import functools
 from future.utils import with_metaclass
+from vaex import tasks
 from vaex.functions import expression_namespace
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 import numpy as np
 import vaex.serialize
 import base64
 import cloudpickle as pickle
+from collections import Counter
 from . import expresso
 try:
     from StringIO import StringIO
@@ -361,6 +363,26 @@ def f({0}):
  
     def astype(self, dtype):
         return self.ds.func.astype(self, str(dtype))
+
+    def value_counts(self, sort=True, ascending=False, delay=False, progress=False):
+
+        def map(ar):  # this will be called with a chunk of the data
+            return Counter(ar)  # returns the unique elements
+
+        def reduce(a, b):  # gets called with a list of the return values of map
+            joined = a + b  # put all 'sub-unique' together
+            return joined  # find all the unique items
+        counts = self.ds.map_reduce(map, reduce, [self.expression], delay=delay, progress=progress, name='value_count')
+        #TODO fix bytes str on python3
+        for key in counts.keys():
+            counts[key.decode()] = counts.pop(key)
+        # TODO make more efficient
+        keys = np.array(list(counts.keys()))
+        vals = np.array(list(counts.values()))
+        ret = vaex.from_arrays(**{'value': keys, 'count': vals})
+        if sort:
+            ret = ret.sort(by='count', ascending=ascending)
+        return ret
 
 
 class FunctionSerializable(object):
