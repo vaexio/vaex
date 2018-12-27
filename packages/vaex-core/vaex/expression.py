@@ -362,6 +362,9 @@ def f({0}):
     def astype(self, dtype):
         return self.ds.func.astype(self, str(dtype))
 
+    def apply(self, f):
+        return self.ds.apply(f, self.expression)
+
 
 class FunctionSerializable(object):
     pass
