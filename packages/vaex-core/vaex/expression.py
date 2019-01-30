@@ -190,6 +190,54 @@ class Expression(with_metaclass(Meta)):
         expresso.translate(self.expand().expression, record)
         return variables
 
+    def _graph(self):
+        """"Return a graph containing the dependencies of this expression
+        Structure is:
+            [<string expression>, <function name if callable>, <function object if callable>, [subgraph/dependencies, ....]]
+        """
+        expression = self.expression
+
+        def walk(node):
+            if isinstance(node, six.string_types):
+                if node in self.ds.virtual_columns:
+                    ex = Expression(self.ds, self.ds.virtual_columns[node])
+                    return [node, None, None, [ex._graph()]]
+                else:
+                    return node
+            else:
+                fname, node_repr, deps = node
+                if len(node_repr) > 30:  # clip too long expressions
+                    node_repr = node_repr[:26] + ' ....'
+                deps = [walk(dep) for dep in deps]
+                obj = self.ds.functions.get(fname)
+                # we don't want the wrapper, we want the underlying object
+                if isinstance(obj, Function):
+                    obj = obj.f
+                if isinstance(obj, FunctionSerializablePickle):
+                    obj = obj.f
+                return [node_repr, fname, obj, deps]
+        return walk(expresso._graph(expression))
+
+    def _graphviz(self, dot=None):
+        """Return a graphviz.Digraph object with a graph of the expression"""
+        from graphviz import Graph, Digraph
+        node = self._graph()
+        dot = dot or Digraph(comment=self.expression)
+        def walk(node):
+            if isinstance(node, six.string_types):
+                dot.node(node, node)
+                return node, node
+            else:
+                node_repr, fname, fobj, deps = node
+                node_id = node_repr
+                dot.node(node_id, node_repr)
+                for dep in deps:
+                    dep_id, dep = walk(dep)
+                    dot.edge(node_id, dep_id)
+                return node_id, node
+        walk(node)
+        return dot
+
     def __str__(self):
         return self.expression
 
