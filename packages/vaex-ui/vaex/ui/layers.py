@@ -2737,5 +2737,6 @@ class LayerTable(object):
             self.flag_needs_update()
             self.plot_window.queue_update()
 
-from vaex.dataset import Dataset, Task
+from vaex.dataset import Dataset
+from vaex.tasks import Task
 from vaex.ui.plot_windows import PlotDialog
