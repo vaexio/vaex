@@ -222,6 +222,10 @@ class DataFrame(object):
         column = _ensure_string_from_expression(column)
         return self._categories[column]['labels']
 
+    def category_values(self, column):
+        column = _ensure_string_from_expression(column)
+        return self._categories[column]['values']
+
     def category_count(self, column):
         column = _ensure_string_from_expression(column)
         return self._categories[column]['N']
@@ -234,9 +238,9 @@ class DataFrame(object):
     def filtered(self):
         return self.has_selection(FILTER_SELECTION_NAME)
 
-    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, name='map reduce (custom)'):
+    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, name='map reduce (custom)'):
         # def map_wrapper(*blocks):
-        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=False)
+        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, name)
         self.executor.schedule(task)
@@ -256,16 +260,29 @@ class DataFrame(object):
         return lazy_function(*arguments)
 
     def unique(self, expression, return_inverse=False, progress=False, delay=False):
-        def map(ar):  # this will be called with a chunk of the data
-            return np.unique(ar)  # returns the unique elements
-
-        def reduce(a, b):  # gets called with a list of the return values of map
-            joined = np.concatenate([a, b])  # put all 'sub-unique' together
-            return np.unique(joined)  # find all the unique items
-        if return_inverse:  # TODO: optimize this path
-            return np.unique(self.evaluate(expression), return_inverse=return_inverse)
+        expression = _ensure_string_from_expression(expression)
+        if return_inverse:
+            def map(thread_index, i1, i2, ar):  # this will be called with a chunk of the data
+                return i1, (np.unique(ar, return_inverse=True))  # returns (sort key, (unique elements, indices))
+            def reduce(a, b):  # gets called with a list of the return values of map
+                uniques_a, indices_a = a
+                uniques_b, indices_b = b
+                Na = len(uniques_a)
+                Nb = len(uniques_b)
+                joined = np.concatenate([uniques_a, uniques_b])  # put all 'sub-unique' together
+                uniques, indices_joined = np.unique(joined, return_inverse=True)  # find all the unique items
+                # get back the merged indices
+                indices = np.concatenate([indices_joined[:Na][indices_a], indices_joined[Na:][indices_b]])
+                return uniques, indices
+            return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, info=True, ordered_reduce=True, name='unique')
+            # return np.unique(self.evaluate(expression), return_inverse=return_inverse)
         else:
-            return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='unique')
+            def map(ar):  # this will be called with a chunk of the data
+                return np.unique(ar)  # returns the unique elements
+            def reduce(a, b):  # gets called with a list of the return values of map
+                joined = np.concatenate([a, b])  # put all 'sub-unique' together
+                return np.unique(joined)  # find all the unique items
+        return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='unique')
 
     @docsubst
     def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
@@ -2532,7 +2549,7 @@ class DataFrame(object):
                     # give a better warning to avoid confusion
                     if len(self) == len(ar):
                         raise ValueError("Array is of length %s, while the length of the DataFrame is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
-                raise ValueError("array is of length %s, while the length of the DataFrame is %s" % (len(ar), self.length_unfiltered()))
+                raise ValueError("array is of length %s, while the length of the DataFrame is %s" % (len(ar), self.length_original()))
             # assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
             self.columns[name] = f_or_array
             if name not in self.column_names:
@@ -4266,25 +4283,37 @@ class DataFrameLocal(DataFrame):
         if check:
             vmin, vmax = self.minmax(column)
             if labels is None:
-                N = int(vmax - vmin + 1)
+                N = int(vmax + 1)
                 labels = list(map(str, range(N)))
             if (vmax - vmin) >= len(labels):
                 raise ValueError('value of {} found, which is larger than number of labels {}'.format(vmax, len(labels)))
         self._categories[column] = dict(labels=labels, N=len(labels))
 
-    def label_encode(self, column, values=None, inplace=False):
-        """Label encode column and mark it as categorical
+    def ordinal_encode(self, column, values=None, inplace=False):
+        """Encode column as ordinal values and mark it as categorical
 
         The existing column is renamed to a hidden column and replaced by a numerical columns
         with values between [0, len(values)-1].
         """
         column = _ensure_string_from_expression(column)
         df = self if inplace else self.copy()
-        found_values, codes = df.unique(column, return_inverse=True)
+        # for the codes, we need to work on the unfiltered dataset, since the filter
+        # may change, and we also cannot add an array that is smaller in length
+        df_unfiltered = df.copy()
+        # maybe we need some filter manipulation methods
+        df_unfiltered.select_nothing(name=FILTER_SELECTION_NAME)
+        df_unfiltered._length_unfiltered = df._length_original
+        df_unfiltered.set_active_range(0, df._length_original)
+        # codes point to the index of found_values
+        # meaning: found_values[codes[0]] == ds[column].values[0]
+        found_values, codes = df_unfiltered.unique(column, return_inverse=True)
         if values is None:
             values = found_values
         else:
+            # we have specified which values we should support, anything
+            # not found will be masked
             translation = np.zeros(len(found_values), dtype=np.uint64)
+            # mark values that are in the column, but not in values with a special value
             missing_value = len(found_values)
             for i, found_value in enumerate(found_values):
                 try:
@@ -4297,13 +4326,17 @@ class DataFrameLocal(DataFrame):
                     translation[i] = values.index(found_value)
             codes = translation[codes]
             if missing_value in translation:
+                # all special values will be marked as missing
                 codes = np.ma.masked_array(codes, codes==missing_value)
 
         original_column = df.rename_column(column, '__original_' + column, unique=True)
         labels = [str(k) for k in values]
         df.add_column(column, codes)
-        df._categories[column] = dict(labels=labels, N=len(values))
+        df._categories[column] = dict(labels=labels, N=len(values), values=values)
         return df
+
+    # for backward compatibility
+    label_encode = _hidden(vaex.utils.deprecated('use is_category')(ordinal_encode))
 
     @property
     def data(self):
