@@ -1966,14 +1966,20 @@ class DataFrame(object):
                 self._rename(old, new)
         for name, value in state['functions'].items():
             self.add_function(name, vaex.serialize.from_dict(value))
-        # we clear all columns, and add them later on, since otherwise self[name] = ... will try
-        # to rename the columns (which is unsupported for remote dfs)
-        self.column_names = []
-        self.virtual_columns = collections.OrderedDict()
-        for name, value in state['virtual_columns'].items():
-            self[name] = self._expr(value)
-            # self._save_assign_expression(name)
-        self.column_names = state['column_names']
+        if 'column_names' in state:
+            # we clear all columns, and add them later on, since otherwise self[name] = ... will try
+            # to rename the columns (which is unsupported for remote dfs)
+            self.column_names = []
+            self.virtual_columns = collections.OrderedDict()
+            for name, value in state['virtual_columns'].items():
+                self[name] = self._expr(value)
+                # self._save_assign_expression(name)
+            self.column_names = state['column_names']
+        else:
+            # old behaviour
+            self.virtual_columns = collections.OrderedDict()
+            for name, value in state['virtual_columns'].items():
+                self[name] = self._expr(value)
         self.variables = state['variables']
         import astropy  # TODO: make this dep optional?
         units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
