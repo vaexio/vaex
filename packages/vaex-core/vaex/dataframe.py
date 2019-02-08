@@ -4290,7 +4290,7 @@ class DataFrameLocal(DataFrame):
         self._categories[column] = dict(labels=labels, N=len(labels))
 
     def ordinal_encode(self, column, values=None, inplace=False):
-        """Encode column as ordinal values and mark it as categorical
+        """Encode column as ordinal values and mark it as categorical.
 
         The existing column is renamed to a hidden column and replaced by a numerical columns
         with values between [0, len(values)-1].

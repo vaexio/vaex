@@ -277,24 +277,23 @@ class Expression(with_metaclass(Meta)):
         return self.ds.max(**kwargs)
 
     def value_counts(self, dropna=False, ascending=False):
-        """Computes counts of unique values
+        """Computes counts of unique values.
+
          WARNING:
           * If the expression/column is not categorical, it will be converted on the fly
           * dropna is False by default, it is True by default in pandas
-         :param dropna: when True, it will not report the missing values
+
+        :param dropna: when True, it will not report the missing values
         :param ascending: when False (default) it will report the most frequent occuring item first
         :returns: Pandas series containing the counts
         """
         from pandas import Series
         df = self.ds
-        # whatever we do, it's gonna be similar to ds.categorise, so better
-        # to use that path
+        # we convert to catergorical
         if not df.iscategory(self.expression):
-            df = df.copy()
-            # consider using label_encode.. which seems like a wrong name actually
-            # ds.categorize(self.expression)
-            df = df.label_encode(self.expression)
+            df = df.ordinal_encode(self.expression)
         N = df.category_count(self.expression)
+        # such that we can simply do count + binby
         raw_counts = df.count(binby=self.expression, edges=True, limits=[-0.5, N-0.5], shape=N)
         assert raw_counts[1] == 0, "unexpected data outside of limits"
         assert raw_counts[-1] == 0, "unexpected data outside of limits"
