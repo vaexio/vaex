@@ -276,6 +276,60 @@ class Expression(with_metaclass(Meta)):
         kwargs['expression'] = self.expression
         return self.ds.max(**kwargs)
 
+    def value_counts(self, dropna=False, ascending=False):
+        """Computes counts of unique values.
+
+         WARNING:
+          * If the expression/column is not categorical, it will be converted on the fly
+          * dropna is False by default, it is True by default in pandas
+
+        :param dropna: when True, it will not report the missing values
+        :param ascending: when False (default) it will report the most frequent occuring item first
+        :returns: Pandas series containing the counts
+        """
+        from pandas import Series
+        df = self.ds
+        # we convert to catergorical
+        if not df.iscategory(self.expression):
+            df = df.ordinal_encode(self.expression)
+        N = df.category_count(self.expression)
+        # such that we can simply do count + binby
+        raw_counts = df.count(binby=self.expression, edges=True, limits=[-0.5, N-0.5], shape=N)
+        assert raw_counts[1] == 0, "unexpected data outside of limits"
+        assert raw_counts[-1] == 0, "unexpected data outside of limits"
+        if dropna:
+            counts = raw_counts[2:-1]
+            index = df.category_values(self.expression)
+        else:
+            # first element contains missing values/wrong values
+            counts = np.zeros(N+1, dtype=np.int64)
+            counts[0] = raw_counts[0]
+            counts[1:] = raw_counts[2:-1]
+            if df.category_values(self.expression).dtype.kind == 'f':
+                index = [np.nan] + df.category_values(self.expression).tolist()
+            else:
+                index = ["missing"] + df.category_labels(self.expression)
+        order = np.argsort(counts)
+        index = np.asanyarray(index)
+        if not ascending:
+            order = order[::-1]
+        counts = counts[order]
+        index = index[order]
+        # filter out values not present (which can happen due to how categorize works)
+        ok = counts > 0
+        if dropna and df.category_values(self.expression).dtype.kind == 'f':
+            nan_mask = np.isnan(index)
+            if np.any(nan_mask):
+                ok = ok & ~nan_mask
+        if np.ma.isMaskedArray(index):
+            ok = ok & ~np.ma.getmaskarray(index)
+        counts = counts[ok]
+        index = index[ok]
+        return Series(counts, index=index)
+
+    def unique(self):
+        return self.ds.unique(self.expression)
+
     def evaluate(self, i1=None, i2=None, out=None, selection=None):
         return self.ds.evaluate(self, i1, i2, out=out, selection=selection)
 
