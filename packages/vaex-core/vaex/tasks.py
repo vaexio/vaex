@@ -369,14 +369,10 @@ class TaskStatistic(Task):
 
         blocks = [as_flat_array(block, dtype) for block in blocks]
         if masks:
-            # replace all masked out values by nan, but make a copy so we do not modify
-            blocks = [k.copy() for k in blocks]
-            for block, mask in zip(blocks, masks):
-                block[mask] = np.nan
             mask = masks[0].copy()
             for other in masks[1:]:
                 mask |= other
-            blocks = [k.copy() for k in blocks]
+            blocks = [block[~mask] for block in blocks]
 
         this_thread_grid = self.grid[thread_index]
         for i, selection in enumerate(self.selections):
