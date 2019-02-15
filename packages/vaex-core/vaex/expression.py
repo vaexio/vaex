@@ -363,7 +363,7 @@ def f({0}):
         return self.ds.func.astype(self, str(dtype))
 
     def apply(self, f):
-        return self.ds.apply(f, self.expression)
+        return self.ds.apply(f, [self.expression])
 
 
 class FunctionSerializable(object):
