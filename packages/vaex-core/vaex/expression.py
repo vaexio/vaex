@@ -515,6 +515,42 @@ def f({0}):
     def apply(self, f):
         return self.ds.apply(f, [self.expression])
 
+    def map(self, mapper):
+        '''Map values of an expression or in memory column accoring to an input
+        dictionary or a custom callable function.
+
+        :param mapper: (dict or function) used to map the values on top of the existing ones
+        :return: A vaex expression
+        :rtype: vaex.expression.Expression
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.from_arrays(color=['red', 'red', 'blue', 'red', 'green'])
+        >>> mapper = {'red': 1, 'blue': 2, 'green': 3}
+        >>> df['color_mapped'] = df.color.map(mapper)
+        >>> df.color_mapped.values
+        array([1, 1, 2, 1, 3])
+        '''
+        if isinstance(mapper, dict):
+            def lookup_func(x):
+                if isinstance(x, np.bytes_):
+                    x = x.decode('utf-8')
+                    if x in mapper.keys():
+                        return mapper[x]
+                    else:
+                        return np.nan
+                else:
+                    if x in mapper.keys():
+                        return mapper[x]
+                    else:
+                        return np.nan
+            return self.ds.apply(lookup_func, [self.expression])
+        elif callable(mapper):
+            return self.ds.apply(mapper, [self.expression])
+        else:
+            raise ValueError('for now "mapper" can be only be a dictionary or a callable function.')
+
 
 class FunctionSerializable(object):
     pass
