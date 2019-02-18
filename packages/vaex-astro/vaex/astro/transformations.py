@@ -260,10 +260,10 @@ def add_virtual_columns_equatorial_to_galactic_cartesian(self, alpha, delta, dis
 
 
 @patch
-def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial", radians=False, _matrix):
+def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial", radians=False, _matrix=comat['eq2gal']):
     #import kapteyn.celestial as c
-    input = input if input is not None
-    output = output if output is not None
+    input = input
+    output = output
     matrix = _matrix
     if not radians:
         long_in = "pi/180.*%s" % long_in
