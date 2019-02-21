@@ -26,7 +26,7 @@ class DevelopCmd(develop):
     def run(self):
         for package in packages:
             with cwd(os.path.join('packages', package)):
-                os.system('python -m pip install -e . --user')
+                os.system('python -m pip install -e .')
             # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name
             # otherwise development install do not work
             if package != 'vaex-core':
@@ -42,10 +42,10 @@ class InstallCmd(install):
     def run(self):
         for package in packages:
             with cwd(os.path.join('packages', package)):
-                os.system('python -m pip install --no-deps . --user')
+                os.system('python -m pip install --no-deps .')
         for package in packages:
             with cwd(os.path.join('packages', package)):
-                os.system('python -m pip install --upgrade . --user')
+                os.system('python -m pip install --upgrade .')
         if on_rtd:
             os.system('python -m pip install vaex-ml==0.3.2')
 
