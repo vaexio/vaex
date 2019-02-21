@@ -3407,6 +3407,12 @@ class DataFrame(object):
         self._output_css()
         return self._head_and_tail_table()
 
+    def __str__(self):
+        return self._head_and_tail_table(format='plain')
+
+    def __repr__(self):
+        return self._head_and_tail_table(format='plain')
+
     def __current_sequence_index(self):
         """TODO"""
         return 0
