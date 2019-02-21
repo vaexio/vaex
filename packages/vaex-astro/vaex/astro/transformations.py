@@ -32,7 +32,7 @@ def add_virtual_columns_eq2ecl(self, long_in="ra", lat_in="dec", long_out="lambd
     :return:
     """
 
-    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, name_prefix=name_prefix, radians=radians, _matrix=comat['eq2ecl'])
+    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, name_prefix=name_prefix, radians=radians, _matrix='eq2ecl')
 
 
 @patch
@@ -48,7 +48,7 @@ def add_virtual_columns_eq2gal(self, long_in="ra", lat_in="dec", long_out="l", l
     :return:
     """
 
-    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, name_prefix=name_prefix, radians=radians, _matrix=comat['eq2gal'])
+    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, name_prefix=name_prefix, radians=radians, _matrix='eq2gal')
 
 
 @patch
@@ -63,7 +63,7 @@ def add_virtual_columns_gal2eq(self, long_in='l', lat_in='b', long_out='ra', lat
     :param radians: input and output in radians (True), or degrees (False)
     """
 
-    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, name_prefix=name_prefix, radians=radians, _matrix=comat['gal2eq'])
+    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, name_prefix=name_prefix, radians=radians, _matrix='gal2eq')
 
 
 @patch
@@ -253,7 +253,10 @@ def add_virtual_columns_equatorial_to_galactic_cartesian(self, alpha, delta, dis
 
 @patch
 def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, name_prefix="__celestial", radians=False, _matrix=None):
-    matrix = _matrix
+    #TODO: return wrapped angle, currently returning angles between [-2pi:2pi]. Need modulo arhitmetics on vaex add_virtual_column expressions.
+    #      for example see http://docs.astropy.org/en/stable/_modules/astropy/coordinates/angles.html#Angle.wrap_at
+
+    matrix = comat[_matrix]
     if not radians:
         long_in = "pi/180.*%s" % long_in
         lat_in = "pi/180.*%s" % lat_in
