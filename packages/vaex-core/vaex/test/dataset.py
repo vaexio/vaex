@@ -1091,7 +1091,7 @@ class TestDataset(unittest.TestCase):
 		self.assertAlmostEqual(r, 1)
 
 
-		dataset.add_virtual_columns_celestial("alpha", "delta", "l", "b")
+		dataset.add_virtual_columns_celestial("alpha", "delta", "l", "b", _matrix='eq2gal')
 		# TODO: properly test, with and without radians
 		dataset.evaluate("l")
 		dataset.evaluate("b")

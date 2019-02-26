@@ -8,59 +8,62 @@ def patch(f):
     Dataset.__hidden__[name] = f
     return f
 
+# All assume equinox J2000
+comat = {'eq2ecl': [[0.9999999999999928, 1.1102233723050031e-07, 4.411803426976324e-08],
+                     [-1.1941015020086788e-07, 0.9174821814419274, 0.39777688059582816],
+                     [3.684608657254395e-09, -0.39777688059583055, 0.9174821814419342]],
+         'eq2gal': [[-0.05487553939574265, -0.8734371047275962, -0.48383499177002515],
+                     [0.49410945362774394, -0.4448295942975751, 0.7469822486998918],
+                     [-0.8676661356833737, -0.19807638961301982, 0.45598379452141985]],
+         'gal2eq': [[-0.0548756577126198, 0.4941094371971076, -0.8676661375571625],
+                     [-0.873437051955779, -0.44482972122205366, -0.19807633727507046],
+                     [-0.48383507361641837, 0.7469821839845096, 0.45598381369115243]]}
 
 @patch
-def add_virtual_columns_eq2ecl(self, long_in="ra", lat_in="dec", long_out="lambda_", lat_out="beta", input=None, output=None, name_prefix="__celestial_eq2ecl", radians=False):
+def add_virtual_columns_eq2ecl(self, long_in="ra", lat_in="dec", long_out="lambda_", lat_out="beta", name_prefix="__celestial_eq2ecl", radians=False):
     """Add ecliptic coordates (long_out, lat_out) from equatorial coordinates.
 
     :param long_in: Name/expression for right ascension
     :param lat_in: Name/expression for declination
     :param long_out:  Output name for lambda coordinate
     :param lat_out: Output name for beta coordinate
-    :param input:
-    :param output:
     :param name_prefix:
     :param radians: input and output in radians (True), or degrees (False)
     :return:
     """
-    import kapteyn.celestial as c
-    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.ecliptic, name_prefix=name_prefix, radians=radians)
+
+    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, name_prefix=name_prefix, radians=radians, _matrix='eq2ecl')
 
 
 @patch
-def add_virtual_columns_eq2gal(self, long_in="ra", lat_in="dec", long_out="l", lat_out="b", input=None, output=None, name_prefix="__celestial_eq2gal", radians=False):
+def add_virtual_columns_eq2gal(self, long_in="ra", lat_in="dec", long_out="l", lat_out="b", name_prefix="__celestial_eq2gal", radians=False):
     """Add galactic coordates (long_out, lat_out) from equatorial coordinates.
 
     :param long_in: Name/expression for right ascension
     :param lat_in: Name/expression for declination
     :param long_out:  Output name for galactic longitude
     :param lat_out: Output name for galactic latitude
-    :param input:
-    :param output:
     :param name_prefix:
     :param radians: input and output in radians (True), or degrees (False)
     :return:
     """
-    import kapteyn.celestial as c
-    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.equatorial, output=output or c.galactic, name_prefix=name_prefix, radians=radians)
+
+    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, name_prefix=name_prefix, radians=radians, _matrix='eq2gal')
 
 
 @patch
-def add_virtual_columns_gal2eq(self, long_in='l', lat_in='b', long_out='ra', lat_out='dec', input=None, output=None, name_prefix="__celestial_gal2eq", radians=False):
+def add_virtual_columns_gal2eq(self, long_in='l', lat_in='b', long_out='ra', lat_out='dec', name_prefix="__celestial_gal2eq", radians=False):
     """
     Convert from galactic (l,b) to equatorial (ra,dec) spherical coordinate system.
     :param long_in: longitudinal angle l
     :param lat_in: latitudinal angle b
     :param long_out: right ascension
     :param lat_out: declination
-    :param input:
-    :param output:
     :param name_prefix:
     :param radians: input and output in radians (True), or degrees (False)
     """
 
-    import kapteyn.celestial as c
-    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, input=input or c.galactic, output=output or c.equatorial, name_prefix=name_prefix, radians=radians)
+    self.add_virtual_columns_celestial(long_in, lat_in, long_out, lat_out, name_prefix=name_prefix, radians=radians, _matrix='gal2eq')
 
 
 @patch
@@ -156,7 +159,6 @@ def add_virtual_columns_proper_motion_eq2gal(self, long_in="ra", lat_in="dec", p
     :parap inverse: (For internal use) convert from galactic to equatorial instead
     :return:
     """
-    # import kapteyn.celestial as c
     """mu_gb =  mu_dec*(cdec*sdp-sdec*cdp*COS(ras))/cgb $
       - mu_ra*cdp*SIN(ras)/cgb"""
     long_in_original = long_in = self._expr(long_in)
@@ -250,11 +252,11 @@ def add_virtual_columns_equatorial_to_galactic_cartesian(self, alpha, delta, dis
 
 
 @patch
-def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, input=None, output=None, name_prefix="__celestial", radians=False):
-    import kapteyn.celestial as c
-    input = input if input is not None else c.equatorial
-    output = output if output is not None else c.galactic
-    matrix = c.skymatrix((input, 'j2000', c.fk5), output)[0].tolist()
+def add_virtual_columns_celestial(self, long_in, lat_in, long_out, lat_out, name_prefix="__celestial", radians=False, _matrix=None):
+    #TODO: return wrapped angle, currently returning angles between [-2pi:2pi]. Need modulo arhitmetics on vaex add_virtual_column expressions.
+    #      for example see http://docs.astropy.org/en/stable/_modules/astropy/coordinates/angles.html#Angle.wrap_at
+
+    matrix = comat[_matrix]
     if not radians:
         long_in = "pi/180.*%s" % long_in
         lat_in = "pi/180.*%s" % lat_in
