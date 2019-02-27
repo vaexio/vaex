@@ -12,6 +12,17 @@ def test_concat():
 	assert ds.dtype('names') == ds2.data.names.dtype
 	assert ds.dtype('names') != np.object
 
+def test_string_count():
+	ds = vaex.from_arrays(names=['hello', 'this', 'is', 'long'])
+	assert ds.count(ds.names) == 4
+	ds = vaex.from_arrays(names=np.ma.array(['hello', 'this', 'is', 'long'], mask=[0, 0, 1, 0]))
+	assert ds.count(ds.names) == 3
+
+@pytest.mark.skip
+def test_string_dtype_with_none():
+	ds = vaex.from_arrays(names=['hello', 'this', 'is', None])
+	assert ds.count(ds.names) == 3
+
 def test_unicode():
 	ds = vaex.from_arrays(names=['bla\u1234'])
 	assert ds.names.dtype.kind == 'U'

@@ -367,7 +367,6 @@ class TaskStatistic(Task):
                 histogram2d = vaex.vaexfast.histogram2d_f4
             #print(dtype, statistic_function, histogram2d)
 
-        blocks = [as_flat_array(block, dtype) for block in blocks]
         if masks:
             mask = masks[0].copy()
             for other in masks[1:]:
@@ -406,6 +405,14 @@ class TaskStatistic(Task):
                         this_thread_grid[i][0] += i2 - i1
                 else:
                     raise ValueError("Nothing to compute for OP %s" % self.op.code)
+            # special case for counting string values etc
+            elif len(selection_blocks) == 0 and len(subblock_weights) == 1 and self.op in [OP_COUNT]\
+                    and subblock_weights[0].dtype.kind not in 'biuf':
+                weight = subblock_weights[0]
+                if selection or self.df.filtered:
+                    this_thread_grid[i][0] += np.sum(selection_mask)
+                else:
+                    this_thread_grid[i][0] += len(weight)
             else:
                 #blocks = list(blocks)  # histogramNd wants blocks to be a list
                 # if False: #len(selection_blocks) == 2 and self.op == OP_ADD1:  # special case, slighty faster
@@ -415,6 +422,8 @@ class TaskStatistic(Task):
                 #                 this_thread_grid[i,...,0],
                 #                 self.minima[0], self.maxima[0], self.minima[1], self.maxima[1])
                 # else:
+                    selection_blocks = [as_flat_array(block, dtype) for block in selection_blocks]
+                    subblock_weights = [as_flat_array(block, dtype) for block in subblock_weights]
                     statistic_function(selection_blocks, subblock_weights, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
         return i2 - i1
         # return map(self._map, blocks)#[self.map(block) for block in blocks]

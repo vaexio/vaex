@@ -3252,8 +3252,11 @@ class DataFrame(object):
         columns = {}
         for feature in self.get_column_names(strings=strings, virtual=virtual)[:]:
             dtype = str(self.dtype(feature))
-            if self.dtype(feature).kind in ['S', 'U', '']:
-                columns[feature] = ((dtype, '--', '--', '--', '--', '--', '--'))
+            if self.dtype(feature).kind in ['S', 'U', 'O']:
+                count = self.count(feature, selection=selection, delay=True)
+                self.execute()
+                count = count.get()
+                columns[feature] = ((dtype, count, N-count, '--', '--', '--', '--'))
             else:
                 count = self.count(feature, selection=selection, delay=True)
                 mean = self.mean(feature, selection=selection, delay=True)
