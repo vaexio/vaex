@@ -432,7 +432,7 @@ class GraphBuiler(ast.NodeVisitor):
 
     def visit_Call(self, node):
         fname = node.func.id
-        dependencies = self.dependencies.copy()
+        dependencies = list(self.dependencies)
         self.dependencies = []
         for arg in node.args:
             self.visit(arg)
@@ -441,7 +441,7 @@ class GraphBuiler(ast.NodeVisitor):
         self.dependencies = dependencies
 
     def visit_BinOp(self, node):
-        dependencies = self.dependencies.copy()
+        dependencies = list(self.dependencies)
         self.dependencies = []
         self.visit(node.left)
         dep_left = self.dependencies
