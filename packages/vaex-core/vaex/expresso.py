@@ -23,6 +23,19 @@ valid_unary_operators = [_ast.USub, _ast.UAdd]
 valid_id_characters = string.ascii_letters + string.digits + "_"
 valid_functions = "sin cos".split()
 
+opmap = {
+    _ast.Add: '+',
+    _ast.Sub: '-',
+    _ast.Mult: '*',
+    _ast.Pow: '**',
+    _ast.Div: '/',
+    _ast.FloorDiv: '//',
+    _ast.BitAnd: '&',
+    _ast.BitOr: '|',
+    _ast.BitXor: '^',
+    _ast.Mod: '%',
+}
+
 
 def math_parse(expression, macros=[]):
     # TODO: validate macros?
@@ -411,6 +424,44 @@ class Translator(ast.NodeTransformer):
             node = parse_expression(expr)
             node = self.visit(node)
         return node
+
+
+class GraphBuiler(ast.NodeVisitor):
+    def __init__(self):
+        self.dependencies = []
+
+    def visit_Call(self, node):
+        fname = node.func.id
+        dependencies = list(self.dependencies)
+        self.dependencies = []
+        for arg in node.args:
+            self.visit(arg)
+        graph = [fname, node_to_string(node), self.dependencies]
+        dependencies.append(graph)
+        self.dependencies = dependencies
+
+    def visit_BinOp(self, node):
+        dependencies = list(self.dependencies)
+        self.dependencies = []
+        self.visit(node.left)
+        dep_left = self.dependencies
+
+        self.dependencies = []
+        self.visit(node.right)
+        dep_right = self.dependencies
+        graph = [opmap[type(node.op)], node_to_string(node), dep_left + dep_right]
+        dependencies.append(graph)
+        self.dependencies = dependencies
+
+    def visit_Name(self, node):
+        self.dependencies.append(node.id)
+
+
+def _graph(expression_string):
+    node = parse_expression(expression_string)
+    g = GraphBuiler()
+    node = g.visit(node)
+    return g.dependencies[0]
 
 
 def simplify(expression_string):

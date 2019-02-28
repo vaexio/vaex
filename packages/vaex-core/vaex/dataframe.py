@@ -4273,6 +4273,49 @@ class DataFrame(object):
         """Iterator over the column names."""
         return iter(list(self.get_column_names()))
 
+    def _root_nodes(self):
+        """Returns a list of string which are the virtual columns that are not used in any other virtual column."""
+        # these lists (~used as ordered set) keep track of leafes and root nodes
+        # root nodes
+        root_nodes = []
+        leafes = []
+        def walk(node):
+            # this function recursively walks the expression graph
+            if isinstance(node, six.string_types):
+                # we end up at a leaf
+                leafes.append(node)
+                if node in root_nodes:  # so it cannot be a root node
+                    root_nodes.remove(node)
+            else:
+                node_repr, fname, fobj, deps = node
+                if node_repr in self.virtual_columns:
+                    # we encountered a virtual column, similar behaviour as leaf
+                    leafes.append(node_repr)
+                    if node_repr in root_nodes:
+                        root_nodes.remove(node_repr)
+                # resursive part
+                for dep in deps:
+                    walk(dep)
+        for column in self.virtual_columns.keys():
+            if column not in leafes:
+                root_nodes.append(column)
+            node = self[column]._graph()
+            # we don't do the virtual column itself, just it's depedencies
+            node_repr, fname, fobj, deps = node
+            for dep in deps:
+                walk(dep)
+        return root_nodes
+
+    def _graphviz(self, dot=None):
+        """Return a graphviz.Digraph object with a graph of all virtual columns"""
+        from graphviz import Digraph
+        dot = dot or Digraph(comment='whole dataframe')
+        root_nodes = self._root_nodes()
+        for column in root_nodes:
+            self[column]._graphviz(dot=dot)
+        return dot
+
+
 
 DataFrame.__hidden__ = {}
 hidden = [name for name, func in vars(DataFrame).items() if getattr(func, '__hidden__', False)]
