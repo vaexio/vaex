@@ -1,13 +1,13 @@
 environment:
   matrix:
-    # - PYTHON_VERSION: 2.7
-    #   MINICONDA: C:\Miniconda-x64
+    - PYTHON_VERSION: 2.7
+      MINICONDA: C:\Miniconda-x64
     - PYTHON_VERSION: 3.5
       MINICONDA: C:\Miniconda35-x64
     - PYTHON_VERSION: 3.6
       MINICONDA: C:\Miniconda36-x64
-    # - PYTHON_VERSION: 3.7
-    #   MINICONDA: C:\Miniconda37-x64
+    - PYTHON_VERSION: 3.7
+      MINICONDA: C:\Miniconda37-x64
 
 init:
   - "ECHO %PYTHON_VERSION% %MINICONDA%"
@@ -24,11 +24,6 @@ install:
   - "conda create -q -n test-environment -c conda-forge python=%PYTHON_VERSION% numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython pandas runipy cython pytest numba pyarrow>=0.12 graphviz python-graphviz"
   - activate test-environment
   - pip install -r requirements.txt
-  # - pip install coverage
-  # - cd packages\vaex-core
-  # - pip install --force .
-  # - cd ..
-  # - cd ..
   - pushd packages\vaex-core   && pip install . && popd
   - pushd packages\vaex-hdf5   && pip install . && popd
   - pushd packages\vaex-arrow   && pip install . && popd
