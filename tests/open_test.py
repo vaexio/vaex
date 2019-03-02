@@ -2,11 +2,14 @@ import tempfile
 import shutil
 import os
 import pytest
+import sys
 
 import vaex
 
 path = os.path.dirname(__file__)
 
+if sys.platform.startswith("win"):
+    pytest.skip("skipping windows, since it has issues re-opening files", allow_module_level=True)
 
 def test_open():
     with pytest.raises(IOError):

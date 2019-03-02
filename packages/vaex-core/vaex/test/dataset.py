@@ -1739,7 +1739,6 @@ class TestDataset(unittest.TestCase):
 		path = path_hdf5 = tempfile.mktemp(".hdf5")
 		path_fits = tempfile.mktemp(".fits")
 		path_fits_astropy = tempfile.mktemp(".fits")
-		path_arrow = tempfile.mktemp(".arrow")
 		#print path
 
 		#with self.assertRaises(AssertionError):
@@ -1768,6 +1767,9 @@ class TestDataset(unittest.TestCase):
 										if vx.utils.osname == "windows" and export == dataset.export_hdf5 and byteorder == ">":
 											#print("skip", vx.utils.osname)
 											continue # TODO: IS this a bug for h5py on win32?, leads to an open file
+										# same issue on windows for arrow, closing the mmapped file does not help
+										# for the moment we create a new temp file
+										path_arrow = tempfile.mktemp(".arrow")
 										#print dataset.length_unfiltered()
 										#print len(dataset)
 										if export == dataset.export_hdf5:
