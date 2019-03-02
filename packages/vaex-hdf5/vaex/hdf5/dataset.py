@@ -202,9 +202,11 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         shape = data.shape
         dtype = data.dtype
         if "dtype" in data.attrs:
-            dtype = data.attrs["dtype"]
-            if dtype == 'utf32':
-                dtype = np.dtype('U' + str(data.attrs['dlength']))
+            # ignore the special str type, which is not a numpy dtype
+            if data.attrs["dtype"] != "str":
+                dtype = data.attrs["dtype"]
+                if dtype == 'utf32':
+                    dtype = np.dtype('U' + str(data.attrs['dlength']))
         #self.addColumn(column_name, offset, len(data), dtype=dtype)
         array = self._map_array(data.id.get_offset(), dtype=dtype, length=len(data))
         if mask is not None:
@@ -292,37 +294,26 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                     # offset = data.id.get_offset()
                     # if offset is None:
                         # raise Exception("columns doesn't really exist in hdf5 file")
-                    shape = data.shape
-                    if True:  # len(shape) == 1:
-                        dtype = data.dtype
-                        if "dtype" in data.attrs:
-                            dtype = data.attrs["dtype"]
-                        logger.debug("adding column %r with dtype %r", column_name, dtype)
-                        # self.addColumn(column_name, offset, len(data), dtype=dtype)
-                        if self._version > 1 and 'mask' in column:
-                            self.add_column(column_name, self._map_hdf5_array(data, column['mask']))
-                        else:
-                            self.add_column(column_name, self._map_hdf5_array(data))
-                            # mask = column['mask']
-                            # offset = mask.id.get_offset()
-                            # self.addColumn("temp_mask", offset, len(data), dtype=mask.dtype)
-                            # mask_array = self.columns['temp_mask']
-                            # del self.columns['temp_mask']
-                            # self.column_names.remove('temp_mask')
-                            # ar = self.columns[column_name] = np.ma.array(self.columns[column_name], mask=mask_array, shrink=False)
-                            # assert ar.mask is mask_array, "masked array was copied"
-
+                    if "dtype" in data.attrs and data.attrs["dtype"] == "str":
+                        indices = self._map_hdf5_array(column['indices'])
+                        bytes = self._map_hdf5_array(data)
+                        from vaex.column import ColumnStringArrow
+                        self.add_column(column_name, ColumnStringArrow(indices, bytes))
                     else:
-
-                        # transposed = self._length is None or shape[0] == self._length
-                        transposed = shape[1] < shape[0]
-                        self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=data.dtype, stride=1, stride1=1, transposed=transposed)
-                        # if len(shape[0]) == self._length:
-                        # self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1)
-                        # self.addColumn(column_name+"_0", offset, shape[1], dtype=column.dtype)
-                        # self.addColumn(column_name+"_last", offset+(shape[0]-1)*shape[1]*column.dtype.itemsize, shape[1], dtype=column.dtype)
-                        # self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
-            # finished.add(column_name)
+                        shape = data.shape
+                        if True:  # len(shape) == 1:
+                            dtype = data.dtype
+                            if "dtype" in data.attrs:
+                                dtype = data.attrs["dtype"]
+                            logger.debug("adding column %r with dtype %r", column_name, dtype)
+                            # self.addColumn(column_name, offset, len(data), dtype=dtype)
+                            if self._version > 1 and 'mask' in column:
+                                self.add_column(column_name, self._map_hdf5_array(data, column['mask']))
+                            else:
+                                self.add_column(column_name, self._map_hdf5_array(data))
+                        else:
+                            transposed = shape[1] < shape[0]
+                            self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=data.dtype, stride=1, stride1=1, transposed=transposed)
         all_columns = dict(**self.columns)
         # print(all_columns, column_order)
         self.column_names = []

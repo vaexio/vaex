@@ -355,7 +355,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
                 response = dict(result=[{'name': ds.name,
                                          'length_original': ds.length_original(),
                                          'column_names': ds.get_column_names(strings=True),
-                                         'dtypes': {name: str(ds.columns[name].dtype) for name in ds.get_column_names(strings=True)},
+                                         'dtypes': {name: str("str" if ds.dtype(name) == str else ds.dtype(name)) for name in ds.get_column_names(strings=True)},
                                          'state': ds.state_get()
                                          } for ds in webserver.datasets])
                 logger.debug("response: %r", response)

@@ -6,4 +6,4 @@ def test_from_dict():
     ds = vaex.from_dict(data)
     assert 'A' in ds.get_column_names()
     assert ds['A'].values[0] == 1
-    assert ds['B'].values[2] == b'c'
+    assert ds['B'].values[2] == 'c'

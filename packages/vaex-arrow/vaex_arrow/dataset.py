@@ -1,12 +1,11 @@
 __author__ = 'maartenbreddels'
 import logging
 
-import numpy as np
 import pyarrow as pa
 
 import vaex.dataset
 import vaex.file.other
-from .convert import numpy_array_from_arrow_array
+from .convert import column_from_arrow_array
 logger = logging.getLogger("vaex_arrow")
 
 
@@ -23,7 +22,7 @@ class DatasetArrow(vaex.dataset.DatasetLocal):
 
     def _load(self):
         source = pa.memory_map(self.path)
-        reader = pa.open_stream(source)
+        reader = pa.ipc.open_stream(source)
         table = pa.Table.from_batches([b for b in reader])
         self._load_table(table)
     
@@ -33,9 +32,9 @@ class DatasetArrow(vaex.dataset.DatasetLocal):
             name = col.name
             # TODO: keep the arrow columns, and support and test chunks
             arrow_array = col.data.chunks[0]
-            array = numpy_array_from_arrow_array(arrow_array)
+            column = column_from_arrow_array(arrow_array)
 
-            self.columns[name] = array
+            self.columns[name] = column
             self.column_names.append(name)
             self._save_assign_expression(name, vaex.expression.Expression(self, name))
 

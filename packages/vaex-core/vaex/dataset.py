@@ -18,7 +18,7 @@ from .dataframe import (
     _expand_limits,
     _split_and_combine_mask,
     # dataframe definitions
-    _ColumnConcatenatedLazy,
+    ColumnConcatenatedLazy as _ColumnConcatenatedLazy,
     _doc_snippets,
     _functions_statistics_1d,
     _hidden,

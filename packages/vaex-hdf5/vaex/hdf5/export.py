@@ -9,6 +9,7 @@ import vaex.utils
 import vaex.execution
 import vaex.export
 import vaex.hdf5.dataset
+from vaex.column import ColumnStringArrow
 
 max_length = int(1e5)
 
@@ -151,27 +152,48 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
             else:
                 shape = (N,)
             h5column_output = h5columns_output.require_group(column_name)
-            if dtype.type == np.datetime64:
-                array = h5column_output.require_dataset('data', shape=shape, dtype=np.int64)
-                array.attrs["dtype"] = dtype.name
-            elif dtype.kind == 'U':
-                # numpy uses utf32 for unicode
-                char_length = dtype.itemsize // 4
-                shape = (N, char_length)
-                array = h5column_output.require_dataset('data', shape=shape, dtype=np.uint8)
-                array.attrs["dtype"] = 'utf32'
-                array.attrs["dlength"] = char_length
-            else:
-                try:
-                    array = h5column_output.require_dataset('data', shape=shape, dtype=dtype.newbyteorder(byteorder))
-                except:
-                    logging.exception("error creating dataset for %r, with type %r " % (column_name, dtype))
-            array[0] = array[0]  # make sure the array really exists
+            if dtype == str:
+                # TODO: if no selection or filter, we could do this
+                # if isinstance(column, ColumnStringArrow):
+                #     data_shape = column.bytes.shape
+                #     indices_shape = column.indices.shape
+                # else:
 
-            data = dataset.evaluate(column_name, 0, 1)
-            if np.ma.isMaskedArray(data):
-                mask = h5column_output.require_dataset('mask', shape=shape, dtype=np.bool)
-                mask[0] = mask[0]  # make sure the array really exists
+                byte_length = dataset[column_name].apply(lambda s: len(s.encode('utf8'))).sum(selection=selection)
+                data_shape = (byte_length, )
+                indices_shape = (N+1, )
+
+                array = h5column_output.require_dataset('data', shape=data_shape, dtype='S1')
+                array[0] = array[0]  # make sure the array really exists
+
+                index_array = h5column_output.require_dataset('indices', shape=indices_shape, dtype='i4')
+                index_array[0] = index_array[0]  # make sure the array really exists
+
+                array.attrs["dtype"] = 'str'
+                # TODO: masked support ala arrow?
+            else:
+                if dtype.type == np.datetime64:
+                    array = h5column_output.require_dataset('data', shape=shape, dtype=np.int64)
+                    array.attrs["dtype"] = dtype.name
+                elif dtype.kind == 'U':
+                    # numpy uses utf32 for unicode
+                    char_length = dtype.itemsize // 4
+                    shape = (N, char_length)
+                    array = h5column_output.require_dataset('data', shape=shape, dtype=np.uint8)
+                    array.attrs["dtype"] = 'utf32'
+                    array.attrs["dlength"] = char_length
+                else:
+                    try:
+                        array = h5column_output.require_dataset('data', shape=shape, dtype=dtype.newbyteorder(byteorder))
+                    except:
+                        logging.exception("error creating dataset for %r, with type %r " % (column_name, dtype))
+                        del h5columns_output[column_name]
+                array[0] = array[0]  # make sure the array really exists
+
+                data = dataset.evaluate(column_name, 0, 1)
+                if np.ma.isMaskedArray(data):
+                    mask = h5column_output.require_dataset('mask', shape=shape, dtype=np.bool)
+                    mask[0] = mask[0]  # make sure the array really exists
         random_index_name = None
         column_order = list(column_names)  # copy
         if shuffle:

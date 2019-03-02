@@ -33,6 +33,7 @@ import vaex.kld
 from . import selections, tasks, scopes
 from .functions import expression_namespace
 from .delayed import delayed, delayed_args, delayed_list
+from .column import Column, ColumnIndexed, ColumnSparse, ColumnConcatenatedLazy
 import vaex.events
 
 # py2/p3 compatibility
@@ -1714,12 +1715,19 @@ class DataFrame(object):
     def byte_size(self, selection=False, virtual=False):
         """Return the size in bytes the whole DataFrame requires (or the selection), respecting the active_fraction."""
         bytes_per_row = 0
+        N = self.count(selection=selection)
+        extra = 0
         for column in list(self.get_column_names(virtual=virtual)):
             dtype = self.dtype(column)
-            bytes_per_row += dtype.itemsize
-            if np.ma.isMaskedArray(self.columns[column]):
-                bytes_per_row += 1
-        return bytes_per_row * self.count(selection=selection)
+            if dtype == str:
+                # TODO: document or fix this
+                # is it too expensive to calculate this exactly?
+                extra += self.columns[column].nbytes
+            else:
+                bytes_per_row += dtype.itemsize
+                if np.ma.isMaskedArray(self.columns[column]):
+                    bytes_per_row += 1
+        return bytes_per_row * self.count(selection=selection) + extra
 
     @property
     def nbytes(self):
@@ -1732,6 +1740,12 @@ class DataFrame(object):
         if expression in self.variables:
             return np.float64(1).dtype
         elif expression in self.columns.keys():
+            column = self.columns[expression]
+            data = column[0:1]
+            if data.dtype != str and data.dtype.kind == 'O':
+                # we lie about arrays containing strings
+                if isinstance(data[0], str):
+                    return str
             return self.columns[expression].dtype
         else:
             return self.evaluate(expression, 0, 1).dtype
@@ -2507,6 +2521,8 @@ class DataFrame(object):
 
         table = Table(meta=meta)
         for name, data in self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual):
+            if self.dtype(name) == str:  # for astropy we convert it to unicode, it seems to ignore object type
+                data = np.array(data).astype('U')
             meta = dict()
             if name in self.ucds:
                 meta["ucd"] = self.ucds[name]
@@ -2562,7 +2578,6 @@ class DataFrame(object):
                 self.column_names.append(name)
         else:
             raise ValueError("functions not yet implemented")
-
         self._save_assign_expression(name, Expression(self, name))
 
     def _sparse_matrix(self, column):
@@ -3252,7 +3267,7 @@ class DataFrame(object):
         columns = {}
         for feature in self.get_column_names(strings=strings, virtual=virtual)[:]:
             dtype = str(self.dtype(feature))
-            if self.dtype(feature).kind in ['S', 'U', 'O']:
+            if self.dtype(feature) == str or self.dtype(feature).kind in ['S', 'U', 'O']:
                 count = self.count(feature, selection=selection, delay=True)
                 self.execute()
                 count = count.get()
@@ -3481,7 +3496,7 @@ class DataFrame(object):
                 return False
             if not virtual and name in self.virtual_columns:
                 return False
-            if not strings and self.dtype(name).type == np.string_:
+            if not strings and (self.dtype(name) == str or self.dtype(name).type == np.string_):
                 return False
             if not hidden and name.startswith('__'):
                 return False
@@ -4701,7 +4716,13 @@ class DataFrameLocal(DataFrame):
                 if unit1 != unit2:
                     print("unit mismatch : %r vs %r for %s" % (unit1, unit2, column_name))
                     meta_mismatch.append(column_name)
-                if self.dtype(column_name).type != other.dtype(column_name).type:
+                type1 = self.dtype(column_name)
+                if type1 != str:
+                    type1 = type1.type
+                type2 = other.dtype(column_name)
+                if type2 != str:
+                    type2 = type2.type
+                if type1 != type2:
                     print("different dtypes: %s vs %s for %s" % (self.dtype(column_name), other.dtype(column_name), column_name))
                     type_mismatch.append(column_name)
                 else:
@@ -4718,6 +4739,8 @@ class DataFrameLocal(DataFrame):
                         b = b[index2]
 
                     def normalize(ar):
+                        if not hasattr(ar, 'dtype'):
+                            return ar
                         if ar.dtype.kind == "f" and hasattr(ar, "mask"):
                             mask = ar.mask
                             ar = ar.copy()
@@ -4738,7 +4761,7 @@ class DataFrameLocal(DataFrame):
                         a = normalize(a)
                         b = normalize(b)
                         boolean_mask = (a == b)
-                        if self.dtype(column_name).kind == 'f':  # floats with nan won't equal itself, i.e. NaN != NaN
+                        if self.dtype(column_name) != str and self.dtype(column_name).kind == 'f':  # floats with nan won't equal itself, i.e. NaN != NaN
                             boolean_mask |= (np.isnan(a) & np.isnan(b))
                         return boolean_mask
                     boolean_mask = equal_mask(a, b)
@@ -4749,8 +4772,8 @@ class DataFrameLocal(DataFrame):
                         different_values.append(column_name)
                         if report_difference:
                             indices = np.arange(len(self))[~boolean_mask]
-                            values1 = self.columns[column_name][~boolean_mask]
-                            values2 = other.columns[column_name][~boolean_mask]
+                            values1 = self.columns[column_name][:][~boolean_mask]
+                            values2 = other.columns[column_name][:][~boolean_mask]
                             print("\tshowing difference for the first 10")
                             for i in range(min(len(values1), show)):
                                 try:
@@ -5023,7 +5046,7 @@ class DataFrameLocal(DataFrame):
               self.columns[column_name].dtype.type == np.float64 and
               self.columns[column_name].strides[0] == 8 and
               column_name not in
-              self.virtual_columns) or self.dtype(column_name).kind == 'S')
+              self.virtual_columns) or self.dtype(column_name) == str or self.dtype(column_name).kind == 'S')
         # and False:
 
     def selected_length(self, selection="default"):
@@ -5053,133 +5076,6 @@ class GroupBy(object):
         series = pd.Series(values, index=self.df.category_labels(self.by[0]))
         return series
 
-
-
-class Column(object):
-    pass
-
-class ColumnSparse(object):
-    def __init__(self, matrix, column_index):
-        self.matrix = matrix
-        self.column_index = column_index
-        self.shape = self.matrix.shape[:1]
-        self.dtype = self.matrix.dtype
-
-    def __len__(self):
-        return self.shape[0]
-
-    def __getitem__(self, slice):
-        # not sure if this is the fastest
-        return self.matrix[slice, self.column_index].A[:,0]
-
-class ColumnIndexed(Column):
-    def __init__(self, df, indices, name):
-        self.df = df
-        self.indices = indices
-        self.name = name
-        self.dtype = self.df.dtype(name)
-        self.shape = (len(indices),)
-
-    def __len__(self):
-        return len(self.indices)
-
-    def trim(self, i1, i2):
-        return ColumnIndexed(self.df, self.indices[i1:i2], self.name)
-
-    def __getitem__(self, slice):
-        start, stop, step = slice.start, slice.stop, slice.step
-        start = start or 0
-        stop = stop or len(self)
-        assert step in [None, 1]
-        indices = self.indices[start:stop]
-        ar = self.df.columns[self.name][indices]
-        if np.ma.isMaskedArray(indices):
-            mask = self.indices.mask[start:stop]
-            return np.ma.array(ar, mask=mask)
-        else:
-            return ar
-
-
-class _ColumnConcatenatedLazy(Column):
-    def __init__(self, dfs, column_name):
-        self.dfs = dfs
-        self.column_name = column_name
-        dtypes = [df.dtype(column_name) for df in dfs]
-        self.is_masked = any([df.is_masked(column_name) for df in dfs])
-        if self.is_masked:
-            self.fill_value = dfs[0].columns[self.column_name].fill_value
-        # np.datetime64 and find_common_type don't mix very well
-        if all([dtype.type == np.datetime64 for dtype in dtypes]):
-            self.dtype = dtypes[0]
-        else:
-            if all([dtype == dtypes[0] for dtype in dtypes]):  # find common types doesn't always behave well
-                self.dtype = dtypes[0]
-            if any([dtype.kind in 'SU' for dtype in dtypes]):  # strings are also done manually
-                if all([dtype.kind in 'SU' for dtype in dtypes]):
-                    index = np.argmax([dtype.itemsize for dtype in dtypes])
-                    self.dtype = dtypes[index]
-                else:
-                    index = np.argmax([df.columns[self.column_name].astype('O').astype('S').dtype.itemsize for df in dfs])
-                    self.dtype = dfs[index].columns[self.column_name].astype('O').astype('S').dtype
-            else:
-                self.dtype = np.find_common_type(dtypes, [])
-            logger.debug("common type for %r is %r", dtypes, self.dtype)
-        self.shape = (len(self), ) + self.dfs[0].evaluate(self.column_name, i1=0, i2=1).shape[1:]
-        for i in range(1, len(dfs)):
-            shape_i = (len(self), ) + self.dfs[i].evaluate(self.column_name, i1=0, i2=1).shape[1:]
-            if self.shape != shape_i:
-                raise ValueError("shape of of column %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.column_name, self.shape, i, shape_i))
-
-    def __len__(self):
-        return sum(len(ds) for ds in self.dfs)
-
-    def __getitem__(self, slice):
-        start, stop, step = slice.start, slice.stop, slice.step
-        start = start or 0
-        stop = stop or len(self)
-        assert step in [None, 1]
-        dfs = iter(self.dfs)
-        current_df = next(dfs)
-        offset = 0
-        # print "#@!", start, stop, [len(df) for df in self.dfs]
-        while start >= offset + len(current_df):
-            # print offset
-            offset += len(current_df)
-            # try:
-            current_df = next(dfs)
-            # except StopIteration:
-            # logger.exception("requested start:stop %d:%d when max was %d, offset=%d" % (start, stop, offset+len(current_df), offset))
-            # raise
-            #   break
-        # this is the fast path, no copy needed
-        if stop <= offset + len(current_df):
-            if current_df.filtered:  # TODO this may get slow! we're evaluating everything
-                warnings.warn("might be slow, you have concatenated dfs with a filter set")
-            return current_df.evaluate(self.column_name, i1=start - offset, i2=stop - offset)
-        else:
-            if self.is_masked:
-                copy = np.ma.empty(stop - start, dtype=self.dtype)
-                copy.fill_value = self.fill_value
-            else:
-                copy = np.zeros(stop - start, dtype=self.dtype)
-            copy_offset = 0
-            # print("!!>", start, stop, offset, len(current_df), current_df.columns[self.column_name])
-            while offset < stop:  # > offset + len(current_df):
-                # print(offset, stop)
-                if current_df.filtered:  # TODO this may get slow! we're evaluating everything
-                    warnings.warn("might be slow, you have concatenated DataFrames with a filter set")
-                part = current_df.evaluate(self.column_name, i1=start-offset, i2=min(len(current_df), stop - offset))
-                # print "part", part, copy_offset,copy_offset+len(part)
-                copy[copy_offset:copy_offset + len(part)] = part
-                # print copy[copy_offset:copy_offset+len(part)]
-                offset += len(current_df)
-                copy_offset += len(part)
-                start = offset
-                if offset < stop:
-                    current_df = next(dfs)
-            return copy
-
-
 class DataFrameConcatenated(DataFrameLocal):
     """Represents a set of DataFrames all concatenated. See :func:`DataFrameLocal.concat` for usage.
     """
@@ -5197,14 +5093,14 @@ class DataFrameConcatenated(DataFrameLocal):
                 self.column_names.append(column_name)
         self.columns = {}
         for column_name in self.get_column_names(virtual=False):
-            self.columns[column_name] = _ColumnConcatenatedLazy(dfs, column_name)
+            self.columns[column_name] = ColumnConcatenatedLazy(dfs, column_name)
             self._save_assign_expression(column_name)
 
         for name in list(first.virtual_columns.keys()):
             if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
                 self.virtual_columns[name] = first.virtual_columns[name]
             else:
-                self.columns[name] = _ColumnConcatenatedLazy(dfs, name)
+                self.columns[name] = ColumnConcatenatedLazy(dfs, name)
                 self.column_names.append(name)
             self._save_assign_expression(name)
 

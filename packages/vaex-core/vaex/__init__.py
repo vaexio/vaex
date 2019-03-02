@@ -304,16 +304,14 @@ def from_arrays(**arrays):
     """
     import numpy as np
     import six
+    from .column import Column
     df = vaex.dataframe.DataFrameArrays("array")
     for name, array in arrays.items():
-        if not isinstance(array, np.ndarray) and isinstance(array[0], six.string_types):
-            try:
-                array = np.array(array, dtype='S')
-            except UnicodeEncodeError:
-                array = np.array(array, dtype='U')
+        if isinstance(array, Column):
+            df.add_column(name, array)
         else:
             array = np.asanyarray(array)
-        df.add_column(name, array)
+            df.add_column(name, array)
     return df
 
 def from_arrow_table(table):
@@ -355,8 +353,6 @@ def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
 
     def add(name, column):
         values = column.values
-        if isinstance(values[0], six.string_types):
-            values = values.astype("S")
         try:
             vaex_df.add_column(name, values)
         except Exception as e:
@@ -585,3 +581,13 @@ def concat(dfs):
     '''
     ds = reduce((lambda x, y: x.concat(y)), dfs)
     return ds
+
+def vrange(start, stop, step=1, dtype='f8'):
+    """Creates a virtual column which is the equivalent of numpy.arange, but uses 0 memory"""
+    from .column import ColumnVirtualRange
+    return ColumnVirtualRange(start, stop, step, dtype)
+
+def string_column(strings):
+    from vaex_arrow.convert import column_from_arrow_array
+    import pyarrow as pa
+    return column_from_arrow_array(pa.array(strings))

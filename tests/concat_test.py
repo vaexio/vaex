@@ -44,3 +44,10 @@ def test_concat_unequals_virtual_columns():
     ds = vaex.concat([ds1, ds2])
     assert ds.w.tolist() == [1+2, 2+3]
     assert ds.z.tolist() == [1+2, 2*3]
+
+def test_concat_arrow_strings():
+    df1 = vaex.from_arrays(x=vaex.string_column(['aap', 'noot', 'mies']))
+    df2 = vaex.from_arrays(x=vaex.string_column(['a', 'b', 'c']))
+    df = vaex.concat([df1, df2])
+    assert df.dtype('x') == df1.dtype('x')
+    assert df.x.tolist() == ['aap', 'noot', 'mies', 'a', 'b', 'c']

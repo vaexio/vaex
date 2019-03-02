@@ -1,5 +1,7 @@
+"""Convert between arrow and vaex/numpy columns/arrays without doing memory copies."""
 import pyarrow
 import numpy as np
+from vaex.column import ColumnStringArrow
 
 def arrow_array_from_numpy_array(array):
     dtype = array.dtype
@@ -17,15 +19,34 @@ def arrow_array_from_numpy_array(array):
             arrow_array = pyarrow.array(array.astype(dtype.newbyteorder('=')), mask=mask)
     return arrow_array
 
+from vaex.dataframe import Column
+
+
+def column_from_arrow_array(arrow_array):
+    arrow_type = arrow_array.type
+    buffers = arrow_array.buffers()
+    if len(buffers) == 2:
+        return numpy_array_from_arrow_array(arrow_array)
+    elif len(buffers) == 3 and  isinstance(arrow_array.type, type(pyarrow.string())):
+        bitmap_buffer, offsets, string_bytes = arrow_array.buffers()
+        # TODO: implement, not ignore
+        #assert bitmap_buffer is None, 'masked strings not supported yet, please open an issue at https://github.com/vaexio/vaex/issues'
+
+        offsets = np.frombuffer(offsets, np.uint32, len(offsets)//4)
+        string_bytes = np.frombuffer(string_bytes, 'S1', len(string_bytes))
+        column = ColumnStringArrow(offsets, string_bytes, len(arrow_array))
+        return column
+    else:
+        raise TypeError('type unsupported: %r' % arrow_type)
+
+
 def numpy_array_from_arrow_array(arrow_array):
     arrow_type = arrow_array.type
     buffers = arrow_array.buffers()
     assert len(buffers) == 2
-    bitmap_buffer = buffers[0]
-    data_buffer = buffers[1]
+    bitmap_buffer, data_buffer = buffers
     if isinstance(arrow_type, type(pyarrow.binary(1))):  # todo, is there a better way to typecheck?
         # mimics python/pyarrow/array.pxi::Array::to_numpy
-        buffers = arrow_array.buffers()
         assert len(buffers) == 2
         dtype = "S" + str(arrow_type.byte_width)
         # arrow seems to do padding, check if it is all ok
@@ -37,13 +58,18 @@ def numpy_array_from_arrow_array(arrow_array):
     else:
         dtype = arrow_array.type.to_pandas_dtype()
     array = np.frombuffer(data_buffer, dtype, len(arrow_array))
+
     if bitmap_buffer is not None:
-        # arrow uses a bitmap https://github.com/apache/arrow/blob/master/format/Layout.md
         bitmap = np.frombuffer(bitmap_buffer, np.uint8, len(bitmap_buffer))
-        # we do have to change the ordering of the bits
-        mask = 1-np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:len(arrow_array)]
+        mask = numpy_mask_from_arrow_mask(bitmap, arrow_array)
         array = np.ma.MaskedArray(array, mask=mask)
     return array
+
+def numpy_mask_from_arrow_mask(bitmap, arrow_array):
+    # arrow uses a bitmap https://github.com/apache/arrow/blob/master/format/Layout.md
+    # we do have to change the ordering of the bits
+    return 1-np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:len(arrow_array)]
+
 
 
 def arrow_table_from_vaex_df(ds, column_names=None, selection=None, strings=True, virtual=False):

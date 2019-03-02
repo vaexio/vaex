@@ -121,6 +121,7 @@ class TestDataset(unittest.TestCase):
 		name = np.array(list(map(lambda x: str(x) + "bla" + ('_' * int(x)), self.x)), dtype='S') #, dtype=np.string_)
 		self.names = self.dataset.get_column_names()
 		self.dataset.add_column("name", np.array(name))
+		self.dataset.add_column("name_arrow", vaex.string_column(name))
 		if use_filtering:
 			self.dataset.select('(x >= 0) & (x < 10)', name=vaex.dataset.FILTER_SELECTION_NAME)
 			self.x = x = self.x[2:12]
@@ -380,10 +381,10 @@ class TestDataset(unittest.TestCase):
 		fn = tempfile.mktemp(".csv")
 		#print(fn)
 		with open(fn, "w") as f:
-			print(separator.join(["x", "y", "m", "mi",  "name", "ints", "f"]), file=f)
-			values = [self.dataset.evaluate(k) for k in 'x y m mi name ints f'.split()]
-			for x, y, m, mi, name, i, f_ in zip(*values):#zip(self.x, self.y, self.dataset.data.m, self.dataset.data.mi, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
-				print(separator.join(map(str, [x, y, m, mi, name.decode("utf8"), i, f_])), file=f)
+			print(separator.join(["x", "y", "m", "mi",  "name", "name_arrow", "ints", "f"]), file=f)
+			values = [self.dataset.evaluate(k) for k in 'x y m mi name name_arrow ints f'.split()]
+			for x, y, m, mi, name, name_arrow, i, f_ in zip(*values):#zip(self.x, self.y, self.dataset.data.m, self.dataset.data.mi, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
+				print(separator.join(map(str, [x, y, m, mi, name.decode("utf8"), name_arrow, i, f_])), file=f)
 		ds = vx.from_csv(fn, index_col=False)
 		changes = self.dataset.compare(ds, report_difference=True)
 		diff = changes[0]
@@ -743,20 +744,26 @@ class TestDataset(unittest.TestCase):
 		# TODO: concatenated dfs with strings of different length
 		self.assertEqual(["x", "y", "m", "mi", "ints", "f"], self.dataset.get_column_names(virtual=False, strings=False))
 
-		names = ["x", "y", "m", "mi", "ints", "f", "name"]
+		names = ["x", "y", "m", "mi", "ints", "f", "name", "name_arrow"]
 		self.assertEqual(names, self.dataset.get_column_names(strings=True, virtual=False))
 
 		if self.dataset.is_local():
 			# check if strings are exported
 			path_hdf5 = tempfile.mktemp(".hdf5")
 			self.dataset.export_hdf5(path_hdf5, virtual=False)
-
 			exported_dataset = vx.open(path_hdf5)
 			self.assertEqual(names, exported_dataset.get_column_names(strings=True))
 
+			path_arrow = tempfile.mktemp(".arrow")
+			self.dataset.export_arrow(path_arrow, virtual=False)
+			exported_dataset = vx.open(path_arrow)
+			self.assertEqual(names, exported_dataset.get_column_names(strings=True))
+
+			# for fits we do not support arrow like strings
+			self.dataset.drop("name_arrow", inplace=True)
+			names.remove("name_arrow")
 			path_fits = tempfile.mktemp(".fits")
 			self.dataset.export_fits(path_fits, virtual=False)
-
 			exported_dataset = vx.open(path_fits)
 			self.assertEqual(names, exported_dataset.get_column_names(strings=True))
 
@@ -787,9 +794,10 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(self.dataset.dtype("x*f"), np.float64)
 
 	def test_byte_size(self):
-		self.assertEqual(self.dataset.byte_size(), (8*6 + 2 + self.dataset.col.name.dtype.itemsize)*len(self.dataset))
+		arrow_size = self.dataset.columns['name_arrow'].nbytes
+		self.assertEqual(self.dataset.byte_size(), (8*6 + 2 + self.dataset.col.name.dtype.itemsize)*len(self.dataset) + arrow_size)
 		self.dataset.select("x < 1")
-		self.assertEqual(self.dataset.byte_size(selection=True), 8*6 + 2 + self.dataset.col.name.dtype.itemsize)
+		self.assertEqual(self.dataset.byte_size(selection=True), 8*6 + 2 + self.dataset.col.name.dtype.itemsize + arrow_size) 
 
 	def test_ucd_find(self):
 		self.dataset.ucds["x"] = "a;b;c"
@@ -1790,7 +1798,7 @@ class TestDataset(unittest.TestCase):
 													os.remove(path_fits_astropy)
 										compare = vx.open(path)
 										if column_names is None:
-											column_names = ["x", "y", "m", "mi", "ints", "f", "z", "name"] if virtual else ["x", "y", "m", "mi", "ints", "f", "name"]
+											column_names = ["x", "y", "m", "mi", "ints", "f", "z", "name", "name_arrow"] if virtual else ["x", "y", "m", "mi", "ints", "f", "name", "name_arrow"]
 										#if not virtual:
 										#	if "z" in column_names:
 										#		column_names.remove("z")
@@ -1829,7 +1837,7 @@ class TestDataset(unittest.TestCase):
 													self.assertEqual(sorted(a), sorted(b))
 												else:
 													dtype = compare.columns[column_name].dtype # we don't want any casting
-													np.testing.assert_array_equal(compare.columns[column_name], values[:length].astype(dtype))
+													np.testing.assert_array_equal(compare.columns[column_name][:], values[:length].astype(dtype))
 										compare.close_files()
 										#os.remove(path)
 
@@ -1837,10 +1845,10 @@ class TestDataset(unittest.TestCase):
 				dataset.set_active_fraction(1)
 		import vaex.export
 		dataset = self.dataset
-		dataset.export_fits(path_fits)
+		dataset.export(path_arrow)
 		name = "vaex export"
 		#print(path_fits)
-		vaex.export.main([name, "--no-progress", "-q", "file", path_fits, path_hdf5])
+		vaex.export.main([name, "--no-progress", "-q", "file", path_arrow, path_hdf5])
 		backup = vaex.vaex.utils.check_memory_usage
 		try:
 			vaex.vaex.utils.check_memory_usage = lambda *args: False
