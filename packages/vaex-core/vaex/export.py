@@ -12,7 +12,7 @@ import vaex.utils
 import vaex.execution
 import vaex.file.colfits
 import vaex.file.other
-from vaex.column import ColumnStringArrow
+from vaex.column import ColumnStringArrow, str_type
 
 
 max_length = int(1e5)
@@ -63,7 +63,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
     order_array_inverse = None
 
     # for strings we also need the inverse order_array, keep track of that
-    has_strings = any([dataset_input.dtype(k) == str for k in column_names])
+    has_strings = any([dataset_input.dtype(k) == str_type for k in column_names])
 
     if partial_shuffle:
         # if we only export a portion, we need to create the full length random_index array, and
@@ -168,14 +168,14 @@ def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffl
                 if np.ma.isMaskedArray(to_array):
                     to_array = np.empty_like(to_array_disk)
                 else:
-                    if dtype == str:
+                    if dtype == str_type:
                         # we create an empty column copy
                         to_array = to_array._zeros_like()
                     else:
                         to_array = np.zeros_like(to_array_disk)
             to_offset = 0  # we need this for selections
             count = len(dataset_input) if not selection else dataset_input.length_unfiltered()
-            is_string = dtype == str
+            is_string = dtype == str_type
             # TODO: if no filter, selection or mask, we can choose the quick path for str
             string_byte_offset = 0
 
@@ -265,7 +265,7 @@ def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffl
                 else:
                     to_column.indices[count] = string_byte_offset
             if shuffle or sort:  # write to disk in one go
-                if dtype == str:  # strings are sorted afterwards
+                if dtype == str_type:  # strings are sorted afterwards
                     source = memoryview(to_array.bytes.view(np.uint8))
                     target = memoryview(to_array_disk.bytes.view(np.uint8))
                     string_byte_offset = 0
@@ -313,7 +313,7 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
             column = dataset.columns[column_name]
             shape = (N,) + column.shape[1:]
             dtype = column.dtype
-            if dataset.dtype(column_name) == str:
+            if dataset.dtype(column_name) == str_type:
                 max_length = dataset[column_name].apply(lambda x: len(x)).max(selection=selection)
                 dtype = np.dtype('S'+str(int(max_length)))
         else:

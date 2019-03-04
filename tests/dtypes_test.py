@@ -1,10 +1,11 @@
 from common import *
+from vaex.column import str_type
 
 
 def test_dtype(ds_local):
   ds = ds_local
   for name in ds.column_names:
-    if ds.dtype(name) == str:
+    if ds.dtype(name) == str_type:
       assert ds[name].values.dtype.kind == 'O'
     else:
       assert ds[name].values.dtype == ds.dtype(ds[name])

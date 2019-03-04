@@ -1,4 +1,5 @@
 import logging
+import six
 
 import numpy as np
 
@@ -78,9 +79,9 @@ class ColumnConcatenatedLazy(Column):
         if self.is_masked:
             self.fill_value = dfs[0].columns[self.column_name].fill_value
         # np.datetime64 and find_common_type don't mix very well
-        all_strings = all([dtype == str for dtype in dtypes])
+        all_strings = all([dtype == str_type for dtype in dtypes])
         if all_strings:
-            self.dtype = str
+            self.dtype = str_type
         else:
             if all([dtype.type == np.datetime64 for dtype in dtypes]):
                 self.dtype = dtypes[0]
@@ -112,7 +113,7 @@ class ColumnConcatenatedLazy(Column):
         stop = stop or len(self)
         assert step in [None, 1]
         dtype = self.dtype
-        if dtype == str:
+        if dtype == str_type:
             dtype = 'O'  # we store the strings in a dtype=object array
         dfs = iter(self.dfs)
         current_df = next(dfs)
@@ -155,6 +156,10 @@ class ColumnConcatenatedLazy(Column):
                     current_df = next(dfs)
             return copy
 
+try:
+    str_type = unicode
+except:
+    str_type = str
 
 class ColumnStringArrow(Column):
     """Column that unpacks the arrow string column on the fly"""
@@ -195,9 +200,11 @@ class ColumnStringArrow(Column):
             for i in range(start, stop):#, step):
                 i1 = self.indices[i] - self.offset
                 i2 = self.indices[i+1] - self.offset
-                s1 = self.bytes[i1:i2]
-                m1 = memoryview(s1)
-                strings.append(bytes(m1).decode('utf8'))
+                string_bytes = self.bytes[i1:i2]
+                if six.PY2:
+                    strings.append(unicode(buffer(string_bytes)))
+                else:
+                    strings.append(bytes(memoryview(string_bytes)).decode('utf8'))
             return np.array(strings, dtype='O') # would be nice if we could do without
 
     def trim(self, i1, i2):

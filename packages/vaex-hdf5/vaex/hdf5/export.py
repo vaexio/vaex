@@ -9,7 +9,7 @@ import vaex.utils
 import vaex.execution
 import vaex.export
 import vaex.hdf5.dataset
-from vaex.column import ColumnStringArrow
+from vaex.column import ColumnStringArrow, str_type
 
 max_length = int(1e5)
 
@@ -138,7 +138,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
         logger.debug("exporting columns(hdf5): %r" % column_names)
         sparse_groups = collections.defaultdict(list)
         sparse_matrices = {}  # alternative to a set of matrices, since they are not hashable
-        for column_name in column_names:
+        for column_name in list(column_names):
             sparse_matrix = dataset._sparse_matrix(column_name)
             if sparse_matrix is not None:
                 # sparse columns are stored differently
@@ -152,7 +152,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
             else:
                 shape = (N,)
             h5column_output = h5columns_output.require_group(column_name)
-            if dtype == str:
+            if dtype == str_type:
                 # TODO: if no selection or filter, we could do this
                 # if isinstance(column, ColumnStringArrow):
                 #     data_shape = column.bytes.shape
@@ -188,6 +188,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                     except:
                         logging.exception("error creating dataset for %r, with type %r " % (column_name, dtype))
                         del h5columns_output[column_name]
+                        column_names.remove(column_name)
                 array[0] = array[0]  # make sure the array really exists
 
                 data = dataset.evaluate(column_name, 0, 1)

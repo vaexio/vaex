@@ -4,6 +4,15 @@ import numpy as np
 import pytest
 import sys
 
+try:
+	unicode
+	str_kind = 'S'
+except:
+	str_kind = 'U'
+
+
+@pytest.mark.skipif(sys.version_info < (3,3),
+                    reason="requires python3.4 or higher")
 def test_dtype_object_string(tmpdir):
 	x = np.arange(8,12)
 	s = np.array(list(map(str, x)), dtype='O')
@@ -63,13 +72,15 @@ def test_unicode():
 	ds = vaex.from_arrays(names=['bla'])
 	assert ds.names.dtype.kind == 'U'
 
+@pytest.mark.skipif(sys.version_info < (3,3),
+                    reason="requires python3.4 or higher")
 def test_concat_mixed():
 	# this can happen when you want to concat multiple csv files
 	# and pandas makes one have nans, since they all have missing values
 	# and the other string
 	ds1 = vaex.from_arrays(names=['not', 'missing'])
 	ds2 = vaex.from_arrays(names=[np.nan, np.nan])
-	assert ds1.dtype(ds1.names).kind in 'U'
+	assert ds1.dtype(ds1.names).kind in str_kind
 	assert ds2.dtype(ds2.names) == np.float64
 	ds = ds1.concat(ds2)
 	assert len(ds) == len(ds1) + len(ds2)

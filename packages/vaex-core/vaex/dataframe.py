@@ -33,7 +33,7 @@ import vaex.kld
 from . import selections, tasks, scopes
 from .functions import expression_namespace
 from .delayed import delayed, delayed_args, delayed_list
-from .column import Column, ColumnIndexed, ColumnSparse, ColumnConcatenatedLazy
+from .column import Column, ColumnIndexed, ColumnSparse, ColumnConcatenatedLazy, str_type
 import vaex.events
 
 # py2/p3 compatibility
@@ -1719,7 +1719,7 @@ class DataFrame(object):
         extra = 0
         for column in list(self.get_column_names(virtual=virtual)):
             dtype = self.dtype(column)
-            if dtype == str:
+            if dtype in [str_type, str]:
                 # TODO: document or fix this
                 # is it too expensive to calculate this exactly?
                 extra += self.columns[column].nbytes
@@ -1742,10 +1742,10 @@ class DataFrame(object):
         elif expression in self.columns.keys():
             column = self.columns[expression]
             data = column[0:1]
-            if data.dtype != str and data.dtype.kind == 'O':
+            if data.dtype != str_type and data.dtype.kind == 'O':
                 # we lie about arrays containing strings
-                if isinstance(data[0], str):
-                    return str
+                if isinstance(data[0], str_type):
+                    return str_type
             return self.columns[expression].dtype
         else:
             return self.evaluate(expression, 0, 1).dtype
@@ -2521,7 +2521,7 @@ class DataFrame(object):
 
         table = Table(meta=meta)
         for name, data in self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual):
-            if self.dtype(name) == str:  # for astropy we convert it to unicode, it seems to ignore object type
+            if self.dtype(name) == str_type:  # for astropy we convert it to unicode, it seems to ignore object type
                 data = np.array(data).astype('U')
             meta = dict()
             if name in self.ucds:
@@ -3267,7 +3267,7 @@ class DataFrame(object):
         columns = {}
         for feature in self.get_column_names(strings=strings, virtual=virtual)[:]:
             dtype = str(self.dtype(feature))
-            if self.dtype(feature) == str or self.dtype(feature).kind in ['S', 'U', 'O']:
+            if self.dtype(feature) == str_type or self.dtype(feature).kind in ['S', 'U', 'O']:
                 count = self.count(feature, selection=selection, delay=True)
                 self.execute()
                 count = count.get()
@@ -3496,7 +3496,7 @@ class DataFrame(object):
                 return False
             if not virtual and name in self.virtual_columns:
                 return False
-            if not strings and (self.dtype(name) == str or self.dtype(name).type == np.string_):
+            if not strings and (self.dtype(name) == str_type or self.dtype(name).type == np.string_):
                 return False
             if not hidden and name.startswith('__'):
                 return False
@@ -4717,10 +4717,10 @@ class DataFrameLocal(DataFrame):
                     print("unit mismatch : %r vs %r for %s" % (unit1, unit2, column_name))
                     meta_mismatch.append(column_name)
                 type1 = self.dtype(column_name)
-                if type1 != str:
+                if type1 != str_type:
                     type1 = type1.type
                 type2 = other.dtype(column_name)
-                if type2 != str:
+                if type2 != str_type:
                     type2 = type2.type
                 if type1 != type2:
                     print("different dtypes: %s vs %s for %s" % (self.dtype(column_name), other.dtype(column_name), column_name))
@@ -5046,7 +5046,7 @@ class DataFrameLocal(DataFrame):
               self.columns[column_name].dtype.type == np.float64 and
               self.columns[column_name].strides[0] == 8 and
               column_name not in
-              self.virtual_columns) or self.dtype(column_name) == str or self.dtype(column_name).kind == 'S')
+              self.virtual_columns) or self.dtype(column_name) == str_type or self.dtype(column_name).kind == 'S')
         # and False:
 
     def selected_length(self, selection="default"):
