@@ -1844,6 +1844,8 @@ class TestDataset(unittest.TestCase):
 				# self.dataset_concat_dup references self.dataset, so set it's active_fraction to 1 again
 				dataset.set_active_fraction(1)
 		import vaex.export
+		path_arrow = tempfile.mktemp(".arrow")
+		path_hdf5 = tempfile.mktemp(".hdf5")
 		dataset = self.dataset
 		dataset.export(path_arrow)
 		name = "vaex export"
