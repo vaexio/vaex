@@ -113,7 +113,7 @@ public:
         int32_t start = indices[i] - offset;
         int32_t end = indices[i+1] - offset;
         int32_t count = end - start;
-        return std::string(bytes, start, count);
+        return std::string(bytes + start, count);
     }
 
 public:
@@ -218,7 +218,7 @@ PYBIND11_MODULE(strings, m) {
                 );
             })
         )
-        .def("get", (const std::string (StringList::*)(int64_t))&StringList::get)
+        .def("get", (const std::string (StringList::*)(size_t))&StringList::get)
         // bug? we have to add this again
         .def("get", (py::object (StringSequence::*)(size_t, size_t))&StringSequence::get, py::return_value_policy::take_ownership)
         // .def("print", &StringList::print)
