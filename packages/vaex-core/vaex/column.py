@@ -184,6 +184,11 @@ class ColumnStringArray(Column):
     def to_numpy(self):
         return self.array
 
+def _to_string(string_bytes):
+    if six.PY2:
+        return unicode(buffer(string_bytes))
+    else:
+        return bytes(memoryview(string_bytes)).decode('utf8')
 
 class ColumnStringArrow(ColumnString):
     """Column that unpacks the arrow string column on the fly"""
@@ -191,7 +196,7 @@ class ColumnStringArrow(ColumnString):
         self.indices = indices
         self.offset = offset  # to avoid memory copies in trim
         self.bytes = bytes
-        self.dtype = str
+        self.dtype = str_type
         self.length = length if length is not None else len(indices) - 1
         self.shape = (self.__len__(),)
         self.nbytes = self.bytes.nbytes + self.indices.nbytes
@@ -210,16 +215,13 @@ class ColumnStringArrow(ColumnString):
                     if slice[i]:
                         i1 = self.indices[i] - self.offset
                         i2 = self.indices[i+1] - self.offset
-                        s1 = self.bytes[i1:i2]
-                        m1 = memoryview(s1)
-                        strings.append(bytes(m1).decode('utf8'))
+                        strings.append(_to_string(self.bytes[i1:i2]))
             else:
                 for i in slice:
                     i1 = self.indices[i] - self.offset
                     i2 = self.indices[i+1] - self.offset
                     s1 = self.bytes[i1:i2]
-                    m1 = memoryview(s1)
-                    strings.append(bytes(m1).decode('utf8'))
+                    strings.append(_to_string(self.bytes[i1:i2]))
             return np.array(strings, dtype='O')
         else:
             start, stop, step = slice.start, slice.stop, slice.step
@@ -238,11 +240,7 @@ class ColumnStringArrow(ColumnString):
             for i in range(start, stop):#, step):
                 i1 = self.indices[i] - self.offset
                 i2 = self.indices[i+1] - self.offset
-                string_bytes = self.bytes[i1:i2]
-                if six.PY2:
-                    strings.append(unicode(buffer(string_bytes)))
-                else:
-                    strings.append(bytes(memoryview(string_bytes)).decode('utf8'))
+                strings.append(_to_string(self.bytes[i1:i2]))
             return np.array(strings, dtype='O') # would be nice if we could do without
 
     def trim(self, i1, i2):

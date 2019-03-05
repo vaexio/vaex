@@ -4660,20 +4660,23 @@ class DataFrameLocal(DataFrame):
             done = offset_filtered >= i2
         return np.array(indices, dtype=np.int64)
 
-    def _evaluate(self, expression, i1, i2, out=None, selection=None):
+    def _evaluate(self, expression, i1, i2, out=None, selection=None, internal=False):
         scope = scopes._BlockScope(self, i1, i2, **self.variables)
         if out is not None:
             scope.buffers[expression] = out
         value = scope.evaluate(expression)
+        if isinstance(value, ColumnString) and not internal:
+            value = value.to_numpy()
         return value
 
-    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True):
+    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, internal=False):
         """The local implementation of :func:`DataFrame.evaluate`"""
         expression = _ensure_string_from_expression(expression)
         selection = _ensure_strings_from_expressions(selection)
         i1 = i1 or 0
         i2 = i2 or (len(self) if (self.filtered and filtered) else self.length_unfiltered())
         mask = None
+
         if self.filtered and filtered:  # if we filter, i1:i2 has a different meaning
             indices = self._filtered_range_to_unfiltered_indices(i1, i2)
             i1 = indices[0]
