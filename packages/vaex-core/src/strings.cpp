@@ -136,7 +136,8 @@ public:
         for(size_t i = 0; i < length; i++) {
             #if PY_MAJOR_VERSION == 3
                 if(PyUnicode_CheckExact(object_array[i])) {
-                    strings[i] = PyUnicode_AsUTF8AndSize(object_array[i], &sizes[i]);
+                    // python37 declares as const
+                    strings[i] = (char*)PyUnicode_AsUTF8AndSize(object_array[i], &sizes[i]);
                 } else {
                     strings[i] = 0;
                 }
