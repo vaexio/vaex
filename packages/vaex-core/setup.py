@@ -63,7 +63,8 @@ extension_vaexfast = Extension("vaex.vaexfast", [os.path.relpath(os.path.join(di
                                include_dirs=[get_numpy_include()],
                                extra_compile_args=extra_compile_args)
 extension_strings = Extension("vaex.strings", [os.path.relpath(os.path.join(dirname, "src/strings.cpp"))],
-                               include_dirs=[get_numpy_include(), get_pybind_include(), get_pybind_include(user=True)],
+                               include_dirs=[get_numpy_include(), get_pybind_include(),
+                               get_pybind_include(user=True), 'vendor/string-view-lite/include'],
                                extra_compile_args=extra_compile_args)
 
 setup(name=name + '-core',

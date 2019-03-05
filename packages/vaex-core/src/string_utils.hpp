@@ -1,5 +1,9 @@
 /* regex match/search using string_view */
-// #include <string_view>
+#include <nonstd/string_view>
+
+typedef nonstd::string_view string_view;
+
+/*
 class string_view {
 public:
     string_view(const char* ptr, size_t count) : ptr(ptr), count(count) {  }
@@ -14,7 +18,7 @@ public:
     const char* ptr;
     size_t count;
 };
-
+*/
 
 using svmatch = std::match_results<string_view::const_iterator>;
 using svsub_match = std::sub_match<string_view::const_iterator>;

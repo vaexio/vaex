@@ -123,10 +123,6 @@ public:
     size_t offset;
 };
 
-int add(int i, int j) {
-    return i + j + 1;
-}
-
 const char* empty = "";
 
 class StringArray : public StringSequence {
@@ -191,8 +187,7 @@ public:
 
 PYBIND11_MODULE(strings, m) {
     _import_array();
-    m.doc() = "pybind11 example plugin"; // optional module docstring
-    m.def("add", &add, "A function which adds two numbers");
+    m.doc() = "fast operations on string sequences";
     py::class_<StringSequence> string_sequence(m, "StringSequence");
     string_sequence
         .def("search", &StringSequence::search, "Tests if strings contains pattern", py::arg("pattern"), py::arg("regex"))//, py::call_guard<py::gil_scoped_release>())
@@ -200,11 +195,8 @@ PYBIND11_MODULE(strings, m) {
     ;
     py::class_<StringList>(m, "StringList", string_sequence)
         .def(py::init([](py::buffer bytes, py::array_t<int32_t, py::array::c_style>& indices, size_t string_count, size_t offset) {
-                // bytes.inc_ref();
-                // indices.inc_ref();
                 py::buffer_info bytes_info = bytes.request();
                 py::buffer_info indices_info = indices.request();
-                // std::cout << indices;
                 if(bytes_info.ndim != 1) {
                     throw std::runtime_error("Expected a 1d byte buffer");
                 }
@@ -221,7 +213,6 @@ PYBIND11_MODULE(strings, m) {
         .def("get", (const std::string (StringList::*)(size_t))&StringList::get)
         // bug? we have to add this again
         .def("get", (py::object (StringSequence::*)(size_t, size_t))&StringSequence::get, py::return_value_policy::take_ownership)
-        // .def("print", &StringList::print)
         // .def_property_readonly("bytes", [](const StringList &sl) {
         //         return py::bytes(sl.bytes, sl.byte_length);
         //     }
@@ -246,15 +237,5 @@ PYBIND11_MODULE(strings, m) {
         .def("get", (const std::string (StringArray::*)(int64_t))&StringArray::get)
         // bug? we have to add this again
         .def("get", (py::object (StringSequence::*)(size_t, size_t))&StringSequence::get, py::return_value_policy::take_ownership)
-        // .def("print", &StringList::print)
-        // .def_property_readonly("bytes", [](const StringList &sl) {
-        //         return py::bytes(sl.bytes, sl.byte_length);
-        //     }
-        // )
-        // .def("__repr__",
-        //     [](const StringList &sl) {
-        //         return "<vaex.strings.StringList buffer='" + sl.get() + "'>";
-        //     }
-        // )
         ;
 }
