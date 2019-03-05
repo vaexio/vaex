@@ -28,6 +28,7 @@ before_install:
   - which pip
   - source activate test-environment
   - which pip
+  - pip install pybind11
   # - conda install -c conda-forge pandas kapteyn # these extra installs should disappear
   # - conda create --name dev --clone test
 #  - pip install -r requirements.txt
