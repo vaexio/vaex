@@ -4773,7 +4773,7 @@ class DataFrameLocal(DataFrame):
                         a = normalize(a)
                         b = normalize(b)
                         boolean_mask = (a == b)
-                        if self.dtype(column_name) != str and self.dtype(column_name).kind == 'f':  # floats with nan won't equal itself, i.e. NaN != NaN
+                        if self.dtype(column_name) != str_type and self.dtype(column_name).kind == 'f':  # floats with nan won't equal itself, i.e. NaN != NaN
                             boolean_mask |= (np.isnan(a) & np.isnan(b))
                         return boolean_mask
                     boolean_mask = equal_mask(a, b)
