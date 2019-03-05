@@ -22,7 +22,8 @@ class StringSequence {
     }
     virtual ~StringSequence() {
     }
-    virtual std::string_view view(size_t i) const = 0;
+    virtual string_view view(size_t i) const = 0;
+    virtual const std::string get(size_t i) const = 0;
     py::object search(const std::string pattern, bool regex) {
         py::array_t<bool> matches(length);
         auto m = matches.mutable_unchecked<1>();
@@ -64,7 +65,7 @@ class StringSequence {
             if( (i < 0) || (i > length) ) {
                 throw std::runtime_error("out of bounds i2");
             }
-            std::string_view str = view(i);
+            string_view str = view(i);
             ptr[i - start] = PyUnicode_FromStringAndSize(str.begin(), str.length());;
         }
         py::handle h = array;
@@ -79,7 +80,7 @@ public:
      : StringSequence(string_count), bytes(bytes), byte_length(byte_length), indices(indices), offset(offset) {
     }
     void print() {
-        std::cout << get();
+        // std::cout << get();
     }
     void _check(int64_t i) const {
         if( (i < 0) || (i > length) ) {
@@ -97,17 +98,17 @@ public:
         }
 
     }
-    const std::string get() const {
-        return std::string(bytes, 0, byte_length);
-    }
-    virtual std::string_view view(size_t i) const {
+    // const std::string get() const {
+    //     return std::string(bytes, 0, byte_length);
+    // }
+    virtual string_view view(size_t i) const {
         _check(i);
         int32_t start = indices[i] - offset;
         int32_t end = indices[i+1] - offset;
         int32_t count = end - start;
-        return std::string_view(bytes + start, count);
+        return string_view(bytes + start, count);
     }
-    inline const std::string get(int64_t i) {
+    virtual const std::string get(size_t i) const {
         _check(i);
         int32_t start = indices[i] - offset;
         int32_t end = indices[i+1] - offset;
@@ -131,32 +132,59 @@ const char* empty = "";
 class StringArray : public StringSequence {
 public:
     StringArray(PyObject** object_array, size_t length) : StringSequence(length) {
+        #if PY_MAJOR_VERSION == 2
+            utf8_objects= (PyObject**)malloc(length * sizeof(void*));
+        #endif
         strings = (char**)malloc(length * sizeof(void*));
         sizes = (Py_ssize_t*)malloc(length * sizeof(Py_ssize_t));
         for(size_t i = 0; i < length; i++) {
-            if(PyUnicode_CheckExact(object_array[i])) {
-                strings[i] = PyUnicode_AsUTF8AndSize(object_array[i], &sizes[i]);
-            } else {
-                strings[i] = 0;
-            }
+            #if PY_MAJOR_VERSION == 3
+                if(PyUnicode_CheckExact(object_array[i])) {
+                    strings[i] = PyUnicode_AsUTF8AndSize(object_array[i], &sizes[i]);
+                } else {
+                    strings[i] = 0;
+                }
+            #else
+                if(PyUnicode_CheckExact(object_array[i])) {
+                    // if unicode, first convert to utf8
+                    utf8_objects[i] = PyUnicode_AsUTF8String(object_array[i]);
+                    sizes[i] = PyString_Size(utf8_objects[i]);
+                    strings[i] = PyString_AsString(utf8_objects[i]);
+                } else if(PyString_CheckExact(object_array[i])) {
+                    // otherwise directly use
+                    utf8_objects[i] = 0;
+                    sizes[i] = PyString_Size(object_array[i]);
+                    strings[i] = PyString_AsString(object_array[i]);
+                }
+            #endif
         }
     }
     ~StringArray() {
         free(strings);
         free(sizes);
+        #if PY_MAJOR_VERSION == 2
+            for(size_t i = 0; i < length; i++) {
+                if(utf8_objects[i])
+                    Py_XDECREF(utf8_objects[i]);
+            }
+            utf8_objects= (PyObject**)malloc(length * sizeof(void*));
+        #endif
     }
-    virtual std::string_view view(size_t i) const {
+    virtual string_view view(size_t i) const {
         if(strings[i] == 0) {
-            return std::string_view(empty);
+            return string_view(empty);
         }
-        return std::string_view(strings[i], sizes[i]);
+        return string_view(strings[i], sizes[i]);
     }
-    const std::string get(size_t i) const {
+    virtual const std::string get(size_t i) const {
         if(strings[i] == 0) {
             return std::string(empty);
         }
         return std::string(strings[i], sizes[i]);
     }
+    #if PY_MAJOR_VERSION == 2
+        PyObject** utf8_objects;
+    #endif
     char** strings;
     Py_ssize_t* sizes;
 };
