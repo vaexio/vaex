@@ -32,7 +32,7 @@ def column_from_arrow_array(arrow_array):
         # TODO: implement, not ignore
         #assert bitmap_buffer is None, 'masked strings not supported yet, please open an issue at https://github.com/vaexio/vaex/issues'
 
-        offsets = np.frombuffer(offsets, np.uint32, len(offsets)//4)
+        offsets = np.frombuffer(offsets, np.int32, len(offsets)//4)
         string_bytes = np.frombuffer(string_bytes, 'S1', len(string_bytes))
         column = ColumnStringArrow(offsets, string_bytes, len(arrow_array))
         return column

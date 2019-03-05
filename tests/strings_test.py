@@ -52,7 +52,7 @@ def test_concat():
 	ds2 = vaex.from_arrays(names=['hello', 'this', 'is', 'long'])
 	ds = ds1.concat(ds2)
 	assert len(ds) == len(ds1) + len(ds2)
-	assert ds.dtype('names') == ds2.data.names.dtype
+	assert ds.dtype('names') == vaex.column.str_type
 	assert ds.dtype('names') != np.object
 
 def test_string_count():
@@ -80,7 +80,7 @@ def test_concat_mixed():
 	# and the other string
 	ds1 = vaex.from_arrays(names=['not', 'missing'])
 	ds2 = vaex.from_arrays(names=[np.nan, np.nan])
-	assert ds1.dtype(ds1.names).kind in str_kind
+	assert ds1.dtype(ds1.names) == str
 	assert ds2.dtype(ds2.names) == np.float64
 	ds = ds1.concat(ds2)
 	assert len(ds) == len(ds1) + len(ds2)
@@ -96,8 +96,25 @@ def test_strip():
 def test_unicode(tmpdir):
 	path = str(tmpdir.join('utf32.hdf5'))
 	ds = vaex.from_arrays(names=["vaex", "or", "væx!"])
-	assert str(ds.names.dtype) == '<U4'
+	assert ds.names.dtype == vaex.column.str_type
 	ds.export_hdf5(path)
 	ds = vaex.open(path)
-	assert str(ds.names.dtype) == '<U4'
+	assert ds.names.dtype == vaex.column.str_type
 	assert ds.names.tolist() == ["vaex", "or", "væx!"]
+
+
+@pytest.fixture(params=['dfs_arrow', 'dfs_array'])
+def dfs(request, dfs_arrow, dfs_array):
+    named = dict(dfs_arrow=dfs_arrow, dfs_array=dfs_array)
+    return named[request.param]
+
+@pytest.fixture()
+def dfs_arrow():
+    return vaex.from_arrays(s=vaex.string_column(["vaex", "or", "væx!"]))
+
+@pytest.fixture()
+def dfs_array():
+    return vaex.from_arrays(s=np.array(["vaex", "or", "væx!"], dtype='O'))
+
+def test_string_contains(dfs):
+	assert dfs.s.str.contains('v', regex=False).tolist() == [True, False, True]

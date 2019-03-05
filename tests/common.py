@@ -117,7 +117,7 @@ def create_base_ds():
     dataset.add_column("mi", mi)
     dataset.add_column("ints", ints)
 
-    name = np.array(list(map(lambda x: str(x) + "bla" + ('_' * int(x)), x)), dtype='S') #, dtype=np.string_)
+    name = np.array(list(map(lambda x: str(x) + "bla" + ('_' * int(x)), x)), dtype='U') #, dtype=np.string_)
     dataset.add_column("name", np.array(name))
     dataset.add_column("name_arrow", vaex.string_column(name))
 

@@ -84,7 +84,7 @@ class _BlockScope(object):
         try:
             # logger.debug("try avoid evaluating: %s", expression)
             result = self[expression]
-        except:
+        except KeyError:
             # logger.debug("no luck, eval: %s", expression)
             # result = ne.evaluate(expression, local_dict=self, out=out)
             # logger.debug("in eval")

@@ -1,12 +1,17 @@
 import logging
-import six
 
+import six
 import numpy as np
+
+import vaex.strings
+
 
 logger = logging.getLogger("vaex.column")
 
+
 class Column(object):
-    pass
+    def tolist(self):
+        return self.to_numpy().tolist()
 
 
 class ColumnVirtualRange(Column):
@@ -79,8 +84,8 @@ class ColumnConcatenatedLazy(Column):
         if self.is_masked:
             self.fill_value = dfs[0].columns[self.column_name].fill_value
         # np.datetime64 and find_common_type don't mix very well
-        all_strings = all([dtype == str_type for dtype in dtypes])
-        if all_strings:
+        any_strings = any([dtype == str_type for dtype in dtypes])
+        if any_strings:
             self.dtype = str_type
         else:
             if all([dtype.type == np.datetime64 for dtype in dtypes]):
@@ -161,7 +166,26 @@ try:
 except:
     str_type = str
 
-class ColumnStringArrow(Column):
+use_c_api = True
+
+class ColumnString(Column):
+    pass
+
+class ColumnStringArray(Column):
+    """Wraps a numpy array with dtype=object, containing all strings"""
+    def __init__(self, array):
+        # assert vaex.strings.all_strings(array, allow)
+        self.array = array
+        self.string_sequence = vaex.strings.StringArray(self.array)
+
+    def __getitem__(self, slice):
+        return ColumnString(self.array[slice])
+
+    def to_numpy(self):
+        return self.array
+
+
+class ColumnStringArrow(ColumnString):
     """Column that unpacks the arrow string column on the fly"""
     def __init__(self, indices, bytes, length=None, offset=0):
         self.indices = indices
@@ -171,32 +195,46 @@ class ColumnStringArrow(Column):
         self.length = length if length is not None else len(indices) - 1
         self.shape = (self.__len__(),)
         self.nbytes = self.bytes.nbytes + self.indices.nbytes
+        self.string_sequence = vaex.strings.StringList(self.bytes, self.indices, self.length, self.offset)
 
     def __len__(self):
         return self.length
 
     def __getitem__(self, slice):
-        if isinstance(slice, np.ndarray):
-            assert slice.dtype.kind != 'b'
+        if isinstance(slice, int):
+            return self.string_sequence.get(slice)
+        elif isinstance(slice, np.ndarray):
             strings = []
-            for i in slice:
-                i1 = self.indices[i] - self.offset
-                i2 = self.indices[i+1] - self.offset
-                s1 = self.bytes[i1:i2]
-                m1 = memoryview(s1)
-                strings.append(bytes(m1).decode('utf8'))
-            return np.array(strings, dtype='O') # would be nice if we could do without
+            if slice.dtype.kind == 'b':
+                for i in range(len(self)):
+                    if slice[i]:
+                        i1 = self.indices[i] - self.offset
+                        i2 = self.indices[i+1] - self.offset
+                        s1 = self.bytes[i1:i2]
+                        m1 = memoryview(s1)
+                        strings.append(bytes(m1).decode('utf8'))
+            else:
+                for i in slice:
+                    i1 = self.indices[i] - self.offset
+                    i2 = self.indices[i+1] - self.offset
+                    s1 = self.bytes[i1:i2]
+                    m1 = memoryview(s1)
+                    strings.append(bytes(m1).decode('utf8'))
+            return np.array(strings, dtype='O')
         else:
             start, stop, step = slice.start, slice.stop, slice.step
             start = start or 0
             stop = stop or len(self)
             assert step in [None, 1]
-            # i = np.arange(start, stop, step)
-            # start = self.indices[i]
-            # stop = self.indices[i+1]
+            return self.trim(start, stop)
+
+    def to_numpy(self):
+        start = 0
+        stop = len(self)
+        if use_c_api:
+            return self.string_sequence.get(0, stop)
+        else:
             strings = []
-            # for i1, i2 in zip(start, stop):
-            #     strings
             for i in range(start, stop):#, step):
                 i1 = self.indices[i] - self.offset
                 i2 = self.indices[i+1] - self.offset
@@ -209,7 +247,7 @@ class ColumnStringArrow(Column):
 
     def trim(self, i1, i2):
         indices = self.indices[i1:i2+1]
-        bytes = self.bytes[indices[0]:indices[-1]]
+        bytes = self.bytes[indices[0]-self.offset : indices[-1]-self.offset]
         return ColumnStringArrow(indices, bytes, offset=indices[0])
 
     def _zeros_like(self):

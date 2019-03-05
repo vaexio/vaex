@@ -25,12 +25,18 @@ def test_concat():
 
     # Test if the concatination of multiple datasets works
     dd = vaex.concat([ds1, ds2, ds3])
-    assert (np.array(dd.evaluate('x,y,z,w')) == np.array(ds.evaluate('x,y,z,w'))).all()
+    assert (np.array(dd.evaluate('x')) == np.array(ds.evaluate('x'))).all()
+    assert (np.array(dd.evaluate('y')) == np.array(ds.evaluate('y'))).all()
+    assert (np.array(dd.evaluate('z')) == np.array(ds.evaluate('z'))).all()
+    assert (np.array(dd.evaluate('w')) == np.array(ds.evaluate('w'))).all()
 
     # Test if the concatination of concatinated datasets works
     dd1 = vaex.concat([ds1, ds2])
     dd2 = vaex.concat([dd1, ds3])
-    assert (np.array(dd2.evaluate('x,y,z,w')) == np.array(ds.evaluate('x,y,z,w'))).all()
+    assert (np.array(dd2.evaluate('x')) == np.array(ds.evaluate('x'))).all()
+    assert (np.array(dd2.evaluate('y')) == np.array(ds.evaluate('y'))).all()
+    assert (np.array(dd2.evaluate('z')) == np.array(ds.evaluate('z'))).all()
+    assert (np.array(dd2.evaluate('w')) == np.array(ds.evaluate('w'))).all()
 
 def test_concat_unequals_virtual_columns():
     ds1 = vaex.from_scalars(x=1, y=2)

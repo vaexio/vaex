@@ -223,7 +223,10 @@ def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffl
                         assert isinstance(to_column, ColumnStringArrow)
                         bytes = memoryview(to_column.bytes.view(np.uint8))
                         for i, value in enumerate(values):
-                            byte_value = value.encode('utf8')
+                            if isinstance(value, np.bytes_):  # TODO: remove binary support due do fits?
+                                byte_value = value
+                            else:
+                                byte_value = value.encode('utf8')
                             to_column.indices[i1+i] = string_byte_offset
                             length = len(byte_value) # in bytes, not the string length
                             bytes[string_byte_offset:string_byte_offset+length] = byte_value

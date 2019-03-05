@@ -4,6 +4,7 @@ import functools
 from future.utils import with_metaclass
 from vaex.functions import expression_namespace
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
+from vaex.column import ColumnString
 import numpy as np
 import vaex.serialize
 import base64
@@ -147,6 +148,9 @@ class StringOperations(object):
 
     def strip(self, chars=None):
         return self.expression.ds.func.str_strip(self.expression)
+
+    def contains(self, pattern, regex=True):
+        return self.expression.ds.func.str_contains(self.expression, pattern, regex=regex)
 
 class Expression(with_metaclass(Meta)):
     def __init__(self, ds, expression):
@@ -561,8 +565,16 @@ class FunctionToScalar(FunctionSerializablePickle):
     def __call__(self, *args, **kwargs):
         length = len(args[0])
         result = []
+        def fix_type(v):
+            # TODO: only when column is str type?
+            if isinstance(v, np.str_):
+                return str(v)
+            if isinstance(v, np.bytes_):
+                return v.decode('utf8')
+            else:
+                return v
         for i in range(length):
-            scalar_result = self.f(*[k[i] for k in args], **{key: value[i] for key, value in kwargs.items()})
+            scalar_result = self.f(*[fix_type(k[i]) for k in args], **{key: value[i] for key, value in kwargs.items()})
             result.append(scalar_result)
         result = np.array(result)
         return result

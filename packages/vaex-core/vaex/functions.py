@@ -1,6 +1,8 @@
 import vaex.serialize
 import json
 import numpy as np
+from vaex import column
+
 # @vaex.serialize.register
 # class Function(FunctionSerializable):
 
@@ -52,6 +54,7 @@ def fillna(ar, value, fill_nan=True, fill_masked=True):
     If the dtype is object, nan values and 'nan' string values
     are replaced by value when fill_nan==True.
     '''
+    ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
     if ar.dtype.kind in 'O' and fill_nan:
         strings = ar.astype(str)
         mask = strings == 'nan'
@@ -104,6 +107,22 @@ expression_namespace["dt_dayofyear"] = dt_dayofyear
 expression_namespace["dt_year"] = dt_year
 expression_namespace["dt_weekofyear"] = dt_weekofyear
 expression_namespace["dt_hour"] = dt_hour
+
+
+import re
+def str_contains(x, pattern, regex=True):
+    if isinstance(x, column.ColumnString) and column.use_c_api:
+        values = x.string_sequence.search(pattern, regex)
+    else:
+        if regex:
+            regex = re.compile(pattern)
+            values = np.array([bool(regex.match(k)) for k in x], dtype=np.bool)
+        else:
+            values = np.array([pattern in k for k in x], dtype=np.bool)
+    # print(values)
+    return values
+expression_namespace["str_contains"] = str_contains
+# expression_namespace["str_contains2"] = str_contains2
 
 
 def str_strip(x, chars=None):

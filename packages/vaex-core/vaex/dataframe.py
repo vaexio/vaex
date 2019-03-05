@@ -33,7 +33,7 @@ import vaex.kld
 from . import selections, tasks, scopes
 from .functions import expression_namespace
 from .delayed import delayed, delayed_args, delayed_list
-from .column import Column, ColumnIndexed, ColumnSparse, ColumnConcatenatedLazy, str_type
+from .column import Column, ColumnIndexed, ColumnSparse, ColumnString, ColumnConcatenatedLazy, str_type
 import vaex.events
 
 # py2/p3 compatibility
@@ -1719,12 +1719,14 @@ class DataFrame(object):
         extra = 0
         for column in list(self.get_column_names(virtual=virtual)):
             dtype = self.dtype(column)
-            if dtype in [str_type, str]:
+            dtype_internal = self.dtype(column, internal=True)
+            #if dtype in [str_type, str] and dtype_internal.kind == 'O':
+            if isinstance(self.columns[column], ColumnString):
                 # TODO: document or fix this
                 # is it too expensive to calculate this exactly?
                 extra += self.columns[column].nbytes
             else:
-                bytes_per_row += dtype.itemsize
+                bytes_per_row += dtype_internal.itemsize
                 if np.ma.isMaskedArray(self.columns[column]):
                     bytes_per_row += 1
         return bytes_per_row * self.count(selection=selection) + extra
@@ -1734,7 +1736,7 @@ class DataFrame(object):
         """Alias for `df.byte_size()`, see :meth:`DataFrame.byte_size`."""
         return self.byte_size()
 
-    def dtype(self, expression):
+    def dtype(self, expression, internal=False):
         """Return the numpy dtype for the given expression, if not a column, the first row will be evaluated to get the dtype."""
         expression = _ensure_string_from_expression(expression)
         if expression in self.variables:
@@ -1742,13 +1744,18 @@ class DataFrame(object):
         elif expression in self.columns.keys():
             column = self.columns[expression]
             data = column[0:1]
-            if data.dtype != str_type and data.dtype.kind == 'O':
-                # we lie about arrays containing strings
-                if isinstance(data[0], str_type):
-                    return str_type
-            return self.columns[expression].dtype
+            dtype = data.dtype
         else:
-            return self.evaluate(expression, 0, 1).dtype
+            dtype = self.evaluate(expression, 0, 1).dtype
+        if not internal:
+            if dtype != str_type:
+                if dtype.kind in 'US':
+                    return str_type
+                if dtype.kind == 'O':
+                    # we lie about arrays containing strings
+                    if isinstance(data[0], str_type):
+                        return str_type
+        return dtype
 
     @property
     def dtypes(self):
@@ -4679,6 +4686,8 @@ class DataFrameLocal(DataFrame):
         if out is not None:
             scope.buffers[expression] = out
         value = scope.evaluate(expression)
+        if isinstance(value, ColumnString) and not internal:
+            value = value.to_numpy()
         return value
 
     def compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None, column_names=None):
@@ -4782,70 +4791,6 @@ class DataFrameLocal(DataFrame):
                                     diff = "does not exists"
                                 print("%s[%d] == %s != %s other.%s[%d] (diff = %s)" % (column_name, indices[i], values1[i], values2[i], column_name, indices[i], diff))
         return different_values, missing, type_mismatch, meta_mismatch
-
-    def _join(self, key, other, key_other, column_names=None, prefix=None):
-        """Experimental joining of tables, (equivalent to SQL left join)
-
-
-        Example:
-
-        >>> x = np.arange(10)
-        >>> y = x**2
-        >>> z = x**3
-        >>> df = vaex.from_arrays(x=x, y=y)
-        >>> df2 = vaex.from_arrays(x=x[:4], z=z[:4])
-        >>> df._join('x', df2, 'x', column_names=['z'])
-
-        :param key: key for the left table (self)
-        :param other: Other DataFrame to join with (the right side)
-        :param key_other: key on which to join
-        :param column_names: column names to add to this DataFrame
-        :param prefix: add a prefix to the new column (or not when None)
-        :return:
-        """
-        N = len(self)
-        N_other = len(other)
-        if column_names is None:
-            column_names = other.get_column_names(virtual=False)
-        for column_name in column_names:
-            if prefix is None and column_name in self:
-                raise ValueError("column %s already exists" % column_name)
-        key = self.evaluate(key)
-        key_other = other.evaluate(key_other)
-        index = dict(zip(key, range(N)))
-        index_other = dict(zip(key_other, range(N_other)))
-
-        from_indices = np.zeros(N_other, dtype=np.int64)
-        to_indices = np.zeros(N_other, dtype=np.int64)
-        for i in range(N_other):
-            if key_other[i] in index:
-                to_indices[i] = index[key_other[i]]
-                from_indices[i] = index_other[key_other[i]]
-            else:
-                to_indices[i] = -1
-                from_indices[i] = -1
-        mask = to_indices != -1
-        to_indices = to_indices[mask]
-        from_indices = from_indices[mask]
-
-        for column_name in column_names:
-            dtype = other.dtype(column_name)
-            if dtype.kind == "f":
-                data = np.zeros(N, dtype=dtype)
-                data[:] = np.nan
-                data[to_indices] = other.evaluate(column_name)[from_indices]
-            else:
-                data = np.ma.masked_all(N, dtype=dtype)
-                values = other.evaluate(column_name)[from_indices]
-                data[to_indices] = values
-                data.mask[to_indices] = np.ma.masked
-                if not np.ma.is_masked(data):  # forget the mask if we do not need it
-                    data = data.data
-            if prefix:
-                new_name = prefix + column_name
-            else:
-                new_name = column_name
-            self.add_column(new_name, data)
 
     @docsubst
     def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left', inplace=False):

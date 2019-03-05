@@ -3,7 +3,7 @@ import logging
 import numpy as np
 
 import vaex.promise
-
+from vaex.column import str_type
 
 from .utils import (_ensure_strings_from_expressions,
     _ensure_string_from_expression,
@@ -384,7 +384,7 @@ class TaskStatistic(Task):
                 selection_blocks = [block[selection_mask] for block in blocks]
             else:
                 selection_blocks = [block for block in blocks]
-            little_endians = len([k for k in selection_blocks if k.dtype.byteorder in ["<", "="]])
+            little_endians = len([k for k in selection_blocks if k.dtype != str_type and k.dtype.byteorder in ["<", "="]])
             if not ((len(selection_blocks) == little_endians) or little_endians == 0):
                 def _to_native(ar):
                     if ar.dtype.byteorder not in ["<", "="]:
@@ -407,7 +407,7 @@ class TaskStatistic(Task):
                     raise ValueError("Nothing to compute for OP %s" % self.op.code)
             # special case for counting string values etc
             elif len(selection_blocks) == 0 and len(subblock_weights) == 1 and self.op in [OP_COUNT]\
-                    and subblock_weights[0].dtype.kind not in 'biuf':
+                    and (subblock_weights[0].dtype == str_type or subblock_weights[0].dtype.kind not in 'biuf'):
                 weight = subblock_weights[0]
                 if selection or self.df.filtered:
                     this_thread_grid[i][0] += np.sum(selection_mask)
