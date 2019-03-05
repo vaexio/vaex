@@ -56,7 +56,7 @@ class get_pybind_include(object):
 if platform.system().lower() == 'windows':
     extra_compile_args = ["/EHsc"]
 else:
-    extra_compile_args = ["-std=c+0x", "-mfpmath=sse", "-O3", "-funroll-loops"]
+    extra_compile_args = ["-std=c++0x", "-mfpmath=sse", "-O3", "-funroll-loops"]
 
 # on windows (Conda-forge builds), the dirname is an absolute path
 extension_vaexfast = Extension("vaex.vaexfast", [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
