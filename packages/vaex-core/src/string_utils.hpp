@@ -8,7 +8,7 @@ public:
     const char* begin() { return ptr; }
     const char* end() { return ptr + count; }
     size_t length() const { return count; }
-    size_t find(std::string& pattern) {
+    size_t find(const std::string& pattern) {
         return std::string(begin(), end()).find(pattern);
     }
     const char* ptr;
