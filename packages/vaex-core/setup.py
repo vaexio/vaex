@@ -59,6 +59,7 @@ else:
     extra_compile_args = ["-std=c++11", "-mfpmath=sse", "-O3", "-funroll-loops"]
 if sys.platform == 'darwin':
     extra_compile_args.append("-stdlib=libc++")
+    extra_compile_args.append("-mmacosx-version-min=10.7")
 
 # on windows (Conda-forge builds), the dirname is an absolute path
 extension_vaexfast = Extension("vaex.vaexfast", [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
