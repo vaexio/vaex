@@ -332,7 +332,11 @@ class Expression(with_metaclass(Meta)):
         str_type = str
         dtype = self.dtype
         dtype = (str(dtype) if dtype != str_type else 'str')
-        line = 'Length: {:,} dtype: {}\n'.format(len(self.ds), dtype)
+        if self.expression in self.ds.columns:
+            state = "normal column"
+        else:
+            state = "expression"
+        line = 'Length: {:,} dtype: {} ({})\n'.format(len(self.ds), dtype, state)
         info += line
         info += '-' * (len(line)-1) + '\n'
         info += values
