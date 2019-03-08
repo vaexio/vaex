@@ -1,15 +1,20 @@
+import base64
+import cloudpickle as pickle
+import functools
 import operator
 import six
-import functools
+
 from future.utils import with_metaclass
+import numpy as np
+import tabulate
+
 from vaex.functions import expression_namespace, _scopes
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 from vaex.column import ColumnString
-import numpy as np
 import vaex.serialize
-import base64
-import cloudpickle as pickle
 from . import expresso
+
+
 try:
     from StringIO import StringIO
 except ImportError:
@@ -17,7 +22,7 @@ except ImportError:
 
 # TODO: repeated from dataframe.py
 default_shape = 128
-PRINT_MAX_COUNT = 50
+PRINT_MAX_COUNT = 10
 
 _binary_ops = [
     dict(code="+", name='add', op=operator.add),
@@ -287,51 +292,51 @@ class Expression(with_metaclass(Meta)):
         '''Short for expr.evaluate().tolist()'''
         return self.evaluate().tolist()
 
-    def _repr_mimebundle_(self, include=None, exclude=None, **kwargs):
-        # TODO: optimize, since we use the same data in both versions
-        # TODO: include latex version
-        return {'text/html': self._repr_html_(), 'text/plain': self.__repr__()}
-
-    def _repr_html_(self):
-        try:
-            N = len(self.ds)
-            if N <= PRINT_MAX_COUNT:
-                values = ", ".join(str(k) for k in self.evaluate(0, N))
-            else:
-                values_head = ", ".join(str(k) for k in self.evaluate(0, PRINT_MAX_COUNT//2))
-                values_tail = ", ".join(str(k) for k in self.evaluate(N - PRINT_MAX_COUNT//2, N))
-                values = '{} ... <b>(total {} values)</b> ... {}'.format(values_head, N, values_tail)
-        except Exception as e:
-            values = 'Error evaluating: %r' % e
-        expression = str(self.expression)
-        value = '<div title="%s" style="font-family: monospace">[%s]</div> ' % (expression, values)
-        # non-plain columns columns show the expressions
-        if expression not in self.ds.get_column_names(virtual=False):
-            expression_short = expression
-            if len(expression) > 20:
-                expression_short = expression[:20-4] + '...'
-            value = '<div title="%s" style="font-family: monospace">[%s] <b>expression=(%s)</b></div> ' % (expression, values, expression_short)
-        return value
-
     def __repr__(self):
+        return self._repr_plain_()
+
+    def _repr_plain_(self):
+        def _format_value(value):
+            if isinstance(value, (str, bytes)):
+                if len(value) > 40:
+                    value = repr(value[:37])[:-1] + '...'
+            if isinstance(value, np.ma.core.MaskedConstant):
+                value = str(value)
+            return value
+
+        def format(values):
+            for i in range(len(values)):
+                value = values[i]
+                yield _format_value(value)
         try:
             N = len(self.ds)
             if N <= PRINT_MAX_COUNT:
-                values = ", ".join(str(k) for k in self.evaluate(0, N))
+                values = format(self.evaluate(0, N))
+                values = tabulate.tabulate([[i, k] for i, k in enumerate(values)], tablefmt='plain')
             else:
-                values_head = ", ".join(str(k) for k in self.evaluate(0, PRINT_MAX_COUNT//2))
-                values_tail = ", ".join(str(k) for k in self.evaluate(N - PRINT_MAX_COUNT//2, N))
-                values = '{} ... <i(total {} values) ... {}'.format(values_head, N, values_tail)
+                values_head = format(self.evaluate(0, PRINT_MAX_COUNT//2))
+                values_tail = format(self.evaluate(N - PRINT_MAX_COUNT//2, N))
+                values_head = list(zip(range(PRINT_MAX_COUNT//2), values_head)) +\
+                              list(zip(range(N - PRINT_MAX_COUNT//2, N), values_tail))
+                values = tabulate.tabulate([k for k in values_head], tablefmt='plain')
+                values = values.split('\n')
+                width = max(map(len, values))
+                separator = '\n' + '...'.center(width, ' ') + '\n'
+                values = "\n".join(values[:PRINT_MAX_COUNT//2]) + separator + "\n".join(values[PRINT_MAX_COUNT//2:]) + '\n'
         except Exception as e:
             values = 'Error evaluating: %r' % e
-        expression = str(self.expression)
-        value = '[%s]' % values
-        # non-plain columns columns show the expressions
-        if expression not in self.ds.get_column_names(virtual=False):
-            if len(expression) > 20:
-                expression = expression[:20-4] + '...'
-            value = '%s expression=(%s)' % (value, expression)
-        return value
+        expression = self.expression
+        if len(expression) > 60:
+            expression = expression[:57] + '...'
+        info = 'Expression = ' + expression + '\n'
+        str_type = str
+        dtype = self.dtype
+        dtype = (str(dtype) if dtype != str_type else 'str')
+        line = 'Length: {:,} dtype: {}\n'.format(len(self.ds), dtype)
+        info += line
+        info += '-' * (len(line)-1) + '\n'
+        info += values
+        return info
 
     def count(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
         '''Shortcut for ds.count(expression, ...), see `Dataset.count`'''
