@@ -333,7 +333,9 @@ class Expression(with_metaclass(Meta)):
         dtype = self.dtype
         dtype = (str(dtype) if dtype != str_type else 'str')
         if self.expression in self.ds.columns:
-            state = "normal column"
+            state = "column"
+        elif self.expression in self.ds.get_column_names(hidden=True):
+            state = "virtual column"
         else:
             state = "expression"
         line = 'Length: {:,} dtype: {} ({})\n'.format(len(self.ds), dtype, state)
