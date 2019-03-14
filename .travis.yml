@@ -23,6 +23,8 @@ before_install:
       if [ "$CXX" = "g++" ]; then
         export CXX="g++-4.9" CC="gcc-4.9";
       fi;
+      gcc --version
+      g++ --version
     fi
 #  - sudo apt-get update
 #  - sudo apt-get install libhdf5-serial-dev libqt4-dev
