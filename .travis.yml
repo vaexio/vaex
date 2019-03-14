@@ -1,4 +1,5 @@
 language: c
+dist: trusty
 os:
  - linux
  - osx
