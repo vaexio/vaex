@@ -9,6 +9,11 @@ env:
   - PYTHON_VERSION=3.6
   - PYTHON_VERSION=3.7
 
+addons:
+  apt:
+    packages:
+      - g++-4.9
+
 before_install:
 #  - sudo apt-get update
 #  - sudo apt-get install libhdf5-serial-dev libqt4-dev

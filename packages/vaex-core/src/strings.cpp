@@ -950,8 +950,7 @@ public:
         
         #if PY_MAJOR_VERSION == 2
             for(size_t i = 0; i < length; i++) {
-                if(utf8_objects[i])
-                    Py_XDECREF(utf8_objects[i]);
+                Py_XDECREF(utf8_objects[i]);
             }
             free(utf8_objects);
         #endif
