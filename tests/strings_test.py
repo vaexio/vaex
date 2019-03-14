@@ -108,6 +108,11 @@ def dfs(request, dfs_arrow, dfs_array):
     return named[request.param]
 
 string_list = ["vaex", " \tor", "VæX! ", "vaex or VÆX!", "Æ and", "æ are weird"]
+try:
+	unicode
+	string_list = map(lambda x: x.decode('utf8'), string_list)
+except NameError:
+	pass
 string_list_reverse = string_list[::-1]
 
 @pytest.fixture()

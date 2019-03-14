@@ -933,6 +933,8 @@ public:
                     strings[i] = PyString_AsString(object_array[i]);
                 } else {
                     strings[i] = nullptr;
+                    utf8_objects[i] = nullptr;
+                    sizes[i] = 0;
                 }
             #endif
             _byte_size += sizes[i];

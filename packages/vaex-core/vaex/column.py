@@ -196,7 +196,7 @@ def _to_string_sequence(x):
     elif isinstance(x, np.ndarray):
         if x.dtype == 'O':
             return vaex.strings.StringArray(x)
-        elif x.dtype.kind in 'U':
+        elif x.dtype.kind in 'US':
             x = x.astype('O')
             return vaex.strings.StringArray(x)
         else:
