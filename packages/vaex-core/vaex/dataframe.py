@@ -260,6 +260,15 @@ class DataFrame(object):
         arguments = _ensure_strings_from_expressions(arguments)
         return lazy_function(*arguments)
 
+    def nop(self, expression, progress=False, delay=False):
+        """Evaluates expression, and drop the result, usefull for benchmarking, since vaex is usually lazy"""
+        expression = _ensure_string_from_expression(expression)
+        def map(ar):
+            pass
+        def reduce(a, b):
+            pass
+        return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='nop')
+
     def unique(self, expression, return_inverse=False, progress=False, delay=False):
         expression = _ensure_string_from_expression(expression)
         if return_inverse:
@@ -1746,7 +1755,8 @@ class DataFrame(object):
             data = column[0:1]
             dtype = data.dtype
         else:
-            dtype = self.evaluate(expression, 0, 1).dtype
+            data = self.evaluate(expression, 0, 1)
+            dtype = data.dtype
         if not internal:
             if dtype != str_type:
                 if dtype.kind in 'US':
@@ -4751,7 +4761,7 @@ class DataFrameLocal(DataFrame):
                         b = b[index2]
 
                     def normalize(ar):
-                        if not hasattr(ar, 'dtype'):
+                        if ar.dtype == str_type:
                             return ar
                         if ar.dtype.kind == "f" and hasattr(ar, "mask"):
                             mask = ar.mask

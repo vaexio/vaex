@@ -16,7 +16,6 @@ except:
 def test_dtype_object_string(tmpdir):
 	x = np.arange(8,12)
 	s = np.array(list(map(str, x)), dtype='O')
-	print(s, s.dtype)
 	df = vaex.from_arrays(x=x, s=s)
 	assert df.columns['s'].dtype.kind == 'O'
 	path = str(tmpdir.join('test.arrow'))
@@ -108,13 +107,80 @@ def dfs(request, dfs_arrow, dfs_array):
     named = dict(dfs_arrow=dfs_arrow, dfs_array=dfs_array)
     return named[request.param]
 
+string_list = ["vaex", " \tor", "VæX! ", "vaex or VÆX!", "Æ and", "æ are weird"]
+string_list_reverse = string_list[::-1]
+
 @pytest.fixture()
 def dfs_arrow():
-    return vaex.from_arrays(s=vaex.string_column(["vaex", "or", "væx!"]))
+    return vaex.from_arrays(s=vaex.string_column(string_list), sr=vaex.string_column(string_list_reverse))
+
+
+def test_null_values():
+	df = vaex.from_arrays(s=vaex.string_column(['aap', None, 'mies']), x=[0, 1, 2])
+	assert df.count() == 3
+	assert df.count(df.s) == 2
+	assert df.count(df.s, selection=df.x > 0) == 1
 
 @pytest.fixture()
 def dfs_array():
-    return vaex.from_arrays(s=np.array(["vaex", "or", "væx!"], dtype='O'))
+    return vaex.from_arrays(s=np.array(string_list, dtype='O'), sr=np.array(string_list_reverse, dtype='O'))
 
 def test_string_contains(dfs):
-	assert dfs.s.str.contains('v', regex=False).tolist() == [True, False, True]
+	assert dfs.s.str.contains('v', regex=False).tolist() == [True, False, False, True, False, False]
+	assert dfs.s.str.contains('æ', regex=False).tolist() == [False, False, True, False, False, True]
+	assert dfs.s.str.contains('Æ', regex=False).tolist() == [False, False, False, True, True, False]
+
+def test_string_len(dfs):
+	assert dfs.s.str.len().astype('i4').tolist() == [len(k) for k in string_list]
+	assert dfs.s.str_pandas.len().astype('i4').tolist() == [len(k) for k in string_list]
+
+def test_byte_length(dfs):
+	assert dfs.s.str.byte_length().tolist() == [len(k.encode('utf8')) for k in string_list]
+
+def test_string_capitalize(dfs):
+	assert dfs.s.str.capitalize().tolist() == dfs.s.str_pandas.capitalize().tolist()
+
+def test_string_count(dfs):
+	assert dfs.s.str.count("v", regex=False).tolist() == dfs.s.str_pandas.count("v").tolist()
+	assert dfs.s.str.count("[va]", regex=True).tolist() == dfs.s.str_pandas.count("[va]").tolist()
+
+def test_string_endswith(dfs):
+	assert dfs.s.str.endswith("x").tolist() == dfs.s.str_pandas.endswith("x").tolist()
+
+def test_string_upper(dfs):
+	assert dfs.s.str.upper().tolist() == dfs.s.str_pandas.upper().tolist()
+
+def test_string_lower(dfs):
+	assert dfs.s.str.lower().tolist() == dfs.s.str_pandas.lower().tolist()
+
+def test_string_lstrip(dfs):
+	assert dfs.s.str.lstrip().tolist() == dfs.s.str_pandas.lstrip().tolist()
+	assert dfs.s.str.lstrip('vV ').tolist() == dfs.s.str_pandas.lstrip('vV ').tolist()
+
+def test_string_rstrip(dfs):
+	assert dfs.s.str.rstrip().tolist() == dfs.s.str_pandas.rstrip().tolist()
+	assert dfs.s.str.rstrip('x! ').tolist() == dfs.s.str_pandas.rstrip('x! ').tolist()
+
+def test_string_startswith(dfs):
+	assert dfs.s.str.startswith("x").tolist() == dfs.s.str_pandas.startswith("x").tolist()
+
+def test_string_strip(dfs):
+	assert dfs.s.str.rstrip().tolist() == dfs.s.str_pandas.rstrip().tolist()
+	assert dfs.s.str.rstrip('vx! ').tolist() == dfs.s.str_pandas.rstrip('vx! ').tolist()
+
+def test_string_cat(dfs):
+	c = [s1+s2 for s1, s2 in zip(string_list, string_list_reverse)]
+	assert dfs.s.str.cat(dfs.sr).tolist() == c
+	assert dfs.s.str_pandas.cat(dfs.sr).tolist() == c
+
+def test_to_string():
+	x = np.arange(1, 4, dtype='f4')
+	df = vaex.from_arrays(x=x)
+	df['s'] = df.x.to_string()
+	assert df.s.tolist() == ["%f" % k for k in x]
+
+def test_format():
+	x = np.arange(1, 4, dtype='f4')
+	df = vaex.from_arrays(x=x)
+	df['s'] = df.x.format("%g")
+	assert df.s.tolist() == ["%g" % k for k in x]

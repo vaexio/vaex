@@ -1,4 +1,5 @@
 from common import *
+import os
 
 def test_export(ds_local, tmpdir):
 	ds = ds_local

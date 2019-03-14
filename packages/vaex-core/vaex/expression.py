@@ -2,7 +2,7 @@ import operator
 import six
 import functools
 from future.utils import with_metaclass
-from vaex.functions import expression_namespace
+from vaex.functions import expression_namespace, _scopes
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 from vaex.column import ColumnString
 import numpy as np
@@ -100,6 +100,8 @@ class Meta(type):
                     self = args[0]
 
                     def to_expression(expression):
+                        if isinstance(expression, str):
+                            expression = repr(expression)
                         if isinstance(expression, Expression):
                             assert expression.ds == self.ds
                             expression = expression.expression
@@ -143,14 +145,34 @@ class DateTime(object):
         return self.expression.ds.func.dt_weekofyear(self.expression)
 
 class StringOperations(object):
+    """String operations"""
     def __init__(self, expression):
         self.expression = expression
 
-    def strip(self, chars=None):
-        return self.expression.ds.func.str_strip(self.expression)
+class PandasStringOperations(object):
+    """String operations using Pandas Series"""
+    def __init__(self, expression):
+        self.expression = expression
 
-    def contains(self, pattern, regex=True):
-        return self.expression.ds.func.str_contains(self.expression, pattern, regex=regex)
+for name, function in _scopes['str'].items():
+    full_name = 'str_' + name
+    def closure(name=name, full_name=full_name, function=function):
+        def wrapper(self, *args, **kwargs):
+            lazy_func = getattr(self.expression.ds.func, full_name)
+            args = (self.expression, ) + args
+            return lazy_func(*args, **kwargs)
+        return wrapper
+    setattr(StringOperations, name, closure())
+
+for name, function in _scopes['str_pandas'].items():
+    full_name = 'str_pandas_' + name
+    def closure(name=name, full_name=full_name, function=function):
+        def wrapper(self, *args, **kwargs):
+            lazy_func = getattr(self.expression.ds.func, full_name)
+            args = (self.expression, ) + args
+            return lazy_func(*args, **kwargs)
+        return wrapper
+    setattr(PandasStringOperations, name, closure())
 
 class Expression(with_metaclass(Meta)):
     def __init__(self, ds, expression):
@@ -165,7 +187,13 @@ class Expression(with_metaclass(Meta)):
 
     @property
     def str(self):
+        """Gives access to string operations"""
         return StringOperations(self)
+
+    @property
+    def str_pandas(self):
+        """Gives access to string operations (using Pandas Series)"""
+        return PandasStringOperations(self)
 
     @property
     def values(self):
@@ -327,6 +355,10 @@ class Expression(with_metaclass(Meta)):
         del kwargs['self']
         kwargs['expression'] = self.expression
         return self.ds.max(**kwargs)
+
+    def nop(self):
+        """Evaluates expression, and drop the result, usefull for benchmarking, since vaex is usually lazy"""
+        return self.ds.nop(self.expression)
 
     def value_counts(self, dropna=False, ascending=False):
         """Computes counts of unique values.

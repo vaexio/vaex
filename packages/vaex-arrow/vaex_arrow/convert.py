@@ -29,12 +29,13 @@ def column_from_arrow_array(arrow_array):
         return numpy_array_from_arrow_array(arrow_array)
     elif len(buffers) == 3 and  isinstance(arrow_array.type, type(pyarrow.string())):
         bitmap_buffer, offsets, string_bytes = arrow_array.buffers()
-        # TODO: implement, not ignore
-        #assert bitmap_buffer is None, 'masked strings not supported yet, please open an issue at https://github.com/vaexio/vaex/issues'
-
+        if arrow_array.null_count == 0:
+            null_bitmap = None  # we drop any null_bitmap when there are no null counts
+        else:
+            null_bitmap = np.frombuffer(bitmap_buffer, 'uint8', len(bitmap_buffer))
         offsets = np.frombuffer(offsets, np.int32, len(offsets)//4)
         string_bytes = np.frombuffer(string_bytes, 'S1', len(string_bytes))
-        column = ColumnStringArrow(offsets, string_bytes, len(arrow_array))
+        column = ColumnStringArrow(offsets, string_bytes, len(arrow_array), null_bitmap=null_bitmap)
         return column
     else:
         raise TypeError('type unsupported: %r' % arrow_type)

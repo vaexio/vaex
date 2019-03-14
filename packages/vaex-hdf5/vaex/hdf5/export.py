@@ -1,3 +1,4 @@
+from __future__ import division, print_function
 __author__ = 'maartenbreddels'
 import os
 import sys
@@ -22,6 +23,7 @@ except:
 
 logger = logging.getLogger("vaex.hdf5.export")
 
+max_int32 = 2**31-1
 
 def export_hdf5_v1(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
     """
@@ -159,15 +161,26 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 #     indices_shape = column.indices.shape
                 # else:
 
-                byte_length = dataset[column_name].apply(lambda s: len(s.encode('utf8'))).sum(selection=selection)
+                byte_length = dataset[column_name].str.byte_length().sum(selection=selection)
+                if byte_length > max_int32:
+                    dtype_indices = 'i8'
+                else:
+                    dtype_indices = 'i4'
+
                 data_shape = (byte_length, )
                 indices_shape = (N+1, )
 
                 array = h5column_output.require_dataset('data', shape=data_shape, dtype='S1')
                 array[0] = array[0]  # make sure the array really exists
 
-                index_array = h5column_output.require_dataset('indices', shape=indices_shape, dtype='i4')
+                index_array = h5column_output.require_dataset('indices', shape=indices_shape, dtype=dtype_indices)
                 index_array[0] = index_array[0]  # make sure the array really exists
+
+                null_value_count = N - dataset.count(column_name, selection=selection)
+                if null_value_count > 0:
+                    null_shape = ((N + 7) // 8, )  # TODO: arrow requires padding right?
+                    null_bitmap_array = h5column_output.require_dataset('null_bitmap', shape=null_shape, dtype='u1')
+                    null_bitmap_array[0] = null_bitmap_array[0]  # make sure the array really exists
 
                 array.attrs["dtype"] = 'str'
                 # TODO: masked support ala arrow?

@@ -410,9 +410,21 @@ class TaskStatistic(Task):
                     and (subblock_weights[0].dtype == str_type or subblock_weights[0].dtype.kind not in 'biuf'):
                 weight = subblock_weights[0]
                 if selection or self.df.filtered:
-                    this_thread_grid[i][0] += np.sum(selection_mask)
+                    mask = None
+                    if weight.dtype == str_type:
+                        mask = weight.get_mask()
+                    if mask is not None:
+                        this_thread_grid[i][0] += np.sum(~mask)
+                    else:
+                        this_thread_grid[i][0] += np.sum(selection_mask)
                 else:
-                    this_thread_grid[i][0] += len(weight)
+                    mask = None
+                    if weight.dtype == str_type:
+                        mask = weight.get_mask()
+                    if mask is not None:
+                        this_thread_grid[i][0] += len(mask) - mask.sum()
+                    else:
+                        this_thread_grid[i][0] += len(weight)
             else:
                 #blocks = list(blocks)  # histogramNd wants blocks to be a list
                 # if False: #len(selection_blocks) == 2 and self.op == OP_ADD1:  # special case, slighty faster

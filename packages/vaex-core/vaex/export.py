@@ -12,7 +12,7 @@ import vaex.utils
 import vaex.execution
 import vaex.file.colfits
 import vaex.file.other
-from vaex.column import ColumnStringArrow, str_type
+from vaex.column import ColumnStringArrow, str_type, _to_string_sequence
 
 
 max_length = int(1e5)
@@ -185,21 +185,15 @@ def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffl
                 if selection:
                     mask = full_mask[i1:i2]
                     values = dataset_input.evaluate(column_name, i1=i1, i2=i2, filtered=False) #selection=selection)
-                    # print('v,m', values, mask)
                     values = values[mask]
-                    # values = values[mask]
                     no_values = len(values)
                     if no_values:
                         if is_string:
                             to_column = to_array
                             assert isinstance(to_column, ColumnStringArrow)
-                            bytes = memoryview(to_column.bytes.view(np.uint8))
-                            for i, value in enumerate(values):
-                                byte_value = value.encode('utf8')
-                                to_column.indices[to_offset+i] = string_byte_offset
-                                length = len(byte_value) # in bytes, not the string length
-                                bytes[string_byte_offset:string_byte_offset+length] = byte_value
-                                string_byte_offset += length
+                            from_sequence = _to_string_sequence(values)
+                            to_sequence = to_column.string_sequence.slice(to_offset, to_offset+no_values, string_byte_offset)
+                            string_byte_offset += to_sequence.fill_from(from_sequence)
                             to_offset += no_values
                         else:
                             fill_value = np.nan if dtype.kind == "f" else None
@@ -218,19 +212,13 @@ def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffl
                 else:
                     values = dataset_input.evaluate(column_name, i1=i1, i2=i2)
                     if is_string:
+                        no_values = len(values)
                         # for strings, we don't take sorting/shuffling into account when building the structure
                         to_column = to_array
                         assert isinstance(to_column, ColumnStringArrow)
-                        bytes = memoryview(to_column.bytes.view(np.uint8))
-                        for i, value in enumerate(values):
-                            if isinstance(value, np.bytes_):  # TODO: remove binary support due do fits?
-                                byte_value = value
-                            else:
-                                byte_value = value.encode('utf8')
-                            to_column.indices[i1+i] = string_byte_offset
-                            length = len(byte_value) # in bytes, not the string length
-                            bytes[string_byte_offset:string_byte_offset+length] = byte_value
-                            string_byte_offset += length
+                        from_sequence = _to_string_sequence(values)
+                        to_sequence = to_column.string_sequence.slice(i1, i2, string_byte_offset)
+                        string_byte_offset += to_sequence.fill_from(from_sequence)
                     else:
                         assert len(values) == (i2-i1)
                         fill_value = np.nan if dtype.kind == "f" else None
@@ -269,16 +257,8 @@ def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffl
                     to_column.indices[count] = string_byte_offset
             if shuffle or sort:  # write to disk in one go
                 if dtype == str_type:  # strings are sorted afterwards
-                    source = memoryview(to_array.bytes.view(np.uint8))
-                    target = memoryview(to_array_disk.bytes.view(np.uint8))
-                    string_byte_offset = 0
-                    for target_index, source_index in enumerate(order_array_inverse):
-                        i1, i2 = to_array.indices[source_index], to_array.indices[source_index+1]
-                        length = i2 - i1
-                        target[string_byte_offset:string_byte_offset + length] = source[i1:i2]
-                        to_array_disk.indices[target_index] = string_byte_offset
-                        string_byte_offset += length
-                    to_array_disk.indices[-1] = string_byte_offset
+                    view = to_array.string_sequence.lazy_index(order_array_inverse)
+                    to_array_disk.string_sequence.fill_from(view)
                 else:
                     if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(to_array_disk):
                         to_array_disk.data[:] = to_array.data

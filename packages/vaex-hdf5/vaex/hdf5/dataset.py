@@ -288,17 +288,15 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                         self.units[column_name] = astropy.units.Unit("kg")
                 data = column if self._version == 1 else column['data']
                 if hasattr(data, "dtype"):
-
-                    #logger.debug("adding column %r with dtype %r", column_name, dtype)
-                    # print column, column.shape
-                    # offset = data.id.get_offset()
-                    # if offset is None:
-                        # raise Exception("columns doesn't really exist in hdf5 file")
                     if "dtype" in data.attrs and data.attrs["dtype"] == "str":
                         indices = self._map_hdf5_array(column['indices'])
                         bytes = self._map_hdf5_array(data)
+                        if "null_bitmap" in column:
+                            null_bitmap = self._map_hdf5_array(column['null_bitmap'])
+                        else:
+                            null_bitmap = None
                         from vaex.column import ColumnStringArrow
-                        self.add_column(column_name, ColumnStringArrow(indices, bytes))
+                        self.add_column(column_name, ColumnStringArrow(indices, bytes, null_bitmap=null_bitmap))
                     else:
                         shape = data.shape
                         if True:  # len(shape) == 1:

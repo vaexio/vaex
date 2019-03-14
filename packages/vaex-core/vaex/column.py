@@ -190,9 +190,23 @@ def _to_string(string_bytes):
     else:
         return bytes(memoryview(string_bytes)).decode('utf8')
 
+def _to_string_sequence(x):
+    if isinstance(x, ColumnString):
+        return x.string_sequence
+    elif isinstance(x, np.ndarray):
+        if x.dtype == 'O':
+            return vaex.strings.StringArray(x)
+        elif x.dtype.kind in 'U':
+            x = x.astype('O')
+            return vaex.strings.StringArray(x)
+        else:
+            raise ValueError('unsupported dtype ' +str(x.dtype))
+    else:
+        raise ValueError('not a ColumnString or ndarray: ' + str(x))
+
 class ColumnStringArrow(ColumnString):
     """Column that unpacks the arrow string column on the fly"""
-    def __init__(self, indices, bytes, length=None, offset=0):
+    def __init__(self, indices, bytes, length=None, offset=0, string_sequence=None, null_bitmap=None):
         self.indices = indices
         self.offset = offset  # to avoid memory copies in trim
         self.bytes = bytes
@@ -200,7 +214,20 @@ class ColumnStringArrow(ColumnString):
         self.length = length if length is not None else len(indices) - 1
         self.shape = (self.__len__(),)
         self.nbytes = self.bytes.nbytes + self.indices.nbytes
-        self.string_sequence = vaex.strings.StringList(self.bytes, self.indices, self.length, self.offset)
+        self.null_bitmap = null_bitmap
+        if string_sequence is None:
+            if self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize == 8:
+                string_type = vaex.strings.StringList64
+            elif self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize == 4:
+                string_type = vaex.strings.StringList32
+            else:
+                raise ValueError('unsupported index type' + str(self.indices.dtype))
+            if self.null_bitmap is not None:
+                self.string_sequence = string_type(self.bytes, self.indices, self.length, self.offset, null_bitmap)
+            else:
+                self.string_sequence = string_type(self.bytes, self.indices, self.length, self.offset)
+        else:
+            self.string_sequence = string_sequence
 
     def __len__(self):
         return self.length
@@ -209,20 +236,7 @@ class ColumnStringArrow(ColumnString):
         if isinstance(slice, int):
             return self.string_sequence.get(slice)
         elif isinstance(slice, np.ndarray):
-            strings = []
-            if slice.dtype.kind == 'b':
-                for i in range(len(self)):
-                    if slice[i]:
-                        i1 = self.indices[i] - self.offset
-                        i2 = self.indices[i+1] - self.offset
-                        strings.append(_to_string(self.bytes[i1:i2]))
-            else:
-                for i in slice:
-                    i1 = self.indices[i] - self.offset
-                    i2 = self.indices[i+1] - self.offset
-                    s1 = self.bytes[i1:i2]
-                    strings.append(_to_string(self.bytes[i1:i2]))
-            return np.array(strings, dtype='O')
+            return type(self).from_string_sequence(self.string_sequence.index(slice))
         else:
             start, stop, step = slice.start, slice.stop, slice.step
             start = start or 0
@@ -233,20 +247,18 @@ class ColumnStringArrow(ColumnString):
     def to_numpy(self):
         start = 0
         stop = len(self)
-        if use_c_api:
-            return self.string_sequence.get(0, stop)
-        else:
-            strings = []
-            for i in range(start, stop):#, step):
-                i1 = self.indices[i] - self.offset
-                i2 = self.indices[i+1] - self.offset
-                strings.append(_to_string(self.bytes[i1:i2]))
-            return np.array(strings, dtype='O') # would be nice if we could do without
+        return self.string_sequence.get(0, stop)
 
     def trim(self, i1, i2):
-        indices = self.indices[i1:i2+1]
-        bytes = self.bytes[indices[0]-self.offset : indices[-1]-self.offset]
-        return ColumnStringArrow(indices, bytes, offset=indices[0])
+        return type(self).from_string_sequence(self.string_sequence.slice(i1, i2))
+
+    @classmethod
+    def from_string_sequence(cls, string_sequence):
+        s = string_sequence
+        return cls(s.bytes, s.indices, s.length, s.offset, string_sequence=s, null_bitmap=s.null_bitmap)
 
     def _zeros_like(self):
-        return ColumnStringArrow(np.zeros_like(self.indices), np.zeros_like(self.bytes), self.length)
+        return ColumnStringArrow(np.zeros_like(self.indices), np.zeros_like(self.bytes), self.length, null_bitmap=self.null_bitmap)
+
+    def get_mask(self):
+        return self.string_sequence.mask()
