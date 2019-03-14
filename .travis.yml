@@ -19,6 +19,9 @@ addons:
       - g++-4.9
 
 before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      export CXX="g++-4.9" CC="gcc-4.9";
+    fi
 #  - sudo apt-get update
 #  - sudo apt-get install libhdf5-serial-dev libqt4-dev
 #  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install libc-bin=2.12.1-0ubuntu10.2 libc6=2.12.1-0ubuntu10.2; fi
@@ -43,15 +46,6 @@ before_install:
 #  - pip install -r requirements.txt
 install:
   - source activate test-environment
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-      if [ "$CXX" = "g++" ]; then
-        export CXX="g++-4.9" CC="gcc-4.9";
-      fi;
-      gcc --version;
-      g++ --version;
-      $CXX --version;
-      $CC --version;
-    fi
   - (cd packages/vaex-core; pip install -v .)
   - (cd packages/vaex-hdf5; pip install -v .)
   - (cd packages/vaex-arrow; pip install -v .)
