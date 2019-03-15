@@ -413,7 +413,7 @@ public:
     virtual std::unique_ptr<StringSequence> upper();
     // a slice for when the indices are not filled yet
     StringList* slice_byte_offset(size_t i1, size_t i2, size_t byte_offset) {
-        byte_offset = byte_offset - offset;
+        byte_offset = byte_offset;
         size_t byte_length = this->byte_length - byte_offset;
         return new StringList(bytes+byte_offset, byte_length, indices+i1, i2-i1, offset+byte_offset, null_bitmap, i1);
     }
