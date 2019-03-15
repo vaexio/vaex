@@ -53,7 +53,7 @@ class StringSequence {
     virtual bool is_null(size_t i) const {
         return _is_null(null_bitmap, i + null_offset);
     }
-    virtual bool set_null(size_t i) const {
+    virtual void set_null(size_t i) const {
         _set_null(null_bitmap, i);
     }
     virtual string_view view(size_t i) const = 0;
