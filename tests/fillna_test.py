@@ -5,6 +5,8 @@ def test_fillna_column(ds_local):
     ds = ds_local
     ds['ok'] = ds['obj'].fillna(value='NA')
     assert ds.ok.values[5] == 'NA'
+    ds['obj'] = ds['obj'].fillna(value='NA')
+    assert ds.obj.values[5] == 'NA'
 
 
 def test_fillna(ds_local):
