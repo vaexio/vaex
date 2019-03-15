@@ -127,6 +127,7 @@ class StringSequence {
     py::object startswith(const std::string pattern) {
                 py::array_t<bool> matches(length);
         auto m = matches.mutable_unchecked<1>();
+        string_view pattern_view = pattern; // msvc doesn't like comparting string and string_view
         {
             py::gil_scoped_release release;
             size_t pattern_length = pattern.size();
@@ -134,7 +135,7 @@ class StringSequence {
                 auto str = view(i);
                 size_t string_length = str.length();
                 size_t skip = string_length - pattern_length;
-                m(i) = (string_length >= pattern_length) && str.substr(0, pattern_length) == pattern;
+                m(i) = (string_length >= pattern_length) && str.substr(0, pattern_length) == pattern_view;
             }
         }
         return matches;
