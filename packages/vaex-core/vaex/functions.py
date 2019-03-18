@@ -111,7 +111,10 @@ for name, numpy_name in numpy_function_mapping:
             def wrapper(*args, **kwargs):
                 return function(*args, **kwargs)
             return wrapper
-        function = functools.wraps(function)(f())
+        try:
+            function = functools.wraps(function)(f())
+        except AttributeError:
+            function = f()  # python 2 case
         register_function(name=name)(function)
 
 
