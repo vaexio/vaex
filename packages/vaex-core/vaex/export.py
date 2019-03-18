@@ -12,6 +12,8 @@ import vaex.utils
 import vaex.execution
 import vaex.file.colfits
 import vaex.file.other
+from vaex.column import ColumnStringArrow, str_type, _to_string_sequence
+
 
 max_length = int(1e5)
 
@@ -58,23 +60,28 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
     partial_shuffle = shuffle and len(dataset_input) != N
 
     order_array = None
+    order_array_inverse = None
+
+    # for strings we also need the inverse order_array, keep track of that
+    has_strings = any([dataset_input.dtype(k) == str_type for k in column_names])
+
     if partial_shuffle:
         # if we only export a portion, we need to create the full length random_index array, and
-        #shuffle_array_full = np.zeros(len(dataset_input), dtype=byteorder + "i8")
-        #vaex.vaexfast.shuffled_sequence(shuffle_array_full)
         shuffle_array_full = np.random.choice(len(dataset_input), len(dataset_input), replace=False)
         # then take a section of it
-        # shuffle_array[:] = shuffle_array_full[:N]
         shuffle_array[:] = shuffle_array_full[shuffle_array_full < N]
         del shuffle_array_full
         order_array = shuffle_array
     elif shuffle:
         # better to do this in memory
-        #shuffle_array_memory = np.zeros_like(shuffle_array)
-        # vaex.vaexfast.shuffled_sequence(shuffle_array_memory)
         shuffle_array_memory = np.random.choice(N, N, replace=False)
         shuffle_array[:] = shuffle_array_memory
         order_array = shuffle_array
+    if order_array is not None:
+        indices_r = np.zeros_like(order_array)
+        indices_r[order_array] = np.arange(len(order_array))
+        order_array_inverse = indices_r
+        del indices_r
 
     if sort:
         if selection:
@@ -86,18 +93,18 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
         indices = np.argsort(dataset_input.evaluate(sort))
         indices_r = np.zeros_like(indices)
         indices_r[indices] = np.arange(len(indices))
-        del indices
+        if has_strings:
+            # in this case we already have the inverse ready
+            order_array_inverse = indices if ascending else indices[:--1]
+        else:
+            del indices
         order_array = indices_r if ascending else indices_r[::-1]
         logger.info("sorting done")
-        # indices_target
 
-    # i1, i2 = 0, N #len(dataset)
-    # print "creating shuffled array"
     if progress == True:
         progress = vaex.utils.progressbar_callable(title="exporting")
     progress = progress or (lambda value: True)
     progress_total = len(column_names) * len(dataset_input)
-    # progress_value = [0]
     progress_status = ProgressStatus()
     progress_status.cancelled = False
     progress_status.value = 0
@@ -105,11 +112,12 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
         full_mask = dataset_input.evaluate_selection_mask(selection)
     else:
         full_mask = None
-        # print('full mask', full_mask)
+
     sparse_groups = collections.defaultdict(list)
     sparse_matrices = {}  # alternative to a set of matrices, since they are not hashable
+    string_columns = []
     futures = []
-    # with concurrent.futures.ThreadPoolExecutor() as thread_pool:
+
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=1) 
     if True:
         for column_name in column_names:
@@ -121,10 +129,9 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
                 continue
             logger.debug("  exporting column: %s " % column_name)
             future = thread_pool.submit(_export_column, dataset_input, dataset_output, column_name, full_mask,
-                shuffle, sort, selection, N, order_array, progress_status)
+                shuffle, sort, selection, N, order_array, order_array_inverse, progress_status)
             futures.append(future)
-    # for future in futures:
-    #     future.result()
+
     done = False
     while not done:
         done = True
@@ -138,8 +145,6 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
             if not progress(progress_status.value / float(progress_total)):
                 progress_status.cancelled = True
 
-
-            # with vaex.utils.Timer("copying column %s" % column_name, logger):
     for sparse_matrix_id, column_names in sparse_groups.items():
         sparse_matrix = sparse_matrices[sparse_matrix_id]
         for column_name in column_names:
@@ -152,80 +157,114 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
     return column_names
 
 def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffle, sort, selection, N, 
-    order_array, progress_status):
+    order_array, order_array_inverse, progress_status):
 
         if 1:
             block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
             to_array = dataset_output.columns[column_name]
+            dtype = dataset_input.dtype(column_name)
             if shuffle or sort:  # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
                 to_array_disk = to_array
                 if np.ma.isMaskedArray(to_array):
                     to_array = np.empty_like(to_array_disk)
                 else:
-                    to_array = np.zeros_like(to_array_disk)
+                    if dtype == str_type:
+                        # we create an empty column copy
+                        to_array = to_array._zeros_like()
+                    else:
+                        to_array = np.zeros_like(to_array_disk)
             to_offset = 0  # we need this for selections
             count = len(dataset_input) if not selection else dataset_input.length_unfiltered()
+            is_string = dtype == str_type
+            # TODO: if no filter, selection or mask, we can choose the quick path for str
+            string_byte_offset = 0
+
             for i1, i2 in vaex.utils.subdivide(count, max_length=max_length):
                 logger.debug("from %d to %d (total length: %d, output length: %d)", i1, i2, len(dataset_input), N)
                 block_scope.move(i1, i2)
                 if selection:
                     mask = full_mask[i1:i2]
                     values = dataset_input.evaluate(column_name, i1=i1, i2=i2, filtered=False) #selection=selection)
-                    # print('v,m', values, mask)
                     values = values[mask]
-                    # values = values[mask]
                     no_values = len(values)
                     if no_values:
-                        fill_value = np.nan if values.dtype.kind == "f" else None
-                        # assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
-                        # (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)
-                        if values.dtype.type == np.datetime64:
-                            values = values.view(np.int64)
-                        if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                            to_array.data[to_offset:to_offset + no_values] = values.filled(fill_value)
-                            to_array.mask[to_offset:to_offset + no_values] = values.mask
-                        elif not np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                            to_array[to_offset:to_offset + no_values] = values.filled(fill_value)
+                        if is_string:
+                            to_column = to_array
+                            assert isinstance(to_column, ColumnStringArrow)
+                            from_sequence = _to_string_sequence(values)
+                            to_sequence = to_column.string_sequence.slice(to_offset, to_offset+no_values, string_byte_offset)
+                            string_byte_offset += to_sequence.fill_from(from_sequence)
+                            to_offset += no_values
                         else:
-                            to_array[to_offset:to_offset + no_values] = values
-                        to_offset += no_values
+                            fill_value = np.nan if dtype.kind == "f" else None
+                            # assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
+                            # (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)
+                            if dtype.type == np.datetime64:
+                                values = values.view(np.int64)
+                            if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+                                to_array.data[to_offset:to_offset + no_values] = values.filled(fill_value)
+                                to_array.mask[to_offset:to_offset + no_values] = values.mask
+                            elif not np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+                                to_array[to_offset:to_offset + no_values] = values.filled(fill_value)
+                            else:
+                                to_array[to_offset:to_offset + no_values] = values
+                            to_offset += no_values
                 else:
                     values = dataset_input.evaluate(column_name, i1=i1, i2=i2)
-                    assert len(values) == (i2-i1)
-                    fill_value = np.nan if values.dtype.kind == "f" else None
-                    # assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
-                    # (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)
-                    if values.dtype.type == np.datetime64:
-                        values = values.view(np.int64)
-                    if shuffle or sort:
-                        indices = order_array[i1:i2]
-                        if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                            to_array.data[indices] = values.filled(fill_value)
-                            to_array.mask[indices] = values.mask
-                        elif not np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                            to_array[indices] = values.filled(fill_value)
-                        else:
-                            to_array[indices] = values
+                    if is_string:
+                        no_values = len(values)
+                        # for strings, we don't take sorting/shuffling into account when building the structure
+                        to_column = to_array
+                        assert isinstance(to_column, ColumnStringArrow)
+                        from_sequence = _to_string_sequence(values)
+                        to_sequence = to_column.string_sequence.slice(i1, i2, string_byte_offset)
+                        string_byte_offset += to_sequence.fill_from(from_sequence)
                     else:
-                        if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                            to_array.data[i1:i2] = values.filled(fill_value)
-                            to_array.mask[i1:i2] = values.mask
-                        elif np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                            to_array[i1:i2] = values.filled(fill_value)
+                        assert len(values) == (i2-i1)
+                        fill_value = np.nan if dtype.kind == "f" else None
+                        # assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
+                        # (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)
+                        if dtype.type == np.datetime64:
+                            values = values.view(np.int64)
+                        if shuffle or sort:
+                            indices = order_array[i1:i2]
+                            if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+                                to_array.data[indices] = values.filled(fill_value)
+                                to_array.mask[indices] = values.mask
+                            elif not np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+                                to_array[indices] = values.filled(fill_value)
+                            else:
+                                to_array[indices] = values
                         else:
-                            to_array[i1:i2] = values
+                            if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+                                to_array.data[i1:i2] = values.filled(fill_value)
+                                to_array.mask[i1:i2] = values.mask
+                            elif np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+                                to_array[i1:i2] = values.filled(fill_value)
+                            else:
+                                to_array[i1:i2] = values
                 with progress_lock:
                     progress_status.value += i2 - i1
                 if progress_status.cancelled:
                     break
                 #if not progress(progress_value / float(progress_total)):
                 #    break
-            if shuffle or sort:  # write to disk in one go
-                if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(to_array_disk):
-                    to_array_disk.data[:] = to_array.data
-                    to_array_disk.mask[:] = to_array.mask
+            if is_string:  # write out the last index
+                to_column = to_array
+                if selection:
+                    to_column.indices[to_offset] = string_byte_offset
                 else:
-                    to_array_disk[:] = to_array
+                    to_column.indices[count] = string_byte_offset
+            if shuffle or sort:  # write to disk in one go
+                if dtype == str_type:  # strings are sorted afterwards
+                    view = to_array.string_sequence.lazy_index(order_array_inverse)
+                    to_array_disk.string_sequence.fill_from(view)
+                else:
+                    if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(to_array_disk):
+                        to_array_disk.data[:] = to_array.data
+                        to_array_disk.mask[:] = to_array.mask
+                    else:
+                        to_array_disk[:] = to_array
 
 
 def export_fits(dataset, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
@@ -257,6 +296,9 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
             column = dataset.columns[column_name]
             shape = (N,) + column.shape[1:]
             dtype = column.dtype
+            if dataset.dtype(column_name) == str_type:
+                max_length = dataset[column_name].apply(lambda x: len(x)).max(selection=selection)
+                dtype = np.dtype('S'+str(int(max_length)))
         else:
             dtype = np.float64().dtype
             shape = (N,)

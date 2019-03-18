@@ -1,6 +1,10 @@
 import vaex.serialize
 import json
 import numpy as np
+from vaex import column
+from vaex.column import _to_string_sequence
+import re
+
 # @vaex.serialize.register
 # class Function(FunctionSerializable):
 
@@ -45,13 +49,13 @@ for name, numpy_name in function_mapping:
         expression_namespace[name] = getattr(np, numpy_name)
 
 
-
 def fillna(ar, value, fill_nan=True, fill_masked=True):
     '''Returns an array where missing values are replaced by value.
 
     If the dtype is object, nan values and 'nan' string values
     are replaced by value when fill_nan==True.
     '''
+    ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
     if ar.dtype.kind in 'O' and fill_nan:
         strings = ar.astype(str)
         mask = strings == 'nan'
@@ -105,12 +109,159 @@ expression_namespace["dt_year"] = dt_year
 expression_namespace["dt_weekofyear"] = dt_weekofyear
 expression_namespace["dt_hour"] = dt_hour
 
+_scopes = {}
 
+
+def register(scope=None):
+    prefix = ''
+    if scope:
+        prefix = scope + "_"
+        if scope not in _scopes:
+            _scopes[scope] = {}
+    def wrapper(f):
+        name = f.__name__
+        # remove possible prefix
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+        if scope:
+            _scopes[scope][name] = f
+        expression_namespace[prefix + name] = f
+    return wrapper
+
+
+@register(scope='str')
+def str_capitalize(x):
+    sl = _to_string_sequence(x).capitalize()
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
+@register(scope='str')
+def str_cat(x, other):
+    sl1 = _to_string_sequence(x)
+    sl2 = _to_string_sequence(other)
+    sl = sl1.concat(sl2)
+    return column.ColumnStringArrow.from_string_sequence(sl)
+
+# TODO: center
+
+@register(scope='str')
+def str_contains(x, pattern, regex=True):
+    return _to_string_sequence(x).search(pattern, regex)
+
+# TODO: default regex is False, which breaks with pandas
+@register(scope='str')
+def str_count(x, pat, regex=False):
+    return _to_string_sequence(x).count(pat, regex)
+
+# TODO: what to do with decode and encode
+
+@register(scope='str')
+def str_endswith(x, pat):
+    return _to_string_sequence(x).endswith(pat)
+
+# TODO: extract/extractall
+# TODO: find/findall/get/index/join
+
+@register(scope='str')
+def str_len(x):
+    return _to_string_sequence(x).len()
+
+@register(scope='str')
+def str_byte_length(x):
+    return _to_string_sequence(x).byte_length()
+
+# TODO: ljust
+
+@register(scope='str')
+def str_lower(x):
+    sl = _to_string_sequence(x).lower()
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
+
+@register(scope='str')
+def str_lstrip(x, to_strip=None):
+    # in c++ we give empty string the same meaning as None
+    return _to_string_sequence(x).lstrip('' if to_strip is None else to_strip) if to_strip != '' else x
+
+# TODO: match, normalize, pad partition, repeat, replace, rfind, rindex, rjust, rpartition
+
+@register(scope='str')
+def str_rstrip(x, to_strip=None):
+    # in c++ we give empty string the same meaning as None
+    return _to_string_sequence(x).rstrip('' if to_strip is None else to_strip) if to_strip != '' else x
+
+# TODO: slice, slice_replace, 
+
+@register(scope='str')
+def str_split(x, pattern):  # TODO: support n
+    sll = _to_string_sequence(x).split(pattern)
+    return sll
+
+# TODO: rsplit
+
+@register(scope='str')
+def str_startswith(x, pat):
+    return _to_string_sequence(x).startswith(pat)
+
+@register(scope='str')
+def str_strip(x, to_strip=None):
+    # in c++ we give empty string the same meaning as None
+    return _to_string_sequence(x).strip('' if to_strip is None else to_strip) if to_strip != '' else x
+
+# TODO: swapcase, title, translate
+
+@register(scope='str')
+def str_upper(x):
+    sl = _to_string_sequence(x).upper()
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
+
+# TODO: wrap, zfill, is*, get_dummies(maybe?)
+
+# expression_namespace["str_contains"] = str_contains
+# expression_namespace["str_capitalize"] = str_capitalize
+# expression_namespace["str_contains2"] = str_contains2
+
+@register(scope='str')
 def str_strip(x, chars=None):
     # don't change the dtype, otherwise for each block the dtype may be different (string length)
     return np.char.strip(x, chars).astype(x.dtype)
 
-expression_namespace['str_strip'] = str_strip
+@register()
+def to_string(x):
+    # don't change the dtype, otherwise for each block the dtype may be different (string length)
+    sl = vaex.strings.to_string(x)
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
+@register()
+def format(x, format):
+    """Uses http://www.cplusplus.com/reference/string/to_string/ for formatting"""
+    # don't change the dtype, otherwise for each block the dtype may be different (string length)
+    sl = vaex.strings.format(x, format)
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
+
+_scopes['str_pandas'] = {}
+
+for name, function in _scopes['str'].items():
+    def pandas_wrapper(name=name):
+        def wrapper(*args, **kwargs):
+            import pandas
+            def fix_arg(x):
+                if isinstance(x, column.Column):
+                    x = x.to_numpy()
+                return x
+            args = list(map(fix_arg, args))
+            x = args[0]
+            args = args[1:]
+            series = pandas.Series(x)
+            method = getattr(series.str, name)
+            return method(*args, **kwargs)
+        return wrapper
+    wrapper = pandas_wrapper()
+    expression_namespace['str_pandas_' + name] = wrapper
+    _scopes['str_pandas'][name] = wrapper
+
+# expression_namespace['str_strip'] = str_strip
 
 def _float(x):
     return x.astype(np.float64)

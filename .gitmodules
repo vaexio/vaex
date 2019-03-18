@@ -1,0 +1,6 @@
+[submodule "packages/vaex-core/vendor/pybind11"]
+	path = packages/vaex-core/vendor/pybind11
+	url = https://github.com/pybind/pybind11
+[submodule "packages/vaex-core/vendor/string-view-lite"]
+	path = packages/vaex-core/vendor/string-view-lite
+	url = https://github.com/martinmoene/string-view-lite

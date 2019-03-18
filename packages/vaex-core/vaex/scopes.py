@@ -84,7 +84,7 @@ class _BlockScope(object):
         try:
             # logger.debug("try avoid evaluating: %s", expression)
             result = self[expression]
-        except:
+        except KeyError:
             # logger.debug("no luck, eval: %s", expression)
             # result = ne.evaluate(expression, local_dict=self, out=out)
             # logger.debug("in eval")
@@ -112,9 +112,11 @@ class _BlockScope(object):
                     # self._ensure_buffer(variable)
                     # self.values[variable] = self.buffers[variable] = self.df.columns[variable][self.i1:self.i2].astype(np.float64)
                     # Previously we casted anything to .astype(np.float64), this led to rounding off of int64, when exporting
-                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][self.mask]
+                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2]
                 else:
-                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][self.mask]
+                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2]
+                if self.mask is not None:
+                    self.values[variable] = self.values[variable][self.mask]
             elif variable in list(self.df.virtual_columns.keys()):
                 expression = self.df.virtual_columns[variable]
                 if isinstance(expression, dict):

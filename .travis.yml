@@ -1,4 +1,5 @@
 language: c
+dist: trusty
 os:
  - linux
  - osx
@@ -9,7 +10,18 @@ env:
   - PYTHON_VERSION=3.6
   - PYTHON_VERSION=3.7
 
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-4.9
+      - g++-4.9
+
 before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      export CXX="g++-4.9" CC="gcc-4.9";
+    fi
 #  - sudo apt-get update
 #  - sudo apt-get install libhdf5-serial-dev libqt4-dev
 #  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install libc-bin=2.12.1-0ubuntu10.2 libc6=2.12.1-0ubuntu10.2; fi
@@ -28,6 +40,7 @@ before_install:
   - which pip
   - source activate test-environment
   - which pip
+  - pip install pybind11
   # - conda install -c conda-forge pandas kapteyn # these extra installs should disappear
   # - conda create --name dev --clone test
 #  - pip install -r requirements.txt
