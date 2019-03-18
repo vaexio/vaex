@@ -4,13 +4,75 @@ import numpy as np
 from vaex import column
 from vaex.column import _to_string_sequence
 import re
+import vaex.expression
+import functools
 
-# @vaex.serialize.register
+# @vaex.serialize.register_function
 # class Function(FunctionSerializable):
+
+scopes = {
+    'str': vaex.expression.StringOperations,
+    'str_pandas': vaex.expression.StringOperationsPandas,
+    'dt': vaex.expression.DateTime
+}
+
+def register_function(scope=None, as_property=False, name=None):
+    """Decorator to register a new function with vaex.
+
+    Example:
+
+    >>> import vaex
+    >>> df = vaex.example()
+    >>> @vaex.register_function()
+    >>> def invert(x):
+    >>>     return 1/x
+    >>> df.x.invert()
+
+
+    >>> import numpy as np
+    >>> df = vaex.from_arrays(departure=np.arange('2015-01-01', '2015-12-05', dtype='datetime64'))
+    >>> @vaex.register_function(as_property=True, scope='dt')
+    >>> def dt_relative_day(x):
+    >>>     return vaex.functions.dt_dayofyear(x)/365.
+    >>> df.departure.dt.relative_day
+    """
+    prefix = ''
+    if scope:
+        prefix = scope + "_"
+        if scope not in scopes:
+            raise KeyError("unknown scope")
+    def wrapper(f, name=name):
+        name = name or f.__name__
+        # remove possible prefix
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+        full_name = prefix + name
+        if scope:
+            def closure(name=name, full_name=full_name, function=f):
+                def wrapper(self, *args, **kwargs):
+                    lazy_func = getattr(self.expression.ds.func, full_name)
+                    args = (self.expression, ) + args
+                    return lazy_func(*args, **kwargs)
+                return functools.wraps(function)(wrapper)
+            if as_property:
+                setattr(scopes[scope], name, property(closure()))
+            else:
+                setattr(scopes[scope], name, closure())
+        else:
+            def closure(name=name, full_name=full_name, function=f):
+                def wrapper(self, *args, **kwargs):
+                    lazy_func = getattr(self.ds.func, full_name)
+                    args = (self, ) + args
+                    return lazy_func(*args, **kwargs)
+                return functools.wraps(function)(wrapper)
+            setattr(vaex.expression.Expression, name, closure())
+        vaex.expression.expression_namespace[prefix + name] = f
+        return f  # we leave the original function as is
+    return wrapper
 
 # name maps to numpy function
 # <vaex name>:<numpy name>
-function_mapping = [name.strip().split(":") if ":" in name else (name, name) for name in """
+numpy_function_mapping = [name.strip().split(":") if ":" in name else (name, name) for name in """
 sinc
 sin
 cos
@@ -38,17 +100,22 @@ deg2rad
 minimum
 maximum
 clip
-nan
 searchsorted
 """.strip().split()]
-expression_namespace = {}
-for name, numpy_name in function_mapping:
+for name, numpy_name in numpy_function_mapping:
     if not hasattr(np, numpy_name):
         raise SystemError("numpy does not have: %s" % numpy_name)
     else:
-        expression_namespace[name] = getattr(np, numpy_name)
+        function = getattr(np, numpy_name)
+        def f(function=function):
+            def wrapper(*args, **kwargs):
+                return function(*args, **kwargs)
+            return wrapper
+        function = functools.wraps(function)(f())
+        register_function(name=name)(function)
 
 
+@register_function()
 def fillna(ar, value, fill_nan=True, fill_masked=True):
     '''Returns an array where missing values are replaced by value.
 
@@ -74,67 +141,47 @@ def fillna(ar, value, fill_nan=True, fill_masked=True):
     return ar
 
 
-expression_namespace['fillna'] = fillna
+########## datetime operations ##########
 
-
+@register_function(scope='dt', as_property=True)
 def dt_dayofweek(x):
     import pandas as pd
     # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.dayofweek.values
 
+@register_function(scope='dt', as_property=True)
 def dt_dayofyear(x):
     import pandas as pd
     # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.dayofyear.values
 
+@register_function(scope='dt', as_property=True)
 def dt_year(x):
     import pandas as pd
     # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.year.values
 
+@register_function(scope='dt', as_property=True)
 def dt_weekofyear(x):
     import pandas as pd
     # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.weekofyear.values
 
+@register_function(scope='dt', as_property=True)
 def dt_hour(x):
     import pandas as pd
     # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.hour.values
 
 
-expression_namespace["dt_dayofweek"] = dt_dayofweek
-expression_namespace["dt_dayofyear"] = dt_dayofyear
-expression_namespace["dt_year"] = dt_year
-expression_namespace["dt_weekofyear"] = dt_weekofyear
-expression_namespace["dt_hour"] = dt_hour
+########## string operations ##########
 
-_scopes = {}
-
-
-def register(scope=None):
-    prefix = ''
-    if scope:
-        prefix = scope + "_"
-        if scope not in _scopes:
-            _scopes[scope] = {}
-    def wrapper(f):
-        name = f.__name__
-        # remove possible prefix
-        if name.startswith(prefix):
-            name = name[len(prefix):]
-        if scope:
-            _scopes[scope][name] = f
-        expression_namespace[prefix + name] = f
-    return wrapper
-
-
-@register(scope='str')
+@register_function(scope='str')
 def str_capitalize(x):
     sl = _to_string_sequence(x).capitalize()
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
-@register(scope='str')
+@register_function(scope='str')
 def str_cat(x, other):
     sl1 = _to_string_sequence(x)
     sl2 = _to_string_sequence(other)
@@ -143,73 +190,73 @@ def str_cat(x, other):
 
 # TODO: center
 
-@register(scope='str')
+@register_function(scope='str')
 def str_contains(x, pattern, regex=True):
     return _to_string_sequence(x).search(pattern, regex)
 
 # TODO: default regex is False, which breaks with pandas
-@register(scope='str')
+@register_function(scope='str')
 def str_count(x, pat, regex=False):
     return _to_string_sequence(x).count(pat, regex)
 
 # TODO: what to do with decode and encode
 
-@register(scope='str')
+@register_function(scope='str')
 def str_endswith(x, pat):
     return _to_string_sequence(x).endswith(pat)
 
 # TODO: extract/extractall
 # TODO: find/findall/get/index/join
 
-@register(scope='str')
+@register_function(scope='str')
 def str_len(x):
     return _to_string_sequence(x).len()
 
-@register(scope='str')
+@register_function(scope='str')
 def str_byte_length(x):
     return _to_string_sequence(x).byte_length()
 
 # TODO: ljust
 
-@register(scope='str')
+@register_function(scope='str')
 def str_lower(x):
     sl = _to_string_sequence(x).lower()
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 
-@register(scope='str')
+@register_function(scope='str')
 def str_lstrip(x, to_strip=None):
     # in c++ we give empty string the same meaning as None
     return _to_string_sequence(x).lstrip('' if to_strip is None else to_strip) if to_strip != '' else x
 
 # TODO: match, normalize, pad partition, repeat, replace, rfind, rindex, rjust, rpartition
 
-@register(scope='str')
+@register_function(scope='str')
 def str_rstrip(x, to_strip=None):
     # in c++ we give empty string the same meaning as None
     return _to_string_sequence(x).rstrip('' if to_strip is None else to_strip) if to_strip != '' else x
 
 # TODO: slice, slice_replace, 
 
-@register(scope='str')
+@register_function(scope='str')
 def str_split(x, pattern):  # TODO: support n
     sll = _to_string_sequence(x).split(pattern)
     return sll
 
 # TODO: rsplit
 
-@register(scope='str')
+@register_function(scope='str')
 def str_startswith(x, pat):
     return _to_string_sequence(x).startswith(pat)
 
-@register(scope='str')
+@register_function(scope='str')
 def str_strip(x, to_strip=None):
     # in c++ we give empty string the same meaning as None
     return _to_string_sequence(x).strip('' if to_strip is None else to_strip) if to_strip != '' else x
 
 # TODO: swapcase, title, translate
 
-@register(scope='str')
+@register_function(scope='str')
 def str_upper(x):
     sl = _to_string_sequence(x).upper()
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
@@ -221,18 +268,19 @@ def str_upper(x):
 # expression_namespace["str_capitalize"] = str_capitalize
 # expression_namespace["str_contains2"] = str_contains2
 
-@register(scope='str')
+@register_function(scope='str')
 def str_strip(x, chars=None):
+    """Removes leading and trailing characters."""
     # don't change the dtype, otherwise for each block the dtype may be different (string length)
     return np.char.strip(x, chars).astype(x.dtype)
 
-@register()
+@register_function()
 def to_string(x):
     # don't change the dtype, otherwise for each block the dtype may be different (string length)
     sl = vaex.strings.to_string(x)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
-@register()
+@register_function()
 def format(x, format):
     """Uses http://www.cplusplus.com/reference/string/to_string/ for formatting"""
     # don't change the dtype, otherwise for each block the dtype may be different (string length)
@@ -240,9 +288,9 @@ def format(x, format):
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 
-_scopes['str_pandas'] = {}
-
-for name, function in _scopes['str'].items():
+for name in dir(scopes['str']):
+    if name.startswith('__'):
+        continue
     def pandas_wrapper(name=name):
         def wrapper(*args, **kwargs):
             import pandas
@@ -258,21 +306,20 @@ for name, function in _scopes['str'].items():
             return method(*args, **kwargs)
         return wrapper
     wrapper = pandas_wrapper()
-    expression_namespace['str_pandas_' + name] = wrapper
-    _scopes['str_pandas'][name] = wrapper
+    wrapper.__doc__ = "Wrapper around pandas.Series.%s" % name
+    register_function(scope='str_pandas')(wrapper, name=name)
+    # expression_namespace['str_pandas_' + name] = wrapper
+    # _scopes['str_pandas'][name] = wrapper
 
 # expression_namespace['str_strip'] = str_strip
 
+@register_function(name='float')
 def _float(x):
     return x.astype(np.float64)
 
+@register_function(name='astype')
 def _astype(x, dtype):
     return x.astype(dtype)
-
-
-expression_namespace["float"] = _float
-expression_namespace["astype"] = _astype
-
 
 
 def add_geo_json(ds, json_or_file, column_name, longitude_expression, latitude_expresion, label=None, persist=True, overwrite=False, inplace=False, mapping=None):

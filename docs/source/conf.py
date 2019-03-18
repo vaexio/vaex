@@ -69,9 +69,9 @@ copyright = u'2014, Maarten A. Breddels'
 if 1:
 	import vaex
 	# The short X.Y version.
-	version = vaex.version
+	version = vaex.__version__
 	# The full version, including alpha/beta/rc tags.
-	release = vaex.version
+	release = vaex.__version__
 else:
 	print("failed finding vaex module, try finding version")
 	import sys

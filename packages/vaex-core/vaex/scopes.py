@@ -20,7 +20,7 @@ from .utils import (_ensure_strings_from_expressions,
     as_flat_float,
     as_flat_array,
     _split_and_combine_mask)
-from .functions import expression_namespace
+from .expression import expression_namespace
 import vaex.expression
 
 logger = logging.getLogger('vaex.scopes')
