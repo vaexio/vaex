@@ -128,7 +128,7 @@ class TaskBase(Task):
 
 class TaskMapReduce(Task):
     def __init__(self, df, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False,
-                 ordered_reduce=False, name="task"):
+                 to_numpy=True, ordered_reduce=False, name="task"):
         Task.__init__(self, df, expressions, name=name)
         self._map = map
         self._reduce = reduce
@@ -136,8 +136,11 @@ class TaskMapReduce(Task):
         self.info = info
         self.ordered_reduce = ordered_reduce
         self.to_float = to_float
+        self.to_numpy = to_numpy
 
     def map(self, thread_index, i1, i2, *blocks):
+        if self.to_numpy:
+            blocks = [block if isinstance(block, np.ndarray) else block.to_numpy() for block in blocks]
         if self.to_float:
             blocks = [as_flat_float(block) for block in blocks]
         if self.info:
