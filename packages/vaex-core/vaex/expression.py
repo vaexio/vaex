@@ -308,17 +308,18 @@ class Expression(with_metaclass(Meta)):
             for i in range(len(values)):
                 value = values[i]
                 yield _format_value(value)
+        colalign = ("right",) * 2
         try:
             N = len(self.ds)
             if N <= PRINT_MAX_COUNT:
                 values = format(self.evaluate(0, N))
-                values = tabulate.tabulate([[i, k] for i, k in enumerate(values)], tablefmt='plain')
+                values = tabulate.tabulate([[i, k] for i, k in enumerate(values)], tablefmt='plain', colalign=colalign)
             else:
                 values_head = format(self.evaluate(0, PRINT_MAX_COUNT//2))
                 values_tail = format(self.evaluate(N - PRINT_MAX_COUNT//2, N))
                 values_head = list(zip(range(PRINT_MAX_COUNT//2), values_head)) +\
                               list(zip(range(N - PRINT_MAX_COUNT//2, N), values_tail))
-                values = tabulate.tabulate([k for k in values_head], tablefmt='plain')
+                values = tabulate.tabulate([k for k in values_head], tablefmt='plain', colalign=colalign)
                 values = values.split('\n')
                 width = max(map(len, values))
                 separator = '\n' + '...'.center(width, ' ') + '\n'
