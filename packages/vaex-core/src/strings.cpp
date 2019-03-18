@@ -1077,12 +1077,10 @@ void add_string_list(Module m, Base& base, const char* class_name) {
                 if(indices_info.ndim != 1) {
                     throw std::runtime_error("Expected a 1d indices buffer");
                 }
-                return std::unique_ptr<StringList>(
-                    new StringList((char*)bytes_info.ptr, bytes_info.shape[0],
+                return new StringList((char*)bytes_info.ptr, bytes_info.shape[0],
                                    (typename StringList::index_type*)indices_info.ptr, string_count, offset
-                                  )
-                );
-            })
+                                  );
+            }), py::keep_alive<1, 2>(), py::keep_alive<1, 3>() // keep a reference to the ndarrays
         )
         // same ctor, duplicate code, cannot make null_bitmap accept None
         .def(py::init([](py::buffer bytes, py::array_t<typename StringList::index_type, py::array::c_style>& indices, size_t string_count, size_t offset,
@@ -1103,12 +1101,10 @@ void add_string_list(Module m, Base& base, const char* class_name) {
                     }
                     null_bitmap_ptr = (uint8_t*)null_bitmap_info.ptr;
                 }
-                return std::unique_ptr<StringList>(
-                    new StringList((char*)bytes_info.ptr, bytes_info.shape[0],
+                return new StringList((char*)bytes_info.ptr, bytes_info.shape[0],
                                    (typename StringList::index_type*)indices_info.ptr, string_count, offset, null_bitmap_ptr
-                                  )
-                );
-            })
+                                  );
+            }), py::keep_alive<1, 2>(), py::keep_alive<1, 3>() // keep a reference to the ndarrays
         )
         .def("split", &StringList::split)
         .def("slice", &StringList::slice, py::keep_alive<0, 1>())

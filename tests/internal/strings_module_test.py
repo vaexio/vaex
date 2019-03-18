@@ -150,8 +150,8 @@ def test_arrow_basics():
     sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap)
     assert sys.getrefcount(sl) == 2
     # we should keep a reference only
-    assert sys.getrefcount(bytes_strings) == 2
-    assert sys.getrefcount(indices) == 2
+    assert sys.getrefcount(bytes_strings) == 3
+    assert sys.getrefcount(indices) == 3
 
     assert sl.get(0) == "aap"
     assert sl.get(1) == "noot"
@@ -208,7 +208,8 @@ def test_arrow_basics():
     bytes_strings2 = bytes_strings.copy()
     bytes_strings2[:] = b'?'
 
-    assert sys.getrefcount(indices) == 2
+    assert sys.getrefcount(indices) == 3
+    assert sys.getrefcount(bytes_strings) == 3
 
     sl_copy = vaex.strings.StringList32(bytes_strings2, indices2, len(ar), offset2, null_bitmap2)
     sl_copy.fill_from(sl)
@@ -236,9 +237,14 @@ def test_arrow_basics():
     assert list(sl14.get(0,3)) == [None, "NOOT", "MIES"]
 
 
+    # sl14 and sl_slice keep a reference to sl
     del sl
-    assert sys.getrefcount(bytes_strings) == 2
+    assert sys.getrefcount(indices) == 3
+    assert sys.getrefcount(bytes_strings) == 3
+    del sl14
+    del sl_slice
     assert sys.getrefcount(indices) == 2
+    assert sys.getrefcount(bytes_strings) == 2
 
 N = 1**32+2
 def test_string_array_big():
