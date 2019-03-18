@@ -53,6 +53,9 @@ default_shape = 128
 # executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 # executor = vaex.execution.default_executor
 
+def _len(o):
+    return o.__len__()
+
 
 def _requires(name):
     def wrap(*args, **kwargs):
@@ -2611,10 +2614,10 @@ class DataFrame(object):
             data = ar = f_or_array
             # it can be None when we have an 'empty' DataFrameArrays
             if self._length_original is None:
-                self._length_unfiltered = len(data)
-                self._length_original = len(data)
+                self._length_unfiltered = _len(data)
+                self._length_original = _len(data)
                 self._index_end = self._length_unfiltered
-            if len(ar) != self.length_original():
+            if _len(ar) != self.length_original():
                 if self.filtered:
                     # give a better warning to avoid confusion
                     if len(self) == len(ar):
@@ -3269,7 +3272,7 @@ class DataFrame(object):
         return self[max(0, N - n):min(len(self), N)]
 
     def _head_and_tail_table(self, n=5, format='html'):
-        N = len(self)
+        N = _len(self)
         if N <= n * 2:
             return self._as_table(0, N, format=format)
         else:
