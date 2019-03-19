@@ -27,6 +27,10 @@ expression_namespace = {}
 expression_namespace['nan'] = np.nan
 
 
+expression_namespace = {}
+expression_namespace['nan'] = np.nan
+
+
 _binary_ops = [
     dict(code="+", name='add', op=operator.add),
     dict(code="in", name='contains', op=operator.contains),
