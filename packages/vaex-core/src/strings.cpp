@@ -161,9 +161,9 @@ class StringSequence {
                 if( (start < string_length))  { // we need to start in the string
                     auto str_lookat = str.substr(start, end - start);
                     if(left) {
-                        find_index = str_lookat.find(pattern_view);
+                        find_index = str_lookat.find(pattern, 0);
                     } else {
-                        find_index = str_lookat.rfind(pattern_view);
+                        find_index = str_lookat.rfind(pattern);
                     }
 
                 }
