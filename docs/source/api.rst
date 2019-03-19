@@ -55,7 +55,7 @@ vaex-core
 ---------
 
 .. automodule:: vaex
-    :members: open, from_arrays, from_dict, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, server, example, app, delayed
+    :members: open, from_arrays, from_dict, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, register_function, server, example, app, delayed
     :undoc-members:
     :show-inheritance:
 
@@ -72,6 +72,27 @@ DataFrameLocal class
 ~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.dataframe.DataFrameLocal
+     :members:
+     :special-members:
+
+
+Expression class
+~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.Expression
+     :members:
+     :special-members:
+
+
+
+String operations
+~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.StringOperations
+     :members:
+     :special-members:
+
+.. autoclass:: vaex.expression.StringOperationsPandas
      :members:
      :special-members:
 
@@ -250,7 +271,7 @@ Boosted trees
 .. autoclass:: vaex.ml.lightgbm.LightGBMClassifier
      :members:
 
-.. autoclass:: vaex.ml.xgboost.XGBModel
+.. autoclass:: vaex.ml.xgboost.XGBoostModel
      :members:
 
 .. PyGBM support is in the incubator phase, which means support may disappear in future versions

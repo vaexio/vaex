@@ -31,7 +31,7 @@ import vaex.expresso
 import logging
 import vaex.kld
 from . import selections, tasks, scopes
-from .functions import expression_namespace
+from .expression import expression_namespace
 from .delayed import delayed, delayed_args, delayed_list
 from .column import Column, ColumnIndexed, ColumnSparse, ColumnString, ColumnConcatenatedLazy, str_type
 import vaex.events
@@ -208,6 +208,37 @@ class DataFrame(object):
             return self.__hidden__[name].__get__(self)
         else:
             return object.__getattribute__(self, name)
+
+    @property
+    def func(self):
+        class Functions(object):
+            pass
+
+        functions = Functions()
+        for name, value in expression_namespace.items():
+            # f = vaex.expression.FunctionBuiltin(self, name)
+            def closure(name=name, value=value):
+                local_name = name
+                def wrap(*args, **kwargs):
+                    def myrepr(k):
+                        if isinstance(k, Expression):
+                            return str(k)
+                        else:
+                            return repr(k)
+                    arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])
+                    expression = "{}({})".format(local_name, arg_string)
+                    return vaex.expression.Expression(self, expression)
+                return wrap
+            f = closure()
+            try:
+                f = functools.wraps(value)(f)
+            except AttributeError:
+                pass # python2 quicks.. ?
+            setattr(functions, name, f)
+        for name, value in self.functions.items():
+            setattr(functions, name, value)
+
+        return functions
 
     @_hidden
     @vaex.utils.deprecated('use is_category')
@@ -4451,37 +4482,6 @@ class DataFrameLocal(DataFrame):
         for name, array in self.columns.items():
             setattr(datas, name, array)
         return datas
-
-    @property
-    def func(self):
-        class Functions(object):
-            pass
-
-        functions = Functions()
-        for name, value in expression_namespace.items():
-            # f = vaex.expression.FunctionBuiltin(self, name)
-            def closure(name=name, value=value):
-                local_name = name
-                def wrap(*args, **kwargs):
-                    def myrepr(k):
-                        if isinstance(k, Expression):
-                            return str(k)
-                        else:
-                            return repr(k)
-                    arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])
-                    expression = "{}({})".format(local_name, arg_string)
-                    return vaex.expression.Expression(self, expression)
-                return wrap
-            f = closure()
-            try:
-                f = functools.wraps(value)(f)
-            except AttributeError:
-                pass # python2 quicks.. ?
-            setattr(functions, name, f)
-        for name, value in self.functions.items():
-            setattr(functions, name, value)
-
-        return functions
 
     def copy(self, column_names=None, virtual=True):
         df = DataFrameArrays()

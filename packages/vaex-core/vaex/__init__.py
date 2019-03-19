@@ -36,6 +36,7 @@ from __future__ import print_function
 import glob
 import vaex.dataframe
 import vaex.dataset
+from vaex.functions import register_function
 from . import stat
 # import vaex.file
 # import vaex.export

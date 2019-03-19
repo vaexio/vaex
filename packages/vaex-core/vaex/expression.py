@@ -8,7 +8,6 @@ from future.utils import with_metaclass
 import numpy as np
 import tabulate
 
-from vaex.functions import expression_namespace, _scopes
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 from vaex.column import ColumnString
 import vaex.serialize
@@ -23,6 +22,10 @@ except ImportError:
 # TODO: repeated from dataframe.py
 default_shape = 128
 PRINT_MAX_COUNT = 10
+
+expression_namespace = {}
+expression_namespace['nan'] = np.nan
+
 
 _binary_ops = [
     dict(code="+", name='add', op=operator.add),
@@ -100,33 +103,11 @@ class Meta(type):
                     return Expression(self.ds, expression=expression)
                 attrs['__%s__' % op['name']] = f
             wrap(op)
-        for name, func_real in expression_namespace.items():
-            def wrap(name=name):
-                def f(*args, **kwargs):
-                    self = args[0]
-
-                    def to_expression(expression):
-                        if isinstance(expression, str):
-                            expression = repr(expression)
-                        if isinstance(expression, Expression):
-                            assert expression.ds == self.ds
-                            expression = expression.expression
-                        return expression
-                    expressions = [to_expression(e) for e in args]
-                    # print(name, expressions)
-                    expression = '{0}({1})'.format(name, ", ".join(expressions))
-                    return Expression(self.ds, expression=expression)
-                try:
-                    f = functools.wraps(func_real)(f)
-                except AttributeError:
-                    pass  # numpy ufuncs don't have a __module__, which may choke wraps
-
-                attrs['%s' % name] = f
-            if name not in attrs:
-                wrap(name)
         return type(future_class_name, future_class_parents, attrs)
 
+
 class DateTime(object):
+    """DateTime operations"""
     def __init__(self, expression):
         self.expression = expression
 
@@ -150,37 +131,21 @@ class DateTime(object):
     def weekofyear(self):
         return self.expression.ds.func.dt_weekofyear(self.expression)
 
+
 class StringOperations(object):
     """String operations"""
     def __init__(self, expression):
         self.expression = expression
 
-class PandasStringOperations(object):
+
+class StringOperationsPandas(object):
     """String operations using Pandas Series"""
     def __init__(self, expression):
         self.expression = expression
 
-for name, function in _scopes['str'].items():
-    full_name = 'str_' + name
-    def closure(name=name, full_name=full_name, function=function):
-        def wrapper(self, *args, **kwargs):
-            lazy_func = getattr(self.expression.ds.func, full_name)
-            args = (self.expression, ) + args
-            return lazy_func(*args, **kwargs)
-        return wrapper
-    setattr(StringOperations, name, closure())
-
-for name, function in _scopes['str_pandas'].items():
-    full_name = 'str_pandas_' + name
-    def closure(name=name, full_name=full_name, function=function):
-        def wrapper(self, *args, **kwargs):
-            lazy_func = getattr(self.expression.ds.func, full_name)
-            args = (self.expression, ) + args
-            return lazy_func(*args, **kwargs)
-        return wrapper
-    setattr(PandasStringOperations, name, closure())
 
 class Expression(with_metaclass(Meta)):
+    """Expression class"""
     def __init__(self, ds, expression):
         self.ds = ds
         if isinstance(expression, Expression):
@@ -199,7 +164,7 @@ class Expression(with_metaclass(Meta)):
     @property
     def str_pandas(self):
         """Gives access to string operations (using Pandas Series)"""
-        return PandasStringOperations(self)
+        return StringOperationsPandas(self)
 
     @property
     def values(self):
@@ -475,7 +440,7 @@ class Expression(with_metaclass(Meta)):
         import imp
         import hashlib
         names = []
-        funcs = set(vaex.dataset.expression_namespace.keys())
+        funcs = set(expression_namespace.keys())
         # if it's a virtual column, we probably want to optimize that
         # TODO: fully extract the virtual columns, i.e. depending ones?
         expression = self.expression
@@ -504,7 +469,7 @@ class Expression(with_metaclass(Meta)):
             import hashlib
             # self._import_all(module)
             names = []
-            funcs = set(vaex.dataset.expression_namespace.keys())
+            funcs = set(expression_namespace.keys())
             expression = self.expression
             if expression in self.ds.virtual_columns:
                 expression = self.ds.virtual_columns[self.expression]
@@ -529,7 +494,7 @@ def f({0}):
 
             module = imp.load_dynamic(module_name, module_path)
             function_name = "f_" + m.hexdigest()
-            vaex.dataset.expression_namespace[function_name] = module.f
+            expression_namespace[function_name] = module.f
 
             return Expression(self.ds, "{0}({1})".format(function_name, argstring))
         finally:
