@@ -864,3 +864,10 @@ def gen_to_list(fn=None, wrapper=list):
     if fn is None:
         return listify_return
     return listify_return(fn)
+
+import vaex.superutils
+def unique_nanfix(values, return_inverse=False):
+    if values.dtype.kind == 'f':
+        return vaex.superutils.unique(values, return_inverse=return_inverse)
+    else:
+        return np.unique(values, return_inverse=return_inverse)

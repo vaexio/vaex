@@ -307,14 +307,14 @@ class DataFrame(object):
         expression = _ensure_string_from_expression(expression)
         if return_inverse:
             def map(thread_index, i1, i2, ar):  # this will be called with a chunk of the data
-                return i1, (np.unique(ar, return_inverse=True))  # returns (sort key, (unique elements, indices))
+                return i1, (vaex.utils.unique_nanfix(ar, return_inverse=True))  # returns (sort key, (unique elements, indices))
             def reduce(a, b):  # gets called with a list of the return values of map
                 uniques_a, indices_a = a
                 uniques_b, indices_b = b
                 Na = len(uniques_a)
                 Nb = len(uniques_b)
                 joined = np.concatenate([uniques_a, uniques_b])  # put all 'sub-unique' together
-                uniques, indices_joined = np.unique(joined, return_inverse=True)  # find all the unique items
+                uniques, indices_joined = vaex.utils.unique_nanfix(joined, return_inverse=True)  # find all the unique items
                 # get back the merged indices
                 indices = np.concatenate([indices_joined[:Na][indices_a], indices_joined[Na:][indices_b]])
                 return uniques, indices
@@ -322,10 +322,10 @@ class DataFrame(object):
             # return np.unique(self.evaluate(expression), return_inverse=return_inverse)
         else:
             def map(ar):  # this will be called with a chunk of the data
-                return np.unique(ar)  # returns the unique elements
+                return vaex.utils.unique_nanfix(ar)  # returns the unique elements
             def reduce(a, b):  # gets called with a list of the return values of map
                 joined = np.concatenate([a, b])  # put all 'sub-unique' together
-                return np.unique(joined)  # find all the unique items
+                return vaex.utils.unique_nanfix(joined)  # find all the unique items
         return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='unique')
 
     @docsubst

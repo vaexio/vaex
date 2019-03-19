@@ -128,7 +128,7 @@ class TaskBase(Task):
 
 class TaskMapReduce(Task):
     def __init__(self, df, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False,
-                 ordered_reduce=False, name="task"):
+                 to_numpy=True, ordered_reduce=False, skip_masked=False, name="task"):
         Task.__init__(self, df, expressions, name=name)
         self._map = map
         self._reduce = reduce
@@ -136,10 +136,25 @@ class TaskMapReduce(Task):
         self.info = info
         self.ordered_reduce = ordered_reduce
         self.to_float = to_float
+        self.to_numpy = to_numpy
+        self.skip_masked = skip_masked
 
     def map(self, thread_index, i1, i2, *blocks):
+        if self.to_numpy:
+            blocks = [block if isinstance(block, np.ndarray) else block.to_numpy() for block in blocks]
         if self.to_float:
             blocks = [as_flat_float(block) for block in blocks]
+        if self.skip_masked:
+            masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
+            blocks = [block.data if np.ma.isMaskedArray(block) else block for block in blocks]
+            mask = None
+            if masks:
+                # find all 'rows', where all columns are present (not masked)
+                mask = masks[0].copy()
+                for other in masks[1:]:
+                    mask |= other
+                blocks = [block[~mask] for block in blocks]
+
         if self.info:
             return self._map(thread_index, i1, i2, *blocks)
         else:
