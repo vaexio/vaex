@@ -2,7 +2,7 @@ import vaex.serialize
 import json
 import numpy as np
 from vaex import column
-from vaex.column import _to_string_sequence
+from vaex.column import _to_string_sequence, _to_string_list_sequence
 import re
 import vaex.expression
 import functools
@@ -221,7 +221,10 @@ def str_cat(x, other):
     sl = sl1.concat(sl2)
     return column.ColumnStringArrow.from_string_sequence(sl)
 
-# TODO: center
+@register_function(scope='str')
+def str_center(x, width, fillchar=' '):
+    sl = _to_string_sequence(x).pad(width, fillchar, True, True)
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_contains(x, pattern, regex=True):
@@ -238,8 +241,52 @@ def str_count(x, pat, regex=False):
 def str_endswith(x, pat):
     return _to_string_sequence(x).endswith(pat)
 
+# TODO: what to do with extract/extractall
+
+# def str_extract(x, pat, flags=0, expand=True):
+#     """Wraps pandas"""
+#     import pandas
+#     x = x.to_numpy()
+#     series = pandas.Series(x)
+#     return series.str.extract(pat, flags, expand).values
+
+# def str_extractall(x, pat, flags=0, expand=True):
+#     """Wraps pandas"""
+#     import pandas
+#     x = x.to_numpy()
+#     series = pandas.Series(x)
+#     return series.str.str_extractall(pat, flags, expand).values
+
 # TODO: extract/extractall
-# TODO: find/findall/get/index/join
+
+@register_function(scope='str')
+def str_find(x, sub, start=0, end=-1):
+    return _to_string_sequence(x).find(sub, start, end, True)
+
+# TODO: findall (not sure what the use/behaviour is)
+
+# TODO get/index/join
+
+@register_function(scope='str')
+def str_get(x, i):
+    """Difference from pandas: returns '' instead of nan"""
+    x = _to_string_sequence(x)
+    if i == -1:
+        return x.slice_string_end(-1)
+    else:
+        return x.slice_string(i, i+1)
+    # else:
+    #     raise ValueError('get only works on string columns')
+
+@register_function(scope='str')
+def str_index(x, sub, start=0, end=-1):
+    """Same as find (difference with pandas is that it does not raise a ValueError)"""
+    return str_find(x, sub, start, end)
+
+@register_function(scope='str')
+def str_join(x, sep):
+    """Same as find (difference with pandas is that it does not raise a ValueError)"""
+    return _to_string_list_sequence(x).join(sep)
 
 @register_function(scope='str')
 def str_len(x):
@@ -249,34 +296,80 @@ def str_len(x):
 def str_byte_length(x):
     return _to_string_sequence(x).byte_length()
 
-# TODO: ljust
+@register_function(scope='str')
+def str_ljust(x, width, fillchar=' '):
+    sl = _to_string_sequence(x).pad(width, fillchar, False, True)
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_lower(x):
     sl = _to_string_sequence(x).lower()
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
-
 @register_function(scope='str')
 def str_lstrip(x, to_strip=None):
     # in c++ we give empty string the same meaning as None
     return _to_string_sequence(x).lstrip('' if to_strip is None else to_strip) if to_strip != '' else x
 
-# TODO: match, normalize, pad partition, repeat, replace, rfind, rindex, rjust, rpartition
+@register_function(scope='str')
+def str_match(x, pattern):
+    return _to_string_sequence(x).match(pattern)
+
+# TODO: normalize, partition
+
+@register_function(scope='str')
+def str_pad(x, width, side='left', fillchar=' '):
+    sl = _to_string_sequence(x).pad(width, fillchar, side in ['left', 'both'], side in ['right', 'both'])
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
+@register_function(scope='str')
+def str_repeat(x, repeats):
+    sl = _to_string_sequence(x).repeat(repeats)
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
+@register_function(scope='str')
+def str_replace(x, pat, repl, n=-1, regex=False):
+    sl = _to_string_sequence(x).replace(pat, repl, n, regex)
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
+@register_function(scope='str')
+def str_rfind(x, sub, start=0, end=-1):
+    return _to_string_sequence(x).find(sub, start, end, False)
+
+@register_function(scope='str')
+def str_rindex(x, sub, start=0, end=-1):
+    """Same as rfind (difference with pandas is that it does not raise a ValueError)"""
+    return str_rfind(x, sub, start, end)
+
+@register_function(scope='str')
+def str_rjust(x, width, fillchar=' '):
+    sl = _to_string_sequence(x).pad(width, fillchar, True, False)
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
+# TODO: rpartition
 
 @register_function(scope='str')
 def str_rstrip(x, to_strip=None):
     # in c++ we give empty string the same meaning as None
     return _to_string_sequence(x).rstrip('' if to_strip is None else to_strip) if to_strip != '' else x
 
-# TODO: slice, slice_replace,
-
 @register_function(scope='str')
-def str_split(x, pattern):  # TODO: support n
-    sll = _to_string_sequence(x).split(pattern)
+def str_slice(x, start=0, stop=None):  # TODO: support n
+    if stop is None:
+        sll = _to_string_sequence(x).slice_string_end(start)
+    else:
+        sll = _to_string_sequence(x).slice_string(start, stop)
     return sll
 
-# TODO: rsplit
+# TODO: slice_replace,
+# TODO: split with whitespace, n and rsplit
+@register_function(scope='str')
+def str_split(x, pattern):  # TODO: support n
+    x = _to_string_sequence(x)
+    if isinstance(x, vaex.strings.StringArray):
+        x = x.to_arrow()
+    sll = x.split(pattern)
+    return sll
 
 @register_function(scope='str')
 def str_startswith(x, pat):
@@ -287,7 +380,13 @@ def str_strip(x, to_strip=None):
     # in c++ we give empty string the same meaning as None
     return _to_string_sequence(x).strip('' if to_strip is None else to_strip) if to_strip != '' else x
 
-# TODO: swapcase, title, translate
+# TODO: swapcase, translate
+
+@register_function(scope='str')
+def str_title(x):
+    sl = _to_string_sequence(x).title()
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
 
 @register_function(scope='str')
 def str_upper(x):
@@ -295,7 +394,13 @@ def str_upper(x):
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 
-# TODO: wrap, zfill, is*, get_dummies(maybe?)
+# TODO: wrap, is*, get_dummies(maybe?)
+
+@register_function(scope='str')
+def str_zfill(x, width):
+    sl = _to_string_sequence(x).pad(width, '0', True, False)
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
 
 # expression_namespace["str_contains"] = str_contains
 # expression_namespace["str_capitalize"] = str_capitalize

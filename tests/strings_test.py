@@ -130,20 +130,27 @@ def test_null_values():
 def dfs_array():
     return vaex.from_arrays(s=np.array(string_list, dtype='O'), sr=np.array(string_list_reverse, dtype='O'))
 
+def test_byte_length(dfs):
+	assert dfs.s.str.byte_length().tolist() == [len(k.encode('utf8')) for k in string_list]
+
+
+
+def test_string_capitalize(dfs):
+	assert dfs.s.str.capitalize().tolist() == dfs.s.str_pandas.capitalize().tolist()
+
+def test_string_cat(dfs):
+	c = [s1+s2 for s1, s2 in zip(string_list, string_list_reverse)]
+	assert dfs.s.str.cat(dfs.sr).tolist() == c
+	assert dfs.s.str_pandas.cat(dfs.sr).tolist() == c
+
 def test_string_contains(dfs):
 	assert dfs.s.str.contains('v', regex=False).tolist() == [True, False, False, True, False, False]
 	assert dfs.s.str.contains('æ', regex=False).tolist() == [False, False, True, False, False, True]
 	assert dfs.s.str.contains('Æ', regex=False).tolist() == [False, False, False, True, True, False]
 
-def test_string_len(dfs):
-	assert dfs.s.str.len().astype('i4').tolist() == [len(k) for k in string_list]
-	assert dfs.s.str_pandas.len().astype('i4').tolist() == [len(k) for k in string_list]
-
-def test_byte_length(dfs):
-	assert dfs.s.str.byte_length().tolist() == [len(k.encode('utf8')) for k in string_list]
-
-def test_string_capitalize(dfs):
-	assert dfs.s.str.capitalize().tolist() == dfs.s.str_pandas.capitalize().tolist()
+@pytest.mark.parametrize("width", [2, 10])
+def test_string_center(dfs, width):
+	assert dfs.s.str.center(width).tolist() == dfs.s.str_pandas.center(width).tolist()
 
 def test_string_count(dfs):
 	assert dfs.s.str.count("v", regex=False).tolist() == dfs.s.str_pandas.count("v").tolist()
@@ -152,8 +159,33 @@ def test_string_count(dfs):
 def test_string_endswith(dfs):
 	assert dfs.s.str.endswith("x").tolist() == dfs.s.str_pandas.endswith("x").tolist()
 
-def test_string_upper(dfs):
-	assert dfs.s.str.upper().tolist() == dfs.s.str_pandas.upper().tolist()
+@pytest.mark.parametrize("sub", ["v", "æ"])
+@pytest.mark.parametrize("start", [0, 3, 5])
+@pytest.mark.parametrize("end", [-1, 3, 5, 10])
+def test_string_find(dfs, sub, start, end):
+	assert dfs.s.str.find(sub, start, end).tolist() == dfs.s.str_pandas.find(sub, start, end).tolist()
+
+@pytest.mark.parametrize("i", [-1, 3, 5, 10])
+def test_string_get(dfs, i):
+	x = dfs.s.str_pandas.get(i).values.values
+	assert dfs.s.str.get(i).tolist() == [k[i] if i < len(k) else '' for k in string_list]
+
+@pytest.mark.parametrize("sub", ["v", "æ"])
+@pytest.mark.parametrize("start", [0, 3, 5])
+@pytest.mark.parametrize("end", [-1, 3, 5, 10])
+def test_string_index(dfs, sub, start, end):
+	assert dfs.s.str.find(sub, start, end).tolist() == dfs.s.str.index(sub, start, end).tolist()
+
+def test_string_join(dfs):
+	assert dfs.s.str.split(' ').str.join('-').tolist() == dfs.s.str.split(' ').str.join('-').tolist()
+
+def test_string_len(dfs):
+	assert dfs.s.str.len().astype('i4').tolist() == [len(k) for k in string_list]
+	assert dfs.s.str_pandas.len().astype('i4').tolist() == [len(k) for k in string_list]
+
+@pytest.mark.parametrize("width", [2, 10])
+def test_string_ljust(dfs, width):
+	assert dfs.s.str.ljust(width).tolist() == dfs.s.str_pandas.ljust(width).tolist()
 
 def test_string_lower(dfs):
 	assert dfs.s.str.lower().tolist() == dfs.s.str_pandas.lower().tolist()
@@ -162,9 +194,55 @@ def test_string_lstrip(dfs):
 	assert dfs.s.str.lstrip().tolist() == dfs.s.str_pandas.lstrip().tolist()
 	assert dfs.s.str.lstrip('vV ').tolist() == dfs.s.str_pandas.lstrip('vV ').tolist()
 
+def test_string_match(dfs):
+	assert dfs.s.str.match('^v.*').tolist() == dfs.s.str_pandas.match('^v.*').tolist()
+	assert dfs.s.str.match('^v.*').tolist() == [k.startswith('v') for k in string_list]
+
+# TODO: normalize
+
+@pytest.mark.parametrize("width", [2, 10])
+@pytest.mark.parametrize("side", ['left', 'right', 'both'])
+def test_string_pad(dfs, width, side):
+	assert dfs.s.str.pad(width, side=side).tolist() == dfs.s.str_pandas.pad(width, side=side).tolist()
+
+# TODO: partition
+
+@pytest.mark.parametrize("repeats", [1, 3])
+def test_string_repeat(dfs, repeats):
+	assert dfs.s.str.repeat(repeats).tolist() == dfs.s.str_pandas.repeat(repeats).tolist()
+
+@pytest.mark.parametrize("pattern", ["v", " ", "VæX"])
+@pytest.mark.parametrize("replacement", ["?", "VæX"])
+@pytest.mark.parametrize("n", [-1, 1])
+def test_string_replace(dfs, pattern, replacement, n):
+	assert dfs.s.str.replace(pattern, replacement, n).tolist() == dfs.s.str_pandas.replace(pattern, replacement, n).tolist()
+
+@pytest.mark.parametrize("sub", ["v", "æ"])
+@pytest.mark.parametrize("start", [0, 3, 5])
+@pytest.mark.parametrize("end", [-1, 3, 5, 10])
+def test_string_rfind(dfs, sub, start, end):
+	assert dfs.s.str.rfind(sub, start, end).tolist() == dfs.s.str_pandas.rfind(sub, start, end).tolist()
+
+@pytest.mark.parametrize("sub", ["v", "æ"])
+@pytest.mark.parametrize("start", [0, 3, 5])
+@pytest.mark.parametrize("end", [-1, 3, 5, 10])
+def test_string_rindex(dfs, sub, start, end):
+	assert dfs.s.str.rindex(sub, start, end).tolist() == dfs.s.str_pandas.rfind(sub, start, end).tolist()
+
+@pytest.mark.parametrize("width", [2, 10])
+def test_string_rjust(dfs, width):
+	assert dfs.s.str.rjust(width).tolist() == dfs.s.str_pandas.rjust(width).tolist()
+
 def test_string_rstrip(dfs):
 	assert dfs.s.str.rstrip().tolist() == dfs.s.str_pandas.rstrip().tolist()
 	assert dfs.s.str.rstrip('x! ').tolist() == dfs.s.str_pandas.rstrip('x! ').tolist()
+
+# @pytest.mark.parametrize("start", [0, 3, 5])
+# @pytest.mark.parametrize("end", [-1, 3, 5, 10])
+@pytest.mark.parametrize("start", [0, -1, -5, 10])
+@pytest.mark.parametrize("end", [None, -1, 3, 1000])
+def test_string_slice(dfs, start, end):
+	assert dfs.s.str.slice(start, end).tolist() == dfs.s.str_pandas.slice(start, end).tolist()
 
 def test_string_startswith(dfs):
 	assert dfs.s.str.startswith("x").tolist() == dfs.s.str_pandas.startswith("x").tolist()
@@ -173,10 +251,12 @@ def test_string_strip(dfs):
 	assert dfs.s.str.rstrip().tolist() == dfs.s.str_pandas.rstrip().tolist()
 	assert dfs.s.str.rstrip('vx! ').tolist() == dfs.s.str_pandas.rstrip('vx! ').tolist()
 
-def test_string_cat(dfs):
-	c = [s1+s2 for s1, s2 in zip(string_list, string_list_reverse)]
-	assert dfs.s.str.cat(dfs.sr).tolist() == c
-	assert dfs.s.str_pandas.cat(dfs.sr).tolist() == c
+def test_string_title(dfs):
+	assert dfs.s.str.title().tolist() == dfs.s.str_pandas.title().tolist()
+
+@pytest.mark.parametrize("width", [2, 10])
+def test_string_zfill(dfs, width):
+	assert dfs.s.str.zfill(width).tolist() == dfs.s.str_pandas.zfill(width).tolist()
 
 def test_to_string():
 	x = np.arange(1, 4, dtype='f4')

@@ -58,15 +58,21 @@ class StringSequence {
     }
     virtual string_view view(size_t i) const = 0;
     virtual const std::string get(size_t i) const = 0;
-    virtual std::unique_ptr<StringSequence> capitalize();
-    virtual std::unique_ptr<StringSequence> lower();
-    virtual std::unique_ptr<StringSequence> upper();
-    virtual std::unique_ptr<StringSequence> lstrip(std::string chars);
-    virtual std::unique_ptr<StringSequence> rstrip(std::string chars);
-    virtual std::unique_ptr<StringSequence> strip(std::string chars);
+    virtual StringSequence* capitalize();
+    virtual StringSequence* concat(StringSequence* other);
+    virtual StringSequence* pad(int width, std::string fillchar, bool left, bool right);
+    virtual StringSequence* lower();
+    virtual StringSequence* upper();
+    virtual StringSequence* lstrip(std::string chars);
+    virtual StringSequence* rstrip(std::string chars);
+    virtual StringSequence* repeat(int64_t repeats);
+    virtual StringSequence* replace(std::string pattern, std::string replacement, int64_t n, bool regex);
+    virtual StringSequence* strip(std::string chars);
+    virtual StringSequence* slice_string(int64_t start, int64_t stop);
+    virtual StringSequence* slice_string_end(int64_t start);
+    virtual StringSequence* title();
     // virtual StringSequence* rstrip();
     // virtual StringSequence* strip();
-    virtual StringSequence* concat(StringSequence* other);
     virtual py::object byte_length();
     virtual py::object len();
     py::object count(const std::string pattern, bool regex) {
@@ -125,7 +131,7 @@ class StringSequence {
         return matches;
     }
     py::object startswith(const std::string pattern) {
-                py::array_t<bool> matches(length);
+        py::array_t<bool> matches(length);
         auto m = matches.mutable_unchecked<1>();
         string_view pattern_view = pattern; // msvc doesn't like comparting string and string_view
         {
@@ -134,11 +140,37 @@ class StringSequence {
             for(size_t i = 0; i < length; i++) {
                 auto str = view(i);
                 size_t string_length = str.length();
-                size_t skip = string_length - pattern_length;
                 m(i) = (string_length >= pattern_length) && str.substr(0, pattern_length) == pattern_view;
             }
         }
         return matches;
+    }
+    py::object find(const std::string pattern, int64_t start, int64_t _end, bool left) {
+        py::array_t<int64_t> indices(length);
+        auto m = indices.mutable_unchecked<1>();
+        string_view pattern_view = pattern; // msvc doesn't like comparting string and string_view
+        {
+            py::gil_scoped_release release;
+            size_t pattern_length = pattern.size();
+            for(size_t i = 0; i < length; i++) {
+                auto str = view(i);
+                int64_t string_length = str.length();
+                // make sure end is truncated to end of string
+                int64_t end = std::min(string_length, (_end == -1 ? string_length : end));
+                int64_t find_index = -1;
+                if( (start < string_length))  { // we need to start in the string
+                    auto str_lookat = str.substr(start, end - start);
+                    if(left) {
+                        find_index = str_lookat.find(pattern_view);
+                    } else {
+                        find_index = str_lookat.rfind(pattern_view);
+                    }
+
+                }
+                m(i) = find_index;
+            }
+        }
+        return indices;
     }
     py::object search(const std::string pattern, bool regex) {
         py::array_t<bool> matches(length);
@@ -166,6 +198,30 @@ class StringSequence {
                     auto str = view(i);
                     m(i) = str.find(pattern) != std::string::npos;
                 }
+            }
+        }
+        return matches;
+    }
+     py::object match(const std::string pattern) {
+         // same as search, but stricter (full regex should match)
+        py::array_t<bool> matches(length);
+        auto m = matches.mutable_unchecked<1>();
+        {
+            py::gil_scoped_release release;
+            #ifdef USE_XPRESSIVE
+                xp::sregex rex = xp::sregex::compile(pattern);
+            #else
+                std::regex rex(pattern);
+            #endif
+            for(size_t i = 0; i < length; i++) {
+                #ifdef USE_XPRESSIVE
+                    std::string str = get(i);
+                    bool match = xp::regex_match(str, rex);
+                #else
+                    auto str = view(i);
+                    bool match = regex_match(str, rex);
+                #endif
+                m(i) = match;
             }
         }
         return matches;
@@ -343,6 +399,7 @@ public:
             return l;
         }
     }
+    StringSequence* join(std::string sep);
     py::list all() {
         py::list outer_list;
         for(size_t i = 0; i < length; i++) {
@@ -380,8 +437,8 @@ public:
          bytes = (char*)malloc(byte_length);
          _own_bytes = true;
     }
-    StringList(size_t byte_length, size_t string_count, size_t offset=0, uint8_t* null_bitmap=0)
-     : StringSequence(string_count, null_bitmap), bytes(0), byte_length(byte_length), indices(0), offset(offset),
+    StringList(size_t byte_length, size_t string_count, size_t offset=0, uint8_t* null_bitmap=0, int64_t null_offset=0)
+     : StringSequence(string_count, null_bitmap, null_offset), bytes(0), byte_length(byte_length), indices(0), offset(offset),
      _own_bytes(true), _own_indices(true), _own_null_bitmap(false) {
          bytes = (char*)malloc(byte_length);
          indices = (index_type*)malloc(sizeof(index_type) * (length + 1));
@@ -404,13 +461,17 @@ public:
         null_bitmap = (unsigned char*)malloc(null_bitmap_length);
         memset(null_bitmap, 0xff, null_bitmap_length);
     }
+    void ensure_null_bitmap() {
+        if(null_bitmap == nullptr)
+            add_null_bitmap();
+    }
     void grow() {
         byte_length *= 2;
         bytes = (char*)realloc(bytes, byte_length);
     }
-    virtual std::unique_ptr<StringSequence> capitalize();
-    virtual std::unique_ptr<StringSequence> lower();
-    virtual std::unique_ptr<StringSequence> upper();
+    virtual StringSequence* capitalize();
+    virtual StringSequence* lower();
+    virtual StringSequence* upper();
     // a slice for when the indices are not filled yet
     StringList* slice_byte_offset(size_t i1, size_t i2, size_t byte_offset) {
         byte_offset = byte_offset;
@@ -582,6 +643,8 @@ inline void utf8_transform(const string_view& source_view, char* target, A ascii
     }
 }
 
+
+
 inline void copy(const string_view& source, char*& target) {
     std::copy(source.begin(), source.end(), target);
     target += source.length();
@@ -591,8 +654,8 @@ inline void copy(const string_view& source, char*& target) {
 
 // templated implementation for _apply_seq
 template<class StringList, class W>
-std::unique_ptr<StringSequence> _apply_seq(StringSequence* _this, W word_transform) {
-    StringList* list = new StringList(_this->byte_size(), _this->length);
+StringSequence* _apply_seq(StringSequence* _this, W word_transform) {
+    StringList* list = new StringList(_this->byte_size(), _this->length, 0, _this->null_bitmap, _this->null_offset);
     char* target = list->bytes;
     typename StringList::index_type offset = 0;
     for(size_t i = 0; i < _this->length; i++) {
@@ -600,17 +663,21 @@ std::unique_ptr<StringSequence> _apply_seq(StringSequence* _this, W word_transfo
         string_view source = _this->view(i);
         size_t length = source.length();
         word_transform(source, target);
+        if(_this->is_null(i)) {
+            list->ensure_null_bitmap();
+            list->set_null(i);
+        }
         // std::cout << " offset = " << list->indices[i] << std::endl;
         // target += length;
         // offset += length;
     }
     list->indices[_this->length] = target - list->bytes;
-    return std::unique_ptr<StringSequence>(list);
+    return list;
 }
 
 // apply a function to each character, for each word
 template<class W>
-std::unique_ptr<StringSequence> _apply_seq(StringSequence* _this, W word_transform) {
+StringSequence* _apply_seq(StringSequence* _this, W word_transform) {
     py::gil_scoped_release release;
     if(_this->byte_size() > INT_MAX) {
         return _apply_seq<StringList64, W>(_this, word_transform);
@@ -620,7 +687,7 @@ std::unique_ptr<StringSequence> _apply_seq(StringSequence* _this, W word_transfo
 }
 
 template<class StringList, class W>
-std::unique_ptr<StringSequence> _apply(StringList* _this, W word_transform) {
+StringSequence* _apply(StringList* _this, W word_transform) {
     py::gil_scoped_release release;
     StringList* list = new StringList(_this->byte_size(), _this->length, _this->indices, _this->offset, _this->null_bitmap);
     char* target = list->bytes;
@@ -638,18 +705,18 @@ std::unique_ptr<StringSequence> _apply(StringList* _this, W word_transform) {
         word_transform(source, target);
         // target += length;
     }
-    return std::unique_ptr<StringSequence>(list);
+    return list;
 }
 
 // apply it to the whole buffer
 template<class StringList, class W>
-std::unique_ptr<StringSequence> _apply_all(StringList* _this, W word_transform) {
+StringSequence* _apply_all(StringList* _this, W word_transform) {
     py::gil_scoped_release release;
     StringList* list = new StringList(_this->byte_size(), _this->length, _this->indices, _this->offset, _this->null_bitmap);
     string_view source = _this->view();
     char* target = list->bytes;
     word_transform(source, target);
-    return std::unique_ptr<StringSequence>(list);
+    return list;
 }
 
 template<class W>
@@ -672,12 +739,12 @@ inline void lower(const string_view& source, char*& target) {
     target += source.length();
 }
 
-std::unique_ptr<StringSequence> StringSequence::lower() {
+StringSequence* StringSequence::lower() {
     return _apply_seq<>(this, ::lower);
 }
 
 template<class IC>
-std::unique_ptr<StringSequence> StringList<IC>::lower() {
+StringSequence* StringList<IC>::lower() {
     return _apply_all<>(this, ::lower);
 }
 
@@ -685,135 +752,28 @@ inline void upper(const string_view& source, char*& target) {
     utf8_transform(source, target, ::toupper, ::char32_uppercase);
     target += source.length();
 }
-std::unique_ptr<StringSequence> StringSequence::upper() {
+StringSequence* StringSequence::upper() {
     return _apply_seq<>(this, ::upper);
 }
 
 template<class IC>
-std::unique_ptr<StringSequence> StringList<IC>::upper() {
+StringSequence* StringList<IC>::upper() {
     return _apply_all<>(this, ::upper);
 }
 
-struct lstripper {
-    std::string chars;
-    lstripper(std::string chars) : chars(chars) {}
-    void operator()(const string_view& source, char*& target) {
-        size_t length = source.length();
-        auto i = source.begin();
-        auto end = source.end();
-        while(chars.find(*i) != std::string::npos && i != end) {
-            i++;
-            length--;
-        }
-        if(length) {
-            std::copy(i, end, target);
-            target += length;
-        }
 
-    }
-};
-
-void lstripper_whitespace(const string_view& source, char*& target) {
-    size_t length = source.length();
-    auto i = source.begin();
-    auto end = source.end();
-    while(::isspace(*i) && i != end) {
-        i++;
-        length--;
-    }
-    if(length) {
-        std::copy(i, end, target);
-        target += length;
-    }
-}
-
-
-
-struct stripper {
-    std::string chars;
-    bool left, right;
-    stripper(std::string chars, bool left, bool right) : chars(chars), left(left), right(right) {}
-    void operator()(const string_view& source, char*& target) {
-        size_t length = source.length();
-        auto begin = source.begin();
-        auto end = source.end();
-        if(left) {
-            if(chars.length()) {
-                while(chars.find(*begin) != std::string::npos && begin != end) {
-                    begin++;
-                    length--;
-                }
-            } else {
-                while(::isspace(*begin) && begin != end) {
-                    begin++;
-                    length--;
-                }
-            }
-        }
-        if(right) {
-            end--;
-            if(chars.length()) {
-                while(chars.find(*end) != std::string::npos && begin != end) {
-                    end--;
-                    length--;
-                }
-            } else {
-                while(::isspace(*end) && begin != end) {
-                    end--;
-                    length--;
-                }
-            }
-            end++;
-        }
-        if(length) {
-            std::copy(begin, end, target);
-            target += length;
-        }
-
-    }
-};
-
-void rstripper_whitespace(const string_view& source, char*& target) {
-    size_t length = source.length();
-    auto begin = source.begin();
-    auto end = source.end();
-    end--;
-    while(::isspace(*end) && begin != end) {
-        end--;
-        length--;
-    }
-    end++;
-    if(length) {
-        std::copy(begin, end, target);
-        target += length;
-    }
-}
-
-std::unique_ptr<StringSequence> StringSequence::lstrip(std::string chars) {
+StringSequence* StringSequence::lstrip(std::string chars) {
     return _apply_seq<>(this, stripper(chars, true, false));
-    // return _apply_seq<>(this, stripper(chars, true, false));
 };
 
 
-std::unique_ptr<StringSequence> StringSequence::rstrip(std::string chars) {
+StringSequence* StringSequence::rstrip(std::string chars) {
     return _apply_seq<>(this, stripper(chars, false, true));
 };
 
-std::unique_ptr<StringSequence> StringSequence::strip(std::string chars) {
+StringSequence* StringSequence::strip(std::string chars) {
     return _apply_seq<>(this, stripper(chars, true, true));
 };
-
-
-/*
-StringSequence* StringSequence::rstrip() {
-    return _apply_all<>(this, ::rstrip);
-}
-
-StringSequence* StringSequence::strip() {
-    return _apply_all<>(this, ::strip);
-}*/
-
-
 
 void capitalize(const string_view& source, char*& target) {
     size_t length = source.length();
@@ -828,48 +788,90 @@ void capitalize(const string_view& source, char*& target) {
 }
 
 
-std::unique_ptr<StringSequence> StringSequence::capitalize() {
+StringSequence* StringSequence::capitalize() {
     return _apply_seq<>(this, ::capitalize);
 }
 
 template<class IC>
-std::unique_ptr<StringSequence> StringList<IC>::capitalize() {
+StringSequence* StringList<IC>::capitalize() {
     return _apply<>(this, ::capitalize);
 }
 
 
-inline int64_t str_len(const string_view& source) {
-    const char *str = source.begin();
-    const char *end = source.end();
-    int64_t string_length = 0;
-    size_t i = 0;
-    while(str < end) {
-        char current = *str;
-        if(((unsigned char)current) < 0x80) {
-            str += 1;
-        } else if (((unsigned char)current) < 0xE0) {
-            str += 2;
-        } else if (((unsigned char)current) < 0xF0) {
-            str += 3;
-        } else if (((unsigned char)current) < 0xF8) {
-            str += 4;
+
+struct padder {
+    int width;
+    char fillchar;
+    bool pad_left, pad_right;
+    padder(int width, char fillchar, bool pad_left, bool pad_right) : width(width), fillchar(fillchar),
+        pad_left(pad_left), pad_right(pad_right) {}
+    void operator()(const string_view& source, char*& target) {
+        size_t length = str_len(source);
+        auto begin = source.begin();
+        auto end = source.end();
+        if(width > length) {
+            int64_t left = 0, right = 0;
+            if(pad_left & pad_right) {
+                int margin = width - length;
+                left = margin / 2 + (margin & width & 1);
+                right = margin - left;
+            } else if(pad_left) {
+                left = width - length;
+            } else if(pad_right) {
+                right = width - length;
+            }
+            while(left) {
+                (*target++) = fillchar;
+                left--;
+            }
+            std::copy(begin, end, target);
+            target += source.length();
+            while(right) {
+                (*target++) = fillchar;
+                right--;
+            }
         }
-        string_length += 1;
+        else if(length) {
+            std::copy(begin, end, target);
+            target += source.length();
+        }
+
+    }    
+};
+
+StringSequence* StringSequence::pad(int width, std::string fillchar, bool left, bool right) {
+    if(fillchar.length() != 1) {
+        throw std::runtime_error("fillchar should be 1 character long (unicode not supported)");
     }
-    return string_length;
-}
+    char _fillchar = fillchar[0];
+    // return _apply_seq<>(this, padder(width, _fillchar));
+    auto p = padder(width, _fillchar, left, right);
+    StringList64* sl = new StringList64(byte_size(), length);
+    // size_t byte_offset = 0;
+    char* target = sl->bytes;
+    size_t byte_offset;
+    for(size_t i = 0; i < length; i++) {
+        byte_offset = target - sl->bytes;
+        sl->indices[i] = byte_offset;
+        if(this->is_null(i)) {
+            if(sl->null_bitmap == nullptr)
+                sl->add_null_bitmap();
+            sl->set_null(i);
+        } else {
+            string_view str = this->view(i);
+            int64_t max_length = str.length() + width; // very safe choice
+            while((byte_offset + max_length) > sl->byte_length) {
+                sl->grow();
+                target = sl->bytes + byte_offset;
+            }
+            p(str, target);
+        }
+    }
+    byte_offset = target - sl->bytes;
+    sl->indices[length] = byte_offset;
+    return sl;
+};
 
-py::object StringSequence::len() {
-    return _map<>(this, ::str_len);
-}
-
-inline int64_t byte_length(const string_view& source) {
-    return source.length();
-}
-
-py::object StringSequence::byte_length() {
-    return _map<>(this, ::byte_length);
-}
 
 StringSequence* StringSequence::concat(StringSequence* other) {
     py::gil_scoped_release release;
@@ -896,6 +898,197 @@ StringSequence* StringSequence::concat(StringSequence* other) {
     sl->indices[length] = byte_offset;
     return sl;
 }
+
+StringSequence* StringSequence::repeat(int64_t repeats) {
+    py::gil_scoped_release release;
+    StringList64* sl = new StringList64(this->byte_size() * repeats, length);
+    size_t byte_offset = 0;
+    for(size_t i = 0; i < length; i++) {
+        sl->indices[i] = byte_offset;
+        if(this->is_null(i)) {
+            if(sl->null_bitmap == nullptr)
+                sl->add_null_bitmap();
+            sl->set_null(i);
+        } else {
+            string_view str = this->view(i);
+            size_t string_length = str.length();
+            for(int64_t i = 0; i < repeats; i++) {
+                std::copy(str.begin(), str.end(), sl->bytes + byte_offset);
+                byte_offset += string_length;
+            }
+        }
+    }
+    sl->indices[length] = byte_offset;
+    return sl;
+}
+
+
+StringSequence* StringSequence::replace(std::string pattern, std::string replacement, int64_t n, bool regex) {
+    py::gil_scoped_release release;
+    StringList64* sl = new StringList64(1, length);
+    size_t byte_offset = 0;
+    size_t pattern_length = pattern.length();
+    size_t replacement_length = replacement.length();
+    for(size_t i = 0; i < length; i++) {
+        sl->indices[i] = byte_offset;
+        if(this->is_null(i)) {
+            if(sl->null_bitmap == nullptr)
+                sl->add_null_bitmap();
+            sl->set_null(i);
+        } else {
+            std::string str = this->get(i);
+            size_t index;
+            size_t offset = 0;
+            int count = 0;
+            while( ((offset = str.find(pattern, offset)) != std::string::npos) && ((count < n) || ( n == -1)) ) {
+                str = str.replace(offset, pattern_length, replacement);
+                offset += replacement_length;
+                count++;
+            }
+            while(byte_offset + str.length() > sl->byte_length) {
+                sl->grow();
+            }
+            std::copy(str.begin(), str.end(), sl->bytes + byte_offset);
+            byte_offset += str.length();
+        }
+    }
+    sl->indices[length] = byte_offset;
+    return sl;
+}
+
+struct slicer_copy {
+    int64_t _start;
+    int64_t _stop;
+    bool till_end;
+    slicer_copy(int64_t start, int64_t stop, bool till_end) : _start(start), _stop(stop), till_end(till_end) {}
+    void operator()(const string_view& source, char*& target) {
+        size_t byte_length = source.length();
+        int64_t length = str_len(source);
+        auto begin = source.begin();
+        auto end = source.end();
+        size_t seen = 0;
+        int64_t start = _start;
+        int64_t stop = _stop;
+        if(start < 0) {
+            start = std::max(0ll, start + length);
+        }
+        int64_t skipped = 0;
+        if(stop < 0) {
+            stop = std::max(0ll, stop + length);
+        }
+        if(start > stop && !till_end)
+            return;
+        if(start > 0) {
+            while(start && (begin != end)) {
+                char current = *begin;
+                if(((unsigned char)current) < 0x80) {
+                    begin++;
+                } else if (((unsigned char)current) < 0xE0) {
+                    begin +=2;
+                } else if (((unsigned char)current) < 0xF0) {
+                    begin +=3;
+                } else if (((unsigned char)current) < 0xF8) {
+                    begin +=4;
+                }
+                start--;
+                skipped++;
+            }
+        }
+        if(till_end) {
+            byte_length = end - begin;
+            std::copy(begin, end, target);
+            target += byte_length;
+        } else {
+            size_t count = stop - start - skipped;
+            while((begin != end) && (seen < count)) {
+                char current = *begin;
+                if(((unsigned char)current) < 0x80) {
+                    *target = *begin;
+                    begin++;
+                    target++;
+                } else if (((unsigned char)current) < 0xE0) {
+                    *target = *begin;
+                    begin++; target++;
+                    *target = *begin;
+                    begin++; target++;
+                } else if (((unsigned char)current) < 0xF0) {
+                    *target = *begin;
+                    begin++; target++;
+                    *target = *begin;
+                    begin++; target++;
+                    *target = *begin;
+                    begin++; target++;
+                } else if (((unsigned char)current) < 0xF8) {
+                    *target = *begin;
+                    begin++; target++;
+                    *target = *begin;
+                    begin++; target++;
+                    *target = *begin;
+                    begin++; target++;
+                    *target = *begin;
+                    begin++; target++;
+                }
+                seen++;
+            }            
+        }
+    }
+};
+
+
+StringSequence* StringSequence::slice_string(int64_t start, int64_t stop) {
+    return _apply_seq<>(this, slicer_copy(start, stop, false));
+};
+StringSequence* StringSequence::slice_string_end(int64_t start) {
+    return _apply_seq<>(this, slicer_copy(start, -1, true));
+};
+
+void titlecase(const string_view& source, char*& target) {
+    size_t length = source.length();
+    char* i = target;
+    char* end = target;// + length;
+    if(length > 0) {
+        lower(source, end);
+        bool uppercase_next = true;
+        while(i != end) {
+            if(uppercase_next) {
+                const char* str = i;
+                char32_t c = char32_uppercase(utf8_decode(str));
+                utf8_append(i, c);
+                uppercase_next = false;
+            }
+            if(::isspace(*i)) {
+                uppercase_next = true;
+            }
+            i++;
+        }
+        target = end;
+    }
+}
+
+
+StringSequence* StringSequence::title() {
+    return _apply_seq<>(this, ::titlecase);
+}
+/*
+TODO: optimize many of these specific cases for StringList
+template<class IC>
+StringSequence* StringList<IC>::title() {
+    return _apply<>(this, ::titlecase);
+}
+*/
+
+py::object StringSequence::len() {
+    return _map<>(this, ::str_len);
+}
+
+inline int64_t byte_length(const string_view& source) {
+    return source.length();
+}
+
+py::object StringSequence::byte_length() {
+    return _map<>(this, ::byte_length);
+}
+
 
 
 const char* empty = "";
@@ -981,6 +1174,22 @@ public:
     virtual bool is_null(size_t i) const {
         return strings[i] == nullptr;
     }
+    StringList64* to_arrow() {
+        StringList64* sl = new StringList64(_byte_size, length);
+        char* target = sl->bytes;
+        for(int64_t i = 0; i < length; i++) {
+            sl->indices[i] = target - sl->bytes;
+            if(is_null(i)) {
+                sl->ensure_null_bitmap();
+                sl->set_null(i);
+            } else {
+                auto str = view(i);
+                ::copy(str, target);
+            }
+        }
+        sl->indices[length] = target - sl->bytes;
+        return sl;
+    }
     #if PY_MAJOR_VERSION == 2
         PyObject** utf8_objects;
     #endif
@@ -1064,6 +1273,51 @@ StringSequence* StringSequence::index<bool>(py::array_t<bool, py::array::c_style
         return sl;
     }
 }
+
+StringSequence* StringListList::join(std::string sep) {
+    StringList64* sl = new StringList64(1, length);
+    char* target = sl->bytes;
+    size_t byte_offset;
+    for(size_t i = 0; i < length; i++) {
+        byte_offset = target - sl->bytes;
+        sl->indices[i] = byte_offset;
+        if(this->is_null(i)) {
+            if(sl->null_bitmap == nullptr)
+                sl->add_null_bitmap();
+            sl->set_null(i);
+        } else {
+            int64_t substart = indices1[i] - offset;
+            int64_t subend = indices1[i+1] - offset;
+            size_t count = (subend - substart + 1)/2;
+            // string_view str = this->view(i);
+            for(size_t j = 0; j < count; j++) {
+                // l.append(std::string(get(i, j)));
+                auto str = get(i, j);
+                while((byte_offset + str.length()) > sl->byte_length) {
+                    sl->grow();
+                    target = sl->bytes + byte_offset;
+                }
+                copy(str, target);
+                byte_offset = target - sl->bytes;
+                if(j < (count - 1)) {
+
+                    while((byte_offset + sep.length()) > sl->byte_length) {
+                        sl->grow();
+                        target = sl->bytes + byte_offset;
+                    }
+                    copy(sep, target);
+                    byte_offset = target - sl->bytes;
+
+                }
+            }
+        }
+        sl->indices[length] = byte_offset;
+    }
+    byte_offset = target - sl->bytes;
+    sl->indices[length] = byte_offset;
+    return sl;
+}
+
 template<class StringList, class Base, class Module>
 void add_string_list(Module m, Base& base, const char* class_name) {
 
@@ -1106,7 +1360,7 @@ void add_string_list(Module m, Base& base, const char* class_name) {
                                   );
             }), py::keep_alive<1, 2>(), py::keep_alive<1, 3>() // keep a reference to the ndarrays
         )
-        .def("split", &StringList::split)
+        .def("split", &StringList::split, py::keep_alive<0, 1>())
         .def("slice", &StringList::slice, py::keep_alive<0, 1>())
         .def("slice", &StringList::slice_byte_offset, py::keep_alive<0, 1>())
         .def("fill_from", &StringList::fill_from)
@@ -1244,15 +1498,23 @@ PYBIND11_MODULE(strings, m) {
         .def("tolist", &StringSequence::tolist)
         .def("capitalize", &StringSequence::capitalize)
         .def("concat", &StringSequence::concat)
+        .def("pad", &StringSequence::pad)
         .def("search", &StringSequence::search, "Tests if strings contains pattern", py::arg("pattern"), py::arg("regex"))//, py::call_guard<py::gil_scoped_release>())
         .def("count", &StringSequence::count, "Count occurrences of pattern", py::arg("pattern"), py::arg("regex"))
         .def("upper", &StringSequence::upper)
         .def("endswith", &StringSequence::endswith)
+        .def("find", &StringSequence::find)
         .def("lower", &StringSequence::lower)
+        .def("match", &StringSequence::match, "Tests if strings matches regex", py::arg("pattern"))
         .def("lstrip", &StringSequence::lstrip)
         .def("rstrip", &StringSequence::rstrip)
+        .def("repeat", &StringSequence::repeat)
+        .def("replace", &StringSequence::replace)
         .def("startswith", &StringSequence::startswith)
         .def("strip", &StringSequence::strip)
+        .def("slice_string", &StringSequence::slice_string)
+        .def("slice_string_end", &StringSequence::slice_string_end)
+        .def("title", &StringSequence::title)
         .def("len", &StringSequence::len)
         .def("byte_length", &StringSequence::byte_length)
         .def("get", &StringSequence::get_)
@@ -1260,6 +1522,7 @@ PYBIND11_MODULE(strings, m) {
     py::class_<StringListList>(m, "StringListList")
         .def("all", &StringListList::all)
         .def("get", &StringListList::get)
+        .def("join", &StringListList::join)
         .def("get", &StringListList::getlist)
         .def("print", &StringListList::print)
         .def("__len__", [](const StringListList &obj) { return obj.length; })
@@ -1275,8 +1538,9 @@ PYBIND11_MODULE(strings, m) {
                 // std::cout << info.format << " format" << std::endl;
                 return std::unique_ptr<StringArray>(
                     new StringArray((PyObject**)info.ptr, info.shape[0]));
-            })
+            }) // no need to keep a reference to the ndarrays
         )
+        .def("to_arrow", &StringArray::to_arrow) // nothing to keep alive, all a copy
         // .def("get", &StringArray::get_)
         // .def("get", (const std::string (StringArray::*)(int64_t))&StringArray::get)
         // bug? we have to add this again

@@ -20,7 +20,7 @@ def test_regex_array():
     # assert False
 
 def test_string_array():
-    ar = np.array(["aap", "noot", "mies"], dtype='object')
+    ar = np.array(["aap", "noot", None, "mies"], dtype='object')
 
     sa = vaex.strings.StringArray(ar)
     assert sys.getrefcount(sa) == 2
@@ -29,24 +29,29 @@ def test_string_array():
 
     assert sa.get(0) == "aap"
     assert sa.get(1) == "noot"
-    assert sa.get(2) == "mies"
+    assert sa.get(2) == None
+    assert sa.get(3) == "mies"
     # getting a string creates a new object
-    s = sa.get(2)
+    s = sa.get(3)
     assert sys.getrefcount(s) == 2
 
-    string_list = sa.get(0,3)
+    string_list = sa.get(0,4)
     assert sys.getrefcount(string_list) == 2
     # internally in the list, s, and in getrefcount
     s = string_list[0]
     assert sys.getrefcount(s) == 3
 
-    assert list(sa.get(0,3)) == ["aap", "noot", "mies"]
-    assert list(sa.get(1,3)) == ["noot", "mies"]
-    string_list = sa.get(0,3)
+    assert list(sa.get(0,4)) == ["aap", "noot", None, "mies"]
+    assert list(sa.get(1,4)) == ["noot", None, "mies"]
+    string_list = sa.get(0,4)
 
     c = sa.capitalize()
-    assert list(c.get(0,3)) == ["Aap", "Noot", "Mies"]
-    assert list(c.get(1,3)) == ["Noot", "Mies"]
+    assert list(c.get(0,4)) == ["Aap", "Noot", None, "Mies"]
+    assert list(c.get(1,4)) == ["Noot", None, "Mies"]
+
+    c = sa.to_arrow()
+    assert list(c.get(0,4)) == ["aap", "noot", None, "mies"]
+    assert list(c.get(1,4)) == ["noot", None, "mies"]
 
 
 def test_arrow_offset():
@@ -82,6 +87,9 @@ def test_arrow_split():
     assert sll.get(3, 0) == 'mi'
     assert sll.get(3, 1) == ''
     assert sll.get(3, 2) == ''
+
+    slj = sll.join("--")
+    assert slj.tolist() == ['a--p', 'no--t', None, "mi----"]
 
 
 def test_views():
@@ -174,6 +182,12 @@ def test_arrow_basics():
     c = sl.capitalize()
     assert list(c.get(0,4)) == ["Aap", "Noot", None, "Mies"]
     assert list(c.get(1,3)) == ["Noot",  None]
+
+    c = sl.pad(5, ' ', True, True)
+    assert list(c.get(0,4)) == [" aap ", " noot",  None, " mies"]
+
+    c = sl.slice_string_end(1)
+    assert list(c.get(0,4)) == ["ap", "oot",  None, "ies"]
 
     c = sl.lower()
     assert list(c.get(0,4)) == ["aap", "noot",  None, "mies"]
