@@ -970,11 +970,11 @@ struct slicer_copy {
         int64_t start = _start;
         int64_t stop = _stop;
         if(start < 0) {
-            start = std::max(0ll, start + length);
+            start = std::max(int64_t(0), start + length);
         }
         int64_t skipped = 0;
         if(stop < 0) {
-            stop = std::max(0ll, stop + length);
+            stop = std::max(int64_t(0), stop + length);
         }
         if(start > stop && !till_end)
             return;
