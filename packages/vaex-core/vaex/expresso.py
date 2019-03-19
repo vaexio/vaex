@@ -312,9 +312,18 @@ class ExpressionString(ast.NodeVisitor):
     def visit_Num(self, node):
         return repr(node.n)
 
+    def visit_keyword(self, node):
+        return "%s=%s" % (node.arg, self.visit(node.value))
+
+    def visit_NameConstant(self, node):
+        return repr(node.value)
+
     def visit_Call(self, node):
         args = [self.visit(k) for k in node.args]
-        return "{}({})".format(node.func.id, ", ".join(args))
+        keywords = []
+        if hasattr(node, 'keywords'):
+            keywords = [self.visit(k) for k in node.keywords]
+        return "{}({})".format(node.func.id, ", ".join(args + keywords))
 
     def visit_Str(self, node):
         return repr(node.s)
@@ -416,6 +425,8 @@ class Translator(ast.NodeTransformer):
     def visit_Call(self, node):
         # we skip visiting node.id
         node.args = [self.visit(k) for k in node.args]
+        if hasattr(node, 'keywords'):
+            node.keywords = [self.visit(k) for k in node.keywords]
         return node
 
     def visit_Name(self, node):
