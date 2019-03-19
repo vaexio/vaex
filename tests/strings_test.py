@@ -108,9 +108,11 @@ def dfs(request, dfs_arrow, dfs_array):
     return named[request.param]
 
 string_list = ["vaex", " \tor", "VæX! ", "vaex or VÆX!", "Æ and", "æ are weird"]
+unicode_compat = lambda x: x
 try:
 	unicode
-	string_list = map(lambda x: x.decode('utf8'), string_list)
+	unicode_compat = lambda x: x.decode('utf8')
+	string_list = map(unicode_compat, string_list)
 except NameError:
 	pass
 string_list_reverse = string_list[::-1]
@@ -159,7 +161,7 @@ def test_string_count(dfs):
 def test_string_endswith(dfs):
 	assert dfs.s.str.endswith("x").tolist() == dfs.s.str_pandas.endswith("x").tolist()
 
-@pytest.mark.parametrize("sub", ["v", "æ"])
+@pytest.mark.parametrize("sub", ["v", unicode_compat("æ")])
 @pytest.mark.parametrize("start", [0, 3, 5])
 @pytest.mark.parametrize("end", [-1, 3, 5, 10])
 def test_string_find(dfs, sub, start, end):
@@ -211,19 +213,19 @@ def test_string_pad(dfs, width, side):
 def test_string_repeat(dfs, repeats):
 	assert dfs.s.str.repeat(repeats).tolist() == dfs.s.str_pandas.repeat(repeats).tolist()
 
-@pytest.mark.parametrize("pattern", ["v", " ", "VæX"])
-@pytest.mark.parametrize("replacement", ["?", "VæX"])
+@pytest.mark.parametrize("pattern", ["v", " ", unicode_compat("VæX")])
+@pytest.mark.parametrize("replacement", ["?", unicode_compat("VæX")])
 @pytest.mark.parametrize("n", [-1, 1])
 def test_string_replace(dfs, pattern, replacement, n):
 	assert dfs.s.str.replace(pattern, replacement, n).tolist() == dfs.s.str_pandas.replace(pattern, replacement, n).tolist()
 
-@pytest.mark.parametrize("sub", ["v", "æ"])
+@pytest.mark.parametrize("sub", ["v", unicode_compat("æ")])
 @pytest.mark.parametrize("start", [0, 3, 5])
 @pytest.mark.parametrize("end", [-1, 3, 5, 10])
 def test_string_rfind(dfs, sub, start, end):
 	assert dfs.s.str.rfind(sub, start, end).tolist() == dfs.s.str_pandas.rfind(sub, start, end).tolist()
 
-@pytest.mark.parametrize("sub", ["v", "æ"])
+@pytest.mark.parametrize("sub", ["v", unicode_compat("æ")])
 @pytest.mark.parametrize("start", [0, 3, 5])
 @pytest.mark.parametrize("end", [-1, 3, 5, 10])
 def test_string_rindex(dfs, sub, start, end):
