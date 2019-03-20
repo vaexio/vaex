@@ -31,3 +31,10 @@ def test_repr_df_long_string():
     assert long_string not in str(df)
     assert long_string not in df._repr_html_()
     assert long_string not in df._as_html_table(0, 10)
+
+    # as objects
+    df = vaex.from_arrays(o=[{"something": long_string}] * 100)
+    assert long_string not in repr(df)
+    assert long_string not in str(df)
+    assert long_string not in df._repr_html_()
+    assert long_string not in df._as_html_table(0, 10)
