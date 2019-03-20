@@ -153,14 +153,10 @@ class StringSequence {
             py::gil_scoped_release release;
             size_t pattern_length = pattern.size();
             for(size_t i = 0; i < length; i++) {
-                #ifdef _MSC_VER
-                auto str = get(i);
-                #else
                 auto str = view(i);
-                #endif
                 int64_t string_length = str.length();
                 // make sure end is truncated to end of string
-                int64_t end = std::min(string_length, (_end == -1 ? string_length : end));
+                int64_t end = std::min(string_length, (_end == -1 ? string_length : _end));
                 int64_t find_index = -1;
                 if( (start < string_length))  { // we need to start in the string
                     auto str_lookat = str.substr(start, end - start);
