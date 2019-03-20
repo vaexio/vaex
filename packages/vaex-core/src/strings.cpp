@@ -154,7 +154,7 @@ class StringSequence {
             size_t pattern_length = pattern.size();
             for(size_t i = 0; i < length; i++) {
                 #ifdef _MSC_VER
-                auto str = get(i)
+                auto str = get(i);
                 #else
                 auto str = view(i);
                 #endif
