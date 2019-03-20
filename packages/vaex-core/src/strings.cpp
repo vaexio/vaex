@@ -158,6 +158,7 @@ class StringSequence {
                 // make sure end is truncated to end of string
                 int64_t end = std::min(string_length, (_end == -1 ? string_length : end));
                 int64_t find_index = -1;
+                std::cout << "find: " << str << " pattern: " << pattern << ": " << start << "/" << end << std::endl;
                 if( (start < string_length))  { // we need to start in the string
                     auto str_lookat = str.substr(start, end - start);
                     if(left) {
@@ -165,6 +166,7 @@ class StringSequence {
                     } else {
                         find_index = str_lookat.rfind(pattern);
                     }
+                    std::cout << " lookat: " << str_lookat << " find_index: " << find_index << std::endl;
 
                 }
                 m(i) = find_index;
