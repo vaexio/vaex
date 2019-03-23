@@ -53,7 +53,7 @@ def test_repr_from_pandas():
         'numbers_1': [1, 30, -2, 1.5, 0.000],
         'numbers_2': [1, None, -2, 1.5, 0.000],
         'numbers_3': [1, np.nan, -2, 1.5, 0.000],
-        'time_1': [pd.NaT, datetime.date(2019, 1, 1), datetime.date(2019, 11, 1), datetime.date(2019, 1, 11), datetime.date(2019, 11, 11)],
+        'time_1': [pd.NaT, datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1)],
         'time_2': [pd.NaT, None, pd.NaT, pd.NaT, pd.NaT],
     }
 
