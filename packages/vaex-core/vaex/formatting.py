@@ -1,9 +1,10 @@
 import numpy as np
 import numbers
 import six
+import pandas as pd
 
 
-MAX_LENGTH = 40
+MAX_LENGTH = 50
 
 
 def _format_value(value):
@@ -13,8 +14,10 @@ def _format_value(value):
         value = repr(value)
     elif isinstance(value, np.ma.core.MaskedConstant):
         value = str(value)
-    if isinstance(value, (np.timedelta64, np.datetime64)):
-        value = str(value)
+    if isinstance(value, np.datetime64):
+        value = str(pd.to_datetime(value))
+    if isinstance(value, np.timedelta64):
+        value = str(pd.to_timedelta(value))
     elif not isinstance(value, numbers.Number):
         value = str(value)
     if isinstance(value, float):

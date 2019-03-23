@@ -53,13 +53,18 @@ def test_repr_from_pandas():
         'numbers_1': [1, 30, -2, 1.5, 0.000],
         'numbers_2': [1, None, -2, 1.5, 0.000],
         'numbers_3': [1, np.nan, -2, 1.5, 0.000],
-        'time_1': [pd.NaT, datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1)],
-        'time_2': [pd.NaT, None, pd.NaT, pd.NaT, pd.NaT],
+        'datetime_1': [pd.NaT, datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1)],
+        'datetime_2': [pd.NaT, None, pd.NaT, pd.NaT, pd.NaT],
+        'datetime_3': [pd.Timedelta('1M'), pd.Timedelta('1D'), pd.Timedelta('100Y'), pd.Timedelta('2D'), pd.Timedelta('1W')],
+        'datetime_4': [pd.Timestamp('2001-1-1 2:2:11'), pd.Timestamp('2001-12'), pd.Timestamp('2001-10-1'), pd.Timestamp('2001-03-1 2:2:11'), pd.Timestamp('2001-1-1 2:2:11')],
+        'datetime_5': [datetime.date(2010, 1, 1), datetime.date(2010, 1, 1), datetime.date(2010, 1, 1), datetime.date(2010, 1, 1), datetime.date(2010, 1, 1)],
+        'datetime_6': [datetime.time(21, 1, 1), datetime.time(21, 1, 1), datetime.time(21, 1, 1), datetime.time(21, 1, 1), datetime.time(21, 1, 1)],
     }
 
+    # Get pandas dataframe
     dd = pd.DataFrame(dd_dict)
-    dd['time_3'] = pd.to_timedelta(dd['time_2'] - dd['time_1'])
-    ds = vaex.from_pandas(dd)
+    dd['datetime_7'] = pd.to_timedelta(dd['datetime_2'] - dd['datetime_1'])
+    ds = vaex.from_pandas(dd, copy_index=False)
     repr_value = repr(ds)
     str_value = str(ds)
     assert 'NaT' in repr_value
