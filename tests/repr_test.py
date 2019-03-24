@@ -55,7 +55,7 @@ def test_repr_from_pandas():
         'numbers_3': [1, np.nan, -2, 1.5, 0.000],
         'datetime_1': [pd.NaT, datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1)],
         'datetime_2': [pd.NaT, None, pd.NaT, pd.NaT, pd.NaT],
-        'datetime_3': [pd.Timedelta('1M'), pd.Timedelta('1D'), pd.Timedelta('100Y'), pd.Timedelta('2D'), pd.Timedelta('1W')],
+        'datetime_3': [pd.Timedelta('1M'), pd.Timedelta('1D'), pd.Timedelta('100M'), pd.Timedelta('2D'), pd.Timedelta('1H')],
         'datetime_4': [pd.Timestamp('2001-1-1 2:2:11'), pd.Timestamp('2001-12'), pd.Timestamp('2001-10-1'), pd.Timestamp('2001-03-1 2:2:11'), pd.Timestamp('2001-1-1 2:2:11')],
         'datetime_5': [datetime.date(2010, 1, 1), datetime.date(2010, 1, 1), datetime.date(2010, 1, 1), datetime.date(2010, 1, 1), datetime.date(2010, 1, 1)],
         'datetime_6': [datetime.time(21, 1, 1), datetime.time(21, 1, 1), datetime.time(21, 1, 1), datetime.time(21, 1, 1), datetime.time(21, 1, 1)],
