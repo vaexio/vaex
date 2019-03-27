@@ -265,14 +265,7 @@ class Expression(with_metaclass(Meta)):
         return self._repr_plain_()
 
     def _repr_plain_(self):
-        def _format_value(value):
-            if isinstance(value, (str, bytes)):
-                if len(value) > 40:
-                    value = repr(value[:37])[:-1] + '...'
-            if isinstance(value, np.ma.core.MaskedConstant):
-                value = str(value)
-            return value
-
+        from .formatting import _format_value
         def format(values):
             for i in range(len(values)):
                 value = values[i]

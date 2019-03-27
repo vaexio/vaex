@@ -3352,6 +3352,7 @@ class DataFrame(object):
             print(output)
 
     def _as_table(self, i1, i2, j1=None, j2=None, format='html'):
+        from .formatting import _format_value
         parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
         parts += ["<table class='table-striped'>"]
 
@@ -3384,12 +3385,7 @@ class DataFrame(object):
                 values_list[0][1].append(value)
                 for j, name in enumerate(column_names):
                     value = values[name][i]
-                    if isinstance(value, np.ma.core.MaskedConstant):
-                        value = str(value)
-                        # parts += ["<td>%s</td>" % value]
-                        # value =
-                    # else:
-                        # parts += ["<td>%r</td>" % value]
+                    value = _format_value(value)
                     values_list[j+1][1].append(value)
                 # parts += ["</tr>"]
             # return values_list
@@ -3411,6 +3407,8 @@ class DataFrame(object):
         return tabulate.tabulate(values_list, headers="keys", tablefmt=format)
 
     def _as_html_table(self, i1, i2, j1=None, j2=None):
+        # TODO: this method can be replaced by _as_table
+        from .formatting import _format_value
         parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
         parts += ["<table class='table-striped'>"]
 
@@ -3434,11 +3432,8 @@ class DataFrame(object):
                 parts += ["<td><i style='opacity: 0.6'>{:,}</i></td>".format(i + k1)]
                 for name in column_names:
                     value = data_parts[name][i]
-                    if isinstance(value, np.ma.core.MaskedConstant):
-                        value = str(value)
-                        parts += ["<td>%s</td>" % value]
-                    else:
-                        parts += ["<td>%r</td>" % value]
+                    value = _format_value(value)
+                    parts += ["<td>%r</td>" % value]
                 parts += ["</tr>"]
             return parts
         parts = table_part(i1, i2, parts)
