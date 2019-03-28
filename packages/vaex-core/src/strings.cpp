@@ -113,7 +113,7 @@ class StringSequence {
     virtual StringSequence* lstrip(std::string chars);
     virtual StringSequence* rstrip(std::string chars);
     virtual StringSequence* repeat(int64_t repeats);
-    virtual StringSequence* replace(std::string pattern, std::string replacement, int64_t n, bool regex);
+    virtual StringSequence* replace(std::string pattern, std::string replacement, int64_t n, int64_t flags, bool regex);
     virtual StringSequence* strip(std::string chars);
     virtual StringSequence* slice_string(int64_t start, int64_t stop);
     virtual StringSequence* slice_string_end(int64_t start);
@@ -1070,12 +1070,26 @@ StringSequence* StringSequence::repeat(int64_t repeats) {
 }
 
 
-StringSequence* StringSequence::replace(std::string pattern, std::string replacement, int64_t n, bool regex) {
+StringSequence* StringSequence::replace(std::string pattern, std::string replacement, int64_t n, int64_t flags, bool regex) {
     py::gil_scoped_release release;
-    StringList64* sl = new StringList64(1, length);
+    StringList64* sl = new StringList64(byte_size(), length);
     size_t byte_offset = 0;
     size_t pattern_length = pattern.length();
     size_t replacement_length = replacement.length();
+
+    #ifdef USE_XPRESSIVE
+        xp::regex_constants::syntax_option_type xp_flags = xp::regex_constants::ECMAScript;
+        if(flags == 2) {
+            xp_flags = xp_flags | xp::icase;
+        }
+        xp::sregex rex = xp::sregex::compile(pattern, xp_flags);
+    #else
+        std::regex_constants::syntax_option_type syntax_flags = std::regex_constants::ECMAScript;
+        if(flags == 2) {
+            syntax_flags |= std::regex_constants::icase;
+        }
+        std::regex rex(pattern, syntax_flags);
+    #endif
     for(size_t i = 0; i < length; i++) {
         sl->indices[i] = byte_offset;
         if(this->is_null(i)) {
@@ -1084,19 +1098,33 @@ StringSequence* StringSequence::replace(std::string pattern, std::string replace
             sl->set_null(i);
         } else {
             std::string str = this->get(i);
-            size_t index;
             size_t offset = 0;
             int count = 0;
-            while( ((offset = str.find(pattern, offset)) != std::string::npos) && ((count < n) || ( n == -1)) ) {
-                str = str.replace(offset, pattern_length, replacement);
-                offset += replacement_length;
-                count++;
+
+            if(regex) {
+                auto str = get(i);
+                #ifdef USE_XPRESSIVE
+                    str = xp::regex_replace(str, rex, replacement);
+                #else
+                    str = std::regex_replace(str, rex, replacement);
+                #endif
+                while(byte_offset + str.length() > sl->byte_length) {
+                    sl->grow();
+                }
+                std::copy(str.begin(), str.end(), sl->bytes + byte_offset);
+                byte_offset += str.length();
+            } else {
+                while( ((offset = str.find(pattern, offset)) != std::string::npos) && ((count < n) || ( n == -1)) ) {
+                    str = str.replace(offset, pattern_length, replacement);
+                    offset += replacement_length;
+                    count++;
+                }
+                while(byte_offset + str.length() > sl->byte_length) {
+                    sl->grow();
+                }
+                std::copy(str.begin(), str.end(), sl->bytes + byte_offset);
+                byte_offset += str.length();
             }
-            while(byte_offset + str.length() > sl->byte_length) {
-                sl->grow();
-            }
-            std::copy(str.begin(), str.end(), sl->bytes + byte_offset);
-            byte_offset += str.length();
         }
     }
     sl->indices[length] = byte_offset;
