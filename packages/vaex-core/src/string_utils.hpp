@@ -64,28 +64,28 @@ struct stripper {
         size_t length = source.length();
         auto begin = source.begin();
         auto end = source.end();
-        if(left) {
+        if(left && length > 0) {
             if(chars.length()) {
-                while(chars.find(*begin) != std::string::npos && begin != end) {
+                while(chars.find(*begin) != std::string::npos && length > 0) {
                     begin++;
                     length--;
                 }
             } else {
-                while(::isspace(*begin) && begin != end) {
+                while(::isspace(*begin) && length > 0) {
                     begin++;
                     length--;
                 }
             }
         }
-        if(right) {
+        if(right && length > 0) {
             end--;
             if(chars.length()) {
-                while(chars.find(*end) != std::string::npos && begin != end) {
+                while(chars.find(*end) != std::string::npos && length > 0) {
                     end--;
                     length--;
                 }
             } else {
-                while(::isspace(*end) && begin != end) {
+                while(::isspace(*end) && length > 0) {
                     end--;
                     length--;
                 }
