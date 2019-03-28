@@ -3,7 +3,7 @@ import cloudpickle as pickle
 import functools
 import operator
 import six
-import collections.abc
+import collections
 
 from future.utils import with_metaclass
 import numpy as np
@@ -20,6 +20,12 @@ try:
     from StringIO import StringIO
 except ImportError:
     from io import BytesIO as StringIO
+
+try:
+    collectionsAbc = collections.abc
+except AttributeError:
+    collectionsAbc = collections
+
 
 # TODO: repeated from dataframe.py
 default_shape = 128
@@ -533,7 +539,7 @@ def f({0}):
         >>> df.color_mapped.values
         array([1, 1, 2, 1, 3])
         """
-        if isinstance(mapper, collections.abc.Mapping):
+        if isinstance(mapper, collectionsAbc.Mapping):
             def lookup_func(x):
                 if x in mapper:
                     return mapper[x]
