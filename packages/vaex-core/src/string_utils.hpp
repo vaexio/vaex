@@ -30,24 +30,31 @@ inline string_view get_sv(const svsub_match& m) {
 inline bool regex_match(string_view sv,
                   svmatch& m,
                   const std::regex& e,
-                  std::regex_constants::match_flag_type flags = 
+                  std::regex_constants::match_flag_type flags =
                       std::regex_constants::match_default) {
     return std::regex_match(sv.begin(), sv.end(), m, e, flags);
 }
 
 inline bool regex_match(string_view sv,
                   const std::regex& e,
-                  std::regex_constants::match_flag_type flags = 
+                  std::regex_constants::match_flag_type flags =
                       std::regex_constants::match_default) {
     return std::regex_match(sv.begin(), sv.end(), e, flags);
 }
 inline bool regex_search(string_view sv,
                   const std::regex& e,
-                  std::regex_constants::match_flag_type flags = 
+                  std::regex_constants::match_flag_type flags =
                       std::regex_constants::match_default) {
     return std::regex_search(sv.begin(), sv.end(), e, flags);
 }
-
+#ifdef VAEX_REGEX_USE_BOOST
+inline bool regex_search(string_view sv,
+                  const boost::regex& e,
+                  boost::regex_constants::match_flag_type flags =
+                      boost::regex_constants::match_default) {
+    return boost::regex_search(sv.begin(), sv.end(), e, flags);
+}
+#endif
 
 struct stripper {
     std::string chars;
@@ -98,7 +105,6 @@ inline int64_t str_len(const string_view& source) {
     const char *str = source.begin();
     const char *end = source.end();
     int64_t string_length = 0;
-    size_t i = 0;
     while(str < end) {
         char current = *str;
         if(((unsigned char)current) < 0x80) {

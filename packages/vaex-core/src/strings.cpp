@@ -10,14 +10,19 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 #include <Python.h>
-#include "string_utils.hpp"
-#include "unicode_utils.hpp"
 
-#ifdef USE_XPRESSIVE
+#define VAEX_REGEX_USE_XPRESSIVE = 1
+#ifdef VAEX_REGEX_USE_XPRESSIVE
 #include <boost/xpressive/xpressive.hpp>
 namespace xp = boost::xpressive;
 #endif
 
+#ifdef VAEX_REGEX_USE_BOOST
+#include <boost/regex.hpp>
+#endif
+
+#include "string_utils.hpp"
+#include "unicode_utils.hpp"
 
 namespace py = pybind11;
 
@@ -89,9 +94,10 @@ class StringSequence {
                 #endif
                 for(size_t i = 0; i < length; i++) {
                     #ifdef USE_XPRESSIVE
-                        std::string str = get(i);
-                        bool match = xp::regex_search(str, rex);
-                        int NOT_IMPLEMENTED = 1;
+                        auto str = get(i); // TODO: can we use view(i)?
+                        auto words_begin =  xp::sregex_iterator(str.begin(), str.end(), rex);
+                        auto words_end = xp::sregex_iterator();
+                        size_t count = std::distance(words_begin, words_end) ;
                     #else
                         auto str = get(i);
                         auto words_begin =  std::sregex_iterator(str.begin(), str.end(), rex);
@@ -112,7 +118,7 @@ class StringSequence {
                 }
             }
         }
-        return counts;
+        return std::move(counts);
     }
     py::object endswith(const std::string pattern) {
                 py::array_t<bool> matches(length);
@@ -128,7 +134,7 @@ class StringSequence {
                 m(i) = ((skip >= 0) && str.substr(skip, pattern_length) == pattern_view);
             }
         }
-        return matches;
+        return std::move(matches);
     }
     py::object startswith(const std::string pattern) {
         py::array_t<bool> matches(length);
@@ -169,7 +175,7 @@ class StringSequence {
                 m(i) = find_index;
             }
         }
-        return indices;
+        return std::move(indices);
     }
     py::object search(const std::string pattern, bool regex) {
         py::array_t<bool> matches(length);
@@ -199,7 +205,7 @@ class StringSequence {
                 }
             }
         }
-        return matches;
+        return std::move(matches);
     }
      py::object match(const std::string pattern) {
          // same as search, but stricter (full regex should match)
@@ -223,14 +229,14 @@ class StringSequence {
                 m(i) = match;
             }
         }
-        return matches;
+        return std::move(matches);
     }
     py::object tolist() {
         py::list l;
         for(size_t i = 0; i < length; i++) {
             l.append(get_(i));
         }
-        return l;
+        return std::move(l);
     }
     template<class T>
     StringSequence* lazy_index(py::array_t<T, py::array::c_style> indices);
@@ -259,6 +265,9 @@ class StringSequence {
         return py::reinterpret_steal<py::object>(h);
     }
     py::object get_(size_t index) const {
+        if((index < 0) || (index >= length)) {
+            throw pybind11::index_error("index out of bounds");
+        }
         if(is_null(index)) {
             return py::cast<py::none>(Py_None);
         } else {
@@ -395,7 +404,7 @@ public:
             for(size_t j = 0; j < count; j++) {
                 l.append(std::string(get(i, j)));
             }
-            return l;
+            return std::move(l);
         }
     }
     StringSequence* join(std::string sep);
@@ -426,6 +435,8 @@ template<class IC>
 class StringList : public StringSequence {
 public:
     typedef IC index_type;
+    typedef string_view value_value;
+
     StringList(char *bytes, size_t byte_length, index_type *indices, size_t length, size_t offset=0, uint8_t* null_bitmap=0, int64_t null_offset=0)
      : StringSequence(length, null_bitmap, null_offset), bytes(bytes), byte_length(byte_length), indices(indices), offset(offset),
        _own_bytes(false), _own_indices(false), _own_null_bitmap(false) {
@@ -473,7 +484,6 @@ public:
     virtual StringSequence* upper();
     // a slice for when the indices are not filled yet
     StringList* slice_byte_offset(size_t i1, size_t i2, size_t byte_offset) {
-        byte_offset = byte_offset;
         size_t byte_length = this->byte_length - byte_offset;
         return new StringList(bytes+byte_offset, byte_length, indices+i1, i2-i1, offset+byte_offset, null_bitmap, i1);
     }
@@ -612,12 +622,102 @@ private:
 typedef StringList<int32_t> StringList32;
 typedef StringList<int64_t> StringList64;
 
+template<class C>
+class utf8_appender {
+public:
+    C* container;
+    int64_t bytes_left;
+    char* str;
+    utf8_appender(C* container) : container(container) {
+        bytes_left = container->byte_length;
+        str = container->bytes;
+    }
+
+    int64_t offset() const {
+        return str - container->bytes;
+    }
+
+
+
+    void _check_buffer() {
+        if(bytes_left < 0) {
+            size_t used_bytes = str - container->bytes;
+            int64_t missing_bytes = -bytes_left;
+            size_t current_size = container->byte_length;
+            while( int64_t(container->byte_length - current_size) < missing_bytes ) {
+                container->grow();
+            }
+            bytes_left = container->byte_length - used_bytes;
+            str = container->bytes + used_bytes;
+        }
+    }
+
+    void append(char chr) {
+        _check_buffer();
+        bytes_left--;
+        *str++ = chr;
+    }
+
+    void append(char32_t chr) {
+        if(bytes_left >= 4) {
+            if (chr < 0x80) {
+                bytes_left--;
+                *str++ = chr;
+            }
+            else if (chr < 0x800) {
+                bytes_left -= 2;
+                *str++ = 0xC0 + (chr >> 6);
+                *str++ = 0x80 + (chr & 0x3F);
+            }
+            else if (chr < 0x10000) {
+                bytes_left -= 3;
+                *str++ = 0xE0 + (chr >> 12);
+                *str++ = 0x80 + ((chr >> 6) & 0x3F);
+                *str++ = 0x80 + (chr & 0x3F);
+            }
+            else if (chr < 0x200000) {
+                bytes_left -= 4;
+                *str++ = 0xF0 + (chr >> 18);
+                *str++ = 0x80 + ((chr >> 12) & 0x3F);
+                *str++ = 0x80 + ((chr >> 6) & 0x3F);
+                *str++ = 0x80 + (chr & 0x3F);
+            }
+        } else {
+            if (chr < 0x80) {
+                bytes_left--;
+                _check_buffer();
+                *str++ = chr;
+            }
+            else if (chr < 0x800) {
+                bytes_left -= 2;
+                _check_buffer();
+                *str++ = 0xC0 + (chr >> 6);
+                *str++ = 0x80 + (chr & 0x3F);
+            }
+            else if (chr < 0x10000) {
+                bytes_left -= 3;
+                _check_buffer();
+                *str++ = 0xE0 + (chr >> 12);
+                *str++ = 0x80 + ((chr >> 6) & 0x3F);
+                *str++ = 0x80 + (chr & 0x3F);
+            }
+            else if (chr < 0x200000) {
+                bytes_left -= 4;
+                _check_buffer();
+                *str++ = 0xF0 + (chr >> 18);
+                *str++ = 0x80 + ((chr >> 12) & 0x3F);
+                *str++ = 0x80 + ((chr >> 6) & 0x3F);
+                *str++ = 0x80 + (chr & 0x3F);
+            }
+        }
+    }
+};
 
 template<class A, class U>
 inline void utf8_transform(const string_view& source_view, char* target, A ascii_op, U unicode_op) {
     size_t length = source_view.length();
     const char *str = source_view.begin();
-    const char *end = source_view.end();
+    // const char *end = source_view.end();
     size_t i = 0;
     while(i < length) {
         char current = *str;
@@ -656,11 +756,9 @@ template<class StringList, class W>
 StringSequence* _apply_seq(StringSequence* _this, W word_transform) {
     StringList* list = new StringList(_this->byte_size(), _this->length, 0, _this->null_bitmap, _this->null_offset);
     char* target = list->bytes;
-    typename StringList::index_type offset = 0;
     for(size_t i = 0; i < _this->length; i++) {
         list->indices[i] = target - list->bytes;
         string_view source = _this->view(i);
-        size_t length = source.length();
         word_transform(source, target);
         if(_this->is_null(i)) {
             list->ensure_null_bitmap();
@@ -786,7 +884,6 @@ void capitalize(const string_view& source, char*& target) {
     }
 }
 
-
 StringSequence* StringSequence::capitalize() {
     return _apply_seq<>(this, ::capitalize);
 }
@@ -796,13 +893,11 @@ StringSequence* StringList<IC>::capitalize() {
     return _apply<>(this, ::capitalize);
 }
 
-
-
 struct padder {
-    int width;
+    size_t width;
     char fillchar;
     bool pad_left, pad_right;
-    padder(int width, char fillchar, bool pad_left, bool pad_right) : width(width), fillchar(fillchar),
+    padder(size_t width, char fillchar, bool pad_left, bool pad_right) : width(width), fillchar(fillchar),
         pad_left(pad_left), pad_right(pad_right) {}
     void operator()(const string_view& source, char*& target) {
         size_t length = str_len(source);
@@ -1077,7 +1172,7 @@ StringSequence* StringList<IC>::title() {
 */
 
 py::object StringSequence::len() {
-    return _map<>(this, ::str_len);
+    return _map<int64_t>(this, ::str_len);
 }
 
 inline int64_t byte_length(const string_view& source) {
@@ -1176,7 +1271,7 @@ public:
     StringList64* to_arrow() {
         StringList64* sl = new StringList64(_byte_size, length);
         char* target = sl->bytes;
-        for(int64_t i = 0; i < length; i++) {
+        for(size_t i = 0; i < length; i++) {
             sl->indices[i] = target - sl->bytes;
             if(is_null(i)) {
                 sl->ensure_null_bitmap();
@@ -1366,23 +1461,6 @@ void add_string_list(Module m, Base& base, const char* class_name) {
         // .def("get", (const std::string (StringList::*)(size_t))&StringList::get)
         // bug? we have to add this again
         // .def("get", (py::object (StringSequence::*)(size_t, size_t))&StringSequence::get, py::return_value_policy::take_ownership)
-        .def("mask", [](const StringList &sl) -> py::object {
-                size_t length;
-                if(sl.null_bitmap) { // TODO: what if there is a lazy view
-                    auto ar = py::array_t<bool>(sl.length);
-                    auto ar_unsafe = ar.mutable_unchecked<1>();
-                    {
-                        py::gil_scoped_release release;
-                        for(size_t i = 0; i < sl.length; i++) {
-                            ar_unsafe(i) = sl.is_null(i);
-                        }
-                    }
-                    return ar;
-                } else  {
-                    return py::cast<py::none>(Py_None);
-                }
-            }
-        )
         .def_property_readonly("bytes", [](const StringList &sl) {
                 return py::array_t<char>(sl.byte_length, sl.bytes);
             }
@@ -1461,7 +1539,7 @@ StringList64* format(py::array_t<T, py::array::c_style> values_, const char* for
             bool done = false;
             int ret;
             while(!done) {
-                size_t bytes_left = sl->byte_length - byte_offset;
+                int64_t bytes_left = sl->byte_length - byte_offset;
                 ret = snprintf(sl->bytes + byte_offset, bytes_left, format, (T)values(i));
                 if(ret < 0) {
                     throw std::runtime_error("Invalid format");
@@ -1495,7 +1573,7 @@ PYBIND11_MODULE(strings, m) {
         .def("index", &StringSequence::index<uint32_t>)
         .def("index", &StringSequence::index<uint64_t>)
         .def("tolist", &StringSequence::tolist)
-        .def("capitalize", &StringSequence::capitalize)
+        .def("capitalize", &StringSequence::capitalize, py::keep_alive<0, 1>())
         .def("concat", &StringSequence::concat)
         .def("pad", &StringSequence::pad)
         .def("search", &StringSequence::search, "Tests if strings contains pattern", py::arg("pattern"), py::arg("regex"))//, py::call_guard<py::gil_scoped_release>())
@@ -1517,6 +1595,22 @@ PYBIND11_MODULE(strings, m) {
         .def("len", &StringSequence::len)
         .def("byte_length", &StringSequence::byte_length)
         .def("get", &StringSequence::get_)
+        .def("mask", [](const StringSequence &sl) -> py::object {
+                if(sl.null_bitmap) { // TODO: what if there is a lazy view
+                    auto ar = py::array_t<bool>(sl.length);
+                    auto ar_unsafe = ar.mutable_unchecked<1>();
+                    {
+                        py::gil_scoped_release release;
+                        for(size_t i = 0; i < sl.length; i++) {
+                            ar_unsafe(i) = sl.is_null(i);
+                        }
+                    }
+                    return std::move(ar);
+                } else  {
+                    return py::cast<py::none>(Py_None);
+                }
+            }
+        )
     ;
     py::class_<StringListList>(m, "StringListList")
         .def("all", &StringListList::all)
@@ -1533,6 +1627,9 @@ PYBIND11_MODULE(strings, m) {
                 py::buffer_info info = string_array.request();
                 if(info.ndim != 1) {
                     throw std::runtime_error("Expected a 1d byte buffer");
+                }
+                if(info.format != "O") {
+                    throw std::runtime_error("Expected an object array");
                 }
                 // std::cout << info.format << " format" << std::endl;
                 return std::unique_ptr<StringArray>(
