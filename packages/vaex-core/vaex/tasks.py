@@ -424,18 +424,18 @@ class TaskStatistic(Task):
             elif len(selection_blocks) == 0 and len(subblock_weights) == 1 and self.op in [OP_COUNT]\
                     and (subblock_weights[0].dtype == str_type or subblock_weights[0].dtype.kind not in 'biuf'):
                 weight = subblock_weights[0]
+                mask = None
+                if weight.dtype != str_type:
+                    if weight.dtype.kind == 'O':
+                        mask = vaex.strings.StringArray(weight).mask()
+                else:
+                    mask = weight.get_mask()
                 if selection or self.df.filtered:
-                    mask = None
-                    if weight.dtype == str_type:
-                        mask = weight.get_mask()
                     if mask is not None:
                         this_thread_grid[i][0] += np.sum(~mask)
                     else:
                         this_thread_grid[i][0] += np.sum(selection_mask)
                 else:
-                    mask = None
-                    if weight.dtype == str_type:
-                        mask = weight.get_mask()
                     if mask is not None:
                         this_thread_grid[i][0] += len(mask) - mask.sum()
                     else:

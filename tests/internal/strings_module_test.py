@@ -189,6 +189,7 @@ def test_arrow_basics():
     c = sl.slice_string_end(1)
     assert list(c.get(0,4)) == ["ap", "oot",  None, "ies"]
 
+    assert sys.getrefcount(sl) == 2
     c = sl.lower()
     assert list(c.get(0,4)) == ["aap", "noot",  None, "mies"]
 

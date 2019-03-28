@@ -260,8 +260,8 @@ def str_endswith(x, pat):
 # TODO: extract/extractall
 
 @register_function(scope='str')
-def str_find(x, sub, start=0, end=-1):
-    return _to_string_sequence(x).find(sub, start, end, True)
+def str_find(x, sub, start=0, end=None):
+    return _to_string_sequence(x).find(sub, start, 0 if end is None else end, end is None, True)
 
 # TODO: findall (not sure what the use/behaviour is)
 
@@ -279,14 +279,15 @@ def str_get(x, i):
     #     raise ValueError('get only works on string columns')
 
 @register_function(scope='str')
-def str_index(x, sub, start=0, end=-1):
+def str_index(x, sub, start=0, end=None):
     """Same as find (difference with pandas is that it does not raise a ValueError)"""
     return str_find(x, sub, start, end)
 
 @register_function(scope='str')
 def str_join(x, sep):
     """Same as find (difference with pandas is that it does not raise a ValueError)"""
-    return _to_string_list_sequence(x).join(sep)
+    sl = _to_string_list_sequence(x).join(sep)
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_len(x):
@@ -309,7 +310,8 @@ def str_lower(x):
 @register_function(scope='str')
 def str_lstrip(x, to_strip=None):
     # in c++ we give empty string the same meaning as None
-    return _to_string_sequence(x).lstrip('' if to_strip is None else to_strip) if to_strip != '' else x
+    sl = _to_string_sequence(x).lstrip('' if to_strip is None else to_strip) if to_strip != '' else x
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_match(x, pattern):
@@ -328,16 +330,16 @@ def str_repeat(x, repeats):
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
-def str_replace(x, pat, repl, n=-1, regex=False):
-    sl = _to_string_sequence(x).replace(pat, repl, n, regex)
+def str_replace(x, pat, repl, n=-1, flags=0, regex=False):
+    sl = _to_string_sequence(x).replace(pat, repl, n, flags, regex)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
-def str_rfind(x, sub, start=0, end=-1):
-    return _to_string_sequence(x).find(sub, start, end, False)
+def str_rfind(x, sub, start=0, end=None):
+    return _to_string_sequence(x).find(sub, start, 0 if end is None else end, end is None, False)
 
 @register_function(scope='str')
-def str_rindex(x, sub, start=0, end=-1):
+def str_rindex(x, sub, start=0, end=None):
     """Same as rfind (difference with pandas is that it does not raise a ValueError)"""
     return str_rfind(x, sub, start, end)
 
@@ -351,7 +353,8 @@ def str_rjust(x, width, fillchar=' '):
 @register_function(scope='str')
 def str_rstrip(x, to_strip=None):
     # in c++ we give empty string the same meaning as None
-    return _to_string_sequence(x).rstrip('' if to_strip is None else to_strip) if to_strip != '' else x
+    sl = _to_string_sequence(x).rstrip('' if to_strip is None else to_strip) if to_strip != '' else x
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_slice(x, start=0, stop=None):  # TODO: support n
@@ -361,14 +364,16 @@ def str_slice(x, start=0, stop=None):  # TODO: support n
         sll = _to_string_sequence(x).slice_string(start, stop)
     return sll
 
-# TODO: slice_replace,
-# TODO: split with whitespace, n and rsplit
+# TODO: slice_replace (not sure it this makes sense)
+# TODO: n argument and rsplit
 @register_function(scope='str')
-def str_split(x, pattern):  # TODO: support n
+def str_split(x, pattern=None):  # TODO: support n
     x = _to_string_sequence(x)
     if isinstance(x, vaex.strings.StringArray):
         x = x.to_arrow()
-    sll = x.split(pattern)
+    if pattern == '':
+        raise ValueError('empty separator')
+    sll = x.split('' if pattern is None else pattern)
     return sll
 
 @register_function(scope='str')
@@ -378,7 +383,8 @@ def str_startswith(x, pat):
 @register_function(scope='str')
 def str_strip(x, to_strip=None):
     # in c++ we give empty string the same meaning as None
-    return _to_string_sequence(x).strip('' if to_strip is None else to_strip) if to_strip != '' else x
+    sl = _to_string_sequence(x).strip('' if to_strip is None else to_strip) if to_strip != '' else x
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 # TODO: swapcase, translate
 
@@ -401,16 +407,47 @@ def str_zfill(x, width):
     sl = _to_string_sequence(x).pad(width, '0', True, False)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
-
-# expression_namespace["str_contains"] = str_contains
-# expression_namespace["str_capitalize"] = str_capitalize
-# expression_namespace["str_contains2"] = str_contains2
+@register_function(scope='str')
+def str_isalpha(x):
+    sl = _to_string_sequence(x).isalpha()
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
-def str_strip(x, chars=None):
-    """Removes leading and trailing characters."""
-    # don't change the dtype, otherwise for each block the dtype may be different (string length)
-    return np.char.strip(x, chars).astype(x.dtype)
+def str_isalnum(x):
+    sl = _to_string_sequence(x).isalnum()
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+
+@register_function(scope='str')
+def str_isalpha(x):
+    return _to_string_sequence(x).isalpha()
+
+@register_function(scope='str')
+def str_isdigit(x):
+    return _to_string_sequence(x).isdigit()
+
+@register_function(scope='str')
+def str_isspace(x):
+    return _to_string_sequence(x).isspace()
+
+@register_function(scope='str')
+def str_islower(x):
+    return _to_string_sequence(x).islower()
+
+@register_function(scope='str')
+def str_isupper(x):
+    return _to_string_sequence(x).isupper()
+
+# @register_function(scope='str')
+# def str_istitle(x):
+#     return _to_string_sequence(x).istitle()
+
+# @register_function(scope='str')
+# def str_isnumeric(x):
+#     sl = _to_string_sequence(x).isnumeric()
+
+# @register_function(scope='str')
+# def str_isdecimal(x):
+#     sl = _to_string_sequence(x).isnumeric()
 
 @register_function()
 def to_string(x):

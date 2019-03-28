@@ -1953,6 +1953,25 @@ PYBIND11_MODULE(strings, m) {
         // .def("get", (const std::string (StringArray::*)(int64_t))&StringArray::get)
         // bug? we have to add this again
         // .def("get", (py::object (StringSequence::*)(size_t, size_t))&StringSequence::get, py::return_value_policy::take_ownership)
+        .def("mask", [](const StringSequence &sl) -> py::object {
+                bool has_null = false;
+                auto ar = py::array_t<bool>(sl.length);
+                auto ar_unsafe = ar.mutable_unchecked<1>();
+                {
+                    py::gil_scoped_release release;
+                    for(size_t i = 0; i < sl.length; i++) {
+                        ar_unsafe(i) = sl.is_null(i);
+                        has_null |= sl.is_null(i);
+                    }
+                }
+                return std::move(ar);
+                // if(has_null) {
+                //     return std::move(ar);
+                // } else  {
+                //     return py::cast<py::none>(Py_None);
+                // }
+            }
+        )
         ;
     m.def("to_string", &to_string<float>);
     m.def("to_string", &to_string<double>);
