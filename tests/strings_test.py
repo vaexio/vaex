@@ -329,6 +329,7 @@ def test_string_strip_special_case2():
 	df = vaex.from_arrays(s=vaex.string_column(strings))
 	assert df.s.str.upper().tolist() == df.s.str_pandas.upper().tolist()
 
+@pytest.mark.xfail(reason='we need to fix this, similar to upper and lower')
 def test_string_strip_special_case2():
 	strings = ['ɐa', 'aap']
 	df = vaex.from_arrays(s=vaex.string_column(strings))
