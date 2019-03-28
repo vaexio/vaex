@@ -48,6 +48,48 @@ inline void _clear_null(uint8_t* null_bitmap, size_t i) {
     null_bitmap[byte_index] |= (1 << bit_index); // sets bit
 }
 
+size_t utf8_slice_neg_index_to_byte_offset(string_view& source, int64_t end_negative_index) {
+    int64_t len = str_len(source);
+    int64_t positive_index = len + end_negative_index;
+    const char *str = source.begin();
+    const char *end = source.end();
+    int64_t index = 0;
+    while( (str < end) && (index < positive_index) ) {
+        char current = *str;
+        if(((unsigned char)current) < 0x80) {
+            str += 1;
+        } else if (((unsigned char)current) < 0xE0) {
+            str += 2;
+        } else if (((unsigned char)current) < 0xF0) {
+            str += 3;
+        } else if (((unsigned char)current) < 0xF8) {
+            str += 4;
+        }
+        index += 1;
+    }
+    return str - source.begin(); // distance from start
+}
+
+size_t utf8_index_to_byte_offset(string_view& source, int64_t index) {
+    // int64_t positive_index = len + end_negative_index;
+    const char *str = source.begin();
+    const char *end = source.end();
+    while( (str < end) && (index > 0) ) {
+        char current = *str;
+        if(((unsigned char)current) < 0x80) {
+            str += 1;
+        } else if (((unsigned char)current) < 0xE0) {
+            str += 2;
+        } else if (((unsigned char)current) < 0xF0) {
+            str += 3;
+        } else if (((unsigned char)current) < 0xF8) {
+            str += 4;
+        }
+        index--;
+    }
+    return str - source.begin(); // distance from start
+}
+
 class StringSequence {
     public:
     StringSequence(size_t length, uint8_t* null_bitmap=nullptr, int64_t null_offset=0) : length(length), null_bitmap(null_bitmap), null_offset(null_offset) {
@@ -149,23 +191,34 @@ class StringSequence {
                 m(i) = (string_length >= pattern_length) && str.substr(0, pattern_length) == pattern_view;
             }
         }
-        return matches;
+        return std::move(matches);
     }
-    py::object find(const std::string pattern, int64_t start, int64_t _end, bool left) {
+    py::object find(const std::string pattern, int64_t start, int64_t end, bool till_end, bool left) {
         py::array_t<int64_t> indices(length);
         auto m = indices.mutable_unchecked<1>();
-        string_view pattern_view = pattern; // msvc doesn't like comparting string and string_view
         {
             py::gil_scoped_release release;
-            size_t pattern_length = pattern.size();
             for(size_t i = 0; i < length; i++) {
                 auto str = view(i);
                 int64_t string_length = str.length();
-                // make sure end is truncated to end of string
-                int64_t end = std::min(string_length, (_end == -1 ? string_length : _end));
+                int64_t byte_start = utf8_index_to_byte_offset(str, start);
+                int64_t byte_end = 0;
+                if(till_end) {
+                    byte_end = string_length;
+                } else {
+                    if(end > string_length) {
+                        byte_end = string_length;
+                    } else {
+                        if(end < 0) {
+                            byte_end = utf8_slice_neg_index_to_byte_offset(str, end);
+                        } else {
+                            byte_end = utf8_index_to_byte_offset(str, end);
+                        }
+                    }
+                }
                 int64_t find_index = -1;
-                if( (start < string_length))  { // we need to start in the string
-                    auto str_lookat = str.substr(start, end - start);
+                if( (byte_start < string_length) && (byte_end > byte_start) )  { // we need to start in the string
+                    auto str_lookat = str.substr(byte_start, byte_end - byte_start);
                     if(left) {
                         find_index = str_lookat.find(pattern, 0);
                     } else {
