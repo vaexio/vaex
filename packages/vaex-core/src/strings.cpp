@@ -595,22 +595,56 @@ public:
             int64_t bytes_offset = this->indices[i] - offset;
             // add index to first list item
             offsets1[index1] = index2;
-            // add beginning of first string
-            offsets2[index2] = bytes_offset;
-            index2++;
-
-            while(string_offset + pattern_length <= string_length) {
-                if(pattern[0] == str[string_offset] && strncmp(pattern, str, pattern_length)) {
-                    // add the end of the string found
-                    offsets2[index2] = bytes_offset + string_offset;
-                    index2++;
-                    // add start of next string, skipping the pattern
-                    // bytes_offset += pattern_length;
-                    string_offset += pattern_length;
-                    offsets2[index2] = bytes_offset + string_offset;
-                    index2++;
-                } else {
+            if(pattern_length == 0) { // whitespace splitter
+                // strip leading whitespace
+                while(::isspace(str[string_offset]) && string_length > 0) {
                     string_offset++;
+                    string_length--;
+                }
+                // and trailing
+                if(string_length > 0) {
+                    while(::isspace(str[string_offset+string_length-1]) && string_length > 0) {
+                        string_length--;
+                    }
+                }
+                if(string_length > 0) {
+                    // add beginning of first string
+                    while(string_length > 0) {
+                        offsets2[index2] = bytes_offset + string_offset;
+                        index2++;
+                        // continue till we find whitespace or the end
+                        while(!::isspace(str[string_offset]) && string_length > 0) {
+                            string_offset++;
+                            string_length--;
+                        }
+                        // and end of a string
+                        offsets2[index2] = bytes_offset + string_offset;
+                        index2++;
+                        // ignore the whitespace
+                        while(::isspace(str[string_offset]) && string_length > 0) {
+                            string_offset++;
+                            string_length--;
+                        }
+                    }
+                }
+
+            } else {
+                // add beginning of first string
+                offsets2[index2] = bytes_offset;
+                index2++;
+                while(string_offset + pattern_length <= string_length) {
+                    if(pattern[0] == str[string_offset] && strncmp(pattern, str, pattern_length)) {
+                        // add the end of the string found
+                        offsets2[index2] = bytes_offset + string_offset;
+                        index2++;
+                        // add start of next string, skipping the pattern
+                        // bytes_offset += pattern_length;
+                        string_offset += pattern_length;
+                        offsets2[index2] = bytes_offset + string_offset;
+                        index2++;
+                    } else {
+                        string_offset++;
+                    }
                 }
             }
             index1++;
