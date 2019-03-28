@@ -3,6 +3,7 @@ import cloudpickle as pickle
 import functools
 import operator
 import six
+import collections.abc
 
 from future.utils import with_metaclass
 import numpy as np
@@ -515,8 +516,8 @@ def f({0}):
     def apply(self, f):
         return self.ds.apply(f, [self.expression])
 
-    def map(self, mapper):
-        '''Map values of an expression or in memory column accoring to an input
+    def map(self, mapper, missing_values=None):
+        """Map values of an expression or in memory column accoring to an input
         dictionary or a custom callable function.
 
         :param mapper: (dict or function) used to map the values on top of the existing ones
@@ -531,20 +532,13 @@ def f({0}):
         >>> df['color_mapped'] = df.color.map(mapper)
         >>> df.color_mapped.values
         array([1, 1, 2, 1, 3])
-        '''
-        if isinstance(mapper, dict):
+        """
+        if isinstance(mapper, collections.abc.Mapping):
             def lookup_func(x):
-                if isinstance(x, np.bytes_):
-                    x = x.decode('utf-8')
-                    if x in mapper.keys():
-                        return mapper[x]
-                    else:
-                        return np.nan
+                if x in mapper:
+                    return mapper[x]
                 else:
-                    if x in mapper.keys():
-                        return mapper[x]
-                    else:
-                        return np.nan
+                    return missing_values
             return self.ds.apply(lookup_func, [self.expression])
         elif callable(mapper):
             return self.ds.apply(mapper, [self.expression])
