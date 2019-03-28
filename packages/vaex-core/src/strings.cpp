@@ -1409,7 +1409,7 @@ void titlecase(const string_view& source, char*& target) {
                 uppercase_next = false;
             }
             if(i != end) {
-                if(::isspace(*i) || ::isnumber(*i)) {
+                if(::isspace(*i) || ::isdigit(*i)) {
                     uppercase_next = true;
                 }
                 i++;
