@@ -533,8 +533,8 @@ public:
         bytes = (char*)realloc(bytes, byte_length);
     }
     virtual StringSequence* capitalize();
-    virtual StringSequence* lower();
-    virtual StringSequence* upper();
+    // virtual StringSequence* lower();
+    // virtual StringSequence* upper();
     // a slice for when the indices are not filled yet
     StringList* slice_byte_offset(size_t i1, size_t i2, size_t byte_offset) {
         size_t byte_length = this->byte_length - byte_offset;
@@ -873,22 +873,14 @@ StringSequence* _apply_seq(StringSequence* _this, W word_transform) {
 template<class StringList, class W>
 StringSequence* _apply(StringList* _this, W word_transform) {
     py::gil_scoped_release release;
-    StringList* list = new StringList(_this->byte_size(), _this->length, _this->indices, _this->offset, _this->null_bitmap);
+    StringList* list = new StringList(_this->byte_size(), _this->length, _this->offset, _this->null_bitmap);
     char* target = list->bytes;
-    if(target == NULL) {
-        std::cout << " test " << _this->byte_size() << std::endl;
-        std::cout << " test " << _this->offset << std::endl;
-        std::cout << " test " << _this->indices[0] << std::endl;
-        std::cout << " test " << _this->offset << std::endl;
-        throw std::runtime_error("oops with malloc?");
-    }
     for(size_t i = 0; i < _this->length; i++) {
         target[_this->indices[i] - _this->offset] = target[_this->indices[i] - _this->offset];
         string_view source = _this->view(i);
-        size_t length = source.length();
         word_transform(source, target);
-        // target += length;
     }
+    std::copy(_this->indices, _this->indices+_this->length+1, list->indices);
     return list;
 }
 
@@ -896,26 +888,179 @@ StringSequence* _apply(StringList* _this, W word_transform) {
 template<class StringList, class W>
 StringSequence* _apply_all(StringList* _this, W word_transform) {
     py::gil_scoped_release release;
-    StringList* list = new StringList(_this->byte_size(), _this->length, _this->indices, _this->offset, _this->null_bitmap);
+    StringList* list = new StringList(_this->byte_size(), _this->length, _this->offset, _this->null_bitmap);
     string_view source = _this->view();
     char* target = list->bytes;
     word_transform(source, target);
+    std::copy(_this->indices, _this->indices+_this->length+1, list->indices);
     return list;
 }
 
-template<class W>
-py::array_t<int64_t> _map(StringSequence* _this, W word_op) {
-    py::array_t<int64_t> ar(_this->length);
-    auto ar_unsafe = ar.mutable_unchecked<1>();
+template<class T, class W>
+py::array_t<T> _map(StringSequence* _this, W word_op) {
+    py::array_t<T> ar(_this->length);
+    auto ar_unsafe = ar.template mutable_unchecked<1>();
     {
         py::gil_scoped_release release;
-        int32_t offset = 0;
         for(size_t i = 0; i < _this->length; i++) {
             string_view str = _this->view(i);
             ar_unsafe(i) = word_op(str);
         }
     }
-    return py::array_t<int64_t>(ar);
+    return py::array_t<T>(ar);
+}
+
+template<class T, class C>
+py::array_t<T> _map_bool_all(StringSequence* _this, C char_bool_op) {
+    py::array_t<T> ar(_this->length);
+    auto ar_unsafe = ar.template mutable_unchecked<1>();
+    {
+        py::gil_scoped_release release;
+        for(size_t i = 0; i < _this->length; i++) {
+            string_view str = _this->view(i);
+            bool all = true;
+            if(str.length() == 0) {
+                all = false;
+            } else{
+                all = std::all_of(str.begin(), str.end(), char_bool_op);
+            }
+            ar_unsafe(i) = all;
+        }
+    }
+    return py::array_t<T>(ar);
+}
+
+bool always_true_ascii(char chr) { return true; }
+bool always_true_unicode(char32_t chr) { return true; }
+
+template<class T, class C, class U, class COR, class UOR>
+py::array_t<T> _map_bool_all_utf8(StringSequence* _this, C ascii_bool_op, U unicode_bool_op, COR ascii_op_or=always_true_ascii, UOR unicode_op_or=always_true_unicode) {
+    py::array_t<T> ar(_this->length);
+    auto ar_unsafe = ar.template mutable_unchecked<1>();
+    {
+        py::gil_scoped_release release;
+        for(size_t j = 0; j < _this->length; j++) {
+            string_view str = _this->view(j);
+            bool all = true;
+            bool some = false;
+            if(str.length() == 0) {
+                all = false;
+            } else {
+                const char *i = str.begin();
+                const char *end = str.end();
+                while(i < end) {
+                    char current = *i;
+                    if(((unsigned char)current) < 0x80) {
+                        some = some || ascii_op_or(current);
+                        if(!ascii_bool_op(current)) {
+                            all = false;
+                            break;
+                        }
+                        i++;
+                    } else if (((unsigned char)current) < 0xE0) {
+                        char32_t c = utf8_decode(i);
+                        some = some || unicode_op_or(c);
+                        if(!unicode_bool_op(c)) {
+                            all = false;
+                            break;
+                        }
+                    } else if (((unsigned char)current) < 0xF0) {
+                        char32_t c = utf8_decode(i);
+                        some = some || unicode_op_or(c);
+                        if(!unicode_bool_op(c)) {
+                            all = false;
+                            break;
+                        }
+                    } else if (((unsigned char)current) < 0xF8) {
+                        char32_t c = utf8_decode(i);
+                        some = some || unicode_op_or(c);
+                        if(!unicode_bool_op(c)) {
+                            all = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            ar_unsafe(j) = all & some;
+        }
+    }
+    return py::array_t<T>(ar);
+}
+
+class char_transformer_lower {
+public:
+    std::string chars;
+    bool left, right;
+    template<class A>
+    void operator()(const string_view& source, A& appender) {
+        const char* str = source.begin();
+        const char* end = source.end();
+        while(str < end) {
+            char current = *str;
+            if(((unsigned char)current) < 0x80) {
+                char c = ::tolower(current);
+                appender.append(c);
+                str++;
+            } else {
+                char32_t c = ::char32_lowercase(utf8_decode(str));
+                appender.append(c);
+            }
+        }
+    }
+};
+
+class char_transformer_upper {
+public:
+    std::string chars;
+    bool left, right;
+    template<class A>
+    void operator()(const string_view& source, A& appender) {
+        const char* str = source.begin();
+        const char* end = source.end();
+        while(str < end) {
+            char current = *str;
+            if(((unsigned char)current) < 0x80) {
+                char c = ::toupper(current);
+                appender.append(c);
+                str++;
+            } else {
+                char32_t c = ::char32_uppercase(utf8_decode(str));
+                appender.append(c);
+            }
+        }
+    }
+};
+
+// templated implementation for _apply2
+template<class StringList, class W>
+StringSequence* _apply2(StringSequence* _this, W word_transform) {
+    StringList* list = new StringList(_this->byte_size(), _this->length, 0, _this->null_bitmap, _this->null_offset);
+    utf8_appender<StringList> appender(list);
+    for(size_t i = 0; i < _this->length; i++) {
+        list->indices[i] = appender.offset();
+        string_view source = _this->view(i);
+        word_transform(source, appender);
+        if(_this->is_null(i)) {
+            list->ensure_null_bitmap();
+            list->set_null(i);
+        }
+    }
+    list->indices[_this->length] = appender.offset();
+    return list;
+}
+
+// apply a function to each word
+template<class W>
+StringSequence* _apply2(StringSequence* _this, W word_transform) {
+    py::gil_scoped_release release;
+    // we are very conservative, it could be that a string
+    // contains only unicode chars that uppercased become 2 bytes intead of 2
+    // or maybe even 4 instead of 2, I assume never 2 or 3 instead of 1
+    if(_this->byte_size() > (INT_MAX/2)) {
+        return _apply2<StringList64, W>(_this, word_transform);
+    } else {
+        return _apply2<StringList32, W>(_this, word_transform);
+    }
 }
 
 inline void lower(const string_view& source, char*& target) {
@@ -924,32 +1069,21 @@ inline void lower(const string_view& source, char*& target) {
 }
 
 StringSequence* StringSequence::lower() {
-    return _apply_seq<>(this, ::lower);
-}
-
-template<class IC>
-StringSequence* StringList<IC>::lower() {
-    return _apply_all<>(this, ::lower);
+    return _apply2<>(this, char_transformer_lower());
 }
 
 inline void upper(const string_view& source, char*& target) {
     utf8_transform(source, target, ::toupper, ::char32_uppercase);
     target += source.length();
 }
+
 StringSequence* StringSequence::upper() {
-    return _apply_seq<>(this, ::upper);
+    return _apply2<>(this, char_transformer_upper());
 }
-
-template<class IC>
-StringSequence* StringList<IC>::upper() {
-    return _apply_all<>(this, ::upper);
-}
-
 
 StringSequence* StringSequence::lstrip(std::string chars) {
     return _apply_seq<>(this, stripper(chars, true, false));
 };
-
 
 StringSequence* StringSequence::rstrip(std::string chars) {
     return _apply_seq<>(this, stripper(chars, false, true));
@@ -1265,10 +1399,12 @@ void titlecase(const string_view& source, char*& target) {
                 utf8_append(i, c);
                 uppercase_next = false;
             }
-            if(::isspace(*i)) {
-                uppercase_next = true;
+            if(i != end) {
+                if(::isspace(*i) || ::isnumber(*i)) {
+                    uppercase_next = true;
+                }
+                i++;
             }
-            i++;
         }
         target = end;
     }
