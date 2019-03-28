@@ -118,6 +118,15 @@ class StringSequence {
     virtual StringSequence* slice_string(int64_t start, int64_t stop);
     virtual StringSequence* slice_string_end(int64_t start);
     virtual StringSequence* title();
+    virtual py::object isalnum();
+    virtual py::object isalpha();
+    virtual py::object isdigit();
+    virtual py::object isspace();
+    virtual py::object islower();
+    virtual py::object isupper();
+    // virtual py::object istitle();
+    // virtual py::object isnumeric();
+    // virtual py::object isdecimal();
     // virtual StringSequence* rstrip();
     // virtual StringSequence* strip();
     virtual py::object byte_length();
@@ -1431,8 +1440,51 @@ inline int64_t byte_length(const string_view& source) {
 }
 
 py::object StringSequence::byte_length() {
-    return _map<>(this, ::byte_length);
+    return _map<int64_t>(this, ::byte_length);
 }
+
+
+py::object StringSequence::isalnum() {
+    return _map_bool_all<bool>(this, ::isalnum);
+}
+py::object StringSequence::isalpha() {
+    return _map_bool_all_utf8<bool>(this, ::isalpha, char32_isalpha, always_true_ascii, always_true_unicode);
+    // return _map_bool_all<bool>(this, ::isalpha);
+}
+py::object StringSequence::isdigit() {
+    return _map_bool_all<bool>(this, ::isdigit);
+}
+py::object StringSequence::isspace() {
+    return _map_bool_all<bool>(this, ::isspace);
+}
+// this will also allow spaces
+bool case_isupper(char chr) {
+    return chr == ::toupper(chr);
+}
+bool case_islower(char chr) {
+    return chr == ::tolower(chr);
+}
+bool is_cased(char chr) {
+    return ::tolower(chr) != ::toupper(chr);
+}
+bool is_cased_unicode(char32_t chr) {
+    return char32_lowercase(chr) != char32_uppercase(chr);
+}
+py::object StringSequence::islower() {
+    return _map_bool_all_utf8<bool>(this, case_islower, utf8_islower, is_cased, is_cased_unicode);
+}
+py::object StringSequence::isupper() {
+    return _map_bool_all_utf8<bool>(this, case_isupper, utf8_isupper, is_cased, is_cased_unicode);
+}
+// py::object StringSequence::istitle() {
+//     return _map_bool_all<bool>(this, ::isalpha);
+// }
+// py::object StringSequence::isnumeric() {
+//     return _map_bool_all<bool>(this, ::isnumeric);
+// }
+// py::object StringSequence::isdecimal() {
+//     return _map_bool_all<bool>(this, ::isnumeric);
+// }
 
 
 
@@ -1843,6 +1895,15 @@ PYBIND11_MODULE(strings, m) {
         .def("slice_string", &StringSequence::slice_string)
         .def("slice_string_end", &StringSequence::slice_string_end)
         .def("title", &StringSequence::title)
+        .def("isalnum", &StringSequence::isalnum)
+        .def("isalpha", &StringSequence::isalpha)
+        .def("isdigit", &StringSequence::isdigit)
+        .def("isspace", &StringSequence::isspace)
+        .def("islower", &StringSequence::islower)
+        .def("isupper", &StringSequence::isupper)
+        // .def("istitle", &StringSequence::istitle)
+        // .def("isnumeric", &StringSequence::isnumeric)
+        // .def("isdecimal", &StringSequence::isdecimal)
         .def("len", &StringSequence::len)
         .def("byte_length", &StringSequence::byte_length)
         .def("get", &StringSequence::get_)
