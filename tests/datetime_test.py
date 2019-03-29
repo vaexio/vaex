@@ -22,6 +22,7 @@ def test_datetime_operations():
     assert df.date.dt.month_name.values.tolist() == pandas_df.date.dt.month_name().values.tolist()
     assert df.date.dt.year.values.tolist() == pandas_df.date.dt.year.values.tolist()
     assert df.date.dt.is_leap_year.values.tolist() == pandas_df.date.dt.is_leap_year.values.tolist()
+    assert any(df.date.dt.is_leap_year.values.tolist())
     assert df.date.dt.weekofyear.values.tolist() == pandas_df.date.dt.weekofyear.values.tolist()
     assert df.date.dt.dayofyear.values.tolist() == pandas_df.date.dt.dayofyear.values.tolist()
     assert df.date.dt.dayofweek.values.tolist() == pandas_df.date.dt.dayofweek.values.tolist()
