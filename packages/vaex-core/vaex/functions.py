@@ -149,73 +149,61 @@ def fillna(ar, value, fill_nan=True, fill_masked=True):
 @register_function(scope='dt', as_property=True)
 def dt_dayofweek(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.dayofweek.values
 
 @register_function(scope='dt', as_property=True)
 def dt_dayofyear(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.dayofyear.values
 
 @register_function(scope='dt', as_property=True)
 def dt_is_leap_year(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.is_leap_year.values
 
 @register_function(scope='dt', as_property=True)
 def dt_year(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.year.values
 
 @register_function(scope='dt', as_property=True)
 def dt_month(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.month.values
 
 @register_function(scope='dt', as_property=True)
 def dt_month_name(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.month_name().values.astype(str)
 
 @register_function(scope='dt', as_property=True)
 def dt_day(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.day.values
 
 @register_function(scope='dt', as_property=True)
 def dt_day_name(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.day_name().values.astype(str)
 
 @register_function(scope='dt', as_property=True)
 def dt_weekofyear(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.weekofyear.values
 
 @register_function(scope='dt', as_property=True)
 def dt_hour(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.hour.values
 
 @register_function(scope='dt', as_property=True)
 def dt_minute(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.minute.values
 
 @register_function(scope='dt', as_property=True)
 def dt_second(x):
     import pandas as pd
-    # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.second.values
 
 
