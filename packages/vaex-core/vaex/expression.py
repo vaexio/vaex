@@ -115,54 +115,6 @@ class DateTime(object):
     def __init__(self, expression):
         self.expression = expression
 
-    @property
-    def year(self):
-        return self.expression.ds.func.dt_year(self.expression)
-
-    @property
-    def month(self):
-        return self.expression.ds.func.dt_month(self.expression)
-
-    @property
-    def month_name(self):
-        return self.expression.ds.func.dt_month_name(self.expression)
-
-    @property
-    def day(self):
-        return self.expression.ds.func.dt_day(self.expression)
-
-    @property
-    def day_name(self):
-        return self.expression.ds.func.dt_day_name(self.expression)
-
-    @property
-    def dayofweek(self):
-        return self.expression.ds.func.dt_dayofweek(self.expression)
-
-    @property
-    def dayofyear(self):
-        return self.expression.ds.func.dt_dayofyear(self.expression)
-
-    @property
-    def hour(self):
-        return self.expression.ds.func.dt_hour(self.expression)
-
-    @property
-    def minute(self):
-        return self.expression.ds.func.dt_minute(self.expression)
-
-    @property
-    def second(self):
-        return self.expression.ds.func.dt_second(self.expression)
-
-    @property
-    def weekofyear(self):
-        return self.expression.ds.func.dt_weekofyear(self.expression)
-
-    @property
-    def is_leap_year(self):
-        return self.expression.ds.func.dt_is_leap_year(self.expression)
-
 
 class StringOperations(object):
     """String operations"""
