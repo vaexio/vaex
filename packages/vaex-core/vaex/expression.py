@@ -120,6 +120,22 @@ class DateTime(object):
         return self.expression.ds.func.dt_year(self.expression)
 
     @property
+    def month(self):
+        return self.expression.ds.func.dt_month(self.expression)
+
+    @property
+    def month_name(self):
+        return self.expression.ds.func.dt_month_name(self.expression)
+
+    @property
+    def day(self):
+        return self.expression.ds.func.dt_day(self.expression)
+
+    @property
+    def day_name(self):
+        return self.expression.ds.func.dt_day_name(self.expression)
+
+    @property
     def dayofweek(self):
         return self.expression.ds.func.dt_dayofweek(self.expression)
 
@@ -132,8 +148,20 @@ class DateTime(object):
         return self.expression.ds.func.dt_hour(self.expression)
 
     @property
+    def minute(self):
+        return self.expression.ds.func.dt_minute(self.expression)
+
+    @property
+    def second(self):
+        return self.expression.ds.func.dt_second(self.expression)
+
+    @property
     def weekofyear(self):
         return self.expression.ds.func.dt_weekofyear(self.expression)
+
+    @property
+    def is_leap_year(self):
+        return self.expression.ds.func.dt_is_leap_year(self.expression)
 
 
 class StringOperations(object):
@@ -503,7 +531,7 @@ def f({0}):
                 return new
         expr = expresso.translate(self.expression, translate)
         return Expression(self.ds, expr)
- 
+
     def astype(self, dtype):
         return self.ds.func.astype(self, str(dtype))
 

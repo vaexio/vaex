@@ -159,10 +159,40 @@ def dt_dayofyear(x):
     return pd.Series(x).dt.dayofyear.values
 
 @register_function(scope='dt', as_property=True)
+def dt_is_leap_year(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.is_leap_year.values
+
+@register_function(scope='dt', as_property=True)
 def dt_year(x):
     import pandas as pd
     # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.year.values
+
+@register_function(scope='dt', as_property=True)
+def dt_month(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.month.values
+
+@register_function(scope='dt', as_property=True)
+def dt_month_name(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.month_name().values.astype(str)
+
+@register_function(scope='dt', as_property=True)
+def dt_day(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.day.values
+
+@register_function(scope='dt', as_property=True)
+def dt_day_name(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.day_name().values.astype(str)
 
 @register_function(scope='dt', as_property=True)
 def dt_weekofyear(x):
@@ -175,6 +205,18 @@ def dt_hour(x):
     import pandas as pd
     # x = x.astype("<M8[ns]")
     return pd.Series(x).dt.hour.values
+
+@register_function(scope='dt', as_property=True)
+def dt_minute(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.minute.values
+
+@register_function(scope='dt', as_property=True)
+def dt_second(x):
+    import pandas as pd
+    # x = x.astype("<M8[ns]")
+    return pd.Series(x).dt.second.values
 
 
 ########## string operations ##########
@@ -239,7 +281,7 @@ def str_rstrip(x, to_strip=None):
     # in c++ we give empty string the same meaning as None
     return _to_string_sequence(x).rstrip('' if to_strip is None else to_strip) if to_strip != '' else x
 
-# TODO: slice, slice_replace, 
+# TODO: slice, slice_replace,
 
 @register_function(scope='str')
 def str_split(x, pattern):  # TODO: support n
