@@ -115,26 +115,6 @@ class DateTime(object):
     def __init__(self, expression):
         self.expression = expression
 
-    @property
-    def year(self):
-        return self.expression.ds.func.dt_year(self.expression)
-
-    @property
-    def dayofweek(self):
-        return self.expression.ds.func.dt_dayofweek(self.expression)
-
-    @property
-    def dayofyear(self):
-        return self.expression.ds.func.dt_dayofyear(self.expression)
-
-    @property
-    def hour(self):
-        return self.expression.ds.func.dt_hour(self.expression)
-
-    @property
-    def weekofyear(self):
-        return self.expression.ds.func.dt_weekofyear(self.expression)
-
 
 class StringOperations(object):
     """String operations"""
@@ -503,7 +483,7 @@ def f({0}):
                 return new
         expr = expresso.translate(self.expression, translate)
         return Expression(self.ds, expr)
- 
+
     def astype(self, dtype):
         return self.ds.func.astype(self, str(dtype))
 
