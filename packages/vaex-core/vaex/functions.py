@@ -211,11 +211,66 @@ def dt_second(x):
 
 @register_function(scope='str')
 def str_capitalize(x):
+    """Capitalize the first letter of a string sample.
+
+    :returns: an expression containing the capitalized strings.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.capitalize()
+    Expression = str_capitalize(text)
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0    Something
+    1  Very pretty
+    2    Is coming
+    3          Our
+    4         Way.
+    """
     sl = _to_string_sequence(x).capitalize()
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_cat(x, other):
+    """Concatenate two string columns on a row-by-row basis.
+
+    :param expression other: The expression of the other column to be concatenated.
+    :returns: an expression containing the concatenated columns.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.cat(ds.text)
+    Expression = str_cat(text, text)
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0      SomethingSomething
+    1  very prettyvery pretty
+    2      is comingis coming
+    3                  ourour
+    4                way.way.
+    """
     sl1 = _to_string_sequence(x)
     sl2 = _to_string_sequence(other)
     sl = sl1.concat(sl2)
@@ -223,22 +278,137 @@ def str_cat(x, other):
 
 @register_function(scope='str')
 def str_center(x, width, fillchar=' '):
+    """ Fills the left and right side of the strings with additional characters, such that the sample has a total of `width`
+    characters.
+
+    :param int width: The total number of characters of the resulting string sample.
+    :param str fillchar: The character used for filling.
+    :returns: an expression containing the filled strings.
+
+    Example:
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.center(width=11, fillchar='!')
+    Expression = str_center(text, width=11, fillchar='!')
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0  !Something!
+    1  very pretty
+    2  !is coming!
+    3  !!!!our!!!!
+    4  !!!!way.!!!
+    """
     sl = _to_string_sequence(x).pad(width, fillchar, True, True)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_contains(x, pattern, regex=True):
+    """Check if a string pattern or regex is contained within a sample of a string column.
+
+    :param str pattern: A string or regex pattern
+    :param bool regex: If True,
+    :return: an expression which is evaluated to True if the pattern is found in a given sample, and it is False otherwise.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.contains('very')
+    Expression = str_contains(text, 'very')
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0  False
+    1   True
+    2  False
+    3  False
+    4  False
+    """
     return _to_string_sequence(x).search(pattern, regex)
 
 # TODO: default regex is False, which breaks with pandas
 @register_function(scope='str')
 def str_count(x, pat, regex=False):
+    """Count the occurences of a pattern in sample of a string column.
+
+    :param str pat: A string or regex pattern
+    :param bool regex: If True,
+    :returns: an expression containing the number of times a pattern is found in each sample.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.count(pat="et", regex=False)
+    Expression = str_count(text, pat='et', regex=False)
+    Length: 5 dtype: int64 (expression)
+    -----------------------------------
+    0  1
+    1  1
+    2  0
+    3  0
+    4  0
+    """
     return _to_string_sequence(x).count(pat, regex)
 
 # TODO: what to do with decode and encode
 
 @register_function(scope='str')
 def str_endswith(x, pat):
+    """Check if the end of each string sample matches the specified pattern.
+
+    :param str pat: A string pattern or a regex
+    :returns: an expression evaluated to True if the pattern is found at the end of a given sample, False otherwise.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.endswith(pat="ing")
+    Expression = str_endswith(text, pat='ing')
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0   True
+    1  False
+    2   True
+    3  False
+    4  False
+    """
     return _to_string_sequence(x).endswith(pat)
 
 # TODO: what to do with extract/extractall
@@ -261,6 +431,37 @@ def str_endswith(x, pat):
 
 @register_function(scope='str')
 def str_find(x, sub, start=0, end=None):
+    """Returns the lowest indices in each string in a column, where the provided substring is fully contained between within a
+    sample. If the substring is not found, -1 is returned.
+
+    :param str sub: A substring to be found in the samples
+    :param int start:
+    :param int end:
+    :returns: an expression containing the lowest indices specifying the start of the substring.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.find(sub="et")
+    Expression = str_find(text, sub='et')
+    Length: 5 dtype: int64 (expression)
+    -----------------------------------
+    0   3
+    1   7
+    2  -1
+    3  -1
+    4  -1
+    """
     return _to_string_sequence(x).find(sub, start, 0 if end is None else end, end is None, True)
 
 # TODO: findall (not sure what the use/behaviour is)
@@ -269,7 +470,35 @@ def str_find(x, sub, start=0, end=None):
 
 @register_function(scope='str')
 def str_get(x, i):
-    """Difference from pandas: returns '' instead of nan"""
+    """Extract a character from each sample at the specified position from a string column.
+    Note that if the specified position is out of bound of the string sample, this method returns '', while pandas retunrs nan.
+
+    :param int i: The index location, at which to extract the character.
+    :returns: an expression containing the extracted characters.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.get(5)
+    Expression = str_get(text, 5)
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0    h
+    1    p
+    2    m
+    3
+    4
+    """
     x = _to_string_sequence(x)
     if i == -1:
         return x.slice_string_end(-1)
@@ -280,7 +509,37 @@ def str_get(x, i):
 
 @register_function(scope='str')
 def str_index(x, sub, start=0, end=None):
-    """Same as find (difference with pandas is that it does not raise a ValueError)"""
+    """Returns the lowest indices in each string in a column, where the provided substring is fully contained between within a
+    sample. If the substring is not found, -1 is returned. It is the same as `str.find`.
+
+    :param str sub: A substring to be found in the samples
+    :param int start:
+    :param int end:
+    :returns: an expression containing the lowest indices specifying the start of the substring.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.index(sub="et")
+    Expression = str_find(text, sub='et')
+    Length: 5 dtype: int64 (expression)
+    -----------------------------------
+    0   3
+    1   7
+    2  -1
+    3  -1
+    4  -1
+    """
     return str_find(x, sub, start, end)
 
 @register_function(scope='str')
@@ -291,60 +550,405 @@ def str_join(x, sep):
 
 @register_function(scope='str')
 def str_len(x):
-    return _to_string_sequence(x).len()
+    """Returns the length of a string sample.
+
+    :returns: an expression contains the length of each sample of a string column.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.len()
+    Expression = str_len(text)
+    Length: 5 dtype: int64 (expression)
+    -----------------------------------
+    0   9
+    1  11
+    2   9
+    3   3
+    4   4
+    """
 
 @register_function(scope='str')
 def str_byte_length(x):
+    """Returns the number of bytes in a string sample.
+
+    :returns: an expression contains the number of bytes in each sample of a string column.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.byte_length()
+    Expression = str_byte_length(text)
+    Length: 5 dtype: int64 (expression)
+    -----------------------------------
+    0   9
+    1  11
+    2   9
+    3   3
+    4   4
+    """
     return _to_string_sequence(x).byte_length()
 
 @register_function(scope='str')
 def str_ljust(x, width, fillchar=' '):
+    """Fills the right side of string samples with a specified character such that the strings are right-hand justified.
+
+    :param int width: The minimal width of the strings.
+    :param str fillchar: The character used for filling.
+    :returns: an expression containing the filled strings.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.ljust(width=10, fillchar='!')
+    Expression = str_ljust(text, width=10, fillchar='!')
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0   Something!
+    1  very pretty
+    2   is coming!
+    3   our!!!!!!!
+    4   way.!!!!!!
+    """
     sl = _to_string_sequence(x).pad(width, fillchar, False, True)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_lower(x):
+    """Converts string samples to lower case.
+
+    :returns: an expression containing the converted strings.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.lower()
+    Expression = str_lower(text)
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0    something
+    1  very pretty
+    2    is coming
+    3          our
+    4         way.
+    """
     sl = _to_string_sequence(x).lower()
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_lstrip(x, to_strip=None):
+    """Remove leading characters from a string sample.
+
+    :param str to_strip: The string to be removed
+    :returns: an expression containing the modified string column.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.lstrip(to_strip='very ')
+    Expression = str_lstrip(text, to_strip='very ')
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0  Something
+    1     pretty
+    2  is coming
+    3        our
+    4       way.
+    """
     # in c++ we give empty string the same meaning as None
     sl = _to_string_sequence(x).lstrip('' if to_strip is None else to_strip) if to_strip != '' else x
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_match(x, pattern):
+    """Check if a string sample matches a given regular expression.
+
+    :param str pattern: a string or regex to match to a string sample.
+    :returns: an expression which is evaluated to True if a match is found, False otherwise.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.match(pattern='our')
+    Expression = str_match(text, pattern='our')
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0  False
+    1  False
+    2  False
+    3   True
+    4  False
+    """
     return _to_string_sequence(x).match(pattern)
 
 # TODO: normalize, partition
 
 @register_function(scope='str')
 def str_pad(x, width, side='left', fillchar=' '):
+    """Pad strings in a given column.
+
+    :param int width: The total width of the string
+    :param str side: If 'left' than pad on the left, if 'right' than pad on the right side the string.
+    :param str fillchar: The character used for padding.
+    :returns: an expression containing the padded strings.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.pad(width=10, side='left', fillchar='!')
+    Expression = str_pad(text, width=10, side='left', fillchar='!')
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0   !Something
+    1  very pretty
+    2   !is coming
+    3   !!!!!!!our
+    4   !!!!!!way.
+    """
     sl = _to_string_sequence(x).pad(width, fillchar, side in ['left', 'both'], side in ['right', 'both'])
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_repeat(x, repeats):
+    """Duplicate each string in a column.
+
+    :param int repeats: number of times each string sample is to be duplicated.
+    :returns: an expression containing the duplicated strings
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.repeat(3)
+    Expression = str_repeat(text, 3)
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0        SomethingSomethingSomething
+    1  very prettyvery prettyvery pretty
+    2        is comingis comingis coming
+    3                          ourourour
+    4                       way.way.way.
+    """
     sl = _to_string_sequence(x).repeat(repeats)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_replace(x, pat, repl, n=-1, flags=0, regex=False):
+    """Replace occurences of a pattern/regex in a column with some other string.
+
+    :param str pattern: string or a regex pattern
+    :param str replace: a replacement string
+    :param int n: number of replacements to be made from the start. If -1 make all replacements.
+    :param int flags: ??
+    :param bool regex: If True, ...?
+    :returns: an expression containing the string replacements.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.replace(pat='et', repl='__')
+    Expression = str_replace(text, pat='et', repl='__')
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0    Som__hing
+    1  very pr__ty
+    2    is coming
+    3          our
+    4         way.
+    """
     sl = _to_string_sequence(x).replace(pat, repl, n, flags, regex)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_rfind(x, sub, start=0, end=None):
+    """Returns the highest indices in each string in a column, where the provided substring is fully contained between within a
+    sample. If the substring is not found, -1 is returned.
+
+    :param str sub: A substring to be found in the samples
+    :param int start:
+    :param int end:
+    :returns: an expression containing the highest indices specifying the start of the substring.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.rfind(sub="et")
+    Expression = str_rfind(text, sub='et')
+    Length: 5 dtype: int64 (expression)
+    -----------------------------------
+    0   3
+    1   7
+    2  -1
+    3  -1
+    4  -1
+    """
     return _to_string_sequence(x).find(sub, start, 0 if end is None else end, end is None, False)
 
 @register_function(scope='str')
 def str_rindex(x, sub, start=0, end=None):
-    """Same as rfind (difference with pandas is that it does not raise a ValueError)"""
+    """Returns the highest indices in each string in a column, where the provided substring is fully contained between within a
+    sample. If the substring is not found, -1 is returned. Same as `str.rfind`.
+
+    :param str sub: A substring to be found in the samples
+    :param int start:
+    :param int end:
+    :returns: an expression containing the highest indices specifying the start of the substring.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.rindex(sub="et")
+    Expression = str_rindex(text, sub='et')
+    Length: 5 dtype: int64 (expression)
+    -----------------------------------
+    0   3
+    1   7
+    2  -1
+    3  -1
+    4  -1
+    """
     return str_rfind(x, sub, start, end)
 
 @register_function(scope='str')
 def str_rjust(x, width, fillchar=' '):
+    """Fills the left side of string samples with a specified character such that the strings are left-hand justified.
+
+    :param int width: The minimal width of the strings.
+    :param str fillchar: The character used for filling.
+    :returns: an expression containing the filled strings.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.rjust(width=10, fillchar='!')
+    Expression = str_rjust(text, width=10, fillchar='!')
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0   !Something
+    1  very pretty
+    2   !is coming
+    3   !!!!!!!our
+    4   !!!!!!way.
+    """
     sl = _to_string_sequence(x).pad(width, fillchar, True, False)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
@@ -352,6 +956,34 @@ def str_rjust(x, width, fillchar=' '):
 
 @register_function(scope='str')
 def str_rstrip(x, to_strip=None):
+    """Remove trailing characters from a string sample.
+
+    :param str to_strip: The string to be removed
+    :returns: an expression containing the modified string column.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> ds = vaex.from_arrays(text=text)
+    >>> ds
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> ds.text.str.rstrip(to_strip='ing')
+    Expression = str_rstrip(text, to_strip='ing')
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0       Someth
+    1  very pretty
+    2       is com
+    3          our
+    4         way.
+    """
     # in c++ we give empty string the same meaning as None
     sl = _to_string_sequence(x).rstrip('' if to_strip is None else to_strip) if to_strip != '' else x
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
