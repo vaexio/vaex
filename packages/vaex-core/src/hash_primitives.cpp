@@ -4,13 +4,12 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 #include <Python.h>
-#include "flat_hash_map.hpp"
-#include "unordered_map.hpp"
-#include "tsl/sparse_set.h"
-#include "tsl/hopscotch_set.h"
+#include "hash.hpp"
+
 
 namespace py = pybind11;
 #define custom_isnan(value) (!(value==value))
+namespace vaex {
 
 template<class T, class A=T>
 class counter {
@@ -21,7 +20,7 @@ public:
     void update(py::array_t<value_type>&);
     void merge(const counter&);
     std::map<value_type, int64_t> extract();
-    ska::flat_hash_map<storage_type, int64_t> map;
+    hashmap<storage_type, int64_t> map;
     bool has_nan;
     int64_t counts;
     int64_t nan_count;
@@ -153,4 +152,5 @@ void init_hash_primitives(py::module &m) {
     init_hash<float>(m, "float32");
     init_hash<double, uint64_t>(m, "float64");
 
+}
 }

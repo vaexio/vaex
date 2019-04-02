@@ -4,10 +4,8 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 #include <Python.h>
-#include "flat_hash_map.hpp"
-#include "unordered_map.hpp"
-#include "tsl/sparse_set.h"
-#include "tsl/hopscotch_set.h"
+#include "hash.hpp"
+
 
 #include <nonstd/string_view.hpp>
 #include <string>
@@ -15,6 +13,7 @@ typedef nonstd::string_view string_view;
 typedef std::string string;
 
 namespace py = pybind11;
+
 
 class StringSequence {
     public:
@@ -27,6 +26,8 @@ class StringSequence {
     int64_t null_offset;
 };
 
+namespace vaex {
+
 class counter_string {
 public:
     typedef string value_type;
@@ -35,7 +36,7 @@ public:
     void update(StringSequence* strings);
     void merge(const counter_string&);
     std::map<value_type, int64_t> extract();
-    ska::flat_hash_map<storage_type, int64_t> map;
+    hashmap<storage_type, int64_t> map;
     bool has_nan;
     int64_t counts;
     int64_t nan_count;
@@ -94,4 +95,5 @@ void init_hash_string(py::module &m) {
     //     .def("extract", &hashset_type::extract)
     // ;
 
+}
 }

@@ -4,10 +4,7 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 #include <Python.h>
-#include "flat_hash_map.hpp"
-#include "unordered_map.hpp"
-#include "tsl/sparse_set.h"
-#include "tsl/hopscotch_set.h"
+#include "hash.hpp"
 #include <math.h>
 
 namespace py = pybind11;
@@ -20,6 +17,8 @@ namespace std {
         }
     };
 }
+
+namespace vaex {
 
 struct CompareObjects
 {
@@ -46,7 +45,7 @@ public:
     void update(py::buffer object_array);
     void merge(const counter_object&);
     py::object extract();
-    ska::flat_hash_map<storage_type, int64_t, std::hash<storage_type>, CompareObjects> map;
+    hashmap<storage_type, int64_t, std::hash<storage_type>, CompareObjects> map;
     bool has_nan;
     int64_t counts;
     int64_t nan_count;
@@ -140,4 +139,5 @@ void init_hash_object(py::module &m) {
     //     .def("extract", &hashset_type::extract)
     // ;
 
+}
 }
