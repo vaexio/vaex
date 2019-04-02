@@ -1797,7 +1797,7 @@ class DataFrame(object):
                     return str_type
                 if dtype.kind == 'O':
                     # we lie about arrays containing strings
-                    if isinstance(data[0], str_type):
+                    if isinstance(data[0], six.string_types):
                         return str_type
         return dtype
 
