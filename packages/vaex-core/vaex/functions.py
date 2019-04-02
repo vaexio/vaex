@@ -577,6 +577,7 @@ def str_len(x):
     3   3
     4   4
     """
+    return _to_string_sequence(x).len()
 
 @register_function(scope='str')
 def str_byte_length(x):
