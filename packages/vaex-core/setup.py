@@ -26,6 +26,9 @@ if sys.version_info[0] == 2:
 install_requires_viz = ["matplotlib>=1.3.1", ]
 install_requires_astro = ["kapteyn"]
 
+if "MACOSX_DEPLOYMENT_TARGET" not in os.environ:
+    os.environ["MACOSX_DEPLOYMENT_TARGET"] = "10.9"
+
 
 class get_numpy_include(object):
     """Helper class to determine the numpy include path
@@ -58,8 +61,7 @@ if platform.system().lower() == 'windows':
 else:
     extra_compile_args = ["-std=c++11", "-mfpmath=sse", "-O3", "-funroll-loops"]
 if sys.platform == 'darwin':
-    extra_compile_args.append("-stdlib=libc++")
-    extra_compile_args.append("-mmacosx-version-min=10.7")
+    extra_compile_args.append("-mmacosx-version-min=10.9")
 
 # on windows (Conda-forge builds), the dirname is an absolute path
 extension_vaexfast = Extension("vaex.vaexfast", [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
