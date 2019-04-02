@@ -12,7 +12,7 @@ namespace py = pybind11;
 namespace std {
     template<>
     struct hash<PyObject*> {
-        size_t operator()(const PyObject *const &o) {
+        size_t operator()(const PyObject *const &o) const {
             return PyObject_Hash((PyObject*)o);
         }
     };
@@ -77,7 +77,7 @@ void counter_object::update(py::buffer object_array) {
                 Py_IncRef(value);
                 map.emplace(value, 1);
             } else {
-                (*search).second += 1;
+                set_second(search, search->second + 1);
             }
         }
     }
@@ -90,7 +90,7 @@ void counter_object::merge(const counter_object & other) {
         if(search == end) {
             map.emplace(elem);
         } else {
-            (*search).second += elem.second;
+            set_second(search, search->second + elem.second);
         }
     }
     nan_count += other.nan_count;

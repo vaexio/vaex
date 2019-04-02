@@ -42,7 +42,7 @@ void counter<T, A>::update(py::array_t<value_type>& values) {
                 if(search == end) {
                     map.emplace(storage_value, 1);
                 } else {
-                    (*search).second += 1;
+                    set_second(search, search->second + 1);
                 }
             }
     }
@@ -58,7 +58,7 @@ void counter<T, A>::merge(const counter & other) {
         if(search == end) {
             map.emplace(elem);
         } else {
-            (*search).second += elem.second;
+            set_second(search, search->second + elem.second);
         }
     }
     nan_count += other.nan_count;

@@ -52,7 +52,7 @@ void counter_string::update(StringSequence* strings) {
         if(search == end) {
             map.emplace(value, 1);
         } else {
-            (*search).second += 1;
+            set_second(search, search->second + 1);
         }
     }
 }
@@ -66,7 +66,7 @@ void counter_string::merge(const counter_string & other) {
             if(search == end) {
                 map.emplace(elem);
             } else {
-                (*search).second += elem.second;
+                set_second(search, search->second + elem.second);
             }
     }
 }
