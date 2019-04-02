@@ -843,7 +843,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
     if show:
         pylab.show()
     if return_extra:
-        return im, grid, fgrid, ngrid, rgrid, rgba8
+        return im, grid, fgrid, ngrid, rgrid
     else:
         return im
     # colorbar = None
