@@ -501,11 +501,10 @@ def str_get(x, i):
     """
     x = _to_string_sequence(x)
     if i == -1:
-        return x.slice_string_end(-1)
+        sl = x.slice_string_end(-1)
     else:
-        return x.slice_string(i, i+1)
-    # else:
-    #     raise ValueError('get only works on string columns')
+        sl = x.slice_string(i, i+1)
+    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_index(x, sub, start=0, end=None):
