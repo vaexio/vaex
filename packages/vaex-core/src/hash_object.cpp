@@ -88,6 +88,7 @@ void counter_object::merge(const counter_object & other) {
         auto search = map.find(value);
         auto end = map.end();
         if(search == end) {
+            Py_IncRef(value);
             map.emplace(elem);
         } else {
             set_second(search, search->second + elem.second);
