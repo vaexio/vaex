@@ -1213,37 +1213,6 @@ def str_zfill(x, width):
     sl = _to_string_sequence(x).pad(width, '0', True, False)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
-@register_function(scope='str')
-def str_isalpha(x):
-    """Check if all characters in a string sample are alphabetic.
-
-    :returns: an expression evaluated to True if a sample contains only alphabetic characters, otherwise False.
-
-    Example:
-
-    >>> import vaex
-    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> df = vaex.from_arrays(text=text)
-    >>> df
-      #  text
-      0  Something
-      1  very pretty
-      2  is coming
-      3  our
-      4  way.
-
-    >>> df.text.str.isalpha()
-    Expression = str_isalpha(text)
-    Length: 5 dtype: bool (expression)
-    ----------------------------------
-    0   True
-    1  False
-    2  False
-    3   True
-    4  False
-    """
-    sl = _to_string_sequence(x).isalpha()
-    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_isalnum(x):
