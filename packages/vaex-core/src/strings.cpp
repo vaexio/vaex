@@ -102,6 +102,8 @@ class StringSequence {
     }
     virtual ~StringSequence() {
     }
+    virtual string_view view(size_t i) const = 0;
+    virtual const std::string get(size_t i) const = 0;
     virtual size_t byte_size() const = 0;
     virtual bool is_null(size_t i) const {
         return _is_null(null_bitmap, i + null_offset);
@@ -109,8 +111,6 @@ class StringSequence {
     virtual void set_null(size_t i) const {
         _set_null(null_bitmap, i);
     }
-    virtual string_view view(size_t i) const = 0;
-    virtual const std::string get(size_t i) const = 0;
     virtual StringSequence* capitalize();
     virtual StringSequence* concat(StringSequence* other);
     virtual StringSequence* pad(int width, std::string fillchar, bool left, bool right);
@@ -133,6 +133,7 @@ class StringSequence {
     // virtual py::object istitle();
     // virtual py::object isnumeric();
     // virtual py::object isdecimal();
+
     // virtual StringSequence* rstrip();
     // virtual StringSequence* strip();
     virtual py::object byte_length();

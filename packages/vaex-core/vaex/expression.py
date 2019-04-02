@@ -9,7 +9,8 @@ import numpy as np
 import tabulate
 
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
-from vaex.column import ColumnString
+from vaex.column import ColumnString, _to_string_sequence, str_type
+from .hash import counter_type_from_dtype
 import vaex.serialize
 from . import expresso
 
@@ -347,7 +348,7 @@ class Expression(with_metaclass(Meta)):
         """Evaluates expression, and drop the result, usefull for benchmarking, since vaex is usually lazy"""
         return self.ds.nop(self.expression)
 
-    def value_counts(self, dropna=False, ascending=False):
+    def value_counts(self, dropna=False, dropnull=True, ascending=False, progress=False):
         """Computes counts of unique values.
 
          WARNING:
@@ -359,43 +360,48 @@ class Expression(with_metaclass(Meta)):
         :returns: Pandas series containing the counts
         """
         from pandas import Series
-        df = self.ds
-        # we convert to catergorical
-        if not df.iscategory(self.expression):
-            df = df.ordinal_encode(self.expression)
-        N = df.category_count(self.expression)
-        # such that we can simply do count + binby
-        raw_counts = df.count(binby=self.expression, edges=True, limits=[-0.5, N-0.5], shape=N)
-        assert raw_counts[1] == 0, "unexpected data outside of limits"
-        assert raw_counts[-1] == 0, "unexpected data outside of limits"
-        if dropna:
-            counts = raw_counts[2:-1]
-            index = df.category_values(self.expression)
-        else:
-            # first element contains missing values/wrong values
-            counts = np.zeros(N+1, dtype=np.int64)
-            counts[0] = raw_counts[0]
-            counts[1:] = raw_counts[2:-1]
-            if df.category_values(self.expression).dtype.kind == 'f':
-                index = [np.nan] + df.category_values(self.expression).tolist()
-            else:
-                index = ["missing"] + df.category_labels(self.expression)
+        dtype = self.dtype
+
+        counter_type = counter_type_from_dtype(self.dtype)
+        counters = [None] * self.ds.executor.thread_pool.nthreads
+        def map(thread_index, i1, i2, ar):
+            mask_count = 0
+            if np.ma.isMaskedArray(ar):
+                mask = np.ma.getmaskarray(ar)
+                mask_count += mask.sum()
+                ar = ar[~mask]
+            if counters[thread_index] is None:
+                counters[thread_index] = counter_type()
+            if dtype == str_type:
+                ar = _to_string_sequence(ar)
+            counters[thread_index].update(ar)
+            return mask_count
+        def reduce(a, b):
+            return a+b
+        mask_count = self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progress, name='value_counts', info=True)
+        counters = [k for k in counters if k is not None]
+        counter0 = counters[0]
+        for other in counters[1:]:
+            counter0.merge(other)
+        value_counts = counter0.extract()
+        index = np.array(list(value_counts.keys()))
+        counts = np.array(list(value_counts.values()))
+
         order = np.argsort(counts)
-        index = np.asanyarray(index)
         if not ascending:
             order = order[::-1]
         counts = counts[order]
         index = index[order]
-        # filter out values not present (which can happen due to how categorize works)
-        ok = counts > 0
-        if dropna and df.category_values(self.expression).dtype.kind == 'f':
-            nan_mask = np.isnan(index)
-            if np.any(nan_mask):
-                ok = ok & ~nan_mask
-        if np.ma.isMaskedArray(index):
-            ok = ok & ~np.ma.getmaskarray(index)
-        counts = counts[ok]
-        index = index[ok]
+        if not dropna or not dropnull:
+            index = index.tolist()
+            counts = counts.tolist()
+            if not dropna and counter0.nan_count:
+                index = [np.nan] + index
+                counts = [counter0.nan_count] + counts
+            if not dropnull and mask_count:
+                index = ['null'] + index
+                counts = [mask_count] + counts
+
         return Series(counts, index=index)
 
     def unique(self):

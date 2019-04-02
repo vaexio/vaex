@@ -88,10 +88,20 @@ extension_strings = Extension("vaex.strings", [os.path.relpath(os.path.join(dirn
                                extra_compile_args=extra_compile_args,
                                libraries=['pcre', 'pcrecpp']
                                )
-extension_superutils = Extension("vaex.superutils", [os.path.relpath(os.path.join(dirname, "src/superutils.cpp"))],
-                               include_dirs=[get_numpy_include(), get_pybind_include(),
-                               get_pybind_include(user=True)],
-                               extra_compile_args=extra_compile_args)
+extension_superutils = Extension("vaex.superutils", [
+        os.path.relpath(os.path.join(dirname, "src/hash_object.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/hash_primitives.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/superutils.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/hash_string.cpp")),
+    ],
+    include_dirs=[
+        get_numpy_include(), get_pybind_include(),
+        get_pybind_include(user=True), 'vendor/flat_hash_map',
+        'vendor/sparse-map/include',
+        'vendor/hopscotch-map/include',
+        'vendor/string-view-lite/include'
+    ],
+    extra_compile_args=extra_compile_args)
 
 setup(name=name + '-core',
       version=version,

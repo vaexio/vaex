@@ -91,13 +91,22 @@ py::object unique(py::array_t<T> values, bool return_inverse=false) {
                 std::copy(unique_set.begin(), unique_set.end(), ptr);
             }
         }
-        return unique_values;
+        return std::move(unique_values);
     }
 }
 
+void init_hash_primitives(py::module &);
+void init_hash_string(py::module &);
+void init_hash_object(py::module &);
+
+
 PYBIND11_MODULE(superutils, m) {
     _import_array();
+
     m.doc() = "fast utils";
     m.def("unique", &unique<double>, "Find unique elements", py::arg("values"), py::arg("return_inverse")=false);
     m.def("unique", &unique<float>, "Find unique elements", py::arg("values"), py::arg("return_inverse")=false);
+    init_hash_primitives(m);
+    init_hash_string(m);
+    init_hash_object(m);
 }

@@ -155,6 +155,10 @@ class TaskMapReduce(Task):
                     mask |= other
                 blocks = [block[~mask] for block in blocks]
 
+        selection = None
+        if selection or self.df.filtered:
+            selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
+            blocks = [block[selection_mask] for block in blocks]
         if self.info:
             return self._map(thread_index, i1, i2, *blocks)
         else:
