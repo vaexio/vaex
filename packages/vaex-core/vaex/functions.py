@@ -219,8 +219,8 @@ def str_capitalize(x):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -228,7 +228,7 @@ def str_capitalize(x):
       3  our
       4  way.
 
-    >>> ds.text.str.capitalize()
+    >>> df.text.str.capitalize()
     Expression = str_capitalize(text)
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -252,8 +252,8 @@ def str_cat(x, other):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -261,7 +261,7 @@ def str_cat(x, other):
       3  our
       4  way.
 
-    >>> ds.text.str.cat(ds.text)
+    >>> df.text.str.cat(df.text)
     Expression = str_cat(text, text)
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -288,8 +288,8 @@ def str_center(x, width, fillchar=' '):
     Example:
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -297,7 +297,7 @@ def str_center(x, width, fillchar=' '):
       3  our
       4  way.
 
-    >>> ds.text.str.center(width=11, fillchar='!')
+    >>> df.text.str.center(width=11, fillchar='!')
     Expression = str_center(text, width=11, fillchar='!')
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -316,14 +316,14 @@ def str_contains(x, pattern, regex=True):
 
     :param str pattern: A string or regex pattern
     :param bool regex: If True,
-    :return: an expression which is evaluated to True if the pattern is found in a given sample, and it is False otherwise.
+    :returns: an expression which is evaluated to True if the pattern is found in a given sample, and it is False otherwise.
 
     Example:
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -331,7 +331,7 @@ def str_contains(x, pattern, regex=True):
       3  our
       4  way.
 
-    >>> ds.text.str.contains('very')
+    >>> df.text.str.contains('very')
     Expression = str_contains(text, 'very')
     Length: 5 dtype: bool (expression)
     ----------------------------------
@@ -356,8 +356,8 @@ def str_count(x, pat, regex=False):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -365,7 +365,7 @@ def str_count(x, pat, regex=False):
       3  our
       4  way.
 
-    >>> ds.text.str.count(pat="et", regex=False)
+    >>> df.text.str.count(pat="et", regex=False)
     Expression = str_count(text, pat='et', regex=False)
     Length: 5 dtype: int64 (expression)
     -----------------------------------
@@ -390,8 +390,8 @@ def str_endswith(x, pat):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -399,7 +399,7 @@ def str_endswith(x, pat):
       3  our
       4  way.
 
-    >>> ds.text.str.endswith(pat="ing")
+    >>> df.text.str.endswith(pat="ing")
     Expression = str_endswith(text, pat='ing')
     Length: 5 dtype: bool (expression)
     ----------------------------------
@@ -443,8 +443,8 @@ def str_find(x, sub, start=0, end=None):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -452,7 +452,7 @@ def str_find(x, sub, start=0, end=None):
       3  our
       4  way.
 
-    >>> ds.text.str.find(sub="et")
+    >>> df.text.str.find(sub="et")
     Expression = str_find(text, sub='et')
     Length: 5 dtype: int64 (expression)
     -----------------------------------
@@ -480,8 +480,8 @@ def str_get(x, i):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -489,7 +489,7 @@ def str_get(x, i):
       3  our
       4  way.
 
-    >>> ds.text.str.get(5)
+    >>> df.text.str.get(5)
     Expression = str_get(text, 5)
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -521,8 +521,8 @@ def str_index(x, sub, start=0, end=None):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -530,7 +530,7 @@ def str_index(x, sub, start=0, end=None):
       3  our
       4  way.
 
-    >>> ds.text.str.index(sub="et")
+    >>> df.text.str.index(sub="et")
     Expression = str_find(text, sub='et')
     Length: 5 dtype: int64 (expression)
     -----------------------------------
@@ -558,8 +558,8 @@ def str_len(x):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -567,7 +567,7 @@ def str_len(x):
       3  our
       4  way.
 
-    >>> ds.text.str.len()
+    >>> df.text.str.len()
     Expression = str_len(text)
     Length: 5 dtype: int64 (expression)
     -----------------------------------
@@ -588,8 +588,8 @@ def str_byte_length(x):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -597,7 +597,7 @@ def str_byte_length(x):
       3  our
       4  way.
 
-    >>> ds.text.str.byte_length()
+    >>> df.text.str.byte_length()
     Expression = str_byte_length(text)
     Length: 5 dtype: int64 (expression)
     -----------------------------------
@@ -621,8 +621,8 @@ def str_ljust(x, width, fillchar=' '):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -630,7 +630,7 @@ def str_ljust(x, width, fillchar=' '):
       3  our
       4  way.
 
-    >>> ds.text.str.ljust(width=10, fillchar='!')
+    >>> df.text.str.ljust(width=10, fillchar='!')
     Expression = str_ljust(text, width=10, fillchar='!')
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -653,8 +653,8 @@ def str_lower(x):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -662,7 +662,7 @@ def str_lower(x):
       3  our
       4  way.
 
-    >>> ds.text.str.lower()
+    >>> df.text.str.lower()
     Expression = str_lower(text)
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -686,8 +686,8 @@ def str_lstrip(x, to_strip=None):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -695,7 +695,7 @@ def str_lstrip(x, to_strip=None):
       3  our
       4  way.
 
-    >>> ds.text.str.lstrip(to_strip='very ')
+    >>> df.text.str.lstrip(to_strip='very ')
     Expression = str_lstrip(text, to_strip='very ')
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -720,8 +720,8 @@ def str_match(x, pattern):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -729,7 +729,7 @@ def str_match(x, pattern):
       3  our
       4  way.
 
-    >>> ds.text.str.match(pattern='our')
+    >>> df.text.str.match(pattern='our')
     Expression = str_match(text, pattern='our')
     Length: 5 dtype: bool (expression)
     ----------------------------------
@@ -756,8 +756,8 @@ def str_pad(x, width, side='left', fillchar=' '):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -765,7 +765,7 @@ def str_pad(x, width, side='left', fillchar=' '):
       3  our
       4  way.
 
-    >>> ds.text.str.pad(width=10, side='left', fillchar='!')
+    >>> df.text.str.pad(width=10, side='left', fillchar='!')
     Expression = str_pad(text, width=10, side='left', fillchar='!')
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -789,8 +789,8 @@ def str_repeat(x, repeats):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -798,7 +798,7 @@ def str_repeat(x, repeats):
       3  our
       4  way.
 
-    >>> ds.text.str.repeat(3)
+    >>> df.text.str.repeat(3)
     Expression = str_repeat(text, 3)
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -826,8 +826,8 @@ def str_replace(x, pat, repl, n=-1, flags=0, regex=False):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -835,7 +835,7 @@ def str_replace(x, pat, repl, n=-1, flags=0, regex=False):
       3  our
       4  way.
 
-    >>> ds.text.str.replace(pat='et', repl='__')
+    >>> df.text.str.replace(pat='et', repl='__')
     Expression = str_replace(text, pat='et', repl='__')
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -862,8 +862,8 @@ def str_rfind(x, sub, start=0, end=None):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -871,7 +871,7 @@ def str_rfind(x, sub, start=0, end=None):
       3  our
       4  way.
 
-    >>> ds.text.str.rfind(sub="et")
+    >>> df.text.str.rfind(sub="et")
     Expression = str_rfind(text, sub='et')
     Length: 5 dtype: int64 (expression)
     -----------------------------------
@@ -897,8 +897,8 @@ def str_rindex(x, sub, start=0, end=None):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -906,7 +906,7 @@ def str_rindex(x, sub, start=0, end=None):
       3  our
       4  way.
 
-    >>> ds.text.str.rindex(sub="et")
+    >>> df.text.str.rindex(sub="et")
     Expression = str_rindex(text, sub='et')
     Length: 5 dtype: int64 (expression)
     -----------------------------------
@@ -930,8 +930,8 @@ def str_rjust(x, width, fillchar=' '):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -939,7 +939,7 @@ def str_rjust(x, width, fillchar=' '):
       3  our
       4  way.
 
-    >>> ds.text.str.rjust(width=10, fillchar='!')
+    >>> df.text.str.rjust(width=10, fillchar='!')
     Expression = str_rjust(text, width=10, fillchar='!')
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -965,8 +965,8 @@ def str_rstrip(x, to_strip=None):
 
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
-    >>> ds = vaex.from_arrays(text=text)
-    >>> ds
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
       #  text
       0  Something
       1  very pretty
@@ -974,7 +974,7 @@ def str_rstrip(x, to_strip=None):
       3  our
       4  way.
 
-    >>> ds.text.str.rstrip(to_strip='ing')
+    >>> df.text.str.rstrip(to_strip='ing')
     Expression = str_rstrip(text, to_strip='ing')
     Length: 5 dtype: str (expression)
     ---------------------------------
@@ -990,6 +990,35 @@ def str_rstrip(x, to_strip=None):
 
 @register_function(scope='str')
 def str_slice(x, start=0, stop=None):  # TODO: support n
+    """Slice substrings from each string element in a column.
+
+    :param int start: The start position for the slice operation.
+    :param int end: The stop position for the slice operation.
+    :returns: an expression containing the sliced substrings.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.slice(start=2, stop=5)
+    Expression = str_pandas_slice(text, start=2, stop=5)
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0  met
+    1   ry
+    2   co
+    3    r
+    4   y.
+    """
     if stop is None:
         sll = _to_string_sequence(x).slice_string_end(start)
     else:
@@ -1010,10 +1039,71 @@ def str_split(x, pattern=None):  # TODO: support n
 
 @register_function(scope='str')
 def str_startswith(x, pat):
+    """Check if a start of a string matches a pattern.
+
+    :param str pat: A string pattern. Regular expressions are not supported.
+    :returns: an expression which is evaluated to True if the pattern is found at the start of a string sample, False otherwise.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.startswith(pat='is')
+    Expression = str_startswith(text, pat='is')
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0  False
+    1  False
+    2   True
+    3  False
+    4  False
+    """
     return _to_string_sequence(x).startswith(pat)
 
 @register_function(scope='str')
 def str_strip(x, to_strip=None):
+    """Removes leading and trailing characters.
+
+    Strips whitespaces (including new lines), or a set of specified
+    characters from each string saple in a column, both from the left
+    right sides.
+
+    :param str to_strip: The characters to be removed. All combinations of the characters will be removed.
+                         If None, it removes whitespaces.
+    :param returns: an expression containing the modified string samples.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.strip(to_strip='very')
+    Expression = str_strip(text, to_strip='very')
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0  Something
+    1      prett
+    2  is coming
+    3         ou
+    4       way.
+    """
     # in c++ we give empty string the same meaning as None
     sl = _to_string_sequence(x).strip('' if to_strip is None else to_strip) if to_strip != '' else x
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
@@ -1022,12 +1112,68 @@ def str_strip(x, to_strip=None):
 
 @register_function(scope='str')
 def str_title(x):
+    """Converts all string samples to titlecase.
+
+    :returns: an expression containing the converted strings.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.title()
+    Expression = str_title(text)
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0    Something
+    1  Very Pretty
+    2    Is Coming
+    3          Our
+    4         Way.
+    """
     sl = _to_string_sequence(x).title()
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 
 @register_function(scope='str')
 def str_upper(x):
+    """Converts all strings in a column to uppercase.
+
+    :returns: an expression containing the converted strings.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+
+    >>> df.text.str.upper()
+    Expression = str_upper(text)
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0    SOMETHING
+    1  VERY PRETTY
+    2    IS COMING
+    3          OUR
+    4         WAY.
+
+    """
     sl = _to_string_sequence(x).upper()
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
@@ -1036,37 +1182,254 @@ def str_upper(x):
 
 @register_function(scope='str')
 def str_zfill(x, width):
+    """Pad strings in a column by prepanding "0" characters.
+
+    :param int width: The minimum length of the resulting string. Strings shorter less than `width` will be prepended with zeros.
+    :returns: an expression containing the modified strings.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.zfill(width=12)
+    Expression = str_zfill(text, width=12)
+    Length: 5 dtype: str (expression)
+    ---------------------------------
+    0  000Something
+    1  0very pretty
+    2  000is coming
+    3  000000000our
+    4  00000000way.
+    """
     sl = _to_string_sequence(x).pad(width, '0', True, False)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_isalpha(x):
+    """Check if all characters in a string sample are alphabetic.
+
+    :returns: an expression evaluated to True if a sample contains only alphabetic characters, otherwise False.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.isalpha()
+    Expression = str_isalpha(text)
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0   True
+    1  False
+    2  False
+    3   True
+    4  False
+    """
     sl = _to_string_sequence(x).isalpha()
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_isalnum(x):
-    sl = _to_string_sequence(x).isalnum()
+    """Check if all characters in a string sample are alphanumeric.
+
+    :returns: an expression evaluated to True if a sample contains only alphanumeric characters, otherwise False.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.isalnum()
+    Expression = str_isalnum(text)
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0   True
+    1  False
+    2  False
+    3   True
+    4  False
+    """
+    ls = _to_string_sequence(x).isalnum()
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 
 @register_function(scope='str')
 def str_isalpha(x):
+    """Check if all characters in a string sample are alphabetic.
+
+    :returns: an expression evaluated to True if a sample contains only alphabetic characters, otherwise False.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.isalpha()
+    Expression = str_isalpha(text)
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0   True
+    1  False
+    2  False
+    3   True
+    4  False
+    """
     return _to_string_sequence(x).isalpha()
 
 @register_function(scope='str')
 def str_isdigit(x):
+    """Check if all characters in a string sample are digits.
+
+    :returns: an expression evaluated to True if a sample contains only digits, otherwise False.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', '6']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  6
+
+    >>> df.text.str.isdigit()
+    Expression = str_isdigit(text)
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0  False
+    1  False
+    2  False
+    3  False
+    4   True
+    """
     return _to_string_sequence(x).isdigit()
 
 @register_function(scope='str')
 def str_isspace(x):
+    """Check if all characters in a string sample are whitespaces.
+
+    :returns: an expression evaluated to True if a sample contains only whitespaces, otherwise False.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', '      ', ' ']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3
+      4
+
+    >>> df.text.str.isspace()
+    Expression = str_isspace(text)
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0  False
+    1  False
+    2  False
+    3   True
+    4   True
+    """
     return _to_string_sequence(x).isspace()
 
 @register_function(scope='str')
 def str_islower(x):
+    """Check if all characters in a string sample are lowercase characters.
+
+    :returns: an expression evaluated to True if a sample contains only lowercase characters, otherwise False.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.islower()
+    Expression = str_islower(text)
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0  False
+    1   True
+    2   True
+    3   True
+    4   True
+    """
     return _to_string_sequence(x).islower()
 
 @register_function(scope='str')
 def str_isupper(x):
+    """Check if all characters in a string sample are lowercase characters.
+
+    :returns: an expression evaluated to True if a sample contains only lowercase characters, otherwise False.
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['SOMETHING', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  SOMETHING
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.isupper()
+    Expression = str_isupper(text)
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0   True
+    1  False
+    2  False
+    3  False
+    4  False
+    """
     return _to_string_sequence(x).isupper()
 
 # @register_function(scope='str')
