@@ -7,3 +7,6 @@
 [submodule "packages/vaex-core/vendor/hopscotch-map"]
 	path = packages/vaex-core/vendor/hopscotch-map
 	url = https://github.com/Tessil/hopscotch-map
+[submodule "packages/vaex-core/vendor/flat_hash_map"]
+	path = packages/vaex-core/vendor/flat_hash_map
+	url = https://github.com/skarupke/flat_hash_map
