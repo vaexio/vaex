@@ -148,61 +148,349 @@ def fillna(ar, value, fill_nan=True, fill_masked=True):
 
 @register_function(scope='dt', as_property=True)
 def dt_dayofweek(x):
+    """Obtain the day of the week with Monday=0 and Sunday=6
+
+    :returns: an expression containing the day of week.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.dayofweek
+    Expression = dt_dayofweek(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0  0
+    1  3
+    2  3
+    """
     import pandas as pd
     return pd.Series(x).dt.dayofweek.values
 
 @register_function(scope='dt', as_property=True)
 def dt_dayofyear(x):
+    """The ordinal day of the year.
+
+    :returns: an expression containing the ordinal day of the year.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.dayofyear
+    Expression = dt_dayofyear(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0  285
+    1   42
+    2  316
+    """
     import pandas as pd
     return pd.Series(x).dt.dayofyear.values
 
 @register_function(scope='dt', as_property=True)
 def dt_is_leap_year(x):
+    """Check whether a year is a leap year.
+
+    :returns: an expression which evaluates to True if a year is a leap year, and to False otherwise.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.is_leap_year
+    Expression = dt_is_leap_year(date)
+    Length: 3 dtype: bool (expression)
+    ----------------------------------
+    0  False
+    1   True
+    2  False
+    """
     import pandas as pd
     return pd.Series(x).dt.is_leap_year.values
 
 @register_function(scope='dt', as_property=True)
 def dt_year(x):
+    """Extracts the year out of a datetime sample.
+
+    :returns: an expression containing the year extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.year
+    Expression = dt_year(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0  2009
+    1  2016
+    2  2015
+    """
     import pandas as pd
     return pd.Series(x).dt.year.values
 
 @register_function(scope='dt', as_property=True)
 def dt_month(x):
+    """Extracts the month out of a datetime sample.
+
+    :returns: an expression containing the month extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.month
+    Expression = dt_month(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0  10
+    1   2
+    2  11
+    """
     import pandas as pd
     return pd.Series(x).dt.month.values
 
 @register_function(scope='dt', as_property=True)
 def dt_month_name(x):
+    """Returns the month names of a datetime sample in English.
+
+    :returns: an expression containing the month names extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.month_name
+    Expression = dt_month_name(date)
+    Length: 3 dtype: str (expression)
+    ---------------------------------
+    0   October
+    1  February
+    2  November
+    """
     import pandas as pd
     return pd.Series(x).dt.month_name().values.astype(str)
 
 @register_function(scope='dt', as_property=True)
 def dt_day(x):
+    """Extracts the day from a datetime sample.
+
+    :returns: an expression containing the day extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.day
+    Expression = dt_day(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0  12
+    1  11
+    2  12
+    """
     import pandas as pd
     return pd.Series(x).dt.day.values
 
 @register_function(scope='dt', as_property=True)
 def dt_day_name(x):
+    """Returns the day names of a datetime sample in English.
+
+    :returns: an expression containing the day names extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.day_name
+    Expression = dt_day_name(date)
+    Length: 3 dtype: str (expression)
+    ---------------------------------
+    0    Monday
+    1  Thursday
+    2  Thursday
+    """
     import pandas as pd
     return pd.Series(x).dt.day_name().values.astype(str)
 
 @register_function(scope='dt', as_property=True)
 def dt_weekofyear(x):
+    """Returns the week ordinal of the year.
+
+    :returns: an expression containing the week ordinal of the year, extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.weekofyear
+    Expression = dt_weekofyear(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0  42
+    1   6
+    2  46
+    """
     import pandas as pd
     return pd.Series(x).dt.weekofyear.values
 
 @register_function(scope='dt', as_property=True)
 def dt_hour(x):
+    """Extracts the hour out of a datetime samples.
+
+    :returns: an expression containing the hour extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.hour
+    Expression = dt_hour(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0   3
+    1  10
+    2  11
+    """
     import pandas as pd
     return pd.Series(x).dt.hour.values
 
 @register_function(scope='dt', as_property=True)
 def dt_minute(x):
+    """Extracts the minute out of a datetime samples.
+
+    :returns: an expression containing the minute extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.minute
+    Expression = dt_minute(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0  31
+    1  17
+    2  34
+    """
     import pandas as pd
     return pd.Series(x).dt.minute.values
 
 @register_function(scope='dt', as_property=True)
 def dt_second(x):
+    """Extracts the second out of a datetime samples.
+
+    :returns: an expression containing the second extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.second
+    Expression = dt_second(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0   0
+    1  34
+    2  22
+    """
     import pandas as pd
     return pd.Series(x).dt.second.values
 
