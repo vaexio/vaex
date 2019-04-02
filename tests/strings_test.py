@@ -276,7 +276,7 @@ def test_string_title(dfs):
 	assert dfs.s.str.title().tolist() == dfs.s.str_pandas.title().tolist()
 
 def test_string_isalnum(dfs):
-	assert dfs.s.str.isalpha().tolist() == dfs.s.str_pandas.isalpha().tolist()
+	assert dfs.s.str.isalnum().tolist() == dfs.s.str_pandas.isalnum().tolist()
 
 def test_string_isalpha(dfs):
 	assert dfs.s.str.isalpha().tolist() == dfs.s.str_pandas.isalpha().tolist()

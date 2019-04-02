@@ -212,6 +212,18 @@ bool char32_isalpha(char32_t chr) {
   category_t cat = char32_category(chr);
   return (cat == Lm) || (cat == Lt) || (cat == Lu) || (cat == Ll) || (cat == Lo);
 }
+
+bool char32_isalnum(char32_t chr) {
+  category_t cat = char32_category(chr);
+  bool isalpha = (cat == Lm) || (cat == Lt) || (cat == Lu) || (cat == Ll) || (cat == Lo);
+  // not sure how Python distinguises the 3 cases
+  // bool isdecimal = (cat == Nd);
+  // bool isdigit = (cat == Nd) || (cat == Nl) || (cat == No);
+  // bool isnumeric =
+  // but this is more clear
+  bool isnum = (cat == Nd) || (cat == Nl) || (cat == No);
+  return isalpha || isnum;
+}
 char32_t char32_uppercase(char32_t chr) {
   if (chr < CHARS) {
     char32_t othercase = othercase_block[othercase_index[chr >> 8]][chr & 0xFF];

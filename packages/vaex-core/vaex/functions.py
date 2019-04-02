@@ -1275,8 +1275,7 @@ def str_isalnum(x):
     3   True
     4  False
     """
-    ls = _to_string_sequence(x).isalnum()
-    return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
+    return _to_string_sequence(x).isalnum()
 
 @register_function(scope='str')
 def str_isalpha(x):

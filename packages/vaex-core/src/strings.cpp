@@ -1445,11 +1445,10 @@ py::object StringSequence::byte_length() {
 
 
 py::object StringSequence::isalnum() {
-    return _map_bool_all<bool>(this, ::isalnum);
+    return _map_bool_all_utf8<bool>(this, ::isalnum, char32_isalnum, always_true_ascii, always_true_unicode);
 }
 py::object StringSequence::isalpha() {
     return _map_bool_all_utf8<bool>(this, ::isalpha, char32_isalpha, always_true_ascii, always_true_unicode);
-    // return _map_bool_all<bool>(this, ::isalpha);
 }
 py::object StringSequence::isdigit() {
     return _map_bool_all<bool>(this, ::isdigit);
