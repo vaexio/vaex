@@ -53,8 +53,10 @@ class get_pybind_include(object):
         self.user = user
 
     def __str__(self):
-        import pybind11
-        return pybind11.get_include(self.user)
+        # this trick does not work anymore it seems, we now just vendor it
+        # import pybind11
+        # return pybind11.get_include(self.user)
+        return 'vendor/pybind11/include'
 
 if platform.system().lower() == 'windows':
     extra_compile_args = ["/EHsc"]
