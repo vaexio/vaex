@@ -20,7 +20,7 @@ url = 'https://www.github.com/maartenbreddels/vaex'
 # TODO: would be nice to have astropy only as dep in vaex-astro
 install_requires_core = ["numpy>=1.11", "astropy>=2", "aplus", "tabulate>=0.8.3",
                          "future>=0.15.2", "pyyaml", "progressbar2", "psutil>=1.2.1",
-                         "requests", "six", "cloudpickle", 'pybind11>=2.2']
+                         "requests", "six", "cloudpickle"]
 if sys.version_info[0] == 2:
     install_requires_core.append("futures>=2.2.0")
 install_requires_viz = ["matplotlib>=1.3.1", ]
@@ -53,8 +53,10 @@ class get_pybind_include(object):
         self.user = user
 
     def __str__(self):
-        import pybind11
-        return pybind11.get_include(self.user)
+        # this trick does not work anymore it seems, we now just vendor it
+        # import pybind11
+        # return pybind11.get_include(self.user)
+        return 'vendor/pybind11/include'
 
 if platform.system().lower() == 'windows':
     extra_compile_args = ["/EHsc"]
