@@ -11,9 +11,10 @@ import traceback
 import cProfile
 import concurrent.futures
 import time
+import os
 
-
-thread_count_default = multiprocessing.cpu_count()  # * 2 + 1
+thread_count_default = os.environ.get('VAEX_NUM_THREADS', multiprocessing.cpu_count())  # * 2 + 1
+thread_count_default = int(thread_count_default)
 logger = logging.getLogger("vaex.multithreading")
 
 
