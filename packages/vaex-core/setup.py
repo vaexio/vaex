@@ -69,7 +69,8 @@ extension_vaexfast = Extension("vaex.vaexfast", [os.path.relpath(os.path.join(di
                                extra_compile_args=extra_compile_args)
 extension_strings = Extension("vaex.strings", [os.path.relpath(os.path.join(dirname, "src/strings.cpp"))],
                                include_dirs=[get_numpy_include(), get_pybind_include(),
-                               get_pybind_include(user=True), 'vendor/string-view-lite/include'],
+                               get_pybind_include(user=True), 'vendor/string-view-lite/include',
+                               'vendor/boost'],
                                extra_compile_args=extra_compile_args)
 extension_superutils = Extension("vaex.superutils", [os.path.relpath(os.path.join(dirname, "src/superutils.cpp"))],
                                include_dirs=[get_numpy_include(), get_pybind_include(),

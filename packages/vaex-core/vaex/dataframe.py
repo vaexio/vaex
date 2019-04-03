@@ -1797,7 +1797,7 @@ class DataFrame(object):
                     return str_type
                 if dtype.kind == 'O':
                     # we lie about arrays containing strings
-                    if isinstance(data[0], str_type):
+                    if isinstance(data[0], six.string_types):
                         return str_type
         return dtype
 
@@ -3317,7 +3317,7 @@ class DataFrame(object):
         N = len(self)
         columns = {}
         for feature in self.get_column_names(strings=strings, virtual=virtual)[:]:
-            dtype = str(self.dtype(feature))
+            dtype = str(self.dtype(feature)) if str != str_type else 'str'
             if self.dtype(feature) == str_type or self.dtype(feature).kind in ['S', 'U', 'O']:
                 count = self.count(feature, selection=selection, delay=True)
                 self.execute()

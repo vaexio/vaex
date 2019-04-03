@@ -204,6 +204,12 @@ def _to_string_sequence(x):
     else:
         raise ValueError('not a ColumnString or ndarray: ' + str(x))
 
+def _to_string_list_sequence(x):
+    if isinstance(x, vaex.strings.StringListList):
+        return x
+    else:
+        raise ValueError('not a StringListList')
+
 class ColumnStringArrow(ColumnString):
     """Column that unpacks the arrow string column on the fly"""
     def __init__(self, indices, bytes, length=None, offset=0, string_sequence=None, null_bitmap=None):
