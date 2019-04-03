@@ -13,7 +13,7 @@ author_email = "maartenbreddels@gmail.com"
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_ui = ["vaex-core>=0.1", "PyOpenGL", "scipy", "matplotlib", "vaex-hdf5", "vaex-astro"]
+install_requires_ui = ["vaex-core>=0.6.1", "PyOpenGL", "scipy", "matplotlib", "vaex-hdf5", "vaex-astro"]
 
 setup(name=name + '-ui',
       version=version,
