@@ -51,11 +51,11 @@ def test_value_counts_simple():
     assert ds.x.value_counts(dropna=False, ascending=True).values.tolist() == [1, 1, 2, 3]
 
     # print(ds.s.value_counts(dropna=True, ascending=True))
-    assert ds.s.value_counts(dropna=True, ascending=True).index.tolist() == ['0.0', 'nan', '1.0', '2.0']
-    assert ds.s.value_counts(dropna=True, ascending=True).values.tolist() == [1, 1.0, 2, 3]
+    assert set(ds.s.value_counts(dropna=True, ascending=True).index.tolist()) == {'0.0', 'nan', '1.0', '2.0'}
+    assert set(ds.s.value_counts(dropna=True, ascending=True).values.tolist()) == {1, 1.0, 2, 3}
 
-    assert ds.y.value_counts(dropna=True, ascending=True).index.tolist() == [1, 2]
-    assert ds.y.value_counts(dropna=True, ascending=True).values.tolist() == [1, 3]
+    assert set(ds.y.value_counts(dropna=True, ascending=True).index.tolist()) == {1, 2}
+    assert set(ds.y.value_counts(dropna=True, ascending=True).values.tolist()) == {1, 3}
     # nan comparison with == never works
     # assert ds.y.value_counts(dropna=False, ascending=True).index.tolist() == [1, np.nan, None, 2]
     assert ds.y.value_counts(dropna=False, dropnull=True, ascending=True).values.tolist()  == [1, 1, 3]
