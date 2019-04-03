@@ -1,5 +1,6 @@
 from common import *
 import os
+import tempfile
 
 def test_export(ds_local, tmpdir):
 	ds = ds_local
@@ -10,6 +11,24 @@ def test_export(ds_local, tmpdir):
 	ds = ds.sample(5)
 	path = str(tmpdir.join('sample.hdf5'))
 	ds.export_hdf5(path)
+
+
+def test_export_open_hdf5(ds_local):
+	ds = ds_local
+	ds = ds.drop(ds.obj)
+	filename = tempfile.mktemp(suffix='.hdf5')
+	ds.export(filename)
+	ds_opened = vaex.open(filename)
+	assert list(ds) == list(ds_opened)
+
+
+def test_export_open_hdf5(ds_local):
+	ds = ds_local
+	ds = ds.drop(ds.obj)
+	filename = tempfile.mktemp(suffix='.arrow')
+	ds.export(filename)
+	ds_opened = vaex.open(filename)
+	assert list(ds) == list(ds_opened)
 
 
 def test_export_string_mask(tmpdir):
