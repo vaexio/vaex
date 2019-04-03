@@ -32,6 +32,19 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         self.thread_indices = iter(range(1000000))  # enough threads until 2100?
         self.local = threading.local()
         self.nthreads = self._max_workers
+        self._park_event = threading.Event()
+        self._park()
+
+    def _park(self):
+        self._park_event.clear()
+        def _wait():
+            # print("Waiting...")
+            self._park_event.wait()
+            # print("Working")
+        self.submit(_wait)
+
+    def _work(self):
+        self._park_event.set()
 
     def map(self, callable, iterator, on_error=None, progress=None, cancel=None, unpack=False):
         progress = progress or (lambda x: True)
@@ -50,6 +63,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         N = len(values)
         time_last = time.time() - 100
         min_delta_t = 1. / 100  # max 100 per second
+        results = []
         for i, value in enumerate(super(ThreadPoolIndex, self).map(wrapped, values)):
             progress_value = (i + 1) / N
             time_now = time.time()
@@ -57,7 +71,10 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                 time_last = time_now
                 if progress(progress_value) == False:
                     cancelled = True
-            yield value
+            results.append(value)
+        self._work()
+        self._park()
+        return results
 
 
 main_pool = None  # ThreadPoolIndex()
