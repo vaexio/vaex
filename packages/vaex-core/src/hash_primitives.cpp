@@ -149,6 +149,7 @@ void init_hash_primitives(py::module &m) {
     init_hash<uint16_t>(m, "uint16");
     init_hash<int8_t>(m, "int8");
     init_hash<uint8_t>(m, "uint8");
+    init_hash<bool>(m, "bool");
     init_hash<float>(m, "float32");
     init_hash<double, uint64_t>(m, "float64");
 
