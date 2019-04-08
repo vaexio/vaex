@@ -37,8 +37,10 @@ before_install:
   - which pip
   - source activate test-environment
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-      conda install gxx_linux-64 -y
+      conda install gxx_linux-64 -y;
     fi
+  - source deactivate
+  - source activate test-environment
   - which pip
   - pip install pybind11
   # - conda install -c conda-forge pandas kapteyn # these extra installs should disappear
