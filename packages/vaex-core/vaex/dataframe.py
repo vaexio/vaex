@@ -334,7 +334,7 @@ class DataFrame(object):
 
         If sort is True, the mutual information is returned in sorted (descending) order and the list of expressions is returned in the same order.
 
-        Examples:
+        Example:
 
         >>> df.mutual_information("x", "y")
         array(0.1511814526380327)
@@ -472,7 +472,7 @@ class DataFrame(object):
     def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
         """Count the number of non-NaN values (or all, if expression is None or "*").
 
-        Examples:
+        Example:
 
         >>> df.count()
         330000
@@ -522,18 +522,20 @@ class DataFrame(object):
 
     @docsubst
     def first(self, expression, order_expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
-        """Count the number of non-NaN values (or all, if expression is None or "*").
+        """Return the first element of a binned `expression`, where the values each bin are sorted by `order_expression`.
 
-        Examples:
+        Example:
 
-        >>> df.count()
-        330000.0
-        >>> df.count("*")
-        330000.0
-        >>> df.count("*", binby=["x"], shape=4)
-        array([  10925.,  155427.,  152007.,   10748.])
+        >>> import vaex
+        >>> df = vaex.example()
+        >>> df.first(df.x, df.y, shape=8)
+        >>> df.first(df.x, df.y, shape=8, binby=[df.y])
+        >>> df.first(df.x, df.y, shape=8, binby=[df.y])
+        array([-4.81883764, 11.65378   ,  9.70084476, -7.3025589 ,  4.84954977,
+                8.47446537, -5.73602629, 10.18783   ])
 
-        :param expression: Expression or column for which to count non-missing values, or None or '*' for counting the rows
+        :param expression: The value to be placed in the bin.
+        :param order_expression: Order the values in the bins by this expression.
         :param binby: {binby}
         :param limits: {limits}
         :param shape: {shape}
@@ -541,7 +543,8 @@ class DataFrame(object):
         :param delay: {delay}
         :param progress: {progress}
         :param edges: {edges}
-        :return: {return_stat_scalar}
+        :return: Ndarray containing the first elements.
+        :rtype: numpy.array
         """
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
@@ -563,7 +566,7 @@ class DataFrame(object):
     def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         """Calculate the mean for expression, possibly on a grid defined by binby.
 
-        Examples:
+        Example:
 
         >>> df.mean("x")
         -0.067131491264005971
@@ -621,7 +624,7 @@ class DataFrame(object):
     def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         """Calculate the sum for the given expression, possible on a grid defined by binby
 
-        Examples:
+        Example:
 
         >>> df.sum("L")
         304054882.49378014
@@ -681,7 +684,7 @@ class DataFrame(object):
     def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         """Calculate the sample variance for the given expression, possible on a grid defined by binby
 
-        Examples:
+        Example:
 
         >>> df.var("vz")
         12170.002429456246
@@ -732,7 +735,7 @@ class DataFrame(object):
     def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         """Calculate the covariance cov[x,y] between and x and y, possibly on a grid defined by binby.
 
-        Examples:
+        Example:
 
         >>> df.covar("x**2+y**2+z**2", "-log(-E+1)")
         array(52.69461456005138)
@@ -786,7 +789,7 @@ class DataFrame(object):
     def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, delay=False, progress=None):
         """Calculate the correlation coefficient cov[x,y]/(std[x]*std[y]) between and x and y, possibly on a grid defined by binby.
 
-        Examples:
+        Example:
 
         >>> df.correlation("x**2+y**2+z**2", "-log(-E+1)")
         array(0.6366637382215669)
@@ -863,7 +866,7 @@ class DataFrame(object):
 
         >>> df.cov(["x, "y, "z"])
 
-        Examples:
+        Example:
 
         >>> df.cov("x", "y")
         array([[ 53.54521742,  -3.8123135 ],
@@ -1480,7 +1483,7 @@ class DataFrame(object):
         .. note::
             This API is not fully settled and may change in the future
 
-        Examples
+        Example:
 
         >>> df.plot_widget(df.x, df.y, backend='bqplot')
         >>> df.plot_widget(df.pickup_longitude, df.pickup_latitude, backend='ipyleaflet')
@@ -3525,7 +3528,7 @@ class DataFrame(object):
         :param regex: Only return column names matching the (optional) regular expression
         :rtype: list of str
 
-        Examples:
+        Example:
         >>> import vaex
         >>> df = vaex.from_scalars(x=1, x2=2, y=3, s='string')
         >>> df['r'] = (df.x**2 + df.y**2)**2
@@ -3875,7 +3878,9 @@ class DataFrame(object):
 
     @docsubst
     def fillna(self, value, fill_nan=True, fill_masked=True, column_names=None, prefix='__original_', inplace=False):
-        '''Return a DataFrame, where missing values/NaN are filled with 'value'
+        '''Return a DataFrame, where missing values/NaN are filled with 'value'.
+
+        The original columns will be renamed, and by default they will be hidden columns. No data is lost.
 
         {note_copy}
 
@@ -3883,15 +3888,24 @@ class DataFrame(object):
 
         Example:
 
-        >>> a = np.array(['a', 'b', 'c'])
-        >>> x = np.arange(1,4)
-        >>> df = vaex.from_arrays(a=a, x=x)
-        >>> df.sort('(x-1.8)**2', ascending=False)  # b, c, a will be the order of a
+        >>> import vaex
+        >>> import numpy as np
+        >>> x = np.array([3, 1, np.nan, 10, np.nan])
+        >>> df = vaex.from_arrays(x=x)
+        >>> df_filled = df.fillna(value=-1, column_names=['x'])
+        >>> df_filled
+          #    x
+          0    3
+          1    1
+          2   -1
+          3   10
+          4   -1
 
-
-        :param str or expression by: expression to sort by
-        :param bool ascending: ascending (default, True) or descending (False)
-        :param str kind: kind of algorithm to use (passed to numpy.argsort)
+        :param float value: The value to use for filling nan or masked values.
+        :param bool fill_na: If True, fill np.nan values with `value`.
+        :param bool fill_masked: If True, fill masked values with `values`.
+        :param list column_names: List of column names in which to fill missing values.
+        :param str prefix: The prefix to give the original columns.
         :param inplace: {inplace}
         '''
         df = self.trim(inplace=inplace)
@@ -4226,7 +4240,7 @@ class DataFrame(object):
     def __getitem__(self, item):
         """Convenient way to get expressions, (shallow) copies of a few columns, or to apply filtering.
 
-        Examples:
+        Example:
 
         >>> df['Lz']  # the expression 'Lz
         >>> df['Lz/2'] # the expression 'Lz/2'
