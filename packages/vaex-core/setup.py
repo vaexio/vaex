@@ -76,7 +76,8 @@ extension_strings = Extension("vaex.strings", [os.path.relpath(os.path.join(dirn
                                    get_pybind_include(user=True),
                                    'vendor/string-view-lite/include',
                                    'vendor/boost',
-                                   os.path.join(sys.prefix, 'include')
+                                   os.path.join(sys.prefix, 'include'),
+                                   os.path.join(sys.prefix, 'Library', 'include')
                                 ],
                                extra_compile_args=extra_compile_args,
                                libraries=['pcre', 'pcrecpp']
