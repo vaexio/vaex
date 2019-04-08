@@ -1185,14 +1185,13 @@ struct padder {
 };
 
 StringSequence* StringSequence::pad(int width, std::string fillchar, bool left, bool right) {
+    py::gil_scoped_release release;
     if(fillchar.length() != 1) {
         throw std::runtime_error("fillchar should be 1 character long (unicode not supported)");
     }
     char _fillchar = fillchar[0];
-    // return _apply_seq<>(this, padder(width, _fillchar));
     auto p = padder(width, _fillchar, left, right);
     StringList64* sl = new StringList64(byte_size(), length);
-    // size_t byte_offset = 0;
     char* target = sl->bytes;
     size_t byte_offset;
     for(size_t i = 0; i < length; i++) {
@@ -1702,6 +1701,7 @@ StringSequence* StringSequence::index<bool>(py::array_t<bool, py::array::c_style
 }
 
 StringSequence* StringListList::join(std::string sep) {
+    py::gil_scoped_release release;
     StringList64* sl = new StringList64(1, length);
     char* target = sl->bytes;
     size_t byte_offset;
