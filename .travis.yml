@@ -17,16 +17,8 @@ addons:
     packages:
       - gcc-4.9
       - g++-4.9
-      - libpcre++-dev
-      - libpcre++0
-      - libpcre3
-      - libpcre3-dev
-      - libpcrecpp0
 
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-      export CXX="g++-4.9" CC="gcc-4.9";
-    fi
 #  - sudo apt-get update
 #  - sudo apt-get install libhdf5-serial-dev libqt4-dev
 #  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install libc-bin=2.12.1-0ubuntu10.2 libc6=2.12.1-0ubuntu10.2; fi
@@ -41,9 +33,12 @@ before_install:
   - conda update -q conda
   - conda info -a
   # future: kapteyn should only be needed for astro package testing  
-  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz
+  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre
   - which pip
   - source activate test-environment
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      conda install gxx_linux-64 -y
+    fi
   - which pip
   - pip install pybind11
   # - conda install -c conda-forge pandas kapteyn # these extra installs should disappear
