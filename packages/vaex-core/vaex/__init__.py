@@ -414,7 +414,7 @@ def from_csv(filename_or_buffer, copy_index=True, **kwargs):
 
 def read_csv(filepath_or_buffer, **kwargs):
     '''Alias to from_csv.'''
-    return from_csv(filenames, **kwargs)
+    return from_csv(filepath_or_buffer, **kwargs)
 
 
 def read_csv_and_convert(path, shuffle=False, copy_index=True, **kwargs):
