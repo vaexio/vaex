@@ -3901,11 +3901,11 @@ class DataFrame(object):
           3   10
           4   -1
 
-        :param float value: the value to use for filling nan or masked values
-        :param bool fill_na: if True, fill np.nan values with `value`
-        :param bool fill_masked: if True, fill masked values with `values`
-        :param list column_names: list of column names in which to fill missing values
-        :param str prefix: the prefix to give the original columns.
+        :param float value: The value to use for filling nan or masked values.
+        :param bool fill_na: If True, fill np.nan values with `value`.
+        :param bool fill_masked: If True, fill masked values with `values`.
+        :param list column_names: List of column names in which to fill missing values.
+        :param str prefix: The prefix to give the original columns.
         :param inplace: {inplace}
         '''
         df = self.trim(inplace=inplace)
