@@ -522,12 +522,20 @@ class DataFrame(object):
 
     @docsubst
     def first(self, expression, order_expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
-        """
+        """Return the first element of a binned `expression`, where the values each bin are sorted by `order_expression`.
 
         Example:
 
+        >>> import vaex
+        >>> df = vaex.example()
+        >>> df.first(df.x, df.y, shape=8)
+        >>> df.first(df.x, df.y, shape=8, binby=[df.y])
+        >>> df.first(df.x, df.y, shape=8, binby=[df.y])
+        array([-4.81883764, 11.65378   ,  9.70084476, -7.3025589 ,  4.84954977,
+                8.47446537, -5.73602629, 10.18783   ])
+
         :param expression:
-        :param order_expression:
+        :param order_expression: order the values in the bins by this expression.
         :param binby: {binby}
         :param limits: {limits}
         :param shape: {shape}
@@ -535,7 +543,7 @@ class DataFrame(object):
         :param delay: {delay}
         :param progress: {progress}
         :param edges: {edges}
-        :return:
+        :return: The first element of a binned expression ordered by an additional expression.
         :rtype: numpy.array
         """
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
