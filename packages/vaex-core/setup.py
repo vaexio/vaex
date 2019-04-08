@@ -77,8 +77,12 @@ extension_strings = Extension("vaex.strings", [os.path.relpath(os.path.join(dirn
                                    'vendor/string-view-lite/include',
                                    'vendor/boost',
                                    os.path.join(sys.prefix, 'include'),
-                                   os.path.join(sys.prefix, 'Library', 'include')
-                                ],
+                                   os.path.join(sys.prefix, 'Library', 'include') # windows
+                               ],
+                               library_dirs=[
+                                   os.path.join(sys.prefix, 'lib'),
+                                   os.path.join(sys.prefix, 'Library', 'lib') # windows
+                               ],
                                extra_compile_args=extra_compile_args,
                                libraries=['pcre', 'pcrecpp']
                                )
