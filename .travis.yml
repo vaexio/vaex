@@ -17,9 +17,11 @@ addons:
     packages:
       - gcc-4.9
       - g++-4.9
-      - libpcre2-dev
-      - libpcre2-dev
-      - libpcre2-8-0
+      - libpcre++-dev
+      - libpcre++0
+      - libpcre3
+      - libpcre3-dev
+      - libpcrecpp0
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
