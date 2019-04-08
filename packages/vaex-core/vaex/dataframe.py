@@ -534,8 +534,8 @@ class DataFrame(object):
         array([-4.81883764, 11.65378   ,  9.70084476, -7.3025589 ,  4.84954977,
                 8.47446537, -5.73602629, 10.18783   ])
 
-        :param expression:
-        :param order_expression: order the values in the bins by this expression.
+        :param expression: The value to be placed in the bin.
+        :param order_expression: Order the values in the bins by this expression.
         :param binby: {binby}
         :param limits: {limits}
         :param shape: {shape}
@@ -543,7 +543,7 @@ class DataFrame(object):
         :param delay: {delay}
         :param progress: {progress}
         :param edges: {edges}
-        :return: The first element of a binned expression ordered by an additional expression.
+        :return: Ndarray containing the first elements.
         :rtype: numpy.array
         """
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
@@ -3880,7 +3880,7 @@ class DataFrame(object):
     def fillna(self, value, fill_nan=True, fill_masked=True, column_names=None, prefix='__original_', inplace=False):
         '''Return a DataFrame, where missing values/NaN are filled with 'value'.
 
-        The original columns will be renamed, and by defaul they will be hidden columns. No data is lost.
+        The original columns will be renamed, and by default they will be hidden columns. No data is lost.
 
         {note_copy}
 
