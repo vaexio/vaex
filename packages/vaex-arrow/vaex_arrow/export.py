@@ -15,6 +15,7 @@ max_length = int(1e5)
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 try:
     import pyarrow as pa
+    import pyarrow.parquet as pq
 except:
     if not on_rtd:
         raise
@@ -22,6 +23,17 @@ except:
 logger = logging.getLogger("vaex_arrow.export")
 
 def export(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
+    table = _export_table(dataset, column_names, byteorder, shuffle, selection, progress, virtual, sort, ascending)
+    b = table.to_batches()
+    with pa.OSFile(path, 'wb') as sink:
+        writer = pa.RecordBatchStreamWriter(sink, b[0].schema)
+        writer.write_table(table)
+
+def export_parquet(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
+    table = _export_table(dataset, column_names, byteorder, shuffle, selection, progress, virtual, sort, ascending)
+    pq.write_table(table, path)
+
+def _export_table(dataset, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
     """
     :param DatasetLocal dataset: dataset to export
     :param str path: path for file
@@ -93,8 +105,5 @@ def export(dataset, path, column_names=None, byteorder="=", shuffle=False, selec
         arrow_arrays.append(arrow_array_from_numpy_array(order_array))
         column_names = column_names + [random_index_column]
     table = pa.Table.from_arrays(arrow_arrays, column_names)
-    b = table.to_batches()
-    with pa.OSFile(path, 'wb') as sink:
-        writer = pa.RecordBatchStreamWriter(sink, b[0].schema)
-        writer.write_table(table)
+    return table
 

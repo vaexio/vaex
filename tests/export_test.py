@@ -11,6 +11,9 @@ def test_export(ds_local, tmpdir):
 	path = str(tmpdir.join('sample.hdf5'))
 	ds.export_hdf5(path)
 
+	path = str(tmpdir.join('sample.parquet'))
+	ds.export(path)
+	df = vaex.open(path)
 
 def test_export_string_mask(tmpdir):
 	df = vaex.from_arrays(s=vaex.string_column(['aap', None, 'mies']))
