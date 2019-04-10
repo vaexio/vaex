@@ -11,7 +11,9 @@
 #include <numpy/arrayobject.h>
 #include <Python.h>
 
-#define VAEX_REGEX_USE_XPRESSIVE = 1
+// #define VAEX_REGEX_USE_XPRESSIVE
+#define VAEX_REGEX_USE_PCRE
+
 #ifdef VAEX_REGEX_USE_XPRESSIVE
 #include <boost/xpressive/xpressive.hpp>
 namespace xp = boost::xpressive;
@@ -19,6 +21,10 @@ namespace xp = boost::xpressive;
 
 #ifdef VAEX_REGEX_USE_BOOST
 #include <boost/regex.hpp>
+#endif
+
+#ifdef VAEX_REGEX_USE_PCRE
+#include <pcrecpp.h>
 #endif
 
 #include "string_utils.hpp"
@@ -138,13 +144,18 @@ class StringSequence {
             py::gil_scoped_release release;
             size_t pattern_length = pattern.size();
             if(regex) {
-                #ifdef USE_XPRESSIVE
+                // TODO: implement count using pcre
+                // #if defined(VAEX_REGEX_USE_PCRE)
+                //     pcrecpp::RE rex(pattern);
+                // #elif defined(VAEX_REGEX_USE_XPRESSIVE)
+                #if defined(VAEX_REGEX_USE_XPRESSIVE)
                     xp::sregex rex = xp::sregex::compile(pattern);
                 #else
                     std::regex rex(pattern);
                 #endif
+
                 for(size_t i = 0; i < length; i++) {
-                    #ifdef USE_XPRESSIVE
+                    #if defined(VAEX_REGEX_USE_XPRESSIVE)
                         auto str = get(i); // TODO: can we use view(i)?
                         auto words_begin =  xp::sregex_iterator(str.begin(), str.end(), rex);
                         auto words_end = xp::sregex_iterator();
@@ -172,7 +183,7 @@ class StringSequence {
         return std::move(counts);
     }
     py::object endswith(const std::string pattern) {
-                py::array_t<bool> matches(length);
+        py::array_t<bool> matches(length);
         auto m = matches.mutable_unchecked<1>();
         string_view pattern_view = pattern; // msvc doesn't like comparting string and string_view
         {
@@ -245,13 +256,18 @@ class StringSequence {
         {
             py::gil_scoped_release release;
             if(regex) {
-                #ifdef USE_XPRESSIVE
+                #if defined(VAEX_REGEX_USE_PCRE)
+                    pcrecpp::RE rex(pattern);
+                #elif defined(VAEX_REGEX_USE_XPRESSIVE)
                     xp::sregex rex = xp::sregex::compile(pattern);
                 #else
                     std::regex rex(pattern);
                 #endif
                 for(size_t i = 0; i < length; i++) {
-                    #ifdef USE_XPRESSIVE
+                    #if defined(VAEX_REGEX_USE_PCRE)
+                        std::string str = get(i);
+                        bool match = rex.PartialMatch(str);
+                    #elif defined(VAEX_REGEX_USE_XPRESSIVE)
                         std::string str = get(i);
                         bool match = xp::regex_search(str, rex);
                     #else
@@ -275,13 +291,18 @@ class StringSequence {
         auto m = matches.mutable_unchecked<1>();
         {
             py::gil_scoped_release release;
-            #ifdef USE_XPRESSIVE
+            #if defined(VAEX_REGEX_USE_PCRE)
+                pcrecpp::RE rex(pattern);
+            #elif defined(VAEX_REGEX_USE_XPRESSIVE)
                 xp::sregex rex = xp::sregex::compile(pattern);
             #else
                 std::regex rex(pattern);
             #endif
             for(size_t i = 0; i < length; i++) {
-                #ifdef USE_XPRESSIVE
+                #if defined(VAEX_REGEX_USE_PCRE)
+                    std::string str = get(i);
+                    bool match = rex.FullMatch(str);
+                #elif defined(VAEX_REGEX_USE_XPRESSIVE)
                     std::string str = get(i);
                     bool match = xp::regex_match(str, rex);
                 #else
@@ -1164,14 +1185,13 @@ struct padder {
 };
 
 StringSequence* StringSequence::pad(int width, std::string fillchar, bool left, bool right) {
+    py::gil_scoped_release release;
     if(fillchar.length() != 1) {
         throw std::runtime_error("fillchar should be 1 character long (unicode not supported)");
     }
     char _fillchar = fillchar[0];
-    // return _apply_seq<>(this, padder(width, _fillchar));
     auto p = padder(width, _fillchar, left, right);
     StringList64* sl = new StringList64(byte_size(), length);
-    // size_t byte_offset = 0;
     char* target = sl->bytes;
     size_t byte_offset;
     for(size_t i = 0; i < length; i++) {
@@ -1254,7 +1274,13 @@ StringSequence* StringSequence::replace(std::string pattern, std::string replace
     size_t pattern_length = pattern.length();
     size_t replacement_length = replacement.length();
 
-    #ifdef USE_XPRESSIVE
+    #if defined(VAEX_REGEX_USE_PCRE)
+        pcrecpp::RE_Options opts;
+        if(flags == 2) {
+            opts.set_caseless(true);
+        }
+        pcrecpp::RE rex(pattern, opts);
+    #elif defined(VAEX_REGEX_USE_XPRESSIVE)
         xp::regex_constants::syntax_option_type xp_flags = xp::regex_constants::ECMAScript;
         if(flags == 2) {
             xp_flags = xp_flags | xp::icase;
@@ -1280,11 +1306,14 @@ StringSequence* StringSequence::replace(std::string pattern, std::string replace
 
             if(regex) {
                 auto str = get(i);
-                #ifdef USE_XPRESSIVE
+                #if defined(VAEX_REGEX_USE_PCRE)
+                    rex.GlobalReplace(replacement, &str);
+                #elif defined(VAEX_REGEX_USE_XPRESSIVE)
                     str = xp::regex_replace(str, rex, replacement);
                 #else
                     str = std::regex_replace(str, rex, replacement);
                 #endif
+
                 while(byte_offset + str.length() > sl->byte_length) {
                     sl->grow();
                 }
@@ -1292,6 +1321,7 @@ StringSequence* StringSequence::replace(std::string pattern, std::string replace
                 byte_offset += str.length();
             } else {
                 while( ((offset = str.find(pattern, offset)) != std::string::npos) && ((count < n) || ( n == -1)) ) {
+                    // TODO: we can optimize this by writing out the substring and pattern, instead of calling replace
                     str = str.replace(offset, pattern_length, replacement);
                     offset += replacement_length;
                     count++;
@@ -1671,6 +1701,7 @@ StringSequence* StringSequence::index<bool>(py::array_t<bool, py::array::c_style
 }
 
 StringSequence* StringListList::join(std::string sep) {
+    py::gil_scoped_release release;
     StringList64* sl = new StringList64(1, length);
     char* target = sl->bytes;
     size_t byte_offset;
