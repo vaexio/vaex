@@ -2,6 +2,7 @@ __author__ = 'maartenbreddels'
 import logging
 
 import pyarrow as pa
+import pyarrow.parquet as pq
 
 import vaex.dataset
 import vaex.file.other
@@ -28,6 +29,7 @@ class DatasetArrow(vaex.dataset.DatasetLocal):
     
     def _load_table(self, table):
         self._length_unfiltered =  self._length_original = table.num_rows
+        self._index_end =  self._length_original = table.num_rows
         for col in table.columns:
             name = col.name
             # TODO: keep the arrow columns, and support and test chunks
@@ -51,5 +53,13 @@ class DatasetArrow(vaex.dataset.DatasetLocal):
     def option_to_args(cls, option):
         return []
 
+class DatasetParquet(DatasetArrow):
+    def _load(self):
+        # might not be optimal, but it works, we can always see if we can
+        # do mmapping later on
+        table = pq.read_table(self.path)
+        self._load_table(table)
+
 vaex.file.other.dataset_type_map["arrow"] = DatasetArrow
+vaex.file.other.dataset_type_map["parquet"] = DatasetParquet
 

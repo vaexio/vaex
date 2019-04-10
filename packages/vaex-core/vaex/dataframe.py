@@ -4948,8 +4948,10 @@ class DataFrameLocal(DataFrame):
             self.export_arrow(path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
         elif path.endswith('.hdf5'):
             self.export_hdf5(path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
-        if path.endswith('.fits'):
+        elif path.endswith('.fits'):
             self.export_fits(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+        if path.endswith('.parquet'):
+            self.export_parquet(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
         """Exports the DataFrame to a file written with arrow
@@ -4969,6 +4971,25 @@ class DataFrameLocal(DataFrame):
         """
         import vaex_arrow.export
         vaex_arrow.export.export(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+
+    def export_parquet(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+        """Exports the DataFrame to a parquet file
+
+        :param DataFrameLocal df: DataFrame to export
+        :param str path: path for file
+        :param lis[str] column_names: list of column names to export or None for all columns
+        :param str byteorder: = for native, < for little endian and > for big endian
+        :param bool shuffle: export rows in random order
+        :param bool selection: export selection or not
+        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+                or a default progress bar when progress=True
+        :param: bool virtual: When True, export virtual columns
+        :param str sort: expression used for sorting the output
+        :param bool ascending: sort ascending (True) or descending
+        :return:
+        """
+        import vaex_arrow.export
+        vaex_arrow.export.export_parquet(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
         """Exports the DataFrame to a vaex hdf5 file
