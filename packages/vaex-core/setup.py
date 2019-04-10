@@ -5,6 +5,8 @@ import imp
 from setuptools import Extension
 import platform
 
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, "vaex/core/_version.py")
 version = imp.load_source('version', path_version)
@@ -102,7 +104,7 @@ setup(name=name + '-core',
       license=license,
       package_data={'vaex': ['test/files/*.fits', 'test/files/*.vot', 'test/files/*.hdf5']},
       packages=['vaex', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext', 'vaex.misc'],
-      ext_modules=[extension_vaexfast, extension_strings, extension_superutils],
+      ext_modules=[extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils],
       zip_safe=False,
       entry_points={
           'console_scripts': ['vaex = vaex.__main__:main'],

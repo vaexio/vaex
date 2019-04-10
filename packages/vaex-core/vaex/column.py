@@ -1,10 +1,12 @@
 import logging
+import os
 
 import six
 import numpy as np
 
-import vaex.strings
-
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+if not on_rtd:
+    import vaex.strings
 
 logger = logging.getLogger("vaex.column")
 

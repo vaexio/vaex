@@ -865,8 +865,8 @@ def gen_to_list(fn=None, wrapper=list):
         return listify_return
     return listify_return(fn)
 
-import vaex.superutils
 def unique_nanfix(values, return_inverse=False):
+    import vaex.superutils
     if values.dtype.kind == 'f':
         return vaex.superutils.unique(values, return_inverse=return_inverse)
     else:
