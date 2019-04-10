@@ -1762,7 +1762,7 @@ class TestDataset(unittest.TestCase):
 						for shuffle in [False, True]:
 							for selection in [False, True, "named"]:
 								for virtual in [False, True]:
-									for export in [dataset.export_fits, dataset.export_hdf5, dataset.export_arrow]: #if byteorder == ">" else [dataset.export_hdf5]:
+									for export in [dataset.export_fits, dataset.export_hdf5, dataset.export_arrow, dataset.export_parquet]: #if byteorder == ">" else [dataset.export_hdf5]:
 										#print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.length_unfiltered(), virtual)
 										#byteorder = "<"
 										if export == dataset.export_fits and byteorder != ">":
@@ -1776,6 +1776,7 @@ class TestDataset(unittest.TestCase):
 										# same issue on windows for arrow, closing the mmapped file does not help
 										# for the moment we create a new temp file
 										path_arrow = tempfile.mktemp(".arrow")
+										path_parquet = tempfile.mktemp(".parquet")
 										#print dataset.length_unfiltered()
 										#print len(dataset)
 										if export == dataset.export_hdf5:
@@ -1783,6 +1784,9 @@ class TestDataset(unittest.TestCase):
 											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
 										elif export == dataset.export_arrow:
 											path = path_arrow
+											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
+										elif export == dataset.export_parquet:
+											path = path_parquet
 											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
 										else:
 											path = path_fits
