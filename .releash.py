@@ -19,8 +19,10 @@ packages = ['vaex-core', 'vaex-meta', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'v
 names = [k[5:] for k in packages[1:]]
 
 for name in names:
-    # hdf5 package
-    if name == 'arrow':
+    if name == 'meta':
+        package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex.' + name, distribution_name='vaex')
+        version = VersionSource(package, '{path}/vaex/' +name +'/_version.py')
+    elif name == 'arrow':
         package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex_' + name)
         version = VersionSource(package, '{path}/vaex_' +name +'/_version.py')
     else:
@@ -38,5 +40,8 @@ for name in names:
     # also ok to add twice, it will only execute for the last package
     package.release_targets.append(gitpush)
     #if name in ['hdf5', 'viz']:
-    package.release_targets.append(ReleaseTargetCondaForge(package, '../feedstocks/vaex-' + name + '-feedstock'))
+    if name == 'meta':
+        package.release_targets.append(ReleaseTargetCondaForge(package, '../feedstocks/vaex' + '-feedstock'))
+    else:
+        package.release_targets.append(ReleaseTargetCondaForge(package, '../feedstocks/vaex-' + name + '-feedstock'))
 
