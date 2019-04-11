@@ -14,10 +14,10 @@
 // #define VAEX_REGEX_USE_XPRESSIVE
 #define VAEX_REGEX_USE_PCRE
 
-#ifdef VAEX_REGEX_USE_XPRESSIVE
+// #ifdef VAEX_REGEX_USE_XPRESSIVE
 #include <boost/xpressive/xpressive.hpp>
 namespace xp = boost::xpressive;
-#endif
+// #endif
 
 #ifdef VAEX_REGEX_USE_BOOST
 #include <boost/regex.hpp>
@@ -148,24 +148,24 @@ class StringSequence {
                 // #if defined(VAEX_REGEX_USE_PCRE)
                 //     pcrecpp::RE rex(pattern);
                 // #elif defined(VAEX_REGEX_USE_XPRESSIVE)
-                #if defined(VAEX_REGEX_USE_XPRESSIVE)
+                // #if defined(VAEX_REGEX_USE_XPRESSIVE)
                     xp::sregex rex = xp::sregex::compile(pattern);
-                #else
-                    std::regex rex(pattern);
-                #endif
+                // #else
+                    // std::regex rex(pattern);
+                // #endif
 
                 for(size_t i = 0; i < length; i++) {
-                    #if defined(VAEX_REGEX_USE_XPRESSIVE)
+                    // #if defined(VAEX_REGEX_USE_XPRESSIVE)
                         auto str = get(i); // TODO: can we use view(i)?
                         auto words_begin =  xp::sregex_iterator(str.begin(), str.end(), rex);
                         auto words_end = xp::sregex_iterator();
                         size_t count = std::distance(words_begin, words_end) ;
-                    #else
-                        auto str = get(i);
-                        auto words_begin =  std::sregex_iterator(str.begin(), str.end(), rex);
-                        auto words_end = std::sregex_iterator();
-                        size_t count = std::distance(words_begin, words_end) ;
-                    #endif
+                    // #else
+                    //     auto str = get(i);
+                    //     auto words_begin =  std::sregex_iterator(str.begin(), str.end(), rex);
+                    //     auto words_end = std::sregex_iterator();
+                    //     size_t count = std::distance(words_begin, words_end) ;
+                    // #endif
                     m(i) = count;
                 }
             } else {
