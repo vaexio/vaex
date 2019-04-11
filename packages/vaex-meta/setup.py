@@ -15,7 +15,14 @@ license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
 
-install_requires = 'vaex-core vaex-viz vaex-server vaex-ui vaex-hdf5 vaex-astro'.split()
+install_requires = [
+      'vaex-core==0.7.2',
+      'vaex-viz==0.3',
+      'vaex-server==0.2',
+      'vaex-hdf5==0.4',
+      'vaex-astro==0.4',
+      'vaex-arrow==0.3'
+]
 
 setup(name=name,
       version=version,
