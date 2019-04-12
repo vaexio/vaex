@@ -61,4 +61,4 @@ class GroupBy(object):
                 dfg[key] = values
             done(values)
         df.execute()  
-        return dfg, df
+        return dfg

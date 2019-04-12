@@ -1752,7 +1752,8 @@ for name in dir(scopes['str']):
 @register_function()
 def _ordinal_values(x, ordered_set):
     from vaex.column import _to_string_sequence
-    x = _to_string_sequence(x)
+    if not isinstance(x, np.ndarray):
+        x = _to_string_sequence(x)
     return ordered_set.map_ordinal(x)
 
 @register_function(name='float')
