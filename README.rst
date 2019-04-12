@@ -67,7 +67,7 @@ Using conda:
 
 Using pip:
 
--  ``pip install --pre vaex``
+-  ``pip install vaex``
 
 Or read the `detailed instructions <https://docs.vaex.io/en/latest/installing.html>`__
 
