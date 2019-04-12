@@ -58,18 +58,23 @@ def numpy_array_from_arrow_array(arrow_array):
         array = np.frombuffer(buffers[-1], dtype, len(arrow_array))# TODO: deal with offset ? [arrow_array.offset:arrow_array.offset + len(arrow_array)]
     else:
         dtype = arrow_array.type.to_pandas_dtype()
-    array = np.frombuffer(data_buffer, dtype, len(arrow_array))
+    if np.bool_ == dtype:
+        # TODO: this will also be a copy, we probably want to support bitmasks as well
+        bitmap = np.frombuffer(data_buffer, np.uint8, len(data_buffer))
+        array = numpy_mask_from_arrow_mask(bitmap, len(arrow_array))
+    else:
+        array = np.frombuffer(data_buffer, dtype, len(arrow_array))
 
     if bitmap_buffer is not None:
         bitmap = np.frombuffer(bitmap_buffer, np.uint8, len(bitmap_buffer))
-        mask = numpy_mask_from_arrow_mask(bitmap, arrow_array)
+        mask = numpy_mask_from_arrow_mask(bitmap, len(arrow_array))
         array = np.ma.MaskedArray(array, mask=mask)
     return array
 
-def numpy_mask_from_arrow_mask(bitmap, arrow_array):
+def numpy_mask_from_arrow_mask(bitmap, length):
     # arrow uses a bitmap https://github.com/apache/arrow/blob/master/format/Layout.md
     # we do have to change the ordering of the bits
-    return 1-np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:len(arrow_array)]
+    return 1-np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:length]
 
 
 
