@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 import sys
 import vtk
 try:
@@ -25,18 +26,18 @@ class Hull(object):
 			self.hull.InsertNextPoint(x, y, 0)
 		
 		size = self.hull.GetSizeCCWHullZ();
-		print dir(self.hull)
-		print self.hull.GetCCWHullX()
+		print(dir(self.hull))
+		print(self.hull.GetCCWHullX())
 
 if 0:
 	points = zip(np.random.normal(100, 10, 25), np.random.normal(150, 10, 25))
 	points = np.array(points)
 	hull = scipy.spatial.ConvexHull(points)
 	for simplex in hull.simplices:
-		print simplex
+		print(simplex)
 	hull = scipy.spatial.ConvexHull(points)
 	for simplex in hull.simplices:
-		print simplex
+		print(simplex)
 	import matplotlib.pyplot as plt
 	plt.scatter(points[:,0], points[:,1])
 	plt.plot(points[hull.vertices,0], points[hull.vertices,1], 'r--', lw=2)
@@ -103,7 +104,7 @@ def createImageData():
 
 	a = sampleFunction.GetOutput().GetPointData().GetScalars("values");
 	range = a.GetRange();
-	print range
+	print(range)
 	t = vtk.vtkImageShiftScale()
 	t.SetInputConnection(sampleFunction.GetOutputPort());
 
@@ -129,7 +130,7 @@ z = dataset.columns[sys.argv[4]]
 Nrows = int(1e7)
 x, y, z = [col[:Nrows] for col in [x,y,z]]
 
-print "do histogram"
+print("do histogram")
 
 def minmax(x, fraction=0.005):
 	indices = np.argsort(x)
@@ -142,26 +143,26 @@ xmin, xmax = minmax(x)
 ymin, ymax = minmax(y)
 zmin, zmax = minmax(z)
 
-print "done"
+print("done")
 import vaex.vaexfast
 vaex.vaexfast.histogram3d(x, y, z, None, data_matrix , xmin, xmax, ymin, ymax, zmin, zmax)
 data_matrix = np.log(data_matrix + 1)
 #vaex.histogram.hist3d(x, y, z, data_matrix, xmin, xmax, ymin, ymax, zmin, zmax)
-print "done"
+print("done")
 maxvalue = data_matrix.max()
-print maxvalue
+print(maxvalue)
 
 ar = vtk.util.numpy_support.numpy_to_vtk(data_matrix.reshape((-1,)))
-print ar.GetNumberOfComponents(), ar.GetNumberOfTuples()
-print ar
-print dir(ar)
+print(ar.GetNumberOfComponents(), ar.GetNumberOfTuples())
+print(ar)
+print(dir(ar))
 
 grid = vtk.vtkImageData()
 grid.SetOrigin(0, 0, 0) # default values
 dx = 1
 grid.SetSpacing(dx, dx, dx)
 grid.SetDimensions(256, 256, 256)
-print grid.GetNumberOfPoints()
+print(grid.GetNumberOfPoints())
 grid.GetPointData().SetScalars(ar)
 
 def createImageData():
@@ -169,7 +170,7 @@ def createImageData():
 	#dataImporter = vtk.vtkImageImport()
 	#dataImporter.SetDataScalarTypeToUnsignedChar()
 	
-	print grid.GetPointData().GetNumberOfArrays()
+	print(grid.GetPointData().GetNumberOfArrays())
 	return grid
 
 class MyInteractorStyle(vtk.vtkInteractorStyleSwitch):
@@ -178,7 +179,7 @@ class MyInteractorStyle(vtk.vtkInteractorStyleSwitch):
 		self.window = window
 		
 	def OnMouseMove(self):
-		print "mouse move"
+		print("mouse move")
 		super(MyInteractorStyle, self).OnMouseMove()
 		
 	
@@ -249,20 +250,20 @@ class Overlay(QtGui.QWidget):
 		
 	def onResizeTarget(self, event):
 		size = self.target.size()
-		print size, self.target.x(), self.target.y()
+		print(size, self.target.x(), self.target.y())
 		self.original_resizeEvent(event)
 		self.move(self.target.x(), self.target.y())
 		self.resize(self.target.size())
 		
 	def paintEvent(self, event):
-		print event
+		print(event)
 		painter = QtGui.QPainter(self)
 		painter.drawLine(0, 0, 100, 200)
 		
 class MainWindow:#QtGui.QMainWindow):
 
 	def _paintEvent(self, event):
-		print event
+		print(event)
 		#self.vtkWidget._original_paintEvent(event)
 		#painter = QtGui.QPainter(self.vtkWidget)
 		#painter.drawLine(9, 0, 100, 200)
@@ -287,7 +288,7 @@ class MainWindow:#QtGui.QMainWindow):
 				pos = event.x(), self.vtkWidget.size().height() - event.y() - 1 
 				self.lasso_screen.append(pos)
 			self.lasso.list = self.lasso_screen
-			print self.lasso.list
+			print(self.lasso.list)
 			self.lasso.update()
 			#self.lasso.line.Update()
 			#self.vtkWidget.GetRenderWindow().Render()
@@ -323,7 +324,7 @@ class MainWindow:#QtGui.QMainWindow):
 				self.vtkWidget._original_paintEvent = self.vtkWidget.paintEvent
 				self.vtkWidget.paintEvent = self.paintEvent
 				def test():
-					print QtGui.QPaintEngine.OpenGL;
+					print(QtGui.QPaintEngine.OpenGL);
 					return 0;
 				self.vtkWidget.paintEngine = test
 
@@ -443,7 +444,7 @@ class MainWindow:#QtGui.QMainWindow):
 			mapper = vtk.vtkPolyDataMapper()
 			mapper.SetInputConnection(self.surface.GetOutputPort())
 			mapper.ScalarVisibilityOff()
-			print mapper
+			print(mapper)
 			import pdb
 			#pdb.set_trace()
 			# Create an actor
@@ -470,14 +471,14 @@ class MainWindow:#QtGui.QMainWindow):
 		self.ren.SetBackground(1,1,1)
 		#self.ren.SetOffScreenRendering(True)
 		arr = vtk.vtkUnsignedCharArray()
-		print "size", arr.GetDataSize()
+		print("size", arr.GetDataSize())
 		window.Render()
-		print window.GetPixelData(0, 0, 10, 10, 0, arr)
-		print "size", arr.GetDataSize()
+		print(window.GetPixelData(0, 0, 10, 10, 0, arr))
+		print("size", arr.GetDataSize())
 
 		self.show()
 		self.raise_()
-		print "aap"
+		print("aap")
 		self.iren.Initialize()
 	
 	def sliderReleased(self, value=None):
@@ -485,7 +486,7 @@ class MainWindow:#QtGui.QMainWindow):
 			value = self.levelSlider.value()
 		fraction = value/100.
 		isovalue = maxvalue * 10**((fraction-1)*3)
-		print value, "of 100, corresponds to", isovalue, "of", maxvalue
+		print(value, "of 100, corresponds to", isovalue, "of", maxvalue)
 		self.surface.SetValue(0, isovalue)
 		#self.surface.Update()
 		#self.vtkWidget.GetRenderWindow().Render()

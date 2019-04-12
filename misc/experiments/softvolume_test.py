@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 import vaex.dataset as dataset
 import numpy as np
 import numpy
@@ -48,7 +49,7 @@ def proj(size):
 	bottom = 0
 	far = 1.
 	near = 0
-	print 
+	print() 
 	
 	matrix[0][0] = 2./(right-left)
 	matrix[1][1] = 2./(top-bottom)
@@ -63,13 +64,13 @@ N2d = 256
 #m = scale_matrix(1./N)
 #m = rotation_matrix(np.radians(30), [0, 1, 0]) * m
 if 0:
-	print "t", translate(-1, -1, -1)
-	print "s", scale(2./N)
-	print "p", proj(N)
-	print np.dot(m, [0, 0, 0, 1])
-	print np.dot(m, [N/2, N/2, N/2, 1])
-	print np.dot(m, (N, N, N, 1))
-	print np.dot(m, (N, N, 0, 1))
+	print("t", translate(-1, -1, -1))
+	print("s", scale(2./N))
+	print("p", proj(N))
+	print(np.dot(m, [0, 0, 0, 1]))
+	print(np.dot(m, [N/2, N/2, N/2, 1]))
+	print(np.dot(m, (N, N, N, 1)))
+	print(np.dot(m, (N, N, 0, 1)))
 #print rotation_matrix(np.radians(30), [0, 1, 0])
 colormaps = []
 colormap_pixmap = {}
@@ -120,7 +121,7 @@ class ThreadPool(object):
 			thread.start()
 			
 	def execute(self, index):
-		print "index", index
+		print("index", index)
 		while True:
 			#print "waiting..", index
 			self.semaphore_in.acquire()
@@ -155,7 +156,7 @@ fig, ax = plt.subplots()
 def frame(i):
 	global image
 	global t_prev
-	print "frame", i
+	print("frame", i)
 	angle1 = i / 40. * 2 * math.pi/4#/2
 	angle2 = i / 80. * 2 * math.pi/4#/2
 	#angle1, angle2 = 0, 0
@@ -205,7 +206,7 @@ def frame(i):
 		t_prev = time.time()
 	else:
 		t_now = time.time()
-		print "fps", 1/(t_now - t_prev)
+		print("fps", 1/(t_now - t_prev))
 		t_prev = t_now
 		image.set_data(I)
 	return [image]

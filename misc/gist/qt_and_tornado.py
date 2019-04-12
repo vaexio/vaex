@@ -1,3 +1,4 @@
+from __future__ import print_function
 __author__ = 'breddels'
 """
 Demonstrates combining Qt and tornado, both which want to have their own event loop.
@@ -54,7 +55,7 @@ class Window(QtGui.QMainWindow):
 		self.signal_promise.connect(self.on_signal_promise)
 
 	def on_click(self, *args):
-		print "fetch page, we are in thread", threading.currentThread()
+		print("fetch page, we are in thread", threading.currentThread())
 		client = AsyncHTTPClient()
 		future = client.fetch("http://www.google.com/")
 		promise = wrap_future_with_promise(future)
@@ -66,22 +67,22 @@ class Window(QtGui.QMainWindow):
 
 	def move_to_gui_thread(self, value):
 		promise = Promise()
-		print "the other thread should fulfil the result to this promise, we are in thread", threading.currentThread()
+		print("the other thread should fulfil the result to this promise, we are in thread", threading.currentThread())
 		self.signal_promise.emit(promise, value)
 		return promise
 
 	def on_signal_promise(self, promise, value):
-		print "we received a promise, let us fulfill it, and are in thread", threading.currentThread()
+		print("we received a promise, let us fulfill it, and are in thread", threading.currentThread())
 		promise.fulfill(value)
 
 	def on_error(self, error):
-		print "error", error
+		print("error", error)
 
 	def show_output(self, response):
-		print "response is", len(response.body), "bytes, we are in thread", threading.currentThread()
+		print("response is", len(response.body), "bytes, we are in thread", threading.currentThread())
 
 	def do_gui_stuff(self, response):
-		print "let us set the background to orange, we are in thread", threading.currentThread()
+		print("let us set the background to orange, we are in thread", threading.currentThread())
 		# this Qt call should only be done from the main thread
 		self.setStyleSheet("background-color: orange;")
 

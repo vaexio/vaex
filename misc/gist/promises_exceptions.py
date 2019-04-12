@@ -1,3 +1,4 @@
+from __future__ import print_function
 __author__ = 'maartenbreddels'
 import aplus
 
@@ -16,4 +17,4 @@ p1 = aplus.Promise()
 p2 = p1.then(function_with_error, error_handler)
 p2.then(function_with_error, None).end()
 p1.fulfill(1)
-print "done"
+print("done")

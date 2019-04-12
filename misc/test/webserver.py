@@ -1,3 +1,4 @@
+from __future__ import print_function
 __author__ = 'maartenbreddels'
 import numpy as np
 import unittest
@@ -52,7 +53,7 @@ class TestQueue(unittest.TestCase):
 		except KeyboardInterrupt:
 			pass
 		for i, job in enumerate(jobs):
-			print i, job.index, "elapsed", job.time_elapsed, job.fraction
+			print(i, job.index, "elapsed", job.time_elapsed, job.fraction)
 
 
 
