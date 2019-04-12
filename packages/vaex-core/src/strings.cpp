@@ -1890,7 +1890,7 @@ StringList64* format(py::array_t<T, py::array::c_style> values_, const char* for
 }
 
 
-PYBIND11_MODULE(strings, m) {
+PYBIND11_MODULE(superstrings, m) {
     _import_array();
     m.doc() = "fast operations on string sequences";
     py::class_<StringSequence> string_sequence(m, "StringSequence");

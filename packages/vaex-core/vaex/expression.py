@@ -348,6 +348,16 @@ class Expression(with_metaclass(Meta)):
         """Evaluates expression, and drop the result, usefull for benchmarking, since vaex is usually lazy"""
         return self.ds.nop(self.expression)
 
+    @property
+    def transient(self):
+        """If this expression is not transient (e.g. on disk) optimizations can be made"""
+        return self.expand().expression not in self.ds.columns
+
+    @property
+    def masked(self):
+        """Alias to df.is_masked(expression)"""
+        return self.ds.is_masked(self.expression)
+
     def value_counts(self, dropna=False, dropnull=True, ascending=False, progress=False):
         """Computes counts of unique values.
 
@@ -362,23 +372,32 @@ class Expression(with_metaclass(Meta)):
         from pandas import Series
         dtype = self.dtype
 
-        counter_type = counter_type_from_dtype(self.dtype)
+        transient = self.transient or self.ds.filtered or self.ds.is_masked(self.expression)
+        if self.dtype == str_type and not transient:
+            # string is a special case, only ColumnString are not transient
+            ar = self.ds.columns[self.expression]
+            if not isinstance(ar, ColumnString):
+                transient = True
+
+        counter_type = counter_type_from_dtype(self.dtype, transient)
         counters = [None] * self.ds.executor.thread_pool.nthreads
         def map(thread_index, i1, i2, ar):
-            mask_count = 0
-            if np.ma.isMaskedArray(ar):
-                mask = np.ma.getmaskarray(ar)
-                mask_count += mask.sum()
-                ar = ar[~mask]
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type()
             if dtype == str_type:
+                previous_ar = ar
                 ar = _to_string_sequence(ar)
-            counters[thread_index].update(ar)
-            return mask_count
+                if not transient:
+                    assert ar is previous_ar.string_sequence
+            if np.ma.isMaskedArray(ar):
+                mask = np.ma.getmaskarray(ar)
+                counters[thread_index].update(ar, mask)
+            else:
+                counters[thread_index].update(ar)
+            return 0
         def reduce(a, b):
             return a+b
-        mask_count = self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progress, name='value_counts', info=True)
+        self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progress, name='value_counts', info=True, to_numpy=False)
         counters = [k for k in counters if k is not None]
         counter0 = counters[0]
         for other in counters[1:]:
@@ -398,9 +417,9 @@ class Expression(with_metaclass(Meta)):
             if not dropna and counter0.nan_count:
                 index = [np.nan] + index
                 counts = [counter0.nan_count] + counts
-            if not dropnull and mask_count:
+            if not dropnull and counter0.null_count:
                 index = ['null'] + index
-                counts = [mask_count] + counts
+                counts = [counter0.null_count] + counts
 
         return Series(counts, index=index)
 

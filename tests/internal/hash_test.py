@@ -1,20 +1,52 @@
 from vaex.superutils import *
+import vaex.strings
 import numpy as np
 import sys
+import pytest
+
+@pytest.mark.parametrize('counter_cls', [counter_string]) #, counter_stringview])
+def test_counter_string(counter_cls):
+    strings = vaex.strings.array(['aap', 'noot', 'mies'])
+    counter = counter_cls()
+    counter.update(strings)
+    counts = counter.extract()
+
+    assert counts["aap"] == 1
+    assert counts["noot"] == 1
+    assert counts["mies"] == 1
+
+    strings2 = vaex.strings.array(['aap', 'n00t'])
+    counter.update(strings2)
+    counts = counter.extract()
+    assert counts["aap"] == 2
+    assert counts["noot"] == 1
+    assert counts["n00t"] == 1
+    assert counts["mies"] == 1
 
 
 def test_counter_float64():
     ar = np.arange(3, dtype='f8')
     counter = counter_float64()
+    oset = ordered_set_float64()
     counter.update(ar)
+    oset.update(ar)
     counts = counter.extract()
     assert set(counts.keys()) == {0, 1, 2}
     assert set(counts.values()) == {1, 1, 1}
 
+    keys = np.array(oset.keys())
+    assert oset.map_ordinal(keys).tolist() == [0, 1, 2]
+
+
+
     counter.update([np.nan, 0])
+    oset.update([np.nan, 0])
     counts = counter.extract()
     assert counter.nan_count == 1
     assert counts[0] == 2
+
+    keys = np.array(oset.keys())
+    assert oset.map_ordinal(keys).tolist() == [1, 2, 3]
 
     counter.update([np.nan, 0])
     counts = counter.extract()
@@ -32,6 +64,19 @@ def test_counter_float64():
     assert counts[0] == 4
     assert counts[10] == 1
     assert counts[1] == 1
+
+def test_ordered_set_object():
+    s = str("hi there!!")
+    ar = np.array([0, 1.5, s, None, s], dtype='O')
+    oset = ordered_set_object()
+    oset.update(ar)
+    keys = np.array(oset.keys())
+    assert oset.map_ordinal(keys).tolist() == list(range(len(keys)))
+
+    ar2 = np.array([np.nan, None, s], dtype='O')
+    oset.update(ar2)
+    keys = np.array(oset.keys())
+    assert oset.map_ordinal(keys).tolist() == list(range(1, 1 + len(keys)))
 
 def test_counter_object():
     s = str("hi there!!")
@@ -55,6 +100,7 @@ def test_counter_object():
     assert sys.getrefcount(s) == start_ref_count+3, 'released from the dict'
 
 
+
     assert sys.getrefcount(s) == start_ref_count+3
     counter.update(np.array([np.nan, None, s], dtype='O'))
     assert sys.getrefcount(s) == start_ref_count+3
@@ -63,6 +109,7 @@ def test_counter_object():
     assert counts[0] == 1
     assert counts[None] == 2
     assert counts[s] == 3
+
 
     counter.update(np.array([np.nan, 0], dtype='O'))
     counts = counter.extract()

@@ -303,30 +303,70 @@ class DataFrame(object):
             pass
         return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='nop', to_numpy=False)
 
+    def _set(self, expression, progress=False, delay=False):
+        column = _ensure_string_from_expression(expression)
+        columns = [column]
+        from .hash import ordered_set_type_from_dtype
+        from vaex.column import _to_string_sequence
+
+        transient = True
+        dtype = self.dtype(column)
+        ordered_set_type = ordered_set_type_from_dtype(dtype)
+        sets = [None] * self.executor.thread_pool.nthreads
+        def map(thread_index, i1, i2, ar):
+            if sets[thread_index] is None:
+                sets[thread_index] = ordered_set_type()
+            if dtype == str_type:
+                previous_ar = ar
+                ar = _to_string_sequence(ar)
+                if not transient:
+                    assert ar is previous_ar.string_sequence
+            if np.ma.isMaskedArray(ar):
+                mask = np.ma.getmaskarray(ar)
+                sets[thread_index].update(ar, mask)
+            else:
+                sets[thread_index].update(ar)
+        def reduce(a, b):
+            pass
+        null_count = self.map_reduce(map, reduce, columns, delay=delay, name='set', info=True, to_numpy=False)
+        sets = [k for k in sets if k is not None]
+        set0 = sets[0]
+        for other in sets[1:]:
+            set0.merge(other)
+        return set0
+
     def unique(self, expression, return_inverse=False, progress=False, delay=False):
         expression = _ensure_string_from_expression(expression)
+        ordered_set = self._set(expression, progress=progress)
+        transient = True
         if return_inverse:
-            def map(thread_index, i1, i2, ar):  # this will be called with a chunk of the data
-                return i1, (vaex.utils.unique_nanfix(ar, return_inverse=True))  # returns (sort key, (unique elements, indices))
-            def reduce(a, b):  # gets called with a list of the return values of map
-                uniques_a, indices_a = a
-                uniques_b, indices_b = b
-                Na = len(uniques_a)
-                Nb = len(uniques_b)
-                joined = np.concatenate([uniques_a, uniques_b])  # put all 'sub-unique' together
-                uniques, indices_joined = vaex.utils.unique_nanfix(joined, return_inverse=True)  # find all the unique items
-                # get back the merged indices
-                indices = np.concatenate([indices_joined[:Na][indices_a], indices_joined[Na:][indices_b]])
-                return uniques, indices
-            return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, info=True, ordered_reduce=True, name='unique')
-            # return np.unique(self.evaluate(expression), return_inverse=return_inverse)
+            # inverse type can be smaller, depending on length of set
+            inverse = np.zeros(self._length_unfiltered, dtype=np.int64)
+            dtype = self.dtype(expression)
+            from vaex.column import _to_string_sequence
+            def map(thread_index, i1, i2, ar):
+                if dtype == str_type:
+                    previous_ar = ar
+                    ar = _to_string_sequence(ar)
+                    if not transient:
+                        assert ar is previous_ar.string_sequence
+                # TODO: what about masked values?
+                inverse[i1:i2:] = ordered_set.map_ordinal(ar)
+            def reduce(a, b):
+                pass
+            self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False)
+        keys, indices = zip(*ordered_set.extract().items())
+        indices = np.array(indices)
+        keys = np.array(keys)[indices].tolist()
+        if ordered_set.has_nan:
+            keys = [np.nan] + keys
+        if ordered_set.has_null:
+            keys = [np.ma.core.MaskedConstant()] + keys
+        keys = np.asarray(keys)
+        if return_inverse:
+            return keys, inverse
         else:
-            def map(ar):  # this will be called with a chunk of the data
-                return vaex.utils.unique_nanfix(ar)  # returns the unique elements
-            def reduce(a, b):  # gets called with a list of the return values of map
-                joined = np.concatenate([a, b])  # put all 'sub-unique' together
-                return vaex.utils.unique_nanfix(joined)  # find all the unique items
-        return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='unique')
+            return keys
 
     @docsubst
     def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
