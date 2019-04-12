@@ -588,12 +588,13 @@ class DataFrame(object):
         """
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
-        expression = _ensure_string_from_expression(expression)
+        expression = _ensure_strings_from_expressions(expression)
         order_expression = _ensure_string_from_expression(order_expression)
         binby = _ensure_strings_from_expressions(binby)
         waslist, [expressions,] = vaex.utils.listify(expression)
         @delayed
         def finish(*counts):
+            counts = np.asarray(counts)
             return vaex.utils.unlistify(waslist, counts)
         progressbar = vaex.utils.progressbars(progress)
         limits = self.limits(binby, limits, delay=True, shape=shape)

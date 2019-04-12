@@ -13,6 +13,11 @@ def _asfloat(a):
     else:
         return a.astype(np.float64, copy=False)
 
+class TaskMapReduceLegacy(TaskMapReduce):
+    def __init__(self, *args, **kwargs):
+        kwargs = kwargs.copy()
+        kwargs['ignore_filter'] = True
+        super(TaskMapReduceLegacy, self).__init__(*args, **kwargs)
 
 class TaskHistogram(Task):
     def __init__(self, df, subspace, expressions, size, limits, masked=False, weight=None):
@@ -1099,7 +1104,7 @@ class SubspaceLocal(Subspace):
                     vaex.vaexfast.statisticNd([], block, minmaxes[i, :], [], [], 2)
                 # minmaxes[~np.isfinite(minmaxes)] = np.nan
                 return minmaxes
-        task = TaskMapReduce(self.df, self.expressions, min_max_map, min_max_reduce, self._toarray, info=True, name="minmax")
+        task = TaskMapReduceLegacy(self.df, self.expressions, min_max_map, min_max_reduce, self._toarray, info=True, name="minmax")
         return self._task(task, progressbar=progressbar)
 
     def mean(self):
@@ -1121,7 +1126,7 @@ class SubspaceLocal(Subspace):
                 return [(np.nanmean(block[mask]**moment), np.count_nonzero(~np.isnan(block[mask]))) for block in blocks]
             else:
                 return [(np.nanmean(block**moment), np.count_nonzero(~np.isnan(block))) for block in blocks]
-        task = TaskMapReduce(self.df, self.expressions, mean_map, mean_reduce, remove_counts, info=True)
+        task = TaskMapReduceLegacy(self.df, self.expressions, mean_map, mean_reduce, remove_counts, info=True)
         return self._task(task)
 
     def var(self, means=None):
@@ -1141,14 +1146,14 @@ class SubspaceLocal(Subspace):
                     return [(np.nanmean((block[mask] - mean)**2), np.count_nonzero(~np.isnan(block[mask]))) for block, mean in zip(blocks, means)]
                 else:
                     return [(np.nanmean(block[mask]**2), np.count_nonzero(~np.isnan(block[mask]))) for block in blocks]
-            task = TaskMapReduce(self.df, self.expressions, var_map, vars_reduce, remove_counts, info=True)
+            task = TaskMapReduceLegacy(self.df, self.expressions, var_map, vars_reduce, remove_counts, info=True)
         else:
             def var_map(*blocks):
                 if means is not None:
                     return [(np.nanmean((block - mean)**2), np.count_nonzero(~np.isnan(block))) for block, mean in zip(blocks, means)]
                 else:
                     return [(np.nanmean(block**2), np.count_nonzero(~np.isnan(block))) for block in blocks]
-            task = TaskMapReduce(self.df, self.expressions, var_map, vars_reduce, remove_counts)
+            task = TaskMapReduceLegacy(self.df, self.expressions, var_map, vars_reduce, remove_counts)
         return self._task(task)
 
     def correlation(self, means=None, vars=None):
@@ -1186,7 +1191,7 @@ class SubspaceLocal(Subspace):
                 else:
                     return np.nansum((blockx - meanx) * (blocky - meany)), counts
 
-            task = TaskMapReduce(self.df, self.expressions, covar_map, covars_reduce, remove_counts_and_normalize, info=True)
+            task = TaskMapReduceLegacy(self.df, self.expressions, covar_map, covars_reduce, remove_counts_and_normalize, info=True)
             return self._task(task)
         if means is None:
             if self.delay:
@@ -1224,12 +1229,12 @@ class SubspaceLocal(Subspace):
         # TODO: we can speed up significantly using our own nansum, probably the same for var and mean
         nansum = vaex.vaexfast.nansum
         if self.is_masked or self.df.filtered:
-            task = TaskMapReduce(self.df,
+            task = TaskMapReduceLegacy(self.df,
                                  self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)])
                                                                                           for block in blocks],
                                  lambda a, b: np.array(a) + np.array(b), self._toarray, info=True)
         else:
-            task = TaskMapReduce(self.df, self.expressions, lambda *blocks: [nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
+            task = TaskMapReduceLegacy(self.df, self.expressions, lambda *blocks: [nansum(block) for block in blocks], lambda a, b: np.array(a) + np.array(b), self._toarray)
         return self._task(task)
 
     def histogram(self, limits, size=256, weight=None, progressbar=False, group_by=None, group_limits=None):
@@ -1328,7 +1333,7 @@ class SubspaceLocal(Subspace):
                 return [block[index - i1] for block in blocks]
             else:
                 return None
-        task = TaskMapReduce(self.df, self.expressions, find, lambda a, b: a if b is None else b, info=True)
+        task = TaskMapReduceLegacy(self.df, self.expressions, find, lambda a, b: a if b is None else b, info=True)
         return self._task(task)
 
     def nearest(self, point, metric=None):
@@ -1359,7 +1364,7 @@ class SubspaceLocal(Subspace):
                 return b
         if self.is_masked:
             pass
-        task = TaskMapReduce(self.df,
+        task = TaskMapReduceLegacy(self.df,
                              self.expressions,
                              nearest_in_block,
                              nearest_reduce, info=True)

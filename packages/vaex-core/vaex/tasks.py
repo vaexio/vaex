@@ -128,7 +128,7 @@ class TaskBase(Task):
 
 class TaskMapReduce(Task):
     def __init__(self, df, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False,
-                 to_numpy=True, ordered_reduce=False, skip_masked=False, name="task"):
+                 to_numpy=True, ordered_reduce=False, skip_masked=False, ignore_filter=False, name="task"):
         Task.__init__(self, df, expressions, name=name)
         self._map = map
         self._reduce = reduce
@@ -138,6 +138,7 @@ class TaskMapReduce(Task):
         self.to_float = to_float
         self.to_numpy = to_numpy
         self.skip_masked = skip_masked
+        self.ignore_filter = ignore_filter
 
     def map(self, thread_index, i1, i2, *blocks):
         if self.to_numpy:
@@ -155,10 +156,11 @@ class TaskMapReduce(Task):
                     mask |= other
                 blocks = [block[~mask] for block in blocks]
 
-        selection = None
-        if selection or self.df.filtered:
-            selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
-            blocks = [block[selection_mask] for block in blocks]
+        if not self.ignore_filter:
+            selection = None
+            if selection or self.df.filtered:
+                selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
+                blocks = [block[selection_mask] for block in blocks]
         if self.info:
             return self._map(thread_index, i1, i2, *blocks)
         else:
