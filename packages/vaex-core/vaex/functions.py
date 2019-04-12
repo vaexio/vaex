@@ -1749,6 +1749,12 @@ for name in dir(scopes['str']):
 
 # expression_namespace['str_strip'] = str_strip
 
+@register_function()
+def _ordinal_values(x, ordered_set):
+    from vaex.column import _to_string_sequence
+    x = _to_string_sequence(x)
+    return ordered_set.map_ordinal(x)
+
 @register_function(name='float')
 def _float(x):
     return x.astype(np.float64)
