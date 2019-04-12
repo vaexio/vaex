@@ -126,6 +126,7 @@ public:
     py::array_t<int64_t> map_ordinal(py::array_t<value_type>& values) {
         int64_t size = values.size();
         py::array_t<int64_t> result(size);
+        py::gil_scoped_release gil;
         auto input = values.template unchecked<1>();
         auto output = result.template mutable_unchecked<1>();
         // null and nan map to 0 and 1, and move the index up

@@ -153,6 +153,7 @@ public:
         int64_t size = strings->length;
         py::array_t<int64_t> result(size);
         auto output = result.template mutable_unchecked<1>();
+        py::gil_scoped_release gil;
         // null and nan map to 0 and 1, and move the index up
         int64_t offset = (this->null_count > 0 ? 1 : 0);
         for(int64_t i = 0; i < size; i++) {
