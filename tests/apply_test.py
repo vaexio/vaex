@@ -7,6 +7,7 @@ def test_apply():
 
 
 def test_apply_select():
+    # tests if select supports lambda/functions
     x = [1, 2, 3, 4, 5]
     ds = vaex.from_arrays(x=x)
     ds['x_ind'] = ds.x.apply(lambda w: w > 3)

@@ -193,6 +193,8 @@ class _BlockScopeSelection(object):
                     # self._ensure_buffer(variable)
                     return self.evaluate(expression)  # , out=self.buffers[variable])
                     # self.values[variable] = self.buffers[variable]
+                elif variable in self.df.functions:
+                    return self.df.functions[variable].f
                 raise KeyError("Unknown variables or column: %r" % (variable,))
         except:
             import traceback as tb
