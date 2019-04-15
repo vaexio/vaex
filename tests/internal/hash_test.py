@@ -35,7 +35,7 @@ def test_counter_float64():
     assert set(counts.values()) == {1, 1, 1}
 
     keys = np.array(oset.keys())
-    assert oset.map_ordinal(keys).tolist() == [0, 1, 2]
+    assert set(oset.map_ordinal(keys)) == {0, 1, 2}
 
 
 
@@ -46,7 +46,7 @@ def test_counter_float64():
     assert counts[0] == 2
 
     keys = np.array(oset.keys())
-    assert oset.map_ordinal(keys).tolist() == [1, 2, 3]
+    assert set(oset.map_ordinal(keys)) == {1, 2, 3}
 
     counter.update([np.nan, 0])
     counts = counter.extract()
@@ -76,7 +76,7 @@ def test_ordered_set_object():
     ar2 = np.array([np.nan, None, s], dtype='O')
     oset.update(ar2)
     keys = np.array(oset.keys())
-    assert oset.map_ordinal(keys).tolist() == list(range(1, 1 + len(keys)))
+    assert set(oset.map_ordinal(keys)) == set(list(range(1, 1 + len(keys))))
 
 def test_counter_object():
     s = str("hi there!!")
