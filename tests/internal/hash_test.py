@@ -71,7 +71,7 @@ def test_ordered_set_object():
     oset = ordered_set_object()
     oset.update(ar)
     keys = np.array(oset.keys())
-    assert oset.map_ordinal(keys).tolist() == list(range(len(keys)))
+    assert set(oset.map_ordinal(keys)) == set(list(range(len(keys))))
 
     ar2 = np.array([np.nan, None, s], dtype='O')
     oset.update(ar2)
