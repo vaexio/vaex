@@ -17,7 +17,7 @@ class TaskMapReduceLegacy(TaskMapReduce):
     def __init__(self, *args, **kwargs):
         kwargs = kwargs.copy()
         kwargs['ignore_filter'] = True
-        super(TaskMapReduceLegacy, self).__init__(*args, **kwargs)
+        TaskMapReduce.__init__(self, *args, **kwargs)
 
 class TaskHistogram(Task):
     def __init__(self, df, subspace, expressions, size, limits, masked=False, weight=None):
