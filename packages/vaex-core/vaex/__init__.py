@@ -41,7 +41,8 @@ from . import stat
 # import vaex.file
 # import vaex.export
 from .delayed import delayed
-
+from .groupby import *
+from . import agg
 import vaex.datasets
 # import vaex.plot
 # from vaex.dataframe import DataFrame
