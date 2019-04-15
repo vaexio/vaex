@@ -26,3 +26,18 @@ def test_datetime_operations():
     assert df.date.dt.weekofyear.values.tolist() == pandas_df.date.dt.weekofyear.values.tolist()
     assert df.date.dt.dayofyear.values.tolist() == pandas_df.date.dt.dayofyear.values.tolist()
     assert df.date.dt.dayofweek.values.tolist() == pandas_df.date.dt.dayofweek.values.tolist()
+
+def test_datetime_stats():
+    x1 = np.datetime64('2005-01-01')
+    x2 = np.datetime64('2015-02-01')
+    x = np.arange(x1, x2, dtype=np.datetime64)
+    y = np.arange(len(x))
+    df = vaex.from_arrays(x=x, y=y)
+    d1, d2 = df.x.minmax()
+    assert d1 == x1
+    assert d2 == x[-1]
+
+    # TODO: we may want to support storing objects in the variables automatically
+    # df['deltax'] = df.x - x1
+    # assert df['deltax'].astype('datetime64[D]') == []
+    # print(repr(df['deltax']))  # coverage
