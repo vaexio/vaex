@@ -3225,7 +3225,7 @@ class DataFrame(object):
         self.signal_column_changed.emit(self, name, "delete")
         # self.write_virtual_meta()
 
-    def add_variable(self, name, expression, overwrite=True):
+    def add_variable(self, name, expression, overwrite=True, unique=True):
         """Add a variable to to a DataFrame.
 
         A variable may refer to other variables, and virtual columns and expression may refer to variables.
@@ -3239,10 +3239,13 @@ class DataFrame(object):
         :param: str name: name of virtual varible
         :param: expression: expression for the variable
         """
-        if overwrite or name not in self.variables:
+        if unique or overwrite or name not in self.variables:
+            existing_names = self.get_column_names(virtual=False) + list(self.variables.keys())
+            name = vaex.utils.find_valid_name(name, used=[] if not unique else existing_names)
             self.variables[name] = expression
             self.signal_variable_changed.emit(self, name, "add")
-            # self.write_virtual_meta()
+            if unique:
+                return name
 
     def delete_variable(self, name):
         """Deletes a variable from a DataFrame."""
