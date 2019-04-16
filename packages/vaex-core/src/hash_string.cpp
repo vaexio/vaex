@@ -149,9 +149,9 @@ class ordered_set : public hash_base<ordered_set<T>, T, T> {
 public:
     using typename hash_base<ordered_set<T>, T, T>::value_type;
     using typename hash_base<ordered_set<T>,T, T>::storage_type;
-    py::array_t<int64_t> map_ordinal(StringSequence* strings) {
+    py::array_t<double> map_ordinal(StringSequence* strings) {
         int64_t size = strings->length;
-        py::array_t<int64_t> result(size);
+        py::array_t<double> result(size);
         auto output = result.template mutable_unchecked<1>();
         py::gil_scoped_release gil;
         // null and nan map to 0 and 1, and move the index up

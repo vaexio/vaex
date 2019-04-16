@@ -123,9 +123,9 @@ class ordered_set : public hash_base<ordered_set<T>, T> {
 public:
     using typename hash_base<ordered_set<T>, T, T>::value_type;
     using typename hash_base<ordered_set<T>,T, T>::storage_type;
-    py::array_t<int64_t> map_ordinal(py::array_t<value_type>& values) {
+    py::array_t<double> map_ordinal(py::array_t<value_type>& values) {
         int64_t size = values.size();
-        py::array_t<int64_t> result(size);
+        py::array_t<double> result(size);
         py::gil_scoped_release gil;
         auto input = values.template unchecked<1>();
         auto output = result.template mutable_unchecked<1>();
