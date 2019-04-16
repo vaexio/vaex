@@ -173,6 +173,16 @@ public:
         this->nan_count += other.nan_count;
         this->null_count += other.null_count;
     }
+    std::vector<value_type> keys() {
+        std::vector<value_type> v(this->map.size());
+        for(auto el : this->map) {
+            storage_type storage_value = el.first;
+            value_type value = *((value_type*)(&storage_value));
+            v[el.second] = value;
+
+        }
+        return v;
+    }
 };
 
 

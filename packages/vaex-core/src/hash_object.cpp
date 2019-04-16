@@ -248,6 +248,15 @@ public:
         this->nan_count += other.nan_count;
         this->null_count += other.null_count;
     }
+    py::object keys() {
+        PyObject* list = PyList_New(this->map.size());
+        size_t index = 0;
+        for(auto el : this->map) {
+            Py_IncRef(el.first);
+            PyList_SetItem(list, el.second, el.first);
+        }
+        return  py::reinterpret_steal<py::object>(list);
+    }
 };
 
 

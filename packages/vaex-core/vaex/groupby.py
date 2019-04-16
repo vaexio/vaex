@@ -94,12 +94,8 @@ class Grouper(BinnerBase):
         self.setname = 'set_%s' % vaex.utils.find_valid_name(str(expression))
         self.df.add_variable(self.setname, ordered_set)
 
-        keys, indices = zip(*ordered_set.extract().items())
-        indices = np.array(indices)
-        # indices = np.arange(len(indices))[indices]
-        keys = np.array(keys)#[indices].tolist()
-        keys[indices] = keys.copy()
-        self.bin_values = keys = keys.tolist()
+        keys = ordered_set.keys()
+        self.bin_values = keys
         self.binby = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
         self.N = len(ordered_set.keys())
         if ordered_set.has_null:

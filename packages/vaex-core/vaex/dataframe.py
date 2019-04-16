@@ -359,9 +359,7 @@ class DataFrame(object):
             def reduce(a, b):
                 pass
             self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False)
-        keys, indices = zip(*ordered_set.extract().items())
-        indices = np.array(indices)
-        keys = np.array(keys)[indices].tolist()
+        keys = ordered_set.keys()
         if ordered_set.has_nan:
             keys = [np.nan] + keys
         if ordered_set.has_null:

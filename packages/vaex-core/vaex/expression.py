@@ -564,12 +564,7 @@ def f({0}):
 
         # we map the keys to a ordinal values [0, N-1] using the set
         key_set = df._set(self.expression)
-        found_keys, indices = zip(*key_set.extract().items())
-        indices = np.array(indices)
-        # put in right order, such that found_keys[0] points to 0
-        found_keys = np.array(found_keys)
-        found_keys[indices] = found_keys.copy()
-
+        found_keys = key_set.keys()
         mapper_has_nan = any([key != key for key in mapper_keys])
 
         # we want all possible values to be converted
