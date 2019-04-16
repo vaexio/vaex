@@ -154,7 +154,7 @@ class GroupByBase(object):
                 column_name = aggregate.pretty_name(override_name)
             #method = getattr(df, value)
             # values = method(key, binby=binby, limits=limits, shape=shape, delay=False)
-            values = aggregate.calculate(df, binby=self.binby, limits=self.limits, shape=self.shape, delay=False)
+            values = aggregate.calculate(df, binby=self.binby, limits=self.limits, shape=self.shape, delay=True)
             # @vaex.delayed
             # def done(values, key=key):
             #dfg[column_name] = values.ravel()
@@ -191,7 +191,6 @@ class GroupByBase(object):
                         add(aggregate(name), name, override_name=override_name)
                 else:
                     add(aggregate, name, override_name=override_name)
-        df.execute()
         return grids
 
 class BinBy(GroupByBase):
@@ -202,6 +201,8 @@ class BinBy(GroupByBase):
     def agg(self, actions, merge=False):
         import xarray as xr
         arrays = super(BinBy, self)._agg(actions)
+        self.df.execute()
+        arrays = {key: value.get() for key, value in arrays.items()}
 
         keys = list(arrays.keys())
         key0 = keys[0]
@@ -227,16 +228,19 @@ class GroupBy(GroupByBase):
     def agg(self, actions):
         # TODO: this basically forms a cartesian product, we can do better, use a
         # 'multistage' hashmap
-        grids = super(GroupBy, self)._agg(actions)
+        arrays = super(GroupBy, self)._agg(actions)
         # we don't want non-existing pairs (e.g. Amsterdam in France does not exist)
-        counts = self.df.count(limits=self.limits, shape=self.shape, binby=self.binby)
+        counts = self.df.count(limits=self.limits, shape=self.shape, binby=self.binby, delay=True)
+        self.df.execute()
+        arrays = {key: value.get() for key, value in arrays.items()}
+        counts = counts.get()
         mask = counts > 0
         coords = [coord[mask] for coord in np.meshgrid(*self.coords1d, indexing='ij')]
         labels = {str(by.expression): coord for by, coord in zip(self.by, coords)}
         df_grouped = vaex.from_dict(labels)
-        for key, value in grids.items():
+        for key, value in arrays.items():
             df_grouped[key] = value[mask]
-        for key, value in grids.items():
+        for key, value in arrays.items():
             df_grouped[key] = value[mask]
         return df_grouped
 
