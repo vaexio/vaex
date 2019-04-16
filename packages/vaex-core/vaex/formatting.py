@@ -15,24 +15,24 @@ def _format_value(value):
     elif isinstance(value, np.ma.core.MaskedConstant):
         value = str(value)
     if isinstance(value, np.datetime64):
-        value = ' '.join(str(value).split('T'))
-    if isinstance(value, np.timedelta64):
-        tmp = datetime.timedelta(seconds=value / np.timedelta64(1, 's'))
-        ms = tmp.microseconds
-        s = np.mod(tmp.seconds, 60)
-        m = np.mod(tmp.seconds//60, 60)
-        h = tmp.seconds // 3600
-        d = tmp.days
-        if d<0:
-            if ms:
-                value = str('%i days +%02i:%02i:%02i.%i' % (d,h,m,s,ms))
-            else:
-                value = str('%i days +%02i:%02i:%02i' % (d,h,m,s))
+        if np.isnat(value):
+            value = 'NaT'
         else:
+            value = ' '.join(str(value).split('T'))
+    if isinstance(value, np.timedelta64):
+        if np.isnat(value):
+            value = 'NaT'
+        else:
+            tmp = datetime.timedelta(seconds=value / np.timedelta64(1, 's'))
+            ms = tmp.microseconds
+            s = np.mod(tmp.seconds, 60)
+            m = np.mod(tmp.seconds//60, 60)
+            h = tmp.seconds // 3600
+            d = tmp.days
             if ms:
-                value = str('%i days %02i:%02i:%02i.%i' % (d,h,m,s,ms))
+                value = str('%i days %+02i:%02i:%02i.%i' % (d,h,m,s,ms))
             else:
-                value = str('%i days %02i:%02i:%02i' % (d,h,m,s))
+                value = str('%i days %+02i:%02i:%02i' % (d,h,m,s))
     elif not isinstance(value, numbers.Number):
         value = str(value)
     if isinstance(value, float):
