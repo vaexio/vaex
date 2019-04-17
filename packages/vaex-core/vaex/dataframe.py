@@ -3222,7 +3222,7 @@ class DataFrame(object):
             parts += ["<td>%s</td>" % name]
             virtual = name not in self.column_names
             if name in self.column_names:
-                type = self.dtype(name).name
+                type = self.dtype(name)
             else:
                 type = "</i>virtual column</i>"
             parts += ["<td>%s</td>" % type]
