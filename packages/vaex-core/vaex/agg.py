@@ -14,14 +14,17 @@ class AggregatorDescriptor:
     pass
 
 class AggregatorDescriptorBasic(AggregatorDescriptor):
-    def __init__(self, name, expression, short_name):
+    def __init__(self, name, expression, short_name, multi_args=False):
         self.name = name
         self.short_name = short_name
         self.expression = expression
-        if self.expression == '*':
-            self.expressions = []
+        if not multi_args:
+            if self.expression == '*':
+                self.expressions = []
+            else:
+                self.expressions = [self.expression]
         else:
-            self.expressions = [self.expression]
+            self.expressions = expression
 
     def pretty_name(self, id=None):
         id = id or "_".join(map(str, self.expression))
@@ -40,7 +43,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         if self.expression == '*':
             self.dtype = np.dtype('int64')
         else:
-            self.dtype = df[str(self.expression)].dtype
+            self.dtype = df[str(self.expressions[0])].dtype
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype)
         agg_op = agg_op_type(grid)
         return agg_op
@@ -71,8 +74,6 @@ class AggregatorDescriptorMean(AggregatorDescriptor):
             return mean
         return finish(task_sum, task_count)
 
-
-
 @register
 def count(expression='*'):
     '''Creates a count aggregation'''
@@ -87,6 +88,21 @@ def sum(expression):
 def mean(expression):
     '''Creates a mean aggregation'''
     return AggregatorDescriptorMean('AggSum', expression, 'mean')
+
+@register
+def min(expression):
+    '''Creates a min aggregation'''
+    return AggregatorDescriptorBasic('AggMin', expression, 'min')
+
+@register
+def max(expression):
+    '''Creates a max aggregation'''
+    return AggregatorDescriptorBasic('AggMax', expression, 'max')
+
+@register
+def first(expression, order_expression):
+    '''Creates a max aggregation'''
+    return AggregatorDescriptorBasic('AggFirst', [expression, order_expression], 'first', multi_args=True)
 
 @register
 def std(expression):

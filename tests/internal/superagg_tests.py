@@ -42,7 +42,7 @@ def test_count_1d_strings():
 
     grid = vaex.superagg.Grid([binner])
     agg = vaex.superagg.AggCount_string(grid)
-    agg.set_data(y)
+    agg.set_data(y, 0)
     agg_data = np.asarray(agg)
     grid.bin([agg])
     assert agg_data.tolist() == [0, 2, 0, 1, 0, 0, 1, 1]
@@ -93,7 +93,7 @@ def test_min_max_1d_ordinal():
     agg = vaex.superagg.AggMax_int64(grid)
     agg_data = np.asarray(agg)
     agg_data -= 100
-    agg.set_data(y)
+    agg.set_data(y, 0)
     grid.bin([agg])
     assert agg_data.tolist() == [-100, 2, 4, -100, -100, -100, 9, 10]
     
@@ -101,7 +101,7 @@ def test_min_max_1d_ordinal():
     agg = vaex.superagg.AggMin_int64(grid)
     agg_data = np.asarray(agg)
     agg_data += 100
-    agg.set_data(y)
+    agg.set_data(y, 0)
     grid.bin([agg])
     assert agg_data.tolist() == [100, -1, 1, 100, 100, 100, 9, 6]
 
@@ -114,7 +114,7 @@ def test_sum_1d_ordinal():
     grid = vaex.superagg.Grid([binner])
     agg = vaex.superagg.AggSum_int64(grid)
     agg_data = np.asarray(agg)
-    agg.set_data(y)
+    agg.set_data(y, 0)
     grid.bin([agg])
     assert agg_data.tolist() == [0, 1, 5, 0, 0, 0, 9, 16]
 
@@ -127,6 +127,6 @@ def test_count_1d_object():
     grid = vaex.superagg.Grid([binner])
     agg = vaex.superagg.AggCount_object(grid)
     agg_data = np.asarray(agg)
-    agg.set_data(y)
+    agg.set_data(y, 0)
     grid.bin([agg])
     assert agg_data.tolist() == [0, 2, 1, 0, 1, 0, 0, 1]

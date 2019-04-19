@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <limits>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
@@ -28,7 +29,7 @@ T _to_native(T value_non_native) {
 	unsigned char* bytes = (unsigned char*)&value_non_native;
 	T result;
 	unsigned char* result_bytes = (unsigned char*)&result;
-	for(int i = 0; i < sizeof(T); i++)
+	for(size_t i = 0; i < sizeof(T); i++)
 		result_bytes[sizeof(T)-1-i] = bytes[i];
 	return result;
 }
@@ -319,10 +320,10 @@ public:
         // }
     }
     void compute1d(uint64_t binner_count, uint64_t length) {
-        for(int j = 0; j < length; j++) {
+        for(size_t j = 0; j < length; j++) {
             uint64_t index_1d = 0;
             // std::cout << "index_1d[0] = " << index_1d << std::endl;
-            for(int i = 0; i < binner_count; i++) {
+            for(size_t i = 0; i < binner_count; i++) {
                 index_1d += this->indices[i*INDEX_BLOCK_SIZE + j] * this->strides[i];
                 // std::cout << "index_1d[x] = " << index_1d << " / " << this->strides[i] << std::endl;
             }
@@ -365,7 +366,7 @@ public:
     }
     ~AggBaseObject() {
     }
-    void set_data(py::buffer ar) {
+    void set_data(py::buffer ar, size_t index) {
         py::buffer_info info = ar.request();
         if(info.ndim != 1) {
             throw std::runtime_error("Expected a 1d array");
@@ -410,13 +411,13 @@ public:
             throw std::runtime_error("object data not set");
         }
         if(this->data_mask_ptr == nullptr) {
-            for(int j = 0; j < length; j++) {
+            for(size_t j = 0; j < length; j++) {
                 PyObject* obj = this->objects[j+offset];
                 bool none = (obj == Py_None);
                 this->grid_data[indices1d[j]] += none ? 0 : 1;
             }
         } else {
-            for(int j = 0; j < length; j++) {
+            for(size_t j = 0; j < length; j++) {
                 PyObject* obj = this->objects[j+offset];
                 bool none = (obj == Py_None);
                 bool masked = this->data_mask_ptr[j+offset] == 0;
@@ -440,7 +441,7 @@ public:
     }
     ~AggBaseString() {
     }
-    void set_data(StringSequence* string_sequence) {
+    void set_data(StringSequence* string_sequence, size_t index) {
         this->string_sequence = string_sequence;
     }
     void set_data_mask(py::buffer ar) {
@@ -477,20 +478,20 @@ public:
         }
         if(!this->string_sequence->has_null() && this->data_mask_ptr == nullptr) {
             // fast path
-            for(int j = 0; j < length; j++) {
+            for(size_t j = 0; j < length; j++) {
                 this->grid_data[indices1d[j]] += 1;
             }
         } else if(this->string_sequence->has_null() && this->data_mask_ptr == nullptr) {
-            for(int j = 0; j < length; j++) {
+            for(size_t j = 0; j < length; j++) {
                 this->grid_data[indices1d[j]] += this->string_sequence->is_null(j+offset) ? 0 : 1;
             }
         } else if(!this->string_sequence->has_null() && this->data_mask_ptr != nullptr) {
-            for(int j = 0; j < length; j++) {
+            for(size_t j = 0; j < length; j++) {
                 bool masked = this->data_mask_ptr[j+offset] == 0;
                 this->grid_data[indices1d[j]] += masked ? 0 : 1;
             }
         } else if(this->string_sequence->has_null() && this->data_mask_ptr != nullptr) {
-            for(int j = 0; j < length; j++) {
+            for(size_t j = 0; j < length; j++) {
                 bool masked = this->data_mask_ptr[j+offset] == 0;
                 this->grid_data[indices1d[j]] += this->string_sequence->is_null(j+offset) || masked ? 0 : 1;
             }
@@ -506,7 +507,7 @@ public:
     using data_type = DataType;
     AggBase(Grid<IndexType>* grid) : Base(grid), data_ptr(nullptr), data_mask_ptr(nullptr) {
     }
-    void set_data(py::buffer ar) {
+    void set_data(py::buffer ar, size_t index) {
         py::buffer_info info = ar.request();
         if(info.ndim != 1) {
             throw std::runtime_error("Expected a 1d array");
@@ -556,7 +557,7 @@ public:
         //     throw std::runtime_error("data not set");
         // }
         if(this->data_mask_ptr || this->data_ptr) {
-            for(int j = 0; j < length; j++) {
+            for(size_t j = 0; j < length; j++) {
                 // if not masked
                 if(this->data_mask_ptr == nullptr || this->data_mask_ptr[j+offset] == 1) {
                     // and not nan (TODO: we can skip this for non-floats)
@@ -572,7 +573,7 @@ public:
                 }
             }
         } else {
-            for(int j = 0; j < length; j++) {
+            for(size_t j = 0; j < length; j++) {
                 // std::cout << "put " << j << ", " << indices1d[j] << std::endl;
                 this->grid_data[indices1d[j]] += 1;
             }
@@ -580,11 +581,11 @@ public:
     }
 };
 
-template<class StorageType=double, class IndexType=default_index_type>
+template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
 class AggMax : public AggBase<StorageType, StorageType, IndexType> {
 public:
     using Base = AggBase<StorageType, StorageType, IndexType>;
-    using Type = AggMax<StorageType, IndexType>;
+    using Type = AggMax<StorageType, IndexType, FlipEndian>;
     using Base::Base;
     virtual void reduce(std::vector<Type*> others) {
         for(auto other: others) {
@@ -597,19 +598,34 @@ public:
         if(this->data_ptr == nullptr) {
             throw std::runtime_error("data not set");
         }
-        for(int j = 0; j < length; j++) {
-            StorageType value = this->data_ptr[offset + j];
-            // if(value == value) // nan check
-            this->grid_data[indices1d[j]] = std::max(value, this->grid_data[indices1d[j]]);
+        if(this->data_mask_ptr) {
+            for(size_t j = 0; j < length; j++) {
+                // if not masked
+                if(this->data_mask_ptr[j+offset] == 1) {
+                    StorageType value = this->data_ptr[j+offset];
+                    if(FlipEndian)
+                        value = _to_native(value);
+                    if(value != value) // nan
+                        continue;
+                    this->grid_data[indices1d[j]] = std::max(value, this->grid_data[indices1d[j]]);
+                }
+            }
+        } else {
+            for(size_t j = 0; j < length; j++) {
+                StorageType value = this->data_ptr[offset + j];
+                // if(value == value) // nan check
+                if(value == value) // nan check
+                    this->grid_data[indices1d[j]] = std::max(value, this->grid_data[indices1d[j]]);
+            }
         }
     }
 };
 
-template<class StorageType=double, class IndexType=default_index_type>
+template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
 class AggMin : public AggBase<StorageType, StorageType, IndexType> {
 public:
     using Base = AggBase<StorageType, StorageType, IndexType>;
-    using Type = AggMin<StorageType, IndexType>;
+    using Type = AggMin<StorageType, IndexType, FlipEndian>;
     using Base::Base;
     virtual void reduce(std::vector<Type*> others) {
         for(auto other: others) {
@@ -622,19 +638,35 @@ public:
         if(this->data_ptr == nullptr) {
             throw std::runtime_error("data not set");
         }
-        for(int j = 0; j < length; j++) {
-            StorageType value = this->data_ptr[offset + j];
-            // if(value == value) // nan check
-            this->grid_data[indices1d[j]] = std::min(value, this->grid_data[indices1d[j]]);
+
+        if(this->data_mask_ptr) {
+            for(size_t j = 0; j < length; j++) {
+                // if not masked
+                if(this->data_mask_ptr[j+offset] == 1) {
+                    StorageType value = this->data_ptr[j+offset];
+                    if(FlipEndian)
+                        value = _to_native(value);
+                    if(value != value) // nan
+                        continue;
+                    this->grid_data[indices1d[j]] = std::min(value, this->grid_data[indices1d[j]]);
+                }
+            }
+        } else {
+            for(size_t j = 0; j < length; j++) {
+                StorageType value = this->data_ptr[offset + j];
+                // if(value == value) // nan check
+                if(value == value) // nan check
+                    this->grid_data[indices1d[j]] = std::min(value, this->grid_data[indices1d[j]]);
+            }
         }
     }
 };
 
-template<class StorageType=double, class IndexType=default_index_type>
+template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
 class AggSum : public AggBase<StorageType, StorageType, IndexType> {
 public:
     using Base = AggBase<StorageType, StorageType, IndexType>;
-    using Type = AggSum<StorageType, IndexType>;
+    using Type = AggSum<StorageType, IndexType, FlipEndian>;
     using Base::Base;
     virtual void reduce(std::vector<Type*> others) {
         for(auto other: others) {
@@ -647,23 +679,129 @@ public:
         if(this->data_ptr == nullptr) {
             throw std::runtime_error("data not set");
         }
-        for(int j = 0; j < length; j++) {
-            StorageType value = this->data_ptr[offset + j];
-            if(value == value) // nan check
-                this->grid_data[indices1d[j]] += value;
+
+        if(this->data_mask_ptr) {
+            for(size_t j = 0; j < length; j++) {
+                // if not masked
+                if(this->data_mask_ptr[j+offset] == 1) {
+                    StorageType value = this->data_ptr[j+offset];
+                    if(FlipEndian)
+                        value = _to_native(value);
+                    if(value != value) // nan
+                        continue;
+                    this->grid_data[indices1d[j]] += value;
+                }
+            }
+        } else {
+            for(size_t j = 0; j < length; j++) {
+                StorageType value = this->data_ptr[offset + j];
+                if(FlipEndian)
+                    value = _to_native(value);
+                if(value == value) // nan check
+                    this->grid_data[indices1d[j]] += value;
+            }
         }
     }
 };
+
+template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
+class AggFirst : public AggBase<StorageType, StorageType, IndexType> {
+public:
+    using Base = AggBase<StorageType, StorageType, IndexType>;
+    using Type = AggFirst<StorageType, IndexType, FlipEndian>;
+    using Base::Base;
+    AggFirst(Grid<IndexType>* grid) : Base(grid) {
+        grid_data_order = (StorageType*)malloc(sizeof(StorageType) * grid->length1d);
+        typedef std::numeric_limits<StorageType> limit_type;
+        std::fill(grid_data_order, grid_data_order+grid->length1d, limit_type::max());
+    }
+    virtual ~AggFirst() {
+        free(grid_data_order);
+    }
+    void set_data(py::buffer ar, size_t index) {
+        py::buffer_info info = ar.request();
+        if(info.ndim != 1) {
+            throw std::runtime_error("Expected a 1d array");
+        }
+        if(index == 1) {
+            this->data_ptr2 = (StorageType*)info.ptr;
+            this->data_size2 = info.shape[0];
+        } else {
+            this->data_ptr = (StorageType*)info.ptr;
+            this->data_size = info.shape[0];
+        }
+    }
+    void set_data_mask2(py::buffer ar) {
+        py::buffer_info info = ar.request();
+        if(info.ndim != 1) {
+            throw std::runtime_error("Expected a 1d array");
+        }
+        this->data_mask_ptr2 = (uint8_t*)info.ptr;
+        this->data_mask_size2 = info.shape[0];
+    }
+    virtual void reduce(std::vector<Type*> others) {
+        for(auto other: others) {
+            for(size_t i = 0; i < this->grid->length1d; i++) {
+                if(other->grid_data_order[i] < this->grid_data_order[i]) {
+                    this->grid_data[i] = other->grid_data[i];
+                    this->grid_data_order[i] = other->grid_data_order[i];
+                    // std::cout << "(reduce) value = " << this->grid_data[i]  << " value_ordered = " << other->grid_data[i] << std::endl;
+                }
+            }
+        }
+    }
+    virtual void aggregate(default_index_type* indices1d, size_t length, uint64_t offset) {
+        if(this->data_ptr == nullptr) {
+            throw std::runtime_error("data not set");
+        }
+        if(this->data_ptr2 == nullptr) {
+            throw std::runtime_error("data2 not set");
+        }
+        // if(this->data_mask_ptr || this->) {
+        //     for(size_t j = 0; j < length; j++) {
+        //         // if not masked
+        //         if(this->data_mask_ptr[j+offset] == 1) {
+        //             StorageType value = this->data_ptr[j+offset];
+        //             if(FlipEndian)
+        //                 value = _to_native(value);
+        //             if(value != value) // nan
+        //                 continue;
+        //             this->grid_data[indices1d[j]] += value;
+        //         }
+        //     }
+        // } else {
+            for(size_t j = 0; j < length; j++) {
+                StorageType value = this->data_ptr[offset + j];
+                StorageType value_order = this->data_ptr2[offset + j];
+                if(FlipEndian) {
+                    value = _to_native(value);
+                    value_order = _to_native(value_order);
+                }
+                if(value == value && value_order == value_order) { // nan check
+                    IndexType i = indices1d[j];
+                    // std::cout << "value = " << value  << " value_ordered = " << value_ordered << std::endl;
+                    if(value_order < grid_data_order[i]) {
+                        // std::cout << "  set  " << value_ordered << std::endl;
+                        this->grid_data[i] = value;
+                        this->grid_data_order[i] = value_order;
+                    }
+                }
+            }
+        // }
+
+    }
+    StorageType* grid_data_order;        
+    StorageType* data_ptr2;
+    uint64_t data_size2;
+    uint8_t* data_mask_ptr2;
+    uint64_t data_mask_size2;
+};
+
 
 template<class Agg, class Base, class Module>
 void add_agg(Module m, Base& base, const char* class_name) {
     py::class_<Agg>(m, class_name, py::buffer_protocol(), base)
         .def(py::init<Grid<>*>(), py::keep_alive<1, 2>())
-        // .def(py::init([](py::buffer grid) {
-        //         py::buffer_info info = grid.request();
-        //         return new Agg((T*)info.ptr, info.strides, info.ndim);
-        //     }) // no need to keep a reference to the ndarrays
-        // )
         .def_buffer([](Agg &agg) -> py::buffer_info {
             std::vector<ssize_t> strides(agg.grid->dimensions);
             std::vector<ssize_t> shapes(agg.grid->dimensions);
@@ -683,63 +821,25 @@ void add_agg(Module m, Base& base, const char* class_name) {
             }
         )
         .def("set_data", &Agg::set_data)
-        .def("set_data", &Agg::set_data)
         .def("set_data_mask", &Agg::set_data_mask)
         .def("reduce", &Agg::reduce)
     ;
 }
 
+template<class T, class Base, class Module, bool FlipEndian=false>
+void add_agg_primitives_(Module m, Base& base, std::string postfix) {
+    add_agg<AggCount<T, default_index_type, FlipEndian>, Base, Module>(m, base, ("AggCount_" + postfix).c_str());
+    add_agg<AggMin<T, default_index_type, FlipEndian>, Base, Module>(m, base, ("AggMin_" + postfix).c_str());
+    add_agg<AggMax<T, default_index_type, FlipEndian>, Base, Module>(m, base, ("AggMax_" + postfix).c_str());
+    add_agg<AggSum<T, default_index_type, FlipEndian>, Base, Module>(m, base, ("AggSum_" + postfix).c_str());
+    add_agg<AggFirst<T, default_index_type, FlipEndian>, Base, Module>(m, base, ("AggFirst_" + postfix).c_str());
+}
+
 template<class T, class Base, class Module>
 void add_agg_primitives(Module m, Base& base, std::string postfix) {
-    add_agg<AggCount<T, default_index_type, false>, Base, Module>(m, base, ("AggCount_" + postfix).c_str());
-    add_agg<AggCount<T, default_index_type, true>, Base, Module>(m, base, ("AggCount_" + postfix + "_non_native").c_str());
-    add_agg<AggMin<T>, Base, Module>(m, base, ("AggMin_" + postfix).c_str());
-    add_agg<AggMax<T>, Base, Module>(m, base, ("AggMax_" + postfix).c_str());
-    add_agg<AggSum<T>, Base, Module>(m, base, ("AggSum_" + postfix).c_str());
+    add_agg_primitives_<T, Base, Module, false>(m, base, postfix);
+    add_agg_primitives_<T, Base, Module, true>(m, base, postfix+ "_non_native");
 }
-/*
-template<class T, class Base, class Module>
-void add_stat(Module m, Base& base, std::string postfix) {
-    {
-        typedef AggCount<T> Type;
-        std::string class_name = "AggCount_" + postfix;
-        py::class_<Type>(m, class_name.c_str())
-            .def(py::init([](py::buffer grid) {
-                    py::buffer_info info = grid.request();
-                    return new Type((T*)info.ptr, info.strides, info.ndim);
-                }) // no need to keep a reference to the ndarrays
-            )
-            .def("bin", &Type::bin)
-        ;
-    }
-    {
-        typedef AggMax<T> Type;
-        std::string class_name = "AggMax_" + postfix;
-        py::class_<Type>(m, class_name.c_str())
-            .def(py::init([](py::buffer grid) {
-                    py::buffer_info info = grid.request();
-                    return new Type((T*)info.ptr, info.strides, info.ndim);
-                }) // no need to keep a reference to the ndarrays
-            )
-            .def("bin", &Type::bin)
-            .def("set_data", &Type::set_data)
-        ;
-    }
-    {
-        typedef AggMin<T> Type;
-        std::string class_name = "AggMin_" + postfix;
-        py::class_<Type>(m, class_name.c_str())
-            .def(py::init([](py::buffer grid) {
-                    py::buffer_info info = grid.request();
-                    return new Type((T*)info.ptr, info.strides, info.ndim);
-                }) // no need to keep a reference to the ndarrays
-            )
-            .def("bin", &Type::bin)
-            .def("set_data", &Type::set_data)
-        ;
-    }
-}
-*/
 
 template<class T, class Base, class Module, bool FlipEndian>
 void add_binner_ordinal_(Module m, Base& base, std::string postfix) { 
@@ -756,6 +856,7 @@ void add_binner_ordinal_(Module m, Base& base, std::string postfix) {
         )
     ;
 }
+
 template<class T, class Base, class Module>
 void add_binner_ordinal(Module m, Base& base, std::string postfix) { 
     add_binner_ordinal_<T, Base, Module, false>(m, base, postfix);

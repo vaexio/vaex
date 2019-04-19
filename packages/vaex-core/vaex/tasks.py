@@ -487,7 +487,6 @@ class TaskAggregate(Task):
         # self.grids = []
 
     def add_aggregation_operation(self, aggregator_descriptor, selection=None, edges=False):
-        # print("add", aggregator)
         selection_waslist = _issequence(selection)
         selections = _ensure_list(selection)
         def create_aggregator(thread_index):
@@ -499,7 +498,6 @@ class TaskAggregate(Task):
         self.expressions_all = list(set(self.expressions_all))
         self.dtypes = {expr: self.df.dtype(expr) for expr in self.expressions_all}
         return task
-        # self.agg = [create_aggregator(i) for i in range(self.nthreads)]
 
     def map(self, thread_index, i1, i2, *blocks):
         assert self.aggregations
@@ -535,23 +533,26 @@ class TaskAggregate(Task):
                 if selection or self.df.filtered:
                     selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
                 if agg_desc.expressions:
-                    assert len(agg_desc.expressions) == 1, "only length 1 supported for now"
-                    block = block_map[agg_desc.expressions[0]]
-                    dtype = self.dtypes[agg_desc.expressions[0]]
-                    # we have data for the aggregator as well
-                    if np.ma.isMaskedArray(block):
-                        block, mask = block.data, np.ma.getmaskarray(block)
-                        block = check_array(block, dtype)
-                        agg.set_data(block)
-                        references.extend([block])
-                        if selection_mask is None:
-                            selection_mask = ~mask
+                    assert len(agg_desc.expressions) in [1,2], "only length 1 or 2 supported for now"
+                    dtype_ref = block = block_map[agg_desc.expressions[0]].dtype
+                    for i, expression in enumerate(agg_desc.expressions):
+                        block = block_map[agg_desc.expressions[i]]
+                        dtype = self.dtypes[agg_desc.expressions[i]]
+                        # we have data for the aggregator as well
+                        if np.ma.isMaskedArray(block):
+                            block, mask = block.data, np.ma.getmaskarray(block)
+                            block = check_array(block, dtype)
+                            agg.set_data(block, i)
+                            references.extend([block])
+                            if selection_mask is None:
+                                selection_mask = ~mask
+                            else:
+                                selection_mask = selection_mask & ~mask
                         else:
-                            selection_mask = selection_mask & ~mask
-                    else:
-                        block = check_array(block, dtype)
-                        agg.set_data(block)
-                        references.extend([block])
+                            block = check_array(block, dtype)
+                            agg.set_data(block, i)
+                            references.extend([block])
+                # we only have 1 data mask, since it's locally combined
                 if selection_mask is not None:
                     agg.set_data_mask(selection_mask)
                     references.extend([selection_mask])

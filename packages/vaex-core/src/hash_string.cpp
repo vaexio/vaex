@@ -78,7 +78,7 @@ public:
                 if(strings->is_null(i)) {
                     null_count++;
                 } else {
-                    auto value = strings->view(i);
+                    auto value = strings->get(i);
                     auto search = this->map.find(value);
                     auto end = this->map.end();
                     if(search == end) {
@@ -98,7 +98,7 @@ public:
                 if(strings->is_null(i) || m[i]) {
                     null_count++;
                 } else {
-                    auto value = strings->view(i);
+                    auto value = strings->get(i);
                     auto search = this->map.find(value);
                     auto end = this->map.end();
                     if(search == end) {
@@ -130,13 +130,14 @@ public:
         return m;
 
     }
-    hashmap<storage_type, int64_t, hash_string, equal_string> map;
+    // hashmap<storage_type, int64_t, hash_string, equal_string> map;
+    hashmap<storage_type, int64_t> map;
     int64_t count;
     int64_t nan_count;
     int64_t null_count;
 };
 
-template<class T=string, class A=T, class V=string_view>
+template<class T=string, class A=T, class V=string>
 class counter : public hash_base<counter<T, A>, T, A, V> {
 public:
     using typename hash_base<counter<T, A>, T, A, V>::value_type;
@@ -167,7 +168,7 @@ public:
     }
 };
 
-template<class T=string, class V=string_view>
+template<class T=string, class V=string>
 class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
 public:
     using typename hash_base<ordered_set<T>, T, T, V>::value_type;
@@ -176,13 +177,13 @@ public:
 
     py::object map_ordinal(StringSequence* strings) {
         size_t size = this->map.size() + (this->null_count > 0 ? 1 : 0);
-        if(size < (1<<7)) {
+        if(size < (1u<<7u)) {
             return this->template _map_ordinal<int8_t>(strings);
         } else
-        if(size < (1<<15)) {
+        if(size < (1u<<15u)) {
             return this->template _map_ordinal<int16_t>(strings);
         } else
-        if(size < (1<<31)) {
+        if(size < (1u<<31u)) {
             return this->template _map_ordinal<int32_t>(strings);
         } else {
             return this->template _map_ordinal<int64_t>(strings);
@@ -202,7 +203,7 @@ public:
                     output(i) = 0;
                     assert(this->null_count > 0);
                 } else {
-                    const storage_type_view& value = strings->view(i);
+                    const storage_type_view& value = strings->get(i);
                     auto search = this->map.find(value);
                     auto end = this->map.end();
                     if(search == end) {
@@ -214,7 +215,7 @@ public:
             }
         } else {
             for(int64_t i = 0; i < size; i++) {
-                const storage_type_view& value = strings->view(i);
+                const storage_type_view& value = strings->get(i);
                 auto search = this->map.find(value);
                 auto end = this->map.end();
                 if(search == end) {
@@ -280,18 +281,18 @@ void init_hash_string(py::module &m) {
             .def_property_readonly("null_count", [](const counter_type &c) { return c.null_count; })
         ;
     }
-    {
-        typedef counter<string_view, string_view, string_view> counter_type;
-        std::string countername = "counter_stringview";
-        py::class_<counter_type>(m, countername.c_str())
-            .def(py::init<>())
-            .def("update", &counter_type::update)
-            .def("merge", &counter_type::merge)
-            .def("extract", &counter_type::extract)
-            .def_property_readonly("nan_count", [](const counter_type &c) { return c.nan_count; })
-            .def_property_readonly("null_count", [](const counter_type &c) { return c.null_count; })
-        ;
-    }
+    // {
+    //     typedef counter<string_view, string_view, string_view> counter_type;
+    //     std::string countername = "counter_stringview";
+    //     py::class_<counter_type>(m, countername.c_str())
+    //         .def(py::init<>())
+    //         .def("update", &counter_type::update)
+    //         .def("merge", &counter_type::merge)
+    //         .def("extract", &counter_type::extract)
+    //         .def_property_readonly("nan_count", [](const counter_type &c) { return c.nan_count; })
+    //         .def_property_readonly("null_count", [](const counter_type &c) { return c.null_count; })
+    //     ;
+    // }
     {
         std::string ordered_setname = "ordered_set_string";
         typedef ordered_set<> Type;
@@ -310,23 +311,22 @@ void init_hash_string(py::module &m) {
         ;
 
     }
-    {
-        std::string ordered_setname = "ordered_set_stringview";
-        typedef ordered_set<string_view, string_view> Type;
-        py::class_<Type>(m, ordered_setname.c_str())
-            .def(py::init<>())
-            .def("update", &Type::update)
-            // .def("update", &Type::update_with_mask)
-            .def("merge", &Type::merge)
-            .def("extract", &Type::extract)
-            .def("keys", &Type::keys)
-            .def("map_ordinal", &Type::map_ordinal)
-            .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
-            .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
-            .def_property_readonly("has_nan", [](const Type &c) { return c.nan_count > 0; })
-            .def_property_readonly("has_null", [](const Type &c) { return c.null_count > 0; })
-        ;
-
-    }
+    // {
+    //     std::string ordered_setname = "ordered_set_stringview";
+    //     typedef ordered_set<string_view, string_view> Type;
+    //     py::class_<Type>(m, ordered_setname.c_str())
+    //         .def(py::init<>())
+    //         .def("update", &Type::update)
+    //         // .def("update", &Type::update_with_mask)
+    //         .def("merge", &Type::merge)
+    //         .def("extract", &Type::extract)
+    //         .def("keys", &Type::keys)
+    //         .def("map_ordinal", &Type::map_ordinal)
+    //         .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
+    //         .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
+    //         .def_property_readonly("has_nan", [](const Type &c) { return c.nan_count > 0; })
+    //         .def_property_readonly("has_null", [](const Type &c) { return c.null_count > 0; })
+    //     ;
+    // }
 }
 }

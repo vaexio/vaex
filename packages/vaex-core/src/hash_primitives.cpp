@@ -126,13 +126,13 @@ public:
     py::object map_ordinal(py::array_t<value_type>& values) {
         size_t size = this->map.size() + (this->null_count > 0 ? 1 : 0) + (this->nan_count > 0 ? 1 : 0);
         // TODO: apply this pattern of various return types to the other set types
-        if(size < (1<<7)) {
+        if(size < (1u<<7u)) {
             return this->template _map_ordinal<int8_t>(values);
         } else
-        if(size < (1<<15)) {
+        if(size < (1u<<15u)) {
             return this->template _map_ordinal<int16_t>(values);
         } else
-        if(size < (1<<31)) {
+        if(size < (1u<<31u)) {
             return this->template _map_ordinal<int32_t>(values);
         } else {
             return this->template _map_ordinal<int64_t>(values);

@@ -548,6 +548,38 @@ class DataFrame(object):
             return counts
         return finish(agg_subtask)
 
+    def _compute_agg(self, name, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, extra_expressions=None):
+        logger.debug("aggregate %s(%r, binby=%r, limits=%r)", name, expression, binby, limits)
+        expression = _ensure_strings_from_expressions(expression)
+        if extra_expressions:
+            extra_expressions = _ensure_strings_from_expressions(extra_expressions)
+        expression_waslist, [expressions,] = vaex.utils.listify(expression)
+        grid = self._create_grid(binby, limits, shape, delay=True)
+        @delayed
+        def compute(expression, grid, selection, edges, progressbar):
+            if expression in ["*", None]:
+                agg = vaex.agg.aggregates[name]()
+            else:
+                if extra_expressions:
+                    agg = vaex.agg.aggregates[name](expression, *extra_expressions)
+                else:
+                    agg = vaex.agg.aggregates[name](expression)
+            task = self._get_task_agg(grid)
+            agg_subtask = agg.add_operations(task, selection=selection, edges=edges)
+            progressbar.add_task(agg_subtask, "%s for %s" % (name, expression))
+            @delayed
+            def finish(counts):
+                counts = np.asarray(counts)
+                return counts
+            return finish(agg_subtask)
+        @delayed
+        def finish(*counts):
+            return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
+        progressbar = vaex.utils.progressbars(progress)
+        stats = [compute(expression, grid, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
+        var = finish(*stats)
+        return self._delay(delay, var)
+
     @docsubst
     def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
         """Count the number of non-NaN values (or all, if expression is None or "*").
@@ -571,17 +603,7 @@ class DataFrame(object):
         :param edges: {edges}
         :return: {return_stat_scalar}
         """
-        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
-        expression = _ensure_string_from_expression(expression)
-        expression_waslist, [expressions,] = vaex.utils.listify(expression)
-        grid = self._create_grid(binby, limits, shape, delay=True)
-        @delayed
-        def finish(*counts):
-            return vaex.utils.unlistify(expression_waslist, counts)
-        progressbar = vaex.utils.progressbars(progress)
-        stats = [self._count_calculation(expression, grid, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
-        var = finish(*stats)
-        return self._delay(delay, var)
+        return self._compute_agg('count', expression, binby, limits, shape, selection, delay, edges, progress)
 
     @delayed
     def _first_calculation(self, expression, order_expression, binby, limits, shape, selection, edges, progressbar):
@@ -624,6 +646,7 @@ class DataFrame(object):
         :return: Ndarray containing the first elements.
         :rtype: numpy.array
         """
+        return self._compute_agg('first', expression, binby, limits, shape, selection, delay, edges, progress, extra_expressions=[order_expression])
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
         expression = _ensure_strings_from_expressions(expression)
@@ -642,7 +665,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
         """Calculate the mean for expression, possibly on a grid defined by binby.
 
         Example:
@@ -661,6 +684,7 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}
         """
+        return self._compute_agg('mean', expression, binby, limits, shape, selection, delay, edges, progress)
         logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, delay=%r", expression, binby, limits, shape, selection, delay)
         expression = _ensure_strings_from_expressions(expression)
         selection = _ensure_strings_from_expressions(selection)
@@ -700,7 +724,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
         """Calculate the sum for the given expression, possible on a grid defined by binby
 
         Example:
@@ -720,6 +744,7 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}
         """
+        return self._compute_agg('sum', expression, binby, limits, shape, selection, delay, edges, progress)
         @delayed
         def finish(*sums):
             return vaex.utils.unlistify(waslist, sums)
@@ -1045,6 +1070,14 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
+        # vmin  = self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
+        # vmax =  self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
+        @delayed
+        def finish(*minmax_list):
+            value = vaex.utils.unlistify(waslist, np.array(minmax_list))
+            value = value.astype(dtype0)
+            return value
+
         @delayed
         def calculate(expression, limits):
             task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_MIN_MAX, selection=selection)
@@ -1071,7 +1104,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
         """Calculate the minimum for given expressions, possibly on a grid defined by binby.
 
 
@@ -1093,6 +1126,7 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
+        return self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
         @delayed
         def finish(result):
             return result[..., 0]
@@ -1100,7 +1134,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
         """Calculate the maximum for given expressions, possibly on a grid defined by binby.
 
 
@@ -1122,6 +1156,7 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
+        return self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
         @delayed
         def finish(result):
             return result[..., 1]
@@ -5302,7 +5337,10 @@ class DataFrameLocal(DataFrame):
             binbys = [binby]
         binbys = _ensure_strings_from_expressions(binbys)
         binners = []
-        limits = _expand_limits(limits, len(binbys))
+        if len(binbys):
+            limits = _expand_limits(limits, len(binbys))
+        else:
+            limits = []
         shapes = _expand_shape(shape, len(binbys))
         for binby, limits1, shape in zip(binbys, limits, shapes):
             binners.append(self._binner(binby, limits1, shape, delay=True))
