@@ -566,7 +566,7 @@ class DataFrame(object):
                     agg = vaex.agg.aggregates[name](expression)
             task = self._get_task_agg(grid)
             agg_subtask = agg.add_operations(task, selection=selection, edges=edges)
-            progressbar.add_task(agg_subtask, "%s for %s" % (name, expression))
+            progressbar.add_task(task, "%s for %s" % (name, expression))
             @delayed
             def finish(counts):
                 counts = np.asarray(counts)
