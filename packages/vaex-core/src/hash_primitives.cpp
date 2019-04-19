@@ -123,14 +123,30 @@ class ordered_set : public hash_base<ordered_set<T>, T> {
 public:
     using typename hash_base<ordered_set<T>, T, T>::value_type;
     using typename hash_base<ordered_set<T>,T, T>::storage_type;
-    py::array_t<double> map_ordinal(py::array_t<value_type>& values) {
+    py::object map_ordinal(py::array_t<value_type>& values) {
+        size_t size = this->map.size() + (this->null_count > 0 ? 1 : 0) + (this->nan_count > 0 ? 1 : 0);
+        // TODO: apply this pattern of various return types to the other set types
+        if(size < (1<<7)) {
+            return this->template _map_ordinal<int8_t>(values);
+        } else
+        if(size < (1<<15)) {
+            return this->template _map_ordinal<int16_t>(values);
+        } else
+        if(size < (1<<31)) {
+            return this->template _map_ordinal<int32_t>(values);
+        } else {
+            return this->template _map_ordinal<int64_t>(values);
+        }
+    }
+    template<class OutputType>
+    py::array_t<OutputType> _map_ordinal(py::array_t<value_type>& values) {
         int64_t size = values.size();
-        py::array_t<double> result(size);
-        py::gil_scoped_release gil;
+        py::array_t<OutputType> result(size);
         auto input = values.template unchecked<1>();
         auto output = result.template mutable_unchecked<1>();
+        py::gil_scoped_release gil;
         // null and nan map to 0 and 1, and move the index up
-        int64_t offset = (this->null_count > 0 ? 1 : 0) + (this->nan_count > 0 ? 1 : 0);
+        OutputType offset = (this->null_count > 0 ? 1 : 0) + (this->nan_count > 0 ? 1 : 0);
         for(int64_t i = 0; i < size; i++) {
             const value_type& value = input(i);
             if(custom_isnan(value)) {

@@ -63,7 +63,9 @@ class get_pybind_include(object):
 if platform.system().lower() == 'windows':
     extra_compile_args = ["/EHsc"]
 else:
+    # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
     extra_compile_args = ["-std=c++11", "-mfpmath=sse", "-O3", "-funroll-loops"]
+    extra_compile_args.append("-g")
 if sys.platform == 'darwin':
     extra_compile_args.append("-mmacosx-version-min=10.9")
 
@@ -96,6 +98,19 @@ extension_superutils = Extension("vaex.superutils", [
     ],
     include_dirs=[
         get_numpy_include(), get_pybind_include(),
+        get_pybind_include(user=True),
+        'vendor/flat_hash_map',
+        'vendor/sparse-map/include',
+        'vendor/hopscotch-map/include',
+        'vendor/string-view-lite/include'
+    ],
+    extra_compile_args=extra_compile_args)
+
+extension_superagg = Extension("vaex.superagg", [
+        os.path.relpath(os.path.join(dirname, "src/superagg.cpp")),
+    ],
+    include_dirs=[
+        get_numpy_include(), get_pybind_include(),
         get_pybind_include(user=True), 'vendor/flat_hash_map',
         'vendor/sparse-map/include',
         'vendor/hopscotch-map/include',
@@ -114,7 +129,7 @@ setup(name=name + '-core',
       license=license,
       package_data={'vaex': ['test/files/*.fits', 'test/files/*.vot', 'test/files/*.hdf5']},
       packages=['vaex', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext', 'vaex.misc'],
-      ext_modules=[extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils],
+      ext_modules=[extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils, extension_superagg],
       zip_safe=False,
       entry_points={
           'console_scripts': ['vaex = vaex.__main__:main'],

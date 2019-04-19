@@ -19,7 +19,7 @@ def ordered_set_type_from_dtype(dtype, transient=True):
         if transient:
             postfix = 'string'
         else:
-            postfix = 'string' # view not support atm
+            postfix = 'string' #  not support atm
     else:
         postfix = str(dtype)
         if postfix == '>f8':

@@ -19,6 +19,8 @@ import psutil
 import six
 import yaml
 
+from .column import str_type
+
 
 is_frozen = getattr(sys, 'frozen', False)
 PY2 = sys.version_info[0] == 2
@@ -871,3 +873,24 @@ def unique_nanfix(values, return_inverse=False):
         return vaex.superutils.unique(values, return_inverse=return_inverse)
     else:
         return np.unique(values, return_inverse=return_inverse)
+
+def find_type_from_dtype(namespace, prefix, dtype, transient=True):
+    if dtype == str_type:
+        if transient:
+            postfix = 'string'
+        else:
+            postfix = 'string' # view not support atm
+    else:
+        postfix = str(dtype)
+        if postfix == '>f8':
+            postfix = 'float64'
+        if dtype.kind != 'O' and dtype.byteorder not in ["<", "="]:
+            postfix += "_non_native"
+    name = prefix + postfix
+    if hasattr(namespace, name):
+        return getattr(namespace, name)
+    else:
+        raise ValueError('Could not find a class (%s), seems %s is not supported' % (name, dtype))
+
+def extract_central_part(ar):
+    return ar[(slice(2,-1), ) * ar.ndim]

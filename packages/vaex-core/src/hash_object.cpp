@@ -191,7 +191,7 @@ public:
         }
         return result;
     }
-    py::array_t<double> map_ordinal_with_mask(py::buffer object_array, py::array_t<bool>& masks) {
+    py::array_t<int64_t> map_ordinal_with_mask(py::buffer object_array, py::array_t<bool>& masks) {
         auto m = masks.template unchecked<1>();
         py::buffer_info info = object_array.request();
         if(info.ndim != 1) {
@@ -199,7 +199,7 @@ public:
         }
         // TODO: check dtype/format
         int64_t size = info.shape[0];
-        py::array_t<double> result(size);
+        py::array_t<int64_t> result(size);
         auto output = result.template mutable_unchecked<1>();
         assert(m.size() == size);
         PyObject** array = (PyObject**)info.ptr;
@@ -250,7 +250,6 @@ public:
     }
     py::object keys() {
         PyObject* list = PyList_New(this->map.size());
-        size_t index = 0;
         for(auto el : this->map) {
             Py_IncRef(el.first);
             PyList_SetItem(list, el.second, el.first);

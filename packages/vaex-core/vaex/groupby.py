@@ -10,6 +10,8 @@ except AttributeError:
 
 __all__ = ['GroupBy', 'Grouper', 'BinnerTime']
 
+_USE_DELAY = True
+
 class BinnerBase:
     pass
 
@@ -54,9 +56,8 @@ class BinnerTime(BinnerBase):
         # TODO: we modify the dataframe in place, this is not nice, also not a unique name
         self.df.add_variable('t_begin', self.tmin.astype(self.resolution_type),)
         # TODO: import integer from future?
-        self.binby = self.df['%s - t_begin' % self.expression.astype(self.resolution_type)].astype('int') // every
-        self.shape = self.N
-        self.limits = [-0.5, self.N-0.5]
+        self.binby_expression = str(self.df['%s - t_begin' % self.expression.astype(self.resolution_type)].astype('int') // every)
+        self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
     @classmethod
     def per_day(cls, expression, df=None):
@@ -71,8 +72,8 @@ class BinnerTime(BinnerBase):
         return cls(expression, 'M', df)
 
     @classmethod
-    def per_quarter(cls, expression, df=None):
-        return cls(expression, 'M', df, every=3)
+    def per_quarter(cls, expression, df=None, every=1):
+        return cls(expression, 'M', df, every=3*every)
 
     @classmethod
     def per_year(cls, expression, df=None):
@@ -96,12 +97,12 @@ class Grouper(BinnerBase):
 
         keys = ordered_set.keys()
         self.bin_values = keys
-        self.binby = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
+        self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
         self.N = len(ordered_set.keys())
         if ordered_set.has_null:
             self.N += 1
             keys += ['null']
-        self.limits = [-0.5, self.N-0.5]
+        self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 
 class GroupByBase(object):
@@ -124,22 +125,13 @@ class GroupByBase(object):
         # if we want to have all columns, minus the columns grouped by
         # we should keep track of the original expressions, but binby
         self.groupby_expression = [str(by.expression) for by in self.by]
-        self.binby = [str(by.binby) for by in self.by]
-        self.limits = [by.limits for by in self.by]
+        self.binners = [by.binner for by in self.by]
+        self.grid = vaex.superagg.Grid(self.binners)
         self.shape = [by.N for by in self.by]
         self.dims = self.groupby_expression[:]
 
-
-    def size(self):
-        import pandas as pd
-        result = self.df.count(binby=self.by, shape=[10000] * len(self.by)).astype(np.int64)
-        #values = vaex.utils.unlistify(self._waslist, result)
-        values = result
-        series = pd.Series(values, index=self.df.category_labels(self.by[0]))
-        return series
-
     def _agg(self, actions):
-        df = self.df.copy()
+        df = self.df
         if isinstance(actions, collections.Mapping):
             actions = list(actions.items())
         elif not isinstance(actions, collections.Iterable)\
@@ -152,14 +144,8 @@ class GroupByBase(object):
         def add(aggregate, column_name=None, override_name=None):
             if column_name is None or override_name is not None:
                 column_name = aggregate.pretty_name(override_name)
-            #method = getattr(df, value)
-            # values = method(key, binby=binby, limits=limits, shape=shape, delay=False)
-            values = aggregate.calculate(df, binby=self.binby, limits=self.limits, shape=self.shape, delay=True)
-            # @vaex.delayed
-            # def done(values, key=key):
-            #dfg[column_name] = values.ravel()
+            values = df._agg(aggregate, self.grid, delay=_USE_DELAY)
             grids[column_name] = values
-            # done(values)
 
         for item in actions:
             override_name = None
@@ -179,18 +165,21 @@ class GroupByBase(object):
                 if name is not None:
                     override_name = name
             for aggregate in aggregates:
-                if isinstance(aggregate, six.string_types):
-                    aggregate = vaex.agg.aggregates[aggregate]
-                if callable(aggregate):
-                    if name is None:
-                        # we use all columns
-                        for column_name in df.get_column_names():
-                            if column_name not in self.groupby_expression:
-                                add(aggregate(column_name), override_name=override_name)
-                    else:
-                        add(aggregate(name), name, override_name=override_name)
+                if isinstance(aggregate, six.string_types) and aggregate == "count":
+                    add(vaex.agg.count(), 'count')
                 else:
-                    add(aggregate, name, override_name=override_name)
+                    if isinstance(aggregate, six.string_types):
+                        aggregate = vaex.agg.aggregates[aggregate]
+                    if callable(aggregate):
+                        if name is None:
+                            # we use all columns
+                            for column_name in df.get_column_names():
+                                if column_name not in self.groupby_expression:
+                                    add(aggregate(column_name), override_name=override_name)
+                        else:
+                            add(aggregate(name), name, override_name=override_name)
+                    else:
+                        add(aggregate, name, override_name=override_name)
         return grids
 
 class BinBy(GroupByBase):
@@ -202,7 +191,10 @@ class BinBy(GroupByBase):
         import xarray as xr
         arrays = super(BinBy, self)._agg(actions)
         self.df.execute()
-        arrays = {key: value.get() for key, value in arrays.items()}
+        if _USE_DELAY:
+            arrays = {key: value.get() for key, value in arrays.items()}
+        # take out the edges
+        arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
 
         keys = list(arrays.keys())
         key0 = keys[0]
@@ -230,10 +222,15 @@ class GroupBy(GroupByBase):
         # 'multistage' hashmap
         arrays = super(GroupBy, self)._agg(actions)
         # we don't want non-existing pairs (e.g. Amsterdam in France does not exist)
-        counts = self.df.count(limits=self.limits, shape=self.shape, binby=self.binby, delay=True)
+        count_agg = vaex.agg.count()
+        counts = self.df._agg(count_agg, self.grid, delay=_USE_DELAY)
         self.df.execute()
-        arrays = {key: value.get() for key, value in arrays.items()}
-        counts = counts.get()
+        if _USE_DELAY:
+            arrays = {key: value.get() for key, value in arrays.items()}
+            counts = counts.get()
+        # take out the edges
+        arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
+        counts = vaex.utils.extract_central_part(counts)
         mask = counts > 0
         coords = [coord[mask] for coord in np.meshgrid(*self.coords1d, indexing='ij')]
         labels = {str(by.expression): coord for by, coord in zip(self.by, coords)}

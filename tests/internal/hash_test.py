@@ -36,6 +36,7 @@ def test_counter_float64():
 
     keys = np.array(oset.keys())
     assert set(oset.map_ordinal(keys)) == {0, 1, 2}
+    assert oset.map_ordinal(keys).dtype.name == 'int8'
 
 
 

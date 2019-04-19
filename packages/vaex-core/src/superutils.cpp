@@ -95,6 +95,37 @@ py::object unique(py::array_t<T> values, bool return_inverse=false) {
     }
 }
 
+/*
+void test(py::array_t<double>& values) {
+    int64_t size = values.size();
+    auto input = values.template mutable_unchecked<1>();
+    for(int64_t i = 0; i < size; i++) {
+        input(i) = 1.1;
+    }
+}
+
+void test2(py::array_t<double, py::array::c_style>& values) {
+    int64_t size = values.size();
+    auto input = values.template mutable_unchecked<1>();
+    for(int64_t i = 0; i < size; i++) {
+        input(i) = 1.2;
+    }
+}
+
+
+void test3(py::buffer ar) {
+    py::buffer_info info = ar.request();
+    if(info.ndim != 1) {
+        throw std::runtime_error("Expected a 1d array");
+    }
+    double* ptr = (double*)info.ptr;
+    size_t size = info.shape[0];
+    for(int64_t i = 0; i < size; i++) {
+        ptr[i] = 1.3;
+    }
+}
+*/
+
 namespace vaex {
     void init_hash_primitives(py::module &);
     void init_hash_string(py::module &);
@@ -107,6 +138,9 @@ PYBIND11_MODULE(superutils, m) {
     m.doc() = "fast utils";
     m.def("unique", &unique<double>, "Find unique elements", py::arg("values"), py::arg("return_inverse")=false);
     m.def("unique", &unique<float>, "Find unique elements", py::arg("values"), py::arg("return_inverse")=false);
+    // m.def("test", &test);
+    // m.def("test2", &test2);
+    // m.def("test3", &test3);
     vaex::init_hash_primitives(m);
     vaex::init_hash_string(m);
     vaex::init_hash_object(m);
