@@ -66,7 +66,7 @@ script:
   - source activate test-environment
   - python -m vaex.test.dataset TestDataset
   # - py.test packages/vaex-core/vaex/test/dataset.py::TestDataset 
-  - py.test tests/
+  - py.test tests/ -s
   # - runipy examples/tutorial_ipython_notebook.ipynb
   # - runipy examples/advanced_plotting.ipynb
   # - source activate dev
