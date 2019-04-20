@@ -507,6 +507,9 @@ class TaskAggregate(Task):
                 x = vaex.column._to_string_sequence(x)
             else:
                 x = as_flat_array(x, x.dtype)
+                if x.dtype.kind == "M":
+                    # we pass datetime as int
+                    x = x.view('uint64')
             return x
         block_map = {expr: block for expr, block in zip(self.expressions_all, blocks)}
         # we need to make sure we keep some objects alive, since the c++ side does not incref
@@ -570,6 +573,7 @@ class TaskAggregate(Task):
                     grid = vaex.utils.extract_central_part(grid)
                 grids.append(grid)
             result = np.asarray(grids) if selection_waslist else grids[0]
+            result = result.view(agg_desc.dtype_out)
             task.fulfill(result)
             results.append(result)
         return results

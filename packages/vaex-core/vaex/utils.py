@@ -884,6 +884,8 @@ def find_type_from_dtype(namespace, prefix, dtype, transient=True):
         postfix = str(dtype)
         if postfix == '>f8':
             postfix = 'float64'
+        if dtype.kind == "M":
+            postfix = "uint64"
         if dtype.kind != 'O' and dtype.byteorder not in ["<", "="]:
             postfix += "_non_native"
     name = prefix + postfix

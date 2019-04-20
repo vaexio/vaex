@@ -912,8 +912,14 @@ PYBIND11_MODULE(superagg, m) {
     add_agg<AggObjectCount<>>(m, agg, "AggCount_object");
     add_agg_primitives<double>(m, agg, "float64");
     add_agg_primitives<float>(m, agg, "float32");
-    add_agg_primitives<int32_t>(m, agg, "int32");
     add_agg_primitives<int64_t>(m, agg, "int64");
+    add_agg_primitives<int32_t>(m, agg, "int32");
+    add_agg_primitives<int16_t>(m, agg, "int16");
+    add_agg_primitives<int8_t>(m, agg, "int8");
+    add_agg_primitives<uint64_t>(m, agg, "uint64");
+    add_agg_primitives<uint32_t>(m, agg, "uint32");
+    add_agg_primitives<uint16_t>(m, agg, "uint16");
+    add_agg_primitives<uint8_t>(m, agg, "uint8");
 
     add_binner_ordinal<double>(m, binner, "float64");
     add_binner_ordinal<float>(m, binner, "float32");

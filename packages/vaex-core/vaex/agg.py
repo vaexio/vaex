@@ -41,10 +41,15 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             grid = vaex.superagg.Grid(binners)
         # expression = df[str(self.expression)]
         if self.expression == '*':
-            self.dtype = np.dtype('int64')
+            self.dtype_in = np.dtype('int64')
+            self.dtype_out = np.dtype('int64')
         else:
-            self.dtype = df[str(self.expressions[0])].dtype
-        agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype)
+            # self.dtype = df[str(self.expressions[0])].dtype
+            self.dtype_in = df[str(self.expressions[0])].dtype
+            self.dtype_out = self.dtype_in
+            if self.short_name == "count":
+                self.dtype_out = np.dtype('int64')
+        agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
         agg_op = agg_op_type(grid)
         return agg_op
 
@@ -67,6 +72,8 @@ class AggregatorDescriptorMean(AggregatorDescriptor):
     def add_operations(self, agg_task, **kwargs):
         task_sum = self.sum.add_operations(agg_task, **kwargs)
         task_count = self.count.add_operations(agg_task, **kwargs)
+        self.dtype_in = self.sum.dtype_in
+        self.dtype_out = self.sum.dtype_out
         @vaex.delayed
         def finish(sum, count):
             with np.errstate(divide='ignore', invalid='ignore'):
