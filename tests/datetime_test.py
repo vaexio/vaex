@@ -38,6 +38,8 @@ def test_datetime_agg():
     df = vaex.from_arrays(date=date)
     assert df.count(df.date) == len(date)
     assert df.max(df.date) == np.datetime64('2016-02-11T10:17:34')
+    assert df.mean(df.date) < np.datetime64('2016-02-11T10:17:34')
+    assert df.mean(df.date) > date[0]
 
 def test_datetime_stats():
     x1 = np.datetime64('2005-01-01')

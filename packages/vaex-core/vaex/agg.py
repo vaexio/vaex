@@ -11,7 +11,8 @@ def register(f, name=None):
     return f
 
 class AggregatorDescriptor:
-    pass
+    def __repr__(self):
+        return 'vaex.agg.{}({!r})'.format(self.short_name, str(self.expression))
 
 class AggregatorDescriptorBasic(AggregatorDescriptor):
     def __init__(self, name, expression, short_name, multi_args=False):
@@ -34,17 +35,10 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         return agg_task.add_aggregation_operation(self, edges=edges, **kwargs)
 
     def _create_operation(self, df, grid):
-        if grid is None and binners is None:
-            raise ValueError('Provide either binners or grid')
-        if grid is None:
-            binners = [binner.copy() for binner in binners]
-            grid = vaex.superagg.Grid(binners)
-        # expression = df[str(self.expression)]
         if self.expression == '*':
             self.dtype_in = np.dtype('int64')
             self.dtype_out = np.dtype('int64')
         else:
-            # self.dtype = df[str(self.expressions[0])].dtype
             self.dtype_in = df[str(self.expressions[0])].dtype
             self.dtype_out = self.dtype_in
             if self.short_name == "count":
@@ -76,8 +70,15 @@ class AggregatorDescriptorMean(AggregatorDescriptor):
         self.dtype_out = self.sum.dtype_out
         @vaex.delayed
         def finish(sum, count):
+            dtype = sum.dtype
+            if sum.dtype.kind == 'M':
+                sum = sum.view('uint64')
+                count = count.view('uint64')
             with np.errstate(divide='ignore', invalid='ignore'):
                 mean = sum / count
+            if dtype.kind != mean.dtype.kind:
+                # TODO: not sure why view does not work
+                mean = mean.astype(dtype)
             return mean
         return finish(task_sum, task_count)
 

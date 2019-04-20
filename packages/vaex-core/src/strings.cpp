@@ -715,16 +715,16 @@ public:
     }
     virtual string_view view(size_t i) const {
         // _check(i);
-        index_type start = indices[i] - offset;
-        index_type end = indices[i+1] - offset;
-        index_type count = end - start;
+        size_t start = indices[i] - offset;
+        size_t end = indices[i+1] - offset;
+        size_t count = end - start;
         return string_view(bytes + start, count);
     }
     virtual const std::string get(size_t i) const {
         // _check(i);
-        index_type start = indices[i] - offset;
-        index_type end = indices[i+1] - offset;
-        index_type count = end - start;
+        size_t start = indices[i] - offset;
+        size_t end = indices[i+1] - offset;
+        size_t count = end - start;
         return std::string(bytes + start, count);
     }
 public:
@@ -1161,7 +1161,7 @@ struct padder {
         if(width > length) {
             int64_t left = 0, right = 0;
             if(pad_left & pad_right) {
-                int margin = width - length;
+                size_t margin = width - length;
                 left = margin / 2 + (margin & width & 1);
                 right = margin - left;
             } else if(pad_left) {

@@ -506,7 +506,7 @@ class TaskAggregate(Task):
             if dtype == str_type:
                 x = vaex.column._to_string_sequence(x)
             else:
-                x = as_flat_array(x, x.dtype)
+                x = as_contiguous(x)
                 if x.dtype.kind == "M":
                     # we pass datetime as int
                     x = x.view('uint64')
@@ -573,7 +573,8 @@ class TaskAggregate(Task):
                     grid = vaex.utils.extract_central_part(grid)
                 grids.append(grid)
             result = np.asarray(grids) if selection_waslist else grids[0]
-            result = result.view(agg_desc.dtype_out)
+            dtype_out = vaex.utils.to_native_dtype(agg_desc.dtype_out)
+            result = result.view(dtype_out)
             task.fulfill(result)
             results.append(result)
         return results

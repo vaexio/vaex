@@ -69,11 +69,9 @@ public:
         } else {
             for(uint64_t i = offset; i < offset + length; i++) {
                 T value = ptr[i];
-                // std::cout << "value ~= " << value << std::endl;
                 if(FlipEndian) {
                     value = _to_native<>(value);
                 }
-                // std::cout << "value = " << value << std::endl;
                 double value_double = value;
                 double scaled = (value_double - vmin) * scale_v;
                 index_type index = 0;
@@ -85,7 +83,6 @@ public:
                 } else {
                     index = (int)(scaled * (bins)) + 2; // real data starts at 2
                 }
-                // std::cout << "index = " << index << ", " << stride << std::endl;
                 output[i-offset] += index * stride;
             }
         }
@@ -96,22 +93,13 @@ public:
     virtual uint64_t shape() {
         return bins + 3;
     }
-    // void set_data(py::array_t<T, py::array::c_style> ar) {
     void set_data(py::buffer ar) {
         py::buffer_info info = ar.request();
         if(info.ndim != 1) {
             throw std::runtime_error("Expected a 1d array");
         }
-        // if(info.format != "O") {
-        //     throw std::runtime_error("Expected an object array");
-        // }
-
-        // auto m = ar.template mutable_unchecked<1>();
         this->ptr = (T*)info.ptr;
         this->_size = info.shape[0];
-        // printf("size: %lld\n", _size);
-        // this->ptr = &m(0);
-        // this->_size = ar.size();
     }
     void set_data_mask(py::buffer ar) {
         py::buffer_info info = ar.request();
@@ -192,6 +180,7 @@ public:
         this->ptr = (T*)info.ptr;
         this->_size = info.shape[0];
     }
+    // pybind11 likes casting too much, this can slow things down
     // void set_data(py::array_t<T, py::array::c_style> ar) {
     //     auto m = ar.template mutable_unchecked<1>();
     //     this->ptr = &m(0);
@@ -227,7 +216,6 @@ class Grid {
 public:
     using index_type = IndexType;
     Grid(std::vector<Binner*> binners) : binners(binners) {
-        // indices = (IndexType*)malloc(INDEX_BLOCK_SIZE * sizeof(IndexType) * MAX_DIM);
         indices1d = (IndexType*)malloc(INDEX_BLOCK_SIZE * sizeof(IndexType));
         dimensions = binners.size();
         shapes = new uint64_t[dimensions];
@@ -239,10 +227,8 @@ public:
         }
         if(dimensions > 0) {
             strides[0] = 1;
-            // std::cout << "stride[0] = " << strides[0] << std::endl;
             for(size_t i = 1; i < dimensions; i++) {
                 strides[i] = strides[i-1] * shapes[i-1];
-                // std::cout << "stride[i] = " << strides[i] << std::endl;
             }
         }
     }
@@ -284,57 +270,35 @@ public:
     void bin_(std::vector<Aggregator*> aggregators, size_t length) {
         size_t binner_count = binners.size();
         size_t aggregator_count = aggregators.size();
-        // if(binner_count) {
-            uint64_t offset = 0;
-            bool done = false;
-            while(!done) {
-                uint64_t leftover = length - offset;
-                if(leftover < INDEX_BLOCK_SIZE) {
-                    std::fill(indices1d, indices1d+leftover, 0);
-                    for(size_t i = 0; i < binner_count; i++) {
-                        binners[i]->to_bins(offset, indices1d, leftover, this->strides[i]);
-                    }
-                } else {
-                    std::fill(indices1d, indices1d+INDEX_BLOCK_SIZE, 0);
-                    for(size_t i = 0; i < binner_count; i++) {
-                        binners[i]->to_bins(offset, indices1d, INDEX_BLOCK_SIZE, this->strides[i]);
-                    }
+        uint64_t offset = 0;
+        bool done = false;
+        while(!done) {
+            uint64_t leftover = length - offset;
+            if(leftover < INDEX_BLOCK_SIZE) {
+                std::fill(indices1d, indices1d+leftover, 0);
+                for(size_t i = 0; i < binner_count; i++) {
+                    binners[i]->to_bins(offset, indices1d, leftover, this->strides[i]);
                 }
-                if(leftover < INDEX_BLOCK_SIZE) {
-                    // compute1d(binner_count, leftover);
-                    for(size_t i = 0; i < aggregator_count; i++) {
-                        aggregators[i]->aggregate(indices1d, leftover, offset);
-                    }
-                } else {
-                    // compute1d(binner_count, INDEX_BLOCK_SIZE);
-                    for(size_t i = 0; i < aggregator_count; i++) {
-                        aggregators[i]->aggregate(indices1d, INDEX_BLOCK_SIZE, offset);
-                    }
+            } else {
+                std::fill(indices1d, indices1d+INDEX_BLOCK_SIZE, 0);
+                for(size_t i = 0; i < binner_count; i++) {
+                    binners[i]->to_bins(offset, indices1d, INDEX_BLOCK_SIZE, this->strides[i]);
                 }
-                offset += (leftover < INDEX_BLOCK_SIZE) ? leftover :  INDEX_BLOCK_SIZE;
-                done = offset == length;
             }
-        // }
-        // } else {
-        //     // indices1d[0]
-        //     // fill(indices1d)
-        //     // compute(binner_count, length, 0);
-        // }
-    }
-    void compute1d(uint64_t binner_count, uint64_t length) {
-        for(size_t j = 0; j < length; j++) {
-            uint64_t index_1d = 0;
-            // std::cout << "index_1d[0] = " << index_1d << std::endl;
-            for(size_t i = 0; i < binner_count; i++) {
-                index_1d += this->indices[i*INDEX_BLOCK_SIZE + j] * this->strides[i];
-                // std::cout << "index_1d[x] = " << index_1d << " / " << this->strides[i] << std::endl;
+            if(leftover < INDEX_BLOCK_SIZE) {
+                for(size_t i = 0; i < aggregator_count; i++) {
+                    aggregators[i]->aggregate(indices1d, leftover, offset);
+                }
+            } else {
+                for(size_t i = 0; i < aggregator_count; i++) {
+                    aggregators[i]->aggregate(indices1d, INDEX_BLOCK_SIZE, offset);
+                }
             }
-            indices1d[j] = index_1d;
-            // std::cout << "index 1d " << j << " = " << index_1d << std::endl;
+            offset += (leftover < INDEX_BLOCK_SIZE) ? leftover :  INDEX_BLOCK_SIZE;
+            done = offset == length;
         }
     }
     std::vector<Binner*> binners;
-    // index_type *indices;
     index_type *indices1d;
     uint64_t* strides;
     uint64_t* shapes;
@@ -408,7 +372,6 @@ public:
         }
     }
     virtual void aggregate(default_index_type* indices1d, size_t length, uint64_t offset) {
-        // we may want to count data
         if(this->objects == nullptr) {
             throw std::runtime_error("object data not set");
         }
@@ -474,7 +437,6 @@ public:
         }
     }
     virtual void aggregate(default_index_type* indices1d, size_t length, uint64_t offset) {
-        // we may want to count data
         if(this->string_sequence == nullptr) {
             throw std::runtime_error("string_sequence not set");
         }
@@ -514,15 +476,6 @@ public:
         if(info.ndim != 1) {
             throw std::runtime_error("Expected a 1d array");
         }
-        // 
-        // std::string format = py::format_descriptor<data_type>::format();
-        // if(format != info.format) {
-        //     std::string msg = "Wrong type passed: ";
-        //     msg += info.format;
-        //     msg += "(expected ";
-        //     msg += format + ")";
-        //     throw std::runtime_error(msg);
-        // }
         this->data_ptr = (data_type*)info.ptr;
         this->data_size = info.shape[0];
     }
@@ -554,9 +507,7 @@ public:
         }
     }
     virtual void aggregate(default_index_type* indices1d, size_t length, uint64_t offset) {
-        // we may want to count data
-        // if(this->data_ptr == nullptr) {
-        //     throw std::runtime_error("data not set");
+
         // }
         if(this->data_mask_ptr || this->data_ptr) {
             for(size_t j = 0; j < length; j++) {
@@ -570,13 +521,11 @@ public:
                         if(value != value) // nan
                             continue;
                     }
-                    // std::cout << "put " << j << ", " << indices1d[j] << std::endl;
                     this->grid_data[indices1d[j]] += 1;
                 }
             }
         } else {
             for(size_t j = 0; j < length; j++) {
-                // std::cout << "put " << j << ", " << indices1d[j] << std::endl;
                 this->grid_data[indices1d[j]] += 1;
             }
         }
@@ -615,7 +564,6 @@ public:
         } else {
             for(size_t j = 0; j < length; j++) {
                 StorageType value = this->data_ptr[offset + j];
-                // if(value == value) // nan check
                 if(value == value) // nan check
                     this->grid_data[indices1d[j]] = std::max(value, this->grid_data[indices1d[j]]);
             }
@@ -656,7 +604,6 @@ public:
         } else {
             for(size_t j = 0; j < length; j++) {
                 StorageType value = this->data_ptr[offset + j];
-                // if(value == value) // nan check
                 if(value == value) // nan check
                     this->grid_data[indices1d[j]] = std::min(value, this->grid_data[indices1d[j]]);
             }
@@ -747,7 +694,6 @@ public:
                 if(other->grid_data_order[i] < this->grid_data_order[i]) {
                     this->grid_data[i] = other->grid_data[i];
                     this->grid_data_order[i] = other->grid_data_order[i];
-                    // std::cout << "(reduce) value = " << this->grid_data[i]  << " value_ordered = " << other->grid_data[i] << std::endl;
                 }
             }
         }
@@ -759,37 +705,22 @@ public:
         if(this->data_ptr2 == nullptr) {
             throw std::runtime_error("data2 not set");
         }
-        // if(this->data_mask_ptr || this->) {
-        //     for(size_t j = 0; j < length; j++) {
-        //         // if not masked
-        //         if(this->data_mask_ptr[j+offset] == 1) {
-        //             StorageType value = this->data_ptr[j+offset];
-        //             if(FlipEndian)
-        //                 value = _to_native(value);
-        //             if(value != value) // nan
-        //                 continue;
-        //             this->grid_data[indices1d[j]] += value;
-        //         }
-        //     }
-        // } else {
-            for(size_t j = 0; j < length; j++) {
-                StorageType value = this->data_ptr[offset + j];
-                StorageType value_order = this->data_ptr2[offset + j];
-                if(FlipEndian) {
-                    value = _to_native(value);
-                    value_order = _to_native(value_order);
-                }
-                if(value == value && value_order == value_order) { // nan check
-                    IndexType i = indices1d[j];
-                    // std::cout << "value = " << value  << " value_ordered = " << value_ordered << std::endl;
-                    if(value_order < grid_data_order[i]) {
-                        // std::cout << "  set  " << value_ordered << std::endl;
-                        this->grid_data[i] = value;
-                        this->grid_data_order[i] = value_order;
-                    }
+        // TODO: masked support
+        for(size_t j = 0; j < length; j++) {
+            StorageType value = this->data_ptr[offset + j];
+            StorageType value_order = this->data_ptr2[offset + j];
+            if(FlipEndian) {
+                value = _to_native(value);
+                value_order = _to_native(value_order);
+            }
+            if(value == value && value_order == value_order) { // nan check
+                IndexType i = indices1d[j];
+                if(value_order < grid_data_order[i]) {
+                    this->grid_data[i] = value;
+                    this->grid_data_order[i] = value_order;
                 }
             }
-        // }
+        }
 
     }
     StorageType* grid_data_order;        
@@ -942,19 +873,4 @@ PYBIND11_MODULE(superagg, m) {
     add_binner_scalar<uint32_t>(m, binner, "uint32");
     add_binner_scalar<uint16_t>(m, binner, "uint16");
     add_binner_scalar<uint8_t>(m, binner, "uint8");
-    // {
-    //     typedef int64_t T;
-    //     typedef BinnerOrdinal<T> Type;
-    //     py::class_<Type>(m, "BinnerOrdinal_int64", binner)
-    //         .def(py::init<std::string, T, T>())
-    //         .def("set_data", &Type::set_data)
-    //         .def("copy", &Type::copy)
-    //         .def_property_readonly("expression", [](const Type &binner) {
-    //                 return binner.expression;
-    //             }
-    //         )
-    //     ;
-    // }
-
-
 }

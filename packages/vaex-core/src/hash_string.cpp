@@ -14,6 +14,7 @@ namespace py = pybind11;
 
 namespace vaex {
 
+// cannot get stringview to work with msvc
 // struct equal_string {
 //     using is_transparent = void;
 

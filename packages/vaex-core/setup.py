@@ -111,7 +111,8 @@ extension_superagg = Extension("vaex.superagg", [
     ],
     include_dirs=[
         get_numpy_include(), get_pybind_include(),
-        get_pybind_include(user=True), 'vendor/flat_hash_map',
+        get_pybind_include(user=True),
+        'vendor/flat_hash_map',
         'vendor/sparse-map/include',
         'vendor/hopscotch-map/include',
         'vendor/string-view-lite/include'

@@ -9,7 +9,7 @@ def test_count_1d():
 
     bins = 5
     binner = df._binner_scalar('x', [0, 5], bins)
-    grid = vaex.superstats.Grid([binner])
+    grid = vaex.superagg.Grid([binner])
     agg = vaex.agg.count()
     grid = df._agg(agg, grid)
     assert grid.tolist() == [0, 2, 1, 1, 0, 0, 1, 1]

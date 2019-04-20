@@ -820,6 +820,15 @@ def as_flat_array(a, dtype=np.float64):
     else:
         return a.astype(dtype, copy=True)
 
+
+def is_contiguous(ar):
+    return ar.flags['C_CONTIGUOUS']
+
+
+def as_contiguous(ar):
+    ar if is_contiguous(ar) else ar.copy()
+
+
 def _split_and_combine_mask(arrays):
 	'''Combines all masks from a list of arrays, and logically ors them into a single mask'''
 	masks = [np.ma.getmaskarray(block) for block in arrays if np.ma.isMaskedArray(block)]
@@ -867,12 +876,6 @@ def gen_to_list(fn=None, wrapper=list):
         return listify_return
     return listify_return(fn)
 
-def unique_nanfix(values, return_inverse=False):
-    import vaex.superutils
-    if values.dtype.kind == 'f':
-        return vaex.superutils.unique(values, return_inverse=return_inverse)
-    else:
-        return np.unique(values, return_inverse=return_inverse)
 
 def find_type_from_dtype(namespace, prefix, dtype, transient=True):
     if dtype == str_type:
@@ -886,13 +889,22 @@ def find_type_from_dtype(namespace, prefix, dtype, transient=True):
             postfix = 'float64'
         if dtype.kind == "M":
             postfix = "uint64"
-        if dtype.kind != 'O' and dtype.byteorder not in ["<", "="]:
+        # for object there is no non-native version
+        if dtype.kind != 'O' and dtype.byteorder not in ["<", "=", "|"]:
             postfix += "_non_native"
     name = prefix + postfix
     if hasattr(namespace, name):
         return getattr(namespace, name)
     else:
         raise ValueError('Could not find a class (%s), seems %s is not supported' % (name, dtype))
+
+
+def to_native_dtype(dtype):
+    if dtype.byteorder not in "<=|":
+        return dtype.newbyteorder()
+    else:
+        return dtype
+
 
 def extract_central_part(ar):
     return ar[(slice(2,-1), ) * ar.ndim]
