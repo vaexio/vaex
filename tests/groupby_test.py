@@ -132,7 +132,7 @@ def test_groupby_datetime_quarter():
 
 def test_groupby_count():
     # ds = ds_local.extract()
-    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2], dtype='int32')
     s = np.array(list(map(str,[0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
     groupby = df.groupby('s')

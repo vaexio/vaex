@@ -808,7 +808,7 @@ void add_agg(Module m, Base& base, const char* class_name) {
             std::vector<ssize_t> strides(agg.grid->dimensions);
             std::vector<ssize_t> shapes(agg.grid->dimensions);
             std::copy(&agg.grid->shapes[0], &agg.grid->shapes[agg.grid->dimensions], &shapes[0]);
-            std::transform(&agg.grid->strides[0], &agg.grid->strides[agg.grid->dimensions], &strides[0], [](uint64_t x) { return x*8; } );
+            std::transform(&agg.grid->strides[0], &agg.grid->strides[agg.grid->dimensions], &strides[0], [](uint64_t x) { return x*sizeof(typename Agg::grid_type); } );
             return py::buffer_info(
                 agg.grid_data,                               /* Pointer to buffer */
                 sizeof(typename Agg::grid_type),                 /* Size of one scalar */
