@@ -631,7 +631,7 @@ public:
             offsets1[index1] = index2;
             if(pattern_length == 0) { // whitespace splitter
                 // strip leading whitespace
-                while(::isspace(str[string_offset]) && string_length > 0) {
+                while(string_length > 0 && ::isspace(str[string_offset])) {
                     string_offset++;
                     string_length--;
                 }
