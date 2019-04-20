@@ -237,11 +237,13 @@ public:
             shapes[i] = binners[i]->shape();
             length1d *= shapes[i];
         }
-        strides[0] = 1;
-        // std::cout << "stride[0] = " << strides[0] << std::endl;
-        for(size_t i = 1; i < dimensions; i++) {
-            strides[i] = strides[i-1] * shapes[i-1];
-            // std::cout << "stride[i] = " << strides[i] << std::endl;
+        if(dimensions > 0) {
+            strides[0] = 1;
+            // std::cout << "stride[0] = " << strides[0] << std::endl;
+            for(size_t i = 1; i < dimensions; i++) {
+                strides[i] = strides[i-1] * shapes[i-1];
+                // std::cout << "stride[i] = " << strides[i] << std::endl;
+            }
         }
     }
     virtual ~Grid() {
