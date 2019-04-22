@@ -851,6 +851,7 @@ PYBIND11_MODULE(superagg, m) {
     add_agg_primitives<uint32_t>(m, agg, "uint32");
     add_agg_primitives<uint16_t>(m, agg, "uint16");
     add_agg_primitives<uint8_t>(m, agg, "uint8");
+    add_agg_primitives<bool>(m, agg, "bool");
 
     add_binner_ordinal<double>(m, binner, "float64");
     add_binner_ordinal<float>(m, binner, "float32");
@@ -862,6 +863,7 @@ PYBIND11_MODULE(superagg, m) {
     add_binner_ordinal<uint32_t>(m, binner, "uint32");
     add_binner_ordinal<uint16_t>(m, binner, "uint16");
     add_binner_ordinal<uint8_t>(m, binner, "uint8");
+    add_binner_ordinal<bool>(m, binner, "bool");
 
     add_binner_scalar<double>(m, binner, "float64");
     add_binner_scalar<float>(m, binner, "float32");
@@ -873,4 +875,5 @@ PYBIND11_MODULE(superagg, m) {
     add_binner_scalar<uint32_t>(m, binner, "uint32");
     add_binner_scalar<uint16_t>(m, binner, "uint16");
     add_binner_scalar<uint8_t>(m, binner, "uint8");
+    add_binner_scalar<bool>(m, binner, "bool");
 }

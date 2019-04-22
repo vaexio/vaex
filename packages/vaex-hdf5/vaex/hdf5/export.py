@@ -185,7 +185,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 array.attrs["dtype"] = 'str'
                 # TODO: masked support ala arrow?
             else:
-                if dtype.type == np.datetime64:
+                if dtype.kind in 'mM':
                     array = h5column_output.require_dataset('data', shape=shape, dtype=np.int64)
                     array.attrs["dtype"] = dtype.name
                 elif dtype.kind == 'U':

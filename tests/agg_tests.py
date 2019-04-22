@@ -1,5 +1,6 @@
 import vaex
 import numpy as np
+from common import *
 
 # def test_count_multiple_selections():
 
@@ -14,6 +15,15 @@ def test_count_1d():
     agg = vaex.agg.count()
     grid = df._agg(agg, grid)
     assert grid.tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
+
+def test_count_types(ds_local):
+    df = ds_local
+    assert df.count(df.x) is not None
+    assert df.count(df.datetime) is not None
+    assert df.min(df.datetime) is not None
+    assert df.max(df.datetime) is not None
+    assert df.minmax(df.datetime) is not None
+    assert df.std(df.datetime) is not None
 
 
 def test_count_1d_ordinal():

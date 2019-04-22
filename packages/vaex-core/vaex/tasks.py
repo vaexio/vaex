@@ -500,14 +500,15 @@ class TaskAggregate(Task):
         return task
 
     def map(self, thread_index, i1, i2, *blocks):
-        assert self.aggregations
+        if not self.aggregations:
+            raise RuntimeError('Aggregation tasks started but nothing to do, maybe adding operations failed?')
         grid = self.grids[thread_index]
         def check_array(x, dtype):
             if dtype == str_type:
                 x = vaex.column._to_string_sequence(x)
             else:
-                x = as_contiguous(x)
-                if x.dtype.kind == "M":
+                x = vaex.utils.as_contiguous(x)
+                if x.dtype.kind in "mM":
                     # we pass datetime as int
                     x = x.view('uint64')
             return x

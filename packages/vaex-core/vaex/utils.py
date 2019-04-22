@@ -826,7 +826,7 @@ def is_contiguous(ar):
 
 
 def as_contiguous(ar):
-    ar if is_contiguous(ar) else ar.copy()
+    return ar if is_contiguous(ar) else ar.copy()
 
 
 def _split_and_combine_mask(arrays):
@@ -887,7 +887,7 @@ def find_type_from_dtype(namespace, prefix, dtype, transient=True):
         postfix = str(dtype)
         if postfix == '>f8':
             postfix = 'float64'
-        if dtype.kind == "M":
+        if dtype.kind in "mM":
             postfix = "uint64"
         # for object there is no non-native version
         if dtype.kind != 'O' and dtype.byteorder not in ["<", "=", "|"]:
