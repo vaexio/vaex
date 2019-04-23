@@ -3762,7 +3762,7 @@ class DataFrame(object):
         weights_values = None
         if weights is not None:
             weights_values = self.evaluate(weights)
-            weights_values /= self.sum(weights)
+            weights_values = weights_values / self.sum(weights)
         indices = random_state.choice(len(self), n, replace=replace, p=weights_values)
         return self.take(indices)
 
