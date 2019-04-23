@@ -13,6 +13,8 @@ def arc_distance(theta_1, phi_1, theta_2, phi_2):
     distance_matrix = 2 * np.arctan2(np.sqrt(temp), np.sqrt(1-temp))
     return distance_matrix
 
+@pytest.mark.skipif(sys.version_info < (3,6) and sys.version_info[0] != 2,
+                    reason="no support for python3.5 (numba segfaults)")
 def test_numba(ds):
     ds_original = ds.copy()
     #ds.columns['x'] = (ds.columns['x']*1).copy()  # convert non non-big endian for now

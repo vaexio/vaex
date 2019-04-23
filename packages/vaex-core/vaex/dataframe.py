@@ -422,6 +422,7 @@ class DataFrame(object):
         @delayed
         def calculate(counts):
             # TODO: mutual information doesn't take axis arguments, so ugly solution for now
+            counts = counts.astype(np.float64)
             fullshape = _expand_shape(shape, len(binby))
             out = np.zeros((fullshape), dtype=float)
             if len(fullshape) == 0:
