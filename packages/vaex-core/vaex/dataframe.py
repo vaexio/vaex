@@ -4293,6 +4293,12 @@ class DataFrame(object):
             self.column_names.remove(name)
         else:
             raise KeyError('no such column or virtual_columns named %r' % name)
+        if hasattr(self, name):
+            try:
+                if isinstance(getattr(self, name), Expression):
+                    delattr(self, name)
+            except:
+                pass
 
     @docsubst
     def drop(self, columns, inplace=False, check=True):
