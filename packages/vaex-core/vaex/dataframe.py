@@ -4417,6 +4417,15 @@ class DataFrameLocal(DataFrame):
         self.mask = None
         self.columns = collections.OrderedDict()
 
+    def _readonly(self, inplace=False):
+        # make arrays read only if possib;e
+        df = self if inplace else self.copy()
+        for key, ar in self.columns.items():
+            if isinstance(ar, np.ndarray):
+                df.columns[key] = ar = ar.view() # make new object so we don't modify others
+                ar.flags['WRITEABLE'] = False
+        return df
+
     def categorize(self, column, labels=None, check=True):
         """Mark column as categorical, with given labels, assuming zero indexing"""
         column = _ensure_string_from_expression(column)

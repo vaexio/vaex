@@ -146,6 +146,16 @@ def fillna(ar, value, fill_nan=True, fill_masked=True):
 
 ########## datetime operations ##########
 
+
+def _pandas_dt_fix(x):
+    # see https://github.com/pandas-dev/pandas/issues/23276
+    import pandas as pd
+    # not sure which version this is fixed in
+    if not x.flags['WRITEABLE']:
+        x = x.copy()
+    return x
+
+
 @register_function(scope='dt', as_property=True)
 def dt_dayofweek(x):
     """Obtain the day of the week with Monday=0 and Sunday=6
@@ -318,7 +328,7 @@ def dt_month_name(x):
     2  November
     """
     import pandas as pd
-    return pd.Series(x).dt.month_name().values.astype(str)
+    return pd.Series(_pandas_dt_fix(x)).dt.month_name().values.astype(str)
 
 @register_function(scope='dt', as_property=True)
 def dt_day(x):
@@ -376,7 +386,7 @@ def dt_day_name(x):
     2  Thursday
     """
     import pandas as pd
-    return pd.Series(x).dt.day_name().values.astype(str)
+    return pd.Series(_pandas_dt_fix(x)).dt.day_name().values.astype(str)
 
 @register_function(scope='dt', as_property=True)
 def dt_weekofyear(x):
