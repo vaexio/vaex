@@ -29,3 +29,20 @@ def test_drop_depending_filtered(ds_filtered):
     assert 'x' not in ds.get_column_names()
     assert '__x' in ds.get_column_names(hidden=True)
     ds.y.values  # make sure we can evaluate y
+
+def test_drop_autocomplete(ds_local):
+    ds = ds_local
+    ds['drop'] = ds.m
+    ds['columns'] = ds.m
+
+    del ds['x']
+    assert not hasattr(ds, 'x')
+
+    ds.drop('y', inplace=True)
+    assert not hasattr(ds, 'y')
+
+    # make sure we can also remove with name issues
+    del ds['drop']
+    assert callable(ds.drop)
+    del ds['columns']
+    assert 'm' in ds.columns
