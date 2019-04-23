@@ -181,7 +181,7 @@ class SubspaceGridded(object):
             # print vx
             # print vy
             # ax.quiver(x2d, y2d, vx, vy)
-        ax.title.set_text("$\log(1+counts)$")
+        ax.title.set_text(r"$\log(1+counts)$")
         ax.set_xlabel(self.subspace_bounded.subspace.expressions[0])
         ax.set_ylabel(self.subspace_bounded.subspace.expressions[1])
         # pylab.savefig
@@ -508,7 +508,7 @@ class Subspace(object):
         """TODO: doc + server side implementation"""
         if isinstance(value, six.string_types):
             import re
-            match = re.match("(\d*)(\D*)", value)
+            match = re.match(r"(\d*)(\D*)", value)
             if match is None:
                 raise ValueError("do not understand limit specifier %r, examples are 90%, 3sigma")
             else:
