@@ -1113,6 +1113,7 @@ class DataFrame(object):
                 # remove the nan and boundary edges from the first dimension,
                 nonnans = list([slice(2, -1, None) for k in range(len(counts.shape) - 1)])
                 nonnans.append(slice(1, None, None))  # we're gonna get rid only of the nan's, and keep the overflow edges
+                nonnans = tuple(nonnans)
                 cumulative_grid = np.cumsum(counts.__getitem__(nonnans), -1)  # convert to cumulative grid
 
                 totalcounts = np.sum(counts.__getitem__(nonnans), -1)

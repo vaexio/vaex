@@ -178,7 +178,7 @@ class ServerRest(object):
         if data:
             import zlib
             data = zlib.decompress(data)
-            numpy_array = np.fromstring(data, dtype=np.dtype(response["dtype"])).reshape(ast.literal_eval(response["shape"]))
+            numpy_array = np.frombuffer(data, dtype=np.dtype(response["dtype"])).reshape(ast.literal_eval(response["shape"]))
             response["result"] = numpy_array
         import sys
         if sys.getsizeof(msg) > 1024 * 4:

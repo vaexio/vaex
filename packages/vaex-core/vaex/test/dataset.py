@@ -191,10 +191,10 @@ class TestDataset(unittest.TestCase):
 			ds['NAME'] = upper
 
 			name = ds.evaluate('NAME')
-			self.assertEquals(name[0], u'0.0BLA')
+			self.assertEqual(name[0], u'0.0BLA')
 			ds_copy.state_set(ds.state_get())
 			name = ds_copy.evaluate('NAME')
-			self.assertEquals(name[0], u'0.0BLA')
+			self.assertEqual(name[0], u'0.0BLA')
 
 		ds['a1'] = ds.apply(lambda x: x+1, arguments=['x'])
 		ds['a2'] = ds.apply(lambda x: x+2, arguments=['x'])
@@ -2071,20 +2071,6 @@ class TestDataset(unittest.TestCase):
 			self.assertFalse(self.dataset.has_selection())
 		self.dataset.signal_selection_changed.connect(check)
 		self.dataset.select_nothing()
-
-	def test_favorite_selections(self):
-		self.dataset.select("x > 5")
-		total_subset = self.dataset("x").selected().sum()
-		self.dataset.selection_favorite_add("test")
-		self.dataset.select_nothing()
-		with self.assertRaises(ValueError):
-			self.dataset.selection_favorite_add("test")
-		self.dataset.selections_favorite_load()
-		self.dataset.selection_favorite_apply("test")
-		total_subset_test = self.dataset("x").selected().sum()
-		self.assertEqual(total_subset, total_subset_test)
-
-
 
 
 	def test_selection_history(self):

@@ -205,7 +205,6 @@ class FitsBinTable(DatasetMemoryMapped):
 
 		self.update_meta()
 		self.update_virtual_meta()
-		self.selections_favorite_load()
 
 	def _check_null(self, table, column_name, column, i):
 		null_name = "TNULL%d" % (i+1)

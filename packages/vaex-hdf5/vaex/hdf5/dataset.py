@@ -175,7 +175,6 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self._load_axes(self.h5file["/axes"])
         self.update_meta()
         self.update_virtual_meta()
-        self.selections_favorite_load()
 
     # def
     def _load_axes(self, axes_data):
@@ -378,7 +377,6 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
             self.addColumn(column_name, offset, len(column), dtype=column.dtype)
         self.update_meta()
         self.update_virtual_meta()
-        self.selections_favorite_load()
 
 
 dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
