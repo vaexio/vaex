@@ -5245,7 +5245,7 @@ class DataFrameLocal(DataFrame):
         4  2015-01-29 00:00:00   87
 
 
-        :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary 
+        :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the groupby object.
         :return: :class:`DataFrame` or :class:`GroupBy` object.
@@ -5264,7 +5264,7 @@ class DataFrameLocal(DataFrame):
         in the form of an xarray.
 
 
-        :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary 
+        :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the binby object.
         :return: :class:`DataArray` or :class:`BinBy` object.
@@ -5298,7 +5298,7 @@ class DataFrameLocal(DataFrame):
 
     def _binner(self, expression, limits=None, shape=None, delay=False):
         expression = str(expression)
-        if limits is not None and not isinstance(limits, tuple):
+        if limits is not None and not isinstance(limits, (tuple, str)):
             limits = tuple(limits)
         key = (expression, limits, shape)
         if key not in self._binners:

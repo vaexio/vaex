@@ -1,5 +1,25 @@
 from common import *
 
+
+def test_count_1d():
+    ds = vaex.example()
+    binned_values = ds.count(binby=ds.x, limits=[-50, 50], shape=16)
+    assert len(binned_values) == 16
+    binned_values = ds.count(binby=ds.x, limits='minmax', shape=16)
+    assert len(binned_values) == 16
+    binned_values = ds.count(binby=ds.x, limits='95%', shape=16)
+    assert len(binned_values) == 16
+
+def test_count_2d():
+    ds = vaex.example()
+    binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=['minmax', '95%'])
+    assert list(binned_values.shape) == [32, 32]
+    binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=None)
+    assert list(binned_values.shape) == [32, 32]
+    binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=[[-50, 50],[-50, 50]])
+    assert list(binned_values.shape) == [32, 32]
+
+
 # def test_count_edges():
 #     ds = vaex.from_arrays(x=[-2, -1, 0, 1, 2, 3, np.nan])
 #     # 1 missing, 2 to the left, 1 in the range, two to the right
