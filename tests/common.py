@@ -131,6 +131,4 @@ def create_base_ds():
     booleans[[4, 6, 8, 14, 16, 19]] = False
     dataset.add_column("bool", booleans)
 
-    return dataset
-
-# dsf = create_filtered()
+    return dataset._readonly()
