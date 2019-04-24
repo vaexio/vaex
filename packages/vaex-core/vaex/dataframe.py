@@ -203,6 +203,7 @@ class DataFrame(object):
 
         self._categories = collections.OrderedDict()
         self._selection_mask_caches = collections.defaultdict(dict)
+        self._selection_masks = {}  # maps to vaex.superutils.Mask object
         self._renamed_columns = []
 
     def __getattr__(self, name):
@@ -3497,9 +3498,21 @@ class DataFrame(object):
         def table_part(k1, k2, parts):
             values = {}
             N = k2 - k1
+            if self.filtered:
+                mask = self._selection_masks[FILTER_SELECTION_NAME]
+                N = _len(self)
+                if k1 == 0:
+                    indices = mask.first(k2-k1)
+                elif k2 == N:
+                    indices = mask.last(k2-k1)
+                else:
+                    raise ValueError("sorry, can only do head and tail for filtered dataframes")
+            else:
+                indices = np.arange(k1, k2)
+            df = self.take(indices)
             for i, name in enumerate(column_names):
                 try:
-                    values[name] = self.evaluate(name, i1=k1, i2=k2)
+                    values[name] = df.evaluate(name)
                 except:
                     values[name] = ["error"] * (N)
                     logger.exception('error evaluating: %s at rows %i-%i' % (name, k1, k2))
@@ -3810,6 +3823,8 @@ class DataFrame(object):
                     df.columns[name] = ColumnIndexed(self, indices, name)
         df._length_original = len(indices)
         df._length_unfiltered = df._length_original
+        df._index_start = 0
+        df._index_end = df._length_original
         df.set_selection(None, name=FILTER_SELECTION_NAME)
         return df
 
@@ -4311,6 +4326,9 @@ class DataFrame(object):
 
     def _selection(self, create_selection, name, executor=None, execute_fully=False):
         """select_lasso and select almost share the same code"""
+        # TODO: maybe we also want free up selection masks
+        if name not in self._selection_masks:
+            self._selection_masks[name] = vaex.superutils.Mask(self._length_unfiltered)
         selection_history = self.selection_histories[name]
         previous_index = self.selection_history_indices[name]
         current = selection_history[previous_index] if selection_history else None
@@ -4320,18 +4338,6 @@ class DataFrame(object):
         self.selection_history_indices[name] += 1
         # clip any redo history
         del selection_history[self.selection_history_indices[name]:-1]
-        if 0:
-            if self.is_local():
-                if selection:
-                    # result = selection.execute(executor=executor, execute_fully=execute_fully)
-                    result = vaex.promise.Promise.fulfilled(None)
-                    self.signal_selection_changed.emit(self)
-                else:
-                    result = vaex.promise.Promise.fulfilled(None)
-                    self.signal_selection_changed.emit(self)
-            else:
-                self.signal_selection_changed.emit(self)
-                result = vaex.promise.Promise.fulfilled(None)
         self.signal_selection_changed.emit(self)
         result = vaex.promise.Promise.fulfilled(None)
         logger.debug("select selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
@@ -4845,9 +4851,14 @@ class DataFrameLocal(DataFrame):
         mask = None
 
         if self.filtered and filtered:  # if we filter, i1:i2 has a different meaning
-            indices = self._filtered_range_to_unfiltered_indices(i1, i2)
-            i1 = indices[0]
-            i2 = indices[-1] + 1  # +1 to make it inclusive
+            if 1:
+                mask = self._selection_masks[FILTER_SELECTION_NAME]
+                i1, i2 = mask.indices(i1, i2-1) # -1 since it is inclusive
+                i2 = i2+1  # +1 to make it inclusive
+            else:
+                indices = self._filtered_range_to_unfiltered_indices(i1, i2)
+                i1 = indices[0]
+                i2 = indices[-1] + 1
         # for both a selection or filtering we have a mask
         if selection is not None or (self.filtered and filtered):
             mask = self.evaluate_selection_mask(selection, i1, i2)
