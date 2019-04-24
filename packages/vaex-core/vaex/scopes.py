@@ -108,13 +108,13 @@ class _BlockScope(object):
                 return self.values[variable]
             elif variable in self.df.get_column_names(virtual=False, hidden=True):
                 offset = self.df._index_start
-                if self.df._needs_copy(variable):
+                # if self.df._needs_copy(variable):
                     # self._ensure_buffer(variable)
                     # self.values[variable] = self.buffers[variable] = self.df.columns[variable][self.i1:self.i2].astype(np.float64)
                     # Previously we casted anything to .astype(np.float64), this led to rounding off of int64, when exporting
-                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2]
-                else:
-                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2]
+                    # self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][:]
+                # else:
+                self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2]
                 if self.mask is not None:
                     self.values[variable] = self.values[variable][self.mask]
             elif variable in list(self.df.virtual_columns.keys()):
@@ -166,8 +166,12 @@ class _BlockScopeSelection(object):
             # logger.debug("selection for %r: %s %r", variable, selection, self.df.selection_histories)
             key = (self.i1, self.i2)
             if selection:
+                if variable not in self.df._selection_mask_caches:
+                    # TODO: this shouldn't happen, df._selection() is not always called
+                    self.df._selection_masks[variable] = vaex.superutils.Mask(self.df._length_unfiltered)
                 cache = self.df._selection_mask_caches[variable]
                 # logger.debug("selection cache: %r" % cache)
+                full_mask = self.df._selection_masks[variable]
                 selection_in_cache, mask = cache.get(key, (None, None))
                 # logger.debug("mask for %r is %r", variable, mask)
                 if selection_in_cache == selection:
@@ -175,11 +179,18 @@ class _BlockScopeSelection(object):
                 # logger.debug("was not cached")
                 if variable in self.df.variables:
                     return self.df.variables[variable]
-                mask = selection.evaluate(self.df, variable, self.i1, self.i2)
+                mask_values = selection.evaluate(self.df, variable, self.i1, self.i2)
+                # get a view on a subset of the mask
+                sub_mask = full_mask.view(self.i1, self.i2)
+                sub_mask_array = np.asarray(sub_mask)
+                # and update it
+                sub_mask_array[:] = mask_values
                 # logger.debug("put selection in mask with key %r" % (key,))
                 if self.store_in_cache:
-                    cache[key] = selection, mask
-                return mask
+                    cache[key] = selection, sub_mask_array
+                    # cache[key] = selection, mask_values
+                return sub_mask_array
+                # return mask_values
             else:
                 offset = self.df._index_start
                 if variable in expression_namespace:
