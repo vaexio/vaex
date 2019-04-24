@@ -128,7 +128,7 @@ class TaskBase(Task):
 
 class TaskMapReduce(Task):
     def __init__(self, df, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False,
-                 to_numpy=True, ordered_reduce=False, skip_masked=False, name="task"):
+                 to_numpy=True, ordered_reduce=False, skip_masked=False, ignore_filter=False, name="task"):
         Task.__init__(self, df, expressions, name=name)
         self._map = map
         self._reduce = reduce
@@ -138,6 +138,7 @@ class TaskMapReduce(Task):
         self.to_float = to_float
         self.to_numpy = to_numpy
         self.skip_masked = skip_masked
+        self.ignore_filter = ignore_filter
 
     def map(self, thread_index, i1, i2, *blocks):
         if self.to_numpy:
@@ -155,6 +156,11 @@ class TaskMapReduce(Task):
                     mask |= other
                 blocks = [block[~mask] for block in blocks]
 
+        if not self.ignore_filter:
+            selection = None
+            if selection or self.df.filtered:
+                selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
+                blocks = [block[selection_mask] for block in blocks]
         if self.info:
             return self._map(thread_index, i1, i2, *blocks)
         else:
@@ -402,6 +408,8 @@ class TaskStatistic(Task):
             little_endians = len([k for k in selection_blocks if k.dtype != str_type and k.dtype.byteorder in ["<", "="]])
             if not ((len(selection_blocks) == little_endians) or little_endians == 0):
                 def _to_native(ar):
+                    if ar.dtype == str_type:
+                        return ar  # string are always fine
                     if ar.dtype.byteorder not in ["<", "="]:
                         dtype = ar.dtype.newbyteorder()
                         return ar.astype(dtype)
@@ -464,3 +472,110 @@ class TaskStatistic(Task):
         # If selection was a string, we just return the single selection
         return grid if self.selection_waslist else grid[0]
 
+
+class TaskAggregate(Task):
+    def __init__(self, df, grid):
+        expressions = [binner.expression for binner in grid.binners]
+        Task.__init__(self, df, expressions, name="statisticNd")
+
+        self.df = df
+        self.parent_grid = grid
+        self.nthreads = self.df.executor.thread_pool.nthreads
+        # for each thread, we have 1 grid and a set of binners
+        self.grids = [vaex.superagg.Grid([binner.copy() for binner in grid.binners]) for i in range(self.nthreads)]
+        self.aggregations = []
+        # self.grids = []
+
+    def add_aggregation_operation(self, aggregator_descriptor, selection=None, edges=False):
+        selection_waslist = _issequence(selection)
+        selections = _ensure_list(selection)
+        def create_aggregator(thread_index):
+            # for each selection, we have a separate aggregator, sharing the grid and binners
+            return [aggregator_descriptor._create_operation(self.df, self.grids[thread_index]) for selection in selections]
+        task = Task(self.df, [], "--")
+        self.aggregations.append((aggregator_descriptor, selections, [create_aggregator(i) for i in range(self.nthreads)], selection_waslist, edges, task))
+        self.expressions_all.extend(aggregator_descriptor.expressions)
+        self.expressions_all = list(set(self.expressions_all))
+        self.dtypes = {expr: self.df.dtype(expr) for expr in self.expressions_all}
+        return task
+
+    def map(self, thread_index, i1, i2, *blocks):
+        if not self.aggregations:
+            raise RuntimeError('Aggregation tasks started but nothing to do, maybe adding operations failed?')
+        grid = self.grids[thread_index]
+        def check_array(x, dtype):
+            if dtype == str_type:
+                x = vaex.column._to_string_sequence(x)
+            else:
+                x = vaex.utils.as_contiguous(x)
+                if x.dtype.kind in "mM":
+                    # we pass datetime as int
+                    x = x.view('uint64')
+            return x
+        block_map = {expr: block for expr, block in zip(self.expressions_all, blocks)}
+        # we need to make sure we keep some objects alive, since the c++ side does not incref
+        # on set_data and set_data_mask
+        references = []
+        for binner in grid.binners:
+            block = block_map[binner.expression]
+            dtype = self.dtypes[binner.expression]
+            block = check_array(block, dtype)
+            if np.ma.isMaskedArray(block):
+                block, mask = block.data, np.ma.getmaskarray(block)
+                binner.set_data(block)
+                binner.set_data_mask(mask)
+                references.extend([block, mask])
+            else:
+                binner.set_data(block)
+                references.extend([block])
+        all_aggregators = []
+        for agg_desc, selections, aggregation2d, selection_waslist, edges, task in self.aggregations:
+            for selection_index, selection in enumerate(selections):
+                agg = aggregation2d[thread_index][selection_index]
+                all_aggregators.append(agg)
+                selection_mask = None
+                if selection or self.df.filtered:
+                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
+                if agg_desc.expressions:
+                    assert len(agg_desc.expressions) in [1,2], "only length 1 or 2 supported for now"
+                    dtype_ref = block = block_map[agg_desc.expressions[0]].dtype
+                    for i, expression in enumerate(agg_desc.expressions):
+                        block = block_map[agg_desc.expressions[i]]
+                        dtype = self.dtypes[agg_desc.expressions[i]]
+                        # we have data for the aggregator as well
+                        if np.ma.isMaskedArray(block):
+                            block, mask = block.data, np.ma.getmaskarray(block)
+                            block = check_array(block, dtype)
+                            agg.set_data(block, i)
+                            references.extend([block])
+                            if selection_mask is None:
+                                selection_mask = ~mask
+                            else:
+                                selection_mask = selection_mask & ~mask
+                        else:
+                            block = check_array(block, dtype)
+                            agg.set_data(block, i)
+                            references.extend([block])
+                # we only have 1 data mask, since it's locally combined
+                if selection_mask is not None:
+                    agg.set_data_mask(selection_mask)
+                    references.extend([selection_mask])
+        grid.bin(all_aggregators, i2-i1)
+
+    def reduce(self, results):
+        results = []
+        for agg_desc, selections, aggregation2d, selection_waslist, edges, task in self.aggregations:
+            grids = []
+            for selection_index, selection in enumerate(selections):
+                agg0 = aggregation2d[0][selection_index]
+                agg0.reduce([k[selection_index] for k in aggregation2d[1:]])
+                grid = np.asarray(agg0)
+                if not edges:
+                    grid = vaex.utils.extract_central_part(grid)
+                grids.append(grid)
+            result = np.asarray(grids) if selection_waslist else grids[0]
+            dtype_out = vaex.utils.to_native_dtype(agg_desc.dtype_out)
+            result = result.view(dtype_out)
+            task.fulfill(result)
+            results.append(result)
+        return results

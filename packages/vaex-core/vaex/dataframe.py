@@ -248,6 +248,10 @@ class DataFrame(object):
     def iscategory(self, column):
         return self.is_category(column)
 
+    def is_datetime(self, expression):
+        dtype = self.dtype(expression)
+        return dtype != str_type and dtype.kind == 'M'
+
     def is_category(self, column):
         """Returns true if column is a category."""
         column = _ensure_string_from_expression(column)
@@ -268,6 +272,7 @@ class DataFrame(object):
     def execute(self):
         '''Execute all delayed jobs.'''
         self.executor.execute()
+        self._task_aggs.clear()
 
     @property
     def filtered(self):
@@ -303,30 +308,74 @@ class DataFrame(object):
             pass
         return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='nop', to_numpy=False)
 
+    def _set(self, expression, progress=False, delay=False):
+        column = _ensure_string_from_expression(expression)
+        columns = [column]
+        from .hash import ordered_set_type_from_dtype
+        from vaex.column import _to_string_sequence
+
+        transient = self[str(expression)].transient or self.filtered or self.is_masked(expression)
+        if self.dtype(expression) == str_type and not transient:
+            # string is a special case, only ColumnString are not transient
+            ar = self.columns[str(expression)]
+            if not isinstance(ar, ColumnString):
+                transient = True
+
+        dtype = self.dtype(column)
+        ordered_set_type = ordered_set_type_from_dtype(dtype, transient)
+        sets = [None] * self.executor.thread_pool.nthreads
+        def map(thread_index, i1, i2, ar):
+            if sets[thread_index] is None:
+                sets[thread_index] = ordered_set_type()
+            if dtype == str_type:
+                previous_ar = ar
+                ar = _to_string_sequence(ar)
+                if not transient:
+                    assert ar is previous_ar.string_sequence
+            if np.ma.isMaskedArray(ar):
+                mask = np.ma.getmaskarray(ar)
+                sets[thread_index].update(ar, mask)
+            else:
+                sets[thread_index].update(ar)
+        def reduce(a, b):
+            pass
+        self.map_reduce(map, reduce, columns, delay=delay, name='set', info=True, to_numpy=False)
+        sets = [k for k in sets if k is not None]
+        set0 = sets[0]
+        for other in sets[1:]:
+            set0.merge(other)
+        return set0
+
     def unique(self, expression, return_inverse=False, progress=False, delay=False):
         expression = _ensure_string_from_expression(expression)
+        ordered_set = self._set(expression, progress=progress)
+        transient = True
         if return_inverse:
-            def map(thread_index, i1, i2, ar):  # this will be called with a chunk of the data
-                return i1, (vaex.utils.unique_nanfix(ar, return_inverse=True))  # returns (sort key, (unique elements, indices))
-            def reduce(a, b):  # gets called with a list of the return values of map
-                uniques_a, indices_a = a
-                uniques_b, indices_b = b
-                Na = len(uniques_a)
-                Nb = len(uniques_b)
-                joined = np.concatenate([uniques_a, uniques_b])  # put all 'sub-unique' together
-                uniques, indices_joined = vaex.utils.unique_nanfix(joined, return_inverse=True)  # find all the unique items
-                # get back the merged indices
-                indices = np.concatenate([indices_joined[:Na][indices_a], indices_joined[Na:][indices_b]])
-                return uniques, indices
-            return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, info=True, ordered_reduce=True, name='unique')
-            # return np.unique(self.evaluate(expression), return_inverse=return_inverse)
+            # inverse type can be smaller, depending on length of set
+            inverse = np.zeros(self._length_unfiltered, dtype=np.int64)
+            dtype = self.dtype(expression)
+            from vaex.column import _to_string_sequence
+            def map(thread_index, i1, i2, ar):
+                if dtype == str_type:
+                    previous_ar = ar
+                    ar = _to_string_sequence(ar)
+                    if not transient:
+                        assert ar is previous_ar.string_sequence
+                # TODO: what about masked values?
+                inverse[i1:i2:] = ordered_set.map_ordinal(ar)
+            def reduce(a, b):
+                pass
+            self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False)
+        keys = ordered_set.keys()
+        if ordered_set.has_nan:
+            keys = [np.nan] + keys
+        if ordered_set.has_null:
+            keys = [np.ma.core.MaskedConstant()] + keys
+        keys = np.asarray(keys)
+        if return_inverse:
+            return keys, inverse
         else:
-            def map(ar):  # this will be called with a chunk of the data
-                return vaex.utils.unique_nanfix(ar)  # returns the unique elements
-            def reduce(a, b):  # gets called with a list of the return values of map
-                joined = np.concatenate([a, b])  # put all 'sub-unique' together
-                return vaex.utils.unique_nanfix(joined)  # find all the unique items
-        return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='unique')
+            return keys
 
     @docsubst
     def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
@@ -373,6 +422,7 @@ class DataFrame(object):
         @delayed
         def calculate(counts):
             # TODO: mutual information doesn't take axis arguments, so ugly solution for now
+            counts = counts.astype(np.float64)
             fullshape = _expand_shape(shape, len(binby))
             out = np.zeros((fullshape), dtype=float)
             if len(fullshape) == 0:
@@ -449,7 +499,7 @@ class DataFrame(object):
         return index
 
     @delayed
-    def _count_calculation(self, expression, binby, limits, shape, selection, edges, progressbar):
+    def _old_count_calculation(self, expression, binby, limits, shape, selection, edges, progressbar):
         if shape:
             limits, shapes = limits
         else:
@@ -467,6 +517,69 @@ class DataFrame(object):
             counts = counts[...,0]
             return counts
         return finish(task)
+
+    @docsubst
+    def _old_count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
+        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
+        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
+        expression = _ensure_string_from_expression(expression)
+        binby = _ensure_strings_from_expressions(binby)
+        waslist, [expressions,] = vaex.utils.listify(expression)
+        @delayed
+        def finish(*counts):
+           return vaex.utils.unlistify(waslist, counts)
+        progressbar = vaex.utils.progressbars(progress)
+        limits = self.limits(binby, limits, delay=True, shape=shape)
+        stats = [self._old_count_calculation(expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
+        var = finish(*stats)
+        return self._delay(delay, var)
+
+    @delayed
+    def _count_calculation(self, expression, grid, selection, edges, progressbar):
+        if expression in ["*", None]:
+            agg = vaex.agg.count()
+        else:
+            agg = vaex.agg.count(expression)
+        task = self._get_task_agg(grid)
+        agg_subtask = task.add_aggregation_operation(agg, selection, edges=edges)
+        progressbar.add_task(task, "count for %s" % expression)
+        @delayed
+        def finish(counts):
+            counts = np.asarray(counts)
+            return counts
+        return finish(agg_subtask)
+
+    def _compute_agg(self, name, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, extra_expressions=None):
+        logger.debug("aggregate %s(%r, binby=%r, limits=%r)", name, expression, binby, limits)
+        expression = _ensure_strings_from_expressions(expression)
+        if extra_expressions:
+            extra_expressions = _ensure_strings_from_expressions(extra_expressions)
+        expression_waslist, [expressions,] = vaex.utils.listify(expression)
+        grid = self._create_grid(binby, limits, shape, delay=True)
+        @delayed
+        def compute(expression, grid, selection, edges, progressbar):
+            if expression in ["*", None]:
+                agg = vaex.agg.aggregates[name]()
+            else:
+                if extra_expressions:
+                    agg = vaex.agg.aggregates[name](expression, *extra_expressions)
+                else:
+                    agg = vaex.agg.aggregates[name](expression)
+            task = self._get_task_agg(grid)
+            agg_subtask = agg.add_operations(task, selection=selection, edges=edges)
+            progressbar.add_task(task, "%s for %s" % (name, expression))
+            @delayed
+            def finish(counts):
+                counts = np.asarray(counts)
+                return counts
+            return finish(agg_subtask)
+        @delayed
+        def finish(*counts):
+            return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
+        progressbar = vaex.utils.progressbars(progress)
+        stats = [compute(expression, grid, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
+        var = finish(*stats)
+        return self._delay(delay, var)
 
     @docsubst
     def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
@@ -491,19 +604,7 @@ class DataFrame(object):
         :param edges: {edges}
         :return: {return_stat_scalar}
         """
-        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
-        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
-        expression = _ensure_string_from_expression(expression)
-        binby = _ensure_strings_from_expressions(binby)
-        waslist, [expressions,] = vaex.utils.listify(expression)
-        @delayed
-        def finish(*counts):
-            return vaex.utils.unlistify(waslist, counts)
-        progressbar = vaex.utils.progressbars(progress)
-        limits = self.limits(binby, limits, delay=True, shape=shape)
-        stats = [self._count_calculation(expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
-        var = finish(*stats)
-        return self._delay(delay, var)
+        return self._compute_agg('count', expression, binby, limits, shape, selection, delay, edges, progress)
 
     @delayed
     def _first_calculation(self, expression, order_expression, binby, limits, shape, selection, edges, progressbar):
@@ -546,14 +647,16 @@ class DataFrame(object):
         :return: Ndarray containing the first elements.
         :rtype: numpy.array
         """
+        return self._compute_agg('first', expression, binby, limits, shape, selection, delay, edges, progress, extra_expressions=[order_expression])
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
-        expression = _ensure_string_from_expression(expression)
+        expression = _ensure_strings_from_expressions(expression)
         order_expression = _ensure_string_from_expression(order_expression)
         binby = _ensure_strings_from_expressions(binby)
         waslist, [expressions,] = vaex.utils.listify(expression)
         @delayed
         def finish(*counts):
+            counts = np.asarray(counts)
             return vaex.utils.unlistify(waslist, counts)
         progressbar = vaex.utils.progressbars(progress)
         limits = self.limits(binby, limits, delay=True, shape=shape)
@@ -563,7 +666,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
         """Calculate the mean for expression, possibly on a grid defined by binby.
 
         Example:
@@ -582,6 +685,7 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}
         """
+        return self._compute_agg('mean', expression, binby, limits, shape, selection, delay, edges, progress)
         logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, delay=%r", expression, binby, limits, shape, selection, delay)
         expression = _ensure_strings_from_expressions(expression)
         selection = _ensure_strings_from_expressions(selection)
@@ -621,7 +725,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
         """Calculate the sum for the given expression, possible on a grid defined by binby
 
         Example:
@@ -641,6 +745,7 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}
         """
+        return self._compute_agg('sum', expression, binby, limits, shape, selection, delay, edges, progress)
         @delayed
         def finish(*sums):
             return vaex.utils.unlistify(waslist, sums)
@@ -966,19 +1071,32 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
+        # vmin  = self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
+        # vmax =  self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
+        @delayed
+        def finish(*minmax_list):
+            value = vaex.utils.unlistify(waslist, np.array(minmax_list))
+            value = value.astype(dtype0)
+            return value
+
         @delayed
         def calculate(expression, limits):
             task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_MIN_MAX, selection=selection)
             self.executor.schedule(task)
             progressbar.add_task(task, "minmax for %s" % expression)
             return task
-
         @delayed
         def finish(*minmax_list):
             value = vaex.utils.unlistify(waslist, np.array(minmax_list))
+            value = value.astype(dtype0)
             return value
         expression = _ensure_strings_from_expressions(expression)
+        binby = _ensure_strings_from_expressions(binby)
         waslist, [expressions, ] = vaex.utils.listify(expression)
+        dtypes = [self.dtype(expr) for expr in expressions]
+        dtype0 = dtypes[0]
+        if not all([k.kind == dtype0.kind for k in dtypes]):
+            raise ValueError("cannot mix datetime and non-datetime expressions")
         progressbar = vaex.utils.progressbars(progress, name="minmaxes")
         limits = self.limits(binby, limits, selection=selection, delay=True)
         all_tasks = [calculate(expression, limits) for expression in expressions]
@@ -987,7 +1105,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
         """Calculate the minimum for given expressions, possibly on a grid defined by binby.
 
 
@@ -1009,6 +1127,7 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
+        return self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
         @delayed
         def finish(result):
             return result[..., 0]
@@ -1016,7 +1135,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
         """Calculate the maximum for given expressions, possibly on a grid defined by binby.
 
 
@@ -1038,6 +1157,7 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
+        return self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
         @delayed
         def finish(result):
             return result[..., 1]
@@ -1110,6 +1230,7 @@ class DataFrame(object):
         def finish(percentile_limits, counts_list):
             results = []
             for i, counts in enumerate(counts_list):
+                counts = counts.astype(np.float)
                 # remove the nan and boundary edges from the first dimension,
                 nonnans = list([slice(2, -1, None) for k in range(len(counts.shape) - 1)])
                 nonnans.append(slice(1, None, None))  # we're gonna get rid only of the nan's, and keep the overflow edges
@@ -1197,7 +1318,7 @@ class DataFrame(object):
         if delay:
             return task
         else:
-            self.executor.execute()
+            self.execute()
             return task.get()
 
     @docsubst
@@ -1793,7 +1914,7 @@ class DataFrame(object):
             data = column[0:1]
             dtype = data.dtype
         else:
-            data = self.evaluate(expression, 0, 1)
+            data = self.evaluate(expression, 0, 1, filtered=False)
             dtype = data.dtype
         if not internal:
             if dtype != str_type:
@@ -1813,6 +1934,7 @@ class DataFrame(object):
 
     def is_masked(self, column):
         '''Return if a column is a masked (numpy.ma) column.'''
+        column = _ensure_string_from_expression(column)
         if column in self.columns:
             return np.ma.isMaskedArray(self.columns[column])
         return False
@@ -3175,7 +3297,7 @@ class DataFrame(object):
         self.signal_column_changed.emit(self, name, "delete")
         # self.write_virtual_meta()
 
-    def add_variable(self, name, expression, overwrite=True):
+    def add_variable(self, name, expression, overwrite=True, unique=True):
         """Add a variable to to a DataFrame.
 
         A variable may refer to other variables, and virtual columns and expression may refer to variables.
@@ -3189,10 +3311,13 @@ class DataFrame(object):
         :param: str name: name of virtual varible
         :param: expression: expression for the variable
         """
-        if overwrite or name not in self.variables:
+        if unique or overwrite or name not in self.variables:
+            existing_names = self.get_column_names(virtual=False) + list(self.variables.keys())
+            name = vaex.utils.find_valid_name(name, used=[] if not unique else existing_names)
             self.variables[name] = expression
             self.signal_variable_changed.emit(self, name, "add")
-            # self.write_virtual_meta()
+            if unique:
+                return name
 
     def delete_variable(self, name):
         """Deletes a variable from a DataFrame."""
@@ -4416,6 +4541,9 @@ class DataFrameLocal(DataFrame):
         self.path = path
         self.mask = None
         self.columns = collections.OrderedDict()
+        self._task_aggs = {}
+        self._binners = {}
+        self._grids = {}
 
     def _readonly(self, inplace=False):
         # make arrays read only if possib;e
@@ -4520,6 +4648,7 @@ class DataFrameLocal(DataFrame):
         df._active_fraction = self._active_fraction
         df._renamed_columns = list(self._renamed_columns)
         df.units.update(self.units)
+        df.variables.update(self.variables)
         df._categories.update(self._categories)
         column_names = column_names or self.get_column_names(hidden=True)
         all_column_names = self.get_column_names(hidden=True)
@@ -4730,6 +4859,10 @@ class DataFrameLocal(DataFrame):
         if isinstance(value, ColumnString) and not internal:
             value = value.to_numpy()
         return value
+
+    def _equals(self, other):
+        values = self.compare(other)
+        return values == ([], [], [], [])
 
     def compare(self, other, report_missing=True, report_difference=False, show=10, orderby=None, column_names=None):
         """Compare two DataFrames and report their difference, use with care for large DataFrames"""
@@ -5066,22 +5199,157 @@ class DataFrameLocal(DataFrame):
         self._has_selection = mask is not None
         self.signal_selection_changed.emit(self)
 
-    def groupby(self, by=None):
-        return GroupBy(self, by=by)
+    def groupby(self, by=None, agg=None):
+        """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
 
-class GroupBy(object):
-    def __init__(self, df, by):
-        self.df = df
-        self.by = by
-        self._waslist, [self.by, ] = vaex.utils.listify(by)
+        Examples:
 
-    def size(self):
-        import pandas as pd
-        result = self.df.count(binby=self.by, shape=[10000] * len(self.by)).astype(np.int64)
-        #values = vaex.utils.unlistify(self._waslist, result)
-        values = result
-        series = pd.Series(values, index=self.df.category_labels(self.by[0]))
-        return series
+        >>> import vaex
+        >>> import numpy as np
+        >>> np.random.seed(42)
+        >>> x = np.random.randint(1, 5, 10)
+        >>> y = x**2
+        >>> df = vaex.from_arrays(x=x, y=y)
+        >>> df.groupby(df.x, agg='count')
+        #    x    y_count
+        0    3          4
+        1    4          2
+        2    1          3
+        3    2          1
+        >>> df.groupby(df.x, agg=[vaex.agg.count('y'), vaex.agg.mean('y')])
+        #    x    y_count    y_mean
+        0    3          4         9
+        1    4          2        16
+        2    1          3         1
+        3    2          1         4
+        >>> df.groupby(df.x, agg={'z': [vaex.agg.count('y'), vaex.agg.mean('y')]})
+        #    x    z_count    z_mean
+        0    3          4         9
+        1    4          2        16
+        2    1          3         1
+        3    2          1         4
+
+        Example using datetime:
+
+        >>> import vaex
+        >>> import numpy as np
+        >>> t = np.arange('2015-01-01', '2015-02-01', dtype=np.datetime64)
+        >>> y = np.arange(len(t))
+        >>> df = vaex.from_arrays(t=t, y=y)
+        >>> df.groupby(vaex.BinnerTime.per_week(df.t)).agg({'y' : 'sum'})
+        #  t                      y
+        0  2015-01-01 00:00:00   21
+        1  2015-01-08 00:00:00   70
+        2  2015-01-15 00:00:00  119
+        3  2015-01-22 00:00:00  168
+        4  2015-01-29 00:00:00   87
+
+
+        :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary 
+            where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
+            When not given, it will return the groupby object.
+        :return: :class:`DataFrame` or :class:`GroupBy` object.
+        """
+        from .groupby import GroupBy
+        groupby = GroupBy(self, by=by)
+        if agg is None:
+            return groupby
+        else:
+            return groupby.agg(agg)
+
+    def binby(self, by=None, agg=None):
+        """Return a :class:`BinBy` or :class:`DataArray` object when agg is not None
+
+        The binby operations does not return a 'flat' DataFrame, instead it returns an N-d grid
+        in the form of an xarray.
+
+
+        :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary 
+            where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
+            When not given, it will return the binby object.
+        :return: :class:`DataArray` or :class:`BinBy` object.
+        """
+        from .groupby import BinBy
+        binby = BinBy(self, by=by)
+        if agg is None:
+            return binby
+        else:
+            return binby.agg(agg)
+
+    def _get_task_agg(self, grid):
+        if grid not in self._task_aggs:
+            self._task_aggs[grid] = task = vaex.tasks.TaskAggregate(self, grid)
+            self.executor.schedule(task)
+        return self._task_aggs[grid]
+
+    @docsubst
+    @stat_1d
+    def _agg(self, aggregator, grid, selection=False, delay=False, progress=None):
+        """
+
+        :param selection: {selection}
+        :param delay: {delay}
+        :param progress: {progress}
+        :return: {return_stat_scalar}
+        """
+        task_agg = self._get_task_agg(grid)
+        sub_task = aggregator.add_operations(task_agg)
+        return self._delay(delay, sub_task)
+
+    def _binner(self, expression, limits=None, shape=None, delay=False):
+        expression = str(expression)
+        if limits is not None and not isinstance(limits, tuple):
+            limits = tuple(limits)
+        key = (expression, limits, shape)
+        if key not in self._binners:
+            if expression in self._categories:
+                N = self._categories[expression]['N']
+                binner = self._binner_ordinal(expression, N)
+                self._binners[key] = vaex.promise.Promise.fulfilled(binner)
+            else:
+                self._binners[key] = vaex.promise.Promise()
+                @delayed
+                def create_binner(limits):
+                    return self._binner_scalar(expression, limits, shape)
+                self._binners[key] = create_binner(self.limits(expression, limits, delay=True))
+        return self._delay(delay, self._binners[key])
+
+    def _grid(self, binners):
+        key = tuple(binners)
+        if key in self._grids:
+            return self._grids[key]
+        else:
+            self._grids[key] = grid = vaex.superagg.Grid(binners)
+            return grid
+
+    def _binner_scalar(self, expression, limits, shape):
+        type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerScalar_", self.dtype(expression))
+        vmin, vmax = limits
+        return type(expression, vmin, vmax, shape)
+
+    def _binner_ordinal(self, expression, ordinal_count, min_value=0):
+        type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", self.dtype(expression))
+        return type(expression, ordinal_count, min_value)
+
+    def _create_grid(self, binby, limits, shape, delay=False):
+        if isinstance(binby, (list, tuple)):
+            binbys = binby
+        else:
+            binbys = [binby]
+        binbys = _ensure_strings_from_expressions(binbys)
+        binners = []
+        if len(binbys):
+            limits = _expand_limits(limits, len(binbys))
+        else:
+            limits = []
+        shapes = _expand_shape(shape, len(binbys))
+        for binby, limits1, shape in zip(binbys, limits, shapes):
+            binners.append(self._binner(binby, limits1, shape, delay=True))
+        @delayed
+        def finish(*binners):
+            return self._grid(binners)
+        return self._delay(delay, finish(*binners))
+
 
 class DataFrameConcatenated(DataFrameLocal):
     """Represents a set of DataFrames all concatenated. See :func:`DataFrameLocal.concat` for usage.

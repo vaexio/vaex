@@ -102,15 +102,18 @@ class StringSequence {
     }
     virtual ~StringSequence() {
     }
+    virtual string_view view(size_t i) const = 0;
+    virtual const std::string get(size_t i) const = 0;
     virtual size_t byte_size() const = 0;
     virtual bool is_null(size_t i) const {
         return _is_null(null_bitmap, i + null_offset);
     }
+    virtual bool has_null() const {
+        return null_bitmap != nullptr;
+    }
     virtual void set_null(size_t i) const {
         _set_null(null_bitmap, i);
     }
-    virtual string_view view(size_t i) const = 0;
-    virtual const std::string get(size_t i) const = 0;
     virtual StringSequence* capitalize();
     virtual StringSequence* concat(StringSequence* other);
     virtual StringSequence* pad(int width, std::string fillchar, bool left, bool right);
@@ -133,6 +136,7 @@ class StringSequence {
     // virtual py::object istitle();
     // virtual py::object isnumeric();
     // virtual py::object isdecimal();
+
     // virtual StringSequence* rstrip();
     // virtual StringSequence* strip();
     virtual py::object byte_length();
@@ -627,7 +631,7 @@ public:
             offsets1[index1] = index2;
             if(pattern_length == 0) { // whitespace splitter
                 // strip leading whitespace
-                while(::isspace(str[string_offset]) && string_length > 0) {
+                while(string_length > 0 && ::isspace(str[string_offset])) {
                     string_offset++;
                     string_length--;
                 }
@@ -710,17 +714,17 @@ public:
         return string_view(bytes + start, count);
     }
     virtual string_view view(size_t i) const {
-        _check(i);
-        index_type start = indices[i] - offset;
-        index_type end = indices[i+1] - offset;
-        index_type count = end - start;
+        // _check(i);
+        size_t start = indices[i] - offset;
+        size_t end = indices[i+1] - offset;
+        size_t count = end - start;
         return string_view(bytes + start, count);
     }
     virtual const std::string get(size_t i) const {
-        _check(i);
-        index_type start = indices[i] - offset;
-        index_type end = indices[i+1] - offset;
-        index_type count = end - start;
+        // _check(i);
+        size_t start = indices[i] - offset;
+        size_t end = indices[i+1] - offset;
+        size_t count = end - start;
         return std::string(bytes + start, count);
     }
 public:
@@ -1157,7 +1161,7 @@ struct padder {
         if(width > length) {
             int64_t left = 0, right = 0;
             if(pad_left & pad_right) {
-                int margin = width - length;
+                size_t margin = width - length;
                 left = margin / 2 + (margin & width & 1);
                 right = margin - left;
             } else if(pad_left) {
@@ -1523,7 +1527,7 @@ const char* empty = "";
 
 class StringArray : public StringSequence {
 public:
-    StringArray(PyObject** object_array, size_t length) : StringSequence(length), _byte_size(0) {
+    StringArray(PyObject** object_array, size_t length) : StringSequence(length), _byte_size(0), _has_null(false) {
         #if PY_MAJOR_VERSION == 2
             utf8_objects = (PyObject**)malloc(length * sizeof(void*));
         #endif
@@ -1538,7 +1542,8 @@ public:
                     // python37 declares as const
                     strings[i] = (char*)PyUnicode_AsUTF8AndSize(object_array[i], &sizes[i]);
                 } else {
-                    strings[i] = 0;
+                    strings[i] = nullptr;
+                    _has_null = true;
                     sizes[i] = 0;
                 }
             #else
@@ -1554,6 +1559,7 @@ public:
                     strings[i] = PyString_AsString(object_array[i]);
                 } else {
                     strings[i] = nullptr;
+                    _has_null = true;
                     utf8_objects[i] = nullptr;
                     sizes[i] = 0;
                 }
@@ -1597,6 +1603,9 @@ public:
         }
         return std::string(strings[i], sizes[i]);
     }
+    virtual bool has_null() const {
+        return _has_null;
+    }
     virtual bool is_null(size_t i) const {
         return strings[i] == nullptr;
     }
@@ -1624,6 +1633,7 @@ public:
     Py_ssize_t* sizes;
 private:
     size_t _byte_size;
+    bool _has_null;
 };
 
 template<class T>
@@ -1889,7 +1899,7 @@ StringList64* format(py::array_t<T, py::array::c_style> values_, const char* for
 }
 
 
-PYBIND11_MODULE(strings, m) {
+PYBIND11_MODULE(superstrings, m) {
     _import_array();
     m.doc() = "fast operations on string sequences";
     py::class_<StringSequence> string_sequence(m, "StringSequence");

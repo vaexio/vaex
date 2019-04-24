@@ -12,6 +12,8 @@ def test_export(ds_local, tmpdir):
 	path = str(tmpdir.join('sample.hdf5'))
 	ds.export_hdf5(path)
 
+	ds = ds.drop(ds.timedelta)
+
 	path = str(tmpdir.join('sample.parquet'))
 	ds.export(path)
 	df = vaex.open(path)
@@ -28,6 +30,7 @@ def test_export_open_hdf5(ds_local):
 def test_export_open_hdf5(ds_local):
 	ds = ds_local
 	ds = ds.drop(ds.obj)
+	ds = ds.drop(ds.timedelta)
 	filename = tempfile.mktemp(suffix='.arrow')
 	ds.export(filename)
 	ds_opened = vaex.open(filename)

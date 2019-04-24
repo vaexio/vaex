@@ -1749,6 +1749,25 @@ for name in dir(scopes['str']):
 
 # expression_namespace['str_strip'] = str_strip
 
+@register_function()
+def _ordinal_values(x, ordered_set):
+    from vaex.column import _to_string_sequence
+
+    if not isinstance(x, np.ndarray) or x.dtype.kind in 'US' or\
+        isinstance(ordered_set, vaex.superutils.ordered_set_string):
+        # sometimes the dtype can be object, but seen as an string array
+        x = _to_string_sequence(x)
+    return ordered_set.map_ordinal(x)
+
+@register_function()
+def _choose(ar, choices):
+    from vaex.column import _to_string_sequence
+    # if not isinstance(choices, np.ndarray) or choices.dtype.kind in 'US':
+    #     choices = _to_string_sequence(choices)
+    return np.choose(ar, choices)
+
+
+
 @register_function(name='float')
 def _float(x):
     return x.astype(np.float64)

@@ -79,6 +79,10 @@ class _Statistic(Expression):
         self.expression = expression
         self.args = self.expression
 
+    def pretty_name(self, id=None):
+        id = id or "_".join(map(str, self.expression))
+        return '{0}_{1}'.format(id, self.name)
+
     def __str__(self):
         return "{0}({1})".format(self.name, ", ".join(str(k) for k in self.args))
 

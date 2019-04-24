@@ -64,6 +64,11 @@ def test_string_count_stat():
 	df = vaex.from_arrays(names=np.array(['hi', 'is', 'l2', np.nan], dtype='O'))
 	assert df.count(ds.names) == 3
 
+	names = vaex.string_column(['hello', 'this', None, 'long'])
+	x = np.arange(len(names))
+	df = vaex.from_arrays(names=names, x=x)
+	assert df.count(ds.names, binby='x', limits=[0, 100], shape=1).tolist() == [3]
+
 @pytest.mark.skip
 def test_string_dtype_with_none():
 	ds = vaex.from_arrays(names=['hello', 'this', 'is', None])

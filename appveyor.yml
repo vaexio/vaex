@@ -20,9 +20,9 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - "conda create -q -n test-environment -c conda-forge python=%PYTHON_VERSION% numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython pandas runipy cython pytest numba pyarrow>=0.12 graphviz python-graphviz pcre"
+  - "conda create -q -n test-environment -c conda-forge python=%PYTHON_VERSION% numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython pandas runipy cython pytest numba pyarrow graphviz python-graphviz pcre"
   - activate test-environment
-  - pip install pybind11
+  - pip install "numpy>=1.13" "pyarrow>=0.12"
   - pip install -r requirements.txt
   - pushd packages\vaex-core   && pip install . && popd
   - pushd packages\vaex-hdf5   && pip install . && popd

@@ -42,10 +42,7 @@ before_install:
   - source deactivate
   - source activate test-environment
   - which pip
-  - pip install pybind11
-  # - conda install -c conda-forge pandas kapteyn # these extra installs should disappear
-  # - conda create --name dev --clone test
-#  - pip install -r requirements.txt
+  - pip install -r requirements.txt
 install:
   - source activate test-environment
   - (cd packages/vaex-core; pip install -v .)
