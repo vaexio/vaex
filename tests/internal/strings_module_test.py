@@ -35,23 +35,20 @@ def test_string_array():
     s = sa.get(3)
     assert sys.getrefcount(s) == 2
 
-    string_list = sa.get(0,4)
+    string_list = sa.to_numpy()
     assert sys.getrefcount(string_list) == 2
     # internally in the list, s, and in getrefcount
     s = string_list[0]
     assert sys.getrefcount(s) == 3
 
-    assert list(sa.get(0,4)) == ["aap", "noot", None, "mies"]
-    assert list(sa.get(1,4)) == ["noot", None, "mies"]
-    string_list = sa.get(0,4)
+    assert list(sa.to_numpy()) == ["aap", "noot", None, "mies"]
+    string_list = sa.to_numpy()
 
     c = sa.capitalize()
-    assert list(c.get(0,4)) == ["Aap", "Noot", None, "Mies"]
-    assert list(c.get(1,4)) == ["Noot", None, "Mies"]
+    assert list(c.to_numpy()) == ["Aap", "Noot", None, "Mies"]
 
     c = sa.to_arrow()
-    assert list(c.get(0,4)) == ["aap", "noot", None, "mies"]
-    assert list(c.get(1,4)) == ["noot", None, "mies"]
+    assert list(c.to_numpy()) == ["aap", "noot", None, "mies"]
 
 
 def test_arrow_offset():
@@ -73,7 +70,9 @@ def test_arrow_split():
     # indices = np.array([+0, 3, 3+4, 3+4+4], dtype=np.int32) + offset
     sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap)
 
+    ref_count = sys.getrefcount(sl)
     sll = sl.split(',')
+    assert sys.getrefcount(sl) == ref_count + 1
     assert len(sll) == 4
     assert sll.get(0) == ['a', 'p']
     assert sll.get(0, 0) == 'a'
@@ -90,7 +89,37 @@ def test_arrow_split():
 
     slj = sll.join("--")
     assert slj.tolist() == ['a--p', 'no--t', None, "mi----"]
+    del sll
+    assert sys.getrefcount(sl) == ref_count
 
+def test_arrow_split_array():
+    # same, now with array
+    ar = np.array(['a,p', 'no,t', None, 'mi,,'], dtype='object')
+    sl = vaex.strings.StringArray(ar)
+    ref_count = sys.getrefcount(sl)
+
+    sl_arrow = sl.to_arrow()
+    ref_count = sys.getrefcount(sl_arrow)
+    sll = sl_arrow.split(',')
+    assert sys.getrefcount(sl_arrow) == ref_count + 1
+    assert len(sll) == 4
+    assert sll.get(0) == ['a', 'p']
+    assert sll.get(0, 0) == 'a'
+    assert sll.get(0, 1) == 'p'
+
+    assert sll.get(1, 0) == 'no'
+    assert sll.get(1, 1) == 't'
+
+    assert sll.get(2) == None
+
+    assert sll.get(3, 0) == 'mi'
+    assert sll.get(3, 1) == ''
+    assert sll.get(3, 2) == ''
+
+    slj = sll.join("--")
+    assert slj.tolist() == ['a--p', 'no--t', None, "mi----"]
+    del sll
+    assert sys.getrefcount(sl_arrow) == ref_count
 
 def test_views():
     offset = 5
@@ -169,50 +198,47 @@ def test_arrow_basics():
     s = sl.get(3)
     assert sys.getrefcount(s) == 2
 
-    string_list = sl.get(0,3)
+    string_list = sl.to_numpy()
     assert sys.getrefcount(string_list) == 2
     # internally in the list, s, and in getrefcount
     s = string_list[0]
     assert sys.getrefcount(s) == 3
 
-    assert list(sl.get(0,4)) == ["aap", "noot", None, "mies"]
-    assert list(sl.get(1,3)) == ["noot", None]
-    string_list = sl.get(0,3)
+    assert list(sl.to_numpy()) == ["aap", "noot", None, "mies"]
+    string_list = sl.to_numpy()
 
     c = sl.capitalize()
-    assert list(c.get(0,4)) == ["Aap", "Noot", None, "Mies"]
-    assert list(c.get(1,3)) == ["Noot",  None]
+    assert list(c.to_numpy()) == ["Aap", "Noot", None, "Mies"]
 
     c = sl.pad(5, ' ', True, True)
-    assert list(c.get(0,4)) == [" aap ", " noot",  None, " mies"]
+    assert list(c.to_numpy()) == [" aap ", " noot",  None, " mies"]
 
     c = sl.slice_string_end(1)
-    assert list(c.get(0,4)) == ["ap", "oot",  None, "ies"]
+    assert list(c.to_numpy()) == ["ap", "oot",  None, "ies"]
 
     assert sys.getrefcount(sl) == 2
     c = sl.lower()
-    assert list(c.get(0,4)) == ["aap", "noot",  None, "mies"]
+    assert list(c.to_numpy()) == ["aap", "noot",  None, "mies"]
 
     c = sl.upper()
-    assert list(c.get(0,4)) == ["AAP", "NOOT",  None, "MIES"]
+    assert list(c.to_numpy()) == ["AAP", "NOOT",  None, "MIES"]
 
     c = sl.count("a", False)
     assert c.tolist() == [2, 0, 0, 0]
 
     sl2 = vaex.strings.StringList32(sl.bytes, sl.indices, sl.length, sl.offset, null_bitmap)
-    assert list(sl2.get(0,4)) == ["aap", "noot",  None, "mies"]
-    assert list(sl2.get(1,4)) == ["noot",  None, "mies"]
+    assert list(sl2.to_numpy()) == ["aap", "noot",  None, "mies"]
 
     # ds2.columns['name_arrow'][:].string_sequence.slice(0,5).indices
     assert sys.getrefcount(sl) == 2
     sl_slice = sl.slice(1, 4)
-    assert list(sl_slice.get(0,3)) == ["noot",  None, "mies"]
+    assert list(sl_slice.to_numpy()) == ["noot",  None, "mies"]
     assert sys.getrefcount(sl) == 3
     del sl_slice
     assert sys.getrefcount(sl) == 2
 
     sl_slice = sl.slice(0, 3)
-    assert list(sl_slice.get(0,3)) == ["aap", "noot",  None]
+    assert list(sl_slice.to_numpy()) == ["aap", "noot",  None]
 
 
     offset2 = 11
@@ -228,7 +254,7 @@ def test_arrow_basics():
 
     sl_copy = vaex.strings.StringList32(bytes_strings2, indices2, len(ar), offset2, null_bitmap2)
     sl_copy.fill_from(sl)
-    assert list(sl_copy.get(0,4)) == ["aap", "noot",  None, "mies"]
+    assert list(sl_copy.to_numpy()) == ["aap", "noot",  None, "mies"]
 
     # test fill_from with unequal offset
 
@@ -243,13 +269,13 @@ def test_arrow_basics():
     sl14 = sl.slice(1, 4)
     assert sl14.offset != sl_upper.offset
     assert sl14.fill_from(sl_upper) == 4+4
-    assert list(sl14.get(0,3)) == [None, "NOOT", "MIES"]
+    assert list(sl14.to_numpy()) == [None, "NOOT", "MIES"]
 
 
     sl14 = sl.slice(1, 4, 3)
     assert sl14.offset != sl_upper.offset
     assert sl14.fill_from(sl_upper) == 4+4
-    assert list(sl14.get(0,3)) == [None, "NOOT", "MIES"]
+    assert list(sl14.to_numpy()) == [None, "NOOT", "MIES"]
 
 
     # sl14 and sl_slice keep a reference to sl

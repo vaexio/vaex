@@ -253,9 +253,7 @@ class ColumnStringArrow(ColumnString):
             return self.trim(start, stop)
 
     def to_numpy(self):
-        start = 0
-        stop = len(self)
-        return self.string_sequence.get(0, stop)
+        return self.string_sequence.to_numpy()
 
     def trim(self, i1, i2):
         return type(self).from_string_sequence(self.string_sequence.slice(i1, i2))
