@@ -3348,10 +3348,10 @@ class DataFrame(object):
             parts += ["<td>%s</td>" % name]
             virtual = name not in self.column_names
             if name in self.column_names:
-                type = self.dtype(name)
+                dtype = str(self.dtype(name)) if self.dtype(name) != str else 'str'
             else:
-                type = "</i>virtual column</i>"
-            parts += ["<td>%s</td>" % type]
+                dtype = "</i>virtual column</i>"
+            parts += ["<td>%s</td>" % dtype]
             units = self.unit(name)
             units = units.to_string("latex_inline") if units else ""
             parts += ["<td>%s</td>" % units]
