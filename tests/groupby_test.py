@@ -1,8 +1,6 @@
 from common import *
-import collections
 import numpy as np
 import vaex
-import pytest
 
 
 def test_groupby_options():
@@ -25,7 +23,6 @@ def test_groupby_options():
     dfg = df.groupby(by, agg=[vaex.agg.sum('y')])
     assert dfg.y_sum.tolist() == sum_answer
 
-
     dfg = df.groupby(by, agg=[vaex.agg.sum('y'), vaex.agg.mean('y')])
     assert dfg.y_sum.tolist() == sum_answer
     assert dfg.y_mean.tolist() == mean_answer
@@ -33,7 +30,6 @@ def test_groupby_options():
     dfg = df.groupby(by, agg={'z': [vaex.agg.sum('y'), vaex.agg.mean('y')]})
     assert dfg.z_sum.tolist() == sum_answer
     assert dfg.z_mean.tolist() == mean_answer
-
 
     # default is to do all columns
     dfg = df.groupby(by, agg=[vaex.agg.sum, vaex.agg.mean])
@@ -133,7 +129,7 @@ def test_groupby_datetime_quarter():
 def test_groupby_count():
     # ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2], dtype='int32')
-    s = np.array(list(map(str,[0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
+    s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
     groupby = df.groupby('s')
     dfg = groupby.agg({'g': 'mean'}).sort('s')
@@ -143,32 +139,34 @@ def test_groupby_count():
     dfg2 = df.groupby('s', {'g': 'mean'}).sort('s')
     assert dfg._equals(dfg2)
 
+
 def test_groupby_count_string():
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
-    s = np.array(list(map(str,[0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
+    s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
     groupby = df.groupby('s')
     dfg = groupby.agg({'c': vaex.agg.count('s')})
     assert dfg.s.tolist() == ['0', '1', '2']
     assert dfg.c.tolist() == [4, 4, 2]
 
+
 def test_groupby_datatime_buffer():
     # Generate data datetime data
     h = np.array([17, 12, 20,  7, 11, 21,  9,  9, 19,  1,  2,  1, 19,  9,  6, 10, 23,
-                   8,  4, 13,  4, 10, 20, 15, 20,  4,  0,  6, 17, 14, 17,  5,  6,  4,
-                   3, 21, 10, 20, 23,  5,  4, 19, 23,  8, 10,  1, 13,  3, 21, 18,  9,
-                   3,  8, 14,  2, 20, 20, 15, 14, 18,  6, 19, 16,  3,  2,  4, 15, 23,
-                   3, 16, 14,  6,  3, 18,  6,  5,  4, 15,  7,  8,  5, 22,  0,  1, 16,
-                   7,  7, 18,  3, 14,  3,  1,  6,  3, 22,  0,  5,  0,  7,  0])
+                 8,  4, 13,  4, 10, 20, 15, 20,  4,  0,  6, 17, 14, 17,  5,  6,  4,
+                 3, 21, 10, 20, 23,  5,  4, 19, 23,  8, 10,  1, 13,  3, 21, 18,  9,
+                 3,  8, 14,  2, 20, 20, 15, 14, 18,  6, 19, 16,  3,  2,  4, 15, 23,
+                 3, 16, 14,  6,  3, 18,  6,  5,  4, 15,  7,  8,  5, 22,  0,  1, 16,
+                 7,  7, 18,  3, 14,  3,  1,  6,  3, 22,  0,  5,  0,  7,  0])
     time = np.zeros_like(h, dtype=np.object)
     for i, v in enumerate(h):
         tmp = np.datetime64(str('2007-01-01T%02i:00:00' % (v)))
         time[i] = tmp
-    time  = time.astype(np.datetime64)
+    time = time.astype(np.datetime64)
 
     # Create a DataFrame and set a small executor buffer
     df = vaex.from_arrays(time=time)
-    df.executor.buffer_size=3
+    df.executor.buffer_size = 3
     # Extract a hour column from the datetime column
     df['h'] = df.time.dt.hour
 
