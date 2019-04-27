@@ -68,7 +68,7 @@ def test_binby_1d(ds_local):
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     ds.add_column('g', g)
     ar = ds.binby(by=ds.g, agg={'count': vaex.agg.count()})
-    
+
     assert ar.coords['g'].values.tolist() == [0, 1, 2]
     assert ar.coords['statistic'].values.tolist() == ["count"]
     assert ar.dims == ('statistic', 'g')
@@ -152,4 +152,32 @@ def test_groupby_count_string():
     assert dfg.s.tolist() == ['0', '1', '2']
     assert dfg.c.tolist() == [4, 4, 2]
 
+def test_groupby_datatime_buffer():
+    # Generate data datetime data
+    h = np.array([17, 12, 20,  7, 11, 21,  9,  9, 19,  1,  2,  1, 19,  9,  6, 10, 23,
+                   8,  4, 13,  4, 10, 20, 15, 20,  4,  0,  6, 17, 14, 17,  5,  6,  4,
+                   3, 21, 10, 20, 23,  5,  4, 19, 23,  8, 10,  1, 13,  3, 21, 18,  9,
+                   3,  8, 14,  2, 20, 20, 15, 14, 18,  6, 19, 16,  3,  2,  4, 15, 23,
+                   3, 16, 14,  6,  3, 18,  6,  5,  4, 15,  7,  8,  5, 22,  0,  1, 16,
+                   7,  7, 18,  3, 14,  3,  1,  6,  3, 22,  0,  5,  0,  7,  0])
+    time = np.zeros_like(h, dtype=np.object)
+    for i, v in enumerate(h):
+        tmp = np.datetime64(str('2007-01-01T%02i:00:00' % (v)))
+        time[i] = tmp
+    time  = time.astype(np.datetime64)
 
+    # Create a DataFrame and set a small executor buffer
+    df = vaex.from_arrays(time=time)
+    df.executor.buffer_size=3
+    # Extract a hour column from the datetime column
+    df['h'] = df.time.dt.hour
+
+    # Compare value_counts with the groupby counts for the hour column
+    vc = df.h.value_counts()
+    # Do this repeatedly, since each new execution to expose potential suffling between the rows
+    for i in range(10):
+        group = df.groupby(by=df.h).agg({'h': 'count'})
+        group = group.sort(by='count', ascending=False)
+
+    assert vc.values.tolist() == group['count'].values.tolist(), 'counts are not correct.'
+    assert vc.index.tolist() == group['h'].values.tolist(), 'the indices of the counts are not correct.'
