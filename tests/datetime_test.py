@@ -67,11 +67,11 @@ def test_timedelta_arithmetics():
     df['diff_dev_hours'] = df.diff / np.timedelta64(1, 'h')
     df['diff_add_days'] = df.diff + np.timedelta64(5, 'D')
 
-    # to compare
+    # normal numerical/numpy values
     diff = df.x.values-df.y.values
     diff_dev_hours = diff / np.timedelta64(1, 'h')
     diff_add_days = diff + np.timedelta64(5, 'D')
 
-    # assert
+    # compare vaex to numerical results
     assert diff_dev_hours.tolist() == df['diff_dev_hours'].values.tolist()
     assert diff_add_days.tolist() == df['diff_add_days'].values.tolist()
