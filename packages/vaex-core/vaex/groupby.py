@@ -53,10 +53,10 @@ class BinnerTime(BinnerBase):
         # divide by every, and round up
         self.N = (self.N + every - 1) // every
         self.bin_values = np.arange(self.tmin.astype(self.resolution_type), self.tmax.astype(self.resolution_type)+1, every)
-        # TODO: we modify the dataframe in place, this is not nice, also not a unique name
-        self.df.add_variable('t_begin', self.tmin.astype(self.resolution_type),)
+        # TODO: we modify the dataframe in place, this is not nice
+        self.begin_name = self.df.add_variable('t_begin', self.tmin.astype(self.resolution_type), unique=True)
         # TODO: import integer from future?
-        self.binby_expression = str(self.df['%s - t_begin' % self.expression.astype(self.resolution_type)].astype('int') // every)
+        self.binby_expression = str(self.df['%s - %s' % (self.expression.astype(self.resolution_type), self.begin_name)].astype('int') // every)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
     @classmethod
@@ -88,18 +88,16 @@ class Grouper(BinnerBase):
         # make sure it's an expression
         self.expression = self.df[str(self.expression)]
         self.set = self.df._set(self.expression)
-        self.set_name = 'test'
-        ordered_set = self.set
 
-        # TODO: we modify the dataframe in place, this is not nice, also not a unique name
-        self.setname = 'set_%s' % vaex.utils.find_valid_name(str(expression))
-        self.df.add_variable(self.setname, ordered_set)
+        # TODO: we modify the dataframe in place, this is not nice
+        basename = 'set_%s' % vaex.utils.find_valid_name(str(expression))
+        self.setname = self.df.add_variable(basename, self.set, unique=True)
 
-        keys = ordered_set.keys()
+        keys = self.set.keys()
         self.bin_values = keys
         self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
-        self.N = len(ordered_set.keys())
-        if ordered_set.has_null:
+        self.N = len(self.set.keys())
+        if self.set.has_null:
             self.N += 1
             keys += ['null']
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)

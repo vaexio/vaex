@@ -1,8 +1,6 @@
 from common import *
-import collections
 import numpy as np
 import vaex
-import pytest
 
 
 def test_groupby_options():
@@ -25,7 +23,6 @@ def test_groupby_options():
     dfg = df.groupby(by, agg=[vaex.agg.sum('y')])
     assert dfg.y_sum.tolist() == sum_answer
 
-
     dfg = df.groupby(by, agg=[vaex.agg.sum('y'), vaex.agg.mean('y')])
     assert dfg.y_sum.tolist() == sum_answer
     assert dfg.y_mean.tolist() == mean_answer
@@ -33,7 +30,6 @@ def test_groupby_options():
     dfg = df.groupby(by, agg={'z': [vaex.agg.sum('y'), vaex.agg.mean('y')]})
     assert dfg.z_sum.tolist() == sum_answer
     assert dfg.z_mean.tolist() == mean_answer
-
 
     # default is to do all columns
     dfg = df.groupby(by, agg=[vaex.agg.sum, vaex.agg.mean])
@@ -68,7 +64,7 @@ def test_binby_1d(ds_local):
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     ds.add_column('g', g)
     ar = ds.binby(by=ds.g, agg={'count': vaex.agg.count()})
-    
+
     assert ar.coords['g'].values.tolist() == [0, 1, 2]
     assert ar.coords['statistic'].values.tolist() == ["count"]
     assert ar.dims == ('statistic', 'g')
@@ -133,7 +129,7 @@ def test_groupby_datetime_quarter():
 def test_groupby_count():
     # ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2], dtype='int32')
-    s = np.array(list(map(str,[0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
+    s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
     groupby = df.groupby('s')
     dfg = groupby.agg({'g': 'mean'}).sort('s')
@@ -143,9 +139,10 @@ def test_groupby_count():
     dfg2 = df.groupby('s', {'g': 'mean'}).sort('s')
     assert dfg._equals(dfg2)
 
+
 def test_groupby_count_string():
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
-    s = np.array(list(map(str,[0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
+    s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
     groupby = df.groupby('s')
     dfg = groupby.agg({'c': vaex.agg.count('s')})
@@ -153,3 +150,19 @@ def test_groupby_count_string():
     assert dfg.c.tolist() == [4, 4, 2]
 
 
+def test_groupby_same_result():
+    h = np.array([0, 0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4], dtype=int)
+    df = vaex.from_arrays(h=h)
+
+    # Compare value_counts with the groupby counts for the hour column
+    vc = df.h.value_counts()
+
+    with small_buffer(df):
+        group = df.groupby(by=df.h).agg({'h': 'count'})
+        # second time it uses a new set, this caused a bug
+        # see https://github.com/vaexio/vaex/pull/233
+        group = df.groupby(by=df.h).agg({'h': 'count'})
+        group_sort = group.sort(by='count', ascending=False)
+
+        assert vc.values.tolist() == group_sort['count'].values.tolist(), 'counts are not correct.'
+        assert vc.index.tolist() == group_sort['h'].values.tolist(), 'the indices of the counts are not correct.'
