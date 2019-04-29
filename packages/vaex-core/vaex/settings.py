@@ -1,9 +1,12 @@
-import logging
-import yaml
-from yaml import Loader, Dumper
-import vaex.utils
 import os
+import logging
+import vaex.utils
 import collections
+
+try:
+    collections_abc = collections.abc
+except AttributeError:
+    collections_abc = collections
 
 logger = logging.getLogger("vaex.settings")
 
@@ -65,7 +68,7 @@ class Settings(object):
 settings = {}
 
 
-class AutoStoreDict(collections.MutableMapping):
+class AutoStoreDict(collections_abc.MutableMapping):
     def __init__(self, settings, store):
         self.store = store
         self.settings = settings
