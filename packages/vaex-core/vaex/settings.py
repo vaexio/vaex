@@ -5,6 +5,11 @@ import vaex.utils
 import os
 import collections
 
+try:
+    collectionsAbc = collections.abc
+except AttributeError:
+    collectionsAbc = collections
+
 logger = logging.getLogger("vaex.settings")
 
 
@@ -65,7 +70,7 @@ class Settings(object):
 settings = {}
 
 
-class AutoStoreDict(collections.MutableMapping):
+class AutoStoreDict(collectionsAbc.MutableMapping):
     def __init__(self, settings, store):
         self.store = store
         self.settings = settings
