@@ -1,8 +1,6 @@
-import logging
-import yaml
-from yaml import Loader, Dumper
-import vaex.utils
 import os
+import logging
+import vaex.utils
 import collections
 
 try:
