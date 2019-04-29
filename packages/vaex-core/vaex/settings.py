@@ -4,9 +4,9 @@ import vaex.utils
 import collections
 
 try:
-    collectionsAbc = collections.abc
+    collections_abc = collections.abc
 except AttributeError:
-    collectionsAbc = collections
+    collections_abc = collections
 
 logger = logging.getLogger("vaex.settings")
 
@@ -68,7 +68,7 @@ class Settings(object):
 settings = {}
 
 
-class AutoStoreDict(collectionsAbc.MutableMapping):
+class AutoStoreDict(collections_abc.MutableMapping):
     def __init__(self, settings, store):
         self.store = store
         self.settings = settings
