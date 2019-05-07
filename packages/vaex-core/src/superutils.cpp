@@ -85,13 +85,15 @@ public:
         auto ar = py::array_t<int64_t>(amount);
         auto ar_unsafe = ar.mutable_unchecked<1>();
         int64_t found = 0;
-        py::gil_scoped_release release;
-        for(size_t i = 0; i < length; i++) {
-            if(mask_data[i] == 1) {
-                ar_unsafe(found++) = i;
-            }
-            if(found == amount) {
-                break;
+        {
+            py::gil_scoped_release release;
+            for(size_t i = 0; i < length; i++) {
+                if(mask_data[i] == 1) {
+                    ar_unsafe(found++) = i;
+                }
+                if(found == amount) {
+                    break;
+                }
             }
         }
         auto ar_trimmed = py::array_t<int64_t>(found);
@@ -105,13 +107,15 @@ public:
         auto ar = py::array_t<int64_t>(amount);
         auto ar_unsafe = ar.mutable_unchecked<1>();
         int64_t found = 0;
-        py::gil_scoped_release release;
-        for(int64_t i = length-1; i >= 0; i--) {
-            if(mask_data[i] == 1) {
-                ar_unsafe(found++) = i;
-            }
-            if(found == amount) {
-                break;
+        {
+            py::gil_scoped_release release;
+            for(int64_t i = length-1; i >= 0; i--) {
+                if(mask_data[i] == 1) {
+                    ar_unsafe(found++) = i;
+                }
+                if(found == amount) {
+                    break;
+                }
             }
         }
         auto ar_ordered = py::array_t<int64_t>(found);
