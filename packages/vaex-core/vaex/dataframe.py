@@ -2959,7 +2959,7 @@ class DataFrame(object):
         if depending_variables is None:
             depending_variables = set()
             for expression in virtual_columns:
-                depending_variables |= expression.variables()
+                depending_variables |= expression.expand().variables()
             depending_variables = list(sorted(list(depending_variables)))
 
         fs = [self[self.virtual_columns[name]] for name in names]
@@ -3281,7 +3281,7 @@ class DataFrame(object):
         #for name, expr in self.virtual_columns.items():
         if old in self.columns:
             self.columns[new] = self.columns.pop(old)
-        if new in self.virtual_columns:
+        if old in self.virtual_columns:
             self.virtual_columns[new] = self.virtual_columns.pop(old)
         self._renamed_columns.append((old, new))
         index = self.column_names.index(old)
