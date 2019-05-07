@@ -71,11 +71,8 @@ class ColumnIndexed(Column):
         stop = stop or len(self)
         assert step in [None, 1]
         indices = self.indices[start:stop]
-        # we do evaluate here, but it would be better to directly access
-        # the array, but then we have to make sure the indices refer to the
-        # unfiltered indices
-        ar = self.df.columns[self.name]
-        ar = ar[indices]
+        ar_unfiltered = self.df.columns[self.name]
+        ar = ar_unfiltered[indices]
         if np.ma.isMaskedArray(indices):
             mask = self.indices.mask[start:stop]
             return np.ma.array(ar, mask=mask)

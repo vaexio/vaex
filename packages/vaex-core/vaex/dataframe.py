@@ -3787,7 +3787,7 @@ class DataFrame(object):
          1  c      3
 
         :param indices: sequence (list or numpy array) with row numbers
-        :param unfiltered: (for internal use) The indices refer to the unfiltered data
+        :param unfiltered: (for internal use) The indices refer to the unfiltered data.
         :return: DataFrame which is a shallow copy of the original data.
         :rtype: DataFrame
         '''
