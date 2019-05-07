@@ -166,8 +166,9 @@ class _BlockScopeSelection(object):
             # logger.debug("selection for %r: %s %r", variable, selection, self.df.selection_histories)
             key = (self.i1, self.i2)
             if selection:
-                if variable not in self.df._selection_mask_caches:
+                if variable not in self.df._selection_masks:
                     # TODO: this shouldn't happen, df._selection() is not always called
+                    # print('alloc of ', self.df._length_unfiltered)
                     self.df._selection_masks[variable] = vaex.superutils.Mask(self.df._length_unfiltered)
                 cache = self.df._selection_mask_caches[variable]
                 # logger.debug("selection cache: %r" % cache)
