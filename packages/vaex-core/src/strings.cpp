@@ -10,6 +10,7 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 #include <Python.h>
+#include "superstring.hpp"
 
 // #define VAEX_REGEX_USE_XPRESSIVE
 #define VAEX_REGEX_USE_PCRE
@@ -31,16 +32,6 @@ namespace xp = boost::xpressive;
 #include "unicode_utils.hpp"
 
 namespace py = pybind11;
-
-inline bool _is_null(uint8_t* null_bitmap, size_t i) {
-    if(null_bitmap) {
-        size_t byte_index = i / 8;
-        size_t bit_index = (i % 8);
-        return (null_bitmap[byte_index] & (1 << bit_index)) == 0;
-    } else {
-        return false;
-    }
-}
 
 inline void _set_null(uint8_t* null_bitmap, size_t i) {
     size_t byte_index = i / 8;
@@ -96,37 +87,28 @@ size_t utf8_index_to_byte_offset(string_view& source, int64_t index) {
     return str - source.begin(); // distance from start
 }
 
-class StringSequence {
+class StringSequenceBase : public StringSequence {
     public:
-    StringSequence(size_t length, uint8_t* null_bitmap=nullptr, int64_t null_offset=0) : length(length), null_bitmap(null_bitmap), null_offset(null_offset) {
+    StringSequenceBase(size_t length, uint8_t* null_bitmap=nullptr, int64_t null_offset=0) : StringSequence(length, null_bitmap, null_offset) {
     }
-    virtual ~StringSequence() {
-    }
-    virtual string_view view(size_t i) const = 0;
-    virtual const std::string get(size_t i) const = 0;
-    virtual size_t byte_size() const = 0;
-    virtual bool is_null(size_t i) const {
-        return _is_null(null_bitmap, i + null_offset);
-    }
-    virtual bool has_null() const {
-        return null_bitmap != nullptr;
+    virtual ~StringSequenceBase() {
     }
     virtual void set_null(size_t i) const {
         _set_null(null_bitmap, i);
     }
-    virtual StringSequence* capitalize();
-    virtual StringSequence* concat(StringSequence* other);
-    virtual StringSequence* pad(int width, std::string fillchar, bool left, bool right);
-    virtual StringSequence* lower();
-    virtual StringSequence* upper();
-    virtual StringSequence* lstrip(std::string chars);
-    virtual StringSequence* rstrip(std::string chars);
-    virtual StringSequence* repeat(int64_t repeats);
-    virtual StringSequence* replace(std::string pattern, std::string replacement, int64_t n, int64_t flags, bool regex);
-    virtual StringSequence* strip(std::string chars);
-    virtual StringSequence* slice_string(int64_t start, int64_t stop);
-    virtual StringSequence* slice_string_end(int64_t start);
-    virtual StringSequence* title();
+    virtual StringSequenceBase* capitalize();
+    virtual StringSequenceBase* concat(StringSequenceBase* other);
+    virtual StringSequenceBase* pad(int width, std::string fillchar, bool left, bool right);
+    virtual StringSequenceBase* lower();
+    virtual StringSequenceBase* upper();
+    virtual StringSequenceBase* lstrip(std::string chars);
+    virtual StringSequenceBase* rstrip(std::string chars);
+    virtual StringSequenceBase* repeat(int64_t repeats);
+    virtual StringSequenceBase* replace(std::string pattern, std::string replacement, int64_t n, int64_t flags, bool regex);
+    virtual StringSequenceBase* strip(std::string chars);
+    virtual StringSequenceBase* slice_string(int64_t start, int64_t stop);
+    virtual StringSequenceBase* slice_string_end(int64_t start);
+    virtual StringSequenceBase* title();
     virtual py::object isalnum();
     virtual py::object isalpha();
     virtual py::object isdigit();
@@ -137,8 +119,8 @@ class StringSequence {
     // virtual py::object isnumeric();
     // virtual py::object isdecimal();
 
-    // virtual StringSequence* rstrip();
-    // virtual StringSequence* strip();
+    // virtual StringSequenceBase* rstrip();
+    // virtual StringSequenceBase* strip();
     virtual py::object byte_length();
     virtual py::object len();
     py::object count(const std::string pattern, bool regex) {
@@ -196,7 +178,7 @@ class StringSequence {
             for(size_t i = 0; i < length; i++) {
                 auto str = view(i);
                 size_t string_length = str.length();
-                size_t skip = string_length - pattern_length;
+                int64_t skip = string_length - pattern_length;
                 m(i) = ((skip >= 0) && str.substr(skip, pattern_length) == pattern_view);
             }
         }
@@ -326,32 +308,29 @@ class StringSequence {
         return std::move(l);
     }
     template<class T>
-    StringSequence* lazy_index(py::array_t<T, py::array::c_style> indices);
+    StringSequenceBase* lazy_index(py::array_t<T, py::array::c_style> indices);
     template<class T>
-    StringSequence* index(py::array_t<T, py::array::c_style> indices);
-    py::object get(size_t start, size_t end) {
-        size_t count = end - start;
+    StringSequenceBase* index(py::array_t<T, py::array::c_style> indices);
+
+    py::object to_numpy() {
         npy_intp shape[1];
-        shape[0] = count;
+        shape[0] = length;
         PyObject* array = PyArray_SimpleNew(1, shape, NPY_OBJECT);
         PyArray_XDECREF((PyArrayObject*)array);
         PyObject **ptr = (PyObject**)PyArray_DATA((PyArrayObject*)array);
-        for(size_t i = start; i < end; i++) {
-            if( (i < 0) || (i > length) ) {
-                throw std::runtime_error("out of bounds i2");
-            }
+        for(size_t i = 0; i < length; i++) {
             string_view str = view(i);
             if(is_null(i)) {
-                ptr[i - start] = Py_None;
+                ptr[i] = Py_None;
                 Py_INCREF(Py_None);
             } else {
-                ptr[i - start] = PyUnicode_FromStringAndSize(str.begin(), str.length());;
+                ptr[i] = PyUnicode_FromStringAndSize(str.begin(), str.length());;
             }
         }
         py::handle h = array;
         return py::reinterpret_steal<py::object>(h);
     }
-    py::object get_(size_t index) const {
+    py::object get_(int64_t index) const {
         if((index < 0) || (index >= length)) {
             throw pybind11::index_error("index out of bounds");
         }
@@ -362,18 +341,14 @@ class StringSequence {
             return py::str(str);
         }
     }
-
-    size_t length;
-    uint8_t* null_bitmap;
-    int64_t null_offset;
 };
 
 /* gives a lazy view on a StringSequence */
 template<class T>
-class StringSequenceLazyIndex : public StringSequence {
+class StringSequenceLazyIndex : public StringSequenceBase {
 public:
-    StringSequenceLazyIndex(StringSequence* string_sequence, T* indices, size_t length) : 
-        StringSequence(length),
+    StringSequenceLazyIndex(StringSequenceBase* string_sequence, T* indices, size_t length) :
+        StringSequenceBase(length),
         string_sequence(string_sequence), indices(indices)
     {
 
@@ -381,21 +356,21 @@ public:
     virtual size_t byte_size() const {
         return string_sequence->byte_size();
     }
-    virtual string_view view(size_t i) const {
+    virtual string_view view(int64_t i) const {
         return string_sequence->view(indices[i]);
     }
-    virtual const std::string get(size_t i) const {
+    virtual const std::string get(int64_t i) const {
         return string_sequence->get(indices[i]);
     };
-    virtual bool is_null(size_t i) const {
+    virtual bool is_null(int64_t i) const {
         return string_sequence->is_null(indices[i]);
     }
-    StringSequence* string_sequence;
+    StringSequenceBase* string_sequence;
     T* indices;
 };
 
 template<class T>
-StringSequence* StringSequence::lazy_index(py::array_t<T, py::array::c_style> indices) {
+StringSequenceBase* StringSequenceBase::lazy_index(py::array_t<T, py::array::c_style> indices) {
     py::buffer_info info = indices.request();
     if(info.ndim != 1) {
         throw std::runtime_error("Expected a 1d byte buffer");
@@ -441,12 +416,12 @@ public:
             }
         }
     }
-    void _check1(size_t i) const {
+    void _check1(int64_t i) const {
         if( (i < 0) || (i > length) ) {
             throw std::runtime_error("string index out of bounds");
         }
-        size_t i1 = indices1[i] - offset;
-        size_t i2 = indices1[i+1] - offset;
+        int64_t i1 = indices1[i] - offset;
+        int64_t i2 = indices1[i+1] - offset;
         if( (i1 < 0) || (i1 > max_length2)) {
             throw std::runtime_error("out of bounds i1");
         }
@@ -454,7 +429,7 @@ public:
             throw std::runtime_error("out of bounds i2");
         }
     }
-    void _check2(size_t i, size_t j) const {
+    void _check2(int64_t i, int64_t j) const {
         _check1(i);
         int64_t substart = indices1[i] - offset;
         int64_t subend = indices1[i+1] - offset;
@@ -463,8 +438,8 @@ public:
             throw std::runtime_error("string index2 out of bounds");
         }
 
-        size_t i1 = indices2[substart + j];
-        size_t i2 = indices2[substart + j + 1];
+        int64_t i1 = indices2[substart + j];
+        int64_t i2 = indices2[substart + j + 1];
         if( (i1 < 0) || (i1 > byte_length)) {
             throw std::runtime_error("out of bounds i1");
         }
@@ -494,7 +469,7 @@ public:
             return std::move(l);
         }
     }
-    StringSequence* join(std::string sep);
+    StringSequenceBase* join(std::string sep);
     py::list all() {
         py::list outer_list;
         for(size_t i = 0; i < length; i++) {
@@ -519,23 +494,23 @@ private:
 
 /* arrow like StringArray data structure */
 template<class IC>
-class StringList : public StringSequence {
+class StringList : public StringSequenceBase {
 public:
     typedef IC index_type;
     typedef string_view value_value;
 
     StringList(char *bytes, size_t byte_length, index_type *indices, size_t length, size_t offset=0, uint8_t* null_bitmap=0, int64_t null_offset=0)
-     : StringSequence(length, null_bitmap, null_offset), bytes(bytes), byte_length(byte_length), indices(indices), offset(offset),
+     : StringSequenceBase(length, null_bitmap, null_offset), bytes(bytes), byte_length(byte_length), indices(indices), offset(offset),
        _own_bytes(false), _own_indices(false), _own_null_bitmap(false) {
     }
     StringList(size_t byte_length, size_t string_count, index_type *indices, size_t offset=0, uint8_t* null_bitmap=0)
-     : StringSequence(string_count, null_bitmap), bytes(0), byte_length(byte_length), indices(indices), offset(offset),
+     : StringSequenceBase(string_count, null_bitmap), bytes(0), byte_length(byte_length), indices(indices), offset(offset),
      _own_bytes(true), _own_indices(false), _own_null_bitmap(false) {
          bytes = (char*)malloc(byte_length);
          _own_bytes = true;
     }
     StringList(size_t byte_length, size_t string_count, size_t offset=0, uint8_t* null_bitmap=0, int64_t null_offset=0)
-     : StringSequence(string_count, null_bitmap, null_offset), bytes(0), byte_length(byte_length), indices(0), offset(offset),
+     : StringSequenceBase(string_count, null_bitmap, null_offset), bytes(0), byte_length(byte_length), indices(0), offset(offset),
      _own_bytes(true), _own_indices(true), _own_null_bitmap(false) {
          bytes = (char*)malloc(byte_length);
          indices = (index_type*)malloc(sizeof(index_type) * (length + 1));
@@ -566,9 +541,9 @@ public:
         byte_length *= 2;
         bytes = (char*)realloc(bytes, byte_length);
     }
-    virtual StringSequence* capitalize();
-    // virtual StringSequence* lower();
-    // virtual StringSequence* upper();
+    virtual StringSequenceBase* capitalize();
+    // virtual StringSequenceBase* lower();
+    // virtual StringSequenceBase* upper();
     // a slice for when the indices are not filled yet
     StringList* slice_byte_offset(size_t i1, size_t i2, size_t byte_offset) {
         size_t byte_length = this->byte_length - byte_offset;
@@ -713,14 +688,14 @@ public:
         index_type count = end - start;
         return string_view(bytes + start, count);
     }
-    virtual string_view view(size_t i) const {
+    virtual string_view view(int64_t i) const {
         // _check(i);
         size_t start = indices[i] - offset;
         size_t end = indices[i+1] - offset;
         size_t count = end - start;
         return string_view(bytes + start, count);
     }
-    virtual const std::string get(size_t i) const {
+    virtual const std::string get(int64_t i) const {
         // _check(i);
         size_t start = indices[i] - offset;
         size_t end = indices[i+1] - offset;
@@ -874,7 +849,7 @@ inline void copy(const string_view& source, char*& target) {
 
 // templated implementation for _apply_seq
 template<class StringList, class W>
-StringSequence* _apply_seq(StringSequence* _this, W word_transform) {
+StringSequenceBase* _apply_seq(StringSequenceBase* _this, W word_transform) {
     StringList* list = new StringList(_this->byte_size(), _this->length, 0, _this->null_bitmap, _this->null_offset);
     char* target = list->bytes;
     for(size_t i = 0; i < _this->length; i++) {
@@ -895,7 +870,7 @@ StringSequence* _apply_seq(StringSequence* _this, W word_transform) {
 
 // apply a function to each character, for each word
 template<class W>
-StringSequence* _apply_seq(StringSequence* _this, W word_transform) {
+StringSequenceBase* _apply_seq(StringSequenceBase* _this, W word_transform) {
     py::gil_scoped_release release;
     if(_this->byte_size() > INT_MAX) {
         return _apply_seq<StringList64, W>(_this, word_transform);
@@ -905,7 +880,7 @@ StringSequence* _apply_seq(StringSequence* _this, W word_transform) {
 }
 
 template<class StringList, class W>
-StringSequence* _apply(StringList* _this, W word_transform) {
+StringSequenceBase* _apply(StringList* _this, W word_transform) {
     py::gil_scoped_release release;
     StringList* list = new StringList(_this->byte_size(), _this->length, _this->offset, _this->null_bitmap);
     char* target = list->bytes;
@@ -920,7 +895,7 @@ StringSequence* _apply(StringList* _this, W word_transform) {
 
 // apply it to the whole buffer
 template<class StringList, class W>
-StringSequence* _apply_all(StringList* _this, W word_transform) {
+StringSequenceBase* _apply_all(StringList* _this, W word_transform) {
     py::gil_scoped_release release;
     StringList* list = new StringList(_this->byte_size(), _this->length, _this->offset, _this->null_bitmap);
     string_view source = _this->view();
@@ -931,7 +906,7 @@ StringSequence* _apply_all(StringList* _this, W word_transform) {
 }
 
 template<class T, class W>
-py::array_t<T> _map(StringSequence* _this, W word_op) {
+py::array_t<T> _map(StringSequenceBase* _this, W word_op) {
     py::array_t<T> ar(_this->length);
     auto ar_unsafe = ar.template mutable_unchecked<1>();
     {
@@ -945,7 +920,7 @@ py::array_t<T> _map(StringSequence* _this, W word_op) {
 }
 
 template<class T, class C>
-py::array_t<T> _map_bool_all(StringSequence* _this, C char_bool_op) {
+py::array_t<T> _map_bool_all(StringSequenceBase* _this, C char_bool_op) {
     py::array_t<T> ar(_this->length);
     auto ar_unsafe = ar.template mutable_unchecked<1>();
     {
@@ -968,7 +943,7 @@ bool always_true_ascii(char chr) { return true; }
 bool always_true_unicode(char32_t chr) { return true; }
 
 template<class T, class C, class U, class COR, class UOR>
-py::array_t<T> _map_bool_all_utf8(StringSequence* _this, C ascii_bool_op, U unicode_bool_op, COR ascii_op_or=always_true_ascii, UOR unicode_op_or=always_true_unicode) {
+py::array_t<T> _map_bool_all_utf8(StringSequenceBase* _this, C ascii_bool_op, U unicode_bool_op, COR ascii_op_or=always_true_ascii, UOR unicode_op_or=always_true_unicode) {
     py::array_t<T> ar(_this->length);
     auto ar_unsafe = ar.template mutable_unchecked<1>();
     {
@@ -1067,7 +1042,7 @@ public:
 
 // templated implementation for _apply2
 template<class StringList, class W>
-StringSequence* _apply2(StringSequence* _this, W word_transform) {
+StringSequenceBase* _apply2(StringSequenceBase* _this, W word_transform) {
     StringList* list = new StringList(_this->byte_size(), _this->length, 0, _this->null_bitmap, _this->null_offset);
     utf8_appender<StringList> appender(list);
     for(size_t i = 0; i < _this->length; i++) {
@@ -1085,7 +1060,7 @@ StringSequence* _apply2(StringSequence* _this, W word_transform) {
 
 // apply a function to each word
 template<class W>
-StringSequence* _apply2(StringSequence* _this, W word_transform) {
+StringSequenceBase* _apply2(StringSequenceBase* _this, W word_transform) {
     py::gil_scoped_release release;
     // we are very conservative, it could be that a string
     // contains only unicode chars that uppercased become 2 bytes intead of 2
@@ -1102,7 +1077,7 @@ inline void lower(const string_view& source, char*& target) {
     target += source.length();
 }
 
-StringSequence* StringSequence::lower() {
+StringSequenceBase* StringSequenceBase::lower() {
     return _apply2<>(this, char_transformer_lower());
 }
 
@@ -1111,19 +1086,19 @@ inline void upper(const string_view& source, char*& target) {
     target += source.length();
 }
 
-StringSequence* StringSequence::upper() {
+StringSequenceBase* StringSequenceBase::upper() {
     return _apply2<>(this, char_transformer_upper());
 }
 
-StringSequence* StringSequence::lstrip(std::string chars) {
+StringSequenceBase* StringSequenceBase::lstrip(std::string chars) {
     return _apply_seq<>(this, stripper(chars, true, false));
 };
 
-StringSequence* StringSequence::rstrip(std::string chars) {
+StringSequenceBase* StringSequenceBase::rstrip(std::string chars) {
     return _apply_seq<>(this, stripper(chars, false, true));
 };
 
-StringSequence* StringSequence::strip(std::string chars) {
+StringSequenceBase* StringSequenceBase::strip(std::string chars) {
     return _apply_seq<>(this, stripper(chars, true, true));
 };
 
@@ -1139,12 +1114,12 @@ void capitalize(const string_view& source, char*& target) {
     }
 }
 
-StringSequence* StringSequence::capitalize() {
+StringSequenceBase* StringSequenceBase::capitalize() {
     return _apply_seq<>(this, ::capitalize);
 }
 
 template<class IC>
-StringSequence* StringList<IC>::capitalize() {
+StringSequenceBase* StringList<IC>::capitalize() {
     return _apply<>(this, ::capitalize);
 }
 
@@ -1188,7 +1163,7 @@ struct padder {
     }    
 };
 
-StringSequence* StringSequence::pad(int width, std::string fillchar, bool left, bool right) {
+StringSequenceBase* StringSequenceBase::pad(int width, std::string fillchar, bool left, bool right) {
     py::gil_scoped_release release;
     if(fillchar.length() != 1) {
         throw std::runtime_error("fillchar should be 1 character long (unicode not supported)");
@@ -1221,7 +1196,7 @@ StringSequence* StringSequence::pad(int width, std::string fillchar, bool left, 
 };
 
 
-StringSequence* StringSequence::concat(StringSequence* other) {
+StringSequenceBase* StringSequenceBase::concat(StringSequenceBase* other) {
     py::gil_scoped_release release;
     if(other->length != this->length) {
         throw std::runtime_error("cannot concatenate unequal string sequences");
@@ -1247,7 +1222,7 @@ StringSequence* StringSequence::concat(StringSequence* other) {
     return sl;
 }
 
-StringSequence* StringSequence::repeat(int64_t repeats) {
+StringSequenceBase* StringSequenceBase::repeat(int64_t repeats) {
     py::gil_scoped_release release;
     StringList64* sl = new StringList64(this->byte_size() * repeats, length);
     size_t byte_offset = 0;
@@ -1271,7 +1246,7 @@ StringSequence* StringSequence::repeat(int64_t repeats) {
 }
 
 
-StringSequence* StringSequence::replace(std::string pattern, std::string replacement, int64_t n, int64_t flags, bool regex) {
+StringSequenceBase* StringSequenceBase::replace(std::string pattern, std::string replacement, int64_t n, int64_t flags, bool regex) {
     py::gil_scoped_release release;
     StringList64* sl = new StringList64(byte_size(), length);
     size_t byte_offset = 0;
@@ -1421,10 +1396,10 @@ struct slicer_copy {
 };
 
 
-StringSequence* StringSequence::slice_string(int64_t start, int64_t stop) {
+StringSequenceBase* StringSequenceBase::slice_string(int64_t start, int64_t stop) {
     return _apply_seq<>(this, slicer_copy(start, stop, false));
 };
-StringSequence* StringSequence::slice_string_end(int64_t start) {
+StringSequenceBase* StringSequenceBase::slice_string_end(int64_t start) {
     return _apply_seq<>(this, slicer_copy(start, -1, true));
 };
 
@@ -1454,18 +1429,18 @@ void titlecase(const string_view& source, char*& target) {
 }
 
 
-StringSequence* StringSequence::title() {
+StringSequenceBase* StringSequenceBase::title() {
     return _apply_seq<>(this, ::titlecase);
 }
 /*
 TODO: optimize many of these specific cases for StringList
 template<class IC>
-StringSequence* StringList<IC>::title() {
+StringSequenceBase* StringList<IC>::title() {
     return _apply<>(this, ::titlecase);
 }
 */
 
-py::object StringSequence::len() {
+py::object StringSequenceBase::len() {
     return _map<int64_t>(this, ::str_len);
 }
 
@@ -1473,21 +1448,21 @@ inline int64_t byte_length(const string_view& source) {
     return source.length();
 }
 
-py::object StringSequence::byte_length() {
+py::object StringSequenceBase::byte_length() {
     return _map<int64_t>(this, ::byte_length);
 }
 
 
-py::object StringSequence::isalnum() {
+py::object StringSequenceBase::isalnum() {
     return _map_bool_all_utf8<bool>(this, ::isalnum, char32_isalnum, always_true_ascii, always_true_unicode);
 }
-py::object StringSequence::isalpha() {
+py::object StringSequenceBase::isalpha() {
     return _map_bool_all_utf8<bool>(this, ::isalpha, char32_isalpha, always_true_ascii, always_true_unicode);
 }
-py::object StringSequence::isdigit() {
+py::object StringSequenceBase::isdigit() {
     return _map_bool_all<bool>(this, ::isdigit);
 }
-py::object StringSequence::isspace() {
+py::object StringSequenceBase::isspace() {
     return _map_bool_all<bool>(this, ::isspace);
 }
 // this will also allow spaces
@@ -1503,19 +1478,19 @@ bool is_cased(char chr) {
 bool is_cased_unicode(char32_t chr) {
     return char32_lowercase(chr) != char32_uppercase(chr);
 }
-py::object StringSequence::islower() {
+py::object StringSequenceBase::islower() {
     return _map_bool_all_utf8<bool>(this, case_islower, utf8_islower, is_cased, is_cased_unicode);
 }
-py::object StringSequence::isupper() {
+py::object StringSequenceBase::isupper() {
     return _map_bool_all_utf8<bool>(this, case_isupper, utf8_isupper, is_cased, is_cased_unicode);
 }
-// py::object StringSequence::istitle() {
+// py::object StringSequenceBase::istitle() {
 //     return _map_bool_all<bool>(this, ::isalpha);
 // }
-// py::object StringSequence::isnumeric() {
+// py::object StringSequenceBase::isnumeric() {
 //     return _map_bool_all<bool>(this, ::isnumeric);
 // }
-// py::object StringSequence::isdecimal() {
+// py::object StringSequenceBase::isdecimal() {
 //     return _map_bool_all<bool>(this, ::isnumeric);
 // }
 
@@ -1525,9 +1500,9 @@ const char* empty = "";
 
 /* for a numpy array with dtype=object having strings */
 
-class StringArray : public StringSequence {
+class StringArray : public StringSequenceBase {
 public:
-    StringArray(PyObject** object_array, size_t length) : StringSequence(length), _byte_size(0), _has_null(false) {
+    StringArray(PyObject** object_array, size_t length) : StringSequenceBase(length), _byte_size(0), _has_null(false) {
         #if PY_MAJOR_VERSION == 2
             utf8_objects = (PyObject**)malloc(length * sizeof(void*));
         #endif
@@ -1585,7 +1560,7 @@ public:
     virtual size_t byte_size() const {
         return _byte_size;
     };
-    virtual string_view view(size_t i) const {
+    virtual string_view view(int64_t i) const {
         if( (i < 0) || (i > length)) {
             throw std::runtime_error("index out of bounds");
         }
@@ -1594,7 +1569,7 @@ public:
         }
         return string_view(strings[i], sizes[i]);
     }
-    virtual const std::string get(size_t i) const {
+    virtual const std::string get(int64_t i) const {
         if( (i < 0) || (i > length)) {
             throw std::runtime_error("index out of bounds");
         }
@@ -1606,7 +1581,7 @@ public:
     virtual bool has_null() const {
         return _has_null;
     }
-    virtual bool is_null(size_t i) const {
+    virtual bool is_null(int64_t i) const {
         return strings[i] == nullptr;
     }
     StringList64* to_arrow() {
@@ -1637,7 +1612,7 @@ private:
 };
 
 template<class T>
-StringSequence* StringSequence::index(py::array_t<T, py::array::c_style> indices_) {
+StringSequenceBase* StringSequenceBase::index(py::array_t<T, py::array::c_style> indices_) {
     py::buffer_info info = indices_.request();
     if(info.ndim != 1) {
         throw std::runtime_error("Expected a 1d byte buffer");
@@ -1669,7 +1644,7 @@ StringSequence* StringSequence::index(py::array_t<T, py::array::c_style> indices
 }
 
 template<>
-StringSequence* StringSequence::index<bool>(py::array_t<bool, py::array::c_style> mask_) {
+StringSequenceBase* StringSequenceBase::index<bool>(py::array_t<bool, py::array::c_style> mask_) {
     py::buffer_info info = mask_.request();
     if(info.ndim != 1) {
         throw std::runtime_error("Expected a 1d byte buffer");
@@ -1710,7 +1685,7 @@ StringSequence* StringSequence::index<bool>(py::array_t<bool, py::array::c_style
     }
 }
 
-StringSequence* StringListList::join(std::string sep) {
+StringSequenceBase* StringListList::join(std::string sep) {
     py::gil_scoped_release release;
     StringList64* sl = new StringList64(1, length);
     char* target = sl->bytes;
@@ -1803,7 +1778,7 @@ void add_string_list(Module m, Base& base, const char* class_name) {
         .def("fill_from", &StringList::fill_from)
         // .def("get", (const std::string (StringList::*)(size_t))&StringList::get)
         // bug? we have to add this again
-        // .def("get", (py::object (StringSequence::*)(size_t, size_t))&StringSequence::get, py::return_value_policy::take_ownership)
+        // .def("get", (py::object (StringSequenceBase::*)(size_t, size_t))&StringSequenceBase::get, py::return_value_policy::take_ownership)
         .def_property_readonly("bytes", [](const StringList &sl) {
                 auto capsule = py::capsule(&sl, [](void *v) {  });
                 return py::array_t<char>(sl.byte_length, sl.bytes, capsule);
@@ -1903,49 +1878,50 @@ PYBIND11_MODULE(superstrings, m) {
     _import_array();
     m.doc() = "fast operations on string sequences";
     py::class_<StringSequence> string_sequence(m, "StringSequence");
-    string_sequence
-        .def("get", (py::object (StringSequence::*)(size_t, size_t))&StringSequence::get, py::return_value_policy::take_ownership)
-        .def("lazy_index", &StringSequence::lazy_index<int32_t>, py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
-        .def("lazy_index", &StringSequence::lazy_index<int64_t>, py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
-        .def("lazy_index", &StringSequence::lazy_index<uint32_t>, py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
-        .def("lazy_index", &StringSequence::lazy_index<uint64_t>, py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
-        .def("index", &StringSequence::index<bool>)
-        .def("index", &StringSequence::index<int32_t>)
-        .def("index", &StringSequence::index<int64_t>)
-        .def("index", &StringSequence::index<uint32_t>)
-        .def("index", &StringSequence::index<uint64_t>)
-        .def("tolist", &StringSequence::tolist)
-        .def("capitalize", &StringSequence::capitalize, py::keep_alive<0, 1>())
-        .def("concat", &StringSequence::concat)
-        .def("pad", &StringSequence::pad)
-        .def("search", &StringSequence::search, "Tests if strings contains pattern", py::arg("pattern"), py::arg("regex"))//, py::call_guard<py::gil_scoped_release>())
-        .def("count", &StringSequence::count, "Count occurrences of pattern", py::arg("pattern"), py::arg("regex"))
-        .def("upper", &StringSequence::upper)
-        .def("endswith", &StringSequence::endswith)
-        .def("find", &StringSequence::find)
-        .def("lower", &StringSequence::lower)
-        .def("match", &StringSequence::match, "Tests if strings matches regex", py::arg("pattern"))
-        .def("lstrip", &StringSequence::lstrip)
-        .def("rstrip", &StringSequence::rstrip)
-        .def("repeat", &StringSequence::repeat)
-        .def("replace", &StringSequence::replace)
-        .def("startswith", &StringSequence::startswith)
-        .def("strip", &StringSequence::strip)
-        .def("slice_string", &StringSequence::slice_string)
-        .def("slice_string_end", &StringSequence::slice_string_end)
-        .def("title", &StringSequence::title)
-        .def("isalnum", &StringSequence::isalnum)
-        .def("isalpha", &StringSequence::isalpha)
-        .def("isdigit", &StringSequence::isdigit)
-        .def("isspace", &StringSequence::isspace)
-        .def("islower", &StringSequence::islower)
-        .def("isupper", &StringSequence::isupper)
-        // .def("istitle", &StringSequence::istitle)
-        // .def("isnumeric", &StringSequence::isnumeric)
-        // .def("isdecimal", &StringSequence::isdecimal)
-        .def("len", &StringSequence::len)
-        .def("byte_length", &StringSequence::byte_length)
-        .def("get", &StringSequence::get_)
+    py::class_<StringSequenceBase> string_sequence_base(m, "StringSequenceBase", string_sequence);
+    string_sequence_base
+        .def("to_numpy", &StringSequenceBase::to_numpy, py::return_value_policy::take_ownership)
+        .def("lazy_index", &StringSequenceBase::lazy_index<int32_t>, py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
+        .def("lazy_index", &StringSequenceBase::lazy_index<int64_t>, py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
+        .def("lazy_index", &StringSequenceBase::lazy_index<uint32_t>, py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
+        .def("lazy_index", &StringSequenceBase::lazy_index<uint64_t>, py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
+        .def("index", &StringSequenceBase::index<bool>)
+        .def("index", &StringSequenceBase::index<int32_t>)
+        .def("index", &StringSequenceBase::index<int64_t>)
+        .def("index", &StringSequenceBase::index<uint32_t>)
+        .def("index", &StringSequenceBase::index<uint64_t>)
+        .def("tolist", &StringSequenceBase::tolist)
+        .def("capitalize", &StringSequenceBase::capitalize, py::keep_alive<0, 1>())
+        .def("concat", &StringSequenceBase::concat)
+        .def("pad", &StringSequenceBase::pad)
+        .def("search", &StringSequenceBase::search, "Tests if strings contains pattern", py::arg("pattern"), py::arg("regex"))//, py::call_guard<py::gil_scoped_release>())
+        .def("count", &StringSequenceBase::count, "Count occurrences of pattern", py::arg("pattern"), py::arg("regex"))
+        .def("upper", &StringSequenceBase::upper)
+        .def("endswith", &StringSequenceBase::endswith)
+        .def("find", &StringSequenceBase::find)
+        .def("lower", &StringSequenceBase::lower)
+        .def("match", &StringSequenceBase::match, "Tests if strings matches regex", py::arg("pattern"))
+        .def("lstrip", &StringSequenceBase::lstrip)
+        .def("rstrip", &StringSequenceBase::rstrip)
+        .def("repeat", &StringSequenceBase::repeat)
+        .def("replace", &StringSequenceBase::replace)
+        .def("startswith", &StringSequenceBase::startswith)
+        .def("strip", &StringSequenceBase::strip)
+        .def("slice_string", &StringSequenceBase::slice_string)
+        .def("slice_string_end", &StringSequenceBase::slice_string_end)
+        .def("title", &StringSequenceBase::title)
+        .def("isalnum", &StringSequenceBase::isalnum)
+        .def("isalpha", &StringSequenceBase::isalpha)
+        .def("isdigit", &StringSequenceBase::isdigit)
+        .def("isspace", &StringSequenceBase::isspace)
+        .def("islower", &StringSequenceBase::islower)
+        .def("isupper", &StringSequenceBase::isupper)
+        // .def("istitle", &StringSequenceBase::istitle)
+        // .def("isnumeric", &StringSequenceBase::isnumeric)
+        // .def("isdecimal", &StringSequenceBase::isdecimal)
+        .def("len", &StringSequenceBase::len)
+        .def("byte_length", &StringSequenceBase::byte_length)
+        .def("get", &StringSequenceBase::get_)
         .def("mask", [](const StringSequence &sl) -> py::object {
                 if(sl.null_bitmap) { // TODO: what if there is a lazy view
                     auto ar = py::array_t<bool>(sl.length);
@@ -1971,9 +1947,9 @@ PYBIND11_MODULE(superstrings, m) {
         .def("print", &StringListList::print)
         .def("__len__", [](const StringListList &obj) { return obj.length; })
     ;
-    add_string_list<StringList32>(m, string_sequence, "StringList32");
-    add_string_list<StringList64>(m, string_sequence, "StringList64");
-    py::class_<StringArray>(m, "StringArray", string_sequence)
+    add_string_list<StringList32>(m, string_sequence_base, "StringList32");
+    add_string_list<StringList64>(m, string_sequence_base, "StringList64");
+    py::class_<StringArray>(m, "StringArray", string_sequence_base)
         .def(py::init([](py::buffer string_array) {
                 py::buffer_info info = string_array.request();
                 if(info.ndim != 1) {
@@ -1991,7 +1967,7 @@ PYBIND11_MODULE(superstrings, m) {
         // .def("get", &StringArray::get_)
         // .def("get", (const std::string (StringArray::*)(int64_t))&StringArray::get)
         // bug? we have to add this again
-        // .def("get", (py::object (StringSequence::*)(size_t, size_t))&StringSequence::get, py::return_value_policy::take_ownership)
+        // .def("get", (py::object (StringSequenceBase::*)(size_t, size_t))&StringSequenceBase::get, py::return_value_policy::take_ownership)
         .def("mask", [](const StringSequence &sl) -> py::object {
                 bool has_null = false;
                 auto ar = py::array_t<bool>(sl.length);
