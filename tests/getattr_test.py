@@ -14,6 +14,15 @@ def test_column_subset_virtual(ds_local):
     assert set(dss.get_column_names(hidden=True)) == set(['__x', '__y', 'r'])
     np.array(dss)  # test if all columns can be put in arrays
 
+def test_column_subset_virtual_recursive(ds_local):
+    ds = ds_local
+    ds['r'] = ds.x + ds.y
+    ds['q'] = ds.r/2
+    dss = ds[['q']]
+    assert dss.get_column_names() == ['q']
+    assert set(dss.get_column_names(hidden=True)) == set(['__x', '__y', '__r', 'q'])
+    np.array(dss)  # test if all columns can be put in arrays
+
 def test_column_subset_virtual(ds_filtered):
     ds = ds_filtered
     dss = ds[['y']]

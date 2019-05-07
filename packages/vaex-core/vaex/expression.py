@@ -174,6 +174,16 @@ class Expression(with_metaclass(Meta)):
         return self.__class__(self, expresso.derivative(self.expression, var, simplify=simplify))
 
     def expand(self, stop=[]):
+        """Expand the expression such that no virtual columns occurs, only normal columns.
+
+        Example:
+
+        >>> df = vaex.example()
+        >>> r = np.sqrt(df.data.x**2 + df.data.y**2)
+        >>> r.expand().expression
+        'sqrt(((x ** 2) + (y ** 2)))'
+
+        """
         stop = _ensure_strings_from_expressions(stop)
         def translate(id):
             if id in self.ds.virtual_columns and id not in stop:
@@ -182,10 +192,25 @@ class Expression(with_metaclass(Meta)):
         return Expression(self.ds, expr)
 
     def variables(self):
+        """Return a set of variables this expression depends on.
+
+        Example:
+
+        >>> df = vaex.example()
+        >>> r = np.sqrt(df.data.x**2 + df.data.y**2)
+        >>> r.variables()
+        {'x', 'y'}
+        """
         variables = set()
-        def record(id):
-            variables.add(id)
-        expresso.translate(self.expand().expression, record)
+        def record(varname):
+            # do this recursively for virtual columns
+            if varname in self.ds.virtual_columns and varname not in variables:
+                expresso.translate(self.ds.virtual_columns[varname], record)
+            # we don't want to record ourself
+            if varname != self.expression:
+                variables.add(varname)
+
+        expresso.translate(self.expression, record)
         return variables
 
     def _graph(self):
