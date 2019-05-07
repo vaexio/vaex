@@ -56,6 +56,8 @@ class ColumnIndexed(Column):
         self.name = name
         self.dtype = self.df.dtype(name)
         self.shape = (len(indices),)
+        max_index = self.indices.max()
+        assert max_index < self.df._length_unfiltered
 
     def __len__(self):
         return len(self.indices)
@@ -72,7 +74,8 @@ class ColumnIndexed(Column):
         # we do evaluate here, but it would be better to directly access
         # the array, but then we have to make sure the indices refer to the
         # unfiltered indices
-        ar = self.df.evaluate(self.name)[indices]
+        ar = self.df.columns[self.name]
+        ar = ar[indices]
         if np.ma.isMaskedArray(indices):
             mask = self.indices.mask[start:stop]
             return np.ma.array(ar, mask=mask)

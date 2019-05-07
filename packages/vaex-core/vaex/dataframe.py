@@ -3498,18 +3498,9 @@ class DataFrame(object):
         def table_part(k1, k2, parts):
             values = {}
             N = k2 - k1
-            if self.filtered:
-                mask = self._selection_masks[FILTER_SELECTION_NAME]
-                N = _len(self)
-                if k1 == 0:
-                    indices = mask.first(k2-k1)
-                elif k2 == N:
-                    indices = mask.last(k2-k1)
-                else:
-                    raise ValueError("sorry, can only do head and tail for filtered dataframes")
-            else:
-                indices = np.arange(k1, k2)
-            df = self.take(indices)
+            # slicing will invoke .extract which will make the evaluation
+            # much quicker
+            df = self[k1:k2]
             for i, name in enumerate(column_names):
                 try:
                     values[name] = df.evaluate(name)
@@ -3781,7 +3772,7 @@ class DataFrame(object):
         return df
 
     @docsubst
-    def take(self, indices):
+    def take(self, indices, unfiltered=False):
         '''Returns a DataFrame containing only rows indexed by indices
 
         {note_copy}
@@ -3796,16 +3787,25 @@ class DataFrame(object):
          1  c      3
 
         :param indices: sequence (list or numpy array) with row numbers
+        :param unfiltered: (for internal use) The indices refer to the unfiltered data
         :return: DataFrame which is a shallow copy of the original data.
         :rtype: DataFrame
         '''
-        df = self.copy()
+        df_trimmed = self.trim()
+        df = df_trimmed.copy()
         # if the columns in ds already have a ColumnIndex
         # we could do, direct_indices = df.column['bla'].indices[indices]
         # which should be shared among multiple ColumnIndex'es, so we store
         # them in this dict
         direct_indices_map = {}
-        indices = np.array(indices)
+        indices = np.asarray(indices)
+        if df.filtered and not unfiltered:
+            df.count() # make sure the mask is filled
+            # translate the indices to unfiltered indices
+            max_index = indices.max()
+            mask = df._selection_masks[FILTER_SELECTION_NAME]
+            filtered_indices = mask.first(max_index+1)
+            indices = filtered_indices[indices]
         for name, column in df.columns.items():
             if column is not None:
                 # we optimize this somewhere, so we don't do multiple
@@ -3819,7 +3819,7 @@ class DataFrame(object):
                         direct_indices = direct_indices_map[id(column.indices)]
                     df.columns[name] = ColumnIndexed(column.df, direct_indices, column.name)
                 else:
-                    df.columns[name] = ColumnIndexed(self, indices, name)
+                    df.columns[name] = ColumnIndexed(df_trimmed, indices, name)
         df._length_original = len(indices)
         df._length_unfiltered = df._length_original
         df._index_start = 0
@@ -3843,8 +3843,11 @@ class DataFrame(object):
         '''
         trimmed = self.trim()
         if trimmed.filtered:
-            indices = trimmed._filtered_range_to_unfiltered_indices(0, len(trimmed))
-            return trimmed.take(indices)
+            self.count()  # make sure the mask is filled
+            mask = self._selection_masks[FILTER_SELECTION_NAME]
+            indices = mask.first(len(self))
+            assert len(indices) == len(self)
+            return self.take(indices, unfiltered=True)
         else:
             return trimmed
 
@@ -4392,6 +4395,7 @@ class DataFrame(object):
             expression = item.expression
             df = self.copy()
             df.select(expression, name=FILTER_SELECTION_NAME, mode='and')
+            df._selection_masks[FILTER_SELECTION_NAME] = vaex.superutils.Mask(df._length_unfiltered)
             return df
         elif isinstance(item, (tuple, list)):
             df = self.copy(column_names=item)
@@ -4404,11 +4408,11 @@ class DataFrame(object):
             if self.filtered and start == 0:
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 indices = mask.first(stop-start)
-                df = self.trim().take(indices)
+                df = self.trim().take(indices, unfiltered=True)
             elif self.filtered and stop == len(self):
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 indices = mask.last(stop-start)
-                df = self.trim().take(indices)
+                df = self.trim().take(indices, unfiltered=True)
             else:
                 df = self.extract()
                 df.set_active_range(start, stop)
@@ -4672,8 +4676,13 @@ class DataFrameLocal(DataFrame):
         df.functions.update(self.functions)
         for key, value in self.selection_histories.items():
             df.selection_histories[key] = list(value)
+            # TODO: can we be smarter with copying the selections masks and
+            # reuse the memory, for filter we will not modify, so it should be
+            # safe.
+            df._selection_masks[key] = vaex.superutils.Mask(df._length_unfiltered)
         for key, value in self.selection_history_indices.items():
             df.selection_history_indices[key] = value
+
 
         # we copy all columns, but drop the ones that are not wanted
         # this makes sure that needed columns are hidden instead
