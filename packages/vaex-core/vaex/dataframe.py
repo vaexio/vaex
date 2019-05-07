@@ -3806,8 +3806,7 @@ class DataFrame(object):
         # them in this dict
         direct_indices_map = {}
         indices = np.array(indices)
-        for name in df:
-            column = df.columns.get(name)
+        for name, column in df.columns.items():
             if column is not None:
                 # we optimize this somewhere, so we don't do multiple
                 # levels of indirection
@@ -4398,12 +4397,21 @@ class DataFrame(object):
             df = self.copy(column_names=item)
             return df
         elif isinstance(item, slice):
-            df = self.extract()
             start, stop, step = item.start, item.stop, item.step
             start = start or 0
-            stop = stop or len(df)
+            stop = stop or len(self)
             assert step in [None, 1]
-            df.set_active_range(start, stop)
+            if self.filtered and start == 0:
+                mask = self._selection_masks[FILTER_SELECTION_NAME]
+                indices = mask.first(stop-start)
+                df = self.trim().take(indices)
+            elif self.filtered and stop == len(self):
+                mask = self._selection_masks[FILTER_SELECTION_NAME]
+                indices = mask.last(stop-start)
+                df = self.trim().take(indices)
+            else:
+                df = self.extract()
+                df.set_active_range(start, stop)
             return df.trim()
 
     def __delitem__(self, item):
