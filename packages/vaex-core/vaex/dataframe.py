@@ -4706,7 +4706,7 @@ class DataFrameLocal(DataFrame):
                 if key == FILTER_SELECTION_NAME:
                     df._selection_masks[key] = self._selection_masks[key]
                 else:
-                    df._selection_masks[key] = vaex.superutils.Mask(df._length_unfiltered)
+                    df._selection_masks[key] = vaex.superutils.Mask(df._length_original)
                 # and make sure the mask is consistent with the cache chunks
                 np.asarray(df._selection_masks[key])[:] = np.asarray(self._selection_masks[key])
         for key, value in self.selection_history_indices.items():
