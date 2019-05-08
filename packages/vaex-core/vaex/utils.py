@@ -20,6 +20,7 @@ import six
 import yaml
 
 from .column import str_type
+from .json import VaexJsonEncoder, VaexJsonDecoder
 
 
 is_frozen = getattr(sys, 'frozen', False)
@@ -437,28 +438,11 @@ def yaml_load(f):
     return yaml.safe_load(f)
 
 
-class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, np.bytes_):
-            return obj.decode('UTF-8')
-        elif isinstance(obj, bytes):
-            return str(obj, encoding='utf-8');
-
-        else:
-            return super(NumpyEncoder, self).default(obj)
-
-
 def write_json_or_yaml(filename, data):
     base, ext = os.path.splitext(filename)
     if ext == ".json":
         with open(filename, "w") as f:
-            json.dump(data, f, indent=2, cls=NumpyEncoder)
+            json.dump(data, f, indent=2, cls=VaexJsonEncoder)
     elif ext == ".yaml":
         with open(filename, "w") as f:
             yaml_dump(f, data)
@@ -470,7 +454,7 @@ def read_json_or_yaml(filename):
     base, ext = os.path.splitext(filename)
     if ext == ".json":
         with open(filename, "r") as f:
-            return json.load(f) or {}
+            return json.load(f, cls=VaexJsonDecoder) or {}
     elif ext == ".yaml":
         with open(filename, "r") as f:
             return yaml_load(f) or {}
