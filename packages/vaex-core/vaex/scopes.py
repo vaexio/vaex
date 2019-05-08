@@ -171,6 +171,7 @@ class _BlockScopeSelection(object):
                 # logger.debug("selection cache: %r" % cache)
                 full_mask = self.df._selection_masks[variable]
                 selection_in_cache, mask = cache.get(key, (None, None))
+
                 # logger.debug("mask for %r is %r", variable, mask)
                 if selection_in_cache == selection:
                     return mask

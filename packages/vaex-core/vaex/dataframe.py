@@ -42,6 +42,8 @@ try:
 except ImportError:
     from urlparse import urlparse
 
+_DEBUG = os.environ.get('VAEX_DEBUG', False)  # extra sanify checks that might hit performance
+
 DEFAULT_REPR_FORMAT = 'plain'
 FILTER_SELECTION_NAME = '__filter__'
 
@@ -178,6 +180,7 @@ class DataFrame(object):
         self.functions = collections.OrderedDict()
         self._length_original = None
         self._length_unfiltered = None
+        self._cached_filtered_length = None
         self._active_fraction = 1
         self._current_row = None
         self._index_start = 0
@@ -3687,7 +3690,9 @@ class DataFrame(object):
         if not self.filtered:
             return self._length_unfiltered
         else:
-            return int(self.count())
+            if self._cached_filtered_length is None:
+               self. _cached_filtered_length = int(self.count())
+            return self._cached_filtered_length
 
     def selected_length(self):
         """Returns the number of rows that are selected."""
@@ -3720,6 +3725,7 @@ class DataFrame(object):
             self.select(None)
             self.set_current_row(None)
             self._length_unfiltered = int(round(self._length_original * self._active_fraction))
+            self._cached_filtered_length = None
             self._index_start = 0
             self._index_end = self._length_unfiltered
             self.signal_active_fraction_changed.emit(self, value)
@@ -3740,6 +3746,7 @@ class DataFrame(object):
         self.select(None)
         self.set_current_row(None)
         self._length_unfiltered = i2 - i1
+        self._cached_filtered_length = None
         self.signal_active_fraction_changed.emit(self, self._active_fraction)
 
     @docsubst
@@ -3766,9 +3773,14 @@ class DataFrame(object):
                         df.columns[name] = column.trim(self._index_start, self._index_end)
         df._length_original = self.length_unfiltered()
         df._length_unfiltered = df._length_original
+        df._cached_filtered_length = None
         df._index_start = 0
         df._index_end = df._length_original
         df._active_fraction = 1
+        # trim should be cheap, we don't invalidate the cache unless it is
+        # really trimmed
+        if self._index_start != 0 or self._index_end != self._length_original:
+            df._invalidate_selection_cache()
         return df
 
     @docsubst
@@ -3822,6 +3834,7 @@ class DataFrame(object):
                     df.columns[name] = ColumnIndexed(df_trimmed, indices, name)
         df._length_original = len(indices)
         df._length_unfiltered = df._length_original
+        df._cached_filtered_length = None
         df._index_start = 0
         df._index_end = df._length_original
         df.set_selection(None, name=FILTER_SELECTION_NAME)
@@ -4395,6 +4408,10 @@ class DataFrame(object):
             expression = item.expression
             df = self.copy()
             df.select(expression, name=FILTER_SELECTION_NAME, mode='and')
+            df._cached_filtered_length = None  # invalide cached length
+            # WARNING: this is a special case where we create a new filter
+            # the cache mask chunks still hold references to views on the old
+            # mask, and this new mask will be filled when required
             df._selection_masks[FILTER_SELECTION_NAME] = vaex.superutils.Mask(df._length_unfiltered)
             return df
         elif isinstance(item, (tuple, list)):
@@ -4661,6 +4678,7 @@ class DataFrameLocal(DataFrame):
         df = DataFrameArrays()
         df._length_unfiltered = self._length_unfiltered
         df._length_original = self._length_original
+        df._cached_filtered_length = self._cached_filtered_length
         df._index_end = self._index_end
         df._index_start = self._index_start
         df._active_fraction = self._active_fraction
@@ -4675,14 +4693,28 @@ class DataFrameLocal(DataFrame):
         # so drop moves instead of really dropping it
         df.functions.update(self.functions)
         for key, value in self.selection_histories.items():
-            df.selection_histories[key] = list(value)
-            # TODO: can we be smarter with copying the selections masks and
-            # reuse the memory, for filter we will not modify, so it should be
-            # safe.
-            df._selection_masks[key] = vaex.superutils.Mask(df._length_unfiltered)
+            # TODO: selection_histories begin a defaultdict always gives
+            # us the filtered selection, so check if we really have a
+            # selection
+            if self.get_selection(key):
+                df.selection_histories[key] = list(value)
+                # the filter should never be modified, so we can share a reference
+                # except when we add filter on filter using
+                # df = df[df.x>0]
+                # df = df[df.x < 10]
+                # in that case we make a copy in __getitem__
+                if key == FILTER_SELECTION_NAME:
+                    df._selection_masks[key] = self._selection_masks[key]
+                else:
+                    df._selection_masks[key] = vaex.superutils.Mask(df._length_unfiltered)
+                # and make sure the mask is consistent with the cache chunks
+                np.asarray(df._selection_masks[key])[:] = np.asarray(self._selection_masks[key])
         for key, value in self.selection_history_indices.items():
-            df.selection_history_indices[key] = value
-
+            if self.get_selection(key):
+                df.selection_history_indices[key] = value
+                # we can also copy the caches, which prevents recomputations of selections
+                df._selection_mask_caches[key] = collections.defaultdict(dict)
+                df._selection_mask_caches[key].update(self._selection_mask_caches[key])
 
         # we copy all columns, but drop the ones that are not wanted
         # this makes sure that needed columns are hidden instead
@@ -4817,8 +4849,14 @@ class DataFrameLocal(DataFrame):
             dfs.extend([other])
         return DataFrameConcatenated(dfs)
 
+    def _invalidate_caches(self):
+        self._invalidate_selection_cache()
+        self._cached_filtered_length = None
+
     def _invalidate_selection_cache(self):
         self._selection_mask_caches.clear()
+        for key in self._selection_masks.keys():
+            self._selection_masks[key] = vaex.superutils.Mask(self._length_unfiltered)
 
     def _filtered_range_to_unfiltered_indices(self, i1, i2):
         assert self.filtered
@@ -4869,8 +4907,16 @@ class DataFrameLocal(DataFrame):
 
         if self.filtered and filtered:  # if we filter, i1:i2 has a different meaning
             if 1:
+                count_check = self.count()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
+                if _DEBUG:
+                    if i1 == 0 and i2 == count_check:
+                        # we cannot check it if we just evaluate a portion
+                        assert not mask.is_dirty()
+                        # assert mask.count() == count_check
                 i1, i2 = mask.indices(i1, i2-1) # -1 since it is inclusive
+                assert i1 != -1
+                assert i2 != -1
                 i2 = i2+1  # +1 to make it inclusive
             else:
                 indices = self._filtered_range_to_unfiltered_indices(i1, i2)
