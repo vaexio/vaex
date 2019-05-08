@@ -231,7 +231,8 @@ class PlotBase(widgets.Widget):
             with self.output:
                 import IPython
                 ipython = IPython.get_ipython()
-                ipython.kernel.do_one_iteration()
+                if ipython is not None:  # for testing
+                    ipython.kernel.do_one_iteration()
                 self.progress.value = v
                 return not self._progressbar.cancelled
         self._progressbar = vaex.utils.progressbars(False, next=update, name="bqplot")

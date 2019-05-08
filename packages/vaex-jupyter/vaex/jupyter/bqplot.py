@@ -41,8 +41,8 @@ class BqplotBackend(BackendBase):
         self.output = output
         self.dataset = dataset
         self.limits = np.array(limits).tolist()
-        self.scale_x = bqplot.LinearScale(min=limits[0][0], max=limits[0][1])
-        self.scale_y = bqplot.LinearScale(min=limits[1][0], max=limits[1][1])
+        self.scale_x = bqplot.LinearScale(min=limits[0][0].item(), max=limits[0][1].item())
+        self.scale_y = bqplot.LinearScale(min=limits[1][0].item(), max=limits[1][1].item())
         self.scale_rotation = bqplot.LinearScale(min=0, max=1)
         self.scale_size = bqplot.LinearScale(min=0, max=1)
         self.scale_opacity = bqplot.LinearScale(min=0, max=1)
