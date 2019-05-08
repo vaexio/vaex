@@ -208,6 +208,7 @@ class TestDataset(unittest.TestCase):
 		with small_buffer(ds):
 			ds1 = ds.copy()
 			ds1.select(ds1.x > 4, name=vaex.dataset.FILTER_SELECTION_NAME, mode='and')
+			ds1._invalidate_caches()
 
 			ds2 = ds[ds.x > 4]
 			ds1.x.evaluate()
@@ -1176,12 +1177,13 @@ class TestDataset(unittest.TestCase):
 		self.dataset_local.columns["x"] = self.dataset_local.columns["x"] * 1.
 		self.dataset_local.columns["x"][self.zero_index] = np.nan
 		if self.dataset.is_local():
-			self.dataset._invalidate_selection_cache()
+			self.dataset._invalidate_caches()
 		else:
 			if hasattr(self, 'webserver1'):
-				self.webserver1.dfs[0]._invalidate_selection_cache()
-				self.webserver2.dfs[0]._invalidate_selection_cache()
-			self.dataset_local._invalidate_selection_cache()
+				self.webserver1.dfs[0]._invalidate_caches()
+				self.webserver2.dfs[0]._invalidate_caches()
+			self.dataset_local._invalidate_caches()
+
 		self.df = self.dataset_local.to_pandas_df()
 		self.dataset.select("x < 5")
 		ds = self.dataset[self.dataset.x < 5]
