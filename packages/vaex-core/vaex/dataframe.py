@@ -4417,13 +4417,17 @@ class DataFrame(object):
         elif isinstance(item, (tuple, list)):
             # check if list or tuple contains types
             if all([True if type(i)==type else False for i in item ]):
-                return self[[column for dt in item for column in self if self.dtype(column) == dt]]
+                columns = [column for dt in item for column in self if self.dtype(column) == dt]
+                if columns:
+                    return self[columns]
             # otherwise treat as column names
             else:
                 df = self.copy(column_names=item)
                 return df
         elif type(item) == type:
-            return self[[column for column in self if self.dtype(column)==item]]
+            columns = [column for column in self if self.dtype(column)==item]
+            if columns:
+                return self[columns]
         elif isinstance(item, slice):
             start, stop, step = item.start, item.stop, item.step
             start = start or 0
