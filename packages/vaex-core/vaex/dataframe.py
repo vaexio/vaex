@@ -4422,7 +4422,8 @@ class DataFrame(object):
                     return self[columns]
             # otherwise treat as column names
             else:
-                df = self.copy(column_names=item)
+                if item:
+                    df = self.copy(column_names=item)
                 return df
         elif type(item) == type:
             columns = [column for column in self if self.dtype(column)==item]
