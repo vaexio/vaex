@@ -41,9 +41,12 @@ def test_map():
 
     # missing keys
     with pytest.raises(ValueError):
-        ds.colour.map({'ret': 1, 'blue': 2, 'green': 3})
+        ds.colour.map({'ret': 1, 'blue': 2, 'green': 3}, unmapped='raise')
     with pytest.raises(ValueError):
-        ds.colour.map({'blue': 2, 'green': 3})
+        ds.colour.map({'blue': 2, 'green': 3}, unmapped='raise')
+    # missing keys but user-handled
+    ds['colour_unmapped'] = ds.colour.map({'blue': 2, 'green': 3}, unmapped=-1)
+    assert ds.colour_unmapped.values.tolist() == [-1, -1, 2, -1, 3, 3, -1, 2, 2, 3]
     # extra is ok
     ds.colour.map({'red': 1, 'blue': 2, 'green': 3, 'orange': 4})
 

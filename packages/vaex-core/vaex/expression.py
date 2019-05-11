@@ -551,7 +551,7 @@ def f({0}):
     def apply(self, f):
         return self.ds.apply(f, [self.expression])
 
-    def map(self, mapper, nan_mapping=None, null_mapping=None):
+    def map(self, mapper, nan_mapping=None, null_mapping=None, unmapped='raise'):
         """Map values of an expression or in memory column accoring to an input
         dictionary or a custom callable function.
 
@@ -578,11 +578,12 @@ def f({0}):
         2       2  user
         3       2  user
         4       2  user
-        5     nan  unknown        
+        5     nan  unknown
 
         :param mapper: dict like object used to map the values from keys to values
         :param nan_mapping: value to be used when a nan is present (and not in the mapper)
         :param null_mapping: value to use used when there is a missing value
+        :param unmapped:
         :return: A vaex expression
         :rtype: vaex.expression.Expression
         """
@@ -600,10 +601,13 @@ def f({0}):
         # so mapper's key should be a superset of the keys found
         if not set(mapper_keys).issuperset(found_keys):
             missing = set(found_keys).difference(mapper_keys)
-            missing0 = list(missing)[0]
-            if missing0 == missing0:  # safe nan check
-                raise ValueError('Missing values in mapper: %s' % missing)
-        
+            if unmapped == 'raise':
+                missing0 = list(missing)[0]
+                if missing0 == missing0:  # safe nan check
+                    raise ValueError('Missing values in mapper: %s' % missing)
+            else:
+                mapper.update(zip(missing, [unmapped]*len(missing)))
+
         # and these are the corresponding choices
         choices = [mapper[key] for key in found_keys]
         if key_set.has_nan:
