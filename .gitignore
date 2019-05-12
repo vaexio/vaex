@@ -74,3 +74,4 @@ python/vaex/version.py # gets generated
 bin/.idea
 *.npy
 /**/__pycache__/
+catboost_info/*
