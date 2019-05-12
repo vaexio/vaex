@@ -61,8 +61,8 @@ doc
 docs/build
 meeting
 #misc
-.DS_Store
-.ipynb_checkpoints
+/**/.DS_Store
+/**/.ipynb_checkpoints
 app
 dist
 python/.idea
@@ -70,6 +70,7 @@ test/.idea
 venv
 tmp
 python/vaex/version.py # gets generated
-python/vaex.egg-info/
+/**/*.egg-info/
 bin/.idea
 *.npy
+/**/__pycache__/
