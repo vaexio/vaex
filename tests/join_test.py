@@ -1,5 +1,6 @@
 import vaex
 import numpy as np
+import pytest
 import numpy.ma
 # https://startupsventurecapital.com/essential-cheat-sheets-for-machine-learning-and-deep-learning-researchers-efb6a8ebd2e5?gi=4fe61ea10614
 
@@ -11,6 +12,12 @@ df_a = vaex.from_arrays(a=np.array(   ['A', 'B', 'C']),
 df_b = vaex.from_arrays(b=np.array(['A', 'B', 'D']),
                         x=np.array([2., 1., 0.]),
                         y=np.ma.array([9., 1., 2.], mask=[True, False, False]),
+                        m=np.ma.array([3, 1, 2], mask=[True, False, False])
+                        )
+
+df_dup = vaex.from_arrays(b=np.array(['A', 'B', 'A']),
+                        x=np.array([2., 1., 2.]),
+                        y=np.ma.array([9., 1., 9.], mask=[True, False, False]),
                         m=np.ma.array([3, 1, 2], mask=[True, True, False])
                         )
 def test_no_on():
@@ -21,7 +28,7 @@ def test_no_on():
 def test_join_masked():
     df = df_a.join(other=df_b, left_on='m', right_on='m', rsuffix='_r')
     assert df.evaluate('m').tolist() == [1, None, 3]
-    assert df.evaluate('m_r').tolist() == [None, None, None]
+    assert df.evaluate('m_r').tolist() == [1, None, None]
 
 def test_left_a_b():
     df = df_a.join(other=df_b, left_on='a', right_on='b', rsuffix='_r')
@@ -72,3 +79,10 @@ def test_right_x_x():
     assert df.evaluate('y'  ).tolist() == [2, None, 0]
     assert df.evaluate('y_r').tolist() == [None, 1, 2]
 
+def test_left_dup():
+    with pytest.raises(ValueError):
+        df = df_a.join(df_dup, left_on='a', right_on='b', rsuffix='_r')
+    with pytest.raises(ValueError):
+        df = df_a.join(df_dup, on='x', rsuffix='_r')
+    with pytest.raises(ValueError):
+        df = df_a.join(df_dup, on='m', rsuffix='_r')

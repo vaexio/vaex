@@ -74,7 +74,7 @@ class ColumnIndexed(Column):
         self.dtype = self.df.dtype(name)
         self.shape = (len(indices),)
         max_index = self.indices.max()
-        assert max_index < self.df._length_unfiltered
+        assert max_index < self.df._length_original
 
     def __len__(self):
         return len(self.indices)

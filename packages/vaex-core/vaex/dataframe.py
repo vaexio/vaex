@@ -283,9 +283,9 @@ class DataFrame(object):
     def filtered(self):
         return self.has_selection(FILTER_SELECTION_NAME)
 
-    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, name='map reduce (custom)'):
+    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, ignore_filter=False, name='map reduce (custom)'):
         # def map_wrapper(*blocks):
-        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy)
+        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy, ignore_filter=ignore_filter)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, name)
         self.executor.schedule(task)
@@ -350,6 +350,44 @@ class DataFrame(object):
         for other in sets[1:]:
             set0.merge(other)
         return set0
+
+    def _index(self, expression, progress=False, delay=False):
+        column = _ensure_string_from_expression(expression)
+        columns = [column]
+        from .hash import index_type_from_dtype
+        from vaex.column import _to_string_sequence
+
+        transient = self[str(expression)].transient or self.filtered or self.is_masked(expression)
+        if self.dtype(expression) == str_type and not transient:
+            # string is a special case, only ColumnString are not transient
+            ar = self.columns[str(expression)]
+            if not isinstance(ar, ColumnString):
+                transient = True
+
+        dtype = self.dtype(column)
+        index_type = index_type_from_dtype(dtype, transient)
+        index_list = [None] * self.executor.thread_pool.nthreads
+        def map(thread_index, i1, i2, ar):
+            if index_list[thread_index] is None:
+                index_list[thread_index] = index_type()
+            if dtype == str_type:
+                previous_ar = ar
+                ar = _to_string_sequence(ar)
+                if not transient:
+                    assert ar is previous_ar.string_sequence
+            if np.ma.isMaskedArray(ar):
+                mask = np.ma.getmaskarray(ar)
+                index_list[thread_index].update(ar, mask, i1)
+            else:
+                index_list[thread_index].update(ar, i1)
+        def reduce(a, b):
+            pass
+        self.map_reduce(map, reduce, columns, delay=delay, name='index', info=True, to_numpy=False)
+        index_list = [k for k in index_list if k is not None]
+        index0 = index_list[0]
+        for other in index_list[1:]:
+            index0.merge(other)
+        return index0
 
     def unique(self, expression, return_inverse=False, progress=False, delay=False):
         expression = _ensure_string_from_expression(expression)
@@ -4940,40 +4978,28 @@ class DataFrameLocal(DataFrame):
                 else:
                     left.add_column(right_name, right.columns[name])
         else:
-            left_values = left.evaluate(left_on, filtered=False)
-            right_values = right.evaluate(right_on)
-            # maps from the left_values to row #
-            if np.ma.isMaskedArray(left_values):
-                mask = ~left_values.mask
-                left_values = left_values.data
-                index_left = dict(zip(left_values[mask], np.arange(N)[mask]))
-            else:
-                index_left = dict(zip(left_values, np.arange(N)))
-            # idem for right
-            if np.ma.isMaskedArray(right_values):
-                mask = ~right_values.mask
-                right_values = right_values.data
-                index_other = dict(zip(right_values[mask], np.arange(N_other)[mask]))
-            else:
-                index_other = dict(zip(right_values, np.arange(N_other)))
+            df = ds
+            index = right._index(right_on)
+            if len(index) != len(right):
+                raise ValueError('the right dataframe has non unique rows in column %r, which is not supported' % right_on)
+            lookup = np.zeros(left._length_original, dtype=np.int64)
+            dtype = left.dtype(left_on)
 
-            # we do a left join, find all rows of the right DataFrame
-            # that has an entry on the left
-            # for each row in the right
-            # find which row it needs to go to in the right
-            # from_indices = np.zeros(N_other, dtype=np.int64)  # row # of right
-            # to_indices = np.zeros(N_other, dtype=np.int64)    # goes to row # on the left
-            # keep a boolean mask of which rows are found
-            left_mask = np.ones(N, dtype=np.bool)
-            # and which row they point to in the right
-            left_row_to_right = np.zeros(N, dtype=np.int64) - 1
-            for i in range(N_other):
-                left_row = index_left.get(right_values[i])
-                if left_row is not None:
-                    left_mask[left_row] = False  # unmask, it exists
-                    left_row_to_right[left_row] = i
+            from vaex.column import _to_string_sequence
+            def map(thread_index, i1, i2, ar):
+                if dtype == str_type:
+                    previous_ar = ar
+                    ar = _to_string_sequence(ar)
+                if np.ma.isMaskedArray(ar):
+                    mask = np.ma.getmaskarray(ar)
+                    lookup[i1:i2] = index.map_index(ar.data, mask)
+                else:
+                    lookup[i1:i2] = index.map_index(ar)
+            def reduce(a, b):
+                pass
+            left.map_reduce(map, reduce, [left_on], delay=False, name='fill looking', info=True, to_numpy=False, ignore_filter=True)
 
-            lookup = np.ma.array(left_row_to_right, mask=left_mask)
+            lookup = np.ma.array(lookup, mask=lookup==-1)
             for name in right:
                 right_name = name
                 if name in left:

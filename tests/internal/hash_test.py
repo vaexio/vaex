@@ -148,3 +148,12 @@ def test_counter_object():
     assert sys.getrefcount(s) == start_ref_count
     assert sys.getrefcount(s2) == start_ref_count2
 
+def test_index():
+    ar1 = np.arange(3, dtype='f8')
+    ar2 = np.arange(10, 13, dtype='f8')
+    ar = np.concatenate([ar1, ar2])
+    index = index_hash_float64()
+    index.update(ar1, 0)
+    assert index.map_index(ar1).tolist() == [0, 1, 2]
+    index.update(ar2, 3)
+    assert index.map_index(ar).tolist() == [0, 1, 2, 3, 4, 5]
