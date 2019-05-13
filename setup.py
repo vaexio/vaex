@@ -24,6 +24,7 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
 class DevelopCmd(develop):
     def run(self):
+        relative = os.path.abspath(os.path.join('packages', 'vaex-core', 'vaex'))
         for package in packages:
             with cwd(os.path.join('packages', package)):
                 err = os.system('python -m pip install -e .')
