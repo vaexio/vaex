@@ -30,7 +30,7 @@ def {{ method_name }}(self, {{ signature }}):
     return obj
 
 import vaex.dataframe
-vaex.dataframe.DataFrame.ml._add({{ method_name }}={{ method_name }})
+# vaex.dataframe.DataFrame.ml._add({{ method_name }}={{ method_name }})
 
 def __init__(self, {{ full_signature }}):
     \"\"\"
