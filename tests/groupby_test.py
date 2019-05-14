@@ -140,14 +140,34 @@ def test_groupby_count():
     assert dfg._equals(dfg2)
 
 
+def test_groupby_std():
+    g = np.array([9, 2, 3, 4, 0, 1, 2, 3, 2, 5], dtype='int32')
+    s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
+    df = vaex.from_arrays(g=g, s=s)
+    groupby = df.groupby('s')
+    dfg = groupby.agg({'g': 'std'})
+    assert dfg.s.tolist() == ['0', '1', '2']
+    assert dfg.g.tolist() == [3.112474899497183, 1.118033988749895, 1.5]
+
+
 def test_groupby_count_string():
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
     groupby = df.groupby('s')
-    dfg = groupby.agg({'c': vaex.agg.count('s')})
+    dfg = groupby.agg({'m': vaex.agg.mode('s')})
     assert dfg.s.tolist() == ['0', '1', '2']
-    assert dfg.c.tolist() == [4, 4, 2]
+    assert dfg.m.tolist() == ['0', '1', '2']
+
+
+def test_groupby_mode_string():
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+    s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
+    df = vaex.from_arrays(g=g, s=s)
+    groupby = df.groupby('s')
+    dfg = groupby.agg({'m': vaex.agg.mode('s')})
+    assert dfg.s.tolist() == ['0', '1', '2']
+    assert dfg.m.tolist() == ['0', '1', '2']
 
 
 def test_groupby_same_result():
