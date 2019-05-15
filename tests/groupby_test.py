@@ -155,19 +155,46 @@ def test_groupby_count_string():
     s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
     groupby = df.groupby('s')
-    dfg = groupby.agg({'m': vaex.agg.mode('s')})
+    dfg = groupby.agg({'m': vaex.agg.count('s')})
     assert dfg.s.tolist() == ['0', '1', '2']
     assert dfg.m.tolist() == ['0', '1', '2']
 
 
-def test_groupby_mode_string():
-    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
-    s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
-    df = vaex.from_arrays(g=g, s=s)
-    groupby = df.groupby('s')
-    dfg = groupby.agg({'m': vaex.agg.mode('s')})
-    assert dfg.s.tolist() == ['0', '1', '2']
-    assert dfg.m.tolist() == ['0', '1', '2']
+def test_groupby_mode():
+    animals = ['dog', 'dog', 'cat', 'cat', 'dog', 'mouse', 'mouse', 'cat', 'cat', 'dog']
+    nums = [1, 2, 2, 1, 2, 2, 3, 3, 3, 1]
+    vehicles = ['car', 'bus', 'car', 'bus', 'car', 'bus', 'plane', 'bus', 'plane', 'car']
+    df = vaex.from_arrays(animals=animals, nums=nums, vehicles=vehicles)
+    groupby = df.groupby('nums')
+    dfg = groupby.agg({'animals': 'mode',
+                       'vehicles': 'mode'})
+    # Simple case
+    assert dfg.animals.tolist() == ['dog', 'dog', 'cat']
+    # Case when there is no clear mode in one sample
+    grouped_vehicles = dfg.vehicles.tolist()
+    assert grouped_vehicles[0] == 'car'
+    assert set(grouped_vehicles[1]) == set({'bus', 'car'})
+    assert grouped_vehicles[2] == 'plane'
+
+
+def test_grouby_mode_string():
+    animals = ['dog', 'dog', 'cat', 'cat', 'dog', 'mouse', 'mouse', 'cat', 'cat', 'dog']
+    nums = [1, 2, 2, 1, 2, 2, 3, 3, 3, 1]
+    vehicles = ['car', 'bus', 'car', 'bus', 'car', 'bus', 'plane', 'bus', 'plane', 'car']
+    df = vaex.from_arrays(animals=animals, nums=nums, vehicles=vehicles)
+    groupby = df.groupby('vehicles')
+    dfg = groupby.agg({'animals': 'mode',
+                       'nums': 'mode'})
+
+    grouped_animals = dfg.animals.tolist()
+    assert grouped_animals[0] == 'cat'
+    assert grouped_animals[1] == 'dog'
+    assert set(grouped_animals[2]) == set({'cat', 'mouse'})   # Special case when no mode is found
+
+    grouped_nums = dfg.nums.tolist()
+    assert grouped_nums[0] == 2
+    assert set(grouped_nums[1]) == set({1, 2})
+    assert grouped_nums[2] == 3  # Special case when no mode is found
 
 
 def test_groupby_same_result():
