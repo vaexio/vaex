@@ -139,7 +139,9 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                 return False
             if h5file is not None:
                 with h5file:
-                    return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file)
+                    root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
+                    return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
+                        len(root_datasets) > 0
             else:
                 logger.debug("file %s has no data or columns group" % path)
         return False
@@ -160,6 +162,12 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self._version = 2
             self._load_columns(self.h5file["/table"])
             self.h5table_root_name = "/table"
+        root_datasets = [dataset for name, dataset in self.h5file.items() if isinstance(dataset, h5py.Dataset)]
+        if len(root_datasets):
+            # if we have datasets at the root, we assume 'version 1'
+            self._load_columns(self.h5file)
+            self.h5table_root_name = "/"
+
         # TODO: shall we rename it vaex... ?
         # if "vaex" in self.h5file:
         # self.load_columns(self.h5file["/vaex"])
