@@ -31,11 +31,18 @@ class DevelopCmd(develop):
             # otherwise development install do not work
             if package != 'vaex-core':
                 name = package.split('-')[1]
+                relative = os.path.abspath(os.path.join('packages', 'vaex-core', 'vaex'))
                 source = os.path.abspath(os.path.join('packages', package, 'vaex', name))
-                target = os.path.abspath(os.path.join('packages', packages[0], 'vaex', name))
-                if os.path.exists(target):
-                    os.remove(target)
-                os.symlink(source, target)
+                rel_source = os.path.relpath(source, relative)
+                with cwd(relative):
+                    print('symlinking', source, name, rel_source)
+                    if os.path.exists(name) and os.readlink(name) == rel_source:
+                        print('symlink ok')
+                    else:
+                        print('old symlink',  os.readlink(name))
+                        # if os.path.exists(name):
+                        os.remove(name)
+                        os.symlink(rel_source, name)
 
 class InstallCmd(install):
     """ Add custom steps for the install command """
