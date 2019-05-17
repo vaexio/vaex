@@ -1,7 +1,11 @@
-import vaex
 import numpy as np
+
 import pandas as pd
+
 import pytest
+
+import vaex
+
 
 def test_map():
     # Generate the test data
@@ -53,7 +57,31 @@ def test_map():
     # check masked arrays
     assert ds.colour.map({'blue': 2, 'green': 3}, allow_missing=True).tolist() == [None, None, 2, None, 3, 3, None, 2, 2, 3]
 
+
 def test_map_to_string():
     df = vaex.from_arrays(type=[0, 1, 2, 2, 2, np.nan])
     df['role'] = df['type'].map({0: 'admin', 1: 'maintainer', 2: 'user', np.nan: 'unknown'})
     assert df['role'].tolist() == ['admin', 'maintainer', 'user', 'user', 'user', 'unknown']
+
+
+def test_map_long_mapper():
+    german = np.array(['eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun', 'zehn', 'elf', 'zwölf',
+                       'dreizehn', 'vierzehn', 'fünfzehn', 'sechzehn', 'siebzehn', 'achtzehn', 'neunzehn', 'zwanzig',
+                       'einundzwanzig', 'zweiundzwanzig', 'dreiundzwanzig', 'vierundzwanzig', 'fünfundzwanzig', 'sechsundzwanzig',
+                       'siebenundzwanzig', 'achtundzwanzig', 'neunundzwanzig', 'dreiβig', 'einunddreiβig', 'zweiunddreißig',
+                       'dreiunddreißig', 'vierunddreißig', 'fünfunddreißig', 'sechsunddreißig', 'siebenunddreißig',
+                       'achtunddreißig', 'neununddreißig', 'vierzig', 'einundvierzig', 'zweiundvierzig', 'dreiundvierzig',
+                       'vierundvierzig', 'fünfundvierzig', 'sechsundvierzig', 'siebenundvierzig', 'achtundvierzig',
+                       'neunundvierzig', 'fünfzig'])
+
+    english = np.array(['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+                        'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'twentyone',
+                        'twentytwo', 'twentythree', 'twentyfour', 'twentyfive', 'twentysix', 'twentyseven', 'twentyeight',
+                        'twentynine', 'thirty', 'thirtyone', 'thirtytwo', 'thirtythree', 'thirtyfour', 'thirtyfive', 'thirtysix',
+                        'thirtyseven', 'thirtyeight', 'thirtynine', 'forty', 'fortyone', 'fortytwo', 'fortythree', 'fortyfour',
+                        'fortyfive', 'fortysix', 'fortyseven', 'fortyeight', 'fortynine', 'fifty'])
+
+    mapper = dict(zip(english, german))  # enlish to german
+    df = vaex.from_arrays(english=english)
+    df['german'] = df.english.map(mapper=mapper)
+    assert df['german'].tolist() == german
