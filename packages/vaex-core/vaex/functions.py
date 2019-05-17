@@ -1760,12 +1760,26 @@ def _ordinal_values(x, ordered_set):
     return ordered_set.map_ordinal(x)
 
 @register_function()
-def _choose(ar, choices):
+def _choose(ar, choices, default=None):
     from vaex.column import _to_string_sequence
     # if not isinstance(choices, np.ndarray) or choices.dtype.kind in 'US':
     #     choices = _to_string_sequence(choices)
-    return np.choose(ar, choices)
+    if default is not None:
+        mask = ar == -1
+        ar[mask] == 0  # we fill it in with some values, doesn't matter, since it will be replaced
+    ar = np.choose(ar, choices)
+    if default is not None:
+        ar[mask] = default
+    return ar
 
+@register_function()
+def _choose_masked(ar, choices):
+    """Similar to _choose, but -1 maps to NA"""
+    from vaex.column import _to_string_sequence
+    mask = ar == -1
+    ar[mask] == 0  # we fill it in with some values, doesn't matter, since it is masked
+    ar = np.choose(ar, choices)
+    return np.ma.array(ar, mask=mask)
 
 
 @register_function(name='float')

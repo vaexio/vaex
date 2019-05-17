@@ -551,7 +551,7 @@ def f({0}):
     def apply(self, f):
         return self.ds.apply(f, [self.expression])
 
-    def map(self, mapper, nan_mapping=None, null_mapping=None, unmapped='raise'):
+    def map(self, mapper, nan_value=None, null_value=None, default_value=None, allow_missing=False):
         """Map values of an expression or in memory column accoring to an input
         dictionary or a custom callable function.
 
@@ -581,9 +581,11 @@ def f({0}):
         5     nan  unknown
 
         :param mapper: dict like object used to map the values from keys to values
-        :param nan_mapping: value to be used when a nan is present (and not in the mapper)
-        :param null_mapping: value to use used when there is a missing value
-        :param unmapped:
+        :param nan_value: value to be used when a nan is present (and not in the mapper)
+        :param null_value: value to use used when there is a missing value
+        :param default_value: value to be used when a value is not in the mapper (like dict.get(key, default))
+        :param allow_missing: used to signal that values in the mapper should map to a masked array with missing values,
+            assumed True when default_value is not None.
         :return: A vaex expression
         :rtype: vaex.expression.Expression
         """
@@ -599,29 +601,48 @@ def f({0}):
 
         # we want all possible values to be converted
         # so mapper's key should be a superset of the keys found
+        use_masked_array = False
+        if default_value is not None:
+            allow_missing = True
         if not set(mapper_keys).issuperset(found_keys):
             missing = set(found_keys).difference(mapper_keys)
-            if unmapped == 'raise':
-                missing0 = list(missing)[0]
-                if missing0 == missing0:  # safe nan check
-                    raise ValueError('Missing values in mapper: %s' % missing)
+            missing0 = list(missing)[0]
+            only_has_nan = missing0 != missing0 and len(missing) == 1
+            if allow_missing:
+                if default_value is not None:
+                    value0 = list(mapper.values())[0]
+                    assert np.issubdtype(type(default_value), np.array(value0).dtype), "default value has to be of similar type"
+                else:
+                    use_masked_array = True
             else:
-                mapper.update(zip(missing, [unmapped]*len(missing)))
+                if only_has_nan:
+                    pass  # we're good, the hash mapper deals with nan
+                else:
+                    raise ValueError('Missing values in mapper: %s' % missing)
 
         # and these are the corresponding choices
-        choices = [mapper[key] for key in found_keys]
+        # note that here we map 'planned' unknown values to the default values
+        # and later on in _choose, we map values not even seen in the dataframe
+        # to the default_value
+        choices = [mapper.get(key, default_value) for key in found_keys]
         if key_set.has_nan:
             if mapper_has_nan:
                 choices = [mapper[np.nan]] + choices
             else:
-                choices = [nan_mapping] + choices
+                choices = [nan_value] + choices
         if key_set.has_null:
-            choices = [null_mapping] + choices
+            choices = [null_value] + choices
         choices = np.array(choices)
 
         key_set_name = df.add_variable('map_key_set', key_set, unique=True)
         choices_name = df.add_variable('map_choices', choices, unique=True)
-        expr = '_choose(_ordinal_values({}, {}), {})'.format(self, key_set_name, choices_name)
+        if allow_missing:
+            if use_masked_array:
+                expr = '_choose_masked(_ordinal_values({}, {}), {})'.format(self, key_set_name, choices_name)
+            else:
+                expr = '_choose(_ordinal_values({}, {}), {}, {})'.format(self, key_set_name, choices_name, default_value)
+        else:
+            expr = '_choose(_ordinal_values({}, {}), {})'.format(self, key_set_name, choices_name)
         return Expression(df, expr)
 
 

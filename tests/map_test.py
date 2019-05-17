@@ -23,7 +23,7 @@ def test_map():
     ds['colour_'] = ds.colour.map(mapper['colour'])
     ds['animal_'] = ds.animal.map(mapper['animal'])
     # ds['number_'] = ds.number.map(lambda x: mapper['number'][x])  # test with a function, not just with a dict
-    ds['floats_'] = ds.floats.map(mapper['floats'], nan_mapping=np.nan)
+    ds['floats_'] = ds.floats.map(mapper['floats'], nan_value=np.nan)
 
     # Map in pandas
     df['colour_'] = df.colour.map(mapper['colour'])
@@ -41,14 +41,17 @@ def test_map():
 
     # missing keys
     with pytest.raises(ValueError):
-        ds.colour.map({'ret': 1, 'blue': 2, 'green': 3}, unmapped='raise')
+        ds.colour.map({'ret': 1, 'blue': 2, 'green': 3})
     with pytest.raises(ValueError):
-        ds.colour.map({'blue': 2, 'green': 3}, unmapped='raise')
+        ds.colour.map({'blue': 2, 'green': 3})
     # missing keys but user-handled
-    ds['colour_unmapped'] = ds.colour.map({'blue': 2, 'green': 3}, unmapped=-1)
+    ds['colour_unmapped'] = ds.colour.map({'blue': 2, 'green': 3}, default_value=-1)
     assert ds.colour_unmapped.values.tolist() == [-1, -1, 2, -1, 3, 3, -1, 2, 2, 3]
     # extra is ok
     ds.colour.map({'red': 1, 'blue': 2, 'green': 3, 'orange': 4})
+
+    # check masked arrays
+    assert ds.colour.map({'blue': 2, 'green': 3}, allow_missing=True).tolist() == [None, None, 2, None, 3, 3, None, 2, 2, 3]
 
 def test_map_to_string():
     df = vaex.from_arrays(type=[0, 1, 2, 2, 2, np.nan])
