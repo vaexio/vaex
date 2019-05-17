@@ -339,3 +339,10 @@ def test_string_strip_special_case2():
 	strings = ['ɐa', 'aap']
 	df = vaex.from_arrays(s=vaex.string_column(strings))
 	assert df.s.str.capitalize().tolist() == df.s.str_pandas.capitalize().tolist()
+
+
+def test_string_slice_repr():
+	s = ['Here', 'is', 'a', 'simple', 'unit-test']
+	df = vaex.from_arrays(s=s)
+	df['sliced_s'] = df.s.str.slice(start=2, stop=5)
+	repr(df['sliced_s'])
