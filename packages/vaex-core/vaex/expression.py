@@ -143,6 +143,7 @@ class Expression(with_metaclass(Meta)):
     """Expression class"""
     def __init__(self, ds, expression):
         self.ds = ds
+        assert not isinstance(ds, Expression)
         if isinstance(expression, Expression):
             expression = expression.expression
         self.expression = expression
@@ -171,7 +172,7 @@ class Expression(with_metaclass(Meta)):
 
     def derivative(self, var, simplify=True):
         var = _ensure_string_from_expression(var)
-        return self.__class__(self, expresso.derivative(self.expression, var, simplify=simplify))
+        return self.__class__(self.ds, expresso.derivative(self.expression, var, simplify=simplify))
 
     def expand(self, stop=[]):
         """Expand the expression such that no virtual columns occurs, only normal columns.
