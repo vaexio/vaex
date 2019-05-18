@@ -640,7 +640,7 @@ def f({0}):
             if use_masked_array:
                 expr = '_choose_masked(_ordinal_values({}, {}), {})'.format(self, key_set_name, choices_name)
             else:
-                expr = '_choose(_ordinal_values({}, {}), {}, {})'.format(self, key_set_name, choices_name, default_value)
+                expr = '_choose(_ordinal_values({}, {}), {}, {!r})'.format(self, key_set_name, choices_name, default_value)
         else:
             expr = '_choose(_ordinal_values({}, {}), {})'.format(self, key_set_name, choices_name)
         return Expression(df, expr)
