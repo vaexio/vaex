@@ -579,7 +579,18 @@ def f({0}):
         3       2  user
         4       2  user
         5     nan  unknown
-
+        >>> import vaex
+        >>> import numpy as np
+        >>> df = vaex.from_arrays(type=[0, 1, 2, 2, 2, 4])
+        >>> df['role'] = df['type'].map({0: 'admin', 1: 'maintainer', 2: 'user'}, default_value='unknown')
+        >>> df
+        #    type  role
+        0       0  admin
+        1       1  maintainer
+        2       2  user
+        3       2  user
+        4       2  user
+        5       4  unknown
         :param mapper: dict like object used to map the values from keys to values
         :param nan_value: value to be used when a nan is present (and not in the mapper)
         :param null_value: value to use used when there is a missing value
