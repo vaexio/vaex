@@ -1767,7 +1767,7 @@ def _choose(ar, choices, default=None):
     if default is not None:
         mask = ar == -1
         ar[mask] == 0  # we fill it in with some values, doesn't matter, since it will be replaced
-    ar = np.choose(ar, choices)
+    ar = choices[ar]
     if default is not None:
         ar[mask] = default
     return ar
@@ -1778,7 +1778,7 @@ def _choose_masked(ar, choices):
     from vaex.column import _to_string_sequence
     mask = ar == -1
     ar[mask] == 0  # we fill it in with some values, doesn't matter, since it is masked
-    ar = np.choose(ar, choices)
+    ar = choices[ar]
     return np.ma.array(ar, mask=mask)
 
 

@@ -84,4 +84,4 @@ def test_map_long_mapper():
     mapper = dict(zip(english, german))  # enlish to german
     df = vaex.from_arrays(english=english)
     df['german'] = df.english.map(mapper=mapper)
-    assert df['german'].tolist() == german
+    assert df['german'].tolist() == german.tolist()
