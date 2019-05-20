@@ -197,14 +197,16 @@ class Timer(object):
         return False
 
 
-def get_private_dir(subdir=None):
+def get_private_dir(subdir=None, *extra):
     path = os.path.expanduser('~/.vaex')
     if subdir:
-        path = os.path.join(path, subdir)
+        path = os.path.join(path, subdir, *extra)
     if not os.path.exists(path):
         os.makedirs(path)
     return path
 
+def should_cache():
+    return os.path.exists(os.path.join(get_private_dir(), 'file-cache'))
 
 def make_list(sequence):
     if isinstance(sequence, np.ndarray):
