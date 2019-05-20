@@ -250,8 +250,8 @@ Regards,
 
 The vaex.io team
 
-.. |Travis| image:: https://travis-ci.org/maartenbreddels/vaex.svg?branch=master
-   :target: https://travis-ci.org/maartenbreddels/vaex
+.. |Travis| image:: https://travis-ci.org/vaexio/vaex.svg?branch=master
+   :target: https://travis-ci.org/vaexio/vaex.svg?branch=master
 .. |Chat| image:: https://badges.gitter.im/maartenbreddels/vaex.svg
    :alt: Join the chat at https://gitter.im/maartenbreddels/vaex
    :target: https://gitter.im/maartenbreddels/vaex?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
