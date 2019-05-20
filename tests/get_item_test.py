@@ -13,28 +13,28 @@ def test_get_item_type():
     df = vaex.from_arrays(x=x, y=y, f=f, s=s, b=b, g=g)
 
     df_sel = df[np.int16]
-    assert df_sel.column_names == ['x']
+    assert set(df_sel.column_names) == set(['x'])
 
     df_sel = df[np.float32]
-    assert df_sel.column_names == ['f']
+    assert set(df_sel.column_names) == set(['f'])
 
     df_sel = df[int]
-    assert df_sel.column_names == ['x', 'y']
+    assert set(df_sel.column_names) == set(['x', 'y'])
 
     df_sel = df[str]
-    assert df_sel.column_names == ['s']
+    assert set(df_sel.column_names) == set(['s'])
 
     df_sel = df[bool]
-    assert df_sel.column_names == ['b']
+    assert set(df_sel.column_names) == set(['b'])
 
     df_sel = df[float]
-    assert df_sel.column_names == ['f', 'g']
+    assert set(df_sel.column_names) == set(['f', 'g'])
 
     df_sel = df[float, int]
-    assert df_sel.column_names == ['f', 'g', 'x', 'y']
+    assert set(df_sel.column_names) == set(['f', 'g', 'x', 'y'])
 
     df_sel = df[str, bool]
-    assert df_sel.column_names == ['s', 'b']
+    assert set(df_sel.column_names) == set(['s', 'b'])
 
     df_sel = df[str, float]
-    assert df_sel.column_names == ['s', 'f', 'g']
+    assert set(df_sel.column_names) == set(['s', 'f', 'g'])
