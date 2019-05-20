@@ -49,6 +49,23 @@ class ColumnSparse(object):
         # not sure if this is the fastest
         return self.matrix[slice, self.column_index].A[:,0]
 
+class ColumnNumpyLike(Column):
+    """Wraps a numpy like object (like hdf5 dataset) into a column vaex understands"""
+    def __init__(self, ar):
+        self.ar = ar  # this should behave like a numpy array
+
+    def __len__(self):
+        return len(self.ar)
+
+    def trim(self, i1, i2):
+        return type(self)(self.ar[i1:i2])
+
+    def __getitem__(self, slice):
+        return self.ar[slice]
+
+    def __setitem__(self, slice, value):
+        self.ar[slice] = value
+
 class ColumnIndexed(Column):
     def __init__(self, df, indices, name):
         self.df = df

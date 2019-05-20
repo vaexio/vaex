@@ -224,24 +224,28 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 
     def _map_hdf5_array(self, data, mask=None):
         offset = data.id.get_offset()
-        if offset is None:
-            raise Exception("columns doesn't really exist in hdf5 file")
-        shape = data.shape
-        dtype = data.dtype
-        if "dtype" in data.attrs:
-            # ignore the special str type, which is not a numpy dtype
-            if data.attrs["dtype"] != "str":
-                dtype = data.attrs["dtype"]
-                if dtype == 'utf32':
-                    dtype = np.dtype('U' + str(data.attrs['dlength']))
-        #self.addColumn(column_name, offset, len(data), dtype=dtype)
-        array = self._map_array(data.id.get_offset(), dtype=dtype, length=len(data))
-        if mask is not None:
-            mask_array = self._map_hdf5_array(mask)
-            return np.ma.array(array, mask=mask_array, shrink=False)
-            assert ar.mask is mask_array, "masked array was copied"
+        if offset is None:  # non contiguous array, chunked arrays etc
+            # we don't support masked in this case
+            raise "try"
+            column = ColumnNumpyLike(data)
+            return column
         else:
-            return array
+            shape = data.shape
+            dtype = data.dtype
+            if "dtype" in data.attrs:
+                # ignore the special str type, which is not a numpy dtype
+                if data.attrs["dtype"] != "str":
+                    dtype = data.attrs["dtype"]
+                    if dtype == 'utf32':
+                        dtype = np.dtype('U' + str(data.attrs['dlength']))
+            #self.addColumn(column_name, offset, len(data), dtype=dtype)
+            array = self._map_array(data.id.get_offset(), dtype=dtype, length=len(data))
+            if mask is not None:
+                mask_array = self._map_hdf5_array(mask)
+                return np.ma.array(array, mask=mask_array, shrink=False)
+                assert ar.mask is mask_array, "masked array was copied"
+            else:
+                return array
 
     def _load_columns(self, h5data, first=[]):
         # print h5data
