@@ -10,7 +10,7 @@ import numpy as np
 import vaex.column
 
 
-libc = cdll.LoadLibrary("libc.dylib")
+#libc = cdll.LoadLibrary("libc.dylib")
 
 
 def getsizeof(ar):
