@@ -4416,8 +4416,8 @@ class DataFrame(object):
             return df
         elif isinstance(item, (tuple, list)):
             # check if list or tuple contains types
-            if all([True if type(i)==type else False for i in item ]):
-                columns = [column for dt in item for column in self if self.dtype(column) == dt]
+            if all([type(i) == type for i in item ]):
+                columns = [column for dt in item for column in self if self._type_match(dt, self.dtype(column))]
                 if columns:
                     return self[columns]
             # otherwise treat as column names
@@ -4426,7 +4426,7 @@ class DataFrame(object):
                     df = self.copy(column_names=item)
                 return df
         elif type(item) == type:
-            columns = [column for column in self if self.dtype(column)==item]
+            columns = [column for column in self if self._type_match(item, self.dtype(column))]
             if columns:
                 return self[columns]
         elif isinstance(item, slice):
@@ -4446,6 +4446,17 @@ class DataFrame(object):
                 df = self.extract()
                 df.set_active_range(start, stop)
             return df.trim()
+
+    def _type_match(self, type, dtype):
+        if hasattr(dtype, 'kind'):
+            if type == int:
+                return dtype.kind in 'ui'
+            elif type == float:
+                return dtype.kind == 'f'
+            else:
+                return dtype == type
+        else:
+            return dtype == type
 
     def __delitem__(self, item):
         '''Removes a (virtual) column from the DataFrame.
