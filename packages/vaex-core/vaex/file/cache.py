@@ -91,7 +91,7 @@ class CachedFile:
             self.length = self.file.tell()
         self.mask_length = _to_block_ceil(self.length, self.block_size)
 
-        logging.info('cache path: %s', self.cache_dir_path)
+        logging.debug('cache path: %s', self.cache_dir_path)
         self.data_file = MMappedFile(self.data_path, self.length)
         self.mask_file = MMappedFile(self.mask_path, self.mask_length)
 
@@ -121,11 +121,28 @@ class CachedFile:
     def read(self, length=-1):
         start = self.loc
         end = self.loc + length if length != -1 else self.length
+        self._ensure_cached(start, end)
+        self.loc = end
+        # we have no other option than to return a copy of the data here
+        return self.data_file.data[start:end].view('S1').tobytes()
+
+    def __readinto(self, bytes):
+        start = self.loc
+        end = start + len(bytes)
+        self._ensure_cached(start, end)
+        bytes[:] = self.data_file.data[start:end]
+
+    def _as_numpy(self, offset, byte_length, dtype):
+        # quick route that avoids memory copies
+        self._ensure_cached(offset, offset+byte_length)
+        return self.data_file.data[offset:offset+byte_length].view(dtype)
+
+    def _ensure_cached(self, start, end):
         block_start = _to_block_floor(start, self.block_size)
         block_end = _to_block_ceil(end, self.block_size)
         missing = self.mask_file.data[block_start:block_end] == 0
+        # TODO: we could do the reading using multithreading or multiprocessing (processes)
         if np.all(missing):
-            # print('all missing')
             start_blocked = _to_index(block_start, self.block_size)
             end_blocked = _to_index(block_end, self.block_size)
             self._use_file()
@@ -138,6 +155,7 @@ class CachedFile:
         elif np.any(missing):
             block_indices = np.arange(block_start, block_end, dtype=np.int64)
             missing_blocks = block_indices[missing]
+            # TODO: we can group multiple blocks into 1 read
             for block_index in missing_blocks:
                 start_blocked = _to_index(block_index, self.block_size)
                 end_blocked = _to_index(block_index+1, self.block_size)
@@ -148,9 +166,6 @@ class CachedFile:
                 self.mask_file.data[block_index] = 1
                 self.reads += 1
                 self.block_reads += 1
-        self.loc = end
-        # return self.data_file.data[start:end].view('S1').tobytes()
-        return self.data_file.mmap[start:end]
 
     def close(self):
         # if it is callable, the file is never opened
