@@ -1,6 +1,10 @@
 import ctypes
 from cachetools import LRUCache
-import fcntl
+fcntl = None
+try:
+    import fcntl
+except:
+    pass
 import threading
 from ctypes import *
 import os
@@ -36,8 +40,8 @@ class ColumnFile(vaex.column.Column):
         self.tls.file = vaex.file.dup(file)
         self.file_handles.append(file)
         self.native = False
-        if hasattr(self.file, 'fileno'):
-            fcntl.fcntl(self.file.fileno(), F_NOCACHE, 1)
+        # if hasattr(self.file, 'fileno') and osname
+        #     fcntl.fcntl(self.file.fileno(), F_NOCACHE, 1)
             # self.native = True
         #libc.fcntl(self.file.fileno(), fcntl.F_NOCACHE, 1)
         #libc.fcntl(c_int(self.file.fileno()), c_int(fcntl.F_NOCACHE), c_int(1))
@@ -118,7 +122,7 @@ class ColumnFile(vaex.column.Column):
             N = items
             offset = self.byte_offset + start * itemsize
             if self.native:
-                fcntl.fcntl(self.file.fileno(), fcntl.F_NOCACHE, 1)
+                # fcntl.fcntl(self.file.fileno(), fcntl.F_NOCACHE, 1)
                 page_size = 1024*4
                 page_mask = page_size-1
                 ar_bytes = np.zeros(N*itemsize + page_size, np.uint8)
