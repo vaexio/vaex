@@ -29,6 +29,8 @@ PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
 
 osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
+# $ export VAEX_DEV=1 to enabled dev mode (skips slow tests)
+devmode = os.environ.get('VAEX_DEV', '0') == '1'
 
 
 class AttrDict(dict):
