@@ -188,7 +188,7 @@ class PlotBase(widgets.Widget):
             self.update_grid()
         self.backend.observe(_on_limits_change, "limits")
         for attrname in "x y z vx vy vz".split():
-            def _on_change(*args, attrname=attrname):
+            def _on_change(change, attrname=attrname):
                 limits_index = {'x': 0, 'y': 1, 'z': 2}.get(attrname)
                 if limits_index is not None:
                     self.backend.limits[limits_index] = None
