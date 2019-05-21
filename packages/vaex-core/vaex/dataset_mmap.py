@@ -19,6 +19,7 @@ from vaex.dataset import DatasetLocal, DatasetArrays
 import vaex.dataset
 import vaex.file
 from vaex.expression import Expression
+from vaex.file.column import ColumnFile
 import struct
 
 logger = logging.getLogger("vaex.file")
@@ -36,136 +37,6 @@ except:
 osname = vaex.utils.osname
 no_mmap = os.environ.get('VAEX_NO_MMAP', False)
 
-if no_mmap:
-    from ctypes import *
-    libc = cdll.LoadLibrary("libc.dylib")
-    import ctypes
-    import io
-
-    from cachetools import LRUCache
-    import threading
-    import fcntl
-    GB = 1024**3
-    def getsizeof(ar):
-        return ar.nbytes
-    cache = LRUCache(maxsize=10*GB, getsizeof=getsizeof)
-    cache_lock = threading.RLock()
-    F_NOCACHE = 48
-
-
-    class ColumnReader(vaex.dataset.Column):
-        def __init__(self, dataset, file, byte_offset, length, dtype):
-            self.dataset = dataset
-            self.file = file
-            fcntl.fcntl(self.file.fileno(), F_NOCACHE, 1)
-            #libc.fcntl(self.file.fileno(), fcntl.F_NOCACHE, 1)
-            #libc.fcntl(c_int(self.file.fileno()), c_int(fcntl.F_NOCACHE), c_int(1))
-            self.byte_offset = byte_offset
-            self.length = length
-            self.dtype = np.dtype(dtype)
-            self.shape = (length,)
-
-        def __len__(self):
-            return self.length# // self.dtype.itemsize
-
-        # def trim(self, i1, i2):
-        #     return ColumnIndexed(self.dataset, self.indices[i1:i2], self.name)
-
-        def trim(self, i1, i2):
-            itemsize = self.dtype.itemsize
-            byte_offset = self.byte_offset * i1 * itemsize
-            length = i2 - i1
-            return ColumnReader(self.dataset, io.FileIO(self.file.fileno(), 'rb'), byte_offset, length, self.dtype)
-
-        def __setitem__(self, slice, values):
-            start, stop, step = slice.start, slice.stop, slice.step
-            start = start or 0
-            stop = stop or len(self)
-            assert step in [None, 1]
-            itemsize = self.dtype.itemsize
-            N = stop - start
-
-            page_size = 1024*4
-            page_mask = page_size-1
-            ar_bytes = values.tobytes() #np.frombuffer(values.tobytes(), np.uint8)
-            assert len(ar_bytes) == N * itemsize
-            #print(ar_ptr, N, itemsize, start)
-            # we want to read at a page boundary
-            offset = self.byte_offset + start * itemsize
-            
-
-            #print(values[:2])
-            # make sure we write at a multiple of the page size, if the content is smaller than
-            if N * itemsize >= page_size:
-                offset_optimal = math.ceil(offset/page_size) * page_size
-                padding = offset_optimal - offset
-                #ar_ptr_pad = ar_bytes[:padding].ctypes.data_as(ctypes.POINTER(ctypes.c_byte))
-                #ar_ptr_opt = ar_bytes[padding:].ctypes.data_as(ctypes.POINTER(ctypes.c_byte))
-                ar_ptr_pad = ctypes.c_char_p(ar_bytes[:padding])
-                ar_ptr_opt = ctypes.c_char_p(ar_bytes[padding:])
-                if offset != offset_optimal:
-                    bytes_write = libc.pwrite(ctypes.c_int32(self.file.fileno()), ar_ptr_pad, ctypes.c_uint64(padding), ctypes.c_uint64(offset))
-                    if (bytes_write) != padding:
-                        raise IOError('write error: expected %d bytes, wrote %d, padding: %d' % (N * itemsize, bytes_write, padding))
-                bytes_write = libc.pwrite(ctypes.c_int32(self.file.fileno()), ar_ptr_opt, ctypes.c_uint64(N * itemsize - padding), ctypes.c_uint64(offset_optimal))
-                if (bytes_write) != N * itemsize - padding:
-                    raise IOError('write error: expected %d bytes, wrote %d, padding: %d' % (N * itemsize, bytes_write, padding))
-                #print(offset, offset_optimal, bytes_write, bytes_read+padding, padding, start, stop, N)
-            else:
-                #ar_ptr = ar_bytes.ctypes.data_as(ctypes.POINTER(ctypes.c_byte))
-                ar_ptr = ctypes.c_char_p(ar_bytes)
-                bytes_write = libc.pwrite(ctypes.c_int32(self.file.fileno()), ar_ptr, ctypes.c_uint64(N * itemsize), ctypes.c_uint64(offset))
-                if (bytes_write) != N * itemsize:
-                    raise IOError('write error: expected %d bytes, wrote %d, padding: %d' % (N * itemsize, bytes_write, padding))
-            #ar = np.frombuffer(ar_bytes[padding:padding + N*itemsize], self.dtype)
-            # ar = np.frombuffer(ar_bytes, self.dtype, offset=padding, count=N)
-
-
-        def __getitem__(self, slice):
-            start, stop, step = slice.start, slice.stop, slice.step
-            start = start or 0
-            stop = stop or len(self)
-            while start < 0:
-                start += len(self)
-            while stop < 0:
-                stop += len(self)
-            assert step in [None, 1]
-            itemsize = self.dtype.itemsize
-            #self.file.seek(self.byte_offset + start*itemsize)
-            items = stop - start
-            key = (self.dataset.path, self.byte_offset, start, stop)
-            with cache_lock:
-                ar = cache.get(key)
-            if ar is None:
-                fcntl.fcntl(self.file.fileno(), fcntl.F_NOCACHE, 1)
-                #raw_data = self.file.read(items * itemsize)
-                N = items
-                page_size = 1024*4
-                page_mask = page_size-1
-                ar_bytes = np.zeros(N*itemsize + page_size, np.uint8)
-                ar_ptr = ar_bytes.ctypes.data_as(ctypes.POINTER(ctypes.c_byte))
-                #print(ar_ptr, N, itemsize, start)
-                # we want to read at a page boundary
-                offset = self.byte_offset + start * itemsize
-                offset_optimal = offset & ~page_mask
-                padding = offset - offset_optimal
-                bytes_read = libc.pread(ctypes.c_int32(self.file.fileno()), ar_ptr, ctypes.c_uint64(N * itemsize + padding), ctypes.c_uint64(offset_optimal))
-                #libc.lseek(ctypes.c_int32(self.file.fileno()), ctypes.c_uint64(offset)
-                #bytes_read = libc.read(ctypes.c_int32(self.file.fileno()), ar_ptr, ctypes.c_uint64(N * itemsize))
-                #print((bytes_read-padding), N * itemsize, N, itemsize, start, stop)
-                if (bytes_read-padding) != N * itemsize:
-                    raise IOError('read error: expected %d bytes, read %d, padding: %d' % (N * itemsize, bytes_read, padding))
-                #ar = np.frombuffer(ar_bytes[padding:padding + N*itemsize], self.dtype)
-                ar = np.frombuffer(ar_bytes, self.dtype, offset=padding, count=N)
-                #print(bytes_read)
-                #libc.pread(ctypes.c_int32(self.file.fileno()), ar_ptr,N * itemsize, self.byte_offset + start * itemsize)
-                with cache_lock:
-                    cache[key] = ar
-            #else:
-            #    print('.', end='')
-            return ar
-else:
-    ColumnReader = False
 
 class DatasetMemoryMapped(DatasetLocal):
     """Represents a dataset where the data is memory mapped for efficient reading"""
@@ -310,12 +181,9 @@ class DatasetMemoryMapped(DatasetLocal):
                     print("offset is None")
                     sys.exit(0)
 
-                #file = open(filename, 'rb') #self.file_map[filename]
                 file = self.file_map[filename]
-                if ColumnReader:
-                    import io
-                    column = ColumnReader(self, io.FileIO(file.fileno(), 'rb'), offset, length, dtype)
-                    #column = ColumnReader(self, file, offset, length, dtype)
+                if self.nommap:
+                    column = ColumnFile(file, offset, length, dtype, write=self.write, path=self.path)
                 else:
                     column = np.frombuffer(mapping, dtype=dtype, count=length if stride is None else length * stride, offset=offset)
                     if stride and stride != 1:

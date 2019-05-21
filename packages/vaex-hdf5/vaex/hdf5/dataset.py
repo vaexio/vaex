@@ -19,6 +19,9 @@ import vaex.dataset
 import vaex.file
 from vaex.expression import Expression
 from vaex.dataset_mmap import DatasetMemoryMapped
+from vaex.file import s3
+from vaex.column import ColumnNumpyLike
+from vaex.file.column import ColumnFile
 
 logger = logging.getLogger("vaex.file")
 
@@ -58,14 +61,29 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     """Implements the vaex hdf5 file format"""
 
     def __init__(self, filename, write=False):
-        super(Hdf5MemoryMapped, self).__init__(filename, write=write)
-        self.h5file = h5py.File(self.filename, "r+" if write else "r")
+        if isinstance(filename, six.string_types):
+            super(Hdf5MemoryMapped, self).__init__(filename, write=write, nommap=filename.startswith('s3://'))
+        else:
+            super(Hdf5MemoryMapped, self).__init__(filename.name, write=write, nommap=True)
+        if hasattr(filename, 'read'):
+            fp = filename  # support file handle for testing
+            self.file_map[self.filename] = fp
+        else:
+            mode = 'rb+' if write else 'rb'
+            if s3.is_s3_path(filename):
+                fp = s3.open(self.filename)
+                self.file_map[self.filename] = fp
+            else:
+                if self.nommap:
+                    fp = open(self.filename, mode)
+                    self.file_map[self.filename] = fp
+                else:
+                    # this is the only path that will have regular mmapping
+                    fp = self.filename
+        self.h5file = h5py.File(fp, "r+" if write else "r")
         self.h5table_root_name = None
         self._version = 1
-        try:
-            self._load()
-        finally:
-            self.h5file.close()
+        self._load()
 
     def write_meta(self):
         """ucds, descriptions and units are written as attributes in the hdf5 file, instead of a seperate file as
@@ -124,26 +142,28 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     @classmethod
     def can_open(cls, path, *args, **kwargs):
         h5file = None
+        # before we try to open it with h5py, we check the signature (quicker)
         try:
-            with open(path, "rb") as f:
+            with s3.open(path, "rb") as f:
                 signature = f.read(4)
                 hdf5file = signature == b"\x89\x48\x44\x46"
         except:
-            logger.error("could not read 4 bytes from %r", path)
+            logger.exception("could not read 4 bytes from %r", path)
             return
         if hdf5file:
-            try:
-                h5file = h5py.File(path, "r")
-            except:
-                logger.exception("could not open file as hdf5")
-                return False
-            if h5file is not None:
-                with h5file:
-                    root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
-                    return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
-                        len(root_datasets) > 0
-            else:
-                logger.debug("file %s has no data or columns group" % path)
+            with s3.open(path, "rb") as f:
+                try:
+                    h5file = h5py.File(f, "r")
+                except:
+                    logger.exception("could not open file as hdf5")
+                    return False
+                if h5file is not None:
+                    with h5file:
+                        root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
+                        return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
+                            len(root_datasets) > 0
+                else:
+                    logger.debug("file %s has no data or columns group" % path)
         return False
 
     @classmethod
@@ -204,24 +224,28 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 
     def _map_hdf5_array(self, data, mask=None):
         offset = data.id.get_offset()
-        if offset is None:
-            raise Exception("columns doesn't really exist in hdf5 file")
-        shape = data.shape
-        dtype = data.dtype
-        if "dtype" in data.attrs:
-            # ignore the special str type, which is not a numpy dtype
-            if data.attrs["dtype"] != "str":
-                dtype = data.attrs["dtype"]
-                if dtype == 'utf32':
-                    dtype = np.dtype('U' + str(data.attrs['dlength']))
-        #self.addColumn(column_name, offset, len(data), dtype=dtype)
-        array = self._map_array(data.id.get_offset(), dtype=dtype, length=len(data))
-        if mask is not None:
-            mask_array = self._map_hdf5_array(mask)
-            return np.ma.array(array, mask=mask_array, shrink=False)
-            assert ar.mask is mask_array, "masked array was copied"
+        if offset is None:  # non contiguous array, chunked arrays etc
+            # we don't support masked in this case
+            raise "try"
+            column = ColumnNumpyLike(data)
+            return column
         else:
-            return array
+            shape = data.shape
+            dtype = data.dtype
+            if "dtype" in data.attrs:
+                # ignore the special str type, which is not a numpy dtype
+                if data.attrs["dtype"] != "str":
+                    dtype = data.attrs["dtype"]
+                    if dtype == 'utf32':
+                        dtype = np.dtype('U' + str(data.attrs['dlength']))
+            #self.addColumn(column_name, offset, len(data), dtype=dtype)
+            array = self._map_array(data.id.get_offset(), dtype=dtype, length=len(data))
+            if mask is not None:
+                mask_array = self._map_hdf5_array(mask)
+                return np.ma.array(array, mask=mask_array, shrink=False)
+                assert ar.mask is mask_array, "masked array was copied"
+            else:
+                return array
 
     def _load_columns(self, h5data, first=[]):
         # print h5data
@@ -330,8 +354,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self.columns[name] = col
             self.column_names.append(name)
 
-    def close(self):
-        super(Hdf5MemoryMapped, self).close()
+    def close_files(self):
+        super(Hdf5MemoryMapped, self).close_files()
         self.h5file.close()
 
     def __expose_array(self, hdf5path, column_name):

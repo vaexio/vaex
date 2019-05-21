@@ -29,6 +29,8 @@ PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
 
 osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
+# $ export VAEX_DEV=1 to enabled dev mode (skips slow tests)
+devmode = os.environ.get('VAEX_DEV', '0') == '1'
 
 
 class AttrDict(dict):
@@ -197,14 +199,16 @@ class Timer(object):
         return False
 
 
-def get_private_dir(subdir=None):
+def get_private_dir(subdir=None, *extra):
     path = os.path.expanduser('~/.vaex')
     if subdir:
-        path = os.path.join(path, subdir)
+        path = os.path.join(path, subdir, *extra)
     if not os.path.exists(path):
         os.makedirs(path)
     return path
 
+def should_cache():
+    return os.path.exists(os.path.join(get_private_dir(), 'file-cache'))
 
 def make_list(sequence):
     if isinstance(sequence, np.ndarray):

@@ -34,6 +34,8 @@ Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how
 """  # -*- coding: utf-8 -*-
 from __future__ import print_function
 import glob
+import six
+
 import vaex.dataframe
 import vaex.dataset
 from vaex.functions import register_function
@@ -119,7 +121,7 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
     >>> ds = vaex.open('sometable.hdf5')
     >>> ds = vaex.open('somedata*.csv', convert='bigdata.hdf5')
 
-    :param str path: local or absolute path to file, or glob string
+    :param str or list path: local or absolute path to file, or glob string, or list of paths
     :param convert: convert files to an hdf5 file for optimization, can also be a path
     :param bool shuffle: shuffle converted DataFrame or not
     :param args: extra arguments for file readers that need it
@@ -146,8 +148,18 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
         else:
             import vaex.file
             import glob
-            # sort to get predicatable behaviour (useful for testing)
-            filenames = list(sorted(glob.glob(path)))
+            if isinstance(path, six.string_types):
+                paths = [path]
+            else:
+                paths = path
+            filenames = []
+            for path in paths:
+                # TODO: can we do glob with s3?
+                if path.startswith('s3://'):
+                    filenames.append(path)
+                else:
+                    # sort to get predicatable behaviour (useful for testing)
+                    filenames.extend(list(sorted(glob.glob(path))))
             ds = None
             if len(filenames) == 0:
                 raise IOError('Could not open file: {}, it does not exist'.format(path))
@@ -155,7 +167,10 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
             filename_hdf5_noshuffle = _convert_name(filenames, shuffle=False)
             if len(filenames) == 1:
                 path = filenames[0]
-                ext = os.path.splitext(path)[1]
+                naked_path = path
+                if '?' in naked_path:
+                    naked_path = naked_path[:naked_path.index('?')]
+                ext = os.path.splitext(naked_path)[1]
                 if os.path.exists(filename_hdf5) and convert:  # also check mtime?
                     if convert:
                         ds = vaex.file.open(filename_hdf5)
