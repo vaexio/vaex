@@ -2,40 +2,40 @@ from common import *
 
 
 def test_fillna_column(ds_local):
-    ds = ds_local
-    ds['ok'] = ds['obj'].fillna(value='NA')
-    assert ds.ok.values[5] == 'NA'
-    ds['obj'] = ds['obj'].fillna(value='NA')
-    assert ds.obj.values[5] == 'NA'
+    df = ds_local
+    df['ok'] = df['obj'].fillna(value='NA')
+    assert df.ok.values[5] == 'NA'
+    df['obj'] = df['obj'].fillna(value='NA')
+    assert df.obj.values[5] == 'NA'
 
 
 def test_fillna(ds_local):
-    ds = ds_local
-    ds_copy = ds.copy()
+    df = ds_local
+    df_copy = df.copy()
 
-    ds_string_filled = ds.fillna(value='NA')
-    assert ds_string_filled.obj.values[5] == 'NA'
+    df_string_filled = df.fillna(value='NA')
+    assert df_string_filled.obj.values[5] == 'NA'
 
-    ds_filled = ds.fillna(value=0)
-    assert ds_filled.obj.values[5] == 0
+    df_filled = df.fillna(value=0)
+    assert df_filled.obj.values[5] == 0
 
-    assert ds_filled.to_pandas_df(virtual=True).isna().any().any() == False
-    assert ds_filled.to_pandas_df(virtual=True).isna().any().any() == False
+    assert df_filled.to_pandas_df(virtual=True).isna().any().any() == False
+    assert df_filled.to_pandas_df(virtual=True).isna().any().any() == False
 
-    ds_filled = ds.fillna(value=10, fill_masked=False)
-    assert ds_filled.n.values[6] == 10.
-    assert ds_filled.nm.values[6] == 10.
+    df_filled = df.fillna(value=10, fill_masked=False)
+    assert df_filled.n.values[6] == 10.
+    assert df_filled.nm.values[6] == 10.
 
-    ds_filled = ds.fillna(value=-15, fill_nan=False)
-    assert ds_filled.m.values[7] == -15.
-    assert ds_filled.nm.values[7] == -15.
-    assert ds_filled.mi.values[7] == -15.
+    df_filled = df.fillna(value=-15, fill_nan=False)
+    assert df_filled.m.values[7] == -15.
+    assert df_filled.nm.values[7] == -15.
+    assert df_filled.mi.values[7] == -15.
 
-    ds_filled = ds.fillna(value=-11, column_names=['nm', 'mi'])
-    assert ds_filled.to_pandas_df(virtual=True).isna().any().any() == True
-    assert ds_filled.to_pandas_df(column_names=['nm', 'mi']).isna().any().any() == False
+    df_filled = df.fillna(value=-11, column_names=['nm', 'mi'])
+    assert df_filled.to_pandas_df(virtual=True).isna().any().any() == True
+    assert df_filled.to_pandas_df(column_names=['nm', 'mi']).isna().any().any() == False
 
-    state = ds_filled.state_get()
-    ds_copy.state_set(state)
-    np.testing.assert_array_equal(ds_copy['nm'].values, ds_filled['nm'].values)
-    np.testing.assert_array_equal(ds_copy['mi'].values, ds_filled['mi'].values)
+    state = df_filled.state_get()
+    df_copy.state_set(state)
+    np.testing.assert_array_equal(df_copy['nm'].values, df_filled['nm'].values)
+    np.testing.assert_array_equal(df_copy['mi'].values, df_filled['mi'].values)
