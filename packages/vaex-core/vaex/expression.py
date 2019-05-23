@@ -603,12 +603,24 @@ def f({0}):
         assert isinstance(mapper, collectionsAbc.Mapping), "mapper should be a dict like object"
 
         df = self.ds
-        mapper_keys = np.array(list(mapper.keys()))
+        mapper_keys = list(mapper.keys())
+        try:
+            mapper_nan_key_mask = np.isnan(mapper_keys)
+        except TypeError:
+            # case where we have mixed strings/nan etc
+            def try_nan(x):
+                try:
+                    return np.isnan(x)
+                except:
+                    return False
+            mapper_nan_key_mask = np.array([try_nan(k) for k in mapper_keys])
+        mapper_has_nan = mapper_nan_key_mask.sum() > 0
+        if mapper_nan_key_mask.sum() > 1:
+            raise ValueError('Insanity, you provided multiple nan values as keys for your dict')
 
         # we map the keys to a ordinal values [0, N-1] using the set
         key_set = df._set(self.expression)
         found_keys = key_set.keys()
-        mapper_has_nan = any([key != key for key in mapper_keys])
 
         # we want all possible values to be converted
         # so mapper's key should be a superset of the keys found
@@ -638,7 +650,10 @@ def f({0}):
         choices = [mapper.get(key, default_value) for key in found_keys]
         if key_set.has_nan:
             if mapper_has_nan:
-                choices = [mapper[np.nan]] + choices
+                # since np.nan is not np.nan/2, we have to use the real key object
+                nan_index = np.arange(len(mapper_keys))[mapper_nan_key_mask][0]
+                nan_key_used = mapper_keys[nan_index]
+                choices = [mapper[nan_key_used]] + choices
             else:
                 choices = [nan_value] + choices
         if key_set.has_null:

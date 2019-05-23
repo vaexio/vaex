@@ -3,7 +3,17 @@ import numpy as np
 import pandas as pd
 import pytest
 import vaex
+import math
 
+def test_nan_madness():
+    x = [np.nan, math.nan, np.nan/2, math.nan/3, 0, 1]
+    df = vaex.from_arrays(x=x)
+    mapper = {np.nan/5: -1, 0: 10, 1: 20}
+    assert df.x.map(mapper).tolist() == [-1, -1, -1, -1, 10, 20]
+
+    mapper = {np.nan/5: -1, np.nan/10:-2, 0: 10, 1: 20}
+    with pytest.raises(ValueError):
+        df.x.map(mapper).tolist()
 
 def test_map():
     # Generate the test data
