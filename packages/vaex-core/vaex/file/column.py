@@ -137,23 +137,23 @@ class ColumnFile(vaex.column.Column):
             else:
                 byte_length = items*itemsize
                 offset = self.byte_offset + start * itemsize
+                # Quick and safe way to get the thread local file handle:
+                file = getattr(self.tls, 'file', None)
+                if file is None:
+                    with cache_lock:
+                        file = getattr(self.tls, 'file', None)
+                        if file is None:
+                            file = self.tls.file = vaex.file.dup(self.file)
+                            self.file_handles.append(file)
                 # this is the fast path, that avoids a memory copy but gets a view on the underlying data
                 # cache.py:CachedFile supports this
-                if hasattr(self.file, '_as_numpy'):
-                    ar = self.file._as_numpy(offset, byte_length, self.dtype)
+                if hasattr(file, '_as_numpy'):
+                    ar = file._as_numpy(offset, byte_length, self.dtype)
                 else:
                     # Traditinal file object go this slower route
                     # and they need per thread file object since the location (seek)
                     # is in the state of the file object
 
-                    # Quick and safe way to get the thread local file handle:
-                    file = getattr(self.tls, 'file', None)
-                    if file is None:
-                        with cache_lock:
-                            file = getattr(self.tls, 'file', None)
-                            if file is None:
-                                file = self.tls.file = vaex.file.dup(self.file)
-                                self.file_handles.append(file)
                     file.seek(offset)
                     data = file.read(byte_length)
                     ar = np.frombuffer(data, self.dtype, count=N)
