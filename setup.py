@@ -26,7 +26,9 @@ class DevelopCmd(develop):
     def run(self):
         for package in packages:
             with cwd(os.path.join('packages', package)):
-                os.system('python -m pip install -e .')
+                err = os.system('python -m pip install -e .')
+                if err:
+                    sys.exit(err)
             # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name
             # otherwise development install do not work
             if package != 'vaex-core':
@@ -39,9 +41,10 @@ class DevelopCmd(develop):
                     if os.path.exists(name) and os.readlink(name) == rel_source:
                         print('symlink ok')
                     else:
-                        print('old symlink',  os.readlink(name))
                         # if os.path.exists(name):
-                        os.remove(name)
+                        if os.path.exists(name):
+                            print('old symlink',  os.readlink(name))
+                            os.remove(name)
                         os.symlink(rel_source, name)
 
 class InstallCmd(install):
