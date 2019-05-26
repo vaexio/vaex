@@ -115,22 +115,31 @@ def test_train_test_split_values():
 
 def test_frequency_encoder():
     animals = np.array(['dog', 'dog', 'cat', 'dog', 'mouse', 'mouse'])
-    train = vaex.from_arrays(animals=animals)
-    animals = np.array(['dog', 'cat', 'mouse', 'ant', np.nan], dtype=np.object)
-    test = vaex.from_arrays(animals=animals)
-    features = ['animals']
+    numbers = np.array([1, 2, 3, 1, 1, np.nan])
+    train = vaex.from_arrays(animals=animals, numbers=numbers)
+    animals = np.array(['dog', 'cat', 'mouse', 'ant', np.nan])
+    numbers = np.array([2, 1, np.nan, np.nan, 5])
+    test = vaex.from_arrays(animals=animals, numbers=numbers)
+    features = ['animals', 'numbers']
 
     fe = train.ml.frequency_encoder(features=features, unseen='nan')
     fe.fit(train)
     test_a = fe.transform(test)
     np.testing.assert_almost_equal(test_a.frequency_encoded_animals.values,
-                                   [0.5, 0.166, 0.333, np.nan, np.nan],
+                               [0.5, 0.166, 0.333, np.nan, np.nan],
+                               decimal=3)
+    np.testing.assert_almost_equal(test_a.frequency_encoded_numbers.values,
+                                   [0.166, 0.5, 0.166, 0.166, np.nan],
                                    decimal=3)
+
     fe = vaex.ml.FrequencyEncoder(features=features, unseen='zero')
     fe.fit(train)
     test_b = fe.transform(test)
     np.testing.assert_almost_equal(test_b.frequency_encoded_animals.values,
-                                   [0.5, 0.166, 0.333, 0, 0],
+                               [0.5, 0.166, 0.333, 0, 0],
+                               decimal=3)
+    np.testing.assert_almost_equal(test_b.frequency_encoded_numbers.values,
+                                   [0.166, 0.5, 0.166, 0.166, 0.],
                                    decimal=3)
 
 
