@@ -7,7 +7,6 @@ from jinja2 import Template
 import traitlets
 
 import vaex
-from . import generate
 
 # registry = {}
 registry = []
@@ -75,7 +74,7 @@ del __init__
 
     kwargs = dict(locals())
     code = template_method.render(**kwargs)
-    exec(code)
+    exec(code, globals(), locals())
     return cls
 
 def camel_to_underscore(name):
