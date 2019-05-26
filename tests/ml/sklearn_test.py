@@ -14,11 +14,19 @@ from sklearn.svm import SVC
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
 
 
-models_regression = [LinearRegression(), Ridge(), Lasso(), SVR(gamma='scale'),
-                     AdaBoostRegressor(), GradientBoostingRegressor(), RandomForestRegressor(n_estimators=10)]
+models_regression = [LinearRegression(),
+                     Ridge(random_state=42, max_iter=100),
+                     Lasso(random_state=42, max_iter=100),
+                     SVR(gamma='scale'),
+                     AdaBoostRegressor(random_state=42, n_estimators=10),
+                     GradientBoostingRegressor(random_state=42, max_depth=3, n_estimators=10),
+                     RandomForestRegressor(n_estimators=10, random_state=42, max_depth=3)]
 
-models_classification = [LogisticRegression(solver='lbfgs'), SVC(gamma='scale'), AdaBoostClassifier(),
-                         GradientBoostingClassifier(), RandomForestClassifier(n_estimators=10)]
+models_classification = [LogisticRegression(solver='lbfgs', max_iter=100, random_state=42),
+                         SVC(gamma='scale', max_iter=100),
+                         AdaBoostClassifier(random_state=42, n_estimators=10),
+                         GradientBoostingClassifier(random_state=42, max_depth=3, n_estimators=10),
+                         RandomForestClassifier(n_estimators=10, random_state=42, max_depth=3)]
 
 
 def test_sklearn_estimator():
