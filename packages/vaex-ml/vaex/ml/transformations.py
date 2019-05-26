@@ -350,7 +350,7 @@ class StandardScaler(Transformer):
             self.std_ = std.tolist()
 
         assign(mean, std)
-        df.executor.execute()
+        df.execute()
 
     def transform(self, df):
         '''
