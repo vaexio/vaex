@@ -54,7 +54,7 @@ src/Makefile.in
 src/libsubfind.a
 subspacefind*.tar.gz
 src/subspacefind?la*
-/**/*.pyc
+**/*.pyc
 data/*
 build/
 doc
@@ -70,8 +70,12 @@ test/.idea
 venv
 tmp
 python/vaex/version.py # gets generated
+**/*.egg-info/
+bin/.idea
+*.npy
+**/__pycache__/*
 /**/*.egg-info/
 bin/.idea
 *.npy
-/**/__pycache__/
+/**/__pycache__/*
 catboost_info/*
