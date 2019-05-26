@@ -23,5 +23,6 @@ setup(name=name + '-ml',
       install_requires=install_requires_ml,
       license=license,
       packages=['vaex.ml', 'vaex.ml.incubator', 'vaex.ml.datasets'],
+      include_package_data=True,
       zip_safe=False,
     )
