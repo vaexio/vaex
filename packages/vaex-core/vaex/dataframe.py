@@ -3817,7 +3817,7 @@ class DataFrame(object):
             max_index = indices.max()
             mask = df._selection_masks[FILTER_SELECTION_NAME]
             filtered_indices = mask.first(max_index+1)
-            indices = filtered_indices[indices]
+            indices = indices[filtered_indices]
         for name, column in df.columns.items():
             if column is not None:
                 # we optimize this somewhere, so we don't do multiple
