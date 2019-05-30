@@ -1318,10 +1318,10 @@ def str_slice(x, start=0, stop=None):  # TODO: support n
     4   y.
     """
     if stop is None:
-        sll = _to_string_sequence(x).slice_string_end(start)
+        ss = _to_string_sequence(x).slice_string_end(start)
     else:
-        sll = _to_string_sequence(x).slice_string(start, stop)
-    return sll
+        ss = _to_string_sequence(x).slice_string(start, stop)
+    return column.ColumnStringArrow.from_string_sequence(ss)
 
 # TODO: slice_replace (not sure it this makes sense)
 # TODO: n argument and rsplit
