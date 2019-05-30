@@ -177,29 +177,40 @@ class ServerRest(object):
             raise self.websocket.reason
 
     def _on_websocket_message(self, msg):
-        json_data, data = msg.split(b"\n", 1)
-        response = json.loads(json_data.decode("utf8"))
-        if data:
-            import zlib
-            data = zlib.decompress(data)
-            numpy_array = np.frombuffer(data, dtype=np.dtype(response["dtype"])).reshape(ast.literal_eval(response["shape"]))
-            response["result"] = numpy_array
-        import sys
-        if sys.getsizeof(msg) > 1024 * 4:
-            logger.debug("socket read message: <large amount of data>",)
-        else:
-            logger.debug("socket read message: %s", msg)
-            logger.debug("json response: %r", response)
-        # for the moment, job == task, in the future a job can be multiple tasks
-        job_id = response.get("job_id")
+        try:
+            task = None
+            json_data, data = msg.split(b"\n", 1)
+            response = json.loads(json_data.decode("utf8"))
+            phase = response["job_phase"]
+            job_id = response.get("job_id")
+            task = self.jobs[job_id]
+            if data:
+                import zlib
+                data = zlib.decompress(data)
+                try:
+                    numpy_array = np.frombuffer(data, dtype=np.dtype(response["dtype"])).reshape(ast.literal_eval(response["shape"]))
+                except:
+                    logger.exception("error in decoding data: %r %r %r", data, response, task.task_queue)
+                finally:
+                    response["result"] = numpy_array
+            import sys
+            if sys.getsizeof(msg) > 1024 * 4:
+                logger.debug("socket read message: <large amount of data>",)
+            else:
+                logger.debug("socket read message: %s", msg)
+                logger.debug("json response: %r", response)
+            # for the moment, job == task, in the future a job can be multiple tasks
+        except Exception as e:
+            if task:
+                task.reject(e)
+            logger.exception("unexpected decoding error")
+            return
         if job_id:
             try:
-                phase = response["job_phase"]
                 logger.debug("job update %r, phase=%r", job_id, phase)
                 if phase == "COMPLETED":
                     result = response["result"]  # [0]
                     # logger.debug("completed job %r, result=%r", job_id, result)
-                    task = self.jobs[job_id]
                     logger.debug("completed job %r (delay=%r, thread_mover=%r)", job_id, task.delay, self.thread_mover)
                     processed_result = task.post_process(result)
                     if task.delay:
@@ -235,7 +246,7 @@ class ServerRest(object):
                     else:
                         task.signal_progress.emit(fraction)
             except Exception as e:
-                logger.exception("error in handling job", e)
+                logger.exception("error in handling job")
                 task = self.jobs[job_id]
                 if task.delay:
                     self.thread_mover(task.reject, e)
