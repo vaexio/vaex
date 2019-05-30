@@ -39,7 +39,7 @@ def test_sklearn_estimator():
     model.fit(train, train.petal_width)
     prediction = model.predict(test)
     test = model.transform(test)
-    assert np.all(test.pred.values == prediction)
+    np.testing.assert_array_almost_equal(test.pred.values, prediction, decimal=5)
 
     # Transfer the state of train to ds
     train = model.transform(train)
@@ -103,7 +103,7 @@ def test_sklearn_estimator_regression_validation():
         model.fit(Xtrain, ytrain)
         skl_pred = model.predict(Xtest)
 
-        assert np.all(skl_pred == test.pred.values)
+        np.testing.assert_array_almost_equal(test.pred.values, skl_pred, decimal=5)
 
 
 def test_sklearn_estimator_pipeline():
