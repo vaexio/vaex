@@ -3269,7 +3269,7 @@ class DataFrame(object):
         """
         type = "change" if name in self.virtual_columns else "add"
         expression = _ensure_string_from_expression(expression)
-        if name in self.get_column_names(virtual=False):
+        if name in self.get_column_names():
             renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names())
             expression = self._rename(name, renamed, expression)[0].expression
 
