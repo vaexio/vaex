@@ -312,7 +312,7 @@ class Expression(with_metaclass(Meta)):
         str_type = str
         dtype = self.dtype
         dtype = (str(dtype) if dtype != str_type else 'str')
-        if self.expression in self.ds.columns:
+        if self.expression in self.ds.get_column_names(hidden=True):
             state = "column"
         elif self.expression in self.ds.get_column_names(hidden=True):
             state = "virtual column"
