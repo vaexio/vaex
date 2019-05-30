@@ -588,6 +588,12 @@ class DatasetRest(DatasetRemote):
         # TODO: we ignore out
         return result
 
+    def execute(self):
+        '''Execute all delayed jobs.'''
+        self.executor.execute()
+        # TODO: should be support _task_agg? If we do, we can use the base class' method
+        # self._task_aggs.clear()
+
 
 # we may get rid of this when we group together tasks
 class ServerExecutor(object):
