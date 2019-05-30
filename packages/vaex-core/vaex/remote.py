@@ -120,7 +120,7 @@ class ServerRest(object):
         self.io_loop.make_current()
         # if async:
         self.http_client_async = AsyncHTTPClient()
-        self.http_client = HTTPClient()
+        # self.http_client = HTTPClient()
         self.user_id = vaex.settings.webclient.get("cookie.user_id")
         self.use_websocket = websocket
         self.websocket = None
@@ -135,7 +135,7 @@ class ServerRest(object):
 
     def close(self):
         # self.http_client_async.
-        self.http_client.close()
+        # self.http_client.close()
         if self.use_websocket:
             if self.websocket:
                 self.websocket.close()
