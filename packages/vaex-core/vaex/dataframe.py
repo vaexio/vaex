@@ -3761,6 +3761,8 @@ class DataFrame(object):
         :rtype: DataFrame
         '''
         df = self if inplace else self.copy()
+        if self._index_start == 0 and self._index_end == self._length_original:
+            return df
         for name in df:
             column = df.columns.get(name)
             if column is not None:
