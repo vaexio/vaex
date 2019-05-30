@@ -60,9 +60,12 @@ def wrap_future_with_promise(future):
 
 
 def listify(value):
-    if isinstance(value, list):
+    # TODO: listify is a bad name, can we use a common serialization function?
+    if isinstance(value, vaex.expression.Expression):
+        return str(value)
+    elif isinstance(value, list):
         value = list([listify(item) for item in value])
-    if hasattr(value, "tolist"):
+    elif hasattr(value, "tolist"):
         value = value.tolist()
     return value
 
