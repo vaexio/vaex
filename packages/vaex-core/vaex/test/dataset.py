@@ -1258,43 +1258,6 @@ class TestDataset(unittest.TestCase):
 		c = df['x'].count()
 		np.testing.assert_array_almost_equal(a, [b, c])
 
-	def test_sum(self):
-		self.dataset.select("x < 5")
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(self.x))
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(self.x[:5]))
-
-		self.dataset.select("x > 5")
-		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=None), np.nansum(self.m))
-		np.testing.assert_array_almost_equal(self.dataset.sum("m", selection=True), np.nansum(self.m[6:9]))
-		np.testing.assert_array_almost_equal(self.dataset.m.sum(selection=True), np.nansum(self.m[6:9]))
-
-		self.dataset.select("x < 5")
-		# convert to float
-		x = self.dataset_local.columns["x"][self.zero_index:+self.zero_index+10]# = self.dataset_local.columns["x"] * 1.
-		y = self.y
-		self.dataset_local.columns["x"][self.zero_index] = np.nan
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None), np.nansum(x))
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(x[:5]))
-
-		task = self.dataset.sum("x", selection=True, delay=True)
-		self.dataset.executor.execute()
-		np.testing.assert_array_almost_equal(task.get(), np.nansum(x[:5]))
-
-
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["x"], limits=[0, 10], shape=1), [np.nansum(x)])
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["x"], limits=[0, 10], shape=1), [np.nansum(x[:5])])
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [np.nansum(x)])
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [np.nansum(x[:5])])
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["x"], limits=[0, 10], shape=2), [np.nansum(x[:5]), np.nansum(x[5:])])
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(x[:5]), 0])
-
-		i = 7
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=None, binby=["y"], limits=[0, 9**2+1], shape=2), [np.nansum(x[:i]), np.nansum(x[i:])])
-		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True, binby=["y"], limits=[0, 9**2+1], shape=2), [np.nansum(x[:5]), 0])
-
-		i = 5
-		np.testing.assert_array_almost_equal(self.dataset.sum("y", selection=None, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:i]), np.nansum(y[i:])])
-		np.testing.assert_array_almost_equal(self.dataset.sum("y", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:5]), 0])
 
 	def test_cov(self):
 		# convert to float

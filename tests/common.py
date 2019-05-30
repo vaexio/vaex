@@ -38,7 +38,8 @@ def server(webserver):
 
 @pytest.fixture()
 def ds_remote(webserver, server, ds_trimmed):
-    ds = ds_trimmed
+    ds = ds_trimmed.copy()
+    ds.drop('obj', inplace=True)
     ds.name = 'ds_trimmed'
     webserver.set_datasets([ds])
     return server.datasets(as_dict=True)['ds_trimmed']
@@ -64,10 +65,18 @@ def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote):
     named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, ds_remote=ds_remote)
     return named[request.param]
 
+@pytest.fixture
+def df(ds):
+    return ds
+
 @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed'])
 def ds_local(request, ds_filtered, ds_half, ds_trimmed):
     named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed)
     return named[request.param]
+
+@pytest.fixture
+def df_local(ds_local):
+    return ds_local
 
 
 @pytest.fixture(params=[ds_half, ds_trimmed], ids=['ds_half', 'ds_trimmed'])

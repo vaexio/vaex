@@ -2,20 +2,20 @@ from common import *
 import pandas as pd
 import datetime
 
-def test_repr_default(ds_local):
-    ds = ds_local
-    code = ds._repr_mimebundle_()['text/plain']
+def test_repr_default(df):
+    code = df._repr_mimebundle_()['text/plain']
     assert 'x' in code
 
 
-def test_repr_html(ds_local):
-    ds = ds_local
+def test_repr_html(df):
+    ds = df
     code = ds._repr_html_()
     assert 'x' in code
 
-
-def test_mask(ds_local):
-    ds = ds_local
+# TODO: it seems masked arrays + evaluate doesn't work well
+# might have to do something with serializing it
+def test_mask(df_local):
+    ds = df_local
     code = ds._repr_html_()
     assert "'--'" not in code
     assert "--" in code
@@ -25,8 +25,8 @@ def test_mask(ds_local):
     assert "--" in code
 
 
-def test_repr_expression(ds_local):
-    df = ds_local
+def test_repr_expression(df):
+    df = df
     assert 'Error' not in repr(df.x)
 
 

@@ -4,6 +4,48 @@ from common import *
 
 # def test_count_multiple_selections():
 
+def test_sum(df, ds_trimmed):
+    df.select("x < 5")
+    np.testing.assert_array_almost_equal(df.sum("x", selection=None), np.nansum(ds_trimmed.data.x))
+    np.testing.assert_array_almost_equal(df.sum("x", selection=True), np.nansum(ds_trimmed.data.x[:5]))
+    np.testing.assert_array_almost_equal(df.sum(df.x, selection=None), np.nansum(ds_trimmed.data.x))
+    np.testing.assert_array_almost_equal(df.sum(df.x, selection=True), np.nansum(ds_trimmed.data.x[:5]))
+
+    df.select("x > 5")
+    np.testing.assert_array_almost_equal(df.sum("m", selection=None), np.nansum(ds_trimmed.data.m))
+    np.testing.assert_array_almost_equal(df.sum("m", selection=True), np.nansum(ds_trimmed.data.m[6:]))
+    np.testing.assert_array_almost_equal(df.m.sum(selection=True), np.nansum(ds_trimmed.data.m[6:]))
+
+    df.select("x < 5")
+    # convert to float
+    x = ds_trimmed.columns["x"]
+    y = ds_trimmed.data.y
+    x_with_nan = x * 1
+    x_with_nan[0] = np.nan
+    ds_trimmed.columns["x"] = x_with_nan
+    np.testing.assert_array_almost_equal(df.sum("x", selection=None), np.nansum(x))
+    np.testing.assert_array_almost_equal(df.sum("x", selection=True), np.nansum(x[:5]))
+
+    task = df.sum("x", selection=True, delay=True)
+    df.execute()
+    np.testing.assert_array_almost_equal(task.get(), np.nansum(x[:5]))
+
+
+    np.testing.assert_array_almost_equal(df.sum("x", selection=None, binby=["x"], limits=[0, 10], shape=1), [np.nansum(x)])
+    np.testing.assert_array_almost_equal(df.sum("x", selection=True, binby=["x"], limits=[0, 10], shape=1), [np.nansum(x[:5])])
+    np.testing.assert_array_almost_equal(df.sum("x", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [np.nansum(x)])
+    np.testing.assert_array_almost_equal(df.sum("x", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [np.nansum(x[:5])])
+    np.testing.assert_array_almost_equal(df.sum("x", selection=None, binby=["x"], limits=[0, 10], shape=2), [np.nansum(x[:5]), np.nansum(x[5:])])
+    np.testing.assert_array_almost_equal(df.sum("x", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(x[:5]), 0])
+
+    i = 7
+    np.testing.assert_array_almost_equal(df.sum("x", selection=None, binby=["y"], limits=[0, 9**2+1], shape=2), [np.nansum(x[:i]), np.nansum(x[i:])])
+    np.testing.assert_array_almost_equal(df.sum("x", selection=True, binby=["y"], limits=[0, 9**2+1], shape=2), [np.nansum(x[:5]), 0])
+
+    i = 5
+    np.testing.assert_array_almost_equal(df.sum("y", selection=None, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:i]), np.nansum(y[i:])])
+    np.testing.assert_array_almost_equal(df.sum("y", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:5]), 0])
+
 
 def test_count_1d():
     x = np.array([-1, -2, 0.5, 1.5, 4.5, 5], dtype='f8')
