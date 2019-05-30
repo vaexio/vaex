@@ -39,3 +39,14 @@ def test_fillna(ds_local):
     df_copy.state_set(state)
     np.testing.assert_array_equal(df_copy['nm'].values, df_filled['nm'].values)
     np.testing.assert_array_equal(df_copy['mi'].values, df_filled['mi'].values)
+
+
+def test_fillna_virtual():
+    # this might be a duplicate or rename_test.py/test_reassign_virtual
+    x = [1, 2, 3, 5, np.nan, -1, -7, 10]
+    df = vaex.from_arrays(x=x)
+    # create a virtual column that will have nans due to the calculations
+    df['r'] = np.log(df.x)
+    df['r'] = df.r.fillna(value=0xdeadbeef)
+    assert df.r.tolist()[:4] == [0.0, 0.6931471805599453, 1.0986122886681098, 1.6094379124341003]
+    assert df.r.tolist()[4:7] == [0xdeadbeef, 0xdeadbeef, 0xdeadbeef]

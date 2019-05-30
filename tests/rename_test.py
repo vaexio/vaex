@@ -13,6 +13,15 @@ def test_rename(ds_filtered):
     assert ds.r.values.tolist() == xvalues
     assert ds.q.values.tolist() == qvalues
 
+
+def test_reassign_virtual(ds):
+    df = ds
+    x = df.x.values
+    df['r'] = df.x+1
+    df['r'] = df.x+1
+    assert df.r.tolist() == (x+2).tolist()
+
+
 def test_rename_state_transfer():
     ds = vaex.from_scalars(x=3, y=4)
     ds['r'] = (ds.x**2 + ds.y**2)**0.5
