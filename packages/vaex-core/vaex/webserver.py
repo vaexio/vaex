@@ -453,6 +453,10 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
                                 return ({"result": result})
                             elif method_name in ["evaluate"]:
                                 result = task_invoke(dataset, method_name, **arguments)
+                                # evaluating a string results in dtype = object, but that is difficult
+                                # to (de)serialize, better would be to serialize the arrow arrays
+                                if dataset.dtype(arguments['expression']) == vaex.column.str_type:
+                                    result = result.astype(vaex.column.str_type)
                                 return result
                             else:
                                 logger.error("unknown method: %r", method_name)
