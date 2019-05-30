@@ -1,3 +1,4 @@
+import sys
 import pytest
 import numpy as np
 import vaex.ml.linear_model
@@ -6,6 +7,7 @@ import vaex.ml.datasets
 features = ['petal_length', 'petal_width', 'sepal_length', 'sepal_width']
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 def test_linear_model():
     ds = vaex.ml.datasets.load_iris()
     m1 = vaex.ml.linear_model.LinearRegression(features=['petal_width'], binned=False)
@@ -18,6 +20,7 @@ def test_linear_model():
     np.testing.assert_approx_equal(np.array(m1.coef_), np.array(m2.coef_), significant=2)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 @pytest.mark.skip(reason="This will fail: produces wrong answer")
 def test_logit():
     ds = vaex.ml.datasets.load_iris()

@@ -1,3 +1,4 @@
+import sys
 import pytest
 pytest.importorskip("lightgbm")
 
@@ -35,6 +36,7 @@ params_reg = {
     'n_jobs': -1}               # cpu cores used
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 def test_light_gbm_virtual_columns():
     ds = vaex.ml.datasets.load_iris()
     ds['x'] = ds.sepal_length * 1
@@ -49,6 +51,7 @@ def test_light_gbm_virtual_columns():
     booster.fit(ds_train, ds.class_, copy=False)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 def test_lightgbm():
     ds = vaex.ml.datasets.load_iris()
     ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
@@ -68,6 +71,7 @@ def test_lightgbm():
     assert np.all(ds.col.class_ == ds.evaluate(ds.lightgbm_prediction))
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 def test_lightgbm_serialize(tmpdir):
     ds = vaex.ml.datasets.load_iris()
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
@@ -85,6 +89,7 @@ def test_lightgbm_serialize(tmpdir):
     pl.load(str(tmpdir.join('test.json')))
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 def test_lightgbm_numerical_validation():
     ds = vaex.ml.datasets.load_iris()
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
@@ -103,6 +108,7 @@ def test_lightgbm_numerical_validation():
     np.testing.assert_equal(vaex_pred, lgb_pred, verbose=True, err_msg='The predictions of vaex.ml do not match those of lightgbm')
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 def test_lightgbm_validation_set():
     # read data
     ds = vaex.example()
@@ -128,6 +134,7 @@ def test_lightgbm_validation_set():
     assert len(history['test']['l2']) == 10
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 def test_lightgbm_pipeline():
     # read data
     ds = vaex.example()
