@@ -527,7 +527,7 @@ class DatasetRest(DatasetRemote):
         state = self.state_get()
         if not virtual:
             state['virtual_columns'] = {}
-        ds.state_set(state)
+        ds.state_set(state, use_active_range=True)
         return ds
 
     def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):

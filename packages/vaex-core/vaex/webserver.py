@@ -385,7 +385,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
                         if dataset.mask is not None:
                             logger.debug("selection: %r", dataset.mask.sum())
                         if 'state' in arguments:
-                            dataset.state_set(arguments['state'])
+                            dataset.state_set(arguments['state'], use_active_range=True)
                         if expressions:
                             for expression in expressions:
                                 try:
