@@ -568,6 +568,16 @@ class WebServer(threading.Thread):
         self.started.set()
         # self.ioloop.add_callback(self.started.set)
         # if not self.ioloop.is_running():
+        asyncio = None
+        try:
+            import asyncio
+        except:
+            pass
+        if asyncio and tornado.version_info[0] >= 5:
+            from tornado.platform.asyncio import AnyThreadEventLoopPolicy
+            # see https://github.com/tornadoweb/tornado/issues/2308
+            asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
+
         try:
             self.ioloop.start()
         except RuntimeError:
