@@ -136,12 +136,12 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
         if path in aliases:
             path = aliases[path]
         if path.startswith("http://") or path.startswith("ws://"):  # TODO: think about https and wss
-            server, DataFrame = path.rsplit("/", 1)
+            server, name = path.rsplit("/", 1)
             server = vaex.server(server, **kwargs)
-            DataFrames = server.DataFrames(as_dict=True)
-            if DataFrame not in DataFrames:
-                raise KeyError("no such DataFrame '%s' at server, possible DataFrame names: %s" % (DataFrame, " ".join(DataFrames.keys())))
-            return DataFrames[DataFrame]
+            dataframe_map = server.datasets(as_dict=True)
+            if name not in dataframe_map:
+                raise KeyError("no such DataFrame '%s' at server, possible names: %s" % (name, " ".join(dataframe_map.keys())))
+            return dataframe_map[name]
         if path.startswith("cluster"):
             import vaex.distributed
             return vaex.distributed.open(path, *args, **kwargs)
