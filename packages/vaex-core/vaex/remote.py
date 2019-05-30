@@ -530,6 +530,11 @@ class DatasetRest(DatasetRemote):
         ds.state_set(state, use_active_range=True)
         return ds
 
+    def trim(self, inplace=False):
+        df = self if inplace else self.copy()
+        # can we get away with not trimming?
+        return df
+
     def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
         return self._delay(delay, self.server._call_dataset("count", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges))
 
