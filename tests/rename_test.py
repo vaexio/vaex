@@ -14,11 +14,11 @@ def test_rename(ds_filtered):
     assert ds.q.values.tolist() == qvalues
 
 
-def test_reassign_virtual(ds):
-    df = ds
+def test_reassign_virtual(ds_local):
+    df = ds_local
     x = df.x.values
     df['r'] = df.x+1
-    df['r'] = df.x+1
+    df['r'] = df.r+1
     assert df.r.tolist() == (x+2).tolist()
 
 
