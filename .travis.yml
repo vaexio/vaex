@@ -26,8 +26,8 @@ before_install:
   - if [[ $TRAVIS_OS_NAME == linux ]]; then wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh; fi
   - if [[ $TRAVIS_OS_NAME == osx ]]; then wget https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O miniconda.sh; fi
   # we do not install lightgbm on linux/travis, since importing those fail, if we run those tests only on osx, that should be fine
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then export OPTIONAL_PACKAGES=""; fi
-  - if [[ $TRAVIS_OS_NAME == osx ]]; then export OPTIONAL_PACKAGES="lightgbm py-xgboost"; fi
+  - export OPTIONAL_PACKAGES="";
+  - if [[ $TRAVIS_OS_NAME == osx ]] && [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="lightgbm py-xgboost"; fi
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r
