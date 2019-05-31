@@ -26,8 +26,10 @@ before_install:
   - if [[ $TRAVIS_OS_NAME == linux ]]; then wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh; fi
   - if [[ $TRAVIS_OS_NAME == osx ]]; then wget https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O miniconda.sh; fi
   # we do not install lightgbm on linux/travis, since importing those fail, if we run those tests only on osx, that should be fine
+  # we also don't support sklearn in python 2.7
   - export OPTIONAL_PACKAGES="";
-  - if [[ $TRAVIS_OS_NAME == osx ]] && [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="lightgbm py-xgboost"; fi
+  - if [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="scikit-learn "; fi
+  - if [[ $TRAVIS_OS_NAME == osx ]] && [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="$OPTIONAL_PACKAGES lightgbm py-xgboost "; fi
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r
@@ -35,7 +37,7 @@ before_install:
   - conda update -q conda
   - conda info -a
   # future: kapteyn should only be needed for astro package testing
-  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost scikit-learn $OPTIONAL_PACKAGES
+  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost $OPTIONAL_PACKAGES
   - which pip
   - source activate test-environment
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then

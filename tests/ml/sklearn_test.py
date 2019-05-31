@@ -1,4 +1,5 @@
 import vaex
+pytest.importorskip("sklearn")
 from vaex.ml.sklearn import SKLearnPredictor
 
 import numpy as np
