@@ -1,4 +1,5 @@
 import numpy as np
+pytest.importorskip("xgboost")
 import xgboost as xgb
 import vaex.ml.xgboost
 import vaex.ml.datasets
