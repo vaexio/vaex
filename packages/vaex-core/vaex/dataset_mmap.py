@@ -1,21 +1,12 @@
 __author__ = 'maartenbreddels'
 import os
 import mmap
-import math
-import itertools
-import functools
 import collections
 import logging
 import numpy as np
 import numpy.ma
 import vaex
-import astropy.table
-import astropy.units
-from vaex.utils import ensure_string
-import astropy.io.fits as fits
-import re
-import six
-from vaex.dataset import DatasetLocal, DatasetArrays
+from vaex.dataset import DatasetLocal
 import vaex.dataset
 import vaex.file
 from vaex.expression import Expression
@@ -25,14 +16,6 @@ import struct
 logger = logging.getLogger("vaex.file")
 
 dataset_type_map = {}
-
-# h5py doesn't want to build at readthedocs
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-try:
-    import h5py
-except:
-    if not on_rtd:
-        raise
 
 osname = vaex.utils.osname
 no_mmap = os.environ.get('VAEX_NO_MMAP', False)
