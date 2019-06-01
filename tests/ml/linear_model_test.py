@@ -1,5 +1,6 @@
 import sys
 import pytest
+pytest.importorskip("sklearn")
 import numpy as np
 import vaex.ml.linear_model
 import vaex.ml.datasets

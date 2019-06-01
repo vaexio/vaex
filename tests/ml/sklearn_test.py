@@ -1,3 +1,4 @@
+import pytest
 import vaex
 pytest.importorskip("sklearn")
 from vaex.ml.sklearn import SKLearnPredictor

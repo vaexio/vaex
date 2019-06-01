@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 pytest.importorskip("xgboost")
 import xgboost as xgb
