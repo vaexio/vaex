@@ -419,6 +419,34 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
     return ds
 
 
+def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, copy_index=True, **kwargs):
+    """ A method to read a JSON file using pandas, and convert to a DataFrame directly.
+
+    :param str path_or_buffer: a valid JSON string or file-like, default: None
+    The string could be a URL. Valid URL schemes include http, ftp, s3,
+    gcs, and file. For file URLs, a host is expected. For instance, a local
+    file could be ``file://localhost/path/to/table.json``
+    :param str orient: Indication of expected JSON string format. Allowed values are
+    ``split``, ``records``, ``index``, ``columns``, and ``values``.
+    :param bool precise_float: Set to enable usage of higher precision (strtod) function when
+    decoding string to double values. Default (False) is to use fast but less precise builtin functionality
+    :param bool lines: Read the file as a json object per line.
+
+    :rtype: DataFrame
+    """
+    # Check for unsupported kwargs
+    if kwargs.get('typ') == 'series':
+        raise ValueError('`typ` must be set to `"frame"`.')
+    if kwargs.get('numpy') == True:
+        raise ValueError('`numpy` must be set to `False`.')
+    if kwargs.get('chunksize') is not None:
+        raise ValueError('`chunksize` must be `None`.')
+
+    import pandas as pd
+    return from_pandas(pd.read_json(path_or_buffer, orient=orient, precise_float=precise_float, lines=lines, **kwargs),
+                       copy_index=copy_index)
+
+
 def from_csv(filename_or_buffer, copy_index=True, **kwargs):
     """Shortcut to read a csv file using pandas and convert to a DataFrame directly.
 
