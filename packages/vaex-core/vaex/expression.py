@@ -641,7 +641,7 @@ def f({0}):
                 if only_has_nan:
                     pass  # we're good, the hash mapper deals with nan
                 else:
-                    raise ValueError('Missing values in mapper: %s' % missing)
+                    raise ValueError('Missing %i values in mapper: %s' % (len(missing), missing))
 
         # and these are the corresponding choices
         # note that here we map 'planned' unknown values to the default values
