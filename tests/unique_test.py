@@ -37,3 +37,10 @@ def test_unique_nan():
         mask = np.isnan(values)
         assert values[~mask].tolist() == df.x.values[~mask].tolist()
         # assert indices.tolist() == [0, 1, 2, 0, 3, 0]
+
+def test_nunique():
+    x = np.array([5, 2, 1, 4, 2, 6 , np.nan, np.nan, 10, -2, 0, 0, -13.5])
+    df = vaex.from_arrays(x=x)
+
+    assert df.x.nunique() == 9
+    assert df.x.nunique(dropna=False) == 10

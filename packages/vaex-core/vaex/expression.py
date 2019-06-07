@@ -462,6 +462,13 @@ class Expression(with_metaclass(Meta)):
     def unique(self):
         return self.ds.unique(self.expression)
 
+    def nunique(self, dropna=True):
+        """Return the number of unique elements in the expression."""
+        n = len(self.unique())
+        if dropna:
+            return n - 1
+        return n
+
     def evaluate(self, i1=None, i2=None, out=None, selection=None):
         return self.ds.evaluate(self, i1, i2, out=out, selection=selection)
 
