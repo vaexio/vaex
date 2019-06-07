@@ -482,6 +482,13 @@ class Expression(with_metaclass(Meta)):
         """
         return (self == self)
 
+    def countna(self):
+        """Returns the number of NaN values in the expression. Note that valus
+        such as None, and empty strings do not get counted, i.e. they are not
+        treated as NaN values.
+        """
+        return (self != self).astype('int').sum() + 0  # so the output is int, not array
+
     def evaluate(self, i1=None, i2=None, out=None, selection=None):
         return self.ds.evaluate(self, i1, i2, out=out, selection=selection)
 
