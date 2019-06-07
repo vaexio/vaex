@@ -468,6 +468,20 @@ class Expression(with_metaclass(Meta)):
     def unique(self):
         return self.ds.unique(self.expression)
 
+    def isna(self):
+        """Returns a boolean expression indicating if the values are NaN.
+        Note that values such as None, and an empty string get mapped to False,
+        i.e. they are not treated as NaN values.
+        """
+        return ~(self == self)
+
+    def notna(self):
+        """Returns a boolean expression indicating if the values are not NaN.
+        Note that values such as None, and an empty string get mapped to True,
+        i.e. they are not treated as NaN values.
+        """
+        return (self == self)
+
     def evaluate(self, i1=None, i2=None, out=None, selection=None):
         return self.ds.evaluate(self, i1, i2, out=out, selection=selection)
 
