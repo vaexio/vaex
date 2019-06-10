@@ -51,6 +51,10 @@ class ColumnFile(vaex.column.Column):
         self.shape = (length,)
         self.write = write
 
+    @property
+    def nbytes(self):
+        return self.length * self.dtype.itemsize
+
     def __del__(self):
         for f in self.file_handles:
             f.close()
