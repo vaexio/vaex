@@ -492,7 +492,7 @@ GB = MB * 1024
 class WebServer(threading.Thread):
     def __init__(self, address="localhost", port=9000, webserver_thread_count=2, cache_byte_size=500 * MB,
                  token=None, token_trusted=None,
-                 cache_selection_byte_size=500 * MB, datasets=[], compress=True, development=False, threads_per_job=4):
+                 cache_selection_byte_size=4*GB, datasets=[], compress=True, development=False, threads_per_job=4):
         threading.Thread.__init__(self)
         self.setDaemon(True)
         self.address = address
@@ -527,6 +527,7 @@ class WebServer(threading.Thread):
         ], compress_response=compress, debug=development)
         logger.debug("compression set to %r", compress)
         logger.debug("cache size set to %s", vaex.utils.filesize_format(cache_byte_size))
+        logger.debug("cache size (for selection) set to %s", vaex.utils.filesize_format(cache_selection_byte_size))
         logger.debug("thread count set to %r", self.webserver_thread_count)
 
     def set_datasets(self, datasets):
@@ -639,7 +640,8 @@ def main(argv):
     parser.add_argument("--address", help="address to bind the server to (default: %(default)s)", default="0.0.0.0")
     parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=9000)
     parser.add_argument('--verbose', '-v', action='count', default=2)
-    parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=500000000)
+    parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=500*MB)
+    parser.add_argument('--cache-selection', help="cache size in bytes for selections, set to zero to disable (default: %(default)s)", type=int, default=4*GB)
     parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=True, action='store_true')
     parser.add_argument('--no-compress', dest="compress", action='store_false')
     parser.add_argument('--development', default=False, action='store_true', help="enable development features (auto reloading)")
@@ -672,6 +674,7 @@ def main(argv):
         logger.info("\thttp://%s:%d/%s or ws://%s:%d/%s", config.address, config.port, dataset.name, config.address, config.port, dataset.name)
     server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache,
                        token=config.token, token_trusted=config.token_trusted,
+                       cache_selection_byte_size=config.cache_selection,
                        compress=config.compress, development=config.development,
                        threads_per_job=config.threads_per_job)
     server.serve()
