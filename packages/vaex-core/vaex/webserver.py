@@ -254,7 +254,7 @@ class ProgressWebSocket(tornado.websocket.WebSocketHandler):
                 last_progress[0] = f
                 self.write_json(job_id=job_id, job_phase="PENDING", progress=f)
             if last_progress[0] is None or (f - last_progress[0]) > 0.05 or f == 1.0:
-                tornado.ioloop.IOLoop.current().add_callback(do)
+                self.webserver.ioloop.add_callback(do)
             return True
         key = (path, "-".join([str(v) for v in sorted(arguments.items())]))
         response = self.cache.get(key)
