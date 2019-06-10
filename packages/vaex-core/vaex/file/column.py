@@ -1,5 +1,4 @@
 import ctypes
-from cachetools import LRUCache
 fcntl = None
 try:
     import fcntl
@@ -25,7 +24,9 @@ USE_CACHE = ast.literal_eval(os.environ.get('VAEX_USE_COLUMN_FILE_CACHE', 'False
 GB = 1024**3
 # in GB
 CACHE_SIZE =  ast.literal_eval(os.environ.get('VAEX_COLUMN_FILE_CACHE_SIZE', '10'))
-cache = LRUCache(maxsize=CACHE_SIZE*GB, getsizeof=getsizeof)
+if USE_CACHE:
+    from cachetools import LRUCache
+    cache = LRUCache(maxsize=CACHE_SIZE*GB, getsizeof=getsizeof)
 cache_lock = threading.RLock()
 F_NOCACHE = 48
 
