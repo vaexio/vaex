@@ -38,8 +38,7 @@ def test_head_with_selection():
     df.head()
 
 
-def test_slice_beyond_end(df_local):
-    df = df_local
+def test_slice_beyond_end(df):
     df2 = df[:100]
     assert df2.x.tolist() == df.x.tolist()
     assert len(df[:100]) == len(df)
