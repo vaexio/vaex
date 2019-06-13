@@ -224,6 +224,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 
     def _map_hdf5_array(self, data, mask=None):
         offset = data.id.get_offset()
+        if len(data) == 0 and offset is None:
+            offset = 0 # we don't care about the offset for empty arrays
         if offset is None:  # non contiguous array, chunked arrays etc
             # we don't support masked in this case
             raise "try"
@@ -239,7 +241,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                     if dtype == 'utf32':
                         dtype = np.dtype('U' + str(data.attrs['dlength']))
             #self.addColumn(column_name, offset, len(data), dtype=dtype)
-            array = self._map_array(data.id.get_offset(), dtype=dtype, length=len(data))
+            array = self._map_array(offset, dtype=dtype, length=len(data))
             if mask is not None:
                 mask_array = self._map_hdf5_array(mask)
                 return np.ma.array(array, mask=mask_array, shrink=False)
