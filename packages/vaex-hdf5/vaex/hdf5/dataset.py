@@ -228,7 +228,6 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             offset = 0 # we don't care about the offset for empty arrays
         if offset is None:  # non contiguous array, chunked arrays etc
             # we don't support masked in this case
-            raise "try"
             column = ColumnNumpyLike(data)
             return column
         else:
