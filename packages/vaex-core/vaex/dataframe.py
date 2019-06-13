@@ -4423,6 +4423,7 @@ class DataFrame(object):
             start, stop, step = item.start, item.stop, item.step
             start = start or 0
             stop = stop or len(self)
+            stop = min(stop, len(self))
             assert step in [None, 1]
             if self.filtered and start == 0:
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
