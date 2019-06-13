@@ -6,7 +6,6 @@ import bqplot as bq
 import bqplot.interacts
 import ipywidgets as widgets
 import vaex
-from . import bqplot_image
 import bqplot.pyplot as plt
 import numpy as np
 import vaex.events
@@ -18,8 +17,6 @@ logger = logging.getLogger("vaex.nb.bqplot")
 
 class BqplotBackend(BackendBase):
     def __init__(self, figure=None, figure_key=None):
-        bqplot_image.patch()
-
         self._dirty = False
         self.figure_key = figure_key
         self.figure = figure
@@ -28,14 +25,15 @@ class BqplotBackend(BackendBase):
         self._cleanups = []
 
     def update_image(self, rgb_image):
-        src = vaex.image.rgba_to_url(rgb_image)
-        self.image.src = src
-        # self.scale_x.min, self.scale_x.max = self.limits[0]
-        # self.scale_y.min, self.scale_y.max = self.limits[1]
-        self.image.x = self.scale_x.min
-        self.image.y = self.scale_y.max
-        self.image.width = self.scale_x.max - self.scale_x.min
-        self.image.height = -(self.scale_y.max - self.scale_y.min)
+        rgb_image = (rgb_image * 255.).astype(np.uint8)
+        pil_image = vaex.image.rgba_2_pil(rgb_image)
+        data = vaex.image.pil_2_data(pil_image)
+        self.core_image.value = data
+        # force update
+        self.image.image = self.core_image_fix
+        self.image.image = self.core_image
+        self.image.x = (self.scale_x.min, self.scale_x.max)
+        self.image.y = (self.scale_y.min, self.scale_y.max)
 
     def create_widget(self, output, plot, dataset, limits):
         self.plot = plot
@@ -63,8 +61,10 @@ class BqplotBackend(BackendBase):
         src = ""  # vaex.image.rgba_to_url(self._create_rgb_grid())
         # self.scale_x.min, self.scale_x.max = self.limits[0]
         # self.scale_y.min, self.scale_y.max = self.limits[1]
-        self.image = bqplot_image.Image(scales=self.scales, src=src, x=self.scale_x.min, y=self.scale_y.max,
-                                           width=self.scale_x.max - self.scale_x.min, height=-(self.scale_y.max - self.scale_y.min))
+        self.core_image = widgets.Image(format='url')
+        self.core_image_fix = widgets.Image(format='url')
+
+        self.image = bqplot.Image(scales=self.scales, image=self.core_image)
         self.figure.marks = self.figure.marks + [self.image]
         # self.figure.animation_duration = 500
         self.figure.layout.width = '100%'
