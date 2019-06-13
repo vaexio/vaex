@@ -4423,6 +4423,8 @@ class DataFrame(object):
             start, stop, step = item.start, item.stop, item.step
             start = start or 0
             stop = stop or len(self)
+            if stop < 0:
+                stop = len(self)+stop
             stop = min(stop, len(self))
             assert step in [None, 1]
             if self.filtered and start == 0:
