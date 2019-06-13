@@ -171,7 +171,8 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 indices_shape = (N+1, )
 
                 array = h5column_output.require_dataset('data', shape=data_shape, dtype='S1')
-                array[0] = array[0]  # make sure the array really exists
+                if byte_length > 0:
+                    array[0] = array[0]  # make sure the array really exists
 
                 index_array = h5column_output.require_dataset('indices', shape=indices_shape, dtype=dtype_indices)
                 index_array[0] = index_array[0]  # make sure the array really exists
