@@ -4428,10 +4428,12 @@ class DataFrame(object):
             stop = min(stop, len(self))
             assert step in [None, 1]
             if self.filtered and start == 0:
+                self.count()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 indices = mask.first(stop-start)
                 df = self.trim().take(indices, unfiltered=True)
             elif self.filtered and stop == len(self):
+                self.count()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 indices = mask.last(stop-start)
                 df = self.trim().take(indices, unfiltered=True)

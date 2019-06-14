@@ -1,5 +1,11 @@
 from common import *
 
+
+def test_slice_expression(df):
+    assert df.x[:2].tolist() == df[:2].x.tolist()
+    assert df.x[2:6].tolist() == df[2:6].x.tolist()
+
+
 def test_slice(ds_local):
     ds = ds_local
     ds_sliced = ds[:]

@@ -148,6 +148,9 @@ class Expression(with_metaclass(Meta)):
             expression = expression.expression
         self.expression = expression
 
+    def __getitem__(self, slice):
+        return self.ds[slice][self.expression]
+
     @property
     def dt(self):
         return DateTime(self)
