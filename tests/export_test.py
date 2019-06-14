@@ -2,6 +2,16 @@ from common import *
 import os
 import tempfile
 
+
+@pytest.mark.parametrize("filename", ["test.hdf5", "test.arrow"])
+def test_export_empty_string(tmpdir, filename):
+	path = str(tmpdir.join('test.hdf5'))
+	s = np.array(["", ""])
+	df = vaex.from_arrays(s=s)
+	df.export(path)
+	vaex.open(path)
+
+
 def test_export(ds_local, tmpdir):
 	ds = ds_local
 	# TODO: we eventually want to support dtype=object, but not for hdf5
