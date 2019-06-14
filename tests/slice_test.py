@@ -36,3 +36,15 @@ def test_head_with_selection():
     df = vaex.example()
     df.select(df.x > 0, name='test')
     df.head()
+
+
+def test_slice_beyond_end(df):
+    df2 = df[:100]
+    assert df2.x.tolist() == df.x.tolist()
+    assert len(df2) == len(df)
+
+
+def test_slice_negative(df):
+    df2 = df[:-1]
+    assert df2.x.tolist() == df.x.values[:-1].tolist()
+    assert len(df2) == len(df)-1
