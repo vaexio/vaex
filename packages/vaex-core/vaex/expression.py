@@ -469,25 +469,22 @@ class Expression(with_metaclass(Meta)):
         return self.ds.unique(self.expression)
 
     def isna(self):
-        """Returns a boolean expression indicating if the values are NaN.
-        Note that values such as None, and an empty string get mapped to False,
-        i.e. they are not treated as NaN values.
+        """Returns a boolean expression indicating if the values are Not Availiable
+        (N/A), i.e. if they are None or numpy.nan.
         """
-        return ~(self == self)
+        return ~(self == self) | (self==None)
 
     def notna(self):
-        """Returns a boolean expression indicating if the values are not NaN.
-        Note that values such as None, and an empty string get mapped to True,
-        i.e. they are not treated as NaN values.
+        """Returns a boolean expression indicating if the values are not Not Availiable
+        (N/A), i.e. if they are not None and numpy.nan.
         """
-        return (self == self)
+        return (self == self) & ~(self==None)
 
     def countna(self):
-        """Returns the number of NaN values in the expression. Note that valus
-        such as None, and empty strings do not get counted, i.e. they are not
-        treated as NaN values.
+        """Returns the number of Not Availiable (N/A) values in the expression.
+        This includes both None and np.nan values.
         """
-        return (self != self).astype('int').sum() + 0  # so the output is int, not array
+        return self.isna().astype('int').sum() + 0  # so the output is int, not array
 
     def evaluate(self, i1=None, i2=None, out=None, selection=None):
         return self.ds.evaluate(self, i1, i2, out=out, selection=selection)
