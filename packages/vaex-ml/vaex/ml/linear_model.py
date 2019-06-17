@@ -1,6 +1,5 @@
 import numpy as np
 import traitlets
-pytest.importorskip("sklearn")
 import sklearn.linear_model as lin
 
 import vaex
