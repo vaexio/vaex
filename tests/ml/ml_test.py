@@ -3,6 +3,7 @@ import numpy as np
 import vaex
 import vaex.ml
 import vaex.ml.datasets
+pytest.importorskip("sklearn")
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder, MaxAbsScaler, RobustScaler
 
