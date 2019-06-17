@@ -11,7 +11,7 @@ class Pipeline(list):
     def load(self, f):
         states = vaex.utils.read_json_or_yaml(f)
         objects = [from_dict(k) for k in states]
-        self.clear()
+        del self[:]  # TODOPY2: replace by .clear
         self.extend(objects)
 
     def predict(self, dataframe):
