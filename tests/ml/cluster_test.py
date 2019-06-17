@@ -1,4 +1,5 @@
 import pytest
+pytest.importorskip("sklearn")
 import tempfile
 import numpy as np
 import vaex.ml.cluster
