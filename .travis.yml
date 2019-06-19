@@ -28,8 +28,10 @@ before_install:
   # we do not install lightgbm on linux/travis, since importing those fail, if we run those tests only on osx, that should be fine
   # we also don't support sklearn in python 2.7
   - export OPTIONAL_PACKAGES="";
+  - export PYTEST_EXTRA_ARGS="";
   - if [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="scikit-learn "; fi
   - if [[ $TRAVIS_OS_NAME == osx ]] && [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="$OPTIONAL_PACKAGES lightgbm py-xgboost "; fi
+  - if [[ "$PYTHON_VERSION" != "2.7" ]]; then export PYTEST_EXTRA_ARGS="--ignore=tests/ml"; fi
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r
@@ -69,7 +71,7 @@ script:
   - source activate test-environment
   - python -m vaex.test.dataset TestDataset
   # - py.test packages/vaex-core/vaex/test/dataset.py::TestDataset 
-  - py.test tests/
+  - py.test tests/ $PYTEST_EXTRA_ARGS
   # - runipy examples/tutorial_ipython_notebook.ipynb
   # - runipy examples/advanced_plotting.ipynb
   # - source activate dev
