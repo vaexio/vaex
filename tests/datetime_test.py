@@ -75,3 +75,7 @@ def test_timedelta_arithmetics():
     # compare vaex to numerical results
     assert diff_dev_hours.tolist() == df['diff_dev_hours'].values.tolist()
     assert diff_add_days.tolist() == df['diff_add_days'].values.tolist()
+
+    # check the min/max values for the TimeDelta column
+    assert df.diff.min() == df.diff.values.min()
+    assert df.diff.max() == df.diff.values.max()
