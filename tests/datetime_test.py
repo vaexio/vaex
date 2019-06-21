@@ -60,8 +60,11 @@ def test_datetime_stats():
 
 
 def test_timedelta_arithmetics():
-    x = np.array(['2019-01-04T21:23:00', '2019-02-04T05:00:10', '2019-03-04T15:15:15'], dtype=np.datetime64)
-    y = np.array(['2018-06-14T12:11:00', '2019-02-02T22:19:00', '2017-11-18T10:11:19'], dtype=np.datetime64)
+    x = np.array(['2019-01-04T21:23:00', '2019-02-04T05:00:10', '2019-03-04T15:15:15', '2019-06-21T10:31:15'],
+                 dtype=np.datetime64)
+    y = np.array(['2018-06-14T12:11:00', '2019-02-02T22:19:00', '2017-11-18T10:11:19', '2019-07-12T11:00:00'],
+                 dtype=np.datetime64)
+
     df = vaex.from_arrays(x=x, y=y)
     df['diff'] = df.x-df.y
     df['diff_dev_hours'] = df.diff / np.timedelta64(1, 'h')
