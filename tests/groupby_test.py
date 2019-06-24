@@ -147,7 +147,8 @@ def test_groupby_std():
     groupby = df.groupby('s')
     dfg = groupby.agg({'g': 'std'})
     assert dfg.s.tolist() == ['0', '1', '2']
-    assert dfg.g.tolist() == [3.112474899497183, 1.118033988749895, 1.5]
+    pandas_g = df.to_pandas_df().groupby('s').std(ddof=0).g.tolist()
+    np.testing.assert_array_almost_equal(dfg.g.tolist(), pandas_g)
 
 
 def test_groupby_count_string():
@@ -157,9 +158,10 @@ def test_groupby_count_string():
     groupby = df.groupby('s')
     dfg = groupby.agg({'m': vaex.agg.count('s')})
     assert dfg.s.tolist() == ['0', '1', '2']
-    assert dfg.m.tolist() == ['0', '1', '2']
+    assert dfg.m.tolist() == [4, 4, 2]
 
 
+@pytest.mark.skip(reason='not yet supported')
 def test_groupby_mode():
     animals = ['dog', 'dog', 'cat', 'cat', 'dog', 'mouse', 'mouse', 'cat', 'cat', 'dog']
     nums = [1, 2, 2, 1, 2, 2, 3, 3, 3, 1]
@@ -177,6 +179,7 @@ def test_groupby_mode():
     assert grouped_vehicles[2] == 'plane'
 
 
+@pytest.mark.skip(reason='not yet supported')
 def test_grouby_mode_string():
     animals = ['dog', 'dog', 'cat', 'cat', 'dog', 'mouse', 'mouse', 'cat', 'cat', 'dog']
     nums = [1, 2, 2, 1, 2, 2, 3, 3, 3, 1]
