@@ -12,7 +12,7 @@ def register(f, name=None):
     return f
 
 
-class AggregatorDescriptor:
+class AggregatorDescriptor(object):
     def __repr__(self):
         return 'vaex.agg.{}({!r})'.format(self.short_name, str(self.expression))
 
