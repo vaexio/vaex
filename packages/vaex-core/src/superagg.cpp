@@ -311,10 +311,6 @@ class Agg : public Aggregator {
 public:
     using index_type = IndexType;
     using grid_type = GridType;
-    Agg(Grid<IndexType>* grid, grid_type fill_value) : grid(grid) {
-        grid_data = (grid_type*)malloc(sizeof(grid_type) * grid->length1d);
-        std::fill(grid_data, grid_data+grid->length1d, fill_value);
-    }
     Agg(Grid<IndexType>* grid) : grid(grid) {
         grid_data = (grid_type*)malloc(sizeof(grid_type) * grid->length1d);
         std::fill(grid_data, grid_data+grid->length1d, 0);
@@ -542,12 +538,6 @@ public:
     using Base = AggBase<StorageType, StorageType, IndexType>;
     using Type = AggMax<StorageType, IndexType, FlipEndian>;
     using Base::Base;
-    AggMax(Grid<IndexType>* grid) : Base(grid){
-        typedef std::numeric_limits<StorageType> limit_type;
-        // TODO: avoid double fill, since we also call it in the base ctor
-        StorageType fill_value = limit_type::has_infinity ? -limit_type::infinity() : limit_type::min();
-        std::fill(this->grid_data, this->grid_data+this->grid->length1d, fill_value);
-    }
     virtual void reduce(std::vector<Type*> others) {
         for(auto other: others) {
             for(size_t i = 0; i < this->grid->length1d; i++) {
@@ -587,12 +577,6 @@ public:
     using Base = AggBase<StorageType, StorageType, IndexType>;
     using Type = AggMin<StorageType, IndexType, FlipEndian>;
     using Base::Base;
-    AggMin(Grid<IndexType>* grid) : Base(grid){
-        typedef std::numeric_limits<StorageType> limit_type;
-        StorageType fill_value = limit_type::has_infinity ? limit_type::infinity() : limit_type::max();
-        // TODO: avoid double fill, since we also call it in the base ctor
-        std::fill(this->grid_data, this->grid_data+this->grid->length1d, fill_value);
-    }
     virtual void reduce(std::vector<Type*> others) {
         for(auto other: others) {
             for(size_t i = 0; i < this->grid->length1d; i++) {

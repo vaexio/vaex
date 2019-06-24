@@ -80,20 +80,6 @@ def test_count_1d_ordinal():
     assert grid.tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
 
 
-def test_minmax():
-    x = np.arange(1, 10, 1)
-    df = vaex.from_arrays(x=x)
-    assert df.x.min() == 1
-    assert df.x.max() == 9
-
-    assert df[(df.x > 3) & (df.x < 7)]['x'].min() == (4)
-    assert df[(df.x > 3) & (df.x < 7)]['x'].max() == (6)
-
-    df = vaex.from_arrays(x=-x)
-    assert df.x.max() == -1
-    assert df.x.min() == -9
-
-
 def test_big_endian_binning():
     x = np.arange(10, dtype='>f8')
     y = np.zeros(10, dtype='>f8')
