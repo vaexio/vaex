@@ -813,8 +813,9 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}
         """
+        edges = False
+        return self._compute_agg('var', expression, binby, limits, shape, selection, delay, edges, progress)
         expression = _ensure_strings_from_expressions(expression)
-
         @delayed
         def calculate(expression, limits):
             task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_ADD_WEIGHT_MOMENTS_012, selection=selection)
