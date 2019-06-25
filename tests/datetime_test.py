@@ -82,3 +82,18 @@ def test_timedelta_arithmetics():
     # check the min/max values for the TimeDelta column
     assert df.diff.min() == df.diff.values.min()
     assert df.diff.max() == df.diff.values.max()
+
+
+def test_datetime_binary_operations():
+    x = np.array(['2019-01-04T21:23:00', '2019-02-04T05:00:10', '2019-03-04T15:15:15', '2019-06-21T10:31:15'],
+                 dtype=np.datetime64)
+    y = np.array(['2018-06-14T12:11:00', '2019-02-02T22:19:00', '2017-11-18T10:11:19', '2019-07-12T11:00:00'],
+                 dtype=np.datetime64)
+
+    sample_date = np.datetime64('2019-03-15')
+    df = vaex.from_arrays(x=x, y=y)
+
+    # Try simple binary operations
+    assert (df.x > sample_date).tolist() == list(df.x.values > sample_date)
+    assert (df.x <= sample_date).tolist() == list(df.x.values <= sample_date)
+    assert (df.x > df.y).tolist() == list(df.x.values > df.y.values)
