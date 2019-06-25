@@ -3764,7 +3764,7 @@ class DataFrame(object):
         df = self if inplace else self.copy()
         if self._index_start == 0 and self._index_end == self._length_original:
             return df
-        for name in df:
+        for name in df.get_column_names(hidden=True):
             column = df.columns.get(name)
             if column is not None:
                 if self._index_start == 0 and len(column) == self._index_end:
