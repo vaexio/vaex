@@ -25,14 +25,21 @@ before_install:
   - if [ "$TRAVIS_TAG" != "" ]; then echo "bla"; fi
   - if [[ $TRAVIS_OS_NAME == linux ]]; then wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh; fi
   - if [[ $TRAVIS_OS_NAME == osx ]]; then wget https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O miniconda.sh; fi
+  # we do not install lightgbm on linux/travis, since importing those fail, if we run those tests only on osx, that should be fine
+  # we also don't support sklearn in python 2.7
+  - export OPTIONAL_PACKAGES="";
+  - export PYTEST_EXTRA_ARGS="";
+  - if [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="scikit-learn "; fi
+  - if [[ $TRAVIS_OS_NAME == osx ]] && [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="$OPTIONAL_PACKAGES lightgbm py-xgboost "; fi
+  - if [[ "$PYTHON_VERSION" == "2.7" ]]; then export PYTEST_EXTRA_ARGS="--ignore=tests/ml"; fi
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  # future: kapteyn should only be needed for astro package testing  
-  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre
+  # future: kapteyn should only be needed for astro package testing
+  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost $OPTIONAL_PACKAGES
   - which pip
   - source activate test-environment
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
@@ -42,6 +49,7 @@ before_install:
   - source activate test-environment
   - which pip
   - pip install -r requirements.txt
+  # - pip install -r requirements-ml.txt
 install:
   - source activate test-environment
   - (cd packages/vaex-core; pip install -v .)
@@ -53,6 +61,7 @@ install:
   - (cd packages/vaex-distributed; pip install .)
   - (cd packages/vaex-jupyter; pip install .)
   - (cd packages/vaex-ui; pip install .)
+  - (cd packages/vaex-ml; pip install .)
   # - source activate dev
   # - (cd packages/vaex-core; pip install .)
   # - (cd packages/vaex-hdf5; pip install .)
@@ -62,7 +71,7 @@ script:
   - source activate test-environment
   - python -m vaex.test.dataset TestDataset
   # - py.test packages/vaex-core/vaex/test/dataset.py::TestDataset 
-  - py.test tests/
+  - py.test tests/ ${PYTEST_EXTRA_ARGS}
   # - runipy examples/tutorial_ipython_notebook.ipynb
   # - runipy examples/advanced_plotting.ipynb
   # - source activate dev

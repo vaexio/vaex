@@ -21,7 +21,8 @@ install_requires = [
       'vaex-server==0.2',
       'vaex-hdf5==0.4',
       'vaex-astro==0.4',
-      'vaex-arrow==0.3'
+      'vaex-arrow==0.3',
+      'vaex-ml==0.4'
 ]
 
 setup(name=name,
