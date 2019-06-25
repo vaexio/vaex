@@ -4,6 +4,17 @@ from common import *
 def test_slice_expression(df):
     assert df.x[:2].tolist() == df[:2].x.tolist()
     assert df.x[2:6].tolist() == df[2:6].x.tolist()
+    assert df.x[-3:].tolist() == df[-3:].x.tolist()
+    # we don't support non 1 steps
+    # assert df.x[::-3].tolist() == df[::-3].x.tolist()
+
+
+def test_slice_against_numpy(df):
+    assert df.x[:2].tolist() == df.x.values[:2].tolist()
+    assert df.x[2:6].tolist() == df.x.values[2:6].tolist()
+    assert df.x[-3:].tolist() == df.x.values[-3:].tolist()
+    # we don't support non 1 steps
+    # assert df.x[::-3].tolist() == df.x.values[::-3].tolist()
 
 
 def test_slice(ds_local):
