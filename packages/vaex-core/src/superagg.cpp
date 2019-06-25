@@ -670,6 +670,51 @@ public:
 };
 
 template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
+class AggSumMoment : public AggBase<StorageType, StorageType, IndexType> {
+public:
+    using Base = AggBase<StorageType, StorageType, IndexType>;
+    using Type = AggSumMoment<StorageType, IndexType, FlipEndian>;
+    using Base::Base;
+    AggSumMoment(Grid<IndexType>* grid, uint32_t moment) : Base(grid), moment(moment) {
+    }
+    virtual void reduce(std::vector<Type*> others) {
+        for(auto other: others) {
+            for(size_t i = 0; i < this->grid->length1d; i++) {
+                this->grid_data[i] = this->grid_data[i] + other->grid_data[i];
+            }
+        }
+    }
+    virtual void aggregate(default_index_type* indices1d, size_t length, uint64_t offset) {
+        if(this->data_ptr == nullptr) {
+            throw std::runtime_error("data not set");
+        }
+
+        if(this->data_mask_ptr) {
+            for(size_t j = 0; j < length; j++) {
+                // if not masked
+                if(this->data_mask_ptr[j+offset] == 1) {
+                    StorageType value = this->data_ptr[j+offset];
+                    if(FlipEndian)
+                        value = _to_native(value);
+                    if(value != value) // nan
+                        continue;
+                    this->grid_data[indices1d[j]] += pow(value, moment);
+                }
+            }
+        } else {
+            for(size_t j = 0; j < length; j++) {
+                StorageType value = this->data_ptr[offset + j];
+                if(FlipEndian)
+                    value = _to_native(value);
+                if(value == value) // nan check
+                    this->grid_data[indices1d[j]] += pow(value, moment);
+            }
+        }
+    }
+    size_t moment;
+};
+
+template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
 class AggFirst : public AggBase<StorageType, StorageType, IndexType> {
 public:
     using Base = AggBase<StorageType, StorageType, IndexType>;
@@ -775,6 +820,35 @@ void add_agg(Module m, Base& base, const char* class_name) {
     ;
 }
 
+
+template<class Agg, class Base, class Module, class A>
+void add_agg_arg(Module m, Base& base, const char* class_name) {
+    py::class_<Agg>(m, class_name, py::buffer_protocol(), base)
+        .def(py::init<Grid<>*, A>(), py::keep_alive<1, 2>())
+        .def_buffer([](Agg &agg) -> py::buffer_info {
+            std::vector<ssize_t> strides(agg.grid->dimensions);
+            std::vector<ssize_t> shapes(agg.grid->dimensions);
+            std::copy(&agg.grid->shapes[0], &agg.grid->shapes[agg.grid->dimensions], &shapes[0]);
+            std::transform(&agg.grid->strides[0], &agg.grid->strides[agg.grid->dimensions], &strides[0], [](uint64_t x) { return x*sizeof(typename Agg::grid_type); } );
+            return py::buffer_info(
+                agg.grid_data,                               /* Pointer to buffer */
+                sizeof(typename Agg::grid_type),                 /* Size of one scalar */
+                py::format_descriptor<typename Agg::grid_type>::format(), /* Python struct-style format descriptor */
+                agg.grid->dimensions,                       /* Number of dimensions */
+                shapes,                 /* Buffer dimensions */
+                strides
+            );
+        })
+        .def_property_readonly("grid", [](const Agg &agg) {
+                return agg.grid;
+            }
+        )
+        .def("set_data", &Agg::set_data)
+        .def("set_data_mask", &Agg::set_data_mask)
+        .def("reduce", &Agg::reduce)
+    ;
+}
+
 template<class T, class Base, class Module, bool FlipEndian=false>
 void add_agg_primitives_(Module m, Base& base, std::string postfix) {
     add_agg<AggCount<T, default_index_type, FlipEndian>, Base, Module>(m, base, ("AggCount_" + postfix).c_str());
@@ -782,6 +856,7 @@ void add_agg_primitives_(Module m, Base& base, std::string postfix) {
     add_agg<AggMax<T, default_index_type, FlipEndian>, Base, Module>(m, base, ("AggMax_" + postfix).c_str());
     add_agg<AggSum<T, default_index_type, FlipEndian>, Base, Module>(m, base, ("AggSum_" + postfix).c_str());
     add_agg<AggFirst<T, default_index_type, FlipEndian>, Base, Module>(m, base, ("AggFirst_" + postfix).c_str());
+    add_agg_arg<AggSumMoment<T, default_index_type, FlipEndian>, Base, Module, uint32_t>(m, base, ("AggSumMoment_" + postfix).c_str());
 }
 
 template<class T, class Base, class Module>
