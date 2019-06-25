@@ -24,7 +24,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
     def __init__(self, name, expression, short_name, multi_args=False, agg_args=[]):
         self.name = name
         self.short_name = short_name
-        self.expression = expression
+        self.expression = str(expression)
         self.agg_args = agg_args
         if not multi_args:
             if self.expression == '*':
@@ -66,10 +66,6 @@ class AggregatorDescriptorMulti(AggregatorDescriptor):
         self.short_name = short_name
         self.expression = expression
         self.expressions = [self.expression]
-        self._add_sub_agg()
-
-    def _add_sub_agg(self):
-        pass
 
     def pretty_name(self, id=None):
         id = id or "_".join(map(str, self.expression))
@@ -80,15 +76,20 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
     def __init__(self, name, expression, short_name="mean"):
         super(AggregatorDescriptorMean, self).__init__(name, expression, short_name)
 
-    def _add_sub_agg(self):
-        self.sum = sum(self.expression)
-        self.count = count(self.expression)
-
     def add_operations(self, agg_task, **kwargs):
-        task_sum = self.sum.add_operations(agg_task, **kwargs)
-        task_count = self.count.add_operations(agg_task, **kwargs)
-        self.dtype_in = self.sum.dtype_in
-        self.dtype_out = self.sum.dtype_out
+        expression = expression_sum = expression = agg_task.df[str(self.expression)]
+        # ints, floats and bools are upcasted
+        if expression_sum.dtype.kind in "buif":
+            expression = expression_sum = expression_sum.astype('float64')
+
+        sum_agg = sum(expression_sum)
+        count_agg = count(expression)
+
+        task_sum = sum_agg.add_operations(agg_task, **kwargs)
+        task_count = count_agg.add_operations(agg_task, **kwargs)
+        self.dtype_in = sum_agg.dtype_in
+        self.dtype_out = sum_agg.dtype_out
+
         @vaex.delayed
         def finish(sum, count):
             dtype = sum.dtype
@@ -101,6 +102,7 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
                 # TODO: not sure why view does not work
                 mean = mean.astype(dtype)
             return mean
+
         return finish(task_sum, task_count)
 
 
@@ -123,7 +125,6 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
         self.dtype_out = sum_.dtype_out
         @vaex.delayed
         def finish(sum_moment, sum, count):
-            # print(self.sum, sum, task_sum)
             dtype = sum.dtype
             if sum.dtype.kind == 'M':
                 sum = sum.view('uint64')
@@ -131,7 +132,6 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
                 count = count.view('uint64')
             with np.errstate(divide='ignore', invalid='ignore'):
                 mean = sum / count
-                print(sum, sum_moment)
                 raw_moments2 = sum_moment/count
                 variance = (raw_moments2 - mean**2) #* count/(count-self.ddof)
             if dtype.kind != mean.dtype.kind:
