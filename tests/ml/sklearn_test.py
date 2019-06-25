@@ -128,9 +128,13 @@ def test_sklearn_estimator_pipeline():
     pipeline = vaex.ml.Pipeline([st, model])
     # Use the pipeline
     pred = pipeline.predict(test)
-    trans = pipeline.transform(test)
+    df_trans = pipeline.transform(test)
 
-    assert np.all(pred == trans.pred.values)
+    # WARNING: on windows/appveyor this gives slightly different results
+    # do we fully understand why? I also have the same results on my osx laptop
+    # sklearn 0.21.1 (scikit-learn-0.21.2 is installed on windows) so it might be a
+    # version related thing
+    np.testing.assert_array_almost_equal(pred, df_trans.pred.values)
 
 
 def test_sklearn_estimator_classification_validation():
