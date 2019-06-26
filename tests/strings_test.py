@@ -210,6 +210,12 @@ def test_string_match(dfs):
 	assert dfs.s.str.match('^v.*').tolist() == dfs.s.str_pandas.match('^v.*').tolist()
 	assert dfs.s.str.match('^v.*').tolist() == [k.startswith('v') for k in string_list]
 
+def test_string_filters():
+	df = vaex.from_dict({'s':['this is it!', 'you are !"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\nconfusing']})
+	assert df.s.str.filters('!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n').tolist() == ['this is it', 'you are  confusing']
+
+
+
 # TODO: normalize
 
 @pytest.mark.parametrize("width", [2, 10])
