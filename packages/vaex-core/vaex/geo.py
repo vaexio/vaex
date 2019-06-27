@@ -3,7 +3,7 @@ import numpy as np
 from .utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 
 @vaex.register_dataframe_accessor('geo')
-class DataFrameAccessorAstroGeo(object):
+class DataFrameAccessorGeo(object):
     """Geometry/geographic helper methods
 
     Example:
