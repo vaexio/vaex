@@ -1,4 +1,5 @@
 from vaex.dataset import Dataset
+import vaex
 import numpy as np
 import math
 
