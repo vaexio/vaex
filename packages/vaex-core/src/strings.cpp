@@ -1873,7 +1873,6 @@ StringList64* format(py::array_t<T, py::array::c_style> values_, const char* for
     }
 }
 
-template<class T>
 StringList64* format_string(StringSequence* values, const char* format) {
     size_t length = values->length;
     {
