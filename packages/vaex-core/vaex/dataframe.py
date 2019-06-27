@@ -2831,20 +2831,6 @@ class DataFrame(object):
         hp_index = hp.ang2pix(hp.order2nside(healpix_order), theta, phi, nest=nest)
         self.add_column("healpix", hp_index)
 
-    @_hidden
-    def add_virtual_column_bearing(self, name, lon1, lat1, lon2, lat2):
-        lon1 = "(pickup_longitude * pi / 180)"
-        lon2 = "(dropoff_longitude * pi / 180)"
-        lat1 = "(pickup_latitude * pi / 180)"
-        lat2 = "(dropoff_latitude * pi / 180)"
-        p1 = lat1
-        p2 = lat2
-        l1 = lon1
-        l2 = lon2
-        # from http://www.movable-type.co.uk/scripts/latlong.html
-        expr = "arctan2(sin({l2}-{l1}) * cos({p2}), cos({p1})*sin({p2}) - sin({p1})*cos({p2})*cos({l2}-{l1}))" \
-            .format(**locals())
-        self.add_virtual_column("bearing", expr)
 
     @_hidden
     def add_virtual_columns_matrix3d(self, x, y, z, xnew, ynew, znew, matrix, matrix_name='deprecated', matrix_is_expression=False, translation=[0, 0, 0], propagate_uncertainties=False):
@@ -2997,55 +2983,15 @@ class DataFrame(object):
     def add_virtual_columns_cartesian_to_polar(self, x="x", y="y", radius_out="r_polar", azimuth_out="phi_polar",
                                                propagate_uncertainties=False,
                                                radians=False):
-        """Convert cartesian to polar coordinates
-
-        :param x: expression for x
-        :param y: expression for y
-        :param radius_out: name for the virtual column for the radius
-        :param azimuth_out: name for the virtual column for the azimuth angle
-        :param propagate_uncertainties: {propagate_uncertainties}
-        :param radians: if True, azimuth is in radians, defaults to degrees
-        :return:
-        """
-        x = self[x]
-        y = self[y]
-        if radians:
-            to_degrees = ""
-        else:
-            to_degrees = "*180/pi"
-        r = np.sqrt(x**2 + y**2)
-        self[radius_out] = r
-        phi = np.arctan2(y, x)
-        if not radians:
-            phi = phi * 180/np.pi
-        self[azimuth_out] = phi
-        if propagate_uncertainties:
-            self.propagate_uncertainties([self[radius_out], self[azimuth_out]])
+        kwargs = dict(**locals())
+        del kwargs['self']
+        return self.geo.cartesian_to_polar(inplace=True, **kwargs)
 
     @_hidden
     def add_virtual_columns_cartesian_velocities_to_spherical(self, x="x", y="y", z="z", vx="vx", vy="vy", vz="vz", vr="vr", vlong="vlong", vlat="vlat", distance=None):
-        """Concert velocities from a cartesian to a spherical coordinate system
-
-        TODO: errors
-
-        :param x: name of x column (input)
-        :param y:         y
-        :param z:         z
-        :param vx:       vx
-        :param vy:       vy
-        :param vz:       vz
-        :param vr: name of the column for the radial velocity in the r direction (output)
-        :param vlong: name of the column for the velocity component in the longitude direction  (output)
-        :param vlat: name of the column for the velocity component in the latitude direction, positive points to the north pole (output)
-        :param distance: Expression for distance, if not given defaults to sqrt(x**2+y**2+z**2), but if this column already exists, passing this expression may lead to a better performance
-        :return:
-        """
-        # see http://www.astrosurf.com/jephem/library/li110spherCart_en.htm
-        if distance is None:
-            distance = "sqrt({x}**2+{y}**2+{z}**2)".format(**locals())
-        self.add_virtual_column(vr, "({x}*{vx}+{y}*{vy}+{z}*{vz})/{distance}".format(**locals()))
-        self.add_virtual_column(vlong, "-({vx}*{y}-{x}*{vy})/sqrt({x}**2+{y}**2)".format(**locals()))
-        self.add_virtual_column(vlat, "-({z}*({x}*{vx}+{y}*{vy}) - ({x}**2+{y}**2)*{vz})/( {distance}*sqrt({x}**2+{y}**2) )".format(**locals()))
+        kwargs = dict(**locals())
+        del kwargs['self']
+        return self.geo.velocity_cartesian2spherical(inplace=True, **kwargs)
 
     def _expr(self, *expressions, **kwargs):
         always_list = kwargs.pop('always_list', False)
@@ -3054,201 +3000,48 @@ class DataFrame(object):
     @_hidden
     def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
                                                           propagate_uncertainties=False,):
-        """Convert cartesian to polar velocities.
-
-        :param x:
-        :param y:
-        :param vx:
-        :param radius_polar: Optional expression for the radius, may lead to a better performance when given.
-        :param vy:
-        :param vr_out:
-        :param vazimuth_out:
-        :param propagate_uncertainties: {propagate_uncertainties}
-        :return:
-        """
-        x = self._expr(x)
-        y = self._expr(y)
-        vx = self._expr(vx)
-        vy = self._expr(vy)
-        if radius_polar is None:
-            radius_polar = np.sqrt(x**2 + y**2)
-        radius_polar = self._expr(radius_polar)
-        self[vr_out]       = (x*vx + y*vy) / radius_polar
-        self[vazimuth_out] = (x*vy - y*vx) / radius_polar
-        if propagate_uncertainties:
-            self.propagate_uncertainties([self[vr_out], self[vazimuth_out]])
+        kwargs = dict(**locals())
+        del kwargs['self']
+        return self.geo.velocity_cartesian2polar(inplace=True, **kwargs)
 
     @_hidden
     def add_virtual_columns_polar_velocities_to_cartesian(self, x='x', y='y', azimuth=None, vr='vr_polar', vazimuth='vphi_polar', vx_out='vx', vy_out='vy', propagate_uncertainties=False):
-        """ Convert cylindrical polar velocities to Cartesian.
-
-        :param x:
-        :param y:
-        :param azimuth: Optional expression for the azimuth in degrees , may lead to a better performance when given.
-        :param vr:
-        :param vazimuth:
-        :param vx_out:
-        :param vy_out:
-        :param propagate_uncertainties: {propagate_uncertainties}
-        """
-        x = self._expr(x)
-        y = self._expr(y)
-        vr = self._expr(vr)
-        vazimuth = self._expr(vazimuth)
-        if azimuth is not None:
-            azimuth = self._expr(azimuth)
-            azimuth = np.deg2rad(azimuth)
-        else:
-            azimuth = np.arctan2(y, x)
-        azimuth = self._expr(azimuth)
-        self[vx_out] = vr * np.cos(azimuth) - vazimuth * np.sin(azimuth)
-        self[vy_out] = vr * np.sin(azimuth) + vazimuth * np.cos(azimuth)
-        if propagate_uncertainties:
-            self.propagate_uncertainties([self[vx_out], self[vy_out]])
+        kwargs = dict(**locals())
+        del kwargs['self']
+        return self.geo.velocity_polar2cartesian(inplace=True, **kwargs)
 
     @_hidden
     def add_virtual_columns_rotation(self, x, y, xnew, ynew, angle_degrees, propagate_uncertainties=False):
-        """Rotation in 2d.
-
-        :param str x: Name/expression of x column
-        :param str y: idem for y
-        :param str xnew: name of transformed x column
-        :param str ynew:
-        :param float angle_degrees: rotation in degrees, anti clockwise
-        :return:
-        """
-        x = _ensure_string_from_expression(x)
-        y = _ensure_string_from_expression(y)
-        theta = np.radians(angle_degrees)
-        matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-        m = matrix_name = x + "_" + y + "_rot"
-        for i in range(2):
-            for j in range(2):
-                self.set_variable(matrix_name + "_%d%d" % (i, j), matrix[i, j].item())
-        self[xnew] = self._expr("{m}_00 * {x} + {m}_01 * {y}".format(**locals()))
-        self[ynew] = self._expr("{m}_10 * {x} + {m}_11 * {y}".format(**locals()))
-        if propagate_uncertainties:
-            self.propagate_uncertainties([self[xnew], self[ynew]])
+        kwargs = dict(**locals())
+        del kwargs['self']
+        return self.geo.rotation_2d(inplace=True, **kwargs)
 
     @docsubst
     @_hidden
     def add_virtual_columns_spherical_to_cartesian(self, alpha, delta, distance, xname="x", yname="y", zname="z",
                                                    propagate_uncertainties=False,
-                                                   center=[0, 0, 0], center_name="solar_position", radians=False):
-        """Convert spherical to cartesian coordinates.
-
-
-
-        :param alpha:
-        :param delta: polar angle, ranging from the -90 (south pole) to 90 (north pole)
-        :param distance: radial distance, determines the units of x, y and z
-        :param xname:
-        :param yname:
-        :param zname:
-        :param propagate_uncertainties: {propagate_uncertainties}
-        :param center:
-        :param center_name:
-        :param radians:
-        :return:
-        """
-        alpha = self._expr(alpha)
-        delta = self._expr(delta)
-        distance = self._expr(distance)
-        if not radians:
-            alpha = alpha * self._expr('pi')/180
-            delta = delta * self._expr('pi')/180
-
-        # TODO: use sth like .optimize by default to get rid of the +0 ?
-        if center[0]:
-            self[xname] = np.cos(alpha) * np.cos(delta) * distance + center[0]
-        else:
-            self[xname] = np.cos(alpha) * np.cos(delta) * distance
-        if center[1]:
-            self[yname] = np.sin(alpha) * np.cos(delta) * distance + center[1]
-        else:
-            self[yname] = np.sin(alpha) * np.cos(delta) * distance
-        if center[2]:
-            self[zname] =                 np.sin(delta) * distance + center[2]
-        else:
-            self[zname] =                 np.sin(delta) * distance
-        if propagate_uncertainties:
-            self.propagate_uncertainties([self[xname], self[yname], self[zname]])
+                                                   center=[0, 0, 0], radians=False):
+        kwargs = dict(**locals())
+        del kwargs['self']
+        return self.geo.spherical2cartesian(inplace=True, **kwargs)
 
     @_hidden
     def add_virtual_columns_cartesian_to_spherical(self, x="x", y="y", z="z", alpha="l", delta="b", distance="distance", radians=False, center=None, center_name="solar_position"):
-        """Convert cartesian to spherical coordinates.
-
-
-
-        :param x:
-        :param y:
-        :param z:
-        :param alpha:
-        :param delta: name for polar angle, ranges from -90 to 90 (or -pi to pi when radians is True).
-        :param distance:
-        :param radians:
-        :param center:
-        :param center_name:
-        :return:
-        """
-        transform = "" if radians else "*180./pi"
-
-        if center is not None:
-            self.add_variable(center_name, center)
-        if center is not None and center[0] != 0:
-            x = "({x} - {center_name}[0])".format(**locals())
-        if center is not None and center[1] != 0:
-            y = "({y} - {center_name}[1])".format(**locals())
-        if center is not None and center[2] != 0:
-            z = "({z} - {center_name}[2])".format(**locals())
-        self.add_virtual_column(distance, "sqrt({x}**2 + {y}**2 + {z}**2)".format(**locals()))
-        # self.add_virtual_column(alpha, "((arctan2({y}, {x}) + 2*pi) % (2*pi)){transform}".format(**locals()))
-        self.add_virtual_column(alpha, "arctan2({y}, {x}){transform}".format(**locals()))
-        self.add_virtual_column(delta, "(-arccos({z}/{distance})+pi/2){transform}".format(**locals()))
-    # self.add_virtual_column(long_out, "((arctan2({y}, {x})+2*pi) % (2*pi)){transform}".format(**locals()))
-    # self.add_virtual_column(lat_out, "(-arccos({z}/sqrt({x}**2+{y}**2+{z}**2))+pi/2){transform}".format(**locals()))
+        kwargs = dict(**locals())
+        del kwargs['self']
+        return self.geo.cartesian2spherical(inplace=True, **kwargs)
 
     @_hidden
     def add_virtual_columns_aitoff(self, alpha, delta, x, y, radians=True):
-        """Add aitoff (https://en.wikipedia.org/wiki/Aitoff_projection) projection
-
-        :param alpha: azimuth angle
-        :param delta: polar angle
-        :param x: output name for x coordinate
-        :param y: output name for y coordinate
-        :param radians: input and output in radians (True), or degrees (False)
-        :return:
-        """
-        transform = "" if radians else "*pi/180."
-        aitoff_alpha = "__aitoff_alpha_%s_%s" % (alpha, delta)
-        # sanatize
-        aitoff_alpha = re.sub("[^a-zA-Z_]", "_", aitoff_alpha)
-
-        self.add_virtual_column(aitoff_alpha, "arccos(cos({delta}{transform})*cos({alpha}{transform}/2))".format(**locals()))
-        self.add_virtual_column(x, "2*cos({delta}{transform})*sin({alpha}{transform}/2)/sinc({aitoff_alpha}/pi)/pi".format(**locals()))
-        self.add_virtual_column(y, "sin({delta}{transform})/sinc({aitoff_alpha}/pi)/pi".format(**locals()))
+        kwargs = dict(**locals())
+        del kwargs['self']
+        return self.geo.project_aitoff(inplace=True, **kwargs)
 
     @_hidden
     def add_virtual_columns_projection_gnomic(self, alpha, delta, alpha0=0, delta0=0, x="x", y="y", radians=False, postfix=""):
-        if not radians:
-            alpha = "pi/180.*%s" % alpha
-            delta = "pi/180.*%s" % delta
-            alpha0 = alpha0 * np.pi / 180
-            delta0 = delta0 * np.pi / 180
-        transform = "" if radians else "*180./pi"
-        # aliases
-        ra = alpha
-        dec = delta
-        ra_center = alpha0
-        dec_center = delta0
-        gnomic_denominator = 'sin({dec_center}) * tan({dec}) + cos({dec_center}) * cos({ra} - {ra_center})'.format(**locals())
-        denominator_name = 'gnomic_denominator' + postfix
-        xi = 'sin({ra} - {ra_center})/{denominator_name}{transform}'.format(**locals())
-        eta = '(cos({dec_center}) * tan({dec}) - sin({dec_center}) * cos({ra} - {ra_center}))/{denominator_name}{transform}'.format(**locals())
-        self.add_virtual_column(denominator_name, gnomic_denominator)
-        self.add_virtual_column(x, xi)
-        self.add_virtual_column(y, eta)
-        # return xi, eta
+        kwargs = dict(**locals())
+        del kwargs['self']
+        return self.geo.project_gnomic(inplace=True, **kwargs)
 
     def add_function(self, name, f, unique=False):
         name = vaex.utils.find_valid_name(name, used=[] if not unique else self.functions.keys())
