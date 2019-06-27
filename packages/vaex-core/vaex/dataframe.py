@@ -2187,7 +2187,7 @@ class DataFrame(object):
             for name, value in state['virtual_columns'].items():
                 self[name] = self._expr(value)
                 # self._save_assign_expression(name)
-            self.column_names = state['column_names']
+            self.column_names = list(state['column_names'])
         else:
             # old behaviour
             self.virtual_columns = collections.OrderedDict()

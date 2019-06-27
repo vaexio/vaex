@@ -602,6 +602,26 @@ if os.path.exists(import_script):
 logger = logging.getLogger('vaex')
 
 
+def register_dataframe_accessor(name, cls=None):
+    """Registers a new accessor for a dataframe
+
+    See vaex.geo for an example.
+    """
+    def wrapper(cls):
+        old_value = getattr(vaex.dataframe.DataFrame, name, None)
+        if old_value is not None:
+            raise ValueError("DataFrame already has a property/accessor named %r (%r)" % (name, old_value) )
+
+        def get_accessor(self):
+            return cls(self)
+        setattr(vaex.dataframe.DataFrame, name, property(get_accessor))
+        return cls
+    if cls is None:
+        return wrapper
+    else:
+        return wrapper(cls)
+
+
 for entry in pkg_resources.iter_entry_points(group='vaex.namespace'):
     logger.debug('adding vaex namespace: ' + entry.name)
     try:
