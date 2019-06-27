@@ -13,6 +13,20 @@ except:
 	str_kind = 'U'
 
 
+def test_format():
+    num1 = np.array([1, 2, 3], dtype=np.int32)
+    num2 = np.array([1.1, 2.2, 3.3], dtype=np.float32)
+    text = ['Here', 'we', 'go']
+
+    df = vaex.from_arrays(num1=num1, num2=num2, text=text)
+
+    assert df.num1.format("%d").tolist() == ['1', '2', '3']
+    assert df.num1.format("%04d").tolist() == ['0001', '0002', '0003']
+    assert df.num2.format('%f').tolist() == ['1.100000', '2.200000', '3.300000']
+    assert df.num2.format('%05.2f').tolist() == ['01.10', '02.20', '03.30']
+    assert df.text.format('pre-%s-post').tolist() == ['pre-%s-post' % k for k in text]
+
+
 @pytest.mark.skipif(sys.version_info < (3,3),
                     reason="requires python3.4 or higher")
 def test_dtype_object_string(tmpdir):
@@ -317,12 +331,6 @@ def test_to_string():
 	df = vaex.from_arrays(x=x)
 	df['s'] = df.x.to_string()
 	assert df.s.tolist() == ["%f" % k for k in x]
-
-def test_format():
-	x = np.arange(1, 4, dtype='f4')
-	df = vaex.from_arrays(x=x)
-	df['s'] = df.x.format("%g")
-	assert df.s.tolist() == ["%g" % k for k in x]
 
 def test_string_strip_special_case():
 	strings = ["Explanation\nWhy the edits made under my username Hardcore Metallica Fan were reverted? They weren't vandalisms, just closure on some GAs after I voted at New York Dolls FAC. And please don't remove the template from the talk page since I'm retired now.89.205.38.27"]
