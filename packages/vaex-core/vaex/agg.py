@@ -1,7 +1,13 @@
+import os
 import numpy as np
 
 from .stat import _Statistic
-import vaex.superagg
+
+
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+if not on_rtd:
+    import vaex.superagg
+
 
 aggregates = {}
 
