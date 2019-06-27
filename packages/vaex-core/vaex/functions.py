@@ -1720,6 +1720,9 @@ def to_string(x):
 def format(x, format):
     """Uses http://www.cplusplus.com/reference/string/to_string/ for formatting"""
     # don't change the dtype, otherwise for each block the dtype may be different (string length)
+    if not isinstance(x, np.ndarray) or x.dtype.kind in 'US':
+        # sometimes the dtype can be object, but seen as an string array
+        x = _to_string_sequence(x)
     sl = vaex.strings.format(x, format)
     return column.ColumnStringArrow(sl.bytes, sl.indices, sl.length, sl.offset, string_sequence=sl)
 

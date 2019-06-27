@@ -1873,6 +1873,35 @@ StringList64* format(py::array_t<T, py::array::c_style> values_, const char* for
     }
 }
 
+template<class T>
+StringList64* format_string(StringSequence* values, const char* format) {
+    size_t length = values->length;
+    {
+        py::gil_scoped_release release;
+        StringList64* sl = new StringList64(length*2, length);
+        size_t byte_offset = 0;
+        for(size_t i = 0; i < length; i++) {
+            sl->indices[i] = byte_offset;
+            bool done = false;
+            int ret;
+            while(!done) {
+                int64_t bytes_left = sl->byte_length - byte_offset;
+                auto value = values->get(i);
+                ret = snprintf(sl->bytes + byte_offset, bytes_left, format, value.c_str());
+                if(ret < 0) {
+                    throw std::runtime_error("Invalid format");
+                } else if(ret < bytes_left) {
+                    done = true;
+                    byte_offset += strlen(sl->bytes + byte_offset);
+                } else {
+                    sl->grow();
+                }
+            }
+        }
+        sl->indices[length] = byte_offset;
+        return sl;
+    }
+}
 
 PYBIND11_MODULE(superstrings, m) {
     _import_array();
@@ -1990,6 +2019,25 @@ PYBIND11_MODULE(superstrings, m) {
         ;
     m.def("to_string", &to_string<float>);
     m.def("to_string", &to_string<double>);
+    m.def("to_string", &to_string<int64_t>);
+    m.def("to_string", &to_string<int32_t>);
+    m.def("to_string", &to_string<int16_t>);
+    m.def("to_string", &to_string<int8_t>);
+    m.def("to_string", &to_string<uint64_t>);
+    m.def("to_string", &to_string<uint32_t>);
+    m.def("to_string", &to_string<uint16_t>);
+    m.def("to_string", &to_string<uint8_t>);
+    m.def("to_string", &to_string<bool>);
     m.def("format", &format<float>);
     m.def("format", &format<double>);
+    m.def("format", &format<int64_t>);
+    m.def("format", &format<int32_t>);
+    m.def("format", &format<int16_t>);
+    m.def("format", &format<int8_t>);
+    m.def("format", &format<uint64_t>);
+    m.def("format", &format<uint32_t>);
+    m.def("format", &format<uint16_t>);
+    m.def("format", &format<uint8_t>);
+    m.def("format", &format<bool>);
+    m.def("format", &format_string);
 }
