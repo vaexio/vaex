@@ -609,32 +609,6 @@ class TestDataset(unittest.TestCase):
 			self.assertAlmostEqual(r_polar, 2)
 			self.assertAlmostEqual(phi_polar, np.pi/2 if radians else 90)
 
-	def test_add_virtual_columns_proper_motion_eq2gal(self):
-		for radians in [True, False]:
-			def dfs(alpha, delta, pm_a, pm_d, radians=radians):
-				ds_1 = from_scalars(alpha=alpha, delta=delta, pm_a=pm_a, pm_d=pm_d, alpha_e=0.01, delta_e=0.02, pm_a_e=0.003, pm_d_e=0.004)
-				ds_1.add_virtual_columns_proper_motion_eq2gal("alpha", "delta", "pm_a", "pm_d", "pm_l", "pm_b", propagate_uncertainties=True, radians=radians)
-				N = 100000
-				# distance
-				alpha =        np.random.normal(0, 0.01, N)  + alpha
-				delta =        np.random.normal(0, 0.02, N)  + delta
-				pm_a =         np.random.normal(0, 0.003, N)  + pm_a
-				pm_d =         np.random.normal(0, 0.004, N)  + pm_d
-				ds_many = vx.from_arrays(alpha=alpha, delta=delta, pm_a=pm_a, pm_d=pm_d)
-				ds_many.add_virtual_columns_proper_motion_eq2gal("alpha", "delta", "pm_a", "pm_d", "pm_l", "pm_b", radians=radians)
-				return ds_1, ds_many
-			ds_1, ds_many = dfs(0, 0, 1, 2)
-
-			if 0: # only for testing the test
-				c1_e = ds_1.evaluate("c1_uncertainty")[0]
-				c2_e = ds_1.evaluate("c2_uncertainty")[0]
-				self.assertAlmostEqual(c1_e, ds_many.std("__proper_motion_eq2gal_C1").item(), delta=0.02)
-				self.assertAlmostEqual(c2_e, ds_many.std("__proper_motion_eq2gal_C2").item(), delta=0.02)
-
-			pm_l_e = ds_1.evaluate("pm_l_uncertainty")[0]
-			pm_b_e = ds_1.evaluate("pm_b_uncertainty")[0]
-			self.assertAlmostEqual(pm_l_e, ds_many.std("pm_l").item(), delta=0.02)
-			self.assertAlmostEqual(pm_b_e, ds_many.std("pm_b").item(), delta=0.02)
 
 	def test_add_virtual_columns_proper_motion2vperpendicular(self):
 		def dfs(distance, pm_l, pm_b):
