@@ -638,6 +638,7 @@ for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
     except Exception:
         logger.exception('issue loading ' + entry.name)
 
+from . import geo
 
 def concat(dfs):
     '''Concatenate a list of DataFrames.
