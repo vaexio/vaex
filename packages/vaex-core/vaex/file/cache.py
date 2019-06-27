@@ -50,7 +50,7 @@ def _to_index(block, block_size):
 
 
 class CachedFile:
-    def __init__(self, file, path=None, cache_dir=None, block_size=DEFAULT_BLOCK_SIZE):
+    def __init__(self, file, path=None, cache_dir=None, block_size=DEFAULT_BLOCK_SIZE, data_file=None, mask_file=None):
         """Decorator that wraps a file object (typically a s3) by caching the content locally on disk.
 
         The standard location for the cache is: ~/.vaex/file-cache/<protocol (e.g. s3)>/path/to/file.ext
@@ -70,37 +70,43 @@ class CachedFile:
         self.reads = 0
         self.loc = 0
 
-        o = urlparse(path)
-        if cache_dir is None:
-            self.cache_dir_path = vaex.utils.get_private_dir('file-cache', o.scheme, o.netloc, o.path[1:])
-        else:
-            # this path is used for testing
-            self.cache_dir_path = os.path.join(cache_dir, 'file-cache', o.scheme, o.netloc, o.path[1:])
-            if not os.path.exists(self.cache_dir_path):
-                os.makedirs(self.cache_dir_path)
-        self.data_path = os.path.join(self.cache_dir_path, 'data')
-        self.mask_path = os.path.join(self.cache_dir_path, 'mask')
-        # if possible, we avoid using the file
-        if os.path.exists(self.data_path):
-            with open(self.data_path, 'rb') as f:
-                f.seek(0, 2)
-                self.length = f.tell()
-        else:
-            self._use_file()
-            self.file.seek(0, 2)
-            self.length = self.file.tell()
-        self.mask_length = _to_block_ceil(self.length, self.block_size)
+        if data_file is None or mask_file is None:
+            o = urlparse(path)
+            if cache_dir is None:
+                self.cache_dir_path = vaex.utils.get_private_dir('file-cache', o.scheme, o.netloc, o.path[1:])
+            else:
+                # this path is used for testing
+                self.cache_dir_path = os.path.join(cache_dir, 'file-cache', o.scheme, o.netloc, o.path[1:])
+                if not os.path.exists(self.cache_dir_path):
+                    os.makedirs(self.cache_dir_path)
+            self.data_path = os.path.join(self.cache_dir_path, 'data')
+            self.mask_path = os.path.join(self.cache_dir_path, 'mask')
+            # if possible, we avoid using the file
+            if os.path.exists(self.data_path):
+                with open(self.data_path, 'rb') as f:
+                    f.seek(0, 2)
+                    self.length = f.tell()
+            else:
+                self._use_file()
+                self.file.seek(0, 2)
+                self.length = self.file.tell()
+            self.mask_length = _to_block_ceil(self.length, self.block_size)
 
-        logging.debug('cache path: %s', self.cache_dir_path)
-        self.data_file = MMappedFile(self.data_path, self.length)
-        self.mask_file = MMappedFile(self.mask_path, self.mask_length)
+            logging.debug('cache path: %s', self.cache_dir_path)
+            self.data_file = MMappedFile(self.data_path, self.length)
+            self.mask_file = MMappedFile(self.mask_path, self.mask_length)
+        else:
+            self.data_file = data_file
+            self.mask_file = mask_file
+            self.length = self.data_file.length
+            self.mask_length = self.mask_file.length
 
     def dup(self):
         if callable(self.file):
             file = self.file
         else:
             file = vaex.file.dup(self.file)
-        return CachedFile(file, self.path, self.cache_dir, self.block_size)
+        return CachedFile(file, self.path, self.cache_dir, self.block_size, data_file=self.data_file, mask_file=self.mask_file)
 
     def tell(self):
         return self.loc
