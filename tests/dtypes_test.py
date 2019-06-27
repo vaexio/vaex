@@ -13,7 +13,7 @@ def test_dtype(ds_local):
 
 def test_dtypes(ds_local):
   ds = ds_local
-  assert [ds.dtypes[name] for name in ds.column_names] == [ds[name].dtype for name in ds.column_names]
+  assert [ds.dtypes[name] for name in ds.column_names] == [ds[name].dtype if ds[name].dtype != str_type else 'str' for name in ds.column_names]
 
 def test_dtype_str():
   df = vaex.from_arrays(x=["foo", "bars"], y=[1,2])

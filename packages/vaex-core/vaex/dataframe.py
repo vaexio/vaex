@@ -1935,7 +1935,7 @@ class DataFrame(object):
     def dtypes(self):
         """Gives a Pandas series object containing all numpy dtypes of all columns (except hidden)."""
         from pandas import Series
-        return Series({column_name:self.dtype(column_name) for column_name in self.get_column_names()})
+        return Series({column_name:self.dtype(column_name) if self.dtype(column_name) != str_type else 'str' for column_name in self.get_column_names()})
 
     def is_masked(self, column):
         '''Return if a column is a masked (numpy.ma) column.'''
