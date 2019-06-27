@@ -1,6 +1,10 @@
-from .superstrings import *
+import os
 import numpy as np
 
+
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+if not on_rtd:
+    from .superstrings import *
 
 def array(ar):
     if isinstance(ar, (tuple, list)):

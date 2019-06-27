@@ -1,5 +1,11 @@
-from .superutils import *
+import os
 from .column import str_type
+
+
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+if not on_rtd:
+    from .superutils import *
+
 
 def counter_type_from_dtype(dtype, transient=True):
     if dtype == str_type:
