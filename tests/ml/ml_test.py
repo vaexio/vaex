@@ -155,7 +155,7 @@ def test_label_encoder():
     z = np.random.choice(o, size=40)
     # Create s vaex dataset
     ds = vaex.from_arrays(x=x, y=y, z=z)
-    dd = vaex.from_arrays(x=np.random.choice(q, size=40), y=y)  # this is to test the unseen categories
+    dd = vaex.from_arrays(x=np.random.choice(q, size=40), y=y, z=z)  # this is to test the unseen categories
     # Split in train and test sets
     train, test = ds.ml.train_test_split(test_size=0.25, verbose=False)
     # Label Encode with vaex
@@ -163,17 +163,12 @@ def test_label_encoder():
     # Transfrom
     train = le_vaex.transform(train)
     test = le_vaex.transform(test)
-    # Label Encode with scikit-learn
-    le_skl_x = LabelEncoder().fit(train.evaluate('x'))
-    le_skl_y = LabelEncoder().fit(train.evaluate('y'))
-    le_skl_z = LabelEncoder().fit(train.evaluate('z'))
-    # Compare the test set only
-    np.testing.assert_equal(le_skl_x.transform(test.evaluate('x')), test.evaluate('mypref_x'))
-    np.testing.assert_almost_equal(le_skl_y.transform(test.evaluate('y')), test.evaluate('mypref_y'))
-    np.testing.assert_almost_equal(le_skl_z.transform(test.evaluate('z')), test.evaluate('mypref_z'))
     # Try to get labels from the dd dataset unseen categories
     with pytest.raises(ValueError):
         le_vaex.transform(dd)
+    # Now try again, but allow for unseen categories
+    le_vaex = train.ml.label_encoder(features=['x', 'y', 'z'], prefix='mypref_', allow_unseen=True)
+    le_vaex.transform(dd)
     # Fit-transform
     le = vaex.ml.LabelEncoder(features=['x', 'y', 'z'], prefix='mypref_')
     le.fit_transform(ds)

@@ -23,15 +23,16 @@ def pca(self, n_components=2, features=None, prefix='PCA_', progress=False):
     return pca
 
 
-def label_encoder(self, features=None, prefix='label_encoded_'):
+def label_encoder(self, features=None, prefix='label_encoded_', allow_unseen=False):
     '''Requires vaex.ml: Create :class:`vaex.ml.transformations.LabelEncoder` and fit it.
 
     :param features: List of features to encode.
     :param prefix: Prefix for the names of the encoded features.
+    :param allow_unseen: If True, encode unseen value as -1, otherwise an error is raised.
     '''
     features = features or self.get_column_names()
     features = _ensure_strings_from_expressions(features)
-    label_encoder = LabelEncoder(features=features, prefix=prefix)
+    label_encoder = LabelEncoder(features=features, prefix=prefix, allow_unseen=allow_unseen)
     label_encoder.fit(self)
     return label_encoder
 
