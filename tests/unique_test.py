@@ -37,3 +37,8 @@ def test_unique_nan():
         mask = np.isnan(values)
         assert values[~mask].tolist() == df.x.values[~mask].tolist()
         # assert indices.tolist() == [0, 1, 2, 0, 3, 0]
+
+def test_unique_bytes():
+    x = np.array([b'cat', b'cat', b'dog', b'dog', b'dragon', b'dog', b'cat'])
+    df = vaex.from_arrays(x=x)
+    assert set(df.x.unique().tolist()) == set(np.unique(x).tolist())
