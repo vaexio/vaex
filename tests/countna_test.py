@@ -12,3 +12,5 @@ def test_countna():
 
     assert df.x.countna() == pandas_df.x.isna().sum()
     assert df.y.countna() == pandas_df.y.isna().sum()
+    assert df.x.countnan() == 2
+    assert df.y.countmissing() == 6
