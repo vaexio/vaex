@@ -468,6 +468,21 @@ class Expression(with_metaclass(Meta)):
     def unique(self):
         return self.ds.unique(self.expression)
 
+
+    def countna(self):
+        """Returns the number of Not Availiable (N/A) values in the expression.
+        This includes missing values and np.nan values.
+        """
+        return self.isna().astype('int').sum().item()  # so the output is int, not array
+
+    def countnan(self):
+        """Returns the number of NaN values in the expression."""
+        return self.isnan().astype('int').sum().item()  # so the output is int, not array
+
+    def countmissing(self):
+        """Returns the number of missing values in the expression."""
+        return self.ismissing().astype('int').sum().item()  # so the output is int, not array
+
     def evaluate(self, i1=None, i2=None, out=None, selection=None):
         return self.ds.evaluate(self, i1, i2, out=out, selection=selection)
 

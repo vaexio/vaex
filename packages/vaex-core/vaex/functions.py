@@ -143,6 +143,60 @@ def fillna(ar, value, fill_nan=True, fill_masked=True):
             ar[mask] = value
     return ar
 
+@register_function()
+def ismissing(x):
+    """Returns True where there are missing values (masked arrays), missing strings or None"""
+    if np.ma.isMaskedArray(x):
+        if x.dtype.kind in 'O':
+            return (x.data == None) | x.mask
+        else:
+            return x.mask == 1
+    else:
+        if not isinstance(x, np.ndarray) or x.dtype.kind in 'US':
+            x = _to_string_sequence(x)
+            return x.mask()
+        elif isinstance(x, np.ndarray) or x.dtype.kind in 'O':
+            return x == None
+        else:
+            return np.zeros(len(x), dtype=np.bool)
+
+
+@register_function()
+def notmissing(x):
+    return ~ismissing(x)
+
+
+@register_function()
+def isnan(x):
+    """Returns an array where there are NaN values"""
+    if isinstance(x, np.ndarray):
+        if np.ma.isMaskedArray(x):
+            # we don't want a masked arrays
+            w = x.data != x.data
+            w[x.mask] = False
+            return w
+        else:
+            return x != x
+    else:
+        return np.zeros(len(x), dtype=np.bool)
+
+
+@register_function()
+def notnan(x):
+    return ~isnan(x)
+
+
+@register_function()
+def isna(x):
+    """Returns a boolean expression indicating if the values are Not Availiable (missing or NaN)."""
+    return isnan(x) | ismissing(x)
+
+
+@register_function()
+def notna(x):
+    """Opposite of isna"""
+    return ~isna(x)
+
 
 ########## datetime operations ##########
 
