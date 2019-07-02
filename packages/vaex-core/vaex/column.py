@@ -219,6 +219,8 @@ def _to_string_sequence(x):
         if x.dtype == 'O':
             return vaex.strings.StringArray(x)
         elif x.dtype.kind in 'US':
+            if six.PY3:
+                x = x.astype(str)
             x = x.astype('O')
             return vaex.strings.StringArray(x)
         else:

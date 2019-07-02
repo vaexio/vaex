@@ -41,4 +41,4 @@ def test_unique_nan():
 def test_unique_bytes():
     x = np.array([b'cat', b'cat', b'dog', b'dog', b'dragon', b'dog', b'cat'])
     df = vaex.from_arrays(x=x)
-    assert set(df.x.unique().tolist()) == set(np.unique(x).tolist())
+    assert set(df.x.unique().tolist()) == set([k.decode('ascii') for k in np.unique(x).tolist()])
