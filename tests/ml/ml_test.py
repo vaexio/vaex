@@ -5,7 +5,7 @@ import vaex.ml
 import vaex.ml.datasets
 pytest.importorskip("sklearn")
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder, MaxAbsScaler, RobustScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
 
 
 def test_pca():
@@ -160,9 +160,17 @@ def test_label_encoder():
     train, test = ds.ml.train_test_split(test_size=0.25, verbose=False)
     # Label Encode with vaex
     le_vaex = train.ml.label_encoder(features=['x', 'y', 'z'], prefix='mypref_')
+    # Assertions: makes sure that the categories are correctly identified:
+    assert set(np.array(list(le_vaex.labels_['x'].keys()))) == set(np.unique(train.x.values))
+    assert set(np.array(list(le_vaex.labels_['y'].keys()))) == set(np.unique(train.y.values))
+    assert set(np.array(list(le_vaex.labels_['z'].keys()))) == set(np.unique(train.z.values))
     # Transfrom
     train = le_vaex.transform(train)
     test = le_vaex.transform(test)
+    # Make asserssions on the "correctness" of the implementation by "manually" applying the labels to the categories
+    assert test.x.apply(lambda elem: le_vaex.labels_['x'][elem]).tolist() == test.mypref_x.tolist()
+    assert test.y.apply(lambda elem: le_vaex.labels_['y'][elem]).tolist() == test.mypref_y.tolist()
+    assert test.z.apply(lambda elem: le_vaex.labels_['z'][elem]).tolist() == test.mypref_z.tolist()
     # Try to get labels from the dd dataset unseen categories
     with pytest.raises(ValueError):
         le_vaex.transform(dd)
