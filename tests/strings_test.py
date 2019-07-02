@@ -354,3 +354,18 @@ def test_string_slice_repr():
 	df = vaex.from_arrays(s=s)
 	df['sliced_s'] = df.s.str.slice(start=2, stop=5)
 	repr(df['sliced_s'])
+
+
+@pytest.mark.parametrize("match", ["vaex", "VæX! "])
+def test_strings_operator_equals(dfs, match):
+	assert (dfs.s == match).tolist() == [k == match for k in string_list]
+	assert (match == dfs.s).tolist() == [k == match for k in string_list]
+	assert (dfs.s == dfs.s).tolist() == [k == k for k in string_list]
+
+@pytest.mark.parametrize("extra", ["vaex", "VæX! "])
+def test_strings_operator_plus(dfs, extra):
+	assert (dfs.s + extra).tolist() == [k + extra for k in string_list]
+	assert (extra + dfs.s).tolist() == [extra + k for k in string_list]
+
+	assert (dfs.s + dfs.s).tolist() == [k + k for k in string_list]
+	assert (dfs.s + extra + dfs.s).tolist() == [k + extra + k for k in string_list]

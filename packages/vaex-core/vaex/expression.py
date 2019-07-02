@@ -89,27 +89,51 @@ class Meta(type):
                 def f(a, b):
                     self = a
                     # print(op, a, b)
-                    if isinstance(b, Expression):
-                        assert b.ds == a.ds
-                        b = b.expression
-                    elif isinstance(b, (np.timedelta64)):
-                        df = a.ds
-                        b = df.add_variable('var_time_delta', b, unique=True)
-                    elif isinstance(b, (np.datetime64)):
-                        df = a.ds
-                        b = df.add_variable('var_date_time', b, unique=True)
-                    expression = '({0} {1} {2})'.format(a.expression, op['code'], b)
+                    try:
+                        stringy = isinstance(b, str_type) or (isinstance(b, Expression) and b.dtype == str_type)
+                    except:
+                        # this can happen when expression is a literal, like '1' (used in propagate_unc)
+                        # which causes the dtype to fail
+                        stringy = False
+                    if stringy:
+                        if isinstance(b, str_type):
+                            b = repr(b)
+                        if op['code'] == '==':
+                            expression = 'str_equals({0}, {1})'.format(a.expression, b)
+                        elif op['code'] == '+':
+                            expression = 'str_cat({0}, {1})'.format(a.expression, b)
+                        else:
+                            raise ValueError('operand %r not supported for string comparison' % op['code'])
+                        return Expression(self.ds, expression=expression)
+                    else:
+                        if isinstance(b, Expression):
+                            assert b.ds == a.ds
+                            b = b.expression
+                        elif isinstance(b, (np.timedelta64)):
+                            df = a.ds
+                            b = df.add_variable('var_time_delta', b, unique=True)
+                        elif isinstance(b, (np.datetime64)):
+                            df = a.ds
+                            b = df.add_variable('var_date_time', b, unique=True)
+                        expression = '({0} {1} {2})'.format(a.expression, op['code'], b)
                     return Expression(self.ds, expression=expression)
                 attrs['__%s__' % op['name']] = f
                 if op['name'] in reversable:
                     def f(a, b):
                         self = a
-                        # print(op, a, b)
-                        if isinstance(b, Expression):
-                            assert b.ds == a.ds
-                            b = b.expression
-                        expression = '({2} {1} {0})'.format(a.expression, op['code'], b)
-                        return Expression(self.ds, expression=expression)
+                        if isinstance(b, str):
+                            if op['code'] == '+':
+                                expression = 'str_cat({1}, {0})'.format(a.expression, repr(b))
+                            else:
+                                raise ValueError('operand %r not supported for string comparison' % op['code'])
+                            return Expression(self.ds, expression=expression)
+                        else:
+                            # print(op, a, b)
+                            if isinstance(b, Expression):
+                                assert b.ds == a.ds
+                                b = b.expression
+                            expression = '({2} {1} {0})'.format(a.expression, op['code'], b)
+                            return Expression(self.ds, expression=expression)
                     attrs['__r%s__' % op['name']] = f
 
             wrap(op)
