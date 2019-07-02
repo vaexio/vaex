@@ -147,17 +147,19 @@ class LabelEncoder(Transformer):
     '''
     # title = traitlets.Unicode(default_value='Label Encoder', read_only=True).tag(ui='HTML')
     prefix = traitlets.Unicode(default_value='label_encoded_', help=help_prefix).tag(ui='Text')
-    labels_ = traitlets.List(traitlets.List(), help='The encoded labels of each feature.').tag(output=True)
+    labels_ = traitlets.Dict(default_value={}, allow_none=True, help='The encoded labels of each feature.').tag(output=True)
+    allow_unseen = traitlets.Bool(default=False, allow_none=False, help='If True, unseen values will be \
+                                  encoded with -1, otherwise an error is raised').tag(ui='Checkbox')
 
     def fit(self, df):
         '''Fit LabelEncoder to the DataFrame.
 
         :param df: A vaex DataFrame.
         '''
-        labels = []
-        for i in self.features:
-            labels.append(np.unique(df.evaluate(i)).tolist())
-        self.labels_ = labels
+
+        for feature in self.features:
+            labels = df[feature].unique().tolist()
+            self.labels_[feature] = dict(zip(labels, np.arange(len(labels))))
 
     def transform(self, df):
         '''
@@ -169,15 +171,16 @@ class LabelEncoder(Transformer):
         :return copy: A shallow copy of the DataFrame that includes the encodings.
         :rtype: DataFrame
         '''
+
+        default_value = None
+        if self.allow_unseen:
+            default_value = -1
+
         copy = df.copy()
-        for i, v in enumerate(self.features):
-            name = self.prefix + v
-            labels = np.unique(df.evaluate(v))
-            if len(np.intersect1d(labels, self.labels_[i])) < len(labels):
-                diff = np.setdiff1d(labels, self.labels_[i])
-                raise ValueError("%s contains previously unseen labels: %s" % (v, str(diff)))
-            # copy[name] = np.searchsorted(self.labels[i], v)
-            copy.add_virtual_column(name, 'searchsorted({x}, {v})'.format(x=self.labels_[i], v=v))
+        for feature in self.features:
+            name = self.prefix + feature
+            copy[name] = copy[feature].map(mapper=self.labels_[feature], default_value=default_value)
+
         return copy
 
 

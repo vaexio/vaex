@@ -5,7 +5,7 @@ import vaex.ml
 import vaex.ml.datasets
 pytest.importorskip("sklearn")
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder, MaxAbsScaler, RobustScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
 
 
 def test_pca():
@@ -155,25 +155,28 @@ def test_label_encoder():
     z = np.random.choice(o, size=40)
     # Create s vaex dataset
     ds = vaex.from_arrays(x=x, y=y, z=z)
-    dd = vaex.from_arrays(x=np.random.choice(q, size=40), y=y)  # this is to test the unseen categories
+    dd = vaex.from_arrays(x=np.random.choice(q, size=40), y=y, z=z)  # this is to test the unseen categories
     # Split in train and test sets
     train, test = ds.ml.train_test_split(test_size=0.25, verbose=False)
     # Label Encode with vaex
     le_vaex = train.ml.label_encoder(features=['x', 'y', 'z'], prefix='mypref_')
+    # Assertions: makes sure that the categories are correctly identified:
+    assert set(np.array(list(le_vaex.labels_['x'].keys()))) == set(np.unique(train.x.values))
+    assert set(np.array(list(le_vaex.labels_['y'].keys()))) == set(np.unique(train.y.values))
+    assert set(np.array(list(le_vaex.labels_['z'].keys()))) == set(np.unique(train.z.values))
     # Transfrom
     train = le_vaex.transform(train)
     test = le_vaex.transform(test)
-    # Label Encode with scikit-learn
-    le_skl_x = LabelEncoder().fit(train.evaluate('x'))
-    le_skl_y = LabelEncoder().fit(train.evaluate('y'))
-    le_skl_z = LabelEncoder().fit(train.evaluate('z'))
-    # Compare the test set only
-    np.testing.assert_equal(le_skl_x.transform(test.evaluate('x')), test.evaluate('mypref_x'))
-    np.testing.assert_almost_equal(le_skl_y.transform(test.evaluate('y')), test.evaluate('mypref_y'))
-    np.testing.assert_almost_equal(le_skl_z.transform(test.evaluate('z')), test.evaluate('mypref_z'))
+    # Make asserssions on the "correctness" of the implementation by "manually" applying the labels to the categories
+    assert test.x.apply(lambda elem: le_vaex.labels_['x'][elem]).tolist() == test.mypref_x.tolist()
+    assert test.y.apply(lambda elem: le_vaex.labels_['y'][elem]).tolist() == test.mypref_y.tolist()
+    assert test.z.apply(lambda elem: le_vaex.labels_['z'][elem]).tolist() == test.mypref_z.tolist()
     # Try to get labels from the dd dataset unseen categories
     with pytest.raises(ValueError):
         le_vaex.transform(dd)
+    # Now try again, but allow for unseen categories
+    le_vaex = train.ml.label_encoder(features=['x', 'y', 'z'], prefix='mypref_', allow_unseen=True)
+    le_vaex.transform(dd)
     # Fit-transform
     le = vaex.ml.LabelEncoder(features=['x', 'y', 'z'], prefix='mypref_')
     le.fit_transform(ds)
