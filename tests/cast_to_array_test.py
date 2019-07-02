@@ -11,8 +11,9 @@ def test_safe_casting(ds_local):
     ds = ds_local
     # with pytest.raises(ValueError, match='.*Cannot cast.*', message='Should use safe casting rules (no precision loss)'):
     np.array(ds[['ints']])
-    with pytest.raises(ValueError, match='.*Cannot cast.*', message='Should use safe casting rules (no precision loss)'):
+    with pytest.raises(ValueError, match='.*Cannot cast.*'):
         np.array(ds[['ints', 'x']], dtype=np.int64)
+        pytest.fail('Should use safe casting rules (no precision loss)')
 
 
 def test_default_float64(ds_local):
