@@ -1,6 +1,11 @@
 from common import *
 import collections
 
+try:
+    import cupy
+except:
+    cupy = None
+
 
 # From http://pythonhosted.org/pythran/MANUAL.html
 def arc_distance(theta_1, phi_1, theta_2, phi_2):
@@ -28,3 +33,21 @@ def test_numba(ds):
     ds_original.state_set(ds.state_get())
     ds = ds_original
     assert ds.arc_distance.tolist() == ds.arc_distance_jit.tolist()
+
+
+@pytest.mark.skipif(cupy is None,
+                    reason="cuda support relies on cupy")
+def test_cuda(ds_local):
+    ds = ds_local
+    ds_original = ds.copy()
+    #ds.columns['x'] = (ds.columns['x']*1).copy()  # convert non non-big endian for now
+    expr = arc_distance(ds.y*1, ds.y*1, ds.y**2*ds.y, ds.x+ds.y)
+    ds['arc_distance'] = expr
+    print(expr)
+    #assert ds.arc_distance.expression == expr.expression
+    ds['arc_distance_jit'] = ds['arc_distance'].jit_cuda()
+    np.testing.assert_almost_equal(ds.arc_distance.values, ds.arc_distance_jit.values)
+    # TODO: make it such that they can be pickled
+    ds_original.state_set(ds.state_get())
+    ds = ds_original
+    np.testing.assert_almost_equal(ds.arc_distance.values, ds.arc_distance_jit.values)

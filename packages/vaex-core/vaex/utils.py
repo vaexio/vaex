@@ -897,5 +897,12 @@ def to_native_dtype(dtype):
         return dtype
 
 
+def to_native_array(ar):
+    if ar.dtype.byteorder not in "<=|":
+        return ar.astype(to_native_dtype(ar.dtype))
+    else:
+        return ar
+
+
 def extract_central_part(ar):
     return ar[(slice(2,-1), ) * ar.ndim]
