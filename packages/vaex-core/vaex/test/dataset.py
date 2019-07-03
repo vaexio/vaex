@@ -41,7 +41,7 @@ import vaex.serialize
 class Multiply:
 	def __init__(self, scale=0): self.scale = scale
 	@classmethod
-	def state_from(cls, state):
+	def state_from(cls, state, trusted=True):
 		return cls(scale=state)
 	def state_get(self): return self.scale
 	def __call__(self, x): return x * self.scale
