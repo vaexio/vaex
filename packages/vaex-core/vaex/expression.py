@@ -496,25 +496,14 @@ class Expression(with_metaclass(Meta)):
         return self.ds.func.clip(self, lower, upper)
 
     def jit_numba(self, verbose=False):
-        import imp
-        import hashlib
-        names = []
-        funcs = set(expression_namespace.keys())
-        # if it's a virtual column, we probably want to optimize that
-        # TODO: fully extract the virtual columns, i.e. depending ones?
-        expression = self.expression
-        if expression in self.ds.virtual_columns:
-            expression = self.ds.virtual_columns[self.expression]
-        all_vars = self.ds.get_column_names(virtual=True, strings=True, hidden=True) + list(self.ds.variables.keys())
-        vaex.expresso.validate_expression(expression, all_vars, funcs, names)
-        arguments = list(set(names))
-        argument_dtypes = [self.ds.dtype(argument) for argument in arguments]
-        # argument_dtypes = [getattr(np, dtype_name) for dtype_name in dtype_names]
-
-        # TODO: for now only float64 output supported
-        f = FunctionSerializableNumba(expression, arguments, argument_dtypes, return_dtype=np.dtype(np.float64))
+        f = FunctionSerializableNumba.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
         function = self.ds.add_function('_jit', f, unique=True)
-        return function(*arguments)
+        return function(*f.arguments)
+
+    def jit_cuda(self, verbose=False):
+        f = FunctionSerializableCuda.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
+        function = self.ds.add_function('_jit', f, unique=True)
+        return function(*f.arguments)
 
     def jit_pythran(self, verbose=False):
         import logging
@@ -735,33 +724,19 @@ class FunctionSerializablePickle(FunctionSerializable):
         return self.f(*args, **kwargs)
 
 
-@vaex.serialize.register
-class FunctionSerializableNumba(FunctionSerializable):
-    def __init__(self, expression, arguments, argument_dtypes, return_dtype, verbose=False):
+class FunctionSerializableJit(FunctionSerializable):
+    def __init__(self, expression, arguments, argument_dtypes, return_dtype, verbose=False, compile=True):
         self.expression = expression
         self.arguments = arguments
         self.argument_dtypes = argument_dtypes
         self.return_dtype = return_dtype
         self.verbose = verbose
-        import numba
-        argument_dtypes_numba = [getattr(numba, argument_dtype.name) for argument_dtype in argument_dtypes]
-        argstring = ", ".join(arguments)
-        code = '''
-from numpy import *
-def f({0}):
-    return {1}'''.format(argstring, expression)
-        if verbose:
-            print('Generated code:\n' + code)
-        scope = {}
-        exec(code, scope)
-        f = scope['f']
-        return_dtype_numba = getattr(numba, return_dtype.name)
-        vectorizer = numba.vectorize([return_dtype_numba(*argument_dtypes_numba)])
-        self.f = vectorizer(f)
-
-    def __call__(self, *args, **kwargs):
-        '''Forward the call to the numba function'''
-        return self.f(*args, **kwargs)
+        if compile:
+            self.f = self.compile()
+        else:
+            def placeholder(*args, **kwargs):
+                raise Exception('You chose not to compile this function (locally), but did invoke it')
+            self.f = placeholder
 
     def state_get(self):
         return dict(expression=self.expression,
@@ -777,6 +752,80 @@ def f({0}):
                    argument_dtypes=list(map(np.dtype, state['argument_dtypes'])),
                    return_dtype=np.dtype(state['return_dtype']),
                    verbose=state['verbose'])
+
+    @classmethod
+    def build(cls, expression, df=None, verbose=False, compile=True):
+        df = df or expression.df
+        # if it's a virtual column, we probably want to optimize that
+        # TODO: fully extract the virtual columns, i.e. depending ones?
+        expression = str(expression)
+
+        if expression in df.virtual_columns:
+            expression = df.virtual_columns[expression]
+
+        # function validation, and finding variable names
+        all_vars = df.get_column_names(hidden=True) + list(df.variables.keys())
+        funcs = set(expression_namespace.keys())
+        names = []
+        vaex.expresso.validate_expression(expression, all_vars, funcs, names)
+        # TODO: can we do the above using the Expressio API?s
+
+        arguments = list(set(names))
+        argument_dtypes = [df.dtype(argument) for argument in arguments]
+        return_dtype = df[expression].dtype
+        return cls(str(expression), arguments, argument_dtypes, return_dtype, verbose, compile=compile)
+
+    def __call__(self, *args, **kwargs):
+        '''Forward the call to the numba function'''
+        return self.f(*args, **kwargs)
+
+
+@vaex.serialize.register
+class FunctionSerializableNumba(FunctionSerializableJit):
+    def compile(self):
+        import numba
+        argstring = ", ".join(self.arguments)
+        code = '''
+from numpy import *
+def f({0}):
+    return {1}'''.format(argstring, self.expression)
+        if self.verbose:
+            print('Generated code:\n' + code)
+        scope = {}
+        exec(code, scope)
+        f = scope['f']
+
+        # numba part
+        argument_dtypes_numba = [getattr(numba, argument_dtype.name) for argument_dtype in self.argument_dtypes]
+        return_dtype_numba = getattr(numba, self.return_dtype.name)
+        vectorizer = numba.vectorize([return_dtype_numba(*argument_dtypes_numba)])
+        return vectorizer(f)
+
+
+@vaex.serialize.register
+class FunctionSerializableCuda(FunctionSerializableJit):
+    def compile(self):
+        import cupy
+        # code generation
+        argstring = ", ".join(self.arguments)
+        code = '''
+from cupy import *
+import cupy
+@fuse()
+def f({0}):
+    return {1}
+'''.format(argstring, self.expression)#, ";".join(conversions))
+        if self.verbose:
+            print("generated code")
+            print(code)
+        scope = dict()#cupy=cupy)
+        exec(code, scope)
+        func = scope['f']
+        def wrapper(*args):
+            args = [vaex.utils.to_native_array(arg) if isinstance(arg, np.ndarray) else arg for arg in args]
+            args = [cupy.asarray(arg) if isinstance(arg, np.ndarray) else arg for arg in args]
+            return cupy.asnumpy(func(*args))
+        return wrapper
 
 
 # TODO: this is not the right abstraction, since this won't allow a
