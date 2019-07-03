@@ -122,8 +122,10 @@ class PyGBMModel(state.HasState):
         return dict(tree_state=base64.encodebytes(pickle.dumps(self.pygbm_model)).decode('ascii'),
                     substate=super(PyGBMModel, self).state_get())
 
-    def state_set(self, state):
+    def state_set(self, state, trusted=True):
         super(PyGBMModel, self).state_set(state['substate'])
+        if trusted is False:
+            raise ValueError("Will not unpickle data when source is not trusted")
         self.pygbm_model = pickle.loads(base64.decodebytes(state['tree_state'].encode('ascii')))
 
 @vaex.serialize.register

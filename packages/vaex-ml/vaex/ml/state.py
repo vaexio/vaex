@@ -33,7 +33,7 @@ def default_from_json(trait_name, data, state_obj):
 class HasState(traitlets.HasTraits):
 
     @classmethod
-    def state_from(cls, state):
+    def state_from(cls, state, trusted=True):
         obj = cls()
         obj.state_set(state)
         return obj
@@ -46,7 +46,7 @@ class HasState(traitlets.HasTraits):
             state[name] = value
         return state
 
-    def state_set(self, state):
+    def state_set(self, state, trusted=True):
         for name in self.trait_names():
             if name in state:
                 from_json = self.trait_metadata(name, 'from_json', default_from_json)

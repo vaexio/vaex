@@ -84,10 +84,12 @@ def _check_error(object):
 
 
 class ServerRest(object):
-    def __init__(self, hostname, port=5000, base_path="/", background=False, thread_mover=None, websocket=True):
+    def __init__(self, hostname, port=5000, base_path="/", background=False, thread_mover=None, websocket=True, token=None, token_trusted=None):
         self.hostname = hostname
         self.port = port
         self.base_path = base_path if base_path.endswith("/") else (base_path + "/")
+        self.token = token
+        self.token_trusted = token_trusted
         # if delay:
         event = threading.Event()
         self.thread_mover = thread_mover or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
@@ -157,6 +159,7 @@ class ServerRest(object):
         def do():
             try:
                 logger.debug("wrapping promise")
+                logger.debug("connecting to: %s", self._build_url("websocket"))
                 connected = wrap_future_with_promise(tornado.websocket.websocket_connect(self._build_url("websocket"), on_message_callback=self._on_websocket_message))
                 logger.debug("continue")
                 self.websocket_connected.fulfill(connected)
@@ -269,6 +272,10 @@ class ServerRest(object):
         arguments["job_id"] = job_id
         arguments["path"] = path
         arguments["user_id"] = self.user_id
+        if self.token:
+            arguments["token"] = self.token
+        if self.token_trusted:
+            arguments["token_trusted"] = self.token_trusted
         # arguments = dict({key: (value.tolist() if hasattr(value, "tolist") else value) for key, value in arguments.items()})
         arguments = dict({key: listify(value) for key, value in arguments.items()})
 
@@ -374,7 +381,12 @@ class ServerRest(object):
             datasets = [create(self, kwargs) for kwargs in result]
             logger.debug("datasets: %r", datasets)
             return datasets if not as_dict else dict([(ds.name, ds) for ds in datasets])
-        return self.submit(path="datasets", arguments={}, post_process=post, delay=delay)
+        arguments = {}
+        if self.token:
+            arguments["token"] = self.token
+        if self.token_trusted:
+            arguments["token_trusted"] = self.token_trusted
+        return self.submit(path="datasets", arguments=arguments, post_process=post, delay=delay)
 
     def _build_url(self, method):
         protocol = "ws" if self.use_websocket else "http"

@@ -730,17 +730,19 @@ class FunctionSerializablePickle(FunctionSerializable):
         return dict(pickled=pickled)
 
     @classmethod
-    def state_from(cls, state):
+    def state_from(cls, state, trusted=True):
         obj = cls()
-        obj.state_set(state)
+        obj.state_set(state, trusted=trusted)
         return obj
 
-    def state_set(self, state):
+    def state_set(self, state, trusted=True):
         data = state['pickled']
         if vaex.utils.PY2:
             data = base64.decodestring(data)
         else:
             data = base64.decodebytes(data.encode('ascii'))
+        if trusted is False:
+            raise ValueError("Will not unpickle data when source is not trusted")
         self.f = self.unpickle(data)
 
     def __call__(self, *args, **kwargs):
@@ -770,7 +772,7 @@ class FunctionSerializableJit(FunctionSerializable):
                     verbose=self.verbose)
 
     @classmethod
-    def state_from(cls, state):
+    def state_from(cls, state, trusted=True):
         return cls(expression=state['expression'],
                    arguments=state['arguments'],
                    argument_dtypes=list(map(np.dtype, state['argument_dtypes'])),

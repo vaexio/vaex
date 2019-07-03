@@ -155,7 +155,7 @@ class LightGBMModel(state.HasState):
         return dict(tree_state=base64.encodebytes(data).decode('ascii'),
                     substate=super(LightGBMModel, self).state_get())
 
-    def state_set(self, state):
+    def state_set(self, state, trusted=True):
         super(LightGBMModel, self).state_set(state['substate'])
         data = base64.decodebytes(state['tree_state'].encode('ascii'))
         filename = tempfile.mktemp()

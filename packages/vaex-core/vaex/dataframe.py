@@ -2137,7 +2137,7 @@ class DataFrame(object):
                      active_range=[self._index_start, self._index_end])
         return state
 
-    def state_set(self, state, use_active_range=False):
+    def state_set(self, state, use_active_range=False, trusted=True):
         """Sets the internal state of the df
 
         Example:
@@ -2178,7 +2178,7 @@ class DataFrame(object):
             for old, new in state['renamed_columns']:
                 self._rename(old, new)
         for name, value in state['functions'].items():
-            self.add_function(name, vaex.serialize.from_dict(value))
+            self.add_function(name, vaex.serialize.from_dict(value, trusted=trusted))
         if 'column_names' in state:
             # we clear all columns, and add them later on, since otherwise self[name] = ... will try
             # to rename the columns (which is unsupported for remote dfs)
