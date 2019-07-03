@@ -13,6 +13,8 @@ except:
 	str_kind = 'U'
 
 
+@pytest.mark.skipif(vaex.utils.osname == 'windows',
+                    reason="windows' snprintf seems buggy")
 def test_format():
     num1 = np.array([1, 2, 3], dtype=np.int32)
     num2 = np.array([1.1, 2.2, 3.3], dtype=np.float32)

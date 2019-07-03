@@ -308,8 +308,13 @@ class StringSequenceBase : public StringSequence {
         {
             py::gil_scoped_release release;
             for(size_t i = 0; i < length; i++) {
+#if defined(_MSC_VER)
+                auto str = get(i);
+                bool match = str == other;
+#else
                 auto str = view(i);
                 bool match = str == other;
+#endif
                 m(i) = match;
             }
         }
