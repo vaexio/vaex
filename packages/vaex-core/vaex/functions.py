@@ -6,6 +6,7 @@ from vaex.column import _to_string_sequence, _to_string_list_sequence
 import re
 import vaex.expression
 import functools
+import six
 
 # @vaex.serialize.register_function
 # class Function(FunctionSerializable):
@@ -562,6 +563,52 @@ def dt_second(x):
 ########## string operations ##########
 
 @register_function(scope='str')
+def str_equals(x, y):
+    """Tests if strings x and y are the same
+
+    :returns: a boolean expression
+
+    Example:
+
+    >>> import vaex
+    >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    >>> df = vaex.from_arrays(text=text)
+    >>> df
+      #  text
+      0  Something
+      1  very pretty
+      2  is coming
+      3  our
+      4  way.
+
+    >>> df.text.str.equals(df.text)
+    Expression = str_equals(text, text)
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0  True
+    1  True
+    2  True
+    3  True
+    4  True
+
+    >>> df.text.str.equals('our')
+    Expression = str_equals(text, 'our')
+    Length: 5 dtype: bool (expression)
+    ----------------------------------
+    0  False
+    1  False
+    2  False
+    3   True
+    4  False
+    """
+    if not isinstance(x, six.string_types):
+        x = _to_string_sequence(x)
+    if not isinstance(y, six.string_types):
+        y = _to_string_sequence(y)
+    return x.equals(y)
+
+
+@register_function(scope='str')
 def str_capitalize(x):
     """Capitalize the first letter of a string sample.
 
@@ -623,9 +670,14 @@ def str_cat(x, other):
     3                  ourour
     4                way.way.
     """
-    sl1 = _to_string_sequence(x)
-    sl2 = _to_string_sequence(other)
-    sl = sl1.concat(sl2)
+    if isinstance(x, six.string_types):
+        other = _to_string_sequence(other)
+        sl = other.concat_reverse(x)
+    else:
+        x = _to_string_sequence(x)
+        if not isinstance(other, six.string_types):
+            other = _to_string_sequence(other)
+        sl = x.concat(other)
     return column.ColumnStringArrow.from_string_sequence(sl)
 
 @register_function(scope='str')

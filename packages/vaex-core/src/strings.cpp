@@ -98,6 +98,8 @@ class StringSequenceBase : public StringSequence {
     }
     virtual StringSequenceBase* capitalize();
     virtual StringSequenceBase* concat(StringSequenceBase* other);
+    virtual StringSequenceBase* concat2(std::string other);
+    virtual StringSequenceBase* concat_reverse(std::string other);
     virtual StringSequenceBase* pad(int width, std::string fillchar, bool left, bool right);
     virtual StringSequenceBase* lower();
     virtual StringSequenceBase* upper();
@@ -271,7 +273,7 @@ class StringSequenceBase : public StringSequence {
         }
         return std::move(matches);
     }
-     py::object match(const std::string pattern) {
+    py::object match(const std::string pattern) {
          // same as search, but stricter (full regex should match)
         py::array_t<bool> matches(length);
         auto m = matches.mutable_unchecked<1>();
@@ -295,6 +297,36 @@ class StringSequenceBase : public StringSequence {
                     auto str = view(i);
                     bool match = regex_match(str, rex);
                 #endif
+                m(i) = match;
+            }
+        }
+        return std::move(matches);
+    }
+    py::object equals(const std::string other) {
+        py::array_t<bool> matches(length);
+        auto m = matches.mutable_unchecked<1>();
+        {
+            py::gil_scoped_release release;
+            for(size_t i = 0; i < length; i++) {
+                auto str = view(i);
+                bool match = str == other;
+                m(i) = match;
+            }
+        }
+        return std::move(matches);
+    }
+    py::object equals2(const StringSequence* others) {
+        py::array_t<bool> matches(length);
+        if(length != others->length) {
+            throw pybind11::index_error("equals should have equal string array lengths");
+        }
+        auto m = matches.mutable_unchecked<1>();
+        {
+            py::gil_scoped_release release;
+            for(size_t i = 0; i < length; i++) {
+                auto str = view(i);
+                auto other = others->view(i);
+                bool match = str == other;
                 m(i) = match;
             }
         }
@@ -1222,6 +1254,53 @@ StringSequenceBase* StringSequenceBase::concat(StringSequenceBase* other) {
     return sl;
 }
 
+
+StringSequenceBase* StringSequenceBase::concat2(std::string other) {
+    py::gil_scoped_release release;
+    size_t other_length = other.length();
+    StringList64* sl = new StringList64(this->byte_size() + other_length * length, length);
+    size_t byte_offset = 0;
+    for(size_t i = 0; i < length; i++) {
+        sl->indices[i] = byte_offset;
+        if(this->is_null(i)) {
+            if(sl->null_bitmap == nullptr)
+                sl->add_null_bitmap();
+            sl->set_null(i);
+        } else {
+            string_view str1 = this->view(i);
+            std::copy(str1.begin(), str1.end(), sl->bytes + byte_offset);
+            byte_offset += str1.length();
+            std::copy(other.begin(), other.end(), sl->bytes + byte_offset);
+            byte_offset += other_length;
+        }
+    }
+    sl->indices[length] = byte_offset;
+    return sl;
+}
+
+StringSequenceBase* StringSequenceBase::concat_reverse(std::string other) {
+    py::gil_scoped_release release;
+    size_t other_length = other.length();
+    StringList64* sl = new StringList64(this->byte_size() + other_length * length, length);
+    size_t byte_offset = 0;
+    for(size_t i = 0; i < length; i++) {
+        sl->indices[i] = byte_offset;
+        if(this->is_null(i)) {
+            if(sl->null_bitmap == nullptr)
+                sl->add_null_bitmap();
+            sl->set_null(i);
+        } else {
+            std::copy(other.begin(), other.end(), sl->bytes + byte_offset);
+            byte_offset += other_length;
+            string_view str1 = this->view(i);
+            std::copy(str1.begin(), str1.end(), sl->bytes + byte_offset);
+            byte_offset += str1.length();
+        }
+    }
+    sl->indices[length] = byte_offset;
+    return sl;
+}
+
 StringSequenceBase* StringSequenceBase::repeat(int64_t repeats) {
     py::gil_scoped_release release;
     StringList64* sl = new StringList64(this->byte_size() * repeats, length);
@@ -1921,6 +2000,8 @@ PYBIND11_MODULE(superstrings, m) {
         .def("tolist", &StringSequenceBase::tolist)
         .def("capitalize", &StringSequenceBase::capitalize, py::keep_alive<0, 1>())
         .def("concat", &StringSequenceBase::concat)
+        .def("concat_reverse", &StringSequenceBase::concat_reverse)
+        .def("concat", &StringSequenceBase::concat2)
         .def("pad", &StringSequenceBase::pad)
         .def("search", &StringSequenceBase::search, "Tests if strings contains pattern", py::arg("pattern"), py::arg("regex"))//, py::call_guard<py::gil_scoped_release>())
         .def("count", &StringSequenceBase::count, "Count occurrences of pattern", py::arg("pattern"), py::arg("regex"))
@@ -1929,6 +2010,8 @@ PYBIND11_MODULE(superstrings, m) {
         .def("find", &StringSequenceBase::find)
         .def("lower", &StringSequenceBase::lower)
         .def("match", &StringSequenceBase::match, "Tests if strings matches regex", py::arg("pattern"))
+        .def("equals", &StringSequenceBase::equals, "Tests if strings are equal")
+        .def("equals", &StringSequenceBase::equals2, "Tests if strings are equal")
         .def("lstrip", &StringSequenceBase::lstrip)
         .def("rstrip", &StringSequenceBase::rstrip)
         .def("repeat", &StringSequenceBase::repeat)
