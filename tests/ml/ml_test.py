@@ -145,41 +145,43 @@ def test_frequency_encoder():
 
 
 def test_label_encoder():
-    # Options to choose from
-    m = np.array(['dog', 'cat', 'mouse', 'horse', 'pig'])
-    n = np.array(['yacht', 'boat', 'ship', 'submarine', 'dinghy', 'catamaran'])
-    o = np.array([0, 1, 2, 3, 4])
-    q = np.array(['dog', 'cat', 'mouse', 'dragon'])
-    x = np.random.choice(m, size=40)
-    y = np.random.choice(n, size=40)
-    z = np.random.choice(o, size=40)
-    # Create s vaex dataset
-    ds = vaex.from_arrays(x=x, y=y, z=z)
-    dd = vaex.from_arrays(x=np.random.choice(q, size=40), y=y, z=z)  # this is to test the unseen categories
-    # Split in train and test sets
-    train, test = ds.ml.train_test_split(test_size=0.25, verbose=False)
-    # Label Encode with vaex
-    le_vaex = train.ml.label_encoder(features=['x', 'y', 'z'], prefix='mypref_')
+    # Create sample data
+    x1 = np.array(['dog', 'cat', 'mouse', 'mouse', 'dog', 'dog', 'dog', 'cat', 'cat', 'mouse', 'dog'])
+    x2 = np.array(['dog', 'dog', 'cat', 'cat', 'mouse'])
+    x3 = np.array(['mouse', 'dragon', 'dog', 'dragon'])  # unseen value 'dragon'
+    y1 = np.array([1, 2, 2, 2, 3, 1, 2, 3, 5, 5, 1])
+    y2 = np.array([3, 3, 1, 3, 2])
+    y3 = np.array([3, 2, 1, 4])  # unseen value 4
+
+    # Create
+    df_train = vaex.from_arrays(x=x1, y=y1)
+    df_test = vaex.from_arrays(x=x2, y=y2)
+    df_unseen = vaex.from_arrays(x=x3, y=y3)
+
+    # # Label Encode with vaex.ml
+    label_encoder = df_train.ml.label_encoder(features=['x', 'y'], prefix='mypref_')
+
     # Assertions: makes sure that the categories are correctly identified:
-    assert set(np.array(list(le_vaex.labels_['x'].keys()))) == set(np.unique(train.x.values))
-    assert set(np.array(list(le_vaex.labels_['y'].keys()))) == set(np.unique(train.y.values))
-    assert set(np.array(list(le_vaex.labels_['z'].keys()))) == set(np.unique(train.z.values))
-    # Transfrom
-    train = le_vaex.transform(train)
-    test = le_vaex.transform(test)
+    assert set(list(label_encoder.labels_['x'].keys())) == set(np.unique(x1))
+    assert set(list(label_encoder.labels_['y'].keys())) == set(np.unique(y1))
+
+    # Transform
+    df_train = label_encoder.transform(df_train)
+    df_test = label_encoder.transform(df_test)
+
     # Make asserssions on the "correctness" of the implementation by "manually" applying the labels to the categories
-    assert test.x.apply(lambda elem: le_vaex.labels_['x'][elem]).tolist() == test.mypref_x.tolist()
-    assert test.y.apply(lambda elem: le_vaex.labels_['y'][elem]).tolist() == test.mypref_y.tolist()
-    assert test.z.apply(lambda elem: le_vaex.labels_['z'][elem]).tolist() == test.mypref_z.tolist()
+    assert df_test.x.apply(lambda elem: label_encoder.labels_['x'][elem]).tolist() == df_test.mypref_x.tolist()
+    assert df_test.y.apply(lambda elem: label_encoder.labels_['y'][elem]).tolist() == df_test.mypref_y.tolist()
+
     # Try to get labels from the dd dataset unseen categories
     with pytest.raises(ValueError):
-        le_vaex.transform(dd)
+        label_encoder.transform(df_unseen)
+
     # Now try again, but allow for unseen categories
-    le_vaex = train.ml.label_encoder(features=['x', 'y', 'z'], prefix='mypref_', allow_unseen=True)
-    le_vaex.transform(dd)
-    # Fit-transform
-    le = vaex.ml.LabelEncoder(features=['x', 'y', 'z'], prefix='mypref_')
-    le.fit_transform(ds)
+    label_encoder = df_train.ml.label_encoder(features=['x', 'y'], prefix='mypref_', allow_unseen=True)
+    df_unseen = label_encoder.transform(df_unseen)
+    assert set(df_unseen[df_unseen.x == 'dragon'].mypref_x.tolist()) == {-1}
+    assert set(df_unseen[df_unseen.y == 4].mypref_x.tolist()) == {-1}
 
 
 def test_one_hot_encoding():
