@@ -424,7 +424,7 @@ class Expression(with_metaclass(Meta)):
         """Alias to df.is_masked(expression)"""
         return self.ds.is_masked(self.expression)
 
-    def value_counts(self, dropna=False, dropnull=True, ascending=False, progress=False):
+    def value_counts(self, dropna=False, dropnan=False, dropmissing=True, ascending=False, progress=False):
         """Computes counts of unique values.
 
          WARNING:
@@ -585,7 +585,28 @@ def f({0}):
     def apply(self, f):
         return self.ds.apply(f, [self.expression])
 
-    def map(self, mapper, nan_value=None, null_value=None, default_value=None, allow_missing=False):
+    def dropmissing(self):
+        # TODO: df.dropna does not support inplace
+        # df = self.df if inplace else self.df.copy()
+        df = self.ds
+        df = df.dropmissing(column_names=[self.expression])
+        return df._expr(self.expression)
+
+    def dropnan(self):
+        # TODO: df.dropna does not support inplace
+        # df = self.df if inplace else self.df.copy()
+        df = self.ds
+        df = df.dropnan(column_names=[self.expression])
+        return df._expr(self.expression)
+
+    def dropna(self):
+        # TODO: df.dropna does not support inplace
+        # df = self.df if inplace else self.df.copy()
+        df = self.ds
+        df = df.dropna(column_names=[self.expression])
+        return df._expr(self.expression)
+
+    def map(self, mapper, nan_value=None, missing_value=None, default_value=None, allow_missing=False):
         """Map values of an expression or in memory column accoring to an input
         dictionary or a custom callable function.
 
@@ -627,7 +648,7 @@ def f({0}):
         5       4  unknown
         :param mapper: dict like object used to map the values from keys to values
         :param nan_value: value to be used when a nan is present (and not in the mapper)
-        :param null_value: value to use used when there is a missing value
+        :param missing_value: value to use used when there is a missing value
         :param default_value: value to be used when a value is not in the mapper (like dict.get(key, default))
         :param allow_missing: used to signal that values in the mapper should map to a masked array with missing values,
             assumed True when default_value is not None.
@@ -691,7 +712,7 @@ def f({0}):
             else:
                 choices = [nan_value] + choices
         if key_set.has_null:
-            choices = [null_value] + choices
+            choices = [missing_value] + choices
         choices = np.array(choices)
 
         key_set_name = df.add_variable('map_key_set', key_set, unique=True)

@@ -2,7 +2,7 @@ import vaex.serialize
 import json
 import numpy as np
 from vaex import column
-from vaex.column import _to_string_sequence, _to_string_list_sequence
+from vaex.column import _to_string_sequence, _to_string_list_sequence, _is_stringy
 import re
 import vaex.expression
 import functools
@@ -120,28 +120,54 @@ for name, numpy_name in numpy_function_mapping:
 
 
 @register_function()
-def fillna(ar, value, fill_nan=True, fill_masked=True):
+def fillmissing(ar, value):
     '''Returns an array where missing values are replaced by value.
+    See :`ismissing` for the definition of missing values.
+    '''
+    # TODO: optimize, we don't want to_numpy for strings, we want to
+    # do this in c++
+    ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
+    mask = ismissing(ar)
+    if np.any(mask):
+        if np.ma.isMaskedArray(ar):
+            ar = ar.data.copy()
+        else:
+            ar = ar.copy()
+        ar[mask] = value
+    return ar
 
-    If the dtype is object, nan values and 'nan' string values
-    are replaced by value when fill_nan==True.
+
+@register_function()
+def fillnan(ar, value):
+    '''Returns an array where nan values are replaced by value.
+    See :`isnan` for the definition of missing values.
+    '''
+    # TODO: optimize, we don't want to convert string to numpy
+    # they will never contain nan
+    if not _is_stringy(ar):
+        ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
+        if ar.dtype.kind in 'fO':
+            mask = isnan(ar)
+            if np.any(mask):
+                ar = ar.copy()
+                ar[mask] = value
+    return ar
+
+
+@register_function()
+def fillna(ar, value):
+    '''Returns an array where NA values are replaced by value.
+    See :`isna` for the definition of missing values.
+
     '''
     ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
-    if ar.dtype.kind in 'O' and fill_nan:
-        strings = ar.astype(str)
-        mask = strings == 'nan'
-        ar = ar.copy()
-        ar[mask] = value
-    elif ar.dtype.kind in 'f' and fill_nan:
-        mask = np.isnan(ar)
-        if np.any(mask):
-            ar = ar.copy()
-            ar[mask] = value
-    if fill_masked and np.ma.isMaskedArray(ar):
-        mask = ar.mask
-        if np.any(mask):
+    mask = isna(ar)
+    if np.any(mask):
+        if np.ma.isMaskedArray(ar):
             ar = ar.data.copy()
-            ar[mask] = value
+        else:
+            ar = ar.copy()
+        ar[mask] = value
     return ar
 
 @register_function()
