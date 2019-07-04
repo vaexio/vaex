@@ -8,8 +8,8 @@ def test_value_counts():
     assert len(ds.x.value_counts()) == 21
     assert len(ds.y.value_counts()) == 19
 
-    assert len(ds.m.value_counts()) == 19
-    assert len(ds.m.value_counts(dropmissing=False)) == 20
+    assert len(ds.m.value_counts(dropmissing=True)) == 19
+    assert len(ds.m.value_counts()) == 20
 
     assert len(ds.n.value_counts(dropna=False)) == 20
     assert len(ds.n.value_counts(dropna=True)) == 19
