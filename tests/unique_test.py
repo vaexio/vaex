@@ -40,7 +40,7 @@ def test_unique_nan():
 
 def test_unique_missing():
     # Create test databn
-    x = np.array(['A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan,])
+    x = np.array([None, 'A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan,])
     df = vaex.from_arrays(x=x)
     uniques = df.x.unique().tolist()
     assert set(uniques) == set(['', 'A', 'B', -1, 0, 2])
