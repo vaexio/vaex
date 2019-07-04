@@ -58,7 +58,7 @@ class ANNOYModel(state.HasState):
                     substate=super(ANNOYModel, self).state_get(),
                     n_dimensions=len(self.features))
 
-    def state_set(self, state):
+    def state_set(self, state, trusted=True):
         super(ANNOYModel, self).state_set(state['substate'])
         data = base64.decodebytes(state['tree_state'].encode('ascii'))
         n_dimensions = state['n_dimensions']

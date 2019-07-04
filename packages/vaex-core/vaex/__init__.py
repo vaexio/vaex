@@ -137,6 +137,14 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
             path = aliases[path]
         if path.startswith("http://") or path.startswith("ws://"):  # TODO: think about https and wss
             server, name = path.rsplit("/", 1)
+            url = urlparse(path)
+            if '?' in name:
+                name = name[:name.index('?')]
+            extra_args = {key: values[0] for key, values in parse_qs(url.query).items()}
+            if 'token' in extra_args:
+                kwargs['token'] = extra_args['token']
+            if 'token_trusted' in extra_args:
+                kwargs['token_trusted'] = extra_args['token_trusted']
             server = vaex.server(server, **kwargs)
             dataframe_map = server.datasets(as_dict=True)
             if name not in dataframe_map:
@@ -509,9 +517,9 @@ aliases = vaex.settings.main.auto_store_dict("aliases")
 
 # py2/p3 compatibility
 try:
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, parse_qs
 except ImportError:
-    from urlparse import urlparse
+    from urlparse import urlparse, parse_qs
 
 
 def server(url, **kwargs):
