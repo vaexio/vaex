@@ -22,8 +22,7 @@ class PlotTemplate(v.VuetifyTemplate):
     drawers = Any(['Default (no property)', 'Permanent', 'Temporary']).tag(sync=True)
     template = Unicode('''
 
-
-<v-layout>
+<v-app>
     <v-navigation-drawer
       v-model="model"
       :permanent="type === 'permanent'"
@@ -77,5 +76,5 @@ class PlotTemplate(v.VuetifyTemplate):
     <v-content>
           <main-widget/>
     </v-content>
-</v-layout>
+<v-app>
 ''').tag(sync=True)
