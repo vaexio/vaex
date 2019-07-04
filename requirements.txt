@@ -16,3 +16,4 @@ pillow
 requests
 pyarrow>=0.12
 s3fs
+ipyvuetify
