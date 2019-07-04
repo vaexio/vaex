@@ -1,19 +1,19 @@
-import daex.grid
-import daex.state
-import daex.viz
+import vaex.jupyter.grid
+import vaex.jupyter.state
+import vaex.jupyter.viz
 import ipywidgets as widgets
 
-# viz_types = [daex.viz.VizHeatmapBqplot, daex.viz.VizHistogramBqplot]
+# viz_types = [vaex.jupyter.viz.VizHeatmapBqplot, vaex.jupyter.viz.VizHistogramBqplot]
 
 class Creator:
     def __init__(self, ds):
         self.ds = ds
-        self.grid = daex.grid.Grid(self.ds, [])
+        self.grid = vaex.jupyter.grid.Grid(self.ds, [])
         
-        self.widget_button_new_histogram = widgets.Button(description='New: ' + daex.viz.VizHistogramBqplot.type_name, icon=daex.viz.VizHistogramBqplot.icon)
+        self.widget_button_new_histogram = widgets.Button(description='New: ' + vaex.jupyter.viz.VizHistogramBqplot.type_name, icon=vaex.jupyter.viz.VizHistogramBqplot.icon)
         self.widget_button_new_histogram.on_click(self.on_new_histogram)
 
-        self.widget_button_new_heatmap = widgets.Button(description='New: ' + daex.viz.VizHeatmapBqplot.type_name, icon=daex.viz.VizHeatmapBqplot.icon)
+        self.widget_button_new_heatmap = widgets.Button(description='New: ' + vaex.jupyter.viz.VizHeatmapBqplot.type_name, icon=vaex.jupyter.viz.VizHeatmapBqplot.icon)
         self.widget_button_new_heatmap.on_click(self.on_new_heatmap)
 
         self.widget_container = widgets.VBox()
@@ -27,9 +27,9 @@ class Creator:
         return list(map(str, self.ds.get_column_names(virtual=True)))
 
     def on_new_histogram(self, button=None):
-        state = daex.state.VizHistogramState(self.ds, x_expression=self.column_names[0])
+        state = vaex.jupyter.state.VizHistogramState(self.ds, x_expression=self.column_names[0])
         self.grid.state_add(state)
-        viz = daex.viz.VizHistogramBqplot(state=state)
+        viz = vaex.jupyter.viz.VizHistogramBqplot(state=state)
         self.viz_add(viz)
 
     def viz_add(self, viz):
@@ -55,9 +55,9 @@ class Creator:
         self.widget_buttons_remove.append(button_remove)
 
     def on_new_heatmap(self, button=None):
-        state = daex.state.VizHeatmapState(self.ds, x_expression=self.column_names[0], y_expression=self.column_names[1])
+        state = vaex.jupyter.state.VizHeatmapState(self.ds, x_expression=self.column_names[0], y_expression=self.column_names[1])
         self.grid.state_add(state)
-        viz = daex.viz.VizHeatmapBqplot(state=state)
+        viz = vaex.jupyter.viz.VizHeatmapBqplot(state=state)
         self.viz_add(viz)
         # N = len(self.viz)
         # self.viz.append(viz)
