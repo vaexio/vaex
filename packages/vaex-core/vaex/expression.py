@@ -424,14 +424,16 @@ class Expression(with_metaclass(Meta)):
         """Alias to df.is_masked(expression)"""
         return self.ds.is_masked(self.expression)
 
-    def value_counts(self, dropna=False, dropnan=False, dropmissing=True, ascending=False, progress=False):
+    def value_counts(self, dropna=False, dropnan=False, dropmissing=False, ascending=False, progress=False):
         """Computes counts of unique values.
 
          WARNING:
           * If the expression/column is not categorical, it will be converted on the fly
           * dropna is False by default, it is True by default in pandas
 
-        :param dropna: when True, it will not report the missing values
+        :param dropna: when True, it will not report the NA (see :func:`Expression.isna`)
+        :param dropnan: when True, it will not report the nans(see :func:`Expression.isnan`)
+        :param dropmissing: when True, it will not report the missing values (see :func:`Expression.ismissing`)
         :param ascending: when False (default) it will report the most frequent occuring item first
         :returns: Pandas series containing the counts
         """
@@ -477,14 +479,33 @@ class Expression(with_metaclass(Meta)):
             order = order[::-1]
         counts = counts[order]
         index = index[order]
-        if not dropna or not dropnull:
+        # nan can already be present for dtype=object, remove it
+        nan_mask = index != index
+        if np.any(nan_mask):
+            index = index[~mask]
+            counts = index[~mask]
+        # nan can already be present for dtype=object, optionally remove it
+        none_mask = index == None
+        if np.any(none_mask):
             index = index.tolist()
             counts = counts.tolist()
-            if not dropna and counter0.nan_count:
+            i = index.index(None)
+            if (dropmissing or dropna):
+                del index[i]
+                del counts[i]
+            else:
+                index[i] = "missing"
+            index = np.array(index)
+            counts = np.array(counts)
+
+        if not dropna or not dropnan or not dropmissing:
+            index = index.tolist()
+            counts = counts.tolist()
+            if not (dropnan or dropna) and counter0.nan_count:
                 index = [np.nan] + index
                 counts = [counter0.nan_count] + counts
-            if not dropnull and counter0.null_count:
-                index = ['null'] + index
+            if not (dropmissing or dropna) and counter0.null_count:
+                index = ['missing'] + index
                 counts = [counter0.null_count] + counts
 
         return Series(counts, index=index)
