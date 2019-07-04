@@ -14,8 +14,8 @@ def test_value_counts():
     assert len(ds.n.value_counts(dropna=False)) == 20
     assert len(ds.n.value_counts(dropna=True)) == 19
 
-    assert len(ds.nm.value_counts(dropna=True, dropmissing=True)) == 21-4
-    assert len(ds.nm.value_counts(dropna=True, dropmissing=False)) == 21-3
+    assert len(ds.nm.value_counts(dropnan=True, dropmissing=True)) == 21-4
+    assert len(ds.nm.value_counts(dropnan=True, dropmissing=False)) == 21-3
     assert len(ds.nm.value_counts(dropna=False, dropmissing=True)) == 21-3
     assert len(ds.nm.value_counts(dropna=False, dropmissing=False)) == 21-2
 
