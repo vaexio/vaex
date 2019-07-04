@@ -621,7 +621,11 @@ def register_dataframe_accessor(name, cls=None):
             raise ValueError("DataFrame already has a property/accessor named %r (%r)" % (name, old_value) )
 
         def get_accessor(self):
-            return cls(self)
+            if name in self.__dict__:
+                return self.__dict__[name]
+            else:
+                self.__dict__[name] = cls(self)
+            return self.__dict__[name]
         setattr(vaex.dataframe.DataFrame, name, property(get_accessor))
         return cls
     if cls is None:
