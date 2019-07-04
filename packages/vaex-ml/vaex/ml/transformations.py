@@ -300,7 +300,7 @@ class FrequencyEncoder(Transformer):
         default_value = {'zero': 0., 'nan': np.nan}[self.unseen]
         for feature in self.features:
             name = self.prefix + feature
-            expression = copy[feature].map(self.mappings_[feature], nan_value=np.nan, null_value=np.nan, default_value=default_value, allow_missing=True)
+            expression = copy[feature].map(self.mappings_[feature], nan_value=np.nan, missing_value=np.nan, default_value=default_value, allow_missing=True)
 
             copy[name] = expression
         return copy

@@ -9,18 +9,18 @@ def test_value_counts():
     assert len(ds.y.value_counts()) == 19
 
     assert len(ds.m.value_counts()) == 19
-    assert len(ds.m.value_counts(dropnull=False)) == 20
+    assert len(ds.m.value_counts(dropmissing=False)) == 20
 
     assert len(ds.n.value_counts(dropna=False)) == 20
     assert len(ds.n.value_counts(dropna=True)) == 19
 
-    assert len(ds.nm.value_counts(dropna=True, dropnull=True)) == 21-4
-    assert len(ds.nm.value_counts(dropna=True, dropnull=False)) == 21-3
-    assert len(ds.nm.value_counts(dropna=False, dropnull=True)) == 21-3
-    assert len(ds.nm.value_counts(dropna=False, dropnull=False)) == 21-2
+    assert len(ds.nm.value_counts(dropnan=True, dropmissing=True)) == 21-4
+    assert len(ds.nm.value_counts(dropnan=True, dropmissing=False)) == 21-3
+    assert len(ds.nm.value_counts(dropna=False, dropmissing=True)) == 21-3
+    assert len(ds.nm.value_counts(dropna=False, dropmissing=False)) == 21-2
 
-    assert len(ds.mi.value_counts(dropnull=True)) == 21-2
-    assert len(ds.mi.value_counts(dropnull=False)) == 21-1
+    assert len(ds.mi.value_counts(dropmissing=True)) == 21-2
+    assert len(ds.mi.value_counts(dropmissing=False)) == 21-1
 
     v_counts_name = ds['name'].value_counts()
     v_counts_name_arrow = ds.name_arrow.value_counts()
@@ -29,8 +29,8 @@ def test_value_counts():
 
 def test_value_counts_object():
     ds = create_base_ds()
-    assert len(ds.obj.value_counts(dropnull=True)) == 17
-    assert len(ds.obj.value_counts(dropnull=False)) == 18
+    assert len(ds.obj.value_counts(dropmissing=True)) == 17
+    assert len(ds.obj.value_counts(dropmissing=False)) == 18
 
 
 @pytest.mark.parametrize("dropna", [True, False])
@@ -58,8 +58,8 @@ def test_value_counts_simple():
     assert set(ds.y.value_counts(dropna=True, ascending=True).values.tolist()) == {1, 3}
     # nan comparison with == never works
     # assert ds.y.value_counts(dropna=False, ascending=True).index.tolist() == [1, np.nan, None, 2]
-    assert ds.y.value_counts(dropna=False, dropnull=True, ascending=True).values.tolist()  == [1, 1, 3]
-    assert ds.y.value_counts(dropna=False, dropnull=False, ascending=True).values.tolist() == [2, 1, 1, 3]
+    assert ds.y.value_counts(dropna=False, dropmissing=True, ascending=True).values.tolist()  == [1, 1, 3]
+    assert ds.y.value_counts(dropna=False, dropmissing=False, ascending=True).values.tolist() == [2, 1, 1, 3]
     # assert ds.y.value_counts(dropna=False, ascending=True).index.tolist() == ['2', 'missing', '1']
 
     assert set(df.x.value_counts(dropna=False).values.tolist()) == set(ds.x.value_counts(dropna=False).values.tolist())
@@ -69,3 +69,12 @@ def test_value_counts_simple():
     # assert df.y.value_counts(dropna=False).index.tolist() == ds.y.value_counts(dropna=False).index.tolist()
     # assert df.y.value_counts(dropna=False).values.tolist() == ds.y.value_counts(dropna=False).values.tolist()
     # assert df.y.value_counts(dropna=True).values.tolist() == ds.y.value_counts(dropna=True).values.tolist()
+
+def test_value_counts_object_missing():
+    # Create sample data
+    x = np.array([None, 'A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan])
+    df = vaex.from_arrays(x=x)
+    # assert correct number of elements found
+    assert len(df.x.value_counts(dropnan=False, dropmissing=False)) == 8
+    assert len(df.x.value_counts(dropnan=True, dropmissing=True)) == 6
+

@@ -3973,17 +3973,37 @@ class DataFrame(object):
             return selections.SelectionDropNa(drop_nan, drop_masked, column_names, current, mode)
         self._selection(create, name)
 
-    def dropna(self, drop_nan=True, drop_masked=True, column_names=None):
-        """Create a shallow copy of a DataFrame, with filtering set using select_non_missing.
+    def dropmissing(self, column_names=None):
+        """Create a shallow copy of a DataFrame, with filtering set using ismissing.
 
-        :param drop_nan: drop rows when there is a NaN in any of the columns (will only affect float values)
-        :param drop_masked: drop rows when there is a masked value in any of the columns
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
         :rtype: DataFrame
         """
+        return self._filter_all(self.func.ismissing, column_names)
+
+    def dropnan(self, column_names=None):
+        """Create a shallow copy of a DataFrame, with filtering set using isnan.
+
+        :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :rtype: DataFrame
+        """
+        return self._filter_all(self.func.isnan, column_names)
+
+    def dropna(self, column_names=None):
+        """Create a shallow copy of a DataFrame, with filtering set using isna.
+
+        :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :rtype: DataFrame
+        """
+        return self._filter_all(self.func.isna, column_names)
+
+    def _filter_all(self, f, column_names=None):
         copy = self.copy()
-        copy.select_non_missing(drop_nan=drop_nan, drop_masked=drop_masked, column_names=column_names,
-                                name=FILTER_SELECTION_NAME, mode='and')
+        column_names = column_names or self.get_column_names(virtual=False)
+        expression = f(self._expr(column_names[0]))
+        for column in column_names[1:]:
+            expression = expression & f(self._expr(column))
+        copy.select(~expression, name=FILTER_SELECTION_NAME, mode='and')
         return copy
 
     def select_nothing(self, name="default"):

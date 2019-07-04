@@ -212,6 +212,16 @@ def _to_string(string_bytes):
     else:
         return bytes(memoryview(string_bytes)).decode('utf8')
 
+
+def _is_stringy(x):
+    if isinstance(x, ColumnString):
+        return True
+    elif isinstance(x, np.ndarray):
+        if x.dtype.kind in 'US':
+            return True
+    return False
+
+
 def _to_string_sequence(x):
     if isinstance(x, ColumnString):
         return x.string_sequence
