@@ -69,3 +69,12 @@ def test_value_counts_simple():
     # assert df.y.value_counts(dropna=False).index.tolist() == ds.y.value_counts(dropna=False).index.tolist()
     # assert df.y.value_counts(dropna=False).values.tolist() == ds.y.value_counts(dropna=False).values.tolist()
     # assert df.y.value_counts(dropna=True).values.tolist() == ds.y.value_counts(dropna=True).values.tolist()
+
+def test_value_counts_object_missing():
+    # Create sample data
+    x = np.array(['A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan,])
+    df = vaex.from_arrays(x=x)
+    # assert correct number of elements found
+    assert len(df.x.value_counts(dropna=False, dropnull=False)) == 8
+    assert len(df.x.value_counts(dropna=True, dropnull=True)) == 6
+
