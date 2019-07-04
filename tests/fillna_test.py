@@ -50,3 +50,10 @@ def test_fillna_virtual():
     df['r'] = df.r.fillna(value=0xdeadbeef)
     assert df.r.tolist()[:4] == [0.0, 0.6931471805599453, 1.0986122886681098, 1.6094379124341003]
     assert df.r.tolist()[4:7] == [0xdeadbeef, 0xdeadbeef, 0xdeadbeef]
+
+def test_fillna_missing():
+    # Create test data
+    x = np.array(['A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan,])
+    df = vaex.from_arrays(x=x)
+    # Assert the correctness of the fillna
+    assert df.x.fillna(value=-5).tolist() == ['A', 'B', -1, 0, 2, '', '', -5, -5, -5, -5, -5, -5, -5]
