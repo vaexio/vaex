@@ -43,8 +43,14 @@ class BqplotBackend(BackendBase):
         self.output = output
         self.dataset = dataset
         self.limits = np.array(limits).tolist()
-        self.scale_x = bqplot.LinearScale(min=limits[0][0].item(), max=limits[0][1].item(), allow_padding=False)
-        self.scale_y = bqplot.LinearScale(min=limits[1][0].item(), max=limits[1][1].item(), allow_padding=False)
+        def fix(v):
+            # bqplot is picky about float and numpy scalars
+            if hasattr(v, 'item'):
+                return v.item()
+            else:
+                return v
+        self.scale_x = bqplot.LinearScale(min=fix(limits[0][0]), max=fix(limits[0][1]), allow_padding=False)
+        self.scale_y = bqplot.LinearScale(min=fix(limits[1][0]), max=fix(limits[1][1]), allow_padding=False)
         self.scale_rotation = bqplot.LinearScale(min=0, max=1)
         self.scale_size = bqplot.LinearScale(min=0, max=1)
         self.scale_opacity = bqplot.LinearScale(min=0, max=1)
@@ -164,7 +170,7 @@ class BqplotBackend(BackendBase):
             tool_actions = ["pan/zoom", "select"]
             # tool_actions = [("m", "m"), ("b", "b")]
             self.button_action = \
-                v.BtnToggle(v_model=0, mandatory=True, multiple=False, align_center=True, children=[
+                v.BtnToggle(v_model=0, mandatory=True, multiple=False, children=[
                                 v.Tooltip(bottom=True, children=[
                                     v.Btn(slot='activator', children=[
                                         v.Icon(children=['pan_tool'])
@@ -179,11 +185,12 @@ class BqplotBackend(BackendBase):
                             ]),
                         ])
             self.widget_tool_basic = v.Layout(children=[
-                v.Layout(pa_1=True, column=False, children=[
+                v.Layout(pa_1=True, column=False, align_center=True, children=[
                     self.button_action,
                     self.widget_select_nothing
                 ])
             ])
+            self.plot.add_control_widget(self.widget_tool_basic)
 
             self.button_action.observe(change_interact, "v_model")
             self.tools.insert(0, self.button_action)
@@ -198,9 +205,6 @@ class BqplotBackend(BackendBase):
         self.control_widget.children += (self._main_widget,)
         self._update_grid_counter = 0  # keep track of t
         self._update_grid_counter_scheduled = 0  # keep track of t
-
-    def add_control_widgets(self, callback):
-        callback(self.widget_tool_basic)
 
     def _on_view_count_change(self, *args):
         with self.output:

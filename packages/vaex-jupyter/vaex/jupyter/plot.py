@@ -10,6 +10,7 @@ from IPython.display import display
 import copy
 from .utils import debounced
 from vaex.utils import _ensure_list, _expand, _parse_f, _parse_n, _parse_reduction, _expand_shape
+from .widgets import PlotTemplate
 
 type_map = {}
 
@@ -68,89 +69,6 @@ def _translate_selection(selection):
     else:
         return selection
 
-from traitlets import *
-class MyDrawer(v.VuetifyTemplate):
-    show_output = Bool(False).tag(sync=True)
-    new_output = Bool(False).tag(sync=True)
-
-    drawer = Bool(True).tag(sync=True)
-    clipped = Bool(True).tag(sync=True)
-    model = Any(True).tag(sync=True)
-    floating = Bool(True).tag(sync=True)
-    dark = Bool(False).tag(sync=True)
-    mini = Bool(False).tag(sync=True)
-    components = Dict(None, allow_none=True).tag(sync=True, **widgets.widget.widget_serialization)
-    items = Any([]).tag(sync=True)
-    type = Unicode('Default (no property)').tag(sync=True)
-    items = List(['red', 'green', 'purple']).tag(sync=True)
-    button_text = Unicode('menu').tag(sync=True)
-    drawers = Any(['Default (no property)', 'Permanent', 'Temporary']).tag(sync=True)
-    template = Unicode('''
-
-
-<template>
-  <v-app id="sandbox" :dark="dark">
-    <v-navigation-drawer
-      v-model="model"
-      :permanent="type === 'permanent'"
-      :temporary="type === 'temporary'"
-      :clipped="clipped"
-      :floating="floating"
-      :mini-variant="mini"
-      absolute
-      overflow
-      app
-    >
-
-        <control-widget/>
-
-      </v-list>
-
-    </v-navigation-drawer>
-
-    <v-navigation-drawer
-      v-model="show_output"
-      clipped="false"
-      floating="false"
-      right
-      absolute
-      overflow
-      app
-    >
-      <h3>Output</h3>
-      <output-widget>
-    </v-navigation-drawer>
-
-    <v-toolbar :clipped-left="clipped" app absolute dense>
-      <v-toolbar-side-icon
-        v-if="type !== 'permanent'"
-        @click.stop="model = !model"
-      ></v-toolbar-side-icon>
-      <v-toolbar-title>Vaex</v-toolbar-title>
-      <v-spacer></v-spacer>
-
-
-    <v-btn icon @click.stop="show_output = !show_output; new_output=false">
-      <v-badge color="red" overlap>
-        <template v-slot:badge v-if="new_output">
-          <span>!</span>
-        </template>
-            <v-icon>error_outline</v-icon>
-      </v-badge>
-    </v-btn>
-
-
-    </v-toolbar>
-    <v-content>
-      <v-container fluid>
-        <v-layout>
-          <main-widget/>
-        </v-layout>
-      </v-container>
-    </v-content>
-  </v-app>
-</template>
-''').tag(sync=True)
 
 
 class PlotBase(widgets.Widget):
@@ -210,15 +128,13 @@ class PlotBase(widgets.Widget):
             self.progress.layout.max_width = '500px'
             self.progress.description = "progress"
 
-            self.backend.create_widget(self.output, self, self.dataset, self.limits)
             self.control_widget = v.Layout(pa_1=True, column=True, children=[])
-            backend.add_control_widgets(self.add_control_widget)
-
+            self.backend.create_widget(self.output, self, self.dataset, self.limits)
 
             # self.create_tools()
             # self.widget = widgets.VBox([widgets.HBox([self.backend.widget, self.control_widget]), self.progress, self.output])
-            self.widget = MyDrawer(components={
-                        'main-widget': self.backend.widget,
+            self.widget = PlotTemplate(components={
+                        'main-widget': widgets.VBox([self.backend.widget, self.progress, self.output]),
                         'control-widget': self.control_widget,
                         'output-widget': self.output
                     },
