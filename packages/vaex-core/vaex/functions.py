@@ -175,13 +175,19 @@ def ismissing(x):
     """Returns True where there are missing values (masked arrays), missing strings or None"""
     if np.ma.isMaskedArray(x):
         if x.dtype.kind in 'O':
-            return (x.data == None) | x.mask
+            if x.mask is not None:
+                return (x.data == None) | x.mask
+            else:
+                return (x.data == None)
         else:
             return x.mask == 1
     else:
         if not isinstance(x, np.ndarray) or x.dtype.kind in 'US':
             x = _to_string_sequence(x)
-            return x.mask()
+            mask = x.mask()
+            if mask is None:
+                mask = np.zeros(x.length, dtype=np.bool)
+            return mask
         elif isinstance(x, np.ndarray) or x.dtype.kind in 'O':
             return x == None
         else:
