@@ -26,6 +26,6 @@ setup(name=name + '-jupyter',
       license=license,
       packages=['vaex.jupyter'],
       zip_safe=False,
-      entry_points={'vaex.namespace': ['widget = vaex.jupyter:add_namespace']}
+      entry_points={'vaex.namespace': ['widget = vaex.jupyter:add_namespace']},
       include_package_data=True,  # include files listed in manifest.in
       )
