@@ -72,7 +72,7 @@ def test_value_counts_simple():
 
 def test_value_counts_object_missing():
     # Create sample data
-    x = np.array(['A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan,])
+    x = np.array(['A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan])
     df = vaex.from_arrays(x=x)
     # assert correct number of elements found
     assert len(df.x.value_counts(dropna=False, dropnull=False)) == 8
