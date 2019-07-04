@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import vaex.ml
 import traitlets
 from .state import *
