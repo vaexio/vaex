@@ -3613,7 +3613,7 @@ class DataFrame(object):
             max_index = indices.max()
             mask = df._selection_masks[FILTER_SELECTION_NAME]
             filtered_indices = mask.first(max_index+1)
-            indices = indices[filtered_indices]
+            indices = filtered_indices[indices]
         for name, column in df.columns.items():
             if column is not None:
                 # we optimize this somewhere, so we don't do multiple
@@ -3822,7 +3822,7 @@ class DataFrame(object):
         :param str kind: kind of algorithm to use (passed to numpy.argsort)
         '''
         self = self.trim()
-        values = self.evaluate(by, filtered=False)
+        values = self.evaluate(by)
         indices = np.argsort(values, kind=kind)
         if not ascending:
             indices = indices[::-1].copy()  # this may be used a lot, so copy for performance
