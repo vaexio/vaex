@@ -123,6 +123,19 @@ class ordered_set : public hash_base<ordered_set<T>, T> {
 public:
     using typename hash_base<ordered_set<T>, T, T>::value_type;
     using typename hash_base<ordered_set<T>,T, T>::storage_type;
+
+    static ordered_set* create(std::map<value_type, int64_t> dict, int64_t count, int64_t nan_count, int64_t null_count) {
+        ordered_set* set = new ordered_set;
+        for(auto el : dict) {
+            storage_type storage_value = el.first;
+            set->map.emplace(storage_value, el.second);
+        }
+        set->count = count;
+        set->nan_count = nan_count;
+        set->null_count = null_count;
+        return set;
+    }
+
     py::object map_ordinal(py::array_t<value_type>& values) {
         size_t size = this->map.size() + (this->null_count > 0 ? 1 : 0) + (this->nan_count > 0 ? 1 : 0);
         // TODO: apply this pattern of various return types to the other set types
@@ -213,6 +226,7 @@ void init_hash(M m, std::string name) {
         .def("merge", &counter_type::merge)
         .def("extract", &counter_type::extract)
         .def("keys", &counter_type::keys)
+        .def_property_readonly("count", [](const counter_type &c) { return c.count; })
         .def_property_readonly("nan_count", [](const counter_type &c) { return c.nan_count; })
         .def_property_readonly("null_count", [](const counter_type &c) { return c.null_count; })
         .def_property_readonly("has_nan", [](const counter_type &c) { return c.nan_count > 0; })
@@ -222,12 +236,14 @@ void init_hash(M m, std::string name) {
     typedef ordered_set<T> Type;
     py::class_<Type>(m, ordered_setname.c_str())
         .def(py::init<>())
+        .def(py::init(&Type::create))
         .def("update", &Type::update)
         .def("update", &Type::update_with_mask)
         .def("merge", &Type::merge)
         .def("extract", &Type::extract)
         .def("keys", &Type::keys)
         .def("map_ordinal", &Type::map_ordinal)
+        .def_property_readonly("count", [](const Type &c) { return c.count; })
         .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
         .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
         .def_property_readonly("has_nan", [](const Type &c) { return c.nan_count > 0; })

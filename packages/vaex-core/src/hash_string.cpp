@@ -129,8 +129,8 @@ public:
 
         }
         return m;
-
     }
+
     // hashmap<storage_type, int64_t, hash_string, equal_string> map;
     hashmap<storage_type, int64_t> map;
     int64_t count;
@@ -175,6 +175,20 @@ public:
     using typename hash_base<ordered_set<T>, T, T, V>::value_type;
     using typename hash_base<ordered_set<T>, T, T, V>::storage_type;
     using typename hash_base<ordered_set<T>, T, T, V>::storage_type_view;
+
+    static ordered_set* create(std::map<value_type, int64_t> dict, int64_t count, int64_t nan_count, int64_t null_count) {
+        ordered_set* set = new ordered_set;
+        for(auto el : dict) {
+            storage_type storage_value = el.first;
+            set->map.emplace(storage_value, el.second);
+            // value_type value = *((value_type*)(&storage_value));
+            // m[value] = el.second;
+        }
+        set->count = count;
+        set->nan_count = nan_count;
+        set->null_count = null_count;
+        return set;
+    }
 
     py::object map_ordinal(StringSequence* strings) {
         size_t size = this->map.size() + (this->null_count > 0 ? 1 : 0);
@@ -278,6 +292,7 @@ void init_hash_string(py::module &m) {
             .def("update", &counter_type::update)
             .def("merge", &counter_type::merge)
             .def("extract", &counter_type::extract)
+            .def_property_readonly("count", [](const counter_type &c) { return c.count; })
             .def_property_readonly("nan_count", [](const counter_type &c) { return c.nan_count; })
             .def_property_readonly("null_count", [](const counter_type &c) { return c.null_count; })
         ;
@@ -299,12 +314,14 @@ void init_hash_string(py::module &m) {
         typedef ordered_set<> Type;
         py::class_<Type>(m, ordered_setname.c_str())
             .def(py::init<>())
+            .def(py::init(&Type::create))
             .def("update", &Type::update)
             // .def("update", &Type::update_with_mask)
             .def("merge", &Type::merge)
             .def("extract", &Type::extract)
             .def("keys", &Type::keys)
             .def("map_ordinal", &Type::map_ordinal)
+            .def_property_readonly("count", [](const Type &c) { return c.count; })
             .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
             .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
             .def_property_readonly("has_nan", [](const Type &c) { return c.nan_count > 0; })
