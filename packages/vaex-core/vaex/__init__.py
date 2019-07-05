@@ -610,14 +610,14 @@ if os.path.exists(import_script):
 logger = logging.getLogger('vaex')
 
 
-def register_dataframe_accessor(name, cls=None):
+def register_dataframe_accessor(name, cls=None, override=False):
     """Registers a new accessor for a dataframe
 
     See vaex.geo for an example.
     """
     def wrapper(cls):
         old_value = getattr(vaex.dataframe.DataFrame, name, None)
-        if old_value is not None:
+        if old_value is not None and override is False:
             raise ValueError("DataFrame already has a property/accessor named %r (%r)" % (name, old_value) )
 
         def get_accessor(self):
