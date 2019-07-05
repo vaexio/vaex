@@ -383,14 +383,16 @@ public:
             for(size_t j = 0; j < length; j++) {
                 PyObject* obj = this->objects[j+offset];
                 bool none = (obj == Py_None);
-                this->grid_data[indices1d[j]] += none ? 0 : 1;
+                bool _isnan = PyFloat_Check(obj) && isnan(PyFloat_AsDouble(obj));
+                this->grid_data[indices1d[j]] += (none || _isnan ? 0 : 1);
             }
         } else {
             for(size_t j = 0; j < length; j++) {
                 PyObject* obj = this->objects[j+offset];
                 bool none = (obj == Py_None);
+                bool _isnan = PyFloat_Check(obj) && isnan(PyFloat_AsDouble(obj));
                 bool masked = this->data_mask_ptr[j+offset] == 0;
-                this->grid_data[indices1d[j]] += none || masked ? 0 : 1;
+                this->grid_data[indices1d[j]] += (none || masked || _isnan ? 0 : 1);
             }
         }
     }

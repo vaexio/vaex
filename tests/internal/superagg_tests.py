@@ -120,7 +120,7 @@ def test_sum_1d_ordinal():
 
 def test_count_1d_object():
     x = np.array([-1, -1, 0, 0, 2, 6, 10], dtype='i8')
-    y = np.array([ 1,  1, 1, None, 1, '1', None], dtype='O')
+    y = np.array([ 1,  1, 1, None, 1, '1', np.nan], dtype='O')
     ordinal_count = 5
     binner = vaex.superagg.BinnerOrdinal_int64('x', ordinal_count, 0)
     binner.set_data(x)
