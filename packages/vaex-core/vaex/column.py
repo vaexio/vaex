@@ -242,9 +242,16 @@ def _to_string_list_sequence(x):
     else:
         raise ValueError('not a StringListList')
 
+def _asnumpy(ar):
+    if isinstance(ar, np.ndarray):
+        return ar
+    else:
+        return ar.to_numpy()
+
 class ColumnStringArrow(ColumnString):
     """Column that unpacks the arrow string column on the fly"""
     def __init__(self, indices, bytes, length=None, offset=0, string_sequence=None, null_bitmap=None):
+        self._string_sequence = string_sequence
         self.indices = indices
         self.offset = offset  # to avoid memory copies in trim
         self.bytes = bytes
@@ -253,7 +260,10 @@ class ColumnStringArrow(ColumnString):
         self.shape = (self.__len__(),)
         self.nbytes = self.bytes.nbytes + self.indices.nbytes
         self.null_bitmap = null_bitmap
-        if string_sequence is None:
+
+    @property
+    def string_sequence(self):
+        if self._string_sequence is None:
             if self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize == 8:
                 string_type = vaex.strings.StringList64
             elif self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize == 4:
@@ -261,14 +271,19 @@ class ColumnStringArrow(ColumnString):
             else:
                 raise ValueError('unsupported index type' + str(self.indices.dtype))
             if self.null_bitmap is not None:
-                self.string_sequence = string_type(self.bytes, self.indices, self.length, self.offset, self.null_bitmap)
+                self._string_sequence = string_type(_asnumpy(self.bytes), _asnumpy(self.indices), self.length, self.offset, self.null_bitmap)
             else:
-                self.string_sequence = string_type(self.bytes, self.indices, self.length, self.offset)
-        else:
-            self.string_sequence = string_sequence
+                self._string_sequence = string_type(_asnumpy(self.bytes), _asnumpy(self.indices), self.length, self.offset)
+        return self._string_sequence
 
     def __len__(self):
         return self.length
+
+    def __eq__(self, other):
+        try:
+            return self.string_sequence.equals(other)
+        except:
+            return np.zeros(self.length, dtype=np.bool)
 
     def __getitem__(self, slice):
         if isinstance(slice, int):
