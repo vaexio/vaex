@@ -97,6 +97,13 @@ String operations
      :special-members:
 
 
+Geo operations
+~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.geo.DataFrameAccessorGeo
+     :members:
+     :special-members:
+
 vaex.stat module
 ~~~~~~~~~~~~~~~~
 
