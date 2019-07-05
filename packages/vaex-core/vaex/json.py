@@ -3,6 +3,8 @@ import json
 import numpy as np
 import datetime
 import re
+import vaex.hash
+
 
 serializers = []
 
@@ -42,6 +44,67 @@ class DateTime64Serializer:
         return value
 
 
+@register
+class NumpySerializer:
+    @staticmethod
+    def can_encode(obj):
+        return isinstance(obj, np.ndarray)
+
+    @staticmethod
+    def encode(obj):
+        values = obj.tolist()
+        dtype = str(obj.dtype)
+        return {
+            'type': 'ndarray',
+            'data': {
+                'values': values,
+                'dtype': dtype
+            }
+        }
+
+    @staticmethod
+    def can_decode(data):
+        return data.get('type') == 'ndarray'
+
+    @staticmethod
+    def decode(data):
+        dtype = np.dtype(data['data']['dtype'])
+        value = np.array(data['data']['values'], dtype)
+        return value
+
+
+@register
+class OrdererSetSerializer:
+    @staticmethod
+    def can_encode(obj):
+        return isinstance(obj, vaex.hash.ordered_set)
+
+    @staticmethod
+    def encode(obj):
+        values = list(obj.extract().items())
+        clsname = obj.__class__.__name__
+        return {
+            'type': clsname,
+            'data': {
+                'values': values,
+                'count': obj.count,
+                'nan_count': obj.nan_count,
+                'missing_count': obj.null_count
+            }
+        }
+
+    @staticmethod
+    def can_decode(data):
+        return data.get('type', '').startswith('ordered_set')
+
+    @staticmethod
+    def decode(data):
+        clsname = data['type']
+        cls = getattr(vaex.hash, clsname)
+        value = cls(dict(data['data']['values']), data['data']['count'], data['data']['nan_count'], data['data']['missing_count'])
+        return value
+
+
 def encode(obj):
     for serializer in serializers:
         if serializer.can_encode(obj):
@@ -53,10 +116,10 @@ class VaexJsonEncoder(json.JSONEncoder):
         encoded = encode(obj)
         if obj is not None and encoded is not None:
             return encoded
-        elif isinstance(obj, np.integer):
-            return int(obj)
+        if isinstance(obj, np.integer):
+            return obj.item()
         elif isinstance(obj, np.floating):
-            return float(obj)
+            return obj.item()
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
         elif isinstance(obj, np.bytes_):

@@ -74,6 +74,29 @@ def test_map_to_string():
     assert df['role'].tolist() == ['admin', 'maintainer', 'user', 'user', 'user', 'unknown']
 
 
+def test_map_serialize(tmpdir):
+    df = vaex.from_arrays(type=[0, 1, 2, 2, 2, np.nan])
+    df['role'] = df['type'].map({0: 'admin', 1: 'maintainer', 2: 'user', np.nan: 'unknown'})
+    assert df['role'].tolist() == ['admin', 'maintainer', 'user', 'user', 'user', 'unknown']
+    path = str(tmpdir.join('state.json'))
+    df.state_write(path)
+
+    df = vaex.from_arrays(type=[0, 1, 2, 2, 2, np.nan])
+    df.state_load(path)
+    assert df['role'].tolist() == ['admin', 'maintainer', 'user', 'user', 'user', 'unknown']
+
+def test_map_serialize_string(tmpdir):
+    df = vaex.from_arrays(type=['0', '1', '2', '2', '2'])
+    df['role'] = df['type'].map({'0': 'admin', '1': 'maintainer', '2': 'user'})
+    assert df['role'].tolist() == ['admin', 'maintainer', 'user', 'user', 'user']
+    path = str(tmpdir.join('state.json'))
+    df.state_write(path)
+
+    df = vaex.from_arrays(type=['0', '1', '2', '2', '2'])
+    df.state_load(path)
+    assert df['role'].tolist() == ['admin', 'maintainer', 'user', 'user', 'user']
+
+
 def test_map_long_mapper():
     german = np.array(['eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun', 'zehn', 'elf', 'zwölf',
                        'dreizehn', 'vierzehn', 'fünfzehn', 'sechzehn', 'siebzehn', 'achtzehn', 'neunzehn', 'zwanzig',

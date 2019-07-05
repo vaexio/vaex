@@ -14,5 +14,5 @@ def test_export_json():
 
     os.remove(temp_path)
     assert 'A' in data
-    assert len(data['A']) == 3
-    assert data['B'][0] == '1'
+    assert len(data['A']['data']['values']) == 3
+    assert data['B']['data']['values'][0] == '1'
