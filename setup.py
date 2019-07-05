@@ -30,7 +30,7 @@ class DevelopCmd(develop):
                 err = os.system('python -m pip install -e .')
                 if err:
                     sys.exit(err)
-            # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name
+            # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name>
             # otherwise development install do not work
             if package != 'vaex-core':
                 name = package.split('-')[1]
