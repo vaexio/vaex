@@ -79,3 +79,15 @@ bin/.idea
 *.npy
 /**/__pycache__/*
 catboost_info/*
+
+# symlinks generated in setup.py
+packages/vaex-core/vaex/arrow
+packages/vaex-core/vaex/astro
+packages/vaex-core/vaex/distributed
+packages/vaex-core/vaex/hdf5
+packages/vaex-core/vaex/jupyter
+packages/vaex-core/vaex/ml
+packages/vaex-core/vaex/server
+packages/vaex-core/vaex/ui
+packages/vaex-core/vaex/viz
+packages/vaex-core/vaex/*.*-win_amd64.pyd
