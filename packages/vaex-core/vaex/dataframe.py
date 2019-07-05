@@ -2767,7 +2767,7 @@ class DataFrame(object):
             else:
                 if isinstance(ar, np.ndarray) and ar.dtype.kind == 'O':
                     types = list({type(k) for k in ar if k == k and k is not None})
-                    if len(types) == 1 and types[0] in six.string_types:
+                    if len(types) == 1 and issubclass(types[0], six.string_types):
                         self._dtypes_override[name] = str_type
         else:
             raise ValueError("functions not yet implemented")
