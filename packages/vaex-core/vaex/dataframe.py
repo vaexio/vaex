@@ -3246,19 +3246,19 @@ class DataFrame(object):
         for feature in self.get_column_names(strings=strings, virtual=virtual)[:]:
             dtype = str(self.dtype(feature)) if self.dtype(feature) != str else 'str'
             if self.dtype(feature) == str_type or self.dtype(feature).kind in ['S', 'U', 'O']:
-                na_count = self.sum(self[feature].isna().astype('int'), selection=selection, delay=True)
+                count = self.count(feature, selection=selection, delay=True)
                 self.execute()
-                na_count = na_count.get()
-                columns[feature] = ((dtype, N-na_count , na_count, '--', '--', '--', '--'))
+                count = count.get()
+                columns[feature] = ((dtype, count, N-count, '--', '--', '--', '--'))
             else:
-                na_count = self.sum(self[feature].isna().astype('int'), selection=selection, delay=True)
+                count = self.count(feature, selection=selection, delay=True)
                 mean = self.mean(feature, selection=selection, delay=True)
                 std = self.std(feature, selection=selection, delay=True)
                 minmax = self.minmax(feature, selection=selection, delay=True)
                 self.execute()
-                na_count, mean, std, minmax = na_count.get(), mean.get(), std.get(), minmax.get()
-                na_count = int(na_count)
-                columns[feature] = ((dtype, N-na_count, na_count, mean, std, minmax[0], minmax[1]))
+                count, mean, std, minmax = count.get(), mean.get(), std.get(), minmax.get()
+                count = int(count)
+                columns[feature] = ((dtype, count, N-count, mean, std, minmax[0], minmax[1]))
         return pd.DataFrame(data=columns, index=['dtype', 'count', 'NA', 'mean', 'std', 'min', 'max'])
 
     def cat(self, i1, i2, format='html'):
