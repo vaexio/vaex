@@ -1,5 +1,6 @@
 import traitlets
 import ipywidgets as widgets
+import ipyvuetify as v
 import six
 import vaex.utils
 from vaex.delayed import delayed, delayed_list
@@ -9,6 +10,7 @@ from IPython.display import display
 import copy
 from .utils import debounced
 from vaex.utils import _ensure_list, _expand, _parse_f, _parse_n, _parse_reduction, _expand_shape
+from .widgets import PlotTemplate
 
 type_map = {}
 
@@ -68,6 +70,7 @@ def _translate_selection(selection):
         return selection
 
 
+
 class PlotBase(widgets.Widget):
 
     x = traitlets.Unicode(allow_none=False).tag(sync=True)
@@ -90,7 +93,8 @@ class PlotBase(widgets.Widget):
                  vshape=16,
                  selection=None, grid_limits=None, normalize=None, colormap="afmhot",
                  figure_key=None, fig=None, what_kwargs={}, grid_before=None, vcount_limits=None, 
-                 controls_selection=False, **kwargs):
+                 show_drawer=False,
+                 controls_selection=True, **kwargs):
         super(PlotBase, self).__init__(x=x, y=y, z=z, w=w, what=what, vcount_limits=vcount_limits, grid_limits=grid_limits, f=f, **kwargs)
         self.backend = backend
         self.vgrids = [None, None, None]
@@ -112,6 +116,9 @@ class PlotBase(widgets.Widget):
         self._new_progressbar()
 
         self.output = widgets.Output()
+        def output_changed(*ignore):
+            self.widget.new_output = True
+        self.output.observe(output_changed, 'outputs')
         # with self.output:
         if 1:
             self._cleanups = []
@@ -121,18 +128,26 @@ class PlotBase(widgets.Widget):
             self.progress.layout.max_width = '500px'
             self.progress.description = "progress"
 
+            self.control_widget = v.Layout(pa_1=True, column=True, children=[])
             self.backend.create_widget(self.output, self, self.dataset, self.limits)
-            self.control_widget = widgets.VBox()
 
             # self.create_tools()
-            self.widget = widgets.VBox([widgets.HBox([self.backend.widget, self.control_widget]), self.progress, self.output])
+            # self.widget = widgets.VBox([widgets.HBox([self.backend.widget, self.control_widget]), self.progress, self.output])
+            self.widget = PlotTemplate(components={
+                        'main-widget': widgets.VBox([self.backend.widget, self.progress, self.output]),
+                        'control-widget': self.control_widget,
+                        'output-widget': self.output
+                    },
+                    model=show_drawer
+            )
             if grid is None:
                 self.update_grid()
             else:
                 self.grid = grid
 
-            self.widget_f = widgets.Dropdown(options=[('identity', 'identity'), ('log', 'log'), ('log10', 'log10'), ('log1p', 'log1p')])
-            widgets.link((self, 'f'), (self.widget_f, 'value'))
+            self.widget_f = v.Select(items=['identity', 'log', 'log10', 'log1p', 'log1p'], v_model='log', label='Transform')
+
+            widgets.link((self, 'f'), (self.widget_f, 'v_model'))
             self.observe(lambda *__: self.update_image(), 'f')
             self.add_control_widget(self.widget_f)
 
@@ -152,11 +167,11 @@ class PlotBase(widgets.Widget):
         selections = [k for k in selections if k]
         self.widget_selection_active = widgets.ToggleButtons(options=list(zip(selections, selections)), description='selection')
         self.controls_selection = controls_selection
+        modes = ['replace', 'and', 'or', 'xor', 'subtract']
+        self.widget_selection_mode = widgets.ToggleButtons(options=modes, description='mode')
         if self.controls_selection:
             self.add_control_widget(self.widget_selection_active)
 
-            modes = ['replace', 'and', 'or', 'xor', 'subtract']
-            self.widget_selection_mode = widgets.ToggleButtons(options=modes, description='mode')
             self.add_control_widget(self.widget_selection_mode)
 
             self.widget_selection_undo = widgets.Button(options=modes, description='undo', icon='arrow-left')
@@ -196,7 +211,6 @@ class PlotBase(widgets.Widget):
             self.observe(_on_change, attrname)
         self.observe(lambda *args: self.update_grid(), "what")
         self.observe(lambda *args: self.update_image(), "vcount_limits")
-
         # self.update_image() # sometimes bqplot doesn't update the image correcly
 
     def get_limits(self, limits):
@@ -221,7 +235,9 @@ class PlotBase(widgets.Widget):
         display(self.widget)
 
     def add_control_widget(self, widget):
-        self.control_widget.children += (widget,)
+        self.control_widget.children = self.control_widget.children + [widget]
+        # TODO: find out why we need to do this, is this a bug?
+        self.control_widget.send_state('children')
 
     def _progress(self, v):
         self.progress.value = v
@@ -238,16 +254,19 @@ class PlotBase(widgets.Widget):
         self._progressbar = vaex.utils.progressbars(False, next=update, name="bqplot")
 
     def select_rectangle(self, x1, y1, x2, y2, mode="replace"):
-        name = _translate_selection(self.widget_selection_active.value)
-        self.dataset.select_rectangle(self.x, self.y, limits=[[x1, x2], [y1, y2]], mode=self.widget_selection_mode.value, name=name)
+        with self.output:
+            name = _translate_selection(self.widget_selection_active.value)
+            self.dataset.select_rectangle(self.x, self.y, limits=[[x1, x2], [y1, y2]], mode=self.widget_selection_mode.value, name=name)
 
     def select_lasso(self, x, y, mode="replace"):
-        name = _translate_selection(self.widget_selection_active.value)
-        self.dataset.select_lasso(self.x, self.y, x, y, mode=self.widget_selection_mode.value, name=name)
+        with self.output:
+            name = _translate_selection(self.widget_selection_active.value)
+            self.dataset.select_lasso(self.x, self.y, x, y, mode=self.widget_selection_mode.value, name=name)
 
     def select_nothing(self):
-        name = _translate_selection(self.widget_selection_active.value)
-        self.dataset.select_nothing(name=name)
+        with self.output:
+            name = _translate_selection(self.widget_selection_active.value)
+            self.dataset.select_nothing(name=name)
 
     def get_shape(self):
         return _expand_shape(self.shape, len(self.get_binby()))
@@ -271,7 +290,6 @@ class PlotBase(widgets.Widget):
                     limits_backend = copy.deepcopy(self.backend.limits)
                     limits_backend[:self.backend.dim] = self.limits[:self.backend.dim]
                     self.backend.limits = limits_backend
-
                     self._update_grid()
             limits_done(delayed_list(limits))
             self._execute()
@@ -322,7 +340,6 @@ class PlotBase(widgets.Widget):
                         self.grid = grid
                         self.vgrids = [vx, vy, vz]
                         self.vcount = vcount
-                        # print("assign")
                         self._update_image()
             if delay:
                 for promise in promises:
@@ -336,7 +353,7 @@ class PlotBase(widgets.Widget):
     @debounced(0.05, method=True)
     def _execute(self):
         with self.output:
-            self.dataset.executor.execute()
+            self.dataset.execute()
 
     @debounced(0.5, method=True)
     def update_image(self):
@@ -439,7 +456,7 @@ class PlotBase(widgets.Widget):
         return _parse_reduction("colormap", self.colormap, [])(grid)
 
     def normalise(self, grid):
-        if self.grid_limits_visible is not None:
+        if self.grid_limits is not None:
             vmin, vmax = self.grid_limits
             grid = grid.copy()
             grid -= vmin

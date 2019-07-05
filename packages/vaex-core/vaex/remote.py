@@ -409,13 +409,13 @@ class ServerRest(object):
                     return np.array(result)
                 except ValueError:
                     return result
-        dataset_name = subspace.dataset.name
+        dataset_name = subspace.df.name
         expressions = subspace.expressions
         delay = subspace.delay
         path = "datasets/%s/%s" % (dataset_name, method_name)
         url = self._build_url(path)
         arguments = dict(kwargs)
-        dataset_remote = subspace.dataset
+        dataset_remote = subspace.df
         arguments["selection"] = subspace.is_masked
         arguments['state'] = dataset_remote.state_get()
         arguments['auto_fraction'] = dataset_remote.get_auto_fraction()
@@ -478,37 +478,37 @@ class SubspaceRemote(Subspace):
             return promise
 
     def sleep(self, seconds, delay=False):
-        return self.dataset.server.call("sleep", seconds, delay=delay)
+        return self.df.server.call("sleep", seconds, delay=delay)
 
     def minmax(self):
-        return self._task(self.dataset.server._call_subspace("minmax", self))
+        return self._task(self.df.server._call_subspace("minmax", self))
         # return self._task(task)
 
     def histogram(self, limits, size=256, weight=None):
-        return self._task(self.dataset.server._call_subspace("histogram", self, size=size, limits=limits, weight=weight))
+        return self._task(self.df.server._call_subspace("histogram", self, size=size, limits=limits, weight=weight))
 
     def nearest(self, point, metric=None):
         point = vaex.utils.make_list(point)
-        result = self.dataset.server._call_subspace("nearest", self, point=point, metric=metric)
+        result = self.df.server._call_subspace("nearest", self, point=point, metric=metric)
         return self._task(result)
 
     def mean(self):
-        return self.dataset.server._call_subspace("mean", self)
+        return self.df.server._call_subspace("mean", self)
 
     def correlation(self, means=None, vars=None):
-        return self.dataset.server._call_subspace("correlation", self, means=means, vars=vars)
+        return self.df.server._call_subspace("correlation", self, means=means, vars=vars)
 
     def var(self, means=None):
-        return self.dataset.server._call_subspace("var", self, means=means)
+        return self.df.server._call_subspace("var", self, means=means)
 
     def sum(self):
-        return self.dataset.server._call_subspace("sum", self)
+        return self.df.server._call_subspace("sum", self)
 
     def limits_sigma(self, sigmas=3, square=False):
-        return self.dataset.server._call_subspace("limits_sigma", self, sigmas=sigmas, square=square)
+        return self.df.server._call_subspace("limits_sigma", self, sigmas=sigmas, square=square)
 
     def mutual_information(self, limits=None, size=256):
-        return self.dataset.server._call_subspace("mutual_information", self, limits=limits, size=size)
+        return self.df.server._call_subspace("mutual_information", self, limits=limits, size=size)
 
 
 class DatasetRemote(Dataset):
