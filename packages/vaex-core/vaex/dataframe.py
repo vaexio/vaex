@@ -190,6 +190,7 @@ class DataFrame(object):
         self.ucds = {}
         self.units = {}
         self.descriptions = {}
+        self._dtypes_override = {}
 
         self.favorite_selections = collections.OrderedDict()
 
@@ -1912,6 +1913,8 @@ class DataFrame(object):
     def dtype(self, expression, internal=False):
         """Return the numpy dtype for the given expression, if not a column, the first row will be evaluated to get the dtype."""
         expression = _ensure_string_from_expression(expression)
+        if expression in self._dtypes_override:
+            return self._dtypes_override[expression]
         if expression in self.variables:
             return np.float64(1).dtype
         elif expression in self.columns.keys():
@@ -2739,7 +2742,7 @@ class DataFrame(object):
         """
         raise NotImplementedError
 
-    def add_column(self, name, f_or_array):
+    def add_column(self, name, f_or_array, dtype=None):
         """Add an in memory array as a column."""
         if isinstance(f_or_array, (np.ndarray, Column)):
             data = ar = f_or_array
@@ -2758,6 +2761,14 @@ class DataFrame(object):
             self.columns[name] = f_or_array
             if name not in self.column_names:
                 self.column_names.append(name)
+            ar = f_or_array
+            if dtype is not None:
+                self._dtypes_override[name] = dtype
+            else:
+                if isinstance(ar, np.ndarray) and ar.dtype.kind == 'O':
+                    types = list({type(k) for k in ar if k == k and k is not None})
+                    if len(types) == 1 and types[0] in six.string_types:
+                        self._dtypes_override[name] = str_type
         else:
             raise ValueError("functions not yet implemented")
         self._save_assign_expression(name, Expression(self, name))
@@ -4544,7 +4555,7 @@ class DataFrameLocal(DataFrame):
         def add_columns(columns):
             for name in columns:
                 if name in self.columns:
-                    df.add_column(name, self.columns[name])
+                    df.add_column(name, self.columns[name], dtype=self._dtypes_override.get(name))
                 elif name in self.virtual_columns:
                     if virtual:
                         df.add_virtual_column(name, self.virtual_columns[name])
@@ -5314,7 +5325,7 @@ class DataFrameArrays(DataFrameLocal):
     # def __len__(self):
     #   return len(self.columns.values()[0])
 
-    def add_column(self, name, data):
+    def add_column(self, name, data, dtype=None):
         """Add a column to the DataFrame
 
         :param str name: name of column
@@ -5326,7 +5337,7 @@ class DataFrameArrays(DataFrameLocal):
         #     self._length_unfiltered = len(data)
         #     self._length_original = len(data)
         #     self._index_end = self._length_unfiltered
-        super(DataFrameArrays, self).add_column(name, data)
+        super(DataFrameArrays, self).add_column(name, data, dtype=dtype)
         self._length_unfiltered = int(round(self._length_original * self._active_fraction))
         # self.set_active_fraction(self._active_fraction)
 

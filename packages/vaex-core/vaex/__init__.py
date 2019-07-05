@@ -185,7 +185,7 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
                     else:
                         ds = vaex.file.open(filename_hdf5, *args, **kwargs)
                 else:
-                    if ext == '.csv':  # special support for csv.. should probably approach it a different way
+                    if ext == '.csv' or naked_path.endswith(".csv.bz2"):  # special support for csv.. should probably approach it a different way
                         ds = from_csv(path, copy_index=copy_index, **kwargs)
                     else:
                         ds = vaex.file.open(path, *args, **kwargs)
