@@ -16,13 +16,14 @@ version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
 
 install_requires = [
-      'vaex-core==0.7.3',
-      'vaex-viz==0.3',
-      'vaex-server==0.2',
-      'vaex-hdf5==0.4',
-      'vaex-astro==0.4',
-      'vaex-arrow==0.3',
-      'vaex-ml==0.4'
+      'vaex-core>=0.9.0,<0.10',
+      'vaex-viz>=0.3.3,<0.4',
+      'vaex-server>=0.2.1,<0.3',
+      'vaex-hdf5>=0.5.2,<0.6',
+      'vaex-astro>=0.5.0,<0.6',
+      'vaex-arrow>=0.3.4,<0.4',
+      # vaex-jupyter # want want to depend on this soon
+      # 'vaex-ml==0.4' # we cannot depend yet on this because it is not on conda-forge yet
 ]
 
 setup(name=name,
