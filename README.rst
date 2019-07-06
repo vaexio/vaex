@@ -24,6 +24,7 @@ plots** and **3d volume rendering**, allowing interactive exploration of
 big data. Vaex uses memory mapping, zero memory copy policy and lazy
 computations for best performance (no memory wasted).
 
+
 Why vaex
 ========
 
