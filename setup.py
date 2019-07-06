@@ -32,7 +32,7 @@ class DevelopCmd(develop):
                     sys.exit(err)
             # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name>
             # otherwise development install do not work
-            if package != 'vaex-core':
+            if package not in ['vaex-core', 'vaex-arrow']:
                 name = package.split('-')[1]
                 relative = os.path.abspath(os.path.join('packages', 'vaex-core', 'vaex'))
                 source = os.path.abspath(os.path.join('packages', package, 'vaex', name))
