@@ -106,6 +106,21 @@ class Grouper(BinnerBase):
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 
+class GrouperCategory(BinnerBase):
+    def __init__(self, expression, df=None):
+        self.df = df or expression.ds
+        self.expression = expression
+        # make sure it's an expression
+        self.expression = self.df[str(self.expression)]
+
+        self.bin_values = self.df.category_labels(self.expression)
+        self.N = self.df.category_count(self.expression)
+        # TODO: what do we do with null values for categories?
+        # if self.set.has_null:
+        #     self.N += 1
+        #     keys += ['null']
+        self.binner = self.df._binner_ordinal(self.expression, self.N)
+
 class GroupByBase(object):
     def __init__(self, df, by):
         self.df = df
@@ -117,7 +132,10 @@ class GroupByBase(object):
         self.by = []
         for by_value in by:
             if not isinstance(by_value, BinnerBase):
-                by_value = Grouper(df[str(by_value)])
+                if df.is_category(by_value):
+                    by_value = GrouperCategory(df[str(by_value)])
+                else:
+                    by_value = Grouper(df[str(by_value)])
             self.by.append(by_value)
         # self._waslist, [self.by, ] = vaex.utils.listify(by)
         self.coords1d = [k.bin_values for k in self.by]

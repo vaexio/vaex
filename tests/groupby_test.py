@@ -82,6 +82,17 @@ def test_groupby_1d(ds_local):
     assert dfg.g.tolist() == [0, 1, 2]
     assert dfg['count'].tolist() == [4, 4, 2]
 
+def test_groupby_1d_cat(ds_local):
+    ds = ds_local.extract()
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+    ds.add_column('g', g)
+    ds.categorize('g', ['cat', 'dog', 'snake'])
+    dfg = ds.groupby(by=ds.g, agg='count')
+
+    assert dfg.g.tolist() == ['cat', 'dog', 'snake']
+    assert dfg['count'].tolist() == [4, 4, 2]
+
+
 
 def test_groupby_1d_nan(ds_local):
     ds = ds_local.extract()
@@ -102,6 +113,17 @@ def test_binby_1d(ds_local):
     assert ar.coords['statistic'].values.tolist() == ["count"]
     assert ar.dims == ('statistic', 'g')
     assert ar.data.tolist() == [[4, 4, 2]]
+
+
+def test_binby_1d_cat(ds_local):
+    ds = ds_local.extract()
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+    ds.add_column('g', g)
+    ds.categorize('g', ['cat', 'dog', 'snake'])
+    ar = ds.binby(by=ds.g, agg=vaex.agg.count())
+
+    assert ar.coords['g'].values.tolist() == ['cat', 'dog', 'snake']
+    assert ar.data.tolist() == [4, 4, 2]
 
 
 def test_binby_2d(ds_local):
