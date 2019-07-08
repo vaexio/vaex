@@ -820,16 +820,16 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 ax.set_title(labelsz[j])
 
             max_labels = 10
-            # xexpression = xexpressions[i]
-            # if self.iscategory(xexpression):
-            #     labels = self.category_labels(xexpression)
-            #     step = len(labels) // max_labels
-            #     pylab.xticks(np.arange(len(labels))[::step], labels[::step], size='small')
-            # yexpression = yexpressions[i]
-            # if self.iscategory(yexpression):
-            #     labels = self.category_labels(yexpression)
-            #     step = len(labels) // max_labels
-            #     pylab.yticks(np.arange(len(labels))[::step], labels[::step], size='small')
+            xexpression = xexpressions[i]
+            if self.iscategory(xexpression):
+                labels = self.category_labels(xexpression)
+                step = max(len(labels) // max_labels, 1)
+                pylab.xticks(np.arange(len(labels))[::step], labels[::step], size='small')
+            yexpression = yexpressions[i]
+            if self.iscategory(yexpression):
+                labels = self.category_labels(yexpression)
+                step = max(len(labels) // max_labels, 1)
+                pylab.yticks(np.arange(len(labels))[::step], labels[::step], size='small')
             facet_index += 1
     if title:
         fig.suptitle(title, fontsize="x-large")
