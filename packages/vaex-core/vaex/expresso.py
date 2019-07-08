@@ -19,7 +19,7 @@ valid_binary_operators = [_ast.Add, _ast.Sub, _ast.Mult, _ast.Pow,
                           _ast.Div, _ast.FloorDiv, _ast.BitAnd, _ast.BitOr, _ast.BitXor, _ast.Mod]
 valid_compare_operators = [_ast.Lt, _ast.LtE,
                            _ast.Gt, _ast.GtE, _ast.Eq, _ast.NotEq]
-valid_unary_operators = [_ast.USub, _ast.UAdd]
+valid_unary_operators = [_ast.USub, _ast.UAdd, _ast.Invert]
 valid_id_characters = string.ascii_letters + string.digits + "_"
 valid_functions = "sin cos".split()
 
@@ -301,6 +301,11 @@ class ExpressionString(ast.NodeVisitor):
                 return "-{}".format(self.visit(node.operand))  # prettier
             else:
                 return "-({})".format(self.visit(node.operand))
+        if isinstance(node.op, ast.Invert):
+            if isinstance(node.operand, (ast.Name, ast.Num)):
+                return "~{}".format(self.visit(node.operand))  # prettier
+            else:
+                return "~({})".format(self.visit(node.operand))
         # elif isinstance(node.op, ast.UAdd):
         #     return "{}".format(self.visit(self.operatand))
         else:
