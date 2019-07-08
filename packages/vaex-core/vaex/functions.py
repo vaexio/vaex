@@ -192,7 +192,7 @@ def ismissing(x):
             if mask is None:
                 mask = np.zeros(x.length, dtype=np.bool)
             return mask
-        elif isinstance(x, np.ndarray) or x.dtype.kind in 'O':
+        elif isinstance(x, np.ndarray) and x.dtype.kind in 'O':
             return x == None
         else:
             return np.zeros(len(x), dtype=np.bool)
