@@ -833,7 +833,7 @@ class FunctionSerializableJit(FunctionSerializable):
 
         # function validation, and finding variable names
         all_vars = df.get_column_names(hidden=True) + list(df.variables.keys())
-        funcs = set(expression_namespace.keys())
+        funcs = set(list(expression_namespace.keys()) + list(df.functions.keys()))
         names = []
         vaex.expresso.validate_expression(expression, all_vars, funcs, names)
         # TODO: can we do the above using the Expressio API?s
