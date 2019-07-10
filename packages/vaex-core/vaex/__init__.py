@@ -189,12 +189,12 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
                         ds = from_csv(path, copy_index=copy_index, **kwargs)
                     else:
                         ds = vaex.file.open(path, *args, **kwargs)
-                    if convert:
+                    if convert and ds:
                         ds.export_hdf5(filename_hdf5, shuffle=shuffle)
                         ds = vaex.file.open(filename_hdf5) # argument were meant for pandas?
                 if ds is None:
                     if os.path.exists(path):
-                        raise IOError('Could not open file: {}, did you install vaex-hdf5?'.format(path))
+                        raise IOError('Could not open file: {}, did you install vaex-hdf5? Is the format supported?'.format(path))
                     if os.path.exists(path):
                         raise IOError('Could not open file: {}, it does not exist?'.format(path))
             elif len(filenames) > 1:
