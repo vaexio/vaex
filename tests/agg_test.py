@@ -94,6 +94,12 @@ def test_minmax():
     assert df.x.min() == -9
 
 
+def test_minmax_all_dfs(df):
+    vmin, vmax = df.minmax(df.x)
+    assert df.min(df.x) == vmin
+    assert df.max(df.x) == vmax
+
+
 def test_big_endian_binning():
     x = np.arange(10, dtype='>f8')
     y = np.zeros(10, dtype='>f8')
