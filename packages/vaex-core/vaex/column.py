@@ -261,7 +261,7 @@ class ColumnStringArrow(ColumnString):
             else:
                 raise ValueError('unsupported index type' + str(self.indices.dtype))
             if self.null_bitmap is not None:
-                self.string_sequence = string_type(self.bytes, self.indices, self.length, self.offset, null_bitmap)
+                self.string_sequence = string_type(self.bytes, self.indices, self.length, self.offset, self.null_bitmap)
             else:
                 self.string_sequence = string_type(self.bytes, self.indices, self.length, self.offset)
         else:
