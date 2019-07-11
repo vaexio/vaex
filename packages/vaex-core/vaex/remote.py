@@ -562,6 +562,12 @@ class DatasetRest(DatasetRemote):
     def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         return self._delay(delay, self.server._call_dataset("minmax", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
+    def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        return self._delay(delay, self.server._call_dataset("min", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+
+    def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        return self._delay(delay, self.server._call_dataset("max", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+
     # def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False):
     def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         return self._delay(delay, self.server._call_dataset("cov", self, delay=True, progress=progress, x=x, y=y, binby=binby, limits=limits, shape=shape, selection=selection))
