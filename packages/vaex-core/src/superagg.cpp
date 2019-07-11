@@ -576,6 +576,8 @@ public:
         } else {
             for(size_t j = 0; j < length; j++) {
                 StorageType value = this->data_ptr[offset + j];
+                if(FlipEndian)
+                    value = _to_native(value);
                 if(value == value) // nan check
                     this->grid_data[indices1d[j]] = std::max(value, this->grid_data[indices1d[j]]);
             }
@@ -622,6 +624,8 @@ public:
         } else {
             for(size_t j = 0; j < length; j++) {
                 StorageType value = this->data_ptr[offset + j];
+                if(FlipEndian)
+                    value = _to_native(value);
                 if(value == value) // nan check
                     this->grid_data[indices1d[j]] = std::min(value, this->grid_data[indices1d[j]]);
             }
