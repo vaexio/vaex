@@ -35,7 +35,10 @@ def column_from_arrow_array(arrow_array):
         else:
             null_bitmap = np.frombuffer(bitmap_buffer, 'uint8', len(bitmap_buffer))
         offsets = np.frombuffer(offsets, np.int32, len(offsets)//4)
-        string_bytes = np.frombuffer(string_bytes, 'S1', len(string_bytes))
+        if string_bytes is None:
+            string_bytes = np.array([], dtype='S1')
+        else:
+            string_bytes = np.frombuffer(string_bytes, 'S1', len(string_bytes))
         column = ColumnStringArrow(offsets, string_bytes, len(arrow_array), null_bitmap=null_bitmap)
         return column
     else:
