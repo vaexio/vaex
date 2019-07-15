@@ -128,7 +128,6 @@ class Meta(type):
                                 raise ValueError('operand %r not supported for string comparison' % op['code'])
                             return Expression(self.ds, expression=expression)
                         else:
-                            # print(op, a, b)
                             if isinstance(b, Expression):
                                 assert b.ds == a.ds
                                 b = b.expression

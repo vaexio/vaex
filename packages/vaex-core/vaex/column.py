@@ -286,11 +286,21 @@ class ColumnStringArrow(ColumnString):
     def __len__(self):
         return self.length
 
+    # TODO: in the future we might want to rely on these methods instead of special branches
+    # in Expression for == and +. However, that gives different behaviour for dtype=object
+    # (for instance you cannot use + when there is a None in it)
     def __eq__(self, other):
-        try:
-            return self.string_sequence.equals(other)
-        except:
-            return np.zeros(self.length, dtype=np.bool)
+        if not isinstance(other, six.string_types):
+            other = _to_string_sequence(other)
+        return self.string_sequence.equals(other)
+
+    def __add__(self, rhs):
+        if not isinstance(rhs, six.string_types):
+            rhs = _to_string_sequence(rhs)
+        return self.from_string_sequence(self.string_sequence.concat(rhs))
+
+    def __radd__(self, lhs):
+        return self.from_string_sequence(self.string_sequence.concat_reverse(lhs))
 
     def __getitem__(self, slice):
         if isinstance(slice, int):
