@@ -248,6 +248,13 @@ def _asnumpy(ar):
     else:
         return ar.to_numpy()
 
+
+def _trim(column, i1, i2):
+    if isinstance(column, np.ndarray):
+        return column[i1:i2]
+    else:
+        return column.trim(i1, i2)
+
 class ColumnStringArrow(ColumnString):
     """Column that unpacks the arrow string column on the fly"""
     def __init__(self, indices, bytes, length=None, offset=0, string_sequence=None, null_bitmap=None):
@@ -301,7 +308,11 @@ class ColumnStringArrow(ColumnString):
         return self.string_sequence.to_numpy()
 
     def trim(self, i1, i2):
-        return type(self).from_string_sequence(self.string_sequence.slice(i1, i2))
+        byte_offset = self.indices[i1:i1+1][0] - self.offset
+        byte_end = self.indices[i2:i2+1][0] - self.offset
+        indices = _trim(self.indices, i1, i2+1)
+        bytes = _trim(self.bytes, byte_offset, byte_end)
+        return type(self)(indices, bytes, i2-i1, self.offset + byte_offset, null_bitmap=self.null_bitmap)
 
     @classmethod
     def from_string_sequence(cls, string_sequence):

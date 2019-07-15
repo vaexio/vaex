@@ -22,6 +22,7 @@ def test_arrow_strings():
     assert len(df.columns['x']) == 4
     trimmed = df.columns['x'][2:4]
     assert trimmed[:].tolist() == x[2:4]
+    assert trimmed[1:2].tolist() == x[3:4]
     assert len(df) == N
     assert len(df[1:3]) == 2
     assert df[1:3].x.tolist() == x[1:3]
