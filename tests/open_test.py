@@ -56,5 +56,11 @@ def test_open():
     os.remove(h51)
     os.remove(h52)
 
-
-
+    # be nice to users when converting from unsupported format
+    with tempfile.NamedTemporaryFile(suffix='json') as in_f:
+        in_f.write(b'[]')
+        in_f.flush()
+        with pytest.raises(IOError) as exc:
+            vaex.open(in_f.name, convert=target)
+        assert 'format supported' in str(exc.value)
+    assert not os.path.exists(target)
