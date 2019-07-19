@@ -59,11 +59,18 @@ class ColumnFile(vaex.column.Column):
     def __len__(self):
         return self.length
 
+    @property
+    def nbytes(self):
+        return self.dtype.itemsize * self.length
+
     def trim(self, i1, i2):
         itemsize = self.dtype.itemsize
         byte_offset = self.byte_offset + i1 * itemsize
         length = i2 - i1
         return ColumnFile(self.file, byte_offset, length, self.dtype, self.write, path=self.path)
+
+    def to_numpy(self):
+        return self[0:self.length]
 
     def __setitem__(self, slice, values):
         assert self.write, "trying to write to non-writable column"

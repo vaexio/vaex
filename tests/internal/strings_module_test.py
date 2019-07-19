@@ -68,7 +68,7 @@ def test_arrow_split():
     # bytes_strings = np.frombuffer(("a,pno,tmi,,".encode('utf8')), dtype='S1')
     # offset = 5
     # indices = np.array([+0, 3, 3+4, 3+4+4], dtype=np.int32) + offset
-    sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap)
+    sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap, 0)
 
     ref_count = sys.getrefcount(sl)
     sll = sl.split(',')
@@ -129,7 +129,7 @@ def test_views():
     null_bitmap = np.frombuffer(bitmap_buffer, np.uint8, len(bitmap_buffer))
 
     bytes_strings = np.frombuffer(string_bytes, 'S1', len(string_bytes))
-    sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap)
+    sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap, 0)
     
     view_indices = np.array([3, 2, 0])
     assert sys.getrefcount(view_indices) == 2
@@ -164,7 +164,7 @@ def test_concat():
     null_bitmap = np.frombuffer(bitmap_buffer, np.uint8, len(bitmap_buffer))
 
     bytes_strings = np.frombuffer(string_bytes, 'S1', len(string_bytes))
-    sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap)
+    sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap, 0)
     view_indices = np.array([3, 2, 0, 1])
     slv = sl.lazy_index(view_indices)
     slc = sl.concat(slv)
@@ -184,7 +184,7 @@ def test_arrow_basics():
     assert sys.getrefcount(bytes_strings) == 2
     assert sys.getrefcount(indices) == 2
 
-    sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap)
+    sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap, 0)
     assert sys.getrefcount(sl) == 2
     # we should keep a reference only
     assert sys.getrefcount(bytes_strings) == 3
@@ -226,7 +226,7 @@ def test_arrow_basics():
     c = sl.count("a", False)
     assert c.tolist() == [2, 0, 0, 0]
 
-    sl2 = vaex.strings.StringList32(sl.bytes, sl.indices, sl.length, sl.offset, null_bitmap)
+    sl2 = vaex.strings.StringList32(sl.bytes, sl.indices, sl.length, sl.offset, null_bitmap, 0)
     assert list(sl2.to_numpy()) == ["aap", "noot",  None, "mies"]
 
     # ds2.columns['name_arrow'][:].string_sequence.slice(0,5).indices
@@ -252,7 +252,7 @@ def test_arrow_basics():
     assert sys.getrefcount(indices) == 3
     assert sys.getrefcount(bytes_strings) == 3
 
-    sl_copy = vaex.strings.StringList32(bytes_strings2, indices2, len(ar), offset2, null_bitmap2)
+    sl_copy = vaex.strings.StringList32(bytes_strings2, indices2, len(ar), offset2, null_bitmap2, 0)
     sl_copy.fill_from(sl)
     assert list(sl_copy.to_numpy()) == ["aap", "noot",  None, "mies"]
 
@@ -264,7 +264,7 @@ def test_arrow_basics():
     indices3 = np.frombuffer(offsets3, np.int32, len(offsets3)//4) + offset
     null_bitmap3 = np.frombuffer(bitmap_buffer3, np.uint8, len(bitmap_buffer3))
     bytes_strings3 = np.frombuffer(string_bytes3, 'S1', len(string_bytes3))
-    sl_upper = vaex.strings.StringList32(bytes_strings3, indices3, len(ar3), offset, null_bitmap3)
+    sl_upper = vaex.strings.StringList32(bytes_strings3, indices3, len(ar3), offset, null_bitmap3, 0)
 
     sl14 = sl.slice(1, 4)
     assert sl14.offset != sl_upper.offset

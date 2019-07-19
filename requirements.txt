@@ -15,5 +15,5 @@ pandas
 pillow
 requests
 pyarrow>=0.12
-s3fs
+s3fs<0.3
 ipyvuetify

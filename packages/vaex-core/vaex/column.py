@@ -242,9 +242,32 @@ def _to_string_list_sequence(x):
     else:
         raise ValueError('not a StringListList')
 
+def _asnumpy(ar):
+    if isinstance(ar, np.ndarray):
+        return ar
+    else:
+        return ar.to_numpy()
+
+
+def _trim(column, i1, i2):
+    if isinstance(column, np.ndarray):
+        return column[i1:i2]
+    else:
+        return column.trim(i1, i2)
+
+def _trim_bits(column, i1, i2):
+    i1_bytes = i1 // 8
+    offset = i1 - i1_bytes * 8
+    i2_bytes = (i2 + 7) // 8
+    if isinstance(column, np.ndarray):
+        return column[i1_bytes:i2_bytes], offset
+    else:
+        return column.trim(i1_bytes, i2_bytes), offset
+
 class ColumnStringArrow(ColumnString):
     """Column that unpacks the arrow string column on the fly"""
-    def __init__(self, indices, bytes, length=None, offset=0, string_sequence=None, null_bitmap=None):
+    def __init__(self, indices, bytes, length=None, offset=0, string_sequence=None, null_bitmap=None, null_offset=0, references=None):
+        self._string_sequence = string_sequence
         self.indices = indices
         self.offset = offset  # to avoid memory copies in trim
         self.bytes = bytes
@@ -253,7 +276,13 @@ class ColumnStringArrow(ColumnString):
         self.shape = (self.__len__(),)
         self.nbytes = self.bytes.nbytes + self.indices.nbytes
         self.null_bitmap = null_bitmap
-        if string_sequence is None:
+        self.null_offset = null_offset
+        # references is to keep other objects alive, similar to pybind11's keep_alive
+        self.references = references or []
+
+    @property
+    def string_sequence(self):
+        if self._string_sequence is None:
             if self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize == 8:
                 string_type = vaex.strings.StringList64
             elif self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize == 4:
@@ -261,14 +290,29 @@ class ColumnStringArrow(ColumnString):
             else:
                 raise ValueError('unsupported index type' + str(self.indices.dtype))
             if self.null_bitmap is not None:
-                self.string_sequence = string_type(self.bytes, self.indices, self.length, self.offset, self.null_bitmap)
+                self._string_sequence = string_type(_asnumpy(self.bytes), _asnumpy(self.indices), self.length, self.offset, _asnumpy(self.null_bitmap), self.null_offset)
             else:
-                self.string_sequence = string_type(self.bytes, self.indices, self.length, self.offset)
-        else:
-            self.string_sequence = string_sequence
+                self._string_sequence = string_type(_asnumpy(self.bytes), _asnumpy(self.indices), self.length, self.offset)
+        return self._string_sequence
 
     def __len__(self):
         return self.length
+
+    # TODO: in the future we might want to rely on these methods instead of special branches
+    # in Expression for == and +. However, that gives different behaviour for dtype=object
+    # (for instance you cannot use + when there is a None in it)
+    def __eq__(self, other):
+        if not isinstance(other, six.string_types):
+            other = _to_string_sequence(other)
+        return self.string_sequence.equals(other)
+
+    def __add__(self, rhs):
+        if not isinstance(rhs, six.string_types):
+            rhs = _to_string_sequence(rhs)
+        return self.from_string_sequence(self.string_sequence.concat(rhs))
+
+    def __radd__(self, lhs):
+        return self.from_string_sequence(self.string_sequence.concat_reverse(lhs))
 
     def __getitem__(self, slice):
         if isinstance(slice, int):
@@ -286,12 +330,22 @@ class ColumnStringArrow(ColumnString):
         return self.string_sequence.to_numpy()
 
     def trim(self, i1, i2):
-        return type(self).from_string_sequence(self.string_sequence.slice(i1, i2))
+        byte_offset = self.indices[i1:i1+1][0] - self.offset
+        byte_end = self.indices[i2:i2+1][0] - self.offset
+        indices = _trim(self.indices, i1, i2+1)
+        bytes = _trim(self.bytes, byte_offset, byte_end)
+        null_bitmap = self.null_bitmap
+        null_offset = self.null_offset
+        if null_bitmap is not None:
+            null_bitmap, null_offset = _trim_bits(self.null_bitmap, i1, i2)
+        references = self.references + [self]
+        return type(self)(indices, bytes, i2-i1, self.offset + byte_offset, null_bitmap=null_bitmap,
+                null_offset=null_offset, references=references)
 
     @classmethod
     def from_string_sequence(cls, string_sequence):
         s = string_sequence
-        return cls(s.bytes, s.indices, s.length, s.offset, string_sequence=s, null_bitmap=s.null_bitmap)
+        return cls(s.indices, s.bytes, s.length, s.offset, string_sequence=s, null_bitmap=s.null_bitmap)
 
     def _zeros_like(self):
         return ColumnStringArrow(np.zeros_like(self.indices), np.zeros_like(self.bytes), self.length, null_bitmap=self.null_bitmap)

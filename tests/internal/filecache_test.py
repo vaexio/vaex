@@ -4,7 +4,8 @@ import os
 
 def test_hdf5(tmpdir):
     path = str(tmpdir.join('test.hdf5'))
-    df = vaex.from_arrays(x=[1,2], y=[3,4])
+    s = ['aap', 'noot']
+    df = vaex.from_arrays(x=[1,2], y=[3,4], s=s)
     df.export(path)
     fake_path = 's3://vaex/test.hdf5?profile_name=foo'
     length = os.stat(path).st_size
@@ -14,6 +15,7 @@ def test_hdf5(tmpdir):
         df = vaex.hdf5.dataset.Hdf5MemoryMapped(cache)
         assert df.x.tolist() == [1, 2]
         assert df.y.tolist() == [3, 4]
+        assert df.s.tolist() == s
         assert df.sum('x') == 3
         cache = vaex.file.dup(cache)
         cache.seek(0)

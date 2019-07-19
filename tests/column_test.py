@@ -22,9 +22,20 @@ def test_arrow_strings():
     assert len(df.columns['x']) == 4
     trimmed = df.columns['x'][2:4]
     assert trimmed[:].tolist() == x[2:4]
+    assert trimmed[1:2].tolist() == x[3:4]
     assert len(df) == N
     assert len(df[1:3]) == 2
     assert df[1:3].x.tolist() == x[1:3]
+
+
+def test_arrow_strings_null():
+    N = 4
+    x = ['a', 'bb', None, 'dddd', None]
+    xc = vaex.string_column(x)
+    assert xc.tolist() == x
+    assert xc[1:].tolist() == x[1:]
+    assert xc[2:4].tolist() == x[2:4]
+
 
 def test_plain_strings():
     N = 4

@@ -1834,7 +1834,7 @@ void add_string_list(Module m, Base& base, const char* class_name) {
         )
         // same ctor, duplicate code, cannot make null_bitmap accept None
         .def(py::init([](py::buffer bytes, py::array_t<typename StringList::index_type, py::array::c_style>& indices, size_t string_count, size_t offset,
-                py::array_t<uint8_t, py::array::c_style> null_bitmap) {
+                py::array_t<uint8_t, py::array::c_style> null_bitmap, size_t null_offset) {
                 py::buffer_info bytes_info = bytes.request();
                 py::buffer_info indices_info = indices.request();
                 if(bytes_info.ndim != 1) {
@@ -1852,7 +1852,7 @@ void add_string_list(Module m, Base& base, const char* class_name) {
                     null_bitmap_ptr = (uint8_t*)null_bitmap_info.ptr;
                 }
                 return new StringList((char*)bytes_info.ptr, bytes_info.shape[0],
-                                   (typename StringList::index_type*)indices_info.ptr, string_count, offset, null_bitmap_ptr
+                                   (typename StringList::index_type*)indices_info.ptr, string_count, offset, null_bitmap_ptr, null_offset
                                   );
             }), py::keep_alive<1, 2>(), py::keep_alive<1, 3>() // keep a reference to the ndarrays
         )
