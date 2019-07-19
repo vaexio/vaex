@@ -44,7 +44,7 @@ For developers
 
 If you want to work on vaex for a Pull Request from the source, use the following reciple:
 
-* ``git clone https://github.com/maartenbreddels/vaex``
+* ``git clone https://github.com/vaexio/vaex``
 * ``cd vaex``
 * install using:
 
