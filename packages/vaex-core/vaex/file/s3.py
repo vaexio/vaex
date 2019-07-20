@@ -42,7 +42,7 @@ def open(path, mode='rb', **kwargs):
         del options['anon']
     s3 = s3fs.S3FileSystem(anon=anon, default_block_size=1,
                            default_fill_cache=False, **options)
-    if vaex.utils.should_cache() and use_cache:
+    if use_cache:
         fp = lambda: s3.open(naked_path, mode)
         fp = vaex.file.cache.CachedFile(fp, naked_path)
     else:
