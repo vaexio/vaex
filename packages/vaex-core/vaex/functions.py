@@ -274,7 +274,7 @@ def dt_dayofweek(x):
     2  3
     """
     import pandas as pd
-    return pd.Series(x).dt.dayofweek.values
+    return pd.Series(_pandas_dt_fix(x)).dt.dayofweek.values
 
 @register_function(scope='dt', as_property=True)
 def dt_dayofyear(x):
@@ -303,7 +303,7 @@ def dt_dayofyear(x):
     2  316
     """
     import pandas as pd
-    return pd.Series(x).dt.dayofyear.values
+    return pd.Series(_pandas_dt_fix(x)).dt.dayofyear.values
 
 @register_function(scope='dt', as_property=True)
 def dt_is_leap_year(x):
@@ -332,7 +332,7 @@ def dt_is_leap_year(x):
     2  False
     """
     import pandas as pd
-    return pd.Series(x).dt.is_leap_year.values
+    return pd.Series(_pandas_dt_fix(x)).dt.is_leap_year.values
 
 @register_function(scope='dt', as_property=True)
 def dt_year(x):
@@ -361,7 +361,7 @@ def dt_year(x):
     2  2015
     """
     import pandas as pd
-    return pd.Series(x).dt.year.values
+    return pd.Series(_pandas_dt_fix(x)).dt.year.values
 
 @register_function(scope='dt', as_property=True)
 def dt_month(x):
@@ -390,7 +390,7 @@ def dt_month(x):
     2  11
     """
     import pandas as pd
-    return pd.Series(x).dt.month.values
+    return pd.Series(_pandas_dt_fix(x)).dt.month.values
 
 @register_function(scope='dt', as_property=True)
 def dt_month_name(x):
@@ -448,7 +448,7 @@ def dt_day(x):
     2  12
     """
     import pandas as pd
-    return pd.Series(x).dt.day.values
+    return pd.Series(_pandas_dt_fix(x)).dt.day.values
 
 @register_function(scope='dt', as_property=True)
 def dt_day_name(x):
@@ -506,7 +506,7 @@ def dt_weekofyear(x):
     2  46
     """
     import pandas as pd
-    return pd.Series(x).dt.weekofyear.values
+    return pd.Series(_pandas_dt_fix(x)).dt.weekofyear.values
 
 @register_function(scope='dt', as_property=True)
 def dt_hour(x):
@@ -535,7 +535,7 @@ def dt_hour(x):
     2  11
     """
     import pandas as pd
-    return pd.Series(x).dt.hour.values
+    return pd.Series(_pandas_dt_fix(x)).dt.hour.values
 
 @register_function(scope='dt', as_property=True)
 def dt_minute(x):
@@ -564,7 +564,7 @@ def dt_minute(x):
     2  34
     """
     import pandas as pd
-    return pd.Series(x).dt.minute.values
+    return pd.Series(_pandas_dt_fix(x)).dt.minute.values
 
 @register_function(scope='dt', as_property=True)
 def dt_second(x):
@@ -593,7 +593,7 @@ def dt_second(x):
     2  22
     """
     import pandas as pd
-    return pd.Series(x).dt.second.values
+    return pd.Series(_pandas_dt_fix(x)).dt.second.values
 
 
 ########## string operations ##########
