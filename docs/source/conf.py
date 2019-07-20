@@ -67,11 +67,11 @@ copyright = u'2014, Maarten A. Breddels'
 # built documents.
 #
 if 1:
-	import vaex
+	import vaex.meta._version
 	# The short X.Y version.
-	version = vaex.__version__
+	version = vaex.meta._version.__version__
 	# The full version, including alpha/beta/rc tags.
-	release = vaex.__version__
+	release = vaex.meta._version.__version__
 else:
 	print("failed finding vaex module, try finding version")
 	import sys
