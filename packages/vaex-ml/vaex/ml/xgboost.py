@@ -69,7 +69,6 @@ class XGBoostModel(state.HasState):
         '''Transform a DataFrame such that it contains the predictions of the XGBoostModel in form of a virtual column.
 
         :param df: A vaex DataFrame. It should have the same columns as the DataFrame used to train the model.
-
         :return copy: A shallow copy of the DataFrame that includes the XGBoostModel prediction as a virtual column.
         :rtype: DataFrame
         '''
@@ -82,19 +81,20 @@ class XGBoostModel(state.HasState):
     def fit(self, df, target, evals=(), early_stopping_rounds=None,
             evals_result=None, verbose_eval=False, **kwargs):
         '''Fit the XGBoost model given a DataFrame.
+
         This method accepts all key word arguments for the xgboost.train method.
 
         :param df: A vaex DataFrame containing the training features.
         :param target: The column name of the target variable.
         :param evals: A list of pairs (DataFrame, string).
-        List of items to be evaluated during training, this allows user to watch performance on the validation set.
+            List of items to be evaluated during training, this allows user to watch performance on the validation set.
         :param int early_stopping_rounds: Activates early stopping.
-        Validation error needs to decrease at least every *early_stopping_rounds* round(s) to continue training.
-        Requires at least one item in *evals*. If there's more than one, will use the last. Returns the model
-        from the last iteration (not the best one).
+            Validation error needs to decrease at least every *early_stopping_rounds* round(s) to continue training.
+            Requires at least one item in *evals*. If there's more than one, will use the last. Returns the model
+            from the last iteration (not the best one).
         :param dict evals_result: A dictionary storing the evaluation results of all the items in *evals*.
         :param bool verbose_eval: Requires at least one item in *evals*.
-        If *verbose_eval* is True then the evaluation metric on the validation set is printed at each boosting stage.
+            If *verbose_eval* is True then the evaluation metric on the validation set is printed at each boosting stage.
         '''
         data = df[self.features].values
         target_data = df.evaluate(target)

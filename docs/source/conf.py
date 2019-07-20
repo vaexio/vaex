@@ -37,7 +37,8 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
     'IPython.sphinxext.ipython_console_highlighting',
-	'nbsphinx',
+    'nbsphinx',
+    'sphinx.ext.intersphinx'
 ]
 import os
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -334,4 +335,10 @@ autoclass_content = 'both'
 
 autodoc_default_options = {
 	'show-inheritance': True
+}
+
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3', None),
+    's3fs': ('https://s3fs.readthedocs.io/en/latest', None),
+    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
 }
