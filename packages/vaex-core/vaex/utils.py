@@ -207,8 +207,6 @@ def get_private_dir(subdir=None, *extra):
         os.makedirs(path)
     return path
 
-def should_cache():
-    return os.path.exists(os.path.join(get_private_dir(), 'file-cache'))
 
 def make_list(sequence):
     if isinstance(sequence, np.ndarray):
