@@ -101,12 +101,14 @@ def test_catboost_validation_set():
     # instantiate the booster model
     booster = vaex.ml.catboost.CatBoostModel(features=features, num_boost_round=10, params=params_reg)
     # fit the booster - including saving the history of the validation sets
-    booster.fit(train, 'E', evals=[train, test], early_stopping_rounds=2)
-    assert len(booster.booster.evals_result_['learn']['MAE']) == 5
-    assert len(booster.booster.evals_result_['learn']['R2']) == 5
-    assert len(booster.booster.evals_result_['validation_0']['MAE']) == 5
-    assert len(booster.booster.evals_result_['validation_0']['R2']) == 5
-    assert booster.booster.best_iteration_ == 2
+    booster.fit(train, 'E', evals=[train, test])
+    assert hasattr(booster, 'booster')
+    assert len(booster.booster.evals_result_['learn']['MAE']) == 10
+    assert len(booster.booster.evals_result_['learn']['R2']) == 10
+    assert len(booster.booster.evals_result_['validation_0']['MAE']) == 10
+    assert len(booster.booster.evals_result_['validation_0']['R2']) == 10
+    assert hasattr(booster.booster, 'best_iteration_')
+    assert booster.booster.best_iteration_ is not None
 
 
 def test_catboost_pipeline():
