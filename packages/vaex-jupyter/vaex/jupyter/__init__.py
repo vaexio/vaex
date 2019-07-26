@@ -179,7 +179,7 @@ class init(object):
 #       return execute
 #   return wrapped
 
-@vaex.register_dataframe_accessor('widget')
+
 class DataFrameAccessorWidget(object):
     def __init__(self, df):
         self.df = df

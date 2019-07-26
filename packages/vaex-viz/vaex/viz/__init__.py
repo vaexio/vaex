@@ -1,7 +1,6 @@
-import vaex.dataset
-from vaex.utils import InnerNamespace
+class DataFrameAccessorViz(object):
+    def __init__(self, df):
+        self.df = df
 
-
-def add_namespace():
-    vaex.dataset.Dataset.viz = InnerNamespace({})
-    vaex.dataset.Dataset.viz._add(plot2d=vaex.dataset.Dataset.plot)
+    def plot2d(self, *args, **kwargs):
+        self.df.plot(*args, **kwargs)
