@@ -123,7 +123,7 @@ def test_catboost_pipeline():
     pca = train.ml.pca(n_components=3, features=features)
     train = pca.transform(train)
     # Do state transfer
-    st = vaex.ml.state_transfer(train)
+    st = train.ml.state_transfer()
     # now the catboost model thingy
     features = ['r', 'PCA_0', 'PCA_1', 'PCA_2']
     # define the boosting model
