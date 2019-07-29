@@ -77,12 +77,12 @@ def test_lightgbm_serialize(tmpdir):
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
 
-    gbm = ds.ml_lightgbm_model(target, 20, features=features, params=params)
+    gbm = ds.ml.lightgbm_model(target, 20, features=features, params=params)
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
     pl.load(str(tmpdir.join('test.json')))
 
-    gbm = ds.ml_lightgbm_model(target, 20, features=features, params=params)
+    gbm = ds.ml.lightgbm_model(target, 20, features=features, params=params)
     gbm.state_set(gbm.state_get())
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
@@ -147,7 +147,7 @@ def test_lightgbm_pipeline():
     pca = train.ml.pca(n_components=3, features=features)
     train = pca.transform(train)
     # Do state transfer
-    st = vaex.ml.state_transfer(train)
+    st = train.ml.state_transfer()
     # now the lightgbm model thingy
     features = ['r', 'PCA_0', 'PCA_1', 'PCA_2']
     # The booster model from vaex.ml

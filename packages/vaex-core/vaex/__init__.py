@@ -635,12 +635,62 @@ def register_dataframe_accessor(name, cls=None, override=False):
 
 
 for entry in pkg_resources.iter_entry_points(group='vaex.namespace'):
-    logger.debug('adding vaex namespace: ' + entry.name)
+    logger.warning('(DEPRECATED, use vaex.dataframe.accessor) adding vaex namespace: ' + entry.name)
     try:
         add_namespace = entry.load()
         add_namespace()
     except Exception:
         logger.exception('issue loading ' + entry.name)
+
+_df_lazy_accessors = {}
+
+
+class _lazy_accessor(object):
+    def __init__(self, name, scope, loader):
+        """When adding an accessor geo.cone, scope=='geo', name='cone', scope may be falsy"""
+        self.loader = loader
+        self.name = name
+        self.scope = scope
+
+    def __call__(self, obj):
+        if self.name in obj.__dict__:
+            return obj.__dict__[self.name]
+        else:
+            cls = self.loader()
+            accessor = cls(obj)
+            obj.__dict__[self.name] = accessor
+            fullname = self.name
+            if self.scope:
+                fullname = self.scope + '.' + self.name
+            if fullname in _df_lazy_accessors:
+                for name, scope, loader in _df_lazy_accessors[fullname]:
+                    assert fullname == scope
+                    setattr(cls, name, property(_lazy_accessor(name, scope, loader)))
+        return obj.__dict__[self.name]
+
+
+def _add_lazy_accessor(name, loader, target_class=vaex.dataframe.DataFrame):
+    """Internal use see tests/internal/accessor_test.py for usage
+
+    This enables us to have df.foo.bar accessors that lazily loads the modules.
+    """
+    parts = name.split('.')
+    target_class = vaex.dataframe.DataFrame
+    if len(parts) == 1:
+        setattr(target_class, parts[0], property(_lazy_accessor(name, None, loader)))
+    else:
+        scope = ".".join(parts[:-1])
+        if scope not in _df_lazy_accessors:
+            _df_lazy_accessors[scope] = []
+        _df_lazy_accessors[scope].append((parts[-1], scope, loader))
+
+
+for entry in pkg_resources.iter_entry_points(group='vaex.dataframe.accessor'):
+    logger.debug('adding vaex accessor: ' + entry.name)
+    def loader(entry=entry):
+        return entry.load()
+    _add_lazy_accessor(entry.name, loader)
+
 
 for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
     logger.debug('adding vaex plugin: ' + entry.name)
@@ -650,7 +700,6 @@ for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
     except Exception:
         logger.exception('issue loading ' + entry.name)
 
-from . import geo
 
 def concat(dfs):
     '''Concatenate a list of DataFrames.

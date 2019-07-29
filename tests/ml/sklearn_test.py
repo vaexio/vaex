@@ -119,7 +119,7 @@ def test_sklearn_estimator_pipeline():
     pca = train.ml.pca(n_components=2, features=features)
     train = pca.transform(train)
     # Do state transfer
-    st = vaex.ml.state_transfer(train)
+    st = train.ml.state_transfer()
     # now apply the model
     features = ['sepal_virtual', 'petal_scaled']
     model = SKLearnPredictor(model=LinearRegression(), features=features, prediction_name='pred')
