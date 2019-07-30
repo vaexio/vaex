@@ -157,3 +157,55 @@ def test_index():
     assert index.map_index(ar1).tolist() == [0, 1, 2]
     index.update(ar2, 3)
     assert index.map_index(ar).tolist() == [0, 1, 2, 3, 4, 5]
+
+def test_index_multi():
+    strings = vaex.strings.array(['aap', 'noot', 'mies'])
+    index = index_hash_string()
+    index.update(strings, 0)
+    assert index.map_index(strings).tolist() == [0, 1, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(strings, 0)] == [[], []]
+    assert index.has_duplicates is False
+    assert len(index) == 3
+
+    # duplicate that is already present
+    strings2 = vaex.strings.array(['aap', 'aap', 'kees', 'mies'])
+    index.update(strings2, 3)
+    assert index.map_index(strings2).tolist() == [0, 0, 5, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(strings2, 3)] == [[3, 3, 4, 4, 6], [3, 4, 3, 4, 6]]
+    assert index.has_duplicates is True
+    assert len(index) == 7
+
+    # duplicate that is not present, and a single one that is already in index
+    strings3 = vaex.strings.array(['foo', 'foo', 'mies'])
+    index.update(strings3, 7)
+    assert index.map_index(strings3).tolist() == [7, 7, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(strings3, 7)] == [[7, 8, 9, 9], [8, 8, 6, 9]]
+    assert index.has_duplicates is True
+    assert len(index) == 10
+
+    # same, but now use merge
+    strings = vaex.strings.array(['aap', 'noot', 'mies'])
+    index = index_hash_string()
+    index.update(strings, 0)
+    assert index.map_index(strings).tolist() == [0, 1, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(strings, 0)] == [[], []]
+    assert index.has_duplicates is False
+    assert len(index) == 3
+
+    strings2 = vaex.strings.array(['aap', 'aap', 'kees', 'mies'])
+    index2 = index_hash_string()
+    index2.update(strings2, 3)
+    index.merge(index2)
+    assert index.map_index(strings2).tolist() == [0, 0, 5, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(strings2, 3)] == [[3, 3, 4, 4, 6], [3, 4, 3, 4, 6]]
+    assert index.has_duplicates is True
+    assert len(index) == 7
+
+    strings3 = vaex.strings.array(['foo', 'foo', 'mies'])
+    index3 = index_hash_string()
+    index3.update(strings3, 7)
+    index.merge(index3)
+    assert index.map_index(strings3).tolist() == [7, 7, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(strings3, 7)] == [[7, 8, 9, 9], [8, 8, 6, 9]]
+    assert index.has_duplicates is True
+    assert len(index) == 10

@@ -4979,11 +4979,12 @@ class DataFrameLocal(DataFrame):
                     left.add_column(right_name, right.columns[name])
         else:
             df = ds
+            # we index the right side, this assumes right is smaller in size
             index = right._index(right_on)
-            if len(index) != len(right):
-                raise ValueError('the right dataframe has non unique rows in column %r, which is not supported' % right_on)
             lookup = np.zeros(left._length_original, dtype=np.int64)
+            lookup_extra_chunks = []
             dtype = left.dtype(left_on)
+            duplicates_right = index.has_duplicates
 
             from vaex.column import _to_string_sequence
             def map(thread_index, i1, i2, ar):
@@ -4993,11 +4994,23 @@ class DataFrameLocal(DataFrame):
                 if np.ma.isMaskedArray(ar):
                     mask = np.ma.getmaskarray(ar)
                     lookup[i1:i2] = index.map_index(ar.data, mask)
+                    if duplicates_right:
+                        extra = index.map_index_duplicates(ar.data, mask, i1)
+                        lookup_extra_chunks.append(extra)
                 else:
                     lookup[i1:i2] = index.map_index(ar)
+                    if duplicates_right:
+                        extra = index.map_index_duplicates(ar, i1)
+                        lookup_extra_chunks.append(extra)
             def reduce(a, b):
                 pass
             left.map_reduce(map, reduce, [left_on], delay=False, name='fill looking', info=True, to_numpy=False, ignore_filter=True)
+            if len(lookup_extra_chunks):
+                # if the right has duplicates, we increase the left of left, and the lookup array
+                lookup_left = np.concatenate([k[0] for k in lookup_extra_chunks])
+                lookup_right = np.concatenate([k[1] for k in lookup_extra_chunks])
+                left = left.concat(left.take(lookup_left))
+                lookup = np.concatenate([lookup, lookup_right])
 
             lookup = np.ma.array(lookup, mask=lookup==-1)
             for name in right:

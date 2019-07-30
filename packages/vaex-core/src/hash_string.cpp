@@ -296,6 +296,7 @@ public:
     using typename hash_base<index_hash<T>, T, T, V>::value_type;
     using typename hash_base<index_hash<T>, T, T, V>::storage_type;
     using typename hash_base<index_hash<T>, T, T, V>::storage_type_view;
+    typedef hashmap<storage_type, std::vector<int64_t>> MultiMap;
 
     py::array_t<int64_t> map_index(StringSequence* strings) {
         int64_t size = strings->length;
@@ -335,18 +336,75 @@ public:
         return result;
     }
 
+    std::tuple<py::array_t<int64_t>, py::array_t<int64_t>> map_index_duplicates(StringSequence* strings, int64_t start_index) {
+        std::vector<typename MultiMap::value_type> found; // should this be a reference to the value_type?
+        std::vector<int64_t> indices;
+        // found.reserve(strings->length);
+
+        const auto end = this->multimap.end(); // we don't modify the multimap, so keep this const
+        int64_t size = 0;
+        {
+            py::gil_scoped_release gil;
+            if(strings->has_null()) {
+                for(size_t i = 0; i < strings->length; i++) {
+                    if(strings->is_null(i)) {
+                    } else {
+                        const storage_type_view& value = strings->get(i);
+                        auto search = this->multimap.find(value);
+                        if(search != end) {
+                            found.push_back(*search);
+                            size += search->second.size();
+                            indices.insert(indices.end(), search->second.size(), start_index+i);
+                        }
+                    }
+                }
+            } else {
+                for(size_t i = 0; i < strings->length; i++) {
+                    const storage_type_view& value = strings->get(i);
+                    auto search = this->multimap.find(value);
+                    if(search != end) {
+                        found.push_back(*search);
+                        size += search->second.size();
+                        indices.insert(indices.end(), search->second.size(), start_index+i);
+                    }
+                }
+            }
+        }
+
+        py::array_t<int64_t> result(size);
+        py::array_t<int64_t> indices_array(size);
+        auto output = result.template mutable_unchecked<1>();
+        auto output_indices = indices_array.template mutable_unchecked<1>();
+        py::gil_scoped_release gil;
+        // int64_t offset = 0;
+        size_t index = 0;
+
+        std::copy(indices.begin(), indices.end(), &output_indices(0));
+
+        for(auto el : found) {
+            std::vector<int64_t>& indices = el.second;
+            for(int64_t i : indices) {
+                output(index++) = i;
+            }
+        }
+        return std::make_tuple(indices_array, result);
+    }
+
     void add_missing(int64_t index) {
         this->missing_index = index;
     }
 
     void add(storage_type_view& storage_value, int64_t index) {
-        this->map.emplace(storage_value, this->count);
+        this->map.emplace(storage_value, index);
         this->count++;
     }
 
     template<class Bucket>
     void add(Bucket& position, storage_type_view& storage_view_value, int64_t index) {
-        // we can do nothing here
+        // we found a duplicate
+        multimap[position->first].push_back(index);
+        has_duplicates = true;
+        this->count++;
     }
 
     void merge(const index_hash & other) {
@@ -356,14 +414,37 @@ public:
             auto search = this->map.find(value);
             auto end = this->map.end();
             if(search == end) {
-                this->map.emplace(value, this->count);
-                this->count++;
+                this->map.emplace(value, elem.second);
             } else {
-                // if already in, it's fine
+                // if already in, add it to the multimap
+                multimap[elem.first].push_back(elem.second);
             }
+            this->count++;
         }
         this->nan_count += other.nan_count;
         this->null_count += other.null_count;
+        for(auto el : other.multimap) {
+            std::vector<int64_t>& source = el.second;
+
+            storage_type& storage_value = el.first;
+            // const value_type& value = elem.first;
+            auto search = this->map.find(storage_value);
+            auto end = this->map.end();
+            if(search == end) {
+                // we have a duplicate that is not in the current map, so we insert the first element
+                this->map.emplace(storage_value, source[0]);
+                if(source.size() > 1) {
+                    std::vector<int64_t>& target = this->multimap[storage_value];
+                    target.insert(target.end(), source.begin()+1, source.end());
+                }
+            } else {
+                // easy case, just merge the vectors
+                std::vector<int64_t>& target = this->multimap[storage_value];
+                target.insert(target.end(), source.begin(), source.end());
+            }
+            this->count += source.size();
+        }
+        has_duplicates = has_duplicates || other.has_duplicates;
     }
     std::vector<string> keys() {
         std::vector<string> v(this->map.size());
@@ -377,6 +458,9 @@ public:
         return v;
     }
     int64_t missing_index;
+    MultiMap multimap; // this stores only the duplicates
+    bool has_duplicates;
+
 };
 
 
@@ -437,11 +521,13 @@ void init_hash_string(py::module &m) {
             .def("extract", &Type::extract)
             .def("keys", &Type::keys)
             .def("map_index", &Type::map_index)
-            .def("__len__", [](const Type &c) { return c.map.size() + (c.null_count > 0) + (c.nan_count > 0); })
+            .def("map_index_duplicates", &Type::map_index_duplicates)
+            .def("__len__", [](const Type &c) { return c.count + (c.null_count > 0) + (c.nan_count > 0); })
             .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
             .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
             .def_property_readonly("has_nan", [](const Type &c) { return c.nan_count > 0; })
             .def_property_readonly("has_null", [](const Type &c) { return c.null_count > 0; })
+            .def_property_readonly("has_duplicates", [](const Type &c) { return c.has_duplicates; })
         ;
     }
     // {
