@@ -253,7 +253,7 @@ public:
     }
 
     void add(storage_type_view& storage_value, int64_t index) {
-        this->map.emplace(storage_value, index);
+        this->map.emplace(storage_value, this->count++);
     }
 
     template<class Bucket>
