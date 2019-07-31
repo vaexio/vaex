@@ -20,6 +20,16 @@ df_dup = vaex.from_arrays(b=np.array(['A', 'B', 'A']),
                           m=np.ma.array([3, 1, 2], mask=[True, True, False])
                           )
 
+df_c = vaex.from_arrays(c=np.array(['B', 'C']),
+                        z1=np.array([-1., -2.]),
+                        z2=np.array([True, False]),
+                        )
+
+df_d = vaex.from_arrays(a=np.array(['B', 'C', 'D']),
+                        x1=np.array(['dog', 'cat', 'mouse']),
+                        x2=np.array([3.1, 25, np.nan]),
+                        )
+
 
 def test_no_on():
     # just adds the columns
@@ -90,3 +100,66 @@ def test_left_dup():
     assert len(df) == 4
     # df = df_a.join(df_dup, on='x', rsuffix='_r')
     # df = df_a.join(df_dup, on='m', rsuffix='_r')
+
+
+def test_left_a_c():
+    df = df_a.join(df_c, left_on='a', right_on='c', how='left')
+    assert df.a.tolist() == ['A', 'B', 'C']
+    assert df.x.tolist() == [0, 1, 2]
+    assert df.y.tolist() == [0., None, 2.]
+    assert df.m.tolist() == [1, None, 3]
+    assert df.c.tolist() == [None, 'B', 'C']
+    assert df.z1.tolist() == [None, -1., -2.]
+    assert df.z2.tolist() == [None, True, False]
+
+
+def test_join_a_a_suffix_check():
+    df = df_a.join(df_a, on='a', lsuffix='_left', rsuffix='_right')
+    assert df.column_names == ['a_left', 'x_left', 'y_left', 'm_left', 'a_right', 'x_right', 'y_right', 'm_right']
+
+
+def test_join_a_a_prefix_check():
+    df = df_a.join(df_a, on='a', lprefix='left_', rprefix='right_')
+    assert df.column_names == ['left_a', 'left_x', 'left_y', 'left_m', 'right_a', 'right_x', 'right_y', 'right_m']
+
+
+def test_inner_a_d():
+    df = df_a.join(df_d, on='a', right_on='a', how='inner')
+    assert df.a.tolist() == ['B', 'C']
+    assert df.x.tolist() == [1., 2.]
+    assert df.y.tolist() == [None, 2.]
+    assert df.m.tolist() == [None, 3.]
+    assert df.x1.tolist() == ['dog', 'cat']
+    assert df.x2.tolist() == [3.1, 25.]
+
+
+def test_full_a_d():
+    df = df_a.join(df_d, on='a', right_on='a', how='full')
+    assert df.a.tolist() == ['A', 'B', 'C', 'D']
+    assert df.x.tolist() == [0., 1., 2., None]
+    assert df.y.tolist() == [0., None, 2., None]
+    assert df.m.tolist() == [1, None, 3, None]
+    assert df.x1.tolist() == [None, 'dog', 'cat', 'mouse']
+    assert df.x2.tolist() == [None, 3.1, 25., np.nan]
+    np.testing.assert_array_equal(np.array(df_d.x2.values), np.array([3.1, 25., np.nan]))
+
+
+def test_left_virtual_filter():
+    df = df_a.join(df_d, on='a', how='left', rsuffix='_b')
+    df['r'] = df.x + df.x2
+    df = df[df.r > 10]
+    assert df[0] == ['C', 2.0, 2.0, 3, 'C', 'cat', 25.0, 27.0]
+
+
+def test_left_on_virtual_col():
+    mapper = {0: 'A', 1: 'B', 2: 'C'}
+    df_a['aa'] = df_a.x.map(mapper=mapper)
+    df = df_a.join(df_d, left_on='aa', right_on='a', rsuffix='_right')
+    assert df.a.tolist() == ['A', 'B', 'C']
+    assert df.aa.tolist() == ['A', 'B', 'C']
+    assert df.x.tolist() == [0, 1, 2]
+    assert df.y.tolist() == [0., None, 2.]
+    assert df.m.tolist() == [1, None, 3]
+    assert df.x1.tolist() == [None, 'dog', 'cat']
+    assert df.x2.tolist() == [None, 3.1, 25.]
+    assert df.a_right.tolist() == [None, 'B', 'C']
