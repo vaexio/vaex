@@ -2762,7 +2762,7 @@ class DataFrame(object):
                         raise ValueError("Array is of length %s, while the length of the DataFrame is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
                 raise ValueError("array is of length %s, while the length of the DataFrame is %s" % (len(ar), self.length_original()))
             # assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
-            valid_name = vaex.utils.find_valid_name(name, used=self.get_column_names(hidden=True))
+            valid_name = vaex.utils.find_valid_name(name)
             if name != valid_name:
                 self._column_aliases[name] = valid_name
             self.columns[valid_name] = f_or_array
