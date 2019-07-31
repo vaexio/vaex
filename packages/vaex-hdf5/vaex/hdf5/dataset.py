@@ -107,6 +107,11 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                                         h5dataset = column
                 if h5dataset is None:
                     raise ValueError('column {} not found'.format(column_name))
+
+                aliases = [key for key, value in self._column_aliases.items() if value == column_name]
+                aliases.sort()
+                if aliases:
+                    h5dataset.attrs['alias'] = aliases[0]
                 for name, values in [("ucd", self.ucds), ("unit", self.units), ("description", self.descriptions)]:
                     if column_name in values:
                         value = ensure_string(values[column_name], cast=True)
@@ -293,6 +298,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                 column = h5columns[column_name]
                 if "ucd" in column.attrs:
                     self.ucds[column_name] = ensure_string(column.attrs["ucd"])
+                if "alias" in column.attrs:
+                    self._column_aliases[ensure_string(column.attrs["alias"])] = column_name
                 if "description" in column.attrs:
                     self.descriptions[column_name] = ensure_string(column.attrs["description"])
                 if "unit" in column.attrs:

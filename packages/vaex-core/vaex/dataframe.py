@@ -209,6 +209,7 @@ class DataFrame(object):
         self._selection_mask_caches = collections.defaultdict(dict)
         self._selection_masks = {}  # maps to vaex.superutils.Mask object
         self._renamed_columns = []
+        self._column_aliases = {}  # maps from invalid variable names to valid ones
 
     def __getattr__(self, name):
         # will support the hidden methods
@@ -2137,7 +2138,8 @@ class DataFrame(object):
                      units=units,
                      descriptions=descriptions,
                      description=self.description,
-                     active_range=[self._index_start, self._index_end])
+                     active_range=[self._index_start, self._index_end],
+                     column_aliases=self._column_aliases)
         return state
 
     def state_set(self, state, use_active_range=False, trusted=True):
@@ -2197,6 +2199,7 @@ class DataFrame(object):
             for name, value in state['virtual_columns'].items():
                 self[name] = self._expr(value)
         self.variables = state['variables']
+        self._column_aliases = state.get('column_aliases', {})
         import astropy  # TODO: make this dep optional?
         units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
         self.units.update(units)
@@ -2641,6 +2644,7 @@ class DataFrame(object):
                 self.descriptions[name] = other.descriptions[name]
             if name in other.ucds:
                 self.ucds[name] = other.ucds[name]
+        self._column_aliases = dict(other._column_aliases)
         self.description = other.description
 
     @docsubst
@@ -2758,20 +2762,23 @@ class DataFrame(object):
                         raise ValueError("Array is of length %s, while the length of the DataFrame is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
                 raise ValueError("array is of length %s, while the length of the DataFrame is %s" % (len(ar), self.length_original()))
             # assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
-            self.columns[name] = f_or_array
-            if name not in self.column_names:
-                self.column_names.append(name)
+            valid_name = vaex.utils.find_valid_name(name, used=self.get_column_names(hidden=True))
+            if name != valid_name:
+                self._column_aliases[name] = valid_name
+            self.columns[valid_name] = f_or_array
+            if valid_name not in self.column_names:
+                self.column_names.append(valid_name)
             ar = f_or_array
             if dtype is not None:
-                self._dtypes_override[name] = dtype
+                self._dtypes_override[valid_name] = dtype
             else:
                 if isinstance(ar, np.ndarray) and ar.dtype.kind == 'O':
                     types = list({type(k) for k in ar if k == k and k is not None})
                     if len(types) == 1 and issubclass(types[0], six.string_types):
-                        self._dtypes_override[name] = str_type
+                        self._dtypes_override[valid_name] = str_type
         else:
             raise ValueError("functions not yet implemented")
-        self._save_assign_expression(name, Expression(self, name))
+        self._save_assign_expression(valid_name, Expression(self, valid_name))
 
     def _sparse_matrix(self, column):
         column = _ensure_string_from_expression(column)
@@ -4230,6 +4237,8 @@ class DataFrame(object):
                 return getattr(self, item)
             # if item in self.virtual_columns:
             #   return Expression(self, self.virtual_columns[item])
+            if item in self._column_aliases:
+                item = self._column_aliases[item]  # translate the alias name into the real name
             return Expression(self, item)  # TODO we'd like to return the same expression if possible
         elif isinstance(item, Expression):
             expression = item.expression
@@ -4517,6 +4526,7 @@ class DataFrameLocal(DataFrame):
         df._index_start = self._index_start
         df._active_fraction = self._active_fraction
         df._renamed_columns = list(self._renamed_columns)
+        df._column_aliases = dict(self._column_aliases)
         df.units.update(self.units)
         df.variables.update(self.variables)
         df._categories.update(self._categories)

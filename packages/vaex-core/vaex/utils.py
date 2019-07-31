@@ -13,6 +13,7 @@ import sys
 import time
 import warnings
 import numbers
+import keyword
 
 import numpy as np
 import progressbar
@@ -560,6 +561,8 @@ def unlistify(waslist, *args):
 def find_valid_name(name, used=[]):
     first, rest = name[0], name[1:]
     name = re.sub("[^a-zA-Z_]", "_", first) + re.sub("[^a-zA-Z_0-9]", "_", rest)
+    if keyword.iskeyword(name):
+        name += '_'
     if name in used:
         nr = 1
         while name + ("_%d" % nr) in used:
