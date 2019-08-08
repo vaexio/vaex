@@ -231,6 +231,8 @@ class index_hash : public hash_base<index_hash<T>, T> {
 public:
     using typename hash_base<index_hash<T>, T, T>::value_type;
     using typename hash_base<index_hash<T>,T, T>::storage_type;
+    typedef hashmap<storage_type, std::vector<int64_t>> MultiMap;
+
     py::array_t<int64_t> map_index(py::array_t<value_type>& values) {
         int64_t size = values.size();
         py::array_t<int64_t> result(size);
@@ -285,6 +287,98 @@ public:
         }
         return result;
     }
+
+    std::tuple<py::array_t<int64_t>, py::array_t<int64_t>> map_index_duplicates_with_mask(py::array_t<value_type>& values, py::array_t<uint8_t>& mask, int64_t start_index) {
+        std::vector<typename MultiMap::value_type> found; // should this be a reference to the value_type?
+        std::vector<int64_t> indices;
+        size_t size = values.size();
+        size_t size_output = 0;
+
+        auto input = values.template unchecked<1>();
+        auto input_mask = mask.template unchecked<1>();
+
+        const auto end = this->multimap.end(); // we don't modify the multimap, so keep this const
+        {
+            py::gil_scoped_release gil;
+            for(size_t i = 0; i < size; i++) {
+                const value_type& value = input(i);
+                if(custom_isnan(value)) {
+                } else
+                if(input_mask(i) == 1) {
+                } else {
+                    auto search = this->multimap.find(value);
+                    if(search != end) {
+                        found.push_back(*search);
+                        size_output += search->second.size();
+                        indices.insert(indices.end(), search->second.size(), start_index+i);
+                    }
+                }
+            }
+        }
+
+        py::array_t<int64_t> result(size_output);
+        py::array_t<int64_t> indices_array(size_output);
+        auto output = result.template mutable_unchecked<1>();
+        auto output_indices = indices_array.template mutable_unchecked<1>();
+        py::gil_scoped_release gil;
+        // int64_t offset = 0;
+        size_t index = 0;
+
+        std::copy(indices.begin(), indices.end(), &output_indices(0));
+
+        for(auto el : found) {
+            std::vector<int64_t>& indices = el.second;
+            for(int64_t i : indices) {
+                output(index++) = i;
+            }
+        }
+        return std::make_tuple(indices_array, result);
+    }
+
+    std::tuple<py::array_t<int64_t>, py::array_t<int64_t>> map_index_duplicates(py::array_t<value_type>& values, int64_t start_index) {
+        std::vector<typename MultiMap::value_type> found; // should this be a reference to the value_type?
+        std::vector<int64_t> indices;
+        size_t size = values.size();
+        size_t size_output = 0;
+
+        auto input = values.template unchecked<1>();
+
+        const auto end = this->multimap.end(); // we don't modify the multimap, so keep this const
+        {
+            py::gil_scoped_release gil;
+            for(size_t i = 0; i < size; i++) {
+                const value_type& value = input(i);
+                if(custom_isnan(value)) {
+                } else {
+                    auto search = this->multimap.find(value);
+                    if(search != end) {
+                        found.push_back(*search);
+                        size_output += search->second.size();
+                        indices.insert(indices.end(), search->second.size(), start_index+i);
+                    }
+                }
+            }
+        }
+
+        py::array_t<int64_t> result(size_output);
+        py::array_t<int64_t> indices_array(size_output);
+        auto output = result.template mutable_unchecked<1>();
+        auto output_indices = indices_array.template mutable_unchecked<1>();
+        py::gil_scoped_release gil;
+        // int64_t offset = 0;
+        size_t index = 0;
+
+        std::copy(indices.begin(), indices.end(), &output_indices(0));
+
+        for(auto el : found) {
+            std::vector<int64_t>& indices = el.second;
+            for(int64_t i : indices) {
+                output(index++) = i;
+            }
+        }
+        return std::make_tuple(indices_array, result);
+    }
+
     void add_nan(int64_t index) {
         this->nan_index = index;
     }
@@ -293,10 +387,14 @@ public:
     }
     void add(storage_type& storage_value, int64_t index) {
         this->map.emplace(storage_value, index);
+        this->count++;
     }
     template<class Bucket>
     void add(Bucket& position, storage_type& storage_value, int64_t index) {
-        // duplicates can be detected by getting the __len__
+        // we found a duplicate
+        multimap[position->first].push_back(index);
+        has_duplicates = true;
+        this->count++;
     }
     void merge(const index_hash & other) {
         py::gil_scoped_release gil;
@@ -305,14 +403,37 @@ public:
             auto search = this->map.find(value);
             auto end = this->map.end();
             if(search == end) {
-                this->map.emplace(value, this->count);
-                this->count++;
+                this->map.emplace(value, elem.second);
             } else {
-                // duplicates can be detected by getting the __len__
+                // if already in, add it to the multimap
+                multimap[elem.first].push_back(elem.second);
             }
+            this->count++;
         }
         this->nan_count += other.nan_count;
         this->null_count += other.null_count;
+        for(auto el : other.multimap) {
+            std::vector<int64_t>& source = el.second;
+
+            storage_type& storage_value = el.first;
+            // const value_type& value = elem.first;
+            auto search = this->map.find(storage_value);
+            auto end = this->map.end();
+            if(search == end) {
+                // we have a duplicate that is not in the current map, so we insert the first element
+                this->map.emplace(storage_value, source[0]);
+                if(source.size() > 1) {
+                    std::vector<int64_t>& target = this->multimap[storage_value];
+                    target.insert(target.end(), source.begin()+1, source.end());
+                }
+            } else {
+                // easy case, just merge the vectors
+                std::vector<int64_t>& target = this->multimap[storage_value];
+                target.insert(target.end(), source.begin(), source.end());
+            }
+            this->count += source.size();
+        }
+        has_duplicates = has_duplicates || other.has_duplicates;
     }
     std::vector<value_type> keys() {
         std::vector<value_type> v(this->map.size());
@@ -326,6 +447,8 @@ public:
     }
     int64_t missing_index;
     int64_t nan_index;
+    MultiMap multimap; // this stores only the duplicates
+    bool has_duplicates;
 };
 
 template<class T, class S=T, class M>
@@ -376,11 +499,13 @@ void init_hash(M m, std::string name) {
             .def("keys", &Type::keys)
             .def("map_index", &Type::map_index)
             .def("map_index", &Type::map_index_with_mask)
-            .def("__len__", [](const Type &c) { return c.map.size() + (c.null_count > 0) + (c.nan_count > 0); })
+            .def("map_index_duplicates", &Type::map_index_duplicates)
+            .def("__len__", [](const Type &c) { return c.count + (c.null_count > 0) + (c.nan_count > 0); })
             .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
             .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
             .def_property_readonly("has_nan", [](const Type &c) { return c.nan_count > 0; })
             .def_property_readonly("has_null", [](const Type &c) { return c.null_count > 0; })
+            .def_property_readonly("has_duplicates", [](const Type &c) { return c.has_duplicates; })
         ;
     }
 }

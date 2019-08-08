@@ -209,3 +209,56 @@ def test_index_multi():
     assert [k.tolist() for k in index.map_index_duplicates(strings3, 7)] == [[7, 8, 9, 9], [8, 8, 6, 9]]
     assert index.has_duplicates is True
     assert len(index) == 10
+
+
+def test_index_multi_float64():
+    floats = np.array([1.0, 2.0, 3.0])
+    index = index_hash_float64()
+    index.update(floats, 0)
+    assert index.map_index(floats).tolist() == [0, 1, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(floats, 0)] == [[], []]
+    assert index.has_duplicates is False
+    assert len(index) == 3
+
+    # duplicate that is already present
+    floats2 = np.array([1.0, 1.0, 10.0, 3.0])
+    index.update(floats2, 3)
+    assert index.map_index(floats2).tolist() == [0, 0, 5, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(floats2, 3)] == [[3, 3, 4, 4, 6], [3, 4, 3, 4, 6]]
+    assert index.has_duplicates is True
+    assert len(index) == 7
+
+    # duplicate that is not present, and a single one that is already in index
+    floats3 = np.array([99.9, 99.9, 3.0])
+    index.update(floats3, 7)
+    assert index.map_index(floats3).tolist() == [7, 7, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(floats3, 7)] == [[7, 8, 9, 9], [8, 8, 6, 9]]
+    assert index.has_duplicates is True
+    assert len(index) == 10
+
+    # same, but now use merge
+    floats = np.array([1.0, 2.0, 3.0])
+    index = index_hash_float64()
+    index.update(floats, 0)
+    assert index.map_index(floats).tolist() == [0, 1, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(floats, 0)] == [[], []]
+    assert index.has_duplicates is False
+    assert len(index) == 3
+
+    floats2 = np.array([1.0, 1.0, 10.0, 3.0])
+    index2 = index_hash_float64()
+    index2.update(floats2, 3)
+    index.merge(index2)
+    assert index.map_index(floats2).tolist() == [0, 0, 5, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(floats2, 3)] == [[3, 3, 4, 4, 6], [3, 4, 3, 4, 6]]
+    assert index.has_duplicates is True
+    assert len(index) == 7
+
+    floats3 = np.array([99.9, 99.9, 3.0])
+    index3 = index_hash_float64()
+    index3.update(floats3, 7)
+    index.merge(index3)
+    assert index.map_index(floats3).tolist() == [7, 7, 2]
+    assert [k.tolist() for k in index.map_index_duplicates(floats3, 7)] == [[7, 8, 9, 9], [8, 8, 6, 9]]
+    assert index.has_duplicates is True
+    assert len(index) == 10
