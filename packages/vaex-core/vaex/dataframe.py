@@ -4913,7 +4913,7 @@ class DataFrameLocal(DataFrame):
         return different_values, missing, type_mismatch, meta_mismatch
 
     @docsubst
-    def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left', inplace=False):
+    def join(self, other, on=None, left_on=None, right_on=None, lprefix='', rprefix='', lsuffix='', rsuffix='', how='left', inplace=False):
         """Return a DataFrame joined with other DataFrames, matched by columns/expression on/left_on/right_on
 
         If neither on/left_on/right_on is given, the join is done by simply adding the columns (i.e. on the implicit
@@ -4937,6 +4937,8 @@ class DataFrameLocal(DataFrame):
         :param on: default key for the left table (self)
         :param left_on: key for the left table (self), overrides on
         :param right_on: default key for the right table (other), overrides on
+        :param lprefix: prefix to add to the left column names in case of a name collision
+        :param rprefix: similar for the right
         :param lsuffix: suffix to add to the left column names in case of a name collision
         :param rsuffix: similar for the right
         :param how: how to join, 'left' keeps all rows on the left, and adds columns (with possible missing values)
@@ -4952,6 +4954,7 @@ class DataFrameLocal(DataFrame):
         elif how == 'right':
             left = other
             right = ds
+            lprefix, rprefix = rprefix, lprefix
             lsuffix, rsuffix = rsuffix, lsuffix
             left_on, right_on = right_on, left_on
         elif how == 'inner':
@@ -4962,7 +4965,7 @@ class DataFrameLocal(DataFrame):
             raise ValueError('join type not supported: {}, only left and right'.format(how))
 
         for name in right:
-            if name in left and name + rsuffix == name + lsuffix:
+            if name in left and rprefix + name + rsuffix == lprefix + name + lsuffix:
                 raise ValueError('column name collision: {} exists in both column, and no proper suffix given'
                                  .format(name))
 
@@ -4976,8 +4979,8 @@ class DataFrameLocal(DataFrame):
             for name in right:
                 right_name = name
                 if name in left:
-                    left.rename_column(name, name + lsuffix)
-                    right_name = name + rsuffix
+                    left.rename_column(name, lprefix + name + lsuffix)
+                    right_name = rprefix + name + rsuffix
                 if name in right.virtual_columns:
                     left.add_virtual_column(right_name, right.virtual_columns[name])
                 else:
@@ -5027,8 +5030,8 @@ class DataFrameLocal(DataFrame):
             for name in right:
                 right_name = name
                 if name in left:
-                    left.rename_column(name, name + lsuffix)
-                    right_name = name + rsuffix
+                    left.rename_column(name, lprefix + name + lsuffix)
+                    right_name = rprefix + name + rsuffix
                 if name in right.virtual_columns:
                     left.add_virtual_column(right_name, right.virtual_columns[name])
                 else:
