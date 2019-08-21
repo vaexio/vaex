@@ -119,11 +119,6 @@ def test_join_a_a_suffix_check():
     assert df.column_names == ['a_left', 'x_left', 'y_left', 'm_left', 'a_right', 'x_right', 'y_right', 'm_right']
 
 
-def test_join_a_a_prefix_check():
-    df = df_a.join(df_a, on='a', lprefix='left_', rprefix='right_')
-    assert df.column_names == ['left_a', 'left_x', 'left_y', 'left_m', 'right_a', 'right_x', 'right_y', 'right_m']
-
-
 def test_inner_a_d():
     df = df_a.join(df_d, on='a', right_on='a', how='inner', rsuffix='_r')
     assert df.a.tolist() == ['B', 'C']
