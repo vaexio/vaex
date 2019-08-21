@@ -1,3 +1,4 @@
+import pytest
 import vaex
 import numpy as np
 import numpy.ma
@@ -124,7 +125,7 @@ def test_join_a_a_prefix_check():
 
 
 def test_inner_a_d():
-    df = df_a.join(df_d, on='a', right_on='a', how='inner')
+    df = df_a.join(df_d, on='a', right_on='a', how='inner', rsuffix='_r')
     assert df.a.tolist() == ['B', 'C']
     assert df.x.tolist() == [1., 2.]
     assert df.y.tolist() == [None, 2.]

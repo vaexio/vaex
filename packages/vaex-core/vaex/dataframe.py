@@ -4940,11 +4940,12 @@ class DataFrameLocal(DataFrame):
         :param lsuffix: suffix to add to the left column names in case of a name collision
         :param rsuffix: similar for the right
         :param how: how to join, 'left' keeps all rows on the left, and adds columns (with possible missing values)
-                'right' is similar with self and other swapped.
+                'right' is similar with self and other swapped. 'inner' will only return rows which overlap.
         :param inplace: {inplace}
         :return:
         """
         ds = self if inplace else self.copy()
+        inner = False
         if how == 'left':
             left = ds
             right = other
@@ -4953,6 +4954,10 @@ class DataFrameLocal(DataFrame):
             right = ds
             lsuffix, rsuffix = rsuffix, lsuffix
             left_on, right_on = right_on, left_on
+        elif how == 'inner':
+            left = ds
+            right = other
+            inner = True
         else:
             raise ValueError('join type not supported: {}, only left and right'.format(how))
 
@@ -5012,7 +5017,13 @@ class DataFrameLocal(DataFrame):
                 left = left.concat(left.take(lookup_left))
                 lookup = np.concatenate([lookup, lookup_right])
 
-            lookup = np.ma.array(lookup, mask=lookup==-1)
+            if inner:
+                left_mask_matched = lookup != -1  # all the places where we found a match to the right
+                lookup = lookup[left_mask_matched]  # filter the lookup table to the right
+                left_indices_matched = np.where(left_mask_matched)[0]  # convert mask to indices for the left
+                left = left.take(left_indices_matched)
+            else:
+                lookup = np.ma.array(lookup, mask=lookup==-1)
             for name in right:
                 right_name = name
                 if name in left:
