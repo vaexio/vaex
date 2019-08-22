@@ -35,6 +35,19 @@ def ordered_set_type_from_dtype(dtype, transient=True):
     name = 'ordered_set_' + postfix
     return globals()[name]
 
+def index_type_from_dtype(dtype, transient=True):
+    if dtype == str_type:
+        if transient:
+            postfix = 'string'
+        else:
+            postfix = 'string' #  not support atm
+    else:
+        postfix = str(dtype)
+        if postfix == '>f8':
+            postfix = 'float64'
+    name = 'index_hash_' + postfix
+    return globals()[name]
+
 # from numpy import *
 # import IPython
 # IPython.embed()

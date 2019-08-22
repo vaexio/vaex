@@ -284,9 +284,9 @@ class DataFrame(object):
     def filtered(self):
         return self.has_selection(FILTER_SELECTION_NAME)
 
-    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, name='map reduce (custom)'):
+    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, ignore_filter=False, name='map reduce (custom)'):
         # def map_wrapper(*blocks):
-        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy)
+        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy, ignore_filter=ignore_filter)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, name)
         self.executor.schedule(task)
@@ -351,6 +351,44 @@ class DataFrame(object):
         for other in sets[1:]:
             set0.merge(other)
         return set0
+
+    def _index(self, expression, progress=False, delay=False):
+        column = _ensure_string_from_expression(expression)
+        columns = [column]
+        from .hash import index_type_from_dtype
+        from vaex.column import _to_string_sequence
+
+        transient = self[str(expression)].transient or self.filtered or self.is_masked(expression)
+        if self.dtype(expression) == str_type and not transient:
+            # string is a special case, only ColumnString are not transient
+            ar = self.columns[str(expression)]
+            if not isinstance(ar, ColumnString):
+                transient = True
+
+        dtype = self.dtype(column)
+        index_type = index_type_from_dtype(dtype, transient)
+        index_list = [None] * self.executor.thread_pool.nthreads
+        def map(thread_index, i1, i2, ar):
+            if index_list[thread_index] is None:
+                index_list[thread_index] = index_type()
+            if dtype == str_type:
+                previous_ar = ar
+                ar = _to_string_sequence(ar)
+                if not transient:
+                    assert ar is previous_ar.string_sequence
+            if np.ma.isMaskedArray(ar):
+                mask = np.ma.getmaskarray(ar)
+                index_list[thread_index].update(ar, mask, i1)
+            else:
+                index_list[thread_index].update(ar, i1)
+        def reduce(a, b):
+            pass
+        self.map_reduce(map, reduce, columns, delay=delay, name='index', info=True, to_numpy=False)
+        index_list = [k for k in index_list if k is not None]
+        index0 = index_list[0]
+        for other in index_list[1:]:
+            index0.merge(other)
+        return index0
 
     def unique(self, expression, return_inverse=False, progress=False, delay=False):
         expression = _ensure_string_from_expression(expression)
@@ -4885,7 +4923,7 @@ class DataFrameLocal(DataFrame):
         return different_values, missing, type_mismatch, meta_mismatch
 
     @docsubst
-    def join(self, other, on=None, left_on=None, right_on=None, lsuffix='', rsuffix='', how='left', inplace=False):
+    def join(self, other, on=None, left_on=None, right_on=None, lprefix='', rprefix='', lsuffix='', rsuffix='', how='left', inplace=False):
         """Return a DataFrame joined with other DataFrames, matched by columns/expression on/left_on/right_on
 
         If neither on/left_on/right_on is given, the join is done by simply adding the columns (i.e. on the implicit
@@ -4909,27 +4947,35 @@ class DataFrameLocal(DataFrame):
         :param on: default key for the left table (self)
         :param left_on: key for the left table (self), overrides on
         :param right_on: default key for the right table (other), overrides on
+        :param lprefix: prefix to add to the left column names in case of a name collision
+        :param rprefix: similar for the right
         :param lsuffix: suffix to add to the left column names in case of a name collision
         :param rsuffix: similar for the right
         :param how: how to join, 'left' keeps all rows on the left, and adds columns (with possible missing values)
-                'right' is similar with self and other swapped.
+                'right' is similar with self and other swapped. 'inner' will only return rows which overlap.
         :param inplace: {inplace}
         :return:
         """
         ds = self if inplace else self.copy()
+        inner = False
         if how == 'left':
             left = ds
             right = other
         elif how == 'right':
             left = other
             right = ds
+            lprefix, rprefix = rprefix, lprefix
             lsuffix, rsuffix = rsuffix, lsuffix
             left_on, right_on = right_on, left_on
+        elif how == 'inner':
+            left = ds
+            right = other
+            inner = True
         else:
             raise ValueError('join type not supported: {}, only left and right'.format(how))
 
         for name in right:
-            if name in left and name + rsuffix == name + lsuffix:
+            if name in left and rprefix + name + rsuffix == lprefix + name + lsuffix:
                 raise ValueError('column name collision: {} exists in both column, and no proper suffix given'
                                  .format(name))
 
@@ -4943,52 +4989,59 @@ class DataFrameLocal(DataFrame):
             for name in right:
                 right_name = name
                 if name in left:
-                    left.rename_column(name, name + lsuffix)
-                    right_name = name + rsuffix
+                    left.rename_column(name, lprefix + name + lsuffix)
+                    right_name = rprefix + name + rsuffix
                 if name in right.virtual_columns:
                     left.add_virtual_column(right_name, right.virtual_columns[name])
                 else:
                     left.add_column(right_name, right.columns[name])
         else:
-            left_values = left.evaluate(left_on, filtered=False)
-            right_values = right.evaluate(right_on)
-            # maps from the left_values to row #
-            if np.ma.isMaskedArray(left_values):
-                mask = ~left_values.mask
-                left_values = left_values.data
-                index_left = dict(zip(left_values[mask], np.arange(N)[mask]))
-            else:
-                index_left = dict(zip(left_values, np.arange(N)))
-            # idem for right
-            if np.ma.isMaskedArray(right_values):
-                mask = ~right_values.mask
-                right_values = right_values.data
-                index_other = dict(zip(right_values[mask], np.arange(N_other)[mask]))
-            else:
-                index_other = dict(zip(right_values, np.arange(N_other)))
+            df = ds
+            # we index the right side, this assumes right is smaller in size
+            index = right._index(right_on)
+            lookup = np.zeros(left._length_original, dtype=np.int64)
+            lookup_extra_chunks = []
+            dtype = left.dtype(left_on)
+            duplicates_right = index.has_duplicates
 
-            # we do a left join, find all rows of the right DataFrame
-            # that has an entry on the left
-            # for each row in the right
-            # find which row it needs to go to in the right
-            # from_indices = np.zeros(N_other, dtype=np.int64)  # row # of right
-            # to_indices = np.zeros(N_other, dtype=np.int64)    # goes to row # on the left
-            # keep a boolean mask of which rows are found
-            left_mask = np.ones(N, dtype=np.bool)
-            # and which row they point to in the right
-            left_row_to_right = np.zeros(N, dtype=np.int64) - 1
-            for i in range(N_other):
-                left_row = index_left.get(right_values[i])
-                if left_row is not None:
-                    left_mask[left_row] = False  # unmask, it exists
-                    left_row_to_right[left_row] = i
+            from vaex.column import _to_string_sequence
+            def map(thread_index, i1, i2, ar):
+                if dtype == str_type:
+                    previous_ar = ar
+                    ar = _to_string_sequence(ar)
+                if np.ma.isMaskedArray(ar):
+                    mask = np.ma.getmaskarray(ar)
+                    lookup[i1:i2] = index.map_index(ar.data, mask)
+                    if duplicates_right:
+                        extra = index.map_index_duplicates(ar.data, mask, i1)
+                        lookup_extra_chunks.append(extra)
+                else:
+                    lookup[i1:i2] = index.map_index(ar)
+                    if duplicates_right:
+                        extra = index.map_index_duplicates(ar, i1)
+                        lookup_extra_chunks.append(extra)
+            def reduce(a, b):
+                pass
+            left.map_reduce(map, reduce, [left_on], delay=False, name='fill looking', info=True, to_numpy=False, ignore_filter=True)
+            if len(lookup_extra_chunks):
+                # if the right has duplicates, we increase the left of left, and the lookup array
+                lookup_left = np.concatenate([k[0] for k in lookup_extra_chunks])
+                lookup_right = np.concatenate([k[1] for k in lookup_extra_chunks])
+                left = left.concat(left.take(lookup_left))
+                lookup = np.concatenate([lookup, lookup_right])
 
-            lookup = np.ma.array(left_row_to_right, mask=left_mask)
+            if inner:
+                left_mask_matched = lookup != -1  # all the places where we found a match to the right
+                lookup = lookup[left_mask_matched]  # filter the lookup table to the right
+                left_indices_matched = np.where(left_mask_matched)[0]  # convert mask to indices for the left
+                left = left.take(left_indices_matched)
+            else:
+                lookup = np.ma.array(lookup, mask=lookup==-1)
             for name in right:
                 right_name = name
                 if name in left:
-                    left.rename_column(name, name + lsuffix)
-                    right_name = name + rsuffix
+                    left.rename_column(name, lprefix + name + lsuffix)
+                    right_name = rprefix + name + rsuffix
                 if name in right.virtual_columns:
                     left.add_virtual_column(right_name, right.virtual_columns[name])
                 else:
