@@ -4249,7 +4249,7 @@ class DataFrame(object):
         if isinstance(name, six.string_types):
             if isinstance(value, Expression):
                 value = value.expression
-            if isinstance(value, np.ndarray):
+            if isinstance(value, (np.ndarray, Column)):
                 self.add_column(name, value)
             else:
                 self.add_virtual_column(name, value)
