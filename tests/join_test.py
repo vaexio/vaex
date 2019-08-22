@@ -116,12 +116,12 @@ def test_left_a_c():
 
 def test_join_a_a_suffix_check():
     df = df_a.join(df_a, on='a', lsuffix='_left', rsuffix='_right')
-    assert df.column_names == ['a_left', 'x_left', 'y_left', 'm_left', 'a_right', 'x_right', 'y_right', 'm_right']
+    assert set(df.column_names) == {'a_left', 'x_left', 'y_left', 'm_left', 'a_right', 'x_right', 'y_right', 'm_right'}
 
 
 def test_join_a_a_prefix_check():
     df = df_a.join(df_a, on='a', lprefix='left_', rprefix='right_')
-    assert df.column_names == ['left_a', 'left_x', 'left_y', 'left_m', 'right_a', 'right_x', 'right_y', 'right_m']
+    assert set(df.column_names) == {'left_a', 'left_x', 'left_y', 'left_m', 'right_a', 'right_x', 'right_y', 'right_m'}
 
 
 def test_inner_a_d():
@@ -149,7 +149,7 @@ def test_left_virtual_filter():
     df = df_a.join(df_d, on='a', how='left', rsuffix='_b')
     df['r'] = df.x + df.x2
     df = df[df.r > 10]
-    assert df[0] == ['C', 2.0, 2.0, 3, 'C', 'cat', 25.0, 27.0]
+    assert set(df[0]) == {'C', 2.0, 2.0, 3, 'C', 'cat', 25.0, 27.0}
 
 
 def test_left_on_virtual_col():
