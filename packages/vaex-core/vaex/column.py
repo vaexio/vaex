@@ -188,6 +188,9 @@ try:
 except:
     str_type = str
 
+class str_type(object):
+    kind = 'O'
+
 use_c_api = True
 
 class ColumnString(Column):

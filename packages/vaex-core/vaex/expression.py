@@ -90,13 +90,13 @@ class Meta(type):
                     self = a
                     # print(op, a, b)
                     try:
-                        stringy = isinstance(b, str_type) or (isinstance(b, Expression) and b.dtype == str_type)
+                        stringy = isinstance(b, str) or (isinstance(b, Expression) and b.dtype == str_type)
                     except:
                         # this can happen when expression is a literal, like '1' (used in propagate_unc)
                         # which causes the dtype to fail
                         stringy = False
                     if stringy:
-                        if isinstance(b, str_type):
+                        if isinstance(b, (str)):
                             b = repr(b)
                         if op['code'] == '==':
                             expression = 'str_equals({0}, {1})'.format(a.expression, b)
