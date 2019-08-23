@@ -36,6 +36,7 @@ max_labels = 10
 def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
            xlabel=None, ylabel=None, label=None,
            selection=None, show=False, tight_layout=True, hardcopy=None,
+           progress=None,
            **kwargs):
     """Viz data in 1d (histograms, running means etc)
 
@@ -111,12 +112,12 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
                     functions = ["mean", "sum", "std", "count"]
                     if function in functions:
                         # grid = getattr(self, function)(arguments, binby, limits=limits, shape=shape, selection=selection)
-                        grid = getattr(vaex.stat, function)(arguments).calculate(self, binby=binby, limits=limits, shape=shape, selection=selection)
+                        grid = getattr(vaex.stat, function)(arguments).calculate(self, binby=binby, limits=limits, shape=shape, selection=selection, progress=progress)
                     elif function == "count" and arguments == "*":
-                        grid = self.count(binby=binby, shape=shape, limits=limits, selection=selection)
+                        grid = self.count(binby=binby, shape=shape, limits=limits, selection=selection, progress=progress)
                     elif function == "cumulative" and arguments == "*":
                         # TODO: comulative should also include the tails outside limits
-                        grid = self.count(binby=binby, shape=shape, limits=limits, selection=selection)
+                        grid = self.count(binby=binby, shape=shape, limits=limits, selection=selection, progress=progress)
                         grid = np.cumsum(grid)
                     else:
                         raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
