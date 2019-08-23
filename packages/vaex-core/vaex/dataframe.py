@@ -4923,7 +4923,7 @@ class DataFrameLocal(DataFrame):
         return different_values, missing, type_mismatch, meta_mismatch
 
     @docsubst
-    def join(self, other, on=None, left_on=None, right_on=None, lprefix='', rprefix='', lsuffix='', rsuffix='', how='left', inplace=False):
+    def join(self, other, on=None, left_on=None, right_on=None, lprefix='', rprefix='', lsuffix='', rsuffix='', how='left', allow_duplication=False, inplace=False):
         """Return a DataFrame joined with other DataFrames, matched by columns/expression on/left_on/right_on
 
         If neither on/left_on/right_on is given, the join is done by simply adding the columns (i.e. on the implicit
@@ -4953,6 +4953,7 @@ class DataFrameLocal(DataFrame):
         :param rsuffix: similar for the right
         :param how: how to join, 'left' keeps all rows on the left, and adds columns (with possible missing values)
                 'right' is similar with self and other swapped. 'inner' will only return rows which overlap.
+        :param bool allow_duplication: Allow duplication of rows when the joined column contains non-unique values.
         :param inplace: {inplace}
         :return:
         """
@@ -5003,6 +5004,9 @@ class DataFrameLocal(DataFrame):
             lookup_extra_chunks = []
             dtype = left.dtype(left_on)
             duplicates_right = index.has_duplicates
+
+            if duplicates_right and not allow_duplication:
+                raise ValueError('This join will lead to duplication of rows which is disabled, pass allow_duplication=True')
 
             from vaex.column import _to_string_sequence
             def map(thread_index, i1, i2, ar):

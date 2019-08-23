@@ -97,7 +97,7 @@ def test_right_x_x():
 
 
 def test_left_dup():
-    df = df_a.join(df_dup, left_on='a', right_on='b', rsuffix='_r')
+    df = df_a.join(df_dup, left_on='a', right_on='b', rsuffix='_r', allow_duplication=True)
     assert len(df) == 4
     # df = df_a.join(df_dup, on='x', rsuffix='_r')
     # df = df_a.join(df_dup, on='m', rsuffix='_r')
