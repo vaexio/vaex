@@ -12,7 +12,7 @@ author_email= 'maartenbreddels@gmail.com'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_astro = ['vaex-core>=0.1']
+install_requires_astro = ['vaex-core>=1.0.0,<2']
 
 setup(
     name=name + '-astro',
