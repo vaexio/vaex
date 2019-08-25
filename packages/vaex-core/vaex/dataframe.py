@@ -1300,6 +1300,8 @@ class DataFrame(object):
                 ceil_values = np.array(np.ceil(values))
                 vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
                 vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
+                print('edge_floor', edges_floor)
+                print('edge_ceil', edges_ceil)
 
                 def index_choose(a, indices):
                     # alternative to np.choise, which doesn't like the last dim to be >= 32
