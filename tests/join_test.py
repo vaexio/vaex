@@ -167,10 +167,7 @@ def test_left_on_virtual_col():
     assert df.a_right.tolist() == [None, 'B', 'C']
 
 
-def test_join_groupby():
-    df_aa = df_a.copy()  # to get avoid a scoping problem
-    df_aa = df_aa[((df_aa.y > 0) | (df_aa.y != df_aa.y))]
-    _df_aa_groupby = df_aa.groupby(by='a').agg({'x': ['mean'], 'y': ['sum']})
-    df_joined = df_aa.join(other=_df_aa_groupby, on='a', how='inner',
-                           rsuffix='_', allow_duplication=True)
-    assert len(df_joined) == len(df_aa)
+def test_join_filtered_inner():
+    df_a_filtered = df_a[df_a.y > 0]
+    df_joined = df_a_filtered.join(other=df_b, on='x', how='inner', rsuffix='_', allow_duplication=True)
+    assert len(df_joined) == len(df_a)
