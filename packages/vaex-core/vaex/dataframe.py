@@ -5038,7 +5038,7 @@ class DataFrameLocal(DataFrame):
                 left_mask_matched = lookup != -1  # all the places where we found a match to the right
                 lookup = lookup[left_mask_matched]  # filter the lookup table to the right
                 left_indices_matched = np.where(left_mask_matched)[0]  # convert mask to indices for the left
-                left = left.take(left_indices_matched)
+                left = left.take(left_indices_matched, unfiltered=True)
             else:
                 lookup = np.ma.array(lookup, mask=lookup==-1)
             for name in right:
