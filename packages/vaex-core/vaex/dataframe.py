@@ -3674,16 +3674,7 @@ class DataFrame(object):
             if column is not None:
                 # we optimize this somewhere, so we don't do multiple
                 # levels of indirection
-                if isinstance(column, ColumnIndexed):
-                    # TODO: think about what happpens when the indices are masked.. ?
-                    if id(column.indices) not in direct_indices_map:
-                        direct_indices = column.indices[indices]
-                        direct_indices_map[id(column.indices)] = direct_indices
-                    else:
-                        direct_indices = direct_indices_map[id(column.indices)]
-                    df.columns[name] = ColumnIndexed(column.df, direct_indices, column.name)
-                else:
-                    df.columns[name] = ColumnIndexed(df_trimmed, indices, name)
+                df.columns[name] = ColumnIndexed.index(df_trimmed, column, name, indices, direct_indices_map)
         df._length_original = len(indices)
         df._length_unfiltered = df._length_original
         df._cached_filtered_length = None
@@ -5041,6 +5032,7 @@ class DataFrameLocal(DataFrame):
                 left = left.take(left_indices_matched)
             else:
                 lookup = np.ma.array(lookup, mask=lookup==-1)
+            direct_indices_map = {}  # for performance, keeps a cache of two levels of indirection of indices
             for name in right:
                 right_name = name
                 if name in left:
@@ -5049,7 +5041,8 @@ class DataFrameLocal(DataFrame):
                 if name in right.virtual_columns:
                     left.add_virtual_column(right_name, right.virtual_columns[name])
                 else:
-                    left.add_column(right_name, ColumnIndexed(right, lookup, name))
+                    column = ColumnIndexed.index(right, right.columns[name], name, lookup, direct_indices_map)
+                    left.add_column(right_name, column)
         return left
 
     def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
