@@ -134,6 +134,7 @@ def test_inner_a_d():
     assert df.x1.tolist() == ['dog', 'cat']
     assert df.x2.tolist() == [3.1, 25.]
 
+
 @pytest.mark.skip(reason='full join not supported yet')
 def test_full_a_d():
     df = df_a.join(df_d, on='a', right_on='a', how='full')
@@ -165,3 +166,9 @@ def test_left_on_virtual_col():
     assert df.x1.tolist() == [None, 'dog', 'cat']
     assert df.x2.tolist() == [None, 3.1, 25.]
     assert df.a_right.tolist() == [None, 'B', 'C']
+
+
+def test_join_filtered_inner():
+    df_a_filtered = df_a[df_a.y > 0]
+    df_joined = df_a_filtered.join(other=df_b, on='x', how='inner', rsuffix='_', allow_duplication=True)
+    assert len(df_joined) == len(df_a)
