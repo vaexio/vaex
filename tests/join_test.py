@@ -94,6 +94,7 @@ def test_right_x_x():
     assert df.evaluate('x_r').tolist() == [2, 1, 0]
     assert df.evaluate('y').tolist() == [2, None, 0]
     assert df.evaluate('y_r').tolist() == [None, 1, 2]
+    assert 'y_r' not in df_b
 
 
 def test_left_dup():

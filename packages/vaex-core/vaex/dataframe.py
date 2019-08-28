@@ -4957,23 +4957,21 @@ class DataFrameLocal(DataFrame):
         :param inplace: {inplace}
         :return:
         """
-        ds = self if inplace else self.copy()
         inner = False
+        left = self
+        right = other
         if how == 'left':
-            left = ds
-            right = other
+            pass
         elif how == 'right':
-            left = other
-            right = ds
+            left, right = right, left
             lprefix, rprefix = rprefix, lprefix
             lsuffix, rsuffix = rsuffix, lsuffix
             left_on, right_on = right_on, left_on
         elif how == 'inner':
-            left = ds
-            right = other
             inner = True
         else:
             raise ValueError('join type not supported: {}, only left and right'.format(how))
+        left = left if inplace else left.copy()
 
         for name in right:
             if name in left and rprefix + name + rsuffix == lprefix + name + lsuffix:
@@ -4997,7 +4995,7 @@ class DataFrameLocal(DataFrame):
                 else:
                     left.add_column(right_name, right.columns[name])
         else:
-            df = ds
+            df = left
             # we index the right side, this assumes right is smaller in size
             index = right._index(right_on)
             lookup = np.zeros(left._length_original, dtype=np.int64)
