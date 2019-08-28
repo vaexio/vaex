@@ -172,3 +172,13 @@ def test_join_filtered_inner():
     df_a_filtered = df_a[df_a.y > 0]
     df_joined = df_a_filtered.join(other=df_b, on='x', how='inner', rsuffix='_', allow_duplication=True)
     assert len(df_joined) == len(df_a)
+
+
+def test_both_filtered():
+    df_a_filtered = df_a[~(df_a.a == 'C')]
+    df_b_filtered = df_b[~(df_b.b == 'D')]
+    df_joined = df_a_filtered.join(other=df_b_filtered, left_on='a', right_on='b',
+                                   lsuffix='_', allow_duplication=True, how='inner')
+
+    assert df_joined['b'].values.tolist() == ['A', 'B']
+    assert df_joined['x_'].tolist() == [2., 1.]
