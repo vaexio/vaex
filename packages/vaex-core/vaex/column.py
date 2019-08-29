@@ -76,6 +76,30 @@ class ColumnIndexed(Column):
         max_index = self.indices.max()
         assert max_index < self.df._length_original
 
+    @staticmethod
+    def index(df, column, name, indices, direct_indices_map=None):
+        """Creates a new column indexed by indices which avoids nested indices
+
+        :param df: Dataframe where column comes from
+        :param column: Column object or numpy array
+        :param name: name of column
+        :param indices: ndarray with indices which rows to take
+        :param direct_indices_map: cache of the nested indices (pass a dict for better performance), defaults to None
+        :return: A column object which avoids two levels of indirection
+        :rtype: ColumnIndexed
+        """
+        direct_indices_map = direct_indices_map or {}
+        if isinstance(column, ColumnIndexed):
+            # TODO: think about what happpens when the indices are masked.. ?
+            if id(column.indices) not in direct_indices_map:
+                direct_indices = column.indices[indices]
+                direct_indices_map[id(column.indices)] = direct_indices
+            else:
+                direct_indices = direct_indices_map[id(column.indices)]
+            return ColumnIndexed(column.df, direct_indices, column.name)
+        else:
+            return ColumnIndexed(df, indices, name)
+
     def __len__(self):
         return len(self.indices)
 

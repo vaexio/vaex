@@ -53,6 +53,11 @@ def test_left_a_b():
     assert df.evaluate('y').tolist() == [0, None, 2]
     assert df.evaluate('y_r').tolist() == [None, 1, None]
 
+def test_join_indexed():
+    df = df_a.join(other=df_b, left_on='a', right_on='b', rsuffix='_r')
+    df_X = df_a.join(df, left_on='a', right_on='b', rsuffix='_r')
+    assert df_X.evaluate('b').tolist() == ['A', 'B', None]
+
 
 def test_left_a_b_filtered():
     df_af = df_a[df_a.x > 0]
