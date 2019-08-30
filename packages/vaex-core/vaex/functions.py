@@ -116,10 +116,9 @@ for name, numpy_name in numpy_function_mapping:
             def wrapper(*args, **kwargs):
                 return function(*args, **kwargs)
             return wrapper
-        try:
-            function = functools.wraps(function)(f())
-        except AttributeError:
-            function = f()  # python 2 case
+        function = f()
+        function.__doc__ = "Lazy wrapper around :py:data:`numpy.%s`" % name
+
         register_function(name=name)(function)
 
 
@@ -726,6 +725,7 @@ def str_center(x, width, fillchar=' '):
     :returns: an expression containing the filled strings.
 
     Example:
+
     >>> import vaex
     >>> text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
     >>> df = vaex.from_arrays(text=text)

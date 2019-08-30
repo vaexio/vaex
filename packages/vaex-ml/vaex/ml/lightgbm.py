@@ -21,7 +21,7 @@ lib = lightgbm.basic._LIB
 class LightGBMModel(state.HasState):
     '''The LightGBM algorithm.
 
-    This class provides an interface to the LightGBM aloritham, with some optimizations
+    This class provides an interface to the LightGBM algorithm, with some optimizations
     for better memory efficiency when training large datasets. The algorithm itself is
     not modified at all.
 
@@ -87,13 +87,8 @@ class LightGBMModel(state.HasState):
     def fit(self, df, target, valid_sets=None, valid_names=None,
             early_stopping_rounds=None, evals_result=None, verbose_eval=None,
             copy=False, **kwargs):
-        '''Fit the LightGBMModel to the DataFrame.
+        """Fit the LightGBMModel to the DataFrame.
 
-        :param df: A vaex DataFrame.
-        :param target: The name of the column containing the target variable.
-        :param list valid_sets: A list of DataFrames to be used for validation.
-        :param list valid_names: A list of strings to label the validation sets.
-        :param early_stopping_rounds int: Activates early stopping.
         The model will train until the validation score stops improving.
         Validation score needs to improve at least every *early_stopping_rounds* rounds
         to continue training. Requires at least one validation DataFrame, metric
@@ -105,7 +100,15 @@ class LightGBMModel(state.HasState):
         If *verbose_eval* is True then the evaluation metric on the validation
         set is printed at each boosting stage.
         :param bool copy: (default, False) If True, make an in memory copy of the data before passing it to LightGBMModel.
-        '''
+
+
+        :param df: A vaex DataFrame.
+        :param target: The name of the column containing the target variable.
+        :param list valid_sets: A list of DataFrames to be used for validation.
+        :param list valid_names: A list of strings to label the validation sets.
+        :param early_stopping_rounds int: Activates early stopping.
+
+        """
 
         if copy:
             dtrain = lightgbm.Dataset(df[self.features].values, df.evaluate(target))

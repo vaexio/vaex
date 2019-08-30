@@ -160,7 +160,7 @@ class StringOperations(object):
 
 
 class StringOperationsPandas(object):
-    """String operations using Pandas Series"""
+    """String operations using Pandas Series (much slower)"""
     def __init__(self, expression):
         self.expression = expression
 
@@ -183,12 +183,12 @@ class Expression(with_metaclass(Meta)):
 
     @property
     def str(self):
-        """Gives access to string operations"""
+        """Gives access to string operations via :py:class:`StringOperations`"""
         return StringOperations(self)
 
     @property
     def str_pandas(self):
-        """Gives access to string operations (using Pandas Series)"""
+        """Gives access to string operations via :py:class:`StringOperationsPandas` (using Pandas Series)"""
         return StringOperationsPandas(self)
 
     @property

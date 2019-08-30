@@ -118,8 +118,8 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
 
     Example:
 
-    >>> ds = vaex.open('sometable.hdf5')
-    >>> ds = vaex.open('somedata*.csv', convert='bigdata.hdf5')
+    >>> df = vaex.open('sometable.hdf5')
+    >>> df = vaex.open('somedata*.csv', convert='bigdata.hdf5')
 
     :param str or list path: local or absolute path to file, or glob string, or list of paths
     :param convert: convert files to an hdf5 file for optimization, can also be a path
@@ -129,6 +129,24 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
     :param bool copy_index: copy index when source is read via pandas
     :return: return a DataFrame on succes, otherwise None
     :rtype: DataFrame
+
+    S3 support:
+
+    Vaex supports streaming in hdf5 files from Amazon AWS object storage S3.
+    Files are by default cached in $HOME/.vaex/file-cache/s3 such that successive access
+    it as fast as native disk access. The following url parameters control S3 options:
+
+     * anon: Use anonymous access or not (false by default). (Allowed values are: true,True,1,false,False,0)
+     * use_cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0)
+     * profile_name and other arguments are passed to :py:class:`s3fs.core.S3FileSystem`
+
+    All arguments can also be passed as kwargs, but then arguments such as `anon` can only be a boolean, not a string.
+
+    Examples:
+
+    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5?anon=true')
+    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', anon=True)  # Note that anon is a boolean, not the string 'true'
+    >>> df = vaex.open('s3://mybucket/path/to/file.hdf5?profile_name=myprofile')
 
     """
     import vaex

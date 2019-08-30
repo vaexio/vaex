@@ -61,7 +61,7 @@ vaex-core
 
 
 DataFrame class
-~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.dataframe.DataFrame
      :members:
@@ -69,7 +69,7 @@ DataFrame class
 
 
 DataFrameLocal class
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.dataframe.DataFrameLocal
      :members:
@@ -83,10 +83,25 @@ Expression class
      :members:
      :special-members:
 
+Aggragation and statistics
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. automodule:: vaex.stat
+    :members:
+
+
+.. automodule:: vaex.agg
+    :members:
+
+.. .. autoclass:: vaex.stat.Statistic
+..     :members:
+
+
+Extensions
+----------
 
 String operations
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.expression.StringOperations
      :members:
@@ -96,6 +111,12 @@ String operations
      :members:
      :special-members:
 
+Date/time operations
+~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.DateTime
+     :members:
+     :special-members:
 
 Geo operations
 ~~~~~~~~~~~~~~
@@ -104,15 +125,6 @@ Geo operations
      :members:
      :special-members:
 
-vaex.stat module
-~~~~~~~~~~~~~~~~
-
-.. automodule:: vaex.stat
-    :members:
-
-
-.. .. autoclass:: vaex.stat.Statistic
-..     :members:
 
 
 .. .. Subpackages
@@ -273,9 +285,6 @@ Boosted trees
 ~~~~~~~~~~~~~
 
 .. autoclass:: vaex.ml.lightgbm.LightGBMModel
-     :members:
-
-.. autoclass:: vaex.ml.lightgbm.LightGBMClassifier
      :members:
 
 .. autoclass:: vaex.ml.xgboost.XGBoostModel
