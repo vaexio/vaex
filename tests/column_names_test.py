@@ -1,6 +1,6 @@
 import vaex
 from common import *
-
+import h5py
 
 x = np.arange(10)
 
@@ -35,3 +35,19 @@ def test_add_invalid_name(tmpdir):
     df = vaex.open(path)
     assert df['X!1'].tolist() == x.tolist()
     assert (df.copy()['X!1']*2).tolist() == (x*2).tolist()
+
+def test_invalid_name_read(tmpdir):
+    # earlier version of vaex could write invalid names, check if we can read those
+    df = vaex.from_dict({'x': x})
+    # df.columns['1'] = df.columns.pop('x')
+    # df.column_names = ['1']
+    path = str(tmpdir.join('test.hdf5'))
+    df.export(path)
+
+    h5 = h5py.File(path)
+    h5['/table/columns']['1'] = h5['/table/columns']['x']
+    del h5['/table/columns']['x']
+
+    df = vaex.open(path)
+    assert df['1'].tolist() == x.tolist()
+    assert (df.copy()['1']*2).tolist() == (x*2).tolist()

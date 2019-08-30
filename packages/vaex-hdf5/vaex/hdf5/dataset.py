@@ -352,7 +352,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                             transposed = shape[1] < shape[0]
                             self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=data.dtype, stride=1, stride1=1, transposed=transposed)
         all_columns = dict(**self.columns)
-        # print(all_columns, column_order)
+        # in case the column_order refers to non-existing columns
+        column_order = [k for k in column_order if k in all_columns]
         self.column_names = []
         for name in column_order:
             self.columns[name] = all_columns.pop(name)
