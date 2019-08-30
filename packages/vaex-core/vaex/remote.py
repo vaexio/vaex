@@ -6,7 +6,7 @@ import threading
 import uuid
 import time
 import ast
-from .dataset import Dataset
+from .dataframe import DataFrame, default_shape
 from .utils import _issequence
 from .tasks import Task
 from .legacy import Subspace
@@ -18,7 +18,6 @@ import tornado.httputil
 import tornado.websocket
 from tornado.concurrent import Future
 from tornado import gen
-from .dataset import default_shape
 import tornado.ioloop
 import json
 import astropy.units
@@ -38,8 +37,8 @@ except ImportError:
 
 
 logger = logging.getLogger("vaex.remote")
-
 DEFAULT_REQUEST_TIMEOUT = 60 * 5  # 5 minutes
+forwarded_method_names = []  # all method names on DataFrame that get forwarded to the server
 
 
 def wrap_future_with_promise(future):
@@ -426,12 +425,8 @@ class ServerRest(object):
         def post_process(result):
             # result = self._check_exception(json.loads(result.body))["result"]
             if numpy:
-                return np.fromstring(result, dtype=np.float64)
-            else:
-                try:
-                    return np.array(result)
-                except ValueError:
-                    return result
+                result = np.fromstring(result, dtype=np.float64)
+            return result
         path = "datasets/%s/%s" % (dataset_remote.name, method_name)
         arguments = dict(kwargs)
         arguments['state'] = dataset_remote.state_get()
@@ -511,15 +506,28 @@ class SubspaceRemote(Subspace):
         return self.df.server._call_subspace("mutual_information", self, limits=limits, size=size)
 
 
-class DatasetRemote(Dataset):
+class DataFrameRemote(DataFrame):
     def __init__(self, name, server, column_names):
-        super(DatasetRemote, self).__init__(name, column_names)
+        super(DataFrameRemote, self).__init__(name, column_names)
         self.server = server
 
+def forward(f=None, has_delay=False):
+    assert not has_delay
+    def decorator(method):
+        method_name = method.__name__
+        forwarded_method_names.append(method_name)
+        def wrapper(df, *args, **kwargs):
+            return df.server._call_dataset(method_name, df, delay=has_delay, *args, **kwargs)
+        return wrapper
+    if f is None:
+        return decorator
+    else:
+        return decorator(f)
 
-class DatasetRest(DatasetRemote):
+
+class DatasetRest(DataFrameRemote):
     def __init__(self, server, name, column_names, dtypes, length_original):
-        DatasetRemote.__init__(self, name, server.hostname, column_names)
+        DataFrameRemote.__init__(self, name, server.hostname, column_names)
         self.server = server
         self.name = name
         self.column_names = column_names
@@ -591,6 +599,10 @@ class DatasetRest(DatasetRemote):
             return np.zeros(1, dtype=np.float64).dtype
 
     def is_local(self): return False
+
+    @forward()
+    def _head_and_tail_table(self, n=5, format='html'):
+        raise NotImplemented
 
     def __repr__(self):
         name = self.__class__.__module__ + "." + self.__class__.__name__

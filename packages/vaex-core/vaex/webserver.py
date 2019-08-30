@@ -27,9 +27,15 @@ import tornado.escape
 from cachetools import Cache, LRUCache
 import sys
 
+from . import remote
+
 logger = logging.getLogger("vaex.webserver")
 job_index = 0
 
+
+allowed_statistical_method_names = "count cov correlation covariance mean std minmax min max sum var".split()
+allowed_method_names = []
+allowed_method_names.extend(remote.forwarded_method_names)
 
 class JobFlexible(object):
     def __init__(self, cost, fn=None, args=None, kwargs=None, index=None):
@@ -425,7 +431,7 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
                                     for name in "job_id state auto_fraction expressions active_fraction selection selections variables virtual_columns active_start_index active_end_index".split():
                                         arguments.pop(name, None)
                             logger.debug("subspace: %r", subspace)
-                            if subspace is None and method_name in "count cov correlation covariance mean std minmax min max sum var".split():
+                            if subspace is None and method_name in allowed_statistical_method_names:
                                 grid = task_invoke(dataset, method_name, **arguments)
                                 return grid
                             elif method_name in ["minmax", "image_rgba_url", "var", "mean", "sum", "limits_sigma", "nearest", "correlation", "mutual_information"]:
@@ -465,6 +471,9 @@ def process(webserver, user_id, path, fraction=None, progress=None, **arguments)
                                 if dataset.dtype(arguments['expression']) == vaex.column.str_type:
                                     result = result.astype(vaex.column.str_type)
                                 return result
+                            elif method_name in allowed_method_names:
+                                result = task_invoke(dataset, method_name, **arguments)
+                                return {"result": result}
                             else:
                                 logger.error("unknown method: %r", method_name)
                                 return error("unknown method: " + method_name)
