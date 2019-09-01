@@ -17,7 +17,7 @@ def test_astype_str():
 
     df.rename_column(df.column_names[0], 'value')
     df['value'] = df['value'].str.replace(',', '').evaluate()
-    df['value'] = (df['value'].astype('float')*1000).astype('int64').evaluate()
+    df['value'] = (df['value'].astype('float')).astype('int64').evaluate()
 
     assert df.columns['value'].dtype == np.int64
     assert df.value.dtype == np.int64
