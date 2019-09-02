@@ -83,7 +83,7 @@ Expression class
      :members:
      :special-members:
 
-Aggragation and statistics
+Aggregation and statistics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.stat

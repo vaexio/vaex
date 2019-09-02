@@ -42,10 +42,11 @@ When installing ``vaex-ui`` it does not install PyQt4, PyQt5 or PySide, you have
 For developers
 ^^^^^^^^^^^^^^
 
-If you want to work on vaex for a Pull Request from the source, use the following reciple:
+If you want to work on vaex for a Pull Request from the source, use the following recipe:
 
-* ``git clone https://github.com/vaexio/vaex``
+* ``git clone --recursive https://github.com/vaexio/vaex``  # make sure you get the submodules
 * ``cd vaex``
+* make sure the dev versions of pcre are installed (e.g. ``conda install -c conda-forge pcre``)
 * install using:
 
  * ``pip install -e .``  (again, use (ana)conda or virtualenv/venv)
