@@ -90,6 +90,15 @@ def test_left_a_b_filtered():
     assert df.evaluate('y').tolist() == [None, 2]
     assert df.evaluate('y_r').tolist() == [1, None]
 
+def test_inner_a_b_filtered():
+    df_af = df_a[df_a.x > 0]
+    df = df_af.join(other=df_b, left_on='a', right_on='b', rsuffix='_r', how='inner')
+    assert df.evaluate('a').tolist() == ['B']
+    assert df.evaluate('b').tolist() == ['B']
+    assert df.evaluate('x').tolist() == [1]
+    assert df.evaluate('x_r').tolist() == [1]
+    assert df.evaluate('y').tolist() == [None]
+    assert df.evaluate('y_r').tolist() == [1]
 
 def test_right_x_x():
     df = df_a.join(other=df_b, on='x', rsuffix='_r', how='right')
