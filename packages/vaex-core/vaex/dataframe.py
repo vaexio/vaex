@@ -2786,7 +2786,9 @@ class DataFrame(object):
 
     def add_column(self, name, f_or_array, dtype=None):
         """Add an in memory array as a column."""
+        column_position = len(self.column_names)
         if name in self.get_column_names():
+            column_position = self.column_names.index(name)
             renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names())
             self._rename(name, renamed)
 
@@ -2809,7 +2811,7 @@ class DataFrame(object):
                 self._column_aliases[name] = valid_name
             self.columns[valid_name] = f_or_array
             if valid_name not in self.column_names:
-                self.column_names.append(valid_name)
+                self.column_names.insert(column_position, valid_name)
             ar = f_or_array
             if dtype is not None:
                 self._dtypes_override[valid_name] = dtype
@@ -3142,8 +3144,8 @@ class DataFrame(object):
         if old in self.virtual_columns:
             self.virtual_columns[new] = self.virtual_columns.pop(old)
         self._renamed_columns.append((old, new))
-        index = self.column_names.index(old)
-        self.column_names[index] = new
+        self.column_names.remove(old)
+        self.column_names.append(new)
         self.virtual_columns = {k:self[v]._rename(old, new).expression for k, v in self.virtual_columns.items()}
         for key, value in self.selection_histories.items():
             self.selection_histories[key] = list([k if k is None else k._rename(self, old, new) for k in value])
