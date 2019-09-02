@@ -2786,6 +2786,10 @@ class DataFrame(object):
 
     def add_column(self, name, f_or_array, dtype=None):
         """Add an in memory array as a column."""
+        if name in self.get_column_names():
+            renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names())
+            self._rename(name, renamed)
+
         if isinstance(f_or_array, (np.ndarray, Column)):
             data = ar = f_or_array
             # it can be None when we have an 'empty' DataFrameArrays
@@ -3131,7 +3135,8 @@ class DataFrame(object):
         # self.write_virtual_meta()
 
     def _rename(self, old, new, *expressions):
-        #for name, expr in self.virtual_columns.items():
+        if old in self._dtypes_override:
+            self._dtypes_override[new] = self._dtypes_override.pop(old)
         if old in self.columns:
             self.columns[new] = self.columns.pop(old)
         if old in self.virtual_columns:
