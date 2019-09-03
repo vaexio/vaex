@@ -3643,7 +3643,7 @@ class DataFrame(object):
         return df
 
     @docsubst
-    def take(self, indices, unfiltered=False):
+    def take(self, indices, filtered=True, dropfilter=True):
         '''Returns a DataFrame containing only rows indexed by indices
 
         {note_copy}
@@ -3658,7 +3658,9 @@ class DataFrame(object):
          1  c      3
 
         :param indices: sequence (list or numpy array) with row numbers
-        :param unfiltered: (for internal use) The indices refer to the unfiltered data.
+        :param filtered: (for internal use) The indices refer to the filtered data.
+        :param dropfilter: (for internal use) Drop the filter, set to False when
+            indices refer to unfiltered, but may contain rows that still need to be filtered out.
         :return: DataFrame which is a shallow copy of the original data.
         :rtype: DataFrame
         '''
@@ -3670,9 +3672,10 @@ class DataFrame(object):
         # them in this dict
         direct_indices_map = {}
         indices = np.asarray(indices)
-        if df.filtered and not unfiltered:
+        if df.filtered and filtered:
+            # we translate the indices that refer to filters row indices to
+            # indices of the unfiltered row indices
             df.count() # make sure the mask is filled
-            # translate the indices to unfiltered indices
             max_index = indices.max()
             mask = df._selection_masks[FILTER_SELECTION_NAME]
             filtered_indices = mask.first(max_index+1)
@@ -3687,7 +3690,10 @@ class DataFrame(object):
         df._cached_filtered_length = None
         df._index_start = 0
         df._index_end = df._length_original
-        df.set_selection(None, name=FILTER_SELECTION_NAME)
+        if dropfilter:
+            # if the indices refer to the filtered rows, we can discard the
+            # filter in the final dataframe
+            df.set_selection(None, name=FILTER_SELECTION_NAME)
         return df
 
     @docsubst
@@ -3710,7 +3716,7 @@ class DataFrame(object):
             mask = self._selection_masks[FILTER_SELECTION_NAME]
             indices = mask.first(len(self))
             assert len(indices) == len(self)
-            return self.take(indices, unfiltered=True)
+            return self.take(indices, filtered=False)
         else:
             return trimmed
 
@@ -4303,12 +4309,12 @@ class DataFrame(object):
                 self.count()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 indices = mask.first(stop-start)
-                df = self.trim().take(indices, unfiltered=True)
+                df = self.trim().take(indices, filtered=False)
             elif self.filtered and stop == len(self):
                 self.count()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 indices = mask.last(stop-start)
-                df = self.trim().take(indices, unfiltered=True)
+                df = self.trim().take(indices, filtered=False)
             else:
                 df = self.extract()
                 df.set_active_range(start, stop)
@@ -5034,7 +5040,8 @@ class DataFrameLocal(DataFrame):
                 left_mask_matched = lookup != -1  # all the places where we found a match to the right
                 lookup = lookup[left_mask_matched]  # filter the lookup table to the right
                 left_indices_matched = np.where(left_mask_matched)[0]  # convert mask to indices for the left
-                left = left.take(left_indices_matched, unfiltered=True)
+                # indices can still refer to filtered rows, so do not drop the filter
+                left = left.take(left_indices_matched, filtered=False, dropfilter=False)
             else:
                 lookup = np.ma.array(lookup, mask=lookup==-1)
             direct_indices_map = {}  # for performance, keeps a cache of two levels of indirection of indices
