@@ -177,6 +177,10 @@ class Expression(with_metaclass(Meta)):
     def __getitem__(self, slice):
         return self.ds[slice][self.expression]
 
+    def __abs__(self):
+        """Returns the absolute value of the expression"""
+        return self.abs()
+
     @property
     def dt(self):
         return DateTime(self)
