@@ -238,6 +238,12 @@ def test_maxabs_scaler():
     assert result_vaex.absmax_scaled_w.values.tolist() == result_skl[:, 2].tolist(), "scikit-learn and vaex results do not match"
 
 
+import numpy
+import sys
+import platform
+version = tuple(map(int, numpy.__version__.split('.')))
+
+@pytest.mark.skipif(((1,17,0) <= version <= (1,17,2)) and platform.system().lower() == 'linux' and sys.version_info[:2] == (3,6), reason="strange ref count issue with numpy")
 def test_robust_scaler():
     x = np.array([-2.65395789, -7.97116295, -4.76729177, -0.76885033, -6.45609635])
     y = np.array([-8.9480332, -4.81582449, -3.73537263, -3.46051912,  1.35137275])
