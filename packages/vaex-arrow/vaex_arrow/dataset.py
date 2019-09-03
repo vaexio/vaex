@@ -28,14 +28,18 @@ class DatasetArrow(vaex.dataset.DatasetLocal):
         self._load_table(table)
     
     def _load_table(self, table):
-        self._length_unfiltered =  self._length_original = table.num_rows
-        self._index_end =  self._length_original = table.num_rows
+        self._length_unfiltered = self._length_original = table.num_rows
+        self._index_end = self._length_original = table.num_rows
         for col in table.columns:
             name = col.name
             # TODO: keep the arrow columns, and support and test chunks
             arrow_array = col.data.chunks[0]
-            column = column_from_arrow_array(arrow_array)
-
+            if isinstance(arrow_array.type, pa.DictionaryType):
+                column = column_from_arrow_array(arrow_array.indices)
+                labels = column_from_arrow_array(arrow_array.dictionary).tolist()
+                self._categories[name] = dict(labels=labels, N=len(labels))
+            else:
+                column = column_from_arrow_array(arrow_array)
             self.columns[name] = column
             self.column_names.append(name)
             self._save_assign_expression(name, vaex.expression.Expression(self, name))
