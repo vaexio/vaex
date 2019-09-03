@@ -31,6 +31,11 @@ df_d = vaex.from_arrays(a=np.array(['B', 'C', 'D']),
                         x2=np.array([3.1, 25, np.nan]),
                         )
 
+df_e = vaex.from_arrays(a=np.array(['X', 'Y', 'Z']),
+                        x1=np.array(['dog', 'cat', 'mouse']),
+                        x2=np.array([3.1, 25, np.nan]),
+                        )
+
 
 def test_no_on():
     # just adds the columns
@@ -42,6 +47,11 @@ def test_join_masked():
     df = df_a.join(other=df_b, left_on='m', right_on='m', rsuffix='_r')
     assert df.evaluate('m').tolist() == [1, None, 3]
     assert df.evaluate('m_r').tolist() == [1, None, None]
+
+
+def test_join_nomatch():
+    df = df_a.join(df_e, on='a', rprefix='r_')
+    assert df.x2.tolist() == [None, None, None]
 
 
 def test_left_a_b():
