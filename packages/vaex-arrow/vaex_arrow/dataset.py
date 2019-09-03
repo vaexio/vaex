@@ -23,8 +23,18 @@ class DatasetArrow(vaex.dataset.DatasetLocal):
 
     def _load(self):
         source = pa.memory_map(self.path)
-        reader = pa.ipc.open_stream(source)
-        table = pa.Table.from_batches([b for b in reader])
+        try:
+            # first we try if it opens as stream
+            reader = pa.ipc.open_stream(source)
+        except pa.lib.ArrowInvalid:
+            # if not, we open as file
+            reader = pa.ipc.open_file(source)
+            # for some reason this reader is not iterable
+            batches = [reader.get_batch(i) for i in range(reader.num_record_batches)]
+        else:
+            # if a stream, we're good
+            batches = reader  # this reader is iterable
+        table = pa.Table.from_batches(batches)
         self._load_table(table)
     
     def _load_table(self, table):
