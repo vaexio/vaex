@@ -569,7 +569,7 @@ class TaskAggregate(Task):
             for selection_index, selection in enumerate(selections):
                 agg0 = aggregation2d[0][selection_index]
                 agg0.reduce([k[selection_index] for k in aggregation2d[1:]])
-                grid = np.asarray(agg0)
+                grid = np.asarray(agg0).copy()
                 if not edges:
                     grid = vaex.utils.extract_central_part(grid)
                 grids.append(grid)
