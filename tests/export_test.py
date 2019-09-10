@@ -1,6 +1,7 @@
 from common import *
 import os
 import tempfile
+import pandas as pd
 
 
 @pytest.mark.parametrize("filename", ["test.hdf5", "test.arrow", "test.parquet"])
@@ -75,3 +76,35 @@ def test_export_string_mask(tmpdir):
 # 	df = ds.open(path)
 # 	assert df[0:2].s.tolist() == ['x', 'x']
 # 	assert df[-3:-1].s.tolist() == ['y', 'y']
+
+@pytest.mark.parametrize("dtypes", [{}, {'name': np.object, 'age': 'Int64', 'weight': np.float}])
+def test_multi_file_naive_read_convert_export(tmpdir, dtypes):
+	current_dir = os.path.dirname(__file__)
+
+	path1 = '/data/sample_1.csv'
+	path2 = '/data/sample_2.csv'
+
+	pdf1 = pd.read_csv(current_dir + path1, dtype=dtypes)
+	pdf2 = pd.read_csv(current_dir + path2, dtype=dtypes)
+
+	vdf1 = vaex.from_pandas(pdf1, copy_index=False)
+	vdf2 = vaex.from_pandas(pdf2, copy_index=False)
+
+	# Verify the Int64 type from pandas is read in vaex correctly
+	assert vdf1.age.tolist() == pdf1.age.tolist()
+
+	output_path1 = str(tmpdir.join('sample_1.hdf5'))
+	output_path2 = str(tmpdir.join('sample_2.hdf5'))
+
+	vdf1.export_hdf5(output_path1)
+	vdf2.export_hdf5(output_path2)
+
+	# Concat and output the final single hdf5 file
+	df = vaex.open_many([output_path1, output_path2])
+	output_path_final = str(tmpdir.join('sample_final.hdf5'))
+	df.export_hdf5(output_path_final)
+
+	df_verify = vaex.open(output_path_final)
+	assert len(df) == len(df_verify)
+	assert df['name'].tolist() == df_verify['name'].tolist()
+	assert df['age'].tolist() == df_verify['age'].tolist()
