@@ -196,3 +196,9 @@ def test_join_filtered_inner():
     df_a_filtered = df_a[df_a.y > 0]
     df_joined = df_a_filtered.join(other=df_b, on='x', how='inner', rsuffix='_', allow_duplication=True)
     assert len(df_joined) == len(df_a_filtered)
+
+    x = np.arange(20)
+    df = vaex.from_arrays(x=x, y=x**2)
+    df = df[df.x > 5]
+    dfj = df.join(df, on='x', rsuffix='right_', how='inner')
+    repr(dfj)  # trigger issue with selection cache
