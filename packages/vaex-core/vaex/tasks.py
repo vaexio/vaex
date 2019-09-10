@@ -567,15 +567,13 @@ class TaskAggregate(Task):
         for agg_desc, selections, aggregation2d, selection_waslist, edges, task in self.aggregations:
             grids = []
             for selection_index, selection in enumerate(selections):
-                agg0 = aggregation2d[0][selection_index]
-                agg0.reduce([k[selection_index] for k in aggregation2d[1:]])
-                grid = np.asarray(agg0)
-                if not edges:
-                    grid = vaex.utils.extract_central_part(grid)
+                aggs = [k[selection_index] for k in aggregation2d]
+                grid = agg_desc.reduce(aggs, edges=edges)
                 grids.append(grid)
             result = np.asarray(grids) if selection_waslist else grids[0]
-            dtype_out = vaex.utils.to_native_dtype(agg_desc.dtype_out)
-            result = result.view(dtype_out)
+            if agg_desc.dtype_out != str_type:
+                dtype_out = vaex.utils.to_native_dtype(agg_desc.dtype_out)
+                result = result.view(dtype_out)
             task.fulfill(result)
             results.append(result)
         return results

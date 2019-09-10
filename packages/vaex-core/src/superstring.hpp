@@ -1,3 +1,6 @@
+#ifndef VAEX_SUPERSTRING_H
+#define VAEX_SUPERSTRING_H
+
 #include <nonstd/string_view.hpp>
 #include <string>
 typedef nonstd::string_view string_view;
@@ -33,3 +36,5 @@ class StringSequence {
     uint8_t* null_bitmap;
     int64_t null_offset;
 };
+
+#endif

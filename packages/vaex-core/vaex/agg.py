@@ -1,6 +1,7 @@
 import os
 import numpy as np
 
+from .column import str_type
 from .stat import _Statistic
 
 
@@ -63,6 +64,35 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
         agg_op = agg_op_type(grid, *self.agg_args)
         return agg_op
+
+    def reduce(self, agg_operations, edges=False):
+        agg0 = agg_operations[0]
+        agg0.reduce(agg_operations[1:])
+        grid = np.asarray(agg0)
+        if not edges:
+            grid = vaex.utils.extract_central_part(grid)
+        return grid
+
+class AggregatorDescriptorNUnique(AggregatorDescriptorBasic):
+    def __init__(self, name, expression, short_name, dropmissing, dropnan):
+        super(AggregatorDescriptorNUnique, self).__init__(name, expression, short_name)
+        self.dropmissing = dropmissing
+        self.dropnan = dropnan
+
+    def _create_operation(self, df, grid):
+        self.dtype_in = str_type
+        self.dtype_out = np.dtype('int64')
+        agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
+        agg_op = agg_op_type(grid, self.dropmissing, self.dropnan)
+        return agg_op
+
+    def reduce(self, agg_operations, edges=False):
+        agg0 = agg_operations[0]
+        agg0.reduce(agg_operations[1:])
+        grid = np.asarray(agg0)
+        if not edges:
+            grid = vaex.utils.extract_central_part(grid)
+        return grid
 
 
 class AggregatorDescriptorMulti(AggregatorDescriptor):
@@ -195,6 +225,19 @@ def std(expression, ddof=0):
 def var(expression, ddof=0):
     '''Creates a variance aggregation'''
     return AggregatorDescriptorVar('var', expression, 'var', ddof=ddof)
+
+def nunique(expression, dropmissing=False, dropnan=False, dropna=False):
+    """Aggregator that calculates the number of unique items per bin.
+
+    :param expression: Expression for which to calculate the unique items
+    :param dropmissing: do not count missing values
+    :param dropnan: do not count nan values
+    :param dropna: short for any of the above, (see :func:`Expression.isna`)
+    """
+    if dropna:
+        dropmissing = True
+        dropnan = True
+    return AggregatorDescriptorNUnique('AggNUnique', expression, 'nunique', dropmissing, dropnan)
 
 # @register
 # def covar(x, y):
