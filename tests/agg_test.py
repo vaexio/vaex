@@ -158,3 +158,12 @@ def test_nunique():
     dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
     items = list(zip(dfg.x.values, dfg.nunique.values))
     assert items == [(0, 3), (1, 2), (2, 1)]
+
+
+def test_unique_missing_groupby():
+    s = ['aap', 'aap', 'noot', 'mies', None, 'mies', 'kees', 'mies', 'aap']
+    x = [0,     0,     0,      np.nan,      np.nan,     1,      1,     np.nan,      2]
+    df = vaex.from_arrays(x=x, s=s)
+    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
+    items = list(zip(dfg.x.values, dfg.nunique.values))
+    assert items == [(0, 2), (1, 2), (2, 1)]
