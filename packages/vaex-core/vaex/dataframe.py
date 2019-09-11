@@ -6,6 +6,7 @@ import math
 import time
 import itertools
 import functools
+import contextlib
 import collections
 import sys
 import platform
@@ -152,6 +153,7 @@ def _hidden(meth):
     meth.__hidden__ = True
     return meth
 
+
 class DataFrame(object):
     """All local or remote datasets are encapsulated in this class, which provides a pandas
     like API to your dataset.
@@ -221,6 +223,9 @@ class DataFrame(object):
 
         # weak refs of expression that we keep to rewrite expressions
         self._expressions = []
+        self._transposed = False
+        self._allow_array_casting = True
+
 
         self.local = threading.local()
         # a check to avoid nested aggregator calls, which make stack traces very difficult
@@ -2865,7 +2870,7 @@ class DataFrame(object):
         """
         import dask.array as da
         import uuid
-        dtype = self._dtype
+        dtype = self.dtype
         chunks = da.core.normalize_chunks(chunks, shape=self.shape, dtype=dtype)
         name = 'vaex-df-%s' % str(uuid.uuid1())
         def getitem(df, item):
@@ -2910,7 +2915,7 @@ class DataFrame(object):
         column_position = len(self.column_names)
         if name in self.get_column_names():
             column_position = self.column_names.index(name)
-            renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names())
+            renamed = vaex.utils.find_valid_name('__' +name, used=self.get_column_names(hidden=True))
             self._rename(name, renamed)
 
         if isinstance(f_or_array, (np.ndarray, Column)):
@@ -4461,7 +4466,7 @@ class DataFrame(object):
         """Returns True if there is a selection with the given name."""
         return self.get_selection(name) is not None
 
-    def __setitem__(self, name, value):
+    def __setitem__(self, item, value):
         '''Convenient way to add a virtual column / expression to this DataFrame.
 
         Example:
@@ -4472,12 +4477,45 @@ class DataFrame(object):
         >>> df.r
         <vaex.expression.Expression(expressions='r')> instance at 0x121687e80 values=[2.9655450396553587, 5.77829281049018, 6.99079603950256, 9.431842752707537, 0.8825613121347967 ... (total 330000 values) ... 7.453831761514681, 15.398412491068198, 8.864250273925633, 17.601047186042507, 14.540181524970293]
         '''
-
-        if isinstance(name, six.string_types):
+        if isinstance(item, six.string_types):
             if isinstance(value, (np.ndarray, Column)):
-                self.add_column(name, value)
+                self.add_column(item, value)
             else:
-                self.add_virtual_column(name, value)
+                self.add_virtual_column(item, value)
+        elif isinstance(item, tuple):
+            assert len(item) == 2 and isinstance(item[0], slice), 'can only set using df[:,0] or df[:,\'name\'] syntax'
+            if isinstance(item[1], (slice, list, tuple)):
+                names = self.get_column_names()
+                if isinstance(item[1], (slice)):
+                    names = names.__getitem__(item[1])
+                else:
+                    if isinstance(item[1][0], int):
+                        names = [names[k] for k in item[1]]
+                    else:
+                        names = item[1]
+                if isinstance(value, (int, float)):
+                    for name in names:
+                        self[name] = self[name] * 0 + value
+                elif isinstance(value, DataFrame) and self is not value:
+                    all_names = self.get_column_names()
+                    self.join(value, rprefix="rhs_", inplace=True)
+                    names_right = self.get_column_names()[len(all_names):]
+                    names_left = names
+                    for name_left, name_right in zip(names_left, names_right):
+                        self[name_left] = self[name_right]
+                        self._hide_column(name_right)
+                else:
+                    for name in names:
+                        self[name] = value[name]
+                return
+            if isinstance(item[1], int):
+                name = self.get_column_names()[item[1]]
+            elif isinstance(item[1], str):
+                name = item[1]
+            if isinstance(value, (int, float)):
+                self[name] = self[name] * 0 + value
+            else:
+                self[name] = value
         else:
             raise TypeError('__setitem__ only takes strings as arguments, not {}'.format(type(name)))
 
@@ -4571,7 +4609,7 @@ class DataFrame(object):
             return self.filter(expression)
         elif isinstance(item, (tuple, list)):
             df = self
-            if isinstance(item[0], slice):
+            if len(item) > 0 and isinstance(item[0], slice):
                 df = df[item[0]]
             if len(item) > 1:
                 if isinstance(item[1], int):
@@ -4579,6 +4617,10 @@ class DataFrame(object):
                     return df[name]
                 elif isinstance(item[1], slice):
                     names = self.get_column_names().__getitem__(item[1])
+                    return df[names]
+                elif isinstance(item[1], (tuple, list)):
+                    names = self.get_column_names()
+                    names = [names[i] for i in item[1]]
                     return df[names]
             for expression in item:
                 self.validate_expression(expression)
@@ -4604,6 +4646,24 @@ class DataFrame(object):
             df = self.trim()
             df.set_active_range(start, stop)
             return df.trim()
+
+    def _prod(self, axis=None):
+        df = self.copy()
+        assert axis == 1
+        if axis == 1:
+            names = self.get_column_names()
+            if len(names) == 0:
+                df['test'] = vaex.vrange(0, len(df))
+                df['test'] = df['test'] * 0 + 1
+            else:
+                expression = df[self.names[0]]
+                self._hide_column(names[0])
+                for name in names[1:]:
+                    expression = expression * df[name]
+                    self._hide_column(name)
+        return df
+            
+
 
     def __delitem__(self, item):
         '''Removes a (virtual) column from the DataFrame.
@@ -4686,7 +4746,13 @@ class DataFrame(object):
 
     def __iter__(self):
         """Iterator over the column names."""
-        return iter(list(self.get_column_names()))
+        if self._transposed:
+            for name in self.get_column_names():
+                yield self[name]
+        else:
+            # TODO: we should iterate over rows, this would be breaking though
+            for name in self.get_column_names():
+                yield name
 
     def _root_nodes(self):
         """Returns a list of string which are the virtual columns that are not used in any other virtual column."""
@@ -4729,7 +4795,6 @@ class DataFrame(object):
         for column in root_nodes:
             self[column]._graphviz(dot=dot)
         return dot
-
 
     def _get_task_agg(self, grid):
         new_task = False
@@ -4815,6 +4880,39 @@ class DataFrame(object):
         def finish(*binners):
             return self._grid(binners)
         return self._delay(delay, finish(*binners))
+
+# we forward binary and unary operators to numpy, which will be dispatched to
+# the nep13/nep18 handlers
+for op in vaex.expression._binary_ops:
+    name = op['name']
+    numpy_name = op.get('numpy_name', name)
+    # TODO: decide what to do with equals
+    if name in ['contains', 'is', 'is_not', 'eq']:
+        continue
+    numpy_function = getattr(np, numpy_name)
+    assert numpy_function, 'numpy does not have {}'.format(numpy_name)
+    def closure(numpy_function=numpy_function, numpy_name=numpy_name):
+        def f(a, b):
+            return numpy_function(a.numpy, b)
+        return f
+
+    dundername = '__{}__'.format(name)
+    setattr(DataFrame, dundername, closure())
+
+
+for op in vaex.expression._unary_ops:
+    name = op['name']
+    numpy_name = op.get('numpy_name', name)
+    numpy_function = getattr(np, numpy_name)
+    assert numpy_function, 'numpy does not have {}'.format(name)
+    def closure(numpy_function=numpy_function):
+        def f(a):
+            return numpy_function(a)
+        return f
+
+    dundername = '__{}__'.format(name)
+    setattr(DataFrame, dundername, closure())
+
 
 DataFrame.__hidden__ = {}
 hidden = [name for name, func in vars(DataFrame).items() if getattr(func, '__hidden__', False)]
@@ -4958,6 +5056,7 @@ class DataFrameLocal(DataFrame):
     def copy(self, column_names=None, virtual=True):
         df = DataFrameArrays()
         df._length_unfiltered = self._length_unfiltered
+        df._allow_array_casting = self._allow_array_casting
         df._length_original = self._length_original
         df._cached_filtered_length = self._cached_filtered_length
         df._index_end = self._index_end
@@ -5153,15 +5252,26 @@ class DataFrameLocal(DataFrame):
     def echo(self, arg): return arg
 
     @property
-    def _dtype(self):
-        dtypes = [self[k].dtype for k in self.get_column_names()]
-        if not all([dtypes[0] == dtype for dtype in dtypes]):
-            return ValueError("Not all dtypes are equal: %r" % dtypes)
-        return dtypes[0]
-
-    @property
     def shape(self):
         return (len(self), len(self.get_column_names()))
+
+    @property
+    def T(self):
+        return self.numpy.T
+
+    @property
+    def dtype(self):
+        return self.numpy.dtype
+
+    @property
+    def ndim(self):
+        return self.numpy.ndim
+
+    def __array_function__(self, func, types, args, kwargs):
+        return self.numpy.__array_function__(func, types, args, kwargs)
+
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        return self.numpy.__array_ufunc__(ufunc, method, *inputs, **kwargs)
 
     def __array__(self, dtype=None, parallel=True):
         """Gives a full memory copy of the DataFrame into a 2d numpy array of shape (n_rows, n_columns).
@@ -5173,6 +5283,8 @@ class DataFrameLocal(DataFrame):
 
         If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
         """
+        if not self._allow_array_casting:
+            raise RuntimeError('casting a dataframe to an array is explicitly disabled')
         if dtype is None:
             dtype = np.float64
         chunks = []
@@ -5186,6 +5298,12 @@ class DataFrameLocal(DataFrame):
             return np.ma.array(chunks, dtype=dtype).T
         else:
             return np.array(chunks, dtype=dtype).T
+
+    @contextlib.contextmanager
+    def array_casting_disabled(self):
+        self._allow_array_casting = False
+        yield
+        self._allow_array_casting = True
 
     @vaex.utils.deprecated('use DataFrame.join(other)')
     def _hstack(self, other, prefix=None):
@@ -5312,7 +5430,6 @@ class DataFrameLocal(DataFrame):
 
         if parallel:
             use_filter = df.filtered and filtered
-
             length = df.length_unfiltered()
             arrays = {}
             # maps to a dict of start_index -> apache arrow array (a chunk)
@@ -5320,7 +5437,6 @@ class DataFrameLocal(DataFrame):
             dtypes = {}
             shapes = {}
             virtual = set()
-            # TODO: For NEP branch: dtype -> dtype_evaluate
 
             for expression in set(expressions):
                 dtypes[expression] = df.data_type(expression, internal=False)

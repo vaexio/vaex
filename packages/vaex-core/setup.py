@@ -142,6 +142,6 @@ setup(name=name + '-core',
       entry_points={
           'console_scripts': ['vaex = vaex.__main__:main'],
           'gui_scripts': ['vaexgui = vaex.__main__:main'],  # sometimes in osx, you need to run with this
-          'vaex.dataframe.accessor': ['geo = vaex.geo:DataFrameAccessorGeo']
+          'vaex.dataframe.accessor': ['geo = vaex.geo:DataFrameAccessorGeo', 'numpy = vaex.numpy:DataFrameAccessorNumpy']
       }
       )

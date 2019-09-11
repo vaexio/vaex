@@ -29,7 +29,7 @@ def test_valid_sklearn_pca():
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
     # sklearn approach
     pca = PCA(n_components=3, random_state=33, svd_solver='full', whiten=False)
-    pca.fit(ds[features])
+    pca.fit(np.array(ds[features]))
     sklearn_trans = pca.transform(ds[features])
     # vaex-ml approach
     vaexpca = ds.ml.pca(n_components=3, features=features)
@@ -57,8 +57,8 @@ def test_standard_scaler():
     # Compare against sklearn
     features = ['petal_width', 'petal_length']
     skl_scaler = StandardScaler(with_mean=True, with_std=True)
-    skl_scaler.fit(ds[features])
-    sk_vals = skl_scaler.transform(ds[features])
+    skl_scaler.fit(np.array(ds[features]))
+    sk_vals = skl_scaler.transform(np.array(ds[features]))
     # assert
     np.testing.assert_almost_equal(sk_vals[:, 0], ds1.evaluate('standard_scaled_petal_width'),
                                    err_msg='vaex and sklearn results do not match')
@@ -81,8 +81,8 @@ def test_minmax_scaler():
     # Compare against sklearn (default minmax range)
     features = ['petal_width', 'petal_length']
     skl_scaler = MinMaxScaler()
-    skl_scaler.fit(ds[features])
-    sk_vals = skl_scaler.transform(ds[features])
+    skl_scaler.fit(np.array(ds[features]))
+    sk_vals = skl_scaler.transform(np.array(ds[features]))
     # assert
     np.testing.assert_almost_equal(sk_vals[:, 0], ds1.evaluate('minmax_scaled_petal_width'),
                                    err_msg='vaex and sklearn results do not match')
@@ -90,8 +90,8 @@ def test_minmax_scaler():
                                    err_msg='vaex and sklearn results do not match')
     # Compare against sklearn (custom minmax range)
     skl_scaler = MinMaxScaler(feature_range=(-5, 2))
-    skl_scaler.fit(ds[features])
-    sk_vals = skl_scaler.transform(ds[features])
+    skl_scaler.fit(np.array(ds[features]))
+    sk_vals = skl_scaler.transform(np.array(ds[features]))
     # assert
     np.testing.assert_almost_equal(sk_vals[:, 0], ds2.evaluate('minmax_scaled_petal_width'),
                                    err_msg='vaex and sklearn results do not match')

@@ -2,6 +2,16 @@ import pytest
 from common import *
 
 
+def test_slice_numpy_like(df_local):
+    df = df_local
+    rows, columns = df.shape
+    assert len(df[0]) == columns
+    assert len(df[:, 0]) == rows
+
+    column = df[:, 0]
+    df1 = column[:, None]
+    assert df1.shape == (rows, 1)
+
 def test_slice_expression(df):
     assert df.x[:2].tolist() == df[:2].x.tolist()
     assert df.x[2:6].tolist() == df[2:6].x.tolist()

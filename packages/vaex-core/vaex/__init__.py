@@ -39,6 +39,8 @@ import six
 
 import vaex.dataframe
 import vaex.dataset
+from vaex.dataframe import DataFrame, DataFrameLocal
+from vaex.expression import Expression
 from vaex.functions import register_function
 from . import stat
 # import vaex.file
