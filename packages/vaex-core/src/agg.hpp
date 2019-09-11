@@ -9,6 +9,18 @@ namespace py = pybind11;
 
 namespace vaex {
 
+
+template<class T>
+T _to_native(T value_non_native) {
+	unsigned char* bytes = (unsigned char*)&value_non_native;
+	T result;
+	unsigned char* result_bytes = (unsigned char*)&result;
+	for(size_t i = 0; i < sizeof(T); i++)
+		result_bytes[sizeof(T)-1-i] = bytes[i];
+	return result;
+}
+
+
 const int INDEX_BLOCK_SIZE = 1024;
 const int MAX_DIM = 16;
 typedef uint64_t default_index_type;

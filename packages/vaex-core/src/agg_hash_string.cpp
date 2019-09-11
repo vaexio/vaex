@@ -2,6 +2,7 @@
 #include "hash_string.cpp"
 
 namespace vaex {
+
 template<class GridType=uint64_t, class IndexType=default_index_type>
 class AggStringNUnique : public Aggregator {
 public:
@@ -98,7 +99,8 @@ void add_agg(Module m, Base& base, const char* class_name) {
         .def("reduce", &Agg::reduce)
     ;
 }
-void add_agg_nunique(py::module& m, py::class_<Aggregator>& base) {
+
+void add_agg_nunique_string(py::module& m, py::class_<Aggregator>& base) {
     std::string postfix = "string";
     add_agg<AggStringNUnique<>>(m, base, ("AggNUnique_" + postfix).c_str());
 }

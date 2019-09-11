@@ -108,7 +108,8 @@ extension_superutils = Extension("vaex.superutils", [
 
 extension_superagg = Extension("vaex.superagg", [
         os.path.relpath(os.path.join(dirname, "src/superagg.cpp")),
-        os.path.relpath(os.path.join(dirname, "src/agg_nunique.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/agg_hash_string.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/agg_hash_primitive.cpp")),
     ],
     include_dirs=[
         get_numpy_include(), get_pybind_include(),

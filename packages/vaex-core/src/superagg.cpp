@@ -8,18 +8,6 @@
 
 using namespace vaex;
 
-
-template<class T>
-T _to_native(T value_non_native) {
-	unsigned char* bytes = (unsigned char*)&value_non_native;
-	T result;
-	unsigned char* result_bytes = (unsigned char*)&result;
-	for(size_t i = 0; i < sizeof(T); i++)
-		result_bytes[sizeof(T)-1-i] = bytes[i];
-	return result;
-}
-
-
 template<class T=double, class BinIndexType=default_index_type, bool FlipEndian=false>
 class BinnerScalar : public Binner {
 public:
@@ -752,7 +740,8 @@ void add_binner_scalar(Module m, Base& base, std::string postfix) {
 }
 
 namespace vaex {
-    void add_agg_nunique(py::module& m, py::class_<Aggregator>& base);
+    void add_agg_nunique_string(py::module& m, py::class_<Aggregator>& base);
+    void add_agg_nunique_primitives(py::module& m, py::class_<Aggregator>& base);
 };
 
 PYBIND11_MODULE(superagg, m) {
@@ -776,7 +765,8 @@ PYBIND11_MODULE(superagg, m) {
         ;
     }
 
-    vaex::add_agg_nunique(m, aggregator);
+    vaex::add_agg_nunique_string(m, aggregator);
+    vaex::add_agg_nunique_primitives(m, aggregator);
     add_agg<AggStringCount<>>(m, agg, "AggCount_string");
     add_agg<AggObjectCount<>>(m, agg, "AggCount_object");
     add_agg_primitives<double>(m, agg, "float64");

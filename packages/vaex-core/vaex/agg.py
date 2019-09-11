@@ -80,7 +80,7 @@ class AggregatorDescriptorNUnique(AggregatorDescriptorBasic):
         self.dropnan = dropnan
 
     def _create_operation(self, df, grid):
-        self.dtype_in = str_type
+        self.dtype_in = df[str(self.expressions[0])].dtype
         self.dtype_out = np.dtype('int64')
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
         agg_op = agg_op_type(grid, self.dropmissing, self.dropnan)
@@ -226,7 +226,7 @@ def var(expression, ddof=0):
     '''Creates a variance aggregation'''
     return AggregatorDescriptorVar('var', expression, 'var', ddof=ddof)
 
-def nunique(expression, dropmissing=False, dropnan=False, dropna=False):
+def nunique(expression, dropmissing=True, dropnan=True):
     """Aggregator that calculates the number of unique items per bin.
 
     :param expression: Expression for which to calculate the unique items
@@ -234,9 +234,6 @@ def nunique(expression, dropmissing=False, dropnan=False, dropna=False):
     :param dropnan: do not count nan values
     :param dropna: short for any of the above, (see :func:`Expression.isna`)
     """
-    if dropna:
-        dropmissing = True
-        dropnan = True
     return AggregatorDescriptorNUnique('AggNUnique', expression, 'nunique', dropmissing, dropnan)
 
 # @register
