@@ -59,6 +59,15 @@ def test_groupby_1d(ds_local):
     assert dfg['count'].tolist() == [4, 4, 2]
 
 
+def test_groupby_1d_nan(ds_local):
+    ds = ds_local.extract()
+    g = np.array([0, 0, 0, 0, 1, 1, 1, np.nan, 2, 2])
+    ds.add_column('g', g)
+    dfg = ds.groupby(by=ds.g, agg={'count': vaex.agg.count()}).sort('g')
+    assert dfg.g.tolist()[:-1] == [0, 1, 2]  # last item is nan
+    assert dfg['count'].tolist() == [4, 3, 2, 1]
+
+
 def test_binby_1d(ds_local):
     ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
