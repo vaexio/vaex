@@ -226,7 +226,7 @@ def var(expression, ddof=0):
     '''Creates a variance aggregation'''
     return AggregatorDescriptorVar('var', expression, 'var', ddof=ddof)
 
-def nunique(expression, dropmissing=True, dropnan=True):
+def nunique(expression, dropna=False, dropnan=False, dropmissing=False):
     """Aggregator that calculates the number of unique items per bin.
 
     :param expression: Expression for which to calculate the unique items
@@ -234,6 +234,9 @@ def nunique(expression, dropmissing=True, dropnan=True):
     :param dropnan: do not count nan values
     :param dropna: short for any of the above, (see :func:`Expression.isna`)
     """
+    if dropna:
+        dropnan = True
+        dropmissing = True
     return AggregatorDescriptorNUnique('AggNUnique', expression, 'nunique', dropmissing, dropnan)
 
 # @register

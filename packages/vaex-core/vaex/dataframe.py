@@ -390,7 +390,10 @@ class DataFrame(object):
             index0.merge(other)
         return index0
 
-    def unique(self, expression, return_inverse=False, progress=False, delay=False):
+    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, delay=False):
+        if dropna:
+            dropnan = True
+            dropmissing = True
         expression = _ensure_string_from_expression(expression)
         ordered_set = self._set(expression, progress=progress)
         transient = True
@@ -411,10 +414,12 @@ class DataFrame(object):
                 pass
             self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False)
         keys = ordered_set.keys()
-        if ordered_set.has_nan:
-            keys = [np.nan] + keys
-        if ordered_set.has_null:
-            keys = [np.ma.core.MaskedConstant()] + keys
+        if not dropnan:
+            if ordered_set.has_nan:
+                keys = [np.nan] + keys
+        if not dropmissing:
+            if ordered_set.has_null:
+                keys = [np.ma.core.MaskedConstant()] + keys
         keys = np.asarray(keys)
         if return_inverse:
             return keys, inverse

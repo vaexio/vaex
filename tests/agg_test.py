@@ -140,22 +140,22 @@ def test_nunique():
     s = ['aap', 'aap', 'noot', 'mies', None, 'mies', 'kees', 'mies', 'aap']
     x = [0,     0,     0,      0,      0,     1,      1,     1,      2]
     df = vaex.from_arrays(x=x, s=s)
-    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s, dropmissing=False)}).sort(df.x)
+    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
     items = list(zip(dfg.x.values, dfg.nunique.values))
     assert items == [(0, 4), (1, 2), (2, 1)]
 
-    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
+    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s, dropmissing=True)}).sort(df.x)
     items = list(zip(dfg.x.values, dfg.nunique.values))
     assert items == [(0, 3), (1, 2), (2, 1)]
 
     mapping = {'aap': 1.2, 'noot': 2.5, 'mies': 3.7, 'kees': 4.8, None: np.nan}
     s = np.array([mapping[k] for k in s], dtype=np.float64)
     df = vaex.from_arrays(x=x, s=s)
-    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s, dropnan=False)}).sort(df.x)
+    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
     items = list(zip(dfg.x.values, dfg.nunique.values))
     assert items == [(0, 4), (1, 2), (2, 1)]
 
-    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
+    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s, dropnan=True)}).sort(df.x)
     items = list(zip(dfg.x.values, dfg.nunique.values))
     assert items == [(0, 3), (1, 2), (2, 1)]
 
