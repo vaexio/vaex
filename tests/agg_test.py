@@ -136,9 +136,34 @@ def test_expr():
     assert counts.tolist() == np.ones(10).tolist()
 
 
-def test_big_endian_binning():
-    x = np.arange(10, dtype='>f8')
-    y = np.zeros(10, dtype='>f8')
-    ds = vaex.from_arrays(x=x, y=y)
-    counts = ds.count(binby=[ds.x, ds.y], limits=[[-0.5, 9.5], [-0.5, 0.5]], shape=[10, 1])
-    assert counts.ravel().tolist() == np.ones(10).tolist()
+def test_nunique():
+    s = ['aap', 'aap', 'noot', 'mies', None, 'mies', 'kees', 'mies', 'aap']
+    x = [0,     0,     0,      0,      0,     1,      1,     1,      2]
+    df = vaex.from_arrays(x=x, s=s)
+    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
+    items = list(zip(dfg.x.values, dfg.nunique.values))
+    assert items == [(0, 4), (1, 2), (2, 1)]
+
+    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s, dropmissing=True)}).sort(df.x)
+    items = list(zip(dfg.x.values, dfg.nunique.values))
+    assert items == [(0, 3), (1, 2), (2, 1)]
+
+    mapping = {'aap': 1.2, 'noot': 2.5, 'mies': 3.7, 'kees': 4.8, None: np.nan}
+    s = np.array([mapping[k] for k in s], dtype=np.float64)
+    df = vaex.from_arrays(x=x, s=s)
+    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
+    items = list(zip(dfg.x.values, dfg.nunique.values))
+    assert items == [(0, 4), (1, 2), (2, 1)]
+
+    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s, dropnan=True)}).sort(df.x)
+    items = list(zip(dfg.x.values, dfg.nunique.values))
+    assert items == [(0, 3), (1, 2), (2, 1)]
+
+
+def test_unique_missing_groupby():
+    s = ['aap', 'aap', 'noot', 'mies', None, 'mies', 'kees', 'mies', 'aap']
+    x = [0,     0,     0,      np.nan,      np.nan,     1,      1,     np.nan,      2]
+    df = vaex.from_arrays(x=x, s=s)
+    dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
+    items = list(zip(dfg.x.values, dfg.nunique.values))
+    assert items[:-1] == [(0, 2), (1, 2), (2, 1)]
