@@ -2817,7 +2817,7 @@ class DataFrame(object):
                 self._dtypes_override[valid_name] = dtype
             else:
                 if isinstance(ar, np.ndarray) and ar.dtype.kind == 'O':
-                    types = list({type(k) for k in ar if k == k and k is not None})
+                    types = list({type(k) for k in ar if np.all(k == k) and k is not None})
                     if len(types) == 1 and issubclass(types[0], six.string_types):
                         self._dtypes_override[valid_name] = str_type
         else:
