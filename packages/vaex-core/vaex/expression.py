@@ -153,6 +153,12 @@ class DateTime(object):
         self.expression = expression
 
 
+class TimeDelta(object):
+    """TimeDelta operations"""
+    def __init__(self, expression):
+        self.expression = expression
+
+
 class StringOperations(object):
     """String operations"""
     def __init__(self, expression):
@@ -184,6 +190,10 @@ class Expression(with_metaclass(Meta)):
     @property
     def dt(self):
         return DateTime(self)
+
+    @property
+    def td(self):
+        return TimeDelta(self)
 
     @property
     def str(self):
