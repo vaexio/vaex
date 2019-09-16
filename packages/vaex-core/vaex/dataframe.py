@@ -3699,11 +3699,10 @@ class DataFrame(object):
             # if the indices refer to the filtered rows, we can discard the
             # filter in the final dataframe
             df.set_selection(None, name=FILTER_SELECTION_NAME)
-        else:
-            # if we will not drop the filter, we will have to invalidate the cache
-            # since it refers to the previous dataframe rows
-            df._invalidate_selection_cache()
-            pass
+        # if we will not drop the filter, we will have to invalidate the cache
+        # since it refers to the previous dataframe rows
+        # TODO perf: we could instead of dropping the cache, take out the rows we need
+        df._invalidate_selection_cache()
         return df
 
     @docsubst
