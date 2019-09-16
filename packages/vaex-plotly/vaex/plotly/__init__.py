@@ -12,6 +12,35 @@ class DataFrameAccessorPlotly(object):
                   lw=None, ls=None, color=None,
                   xlabel=None, ylabel=None, label=None, selection=None, progress=None):
         """Create a histogram.
+
+        Example
+
+        >>> df.plotly.histogram(df.x)
+        >>> df.plotly.histogram(df.x, limits=[0, 100], shape=100)
+        >>> df.plotly.histogram(df.x, what='mean(y)', limits=[0, 100], shape=100)
+
+        If you want to do a computation yourself, pass the grid argument, but you are responsible for passing the
+        same limits arguments:
+
+        >>> counts = df.mean(df.y, binby=df.x, limits=[0, 100], shape=100)/100.
+        >>> df.plot1d(df.x, limits=[0, 100], shape=100, grid=means, label='mean(y)/100')
+
+        :param x: Expression or a list of expressions to bin in the x direction
+        :param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
+        :param grid: If the binning is done before by yourself, you can pass it
+        :param shape: Int or a list of ints describing the grid on which to bin the data
+        :param limits: list of [xmin, xmax], or a description such as 'minmax', '99%'
+        :param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
+        :param n: normalization function, currently only 'normalize' is supported, or None for no normalization
+        :param lw: width or a list of widths of the lines for each of the histograms
+        :param ls: line style or a line of line style for each of the histograms
+        :param color: color or a list of colors for each of the histograms
+        :param xlabel: String for label on x axis
+        :param ylabel: Same for y axis
+        :param label: labels or names for the data being plotted
+        :param selection: Name of selection to use (or True for the 'default'), or a selection-like expresson
+        :param progress: If True, display a progress bar of the binning process
+        :return plotly.graph_objs._figure.Figure: a plotly Figure
         """
 
         import plotly.graph_objs as go
@@ -58,7 +87,7 @@ class DataFrameAccessorPlotly(object):
             trace = go.Scatter(x=xar, y=counts, mode='lines', line_shape='hv', line=line, name=label)
             layout = go.Layout(xaxis=go.layout.XAxis(title=xlabel or x),
                                yaxis=go.layout.YAxis(title=ylabel or what))
-            fig = go.Figure(data=trace, layout=layout)
+            fig = go.FigureWidget(data=trace, layout=layout)
 
         return fig
 
