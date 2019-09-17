@@ -103,6 +103,9 @@ class DataFrameAccessorPlotly(object):
         return fig
 
     def _arg_len_check(self, num_traces, **kwargs):
+        """Check if list arguments have the expected number of elements.
+        If the arguments are not of type list, convert them to a list with a single element
+        """
         result = []
         for kw, value in kwargs.items():
             if isinstance(value, list) is False:
