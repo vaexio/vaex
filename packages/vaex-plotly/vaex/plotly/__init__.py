@@ -39,8 +39,8 @@ class DataFrameAccessorPlotly(object):
         :param ylabel: Same for y axis
         :param label: labels or names for the data being plotted
         :param selection: Name of selection to use (or True for the 'default'), or a selection-like expresson
-        :param progress: If True, display a progress bar of the binning process
-        :return plotly.graph_objs._figure.Figure: a plotly Figure
+        :param bool progress: If True, display a progress bar of the binning process
+        :return plotly.graph_objs._figurewidget.FigureWidget fig: a plotly FigureWidget
         """
 
         import plotly.graph_objs as go
