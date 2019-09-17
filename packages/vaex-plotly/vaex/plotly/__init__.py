@@ -64,12 +64,14 @@ class DataFrameAccessorPlotly(object):
                 ls = [ls] * num_traces
             if isinstance(label, list) is False:
                 label = [label] * num_traces
+            if isinstance(selection, list) is False:
+                selection = [selection] * num_traces
 
             traces = []
             for i in range(num_traces):
 
                 xar, counts = self._grid1d(x=x[i], what=what, shape=shape[i], limits=limits,
-                                           f=f, n=n, selection=selection, progress=progress)
+                                           f=f, n=n, selection=selection[i], progress=progress)
 
                 line = go.scatter.Line(color=color[i], width=lw[i], dash=ls[i])
                 traces.append(go.Scatter(x=xar, y=counts, mode='lines', line_shape='hv', line=line, name=label[i]))
