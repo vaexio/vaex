@@ -8,10 +8,44 @@ class DataFrameAccessorPlotly(object):
     def __init__(self, df):
         self.df = df
 
+    def scatter(self, x, y, xerr=None, yerr=None, size=None, color=None, symbol=None,
+                label=None, xlabel=None, ylabel=None,
+                selection=None, length_limit=50_000, length_check=True, colorbar_label=None,
+                tooltip_title=None, tooltip_data=None):
+        """Scatter plot using plotly.
+        Convenience wrapper around plotly.graph_objs.Scatter when for working with small DataFrames or selections.
+        """
+
+        # import plotly.graph_objs as go
+
+        # x = _ensure_strings_from_expressions(x)
+        # y = _ensure_strings_from_expressions(y)
+        # this should be done later, depending on number of datasets
+        # label = str(label or selection)
+        # selection = _ensure_strings_from_expressions(selection)
+
+        # if length_check:
+        # count = self.df.count(selection=selection)
+        # if count > length_limit:
+        #     raise ValueError("the number of rows (%d) is above the limit (%d), pass length_check=False, or increase length_limit" % (count, length_limit))
+
+        # x_values = self.df.evaluate(x, selection=selection)
+        # y_values = self.df.evaluate(y, selection=selection)
+
+        # if isinstance(color, vaex.expression.Expression):
+        #     color = self.df.evaluate(color, selection=selection)
+        # if isinstance(size, vaex.expression.Expression):
+        #     size = self.df.evaluate(size, selection=selection)
+        # if isinstance()
+
+
+
+
+
     def histogram(self, x, what='count(*)', grid=None, shape=64, limits=None, f='identity', n=None,
                   lw=None, ls=None, color=None,
                   xlabel=None, ylabel=None, label=None, selection=None, progress=None):
-        """Create a histogram.
+        """Create a histogram using plotly.
 
         Example
 
@@ -44,54 +78,54 @@ class DataFrameAccessorPlotly(object):
         """
 
         import plotly.graph_objs as go
-
+        if isinstance(x, list) is False:
+            x = [x]
         x = _ensure_strings_from_expressions(x)
 
-        # If there is a list of expressions
-        if isinstance(x, list):
+        num_traces = len(x)
 
-            num_traces = len(x)
-
-            if isinstance(shape, list) is False:
-                shape = [shape] * num_traces
-            else:
-                assert len(shape) == num_traces, 'shape arg must have the same legth as `x` or be an int.'
-            if isinstance(color, list) is False:
-                color = [color] * num_traces
-            if isinstance(lw, list) is False:
-                lw = [lw] * num_traces
-            if isinstance(ls, list) is False:
-                ls = [ls] * num_traces
-            if isinstance(label, list) is False:
-                label = [label] * num_traces
-            if isinstance(selection, list) is False:
-                selection = [selection] * num_traces
-
-            traces = []
-            for i in range(num_traces):
-
-                xar, counts = self._grid1d(x=x[i], what=what, shape=shape[i], limits=limits,
-                                           f=f, n=n, selection=selection[i], progress=progress)
-
-                line = go.scatter.Line(color=color[i], width=lw[i], dash=ls[i])
-                traces.append(go.Scatter(x=xar, y=counts, mode='lines', line_shape='hv', line=line, name=label[i]))
-
-            layout = go.Layout(xaxis=go.layout.XAxis(title=xlabel or x[0]),
-                               yaxis=go.layout.YAxis(title=ylabel or what))
-            fig = go.Figure(data=traces, layout=layout)
-
-        # The standard case
+        if isinstance(shape, list) is False:
+            shape = [shape] * num_traces
         else:
-            xar, counts = self._grid1d(x=x, what=what, shape=shape, limits=limits,
-                                       f=f, n=n, selection=selection, progress=progress)
+            assert len(shape) == num_traces, '`shape` must have the same length as `x` or be an int.'
+        if isinstance(color, list) is False:
+            color = [color] * num_traces
+        else:
+            assert len(color) == num_traces, '`color` must have the same length as `x` or be a color value.'
+        if isinstance(lw, list) is False:
+            lw = [lw] * num_traces
+        else:
+            assert len(lw) == num_traces, '`lw` must have the same length as `x` or be of numeric type.'
+        if isinstance(ls, list) is False:
+            ls = [ls] * num_traces
+        else:
+            assert len(ls) == num_traces, '`ls` must have the same length as `x` or be an ls value.'
+        if isinstance(label, list) is False:
+            label = [label] * num_traces
+        else:
+            assert len(label) == num_traces, '`label` must have the same length as `x` or be a string.'
+        if isinstance(selection, list) is False:
+            selection = [selection] * num_traces
+        else:
+            assert len(selection) == num_traces, '`selection` must have the same length as `x` or be an selection expression.'
 
-            line = go.scatter.Line(color=color, width=lw, dash=ls)
-            trace = go.Scatter(x=xar, y=counts, mode='lines', line_shape='hv', line=line, name=label)
-            layout = go.Layout(xaxis=go.layout.XAxis(title=xlabel or x),
-                               yaxis=go.layout.YAxis(title=ylabel or what))
-            fig = go.FigureWidget(data=trace, layout=layout)
+        traces = []
+        for i in range(num_traces):
+
+            xar, counts = self._grid1d(x=x[i], what=what, shape=shape[i], limits=limits,
+                                       f=f, n=n, selection=selection[i], progress=progress)
+
+            line = go.scatter.Line(color=color[i], width=lw[i], dash=ls[i])
+            traces.append(go.Scatter(x=xar, y=counts, mode='lines', line_shape='hv', line=line, name=label[i]))
+
+        layout = go.Layout(xaxis=go.layout.XAxis(title=xlabel or x[0]),
+                           yaxis=go.layout.YAxis(title=ylabel or what))
+        fig = go.FigureWidget(data=traces, layout=layout)
 
         return fig
+
+    def _histogram(self, x, what, shape, limits, f, n, selection, progress, color, lw, ls):
+        pass
 
     def _grid1d(self, x, what=None, shape=64, limits=None, f='identity', n=None, selection=None, progress=None):
 
