@@ -81,33 +81,11 @@ class DataFrameAccessorPlotly(object):
         if isinstance(x, list) is False:
             x = [x]
         x = _ensure_strings_from_expressions(x)
-
         num_traces = len(x)
-
-        if isinstance(shape, list) is False:
-            shape = [shape] * num_traces
-        else:
-            assert len(shape) == num_traces, '`shape` must have the same length as `x` or be an int.'
-        if isinstance(color, list) is False:
-            color = [color] * num_traces
-        else:
-            assert len(color) == num_traces, '`color` must have the same length as `x` or be a color value.'
-        if isinstance(lw, list) is False:
-            lw = [lw] * num_traces
-        else:
-            assert len(lw) == num_traces, '`lw` must have the same length as `x` or be of numeric type.'
-        if isinstance(ls, list) is False:
-            ls = [ls] * num_traces
-        else:
-            assert len(ls) == num_traces, '`ls` must have the same length as `x` or be an ls value.'
-        if isinstance(label, list) is False:
-            label = [label] * num_traces
-        else:
-            assert len(label) == num_traces, '`label` must have the same length as `x` or be a string.'
-        if isinstance(selection, list) is False:
-            selection = [selection] * num_traces
-        else:
-            assert len(selection) == num_traces, '`selection` must have the same length as `x` or be an selection expression.'
+        # make consistency checks
+        args = self._arg_len_check(num_traces, shape=shape, color=color, lw=lw, ls=ls,
+                                   label=label, selection=selection)
+        shape, color, lw, ls, label, selection = args
 
         traces = []
         for i in range(num_traces):
@@ -124,8 +102,15 @@ class DataFrameAccessorPlotly(object):
 
         return fig
 
-    def _histogram(self, x, what, shape, limits, f, n, selection, progress, color, lw, ls):
-        pass
+    def _arg_len_check(self, num_traces, **kwargs):
+        result = []
+        for kw, value in kwargs.items():
+            if isinstance(value, list) is False:
+                result.append([value] * num_traces)
+            else:
+                assert len(value) == num_traces, '%s must have the same length as x, or have an appropriate value.' % (kw)
+                result.append(value)
+        return result
 
     def _grid1d(self, x, what=None, shape=64, limits=None, f='identity', n=None, selection=None, progress=None):
 
