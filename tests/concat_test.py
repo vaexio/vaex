@@ -57,3 +57,16 @@ def test_concat_arrow_strings():
     df = vaex.concat([df1, df2])
     assert df.dtype('x') == df1.dtype('x')
     assert df.x.tolist() == ['aap', 'noot', 'mies', 'a', 'b', 'c']
+
+def test_concat_mixed_types():
+    x1 = np.zeros(3) + np.nan
+    x2 = vaex.string_column(['hi', 'there'])
+    df1 = vaex.from_arrays(x=x1)
+    df2 = vaex.from_arrays(x=x2)
+    df = vaex.concat([df1, df2])
+    assert df2.x.dtype == df.x.dtype, "expect 'upcast' to string"
+    assert df[:2].x.tolist() == [None, None]
+    assert df[1:4].x.tolist() == [None, None, 'hi']
+    assert df[2:4].x.tolist() == [None, 'hi']
+    assert df[3:4].x.tolist() == ['hi']
+    assert df[3:5].x.tolist() == ['hi', 'there']

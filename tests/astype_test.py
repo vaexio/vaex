@@ -20,3 +20,9 @@ def test_astype_str():
 
     assert df.columns['x'].dtype == np.int64
     assert df.x.dtype == np.int64
+
+def test_astype_dtype():
+    df = vaex.from_arrays(x=[0, 1])
+    assert df.x.astype(str).dtype == vaex.column.str_type
+    df = vaex.from_arrays(x=[np.nan, 1])
+    assert df.x.astype(str).dtype == vaex.column.str_type

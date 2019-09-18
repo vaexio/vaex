@@ -2,7 +2,7 @@ import vaex.serialize
 import json
 import numpy as np
 from vaex import column
-from vaex.column import _to_string_sequence, _to_string_list_sequence, _is_stringy
+from vaex.column import _to_string_sequence, _to_string_column, _to_string_list_sequence, _is_stringy
 import re
 import vaex.expression
 import functools
@@ -1931,8 +1931,13 @@ def _choose_masked(ar, choices):
 def _float(x):
     return x.astype(np.float64)
 
-@register_function(name='astype')
+@register_function(name='astype', on_expression=False)
 def _astype(x, dtype):
+    if dtype == 'str':
+        mask = np.isnan(x)
+        x = x.astype(dtype).astype('O')
+        x[mask] = None
+        return _to_string_column(x)
     return x.astype(dtype)
 
 

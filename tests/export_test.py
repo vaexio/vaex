@@ -90,8 +90,10 @@ def test_multi_file_naive_read_convert_export(tmpdir, dtypes):
     vdf1 = vaex.from_pandas(pdf1, copy_index=False)
     vdf2 = vaex.from_pandas(pdf2, copy_index=False)
 
+    magic_value = 1234
     # Verify the Int64 type from pandas is read in vaex correctly
-    assert vdf1.age.tolist() == pdf1.age.tolist()
+    if 'age' in dtypes:
+        assert vdf1.age.fillmissing(magic_value).tolist() == pdf1.age.fillna(magic_value).tolist()
 
     output_path1 = str(tmpdir.join('sample_1.hdf5'))
     output_path2 = str(tmpdir.join('sample_2.hdf5'))
@@ -107,4 +109,4 @@ def test_multi_file_naive_read_convert_export(tmpdir, dtypes):
     df_verify = vaex.open(output_path_final)
     assert len(df) == len(df_verify)
     assert df['name'].tolist() == df_verify['name'].tolist()
-    assert df['age'].tolist() == df_verify['age'].tolist()
+    assert df['age'].fillnan(magic_value).tolist() == df_verify['age'].fillnan(magic_value).tolist()

@@ -123,41 +123,72 @@ class ColumnIndexed(Column):
 
 
 class ColumnConcatenatedLazy(Column):
-    def __init__(self, dfs, column_name):
-        self.dfs = dfs
-        self.column_name = column_name
-        dtypes = [df.dtype(column_name) for df in dfs]
-        self.is_masked = any([df.is_masked(column_name) for df in dfs])
-        if self.is_masked:
-            self.fill_value = dfs[0].columns[self.column_name].fill_value
-        # np.datetime64 and find_common_type don't mix very well
-        any_strings = any([dtype == str_type for dtype in dtypes])
-        if any_strings:
-            self.dtype = str_type
-        else:
-            if all([dtype.type == np.datetime64 for dtype in dtypes]):
-                self.dtype = dtypes[0]
+    def __init__(self, expressions, dtype=None):
+        if dtype is None:
+            dtypes = [e.dtype for e in expressions]
+            self.is_masked = any([e.is_masked for e in expressions])
+            if self.is_masked:
+                for expression in expressions:
+                    if expression.is_masked:
+                        try:
+                            self.fill_value = expressions[0][0:1].fill_value
+                        except:
+                            self.fill_value = expressions[0].values.fill_value
+
+            # np.datetime64 and find_common_type don't mix very well
+            any_strings = any([dtype == str_type for dtype in dtypes])
+            if any_strings:
+                self.dtype = str_type
             else:
-                if all([dtype == dtypes[0] for dtype in dtypes]):  # find common types doesn't always behave well
+                if all([dtype.type == np.datetime64 for dtype in dtypes]):
                     self.dtype = dtypes[0]
-                if  any([dtype.kind in 'SU' for dtype in dtypes]):  # strings are also done manually
-                    if all([dtype.kind in 'SU' for dtype in dtypes]):
-                        index = np.argmax([dtype.itemsize for dtype in dtypes])
-                        self.dtype = dtypes[index]
-                    else:
-                        index = np.argmax([df.columns[self.column_name].astype('O').astype('U').dtype.itemsize for df in dfs])
-                        self.dtype = dfs[index].columns[self.column_name].astype('O').astype('U').dtype
                 else:
-                    self.dtype = np.find_common_type(dtypes, [])
-                logger.debug("common type for %r is %r", dtypes, self.dtype)
-        self.shape = (len(self), ) + self.dfs[0].evaluate(self.column_name, i1=0, i2=1).shape[1:]
-        for i in range(1, len(dfs)):
-            shape_i = (len(self), ) + self.dfs[i].evaluate(self.column_name, i1=0, i2=1).shape[1:]
+                    if all([dtype == dtypes[0] for dtype in dtypes]):  # find common types doesn't always behave well
+                        self.dtype = dtypes[0]
+                    if  any([dtype.kind in 'SU' for dtype in dtypes]):  # strings are also done manually
+                        if all([dtype.kind in 'SU' for dtype in dtypes]):
+                            index = np.argmax([dtype.itemsize for dtype in dtypes])
+                            self.dtype = dtypes[index]
+                        else:
+                            index = np.argmax([df.columns[self.column_name].astype('O').astype('U').dtype.itemsize for df in dfs])
+                            self.dtype = dfs[index].columns[self.column_name].astype('O').astype('U').dtype
+                    else:
+                        self.dtype = np.find_common_type(dtypes, [])
+                    logger.debug("common type for %r is %r", dtypes, self.dtype)
+            self.expressions = [e if e.dtype == self.dtype else e.astype(self.dtype) for e in expressions]
+        else:
+            # if dtype is given, we assume every expression/column is the same dtype
+            self.dtype = dtype
+            self.expressions = expressions[:]
+        self.shape = (len(self), ) + self.expressions[0][0:1].to_numpy().shape[1:]
+
+        for i in range(1, len(self.expressions)):
+            expression = self.expressions[i]
+            shape_i = (len(self), ) + expressions[0][0:1].to_numpy().shape[1:]
             if self.shape != shape_i:
                 raise ValueError("shape of of column %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.column_name, self.shape, i, shape_i))
 
     def __len__(self):
-        return sum(len(ds) for ds in self.dfs)
+        return sum(len(e.df) for e in self.expressions)
+
+    def trim(self, i1, i2):
+        start, stop = i1, i2
+        i = 0
+        offset = 0
+        while start >= offset + len(self.expressions[i].df):
+            offset += len(self.expressions[i].df)
+            i += 1
+        if stop <= offset + len(self.expressions[i].df):  # single df
+            expressions = [self.expressions[i][start-offset:stop-offset+1]]
+        else:  # multile expressions
+            expressions = [self.expressions[i][start-offset:]]
+            while stop >= offset + len(self.expressions[i].df):
+                offset += len(self.expressions[i].df)
+                i += 1
+                expressions.append(self.expressions[i])
+            # if stop <= offset + len(self.expressions[i])
+            expressions.append(self.expressions[i][start-offset:stop-offset+1])
+        return ColumnConcatenatedLazy(expressions, self.dtype)
 
     def __getitem__(self, slice):
         start, stop, step = slice.start, slice.stop, slice.step
@@ -167,46 +198,39 @@ class ColumnConcatenatedLazy(Column):
         dtype = self.dtype
         if dtype == str_type:
             dtype = 'O'  # we store the strings in a dtype=object array
-        dfs = iter(self.dfs)
-        current_df = next(dfs)
+        expressions = iter(self.expressions)
+        current_expression = next(expressions)
         offset = 0
-        # print "#@!", start, stop, [len(df) for df in self.dfs]
-        while start >= offset + len(current_df):
-            # print offset
-            offset += len(current_df)
-            # try:
-            current_df = next(dfs)
-            # except StopIteration:
-            # logger.exception("requested start:stop %d:%d when max was %d, offset=%d" % (start, stop, offset+len(current_df), offset))
-            # raise
-            #   break
+        while start >= offset + len(current_expression.df):
+            offset += len(current_expression)
+            current_expression = next(expressions)
         # this is the fast path, no copy needed
-        if stop <= offset + len(current_df):
-            if current_df.filtered:  # TODO this may get slow! we're evaluating everything
-                warnings.warn("might be slow, you have concatenated dfs with a filter set")
-            return current_df.evaluate(self.column_name, i1=start - offset, i2=stop - offset)
+        if stop <= offset + len(current_expression.df):
+            if current_expression.df.filtered:  # TODO this may get slow! we're evaluating everything
+                warnings.warn("might be slow, you have concatenated expressions with a filter set")
+            values = current_expression.evaluate(i1=start - offset, i2=stop - offset)
         else:
-            if self.is_masked:
+            if current_expression.is_masked:
                 copy = np.ma.empty(stop - start, dtype=dtype)
                 copy.fill_value = self.fill_value
             else:
                 copy = np.zeros(stop - start, dtype=dtype)
             copy_offset = 0
-            # print("!!>", start, stop, offset, len(current_df), current_df.columns[self.column_name])
-            while offset < stop:  # > offset + len(current_df):
-                # print(offset, stop)
-                if current_df.filtered:  # TODO this may get slow! we're evaluating everything
+            while offset < stop:  # > offset + len(current_expression):
+                if current_expression.df.filtered:  # TODO this may get slow! we're evaluating everything
                     warnings.warn("might be slow, you have concatenated DataFrames with a filter set")
-                part = current_df.evaluate(self.column_name, i1=start-offset, i2=min(len(current_df), stop - offset))
-                # print "part", part, copy_offset,copy_offset+len(part)
+                part = current_expression.evaluate(i1=start-offset, i2=min(len(current_expression.df), stop - offset))
                 copy[copy_offset:copy_offset + len(part)] = part
-                # print copy[copy_offset:copy_offset+len(part)]
-                offset += len(current_df)
+                offset += len(current_expression.df)
                 copy_offset += len(part)
                 start = offset
                 if offset < stop:
-                    current_df = next(dfs)
-            return copy
+                    current_expression = next(expressions)
+            values = copy
+        if self.dtype == str_type:
+            return _to_string_column(values)
+        else:
+            return values
 
 try:
     str_type = unicode
@@ -260,6 +284,12 @@ def _to_string_sequence(x):
             raise ValueError('unsupported dtype ' +str(x.dtype))
     else:
         raise ValueError('not a ColumnString or ndarray: ' + str(x))
+
+def _to_string_column(x):
+    ss = _to_string_sequence(x)
+    if not isinstance(ss, (vaex.strings.StringList64, vaex.strings.StringList32)):
+        ss = ss.to_arrow()
+    return ColumnStringArrow.from_string_sequence(ss)
 
 def _to_string_list_sequence(x):
     if isinstance(x, vaex.strings.StringListList):
