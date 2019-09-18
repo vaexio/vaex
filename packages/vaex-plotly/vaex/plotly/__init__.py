@@ -63,7 +63,8 @@ class DataFrameAccessorPlotly(object):
         if length_check:
             count = np.sum([self.df.count(selection=sel) for sel in selection])
             if count > length_limit:
-                raise ValueError("the number of rows (%d) is above the limit (%d), pass length_check=False, or increase length_limit" % (count, length_limit))
+                raise ValueError("the number of rows (%d) is above the limit (%d), pass length_check=False, \
+                                 or increase length_limit" % (count, length_limit))
 
         traces = []
         for i in range(num_traces):
@@ -116,7 +117,7 @@ class DataFrameAccessorPlotly(object):
                 tooltip_data = _ensure_strings_from_expressions(tooltip_data)
                 customdata = np.array(self.df.evaluate(', '.join(tooltip_data), selection=selection_value)).T
                 for j, expr in enumerate(tooltip_data):
-                    hovertemplate += '<br>' + expr + '=%{customdata['+ str(j) + ']}'
+                    hovertemplate += '<br>' + expr + '=%{customdata[' + str(j) + ']}'
             else:
                 customdata = None
             hovertemplate += '<extra></extra>'
@@ -221,7 +222,7 @@ class DataFrameAccessorPlotly(object):
 
         :param x: Expression to bin in the x direction
         :param y: Expression to bin in the y direction
-        :param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum, std('x') the standard deviation, correlation('vx', 'vy') the correlation coefficient. Can also be a list of values, like ['count(x)', std('vx')], (by default maps to column)
+        :param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
         :param shape: shape of the 2D histogram grid
         :param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
         :param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
@@ -273,7 +274,6 @@ class DataFrameAccessorPlotly(object):
             layout['yaxis']['scaleanchor'] = 'x'
             layout['yaxis']['scaleratio'] = 1
 
-
         fig = go.FigureWidget(data=trace, layout=layout)
 
         return fig
@@ -315,7 +315,6 @@ class DataFrameAccessorPlotly(object):
             grid = what.calculate(self.df, binby=binby, limits=limits, shape=shape, selection=selection)
         else:
             what = what.strip()
-            index = what.index("(")
             groups = re.match("(.*)\\((.*)\\)", what).groups()
             if groups and len(groups) == 2:
                 function = groups[0]
