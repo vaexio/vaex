@@ -202,7 +202,7 @@ class ColumnConcatenatedLazy(Column):
         current_expression = next(expressions)
         offset = 0
         while start >= offset + len(current_expression.df):
-            offset += len(current_expression)
+            offset += len(current_expression.df)
             current_expression = next(expressions)
         # this is the fast path, no copy needed
         if stop <= offset + len(current_expression.df):
