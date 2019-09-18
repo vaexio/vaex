@@ -1,5 +1,9 @@
 import vaex
-from vaex.utils import _ensure_strings_from_expressions, _parse_f, _parse_n, _ensure_list
+from vaex.utils import (_ensure_string_from_expression,
+                        _ensure_strings_from_expressions,
+                        _parse_f,
+                        _parse_n,
+                        _ensure_list)
 
 import numpy as np
 
@@ -31,6 +35,7 @@ class DataFrameAccessorPlotly(object):
         :param ylabel: label for y axis, if None .label(y) is used
         :param colorbar: if True, display a colorbar
         :param colorbar_label: A label for the colorbar
+        :param colormap: A name of a colormap/colorscale supported by plotly
         :param figure_height: The figure height in pix
         :param figure_width: The figure width in pix
         :param tooltip_title: Expression for the tooltip title
@@ -175,7 +180,7 @@ class DataFrameAccessorPlotly(object):
         :param ylabel: Same for y axis
         :param label: labels or names for the data being plotted
         :param selection: Name of selection to use (or True for the 'default'), or a selection-like expresson
-        :param bool progress: If True, display a progress bar of the binning process
+        :param progress: If True, display a progress bar of the binning process
         :return plotly.graph_objs._figurewidget.FigureWidget fig: a plotly FigureWidget
         """
 
@@ -205,6 +210,71 @@ class DataFrameAccessorPlotly(object):
                            xaxis=go.layout.XAxis(title=xlabel or x[0]),
                            yaxis=go.layout.YAxis(title=ylabel or what))
         fig = go.FigureWidget(data=traces, layout=layout)
+
+        return fig
+
+    def heatmap(self, x, y, what="count(*)", shape=128, limits=None, selection=None, f=None, n=None,
+                colorbar=None, colorbar_label=None, colormap=None, vmin=None, vmax=None,
+                xlabel=None, ylabel=None, title=None, figure_height=None, figure_width=None,
+                equal_aspect=None, progress=None):
+        """Create a heatmap using plotly.
+
+        :param x: Expression to bin in the x direction
+        :param y: Expression to bin in the y direction
+        :param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum, std('x') the standard deviation, correlation('vx', 'vy') the correlation coefficient. Can also be a list of values, like ['count(x)', std('vx')], (by default maps to column)
+        :param shape: shape of the 2D histogram grid
+        :param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
+        :param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
+        :param n: normalization function, currently only 'normalize' is supported, or None for no normalization
+        :param colorbar: if True, display a colorbar
+        :param colorbar_label: A label for the colorbar
+        :param colormap: A name of a colormap/colorscale supported by plotly
+        :param vmin: The lower limit of the color range (vmax must be set as well)
+        :param vmax: The upper limit of the color range (vmin must be set as well)
+        :param xlabel: label for x axis, if None .label(x) is used
+        :param ylabel: label for y axis, if None .label(y) is used
+        :param title: the plot title
+        :param figure_height: The figure height in pix
+        :param figure_width: The figure width in pix
+        :param equal_aspect: If True, the axis will have a scale ratio of 1 (equal aspect)
+        :param progress: If True, display a progress bar of the binning process
+        :return plotly.graph_objs._figurewidget.FigureWidget fig: a plotly FigureWidget
+        """
+
+        import plotly.graph_objs as go
+
+        x = _ensure_string_from_expression(x)
+        y = _ensure_string_from_expression(y)
+
+        f = _parse_f(f)
+        n = _parse_n(n)
+
+        binby = []
+        for expression in [y, x]:
+            if expression is not None:
+                binby = [expression] + binby
+
+        extent, counts = self._grid(expr=binby, what=what, shape=shape, limits=limits,
+                                    f=f, n=n, selection=selection, progress=progress)
+
+        cbar = go.heatmap.ColorBar(title=colorbar_label)
+        trace = go.Heatmap(z=counts, colorscale=colormap, zmin=vmin, zmax=vmax,
+                           x0=extent[0], dx=np.abs((extent[1]-extent[0])/shape),
+                           y0=extent[2], dy=np.abs((extent[3]-extent[2])/shape),
+                           colorbar=cbar, showscale=colorbar)
+
+        title = go.layout.Title(text=title, xanchor='center', x=0.5, yanchor='top')
+        layout = go.Layout(height=figure_height,
+                           width=figure_width,
+                           title=title,
+                           xaxis=go.layout.XAxis(title='x'),
+                           yaxis=go.layout.YAxis(title='y'))
+        if equal_aspect:
+            layout['yaxis']['scaleanchor'] = 'x'
+            layout['yaxis']['scaleratio'] = 1
+
+
+        fig = go.FigureWidget(data=trace, layout=layout)
 
         return fig
 
