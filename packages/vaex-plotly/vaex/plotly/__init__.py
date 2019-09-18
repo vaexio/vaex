@@ -143,7 +143,7 @@ class DataFrameAccessorPlotly(object):
         return fig
 
     def histogram(self, x, what='count(*)', grid=None, shape=64, limits=None, f='identity', n=None,
-                  lw=None, ls=None, color=None,
+                  lw=None, ls=None, color=None, figure_height=None, figure_width=None,
                   xlabel=None, ylabel=None, label=None, selection=None, progress=None):
         """Create a histogram using plotly.
 
@@ -169,6 +169,8 @@ class DataFrameAccessorPlotly(object):
         :param lw: width or a list of widths of the lines for each of the histograms
         :param ls: line style or a line of line style for each of the histograms
         :param color: color or a list of colors for each of the histograms
+        :param figure_height: The figure height in pix
+        :param figure_width: The figure width in pix
         :param xlabel: String for label on x axis
         :param ylabel: Same for y axis
         :param label: labels or names for the data being plotted
@@ -196,7 +198,11 @@ class DataFrameAccessorPlotly(object):
             line = go.scatter.Line(color=color[i], width=lw[i], dash=ls[i])
             traces.append(go.Scatter(x=xar, y=counts, mode='lines', line_shape='hv', line=line, name=label[i]))
 
-        layout = go.Layout(xaxis=go.layout.XAxis(title=xlabel or x[0]),
+        legend = go.layout.Legend(orientation='h')
+        layout = go.Layout(height=figure_height,
+                           width=figure_width,
+                           legend=legend,
+                           xaxis=go.layout.XAxis(title=xlabel or x[0]),
                            yaxis=go.layout.YAxis(title=ylabel or what))
         fig = go.FigureWidget(data=traces, layout=layout)
 
@@ -231,31 +237,29 @@ class DataFrameAccessorPlotly(object):
                 binby = [expression] + binby
         limits = self.df.limits(binby, limits)
 
-        if what:
-            if isinstance(what, (vaex.stat.Expression)):
-                grid = what.calculate(self.df, binby=binby, limits=limits, shape=shape, selection=selection)
-            else:
-                what = what.strip()
-                index = what.index("(")
-                groups = re.match("(.*)\\((.*)\\)", what).groups()
-                if groups and len(groups) == 2:
-                    function = groups[0]
-                    arguments = groups[1].strip()
-                    functions = ["mean", "sum", "std", "count"]
-                    if function in functions:
-                        grid = getattr(vaex.stat, function)(arguments).calculate(self.df, binby=binby, limits=limits,
-                                                                                 shape=shape, selection=selection, progress=progress)
-                    elif function == "count" and arguments == "*":
-                        grid = self.df.count(binby=binby, shape=shape, limits=limits, selection=selection, progress=progress)
-                    elif function == "cumulative" and arguments == "*":
-                        grid = self.df.count(binby=binby, shape=shape, limits=limits, selection=selection, progress=progress)
-                        grid = np.cumsum(grid)
-                    else:
-                        raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
-                else:
-                    raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
+
+        if isinstance(what, (vaex.stat.Expression)):
+            grid = what.calculate(self.df, binby=binby, limits=limits, shape=shape, selection=selection)
         else:
-            grid = self.df.histogram(binby, size=shape, limits=limits, selection=selection)
+            what = what.strip()
+            index = what.index("(")
+            groups = re.match("(.*)\\((.*)\\)", what).groups()
+            if groups and len(groups) == 2:
+                function = groups[0]
+                arguments = groups[1].strip()
+                functions = ["mean", "sum", "std", "count"]
+                if function in functions:
+                    grid = getattr(vaex.stat, function)(arguments).calculate(self.df, binby=binby, limits=limits,
+                                                                             shape=shape, selection=selection, progress=progress)
+                elif function == "count" and arguments == "*":
+                    grid = self.df.count(binby=binby, shape=shape, limits=limits, selection=selection, progress=progress, edges=True)
+                elif function == "cumulative" and arguments == "*":
+                    grid = self.df.count(binby=binby, shape=shape, limits=limits, selection=selection, progress=progress)
+                    grid = np.cumsum(grid)
+                else:
+                    raise ValueError("Could not understand method: %s, expected one of %r'" % (function, functions))
+            else:
+                raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
 
         # Transformations and normalisaions
         fgrid = f(grid)
