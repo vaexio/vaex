@@ -14,8 +14,8 @@ class DataFrameAccessorPlotly(object):
 
     def scatter(self, x, y, xerr=None, yerr=None, selection=None,
                 size=None, color=None, symbol=None,
-                label=None, xlabel=None, ylabel=None,
-                colorbar=None, colorbar_label=None, colormap='viridis',
+                label=None, xlabel=None, ylabel=None, title=None,
+                colorbar=None, colorbar_label=None, colormap=None,
                 figure_height=None, figure_width=None,
                 tooltip_title=None, tooltip_data=None,
                 length_limit=50_000, length_check=True):
@@ -33,6 +33,7 @@ class DataFrameAccessorPlotly(object):
         :param label: Label for the legend
         :param xlabel: label for x axis, if None .label(x) is used
         :param ylabel: label for y axis, if None .label(y) is used
+        :param title: the plot title
         :param colorbar: if True, display a colorbar
         :param colorbar_label: A label for the colorbar
         :param colormap: A name of a colormap/colorscale supported by plotly
@@ -136,9 +137,11 @@ class DataFrameAccessorPlotly(object):
             traces.append(trace)
 
         legend = go.layout.Legend(orientation='h')
+        title = go.layout.Title(text=title, xanchor='center', x=0.5, yanchor='top')
         layout = go.Layout(height=figure_height,
                            width=figure_width,
                            legend=legend,
+                           title=title,
                            xaxis=go.layout.XAxis(title=xlabel or x[0]),
                            yaxis=go.layout.YAxis(title=ylabel or y[0],
                                                  scaleanchor='x',
@@ -150,7 +153,7 @@ class DataFrameAccessorPlotly(object):
 
     def histogram(self, x, what='count(*)', grid=None, shape=64, limits=None, f='identity', n=None,
                   lw=None, ls=None, color=None, figure_height=None, figure_width=None,
-                  xlabel=None, ylabel=None, label=None, selection=None, progress=None):
+                  xlabel=None, ylabel=None, label=None, title=None, selection=None, progress=None):
         """Create a histogram using plotly.
 
         Example
@@ -180,6 +183,7 @@ class DataFrameAccessorPlotly(object):
         :param xlabel: String for label on x axis
         :param ylabel: Same for y axis
         :param label: labels or names for the data being plotted
+        :param title: the plot title
         :param selection: Name of selection to use (or True for the 'default'), or a selection-like expresson
         :param progress: If True, display a progress bar of the binning process
         :return plotly.graph_objs._figurewidget.FigureWidget fig: a plotly FigureWidget
@@ -205,9 +209,11 @@ class DataFrameAccessorPlotly(object):
             traces.append(go.Scatter(x=xar, y=counts, mode='lines', line_shape='hv', line=line, name=label[i]))
 
         legend = go.layout.Legend(orientation='h')
+        title = go.layout.Title(text=title, xanchor='center', x=0.5, yanchor='top')
         layout = go.Layout(height=figure_height,
                            width=figure_width,
                            legend=legend,
+                           title=title,
                            xaxis=go.layout.XAxis(title=xlabel or x[0]),
                            yaxis=go.layout.YAxis(title=ylabel or what))
         fig = go.FigureWidget(data=traces, layout=layout)
