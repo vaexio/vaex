@@ -8,39 +8,117 @@ class DataFrameAccessorPlotly(object):
     def __init__(self, df):
         self.df = df
 
-    def scatter(self, x, y, xerr=None, yerr=None, size=None, color=None, symbol=None,
+    def scatter(self, x, y, xerr=None, yerr=None, selection=None,
+                size=None, color=None, symbol=None,
                 label=None, xlabel=None, ylabel=None,
-                selection=None, length_limit=50_000, length_check=True, colorbar_label=None,
-                tooltip_title=None, tooltip_data=None):
+                colorbar=None, colorbar_label=None,
+                figure_height=None, figure_width=None,
+                tooltip_title=None, tooltip_data=None,
+                length_limit=50_000, length_check=True):
         """Scatter plot using plotly.
         Convenience wrapper around plotly.graph_objs.Scatter when for working with small DataFrames or selections.
         """
 
-        # import plotly.graph_objs as go
+        import plotly.graph_objs as go
 
-        # x = _ensure_strings_from_expressions(x)
-        # y = _ensure_strings_from_expressions(y)
-        # this should be done later, depending on number of datasets
-        # label = str(label or selection)
-        # selection = _ensure_strings_from_expressions(selection)
+        if isinstance(x, list) is False:
+            x = [x]
+            y = [y]
 
-        # if length_check:
-        # count = self.df.count(selection=selection)
-        # if count > length_limit:
-        #     raise ValueError("the number of rows (%d) is above the limit (%d), pass length_check=False, or increase length_limit" % (count, length_limit))
+        x = _ensure_strings_from_expressions(x)
+        y = _ensure_strings_from_expressions(y)
+        assert len(x) == len(y), 'x and y should have the same number of Expressions.'
+        num_traces = len(x)
 
-        # x_values = self.df.evaluate(x, selection=selection)
-        # y_values = self.df.evaluate(y, selection=selection)
+        args = self._arg_len_check(num_traces, xerr=xerr, yerr=yerr, size=size,
+                                   color=color, symbol=symbol, label=label,
+                                   selection=selection, tooltip_title=tooltip_title)
+        xerr, yerr, size, color, symbol, label, selection, tooltip_title = args
 
-        # if isinstance(color, vaex.expression.Expression):
-        #     color = self.df.evaluate(color, selection=selection)
-        # if isinstance(size, vaex.expression.Expression):
-        #     size = self.df.evaluate(size, selection=selection)
-        # if isinstance()
+        if length_check:
+            count = np.sum([self.df.count(selection=sel) for sel in selection])
+            if count > length_limit:
+                raise ValueError("the number of rows (%d) is above the limit (%d), pass length_check=False, or increase length_limit" % (count, length_limit))
 
+        traces = []
+        for i in range(num_traces):
+            symbol_value = symbol[i]
+            label_value = label[i]
+            selection_value = selection[i]
 
+            x_values = self.df.evaluate(x[i], selection=selection_value)
+            y_values = self.df.evaluate(y[i], selection=selection_value)
+            if xerr[i] is not None:
+                xerr_values = self.df.evaluate(xerr[i], selection=selection_value)
+                xerr_object = go.scatter.ErrorX(array=xerr_values, thickness=0.5)
+            else:
+                xerr_object = None
+            if yerr[i] is not None:
+                yerr_values = self.df.evaluate(yerr[i], selection=selection_value)
+                yerr_object = go.scatter.ErrorY(array=yerr_values, thickness=0.5)
+            else:
+                yerr_object = None
+            if size[i] is not None:
+                if isinstance(size[i], vaex.expression.Expression):
+                    size_values = self.df.evaluate(size[i], selection=selection_value)
+                else:
+                    size_values = size[i]
+            else:
+                size_values = size[i]
+            if color[i] is not None:
+                if isinstance(color[i], vaex.expression.Expression):
+                    color_values = self.df.evaluate(color[i], selection=selection_value)
+                    cbar = go.scatter.marker.ColorBar(title=colorbar_label)
+                else:
+                    cbar = None
+                    color_values = color[i]
+            else:
+                cbar = None
+                color_values = color[i]
 
+            # This builds the data needed for the tooltip display, including the template
+            hovertemplate = ''
+            if tooltip_title[i] is not None:
+                hover_title = self.df.evaluate(tooltip_title[i])
+                hovertemplate += '<b>%{hovertext}</b><br>'
+            else:
+                hover_title = None
 
+            hovertemplate += '<br>' + x[i] + '=%{x}'
+            hovertemplate += '<br>' + y[i] + '=%{y}'
+
+            if tooltip_data is not None:
+                tooltip_data = _ensure_strings_from_expressions(tooltip_data)
+                customdata = np.array(self.df.evaluate(', '.join(tooltip_data), selection=selection_value)).T
+                for j, expr in enumerate(tooltip_data):
+                    hovertemplate += '<br>' + expr + '=%{customdata['+ str(j) + ']}'
+            else:
+                customdata = None
+            hovertemplate += '<extra></extra>'
+
+            # the plotting starts here
+            marker = go.scatter.Marker(color=color_values, size=size_values, showscale=colorbar,
+                                       colorscale='viridis', symbol=symbol_value, colorbar=cbar)
+
+            trace = go.Scatter(x=x_values, y=y_values, error_x=xerr_object, error_y=yerr_object,
+                               mode='markers',
+                               marker=marker,
+                               hovertemplate=hovertemplate,
+                               customdata=customdata,
+                               hovertext=hover_title,
+                               name=label_value)
+            traces.append(trace)
+
+        layout = go.Layout(height=figure_height,
+                           width=figure_width,
+                           xaxis=go.layout.XAxis(title=xlabel or x[0]),
+                           yaxis=go.layout.YAxis(title=ylabel or y[0],
+                                                 scaleanchor='x',
+                                                 scaleratio=1))
+
+        fig = go.FigureWidget(data=traces, layout=layout)
+
+        return fig
 
     def histogram(self, x, what='count(*)', grid=None, shape=64, limits=None, f='identity', n=None,
                   lw=None, ls=None, color=None,
