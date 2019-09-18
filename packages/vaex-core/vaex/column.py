@@ -233,7 +233,7 @@ class ColumnConcatenatedLazy(Column):
             return values
 
 try:
-    str_type = unicode
+    str_type = str
 except:
     str_type = str
 

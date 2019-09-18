@@ -616,7 +616,7 @@ def f({0}):
         return Expression(self.ds, expr)
 
     def astype(self, dtype):
-        if dtype in six.string_types:
+        if dtype == str:
             return self.ds.func.astype(self, 'str')
         else:
             return self.ds.func.astype(self, str(dtype))
