@@ -43,21 +43,20 @@ class PlotTemplate(v.VuetifyTemplate):
     <v-navigation-drawer
       v-model="show_output"
       :temporary="type === 'temporary'"
-      clipped="true"
-      floating="false"
+      clipped
       right
       absolute
       overflow
     >
       <h3>Output</h3>
-      <output-widget>
+      <output-widget />
     </v-navigation-drawer>
 
-    <v-toolbar :clipped-left="clipped" absolute dense>
-      <v-toolbar-side-icon
+    <v-app-bar :clipped-left="clipped" absolute dense>
+      <v-app-bar-nav-icon
         v-if="type !== 'permanent'"
         @click.stop="model = !model"
-      ></v-toolbar-side-icon>
+      ></v-app-bar-nav-icon>
       <v-toolbar-title>{{title}} </v-toolbar-title>
       <v-spacer></v-spacer>
 
@@ -72,9 +71,9 @@ class PlotTemplate(v.VuetifyTemplate):
     </v-btn>
 
 
-    </v-toolbar>
+    </v-app-bar>
     <v-content>
           <main-widget/>
     </v-content>
-<v-app>
+</v-app>
 ''').tag(sync=True)
