@@ -11,7 +11,7 @@ class DataFrameAccessorPlotly(object):
     def scatter(self, x, y, xerr=None, yerr=None, selection=None,
                 size=None, color=None, symbol=None,
                 label=None, xlabel=None, ylabel=None,
-                colorbar=None, colorbar_label=None,
+                colorbar=None, colorbar_label=None, colormap='viridis',
                 figure_height=None, figure_width=None,
                 tooltip_title=None, tooltip_data=None,
                 length_limit=50_000, length_check=True):
@@ -118,7 +118,7 @@ class DataFrameAccessorPlotly(object):
 
             # the plotting starts here
             marker = go.scatter.Marker(color=color_values, size=size_values, showscale=colorbar,
-                                       colorscale='viridis', symbol=symbol_value, colorbar=cbar)
+                                       colorscale=colormap, symbol=symbol_value, colorbar=cbar)
 
             trace = go.Scatter(x=x_values, y=y_values, error_x=xerr_object, error_y=yerr_object,
                                mode='markers',
@@ -270,11 +270,15 @@ class DataFrameAccessorPlotly(object):
             ngrid = fgrid / fgrid.sum()
         else:
             ngrid = fgrid
-        # The x-axis values
-        xmin, xmax = limits[-1]
-        N = len(grid)
-        xar = np.arange(N + 1) / (N - 0.) * (xmax - xmin) + xmin
+        if len(expr) == 1:
+            limits = np.array(limits)
+            xmin = limits.min()
+            xmax = limits.max()
+            N = len(grid)
+            extent = np.arange(N + 1) / (N - 0.) * (xmax - xmin) + xmin
+        elif len(expr) == 2:
+            extent = np.array(limits[::-1]).flatten()
         # The y axis values
         counts = np.concatenate([ngrid[0:1], ngrid])
         # Done!
-        return xar, counts
+        return extent, counts
