@@ -1,5 +1,5 @@
 import vaex
-from vaex.utils import _ensure_strings_from_expressions, _parse_f, _parse_n
+from vaex.utils import _ensure_strings_from_expressions, _parse_f, _parse_n, _ensure_list
 
 import numpy as np
 
@@ -42,9 +42,8 @@ class DataFrameAccessorPlotly(object):
 
         import plotly.graph_objs as go
 
-        if isinstance(x, list) is False:
-            x = [x]
-            y = [y]
+        x = _ensure_list(x)
+        y = _ensure_list(y)
 
         x = _ensure_strings_from_expressions(x)
         y = _ensure_strings_from_expressions(y)
