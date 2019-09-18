@@ -192,8 +192,8 @@ class DataFrameAccessorPlotly(object):
         traces = []
         for i in range(num_traces):
 
-            xar, counts = self._grid1d(x=x[i], what=what, shape=shape[i], limits=limits,
-                                       f=f, n=n, selection=selection[i], progress=progress)
+            xar, counts = self._grid(expr=x[i], what=what, shape=shape[i], limits=limits,
+                                     f=f, n=n, selection=selection[i], progress=progress)
 
             line = go.scatter.Line(color=color[i], width=lw[i], dash=ls[i])
             traces.append(go.Scatter(x=xar, y=counts, mode='lines', line_shape='hv', line=line, name=label[i]))
@@ -221,22 +221,25 @@ class DataFrameAccessorPlotly(object):
                 result.append(value)
         return result
 
-    def _grid1d(self, x, what=None, shape=64, limits=None, f='identity', n=None, selection=None, progress=None):
+    def _grid(self, expr, what=None, shape=64, limits=None, f='identity', n=None, selection=None, progress=None):
 
         import re
 
         f = _parse_f(f)
         n = _parse_n(n)
 
-        if type(shape) == int:
-            shape = (shape,)
+        # if type(shape) == int:
+        #     shape = (shape,)
         binby = []
-        x = _ensure_strings_from_expressions(x)
-        for expression in [x]:
+        expr = _ensure_strings_from_expressions(expr)
+        expr = _ensure_list(expr)
+        for expression in expr:
             if expression is not None:
                 binby = [expression] + binby
         limits = self.df.limits(binby, limits)
 
+        if type(shape) == int:
+            shape = [shape] * len(expr)
 
         if isinstance(what, (vaex.stat.Expression)):
             grid = what.calculate(self.df, binby=binby, limits=limits, shape=shape, selection=selection)
