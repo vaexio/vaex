@@ -17,6 +17,27 @@ class DataFrameAccessorPlotly(object):
                 length_limit=50_000, length_check=True):
         """Scatter plot using plotly.
         Convenience wrapper around plotly.graph_objs.Scatter when for working with small DataFrames or selections.
+
+        :param x: Expression to plot on the x axis. Can be a list to plot multiple sets
+        :param y: Expression to plot on the y axis. Can be a list to plot multiple sets
+        :param xerr: Expression or a list of expressions for x-error bars
+        :param xerr: Expression or a list of expressions for y-error bars
+        :param selection: Selection, or None. Can be a list to plot multiple sets
+        :param size: The size of the markers. Can be an Expression or a list, if multiple sets are plotted
+        :param color: The color of the markers. Can be an Expression or a list if multiple sets are plotted
+        :param symbol: Plotly symbols for the markers. Can be a list if multiple sets are plotted
+        :param label: Label for the legend
+        :param xlabel: label for x axis, if None .label(x) is used
+        :param ylabel: label for y axis, if None .label(y) is used
+        :param colorbar: if True, display a colorbar
+        :param colorbar_label: A label for the colorbar
+        :param figure_height: The figure height in pix
+        :param figure_width: The figure width in pix
+        :param tooltip_title: Expression for the tooltip title
+        :param tooltip_data: A list of expressions for the extra tooltip data
+        :param length_limit: maximum number of rows it will plot
+        :param length_check: should we do the maximum row check or not?
+        :return plotly.graph_objs._figurewidget.FigureWidget fig: a plotly FigureWidget
         """
 
         import plotly.graph_objs as go
@@ -109,8 +130,10 @@ class DataFrameAccessorPlotly(object):
                                name=label_value)
             traces.append(trace)
 
+        legend = go.layout.Legend(orientation='h')
         layout = go.Layout(height=figure_height,
                            width=figure_width,
+                           legend=legend,
                            xaxis=go.layout.XAxis(title=xlabel or x[0]),
                            yaxis=go.layout.YAxis(title=ylabel or y[0],
                                                  scaleanchor='x',
