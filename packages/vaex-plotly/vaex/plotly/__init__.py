@@ -62,7 +62,7 @@ class DataFrameAccessorPlotly(object):
         xerr, yerr, size, color, symbol, label, selection, tooltip_title = args
 
         if length_check:
-            count = np.sum([self.df.count(selection=sel) for sel in selection])
+            count = np.sum([self.df.count(selection=selection)])
             if count > length_limit:
                 raise ValueError("the number of rows (%d) is above the limit (%d), pass length_check=False, \
                                  or increase length_limit" % (count, length_limit))
