@@ -63,6 +63,7 @@ install:
   - (cd packages/vaex-ui; pip install .)
   - (cd packages/vaex-ml; pip install .)
   - (cd packages/vaex-graphql; pip install .)
+  - (cd packages/vaex-plotly; pip install .)
   # - source activate dev
   # - (cd packages/vaex-core; pip install .)
   # - (cd packages/vaex-hdf5; pip install .)

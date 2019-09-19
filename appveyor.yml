@@ -18,7 +18,7 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - "conda create -q -n test-environment -c conda-forge python=%PYTHON_VERSION% numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython pandas runipy cython pytest numba pyarrow graphviz python-graphviz pcre lightgbm py-xgboost catboost scikit-learn ipydatawidgets ipyvolume bqplot ipympl geopandas"
+  - "conda create -q -n test-environment -c conda-forge python=%PYTHON_VERSION% numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython pandas runipy cython pytest numba pyarrow graphviz python-graphviz pcre lightgbm py-xgboost catboost scikit-learn ipydatawidgets ipyvolume bqplot ipympl geopandas plotly"
   - activate test-environment
   - pip install "tabulate==0.8.3"  # issue with 0.8.4 on windows
   - pip install "numpy>=1.13" "pyarrow>=0.12"
@@ -35,6 +35,7 @@ install:
   - pushd packages\vaex-ui   && pip install . && popd
   - pushd packages\vaex-ml   && pip install . && popd
   - pushd packages\vaex-graphql   && pip install . && popd
+  - pushd packages\vaex-plotly   && pip install . && popd
 
 test_script:
  - python -m vaex.test.dataset TestDataset
