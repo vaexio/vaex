@@ -16,6 +16,8 @@ from .utils import debounced
 
 logger = logging.getLogger("vaex.nb.bqplot")
 
+blackish = '#666'
+
 
 class BqplotBackend(BackendBase):
     def __init__(self, figure=None, figure_key=None):
@@ -57,7 +59,7 @@ class BqplotBackend(BackendBase):
         self.scales = {'x': self.scale_x, 'y': self.scale_y, 'rotation': self.scale_rotation,
                        'size': self.scale_size, 'opacity': self.scale_opacity}
 
-        margin = {'bottom': 30, 'left': 60, 'right': 0, 'top': 0}
+        margin = {'bottom': 35, 'left': 60, 'right': 5, 'top': 5}
         self.figure = plt.figure(self.figure_key, fig=self.figure, scales=self.scales, fig_margin=margin)
         self.figure.layout.min_width = '600px'
         plt.figure(fig=self.figure)
@@ -81,8 +83,11 @@ class BqplotBackend(BackendBase):
         self.scatter = s = plt.scatter(x, y, visible=False, rotation=x, scales=self.scales, size=x, marker="arrow")
         self.panzoom = bqplot.PanZoom(scales={'x': [self.scale_x], 'y': [self.scale_y]})
         self.figure.interaction = self.panzoom
-        # self.figure.axes[0].label = self.x
-        # self.figure.axes[1].label = self.y
+        for axes in self.figure.axes:
+            axes.grid_lines = 'none'
+            axes.color = axes.grid_color = axes.label_color = blackish
+        self.figure.axes[0].label = str(plot.x)
+        self.figure.axes[1].label = str(plot.y)
 
         self.scale_x.observe(self._update_limits, "min")
         self.scale_x.observe(self._update_limits, "max")
@@ -113,7 +118,7 @@ class BqplotBackend(BackendBase):
     def create_tools(self):
         self.tools = []
         tool_actions = []
-        tool_actions_map = {u"pan/zoom": self.panzoom}
+        self.tool_actions_map = tool_actions_map = {u"pan/zoom": self.panzoom}
         tool_actions.append(u"pan/zoom")
 
         # self.control_widget.set_title(0, "Main")
