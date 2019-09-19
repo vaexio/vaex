@@ -1,4 +1,5 @@
 import pytest
+pytest.importorskip("plotly")
 
 import vaex
 import vaex.ml
