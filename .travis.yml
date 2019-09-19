@@ -31,7 +31,7 @@ before_install:
   - export PYTEST_EXTRA_ARGS="";
   - if [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="scikit-learn plotly "; fi
   - if [[ $TRAVIS_OS_NAME == osx ]] && [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="$OPTIONAL_PACKAGES lightgbm py-xgboost "; fi
-  - if [[ "$PYTHON_VERSION" == "2.7" ]]; then export PYTEST_EXTRA_ARGS="--ignore=tests/ml"; fi
+  - if [[ "$PYTHON_VERSION" == "2.7" ]]; then export PYTEST_EXTRA_ARGS="--ignore=tests/ml --ignore=tests/plotly"; fi
   - travis_wait bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r

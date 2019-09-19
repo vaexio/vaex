@@ -18,7 +18,7 @@ class DataFrameAccessorPlotly(object):
                 colorbar=None, colorbar_label=None, colormap=None,
                 figure_height=None, figure_width=None,
                 tooltip_title=None, tooltip_data=None,
-                length_limit=50_000, length_check=True):
+                length_limit=50000, length_check=True):
         """Scatter plot using plotly.
         Convenience wrapper around plotly.graph_objs.Scatter when for working with small DataFrames or selections.
 
