@@ -1966,7 +1966,7 @@ class DataFrame(object):
             data = column[0:1]
             dtype = data.dtype
         else:
-            data = self.evaluate(expression, 0, 1, filtered=False)
+            data = self.evaluate(expression, 0, 1, filtered=False, internal=True)
             dtype = data.dtype
         if not internal:
             if dtype != str_type:
@@ -2814,9 +2814,6 @@ class DataFrame(object):
             valid_name = vaex.utils.find_valid_name(name)
             if name != valid_name:
                 self._column_aliases[name] = valid_name
-            self.columns[valid_name] = f_or_array
-            if valid_name not in self.column_names:
-                self.column_names.insert(column_position, valid_name)
             ar = f_or_array
             if dtype is not None:
                 self._dtypes_override[valid_name] = dtype
@@ -2825,6 +2822,11 @@ class DataFrame(object):
                     types = list({type(k) for k in ar if np.all(k == k) and k is not None})
                     if len(types) == 1 and issubclass(types[0], six.string_types):
                         self._dtypes_override[valid_name] = str_type
+                    if len(types) == 0:  # can only be if all nan right?
+                        ar = ar.astype(np.float64)
+            self.columns[valid_name] = ar
+            if valid_name not in self.column_names:
+                self.column_names.insert(column_position, valid_name)
         else:
             raise ValueError("functions not yet implemented")
         self._save_assign_expression(valid_name, Expression(self, valid_name))
@@ -5358,14 +5360,14 @@ class DataFrameConcatenated(DataFrameLocal):
                 self.column_names.append(column_name)
         self.columns = {}
         for column_name in self.get_column_names(virtual=False):
-            self.columns[column_name] = ColumnConcatenatedLazy(dfs, column_name)
+            self.columns[column_name] = ColumnConcatenatedLazy([df[column_name] for df in dfs])
             self._save_assign_expression(column_name)
 
         for name in list(first.virtual_columns.keys()):
             if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
                 self.virtual_columns[name] = first.virtual_columns[name]
             else:
-                self.columns[name] = ColumnConcatenatedLazy(dfs, name)
+                self.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
                 self.column_names.append(name)
             self._save_assign_expression(name)
 

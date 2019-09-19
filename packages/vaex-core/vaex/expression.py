@@ -174,6 +174,18 @@ class Expression(with_metaclass(Meta)):
             expression = expression.expression
         self.expression = expression
 
+    @property
+    def df(self):
+        # lets gradually move to using .df
+        return self.ds
+
+    def to_numpy(self):
+        """Return a numpy representation of the data"""
+        values = self.values
+        if hasattr(values, 'to_numpy'):  # e.g. ColumnString
+            values = values.to_numpy()
+        return values
+
     def __getitem__(self, slice):
         return self.ds[slice][self.expression]
 
@@ -618,7 +630,10 @@ def f({0}):
         return Expression(self.ds, expr)
 
     def astype(self, dtype):
-        return self.ds.func.astype(self, str(dtype))
+        if dtype == str:
+            return self.ds.func.astype(self, 'str')
+        else:
+            return self.ds.func.astype(self, str(dtype))
 
     def apply(self, f):
         return self.ds.apply(f, [self.expression])
@@ -763,6 +778,10 @@ def f({0}):
         else:
             expr = '_choose(_ordinal_values({}, {}), {})'.format(self, key_set_name, choices_name)
         return Expression(df, expr)
+
+    @property
+    def is_masked(self):
+        return self.ds.is_masked(self.expression)
 
 
 class FunctionSerializable(object):

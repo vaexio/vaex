@@ -392,10 +392,14 @@ def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
     :rtype: DataFrame
     """
     import six
+    import pandas as pd
+    import numpy as np
     vaex_df = vaex.dataframe.DataFrameArrays(name)
 
     def add(name, column):
         values = column.values
+        if isinstance(values, pd.core.arrays.integer.IntegerArray):
+            values = np.ma.array(values._data, mask=values._mask)
         try:
             vaex_df.add_column(name, values)
         except Exception as e:
