@@ -148,13 +148,28 @@ class Meta(type):
 
 
 class DateTime(object):
-    """DateTime operations"""
+    """DateTime operations
+
+    Usually accessed using e.g. `df.birthday.dt.dayofweek`
+    """
+    def __init__(self, expression):
+        self.expression = expression
+
+
+class TimeDelta(object):
+    """TimeDelta operations
+
+    Usually accessed using e.g. `df.delay.td.days`
+    """
     def __init__(self, expression):
         self.expression = expression
 
 
 class StringOperations(object):
-    """String operations"""
+    """String operations.
+
+    Usually accessed using e.g. `df.name.str.lower()`
+    """
     def __init__(self, expression):
         self.expression = expression
 
@@ -195,7 +210,13 @@ class Expression(with_metaclass(Meta)):
 
     @property
     def dt(self):
+        """Gives access to datetime operations via :py:class:`DateTime`"""
         return DateTime(self)
+
+    @property
+    def td(self):
+        """Gives access to timedelta operations via :py:class:`TimeDelta`"""
+        return TimeDelta(self)
 
     @property
     def str(self):
