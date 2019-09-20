@@ -114,6 +114,13 @@ class ColumnIndexed(Column):
         assert step in [None, 1]
         indices = self.indices[start:stop]
         ar_unfiltered = self.df.columns[self.name]
+        if isinstance(ar_unfiltered, Column):
+            # TODO: this is a workaround, since we do not require yet
+            # that Column classes know how to deal with indices, we get
+            # the minimal slice, and get those (not the most efficient)
+            i1, i2 = np.min(indices), np.max(indices)
+            ar_unfiltered = ar_unfiltered[i1:i2+1]
+            indices = indices - i1
         ar = ar_unfiltered[indices]
         if np.ma.isMaskedArray(indices):
             mask = self.indices.mask[start:stop]
