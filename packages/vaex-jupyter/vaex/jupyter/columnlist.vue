@@ -32,6 +32,7 @@
       </v-menu>Columns
     </v-subheader>
     <v-text-field
+      class="ma-3"
       label="Filter column names"
       placeholder="e.g. name"
       v-model="column_filter"
