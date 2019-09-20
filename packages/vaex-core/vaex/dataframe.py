@@ -3984,7 +3984,7 @@ class DataFrame(object):
         selection_history = self.selection_histories[name]
         index = self.selection_history_indices[name]
         self.selection_history_indices[name] -= 1
-        self.signal_selection_changed.emit(self)
+        self.signal_selection_changed.emit(self, name)
         logger.debug("undo: selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
 
     def selection_redo(self, name="default", executor=None):
@@ -3996,7 +3996,7 @@ class DataFrame(object):
         index = self.selection_history_indices[name]
         next = selection_history[index + 1]
         self.selection_history_indices[name] += 1
-        self.signal_selection_changed.emit(self)
+        self.signal_selection_changed.emit(self, name)
         logger.debug("redo: selection history is %r, index is %r", selection_history, index)
 
     def selection_can_undo(self, name="default"):
@@ -4021,7 +4021,7 @@ class DataFrame(object):
         boolean_expression = _ensure_string_from_expression(boolean_expression)
         if boolean_expression is None and not self.has_selection(name=name):
             pass  # we don't want to pollute the history with many None selections
-            self.signal_selection_changed.emit(self)  # TODO: unittest want to know, does this make sense?
+            self.signal_selection_changed.emit(self, name)  # TODO: unittest want to know, does this make sense?
         else:
             def create(current):
                 return selections.SelectionExpression(boolean_expression, current, mode) if boolean_expression else None
@@ -4082,7 +4082,7 @@ class DataFrame(object):
         """Select nothing."""
         logger.debug("selecting nothing")
         self.select(None, name=name)
-    # self.signal_selection_changed.emit(self)
+        self.signal_selection_changed.emit(self, name)
 
     def select_rectangle(self, x, y, limits, mode="replace", name="default"):
         """Select a 2d rectangular box in the space given by x and y, bounds by limits.
@@ -4241,7 +4241,7 @@ class DataFrame(object):
         self.selection_history_indices[name] += 1
         # clip any redo history
         del selection_history[self.selection_history_indices[name]:-1]
-        self.signal_selection_changed.emit(self)
+        self.signal_selection_changed.emit(self, name)
         result = vaex.promise.Promise.fulfilled(None)
         logger.debug("select selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
         return result
@@ -5186,10 +5186,10 @@ class DataFrameLocal(DataFrame):
         return int(self.count(selection=selection).item())
         # np.sum(self.mask) if self.has_selection() else None
 
-    def _set_mask(self, mask):
-        self.mask = mask
-        self._has_selection = mask is not None
-        self.signal_selection_changed.emit(self)
+    # def _set_mask(self, mask):
+    #     self.mask = mask
+    #     self._has_selection = mask is not None
+    #     # self.signal_selection_changed.emit(self)
 
     def groupby(self, by=None, agg=None):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
