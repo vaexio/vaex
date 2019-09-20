@@ -107,6 +107,9 @@ String operations
      :members:
      :special-members:
 
+String (pandas) operations
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 .. autoclass:: vaex.expression.StringOperationsPandas
      :members:
      :special-members:
@@ -115,6 +118,13 @@ Date/time operations
 ~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.expression.DateTime
+     :members:
+     :special-members:
+
+Timedelta operations
+~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.TimeDelta
      :members:
      :special-members:
 
