@@ -213,6 +213,10 @@ class PlotBase(widgets.Widget):
         self.observe(lambda *args: self.update_image(), "vcount_limits")
         # self.update_image() # sometimes bqplot doesn't update the image correcly
 
+    @debounced(0.3, method=True)
+    def hide_progress(self):
+        self.progress.layout.visibility = 'hidden'
+
     def get_limits(self, limits):
         return self.dataset.limits(self.get_binby(), limits)
 
@@ -245,11 +249,14 @@ class PlotBase(widgets.Widget):
     def _new_progressbar(self):
         def update(v):
             with self.output:
+                self.progress.layout.visibility = 'visible'
                 import IPython
                 ipython = IPython.get_ipython()
                 if ipython is not None:  # for testing
                     ipython.kernel.do_one_iteration()
                 self.progress.value = v
+                if v == 1:
+                    self.hide_progress()
                 return not self._progressbar.cancelled
         self._progressbar = vaex.utils.progressbars(False, next=update, name="bqplot")
 
