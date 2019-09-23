@@ -36,7 +36,6 @@ maximum
 clip
 nan
 searchsorted
-isnan
 isfinite
 """.strip().split()]
 expression_namespace = {}
