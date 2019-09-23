@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import traitlets
 
 def nice_type(df, name):
