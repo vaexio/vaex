@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import ipyvuetify as v
 import ipywidgets as widgets
 import traitlets
