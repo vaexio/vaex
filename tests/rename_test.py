@@ -8,10 +8,25 @@ def test_rename(ds_filtered):
     xvalues = ds.x.tolist()
     qexpr = ds.q.expand().expression
     ds['x'] = ds.y # now r should still point to x
-    import pdb
-    # pdb.set_trace()
     assert ds.r.values.tolist() == xvalues
     assert ds.q.values.tolist() == qvalues
+
+
+def test_reassign_virtual(ds_local):
+    df = ds_local
+    x = df.x.values
+    df['r'] = df.x+1
+    df['r'] = df.r+1
+    assert df.r.tolist() == (x+2).tolist()
+
+
+def test_reassign_column(ds_filtered):
+    df = ds_filtered.extract()
+    x = df.x.values
+    df['r'] = (df.x+1).evaluate()
+    df['r'] = (df.r+1).evaluate()
+    assert df.r.tolist() == (x+2).tolist()
+
 
 def test_rename_state_transfer():
     ds = vaex.from_scalars(x=3, y=4)

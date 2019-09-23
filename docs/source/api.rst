@@ -12,6 +12,7 @@ Opening/reading in your data.
     vaex.open
     vaex.from_arrow_table
     vaex.from_arrays
+    vaex.from_dict
     vaex.from_csv
     vaex.from_ascii
     vaex.from_pandas
@@ -54,13 +55,13 @@ vaex-core
 ---------
 
 .. automodule:: vaex
-    :members: open, from_arrays, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, server, example, app, delayed
+    :members: open, from_arrays, from_dict, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, register_function, server, example, app, delayed
     :undoc-members:
     :show-inheritance:
 
 
 DataFrame class
-~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.dataframe.DataFrame
      :members:
@@ -68,22 +69,72 @@ DataFrame class
 
 
 DataFrameLocal class
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.dataframe.DataFrameLocal
      :members:
      :special-members:
 
 
-vaex.stat module
+Expression class
 ~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.Expression
+     :members:
+     :special-members:
+
+Aggregation and statistics
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.stat
     :members:
 
 
+.. automodule:: vaex.agg
+    :members:
+
 .. .. autoclass:: vaex.stat.Statistic
 ..     :members:
+
+
+Extensions
+----------
+
+String operations
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.StringOperations
+     :members:
+     :special-members:
+
+String (pandas) operations
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.StringOperationsPandas
+     :members:
+     :special-members:
+
+Date/time operations
+~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.DateTime
+     :members:
+     :special-members:
+
+Timedelta operations
+~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.TimeDelta
+     :members:
+     :special-members:
+
+Geo operations
+~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.geo.DataFrameAccessorGeo
+     :members:
+     :special-members:
+
 
 
 .. .. Subpackages
@@ -246,10 +297,7 @@ Boosted trees
 .. autoclass:: vaex.ml.lightgbm.LightGBMModel
      :members:
 
-.. autoclass:: vaex.ml.lightgbm.LightGBMClassifier
-     :members:
-
-.. autoclass:: vaex.ml.xgboost.XGBModel
+.. autoclass:: vaex.ml.xgboost.XGBoostModel
      :members:
 
 .. PyGBM support is in the incubator phase, which means support may disappear in future versions

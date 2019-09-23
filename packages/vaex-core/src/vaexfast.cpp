@@ -1602,16 +1602,17 @@ void grid_find_edges(
     //printf("cumulative_grid_strides: %d %d %d\n", cumulative_grid_strides[0], cumulative_grid_strides[1], cumulative_grid_strides[2]);
     //printf("dimensions: %d\n", dimensions);
 
+
     for(long long int i = 0; i < length_1d; i++) {
         double* const __restrict__ cumulative_grid1d = &cumulative_grid[i*cumulative_grid_strides[dimensions-2]];
         double value = values_grid[i*values_strides[dimensions-2]];
         long long left = 0; //  'edge' index if left of the value we are looking for
         //printf("first/last value: %f / %f, looking for %f %dn", cumulative_grid1d[0], cumulative_grid1d[cumulative_grid_strides[dimensions-2]-1], value, left);
-        while(cumulative_grid1d[left+1] < value) {
+        while(cumulative_grid1d[left+1] < value && left < cumulative_grid_strides[dimensions-2]-1) {
             left+= 1;
         }
         long long right = left; // 'edge' index that is right of the value
-        while (cumulative_grid1d[right] < value) {
+        while (cumulative_grid1d[right] < value && right < cumulative_grid_strides[dimensions-2]-1) {
             right+= 1;
         }
         //while (cumulative_grid[right+1] == cumulative_grid[right]) { // make sure we get the right most bin

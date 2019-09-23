@@ -54,15 +54,15 @@ src/Makefile.in
 src/libsubfind.a
 subspacefind*.tar.gz
 src/subspacefind?la*
-/**/*.pyc
+**/*.pyc
 data/*
 build/
 doc
 docs/build
 meeting
 #misc
-.DS_Store
-.ipynb_checkpoints
+/**/.DS_Store
+/**/.ipynb_checkpoints
 app
 dist
 python/.idea
@@ -70,6 +70,24 @@ test/.idea
 venv
 tmp
 python/vaex/version.py # gets generated
-python/vaex.egg-info/
+**/*.egg-info/
 bin/.idea
 *.npy
+**/__pycache__/*
+/**/*.egg-info/
+bin/.idea
+*.npy
+/**/__pycache__/*
+catboost_info/*
+
+# symlinks generated in setup.py
+packages/vaex-core/vaex/arrow
+packages/vaex-core/vaex/astro
+packages/vaex-core/vaex/distributed
+packages/vaex-core/vaex/hdf5
+packages/vaex-core/vaex/jupyter
+packages/vaex-core/vaex/ml
+packages/vaex-core/vaex/server
+packages/vaex-core/vaex/ui
+packages/vaex-core/vaex/viz
+packages/vaex-core/vaex/*.*-win_amd64.pyd

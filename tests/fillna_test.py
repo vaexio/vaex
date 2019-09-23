@@ -2,38 +2,106 @@ from common import *
 
 
 def test_fillna_column(ds_local):
-    ds = ds_local
-    ds['ok'] = ds['obj'].fillna(value='NA')
-    assert ds.ok.values[5] == 'NA'
+    df = ds_local
+    df['ok'] = df['obj'].fillna(value='NA')
+    assert df.ok.values[5] == 'NA'
+    df['obj'] = df['obj'].fillna(value='NA')
+    assert df.obj.values[5] == 'NA'
 
 
 def test_fillna(ds_local):
-    ds = ds_local
-    ds_copy = ds.copy()
+    df = ds_local
+    df_copy = df.copy()
 
-    ds_string_filled = ds.fillna(value='NA')
-    assert ds_string_filled.obj.values[5] == 'NA'
+    df_string_filled = df.fillna(value='NA')
+    assert df_string_filled.obj.values[5] == 'NA'
 
-    ds_filled = ds.fillna(value=0)
-    assert ds_filled.obj.values[5] == 0
+    df_filled = df.fillna(value=0)
+    assert df_filled.obj.values[5] == 0
 
-    assert ds_filled.to_pandas_df(virtual=True).isna().any().any() == False
-    assert ds_filled.to_pandas_df(virtual=True).isna().any().any() == False
+    assert df_filled.to_pandas_df(virtual=True).isna().any().any() == False
+    assert df_filled.to_pandas_df(virtual=True).isna().any().any() == False
 
-    ds_filled = ds.fillna(value=10, fill_masked=False)
-    assert ds_filled.n.values[6] == 10.
-    assert ds_filled.nm.values[6] == 10.
+    df_filled = df.fillna(value=10, fill_masked=False)
+    assert df_filled.n.values[6] == 10.
+    assert df_filled.nm.values[6] == 10.
 
-    ds_filled = ds.fillna(value=-15, fill_nan=False)
-    assert ds_filled.m.values[7] == -15.
-    assert ds_filled.nm.values[7] == -15.
-    assert ds_filled.mi.values[7] == -15.
+    df_filled = df.fillna(value=-15, fill_nan=False)
+    assert df_filled.m.values[7] == -15.
+    assert df_filled.nm.values[7] == -15.
+    assert df_filled.mi.values[7] == -15.
 
-    ds_filled = ds.fillna(value=-11, column_names=['nm', 'mi'])
-    assert ds_filled.to_pandas_df(virtual=True).isna().any().any() == True
-    assert ds_filled.to_pandas_df(column_names=['nm', 'mi']).isna().any().any() == False
+    df_filled = df.fillna(value=-11, column_names=['nm', 'mi'])
+    assert df_filled.to_pandas_df(virtual=True).isna().any().any() == True
+    assert df_filled.to_pandas_df(column_names=['nm', 'mi']).isna().any().any() == False
 
-    state = ds_filled.state_get()
-    ds_copy.state_set(state)
-    np.testing.assert_array_equal(ds_copy['nm'].values, ds_filled['nm'].values)
-    np.testing.assert_array_equal(ds_copy['mi'].values, ds_filled['mi'].values)
+    state = df_filled.state_get()
+    df_copy.state_set(state)
+    np.testing.assert_array_equal(df_copy['nm'].values, df_filled['nm'].values)
+    np.testing.assert_array_equal(df_copy['mi'].values, df_filled['mi'].values)
+
+
+def test_fillna_virtual():
+    # this might be a duplicate or rename_test.py/test_reassign_virtual
+    x = [1, 2, 3, 5, np.nan, -1, -7, 10]
+    df = vaex.from_arrays(x=x)
+    # create a virtual column that will have nans due to the calculations
+    df['r'] = np.log(df.x)
+    df['r'] = df.r.fillna(value=0xdeadbeef)
+    assert df.r.tolist()[:4] == [0.0, 0.6931471805599453, 1.0986122886681098, 1.6094379124341003]
+    assert df.r.tolist()[4:7] == [0xdeadbeef, 0xdeadbeef, 0xdeadbeef]
+
+def test_fillna_missing():
+    # Create test data
+    x = np.array(['A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan])
+    df = vaex.from_arrays(x=x)
+    # Assert the correctness of the fillna
+    assert df.x.fillna(value=-5).tolist() == ['A', 'B', -1, 0, 2, '', '', -5, -5, -5, -5, -5, -5, -5]
+
+# equivalent of isna_test
+def test_fillmissing():
+    s = vaex.string_column(["aap", None, "noot", "mies"])
+    o = ["aap", None, "noot", np.nan]
+    x = np.arange(4, dtype=np.float64)
+    x[2] = x[3] = np.nan
+    m = np.ma.array(x, mask=[0, 1, 0, 1])
+    df = vaex.from_arrays(x=x, m=m, s=s, o=o)
+    x = df.x.fillmissing(9).tolist()
+    assert (9 not in x)
+    assert np.any(np.isnan(x)), "nan is not a missing value"
+    m = df.m.fillmissing(9).tolist()
+    assert (m[:2] == [0, 9])
+    assert np.isnan(m[2])
+    assert m[3] == 9
+    assert (df.s.fillmissing('kees').tolist() == ["aap", "kees", "noot", "mies"])
+    assert (df.o.fillmissing({'a':1}).tolist()[:3] == ["aap", {'a':1}, "noot"])
+    assert np.isnan(df.o.fillmissing([1]).tolist()[3])
+
+# equivalent of isna_test
+def test_fillnan():
+    s = vaex.string_column(["aap", None, "noot", "mies"])
+    o = ["aap", None, "noot", np.nan]
+    x = np.arange(4, dtype=np.float64)
+    x[2] = x[3] = np.nan
+    m = np.ma.array(x, mask=[0, 1, 0, 1])
+    df = vaex.from_arrays(x=x, m=m, s=s, o=o)
+    x = df.x.fillnan(9).tolist()
+    assert x == [0, 1, 9, 9]
+    m = df.m.fillnan(9).tolist()
+    assert m == [0, None, 9, None]
+    assert (df.s.fillnan('kees').tolist() == ["aap", None, "noot", "mies"])
+    assert (df.o.fillnan({'a':1}).tolist() == ["aap", None, "noot", {'a':1}])
+
+def test_fillna():
+    s = vaex.string_column(["aap", None, "noot", "mies"])
+    o = ["aap", None, "noot", np.nan]
+    x = np.arange(4, dtype=np.float64)
+    x[2] = x[3] = np.nan
+    m = np.ma.array(x, mask=[0, 1, 0, 1])
+    df = vaex.from_arrays(x=x, m=m, s=s, o=o)
+    x = df.x.fillna(9).tolist()
+    assert x == [0, 1, 9, 9]
+    m = df.m.fillna(9).tolist()
+    assert m == [0, 9, 9, 9]
+    assert (df.s.fillna('kees').tolist() == ["aap", "kees", "noot", "mies"])
+    assert (df.o.fillna({'a':1}).tolist() == ["aap", {'a': 1}, "noot", {'a':1}])

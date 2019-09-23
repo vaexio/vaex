@@ -20,7 +20,7 @@ from .utils import (_ensure_strings_from_expressions,
     as_flat_float,
     as_flat_array,
     _split_and_combine_mask)
-from .functions import expression_namespace
+from .expression import expression_namespace
 import vaex.expression
 
 logger = logging.getLogger('vaex.scopes')
@@ -84,7 +84,7 @@ class _BlockScope(object):
         try:
             # logger.debug("try avoid evaluating: %s", expression)
             result = self[expression]
-        except:
+        except KeyError:
             # logger.debug("no luck, eval: %s", expression)
             # result = ne.evaluate(expression, local_dict=self, out=out)
             # logger.debug("in eval")
@@ -108,13 +108,15 @@ class _BlockScope(object):
                 return self.values[variable]
             elif variable in self.df.get_column_names(virtual=False, hidden=True):
                 offset = self.df._index_start
-                if self.df._needs_copy(variable):
+                # if self.df._needs_copy(variable):
                     # self._ensure_buffer(variable)
                     # self.values[variable] = self.buffers[variable] = self.df.columns[variable][self.i1:self.i2].astype(np.float64)
                     # Previously we casted anything to .astype(np.float64), this led to rounding off of int64, when exporting
-                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][self.mask]
-                else:
-                    self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][self.mask]
+                    # self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][:]
+                # else:
+                self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2]
+                if self.mask is not None:
+                    self.values[variable] = self.values[variable][self.mask]
             elif variable in list(self.df.virtual_columns.keys()):
                 expression = self.df.virtual_columns[variable]
                 if isinstance(expression, dict):
@@ -164,20 +166,30 @@ class _BlockScopeSelection(object):
             # logger.debug("selection for %r: %s %r", variable, selection, self.df.selection_histories)
             key = (self.i1, self.i2)
             if selection:
+                assert variable in self.df._selection_masks, "%s mask not found" % (variable, )
                 cache = self.df._selection_mask_caches[variable]
                 # logger.debug("selection cache: %r" % cache)
+                full_mask = self.df._selection_masks[variable]
                 selection_in_cache, mask = cache.get(key, (None, None))
+
                 # logger.debug("mask for %r is %r", variable, mask)
                 if selection_in_cache == selection:
                     return mask
                 # logger.debug("was not cached")
                 if variable in self.df.variables:
                     return self.df.variables[variable]
-                mask = selection.evaluate(self.df, variable, self.i1, self.i2)
+                mask_values = selection.evaluate(self.df, variable, self.i1, self.i2)
+                # get a view on a subset of the mask
+                sub_mask = full_mask.view(self.i1, self.i2)
+                sub_mask_array = np.asarray(sub_mask)
+                # and update it
+                sub_mask_array[:] = mask_values
                 # logger.debug("put selection in mask with key %r" % (key,))
                 if self.store_in_cache:
-                    cache[key] = selection, mask
-                return mask
+                    cache[key] = selection, sub_mask_array
+                    # cache[key] = selection, mask_values
+                return sub_mask_array
+                # return mask_values
             else:
                 offset = self.df._index_start
                 if variable in expression_namespace:
@@ -191,6 +203,8 @@ class _BlockScopeSelection(object):
                     # self._ensure_buffer(variable)
                     return self.evaluate(expression)  # , out=self.buffers[variable])
                     # self.values[variable] = self.buffers[variable]
+                elif variable in self.df.functions:
+                    return self.df.functions[variable].f
                 raise KeyError("Unknown variables or column: %r" % (variable,))
         except:
             import traceback as tb

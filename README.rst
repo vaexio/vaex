@@ -24,6 +24,7 @@ plots** and **3d volume rendering**, allowing interactive exploration of
 big data. Vaex uses memory mapping, zero memory copy policy and lazy
 computations for best performance (no memory wasted).
 
+
 Why vaex
 ========
 
@@ -67,7 +68,7 @@ Using conda:
 
 Using pip:
 
--  ``pip install --pre vaex``
+-  ``pip install vaex``
 
 Or read the `detailed instructions <https://docs.vaex.io/en/latest/installing.html>`__
 
@@ -157,7 +158,7 @@ normal array.
     import numpy as np
     # creates an expression (nothing is computed)
     r = np.sqrt(ds.x**2 + ds.y**2 + ds.z**2)
-    r  # for convinience, we print out some values
+    r  # for convenience, we print out some values
 
 
 
@@ -250,8 +251,8 @@ Regards,
 
 The vaex.io team
 
-.. |Travis| image:: https://travis-ci.org/maartenbreddels/vaex.svg?branch=master
-   :target: https://travis-ci.org/maartenbreddels/vaex
+.. |Travis| image:: https://travis-ci.org/vaexio/vaex.svg?branch=master
+   :target: https://travis-ci.org/vaexio/vaex.svg?branch=master
 .. |Chat| image:: https://badges.gitter.im/maartenbreddels/vaex.svg
    :alt: Join the chat at https://gitter.im/maartenbreddels/vaex
    :target: https://gitter.im/maartenbreddels/vaex?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge

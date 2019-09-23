@@ -34,13 +34,17 @@ Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how
 """  # -*- coding: utf-8 -*-
 from __future__ import print_function
 import glob
+import six
+
 import vaex.dataframe
 import vaex.dataset
+from vaex.functions import register_function
 from . import stat
 # import vaex.file
 # import vaex.export
 from .delayed import delayed
-
+from .groupby import *
+from . import agg
 import vaex.datasets
 # import vaex.plot
 # from vaex.dataframe import DataFrame
@@ -114,10 +118,10 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
 
     Example:
 
-    >>> ds = vaex.open('sometable.hdf5')
-    >>> ds = vaex.open('somedata*.csv', convert='bigdata.hdf5')
+    >>> df = vaex.open('sometable.hdf5')
+    >>> df = vaex.open('somedata*.csv', convert='bigdata.hdf5')
 
-    :param str path: local or absolute path to file, or glob string
+    :param str or list path: local or absolute path to file, or glob string, or list of paths
     :param convert: convert files to an hdf5 file for optimization, can also be a path
     :param bool shuffle: shuffle converted DataFrame or not
     :param args: extra arguments for file readers that need it
@@ -126,26 +130,62 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
     :return: return a DataFrame on succes, otherwise None
     :rtype: DataFrame
 
+    S3 support:
+
+    Vaex supports streaming in hdf5 files from Amazon AWS object storage S3.
+    Files are by default cached in $HOME/.vaex/file-cache/s3 such that successive access
+    it as fast as native disk access. The following url parameters control S3 options:
+
+     * anon: Use anonymous access or not (false by default). (Allowed values are: true,True,1,false,False,0)
+     * use_cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0)
+     * profile_name and other arguments are passed to :py:class:`s3fs.core.S3FileSystem`
+
+    All arguments can also be passed as kwargs, but then arguments such as `anon` can only be a boolean, not a string.
+
+    Examples:
+
+    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5?anon=true')
+    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', anon=True)  # Note that anon is a boolean, not the string 'true'
+    >>> df = vaex.open('s3://mybucket/path/to/file.hdf5?profile_name=myprofile')
+
     """
     import vaex
     try:
         if path in aliases:
             path = aliases[path]
         if path.startswith("http://") or path.startswith("ws://"):  # TODO: think about https and wss
-            server, DataFrame = path.rsplit("/", 1)
+            server, name = path.rsplit("/", 1)
+            url = urlparse(path)
+            if '?' in name:
+                name = name[:name.index('?')]
+            extra_args = {key: values[0] for key, values in parse_qs(url.query).items()}
+            if 'token' in extra_args:
+                kwargs['token'] = extra_args['token']
+            if 'token_trusted' in extra_args:
+                kwargs['token_trusted'] = extra_args['token_trusted']
             server = vaex.server(server, **kwargs)
-            DataFrames = server.DataFrames(as_dict=True)
-            if DataFrame not in DataFrames:
-                raise KeyError("no such DataFrame '%s' at server, possible DataFrame names: %s" % (DataFrame, " ".join(DataFrames.keys())))
-            return DataFrames[DataFrame]
+            dataframe_map = server.datasets(as_dict=True)
+            if name not in dataframe_map:
+                raise KeyError("no such DataFrame '%s' at server, possible names: %s" % (name, " ".join(dataframe_map.keys())))
+            return dataframe_map[name]
         if path.startswith("cluster"):
             import vaex.distributed
             return vaex.distributed.open(path, *args, **kwargs)
         else:
             import vaex.file
             import glob
-            # sort to get predicatable behaviour (useful for testing)
-            filenames = list(sorted(glob.glob(path)))
+            if isinstance(path, six.string_types):
+                paths = [path]
+            else:
+                paths = path
+            filenames = []
+            for path in paths:
+                # TODO: can we do glob with s3?
+                if path.startswith('s3://'):
+                    filenames.append(path)
+                else:
+                    # sort to get predicatable behaviour (useful for testing)
+                    filenames.extend(list(sorted(glob.glob(path))))
             ds = None
             if len(filenames) == 0:
                 raise IOError('Could not open file: {}, it does not exist'.format(path))
@@ -153,23 +193,26 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
             filename_hdf5_noshuffle = _convert_name(filenames, shuffle=False)
             if len(filenames) == 1:
                 path = filenames[0]
-                ext = os.path.splitext(path)[1]
+                naked_path = path
+                if '?' in naked_path:
+                    naked_path = naked_path[:naked_path.index('?')]
+                ext = os.path.splitext(naked_path)[1]
                 if os.path.exists(filename_hdf5) and convert:  # also check mtime?
                     if convert:
                         ds = vaex.file.open(filename_hdf5)
                     else:
                         ds = vaex.file.open(filename_hdf5, *args, **kwargs)
                 else:
-                    if ext == '.csv':  # special support for csv.. should probably approach it a different way
+                    if ext == '.csv' or naked_path.endswith(".csv.bz2"):  # special support for csv.. should probably approach it a different way
                         ds = from_csv(path, copy_index=copy_index, **kwargs)
                     else:
                         ds = vaex.file.open(path, *args, **kwargs)
-                    if convert:
+                    if convert and ds:
                         ds.export_hdf5(filename_hdf5, shuffle=shuffle)
                         ds = vaex.file.open(filename_hdf5) # argument were meant for pandas?
                 if ds is None:
                     if os.path.exists(path):
-                        raise IOError('Could not open file: {}, did you install vaex-hdf5?'.format(path))
+                        raise IOError('Could not open file: {}, did you install vaex-hdf5? Is the format supported?'.format(path))
                     if os.path.exists(path):
                         raise IOError('Could not open file: {}, it does not exist?'.format(path))
             elif len(filenames) > 1:
@@ -229,6 +272,25 @@ def from_astropy_table(table):
     return vaex.file.other.DatasetAstropyTable(table=table)
 
 
+def from_dict(data):
+    """Create an in memory dataset from a dict with column names as keys and list/numpy-arrays as values
+
+    Example
+
+    >>> data = {'A':[1,2,3],'B':['a','b','c']}
+    >>> vaex.from_dict(data)
+      #    A    B
+      0    1   'a'
+      1    2   'b'
+      2    3   'c'
+
+    :param data: A dict of {columns:[value, value,...]}
+    :rtype: DataFrame
+
+    """
+    return vaex.from_arrays(**data)
+
+
 def from_items(*items):
     """Create an in memory DataFrame from numpy arrays, in contrast to from_arrays this keeps the order of columns intact (for Python < 3.6).
 
@@ -285,16 +347,14 @@ def from_arrays(**arrays):
     """
     import numpy as np
     import six
+    from .column import Column
     df = vaex.dataframe.DataFrameArrays("array")
     for name, array in arrays.items():
-        if not isinstance(array, np.ndarray) and isinstance(array[0], six.string_types):
-            try:
-                array = np.array(array, dtype='S')
-            except UnicodeEncodeError:
-                array = np.array(array, dtype='U')
+        if isinstance(array, Column):
+            df.add_column(name, array)
         else:
             array = np.asanyarray(array)
-        df.add_column(name, array)
+            df.add_column(name, array)
     return df
 
 def from_arrow_table(table):
@@ -332,12 +392,14 @@ def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
     :rtype: DataFrame
     """
     import six
+    import pandas as pd
+    import numpy as np
     vaex_df = vaex.dataframe.DataFrameArrays(name)
 
     def add(name, column):
         values = column.values
-        if isinstance(values[0], six.string_types):
-            values = values.astype("S")
+        if isinstance(values, pd.core.arrays.integer.IntegerArray):
+            values = np.ma.array(values._data, mask=values._mask)
         try:
             vaex_df.add_column(name, values)
         except Exception as e:
@@ -387,6 +449,34 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
     return ds
 
 
+def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, copy_index=True, **kwargs):
+    """ A method to read a JSON file using pandas, and convert to a DataFrame directly.
+
+    :param str path_or_buffer: a valid JSON string or file-like, default: None
+    The string could be a URL. Valid URL schemes include http, ftp, s3,
+    gcs, and file. For file URLs, a host is expected. For instance, a local
+    file could be ``file://localhost/path/to/table.json``
+    :param str orient: Indication of expected JSON string format. Allowed values are
+    ``split``, ``records``, ``index``, ``columns``, and ``values``.
+    :param bool precise_float: Set to enable usage of higher precision (strtod) function when
+    decoding string to double values. Default (False) is to use fast but less precise builtin functionality
+    :param bool lines: Read the file as a json object per line.
+
+    :rtype: DataFrame
+    """
+    # Check for unsupported kwargs
+    if kwargs.get('typ') == 'series':
+        raise ValueError('`typ` must be set to `"frame"`.')
+    if kwargs.get('numpy') == True:
+        raise ValueError('`numpy` must be set to `False`.')
+    if kwargs.get('chunksize') is not None:
+        raise ValueError('`chunksize` must be `None`.')
+
+    import pandas as pd
+    return from_pandas(pd.read_json(path_or_buffer, orient=orient, precise_float=precise_float, lines=lines, **kwargs),
+                       copy_index=copy_index)
+
+
 def from_csv(filename_or_buffer, copy_index=True, **kwargs):
     """Shortcut to read a csv file using pandas and convert to a DataFrame directly.
 
@@ -398,7 +488,7 @@ def from_csv(filename_or_buffer, copy_index=True, **kwargs):
 
 def read_csv(filepath_or_buffer, **kwargs):
     '''Alias to from_csv.'''
-    return from_csv(filenames, **kwargs)
+    return from_csv(filepath_or_buffer, **kwargs)
 
 
 def read_csv_and_convert(path, shuffle=False, copy_index=True, **kwargs):
@@ -449,9 +539,9 @@ aliases = vaex.settings.main.auto_store_dict("aliases")
 
 # py2/p3 compatibility
 try:
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, parse_qs
 except ImportError:
-    from urlparse import urlparse
+    from urlparse import urlparse, parse_qs
 
 
 def server(url, **kwargs):
@@ -542,13 +632,87 @@ if os.path.exists(import_script):
 logger = logging.getLogger('vaex')
 
 
+def register_dataframe_accessor(name, cls=None, override=False):
+    """Registers a new accessor for a dataframe
+
+    See vaex.geo for an example.
+    """
+    def wrapper(cls):
+        old_value = getattr(vaex.dataframe.DataFrame, name, None)
+        if old_value is not None and override is False:
+            raise ValueError("DataFrame already has a property/accessor named %r (%r)" % (name, old_value) )
+
+        def get_accessor(self):
+            if name in self.__dict__:
+                return self.__dict__[name]
+            else:
+                self.__dict__[name] = cls(self)
+            return self.__dict__[name]
+        setattr(vaex.dataframe.DataFrame, name, property(get_accessor))
+        return cls
+    if cls is None:
+        return wrapper
+    else:
+        return wrapper(cls)
+
+
 for entry in pkg_resources.iter_entry_points(group='vaex.namespace'):
-    logger.debug('adding vaex namespace: ' + entry.name)
+    logger.warning('(DEPRECATED, use vaex.dataframe.accessor) adding vaex namespace: ' + entry.name)
     try:
         add_namespace = entry.load()
         add_namespace()
     except Exception:
         logger.exception('issue loading ' + entry.name)
+
+_df_lazy_accessors = {}
+
+
+class _lazy_accessor(object):
+    def __init__(self, name, scope, loader):
+        """When adding an accessor geo.cone, scope=='geo', name='cone', scope may be falsy"""
+        self.loader = loader
+        self.name = name
+        self.scope = scope
+
+    def __call__(self, obj):
+        if self.name in obj.__dict__:
+            return obj.__dict__[self.name]
+        else:
+            cls = self.loader()
+            accessor = cls(obj)
+            obj.__dict__[self.name] = accessor
+            fullname = self.name
+            if self.scope:
+                fullname = self.scope + '.' + self.name
+            if fullname in _df_lazy_accessors:
+                for name, scope, loader in _df_lazy_accessors[fullname]:
+                    assert fullname == scope
+                    setattr(cls, name, property(_lazy_accessor(name, scope, loader)))
+        return obj.__dict__[self.name]
+
+
+def _add_lazy_accessor(name, loader, target_class=vaex.dataframe.DataFrame):
+    """Internal use see tests/internal/accessor_test.py for usage
+
+    This enables us to have df.foo.bar accessors that lazily loads the modules.
+    """
+    parts = name.split('.')
+    target_class = vaex.dataframe.DataFrame
+    if len(parts) == 1:
+        setattr(target_class, parts[0], property(_lazy_accessor(name, None, loader)))
+    else:
+        scope = ".".join(parts[:-1])
+        if scope not in _df_lazy_accessors:
+            _df_lazy_accessors[scope] = []
+        _df_lazy_accessors[scope].append((parts[-1], scope, loader))
+
+
+for entry in pkg_resources.iter_entry_points(group='vaex.dataframe.accessor'):
+    logger.debug('adding vaex accessor: ' + entry.name)
+    def loader(entry=entry):
+        return entry.load()
+    _add_lazy_accessor(entry.name, loader)
+
 
 for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
     logger.debug('adding vaex plugin: ' + entry.name)
@@ -566,3 +730,13 @@ def concat(dfs):
     '''
     ds = reduce((lambda x, y: x.concat(y)), dfs)
     return ds
+
+def vrange(start, stop, step=1, dtype='f8'):
+    """Creates a virtual column which is the equivalent of numpy.arange, but uses 0 memory"""
+    from .column import ColumnVirtualRange
+    return ColumnVirtualRange(start, stop, step, dtype)
+
+def string_column(strings):
+    from vaex_arrow.convert import column_from_arrow_array
+    import pyarrow as pa
+    return column_from_arrow_array(pa.array(strings))

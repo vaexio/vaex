@@ -23,3 +23,10 @@ def test_trim(ds_local):
     assert ds_trimmed.length_original() == ds_trimmed.length_unfiltered() == 3
     assert ds_trimmed.get_active_range() == (0, ds_trimmed.length_original()) == (0, 3)
     assert ds_trimmed.evaluate('x').tolist() == np.arange(6, 9.).tolist()
+
+
+def test_trim_hidden(df_local):
+    df = df_local
+    df['r'] = df.x + df.y
+    df_sub = df[['r']].head()
+    assert len(df_sub.columns['__x']) == len(df_sub)

@@ -37,7 +37,8 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
     'IPython.sphinxext.ipython_console_highlighting',
-	'nbsphinx',
+    'nbsphinx',
+    'sphinx.ext.intersphinx'
 ]
 import os
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -67,11 +68,11 @@ copyright = u'2014, Maarten A. Breddels'
 # built documents.
 #
 if 1:
-	import vaex
+	import vaex.meta._version
 	# The short X.Y version.
-	version = vaex.version
+	version = vaex.meta._version.__version__
 	# The full version, including alpha/beta/rc tags.
-	release = vaex.version
+	release = vaex.meta._version.__version__
 else:
 	print("failed finding vaex module, try finding version")
 	import sys
@@ -334,4 +335,10 @@ autoclass_content = 'both'
 
 autodoc_default_options = {
 	'show-inheritance': True
+}
+
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3', None),
+    's3fs': ('https://s3fs.readthedocs.io/en/latest', None),
+    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
 }

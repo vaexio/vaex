@@ -2,6 +2,7 @@ import logging
 import numpy as np
 
 import vaex.expression
+import vaex.functions
 from .utils import _split_and_combine_mask, as_flat_float
 
 logger = logging.getLogger('vaex.selections')
@@ -81,19 +82,12 @@ class SelectionDropNa(Selection):
         mask = np.ones(i2 - i1, dtype=np.bool)
         for name in self.column_names:
             data = df._evaluate(name, i1, i2)
-            if self.drop_nan and data.dtype.kind in 'O':
-                if np.ma.isMaskedArray(data):
-                    strings = data.data.astype(str)
-                else:
-                    strings = data.astype(str)
-                mask = mask & (strings != 'nan')
-            elif self.drop_nan and data.dtype.kind == "f":
-                if np.ma.isMaskedArray(data):
-                    mask = mask & ~np.isnan(data.data)
-                else:
-                    mask = mask & ~np.isnan(data)
-            if self.drop_masked and np.ma.isMaskedArray(data):
-                mask = mask & ~data.mask  # ~np.ma.getmaskarray(data)
+            if self.drop_nan and self.drop_masked:
+                mask &= ~vaex.functions.isna(data)
+            elif self.drop_nan:
+                mask &= ~vaex.functions.isnan(data)
+            elif self.drop_masked:
+                mask &= ~vaex.functions.ismissing(data)
         if previous_mask is None:
             logger.debug("setting mask")
         else:

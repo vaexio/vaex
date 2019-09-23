@@ -7,7 +7,6 @@ numpy>=1.13
 aplus
 tornado>=5.0
 futures==2.2.0
-kapteyn
 cachetools
 progressbar2
 jupyter

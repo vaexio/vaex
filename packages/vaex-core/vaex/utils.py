@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 import collections
 import concurrent.futures
 import contextlib
@@ -12,6 +13,7 @@ import sys
 import time
 import warnings
 import numbers
+import keyword
 
 import numpy as np
 import progressbar
@@ -19,12 +21,17 @@ import psutil
 import six
 import yaml
 
+from .column import str_type
+from .json import VaexJsonEncoder, VaexJsonDecoder
+
 
 is_frozen = getattr(sys, 'frozen', False)
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
 
 osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
+# $ export VAEX_DEV=1 to enabled dev mode (skips slow tests)
+devmode = os.environ.get('VAEX_DEV', '0') == '1'
 
 
 class AttrDict(dict):
@@ -193,10 +200,10 @@ class Timer(object):
         return False
 
 
-def get_private_dir(subdir=None):
+def get_private_dir(subdir=None, *extra):
     path = os.path.expanduser('~/.vaex')
     if subdir:
-        path = os.path.join(path, subdir)
+        path = os.path.join(path, subdir, *extra)
     if not os.path.exists(path):
         os.makedirs(path)
     return path
@@ -435,28 +442,11 @@ def yaml_load(f):
     return yaml.safe_load(f)
 
 
-class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, np.bytes_):
-            return obj.decode('UTF-8')
-        elif isinstance(obj, bytes):
-            return str(obj, encoding='utf-8');
-
-        else:
-            return super(NumpyEncoder, self).default(obj)
-
-
 def write_json_or_yaml(filename, data):
     base, ext = os.path.splitext(filename)
     if ext == ".json":
         with open(filename, "w") as f:
-            json.dump(data, f, indent=2, cls=NumpyEncoder)
+            json.dump(data, f, indent=2, cls=VaexJsonEncoder)
     elif ext == ".yaml":
         with open(filename, "w") as f:
             yaml_dump(f, data)
@@ -468,7 +458,7 @@ def read_json_or_yaml(filename):
     base, ext = os.path.splitext(filename)
     if ext == ".json":
         with open(filename, "r") as f:
-            return json.load(f) or {}
+            return json.load(f, cls=VaexJsonDecoder) or {}
     elif ext == ".yaml":
         with open(filename, "r") as f:
             return yaml_load(f) or {}
@@ -571,6 +561,8 @@ def unlistify(waslist, *args):
 def find_valid_name(name, used=[]):
     first, rest = name[0], name[1:]
     name = re.sub("[^a-zA-Z_]", "_", first) + re.sub("[^a-zA-Z_0-9]", "_", rest)
+    if keyword.iskeyword(name):
+        name += '_'
     if name in used:
         nr = 1
         while name + ("_%d" % nr) in used:
@@ -818,6 +810,15 @@ def as_flat_array(a, dtype=np.float64):
     else:
         return a.astype(dtype, copy=True)
 
+
+def is_contiguous(ar):
+    return ar.flags['C_CONTIGUOUS']
+
+
+def as_contiguous(ar):
+    return ar if is_contiguous(ar) else ar.copy()
+
+
 def _split_and_combine_mask(arrays):
 	'''Combines all masks from a list of arrays, and logically ors them into a single mask'''
 	masks = [np.ma.getmaskarray(block) for block in arrays if np.ma.isMaskedArray(block)]
@@ -829,3 +830,80 @@ def _split_and_combine_mask(arrays):
 			mask |= other
 	return arrays, mask
 
+def gen_to_list(fn=None, wrapper=list):
+    '''A decorator which wraps a function's return value in ``list(...)``.
+
+    Useful when an algorithm can be expressed more cleanly as a generator but
+    the function should return an list.
+
+    Example:
+
+    >>> @gen_to_list
+    ... def get_lengths(iterable):
+    ...     for i in iterable:
+    ...         yield len(i)
+    >>> get_lengths(["spam", "eggs"])
+    [4, 4]
+    >>>
+    >>> @gen_to_list(wrapper=tuple)
+    ... def get_lengths_tuple(iterable):
+    ...     for i in iterable:
+    ...         yield len(i)
+    >>> get_lengths_tuple(["foo", "bar"])
+    (3, 3)
+
+    :param fn: generator function to be converted list or touple
+    :wrapper (str/tuple) wrapper:
+    :return: list or tuple, depending on the wrapper input parameter
+    :rtype: list or tuple
+    '''
+    def listify_return(fn):
+        @functools.wraps(fn)
+        def listify_helper(*args, **kw):
+            return wrapper(fn(*args, **kw))
+        return listify_helper
+    if fn is None:
+        return listify_return
+    return listify_return(fn)
+
+
+def find_type_from_dtype(namespace, prefix, dtype, transient=True):
+    if dtype == str_type:
+        if transient:
+            postfix = 'string'
+        else:
+            postfix = 'string' # view not support atm
+    else:
+        postfix = str(dtype)
+        if postfix == '>f8':
+            postfix = 'float64'
+        if dtype.kind == "M":
+            postfix = "uint64"
+        if dtype.kind == "m":
+            postfix = "int64"
+        # for object there is no non-native version
+        if dtype.kind != 'O' and dtype.byteorder not in ["<", "=", "|"]:
+            postfix += "_non_native"
+    name = prefix + postfix
+    if hasattr(namespace, name):
+        return getattr(namespace, name)
+    else:
+        raise ValueError('Could not find a class (%s), seems %s is not supported' % (name, dtype))
+
+
+def to_native_dtype(dtype):
+    if dtype.byteorder not in "<=|":
+        return dtype.newbyteorder()
+    else:
+        return dtype
+
+
+def to_native_array(ar):
+    if ar.dtype.byteorder not in "<=|":
+        return ar.astype(to_native_dtype(ar.dtype))
+    else:
+        return ar
+
+
+def extract_central_part(ar):
+    return ar[(slice(2,-1), ) * ar.ndim]

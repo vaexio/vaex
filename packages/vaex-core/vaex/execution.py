@@ -1,3 +1,4 @@
+from __future__ import division, print_function
 import functools
 import vaex.vaexfast
 import numpy as np
@@ -81,7 +82,7 @@ class Executor(object):
     def run(self, task):
         # with self.lock:
         if 1:
-            logger.debug("added task: %r" % task)
+            logger.debug("added task: %r", task)
             previous_queue = self.task_queue
             try:
                 self.task_queue = [task]

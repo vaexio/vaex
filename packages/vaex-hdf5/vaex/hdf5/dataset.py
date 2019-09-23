@@ -19,6 +19,9 @@ import vaex.dataset
 import vaex.file
 from vaex.expression import Expression
 from vaex.dataset_mmap import DatasetMemoryMapped
+from vaex.file import s3
+from vaex.column import ColumnNumpyLike
+from vaex.file.column import ColumnFile
 
 logger = logging.getLogger("vaex.file")
 
@@ -58,14 +61,29 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     """Implements the vaex hdf5 file format"""
 
     def __init__(self, filename, write=False):
-        super(Hdf5MemoryMapped, self).__init__(filename, write=write)
-        self.h5file = h5py.File(self.filename, "r+" if write else "r")
+        if isinstance(filename, six.string_types):
+            super(Hdf5MemoryMapped, self).__init__(filename, write=write, nommap=filename.startswith('s3://'))
+        else:
+            super(Hdf5MemoryMapped, self).__init__(filename.name, write=write, nommap=True)
+        if hasattr(filename, 'read'):
+            fp = filename  # support file handle for testing
+            self.file_map[self.filename] = fp
+        else:
+            mode = 'rb+' if write else 'rb'
+            if s3.is_s3_path(filename):
+                fp = s3.open(self.filename)
+                self.file_map[self.filename] = fp
+            else:
+                if self.nommap:
+                    fp = open(self.filename, mode)
+                    self.file_map[self.filename] = fp
+                else:
+                    # this is the only path that will have regular mmapping
+                    fp = self.filename
+        self.h5file = h5py.File(fp, "r+" if write else "r")
         self.h5table_root_name = None
         self._version = 1
-        try:
-            self._load()
-        finally:
-            self.h5file.close()
+        self._load()
 
     def write_meta(self):
         """ucds, descriptions and units are written as attributes in the hdf5 file, instead of a seperate file as
@@ -89,6 +107,11 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                                         h5dataset = column
                 if h5dataset is None:
                     raise ValueError('column {} not found'.format(column_name))
+
+                aliases = [key for key, value in self._column_aliases.items() if value == column_name]
+                aliases.sort()
+                if aliases:
+                    h5dataset.attrs['alias'] = aliases[0]
                 for name, values in [("ucd", self.ucds), ("unit", self.units), ("description", self.descriptions)]:
                     if column_name in values:
                         value = ensure_string(values[column_name], cast=True)
@@ -124,24 +147,28 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     @classmethod
     def can_open(cls, path, *args, **kwargs):
         h5file = None
+        # before we try to open it with h5py, we check the signature (quicker)
         try:
-            with open(path, "rb") as f:
+            with s3.open(path, "rb") as f:
                 signature = f.read(4)
                 hdf5file = signature == b"\x89\x48\x44\x46"
         except:
-            logger.error("could not read 4 bytes from %r", path)
+            logger.exception("could not read 4 bytes from %r", path)
             return
         if hdf5file:
-            try:
-                h5file = h5py.File(path, "r")
-            except:
-                logger.exception("could not open file as hdf5")
-                return False
-            if h5file is not None:
-                with h5file:
-                    return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file)
-            else:
-                logger.debug("file %s has no data or columns group" % path)
+            with s3.open(path, "rb") as f:
+                try:
+                    h5file = h5py.File(f, "r")
+                except:
+                    logger.exception("could not open file as hdf5")
+                    return False
+                if h5file is not None:
+                    with h5file:
+                        root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
+                        return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
+                            len(root_datasets) > 0
+                else:
+                    logger.debug("file %s has no data or columns group" % path)
         return False
 
     @classmethod
@@ -160,6 +187,12 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self._version = 2
             self._load_columns(self.h5file["/table"])
             self.h5table_root_name = "/table"
+        root_datasets = [dataset for name, dataset in self.h5file.items() if isinstance(dataset, h5py.Dataset)]
+        if len(root_datasets):
+            # if we have datasets at the root, we assume 'version 1'
+            self._load_columns(self.h5file)
+            self.h5table_root_name = "/"
+
         # TODO: shall we rename it vaex... ?
         # if "vaex" in self.h5file:
         # self.load_columns(self.h5file["/vaex"])
@@ -175,7 +208,6 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self._load_axes(self.h5file["/axes"])
         self.update_meta()
         self.update_virtual_meta()
-        self.selections_favorite_load()
 
     # def
     def _load_axes(self, axes_data):
@@ -197,22 +229,29 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 
     def _map_hdf5_array(self, data, mask=None):
         offset = data.id.get_offset()
-        if offset is None:
-            raise Exception("columns doesn't really exist in hdf5 file")
-        shape = data.shape
-        dtype = data.dtype
-        if "dtype" in data.attrs:
-            dtype = data.attrs["dtype"]
-            if dtype == 'utf32':
-                dtype = np.dtype('U' + str(data.attrs['dlength']))
-        #self.addColumn(column_name, offset, len(data), dtype=dtype)
-        array = self._map_array(data.id.get_offset(), dtype=dtype, length=len(data))
-        if mask is not None:
-            mask_array = self._map_hdf5_array(mask)
-            return np.ma.array(array, mask=mask_array, shrink=False)
-            assert ar.mask is mask_array, "masked array was copied"
+        if len(data) == 0 and offset is None:
+            offset = 0 # we don't care about the offset for empty arrays
+        if offset is None:  # non contiguous array, chunked arrays etc
+            # we don't support masked in this case
+            column = ColumnNumpyLike(data)
+            return column
         else:
-            return array
+            shape = data.shape
+            dtype = data.dtype
+            if "dtype" in data.attrs:
+                # ignore the special str type, which is not a numpy dtype
+                if data.attrs["dtype"] != "str":
+                    dtype = data.attrs["dtype"]
+                    if dtype == 'utf32':
+                        dtype = np.dtype('U' + str(data.attrs['dlength']))
+            #self.addColumn(column_name, offset, len(data), dtype=dtype)
+            array = self._map_array(offset, dtype=dtype, length=len(data))
+            if mask is not None:
+                mask_array = self._map_hdf5_array(mask)
+                return np.ma.array(array, mask=mask_array, shrink=False)
+                assert ar.mask is mask_array, "masked array was copied"
+            else:
+                return array
 
     def _load_columns(self, h5data, first=[]):
         # print h5data
@@ -259,6 +298,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                 column = h5columns[column_name]
                 if "ucd" in column.attrs:
                     self.ucds[column_name] = ensure_string(column.attrs["ucd"])
+                if "alias" in column.attrs:
+                    self._column_aliases[ensure_string(column.attrs["alias"])] = column_name
                 if "description" in column.attrs:
                     self.descriptions[column_name] = ensure_string(column.attrs["description"])
                 if "unit" in column.attrs:
@@ -286,45 +327,33 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                         self.units[column_name] = astropy.units.Unit("kg")
                 data = column if self._version == 1 else column['data']
                 if hasattr(data, "dtype"):
-
-                    #logger.debug("adding column %r with dtype %r", column_name, dtype)
-                    # print column, column.shape
-                    # offset = data.id.get_offset()
-                    # if offset is None:
-                        # raise Exception("columns doesn't really exist in hdf5 file")
-                    shape = data.shape
-                    if True:  # len(shape) == 1:
-                        dtype = data.dtype
-                        if "dtype" in data.attrs:
-                            dtype = data.attrs["dtype"]
-                        logger.debug("adding column %r with dtype %r", column_name, dtype)
-                        # self.addColumn(column_name, offset, len(data), dtype=dtype)
-                        if self._version > 1 and 'mask' in column:
-                            self.add_column(column_name, self._map_hdf5_array(data, column['mask']))
+                    if "dtype" in data.attrs and data.attrs["dtype"] == "str":
+                        indices = self._map_hdf5_array(column['indices'])
+                        bytes = self._map_hdf5_array(data)
+                        if "null_bitmap" in column:
+                            null_bitmap = self._map_hdf5_array(column['null_bitmap'])
                         else:
-                            self.add_column(column_name, self._map_hdf5_array(data))
-                            # mask = column['mask']
-                            # offset = mask.id.get_offset()
-                            # self.addColumn("temp_mask", offset, len(data), dtype=mask.dtype)
-                            # mask_array = self.columns['temp_mask']
-                            # del self.columns['temp_mask']
-                            # self.column_names.remove('temp_mask')
-                            # ar = self.columns[column_name] = np.ma.array(self.columns[column_name], mask=mask_array, shrink=False)
-                            # assert ar.mask is mask_array, "masked array was copied"
-
+                            null_bitmap = None
+                        from vaex.column import ColumnStringArrow
+                        self.add_column(column_name, ColumnStringArrow(indices, bytes, null_bitmap=null_bitmap))
                     else:
-
-                        # transposed = self._length is None or shape[0] == self._length
-                        transposed = shape[1] < shape[0]
-                        self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=data.dtype, stride=1, stride1=1, transposed=transposed)
-                        # if len(shape[0]) == self._length:
-                        # self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=column.dtype, stride=1, stride1=1)
-                        # self.addColumn(column_name+"_0", offset, shape[1], dtype=column.dtype)
-                        # self.addColumn(column_name+"_last", offset+(shape[0]-1)*shape[1]*column.dtype.itemsize, shape[1], dtype=column.dtype)
-                        # self.addRank1(name, offset+8*i, length=self.numberParticles+1, length1=self.numberTimes-1, dtype=np.float64, stride=stride, stride1=1, filename=filename_extra)
-            # finished.add(column_name)
+                        shape = data.shape
+                        if True:  # len(shape) == 1:
+                            dtype = data.dtype
+                            if "dtype" in data.attrs:
+                                dtype = data.attrs["dtype"]
+                            logger.debug("adding column %r with dtype %r", column_name, dtype)
+                            # self.addColumn(column_name, offset, len(data), dtype=dtype)
+                            if self._version > 1 and 'mask' in column:
+                                self.add_column(column_name, self._map_hdf5_array(data, column['mask']))
+                            else:
+                                self.add_column(column_name, self._map_hdf5_array(data))
+                        else:
+                            transposed = shape[1] < shape[0]
+                            self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=data.dtype, stride=1, stride1=1, transposed=transposed)
         all_columns = dict(**self.columns)
-        # print(all_columns, column_order)
+        # in case the column_order refers to non-existing columns
+        column_order = [k for k in column_order if k in all_columns]
         self.column_names = []
         for name in column_order:
             self.columns[name] = all_columns.pop(name)
@@ -334,8 +363,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self.columns[name] = col
             self.column_names.append(name)
 
-    def close(self):
-        super(Hdf5MemoryMapped, self).close()
+    def close_files(self):
+        super(Hdf5MemoryMapped, self).close_files()
         self.h5file.close()
 
     def __expose_array(self, hdf5path, column_name):
@@ -389,7 +418,6 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
             self.addColumn(column_name, offset, len(column), dtype=column.dtype)
         self.update_meta()
         self.update_virtual_meta()
-        self.selections_favorite_load()
 
 
 dataset_type_map["amuse"] = AmuseHdf5MemoryMapped

@@ -1,11 +1,13 @@
+from __future__ import absolute_import
 import copy
 import logging
 import bqplot.marks
 import bqplot as bq
 import bqplot.interacts
 import ipywidgets as widgets
+import ipyvuetify as v
+
 import vaex
-from . import bqplot_image
 import bqplot.pyplot as plt
 import numpy as np
 import vaex.events
@@ -14,11 +16,11 @@ from .utils import debounced
 
 logger = logging.getLogger("vaex.nb.bqplot")
 
+blackish = '#666'
+
 
 class BqplotBackend(BackendBase):
     def __init__(self, figure=None, figure_key=None):
-        bqplot_image.patch()
-
         self._dirty = False
         self.figure_key = figure_key
         self.figure = figure
@@ -27,31 +29,39 @@ class BqplotBackend(BackendBase):
         self._cleanups = []
 
     def update_image(self, rgb_image):
-        src = vaex.image.rgba_to_url(rgb_image)
-        self.image.src = src
-        # self.scale_x.min, self.scale_x.max = self.limits[0]
-        # self.scale_y.min, self.scale_y.max = self.limits[1]
-        self.image.x = self.scale_x.min
-        self.image.y = self.scale_y.max
-        self.image.width = self.scale_x.max - self.scale_x.min
-        self.image.height = -(self.scale_y.max - self.scale_y.min)
+        with self.output:
+            rgb_image = (rgb_image * 255.).astype(np.uint8)
+            pil_image = vaex.image.rgba_2_pil(rgb_image)
+            data = vaex.image.pil_2_data(pil_image)
+            self.core_image.value = data
+            # force update
+            self.image.image = self.core_image_fix
+            self.image.image = self.core_image
+            self.image.x = (self.scale_x.min, self.scale_x.max)
+            self.image.y = (self.scale_y.min, self.scale_y.max)
 
     def create_widget(self, output, plot, dataset, limits):
         self.plot = plot
         self.output = output
         self.dataset = dataset
         self.limits = np.array(limits).tolist()
-        self.scale_x = bqplot.LinearScale(min=limits[0][0], max=limits[0][1])
-        self.scale_y = bqplot.LinearScale(min=limits[1][0], max=limits[1][1])
+        def fix(v):
+            # bqplot is picky about float and numpy scalars
+            if hasattr(v, 'item'):
+                return v.item()
+            else:
+                return v
+        self.scale_x = bqplot.LinearScale(min=fix(limits[0][0]), max=fix(limits[0][1]), allow_padding=False)
+        self.scale_y = bqplot.LinearScale(min=fix(limits[1][0]), max=fix(limits[1][1]), allow_padding=False)
         self.scale_rotation = bqplot.LinearScale(min=0, max=1)
         self.scale_size = bqplot.LinearScale(min=0, max=1)
         self.scale_opacity = bqplot.LinearScale(min=0, max=1)
         self.scales = {'x': self.scale_x, 'y': self.scale_y, 'rotation': self.scale_rotation,
                        'size': self.scale_size, 'opacity': self.scale_opacity}
 
-        margin = {'bottom': 30, 'left': 60, 'right': 0, 'top': 0}
+        margin = {'bottom': 35, 'left': 60, 'right': 5, 'top': 5}
         self.figure = plt.figure(self.figure_key, fig=self.figure, scales=self.scales, fig_margin=margin)
-        self.figure.layout.min_width = '900px'
+        self.figure.layout.min_width = '600px'
         plt.figure(fig=self.figure)
         self.figure.padding_y = 0
         x = np.arange(0, 10)
@@ -62,8 +72,10 @@ class BqplotBackend(BackendBase):
         src = ""  # vaex.image.rgba_to_url(self._create_rgb_grid())
         # self.scale_x.min, self.scale_x.max = self.limits[0]
         # self.scale_y.min, self.scale_y.max = self.limits[1]
-        self.image = bqplot_image.Image(scales=self.scales, src=src, x=self.scale_x.min, y=self.scale_y.max,
-                                           width=self.scale_x.max - self.scale_x.min, height=-(self.scale_y.max - self.scale_y.min))
+        self.core_image = widgets.Image(format='png')
+        self.core_image_fix = widgets.Image(format='png')
+
+        self.image = bqplot.Image(scales=self.scales, image=self.core_image)
         self.figure.marks = self.figure.marks + [self.image]
         # self.figure.animation_duration = 500
         self.figure.layout.width = '100%'
@@ -71,8 +83,11 @@ class BqplotBackend(BackendBase):
         self.scatter = s = plt.scatter(x, y, visible=False, rotation=x, scales=self.scales, size=x, marker="arrow")
         self.panzoom = bqplot.PanZoom(scales={'x': [self.scale_x], 'y': [self.scale_y]})
         self.figure.interaction = self.panzoom
-        # self.figure.axes[0].label = self.x
-        # self.figure.axes[1].label = self.y
+        for axes in self.figure.axes:
+            axes.grid_lines = 'none'
+            axes.color = axes.grid_color = axes.label_color = blackish
+        self.figure.axes[0].label = str(plot.x)
+        self.figure.axes[1].label = str(plot.y)
 
         self.scale_x.observe(self._update_limits, "min")
         self.scale_x.observe(self._update_limits, "max")
@@ -82,7 +97,7 @@ class BqplotBackend(BackendBase):
 
         self.image.observe(self._on_view_count_change, 'view_count')
         self.control_widget = widgets.VBox()
-        self.widget = widgets.VBox(children=[self.control_widget, self.figure])
+        self.widget = widgets.VBox(children=[self.figure])
         self.create_tools()
 
     def _update_limits(self, *args):
@@ -103,7 +118,7 @@ class BqplotBackend(BackendBase):
     def create_tools(self):
         self.tools = []
         tool_actions = []
-        tool_actions_map = {u"pan/zoom": self.panzoom}
+        self.tool_actions_map = tool_actions_map = {u"pan/zoom": self.panzoom}
         tool_actions.append(u"pan/zoom")
 
         # self.control_widget.set_title(0, "Main")
@@ -124,7 +139,13 @@ class BqplotBackend(BackendBase):
             #    self.dataset.signal_selection_changed.disconnect(callback=callback)
             # self._cleanups.append(cleanup)
 
-            self.button_select_nothing = widgets.Button(description="", icon="trash-o")
+            self.button_select_nothing = v.Btn(icon=True, slot='activator', children=[
+                                        v.Icon(children=['delete'])
+                                    ])
+            self.widget_select_nothing = v.Tooltip(bottom=True, children=[
+                                    self.button_select_nothing,
+                                    "Delete selection"
+                                ])
             self.button_reset = widgets.Button(description="", icon="refresh")
             import copy
             self.start_limits = copy.deepcopy(self.limits)
@@ -138,7 +159,7 @@ class BqplotBackend(BackendBase):
                 self.plot.update_grid()
             self.button_reset.on_click(reset)
 
-            self.button_select_nothing.on_click(lambda *ignore: self.plot.select_nothing())
+            self.button_select_nothing.on_event('click', lambda *ignore: self.plot.select_nothing())
             self.tools.append(self.button_select_nothing)
             self.modes_names = "replace and or xor subtract".split()
             self.modes_labels = "replace and or xor subtract".split()
@@ -146,14 +167,37 @@ class BqplotBackend(BackendBase):
             self.tools.append(self.button_selection_mode)
 
             def change_interact(*args):
-                # print "change", args
-                self.figure.interaction = tool_actions_map[self.button_action.value]
+                with self.output:
+                    # print "change", args
+                    name = tool_actions[self.button_action.v_model]
+                    self.figure.interaction = tool_actions_map[name]
 
             tool_actions = ["pan/zoom", "select"]
             # tool_actions = [("m", "m"), ("b", "b")]
-            self.button_action = widgets.ToggleButtons(description='', options=[(action, action) for action in tool_actions],
-                                                       icons=["arrows", "pencil-square-o"])
-            self.button_action.observe(change_interact, "value")
+            self.button_action = \
+                v.BtnToggle(v_model=0, mandatory=True, multiple=False, children=[
+                                v.Tooltip(bottom=True, children=[
+                                    v.Btn(slot='activator', children=[
+                                        v.Icon(children=['pan_tool'])
+                                    ]),
+                                    "Pan & zoom"
+                                ]),
+                                v.Tooltip(bottom=True, children=[
+                                    v.Btn(slot='activator', children=[
+                                        v.Icon(children=['crop_free'])
+                                    ]),
+                                    "Square selection"
+                            ]),
+                        ])
+            self.widget_tool_basic = v.Layout(children=[
+                v.Layout(pa_1=True, column=False, align_center=True, children=[
+                    self.button_action,
+                    self.widget_select_nothing
+                ])
+            ])
+            self.plot.add_control_widget(self.widget_tool_basic)
+
+            self.button_action.observe(change_interact, "v_model")
             self.tools.insert(0, self.button_action)
             self.button_action.value = "pan/zoom"  # tool_actions[-1]
             if len(self.tools) == 1:

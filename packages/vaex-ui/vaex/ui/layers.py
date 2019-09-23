@@ -967,7 +967,7 @@ class LayerTable(object):
                 I = self._normalize_values(amplitude_marginalized_selected)
                 axes.rgb_images.append(self._to_rgb(I, color=self.color_alt))
 
-    def on_selection_changed(self, dataset):
+    def on_selection_changed(self, dataset, selection_name):
         self.check_selection_undo_redo()
         # self.plot_window.queue_update(layer=self)
         self.update()
@@ -2737,5 +2737,6 @@ class LayerTable(object):
             self.flag_needs_update()
             self.plot_window.queue_update()
 
-from vaex.dataset import Dataset, Task
+from vaex.dataset import Dataset
+from vaex.tasks import Task
 from vaex.ui.plot_windows import PlotDialog

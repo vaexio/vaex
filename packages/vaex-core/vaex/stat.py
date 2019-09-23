@@ -1,6 +1,6 @@
 from .expression import _unary_ops, _binary_ops, reversable
 from future.utils import with_metaclass
-from vaex.functions import expression_namespace
+from vaex.expression import expression_namespace
 from vaex.delayed import delayed
 
 
@@ -60,10 +60,10 @@ class _StatisticsCalculation(Expression):
             return "{0}{1}".format(self.code, repr(self.args[0]))
         return "{0}({1})".format(self.name, ", ".join(repr(k) for k in self.args))
 
-    def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, delay=False):
+    def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, delay=False, progress=None):
         def to_value(v):
             if isinstance(v, Expression):
-                return v.calculate(ds, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay)
+                return v.calculate(ds, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay, progress=progress)
             return v
         values = [to_value(v) for v in self.args]
         # print(values, self.op)
@@ -79,12 +79,16 @@ class _Statistic(Expression):
         self.expression = expression
         self.args = self.expression
 
+    def pretty_name(self, id=None):
+        id = id or "_".join(map(str, self.expression))
+        return '{0}_{1}'.format(id, self.name)
+
     def __str__(self):
         return "{0}({1})".format(self.name, ", ".join(str(k) for k in self.args))
 
-    def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, delay=False):
+    def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, delay=False, progress=None):
         method = getattr(ds, self.name)
-        return method(*self.args, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay)
+        return method(*self.args, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay, progress=progress)
 
 
 def count(expression='*'):

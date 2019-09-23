@@ -23,6 +23,7 @@ from .utils import debounced, interactive_selection, interactive_cleanup
 from IPython.display import HTML, display_html, display_javascript
 import IPython
 import zmq
+import vaex
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -177,3 +178,54 @@ class init(object):
 #           ioloop.add_callback(thread_safe)
 #       return execute
 #   return wrapped
+
+
+class DataFrameAccessorWidget(object):
+    def __init__(self, df):
+        self.df = df
+        import vaex.jupyter.grid
+        self.grid = vaex.jupyter.grid.Grid(df, [])
+
+    def clear(self):
+        self.grid = vaex.jupyter.grid.Grid(self.df, [])
+
+    def histogram(self, x, shared=False, **kwargs):
+        import vaex.jupyter.state
+        import vaex.jupyter.viz
+        state = vaex.jupyter.state.VizHistogramState(self.df, x_expression=str(x), **kwargs)
+        if shared:
+            grid = self.grid
+        else:
+            grid = vaex.jupyter.grid.Grid(self.df, [])
+        grid.state_add(state)
+        viz = vaex.jupyter.viz.VizHistogramBqplot(state=state)
+        return viz
+
+    def pie(self, x, shared=False, **kwargs):
+        import vaex.jupyter.state
+        import vaex.jupyter.viz
+        state = vaex.jupyter.state.VizHistogramState(self.df, x_expression=str(x), **kwargs)
+        if shared:
+            grid = self.grid
+        else:
+            grid = vaex.jupyter.grid.Grid(self.df, [])
+        grid.state_add(state)
+        viz = vaex.jupyter.viz.VizPieChartBqplot(state=state)
+        return viz
+
+    def heatmap(self, x, y, shared=False, **kwargs):
+        import vaex.jupyter.state
+        import vaex.jupyter.viz
+        state = vaex.jupyter.state.VizHeatmapState(self.df, x_expression=str(x), y_expression=str(y), **kwargs)
+        if shared:
+            grid = self.grid
+        else:
+            grid = vaex.jupyter.grid.Grid(self.df, [])
+        grid.state_add(state)
+        viz = vaex.jupyter.viz.VizHeatmapBqplot(state=state)
+        return viz
+
+
+
+def add_namespace():
+    pass

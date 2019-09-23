@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 __author__ = 'breddels'
 import numpy as np
 import logging
@@ -5,7 +6,7 @@ import threading
 import uuid
 import time
 import ast
-from .dataset import Dataset
+from .dataframe import DataFrame, default_shape
 from .utils import _issequence
 from .tasks import Task
 from .legacy import Subspace
@@ -17,7 +18,6 @@ import tornado.httputil
 import tornado.websocket
 from tornado.concurrent import Future
 from tornado import gen
-from .dataset import default_shape
 import tornado.ioloop
 import json
 import astropy.units
@@ -37,8 +37,8 @@ except ImportError:
 
 
 logger = logging.getLogger("vaex.remote")
-
 DEFAULT_REQUEST_TIMEOUT = 60 * 5  # 5 minutes
+forwarded_method_names = []  # all method names on DataFrame that get forwarded to the server
 
 
 def wrap_future_with_promise(future):
@@ -59,9 +59,12 @@ def wrap_future_with_promise(future):
 
 
 def listify(value):
-    if isinstance(value, list):
+    # TODO: listify is a bad name, can we use a common serialization function?
+    if isinstance(value, vaex.expression.Expression):
+        return str(value)
+    elif isinstance(value, list):
         value = list([listify(item) for item in value])
-    if hasattr(value, "tolist"):
+    elif hasattr(value, "tolist"):
         value = value.tolist()
     return value
 
@@ -80,10 +83,12 @@ def _check_error(object):
 
 
 class ServerRest(object):
-    def __init__(self, hostname, port=5000, base_path="/", background=False, thread_mover=None, websocket=True):
+    def __init__(self, hostname, port=5000, base_path="/", background=False, thread_mover=None, websocket=True, token=None, token_trusted=None):
         self.hostname = hostname
         self.port = port
         self.base_path = base_path if base_path.endswith("/") else (base_path + "/")
+        self.token = token
+        self.token_trusted = token_trusted
         # if delay:
         event = threading.Event()
         self.thread_mover = thread_mover or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
@@ -116,7 +121,7 @@ class ServerRest(object):
         self.io_loop.make_current()
         # if async:
         self.http_client_async = AsyncHTTPClient()
-        self.http_client = HTTPClient()
+        # self.http_client = HTTPClient()
         self.user_id = vaex.settings.webclient.get("cookie.user_id")
         self.use_websocket = websocket
         self.websocket = None
@@ -131,7 +136,7 @@ class ServerRest(object):
 
     def close(self):
         # self.http_client_async.
-        self.http_client.close()
+        # self.http_client.close()
         if self.use_websocket:
             if self.websocket:
                 self.websocket.close()
@@ -153,6 +158,7 @@ class ServerRest(object):
         def do():
             try:
                 logger.debug("wrapping promise")
+                logger.debug("connecting to: %s", self._build_url("websocket"))
                 connected = wrap_future_with_promise(tornado.websocket.websocket_connect(self._build_url("websocket"), on_message_callback=self._on_websocket_message))
                 logger.debug("continue")
                 self.websocket_connected.fulfill(connected)
@@ -173,29 +179,40 @@ class ServerRest(object):
             raise self.websocket.reason
 
     def _on_websocket_message(self, msg):
-        json_data, data = msg.split(b"\n", 1)
-        response = json.loads(json_data.decode("utf8"))
-        if data:
-            import zlib
-            data = zlib.decompress(data)
-            numpy_array = np.fromstring(data, dtype=np.dtype(response["dtype"])).reshape(ast.literal_eval(response["shape"]))
-            response["result"] = numpy_array
-        import sys
-        if sys.getsizeof(msg) > 1024 * 4:
-            logger.debug("socket read message: <large amount of data>",)
-        else:
-            logger.debug("socket read message: %s", msg)
-            logger.debug("json response: %r", response)
-        # for the moment, job == task, in the future a job can be multiple tasks
-        job_id = response.get("job_id")
+        try:
+            task = None
+            json_data, data = msg.split(b"\n", 1)
+            response = json.loads(json_data.decode("utf8"))
+            phase = response["job_phase"]
+            job_id = response.get("job_id")
+            task = self.jobs[job_id]
+            if data:
+                import zlib
+                data = zlib.decompress(data)
+                try:
+                    numpy_array = np.frombuffer(data, dtype=np.dtype(response["dtype"])).reshape(ast.literal_eval(response["shape"]))
+                except:
+                    logger.exception("error in decoding data: %r %r %r", data, response, task.task_queue)
+                finally:
+                    response["result"] = numpy_array
+            import sys
+            if sys.getsizeof(msg) > 1024 * 4:
+                logger.debug("socket read message: <large amount of data>",)
+            else:
+                logger.debug("socket read message: %s", msg)
+                logger.debug("json response: %r", response)
+            # for the moment, job == task, in the future a job can be multiple tasks
+        except Exception as e:
+            if task:
+                task.reject(e)
+            logger.exception("unexpected decoding error")
+            return
         if job_id:
             try:
-                phase = response["job_phase"]
                 logger.debug("job update %r, phase=%r", job_id, phase)
                 if phase == "COMPLETED":
                     result = response["result"]  # [0]
                     # logger.debug("completed job %r, result=%r", job_id, result)
-                    task = self.jobs[job_id]
                     logger.debug("completed job %r (delay=%r, thread_mover=%r)", job_id, task.delay, self.thread_mover)
                     processed_result = task.post_process(result)
                     if task.delay:
@@ -231,7 +248,7 @@ class ServerRest(object):
                     else:
                         task.signal_progress.emit(fraction)
             except Exception as e:
-                logger.exception("error in handling job", e)
+                logger.exception("error in handling job")
                 task = self.jobs[job_id]
                 if task.delay:
                     self.thread_mover(task.reject, e)
@@ -254,6 +271,10 @@ class ServerRest(object):
         arguments["job_id"] = job_id
         arguments["path"] = path
         arguments["user_id"] = self.user_id
+        if self.token:
+            arguments["token"] = self.token
+        if self.token_trusted:
+            arguments["token_trusted"] = self.token_trusted
         # arguments = dict({key: (value.tolist() if hasattr(value, "tolist") else value) for key, value in arguments.items()})
         arguments = dict({key: listify(value) for key, value in arguments.items()})
 
@@ -359,7 +380,12 @@ class ServerRest(object):
             datasets = [create(self, kwargs) for kwargs in result]
             logger.debug("datasets: %r", datasets)
             return datasets if not as_dict else dict([(ds.name, ds) for ds in datasets])
-        return self.submit(path="datasets", arguments={}, post_process=post, delay=delay)
+        arguments = {}
+        if self.token:
+            arguments["token"] = self.token
+        if self.token_trusted:
+            arguments["token_trusted"] = self.token_trusted
+        return self.submit(path="datasets", arguments=arguments, post_process=post, delay=delay)
 
     def _build_url(self, method):
         protocol = "ws" if self.use_websocket else "http"
@@ -382,13 +408,13 @@ class ServerRest(object):
                     return np.array(result)
                 except ValueError:
                     return result
-        dataset_name = subspace.dataset.name
+        dataset_name = subspace.df.name
         expressions = subspace.expressions
         delay = subspace.delay
         path = "datasets/%s/%s" % (dataset_name, method_name)
         url = self._build_url(path)
         arguments = dict(kwargs)
-        dataset_remote = subspace.dataset
+        dataset_remote = subspace.df
         arguments["selection"] = subspace.is_masked
         arguments['state'] = dataset_remote.state_get()
         arguments['auto_fraction'] = dataset_remote.get_auto_fraction()
@@ -399,12 +425,8 @@ class ServerRest(object):
         def post_process(result):
             # result = self._check_exception(json.loads(result.body))["result"]
             if numpy:
-                return np.fromstring(result, dtype=np.float64)
-            else:
-                try:
-                    return np.array(result)
-                except ValueError:
-                    return result
+                result = np.fromstring(result, dtype=np.float64)
+            return result
         path = "datasets/%s/%s" % (dataset_remote.name, method_name)
         arguments = dict(kwargs)
         arguments['state'] = dataset_remote.state_get()
@@ -451,48 +473,61 @@ class SubspaceRemote(Subspace):
             return promise
 
     def sleep(self, seconds, delay=False):
-        return self.dataset.server.call("sleep", seconds, delay=delay)
+        return self.df.server.call("sleep", seconds, delay=delay)
 
     def minmax(self):
-        return self._task(self.dataset.server._call_subspace("minmax", self))
+        return self._task(self.df.server._call_subspace("minmax", self))
         # return self._task(task)
 
     def histogram(self, limits, size=256, weight=None):
-        return self._task(self.dataset.server._call_subspace("histogram", self, size=size, limits=limits, weight=weight))
+        return self._task(self.df.server._call_subspace("histogram", self, size=size, limits=limits, weight=weight))
 
     def nearest(self, point, metric=None):
         point = vaex.utils.make_list(point)
-        result = self.dataset.server._call_subspace("nearest", self, point=point, metric=metric)
+        result = self.df.server._call_subspace("nearest", self, point=point, metric=metric)
         return self._task(result)
 
     def mean(self):
-        return self.dataset.server._call_subspace("mean", self)
+        return self.df.server._call_subspace("mean", self)
 
     def correlation(self, means=None, vars=None):
-        return self.dataset.server._call_subspace("correlation", self, means=means, vars=vars)
+        return self.df.server._call_subspace("correlation", self, means=means, vars=vars)
 
     def var(self, means=None):
-        return self.dataset.server._call_subspace("var", self, means=means)
+        return self.df.server._call_subspace("var", self, means=means)
 
     def sum(self):
-        return self.dataset.server._call_subspace("sum", self)
+        return self.df.server._call_subspace("sum", self)
 
     def limits_sigma(self, sigmas=3, square=False):
-        return self.dataset.server._call_subspace("limits_sigma", self, sigmas=sigmas, square=square)
+        return self.df.server._call_subspace("limits_sigma", self, sigmas=sigmas, square=square)
 
     def mutual_information(self, limits=None, size=256):
-        return self.dataset.server._call_subspace("mutual_information", self, limits=limits, size=size)
+        return self.df.server._call_subspace("mutual_information", self, limits=limits, size=size)
 
 
-class DatasetRemote(Dataset):
+class DataFrameRemote(DataFrame):
     def __init__(self, name, server, column_names):
-        super(DatasetRemote, self).__init__(name, column_names)
+        super(DataFrameRemote, self).__init__(name, column_names)
         self.server = server
 
+def forward(f=None, has_delay=False):
+    assert not has_delay
+    def decorator(method):
+        method_name = method.__name__
+        forwarded_method_names.append(method_name)
+        def wrapper(df, *args, **kwargs):
+            return df.server._call_dataset(method_name, df, delay=has_delay, *args, **kwargs)
+        return wrapper
+    if f is None:
+        return decorator
+    else:
+        return decorator(f)
 
-class DatasetRest(DatasetRemote):
+
+class DatasetRest(DataFrameRemote):
     def __init__(self, server, name, column_names, dtypes, length_original):
-        DatasetRemote.__init__(self, name, server.hostname, column_names)
+        DataFrameRemote.__init__(self, name, server.hostname, column_names)
         self.server = server
         self.name = name
         self.column_names = column_names
@@ -512,8 +547,13 @@ class DatasetRest(DatasetRemote):
         state = self.state_get()
         if not virtual:
             state['virtual_columns'] = {}
-        ds.state_set(state)
+        ds.state_set(state, use_active_range=True)
         return ds
+
+    def trim(self, inplace=False):
+        df = self if inplace else self.copy()
+        # can we get away with not trimming?
+        return df
 
     def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
         return self._delay(delay, self.server._call_dataset("count", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges))
@@ -529,6 +569,12 @@ class DatasetRest(DatasetRemote):
 
     def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         return self._delay(delay, self.server._call_dataset("minmax", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+
+    def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        return self._delay(delay, self.server._call_dataset("min", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
+
+    def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        return self._delay(delay, self.server._call_dataset("max", self, delay=True, progress=progress, expression=expression, binby=binby, limits=limits, shape=shape, selection=selection))
 
     # def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False):
     def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
@@ -554,6 +600,10 @@ class DatasetRest(DatasetRemote):
 
     def is_local(self): return False
 
+    @forward()
+    def _head_and_tail_table(self, n=5, format='html'):
+        raise NotImplemented
+
     def __repr__(self):
         name = self.__class__.__module__ + "." + self.__class__.__name__
         return "<%s(server=%r, name=%r, column_names=%r, __len__=%r)> instance at 0x%x" % (name, self.server, self.name, self.column_names, len(self), id(self))
@@ -567,6 +617,12 @@ class DatasetRest(DatasetRemote):
         result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, selection=selection, delay=delay)
         # TODO: we ignore out
         return result
+
+    def execute(self):
+        '''Execute all delayed jobs.'''
+        self.executor.execute()
+        # TODO: should be support _task_agg? If we do, we can use the base class' method
+        # self._task_aggs.clear()
 
 
 # we may get rid of this when we group together tasks

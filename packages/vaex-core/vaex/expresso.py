@@ -19,9 +19,22 @@ valid_binary_operators = [_ast.Add, _ast.Sub, _ast.Mult, _ast.Pow,
                           _ast.Div, _ast.FloorDiv, _ast.BitAnd, _ast.BitOr, _ast.BitXor, _ast.Mod]
 valid_compare_operators = [_ast.Lt, _ast.LtE,
                            _ast.Gt, _ast.GtE, _ast.Eq, _ast.NotEq]
-valid_unary_operators = [_ast.USub, _ast.UAdd]
+valid_unary_operators = [_ast.USub, _ast.UAdd, _ast.Invert]
 valid_id_characters = string.ascii_letters + string.digits + "_"
 valid_functions = "sin cos".split()
+
+opmap = {
+    _ast.Add: '+',
+    _ast.Sub: '-',
+    _ast.Mult: '*',
+    _ast.Pow: '**',
+    _ast.Div: '/',
+    _ast.FloorDiv: '//',
+    _ast.BitAnd: '&',
+    _ast.BitOr: '|',
+    _ast.BitXor: '^',
+    _ast.Mod: '%',
+}
 
 
 def math_parse(expression, macros=[]):
@@ -288,6 +301,11 @@ class ExpressionString(ast.NodeVisitor):
                 return "-{}".format(self.visit(node.operand))  # prettier
             else:
                 return "-({})".format(self.visit(node.operand))
+        if isinstance(node.op, ast.Invert):
+            if isinstance(node.operand, (ast.Name, ast.Num)):
+                return "~{}".format(self.visit(node.operand))  # prettier
+            else:
+                return "~({})".format(self.visit(node.operand))
         # elif isinstance(node.op, ast.UAdd):
         #     return "{}".format(self.visit(self.operatand))
         else:
@@ -299,9 +317,18 @@ class ExpressionString(ast.NodeVisitor):
     def visit_Num(self, node):
         return repr(node.n)
 
+    def visit_keyword(self, node):
+        return "%s=%s" % (node.arg, self.visit(node.value))
+
+    def visit_NameConstant(self, node):
+        return repr(node.value)
+
     def visit_Call(self, node):
         args = [self.visit(k) for k in node.args]
-        return "{}({})".format(node.func.id, ", ".join(args))
+        keywords = []
+        if hasattr(node, 'keywords'):
+            keywords = [self.visit(k) for k in node.keywords]
+        return "{}({})".format(node.func.id, ", ".join(args + keywords))
 
     def visit_Str(self, node):
         return repr(node.s)
@@ -403,6 +430,8 @@ class Translator(ast.NodeTransformer):
     def visit_Call(self, node):
         # we skip visiting node.id
         node.args = [self.visit(k) for k in node.args]
+        if hasattr(node, 'keywords'):
+            node.keywords = [self.visit(k) for k in node.keywords]
         return node
 
     def visit_Name(self, node):
@@ -411,6 +440,44 @@ class Translator(ast.NodeTransformer):
             node = parse_expression(expr)
             node = self.visit(node)
         return node
+
+
+class GraphBuiler(ast.NodeVisitor):
+    def __init__(self):
+        self.dependencies = []
+
+    def visit_Call(self, node):
+        fname = node.func.id
+        dependencies = list(self.dependencies)
+        self.dependencies = []
+        for arg in node.args:
+            self.visit(arg)
+        graph = [fname, node_to_string(node), self.dependencies]
+        dependencies.append(graph)
+        self.dependencies = dependencies
+
+    def visit_BinOp(self, node):
+        dependencies = list(self.dependencies)
+        self.dependencies = []
+        self.visit(node.left)
+        dep_left = self.dependencies
+
+        self.dependencies = []
+        self.visit(node.right)
+        dep_right = self.dependencies
+        graph = [opmap[type(node.op)], node_to_string(node), dep_left + dep_right]
+        dependencies.append(graph)
+        self.dependencies = dependencies
+
+    def visit_Name(self, node):
+        self.dependencies.append(node.id)
+
+
+def _graph(expression_string):
+    node = parse_expression(expression_string)
+    g = GraphBuiler()
+    node = g.visit(node)
+    return g.dependencies[0]
 
 
 def simplify(expression_string):
