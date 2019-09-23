@@ -821,12 +821,12 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                 ax.set_title(labelsz[j])
 
             max_labels = 10
-            xexpression = xexpressions[i]
+            xexpression = xexpressions[subplot_index]
             if self.iscategory(xexpression):
                 labels = self.category_labels(xexpression)
                 step = max(len(labels) // max_labels, 1)
                 pylab.xticks(np.arange(len(labels))[::step], labels[::step], size='small')
-            yexpression = yexpressions[i]
+            yexpression = yexpressions[subplot_index]
             if self.iscategory(yexpression):
                 labels = self.category_labels(yexpression)
                 step = max(len(labels) // max_labels, 1)
