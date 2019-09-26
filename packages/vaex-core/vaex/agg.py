@@ -28,11 +28,12 @@ class AggregatorDescriptor(object):
 
 
 class AggregatorDescriptorBasic(AggregatorDescriptor):
-    def __init__(self, name, expression, short_name, multi_args=False, agg_args=[]):
+    def __init__(self, name, expression, short_name, multi_args=False, agg_args=[], selection=None):
         self.name = name
         self.short_name = short_name
         self.expression = str(expression)
         self.agg_args = agg_args
+        self.selection = selection
         if not multi_args:
             if self.expression == '*':
                 self.expressions = []
@@ -46,7 +47,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         return '{0}_{1}'.format(id, self.short_name)
 
     def add_operations(self, agg_task, edges=True, **kwargs):
-        value = agg_task.add_aggregation_operation(self, edges=edges, **kwargs)
+        value = agg_task.add_aggregation_operation(self, edges=edges, selection=self.selection, **kwargs)
         @vaex.delayed
         def finish(value):
             return self.finish(value)
@@ -74,8 +75,8 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         return grid
 
 class AggregatorDescriptorNUnique(AggregatorDescriptorBasic):
-    def __init__(self, name, expression, short_name, dropmissing, dropnan):
-        super(AggregatorDescriptorNUnique, self).__init__(name, expression, short_name)
+    def __init__(self, name, expression, short_name, dropmissing, dropnan, selection=None):
+        super(AggregatorDescriptorNUnique, self).__init__(name, expression, short_name, selection=selection)
         self.dropmissing = dropmissing
         self.dropnan = dropnan
 
@@ -97,7 +98,7 @@ class AggregatorDescriptorNUnique(AggregatorDescriptorBasic):
 
 class AggregatorDescriptorMulti(AggregatorDescriptor):
     """Uses multiple operations/aggregation to calculate the final aggretation"""
-    def __init__(self, name, expression, short_name):
+    def __init__(self, name, expression, short_name, selection=None):
         self.name = name
         self.short_name = short_name
         self.expression = expression
@@ -109,8 +110,8 @@ class AggregatorDescriptorMulti(AggregatorDescriptor):
 
 
 class AggregatorDescriptorMean(AggregatorDescriptorMulti):
-    def __init__(self, name, expression, short_name="mean"):
-        super(AggregatorDescriptorMean, self).__init__(name, expression, short_name)
+    def __init__(self, name, expression, short_name="mean", selection=None):
+        super(AggregatorDescriptorMean, self).__init__(name, expression, short_name, selection=selection)
 
     def add_operations(self, agg_task, **kwargs):
         expression = expression_sum = expression = agg_task.df[str(self.expression)]
@@ -143,8 +144,8 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
 
 
 class AggregatorDescriptorVar(AggregatorDescriptorMulti):
-    def __init__(self, name, expression, short_name="var", ddof=0):
-        super(AggregatorDescriptorVar, self).__init__(name, expression, short_name)
+    def __init__(self, name, expression, short_name="var", ddof=0, selection=None):
+        super(AggregatorDescriptorVar, self).__init__(name, expression, short_name, selection=selection)
         self.ddof = ddof
 
     def add_operations(self, agg_task, **kwargs):
@@ -182,51 +183,51 @@ class AggregatorDescriptorStd(AggregatorDescriptorVar):
         return value**0.5
 
 @register
-def count(expression='*'):
+def count(expression='*', selection=None):
     '''Creates a count aggregation'''
-    return AggregatorDescriptorBasic('AggCount', expression, 'count')
+    return AggregatorDescriptorBasic('AggCount', expression, 'count', selection=selection)
 
 @register
-def sum(expression):
+def sum(expression, selection=None):
     '''Creates a sum aggregation'''
-    return AggregatorDescriptorBasic('AggSum', expression, 'sum')
+    return AggregatorDescriptorBasic('AggSum', expression, 'sum', selection=selection)
 
 @register
-def mean(expression):
+def mean(expression, selection=None):
     '''Creates a mean aggregation'''
-    return AggregatorDescriptorMean('mean', expression, 'mean')
+    return AggregatorDescriptorMean('mean', expression, 'mean', selection=selection)
 
 @register
-def min(expression):
+def min(expression, selection=None):
     '''Creates a min aggregation'''
-    return AggregatorDescriptorBasic('AggMin', expression, 'min')
+    return AggregatorDescriptorBasic('AggMin', expression, 'min', selection=selection)
 
 @register
-def _sum_moment(expression, moment):
+def _sum_moment(expression, moment, selection=None):
     '''Creates a sum of moment aggregator'''
-    return AggregatorDescriptorBasic('AggSumMoment', expression, 'summoment', agg_args=[moment])
+    return AggregatorDescriptorBasic('AggSumMoment', expression, 'summoment', agg_args=[moment], selection=selection)
 
 @register
-def max(expression):
+def max(expression, selection=None):
     '''Creates a max aggregation'''
-    return AggregatorDescriptorBasic('AggMax', expression, 'max')
+    return AggregatorDescriptorBasic('AggMax', expression, 'max', selection=selection)
 
 @register
-def first(expression, order_expression):
+def first(expression, order_expression, selection=None):
     '''Creates a max aggregation'''
-    return AggregatorDescriptorBasic('AggFirst', [expression, order_expression], 'first', multi_args=True)
+    return AggregatorDescriptorBasic('AggFirst', [expression, order_expression], 'first', multi_args=True, selection=selection)
 
 @register
-def std(expression, ddof=0):
+def std(expression, ddof=0, selection=None):
     '''Creates a standard deviation aggregation'''
-    return AggregatorDescriptorStd('std', expression, 'std', ddof=ddof)
+    return AggregatorDescriptorStd('std', expression, 'std', ddof=ddof, selection=selection)
 
 @register
-def var(expression, ddof=0):
+def var(expression, ddof=0, selection=None):
     '''Creates a variance aggregation'''
-    return AggregatorDescriptorVar('var', expression, 'var', ddof=ddof)
+    return AggregatorDescriptorVar('var', expression, 'var', ddof=ddof, selection=selection)
 
-def nunique(expression, dropna=False, dropnan=False, dropmissing=False):
+def nunique(expression, dropna=False, dropnan=False, dropmissing=False, selection=None):
     """Aggregator that calculates the number of unique items per bin.
 
     :param expression: Expression for which to calculate the unique items
@@ -237,7 +238,7 @@ def nunique(expression, dropna=False, dropnan=False, dropmissing=False):
     if dropna:
         dropnan = True
         dropmissing = True
-    return AggregatorDescriptorNUnique('AggNUnique', expression, 'nunique', dropmissing, dropnan)
+    return AggregatorDescriptorNUnique('AggNUnique', expression, 'nunique', dropmissing, dropnan, selection=selection)
 
 # @register
 # def covar(x, y):
