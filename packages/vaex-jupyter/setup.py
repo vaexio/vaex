@@ -14,7 +14,7 @@ author_email = 'maartenbreddels@gmail.com'
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_jupyter = ['vaex-core>=1.0.0,<2', 'vaex-viz', 'bqplot>=0.10.1', 'ipyvolume>=0.4', 'ipyleaflet', 'ipympl', 'ipyvuetify']
+install_requires_jupyter = ['vaex-core>=1.0.0,<2', 'vaex-viz', 'bqplot>=0.10.1', 'ipyvolume>=0.4', 'ipyleaflet', 'ipympl', 'ipyvuetify>=1.0.1,<2']
 
 setup(name=name + '-jupyter',
       version=version,
@@ -28,4 +28,5 @@ setup(name=name + '-jupyter',
       zip_safe=False,
       entry_points={'vaex.dataframe.accessor': ['widget = vaex.jupyter:DataFrameAccessorWidget']},
       include_package_data=True,  # include files listed in manifest.in
+      package_data={'vaex.jupyter': ['*.vue']},
 )

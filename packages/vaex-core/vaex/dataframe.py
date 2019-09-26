@@ -4350,6 +4350,7 @@ class DataFrame(object):
             self.column_names.remove(name)
         else:
             raise KeyError('no such column or virtual_columns named %r' % name)
+        self.signal_column_changed.emit(self, name, "delete")
         if hasattr(self, name):
             try:
                 if isinstance(getattr(self, name), Expression):

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import vaex.ml
 import numpy as np
 import vaex.jupyter
