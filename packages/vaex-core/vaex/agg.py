@@ -103,6 +103,7 @@ class AggregatorDescriptorMulti(AggregatorDescriptor):
         self.short_name = short_name
         self.expression = expression
         self.expressions = [self.expression]
+        self.selection = selection
 
     def pretty_name(self, id=None):
         id = id or "_".join(map(str, self.expression))
@@ -119,8 +120,8 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
         if expression_sum.dtype.kind in "buif":
             expression = expression_sum = expression_sum.astype('float64')
 
-        sum_agg = sum(expression_sum)
-        count_agg = count(expression)
+        sum_agg = sum(expression_sum, selection=self.selection)
+        count_agg = count(expression, selection=self.selection)
 
         task_sum = sum_agg.add_operations(agg_task, **kwargs)
         task_count = count_agg.add_operations(agg_task, **kwargs)
@@ -152,8 +153,8 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
         expression_sum = expression = agg_task.df[str(self.expression)]
         expression = expression_sum = expression.astype('float64')
         sum_moment = _sum_moment(str(expression_sum), 2)
-        sum_ = sum(str(expression_sum))
-        count_ = count(str(expression))
+        sum_ = sum(str(expression_sum), selection=self.selection)
+        count_ = count(str(expression), selection=self.selection)
 
         task_sum_moment = sum_moment.add_operations(agg_task, **kwargs)
         task_sum = sum_.add_operations(agg_task, **kwargs)
