@@ -794,11 +794,24 @@ def str_equals(x, y):
     3   True
     4  False
     """
+    xmask = None
+    ymask = None
+    if np.ma.isMaskedArray(x):
+        x, xmask = x.data, np.ma.getmaskarray(x)
+    if np.ma.isMaskedArray(y):
+        y, ymask = x.data, np.ma.getmaskarray(y)
+
     if not isinstance(x, six.string_types):
         x = _to_string_sequence(x)
     if not isinstance(y, six.string_types):
         y = _to_string_sequence(y)
-    return x.equals(y)
+    equals_mask = x.equals(y)
+    # take out masked values
+    if xmask is not None:
+        equals_mask = equals_mask & ~xmask
+    if ymask is not None:
+        equals_mask = equals_mask & ~ymask
+    return equals_mask
 
 
 @register_function(scope='str')

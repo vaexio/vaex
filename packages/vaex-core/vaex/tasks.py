@@ -541,6 +541,7 @@ class TaskAggregate(Task):
                     # like nunique, they need to know if they should take the value into account or not
                     if hasattr(agg, 'set_selection_mask'):
                         agg.set_selection_mask(selection_mask)
+                        references.extend([selection_mask])
                 if agg_desc.expressions:
                     assert len(agg_desc.expressions) in [1,2], "only length 1 or 2 supported for now"
                     dtype_ref = block = block_map[agg_desc.expressions[0]].dtype

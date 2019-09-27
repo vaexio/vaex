@@ -2585,24 +2585,28 @@ class DataFrame(object):
         i1 = i1 or 0
         i2 = i2 or len(self)
         scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache)
-        return scope.evaluate(name)
+        return vaex.utils.unmask_selection_mask(scope.evaluate(name))
 
     def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False):
         i1 = i1 or 0
         i2 = i2 or self.length_unfiltered()
+        if isinstance(name, vaex.expression.Expression):
+            # make sure if we get passed an expression, it is converted to a string
+            # otherwise the name != <sth> will evaluate to an Expression object
+            name = str(name)
         if name in [None, False] and self.filtered:
             scope_global = scopes._BlockScopeSelection(self, i1, i2, None, cache=cache)
             mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
-            return mask_global
+            return vaex.utils.unmask_selection_mask(mask_global)
         elif self.filtered and name != FILTER_SELECTION_NAME:
             scope = scopes._BlockScopeSelection(self, i1, i2, selection)
             scope_global = scopes._BlockScopeSelection(self, i1, i2, None, cache=cache)
             mask = scope.evaluate(name)
             mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
-            return mask & mask_global
+            return vaex.utils.unmask_selection_mask(mask & mask_global)
         else:
             scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache)
-            return scope.evaluate(name)
+            return vaex.utils.unmask_selection_mask(scope.evaluate(name))
 
         # if _is_string(selection):
 
