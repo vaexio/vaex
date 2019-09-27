@@ -128,7 +128,7 @@ class TaskBase(Task):
 
 class TaskMapReduce(Task):
     def __init__(self, df, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False,
-                 to_numpy=True, ordered_reduce=False, skip_masked=False, ignore_filter=False, name="task"):
+                 to_numpy=True, ordered_reduce=False, skip_masked=False, ignore_filter=False, selection=None, name="task"):
         Task.__init__(self, df, expressions, name=name)
         self._map = map
         self._reduce = reduce
@@ -139,6 +139,7 @@ class TaskMapReduce(Task):
         self.to_numpy = to_numpy
         self.skip_masked = skip_masked
         self.ignore_filter = ignore_filter
+        self.selection = selection
 
     def map(self, thread_index, i1, i2, *blocks):
         if self.to_numpy:
@@ -157,7 +158,7 @@ class TaskMapReduce(Task):
                 blocks = [block[~mask] for block in blocks]
 
         if not self.ignore_filter:
-            selection = None
+            selection = self.selection
             if selection or self.df.filtered:
                 selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
                 blocks = [block[selection_mask] for block in blocks]
@@ -536,6 +537,10 @@ class TaskAggregate(Task):
                 selection_mask = None
                 if selection or self.df.filtered:
                     selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
+                    # some aggregators make a distiction between missing value and no value
+                    # like nunique, they need to know if they should take the value into account or not
+                    if hasattr(agg, 'set_selection_mask'):
+                        agg.set_selection_mask(selection_mask)
                 if agg_desc.expressions:
                     assert len(agg_desc.expressions) in [1,2], "only length 1 or 2 supported for now"
                     dtype_ref = block = block_map[agg_desc.expressions[0]].dtype

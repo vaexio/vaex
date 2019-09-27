@@ -10,7 +10,7 @@ public:
     using index_type = IndexType;
     using grid_type = GridType;
     using data_type = DataType;
-    AggNUnique(Grid<IndexType>* grid, bool dropmissing, bool dropnan) : grid(grid), grid_data(nullptr), data_ptr(nullptr), data_mask_ptr(nullptr), dropmissing(dropmissing), dropnan(dropnan) {
+    AggNUnique(Grid<IndexType>* grid, bool dropmissing, bool dropnan) : grid(grid), grid_data(nullptr), data_ptr(nullptr), data_mask_ptr(nullptr), selection_mask_ptr(nullptr), dropmissing(dropmissing), dropnan(dropnan) {
         counters = new counter<data_type>[grid->length1d];
     }
     virtual ~AggNUnique() {
@@ -41,6 +41,8 @@ public:
         }
         for(size_t j = 0; j < length; j++) {
             bool masked = false;
+            if(this->selection_mask_ptr && this->data_mask_ptr[j+offset] == 0)
+                continue; // if value is not in selection/filter, don't even consider it
             if(this->data_mask_ptr && this->data_mask_ptr[j+offset] == 0)
                 masked = true;
             if(masked) {
@@ -72,7 +74,14 @@ public:
         this->data_mask_ptr = (uint8_t*)info.ptr;
         this->data_mask_size = info.shape[0];
     }
-
+    void set_selection_mask(py::buffer ar) {
+        py::buffer_info info = ar.request();
+        if(info.ndim != 1) {
+            throw std::runtime_error("Expected a 1d array");
+        }
+        this->selection_mask_ptr = (uint8_t*)info.ptr;
+        this->selection_mask_size = info.shape[0];
+    }
     Grid<IndexType>* grid;
     grid_type* grid_data;
     counter<data_type>* counters;
@@ -80,6 +89,8 @@ public:
     uint64_t data_size;
     uint8_t* data_mask_ptr;
     uint64_t data_mask_size;
+    uint8_t* selection_mask_ptr;
+    uint64_t selection_mask_size;
     bool dropmissing;
     bool dropnan;
 };
@@ -109,6 +120,7 @@ void add_agg(Module m, Base& base, const char* class_name) {
         )
         .def("set_data", &Agg::set_data)
         .def("set_data_mask", &Agg::set_data_mask)
+        .def("set_selection_mask", &Agg::set_selection_mask)
         .def("reduce", &Agg::reduce)
     ;
 }

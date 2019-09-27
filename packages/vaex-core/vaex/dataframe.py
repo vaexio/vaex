@@ -284,9 +284,9 @@ class DataFrame(object):
     def filtered(self):
         return self.has_selection(FILTER_SELECTION_NAME)
 
-    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, ignore_filter=False, name='map reduce (custom)'):
+    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, ignore_filter=False, name='map reduce (custom)', selection=None):
         # def map_wrapper(*blocks):
-        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy, ignore_filter=ignore_filter)
+        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy, ignore_filter=ignore_filter, selection=selection)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, name)
         self.executor.schedule(task)
@@ -314,7 +314,7 @@ class DataFrame(object):
             pass
         return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='nop', to_numpy=False)
 
-    def _set(self, expression, progress=False, delay=False):
+    def _set(self, expression, progress=False, selection=None, delay=False):
         column = _ensure_string_from_expression(expression)
         columns = [column]
         from .hash import ordered_set_type_from_dtype
@@ -345,7 +345,7 @@ class DataFrame(object):
                 sets[thread_index].update(ar)
         def reduce(a, b):
             pass
-        self.map_reduce(map, reduce, columns, delay=delay, name='set', info=True, to_numpy=False)
+        self.map_reduce(map, reduce, columns, delay=delay, name='set', info=True, to_numpy=False, selection=selection)
         sets = [k for k in sets if k is not None]
         set0 = sets[0]
         for other in sets[1:]:
@@ -390,12 +390,12 @@ class DataFrame(object):
             index0.merge(other)
         return index0
 
-    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, delay=False):
+    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, delay=False):
         if dropna:
             dropnan = True
             dropmissing = True
         expression = _ensure_string_from_expression(expression)
-        ordered_set = self._set(expression, progress=progress)
+        ordered_set = self._set(expression, progress=progress, selection=selection)
         transient = True
         if return_inverse:
             # inverse type can be smaller, depending on length of set
@@ -412,7 +412,7 @@ class DataFrame(object):
                 inverse[i1:i2:] = ordered_set.map_ordinal(ar)
             def reduce(a, b):
                 pass
-            self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False)
+            self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
         keys = ordered_set.keys()
         if not dropnan:
             if ordered_set.has_nan:

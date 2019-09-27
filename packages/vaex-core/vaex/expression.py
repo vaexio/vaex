@@ -546,23 +546,23 @@ class Expression(with_metaclass(Meta)):
 
         return Series(counts, index=index)
 
-    def unique(self, dropna=False, dropnan=False, dropmissing=False):
+    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, delay=False):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         """
-        return self.ds.unique(self.expression, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing)
+        return self.ds.unique(self.expression, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, delay=delay)
 
-    def nunique(self, dropna=False, dropnan=False, dropmissing=False):
+    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         """
-        return len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing))
+        return len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, delay=delay))
 
     def countna(self):
         """Returns the number of Not Availiable (N/A) values in the expression.
