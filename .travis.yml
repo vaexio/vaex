@@ -39,7 +39,7 @@ before_install:
   - conda update -q conda
   - conda info -a
   # future: kapteyn should only be needed for astro package testing
-  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION certifi=2019.6.16 pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost healpy $OPTIONAL_PACKAGES
+  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION certifi=2019.6.16 pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost $OPTIONAL_PACKAGES
   - which pip
   - source activate test-environment
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
@@ -70,7 +70,6 @@ install:
 script:
   - source activate test-environment
   - python -m vaex.test.dataset TestDataset
-  - python -m nbconvert docs/source/tutorial.ipynb --execute --ExecutePreprocessor.timeout=300
   # - py.test packages/vaex-core/vaex/test/dataset.py::TestDataset 
   - py.test tests/ ${PYTEST_EXTRA_ARGS}
   # - runipy examples/tutorial_ipython_notebook.ipynb
