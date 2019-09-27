@@ -70,7 +70,7 @@ install:
 script:
   - source activate test-environment
   - python -m vaex.test.dataset TestDataset
-  - python -m nbconvert docs/source/tutorial.ipynb --execute
+  - python -m nbconvert docs/source/tutorial.ipynb --execute --ExecutePreprocessor.timeout=300
   # - py.test packages/vaex-core/vaex/test/dataset.py::TestDataset 
   - py.test tests/ ${PYTEST_EXTRA_ARGS}
   # - runipy examples/tutorial_ipython_notebook.ipynb
