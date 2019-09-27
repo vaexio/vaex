@@ -152,7 +152,7 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
     def add_operations(self, agg_task, **kwargs):
         expression_sum = expression = agg_task.df[str(self.expression)]
         expression = expression_sum = expression.astype('float64')
-        sum_moment = _sum_moment(str(expression_sum), 2)
+        sum_moment = _sum_moment(str(expression_sum), 2, selection=self.selection)
         sum_ = sum(str(expression_sum), selection=self.selection)
         count_ = count(str(expression), selection=self.selection)
 
