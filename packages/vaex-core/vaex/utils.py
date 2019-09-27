@@ -907,3 +907,11 @@ def to_native_array(ar):
 
 def extract_central_part(ar):
     return ar[(slice(2,-1), ) * ar.ndim]
+
+def unmask_selection_mask(selection_mask):
+    if np.ma.isMaskedArray(selection_mask):
+        # if we are doing a selection on a masked array
+        selection_mask, mask = selection_mask.data, np.ma.getmaskarray(selection_mask)
+        # exclude the masked values
+        selection_mask = selection_mask & ~mask
+    return selection_mask

@@ -10,11 +10,11 @@ df = vaex.from_arrays(x=x, y=y, w=w)
 
 def test_masked_values_selections():
     # Select on a column which has masked values
-    assert df.y.count(selection='x < 3').tolist() == 2
-    assert df.y.sum(selection='x < 3').tolist() == 8.
-    assert df.y.mean(selection=df.x < 3).tolist() == 4.
-    assert df.y.std(selection=df.x < 3).tolist() == 1.
-    assert df.w.nunique(selection='x < 3').tolist() == 1.
+    assert df.y.count(selection='x < 3') == 2
+    assert df.y.sum(selection='x < 3') == 8.
+    assert df.y.mean(selection=df.x < 3) == 4.
+    assert df.y.std(selection=df.x < 3) == 1.
+    assert df.w.nunique(selection='x < 3') == 1.
 
 
 def test_masked_values_numerical_filter():
@@ -34,9 +34,11 @@ def test_masked_values_string_filter():
 
 
 def test_masked_values_filter_and_selection():
+    assert df.evaluate_selection_mask(df.w == 'cat').tolist() == [False, False, False, True, False]
     df_filter = df[df.x < 4]
-    assert df_filter.y.count(selection="w == 'cat'").tolist() == df_filter.y.count(selection=df_filter.w == 'cat').tolist()
-    assert df_filter.y.count(selection=df_filter.w == 'cat').tolist() == 1.
-    assert df_filter.y.sum(selection=df_filter.w == 'cat').tolist() == -1.5
-    assert df_filter.y.mean(selection=df_filter.w == 'cat').tolist() == -1.5
-    assert df_filter.y.nunique(selection=df_filter.w == 'cat').tolist() == 1
+    assert df_filter.evaluate_selection_mask(df_filter.w == 'cat').tolist() == [False, False, False, True, False]
+    assert df_filter.y.count(selection="w == 'cat'") == df_filter.y.count(selection=df_filter.w == 'cat')
+    assert df_filter.y.count(selection=df_filter.w == 'cat') == 1.
+    assert df_filter.y.sum(selection=df_filter.w == 'cat') == -1.5
+    assert df_filter.y.mean(selection=df_filter.w == 'cat') == -1.5
+    assert df_filter.y.nunique(selection=df_filter.w == 'cat') == 1

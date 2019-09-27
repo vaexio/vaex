@@ -375,3 +375,8 @@ def test_strings_operator_plus(dfs, extra):
 
 	assert (dfs.s + dfs.s).tolist() == [k + k for k in string_list]
 	assert (dfs.s + extra + dfs.s).tolist() == [k + extra + k for k in string_list]
+
+def test_masked_string():
+	s = np.ma.MaskedArray(data=['dog', 'dog', 'cat', 'cat', 'mouse'], mask=[False, False, True, False, True])
+	df = vaex.from_arrays(s=s)
+	assert (df.s == 'cat').tolist() == [False, False, False, True, False]
