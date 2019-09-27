@@ -21,7 +21,7 @@ install_requires = [
       'vaex-server>=0.2.1,<0.3',
       'vaex-hdf5>=0.5.5,<0.6',
       'vaex-astro>=0.6.1,<0.7',
-      'vaex-arrow>=0.4.0,<0.4',
+      'vaex-arrow>=0.4.0,<0.5',
       # vaex-jupyter # want want to depend on this soon
       # 'vaex-ml==0.6.1' # we cannot depend yet on this because it is not on conda-forge yet
 ]
