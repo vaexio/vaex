@@ -7,7 +7,9 @@ class DataFrameAccessorGeo(object):
     """Geometry/geographic helper methods
 
     Example:
+
     >>> df_xyz = df.geo.spherical2cartesian(df.longitude, df.latitude, df.distance)
+    >>> df_xyz.x.mean()
 
     """
     def __init__(self, df):

@@ -48,26 +48,26 @@ def interactive_cleanup():
         dataset.signal_selection_changed.disconnect(f)
 
 
-def interactive_selection(dataset):
+def interactive_selection(df):
     global _selection_hooks
 
     def wrapped(f_interact):
         if not hasattr(f_interact, "widget"):
             output = widgets.Output()
 
-            def _selection_changed(dataset):
+            def _selection_changed(df, selection_name):
                 with output:
                     clear_output(wait=True)
-                    f_interact()
-            hook = dataset.signal_selection_changed.connect(_selection_changed)
-            _selection_hooks.append((dataset, hook))
-            _selection_changed(dataset)
+                    f_interact(df, selection_name)
+            hook = df.signal_selection_changed.connect(_selection_changed)
+            _selection_hooks.append((df, hook))
+            _selection_changed(df, None)
             display(output)
             return functools.wraps(f_interact)
         else:
-            def _selection_changed(dataset):
-                f_interact.widget.update()
-            hook = dataset.signal_selection_changed.connect(_selection_changed)
-            _selection_hooks.append((dataset, hook))
+            def _selection_changed(df, selection_name):
+                f_interact.widget.update(df, selection_name)
+            hook = df.signal_selection_changed.connect(_selection_changed)
+            _selection_hooks.append((df, hook))
             return functools.wraps(f_interact)
     return wrapped

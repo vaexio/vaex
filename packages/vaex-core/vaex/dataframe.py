@@ -284,9 +284,9 @@ class DataFrame(object):
     def filtered(self):
         return self.has_selection(FILTER_SELECTION_NAME)
 
-    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, ignore_filter=False, name='map reduce (custom)'):
+    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, ignore_filter=False, name='map reduce (custom)', selection=None):
         # def map_wrapper(*blocks):
-        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy, ignore_filter=ignore_filter)
+        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy, ignore_filter=ignore_filter, selection=selection)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, name)
         self.executor.schedule(task)
@@ -314,7 +314,7 @@ class DataFrame(object):
             pass
         return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='nop', to_numpy=False)
 
-    def _set(self, expression, progress=False, delay=False):
+    def _set(self, expression, progress=False, selection=None, delay=False):
         column = _ensure_string_from_expression(expression)
         columns = [column]
         from .hash import ordered_set_type_from_dtype
@@ -345,7 +345,7 @@ class DataFrame(object):
                 sets[thread_index].update(ar)
         def reduce(a, b):
             pass
-        self.map_reduce(map, reduce, columns, delay=delay, name='set', info=True, to_numpy=False)
+        self.map_reduce(map, reduce, columns, delay=delay, name='set', info=True, to_numpy=False, selection=selection)
         sets = [k for k in sets if k is not None]
         set0 = sets[0]
         for other in sets[1:]:
@@ -390,12 +390,12 @@ class DataFrame(object):
             index0.merge(other)
         return index0
 
-    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, delay=False):
+    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, delay=False):
         if dropna:
             dropnan = True
             dropmissing = True
         expression = _ensure_string_from_expression(expression)
-        ordered_set = self._set(expression, progress=progress)
+        ordered_set = self._set(expression, progress=progress, selection=selection)
         transient = True
         if return_inverse:
             # inverse type can be smaller, depending on length of set
@@ -412,7 +412,7 @@ class DataFrame(object):
                 inverse[i1:i2:] = ordered_set.map_ordinal(ar)
             def reduce(a, b):
                 pass
-            self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False)
+            self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
         keys = ordered_set.keys()
         if not dropnan:
             if ordered_set.has_nan:
@@ -608,14 +608,14 @@ class DataFrame(object):
         @delayed
         def compute(expression, grid, selection, edges, progressbar):
             if expression in ["*", None]:
-                agg = vaex.agg.aggregates[name]()
+                agg = vaex.agg.aggregates[name](selection=selection)
             else:
                 if extra_expressions:
-                    agg = vaex.agg.aggregates[name](expression, *extra_expressions)
+                    agg = vaex.agg.aggregates[name](expression, *extra_expressions, selection=selection)
                 else:
-                    agg = vaex.agg.aggregates[name](expression)
+                    agg = vaex.agg.aggregates[name](expression, selection=selection)
             task = self._get_task_agg(grid)
-            agg_subtask = agg.add_operations(task, selection=selection, edges=edges)
+            agg_subtask = agg.add_operations(task, edges=edges)
             progressbar.add_task(task, "%s for %s" % (name, expression))
             @delayed
             def finish(counts):
@@ -1966,7 +1966,7 @@ class DataFrame(object):
             data = column[0:1]
             dtype = data.dtype
         else:
-            data = self.evaluate(expression, 0, 1, filtered=False)
+            data = self.evaluate(expression, 0, 1, filtered=False, internal=True)
             dtype = data.dtype
         if not internal:
             if dtype != str_type:
@@ -2814,9 +2814,6 @@ class DataFrame(object):
             valid_name = vaex.utils.find_valid_name(name)
             if name != valid_name:
                 self._column_aliases[name] = valid_name
-            self.columns[valid_name] = f_or_array
-            if valid_name not in self.column_names:
-                self.column_names.insert(column_position, valid_name)
             ar = f_or_array
             if dtype is not None:
                 self._dtypes_override[valid_name] = dtype
@@ -2825,6 +2822,11 @@ class DataFrame(object):
                     types = list({type(k) for k in ar if np.all(k == k) and k is not None})
                     if len(types) == 1 and issubclass(types[0], six.string_types):
                         self._dtypes_override[valid_name] = str_type
+                    if len(types) == 0:  # can only be if all nan right?
+                        ar = ar.astype(np.float64)
+            self.columns[valid_name] = ar
+            if valid_name not in self.column_names:
+                self.column_names.insert(column_position, valid_name)
         else:
             raise ValueError("functions not yet implemented")
         self._save_assign_expression(valid_name, Expression(self, valid_name))
@@ -3981,7 +3983,7 @@ class DataFrame(object):
         selection_history = self.selection_histories[name]
         index = self.selection_history_indices[name]
         self.selection_history_indices[name] -= 1
-        self.signal_selection_changed.emit(self)
+        self.signal_selection_changed.emit(self, name)
         logger.debug("undo: selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
 
     def selection_redo(self, name="default", executor=None):
@@ -3993,7 +3995,7 @@ class DataFrame(object):
         index = self.selection_history_indices[name]
         next = selection_history[index + 1]
         self.selection_history_indices[name] += 1
-        self.signal_selection_changed.emit(self)
+        self.signal_selection_changed.emit(self, name)
         logger.debug("redo: selection history is %r, index is %r", selection_history, index)
 
     def selection_can_undo(self, name="default"):
@@ -4018,7 +4020,7 @@ class DataFrame(object):
         boolean_expression = _ensure_string_from_expression(boolean_expression)
         if boolean_expression is None and not self.has_selection(name=name):
             pass  # we don't want to pollute the history with many None selections
-            self.signal_selection_changed.emit(self)  # TODO: unittest want to know, does this make sense?
+            self.signal_selection_changed.emit(self, name)  # TODO: unittest want to know, does this make sense?
         else:
             def create(current):
                 return selections.SelectionExpression(boolean_expression, current, mode) if boolean_expression else None
@@ -4079,7 +4081,7 @@ class DataFrame(object):
         """Select nothing."""
         logger.debug("selecting nothing")
         self.select(None, name=name)
-    # self.signal_selection_changed.emit(self)
+        self.signal_selection_changed.emit(self, name)
 
     def select_rectangle(self, x, y, limits, mode="replace", name="default"):
         """Select a 2d rectangular box in the space given by x and y, bounds by limits.
@@ -4238,7 +4240,7 @@ class DataFrame(object):
         self.selection_history_indices[name] += 1
         # clip any redo history
         del selection_history[self.selection_history_indices[name]:-1]
-        self.signal_selection_changed.emit(self)
+        self.signal_selection_changed.emit(self, name)
         result = vaex.promise.Promise.fulfilled(None)
         logger.debug("select selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
         return result
@@ -4347,6 +4349,7 @@ class DataFrame(object):
             self.column_names.remove(name)
         else:
             raise KeyError('no such column or virtual_columns named %r' % name)
+        self.signal_column_changed.emit(self, name, "delete")
         if hasattr(self, name):
             try:
                 if isinstance(getattr(self, name), Expression):
@@ -5183,10 +5186,10 @@ class DataFrameLocal(DataFrame):
         return int(self.count(selection=selection).item())
         # np.sum(self.mask) if self.has_selection() else None
 
-    def _set_mask(self, mask):
-        self.mask = mask
-        self._has_selection = mask is not None
-        self.signal_selection_changed.emit(self)
+    # def _set_mask(self, mask):
+    #     self.mask = mask
+    #     self._has_selection = mask is not None
+    #     # self.signal_selection_changed.emit(self)
 
     def groupby(self, by=None, agg=None):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
@@ -5357,14 +5360,14 @@ class DataFrameConcatenated(DataFrameLocal):
                 self.column_names.append(column_name)
         self.columns = {}
         for column_name in self.get_column_names(virtual=False):
-            self.columns[column_name] = ColumnConcatenatedLazy(dfs, column_name)
+            self.columns[column_name] = ColumnConcatenatedLazy([df[column_name] for df in dfs])
             self._save_assign_expression(column_name)
 
         for name in list(first.virtual_columns.keys()):
             if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
                 self.virtual_columns[name] = first.virtual_columns[name]
             else:
-                self.columns[name] = ColumnConcatenatedLazy(dfs, name)
+                self.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
                 self.column_names.append(name)
             self._save_assign_expression(name)
 

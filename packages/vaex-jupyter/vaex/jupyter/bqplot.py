@@ -16,6 +16,8 @@ from .utils import debounced
 
 logger = logging.getLogger("vaex.nb.bqplot")
 
+blackish = '#666'
+
 
 class BqplotBackend(BackendBase):
     def __init__(self, figure=None, figure_key=None):
@@ -57,7 +59,7 @@ class BqplotBackend(BackendBase):
         self.scales = {'x': self.scale_x, 'y': self.scale_y, 'rotation': self.scale_rotation,
                        'size': self.scale_size, 'opacity': self.scale_opacity}
 
-        margin = {'bottom': 30, 'left': 60, 'right': 0, 'top': 0}
+        margin = {'bottom': 35, 'left': 60, 'right': 5, 'top': 5}
         self.figure = plt.figure(self.figure_key, fig=self.figure, scales=self.scales, fig_margin=margin)
         self.figure.layout.min_width = '600px'
         plt.figure(fig=self.figure)
@@ -81,8 +83,11 @@ class BqplotBackend(BackendBase):
         self.scatter = s = plt.scatter(x, y, visible=False, rotation=x, scales=self.scales, size=x, marker="arrow")
         self.panzoom = bqplot.PanZoom(scales={'x': [self.scale_x], 'y': [self.scale_y]})
         self.figure.interaction = self.panzoom
-        # self.figure.axes[0].label = self.x
-        # self.figure.axes[1].label = self.y
+        for axes in self.figure.axes:
+            axes.grid_lines = 'none'
+            axes.color = axes.grid_color = axes.label_color = blackish
+        self.figure.axes[0].label = str(plot.x)
+        self.figure.axes[1].label = str(plot.y)
 
         self.scale_x.observe(self._update_limits, "min")
         self.scale_x.observe(self._update_limits, "max")
@@ -113,7 +118,7 @@ class BqplotBackend(BackendBase):
     def create_tools(self):
         self.tools = []
         tool_actions = []
-        tool_actions_map = {u"pan/zoom": self.panzoom}
+        self.tool_actions_map = tool_actions_map = {u"pan/zoom": self.panzoom}
         tool_actions.append(u"pan/zoom")
 
         # self.control_widget.set_title(0, "Main")
@@ -134,13 +139,16 @@ class BqplotBackend(BackendBase):
             #    self.dataset.signal_selection_changed.disconnect(callback=callback)
             # self._cleanups.append(cleanup)
 
-            self.button_select_nothing = v.Btn(icon=True, slot='activator', children=[
+            self.button_select_nothing = v.Btn(icon=True, v_on='tooltip.on', children=[
                                         v.Icon(children=['delete'])
                                     ])
-            self.widget_select_nothing = v.Tooltip(bottom=True, children=[
-                                    self.button_select_nothing,
-                                    "Delete selection"
-                                ])
+            self.widget_select_nothing = v.Tooltip(bottom=True, v_slots=[{
+                'name': 'activator',
+                'variable': 'tooltip',
+                'children': self.button_select_nothing
+            }], children=[
+                "Delete selection"
+            ])
             self.button_reset = widgets.Button(description="", icon="refresh")
             import copy
             self.start_limits = copy.deepcopy(self.limits)
@@ -171,18 +179,24 @@ class BqplotBackend(BackendBase):
             # tool_actions = [("m", "m"), ("b", "b")]
             self.button_action = \
                 v.BtnToggle(v_model=0, mandatory=True, multiple=False, children=[
-                                v.Tooltip(bottom=True, children=[
-                                    v.Btn(slot='activator', children=[
+                                v.Tooltip(bottom=True, v_slots=[{
+                                    'name': 'activator',
+                                    'variable': 'tooltip',
+                                    'children': v.Btn(v_on='tooltip.on', children=[
                                         v.Icon(children=['pan_tool'])
-                                    ]),
+                                    ])
+                                }], children=[
                                     "Pan & zoom"
                                 ]),
-                                v.Tooltip(bottom=True, children=[
-                                    v.Btn(slot='activator', children=[
+                                v.Tooltip(bottom=True, v_slots=[{
+                                    'name': 'activator',
+                                    'variable': 'tooltip',
+                                    'children': v.Btn(v_on='tooltip.on', children=[
                                         v.Icon(children=['crop_free'])
-                                    ]),
+                                    ])
+                                }], children=[
                                     "Square selection"
-                            ]),
+                                ]),
                         ])
             self.widget_tool_basic = v.Layout(children=[
                 v.Layout(pa_1=True, column=False, align_center=True, children=[

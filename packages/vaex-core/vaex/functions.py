@@ -2,7 +2,7 @@ import vaex.serialize
 import json
 import numpy as np
 from vaex import column
-from vaex.column import _to_string_sequence, _to_string_list_sequence, _is_stringy
+from vaex.column import _to_string_sequence, _to_string_column, _to_string_list_sequence, _is_stringy
 import re
 import vaex.expression
 import functools
@@ -14,7 +14,8 @@ import six
 scopes = {
     'str': vaex.expression.StringOperations,
     'str_pandas': vaex.expression.StringOperationsPandas,
-    'dt': vaex.expression.DateTime
+    'dt': vaex.expression.DateTime,
+    'td': vaex.expression.TimeDelta
 }
 
 def register_function(scope=None, as_property=False, name=None, on_expression=True):
@@ -106,6 +107,7 @@ minimum
 maximum
 clip
 searchsorted
+isfinite
 """.strip().split()]
 for name, numpy_name in numpy_function_mapping:
     if not hasattr(np, numpy_name):
@@ -593,6 +595,162 @@ def dt_second(x):
     """
     import pandas as pd
     return pd.Series(_pandas_dt_fix(x)).dt.second.values
+
+########## timedelta operations ##########
+
+@register_function(scope='td', as_property=True)
+def td_days(x):
+    """Number of days in each timedelta sample.
+
+    :returns: an expression containing the number of days in a timedelta sample.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> delta = np.array([17658720110,   11047049384039, 40712636304958, -18161254954], dtype='timedelta64[s]')
+    >>> df = vaex.from_arrays(delta=delta)
+    >>> df
+      #  delta
+      0  204 days +9:12:00
+      1  1 days +6:41:10
+      2  471 days +5:03:56
+      3  -22 days +23:31:15
+
+    >>> df.delta.td.days
+    Expression = td_days(delta)
+    Length: 4 dtype: int64 (expression)
+    -----------------------------------
+    0  204
+    1    1
+    2  471
+    3  -22
+    """
+    import pandas as pd
+    return pd.Series(_pandas_dt_fix(x)).dt.days.values
+
+@register_function(scope='td', as_property=True)
+def td_microseconds(x):
+    """Number of microseconds (>= 0 and less than 1 second) in each timedelta sample.
+
+    :returns: an expression containing the number of microseconds in a timedelta sample.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> delta = np.array([17658720110,   11047049384039, 40712636304958, -18161254954], dtype='timedelta64[s]')
+    >>> df = vaex.from_arrays(delta=delta)
+    >>> df
+      #  delta
+      0  204 days +9:12:00
+      1  1 days +6:41:10
+      2  471 days +5:03:56
+      3  -22 days +23:31:15
+
+    >>> df.delta.td.microseconds
+    Expression = td_microseconds(delta)
+    Length: 4 dtype: int64 (expression)
+    -----------------------------------
+    0  290448
+    1  978582
+    2   19583
+    3  709551
+    """
+    import pandas as pd
+    return pd.Series(_pandas_dt_fix(x)).dt.microseconds.values
+
+@register_function(scope='td', as_property=True)
+def td_nanoseconds(x):
+    """Number of nanoseconds (>= 0 and less than 1 microsecond) in each timedelta sample.
+
+    :returns: an expression containing the number of nanoseconds in a timedelta sample.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> delta = np.array([17658720110,   11047049384039, 40712636304958, -18161254954], dtype='timedelta64[s]')
+    >>> df = vaex.from_arrays(delta=delta)
+    >>> df
+      #  delta
+      0  204 days +9:12:00
+      1  1 days +6:41:10
+      2  471 days +5:03:56
+      3  -22 days +23:31:15
+
+    >>> df.delta.td.nanoseconds
+    Expression = td_nanoseconds(delta)
+    Length: 4 dtype: int64 (expression)
+    -----------------------------------
+    0  384
+    1   16
+    2  488
+    3  616
+    """
+    import pandas as pd
+    return pd.Series(_pandas_dt_fix(x)).dt.nanoseconds.values
+
+@register_function(scope='td', as_property=True)
+def td_seconds(x):
+    """Number of seconds (>= 0 and less than 1 day) in each timedelta sample.
+
+    :returns: an expression containing the number of seconds in a timedelta sample.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> delta = np.array([17658720110,   11047049384039, 40712636304958, -18161254954], dtype='timedelta64[s]')
+    >>> df = vaex.from_arrays(delta=delta)
+    >>> df
+      #  delta
+      0  204 days +9:12:00
+      1  1 days +6:41:10
+      2  471 days +5:03:56
+      3  -22 days +23:31:15
+
+    >>> df.delta.td.seconds
+    Expression = td_seconds(delta)
+    Length: 4 dtype: int64 (expression)
+    -----------------------------------
+    0  30436
+    1  39086
+    2  28681
+    3  23519
+    """
+    import pandas as pd
+    return pd.Series(_pandas_dt_fix(x)).dt.seconds.values
+
+@register_function(scope='td', as_property=False)
+def td_total_seconds(x):
+    """Total duration of each timedelta sample expressed in seconds.
+
+    :return: an expression containing the total number of seconds in a timedelta sample.
+
+    Example:
+    >>> import vaex
+    >>> import numpy as np
+    >>> delta = np.array([17658720110,   11047049384039, 40712636304958, -18161254954], dtype='timedelta64[s]')
+    >>> df = vaex.from_arrays(delta=delta)
+    >>> df
+      #  delta
+      0  204 days +9:12:00
+      1  1 days +6:41:10
+      2  471 days +5:03:56
+      3  -22 days +23:31:15
+
+    >>> df.delta.td.total_seconds()
+    Expression = td_total_seconds(delta)
+    Length: 4 dtype: float64 (expression)
+    -------------------------------------
+    0  -7.88024e+08
+    1  -2.55032e+09
+    2   6.72134e+08
+    3   2.85489e+08
+    """
+    import pandas as pd
+    return pd.Series(_pandas_dt_fix(x)).dt.total_seconds().values
 
 
 ########## string operations ##########
@@ -1931,8 +2089,13 @@ def _choose_masked(ar, choices):
 def _float(x):
     return x.astype(np.float64)
 
-@register_function(name='astype')
+@register_function(name='astype', on_expression=False)
 def _astype(x, dtype):
+    if dtype == 'str':
+        mask = np.isnan(x)
+        x = x.astype(dtype).astype('O')
+        x[mask] = None
+        return _to_string_column(x)
     return x.astype(dtype)
 
 

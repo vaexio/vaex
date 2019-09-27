@@ -148,13 +148,28 @@ class Meta(type):
 
 
 class DateTime(object):
-    """DateTime operations"""
+    """DateTime operations
+
+    Usually accessed using e.g. `df.birthday.dt.dayofweek`
+    """
+    def __init__(self, expression):
+        self.expression = expression
+
+
+class TimeDelta(object):
+    """TimeDelta operations
+
+    Usually accessed using e.g. `df.delay.td.days`
+    """
     def __init__(self, expression):
         self.expression = expression
 
 
 class StringOperations(object):
-    """String operations"""
+    """String operations.
+
+    Usually accessed using e.g. `df.name.str.lower()`
+    """
     def __init__(self, expression):
         self.expression = expression
 
@@ -174,6 +189,18 @@ class Expression(with_metaclass(Meta)):
             expression = expression.expression
         self.expression = expression
 
+    @property
+    def df(self):
+        # lets gradually move to using .df
+        return self.ds
+
+    def to_numpy(self):
+        """Return a numpy representation of the data"""
+        values = self.values
+        if hasattr(values, 'to_numpy'):  # e.g. ColumnString
+            values = values.to_numpy()
+        return values
+
     def __getitem__(self, slice):
         return self.ds[slice][self.expression]
 
@@ -183,7 +210,13 @@ class Expression(with_metaclass(Meta)):
 
     @property
     def dt(self):
+        """Gives access to datetime operations via :py:class:`DateTime`"""
         return DateTime(self)
+
+    @property
+    def td(self):
+        """Gives access to timedelta operations via :py:class:`TimeDelta`"""
+        return TimeDelta(self)
 
     @property
     def str(self):
@@ -513,23 +546,23 @@ class Expression(with_metaclass(Meta)):
 
         return Series(counts, index=index)
 
-    def unique(self, dropna=False, dropnan=False, dropmissing=False):
+    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, delay=False):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         """
-        return self.ds.unique(self.expression, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing)
+        return self.ds.unique(self.expression, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, delay=delay)
 
-    def nunique(self, dropna=False, dropnan=False, dropmissing=False):
+    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         """
-        return len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing))
+        return len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, delay=delay))
 
     def countna(self):
         """Returns the number of Not Availiable (N/A) values in the expression.
@@ -618,7 +651,10 @@ def f({0}):
         return Expression(self.ds, expr)
 
     def astype(self, dtype):
-        return self.ds.func.astype(self, str(dtype))
+        if dtype == str:
+            return self.ds.func.astype(self, 'str')
+        else:
+            return self.ds.func.astype(self, str(dtype))
 
     def apply(self, f):
         return self.ds.apply(f, [self.expression])
@@ -763,6 +799,10 @@ def f({0}):
         else:
             expr = '_choose(_ordinal_values({}, {}), {})'.format(self, key_set_name, choices_name)
         return Expression(df, expr)
+
+    @property
+    def is_masked(self):
+        return self.ds.is_masked(self.expression)
 
 
 class FunctionSerializable(object):
