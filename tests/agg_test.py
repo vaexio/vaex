@@ -167,3 +167,22 @@ def test_unique_missing_groupby():
     dfg = df.groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
     items = list(zip(dfg.x.values, dfg.nunique.values))
     assert items[:-1] == [(0, 2), (1, 2), (2, 1)]
+
+def test_agg_selections():
+    x = np.array([0, 0, 0, 1, 1, 2, 2])
+    y = np.array([1, 3, 5, 1, 7, 1, -1])
+    z = np.array([0, 2, 3, 4, 5, 6, 7])
+    w = np.array(['dog', 'cat', 'mouse', 'dog', 'dog', 'dog', 'cat'])
+
+    df = vaex.from_arrays(x=x, y=y, z=z, w=w)
+
+    df_grouped = df.groupby(df.x).agg({'count': vaex.agg.count(selection='y<=3'),
+                                   'z_sum_selected': vaex.agg.sum(expression=df.z, selection='y<=3'),
+                                   'z_mean_selected': vaex.agg.mean(expression=df.z, selection=df.y <= 3),
+                                #    'w_nuniqe_selected': vaex.agg.nunique(expression=df.w, selection=df.y <= 3, dropna=True)
+                                  }).sort('x')
+
+    assert df_grouped['count'].tolist() == [2, 1, 2]
+    assert df_grouped['z_sum_selected'].tolist() == [2, 4, 13]
+    assert df_grouped['z_mean_selected'].tolist() == [1, 4, 6.5]
+    # assert df_grouped['w_nuniqe_selected'].tolist() == [2, 1, 2]

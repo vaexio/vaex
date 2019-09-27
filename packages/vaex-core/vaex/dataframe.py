@@ -608,14 +608,14 @@ class DataFrame(object):
         @delayed
         def compute(expression, grid, selection, edges, progressbar):
             if expression in ["*", None]:
-                agg = vaex.agg.aggregates[name]()
+                agg = vaex.agg.aggregates[name](selection=selection)
             else:
                 if extra_expressions:
-                    agg = vaex.agg.aggregates[name](expression, *extra_expressions)
+                    agg = vaex.agg.aggregates[name](expression, *extra_expressions, selection=selection)
                 else:
-                    agg = vaex.agg.aggregates[name](expression)
+                    agg = vaex.agg.aggregates[name](expression, selection=selection)
             task = self._get_task_agg(grid)
-            agg_subtask = agg.add_operations(task, selection=selection, edges=edges)
+            agg_subtask = agg.add_operations(task, edges=edges)
             progressbar.add_task(task, "%s for %s" % (name, expression))
             @delayed
             def finish(counts):
