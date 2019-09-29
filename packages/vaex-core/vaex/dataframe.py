@@ -2888,22 +2888,10 @@ class DataFrame(object):
 
     def rename_column(self, name, new_name, unique=False, store_in_state=True):
         """Renames a column, not this is only the in memory name, this will not be reflected on disk"""
+        if name == new_name:
+            return
         new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else list(self))
-        data = self.columns.get(name)
-        if data is not None:
-            del self.columns[name]
-            self.column_names[self.column_names.index(name)] = new_name
-            self.columns[new_name] = data
-        else:
-            expression = self.virtual_columns[name]
-            del self.virtual_columns[name]
-            self.virtual_columns[new_name] = expression
-        if store_in_state:
-            self._renamed_columns.append((name, new_name))
-        for d in [self.ucds, self.units, self.descriptions]:
-            if name in d:
-                d[new_name] = d[name]
-                del d[name]
+        self._rename(name, new_name, rename_meta_data=True)
         return new_name
 
     @_hidden
@@ -3162,7 +3150,7 @@ class DataFrame(object):
         expression = _ensure_string_from_expression(expression)
         if name in self.get_column_names():
             renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names())
-            expression = self._rename(name, renamed, expression)[0].expression
+            expression = self._rename(name, renamed, expressions=[expression])[0].expression
 
         name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names())
         self.virtual_columns[name] = expression
@@ -3171,11 +3159,16 @@ class DataFrame(object):
         self.signal_column_changed.emit(self, name, "add")
         # self.write_virtual_meta()
 
-    def _rename(self, old, new, *expressions):
+    def _rename(self, old, new, rename_meta_data=False, expressions=[]):
         if old in self._dtypes_override:
             self._dtypes_override[new] = self._dtypes_override.pop(old)
         if old in self.columns:
             self.columns[new] = self.columns.pop(old)
+        if rename_meta_data:
+            for d in [self.ucds, self.units, self.descriptions]:
+                if old in d:
+                    d[new] = d[old]
+                    del d[old]
         if old in self.virtual_columns:
             self.virtual_columns[new] = self.virtual_columns.pop(old)
         self._renamed_columns.append((old, new))
@@ -3184,6 +3177,13 @@ class DataFrame(object):
         self.virtual_columns = {k:self[v]._rename(old, new).expression for k, v in self.virtual_columns.items()}
         for key, value in self.selection_histories.items():
             self.selection_histories[key] = list([k if k is None else k._rename(self, old, new) for k in value])
+        if hasattr(self, name):
+            try:
+                if isinstance(getattr(self, name), Expression):
+                    delattr(self, name)
+            except:
+                pass
+        self._save_assign_expression(new)
         return [self[_ensure_string_from_expression(e)]._rename(old, new) for e in expressions]
 
 
