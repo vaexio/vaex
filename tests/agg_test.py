@@ -205,3 +205,12 @@ def test_agg_selections():
     assert df_grouped['z_sum_selected'].tolist() == [2, 4, 13]
     assert df_grouped['z_mean_selected'].tolist() == [1, 4, 6.5]
     assert df_grouped['w_nuniqe_selected'].tolist() == [2, 1, 2]
+
+def test_upcast():
+    df = vaex.from_arrays(b=[False, True, True], i8=np.array([120, 121, 122], dtype=np.int8),
+        f4=np.array([1, 1e-13, 1], dtype=np.float32))
+    assert df.b.sum() == 2
+    assert df.i8.sum() == 120*3 + 3
+    assert df.f4.sum() == (2 + 1e-13)
+
+    assert abs(df.b.var() - (0.2222)) < 0.01

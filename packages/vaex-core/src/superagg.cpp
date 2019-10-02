@@ -456,10 +456,70 @@ public:
     }
 };
 
+template<class T>
+struct upcast {
+};
+
+template<>
+struct upcast<float> {
+    typedef double type;
+};
+
+template<>
+struct upcast<double> {
+    typedef double type;
+};
+
+template<>
+struct upcast<bool> {
+    typedef int64_t type;
+};
+
+template<>
+struct upcast<int8_t> {
+    typedef int64_t type;
+};
+
+template<>
+struct upcast<int16_t> {
+    typedef int64_t type;
+};
+
+template<>
+struct upcast<int32_t> {
+    typedef int64_t type;
+};
+
+template<>
+struct upcast<int64_t> {
+    typedef int64_t type;
+};
+
+template<>
+struct upcast<uint8_t> {
+    typedef uint64_t type;
+};
+
+template<>
+struct upcast<uint16_t> {
+    typedef uint64_t type;
+};
+
+template<>
+struct upcast<uint32_t> {
+    typedef uint64_t type;
+};
+
+template<>
+struct upcast<uint64_t> {
+    typedef uint64_t type;
+};
+
+
 template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
-class AggSum : public AggBase<StorageType, StorageType, IndexType> {
+class AggSum : public AggBase<StorageType, typename upcast<StorageType>::type, IndexType> {
 public:
-    using Base = AggBase<StorageType, StorageType, IndexType>;
+    using Base = AggBase<StorageType, typename upcast<StorageType>::type, IndexType>;
     using Type = AggSum<StorageType, IndexType, FlipEndian>;
     using Base::Base;
     virtual void reduce(std::vector<Type*> others) {
@@ -499,9 +559,9 @@ public:
 };
 
 template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
-class AggSumMoment : public AggBase<StorageType, StorageType, IndexType> {
+class AggSumMoment : public AggBase<StorageType, typename upcast<StorageType>::type, IndexType> {
 public:
-    using Base = AggBase<StorageType, StorageType, IndexType>;
+    using Base = AggBase<StorageType, typename upcast<StorageType>::type, IndexType>;
     using Type = AggSumMoment<StorageType, IndexType, FlipEndian>;
     using Base::Base;
     AggSumMoment(Grid<IndexType>* grid, uint32_t moment) : Base(grid), moment(moment) {
@@ -522,7 +582,7 @@ public:
             for(size_t j = 0; j < length; j++) {
                 // if not masked
                 if(this->data_mask_ptr[j+offset] == 1) {
-                    StorageType value = this->data_ptr[j+offset];
+                    typename Base::grid_type value = this->data_ptr[j+offset];
                     if(FlipEndian)
                         value = _to_native(value);
                     if(value != value) // nan
@@ -532,7 +592,7 @@ public:
             }
         } else {
             for(size_t j = 0; j < length; j++) {
-                StorageType value = this->data_ptr[offset + j];
+                typename Base::grid_type value = this->data_ptr[offset + j];
                 if(FlipEndian)
                     value = _to_native(value);
                 if(value == value) // nan check

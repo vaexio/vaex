@@ -62,6 +62,8 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             self.dtype_out = self.dtype_in
             if self.short_name == "count":
                 self.dtype_out = np.dtype('int64')
+            if self.short_name in ['sum', 'summoment']:
+                self.dtype_out = vaex.utils.upcast(self.dtype_in)
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
         agg_op = agg_op_type(grid, *self.agg_args)
         return agg_op
