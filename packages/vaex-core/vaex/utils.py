@@ -915,3 +915,15 @@ def unmask_selection_mask(selection_mask):
         # exclude the masked values
         selection_mask = selection_mask & ~mask
     return selection_mask
+
+
+def upcast(dtype):
+    if dtype.kind == "b":
+        return np.dtype('int64')
+    if dtype.kind == "i":
+        return np.dtype('int64')
+    if dtype.kind == "u":
+        return np.dtype('uint64')
+    if dtype.kind == "f":
+        return np.dtype('float64')
+    return dtype
