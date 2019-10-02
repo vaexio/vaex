@@ -307,15 +307,32 @@ class StringSequenceBase : public StringSequence {
         auto m = matches.mutable_unchecked<1>();
         {
             py::gil_scoped_release release;
-            for(size_t i = 0; i < length; i++) {
-#if defined(_MSC_VER)
-                auto str = get(i);
-                bool match = str == other;
-#else
-                auto str = view(i);
-                bool match = str == other;
-#endif
-                m(i) = match;
+            if(has_null()){
+                for(size_t i = 0; i < length; i++) {
+                    if(is_null(i)) {
+                        m(i) = false;
+                    } else {
+                        #if defined(_MSC_VER)
+                            auto str = get(i);
+                            bool match = str == other;
+                        #else
+                            auto str = view(i);
+                            bool match = str == other;
+                        #endif
+                        m(i) = match;
+                    }
+                }
+            } else {
+                for(size_t i = 0; i < length; i++) {
+                    #if defined(_MSC_VER)
+                        auto str = get(i);
+                        bool match = str == other;
+                    #else
+                        auto str = view(i);
+                        bool match = str == other;
+                    #endif
+                    m(i) = match;
+                }
             }
         }
         return std::move(matches);
@@ -328,11 +345,24 @@ class StringSequenceBase : public StringSequence {
         auto m = matches.mutable_unchecked<1>();
         {
             py::gil_scoped_release release;
-            for(size_t i = 0; i < length; i++) {
-                auto str = view(i);
-                auto other = others->view(i);
-                bool match = str == other;
-                m(i) = match;
+            if(has_null() || others->has_null()) {
+                for(size_t i = 0; i < length; i++) {
+                    if(is_null(i) || others->is_null(i)) {
+                        m(i) = false;
+                    } else {
+                        auto str = view(i);
+                        auto other = others->view(i);
+                        bool match = str == other;
+                        m(i) = match;
+                    }
+                }
+            } else {
+                for(size_t i = 0; i < length; i++) {
+                    auto str = view(i);
+                    auto other = others->view(i);
+                    bool match = str == other;
+                    m(i) = match;
+                }
             }
         }
         return std::move(matches);
@@ -1611,7 +1641,7 @@ public:
                     utf8_objects[i] = PyUnicode_AsUTF8String(object_array[i]);
                     sizes[i] = PyString_Size(utf8_objects[i]);
                     strings[i] = PyString_AsString(utf8_objects[i]);
-                } else if(PyString_CheckExact(object_array[i])) {
+                } else if(PyString_CheckExact(object_array[i]) && ((byte_mask == nullptr) || (byte_mask[i] == 0))) {
                     // otherwise directly use
                     utf8_objects[i] = 0;
                     sizes[i] = PyString_Size(object_array[i]);

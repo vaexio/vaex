@@ -25,6 +25,8 @@ def test_masked_array():
     mask = np.array([False, False, True, False, True], dtype=bool)
     sa = vaex.strings.StringArray(ar, mask)
     assert sa.tolist() == ['dog', 'dog', None, 'cat', None]
+    assert sa.equals('cat').tolist() == [False, False, False, True, False]
+    assert sa.equals(sa).tolist() == [True, True, False, True, False]
 
 def test_string_array():
     ar = np.array(["aap", "noot", None, "mies"], dtype='object')
