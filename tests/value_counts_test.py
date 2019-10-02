@@ -87,18 +87,18 @@ def test_value_counts_masked_str():
     value_counts = df.x.value_counts()
     assert len(value_counts) == 4
     assert value_counts['A'] == 2
-    assert value_counts['A'] == 1
+    assert value_counts['B'] == 1
     assert value_counts[''] == 2
     assert value_counts['missing'] == 4
 
     value_counts = df.x.value_counts(dropmissing=True)
     assert len(value_counts) == 3
     assert value_counts['A'] == 2
-    assert value_counts['A'] == 1
+    assert value_counts['B'] == 1
     assert value_counts[''] == 2
 
     value_counts = df.x.value_counts(dropna=True)
     assert len(value_counts) == 3
     assert value_counts['A'] == 2
-    assert value_counts['A'] == 1
+    assert value_counts['B'] == 1
     assert value_counts[''] == 2

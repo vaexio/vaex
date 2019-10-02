@@ -282,11 +282,15 @@ def _to_string_sequence(x):
     if isinstance(x, ColumnString):
         return x.string_sequence
     elif isinstance(x, np.ndarray):
+        mask = None
+        if np.ma.isMaskedArray(x):
+            mask = np.ma.getmaskarray(x)
+            x = x.data
         if x.dtype == 'O':
-            return vaex.strings.StringArray(x)
+            return vaex.strings.StringArray(x) if mask is None else vaex.strings.StringArray(x, mask)
         elif x.dtype.kind in 'US':
             x = x.astype('O')
-            return vaex.strings.StringArray(x)
+            return vaex.strings.StringArray(x) if mask is None else vaex.strings.StringArray(x, mask)
         else:
             raise ValueError('unsupported dtype ' +str(x.dtype))
     else:
