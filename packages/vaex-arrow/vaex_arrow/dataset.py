@@ -40,10 +40,9 @@ class DatasetArrow(vaex.dataset.DatasetLocal):
     def _load_table(self, table):
         self._length_unfiltered = self._length_original = table.num_rows
         self._index_end = self._length_original = table.num_rows
-        for col in table.columns:
-            name = col.name
+        for col, name in zip(table.columns, table.schema.names):
             # TODO: keep the arrow columns, and support and test chunks
-            arrow_array = col.data.chunks[0]
+            arrow_array = col.chunk(0)
             if isinstance(arrow_array.type, pa.DictionaryType):
                 column = column_from_arrow_array(arrow_array.indices)
                 labels = column_from_arrow_array(arrow_array.dictionary).tolist()
