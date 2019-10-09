@@ -13,11 +13,9 @@ def arrow_array_from_numpy_array(array):
         type = pyarrow.binary(dtype.itemsize)
         arrow_array = pyarrow.array(array, type, mask=mask)
     else:
-        if dtype.isnative:
-            arrow_array = pyarrow.array(array, mask=mask)
-        else:
-            # TODO: we copy here, but I guess we should not... or give some warning
-            arrow_array = pyarrow.array(array.astype(dtype.newbyteorder('=')), mask=mask)
+        if not dtype.isnative:
+            array = array.astype(dtype.newbyteorder('='))
+        arrow_array = pyarrow.Array.from_pandas(array, mask=mask)
     return arrow_array
 
 from vaex.dataframe import Column
