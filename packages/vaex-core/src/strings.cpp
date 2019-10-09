@@ -307,15 +307,32 @@ class StringSequenceBase : public StringSequence {
         auto m = matches.mutable_unchecked<1>();
         {
             py::gil_scoped_release release;
-            for(size_t i = 0; i < length; i++) {
-#if defined(_MSC_VER)
-                auto str = get(i);
-                bool match = str == other;
-#else
-                auto str = view(i);
-                bool match = str == other;
-#endif
-                m(i) = match;
+            if(has_null()){
+                for(size_t i = 0; i < length; i++) {
+                    if(is_null(i)) {
+                        m(i) = false;
+                    } else {
+                        #if defined(_MSC_VER)
+                            auto str = get(i);
+                            bool match = str == other;
+                        #else
+                            auto str = view(i);
+                            bool match = str == other;
+                        #endif
+                        m(i) = match;
+                    }
+                }
+            } else {
+                for(size_t i = 0; i < length; i++) {
+                    #if defined(_MSC_VER)
+                        auto str = get(i);
+                        bool match = str == other;
+                    #else
+                        auto str = view(i);
+                        bool match = str == other;
+                    #endif
+                    m(i) = match;
+                }
             }
         }
         return std::move(matches);
@@ -328,11 +345,24 @@ class StringSequenceBase : public StringSequence {
         auto m = matches.mutable_unchecked<1>();
         {
             py::gil_scoped_release release;
-            for(size_t i = 0; i < length; i++) {
-                auto str = view(i);
-                auto other = others->view(i);
-                bool match = str == other;
-                m(i) = match;
+            if(has_null() || others->has_null()) {
+                for(size_t i = 0; i < length; i++) {
+                    if(is_null(i) || others->is_null(i)) {
+                        m(i) = false;
+                    } else {
+                        auto str = view(i);
+                        auto other = others->view(i);
+                        bool match = str == other;
+                        m(i) = match;
+                    }
+                }
+            } else {
+                for(size_t i = 0; i < length; i++) {
+                    auto str = view(i);
+                    auto other = others->view(i);
+                    bool match = str == other;
+                    m(i) = match;
+                }
             }
         }
         return std::move(matches);
@@ -1586,7 +1616,7 @@ const char* empty = "";
 
 class StringArray : public StringSequenceBase {
 public:
-    StringArray(PyObject** object_array, size_t length) : StringSequenceBase(length), _byte_size(0), _has_null(false) {
+    StringArray(PyObject** object_array, size_t length, uint8_t* byte_mask=nullptr) : StringSequenceBase(length), _byte_size(0), _has_null(false) {
         #if PY_MAJOR_VERSION == 2
             utf8_objects = (PyObject**)malloc(length * sizeof(void*));
         #endif
@@ -1597,7 +1627,7 @@ public:
             objects[i] = object_array[i];
             Py_IncRef(objects[i]);
             #if PY_MAJOR_VERSION == 3
-                if(PyUnicode_CheckExact(object_array[i])) {
+                if(PyUnicode_CheckExact(object_array[i]) && ((byte_mask == nullptr) || (byte_mask[i] == 0))) {
                     // python37 declares as const
                     strings[i] = (char*)PyUnicode_AsUTF8AndSize(object_array[i], &sizes[i]);
                 } else {
@@ -1606,12 +1636,12 @@ public:
                     sizes[i] = 0;
                 }
             #else
-                if(PyUnicode_CheckExact(object_array[i])) {
+                if(PyUnicode_CheckExact(object_array[i]) && ((byte_mask == nullptr) || (byte_mask[i] == 0))) {
                     // if unicode, first convert to utf8
                     utf8_objects[i] = PyUnicode_AsUTF8String(object_array[i]);
                     sizes[i] = PyString_Size(utf8_objects[i]);
                     strings[i] = PyString_AsString(utf8_objects[i]);
-                } else if(PyString_CheckExact(object_array[i])) {
+                } else if(PyString_CheckExact(object_array[i]) && ((byte_mask == nullptr) || (byte_mask[i] == 0))) {
                     // otherwise directly use
                     utf8_objects[i] = 0;
                     sizes[i] = PyString_Size(object_array[i]);
@@ -2077,6 +2107,20 @@ PYBIND11_MODULE(superstrings, m) {
                 // std::cout << info.format << " format" << std::endl;
                 return std::unique_ptr<StringArray>(
                     new StringArray((PyObject**)info.ptr, info.shape[0]));
+            }) // no need to keep a reference to the ndarrays
+        )
+        .def(py::init([](py::buffer string_array, py::buffer mask_array) {
+                py::buffer_info info = string_array.request();
+                py::buffer_info mask_info = mask_array.request();
+                if(info.ndim != 1) {
+                    throw std::runtime_error("Expected a 1d byte buffer");
+                }
+                if(info.format != "O") {
+                    throw std::runtime_error("Expected an object array");
+                }
+                // std::cout << info.format << " format" << std::endl;
+                return std::unique_ptr<StringArray>(
+                    new StringArray((PyObject**)info.ptr, info.shape[0], (uint8_t*)mask_info.ptr));
             }) // no need to keep a reference to the ndarrays
         )
         .def("to_arrow", &StringArray::to_arrow) // nothing to keep alive, all a copy

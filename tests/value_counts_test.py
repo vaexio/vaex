@@ -78,3 +78,27 @@ def test_value_counts_object_missing():
     assert len(df.x.value_counts(dropnan=False, dropmissing=False)) == 8
     assert len(df.x.value_counts(dropnan=True, dropmissing=True)) == 6
 
+
+def test_value_counts_masked_str():
+    x = np.ma.MaskedArray(data=['A'  , 'A' , 'A'  , 'B'  , 'B' , 'B' , ''   , ''  , ''  ],
+                          mask=[False, True, False, False, True, True, False, True, False])
+    df = vaex.from_arrays(x=x)
+
+    value_counts = df.x.value_counts()
+    assert len(value_counts) == 4
+    assert value_counts['A'] == 2
+    assert value_counts['B'] == 1
+    assert value_counts[''] == 2
+    assert value_counts['missing'] == 4
+
+    value_counts = df.x.value_counts(dropmissing=True)
+    assert len(value_counts) == 3
+    assert value_counts['A'] == 2
+    assert value_counts['B'] == 1
+    assert value_counts[''] == 2
+
+    value_counts = df.x.value_counts(dropna=True)
+    assert len(value_counts) == 3
+    assert value_counts['A'] == 2
+    assert value_counts['B'] == 1
+    assert value_counts[''] == 2

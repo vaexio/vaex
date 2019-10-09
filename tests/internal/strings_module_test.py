@@ -12,12 +12,21 @@ def test_regex():
     assert sl.search('aa', True).tolist() == [True, False, False]
     # assert False
 
+
 def test_regex_array():
     ar = np.array(["aap", "noot", "mies"], dtype='object')
     sa = vaex.strings.StringArray(ar)
     assert sa.search('aa', False).tolist() == [True, False, False]
     assert sa.search('aa', True).tolist() == [True, False, False]
-    # assert False
+
+
+def test_masked_array():
+    ar = np.array(['dog', 'dog', 'cat', 'cat', 'mouse'], dtype=object)
+    mask = np.array([False, False, True, False, True], dtype=bool)
+    sa = vaex.strings.StringArray(ar, mask)
+    assert sa.tolist() == ['dog', 'dog', None, 'cat', None]
+    assert sa.equals('cat').tolist() == [False, False, False, True, False]
+    assert sa.equals(sa).tolist() == [True, True, False, True, False]
 
 def test_string_array():
     ar = np.array(["aap", "noot", None, "mies"], dtype='object')
