@@ -89,7 +89,7 @@ class ColumnIndexed(Column):
         :return: A column object which avoids two levels of indirection
         :rtype: ColumnIndexed
         """
-        direct_indices_map = direct_indices_map or {}
+        direct_indices_map = direct_indices_map if direct_indices_map is not None else {}
         if isinstance(column, ColumnIndexed):
             # TODO: think about what happpens when the indices are masked.. ?
             if id(column.indices) not in direct_indices_map:
