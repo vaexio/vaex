@@ -367,6 +367,43 @@ class StringSequenceBase : public StringSequence {
         }
         return std::move(matches);
     }
+    py::object isin(const StringSequence* others) {
+        py::array_t<bool> matches(length);
+        auto m = matches.mutable_unchecked<1>();
+        {
+            py::gil_scoped_release release;
+            if(has_null() || others->has_null()) {
+                for(size_t i = 0; i < length; i++) {
+                    bool found = false;
+                    if(is_null(i)) {
+                        auto str = view(i);
+                        for(size_t j = 0; j < others->length; j++) {
+                            if(others->is_null(j)) {
+                                auto other = others->view(j);
+                                found = str == other;
+                                if(found)
+                                    break;
+                            }
+                        }
+                    }
+                    m(i) = found;
+                }
+            } else {
+                for(size_t i = 0; i < length; i++) {
+                    auto str = view(i);
+                    bool found = false;
+                    for(size_t j = 0; j < others->length; j++) {
+                        auto other = others->view(j);
+                        found = str == other;
+                        if(found)
+                            break;
+                    }
+                    m(i) = found;
+                }
+            }
+        }
+        return std::move(matches);
+    }
     py::object tolist() {
         py::list l;
         for(size_t i = 0; i < length; i++) {
@@ -2043,6 +2080,7 @@ PYBIND11_MODULE(superstrings, m) {
         .def("upper", &StringSequenceBase::upper)
         .def("endswith", &StringSequenceBase::endswith)
         .def("find", &StringSequenceBase::find)
+        .def("isin", &StringSequenceBase::isin)
         .def("lower", &StringSequenceBase::lower)
         .def("match", &StringSequenceBase::match, "Tests if strings matches regex", py::arg("pattern"))
         .def("equals", &StringSequenceBase::equals, "Tests if strings are equal")

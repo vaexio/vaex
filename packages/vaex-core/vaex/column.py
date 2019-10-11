@@ -293,6 +293,8 @@ def _to_string_sequence(x):
             return vaex.strings.StringArray(x) if mask is None else vaex.strings.StringArray(x, mask)
         else:
             raise ValueError('unsupported dtype ' +str(x.dtype))
+    elif isinstance(x, (list, type)):
+        return _to_string_sequence(np.array(x))
     else:
         raise ValueError('not a ColumnString or ndarray: ' + str(x))
 
