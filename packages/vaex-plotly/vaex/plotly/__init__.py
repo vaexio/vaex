@@ -244,7 +244,30 @@ class DataFrameAccessorPlotly(object):
         import plotly.graph_objs as go
         import plotly.callbacks
 
+        # Define the widget components
         _widget_f = vue.Select(items=['identity', 'log', 'log10', 'log1p'], v_model=f or 'identity', label='Transform')
+        _widget_selection = widgets.ToggleButtons(options=['default'], description='selection')
+        _items = [{'text': xexpr, 'value': i} for i, xexpr in enumerate(x)]
+        _widget_selection_space = vue.Select(items=_items, v_model=0, label='Expression')
+        _widget_selection_mode = widgets.ToggleButtons(options=['replace', 'and', 'or', 'xor', 'subtract'],
+                                                       value='replace',
+                                                       description='mode')
+        _widget_selection_undo = widgets.Button(description='undo', icon='arrow-left')
+        _widget_selection_redo = widgets.Button(description='redo', icon='arrow-right')
+        _widget_history_box = widgets.HBox(children=[widgets.Label('history', layout={'width': '80px'}),
+                                                     _widget_selection_undo,
+                                                     _widget_selection_redo])
+        # Put them together in the control-widget: this is what is contained within the navigation drawer
+        control_widget = vue.Layout(pa_1=True, column=True, children=[_widget_f,
+                                                                      _widget_selection_space,
+                                                                      _widget_selection,
+                                                                      _widget_selection_mode,
+                                                                      _widget_history_box])
+        # The output widget
+        _widget_output = widgets.Output()
+        # The widget for the temporary output of the progressbar
+        _widget_progress_output = widgets.Output()
+
 
 
         if isinstance(x, list) is False:
@@ -260,10 +283,12 @@ class DataFrameAccessorPlotly(object):
         for i in range(num_traces):
 
             xar, counts = self._grid(expr=x[i], what=what, shape=shape[i], limits=limits,
-                                     f=f, n=n, selection=selection[i], progress=progress)
+                                     f=_widget_f.v_model, n=n, selection=selection[i], progress=progress)
 
             line = go.scatter.Line(color=color[i], width=lw[i], dash=ls[i])
             traces.append(go.Scatter(x=xar, y=counts, mode='lines', line_shape='hv', line=line, name=label[i]))
+        # Append a dummy scatter to enable selection
+        traces.append(go.Scatter(y=[None]))
 
         legend = go.layout.Legend(orientation='h')
         title = go.layout.Title(text=title, xanchor='center', x=0.5, yanchor='top')
@@ -275,7 +300,57 @@ class DataFrameAccessorPlotly(object):
                            yaxis=go.layout.YAxis(title=ylabel or what))
         fig = go.FigureWidget(data=traces, layout=layout)
 
-        return fig
+        # Set up all the interactive options
+        @_widget_progress_output.capture(clear_output=True)
+        def _transform_f(change=None, *args, **kwargs):
+            with fig.batch_update():
+                for i in range(num_traces):
+                    xar, counts = self._grid(expr=x[i], what=what, shape=shape[i], limits=limits, f=_widget_f.v_model, selection=selection[i], progress=True)
+                    fig.data[i]['x'] = xar
+                    fig.data[i]['y'] = counts
+
+
+        @_widget_progress_output.capture(clear_output=True)
+        def _pan_and_zoom(layout, _xrange, _yrange):
+            limits = _xrange
+            with fig.batch_update():
+                for i in range(num_traces):
+                    xar, counts = self._grid(expr=x[i], what=what, shape=shape[i], limits=limits, f=_widget_f.v_model, selection=selection[i], progress=True)
+                    fig.data[i]['x'] = xar
+                    fig.data[i]['y'] = counts
+
+
+        @_widget_output.capture(clear_output=True)
+        def _selection(trace, points, selector):
+            i = _widget_selection_space.v_model
+            if isinstance(selector, plotly.callbacks.BoxSelector):
+                xmin = selector.xrange[0]
+                xmax = selector.xrange[1]
+                boolean_expression = '({xmin} <= {x}) & ({x} <= {xmax})'.format(x=x[i], xmin=xmin, xmax=xmax)
+                self.df.select(boolean_expression, mode=_widget_selection_mode.value)
+            elif isinstance(selector, plotly.callbacks.LassoSelector):
+                xmin = np.min(selector.xs)
+                xmax = np.max(selector.xs)
+                boolean_expression = '({xmin} <= {x}) & ({x} <= {xmax})'.format(x=x[i], xmin=xmin, xmax=xmax)
+                self.df.select(boolean_expression, mode=_widget_selection_mode.value)
+            else:
+                raise ValueError('Unsupported selection: please use a Box or a Lasso selection.')
+
+        # The links
+        fig.data[-1].on_selection(_selection)
+        fig.data[-1].on_deselect(self._selection_clear)
+        _widget_selection_undo.on_click(self._selection_undo)
+        _widget_selection_redo.on_click(self._selection_redo)
+        fig.layout.on_change(_pan_and_zoom, 'xaxis.range', 'yaxis.range')
+        widgets.Widget.observe(_widget_f, _transform_f, names='v_model')
+
+        # create the complete widget
+        figure_widget = PlotTemplatePlotly(components={'main-widget': widgets.VBox(children=[fig, _widget_progress_output]),
+                                                       'control-widget': control_widget,
+                                                       'output-widget': _widget_output
+                                                       })
+
+        return figure_widget
 
     def heatmap(self, x, y, what="count(*)", shape=128, limits=None, selection=None, f=None, n=None,
                 colorbar=None, colorbar_label=None, colormap=None, vmin=None, vmax=None,
