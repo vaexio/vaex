@@ -308,7 +308,7 @@ class DataFrameAccessorPlotly(object):
         import plotly.graph_objs as go
         import plotly.callbacks
 
-        # Degine the widget components
+        # Define the widget components
         _widget_progress = widgets.FloatProgress(value=0.0, min=0.0, max=1.0, step=0.01,
                                                  layout={'width': '95%', 'max_width': '500pix'},
                                                  description='progress')
