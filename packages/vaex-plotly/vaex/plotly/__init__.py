@@ -50,6 +50,7 @@ class DataFrameAccessorPlotly(object):
         """
 
         import plotly.graph_objs as go
+        import plotly.callbacks
 
         x = _ensure_list(x)
         y = _ensure_list(y)
@@ -152,7 +153,55 @@ class DataFrameAccessorPlotly(object):
 
         fig = go.FigureWidget(data=traces, layout=layout)
 
-        return fig
+        # Define the widget components
+        _widget_selection = widgets.ToggleButtons(options=['default'], description='selection')
+        _items = [{'text': xexpr + ' -vs-  ' + yexpr, 'value': i} for i, (xexpr, yexpr) in enumerate(zip(x, y))]
+        _widget_selection_space = vue.Select(items=_items, v_model=0, label='selection space')
+        _widget_selection_mode = widgets.ToggleButtons(options=['replace', 'and', 'or', 'xor', 'subtract'],
+                                                       value='replace',
+                                                       description='mode')
+        _widget_selection_undo = widgets.Button(description='undo', icon='arrow-left')
+        _widget_selection_redo = widgets.Button(description='redo', icon='arrow-right')
+        _widget_history_box = widgets.HBox(children=[widgets.Label('history', layout={'width': '80px'}),
+                                                     _widget_selection_undo,
+                                                     _widget_selection_redo])
+        _widget_clear_history = vue.Btn(children=[vue.Icon(children=['menu']), 'clear selections'])
+        # Put them together in the control-widget: this is what is contained within the navigation drawer
+        control_widget = vue.Layout(pa_1=True, column=True, children=[_widget_selection_space,
+                                                                      _widget_selection,
+                                                                      _widget_selection_mode,
+                                                                      _widget_history_box])
+        # The output widget
+        _widget_output = widgets.Output()
+
+        # Set up all the links and interactive actions
+        @_widget_output.capture(clear_output=True)
+        def _selection(trace, points, selector):
+            i = _widget_selection_space.v_model
+            if isinstance(selector, plotly.callbacks.BoxSelector):
+                limits = [selector.xrange, selector.yrange]
+                print(i, x, y, limits)
+                self.df.select_rectangle(x=x[i], y=y[i], limits=limits, mode=_widget_selection_mode.value)
+            elif isinstance(selector, plotly.callbacks.LassoSelector):
+                self.df.select_lasso(expression_x=x[i], expression_y=y[i],
+                                     xsequence=selector.xs, ysequence=selector.ys,
+                                     mode=_widget_selection_mode.value)
+            else:
+                raise ValueError('Unsupported selection: please use a Box or a Lasso selection.')
+
+        fig.data[0].on_selection(_selection)
+        fig.data[0].on_deselect(self._selection_clear)
+        _widget_selection_undo.on_click(self._selection_undo)
+        _widget_selection_redo.on_click(self._selection_redo)
+
+        # create the complete widget
+        figure_widget = PlotTemplatePlotly(components={'main-widget': fig,
+                                                       'control-widget': control_widget,
+                                                       'output-widget': _widget_output
+                                                       })
+
+        return figure_widget
+
 
     def histogram(self, x, what='count(*)', grid=None, shape=64, limits=None, f='identity', n=None,
                   lw=None, ls=None, color=None, figure_height=None, figure_width=None,
