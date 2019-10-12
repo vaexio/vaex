@@ -165,7 +165,6 @@ class DataFrameAccessorPlotly(object):
         _widget_history_box = widgets.HBox(children=[widgets.Label('history', layout={'width': '80px'}),
                                                      _widget_selection_undo,
                                                      _widget_selection_redo])
-        _widget_clear_history = vue.Btn(children=[vue.Icon(children=['menu']), 'clear selections'])
         # Put them together in the control-widget: this is what is contained within the navigation drawer
         control_widget = vue.Layout(pa_1=True, column=True, children=[_widget_selection_space,
                                                                       _widget_selection,
@@ -201,7 +200,6 @@ class DataFrameAccessorPlotly(object):
                                                        })
 
         return figure_widget
-
 
     def histogram(self, x, what='count(*)', grid=None, shape=64, limits=None, f='identity', n=None,
                   lw=None, ls=None, color=None, figure_height=None, figure_width=None,
@@ -268,8 +266,6 @@ class DataFrameAccessorPlotly(object):
         # The widget for the temporary output of the progressbar
         _widget_progress_output = widgets.Output()
 
-
-
         if isinstance(x, list) is False:
             x = [x]
         x = _ensure_strings_from_expressions(x)
@@ -305,22 +301,22 @@ class DataFrameAccessorPlotly(object):
         def _transform_f(change=None, *args, **kwargs):
             with fig.batch_update():
                 for i in range(num_traces):
-                    xar, counts = self._grid(expr=x[i], what=what, shape=shape[i], limits=limits, f=_widget_f.v_model, selection=selection[i], progress=True)
+                    xar, counts = self._grid(expr=x[i], what=what, shape=shape[i], limits=limits,
+                                             f=_widget_f.v_model, selection=selection[i], progress=True)
                     fig.data[i]['x'] = xar
                     fig.data[i]['y'] = counts
-
 
         @_widget_progress_output.capture(clear_output=True)
         def _pan_and_zoom(layout, _xrange, _yrange):
             limits = _xrange
             with fig.batch_update():
                 for i in range(num_traces):
-                    xar, counts = self._grid(expr=x[i], what=what, shape=shape[i], limits=limits, f=_widget_f.v_model, selection=selection[i], progress=True)
+                    xar, counts = self._grid(expr=x[i], what=what, shape=shape[i], limits=limits,
+                                             f=_widget_f.v_model, selection=selection[i], progress=True)
                     fig.data[i]['x'] = xar
                     fig.data[i]['y'] = counts
 
-
-        @_widget_output.capture(clear_output=True)
+        @_widget_progress_output.capture(clear_output=True)
         def _selection(trace, points, selector):
             i = _widget_selection_space.v_model
             if isinstance(selector, plotly.callbacks.BoxSelector):
@@ -400,15 +396,13 @@ class DataFrameAccessorPlotly(object):
         _widget_history_box = widgets.HBox(children=[widgets.Label('history', layout={'width': '80px'}),
                                                      _widget_selection_undo,
                                                      _widget_selection_redo])
-        _widget_clear_history = vue.Btn(children=[vue.Icon(children=['menu']), 'clear selections'])
         # Put them together in the control-widget: this is what is contained within the navigation drawer
         control_widget = vue.Layout(pa_1=True, column=True, children=[_widget_f,
                                                                       _widget_vmin,
                                                                       _widget_vmax,
                                                                       _widget_selection,
                                                                       _widget_selection_mode,
-                                                                      _widget_history_box,
-                                                                      _widget_clear_history])
+                                                                      _widget_history_box])
         # The output widget
         _widget_output = widgets.Output()
         # The widget for the temporary output of the progressbar
@@ -462,7 +456,7 @@ class DataFrameAccessorPlotly(object):
                 fig.data[1]['zmax'] = 0
                 fig.data[1]['zauto'] = True
 
-        @_widget_output.capture(clear_output=True)
+        @_widget_progress_output.capture(clear_output=True)
         def _selection(trace, points, selector):
             if isinstance(selector, plotly.callbacks.BoxSelector):
                 limits = [selector.xrange, selector.yrange]
@@ -497,9 +491,9 @@ class DataFrameAccessorPlotly(object):
         # Enable the dynamic zooming, panning and selections
         fig.layout.on_change(_pan_and_zoom, 'xaxis.range', 'yaxis.range')
         fig.data[0].on_selection(_selection)
+        fig.data[0].on_deselect(self._selection_clear)
 
         # link the buttons and sliders
-        _widget_clear_history.on_event('click', self._selection_clear)
         _widget_selection_undo.on_click(self._selection_undo)
         _widget_selection_redo.on_click(self._selection_redo)
         widgets.Widget.observe(_widget_f, _transform_f, names='v_model')
@@ -586,7 +580,6 @@ class DataFrameAccessorPlotly(object):
         counts = np.concatenate([ngrid[0:1], ngrid])
         # Done!
         return extent, counts
-
 
     def _selection_clear(self, change=None, *args, **kwargs):
         self.df.select_nothing()
