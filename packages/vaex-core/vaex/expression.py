@@ -657,6 +657,38 @@ def f({0}):
             return self.ds.func.astype(self, str(dtype))
 
     def apply(self, f):
+        """Apply a function along all values of an Expression.
+
+        Example:
+
+        >>> df = vaex.example()
+        >>> df.x
+        Expression = x
+        Length: 330,000 dtype: float64 (column)
+        ---------------------------------------
+             0  -0.777471
+             1    3.77427
+             2    1.37576
+             3   -7.06738
+             4   0.243441
+
+        >>> def func(x):
+        ...     return x**2
+
+        >>> df.x.apply(func)
+        Expression = lambda_function(x)
+        Length: 330,000 dtype: float64 (expression)
+        -------------------------------------------
+             0   0.604461
+             1    14.2451
+             2    1.89272
+             3    49.9478
+             4  0.0592637
+
+
+        :param f: A function to be applied on the Expression values
+        :returns: A function that is lazily evaluated when called.
+        """
         return self.ds.apply(f, [self.expression])
 
     def dropmissing(self):
