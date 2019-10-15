@@ -293,6 +293,30 @@ class DataFrame(object):
         return self._delay(delay, task)
 
     def apply(self, f, arguments=None, dtype=None, delay=False, vectorize=False):
+        """Apply a function on a per row basis across the entire DataFrame.
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.example()
+        >>> def func(x, y):
+        ...     return (x+y)/(x-y)
+        ...
+        >>> df.apply(func, arguments=[df.x, df.y])
+        Expression = lambda_function(x, y)
+        Length: 330,000 dtype: float64 (expression)
+        -------------------------------------------
+             0  -0.460789
+             1    3.90038
+             2  -0.642851
+             3   0.685768
+             4  -0.543357
+
+
+        :param f: The function to be applied
+        :param arguments: List of arguments to be passed on the the function f.
+        :return: A function that is lazily evaluated.
+        """
         assert arguments is not None, 'for now, you need to supply arguments'
         import types
         if isinstance(f, types.LambdaType):
