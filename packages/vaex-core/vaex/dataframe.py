@@ -211,6 +211,9 @@ class DataFrame(object):
         self._renamed_columns = []
         self._column_aliases = {}  # maps from invalid variable names to valid ones
 
+        # weak refs of expression that we keep to rewrite expressions
+        self._expressions = []
+
     def __getattr__(self, name):
         # will support the hidden methods
         if name in self.__hidden__:
@@ -3184,6 +3187,10 @@ class DataFrame(object):
             except:
                 pass
         self._save_assign_expression(new)
+        existing_expressions = [k() for k in self._expressions]
+        existing_expressions = [k for k in existing_expressions if k is not None]
+        for expression in existing_expressions:
+            expression._rename(old, new, inplace=True)
         return [self[_ensure_string_from_expression(e)]._rename(old, new) for e in expressions]
 
 
