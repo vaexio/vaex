@@ -34,6 +34,7 @@ install:
   - pushd packages\vaex-jupyter   && pip install . && popd
   - pushd packages\vaex-ui   && pip install . && popd
   - pushd packages\vaex-ml   && pip install . && popd
+  - pushd packages\vaex-graphql   && pip install . && popd
 
 test_script:
  - python -m vaex.test.dataset TestDataset

@@ -7,17 +7,11 @@ from graphene_tornado.tornado_graphql_handler import TornadoGraphQLHandler
 
 class Application(tornado.web.Application):
 
-    def __init__(self, schema):
+    def __init__(self, schema, **kwargs):
         handlers = [
             (r'/graphql', TornadoGraphQLHandler, dict(graphiql=True, schema=schema)),
             (r'/graphql/batch', TornadoGraphQLHandler, dict(graphiql=True, schema=schema, batch=True)),
             (r'/graphql/graphiql', TornadoGraphQLHandler, dict(graphiql=True, schema=schema))
         ]
-        tornado.web.Application.__init__(self, handlers)
-
-
-if __name__ == '__main__':
-    app = ExampleApplication()
-    app.listen(5000)
-    IOLoop.instance().start()
+        tornado.web.Application.__init__(self, handlers, **kwargs, debug=True)
 

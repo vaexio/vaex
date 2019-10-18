@@ -1,0 +1,196 @@
+from common import *
+
+
+def test_aggregates(df_local):
+    df = df_local
+
+    result = df.graphql.execute("""
+    {
+        df {
+            count
+            min {
+                x
+                y
+            }
+            mean {
+                x
+                y
+            }
+            max {
+                x
+                y
+            }
+        }
+    }
+    """)
+    assert not result.errors
+    assert result.data['df']['count'] == len(df)
+    assert result.data['df']['min']['x'] == df.x.min()
+    assert result.data['df']['min']['y'] == df.y.min()
+    assert result.data['df']['max']['x'] == df.x.max()
+    assert result.data['df']['max']['y'] == df.y.max()
+    assert result.data['df']['mean']['x'] == df.x.mean()
+    assert result.data['df']['mean']['y'] == df.y.mean()
+
+
+def test_groupby(df_local):
+    df = df_local
+
+    result = df.graphql.execute("""
+    {
+        df {
+            groupby {
+                x {
+                    min {
+                        x
+                    }
+                }
+            }
+        }
+    }
+    """)
+    assert not result.errors
+    dfg = df.groupby('x', agg={'xmin': vaex.agg.min('x')})
+    assert result.data['df']['groupby']['x']['min']['x'] == dfg['xmin'].tolist()
+
+
+def test_row_pagination(df_local):
+    df = df_local
+    def values(row, name):
+        return [k[name] for k in row]
+    schema = df.graphql.schema()
+    result = df.graphql.execute("""
+    {
+        df {
+            row { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df.x.tolist()
+
+    result = df.graphql.execute("""
+    {
+        df {
+            row(offset: 2) { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df[2:].x.tolist()
+
+    result = df.graphql.execute("""
+    {
+        df {
+            row(limit: 2) { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df[:2].x.tolist()
+
+    result = df.graphql.execute("""
+    {
+        df {
+            row(offset: 3, limit: 2) { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df[3:5].x.tolist()
+
+
+def test_where(df_local):
+    df = df_local
+    def values(row, name):
+        return [k[name] for k in row]
+    schema = df.graphql.schema()
+    result = df.graphql.execute("""
+    {
+        df(where: {x: {_eq: 4}}) {
+            row { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df[df.x==4].x.tolist()
+
+    result = df.graphql.execute("""
+    {
+        df(where: {x: {_neq: 4}}) {
+            row { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df[df.x!=4].x.tolist()
+
+    result = df.graphql.execute("""
+    {
+        df(where: {x: {_gt: 4}}) {
+            row { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df[df.x>4].x.tolist()
+
+    result = df.graphql.execute("""
+    {
+        df(where: {x: {_gte: 4}}) {
+            row { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df[df.x>=4].x.tolist()
+
+    result = df.graphql.execute("""
+    {
+        df(where: {x: {_lt: 4}}) {
+            row { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df[df.x<4].x.tolist()
+
+    result = df.graphql.execute("""
+    {
+        df(where: {x: {_lte: 4}}) {
+            row { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df[df.x<=4].x.tolist()
+
+    result = df.graphql.execute("""
+    {
+        df(where: {_not: {x: {_lte: 4}}}) {
+            row { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == df[~(df.x<=4)].x.tolist()
+
+    result = df.graphql.execute("""
+    {
+        df(where: {_or: [{x: {_eq: 4}}, {x: {_eq: 6}} ]}) {
+            row { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == [4, 6]
+
+    result = df.graphql.execute("""
+    {
+        df(where: {_and: [{x: {_gte: 4}}, {x: {_lte: 6}} ]}) {
+            row { x }
+        }
+    }
+    """)
+    assert not result.errors
+    assert values(result.data['df']['row'], 'x') == [4, 5, 6]
