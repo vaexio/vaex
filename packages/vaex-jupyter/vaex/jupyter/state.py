@@ -41,7 +41,7 @@ class VizBaseState(vaex.ml.state.HasState):
 
     def _calculate_limits(self, attr='x', expression='x_expression'):
         expression = getattr(self, expression)
-        categorical = self.ds.iscategory(expression)
+        categorical = self.ds.is_category(expression)
         if categorical:
             N = self.ds.category_count(expression)
             min, max = -0.5, N-0.5
@@ -56,7 +56,7 @@ class VizBaseState(vaex.ml.state.HasState):
 
     def _calculate_centers(self, attr='x', expression='x_expression'):
         expression = getattr(self, expression)
-        categorical = self.ds.iscategory(expression)
+        categorical = self.ds.is_category(expression)
         min, max = getattr(self, attr + '_min'), getattr(self, attr + '_max')
         if min is None or max is None:
             return # special condition that can occur during testing, since debounced does not work
@@ -68,7 +68,7 @@ class VizBaseState(vaex.ml.state.HasState):
             # print(expression, [min, max], getattr(self, attr + '_shape') or self.shape)
             centers = self.ds.bin_centers(expression, [min, max], shape=getattr(self, attr + '_shape') or self.shape)
         setattr(self, attr + '_centers', centers)
-                                                                      
+
 class VizHistogramState(VizBaseState):
     x_expression = traitlets.Unicode()
     x_slice = traitlets.CInt(None, allow_none=True)
@@ -83,7 +83,7 @@ class VizHistogramState(VizBaseState):
     x_centers = traitlets.Any().tag(**serialize_numpy)
     x_shape = traitlets.CInt(None, allow_none=True)
     #centers = traitlets.Any()
-    
+
     def __init__(self, ds, **kwargs):
         super(VizHistogramState, self).__init__(ds, **kwargs)
         self.observe(lambda x: self.signal_slice.emit(self), ['x_slice'])
@@ -91,7 +91,7 @@ class VizHistogramState(VizBaseState):
         # no need for recompute
         # self.observe(lambda x: self.calculate_grid(), ['groupby', 'shape', 'groupby_normalize'])
         # self.observe(lambda x: self.calculate_grid(), ['groupby', 'shape', 'groupby_normalize'])
-        
+
         self.observe(lambda x: self._update_grid(), ['x_min', 'x_max', 'shape'])
         if self.x_min is None and self.x_max is None:
             self.calculate_limits()
@@ -116,11 +116,11 @@ class VizHistogramState(VizBaseState):
                 deserializer = self.trait_metadata(name, 'deserialize', ident)
                 value = deserializer(state[name])
                 setattr(self, name, value)
-                                                                      
+
     def calculate_limits(self):
         self._calculate_limits('x', 'x_expression')
         self.signal_regrid.emit(None) # TODO this is also called in the ctor, unnec work
-    
+
     def limits_changed(self, change):
         self.signal_regrid.emit(None) # TODO this is also called in the ctor, unnec work
 
@@ -128,7 +128,7 @@ class VizHistogramState(VizBaseState):
     def _update_grid(self):
         self._calculate_centers()
         self.signal_regrid.emit(None)
-            
+
 class VizBase2dState(VizBaseState):
     x_expression = traitlets.Unicode()
     y_expression = traitlets.Unicode()
@@ -144,7 +144,7 @@ class VizBase2dState(VizBaseState):
     x_max = traitlets.CFloat()
     y_min = traitlets.CFloat()
     y_max = traitlets.CFloat()
-    
+
     def __init__(self, ds, **kwargs):
         super(VizBase2dState, self).__init__(ds, **kwargs)
         self.observe(lambda x: self.calculate_limits(), ['x_expression', 'y_expression', 'type', 'aux'])
@@ -162,7 +162,7 @@ class VizBase2dState(VizBaseState):
         self._calculate_limits('x', 'x_expression')
         self._calculate_limits('y', 'y_expression')
         self.signal_regrid.emit(self)
-    
+
     def limits_changed(self, change):
         self.signal_regrid.emit(self)
 
@@ -174,7 +174,7 @@ class VizHeatmapState(VizBase2dState):
     grid_sliced = traitlets.Any().tag(**serialize_numpy)
     x_centers = traitlets.Any().tag(**serialize_numpy)
     #centers = traitlets.Any()
-    
+
     def __init__(self, ds, **kwargs):
         self.ds = ds
         super(VizHeatmapState, self).__init__(ds, **kwargs)

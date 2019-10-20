@@ -32,14 +32,14 @@ before_install:
   - if [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="scikit-learn "; fi
   - if [[ $TRAVIS_OS_NAME == osx ]] && [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="$OPTIONAL_PACKAGES lightgbm py-xgboost "; fi
   - if [[ "$PYTHON_VERSION" == "2.7" ]]; then export PYTEST_EXTRA_ARGS="--ignore=tests/ml"; fi
-  - bash miniconda.sh -b -p $HOME/miniconda
+  - travis_wait bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
   # future: kapteyn should only be needed for astro package testing
-  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION certifi=2019.6.16 pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost $OPTIONAL_PACKAGES
+  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION certifi=2019.6.16 pip numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost libcxx=9.0.0 $OPTIONAL_PACKAGES
   - which pip
   - source activate test-environment
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
@@ -71,7 +71,7 @@ install:
 script:
   - source activate test-environment
   - python -m vaex.test.dataset TestDataset
-  # - py.test packages/vaex-core/vaex/test/dataset.py::TestDataset 
+  # - py.test packages/vaex-core/vaex/test/dataset.py::TestDataset
   - py.test tests/ ${PYTEST_EXTRA_ARGS}
   # - runipy examples/tutorial_ipython_notebook.ipynb
   # - runipy examples/advanced_plotting.ipynb

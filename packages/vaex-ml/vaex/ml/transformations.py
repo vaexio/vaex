@@ -148,7 +148,7 @@ class LabelEncoder(Transformer):
     # title = traitlets.Unicode(default_value='Label Encoder', read_only=True).tag(ui='HTML')
     prefix = traitlets.Unicode(default_value='label_encoded_', help=help_prefix).tag(ui='Text')
     labels_ = traitlets.Dict(default_value={}, allow_none=True, help='The encoded labels of each feature.').tag(output=True)
-    allow_unseen = traitlets.Bool(default=False, allow_none=False, help='If True, unseen values will be \
+    allow_unseen = traitlets.Bool(default_value=False, allow_none=False, help='If True, unseen values will be \
                                   encoded with -1, otherwise an error is raised').tag(ui='Checkbox')
 
     def fit(self, df):
