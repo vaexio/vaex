@@ -44,7 +44,7 @@ def test_invalid_name_read(tmpdir):
     path = str(tmpdir.join('test.hdf5'))
     df.export(path)
 
-    h5 = h5py.File(path)
+    h5 = h5py.File(path, mode='r+')
     h5['/table/columns']['1'] = h5['/table/columns']['x']
     del h5['/table/columns']['x']
 
