@@ -194,3 +194,17 @@ def test_where(df_local):
     """)
     assert not result.errors
     assert values(result.data['df']['row'], 'x') == [4, 5, 6]
+
+
+def test_pandas(df_local):
+    df = df_local
+    df_pandas = df_local.to_pandas_df()
+    def values(row, name):
+        return [k[name] for k in row]
+    result = df_pandas.graphql.execute("""
+    {
+        df(where: {x: {_eq: 4}}) {
+            row { x }
+        }
+    }
+    """)

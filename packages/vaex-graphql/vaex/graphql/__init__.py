@@ -1,6 +1,8 @@
 import graphene
 import graphql.execution
+
 import vaex
+import pandas as pd
 
 
 class DataFrameAccessorGraphQL(object):
@@ -26,6 +28,12 @@ class DataFrameAccessorGraphQL(object):
             address = 'localhost'
         if verbose:
             print('serving at: http://{address}:{port}/graphql'.format(**locals()))
+
+
+@pd.api.extensions.register_dataframe_accessor("graphql")
+class DataFrameAccessorGraphQLPandas(DataFrameAccessorGraphQL):
+    def __init__(self, df):
+        super(DataFrameAccessorGraphQLPandas, self).__init__(vaex.from_pandas(df))
 
 
 def map_to_field(df, name):
