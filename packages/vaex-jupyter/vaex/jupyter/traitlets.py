@@ -12,7 +12,7 @@ def nice_type(df, name):
 
 
 class ColumnsMixin(traitlets.HasTraits):
-    df = traitlets.Any(readonly=True)
+    df = traitlets.Any().tag(readonly=True)
     columns = traitlets.Any([
         {
             'name': 'foo',
@@ -31,7 +31,7 @@ class ColumnsMixin(traitlets.HasTraits):
         if df:
             df.signal_column_changed.connect(self._on_column_changed)
             self._populate_columns()
-    
+
     def _on_column_changed(self, df, name, action):
         assert df == self.df
         self._populate_columns()
