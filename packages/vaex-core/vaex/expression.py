@@ -194,12 +194,36 @@ class Expression(with_metaclass(Meta)):
         # lets gradually move to using .df
         return self.ds
 
+    @property
+    def dtype(self):
+        return self.ds.dtype(self.expression)
+
+    @property
+    def shape(self):
+        return (len(self.ds),)
+
     def to_numpy(self):
         """Return a numpy representation of the data"""
         values = self.values
         if hasattr(values, 'to_numpy'):  # e.g. ColumnString
             values = values.to_numpy()
         return values
+
+    def to_dask_array(self, chunks="auto"):
+        import dask.array as da
+        import uuid
+        dtype = self.dtype
+        chunks = da.core.normalize_chunks(chunks, shape=self.shape, dtype=dtype)
+        name = 'vaex-expression-%s' % str(uuid.uuid1())
+        def getitem(df, item):
+            assert len(item) == 1
+            item = item[0]
+            start, stop, step = item.start, item.stop, item.step
+            assert step in [None, 1]
+            return self.evaluate(start, stop)
+        dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype)
+        dsk[name] = self
+        return da.Array(dsk, name, chunks, dtype=dtype)
 
     def __getitem__(self, slice):
         return self.ds[slice][self.expression]
@@ -231,10 +255,6 @@ class Expression(with_metaclass(Meta)):
     @property
     def values(self):
         return self.evaluate()
-
-    @property
-    def dtype(self):
-        return self.ds.dtype(self.expression)
 
     def derivative(self, var, simplify=True):
         var = _ensure_string_from_expression(var)

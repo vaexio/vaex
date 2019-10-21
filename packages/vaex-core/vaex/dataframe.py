@@ -2793,6 +2793,18 @@ class DataFrame(object):
             table[name] = cls(data, unit=self.unit(name), description=self.descriptions.get(name), meta=meta)
         return table
 
+    def to_dask_array(self, chunks="auto"):
+        import dask.array as da
+        import uuid
+        dtype = self._dtype
+        chunks = da.core.normalize_chunks(chunks, shape=self.shape, dtype=dtype)
+        name = 'vaex-df-%s' % str(uuid.uuid1())
+        def getitem(df, item):
+            return np.array(df.__getitem__(item))
+        dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype)
+        dsk[name] = self
+        return da.Array(dsk, name, chunks, dtype=dtype)
+
     def validate_expression(self, expression):
         """Validate an expression (may throw Exceptions)"""
         # return self.evaluate(expression, 0, 2)
@@ -4346,6 +4358,16 @@ class DataFrame(object):
             df._selection_masks[FILTER_SELECTION_NAME] = vaex.superutils.Mask(df._length_unfiltered)
             return df
         elif isinstance(item, (tuple, list)):
+            df = self
+            if isinstance(item[0], slice):
+                df = df[item[0]]
+            if len(item) > 1:
+                if isinstance(item[1], int):
+                    name = self.get_column_names()[item[1]]
+                    return df[name]
+                elif isinstance(item[1], slice):
+                    names = self.get_column_names().__getitem__(item[1])
+                    return df[names]
             df = self.copy(column_names=item)
             return df
         elif isinstance(item, slice):
@@ -4736,6 +4758,17 @@ class DataFrameLocal(DataFrame):
         return vaex.legacy.SubspaceLocal(self, expressions, kwargs.get("executor") or self.executor, delay=kwargs.get("delay", False))
 
     def echo(self, arg): return arg
+
+    @property
+    def _dtype(self):
+        dtypes = [self[k].dtype for k in self.get_column_names()]
+        if not all([dtypes[0] == dtype for dtype in dtypes]):
+            return ValueError("Not all dtypes are equal: %r" % dtypes)
+        return dtypes[0]
+
+    @property
+    def shape(self):
+        return (len(self), len(self.get_column_names()))
 
     def __array__(self, dtype=None):
         """Gives a full memory copy of the DataFrame into a 2d numpy array of shape (n_rows, n_columns).
