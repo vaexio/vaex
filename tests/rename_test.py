@@ -42,3 +42,9 @@ def test_rename_state_transfer():
     ds2.state_set(ds.state_get())
     assert ds2.r.tolist() == [5]
     assert ds2.q.tolist() == [14]
+
+def test_rename_access(ds_local):
+    df = ds_local
+    df.rename_column(name='x', new_name='x2')
+    assert df['x2'].tolist() == df.x2.tolist()
+

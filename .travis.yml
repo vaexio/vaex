@@ -30,7 +30,7 @@ before_install:
   - export OPTIONAL_PACKAGES="";
   - export PYTEST_EXTRA_ARGS="";
   - if [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="scikit-learn "; fi
-  - if [[ $TRAVIS_OS_NAME == osx ]] && [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="$OPTIONAL_PACKAGES lightgbm py-xgboost "; fi
+  - if [[ $TRAVIS_OS_NAME == osx ]] && [[ "$PYTHON_VERSION" != "2.7" ]]; then export OPTIONAL_PACKAGES="$OPTIONAL_PACKAGES lightgbm=2.2.3 py-xgboost "; fi
   - if [[ "$PYTHON_VERSION" == "2.7" ]]; then export PYTEST_EXTRA_ARGS="--ignore=tests/ml"; fi
   - travis_wait bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
