@@ -2102,6 +2102,15 @@ def _astype(x, dtype):
     return x.astype(dtype)
 
 
+@register_function(name='isin', on_expression=False)
+def _isin(x, values):
+    if vaex.column._is_stringy(x):
+        x = vaex.column._to_string_column(x)
+        return x.string_sequence.isin(values)
+    else:
+        return np.isin(x, values)
+
+
 def add_geo_json(ds, json_or_file, column_name, longitude_expression, latitude_expresion, label=None, persist=True, overwrite=False, inplace=False, mapping=None):
     ds = ds if inplace else ds.copy()
     if not isinstance(json_or_file, (list, tuple)):

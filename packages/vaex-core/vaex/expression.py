@@ -656,6 +656,14 @@ def f({0}):
         else:
             return self.ds.func.astype(self, str(dtype))
 
+    def isin(self, values):
+        if self.dtype == str_type:
+            values = vaex.column._to_string_sequence(values)
+        else:
+            values = np.array(values, dtype=self.dtype)
+        var = self.df.add_variable('isin_values', values, unique=True)
+        return self.df['isin(%s, %s)' % (self, var)]
+
     def apply(self, f):
         """Apply a function along all values of an Expression.
 
