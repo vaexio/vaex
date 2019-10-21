@@ -4,6 +4,7 @@ import functools
 import operator
 import six
 import collections
+import weakref
 
 from future.utils import with_metaclass
 import numpy as np
@@ -188,6 +189,7 @@ class Expression(with_metaclass(Meta)):
         if isinstance(expression, Expression):
             expression = expression.expression
         self.expression = expression
+        self.df._expressions.append(weakref.ref(self))
 
     @property
     def df(self):
@@ -663,12 +665,16 @@ def f({0}):
         finally:
                 logger.setLevel(log_level)
 
-    def _rename(self, old, new):
+    def _rename(self, old, new, inplace=False):
         def translate(id):
             if id == old:
                 return new
         expr = expresso.translate(self.expression, translate)
-        return Expression(self.ds, expr)
+        if inplace:
+            self.expression = expr
+            return self
+        else:
+            return Expression(self.ds, expr)
 
     def astype(self, dtype):
         if dtype == str:

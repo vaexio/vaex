@@ -11,11 +11,21 @@ def test_rename(ds_filtered):
     assert ds.r.values.tolist() == xvalues
     assert ds.q.values.tolist() == qvalues
 
+def test_rename_existing_expression(df_local):
+    df = df_local
+    x_old = df['x']
+    xvalues = x_old.tolist()
+    # the x_old expression needs to be rewritten as well
+    df['x'] = df.x * 2
+    assert x_old.tolist() == xvalues
+
+
 
 def test_reassign_virtual(ds_local):
     df = ds_local
     x = df.x.values
     df['r'] = df.x+1
+    assert df.r.tolist() == (x+1).tolist()
     df['r'] = df.r+1
     assert df.r.tolist() == (x+2).tolist()
 
