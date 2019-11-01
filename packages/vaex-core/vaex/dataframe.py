@@ -859,6 +859,8 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}
         """
+        edges = False
+        return self._compute_agg('std', expression, binby, limits, shape, selection, delay, edges, progress)
         @delayed
         def finish(var):
             return var**0.5

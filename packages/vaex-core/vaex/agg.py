@@ -153,7 +153,6 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
 
     def add_operations(self, agg_task, **kwargs):
         expression_sum = expression = agg_task.df[str(self.expression)]
-        expression = expression_sum = expression.astype('float64')
         sum_moment = _sum_moment(str(expression_sum), 2, selection=self.selection)
         sum_ = sum(str(expression_sum), selection=self.selection)
         count_ = count(str(expression), selection=self.selection)
@@ -166,7 +165,7 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
         @vaex.delayed
         def finish(sum_moment, sum, count):
             dtype = sum.dtype
-            if sum.dtype.kind == 'M':
+            if sum.dtype.kind in ['M', 'm']:
                 sum = sum.view('uint64')
                 sum_moment = sum_moment.view('uint64')
                 count = count.view('uint64')
@@ -174,16 +173,21 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
                 mean = sum / count
                 raw_moments2 = sum_moment/count
                 variance = (raw_moments2 - mean**2) #* count/(count-self.ddof)
-            if dtype.kind != mean.dtype.kind:
-                # TODO: not sure why view does not work
-                variance = variance.astype(dtype)
-            return self.finish(variance)
+            return self.finish(variance, dtype if dtype.kind != mean.dtype.kind else None)
         return finish(task_sum_moment, task_sum, task_count)
+
+    def finish(self, value, dtype=None):
+        return value
 
 
 class AggregatorDescriptorStd(AggregatorDescriptorVar):
-    def finish(self, value):
-        return value**0.5
+    def finish(self, value, dtype=None):
+        # for standard deviation we can restore the proper dtype
+        value = value**0.5
+        if dtype:
+            value = value.astype(dtype)
+        return value
+
 
 @register
 def count(expression='*', selection=None):
