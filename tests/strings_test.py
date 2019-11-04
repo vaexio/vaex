@@ -142,9 +142,14 @@ except NameError:
 	pass
 string_list_reverse = string_list[::-1]
 
-@pytest.fixture()
-def dfs_arrow():
-    return vaex.from_arrays(s=vaex.string_column(string_list), sr=vaex.string_column(string_list_reverse))
+
+@pytest.fixture(scope='session')
+def dfs_arrow(tmp_path_factory):
+    tmpdir = tmp_path_factory.mktemp("vaex")
+    path = str(tmpdir / 'strings.hdf5')
+    df = vaex.from_arrays(s=vaex.string_column(string_list), sr=vaex.string_column(string_list_reverse))
+    df.export(path)  # we write it out so that the memory is read only
+    return vaex.open(path)
 
 
 def test_null_values():
@@ -294,7 +299,19 @@ def test_string_strip(dfs):
 	assert dfs.s.str.rstrip('vx! ').tolist() == dfs.s.str_pandas.rstrip('vx! ').tolist()
 
 def test_string_title(dfs):
+<<<<<<< HEAD
 	assert dfs.s.str.title().tolist() == dfs.s.str_pandas.title().tolist()
+=======
+    assert dfs.s.str.title().tolist() == dfs.s.str_pandas.title().tolist()
+
+def test_string_lower(dfs):
+    assert dfs.s.str.lower().tolist() == dfs.s.str_pandas.lower().tolist()
+
+def test_string_upper(dfs):
+    print(type(dfs))
+    assert dfs.s.str.upper().tolist() == dfs.s.str_pandas.upper().tolist()
+
+>>>>>>> 280ee76c... add
 
 def test_string_isalnum(dfs):
 	assert dfs.s.str.isalnum().tolist() == dfs.s.str_pandas.isalnum().tolist()
@@ -380,3 +397,15 @@ def test_masked_string():
 	s = np.ma.MaskedArray(data=['dog', 'dog', 'cat', 'cat', 'mouse'], mask=[False, False, True, False, True])
 	df = vaex.from_arrays(s=s)
 	assert (df.s == 'cat').tolist() == [False, False, False, True, False]
+
+def test_string_operations_from_mmap_file(tmpdir):
+    # if we write the file to disk and mmap it read only, we trigger invalid memory writes
+    # see https://github.com/vaexio/vaex/pull/459
+    x = np.arange(5)
+    y = np.array(['This', 'is', 'a', None, 'test'])
+    df = vaex.from_arrays(x=x, y=y)
+    filename = str(tmpdir / 'test.hdf5')
+    df.export_hdf5(filename)
+    df_from_file = vaex.open(filename)
+    assert df_from_file.y.str.slice(start=0, stop=2).tolist() == ['Th', 'is', 'a', None, 'te']
+    assert df_from_file.y.str.upper().tolist() == ['THIS', 'IS', 'A', None, 'TEST']

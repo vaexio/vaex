@@ -960,7 +960,7 @@ StringSequenceBase* _apply_seq(StringSequenceBase* _this, W word_transform) {
         list->indices[i] = target - list->bytes;
         string_view source = _this->view(i);
         word_transform(source, target);
-        if(_this->is_null(i)) {
+        if(!list->null_bitmap && _this->is_null(i)) { // if _this a StringArray, we did not copy the nullmap
             list->ensure_null_bitmap();
             list->set_null(i);
         }
@@ -1153,7 +1153,7 @@ StringSequenceBase* _apply2(StringSequenceBase* _this, W word_transform) {
         list->indices[i] = appender.offset();
         string_view source = _this->view(i);
         word_transform(source, appender);
-        if(_this->is_null(i)) {
+        if(!list->null_bitmap && _this->is_null(i)) { // if _this a StringArray, we did not copy the nullmap
             list->ensure_null_bitmap();
             list->set_null(i);
         }
