@@ -6,12 +6,6 @@ import vaex
 import numpy as np
 import pytest
 
-try:
-    unicode
-    str_kind = 'S'
-except:
-    str_kind = 'U'
-
 
 @pytest.mark.skipif(vaex.utils.osname == 'windows',
                     reason="windows' snprintf seems buggy")
@@ -95,9 +89,9 @@ def test_string_dtype_with_none():
 
 def test_unicode():
     ds = vaex.from_arrays(names=['bla\u1234'])
-    assert ds.names.dtype.kind == 'U'
+    assert ds.names.dtype == vaex.column.str_type
     ds = vaex.from_arrays(names=['bla'])
-    assert ds.names.dtype.kind == 'U'
+    assert ds.names.dtype == vaex.column.str_type
 
 
 @pytest.mark.skipif(sys.version_info < (3, 3), reason="requires python3.4 or higher")
@@ -121,7 +115,7 @@ def test_strip():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 3), reason="requires python3.4 or higher")
-def test_unicode(tmpdir):
+def test_unicode2(tmpdir):
     path = str(tmpdir.join('utf32.hdf5'))
     ds = vaex.from_arrays(names=["vaex", "or", "væx!"])
     assert ds.names.dtype == vaex.column.str_type
@@ -406,7 +400,7 @@ def test_string_strip_special_case2():
 
 
 @pytest.mark.xfail(reason='we need to fix this, similar to upper and lower')
-def test_string_strip_special_case2():
+def test_string_strip_special_case3():
     strings = ['ɐa', 'aap']
     df = vaex.from_arrays(s=vaex.string_column(strings))
     assert df.s.str.capitalize().tolist() == df.s.str_pandas.capitalize().tolist()
