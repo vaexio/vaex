@@ -3927,6 +3927,8 @@ class DataFrame(object):
     def sort(self, by, ascending=True, kind='quicksort'):
         '''Return a sorted DataFrame, sorted by the expression 'by'
 
+        The kind keyword is ignored if doing multi-key sorting.
+
         {note_copy}
 
         {note_filter}
@@ -3954,8 +3956,14 @@ class DataFrame(object):
         :param str kind: kind of algorithm to use (passed to numpy.argsort)
         '''
         self = self.trim()
-        values = self.evaluate(by)
-        indices = np.argsort(values, kind=kind)
+        if not isinstance(by, list):
+            values = self.evaluate(by)
+            indices = np.argsort(values, kind=kind)
+        if isinstance(by, list):
+            by = _ensure_strings_from_expressions(by)[::-1]
+            by = ', '.join(by)
+            values = self.evaluate(by)
+            indices = np.lexsort(values)
         if not ascending:
             indices = indices[::-1].copy()  # this may be used a lot, so copy for performance
         return self.take(indices)
