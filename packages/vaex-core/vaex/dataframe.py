@@ -3959,8 +3959,8 @@ class DataFrame(object):
         if not isinstance(by, list):
             values = self.evaluate(by)
             indices = np.argsort(values, kind=kind)
-        if isinstance(by, list):
-            by = _ensure_strings_from_expressions(by)[::-1]
+        if isinstance(by, (list, tuple)):
+            by = _ensure_strings_from_expressions(by)[::-1] # TODO: this is using an unsupported features, when evaluate takes a list of expressions, we should change this.
             by = ', '.join(by)
             values = self.evaluate(by)
             indices = np.lexsort(values)
