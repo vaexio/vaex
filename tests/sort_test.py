@@ -35,10 +35,12 @@ def test_sort_multikey():
 
     # Case 1: numeric keys
     df_sorted_1 = df.sort(by=['x', 'y'])
-    assert df_sorted_1.values.tolist() == [[1, 2], [1, 4], [3, 3], [5, 0], [5, 1]]
+    assert df_sorted_1.x.tolist() == [1, 1, 3, 5, 5]
+    assert df_sorted_1.y.tolist() == [2, 4, 3, 0, 1]
     assert df_sorted_1.z.tolist() == ['dog', 'cat', 'cat', 'dog', 'mouse']
 
     # Case 2: str key followed by numeric key
     df_sorted_2 = df.sort(by=['z', 'x'])
-    assert df_sorted_2.values.tolist() == [[1, 4], [3, 3], [1, 2], [5, 0], [5, 1]]
+    assert df_sorted_2.x.tolist() ==  [1, 3, 1, 5, 5]
+    assert df_sorted_2.y.tolist() ==  [4, 3, 2, 0, 1]
     assert df_sorted_2.z.tolist() == ['cat', 'cat', 'dog', 'dog', 'mouse']
