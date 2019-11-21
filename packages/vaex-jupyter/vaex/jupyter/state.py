@@ -164,6 +164,7 @@ class VizBase2dState(VizBaseState):
         self.signal_regrid.emit(self)
 
     def limits_changed(self, change):
+        self._calculate_centers()
         self.signal_regrid.emit(self)
 
 
