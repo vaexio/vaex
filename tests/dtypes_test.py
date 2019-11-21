@@ -6,8 +6,8 @@ from vaex.column import str_type
 def test_dtype(ds_local):
   ds = ds_local
   for name in ds.column_names:
-    if ds.dtype(name) == str_type:
-      assert ds[name].values.dtype.kind in 'OSU'
+    if ds.dtype_evaluate(name) == str_type:
+      assert ds[name].to_numpy().dtype.kind in 'OSU'
     else:
       assert ds[name].values.dtype == ds.dtype(ds[name])
 

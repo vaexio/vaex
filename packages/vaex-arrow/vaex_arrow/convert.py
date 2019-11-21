@@ -26,13 +26,16 @@ def column_from_arrow_array(arrow_array):
     buffers = arrow_array.buffers()
     if len(buffers) == 2:
         return numpy_array_from_arrow_array(arrow_array)
-    elif len(buffers) == 3 and  isinstance(arrow_array.type, type(pyarrow.string())):
+    elif len(buffers) == 3 and arrow_array.type in [pyarrow.string(), pyarrow.large_string()]:
         bitmap_buffer, offsets, string_bytes = arrow_array.buffers()
         if arrow_array.null_count == 0:
             null_bitmap = None  # we drop any null_bitmap when there are no null counts
         else:
             null_bitmap = np.frombuffer(bitmap_buffer, 'uint8', len(bitmap_buffer))
-        offsets = np.frombuffer(offsets, np.int32, len(offsets)//4)
+        if arrow_array.type == pyarrow.string():
+            offsets = np.frombuffer(offsets, np.int32, len(offsets)//4)
+        else:
+            offsets = np.frombuffer(offsets, np.int64, len(offsets)//8)
         if string_bytes is None:
             string_bytes = np.array([], dtype='S1')
         else:

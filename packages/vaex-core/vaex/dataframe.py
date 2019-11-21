@@ -19,6 +19,7 @@ import vaex.utils
 import numpy as np
 import concurrent.futures
 import numbers
+import pyarrow as pa
 
 from vaex.utils import Timer
 import vaex.events
@@ -33,7 +34,7 @@ import vaex.kld
 from . import selections, tasks, scopes
 from .expression import expression_namespace
 from .delayed import delayed, delayed_args, delayed_list
-from .column import Column, ColumnIndexed, ColumnSparse, ColumnString, ColumnConcatenatedLazy, str_type
+from .column import Column, ColumnIndexed, ColumnSparse, ColumnString, ColumnConcatenatedLazy, str_type, supported_column_types
 from .array_types import to_numpy
 import vaex.events
 
@@ -2916,7 +2917,7 @@ class DataFrame(object):
             renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names())
             self._rename(name, renamed)
 
-        if isinstance(f_or_array, (np.ndarray, Column)):
+        if isinstance(f_or_array, supported_column_types):
             data = ar = f_or_array
             # it can be None when we have an 'empty' DataFrameArrays
             if self._length_original is None:
@@ -5282,6 +5283,8 @@ class DataFrameLocal(DataFrame):
                         b = b[index2]
 
                     def normalize(ar):
+                        if isinstance(ar, pa.Array):
+                            ar = ar.to_pandas().values
                         if ar.dtype == str_type:
                             return ar
                         if ar.dtype.kind == "f" and hasattr(ar, "mask"):

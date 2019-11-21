@@ -119,7 +119,7 @@ class Executor(object):
     def execute(self):
         logger.debug("starting with execute")
         if self._is_executing:
-            logger.debug("nested execute call")
+            logger.error("nested execute call")
             # this situation may happen since in this methods, via a callback (to update a progressbar) we enter
             # Qt's eventloop, which may execute code that will call execute again
             # as long as that code is using delay tasks (i.e. promises) we can simple return here, since after

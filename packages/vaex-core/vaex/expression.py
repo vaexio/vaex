@@ -10,6 +10,7 @@ import weakref
 from future.utils import with_metaclass
 import numpy as np
 import tabulate
+import pyarrow as pa
 
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 from vaex.column import ColumnString, _to_string_sequence, str_type
@@ -261,7 +262,11 @@ class Expression(with_metaclass(Meta)):
         """Return a numpy representation of the data"""
         values = self.values
         if hasattr(values, 'to_numpy'):  # e.g. ColumnString
-            values = values.to_numpy()
+            try:
+                values = values.to_numpy()
+            except NotImplementedError:
+                # arrow path
+                values = values.to_pandas().to_numpy()
         return values
 
     def to_dask_array(self, chunks="auto"):
@@ -428,7 +433,10 @@ class Expression(with_metaclass(Meta)):
 
     def tolist(self):
         '''Short for expr.evaluate().tolist()'''
-        return self.evaluate().tolist()
+        values = self.evaluate()
+        if isinstance(values, (pa.Array, pa.ChunkedArray)):
+            return values.to_pandas().values.tolist()
+        return values.tolist()
 
     def __repr__(self):
         return self._repr_plain_()
