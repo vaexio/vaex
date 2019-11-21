@@ -230,7 +230,7 @@ class Expression(with_metaclass(Meta)):
     def to_pandas_series(self):
         """Return a pandas.Series representation of the expression.
 
-        Note: a memory copy is created.
+        Note: Pandas is likely to make a memory copy of the data.
         """
         import pandas as pd
         return pd.Series(self.values)
