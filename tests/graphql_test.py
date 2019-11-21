@@ -41,6 +41,7 @@ def test_groupby(df_local):
         df {
             groupby {
                 x {
+                    keys
                     min {
                         x
                     }
@@ -52,6 +53,7 @@ def test_groupby(df_local):
     assert not result.errors
     dfg = df.groupby('x', agg={'xmin': vaex.agg.min('x')})
     assert result.data['df']['groupby']['x']['min']['x'] == dfg['xmin'].tolist()
+    assert result.data['df']['groupby']['x']['keys'] == dfg['x'].tolist()
 
 
 def test_row_pagination(df_local):
