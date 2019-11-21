@@ -227,6 +227,14 @@ class Expression(with_metaclass(Meta)):
         dsk[name] = self
         return da.Array(dsk, name, chunks, dtype=dtype)
 
+    def to_pandas_series(self):
+        """Return a pandas.Series representation of the expression.
+
+        Note: Pandas is likely to make a memory copy of the data.
+        """
+        import pandas as pd
+        return pd.Series(self.values)
+
     def __getitem__(self, slice):
         return self.ds[slice][self.expression]
 
