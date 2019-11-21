@@ -28,6 +28,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install python-dateutil==2.8.0  # botocore caps dateutil leading to issues
         pip install -vv -e .
         pip install -r requirements-ml.txt
     - name: Lint with flake8
