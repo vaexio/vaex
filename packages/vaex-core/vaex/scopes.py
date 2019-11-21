@@ -1,6 +1,9 @@
 from __future__ import division, print_function
 import logging
 import numpy as np
+import pyarrow as pa
+import vaex.array_types
+
 
 from .utils import (_ensure_strings_from_expressions,
     _ensure_string_from_expression,
@@ -67,7 +70,7 @@ class _BlockScope(ScopeBase):
         self.variables = variables
         self.values = dict(self.variables)
         self.buffers = {}
-        self.mask = mask if mask is not None else slice(None, None, None)
+        self.mask = mask if mask is not None else None
 
     def move(self, i1, i2):
         length_new = i2 - i1
@@ -125,9 +128,14 @@ class _BlockScope(ScopeBase):
                     # Previously we casted anything to .astype(np.float64), this led to rounding off of int64, when exporting
                     # self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2][:]
                 # else:
-                self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2]
+                values = self.df.columns[variable][offset+self.i1:offset+self.i2]
                 if self.mask is not None:
-                    self.values[variable] = self.values[variable][self.mask]
+                    # TODO: we may want to put this in array_types
+                    if isinstance(values, (pa.Array, pa.ChunkedArray)):
+                        values = values.filter(vaex.array_types.to_arrow(self.mask))
+                    else:
+                        values = values[self.mask]
+                self.values[variable] = values
             elif variable in list(self.df.virtual_columns.keys()):
                 expression = self.df.virtual_columns[variable]
                 if isinstance(expression, dict):
@@ -223,15 +231,20 @@ class _BlockScopeSelection(ScopeBase):
                     return expression_namespace[variable]
                 elif variable in self.df.get_column_names(hidden=True, virtual=False):
                     values = self.df.columns[variable][offset+self.i1:offset+self.i2]
+                    # TODO: we may want to put this in array_types
                     if self.filter_mask is not None:
-                        return values[self.filter_mask]
-                    else:
-                        return values
+                        if isinstance(values, (pa.Array, pa.ChunkedArray)):
+                            values = values.filter(vaex.array_types.to_arrow(self.filter_mask))
+                        else:
+                            values = values[self.filter_mask]
+                    return values
                 elif variable in self.df.variables:
                     return self.df.variables[variable]
                 elif variable in list(self.df.virtual_columns.keys()):
                     expression = self.df.virtual_columns[variable]
                     # self._ensure_buffer(variable)
+                    if expression == variable:
+                        raise ValueError(f'Recursion protection: virtual column {variable} refers to itself')
                     return self.evaluate(expression)  # , out=self.buffers[variable])
                     # self.values[variable] = self.buffers[variable]
                 elif variable in self.df.functions:

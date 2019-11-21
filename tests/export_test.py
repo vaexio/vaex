@@ -18,14 +18,16 @@ def test_export_empty_string(tmpdir, filename):
 def test_export(ds_local, tmpdir):
     ds = ds_local
     # TODO: we eventually want to support dtype=object, but not for hdf5
-    ds = ds.drop(ds.obj)
+    if 'obj' in ds:  # df_arrow does not have it
+        ds = ds.drop(ds.obj)
     path = str(tmpdir.join('test.hdf5'))
     ds.export_hdf5(path)
     ds = ds.sample(5)
     path = str(tmpdir.join('sample.hdf5'))
     ds.export_hdf5(path)
 
-    ds = ds.drop(ds.timedelta)
+    if 'timedelta' in ds:  # df_arrow does not have it
+        ds = ds.drop(ds.timedelta)
 
     if platform.system().lower() != 'windows':
         path = str(tmpdir.join('sample.parquet'))
@@ -50,8 +52,10 @@ def test_export_open_csv(ds_local, tmpdir):
 
 def test_export_open_hdf5(ds_local):
     ds = ds_local
-    ds = ds.drop(ds.obj)
-    ds = ds.drop(ds.timedelta)
+    if 'obj' in ds:  # df_arrow does not have it
+        ds = ds.drop(ds.obj)
+    if 'timedelta' in ds:  # df_arrow does not have it
+        ds = ds.drop(ds.timedelta)
     ds = ds.drop(ds.z)
     filename = tempfile.mktemp(suffix='.arrow')
     ds.export(filename)

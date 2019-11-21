@@ -5,7 +5,7 @@ def test_unique_arrow():
     with small_buffer(ds, 2):
         assert set(ds.unique(ds.x).astype('U').tolist()) == {'a', 'b'}
         values, index = ds.unique(ds.x, return_inverse=True)
-        assert values[index].tolist() == ds.x.values.tolist()
+        assert values[index].tolist() == ds.x.tolist()
 
 
 def test_unique():
@@ -13,13 +13,13 @@ def test_unique():
     with small_buffer(ds, 2):
         assert set(ds.unique(ds.colors).astype('U').tolist()) == {'red', 'green', 'blue'}
         values, index = ds.unique(ds.colors, return_inverse=True)
-        assert values[index].tolist() == ds.colors.values.tolist()
+        assert values[index].tolist() == ds.colors.tolist()
 
     ds = vaex.from_arrays(x=['a', 'b', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'a'])
     with small_buffer(ds, 2):
         assert set(ds.unique(ds.x).astype('U').tolist()) == {'a', 'b'}
         values, index = ds.unique(ds.x, return_inverse=True)
-        assert values[index].tolist() == ds.x.values.tolist()
+        assert values[index].tolist() == ds.x.tolist()
 
 def test_unique_f4():
     x = np.array([np.nan, 0, 1, np.nan, 2, np.nan], dtype='f4')

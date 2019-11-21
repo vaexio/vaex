@@ -1,8 +1,8 @@
 from common import *
 
 
-def test_fillna_column(ds_local):
-    df = ds_local
+def test_fillna_column(df_local_non_arrow):
+    df = df_local_non_arrow
     df['ok'] = df['obj'].fillna(value='NA')
     assert df.ok.values[5] == 'NA'
     df['obj'] = df['obj'].fillna(value='NA')

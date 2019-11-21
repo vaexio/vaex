@@ -58,12 +58,12 @@ def test_join_nomatch():
 
 def test_left_a_b():
     df = df_a.join(other=df_b, left_on='a', right_on='b', rsuffix='_r')
-    assert df.evaluate('a').tolist() == ['A', 'B', 'C']
-    assert df.evaluate('b').tolist() == ['A', 'B', None]
-    assert df.evaluate('x').tolist() == [0, 1, 2]
-    assert df.evaluate('x_r').tolist() == [2, 1, None]
-    assert df.evaluate('y').tolist() == [0, None, 2]
-    assert df.evaluate('y_r').tolist() == [None, 1, None]
+    assert df['a'].tolist() == ['A', 'B', 'C']
+    assert df['b'].tolist() == ['A', 'B', None]
+    assert df['x'].tolist() == [0, 1, 2]
+    assert df['x_r'].tolist() == [2, 1, None]
+    assert df['y'].tolist() == [0, None, 2]
+    assert df['y_r'].tolist() == [None, 1, None]
 
 def test_left_a_b_as_alias():
     df_ac = df_a.copy()
@@ -82,50 +82,50 @@ def test_left_a_b_as_alias():
 def test_join_indexed():
     df = df_a.join(other=df_b, left_on='a', right_on='b', rsuffix='_r')
     df_X = df_a.join(df, left_on='a', right_on='b', rsuffix='_r')
-    assert df_X.evaluate('b').tolist() == ['A', 'B', None]
+    assert df_X['b'].tolist() == ['A', 'B', None]
 
 
 def test_left_a_b_filtered():
     df_af = df_a[df_a.x > 0]
     df = df_af.join(other=df_b, left_on='a', right_on='b', rsuffix='_r')
-    assert df.evaluate('a').tolist() == ['B', 'C']
-    assert df.evaluate('b').tolist() == ['B', None]
-    assert df.evaluate('x').tolist() == [1, 2]
-    assert df.evaluate('x_r').tolist() == [1, None]
-    assert df.evaluate('y').tolist() == [None, 2]
-    assert df.evaluate('y_r').tolist() == [1, None]
+    assert df['a'].tolist() == ['B', 'C']
+    assert df['b'].tolist() == ['B', None]
+    assert df['x'].tolist() == [1, 2]
+    assert df['x_r'].tolist() == [1, None]
+    assert df['y'].tolist() == [None, 2]
+    assert df['y_r'].tolist() == [1, None]
 
     # actually, even though the filter is applied, all rows will be matched
     # since the filter can change
     df.set_selection(None, vaex.dataset.FILTER_SELECTION_NAME)
-    assert df.evaluate('a').tolist() == ['A', 'B', 'C']
-    assert df.evaluate('b').tolist() == ['A', 'B', None]
-    assert df.evaluate('x').tolist() == [0, 1, 2]
-    assert df.evaluate('x_r').tolist() == [2, 1, None]
-    assert df.evaluate('y').tolist() == [0, None, 2]
-    assert df.evaluate('y_r').tolist() == [None, 1, None]
+    assert df['a'].tolist() == ['A', 'B', 'C']
+    assert df['b'].tolist() == ['A', 'B', None]
+    assert df['x'].tolist() == [0, 1, 2]
+    assert df['x_r'].tolist() == [2, 1, None]
+    assert df['y'].tolist() == [0, None, 2]
+    assert df['y_r'].tolist() == [None, 1, None]
 
     # if we extract, that shouldn't be the case
     df_af = df_a[df_a.x > 0].extract()
     df = df_af.join(other=df_b, left_on='a', right_on='b', rsuffix='_r')
     df.set_selection(None, vaex.dataset.FILTER_SELECTION_NAME)
-    assert df.evaluate('a').tolist() == ['B', 'C']
-    assert df.evaluate('b').tolist() == ['B', None]
-    assert df.evaluate('x').tolist() == [1, 2]
-    assert df.evaluate('x_r').tolist() == [1, None]
-    assert df.evaluate('y').tolist() == [None, 2]
-    assert df.evaluate('y_r').tolist() == [1, None]
+    assert df['a'].tolist() == ['B', 'C']
+    assert df['b'].tolist() == ['B', None]
+    assert df['x'].tolist() == [1, 2]
+    assert df['x_r'].tolist() == [1, None]
+    assert df['y'].tolist() == [None, 2]
+    assert df['y_r'].tolist() == [1, None]
 
 
 def test_inner_a_b_filtered():
     df_a_filtered = df_a[df_a.x > 0]
     df = df_a_filtered.join(other=df_b, left_on='a', right_on='b', rsuffix='_r', how='inner')
-    assert df.evaluate('a').tolist() == ['B']
-    assert df.evaluate('b').tolist() == ['B']
-    assert df.evaluate('x').tolist() == [1]
-    assert df.evaluate('x_r').tolist() == [1]
-    assert df.evaluate('y').tolist() == [None]
-    assert df.evaluate('y_r').tolist() == [1]
+    assert df['a'].tolist() == ['B']
+    assert df['b'].tolist() == ['B']
+    assert df['x'].tolist() == [1]
+    assert df['x_r'].tolist() == [1]
+    assert df['y'].tolist() == [None]
+    assert df['y_r'].tolist() == [1]
 
 
 def test_left_a_b_filtered_right():
@@ -147,12 +147,12 @@ def test_left_a_b_filtered_right():
 
 def test_right_x_x():
     df = df_a.join(other=df_b, on='x', rsuffix='_r', how='right')
-    assert df.evaluate('a').tolist() == ['C', 'B', 'A']
-    assert df.evaluate('b').tolist() == ['A', 'B', 'D']
-    assert df.evaluate('x').tolist() == [2, 1, 0]
-    assert df.evaluate('x_r').tolist() == [2, 1, 0]
-    assert df.evaluate('y').tolist() == [2, None, 0]
-    assert df.evaluate('y_r').tolist() == [None, 1, 2]
+    assert df['a'].tolist() == ['C', 'B', 'A']
+    assert df['b'].tolist() == ['A', 'B', 'D']
+    assert df['x'].tolist() == [2, 1, 0]
+    assert df['x_r'].tolist() == [2, 1, 0]
+    assert df['y'].tolist() == [2, None, 0]
+    assert df['y_r'].tolist() == [None, 1, 2]
     assert 'y_r' not in df_b
 
 

@@ -10,7 +10,7 @@ import vaex.utils
 import vaex.execution
 import vaex.export
 import vaex.hdf5.dataset
-from vaex.column import ColumnStringArrow, str_type
+from vaex.column import ColumnStringArrow
 
 max_length = int(1e5)
 
@@ -148,13 +148,9 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 sparse_matrices[id(sparse_matrix)] = sparse_matrix
                 continue
             dtype = dataset.data_type(column_name)
-            if column_name in dataset.get_column_names(virtual=False):
-                column = dataset.columns[column_name]
-                shape = (N,) + column.shape[1:]
-            else:
-                shape = (N,)
+            shape = (N, ) + dataset._shape_of(column_name)[1:]
             h5column_output = h5columns_output.require_group(column_name)
-            if dtype == str_type:
+            if vaex.array_types.is_string_type(dtype):
                 # TODO: if no selection or filter, we could do this
                 # if isinstance(column, ColumnStringArrow):
                 #     data_shape = column.bytes.shape

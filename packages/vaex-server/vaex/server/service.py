@@ -23,7 +23,7 @@ class Service:
         return {name: {
                        'length_original': df.length_original(),
                        'column_names': df.get_column_names(strings=True),
-                       'dtypes': {name: str("str" if df.data_type(name) == vaex.column.str_type else df.data_type(name)) for name in df.get_column_names(strings=True)},
+                       'dtypes': {name: vaex.encoding.dtype_encoding.encode(None, df.data_type(name)) for name in df.get_column_names(strings=True)},
                        'state': df.state_get()
                     } for name, df in self.df_map.items()
                 }

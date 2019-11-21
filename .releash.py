@@ -38,25 +38,19 @@ core.release_targets.append(ReleaseTargetSourceDist(core))
 #core.release_targets.append(gitpush)
 core.release_targets.append(ReleaseTargetCondaForge(core, '../feedstocks/vaex-core-feedstock'))
 
-packages = ['vaex-core', 'vaex-meta', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-distributed', 'vaex-arrow', 'vaex-ml', 'vaex-graphql']
+packages = ['vaex-core', 'vaex-meta', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-distributed', 'vaex-ml', 'vaex-graphql']
 names = [k[5:] for k in packages[1:]]
 
 for name in names:
     if name == 'meta':
         package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex.' + name, distribution_name='vaex')
         version = VersionSource(package, '{path}/vaex/' +name +'/_version.py')
-    elif name == 'arrow':
-        package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex_' + name)
-        version = VersionSource(package, '{path}/vaex_' +name +'/_version.py')
     else:
         package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex.' + name)
         version = VersionSource(package, '{path}/vaex/' +name +'/_version.py')
     gittag = ReleaseTargetGitTagVersion(version_source=version, prefix=name + '-v', msg='Release {version} of vaex-' +name)
     package.version_source = version
-    if name == 'arrow':
-        package.version_targets.append(VersionTarget(package, '{path}/vaex_' + name + '/_version.py'))
-    else:
-        package.version_targets.append(VersionTarget(package, '{path}/vaex/' + name + '/_version.py'))
+    package.version_targets.append(VersionTarget(package, '{path}/vaex/' + name + '/_version.py'))
     add_version_replace(package)
     # it is ok to add this twice, it will only tag once
     package.tag_targets.append(gittag)

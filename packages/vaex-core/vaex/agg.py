@@ -1,7 +1,6 @@
 import os
 import numpy as np
 
-from .column import str_type
 from .stat import _Statistic
 from vaex import encoding
 

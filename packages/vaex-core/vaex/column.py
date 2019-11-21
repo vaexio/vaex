@@ -4,6 +4,10 @@ import warnings
 
 import six
 import numpy as np
+import pyarrow as pa
+
+import vaex
+from .array_types import supported_arrow_array_types, string_types, is_string_type
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 if not on_rtd:
@@ -15,6 +19,12 @@ logger = logging.getLogger("vaex.column")
 class Column(object):
     def tolist(self):
         return self.to_numpy().tolist()
+
+    def to_arrow(self, type=None):
+        return pa.array(self, type=type)
+
+
+supported_column_types = (np.ndarray, Column) + supported_arrow_array_types
 
 
 class ColumnVirtualRange(Column):
@@ -131,6 +141,15 @@ class ColumnIndexed(Column):
     def trim(self, i1, i2):
         return ColumnIndexed(self.df, self.indices[i1:i2], self.name, masked=self.masked)
 
+    def __arrow_array__(self, type=None):
+        # TODO: without a copy we get a buserror
+        # TODO2: weird, this path is not triggered anymore
+        # values = self[:]
+        # if hasattr(values, "to_arrow"):
+        #     return values.to_arrow()
+        # else:
+        return pa.array(self)
+
     def __getitem__(self, slice):
         start, stop, step = slice.start, slice.stop, slice.step
         start = start or 0
@@ -152,12 +171,18 @@ class ColumnIndexed(Column):
             ar_unfiltered = ar_unfiltered[i1:i2+1]
             if self.masked:
                 indices = indices - i1
-                indices[mask] = -1
             else:
                 indices = indices - i1
-        ar = ar_unfiltered[indices]
+        if self.masked:
+            # arrow does not like the -1 index, so we set them to 0
+            indices[mask] = 0
+        if isinstance(ar_unfiltered, supported_arrow_array_types):
+            ar = ar_unfiltered.take(vaex.array_types.to_arrow(indices))
+        else:
+            ar = ar_unfiltered[indices]
         assert not np.ma.isMaskedArray(indices)
         if self.masked:
+            # TODO: we probably want to keep this as arrow array if it originally was
             return np.ma.array(ar, mask=mask)
         else:
             return ar
@@ -182,9 +207,9 @@ class ColumnConcatenatedLazy(Column):
         if dtype is None:
             dtypes = [e.dtype for e in expressions]
 
-            any_strings = any([dtype == str_type for dtype in dtypes])
+            any_strings = any([is_string_type(dtype) for dtype in dtypes])
             if any_strings:
-                self.dtype = str_type
+                self.dtype = pa.string()  # TODO: how do we know it should not be large_string?
             else:
                 # np.datetime64/timedelta64 and find_common_type don't mix very well
                 if all([dtype.type == np.datetime64 for dtype in dtypes]):
@@ -204,7 +229,8 @@ class ColumnConcatenatedLazy(Column):
                     else:
                         self.dtype = np.find_common_type(dtypes, [])
                     logger.debug("common type for %r is %r", dtypes, self.dtype)
-            self.expressions = [e if e.dtype == self.dtype else e.astype(self.dtype) for e in expressions]
+            # make sure all expression are the same type
+            self.expressions = [e if vaex.array_types.same_type(e.dtype, self.dtype) else e.astype(self.dtype) for e in expressions]
         else:
             # if dtype is given, we assume every expression/column is the same dtype
             self.dtype = dtype
@@ -216,6 +242,27 @@ class ColumnConcatenatedLazy(Column):
             shape_i = (len(self), ) + expressions[i][0:1].to_numpy().shape[1:]
             if self.shape != shape_i:
                 raise ValueError("shape of of expression %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.expressions[0], self.shape, i, shape_i))
+
+    def to_arrow(self, type=None):
+        values = [e.values for e in self.expressions]
+        chunks = [value if isinstance(value, pa.Array) else pa.array(value, type=type) for value in values]
+        types = [chunk.type for chunk in chunks]
+
+        # upcast if mixed types
+        if pa.string() in types and pa.large_string() in types:
+            def _arrow_string_upcast(array):
+                if array.type == pa.large_string():
+                    return array
+                if array.type == pa.string():
+                    import vaex.arrow.convert
+                    column = vaex.arrow.convert.column_from_arrow_array(array)
+                    column.indices = column.indices.astype(np.int64)
+                    return pa.array(column)
+                else:
+                    raise ValueError('Not a string type: %r' % array)
+            chunks = [_arrow_string_upcast(chunk) for chunk in chunks]
+
+        return pa.chunked_array(chunks)
 
     def __len__(self):
         return sum(len(e.df) for e in self.expressions)
@@ -248,7 +295,7 @@ class ColumnConcatenatedLazy(Column):
         stop = stop or len(self)
         assert step in [None, 1]
         dtype = self.dtype
-        if dtype == str_type:
+        if is_string_type(dtype):
             dtype = 'O'  # we store the strings in a dtype=object array
         expressions = iter(self.expressions)
         current_expression = next(expressions)
@@ -279,20 +326,18 @@ class ColumnConcatenatedLazy(Column):
                 if offset < stop:
                     current_expression = next(expressions)
             values = copy
-        if self.dtype == str_type:
+        if is_string_type(dtype):
             return _to_string_column(values)
         else:
             return values
 
-try:
-    str_type = str
-except:
-    str_type = str
 
 use_c_api = True
 
+
 class ColumnString(Column):
     pass
+
 
 class ColumnStringArray(Column):
     """Wraps a numpy array with dtype=object, containing all strings"""
@@ -324,8 +369,19 @@ def _is_stringy(x):
 
 
 def _to_string_sequence(x, force=True):
+    if isinstance(x, pa.ChunkedArray):
+        # turn into pa.Array, TODO: do we want this, this may result in a big mem copy
+        table = pa.Table.from_arrays([x], ["single"])
+        table_concat = table.combine_chunks()
+        column = table_concat.columns[0]
+        assert column.num_chunks == 1
+        x = column.chunk(0)
+
     if isinstance(x, ColumnString):
         return x.string_sequence
+    elif isinstance(x, pa.Array):
+        from vaex.arrow import convert
+        return convert.column_from_arrow_array(x).string_sequence
     elif isinstance(x, np.ndarray):
         mask = None
         if np.ma.isMaskedArray(x):
@@ -393,14 +449,37 @@ class ColumnStringArrow(ColumnString):
         self.indices = indices
         self.offset = offset  # to avoid memory copies in trim
         self.bytes = bytes
-        self.dtype = str_type
         self.length = length if length is not None else len(indices) - 1
+        if indices.dtype.kind == 'i' and indices.dtype.itemsize == 8:
+            self.dtype = pa.large_string()
+        elif indices.dtype.kind == 'i' and indices.dtype.itemsize == 4:
+            self.dtype = pa.string()
+        else:
+            raise ValueError('unsupported index type' + str(indices.dtype))
         self.shape = (self.__len__(),)
         self.nbytes = self.bytes.nbytes + self.indices.nbytes
         self.null_bitmap = null_bitmap
         self.null_offset = null_offset
         # references is to keep other objects alive, similar to pybind11's keep_alive
         self.references = references or []
+
+        if not (self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize in [4,8]):
+            raise ValueError('unsupported index type' + str(self.indices.dtype))
+
+    def __arrow_array__(self, type=None):
+        indices = self.indices
+        type = type or self.dtype
+        if type == pa.string() and self.dtype == pa.large_string():
+            indices = indices.astype(np.int32)  # downcast
+        elif type == pa.large_string() and self.dtype == pa.string():
+            type = pa.string()  # upcast
+        # TODO: we dealloc the memory in the C++ extension, so we need to copy for now
+        buffers = [None, pa.py_buffer(_asnumpy(indices).copy() - self.offset), pa.py_buffer(_asnumpy(self.bytes).view(np.uint8).copy()), ]
+        if self.null_bitmap is not None:
+            assert self.null_offset == 0 #self.offset
+            buffers[0] = pa.py_buffer(self.null_bitmap.copy())
+        arrow_array = pa.Array.from_buffers(type, self.length, buffers=buffers)
+        return arrow_array
 
     @property
     def string_sequence(self):
@@ -481,3 +560,6 @@ class ColumnStringArrow(ColumnString):
 
     def get_mask(self):
         return self.string_sequence.mask()
+
+    def astype(self, type):
+        return self.to_numpy().astype(type)

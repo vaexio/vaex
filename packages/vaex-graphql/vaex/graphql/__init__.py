@@ -53,7 +53,7 @@ class DataFrameAccessorGraphQLPandas(DataFrameAccessorGraphQL):
 
 def map_to_field(df, name):
     dtype = df[name].dtype
-    if dtype == str:
+    if vaex.array_types.is_string_type(dtype):
         return graphene.String
     elif dtype.kind == "f":
         return graphene.Float
@@ -122,7 +122,7 @@ class DateTimeCompare(Compare):
 
 def map_to_comparison(df, name):
     dtype = df[name].dtype
-    if dtype == str:
+    if vaex.array_types.is_string_type(dtype):
         return StringCompare
     elif dtype.kind == "f":
         return FloatCompare
@@ -326,7 +326,7 @@ def create_query(dfs):
     fields = {}
     for name, df in dfs.items():
         columns = df.get_column_names(alias=False)
-        columns = [k for k in columns if df[k].dtype == str or df[k].dtype.kind != 'O']
+        columns = [k for k in columns if df.is_string(k) or df[k].dtype.kind != 'O']
         df = df[columns]
         Aggregate = create_aggregate(df, [])
         def closure(df=df, name=name, Aggregate=Aggregate):

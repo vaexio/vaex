@@ -6,6 +6,7 @@ import numpy as np
 import vaex
 import vaex.encoding
 from .utils import as_flat_float, as_flat_array, _issequence, _ensure_list
+from . import array_types
 
 
 _task_part_register = {}
@@ -310,7 +311,7 @@ class TaskPartAggregations:
         grid = self.grid
 
         def check_array(x, dtype):
-            if dtype == str:
+            if vaex.array_types.is_string_type(dtype):
                 x = vaex.column._to_string_sequence(x)
             else:
                 x = vaex.utils.as_contiguous(x)
@@ -318,6 +319,8 @@ class TaskPartAggregations:
                     # we pass datetime as int
                     x = x.view('uint64')
             return x
+
+        blocks = [array_types.to_numpy(block, strict=False) for block in blocks]
         block_map = {expr: block for expr, block in zip(self.expressions, blocks)}
         # we need to make sure we keep some objects alive, since the c++ side does not incref
         # on set_data and set_data_mask
@@ -349,7 +352,6 @@ class TaskPartAggregations:
                         agg.set_selection_mask(selection_mask)
                 if agg_desc.expressions:
                     assert len(agg_desc.expressions) in [1, 2], "only length 1 or 2 supported for now"
-                    block = block_map[agg_desc.expressions[0]].dtype
                     for i, expression in enumerate(agg_desc.expressions):
                         block = block_map[agg_desc.expressions[i]]
                         dtype = self.dtypes[agg_desc.expressions[i]]

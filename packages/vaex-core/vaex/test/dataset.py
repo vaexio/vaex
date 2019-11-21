@@ -1221,7 +1221,7 @@ class TestDataset(unittest.TestCase):
 		path_arrow = tempfile.mktemp(".arrow")
 		self.dataset.export_arrow(path_arrow, sort="s")
 		ds2 = vaex.open(path_arrow)
-		np.testing.assert_array_equal(self.dataset.data.x[self.zero_index:self.zero_index+10], ds2.data.x[::-1])
+		np.testing.assert_array_equal(self.dataset.data.x[self.zero_index:self.zero_index+10], np.array(ds2.data.x)[::-1])
 
 	def test_export(self):
 		path = path_hdf5 = tempfile.mktemp(".hdf5")
@@ -1300,27 +1300,27 @@ class TestDataset(unittest.TestCase):
 											#values = dataset.columns[column_name][dataset._index_start:dataset._index_end] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
 											values = dataset.evaluate(column_name, filtered=False)
 											if selection:
-												values = dataset.evaluate(column_name)
+												values = dataset.evaluate(column_name, type="numpy")
 												mask = dataset.evaluate_selection_mask(selection)#, 0, len(dataset))
 												if len(values[::]) != len(mask):
 													import pdb
 													pdb.set_trace()
 												# for concatenated columns, we get a plain numpy array copy using [::]
-												a = np.ma.compressed(make_masked(compare.evaluate(column_name)))
+												a = np.ma.compressed(make_masked(compare.evaluate(column_name, type="numpy")))
 												b = np.ma.compressed(make_masked(values[::][mask]))
 												if len(a) != len(b):
 													import pdb
 													pdb.set_trace()
 												self.assertEqual(sorted(a), sorted(b))
 											else:
-												values = dataset.evaluate(column_name, filtered=True)
+												values = dataset.evaluate(column_name, type="numpy")
 												if shuffle:
 													indices = compare.columns["random_index"]
-													a = np.ma.compressed(make_masked(compare.evaluate(column_name)))
+													a = np.ma.compressed(make_masked(compare.evaluate(column_name, type="numpy")))
 													b = np.ma.compressed(make_masked(values[::][indices]))
 													self.assertEqual(sorted(a), sorted(b))
 												else:
-													dtype = compare.columns[column_name].dtype # we don't want any casting
+													dtype = np.array(compare.columns[column_name]).dtype # we don't want any casting
 													compare_values = compare.columns[column_name]
 													if isinstance(compare_values, vaex.column.Column):
 														compare_values = compare_values.to_numpy()

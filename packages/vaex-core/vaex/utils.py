@@ -21,7 +21,6 @@ import psutil
 import six
 import yaml
 
-from .column import str_type
 from .json import VaexJsonEncoder, VaexJsonDecoder
 
 
@@ -859,7 +858,8 @@ def gen_to_list(fn=None, wrapper=list):
 
 
 def find_type_from_dtype(namespace, prefix, dtype, transient=True):
-    if dtype == str_type:
+    from .array_types import is_string_type
+    if is_string_type(dtype):
         if transient:
             postfix = 'string'
         else:

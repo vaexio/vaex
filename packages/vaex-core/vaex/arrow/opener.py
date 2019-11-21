@@ -7,8 +7,8 @@ class ArrowOpener:
 
     @staticmethod
     def open(path, *args, **kwargs):
-        from .dataset import DatasetArrow
-        return DatasetArrow(path, *args, **kwargs)
+        from .dataset import open
+        return open(path, *args, **kwargs)
 
 class ParquetOpener:
     @staticmethod
@@ -17,8 +17,8 @@ class ParquetOpener:
 
     @staticmethod
     def open(path, *args, **kwargs):
-        from .dataset import DatasetParquet
-        return DatasetParquet(path, *args, **kwargs)
+        from .dataset import open_parquet
+        return open_parquet(path, *args, **kwargs)
 
 def register_opener():
     vaex.file.register(ArrowOpener)
