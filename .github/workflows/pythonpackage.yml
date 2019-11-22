@@ -92,7 +92,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         source activate vaex
-        python -m pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
+        python -m pytest tests
     - name: Test with pytest (non-windows)
       if: matrix.os != 'windows-latest'
       run: |
