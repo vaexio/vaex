@@ -40,6 +40,7 @@ jobs:
       run: |
         conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook
     - name: Add conda to path
+      shell: bash
       run: |
         conda init --all
         echo ::add-path::$CONDA/envs/vaex/bin
@@ -61,7 +62,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: bash
       run: |
-        conda activate vaex
+        source activate vaex
         (cd packages\vaex-core   ; pip install .)
         (cd packages\vaex-hdf5   ; pip install .)
         (cd packages\vaex-arrow   ; pip install .)
@@ -90,7 +91,7 @@ jobs:
       shell: bash
       if: matrix.os == 'windows-latest'
       run: |
-        conda activate vaex
+        source activate vaex
         python -m pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
     - name: Test with pytest (non-windows)
       if: matrix.os != 'windows-latest'
