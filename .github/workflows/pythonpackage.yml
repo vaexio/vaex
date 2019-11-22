@@ -30,13 +30,12 @@ jobs:
     #   uses: actions/setup-python@v1
     #   with:
     - name: Set conda root as output
-      id: conda-path
-      run: echo "::set-output name=conda-path::$env:CONDA"
+      run: echo "::set-env name=CONDA::$(echo $CONDA)"
     - name: Conda env cache
       id: cache-conda-env
       uses: actions/cache@v1
       with:
-        path: ${{ steps.conda-path.outputs.conda-path }}/envs/vaex
+        path: ${{ env.CONDA }}/envs/vaex
         key: conda-env-${{ runner.OS }}-${{ matrix.python-version }}-v1
     - name: Create env
       if: steps.cache-conda-env.outputs.cache-hit != 'true'
@@ -66,17 +65,7 @@ jobs:
       shell: bash
       run: |
         source activate vaex
-        (cd packages/vaex-core   ; pip install .)
-        (cd packages/vaex-hdf5   ; pip install .)
-        (cd packages/vaex-arrow   ; pip install .)
-        (cd packages/vaex-viz   ; pip install .)
-        (cd packages/vaex-server   ; pip install .)
-        (cd packages/vaex-astro   ; pip install .)
-        (cd packages/vaex-distributed   ; pip install .)
-        (cd packages/vaex-jupyter   ; pip install .)
-        (cd packages/vaex-ui   ; pip install .)
-        (cd packages/vaex-ml   ; pip install .)
-        (cd packages/vaex-graphql   ; pip install .)
+        pip install -vv -e .
     - name: Install vaex (non-Windows)
       if: matrix.os != 'windows-latest'
       run: |
