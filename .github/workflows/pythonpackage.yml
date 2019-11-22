@@ -44,21 +44,20 @@ jobs:
         key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}
     - name: Install vaex (Windows)
       if: matrix.os == 'windows-latest'
-      shell: cmd
       run: |
         call %CONDA%\Scripts\activate.bat
         conda activate vaex
-        pushd packages\vaex-core   && pip install . && popd
-        pushd packages\vaex-hdf5   && pip install . && popd
-        pushd packages\vaex-arrow   && pip install . && popd
-        pushd packages\vaex-viz   && pip install . && popd
-        pushd packages\vaex-server   && pip install . && popd
-        pushd packages\vaex-astro   && pip install . && popd
-        pushd packages\vaex-distributed   && pip install . && popd
-        pushd packages\vaex-jupyter   && pip install . && popd
-        pushd packages\vaex-ui   && pip install . && popd
-        pushd packages\vaex-ml   && pip install . && popd
-        pushd packages\vaex-graphql   && pip install . && popd
+        pushd packages\vaex-core   ; pip install . ; popd
+        pushd packages\vaex-hdf5   ; pip install . ; popd
+        pushd packages\vaex-arrow   ; pip install . ; popd
+        pushd packages\vaex-viz   ; pip install . ; popd
+        pushd packages\vaex-server   ; pip install . ; popd
+        pushd packages\vaex-astro   ; pip install . ; popd
+        pushd packages\vaex-distributed   ; pip install . ; popd
+        pushd packages\vaex-jupyter   ; pip install . ; popd
+        pushd packages\vaex-ui   ; pip install . ; popd
+        pushd packages\vaex-ml   ; pip install . ; popd
+        pushd packages\vaex-graphql   ; pip install . ; popd
     - name: Install vaex (non-Windows)
       if: matrix.os != 'windows-latest'
       run: |
@@ -74,7 +73,6 @@ jobs:
         # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest (windows)
       if: matrix.os == 'windows-latest'
-      shell: cmd
       run: |
         call %CONDA%\Scripts\activate.bat
         conda activate vaex
