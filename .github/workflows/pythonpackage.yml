@@ -29,10 +29,18 @@ jobs:
     # - name: Set up Python ${{ matrix.python-version }}
     #   uses: actions/setup-python@v1
     #   with:
-    #     python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
+    - name: Conda env cache
+      id: cache-conda-env
+      uses: actions/cache@v1
+      with:
+        path: $CONDA/envs/vaex
+        key: conda-env-${{ runner.OS }}-${{ matrix.python-version }}-v1
+    - name: Create env
+      if: steps.cache-conda-env.outputs.cache-hit != 'true'
       run: |
         conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook
+    - name: Add conda to path
+      run: |
         echo ::add-path::$CONDA/envs/vaex/bin
     - name: Fix python-dateutil/botocore version conflict
       run: |
