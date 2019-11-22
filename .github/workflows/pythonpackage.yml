@@ -32,7 +32,7 @@ jobs:
     #     python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly
+        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook
         echo ::add-path::$CONDA/envs/vaex/bin
     - name: Fix python-dateutil/botocore version conflict
       run: |
