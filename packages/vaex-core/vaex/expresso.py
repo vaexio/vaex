@@ -442,6 +442,27 @@ class Translator(ast.NodeTransformer):
         return node
 
 
+class NameCollector(ast.NodeTransformer):
+    def __init__(self):
+        self.names = {}
+
+    def visit_Call(self, node):
+        # we skip visiting node.id
+        node.args = [self.visit(k) for k in node.args]
+        if hasattr(node, 'keywords'):
+            node.keywords = [self.visit(k) for k in node.keywords]
+        return node
+
+    def visit_Name(self, node):
+        if node.id not in self.names:
+            self.names[node.id] = []
+        self.names[node.id].append(node)
+        # expr = self.translator(node.id)
+        # if expr:
+        #     node = parse_expression(expr)
+        #     node = self.visit(node)
+        return node
+
 class GraphBuiler(ast.NodeVisitor):
     def __init__(self):
         self.dependencies = []
@@ -486,8 +507,11 @@ def simplify(expression_string):
     return node_to_string(node)
 
 
-def derivative(expression_string, variable_name, simplify=True):
-    node = parse_expression(expression_string)
+def derivative(expression, variable_name, simplify=True):
+    if isinstance(expression, str):
+        node = parse_expression(expression)
+    else:
+        node = expression
     node = Derivative(variable_name).visit(node)
     if simplify:
         node = SimplifyExpression().visit(node)
@@ -495,11 +519,27 @@ def derivative(expression_string, variable_name, simplify=True):
 
 
 def translate(expression, translator):
-    node = parse_expression(expression)
+    if isinstance(expression, str):
+        node = parse_expression(expression)
+    else:
+        node = expression
     node = Translator(translator).visit(node)
     return node_to_string(node)
 
 
+def names(expression):
+    if isinstance(expression, str):
+        node = parse_expression(expression)
+    else:
+        node = expression
+    nc = NameCollector()
+    nc.visit(node)
+    return nc.names
+
+
+from functools import lru_cache
+
+# @lru_cache(maxsize=10000)
 def parse_expression(expression_string):
     expr = ast.parse(expression_string).body[0]
     assert isinstance(expr, ast.Expr), "not an expression"

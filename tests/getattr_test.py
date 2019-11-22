@@ -20,14 +20,16 @@ def test_column_subset_virtual_recursive(ds_local):
     ds['q'] = ds.r/2
     dss = ds[['q']]
     assert dss.get_column_names() == ['q']
-    assert set(dss.get_column_names(hidden=True)) == set(['__x', '__y', '__r', 'q'])
+    all_columns = set(dss.get_column_names(hidden=True))
+    assert all_columns == set(['__x', '__y', '__r', 'q'])
     np.array(dss)  # test if all columns can be put in arrays
 
 def test_column_subset_virtual(ds_filtered):
     ds = ds_filtered
     dss = ds[['y']]
     assert dss.get_column_names() == ['y']
-    assert set(dss.get_column_names(hidden=True)) == set(['__x', 'y'])
+    all_columns = set(dss.get_column_names(hidden=True))
+    assert all_columns == set(['__x', 'y'])
     np.array(dss)  # test if all columns can be put in arrays, with the possible filter copied as hidden
 
     # 'nested' filter

@@ -177,6 +177,9 @@ class DataFrame(object):
         self.variables["seconds_per_year"] = 31557600
         # leads to k = 4.74047 to go from au/year to km/s
         self.virtual_columns = collections.OrderedDict()
+        # we also store the virtual columns as expressions, for performance reasons
+        # the expression object can cache the ast, making renaming/rewriting faster
+        self._virtual_expressions = {}
         self.functions = collections.OrderedDict()
         self._length_original = None
         self._length_unfiltered = None
@@ -3162,19 +3165,29 @@ class DataFrame(object):
         :param str unique: if name is already used, make it unique by adding a postfix, e.g. _1, or _2
         """
         type = "change" if name in self.virtual_columns else "add"
-        expression = _ensure_string_from_expression(expression)
+        if isinstance(expression, Expression):
+            if expression.df is not self:
+                expression = expression.copy(self)
+        column_position = len(self.column_names)
+        # if the current name is an existing column name....
         if name in self.get_column_names():
-            renamed = '__' +vaex.utils.find_valid_name(name, used=self.get_column_names())
-            expression = self._rename(name, renamed, expressions=[expression])[0].expression
+            column_position = self.column_names.index(name)
+            renamed = vaex.utils.find_valid_name('__' +name, used=self.get_column_names(hidden=True))
+            # we rewrite all existing expressions (including the passed down expression argument)
+            self._rename(name, renamed)
+        expression = _ensure_string_from_expression(expression)
 
         name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names())
+
         self.virtual_columns[name] = expression
-        self.column_names.append(name)
+        self._virtual_expressions[name] = Expression(self, expression)
+        if name not in self.column_names:
+            self.column_names.insert(column_position, name)
         self._save_assign_expression(name)
         self.signal_column_changed.emit(self, name, "add")
         # self.write_virtual_meta()
 
-    def _rename(self, old, new, rename_meta_data=False, expressions=[]):
+    def _rename(self, old, new, rename_meta_data=False):
         if old in self._dtypes_override:
             self._dtypes_override[new] = self._dtypes_override.pop(old)
         if old in self.columns:
@@ -3186,10 +3199,10 @@ class DataFrame(object):
                     del d[old]
         if old in self.virtual_columns:
             self.virtual_columns[new] = self.virtual_columns.pop(old)
+            self._virtual_expressions[new] = self._virtual_expressions.pop(old)
         self._renamed_columns.append((old, new))
         self.column_names.remove(old)
         self.column_names.append(new)
-        self.virtual_columns = {k:self[v]._rename(old, new).expression for k, v in self.virtual_columns.items()}
         for key, value in self.selection_histories.items():
             self.selection_histories[key] = list([k if k is None else k._rename(self, old, new) for k in value])
         if hasattr(self, name):
@@ -3201,14 +3214,17 @@ class DataFrame(object):
         self._save_assign_expression(new)
         existing_expressions = [k() for k in self._expressions]
         existing_expressions = [k for k in existing_expressions if k is not None]
+        # print(len(existing_expressions))
         for expression in existing_expressions:
             expression._rename(old, new, inplace=True)
-        return [self[_ensure_string_from_expression(e)]._rename(old, new) for e in expressions]
+        self.virtual_columns = {k:self._virtual_expressions[k].expression for k, v in self.virtual_columns.items()}
+        # return [self[_ensure_string_from_expression(e)]._rename(old, new) for e in expressions]
 
 
     def delete_virtual_column(self, name):
         """Deletes a virtual column from a DataFrame."""
         del self.virtual_columns[name]
+        del self._virtual_expressions[name]
         self.signal_column_changed.emit(self, name, "delete")
         # self.write_virtual_meta()
 
@@ -4330,11 +4346,9 @@ class DataFrame(object):
         <vaex.expression.Expression(expressions='r')> instance at 0x121687e80 values=[2.9655450396553587, 5.77829281049018, 6.99079603950256, 9.431842752707537, 0.8825613121347967 ... (total 330000 values) ... 7.453831761514681, 15.398412491068198, 8.864250273925633, 17.601047186042507, 14.540181524970293]
         '''
 
-        if isinstance(name, six.string_types):
-            if isinstance(value, Expression):
-                value = value.expression
-            if isinstance(value, (np.ndarray, Column)):
-                self.add_column(name, value)
+        if isinstance(item, six.string_types):
+            if isinstance(value, supported_column_types):
+                self.add_column(item, value)
             else:
                 self.add_virtual_column(name, value)
         else:
@@ -4361,6 +4375,8 @@ class DataFrame(object):
             #   return Expression(self, self.virtual_columns[item])
             if item in self._column_aliases:
                 item = self._column_aliases[item]  # translate the alias name into the real name
+            # if item in self._virtual_expressions:
+            #     return self._virtual_expressions[item]
             return Expression(self, item)  # TODO we'd like to return the same expression if possible
         elif isinstance(item, Expression):
             expression = item.expression
@@ -4425,6 +4441,7 @@ class DataFrame(object):
             self.column_names.remove(name)
         elif name in self.virtual_columns:
             del self.virtual_columns[name]
+            del self._virtual_expressions[name]
             self.column_names.remove(name)
         else:
             raise KeyError('no such column or virtual_columns named %r' % name)
@@ -4460,6 +4477,7 @@ class DataFrame(object):
         column = _ensure_string_from_expression(column)
         new_name = self._find_valid_name('__' + column)
         self._rename(column, new_name)
+        return new_name
 
     def _find_valid_name(self, initial_name):
         '''Finds a non-colliding name by optional postfixing'''
@@ -4663,7 +4681,8 @@ class DataFrameLocal(DataFrame):
         df.units.update(self.units)
         df.variables.update(self.variables)
         df._categories.update(self._categories)
-        column_names = column_names or self.get_column_names(hidden=True)
+        if column_names is None:
+            column_names = self.get_column_names(hidden=True)
         all_column_names = self.get_column_names(hidden=True)
 
         # put in the selections (thus filters) in place
@@ -4693,32 +4712,100 @@ class DataFrameLocal(DataFrame):
                 df._selection_mask_caches[key] = collections.defaultdict(dict)
                 df._selection_mask_caches[key].update(self._selection_mask_caches[key])
 
-        # we copy all columns, but drop the ones that are not wanted
-        # this makes sure that needed columns are hidden instead
-        def add_columns(columns):
-            for name in columns:
+        if 1:
+            # print("-----", column_names)
+            depending = set()
+            added = set()
+            for name in column_names:
+                # print("add", name)
+                added.add(name)
                 if name in self.columns:
-                    df.add_column(name, self.columns[name], dtype=self._dtypes_override.get(name))
+                    column = self.columns[name]
+                    if not isinstance(column, ColumnSparse):
+                        df.add_column(name, column, dtype=self._dtypes_override.get(name))
                 elif name in self.virtual_columns:
-                    if virtual:
+                    if virtual:  # TODO: check if the ast is cached
                         df.add_virtual_column(name, self.virtual_columns[name])
+                        deps = [key for key, value in df._virtual_expressions[name].ast_names.items()]
+                        # print("add virtual", name, df._virtual_expressions[name].expression, deps)
+                        depending.update(deps)
                 else:
                     # this might be an expression, create a valid name
                     expression = name
                     name = vaex.utils.find_valid_name(name)
+                    # add the expression
                     df[name] = df._expr(expression)
-        # to preserve the order, we first add the ones we want, then the rest
-        add_columns(column_names)
-        # then the rest
-        rest = set(all_column_names) - set(column_names)
-        add_columns(rest)
-        # and remove them
-        for name in rest:
-            # if the column should not have been added, drop it. This checks if columns need
-            # to be hidden instead, and expressions be rewritten.
-            if name not in column_names:
-                df.drop(name, inplace=True)
-                assert name not in df.get_column_names(hidden=True)
+                    # then get the dependencies
+                    deps = [key for key, value in df._virtual_expressions[name].ast_names.items()]
+                    depending.update(deps)
+                # print(depending, "after add")
+            # depending |= column_names
+            # print(depending)
+            # print(depending, "before filter")
+            if self.filtered:
+                selection = self.get_selection(FILTER_SELECTION_NAME)
+                depending |= selection._depending_columns(self)
+            depending.difference_update(added)  # remove already added
+            # print(depending, "after filter")
+            # return depending_columns
+            
+            hide = []
+
+            while depending:
+                new_depending = set()
+                for name in depending:
+                    added.add(name)
+                    if name in self.columns:
+                        # print("add column", name)
+                        df.add_column(name, self.columns[name], dtype=self._dtypes_override.get(name))
+                        # print("and hide it")
+                        # df._hide_column(name)
+                        hide.append(name)
+                    elif name in self.virtual_columns:
+                        if virtual:  # TODO: check if the ast is cached
+                            df.add_virtual_column(name, self.virtual_columns[name])
+                            deps = [key for key, value in self._virtual_expressions[name].ast_names.items()]
+                            new_depending.update(deps)
+                        # df._hide_column(name)
+                        hide.append(name)
+                    elif name in self.variables:
+                        # if must be a variables?
+                        # TODO: what if the variable depends on other variables
+                        df.add_variable(name, self.variables[name])
+
+                # print("new_depending", new_depending)
+                new_depending.difference_update(added)
+                depending = new_depending
+            for name in hide:
+                df._hide_column(name)
+
+        else:
+            # we copy all columns, but drop the ones that are not wanted
+            # this makes sure that needed columns are hidden instead
+            def add_columns(columns):
+                for name in columns:
+                    if name in self.columns:
+                        df.add_column(name, self.columns[name], dtype=self._dtypes_override.get(name))
+                    elif name in self.virtual_columns:
+                        if virtual:
+                            df.add_virtual_column(name, self.virtual_columns[name])
+                    else:
+                        # this might be an expression, create a valid name
+                        expression = name
+                        name = vaex.utils.find_valid_name(name)
+                        df[name] = df._expr(expression)
+            # to preserve the order, we first add the ones we want, then the rest
+            add_columns(column_names)
+            # then the rest
+            rest = set(all_column_names) - set(column_names)
+            add_columns(rest)
+            # and remove them
+            for name in rest:
+                # if the column should not have been added, drop it. This checks if columns need
+                # to be hidden instead, and expressions be rewritten.
+                if name not in column_names:
+                    df.drop(name, inplace=True)
+                    assert name not in df.get_column_names(hidden=True)
 
         df.copy_metadata(self)
         return df
