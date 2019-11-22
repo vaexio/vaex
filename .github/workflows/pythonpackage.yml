@@ -37,6 +37,11 @@ jobs:
     - name: Fix python-dateutil/botocore version conflict
       run: |
         pip install python-dateutil==2.8.0  # botocore caps dateutil leading to issues
+    - name: Compile binaries
+      uses: actions/cache@v1
+      with:
+        path: packages/vaex-core/build
+        key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}
     - name: Install vaex (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
