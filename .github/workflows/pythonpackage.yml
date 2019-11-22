@@ -29,11 +29,14 @@ jobs:
     # - name: Set up Python ${{ matrix.python-version }}
     #   uses: actions/setup-python@v1
     #   with:
+    - name: Set conda root as output
+      id: conda-path
+      run: echo "::set-output name=conda-path::$env:CONDA"
     - name: Conda env cache
       id: cache-conda-env
       uses: actions/cache@v1
       with:
-        path: ${{ env.CONDA }}/envs/vaex
+        path: ${{ steps.conda-path.outputs.conda-path }}/envs/vaex
         key: conda-env-${{ runner.OS }}-${{ matrix.python-version }}-v1
     - name: Create env
       if: steps.cache-conda-env.outputs.cache-hit != 'true'
