@@ -63,17 +63,17 @@ jobs:
       shell: bash
       run: |
         source activate vaex
-        (cd packages\vaex-core   ; pip install .)
-        (cd packages\vaex-hdf5   ; pip install .)
-        (cd packages\vaex-arrow   ; pip install .)
-        (cd packages\vaex-viz   ; pip install .)
-        (cd packages\vaex-server   ; pip install .)
-        (cd packages\vaex-astro   ; pip install .)
-        (cd packages\vaex-distributed   ; pip install .)
-        (cd packages\vaex-jupyter   ; pip install .)
-        (cd packages\vaex-ui   ; pip install .)
-        (cd packages\vaex-ml   ; pip install .)
-        (cd packages\vaex-graphql   ; pip install .)
+        (cd packages/vaex-core   ; pip install .)
+        (cd packages/vaex-hdf5   ; pip install .)
+        (cd packages/vaex-arrow   ; pip install .)
+        (cd packages/vaex-viz   ; pip install .)
+        (cd packages/vaex-server   ; pip install .)
+        (cd packages/vaex-astro   ; pip install .)
+        (cd packages/vaex-distributed   ; pip install .)
+        (cd packages/vaex-jupyter   ; pip install .)
+        (cd packages/vaex-ui   ; pip install .)
+        (cd packages/vaex-ml   ; pip install .)
+        (cd packages/vaex-graphql   ; pip install .)
     - name: Install vaex (non-Windows)
       if: matrix.os != 'windows-latest'
       run: |
