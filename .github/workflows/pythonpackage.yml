@@ -47,7 +47,14 @@ jobs:
         conda init --all
         echo ::add-path::$CONDA/envs/vaex/bin
     - name: Fix python-dateutil/botocore version conflict
+      if: matrix.os != 'windows-latest'
       run: |
+        pip install python-dateutil==2.8.0  # botocore caps dateutil leading to issues
+    - name: Fix python-dateutil/botocore version conflict (windows)
+      if: matrix.os == 'windows-latest'
+      shell: bash
+      run: |
+        source activate vaex
         pip install python-dateutil==2.8.0  # botocore caps dateutil leading to issues
     - name: Cache compiled binaries
       id: cache-compiled-binaries
