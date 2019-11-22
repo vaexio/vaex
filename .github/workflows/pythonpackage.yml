@@ -33,7 +33,7 @@ jobs:
       id: cache-conda-env
       uses: actions/cache@v1
       with:
-        path: $CONDA/envs/vaex
+        path: ${{ env.CONDA }}/envs/vaex
         key: conda-env-${{ runner.OS }}-${{ matrix.python-version }}-v1
     - name: Create env
       if: steps.cache-conda-env.outputs.cache-hit != 'true'
