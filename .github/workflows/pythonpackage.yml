@@ -10,25 +10,53 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
-      max-parallel: 4
+      max-parallel: 10
       matrix:
-        python-version: [3.5, 3.6, 3.7]
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        python-version: [3.6, 3.7]
 
     steps:
     - uses: actions/checkout@v1
       with:
-        ref: master
         submodules: true
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+    - name: Install conda with Python ${{ matrix.python-version }}
+      uses: s-weigand/setup-conda@master
       with:
         python-version: ${{ matrix.python-version }}
+        conda-channels: anaconda, conda-forge
+    # - name: Set up Python ${{ matrix.python-version }}
+    #   uses: actions/setup-python@v1
+    #   with:
+    #     python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
+        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly
+        echo ::add-path::$CONDA/envs/vaex/bin
+    - name: Fix python-dateutil/botocore version conflict
+      run: |
         pip install python-dateutil==2.8.0  # botocore caps dateutil leading to issues
+    - name: Install vaex (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: |
+        call %CONDA%\Scripts\activate.bat
+        conda activate vaex
+        pushd packages\vaex-core   && pip install . && popd
+        pushd packages\vaex-hdf5   && pip install . && popd
+        pushd packages\vaex-arrow   && pip install . && popd
+        pushd packages\vaex-viz   && pip install . && popd
+        pushd packages\vaex-server   && pip install . && popd
+        pushd packages\vaex-astro   && pip install . && popd
+        pushd packages\vaex-distributed   && pip install . && popd
+        pushd packages\vaex-jupyter   && pip install . && popd
+        pushd packages\vaex-ui   && pip install . && popd
+        pushd packages\vaex-ml   && pip install . && popd
+        pushd packages\vaex-graphql   && pip install . && popd
+    - name: Install vaex (non-Windows)
+      if: matrix.os != 'windows-latest'
+      run: |
         pip install -vv -e .
         pip install -r requirements-ml.txt
     - name: Lint with flake8
@@ -41,5 +69,5 @@ jobs:
         # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        pip install pytest
-        pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
+        echo ::add-path::$CONDA/envs/vaex/bin
+        python -m pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
