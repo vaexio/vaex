@@ -53,7 +53,7 @@ jobs:
     - name: Install vaex (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        call %CONDA%\Scripts\activate.bat
+        %CONDA%\Scripts\activate.bat
         conda activate vaex
         pushd packages\vaex-core   ; pip install . ; popd
         pushd packages\vaex-hdf5   ; pip install . ; popd
@@ -82,7 +82,7 @@ jobs:
     - name: Test with pytest (windows)
       if: matrix.os == 'windows-latest'
       run: |
-        call %CONDA%\Scripts\activate.bat
+        %CONDA%\Scripts\activate.bat
         conda activate vaex
         python -m pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
     - name: Test with pytest (non-windows)
