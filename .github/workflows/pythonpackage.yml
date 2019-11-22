@@ -63,7 +63,7 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         pip install -vv -e .
-        pip install -r requirements-ml.txt
+        # pip install -r requirements-ml.txt
     - name: Lint with flake8
       run: |
         echo "soon"
