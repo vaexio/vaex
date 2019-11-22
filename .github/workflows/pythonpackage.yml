@@ -30,6 +30,7 @@ jobs:
     #   uses: actions/setup-python@v1
     #   with:
     - name: Set conda root as output
+      shell: bash
       run: echo "::set-env name=CONDA::$(echo $CONDA)"
     - name: Conda env cache
       id: cache-conda-env
@@ -41,6 +42,11 @@ jobs:
       if: steps.cache-conda-env.outputs.cache-hit != 'true'
       run: |
         conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook
+    - name: Restoring cached env
+      if: steps.cache-conda-env.outputs.cache-hit == 'true'
+      run: |
+        source activate vaex
+        conda install -c conda-forge matplotlib qt arrow-cpp pyarrow astropy
     - name: Add conda to path
       shell: bash
       run: |
@@ -96,3 +102,12 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         python -m pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
+    - name: Make env smaller for caching
+      shell: bash
+      run: |
+        source activate vaex
+        conda uninstall -y matplotlib qt arrow-cpp pyarrow astropy
+    # - name: List big files
+    #   shell: bash
+    #   run: |
+    #     find  ${{ env.CONDA }}/envs/vaex -type f -size +10M
