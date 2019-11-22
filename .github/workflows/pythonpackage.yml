@@ -41,6 +41,7 @@ jobs:
         conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook
     - name: Add conda to path
       run: |
+        conda init --all
         echo ::add-path::$CONDA/envs/vaex/bin
     - name: Fix python-dateutil/botocore version conflict
       run: |
@@ -52,20 +53,20 @@ jobs:
         key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}
     - name: Install vaex (Windows)
       if: matrix.os == 'windows-latest'
+      shell: bash
       run: |
-        %CONDA%\Scripts\activate.bat
         conda activate vaex
-        pushd packages\vaex-core   ; pip install . ; popd
-        pushd packages\vaex-hdf5   ; pip install . ; popd
-        pushd packages\vaex-arrow   ; pip install . ; popd
-        pushd packages\vaex-viz   ; pip install . ; popd
-        pushd packages\vaex-server   ; pip install . ; popd
-        pushd packages\vaex-astro   ; pip install . ; popd
-        pushd packages\vaex-distributed   ; pip install . ; popd
-        pushd packages\vaex-jupyter   ; pip install . ; popd
-        pushd packages\vaex-ui   ; pip install . ; popd
-        pushd packages\vaex-ml   ; pip install . ; popd
-        pushd packages\vaex-graphql   ; pip install . ; popd
+        (cd packages\vaex-core   ; pip install .)
+        (cd packages\vaex-hdf5   ; pip install .)
+        (cd packages\vaex-arrow   ; pip install .)
+        (cd packages\vaex-viz   ; pip install .)
+        (cd packages\vaex-server   ; pip install .)
+        (cd packages\vaex-astro   ; pip install .)
+        (cd packages\vaex-distributed   ; pip install .)
+        (cd packages\vaex-jupyter   ; pip install .)
+        (cd packages\vaex-ui   ; pip install .)
+        (cd packages\vaex-ml   ; pip install .)
+        (cd packages\vaex-graphql   ; pip install .)
     - name: Install vaex (non-Windows)
       if: matrix.os != 'windows-latest'
       run: |
@@ -80,9 +81,9 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest (windows)
+      shell: bash
       if: matrix.os == 'windows-latest'
       run: |
-        %CONDA%\Scripts\activate.bat
         conda activate vaex
         python -m pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
     - name: Test with pytest (non-windows)
