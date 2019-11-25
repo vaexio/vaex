@@ -106,7 +106,7 @@ class _BlockScope(object):
         try:
             if variable in self.values:
                 return self.values[variable]
-            elif variable in self.df.get_column_names(virtual=False, hidden=True):
+            elif variable in self.df.columns:
                 offset = self.df._index_start
                 # if self.df._needs_copy(variable):
                     # self._ensure_buffer(variable)
