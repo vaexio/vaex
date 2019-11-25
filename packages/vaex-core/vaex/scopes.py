@@ -73,6 +73,14 @@ class _BlockScope(object):
         self.i2 = int(i2)
         self.values = dict(self.variables)
 
+    def get(self, attr, default=None):  # otherwise pdb crashes during pytest
+        if attr == "__tracebackhide__":
+            return False
+        return default
+
+    def __contains__(self, name):  # otherwise pdb crashes during pytest
+        return name in self.buffers  # not sure this should also include varibles, columns and virtual columns
+
     def _ensure_buffer(self, column):
         if column not in self.buffers:
             logger.debug("creating column for: %s", column)
