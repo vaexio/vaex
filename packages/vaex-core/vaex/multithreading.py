@@ -50,7 +50,12 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         N = len(values)
         time_last = time.time() - 100
         min_delta_t = 1. / 100  # max 100 per second
-        for i, value in enumerate(super(ThreadPoolIndex, self).map(wrapped, values)):
+        if self.nthreads == 1:  # when using 1 thread, it makes debugging easier (better stacktrace)
+            iterator = self._map(wrapped, values)
+        else:
+            iterator = super(ThreadPoolIndex, self).map(wrapped, values)
+
+        for i, value in enumerate(iterator):
             progress_value = (i + 1) / N
             time_now = time.time()
             if progress_value == 1 or (time_now - time_last) > min_delta_t:
@@ -58,6 +63,10 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                 if progress(progress_value) == False:
                     cancelled = True
             yield value
+
+    def _map(self, callable, iterator):
+        for i in iterator:
+            yield callable(i)
 
 
 main_pool = None  # ThreadPoolIndex()
