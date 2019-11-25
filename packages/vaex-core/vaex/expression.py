@@ -1,3 +1,4 @@
+import ast
 import base64
 import cloudpickle as pickle
 import functools
@@ -183,13 +184,65 @@ class StringOperationsPandas(object):
 
 class Expression(with_metaclass(Meta)):
     """Expression class"""
-    def __init__(self, ds, expression):
+    def __init__(self, ds, expression, ast=None):
         self.ds = ds
         assert not isinstance(ds, Expression)
         if isinstance(expression, Expression):
             expression = expression.expression
-        self.expression = expression
+        self._ast = ast
+        self._expression = expression
         self.df._expressions.append(weakref.ref(self))
+        self._ast_names = None
+
+    def copy(self, df=None):
+        """Efficiently copies an expression.
+
+        Expression objects have both a string and AST representation. Creating
+        the AST representation involves parsing the expression, which is expensive.
+
+        Using copy will deepcopy the AST when the expression was already parsed.
+
+        :param df: DataFrame for which the expression will be evaluated (self.df if None)
+        """
+        # expression either has _expression or _ast not None
+        if df is None:
+            df = self.df
+        if self._expression is not None:
+            expression = Expression(df, self._expression)
+            if self._ast is not None:
+                expression._ast = copy.deepcopy(self._ast)
+        elif self._ast is not None:
+            expression = Expression(df, copy.deepcopy(self._ast))
+            if self._ast is not None:
+                expression._ast = self._ast
+        return expression
+
+    @property
+    def ast(self):
+        """Returns the abstract syntax tree (AST) of the expression"""
+        if self._ast is None:
+            self._ast = expresso.parse_expression(self.expression)
+        return self._ast
+
+    @property
+    def ast_names(self):
+        if self._ast_names is None:
+            self._ast_names = expresso.names(self.ast)
+        return self._ast_names
+
+    @property
+    def expression(self):
+        if self._expression is None:
+            self._expression = expresso.node_to_string(self.ast)
+        return self._expression
+
+    @expression.setter
+    def expression(self, value):
+        # if we reassign to expression, we clear the ast cache
+        if value != self._expression:
+            self._expression = value
+            self._ast = None
+
 
     @property
     def df(self):
@@ -268,7 +321,7 @@ class Expression(with_metaclass(Meta)):
 
     def derivative(self, var, simplify=True):
         var = _ensure_string_from_expression(var)
-        return self.__class__(self.ds, expresso.derivative(self.expression, var, simplify=simplify))
+        return self.__class__(self.ds, expresso.derivative(self.ast, var, simplify=simplify))
 
     def expand(self, stop=[]):
         """Expand the expression such that no virtual columns occurs, only normal columns.
@@ -285,10 +338,10 @@ class Expression(with_metaclass(Meta)):
         def translate(id):
             if id in self.ds.virtual_columns and id not in stop:
                 return self.ds.virtual_columns[id]
-        expr = expresso.translate(self.expression, translate)
+        expr = expresso.translate(self.ast, translate)
         return Expression(self.ds, expr)
 
-    def variables(self):
+    def variables(self, ourself=False, expand_virtual=True, include_virtual=True):
         """Return a set of variables this expression depends on.
 
         Example:
@@ -302,12 +355,15 @@ class Expression(with_metaclass(Meta)):
         def record(varname):
             # do this recursively for virtual columns
             if varname in self.ds.virtual_columns and varname not in variables:
-                expresso.translate(self.ds.virtual_columns[varname], record)
-            # we don't want to record ourself
-            if varname != self.expression:
+                if (include_virtual and (varname != self.expression)) or (varname == self.expression and ourself):
+                    variables.add(varname)
+                if expand_virtual:
+                    expresso.translate(self.ds.virtual_columns[varname], record)
+            # we usually don't want to record ourself
+            elif varname != self.expression or ourself:
                 variables.add(varname)
 
-        expresso.translate(self.expression, record)
+        expresso.translate(self.ast, record)
         return variables
 
     def _graph(self):
@@ -674,15 +730,12 @@ def f({0}):
                 logger.setLevel(log_level)
 
     def _rename(self, old, new, inplace=False):
-        def translate(id):
-            if id == old:
-                return new
-        expr = expresso.translate(self.expression, translate)
-        if inplace:
-            self.expression = expr
-            return self
-        else:
-            return Expression(self.ds, expr)
+        expression = self if inplace else self.copy()
+        if old in expression.ast_names:
+            for node in expression.ast_names[old]:
+                node.id = new
+            expression._expression = None  # resets the cached string representation
+        return expression
 
     def astype(self, dtype):
         if dtype == str:
