@@ -215,7 +215,7 @@ class ColumnConcatenatedLazy(Column):
         if stop <= offset + len(current_expression.df):
             if current_expression.df.filtered:  # TODO this may get slow! we're evaluating everything
                 warnings.warn("might be slow, you have concatenated expressions with a filter set")
-            values = current_expression.evaluate(i1=start - offset, i2=stop - offset)
+            values = current_expression.evaluate(i1=start - offset, i2=stop - offset, parallel=False)
         else:
             if current_expression.is_masked:
                 copy = np.ma.empty(stop - start, dtype=dtype)
@@ -226,7 +226,7 @@ class ColumnConcatenatedLazy(Column):
             while offset < stop:  # > offset + len(current_expression):
                 if current_expression.df.filtered:  # TODO this may get slow! we're evaluating everything
                     warnings.warn("might be slow, you have concatenated DataFrames with a filter set")
-                part = current_expression.evaluate(i1=start-offset, i2=min(len(current_expression.df), stop - offset))
+                part = current_expression.evaluate(i1=start-offset, i2=min(len(current_expression.df), stop - offset), parallel=False)
                 copy[copy_offset:copy_offset + len(part)] = part
                 offset += len(current_expression.df)
                 copy_offset += len(part)
@@ -278,7 +278,7 @@ def _is_stringy(x):
     return False
 
 
-def _to_string_sequence(x):
+def _to_string_sequence(x, force=True):
     if isinstance(x, ColumnString):
         return x.string_sequence
     elif isinstance(x, np.ndarray):
@@ -292,14 +292,23 @@ def _to_string_sequence(x):
             x = x.astype('O')
             return vaex.strings.StringArray(x) if mask is None else vaex.strings.StringArray(x, mask)
         else:
-            raise ValueError('unsupported dtype ' +str(x.dtype))
+            # This path is only required because the str_pandas wrapper uses NaN for missing values
+            # see pandas_wrapper in functions.py
+            if force:
+                length = len(x)
+                bytes = np.zeros((0,), dtype=np.uint8)
+                indices = np.zeros((length+1,), dtype=np.int64)
+                null_bitmap = np.ones(((length + 7) // 8,), dtype=np.uint8)
+                return vaex.strings.StringList64(bytes, indices, length, 0, null_bitmap, 0)
+            else:
+                ValueError('unsupported dtype ' +str(x.dtype))
     elif isinstance(x, (list, type)):
         return _to_string_sequence(np.array(x))
     else:
         raise ValueError('not a ColumnString or ndarray: ' + str(x))
 
-def _to_string_column(x):
-    ss = _to_string_sequence(x)
+def _to_string_column(x, force=True):
+    ss = _to_string_sequence(x, force=force)
     if not isinstance(ss, (vaex.strings.StringList64, vaex.strings.StringList32)):
         ss = ss.to_arrow()
     return ColumnStringArrow.from_string_sequence(ss)

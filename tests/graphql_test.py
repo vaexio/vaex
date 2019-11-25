@@ -1,6 +1,9 @@
 from common import *
 
 
+if vaex.utils.devmode:
+    pytest.skip('runs too slow when developing', allow_module_level=True)
+
 def test_aggregates(df_local):
     df = df_local
 

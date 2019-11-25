@@ -611,10 +611,10 @@ class DatasetRest(DataFrameRemote):
     def __call__(self, *expressions, **kwargs):
         return SubspaceRemote(self, expressions, kwargs.get("executor") or self.executor, delay=kwargs.get("delay", False))
 
-    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, delay=False):
+    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, parallel=True, delay=False):
         expression = _ensure_strings_from_expressions(expression)
         """basic support for evaluate at server, at least to run some unittest, do not expect this to work from strings"""
-        result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, selection=selection, delay=delay)
+        result = self.server._call_dataset("evaluate", self, expression=expression, i1=i1, i2=i2, selection=selection, parallel=parallel, delay=delay)
         # TODO: we ignore out
         return result
 

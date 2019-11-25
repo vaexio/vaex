@@ -194,7 +194,7 @@ def test_string_find(dfs, sub, start, end):
 
 @pytest.mark.parametrize("i", [-1, 3, 5, 10])
 def test_string_get(dfs, i):
-	x = dfs.s.str_pandas.get(i).values.values
+	x = dfs.s.str_pandas.get(i).tolist()
 	assert dfs.s.str.get(i).tolist() == [k[i] if i < len(k) else '' for k in string_list]
 
 @pytest.mark.parametrize("sub", ["v", "æ"])
