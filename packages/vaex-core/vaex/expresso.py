@@ -457,10 +457,6 @@ class NameCollector(ast.NodeTransformer):
         if node.id not in self.names:
             self.names[node.id] = []
         self.names[node.id].append(node)
-        # expr = self.translator(node.id)
-        # if expr:
-        #     node = parse_expression(expr)
-        #     node = self.visit(node)
         return node
 
 class GraphBuiler(ast.NodeVisitor):
@@ -537,9 +533,6 @@ def names(expression):
     return nc.names
 
 
-from functools import lru_cache
-
-# @lru_cache(maxsize=10000)
 def parse_expression(expression_string):
     expr = ast.parse(expression_string).body[0]
     assert isinstance(expr, ast.Expr), "not an expression"

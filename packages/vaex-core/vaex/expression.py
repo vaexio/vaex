@@ -184,22 +184,27 @@ class StringOperationsPandas(object):
 
 class Expression(with_metaclass(Meta)):
     """Expression class"""
-    def __init__(self, ds, expression):
+    def __init__(self, ds, expression, ast=None):
         self.ds = ds
         assert not isinstance(ds, Expression)
         if isinstance(expression, Expression):
             expression = expression.expression
-        if isinstance(expression, ast.expr):
-            self._ast = expression
-            self._expression = None
-        else:
-            self._expression = expression
-            self._ast = None
+        self._ast = ast
+        self._expression = expression
         self.df._expressions.append(weakref.ref(self))
         self._ast_names = None
 
     def copy(self, df=None):
-        # expression either has _expressio nor _ast not None
+        """Efficiently copies an expression.
+
+        Expression objects have both a string and AST representation. Creating
+        the AST representation involves parsing the expression, which is expensive.
+
+        Using copy will deepcopy the AST when the expression was already parsed.
+
+        :param df: DataFrame for which the expression will be evaluated (self.df if None)
+        """
+        # expression either has _expression or _ast not None
         if df is None:
             df = self.df
         if self._expression is not None:
@@ -725,30 +730,12 @@ def f({0}):
                 logger.setLevel(log_level)
 
     def _rename(self, old, new, inplace=False):
-        # assert inplace
         expression = self if inplace else self.copy()
-        # def translate(id):
-        #     if id == old:
-        #         return new
-        # expr = expresso.translate(self.ast, translate)
-        # expr = self.expression
-        # ast = self.ast
-        # copied = False
-        # for node in self._ast_names:
-        #     if node.id == "old":
-        #         if not copied and not inplace:
-        #             ast = 
         if old in expression.ast_names:
             for node in expression.ast_names[old]:
                 node.id = new
             expression._expression = None  # resets the cached string representation
         return expression
-
-        # if inplace:
-        #     self.expression = expr
-        #     return self
-        # else:
-        #     return Expression(self.ds, expr)
 
     def astype(self, dtype):
         if dtype == str:

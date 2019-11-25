@@ -4346,9 +4346,9 @@ class DataFrame(object):
         <vaex.expression.Expression(expressions='r')> instance at 0x121687e80 values=[2.9655450396553587, 5.77829281049018, 6.99079603950256, 9.431842752707537, 0.8825613121347967 ... (total 330000 values) ... 7.453831761514681, 15.398412491068198, 8.864250273925633, 17.601047186042507, 14.540181524970293]
         '''
 
-        if isinstance(item, six.string_types):
-            if isinstance(value, supported_column_types):
-                self.add_column(item, value)
+        if isinstance(name, six.string_types):
+            if isinstance(value, (np.ndarray, Column)):
+                self.add_column(name, value)
             else:
                 self.add_virtual_column(name, value)
         else:
