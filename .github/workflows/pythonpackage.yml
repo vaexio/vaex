@@ -10,26 +10,80 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
-      max-parallel: 4
+      max-parallel: 10
       matrix:
-        python-version: [3.5, 3.6, 3.7]
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        python-version: [3.6, 3.7]
 
     steps:
     - uses: actions/checkout@v1
       with:
         submodules: true
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+    - name: Install conda with Python ${{ matrix.python-version }}
+      uses: s-weigand/setup-conda@master
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
+        conda-channels: anaconda, conda-forge
+    # - name: Set up Python ${{ matrix.python-version }}
+    #   uses: actions/setup-python@v1
+    #   with:
+    # - name: Set conda root as output
+    #   shell: bash
+    #   run: echo "::set-env name=CONDA::$(echo $CONDA)"
+    # - name: Conda env cache
+    #   id: cache-conda-env
+    #   uses: actions/cache@v1
+    #   with:
+    #     path: ${{ env.CONDA }}/envs/vaex
+    #     key: conda-env-${{ runner.OS }}-${{ matrix.python-version }}-v1
+    - name: Create env
+      # if: steps.cache-conda-env.outputs.cache-hit != 'true'
       run: |
-        python -m pip install --upgrade pip
+        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook
+    # - name: Restoring cached env
+    #   if: steps.cache-conda-env.outputs.cache-hit == 'true'
+    #   run: |
+    #     source activate vaex
+    #     conda install -c conda-forge matplotlib qt arrow-cpp pyarrow astropy
+    - name: Add conda to path
+      shell: bash
+      run: |
+        conda init --all
+        echo ::add-path::$CONDA/envs/vaex/bin
+    - name: Fix python-dateutil/botocore version conflict
+      if: matrix.os != 'windows-latest'
+      run: |
         pip install python-dateutil==2.8.0  # botocore caps dateutil leading to issues
+    - name: Fix python-dateutil/botocore version conflict (windows)
+      if: matrix.os == 'windows-latest'
+      shell: bash
+      run: |
+        source activate vaex
+        pip install python-dateutil==2.8.0  # botocore caps dateutil leading to issues
+    - name: Cache compiled binaries
+      id: cache-compiled-binaries
+      uses: actions/cache@v1
+      with:
+        path: packages/vaex-core/build
+        key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}
+    - name: Fix cache timestamp
+      if: steps.cache-compiled-binaries.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        find packages/vaex-core/build -type f -exec touch {} +
+    - name: Install vaex (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: bash
+      run: |
+        source activate vaex
         pip install -vv -e .
-        pip install -r requirements-ml.txt
+    - name: Install vaex (non-Windows)
+      if: matrix.os != 'windows-latest'
+      run: |
+        pip install -vv -e .
+        # pip install -r requirements-ml.txt
     - name: Lint with flake8
       run: |
         echo "soon"
@@ -38,7 +92,18 @@ jobs:
         # flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
+    - name: Test with pytest (windows)
+      shell: bash
+      if: matrix.os == 'windows-latest'
       run: |
-        pip install pytest
-        pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
+        source activate vaex
+        python -m pytest tests
+    - name: Test with pytest (non-windows)
+      if: matrix.os != 'windows-latest'
+      run: |
+        python -m pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
+    # - name: Make env smaller for caching
+    #   shell: bash
+    #   run: |
+    #     source activate vaex
+    #     conda uninstall -y matplotlib qt arrow-cpp pyarrow astropy
