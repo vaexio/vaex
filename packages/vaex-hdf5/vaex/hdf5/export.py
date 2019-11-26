@@ -205,7 +205,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                         column_names.remove(column_name)
                 array[0] = array[0]  # make sure the array really exists
 
-                data = dataset.evaluate(column_name, 0, 1)
+                data = dataset.evaluate(column_name, 0, 1, parallel=False)
                 if np.ma.isMaskedArray(data):
                     mask = h5column_output.require_dataset('mask', shape=shape, dtype=np.bool)
                     mask[0] = mask[0]  # make sure the array really exists

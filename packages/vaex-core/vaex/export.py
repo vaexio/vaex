@@ -184,7 +184,7 @@ def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffl
                 block_scope.move(i1, i2)
                 if selection:
                     mask = full_mask[i1:i2]
-                    values = dataset_input.evaluate(column_name, i1=i1, i2=i2, filtered=False) #selection=selection)
+                    values = dataset_input.evaluate(column_name, i1=i1, i2=i2, filtered=False, parallel=False) #selection=selection)
                     values = values[mask]
                     no_values = len(values)
                     if no_values:
@@ -210,7 +210,7 @@ def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffl
                                 to_array[to_offset:to_offset + no_values] = values
                             to_offset += no_values
                 else:
-                    values = dataset_input.evaluate(column_name, i1=i1, i2=i2)
+                    values = dataset_input.evaluate(column_name, i1=i1, i2=i2, parallel=False)
                     if is_string:
                         no_values = len(values)
                         # for strings, we don't take sorting/shuffling into account when building the structure

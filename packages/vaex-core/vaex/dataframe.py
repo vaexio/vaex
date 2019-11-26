@@ -34,6 +34,7 @@ from . import selections, tasks, scopes
 from .expression import expression_namespace
 from .delayed import delayed, delayed_args, delayed_list
 from .column import Column, ColumnIndexed, ColumnSparse, ColumnString, ColumnConcatenatedLazy, str_type
+from .array_types import to_numpy
 import vaex.events
 
 # py2/p3 compatibility
@@ -1984,6 +1985,11 @@ class DataFrame(object):
         """Alias for `df.byte_size()`, see :meth:`DataFrame.byte_size`."""
         return self.byte_size()
 
+    def _shape_of(self, expression, filtered=True):
+        sample = self.evaluate(expression, 0, 1, filtered=False, internal=True, parallel=False)
+        rows = len(self) if filtered else self.length_unfiltered()
+        return (rows,) + sample.shape[1:]
+
     def dtype(self, expression, internal=False):
         """Return the numpy dtype for the given expression, if not a column, the first row will be evaluated to get the dtype."""
         expression = _ensure_string_from_expression(expression)
@@ -1996,16 +2002,12 @@ class DataFrame(object):
             data = column[0:1]
             dtype = data.dtype
         else:
-            data = self.evaluate(expression, 0, 1, filtered=False, internal=True)
+            data = self.evaluate(expression, 0, 1, filtered=False, internal=True, parallel=False)
             dtype = data.dtype
         if not internal:
             if dtype != str_type:
                 if dtype.kind in 'US':
                     return str_type
-                if dtype.kind == 'O':
-                    # we lie about arrays containing strings
-                    if isinstance(data[0], six.string_types):
-                        return str_type
         return dtype
 
     @property
@@ -2019,6 +2021,10 @@ class DataFrame(object):
         column = _ensure_string_from_expression(column)
         if column in self.columns:
             return np.ma.isMaskedArray(self.columns[column])
+        else:
+            ar = self.evaluate(column, i1=0, i2=1, parallel=False)
+            if isinstance(ar, np.ndarray) and np.ma.isMaskedArray(ar):
+                return True
         return False
 
     def label(self, expression, unit=None, output_unit=None, format="latex_inline"):
@@ -2640,7 +2646,7 @@ class DataFrame(object):
 
         # if _is_string(selection):
 
-    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None):
+    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, parallel=True):
         """Evaluate an expression, and return a numpy array with the results for the full column or a part of it.
 
         Note that this is not how vaex should be used, since it means a copy of the data needs to fit in memory.
@@ -2658,7 +2664,7 @@ class DataFrame(object):
         raise NotImplementedError
 
     @docsubst
-    def to_items(self, column_names=None, selection=None, strings=True, virtual=False):
+    def to_items(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True):
         """Return a list of [(column_name, ndarray), ...)] pairs where the ndarray corresponds to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2668,12 +2674,23 @@ class DataFrame(object):
         :return: list of (name, ndarray) pairs
         """
         items = []
-        for name in column_names or self.get_column_names(strings=strings, virtual=virtual):
-            items.append((name, self.evaluate(name, selection=selection)))
-        return items
+        column_names = self.get_column_names(strings=strings, virtual=virtual)
+        return list(zip(column_names, self.evaluate(column_names, selection=selection, parallel=parallel)))
 
     @docsubst
-    def to_dict(self, column_names=None, selection=None, strings=True, virtual=False):
+    def to_arrays(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True):
+        """Return a list of ndarrays
+
+        :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
+        :param selection: {selection}
+        :param strings: argument passed to DataFrame.get_column_names when column_names is None
+        :param virtual: argument passed to DataFrame.get_column_names when column_names is None
+        :return: list of (name, ndarray) pairs
+        """
+        return self.evaluate(column_names or self.get_column_names(strings=strings, virtual=virtual), selection=selection, parallel=parallel)
+
+    @docsubst
+    def to_dict(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True):
         """Return a dict containing the ndarray corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2682,7 +2699,7 @@ class DataFrame(object):
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :return: dict
         """
-        return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual))
+        return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual, parallel=parallel))
 
     @docsubst
     def to_copy(self, column_names=None, selection=None, strings=True, virtual=False, selections=True):
@@ -2725,7 +2742,7 @@ class DataFrame(object):
         self.description = other.description
 
     @docsubst
-    def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None):
+    def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None, parallel=True):
         """Return a pandas DataFrame containing the ndarray corresponding to the evaluated data
 
          If index is given, that column is used for the index of the dataframe.
@@ -2743,7 +2760,7 @@ class DataFrame(object):
         :return: pandas.DataFrame object
         """
         import pandas as pd
-        data = self.to_dict(column_names=column_names, selection=selection, strings=strings, virtual=virtual)
+        data = self.to_dict(column_names=column_names, selection=selection, strings=strings, virtual=virtual, parallel=True)
         if index_name is not None:
             if index_name in data:
                 index = data.pop(index_name)
@@ -2770,7 +2787,7 @@ class DataFrame(object):
         return arrow_table_from_vaex_df(self, column_names, selection, strings, virtual)
 
     @docsubst
-    def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=False, index=None):
+    def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=False, index=None, parallel=True):
         """Returns a astropy table object containing the ndarrays corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2786,7 +2803,7 @@ class DataFrame(object):
         meta["description"] = self.description
 
         table = Table(meta=meta)
-        for name, data in self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual):
+        for name, data in self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual, parallel=parallel):
             if self.dtype(name) == str_type:  # for astropy we convert it to unicode, it seems to ignore object type
                 data = np.array(data).astype('U')
             meta = dict()
@@ -3624,6 +3641,10 @@ class DataFrame(object):
             if not hidden and name.startswith('__'):
                 return False
             return True
+        if hidden and virtual and regex is None:
+            return list(self.column_names)  # quick path
+        if not hidden and virtual and regex is None:
+            return [k for k in self.column_names if not k.startswith('__')]  # also a quick path
         return [name for name in self.column_names if column_filter(name)]
 
     def __len__(self):
@@ -3714,6 +3735,7 @@ class DataFrame(object):
                         df.columns[name] = column[self._index_start:self._index_end]
                     else:
                         df.columns[name] = column.trim(self._index_start, self._index_end)
+
         df._length_original = self.length_unfiltered()
         df._length_unfiltered = df._length_original
         df._cached_filtered_length = None
@@ -3976,8 +3998,7 @@ class DataFrame(object):
             values = self.evaluate(by)
             indices = np.argsort(values, kind=kind)
         if isinstance(by, (list, tuple)):
-            by = _ensure_strings_from_expressions(by)[::-1] # TODO: this is using an unsupported features, when evaluate takes a list of expressions, we should change this.
-            by = ', '.join(by)
+            by = _ensure_strings_from_expressions(by)[::-1]
             values = self.evaluate(by)
             indices = np.lexsort(values)
         if not ascending:
@@ -4353,6 +4374,13 @@ class DataFrame(object):
                 self.add_virtual_column(name, value)
         else:
             raise TypeError('__setitem__ only takes strings as arguments, not {}'.format(type(name)))
+
+    def drop_filter(self, inplace=False):
+        """Removes all filters from the DataFrame"""
+        df = self if inplace else self.copy()
+        df.select_nothing(name=FILTER_SELECTION_NAME)
+        df._invalidate_caches()
+        return df
 
     def __getitem__(self, item):
         """Convenient way to get expressions, (shallow) copies of a few columns, or to apply filtering.
@@ -4868,7 +4896,7 @@ class DataFrameLocal(DataFrame):
     def shape(self):
         return (len(self), len(self.get_column_names()))
 
-    def __array__(self, dtype=None):
+    def __array__(self, dtype=None, parallel=True):
         """Gives a full memory copy of the DataFrame into a 2d numpy array of shape (n_rows, n_columns).
         Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
 
@@ -4881,12 +4909,12 @@ class DataFrameLocal(DataFrame):
         if dtype is None:
             dtype = np.float64
         chunks = []
-        for name in self.get_column_names(strings=False):
+        column_names = self.get_column_names(strings=False)
+        for name in column_names:
             if not np.can_cast(self.dtype(name), dtype):
                 if self.dtype(name) != dtype:
                     raise ValueError("Cannot cast %r (of type %r) to %r" % (name, self.dtype(name), dtype))
-            else:
-                chunks.append(self.evaluate(name))
+        chunks = self.evaluate(column_names, parallel=parallel)
         return np.array(chunks, dtype=dtype).T
 
     @vaex.utils.deprecated('use DataFrame.join(other)')
@@ -4968,16 +4996,130 @@ class DataFrameLocal(DataFrame):
             value = value.to_numpy()
         return value
 
-    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, internal=False):
+    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, internal=False, parallel=True):
         """The local implementation of :func:`DataFrame.evaluate`"""
-        expression = _ensure_string_from_expression(expression)
+        # expression = _ensure_string_from_expression(expression)
+        was_list, [expressions] = vaex.utils.listify(expression)
+        expressions = vaex.utils._ensure_strings_from_expressions(expressions)
+
         selection = _ensure_strings_from_expressions(selection)
+        max_stop = (len(self) if (self.filtered and filtered) else self.length_unfiltered())
         i1 = i1 or 0
-        i2 = i2 or (len(self) if (self.filtered and filtered) else self.length_unfiltered())
+        i2 = i2 or max_stop
+        if parallel:
+            df = self
+            # first, reduce complexity for the parallel path
+            if self.filtered and not filtered:
+                df = df.drop_filter()
+            if i1 != 0 or i2 != max_stop:
+                df = df[i1:i2]
+            if df != self and parallel:
+                return df.evaluate(expression, out=out, selection=selection, internal=internal, parallel=parallel)
+        expression = expressions[0]
+        # here things are simpler or we don't go parallel
         mask = None
 
-        if self.filtered and filtered:  # if we filter, i1:i2 has a different meaning
-            if 1:
+        if parallel:
+            if self.filtered and filtered:
+                assert i2 == max_stop
+                i2 = self.length_unfiltered()
+            
+            length = self.length_unfiltered()
+            arrays = {}
+            # maps to a dict of start_index -> apache arrow array (a chunk)
+            chunks_map = {}
+            dtypes = {}
+            shapes = {}
+            virtual = set()
+            if self.filtered or selection:
+                filter_mask = np.ones(length, dtype=bool)
+            for expression in set(expressions):
+                # TODO: For NEP branch: dtype -> dtype_evaluate
+                dtype = dtypes[expression] = self.dtype(expression, internal=False)
+                if expression in self.columns:
+                    if dtype == str_type:
+                        column = self.columns[expression]
+                        # TODO: for arrow branch
+                        # if hasattr(column, "to_arrow"):
+                        #     # we cannot use the __arrow_array__ protocol since we might
+                        #     # get a chunked array
+                        #     column = column.to_arrow()
+                        arrays[expression] = column[self._index_start:self._index_end]
+                        if not internal:
+                            arrays[expression] = to_numpy(arrays[expression])
+                    else:
+                        column = self.columns[expression]
+                        arrays[expression] = column[self._index_start:self._index_end]
+                else:
+                    virtual.add(expression)
+                    if dtype == str_type:
+                        chunks_map[expression] = {}
+                    else:
+                        shape = (length, ) + self._shape_of(expression, filtered=False)[1:]
+                        shapes[expression] = shape
+            if virtual:
+                for expression in virtual:
+                    if expression not in chunks_map:
+                        if self.is_masked(expression):
+                            arrays[expression] = np.ma.empty(shapes.get(expression, length), dtype=dtypes[expression])
+                        else:
+                            arrays[expression] = np.zeros(shapes.get(expression, length), dtype=dtypes[expression])
+                def assign(thread_index, i1, i2, *blocks):
+                    if self.filtered or selection:
+                        filter_mask[i1:i2] = self.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
+                    for i, expr in enumerate(virtual):
+                        if expr in chunks_map:
+                            # for non-primitive arrays we simply keep a reference to the chunk
+                            chunks_map[expr][i1] = blocks[i]
+                        else:
+                            # for primitive arrays we directly add it to the right place in contiguous numpy array
+                            arrays[expr][i1:i2] = blocks[i]
+
+
+                self.map_reduce(assign, lambda *_: None, list(virtual), ignore_filter=True, info=True, to_numpy=False)
+            elif self.filtered or selection:
+                def assign(thread_index, i1, i2, *blocks):
+                    filter_mask[i1:i2] = self.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
+                # we don't have to evaluate an expression now, but we still need the mask
+                self.map_reduce(assign, lambda *_: None, [expressions[0]], ignore_filter=True, info=True)
+            def finalize_result(expression):
+                if expression in chunks_map:
+                    # put all chunks in order
+                    chunks = [chunk for (i1, chunk) in sorted(chunks_map[expression].items(), key=lambda i1_and_chunk: i1_and_chunk[0])]
+                    assert len(chunks) > 0
+                    if len(chunks) == 1:
+                        # TODO: For NEP Branch
+                        # return pa.array(chunks[0])
+                        if internal:
+                            return chunks[0]
+                        else:
+                            values = to_numpy(chunks[0])
+                            return values
+                    else:
+                        # TODO: For NEP Branch
+                        # return pa.chunked_array(chunks)
+                        if internal:
+                            return chunks  # Returns a list of StringArrays
+                        else:
+                            # if isinstance(value, ColumnString) and not internal:
+                            return np.concatenate([to_numpy(k) for k in chunks])
+                else:
+                    return arrays[expression]
+            result = [finalize_result(k) for k in expressions]
+            if self.filtered or selection:
+                def filter(ar, mask):
+                    # TODO: For NEP Branch
+                    # if isinstance(ar, pa.Array):
+                    #     return ar.filter(pa.array(mask))
+                    # else:
+                    #     return ar[mask]
+                    return ar[mask]
+                result = [filter(k, filter_mask) for k in result]
+            if not was_list:
+                result = result[0]
+            return result
+        else:
+            if self.filtered and filtered:
                 count_check = self.count()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 if _DEBUG:
@@ -4989,21 +5131,22 @@ class DataFrameLocal(DataFrame):
                 assert i1 != -1
                 assert i2 != -1
                 i2 = i2+1  # +1 to make it inclusive
-            else:
-                indices = self._filtered_range_to_unfiltered_indices(i1, i2)
-                i1 = indices[0]
-                i2 = indices[-1] + 1
-        # for both a selection or filtering we have a mask
-        if selection is not None or (self.filtered and filtered):
-            mask = self.evaluate_selection_mask(selection, i1, i2)
-        scope = scopes._BlockScope(self, i1, i2, mask=mask, **self.variables)
-        # value = value[mask]
-        if out is not None:
-            scope.buffers[expression] = out
-        value = scope.evaluate(expression)
-        if isinstance(value, ColumnString) and not internal:
-            value = value.to_numpy()
-        return value
+            values = []
+            for expression in expressions:
+                # for both a selection or filtering we have a mask
+                if selection is not None or (self.filtered and filtered):
+                    mask = self.evaluate_selection_mask(selection, i1, i2)
+                scope = scopes._BlockScope(self, i1, i2, mask=mask, **self.variables)
+                # value = value[mask]
+                if out is not None:
+                    scope.buffers[expression] = out
+                value = scope.evaluate(expression)
+                if isinstance(value, ColumnString) and not internal:
+                    value = value.to_numpy()
+                values.append(value)
+            if not was_list:
+                return values[0]
+            return values
 
     def _equals(self, other):
         values = self.compare(other)
@@ -5539,6 +5682,7 @@ class DataFrameConcatenated(DataFrameLocal):
         for name in list(first.virtual_columns.keys()):
             if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
                 self.virtual_columns[name] = first.virtual_columns[name]
+                self.column_names.append(name)
             else:
                 self.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
                 self.column_names.append(name)
@@ -5558,6 +5702,10 @@ class DataFrameConcatenated(DataFrameLocal):
     def is_masked(self, column):
         if column in self.columns:
             return self.columns[column].is_masked
+        else:
+            ar = self.evaluate(column, i1=0, i2=1, parallel=False)
+            if isinstance(ar, np.ndarray) and np.ma.isMaskedArray(ar):
+                return True
         return False
 
 
@@ -5610,4 +5758,3 @@ class DataFrameArrays(DataFrameLocal):
         If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
         """
         return self.__array__()
-

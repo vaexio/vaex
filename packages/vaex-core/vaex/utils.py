@@ -538,7 +538,8 @@ def filename_shorten(path, max_length=150):
 
 
 def listify(*args):
-    if isinstance(args[0], six.string_types):
+    import vaex.expression
+    if isinstance(args[0], (six.string_types, vaex.expression.Expression)):
         return False, [[x] for x in args]
     try:
         _ = args[0][0]

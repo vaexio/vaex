@@ -21,7 +21,7 @@ def test_concat():
     ww = ds1.concat(ds2)
 
     # Test if the concatination of two arrays with the vaex method is the same as with the dataset method
-    assert (np.array(dd.evaluate('x,y,z,w')) == np.array(ww.evaluate('x,y,z,w'))).all()
+    assert (np.array(dd.evaluate('x,y,z,w'.split(','))) == np.array(ww.evaluate('x,y,z,w'.split(',')))).all()
 
     # Test if the concatination of multiple datasets works
     dd = vaex.concat([ds1, ds2, ds3])

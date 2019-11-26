@@ -498,11 +498,18 @@ class TaskAggregate(Task):
         self.expressions_all.extend(aggregator_descriptor.expressions)
         self.expressions_all = list(set(self.expressions_all))
         self.dtypes = {expr: self.df.dtype(expr) for expr in self.expressions_all}
+        def chain_reject(x):
+            task.reject(x)
+            return x
+        self.then(None, chain_reject)
         return task
 
-    def map(self, thread_index, i1, i2, *blocks):
+    def check(self):
         if not self.aggregations:
             raise RuntimeError('Aggregation tasks started but nothing to do, maybe adding operations failed?')
+
+    def map(self, thread_index, i1, i2, *blocks):
+        self.check()
         grid = self.grids[thread_index]
         def check_array(x, dtype):
             if dtype == str_type:

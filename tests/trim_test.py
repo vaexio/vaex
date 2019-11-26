@@ -20,6 +20,7 @@ def test_trim(ds_local):
     # trim on trimmed
     ds_trimmed.set_active_range(1, 4)
     ds_trimmed = ds_trimmed.trim()
+
     assert ds_trimmed.length_original() == ds_trimmed.length_unfiltered() == 3
     assert ds_trimmed.get_active_range() == (0, ds_trimmed.length_original()) == (0, 3)
     assert ds_trimmed.evaluate('x').tolist() == np.arange(6, 9.).tolist()

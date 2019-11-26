@@ -124,7 +124,7 @@ class Executor(object):
             # Qt's eventloop, which may execute code that will call execute again
             # as long as that code is using delay tasks (i.e. promises) we can simple return here, since after
             # the execute is almost finished, any new tasks added to the task_queue will get executing
-            return
+            raise RuntimeError("nested execute call")
         # u 'column' is uniquely identified by a tuple of (df, expression)
         self._is_executing = True
         try:
@@ -159,6 +159,14 @@ class Executor(object):
                     expressions = list(set(expression for task in task_queue for expression in task.expressions_all))
 
                     for task in task_queue:
+                        if hasattr(task, "check"):
+                            try:
+                                task.check()
+                            except Exception as e:
+                                task.reject(e)
+                                raise
+
+                    for task in task_queue:
                         task._results = []
                         task.signal_progress.emit(0)
                     block_scopes = [df._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
@@ -172,7 +180,12 @@ class Executor(object):
                             for task in task_queue:
                                 blocks = [block_dict[expression] for expression in task.expressions_all]
                                 if not cancelled[0]:
-                                    task._results.append(task.map(thread_index, i1, i2, *blocks))
+                                    try:
+                                        task._results.append(task.map(thread_index, i1, i2, *blocks))
+                                    except Exception as e:
+                                        task.reject(e)
+                                        cancelled[0] = True
+                                        raise
                                 # don't call directly, since ui's don't like being updated from a different thread
                                 # self.thread_mover(task.signal_progress, float(i2)/length)
 # time.sleep(0.1)
