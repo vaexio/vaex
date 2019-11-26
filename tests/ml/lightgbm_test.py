@@ -56,19 +56,18 @@ def test_lightgbm():
     ds = vaex.ml.datasets.load_iris()
     ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
-    booster = vaex.ml.lightgbm.LightGBMModel(num_boost_round=10, params=params,
-                                             features=_ensure_strings_from_expressions(features))
-    booster.fit(ds_train, ds.class_, copy=True)    # for coverage
-    class_predict = booster.predict(ds_test, copy=True)  # for coverage
-    booster.fit(ds_train, ds.class_)
-    class_predict = booster.predict(ds_test)
-    assert np.all(ds.col.class_ == class_predict)
+    features = _ensure_strings_from_expressions(features)
+    booster = vaex.ml.lightgbm.LightGBMModel(num_boost_round=10, params=params, features=features)
 
-    ds = booster.transform(ds)   # this will add the lightgbm_prediction column
-    state = ds.state_get()
-    ds = vaex.ml.datasets.load_iris()
-    ds.state_set(state)
-    assert np.all(ds.col.class_ == ds.evaluate(ds.lightgbm_prediction))
+    booster.fit(ds_train, ds.class_, copy=True)    # for coverage
+    class_predict_train = booster.predict(ds_train, copy=True)  # for coverage
+    class_predict_test = booster.predict(ds_test)
+    assert np.all(ds_test.col.class_.values == np.argmax(class_predict_test, axis=1))
+
+    ds_train = booster.transform(ds_train)   # this will add the lightgbm_prediction column
+    state = ds_train.state_get()
+    ds_test.state_set(state)
+    assert np.all(ds_test.col.class_.values == np.argmax(ds_test.lightgbm_prediction.values, axis=1))
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
