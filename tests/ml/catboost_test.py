@@ -43,16 +43,18 @@ def test_catboost():
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     booster = vaex.ml.catboost.CatBoostModel(num_boost_round=10,
                                              params=params_multiclass,
-                                             features=features)
+                                             features=features,
+                                             prediction_type='Probability')
+    # Predict in memory
     booster.fit(ds_train, ds_train.class_)
     class_predict = booster.predict(ds_test)
-    assert np.all(ds.col.class_ == class_predict)
+    assert np.all(ds_test.col.class_.values == np.argmax(class_predict, axis=1))
 
-    ds = booster.transform(ds)   # this will add the catboost_prediction column
-    state = ds.state_get()
-    ds = vaex.ml.datasets.load_iris()
-    ds.state_set(state)
-    assert np.all(ds.col.class_ == ds.evaluate(ds.catboost_prediction))
+    # Transform
+    ds_train = booster.transform(ds_train)   # this will add the catboost_prediction column
+    state = ds_train.state_get()
+    ds_test.state_set(state)
+    assert np.all(ds_test.col.class_.values == np.argmax(ds_test.catboost_prediction.values, axis=1))
 
 
 def test_catboost_numerical_validation():

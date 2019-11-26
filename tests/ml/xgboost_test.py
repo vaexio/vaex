@@ -47,13 +47,12 @@ def test_xgboost():
                                            features=features)
     booster.fit(ds_train, ds_train.class_)
     class_predict = booster.predict(ds_test)
-    assert np.all(ds.col.class_ == class_predict)
+    assert np.all(ds_test.class_.values == class_predict)
 
-    ds = booster.transform(ds)   # this will add the xgboost_prediction column
-    state = ds.state_get()
-    ds = vaex.ml.datasets.load_iris()
-    ds.state_set(state)
-    assert np.all(ds.col.class_ == ds.evaluate(ds.xgboost_prediction))
+    ds_train = booster.transform(ds_train)   # this will add the xgboost_prediction column
+    state = ds_train.state_get()
+    ds_test.state_set(state)
+    assert np.all(ds_test.class_.values == ds_test.xgboost_prediction.values)
 
 
 def test_xgboost_numerical_validation():

@@ -97,13 +97,16 @@ class CatBoostModel(state.HasState):
         :param bool plot: if True, display an interactive widget in the Jupyter
         notebook of how the train and validation sets score on each boosting iteration.
         '''
+        # Ensure strings
+        target = vaex.dataframe._ensure_string_from_expression(target)
+
         data = df[self.features].values
-        target_data = df.evaluate(target)
+        target_data = df[target].values
         dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
         if evals is not None:
             for i, item in enumerate(evals):
                 data = item[self.features].values
-                target_data = item.evaluate(target)
+                target_data = item[target].values
                 evals[i] = catboost.Pool(data=data, label=target_data, **self.pool_params)
 
         # This does the actual training/fitting of the catboost model
