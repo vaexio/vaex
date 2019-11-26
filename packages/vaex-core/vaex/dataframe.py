@@ -2823,7 +2823,7 @@ class DataFrame(object):
         chunks = da.core.normalize_chunks(chunks, shape=self.shape, dtype=dtype)
         name = 'vaex-df-%s' % str(uuid.uuid1())
         def getitem(df, item):
-            return np.array(df.__getitem__(item))
+            return np.array(df.__getitem__(item).to_arrays(parallel=False)).T
         dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype)
         dsk[name] = self
         return da.Array(dsk, name, chunks, dtype=dtype)
