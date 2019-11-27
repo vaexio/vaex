@@ -1,4 +1,8 @@
-# vaex 3.0.x (unreleased)
+# vaex 3.1.0 (unreleased)
+
+## vaex-ml 0.10.0
+   * Features
+      * Implementation of `GroupbyTransformer` [#479](https://github.com/vaexio/vaex/pull/479)
 
 # vaex-hdf5 0.6.1 (2020-6-2)
    * Fixes
