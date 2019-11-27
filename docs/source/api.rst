@@ -262,8 +262,6 @@ GraphQL operations
 Machine learning with vaex.ml
 -----------------------------
 
-Note that vaex.ml does not fall under the MIT, but the `CC BY-CC-ND <https://creativecommons.org/licenses/by-nc-nd/4.0/>`_ LICENSE, which means it's ok for personal or academic use. You can install vaex-ml using `pip install vaex-ml`.
-
 
 Clustering
 ~~~~~~~~~~
