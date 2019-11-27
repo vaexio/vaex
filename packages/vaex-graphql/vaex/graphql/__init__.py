@@ -8,7 +8,14 @@ import pandas as pd
 class DataFrameAccessorGraphQL(object):
     """Exposes a GraphQL layer to a DataFrame
 
-    See `the GraphQL example <http://docs.vaex.io/en/latest/example_graphql.html>`_ for more usage.
+    See `the GraphQL example
+    <http://docs.vaex.io/en/latest/example_graphql.html>`_ for more usage.
+
+    The easiest way to learn to use the GraphQL language/vaex interface is to
+    launch a server, and play with the GraphiQL graphical interface, its
+    autocomplete, and the schema explorer.
+
+    We try to stay close to the Hasura API: https://docs.hasura.io/1.0/graphql/manual/api-reference/graphql-api/query.html
     """
     def __init__(self, df):
         self.df = df
