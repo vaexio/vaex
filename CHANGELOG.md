@@ -1,0 +1,42 @@
+# vaex 2.4.0 (2019-11-26)
+## vaex-core 1.3.0
+    
+   * Performance
+      * Parallel df.evaluate [#474](https://github.com/vaexio/vaex/pull/474)
+      * Avoid calling df.get_column_names (1000x for 1 billion rows per column use) [#473](https://github.com/vaexio/vaex/pull/473)
+      * Slicing e.g df[1:-1] goes much faster for filtered dataframes [#471](https://github.com/vaexio/vaex/pull/471)
+      * Dataframe copying and expression rewriting was slow [#470](https://github.com/vaexio/vaex/pull/470)
+      * Double indices columns were not using index cache since empty dict is falsy [#439](https://github.com/vaexio/vaex/pull/439)
+   * Features
+      * multi-key sorting of a DataFrame [#463](https://github.com/vaexio/vaex/pull/463)
+      * vaex expression to pandas.Series support [#456](https://github.com/vaexio/vaex/pull/456)
+      * Dask array support [#449](https://github.com/vaexio/vaex/pull/449) [#476](https://github.com/vaexio/vaex/pull/476) [example](http://docs.vaex.io/en/latest/example_dask.html)
+      * isin() method for expressions [#441](https://github.com/vaexio/vaex/pull/441) [docs](api.html#vaex.expression.Expression.isin)
+      * Existing expressions are rewritten, to make them behave like arrays [#450](https://github.com/vaexio/vaex/pull/450)
+
+## vaex-hdf5 0.5.6
+   * requires vaex-core >=1.3,<2 for parallel evaluate
+
+## vaex-jupyter 0.4.1
+   * Fixes:
+      * bqplot 0.12 revealed a bug/inconsistency with heatmap [#465](https://github.com/vaexio/vaex/pull/465)
+
+## vaex-arrow 0.4.1 
+   * Fixes
+      *  Support for Apache Arrow >= 0.15
+
+## vaex-ml 0.6.2
+   * Fixes
+      * Docstrings and minor improvements
+
+## vaex-graphql 0.0.1 (2019-10-15)
+   * initial release 0.1
+
+# vaex 2.3.0 (2019-10-15)
+## vaex-core 1.2.0
+   * feature: auto upcasting for sum [#435](https://github.com/vaexio/vaex/pull/435)
+   * fix: selection/filtering fix when using masked values [#431](https://github.com/vaexio/vaex/pull/431)
+   * fix: masked string array fixes [#434](https://github.com/vaexio/vaex/pull/434)
+   * fix: memory usage fix for joins [#439](https://github.com/vaexio/vaex/pull/439)
+## vaex-arrow 0.4.1
+ * fix: support for Apache Arrow >= 0.15
