@@ -57,8 +57,6 @@ class InstallCmd(install):
         for package in packages:
             with cwd(os.path.join('packages', package)):
                 os.system('python -m pip install --upgrade .')
-        if on_rtd:
-            os.system('python -m pip install vaex-ml==0.3.2')
 
 setup(
     name='vaex-meta',

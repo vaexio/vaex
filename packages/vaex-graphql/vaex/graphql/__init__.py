@@ -6,20 +6,28 @@ import pandas as pd
 
 
 class DataFrameAccessorGraphQL(object):
+    """Exposes a GraphQL layer to a DataFrame
+
+    See `the GraphQL example <http://docs.vaex.io/en/latest/example_graphql.html>`_ for more usage.
+    """
     def __init__(self, df):
         self.df = df
 
     def query(self, name='df'):
-        """Creates a graphene query object exposing this dataframe named `name`"""
+        """Creates a graphene query object exposing this DataFrame named `name`"""
         return create_query({name: self.df})
   
     def schema(self, name='df', auto_camelcase=False, **kwargs):
+        """Creates a graphene schema for this DataFrame"""
         return graphene.Schema(query=self.query(name), auto_camelcase=auto_camelcase, **kwargs)
     
     def execute(self, *args, **kwargs):
+        """Creates a schema, and execute the query (first argument)
+        """
         return self.schema().execute(*args, **kwargs)
 
     def serve(self, port=9001, address='', name='df', verbose=True):
+        """Serve the DataFrame via a http server"""
         from .tornado import Application
         schema = self.schema(name=name)
         app = Application(schema)

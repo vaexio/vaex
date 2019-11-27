@@ -2817,6 +2817,20 @@ class DataFrame(object):
         return table
 
     def to_dask_array(self, chunks="auto"):
+        """Lazily expose the DataFrame as a dask.array
+
+        Example
+
+        >>> df = vaex.example()
+        >>> A = df[['x', 'y', 'z']].to_dask_array()
+        >>> A
+        dask.array<vaex-df-1f048b40-10ec-11ea-9553, shape=(330000, 3), dtype=float64, chunksize=(330000, 3), chunktype=numpy.ndarray>
+        >>> A+1
+        dask.array<add, shape=(330000, 3), dtype=float64, chunksize=(330000, 3), chunktype=numpy.ndarray>
+
+        :param chunks: How to chunk the array, similar to :func:`dask.array.from_array`.
+        :return: :class:`dask.array.Array` object.
+        """
         import dask.array as da
         import uuid
         dtype = self._dtype

@@ -744,6 +744,11 @@ def f({0}):
             return self.ds.func.astype(self, str(dtype))
 
     def isin(self, values):
+        """Lazily tests if each value in the expression is present in values.
+
+        :param values: List/array of values to check
+        :return: :class:`Expression` with the lazy expression.
+        """
         if self.dtype == str_type:
             values = vaex.column._to_string_sequence(values)
         else:

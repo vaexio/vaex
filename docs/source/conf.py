@@ -341,4 +341,5 @@ intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     's3fs': ('https://s3fs.readthedocs.io/en/latest', None),
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
+    'dask': ('http://docs.dask.org/en/latest/', None),
 }
