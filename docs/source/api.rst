@@ -135,6 +135,13 @@ Geo operations
      :members:
      :special-members:
 
+GraphQL operations
+~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.graphql.DataFrameAccessorGraphQL
+     :members:
+     :special-members:
+
 
 
 .. .. Subpackages
