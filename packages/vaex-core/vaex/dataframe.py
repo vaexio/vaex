@@ -5319,7 +5319,11 @@ class DataFrameLocal(DataFrame):
             raise ValueError('join type not supported: {}, only left and right'.format(how))
         left = left if inplace else left.copy()
 
+        left_on = left_on or on
+        right_on = right_on or on
         for name in right:
+            if left_on and (rprefix + name + rsuffix == lprefix + left_on + lsuffix):
+                continue  # it's ok when we join on the same column name
             if name in left and rprefix + name + rsuffix == lprefix + name + lsuffix:
                 raise ValueError('column name collision: {} exists in both column, and no proper suffix given'
                                  .format(name))
@@ -5328,8 +5332,6 @@ class DataFrameLocal(DataFrame):
         assert left.length_unfiltered() == left.length_original()
         N = left.length_unfiltered()
         N_other = len(right)
-        left_on = left_on or on
-        right_on = right_on or on
         if left_on is None and right_on is None:
             for name in right:
                 right_name = name
@@ -5388,6 +5390,8 @@ class DataFrameLocal(DataFrame):
                 lookup = np.ma.array(lookup, mask=lookup==-1)
             direct_indices_map = {}  # for performance, keeps a cache of two levels of indirection of indices
             for name in right:
+                if rprefix + name + rsuffix == lprefix + left_on + lsuffix:
+                    continue  # skip when it's the join column
                 right_name = name
                 if name in left:
                     left.rename_column(name, lprefix + name + lsuffix)
