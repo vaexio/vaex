@@ -202,3 +202,15 @@ def test_join_filtered_inner():
     df = df[df.x > 5]
     dfj = df.join(df, on='x', rsuffix='right_', how='inner')
     repr(dfj)  # trigger issue with selection cache
+
+
+def test_join_duplicate_column():
+    df_left = vaex.from_arrays(index=[1, 2, 3], x=[10, 20, 30])
+    df_right = vaex.from_arrays(index=[1, 2, 3], y=[0.1, 0.2, 0.3])
+
+    df = df_left.join(df_right, on='index')
+    assert df.column_count() == 3
+    assert set(df.column_names) == {'index', 'x', 'y'}
+    assert df['index'] == [1, 2, 3]
+    assert df.x.tolist() == [10, 20, 30]
+    assert df.y.tolist() == [0.1, 0.2, 0.3]
