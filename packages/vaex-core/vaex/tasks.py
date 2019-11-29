@@ -31,7 +31,7 @@ class Task(vaex.promise.Promise):
     :type: signal_progress: Signal
     """
 
-    def __init__(self, df=None, expressions=[], name="task"):
+    def __init__(self, df=None, expressions=[], pre_filter=False, name="task"):
         vaex.promise.Promise.__init__(self)
         self.df = df
         self.expressions = expressions
@@ -41,6 +41,7 @@ class Task(vaex.promise.Promise):
         self.signal_progress.connect(self._set_progress)
         self.cancelled = False
         self.name = name
+        self.pre_filter = pre_filter
 
     def _set_progress(self, fraction):
         self.progress_fraction = fraction
@@ -74,7 +75,7 @@ class TaskBase(Task):
         self.to_float = to_float
         self.dtype = dtype
 
-    def map(self, thread_index, i1, i2, *blocks):
+    def map(self, thread_index, i1, i2, filter_mask, *blocks):
         class Info(object):
             pass
         info = Info()
@@ -128,8 +129,8 @@ class TaskBase(Task):
 
 class TaskMapReduce(Task):
     def __init__(self, df, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False,
-                 to_numpy=True, ordered_reduce=False, skip_masked=False, ignore_filter=False, selection=None, name="task"):
-        Task.__init__(self, df, expressions, name=name)
+                 to_numpy=True, ordered_reduce=False, skip_masked=False, ignore_filter=False, selection=None, pre_filter=False, name="task"):
+        Task.__init__(self, df, expressions, name=name, pre_filter=pre_filter)
         self._map = map
         self._reduce = reduce
         self.converter = converter
@@ -139,9 +140,11 @@ class TaskMapReduce(Task):
         self.to_numpy = to_numpy
         self.skip_masked = skip_masked
         self.ignore_filter = ignore_filter
+        if self.pre_filter and self.ignore_filter:
+            raise ValueError("Cannot pre filter and also ignore the filter")
         self.selection = selection
 
-    def map(self, thread_index, i1, i2, *blocks):
+    def map(self, thread_index, i1, i2, filter_mask, *blocks):
         if self.to_numpy:
             blocks = [block if isinstance(block, np.ndarray) else block.to_numpy() for block in blocks]
         if self.to_float:
@@ -159,9 +162,15 @@ class TaskMapReduce(Task):
 
         if not self.ignore_filter:
             selection = self.selection
-            if selection or self.df.filtered:
-                selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
-                blocks = [block[selection_mask] for block in blocks]
+            if self.pre_filter:
+                if selection:
+                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
+                    selection_mask = selection_mask[filter_mask]
+                    blocks = [block[selection_mask] for block in blocks]
+            else:
+                if selection or self.df.filtered:
+                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
+                    blocks = [block[selection_mask] for block in blocks]
         if self.info:
             return self._map(thread_index, i1, i2, *blocks)
         else:
@@ -357,7 +366,7 @@ class TaskStatistic(Task):
         return "<%s(df=%r, expressions=%r, shape=%r, limits=%r, weights=%r, selections=%r, op=%r)> instance at 0x%x" % (name, self.df, self.expressions, self.shape, self.limits, self.weights, self.selections, self.op, id(self))
 
 
-    def map(self, thread_index, i1, i2, *blocks):
+    def map(self, thread_index, i1, i2, filter_mask, *blocks):
         class Info(object):
             pass
         info = Info()
@@ -508,7 +517,7 @@ class TaskAggregate(Task):
         if not self.aggregations:
             raise RuntimeError('Aggregation tasks started but nothing to do, maybe adding operations failed?')
 
-    def map(self, thread_index, i1, i2, *blocks):
+    def map(self, thread_index, i1, i2, filter_mask, *blocks):
         self.check()
         grid = self.grids[thread_index]
         def check_array(x, dtype):

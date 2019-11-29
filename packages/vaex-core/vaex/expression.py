@@ -275,7 +275,7 @@ class Expression(with_metaclass(Meta)):
             item = item[0]
             start, stop, step = item.start, item.stop, item.step
             assert step in [None, 1]
-            return self.evaluate(start, stop)
+            return self.evaluate(start, stop, parallel=False)
         dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype)
         dsk[name] = self
         return da.Array(dsk, name, chunks, dtype=dtype)

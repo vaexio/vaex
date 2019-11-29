@@ -24,7 +24,7 @@ def small_buffer(ds, size=3):
 	if ds.is_local():
 		previous = ds.executor.buffer_size
 		ds.executor.buffer_size = size
-		ds._invalidate_selection_cache()
+		ds._invalidate_caches()
 		try:
 			yield
 		finally:
