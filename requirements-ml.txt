@@ -1,4 +1,4 @@
-catboost
+catboost<0.20
 lightgbm
 scikit-learn
 annoy
