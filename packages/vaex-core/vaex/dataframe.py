@@ -297,9 +297,9 @@ class DataFrame(object):
     def filtered(self):
         return self.has_selection(FILTER_SELECTION_NAME)
 
-    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, ignore_filter=False, name='map reduce (custom)', selection=None):
+    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, ignore_filter=False, pre_filter=False, name='map reduce (custom)', selection=None):
         # def map_wrapper(*blocks):
-        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy, ignore_filter=ignore_filter, selection=selection)
+        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy, ignore_filter=ignore_filter, selection=selection, pre_filter=pre_filter)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, name)
         self.executor.schedule(task)
@@ -2033,7 +2033,13 @@ class DataFrame(object):
         '''Return if a column is a masked (numpy.ma) column.'''
         column = _ensure_string_from_expression(column)
         if column in self.columns:
-            return np.ma.isMaskedArray(self.columns[column])
+            column = self.columns[column]
+            if isinstance(column, np.ndarray):
+                return np.ma.isMaskedArray(column)
+            else:
+                # in case the column is not a numpy array, we take a small slice
+                # which should return a numpy array
+                return np.ma.isMaskedArray(column[0:1])
         else:
             ar = self.evaluate(column, i1=0, i2=1, parallel=False)
             if isinstance(ar, np.ndarray) and np.ma.isMaskedArray(ar):
@@ -5093,9 +5099,7 @@ class DataFrameLocal(DataFrame):
         mask = None
 
         if parallel:
-            if self.filtered and filtered:
-                assert i2 == max_stop
-                i2 = self.length_unfiltered()
+            use_filter = self.filtered and filtered
             
             length = self.length_unfiltered()
             arrays = {}
@@ -5104,57 +5108,36 @@ class DataFrameLocal(DataFrame):
             dtypes = {}
             shapes = {}
             virtual = set()
-            if self.filtered or selection:
-                filter_mask = np.ones(length, dtype=bool)
+            # TODO: For NEP branch: dtype -> dtype_evaluate
+
             for expression in set(expressions):
-                # TODO: For NEP branch: dtype -> dtype_evaluate
-                dtype = dtypes[expression] = self.dtype(expression, internal=False)
-                if expression in self.columns:
-                    if dtype == str_type:
-                        column = self.columns[expression]
-                        # TODO: for arrow branch
-                        # if hasattr(column, "to_arrow"):
-                        #     # we cannot use the __arrow_array__ protocol since we might
-                        #     # get a chunked array
-                        #     column = column.to_arrow()
-                        arrays[expression] = column[self._index_start:self._index_end]
-                        if not internal:
-                            arrays[expression] = to_numpy(arrays[expression])
-                    else:
-                        column = self.columns[expression]
-                        arrays[expression] = column[self._index_start:self._index_end]
-                else:
+                dtypes[expression] = self.dtype(expression, internal=False)
+                if expression not in self.columns:
                     virtual.add(expression)
-                    if dtype == str_type:
-                        chunks_map[expression] = {}
+                # since we will use pre_filter=True, we'll get chunks of the data at unknown offset
+                # so we'll also have to stitch those back together
+                if dtypes[expression] == str_type or use_filter or selection:
+                    chunks_map[expression] = {}
+                else:
+                    # we know exactly where to place the chunks, so we pre allocate the arrays
+                    shape = (length, ) + self._shape_of(expression, filtered=False)[1:]
+                    shapes[expression] = shape
+                    if self.is_masked(expression):
+                        arrays[expression] = np.ma.empty(shapes.get(expression, length), dtype=dtypes[expression])
                     else:
-                        shape = (length, ) + self._shape_of(expression, filtered=False)[1:]
-                        shapes[expression] = shape
-            if virtual:
-                for expression in virtual:
-                    if expression not in chunks_map:
-                        if self.is_masked(expression):
-                            arrays[expression] = np.ma.empty(shapes.get(expression, length), dtype=dtypes[expression])
-                        else:
-                            arrays[expression] = np.zeros(shapes.get(expression, length), dtype=dtypes[expression])
-                def assign(thread_index, i1, i2, *blocks):
-                    if self.filtered or selection:
-                        filter_mask[i1:i2] = self.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
-                    for i, expr in enumerate(virtual):
-                        if expr in chunks_map:
-                            # for non-primitive arrays we simply keep a reference to the chunk
-                            chunks_map[expr][i1] = blocks[i]
-                        else:
-                            # for primitive arrays we directly add it to the right place in contiguous numpy array
-                            arrays[expr][i1:i2] = blocks[i]
+                        arrays[expression] = np.zeros(shapes.get(expression, length), dtype=dtypes[expression])
 
+            def assign(thread_index, i1, i2, *blocks):
+                for i, expr in enumerate(expressions):
+                    if expr in chunks_map:
+                        # for non-primitive arrays we simply keep a reference to the chunk
+                        chunks_map[expr][i1] = blocks[i]
+                    else:
+                        # for primitive arrays (and no filter/selection) we directly add it to the right place in contiguous numpy array
+                        arrays[expr][i1:i2] = blocks[i]
 
-                self.map_reduce(assign, lambda *_: None, list(virtual), ignore_filter=True, info=True, to_numpy=False)
-            elif self.filtered or selection:
-                def assign(thread_index, i1, i2, *blocks):
-                    filter_mask[i1:i2] = self.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
-                # we don't have to evaluate an expression now, but we still need the mask
-                self.map_reduce(assign, lambda *_: None, [expressions[0]], ignore_filter=True, info=True)
+            self.map_reduce(assign, lambda *_: None, expressions, ignore_filter=False, selection=selection, pre_filter=use_filter, info=True, to_numpy=False)
+
             def finalize_result(expression):
                 if expression in chunks_map:
                     # put all chunks in order
@@ -5179,15 +5162,6 @@ class DataFrameLocal(DataFrame):
                 else:
                     return arrays[expression]
             result = [finalize_result(k) for k in expressions]
-            if self.filtered or selection:
-                def filter(ar, mask):
-                    # TODO: For NEP Branch
-                    # if isinstance(ar, pa.Array):
-                    #     return ar.filter(pa.array(mask))
-                    # else:
-                    #     return ar[mask]
-                    return ar[mask]
-                result = [filter(k, filter_mask) for k in result]
             if not was_list:
                 result = result[0]
             return result

@@ -55,7 +55,7 @@ class TaskHistogram(Task):
         name = self.__class__.__module__ + "." + self.__class__.__name__
         return "<%s(df=%r, expressions=%r, size=%r, limits=%r)> instance at 0x%x" % (name, self.df, self.expressions, self.size, self.limits, id(self))
 
-    def map(self, thread_index, i1, i2, *blocks):
+    def map(self, thread_index, i1, i2, filter_mask, *blocks):
         class Info(object):
             pass
         info = Info()
