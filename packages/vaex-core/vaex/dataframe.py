@@ -239,6 +239,9 @@ class DataFrame(object):
                     def myrepr(k):
                         if isinstance(k, Expression):
                             return str(k)
+                        elif isinstance(k, np.ndarray) and k.ndim == 0:
+                            # to support numpy scalars
+                            return myrepr(k.item())
                         else:
                             return repr(k)
                     arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])

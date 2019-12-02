@@ -105,3 +105,11 @@ def test_fillna():
     assert m == [0, 9, 9, 9]
     assert (df.s.fillna('kees').tolist() == ["aap", "kees", "noot", "mies"])
     assert (df.o.fillna({'a':1}).tolist() == ["aap", {'a': 1}, "noot", {'a':1}])
+
+def test_fillna_array():
+    x = np.array([1, 2, 3, np.nan])
+    df = vaex.from_arrays(x=x)
+
+    # fillna should take scalar arrays, so you can pass directly the result of df.x.mean() for instance
+    df['x_2'] = df.x.fillna(np.array(2.0))
+    assert df.x_2.tolist() == [1, 2, 3, 2]
