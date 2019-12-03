@@ -4,6 +4,7 @@ from common import *
 
 # def test_count_multiple_selections():
 
+
 def test_sum(df, ds_trimmed):
     df.select("x < 5")
     np.testing.assert_array_almost_equal(df.sum("x", selection=None), np.nansum(ds_trimmed.data.x))
@@ -29,7 +30,6 @@ def test_sum(df, ds_trimmed):
     task = df.sum("x", selection=True, delay=True)
     df.execute()
     np.testing.assert_array_almost_equal(task.get(), np.nansum(x[:5]))
-
 
     np.testing.assert_array_almost_equal(df.sum("x", selection=None, binby=["x"], limits=[0, 10], shape=1), [np.nansum(x)])
     np.testing.assert_array_almost_equal(df.sum("x", selection=True, binby=["x"], limits=[0, 10], shape=1), [np.nansum(x[:5])])
@@ -58,6 +58,7 @@ def test_count_1d():
     grid = df._agg(agg, grid)
     assert grid.tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
 
+
 def test_count_types(ds_local):
     df = ds_local
     assert df.count(df.x) is not None
@@ -71,9 +72,8 @@ def test_count_types(ds_local):
 def test_count_1d_ordinal():
     x = np.array([-1, -2, 0, 1, 4, 5], dtype='i8')
     df = vaex.from_arrays(x=x)
-
     bins = 5
-    binner = df._binner_ordinal('x', 5)
+    binner = df._binner_ordinal('x', bins)
     grid = vaex.superagg.Grid([binner])
     agg = vaex.agg.count()
     grid = df._agg(agg, grid)
@@ -166,7 +166,7 @@ def test_nunique_filtered():
     x = [0,     0,     0,      0,      0,     1,      1,     1,      2]
     y = [1,     1,     0,      1,      0,     0,      0,     1,      1]
     df = vaex.from_arrays(x=x, s=s, y=y)
-    dfg = df[df.y==0].groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
+    dfg = df[df.y == 0].groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
     items = list(zip(dfg.x.values, dfg.nunique.values))
     assert items == [(0, 2), (1, 2)]
 
@@ -174,7 +174,7 @@ def test_nunique_filtered():
     mapping = {'aap': 1.2, 'noot': 2.5, 'mies': 3.7, 'kees': 4.8, None: np.nan}
     s = np.array([mapping[k] for k in s], dtype=np.float64)
     df = vaex.from_arrays(x=x, s=s, y=y)
-    dfg = df[df.y==0].groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
+    dfg = df[df.y == 0].groupby(df.x, agg={'nunique': vaex.agg.nunique(df.s)}).sort(df.x)
     items = list(zip(dfg.x.values, dfg.nunique.values))
     assert items == [(0, 2), (1, 2)]
 
@@ -187,6 +187,7 @@ def test_unique_missing_groupby():
     items = list(zip(dfg.x.values, dfg.nunique.values))
     assert items[:-1] == [(0, 2), (1, 2), (2, 1)]
 
+
 def test_agg_selections():
     x = np.array([0, 0, 0, 1, 1, 2, 2])
     y = np.array([1, 3, 5, 1, 7, 1, -1])
@@ -196,19 +197,20 @@ def test_agg_selections():
     df = vaex.from_arrays(x=x, y=y, z=z, w=w)
 
     df_grouped = df.groupby(df.x).agg({'count': vaex.agg.count(selection='y<=3'),
-                                   'z_sum_selected': vaex.agg.sum(expression=df.z, selection='y<=3'),
-                                   'z_mean_selected': vaex.agg.mean(expression=df.z, selection=df.y <= 3),
-                                   'w_nuniqe_selected': vaex.agg.nunique(expression=df.w, selection=df.y <= 3, dropna=True)
-                                  }).sort('x')
+                                       'z_sum_selected': vaex.agg.sum(expression=df.z, selection='y<=3'),
+                                       'z_mean_selected': vaex.agg.mean(expression=df.z, selection=df.y <= 3),
+                                       'w_nuniqe_selected': vaex.agg.nunique(expression=df.w, selection=df.y <= 3, dropna=True)
+                                       }).sort('x')
 
     assert df_grouped['count'].tolist() == [2, 1, 2]
     assert df_grouped['z_sum_selected'].tolist() == [2, 4, 13]
     assert df_grouped['z_mean_selected'].tolist() == [1, 4, 6.5]
     assert df_grouped['w_nuniqe_selected'].tolist() == [2, 1, 2]
 
+
 def test_upcast():
     df = vaex.from_arrays(b=[False, True, True], i8=np.array([120, 121, 122], dtype=np.int8),
-        f4=np.array([1, 1e-13, 1], dtype=np.float32))
+                          f4=np.array([1, 1e-13, 1], dtype=np.float32))
     assert df.b.sum() == 2
     assert df.i8.sum() == 120*3 + 3
     assert df.f4.sum() == (2 + 1e-13)
