@@ -214,3 +214,22 @@ def test_upcast():
     assert df.f4.sum() == (2 + 1e-13)
 
     assert abs(df.b.var() - (0.2222)) < 0.01
+
+
+def test_timedelta_aggretagion():
+    import pandas as pd
+    delta = np.array([5634, 1234, 234213, 3425, 12342], dtype='timedelta64[s]')
+    x = np.array(['A', 'A', 'B', 'A', 'B'])
+    df = vaex.from_arrays(delta=delta, x=x)
+    pandas_df = df.to_pandas_df()
+
+    # Wisth vaex
+    groupby_df = df.groupby('x').agg({'delta_mean': vaex.agg.mean(df.delta),
+                                      'delta_std': vaex.agg.std(df.delta)})
+
+    # With pandas
+    groupby_pandas_df = pandas_df.groupby('x').agg(delta_mean=('delta', pd.Series.mean),
+                                                   delta_std=('delta', pd.Series.std))
+
+    assert groupby_df.delta_mean.values.tolist() == groupby_pandas_df.delta_mean.values.astype('timedelta64[s]').tolist()
+    assert groupby_df.delta_std.values.tolist() == groupby_pandas_df.delta_std.values.astype('timedelta64[s]').tolist()
