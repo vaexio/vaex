@@ -1,7 +1,3 @@
-import pickle
-import base64
-import tempfile
-
 import traitlets
 import numpy as np
 
@@ -10,11 +6,12 @@ import vaex.serialize
 from vaex.ml import state
 from vaex.ml import generate
 from vaex.ml.state import serialize_pickle
+from vaex.ml.transformations import Transformer
 
 
 @vaex.serialize.register
 @generate.register
-class SKLearnPredictor(state.HasState):
+class SKLearnPredictor(Transformer):
     '''This class wraps any scikit-learn estimator (a.k.a predictor) making it a vaex pipeline object.
 
     By wrapping any scikit-learn estimators with this class, it becoes a vaex
@@ -81,7 +78,7 @@ class SKLearnPredictor(state.HasState):
         :rtype: DataFrame
         '''
         copy = df.copy()
-        lazy_function = copy.add_function('sklearn_prediction_function', self)
+        lazy_function = copy.add_function('sklearn_prediction_function', self, unique=True)
         expression = lazy_function(*self.features)
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy

@@ -31,14 +31,15 @@ class Transformer(HasState):
     '''
     features = traitlets.List(traitlets.Unicode(), help=help_features).tag(ui='SelectMultiple')
 
-    def fit_transform(self, df):
+    def fit_transform(self, df, target=None):
         '''Fit and apply the transformer to the supplied DataFrame.
 
         :param df: A vaex DataFrame.
+        :param target: A vaex expression containing the target variable.
 
         :returns copy: A shallow copy of the DataFrame that includes the transformations.
         '''
-        self.fit(df=df)
+        self.fit(df=df, target=target)
         return self.transform(df=df)
 
 
@@ -80,10 +81,11 @@ class PCA(Transformer):
     def get_n_components_default(self):
         return len(self.features)
 
-    def fit(self, df):
+    def fit(self, df, target=None):
         '''Fit the PCA model to the DataFrame.
 
         :param df: A vaex DataFrame.
+        :param target: Ignored.
         '''
         self.n_components = self.n_components or len(self.features)
         assert self.n_components >= 2, 'At least two features are required.'
@@ -151,10 +153,11 @@ class LabelEncoder(Transformer):
     allow_unseen = traitlets.Bool(default_value=False, allow_none=False, help='If True, unseen values will be \
                                   encoded with -1, otherwise an error is raised').tag(ui='Checkbox')
 
-    def fit(self, df):
+    def fit(self, df, target=None):
         '''Fit LabelEncoder to the DataFrame.
 
         :param df: A vaex DataFrame.
+        :param target: Ignored.
         '''
 
         for feature in self.features:
@@ -216,10 +219,11 @@ class OneHotEncoder(Transformer):
     zero = traitlets.Any(0, help='Value to encode when category is absent.')
     uniques_ = traitlets.List(traitlets.List(), help='The unique elements found in each feature.').tag(output=True)
 
-    def fit(self, df):
+    def fit(self, df, target=None):
         '''Fit OneHotEncoder to the DataFrame.
 
         :param df: A vaex DataFrame.
+        :param target: Ignored.
         '''
 
         uniques = []
@@ -277,10 +281,11 @@ class FrequencyEncoder(Transformer):
     unseen = traitlets.Enum(values=['zero', 'nan'], default_value='nan', help='Strategy to deal with unseen values.')
     mappings_ = traitlets.Dict()
 
-    def fit(self, df):
+    def fit(self, df, target=None):
         '''Fit FrequencyEncoder to the DataFrame.
 
         :param df: A vaex DataFrame.
+        :param target: Ignored.
         '''
         # number of samples
         nsamples = len(df)
@@ -338,11 +343,12 @@ class StandardScaler(Transformer):
     mean_ = traitlets.List(traitlets.CFloat(), help='The mean of each feature').tag(output=True)
     std_ = traitlets.List(traitlets.CFloat(), help='The standard deviation of each feature.').tag(output=True)
 
-    def fit(self, df):
+    def fit(self, df, target=None):
         '''
         Fit StandardScaler to the DataFrame.
 
         :param df: A vaex DataFrame.
+        :param target: Ignored.
         '''
         mean = df.mean(self.features, delay=True)
         std = df.std(self.features, delay=True)
@@ -408,11 +414,12 @@ class MinMaxScaler(Transformer):
     fmax_ = traitlets.List(traitlets.CFloat(), help='The minimum value of a feature.').tag(output=True)
     fmin_ = traitlets.List(traitlets.CFloat(), help='The maximum value of a feature.').tag(output=True)
 
-    def fit(self, df):
+    def fit(self, df, target=None):
         '''
         Fit MinMaxScaler to the DataFrame.
 
         :param df: A vaex DataFrame.
+        :param target: Ignored.
         '''
 
         assert len(self.feature_range) == 2, 'feature_range must have 2 elements only'
@@ -470,11 +477,12 @@ class MaxAbsScaler(Transformer):
     prefix = traitlets.Unicode(default_value="absmax_scaled_", help=help_prefix).tag(ui='Text')
     absmax_ = traitlets.List(traitlets.CFloat(), help='Tha maximum absolute value of a feature.').tag(output=True)
 
-    def fit(self, df):
+    def fit(self, df, target=None):
         '''
         Fit MinMaxScaler to the DataFrame.
 
         :param df: A vaex DataFrame.
+        :param target: Ignored.
         '''
 
         absmax = df.max(['abs(%s)' % k for k in self.features]).tolist()
@@ -535,11 +543,12 @@ class RobustScaler(Transformer):
     center_ = traitlets.List(traitlets.CFloat(), default_value=None, help='The median of each feature.').tag(output=True)
     scale_ = traitlets.List(traitlets.CFloat(), default_value=None, help='The percentile range for each feature.').tag(output=True)
 
-    def fit(self, df):
+    def fit(self, df, target=None):
         '''
         Fit RobustScaler to the DataFrame.
 
         :param df: A vaex DataFrame.
+        :param target: Ignored.
         '''
 
         # check the quantile range

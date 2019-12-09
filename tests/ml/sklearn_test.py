@@ -59,8 +59,7 @@ def test_sklearn_estimator_virtual_columns():
     train, test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['x', 'y', 'z']
     model = SKLearnPredictor(model=LinearRegression(), features=features, prediction_name='pred')
-    model.fit(ds, ds.w)
-    ds = model.transform(ds)
+    ds = model.fit_transform(ds, ds.w)
     assert ds.pred.values.shape == (150,)
 
 
