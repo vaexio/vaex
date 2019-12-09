@@ -2861,7 +2861,7 @@ class DataFrame(object):
 
         if boolean_expression is None, remove the selection, has_selection() will returns false
 
-        Note that per DataFrame, only one selection is possible.
+        Note that per DataFrame, multiple selections are possible, and one filter (see :func:`DataFrame.select`).
 
         :param str boolean_expression: boolean expression, such as 'x < 0', '(x < 0) || (y > -10)' or None to remove the selection
         :param str mode: boolean operation to perform with the previous selection, "replace", "and", "or", "xor", "subtract"
@@ -4399,6 +4399,59 @@ class DataFrame(object):
         df._invalidate_caches()
         return df
 
+    def filter(self, expression, mode="and"):
+        """General version of df[<boolean expression>] to modify the filter applied to the DataFrame.
+
+        See :func:`DataFrame.select` for usage of selection.
+
+        Note that using `df = df[<boolean expression>]`, one can only narrow the filter (i.e. only less rows
+        can be selected). Using the filter method, and a different boolean mode (e.g. "or") one can actually
+        cause more rows to be selected. This differs greatly from numpy and pandas for instance, which can only
+        narrow the filter.
+
+        Example:
+
+        >>> import vaex
+        >>> import numpy as np
+        >>> x = np.arange(10)
+        >>> df = vaex.from_arrays(x=x, y=x**2)
+        >>> df
+        #    x    y
+        0    0    0
+        1    1    1
+        2    2    4
+        3    3    9
+        4    4   16
+        5    5   25
+        6    6   36
+        7    7   49
+        8    8   64
+        9    9   81
+        >>> dff = df[df.x<=2]
+        >>> dff
+        #    x    y
+        0    0    0
+        1    1    1
+        2    2    4
+        >>> dff = dff.filter(dff.x >=7, mode="or")
+        >>> dff
+        #    x    y
+        0    0    0
+        1    1    1
+        2    2    4
+        3    7   49
+        4    8   64
+        5    9   81
+        """
+        df = self.copy()
+        df.select(expression, name=FILTER_SELECTION_NAME, mode=mode)
+        df._cached_filtered_length = None  # invalide cached length
+        # WARNING: this is a special case where we create a new filter
+        # the cache mask chunks still hold references to views on the old
+        # mask, and this new mask will be filled when required
+        df._selection_masks[FILTER_SELECTION_NAME] = vaex.superutils.Mask(df._length_unfiltered)
+        return df
+
     def __getitem__(self, item):
         """Convenient way to get expressions, (shallow) copies of a few columns, or to apply filtering.
 
@@ -4425,14 +4478,7 @@ class DataFrame(object):
             return Expression(self, item)  # TODO we'd like to return the same expression if possible
         elif isinstance(item, Expression):
             expression = item.expression
-            df = self.copy()
-            df.select(expression, name=FILTER_SELECTION_NAME, mode='and')
-            df._cached_filtered_length = None  # invalide cached length
-            # WARNING: this is a special case where we create a new filter
-            # the cache mask chunks still hold references to views on the old
-            # mask, and this new mask will be filled when required
-            df._selection_masks[FILTER_SELECTION_NAME] = vaex.superutils.Mask(df._length_unfiltered)
-            return df
+            return self.filter(expression)
         elif isinstance(item, (tuple, list)):
             df = self
             if isinstance(item[0], slice):
