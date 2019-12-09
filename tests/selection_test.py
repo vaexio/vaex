@@ -27,3 +27,13 @@ def test_filter(df):
     dff_bigger = dff.filter(dff.x < 3, mode="or")
     dff_bigger = dff_bigger.filter(dff_bigger.x >= 0, mode="and")  # restore old filter (df_filtered)
     assert dff_bigger.x.tolist() == list(range(3)) + list(range(5,10))
+
+
+def test_filter_boolean_scalar_variable(df):
+    df = df[df.x>4]
+    assert df.x.tolist() == list(range(5,10))
+    df.add_variable("production", True)
+    df = df.filter("production", mode="or")
+    df = df[df.x>=0] # restore old filter (df_filtered)
+    df = df[df.x<10] # restore old filter (df_filtered)
+    assert df.x.tolist() == list(range(10))

@@ -124,7 +124,12 @@ class SelectionExpression(Selection):
             previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
         else:
             previous_mask = None
-        current_mask = df._evaluate_selection_mask(self.boolean_expression, i1, i2).astype(np.bool)
+        result = df._evaluate_selection_mask(self.boolean_expression, i1, i2)
+        if isinstance(result, bool):
+            N = i2 - i1
+            current_mask = np.full(N, result)
+        else:
+            current_mask = result.astype(np.bool)
         if previous_mask is None:
             logger.debug("setting mask")
             mask = current_mask
