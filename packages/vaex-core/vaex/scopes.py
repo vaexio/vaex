@@ -25,7 +25,15 @@ import vaex.expression
 
 logger = logging.getLogger('vaex.scopes')
 
-class UnitScope(object):
+
+class ScopeBase(object):
+    def get(self, attr, default=None):  # otherwise pdb crashes during pytest
+        if attr == "__tracebackhide__":
+            return False
+        return default
+
+
+class UnitScope(ScopeBase):
     def __init__(self, df, value=None):
         self.df = df
         self.value = value
@@ -43,7 +51,7 @@ class UnitScope(object):
             raise KeyError("unkown variable %s" % variable)
 
 
-class _BlockScope(object):
+class _BlockScope(ScopeBase):
     def __init__(self, df, i1, i2, mask=None, **variables):
         """
 
@@ -72,11 +80,6 @@ class _BlockScope(object):
         self.i1 = int(i1)
         self.i2 = int(i2)
         self.values = dict(self.variables)
-
-    def get(self, attr, default=None):  # otherwise pdb crashes during pytest
-        if attr == "__tracebackhide__":
-            return False
-        return default
 
     def __contains__(self, name):  # otherwise pdb crashes during pytest
         return name in self.buffers  # not sure this should also include varibles, columns and virtual columns
@@ -146,7 +149,7 @@ class _BlockScope(object):
             raise
 
 
-class _BlockScopeSelection(object):
+class _BlockScopeSelection(ScopeBase):
     def __init__(self, df, i1, i2, selection=None, cache=False):
         self.df = df
         self.i1 = i1
@@ -166,6 +169,8 @@ class _BlockScopeSelection(object):
             raise
 
     def __getitem__(self, variable):
+        if variable == "__tracebackhide__":  # required for tracebacks
+            return False
         # logger.debug("getitem for selection: %s", variable)
         try:
             selection = self.selection
