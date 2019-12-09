@@ -158,7 +158,10 @@ class Executor(object):
                     task_queue = [task for task in task_queue_all if task.df == df]
                     expressions = list(set(expression for task in task_queue for expression in task.expressions_all))
 
+                    # (re) thrown exceptions as soon as possible to avoid complicated stack traces
                     for task in task_queue:
+                        if task.isRejected:
+                            task.get()
                         if hasattr(task, "check"):
                             try:
                                 task.check()
