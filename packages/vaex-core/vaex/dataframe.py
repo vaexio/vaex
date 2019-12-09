@@ -218,6 +218,9 @@ class DataFrame(object):
         # weak refs of expression that we keep to rewrite expressions
         self._expressions = []
 
+        # a check to avoid nested aggregator calls, which make stack traces very difficult
+        self._aggregator_nest_count = 0
+
     def __getattr__(self, name):
         # will support the hidden methods
         if name in self.__hidden__:
@@ -638,24 +641,29 @@ class DataFrame(object):
         if extra_expressions:
             extra_expressions = _ensure_strings_from_expressions(extra_expressions)
         expression_waslist, [expressions,] = vaex.utils.listify(expression)
+        assert self._aggregator_nest_count == 0, "detected nested aggregator call"
         grid = self._create_grid(binby, limits, shape, delay=True)
         @delayed
         def compute(expression, grid, selection, edges, progressbar):
-            if expression in ["*", None]:
-                agg = vaex.agg.aggregates[name](selection=selection)
-            else:
-                if extra_expressions:
-                    agg = vaex.agg.aggregates[name](expression, *extra_expressions, selection=selection)
+            self._aggregator_nest_count += 1
+            try:
+                if expression in ["*", None]:
+                    agg = vaex.agg.aggregates[name](selection=selection)
                 else:
-                    agg = vaex.agg.aggregates[name](expression, selection=selection)
-            task = self._get_task_agg(grid)
-            agg_subtask = agg.add_operations(task, edges=edges)
-            progressbar.add_task(task, "%s for %s" % (name, expression))
-            @delayed
-            def finish(counts):
-                counts = np.asarray(counts)
-                return counts
-            return finish(agg_subtask)
+                    if extra_expressions:
+                        agg = vaex.agg.aggregates[name](expression, *extra_expressions, selection=selection)
+                    else:
+                        agg = vaex.agg.aggregates[name](expression, selection=selection)
+                task = self._get_task_agg(grid)
+                agg_subtask = agg.add_operations(task, edges=edges)
+                progressbar.add_task(task, "%s for %s" % (name, expression))
+                @delayed
+                def finish(counts):
+                    counts = np.asarray(counts)
+                    return counts
+                return finish(agg_subtask)
+            finally:
+                self._aggregator_nest_count -= 1
         @delayed
         def finish(*counts):
             return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
@@ -1399,6 +1407,8 @@ class DataFrame(object):
         return delay == True
 
     def _delay(self, delay, task, progressbar=False):
+        if task.isRejected:
+            task.get()
         if delay:
             return task
         else:
