@@ -2027,7 +2027,10 @@ class DataFrame(object):
             data = column[0:1]
             dtype = data.dtype
         else:
-            data = self.evaluate(expression, 0, 1, filtered=True, internal=True, parallel=False)
+            try:
+                data = self.evaluate(expression, 0, 1, filtered=False, internal=True, parallel=False)
+            except:
+                data = self.evaluate(expression, 0, 1, filtered=True, internal=True, parallel=False)
             dtype = data.dtype
         if not internal:
             if dtype != str_type:
