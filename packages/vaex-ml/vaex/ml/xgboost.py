@@ -73,7 +73,7 @@ class XGBoostModel(state.HasState):
         :rtype: DataFrame
         '''
         copy = df.copy()
-        lazy_function = copy.add_function('xgboost_prediction_function', self)
+        lazy_function = copy.add_function('xgboost_prediction_function', self, unique=True)
         expression = lazy_function(*self.features)
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
