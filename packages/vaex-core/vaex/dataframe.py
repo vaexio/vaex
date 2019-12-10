@@ -642,6 +642,19 @@ class DataFrame(object):
             extra_expressions = _ensure_strings_from_expressions(extra_expressions)
         expression_waslist, [expressions,] = vaex.utils.listify(expression)
         assert self._aggregator_nest_count == 0, "detected nested aggregator call"
+        # Instead of 'expression is not None', we would like to have 'not virtual'
+        # but in agg.py we do some casting, which results in calling .dtype(..) with a non-column
+        # expression even though all expressions passed here are column references
+        # virtual = [k for k in expressions if k and k not in self.columns]
+        if self.filtered and expression is not None:
+            # When our dataframe is filtered, and we have expressions, we may end up calling
+            # df.dtype(..) which in turn may call df.evaluate(..) which in turn needs to have
+            # the filter cache filled in order to compute the first non-missing row. This last
+            # item could call df.count() again, leading to nested aggregators, which we do not
+            # support. df.dtype() needs to call evaluate with filtering enabled since we consider
+            # it invalid that expressions are evaluate with filtered data. Sklearn for instance may
+            # give errors when evaluated with NaN's present.
+            len(self) # fill caches and masks
         grid = self._create_grid(binby, limits, shape, delay=True)
         @delayed
         def compute(expression, grid, selection, edges, progressbar):
@@ -2015,7 +2028,7 @@ class DataFrame(object):
             data = column[0:1]
             dtype = data.dtype
         else:
-            data = self.evaluate(expression, 0, 1, filtered=False, internal=True, parallel=False)
+            data = self.evaluate(expression, 0, 1, filtered=True, internal=True, parallel=False)
             dtype = data.dtype
         if not internal:
             if dtype != str_type:
@@ -5167,7 +5180,7 @@ class DataFrameLocal(DataFrame):
             return result
         else:
             if self.filtered and filtered:
-                count_check = self.count()  # fill caches and masks
+                count_check = len(self)  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 if _DEBUG:
                     if i1 == 0 and i2 == count_check:
