@@ -3695,6 +3695,9 @@ class DataFrame(object):
             return [k for k in self.column_names if not k.startswith('__')]  # also a quick path
         return [name for name in self.column_names if column_filter(name)]
 
+    def __bool__(self):
+        return True  # we are always true :) otherwise Python might call __len__, which can be expensive
+
     def __len__(self):
         """Returns the number of rows in the DataFrame (filtering applied)."""
         if not self.filtered:
