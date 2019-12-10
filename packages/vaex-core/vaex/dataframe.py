@@ -1458,13 +1458,12 @@ class DataFrame(object):
         waslist, [expressions, ] = vaex.utils.listify(expression)
         limits = []
         for expr in expressions:
-            subspace = self(expr)
-            limits_minmax = subspace.minmax()
-            vmin, vmax = limits_minmax[0]
+            limits_minmax = self.minmax(expr)
+            vmin, vmax = limits_minmax
             size = 1024 * 16
-            counts = subspace.histogram(size=size, limits=limits_minmax)
+            counts = self.count(binby=expr, shape=size, limits=limits_minmax)
             cumcounts = np.concatenate([[0], np.cumsum(counts)])
-            cumcounts /= cumcounts.max()
+            cumcounts = cumcounts / cumcounts.max()
             # TODO: this is crude.. see the details!
             f = (1 - percentage / 100.) / 2
             x = np.linspace(vmin, vmax, size + 1)
