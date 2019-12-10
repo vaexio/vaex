@@ -1,12 +1,12 @@
 import pytest
 import vaex
 pytest.importorskip("sklearn")
-from vaex.ml.sklearn import SKLearnPredictor
+from vaex.ml.sklearn import SKLearnPredictor, IncrementalPredictor
 
 import numpy as np
 
 # Regressions
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, SGDClassifier, SGDRegressor
 from sklearn.svm import SVR
 from sklearn.ensemble import AdaBoostRegressor, GradientBoostingRegressor, RandomForestRegressor
 
@@ -160,3 +160,89 @@ def test_sklearn_estimator_classification_validation():
         skl_pred = model.predict(Xtest)
 
         assert np.all(skl_pred == test.pred.values)
+
+def test_sklearn_incremental_predictor():
+    df = vaex.example()
+    df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
+
+    features = df_train.column_names[:6]
+    target = 'FeH'
+
+    incremental = IncrementalPredictor(model=SGDRegressor(),
+                                       features=features,
+                                       batch_size=10_000,
+                                       num_epochs=5,
+                                       shuffle=True,
+                                       prediction_name='pred')
+    incremental.fit(df=df_train, target=target)
+    df_train = incremental.transform(df_train)
+
+    # State transfer
+    state = df_train.state_get()
+    df_test.state_set(state)
+
+    assert df_train.column_count() == df_test.column_count()
+    assert df_test.pred.values.shape == (33000,)
+
+    pred_in_memory = incremental.predict(df_test)
+    np.testing.assert_array_almost_equal(pred_in_memory, df_test.pred.values, decimal=1)
+
+
+def test_sklearn_incremental_predictor_serialize(tmpdir):
+    df = vaex.example()
+    df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
+
+    features = df_train.column_names[:6]
+    target = 'FeH'
+
+    incremental = IncrementalPredictor(model=SGDRegressor(),
+                                       features=features,
+                                       batch_size=10_000,
+                                       num_epochs=5,
+                                       shuffle=True,
+                                       prediction_name='pred')
+    incremental.fit(df=df_train, target=target)
+    df_train = incremental.transform(df_train)
+
+    # State transfer - serialization
+    df_train.state_write(str(tmpdir.join('test.json')))
+    df_test.state_load(str(tmpdir.join('test.json')))
+
+    assert df_train.column_count() == df_test.column_count()
+    assert df_test.pred.values.shape == (33000,)
+
+    pred_in_memory = incremental.predict(df_test)
+    np.testing.assert_array_almost_equal(pred_in_memory, df_test.pred.values, decimal=1)
+
+
+@pytest.mark.parametrize("batch_size", [6789, 10_000])
+@pytest.mark.parametrize("num_epochs", [1, 5])
+def test_sklearn_incremental_predictor_partial_fit_calls(batch_size, num_epochs):
+    df = vaex.example()
+    df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
+
+    features = df_train.column_names[:6]
+    target = 'FeH'
+
+    N_total = len(df_train)
+    num_batches = (N_total + batch_size - 1) // batch_size
+
+    # Create a mock model for counting the number of samples seen and partial_fit calls
+    class MockModel():
+        def __init__(self):
+            self.n_samples_ = 0
+            self.n_partial_fit_calls_ = 0
+        def partial_fit(self, X, y):
+            self.n_samples_ += X.shape[0]
+            self.n_partial_fit_calls_ += 1
+
+    incremental = IncrementalPredictor(model=MockModel(),
+                                       features=features,
+                                       batch_size=batch_size,
+                                       num_epochs=num_epochs,
+                                       shuffle=False,
+                                       prediction_name='pred')
+
+    incremental.fit(df=df_train, target=target)
+    assert incremental.model.n_samples_ == N_total * num_epochs
+    assert incremental.model.n_partial_fit_calls_ == num_batches * num_epochs
