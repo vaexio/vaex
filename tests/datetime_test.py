@@ -42,6 +42,12 @@ def test_datetime_agg():
     assert df.mean(df.date) < np.datetime64('2016-02-11T10:17:34')
     assert df.mean(df.date) > date[0]
 
+    delta = date - date[0]
+    df = vaex.from_arrays(delta=delta)
+    pdf = df.to_pandas_df()
+    # TODO: this fails for ns due to accuracy
+    assert df.std(df.delta.astype('timedelta64[s]')).astype(np.int64) == pdf.delta.std(ddof=0).value//10**9
+
 
 def test_datetime_stats():
     x1 = np.datetime64('2005-01-01')
