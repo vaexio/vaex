@@ -116,10 +116,12 @@ def test_fillna_array():
 
 def test_fillna_dataframe():
     x = np.array([3, 1, np.nan, 10, np.nan])
-    y = np.array([-3.4, 1, True, '10street', np.nan], dtype='object')
-    df = vaex.from_arrays(x=x, y=y)
+    y = np.array([None, 1, True, '10street', np.nan], dtype='object')
+    z = np.ma.array(data=[5, 7, 3, 1, -10], mask=[False, False, True, False, True])
+    df = vaex.from_arrays(x=x, y=y, z=z)
 
     df_filled = df.fillna(value=-1)
 
     assert df_filled.x.tolist() == [3, 1, -1, 10, -1]
-    assert df_filled.y.tolist() == [-3.4, 1, True, '10street', -1]
+    assert df_filled.y.tolist() == [-1, 1, True, '10street', -1]
+    assert df_filled.z.tolist() == [5, 7, -1, 1, -1]
