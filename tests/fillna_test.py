@@ -113,3 +113,13 @@ def test_fillna_array():
     # fillna should take scalar arrays, so you can pass directly the result of df.x.mean() for instance
     df['x_2'] = df.x.fillna(np.array(2.0))
     assert df.x_2.tolist() == [1, 2, 3, 2]
+
+def test_fillna_dataframe():
+    x = np.array([3, 1, np.nan, 10, np.nan])
+    y = np.array([-3.4, 1, True, '10street', np.nan], dtype='object')
+    df = vaex.from_arrays(x=x, y=y)
+
+    df_filled = df.fillna(value=-1)
+
+    assert df_filled.x.tolist() == [3, 1, -1, 10, -1]
+    assert df_filled.y.tolist() == [-3.4, 1, True, '10street', -1]
