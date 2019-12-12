@@ -4052,7 +4052,7 @@ class DataFrame(object):
         return self.take(indices)
 
     @docsubst
-    def fillna(self, value, fill_nan=True, fill_masked=True, column_names=None, prefix='__original_', inplace=False):
+    def fillna(self, value, column_names=None, prefix='__original_', inplace=False):
         '''Return a DataFrame, where missing values/NaN are filled with 'value'.
 
         The original columns will be renamed, and by default they will be hidden columns. No data is lost.
@@ -4090,9 +4090,9 @@ class DataFrame(object):
             if column is not None:
                 new_name = df.rename_column(name, prefix + name)
                 expr = df[new_name]
-                df[name] = df.func.fillna(expr, value, fill_nan=fill_nan, fill_masked=fill_masked)
+                df[name] = df.func.fillna(expr, value)
             else:
-                df[name] = df.func.fillna(df[name], value, fill_nan=fill_nan, fill_masked=fill_masked)
+                df[name] = df.func.fillna(df[name], value)
         return df
 
     def materialize(self, virtual_column, inplace=False):
@@ -4864,7 +4864,7 @@ class DataFrameLocal(DataFrame):
             depending.difference_update(added)  # remove already added
             # print(depending, "after filter")
             # return depending_columns
-            
+
             hide = []
 
             while depending:
@@ -5113,7 +5113,7 @@ class DataFrameLocal(DataFrame):
 
         if parallel:
             use_filter = self.filtered and filtered
-            
+
             length = self.length_unfiltered()
             arrays = {}
             # maps to a dict of start_index -> apache arrow array (a chunk)
