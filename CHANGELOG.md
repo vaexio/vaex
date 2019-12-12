@@ -1,12 +1,14 @@
 # vaex 2.5.0-dev
 
 # vaex-core 1.4.0-dev
+   * Performance
+      * Dataframes are always true (implements `__bool__`) to avoid calling `__len__` [#496](https://github.com/vaexio/vaex/pull/496)
    * Fixes
       * Do not duplicate column when joining DataFrames on a column with the same name [#480](https://github.com/vaexio/vaex/pull/480)
       * Better error messages/stack traces, and work better with debugger. [#488](https://github.com/vaexio/vaex/pull/488)
       * Accept numpy scalars in expressions. [#462](https://github.com/vaexio/vaex/pull/462)
    * Features
-      * Expressions are not evaluated for filtered data. [#483](https://github.com/vaexio/vaex/pull/483)
+      * Expressions are not evaluated for filtered data. [#483](https://github.com/vaexio/vaex/pull/483) [#496](https://github.com/vaexio/vaex/pull/496)
       * Filtering (using df.filter) allows more flexible (and growing/expanding!) filter. [#489](https://github.com/vaexio/vaex/pull/489)
       * Filtering and selections allow for booleans (True or False) to auto 'broadcast', to allow 'conditional filtering'. [#489](https://github.com/vaexio/vaex/pull/489)
 
