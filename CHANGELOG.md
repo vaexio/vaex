@@ -1,8 +1,18 @@
-# vaex 2.4.1-dev (unreleased)
+# vaex 2.5.0-dev
 
-# vaex-core 1.3.1-dev
+# vaex-core 1.4.0-dev
    * Fixes
       * Do not duplicate column when joining DataFrames on a column with the same name [#480](https://github.com/vaexio/vaex/pull/480)
+      * Better error messages/stack traces, and work better with debugger. [#488](https://github.com/vaexio/vaex/pull/488)
+      * Accept numpy scalars in expressions. [#462](https://github.com/vaexio/vaex/pull/462)
+   * Features
+      * Expressions are not evaluated for filtered data. [#483](https://github.com/vaexio/vaex/pull/483)
+      * Filtering (using df.filter) allows more flexible (and growing/expanding!) filter. [#489](https://github.com/vaexio/vaex/pull/489)
+      * Filtering and selections allow for booleans (True or False) to auto 'broadcast', to allow 'conditional filtering'. [#489](https://github.com/vaexio/vaex/pull/489)
+
+## vaex-ml 0.6.3-dev
+   * Fixes
+      * Adding unique function names to dataframes to enable adding a predictor twice [#492](https://github.com/vaexio/vaex/pull/492)
 
 # vaex 2.4.0 (2019-11-26)
 
