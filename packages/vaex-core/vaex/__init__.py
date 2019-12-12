@@ -626,7 +626,7 @@ if os.path.exists(import_script):
             exec(code)
     except:
         import traceback
-        traceback.print_tb()
+        traceback.print_stack()
 
 
 logger = logging.getLogger('vaex')

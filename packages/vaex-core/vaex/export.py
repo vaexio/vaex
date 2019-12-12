@@ -109,9 +109,9 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
     progress_status.cancelled = False
     progress_status.value = 0
     if selection:
-        full_mask = dataset_input.evaluate_selection_mask(selection)
+        dataset_input.count(selection=selection)  # fill cache for filter and selection
     else:
-        full_mask = None
+        len(dataset_input)  # fill filter cache
 
     sparse_groups = collections.defaultdict(list)
     sparse_matrices = {}  # alternative to a set of matrices, since they are not hashable
@@ -128,7 +128,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
                 sparse_matrices[id(sparse_matrix)] = sparse_matrix
                 continue
             logger.debug("  exporting column: %s " % column_name)
-            future = thread_pool.submit(_export_column, dataset_input, dataset_output, column_name, full_mask,
+            future = thread_pool.submit(_export_column, dataset_input, dataset_output, column_name,
                 shuffle, sort, selection, N, order_array, order_array_inverse, progress_status)
             futures.append(future)
 
@@ -156,7 +156,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
             column.matrix.indices[:] = dataset_input.columns[column_name].matrix.indices
     return column_names
 
-def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffle, sort, selection, N, 
+def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, selection, N,
     order_array, order_array_inverse, progress_status):
 
         if 1:
@@ -174,75 +174,44 @@ def _export_column(dataset_input, dataset_output, column_name, full_mask, shuffl
                     else:
                         to_array = np.zeros_like(to_array_disk)
             to_offset = 0  # we need this for selections
-            count = len(dataset_input) if not selection else dataset_input.length_unfiltered()
+            to_offset_unselected = 0 # we need this for filtering
+            count = len(dataset_input)# if not selection else dataset_input.length_unfiltered()
             is_string = dtype == str_type
             # TODO: if no filter, selection or mask, we can choose the quick path for str
             string_byte_offset = 0
 
             for i1, i2 in vaex.utils.subdivide(count, max_length=max_length):
                 logger.debug("from %d to %d (total length: %d, output length: %d)", i1, i2, len(dataset_input), N)
-                block_scope.move(i1, i2)
-                if selection:
-                    mask = full_mask[i1:i2]
-                    values = dataset_input.evaluate(column_name, i1=i1, i2=i2, filtered=False, parallel=False) #selection=selection)
-                    values = values[mask]
-                    no_values = len(values)
-                    if no_values:
-                        if is_string:
-                            to_column = to_array
-                            assert isinstance(to_column, ColumnStringArrow)
-                            from_sequence = _to_string_sequence(values)
-                            to_sequence = to_column.string_sequence.slice(to_offset, to_offset+no_values, string_byte_offset)
-                            string_byte_offset += to_sequence.fill_from(from_sequence)
-                            to_offset += no_values
-                        else:
-                            fill_value = np.nan if dtype.kind == "f" else None
-                            # assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
-                            # (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)
-                            if dtype.type == np.datetime64:
-                                values = values.view(np.int64)
-                            if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                                to_array.data[to_offset:to_offset + no_values] = values.filled(fill_value)
-                                to_array.mask[to_offset:to_offset + no_values] = values.mask
-                            elif not np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                                to_array[to_offset:to_offset + no_values] = values.filled(fill_value)
-                            else:
-                                to_array[to_offset:to_offset + no_values] = values
-                            to_offset += no_values
-                else:
-                    values = dataset_input.evaluate(column_name, i1=i1, i2=i2, parallel=False)
+                values = dataset_input.evaluate(column_name, i1=i1, i2=i2, filtered=True, parallel=False, selection=selection)
+                no_values = len(values)
+                if no_values:
                     if is_string:
-                        no_values = len(values)
                         # for strings, we don't take sorting/shuffling into account when building the structure
                         to_column = to_array
                         assert isinstance(to_column, ColumnStringArrow)
                         from_sequence = _to_string_sequence(values)
-                        to_sequence = to_column.string_sequence.slice(i1, i2, string_byte_offset)
+                        to_sequence = to_column.string_sequence.slice(to_offset, to_offset+no_values, string_byte_offset)
                         string_byte_offset += to_sequence.fill_from(from_sequence)
+                        to_offset += no_values
                     else:
-                        assert len(values) == (i2-i1)
                         fill_value = np.nan if dtype.kind == "f" else None
                         # assert np.ma.isMaskedArray(to_array) == np.ma.isMaskedArray(values), "to (%s) and from (%s) array are not of both masked or unmasked (%s)" %\
                         # (np.ma.isMaskedArray(to_array), np.ma.isMaskedArray(values), column_name)
+                        if shuffle or sort:
+                            target_set_item = order_array[i1:i2]
+                        else:
+                            target_set_item = slice(to_offset, to_offset + no_values)
                         if dtype.type == np.datetime64:
                             values = values.view(np.int64)
-                        if shuffle or sort:
-                            indices = order_array[i1:i2]
-                            if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                                to_array.data[indices] = values.filled(fill_value)
-                                to_array.mask[indices] = values.mask
-                            elif not np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                                to_array[indices] = values.filled(fill_value)
-                            else:
-                                to_array[indices] = values
+                        if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+                            to_array.data[target_set_item] = values.filled(fill_value)
+                            to_array.mask[target_set_item] = values.mask
+                        elif not np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
+                            to_array[target_set_item] = values.filled(fill_value)
                         else:
-                            if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                                to_array.data[i1:i2] = values.filled(fill_value)
-                                to_array.mask[i1:i2] = values.mask
-                            elif np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
-                                to_array[i1:i2] = values.filled(fill_value)
-                            else:
-                                to_array[i1:i2] = values
+                            to_array[target_set_item] = values
+                        to_offset += no_values
+
                 with progress_lock:
                     progress_status.value += i2 - i1
                 if progress_status.cancelled:

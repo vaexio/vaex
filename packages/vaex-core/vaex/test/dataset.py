@@ -1757,7 +1757,7 @@ class TestDataset(unittest.TestCase):
 											#values = dataset.columns[column_name][dataset._index_start:dataset._index_end] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
 											values = dataset.evaluate(column_name, filtered=False)
 											if selection:
-												values = dataset.evaluate(column_name, filtered=False)
+												values = dataset.evaluate(column_name)
 												mask = dataset.evaluate_selection_mask(selection)#, 0, len(dataset))
 												if len(values[::]) != len(mask):
 													import pdb
