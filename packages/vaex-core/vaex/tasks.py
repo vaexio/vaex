@@ -100,10 +100,8 @@ class TaskBase(Task):
             blocks = [as_flat_float(block) for block in blocks]
 
         for i, selection in enumerate(self.selections):
-            if selection or self.df.filtered:
+            if selection:
                 selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
-                if filter_mask is not None:
-                    selection_mask = selection_mask[filter_mask]
                 if selection_mask is None:
                     raise ValueError("performing operation on selection while no selection present")
                 if mask is not None:
@@ -167,11 +165,12 @@ class TaskMapReduce(Task):
             if self.pre_filter:
                 if selection:
                     selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
-                    selection_mask = selection_mask[filter_mask]
                     blocks = [block[selection_mask] for block in blocks]
             else:
                 if selection or self.df.filtered:
-                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
+                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True, pre_filtered=False)
+                    if filter_mask is not None:
+                        selection_mask = selection_mask & filter_mask
                     blocks = [block[selection_mask] for block in blocks]
         if self.info:
             return self._map(thread_index, i1, i2, *blocks)
@@ -408,12 +407,10 @@ class TaskStatistic(Task):
 
         this_thread_grid = self.grid[thread_index]
         for i, selection in enumerate(self.selections):
-            if selection or self.df.filtered:
+            if selection:
                 selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
                 if selection_mask is None:
                     raise ValueError("performing operation on selection while no selection present")
-                if filter_mask is not None:
-                    selection_mask = selection_mask[filter_mask]
                 if mask is not None:
                     selection_mask = selection_mask[~mask]
                 selection_blocks = [block[selection_mask] for block in blocks]
@@ -555,10 +552,8 @@ class TaskAggregate(Task):
                 agg = aggregation2d[thread_index][selection_index]
                 all_aggregators.append(agg)
                 selection_mask = None
-                if selection or self.df.filtered:
+                if selection:
                     selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
-                    if filter_mask is not None:
-                        selection_mask = selection_mask[filter_mask]
                     references.append(selection_mask)
                     # some aggregators make a distiction between missing value and no value
                     # like nunique, they need to know if they should take the value into account or not

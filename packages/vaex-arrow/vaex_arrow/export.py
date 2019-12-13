@@ -84,22 +84,12 @@ def _export_table(dataset, column_names=None, byteorder="=", shuffle=False, sele
         order_array = indices if ascending else indices[::-1]
         logger.info("sorting done")
 
-    if selection:
-        full_mask = dataset.evaluate_selection_mask(selection)
-    else:
-        full_mask = None
-
     arrow_arrays = []
     for column_name in column_names:
-        mask = full_mask
-        if selection:
-            values = dataset.evaluate(column_name, filtered=False)
-            values = values[mask]
-        else:
-            values = dataset.evaluate(column_name)
-            if shuffle or sort:
-                indices = order_array
-                values = values[indices]
+        values = dataset.evaluate(column_name, selection=selection)
+        if shuffle or sort:
+            indices = order_array
+            values = values[indices]
         arrow_arrays.append(arrow_array_from_numpy_array(values))
     if shuffle:
         arrow_arrays.append(arrow_array_from_numpy_array(order_array))

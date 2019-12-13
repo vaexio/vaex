@@ -8,7 +8,7 @@
       * Better error messages/stack traces, and work better with debugger. [#488](https://github.com/vaexio/vaex/pull/488)
       * Accept numpy scalars in expressions. [#462](https://github.com/vaexio/vaex/pull/462)
    * Features
-      * Expressions are not evaluated for filtered data. [#483](https://github.com/vaexio/vaex/pull/483) [#496](https://github.com/vaexio/vaex/pull/496)
+      * Expressions are not evaluated for filtered data [#483](https://github.com/vaexio/vaex/pull/483) [#496](https://github.com/vaexio/vaex/pull/496) and selections [505](https://github.com/vaexio/vaex/pull/505)
       * Filtering (using df.filter) allows more flexible (and growing/expanding!) filter. [#489](https://github.com/vaexio/vaex/pull/489)
       * Filtering and selections allow for booleans (True or False) to auto 'broadcast', to allow 'conditional filtering'. [#489](https://github.com/vaexio/vaex/pull/489)
 
@@ -17,6 +17,9 @@
       * IncrementalPredictor for `scikit-learn` models that support the `.partial_fit` method [#497](https://github.com/vaexio/vaex/pull/497)
    * Fixes
       * Adding unique function names to dataframes to enable adding a predictor twice [#492](https://github.com/vaexio/vaex/pull/492)
+
+## vaex-arrow 0.4.2-dev
+      * Compatibility with vaex-core 1.4.0-dev
 
 # vaex 2.4.0 (2019-11-26)
 

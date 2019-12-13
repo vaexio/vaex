@@ -2650,31 +2650,39 @@ class DataFrame(object):
         else:
             return self.variables[name]
 
-    def _evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False):
+    def _evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False, filter_mask=None):
         """Internal use, ignores the filter"""
         i1 = i1 or 0
         i2 = i2 or len(self)
-        scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache)
+        scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache, filter_mask=filter_mask)
         return vaex.utils.unmask_selection_mask(scope.evaluate(name))
 
-    def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False):
+    def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False, filtered=True, pre_filtered=True):
         i1 = i1 or 0
         i2 = i2 or self.length_unfiltered()
         if isinstance(name, vaex.expression.Expression):
             # make sure if we get passed an expression, it is converted to a string
             # otherwise the name != <sth> will evaluate to an Expression object
             name = str(name)
-        if name in [None, False] and self.filtered:
+        if name in [None, False] and self.filtered and filtered:
             scope_global = scopes._BlockScopeSelection(self, i1, i2, None, cache=cache)
             mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
             return vaex.utils.unmask_selection_mask(mask_global)
-        elif self.filtered and name != FILTER_SELECTION_NAME:
-            scope = scopes._BlockScopeSelection(self, i1, i2, selection)
+        elif self.filtered and filtered and name != FILTER_SELECTION_NAME:
             scope_global = scopes._BlockScopeSelection(self, i1, i2, None, cache=cache)
-            mask = scope.evaluate(name)
             mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
-            return vaex.utils.unmask_selection_mask(mask & mask_global)
+            if pre_filtered:
+                scope = scopes._BlockScopeSelection(self, i1, i2, selection, filter_mask=vaex.utils.unmask_selection_mask(mask_global))
+                mask = scope.evaluate(name)
+                return vaex.utils.unmask_selection_mask(mask)
+            else:  # only used in legacy.py?
+                scope = scopes._BlockScopeSelection(self, i1, i2, selection)
+                mask = scope.evaluate(name)
+                return vaex.utils.unmask_selection_mask(mask & mask_global)
         else:
+            if name in [None, False]:
+                # # in this case we can
+                return np.full(i2-i1, True)
             scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache)
             return vaex.utils.unmask_selection_mask(scope.evaluate(name))
 
@@ -5084,8 +5092,8 @@ class DataFrameLocal(DataFrame):
             done = offset_filtered >= i2
         return np.array(indices, dtype=np.int64)
 
-    def _evaluate(self, expression, i1, i2, out=None, selection=None, internal=False):
-        scope = scopes._BlockScope(self, i1, i2, **self.variables)
+    def _evaluate(self, expression, i1, i2, out=None, selection=None, internal=False, filter_mask=None):
+        scope = scopes._BlockScope(self, i1, i2, mask=filter_mask, **self.variables)
         if out is not None:
             scope.buffers[expression] = out
         value = scope.evaluate(expression)
@@ -5155,7 +5163,6 @@ class DataFrameLocal(DataFrame):
                         arrays[expr][i1:i2] = blocks[i]
 
             self.map_reduce(assign, lambda *_: None, expressions, ignore_filter=False, selection=selection, pre_filter=use_filter, info=True, to_numpy=False)
-
             def finalize_result(expression):
                 if expression in chunks_map:
                     # put all chunks in order
@@ -5199,7 +5206,7 @@ class DataFrameLocal(DataFrame):
             values = []
             for expression in expressions:
                 # for both a selection or filtering we have a mask
-                if selection is not None or (self.filtered and filtered):
+                if selection not in [None, False] or (self.filtered and filtered):
                     mask = self.evaluate_selection_mask(selection, i1, i2)
                 scope = scopes._BlockScope(self, i1, i2, mask=mask, **self.variables)
                 # value = value[mask]

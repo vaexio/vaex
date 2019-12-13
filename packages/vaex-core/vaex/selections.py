@@ -74,14 +74,18 @@ class SelectionDropNa(Selection):
     def _rename(self, df, old, new):
         pass  # TODO: do we need to rename the column_names?
 
-    def evaluate(self, df, name, i1, i2):
+    def evaluate(self, df, name, i1, i2, filter_mask):
         if self.previous_selection:
-            previous_mask = df.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+            previous_mask = df.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection, filter_mask=filter_mask)
         else:
             previous_mask = None
-        mask = np.ones(i2 - i1, dtype=np.bool)
+        if filter_mask is not None:
+            mask = np.full(filter_mask.astype(np.uint8).sum(), True)
+        else:
+            mask = np.ones(i2 - i1, dtype=np.bool)
+
         for name in self.column_names:
-            data = df._evaluate(name, i1, i2)
+            data = df._evaluate(name, i1, i2, filter_mask=filter_mask)
             if self.drop_nan and self.drop_masked:
                 mask &= ~vaex.functions.isna(data)
             elif self.drop_nan:
@@ -119,12 +123,12 @@ class SelectionExpression(Selection):
             previous = self.previous_selection.to_dict()
         return dict(type="expression", boolean_expression=str(self.boolean_expression), mode=self.mode, previous_selection=previous)
 
-    def evaluate(self, df, name, i1, i2):
+    def evaluate(self, df, name, i1, i2, filter_mask):
         if self.previous_selection:
-            previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+            previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection, filter_mask=filter_mask)
         else:
             previous_mask = None
-        result = df._evaluate_selection_mask(self.boolean_expression, i1, i2)
+        result = df._evaluate_selection_mask(self.boolean_expression, i1, i2, filter_mask=filter_mask)
         if isinstance(result, bool):
             N = i2 - i1
             current_mask = np.full(N, result)
@@ -151,8 +155,8 @@ class SelectionInvert(Selection):
             previous = self.previous_selection.to_dict()
         return dict(type="invert", previous_selection=previous)
 
-    def evaluate(self, df, name, i1, i2):
-        previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+    def evaluate(self, df, name, i1, i2, filter_mask):
+        previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection, filter_mask=filter_mask)
         return ~previous_mask
 
 
@@ -165,18 +169,22 @@ class SelectionLasso(Selection):
         self.yseq = yseq
         self.expressions = [boolean_expression_x, boolean_expression_y]
 
-    def evaluate(self, df, name, i1, i2):
+    def evaluate(self, df, name, i1, i2, filter_mask):
         if self.previous_selection:
-            previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+            previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection, filter_mask=filter_mask)
         else:
             previous_mask = None
-        current_mask = np.zeros(i2 - i1, dtype=np.bool)
+        if filter_mask is not None:
+            N = filter_mask.astype(np.uint8).sum()
+        else:
+            N = i2 - i1
+        current_mask = np.full(N, False)
         x, y = np.array(self.xseq, dtype=np.float64), np.array(self.yseq, dtype=np.float64)
         meanx = x.mean()
         meany = y.mean()
         radius = np.sqrt((meanx - x)**2 + (meany - y)**2).max()
-        blockx = df._evaluate(self.boolean_expression_x, i1=i1, i2=i2)
-        blocky = df._evaluate(self.boolean_expression_y, i1=i1, i2=i2)
+        blockx = df._evaluate(self.boolean_expression_x, i1=i1, i2=i2, filter_mask=filter_mask)
+        blocky = df._evaluate(self.boolean_expression_y, i1=i1, i2=i2, filter_mask=filter_mask)
         (blockx, blocky), excluding_mask = _split_and_combine_mask([blockx, blocky])
         blockx = as_flat_float(blockx)
         blocky = as_flat_float(blocky)

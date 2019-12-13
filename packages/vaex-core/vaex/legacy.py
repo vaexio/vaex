@@ -72,7 +72,7 @@ class TaskHistogram(Task):
         blocks = [_asfloat(block) for block in blocks]
 
         if self.masked or self.df.filtered:
-            mask = self.df.evaluate_selection_mask("default" if self.masked else None, i1=i1, i2=i2)
+            mask = self.df.evaluate_selection_mask("default" if self.masked else None, i1=i1, i2=i2, pre_filtered=False)
             blocks = [block[mask] for block in blocks]
 
         subblock_weight = None
@@ -1085,7 +1085,7 @@ class SubspaceLocal(Subspace):
 
         def min_max_map(thread_index, i1, i2, *blocks):
             if self.is_masked or self.df.filtered:
-                mask = self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
+                mask = self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2, pre_filtered=False)
                 blocks = [block[mask] for block in blocks]
                 is_empty = all(~mask)
                 if is_empty:
@@ -1122,7 +1122,7 @@ class SubspaceLocal(Subspace):
 
         def mean_map(thread_index, i1, i2, *blocks):
             if self.is_masked or self.df.filtered:
-                mask = self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
+                mask = self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2, pre_filtered=False)
                 return [(np.nanmean(block[mask]**moment), np.count_nonzero(~np.isnan(block[mask]))) for block in blocks]
             else:
                 return [(np.nanmean(block**moment), np.count_nonzero(~np.isnan(block))) for block in blocks]
@@ -1141,7 +1141,7 @@ class SubspaceLocal(Subspace):
             return self._toarray(vars_and_counts)[:, 0]
         if self.is_masked or self.df.filtered:
             def var_map(thread_index, i1, i2, *blocks):
-                mask = self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)
+                mask = self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2, pre_filtered=False)
                 if means is not None:
                     return [(np.nanmean((block[mask] - mean)**2), np.count_nonzero(~np.isnan(block[mask]))) for block, mean in zip(blocks, means)]
                 else:
@@ -1230,7 +1230,7 @@ class SubspaceLocal(Subspace):
         nansum = vaex.vaexfast.nansum
         if self.is_masked or self.df.filtered:
             task = TaskMapReduceLegacy(self.df,
-                                 self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2)])
+                                 self.expressions, lambda thread_index, i1, i2, *blocks: [nansum(block[self.df.evaluate_selection_mask("default" if self.is_masked else None, i1=i1, i2=i2, pre_filtered=False)])
                                                                                           for block in blocks],
                                  lambda a, b: np.array(a) + np.array(b), self._toarray, info=True)
         else:
@@ -1341,7 +1341,7 @@ class SubspaceLocal(Subspace):
 
         def nearest_in_block(thread_index, i1, i2, *blocks):
             if self.is_masked:
-                mask = self.df.evaluate_selection_mask("default", i1=i1, i2=i2)
+                mask = self.df.evaluate_selection_mask("default", i1=i1, i2=i2, pre_filtered=False)
                 if mask.sum() == 0:
                     return None
                 blocks = [block[mask] for block in blocks]
