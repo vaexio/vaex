@@ -404,6 +404,7 @@ class MinMaxScaler(Transformer):
      3    2    0           0                  0.166667
      4   15   10           1                  1
     '''
+    snake_name = 'minmax_scaler'
     # title = Unicode(default_value='MinMax Scaler', read_only=True).tag(ui='HTML')
     feature_range = traitlets.Tuple(default_value=(0, 1), help='The range the features are scaled to.').tag().tag(ui='FloatRangeSlider')
     prefix = traitlets.Unicode(default_value="minmax_scaled_", help=help_prefix).tag(ui='Text')
@@ -816,6 +817,7 @@ class KBinsDiscretizer(Transformer):
       5  12.5           2
       6  15             2
     '''
+    snake_name = 'kbins_discretizer'
     n_bins = traitlets.Int(allow_none=False, default_value=5, help='Number of bins. Must be greater than 1.')
     strategy = traitlets.Enum(values=['uniform', 'quantile', 'kmeans'], default_value='uniform', help='Strategy used to define the widths of the bins.')
     prefix = traitlets.Unicode(default_value='binned_', help=help_prefix)
@@ -944,6 +946,7 @@ class GroupByTransformer(Transformer):
       3  mouse    5  --       --
     '''
 
+    snake_name = 'groupby_transformer'
     by = traitlets.Unicode(allow_none=False, help='The feature on which to do the grouping.')
     agg = traitlets.Dict(help='Dict where the keys are feature names and the values are vaex.agg objects.')
     rprefix = traitlets.Unicode(default_value='', help='Prefix for the names of the aggregate features in case of a collision.')

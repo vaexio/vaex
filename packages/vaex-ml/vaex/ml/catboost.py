@@ -54,7 +54,7 @@ class CatBoostModel(state.HasState):
     1             6.1            3               4.6            1.4         1  [0.00350424 0.9882139  0.00828186]
     2             6.6            2.9             4.6            1.3         1  [0.00325705 0.98891631 0.00782664]
     '''
-
+    snake_name = "catboost_model"
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the CatBoostModel.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     num_boost_round = traitlets.CInt(default_value=None, allow_none=True, help='Number of boosting iterations.')

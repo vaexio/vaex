@@ -13,6 +13,7 @@ registry = []
 
 
 def register(cls):
+    registry.append(cls)
     docstring_args_template = Template("""
 {% for arg in docargs %}
 :param {{ arg.name }}: {{ arg.help }}{% endfor %}
