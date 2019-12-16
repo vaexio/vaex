@@ -263,6 +263,15 @@ Machine learning with vaex.ml
 -----------------------------
 
 
+Scikit-learn
+~~~~~~~~~~~~
+
+.. automodule:: vaex.ml.sklearn
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 Clustering
 ~~~~~~~~~~
 
