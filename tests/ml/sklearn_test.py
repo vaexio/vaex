@@ -116,7 +116,7 @@ def test_sklearn_estimator_pipeline():
     train['petal_scaled'] = train.petal_length * 0.2
     # Do a pca
     features = ['sepal_virtual', 'petal_scaled']
-    pca = train.ml.pca(n_components=2, features=features)
+    pca = train.ml.pca(n_components=2, features=features, transform=False)
     train = pca.transform(train)
     # Do state transfer
     st = train.ml.state_transfer()

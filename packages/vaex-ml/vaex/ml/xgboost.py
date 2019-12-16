@@ -54,7 +54,7 @@ class XGBoostModel(state.HasState):
     1             6.1            3               4.6            1.4         1                     1
     2             6.6            2.9             4.6            1.3         1                     1
     '''
-
+    snake_name = 'xgboost_model'
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the XGBoostModel.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     num_boost_round = traitlets.CInt(help='Number of boosting iterations.')

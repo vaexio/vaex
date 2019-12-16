@@ -51,7 +51,7 @@ class Predictor(state.HasState):
      1             6.1            3               4.6            1.4         1  1.56469
      2             6.6            2.9             4.6            1.3         1  1.44276
     '''
-
+    snake_name = 'sklearn_predictor'
     model = traitlets.Any(default_value=None, allow_none=True, help='A scikit-learn estimator.').tag(**serialize_pickle)
     features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')

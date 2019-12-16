@@ -85,6 +85,9 @@ jobs:
       shell: bash
       run: |
         ./ci/04-run-test-suite.sh
+        source activate vaex-dev
+        python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
+        diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
     - name: Test notebooks
       if: matrix.os != 'windows-latest'
       shell: bash

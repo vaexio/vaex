@@ -77,12 +77,12 @@ def test_lightgbm_serialize(tmpdir):
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
 
-    gbm = ds.ml.lightgbm_model(target=target, features=features, num_boost_round=100, params=params)
+    gbm = ds.ml.lightgbm_model(target=target, features=features, num_boost_round=100, params=params, transform=False)
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
     pl.load(str(tmpdir.join('test.json')))
 
-    gbm = ds.ml.lightgbm_model(target=target, features=features, num_boost_round=100, params=params)
+    gbm = ds.ml.lightgbm_model(target=target, features=features, num_boost_round=100, params=params, transform=False)
     gbm.state_set(gbm.state_get())
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
@@ -101,7 +101,7 @@ def test_lightgbm_numerical_validation():
     lgb_pred = lgb_bst.predict(X)
 
     # Vaex.ml.lightgbm
-    booster = ds.ml.lightgbm_model(target=ds.class_, num_boost_round=3, features=features, params=params, copy=False)
+    booster = ds.ml.lightgbm_model(target=ds.class_, num_boost_round=3, features=features, params=params, copy=False, transform=False)
     vaex_pred = booster.predict(ds)
 
     # Comparing the the predictions of lightgbm vs vaex.ml
@@ -144,14 +144,14 @@ def test_lightgbm_pipeline():
     train['r'] = np.sqrt(train.x**2 + train.y**2 + train.z**2)
     # Do a pca
     features = ['vx', 'vy', 'vz', 'Lz', 'L']
-    pca = train.ml.pca(n_components=3, features=features)
+    pca = train.ml.pca(n_components=3, features=features, transform=False)
     train = pca.transform(train)
     # Do state transfer
     st = train.ml.state_transfer()
     # now the lightgbm model thingy
     features = ['r', 'PCA_0', 'PCA_1', 'PCA_2']
     # The booster model from vaex.ml
-    booster = train.ml.lightgbm_model(target='E', num_boost_round=10, features=features, params=params_reg)
+    booster = train.ml.lightgbm_model(target='E', num_boost_round=10, features=features, params=params_reg, transform=False)
     # Create a pipeline
     pp = vaex.ml.Pipeline([st, booster])
     # Use the pipeline
