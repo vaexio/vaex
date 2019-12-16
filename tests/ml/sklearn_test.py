@@ -170,7 +170,7 @@ def test_sklearn_incremental_predictor():
 
     incremental = IncrementalPredictor(model=SGDRegressor(),
                                        features=features,
-                                       batch_size=10_000,
+                                       batch_size=10*1000,
                                        num_epochs=5,
                                        shuffle=True,
                                        prediction_name='pred')
@@ -197,7 +197,7 @@ def test_sklearn_incremental_predictor_serialize(tmpdir):
 
     incremental = IncrementalPredictor(model=SGDRegressor(),
                                        features=features,
-                                       batch_size=10_000,
+                                       batch_size=10*1000,
                                        num_epochs=5,
                                        shuffle=True,
                                        prediction_name='pred')
@@ -215,7 +215,7 @@ def test_sklearn_incremental_predictor_serialize(tmpdir):
     np.testing.assert_array_almost_equal(pred_in_memory, df_test.pred.values, decimal=1)
 
 
-@pytest.mark.parametrize("batch_size", [6789, 10_000])
+@pytest.mark.parametrize("batch_size", [6789, 10*1000])
 @pytest.mark.parametrize("num_epochs", [1, 5])
 def test_sklearn_incremental_predictor_partial_fit_calls(batch_size, num_epochs):
     df = vaex.example()
