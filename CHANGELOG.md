@@ -1,6 +1,6 @@
 # vaex 2.5.0-dev
 
-# vaex-core 1.4.0-dev
+# vaex-core 1.4.0
    * Performance
       * Dataframes are always true (implements `__bool__`) to avoid calling `__len__` [#496](https://github.com/vaexio/vaex/pull/496)
    * Fixes
