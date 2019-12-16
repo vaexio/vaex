@@ -20,8 +20,8 @@
    * Fixes
       * Adding unique function names to dataframes to enable adding a predictor twice [#492](https://github.com/vaexio/vaex/pull/492)
 
-## vaex-arrow 0.4.2-dev
-      * Compatibility with vaex-core 1.4.0-dev
+## vaex-arrow 0.4.2
+      * Compatibility with vaex-core 1.4.0
 
 # vaex 2.4.0 (2019-11-26)
 
