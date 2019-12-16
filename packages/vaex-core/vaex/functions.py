@@ -2103,6 +2103,9 @@ def _astype(x, dtype):
         x = x.astype(dtype).astype('O')
         x[mask] = None
         return _to_string_column(x)
+    # we rely on numpy for astype conversions (TODO: possible performance hit?)
+    if isinstance(x, vaex.column.ColumnString):
+        x = x.to_numpy()
     return x.astype(dtype)
 
 

@@ -97,3 +97,32 @@ def test_datetime_binary_operations():
     assert (df.x > sample_date).tolist() == list(df.x.values > sample_date)
     assert (df.x <= sample_date).tolist() == list(df.x.values <= sample_date)
     assert (df.x > df.y).tolist() == list(df.x.values > df.y.values)
+
+
+@pytest.mark.skipif(vaex.utils.osname == 'windows',
+                    reason="windows' snprintf seems buggy")
+def test_create_datetime64_column_from_ints():
+    year = np.array([2015, 2015, 2017])
+    month = np.array([1, 2, 10])
+    day = np.array([1, 3, 22])
+    time = np.array([945, 1015, 30])
+    df = vaex.from_arrays(year=year, month=month, day=day, time=time)
+
+    df['hour'] = (df.time // 100 % 24).format('%02d')
+    df['minute'] = (df.time % 100).format('%02d')
+
+    expr = df.year.format('%4d') + '-' + df.month.format('%02d') + '-' + df.day.format('%02d') + 'T' + df.hour + ':' + df.minute
+    assert expr.values.astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
+
+
+def test_create_datetime64_column_from_str():
+    year = np.array(['2015', '2015', '2017'])
+    month = np.array(['01', '02', '10'])
+    day = np.array(['01', '03', '22'])
+    hour = np.array(['09', '10', '00'])
+    minute = np.array(['45', '15', '30'])
+    df = vaex.from_arrays(year=year, month=month, day=day, hour=hour, minute=minute)
+
+    expr = df.year + '-' + df.month + '-' + df.day + 'T' + df.hour + ':' + df.minute
+    assert expr.values.astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
+    assert expr.values.astype('datetime64[ns]').tolist() == expr.astype('datetime64[ns]').tolist()
