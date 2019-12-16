@@ -1,4 +1,4 @@
-# vaex 2.5.0-dev
+# vaex 2.5.0 (2019-12-16)
 
 # vaex-core 1.4.0
    * Performance
