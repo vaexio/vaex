@@ -7,6 +7,8 @@
       * Do not duplicate column when joining DataFrames on a column with the same name [#480](https://github.com/vaexio/vaex/pull/480)
       * Better error messages/stack traces, and work better with debugger. [#488](https://github.com/vaexio/vaex/pull/488)
       * Accept numpy scalars in expressions. [#462](https://github.com/vaexio/vaex/pull/462)
+      * Expression.astype can create datetime64 columns out of (arrow) strings arrays. [#440](https://github.com/vaexio/vaex/pull/440)
+      * Invalid mask access triggered when memory-mapped read only for strings. [#459](https://github.com/vaexio/vaex/pull/459)
    * Features
       * Expressions are not evaluated for filtered data [#483](https://github.com/vaexio/vaex/pull/483) [#496](https://github.com/vaexio/vaex/pull/496) and selections [505](https://github.com/vaexio/vaex/pull/505)
       * Filtering (using df.filter) allows more flexible (and growing/expanding!) filter. [#489](https://github.com/vaexio/vaex/pull/489)
