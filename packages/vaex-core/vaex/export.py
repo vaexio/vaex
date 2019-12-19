@@ -474,7 +474,7 @@ def main(argv):
             if output_ext == ".hdf5":
                 export_hdf5(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort, selection=selection)
             elif output_ext == ".arrow":
-                from vaex_arrow.export import export as export_arrow
+                from vaex.arrow.export import export as export_arrow
                 export_arrow(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort, selection=selection)
             elif output_ext == ".fits":
                 export_fits(dataset, args.output, column_names=columns, progress=update, shuffle=args.shuffle, sort=args.sort, selection=selection)

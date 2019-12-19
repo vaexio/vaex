@@ -176,6 +176,17 @@ class StringOperations(object):
     def __init__(self, expression):
         self.expression = expression
 
+class StructOperations(object):
+    """Struct operations.
+
+    Usually accessed using e.g. `df.name.struct.get('x')`
+    """
+    def __init__(self, expression):
+        self.expression = expression
+
+    def __getitem__(self, fieldname):
+        return self.get(fieldname)
+
 
 class StringOperationsPandas(object):
     """String operations using Pandas Series (much slower)"""
@@ -314,6 +325,11 @@ class Expression(with_metaclass(Meta)):
     def str(self):
         """Gives access to string operations via :py:class:`StringOperations`"""
         return StringOperations(self)
+
+    @property
+    def struct(self):
+        """Gives access to struct operations via :py:class:`StructOperations`"""
+        return StructOperations(self)
 
     @property
     def str_pandas(self):

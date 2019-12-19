@@ -6,7 +6,7 @@ from vaex.column import str_type
 def test_dtype(ds_local):
   ds = ds_local
   for name in ds.column_names:
-    if ds.dtype_evaluate(name) == str_type:
+    if ds.dtype(name) == str_type:
       assert ds[name].to_numpy().dtype.kind in 'OSU'
     else:
       assert ds[name].values.dtype == ds.dtype(ds[name])
@@ -19,9 +19,12 @@ def test_dtypes(ds_local):
 def test_dtype_str():
   df = vaex.from_arrays(x=["foo", "bars"], y=[1,2])
   assert df.dtype(df.x) == str_type
+  assert df.arrow_type(df.x) == pa.string()
   df['s'] = df.y.apply(lambda x: str(x))
   assert df.dtype(df.x) == str_type
   assert df.dtype(df.s) == str_type
+  assert df.arrow_type(df.x) == pa.string()
+  assert df.arrow_type(df.s) == pa.string()
 
   n = np.array(['aap', 'noot'])
   assert vaex.from_arrays(n=n).n.dtype == str_type

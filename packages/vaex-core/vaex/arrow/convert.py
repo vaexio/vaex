@@ -1,9 +1,33 @@
 """Convert between arrow and vaex/numpy columns/arrays without doing memory copies."""
 import pyarrow
+import pyarrow as pa
 import numpy as np
-from vaex.column import ColumnStringArrow
+import vaex.column
 
-def arrow_array_from_numpy_array(array):
+
+def ensure_not_chunked(arrow_array):
+    if isinstance(arrow_array, pa.ChunkedArray):
+        if len(arrow_array.chunks) == 0:
+            return arrow_array.chunks[0]
+        table = pa.Table.from_arrays([arrow_array], ["single"])
+        table_concat = table.combine_chunks()
+        column = table_concat.columns[0]
+        assert column.num_chunks == 1
+        arrow_array = column.chunk(0)
+    return arrow_array
+
+
+def arrow_array_from_numpy_array(array):  # TODO: -=> rename with ensure
+    if isinstance(array, vaex.column.ColumnString):
+        # we make sure it's ColumnStringArrow
+        array = vaex.column._to_string_column(array)
+        if len(array.bytes) < (2**31):  # arrow uses signed ints
+            # if possible, downcast (parquet does not support large strings)
+            array = array.to_arrow(pa.string())
+        else:
+            array = array.to_arrow()
+    if isinstance(array, (pa.Array, pa.ChunkedArray)):
+        return array
     dtype = array.dtype
     mask = None
     if np.ma.isMaskedArray(array):
@@ -22,6 +46,8 @@ from vaex.dataframe import Column
 
 
 def column_from_arrow_array(arrow_array):
+    # TODO: we may be able to pass chunked arrays
+    arrow_array = ensure_not_chunked(arrow_array)
     arrow_type = arrow_array.type
     buffers = arrow_array.buffers()
     if len(buffers) == 2:
@@ -40,13 +66,14 @@ def column_from_arrow_array(arrow_array):
             string_bytes = np.array([], dtype='S1')
         else:
             string_bytes = np.frombuffer(string_bytes, 'S1', len(string_bytes))
-        column = ColumnStringArrow(offsets, string_bytes, len(arrow_array), null_bitmap=null_bitmap)
+        column = vaex.column.ColumnStringArrow(offsets, string_bytes, len(arrow_array), null_bitmap=null_bitmap)
         return column
     else:
         raise TypeError('type unsupported: %r' % arrow_type)
 
 
 def numpy_array_from_arrow_array(arrow_array):
+    arrow_array = ensure_not_chunked(arrow_array)
     arrow_type = arrow_array.type
     buffers = arrow_array.buffers()
     assert len(buffers) == 2

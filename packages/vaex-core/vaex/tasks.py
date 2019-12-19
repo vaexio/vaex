@@ -4,6 +4,7 @@ import numpy as np
 
 import vaex.promise
 from vaex.column import str_type
+from . import array_types
 
 from .utils import (_ensure_strings_from_expressions,
     _ensure_string_from_expression,
@@ -530,6 +531,7 @@ class TaskAggregate(Task):
                     # we pass datetime as int
                     x = x.view('uint64')
             return x
+        blocks = [array_types.to_numpy(block) for block in blocks]
         block_map = {expr: block for expr, block in zip(self.expressions_all, blocks)}
         # we need to make sure we keep some objects alive, since the c++ side does not incref
         # on set_data and set_data_mask

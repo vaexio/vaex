@@ -5,6 +5,8 @@ import six
 import numpy as np
 import pyarrow as pa
 
+import vaex
+
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 if not on_rtd:
     import vaex.strings
@@ -20,7 +22,7 @@ class Column(object):
         return pa.array(self, type=type)
 
 
-supported_column_types = (np.ndarray, pa.Array, Column)
+supported_column_types = (np.ndarray, pa.Array, pa.ChunkedArray, Column)
 
 class ColumnVirtualRange(Column):
     def __init__(self, start, stop, step=1, dtype=None):
@@ -41,7 +43,7 @@ class ColumnVirtualRange(Column):
         return ColumnVirtualRange(self.start + i1 * self.step, self.start + i2 * self.step, self.step, self.dtype)
 
 
-class ColumnSparse(object):
+class ColumnSparse(Column):
     def __init__(self, matrix, column_index):
         self.matrix = matrix
         self.column_index = column_index
@@ -115,11 +117,12 @@ class ColumnIndexed(Column):
 
     def __arrow_array__(self, type=None):
         # TODO: without a copy we get a buserror
-        values = self[:]
-        if hasattr(values, "to_arrow"):
-            return values.to_arrow()
-        else:
-            return pa.array(values)
+        # TODO2: weird, this path is not triggered anymore
+        # values = self[:]
+        # if hasattr(values, "to_arrow"):
+        #     return values.to_arrow()
+        # else:
+        return pa.array(self)
 
     def __getitem__(self, slice):
         start, stop, step = slice.start, slice.stop, slice.step
@@ -200,8 +203,8 @@ class ColumnConcatenatedLazy(Column):
                 if array.type == pa.large_string():
                     return array
                 if array.type == pa.string():
-                    import vaex_arrow.convert
-                    column = vaex_arrow.convert.column_from_arrow_array(array)
+                    import vaex.arrow.convert
+                    column = vaex.arrow.convert.column_from_arrow_array(array)
                     column.indices = column.indices.astype(np.int64)
                     return pa.array(column)
                 else:
@@ -325,8 +328,8 @@ def _to_string_sequence(x, force=True):
     if isinstance(x, ColumnString):
         return x.string_sequence
     elif isinstance(x, pa.Array):
-        import vaex_arrow.convert
-        return vaex_arrow.convert.column_from_arrow_array(x).string_sequence
+        from vaex.arrow import convert
+        return convert.column_from_arrow_array(x).string_sequence
     elif isinstance(x, np.ndarray):
         mask = None
         if np.ma.isMaskedArray(x):
@@ -407,20 +410,25 @@ class ColumnStringArrow(ColumnString):
             raise ValueError('unsupported index type' + str(self.indices.dtype))
 
     def __arrow_array__(self, type=None):
-        if self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize == 8:
-            string_type = pa.large_string()
-        elif self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize == 4:
-            string_type = pa.string()
+        indices = self.indices
+        if indices.dtype.kind == 'i' and indices.dtype.itemsize == 8:
+            if type is None:
+                type = pa.large_string()
+            else:
+                if type == pa.string():
+                    indices = indices.astype(np.int32)
+        elif indices.dtype.kind == 'i' and indices.dtype.itemsize == 4:
+            type = pa.string()
+            if type == pa.large_string():
+                indices = indices.astype(np.int64)
         else:
-            raise ValueError('unsupported index type' + str(self.indices.dtype))
-        assert type in [None, string_type]
-        type = pa.string()
+            raise ValueError('unsupported index type' + str(indices.dtype))
         # TODO: we dealloc the memory in the C++ extension, so we need to copy for now
-        buffers = [None, pa.py_buffer(_asnumpy(self.indices).copy() - self.offset), pa.py_buffer(_asnumpy(self.bytes).view(np.uint8).copy()), ]
+        buffers = [None, pa.py_buffer(_asnumpy(indices).copy() - self.offset), pa.py_buffer(_asnumpy(self.bytes).view(np.uint8).copy()), ]
         if self.null_bitmap is not None:
             assert self.null_offset == 0 #self.offset
             buffers[0] = pa.py_buffer(self.null_bitmap.copy())
-        arrow_array = pa.Array.from_buffers(string_type, self.length, buffers=buffers)
+        arrow_array = pa.Array.from_buffers(type, self.length, buffers=buffers)
         return arrow_array
 
     @property
@@ -495,3 +503,6 @@ class ColumnStringArrow(ColumnString):
 
     def get_mask(self):
         return self.string_sequence.mask()
+
+    def astype(self, type):
+        return self.to_numpy().astype(type)

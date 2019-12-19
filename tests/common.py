@@ -3,6 +3,7 @@ import vaex
 import vaex.webserver
 import numpy as np
 import contextlib
+import pyarrow as pa
 
 import sys
 test_port = 29110 + sys.version_info[0] * 10 + sys.version_info[1]

@@ -14,6 +14,7 @@ import six
 
 scopes = {
     'str': vaex.expression.StringOperations,
+    'struct': vaex.expression.StructOperations,
     'str_pandas': vaex.expression.StringOperationsPandas,
     'dt': vaex.expression.DateTime,
     'td': vaex.expression.TimeDelta
@@ -2062,7 +2063,9 @@ for name in dir(scopes['str']):
             value = method(*args, **kwargs)
             if name in force_string:
                 value = _to_string_column(value.values, force=True)
-            return value
+                return value
+            else:
+                return value.values
         return wrapper
     wrapper = pandas_wrapper()
     wrapper.__doc__ = "Wrapper around pandas.Series.%s" % name
@@ -2121,7 +2124,10 @@ def _astype(x, dtype):
         x = x.to_numpy()
     if isinstance(x, pa.Array):
         x = x.to_pandas().values
-    return x.astype(dtype)
+    y = x.astype(dtype)
+    if vaex.column._is_stringy(y):
+        y = vaex.column._to_string_column(y)
+    return y
 
 
 @register_function(name='isin', on_expression=False)
@@ -2131,6 +2137,14 @@ def _isin(x, values):
         return x.string_sequence.isin(values)
     else:
         return np.isin(x, values)
+
+@register_function(name='get', on_expression=True, scope="struct")
+def struct_get(x, name):
+    assert isinstance(x.type, pa.StructType)
+    for i in range(len(x.type)):
+        if name == x.type[i].name:
+            return x.field(i)
+    return None
 
 
 def add_geo_json(ds, json_or_file, column_name, longitude_expression, latitude_expresion, label=None, persist=True, overwrite=False, inplace=False, mapping=None):

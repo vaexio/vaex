@@ -148,11 +148,9 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 sparse_matrices[id(sparse_matrix)] = sparse_matrix
                 continue
             dtype = dataset.dtype(column_name)
+            shape = (N, ) + dataset._shape_of(column_name)[1:]
             if column_name in dataset.get_column_names(virtual=False):
                 column = dataset.columns[column_name]
-                shape = (N,) + column.shape[1:]
-            else:
-                shape = (N,)
             h5column_output = h5columns_output.require_group(column_name)
             if dtype == str_type:
                 # TODO: if no selection or filter, we could do this

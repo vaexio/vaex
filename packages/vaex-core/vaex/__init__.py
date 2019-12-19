@@ -347,10 +347,10 @@ def from_arrays(**arrays):
     """
     import numpy as np
     import six
-    from .column import Column
+    from .column import Column, supported_column_types
     df = vaex.dataframe.DataFrameArrays("array")
     for name, array in arrays.items():
-        if isinstance(array, Column):
+        if isinstance(array, supported_column_types):
             df.add_column(name, array)
         else:
             array = np.asanyarray(array)
@@ -362,8 +362,8 @@ def from_arrow_table(table):
 
     :rtype: DataFrame
     """
-    from vaex_arrow.convert import vaex_df_from_arrow_table
-    return vaex_df_from_arrow_table(table=table)
+    from vaex.arrow.dataset import from_table
+    return from_table(table=table)
 
 def from_scalars(**kwargs):
     """Similar to from_arrays, but convenient for a DataFrame of length 1.
@@ -737,6 +737,6 @@ def vrange(start, stop, step=1, dtype='f8'):
     return ColumnVirtualRange(start, stop, step, dtype)
 
 def string_column(strings):
-    from vaex_arrow.convert import column_from_arrow_array
+    from vaex.arrow.convert import column_from_arrow_array
     import pyarrow as pa
     return column_from_arrow_array(pa.array(strings))

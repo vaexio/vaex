@@ -19,3 +19,20 @@ def test_evaluate_function_filtered_df():
     df_filtered.add_function('custom_function', custom_func)
     df_filtered['y'] = df_filtered.func.custom_function(df_filtered.x)
     assert df_filtered.y.tolist() == [25, 36, 49, 64, 81]
+
+
+def test_evaluate_types():
+    x = np.arange(10)
+    y = pa.array(x**2)
+    df = vaex.from_arrays(x=x, y=y)
+    assert isinstance(df.columns['x'], np.ndarray)
+    assert isinstance(df.columns['y'], pa.Array)
+
+    assert df.evaluate("x", type=None) is x
+    assert isinstance(df.evaluate("x", type="numpy"), np.ndarray)
+    assert isinstance(df.evaluate("x", type="arrow"), pa.Array)
+
+    assert df.evaluate("y", type=None) is y
+    assert isinstance(df.evaluate("y", type=None), pa.Array) # WIP
+    assert isinstance(df.evaluate("y", type="arrow"), pa.Array)
+    assert isinstance(df.evaluate("y", type="numpy"), np.ndarray)

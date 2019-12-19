@@ -28,9 +28,14 @@ def test_state_variables(ds_local, tmpdir):
     assert len(df.variables) == len(variables) + 1
     var_name = list(set(df.variables) - set(variables))[0]
 
+    df_var = vaex.from_scalars(x=1, y=2)
+    df.add_variable('mydf', df_var)
+
     df.state_write(filename)
 
     df_copy.state_load(filename)
     assert isinstance(df_copy.variables[var_name], np.timedelta64)
     assert df.seconds.tolist() == df_copy.seconds.tolist()
     assert df_copy.variables['dt_var'] == t_test
+    assert df_copy.variables['mydf'].x.tolist() == [1]
+    assert df_copy.variables['mydf'].y.tolist() == [2]

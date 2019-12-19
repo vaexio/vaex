@@ -347,7 +347,11 @@ class StringSequenceBase : public StringSequence {
             py::gil_scoped_release release;
             if(has_null() || others->has_null()) {
                 for(size_t i = 0; i < length; i++) {
-                    if(is_null(i) || others->is_null(i)) {
+                    bool null_left = is_null(i);
+                    bool null_right = others->is_null(i);
+                    if(null_left && null_right) {
+                        m(i) = true;
+                    } else if(null_left || null_right) {
                         m(i) = false;
                     } else {
                         auto str = view(i);

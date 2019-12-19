@@ -105,6 +105,34 @@ class OrdererSetSerializer:
         return value
 
 
+@register
+class DataFrameSerializer:
+    @staticmethod
+    def can_encode(obj):
+        # we may consider serializing remote dataframes as well
+        return isinstance(obj, vaex.dataframe.DataFrameLocal)
+
+    @staticmethod
+    def encode(obj):
+        import vaex.arrow.serialize
+        data = vaex.arrow.serialize.serialize_for_json(obj)
+        clsname = obj.__class__.__name__
+        return {
+            'type': 'vaex.DataFrame',
+            'data': data
+        }
+
+    @staticmethod
+    def can_decode(data):
+        return data.get('type', '') == "vaex.DataFrame"
+
+    @staticmethod
+    def decode(data):
+        import vaex.arrow.serialize
+        df = vaex.arrow.serialize.deserialize_from_json(data["data"])
+        return df
+
+
 def encode(obj):
     for serializer in serializers:
         if serializer.can_encode(obj):
@@ -125,7 +153,7 @@ class VaexJsonEncoder(json.JSONEncoder):
         elif isinstance(obj, np.bytes_):
             return obj.decode('UTF-8')
         elif isinstance(obj, bytes):
-            return str(obj, encoding='utf-8');
+            return str(obj, encoding='utf-8')
         else:
             return super(VaexJsonEncoder, self).default(obj)
 
