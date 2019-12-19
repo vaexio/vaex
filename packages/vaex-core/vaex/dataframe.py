@@ -5140,10 +5140,119 @@ class DataFrameLocal(DataFrame):
         if isinstance(value, ColumnString) and not internal:
             value = value.to_numpy()
         return value
+    
+    def _unfiltered_chunk_slices(self, chunk_size, logical=False):
+        iter = self._unfiltered_chunks(chunk_size, logical=logical)
+        if logical:
+            start, lstart = next(iter)
+            for end, lend in iter:
+                yield start, end, lstart, lend
+                start = end
+                lstart = lend
+        else:
+            start = next(iter)
+            for end in iter:
+                yield start, end
+                start = end
 
-    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, internal=False, parallel=True):
+    def _unfiltered_chunks(self, chunk_size, logical=False):
+        assert chunk_size > 0
+        logical_length = len(self)  # fill cache in filtered
+        if self.filtered:
+            unfiltered_length = self.length_unfiltered()
+            full_mask = self._selection_masks[FILTER_SELECTION_NAME]
+            logical_start = 0
+            logical_end =  min(logical_start + chunk_size, logical_length)
+            raw_index = full_mask.raw_offset(1)
+            # print("fullmask", np.array(full_mask, np.uint8))
+            assert raw_index != -1
+
+            # print("logical", logical_start, logical_end)
+            # print("raw_index", raw_index)
+            if logical:
+                yield raw_index, logical_start
+            else:
+                yield raw_index
+            while logical_start < logical_length:
+                # slice the mask from our offset till end
+                mask = full_mask.view(raw_index, unfiltered_length)
+                # print("mask", np.array(mask, np.uint8))
+                # count how many raw elements we need to skip to get a logical chunk_size
+                raw_offset = mask.raw_offset(logical_end - logical_start)
+                # print("chunk has count", raw_offset + 1)
+                assert raw_offset != -1
+                # assert zero == 0
+                raw_index += raw_offset + 1
+                logical_start = min(logical_start + chunk_size, logical_length)
+                logical_end = min(logical_start + chunk_size, logical_length)
+                if logical:
+                    yield raw_index, logical_start
+                else:
+                    yield raw_index
+                # print("logical", logical_start, logical_end, "of", logical_lengt)
+
+
+            index = logical_start
+            # print(logical_start, unfiltered_start)
+
+
+
+        else:
+            # non-filtered means raw == logical
+            index = 0
+            logical_end = chunk_size
+            if logical:
+                yield index, index
+            else:
+                yield index
+            while index < logical_length:
+                # print(logical_start)
+                index = min(index + chunk_size, logical_length)
+                if logical:
+                    yield index, index
+                else:
+                    yield index
+            # print(logical_start)
+        assert index == logical_length
+
+    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, type=None, parallel=True, chunk_size=None):
+        if chunk_size is not None:
+            return self.evaluate_iterator(expression, s1=i1, s2=i2, out=out, selection=selection, filtered=filtered, type=type, parallel=parallel, chunk_size=chunk_size)
+        else:
+            return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, type=type, parallel=parallel, chunk_size=chunk_size)
+
+    def evaluate_iterator(self, expression, s1=None, s2=None, out=None, selection=None, filtered=True, type=None, parallel=True, chunk_size=None):
+        offset = 0
+        import concurrent.futures
+        if 1:
+            # this is the simple implementation
+            for i1, i2, l1, l2 in self._unfiltered_chunk_slices(chunk_size, logical=True):
+                yield l1, l2, self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, type=type, parallel=parallel, raw=True)
+        # this implementation is smarter
+        # with concurrent.futures.ThreadPoolExecutor(1) as executor:
+        if 0:
+            iter = self._unfiltered_chunk_slices(chunk_size, logical=True)
+            def f(i1, i2):
+                return self._evaluate_implementation(expression, i1=i2, i2=i2, out=out, selection=selection, filtered=filtered, type=type, parallel=parallel, raw=True)
+            previous_i1, previous_i2, previous_l1, previous_l2 = next(iter)
+            # we submit the 1st job
+            previous = executor.submit(f, previous_i1, previous_i2)
+            # previous = f(previous_i1, previous_i2)
+            for i1, i2, l1, l2 in iter:
+                # and we submit the next job before returning the previous, so they run in parallel
+                current = executor.submit(f, i1, i2)
+                # current = f(i1, i2)
+                previous_chunk = previous.result()
+                yield previous_l1, previous_l2, previous_chunk
+                previous = current
+                previous_l1, previous_l2 = l1, l2
+            previous_chunk = previous.result()
+            yield previous_l1, previous_l2, previous_chunk
+
+    def _evaluate_implementation(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, type=None, parallel=True, chunk_size=None, raw=False):
         """The local implementation of :func:`DataFrame.evaluate`"""
         # expression = _ensure_string_from_expression(expression)
+        # print(i1, i2, filtered, self.filtered, type)
         was_list, [expressions] = vaex.utils.listify(expression)
         expressions = vaex.utils._ensure_strings_from_expressions(expressions)
 
@@ -5157,17 +5266,29 @@ class DataFrameLocal(DataFrame):
             if self.filtered and not filtered:
                 df = df.drop_filter()
             if i1 != 0 or i2 != max_stop:
-                df = df[i1:i2]
-            if df != self and parallel:
-                return df.evaluate(expression, out=out, selection=selection, internal=internal, parallel=parallel)
+                if not raw and self.filtered and filtered:
+                    count_check = len(self)  # fill caches and masks
+                    mask = self._selection_masks[FILTER_SELECTION_NAME]
+                    i1, i2 = mask.indices(i1, i2-1)
+                    i2 += 1
+                    import pdb; pdb.set_trace()
+                df = df.trim()
+                # print(df.columns['x'])
+                df.set_active_range(i1, i2)
+                df = df.trim()
+                len(df) # why?
+                # print("x", df.columns['x'])
+            # if df != self and parallel:
+            #     return df.evaluate(expression, i1, i2, out=out, selection=selection, type=type, parallel=parallel, raw=raw)
+        # print("--", i1, i2, max_stop, parallel)
         expression = expressions[0]
         # here things are simpler or we don't go parallel
         mask = None
 
         if parallel:
-            use_filter = self.filtered and filtered
+            use_filter = df.filtered and filtered
 
-            length = self.length_unfiltered()
+            length = df.length_unfiltered()
             arrays = {}
             # maps to a dict of start_index -> apache arrow array (a chunk)
             chunks_map = {}
@@ -5195,14 +5316,16 @@ class DataFrameLocal(DataFrame):
                             arrays[expression] = np.ma.empty(shapes.get(expression, length), dtype=dtypes[expression])
                         else:
                             arrays[expression] = np.zeros(shapes.get(expression, length), dtype=dtypes[expression])
+                    # if df.is_masked(expression):
+                    #     arrays[expression] = np.ma.empty(shapes.get(expression, length), dtype=dtypes[expression])
                     else:
                         # quick path, we can just copy the column
                         arrays[expression] = df.columns[expression]
-                        start, end = df._index_start+i1, df._index_start+i2
+                        start, end = df._index_start, df._index_end
                         if start != 0 or end != len(arrays[expression]):
                             arrays[expression] = arrays[expression][start:end]
-                        if isinstance(arrays[expression], vaex.column.Column):
-                            arrays[expression] = arrays[expression][0:end-start]  # materialize fancy columns (lazy, indexed)
+                        # if isinstance(arrays[expression], vaex.column.Column):
+                        #     arrays[expression] = arrays[expression][0:end-start]  # materialize fancy columns (lazy, indexed)
                         expression_to_evaluate.remove(expression)
             def assign(thread_index, i1, i2, *blocks):
                 for i, expr in enumerate(expression_to_evaluate):
@@ -5214,6 +5337,8 @@ class DataFrameLocal(DataFrame):
                         arrays[expr][i1:i2] = blocks[i]
             if expression_to_evaluate:
                 df.map_reduce(assign, lambda *_: None, expression_to_evaluate, ignore_filter=False, selection=selection, pre_filter=use_filter, info=True, to_numpy=False)
+
+            # df.map_reduce(assign, lambda *_: None, expressions, ignore_filter=False, selection=selection, pre_filter=use_filter, info=True, to_numpy=False)
             def finalize_result(expression):
                 if expression in chunks_map:
                     # put all chunks in order

@@ -1,5 +1,16 @@
-import vaex
-import numpy as np
+from common import *
+
+
+@pytest.mark.parametrize("chunk_size", list(range(1, 13)))
+def test_evaluate_iterator(df_local, chunk_size):
+    df = df_local
+    x = df.x.to_numpy()
+    total = 0
+    for i1, i2, chunk in df_local.evaluate('x', chunk_size=chunk_size):
+        assert x[i1:i2].tolist() == chunk.tolist()
+        total += chunk.sum()
+    assert total == x.sum()
+
 
 def test_evaluate_function_filtered_df():
     # Custom function to be applied to a filtered DataFrame
