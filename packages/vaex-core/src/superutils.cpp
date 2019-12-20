@@ -46,6 +46,22 @@ public:
         }
         return {start, end};
     }
+    int64_t raw_offset(int64_t logical_offset) {
+        // if(offset >= length) {
+        //     throw std::runtime_error("offset should be smaller than length");
+        // }
+        int64_t counted = 0;
+        int64_t start = -1, end = -1;
+        for(int64_t i = 0; i < length; i++) {
+            if(mask_data[i] == 1) {
+                counted++;
+                if(counted == logical_offset) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
     void reset() {
         py::gil_scoped_release release;
         std::fill(mask_data, mask_data+length, 2);
@@ -154,6 +170,7 @@ PYBIND11_MODULE(superutils, m) {
             }
         )
         .def("indices", &Mask::indices)
+        .def("raw_offset", &Mask::raw_offset)
         .def("count", &Mask::count)
         .def("first", &Mask::first)
         .def("last", &Mask::last)

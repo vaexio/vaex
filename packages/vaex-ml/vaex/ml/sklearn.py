@@ -201,7 +201,6 @@ class IncrementalPredictor(state.HasState):
 
         # Number of batches to send (or training rounds)
         N_total = len(df)
-        num_batches = (N_total + self.batch_size -1) // self.batch_size  # round up int
 
         # For slicing the df
         index_min = 0
@@ -213,17 +212,17 @@ class IncrementalPredictor(state.HasState):
         progressbar = vaex.utils.progressbars(progress)
 
         # Main loop: pass on batches to the model
-        for i, batch in enumerate(range(num_batches)):
-            # Get data for this batch
-            X = df[index_min:index_max][self.features].values
-            y = df[index_min:index_max][target].values
-
+        # for i, batch in enumerate(range(num_batches)):
+        expressions = self.features + [target]
+        for i1, i2, chunks in df.evaluate_iterator(expressions, chunk_size=self.batch_size):
+            X = np.array(chunks[:-1]).T  # the most efficient way acctually depends on the algorithm (row of column based access)
+            y = np.array(chunks[-1], copy=False)
             # For reference: tqdm version was - would be nice to have an informative progress bar
             # for j in tqdm(range(num_epochs), leave=False, desc='Iterating over batch...'):
 
             # Loop over for each epoch
             for j, epoch in enumerate(range(self.num_epochs)):
-                progressbar((i * self.num_epochs + j) / (num_batches * self.num_epochs))
+                progressbar((i2 * self.num_epochs + j) / (N_total * self.num_epochs))
                 if self.shuffle:
                     shuffle_index = np.arange(len(X))
                     np.random.shuffle(shuffle_index)
