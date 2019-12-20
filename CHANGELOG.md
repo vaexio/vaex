@@ -2,7 +2,11 @@
 
 # vaex-core 1.5.0-dev
    * Features
-      * df.evalute_iterator for efficient parallel chunked evaluation [#???](https://github.com/vaexio/vaex/pull/???)
+      * df.evalute_iterator for efficient parallel chunked evaluation [#515](https://github.com/vaexio/vaex/pull/515)
+
+# vaex-ml 0.7.1-dev
+   * Performance
+      * IncrementalPredictor uses parallel chunked support (2x speedup possible) [#515](https://github.com/vaexio/vaex/pull/515)
 
 # vaex 2.5.0 (2019-12-16)
 
