@@ -1,3 +1,9 @@
+# vaex 2.6.0-dev (unreleased)
+
+# vaex-core 1.5.0-dev
+   * Features
+      * df.evalute_iterator for efficient parallel chunked evaluation [#???](https://github.com/vaexio/vaex/pull/???)
+
 # vaex 2.5.0 (2019-12-16)
 
 # vaex-core 1.4.0

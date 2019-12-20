@@ -1,2 +1,2 @@
-__version_tuple__ = (2, 5, 0)
-__version__ = '2.5.0'
+__version_tuple__ = (2, 6, 0, "dev")
+__version__ = '2.6.0-dev'

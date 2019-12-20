@@ -62,24 +62,45 @@ def deprecated(reason):
 
 
 def subdivide(length, parts=None, max_length=None):
-    """Generates a list with start end stop indices of length parts, [(0, length/parts), ..., (.., length)]"""
-    if max_length:
-        i1 = 0
-        done = False
-        while not done:
-            i2 = min(length, i1 + max_length)
-            # print i1, i2
-            yield i1, i2
-            i1 = i2
-            if i1 == length:
-                done = True
-    else:
-        part_length = int(math.ceil(float(length) / parts))
-        # subblock_count = math.ceil(total_length/subblock_size)
-        # args_list = []
-        for index in range(parts):
-            i1, i2 = index * part_length, min(length, (index + 1) * part_length)
-            yield i1, i2
+    """Yields index tuple (i1, i2) that subdivide an array into parts of max_length"""
+    if max_length is None:
+        max_length = (length + parts - 1) / parts
+    i1 = 0
+    while i1 < length:
+        i2 = min(i1 + max_length, length)
+        yield i1, i2
+        i1 = i2
+    assert i1 == length
+
+
+def subdivide_mask(mask, parts=None, max_length=None, logical_length=None):
+    """Yields index tuple (l1, l2, i1, i2) that subdivide an array into parts such that it contains max_length True values in mask
+
+    l1 an l2 refer to the logical indices, similar as :func:`subdivide`, while i1, and i2 refer to the 'raw' indices, such that
+    `np.sum(mask[i1:i2]) == logical_length` (except for the last element).
+    """
+    if logical_length is None:
+        logical_length = np.asarray(mask).sum()
+    raw_length = len(np.asarray(mask))
+    if max_length is None:
+        max_length = (logical_length + parts - 1) / parts
+    full_mask = mask
+    logical_start = 0
+    logical_end =  min(logical_start + max_length, logical_length)
+    raw_index = full_mask.raw_offset(1)
+    assert raw_index != -1
+
+    while logical_start < logical_length:
+        # slice the mask from our offset till end
+        mask = full_mask.view(raw_index, raw_length)
+        # count how many raw elements we need to skip to get a logical chunk_size
+        raw_offset = mask.raw_offset(logical_end - logical_start)
+        assert raw_offset != -1
+        next_raw_index = raw_index + raw_offset + 1
+        yield logical_start, logical_end, raw_index, next_raw_index
+        raw_index = next_raw_index
+        logical_start = min(logical_start + max_length, logical_length)
+        logical_end = min(logical_start + max_length, logical_length)
 
 
 def submit_subdivide(thread_count, f, length, max_length):
