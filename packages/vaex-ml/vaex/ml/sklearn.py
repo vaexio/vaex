@@ -1,16 +1,15 @@
-import pickle
-import base64
-import tempfile
 import warnings
 
-import traitlets
 import numpy as np
+
+import traitlets
 
 import vaex
 import vaex.serialize
-from vaex.ml import state
 from vaex.ml import generate
+from vaex.ml import state
 from vaex.ml.state import serialize_pickle
+
 
 @vaex.serialize.register
 @generate.register
@@ -202,7 +201,7 @@ class IncrementalPredictor(state.HasState):
       4  -2.65534     -1.61991
     '''
 
-    model = traitlets.Any(default_value=None, allow_none=True, help='A scikit-learn estimator with `.fit_predict` method.').tag(**serialize_pickle)
+    model = traitlets.Any(default_value=None, allow_none=True, help='A scikit-learn estimator with a `.fit_predict` method.').tag(**serialize_pickle)
     features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
     batch_size = traitlets.Int(default_value=1_000_000, allow_none=False, help='Number of samples to be sent to the model in each batch.')
     num_epochs = traitlets.Int(default_value=1, allow_none=False, help='Number of times each batch is sent to the model.')
