@@ -7,6 +7,8 @@
 # vaex-ml 0.7.1-dev
    * Performance
       * IncrementalPredictor uses parallel chunked support (2x speedup possible) [#515](https://github.com/vaexio/vaex/pull/515)
+   * Fixes
+      * Improvements in CI [#525](https://github.com/vaexio/vaex/pull/525)
 
 # vaex 2.5.0 (2019-12-16)
 
