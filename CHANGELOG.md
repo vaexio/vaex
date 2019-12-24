@@ -7,6 +7,7 @@
 # vaex-ml 0.7.1-dev
    * Performance
       * IncrementalPredictor uses parallel chunked support (2x speedup possible) [#515](https://github.com/vaexio/vaex/pull/515)
+   * Fix
       * IncrementalPredictor: epochs now iterate over the whole DataFrame instead on a batch level [#523](https://github.com/vaexio/vaex/pull/523)
 
 # vaex 2.5.0 (2019-12-16)
