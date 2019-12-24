@@ -7,6 +7,7 @@
 # vaex-ml 0.7.1-dev
    * Performance
       * IncrementalPredictor uses parallel chunked support (2x speedup possible) [#515](https://github.com/vaexio/vaex/pull/515)
+      * rename `vaex.ml.sklearn.SKLearnPredictor` to `vaex.ml.sklearn.Predictor` [#524](https://github.com/vaexio/vaex/pull/524)
 
 # vaex 2.5.0 (2019-12-16)
 
