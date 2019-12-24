@@ -199,41 +199,30 @@ class IncrementalPredictor(state.HasState):
         # Check whether the model is appropriate
         assert hasattr(self.model, 'partial_fit'), 'The model must have a `.partial_fit` method.'
 
-        # Number of batches to send (or training rounds)
-        N_total = len(df)
-
-        # For slicing the df
-        index_min = 0
-        index_max = self.batch_size
-
-        # For reference: tqdm version was - would be nice to have an informative progress bar
-        # for i in tqdm(range(num_batches), leave=True, desc='Training in batches...'):
+        # Number samples the training DataFrame
+        n_samples = len(df)
+        # Number of batches per epoch
+        num_batches = (n_samples + self.batch_size -1) // self.batch_size  # round up int
 
         progressbar = vaex.utils.progressbars(progress)
 
-        # Main loop: pass on batches to the model
-        # for i, batch in enumerate(range(num_batches)):
+        # Portions of the DataFrame to evaluate
         expressions = self.features + [target]
-        for i1, i2, chunks in df.evaluate_iterator(expressions, chunk_size=self.batch_size):
-            X = np.array(chunks[:-1]).T  # the most efficient way acctually depends on the algorithm (row of column based access)
-            y = np.array(chunks[-1], copy=False)
-            # For reference: tqdm version was - would be nice to have an informative progress bar
-            # for j in tqdm(range(num_epochs), leave=False, desc='Iterating over batch...'):
 
-            # Loop over for each epoch
-            for j, epoch in enumerate(range(self.num_epochs)):
-                progressbar((i2 * self.num_epochs + j) / (N_total * self.num_epochs))
+        # Loop over for each epoch
+        for epoch in range(self.num_epochs):
+            # Loop iterating over the DataFrame
+            for i1, i2, chunks in df.evaluate_iterator(expressions, chunk_size=self.batch_size):
+                progressbar((n_samples * epoch + i1) / (self.num_epochs * n_samples))
+                X = np.array(chunks[:-1]).T  # the most efficient way depends on the algorithm (row of column based access)
+                y = np.array(chunks[-1], copy=False)
+
                 if self.shuffle:
                     shuffle_index = np.arange(len(X))
                     np.random.shuffle(shuffle_index)
                     X = X[shuffle_index]
                     y = y[shuffle_index]
 
-                # train the model
+                # Train the model
                 self.model.partial_fit(X, y)
-
-            # update the slicing indices to be ready for the next batch
-            index_min += self.batch_size
-            index_max += self.batch_size
-            index_max = min(N_total, index_max)  # clip upper value
         progressbar(1.0)
