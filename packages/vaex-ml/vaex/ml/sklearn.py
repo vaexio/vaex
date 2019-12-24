@@ -1,6 +1,7 @@
 import pickle
 import base64
 import tempfile
+import warnings
 
 import traitlets
 import numpy as np
@@ -11,10 +12,9 @@ from vaex.ml import state
 from vaex.ml import generate
 from vaex.ml.state import serialize_pickle
 
-
 @vaex.serialize.register
 @generate.register
-class SKLearnPredictor(state.HasState):
+class Predictor(state.HasState):
     '''This class wraps any scikit-learn estimator (a.k.a predictor) making it a vaex pipeline object.
 
     By wrapping any scikit-learn estimators with this class, it becoes a vaex
@@ -32,12 +32,12 @@ class SKLearnPredictor(state.HasState):
     Example:
 
     >>> import vaex.ml
-    >>> from vaex.ml.sklearn import SKLearnPredictor
+    >>> from vaex.ml.sklearn import Predictor
     >>> from sklearn.linear_model import LinearRegression
     >>> df = vaex.ml.datasets.load_iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length']
     >>> df_train, df_test = vaex.ml.train_test_split(df)
-    >>> model = SKLearnPredictor(model=LinearRegression(), features=features, prediction_name='pred')
+    >>> model = Predictor(model=LinearRegression(), features=features, prediction_name='pred')
     >>> model.fit(df_train, df_train.petal_width)
     >>> df_train = model.transform(df_train)
     >>> df_train.head(3)
@@ -95,6 +95,54 @@ class SKLearnPredictor(state.HasState):
         X = df[self.features].values
         y = df.evaluate(target)
         self.model.fit(X=X, y=y, **kwargs)
+
+
+@vaex.serialize.register
+@generate.register
+class SKLearnPredictor(Predictor):
+    '''This class is deprecated and it wil will be removed in vaex-ml 0.8. Please use vaex.ml.sklearn.Predictor instead.
+
+    This class wraps any scikit-learn estimator (a.k.a predictor) making it a vaex pipeline object.
+
+    By wrapping any scikit-learn estimators with this class, it becoes a vaex
+    pipeline object. Thus, it can take full advantage of the serialization and
+    pipeline system of vaex. One can use the `predict` method to get a numpy
+    array as an output of a fitted estimator, or the `transform` method do add
+    such a prediction to a vaex DataFrame as a virtual column.
+
+    Note that a full memory copy of the data used is created when the `fit` and
+    `predict` are called. The `transform` method is evaluated lazily.
+
+    The scikit-learn estimators themselves are not modified at all, they are
+    taken from your local installation of scikit-learn.
+
+    Example:
+
+    >>> import vaex.ml
+    >>> from vaex.ml.sklearn import SKLearnPredictor
+    >>> from sklearn.linear_model import LinearRegression
+    >>> df = vaex.ml.dataset00.load_iris()
+    >>> features = ['sepal_width', 'petal_length', 'sepal_length']
+    >>> df_train, df_test = vaex.ml.train_test_split(df)
+    >>> model = SKLearnPredictor(model=LinearRegression(), features=features, prediction_name='pred')
+    >>> model.fit(df_train, df_train.petal_width)
+    >>> df_train = model.transform(df_train)
+    >>> df_train.head(3)
+     #    sepal_length    sepal_width    petal_length    petal_width    class_      pred
+     0             5.4            3               4.5            1.5         1  1.64701
+     1             4.8            3.4             1.6            0.2         0  0.352236
+     2             6.9            3.1             4.9            1.5         1  1.59336
+    >>> df_test = model.transform(df_test)
+    >>> df_test.head(3)
+     #    sepal_length    sepal_width    petal_length    petal_width    class_     pred
+     0             5.9            3               4.2            1.5         1  1.39437
+     1             6.1            3               4.6            1.4         1  1.56469
+     2             6.6            2.9             4.6            1.3         1  1.44276
+    '''
+
+    warnings.warn(message='''This class is deprecated and it wil will be removed in vaex-ml 0.8.
+                  Please use vaex.ml.sklearn.Predictor instead.''',
+                  category=DeprecationWarning)
 
 
 @vaex.serialize.register

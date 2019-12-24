@@ -1,7 +1,7 @@
 import pytest
 import vaex
 pytest.importorskip("sklearn")
-from vaex.ml.sklearn import SKLearnPredictor, IncrementalPredictor
+from vaex.ml.sklearn import Predictor, IncrementalPredictor
 
 import numpy as np
 
@@ -37,7 +37,7 @@ def test_sklearn_estimator():
 
     train, test = ds.ml.train_test_split(verbose=False)
 
-    model = SKLearnPredictor(model=LinearRegression(), features=features, prediction_name='pred')
+    model = Predictor(model=LinearRegression(), features=features, prediction_name='pred')
     model.fit(train, train.petal_width)
     prediction = model.predict(test)
     test = model.transform(test)
@@ -58,7 +58,7 @@ def test_sklearn_estimator_virtual_columns():
     ds['z'] = ds.petal_width * 1
     train, test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['x', 'y', 'z']
-    model = SKLearnPredictor(model=LinearRegression(), features=features, prediction_name='pred')
+    model = Predictor(model=LinearRegression(), features=features, prediction_name='pred')
     model.fit(ds, ds.w)
     ds = model.transform(ds)
     assert ds.pred.values.shape == (150,)
@@ -68,14 +68,14 @@ def test_sklearn_estimator_serialize(tmpdir):
     ds = vaex.ml.datasets.load_iris()
     features = ['sepal_length', 'sepal_width', 'petal_length']
 
-    model = SKLearnPredictor(model=LinearRegression(), features=features, prediction_name='pred')
+    model = Predictor(model=LinearRegression(), features=features, prediction_name='pred')
     model.fit(ds, ds.petal_width)
 
     pipeline = vaex.ml.Pipeline([model])
     pipeline.save(str(tmpdir.join('test.json')))
     pipeline.load(str(tmpdir.join('test.json')))
 
-    model = SKLearnPredictor(model=LinearRegression(), features=features, prediction_name='pred')
+    model = Predictor(model=LinearRegression(), features=features, prediction_name='pred')
     model.fit(ds, ds.petal_width)
 
     model.state_set(model.state_get())
@@ -97,7 +97,7 @@ def test_sklearn_estimator_regression_validation():
     for model in models_regression:
 
         # vaex
-        vaex_model = SKLearnPredictor(model=model, features=features, prediction_name='pred')
+        vaex_model = Predictor(model=model, features=features, prediction_name='pred')
         vaex_model.fit(train, train.petal_width)
         test = vaex_model.transform(test)
 
@@ -122,7 +122,7 @@ def test_sklearn_estimator_pipeline():
     st = train.ml.state_transfer()
     # now apply the model
     features = ['sepal_virtual', 'petal_scaled']
-    model = SKLearnPredictor(model=LinearRegression(), features=features, prediction_name='pred')
+    model = Predictor(model=LinearRegression(), features=features, prediction_name='pred')
     model.fit(train, train.petal_width)
     # Create a pipeline
     pipeline = vaex.ml.Pipeline([st, model])
@@ -151,7 +151,7 @@ def test_sklearn_estimator_classification_validation():
     for model in models_classification:
 
         # vaex
-        vaex_model = SKLearnPredictor(model=model, features=features, prediction_name='pred')
+        vaex_model = Predictor(model=model, features=features, prediction_name='pred')
         vaex_model.fit(train, train.survived)
         test = vaex_model.transform(test)
 
