@@ -104,3 +104,13 @@ def test_sliced_concat(i1, length, df_concat):
     x = df_concat.x.tolist()
     df = df_concat[i1:i2]
     assert df.x.tolist() == x[i1:i2]
+
+
+def test_concat_missing_values():
+    df1 = vaex.from_arrays(x=[1, 2, 3], y=[np.nan, 'b', 'c'])
+    df2 = vaex.from_arrays(x=[4, 5, np.nan], y=['d', 'e', 'f'])
+    df = vaex.concat([df1, df2])
+
+    repr(df.head(4))
+    repr(df.tail(4))
+    assert len(df) == 6
