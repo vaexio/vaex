@@ -224,3 +224,4 @@ from .transformations import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustS
 from .transformations import LabelEncoder, OneHotEncoder, FrequencyEncoder
 from .transformations import CycleTransformer
 from .transformations import BayesianTargetEncoder
+from .transformations import WeightOfEvidenceEncoder

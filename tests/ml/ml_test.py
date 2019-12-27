@@ -304,3 +304,60 @@ def test_bayesian_target_encoder(tmpdir):
 
     df_test.enc_x1.tolist() == [0.6, 0.4, 0.0]
     df_test.enc_x2.tolist() == [0.5, 0.5, 0.0]
+
+@pytest.mark.parametrize("as_bool", [False, True])
+def test_weight_of_evidence_encoder(tmpdir, as_bool):
+    y = [1, 1, 1, 1, 1, 0, 0, 1]
+    if as_bool:
+        y = [bool(k) for k in y]
+    df_train = vaex.from_arrays(x=['a', 'a',  'b', 'b', 'b', 'b', 'c', 'c'],
+                                y=y)
+    df_test = vaex.from_arrays(x=['a', 'b', 'c', 'd'])
+
+    trans = vaex.ml.WeightOfEvidenceEncoder(target='y', features=['x'])
+    df_train = trans.fit_transform(df_train)
+    np.testing.assert_array_almost_equal(df_train.woe_encoded_x.values,
+                                         [13.815510, 13.815510, 1.098612, 1.098612, 1.098612, 1.098612, 0., 0.])
+    assert trans.mappings_ == {'x': {'a': 13.815510557964274, 'b': 1.0986122886681098, 'c': 0.0}}
+
+    state_path = str(tmpdir.join('state.json'))
+    df_train.state_write(state_path)
+    df_test.state_load(state_path)
+    np.testing.assert_array_almost_equal(df_test.woe_encoded_x.values, [13.815510, 1.098612, 0, np.nan])
+
+def test_weight_of_evidence_encoder_bad_values():
+    y = [1, 2]
+    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    trans = vaex.ml.WeightOfEvidenceEncoder(target='y', features=['x'])
+    with pytest.raises(ValueError):
+        trans.fit_transform(df)
+
+    # masked values in target should be ignored
+    y = np.ma.array([1, 0], mask=[False, True])
+    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    trans.fit_transform(df)
+
+    # nan values in target should be ignored
+    y = [1, np.nan]
+    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    trans.fit_transform(df)
+
+    # all 1's
+    y = [1, 1]
+    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    trans.fit_transform(df)
+
+    # all 0's
+    y = [0, 0]
+    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    trans.fit_transform(df)
+
+    # all nan
+    y = [np.nan, np.nan]
+    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    trans.fit_transform(df)
+
+    # masked values in target should be ignored
+    y = np.ma.array([1, 0], mask=[True, True])
+    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    trans.fit_transform(df)
