@@ -222,3 +222,4 @@ class DataFrameAccessorML(object):
 from .transformations import PCA
 from .transformations import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
 from .transformations import LabelEncoder, OneHotEncoder, FrequencyEncoder
+from .transformations import CycleTransformer

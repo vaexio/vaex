@@ -573,3 +573,64 @@ class RobustScaler(Transformer):
                 expr = expr / self.scale_[i]
             copy[name] = expr
         return copy
+
+
+@register
+@generate.register
+class CycleTransformer(Transformer):
+    '''A strategy for transforming cyclical features (e.g. angles, time).
+
+    Think of each feature as an angle of a unit circle in polar coordinates,
+    and then and then obtaining the x and y coordinate projections,
+    or the cos and sin components respectively.
+
+    Suitable for a variaty of machine learning tasks.
+    It preserves the cyclical continuity of the feature.
+    Inspired by: http://blog.davidkaleko.com/feature-engineering-cyclical-features.html
+
+    Example:
+
+    >>> import vaex
+    >>> import vaex.ml
+    >>> df = vaex.from_arrays(days=[0, 1, 2, 3, 4, 5, 6])
+    >>> cyctrans = vaex.ml.CycleTransformer(n=7, features=['days'])
+    >>> cyctrans.fit_transform(df)
+      #    days     days_x     days_y
+      0       0   1          0
+      1       1   0.62349    0.781831
+      2       2  -0.222521   0.974928
+      3       3  -0.900969   0.433884
+      4       4  -0.900969  -0.433884
+      5       5  -0.222521  -0.974928
+      6       6   0.62349   -0.781831
+    '''
+    n = traitlets.CInt(allow_none=False, help='The number of elements in one cycle.')
+    prefix_x = traitlets.Unicode(default_value="", help='Prefix for the x-component of the transformed features.').tag(ui='Text')
+    prefix_y = traitlets.Unicode(default_value="", help='Prefix for the y-component of the transformed features.').tag(ui='Text')
+    suffix_x = traitlets.Unicode(default_value="_x", help='Suffix for the x-component of the transformed features.').tag(ui='Text')
+    suffix_y = traitlets.Unicode(default_value="_y", help='Suffix for the y-component of the transformed features.').tag(ui='Text')
+
+    def fit(self, df):
+        '''
+        Fit a CycleTransformer to the DataFrame.
+
+        This is a dummy method, as it is not needed for the transformation to be applied.
+
+        :param df: A vaex DataFrame.
+        '''
+        pass
+
+    def transform(self, df):
+        '''
+        Transform a DataFrame with a CycleTransformer.
+
+        :param df: A vaex DataFrame.
+        '''
+        copy = df.copy()
+        for feature in self.features:
+            name_x = self.prefix_x + feature + self.suffix_x
+            copy[name_x] = (np.cos(2 * np.pi * copy[feature] / self.n))
+            name_y = self.prefix_y + feature + self.suffix_y
+            copy[name_y] = (np.sin(2 * np.pi * copy[feature] / self.n))
+
+        return copy
