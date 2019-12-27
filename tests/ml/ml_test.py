@@ -282,3 +282,25 @@ def test_cyclical_transformer(tmpdir):
     df_test.state_load(state_path)
     np.testing.assert_array_almost_equal(df_test.pref_hour_x.values, [-1, 1, 0.707107, -0.707107])
     np.testing.assert_array_almost_equal(df_test.pref_hour_y.values, [0, 0, -0.707107, -0.707107])
+
+
+def test_bayesian_target_encoder(tmpdir):
+    df_train = vaex.from_arrays(x1=['a', 'a', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'b'],
+                                x2=['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p', 'q', 'q'],
+                                y=[1, 1, 1, 1, 0, 0, 0, 0, 0, 1])
+    df_test = vaex.from_arrays(x1=['a', 'b', 'c'],
+                               x2=['p', 'q', 'w'])
+
+    target_encoder = vaex.ml.BayesianTargetEncoder(target='y', features=['x1', 'x2'], unseen='zero', prefix='enc_', weight=10)
+    df_train = target_encoder.fit_transform(df_train)
+
+    assert df_train.enc_x1.tolist() == [0.6, 0.6, 0.6, 0.6, 0.6, 0.4, 0.4, 0.4, 0.4, 0.4]
+    assert df_train.enc_x2.tolist() == [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+    assert target_encoder.mappings_ == {'x1': {'a': 0.6, 'b': 0.4}, 'x2': {'p': 0.5, 'q': 0.5}}
+
+    state_path = str(tmpdir.join('state.json'))
+    df_train.state_write(state_path)
+    df_test.state_load(state_path)
+
+    df_test.enc_x1.tolist() == [0.6, 0.4, 0.0]
+    df_test.enc_x2.tolist() == [0.5, 0.5, 0.0]
