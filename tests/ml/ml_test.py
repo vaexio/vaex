@@ -269,15 +269,16 @@ def test_robust_scaler():
 
 
 def test_cyclical_transformer(tmpdir):
-    df_train = vaex.from_arrays(day=[0, 1, 2, 3, 4, 5, 6, 6, 5, 4, 3, 2, 1, 0])
-    df_test = vaex.from_arrays(day=[0, 6, 1, 5, 2, 4, 3])
+    df_train = vaex.from_arrays(hour=[0, 3, 6])
+    df_test = vaex.from_arrays(hour=[12, 24, 21, 15])
 
-    trans = vaex.ml.CycleTransformer(n=7, features=['day'], prefix_x='pref_', prefix_y='pref_')
-    df_train = trans.transform(df_train)
+    trans = vaex.ml.CycleTransformer(n=24, features=['hour'], prefix_x='pref_', prefix_y='pref_')
+    df_train = trans.fit_transform(df_train)
+    np.testing.assert_array_almost_equal(df_train.pref_hour_x.values, [1, 0.707107, 0])
+    np.testing.assert_array_almost_equal(df_train.pref_hour_y.values, [0, 0.707107, 1])
 
     state_path = str(tmpdir.join('state.json'))
     df_train.state_write(state_path)
     df_test.state_load(state_path)
-
-    assert set(df_test.pref_day_x.unique()) == set(df_train.pref_day_x.unique())
-    assert set(df_test.pref_day_y.unique()) == set(df_train.pref_day_y.unique())
+    np.testing.assert_array_almost_equal(df_test.pref_hour_x.values, [-1, 1, 0.707107, -0.707107])
+    np.testing.assert_array_almost_equal(df_test.pref_hour_y.values, [0, 0, -0.707107, -0.707107])
