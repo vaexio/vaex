@@ -228,6 +228,11 @@ class IncrementalPredictor(state.HasState):
                     X = X[shuffle_index]
                     y = y[shuffle_index]
 
-                # Train the model
-                self.model.partial_fit(X, y)
+                # train the model
+                self.model.partial_fit(X, y, **kwargs)
+
+            # update the slicing indices to be ready for the next batch
+            index_min += self.batch_size
+            index_max += self.batch_size
+            index_max = min(N_total, index_max)  # clip upper value
         progressbar(1.0)
