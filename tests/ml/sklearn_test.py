@@ -161,7 +161,7 @@ def test_sklearn_estimator_classification_validation():
 
         assert np.all(skl_pred == test.pred.values)
 
-def test_sklearn_incremental_predictor():
+def test_sklearn_incremental_predictor_regression():
     df = vaex.example()
     df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
 
@@ -186,6 +186,34 @@ def test_sklearn_incremental_predictor():
 
     pred_in_memory = incremental.predict(df_test)
     np.testing.assert_array_almost_equal(pred_in_memory, df_test.pred.values, decimal=1)
+
+
+def test_sklearn_incremental_predictor_classification():
+    df = vaex.ml.datasets.load_iris_1e5()
+    df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
+
+    features = df_train.column_names[:4]
+    target = 'class_'
+
+    incremental = IncrementalPredictor(model=SGDClassifier(learning_rate='constant', eta0=0.01),
+                                       features=features,
+                                       batch_size=10_000,
+                                       num_epochs=3,
+                                       shuffle=False,
+                                       prediction_name='pred')
+
+    incremental.fit(df=df_train, target=target, classes=[0, 1, 2])
+    df_train = incremental.transform(df_train)
+
+    # State transfer
+    state = df_train.state_get()
+    df_test.state_set(state)
+
+    assert df_test.column_count() == 7
+    assert df_test.pred.values.shape == (10050,)
+
+    pred_in_memory = incremental.predict(df_test)
+    np.testing.assert_array_equal(pred_in_memory, df_test.pred.values)
 
 
 def test_sklearn_incremental_predictor_serialize(tmpdir):
