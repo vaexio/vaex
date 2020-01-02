@@ -210,7 +210,7 @@ def test_sklearn_incremental_predictor_classification():
     state = df_train.state_get()
     df_test.state_set(state)
 
-    assert df_test.column_count() == 7
+    assert df_test.column_count() == 6
     assert df_test.pred.values.shape == (10050,)
 
     pred_in_memory = incremental.predict(df_test)
