@@ -161,6 +161,7 @@ def test_sklearn_estimator_classification_validation():
 
         assert np.all(skl_pred == test.pred.values)
 
+
 def test_sklearn_incremental_predictor_regression():
     df = vaex.example()
     df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
@@ -260,6 +261,7 @@ def test_sklearn_incremental_predictor_partial_fit_calls(batch_size, num_epochs)
         def __init__(self):
             self.n_samples_ = 0
             self.n_partial_fit_calls_ = 0
+
         def partial_fit(self, X, y):
             self.n_samples_ += X.shape[0]
             self.n_partial_fit_calls_ += 1
