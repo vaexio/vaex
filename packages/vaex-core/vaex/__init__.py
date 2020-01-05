@@ -1,7 +1,7 @@
 """
 Vaex is a library for dealing with larger than memory DataFrames (out of core).
 
-The most important class (datastructure) in vaex is the :class:`.DataFrame`. A DataFrame is obtained by either, opening
+The most important class (datastructure) in vaex is the :class:`.DataFrame`. A DataFrame is obtained by either opening
 the example dataset:
 
 >>> import vaex
@@ -21,12 +21,12 @@ Or connecting to a remove server:
 
 A few strong features of vaex are:
 
- * Performance: Works with huge tabular data, process over a billion (> 10:sup:`9`) rows/second.
+ * Performance: works with huge tabular data, process over a billion (> 10\\ :sup:`9`\\ ) rows/second.
  * Expression system / Virtual columns: compute on the fly, without wasting ram.
  * Memory efficient: no memory copies when doing filtering/selections/subsets.
  * Visualization: directly supported, a one-liner is often enough.
- * User friendly API: You will only need to deal with a DataFrame object, and tab completion + docstring will help you out: `ds.mean<tab>`, feels very similar to Pandas.
- * Very fast statiscs on N dimensional grids such as histograms, running mean, heatmaps.
+ * User friendly API: you will only need to deal with a DataFrame object, and tab completion + docstring will help you out: `ds.mean<tab>`, feels very similar to Pandas.
+ * Very fast statistics on N dimensional grids such as histograms, running mean, heatmaps.
 
 
 Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how to use vaex.
@@ -134,7 +134,7 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
 
     Vaex supports streaming in hdf5 files from Amazon AWS object storage S3.
     Files are by default cached in $HOME/.vaex/file-cache/s3 such that successive access
-    it as fast as native disk access. The following url parameters control S3 options:
+    is as fast as native disk access. The following url parameters control S3 options:
 
      * anon: Use anonymous access or not (false by default). (Allowed values are: true,True,1,false,False,0)
      * use_cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0)
@@ -242,7 +242,7 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
 
 
 def open_many(filenames):
-    """Open a list of filenames, and return a DataFrame with all DataFrames cocatenated.
+    """Open a list of filenames, and return a DataFrame with all DataFrames concatenated.
 
     :param list[str] filenames: list of filenames/paths
     :rtype: DataFrame
@@ -284,7 +284,7 @@ def from_dict(data):
       1    2   'b'
       2    3   'c'
 
-    :param data: A dict of {columns:[value, value,...]}
+    :param data: A dict of {column:[value, value,...]}
     :rtype: DataFrame
 
     """
