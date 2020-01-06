@@ -1,23 +1,22 @@
-import pickle
-import base64
-import tempfile
+import warnings
+
+import numpy as np
 
 import traitlets
-import numpy as np
 
 import vaex
 import vaex.serialize
-from vaex.ml import state
 from vaex.ml import generate
+from vaex.ml import state
 from vaex.ml.state import serialize_pickle
 
 
 @vaex.serialize.register
 @generate.register
-class SKLearnPredictor(state.HasState):
+class Predictor(state.HasState):
     '''This class wraps any scikit-learn estimator (a.k.a predictor) making it a vaex pipeline object.
 
-    By wrapping any scikit-learn estimators with this class, it becoes a vaex
+    By wrapping any scikit-learn estimators with this class, it becomes a vaex
     pipeline object. Thus, it can take full advantage of the serialization and
     pipeline system of vaex. One can use the `predict` method to get a numpy
     array as an output of a fitted estimator, or the `transform` method do add
@@ -32,12 +31,12 @@ class SKLearnPredictor(state.HasState):
     Example:
 
     >>> import vaex.ml
-    >>> from vaex.ml.sklearn import SKLearnPredictor
+    >>> from vaex.ml.sklearn import Predictor
     >>> from sklearn.linear_model import LinearRegression
     >>> df = vaex.ml.datasets.load_iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length']
     >>> df_train, df_test = vaex.ml.train_test_split(df)
-    >>> model = SKLearnPredictor(model=LinearRegression(), features=features, prediction_name='pred')
+    >>> model = Predictor(model=LinearRegression(), features=features, prediction_name='pred')
     >>> model.fit(df_train, df_train.petal_width)
     >>> df_train = model.transform(df_train)
     >>> df_train.head(3)
@@ -99,6 +98,17 @@ class SKLearnPredictor(state.HasState):
 
 @vaex.serialize.register
 @generate.register
+class SKLearnPredictor(Predictor):
+
+    def __init__(self):
+        super(SKLearnPredictor, self).__init__()
+        warnings.warn(message='''This class is deprecated and it will be removed in vaex-ml 0.8.
+                      Please use vaex.ml.sklearn.Predictor instead.''',
+                      category=DeprecationWarning)
+
+
+@vaex.serialize.register
+@generate.register
 class IncrementalPredictor(state.HasState):
     '''This class wraps any scikit-learn estimator (a.k.a predictions) that has
     a `.partial_fit` method, and makes it a vaex pipeline object.
@@ -154,7 +164,7 @@ class IncrementalPredictor(state.HasState):
       4  -2.65534     -1.61991
     '''
 
-    model = traitlets.Any(default_value=None, allow_none=True, help='A scikit-learn estimator with `.fit_predict` method.').tag(**serialize_pickle)
+    model = traitlets.Any(default_value=None, allow_none=True, help='A scikit-learn estimator with a `.fit_predict` method.').tag(**serialize_pickle)
     features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
     batch_size = traitlets.Int(default_value=1_000_000, allow_none=False, help='Number of samples to be sent to the model in each batch.')
     num_epochs = traitlets.Int(default_value=1, allow_none=False, help='Number of times each batch is sent to the model.')
