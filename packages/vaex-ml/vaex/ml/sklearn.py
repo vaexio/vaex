@@ -199,19 +199,14 @@ class IncrementalPredictor(state.HasState):
         # Check whether the model is appropriate
         assert hasattr(self.model, 'partial_fit'), 'The model must have a `.partial_fit` method.'
 
-        # Number samples the training DataFrame
         n_samples = len(df)
-        # Number of batches per epoch
-        num_batches = (n_samples + self.batch_size -1) // self.batch_size  # round up int
 
         progressbar = vaex.utils.progressbars(progress)
 
         # Portions of the DataFrame to evaluate
         expressions = self.features + [target]
 
-        # Loop over for each epoch
         for epoch in range(self.num_epochs):
-            # Loop iterating over the DataFrame
             for i1, i2, chunks in df.evaluate_iterator(expressions, chunk_size=self.batch_size):
                 progressbar((n_samples * epoch + i1) / (self.num_epochs * n_samples))
                 X = np.array(chunks[:-1]).T  # the most efficient way depends on the algorithm (row of column based access)
