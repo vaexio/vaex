@@ -3,6 +3,8 @@
 # vaex-core 1.5.0-dev
    * Features
       * df.evalute_iterator for efficient parallel chunked evaluation [#515](https://github.com/vaexio/vaex/pull/515)
+   * Fixes
+     * Slicing arrow string arrays with masked arrays is respected/working [#530](https://github.com/vaexio/vaex/pull/530)]
 
 # vaex-ml 0.7.1-dev
    * Performance

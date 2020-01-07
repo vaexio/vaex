@@ -415,6 +415,8 @@ class StringSequenceBase : public StringSequence {
     StringSequenceBase* lazy_index(py::array_t<T, py::array::c_style> indices);
     template<class T>
     StringSequenceBase* index(py::array_t<T, py::array::c_style> indices);
+    template<class T>
+    StringSequenceBase* index_masked(py::array_t<T, py::array::c_style> indices, py::array_t<bool, py::array::c_style> mask);
 
     py::object to_numpy() {
         npy_intp shape[1];
@@ -1794,6 +1796,49 @@ StringSequenceBase* StringSequenceBase::index(py::array_t<T, py::array::c_style>
     }
 }
 
+template<class T>
+StringSequenceBase* StringSequenceBase::index_masked(py::array_t<T, py::array::c_style> indices_, py::array_t<bool, py::array::c_style> mask_) {
+    py::buffer_info info = indices_.request();
+    if(info.ndim != 1) {
+        throw std::runtime_error("Expected a 1d byte buffer");
+    }
+    T* indices = (T*)info.ptr;
+    size_t length = info.size;
+
+    py::buffer_info info_mask = mask_.request();
+    if(info_mask.ndim != 1) {
+        throw std::runtime_error("Expected a 1d byte buffer");
+    }
+    bool* mask = (bool*)info_mask.ptr;
+    if(info_mask.size != info.size) {
+        throw std::runtime_error("Indices and mask are of unequal length");
+    }
+
+    {
+        py::gil_scoped_release release;
+        StringList64* sl = new StringList64(length*2, length);
+        size_t byte_offset = 0;
+        for(size_t i = 0; i < length; i++) {
+            sl->indices[i] = byte_offset;
+            T index = indices[i];
+            if( (mask[i] == 1) || is_null(index)) {
+                if(sl->null_bitmap == nullptr)
+                    sl->add_null_bitmap();
+                sl->set_null(i);
+            } else {
+                std::string str = get(index);
+                while(byte_offset + str.length() > sl->byte_length) {
+                    sl->grow();
+                }
+                std::copy(str.begin(), str.end(), sl->bytes + byte_offset);
+                byte_offset += str.length();
+            }
+        }
+        sl->indices[length] = byte_offset;
+        return sl;
+    }
+}
+
 template<>
 StringSequenceBase* StringSequenceBase::index<bool>(py::array_t<bool, py::array::c_style> mask_) {
     py::buffer_info info = mask_.request();
@@ -2069,6 +2114,11 @@ PYBIND11_MODULE(superstrings, m) {
         .def("index", &StringSequenceBase::index<int64_t>)
         .def("index", &StringSequenceBase::index<uint32_t>)
         .def("index", &StringSequenceBase::index<uint64_t>)
+        // no need for a index_masked with bools, since we can logically and the two masks
+        .def("index", &StringSequenceBase::index_masked<int32_t>)
+        .def("index", &StringSequenceBase::index_masked<int64_t>)
+        .def("index", &StringSequenceBase::index_masked<uint32_t>)
+        .def("index", &StringSequenceBase::index_masked<uint64_t>)
         .def("tolist", &StringSequenceBase::tolist)
         .def("capitalize", &StringSequenceBase::capitalize, py::keep_alive<0, 1>())
         .def("concat", &StringSequenceBase::concat)
