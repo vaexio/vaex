@@ -298,37 +298,15 @@ def _progressbar_vaex(type=None, name="processing", max_value=1):
     import vaex.misc.progressbar as pb
     return pb.ProgressBar(0, 1)
 
-
-class _ProgressBarWidget(object):
-    def __init__(self, name=None):
-        import ipywidgets as widgets
-        from IPython.display import display
-        self.value = 0
-        self.widget = widgets.FloatProgress(min=0, max=1)
-        self.widget.description = name or 'Progress:'
-        display(self.widget)
-
-    def __call__(self, value):
-        self.value = value
-        self.widget.value = value
-
-    def update(self, value):
-        self(value)
-
-    def finish(self):
-        self.widget.description = 'Finished:'
-        self(1)
-
-    # def add_child(self, progress, task, name):
-    # 	#print('add', name)
-    # 	pb = _ProgressBarWidget(name=name)
-    # 	task.signal_progress.connect(pb)
+def _progressbar_widget(type=None, name="processing", max_value=1):
+    import vaex.misc.progressbar as pb
+    return pb.ProgressBarWidget(0, 1, name=name)
 
 
 _progressbar_typemap = {}
 _progressbar_typemap['progressbar2'] = _progressbar_progressbar2
 _progressbar_typemap['vaex'] = _progressbar_vaex
-_progressbar_typemap['widget'] = _ProgressBarWidget
+_progressbar_typemap['widget'] = _progressbar_widget
 
 
 def progressbar(type_name=None, title="processing", max_value=1):
