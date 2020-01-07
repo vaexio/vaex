@@ -201,9 +201,10 @@ def test_sklearn_incremental_predictor_classification():
                                        batch_size=10_000,
                                        num_epochs=3,
                                        shuffle=False,
-                                       prediction_name='pred')
+                                       prediction_name='pred',
+                                       partial_fit_kwargs={'classes':[0, 1, 2]})
 
-    incremental.fit(df=df_train, target=target, classes=[0, 1, 2])
+    incremental.fit(df=df_train, target=target)
     df_train = incremental.transform(df_train)
 
     # State transfer
