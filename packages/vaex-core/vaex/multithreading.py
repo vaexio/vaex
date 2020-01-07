@@ -49,7 +49,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         values = list(iterator)
         N = len(values)
         time_last = time.time() - 100
-        min_delta_t = 1. / 100  # max 100 per second
+        min_delta_t = 1. / 10  # max 10 per second
         if self.nthreads == 1:  # when using 1 thread, it makes debugging easier (better stacktrace)
             iterator = self._map(wrapped, values)
         else:
