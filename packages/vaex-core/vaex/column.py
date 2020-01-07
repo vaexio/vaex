@@ -395,7 +395,14 @@ class ColumnStringArrow(ColumnString):
         if isinstance(slice, int):
             return self.string_sequence.get(slice)
         elif isinstance(slice, np.ndarray):
-            return type(self).from_string_sequence(self.string_sequence.index(slice))
+            if np.ma.isMaskedArray(slice):
+                if slice.dtype == np.bool_:
+                    ss = self.string_sequence.index(slice.data & ~slice.mask)
+                else:
+                    ss = self.string_sequence.index(slice.data, slice.mask)
+            else:
+                ss = self.string_sequence.index(slice)
+            return type(self).from_string_sequence(ss)
         else:
             start, stop, step = slice.start, slice.stop, slice.step
             start = start or 0
