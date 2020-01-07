@@ -122,7 +122,7 @@ _doc_snippets["return_stat_scalar"] = """Numpy array with the given shape, or a 
 _doc_snippets["return_limits"] = """List in the form [[xmin, xmax], [ymin, ymax], .... ,[zmin, zmax]] or [xmin, xmax] when expression is not a list"""
 _doc_snippets["cov_matrix"] = """List all convariance values as a double list of expressions, or "full" to guess all entries (which gives an error when values are not found), or "auto" to guess, but allow for missing values"""
 _doc_snippets['propagate_uncertainties'] = """If true, will propagate errors for the new virtual columns, see :meth:`propagate_uncertainties` for details"""
-_doc_snippets['note_copy'] = '.. note:: Note that no copy of the underlying data is made, only a view/reference is make.'
+_doc_snippets['note_copy'] = '.. note:: Note that no copy of the underlying data is made, only a view/reference is made.'
 _doc_snippets['note_filter'] = '.. note:: Note that filtering will be ignored (since they may change), you may want to consider running :meth:`extract` first.'
 _doc_snippets['inplace'] = 'Make modifications to self or return a new DataFrame'
 _doc_snippets['return_shallow_copy'] = 'Returns a new DataFrame with a shallow copy/view of the underlying data'
@@ -327,7 +327,7 @@ class DataFrame(object):
 
 
         :param f: The function to be applied
-        :param arguments: List of arguments to be passed on the the function f.
+        :param arguments: List of arguments to be passed on to the function f.
         :return: A function that is lazily evaluated.
         """
         assert arguments is not None, 'for now, you need to supply arguments'
@@ -943,7 +943,7 @@ class DataFrame(object):
 
     @docsubst
     def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
-        """Calculate the covariance cov[x,y] between and x and y, possibly on a grid defined by binby.
+        """Calculate the covariance cov[x,y] between x and y, possibly on a grid defined by binby.
 
         Example:
 
@@ -997,7 +997,7 @@ class DataFrame(object):
 
     @docsubst
     def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, delay=False, progress=None):
-        """Calculate the correlation coefficient cov[x,y]/(std[x]*std[y]) between and x and y, possibly on a grid defined by binby.
+        """Calculate the correlation coefficient cov[x,y]/(std[x]*std[y]) between x and y, possibly on a grid defined by binby.
 
         Example:
 
@@ -1068,11 +1068,11 @@ class DataFrame(object):
     def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         """Calculate the covariance matrix for x and y or more expressions, possibly on a grid defined by binby.
 
-        Either x and y are expressions, e.g:
+        Either x and y are expressions, e.g.:
 
         >>> df.cov("x", "y")
 
-        Or only the x argument is given with a list of expressions, e,g.:
+        Or only the x argument is given with a list of expressions, e.g.:
 
         >>> df.cov(["x, "y, "z"])
 
@@ -1271,7 +1271,7 @@ class DataFrame(object):
     @docsubst
     @stat_1d
     def median_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=256, percentile_limits="minmax", selection=False, delay=False):
-        """Calculate the median , possibly on a grid defined by binby.
+        """Calculate the median, possibly on a grid defined by binby.
 
         NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
         percentile_shape and percentile_limits
@@ -1963,7 +1963,7 @@ class DataFrame(object):
 
         Convenient when working with ipython in combination with small DataFrames, since this gives tab-completion.
 
-        Columns can be accesed by there names, which are attributes. The attribues are currently expressions, so you can
+        Columns can be accessed by their names, which are attributes. The attributes are currently expressions, so you can
         do computations with them.
 
         Example
@@ -2393,7 +2393,7 @@ class DataFrame(object):
         vaex.utils.write_json_or_yaml(f, self.state_get())
 
     def state_load(self, f, use_active_range=False):
-        """Load a state previously stored by :meth:`DataFrame.state_store`, see also :meth:`DataFrame.state_set`."""
+        """Load a state previously stored by :meth:`DataFrame.state_write`, see also :meth:`DataFrame.state_set`."""
         state = vaex.utils.read_json_or_yaml(f)
         self.state_set(state, use_active_range=use_active_range)
 
@@ -2537,7 +2537,7 @@ class DataFrame(object):
         """Generate a Subspaces object, based on a custom list of expressions or all possible combinations based on
         dimension
 
-        :param expressions_list: list of list of expressions, where the inner list defines the subspace
+        :param expressions_list: list of lists of expressions, where the inner list defines the subspace
         :param dimensions: if given, generates a subspace with all possible combinations for that dimension
         :param exclude: list of
         """
@@ -3302,7 +3302,7 @@ class DataFrame(object):
         # self.write_virtual_meta()
 
     def add_variable(self, name, expression, overwrite=True, unique=True):
-        """Add a variable to to a DataFrame.
+        """Add a variable to a DataFrame.
 
         A variable may refer to other variables, and virtual columns and expression may refer to variables.
 
@@ -3632,7 +3632,7 @@ class DataFrame(object):
         return 0
 
     def has_current_row(self):
-        """Returns True/False is there currently is a picked row."""
+        """Returns True/False if there currently is a picked row."""
         return self._current_row is not None
 
     def get_current_row(self):
@@ -4194,7 +4194,7 @@ class DataFrame(object):
     def select_non_missing(self, drop_nan=True, drop_masked=True, column_names=None, mode="replace", name="default"):
         """Create a selection that selects rows having non missing values for all columns in column_names.
 
-        The name reflect Panda's, no rows are really dropped, but a mask is kept to keep track of the selection
+        The name reflects Pandas, no rows are really dropped, but a mask is kept to keep track of the selection
 
         :param drop_nan: drop rows when there is a NaN in any of the columns (will only affect float values)
         :param drop_masked: drop rows when there is a masked value in any of the columns
@@ -4249,7 +4249,7 @@ class DataFrame(object):
         self.signal_selection_changed.emit(self, name)
 
     def select_rectangle(self, x, y, limits, mode="replace", name="default"):
-        """Select a 2d rectangular box in the space given by x and y, bounds by limits.
+        """Select a 2d rectangular box in the space given by x and y, bounded by limits.
 
         Example:
 
@@ -4558,7 +4558,7 @@ class DataFrame(object):
     def __delitem__(self, item):
         '''Removes a (virtual) column from the DataFrame.
 
-        Note: this does not remove check if the column is used in a virtual expression or in the filter\
+        Note: this does not check if the column is used in a virtual expression or in the filter\
             and may lead to issues. It is safer to use :meth:`drop`.
         '''
         if isinstance(item, Expression):
@@ -4779,9 +4779,9 @@ class DataFrameLocal(DataFrame):
 
         Convenient when working with IPython in combination with small DataFrames, since this gives tab-completion.
         Only real columns (i.e. no virtual) columns can be accessed, for getting the data from virtual columns, use
-        DataFrame.evalulate(...).
+        DataFrame.evaluate(...).
 
-        Columns can be accesed by there names, which are attributes. The attribues are of type numpy.ndarray.
+        Columns can be accessed by their names, which are attributes. The attributes are of type numpy.ndarray.
 
         Example:
 
@@ -5034,7 +5034,7 @@ class DataFrameLocal(DataFrame):
             self.add_column(new_name, other.columns[name])
 
     def concat(self, other):
-        """Concatenates two DataFrames, adding the rows of one the other DataFrame to the current, returned in a new DataFrame.
+        """Concatenates two DataFrames, adding the rows of the other DataFrame to the current, returned in a new DataFrame.
 
         No copy of the data is made.
 
@@ -5113,7 +5113,7 @@ class DataFrameLocal(DataFrame):
                 yield i1, i2, i1, i2
 
     def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, internal=None, parallel=True, chunk_size=None):
-        """"The local implementation of :func:`DataFrame.evaluate`, will forward call to :func:`DataFrame.evaluate_iterator` if chunk_size is given"""
+        """The local implementation of :func:`DataFrame.evaluate`, will forward call to :func:`DataFrame.evaluate_iterator` if chunk_size is given"""
         if chunk_size is not None:
             return self.evaluate_iterator(expression, s1=i1, s2=i2, out=out, selection=selection, filtered=filtered, internal=internal, parallel=parallel, chunk_size=chunk_size)
         else:
@@ -5716,7 +5716,7 @@ class DataFrameLocal(DataFrame):
     def binby(self, by=None, agg=None):
         """Return a :class:`BinBy` or :class:`DataArray` object when agg is not None
 
-        The binby operations does not return a 'flat' DataFrame, instead it returns an N-d grid
+        The binby operation does not return a 'flat' DataFrame, instead it returns an N-d grid
         in the form of an xarray.
 
 

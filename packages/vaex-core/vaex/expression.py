@@ -813,7 +813,7 @@ def f({0}):
         return df._expr(self.expression)
 
     def map(self, mapper, nan_value=None, missing_value=None, default_value=None, allow_missing=False):
-        """Map values of an expression or in memory column accoring to an input
+        """Map values of an expression or in memory column according to an input
         dictionary or a custom callable function.
 
         Example:
