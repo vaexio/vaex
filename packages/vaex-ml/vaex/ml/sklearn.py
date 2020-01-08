@@ -170,6 +170,7 @@ class IncrementalPredictor(state.HasState):
     num_epochs = traitlets.Int(default_value=1, allow_none=False, help='Number of times each batch is sent to the model.')
     shuffle = traitlets.Bool(default_value=False, allow_none=False, help='If True, shuffle the samples before sending them to the model.')
     prediction_name = traitlets.Unicode(default_value='prediction', help='The name of the virtual column housing the predictions.')
+    partial_fit_kwargs = traitlets.Dict(default_value={}, help='A dictionary of key word arguments to be passed on to the `fit_predict` method of the `model`.')
 
     def __call__(self, *args):
         X = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
@@ -200,7 +201,7 @@ class IncrementalPredictor(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
-    def fit(self, df, target, progress=None, **kwargs):
+    def fit(self, df, target, progress=None):
         '''Fit the IncrementalPredictor to the DataFrame.
 
         :param df: A vaex DataFrame containing the features on which to train the model.
@@ -228,6 +229,6 @@ class IncrementalPredictor(state.HasState):
                     X = X[shuffle_index]
                     y = y[shuffle_index]
 
-                # Train the model
-                self.model.partial_fit(X, y)
+                # train the model
+                self.model.partial_fit(X, y, **self.partial_fit_kwargs)
         progressbar(1.0)
