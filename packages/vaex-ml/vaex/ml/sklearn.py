@@ -231,9 +231,4 @@ class IncrementalPredictor(state.HasState):
 
                 # train the model
                 self.model.partial_fit(X, y, **self.partial_fit_kwargs)
-
-            # update the slicing indices to be ready for the next batch
-            index_min += self.batch_size
-            index_max += self.batch_size
-            index_max = min(N_total, index_max)  # clip upper value
         progressbar(1.0)
