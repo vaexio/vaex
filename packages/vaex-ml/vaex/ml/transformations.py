@@ -629,8 +629,8 @@ class CycleTransformer(Transformer):
         copy = df.copy()
         for feature in self.features:
             name_x = self.prefix_x + feature + self.suffix_x
-            copy[name_x] = (np.cos(2 * np.pi * copy[feature] / self.n))
+            copy[name_x] = np.cos(2 * np.pi * copy[feature] / self.n)
             name_y = self.prefix_y + feature + self.suffix_y
-            copy[name_y] = (np.sin(2 * np.pi * copy[feature] / self.n))
+            copy[name_y] = np.sin(2 * np.pi * copy[feature] / self.n)
 
         return copy
