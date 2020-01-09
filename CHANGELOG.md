@@ -16,6 +16,7 @@
    * Features
       * CycleTransformer [#532](https://github.com/vaexio/vaex/pull/532)
       * BayesianTargetEncoder [#533](https://github.com/vaexio/vaex/pull/533)
+      * WeightOfEvidenceEncoder [#534](https://github.com/vaexio/vaex/pull/534)
 
 # vaex 2.5.0 (2019-12-16)
 

@@ -304,6 +304,7 @@ Transformers/encoders
     vaex.ml.transformations.StandardScaler
     vaex.ml.transformations.CycleTransformer
     vaex.ml.transformations.BayesianTargetEncoder
+    vaex.ml.transformations.WeightOfEvidenceEncoder
 
 
 .. autoclass:: vaex.ml.transformations.FrequencyEncoder
@@ -331,7 +332,12 @@ Transformers/encoders
      :members:
 
 .. autoclass:: vaex.ml.transformations.CycleTransformer
+     :members:
+
 .. autoclass:: vaex.ml.transformations.BayesianTargetEncoder
+     :members:
+
+.. autoclass:: vaex.ml.transformations.WeightOfEvidenceEncoder
      :members:
 
 
