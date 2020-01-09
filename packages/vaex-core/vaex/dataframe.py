@@ -35,6 +35,7 @@ from .expression import expression_namespace
 from .delayed import delayed, delayed_args, delayed_list
 from .column import Column, ColumnIndexed, ColumnSparse, ColumnString, ColumnConcatenatedLazy, str_type
 from .array_types import to_numpy
+from .operations import transformation
 import vaex.events
 
 # py2/p3 compatibility
@@ -3252,14 +3253,19 @@ class DataFrame(object):
 
         name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names())
 
+        self._add_virtual_column(name, str(expression), column_position)
+        # self.write_virtual_meta()
+
+    @transformation('add_virtual_column')
+    def _add_virtual_column(self, name, expression, column_position=None):
         self.virtual_columns[name] = expression
         self._virtual_expressions[name] = Expression(self, expression)
         if name not in self.column_names:
             self.column_names.insert(column_position, name)
         self._save_assign_expression(name)
         self.signal_column_changed.emit(self, name, "add")
-        # self.write_virtual_meta()
 
+    @transformation('rename_column')
     def _rename(self, old, new, rename_meta_data=False):
         if old in self._dtypes_override:
             self._dtypes_override[new] = self._dtypes_override.pop(old)
@@ -4799,6 +4805,7 @@ class DataFrameLocal(DataFrame):
 
     def copy(self, column_names=None, virtual=True):
         df = DataFrameArrays()
+        df.operations = self.operations
         df._length_unfiltered = self._length_unfiltered
         df._length_original = self._length_original
         df._cached_filtered_length = self._cached_filtered_length
