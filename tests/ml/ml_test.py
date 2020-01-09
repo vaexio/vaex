@@ -266,3 +266,19 @@ def test_robust_scaler():
     scaler_vaex = vaex.ml.RobustScaler(features=features, percentile_range=(12, 175))
     with pytest.raises(Exception):
         result_vaex = scaler_vaex.fit_transform(ds)
+
+
+def test_cyclical_transformer(tmpdir):
+    df_train = vaex.from_arrays(hour=[0, 3, 6])
+    df_test = vaex.from_arrays(hour=[12, 24, 21, 15])
+
+    trans = vaex.ml.CycleTransformer(n=24, features=['hour'], prefix_x='pref_', prefix_y='pref_')
+    df_train = trans.fit_transform(df_train)
+    np.testing.assert_array_almost_equal(df_train.pref_hour_x.values, [1, 0.707107, 0])
+    np.testing.assert_array_almost_equal(df_train.pref_hour_y.values, [0, 0.707107, 1])
+
+    state_path = str(tmpdir.join('state.json'))
+    df_train.state_write(state_path)
+    df_test.state_load(state_path)
+    np.testing.assert_array_almost_equal(df_test.pref_hour_x.values, [-1, 1, 0.707107, -0.707107])
+    np.testing.assert_array_almost_equal(df_test.pref_hour_y.values, [0, 0, -0.707107, -0.707107])

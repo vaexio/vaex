@@ -6,13 +6,15 @@
    * Fixes
      * Slicing arrow string arrays with masked arrays is respected/working [#530](https://github.com/vaexio/vaex/pull/530)]
 
-# vaex-ml 0.7.1-dev
+# vaex-ml 0.8.0-dev
    * Performance
       * IncrementalPredictor uses parallel chunked support (2x speedup possible) [#515](https://github.com/vaexio/vaex/pull/515)
    * Fix
       * IncrementalPredictor: epochs now iterate over the whole DataFrame instead on a batch level [#523](https://github.com/vaexio/vaex/pull/523)
       * Rename `vaex.ml.sklearn.SKLearnPredictor` to `vaex.ml.sklearn.Predictor` [#524](https://github.com/vaexio/vaex/pull/524)
       * IncrementalPredictor can be used with `sklearn.linear_model.SGDClassifier` [539](https://github.com/vaexio/vaex/pull/539)
+   * Features
+      * CycleTransformer [#532](https://github.com/vaexio/vaex/pull/532)
 
 # vaex 2.5.0 (2019-12-16)
 
