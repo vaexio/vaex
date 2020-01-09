@@ -9,3 +9,5 @@ Examples
     example_arrow.ipynb
     example_dask.ipynb
     example_graphql.ipynb
+    example_ml_iris.ipynb
+    example_ml_titanic.ipynb

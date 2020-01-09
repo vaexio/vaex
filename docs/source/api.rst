@@ -262,42 +262,81 @@ GraphQL operations
 Machine learning with vaex.ml
 -----------------------------
 
+See the `ML tutorial <tutorial_ml.ipynb>`_ an introduction, and the `ML examples <examples.rst>`_ for more advanced usage.
+
+
+Scikit-learn
+~~~~~~~~~~~~
+
+.. autosummary::
+
+    vaex.ml.sklearn.IncrementalPredictor
+    vaex.ml.sklearn.Predictor
+
+.. automodule:: vaex.ml.sklearn
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Clustering
 ~~~~~~~~~~
 
+.. autosummary::
+    
+    vaex.ml.cluster.KMeans
+
 .. autoclass:: vaex.ml.cluster.KMeans
      :members:
 
-PCA
-~~~
+Transformers/encoders
+~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: vaex.ml.transformations.PCA
+.. autosummary::
+
+    vaex.ml.transformations.FrequencyEncoder
+    vaex.ml.transformations.LabelEncoder
+    vaex.ml.transformations.MaxAbsScaler
+    vaex.ml.transformations.MinMaxScaler
+    vaex.ml.transformations.OneHotEncoder
+    vaex.ml.transformations.PCA
+    vaex.ml.transformations.RobustScaler
+    vaex.ml.transformations.StandardScaler
+
+
+.. autoclass:: vaex.ml.transformations.FrequencyEncoder
      :members:
-
-Encoders
-~~~~~~~~
 
 .. autoclass:: vaex.ml.transformations.LabelEncoder
-     :members:
-
-.. autoclass:: vaex.ml.transformations.OneHotEncoder
-     :members:
-
-.. autoclass:: vaex.ml.transformations.StandardScaler
-     :members:
-
-.. autoclass:: vaex.ml.transformations.MinMaxScaler
      :members:
 
 .. autoclass:: vaex.ml.transformations.MaxAbsScaler
      :members:
 
+.. autoclass:: vaex.ml.transformations.MinMaxScaler
+     :members:
+
+.. autoclass:: vaex.ml.transformations.OneHotEncoder
+     :members:
+
+.. autoclass:: vaex.ml.transformations.PCA
+     :members:
+
 .. autoclass:: vaex.ml.transformations.RobustScaler
      :members:
 
+.. autoclass:: vaex.ml.transformations.StandardScaler
+     :members:
+
+
 Boosted trees
 ~~~~~~~~~~~~~
+
+.. autosummary::
+
+    vaex.ml.lightgbm.LightGBMModel
+    vaex.ml.xgboost.XGBoostModel
+
 
 .. autoclass:: vaex.ml.lightgbm.LightGBMModel
      :members:
@@ -305,15 +344,13 @@ Boosted trees
 .. autoclass:: vaex.ml.xgboost.XGBoostModel
      :members:
 
-.. PyGBM support is in the incubator phase, which means support may disappear in future versions
+Incubator/experimental
+~~~~~~~~~~~~~~~~~~~~~~
+
+These models are in the incubator phase and may disappear in the future
 
 .. .. autoclass:: vaex.ml.incubator.pygbm.PyGBMModel
 ..      :members:
-
-Nearest neighbour
-~~~~~~~~~~~~~~~~~
-
-Annoy support is in the incubator phase, which means support may disappear in future versions
 
 .. autoclass:: vaex.ml.incubator.annoy.ANNOYModel
      :members:
