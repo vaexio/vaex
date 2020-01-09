@@ -112,7 +112,9 @@ def _convert_name(filenames, shuffle=False):
     else:
         return base + ".hdf5"
 
+import vaex.operations as vop
 
+@vop.source("open")
 def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
     """Open a DataFrame from file given by path.
 
