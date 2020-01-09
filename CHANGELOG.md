@@ -15,6 +15,7 @@
       * IncrementalPredictor can be used with `sklearn.linear_model.SGDClassifier` [539](https://github.com/vaexio/vaex/pull/539)
    * Features
       * CycleTransformer [#532](https://github.com/vaexio/vaex/pull/532)
+      * BayesianTargetEncoder [#533](https://github.com/vaexio/vaex/pull/533)
 
 # vaex 2.5.0 (2019-12-16)
 

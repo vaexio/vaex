@@ -634,3 +634,73 @@ class CycleTransformer(Transformer):
             copy[name_y] = np.sin(2 * np.pi * copy[feature] / self.n)
 
         return copy
+
+
+class BayesianTargetEncoder(Transformer):
+    '''Encode categorical variables with a Bayesian Target Encoder.
+
+    The categories are encoded by the mean of their target value,
+    which is adjusted by the global mean value of the target variable
+    using a Bayesian schema. For a larger `weight` value, the target
+    encodings are smoothed toward the global mean, while for a
+    `weight` of 0, the encodings are just the mean target value per
+    class.
+
+    Reference: https://www.wikiwand.com/en/Bayes_estimator#/Practical_example_of_Bayes_estimators
+
+    Example:
+
+    >>> import vaex
+    >>> import vaex.ml
+    >>> df = vaex.from_arrays(x=['a', 'a', 'a', 'a', 'b', 'b', 'b', 'b'],
+    ...                       y=[1, 1, 1, 0, 0, 0, 0, 1])
+    >>> target_encoder = vaex.ml.BayesianTargetEncoder(features=['x'], weight=4)
+    >>> target_encoder.fit_transform(df, 'y')
+      #  x      y    mean_encoded_x
+      0  a      1             0.625
+      1  a      1             0.625
+      2  a      1             0.625
+      3  a      0             0.625
+      4  b      0             0.375
+      5  b      0             0.375
+      6  b      0             0.375
+      7  b      1             0.375
+    '''
+    target = traitlets.Unicode(help='The name of the column containing the target variable.')
+    weight = traitlets.CFloat(default_value=100, allow_none=False, help='Weight to be applied to the mean encodings (smoothing parameter).')
+    prefix = traitlets.Unicode(default_value='mean_encoded_', help=help_prefix)
+    unseen = traitlets.Enum(values=['zero', 'nan'], default_value='nan', help='Strategy to deal with unseen values.')
+    mappings_ = traitlets.Dict()
+
+    def fit(self, df):
+        '''Fit a BayesianTargetEncoder to the DataFrame.
+
+        :param df: A vaex DataFrame
+        '''
+
+        # The global target mean - used for the smoothing
+        global_target_mean = df[self.target].mean().item()
+
+        # TODO: we don't have delayed groupby yet, which could speed up the case with many features (1 pass over the data)
+        for feature in self.features:
+            agg = df.groupby(feature, agg={'count': vaex.agg.count(), 'mean': vaex.agg.mean(self.target)})
+            agg['encoding'] = (agg['count'] * agg['mean'] + self.weight * global_target_mean) / (agg['count'] + self.weight)
+            self.mappings_[feature] = {value[feature]: value['encoding'] for index, value in agg.iterrows()}
+
+    def transform(self, df):
+        '''Transform a DataFrame with a fitted BayesianTargetEncoder.
+
+        :param df: A vaex DataFrame.
+        :return: A shallow copy of the DataFrame that includes the encodings.
+        :rtype: DataFrame
+        '''
+        copy = df.copy()
+        default_value = {'zero': 0., 'nan': np.nan}[self.unseen]
+        for feature in self.features:
+            name = self.prefix + feature
+            copy[name] = copy[feature].map(self.mappings_[feature],
+                                           nan_value=np.nan,
+                                           missing_value=np.nan,
+                                           default_value=default_value,
+                                           allow_missing=True)
+        return copy
