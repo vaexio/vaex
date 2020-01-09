@@ -302,6 +302,7 @@ Transformers/encoders
     vaex.ml.transformations.PCA
     vaex.ml.transformations.RobustScaler
     vaex.ml.transformations.StandardScaler
+    vaex.ml.transformations.CycleTransformer
 
 
 .. autoclass:: vaex.ml.transformations.FrequencyEncoder
@@ -326,6 +327,9 @@ Transformers/encoders
      :members:
 
 .. autoclass:: vaex.ml.transformations.StandardScaler
+     :members:
+
+.. autoclass:: vaex.ml.transformations.CycleTransformer
      :members:
 
 
