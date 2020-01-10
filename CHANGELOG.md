@@ -3,6 +3,7 @@
 # vaex-core 1.5.0-dev
    * Features
       * df.evalute_iterator for efficient parallel chunked evaluation [#515](https://github.com/vaexio/vaex/pull/515)
+      * Widget progress bar has time estimation [#545](https://github.com/vaexio/vaex/pull/545)
    * Fixes
      * Slicing arrow string arrays with masked arrays is respected/working [#530](https://github.com/vaexio/vaex/pull/530)]
 
