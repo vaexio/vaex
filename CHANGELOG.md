@@ -1,3 +1,9 @@
+# vaex 3.0.0-dev (unreleased)
+   * Breaking changes:
+     * Python 2 is not supported anymore
+
+# vaex-core 1.5.0-dev
+
 # vaex 2.6.0-dev (unreleased)
 
 # vaex-core 1.5.0-dev
