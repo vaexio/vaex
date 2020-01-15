@@ -1,6 +1,6 @@
 # vaex 2.6.0-dev (unreleased)
 
-# vaex-core 1.5.0-dev
+# vaex-core 1.5.0
    * Features
       * df.evalute_iterator for efficient parallel chunked evaluation [#515](https://github.com/vaexio/vaex/pull/515)
       * Widget progress bar has time estimation [#545](https://github.com/vaexio/vaex/pull/545)
