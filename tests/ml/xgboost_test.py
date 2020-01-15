@@ -44,8 +44,9 @@ def test_xgboost():
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     booster = vaex.ml.xgboost.XGBoostModel(num_boost_round=10,
                                            params=params_multiclass,
-                                           features=features)
-    booster.fit(ds_train, ds_train.class_)
+                                           features=features,
+                                           target='class_')
+    booster.fit(ds_train)
     class_predict = booster.predict(ds_test)
     assert np.all(ds_test.class_.values == class_predict)
 
@@ -65,8 +66,8 @@ def test_xgboost_numerical_validation():
     xgb_pred = xgb_bst.predict(dtrain)
 
     # xgboost through vaex
-    booster = vaex.ml.xgboost.XGBoostModel(features=features, params=params_multiclass, num_boost_round=3)
-    booster.fit(ds, ds.class_)
+    booster = vaex.ml.xgboost.XGBoostModel(features=features, target='class_', params=params_multiclass, num_boost_round=3)
+    booster.fit(ds)
     vaex_pred = booster.predict(ds)
 
     # Comparing the the predictions of xgboost vs vaex.ml
@@ -79,12 +80,12 @@ def test_xgboost_serialize(tmpdir):
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
 
-    gbm = ds.ml.xgboost_model(target, 20, features=features, params=params_multiclass)
+    gbm = ds.ml.xgboost_model(target=target, features=features, num_boost_round=20, params=params_multiclass)
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
     pl.load(str(tmpdir.join('test.json')))
 
-    gbm = ds.ml.xgboost_model(target, 20, features=features, params=params_multiclass)
+    gbm = ds.ml.xgboost_model(target=target, features=features, num_boost_round=20, params=params_multiclass)
     gbm.state_set(gbm.state_get())
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
@@ -101,9 +102,9 @@ def test_xgboost_validation_set():
     # history of the booster (evaluations of the train and validation sets)
     history = {}
     # instantiate the booster model
-    booster = vaex.ml.xgboost.XGBoostModel(features=features, num_boost_round=10, params=params_reg)
+    booster = vaex.ml.xgboost.XGBoostModel(features=features, target='E', num_boost_round=10, params=params_reg)
     # fit the booster - including saving the history of the validation sets
-    booster.fit(train, 'E', evals=[(train, 'train'), (test, 'test')],
+    booster.fit(train, evals=[(train, 'train'), (test, 'test')],
                 early_stopping_rounds=2, evals_result=history)
     assert booster.booster.best_ntree_limit == 10
     assert booster.booster.best_iteration == 9

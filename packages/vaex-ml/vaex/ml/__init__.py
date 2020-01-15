@@ -103,66 +103,71 @@ class DataFrameAccessorML(object):
         return minmax_scaler
 
 
-    def xgboost_model(self, target, num_boost_round, features=None, params={}, prediction_name='xgboost_prediction'):
+    def xgboost_model(self, target, features=None, num_boost_round=100, params={}, prediction_name='xgboost_prediction'):
         '''Requires vaex.ml: create a XGBoost model and train/fit it.
 
-        :param target: Target to train/fit on.
-        :param num_boost_round: Number of rounds.
-        :param features: List of features to train on.
-        :return vaex.ml.xgboost.XGBModel: Fitted XGBoost model.
+        :param target: The name of the target column.
+        :param features: List of features to use when training the model. If None, all columns except the target will be used as features.
+        :param num_boost_round: Number of boosting rounds.
+        :return vaex.ml.xgboost.XGBoostModel: Fitted XGBoost model.
         '''
         from .xgboost import XGBoostModel
-        dataframe = self.df
-        features = features or self.df.get_column_names()
+        df = self.df
+        target = _ensure_strings_from_expressions(target)
+        features = features or self.df.get_column_names(virtual=True).remove(target)
         features = _ensure_strings_from_expressions(features)
         booster = XGBoostModel(prediction_name=prediction_name,
-                            num_boost_round=num_boost_round,
-                            features=features,
-                            params=params)
-        booster.fit(dataframe, target)
+                               num_boost_round=num_boost_round,
+                               features=features,
+                               target=target,
+                               params=params)
+        booster.fit(df)
         return booster
 
 
-    def lightgbm_model(self, target, num_boost_round, features=None, copy=False, params={},
-                    prediction_name='lightgbm_prediction'):
+    def lightgbm_model(self, target, features=None, num_boost_round=100, copy=False, params={}, prediction_name='lightgbm_prediction'):
         '''Requires vaex.ml: create a lightgbm model and train/fit it.
 
-        :param target: The target variable to predict.
-        :param num_boost_round: Number of boosting iterations.
-        :param features: List of features to train on.
-        :param bool copy: Copy data or use the modified xgboost library for efficient transfer.
+        :param target: The name of the target column.
+        :param features: List of features to use when training the model. If None, all columns except the target will be used as features.
+        :param num_boost_round: Number of boosting rounds.
+        :param bool copy: If True Copy the data, otherwise use a more memory efficient data transfer method.
         :return vaex.ml.lightgbm.LightGBMModel: Fitted LightGBM model.
         '''
         from .lightgbm import LightGBMModel
         dataframe = self.df
-        features = features or self.df.get_column_names(virtual=True)
+        target = _ensure_strings_from_expressions(target)
+        features = features or self.df.get_column_names(virtual=True).remove(target)
         features = _ensure_strings_from_expressions(features)
 
         booster = LightGBMModel(prediction_name=prediction_name,
                                 num_boost_round=num_boost_round,
                                 features=features,
+                                target=target,
                                 params=params)
-        booster.fit(dataframe, target, copy=copy)
+        booster.fit(dataframe, copy=copy)
         return booster
 
 
-    def catboost_model(self, target, num_boost_round, features=None, params=None, prediction_name='catboost_prediction'):
+    def catboost_model(self, target, features=None, num_boost_round=100, params=None, prediction_name='catboost_prediction'):
         '''Requires vaex.ml: create a CatBoostModel model and train/fit it.
 
-        :param target: Target to train/fit on
-        :param num_boost_round: Number of rounds
-        :param features: List of features to train on
-        :return vaex.ml.catboost.CatBoostModel: Fitted CatBoostModel model
+        :param target: The name of the target column.
+        :param features: List of features to use when training the model. If None, all columns except the target will be used as features.
+        :param num_boost_round: Number of boosting rounds.
+        :return vaex.ml.catboost.CatBoostModel: Fitted CatBoostModel model.
         '''
         from .catboost import CatBoostModel
         dataframe = self.df
-        features = features or self.df.get_column_names()
+        target = _ensure_strings_from_expressions(target)
+        features = features or self.df.get_column_names(virtual=True).remove(target)
         features = _ensure_strings_from_expressions(features)
         booster = CatBoostModel(prediction_name=prediction_name,
                                 num_boost_round=num_boost_round,
                                 features=features,
+                                target=target,
                                 params=params)
-        booster.fit(dataframe, target)
+        booster.fit(dataframe)
         return booster
 
 
