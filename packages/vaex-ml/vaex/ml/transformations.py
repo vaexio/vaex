@@ -30,6 +30,7 @@ class Transformer(HasState):
     ''' Parent class for all of the transformers.
     '''
     features = traitlets.List(traitlets.Unicode(), help=help_features).tag(ui='SelectMultiple')
+    features_ = traitlets.List(traitlets.Unicode()).tag(output=True)
 
     def fit_transform(self, df):
         '''Fit and apply the transformer to the supplied DataFrame.
@@ -40,6 +41,9 @@ class Transformer(HasState):
         '''
         self.fit(df=df)
         return self.transform(df=df)
+
+    def _get_output_features(self):
+        self.features_ = [self.prefix + feat for feat in self.features]
 
 
 @register
@@ -95,6 +99,8 @@ class PCA(Transformer):
         self.eigen_vectors_ = eigen_vectors[:, indices].tolist()
         self.eigen_values_ = eigen_values[indices].tolist()
 
+        self._get_output_features(df)
+
     def transform(self, df, n_components=None):
         '''Apply the PCA transformation to the DataFrame.
 
@@ -118,6 +124,13 @@ class PCA(Transformer):
             name = self.prefix + str(i + name_prefix_offset)
             copy[name] = expr
         return copy
+
+    def _get_output_features(self, df):
+        name_prefix_offset = 0
+        while self.prefix + str(name_prefix_offset) in df.get_column_names(virtual=True, strings=True):
+            name_prefix_offset += 1
+
+        self.features_ = [self.prefix + str(i + name_prefix_offset) for i in range(self.n_components)]
 
 
 @register
@@ -160,6 +173,8 @@ class LabelEncoder(Transformer):
         for feature in self.features:
             labels = df[feature].unique().tolist()
             self.labels_[feature] = dict(zip(labels, np.arange(len(labels))))
+
+        self._get_output_features()
 
     def transform(self, df):
         '''
@@ -209,9 +224,8 @@ class OneHotEncoder(Transformer):
      3  blue                1              0            0
      4  red                 0              0            1
     '''
-
     # title = Unicode(default_value='One-Hot Encoder', read_only=True).tag(ui='HTML')
-    prefix = traitlets.Unicode(default_value='', help=help_prefix).tag(ui='Text')
+    prefix = traitlets.Unicode(default_value='', help=help_prefix)
     one = traitlets.Any(1, help='Value to encode when a category is present.')
     zero = traitlets.Any(0, help='Value to encode when category is absent.')
     uniques_ = traitlets.List(traitlets.List(), help='The unique elements found in each feature.').tag(output=True)
@@ -230,6 +244,8 @@ class OneHotEncoder(Transformer):
             uniques.append(unique.tolist())
         self.uniques_ = uniques
 
+        self._get_output_features()
+
     def transform(self, df):
         '''Transform a DataFrame with a fitted OneHotEncoder.
 
@@ -245,6 +261,9 @@ class OneHotEncoder(Transformer):
                 copy.add_virtual_column(column_name, 'where({feature} == {value}, {one}, {zero})'.format(
                                         feature=feature, value=repr(value), one=self.one, zero=self.zero))
         return copy
+
+    def _get_output_features(self):
+        self.features_ = [self.prefix + feat + '_' + str(value) for i, feat in enumerate(self.features) for value in self.uniques_[i]]
 
 
 @register
@@ -288,6 +307,8 @@ class FrequencyEncoder(Transformer):
         # Encoding
         for feature in self.features:
             self.mappings_[feature] = dict(df[feature].value_counts() / nsamples)
+
+        self._get_output_features()
 
     def transform(self, df):
         '''Transform a DataFrame with a fitted FrequencyEncoder.
@@ -355,6 +376,8 @@ class StandardScaler(Transformer):
         assign(mean, std)
         df.execute()
 
+        self._get_output_features()
+
     def transform(self, df):
         '''
         Transform a DataFrame with a fitted StandardScaler.
@@ -420,6 +443,8 @@ class MinMaxScaler(Transformer):
         self.fmin_ = minmax[:, 0].tolist()
         self.fmax_ = minmax[:, 1].tolist()
 
+        self._get_output_features()
+
     def transform(self, df):
         '''
         Transform a DataFrame with a fitted MinMaxScaler.
@@ -480,6 +505,8 @@ class MaxAbsScaler(Transformer):
         absmax = df.max(['abs(%s)' % k for k in self.features]).tolist()
         # Check if the absmax_ value is 0, in which case replace with 1
         self.absmax_ = [value if value != 0 else 1 for value in absmax]
+
+        self._get_output_features()
 
     def transform(self, df):
         '''
@@ -553,6 +580,8 @@ class RobustScaler(Transformer):
         if self.with_scaling:
             self.scale_ = (df.percentile_approx(expression=self.features, percentage=q_max) - df.percentile_approx(expression=self.features, percentage=q_min)).tolist()
 
+        self._get_output_features()
+
     def transform(self, df):
         '''
         Transform a DataFrame with a fitted RobustScaler.
@@ -618,7 +647,8 @@ class CycleTransformer(Transformer):
 
         :param df: A vaex DataFrame.
         '''
-        pass
+
+        self._get_output_features()
 
     def transform(self, df):
         '''
@@ -634,6 +664,11 @@ class CycleTransformer(Transformer):
             copy[name_y] = np.sin(2 * np.pi * copy[feature] / self.n)
 
         return copy
+
+    def _get_output_features(self):
+        for feature in self.features:
+            self.features_.append(self.prefix_x + feature + self.suffix_x)
+            self.features_.append(self.prefix_y + feature + self.suffix_y)
 
 
 class BayesianTargetEncoder(Transformer):
@@ -686,6 +721,8 @@ class BayesianTargetEncoder(Transformer):
             agg = df.groupby(feature, agg={'count': vaex.agg.count(), 'mean': vaex.agg.mean(self.target)})
             agg['encoding'] = (agg['count'] * agg['mean'] + self.weight * global_target_mean) / (agg['count'] + self.weight)
             self.mappings_[feature] = {value[feature]: value['encoding'] for index, value in agg.iterrows()}
+
+        self._get_output_features()
 
     def transform(self, df):
         '''Transform a DataFrame with a fitted BayesianTargetEncoder.
@@ -760,6 +797,8 @@ class WeightOfEvidenceEncoder(Transformer):
             agg['negative'] = agg.func.where(agg['negative'] == 0, self.epsilon, agg['negative'])
             agg['woe'] = np.log(agg.positive/agg.negative)
             self.mappings_[feature] = {value[feature]: value['woe'] for index, value in agg.iterrows()}
+
+        self._get_output_features()
 
     def transform(self, df):
         '''Transform a DataFrame with a fitted WeightOfEvidenceEncoder.
