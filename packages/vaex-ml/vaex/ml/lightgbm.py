@@ -36,7 +36,7 @@ class LightGBMModel(state.HasState):
     >>> import vaex.ml.lightgbm
     >>> df = vaex.ml.datasets.load_iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
-    >>> df_train, df_test = vaex.ml.train_test_split(df)
+    >>> df_train, df_test = df.ml.train_test_split()
     >>> params = {
         'boosting': 'gbdt',
         'max_depth': 5,
@@ -45,8 +45,8 @@ class LightGBMModel(state.HasState):
         'num_class': 3,
         'subsample': 0.80,
         'colsample_bytree': 0.80}
-    >>> booster = vaex.ml.lightgbm.LightGBMModel(features=features, num_boost_round=100, params=params)
-    >>> booster.fit(df_train, 'class_')
+    >>> booster = vaex.ml.lightgbm.LightGBMModel(features=features, target='class_', num_boost_round=100, params=params)
+    >>> booster.fit(df_train)
     >>> df_train = booster.transform(df_train)
     >>> df_train.head(3)
      #    sepal_width    petal_length    sepal_length    petal_width    class_    lightgbm_prediction
@@ -61,6 +61,7 @@ class LightGBMModel(state.HasState):
      2            2.9             4.6             6.6            1.3         1    [2.50915444e-04 9.98431777e-01 1.31730785e-03]
     '''
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the LightGBMModel.')
+    target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     num_boost_round = traitlets.CInt(help='Number of boosting iterations.')
     params = traitlets.Dict(help='parameters to be passed on the to the LightGBM model.')
     prediction_name = traitlets.Unicode(default_value='lightgbm_prediction', help='The name of the virtual column housing the predictions.')
@@ -84,8 +85,7 @@ class LightGBMModel(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
-    def fit(self, df, target, valid_sets=None, valid_names=None,
-            early_stopping_rounds=None, evals_result=None, verbose_eval=None,
+    def fit(self, df, valid_sets=None, valid_names=None, early_stopping_rounds=None, evals_result=None, verbose_eval=None,
             copy=False, **kwargs):
         """Fit the LightGBMModel to the DataFrame.
 
@@ -95,34 +95,30 @@ class LightGBMModel(state.HasState):
         specified. If there's more than one, will check all of them, but the
         training data is ignored anyway. If early stopping occurs, the model
         will add ``best_iteration`` field to the booster object.
-        :param dict evals_result: A dictionary storing the evaluation results of all *valid_sets*.
-        :param bool verbose_eval: Requires at least one item in *evals*.
-        If *verbose_eval* is True then the evaluation metric on the validation
-        set is printed at each boosting stage.
-        :param bool copy: (default, False) If True, make an in memory copy of the data before passing it to LightGBMModel.
 
-
-        :param df: A vaex DataFrame.
-        :param target: The name of the column containing the target variable.
+        :param df: A vaex DataFrame containing the features and target on which to train the model.
         :param list valid_sets: A list of DataFrames to be used for validation.
         :param list valid_names: A list of strings to label the validation sets.
         :param early_stopping_rounds int: Activates early stopping.
-
+        :param dict evals_result: A dictionary storing the evaluation results of all *valid_sets*.
+        :param bool verbose_eval: Requires at least one item in *valid_sets*.
+            If *verbose_eval* is True then the evaluation metric on the validation set is printed at each boosting stage.
+        :param bool copy: (default, False) If True, make an in memory copy of the data before passing it to LightGBMModel.
         """
 
         if copy:
-            dtrain = lightgbm.Dataset(df[self.features].values, df.evaluate(target))
+            dtrain = lightgbm.Dataset(df[self.features].values, df.evaluate(self.target))
             if valid_sets is not None:
                 for i, item in enumerate(valid_sets):
-                    valid_sets[i] = lightgbm.Dataset(item[self.features].values, item[target].values)
+                    valid_sets[i] = lightgbm.Dataset(item[self.features].values, item[self.target].values)
             else:
                 valid_sets = ()
         else:
-            dtrain = VaexDataset(df, target, features=self.features)
+            dtrain = VaexDataset(df, self.target, features=self.features)
             if valid_sets is not None:
                 for i, item in enumerate(valid_sets):
-                    # valid_sets[i] = VaexDataset(item, target, features=self.features)
-                    valid_sets[i] = lightgbm.Dataset(item[self.features].values, item[target].values)
+                    # valid_sets[i] = VaexDataset(item, self.target, features=self.features)
+                    valid_sets[i] = lightgbm.Dataset(item[self.features].values, item[self.target].values)
                     warnings.warn('''Validation sets do not obey the `copy=False` argument.
                                   A standard in-memory copy is made for each validation set.''', UserWarning)
             else:

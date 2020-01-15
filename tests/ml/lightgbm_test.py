@@ -47,8 +47,9 @@ def test_light_gbm_virtual_columns():
     features = ['x', 'y', 'z', 'w']
     booster = vaex.ml.lightgbm.LightGBMModel(num_boost_round=10,
                                              params=params,
-                                             features=features)
-    booster.fit(ds_train, ds.class_, copy=False)
+                                             features=features,
+                                             target='class_')
+    booster.fit(ds_train, copy=False)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
@@ -57,9 +58,9 @@ def test_lightgbm():
     ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     features = _ensure_strings_from_expressions(features)
-    booster = vaex.ml.lightgbm.LightGBMModel(num_boost_round=10, params=params, features=features)
+    booster = vaex.ml.lightgbm.LightGBMModel(num_boost_round=10, params=params, features=features, target='class_')
 
-    booster.fit(ds_train, ds.class_, copy=True)    # for coverage
+    booster.fit(ds_train, copy=True)    # for coverage
     class_predict_train = booster.predict(ds_train, copy=True)  # for coverage
     class_predict_test = booster.predict(ds_test)
     assert np.all(ds_test.col.class_.values == np.argmax(class_predict_test, axis=1))
@@ -76,12 +77,12 @@ def test_lightgbm_serialize(tmpdir):
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
 
-    gbm = ds.ml.lightgbm_model(target, 20, features=features, params=params)
+    gbm = ds.ml.lightgbm_model(target=target, features=features, num_boost_round=100, params=params)
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
     pl.load(str(tmpdir.join('test.json')))
 
-    gbm = ds.ml.lightgbm_model(target, 20, features=features, params=params)
+    gbm = ds.ml.lightgbm_model(target=target, features=features, num_boost_round=100, params=params)
     gbm.state_set(gbm.state_get())
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
@@ -118,15 +119,15 @@ def test_lightgbm_validation_set():
     # history of the booster (evaluations of the train and validation sets)
     history = {}
     # instantiate the booster model
-    booster = vaex.ml.lightgbm.LightGBMModel(features=features, num_boost_round=10, params=params_reg)
+    booster = vaex.ml.lightgbm.LightGBMModel(features=features, target='E', num_boost_round=10, params=params_reg)
     # fit the booster - including saving the history of the validation sets
     with pytest.warns(UserWarning):
-        booster.fit(train, 'E', valid_sets=[train, test], valid_names=['train', 'test'],
+        booster.fit(train, valid_sets=[train, test], valid_names=['train', 'test'],
                     early_stopping_rounds=2, evals_result=history, copy=False)
     assert booster.booster.best_iteration == 10
     assert len(history['train']['l2']) == 10
     assert len(history['test']['l2']) == 10
-    booster.fit(train, 'E', valid_sets=[train, test], valid_names=['train', 'test'],
+    booster.fit(train, valid_sets=[train, test], valid_names=['train', 'test'],
                 early_stopping_rounds=2, evals_result=history, copy=True)
     assert booster.booster.best_iteration == 10
     assert len(history['train']['l2']) == 10

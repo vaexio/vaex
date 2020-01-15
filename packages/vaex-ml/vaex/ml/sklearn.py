@@ -35,9 +35,9 @@ class Predictor(state.HasState):
     >>> from sklearn.linear_model import LinearRegression
     >>> df = vaex.ml.datasets.load_iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length']
-    >>> df_train, df_test = vaex.ml.train_test_split(df)
-    >>> model = Predictor(model=LinearRegression(), features=features, prediction_name='pred')
-    >>> model.fit(df_train, df_train.petal_width)
+    >>> df_train, df_test = df.ml.train_test_split()
+    >>> model = Predictor(model=LinearRegression(), features=features, target='petal_width', prediction_name='pred')
+    >>> model.fit(df_train)
     >>> df_train = model.transform(df_train)
     >>> df_train.head(3)
      #    sepal_length    sepal_width    petal_length    petal_width    class_      pred
@@ -54,6 +54,7 @@ class Predictor(state.HasState):
 
     model = traitlets.Any(default_value=None, allow_none=True, help='A scikit-learn estimator.').tag(**serialize_pickle)
     features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
+    target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     prediction_name = traitlets.Unicode(default_value='prediction', help='The name of the virtual column housing the predictions.')
 
     def __call__(self, *args):
@@ -85,14 +86,14 @@ class Predictor(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
-    def fit(self, df, target, **kwargs):
+    def fit(self, df, **kwargs):
         '''Fit the SKLearnPredictor to the DataFrame.
 
-        :param df: A vaex DataFrame containing the features on which to train the model.
-        :param target: The name of the column containing the target variable.
+        :param df: A vaex DataFrame containing the features and target on which to train the model.
         '''
+
         X = df[self.features].values
-        y = df.evaluate(target)
+        y = df.evaluate(self.target)
         self.model.fit(X=X, y=y, **kwargs)
 
 
@@ -149,11 +150,12 @@ class IncrementalPredictor(state.HasState):
     >>>
     >>> incremental = IncrementalPredictor(model=model,
     ...                                    features=features,
+    ...                                    target=target,
     ...                                    batch_size=10_000,
     ...                                    num_epochs=3,
     ...                                    shuffle=True,
     ...                                    prediction_name='pred_FeH')
-    >>> incremental.fit(df=df, target=target)
+    >>> incremental.fit(df=df)
     >>> df = incremental.transform(df)
     >>> df.head(5)[['FeH', 'pred_FeH']]
       #        FeH    pred_FeH
@@ -166,6 +168,7 @@ class IncrementalPredictor(state.HasState):
 
     model = traitlets.Any(default_value=None, allow_none=True, help='A scikit-learn estimator with a `.fit_predict` method.').tag(**serialize_pickle)
     features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
+    target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     batch_size = traitlets.Int(default_value=1_000_000, allow_none=False, help='Number of samples to be sent to the model in each batch.')
     num_epochs = traitlets.Int(default_value=1, allow_none=False, help='Number of times each batch is sent to the model.')
     shuffle = traitlets.Bool(default_value=False, allow_none=False, help='If True, shuffle the samples before sending them to the model.')
@@ -201,12 +204,13 @@ class IncrementalPredictor(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
-    def fit(self, df, target, progress=None):
+    def fit(self, df, progress=None):
         '''Fit the IncrementalPredictor to the DataFrame.
 
-        :param df: A vaex DataFrame containing the features on which to train the model.
-        :param target: The name of the column containing the target variable.
+        :param df: A vaex DataFrame containing the features and target on which to train the model.
+        :param progress: If True, display a progressbar which tracks the training progress.
         '''
+
         # Check whether the model is appropriate
         assert hasattr(self.model, 'partial_fit'), 'The model must have a `.partial_fit` method.'
 
@@ -215,7 +219,7 @@ class IncrementalPredictor(state.HasState):
         progressbar = vaex.utils.progressbars(progress)
 
         # Portions of the DataFrame to evaluate
-        expressions = self.features + [target]
+        expressions = self.features + [self.target]
 
         for epoch in range(self.num_epochs):
             for i1, i2, chunks in df.evaluate_iterator(expressions, chunk_size=self.batch_size):
