@@ -41,3 +41,16 @@ def test_add_virtual_columns_proper_motion_eq2gal():
         pm_b_e = ds_1.evaluate("pm_b_uncertainty")[0]
         np.testing.assert_almost_equal(pm_l_e, ds_many.std("pm_l").item(), decimal=3)
         np.testing.assert_almost_equal(pm_b_e, ds_many.std("pm_b").item(), decimal=3)
+
+
+def test_virtual_columns_equatorial():
+    df = vaex.from_scalars(alpha=0, delta=0, distance=1)
+
+    df.add_virtual_columns_equatorial_to_galactic_cartesian("alpha", "delta", "distance", "x", "y", "z", radians=False)
+    df.add_virtual_column("r", "sqrt(x**2+y**2+z**2)")
+
+    x = df['x'].values[0]
+    y = df['y'].values[0]
+    z = df['z'].values[0]
+    assert x**2+y**2+z**2 == 1
+    assert df['r'].values[0] == 1

@@ -8,6 +8,21 @@ import sys
 test_port = 29110 + sys.version_info[0] * 10 + sys.version_info[1]
 scheme = 'ws'
 
+
+class CallbackCounter(object):
+	def __init__(self, return_value=None):
+		self.counter = 0
+		self.return_value = return_value
+		self.last_args = None
+		self.last_kwargs = None
+
+	def __call__(self, *args, **kwargs):
+		self.counter += 1
+		self.last_args = args
+		self.last_kwargs = kwargs
+		return self.return_value
+
+
 @contextlib.contextmanager
 def small_buffer(ds, size=3):
     if ds.is_local():
@@ -37,12 +52,15 @@ def server(webserver):
     server.close()
 
 @pytest.fixture()
-def ds_remote(webserver, server, ds_trimmed):
-    ds = ds_trimmed.copy()
-    ds.drop('obj', inplace=True)
-    ds.name = 'ds_trimmed'
-    webserver.set_datasets([ds])
-    return server.datasets(as_dict=True)['ds_trimmed']
+def ds_remote(webserver, client, ds_trimmed):
+    df = ds_trimmed.copy()
+    df.drop('obj', inplace=True)
+    df.drop('datetime', inplace=True)
+    df.drop('timedelta', inplace=True)
+    df.name = 'ds_trimmed'
+    webserver.set_datasets([df])
+    client.update()
+    return client['ds_trimmed']
 
 @pytest.fixture()
 def ds_filtered():
@@ -104,7 +122,7 @@ def create_base_ds():
     # m = x.copy()
     m = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
     ma_value = 77777
-    m[-1+10] = ma_value
+    m[-1+10+2] = ma_value
     m[-1+20] = ma_value
     m = np.ma.array(m, mask=m==ma_value)
 
@@ -151,5 +169,8 @@ def create_base_ds():
     timedelta = datetime - np.datetime64('1996-05-17T16:45:00.00')
     dataset.add_column("datetime", datetime)
     dataset.add_column("timedelta", timedelta)
+
+    dataset.add_virtual_column("z", "x+t*y")
+    dataset.set_variable("t", 1.)
 
     return dataset._readonly()
