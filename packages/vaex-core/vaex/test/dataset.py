@@ -788,136 +788,6 @@ class TestDataset(unittest.TestCase):
 	def test_data_access(self):
 		assert (all(self.dataset.data.x == self.dataset.columns["x"]))
 
-	def test_subspace_basics(self):
-		self.assertIsNotNone(repr(self.dataset("x")))
-		self.assertIsNotNone(repr(self.dataset("x", "y")))
-		self.assertIsNotNone(repr(self.dataset("x", "y", "z")))
-
-		subspace = self.dataset("x", "y")
-		for i in range(len(self.dataset)):
-			self.assertEqual(subspace.row(0).tolist(), [self.x[0], self.y[0]])
-
-		self.assertEqual(self.dataset.subspace("x", "y").expressions, self.dataset("x", "y").expressions)
-
-	def test_mutual_information(self):
-		limits = self.dataset.limits(["x", "y"], "minmax")
-		subspace = self.dataset("x", "y")
-		mi1 = subspace.mutual_information(limits=limits, size=256)
-
-		mi2 = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256)
-
-		self.assertEqual(mi1, mi2)
-
-		# no test, just for coverage
-		mi1d = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby="x", limits=[0, 10], shape=2)
-		self.assertEqual(mi1d.shape, (2,))
-
-		mi2d = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y"], limits=[[0, 10], [0, 100]], shape=(2, 3))
-		self.assertEqual(mi2d.shape, (2,3))
-
-		mi3d = self.dataset.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y", "z"], limits=[[0, 10], [0, 100], [-100, 100]], shape=(2, 3, 4))
-		self.assertEqual(mi3d.shape, (2,3,4))
-
-		mi_list, subspaces = self.dataset.mutual_information([["x", "y"], ["x", "z"]], sort=True)
-		mi1 = self.dataset.mutual_information("x", "y")
-		mi2 = self.dataset.mutual_information("x", "z")
-		self.assertEqual(mi_list.tolist(), list(sorted([mi1, mi2])))
-
-	def test_subspaces(self):
-		dataset = vaex.from_arrays(x=np.array([1]), y=np.array([2]), z=np.array([3]))
-		subspaces = dataset.subspaces(dimensions=2)
-		self.assertEqual(len(subspaces), 3)
-		subspaces = dataset.subspaces(dimensions=2, exclude="x")
-		self.assertEqual(len(subspaces), 1)
-		subspaces = dataset.subspaces(dimensions=2, exclude=["x"])
-		self.assertEqual(len(subspaces), 1)
-		subspaces = dataset.subspaces(dimensions=2, exclude=[["x", "y"]])
-		self.assertEqual(len(subspaces), 2)
-		subspaces = dataset.subspaces(dimensions=2, exclude=[["y", "x"]])
-		self.assertEqual(len(subspaces), 2)
-		subspaces = dataset.subspaces(dimensions=2, exclude=lambda list: "x" in list)
-		self.assertEqual(len(subspaces), 1)
-
-		subspaces = self.dataset.subspaces([("x", "y")])
-		self.assertEqual(subspaces.names(), ["x y"])
-		self.assertEqual(subspaces.expressions_list(), [("x", "y")])
-
-		self.assertIsNotNone(subspaces.selected().subspaces[0].is_masked)
-
-		for delay in [False, True]:
-			subspaces = self.dataset.subspaces([("x", "y")], delay=delay)
-			result = subspaces.minmax()
-			if delay:
-				subspaces.subspace.executor.execute()
-				result = result.get()
-			minmax = result
-			values = np.array(result).flatten()
-			self.assertEqual(values.tolist(), self.dataset("x", "y").minmax().flatten().tolist())
-
-			result = subspaces.limits_sigma()
-			if delay:
-				subspaces.subspace.executor.execute()
-				result = result.get()
-			values = np.array(result).flatten()
-			self.assertEqual(values.tolist(), self.dataset("x", "y").limits_sigma().flatten().tolist())
-
-			result = subspaces.mean()
-			if delay:
-				subspaces.subspace.executor.execute()
-				result = result.get()
-			means = result
-			values = np.array(result).flatten()
-			self.assertEqual(values.tolist(), self.dataset("x", "y").mean().flatten().tolist())
-
-			result = subspaces.var()
-			if delay:
-				subspaces.subspace.executor.execute()
-				result = result.get()
-			vars = result
-			values = np.array(result).flatten()
-			self.assertEqual(values.tolist(), self.dataset("x", "y").var().flatten().tolist())
-
-			result = subspaces.var(means=means)
-			if delay:
-				subspaces.subspace.executor.execute()
-				result = result.get()
-			vars = result
-			values = np.array(result).flatten()
-			self.assertEqual(values.tolist(), self.dataset("x", "y").var(means=means[0]).flatten().tolist())
-
-			#means = [0, 0]
-			result = subspaces.var(means=means)
-			if delay:
-				subspaces.subspace.executor.execute()
-				result = result.get()
-			values = np.array(result).flatten()
-			self.assertEqual(values.tolist(), self.dataset("x", "y").var(means=means[0]).flatten().tolist())
-
-			for means_ in [means, None]:
-				for vars_ in [vars, None]:
-					result = subspaces.correlation(means=means_, vars=vars_)
-					if delay:
-						subspaces.subspace.executor.execute()
-						result = result.get()
-					values = np.array(result).flatten()
-					#print delay, means_, vars_
-					#print values, self.dataset("x", "y").correlation(), self.dataset("x", "y").correlation(means=means_[0] if means_ else None, vars=vars_[0] if vars_ else None).flatten().tolist()
-					self.assertEqual(values.tolist(), self.dataset("x", "y").correlation(means=means_[0] if means_ else None, vars=vars_[0] if vars_ else None).flatten().tolist())
-
-
-			result = subspaces.mutual_information()
-			if delay:
-				subspaces.subspace.executor.execute()
-				result = result.get()
-			values = np.array(result).flatten()
-			self.assertEqual(values.tolist(), self.dataset("x", "y").mutual_information().flatten().tolist())
-
-			result = subspaces.mutual_information(limits=minmax)
-			if delay:
-				subspaces.subspace.executor.execute()
-				result = result.get()
-			values = np.array(result).flatten()
-			self.assertEqual(values.tolist(), self.dataset("x", "y").mutual_information(limits=minmax[0]).flatten().tolist())
 
 	def test_not_implemented(self):
 		subspace = vaex.legacy.Subspace(self.dataset, ["x", "y"], self.dataset.executor, False)
@@ -933,38 +803,6 @@ class TestDataset(unittest.TestCase):
 			subspace.histogram([])
 		with self.assertRaises(NotImplementedError):
 			subspace.limits_sigma()
-
-	def test_subspace_gridded(self):
-		subspace = self.dataset("x", "y")
-		limits = subspace.minmax()
-		grid = subspace.histogram(limits)
-		subspace_bounded = subspace.bounded_by(limits)
-		subspace_gridded = subspace_bounded.gridded()
-		assert(np.all(subspace_gridded.grid == grid))
-
-		subspace_bounded = subspace.bounded_by_minmax()
-		subspace_gridded = subspace_bounded.gridded()
-		assert(np.all(subspace_gridded.grid == grid))
-
-		limits = subspace.limits_sigma()
-		grid = subspace.histogram(limits)
-		subspace_bounded = subspace.bounded_by(limits)
-		subspace_gridded = subspace_bounded.gridded()
-		assert(np.all(subspace_gridded.grid == grid))
-
-		subspace_bounded = subspace.bounded_by_sigmas()
-		subspace_gridded = subspace_bounded.gridded()
-		assert(np.all(subspace_gridded.grid == grid))
-
-
-		subspace_gridded_vector = subspace_gridded.vector("x", "y")
-		gridx = subspace.histogram(subspace_gridded_vector.subspace_bounded.bounds, size=32, weight="x")
-		gridy = subspace.histogram(subspace_gridded_vector.subspace_bounded.bounds, size=32, weight="y")
-
-		assert(np.all(subspace_gridded_vector.vx.grid == gridx))
-		assert(np.all(subspace_gridded_vector.vy.grid == gridy))
-
-
 
 	def test_length(self):
 		self.assertEqual(len(self.dataset), 10)
@@ -984,24 +822,6 @@ class TestDataset(unittest.TestCase):
 		x = self.dataset.evaluate("x", selection="x < 4")
 		self.assertEqual(x.tolist(), x[:4].tolist())
 
-
-	def test_subspace_errors(self):
-
-		with self.assertRaises(SyntaxError):
-			self.dataset("x/").sum()
-		with self.assertRaises((KeyError, NameError)): # TODO: should we have just one error type?
-			self.dataset("doesnotexist").sum()
-
-		# that that after a error we can still continue
-		self.dataset("x").sum()
-
-		if 0:
-			for i in range(100):
-				with self.assertRaises(SyntaxError):
-					self.dataset("x/").sum()
-				with self.assertRaises((KeyError, NameError)): # TODO: should we have just one error type?
-					self.dataset("doesnotexist").sum()
-				self.dataset("x").sum()
 
 	def test_invalid_expression(self):
 		with self.assertRaises(SyntaxError):
@@ -1027,102 +847,6 @@ class TestDataset(unittest.TestCase):
 		zeros = self.dataset.evaluate("z3")
 		np.testing.assert_array_almost_equal(zeros, np.zeros(len(self.dataset)))
 
-
-	def test_virtual_columns_spherical(self):
-		dataset = from_scalars(alpha=0, delta=0, distance=1)
-		dataset.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance", "x", "y", "z", radians=False)
-
-		subspace = dataset("x", "y", "z")
-		x, y, z = subspace.sum()
-
-		self.assertAlmostEqual(x, 1)
-		self.assertAlmostEqual(y, 0)
-		self.assertAlmostEqual(z, 0)
-
-		for radians in [True, False]:
-			def dfs(alpha, delta, distance, radians=radians):
-				ds_1 = from_scalars(alpha=alpha, delta=delta, distance=distance, alpha_e=0.1, delta_e=0.2, distance_e=0.3)
-				ds_1.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance", propagate_uncertainties=True, radians=radians)
-				N = 1000000
-				# distance
-				alpha =        np.random.normal(0, 0.1, N) + alpha
-				delta =        np.random.normal(0, 0.2, N) + delta
-				distance =     np.random.normal(0, 0.3, N) + distance
-				ds_many = vx.from_arrays(alpha=alpha, delta=delta, distance=distance)
-				ds_many.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance", radians=radians)
-				return ds_1, ds_many
-
-			ds_1, ds_many = dfs(0, 0, 1.)
-			x_e = ds_1.evaluate("x_uncertainty")[0]
-			y_e = ds_1.evaluate("y_uncertainty")[0]
-			z_e = ds_1.evaluate("z_uncertainty")[0]
-			self.assertAlmostEqual(x_e, ds_many.std("x").item(), delta=0.02)
-
-			self.assertAlmostEqual(y_e, ds_many.std("y").item(), delta=0.02)
-			self.assertAlmostEqual(z_e, ds_many.std("z").item(), delta=0.02)
-			self.assertAlmostEqual(x_e, 0.3)
-
-		# TODO: from cartesian tot spherical errors
-
-
-		dataset.add_virtual_columns_cartesian_to_spherical("x", "y", "z", "theta", "phi", "r", radians=False)
-		theta, phi, r = dataset("theta", "phi", "r").row(0)
-		self.assertAlmostEqual(theta, 0)
-		self.assertAlmostEqual(phi, 0)
-		self.assertAlmostEqual(r, 1)
-
-
-		dataset.add_virtual_columns_celestial("alpha", "delta", "l", "b", _matrix='eq2gal')
-		# TODO: properly test, with and without radians
-		dataset.evaluate("l")
-		dataset.evaluate("b")
-
-		ds = vaex.from_scalars(x=1, y=0, z=0)
-		ds.add_virtual_columns_cartesian_to_spherical()
-		assert ds.evaluate('b')[0] == 0
-
-	def test_virtual_columns_equatorial(self):
-		alpha = np.array([0.])
-		delta = np.array([0.])
-		distance = np.array([1.])
-		dataset = vx.dataset.DatasetArrays()
-		dataset.add_column("alpha", alpha)
-		dataset.add_column("delta", delta)
-		dataset.add_column("distance", distance)
-
-		dataset.add_virtual_columns_equatorial_to_galactic_cartesian("alpha", "delta", "distance", "x", "y", "z", radians=False)
-		dataset.add_virtual_column("r", "sqrt(x**2+y**2+z**2)")
-
-		subspace = dataset("x", "y", "z")
-		x, y, z = subspace.sum()
-
-		self.assertAlmostEqual(x**2+y**2+z**2, 1)
-
-		subspace = dataset("r")
-		r, = subspace.sum()
-		self.assertAlmostEqual(r, 1)
-
-	def test_sum_old(self):
-		x, y = self.datasetxy("x", "y").sum()
-		self.assertAlmostEqual(x, 1)
-		self.assertAlmostEqual(y, 0)
-
-		self.datasetxy.select("x < 1")
-		x, y = self.datasetxy("x", "y").selected().sum()
-		self.assertAlmostEqual(x, 0)
-		self.assertAlmostEqual(y, -1)
-
-	def test_progress(self):
-		x, y = self.datasetxy("x", "y").sum()
-		task = self.datasetxy("x", "y", delay=True).sum()
-		counter = CallbackCounter(True)
-		task.signal_progress.connect(counter)
-		self.datasetxy.executor.execute()
-		x2, y2 = task.get()
-		self.assertEqual(x, x2)
-		self.assertEqual(y, y2)
-		self.assertGreater(counter.counter, 0)
-		self.assertEqual(counter.last_args[0], 1.0)
 
 
 	def test_count(self):
@@ -1296,54 +1020,6 @@ class TestDataset(unittest.TestCase):
 		assert not np.any(np.isnan(self.dataset.cov("x", "n")))
 
 
-	def test_correlation(self):
-		# convert to float
-		x = self.x #self.dataset_local.columns["x"][self.zero_index:10] = self.dataset_local.columns["x"][:10] * 1.
-		y = self.y
-		def correlation(x, y):
-			c = np.cov([x, y], bias=1)
-			return c[0,1] / (c[0,0] * c[1,1])**0.5
-
-		np.testing.assert_array_almost_equal(self.dataset.correlation([["x", "y"], ["x", "x**2"]], selection=None), [correlation(x, y), correlation(x, x**2)])
-		return
-
-		self.dataset.select("x < 5")
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None), correlation(x, y))
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True), correlation(x[:5], y[:5]))
-
-		#self.dataset.columns["x"][0] = np.nan
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None), correlation(x, y))
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True), correlation(x[:5], y[:5]))
-
-		task = self.dataset.correlation("x", "y", selection=True, delay=True)
-		self.dataset.executor.execute()
-		np.testing.assert_array_almost_equal(task.get(), correlation(x[:5], y[:5]))
-
-
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=1), [correlation(x, y)])
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=1), [correlation(x[:5], y[:5])])
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [correlation(x, y)])
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [correlation(x[:5], y[:5])])
-
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:5], y[:5]), correlation(x[5:], y[5:])])
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:5], y[:5]), np.nan])
-
-		i = 7
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None, binby=["y"], limits=[0, 9**2+1], shape=2), [correlation(x[:i], y[:i]), correlation(x[i:], y[i:])])
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["y"], limits=[0, 9**2+1], shape=2), [correlation(x[:5], y[:5]), np.nan])
-
-		i = 5
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:i], y[:i]), correlation(x[i:], y[i:])])
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:i], y[:i]), np.nan])
-
-		np.testing.assert_array_almost_equal(self.dataset.correlation("x", "y", selection=True, binby=["x"], limits=[[0, 10]], shape=2), [correlation(x[:i], y[:i]), np.nan])
-
-		self.assertGreater(self.dataset.correlation("x", "y", selection=None, binby=["x"], shape=1), 0)
-
-		self.assertGreater(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits="90%", shape=1), 0)
-		self.assertGreater(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits=["90%"], shape=1), 0)
-		self.assertGreater(self.dataset.correlation("x", "y", selection=None, binby=["x"], limits="minmax", shape=1), 0)
-
 	def test_covar(self):
 		# convert to float
 		x = self.dataset_local.columns["x"][:10] = self.dataset_local.columns["x"][:10] * 1.
@@ -1460,107 +1136,6 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.sum("y", selection=None, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:i]), np.nansum(y[i:])])
 		np.testing.assert_array_almost_equal(self.dataset.sum("y", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:5]), 0])
 
-	def test_mean(self):
-		x, y = self.datasetxy("x", "y").mean()
-		self.assertAlmostEqual(x, 0.5)
-		self.assertAlmostEqual(y, 0)
-
-		self.datasetxy.select("x < 1")
-		x, y = self.datasetxy("x", "y").selected().mean()
-		self.assertAlmostEqual(x, 0)
-		self.assertAlmostEqual(y, -1)
-
-
-		np.testing.assert_array_almost_equal(self.datasetxy.mean(["x", "y"], selection=None), [0.5, 0])
-		np.testing.assert_array_almost_equal(self.datasetxy.mean(["x", "y"], selection=True), [0, -1])
-		np.testing.assert_array_almost_equal(self.datasetxy.y.mean(selection=True), -1)
-
-	def test_minmax(self):
-		((xmin, xmax), ) = self.dataset("x").minmax()
-		self.assertAlmostEqual(xmin, 0)
-		self.assertAlmostEqual(xmax, 9)
-
-		np.testing.assert_array_almost_equal(self.dataset.minmax("x"), [0, 9.])
-		np.testing.assert_array_almost_equal(self.dataset.minmax("y"), [0, 9.**2])
-		np.testing.assert_array_almost_equal(self.dataset.minmax(["x", "y"]), [[0, 9.], [0, 9.**2]])
-
-		self.dataset.select("x < 5")
-		((xmin2, xmax2), ) = self.dataset("x").selected().minmax()
-		self.assertAlmostEqual(xmin2, 0)
-		self.assertAlmostEqual(xmax2, 4)
-
-		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=True), [0, 4])
-		np.testing.assert_array_almost_equal(self.dataset.minmax("y", selection=True), [0, 4**2])
-		np.testing.assert_array_almost_equal(self.dataset.minmax(["x", "y"], selection=True), [[0, 4], [0, 4**2]])
-		np.testing.assert_array_almost_equal(self.dataset.x.minmax(selection=True), [0, 4])
-		np.testing.assert_array_almost_equal(self.dataset.x.min(selection=True), 0)
-		np.testing.assert_array_almost_equal(self.dataset.x.max(selection=True), 4)
-
-		task = self.dataset.minmax("x", selection=True, delay=True)
-		self.dataset.executor.execute()
-		np.testing.assert_array_almost_equal(task.get(), [0, 4])
-
-
-		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=None, binby=["x"], limits="minmax", shape=1), [[0, 8]])
-		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=True, binby=["x"], limits="minmax", shape=1), [[0, 3]])
-
-		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=None, binby=["x"], limits="minmax", shape=2), [[0, 4], [5, 8]])
-		np.testing.assert_array_almost_equal(self.dataset.minmax("x", selection=True, binby=["x"], limits="minmax", shape=2), [[0, 1], [2, 3]])
-
-	def test_var_and_std(self):
-		# subspaces var uses non-central
-		x, y = self.datasetxy("x", "y").var()
-		self.assertAlmostEqual(x, 0.5)
-		self.assertAlmostEqual(y, 1.)
-
-		# newstyle var uses central
-		self.assertAlmostEqual(self.datasetxy.var("x"), 0.5**2)
-		self.assertAlmostEqual(self.datasetxy.var("y"), 1.)
-		self.assertAlmostEqual(self.datasetxy.std("x"), 0.5)
-		self.assertAlmostEqual(self.datasetxy.std("y"), 1.)
-
-
-		x, y = self.dataset("x", "y").var()
-		self.assertAlmostEqual(x, np.mean(self.x**2))
-		self.assertAlmostEqual(y, np.mean(self.y**2))
-
-		x, y = self.dataset.var(["x", "y"])
-		self.assertAlmostEqual(x, np.var(self.x))
-		self.assertAlmostEqual(y, np.var(self.y))
-		x, y = self.dataset.std(["x", "y"])
-		self.assertAlmostEqual(x, np.std(self.x))
-		self.assertAlmostEqual(y, np.std(self.y))
-
-		self.dataset.select("x < 5")
-		x, y = self.dataset("x", "y").selected().var()
-		self.assertAlmostEqual(x, np.mean(self.x[:5]**2))
-		self.assertAlmostEqual(y, np.mean(self.y[:5]**2))
-		# the legacy var does not subtract the mean
-		self.assertAlmostEqual(np.var(self.y[:5]), self.dataset.y.var(selection=True))
-
-		x, y = self.dataset.var(["x", "y"], selection=True)
-		self.assertAlmostEqual(x, np.var(self.x[:5]))
-		self.assertAlmostEqual(y, np.var(self.y[:5]))
-
-		x, y = self.dataset.std(["x", "y"], selection=True)
-		self.assertAlmostEqual(x, np.std(self.x[:5]))
-		self.assertAlmostEqual(y, np.std(self.y[:5]))
-		self.assertAlmostEqual(y, self.dataset.y.std(selection=True))
-
-
-	def test_correlation_old(self):
-
-		subspace = self.datasetxy("y", "y")
-		means = subspace.mean()
-		vars = subspace.var(means)
-		correlation = subspace.correlation(means, vars)
-		self.assertAlmostEqual(correlation, 1.0)
-
-		subspace = self.datasetxy("y", "-y")
-		means = subspace.mean()
-		vars = subspace.var(means)
-		correlation = subspace.correlation(means, vars)
-		self.assertAlmostEqual(correlation, -1.0)
 
 	def test_limits(self):
 		np.testing.assert_array_almost_equal(self.dataset.limits("x", "minmax"), self.dataset.minmax("x"))
@@ -1850,63 +1425,17 @@ class TestDataset(unittest.TestCase):
 
 		# TODO: test if statistics and histogram work on the active_fraction
 		self.dataset.set_active_fraction(1)
-		total, = self.dataset("x").sum()
+		total = self.dataset["x"].sum()
 		self.dataset.set_active_fraction(0.25)
-		total_half, = self.dataset("x").sum()
+		total_half = self.dataset["x"].sum()
 		self.assertLess(total_half, total)
 
 		limits = [(-100, 100)]
 		self.dataset.set_active_fraction(1)
-		total = self.dataset("x").histogram(limits).sum()
+		total = self.dataset["x"].count(limits=limits).sum()
 		self.dataset.set_active_fraction(0.25)
-		total_half = self.dataset("x").histogram(limits).sum()
+		total_half = self.dataset["x"].count(limits=limits).sum()
 		self.assertLess(total_half, total)
-
-
-	def test_histogram(self):
-		counts = self.dataset("x").histogram([[0,10]], size=10)
-		#import pdb
-		#pdb.set_trace()
-		self.assertTrue(all(counts == 1), "counts is %r" % counts)
-
-		sums = self.dataset("x").histogram([[0,10]], size=10, weight="y")
-		assert(all(sums == self.y))
-
-		self.dataset.select("x < 5")
-		mask = self.x < 5
-
-		counts = self.dataset("x").selected().histogram([[0,10]], size=10)
-		mod_counts = counts * 1.
-		mod_counts[~mask] = 0
-		assert(all(counts == mod_counts))
-
-		mod_sums = self.y * 1.
-		mod_sums[~mask] = 0
-		sums = self.dataset("x").selected().histogram([[0,10]], size=10, weight="y")
-		assert(all(sums == mod_sums))
-
-
-		x = np.array([0, 1, 0, 1])
-		y = np.array([0, 0, 1, 1])
-		dataset = vx.from_arrays(x=x, y=y)
-		counts = dataset("x", "y").histogram([[0.,2.], [0.,2.]], size=2)
-		assert(np.all(counts == 1))
-
-		x = np.array([0, 1, 0, 1, 0, 1, 0, 1])
-		y = np.array([0, 0, 1, 1, 0, 0, 1, 1])
-		z = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-		dataset = vx.from_arrays(x=x, y=y, z=z)
-		counts = dataset("x", "y", "z").histogram([[0.,2.], [0.,2.], [0.,2.]], size=2)
-		assert(np.all(counts == 1))
-
-		x = np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1])
-		y = np.array([0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1])
-		z = np.array([0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1])
-		w = np.array([0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1,])
-		dataset = vx.from_arrays(x=x, y=y, z=z, w=w)
-		counts = dataset("x", "y", "z", "w").histogram([[0.,2.], [0.,2.], [0.,2.], [0.,2.]], size=2)
-		assert(np.all(counts == 1))
-
 
 
 	def test_current_row(self):
@@ -1929,49 +1458,6 @@ class TestDataset(unittest.TestCase):
 				value = dataset.columns["x"][:][i]
 				self.assertEqual([value, value**2], values)
 
-	def test_selection(self):
-
-		total = self.dataset("x").sum()
-		self.dataset.select("x > 5")
-		self.dataset.select("x <= 5", name="inverse")
-
-
-		counts = self.dataset.count("x", selection=["default", "inverse", "x > 5", "default | inverse"])
-		np.testing.assert_array_almost_equal(counts, [4, 6, 4, 10])
-
-
-		self.dataset.select("x <= 1", name="inverse", mode="subtract")
-		counts = self.dataset.count("x", selection=["default", "inverse"])
-		np.testing.assert_array_almost_equal(counts, [4, 4])
-
-		total_subset = self.dataset("x").selected().sum()
-		self.assertLess(total_subset, total)
-		for mode in vaex.selections._select_functions.keys():
-			self.dataset.select("x > 5")
-			self.dataset.select("x > 5", mode)
-			self.dataset.select(None)
-			self.dataset.select("x > 5", mode)
-
-
-		self.dataset.select("x > 5")
-		total_subset = self.dataset("x").selected().sum()
-		self.dataset.select_inverse()
-		total_subset_inverse = self.dataset("x").selected().sum()
-		self.dataset.select("x <= 5")
-		total_subset_inverse_compare = self.dataset("x").selected().sum()
-		self.assertEqual(total_subset_inverse, total_subset_inverse_compare)
-		self.assertEqual(total_subset_inverse + total_subset, total)
-
-
-		self.dataset.select("x > 5")
-		self.dataset.select("x <= 5", name="inverse")
-		self.dataset.select_inverse(name="inverse")
-		counts = self.dataset.count("x", selection=["default", "inverse"])
-		np.testing.assert_array_almost_equal(counts, [4, 4])
-
-
-
-		pass # TODO
 
 	def test_dropna(self):
 		ds = self.dataset
@@ -2012,89 +1498,6 @@ class TestDataset(unittest.TestCase):
 		self.dataset.select_nothing()
 
 
-	def test_selection_history(self):
-		self.assertTrue(not self.dataset.has_selection())
-		self.assertTrue(not self.dataset.selection_can_undo())
-		self.assertTrue(not self.dataset.selection_can_redo())
-
-		self.dataset.select_nothing()
-		self.assertTrue(not self.dataset.has_selection())
-		self.assertTrue(not self.dataset.selection_can_undo())
-		self.assertTrue(not self.dataset.selection_can_redo())
-
-
-		total = self.dataset("x").sum()
-		self.assertTrue(not self.dataset.has_selection())
-		self.assertTrue(not self.dataset.selection_can_undo())
-		self.assertTrue(not self.dataset.selection_can_redo())
-		self.dataset.select("x > 5")
-		self.assertTrue(self.dataset.has_selection())
-		total_subset = self.dataset("x").selected().sum()
-		self.assertLess(total_subset, total)
-		self.assertTrue(self.dataset.selection_can_undo())
-		self.assertTrue(not self.dataset.selection_can_redo())
-
-		self.dataset.select("x < 7", mode="and")
-		total_subset2 = self.dataset("x").selected().sum()
-		self.assertLess(total_subset2, total_subset)
-		self.assertTrue(self.dataset.selection_can_undo())
-		self.assertTrue(not self.dataset.selection_can_redo())
-
-		self.dataset.selection_undo()
-		total_subset_same = self.dataset("x").selected().sum()
-		self.assertEqual(total_subset, total_subset_same)
-		self.assertTrue(self.dataset.selection_can_undo())
-		self.assertTrue(self.dataset.selection_can_redo())
-
-		self.dataset.selection_redo()
-		total_subset2_same = self.dataset("x").selected().sum()
-		self.assertEqual(total_subset2, total_subset2_same)
-		self.assertTrue(self.dataset.selection_can_undo())
-		self.assertTrue(not self.dataset.selection_can_redo())
-
-		self.dataset.selection_undo()
-		self.dataset.selection_undo()
-		self.assertTrue(not self.dataset.has_selection())
-		self.assertTrue(not self.dataset.selection_can_undo())
-		self.assertTrue(self.dataset.selection_can_redo())
-
-		self.dataset.selection_redo()
-		self.assertTrue(self.dataset.has_selection())
-		self.assertTrue(self.dataset.selection_can_undo())
-		self.assertTrue(self.dataset.selection_can_redo())
-		self.dataset.select("x < 7", mode="and")
-		self.assertTrue(self.dataset.selection_can_undo())
-		self.assertTrue(not self.dataset.selection_can_redo())
-
-		self.dataset.select_nothing()
-		self.assertTrue(not self.dataset.has_selection())
-		self.assertTrue(self.dataset.selection_can_undo())
-		self.assertTrue(not self.dataset.selection_can_redo())
-		self.dataset.selection_undo()
-		self.assertTrue(self.dataset.selection_can_undo())
-		self.assertTrue(self.dataset.selection_can_redo())
-
-	def test_selection_serialize(self):
-		selection_expression = vaex.selections.SelectionExpression("x > 5", None, "and")
-		self.dataset.set_selection(selection_expression)
-		total_subset = self.dataset("x").selected().sum()
-
-		self.dataset.select("x > 5")
-		total_subset_same = self.dataset("x").selected().sum()
-		self.assertEqual(total_subset, total_subset_same)
-
-		values = selection_expression.to_dict()
-		self.dataset.set_selection(vaex.selections.selection_from_dict(values))
-		total_subset_same2 = self.dataset("x").selected().sum()
-		self.assertEqual(total_subset, total_subset_same2)
-
-		selection_expression = vaex.selections.SelectionExpression("x > 5", None, "and")
-		selection_lasso = vaex.selections.SelectionLasso("x", "y", [0, 10, 10, 0], [-1, -1, 100, 100], selection_expression, "and")
-		self.dataset.set_selection(selection_lasso)
-		total_2 = self.dataset.sum("x", selection=True)
-		self.assertEqual(total_2, total_subset)
-
-
 
 	def test_nearest(self):
 		index, distance, (value,) = self.dataset("x").nearest([3])
@@ -2113,25 +1516,6 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(distance, 2.3)
 		self.assertEqual(value, 6)
 
-
-	def test_lasso(self):
-
-		x = [-0.1, 5.1, 5.1, -0.1]
-		y = [-0.1, -0.1, 4.1, 4.1]
-		self.dataset.select_lasso("x", "y", x, y)
-		sumx, sumy = self.dataset("x", "y").selected().sum()
-		self.assertAlmostEqual(sumx, 0+1+2)
-		self.assertAlmostEqual(sumy, 0+1+4)
-
-		# not test with masked arrays, m ~= x
-		x = [8-0.1, 9+0.1, 9+0.1, 8-0.1]
-		y = [-0.1, -0.1, 1000, 1000]
-		if self.dataset.is_local():
-			self.dataset._invalidate_selection_cache()
-		self.dataset.select_lasso("m", "y", x, y)
-		sumx, sumy = self.dataset.sum(['m', 'y'], selection=True)
-		self.assertAlmostEqual(sumx, 8)
-		self.assertAlmostEqual(sumy, 8**2)
 
 	def test_select_circle(self):
 		# Circular selection

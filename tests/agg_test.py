@@ -47,6 +47,102 @@ def test_sum(df, ds_trimmed):
     np.testing.assert_array_almost_equal(df.sum("y", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:5]), 0])
 
 
+def test_correlation_basics(df_local):
+    df = df_local  # TODO: why does this not work with remote?
+    correlation = df.correlation(df.y, df.y)
+    np.testing.assert_array_almost_equal(correlation, 1.0)
+
+    correlation = df.correlation(df.y, -df.y)
+    np.testing.assert_array_almost_equal(correlation, -1.0)
+
+
+def test_correlation(df_local):
+    df = df_local  # TODO: why does this not work with remote?
+
+    # convert to float
+    x = df.x.to_numpy() #self.dataset_local.columns["x"][self.zero_index:10] = self.dataset_local.columns["x"][:10] * 1.
+    y = df.y.to_numpy()
+    def correlation(x, y):
+        c = np.cov([x, y], bias=1)
+        return c[0,1] / (c[0,0] * c[1,1])**0.5
+
+    np.testing.assert_array_almost_equal(df.correlation([["x", "y"], ["x", "x**2"]], selection=None), [correlation(x, y), correlation(x, x**2)])
+
+    df.select("x < 5")
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None), correlation(x, y))
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=True), correlation(x[:5], y[:5]))
+
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None), correlation(x, y))
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=True), correlation(x[:5], y[:5]))
+
+    task = df.correlation("x", "y", selection=True, delay=True)
+    df.executor.execute()
+    np.testing.assert_array_almost_equal(task.get(), correlation(x[:5], y[:5]))
+
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=1), [correlation(x, y)])
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=1), [correlation(x[:5], y[:5])])
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None, binby=["y"], limits=[0, 9**2+1], shape=1), [correlation(x, y)])
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=True, binby=["y"], limits=[0, 9**2+1], shape=1), [correlation(x[:5], y[:5])])
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:5], y[:5]), correlation(x[5:], y[5:])])
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:5], y[:5]), np.nan])
+
+    i = 7
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None, binby=["y"], limits=[0, 9**2+1], shape=2), [correlation(x[:i], y[:i]), correlation(x[i:], y[i:])])
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=True, binby=["y"], limits=[0, 9**2+1], shape=2), [correlation(x[:5], y[:5]), np.nan])
+
+    i = 5
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:i], y[:i]), correlation(x[i:], y[i:])])
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=True, binby=["x"], limits=[0, 10], shape=2), [correlation(x[:i], y[:i]), np.nan])
+    np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=True, binby=["x"], limits=[[0, 10]], shape=2), [correlation(x[:i], y[:i]), np.nan])
+
+    assert df.correlation("x", "y", selection=None, binby=["x"], shape=1) > 0
+    assert  df.correlation("x", "y", selection=None, binby=["x"], limits="90%", shape=1) > 0
+    assert  df.correlation("x", "y", selection=None, binby=["x"], limits=["90%"], shape=1) > 0
+    assert  df.correlation("x", "y", selection=None, binby=["x"], limits="minmax", shape=1) > 0
+
+
+def test_count_basics(df):
+    # df = df_l
+    y = df.y.to_numpy()
+    x = df.x.to_numpy()
+    counts = df.count(binby=df.x, limits=[0,10], shape=10)
+    assert len(counts) == 10
+    assert all(counts == 1), "counts is %r" % counts
+
+    sums = df["y"].sum(binby=df.x, limits=[0,10], shape=10)
+    assert len(sums) == 10
+    assert(all(sums == y))
+
+    df.select("x < 5")
+    mask = x < 5
+
+    counts = df["x"].count(binby=df.x, limits=[0,10], shape=10, selection=True)
+    mod_counts = counts * 1.
+    mod_counts[~mask] = 0
+    assert(all(counts == mod_counts))
+
+    mod_sums = y * 1.
+    mod_sums[~mask] = 0
+    sums = df["y"].sum(binby=df.x, limits=[0,10], shape=10, selection=True)
+    assert(all(sums == mod_sums))
+
+    # TODO: we may want to test this for a remote df
+    # 2d
+    x = np.array([0, 1, 0, 1])
+    y = np.array([0, 0, 1, 1])
+    df = vaex.from_arrays(x=x, y=y)
+    counts = df.count(binby=[df.x, df.y], limits=[[0.,2.], [0.,2.]], shape=2)
+    assert np.all(counts == 1)
+
+    # 3d
+    x = np.array([0, 1, 0, 1, 0, 1, 0, 1])
+    y = np.array([0, 0, 1, 1, 0, 0, 1, 1])
+    z = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+    df = vaex.from_arrays(x=x, y=y, z=z)
+    counts = df.count(binby=[df.x, df.y, df.z], limits=[[0.,2.], [0.,2.], [0.,2.]], shape=2)
+    assert np.all(counts == 1)
+
+
 def test_count_1d():
     x = np.array([-1, -2, 0.5, 1.5, 4.5, 5], dtype='f8')
     df = vaex.from_arrays(x=x)
@@ -75,12 +171,24 @@ def test_count_1d_ordinal():
     bins = 5
     binner = df._binner_ordinal('x', 5)
     grid = vaex.superagg.Grid([binner])
-    agg = vaex.agg.count()
+    agg = vaex.agg.count(edges=True)
     grid = df._agg(agg, grid)
     assert grid.tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
 
 
-def test_minmax():
+
+def test_mean_basics(df):
+    x, y = df.mean([df.x, df.y])
+    assert x == 4.5
+    assert y == 28.5
+
+    df.select("x < 3")
+    x, y = df.mean([df.x, df.y], selection=True)
+    assert x == 1
+    assert y == 5/3
+
+
+def test_minmax_local():
     x = np.arange(1, 10, 1)
     df = vaex.from_arrays(x=x)
     assert df.x.min() == 1
@@ -92,6 +200,40 @@ def test_minmax():
     df = vaex.from_arrays(x=-x)
     assert df.x.max() == -1
     assert df.x.min() == -9
+
+
+
+def test_minmax_basics(df):
+    xmin, xmax = df["x"].minmax()
+    np.testing.assert_array_almost_equal(xmin, 0)
+    np.testing.assert_array_almost_equal(xmax, 9)
+
+    np.testing.assert_array_almost_equal(df.minmax("x"), [0, 9.])
+    np.testing.assert_array_almost_equal(df.minmax("y"), [0, 9.**2])
+    np.testing.assert_array_almost_equal(df.minmax(["x", "y"]), [[0, 9.], [0, 9.**2]])
+
+    df.select("x < 5")
+    xmin2, xmax2 = df["x"].minmax(selection=True)
+    np.testing.assert_array_almost_equal(xmin2, 0)
+    np.testing.assert_array_almost_equal(xmax2, 4)
+
+    np.testing.assert_array_almost_equal(df.minmax("x", selection=True), [0, 4])
+    np.testing.assert_array_almost_equal(df.minmax("y", selection=True), [0, 4**2])
+    np.testing.assert_array_almost_equal(df.minmax(["x", "y"], selection=True), [[0, 4], [0, 4**2]])
+    np.testing.assert_array_almost_equal(df.x.minmax(selection=True), [0, 4])
+    np.testing.assert_array_almost_equal(df.x.min(selection=True), 0)
+    np.testing.assert_array_almost_equal(df.x.max(selection=True), 4)
+
+    task = df.minmax("x", selection=True, delay=True)
+    df.executor.execute()
+    np.testing.assert_array_almost_equal(task.get(), [0, 4])
+
+    return  # TODO: below fails for remote dataframes
+    np.testing.assert_array_almost_equal(df.minmax("x", selection=None, binby=["x"], limits="minmax", shape=1), [[0, 8]])
+    np.testing.assert_array_almost_equal(df.minmax("x", selection=True, binby=["x"], limits="minmax", shape=1), [[0, 3]])
+
+    np.testing.assert_array_almost_equal(df.minmax("x", selection=None, binby=["x"], limits="minmax", shape=2), [[0, 4], [5, 8]])
+    np.testing.assert_array_almost_equal(df.minmax("x", selection=True, binby=["x"], limits="minmax", shape=2), [[0, 1], [2, 3]])
 
 
 def test_minmax_all_dfs(df):
@@ -227,3 +369,51 @@ def test_agg_filtered_df_invalid_data():
     df_filtered['y'] = df_filtered.func.custom_function(df_filtered.x)
     # assert df_filtered.y.tolist() == [0, 1, 4, 9, 25, 36, 49, 64, 81]
     assert df_filtered.count(df_filtered.y) == 9
+
+
+
+def test_var_and_std(df):
+    x = df.x.to_numpy()
+    y = df.y.to_numpy()
+
+    vx, vy = df.var([df.x, df.y])
+    assert vx == np.var(x)
+    assert vy == np.var(y)
+
+    sx, sy = df.std(["x", "y"])
+    assert sx == np.std(x)
+    assert sy == np.std(y)
+
+    df.select("x < 5")
+    vx, vy = df.var([df.x, df.y], selection=True)
+    assert vx == np.var(x[:5])
+    assert vy == np.var(y[:5])
+    assert np.var(y[:5]), df.y.var(selection=True)
+
+    sx, sy = df.std(["x", "y"], selection=True)
+    assert sx == np.std(x[:5])
+    assert sy == np.std(y[:5])
+
+
+# TODO: does this not work on the remote dataframe?
+def test_mutual_information(df_local):
+    df = df_local
+    limits = df.limits(["x", "y"], "minmax")
+    mi2 = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256)
+
+    np.testing.assert_array_almost_equal(2.19722458, mi2)
+
+    # no test, just for coverage
+    mi1d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby="x", limits=[0, 10], shape=2)
+    assert mi1d.shape == (2,)
+
+    mi2d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y"], limits=[[0, 10], [0, 100]], shape=(2, 3))
+    assert mi2d.shape == (2,3)
+
+    mi3d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y", "z"], limits=[[0, 10], [0, 100], [-100, 100]], shape=(2, 3, 4))
+    assert mi3d.shape == (2,3,4)
+
+    mi_list, subspaces = df.mutual_information([["x", "y"], ["x", "z"]], sort=True)
+    mi1 = df.mutual_information("x", "y")
+    mi2 = df.mutual_information("x", "z")
+    assert mi_list.tolist() == list(sorted([mi1, mi2]))
