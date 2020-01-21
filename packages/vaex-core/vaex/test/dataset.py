@@ -6,7 +6,7 @@ import numpy as np
 import unittest
 import vaex as vx
 import tempfile
-import vaex.webserver
+import vaex.server.tornado_server
 import astropy.io.fits
 import astropy.units
 import pandas as pd
@@ -1542,7 +1542,7 @@ class TestDatasetRemote(TestDataset):
 	@classmethod
 	def setUpClass(cls):
 		global test_port
-		cls.webserver = vaex.webserver.WebServer(dfs=[], port=test_port, cache_byte_size=0)
+		cls.webserver = vaex.server.WebServer(dfs=[], port=test_port, cache_byte_size=0).tornado_server
 		#print "serving"
 		cls.webserver.serve_threaded()
 		#print "getting server object"
@@ -1651,7 +1651,7 @@ class TestDatasetRemote(TestDataset):
 	#def test_limits(self):
 	#	pass
 
-import vaex.distributed
+# import vaex.distributed
 #class A:#class T_estDatasetDistributed(unittest.TestCase):
 #class TestDatasetDistributed(unittest.TestCase):
 class TestDatasetDistributed(TestDatasetRemote):
@@ -1669,10 +1669,10 @@ class TestDatasetDistributed(TestDatasetRemote):
 		for ds in dfs_copy:
 			ds.name = self.dataset_local.name
 		dfs = [self.dataset]
-		self.webserver1 = vaex.webserver.WebServer(dfs=dfs, port=test_port)
+		self.webserver1 = vaex.server.WebServer(dfs=dfs, port=test_port).tornado_server
 		self.webserver1.serve_threaded()
 		test_port += 1
-		self.webserver2 = vaex.webserver.WebServer(dfs=dfs_copy, port=test_port)
+		self.webserver2 = vaex.server.WebServer(dfs=dfs_copy, port=test_port).tornado_server
 		self.webserver2.serve_threaded()
 		test_port += 1
 
@@ -1757,7 +1757,7 @@ class T_stWebServer(unittest.TestCase):
 		self.dataset.add_column("x", x)
 		self.dataset.add_column("y", y)
 
-		self.webserver = vaex.webserver.WebServer(dfs=[self.dataset], port=test_port)
+		self.webserver = vaex.server.WebServer(dfs=[self.dataset], port=test_port).tornado_server
 		self.webserver.serve_threaded()
 		self.server = vx.server("http://localhost:%d" % test_port)
 		self.dataset_remote = self.server.dfs()[0]

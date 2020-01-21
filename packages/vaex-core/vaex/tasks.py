@@ -1,30 +1,31 @@
-from functools import reduce
 import logging
 import numpy as np
 
 import vaex.promise
-from vaex.column import str_type
+import vaex.encoding
+from .utils import _expand_shape
 
-from .utils import (_ensure_strings_from_expressions,
-    _ensure_string_from_expression,
-    _ensure_list,
-    _is_limit,
-    _isnumber,
-    _issequence,
-    _is_string,
-    _parse_reduction,
-    _parse_n,
-    _normalize_selection_name,
-    _normalize,
-    _parse_f,
-    _expand,
-    _expand_shape,
-    _expand_limits,
-    as_flat_float,
-    as_flat_array,
-    _split_and_combine_mask)
 
 logger = logging.getLogger('vaex.tasks')
+_task_register = {}
+
+
+@vaex.encoding.register("task")
+class task_encoder:
+    @staticmethod
+    def encode(encoding, task):
+        return task.encode(encoding)
+
+    @staticmethod
+    def decode(encoding, spec, df):
+        cls = _task_register[spec['task']]
+        return cls.decode(encoding, spec, df)
+
+
+def register(cls):
+    _task_register[cls.name] = cls
+    return cls
+
 
 class Task(vaex.promise.Promise):
     """
@@ -42,6 +43,7 @@ class Task(vaex.promise.Promise):
         self.cancelled = False
         self.name = name
         self.pre_filter = pre_filter
+        self.result = None
 
     def _set_progress(self, fraction):
         self.progress_fraction = fraction
@@ -64,78 +66,39 @@ class Task(vaex.promise.Promise):
         self.signal_progress.connect(ret.signal_progress.emit)
         return ret
 
-
-class TaskBase(Task):
-    def __init__(self, df, expressions, selection=None, to_float=False, dtype=np.float64, name="TaskBase"):
-        if not isinstance(expressions, (tuple, list)):
-            expressions = [expressions]
-        # edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension
-        self.selection_waslist, [self.selections, ] = vaex.utils.listify(selection)
-        Task.__init__(self, df, expressions, name=name, pre_filter=df.filtered)
-        self.to_float = to_float
-        self.dtype = dtype
-
-    def map(self, thread_index, i1, i2, filter_mask, *blocks):
-        class Info(object):
-            pass
-        info = Info()
-        info.i1 = i1
-        info.i2 = i2
-        info.first = i1 == 0
-        info.last = i2 == self.df.length_unfiltered()
-        info.size = i2 - i1
-
-        masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
-        blocks = [block.data if np.ma.isMaskedArray(block) else block for block in blocks]
-        mask = None
-        if masks:
-            # find all 'rows', where all columns are present (not masked)
-            mask = masks[0].copy()
-            for other in masks[1:]:
-                mask |= other
-            # masked arrays mean mask==1 is masked, for vaex we use mask==1 is used
-            # blocks = [block[~mask] for block in blocks]
-
-        if self.to_float:
-            blocks = [as_flat_float(block) for block in blocks]
-
-        for i, selection in enumerate(self.selections):
-            if selection:
-                selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
-                if selection_mask is None:
-                    raise ValueError("performing operation on selection while no selection present")
-                if mask is not None:
-                    selection_mask = selection_mask[~mask]
-                selection_blocks = [block[selection_mask] for block in blocks]
-            else:
-                selection_blocks = [block for block in blocks]
-            little_endians = len([k for k in selection_blocks if k.dtype.byteorder in ["<", "="]])
-            if not ((len(selection_blocks) == little_endians) or little_endians == 0):
-                def _to_native(ar):
-                    if ar.dtype.byteorder not in ["<", "="]:
-                        dtype = ar.dtype.newbyteorder()
-                        return ar.astype(dtype)
-                    else:
-                        return ar
-
-                selection_blocks = [_to_native(k) for k in selection_blocks]
-            subblock_weight = None
-            if len(selection_blocks) == len(self.expressions) + 1:
-                subblock_weight = selection_blocks[-1]
-                selection_blocks = list(selection_blocks[:-1])
-            self.map_processed(thread_index, i1, i2, mask, *blocks)
-        return i2 - i1
+    # def __repr__(self):
+    #     from .encoding import Encoding
+    #     encoding = Encoding()
+    #     return json.dumps({key: repr(value) for key, value in self.encode(encoding).items()})
 
 
+# only used for testing
+@register
+class TaskSum(Task):
+    name = "sum-test"
+
+    # def __init__(self, df, expression):
+    #     super().__init__(df, expression)
+    #     self.expression = expression
+
+    def encode(self, encoding):
+        return {'task': type(self).name, 'expression': self.expressions}
+
+    @classmethod
+    def decode(cls, encoding, spec, df):
+        return cls(df, expression=[spec['expression']])
+
+
+@register
 class TaskMapReduce(Task):
-    def __init__(self, df, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False,
-                 to_numpy=True, ordered_reduce=False, skip_masked=False, ignore_filter=False, selection=None, pre_filter=False, name="task"):
+    name = "map_reduce"
+
+    def __init__(self, df, expressions, map, reduce, info=False, to_float=False,
+                 to_numpy=True, skip_masked=False, ignore_filter=False, selection=None, pre_filter=False, name="task"):
         Task.__init__(self, df, expressions, name=name, pre_filter=pre_filter)
         self._map = map
         self._reduce = reduce
-        self.converter = converter
         self.info = info
-        self.ordered_reduce = ordered_reduce
         self.to_float = to_float
         self.to_numpy = to_numpy
         self.skip_masked = skip_masked
@@ -144,99 +107,11 @@ class TaskMapReduce(Task):
             raise ValueError("Cannot pre filter and also ignore the filter")
         self.selection = selection
 
-    def map(self, thread_index, i1, i2, filter_mask, *blocks):
-        if self.to_numpy:
-            blocks = [block if isinstance(block, np.ndarray) else block.to_numpy() for block in blocks]
-        if self.to_float:
-            blocks = [as_flat_float(block) for block in blocks]
-        if self.skip_masked:
-            masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
-            blocks = [block.data if np.ma.isMaskedArray(block) else block for block in blocks]
-            mask = None
-            if masks:
-                # find all 'rows', where all columns are present (not masked)
-                mask = masks[0].copy()
-                for other in masks[1:]:
-                    mask |= other
-                blocks = [block[~mask] for block in blocks]
-
-        if not self.ignore_filter:
-            selection = self.selection
-            if self.pre_filter:
-                if selection:
-                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
-                    blocks = [block[selection_mask] for block in blocks]
-            else:
-                if selection or self.df.filtered:
-                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True, pre_filtered=False)
-                    if filter_mask is not None:
-                        selection_mask = selection_mask & filter_mask
-                    blocks = [block[selection_mask] for block in blocks]
-        if self.info:
-            return self._map(thread_index, i1, i2, *blocks)
-        else:
-            return self._map(*blocks)  # [self.map(block) for block in blocks]
-
-    def reduce(self, results):
-        if self.ordered_reduce:
-            results.sort(key=lambda x: x[0])
-            results = [k[1] for k in results]
-        return self.converter(reduce(self._reduce, results))
-
-
-class TaskApply(TaskBase):
-    def __init__(self, df, expressions, f, info=False, to_float=False, name="apply", masked=False, dtype=np.float64):
-        TaskBase.__init__(self, df, expressions, selection=None, to_float=to_float, name=name)
-        self.f = f
-        self.dtype = dtype
-        self.data = np.zeros(df.length_unfiltered(), dtype=self.dtype)
-        self.mask = None
-        if masked:
-            self.mask = np.zeros(df.length_unfiltered(), dtype=np.bool)
-            self.array = np.ma.array(self.data, mask=self.mask, shrink=False)
-        else:
-            self.array = self.data
-        self.info = info
-        self.to_float = to_float
-
-    def map_processed(self, thread_index, i1, i2, mask, *blocks):
-        if self.to_float:
-            blocks = [as_flat_float(block) for block in blocks]
-        print(len(self.array), i1, i2)
-        for i in range(i1, i2):
-            print(i)
-            if mask is None or mask[i]:
-                v = [block[i - i1] for block in blocks]
-                self.data[i] = self.f(*v)
-                if mask is not None:
-                    self.mask[i] = False
-            else:
-                self.mask[i] = True
-
-            print(v)
-            print(self.array, self.array.dtype)
-        return None
-
-    def reduce(self, results):
-        return None
-
-
-# import numba
-# @numba.jit(nopython=True, nogil=True)
-# def histogram_numba(x, y, weight, grid, xmin, xmax, ymin, ymax):
-#    scale_x = 1./ (xmax-xmin);
-#    scale_y = 1./ (ymax-ymin);
-#    counts_length_y, counts_length_x = grid.shape
-#    for i in range(len(x)):
-#        value_x = x[i];
-#        value_y = y[i];
-#        scaled_x = (value_x - xmin) * scale_x;
-#        scaled_y = (value_y - ymin) * scale_y;
-#
-#        if ( (scaled_x >= 0) & (scaled_x < 1) &  (scaled_y >= 0) & (scaled_y < 1) ) :
-#            index_x = (int)(scaled_x * counts_length_x);
-#            index_y = (int)(scaled_y * counts_length_y);
-#            grid[index_y, index_x] += 1;
+    def encode(self, encoding):
+        return {'task': type(self).name, 'expressions': self.expressions, 'map': self._map, 'reduce': self._reduce,
+                'info': self.info, 'to_float': self.to_float, 'to_numpy': self.to_numpy,  # 'ordered_reduce': self.ordered_reduce,
+                'skip_masked': self.skip_masked, 'ignore_filter': self.ignore_filter, 'selection': self.selection, 'pre_filter': self.pre_filter,
+                }
 
 
 class StatOp(object):
@@ -259,6 +134,9 @@ class StatOp(object):
         else:
             return value
 
+    def encode(self, encoding):
+        return {'code': self.code, 'fields': self.fixed_fields, 'reduce_function': self.reduce_function.__name__}
+
 
 class StatOpMinMax(StatOp):
     def __init__(self, code, fields):
@@ -274,6 +152,9 @@ class StatOpMinMax(StatOp):
         out[..., 1] = np.nanmax(grid[..., 1], axis=axis)
         return out
 
+    def encode(self, encoding):
+        return {'code': self.code, 'fields': self.fixed_fields}
+
 
 class StatOpCov(StatOp):
     def __init__(self, code, fields=None, reduce_function=np.sum):
@@ -284,6 +165,10 @@ class StatOpCov(StatOp):
         # counts, sums, cross product sums
         return N * 2 + N**2 * 2  # ((N+1) * N) // 2 *2
 
+    def encode(self, encoding):
+        return {'code': self.code, 'reduce_function': self.reduce_function.__name__}
+
+
 class StatOpFirst(StatOp):
     def __init__(self, code):
         super(StatOpFirst, self).__init__(code, 2, reduce_function=self._reduce_function)
@@ -293,24 +178,48 @@ class StatOpFirst(StatOp):
         grid[..., 1] = np.inf
 
     def _reduce_function(self, grid, axis=0):
-        values = grid[...,0]
-        order_values = grid[...,1]
+        values = grid[..., 0]
+        order_values = grid[..., 1]
         indices = np.argmin(order_values, axis=0)
 
         # see e.g. https://stackoverflow.com/questions/46840848/numpy-how-to-use-argmax-results-to-get-the-actual-max?noredirect=1&lq=1
         # and https://jakevdp.github.io/PythonDataScienceHandbook/02.07-fancy-indexing.html
         if len(values.shape) == 2:  # no binby
-            return values[indices, np.arange(values.shape[1])[:,None]][0]
+            return values[indices, np.arange(values.shape[1])[:, None]][0]
         if len(values.shape) == 3:  # 1d binby
-            return values[indices, np.arange(values.shape[1])[:,None], np.arange(values.shape[2])]
+            return values[indices, np.arange(values.shape[1])[:, None], np.arange(values.shape[2])]
         if len(values.shape) == 4:  # 2d binby
-            return values[indices, np.arange(values.shape[1])[:,None], np.arange(values.shape[2])[None,:,None], np.arange(values.shape[3])]
+            return values[indices, np.arange(values.shape[1])[:, None], np.arange(values.shape[2])[None, :, None], np.arange(values.shape[3])]
         else:
             raise ValueError('dimension %d not yet supported' % len(values.shape))
 
     def fields(self, weights):
         # the value found, and the value by which it is ordered
         return 2
+
+    def encode(self, encoding):
+        return {'code': self.code, 'reduce_function': self.reduce_function.__name__}
+
+
+@vaex.encoding.register('_op')
+class op_encoding:
+    @staticmethod
+    def encode(encoding, op):
+        return op.encode(encoding)
+
+    @staticmethod
+    def decode(encoding, op_spec):
+        op_spec = op_spec.copy()
+        if 'reduce_function' in op_spec:
+            op_spec['reduce_function'] = getattr(np, op_spec.pop('reduce_function'))
+        cls = StatOp
+        if op_spec['code'] == 2:
+            cls = StatOpMinMax
+        if op_spec['code'] == 5:
+            cls = StatOpCov
+        if op_spec['code'] == 6:
+            cls = StatOpFirst
+        return cls(**op_spec)
 
 
 OP_ADD1 = StatOp(0, 1)
@@ -322,8 +231,32 @@ OP_COV = StatOpCov(5)
 OP_FIRST = StatOpFirst(6)
 
 
+@register
 class TaskStatistic(Task):
-    def __init__(self, df, expressions, shape, limits, masked=False, weights=[], weight=None, op=OP_ADD1, selection=None, edges=False):
+    name = "legacy_statistic"
+
+    def encode(self, encoding):
+        return {'task': type(self).name, 'expressions': self.expressions,
+                'shape': self.shape, 'selections': self.selections, 'op': encoding.encode('_op', self.op), 'weights': self.weights,
+                'dtype': encoding.encode('dtype', self.dtype), 'minima': self.minima, 'maxima': self.maxima, 'edges': self.edges,
+                'selection_waslist': self.selection_waslist}
+
+    @classmethod
+    def decode(cls, encoding, spec, df):
+        spec = spec.copy()
+        del spec['task']
+        spec['op'] = encoding.decode('_op', spec['op'])
+        spec['dtype'] = encoding.decode('dtype', spec['dtype'])
+        selection_waslist = spec.pop('selection_waslist')
+        if selection_waslist:
+            spec['selection'] = spec.pop('selections')
+        else:
+            spec['selection'] = spec.pop('selections')[0]
+        spec['limits'] = list(zip(spec.pop('minima'), spec.pop('maxima')))
+        return cls(df, **spec)
+
+    def __init__(self, df, expressions, shape, limits, masked=False, weights=[], weight=None, op=OP_ADD1, selection=None, edges=False,
+                 dtype=np.float64):
         if not isinstance(expressions, (tuple, list)):
             expressions = [expressions]
         # edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension
@@ -338,20 +271,21 @@ class TaskStatistic(Task):
         self.op = op
         self.edges = edges
         Task.__init__(self, df, expressions, name="statisticNd", pre_filter=df.filtered)
-        #self.dtype = np.int64 if self.op == OP_ADD1 else np.float64 # TODO: use int64 fir count and ADD1
-        self.dtype = np.float64
+        # self.dtype = np.int64 if self.op == OP_ADD1 else np.float64 # TODO: use int64 fir count and ADD1
+        self.dtype = dtype
         self.masked = masked
 
         self.fields = op.fields(weights)
-        self.shape_total = (self.df.executor.thread_pool.nthreads,) + (len(self.selections), ) + self.shape + (self.fields,)
-        self.grid = np.zeros(self.shape_total, dtype=self.dtype)
-        self.op.init(self.grid)
+        # self.shape_total = (self.df.executor.thread_pool.nthreads,) + (len(self.selections), ) + self.shape + (self.fields,)
+        # self.grid = np.zeros(self.shape_total, dtype=self.dtype)
+        # self.op.init(self.grid)
         self.minima = []
         self.maxima = []
         limits = np.array(self.limits)
         if len(limits) != 0:
             logger.debug("limits = %r", limits)
-            assert limits.shape[-1] == 2, "expected last dimension of limits to have a length of 2 (not %d, total shape: %s), of the form [[xmin, xmin], ... [zmin, zmax]], not %s" % (limits.shape[-1], limits.shape, limits)
+            assert limits.shape[-1] == 2, "expected last dimension of limits to have a length of 2 (not %d, total shape: %s), of the form [[xmin, xmin], ... [zmin, zmax]], not %s" %\
+                                          (limits.shape[-1], limits.shape, limits)
             if len(limits.shape) == 1:  # short notation: [xmin, max], instead of [[xmin, xmax]]
                 limits = [limits]
             logger.debug("limits = %r", limits)
@@ -362,244 +296,57 @@ class TaskStatistic(Task):
         # if self.weight is not None:
         self.expressions_all.extend(weights)
 
-    def __repr__(self):
-        name = self.__class__.__module__ + "." + self.__class__.__name__
-        return "<%s(df=%r, expressions=%r, shape=%r, limits=%r, weights=%r, selections=%r, op=%r)> instance at 0x%x" % (name, self.df, self.expressions, self.shape, self.limits, self.weights, self.selections, self.op, id(self))
 
+@register
+class TaskAggregations(Task):
+    """Multiple aggregations on a single grid."""
+    name = "aggregations"
 
-    def map(self, thread_index, i1, i2, filter_mask, *blocks):
-        class Info(object):
-            pass
-        info = Info()
-        info.i1 = i1
-        info.i2 = i2
-        info.first = i1 == 0
-        info.last = i2 == self.df.length_unfiltered()
-        info.size = i2 - i1
-
-        masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
-        blocks = [block.data if np.ma.isMaskedArray(block) else block for block in blocks]
-        mask = None
-
-        #blocks = [as_flat_float(block) for block in blocks]
-        if len(blocks) != 0:
-            dtype = np.find_common_type([block.dtype for block in blocks], [])
-            histogram2d = vaex.vaexfast.histogram2d
-            if dtype.str in ">f8 <f8 =f8":
-                statistic_function = vaex.vaexfast.statisticNd_f8
-            elif dtype.str in ">f4 <f4 =f4":
-                statistic_function = vaex.vaexfast.statisticNd_f4
-                histogram2d = vaex.vaexfast.histogram2d_f4
-            elif dtype.str in ">i8 <i8 =i8":
-                dtype = np.dtype(np.float64)
-                statistic_function = vaex.vaexfast.statisticNd_f8
-            else:
-                dtype = np.dtype(np.float32)
-                statistic_function = vaex.vaexfast.statisticNd_f4
-                histogram2d = vaex.vaexfast.histogram2d_f4
-            #print(dtype, statistic_function, histogram2d)
-
-        if masks:
-            mask = masks[0].copy()
-            for other in masks[1:]:
-                mask |= other
-            blocks = [block[~mask] for block in blocks]
-
-        this_thread_grid = self.grid[thread_index]
-        for i, selection in enumerate(self.selections):
-            if selection:
-                selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
-                if selection_mask is None:
-                    raise ValueError("performing operation on selection while no selection present")
-                if mask is not None:
-                    selection_mask = selection_mask[~mask]
-                selection_blocks = [block[selection_mask] for block in blocks]
-            else:
-                selection_blocks = [block for block in blocks]
-            little_endians = len([k for k in selection_blocks if k.dtype != str_type and k.dtype.byteorder in ["<", "="]])
-            if not ((len(selection_blocks) == little_endians) or little_endians == 0):
-                def _to_native(ar):
-                    if ar.dtype == str_type:
-                        return ar  # string are always fine
-                    if ar.dtype.byteorder not in ["<", "="]:
-                        dtype = ar.dtype.newbyteorder()
-                        return ar.astype(dtype)
-                    else:
-                        return ar
-
-                selection_blocks = [_to_native(k) for k in selection_blocks]
-            subblock_weight = None
-            subblock_weights = selection_blocks[len(self.expressions):]
-            selection_blocks = list(selection_blocks[:len(self.expressions)])
-            if len(selection_blocks) == 0 and subblock_weights == []:
-                if self.op == OP_ADD1:  # special case for counting '*' (i.e. the number of rows)
-                    if selection or self.df.filtered:
-                        this_thread_grid[i][0] += np.sum(selection_mask)
-                    else:
-                        this_thread_grid[i][0] += i2 - i1
-                else:
-                    raise ValueError("Nothing to compute for OP %s" % self.op.code)
-            # special case for counting string values etc
-            elif len(selection_blocks) == 0 and len(subblock_weights) == 1 and self.op in [OP_COUNT]\
-                    and (subblock_weights[0].dtype == str_type or subblock_weights[0].dtype.kind not in 'biuf'):
-                weight = subblock_weights[0]
-                mask = None
-                if weight.dtype != str_type:
-                    if weight.dtype.kind == 'O':
-                        mask = vaex.strings.StringArray(weight).mask()
-                else:
-                    mask = weight.get_mask()
-                if selection or self.df.filtered:
-                    if mask is not None:
-                        this_thread_grid[i][0] += np.sum(~mask)
-                    else:
-                        this_thread_grid[i][0] += np.sum(selection_mask)
-                else:
-                    if mask is not None:
-                        this_thread_grid[i][0] += len(mask) - mask.sum()
-                    else:
-                        this_thread_grid[i][0] += len(weight)
-            else:
-                #blocks = list(blocks)  # histogramNd wants blocks to be a list
-                # if False: #len(selection_blocks) == 2 and self.op == OP_ADD1:  # special case, slighty faster
-                #     #print('fast case!')
-                #     assert len(subblock_weights) <= 1
-                #     histogram2d(selection_blocks[0], selection_blocks[1], subblock_weights[0] if len(subblock_weights) else None,
-                #                 this_thread_grid[i,...,0],
-                #                 self.minima[0], self.maxima[0], self.minima[1], self.maxima[1])
-                # else:
-                    selection_blocks = [as_flat_array(block, dtype) for block in selection_blocks]
-                    subblock_weights = [as_flat_array(block, dtype) for block in subblock_weights]
-                    statistic_function(selection_blocks, subblock_weights, this_thread_grid[i], self.minima, self.maxima, self.op.code, self.edges)
-        return i2 - i1
-        # return map(self._map, blocks)#[self.map(block) for block in blocks]
-
-    def reduce(self, results):
-        # for i in range(1, self.subspace.executor.thread_pool.nthreads):
-        #   self.data[0] += self.data[i]
-        # return self.data[0]
-        # return self.data
-        grid = self.op.reduce(self.grid)
-        # If selection was a string, we just return the single selection
-        return grid if self.selection_waslist else grid[0]
-
-
-class TaskAggregate(Task):
     def __init__(self, df, grid):
         expressions = [binner.expression for binner in grid.binners]
-        Task.__init__(self, df, expressions, name="statisticNd", pre_filter=df.filtered)
-
         self.df = df
         self.parent_grid = grid
-        self.nthreads = self.df.executor.thread_pool.nthreads
-        # for each thread, we have 1 grid and a set of binners
-        self.grids = [vaex.superagg.Grid([binner.copy() for binner in grid.binners]) for i in range(self.nthreads)]
-        self.aggregations = []
-        # self.grids = []
+        self.aggregation_descriptions = []
+        self.dtypes = {}
+        Task.__init__(self, df, expressions, name="statisticNd", pre_filter=df.filtered)
 
-    def add_aggregation_operation(self, aggregator_descriptor, selection=None, edges=False):
-        selection_waslist = _issequence(selection)
-        selections = _ensure_list(selection)
-        def create_aggregator(thread_index):
-            # for each selection, we have a separate aggregator, sharing the grid and binners
-            return [aggregator_descriptor._create_operation(self.df, self.grids[thread_index]) for selection in selections]
+    def encode(self, encoding):
+        # TODO: get rid of dtypes
+        return {'task': type(self).name,
+                'grid': encoding.encode('grid', self.parent_grid),
+                'aggregations': encoding.encode_list("aggregation", self.aggregation_descriptions),
+                'dtypes': encoding.encode_dict("dtype", self.dtypes)
+                }
+
+    @classmethod
+    def decode(cls, encoding, spec, df):
+        grid = encoding.decode('grid', spec['grid'])
+        task = cls(df, grid)
+        aggs = encoding.decode_list('aggregation', spec['aggregations'])
+        for agg in aggs:
+            agg._prepare_types(df)
+            task.add_aggregation_operation(agg)
+        return task
+
+    def add_aggregation_operation(self, aggregator_descriptor):
         task = Task(self.df, [], "--")
-        self.aggregations.append((aggregator_descriptor, selections, [create_aggregator(i) for i in range(self.nthreads)], selection_waslist, edges, task))
-        self.expressions_all.extend(aggregator_descriptor.expressions)
-        self.expressions_all = list(set(self.expressions_all))
-        self.dtypes = {expr: self.df.dtype(expr) for expr in self.expressions_all}
+
         def chain_reject(x):
             task.reject(x)
             return x
-        self.then(None, chain_reject)
+
+        def assign_subtask(values, index=len(self.aggregation_descriptions)):
+            task.fulfill(values[index])
+        self.then(assign_subtask, chain_reject)
+
+        self.aggregation_descriptions.append((aggregator_descriptor))
+        # THIS SHOULD BE IN THE SAME ORDER AS THE ABOVE TASKPART
+        # it is up the the executor to remove duplicate expressions
+        self.expressions_all.extend(aggregator_descriptor.expressions)
+        # TODO: optimize/remove?
+        self.dtypes = {expr: self.df.dtype(expr) for expr in self.expressions_all}
         return task
 
     def check(self):
-        if not self.aggregations:
+        if not self.aggregation_descriptions:
             raise RuntimeError('Aggregation tasks started but nothing to do, maybe adding operations failed?')
-
-    def map(self, thread_index, i1, i2, filter_mask, *blocks):
-        self.check()
-        grid = self.grids[thread_index]
-        def check_array(x, dtype):
-            if dtype == str_type:
-                x = vaex.column._to_string_sequence(x)
-            else:
-                x = vaex.utils.as_contiguous(x)
-                if x.dtype.kind in "mM":
-                    # we pass datetime as int
-                    x = x.view('uint64')
-            return x
-        block_map = {expr: block for expr, block in zip(self.expressions_all, blocks)}
-        # we need to make sure we keep some objects alive, since the c++ side does not incref
-        # on set_data and set_data_mask
-        references = []
-        for binner in grid.binners:
-            block = block_map[binner.expression]
-            dtype = self.dtypes[binner.expression]
-            block = check_array(block, dtype)
-            if np.ma.isMaskedArray(block):
-                block, mask = block.data, np.ma.getmaskarray(block)
-                binner.set_data(block)
-                binner.set_data_mask(mask)
-                references.extend([block, mask])
-            else:
-                binner.set_data(block)
-                references.extend([block])
-        all_aggregators = []
-        for agg_desc, selections, aggregation2d, selection_waslist, edges, task in self.aggregations:
-            for selection_index, selection in enumerate(selections):
-                agg = aggregation2d[thread_index][selection_index]
-                all_aggregators.append(agg)
-                selection_mask = None
-                if selection:
-                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
-                    references.append(selection_mask)
-                    # some aggregators make a distiction between missing value and no value
-                    # like nunique, they need to know if they should take the value into account or not
-                    if hasattr(agg, 'set_selection_mask'):
-                        agg.set_selection_mask(selection_mask)
-                if agg_desc.expressions:
-                    assert len(agg_desc.expressions) in [1,2], "only length 1 or 2 supported for now"
-                    dtype_ref = block = block_map[agg_desc.expressions[0]].dtype
-                    for i, expression in enumerate(agg_desc.expressions):
-                        block = block_map[agg_desc.expressions[i]]
-                        dtype = self.dtypes[agg_desc.expressions[i]]
-                        # we have data for the aggregator as well
-                        if np.ma.isMaskedArray(block):
-                            block, mask = block.data, np.ma.getmaskarray(block)
-                            block = check_array(block, dtype)
-                            agg.set_data(block, i)
-                            references.extend([block])
-                            if selection_mask is None:
-                                selection_mask = ~mask
-                            else:
-                                selection_mask = selection_mask & ~mask
-                        else:
-                            block = check_array(block, dtype)
-                            agg.set_data(block, i)
-                            references.extend([block])
-                # we only have 1 data mask, since it's locally combined
-                if selection_mask is not None:
-                    agg.set_data_mask(selection_mask)
-                    references.extend([selection_mask])
-        N = i2 - i1
-        if filter_mask is not None:
-            N = filter_mask.astype(np.uint8).sum()
-        grid.bin(all_aggregators, N)
-
-    def reduce(self, results):
-        results = []
-        for agg_desc, selections, aggregation2d, selection_waslist, edges, task in self.aggregations:
-            grids = []
-            for selection_index, selection in enumerate(selections):
-                aggs = [k[selection_index] for k in aggregation2d]
-                grid = agg_desc.reduce(aggs, edges=edges)
-                grids.append(grid)
-            result = np.asarray(grids) if selection_waslist else grids[0]
-            if agg_desc.dtype_out != str_type:
-                dtype_out = vaex.utils.to_native_dtype(agg_desc.dtype_out)
-                result = result.view(dtype_out)
-            task.fulfill(result)
-            results.append(result)
-        return results

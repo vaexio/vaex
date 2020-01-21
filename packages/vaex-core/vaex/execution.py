@@ -17,6 +17,7 @@ import sys
 import collections
 import vaex.multithreading
 import logging
+import vaex.cpu  # force registration of task-part-cpu
 
 __author__ = 'breddels'
 
@@ -178,6 +179,12 @@ class Executor(object):
                         task._results = []
                         task.signal_progress.emit(0)
                     block_scopes = [df._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
+                    # task_parts = []
+                    from .encoding import Encoding
+                    encoding = Encoding()
+                    for task in task_queue:
+                        spec = encoding.encode('task', task)
+                        task._parts = [encoding.decode('task-part-cpu', spec, df=df) for i in range(self.thread_pool.nthreads)]
 
                     def process(thread_index, i1, i2):
                         if not cancelled[0]:
@@ -194,7 +201,7 @@ class Executor(object):
                                 blocks = [block_dict[expression] for expression in task.expressions_all]
                                 if not cancelled[0]:
                                     try:
-                                        task._results.append(task.map(thread_index, i1, i2, filter_mask, *blocks))
+                                        task._parts[thread_index].process(thread_index, i1, i2, filter_mask, *blocks)
                                     except Exception as e:
                                         task.reject(e)
                                         cancelled[0] = True
@@ -228,7 +235,7 @@ class Executor(object):
                 task_queue = task_queue_all
                 for task in task_queue:
                     # task._result = task.reduce(task._results)
-                    # task.reject(UserAbort("cancelled"))
+                    task.reject(UserAbort("cancelled"))
                     # remove references
                     task._result = None
                     task._results = None
@@ -237,8 +244,12 @@ class Executor(object):
                 for task in task_queue:
                     logger.debug("fulfill task: %r", task)
                     if not task.cancelled:
-                        task._result = task.reduce(task._results)
+                        parts = task._parts
+                        parts[0].reduce(parts[1:])
+                        task._result = parts[0].get_result()
                         task.fulfill(task._result)
+                    else:
+                        task.reject(UserAbort("cancelled"))
                         # remove references
                     task._result = None
                     task._results = None

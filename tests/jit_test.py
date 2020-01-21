@@ -25,7 +25,6 @@ def test_numba(ds):
     #ds.columns['x'] = (ds.columns['x']*1).copy()  # convert non non-big endian for now
     expr = arc_distance(ds.y*1, ds.y*1, ds.y**2*ds.y, ds.x+ds.y)
     ds['arc_distance'] = expr
-    print(expr)
     #assert ds.arc_distance.expression == expr.expression
     ds['arc_distance_jit'] = ds['arc_distance'].jit_numba()
     assert ds.arc_distance.tolist() == ds.arc_distance_jit.tolist()

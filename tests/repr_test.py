@@ -2,6 +2,7 @@ from common import *
 import pandas as pd
 import datetime
 
+
 def test_repr_default(df):
     code = df._repr_mimebundle_()['text/plain']
     assert 'x' in code
@@ -11,6 +12,7 @@ def test_repr_html(df):
     ds = df
     code = ds._repr_html_()
     assert 'x' in code
+
 
 # TODO: it seems masked arrays + evaluate doesn't work well
 # might have to do something with serializing it
@@ -44,6 +46,14 @@ def test_repr_df_long_string():
     assert long_string not in str(df)
     assert long_string not in df._repr_html_()
     assert long_string not in df._as_html_table(0, 10)
+
+
+# TODO: because remote slicing of filtered datasets is not supported, we have a workaround
+# we RMI the __repr__
+def test_slice_filtered_remte(ds_remote):
+    df = ds_remote
+    dff = df[df.x > 0]
+    assert "0.0bla" not in repr(dff[['x']])
 
 
 def test_repr_from_pandas():

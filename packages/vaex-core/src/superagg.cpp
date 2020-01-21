@@ -71,6 +71,9 @@ public:
         if(info.ndim != 1) {
             throw std::runtime_error("Expected a 1d array");
         }
+        if(info.itemsize != sizeof(T)) {
+            throw std::runtime_error("Itemsize of data and binner are not equal");
+        }
         this->ptr = (T*)info.ptr;
         this->_size = info.shape[0];
     }
@@ -149,6 +152,9 @@ public:
         py::buffer_info info = ar.request();
         if(info.ndim != 1) {
             throw std::runtime_error("Expected a 1d array");
+        }
+        if(info.itemsize != sizeof(T)) {
+            throw std::runtime_error("Itemsize of data and binner are not equal");
         }
         this->ptr = (T*)info.ptr;
         this->_size = info.shape[0];
@@ -767,6 +773,14 @@ void add_binner_ordinal_(Module m, Base& base, std::string postfix) {
                 return binner.expression;
             }
         )
+        .def_property_readonly("ordinal_count", [](const Type &binner) {
+                return binner.ordinal_count;
+            }
+        )
+        .def_property_readonly("min_value", [](const Type &binner) {
+                return binner.min_value;
+            }
+        )
     ;
 }
 
@@ -787,6 +801,18 @@ void add_binner_scalar_(Module m, Base& base, std::string postfix) {
         .def("copy", &Type::copy)
         .def_property_readonly("expression", [](const Type &binner) {
                 return binner.expression;
+            }
+        )
+        .def_property_readonly("bins", [](const Type &binner) {
+                return binner.bins;
+            }
+        )
+        .def_property_readonly("vmin", [](const Type &binner) {
+                return binner.vmin;
+            }
+        )
+        .def_property_readonly("vmax", [](const Type &binner) {
+                return binner.vmax;
             }
         )
     ;

@@ -150,9 +150,10 @@ def test_count_1d():
     bins = 5
     binner = df._binner_scalar('x', [0, 5], bins)
     grid = vaex.superagg.Grid([binner])
-    agg = vaex.agg.count()
+    agg = vaex.agg.count(edges=True)
     grid = df._agg(agg, grid)
     assert grid.tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
+
 
 def test_count_types(ds_local):
     df = ds_local

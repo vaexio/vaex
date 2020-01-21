@@ -927,3 +927,19 @@ def upcast(dtype):
     if dtype.kind == "f":
         return np.dtype('float64')
     return dtype
+
+
+def wrap_future_with_promise(future):
+    from vaex.promise import Promise
+    if isinstance(future, Promise):  # TODO: not so nice, sometimes we pass a promise
+        return future
+    promise = Promise()
+
+    def callback(future):
+        e = future.exception()
+        if e:
+            promise.reject(e)
+        else:
+            promise.fulfill(future.result())
+    future.add_done_callback(callback)
+    return promise

@@ -145,6 +145,7 @@ class GroupByBase(object):
         def add(aggregate, column_name=None, override_name=None):
             if column_name is None or override_name is not None:
                 column_name = aggregate.pretty_name(override_name)
+            aggregate.edges = True  # is this ok to override?
             values = df._agg(aggregate, self.grid, delay=_USE_DELAY)
             grids[column_name] = values
 
@@ -223,7 +224,7 @@ class GroupBy(GroupByBase):
         # 'multistage' hashmap
         arrays = super(GroupBy, self)._agg(actions)
         # we don't want non-existing pairs (e.g. Amsterdam in France does not exist)
-        count_agg = vaex.agg.count()
+        count_agg = vaex.agg.count(edges=True)
         counts = self.df._agg(count_agg, self.grid, delay=_USE_DELAY)
         self.df.execute()
         if _USE_DELAY:
