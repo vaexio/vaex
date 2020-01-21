@@ -1,4 +1,4 @@
-# vaex 2.6.0-dev (unreleased)
+# vaex 2.6.0 (2020-1-21)
 
 # vaex-core 1.5.0
    * Features
