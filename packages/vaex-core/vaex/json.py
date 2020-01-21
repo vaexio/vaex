@@ -52,12 +52,18 @@ class NumpySerializer:
 
     @staticmethod
     def encode(obj):
-        values = obj.tolist()
+        if np.ma.isMaskedArray(obj):
+            values = obj.data.tolist()
+            mask = obj.mask.tolist()
+        else:
+            values = obj.tolist()
+            mask = None
         dtype = str(obj.dtype)
         return {
             'type': 'ndarray',
             'data': {
                 'values': values,
+                'mask': mask,
                 'dtype': dtype
             }
         }
@@ -69,7 +75,10 @@ class NumpySerializer:
     @staticmethod
     def decode(data):
         dtype = np.dtype(data['data']['dtype'])
-        value = np.array(data['data']['values'], dtype)
+        if 'mask' in data['data'] and data['data']['mask'] is not None:
+            value = np.ma.array(data['data']['values'], mask=data['data']['mask'], dtype=dtype)
+        else:
+            value = np.array(data['data']['values'], dtype)
         return value
 
 
