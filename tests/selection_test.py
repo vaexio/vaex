@@ -189,8 +189,8 @@ def test_lasso(df):
     # now test with masked arrays, m ~= x
     x = [8-0.1, 9+0.1, 9+0.1, 8-0.1]
     y = [-0.1, -0.1, 1000, 1000]
-    # if df.is_local():
-    df._invalidate_selection_cache()
+    if df.is_local():
+        df._invalidate_selection_cache()
     df.select_lasso("m", "y", x, y)
     sumx, sumy = df.sum(['m', 'y'], selection=True)
     np.testing.assert_array_almost_equal(sumx, 8)

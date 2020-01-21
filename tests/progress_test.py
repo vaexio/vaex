@@ -25,16 +25,30 @@ def test_progress(progress):
     df.sum('x', progress=progress)
 
 
-# TODO: make it work with remote dataframe
-def test_progress(df_local):
-    df = df_local
-    x, y = df.sum([df.x, df.y])
+def test_progress_calls(df):
+    x, y = df.sum([df.x, df.y], progress=True)
     counter = CallbackCounter(True)
     task = df.sum([df.x, df.y], delay=True, progress=counter)
-    # task.signal_progress.connect(counter)
     df.executor.execute()
     x2, y2 = task.get()
     assert x == x2
     assert y == y2
     assert counter.counter > 0
     assert counter.last_args[0], 1.0
+
+
+def test_cancel(df):
+    def progress(f):
+        return False
+    with pytest.raises(vaex.execution.UserAbort):
+        assert df.x.min(progress=progress) is None
+
+
+# @pytest.mark.timeout(1)
+def test_cancel_huge(client):
+    df = client['huge']
+
+    def progress(f):
+        return False
+    with pytest.raises(vaex.execution.UserAbort):
+        assert df.x.min(progress=progress) is None

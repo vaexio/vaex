@@ -1,26 +1,28 @@
 import pytest
 import vaex
-import vaex.webserver
+import vaex.server.service
+import vaex.server.tornado_server
+import vaex.server.dummy
 import numpy as np
 import contextlib
 
 import sys
-test_port = 29110 + sys.version_info[0] * 10 + sys.version_info[1]
+test_port = 3911 + sys.version_info[0] * 10 + sys.version_info[1]
 scheme = 'ws'
 
 
 class CallbackCounter(object):
-	def __init__(self, return_value=None):
-		self.counter = 0
-		self.return_value = return_value
-		self.last_args = None
-		self.last_kwargs = None
+    def __init__(self, return_value=None):
+        self.counter = 0
+        self.return_value = return_value
+        self.last_args = None
+        self.last_kwargs = None
 
-	def __call__(self, *args, **kwargs):
-		self.counter += 1
-		self.last_args = args
-		self.last_kwargs = kwargs
-		return self.return_value
+    def __call__(self, *args, **kwargs):
+        self.counter += 1
+        self.last_args = args
+        self.last_kwargs = kwargs
+        return self.return_value
 
 
 @contextlib.contextmanager
@@ -39,28 +41,64 @@ def small_buffer(ds, size=3):
 
 @pytest.fixture(scope='module')
 def webserver():
-    webserver = vaex.webserver.WebServer(datasets=[], port=test_port, cache_byte_size=0)
+    webserver = vaex.server.tornado_server.WebServer(datasets=[], port=test_port, cache_byte_size=0)
     webserver.serve_threaded()
     yield webserver
     webserver.stop_serving()
     #return webserver
 
-@pytest.fixture(scope='module')
-def server(webserver):
-    server = vaex.server("%s://localhost:%d" % (scheme, test_port))
-    yield server
-    server.close()
+
+# the dataframe that lives at the server
+@pytest.fixture()
+def df_server(ds_trimmed):
+    df = ds_trimmed.copy()
+    df.name = 'test'
+    return df
+
 
 @pytest.fixture()
-def ds_remote(webserver, client, ds_trimmed):
-    df = ds_trimmed.copy()
+def df_server_huge():
+    df = vaex.from_arrays(x=vaex.vrange(0, int(1e9)))
+    df.name = 'huge'
+    return df
+
+
+@pytest.fixture()#scope='module')
+def tornado_client(webserver, df_server, df_server_huge):
+    df = df_server
     df.drop('obj', inplace=True)
     df.drop('datetime', inplace=True)
     df.drop('timedelta', inplace=True)
-    df.name = 'ds_trimmed'
-    webserver.set_datasets([df])
-    client.update()
-    return client['ds_trimmed']
+    webserver.set_datasets([df, df_server_huge])
+    client = vaex.connect("%s://localhost:%d" % (scheme, test_port))
+    yield client
+    client.close()
+
+
+@pytest.fixture
+def dummy_client(df_server, df_server_huge):
+    df = df_server
+    service = vaex.server.service.Service({'test': df, 'huge': df_server_huge})
+    server = vaex.server.dummy.Server(service)
+    client = vaex.server.dummy.Client(server)
+    return client
+
+
+# @pytest.fixture(params=['dummy_client', 'tornado_client'])
+@pytest.fixture(params=['tornado_client'])
+def client(request, dummy_client, tornado_client):
+    named = dict(dummy_client=dummy_client, tornado_client=tornado_client)
+    return named[request.param]
+
+
+@pytest.fixture()
+def ds_remote(client):
+    return client['test']
+
+
+@pytest.fixture()
+def df_remote(ds_remote):
+    return ds_remote
 
 @pytest.fixture()
 def ds_filtered():

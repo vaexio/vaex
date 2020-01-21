@@ -8,8 +8,7 @@ def test_variables(df):
     assert (df.x + 2).tolist() == df[['w']].w.tolist()
 
 
-def test_variable_rename(df_local):
-    df = df_local
+def test_variable_rename(df):
     df.add_variable('a', 2)
     df['w'] = df['x'] + df['a']
     assert (df.x + 2).tolist() == df.w.tolist()
@@ -18,8 +17,7 @@ def test_variable_rename(df_local):
     assert (df.x + 2).tolist() == df.w.tolist()
 
 
-def test_numpy_array_argument(df_local):
-    df = df_local
+def test_numpy_array_argument(df):
     xx = -np.arange(10)
     assert len(df.variables) == 0
     # this should insert a variable (the numpy array)

@@ -163,11 +163,8 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
                 kwargs['token'] = extra_args['token']
             if 'token_trusted' in extra_args:
                 kwargs['token_trusted'] = extra_args['token_trusted']
-            server = vaex.server(server, **kwargs)
-            dataframe_map = server.datasets(as_dict=True)
-            if name not in dataframe_map:
-                raise KeyError("no such DataFrame '%s' at server, possible names: %s" % (name, " ".join(dataframe_map.keys())))
-            return dataframe_map[name]
+            client = vaex.connect(server, **kwargs)
+            return client[name]
         if path.startswith("cluster"):
             import vaex.distributed
             return vaex.distributed.open(path, *args, **kwargs)
@@ -544,25 +541,15 @@ except ImportError:
     from urlparse import urlparse, parse_qs
 
 
-def server(url, **kwargs):
+def connect(url, **kwargs):
     """Connect to hostname supporting the vaex web api.
 
     :param str hostname: hostname or ip address of server
-    :return vaex.dataframe.ServerRest: returns a server object, note that it does not connect to the server yet, so this will always succeed
-    :rtype: ServerRest
+    :rtype: vaex.server.client.Client
     """
-    from vaex.remote import ServerRest
-    url = urlparse(url)
-    if url.scheme == "ws":
-        websocket = True
-    else:
-        websocket = False
-    assert url.scheme in ["ws", "http"]
-    port = url.port
-    base_path = url.path
-    hostname = url.hostname
-    return vaex.remote.ServerRest(hostname, base_path=base_path, port=port, websocket=websocket, **kwargs)
-
+    # dispatch to vaex.server package
+    from vaex.server import connect
+    return connect(url, **kwargs)
 
 def example(download=True):
     """Returns an example DataFrame which comes with vaex for testing/learning purposes.

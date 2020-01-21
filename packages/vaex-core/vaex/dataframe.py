@@ -216,6 +216,10 @@ class DataFrame(object):
         # a check to avoid nested aggregator calls, which make stack traces very difficult
         self._aggregator_nest_count = 0
 
+        self._task_aggs = {}
+        self._binners = {}
+        self._grids = {}
+
     def __getattr__(self, name):
         # will support the hidden methods
         if name in self.__hidden__:
@@ -296,9 +300,9 @@ class DataFrame(object):
     def filtered(self):
         return self.has_selection(FILTER_SELECTION_NAME)
 
-    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, ordered_reduce=False, to_numpy=True, ignore_filter=False, pre_filter=False, name='map reduce (custom)', selection=None):
+    def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, to_numpy=True, ignore_filter=False, pre_filter=False, name='map reduce (custom)', selection=None):
         # def map_wrapper(*blocks):
-        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, ordered_reduce=ordered_reduce, to_numpy=to_numpy, ignore_filter=ignore_filter, selection=selection, pre_filter=pre_filter)
+        task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, to_numpy=to_numpy, ignore_filter=ignore_filter, selection=selection, pre_filter=pre_filter)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, name)
         self.executor.schedule(task)
@@ -599,7 +603,7 @@ class DataFrame(object):
         @delayed
         def finish(counts):
             counts = np.array(counts)
-            counts = counts[...,0]
+            counts = counts[..., 0]
             return counts
         return finish(task)
 
@@ -622,11 +626,11 @@ class DataFrame(object):
     @delayed
     def _count_calculation(self, expression, grid, selection, edges, progressbar):
         if expression in ["*", None]:
-            agg = vaex.agg.count()
+            agg = vaex.agg.count(selection=selection, edges=edges)
         else:
-            agg = vaex.agg.count(expression)
+            agg = vaex.agg.count(expression, selection=selection, edges=edges)
         task = self._get_task_agg(grid)
-        agg_subtask = task.add_aggregation_operation(agg, selection, edges=edges)
+        agg_subtask = task.add_aggregation_operation(agg)
         progressbar.add_task(task, "count for %s" % expression)
         @delayed
         def finish(counts):
@@ -653,21 +657,23 @@ class DataFrame(object):
             # support. df.dtype() needs to call evaluate with filtering enabled since we consider
             # it invalid that expressions are evaluate with filtered data. Sklearn for instance may
             # give errors when evaluated with NaN's present.
+            # TODO: GET RID OF THIS
             len(self) # fill caches and masks
+            # pass
         grid = self._create_grid(binby, limits, shape, delay=True)
         @delayed
         def compute(expression, grid, selection, edges, progressbar):
             self._aggregator_nest_count += 1
             try:
                 if expression in ["*", None]:
-                    agg = vaex.agg.aggregates[name](selection=selection)
+                    agg = vaex.agg.aggregates[name](selection=selection, edges=edges)
                 else:
                     if extra_expressions:
-                        agg = vaex.agg.aggregates[name](expression, *extra_expressions, selection=selection)
+                        agg = vaex.agg.aggregates[name](expression, *extra_expressions, selection=selection, edges=edges)
                     else:
-                        agg = vaex.agg.aggregates[name](expression, selection=selection)
+                        agg = vaex.agg.aggregates[name](expression, selection=selection, edges=edges)
                 task = self._get_task_agg(grid)
-                agg_subtask = agg.add_operations(task, edges=edges)
+                agg_subtask = agg.add_operations(task)
                 progressbar.add_task(task, "%s for %s" % (name, expression))
                 @delayed
                 def finish(counts):
@@ -1033,6 +1039,8 @@ class DataFrame(object):
             # print xlist, ylist
         else:
             waslist, [xlist, ylist] = vaex.utils.listify(x, y)
+        xlist = _ensure_strings_from_expressions(xlist)
+        ylist = _ensure_strings_from_expressions(ylist)
         limits = self.limits(binby, limits, selection=selection, delay=True)
 
         @delayed
@@ -2021,10 +2029,13 @@ class DataFrame(object):
             return self._dtypes_override[expression]
         if expression in self.variables:
             return np.float64(1).dtype
-        elif expression in self.columns.keys():
+        elif self.is_local() and expression in self.columns.keys():
             column = self.columns[expression]
-            data = column[0:1]
-            dtype = data.dtype
+            if hasattr(column, 'dtype'):
+                dtype = column.dtype
+            else:
+                data = column[0:1]
+                dtype = data.dtype
         else:
             try:
                 data = self.evaluate(expression, 0, 1, filtered=False, internal=True, parallel=False)
@@ -2305,6 +2316,8 @@ class DataFrame(object):
                 self[name] = self._expr(value)
                 # self._save_assign_expression(name)
             self.column_names = list(state['column_names'])
+            for name in self.column_names:
+                self._save_assign_expression(name)
         else:
             # old behaviour
             self.virtual_columns = {}
@@ -2516,60 +2529,6 @@ class DataFrame(object):
     def option_to_args(cls, option):
         return []
 
-    @_hidden
-    def subspace(self, *expressions, **kwargs):
-        """Return a :class:`Subspace` for this DataFrame with the given expressions:
-
-        Example:
-
-        >>> subspace_xy = some_df("x", "y")
-
-        :rtype: Subspace
-        :param list[str] expressions: list of expressions
-        :param kwargs:
-        :return:
-        """
-        return self(*expressions, **kwargs)
-
-    @_hidden
-    def subspaces(self, expressions_list=None, dimensions=None, exclude=None, **kwargs):
-        """Generate a Subspaces object, based on a custom list of expressions or all possible combinations based on
-        dimension
-
-        :param expressions_list: list of lists of expressions, where the inner list defines the subspace
-        :param dimensions: if given, generates a subspace with all possible combinations for that dimension
-        :param exclude: list of
-        """
-        if dimensions is not None:
-            expressions_list = list(itertools.combinations(self.get_column_names(), dimensions))
-            if exclude is not None:
-                import six
-
-                def excluded(expressions):
-                    if callable(exclude):
-                        return exclude(expressions)
-                    elif isinstance(exclude, six.string_types):
-                        return exclude in expressions
-                    elif isinstance(exclude, (list, tuple)):
-                        # $#expressions = set(expressions)
-                        for e in exclude:
-                            if isinstance(e, six.string_types):
-                                if e in expressions:
-                                    return True
-                            elif isinstance(e, (list, tuple)):
-                                if set(e).issubset(expressions):
-                                    return True
-                            else:
-                                raise ValueError("elements of exclude should contain a string or a sequence of strings")
-                    else:
-                        raise ValueError("exclude should contain a string, a sequence of strings, or should be a callable")
-                    return False
-                # test if any of the elements of exclude are a subset of the expression
-                expressions_list = [expr for expr in expressions_list if not excluded(expr)]
-            logger.debug("expression list generated: %r", expressions_list)
-        import vaex.legacy
-        return vaex.legacy.Subspaces([self(*expressions, **kwargs) for expressions in expressions_list])
-
     def combinations(self, expressions_list=None, dimension=2, exclude=None, **kwargs):
         """Generate a list of combinations for the possible expressions for the given dimension.
 
@@ -2605,12 +2564,6 @@ class DataFrame(object):
                 expressions_list = [expr for expr in expressions_list if not excluded(expr)]
             logger.debug("expression list generated: %r", expressions_list)
         return expressions_list
-
-    @vaex.utils.deprecated('legacy system')
-    @_hidden
-    def __call__(self, *expressions, **kwargs):
-        """Alias/shortcut for :func:`DataFrame.subspace`"""
-        raise NotImplementedError
 
     def set_variable(self, name, expression_or_value, write=True):
         """Set the variable to an expression or value defined by expression_or_value.
@@ -2687,7 +2640,7 @@ class DataFrame(object):
 
         # if _is_string(selection):
 
-    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, parallel=True):
+    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, internal=None, parallel=True, chunk_size=None):
         """Evaluate an expression, and return a numpy array with the results for the full column or a part of it.
 
         Note that this is not how vaex should be used, since it means a copy of the data needs to fit in memory.
@@ -2702,7 +2655,55 @@ class DataFrame(object):
         :param selection: selection to apply
         :return:
         """
-        raise NotImplementedError
+        if chunk_size is not None:
+            return self.evaluate_iterator(expression, s1=i1, s2=i2, out=out, selection=selection, filtered=filtered, internal=internal, parallel=parallel, chunk_size=chunk_size)
+        else:
+            return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, internal=internal, parallel=parallel, chunk_size=chunk_size)
+
+    def evaluate_iterator(self, expression, s1=None, s2=None, out=None, selection=None, filtered=True, internal=None, parallel=True, chunk_size=None, prefetch=True):
+        """Generator to efficiently evaluate expressions in chunks (number of rows).
+
+        See :func:`DataFrame.evaluate` for other arguments.
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.example()
+        >>> for i1, i2, chunk in df.evaluate_iterator(df.x, chunk_size=100_000):
+        ...     print(f"Total of {i1} to {i2} = {chunk.sum()}")
+        ...
+        Total of 0 to 100000 = -7460.610158279056
+        Total of 100000 to 200000 = -4964.85827154921
+        Total of 200000 to 300000 = -7303.271340043915
+        Total of 300000 to 330000 = -2424.65234724951
+
+        :param prefetch: Prefetch/compute the next chunk in parallel while the current value is yielded/returned.
+        """
+        offset = 0
+        import concurrent.futures
+        if not prefetch:
+            # this is the simple implementation
+            for l1, l2, i1, i2 in self._unfiltered_chunk_slices(chunk_size):
+                yield l1, l2, self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, internal=internal, parallel=parallel, raw=True)
+        # But this implementation is faster if the main thread work is single threaded
+        else:
+            with concurrent.futures.ThreadPoolExecutor(1) as executor:
+                iter = self._unfiltered_chunk_slices(chunk_size)
+                def f(i1, i2):
+                    return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, internal=internal, parallel=parallel, raw=True)
+                previous_l1, previous_l2, previous_i1, previous_i2 = next(iter)
+                # we submit the 1st job
+                previous = executor.submit(f, previous_i1, previous_i2)
+                for l1, l2, i1, i2 in iter:
+                    # and we submit the next job before returning the previous, so they run in parallel
+                    # but make sure the previous is done
+                    previous_chunk = previous.result()
+                    current = executor.submit(f, i1, i2)
+                    yield previous_l1, previous_l2, previous_chunk
+                    previous = current
+                    previous_l1, previous_l2 = l1, l2
+                previous_chunk = previous.result()
+                yield previous_l1, previous_l2, previous_chunk
 
     @docsubst
     def to_items(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True):
@@ -3263,14 +3264,17 @@ class DataFrame(object):
         if old in self._dtypes_override:
             self._dtypes_override[new] = self._dtypes_override.pop(old)
         is_variable = False
-        if old in self.columns:
-            self.columns[new] = self.columns.pop(old)
-        elif old in self.variables:
+        if old in self.variables:
             self.variables[new] = self.variables.pop(old)
             is_variable = True
         elif old in self.virtual_columns:
             self.virtual_columns[new] = self.virtual_columns.pop(old)
             self._virtual_expressions[new] = self._virtual_expressions.pop(old)
+        elif self.is_local() and old in self.columns:
+            # we only have to do this locally
+            # if we don't do this locally, we still store this info
+            # in self._renamed_columns, so it will happen at the server
+            self.columns[new] = self.columns.pop(old)
         if rename_meta_data:
             for d in [self.ucds, self.units, self.descriptions]:
                 if old in d:
@@ -3281,10 +3285,10 @@ class DataFrame(object):
         if not is_variable:
             self._renamed_columns.append((old, new))
             self.column_names[self.column_names.index(old)] = new
-            if hasattr(self, name):
+            if hasattr(self, old):
                 try:
-                    if isinstance(getattr(self, name), Expression):
-                        delattr(self, name)
+                    if isinstance(getattr(self, old), Expression):
+                        delattr(self, old)
                 except:
                     pass
             self._save_assign_expression(new)
@@ -4394,9 +4398,6 @@ class DataFrame(object):
 
     def _selection(self, create_selection, name, executor=None, execute_fully=False):
         """select_lasso and select almost share the same code"""
-        # TODO: maybe we also want free up selection masks
-        if name not in self._selection_masks:
-            self._selection_masks[name] = vaex.superutils.Mask(self._length_unfiltered)
         selection_history = self.selection_histories[name]
         previous_index = self.selection_history_indices[name]
         current = selection_history[previous_index] if selection_history else None
@@ -4682,6 +4683,79 @@ class DataFrame(object):
         return dot
 
 
+    def _get_task_agg(self, grid):
+        if grid not in self._task_aggs:
+            self._task_aggs[grid] = task = vaex.tasks.TaskAggregations(self, grid)
+            self.executor.schedule(task)
+        return self._task_aggs[grid]
+
+    @docsubst
+    @stat_1d
+    def _agg(self, aggregator, grid, selection=False, delay=False, progress=None):
+        """
+
+        :param selection: {selection}
+        :param delay: {delay}
+        :param progress: {progress}
+        :return: {return_stat_scalar}
+        """
+        task_agg = self._get_task_agg(grid)
+        sub_task = aggregator.add_operations(task_agg)
+        return self._delay(delay, sub_task)
+
+    def _binner(self, expression, limits=None, shape=None, delay=False):
+        expression = str(expression)
+        if limits is not None and not isinstance(limits, (tuple, str)):
+            limits = tuple(limits)
+        key = (expression, limits, shape)
+        if key not in self._binners:
+            if expression in self._categories:
+                N = self._categories[expression]['N']
+                binner = self._binner_ordinal(expression, N)
+                self._binners[key] = vaex.promise.Promise.fulfilled(binner)
+            else:
+                self._binners[key] = vaex.promise.Promise()
+                @delayed
+                def create_binner(limits):
+                    return self._binner_scalar(expression, limits, shape)
+                self._binners[key] = create_binner(self.limits(expression, limits, delay=True))
+        return self._delay(delay, self._binners[key])
+
+    def _grid(self, binners):
+        key = tuple(binners)
+        if key in self._grids:
+            return self._grids[key]
+        else:
+            self._grids[key] = grid = vaex.superagg.Grid(binners)
+            return grid
+
+    def _binner_scalar(self, expression, limits, shape):
+        type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerScalar_", self.dtype(expression))
+        vmin, vmax = limits
+        return type(expression, vmin, vmax, shape)
+
+    def _binner_ordinal(self, expression, ordinal_count, min_value=0):
+        type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", self.dtype(expression))
+        return type(expression, ordinal_count, min_value)
+
+    def _create_grid(self, binby, limits, shape, delay=False):
+        if isinstance(binby, (list, tuple)):
+            binbys = binby
+        else:
+            binbys = [binby]
+        binbys = _ensure_strings_from_expressions(binbys)
+        binners = []
+        if len(binbys):
+            limits = _expand_limits(limits, len(binbys))
+        else:
+            limits = []
+        shapes = _expand_shape(shape, len(binbys))
+        for binby, limits1, shape in zip(binbys, limits, shapes):
+            binners.append(self._binner(binby, limits1, shape, delay=True))
+        @delayed
+        def finish(*binners):
+            return self._grid(binners)
+        return self._delay(delay, finish(*binners))
 
 DataFrame.__hidden__ = {}
 hidden = [name for name, func in vars(DataFrame).items() if getattr(func, '__hidden__', False)]
@@ -4700,9 +4774,6 @@ class DataFrameLocal(DataFrame):
         self.path = path
         self.mask = None
         self.columns = {}
-        self._task_aggs = {}
-        self._binners = {}
-        self._grids = {}
 
     def _readonly(self, inplace=False):
         # make arrays read only if possib;e
@@ -5113,58 +5184,6 @@ class DataFrameLocal(DataFrame):
             for i1, i2 in vaex.utils.subdivide(logical_length, max_length=chunk_size):
                 yield i1, i2, i1, i2
 
-    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, internal=None, parallel=True, chunk_size=None):
-        """The local implementation of :func:`DataFrame.evaluate`, will forward call to :func:`DataFrame.evaluate_iterator` if chunk_size is given"""
-        if chunk_size is not None:
-            return self.evaluate_iterator(expression, s1=i1, s2=i2, out=out, selection=selection, filtered=filtered, internal=internal, parallel=parallel, chunk_size=chunk_size)
-        else:
-            return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, internal=internal, parallel=parallel, chunk_size=chunk_size)
-
-    def evaluate_iterator(self, expression, s1=None, s2=None, out=None, selection=None, filtered=True, internal=None, parallel=True, chunk_size=None, prefetch=True):
-        """Generator to efficiently evaluate expressions in chunks (number of rows).
-
-        See :func:`DataFrame.evaluate` for other arguments.
-
-        Example:
-
-        >>> import vaex
-        >>> df = vaex.example()
-        >>> for i1, i2, chunk in df.evaluate_iterator(df.x, chunk_size=100_000):
-        ...     print(f"Total of {i1} to {i2} = {chunk.sum()}")
-        ...
-        Total of 0 to 100000 = -7460.610158279056
-        Total of 100000 to 200000 = -4964.85827154921
-        Total of 200000 to 300000 = -7303.271340043915
-        Total of 300000 to 330000 = -2424.65234724951
-
-        :param prefetch: Prefetch/compute the next chunk in parallel while the current value is yielded/returned.
-        """
-        offset = 0
-        import concurrent.futures
-        if not prefetch:
-            # this is the simple implementation
-            for l1, l2, i1, i2 in self._unfiltered_chunk_slices(chunk_size):
-                yield l1, l2, self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, internal=internal, parallel=parallel, raw=True)
-        # But this implementation is faster if the main thread work is single threaded
-        else:
-            with concurrent.futures.ThreadPoolExecutor(1) as executor:
-                iter = self._unfiltered_chunk_slices(chunk_size)
-                def f(i1, i2):
-                    return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, internal=internal, parallel=parallel, raw=True)
-                previous_l1, previous_l2, previous_i1, previous_i2 = next(iter)
-                # we submit the 1st job
-                previous = executor.submit(f, previous_i1, previous_i2)
-                for l1, l2, i1, i2 in iter:
-                    # and we submit the next job before returning the previous, so they run in parallel
-                    # but make sure the previous is done
-                    previous_chunk = previous.result()
-                    current = executor.submit(f, i1, i2)
-                    yield previous_l1, previous_l2, previous_chunk
-                    previous = current
-                    previous_l1, previous_l2 = l1, l2
-                previous_chunk = previous.result()
-                yield previous_l1, previous_l2, previous_chunk
-
     def _evaluate_implementation(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, internal=False, parallel=True, chunk_size=None, raw=False):
         """The real implementation of :func:`DataFrame.evaluate` (not returning a generator).
 
@@ -5188,6 +5207,7 @@ class DataFrameLocal(DataFrame):
                     count_check = len(self)  # fill caches and masks
                     mask = self._selection_masks[FILTER_SELECTION_NAME]
                     i1, i2 = mask.indices(i1, i2-1)
+                    assert i1 != -1
                     i2 += 1
                 # TODO: performance: can we collapse the two trims in one?
                 df = df.trim()
@@ -5763,80 +5783,10 @@ class DataFrameLocal(DataFrame):
         else:
             return binby.agg(agg)
 
-    def _get_task_agg(self, grid):
-        if grid not in self._task_aggs:
-            self._task_aggs[grid] = task = vaex.tasks.TaskAggregate(self, grid)
-            self.executor.schedule(task)
-        return self._task_aggs[grid]
-
-    @docsubst
-    @stat_1d
-    def _agg(self, aggregator, grid, selection=False, delay=False, progress=None):
-        """
-
-        :param selection: {selection}
-        :param delay: {delay}
-        :param progress: {progress}
-        :return: {return_stat_scalar}
-        """
-        task_agg = self._get_task_agg(grid)
-        sub_task = aggregator.add_operations(task_agg)
-        return self._delay(delay, sub_task)
-
-    def _binner(self, expression, limits=None, shape=None, delay=False):
-        expression = str(expression)
-        if limits is not None and not isinstance(limits, (tuple, str)):
-            limits = tuple(limits)
-        key = (expression, limits, shape)
-        if key not in self._binners:
-            if expression in self._categories:
-                N = self._categories[expression]['N']
-                binner = self._binner_ordinal(expression, N)
-                self._binners[key] = vaex.promise.Promise.fulfilled(binner)
-            else:
-                self._binners[key] = vaex.promise.Promise()
-                @delayed
-                def create_binner(limits):
-                    return self._binner_scalar(expression, limits, shape)
-                self._binners[key] = create_binner(self.limits(expression, limits, delay=True))
-        return self._delay(delay, self._binners[key])
-
-    def _grid(self, binners):
-        key = tuple(binners)
-        if key in self._grids:
-            return self._grids[key]
-        else:
-            self._grids[key] = grid = vaex.superagg.Grid(binners)
-            return grid
-
-    def _binner_scalar(self, expression, limits, shape):
-        type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerScalar_", self.dtype(expression))
-        vmin, vmax = limits
-        return type(expression, vmin, vmax, shape)
-
-    def _binner_ordinal(self, expression, ordinal_count, min_value=0):
-        type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", self.dtype(expression))
-        return type(expression, ordinal_count, min_value)
-
-    def _create_grid(self, binby, limits, shape, delay=False):
-        if isinstance(binby, (list, tuple)):
-            binbys = binby
-        else:
-            binbys = [binby]
-        binbys = _ensure_strings_from_expressions(binbys)
-        binners = []
-        if len(binbys):
-            limits = _expand_limits(limits, len(binbys))
-        else:
-            limits = []
-        shapes = _expand_shape(shape, len(binbys))
-        for binby, limits1, shape in zip(binbys, limits, shapes):
-            binners.append(self._binner(binby, limits1, shape, delay=True))
-        @delayed
-        def finish(*binners):
-            return self._grid(binners)
-        return self._delay(delay, finish(*binners))
-
+    def _selection(self, create_selection, name, executor=None, execute_fully=False):
+        if name not in self._selection_masks:
+            self._selection_masks[name] = vaex.superutils.Mask(self._length_unfiltered)
+        return super()._selection(create_selection, name, executor, execute_fully)
 
 class DataFrameConcatenated(DataFrameLocal):
     """Represents a set of DataFrames all concatenated. See :func:`DataFrameLocal.concat` for usage.

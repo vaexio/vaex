@@ -1,3 +1,4 @@
+import pytest
 from common import *
 
 
@@ -15,6 +16,14 @@ def test_slice_against_numpy(df):
     assert df.x[-3:].tolist() == df.x.values[-3:].tolist()
     # we don't support non 1 steps
     # assert df.x[::-3].tolist() == df.x.values[::-3].tolist()
+
+
+@pytest.mark.xfail(reason="Not supported yet")
+def test_slice_filtered_remte(ds_remote):
+    df = ds_remote
+    dff = df[df.x > 0]
+    dfs = dff[1:]
+    assert dfs.x.values[0] == 2
 
 
 def test_slice(ds_local):
