@@ -16,7 +16,11 @@ jobs:
       max-parallel: 10
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
-        python-version: [3.6, 3.7]
+        python-version: [3.6, 3.7, 3.8]
+        exclude:
+        # windows + conda + py38 doesn't work yet (dependency issue)
+        - os: windows-latest
+          python-version: 3.8
 
     steps:
     - uses: actions/checkout@v1
@@ -42,7 +46,7 @@ jobs:
     - name: Create env
       # if: steps.cache-conda-env.outputs.cache-hit != 'true'
       run: |
-        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook scikit-learn lightgbm py-xgboost
+        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py astropy tornado cython pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook scikit-learn lightgbm py-xgboost
     # - name: Restoring cached env
     #   if: steps.cache-conda-env.outputs.cache-hit == 'true'
     #   run: |
