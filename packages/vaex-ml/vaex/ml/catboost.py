@@ -28,7 +28,7 @@ class CatBoostModel(state.HasState):
     >>> import vaex.ml.catboost
     >>> df = vaex.ml.datasets.load_iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
-    >>> df_train, df_test = vaex.ml.train_test_split(df)
+    >>> df_train, df_test = df.ml.train_test_split()
     >>> params = {
         'leaf_estimation_method': 'Gradient',
         'learning_rate': 0.1,
@@ -39,8 +39,8 @@ class CatBoostModel(state.HasState):
         'subsample': 0.8,
         'random_state': 42,
         'verbose': 0}
-    >>> booster = vaex.ml.catboost.CatBoostModel(features=features, num_boost_round=100, params=params)
-    >>> booster.fit(df_train, 'class_')
+    >>> booster = vaex.ml.catboost.CatBoostModel(features=features, target='class_', num_boost_round=100, params=params)
+    >>> booster.fit(df_train)
     >>> df_train = booster.transform(df_train)
     >>> df_train.head(3)
     #    sepal_length    sepal_width    petal_length    petal_width    class_  catboost_prediction
@@ -56,6 +56,7 @@ class CatBoostModel(state.HasState):
     '''
 
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the CatBoostModel.')
+    target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     num_boost_round = traitlets.CInt(default_value=None, allow_none=True, help='Number of boosting iterations.')
     params = traitlets.Dict(help='A dictionary of parameters to be passed on to the CatBoostModel model.')
     pool_params = traitlets.Dict(default_value={}, help='A dictionary of parameters to be passed to the Pool data object construction')
@@ -82,31 +83,27 @@ class CatBoostModel(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
-    def fit(self, df, target, evals=None, early_stopping_rounds=None,
-            verbose_eval=None, plot=False, **kwargs):
+    def fit(self, df, evals=None, early_stopping_rounds=None, verbose_eval=None, plot=False, **kwargs):
         '''Fit the CatBoostModel model given a DataFrame.
         This method accepts all key word arguments for the catboost.train method.
 
-        :param df: A vaex DataFrame containing the training features.
-        :param target: The column name of the target variable.
+        :param df: A vaex DataFrame containing the features and target on which to train the model.
         :param evals: A list of DataFrames to be evaluated during training.
-        This allows user to watch performance on the validation sets.
+            This allows user to watch performance on the validation sets.
         :param int early_stopping_rounds: Activates early stopping.
         :param bool verbose_eval: Requires at least one item in *evals*.
-        If *verbose_eval* is True then the evaluation metric on the validation set is printed at each boosting stage.
+            If *verbose_eval* is True then the evaluation metric on the validation set is printed at each boosting stage.
         :param bool plot: if True, display an interactive widget in the Jupyter
-        notebook of how the train and validation sets score on each boosting iteration.
+            notebook of how the train and validation sets score on each boosting iteration.
         '''
-        # Ensure strings
-        target = vaex.dataframe._ensure_string_from_expression(target)
 
         data = df[self.features].values
-        target_data = df[target].values
+        target_data = df[self.target].values
         dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
         if evals is not None:
             for i, item in enumerate(evals):
                 data = item[self.features].values
-                target_data = item[target].values
+                target_data = item[self.target].values
                 evals[i] = catboost.Pool(data=data, label=target_data, **self.pool_params)
 
         # This does the actual training/fitting of the catboost model

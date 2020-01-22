@@ -44,9 +44,10 @@ def test_catboost():
     booster = vaex.ml.catboost.CatBoostModel(num_boost_round=10,
                                              params=params_multiclass,
                                              features=features,
+                                             target='class_',
                                              prediction_type='Probability')
     # Predict in memory
-    booster.fit(ds_train, ds_train.class_)
+    booster.fit(ds_train)
     class_predict = booster.predict(ds_test)
     assert np.all(ds_test.col.class_.values == np.argmax(class_predict, axis=1))
 
@@ -67,8 +68,8 @@ def test_catboost_numerical_validation():
     cb_pred = cb_bst.predict(dtrain, prediction_type='Probability')
 
     # catboost through vaex
-    booster = vaex.ml.catboost.CatBoostModel(features=features, params=params_multiclass, num_boost_round=3)
-    booster.fit(ds, ds.class_)
+    booster = vaex.ml.catboost.CatBoostModel(features=features, target='class_', params=params_multiclass, num_boost_round=3)
+    booster.fit(ds)
     vaex_pred = booster.predict(ds)
 
     # Comparing the the predictions of catboost vs vaex.ml
@@ -81,12 +82,12 @@ def test_lightgbm_serialize(tmpdir):
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
 
-    gbm = ds.ml.catboost_model(target, 20, features=features, params=params_multiclass)
+    gbm = ds.ml.catboost_model(target, features=features, num_boost_round=20, params=params_multiclass)
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
     pl.load(str(tmpdir.join('test.json')))
 
-    gbm = ds.ml.catboost_model(target, 20, features=features, params=params_multiclass,)
+    gbm = ds.ml.catboost_model(target, features=features, num_boost_round=20, params=params_multiclass)
     gbm.state_set(gbm.state_get())
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
@@ -101,9 +102,9 @@ def test_catboost_validation_set():
     # Define the training featuress
     features = ['vx', 'vy', 'vz', 'Lz', 'L']
     # instantiate the booster model
-    booster = vaex.ml.catboost.CatBoostModel(features=features, num_boost_round=10, params=params_reg)
+    booster = vaex.ml.catboost.CatBoostModel(features=features, target='E', num_boost_round=10, params=params_reg)
     # fit the booster - including saving the history of the validation sets
-    booster.fit(train, 'E', evals=[train, test])
+    booster.fit(train, evals=[train, test])
     assert hasattr(booster, 'booster')
     assert len(booster.booster.evals_result_['learn']['MAE']) == 10
     assert len(booster.booster.evals_result_['learn']['R2']) == 10

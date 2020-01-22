@@ -12,7 +12,7 @@ author_email= 'jovan.veljanoski@gmail.com'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
-install_requires_ml = ['vaex-core>=1.5.0-dev,<2', 'numba', 'traitlets','jinja2']
+install_requires_ml = ['vaex-core>=1.5.0,<2', 'numba', 'traitlets', 'jinja2']
 
 setup(name=name + '-ml',
       version=version,

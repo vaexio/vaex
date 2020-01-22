@@ -30,7 +30,7 @@ class XGBoostModel(state.HasState):
     >>> import vaex.ml.xgboost
     >>> df = vaex.ml.datasets.load_iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
-    >>> df_train, df_test = vaex.ml.train_test_split(df)
+    >>> df_train, df_test = df.ml.train_test_split()
     >>> params = {
         'max_depth': 5,
         'learning_rate': 0.1,
@@ -39,8 +39,8 @@ class XGBoostModel(state.HasState):
         'subsample': 0.80,
         'colsample_bytree': 0.80,
         'silent': 1}
-    >>> booster = vaex.ml.xgboost.XGBoostModel(features=features, num_boost_round=100, params=params)
-    >>> booster.fit(df_train, 'class_')
+    >>> booster = vaex.ml.xgboost.XGBoostModel(features=features, target='class_', num_boost_round=100, params=params)
+    >>> booster.fit(df_train)
     >>> df_train = booster.transform(df_train)
     >>> df_train.head(3)
     #    sepal_length    sepal_width    petal_length    petal_width    class_    xgboost_prediction
@@ -56,6 +56,7 @@ class XGBoostModel(state.HasState):
     '''
 
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the XGBoostModel.')
+    target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     num_boost_round = traitlets.CInt(help='Number of boosting iterations.')
     params = traitlets.Dict(help='A dictionary of parameters to be passed on to the XGBoost model.')
     prediction_name = traitlets.Unicode(default_value='xgboost_prediction', help='The name of the virtual column housing the predictions.')
@@ -78,14 +79,12 @@ class XGBoostModel(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
-    def fit(self, df, target, evals=(), early_stopping_rounds=None,
-            evals_result=None, verbose_eval=False, **kwargs):
+    def fit(self, df, evals=(), early_stopping_rounds=None, evals_result=None, verbose_eval=False, **kwargs):
         '''Fit the XGBoost model given a DataFrame.
 
         This method accepts all key word arguments for the xgboost.train method.
 
-        :param df: A vaex DataFrame containing the training features.
-        :param target: The column name of the target variable.
+        :param df: A vaex DataFrame containing the features and target on which to train the model.
         :param evals: A list of pairs (DataFrame, string).
             List of items to be evaluated during training, this allows user to watch performance on the validation set.
         :param int early_stopping_rounds: Activates early stopping.
@@ -96,14 +95,15 @@ class XGBoostModel(state.HasState):
         :param bool verbose_eval: Requires at least one item in *evals*.
             If *verbose_eval* is True then the evaluation metric on the validation set is printed at each boosting stage.
         '''
+
         data = df[self.features].values
-        target_data = df.evaluate(target)
+        target_data = df.evaluate(self.target)
         dtrain = xgboost.DMatrix(data, target_data)
         if evals is not None:
             evals = [list(elem) for elem in evals]
             for item in evals:
                 data = item[0][self.features].values
-                target_data = item[0].evaluate(target)
+                target_data = item[0].evaluate(self.target)
                 item[0] = xgboost.DMatrix(data, target_data)
         else:
             evals = ()

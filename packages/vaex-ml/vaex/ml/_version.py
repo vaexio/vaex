@@ -1,2 +1,2 @@
-__version__ = '0.8.0-dev'
-__version_tuple__ = (0, 8, 0, "dev")
+__version__ = '0.8.0'
+__version_tuple__ = (0, 8, 0)
