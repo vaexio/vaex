@@ -3520,18 +3520,20 @@ class DataFrame(object):
         # parts += ["</tr></thead>"]
 
         def table_part(k1, k2, parts):
-            values = {}
             N = k2 - k1
             # slicing will invoke .extract which will make the evaluation
             # much quicker
             df = self[k1:k2]
-            for i, name in enumerate(column_names):
-                try:
-                    values[name] = df.evaluate(name)
-                except:
-                    values[name] = ["error"] * (N)
-                    logger.exception('error evaluating: %s at rows %i-%i' % (name, k1, k2))
-                # values_list[i].append(value)
+            try:
+                values = dict(zip(column_names, df.evaluate(column_names)))
+            except:
+                values = {}
+                for i, name in enumerate(column_names):
+                    try:
+                        values[name] = df.evaluate(name)
+                    except:
+                        values[name] = ["error"] * (N)
+                        logger.exception('error evaluating: %s at rows %i-%i' % (name, k1, k2))
             for i in range(k2 - k1):
                 # parts += ["<tr>"]
                 # parts += ["<td><i style='opacity: 0.6'>{:,}</i></td>".format(i + k1)]
