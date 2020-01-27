@@ -225,3 +225,23 @@ def test_groupby_same_result():
 
         assert vc.values.tolist() == group_sort['count'].values.tolist(), 'counts are not correct.'
         assert vc.index.tolist() == group_sort['h'].values.tolist(), 'the indices of the counts are not correct.'
+
+
+def test_groupby_custom_agg():
+    g = ['A', 'A', 'A', 'B', 'B', 'C', 'C']
+    x = [1, 2, 3, 0, 0, 1, 10]
+    y = [1, 2, 3, 1, 1, -1, -10]
+    df = vaex.from_arrays(x=x, y=y, g=g)
+
+    # custom user-defined agg function
+    def custom_function(x):
+        from scipy import stats
+        return stats.kurtosis(x)
+
+    gdf = df.groupby(by='g', agg={'count': vaex.agg.count('x'),
+                                  'custom_output': custom_function(df.x)
+                                  })
+
+    assert gdf.column_count() == 3
+    assert set(gdf.g.tolist()) == set(['A', 'B', 'C'])
+    assert set(gdf.custom_output.tolist()) == set([-3, -2, -1.5])
