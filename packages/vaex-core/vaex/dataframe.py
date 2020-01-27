@@ -5462,15 +5462,7 @@ class DataFrameLocal(DataFrame):
         N = left.length_unfiltered()
         N_other = len(right)
         if left_on is None and right_on is None:
-            for name in right:
-                right_name = name
-                if name in left:
-                    left.rename_column(name, lprefix + name + lsuffix)
-                    right_name = rprefix + name + rsuffix
-                if name in right.virtual_columns:
-                    left.add_virtual_column(right_name, right.virtual_columns[name])
-                else:
-                    left.add_column(right_name, right.columns[name])
+            lookup = None
         else:
             df = left
             # we index the right side, this assumes right is smaller in size
@@ -5517,19 +5509,57 @@ class DataFrameLocal(DataFrame):
                 left = left.take(left_indices_matched, filtered=False, dropfilter=False)
             else:
                 lookup = np.ma.array(lookup, mask=lookup==-1)
-            direct_indices_map = {}  # for performance, keeps a cache of two levels of indirection of indices
-            for name in right:
-                if rprefix + name + rsuffix == lprefix + left_on + lsuffix:
-                    continue  # skip when it's the join column
-                right_name = name
-                if name in left:
-                    left.rename_column(name, lprefix + name + lsuffix)
-                    right_name = rprefix + name + rsuffix
-                if name in right.virtual_columns:
-                    left.add_virtual_column(right_name, right.virtual_columns[name])
-                else:
+        direct_indices_map = {}  # for performance, keeps a cache of two levels of indirection of indices
+
+        def mangle_name(prefix, name, suffix):
+            if name.startswith('__'):
+                return '__' + prefix + name[2:] + suffix
+            else:
+                return prefix + name + suffix
+
+        # first, do renaming, so all column names are unique
+        right_names = right.get_column_names(hidden=True)
+        left_names = left.get_column_names(hidden=True)
+        for name in right_names:
+            if name in left_names:
+                # find a unique name across both dataframe, including the new name for the left
+                all_names = list(set(right_names + left_names))
+                all_names.append(mangle_name(lprefix, name, lsuffix))  # we dont want to steal the left's name
+                all_names.remove(name)  # we could even claim the original name
+                new_name = mangle_name(rprefix, name, rsuffix)
+                # we will not add this column twice when it is the join column
+                if new_name != left_on:
+                    if new_name in all_names:  # it's still not unique
+                        new_name = vaex.utils.find_valid_name(new_name, all_names)
+                    right.rename_column(name, new_name)
+                    right[new_name].values[0]
+                    right_names[right_names.index(name)] = new_name
+
+                # and the same for the left
+                all_names = list(set(right_names + left_names))
+                all_names.remove(name)
+                new_name = mangle_name(lprefix, name, lsuffix)
+                if new_name in all_names:  # still not unique
+                    new_name = vaex.utils.find_valid_name(new_name, all_names)
+                left.rename_column(name, new_name)
+                left[new_name].values[0]
+                left_names[left_names.index(name)] = new_name
+
+        # now we add columns from the right, to the left
+        right_names = right.get_column_names(hidden=True)
+        left_names = left.get_column_names(hidden=True)
+        for name in right_names:
+            if name == left_on and name in left_names:
+                continue  # skip when it's the join column
+            assert name not in left_names
+            if name in right.virtual_columns:
+                left.add_virtual_column(name, right.virtual_columns[name])
+            else:
+                if lookup is not None:
                     column = ColumnIndexed.index(right, right.columns[name], name, lookup, direct_indices_map)
-                    left.add_column(right_name, column)
+                else:
+                    column = right.columns[name]
+                left.add_column(name, column)
         return left
 
     def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
