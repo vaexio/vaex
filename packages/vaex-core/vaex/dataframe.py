@@ -3274,8 +3274,7 @@ class DataFrame(object):
             self.virtual_columns[new] = self.virtual_columns.pop(old)
             self._virtual_expressions[new] = self._virtual_expressions.pop(old)
         self._renamed_columns.append((old, new))
-        self.column_names.remove(old)
-        self.column_names.append(new)
+        self.column_names[self.column_names.index(old)] = new
         for key, value in self.selection_histories.items():
             self.selection_histories[key] = list([k if k is None else k._rename(self, old, new) for k in value])
         if hasattr(self, name):
