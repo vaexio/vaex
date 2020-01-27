@@ -162,7 +162,6 @@ def test_inner_a_d():
     assert df.x2.tolist() == [3.1, 25.]
 
 
-@pytest.mark.skip(reason='full join not supported yet')
 def test_full_a_d():
     df = df_a.join(df_d, on='a', right_on='a', how='full')
     assert df.a.tolist() == ['A', 'B', 'C', 'D']
