@@ -69,7 +69,7 @@ jobs:
         path: packages/vaex-core/build
         key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}
     - name: Fix cache timestamp
-      if: steps.cache-compiled-binaries.outputs.cache-hit == 'true'
+      if: steps.cache-compiled-binaries.outputs.cache-hit == 'true' && matrix.os != 'windows-latest'
       shell: bash
       run: |
         find packages/vaex-core/build -type f -exec touch {} +
