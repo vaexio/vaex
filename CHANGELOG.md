@@ -2,9 +2,10 @@
    * Breaking changes:
      * Python 2 is not supported anymore
 
-## vaex-core 2.0.0
+# vaex-core 2.0.0
    * Fixes
-      * Renaming columns fixes [#570](https://github.com/vaexio/vaex/pull/570)
+      * Renaming columns fixes [#571](https://github.com/vaexio/vaex/pull/571)
+      * Joining with virtual columns but different data, and name collision fixes [#570](https://github.com/vaexio/vaex/pull/570)
 
 # vaex 2.6.0 (2020-1-21)
 
