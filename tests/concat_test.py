@@ -70,3 +70,30 @@ def test_concat_mixed_types():
     assert df[2:4].x.tolist() == [None, 'hi']
     assert df[3:4].x.tolist() == ['hi']
     assert df[3:5].x.tolist() == ['hi', 'there']
+
+def test_concat_redefine_columns():
+    x = np.arange(3)
+    y = np.ones(3)
+    df1 = vaex.from_arrays(x=x, y=y)
+    df2 = vaex.from_arrays(x=x, y=y)
+
+    # Redefine column in df2
+    df2['y'] = df2.x + df2.y
+
+    # Concat df1 and df2
+    df12 = vaex.concat([df1, df2])
+    assert df12.column_count() == 2
+    assert df12.x.tolist() == [0, 1, 2, 0, 1, 2]
+    assert df12.y.tolist() == [1, 1, 1, 1, 2, 3]
+
+    # Concat df2 and df1
+    df21 = vaex.concat([df2, df1])
+    assert df21.column_count() == 2
+    assert df21.x.tolist() == [0, 1, 2, 0, 1, 2]
+    assert df21.y.tolist() == [1, 2, 3, 1, 1, 1]
+
+    # Concat df2 to df2
+    df22 = vaex.concat([df2, df1])
+    assert df22.column_count() == 2
+    assert df22.x.tolist() == [0, 1, 2, 0, 1, 2]
+    assert df22.y.tolist() == [1, 2, 3, 1, 2, 3]
