@@ -2981,7 +2981,7 @@ class DataFrame(object):
         """Renames a column, not this is only the in memory name, this will not be reflected on disk"""
         if name == new_name:
             return
-        new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else list(self))
+        new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else self.get_column_names(hidden=True))
         self._rename(name, new_name, rename_meta_data=True)
         return new_name
 
