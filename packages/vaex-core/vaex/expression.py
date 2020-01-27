@@ -734,6 +734,7 @@ def f({0}):
         if old in expression.ast_names:
             for node in expression.ast_names[old]:
                 node.id = new
+            expression._ast_names[new] = expression._ast_names.pop(old)
             expression._expression = None  # resets the cached string representation
         return expression
 

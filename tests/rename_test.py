@@ -58,8 +58,6 @@ def test_rename_access(ds_local):
     df.rename_column(name='x', new_name='x2')
     assert df['x2'].tolist() == df.x2.tolist()
 
-<<<<<<< HEAD
-=======
 
 def test_rename_twice(ds_local):
     df = ds_local
@@ -75,4 +73,3 @@ def test_rename_order(ds_local):
     assert df.get_column_names() == ['x', 'y']
     df.rename_column('x', 'xx')
     assert df.get_column_names() == ['xx', 'y']
->>>>>>> ffc6e51d... fix(core): keep column order when renaming columns
