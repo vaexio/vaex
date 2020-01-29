@@ -1,11 +1,18 @@
 # vaex 3.0.0-dev (unreleased)
    * Breaking changes:
      * Python 2 is not supported anymore
+     * Variables don't have access to pi and e anymore
+     * df.rename_column is now df.rename (and also renames variables)
+     * DataFrame uses a normal dict instead of OrderedDict, requiring Python >= 3.6
 
 # vaex-core 2.0.0
    * Fixes
       * Renaming columns fixes [#571](https://github.com/vaexio/vaex/pull/571)
       * Joining with virtual columns but different data, and name collision fixes [#570](https://github.com/vaexio/vaex/pull/570)
+      * Variables are treated similarly as columns, and respected in join [#573](https://github.com/vaexio/vaex/pull/573)
+      * Arguments to lazy function which are numpy arrays gets put in the variables [#573](https://github.com/vaexio/vaex/pull/573)
+   * Features
+      * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
 
 # vaex 2.6.0 (2020-1-21)
 
