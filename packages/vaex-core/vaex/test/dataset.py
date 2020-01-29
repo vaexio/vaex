@@ -368,7 +368,7 @@ class TestDataset(unittest.TestCase):
 
 
 	def test_rename_column(self):
-		self.dataset.rename_column("x", "xx")
+		self.dataset.rename("x", "xx")
 		self.assertNotIn("x", self.dataset.columns)
 		self.assertNotIn("x", self.dataset.column_names)
 		self.assertNotIn("x", self.dataset.units)
