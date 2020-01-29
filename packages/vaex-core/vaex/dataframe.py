@@ -171,12 +171,12 @@ class DataFrame(object):
         self.signal_column_changed = vaex.events.Signal("a column changed")  # (df, column_name, change_type=["add", "remove", "change"])
         self.signal_variable_changed = vaex.events.Signal("a variable changed")
 
-        self.variables = collections.OrderedDict()
-        self.virtual_columns = collections.OrderedDict()
+        self.variables = {}
+        self.virtual_columns = {}
         # we also store the virtual columns as expressions, for performance reasons
         # the expression object can cache the ast, making renaming/rewriting faster
         self._virtual_expressions = {}
-        self.functions = collections.OrderedDict()
+        self.functions = {}
         self._length_original = None
         self._length_unfiltered = None
         self._cached_filtered_length = None
@@ -191,7 +191,7 @@ class DataFrame(object):
         self.descriptions = {}
         self._dtypes_override = {}
 
-        self.favorite_selections = collections.OrderedDict()
+        self.favorite_selections = {}
 
         self.mask = None  # a bitmask for the selection does not work for server side
 
@@ -204,7 +204,7 @@ class DataFrame(object):
 
         self._sparse_matrices = {}  # record which sparse columns belong to which sparse matrix
 
-        self._categories = collections.OrderedDict()
+        self._categories = {}
         self._selection_mask_caches = collections.defaultdict(dict)
         self._selection_masks = {}  # maps to vaex.superutils.Mask object
         self._renamed_columns = []
@@ -2296,14 +2296,14 @@ class DataFrame(object):
             # we clear all columns, and add them later on, since otherwise self[name] = ... will try
             # to rename the columns (which is unsupported for remote dfs)
             self.column_names = []
-            self.virtual_columns = collections.OrderedDict()
+            self.virtual_columns = {}
             for name, value in state['virtual_columns'].items():
                 self[name] = self._expr(value)
                 # self._save_assign_expression(name)
             self.column_names = list(state['column_names'])
         else:
             # old behaviour
-            self.virtual_columns = collections.OrderedDict()
+            self.virtual_columns = {}
             for name, value in state['virtual_columns'].items():
                 self[name] = self._expr(value)
         self.variables = state['variables']
@@ -4692,7 +4692,7 @@ class DataFrameLocal(DataFrame):
         super(DataFrameLocal, self).__init__(name, column_names)
         self.path = path
         self.mask = None
-        self.columns = collections.OrderedDict()
+        self.columns = {}
         self._task_aggs = {}
         self._binners = {}
         self._grids = {}
