@@ -237,3 +237,23 @@ def test_join_virtual_columns(on):
     assert df.yy.values[0] == 3
     assert df.r_z_rhs.values[0] == 5
     assert df.__r_h_rhs.values[0] == 15
+
+
+def test_join_variables():
+    df1 = vaex.from_scalars(j=444, x=1, y=2)
+    df1.add_variable('a', 2)
+    df1.add_variable('b', 3)
+    df1['z'] = df1.x * df1['a'] + df1.y * df1['b']
+
+    df2 = vaex.from_scalars(j=444, x=2, yy=3)
+    df2.add_variable('a', 3)
+    df2.add_variable('b', 4)
+    df2['z'] = df2.x * df2['a'] + df2.yy * df2['b']
+    df = df1.join(df2, rprefix='r_', rsuffix='_rhs')
+    assert df.x.values[0] == 1
+    assert df.y.values[0] == 2
+    assert df.z.values[0] == 2 + 2*3
+    # assert df.__h.values[0] == 6
+    assert df.r_x_rhs.values[0] == 2
+    assert df.yy.values[0] == 3
+    assert df.r_z_rhs.values[0] == 2*3 + 3*4

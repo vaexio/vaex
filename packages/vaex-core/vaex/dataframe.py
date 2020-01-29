@@ -2972,14 +2972,6 @@ class DataFrame(object):
                 expression = Expression(self, expression)
             setattr(self, name, expression)
 
-    def rename_column(self, name, new_name, unique=False, store_in_state=True):
-        """Renames a column, not this is only the in memory name, this will not be reflected on disk"""
-        if name == new_name:
-            return
-        new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else self.get_column_names(hidden=True))
-        self._rename(name, new_name, rename_meta_data=True)
-        return new_name
-
     @_hidden
     def add_column_healpix(self, name="healpix", longitude="ra", latitude="dec", degrees=True, healpix_order=12, nest=True):
         """Add a healpix (in memory) column based on a longitude and latitude
@@ -3255,37 +3247,48 @@ class DataFrame(object):
         self.signal_column_changed.emit(self, name, "add")
         # self.write_virtual_meta()
 
+    def rename(self, name, new_name, unique=False):
+        """Renames a column or variable, and rewrite expressions such that they refer to the new name"""
+        if name == new_name:
+            return
+        new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else self.get_column_names(hidden=True))
+        self._rename(name, new_name, rename_meta_data=True)
+        return new_name
+
     def _rename(self, old, new, rename_meta_data=False):
         if old in self._dtypes_override:
             self._dtypes_override[new] = self._dtypes_override.pop(old)
+        is_variable = False
         if old in self.columns:
             self.columns[new] = self.columns.pop(old)
+        elif old in self.variables:
+            self.variables[new] = self.variables.pop(old)
+            is_variable = True
+        elif old in self.virtual_columns:
+            self.virtual_columns[new] = self.virtual_columns.pop(old)
+            self._virtual_expressions[new] = self._virtual_expressions.pop(old)
         if rename_meta_data:
             for d in [self.ucds, self.units, self.descriptions]:
                 if old in d:
                     d[new] = d[old]
                     del d[old]
-        if old in self.virtual_columns:
-            self.virtual_columns[new] = self.virtual_columns.pop(old)
-            self._virtual_expressions[new] = self._virtual_expressions.pop(old)
-        self._renamed_columns.append((old, new))
-        self.column_names[self.column_names.index(old)] = new
         for key, value in self.selection_histories.items():
             self.selection_histories[key] = list([k if k is None else k._rename(self, old, new) for k in value])
-        if hasattr(self, name):
-            try:
-                if isinstance(getattr(self, name), Expression):
-                    delattr(self, name)
-            except:
-                pass
-        self._save_assign_expression(new)
+        if not is_variable:
+            self._renamed_columns.append((old, new))
+            self.column_names[self.column_names.index(old)] = new
+            if hasattr(self, name):
+                try:
+                    if isinstance(getattr(self, name), Expression):
+                        delattr(self, name)
+                except:
+                    pass
+            self._save_assign_expression(new)
         existing_expressions = [k() for k in self._expressions]
         existing_expressions = [k for k in existing_expressions if k is not None]
-        # print(len(existing_expressions))
         for expression in existing_expressions:
             expression._rename(old, new, inplace=True)
         self.virtual_columns = {k:self._virtual_expressions[k].expression for k, v in self.virtual_columns.items()}
-        # return [self[_ensure_string_from_expression(e)]._rename(old, new) for e in expressions]
 
 
     def delete_virtual_column(self, name):
@@ -3647,6 +3650,11 @@ class DataFrame(object):
     def column_count(self):
         """Returns the number of columns (including virtual columns)."""
         return len(self.column_names)
+
+    def get_names(self, hidden=False):
+        """Return a list of column names and variable names."""
+        names = self.get_column_names(hidden=hidden)
+        return names + [k for k in self.variables.keys() if not hidden or not k.startswith('__')]
 
     def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None):
         """Return a list of column names
@@ -4094,12 +4102,7 @@ class DataFrame(object):
         column_names = column_names or list(self)
         for name in column_names:
             column = df.columns.get(name)
-            if column is not None:
-                new_name = df.rename_column(name, prefix + name)
-                expr = df[new_name]
-                df[name] = df.func.fillna(expr, value)
-            else:
-                df[name] = df.func.fillna(df[name], value)
+            df[name] = df.func.fillna(df[name], value)
         return df
 
     def materialize(self, virtual_column, inplace=False):
@@ -4758,7 +4761,7 @@ class DataFrameLocal(DataFrame):
                 # all special values will be marked as missing
                 codes = np.ma.masked_array(codes, codes==missing_value)
 
-        original_column = df.rename_column(column, '__original_' + column, unique=True)
+        original_column = df.rename(column, '__original_' + column, unique=True)
         labels = [str(k) for k in values]
         df.add_column(column, codes)
         df._categories[column] = dict(labels=labels, N=len(values), values=values)
@@ -5513,8 +5516,8 @@ class DataFrameLocal(DataFrame):
                 return prefix + name + suffix
 
         # first, do renaming, so all column names are unique
-        right_names = right.get_column_names(hidden=True)
-        left_names = left.get_column_names(hidden=True)
+        right_names = right.get_names(hidden=True)
+        left_names = left.get_names(hidden=True)
         for name in right_names:
             if name in left_names:
                 # find a unique name across both dataframe, including the new name for the left
@@ -5526,8 +5529,7 @@ class DataFrameLocal(DataFrame):
                 if new_name != left_on:
                     if new_name in all_names:  # it's still not unique
                         new_name = vaex.utils.find_valid_name(new_name, all_names)
-                    right.rename_column(name, new_name)
-                    right[new_name].values[0]
+                    right.rename(name, new_name)
                     right_names[right_names.index(name)] = new_name
 
                 # and the same for the left
@@ -5536,18 +5538,19 @@ class DataFrameLocal(DataFrame):
                 new_name = mangle_name(lprefix, name, lsuffix)
                 if new_name in all_names:  # still not unique
                     new_name = vaex.utils.find_valid_name(new_name, all_names)
-                left.rename_column(name, new_name)
-                left[new_name].values[0]
+                left.rename(name, new_name)
                 left_names[left_names.index(name)] = new_name
 
         # now we add columns from the right, to the left
-        right_names = right.get_column_names(hidden=True)
-        left_names = left.get_column_names(hidden=True)
+        right_names = right.get_names(hidden=True)
+        left_names = left.get_names(hidden=True)
         for name in right_names:
             if name == left_on and name in left_names:
                 continue  # skip when it's the join column
             assert name not in left_names
-            if name in right.virtual_columns:
+            if name in right.variables:
+                left.set_variable(name, right.variables[name])
+            elif name in right.virtual_columns:
                 left.add_virtual_column(name, right.virtual_columns[name])
             else:
                 if lookup is not None:

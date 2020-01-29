@@ -55,7 +55,7 @@ def test_rename_state_transfer():
 
 def test_rename_access(ds_local):
     df = ds_local
-    df.rename_column(name='x', new_name='x2')
+    df.rename(name='x', new_name='x2')
     assert df['x2'].tolist() == df.x2.tolist()
 
 
@@ -63,13 +63,13 @@ def test_rename_twice(ds_local):
     df = ds_local
     df['z'] = df.x + df.y
     zvalues = df.z.values
-    df.rename_column('x', 'xx')
+    df.rename('x', 'xx')
     assert zvalues.tolist() == df.z.tolist()
-    df.rename_column('xx', 'xxx')
+    df.rename('xx', 'xxx')
     assert zvalues.tolist() == df.z.tolist()
 
 def test_rename_order(ds_local):
     df = ds_local[['x', 'y']]
     assert df.get_column_names() == ['x', 'y']
-    df.rename_column('x', 'xx')
+    df.rename('x', 'xx')
     assert df.get_column_names() == ['xx', 'y']
