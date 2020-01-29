@@ -172,11 +172,6 @@ class DataFrame(object):
         self.signal_variable_changed = vaex.events.Signal("a variable changed")
 
         self.variables = collections.OrderedDict()
-        self.variables["pi"] = np.pi
-        self.variables["e"] = np.e
-        self.variables["km_in_au"] = 149597870700 / 1000.
-        self.variables["seconds_per_year"] = 31557600
-        # leads to k = 4.74047 to go from au/year to km/s
         self.virtual_columns = collections.OrderedDict()
         # we also store the virtual columns as expressions, for performance reasons
         # the expression object can cache the ast, making renaming/rewriting faster

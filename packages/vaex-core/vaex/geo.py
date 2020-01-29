@@ -36,6 +36,7 @@ class DataFrameAccessorGeo(object):
         delta = df._expr(delta)
         distance = df._expr(distance)
         if not radians:
+            df.add_variable('pi', np.pi)
             alpha = alpha * df._expr('pi')/180
             delta = delta * df._expr('pi')/180
 
@@ -73,6 +74,7 @@ class DataFrameAccessorGeo(object):
         :return:
         """
         df = self.df if inplace else self.df.copy()
+        df.add_variable('pi', np.pi)
         transform = "" if radians else "*180./pi"
 
         if center is not None:
@@ -108,6 +110,7 @@ class DataFrameAccessorGeo(object):
         if radians:
             to_degrees = ""
         else:
+            df.add_variable('pi', np.pi)
             to_degrees = "*180/pi"
         r = np.sqrt(x**2 + y**2)
         df[radius_out] = r
@@ -226,6 +229,7 @@ class DataFrameAccessorGeo(object):
     def project_gnomic(self, alpha, delta, alpha0=0, delta0=0, x="x", y="y", radians=False, postfix="", inplace=False):
         """Adds a gnomic projection to the DataFrame"""
         df = self.df if inplace else self.df.copy()
+        df.add_variable('pi', np.pi)
         if not radians:
             alpha = "pi/180.*%s" % alpha
             delta = "pi/180.*%s" % delta
@@ -274,6 +278,7 @@ class DataFrameAccessorGeo(object):
     def bearing(self, lon1, lat1, lon2, lat2, bearing="bearing", inplace=False):
         """Calculates a bearing, based on http://www.movable-type.co.uk/scripts/latlong.html"""
         df = self.df if inplace else self.df.copy()
+        df.add_variable('pi', np.pi)
         lon1 = "(pickup_longitude * pi / 180)"
         lon2 = "(dropoff_longitude * pi / 180)"
         lat1 = "(pickup_latitude * pi / 180)"

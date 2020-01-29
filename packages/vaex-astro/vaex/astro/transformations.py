@@ -27,6 +27,7 @@ class DataFrameAccessorAstro(object):
 
     def _trans(self, long_in, lat_in, long_out, lat_out, name_prefix="__celestial", radians=False, _matrix=None, inplace=False):
         df = self.df if inplace else self.df.copy()
+        df.add_variable('pi', np.pi)
         matrix = comat[_matrix]
         if not radians:
             long_in = "pi/180.*%s" % long_in
@@ -245,6 +246,7 @@ class DataFrameAccessorAstro(object):
         """From http://arxiv.org/pdf/1306.2945v2.pdf"""
         df = self.df if inplace else self.df.copy()
         if not radians:
+            df.add_variable('pi', np.pi)
             alpha = "pi/180.*%s" % alpha
             delta = "pi/180.*%s" % delta
         df.virtual_columns[zname] = "{distance} * (cos({delta}) * cos({delta_gp}) * cos({alpha} - {alpha_gp}) + sin({delta}) * sin({delta_gp}))".format(**locals())
