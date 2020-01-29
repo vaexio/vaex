@@ -240,6 +240,10 @@ class DataFrame(object):
                         elif isinstance(k, np.ndarray) and k.ndim == 0:
                             # to support numpy scalars
                             return myrepr(k.item())
+                        elif isinstance(k, np.ndarray):
+                            # to support numpy arrays
+                            var = self.add_variable('arg_numpy_array', k, unique=True)
+                            return var
                         else:
                             return repr(k)
                     arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])
