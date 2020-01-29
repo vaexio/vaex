@@ -108,6 +108,8 @@ maximum
 clip
 searchsorted
 isfinite
+digitize
+searchsorted
 """.strip().split()]
 for name, numpy_name in numpy_function_mapping:
     if not hasattr(np, numpy_name):
