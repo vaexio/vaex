@@ -79,6 +79,7 @@ bin/.idea
 *.npy
 /**/__pycache__/*
 catboost_info/*
+.vscode
 
 # symlinks generated in setup.py
 packages/vaex-core/vaex/arrow
