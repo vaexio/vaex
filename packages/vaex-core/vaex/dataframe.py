@@ -4880,7 +4880,7 @@ class DataFrameLocal(DataFrame):
         df._renamed_columns = list(self._renamed_columns)
         df._column_aliases = dict(self._column_aliases)
         df.units.update(self.units)
-        df.variables.update(self.variables)
+        df.variables.update(self.variables)  # we add all, could maybe only copy used
         df._categories.update(self._categories)
         if column_names is None:
             column_names = self.get_column_names(hidden=True)
@@ -4972,7 +4972,9 @@ class DataFrameLocal(DataFrame):
                     elif name in self.variables:
                         # if must be a variables?
                         # TODO: what if the variable depends on other variables
-                        df.add_variable(name, self.variables[name])
+                        # we already add all variables
+                        # df.add_variable(name, self.variables[name])
+                        pass
 
                 # print("new_depending", new_depending)
                 new_depending.difference_update(added)
