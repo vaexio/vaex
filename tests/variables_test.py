@@ -19,8 +19,8 @@ def test_variable_rename(df):
 
 def test_numpy_array_argument(df):
     xx = -np.arange(10)
-    assert len(df.variables) == 0
+    assert len(df.variables) == 1
     # this should insert a variable (the numpy array)
     df['w'] = df.func.where(df.x > 5, xx, df.x)
-    assert len(df.variables) == 1
-    assert list(df.variables.values())[0] is xx
+    assert len(df.variables) == 2
+    assert list(df.variables.values())[1] is xx
