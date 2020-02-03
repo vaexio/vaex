@@ -293,8 +293,10 @@ class DataFrame(object):
 
     def execute(self):
         '''Execute all delayed jobs.'''
-        self.executor.execute()
-        self._task_aggs.clear()
+        try:
+            self.executor.execute()
+        finally:
+            self._task_aggs.clear()
 
     @property
     def filtered(self):
