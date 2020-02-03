@@ -5,14 +5,45 @@
      * df.rename_column is now df.rename (and also renames variables)
      * DataFrame uses a normal dict instead of OrderedDict, requiring Python >= 3.6
 
-# vaex-core 2.0.0
+# vaex-core 2.0.0-dev
+   * Performance
+       * Printing out of dataframes done in 1 evaluate call, making remote dataframe printing faster. [#571](https://github.com/vaexio/vaex/pull/557)
+   * Refactor
+      * Task system is refactored, with task execution on CPU being default, and makes (de)serialization easier. [#571](https://github.com/vaexio/vaex/pull/557)
+      * Serialization/encoding of data structures is more flexible, allowing binary blobs and json over the wire. [#571](https://github.com/vaexio/vaex/pull/557)
    * Fixes
       * Renaming columns fixes [#571](https://github.com/vaexio/vaex/pull/571)
       * Joining with virtual columns but different data, and name collision fixes [#570](https://github.com/vaexio/vaex/pull/570)
       * Variables are treated similarly as columns, and respected in join [#573](https://github.com/vaexio/vaex/pull/573)
       * Arguments to lazy function which are numpy arrays gets put in the variables [#573](https://github.com/vaexio/vaex/pull/573)
+      * Executor does not block after failed/interrupted tasks. [#571](https://github.com/vaexio/vaex/pull/557)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
+
+# vaex-server 0.3.0-dev
+   * Refactored server, can return multiple binary blobs, execute multiple tasks, cancel tasks, encoding/serialization is more flexible (like returning masked arrays). [#571](https://github.com/vaexio/vaex/pull/557)
+
+# vaex-viz 0.4.0-dev
+   * Requirement of vaex-core >=2,<3
+
+# vaex-graphql 0.1.0-dev
+   * Requirement of vaex-core >=2,<3
+
+# vaex-astro 0.7.0-dev
+   * Requirement of vaex-core >=2,<3
+
+# vaex-hdf5 0.6.0-dev
+   * Requirement of vaex-core >=2,<3
+
+# vaex-ml 0.9.0-dev
+   * Requirement of vaex-core >=2,<3
+
+# vaex-arrow 0.5.0-dev
+   * Requirement of vaex-core >=2,<3
+
+# vaex-jupyter 0.5.0-dev
+   * Requirement of vaex-core >=2,<3
+
 
 # vaex 2.6.0 (2020-1-21)
 
