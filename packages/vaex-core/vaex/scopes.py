@@ -169,6 +169,9 @@ class _BlockScopeSelection(ScopeBase):
             tb.print_stack()
             raise
 
+    def __contains__(self, name):  # otherwise pdb crashes during pytest
+        return False
+
     def __getitem__(self, variable):
         if variable == "__tracebackhide__":  # required for tracebacks
             return False
