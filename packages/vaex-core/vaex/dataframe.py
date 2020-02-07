@@ -103,7 +103,7 @@ _doc_snippets = {}
 _doc_snippets["expression"] = "expression or list of expressions, e.g. 'x', or ['x, 'y']"
 _doc_snippets["expression_single"] = "if previous argument is not a list, this argument should be given"
 _doc_snippets["binby"] = "List of expressions for constructing a binned grid"
-_doc_snippets["limits"] = """description for the min and max values for the expressions, e.g. 'minmax', '99.7%', [0, 10], or a list of, e.g. [[0, 10], [0, 20], 'minmax']"""
+_doc_snippets["limits"] = """description for the min and max values for the expressions, e.g. 'minmax' (default), '99.7%', [0, 10], or a list of, e.g. [[0, 10], [0, 20], 'minmax']"""
 _doc_snippets["shape"] = """shape for the array where the statistic is calculated on, if only an integer is given, it is used for all dimensions, e.g. shape=128, shape=[128, 256]"""
 _doc_snippets["percentile_limits"] = """description for the min and max values to use for the cumulative histogram, should currently only be 'minmax'"""
 _doc_snippets["percentile_shape"] = """shape for the array where the cumulative histogram is calculated on, integer type"""
@@ -1459,9 +1459,6 @@ class DataFrame(object):
         :param delay: {delay}
         :return: {return_limits}
         """
-        # percentiles = self.percentile(expression, [100-percentage/2, 100-(100-percentage/2.)], delay=True)
-        # return self._delay(delay, percentiles)
-        # print(percentage)
         import scipy
         logger.info("limits_percentage for %r, with percentage=%r", expression, percentage)
         waslist, [expressions, ] = vaex.utils.listify(expression)
@@ -1478,45 +1475,27 @@ class DataFrame(object):
             x = np.linspace(vmin, vmax, size + 1)
             l = scipy.interp([f, 1 - f], cumcounts, x)
             limits.append(l)
-        # return limits
         return vaex.utils.unlistify(waslist, limits)
-
-    def __percentile_old(self, expression, percentage=99.73, selection=False):
-        limits = []
-        waslist, percentages = vaex.utils.listify(percentage)
-        values = []
-        for percentage in percentages:
-            subspace = self(expression)
-            if selection:
-                subspace = subspace.selected()
-            limits_minmax = subspace.minmax()
-            vmin, vmax = limits_minmax[0]
-            size = 1024 * 16
-            counts = subspace.histogram(size=size, limits=limits_minmax)
-            cumcounts = np.concatenate([[0], np.cumsum(counts)])
-            cumcounts /= cumcounts.max()
-            # TODO: this is crude.. see the details!
-            f = percentage / 100.
-            x = np.linspace(vmin, vmax, size + 1)
-            l = scipy.interp([f], cumcounts, x)
-            values.append(l[0])
-        return vaex.utils.unlistify(waslist, values)
 
     @docsubst
     def limits(self, expression, value=None, square=False, selection=None, delay=False, shape=None):
-        """Calculate the [min, max] range for expression, as described by value, which is '99.7%' by default.
+        """Calculate the [min, max] range for expression, as described by value, which is 'minmax' by default.
 
         If value is a list of the form [minvalue, maxvalue], it is simply returned, this is for convenience when using mixed
         forms.
 
         Example:
 
+        >>> import vaex
+        >>> df = vaex.example()
         >>> df.limits("x")
+        array([-128.293991,  271.365997])
+        >>> df.limits("x", "99.7%")
         array([-28.86381927,  28.9261226 ])
         >>> df.limits(["x", "y"])
-        (array([-28.86381927,  28.9261226 ]), array([-28.60476934,  28.96535249]))
-        >>> df.limits(["x", "y"], "minmax")
         (array([-128.293991,  271.365997]), array([ -71.5523682,  146.465836 ]))
+        >>> df.limits(["x", "y"], "99.7%")
+        (array([-28.86381927,  28.9261226 ]), array([-28.60476934,  28.96535249]))
         >>> df.limits(["x", "y"], ["minmax", "90%"])
         (array([-128.293991,  271.365997]), array([-13.37438402,  13.4224423 ]))
         >>> df.limits(["x", "y"], ["minmax", [0, 10]])
@@ -1533,24 +1512,17 @@ class DataFrame(object):
         waslist, [expressions, ] = vaex.utils.listify(expression)
         expressions = _ensure_strings_from_expressions(expressions)
         selection = _ensure_strings_from_expressions(selection)
-        # values =
-        # values = _expand_limits(value, len(expressions))
-        # logger.debug("limits %r", list(zip(expressions, values)))
         if value is None:
-            value = "99.73%"
-        # print("value is seq/limit?", _issequence(value), _is_limit(value), value)
+            value = "minmax"
         if _is_limit(value) or not _issequence(value):
             values = (value,) * len(expressions)
         else:
             values = value
 
-        # print("expressions 1)", expressions)
-        # print("values      1)", values)
         initial_expressions, initial_values = expressions, values
         expression_values = dict()
         expression_shapes = dict()
         for i, (expression, value) in enumerate(zip(expressions, values)):
-            # print(">>>", expression, value)
             if _issequence(expression):
                 expressions = expression
                 nested = True
@@ -1561,8 +1533,6 @@ class DataFrame(object):
                 values = (value,) * len(expressions)
             else:
                 values = value
-            # print("expressions 2)", expressions)
-            # print("values      2)", values)
             for j, (expression, value) in enumerate(zip(expressions, values)):
                 if shape is not None:
                     if _issequence(shape):
@@ -1572,8 +1542,7 @@ class DataFrame(object):
 
                 shape_index = j if nested else i
 
-                if not _is_limit(value):  # if a
-                    # value = tuple(value) # list is not hashable
+                if not _is_limit(value):
                     expression_values[(expression, value)] = None
                 if self.is_category(expression):
                     N = self._categories[_ensure_string_from_expression(expression)]['N']
@@ -1581,10 +1550,7 @@ class DataFrame(object):
                 else:
                     expression_shapes[expression] = shapes[shape_index] if shape is not None else default_shape
 
-        # print("##### 1)", expression_values.keys())
-
         limits_list = []
-        # for expression, value in zip(expressions, values):
         for expression, value in expression_values.keys():
             if self.is_category(expression):
                 N = self._categories[_ensure_string_from_expression(expression)]['N']
@@ -1611,19 +1577,13 @@ class DataFrame(object):
                             elif type in ["%s", "%square", "percentsquare"]:
                                 limits = self.limits_percentage(expression, number, square=True, delay=True)
                 elif value is None:
-                    limits = self.limits_percentage(expression, square=square, delay=True)
+                    limits = self.minmax(expression, delay=True)
                 else:
                     limits = value
             limits_list.append(limits)
             if limits is None:
                 raise ValueError("limit %r not understood" % value)
             expression_values[(expression, value)] = limits
-            logger.debug("!!!!!!!!!! limits: %r %r", limits, np.array(limits).shape)
-
-            @delayed
-            def echo(limits):
-                logger.debug(">>>>>>>> limits: %r %r", limits, np.array(limits).shape)
-            echo(limits)
 
         limits_list = delayed_args(*limits_list)
 
