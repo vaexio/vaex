@@ -4,6 +4,7 @@
      * Variables don't have access to pi and e anymore
      * df.rename_column is now df.rename (and also renames variables)
      * DataFrame uses a normal dict instead of OrderedDict, requiring Python >= 3.6
+     * Default limits (e.g. for plots) is minmax, so we don't miss outliers
 
 # vaex-core 2.0.0-dev
    * Performance
@@ -17,6 +18,7 @@
       * Variables are treated similarly as columns, and respected in join [#573](https://github.com/vaexio/vaex/pull/573)
       * Arguments to lazy function which are numpy arrays gets put in the variables [#573](https://github.com/vaexio/vaex/pull/573)
       * Executor does not block after failed/interrupted tasks. [#571](https://github.com/vaexio/vaex/pull/557)
+      * Default limits (e.g. for plots) is minmax, so we don't miss outliers [#581](https://github.com/vaexio/vaex/pull/581)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
 
