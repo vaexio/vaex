@@ -3508,22 +3508,36 @@ class DataFrame(object):
                     values_list[j+1][1].append(value)
                 # parts += ["</tr>"]
             # return values_list
-        parts = table_part(i1, i2, parts)
-        if j1 is not None and j2 is not None:
-            values_list[0][1].append('...')
-            for i in range(len(column_names)):
-                # parts += ["<td>...</td>"]
-               values_list[i+1][1].append('...')
+        if i2 - i1 > 0:
+            parts = table_part(i1, i2, parts)
+            if j1 is not None and j2 is not None:
+                values_list[0][1].append('...')
+                for i in range(len(column_names)):
+                    # parts += ["<td>...</td>"]
+                    values_list[i+1][1].append('...')
 
-            # parts = table_part(j1, j2, parts)
-            table_part(j1, j2, parts)
+                # parts = table_part(j1, j2, parts)
+                table_part(j1, j2, parts)
+        else:
+            for header, values in values_list:
+                values.append(None)
         # parts += "</table>"
         # html = "".join(parts)
         # return html
         values_list = dict(values_list)
         # print(values_list)
         import tabulate
-        return tabulate.tabulate(values_list, headers="keys", tablefmt=format)
+        table_text = tabulate.tabulate(values_list, headers="keys", tablefmt=format)
+        if i2 - i1 == 0:
+            if self._length_unfiltered != len(self):
+                footer_text = 'No rows to display (because of filtering).'
+            else:
+                footer_text = 'No rows to display.'
+            if format == 'html':
+                table_text += f'<i>{footer_text}</i>'
+            if format == 'plain':
+                table_text += f'\n{footer_text}'
+        return table_text
 
     def _as_html_table(self, i1, i2, j1=None, j2=None):
         # TODO: this method can be replaced by _as_table

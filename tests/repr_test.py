@@ -14,6 +14,13 @@ def test_repr_html(df):
     assert 'x' in code
 
 
+def test_repr_empty(df):
+    df = df[df.x < 0]
+    bundle = df._repr_mimebundle_()
+    assert 'no rows' in bundle['text/plain'].lower()
+    assert 'no rows' in bundle['text/html'].lower()
+
+
 # TODO: it seems masked arrays + evaluate doesn't work well
 # might have to do something with serializing it
 def test_mask(df_local):
