@@ -2858,7 +2858,10 @@ class DataFrame(object):
             return
         vars = set(self.get_names(hidden=True))
         funcs = set(expression_namespace.keys())  | set(self.functions.keys())
-        return vaex.expresso.validate_expression(expression, vars, funcs)
+        try:
+            return vaex.expresso.validate_expression(expression, vars, funcs)
+        except NameError as e:
+            raise NameError(str(e)) from None
 
     def _block_scope(self, i1, i2):
         variables = {key: self.evaluate_variable(key) for key in self.variables.keys()}
@@ -4520,6 +4523,8 @@ class DataFrame(object):
                 elif isinstance(item[1], slice):
                     names = self.get_column_names().__getitem__(item[1])
                     return df[names]
+            for expression in item:
+                self.validate_expression(expression)
             df = self.copy(column_names=item)
             return df
         elif isinstance(item, slice):
