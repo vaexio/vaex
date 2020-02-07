@@ -92,3 +92,8 @@ def test_access_data_after_virtual_column_creation(ds_local):
     ds['virtual'] = ds.x * 2
     # it should also work after we added a virtual column
     assert ds[['x']].values[:,0].tolist() == ds.x.values.tolist()
+
+def test_non_existing_column(df_local):
+    df = df_local
+    with pytest.raises(NameError, match='.*Did you.*'):
+        df['x_']

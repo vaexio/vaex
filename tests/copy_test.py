@@ -1,4 +1,6 @@
 from common import *
+import pytest
+
 
 def test_copy(df):
     df = df
@@ -11,3 +13,8 @@ def test_copy(df):
     assert 'v' in dfc.virtual_columns
     assert 'myvar' in dfc.variables
     dfc.x.values
+
+def test_non_existing_column(df_local):
+    df = df_local
+    with pytest.raises(NameError, match='.*Did you.*'):
+        df.copy(column_names=['x', 'x_'])

@@ -10,6 +10,8 @@ import math
 import sys
 import six
 import copy
+import difflib
+
 
 logger = logging.getLogger("expr")
 logger.setLevel(logging.ERROR)
@@ -82,11 +84,17 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
     elif isinstance(expr, _ast.Name):
         validate_id(expr.id)
         if expr.id not in variable_set:
-            raise NameError("variable %r is not defined (available are: %s)" % (
-                expr.id, ", ".join(list(variable_set))))
+            matches = difflib.get_close_matches(expr.id, list(variable_set))
+            msg = "Column or variable %r does not exist." % expr.id
+            if matches:
+                msg += ' Did you mean: ' + " or ".join(map(repr, matches))
+
+            raise NameError(msg)
         names.append(expr.id)
     elif isinstance(expr, _ast.Num):
         pass  # numbers are fine
+    elif isinstance(expr, _ast.Str):
+        pass  # as well as strings
     elif isinstance(expr, _ast.Call):
         validate_func(expr.func, function_set)
         last_func = expr
