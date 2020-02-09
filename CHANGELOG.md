@@ -19,6 +19,7 @@
       * Arguments to lazy function which are numpy arrays gets put in the variables [#573](https://github.com/vaexio/vaex/pull/573)
       * Executor does not block after failed/interrupted tasks. [#571](https://github.com/vaexio/vaex/pull/557)
       * Default limits (e.g. for plots) is minmax, so we don't miss outliers [#581](https://github.com/vaexio/vaex/pull/581)
+      * Do no fail printing out dataframe with 0 rows [#582](https://github.com/vaexio/vaex/pull/582)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
 
