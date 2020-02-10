@@ -20,6 +20,7 @@
       * Executor does not block after failed/interrupted tasks. [#571](https://github.com/vaexio/vaex/pull/557)
       * Default limits (e.g. for plots) is minmax, so we don't miss outliers [#581](https://github.com/vaexio/vaex/pull/581)
       * Do no fail printing out dataframe with 0 rows [#582](https://github.com/vaexio/vaex/pull/582)
+      * Give proper NameError when using non-existing column names [#299](https://github.com/vaexio/vaex/pull/299)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
 
