@@ -144,7 +144,7 @@ class AggregatorDescriptorMulti(AggregatorDescriptor):
     def __init__(self, name, expression, short_name, selection=None, edges=False):
         self.name = name
         self.short_name = short_name
-        self.expression = expression
+        self.expression = str(expression)
         self.expressions = [self.expression]
         self.selection = selection
         self.edges = edges

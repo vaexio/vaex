@@ -20,6 +20,9 @@ def test_groupby_options():
     dfg = df.groupby(by, agg={'z': vaex.agg.sum('y')})
     assert dfg.z.tolist() == sum_answer
 
+    dfg = df.groupby(by, agg={'z': vaex.agg.sum(df.y)})
+    assert dfg.z.tolist() == sum_answer
+
     dfg = df.groupby(by, agg=[vaex.agg.sum('y')])
     assert dfg.y_sum.tolist() == sum_answer
 
@@ -39,6 +42,17 @@ def test_groupby_options():
     dfg = df.groupby(by, agg=vaex.agg.sum)
     assert dfg.y_sum.tolist() == sum_answer
     assert "t_sum" not in dfg.get_column_names()
+
+    dfg = df.groupby(by, agg=vaex.agg.sum('y'))
+    assert dfg.y_sum.tolist() == sum_answer
+    assert "t_sum" not in dfg.get_column_names()
+
+    dfg = df.groupby(by, agg=vaex.agg.sum(df.y))
+    assert dfg.y_sum.tolist() == sum_answer
+    assert "t_sum" not in dfg.get_column_names()
+
+    # coverage only
+    dfg = df.groupby(df.y, agg=vaex.agg.mean(df.y))
 
     dfg = df.groupby(by).agg({'y': 'sum'})
     assert dfg.y.tolist() == [y[k*7:(k+1)*7].sum() for k in range(5)]
