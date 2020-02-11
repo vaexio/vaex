@@ -126,10 +126,15 @@ _doc_snippets['note_copy'] = '.. note:: Note that no copy of the underlying data
 _doc_snippets['note_filter'] = '.. note:: Note that filtering will be ignored (since they may change), you may want to consider running :meth:`extract` first.'
 _doc_snippets['inplace'] = 'Make modifications to self or return a new DataFrame'
 _doc_snippets['return_shallow_copy'] = 'Returns a new DataFrame with a shallow copy/view of the underlying data'
+_doc_snippets['chunk_size'] = 'Return an iterator with cuts of the object in lenght of this size'
+_doc_snippets['evaluate_parallel'] = 'Evaluate the (virtual) columns in parallel'
+
+
 def docsubst(f):
     if f.__doc__:
         f.__doc__ = f.__doc__.format(**_doc_snippets)
     return f
+
 
 _functions_statistics_1d = []
 
@@ -2671,18 +2676,25 @@ class DataFrame(object):
                 yield previous_l1, previous_l2, previous_chunk
 
     @docsubst
-    def to_items(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True):
+    def to_items(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, chunk_size=None):
         """Return a list of [(column_name, ndarray), ...)] pairs where the ndarray corresponds to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
-        :return: list of (name, ndarray) pairs
+        :param parallel: {evaluate_parallel}
+        :param chunk_size: {chunk_size}
+        :return: list of (name, ndarray) pairs or iterator of
         """
-        items = []
-        column_names = self.get_column_names(strings=strings, virtual=virtual)
-        return list(zip(column_names, self.evaluate(column_names, selection=selection, parallel=parallel)))
+        column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        if chunk_size is not None:
+            def iterator():
+                for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
+                    yield i1, i2, list(zip(column_names, chunks))
+            return iterator()
+        else:
+            return list(zip(column_names, self.evaluate(column_names, selection=selection, parallel=parallel)))
 
     @docsubst
     def to_arrays(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True):
@@ -2749,7 +2761,7 @@ class DataFrame(object):
         self.description = other.description
 
     @docsubst
-    def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None, parallel=True):
+    def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None, parallel=True, chunk_size=None):
         """Return a pandas DataFrame containing the ndarray corresponding to the evaluated data
 
          If index is given, that column is used for the index of the dataframe.
@@ -2764,34 +2776,57 @@ class DataFrame(object):
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :param index_column: if this column is given it is used for the index of the DataFrame
-        :return: pandas.DataFrame object
+        :param parallel: {evaluate_parallel}
+        :param chunk_size: {chunk_size}
+        :return: pandas.DataFrame object or iterator of
         """
         import pandas as pd
-        data = self.to_dict(column_names=column_names, selection=selection, strings=strings, virtual=virtual, parallel=True)
-        if index_name is not None:
-            if index_name in data:
+        column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        if index_name not in column_names and index_name is not None:
+            column_names = column_names + [index_name]
+
+        def create_pdf(data):
+            if index_name is not None:
                 index = data.pop(index_name)
             else:
-                index = self.evaluate(index_name, selection=selection)
+                index = None
+            df = pd.DataFrame(data=data, index=index)
+            if index is not None:
+                df.index.name = index_name
+            return df
+        if chunk_size is not None:
+            def iterator():
+                for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
+                    yield i1, i2, create_pdf(dict(zip(column_names, chunks)))
+            return iterator()
         else:
-            index = None
-        df = pd.DataFrame(data=data, index=index)
-        if index is not None:
-            df.index.name = index_name
-        return df
+            return create_pdf(self.to_dict(column_names=column_names, selection=selection, parallel=parallel))
 
     @docsubst
-    def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=False):
+    def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, chunk_size=None):
         """Returns an arrow Table object containing the arrays corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
-        :return: pyarrow.Table object
+        :param parallel: {evaluate_parallel}
+        :param chunk_size: {chunk_size}
+        :return: pyarrow.Table object or iterator of
         """
-        from vaex_arrow.convert import arrow_table_from_vaex_df
-        return arrow_table_from_vaex_df(self, column_names, selection, strings, virtual)
+        from vaex_arrow.convert import arrow_table_from_vaex_df, arrow_array_from_numpy_array
+        import pyarrow as pa
+        column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        if chunk_size is not None:
+            def iterator():
+                for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
+                    chunks = list(map(arrow_array_from_numpy_array, chunks))
+                    yield i1, i2, pa.Table.from_arrays(chunks, column_names)
+            return iterator()
+        else:
+            chunks = self.evaluate(column_names, selection=selection, parallel=parallel)
+            chunks = list(map(arrow_array_from_numpy_array, chunks))
+            return pa.Table.from_arrays(chunks, column_names)
 
     @docsubst
     def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=False, index=None, parallel=True):
