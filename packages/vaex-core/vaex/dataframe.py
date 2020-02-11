@@ -5486,13 +5486,17 @@ class DataFrameLocal(DataFrame):
             df = left
             # we index the right side, this assumes right is smaller in size
             index = right._index(right_on)
-            lookup = np.zeros(left._length_original, dtype=np.int64)
-            lookup_extra_chunks = []
             dtype = left.dtype(left_on)
             duplicates_right = index.has_duplicates
 
             if duplicates_right and not allow_duplication:
                 raise ValueError('This join will lead to duplication of rows which is disabled, pass allow_duplication=True')
+
+            # our max value for the lookup table is the row index number, so if we join a small
+            # df with say 100 rows, we can do it with a int8
+            lookup_dtype = vaex.utils.required_dtype_for_max(len(right))
+            lookup = np.zeros(left._length_original, dtype=lookup_dtype)
+            lookup_extra_chunks = []
 
             from vaex.column import _to_string_sequence
             def map(thread_index, i1, i2, ar):

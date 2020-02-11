@@ -943,3 +943,15 @@ def wrap_future_with_promise(future):
             promise.fulfill(future.result())
     future.add_done_callback(callback)
     return promise
+
+
+def required_dtype_for_max(N, signed=True):
+    if signed:
+        dtypes = [np.int8, np.int16, np.int32, np.int64]
+    else:
+        dtypes = [np.uint8, np.uint16, np.uint32, np.uint64]
+    for dtype in dtypes:
+        if N <= np.iinfo(dtype).max:
+            return dtype
+    else:
+        raise ValueError(f'Cannot store a max value on {N} inside an uint64/int64')
