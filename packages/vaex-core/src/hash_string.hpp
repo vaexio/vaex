@@ -260,6 +260,14 @@ public:
         int64_t size = strings->length;
         py::array_t<int64_t> result(size);
         auto output = result.template mutable_unchecked<1>();
+        map_index_write(strings, result);
+        return result;
+    }
+    template<typename result_type>
+    bool map_index_write(StringSequence* strings, py::array_t<result_type>& output_array) {
+        int64_t size = strings->length;
+        auto output = output_array.template mutable_unchecked<1>();
+        bool encountered_unknown = false;
         py::gil_scoped_release gil;
         // null and nan map to 0 and 1, and move the index up
         int64_t offset = 0; //(this->null_count > 0 ? 1 : 0);
@@ -274,6 +282,7 @@ public:
                     auto end = this->map.end();
                     if(search == end) {
                         output(i) = -1;
+                        encountered_unknown = true;
                     } else {
                         output(i) = search->second + offset;
                     }
@@ -286,12 +295,13 @@ public:
                 auto end = this->map.end();
                 if(search == end) {
                     output(i) = -1;
+                    encountered_unknown = true;
                 } else {
                     output(i) = search->second + offset;
                 }
             }
         }
-        return result;
+        return encountered_unknown;
     }
 
     std::tuple<py::array_t<int64_t>, py::array_t<int64_t>> map_index_duplicates(StringSequence* strings, int64_t start_index) {

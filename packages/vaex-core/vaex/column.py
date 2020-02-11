@@ -67,18 +67,19 @@ class ColumnNumpyLike(Column):
         self.ar[slice] = value
 
 class ColumnIndexed(Column):
-    def __init__(self, df, indices, name):
+    def __init__(self, df, indices, name, masked=False):
         self.df = df
         self.indices = indices
         self.name = name
         self.dtype = self.df.dtype(name)
         self.shape = (len(indices),)
+        self.masked = masked
         max_index = self.indices.max()
         if not np.ma.is_masked(max_index):
             assert max_index < self.df._length_original
 
     @staticmethod
-    def index(df, column, name, indices, direct_indices_map=None):
+    def index(df, column, name, indices, direct_indices_map=None, masked=False):
         """Creates a new column indexed by indices which avoids nested indices
 
         :param df: Dataframe where column comes from
@@ -97,9 +98,9 @@ class ColumnIndexed(Column):
                 direct_indices_map[id(column.indices)] = direct_indices
             else:
                 direct_indices = direct_indices_map[id(column.indices)]
-            return ColumnIndexed(column.df, direct_indices, column.name)
+            return ColumnIndexed(column.df, direct_indices, column.name, masked=masked)
         else:
-            return ColumnIndexed(df, indices, name)
+            return ColumnIndexed(df, indices, name, masked=masked)
 
     def __len__(self):
         return len(self.indices)
@@ -122,8 +123,9 @@ class ColumnIndexed(Column):
             ar_unfiltered = ar_unfiltered[i1:i2+1]
             indices = indices - i1
         ar = ar_unfiltered[indices]
-        if np.ma.isMaskedArray(indices):
-            mask = self.indices.mask[start:stop]
+        assert not np.ma.isMaskedArray(indices)
+        if self.masked:
+            mask = indices == -1
             return np.ma.array(ar, mask=mask)
         else:
             return ar
