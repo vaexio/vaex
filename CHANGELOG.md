@@ -24,6 +24,7 @@
       * Give proper NameError when using non-existing column names [#299](https://github.com/vaexio/vaex/pull/299)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
+      * df.to_arrow_table/to_pandas_df/to_items now take a chunk_size argument for chunked iterators [#589](https://github.com/vaexio/vaex/pull/589)
 
 # vaex-server 0.3.0-dev
    * Refactored server, can return multiple binary blobs, execute multiple tasks, cancel tasks, encoding/serialization is more flexible (like returning masked arrays). [#571](https://github.com/vaexio/vaex/pull/557)
