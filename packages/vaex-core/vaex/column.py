@@ -74,9 +74,10 @@ class ColumnIndexed(Column):
         self.dtype = self.df.dtype(name)
         self.shape = (len(indices),)
         self.masked = masked
-        max_index = self.indices.max()
-        if not np.ma.is_masked(max_index):
-            assert max_index < self.df._length_original
+        # this check is too expensive
+        # max_index = self.indices.max()
+        # if not np.ma.is_masked(max_index):
+        #     assert max_index < self.df._length_original
 
     @staticmethod
     def index(df, column, name, indices, direct_indices_map=None, masked=False):
