@@ -231,11 +231,18 @@ public:
     using typename hash_base<index_hash<T>, T>::value_type;
     typedef hashmap<value_type, std::vector<int64_t>> MultiMap;
 
-    py::array_t<int64_t> map_index(py::array_t<value_type>& values) {
+    py::array_t<int64_t> map_index(py::array_t<value_type, py::array::c_style>& values) {
         int64_t size = values.size();
-        py::array_t<int64_t> result(size);
+        py::array_t<int64_t, py::array::c_style> result(size);
+        map_index_write(values, result);
+        return result;
+    }
+    template<typename result_type>
+    bool map_index_write(py::array_t<value_type, py::array::c_style>& values, py::array_t<result_type, py::array::c_style>& output_array) {
+        int64_t size = values.size();
         auto input = values.template unchecked<1>();
-        auto output = result.template mutable_unchecked<1>();
+        auto output = output_array.template mutable_unchecked<1>();
+        bool encountered_unknown = false;
         py::gil_scoped_release gil;
         for(int64_t i = 0; i < size; i++) {
             const value_type& value = input(i);
@@ -247,20 +254,28 @@ public:
                 auto end = this->map.end();
                 if(search == end) {
                     output(i) = -1;
+                    encountered_unknown = true;
                 } else {
                     output(i) = search->second;
                 }
             }
         }
+        return encountered_unknown;
+    }
+    py::array_t<int64_t> map_index_with_mask(py::array_t<value_type, py::array::c_style>& values, py::array_t<uint8_t, py::array::c_style>& mask) {
+        int64_t size = values.size();
+        py::array_t<int64_t, py::array::c_style> result(size);
+        map_index_with_mask_write(values, mask, result);
         return result;
     }
-    py::array_t<int64_t> map_index_with_mask(py::array_t<value_type>& values, py::array_t<uint8_t>& mask) {
+    template<typename result_type>
+    bool map_index_with_mask_write(py::array_t<value_type, py::array::c_style>& values, py::array_t<uint8_t, py::array::c_style>& mask, py::array_t<result_type, py::array::c_style>& output_array) {
         int64_t size = values.size();
         assert(values.size() == mask.size());
-        py::array_t<int64_t> result(size);
         auto input = values.template unchecked<1>();
         auto input_mask = mask.template unchecked<1>();
-        auto output = result.template mutable_unchecked<1>();
+        auto output = output_array.template mutable_unchecked<1>();
+        bool encountered_unknown = false;
         py::gil_scoped_release gil;
         for(int64_t i = 0; i < size; i++) {
             const value_type& value = input(i);
@@ -276,12 +291,13 @@ public:
                 auto end = this->map.end();
                 if(search == end) {
                     output(i) = -1;
+                    encountered_unknown = true;
                 } else {
                     output(i) = search->second;
                 }
             }
         }
-        return result;
+        return encountered_unknown;
     }
 
     std::tuple<py::array_t<int64_t>, py::array_t<int64_t>> map_index_duplicates_with_mask(py::array_t<value_type>& values, py::array_t<uint8_t>& mask, int64_t start_index) {

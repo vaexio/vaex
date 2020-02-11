@@ -262,3 +262,19 @@ def test_index_multi_float64():
     assert [k.tolist() for k in index.map_index_duplicates(floats3, 7)] == [[7, 8, 9, 9], [8, 8, 6, 9]]
     assert index.has_duplicates is True
     assert len(index) == 10
+
+
+def test_index_write():
+    ints = np.array([1, 2, 3], dtype=np.int32)
+    index = index_hash_int32()
+    index.update(ints, 0)
+    assert index.map_index(ints).tolist() == [0, 1, 2]
+
+    indices = np.full(3, -1, dtype=np.int32)
+    index.map_index(ints, indices)
+    assert indices.tolist() == [0, 1, 2]
+
+    indices = np.full(3, -1, dtype=np.int32)
+    mask = np.zeros(3, dtype=bool)
+    index.map_index_masked(ints, mask, indices)
+    assert indices.tolist() == [0, 1, 2]
