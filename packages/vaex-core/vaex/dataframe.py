@@ -5467,6 +5467,9 @@ class DataFrameLocal(DataFrame):
             raise ValueError('join type not supported: {}, only left and right'.format(how))
         left = left if inplace else left.copy()
 
+        on = _ensure_string_from_expression(on)
+        left_on = _ensure_string_from_expression(left_on)
+        right_on = _ensure_string_from_expression(right_on)
         left_on = left_on or on
         right_on = right_on or on
         for name in right:

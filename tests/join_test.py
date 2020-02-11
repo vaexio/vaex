@@ -47,10 +47,11 @@ def test_join_masked():
     df = df_a.join(other=df_b, left_on='m', right_on='m', rsuffix='_r')
     assert df.evaluate('m').tolist() == [1, None, 3]
     assert df.evaluate('m_r').tolist() == [1, None, None]
+    assert df.columns['m_r'].indices.dtype == np.int8
 
 
 def test_join_nomatch():
-    df = df_a.join(df_e, on='a', rprefix='r_')
+    df = df_a.join(df_e, on=df_a.a, rprefix='r_')
     assert df.x2.tolist() == [None, None, None]
 
 
