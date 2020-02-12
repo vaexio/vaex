@@ -22,9 +22,11 @@
       * Default limits (e.g. for plots) is minmax, so we don't miss outliers [#581](https://github.com/vaexio/vaex/pull/581)
       * Do no fail printing out dataframe with 0 rows [#582](https://github.com/vaexio/vaex/pull/582)
       * Give proper NameError when using non-existing column names [#299](https://github.com/vaexio/vaex/pull/299)
+      * Several fixes for concatenated dataframes.  [#590](https://github.com/vaexio/vaex/pull/590)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
       * df.to_arrow_table/to_pandas_df/to_items now take a chunk_size argument for chunked iterators [#589](https://github.com/vaexio/vaex/pull/589)
+      * Filtered datasets can be concatenated. [#590](https://github.com/vaexio/vaex/pull/590)
 
 # vaex-server 0.3.0-dev
    * Refactored server, can return multiple binary blobs, execute multiple tasks, cancel tasks, encoding/serialization is more flexible (like returning masked arrays). [#571](https://github.com/vaexio/vaex/pull/557)
