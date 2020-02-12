@@ -2945,7 +2945,10 @@ class DataFrame(object):
                 self._dtypes_override[valid_name] = dtype
             else:
                 if isinstance(ar, np.ndarray) and ar.dtype.kind == 'O':
-                    types = list({type(k) for k in ar if np.all(k == k) and k is not None})
+                    ar_data = ar
+                    if np.ma.isMaskedArray(ar):
+                        ar_data = ar.data
+                    types = list({type(k) for k in ar_data if np.all(k == k) and k is not None})
                     if len(types) == 1 and issubclass(types[0], six.string_types):
                         self._dtypes_override[valid_name] = str_type
                     if len(types) == 0:  # can only be if all nan right?
@@ -5868,6 +5871,7 @@ class DataFrameConcatenated(DataFrameLocal):
         self._index_end = self._length_unfiltered
 
     def is_masked(self, column):
+        column = _ensure_string_from_expression(column)
         if column in self.columns:
             return self.columns[column].is_masked
         else:
