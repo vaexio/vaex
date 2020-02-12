@@ -76,6 +76,11 @@ def test_concat_mixed_types():
     assert df[3:5].x.tolist() == ['hi', 'there']
 
 
+def test_dtypes(df_concat):
+    assert df_concat.timedelta.dtype.kind == 'm'
+    assert df_concat.datetime.dtype.kind == 'M'
+
+
 @pytest.mark.parametrize("i1", list(range(0, 6)))
 @pytest.mark.parametrize("length", list(range(1, 6)))
 def test_sliced_concat(i1, length, df_concat):
