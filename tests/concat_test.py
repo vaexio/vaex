@@ -89,6 +89,14 @@ def test_hidden(df_trimmed):
     assert dfc.x.tolist() == xlist + xlist
 
 
+def test_concat_filtered(df_trimmed):
+    df = df_trimmed
+    df1 = df[df.x < 5]
+    df2 = df[df.x >= 5]
+    dfc = df1.concat(df2)
+    assert dfc.x.tolist() == df.x.tolist()
+
+
 @pytest.mark.parametrize("i1", list(range(0, 6)))
 @pytest.mark.parametrize("length", list(range(1, 6)))
 def test_sliced_concat(i1, length, df_concat):

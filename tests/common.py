@@ -204,7 +204,7 @@ def create_base_ds():
     obj_mask = np.array([False] * 9 + [True])
     obj = nm.copy().astype('object')
     obj[2:12] = np.ma.MaskedArray(data=obj_data, mask=obj_mask, dtype='object')
-    dataset.add_column("obj", obj)
+    dataset.add_column("obj", obj, dtype=np.dtype('O'))
 
     booleans = np.ones(21, dtype=np.bool)
     booleans[[4, 6, 8, 14, 16, 19]] = False
