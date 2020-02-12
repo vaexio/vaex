@@ -5836,12 +5836,11 @@ class DataFrameConcatenated(DataFrameLocal):
 
     def __init__(self, dfs, name=None):
         super(DataFrameConcatenated, self).__init__(None, None, [])
-        self.dfs = dfs
+        # to reduce complexity, we 'extract' the dataframes (i.e. remove filter)
+        self.dfs = dfs = [df.extract() for df in dfs]
         self.name = name or "-".join(df.name for df in self.dfs)
         self.path = "-".join(df.path for df in self.dfs)
         first, tail = dfs[0], dfs[1:]
-        for df in dfs:
-            assert df.filtered is False, "we don't support filtering for concatenated DataFrames"
         for column_name in first.get_column_names(virtual=False, hidden=True):
             if all([column_name in df.get_column_names(virtual=False, hidden=True) for df in tail]):
                 self.column_names.append(column_name)
