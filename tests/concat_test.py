@@ -1,6 +1,7 @@
+import pytest
 import vaex
 import numpy as np
-from functools import reduce
+
 
 def test_concat():
     x1, y1, z1 = np.arange(3), np.arange(3,0,-1), np.arange(10,13)
@@ -38,6 +39,7 @@ def test_concat():
     assert (np.array(dd2.evaluate('z')) == np.array(ds.evaluate('z'))).all()
     assert (np.array(dd2.evaluate('w')) == np.array(ds.evaluate('w'))).all()
 
+
 def test_concat_unequals_virtual_columns():
     ds1 = vaex.from_scalars(x=1, y=2)
     ds2 = vaex.from_scalars(x=2, y=3)
@@ -51,12 +53,14 @@ def test_concat_unequals_virtual_columns():
     assert ds.w.tolist() == [1+2, 2+3]
     assert ds.z.tolist() == [1+2, 2*3]
 
+
 def test_concat_arrow_strings():
     df1 = vaex.from_arrays(x=vaex.string_column(['aap', 'noot', 'mies']))
     df2 = vaex.from_arrays(x=vaex.string_column(['a', 'b', 'c']))
     df = vaex.concat([df1, df2])
     assert df.dtype('x') == df1.dtype('x')
     assert df.x.tolist() == ['aap', 'noot', 'mies', 'a', 'b', 'c']
+
 
 def test_concat_mixed_types():
     x1 = np.zeros(3) + np.nan
@@ -70,3 +74,12 @@ def test_concat_mixed_types():
     assert df[2:4].x.tolist() == [None, 'hi']
     assert df[3:4].x.tolist() == ['hi']
     assert df[3:5].x.tolist() == ['hi', 'there']
+
+
+@pytest.mark.parametrize("i1", list(range(0, 6)))
+@pytest.mark.parametrize("length", list(range(1, 6)))
+def test_sliced_concat(i1, length, df_concat):
+    i2 = i1 + length
+    x = df_concat.x.tolist()
+    df = df_concat[i1:i2]
+    assert df.x.tolist() == x[i1:i2]

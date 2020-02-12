@@ -183,21 +183,24 @@ class ColumnConcatenatedLazy(Column):
 
     def trim(self, i1, i2):
         start, stop = i1, i2
-        i = 0
-        offset = 0
+        i = 0  # the current expression
+        offset = 0  # and the offset the current expression has wrt the dataframe
+        # find the first expression we overlap with
         while start >= offset + len(self.expressions[i].df):
             offset += len(self.expressions[i].df)
             i += 1
-        if stop <= offset + len(self.expressions[i].df):  # single df
-            expressions = [self.expressions[i][start-offset:stop-offset+1]]
-        else:  # multile expressions
-            expressions = [self.expressions[i][start-offset:]]
-            while stop >= offset + len(self.expressions[i].df):
+        expressions = [self.expressions[i][start-offset:]]
+        offset += len(self.expressions[i].df)
+        if stop > offset:
+            # we need more expression
+            i += 1
+            # keep adding complete expression till we find the it to be the last
+            while stop > offset + len(self.expressions[i].df):
                 offset += len(self.expressions[i].df)
-                i += 1
                 expressions.append(self.expressions[i])
-            # if stop <= offset + len(self.expressions[i])
-            expressions.append(self.expressions[i][start-offset:stop-offset+1])
+                i += 1
+            if stop > offset:  # add the tail part
+                expressions.append(self.expressions[i][:stop-offset])
         return ColumnConcatenatedLazy(expressions, self.dtype)
 
     def __getitem__(self, slice):
