@@ -116,18 +116,32 @@ def ds_trimmed():
     ds.set_active_range(2, 12)
     return ds.trim()
 
-@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote'])
-def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote):
-    named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, ds_remote=ds_remote)
+@pytest.fixture()
+def df_trimmed(ds_trimmed):
+    return ds_trimmed
+
+@pytest.fixture()
+def df_concat(ds_trimmed):
+    df = ds_trimmed
+    df1 = df[:2]   # length 2
+    df2 = df[2:3]  # length 1
+    df3 = df[3:7]  # length 4
+    df4 = df[7:10]  # length 3
+    return vaex.concat([df1, df2, df3, df4])
+
+
+@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote', 'df_concat'])
+def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote, df_concat):
+    named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, ds_remote=ds_remote, df_concat=df_concat)
     return named[request.param]
 
 @pytest.fixture
 def df(ds):
     return ds
 
-@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed'])
-def ds_local(request, ds_filtered, ds_half, ds_trimmed):
-    named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed)
+@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat'])
+def ds_local(request, ds_filtered, ds_half, ds_trimmed, df_concat):
+    named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat)
     return named[request.param]
 
 @pytest.fixture
