@@ -145,12 +145,14 @@ class ColumnConcatenatedLazy(Column):
                         except:
                             self.fill_value = expressions[0].values.fill_value
 
-            # np.datetime64 and find_common_type don't mix very well
             any_strings = any([dtype == str_type for dtype in dtypes])
             if any_strings:
                 self.dtype = str_type
             else:
+                # np.datetime64/timedelta64 and find_common_type don't mix very well
                 if all([dtype.type == np.datetime64 for dtype in dtypes]):
+                    self.dtype = dtypes[0]
+                elif all([dtype.type == np.timedelta64 for dtype in dtypes]):
                     self.dtype = dtypes[0]
                 else:
                     if all([dtype == dtypes[0] for dtype in dtypes]):  # find common types doesn't always behave well
