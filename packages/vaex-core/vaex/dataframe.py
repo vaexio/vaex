@@ -5842,23 +5842,22 @@ class DataFrameConcatenated(DataFrameLocal):
         first, tail = dfs[0], dfs[1:]
         for df in dfs:
             assert df.filtered is False, "we don't support filtering for concatenated DataFrames"
-        for column_name in first.get_column_names(virtual=False):
-            if all([column_name in df.get_column_names(virtual=False) for df in tail]):
+        for column_name in first.get_column_names(virtual=False, hidden=True):
+            if all([column_name in df.get_column_names(virtual=False, hidden=True) for df in tail]):
                 self.column_names.append(column_name)
         self.columns = {}
-        for column_name in self.get_column_names(virtual=False):
+        for column_name in self.get_column_names(virtual=False, hidden=True):
             self.columns[column_name] = ColumnConcatenatedLazy([df[column_name] for df in dfs])
             self._save_assign_expression(column_name)
 
         for name in list(first.virtual_columns.keys()):
             if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
-                self.virtual_columns[name] = first.virtual_columns[name]
+                self.add_virtual_column(name, first.virtual_columns[name])
                 self.column_names.append(name)
             else:
                 self.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
                 self.column_names.append(name)
             self._save_assign_expression(name)
-
 
         for df in dfs[:1]:
             for name, value in list(df.variables.items()):

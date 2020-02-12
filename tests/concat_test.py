@@ -81,6 +81,14 @@ def test_dtypes(df_concat):
     assert df_concat.datetime.dtype.kind == 'M'
 
 
+def test_hidden(df_trimmed):
+    xlist = (df_trimmed.x + 1).tolist()
+    df = df_trimmed.copy()
+    df['x'] = df.x + 1
+    dfc = df.concat(df)  # make sure concat copies hidden columns
+    assert dfc.x.tolist() == xlist + xlist
+
+
 @pytest.mark.parametrize("i1", list(range(0, 6)))
 @pytest.mark.parametrize("length", list(range(1, 6)))
 def test_sliced_concat(i1, length, df_concat):
