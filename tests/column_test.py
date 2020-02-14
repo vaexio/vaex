@@ -73,3 +73,14 @@ def test_dtype_object_with_arrays():
     df = vaex.from_arrays(z=z)
     assert df.z.tolist()[0].tolist() == x.tolist()
     assert df.z.tolist()[1].tolist() == y.tolist()
+
+
+def test_column_count():
+    x = np.array([1, 2, np.nan])
+    df = vaex.from_arrays(x=x)
+
+    df['new_x'] = df.x + 1
+    df['new_x'] = df['new_x'].fillna(value=0)
+
+    assert df.column_count() == 2
+    assert df.new_x.tolist() == [2, 3, 0]
