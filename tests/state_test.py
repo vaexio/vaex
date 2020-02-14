@@ -1,6 +1,7 @@
 from common import *
 import vaex.ml
 
+
 def test_state_get_set(ds_local):
     ds = ds_local
 
@@ -15,6 +16,7 @@ def test_state_get_set(ds_local):
     # making a copy when the state is set should work as well
     assert ds_copy.copy().v.values.tolist() == ds.v.values.tolist()
     assert 'v' in ds_copy.get_column_names()
+
 
 def test_state_variables(ds_local, tmpdir):
     filename = str(tmpdir.join('state.json'))
@@ -35,6 +37,7 @@ def test_state_variables(ds_local, tmpdir):
     assert isinstance(df_copy.variables[var_name], np.timedelta64)
     assert df.seconds.tolist() == df_copy.seconds.tolist()
     assert df_copy.variables['dt_var'] == t_test
+
 
 def test_state_virtual_fillna():
     x_train = np.array([np.nan, 1, 20, 50])
