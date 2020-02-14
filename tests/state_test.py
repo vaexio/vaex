@@ -47,7 +47,7 @@ def test_state_virtual_fillna():
     df_test = vaex.from_arrays(x=x_test)
 
     # Create a virtual column and then force rename by doing fillna
-    df_train['n_x'] = df_train.x + 1
+    df_train['new_x'] = df_train.x + 1
     df_train['new_x'] = df_train.new_x.fillna(value=0)
 
     # State transfer
