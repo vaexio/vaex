@@ -3657,7 +3657,7 @@ class DataFrame(object):
 
     def column_count(self):
         """Returns the number of columns (including virtual columns)."""
-        return len(self.column_names)
+        return len(self.get_column_names())
 
     def get_names(self, hidden=False):
         """Return a list of column names and variable names."""
