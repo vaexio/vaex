@@ -4269,7 +4269,7 @@ class DataFrame(object):
         column_names = column_names or self.get_column_names(virtual=False)
         expression = f(self._expr(column_names[0]))
         for column in column_names[1:]:
-            expression = expression & f(self._expr(column))
+            expression = expression | f(self._expr(column))
         copy.select(~expression, name=FILTER_SELECTION_NAME, mode='and')
         return copy
 
