@@ -34,6 +34,7 @@ Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how
 """  # -*- coding: utf-8 -*-
 from __future__ import print_function
 import glob
+import re
 import six
 
 import vaex.dataframe
@@ -100,13 +101,15 @@ def app(*args, **kwargs):
     return vaex.ui.main.VaexApp()
 
 
-def _convert_name(filenames, shuffle=False):
-    '''Convert a filename (or list of) to a filename with .hdf5 and optionally a -shuffle suffix'''
+def _convert_name(filenames, shuffle=False, suffix=None):
+    '''Convert a filename (or list of) to a filename with .hdf5 and optionally a -shuffle or other suffix'''
     if not isinstance(filenames, (list, tuple)):
         filenames = [filenames]
     base = filenames[0]
     if shuffle:
         base += '-shuffle'
+    if suffix:
+        base += suffix
     if len(filenames) > 1:
         return base + "_and_{}_more.hdf5".format(len(filenames)-1)
     else:
@@ -127,7 +130,7 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
     :param args: extra arguments for file readers that need it
     :param kwargs: extra keyword arguments
     :param bool copy_index: copy index when source is read via pandas
-    :return: return a DataFrame on succes, otherwise None
+    :return: return a DataFrame on success, otherwise None
     :rtype: DataFrame
 
     S3 support:
@@ -171,7 +174,7 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
         else:
             import vaex.file
             import glob
-            if isinstance(path, six.string_types):
+            if isinstance(path, str):
                 paths = [path]
             else:
                 paths = path
@@ -181,7 +184,7 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
                 if path.startswith('s3://'):
                     filenames.append(path)
                 else:
-                    # sort to get predicatable behaviour (useful for testing)
+                    # sort to get predictable behaviour (useful for testing)
                     filenames.extend(list(sorted(glob.glob(path))))
             ds = None
             if len(filenames) == 0:
@@ -195,18 +198,16 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
                     naked_path = naked_path[:naked_path.index('?')]
                 ext = os.path.splitext(naked_path)[1]
                 if os.path.exists(filename_hdf5) and convert:  # also check mtime?
-                    if convert:
-                        ds = vaex.file.open(filename_hdf5)
-                    else:
-                        ds = vaex.file.open(filename_hdf5, *args, **kwargs)
+                    ds = vaex.file.open(filename_hdf5)
                 else:
                     if ext == '.csv' or naked_path.endswith(".csv.bz2"):  # special support for csv.. should probably approach it a different way
-                        ds = from_csv(path, copy_index=copy_index, **kwargs)
+                        csv_convert = filename_hdf5 if convert else False
+                        ds = from_csv(path, copy_index=copy_index, convert=csv_convert, **kwargs)
                     else:
                         ds = vaex.file.open(path, *args, **kwargs)
-                    if convert and ds:
-                        ds.export_hdf5(filename_hdf5, shuffle=shuffle)
-                        ds = vaex.file.open(filename_hdf5) # argument were meant for pandas?
+                        if convert and ds:
+                            ds.export_hdf5(filename_hdf5, shuffle=shuffle)
+                            ds = vaex.file.open(filename_hdf5)  # argument were meant for pandas?
                 if ds is None:
                     if os.path.exists(path):
                         raise IOError('Could not open file: {}, did you install vaex-hdf5? Is the format supported?'.format(path))
@@ -226,9 +227,9 @@ def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
                     for filename in filenames:
                         DataFrames.append(open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
                     ds = vaex.dataframe.DataFrameConcatenated(DataFrames)
-                if convert:
-                    ds.export_hdf5(filename_hdf5, shuffle=shuffle)
-                    ds = vaex.file.open(filename_hdf5, *args, **kwargs)
+                    if convert:
+                        ds.export_hdf5(filename_hdf5, shuffle=shuffle)
+                        ds = vaex.file.open(filename_hdf5)
 
         if ds is None:
             raise IOError('Unknown error opening: {}'.format(path))
@@ -474,13 +475,100 @@ def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, cop
                        copy_index=copy_index)
 
 
-def from_csv(filename_or_buffer, copy_index=True, **kwargs):
-    """Shortcut to read a csv file using pandas and convert to a DataFrame directly.
-
-    :rtype: DataFrame
+def from_csv(filename_or_buffer, copy_index=True, chunk_size=None, convert=False, **kwargs):
     """
+    Read a CSV file as a DataFrame, and optionally convert to an hdf5 file.
+
+    :param str or file filename_or_buffer: CSV file path or file-like
+    :param bool copy_index: copy index when source is read via Pandas
+    :param int chunk_size: if the CSV file is too big to fit in the memory this parameter can be used to read
+        CSV file in chunks. For example:
+
+        >>> import vaex
+        >>> for i, df in enumerate(vaex.from_csv('taxi.csv', chunk_size=100_000)):
+        >>>     df = df[df.passenger_count < 6]
+        >>>     df.export_hdf5(f'taxi_{i:02}.hdf5')
+
+    :param bool or str convert: convert files to an hdf5 file for optimization, can also be a path. The CSV
+        file will be read in chunks: either using the provided chunk_size argument, or a default size. Each chunk will
+        be saved as a separate hdf5 file, then all of them will be combined into one hdf5 file. So for a big CSV file
+        you will need at least double of extra space on the disk. Default chunk_size for converting is 5 million rows,
+        which corresponds to around 1Gb memory on an example of NYC Taxi dataset.
+    :param kwargs: extra keyword arguments, currently passed to Pandas read_csv function, but the implementation might
+        change in future versions.
+    :returns: DataFrame
+    """
+    if not convert:
+        return _from_csv_read(filename_or_buffer=filename_or_buffer, copy_index=copy_index,
+                              chunk_size=chunk_size, **kwargs)
+    else:
+        if chunk_size is None:
+            # make it memory efficient by default
+            chunk_size = 5_000_000
+        return _from_csv_convert_and_read(filename_or_buffer=filename_or_buffer, copy_index=copy_index,
+                                          maybe_convert_path=convert, chunk_size=chunk_size, **kwargs)
+
+
+def _from_csv_read(filename_or_buffer, copy_index, chunk_size, **kwargs):
     import pandas as pd
-    return from_pandas(pd.read_csv(filename_or_buffer, **kwargs), copy_index=copy_index)
+    if not chunk_size:
+        full_df = pd.read_csv(filename_or_buffer, **kwargs)
+        return from_pandas(full_df, copy_index=copy_index)
+    else:
+        def iterator():
+            chunk_iterator = pd.read_csv(filename_or_buffer, chunksize=chunk_size, **kwargs)
+            for chunk_df in chunk_iterator:
+                yield from_pandas(chunk_df, copy_index=copy_index)
+        return iterator()
+
+
+def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_path, chunk_size, **kwargs):
+    # figure out the CSV file path
+    if isinstance(filename_or_buffer, str):
+        csv_path = filename_or_buffer
+    elif isinstance(maybe_convert_path, str):
+        csv_path = re.sub(r'\.hdf5$', '', str(maybe_convert_path), flags=re.IGNORECASE)
+    else:
+        raise ValueError('Cannot derive filename to use for converted HDF5 file, '
+                         'please specify it using convert="my.csv.hdf5"')
+
+    # reuse a previously converted HDF5 file
+    import vaex.file
+    combined_hdf5 = _convert_name(csv_path)
+    if os.path.exists(combined_hdf5):
+        return vaex.file.open(combined_hdf5)
+
+    # convert CSV chunks to separate HDF5 files
+    import pandas as pd
+    converted_paths = []
+    csv_reader = pd.read_csv(filename_or_buffer, chunksize=chunk_size, **kwargs)
+    for i, df_pandas in enumerate(csv_reader):
+        df = from_pandas(df_pandas, copy_index=copy_index)
+        filename_hdf5 = _convert_name(csv_path, suffix='_chunk%d' % i)
+        df.export_hdf5(filename_hdf5, shuffle=False)
+        converted_paths.append(filename_hdf5)
+        logger.info('saved chunk #%d to %s' % (i, filename_hdf5))
+
+    # combine chunks into one HDF5 file
+    if len(converted_paths) == 1:
+        # no need to merge several HDF5 files
+        os.rename(converted_paths[0], combined_hdf5)
+    else:
+        logger.info('converting %d chunks into single HDF5 file %s' % (len(converted_paths), combined_hdf5))
+        dfs = [vaex.file.open(p) for p in converted_paths]
+        df_combined = vaex.dataframe.DataFrameConcatenated(dfs)
+        df_combined.export_hdf5(combined_hdf5, shuffle=False)
+
+        logger.info('deleting %d chunk files' % len(converted_paths))
+        for df, df_path in zip(dfs, converted_paths):
+            try:
+                df.close_files()
+                os.remove(df_path)
+            except Exception as e:
+                logger.error('Could not close or delete intermediate hdf5 file %s used to convert %s to hdf5: %s' % (
+                    df_path, csv_path, e))
+
+    return vaex.file.open(combined_hdf5)
 
 
 def read_csv(filepath_or_buffer, **kwargs):

@@ -71,14 +71,11 @@ venv
 tmp
 python/vaex/version.py # gets generated
 **/*.egg-info/
+.eggs/
 bin/.idea
 *.npy
 **/__pycache__/*
-/**/*.egg-info/
-bin/.idea
-*.npy
-/**/__pycache__/*
-catboost_info/*
+catboost_info/
 .vscode
 
 # symlinks generated in setup.py
