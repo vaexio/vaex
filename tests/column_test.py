@@ -64,3 +64,12 @@ def test_plain_strings():
     assert len(df[1:3]) == 2
     assert df[1:3].x.tolist() == x[1:3].tolist()
 
+
+def test_dtype_object_with_arrays():
+    x = np.arange(10)
+    y = np.arange(11) ** 2
+    z = np.array([x, y])
+    assert z.dtype == np.object
+    df = vaex.from_arrays(z=z)
+    assert df.z.tolist()[0].tolist() == x.tolist()
+    assert df.z.tolist()[1].tolist() == y.tolist()
