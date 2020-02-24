@@ -2948,7 +2948,7 @@ class DataFrame(object):
                     ar_data = ar
                     if np.ma.isMaskedArray(ar):
                         ar_data = ar.data
-                    types = list({type(k) for k in ar_data if np.all(k == k) and k is not None})
+                    types = list({type(k) for k in ar_data if k is not None and k == k})
                     if len(types) == 1 and issubclass(types[0], six.string_types):
                         self._dtypes_override[valid_name] = str_type
                     if len(types) == 0:  # can only be if all nan right?
