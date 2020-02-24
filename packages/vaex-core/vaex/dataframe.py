@@ -2948,7 +2948,16 @@ class DataFrame(object):
                     ar_data = ar
                     if np.ma.isMaskedArray(ar):
                         ar_data = ar.data
-                    types = list({type(k) for k in ar_data if k is not None and k == k})
+                    def is_missing(k):
+                        if k is None:
+                            return True
+                        try:
+                            # a way to detect NaN's and NaT
+                            return not (k == k)
+                        except:
+                            # if a value is an array, this will fail, and it is a non-missing
+                            return False
+                    types = list({type(k) for k in ar_data if not is_missing(k)})
                     if len(types) == 1 and issubclass(types[0], six.string_types):
                         self._dtypes_override[valid_name] = str_type
                     if len(types) == 0:  # can only be if all nan right?
