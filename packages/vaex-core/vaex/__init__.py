@@ -552,7 +552,7 @@ def connect(url, **kwargs):
     return connect(url, **kwargs)
 
 
-def example(download=True):
+def example():
     """Returns an example DataFrame which comes with vaex for testing/learning purposes.
 
     :rtype: DataFrame
