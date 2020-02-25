@@ -25,6 +25,7 @@
       * Several fixes for concatenated dataframes.  [#590](https://github.com/vaexio/vaex/pull/590)
       * Flaky test for RobustScaler skipped for p36 [#614](https://github.com/vaexio/vaex/pull/614)
       * Copying/printing sparse matrices [#615](https://github.com/vaexio/vaex/pull/615)
+      * Fix the links to the example datasets. [#609](https://github.com/vaexio/vaex/pull/609)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
       * df.to_arrow_table/to_pandas_df/to_items now take a chunk_size argument for chunked iterators [#589](https://github.com/vaexio/vaex/pull/589)
