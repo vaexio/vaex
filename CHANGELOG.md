@@ -23,6 +23,7 @@
       * Do no fail printing out dataframe with 0 rows [#582](https://github.com/vaexio/vaex/pull/582)
       * Give proper NameError when using non-existing column names [#299](https://github.com/vaexio/vaex/pull/299)
       * Several fixes for concatenated dataframes.  [#590](https://github.com/vaexio/vaex/pull/590)
+      * Flaky test for RobustScaler skipped for p36 [#614](https://github.com/vaexio/vaex/pull/614)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
       * df.to_arrow_table/to_pandas_df/to_items now take a chunk_size argument for chunked iterators [#589](https://github.com/vaexio/vaex/pull/589)
