@@ -251,5 +251,5 @@ nyctaxi_yellow_201x = NYCTaxi("nyc_taxi_all", [url for url in urllist if "yellow
 
 helmi_de_zeeuw = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/helmi-dezeeuw-2000-FeH-v2.hdf5")
 helmi_de_zeeuw_10percent = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5")
-tgas = Hdf5Download("http://vaex.astro.rug.nl/data/tgas.hdf5")
-tgas_1percent = Hdf5Download("http://vaex.astro.rug.nl/data/tgas_1percent.hdf5")
+tgas = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas.hdf5")
+tgas_1percent = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas_1percent.hdf5")
