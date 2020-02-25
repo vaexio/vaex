@@ -4954,8 +4954,9 @@ class DataFrameLocal(DataFrame):
                 added.add(name)
                 if name in self.columns:
                     column = self.columns[name]
-                    if not isinstance(column, ColumnSparse):
-                        df.add_column(name, column, dtype=self._dtypes_override.get(name))
+                    df.add_column(name, column, dtype=self._dtypes_override.get(name))
+                    if isinstance(column, ColumnSparse):
+                        df._sparse_matrices[name] = self._sparse_matrices[name]
                 elif name in self.virtual_columns:
                     if virtual:  # TODO: check if the ast is cached
                         df.add_virtual_column(name, self.virtual_columns[name])
