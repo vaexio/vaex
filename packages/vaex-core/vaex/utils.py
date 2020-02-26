@@ -142,28 +142,6 @@ def disjoined(data):
     return data_disjoined
 
 
-def get_data_file(filename):
-    try:  # this works for egg like stuff, but fails for py2app apps
-        from pkg_resources import Requirement, resource_filename
-        path = resource_filename(Requirement.parse("vaex"), filename)
-        if os.path.exists(path):
-            return path
-    except:
-        pass
-    # this is where we expect data to be in normal installations
-    for extra in ["", "data", "data/dist", "../data", "../data/dist"]:
-        path = os.path.join(os.path.dirname(__file__), "..", "..", extra, filename)
-        if os.path.exists(path):
-            return path
-        path = os.path.join(sys.prefix, extra, filename)
-        if os.path.exists(path):
-            return path
-        # if all fails..
-        path = os.path.join(get_root_path(), extra, filename)
-        if os.path.exists(path):
-            return path
-
-
 def get_root_path():
     osname = platform.system().lower()
     # if (osname == "linux") and is_frozen: # we are using pyinstaller

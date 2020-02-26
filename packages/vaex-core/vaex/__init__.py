@@ -551,16 +551,13 @@ def connect(url, **kwargs):
     from vaex.server import connect
     return connect(url, **kwargs)
 
-def example(download=True):
+
+def example():
     """Returns an example DataFrame which comes with vaex for testing/learning purposes.
 
     :rtype: DataFrame
     """
-    from . import utils
-    path = utils.get_data_file("helmi-dezeeuw-2000-10p.hdf5")
-    if path is None and download:
-        return vaex.datasets.helmi_de_zeeuw_10percent.fetch()
-    return open(path) if path else None
+    return vaex.datasets.helmi_de_zeeuw_10percent.fetch()
 
 
 def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
