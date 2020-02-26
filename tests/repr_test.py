@@ -3,6 +3,12 @@ import pandas as pd
 import datetime
 
 
+def test_repr_invalid_name(df):
+    df['is'] = df.x * 1
+    code = df._repr_mimebundle_()['text/plain']
+    assert '_is' not in code, "the repr should show the aliased name"
+
+
 def test_repr_default(df):
     code = df._repr_mimebundle_()['text/plain']
     assert 'x' in code
