@@ -2975,10 +2975,13 @@ class DataFrame(object):
             if len(names) != columns.shape[1]:
                 raise ValueError('number of columns ({}) does not match number of column names ({})'.format(columns.shape[1], len(names)))
             for i, name in enumerate(names):
-                self.columns[name] = ColumnSparse(columns, i)
-                self.column_names.append(name)
-                self._sparse_matrices[name] = columns
-                self._save_assign_expression(name, Expression(self, name))
+                valid_name = vaex.utils.find_valid_name(name, used=self.get_column_names(hidden=True))
+                if name != valid_name:
+                    self._column_aliases[name] = valid_name
+                self.columns[valid_name] = ColumnSparse(columns, i)
+                self.column_names.append(valid_name)
+                self._sparse_matrices[valid_name] = columns
+                self._save_assign_expression(valid_name, Expression(self, valid_name))
         else:
             raise ValueError('only scipy.sparse.csr_matrix is supported')
 
@@ -3523,12 +3526,13 @@ class DataFrame(object):
         parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
         parts += ["<table class='table-striped'>"]
 
+        aliases_reverse = {value: key for key, value in self._column_aliases.items()}
         column_names = self.get_column_names()
         values_list = []
         values_list.append(['#', []])
         # parts += ["<thead><tr>"]
         for name in column_names:
-            values_list.append([name, []])
+            values_list.append([aliases_reverse.get(name, name), []])
             # parts += ["<th>%s</th>" % name]
         # parts += ["</tr></thead>"]
 
