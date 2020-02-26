@@ -2924,7 +2924,7 @@ class DataFrame(object):
                         raise ValueError("Array is of length %s, while the length of the DataFrame is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
                 raise ValueError("array is of length %s, while the length of the DataFrame is %s" % (len(ar), self.length_original()))
             # assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
-            valid_name = vaex.utils.find_valid_name(name)
+            valid_name = vaex.utils.find_valid_name(name, used=self.get_column_names(hidden=True))
             if name != valid_name:
                 self._column_aliases[name] = valid_name
             ar = f_or_array
@@ -3253,21 +3253,26 @@ class DataFrame(object):
                 expression = expression.copy(self)
         column_position = len(self.column_names)
         # if the current name is an existing column name....
-        if name in self.get_column_names():
+        if name in self.get_column_names(hidden=True):
             column_position = self.column_names.index(name)
             renamed = vaex.utils.find_valid_name('__' +name, used=self.get_column_names(hidden=True))
             # we rewrite all existing expressions (including the passed down expression argument)
             self._rename(name, renamed)
         expression = _ensure_string_from_expression(expression)
 
-        name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names())
+        if vaex.utils.find_valid_name(name) != name:
+            # if we have to rewrite the name, we need to make it unique
+            unique = True
+        valid_name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(hidden=True))
+        if name != valid_name:
+            self._column_aliases[name] = valid_name
 
-        self.virtual_columns[name] = expression
-        self._virtual_expressions[name] = Expression(self, expression)
+        self.virtual_columns[valid_name] = expression
+        self._virtual_expressions[valid_name] = Expression(self, expression)
         if name not in self.column_names:
-            self.column_names.insert(column_position, name)
-        self._save_assign_expression(name)
-        self.signal_column_changed.emit(self, name, "add")
+            self.column_names.insert(column_position, valid_name)
+        self._save_assign_expression(valid_name)
+        self.signal_column_changed.emit(self, valid_name, "add")
         # self.write_virtual_meta()
 
     def rename(self, name, new_name, unique=False):
@@ -4550,12 +4555,12 @@ class DataFrame(object):
             names = self.get_column_names()
             return [self.evaluate(name, item, item+1)[0] for name in names]
         elif isinstance(item, six.string_types):
+            if item in self._column_aliases:
+                item = self._column_aliases[item]  # translate the alias name into the real name
             if hasattr(self, item) and isinstance(getattr(self, item), Expression):
                 return getattr(self, item)
             # if item in self.virtual_columns:
             #   return Expression(self, self.virtual_columns[item])
-            if item in self._column_aliases:
-                item = self._column_aliases[item]  # translate the alias name into the real name
             # if item in self._virtual_expressions:
             #     return self._virtual_expressions[item]
             self.validate_expression(item)
