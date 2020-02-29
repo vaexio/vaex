@@ -40,7 +40,7 @@ class Hdf5Download(object):
                 print("wget failed, using urlretrieve")
                 self.download_urlretrieve()
 
-    def download_urlretrieve(self, ):
+    def download_urlretrieve(self):
         urlretrieve(self.url, self.filename)
 
     def fetch(self, force_download=False):
@@ -89,7 +89,7 @@ class NYCTaxi(object):
         url = self.url_list[i]
         return "wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url)
 
-    def download_urlretrieve(self, ):
+    def download_urlretrieve(self, i):
         urlretrieve(self.url_list[i], self.filenames[i])
 
     def download(self, force=False):
@@ -120,10 +120,10 @@ class NYCTaxi(object):
                     if skip in df:
                         del df["store_and_fwd_flag"]
                 ds = vx.from_pandas(df)
-                ds.add_virtual_column("pickup_hour", "hourofday(tpep_pickup_datetime)")
-                ds.add_virtual_column("dropoff_hour", "hourofday(tpep_dropoff_datetime)")
-                ds.add_virtual_column("pickup_dayofweek", "dayofweek(tpep_pickup_datetime)")
-                ds.add_virtual_column("dropoff_dayofweek", "dayofweek(tpep_dropoff_datetime)")
+                ds.add_virtual_column("pickup_hour", "dt_hour(tpep_pickup_datetime)")
+                ds.add_virtual_column("dropoff_hour", "dt_hour(tpep_dropoff_datetime)")
+                ds.add_virtual_column("pickup_dayofweek", "dt_dayofweek(tpep_pickup_datetime)")
+                ds.add_virtual_column("dropoff_dayofweek", "dt_dayofweek(tpep_dropoff_datetime)")
                 ds.select("(pickup_longitude != 0) & (pickup_latitude != 0) & (dropoff_longitude != 0) & (dropoff_latitude != 0)")
                 ds.export_hdf5(output, virtual=True, selection=True)
 
