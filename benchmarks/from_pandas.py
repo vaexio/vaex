@@ -20,4 +20,4 @@ print('it took {} to convert {:,} rows ({:.1f} Gb), which is {:,} rows per secon
 
 # Last result when running on:
 # 2.8 GHz Quad-Core Intel Core i7; 16 GB 1600 MHz DDR3:
-# it took 0:00:07.244279 to convert 12,748,986 rows (1.8 Gb), which is 1,759,869 rows per second
+# it took 0:00:04.454153 to convert 12,748,986 rows (1.8 Gb), which is 2,862,269 rows per second
