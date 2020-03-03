@@ -1,3 +1,7 @@
 annoy
+scikit-learn
+xgboost
+lightgbm
+catboost
 tensorflow==2.1.0
 tensorflow-io==0.12.0
