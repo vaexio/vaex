@@ -41,7 +41,7 @@ jobs:
     - name: Create env
       # if: steps.cache-conda-env.outputs.cache-hit != 'true'
       run: |
-        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook
+        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook scikit-learn lightgbm py-xgboost
     # - name: Restoring cached env
     #   if: steps.cache-conda-env.outputs.cache-hit == 'true'
     #   run: |
@@ -83,7 +83,7 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         pip install -vv -e .
-        # pip install -r requirements-ml.txt
+        pip install -r requirements-ml.txt
     - name: Lint with flake8
       run: |
         echo "soon"
