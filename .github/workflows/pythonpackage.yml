@@ -3,7 +3,6 @@ name: Python package
 on:
   pull_request:
     branches:
-    - master
     - docs
   schedule:
   - cron: "0 2 * * 1-5"
