@@ -68,11 +68,15 @@ else:
     extra_compile_args.append("-g")
 if sys.platform == 'darwin':
     extra_compile_args.append("-mmacosx-version-min=10.9")
+extra_link_args = []
+if sys.platform == 'linux':
+    extra_link_args.append('-Wl,--version-script=src/ext.version')
 
 # on windows (Conda-forge builds), the dirname is an absolute path
 extension_vaexfast = Extension("vaex.vaexfast", [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
                                include_dirs=[get_numpy_include()],
-                               extra_compile_args=extra_compile_args)
+                               extra_compile_args=extra_compile_args,
+                               extra_link_args=extra_link_args)
 extension_strings = Extension("vaex.superstrings", [os.path.relpath(os.path.join(dirname, "src/strings.cpp"))],
                                include_dirs=[
                                    get_numpy_include(),
@@ -88,7 +92,8 @@ extension_strings = Extension("vaex.superstrings", [os.path.relpath(os.path.join
                                    os.path.join(sys.prefix, 'Library', 'lib') # windows
                                ],
                                extra_compile_args=extra_compile_args,
-                               libraries=['pcre', 'pcrecpp']
+                               libraries=['pcre', 'pcrecpp'],
+                               extra_link_args=extra_link_args
                                )
 extension_superutils = Extension("vaex.superutils", [
         os.path.relpath(os.path.join(dirname, "src/hash_object.cpp")),
@@ -104,7 +109,8 @@ extension_superutils = Extension("vaex.superutils", [
         'vendor/hopscotch-map/include',
         'vendor/string-view-lite/include'
     ],
-    extra_compile_args=extra_compile_args)
+    extra_compile_args=extra_compile_args,
+    extra_link_args=extra_link_args)
 
 extension_superagg = Extension("vaex.superagg", [
         os.path.relpath(os.path.join(dirname, "src/superagg.cpp")),

@@ -1,0 +1,4 @@
+vaex {
+  global: PyInit_vaexfast; PyInit_superstrings; PyInit_superutils; PyInit_superagg; # explicitly list symbols to be exported
+  local: *;         # hide everything else
+};
