@@ -17,28 +17,42 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@v1
       with:
         toolset: 14.0
+    - name: 'debug'
+      shell: bash
+      run: |
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise
+        find /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019 -iname 'vcvarsall.bat'
+        /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Auxiliary/Build/vcvarsall.bat x86_amd64 -vcvars_ver=14.0
+    - name: 'debug2'
+      shell: cmd
+      run: |
+        call "c:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat" -vcvars_ver=14.0
+        echo %VCToolsInstallDir%
     - uses: actions/checkout@v1
       with:
         submodules: true
-    - name: Install conda with Python ${{ matrix.python-version }}
-      uses: s-weigand/setup-conda@master
+    # - name: Install conda with Python ${{ matrix.python-version }}
+    #   uses: s-weigand/setup-conda@master
+    #   with:
+    #     python-version: ${{ matrix.python-version }}
+    #     conda-channels: anaconda, conda-forge
+    - uses: goanpeca/setup-miniconda@v1
       with:
-        python-version: ${{ matrix.python-version }}
-        conda-channels: anaconda, conda-forge
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
     - name: Create env
       # if: steps.cache-conda-env.outputs.cache-hit != 'true'
       run: |
         conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} pip wheel pcre
-    - name: Add conda to path
-      shell: bash
+    # - name: Add conda to path
+    #   shell: bash
+    #   run: |
+    #     conda init --all
+    #     echo ::add-path::$CONDA/envs/vaex/bin
+    - name: Fix python-dateutil/botocore version conflict
+      shell: cmd
       run: |
-        conda init --all
-        echo ::add-path::$CONDA/envs/vaex/bin
-    - name: Fix python-dateutil/botocore version conflict (windows)
-      if: matrix.os == 'windows-latest'
-      shell: bash
-      run: |
-        source activate vaex
+        conda activate vaex
         pip install python-dateutil==2.8.0  # botocore caps dateutil leading to issues
     - name: Cache compiled binaries
       id: cache-compiled-binaries
@@ -52,10 +66,11 @@ jobs:
     #   run: |
     #     find packages/vaex-core/build -type f -exec touch {} +
     - name: Create binary wheel
-      shell: bash
-      run: |
-        source activate vaex
-        cd packages/vaex-core
+      shell: cmd
+      run: >-
+        conda activate vaex &&
+        cd packages/vaex-core &&
+        call "c:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat" -vcvars_ver=14.0 &&
         python setup.py bdist_wheel
     - name: Upload wheel
       uses: actions/upload-artifact@v1
@@ -63,10 +78,12 @@ jobs:
         name: vaex-core-${{ matrix.python-version }}
         path: packages/vaex-core/dist
     - name: Install vaex-core
-      shell: bash
-      run: |
+      shell: cmd
+      run: >-
+        conda activate vaex &&
         pip install packages/vaex-core/dist/*.whl
     - name: Test import
-      shell: bash
-      run: |
+      shell: cmd
+      run: >-
+        conda activate vaex &&
         python -c 'import vaex; df = vaex.from_scalars(x=1, y=2); print(df)'
