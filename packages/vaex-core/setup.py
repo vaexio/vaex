@@ -71,6 +71,8 @@ if sys.platform == 'darwin':
 extra_link_args = []
 if sys.platform == 'linux':
     extra_link_args.append('-Wl,--version-script=src/ext.version')
+    extra_compile_args.append("-fvisibility=hidden")
+    extra_link_args.append("-fvisibility=hidden")
 
 # on windows (Conda-forge builds), the dirname is an absolute path
 extension_vaexfast = Extension("vaex.vaexfast", [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
