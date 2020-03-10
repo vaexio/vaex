@@ -1,4 +1,4 @@
-|Travis| |Conda| |Chat| 
+|Travis| |Conda| |Chat|
 
 Vaex uses several sites:
 
@@ -54,7 +54,7 @@ Why vaex
       / cluster into a single dataset for distributed computations.
    -  ``vaex-qt``: Program written using Qt GUI.
    -  ``vaex``: meta package that installs all of the above.
-   -  ``vaex-ml``: `Machine learning <http://docs.vaex.io/en/latest/ml.html>`__ with automatic pipelines.
+   -  ``vaex-ml``: `Machine learning <https://docs.vaex.io/en/latest/tutorial_ml.html>`__ with automatic pipelines.
 
 -  **Jupyter integration**: vaex-jupyter will give you interactive
    visualization and selection in the Jupyter notebook and Jupyter lab.
@@ -128,7 +128,7 @@ normal array.
 
 .. parsed-literal::
 
-    <vaex.expression.Expression(expressions='sqrt((((x ** 2) + (y ** 2)) + (z ** 2)))')> instance at 0x11bcc4780 values=[2.9655450396553587, 5.77829281049018, 6.99079603950256, 9.431842752707537, 0.8825613121347967 ... (total 330000 values) ... 7.453831761514681, 15.398412491068198, 8.864250273925633, 17.601047186042507, 14.540181524970293] 
+    <vaex.expression.Expression(expressions='sqrt((((x ** 2) + (y ** 2)) + (z ** 2)))')> instance at 0x11bcc4780 values=[2.9655450396553587, 5.77829281049018, 6.99079603950256, 9.431842752707537, 0.8825613121347967 ... (total 330000 values) ... 7.453831761514681, 15.398412491068198, 8.864250273925633, 17.601047186042507, 14.540181524970293]
 
 
 
@@ -220,5 +220,5 @@ The vaex.io team
    :alt: Join the chat at https://gitter.im/maartenbreddels/vaex
    :target: https://gitter.im/maartenbreddels/vaex?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
 .. |Conda| image:: https://anaconda.org/conda-forge/vaex/badges/downloads.svg
-   :target: https://anaconda.org/conda-forge/vaex   
-   
+   :target: https://anaconda.org/conda-forge/vaex
+
