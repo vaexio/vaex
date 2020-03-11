@@ -20,3 +20,15 @@ def test_object_column_values(ds_local):
     ds = ds_local
     with pytest.raises(ValueError):
         ds[['x', 'name', 'nm', 'obj']].values
+
+def test_values_masked():
+    x = np.ma.MaskedArray(data=[1, 2, 3], mask=[False, False, True])
+    y = [10, 20, 30]
+    df = vaex.from_arrays(x=x, y=y)
+
+    values = df[['x', 'y']].values
+    comparison = np.array([[1., 10.],
+                           [2., 20.],
+                           [np.nan, 30.]])
+
+    np.testing.assert_array_equal(values, comparison)
