@@ -1,3 +1,4 @@
+import pytest
 from common import *
 
 
@@ -18,6 +19,25 @@ def test_count_2d():
     assert list(binned_values.shape) == [32, 32]
     binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=[[-50, 50],[-50, 50]])
     assert list(binned_values.shape) == [32, 32]
+
+@pytest.mark.parametrize('limits', ['minmax', '68.2%', '99.7%', '100%'])
+def test_count_1d_verify_against_numpy(ds_local, limits):
+    df = ds_local
+
+    expression = 'x'
+    selection = df.y > 10
+    shape = 4
+
+    # bin with vaex
+    xmin, xmax = df.limits(expression=expression, value=limits, selection=selection)
+    vaex_counts = df.count(binby=[expression], selection=selection, shape=shape, limits=limits)
+
+    # bin with numpy
+    x_values = df[selection][expression].values
+    numpy_counts, numpy_edges =  np.histogram(x_values, bins=shape, range=(xmin, xmax))
+
+    assert vaex_counts.tolist() == numpy_counts.tolist()
+
 
 
 # def test_count_edges():
