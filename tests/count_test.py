@@ -1,5 +1,6 @@
-import pytest
 from common import *
+
+import pytest
 
 
 def test_count_1d():
@@ -11,14 +12,16 @@ def test_count_1d():
     binned_values = ds.count(binby=ds.x, limits='95%', shape=16)
     assert len(binned_values) == 16
 
+
 def test_count_2d():
     ds = vaex.example()
     binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=['minmax', '95%'])
     assert list(binned_values.shape) == [32, 32]
     binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=None)
     assert list(binned_values.shape) == [32, 32]
-    binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=[[-50, 50],[-50, 50]])
+    binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=[[-50, 50], [-50, 50]])
     assert list(binned_values.shape) == [32, 32]
+
 
 @pytest.mark.parametrize('limits', ['minmax', '68.2%', '99.7%', '100%'])
 def test_count_1d_verify_against_numpy(ds_local, limits):
@@ -34,11 +37,9 @@ def test_count_1d_verify_against_numpy(ds_local, limits):
 
     # bin with numpy
     x_values = df[selection][expression].values
-    numpy_counts, numpy_edges =  np.histogram(x_values, bins=shape, range=(xmin, xmax))
+    numpy_counts, numpy_edges = np.histogram(x_values, bins=shape, range=(xmin, xmax))
 
     assert vaex_counts.tolist() == numpy_counts.tolist()
-
-
 
 # def test_count_edges():
 #     ds = vaex.from_arrays(x=[-2, -1, 0, 1, 2, 3, np.nan])
