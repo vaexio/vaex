@@ -79,10 +79,10 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
             last_progress = None
 
-            def progress(f, from_current_ioloop=False):
+            def progress(f):
                 nonlocal last_progress
 
-                def do():
+                def send_progress():
                     nonlocal last_progress
                     logger.debug("progress: %r", f)
                     last_progress = f
@@ -90,10 +90,8 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
                 # emit when it's the first time (None), at least 0.05 sec lasted, or and the end
                 # but never send old or same values
                 if (last_progress is None or (f - last_progress) > 0.05 or f == 1.0) and (last_progress is None or f > last_progress):
-                    if from_current_ioloop:
-                        return do()
-                    else:
-                        self.webserver.ioloop.add_callback(do)
+                    self.webserver.ioloop.add_callback(send_progress)
+                return True
 
             command = msg['command']
             if command == 'list':
@@ -111,7 +109,9 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
                     results = yield self.service.execute(df, tasks, progress=progress)
                 finally:
                     del self._msg_id_to_tasks[msg_id]
-                yield progress(1, from_current_ioloop=True)
+                # make sure the final progress value is send, and also old values are not send
+                last_progress = 1.0
+                self.write_json({'msg_id': msg_id, 'msg': {'progress': 1.0}})
                 encoding = Encoding()
                 results = encoding.encode_list('vaex-task-result', results)
                 self.write_json({'msg_id': msg_id, 'msg': {'result': results}}, encoding)
