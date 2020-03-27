@@ -243,6 +243,27 @@ class Expression(with_metaclass(Meta)):
             self._expression = value
             self._ast = None
 
+    def __bool__(self):
+        """Cast expression to boolean. Only supports (<expr1> == <expr2> and <expr1> != <expr2>)
+
+        The main use case for this is to support assigning to traitlets. e.g.:
+
+        >>> bool(expr1 == expr2)
+
+        This will return True when expr1 and expr2 are exactly the same (in string representation). And similarly for:
+
+        >>> bool(expr != expr2)
+
+        All other cases will return True.
+        """
+        # this is to make traitlets detect changes
+        import _ast
+        if isinstance(self.ast, _ast.Compare) and len(self.ast.ops) == 1 and isinstance(self.ast.ops[0], _ast.Eq):
+            return expresso.node_to_string(self.ast.left) == expresso.node_to_string(self.ast.comparators[0])
+        if isinstance(self.ast, _ast.Compare) and len(self.ast.ops) == 1 and isinstance(self.ast.ops[0], _ast.NotEq):
+            return expresso.node_to_string(self.ast.left) != expresso.node_to_string(self.ast.comparators[0])
+        return True
+
 
     @property
     def df(self):

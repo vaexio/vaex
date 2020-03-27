@@ -215,7 +215,7 @@ def test_join_duplicate_column():
     df = df_left.join(df_right, on='index')
     assert df.column_count() == 3
     assert set(df.column_names) == {'index', 'x', 'y'}
-    assert df['index'] == [1, 2, 3]
+    assert df['index'].tolist() == [1, 2, 3]
     assert df.x.tolist() == [10, 20, 30]
     assert df.y.tolist() == [0.1, 0.2, 0.3]
 
