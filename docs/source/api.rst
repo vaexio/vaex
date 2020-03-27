@@ -143,6 +143,48 @@ GraphQL operations
      :special-members:
 
 
+Jupyter widgets accessor
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.jupyter.DataFrameAccessorWidget
+     :members:
+     :special-members:
+
+
+vaex-jupyter
+------------
+
+.. automodule:: vaex.jupyter
+    :members: debounced, flush, interactive_selection
+    :undoc-members:
+    :show-inheritance:
+
+vaex.jupyter.model
+~~~~~~~~~~~~~~~~~~
+
+.. automodule:: vaex.jupyter.model
+    :members: 
+    :undoc-members:
+    :show-inheritance:
+
+vaex.jupyter.view
+~~~~~~~~~~~~~~~~~~
+
+.. automodule:: vaex.jupyter.view
+    :members: 
+    :undoc-members:
+    :show-inheritance:
+
+vaex.jupyter.widgets
+~~~~~~~~~~~~~~~~~~
+
+.. automodule:: vaex.jupyter.widgets
+    :members: 
+    :undoc-members:
+    :show-inheritance:
+
+
+
 
 .. .. Subpackages
 .. .. -----------

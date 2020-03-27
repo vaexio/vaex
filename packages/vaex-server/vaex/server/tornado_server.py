@@ -22,6 +22,7 @@ import sys
 
 from vaex.encoding import serialize, deserialize, Encoding
 import vaex.server.service
+import vaex.server.dataframe
 import vaex.core._version
 import vaex.server._version
 
@@ -147,7 +148,10 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
     def write_json(self, msg, encoding=None):
         encoding = encoding or Encoding()
         logger.debug("writing json: %r", msg)
-        return self.write_message(serialize(msg, encoding), binary=True)
+        try:
+            return self.write_message(serialize(msg, encoding), binary=True)
+        except:  # noqa
+            logger.exception('Failed to write: %s', msg)
 
     def on_close(self):
         logger.debug("WebSocket closed")
@@ -219,7 +223,7 @@ class WebServer(threading.Thread):
         self.started.wait()
         logger.debug("make tornado io loop the main thread's current")
         # this will make the main thread use this ioloop as current
-        self.ioloop.make_current()
+        # self.ioloop.make_current()
 
     def run(self):
         self.mainloop()
@@ -251,7 +255,7 @@ class WebServer(threading.Thread):
         logger.debug("stop server")
         self.server.stop()
         logger.debug("stop io loop")
-        self.ioloop.stop()
+        # self.ioloop.stop()
         self.service.stop()
         # for thread_pool in self.thread_pools:
         #     thread_pool.shutdown()

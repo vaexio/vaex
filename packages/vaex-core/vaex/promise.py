@@ -1,4 +1,5 @@
 __author__ = 'maartenbreddels'
+import asyncio
 import atexit
 import traceback
 import sys
@@ -133,7 +134,15 @@ class Promise(aplus.Promise):
             except:
                 print("Error in unhandled handler")
                 traceback.print_exc()
-        self.done(None, failure)
+        return self.then(None, failure)
 
+
+    def __await__(self):
+        return self._run().__await__()
+
+    async def _run(self):
+        future = asyncio.Future()
+        self.then(future.set_result, future.set_exception)
+        return await future
 
 aplus.Promise = Promise

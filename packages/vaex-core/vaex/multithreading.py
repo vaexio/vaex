@@ -32,6 +32,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         self.thread_indices = iter(range(1000000))  # enough threads until 2100?
         self.local = threading.local()
         self.nthreads = self._max_workers
+        self._debug_sleep = 0
 
     def map(self, callable, iterator, on_error=None, progress=None, cancel=None, unpack=False, **kwargs_extra):
         progress = progress or (lambda x: True)
@@ -44,6 +45,9 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                         self.local.index = next(self.thread_indices)
                 if unpack:
                     args = args[0]  # it's passed as a tuple.. not sure why
+                if self._debug_sleep:
+                    # print("SLEEP", self._debug_sleep)
+                    time.sleep(self._debug_sleep)
                 callable(self.local.index, *args, **kwargs, **kwargs_extra)
         # convert to list so we can count
         values = list(iterator)
