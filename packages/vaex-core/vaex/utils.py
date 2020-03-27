@@ -946,3 +946,15 @@ def required_dtype_for_max(N, signed=True):
             return dtype
     else:
         raise ValueError(f'Cannot store a max value on {N} inside an uint64/int64')
+
+
+def print_stack_trace(*args, **kwargs):
+    import traceback
+    print("args: ", args, kwargs)
+    traceback.print_stack()
+
+
+def print_exception_trace(e):
+    import traceback
+    import sys
+    print(''.join(traceback.format_exception(None, e, e.__traceback__)), file=sys.stdout, flush=True)

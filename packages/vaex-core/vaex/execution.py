@@ -162,9 +162,10 @@ class ExecutorLocal(Executor):
                             logger.debug("wait for task: %r", task)
                             task._result = parts[0].get_result()
                             logger.debug("got result for: %r", task)
+                            task.end()
                             task.fulfill(task._result)
                         else:
-                            task.reject(UserAbort("cancelled"))
+                            task.reject(UserAbort("Task was cancelled"))
                             # remove references
                         task._result = None
                         task._results = None

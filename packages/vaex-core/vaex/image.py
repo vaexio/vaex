@@ -17,7 +17,7 @@ from base64 import b64encode
 def rgba_2_pil(rgba):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        im = PIL.Image.frombuffer("RGBA", rgba.shape[:2], rgba, 'raw')  # , "RGBA", 0, -1)
+        im = PIL.Image.fromarray(rgba[::-1], "RGBA")  # , "RGBA", 0, -1)
     return im
 
 
@@ -110,7 +110,7 @@ def blend(image_list, blend_mode="multiply"):
             with np.errstate(divide='ignore', invalid='ignore'):  # these are fine, we are ok with nan's in vaex
                 result = (np.minimum(aA, 1 - aB) * xA + aB * xB) / aR
             # print(result)
-            rgba_dest[:, :, c][[mask]] = np.clip(result[[mask]], 0, 1)
+            rgba_dest[:, :, c][(mask, )] = np.clip(result[(mask,)], 0, 1)
         rgba_dest[:, :, 3] = np.clip(aR, 0., 1)
     rgba = rgba_dest
     if bit8:

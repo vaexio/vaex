@@ -7,11 +7,12 @@ import uuid
 import tornado.websocket
 
 import vaex
+import asyncio
 from vaex.utils import wrap_future_with_promise
 from vaex.server import client
 from .executor import Executor
 
-logger = logging.getLogger("vaex.server.tornado")
+logger = logging.getLogger("vaex.server.tornado_client")
 
 
 class Client(client.Client):
@@ -25,7 +26,7 @@ class Client(client.Client):
         self.token_trusted = token_trusted
         # if delay:
         event = threading.Event()
-        self.thread_mover = thread_mover or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
+        self.thread_mover = thread_mover  # or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
         logger.debug("thread mover: %r", self.thread_mover)
 
         # jobs maps from uid to tasks
@@ -42,7 +43,10 @@ class Client(client.Client):
             self.io_loop.close()
             logger.debug("stopped tornado io_loop")
 
-        io_loop = tornado.ioloop.IOLoop.current(instance=False)
+        # self.main_io_loop = tornado.ioloop.IOLoop.current(instance=False)
+        self.event_loop_main = asyncio.get_event_loop()
+        if self.event_loop_main is None:
+            raise RuntimeError('The client cannot work without a running event loop')
         if True:  # io_loop:# is None:
             logger.debug("no current io loop, starting it in thread")
             self.thread = threading.Thread(target=ioloop_threaded)
@@ -53,7 +57,7 @@ class Client(client.Client):
             logger.debug("using current io loop")
             self.io_loop = io_loop
 
-        self.io_loop.make_current()
+        # self.io_loop.make_current()
 
         self.executor = Executor(self)
         logger.debug("connect")
@@ -92,7 +96,10 @@ class ClientWebsocket(Client):
         else:
             self.io_loop.add_callback(do)  # make sure it gets executed from the right thread
         if wait_for_reply:
+            # print("wait for reply to", msg_id, msg)
+            # vaex.utils.print_stack_trace()
             reply_msg, reply_encoding = self.msg_reply_promises[msg_id].get()
+            # print("reply", msg_id, reply_msg['result'])
             return reply_msg['result'], reply_encoding
 
     def close(self):
@@ -127,7 +134,12 @@ class ClientWebsocket(Client):
             msg_id, msg = websocket_msg['msg_id'], websocket_msg['msg']
             if 'progress' in msg:
                 fraction = msg['progress']
-                self._progress(fraction, msg_id)
+
+                def do():
+                    print("fraction", fraction)
+                    self._progress(fraction, msg_id)
+                # self.event_loop_main.call_soon_threadsafe(do)
+                self.thread_mover(do)
             elif 'error' in msg:
                 exception = RuntimeError("error at server: %r" % msg)
                 self.msg_reply_promises[msg_id].reject(exception)

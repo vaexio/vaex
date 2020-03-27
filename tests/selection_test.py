@@ -195,3 +195,13 @@ def test_lasso(df):
     sumx, sumy = df.sum(['m', 'y'], selection=True)
     np.testing.assert_array_almost_equal(sumx, 8)
     np.testing.assert_array_almost_equal(sumy, 8**2)
+
+
+def test_selection_event_calls(df):
+    counts = 0
+    @df.signal_selection_changed.connect
+    def update(df, name):
+        nonlocal counts
+        counts += 1
+    df.select(df.x > 3, name='bla')
+    assert counts == 1

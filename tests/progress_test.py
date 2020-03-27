@@ -51,8 +51,11 @@ def test_cancel(df):
 # @pytest.mark.timeout(1)
 def test_cancel_huge(client):
     df = client['huge']
-
+    import threading
+    main_thread = threading.current_thread()
     def progress(f):
-        return False
+        assert threading.current_thread() == main_thread
+        return f > 0.01
     with pytest.raises(vaex.execution.UserAbort):
         assert df.x.min(progress=progress) is None
+    assert df.x.min() is not None
