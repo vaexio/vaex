@@ -1,5 +1,8 @@
-import vaex
 import numpy as np
+
+import pandas as pd
+
+import vaex
 
 
 def test_isin():
@@ -17,3 +20,15 @@ def test_isin():
     assert df.w.isin([2, None]) == [True, False, True]
     assert df.m.isin([1, 2, 3]) == [False, False, True]
     assert df.n.isin([2, np.nan]) == [False, True, False]
+
+
+def test_isin_pandas_object():
+    df_pandas = pd.DataFrame({'x': np.array(['a', 'b', 'c']),
+                              'y': np.array([1, 2, 3], dtype='O')})
+    df_vaex = vaex.from_pandas(df_pandas, copy_index=False)
+
+    expr_x = df_vaex.x.isin(['a'])
+    expr_y = df_vaex.y.isin([2])
+
+    assert expr_x.tolist() == [True, False, False]
+    assert expr_y.tolist() == [False, True, False]
