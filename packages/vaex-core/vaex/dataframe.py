@@ -3655,9 +3655,13 @@ class DataFrame(object):
         # currenly disabled
         return False
 
-    def column_count(self):
-        """Returns the number of columns (including virtual columns)."""
-        return len(self.get_column_names())
+    def column_count(self, hidden=False):
+        """Returns the number of columns (including virtual columns).
+
+        :param bool hidden: If True, include hidden columns in the tally
+        :returns: Number of columns in the DataFrame
+        """
+        return len(self.get_column_names(hidden=hidden))
 
     def get_names(self, hidden=False):
         """Return a list of column names and variable names."""
