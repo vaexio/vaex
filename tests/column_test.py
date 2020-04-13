@@ -80,7 +80,14 @@ def test_column_count():
     df = vaex.from_arrays(x=x)
 
     df['new_x'] = df.x + 1
-    df['new_x'] = df['new_x'].fillna(value=0)
 
     assert df.column_count() == 2
-    assert df.new_x.tolist() == [2, 3, 0]
+
+    # Overwriting a column will rename a column to a hidden column
+    df['new_x'] = df['new_x'].fillna(value=0)
+
+    # By default we do not count hidden columns
+    assert df.column_count() == 2
+
+    # We can count hidden columns if explicity specified
+    assert df.column_count(hidden=True) == 3
