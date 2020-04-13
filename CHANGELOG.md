@@ -10,6 +10,7 @@
    * Performance
        * Printing out of dataframes done in 1 evaluate call, making remote dataframe printing faster. [#571](https://github.com/vaexio/vaex/pull/557)
        * Joining is faster and uses less memory (2x speedup measured) [#586](https://github.com/vaexio/vaex/pull/586)
+       * Faster typechecks when adding columns of dtype=object (as often happens when coming from pandas) [#612](https://github.com/vaexio/vaex/pull/612)
    * Refactor
       * Task system is refactored, with task execution on CPU being default, and makes (de)serialization easier. [#571](https://github.com/vaexio/vaex/pull/557)
       * Serialization/encoding of data structures is more flexible, allowing binary blobs and json over the wire. [#571](https://github.com/vaexio/vaex/pull/557)
@@ -24,6 +25,9 @@
       * Give proper NameError when using non-existing column names [#299](https://github.com/vaexio/vaex/pull/299)
       * Several fixes for concatenated dataframes.  [#590](https://github.com/vaexio/vaex/pull/590)
       * dropna/nan/missing only dropped rows when all column values were missing, if no columns were specified. [#600](https://github.com/vaexio/vaex/pull/600)
+      * Flaky test for RobustScaler skipped for p36 [#614](https://github.com/vaexio/vaex/pull/614)
+      * Copying/printing sparse matrices [#615](https://github.com/vaexio/vaex/pull/615)
+      * Fix the links to the example datasets. [#609](https://github.com/vaexio/vaex/pull/609)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
       * df.to_arrow_table/to_pandas_df/to_items now take a chunk_size argument for chunked iterators [#589](https://github.com/vaexio/vaex/pull/589)

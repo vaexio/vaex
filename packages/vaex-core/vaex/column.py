@@ -36,7 +36,7 @@ class ColumnVirtualRange(Column):
         return ColumnVirtualRange(self.start + i1 * self.step, self.start + i2 * self.step, self.step, self.dtype)
 
 
-class ColumnSparse(object):
+class ColumnSparse(Column):
     def __init__(self, matrix, column_index):
         self.matrix = matrix
         self.column_index = column_index

@@ -40,7 +40,7 @@ class Hdf5Download(object):
                 print("wget failed, using urlretrieve")
                 self.download_urlretrieve()
 
-    def download_urlretrieve(self, ):
+    def download_urlretrieve(self):
         urlretrieve(self.url, self.filename)
 
     def fetch(self, force_download=False):
@@ -89,7 +89,7 @@ class NYCTaxi(object):
         url = self.url_list[i]
         return "wget -c -P %s %s" % (os.path.join(data_dir, self.subdir), url)
 
-    def download_urlretrieve(self, ):
+    def download_urlretrieve(self, i):
         urlretrieve(self.url_list[i], self.filenames[i])
 
     def download(self, force=False):
@@ -120,10 +120,10 @@ class NYCTaxi(object):
                     if skip in df:
                         del df["store_and_fwd_flag"]
                 ds = vx.from_pandas(df)
-                ds.add_virtual_column("pickup_hour", "hourofday(tpep_pickup_datetime)")
-                ds.add_virtual_column("dropoff_hour", "hourofday(tpep_dropoff_datetime)")
-                ds.add_virtual_column("pickup_dayofweek", "dayofweek(tpep_pickup_datetime)")
-                ds.add_virtual_column("dropoff_dayofweek", "dayofweek(tpep_dropoff_datetime)")
+                ds.add_virtual_column("pickup_hour", "dt_hour(tpep_pickup_datetime)")
+                ds.add_virtual_column("dropoff_hour", "dt_hour(tpep_dropoff_datetime)")
+                ds.add_virtual_column("pickup_dayofweek", "dt_dayofweek(tpep_pickup_datetime)")
+                ds.add_virtual_column("dropoff_dayofweek", "dt_dayofweek(tpep_dropoff_datetime)")
                 ds.select("(pickup_longitude != 0) & (pickup_latitude != 0) & (dropoff_longitude != 0) & (dropoff_latitude != 0)")
                 ds.export_hdf5(output, virtual=True, selection=True)
 
@@ -249,7 +249,7 @@ nyctaxi_yellow_2015_jan = NYCTaxi("nyc_taxi2015jan", [urllist[-12]])
 nyctaxi_yellow_2015 = NYCTaxi("nyc_taxi2015", urllist[-12:])
 nyctaxi_yellow_201x = NYCTaxi("nyc_taxi_all", [url for url in urllist if "yellow" in url and "201" in url])
 
-helmi_de_zeeuw = Hdf5Download("http://vaex.astro.rug.nl/data/helmi-dezeeuw-2000-FeH.hdf5")
-helmi_de_zeeuw_10percent = Hdf5Download("http://vaex.astro.rug.nl/data/helmi-dezeeuw-2000-10p.hdf5")
-tgas = Hdf5Download("http://vaex.astro.rug.nl/data/tgas.hdf5")
-tgas_1percent = Hdf5Download("http://vaex.astro.rug.nl/data/tgas_1percent.hdf5")
+helmi_de_zeeuw = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/helmi-dezeeuw-2000-FeH-v2.hdf5")
+helmi_de_zeeuw_10percent = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5")
+tgas = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas.hdf5")
+tgas_1percent = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas_1percent.hdf5")

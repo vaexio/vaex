@@ -1,5 +1,6 @@
 import vaex.misc.progressbar
 import pytest
+from unittest.mock import MagicMock
 from common import *
 
 def test_progress_bar():
@@ -38,10 +39,13 @@ def test_progress_calls(df):
 
 
 def test_cancel(df):
+    magic = MagicMock()
+    df.executor.signal_cancel.connect(magic)
     def progress(f):
         return False
     with pytest.raises(vaex.execution.UserAbort):
         assert df.x.min(progress=progress) is None
+    magic.assert_called_once()
 
 
 # @pytest.mark.timeout(1)

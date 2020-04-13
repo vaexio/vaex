@@ -62,6 +62,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                 time_last = time_now
                 if progress(progress_value) == False:
                     cancelled = True
+                    cancel()
             yield value
 
     def _map(self, callable, iterator):
