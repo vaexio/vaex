@@ -93,3 +93,13 @@ def test_dropna():
     assert m == [0]
     assert (df.s.dropna().tolist() == ["aap", "noot", "mies"])
     assert (df.o.dropna().tolist() == ["aap", "noot"])
+
+
+def test_dropna_all_columns():
+    x = [1, 2, 3, 4, 5]
+    y = ['dog', 'dog', None, 'cat', None]
+    df = vaex.from_arrays(x=x, y=y)
+
+    df_dropped = df.dropna()
+    assert df_dropped.x.tolist() == [1, 2, 4]
+    assert df_dropped.y.tolist() == ['dog', 'dog', 'cat']

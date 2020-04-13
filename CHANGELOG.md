@@ -24,6 +24,7 @@
       * Do no fail printing out dataframe with 0 rows [#582](https://github.com/vaexio/vaex/pull/582)
       * Give proper NameError when using non-existing column names [#299](https://github.com/vaexio/vaex/pull/299)
       * Several fixes for concatenated dataframes.  [#590](https://github.com/vaexio/vaex/pull/590)
+      * dropna/nan/missing only dropped rows when all column values were missing, if no columns were specified. [#600](https://github.com/vaexio/vaex/pull/600)
       * Flaky test for RobustScaler skipped for p36 [#614](https://github.com/vaexio/vaex/pull/614)
       * Copying/printing sparse matrices [#615](https://github.com/vaexio/vaex/pull/615)
       * Fix the links to the example datasets. [#609](https://github.com/vaexio/vaex/pull/609)
