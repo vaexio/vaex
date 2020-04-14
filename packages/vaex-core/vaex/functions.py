@@ -2117,6 +2117,11 @@ def _isin(x, values):
         x = vaex.column._to_string_column(x)
         return x.string_sequence.isin(values)
     else:
+        # TODO: this happens when a column is of dtype=object
+        # but only strings, the values gets converted to a superstring array
+        # but numpy doesn't know what to do with that
+        if hasattr(values, 'to_numpy'):
+            values = values.to_numpy()
         return np.isin(x, values)
 
 
