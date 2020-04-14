@@ -1,0 +1,44 @@
+name: Run and publish benchmarks
+
+on:
+  schedule:
+  - cron: "0 0/4 * * *"
+  # just to try this out for now
+  pull_request:
+    branches:
+    - master
+jobs:
+  build:
+    runs-on: self-hosted
+    strategy:
+      max-parallel: 1
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Checkout previous results from gh-pages branch
+      shell: bash
+      # copy results from gh-pages/benchmarks/results/**.json to master/.asv/results/**.json
+      run: |
+        rm -rf .asv/results .asv/html
+        git fetch origin gh-pages:gh-pages
+        (git checkout origin/gh-pages -- benchmarks/results/ && git reset -- benchmarks/results/) || (mkdir -p benchmarks/results/)
+        mv benchmarks/results/ .asv/
+    - name: Run Airspeed Velocity
+      shell: bash
+      run: |
+        which asv
+        asv run
+        asv publish
+    - name: Copy the results go the gh-pages branch and push them
+      shell: bash
+      # copy results to gh-pages/benchmarks/results/**.json and HTML to gh-pages/benchmarks/index.html
+      run: |
+        git checkout -f gh-pages
+        cp -rf .asv/results benchmarks/
+        cp -rf .asv/html/* benchmarks/
+        git add benchmarks
+        git commit -m 'Commit benchmark results'
+        git push
+        git checkout -
