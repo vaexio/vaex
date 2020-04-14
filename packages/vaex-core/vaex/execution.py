@@ -1,32 +1,16 @@
 from __future__ import division, print_function
-import functools
 import vaex.vaexfast
-import numpy as np
-from vaex.utils import Timer
 import vaex.events
-from . import multithreading
 import time
-import math
-# import vaex.ui.expressions as expr
-from functools import reduce
 import threading
-import queue
-import math
 import multiprocessing
-import sys
-import collections
 import vaex.multithreading
 import logging
 import vaex.cpu  # force registration of task-part-cpu
 
-__author__ = 'breddels'
 
 buffer_size_default = 1024 * 1024  # TODO: this should not be fixed, larger means faster but also large memory usage
-# buffer_size_default = 1e4
-
 logger = logging.getLogger("vaex.execution")
-
-
 thread_count_default = multiprocessing.cpu_count()
 
 
