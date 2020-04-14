@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "project": "vaex",
+  "project_url": "https://vaex.io/",
+  "repo": ".",
+  "environment_type": "conda",
+  "show_commit_url": "http://github.com/vaexio/vaex/commit/",
+  "env_dir": ".asv/env",
+  "results_dir": ".asv/results",
+  "html_dir": ".asv/html",
+  "conda_channels": [
+    "conda-forge",
+    "defaults"
+  ],
+  "pythons": [
+    "3.7"
+  ],
+  "matrix": {
+    "setuptools": [
+      "42.0.2"
+    ],
+    "certifi": [
+      "2019.6.16"
+    ],
+    "pip": [],
+    "numpy": [],
+    "scipy": [],
+    "pyqt": [],
+    "matplotlib": [],
+    "pyopengl": [],
+    "h5py": [],
+    "numexpr": [],
+    "astropy": [],
+    "tornado": [],
+    "cython": [],
+    "runipy": [],
+    "pandas": [],
+    "pytest": [],
+    "numba": [],
+    "pyarrow": [
+      "0.15.1"
+    ],
+    "graphviz": [],
+    "python-graphviz": [],
+    "pcre": [],
+    "catboost": [],
+    "libcxx": [
+      "9.0.0"
+    ],
+    "notebook": [],
+    "scikit-learn": [],
+    "lightgbm": [],
+    "py-xgboost": [],
+    "bqplot": [
+      "0.12.6"
+    ],
+    "ipyleaflet": [
+      "0.12.3"
+    ],
+    "ipympl": [
+      "0.5.6"
+    ],
+    "ipyvolume": [
+      "0.5.2"
+    ],
+    "graphene": [
+      "2.1.8"
+    ],
+    "graphene-tornado": [
+      "2.6.1"
+    ],
+    "pip+python-dateutil": [
+      "2.8.0"
+    ],
+    "pip+aplus": [],
+    "pip+futures": [
+      "3.1.1"
+    ],
+    "pip+future": [
+      "0.18.2"
+    ],
+    "pip+pyyaml": [],
+    "pip+cachetools": [],
+    "pip+progressbar2": [],
+    "pip+psutil": [
+      "5.6.7"
+    ],
+    "pip+pillow": [],
+    "pip+requests": [],
+    "pip+s3fs": [
+      "0.2.2"
+    ],
+    "pip+ipyvuetify": []
+  },
+  "install_timeout": 1800,
+  "install_command": [
+    "in-dir={env_dir} python -mpip install {wheel_file}",
+    "in-dir={env_dir} pip install {build_dir} --verbose"
+  ],
+  "build_command": [
+    "in-dir={build_dir}/packages/vaex-core python setup.py build",
+    "PIP_NO_BUILD_ISOLATION=false python -mpip wheel --no-deps --no-index -w {build_cache_dir} {build_dir}/packages/vaex-core"
+  ],
+  "build_cache_size": 5
+}
