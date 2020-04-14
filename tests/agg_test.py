@@ -430,3 +430,7 @@ def test_format_xarray(df_local):
     df.categorize(df.g, ['aap', 'noot', 'mies'])
     count = df.count(binby='g', format='xarray')
     assert count.coords['g'].data.tolist() == ['aap', 'noot', 'mies']
+
+    count = df.sum([df.x, df.g], binby='g', format='xarray')
+    assert count.coords['expression'].data.tolist() == ['x', 'g']
+    assert count.coords['g'].data.tolist() == ['aap', 'noot', 'mies']

@@ -600,7 +600,7 @@ class DataFrame(object):
         expression = _ensure_strings_from_expressions(expression)
         if extra_expressions:
             extra_expressions = _ensure_strings_from_expressions(extra_expressions)
-        expression_waslist, [expressions,] = vaex.utils.listify(expression)
+        expression_waslist, [expressions, ] = vaex.utils.listify(expression)
         for expression in expressions:
             if expression and expression != "*":
                 self.validate_expression(expression)
@@ -644,33 +644,39 @@ class DataFrame(object):
                 progressbar.add_task(task, "%s for %s" % (name, expression))
                 @delayed
                 def finish(counts):
-                    counts = np.asarray(counts)
-                    if format == 'xarray':
-                        binners = grid.binners
-                        dims = [binner.expression for binner in binners]
-
-                        def to_coord(binner):
-                            name = type(binner).__name__
-                            if name.startswith('BinnerOrdinal_'):
-                                return self.category_labels(binner.expression)
-                            elif name.startswith('BinnerScalar_'):
-                                return self.bin_centers(binner.expression, [binner.vmin, binner.vmax], binner.bins)
-                        coords = [to_coord(binner) for binner in binners]
-                        import xarray
-                        return xarray.DataArray(counts, dims=dims, coords=coords)
-                    elif format in [None, 'numpy']:
-                        return counts
-                    else:
-                        raise RuntimeError(f'Unknown format {format}')
+                    return np.asarray(counts)
                 return finish(agg_subtask)
             finally:
                 self.local._aggregator_nest_count -= 1
         @delayed
-        def finish(*counts):
-            return vaex.utils.unlistify(expression_waslist, counts)
+        def finish(grid, *counts):
+            if format == 'xarray':
+                binners = grid.binners
+                dims = [binner.expression for binner in binners]
+                if expression_waslist:
+                    dims = ['expression'] + dims
+
+                def to_coord(binner):
+                    name = type(binner).__name__
+                    if name.startswith('BinnerOrdinal_'):
+                        return self.category_labels(binner.expression)
+                    elif name.startswith('BinnerScalar_'):
+                        return self.bin_centers(binner.expression, [binner.vmin, binner.vmax], binner.bins)
+                coords = [to_coord(binner) for binner in binners]
+                if expression_waslist:
+                    coords = [expressions] + coords
+                    counts = np.asarray(counts)
+                else:
+                    counts = counts[0]
+                import xarray
+                return xarray.DataArray(counts, dims=dims, coords=coords)
+            elif format in [None, 'numpy']:
+                return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
+            else:
+                raise RuntimeError(f'Unknown format {format}')
         progressbar = vaex.utils.progressbars(progress)
         stats = [compute(expression, grid, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
-        var = finish(*stats)
+        var = finish(grid, *stats)
         return self._delay(delay, var)
 
     @docsubst
@@ -841,7 +847,7 @@ class DataFrame(object):
         :param format: {format}
         :return: {return_stat_scalar}
         """
-        return self._compute_agg('sum', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('sum', expression, binby, limits, shape, selection, delay, edges, progress, format=format)
         @delayed
         def finish(*sums):
             return vaex.utils.unlistify(waslist, sums)
@@ -878,10 +884,7 @@ class DataFrame(object):
         """
         @delayed
         def finish(var):
-            if isinstance(var, (list, tuple)):
-                return [k**0.5 for k in var]
-            else:
-                return var**0.5
+            return var**0.5
         return self._delay(delay, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)))
 
     @docsubst
