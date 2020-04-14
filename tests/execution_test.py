@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 import vaex
 
+
 def test_signals(df):
     mock_begin = MagicMock()
     mock_progress = MagicMock()
