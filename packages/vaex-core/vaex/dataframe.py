@@ -91,7 +91,7 @@ from vaex.execution import Executor
 def get_main_executor():
     global main_executor
     if main_executor is None:
-        main_executor = vaex.execution.Executor(vaex.multithreading.get_main_pool())
+        main_executor = vaex.execution.ExecutorLocal(vaex.multithreading.get_main_pool())
     return main_executor
 
 
@@ -218,8 +218,10 @@ class DataFrame(object):
         # weak refs of expression that we keep to rewrite expressions
         self._expressions = []
 
+        self.local = threading.local()
         # a check to avoid nested aggregator calls, which make stack traces very difficult
-        self._aggregator_nest_count = 0
+        # like the ExecutorLocal.local.executing, this needs to be thread local
+        self.local._aggregator_nest_count = 0
 
         self._task_aggs = {}
         self._binners = {}
@@ -298,10 +300,8 @@ class DataFrame(object):
 
     def execute(self):
         '''Execute all delayed jobs.'''
-        try:
-            self.executor.execute()
-        finally:
-            self._task_aggs.clear()
+        # no need to clear _task_aggs anymore, since they will be removed for the executors' task list
+        self.executor.execute()
 
     @property
     def filtered(self):
@@ -594,57 +594,6 @@ class DataFrame(object):
         print(bins, value, index)
         return index
 
-    @delayed
-    def _old_count_calculation(self, expression, binby, limits, shape, selection, edges, progressbar):
-        if shape:
-            limits, shapes = limits
-        else:
-            limits, shapes = limits, shape
-        # print(limits, shapes)
-        if expression in ["*", None]:
-            task = tasks.TaskStatistic(self, binby, shapes, limits, op=tasks.OP_ADD1, selection=selection, edges=edges)
-        else:
-            task = tasks.TaskStatistic(self, binby, shapes, limits, weight=expression, op=tasks.OP_COUNT, selection=selection, edges=edges)
-        self.executor.schedule(task)
-        progressbar.add_task(task, "count for %s" % expression)
-        @delayed
-        def finish(counts):
-            counts = np.array(counts)
-            counts = counts[..., 0]
-            return counts
-        return finish(task)
-
-    @docsubst
-    def _old_count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
-        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
-        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
-        expression = _ensure_string_from_expression(expression)
-        binby = _ensure_strings_from_expressions(binby)
-        waslist, [expressions,] = vaex.utils.listify(expression)
-        @delayed
-        def finish(*counts):
-           return vaex.utils.unlistify(waslist, counts)
-        progressbar = vaex.utils.progressbars(progress)
-        limits = self.limits(binby, limits, delay=True, shape=shape)
-        stats = [self._old_count_calculation(expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
-        var = finish(*stats)
-        return self._delay(delay, var)
-
-    @delayed
-    def _count_calculation(self, expression, grid, selection, edges, progressbar):
-        if expression in ["*", None]:
-            agg = vaex.agg.count(selection=selection, edges=edges)
-        else:
-            agg = vaex.agg.count(expression, selection=selection, edges=edges)
-        task = self._get_task_agg(grid)
-        agg_subtask = task.add_aggregation_operation(agg)
-        progressbar.add_task(task, "count for %s" % expression)
-        @delayed
-        def finish(counts):
-            counts = np.asarray(counts)
-            return counts
-        return finish(agg_subtask)
-
     def _compute_agg(self, name, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, extra_expressions=None):
         logger.debug("aggregate %s(%r, binby=%r, limits=%r)", name, expression, binby, limits)
         expression = _ensure_strings_from_expressions(expression)
@@ -654,7 +603,9 @@ class DataFrame(object):
         for expression in expressions:
             if expression and expression != "*":
                 self.validate_expression(expression)
-        assert self._aggregator_nest_count == 0, "detected nested aggregator call"
+        if not hasattr(self.local, '_aggregator_nest_count'):
+            self.local._aggregator_nest_count = 0
+        assert self.local._aggregator_nest_count == 0, "detected nested aggregator call"
         # Instead of 'expression is not None', we would like to have 'not virtual'
         # but in agg.py we do some casting, which results in calling .dtype(..) with a non-column
         # expression even though all expressions passed here are column references
@@ -673,7 +624,7 @@ class DataFrame(object):
         grid = self._create_grid(binby, limits, shape, delay=True)
         @delayed
         def compute(expression, grid, selection, edges, progressbar):
-            self._aggregator_nest_count += 1
+            self.local._aggregator_nest_count += 1
             try:
                 if expression in ["*", None]:
                     agg = vaex.agg.aggregates[name](selection=selection, edges=edges)
@@ -682,8 +633,13 @@ class DataFrame(object):
                         agg = vaex.agg.aggregates[name](expression, *extra_expressions, selection=selection, edges=edges)
                     else:
                         agg = vaex.agg.aggregates[name](expression, selection=selection, edges=edges)
-                task = self._get_task_agg(grid)
+                task, new_task = self._get_task_agg(grid)
                 agg_subtask = agg.add_operations(task)
+                if new_task:
+                    # it is important we schedule the task after we add an operation
+                    # otherwise the task will fail to executor (has to have >= 1 operation)
+                    self.executor.schedule(task)
+
                 progressbar.add_task(task, "%s for %s" % (name, expression))
                 @delayed
                 def finish(counts):
@@ -691,7 +647,7 @@ class DataFrame(object):
                     return counts
                 return finish(agg_subtask)
             finally:
-                self._aggregator_nest_count -= 1
+                self.local._aggregator_nest_count -= 1
         @delayed
         def finish(*counts):
             return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
@@ -4731,10 +4687,14 @@ class DataFrame(object):
 
 
     def _get_task_agg(self, grid):
-        if grid not in self._task_aggs:
-            self._task_aggs[grid] = task = vaex.tasks.TaskAggregations(self, grid)
-            self.executor.schedule(task)
-        return self._task_aggs[grid]
+        new_task = False
+        with self.executor.lock:
+            # if we did not create a task yet for this grid, or it was already scheduled for execution
+            if grid not in self._task_aggs or self._task_aggs[grid] not in self.executor.tasks:
+                # we create a new one
+                self._task_aggs[grid] = vaex.tasks.TaskAggregations(self, grid)
+                new_task = True
+        return self._task_aggs[grid], new_task
 
     @docsubst
     @stat_1d
@@ -4746,8 +4706,10 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}
         """
-        task_agg = self._get_task_agg(grid)
+        task_agg, new_task = self._get_task_agg(grid)
         sub_task = aggregator.add_operations(task_agg)
+        if new_task:
+            self.executor.schedule(task_agg)
         return self._delay(delay, sub_task)
 
     def _binner(self, expression, limits=None, shape=None, delay=False):

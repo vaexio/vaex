@@ -1,31 +1,26 @@
 import vaex.events
+import vaex.execution
 
 
-class Executor:
+class Executor(vaex.execution.Executor):
     def __init__(self, client):
+        super().__init__()
         self.client = client
-        self.tasks = []
-        self.signal_begin = vaex.events.Signal("begin")
-        self.signal_progress = vaex.events.Signal("progress")
-        self.signal_end = vaex.events.Signal("end")
-        self.signal_cancel = vaex.events.Signal("cancel")
         self.remote_calls = 0  # how many times did we call the server
-
-    def schedule(self, task):
-        self.tasks.append(task)
 
     def _rmi(self, df, methodname, args, kwargs):
         # TODO: turn evaluate into a task
         return self.client._rmi(df, methodname, args, kwargs)
 
     def execute(self):
-        tasks = list(self.tasks)
         try:
             self.signal_begin.emit()
-            dfs = set(task.df for task in tasks)
-            for df in dfs:
-                tasks_df = [task for task in tasks if task.df is df]
-                # chain it to the first task
+            cancelled = False
+            while not cancelled:
+                tasks_df = self.local.tasks = self._pop_tasks()
+                if not tasks_df:
+                    break
+                df = tasks_df[0].df
                 tasks_df[0].signal_progress.connect(self.signal_progress.emit)
                 for task in tasks_df:
                     task.signal_progress.emit(0)
