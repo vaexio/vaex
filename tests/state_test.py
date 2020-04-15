@@ -39,19 +39,12 @@ def test_state_variables(ds_local, tmpdir):
     assert df_copy.variables['dt_var'] == t_test
 
 
-def test_state_virtual_fillna():
-    x_train = np.array([np.nan, 1, 20, 50])
-    x_test = np.array([5, np.nan, np.nan, 20])
+def test_state_transfer_reassign(df):
+    df_original = df.copy()
 
-    df_train = vaex.from_arrays(x=x_train)
-    df_test = vaex.from_arrays(x=x_test)
-
-    # Create a virtual column and then force rename by doing fillna
-    df_train['new_x'] = df_train.x + 1
-    df_train['new_x'] = df_train.new_x.fillna(value=0)
+    df['new_x'] = df.x + 1
+    df['new_x'] = df.x + 1
 
     # State transfer
-    df_test.state_set(df_train.state_get())
-    assert df_train.shape == (4, 2)
-    assert df_test.shape == (4, 2)
-    assert df_test.new_x.tolist() == [6, 0, 0, 21]
+    df_original.state_set(df.state_get())
+    assert df_original.new_x.tolist() == df.new_x.tolist()
