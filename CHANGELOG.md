@@ -33,7 +33,7 @@
       * df.to_arrow_table/to_pandas_df/to_items now take a chunk_size argument for chunked iterators [#589](https://github.com/vaexio/vaex/pull/589)
       * Filtered datasets can be concatenated. [#590](https://github.com/vaexio/vaex/pull/590)
       * DataFrames/Executors are thread safe (meaning you can schedule/compute from any thread), which makes it work out of the box for Dash and Flask [#670](https://github.com/vaexio/vaex/pull/670)
-      * df.count/mean/std etc can output in xarray.DataArray format, makes plotting easier [#671](https://github.com/vaexio/vaex/pull/671)
+      * df.count/mean/std etc can output in xarray.DataArray array type, makes plotting easier [#671](https://github.com/vaexio/vaex/pull/671)
 
 # vaex-server 0.3.0-dev
    * Refactored server, can return multiple binary blobs, execute multiple tasks, cancel tasks, encoding/serialization is more flexible (like returning masked arrays). [#571](https://github.com/vaexio/vaex/pull/557)

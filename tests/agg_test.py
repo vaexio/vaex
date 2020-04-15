@@ -422,15 +422,15 @@ def test_mutual_information(df_local):
 
 def test_format_xarray(df_local):
     df = df_local
-    count = df.count(binby='x', limits=[-0.5, 9.5], shape=5, format='xarray')
+    count = df.count(binby='x', limits=[-0.5, 9.5], shape=5, array_type='xarray')
     assert count.coords['x'].data.tolist() == [0.5, 2.5, 4.5, 6.5, 8.5]
 
     df = df[:3]
     df['g'] = df.x
     df.categorize(df.g, ['aap', 'noot', 'mies'])
-    count = df.count(binby='g', format='xarray')
+    count = df.count(binby='g', array_type='xarray')
     assert count.coords['g'].data.tolist() == ['aap', 'noot', 'mies']
 
-    count = df.sum([df.x, df.g], binby='g', format='xarray')
+    count = df.sum([df.x, df.g], binby='g', array_type='xarray')
     assert count.coords['expression'].data.tolist() == ['x', 'g']
     assert count.coords['g'].data.tolist() == ['aap', 'noot', 'mies']
