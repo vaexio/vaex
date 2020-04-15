@@ -5143,7 +5143,10 @@ class DataFrameLocal(DataFrame):
                 if self.dtype(name) != dtype:
                     raise ValueError("Cannot cast %r (of type %r) to %r" % (name, self.dtype(name), dtype))
         chunks = self.evaluate(column_names, parallel=parallel)
-        return np.array(chunks, dtype=dtype).T
+        if any(np.ma.isMaskedArray(chunk) for chunk in chunks):
+            return np.ma.array(chunks, dtype=dtype).T
+        else:
+            return np.array(chunks, dtype=dtype).T
 
     @vaex.utils.deprecated('use DataFrame.join(other)')
     def _hstack(self, other, prefix=None):
