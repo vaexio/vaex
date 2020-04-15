@@ -128,7 +128,7 @@ _doc_snippets['inplace'] = 'Make modifications to self or return a new DataFrame
 _doc_snippets['return_shallow_copy'] = 'Returns a new DataFrame with a shallow copy/view of the underlying data'
 _doc_snippets['chunk_size'] = 'Return an iterator with cuts of the object in lenght of this size'
 _doc_snippets['evaluate_parallel'] = 'Evaluate the (virtual) columns in parallel'
-_doc_snippets['array_type'] = 'Type o output array, possible values are None/"numpy" (ndarray) and "xarray" for a xarray.DataArray'
+_doc_snippets['array_type'] = 'Type of output array, possible values are None/"numpy" (ndarray) and "xarray" for a xarray.DataArray'
 
 
 def docsubst(f):
