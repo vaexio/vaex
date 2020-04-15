@@ -35,6 +35,7 @@
       * Expression.isin supports dtype=object [#669](https://github.com/vaexio/vaex/pull/669)
       * Fix `colum_count`, now only counts hidden columns if expicitly specified [#593](https://github.com/vaexio/vaex/pull/593)
       * df.values respects masked arrays [#640](https://github.com/vaexio/vaex/pull/640)
+      * Rewriting a virtual column and doing a state transfer does not lead to `ValueError: list.remove(x): x not in list` [#592](https://github.com/vaexio/vaex/pull/592)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
       * df.to_arrow_table/to_pandas_df/to_items now take a chunk_size argument for chunked iterators [#589](https://github.com/vaexio/vaex/pull/589)
