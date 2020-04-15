@@ -2,6 +2,7 @@ import platform
 import numpy as np
 import vaex
 import pytest
+import sys
 
 
 version = tuple(map(int, np.__version__.split('.')))
