@@ -357,6 +357,8 @@ class ExpressionString(ast.NodeVisitor):
                 return "({left} * {right})".format(left=left, right=right)
             if isinstance(node.op, ast.Div):
                 return "({left} / {right})".format(left=left, right=right)
+            if isinstance(node.op, ast.FloorDiv):
+                return "({left} // {right})".format(left=left, right=right)
             if isinstance(node.op, ast.Add):
                 return "({left} + {right})".format(left=left, right=right)
             if isinstance(node.op, ast.Sub):
