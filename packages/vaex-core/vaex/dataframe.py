@@ -128,6 +128,7 @@ _doc_snippets['inplace'] = 'Make modifications to self or return a new DataFrame
 _doc_snippets['return_shallow_copy'] = 'Returns a new DataFrame with a shallow copy/view of the underlying data'
 _doc_snippets['chunk_size'] = 'Return an iterator with cuts of the object in lenght of this size'
 _doc_snippets['evaluate_parallel'] = 'Evaluate the (virtual) columns in parallel'
+_doc_snippets['array_type'] = 'Type of output array, possible values are None/"numpy" (ndarray) and "xarray" for a xarray.DataArray'
 
 
 def docsubst(f):
@@ -594,12 +595,12 @@ class DataFrame(object):
         print(bins, value, index)
         return index
 
-    def _compute_agg(self, name, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, extra_expressions=None):
+    def _compute_agg(self, name, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, extra_expressions=None, array_type=None):
         logger.debug("aggregate %s(%r, binby=%r, limits=%r)", name, expression, binby, limits)
         expression = _ensure_strings_from_expressions(expression)
         if extra_expressions:
             extra_expressions = _ensure_strings_from_expressions(extra_expressions)
-        expression_waslist, [expressions,] = vaex.utils.listify(expression)
+        expression_waslist, [expressions, ] = vaex.utils.listify(expression)
         for expression in expressions:
             if expression and expression != "*":
                 self.validate_expression(expression)
@@ -643,21 +644,43 @@ class DataFrame(object):
                 progressbar.add_task(task, "%s for %s" % (name, expression))
                 @delayed
                 def finish(counts):
-                    counts = np.asarray(counts)
-                    return counts
+                    return np.asarray(counts)
                 return finish(agg_subtask)
             finally:
                 self.local._aggregator_nest_count -= 1
         @delayed
-        def finish(*counts):
-            return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
+        def finish(grid, *counts):
+            if array_type == 'xarray':
+                binners = grid.binners
+                dims = [binner.expression for binner in binners]
+                if expression_waslist:
+                    dims = ['expression'] + dims
+
+                def to_coord(binner):
+                    name = type(binner).__name__
+                    if name.startswith('BinnerOrdinal_'):
+                        return self.category_labels(binner.expression)
+                    elif name.startswith('BinnerScalar_'):
+                        return self.bin_centers(binner.expression, [binner.vmin, binner.vmax], binner.bins)
+                coords = [to_coord(binner) for binner in binners]
+                if expression_waslist:
+                    coords = [expressions] + coords
+                    counts = np.asarray(counts)
+                else:
+                    counts = counts[0]
+                import xarray
+                return xarray.DataArray(counts, dims=dims, coords=coords)
+            elif array_type in [None, 'numpy']:
+                return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
+            else:
+                raise RuntimeError(f'Unknown array_type {format}')
         progressbar = vaex.utils.progressbars(progress)
         stats = [compute(expression, grid, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
-        var = finish(*stats)
+        var = finish(grid, *stats)
         return self._delay(delay, var)
 
     @docsubst
-    def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
+    def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, array_type=None):
         """Count the number of non-NaN values (or all, if expression is None or "*").
 
         Example:
@@ -677,9 +700,10 @@ class DataFrame(object):
         :param delay: {delay}
         :param progress: {progress}
         :param edges: {edges}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}
         """
-        return self._compute_agg('count', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('count', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
 
     @delayed
     def _first_calculation(self, expression, order_expression, binby, limits, shape, selection, edges, progressbar):
@@ -697,7 +721,7 @@ class DataFrame(object):
         return finish(task)
 
     @docsubst
-    def first(self, expression, order_expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
+    def first(self, expression, order_expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, array_type=None):
         """Return the first element of a binned `expression`, where the values each bin are sorted by `order_expression`.
 
         Example:
@@ -719,10 +743,11 @@ class DataFrame(object):
         :param delay: {delay}
         :param progress: {progress}
         :param edges: {edges}
+        :param array_type: {array_type}
         :return: Ndarray containing the first elements.
         :rtype: numpy.array
         """
-        return self._compute_agg('first', expression, binby, limits, shape, selection, delay, edges, progress, extra_expressions=[order_expression])
+        return self._compute_agg('first', expression, binby, limits, shape, selection, delay, edges, progress, extra_expressions=[order_expression], array_type=array_type)
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
         expression = _ensure_strings_from_expressions(expression)
@@ -741,7 +766,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
+    def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
         """Calculate the mean for expression, possibly on a grid defined by binby.
 
         Example:
@@ -758,9 +783,10 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}
         """
-        return self._compute_agg('mean', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('mean', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
         logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, delay=%r", expression, binby, limits, shape, selection, delay)
         expression = _ensure_strings_from_expressions(expression)
         selection = _ensure_strings_from_expressions(selection)
@@ -800,7 +826,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
+    def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
         """Calculate the sum for the given expression, possible on a grid defined by binby
 
         Example:
@@ -818,9 +844,10 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}
         """
-        return self._compute_agg('sum', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('sum', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
         @delayed
         def finish(*sums):
             return vaex.utils.unlistify(waslist, sums)
@@ -836,7 +863,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, array_type=None):
         """Calculate the standard deviation for the given expression, possible on a grid defined by binby
 
 
@@ -852,6 +879,7 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}
         """
         @delayed
@@ -861,7 +889,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, array_type=None):
         """Calculate the sample variance for the given expression, possible on a grid defined by binby
 
         Example:
@@ -882,10 +910,11 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}
         """
         edges = False
-        return self._compute_agg('var', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('var', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
         expression = _ensure_strings_from_expressions(expression)
         @delayed
         def calculate(expression, limits):
@@ -1183,7 +1212,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
+    def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
         """Calculate the minimum for given expressions, possibly on a grid defined by binby.
 
 
@@ -1203,9 +1232,10 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
-        return self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
         @delayed
         def finish(result):
             return result[..., 0]
@@ -1213,7 +1243,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
+    def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
         """Calculate the maximum for given expressions, possibly on a grid defined by binby.
 
 
@@ -1233,9 +1263,10 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
-        return self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
         @delayed
         def finish(result):
             return result[..., 1]
