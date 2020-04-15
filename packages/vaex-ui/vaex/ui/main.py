@@ -197,7 +197,7 @@ class DatasetSelector(QtGui.QListWidget):
         icon = self.icon
         if hasattr(dataset, "filename"):
             item.setToolTip("file: " + dataset.filename)
-        if isinstance(dataset, vaex.remote.DatasetRemote):
+        if isinstance(dataset, vaex.remote.DataFrameRemote):
             icon = self.icon_server
             item.setToolTip("source: " + dataset.path)
         if isinstance(dataset, vaex.dataset.DatasetArrays):
