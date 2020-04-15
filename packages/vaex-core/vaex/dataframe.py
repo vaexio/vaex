@@ -4784,7 +4784,7 @@ class DataFrame(object):
         type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", self.dtype(expression))
         return type(expression, ordinal_count, min_value)
 
-    def _create_grid(self, binby, limits, shape, selection, delay=False):
+    def _create_grid(self, binby, limits, shape, selection=None, delay=False):
         if isinstance(binby, (list, tuple)):
             binbys = binby
         else:
