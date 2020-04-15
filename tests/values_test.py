@@ -28,9 +28,4 @@ def test_values_masked():
     y = [10, 20, 30]
     df = vaex.from_arrays(x=x, y=y)
 
-    values = df[['x', 'y']].values
-    comparison = np.array([[1., 10.],
-                           [2., 20.],
-                           [np.nan, 30.]])
-
-    np.testing.assert_array_equal(values, comparison)
+    assert df[['x', 'y']].values.tolist() ==  [[1., 10.], [2., 20.], [None, 30.]]
