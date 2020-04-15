@@ -13,6 +13,14 @@ import copy
 import difflib
 
 
+if hasattr(_ast, 'Num'):
+    ast_Num = _ast.Num
+    ast_Str = _ast.Str
+else:  # Python3.8
+    ast_Num = _ast.Constant
+    ast_Str = _ast.Constant
+
+
 logger = logging.getLogger("expr")
 logger.setLevel(logging.ERROR)
 
@@ -91,9 +99,9 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
 
             raise NameError(msg)
         names.append(expr.id)
-    elif isinstance(expr, _ast.Num):
+    elif isinstance(expr, ast_Num):
         pass  # numbers are fine
-    elif isinstance(expr, _ast.Str):
+    elif isinstance(expr, ast_Str):
         pass  # as well as strings
     elif isinstance(expr, _ast.Call):
         validate_func(expr.func, function_set)
