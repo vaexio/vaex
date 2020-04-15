@@ -3306,7 +3306,8 @@ class DataFrame(object):
         for key, value in self.selection_histories.items():
             self.selection_histories[key] = list([k if k is None else k._rename(self, old, new) for k in value])
         if not is_variable:
-            self._renamed_columns.append((old, new))
+            if new not in self.virtual_columns:
+                self._renamed_columns.append((old, new))
             self.column_names[self.column_names.index(old)] = new
             if hasattr(self, old):
                 try:
