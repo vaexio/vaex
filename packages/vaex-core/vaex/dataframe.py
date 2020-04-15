@@ -622,7 +622,7 @@ class DataFrame(object):
             # TODO: GET RID OF THIS
             len(self) # fill caches and masks
             # pass
-        grid = self._create_grid(binby, limits, shape, delay=True)
+        grid = self._create_grid(binby, limits, shape, selection=selection, delay=True)
         @delayed
         def compute(expression, grid, selection, edges, progressbar):
             self.local._aggregator_nest_count += 1
@@ -4749,7 +4749,7 @@ class DataFrame(object):
             self.executor.schedule(task_agg)
         return self._delay(delay, sub_task)
 
-    def _binner(self, expression, limits=None, shape=None, delay=False):
+    def _binner(self, expression, limits=None, shape=None, selection=None, delay=False):
         expression = str(expression)
         if limits is not None and not isinstance(limits, (tuple, str)):
             limits = tuple(limits)
@@ -4764,7 +4764,7 @@ class DataFrame(object):
                 @delayed
                 def create_binner(limits):
                     return self._binner_scalar(expression, limits, shape)
-                self._binners[key] = create_binner(self.limits(expression, limits, delay=True))
+                self._binners[key] = create_binner(self.limits(expression, limits, selection=selection, delay=True))
         return self._delay(delay, self._binners[key])
 
     def _grid(self, binners):
@@ -4784,7 +4784,7 @@ class DataFrame(object):
         type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", self.dtype(expression))
         return type(expression, ordinal_count, min_value)
 
-    def _create_grid(self, binby, limits, shape, delay=False):
+    def _create_grid(self, binby, limits, shape, selection=None, delay=False):
         if isinstance(binby, (list, tuple)):
             binbys = binby
         else:
@@ -4800,7 +4800,7 @@ class DataFrame(object):
             limits = []
         shapes = _expand_shape(shape, len(binbys))
         for binby, limits1, shape in zip(binbys, limits, shapes):
-            binners.append(self._binner(binby, limits1, shape, delay=True))
+            binners.append(self._binner(binby, limits1, shape, selection, delay=True))
         @delayed
         def finish(*binners):
             return self._grid(binners)
