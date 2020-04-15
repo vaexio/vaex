@@ -253,7 +253,7 @@ def sklearn_patch():
 
     pca_linalg = sklearn.decomposition._pca.linalg
     sklearn.decomposition._pca.linalg = np.linalg
-    import patchy
+    from vaex.ml.vendor import patchy
     from sklearn.preprocessing import PolynomialFeatures
     import textwrap
 
