@@ -4,6 +4,8 @@ import vaex
 import pytest
 
 
+version = tuple(map(int, np.__version__.split('.')))
+
 @pytest.mark.skipif(((1,17,0) <= version <= (1,18,1)) and platform.system().lower() == 'windows', reason="strange ref count issue with numpy")
 @pytest.mark.skipif(((1,17,0) <= version <= (1,18,1)) and platform.system().lower() == 'linux' and sys.version_info[:2] == (3,6), reason="strange ref count issue with numpy")
 def test_percentile_approx():
