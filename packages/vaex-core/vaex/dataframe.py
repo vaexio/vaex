@@ -3532,7 +3532,8 @@ class DataFrame(object):
         parts += ["<table class='table-striped'>"]
 
         aliases_reverse = {value: key for key, value in self._column_aliases.items()}
-        column_names = self.get_column_names()
+        # we need to get the underlying names since we use df.evaluate
+        column_names = self.get_column_names(alias=False)
         values_list = []
         values_list.append(['#', []])
         # parts += ["<thead><tr>"]
@@ -3708,7 +3709,7 @@ class DataFrame(object):
         names = self.get_column_names(hidden=hidden)
         return names + [k for k in self.variables.keys() if not hidden or not k.startswith('__')]
 
-    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None):
+    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None, alias=True):
         """Return a list of column names
 
         Example:
@@ -3727,19 +3728,10 @@ class DataFrame(object):
         :param hidden: If False, skip hidden columns
         :param strings: If False, skip string columns
         :param regex: Only return column names matching the (optional) regular expression
+        :param alias: Return the alias (True) or internal name (False).
         :rtype: list of str
-
-        Example:
-        >>> import vaex
-        >>> df = vaex.from_scalars(x=1, x2=2, y=3, s='string')
-        >>> df['r'] = (df.x**2 + df.y**2)**2
-        >>> df.get_column_names()
-        ['x', 'x2', 'y', 's', 'r']
-        >>> df.get_column_names(virtual=False)
-        ['x', 'x2', 'y', 's']
-        >>> df.get_column_names(regex='x.*')
-        ['x', 'x2']
         """
+        aliases_reverse = {value: key for key, value in self._column_aliases.items()} if alias else {}
         def column_filter(name):
             '''Return True if column with specified name should be returned'''
             if regex and not re.match(regex, name):
@@ -3751,11 +3743,11 @@ class DataFrame(object):
             if not hidden and name.startswith('__'):
                 return False
             return True
-        if hidden and virtual and regex is None:
+        if hidden and virtual and regex is None and not alias:
             return list(self.column_names)  # quick path
-        if not hidden and virtual and regex is None:
+        if not hidden and virtual and regex is None and not alias:
             return [k for k in self.column_names if not k.startswith('__')]  # also a quick path
-        return [name for name in self.column_names if column_filter(name)]
+        return [aliases_reverse.get(name, name) for name in self.column_names if column_filter(name)]
 
     def __bool__(self):
         return True  # we are always true :) otherwise Python might call __len__, which can be expensive
@@ -4939,8 +4931,8 @@ class DataFrameLocal(DataFrame):
         df.variables.update(self.variables)  # we add all, could maybe only copy used
         df._categories.update(self._categories)
         if column_names is None:
-            column_names = self.get_column_names(hidden=True)
-        all_column_names = self.get_column_names(hidden=True)
+            column_names = self.get_column_names(hidden=True, alias=False)
+        all_column_names = self.get_column_names(hidden=True, alias=False)
 
         # put in the selections (thus filters) in place
         # so drop moves instead of really dropping it

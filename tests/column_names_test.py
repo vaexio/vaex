@@ -24,6 +24,8 @@ def test_column_names(ds_local):
 def test_add_invalid_name(tmpdir):
     # support invalid names and keywords
     df = vaex.from_dict({'X!1': x, 'class': x*2})
+    assert df.get_column_names() == ['X!1', 'class']
+    assert df.get_column_names(alias=False) != ['X!1', 'class']
     assert df['X!1'].tolist() == x.tolist()
     assert (df['X!1']*2).tolist() == (x*2).tolist()
     assert (df['class']).tolist() == (x*2).tolist()
