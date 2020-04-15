@@ -1,4 +1,4 @@
-from vaex.expresso import parse_expression, node_to_string, simplify, translate
+from vaex.expresso import parse_expression, node_to_string, simplify, translate, validate_expression
 
 
 def test_compare():
@@ -34,3 +34,8 @@ def test_lists():
     expr_translate = translate(expr, lambda x: None)
     print(node)
     assert expr == expr_translate
+
+
+def test_validate():
+    validate_expression('x + 1', {'x'})
+    validate_expression('x == "1"', {'x'})
