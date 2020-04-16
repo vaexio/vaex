@@ -5761,7 +5761,7 @@ class DataFrameLocal(DataFrame):
         import vaex.export
         vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
-    def export_csv(self, path, virtual=True, selection=False, progress=None, batch_size=1_000_000, **kwargs):
+    def export_csv(self, path, virtual=False, selection=False, progress=None, batch_size=1_000_000, **kwargs):
         """ Exports the DataFrame to a CSV file.
 
         :param str path: Path for filename
@@ -5782,7 +5782,8 @@ class DataFrameLocal(DataFrame):
 
         for i1, i2, chunks in self.evaluate_iterator(expressions, chunk_size=batch_size, selection=selection):
             progressbar( i1 / n_samples)
-            chunk_pdf = pd.DataFrame(np.stack(chunks).T, columns=expressions).astype(dtypes)
+            chunk_dict = {col: values for col, values in zip(expressions, chunks)}
+            chunk_pdf = pd.DataFrame(chunk_dict)
 
             if i1 == 0:  # Only the 1st chunk should have a header and the rest will be appended
                 mode = 'w'
@@ -5791,7 +5792,7 @@ class DataFrameLocal(DataFrame):
                 mode = 'a'
                 header = False
 
-            chunk_pdf.to_csv(path_or_buf=path, mode=mode, header=header, **kwargs)
+            chunk_pdf.to_csv(path_or_buf=path, mode=mode, header=header, index=False, **kwargs)
         progressbar(1.0)
         return
 
