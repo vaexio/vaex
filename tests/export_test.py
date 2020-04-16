@@ -6,7 +6,7 @@ import platform
 
 
 @pytest.mark.skipif(platform.system().lower() == 'windows', reason="access violation?")
-@pytest.mark.parametrize("filename", ["test.hdf5", "test.arrow", "test.parquet"])
+@pytest.mark.parametrize("filename", ["test.hdf5", "test.arrow", "test.parquet", "test.csv"])
 def test_export_empty_string(tmpdir, filename):
     path = str(tmpdir.join(filename))
     s = np.array(["", ""])
@@ -14,7 +14,6 @@ def test_export_empty_string(tmpdir, filename):
     df.export(path)
     df = vaex.open(path)
     repr(df)
-
 
 def test_export(ds_local, tmpdir):
     ds = ds_local

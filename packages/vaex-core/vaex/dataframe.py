@@ -5679,8 +5679,12 @@ class DataFrameLocal(DataFrame):
             self.export_hdf5(path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
         elif path.endswith('.fits'):
             self.export_fits(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
-        if path.endswith('.parquet'):
+        elif path.endswith('.parquet'):
             self.export_parquet(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+        elif path.endswith('.csv'):
+            self.export_csv(path, selection=selection, progress=progress, virtual=virtual)
+        else:
+            raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 
     def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
         """Exports the DataFrame to a file written with arrow
@@ -5756,6 +5760,40 @@ class DataFrameLocal(DataFrame):
         """
         import vaex.export
         vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+
+    def export_csv(self, path, virtual=True, selection=False, progress=None, batch_size=1_000_000, **kwargs):
+        """ Exports the DataFrame to a CSV file.
+
+        :param str path: Path for filename
+        :param bool virtual: If True, export virtual columns as well
+        :param bool selection: If True, export the selection
+        :param progress: Progress callback that gets a progress fraction as argument and should return True to continue,
+                or a default progress bar when progress=True
+        :param int batch_size: Number of rows to be written to disk in a single iteration
+        :param **kwargs: Extra keyword arguments to be passed on pandas.DataFrame.to_csv()
+        :return:
+        """
+        import pandas as pd
+
+        expressions = self.get_column_names(virtual=virtual)
+        progressbar = vaex.utils.progressbars(progress)
+        dtypes = self[expressions].dtypes
+        n_samples = len(self)
+
+        for i1, i2, chunks in self.evaluate_iterator(expressions, chunk_size=batch_size, selection=selection):
+            progressbar( i1 / n_samples)
+            chunk_pdf = pd.DataFrame(np.stack(chunks).T, columns=expressions).astype(dtypes)
+
+            if i1 == 0:  # Only the 1st chunk should have a header and the rest will be appended
+                mode = 'w'
+                header = True
+            else:
+                mode = 'a'
+                header = False
+
+            chunk_pdf.to_csv(path_or_buf=path, mode=mode, header=header, **kwargs)
+        progressbar(1.0)
+        return
 
     def _needs_copy(self, column_name):
         import vaex.file.other
