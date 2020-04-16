@@ -1358,39 +1358,45 @@ class DataFrame(object):
                 # if we have an off  # of elements, say, N=3, the center is at i=1=(N-1)/2
                 # if we have an even # of elements, say, N=4, the center is between i=1=(N-2)/2 and i=2=(N/2)
                 # index = (shape[-1] -1-3) * percentage/100. # the -3 is for the edges
-                values = np.array((totalcounts + 1) * percentage / 100.)  # make sure it's an ndarray
-                values[empty] = 0
-                floor_values = np.array(np.floor(values))
-                ceil_values = np.array(np.ceil(values))
-                vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
-                vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
+                waslist_percentage, [percentages, ] = vaex.utils.listify(percentage)
+                percentiles = []
+                for p in percentages:
+                    values = np.array((totalcounts + 1) * p / 100.)  # make sure it's an ndarray
+                    values[empty] = 0
+                    floor_values = np.array(np.floor(values))
+                    ceil_values = np.array(np.ceil(values))
+                    vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
+                    vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
 
-                def index_choose(a, indices):
-                    # alternative to np.choise, which doesn't like the last dim to be >= 32
-                    # print(a, indices)
-                    out = np.zeros(a.shape[:-1])
-                    # print(out.shape)
-                    for i in np.ndindex(out.shape):
-                        # print(i, indices[i])
-                        out[i] = a[i + (indices[i],)]
-                    return out
+                    def index_choose(a, indices):
+                        # alternative to np.choise, which doesn't like the last dim to be >= 32
+                        # print(a, indices)
+                        out = np.zeros(a.shape[:-1])
+                        # print(out.shape)
+                        for i in np.ndindex(out.shape):
+                            # print(i, indices[i])
+                            out[i] = a[i + (indices[i],)]
+                        return out
 
-                def calculate_x(edges, values):
-                    left, right = edges[..., 0], edges[..., 1]
-                    left_value = index_choose(cumulative_grid, left)
-                    right_value = index_choose(cumulative_grid, right)
-                    u = np.array((values - left_value) / (right_value - left_value))
-                    # TODO: should it really be -3? not -2
-                    xleft, xright = percentile_limits[i][0] + (left - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3),\
-                        percentile_limits[i][0] + (right - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3)
-                    x = xleft + (xright - xleft) * u  # /2
-                    return x
+                    def calculate_x(edges, values):
+                        left, right = edges[..., 0], edges[..., 1]
+                        left_value = index_choose(cumulative_grid, left)
+                        right_value = index_choose(cumulative_grid, right)
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            u = np.array((values - left_value) / (right_value - left_value))
+                            # TODO: should it really be -3? not -2
+                            xleft, xright = percentile_limits[i][0] + (left - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3),\
+                                percentile_limits[i][0] + (right - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3)
+                            x = xleft + (xright - xleft) * u  # /2
+                        return x
 
-                x1 = calculate_x(edges_floor, floor_values)
-                x2 = calculate_x(edges_ceil, ceil_values)
-                u = values - floor_values
-                x = x1 + (x2 - x1) * u
-                results.append(x)
+                    x1 = calculate_x(edges_floor, floor_values)
+                    x2 = calculate_x(edges_ceil, ceil_values)
+                    u = values - floor_values
+                    x = x1 + (x2 - x1) * u
+                    percentiles.append(x)
+                percentile = vaex.utils.unlistify(waslist_percentage, np.array(percentiles))
+                results.append(percentile)
 
             return results
 
