@@ -437,7 +437,7 @@ def dt_month_name(x):
     import pandas as pd
     return pd.Series(_pandas_dt_fix(x)).dt.month_name().values.astype(str)
 
-@vaex.register_function(scope='dt', as_property=True)
+@register_function(scope='dt', as_property=True)
 def dt_quarter(x):
     """Extracts the quarter from a datetime sample.
 
@@ -640,7 +640,7 @@ def dt_second(x):
     import pandas as pd
     return pd.Series(_pandas_dt_fix(x)).dt.second.values
 
-@vaex.register_function(scope='dt')
+@register_function(scope='dt')
 def dt_strftime(x, date_format):
     """Returns a formatted string from a datetime sample.
 
