@@ -109,6 +109,7 @@ _doc_snippets["shape"] = """shape for the array where the statistic is calculate
 _doc_snippets["percentile_limits"] = """description for the min and max values to use for the cumulative histogram, should currently only be 'minmax'"""
 _doc_snippets["percentile_shape"] = """shape for the array where the cumulative histogram is calculated on, integer type"""
 _doc_snippets["selection"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False), or a list of selections"""
+_doc_snippets["selection1"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False)"""
 _doc_snippets["delay"] = """Do not return the result, but a proxy for delayhronous calculations (currently only for internal use)"""
 _doc_snippets["progress"] = """A callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False"""
 _doc_snippets["expression_limits"] = _doc_snippets["expression"]
@@ -128,6 +129,7 @@ _doc_snippets['note_filter'] = '.. note:: Note that filtering will be ignored (s
 _doc_snippets['inplace'] = 'Make modifications to self or return a new DataFrame'
 _doc_snippets['return_shallow_copy'] = 'Returns a new DataFrame with a shallow copy/view of the underlying data'
 _doc_snippets['chunk_size'] = 'Return an iterator with cuts of the object in lenght of this size'
+_doc_snippets['chunk_size_export'] = 'Number of rows to be written to disk in a single iteration'
 _doc_snippets['evaluate_parallel'] = 'Evaluate the (virtual) columns in parallel'
 _doc_snippets['array_type'] = 'Type of output array, possible values are None/"numpy" (ndarray) and "xarray" for a xarray.DataArray'
 
@@ -5761,14 +5763,15 @@ class DataFrameLocal(DataFrame):
         import vaex.export
         vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
+    @docsubst
     def export_csv(self, path, virtual=False, selection=False, progress=None, batch_size=1_000_000, **kwargs):
         """ Exports the DataFrame to a CSV file.
 
         :param str path: Path for filename
         :param bool virtual: If True, export virtual columns as well
-        :param bool selection: If True, export the selection
+        :param bool selection: {selection1}
         :param progress: {progress}
-        :param int batch_size: Number of rows to be written to disk in a single iteration
+        :param int batch_size: {chunk_size_export}
         :param **kwargs: Extra keyword arguments to be passed on pandas.DataFrame.to_csv()
         :return:
         """
