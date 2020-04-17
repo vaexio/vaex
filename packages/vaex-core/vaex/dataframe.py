@@ -5767,8 +5767,7 @@ class DataFrameLocal(DataFrame):
         :param str path: Path for filename
         :param bool virtual: If True, export virtual columns as well
         :param bool selection: If True, export the selection
-        :param progress: Progress callback that gets a progress fraction as argument and should return True to continue,
-                or a default progress bar when progress=True
+        :param progress: {progress}
         :param int batch_size: Number of rows to be written to disk in a single iteration
         :param **kwargs: Extra keyword arguments to be passed on pandas.DataFrame.to_csv()
         :return:
