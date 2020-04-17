@@ -5767,7 +5767,7 @@ class DataFrameLocal(DataFrame):
     def export_csv(self, path, virtual=False, selection=False, progress=None, chunk_size=1_000_000, **kwargs):
         """ Exports the DataFrame to a CSV file.
 
-        :param str path: Path for filename
+        :param str path: Path for file
         :param bool virtual: If True, export virtual columns as well
         :param bool selection: {selection1}
         :param progress: {progress}
