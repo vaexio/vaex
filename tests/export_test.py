@@ -43,7 +43,7 @@ def test_export_open_hdf5(ds_local):
 def test_export_open_csv(ds_local, tmpdir):
     df = ds_local
     path = str(tmpdir.join('test.csv'))
-    df.export_csv(path, batch_size=3, virtual=True)
+    df.export_csv(path, chunk_size=3, virtual=True)
     df_opened = vaex.from_csv(path, copy_index=False)
     assert list(df) == list(df_opened)
     assert df.shape == df_opened.shape

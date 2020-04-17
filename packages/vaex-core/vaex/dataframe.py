@@ -5764,14 +5764,14 @@ class DataFrameLocal(DataFrame):
         vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     @docsubst
-    def export_csv(self, path, virtual=False, selection=False, progress=None, batch_size=1_000_000, **kwargs):
+    def export_csv(self, path, virtual=False, selection=False, progress=None, chunk_size=1_000_000, **kwargs):
         """ Exports the DataFrame to a CSV file.
 
         :param str path: Path for filename
         :param bool virtual: If True, export virtual columns as well
         :param bool selection: {selection1}
         :param progress: {progress}
-        :param int batch_size: {chunk_size_export}
+        :param int chunk_size: {chunk_size_export}
         :param **kwargs: Extra keyword arguments to be passed on pandas.DataFrame.to_csv()
         :return:
         """
@@ -5782,7 +5782,7 @@ class DataFrameLocal(DataFrame):
         dtypes = self[expressions].dtypes
         n_samples = len(self)
 
-        for i1, i2, chunks in self.evaluate_iterator(expressions, chunk_size=batch_size, selection=selection):
+        for i1, i2, chunks in self.evaluate_iterator(expressions, chunk_size=chunk_size, selection=selection):
             progressbar( i1 / n_samples)
             chunk_dict = {col: values for col, values in zip(expressions, chunks)}
             chunk_pdf = pd.DataFrame(chunk_dict)
