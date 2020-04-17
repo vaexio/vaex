@@ -40,12 +40,11 @@ def test_export_open_hdf5(ds_local):
     ds_opened = vaex.open(filename)
     assert list(ds) == list(ds_opened)
 
-def test_export_open_csv(ds_local):
+def test_export_open_csv(ds_local, tmpdir):
     df = ds_local
-    df = df.drop(df.obj)
-    filename = tempfile.mktemp(suffix='.csv')
-    df.export_csv(filename, batch_size=3, virtual=True)
-    df_opened = vaex.from_csv(filename, copy_index=False)
+    path = str(tmpdir.join('test.csv'))
+    df.export_csv(path, batch_size=3, virtual=True)
+    df_opened = vaex.from_csv(path, copy_index=False)
     assert list(df) == list(df_opened)
     assert df.shape == df_opened.shape
 
