@@ -20,6 +20,7 @@ def test_datetime_operations():
     assert df.date.dt.day_name.values.tolist() == pandas_df.date.dt.day_name().values.tolist()
     assert df.date.dt.month.values.tolist() == pandas_df.date.dt.month.values.tolist()
     assert df.date.dt.month_name.values.tolist() == pandas_df.date.dt.month_name().values.tolist()
+    assert df.date.dt.quarter.values.tolist() == pandas_df.date.dt.quarter.values.tolist()
     assert df.date.dt.year.values.tolist() == pandas_df.date.dt.year.values.tolist()
     assert df.date.dt.is_leap_year.values.tolist() == pandas_df.date.dt.is_leap_year.values.tolist()
     assert any(df.date.dt.is_leap_year.values.tolist())
@@ -126,3 +127,16 @@ def test_create_datetime64_column_from_str():
     expr = df.year + '-' + df.month + '-' + df.day + 'T' + df.hour + ':' + df.minute
     assert expr.values.astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
     assert expr.values.astype('datetime64[ns]').tolist() == expr.astype('datetime64[ns]').tolist()
+    
+def test_create_str_column_from_datetime64():
+    year = np.array(['2015', '2015', '2017'])
+    month = np.array(['01', '02', '10'])
+    day = np.array(['01', '03', '22'])
+    hour = np.array(['09', '10', '00'])
+    minute = np.array(['45', '15', '30'])
+    df = vaex.from_arrays(year=year, month=month, day=day, hour=hour, minute=minute)
+    pandas_df = df.to_pandas_df()
+    
+    date_format = "%Y/%m/%d"
+
+    assert df.date.dt.strftime(date_format).values.tolist() == pandas_df.date.dt.strftime(date_format).values.tolist()
