@@ -18,11 +18,13 @@ scopes = {
     'td': vaex.expression.TimeDelta
 }
 
-def register_function(scope=None, as_property=False, name=None, on_expression=True):
+def register_function(scope=None, as_property=False, name=None, on_expression=True, df_accessor=None):
     """Decorator to register a new function with vaex.
 
     If on_expression is True, the function will be available as a method on an
     Expression, where the first argument will be the expression itself.
+
+    If `df_accessor` is given, it is added as a method to that dataframe accessor (see e.g. vaex/geo.py)
 
     Example:
 
@@ -52,26 +54,37 @@ def register_function(scope=None, as_property=False, name=None, on_expression=Tr
         if name.startswith(prefix):
             name = name[len(prefix):]
         full_name = prefix + name
-        if on_expression:
-            if scope:
-                def closure(name=name, full_name=full_name, function=f):
-                    def wrapper(self, *args, **kwargs):
-                        lazy_func = getattr(self.expression.ds.func, full_name)
-                        args = (self.expression, ) + args
-                        return lazy_func(*args, **kwargs)
-                    return functools.wraps(function)(wrapper)
-                if as_property:
-                    setattr(scopes[scope], name, property(closure()))
-                else:
-                    setattr(scopes[scope], name, closure())
+        if df_accessor:
+            def closure(name=name, full_name=full_name, function=f):
+                def wrapper(self, *args, **kwargs):
+                    lazy_func = getattr(self.df.func, full_name)
+                    return lazy_func(*args, **kwargs)
+                return functools.wraps(function)(wrapper)
+            if as_property:
+                setattr(df_accessor, name, property(closure()))
             else:
-                def closure(name=name, full_name=full_name, function=f):
-                    def wrapper(self, *args, **kwargs):
-                        lazy_func = getattr(self.ds.func, full_name)
-                        args = (self, ) + args
-                        return lazy_func(*args, **kwargs)
-                    return functools.wraps(function)(wrapper)
-                setattr(vaex.expression.Expression, name, closure())
+                setattr(df_accessor, name, closure())
+        else:
+            if on_expression:
+                if scope:
+                    def closure(name=name, full_name=full_name, function=f):
+                        def wrapper(self, *args, **kwargs):
+                            lazy_func = getattr(self.expression.ds.func, full_name)
+                            args = (self.expression, ) + args
+                            return lazy_func(*args, **kwargs)
+                        return functools.wraps(function)(wrapper)
+                    if as_property:
+                        setattr(scopes[scope], name, property(closure()))
+                    else:
+                        setattr(scopes[scope], name, closure())
+                else:
+                    def closure(name=name, full_name=full_name, function=f):
+                        def wrapper(self, *args, **kwargs):
+                            lazy_func = getattr(self.ds.func, full_name)
+                            args = (self, ) + args
+                            return lazy_func(*args, **kwargs)
+                        return functools.wraps(function)(wrapper)
+                    setattr(vaex.expression.Expression, name, closure())
         vaex.expression.expression_namespace[prefix + name] = f
         return f  # we leave the original function as is
     return wrapper
