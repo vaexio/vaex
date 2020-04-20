@@ -74,33 +74,33 @@ def test_hist_controls(ds):
     viz.control.x.v_model = 'g2'
     assert state1.x_expression == 'g2'
 
-def test_geojson(ds):
-    geo_json = {
-        'features': [
-            {'geometry': {
-                'type': 'MultiPolygon',
-                'coordinates': []
-            },
-            'properties': {
-                'objectid': 1
-            }
-            }
-        ]
-    }
-    state1 = vaex.jupyter.state.VizHistogramState(ds, x_expression='g1')
-    state2 = vaex.jupyter.state.VizHistogramState(ds, x_expression='g2')
-    grid = vaex.jupyter.grid.Grid(ds, [state1, state2])
-    viz = vaex.jupyter.viz.VizHistogramBqplot(state=state1)
-    vizgeo = vaex.jupyter.viz.VizMapGeoJSONLeaflet(geo_json, ['g2'], state=state2)
-    assert state1.grid.tolist() == [1, 2, 3]
-    assert state2.grid.tolist() == [2, 2, 1, 1]
+# def test_geojson(ds):
+#     geo_json = {
+#         'features': [
+#             {'geometry': {
+#                 'type': 'MultiPolygon',
+#                 'coordinates': []
+#             },
+#             'properties': {
+#                 'objectid': 1
+#             }
+#             }
+#         ]
+#     }
+#     state1 = vaex.jupyter.state.VizHistogramState(ds, x_expression='g1')
+#     state2 = vaex.jupyter.state.VizHistogramState(ds, x_expression='g2')
+#     grid = vaex.jupyter.grid.Grid(ds, [state1, state2])
+#     viz = vaex.jupyter.viz.VizHistogramBqplot(state=state1)
+#     vizgeo = vaex.jupyter.viz.VizMapGeoJSONLeaflet(geo_json, ['g2'], state=state2)
+#     assert state1.grid.tolist() == [1, 2, 3]
+#     assert state2.grid.tolist() == [2, 2, 1, 1]
     
-    assert viz.bar.y.tolist() == [1, 2, 3]
-    assert state1.grid_sliced is None
-    state2.x_slice = 0
-    assert state1.grid.tolist() == [1, 2, 3]
-    assert state1.grid_sliced.tolist() == [1, 1, 0]
-    assert viz.bar.y.tolist() == [[1, 2, 3], [1, 1, 0]]
+#     assert viz.bar.y.tolist() == [1, 2, 3]
+#     assert state1.grid_sliced is None
+#     state2.x_slice = 0
+#     assert state1.grid.tolist() == [1, 2, 3]
+#     assert state1.grid_sliced.tolist() == [1, 1, 0]
+#     assert viz.bar.y.tolist() == [[1, 2, 3], [1, 1, 0]]
 
 
 @pytest.mark.skip(reason='unsure why it does not work')
