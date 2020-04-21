@@ -64,6 +64,16 @@ def test_groupby_options():
     assert dfg.y_sum.tolist() == sum_answer
 
 
+def test_groupby_long_name(df_local):
+    df = df_local.extract()
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+    df.add_column('g', g)
+    df['long_name'] = df.x
+    dfg = df.groupby(by=df.g, agg=[vaex.agg.mean(df.long_name)]).sort('g')
+    # bugfix check for mixing up the name
+    assert 'long_name_mean' in dfg
+
+
 def test_groupby_1d(ds_local):
     ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
