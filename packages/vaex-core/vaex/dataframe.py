@@ -100,7 +100,8 @@ from .expression import Expression
 
 
 _doc_snippets = {}
-_doc_snippets["expression"] = "expression or list of expressions, e.g. 'x', or ['x, 'y']"
+_doc_snippets["expression"] = "expression or list of expressions, e.g. df.x, 'x', or ['x, 'y']"
+_doc_snippets["expression_one"] = "expression in the form of a string, e.g. 'x' or 'x+y' or vaex expression object, e.g. df.x or df.x+df.y "
 _doc_snippets["expression_single"] = "if previous argument is not a list, this argument should be given"
 _doc_snippets["binby"] = "List of expressions for constructing a binned grid"
 _doc_snippets["limits"] = """description for the min and max values for the expressions, e.g. 'minmax' (default), '99.7%', [0, 10], or a list of, e.g. [[0, 10], [0, 20], 'minmax']"""
@@ -256,6 +257,9 @@ class DataFrame(object):
                             # to support numpy arrays
                             var = self.add_variable('arg_numpy_array', k, unique=True)
                             return var
+                        elif isinstance(k, list):
+                            # to support numpy scalars
+                            return '[' + ', '.join(myrepr(i) for i in k) + ']'
                         else:
                             return repr(k)
                     arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])
