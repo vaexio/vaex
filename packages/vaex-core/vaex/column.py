@@ -140,9 +140,15 @@ class ColumnConcatenatedLazy(Column):
             for expression in expressions:
                 if expression.is_masked:
                     try:
-                        self.fill_value = expressions[0][0:1].fill_value
-                    except:
-                        self.fill_value = expressions[0].values.fill_value
+                        # fast path
+                        self.fill_value = expression[0:1].fill_value
+                        break
+                    except:  # noqa
+                        # slower path (we have to evaluate everything)
+                        self.fill_value = expression.values.fill_value
+                        break
+            else:
+                raise ValueError('Concatenating expressions with masked values, but no fill value is found')
         if dtype is None:
             dtypes = [e.dtype for e in expressions]
 
@@ -226,7 +232,7 @@ class ColumnConcatenatedLazy(Column):
                 warnings.warn("might be slow, you have concatenated expressions with a filter set")
             values = current_expression.evaluate(i1=start - offset, i2=stop - offset, parallel=False)
         else:
-            if current_expression.is_masked:
+            if self.is_masked:
                 copy = np.ma.empty(stop - start, dtype=dtype)
                 copy.fill_value = self.fill_value
             else:
