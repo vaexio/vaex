@@ -538,7 +538,7 @@ def unlistify(waslist, *args):
 
 def find_valid_name(name, used=[]):
     first, rest = name[0], name[1:]
-    name = re.sub("[^a-zA-Z_]", "_", first) + re.sub("[^a-zA-Z_0-9]", "_", rest)
+    name = re.sub("[^a-zA-Z_\u4E00-\u9FEF]", "_", first) + re.sub("[^a-zA-Z_0-9\u4E00-\u9FEF]", "_", rest)
     if keyword.iskeyword(name):
         name += '_'
     if name in used:
