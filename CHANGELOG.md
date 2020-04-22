@@ -47,6 +47,7 @@
       * Column names can have unicode, and we use str.isidentifier to test, also dont accidently hide columns. [#617](https://github.com/vaexio/vaex/pull/617)
       * Percentile approx can take a sequence of percentages [#527](https://github.com/vaexio/vaex/pull/527)
       * Polygon testing, useful in combinations with geo/geojson data [#685](https://github.com/vaexio/vaex/pull/685)
+      * Added dt.quarter property and dt.strftime method to expression (by Juho Lauri) [#682](https://github.com/vaexio/vaex/pull/682)
 
 # vaex-server 0.3.0-dev
    * Refactored server, can return multiple binary blobs, execute multiple tasks, cancel tasks, encoding/serialization is more flexible (like returning masked arrays). [#571](https://github.com/vaexio/vaex/pull/557)
