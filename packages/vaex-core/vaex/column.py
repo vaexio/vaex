@@ -135,16 +135,16 @@ class ColumnIndexed(Column):
 
 class ColumnConcatenatedLazy(Column):
     def __init__(self, expressions, dtype=None):
+        self.is_masked = any([e.is_masked for e in expressions])
+        if self.is_masked:
+            for expression in expressions:
+                if expression.is_masked:
+                    try:
+                        self.fill_value = expressions[0][0:1].fill_value
+                    except:
+                        self.fill_value = expressions[0].values.fill_value
         if dtype is None:
             dtypes = [e.dtype for e in expressions]
-            self.is_masked = any([e.is_masked for e in expressions])
-            if self.is_masked:
-                for expression in expressions:
-                    if expression.is_masked:
-                        try:
-                            self.fill_value = expressions[0][0:1].fill_value
-                        except:
-                            self.fill_value = expressions[0].values.fill_value
 
             any_strings = any([dtype == str_type for dtype in dtypes])
             if any_strings:
