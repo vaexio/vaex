@@ -29,9 +29,9 @@ jobs:
     # - name: Set up Python ${{ matrix.python-version }}
     #   uses: actions/setup-python@v1
     #   with:
-    # - name: Set conda root as output
-    #   shell: bash
-    #   run: echo "::set-env name=CONDA::$(echo $CONDA)"
+    - name: Set conda root as output
+      shell: bash
+      run: echo "::set-env name=CONDA::$(echo $CONDA)"
     - name: Conda env cache
       id: cache-conda-env
       uses: actions/cache@v1
