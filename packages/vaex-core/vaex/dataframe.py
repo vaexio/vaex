@@ -5883,7 +5883,6 @@ class DataFrameConcatenated(DataFrameLocal):
         for name in list(first.virtual_columns.keys()):
             if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
                 self.add_virtual_column(name, first.virtual_columns[name])
-                self.column_names.append(name)
             else:
                 self.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
                 self.column_names.append(name)
