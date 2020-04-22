@@ -107,10 +107,17 @@ def test_sliced_concat(i1, length, df_concat):
 
 
 def test_concat_masked_values(df_concat):
-    # Exposes https://github.com/vaexio/vaex/issues/661
     df = df_concat
     # evaluate a piece not containing masked values
     assert df.m.evaluate(0, 3).tolist() == df.x[:3].tolist()
+
+
+def test_concat_masked_with_unmasked():
+    # Exposes https://github.com/vaexio/vaex/issues/661
+    df1 = vaex.from_arrays(x=np.arange(3.))
+    df2 = vaex.from_arrays(x=np.ma.masked_all(2, dtype='f8'))
+    df = df1.concat(df2)
+    assert df.x.tolist() == [0, 1, 2, None, None]
 
 
 def test_concat_missing_values():
