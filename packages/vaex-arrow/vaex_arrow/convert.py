@@ -8,6 +8,7 @@ def arrow_array_from_numpy_array(array):
     mask = None
     if np.ma.isMaskedArray(array):
         mask = array.mask
+        # arrow 0.16 behaves weird in this case https://github.com/vaexio/vaex/pull/639
         if mask is np.False_:
             mask = None
         elif mask is np.True_:
