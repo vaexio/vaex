@@ -8,6 +8,10 @@ def arrow_array_from_numpy_array(array):
     mask = None
     if np.ma.isMaskedArray(array):
         mask = array.mask
+        if mask is np.False_:
+            mask = None
+        elif mask is np.True_:
+            raise ValueError('not sure what pyarrow does with mask=True')
         array = array.data
     if dtype.kind == 'S':
         type = pyarrow.binary(dtype.itemsize)
