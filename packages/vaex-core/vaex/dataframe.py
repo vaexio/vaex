@@ -34,7 +34,7 @@ from . import selections, tasks, scopes
 from .expression import expression_namespace
 from .delayed import delayed, delayed_args, delayed_list
 from .column import Column, ColumnIndexed, ColumnSparse, ColumnString, ColumnConcatenatedLazy, str_type
-from .array_types import to_numpy
+from .array_types import to_numpy, to_array_type
 import vaex.events
 
 # py2/p3 compatibility
@@ -129,7 +129,7 @@ _doc_snippets['inplace'] = 'Make modifications to self or return a new DataFrame
 _doc_snippets['return_shallow_copy'] = 'Returns a new DataFrame with a shallow copy/view of the underlying data'
 _doc_snippets['chunk_size'] = 'Return an iterator with cuts of the object in lenght of this size'
 _doc_snippets['evaluate_parallel'] = 'Evaluate the (virtual) columns in parallel'
-_doc_snippets['array_type'] = 'Type of output array, possible values are None/"numpy" (ndarray) and "xarray" for a xarray.DataArray'
+_doc_snippets['array_type'] = 'Type of output array, possible values are None/"numpy" (ndarray), "xarray" for a xarray.DataArray, or "list" for a Python list'
 
 
 def docsubst(f):
@@ -674,6 +674,8 @@ class DataFrame(object):
                     counts = counts[0]
                 import xarray
                 return xarray.DataArray(counts, dims=dims, coords=coords)
+            elif array_type == 'list':
+                return vaex.utils.unlistify(expression_waslist, counts).tolist()
             elif array_type in [None, 'numpy']:
                 return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
             else:
@@ -2673,7 +2675,7 @@ class DataFrame(object):
                 yield previous_l1, previous_l2, previous_chunk
 
     @docsubst
-    def to_items(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, chunk_size=None):
+    def to_items(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, chunk_size=None, array_type=None):
         """Return a list of [(column_name, ndarray), ...)] pairs where the ndarray corresponds to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2682,16 +2684,17 @@ class DataFrame(object):
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :param parallel: {evaluate_parallel}
         :param chunk_size: {chunk_size}
+        :param array_type: {array_type}
         :return: list of (name, ndarray) pairs or iterator of
         """
         column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
         if chunk_size is not None:
             def iterator():
                 for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
-                    yield i1, i2, list(zip(column_names, chunks))
+                    yield i1, i2, list(zip(column_names, [to_array_type(chunk, array_type) for chunk in chunks]))
             return iterator()
         else:
-            return list(zip(column_names, self.evaluate(column_names, selection=selection, parallel=parallel)))
+            return list(zip(column_names, [to_array_type(chunk, array_type) for chunk in self.evaluate(column_names, selection=selection, parallel=parallel)]))
 
     @docsubst
     def to_arrays(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True):
@@ -2706,16 +2709,17 @@ class DataFrame(object):
         return self.evaluate(column_names or self.get_column_names(strings=strings, virtual=virtual), selection=selection, parallel=parallel)
 
     @docsubst
-    def to_dict(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True):
+    def to_dict(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, array_type=None):
         """Return a dict containing the ndarray corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
+        :param array_type: {array_type}
         :return: dict
         """
-        return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual, parallel=parallel))
+        return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual, parallel=parallel, array_type=array_type))
 
     @docsubst
     def to_copy(self, column_names=None, selection=None, strings=True, virtual=False, selections=True):
