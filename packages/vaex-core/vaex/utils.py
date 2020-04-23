@@ -538,20 +538,7 @@ def unlistify(waslist, *args):
 
 def find_valid_name(name, used=[]):
     first, rest = name[0], name[1:]
-    if not first.isidentifier():
-        if ('col_' + first).isidentifier():
-            first = 'col_' + first
-        else:
-            first = 'col_'
-    name = first
-    for char in rest:
-        # we test if it is an identifier with _ prefixed, since not every first character
-        # and following character are treated the same
-        # https://docs.python.org/3/reference/lexical_analysis.html#identifiers
-        if not ('_' + char).isidentifier():
-            name += '_'
-        else:
-            name += char
+    name = re.sub("[^a-zA-Z_\u4E00-\u9FEF]", "_", first) + re.sub("[^a-zA-Z_0-9\u4E00-\u9FEF]", "_", rest)
     if keyword.iskeyword(name):
         name += '_'
     if name in used:
