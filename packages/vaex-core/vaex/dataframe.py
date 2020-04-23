@@ -218,8 +218,10 @@ class DataFrame(object):
         # weak refs of expression that we keep to rewrite expressions
         self._expressions = []
 
+        self.local = threading.local()
         # a check to avoid nested aggregator calls, which make stack traces very difficult
-        self._aggregator_nest_count = 0
+        # like the ExecutorLocal.local.executing, this needs to be thread local
+        self.local._aggregator_nest_count = 0
 
         self._task_aggs = {}
         self._binners = {}
@@ -253,6 +255,9 @@ class DataFrame(object):
                             # to support numpy arrays
                             var = self.add_variable('arg_numpy_array', k, unique=True)
                             return var
+                        elif isinstance(k, list):
+                            # to support numpy scalars
+                            return '[' + ', '.join(myrepr(i) for i in k) + ']'
                         else:
                             return repr(k)
                     arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])
@@ -298,10 +303,8 @@ class DataFrame(object):
 
     def execute(self):
         '''Execute all delayed jobs.'''
-        try:
-            self.executor.execute()
-        finally:
-            self._task_aggs.clear()
+        # no need to clear _task_aggs anymore, since they will be removed for the executors' task list
+        self.executor.execute()
 
     @property
     def filtered(self):
@@ -594,67 +597,18 @@ class DataFrame(object):
         print(bins, value, index)
         return index
 
-    @delayed
-    def _old_count_calculation(self, expression, binby, limits, shape, selection, edges, progressbar):
-        if shape:
-            limits, shapes = limits
-        else:
-            limits, shapes = limits, shape
-        # print(limits, shapes)
-        if expression in ["*", None]:
-            task = tasks.TaskStatistic(self, binby, shapes, limits, op=tasks.OP_ADD1, selection=selection, edges=edges)
-        else:
-            task = tasks.TaskStatistic(self, binby, shapes, limits, weight=expression, op=tasks.OP_COUNT, selection=selection, edges=edges)
-        self.executor.schedule(task)
-        progressbar.add_task(task, "count for %s" % expression)
-        @delayed
-        def finish(counts):
-            counts = np.array(counts)
-            counts = counts[..., 0]
-            return counts
-        return finish(task)
-
-    @docsubst
-    def _old_count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
-        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
-        logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
-        expression = _ensure_string_from_expression(expression)
-        binby = _ensure_strings_from_expressions(binby)
-        waslist, [expressions,] = vaex.utils.listify(expression)
-        @delayed
-        def finish(*counts):
-           return vaex.utils.unlistify(waslist, counts)
-        progressbar = vaex.utils.progressbars(progress)
-        limits = self.limits(binby, limits, delay=True, shape=shape)
-        stats = [self._old_count_calculation(expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
-        var = finish(*stats)
-        return self._delay(delay, var)
-
-    @delayed
-    def _count_calculation(self, expression, grid, selection, edges, progressbar):
-        if expression in ["*", None]:
-            agg = vaex.agg.count(selection=selection, edges=edges)
-        else:
-            agg = vaex.agg.count(expression, selection=selection, edges=edges)
-        task = self._get_task_agg(grid)
-        agg_subtask = task.add_aggregation_operation(agg)
-        progressbar.add_task(task, "count for %s" % expression)
-        @delayed
-        def finish(counts):
-            counts = np.asarray(counts)
-            return counts
-        return finish(agg_subtask)
-
-    def _compute_agg(self, name, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, extra_expressions=None):
+    def _compute_agg(self, name, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, extra_expressions=None, array_type=None):
         logger.debug("aggregate %s(%r, binby=%r, limits=%r)", name, expression, binby, limits)
         expression = _ensure_strings_from_expressions(expression)
         if extra_expressions:
             extra_expressions = _ensure_strings_from_expressions(extra_expressions)
-        expression_waslist, [expressions,] = vaex.utils.listify(expression)
+        expression_waslist, [expressions, ] = vaex.utils.listify(expression)
         for expression in expressions:
             if expression and expression != "*":
                 self.validate_expression(expression)
-        assert self._aggregator_nest_count == 0, "detected nested aggregator call"
+        if not hasattr(self.local, '_aggregator_nest_count'):
+            self.local._aggregator_nest_count = 0
+        assert self.local._aggregator_nest_count == 0, "detected nested aggregator call"
         # Instead of 'expression is not None', we would like to have 'not virtual'
         # but in agg.py we do some casting, which results in calling .dtype(..) with a non-column
         # expression even though all expressions passed here are column references
@@ -670,10 +624,10 @@ class DataFrame(object):
             # TODO: GET RID OF THIS
             len(self) # fill caches and masks
             # pass
-        grid = self._create_grid(binby, limits, shape, delay=True)
+        grid = self._create_grid(binby, limits, shape, selection=selection, delay=True)
         @delayed
         def compute(expression, grid, selection, edges, progressbar):
-            self._aggregator_nest_count += 1
+            self.local._aggregator_nest_count += 1
             try:
                 if expression in ["*", None]:
                     agg = vaex.agg.aggregates[name](selection=selection, edges=edges)
@@ -682,26 +636,53 @@ class DataFrame(object):
                         agg = vaex.agg.aggregates[name](expression, *extra_expressions, selection=selection, edges=edges)
                     else:
                         agg = vaex.agg.aggregates[name](expression, selection=selection, edges=edges)
-                task = self._get_task_agg(grid)
+                task, new_task = self._get_task_agg(grid)
                 agg_subtask = agg.add_operations(task)
+                if new_task:
+                    # it is important we schedule the task after we add an operation
+                    # otherwise the task will fail to executor (has to have >= 1 operation)
+                    self.executor.schedule(task)
+
                 progressbar.add_task(task, "%s for %s" % (name, expression))
                 @delayed
                 def finish(counts):
-                    counts = np.asarray(counts)
-                    return counts
+                    return np.asarray(counts)
                 return finish(agg_subtask)
             finally:
-                self._aggregator_nest_count -= 1
+                self.local._aggregator_nest_count -= 1
         @delayed
-        def finish(*counts):
-            return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
+        def finish(grid, *counts):
+            if array_type == 'xarray':
+                binners = grid.binners
+                dims = [binner.expression for binner in binners]
+                if expression_waslist:
+                    dims = ['expression'] + dims
+
+                def to_coord(binner):
+                    name = type(binner).__name__
+                    if name.startswith('BinnerOrdinal_'):
+                        return self.category_labels(binner.expression)
+                    elif name.startswith('BinnerScalar_'):
+                        return self.bin_centers(binner.expression, [binner.vmin, binner.vmax], binner.bins)
+                coords = [to_coord(binner) for binner in binners]
+                if expression_waslist:
+                    coords = [expressions] + coords
+                    counts = np.asarray(counts)
+                else:
+                    counts = counts[0]
+                import xarray
+                return xarray.DataArray(counts, dims=dims, coords=coords)
+            elif array_type in [None, 'numpy']:
+                return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
+            else:
+                raise RuntimeError(f'Unknown array_type {format}')
         progressbar = vaex.utils.progressbars(progress)
         stats = [compute(expression, grid, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
-        var = finish(*stats)
+        var = finish(grid, *stats)
         return self._delay(delay, var)
 
     @docsubst
-    def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
+    def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, array_type=None):
         """Count the number of non-NaN values (or all, if expression is None or "*").
 
         Example:
@@ -721,9 +702,10 @@ class DataFrame(object):
         :param delay: {delay}
         :param progress: {progress}
         :param edges: {edges}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}
         """
-        return self._compute_agg('count', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('count', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
 
     @delayed
     def _first_calculation(self, expression, order_expression, binby, limits, shape, selection, edges, progressbar):
@@ -741,7 +723,7 @@ class DataFrame(object):
         return finish(task)
 
     @docsubst
-    def first(self, expression, order_expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
+    def first(self, expression, order_expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, array_type=None):
         """Return the first element of a binned `expression`, where the values each bin are sorted by `order_expression`.
 
         Example:
@@ -763,10 +745,11 @@ class DataFrame(object):
         :param delay: {delay}
         :param progress: {progress}
         :param edges: {edges}
+        :param array_type: {array_type}
         :return: Ndarray containing the first elements.
         :rtype: numpy.array
         """
-        return self._compute_agg('first', expression, binby, limits, shape, selection, delay, edges, progress, extra_expressions=[order_expression])
+        return self._compute_agg('first', expression, binby, limits, shape, selection, delay, edges, progress, extra_expressions=[order_expression], array_type=array_type)
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
         logger.debug("count(%r, binby=%r, limits=%r)", expression, binby, limits)
         expression = _ensure_strings_from_expressions(expression)
@@ -785,7 +768,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
+    def mean(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
         """Calculate the mean for expression, possibly on a grid defined by binby.
 
         Example:
@@ -802,9 +785,10 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}
         """
-        return self._compute_agg('mean', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('mean', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
         logger.debug("mean of %r, with binby=%r, limits=%r, shape=%r, selection=%r, delay=%r", expression, binby, limits, shape, selection, delay)
         expression = _ensure_strings_from_expressions(expression)
         selection = _ensure_strings_from_expressions(selection)
@@ -844,7 +828,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
+    def sum(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
         """Calculate the sum for the given expression, possible on a grid defined by binby
 
         Example:
@@ -862,9 +846,10 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}
         """
-        return self._compute_agg('sum', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('sum', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
         @delayed
         def finish(*sums):
             return vaex.utils.unlistify(waslist, sums)
@@ -880,7 +865,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def std(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, array_type=None):
         """Calculate the standard deviation for the given expression, possible on a grid defined by binby
 
 
@@ -896,6 +881,7 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}
         """
         @delayed
@@ -905,7 +891,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def var(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, array_type=None):
         """Calculate the sample variance for the given expression, possible on a grid defined by binby
 
         Example:
@@ -926,10 +912,11 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}
         """
         edges = False
-        return self._compute_agg('var', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('var', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
         expression = _ensure_strings_from_expressions(expression)
         @delayed
         def calculate(expression, limits):
@@ -1227,7 +1214,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
+    def min(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
         """Calculate the minimum for given expressions, possibly on a grid defined by binby.
 
 
@@ -1247,9 +1234,10 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
-        return self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
         @delayed
         def finish(result):
             return result[..., 0]
@@ -1257,7 +1245,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
+    def max(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
         """Calculate the maximum for given expressions, possibly on a grid defined by binby.
 
 
@@ -1277,9 +1265,10 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param array_type: {array_type}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
-        return self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
+        return self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
         @delayed
         def finish(result):
             return result[..., 1]
@@ -1371,39 +1360,45 @@ class DataFrame(object):
                 # if we have an off  # of elements, say, N=3, the center is at i=1=(N-1)/2
                 # if we have an even # of elements, say, N=4, the center is between i=1=(N-2)/2 and i=2=(N/2)
                 # index = (shape[-1] -1-3) * percentage/100. # the -3 is for the edges
-                values = np.array((totalcounts + 1) * percentage / 100.)  # make sure it's an ndarray
-                values[empty] = 0
-                floor_values = np.array(np.floor(values))
-                ceil_values = np.array(np.ceil(values))
-                vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
-                vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
+                waslist_percentage, [percentages, ] = vaex.utils.listify(percentage)
+                percentiles = []
+                for p in percentages:
+                    values = np.array((totalcounts + 1) * p / 100.)  # make sure it's an ndarray
+                    values[empty] = 0
+                    floor_values = np.array(np.floor(values))
+                    ceil_values = np.array(np.ceil(values))
+                    vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
+                    vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
 
-                def index_choose(a, indices):
-                    # alternative to np.choise, which doesn't like the last dim to be >= 32
-                    # print(a, indices)
-                    out = np.zeros(a.shape[:-1])
-                    # print(out.shape)
-                    for i in np.ndindex(out.shape):
-                        # print(i, indices[i])
-                        out[i] = a[i + (indices[i],)]
-                    return out
+                    def index_choose(a, indices):
+                        # alternative to np.choise, which doesn't like the last dim to be >= 32
+                        # print(a, indices)
+                        out = np.zeros(a.shape[:-1])
+                        # print(out.shape)
+                        for i in np.ndindex(out.shape):
+                            # print(i, indices[i])
+                            out[i] = a[i + (indices[i],)]
+                        return out
 
-                def calculate_x(edges, values):
-                    left, right = edges[..., 0], edges[..., 1]
-                    left_value = index_choose(cumulative_grid, left)
-                    right_value = index_choose(cumulative_grid, right)
-                    u = np.array((values - left_value) / (right_value - left_value))
-                    # TODO: should it really be -3? not -2
-                    xleft, xright = percentile_limits[i][0] + (left - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3),\
-                        percentile_limits[i][0] + (right - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3)
-                    x = xleft + (xright - xleft) * u  # /2
-                    return x
+                    def calculate_x(edges, values):
+                        left, right = edges[..., 0], edges[..., 1]
+                        left_value = index_choose(cumulative_grid, left)
+                        right_value = index_choose(cumulative_grid, right)
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            u = np.array((values - left_value) / (right_value - left_value))
+                            # TODO: should it really be -3? not -2
+                            xleft, xright = percentile_limits[i][0] + (left - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3),\
+                                percentile_limits[i][0] + (right - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3)
+                            x = xleft + (xright - xleft) * u  # /2
+                        return x
 
-                x1 = calculate_x(edges_floor, floor_values)
-                x2 = calculate_x(edges_ceil, ceil_values)
-                u = values - floor_values
-                x = x1 + (x2 - x1) * u
-                results.append(x)
+                    x1 = calculate_x(edges_floor, floor_values)
+                    x2 = calculate_x(edges_ceil, ceil_values)
+                    u = values - floor_values
+                    x = x1 + (x2 - x1) * u
+                    percentiles.append(x)
+                percentile = vaex.utils.unlistify(waslist_percentage, np.array(percentiles))
+                results.append(percentile)
 
             return results
 
@@ -2937,7 +2932,7 @@ class DataFrame(object):
                         raise ValueError("Array is of length %s, while the length of the DataFrame is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
                 raise ValueError("array is of length %s, while the length of the DataFrame is %s" % (len(ar), self.length_original()))
             # assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
-            valid_name = vaex.utils.find_valid_name(name)
+            valid_name = vaex.utils.find_valid_name(name, used=self.get_column_names(hidden=True))
             if name != valid_name:
                 self._column_aliases[name] = valid_name
             ar = f_or_array
@@ -2988,10 +2983,13 @@ class DataFrame(object):
             if len(names) != columns.shape[1]:
                 raise ValueError('number of columns ({}) does not match number of column names ({})'.format(columns.shape[1], len(names)))
             for i, name in enumerate(names):
-                self.columns[name] = ColumnSparse(columns, i)
-                self.column_names.append(name)
-                self._sparse_matrices[name] = columns
-                self._save_assign_expression(name, Expression(self, name))
+                valid_name = vaex.utils.find_valid_name(name, used=self.get_column_names(hidden=True))
+                if name != valid_name:
+                    self._column_aliases[name] = valid_name
+                self.columns[valid_name] = ColumnSparse(columns, i)
+                self.column_names.append(valid_name)
+                self._sparse_matrices[valid_name] = columns
+                self._save_assign_expression(valid_name, Expression(self, valid_name))
         else:
             raise ValueError('only scipy.sparse.csr_matrix is supported')
 
@@ -3263,21 +3261,26 @@ class DataFrame(object):
                 expression = expression.copy(self)
         column_position = len(self.column_names)
         # if the current name is an existing column name....
-        if name in self.get_column_names():
+        if name in self.get_column_names(hidden=True):
             column_position = self.column_names.index(name)
             renamed = vaex.utils.find_valid_name('__' +name, used=self.get_column_names(hidden=True))
             # we rewrite all existing expressions (including the passed down expression argument)
             self._rename(name, renamed)
         expression = _ensure_string_from_expression(expression)
 
-        name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names())
+        if vaex.utils.find_valid_name(name) != name:
+            # if we have to rewrite the name, we need to make it unique
+            unique = True
+        valid_name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(hidden=True))
+        if name != valid_name:
+            self._column_aliases[name] = valid_name
 
-        self.virtual_columns[name] = expression
-        self._virtual_expressions[name] = Expression(self, expression)
+        self.virtual_columns[valid_name] = expression
+        self._virtual_expressions[valid_name] = Expression(self, expression)
         if name not in self.column_names:
-            self.column_names.insert(column_position, name)
-        self._save_assign_expression(name)
-        self.signal_column_changed.emit(self, name, "add")
+            self.column_names.insert(column_position, valid_name)
+        self._save_assign_expression(valid_name)
+        self.signal_column_changed.emit(self, valid_name, "add")
         # self.write_virtual_meta()
 
     def rename(self, name, new_name, unique=False):
@@ -3311,7 +3314,8 @@ class DataFrame(object):
         for key, value in self.selection_histories.items():
             self.selection_histories[key] = list([k if k is None else k._rename(self, old, new) for k in value])
         if not is_variable:
-            self._renamed_columns.append((old, new))
+            if new not in self.virtual_columns:
+                self._renamed_columns.append((old, new))
             self.column_names[self.column_names.index(old)] = new
             if hasattr(self, old):
                 try:
@@ -3536,12 +3540,14 @@ class DataFrame(object):
         parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
         parts += ["<table class='table-striped'>"]
 
-        column_names = self.get_column_names()
+        aliases_reverse = {value: key for key, value in self._column_aliases.items()}
+        # we need to get the underlying names since we use df.evaluate
+        column_names = self.get_column_names(alias=False)
         values_list = []
         values_list.append(['#', []])
         # parts += ["<thead><tr>"]
         for name in column_names:
-            values_list.append([name, []])
+            values_list.append([aliases_reverse.get(name, name), []])
             # parts += ["<th>%s</th>" % name]
         # parts += ["</tr></thead>"]
 
@@ -3699,16 +3705,20 @@ class DataFrame(object):
         # currenly disabled
         return False
 
-    def column_count(self):
-        """Returns the number of columns (including virtual columns)."""
-        return len(self.column_names)
+    def column_count(self, hidden=False):
+        """Returns the number of columns (including virtual columns).
+
+        :param bool hidden: If True, include hidden columns in the tally
+        :returns: Number of columns in the DataFrame
+        """
+        return len(self.get_column_names(hidden=hidden))
 
     def get_names(self, hidden=False):
         """Return a list of column names and variable names."""
         names = self.get_column_names(hidden=hidden)
         return names + [k for k in self.variables.keys() if not hidden or not k.startswith('__')]
 
-    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None):
+    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None, alias=True):
         """Return a list of column names
 
         Example:
@@ -3727,19 +3737,10 @@ class DataFrame(object):
         :param hidden: If False, skip hidden columns
         :param strings: If False, skip string columns
         :param regex: Only return column names matching the (optional) regular expression
+        :param alias: Return the alias (True) or internal name (False).
         :rtype: list of str
-
-        Example:
-        >>> import vaex
-        >>> df = vaex.from_scalars(x=1, x2=2, y=3, s='string')
-        >>> df['r'] = (df.x**2 + df.y**2)**2
-        >>> df.get_column_names()
-        ['x', 'x2', 'y', 's', 'r']
-        >>> df.get_column_names(virtual=False)
-        ['x', 'x2', 'y', 's']
-        >>> df.get_column_names(regex='x.*')
-        ['x', 'x2']
         """
+        aliases_reverse = {value: key for key, value in self._column_aliases.items()} if alias else {}
         def column_filter(name):
             '''Return True if column with specified name should be returned'''
             if regex and not re.match(regex, name):
@@ -3751,11 +3752,11 @@ class DataFrame(object):
             if not hidden and name.startswith('__'):
                 return False
             return True
-        if hidden and virtual and regex is None:
+        if hidden and virtual and regex is None and not alias:
             return list(self.column_names)  # quick path
-        if not hidden and virtual and regex is None:
+        if not hidden and virtual and regex is None and not alias:
             return [k for k in self.column_names if not k.startswith('__')]  # also a quick path
-        return [name for name in self.column_names if column_filter(name)]
+        return [aliases_reverse.get(name, name) for name in self.column_names if column_filter(name)]
 
     def __bool__(self):
         return True  # we are always true :) otherwise Python might call __len__, which can be expensive
@@ -4287,7 +4288,7 @@ class DataFrame(object):
         column_names = column_names or self.get_column_names(virtual=False)
         expression = f(self._expr(column_names[0]))
         for column in column_names[1:]:
-            expression = expression & f(self._expr(column))
+            expression = expression | f(self._expr(column))
         copy.select(~expression, name=FILTER_SELECTION_NAME, mode='and')
         return copy
 
@@ -4555,12 +4556,12 @@ class DataFrame(object):
             names = self.get_column_names()
             return [self.evaluate(name, item, item+1)[0] for name in names]
         elif isinstance(item, six.string_types):
+            if item in self._column_aliases:
+                item = self._column_aliases[item]  # translate the alias name into the real name
             if hasattr(self, item) and isinstance(getattr(self, item), Expression):
                 return getattr(self, item)
             # if item in self.virtual_columns:
             #   return Expression(self, self.virtual_columns[item])
-            if item in self._column_aliases:
-                item = self._column_aliases[item]  # translate the alias name into the real name
             # if item in self._virtual_expressions:
             #     return self._virtual_expressions[item]
             self.validate_expression(item)
@@ -4731,10 +4732,14 @@ class DataFrame(object):
 
 
     def _get_task_agg(self, grid):
-        if grid not in self._task_aggs:
-            self._task_aggs[grid] = task = vaex.tasks.TaskAggregations(self, grid)
-            self.executor.schedule(task)
-        return self._task_aggs[grid]
+        new_task = False
+        with self.executor.lock:
+            # if we did not create a task yet for this grid, or it was already scheduled for execution
+            if grid not in self._task_aggs or self._task_aggs[grid] not in self.executor.tasks:
+                # we create a new one
+                self._task_aggs[grid] = vaex.tasks.TaskAggregations(self, grid)
+                new_task = True
+        return self._task_aggs[grid], new_task
 
     @docsubst
     @stat_1d
@@ -4746,11 +4751,13 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}
         """
-        task_agg = self._get_task_agg(grid)
+        task_agg, new_task = self._get_task_agg(grid)
         sub_task = aggregator.add_operations(task_agg)
+        if new_task:
+            self.executor.schedule(task_agg)
         return self._delay(delay, sub_task)
 
-    def _binner(self, expression, limits=None, shape=None, delay=False):
+    def _binner(self, expression, limits=None, shape=None, selection=None, delay=False):
         expression = str(expression)
         if limits is not None and not isinstance(limits, (tuple, str)):
             limits = tuple(limits)
@@ -4765,7 +4772,7 @@ class DataFrame(object):
                 @delayed
                 def create_binner(limits):
                     return self._binner_scalar(expression, limits, shape)
-                self._binners[key] = create_binner(self.limits(expression, limits, delay=True))
+                self._binners[key] = create_binner(self.limits(expression, limits, selection=selection, delay=True))
         return self._delay(delay, self._binners[key])
 
     def _grid(self, binners):
@@ -4785,7 +4792,7 @@ class DataFrame(object):
         type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", self.dtype(expression))
         return type(expression, ordinal_count, min_value)
 
-    def _create_grid(self, binby, limits, shape, delay=False):
+    def _create_grid(self, binby, limits, shape, selection=None, delay=False):
         if isinstance(binby, (list, tuple)):
             binbys = binby
         else:
@@ -4801,7 +4808,7 @@ class DataFrame(object):
             limits = []
         shapes = _expand_shape(shape, len(binbys))
         for binby, limits1, shape in zip(binbys, limits, shapes):
-            binners.append(self._binner(binby, limits1, shape, delay=True))
+            binners.append(self._binner(binby, limits1, shape, selection, delay=True))
         @delayed
         def finish(*binners):
             return self._grid(binners)
@@ -4933,8 +4940,8 @@ class DataFrameLocal(DataFrame):
         df.variables.update(self.variables)  # we add all, could maybe only copy used
         df._categories.update(self._categories)
         if column_names is None:
-            column_names = self.get_column_names(hidden=True)
-        all_column_names = self.get_column_names(hidden=True)
+            column_names = self.get_column_names(hidden=True, alias=False)
+        all_column_names = self.get_column_names(hidden=True, alias=False)
 
         # put in the selections (thus filters) in place
         # so drop moves instead of really dropping it
@@ -5146,7 +5153,10 @@ class DataFrameLocal(DataFrame):
                 if self.dtype(name) != dtype:
                     raise ValueError("Cannot cast %r (of type %r) to %r" % (name, self.dtype(name), dtype))
         chunks = self.evaluate(column_names, parallel=parallel)
-        return np.array(chunks, dtype=dtype).T
+        if any(np.ma.isMaskedArray(chunk) for chunk in chunks):
+            return np.ma.array(chunks, dtype=dtype).T
+        else:
+            return np.array(chunks, dtype=dtype).T
 
     @vaex.utils.deprecated('use DataFrame.join(other)')
     def _hstack(self, other, prefix=None):
@@ -5871,7 +5881,6 @@ class DataFrameConcatenated(DataFrameLocal):
         for name in list(first.virtual_columns.keys()):
             if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
                 self.add_virtual_column(name, first.virtual_columns[name])
-                self.column_names.append(name)
             else:
                 self.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
                 self.column_names.append(name)
