@@ -109,6 +109,7 @@ _doc_snippets["shape"] = """shape for the array where the statistic is calculate
 _doc_snippets["percentile_limits"] = """description for the min and max values to use for the cumulative histogram, should currently only be 'minmax'"""
 _doc_snippets["percentile_shape"] = """shape for the array where the cumulative histogram is calculated on, integer type"""
 _doc_snippets["selection"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False), or a list of selections"""
+_doc_snippets["selection1"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False)"""
 _doc_snippets["delay"] = """Do not return the result, but a proxy for delayhronous calculations (currently only for internal use)"""
 _doc_snippets["progress"] = """A callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False"""
 _doc_snippets["expression_limits"] = _doc_snippets["expression"]
@@ -128,6 +129,7 @@ _doc_snippets['note_filter'] = '.. note:: Note that filtering will be ignored (s
 _doc_snippets['inplace'] = 'Make modifications to self or return a new DataFrame'
 _doc_snippets['return_shallow_copy'] = 'Returns a new DataFrame with a shallow copy/view of the underlying data'
 _doc_snippets['chunk_size'] = 'Return an iterator with cuts of the object in lenght of this size'
+_doc_snippets['chunk_size_export'] = 'Number of rows to be written to disk in a single iteration'
 _doc_snippets['evaluate_parallel'] = 'Evaluate the (virtual) columns in parallel'
 _doc_snippets['array_type'] = 'Type of output array, possible values are None/"numpy" (ndarray) and "xarray" for a xarray.DataArray'
 
@@ -5679,8 +5681,12 @@ class DataFrameLocal(DataFrame):
             self.export_hdf5(path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
         elif path.endswith('.fits'):
             self.export_fits(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
-        if path.endswith('.parquet'):
+        elif path.endswith('.parquet'):
             self.export_parquet(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+        elif path.endswith('.csv'):
+            self.export_csv(path, selection=selection, progress=progress, virtual=virtual)
+        else:
+            raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 
     def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
         """Exports the DataFrame to a file written with arrow
@@ -5756,6 +5762,41 @@ class DataFrameLocal(DataFrame):
         """
         import vaex.export
         vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+
+    @docsubst
+    def export_csv(self, path, virtual=False, selection=False, progress=None, chunk_size=1_000_000, **kwargs):
+        """ Exports the DataFrame to a CSV file.
+
+        :param str path: Path for file
+        :param bool virtual: If True, export virtual columns as well
+        :param bool selection: {selection1}
+        :param progress: {progress}
+        :param int chunk_size: {chunk_size_export}
+        :param **kwargs: Extra keyword arguments to be passed on pandas.DataFrame.to_csv()
+        :return:
+        """
+        import pandas as pd
+
+        expressions = self.get_column_names(virtual=virtual)
+        progressbar = vaex.utils.progressbars(progress)
+        dtypes = self[expressions].dtypes
+        n_samples = len(self)
+
+        for i1, i2, chunks in self.evaluate_iterator(expressions, chunk_size=chunk_size, selection=selection):
+            progressbar( i1 / n_samples)
+            chunk_dict = {col: values for col, values in zip(expressions, chunks)}
+            chunk_pdf = pd.DataFrame(chunk_dict)
+
+            if i1 == 0:  # Only the 1st chunk should have a header and the rest will be appended
+                mode = 'w'
+                header = True
+            else:
+                mode = 'a'
+                header = False
+
+            chunk_pdf.to_csv(path_or_buf=path, mode=mode, header=header, index=False, **kwargs)
+        progressbar(1.0)
+        return
 
     def _needs_copy(self, column_name):
         import vaex.file.other
