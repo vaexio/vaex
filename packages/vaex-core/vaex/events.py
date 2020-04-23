@@ -36,7 +36,7 @@ class Signal(object):
                 value = callback(*final_args, **final_kwargs)
                 results.append(value)
             except Exception:
-                logger.error("error in handling callback %r with arguments %r and kwargs %r", callback, final_args, final_kwargs)
+                logger.exception("error in handling callback %r with arguments %r and kwargs %r", callback, final_args, final_kwargs)
                 raise
                 # tb = traceback.format_exc()
                 # raise Exception("error while calling callback: %r with arguments %r and kwargs %r" % (callback, final_args, final_kwargs), tb)

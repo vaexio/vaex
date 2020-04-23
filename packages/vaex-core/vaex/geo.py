@@ -1,6 +1,7 @@
 import vaex
 import numpy as np
-from .utils import _ensure_strings_from_expressions, _ensure_string_from_expression
+from .utils import _ensure_strings_from_expressions, _ensure_string_from_expression, as_flat_array
+from .dataframe import docsubst
 
 
 class DataFrameAccessorGeo(object):
@@ -15,6 +16,7 @@ class DataFrameAccessorGeo(object):
     def __init__(self, df):
         self.df = df
 
+    @docsubst
     def spherical2cartesian(self, alpha, delta, distance, xname="x", yname="y", zname="z",
                             propagate_uncertainties=False,
                             center=[0, 0, 0], radians=False, inplace=False):
@@ -122,6 +124,7 @@ class DataFrameAccessorGeo(object):
             df.propagate_uncertainties([df[radius_out], df[azimuth_out]])
         return df
 
+    @docsubst
     def velocity_polar2cartesian(self, x='x', y='y', azimuth=None, vr='vr_polar', vazimuth='vphi_polar', vx_out='vx', vy_out='vy', propagate_uncertainties=False, inplace=False):
         """ Convert cylindrical polar velocities to Cartesian.
 
@@ -151,6 +154,7 @@ class DataFrameAccessorGeo(object):
             df.propagate_uncertainties([df[vx_out], df[vy_out]])
         return df
 
+    @docsubst
     def velocity_cartesian2polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
                                                           propagate_uncertainties=False, inplace=False):
         """Convert cartesian to polar velocities.
@@ -292,3 +296,264 @@ class DataFrameAccessorGeo(object):
             .format(**locals())
         df.add_virtual_column(bearing, expr)
         return df
+
+    @docsubst
+    def inside_which_polygons(self, x, y, pxss, pyss=None, any=True):
+        """Find in which set of polygons (0 based index) a point resides.
+
+        If any=True, it will be the first matching polygon set index, if any=False, it will
+        be the first index that matches all polygons in the set.
+
+        >>> import vaex
+        >>> import numpy as np
+        >>> df = vaex.from_arrays(x=[1, 2, 3], y=[2, 3, 4])
+        >>> px = np.array([1.5, 2.5, 2.5, 1.5])
+        >>> py = np.array([2.5, 2.5, 3.5, 3.5])
+        >>> polygonA = [px, py]
+        >>> polygonB = [px + 1, py + 1]
+        >>> pxs = [[polygonA, polygonB], [polygonA]]
+        >>> df['polygon_index'] = df.geo.inside_which_polygons(df.x, df.y, pxs, any=True)
+        >>> df
+        #    x    y  polygon_index
+        0    1    2  --
+        1    2    3  0
+        2    3    4  0
+        >>> df['polygon_index'] = df.geo.inside_which_polygons(df.x, df.y, pxs, any=False)
+        >>> df
+        #    x    y  polygon_index
+        0    1    2  --
+        1    2    3  1
+        2    3    4  --
+
+        :param x: {expression_one}
+        :param y: {expression_one}
+        :param px: list of N ndarrays with x coordinates for the polygon, N is the number of polygons
+        :param px: list of N ndarrays with y coordinates for the polygon, if None, the shape of the ndarrays
+                of the last dimention of the x arrays should be 2 (i.e. have the x and y coordinates)
+        :param any: test if point it in any polygon (logically or), or all polygons (logically and)
+        :return: Expression, 0 based index to which polygon the point belongs (or missing/masked value)
+        """
+        if pyss is None:
+            list_of_polygons = pxss
+            # polygon is a list of vertices shape: (N, 2)
+            list_of_polygons = [[as_flat_array(np.asarray(polygon), np.float64) for polygon in polygons]
+                                    for polygons in list_of_polygons]
+            pxss = [[as_flat_array(polygon[0]) for polygon in polygons] for polygons in list_of_polygons]
+            pyss = [[as_flat_array(polygon[1]) for polygon in polygons] for polygons in list_of_polygons]
+        else:
+            pxss = [[as_flat_array(np.asarray(pxs), np.float64) for pxs in polygons_x]
+                                    for polygons_x in pxss]
+            pyss = [[as_flat_array(np.asarray(pys), np.float64) for pys in polygons_y]
+                                    for polygons_y in pyss]
+        N = len(pxss)
+
+        # iterate over polygon sets
+        meanxss = []
+        meanyss = []
+        radiii = []
+        for region_index in range(N):
+            pxs = pxss[region_index]
+            pys = pyss[region_index]
+            meanxs = []
+            meanys = []
+            radii = []
+
+            for polygons_index in range(len(pxs)):
+                meanx = pxs[polygons_index].mean()
+                meany = pys[polygons_index].mean()
+                radius = np.sqrt((meanx - pxs[polygons_index])**2 + (meany - pys[polygons_index])**2).max()
+                meanxs.append(meanx)
+                meanys.append(meany)
+                radii.append(radius)
+            meanxss.append(meanxs)
+            meanyss.append(meanys)
+            radiii.append(radii)
+        # this method is simply a wrapper around the true function, which also wants to have the
+        # radii, which are precalculated for performance reasons
+        return self.df.func.geo_inside_which_polygons(x, y, pxss, pyss, meanxss, meanyss, radiii, any=any)
+
+
+@vaex.register_function(df_accessor=DataFrameAccessorGeo, name='inside_polygon')
+def geo_inside_polygon(x, y, px, py):
+    """Test if points defined by x and y are inside the polygon px, py
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> df = vaex.from_arrays(x=[1, 2, 3], y=[2, 3, 4])
+    >>> px = np.array([1.5, 2.5, 2.5, 1.5])
+    >>> py = np.array([2.5, 2.5, 3.5, 3.5])
+    >>> df['inside'] = df.geo.inside_polygon(df.x, df.y, px, py)
+    >>> df
+    #    x    y  inside
+    0    1    2  False
+    1    2    3  True
+    2    3    4  False
+
+    :param x: {expression_one}
+    :param y: {expression_one}
+    :param px: list of x coordinates for the polygon
+    :param px: list of y coordinates for the polygon
+    :return: Expression, which is true if point is inside, else false.
+    """
+    x = as_flat_array(x, np.float64)
+    y = as_flat_array(y, np.float64)
+    px = as_flat_array(np.asarray(px), np.float64)
+    py = as_flat_array(np.asarray(py), np.float64)
+    mask = np.zeros(len(x), dtype=np.bool)
+    meanx = px.mean()
+    meany = py.mean()
+    radius = np.sqrt((meanx - px)**2 + (meany - py)**2).max()
+    vaex.vaexfast.pnpoly(px, py, x, y, mask, meanx, meany, radius)
+    return mask
+
+
+@docsubst
+@vaex.register_function(df_accessor=DataFrameAccessorGeo, name='inside_polygons')
+def geo_inside_polygons(x, y, pxs, pys, any=True):
+    """Test if points defined by x and y are inside all or any of the the polygons px, py
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> df = vaex.from_arrays(x=[1, 2, 3], y=[2, 3, 4])
+    >>> px = np.array([1.5, 2.5, 2.5, 1.5])
+    >>> py = np.array([2.5, 2.5, 3.5, 3.5])
+    >>> df['inside'] = df.geo.inside_polygons(df.x, df.y, [px, px + 1], [py, py + 1], any=True)
+    >>> df
+    #    x    y  inside
+    0    1    2  False
+    1    2    3  True
+    2    3    4  True
+
+    :param x: {expression_one}
+    :param y: {expression_one}
+    :param pxs: list of N ndarrays with x coordinates for the polygon, N is the number of polygons
+    :param pxs: list of N ndarrays with y coordinates for the polygon
+    :param any: return true if in any polygon, or all polygons
+    :return: Expression , which is true if point is inside, else false.
+    """
+    x = as_flat_array(x, np.float64)
+    y = as_flat_array(y, np.float64)
+    mask = np.zeros(len(x), dtype=np.bool)
+
+    N = len(pxs)
+    submask = np.zeros(len(x), dtype=np.bool)
+    if N > 0:
+        for i in range(0, N):
+            px = as_flat_array(pxs[i], np.float64)
+            py = as_flat_array(pys[i], np.float64)
+            meanx = px.mean()
+            meany = py.mean()
+            radius = np.sqrt((meanx - px)**2 + (meany - py)**2).max()
+            vaex.vaexfast.pnpoly(px, py, x, y, submask if i > 0 else mask, meanx, meany, radius)
+            if i > 0:
+                if any:
+                    mask = mask | submask
+                else:
+                    mask = mask & submask
+    return mask
+
+
+@docsubst
+@vaex.register_function(df_accessor=DataFrameAccessorGeo, name='inside_which_polygon')
+def geo_inside_which_polygon(x, y, pxs, pys):
+    """Find in which polygon (0 based index) a point resides
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> df = vaex.from_arrays(x=[1, 2, 3], y=[2, 3, 4])
+    >>> px = np.array([1.5, 2.5, 2.5, 1.5])
+    >>> py = np.array([2.5, 2.5, 3.5, 3.5])
+    >>> df['polygon_index'] = df.geo.inside_which_polygon(df.x, df.y, [px, px + 1], [py, py + 1])
+    >>> df
+    #    x    y  polygon_index
+    0    1    2  --
+    1    2    3  0
+    2    3    4  1
+
+    :param x: {expression_one}
+    :param y: {expression_one}
+    :param px: list of N ndarrays with x coordinates for the polygon, N is the number of polygons
+    :param px: list of N ndarrays with y coordinates for the polygon
+    :return: Expression, 0 based index to which polygon the point belongs (or missing/masked value)
+    """
+    x = as_flat_array(x, np.float64)
+    y = as_flat_array(y, np.float64)
+    pxs = as_flat_array(np.asarray(pxs), np.float64)
+    pys = as_flat_array(np.asarray(pys), np.float64)
+    polygon_indices = np.zeros(len(x), dtype=np.int32)
+    polygon_mask = np.ones(len(x), dtype=np.bool)
+    polygon_indices = np.ma.array(polygon_indices, mask=polygon_mask)
+    indices = np.arange(len(x), dtype=np.uint32)
+    inside_mask = np.zeros(len(x), dtype=np.bool)
+
+    meanx = pxs.mean()
+    meany = pys.mean()
+    radius = np.sqrt((meanx - pxs)**2 + (meany - pys)**2).max()
+    N = len(pxs)
+    # mask = mask | submask
+    for i in range(N):
+        vaex.vaexfast.pnpoly(pxs[i], pys[i], x, y, inside_mask, meanx, meany, radius)
+        # mark all points that are inside with the index of the polygon
+        polygon_indices.data[indices[inside_mask]] = i
+        polygon_indices.mask[indices[inside_mask]] = False
+        # now remove all values that found a matching polygon
+        x = x[~inside_mask]
+        y = y[~inside_mask]
+        # and keep track of where they point to in the polygon_indices array
+        indices = indices[~inside_mask]
+        # trim mask
+        inside_mask = inside_mask[:len(x)]
+        if len(x) == 0:
+            break
+    return polygon_indices
+
+
+@docsubst
+@vaex.register_function()
+def geo_inside_which_polygons(x, y, pxss, pyss, meanxss, meanyss, radiii, any):
+    # real implementation of geo.inside_which_polygon
+    x = as_flat_array(x, np.float64)
+    y = as_flat_array(y, np.float64)
+    polygon_indices = np.zeros(len(x), dtype=np.int32)
+    polygon_mask = np.ones(len(x), dtype=np.bool)
+    polygon_indices = np.ma.array(polygon_indices, mask=polygon_mask)
+    indices = np.arange(len(x), dtype=np.uint32)
+    inside_mask = np.zeros(len(x), dtype=np.bool)
+    N = len(pxss)
+    for i in range(N):
+        pxs = pxss[i]
+        pys = pyss[i]
+        meanxs = meanxss[i]
+        meanys = meanyss[i]
+        radii = radiii[i]
+        M = len(pxs)
+        if M > 0:
+            vaex.vaexfast.pnpoly(pxs[0], pys[0], x, y, inside_mask, meanxs[0], meanys[0], radii[0])
+        if M > 1:
+            inside_sub_mask = np.zeros(len(x), dtype=np.bool)
+            for j in range(1, M):
+                vaex.vaexfast.pnpoly(pxs[j], pys[j], x, y, inside_sub_mask, meanxs[j], meanys[j], radii[j])
+                if any:
+                    inside_mask = inside_mask | inside_sub_mask
+                else:
+                    inside_mask = inside_mask & inside_sub_mask
+
+        # mark all points that are inside with the index of the polygon
+        polygon_indices.data[indices[inside_mask]] = i
+        polygon_indices.mask[indices[inside_mask]] = False
+        # no remove all values that found a matching polygon
+        x = x[~inside_mask]
+        y = y[~inside_mask]
+        # and keep track of where they point to in the polygon_indices array
+        indices = indices[~inside_mask]
+        # trim mask
+        inside_mask = inside_mask[:len(x)]
+        if len(x) == 0:
+            break
+    return polygon_indices

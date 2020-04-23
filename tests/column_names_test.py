@@ -24,6 +24,8 @@ def test_column_names(ds_local):
 def test_add_invalid_name(tmpdir):
     # support invalid names and keywords
     df = vaex.from_dict({'X!1': x, 'class': x*2})
+    assert df.get_column_names() == ['X!1', 'class']
+    assert df.get_column_names(alias=False) != ['X!1', 'class']
     assert df['X!1'].tolist() == x.tolist()
     assert (df['X!1']*2).tolist() == (x*2).tolist()
     assert (df['class']).tolist() == (x*2).tolist()
@@ -35,6 +37,30 @@ def test_add_invalid_name(tmpdir):
     df = vaex.open(path)
     assert df['X!1'].tolist() == x.tolist()
     assert (df.copy()['X!1']*2).tolist() == (x*2).tolist()
+
+
+def test_add_invalid_virtual_columns(df_local):
+    df = df_local
+     # TODO: support for remote
+    df['1'] = df.x
+    assert df['1'].expression != '1'
+    df['2'] = df.y
+    assert df['1'].tolist() == df.x.tolist()
+    assert df['2'].tolist() == df.y.tolist()
+
+
+def test_not_hide_invalid_name():
+    x = np.arange(10)
+    df = vaex.from_dict({'./bla': x})
+    assert len(df.get_column_names()) == 1
+    assert df['./bla'].tolist() == x.tolist()
+
+
+def test_unicode_names():
+    x = np.arange(10)
+    df = vaex.from_dict({'远': x})
+    assert df.远.tolist() == x.tolist()
+
 
 def test_invalid_name_read(tmpdir):
     # earlier version of vaex could write invalid names, check if we can read those

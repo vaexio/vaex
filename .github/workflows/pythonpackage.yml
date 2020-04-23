@@ -47,6 +47,14 @@ jobs:
     #   run: |
     #     source activate vaex
     #     conda install -c conda-forge matplotlib qt arrow-cpp pyarrow astropy
+    - name: free disk space
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo swapoff -a
+        sudo rm -f /swapfile
+        sudo apt clean
+        docker rmi $(docker image ls -aq)
+        df -h
     - name: Add conda to path
       shell: bash
       run: |

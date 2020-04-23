@@ -2,14 +2,26 @@ from common import *
 from scipy.sparse import csc_matrix, csr_matrix
 
 
+x = np.arange(3)
+s = csr_matrix([[0, 1], [1, 0], [2, 3]])
+
+
 def test_sparse_basics():
-    x = np.arange(3)
-    s = csr_matrix([[0, 1], [1, 0], [2, 3]])
-    ds = vaex.from_arrays(x=x)
-    ds.add_columns(['s1', 's2'], s)
-    assert ds.s1.tolist() == [0, 1, 2]
-    assert ds.s2.tolist() == [1, 0, 3]
-    assert "error" not in repr(ds)
+    df = vaex.from_arrays(x=x)
+    df.add_columns(['s1', 's2'], s)
+    assert df.s1.tolist() == [0, 1, 2]
+    assert df.s2.tolist() == [1, 0, 3]
+    assert "error" not in repr(df)
+
+
+def test_sparse_repr():
+    df = vaex.from_arrays(x=x)
+    df.add_columns(['is', '9'], s)
+    assert df['is'].tolist() == [0, 1, 2]
+    assert df['9'].tolist() == [1, 0, 3]
+    assert "error" not in repr(df)
+    assert "_is" not in repr(df)
+
 
 
 def test_sparse_export(tmpdir):

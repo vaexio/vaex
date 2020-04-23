@@ -33,7 +33,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         self.local = threading.local()
         self.nthreads = self._max_workers
 
-    def map(self, callable, iterator, on_error=None, progress=None, cancel=None, unpack=False):
+    def map(self, callable, iterator, on_error=None, progress=None, cancel=None, unpack=False, **kwargs_extra):
         progress = progress or (lambda x: True)
         cancelled = False
 
@@ -44,7 +44,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                         self.local.index = next(self.thread_indices)
                 if unpack:
                     args = args[0]  # it's passed as a tuple.. not sure why
-                callable(self.local.index, *args, **kwargs)
+                callable(self.local.index, *args, **kwargs, **kwargs_extra)
         # convert to list so we can count
         values = list(iterator)
         N = len(values)
@@ -60,7 +60,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
             time_now = time.time()
             if progress_value == 1 or (time_now - time_last) > min_delta_t:
                 time_last = time_now
-                if progress(progress_value) == False:
+                if progress(progress_value) is False:
                     cancelled = True
                     cancel()
             yield value

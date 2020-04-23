@@ -1,34 +1,16 @@
 from __future__ import division, print_function
-import functools
 import vaex.vaexfast
-import numpy as np
-from vaex.utils import Timer
 import vaex.events
-from . import multithreading
 import time
-import math
-# import vaex.ui.expressions as expr
-from functools import reduce
 import threading
-import queue
-import math
 import multiprocessing
-import sys
-import collections
 import vaex.multithreading
 import logging
 import vaex.cpu  # force registration of task-part-cpu
 
-__author__ = 'breddels'
 
 buffer_size_default = 1024 * 1024  # TODO: this should not be fixed, larger means faster but also large memory usage
-# buffer_size_default = 1e4
-
-lock = threading.Lock()
-
 logger = logging.getLogger("vaex.execution")
-
-
 thread_count_default = multiprocessing.cpu_count()
 
 
@@ -37,230 +19,180 @@ class UserAbort(Exception):
         super(UserAbort, self).__init__(reason)
 
 
-class Column(collections.namedtuple('Column', ['df', 'expression'])):
-    def needs_copy(self):
-        return not \
-            (self.expression in self.df.column_names and not
-             isinstance(self.df.columns[self.expression], vaex.df._ColumnConcatenatedLazy) and
-             self.df.columns[self.expression].dtype.type == np.float64 and
-             self.df.columns[self.expression].strides[0] == 8 and
-             self.expression not in self.df.virtual_columns)
-        # and False:
+class Run:
+    def __init__(self, tasks):
+        self.tasks = tasks
+        self.cancelled = False
+        self.df = self.tasks[0].df
+        self.pre_filter = tasks[0].pre_filter
+        if any(self.pre_filter != task.pre_filter for task in tasks[1:]):
+            raise ValueError("All tasks need to be pre_filter'ed or not pre_filter'ed, it cannot be mixed")
+        if self.pre_filter and not self.df.filtered:
+            raise ValueError("Requested pre_filter for task while DataFrame is not filtered")
+        self.expressions = list(set(expression for task in tasks for expression in task.expressions_all))
 
 
-class Job(object):
-    def __init__(self, task, order):
-        self.task = task
-        self.order = order
-
-
-# mutex for numexpr, it is not thread save
-ne_lock = threading.Lock()
-
-
-class Executor(object):
-    def __init__(self, thread_pool=None, buffer_size=None, thread_mover=None, zigzag=True):
-        self.thread_pool = thread_pool or vaex.multithreading.ThreadPoolIndex()
-        self.task_queue = []
-        self.buffer_size = buffer_size or buffer_size_default
+class Executor:
+    """An executor is responsible to executing tasks, they are not reentrant, but thread safe"""
+    def __init__(self):
+        self.tasks = []
         self.signal_begin = vaex.events.Signal("begin")
         self.signal_progress = vaex.events.Signal("progress")
         self.signal_end = vaex.events.Signal("end")
         self.signal_cancel = vaex.events.Signal("cancel")
-        self.thread_mover = thread_mover or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
-        self._is_executing = False
+        self.local = threading.local()  # to make it non-reentrant
         self.lock = threading.Lock()
-        self.thread = None
-        self.passes = 0  # how many times we passed over the data
-        self.zig = True # zig or zag
-        self.zigzag = zigzag
 
     def schedule(self, task):
-        self.task_queue.append(task)
-        logger.info("task added, queue: %r", self.task_queue)
-        return task
+        with self.lock:
+            assert task not in self.tasks
+            self.tasks.append(task)
+            logger.info("task added, queue: %r", self.tasks)
+            return task
 
-    def run(self, task):
-        # with self.lock:
-        if 1:
-            logger.debug("added task: %r", task)
-            previous_queue = self.task_queue
-            try:
-                self.task_queue = [task]
-                self.execute()
-            finally:
-                self.task_queue = previous_queue
-            return task._value
+    def _pop_tasks(self):
+        # returns a list of tasks that can be executed in 1 pass over the data
+        # (which currently means all tasks for 1 dataframe) and drop them from the
+        # list of tasks
+        with self.lock:
+            dfs = list(set(task.df for task in self.tasks))
+            if len(dfs) == 0:
+                return []
+            else:
+                df = dfs[0]
+                tasks = [task for task in self.tasks if task.df == df]
+                logger.info("executing tasks in run: %r", tasks)
+                for task in tasks:
+                    self.tasks.remove(task)
+                return tasks
 
-    def execute_threaded(self):
-        if self.thread is None:
-            logger.info("starting thread for executor")
-            self.thread = threading.Thread(target=self._execute_in_thread)
-            self.thread.start()
-            self.queue_semaphore = threading.Semaphore()
-        logger.info("sending thread a msg that it can execute")
-        self.queue_semaphore.release()
 
-    def _execute_in_thread(self):
-        while True:
-            try:
-                logger.info("waiting for jobs")
-                self.queue_semaphore.acquire()
-                logger.info("got jobs")
-                if self.task_queue:
-                    logger.info("executing tasks in thread: %r", self.task_queue)
-                    self.execute()
-                else:
-                    logger.info("empty task queue")
-            except:
-                import traceback
-                traceback.print_exc()
-                logger.error("exception occured in thread")
+class ExecutorLocal(Executor):
+    def __init__(self, thread_pool=None, buffer_size=None, thread_mover=None, zigzag=True):
+        super().__init__()
+        self.thread_pool = thread_pool or vaex.multithreading.ThreadPoolIndex()
+        self.buffer_size = buffer_size or buffer_size_default
+        self.thread = None
+        self.passes = 0  # how many times we passed over the data
+        self.zig = True  # zig or zag
+        self.zigzag = zigzag
+
+    def _cancel(self, run):
+        logger.debug("cancelling")
+        self.signal_cancel.emit()
+        # self.local.run.cancelled = True
 
     def execute(self):
         logger.debug("starting with execute")
-        if self._is_executing:
-            logger.debug("nested execute call")
-            # this situation may happen since in this methods, via a callback (to update a progressbar) we enter
-            # Qt's eventloop, which may execute code that will call execute again
-            # as long as that code is using delay tasks (i.e. promises) we can simple return here, since after
-            # the execute is almost finished, any new tasks added to the task_queue will get executing
+
+        with self.lock:  # setup thread local initial values
+            if not hasattr(self.local, 'executing'):
+                self.local.executing = False
+
+        # wo don't allow any thread from our thread pool to enter (a computation should never produce a new task)
+        # and we explicitly disallow reentry (this usually means a bug in vaex, or bad usage)
+        chunk_executor_thread = threading.current_thread() in self.thread_pool._threads
+        if chunk_executor_thread or self.local.executing:
+            logger.error("nested execute call")
             raise RuntimeError("nested execute call")
-        # u 'column' is uniquely identified by a tuple of (df, expression)
-        self._is_executing = True
+
+        self.local.executing = True
         try:
             t0 = time.time()
-            task_queue_all = list(self.task_queue)
-            if not task_queue_all:
-                logger.info("only had cancelled tasks")
-            logger.info("clearing queue")
-            # self.task_queue = [] # Ok, this was stupid.. in the meantime there may have been new tasks, instead, remove the ones we copied
-            for task in task_queue_all:
-                logger.info("remove from queue: %r", task)
-                self.task_queue.remove(task)
-            logger.info("left in queue: %r", self.task_queue)
-            task_queue_all = [task for task in task_queue_all if not task.cancelled]
-            # logger.debug("executing queue: %r" % (task_queue_all))
+            self.local.cancelled = False
+            self.signal_begin.emit()
+            cancelled = False
+            # keep getting a list of tasks
+            # we currently process tasks (grouped) per df
+            # but also, tasks can add new tasks
+            while not cancelled:
+                tasks = self.local.tasks = self._pop_tasks()
+                if not tasks:
+                    break
+                run = Run(tasks)
+                self.passes += 1
 
-            # for task in self.task_queue:
-            # print task, task.expressions_all
-            dfs = set(task.df for task in task_queue_all)
-            cancelled = [False]
+                # (re) thrown exceptions as soon as possible to avoid complicated stack traces
+                for task in tasks:
+                    if task.isRejected:
+                        task.get()
+                    if hasattr(task, "check"):
+                        try:
+                            task.check()
+                        except Exception as e:
+                            task.reject(e)
+                            raise
 
-            def cancel():
-                logger.debug("cancelling")
-                self.signal_cancel.emit()
-                cancelled[0] = True
-            try:
-                # process tasks per df
-                self.signal_begin.emit()
-                for df in dfs:
-                    self.passes += 1
-                    task_queue = [task for task in task_queue_all if task.df == df]
-                    pre_filter = task_queue[0].pre_filter
-                    if any(pre_filter != task.pre_filter for task in task_queue[1:]):
-                        raise ValueError("All tasks need to be pre_filter'ed or not pre_filter'ed, it cannot be mixed")
-                    if pre_filter and not df.filtered:
-                        raise ValueError("Requested pre_filter for task while DataFrame is not filtered")
-                    expressions = list(set(expression for task in task_queue for expression in task.expressions_all))
+                for task in run.tasks:
+                    task._results = []
+                    task.signal_progress.emit(0)
+                run.block_scopes = [run.df._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
+                from .encoding import Encoding
+                encoding = Encoding()
+                for task in tasks:
+                    spec = encoding.encode('task', task)
+                    task._parts = [encoding.decode('task-part-cpu', spec, df=run.df) for i in range(self.thread_pool.nthreads)]
 
-                    # (re) thrown exceptions as soon as possible to avoid complicated stack traces
-                    for task in task_queue:
-                        if task.isRejected:
-                            task.get()
-                        if hasattr(task, "check"):
-                            try:
-                                task.check()
-                            except Exception as e:
-                                task.reject(e)
-                                raise
-
-                    for task in task_queue:
-                        task._results = []
-                        task.signal_progress.emit(0)
-                    block_scopes = [df._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
-                    # task_parts = []
-                    from .encoding import Encoding
-                    encoding = Encoding()
-                    for task in task_queue:
-                        spec = encoding.encode('task', task)
-                        task._parts = [encoding.decode('task-part-cpu', spec, df=df) for i in range(self.thread_pool.nthreads)]
-
-                    def process(thread_index, i1, i2):
-                        if not cancelled[0]:
-                            block_scope = block_scopes[thread_index]
-                            block_scope.move(i1, i2)
-                            if pre_filter:
-                                filter_mask = df.evaluate_selection_mask(None, i1=i1, i2=i2, cache=True)
-                            else:
-                                filter_mask = None
-                            block_scope.mask = filter_mask
-                            # with ne_lock:
-                            block_dict = {expression: block_scope.evaluate(expression) for expression in expressions}
-                            for task in task_queue:
-                                blocks = [block_dict[expression] for expression in task.expressions_all]
-                                if not cancelled[0]:
-                                    try:
-                                        task._parts[thread_index].process(thread_index, i1, i2, filter_mask, *blocks)
-                                    except Exception as e:
-                                        task.reject(e)
-                                        cancelled[0] = True
-                                        raise
-                                # don't call directly, since ui's don't like being updated from a different thread
-                                # self.thread_mover(task.signal_progress, float(i2)/length)
-# time.sleep(0.1)
-
-                    length = df.active_length()
-                    parts = vaex.utils.subdivide(length, max_length=self.buffer_size)
-                    if not self.zig:
-                        parts = list(parts)[::-1]
-                    if self.zigzag:
-                        self.zig = not self.zig
-                    for element in self.thread_pool.map(process, parts,
-                                                        progress=lambda p: all(self.signal_progress.emit(p)) and
-                                                        all([all(task.signal_progress.emit(p)) for task in task_queue]),
-                                                        cancel=cancel, unpack=True):
-                        pass  # just eat all element
-                    self._is_executing = False
-            except:
-                # on any error we flush the task queue
-                self.signal_cancel.emit()
-                logger.exception("error in task, flush task queue")
-                raise
-            logger.debug("executing took %r seconds" % (time.time() - t0))
-            # while processing the self.task_queue, new elements will be added to it, so copy it
-            logger.debug("cancelled: %r", cancelled)
-            if cancelled[0]:
-                logger.debug("execution aborted")
-                task_queue = task_queue_all
-                for task in task_queue:
-                    # task._result = task.reduce(task._results)
-                    task.reject(UserAbort("cancelled"))
-                    # remove references
-                    task._result = None
-                    task._results = None
-            else:
-                task_queue = task_queue_all
-                for task in task_queue:
-                    logger.debug("fulfill task: %r", task)
-                    if not task.cancelled:
-                        parts = task._parts
-                        parts[0].reduce(parts[1:])
-                        task._result = parts[0].get_result()
-                        task.fulfill(task._result)
-                    else:
+                length = run.df.active_length()
+                parts = vaex.utils.subdivide(length, max_length=self.buffer_size)
+                if not self.zig:
+                    parts = list(parts)[::-1]
+                if self.zigzag:
+                    self.zig = not self.zig
+                for element in self.thread_pool.map(self.process_part, parts,
+                                                    progress=lambda p: all(self.signal_progress.emit(p)) and
+                                                    all([all(task.signal_progress.emit(p)) for task in tasks]),
+                                                    cancel=lambda: self._cancel(run), unpack=True, run=run):
+                    pass  # just eat all element
+                logger.debug("executing took %r seconds" % (time.time() - t0))
+                logger.debug("cancelled: %r", cancelled)
+                if self.local.cancelled:
+                    logger.debug("execution aborted")
+                    for task in tasks:
                         task.reject(UserAbort("cancelled"))
                         # remove references
-                    task._result = None
-                    task._results = None
-                self.signal_end.emit()
-                # if new tasks were added as a result of this, execute them immediately
-                # TODO: we may want to include infinite recursion protection
-                self._is_executing = False
-                if len(self.task_queue) > 0:
-                    logger.debug("task queue not empty.. start over!")
-                    self.execute()
+                        task._result = None
+                        task._results = None
+                else:
+                    for task in tasks:
+                        logger.debug("fulfill task: %r", task)
+                        if not task.cancelled:
+                            parts = task._parts
+                            parts[0].reduce(parts[1:])
+                            logger.debug("wait for task: %r", task)
+                            task._result = parts[0].get_result()
+                            logger.debug("got result for: %r", task)
+                            task.fulfill(task._result)
+                        else:
+                            task.reject(UserAbort("cancelled"))
+                            # remove references
+                        task._result = None
+                        task._results = None
+                    self.signal_end.emit()
+        except:  # noqa
+            self.signal_cancel.emit()
+            logger.exception("error in task, flush task queue")
+            raise
         finally:
-            self._is_executing = False
+            self.local.executing = False
 
-# default_executor = None
+    def process_part(self, thread_index, i1, i2, run):
+        if not run.cancelled:
+            block_scope = run.block_scopes[thread_index]
+            block_scope.move(i1, i2)
+            df = run.df
+            if run.pre_filter:
+                filter_mask = df.evaluate_selection_mask(None, i1=i1, i2=i2, cache=True)
+            else:
+                filter_mask = None
+            block_scope.mask = filter_mask
+            block_dict = {expression: block_scope.evaluate(expression) for expression in run.expressions}
+            for task in run.tasks:
+                blocks = [block_dict[expression] for expression in task.expressions_all]
+                if not run.cancelled:
+                    try:
+                        task._parts[thread_index].process(thread_index, i1, i2, filter_mask, *blocks)
+                    except Exception as e:
+                        task.reject(e)
+                        run.cancelled = True
+                        raise

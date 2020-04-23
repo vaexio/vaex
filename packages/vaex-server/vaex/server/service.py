@@ -33,7 +33,7 @@ class Service:
         return method(*args, **kwargs)
 
     def execute(self, df, tasks):
-        assert df.executor.task_queue == []
+        assert df.executor.tasks == []
         for task in tasks:
             df.executor.schedule(task)
         df.execute()
@@ -75,7 +75,7 @@ class AsyncThreadedService(Proxy):
             if not hasattr(self.thread_local, "executor"):
                 logger.debug("creating thread pool and executor")
                 self.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex(max_workers=self.threads_per_job)
-                self.thread_local.executor = vaex.execution.Executor(thread_pool=self.thread_local.thread_pool)
+                self.thread_local.executor = vaex.execution.ExecutorLocal(thread_pool=self.thread_local.thread_pool)
                 self.thread_pools.append(self.thread_local.thread_pool)
             executor = self.thread_local.executor
             try:

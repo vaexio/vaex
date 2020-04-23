@@ -1,5 +1,10 @@
+from common import small_buffer
 import pytest
 from unittest.mock import MagicMock
+from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
+import vaex
+
 
 def test_signals(df):
     mock_begin = MagicMock()
@@ -15,6 +20,71 @@ def test_signals(df):
     mock_begin.assert_called_once()
     mock_progress.assert_called_with(1.0)
     mock_end.assert_called_once()
+
+
+def test_reentrant_catch(df_local):
+    df = df_local
+
+    # a 'worker' thread should not be allowed to trigger a new computation
+    def progress(fraction):
+        print('progress', fraction)
+        df.count(df.x)  # enters the executor again
+
+    with pytest.raises(RuntimeError) as exc:
+        df.count(df.x, progress=progress)
+    assert 'nested' in str(exc.value)
+
+
+def test_thread_safe(df_local):
+    df = df_local
+
+    # but an executor should be thread save
+    def do():
+        return df_local.count(df.x)  # enters the executor from a thread
+
+    count = df_local.count(df.x)
+    tpe = ThreadPoolExecutor(4)
+    futures = []
+
+    passes = df.executor.passes
+    N = 100
+    with small_buffer(df):
+        for i in range(N):
+            futures.append(tpe.submit(do))
+
+    concurrent.futures.wait(futures)
+    for future in futures:
+        assert count == future.result()
+    assert df.executor.passes <= passes + N
+
+
+def test_delayed(df):
+    @vaex.delayed
+    def add(a, b):
+        return a + b
+    total_promise = add(df.sum(df.x, delay=True), 1)
+    df.execute()
+    assert total_promise.get() == df.sum(df.x) + 1
+
+
+def test_nested_task(df):
+    @vaex.delayed
+    def add(a, b):
+        return a + b
+    total_promise = add(df.sum(df.x, delay=True))
+
+    @vaex.delayed
+    def next(value):
+        # during the handling of the sum task, we add a new task
+        sumy_promise = df.sum(df.y, delay=True)
+        if df.is_local():
+            assert df.executor.local.executing
+        # without callling the exector, since it should still be running its main loop
+        return add(sumy_promise, value)
+    total_promise = next(df.sum(df.x, delay=True))
+    df.execute()
+    assert total_promise.get() == df.sum(df.x) + df.sum(df.y)
+
 
 # import vaex
 # import vaex.dask

@@ -150,7 +150,7 @@ class AggregatorDescriptorMulti(AggregatorDescriptor):
         self.edges = edges
 
     def pretty_name(self, id=None):
-        id = id or "_".join(map(str, self.expression))
+        id = id or "_".join(map(str, self.expressions))
         return '{0}_{1}'.format(id, self.short_name)
 
 

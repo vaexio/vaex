@@ -5,6 +5,7 @@
      * df.rename_column is now df.rename (and also renames variables)
      * DataFrame uses a normal dict instead of OrderedDict, requiring Python >= 3.6
      * Default limits (e.g. for plots) is minmax, so we don't miss outliers
+     * df.get_column_names() returns the aliased names (invalid identifiers), pass alias=False to get the internal column name
 
 # vaex-core 2.0.0-dev
    * Performance
@@ -24,13 +25,28 @@
       * Do no fail printing out dataframe with 0 rows [#582](https://github.com/vaexio/vaex/pull/582)
       * Give proper NameError when using non-existing column names [#299](https://github.com/vaexio/vaex/pull/299)
       * Several fixes for concatenated dataframes.  [#590](https://github.com/vaexio/vaex/pull/590)
+      * dropna/nan/missing only dropped rows when all column values were missing, if no columns were specified. [#600](https://github.com/vaexio/vaex/pull/600)
       * Flaky test for RobustScaler skipped for p36 [#614](https://github.com/vaexio/vaex/pull/614)
       * Copying/printing sparse matrices [#615](https://github.com/vaexio/vaex/pull/615)
+      * Sparse columns names with invalid identifiers are not rewritten. [#617](https://github.com/vaexio/vaex/pull/617)
+      * Column names with invalid identifiers which are rewritten are shown when printing the dataframe. [#617](https://github.com/vaexio/vaex/pull/617)
+      * Column name rewriting for invalid identifiers also works on virtual columns. [#617](https://github.com/vaexio/vaex/pull/617)
       * Fix the links to the example datasets. [#609](https://github.com/vaexio/vaex/pull/609)
+      * Expression.isin supports dtype=object [#669](https://github.com/vaexio/vaex/pull/669)
+      * Fix `colum_count`, now only counts hidden columns if expicitly specified [#593](https://github.com/vaexio/vaex/pull/593)
+      * df.values respects masked arrays [#640](https://github.com/vaexio/vaex/pull/640)
+      * Rewriting a virtual column and doing a state transfer does not lead to `ValueError: list.remove(x): x not in list` [#592](https://github.com/vaexio/vaex/pull/592)
+      * `df.<stat>(limits=...)` will now respect the selection [#651](https://github.com/vaexio/vaex/pull/651)
+      * Using automatic names for aggregators led to many underscores in name [#687](https://github.com/vaexio/vaex/pull/687)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
       * df.to_arrow_table/to_pandas_df/to_items now take a chunk_size argument for chunked iterators [#589](https://github.com/vaexio/vaex/pull/589)
       * Filtered datasets can be concatenated. [#590](https://github.com/vaexio/vaex/pull/590)
+      * DataFrames/Executors are thread safe (meaning you can schedule/compute from any thread), which makes it work out of the box for Dash and Flask [#670](https://github.com/vaexio/vaex/pull/670)
+      * df.count/mean/std etc can output in xarray.DataArray array type, makes plotting easier [#671](https://github.com/vaexio/vaex/pull/671)
+      * Column names can have unicode, and we use str.isidentifier to test, also dont accidently hide columns. [#617](https://github.com/vaexio/vaex/pull/617)
+      * Percentile approx can take a sequence of percentages [#527](https://github.com/vaexio/vaex/pull/527)
+      * Polygon testing, useful in combinations with geo/geojson data [#685](https://github.com/vaexio/vaex/pull/685)
 
 # vaex-server 0.3.0-dev
    * Refactored server, can return multiple binary blobs, execute multiple tasks, cancel tasks, encoding/serialization is more flexible (like returning masked arrays). [#571](https://github.com/vaexio/vaex/pull/557)

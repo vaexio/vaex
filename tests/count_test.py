@@ -1,5 +1,7 @@
 from common import *
 
+import pytest
+
 
 def test_count_1d():
     ds = vaex.example()
@@ -10,15 +12,34 @@ def test_count_1d():
     binned_values = ds.count(binby=ds.x, limits='95%', shape=16)
     assert len(binned_values) == 16
 
+
 def test_count_2d():
     ds = vaex.example()
     binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=['minmax', '95%'])
     assert list(binned_values.shape) == [32, 32]
     binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=None)
     assert list(binned_values.shape) == [32, 32]
-    binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=[[-50, 50],[-50, 50]])
+    binned_values = ds.count(binby=[ds.x, ds.y], shape=32, limits=[[-50, 50], [-50, 50]])
     assert list(binned_values.shape) == [32, 32]
 
+
+@pytest.mark.parametrize('limits', ['minmax', '68.2%', '99.7%', '100%'])
+def test_count_1d_verify_against_numpy(ds_local, limits):
+    df = ds_local
+
+    expression = 'x'
+    selection = df.y > 10
+    shape = 4
+
+    # bin with vaex
+    vaex_counts = df.count(binby=[expression], selection=selection, shape=shape, limits=limits)
+
+    # bin with numpy
+    xmin, xmax = df.limits(expression=expression, value=limits, selection=selection)  # to have the same range as df.count
+    x_values = df[selection][expression].values
+    numpy_counts, numpy_edges = np.histogram(x_values, bins=shape, range=(xmin, xmax))
+
+    assert vaex_counts[:-1].tolist() == numpy_counts[:-1].tolist()
 
 # def test_count_edges():
 #     ds = vaex.from_arrays(x=[-2, -1, 0, 1, 2, 3, np.nan])
