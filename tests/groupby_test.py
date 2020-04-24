@@ -249,3 +249,18 @@ def test_groupby_same_result():
 
         assert vc.values.tolist() == group_sort['count'].values.tolist(), 'counts are not correct.'
         assert vc.index.tolist() == group_sort['h'].values.tolist(), 'the indices of the counts are not correct.'
+
+def test_groupby_iter():
+    # ds = ds_local.extract()
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 0, 1], dtype='int32')
+    s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
+    df = vaex.from_arrays(g=g, s=s)
+    groupby = df.groupby([lambda x: '', lambda x: x//2])  # similar to plotly_express' one_group
+    dfg = groupby.agg({'g': 'mean'})#.sort('s')
+    names = [k[0] for k in list(groupby)]
+    assert names == []
+    assert dfg.s.tolist() == ['0', '1', '2']
+    assert dfg.g.tolist() == [0, 1, 0.5]
+
+    dfg2 = df.groupby('s', {'g': 'mean'}).sort('s')
+    assert dfg._equals(dfg2)

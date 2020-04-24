@@ -116,7 +116,15 @@ class GroupByBase(object):
 
         self.by = []
         for by_value in by:
-            if not isinstance(by_value, BinnerBase):
+            if callable(by_value):
+                if by_value.__name__ == 'one_group':
+                    df['__row__'] = vaex.vrange(0, len(df))
+                    by_value = df.__row__ == df.__row__
+                else:
+                    df['__row__'] = vaex.vrange(0, len(df))
+                    by_value = df.__row__.apply(by_value)
+                by_value = Grouper(df[str(by_value)])
+            elif not isinstance(by_value, BinnerBase):
                 by_value = Grouper(df[str(by_value)])
             self.by.append(by_value)
         # self._waslist, [self.by, ] = vaex.utils.listify(by)
@@ -130,6 +138,33 @@ class GroupByBase(object):
         self.grid = vaex.superagg.Grid(self.binners)
         self.shape = [by.N for by in self.by]
         self.dims = self.groupby_expression[:]
+
+    @property
+    def groups(self):
+        for group, df in self:
+            yield group
+
+    def get_group(self, group):
+        values = group
+        filter_expressions = [self.df[expression] == value for expression, value in zip(self.groupby_expression, values)]
+        filter_expression = filter_expressions[0]
+        for expression in filter_expressions[1:]:
+            filter_expression = filter_expression & expression
+        return self.df[filter_expression]
+
+    def __iter__(self):
+        count_agg = vaex.agg.count()
+        counts = self.df._agg(count_agg, self.grid)
+        counts = vaex.utils.extract_central_part(counts)
+        mask = counts > 0
+        # import pdb; pdb.set_trace()
+        values2d = np.array([coord[mask] for coord in np.meshgrid(*self.coords1d, indexing='ij')], dtype='O')
+        for i in range(values2d.shape[1]):
+            values = values2d[:,i]
+            # print(values)
+            dff = self.get_group(values)
+            yield tuple(values.tolist()), dff
+
 
     def _agg(self, actions):
         df = self.df
