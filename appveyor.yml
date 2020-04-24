@@ -1,9 +1,14 @@
+image:
+    - Visual Studio 2015
+
 environment:
   matrix:
     - PYTHON_VERSION: 3.6
       MINICONDA: C:\Miniconda36-x64
+      PACKAGE_SUFFIX: "cp36-cp36m"
     - PYTHON_VERSION: 3.7
       MINICONDA: C:\Miniconda37-x64
+      PACKAGE_SUFFIX: "cp37-cp37m"
 
 init:
   - "ECHO %PYTHON_VERSION% %MINICONDA%"
@@ -11,33 +16,31 @@ init:
 
 build: false
 
-
 install:
   - git submodule update --init --recursive
   - call %MINICONDA%\Scripts\activate.bat
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - "conda create -q -n test-environment -c conda-forge python=%PYTHON_VERSION% numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython pandas runipy cython pytest numba pyarrow graphviz python-graphviz pcre lightgbm py-xgboost catboost scikit-learn ipydatawidgets ipyvolume bqplot ipympl geopandas"
-  - activate test-environment
-  - pip install "tabulate==0.8.3"  # issue with 0.8.4 on windows
-  - pip install "numpy>=1.13" "pyarrow>=0.12"
-  - pip install -r requirements.txt
-  - pip install -r requirements-ml.txt
-  - pushd packages\vaex-core   && pip install . && popd
-  - pushd packages\vaex-hdf5   && pip install . && popd
-  - pushd packages\vaex-arrow   && pip install . && popd
-  - pushd packages\vaex-viz   && pip install . && popd
-  - pushd packages\vaex-server   && pip install . && popd
-  - pushd packages\vaex-astro   && pip install . && popd
-  - pushd packages\vaex-distributed   && pip install . && popd
-  - pushd packages\vaex-jupyter   && pip install . && popd
-  - pushd packages\vaex-ui   && pip install . && popd
-  - pushd packages\vaex-ml   && pip install . && popd
-  - pushd packages\vaex-graphql   && pip install . && popd
+  - "conda create -q -n release-environment -c conda-forge python=%PYTHON_VERSION% pcre wheel pip"
+  - activate release-environment
+  # - pip install "numpy>=1.13" "pyarrow>=0.12"
+  # - pip install -r requirements.txt
+  # - pip install -r requirements-ml.txt
+  - pushd packages\vaex-core   && python setup.py bdist_wheel && popd
+  - pip install packages\vaex-core\dist\vaex_core-1.5.0-%PACKAGE_SUFFIX%-win_amd64.whl
+  - python -c "import vaex; df = vaex.from_scalars(x=1, y=2); print(df)"
+  # - pushd packages\vaex-hdf5   && pip install . && popd
+  # - pushd packages\vaex-arrow   && pip install . && popd
+  # - pushd packages\vaex-viz   && pip install . && popd
+  # - pushd packages\vaex-server   && pip install . && popd
+  # - pushd packages\vaex-astro   && pip install . && popd
+  # - pushd packages\vaex-distributed   && pip install . && popd
+  # - pushd packages\vaex-jupyter   && pip install . && popd
+  # - pushd packages\vaex-ui   && pip install . && popd
+  # - pushd packages\vaex-ml   && pip install . && popd
+  # - pushd packages\vaex-graphql   && pip install . && popd
 
-test_script:
- - python -m vaex.test.dataset TestDataset
- - py.test tests/
-# - runipy examples/tutorial_ipython_notebook.ipynb
-# - runipy examples/advanced_plotting.ipynb
+artifacts:
+  # bdist_wheel puts your built wheel in the dist directory
+  - path: packages\vaex-core\dist\*
