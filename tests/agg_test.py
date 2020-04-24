@@ -420,10 +420,13 @@ def test_mutual_information(df_local):
     assert mi_list.tolist() == list(sorted([mi1, mi2]))
 
 
-def test_format_xarray(df_local):
+def test_format_xarray_and_list(df_local):
     df = df_local
     count = df.count(binby='x', limits=[-0.5, 9.5], shape=5, array_type='xarray')
     assert count.coords['x'].data.tolist() == [0.5, 2.5, 4.5, 6.5, 8.5]
+    count = df.count(binby='x', limits=[-0.5, 9.5], shape=5, array_type='list')
+    assert count == [2] * 5
+    assert isinstance(count, list)
 
     df = df[:3]
     df['g'] = df.x
