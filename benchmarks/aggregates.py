@@ -1,19 +1,21 @@
 import vaex
-import numpy as np
-import os
-import generate
+
+from benchmarks.fixtures import generate_numerical
 
 
 class Aggregates:
-    params = ([10**7, 10**8, 5*10**8, 10**9],)
+    pretty_name = "Performance of aggregates: stats, binby etc"
+    version = "1"
+
+    params = ([10**7, 5*10**7, 10**8],)
     param_names = ['N']
 
     def setup_cache(self):
-        generate.generate_numerical()
+        # ensure the dataframe is generated
+        generate_numerical()
 
     def setup(self, N):
-        basedir = vaex.utils.get_private_dir('benchmarks')
-        self.df = vaex.open(os.path.join(basedir, 'numerical.hdf5'))[:N]
+        self.df = vaex.open(generate_numerical())[:N]
         self.df.categorize(self.df.i8_10, list(range(5, 15)), check=False)
         self.df.categorize(self.df.i4_10, list(range(5, 15)), check=False)
         self.df.categorize(self.df.i2_10, list(range(5, 15)), check=False)
