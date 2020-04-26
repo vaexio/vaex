@@ -16,7 +16,7 @@ from .cache import PatchingCache
 if sys.version_info >= (3, 9):  # pragma: no cover
     from pkgutil import resolve_name as pkgutil_resolve_name
 else:  # pragma: no cover
-    from pkgutil_resolve_name import resolve_name as pkgutil_resolve_name
+    from ..pkgutil_resolve_name import resolve_name as pkgutil_resolve_name
 
 __all__ = ("patch", "mc_patchface", "unpatch", "replace", "temp_patch")
 
