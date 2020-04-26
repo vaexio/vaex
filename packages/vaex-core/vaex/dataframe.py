@@ -2677,7 +2677,7 @@ class DataFrame(object):
                 yield previous_l1, previous_l2, previous_chunk
 
     @docsubst
-    def to_items(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, chunk_size=None, array_type=None):
+    def to_items(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, array_type=None):
         """Return a list of [(column_name, ndarray), ...)] pairs where the ndarray corresponds to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2720,7 +2720,7 @@ class DataFrame(object):
         return [to_array_type(chunk, array_type) for chunk in self.evaluate(column_names, selection=selection, parallel=parallel)]
 
     @docsubst
-    def to_dict(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, chunk_size=None, array_type=None):
+    def to_dict(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, array_type=None):
         """Return a dict containing the ndarray corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2741,7 +2741,7 @@ class DataFrame(object):
         return dict(list(zip(column_names, [to_array_type(chunk, array_type) for chunk in self.evaluate(column_names, selection=selection, parallel=parallel)])))
 
     @docsubst
-    def to_copy(self, column_names=None, selection=None, strings=True, virtual=False, selections=True):
+    def to_copy(self, column_names=None, selection=None, strings=True, virtual=True, selections=True):
         """Return a copy of the DataFrame, if selection is None, it does not copy the data, it just has a reference
 
         :param column_names: list of column names, to copy, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2781,7 +2781,7 @@ class DataFrame(object):
         self.description = other.description
 
     @docsubst
-    def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None, parallel=True, chunk_size=None):
+    def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=True, index_name=None, parallel=True, chunk_size=None):
         """Return a pandas DataFrame containing the ndarray corresponding to the evaluated data
 
          If index is given, that column is used for the index of the dataframe.
@@ -2823,7 +2823,7 @@ class DataFrame(object):
             return create_pdf(self.to_dict(column_names=column_names, selection=selection, parallel=parallel))
 
     @docsubst
-    def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, chunk_size=None):
+    def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None):
         """Returns an arrow Table object containing the arrays corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2849,7 +2849,7 @@ class DataFrame(object):
             return pa.Table.from_arrays(chunks, column_names)
 
     @docsubst
-    def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=False, index=None, parallel=True):
+    def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=True, index=None, parallel=True):
         """Returns a astropy table object containing the ndarrays corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
