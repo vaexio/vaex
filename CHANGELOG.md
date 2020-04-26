@@ -2,10 +2,11 @@
    * Breaking changes:
      * Python 2 is not supported anymore
      * Variables don't have access to pi and e anymore
-     * df.rename_column is now df.rename (and also renames variables)
+     * `df.rename_column` is now `df.rename` (and also renames variables)
      * DataFrame uses a normal dict instead of OrderedDict, requiring Python >= 3.6
      * Default limits (e.g. for plots) is minmax, so we don't miss outliers
-     * df.get_column_names() returns the aliased names (invalid identifiers), pass alias=False to get the internal column name
+     * `df.get_column_names()` returns the aliased names (invalid identifiers), pass `alias=False` to get the internal column name
+     * Default value of `virtual` is True in method `df.export`, `df.to_dict`, `df.to_items`, `df.to_arrays`.
 
 # vaex-core 2.0.0-dev
    * Performance
@@ -40,10 +41,10 @@
       * Using automatic names for aggregators led to many underscores in name [#687](https://github.com/vaexio/vaex/pull/687)
    * Features
       * New lazy numpy wrappers: np.digitize and np.searchsorted [#573](https://github.com/vaexio/vaex/pull/573)
-      * df.to_arrow_table/to_pandas_df/to_items now take a chunk_size argument for chunked iterators [#589](https://github.com/vaexio/vaex/pull/589)
+      * `df.to_arrow_table`/`to_pandas_df`/`to_items`/`df.to_dict`/`df.to_arrays` now take a chunk_size argument for chunked iterators [#589](https://github.com/vaexio/vaex/pull/589) (https://github.com/vaexio/vaex/pull/699)
       * Filtered datasets can be concatenated. [#590](https://github.com/vaexio/vaex/pull/590)
       * DataFrames/Executors are thread safe (meaning you can schedule/compute from any thread), which makes it work out of the box for Dash and Flask [#670](https://github.com/vaexio/vaex/pull/670)
-      * df.count/mean/std etc can output in xarray.DataArray array type, makes plotting easier [#671](https://github.com/vaexio/vaex/pull/671)
+      * `df.count/mean/std` etc can output in xarray.DataArray array type, makes plotting easier [#671](https://github.com/vaexio/vaex/pull/671)
       * Column names can have unicode, and we use str.isidentifier to test, also dont accidently hide columns. [#617](https://github.com/vaexio/vaex/pull/617)
       * Percentile approx can take a sequence of percentages [#527](https://github.com/vaexio/vaex/pull/527)
       * Polygon testing, useful in combinations with geo/geojson data [#685](https://github.com/vaexio/vaex/pull/685)
