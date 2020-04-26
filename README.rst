@@ -170,7 +170,7 @@ normal array.
 
 
 These expressions can be added to the dataset, creating what we call a
-*virtual column*. These virtual columns are simular to normal columns,
+*virtual column*. These virtual columns are similar to normal columns,
 except they do not waste memory.
 
 .. code:: ipython3
