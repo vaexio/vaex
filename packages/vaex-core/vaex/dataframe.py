@@ -2696,27 +2696,43 @@ class DataFrame(object):
             return list(zip(column_names, self.evaluate(column_names, selection=selection, parallel=parallel)))
 
     @docsubst
-    def to_arrays(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True):
+    def to_arrays(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None):
         """Return a list of ndarrays
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
+        :param parallel: {evaluate_parallel}
+        :param chunk_size: {chunk_size}
         :return: list of (name, ndarray) pairs
         """
-        return self.evaluate(column_names or self.get_column_names(strings=strings, virtual=virtual), selection=selection, parallel=parallel)
+        column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        if chunk_size is not None:
+            def iterator():
+                for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
+                    yield i1, i2, chunks
+            return iterator()
+        return self.evaluate(column_names, selection=selection, parallel=parallel)
 
     @docsubst
-    def to_dict(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True):
+    def to_dict(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, chunk_size=None):
         """Return a dict containing the ndarray corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
+        :param parallel: {evaluate_parallel}
+        :param chunk_size: {chunk_size}
         :return: dict
         """
+        column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        if chunk_size is not None:
+            def iterator():
+                for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
+                    yield i1, i2, dict(list(zip(column_names, chunks)))
+            return iterator()
         return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual, parallel=parallel))
 
     @docsubst
