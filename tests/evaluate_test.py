@@ -13,6 +13,51 @@ def test_evaluate_iterator(df_local, chunk_size, prefetch, parallel):
         total += chunk.sum()
     assert total == x.sum()
 
+@pytest.mark.parametrize("chunk_size", [1, 3, 5])
+@pytest.mark.parametrize("parallel", [True, False])
+def test_to_items(df_local, chunk_size, parallel):
+    # chunk_size, parallel = 3, True
+    # chunk_size = 3
+    df = df_local
+    x = df.x.to_numpy()
+    total = 0
+    for i1, i2, chunk in df.to_items(['x'], chunk_size=chunk_size, parallel=parallel):
+        assert x[i1:i2].tolist() == chunk[0][1].tolist()
+        total += chunk[0][1].sum()
+    assert total == x.sum()
+
+@pytest.mark.parametrize("chunk_size", [1, 3, 5])
+@pytest.mark.parametrize("parallel", [True, False])
+def test_to_dict(df_local, chunk_size, parallel):
+    df = df_local
+    x = df.x.to_numpy()
+    total = 0
+    for i1, i2, chunk in df.to_dict(['x'], chunk_size=chunk_size, parallel=parallel):
+        assert x[i1:i2].tolist() == chunk['x'].tolist()
+        total += chunk['x'].sum()
+    assert total == x.sum()
+
+@pytest.mark.parametrize("chunk_size", [1, 3, 5])
+@pytest.mark.parametrize("parallel", [True, False])
+def test_to_dict(df_local, chunk_size, parallel):
+    df = df_local
+    x = df.x.to_numpy()
+    total = 0
+    for i1, i2, chunk in df.to_dict(['x'], chunk_size=chunk_size, parallel=parallel):
+        assert x[i1:i2].tolist() == chunk['x'].tolist()
+        total += chunk['x'].sum()
+    assert total == x.sum()
+
+@pytest.mark.parametrize("chunk_size", [1, 3, 5])
+@pytest.mark.parametrize("parallel", [True, False])
+def test_to_arrays(df_local, chunk_size, parallel):
+    df = df_local
+    x = df.x.to_numpy()
+    total = 0
+    for i1, i2, chunk in df.to_arrays(['x'], chunk_size=chunk_size, parallel=parallel):
+        assert x[i1:i2].tolist() == chunk[0].tolist()
+        total += chunk[0].sum()
+    assert total == x.sum()
 
 def test_evaluate_function_filtered_df():
     # Custom function to be applied to a filtered DataFrame
