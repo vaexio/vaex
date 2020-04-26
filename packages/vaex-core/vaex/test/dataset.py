@@ -1263,13 +1263,13 @@ class TestDataset(unittest.TestCase):
 										#print len(dataset)
 										if export == dataset.export_hdf5:
 											path = path_hdf5
-											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
+											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False, virtual=virtual)
 										elif export == dataset.export_arrow:
 											path = path_arrow
-											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
+											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False, virtual=virtual)
 										elif export == dataset.export_parquet:
 											path = path_parquet
-											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False)
+											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False, virtual=virtual)
 										else:
 											path = path_fits
 											export(path, column_names=column_names, shuffle=shuffle, selection=selection, progress=False, virtual=virtual)
