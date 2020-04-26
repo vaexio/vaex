@@ -5680,7 +5680,7 @@ class DataFrameLocal(DataFrame):
                 left.add_column(name, column)
         return left
 
-    def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+    def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a file written with arrow
 
         :param DataFrameLocal df: DataFrame to export
@@ -5709,7 +5709,7 @@ class DataFrameLocal(DataFrame):
         else:
             raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 
-    def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+    def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a file written with arrow
 
         :param DataFrameLocal df: DataFrame to export
@@ -5728,7 +5728,7 @@ class DataFrameLocal(DataFrame):
         import vaex_arrow.export
         vaex_arrow.export.export(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
-    def export_parquet(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+    def export_parquet(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a parquet file
 
         :param DataFrameLocal df: DataFrame to export
@@ -5747,7 +5747,7 @@ class DataFrameLocal(DataFrame):
         import vaex_arrow.export
         vaex_arrow.export.export_parquet(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
-    def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+    def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a vaex hdf5 file
 
         :param DataFrameLocal df: DataFrame to export
@@ -5766,7 +5766,7 @@ class DataFrameLocal(DataFrame):
         import vaex.export
         vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
-    def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+    def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a fits file that is compatible with TOPCAT colfits format
 
         :param DataFrameLocal df: DataFrame to export
@@ -5785,7 +5785,7 @@ class DataFrameLocal(DataFrame):
         vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     @docsubst
-    def export_csv(self, path, virtual=False, selection=False, progress=None, chunk_size=1_000_000, **kwargs):
+    def export_csv(self, path, virtual=True, selection=False, progress=None, chunk_size=1_000_000, **kwargs):
         """ Exports the DataFrame to a CSV file.
 
         :param str path: Path for file

@@ -18,13 +18,11 @@ def test_evaluate_iterator(df_local, chunk_size, prefetch, parallel):
 @pytest.mark.parametrize("parallel", [True, False])
 @pytest.mark.parametrize("array_type", [None, 'list', 'xarray'])
 def test_to_items(df_local, chunk_size, parallel, array_type):
-    # chunk_size, parallel = 3, True
-    # chunk_size = 3
     df = df_local
     x = df.x.to_numpy()
     total = 0
     for i1, i2, chunk in df.to_items(['x'], chunk_size=chunk_size, parallel=parallel, array_type=array_type):
-        np.testing.assert_array_equal(x[i1:i2].tolist(), chunk[0][1])
+        np.testing.assert_array_equal(x[i1:i2], chunk[0][1])
         total += sum(chunk[0][1])
     assert total == x.sum()
 
@@ -37,7 +35,7 @@ def test_to_dict(df_local, chunk_size, parallel, array_type):
     x = df.x.to_numpy()
     total = 0
     for i1, i2, chunk in df.to_dict(['x'], chunk_size=chunk_size, parallel=parallel, array_type=array_type):
-        np.testing.assert_array_equal(x[i1:i2].tolist(), chunk['x'])
+        np.testing.assert_array_equal(x[i1:i2], chunk['x'])
         total += sum(chunk['x'])
     assert total == x.sum()
 
@@ -50,7 +48,7 @@ def test_to_arrays(df_local, chunk_size, parallel, array_type):
     x = df.x.to_numpy()
     total = 0
     for i1, i2, chunk in df.to_arrays(['x'], chunk_size=chunk_size, parallel=parallel, array_type=array_type):
-        np.testing.assert_array_equal(x[i1:i2].tolist(), chunk[0])
+        np.testing.assert_array_equal(x[i1:i2], chunk[0])
         total += sum(chunk[0])
     assert total == x.sum()
 
