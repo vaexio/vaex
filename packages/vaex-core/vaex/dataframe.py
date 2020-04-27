@@ -2677,7 +2677,7 @@ class DataFrame(object):
                 yield previous_l1, previous_l2, previous_chunk
 
     @docsubst
-    def to_items(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, chunk_size=None, array_type=None):
+    def to_items(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, array_type=None):
         """Return a list of [(column_name, ndarray), ...)] pairs where the ndarray corresponds to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2699,32 +2699,49 @@ class DataFrame(object):
             return list(zip(column_names, [to_array_type(chunk, array_type) for chunk in self.evaluate(column_names, selection=selection, parallel=parallel)]))
 
     @docsubst
-    def to_arrays(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True):
+    def to_arrays(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, array_type=None):
         """Return a list of ndarrays
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
-        :return: list of (name, ndarray) pairs
+        :param parallel: {evaluate_parallel}
+        :param chunk_size: {chunk_size}
+        :param array_type: {array_type}
+        :return: list of arrays
         """
-        return self.evaluate(column_names or self.get_column_names(strings=strings, virtual=virtual), selection=selection, parallel=parallel)
+        column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        if chunk_size is not None:
+            def iterator():
+                for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
+                    yield i1, i2, [to_array_type(chunk, array_type) for chunk in chunks]
+            return iterator()
+        return [to_array_type(chunk, array_type) for chunk in self.evaluate(column_names, selection=selection, parallel=parallel)]
 
     @docsubst
-    def to_dict(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, array_type=None):
+    def to_dict(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, array_type=None):
         """Return a dict containing the ndarray corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
         :param selection: {selection}
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
+        :param parallel: {evaluate_parallel}
+        :param chunk_size: {chunk_size}
         :param array_type: {array_type}
         :return: dict
         """
-        return dict(self.to_items(column_names=column_names, selection=selection, strings=strings, virtual=virtual, parallel=parallel, array_type=array_type))
+        column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        if chunk_size is not None:
+            def iterator():
+                for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
+                    yield i1, i2, dict(list(zip(column_names, [to_array_type(chunk, array_type) for chunk in chunks])))
+            return iterator()
+        return dict(list(zip(column_names, [to_array_type(chunk, array_type) for chunk in self.evaluate(column_names, selection=selection, parallel=parallel)])))
 
     @docsubst
-    def to_copy(self, column_names=None, selection=None, strings=True, virtual=False, selections=True):
+    def to_copy(self, column_names=None, selection=None, strings=True, virtual=True, selections=True):
         """Return a copy of the DataFrame, if selection is None, it does not copy the data, it just has a reference
 
         :param column_names: list of column names, to copy, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2764,7 +2781,7 @@ class DataFrame(object):
         self.description = other.description
 
     @docsubst
-    def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=False, index_name=None, parallel=True, chunk_size=None):
+    def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=True, index_name=None, parallel=True, chunk_size=None):
         """Return a pandas DataFrame containing the ndarray corresponding to the evaluated data
 
          If index is given, that column is used for the index of the dataframe.
@@ -2806,7 +2823,7 @@ class DataFrame(object):
             return create_pdf(self.to_dict(column_names=column_names, selection=selection, parallel=parallel))
 
     @docsubst
-    def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=False, parallel=True, chunk_size=None):
+    def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None):
         """Returns an arrow Table object containing the arrays corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2832,7 +2849,7 @@ class DataFrame(object):
             return pa.Table.from_arrays(chunks, column_names)
 
     @docsubst
-    def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=False, index=None, parallel=True):
+    def to_astropy_table(self, column_names=None, selection=None, strings=True, virtual=True, index=None, parallel=True):
         """Returns a astropy table object containing the ndarrays corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -5663,7 +5680,7 @@ class DataFrameLocal(DataFrame):
                 left.add_column(name, column)
         return left
 
-    def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+    def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a file written with arrow
 
         :param DataFrameLocal df: DataFrame to export
@@ -5692,7 +5709,7 @@ class DataFrameLocal(DataFrame):
         else:
             raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 
-    def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+    def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a file written with arrow
 
         :param DataFrameLocal df: DataFrame to export
@@ -5711,7 +5728,7 @@ class DataFrameLocal(DataFrame):
         import vaex_arrow.export
         vaex_arrow.export.export(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
-    def export_parquet(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+    def export_parquet(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a parquet file
 
         :param DataFrameLocal df: DataFrame to export
@@ -5730,7 +5747,7 @@ class DataFrameLocal(DataFrame):
         import vaex_arrow.export
         vaex_arrow.export.export_parquet(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
-    def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+    def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a vaex hdf5 file
 
         :param DataFrameLocal df: DataFrame to export
@@ -5749,7 +5766,7 @@ class DataFrameLocal(DataFrame):
         import vaex.export
         vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
-    def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=False, sort=None, ascending=True):
+    def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a fits file that is compatible with TOPCAT colfits format
 
         :param DataFrameLocal df: DataFrame to export
@@ -5768,7 +5785,7 @@ class DataFrameLocal(DataFrame):
         vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
 
     @docsubst
-    def export_csv(self, path, virtual=False, selection=False, progress=None, chunk_size=1_000_000, **kwargs):
+    def export_csv(self, path, virtual=True, selection=False, progress=None, chunk_size=1_000_000, **kwargs):
         """ Exports the DataFrame to a CSV file.
 
         :param str path: Path for file

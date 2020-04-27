@@ -14,6 +14,45 @@ def test_evaluate_iterator(df_local, chunk_size, prefetch, parallel):
     assert total == x.sum()
 
 
+@pytest.mark.parametrize("chunk_size", [2, 5])
+@pytest.mark.parametrize("parallel", [True, False])
+@pytest.mark.parametrize("array_type", [None, 'list', 'xarray'])
+def test_to_items(df_local, chunk_size, parallel, array_type):
+    df = df_local
+    x = df.x.to_numpy()
+    total = 0
+    for i1, i2, chunk in df.to_items(['x'], chunk_size=chunk_size, parallel=parallel, array_type=array_type):
+        np.testing.assert_array_equal(x[i1:i2], chunk[0][1])
+        total += sum(chunk[0][1])
+    assert total == x.sum()
+
+
+@pytest.mark.parametrize("chunk_size", [2, 5])
+@pytest.mark.parametrize("parallel", [True, False])
+@pytest.mark.parametrize("array_type", [None, 'list', 'xarray'])
+def test_to_dict(df_local, chunk_size, parallel, array_type):
+    df = df_local
+    x = df.x.to_numpy()
+    total = 0
+    for i1, i2, chunk in df.to_dict(['x'], chunk_size=chunk_size, parallel=parallel, array_type=array_type):
+        np.testing.assert_array_equal(x[i1:i2], chunk['x'])
+        total += sum(chunk['x'])
+    assert total == x.sum()
+
+
+@pytest.mark.parametrize("chunk_size", [2, 5])
+@pytest.mark.parametrize("parallel", [True, False])
+@pytest.mark.parametrize("array_type", [None, 'list', 'xarray'])
+def test_to_arrays(df_local, chunk_size, parallel, array_type):
+    df = df_local
+    x = df.x.to_numpy()
+    total = 0
+    for i1, i2, chunk in df.to_arrays(['x'], chunk_size=chunk_size, parallel=parallel, array_type=array_type):
+        np.testing.assert_array_equal(x[i1:i2], chunk[0])
+        total += sum(chunk[0])
+    assert total == x.sum()
+
+
 def test_evaluate_function_filtered_df():
     # Custom function to be applied to a filtered DataFrame
     def custom_func(x):
