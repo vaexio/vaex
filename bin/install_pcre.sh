@@ -1,6 +1,7 @@
 #!/bin/bash
 # extract from https://github.com/matthew-brett/multibuild/blob/a72a17b7a6150c74c927539564ab5badc4034321/common_utils.sh etc
 set -e
+set -x # echo on
 PCRE_VERSION=${PCRE_VERSION:-8.38}
 
 
@@ -42,7 +43,7 @@ function fetch_unpack {
     fi
     # Unpack archive, refreshing contents, echoing dir and file
     # names.
-    tar xfv ../$out_archive && ls -1d *
+    tar xfv $out_archive && ls -1d *
     # rm_mkdir arch_tmp
     # install_rsync
     # (cd arch_tmp && \
