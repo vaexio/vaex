@@ -11,7 +11,7 @@ import vaex.jupyter
 from .decorators import signature_has_traits
 from .traitlets import Expression
 import logging
-import contextlib
+from .vendor import contextlib
 
 
 logger = logging.getLogger('vaex.jupyter.model')
