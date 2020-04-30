@@ -1,26 +1,30 @@
-import platform
-from ._version import __version_tuple__, __version__
-versiontuple = __version_tuple__
-versionstring = __version__
-# if pre_release:
-# ersionstring += "-" + pre_release
+import os
+import pkg_resources
 
 
-# from vaex.utils import osname, setup.py doesn't want imports...
-osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().lower()]
+nightly = bool(os.environ.get('VAEX_RELEASE_NIGHTLY', ''))
 
-if __name__ == "__main__":
-    import vaex
-    import sys
-    # print vaex.__version_tuple__
-    if sys.argv[1] == "version":
-        print("version:", vaex.__version__)
-    elif sys.argv[1] == "fullname":
-        print("full name:", vaex.__full_name__)
-    elif sys.argv[1] == "buildname":
-        print("build name:", vaex.__build_name__)
-    elif sys.argv[1] == "tagcmd":
-        print("git tag %s" % versionstring)
-        print("git push --tags")
-    else:
-        print("use version, fullname or buildname as argument")
+
+def patch_version(version_tuple):
+    if nightly:
+        import datetime
+        dt = datetime.datetime.now()
+        date = (dt.year * 100 + dt.month)*100 + dt.day
+        version_tuple = (*version_tuple[:3], 'dev', date)
+    version_string = '.'.join(map(str, version_tuple[:4]))
+    if len(version_tuple) > 4:
+        version_string += str(version_tuple[-1])
+    return version_tuple, version_string
+
+
+packages = ['vaex', 'vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-ml', 'vaex-distributed', 'vaex-arrow', 'vaex-graphql']
+
+
+def get_versions():
+    def is_installed(p):
+        try:
+            pkg_resources.get_distribution(p)
+            return True
+        except pkg_resources.DistributionNotFound:
+            return False
+    return {p: pkg_resources.get_distribution(p).version for p in packages if is_installed(p)}
