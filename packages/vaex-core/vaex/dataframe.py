@@ -3665,8 +3665,9 @@ class DataFrame(object):
     def __str__(self):
         return self._head_and_tail_table(format='plain')
 
-    def __repr__(self):
-        return self._head_and_tail_table(format='plain')
+    if not os.environ.get('VAEX_DEBUG', ''):
+        def __repr__(self):
+            return self._head_and_tail_table(format='plain')
 
     def __current_sequence_index(self):
         """TODO"""

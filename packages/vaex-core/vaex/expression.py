@@ -1,4 +1,5 @@
 import ast
+import os
 import base64
 import cloudpickle as pickle
 import functools
@@ -455,8 +456,9 @@ class Expression(with_metaclass(Meta)):
         '''Short for expr.evaluate().tolist()'''
         return self.evaluate().tolist()
 
-    def __repr__(self):
-        return self._repr_plain_()
+    if not os.environ.get('VAEX_DEBUG', ''):
+        def __repr__(self):
+            return self._repr_plain_()
 
     def _repr_plain_(self):
         from .formatting import _format_value
