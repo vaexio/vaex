@@ -308,7 +308,13 @@ class DataFrame(object):
     def execute(self):
         '''Execute all delayed jobs.'''
         # no need to clear _task_aggs anymore, since they will be removed for the executors' task list
-        self.executor.execute()
+        from .asyncio import just_run
+        just_run(self.execute_async())
+
+    async def execute_async(self):
+        '''Async version of execute'''
+        # no need to clear _task_aggs anymore, since they will be removed for the executors' task list
+        await self.executor.execute_async()
 
     @property
     def filtered(self):
