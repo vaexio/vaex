@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run benchmarks for the new commits on "master" and "bench*" branches;
-# Save the results to the "gh-pages" branch, and copy produced
+# Save the results to the vaex-asv repo, and copy produced
 # HTML results to the /var/www/asv.vaex.io/ folder on disk
 
 set -e
@@ -10,25 +10,22 @@ cd "$VAEX_REPO_DIR"
 git pull origin master
 
 function restore_results_from_git () {
-  # copy results from gh-pages/benchmarks/results/**.json to master/.asv/results/**.json
-  (git checkout origin/gh-pages -- benchmarks/results/ && git reset -- benchmarks/results/) ||
-  (mkdir -p benchmarks/results/)
-  echo Restoring the following results from git branch:
-  find benchmarks/results/
-  cp -r benchmarks/results/ .asv/
+  # copy results from vaex-asv/.asv/results/**.json to vaex/.asv/results/**.json
+  (cd ../vaex-asv && git pull -f)
+  (mkdir -p .asv)
+  echo Restoring the following results from vaex-asv repo:
+  find ../vaex-asv/.asv/results/
+  cp -r ../vaex-asv/.asv/results/ .asv/
 }
 
 function store_and_push_results_in_git () {
-  # copy results to gh-pages/benchmarks/results/**.json and HTML to gh-pages/benchmarks/index.html
-  echo Storing the following results into git branch:
+  # copy results to vaex-asv/.asv/results/**.json
+  echo Storing the following results into vaex-asv:
   find .asv/results
-  git checkout -f gh-pages
-  cp -rf .asv/results benchmarks/
-  cp -rf .asv/html/* benchmarks/
-  git add benchmarks
-  git commit -m 'Commit benchmark results'
-  git push
-  git checkout -
+  (mkdir -p ../vaex-asv/.asv)
+  cp -rf .asv/results ../vaex-asv/.asv/results
+  # cp -rf .asv/html ../vaex-asv/asv/ (should we also do the HTML?)
+  (cd ../vaex-asv && git add results && git commit -m 'Commit benchmark results' && git push)
 }
 
 function copy_results_to_www () {
