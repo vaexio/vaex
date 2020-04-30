@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, print_function
+import asyncio
 import threading
 import queue
 import math
@@ -34,12 +35,14 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         self.nthreads = self._max_workers
         self._debug_sleep = 0
 
-    def map(self, callable, iterator, on_error=None, progress=None, cancel=None, unpack=False, **kwargs_extra):
+    async def map_async(self, callable, iterator, on_error=None, progress=None, cancel=None, unpack=False, **kwargs_extra):
         progress = progress or (lambda x: True)
         cancelled = False
 
         def wrapped(*args, **kwargs):
             if not cancelled:
+                if self.nthreads == 1:
+                    self.local.index = 0
                 with self.lock:
                     if not hasattr(self.local, 'index'):
                         self.local.index = next(self.thread_indices)
@@ -55,9 +58,9 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         time_last = time.time() - 100
         min_delta_t = 1. / 10  # max 10 per second
         if self.nthreads == 1:  # when using 1 thread, it makes debugging easier (better stacktrace)
-            iterator = self._map(wrapped, values)
+            iterator = self._map_async(wrapped, values)
         else:
-            iterator = super(ThreadPoolIndex, self).map(wrapped, values)
+            iterator = [loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in values]
 
         for i, value in enumerate(iterator):
             progress_value = (i + 1) / N
@@ -67,11 +70,14 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                 if progress(progress_value) is False:
                     cancelled = True
                     cancel()
-            yield value
+            yield await value
 
-    def _map(self, callable, iterator):
+    def _map_async(self, callable, iterator):
         for i in iterator:
-            yield callable(i)
+            future = asyncio.Future()
+            future.set_result(callable(i))
+            yield future
+
 
 
 main_pool = None  # ThreadPoolIndex()

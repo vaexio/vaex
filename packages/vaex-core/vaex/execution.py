@@ -80,9 +80,9 @@ class ExecutorLocal(Executor):
     def _cancel(self, run):
         logger.debug("cancelling")
         self.signal_cancel.emit()
-        # self.local.run.cancelled = True
+        run.cancelled = True
 
-    def execute(self):
+    async def execute_async(self):
         logger.debug("starting with execute")
 
         with self.lock:  # setup thread local initial values
@@ -125,7 +125,8 @@ class ExecutorLocal(Executor):
 
                 for task in run.tasks:
                     task._results = []
-                    task.signal_progress.emit(0)
+                    if not any(task.signal_progress.emit(0)):
+                        task.cancelled = True
                 run.block_scopes = [run.df._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
                 from .encoding import Encoding
                 encoding = Encoding()
@@ -139,9 +140,10 @@ class ExecutorLocal(Executor):
                     parts = list(parts)[::-1]
                 if self.zigzag:
                     self.zig = not self.zig
-                for element in self.thread_pool.map(self.process_part, parts,
+                async for element in self.thread_pool.map_async(self.process_part, parts,
                                                     progress=lambda p: all(self.signal_progress.emit(p)) and
-                                                    all([all(task.signal_progress.emit(p)) for task in tasks]),
+                                                    all([all(task.signal_progress.emit(p)) for task in tasks]) and
+                                                    all([not task.cancelled for task in tasks]),
                                                     cancel=lambda: self._cancel(run), unpack=True, run=run):
                     pass  # just eat all element
                 logger.debug("executing took %r seconds" % (time.time() - t0))
@@ -153,6 +155,7 @@ class ExecutorLocal(Executor):
                         # remove references
                         task._result = None
                         task._results = None
+                        cancelled = True
                 else:
                     for task in tasks:
                         logger.debug("fulfill task: %r", task)
@@ -167,6 +170,7 @@ class ExecutorLocal(Executor):
                         else:
                             task.reject(UserAbort("Task was cancelled"))
                             # remove references
+                            cancelled = True
                         task._result = None
                         task._results = None
                     self.signal_end.emit()
@@ -179,6 +183,8 @@ class ExecutorLocal(Executor):
 
     def process_part(self, thread_index, i1, i2, run):
         if not run.cancelled:
+            if thread_index >= len(run.block_scopes):
+                raise ValueError(f'thread_index={thread_index} while only having {len(run.block_scopes)} blocks')
             block_scope = run.block_scopes[thread_index]
             block_scope.move(i1, i2)
             df = run.df
