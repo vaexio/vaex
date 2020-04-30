@@ -9,6 +9,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-18.04, macos-latest]
+        python-version: [36, 37]
 
     steps:
     - uses: actions/checkout@v1
@@ -29,12 +30,17 @@ jobs:
       run: |
         choco install vcpython27 -f -y
 
+    - name: copy build script
+      run: |
+        mkdir packages/vaex-core/bin
+        cp bin/install_pcre.sh packages/vaex-core/bin/
+
     - name: Build wheel
       env:
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
-        CIBW_BUILD: cp3[67]*64	
+        CIBW_BUILD: cp${{ matrix.python-version }}*64	
       run: |
-        python -m cibuildwheel --output-dir wheelhouse
+        python -m cibuildwheel --output-dir wheelhouse packages/vaex-core
 
     - uses: actions/upload-artifact@v1
       with:
