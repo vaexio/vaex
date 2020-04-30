@@ -3,6 +3,7 @@
 set -e
 set -x # echo on
 PCRE_VERSION=${PCRE_VERSION:-8.38}
+BUILD_PREFIX="${BUILD_PREFIX:-/usr/local}"
 
 
 function rm_mkdir {
