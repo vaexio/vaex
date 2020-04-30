@@ -35,7 +35,6 @@ Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how
 from __future__ import print_function
 import glob
 import re
-import six
 
 import vaex.dataframe
 import vaex.dataset
@@ -333,7 +332,6 @@ def from_arrays(**arrays):
     :rtype: DataFrame
     """
     import numpy as np
-    import six
     from .column import Column
     df = vaex.dataframe.DataFrameArrays("array")
     for name, array in arrays.items():
@@ -378,7 +376,6 @@ def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
 
     :rtype: DataFrame
     """
-    import six
     import pandas as pd
     import numpy as np
     vaex_df = vaex.dataframe.DataFrameArrays(name)
