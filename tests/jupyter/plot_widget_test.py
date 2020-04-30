@@ -11,7 +11,7 @@ def test_plot_widget_bqplot(flush_guard):
     df.plot_widget(df.x, df.y)
     df.plot_widget(df.x.astype('float32'), df.y.astype('float32'))
     df.plot_widget(df.x.astype('float32'), df.y.astype('float32'), limits='minmax')
-    flush()
+    flush(all=True)
 
 
 def test_selection_event_calls(df, flush_guard):
@@ -52,7 +52,7 @@ def test_data_array_view(flush_guard):
     x = vaex.jupyter.model.Axis(df=df, expression='x')
     y = vaex.jupyter.model.Axis(df=df, expression='y')
     view = df.widget.data_array(axes=[x, y])
-    flush()
+    flush(all=True)
     assert view.model.grid is not None
 
 
@@ -76,7 +76,7 @@ def test_widget_histogram(flush_guard):
     assert isinstance(histogram.plot.figure.interaction, bqplot.interacts.BrushIntervalSelector)
 
     histogram.plot.figure.interaction.selected = [-10, 20]
-    flush()
+    flush(all=True)
     assert histogram.model.grid.shape[0] == 2
     assert histogram.model.grid[1].sum() == check_range
 
@@ -124,7 +124,7 @@ def test_widget_heatmap(flush_guard):
     # assert heatmap.plot.mark.image.tolist() != vizdata
     vizdata = heatmap.plot.mark.image.value
     heatmap.model.x.max = 10
-    flush()
+    flush(all=True)
     assert heatmap.plot.mark.image.value != vizdata, "image should change"
 
 
@@ -179,4 +179,4 @@ def test_widget_counter_selection(flush_guard):
     assert c.value == count_pos
     df.select(df.x < 0, name='test')
     assert c.value == count_neg
-    flush()
+    flush(all=True)

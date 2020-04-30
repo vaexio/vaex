@@ -22,6 +22,7 @@ import sys
 
 from vaex.encoding import serialize, deserialize, Encoding
 import vaex.server.service
+import vaex.asyncio
 import vaex.server.dataframe
 import vaex.core._version
 import vaex.server._version
@@ -84,6 +85,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
                 nonlocal last_progress
 
                 def send_progress():
+                    vaex.asyncio.check_patch_tornado()  # during testing asyncio might be patched
                     nonlocal last_progress
                     logger.debug("progress: %r", f)
                     last_progress = f

@@ -5,23 +5,25 @@ import ipywidgets as widgets
 from IPython.display import display, clear_output
 import IPython
 import asyncio
+import vaex.asyncio
+import logging
+
+
+logger = logging.getLogger('vaex.jupyter.utils')
 
 
 ipython = IPython.get_ipython()
+debounce_enabled = True  # can be useful to turn off for debugging purposes
+
 _test_delay = None  # speed up testing
-debounced_execute_queue = []
+_debounced_execute_queue = []
 _debounced_futures = []
 _debounced_futures_skip = []
-debounce_enabled = True  # can be useful to turn off for debugging purposes
 _is_gatherering = False
-_call_soon_functions = []
 
 
 def get_ioloop():
     return asyncio.get_event_loop()
-    import zmq
-    if ipython and hasattr(ipython, 'kernel'):
-        return zmq.eventloop.ioloop.IOLoop.instance()
 
 
 def flush(recursive_counts=-1, ignore_exceptions=False, all=False):
@@ -30,17 +32,7 @@ def flush(recursive_counts=-1, ignore_exceptions=False, all=False):
     If execution of debounced calls lead to scheduling of new calls, they will be recursively executed,
     with a limit or recursive_counts calls. recursive_counts=-1 means infinite.
     """
-    ioloop = get_ioloop()
-    if ioloop:
-        ioloop.run_until_complete(gather(recursive_counts, ignore_exceptions=ignore_exceptions, all=all))
-        return
-
-    queue = debounced_execute_queue.copy()
-    for f in queue:
-        f()
-        debounced_execute_queue.remove(f)
-    if debounced_execute_queue and recursive_counts != 0:
-        flush(recursive_counts-1, ignore_exceptions=ignore_exceptions, all=all)
+    vaex.asyncio.just_run(gather(recursive_counts, ignore_exceptions=ignore_exceptions, all=all))
 
 
 _debounced_flush = flush  # old alias, TODO: remove
@@ -60,7 +52,8 @@ async def gather(recursive_counts=-1, ignore_exceptions=False, all=False):
     except:  # noqa
         if not ignore_exceptions:
             raise
-    if _debounced_futures and recursive_counts != 0:
+    more_futures = _debounced_futures + _debounced_futures_skip if all else _debounced_futures
+    if more_futures and recursive_counts != 0:
         await gather(recursive_counts-1, ignore_exceptions=ignore_exceptions, all=all)
     _is_gatherering = was_already_gatherering  # restore old status
 
@@ -73,29 +66,6 @@ def kernel_tick():
     # for inspiration how to
     if ipython is not None and not _is_gatherering:
         ipython.kernel.do_one_iteration()
-    # if _call_soon_functions:
-    #     f = _call_soon_functions.pop(0)
-    #     f()
-
-
-def call_once(f):
-    called = False
-
-    def wrapper(*args, **kwargs):
-        nonlocal called
-        if not called:
-            called = True
-            f(*args, **kwargs)
-    return wrapper
-
-
-def call_soon(f):
-    f_once = call_once(f)
-    # whoever calls it first
-    ioloop = get_ioloop()
-    if ioloop:
-        ioloop.call_soon_threadsafe(f_once)
-    _call_soon_functions.append(f_once)
 
 
 class _debounced_callable:
@@ -175,7 +145,6 @@ class _debounced_callable:
         @functools.wraps(self.f)
         def debounced_execute(counter=self.counter):
             async def run_async():
-                # print("task runs", self.f)
                 if not self.skip_gather:
                     _debounced_futures.remove(future)
                 else:
@@ -188,7 +157,7 @@ class _debounced_callable:
                         if self.previous_result_future and not self.reentrant:
                             try:
                                 await self.previous_result_future
-                            except:  # noqa
+                            except Exception as e:  # noqa
                                 pass  # exception of previous run are already handled
                         # we should capture a reference to the current result_future
                         # and 'reset' it now, if we do this later, a next execution
@@ -200,7 +169,7 @@ class _debounced_callable:
                         pre_hook_future = self.pre_hook_future
                         self.previous_result_future = result_future
                         self.result_future = None  # reset this, but keep last_result_future
-                        self._pre_hook_future = asyncio.Future()
+                        self._pre_hook_future = None
                         pre_hook_future.set_result(None)
                         # this allows for pre_hook waiters to run first
                         await asyncio.sleep(1e-9)
@@ -213,23 +182,18 @@ class _debounced_callable:
                         future.set_result(result)
                         result_future.set_result(result)
                 except Exception as e:
-                    import vaex
-                    vaex.utils.print_exception_trace(e)
+                    result_future.set_exception(e)
+                    future.set_exception(e)
                     try:
                         if self.on_error:
                             if self.obj:
                                 self.on_error(self.obj, e)
                             else:
                                 self.on_error(e)
-                    except Exception as e2:
-                        vaex.utils.print_exception_trace(e2)
-                        # print("error in error handler", e, type(e))
-                    future.set_exception(e)
-                    result_future.set_exception(e)
-                    # pre_hook_future.set_exception(e)
+                    except Exception:
+                        logger.exception("error in error handler")
                 finally:
-                    debounced_execute_queue.remove(debounced_execute)
-            # print("create task", self.f)
+                    _debounced_execute_queue.remove(debounced_execute)
             ioloop.create_task(run_async())
 
         if debounce_enabled:
@@ -237,127 +201,29 @@ class _debounced_callable:
 
             def thread_safe():
                 ioloop.call_later(_test_delay or self.delay_seconds, debounced_execute)
-            debounced_execute_queue.append(debounced_execute)
+            _debounced_execute_queue.append(debounced_execute)
             if ioloop is not None:  # not in IPython
-                # print("schedule", self.f)
                 ioloop.call_soon_threadsafe(thread_safe)
         else:
             debounced_execute()
         return self.result_future
 
 
-def debounced(delay_seconds=0.5, method=False, skip_gather=False, on_error=None, reentrant=True):
+def debounced(delay_seconds=0.5, skip_gather=False, on_error=None, reentrant=True):
     '''A decorator to debounce many method/function call into 1 call.
 
-    Note: this only works in a IPython environment, such as a Jupyter notebook context. Outside
+    Note: this only works in an async environment, such as a Jupyter notebook context. Outside
     of this context, calling :func:`flush` will execute pending calls.
 
     :param float delay_seconds: The amount of seconds that should pass without any call, before the (final) call will be executed.
     :param bool method: The decorator should know if the callable is a a method or not, otherwise the debounced is on a per-class basis.
     :param bool skip_gather: The decorated function will be be waited for when calling vaex.jupyter.gather()
+    :param on_error: callback function that takes an exception as argument.
+    :param bool reentrant: reentrant function or not
 
     '''
     def wrapped(f):
         return functools.wraps(f)(_debounced_callable(f, delay_seconds, skip_gather, on_error, reentrant=reentrant))
-        # the code below should do the same the the return object, but fails to run the tutorial_jupyter.ipynb
-        # it looks as if the async part has a scoping issue/bug, CPython bug maybe?
-        counters = collections.defaultdict(int)
-        result_futures = collections.defaultdict(asyncio.Future)
-
-        @functools.wraps(f)
-        def execute(*args, **kwargs):
-            if method:  # if it is a method, we want to have a counter per instance
-                key = args[0]
-            else:
-                key = None
-            counters[key] += 1
-            # multiple calls to the same method share the same result_future
-            result_future = result_futures[key]
-            print("call", key, counters[key], id(result_future), list(result_futures.keys()))
-            print("SCOPE CHECK1", key, counters[key], id(result_future), id(result_futures[key]))
-            # but each call leads to a future, which is put in _debounced_futures for testing/debug purposes
-            future = asyncio.Future()
-            if not skip_gather:
-                _debounced_futures.append(future)
-            else:
-                _debounced_futures_skip.append(future)
-
-            print("asyncio.iscoroutine(f):", asyncio.iscoroutinefunction(f))
-            @functools.wraps(execute)
-            def debounced_execute(counter=counters[key]):
-                print("SCOPE CHECK2", key, counters[key], id(result_future), id(result_futures[key]), counter)
-                if asyncio.iscoroutinefunction(f):
-                    # this path is a duplicate from the path below
-                    # not sure how we can avoid that
-                    async def run_async():
-                        print("SCOPE CHECK3", key, counters[key], id(result_future), id(result_futures[key]), counter)
-                        if counter != counters[key]:  # only execute if the counter wasn't changed in the meantime
-                            future.set_result(None)
-                            return
-                        try:
-                            # result = None
-                            result = await f(*args, **kwargs)
-                            # print("set", key, result, counter, result_future, id(result_future), result_futures)
-                            print("SET", key, counters[key], id(result_future), list(result_futures.keys()))
-                            del result_futures[key]  # reset result future
-                            print("set done", list(result_futures.keys()))
-                            result_future.set_result(result)
-                        except Exception as e:
-                            # if on_error:
-                            #     if method:
-                            #         on_error(args[0], e)
-                            #     else:
-                            #         on_error(e)
-                            del result_futures[key]  # reset result future
-                            future.set_exception(e)
-                            result_future.set_exception(e)
-                        else:
-                            # TODO: maybe we should set cancel instead?
-                            future.set_result(result)
-                        finally:
-                            if not skip_gather:
-                                _debounced_futures.remove(future)
-                            else:
-                                _debounced_futures_skip.remove(future)
-
-                    ioloop.create_task(run_async())
-                else:
-                    try:
-                        result = None
-                        if counter == counters[key]:  # only execute if the counter wasn't changed in the meantime
-                            result = f(*args, **kwargs)
-                            result_future.set_result(result)
-                            del result_futures[key]  # reset result future
-                    except Exception as e:
-                        if on_error:
-                            if method:
-                                on_error(args[0])
-                            else:
-                                on_error()
-                        future.set_exception(e)  # if nobody awaits this (like gather does, asyncio may complain on exit)
-                        result_future.set_exception(e)
-                        del result_futures[key]  # reset result future
-                    else:
-                        # TODO: maybe we should set cancel instead?
-                        future.set_result(result)
-                    finally:
-                        if not skip_gather:
-                            _debounced_futures.remove(future)
-            if debounce_enabled:
-                ioloop = get_ioloop()
-
-                def thread_safe():
-                    # ioloop.add_timeout(time.time() + delay_seconds, debounced_execute)
-                    ioloop.call_later(delay_seconds, debounced_execute)
-                if ioloop is None:  # not in IPython
-                    debounced_execute_queue.append(debounced_execute)
-                else:
-                    ioloop.call_soon_threadsafe(thread_safe)
-            else:
-                debounced_execute()
-            return result_future
-        execute.original = f
-        return execute
     return wrapped
 
 
