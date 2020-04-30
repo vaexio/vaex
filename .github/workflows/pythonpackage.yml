@@ -18,7 +18,7 @@ jobs:
         python-version: [3.6, 3.7]
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         submodules: true
     - name: Install conda with Python ${{ matrix.python-version }}
@@ -27,14 +27,14 @@ jobs:
         python-version: ${{ matrix.python-version }}
         conda-channels: anaconda, conda-forge
     # - name: Set up Python ${{ matrix.python-version }}
-    #   uses: actions/setup-python@v1
+    #   uses: actions/setup-python@v2
     #   with:
     # - name: Set conda root as output
     #   shell: bash
     #   run: echo "::set-env name=CONDA::$(echo $CONDA)"
     # - name: Conda env cache
     #   id: cache-conda-env
-    #   uses: actions/cache@v1
+    #   uses: actions/cache@v2
     #   with:
     #     path: ${{ env.CONDA }}/envs/vaex
     #     key: conda-env-${{ runner.OS }}-${{ matrix.python-version }}-v1
@@ -72,7 +72,7 @@ jobs:
         pip install python-dateutil==2.8.0  # botocore caps dateutil leading to issues
     - name: Cache compiled binaries
       id: cache-compiled-binaries
-      uses: actions/cache@v1
+      uses: actions/cache@v2
       with:
         path: packages/vaex-core/build
         key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}
