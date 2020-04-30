@@ -1,0 +1,1 @@
+{"schema":{"fields":[{"name":"isle","type":"string"},{"name":"size_sqkm","type":"number"}],"pandas_version":"0.20.0"},"data":[{"isle":"Easter Island","size_sqkm":163.6},{"isle":"Fiji","size_sqkm":18.333},{"isle":"Tortuga","size_sqkm":178.7}]}
