@@ -2193,7 +2193,10 @@ def _isin(x, values):
         # but numpy doesn't know what to do with that
         if hasattr(values, 'to_numpy'):
             values = values.to_numpy()
-        return np.isin(x, values)
+        if np.ma.isMaskedArray(x):
+            return np.ma.isin(x, values)
+        else:
+            return np.isin(x, values)
 
 
 def add_geo_json(ds, json_or_file, column_name, longitude_expression, latitude_expresion, label=None, persist=True, overwrite=False, inplace=False, mapping=None):
