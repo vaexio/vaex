@@ -30,6 +30,8 @@ jobs:
         choco install vcpython27 -f -y
 
     - name: Build wheel
+      env:
+        CIBW_BEFORE_BUILD: bin/install_pcre.sh
       run: |
         python -m cibuildwheel --output-dir wheelhouse packages/vaex-core
 
