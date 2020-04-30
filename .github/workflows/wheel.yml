@@ -32,6 +32,7 @@ jobs:
     - name: Build wheel
       env:
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
+        CIBW_BUILD: cp3[67]*64	
       run: |
         python -m cibuildwheel --output-dir wheelhouse
 
