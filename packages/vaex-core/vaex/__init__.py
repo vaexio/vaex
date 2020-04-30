@@ -677,8 +677,13 @@ def set_log_level_off():
 
 format = "%(levelname)s:%(threadName)s:%(name)s:%(message)s"
 logging.basicConfig(level=logging.INFO, format=format)
-# logging.basicConfig(level=logging.DEBUG)
-set_log_level_warning()
+DEBUG_MODE = bool(os.environ.get('VAEX_DEBUG', ''))
+if DEBUG_MODE:
+    logging.basicConfig(level=logging.DEBUG)
+    set_log_level_debug()
+else:
+    # logging.basicConfig(level=logging.DEBUG)
+    set_log_level_warning()
 
 import_script = os.path.expanduser("~/.vaex/vaex_import.py")
 if os.path.exists(import_script):
