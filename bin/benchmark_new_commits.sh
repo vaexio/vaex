@@ -22,10 +22,10 @@ function store_and_push_results_in_git () {
   # copy results to vaex-asv/.asv/results/**.json
   echo Storing the following results into vaex-asv:
   find .asv/results
-  (mkdir -p ../vaex-asv/.asv)
+  (mkdir -p ../vaex-asv/.asv/results)
   cp -rf .asv/results ../vaex-asv/.asv/results
   # cp -rf .asv/html ../vaex-asv/asv/ (should we also do the HTML?)
-  (cd ../vaex-asv && git add results && git commit -m 'Commit benchmark results' && git push)
+  (cd ../vaex-asv && git add .asv && git commit -m 'Commit benchmark results' && git push)
 }
 
 function copy_results_to_www () {
