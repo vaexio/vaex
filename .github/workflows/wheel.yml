@@ -12,6 +12,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
+      with:
+        submodules: true
 
     - uses: actions/setup-python@v1
       name: Install Python
