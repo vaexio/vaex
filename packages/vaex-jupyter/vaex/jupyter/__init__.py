@@ -26,19 +26,12 @@ class DataFrameAccessorWidget(object):
         self.df = df
         import vaex.jupyter.grid
         self.grid = vaex.jupyter.model.GridCalculator(df, [])
+        self._last_grid = None
 
     @debounced(delay_seconds=0.1, reentrant=False)
     async def execute_debounced(self):
         """Schedules an execution of dataframe tasks in the near future (debounced)."""
-        try:
-            if not self.df.is_local():
-                def thread_mover(f):
-                    vaex.jupyter.utils.call_soon(f)
-                # self.df.executor.client.thread_mover = thread_mover
-            self.df.execute()
-        except Exception as e:
-            print("ERRR" * 10, e)
-            raise
+        await self.df.execute_async()
 
     def clear(self):
         self.grid = vaex.jupyter.model.GridCalculator(self.df, [])
@@ -103,6 +96,7 @@ class DataFrameAccessorWidget(object):
             grid = self.grid
         else:
             grid = vaex.jupyter.model.GridCalculator(self.df, [])
+        self._last_grid = grid
         grid.model_add(model)
         viz = vaex.jupyter.view.Heatmap(model=model, transform=transform)
         if toolbar:

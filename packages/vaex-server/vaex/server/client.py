@@ -43,6 +43,9 @@ class Client:
     def _send(self, msg, msg_id=None):
         raise NotImplementedError
 
+    async def _send_async(self, msg, msg_id=None):
+        raise NotImplementedError
+
     def update(self):
         self.df_info = self._list()
         self.df_map = {name: create_df(name, info, self.executor) for name, info in self.df_info.items()}
@@ -80,3 +83,18 @@ class Client:
             return results
         finally:
             del self._msg_id_to_tasks[msg_id]
+
+    async def execute_async(self, df, tasks):
+        from vaex.encoding import Encoding
+        encoder = Encoding()
+        msg_id = str(uuid.uuid4())
+        self._msg_id_to_tasks[msg_id] = tuple(tasks)
+        task_specs = encoder.encode_list("task", tasks)
+        msg = {'command': 'execute', 'df': df.name, 'state': df.state_get(), 'tasks': task_specs}
+        try:
+            results, encoding = await self._send_async(msg, msg_id=msg_id)
+            results = encoding.decode_list('vaex-task-result', results)
+            return results
+        finally:
+            del self._msg_id_to_tasks[msg_id]
+            pass

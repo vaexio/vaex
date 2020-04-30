@@ -213,7 +213,7 @@ class Expression(v.TextField):
         self._clear_succes()
         return True
 
-    @vaex.jupyter.debounced(method=True, delay_seconds=1.5, skip_gather=True)
+    @vaex.jupyter.debounced(delay_seconds=1.5, skip_gather=True)
     def _clear_succes(self):
         self.success_messages = None
 

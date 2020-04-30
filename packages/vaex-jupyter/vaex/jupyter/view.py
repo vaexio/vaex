@@ -64,16 +64,13 @@ class ViewBase(v.Container):
                 self.progress_indicator.value = fraction * 100
                 if fraction == 1:
                     self.hide_progress()
-                # return not self._progressbar.cancelled
-            # if fraction == 1:
-            #     self.hide_progress()
             return True
-        except:  # noqa
+        except Exception as e:  # noqa
             with self.output:
-                print("oops")
+                print("oops", e)
             return True
 
-    @vaex.jupyter.debounced(0.3, method=True)
+    @vaex.jupyter.debounced(0.3, skip_gather=True)
     def hide_progress(self):
         self.progress_indicator.hidden = True
 
@@ -101,6 +98,7 @@ class DataArray(ViewBase):
     """
 
     model = traitlets.Instance(model.DataArray)
+    clear_output = traitlets.Bool(True, help="Clear output each time the data changes")
     display_function = traitlets.Any(display)
     matplotlib_autoshow = traitlets.Bool(True, help="Will call plt.show() inside output context if open figure handles exist")
     numpy_errstate = traitlets.Dict({'all': 'ignore'}, help="Default numpy errstate during display to avoid showing error messsages, see :py:data:`numpy.errstate`_ ")
@@ -114,7 +112,8 @@ class DataArray(ViewBase):
         self.update_output()
 
     def update_output(self, change=None):
-        self.output_data_array.clear_output(wait=True)
+        if self.clear_output:
+            self.output_data_array.clear_output(wait=True)
         with self.output_data_array, np.errstate(**self.numpy_errstate):
             grid = self.model.grid_sliced
             if grid is None:
@@ -158,22 +157,17 @@ class Heatmap(ViewBase):
         if self.normalize:
             grid = grid/grid.sum()
 
-        widgets.dlink((self, 'tool'), (self.plot, 'tool'))
+        traitlets.dlink((self, 'tool'), (self.plot, 'tool'))
 
         # first dlink our model to the plot
-        widgets.dlink((self.model.x, 'expression'), (self.plot, 'x_label'), transform=str)
-        widgets.dlink((self.model.y, 'expression'), (self.plot, 'y_label'), transform=str)
+        traitlets.dlink((self.model.x, 'expression'), (self.plot, 'x_label'), transform=str)
+        traitlets.dlink((self.model.y, 'expression'), (self.plot, 'y_label'), transform=str)
 
-        # then we sync the limits of the plot with a debouce to the model
-        # TODO: can we do a debouncedlink?
-        # @self.output.capture()
-        # @vaex.jupyter.debounced(DEBOUNCE_LIMITS)
-        def _push_limits(change):
-            self.model.x.min = self.plot.x_min
-            self.model.x.max = self.plot.x_max
-            self.model.y.min = self.plot.y_min
-            self.model.y.max = self.plot.y_max
-        self.plot.observe(_push_limits, ['x_min', 'x_max', 'y_min', 'y_max'])
+        # dlink the plot axis to the model
+        traitlets.dlink((self.plot, 'x_min'), (self.model.x, 'min'))
+        traitlets.dlink((self.plot, 'x_max'), (self.model.x, 'max'))
+        traitlets.dlink((self.plot, 'y_min'), (self.model.y, 'min'))
+        traitlets.dlink((self.plot, 'y_max'), (self.model.y, 'max'))
 
         self.model.observe(self.update_heatmap, ['grid', 'grid_sliced'])
         self.observe(self.update_heatmap, ['transform'])
@@ -208,10 +202,15 @@ class Heatmap(ViewBase):
             rgb_image = np.transpose(rgb_image, (1, 0, 2))  # flip with/height
             rgb_image = rgb_image.copy()  # make contiguous
             assert rgb_image.shape[-1] == 4, "last dimention is channel"
-            self.plot.x_min = self.model.x.min
-            self.plot.x_max = self.model.x.max
-            self.plot.y_min = self.model.y.min
-            self.plot.y_max = self.model.y.max
+
+            # TODO: we should pass the xarray to plot and let that take tare
+            dims = self.model.grid.dims
+            dim_x = dims[1]
+            dim_y = dims[2]
+            self.plot.x_min = self.model.grid.coords[dim_x].attrs['min']
+            self.plot.x_max = self.model.grid.coords[dim_x].attrs['max']
+            self.plot.y_min = self.model.grid.coords[dim_y].attrs['min']
+            self.plot.y_max = self.model.grid.coords[dim_y].attrs['max']
             self.plot.set_rgb_image(rgb_image)
 
 
@@ -243,14 +242,10 @@ class Histogram(ViewBase):
             self.plot.x_min = self.model.x.min
         if self.model.x.max is not None:
             self.plot.x_max = self.model.x.max
-        # then we sync the limits of the plot with a debouce to the model
 
-        @self.output.capture()
-        @vaex.jupyter.debounced(DEBOUNCE_LIMITS)
-        def _push_limits(change):
-            self.model.x.min = self.plot.x_min
-            self.model.x.max = self.plot.x_max
-        self.plot.observe(_push_limits, ['x_min', 'x_max', 'y_min', 'y_max'])
+        # then we sync the limits of the plot with a debouce to the model
+        traitlets.dlink((self.plot, 'x_min'), (self.model.x, 'min'))
+        traitlets.dlink((self.plot, 'x_max'), (self.model.x, 'max'))
 
         self.model.observe(self.update_data, ['grid', 'grid_sliced'])
         self.observe(self.update_data, ['normalize', 'dimension_groups'])

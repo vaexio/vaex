@@ -534,7 +534,7 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
                         what_label = fs[j] + " " + what_label
                     what_labels.append(what_label)
                 grid_of_grids[-1].append(grid)
-        self.executor.execute()
+        self.execute()
         for i, (binby, limits) in enumerate(zip(x, xlimits)):
             for j, what in enumerate(whats):
                 grid = grid_of_grids[i][j].get()

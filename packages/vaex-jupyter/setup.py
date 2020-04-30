@@ -24,9 +24,9 @@ setup(name=name + '-jupyter',
       author_email=author_email,
       install_requires=install_requires_jupyter,
       license=license,
-      packages=['vaex.jupyter'],
+      packages=['vaex.jupyter', 'vaex.jupyter.vendor'],
       zip_safe=False,
       entry_points={'vaex.dataframe.accessor': ['widget = vaex.jupyter:DataFrameAccessorWidget']},
       include_package_data=True,  # include files listed in manifest.in
-      package_data={'vaex.jupyter': ['*.vue']},
+      package_data={'vaex.jupyter.vue': ['*.vue']},
 )

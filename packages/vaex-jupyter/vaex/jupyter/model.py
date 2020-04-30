@@ -11,7 +11,7 @@ import vaex.jupyter
 from .decorators import signature_has_traits
 from .traitlets import Expression
 import logging
-import contextlib
+from .vendor import contextlib
 
 
 logger = logging.getLogger('vaex.jupyter.model')
@@ -181,7 +181,7 @@ class Axis(_HasState):
             else:
                 # in this case, grids may want to be computed
                 # this happens when a user change min/max
-                pass 
+                pass
         else:
             if self.calculation is not None:
                 self._cancel_computation()
@@ -215,30 +215,18 @@ class Axis(_HasState):
                     pass
                 async with self._state_change_to(Axis.Status.CALCULATING_LIMITS):
                     await execute_prehook_future
-                # first assign to local
-                # try:
-                if 1:
-                    async with self._state_change_to(Axis.Status.CALCULATED_LIMITS):
-                        vmin, vmax = await self.calculation
-                    # indicate we are done with the calculation
-                    self.calculation = None
-                # except vaex.execution.UserAbort:
-                #     async with self._state_change_to(Axis.Status.ABORTED):
-                #         raise
+                async with self._state_change_to(Axis.Status.CALCULATED_LIMITS):
+                    vmin, vmax = await self.calculation
+                # indicate we are done with the calculation
+                self.calculation = None
                 if not self._continue_calculation:
-                    print("ABORT looks like the calculation was cancelled")
                     assert self.status == Axis.Status.READY
-
                 async with self._state_change_to(Axis.Status.READY):
                     self.min, self.max = vmin, vmax
                     self._calculate_centers()
-                # task = self.df.minmax(self.expression, delay=True)
-                # return task.then(on_min_max, on_error)
             except vaex.execution.UserAbort:
-                # expression or min/max change
+                # expression or min/max change, we don't have to take action
                 assert self.status in [Axis.Status.NO_LIMITS, Axis.Status.READY]
-                print("USER ABORT")
-                # raise asyncio.CancelledError("User abort")
             except asyncio.CancelledError:
                 pass
 
@@ -248,14 +236,11 @@ class Axis(_HasState):
 
     def _calculate_centers(self):
         categorical = self.df.is_category(self.expression)
-        # if self.min is None or self.max is None:
-        #     return # special condition that can occur during testing, since debounced does not work
         if categorical:
             N = self.df.category_count(self.expression)
             centers = np.arange(N)
             self.shape = N
         else:
-            # print(self.expression, [min, max], getattr(self, attr + '_shape') or self.shape)
             centers = self.df.bin_centers(self.expression, [self.min, self.max], shape=self.shape or self.shape_default)
         self.centers = centers
 
@@ -299,7 +284,6 @@ class DataArray(_HasState):
             traitlets.link((self, 'shape'), (axis, 'shape_default'))
             axis.observe(self._on_axis_status_change, 'status')
             axis.observe(lambda _: self.signal_slice.emit(self), ['slice'])
-            # axis.observe(lambda _: self._update_grid(), ['shape'])
 
             def on_change_min_max(change):
                 if change.owner.status == Axis.Status.READY:
@@ -308,11 +292,6 @@ class DataArray(_HasState):
             axis.observe(on_change_min_max, ['min', 'max'])
 
         self._on_axis_status_change()
-        # if all([axis.status == Axis.Status.READY for axis in self.axes]):
-        #     self.computation()
-        # else:
-        #     pass # we'll be trigger via a status change of an axis
-
         self.df.signal_selection_changed.connect(self._on_change_selection)
 
     def _on_change_selection(self, df, name):
@@ -351,15 +330,15 @@ class DataArray(_HasState):
     def _on_change_status(self, change):
         if self.status == DataArray.Status.EXCEPTION:
             self.status_text = f'Exception: {self.exception}'
-        if self.status == DataArray.Status.NEEDS_CALCULATING_GRID:
+        elif self.status == DataArray.Status.NEEDS_CALCULATING_GRID:
             self.status_text = 'Grid needs to be calculated'
-        if self.status == DataArray.Status.STAGED_CALCULATING_GRID:
+        elif self.status == DataArray.Status.STAGED_CALCULATING_GRID:
             self.status_text = 'Staged grid computation'
-        if self.status == DataArray.Status.CALCULATING_GRID:
+        elif self.status == DataArray.Status.CALCULATING_GRID:
             self.status_text = 'Calculating grid'
-        if self.status == DataArray.Status.CALCULATED_GRID:
+        elif self.status == DataArray.Status.CALCULATED_GRID:
             self.status_text = 'Calculated grid'
-        if self.status == DataArray.Status.READY:
+        elif self.status == DataArray.Status.READY:
             self.status_text = 'Ready'
         # GridCalculator can change the status
             # self._update_grid()
@@ -371,48 +350,6 @@ class DataArray(_HasState):
 
     def on_progress_grid(self, f):
         return all(self.signal_grid_progress.emit(f))
-
-    # @vaex.jupyter.debounced(method=True, delay_seconds=0.05)
-    # async def calculate_limits(self, only_dirty=False):
-    #     # TODO: we'd like to do this delayed (in 1 pass)
-    #     axes = [axis for axis in self.axes if axis.has_missing_limit]
-    #     if only_dirty:
-    #         axes = self._dirty_axes.copy()
-    #     calculations = []
-    #     for axis in axes:
-    #         self._dirty_axes.discard(axis)
-    #         calculations.append(axis.calculate_limits())
-    #     await asyncio.gather(*calculations)
-        #     if task:
-        #         tasks.append(task)
-        # if tasks:
-        #     self._execute_tasks()
-
-    # @vaex.jupyter.debounced(method=True, delay_seconds=0.05)
-    # def _execute_tasks(self):
-    #     self.df.execute()
-
-    # @vaex.jupyter.debounced(method=True, delay_seconds=0.1)
-    # def _update_grid(self):
-    #     # in the meantime, something can be cancelled
-    #     # we should be able to just drop the ball, since the next
-    #     # time one of the axes becomes ready, we will be invoked again
-    #     for axis in self.axes:
-    #         if axis.status != Axis.Status.READY:
-    #             return
-    #     for axis in self.axes:
-    #         axis._calculate_centers()  # we can probably skip this?
-    #     self._prepare_regrid()
-    #     self.signal_regrid.emit(None)
-
-    # def _prepare_regrid(self):
-    #     self.status = DataArray.Status.CALCULATING_GRID
-    #     self.status_text = 'Aggregating data'
-
-    # @traitlets.observe('grid')
-    # def _on_change_grid(self, change):
-    #     self.status = DataArray.Status.READY
-    #     self.status_text = 'Ready'
 
 
 class Histogram(DataArray):
@@ -456,18 +393,8 @@ class GridCalculator(_HasState):
         self._callbacks_slice = []
         for model in models:
             self.model_add(model)
-        # self.regrid()
         self._testing_exeception_regrid = False  # used for testing, to throw an exception
         self._testing_exeception_reslice = False  # used for testing, to throw an exception
-
-    # def on_change_selection(self, df, name):
-    #     # TODO: check name
-    #     # print(name)
-    #     # import traceback
-    #     # traceback.print_stack()
-    #     for model in self.models:
-    #         model._prepare_regrid()
-    #     self.regrid()
 
     # def model_remove(self, model, regrid=True):
     #     index = self.models.index(model)
@@ -478,11 +405,12 @@ class GridCalculator(_HasState):
     def model_add(self, model):
         self.models = self.models + [model]
         if model.status == DataArray.Status.NEEDS_CALCULATING_GRID:
+            if self.calculation is not None:
+                self._cancel_computation()
             self.computation()
 
         def on_status_changed(change):
             if change.owner.status == DataArray.Status.NEEDS_CALCULATING_GRID:
-                # TODO: cancel
                 if self.calculation is not None:
                     self._cancel_computation()
                 self.computation()
@@ -553,14 +481,11 @@ class GridCalculator(_HasState):
                 model.status = vaex.jupyter.model.DataArray.Status.EXCEPTION
         except Exception as e2:
             print(e2)
-        print("ERRRORORRR" * 100, e)
-        # import traceback
-        # traceback.print_exc(e)
 
     def on_regrid(self, ignore=None):
         self.regrid()
 
-    @vaex.jupyter.debounced(delay_seconds=0.1, reentrant=False, on_error=_regrid_error)
+    @vaex.jupyter.debounced(delay_seconds=0.5, reentrant=False, on_error=_regrid_error)
     async def computation(self):
         try:
             logger.debug('Starting grid computation')
@@ -576,7 +501,6 @@ class GridCalculator(_HasState):
             for model in self.models:
                 if model.selections != selections:
                     raise ValueError('Selections for all models should be the same')
-                # for expression, shape, limit, slice_index in model.bin_parameters():
                 for axis in model.axes:
                     binby.append(axis.expression)
                     limits.append([axis.min, axis.max])
@@ -621,10 +545,6 @@ class GridCalculator(_HasState):
     def _cancel_computation(self):
         logger.debug('Cancelling grid computation')
         self._continue_calculation = False
-
-    @vaex.jupyter.debounced(method=True, delay_seconds=0.1)
-    def _execute(self):
-        self.df.execute()
 
     def progress(self, f):
         return self._continue_calculation and all([model.on_progress_grid(f) for model in self.models])

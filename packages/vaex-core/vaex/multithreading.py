@@ -60,6 +60,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         if self.nthreads == 1:  # when using 1 thread, it makes debugging easier (better stacktrace)
             iterator = self._map_async(wrapped, values)
         else:
+            loop = asyncio.get_event_loop()
             iterator = [loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in values]
 
         for i, value in enumerate(iterator):

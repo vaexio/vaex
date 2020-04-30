@@ -39,7 +39,7 @@ def small_buffer(ds, size=3):
         yield # for remote datasets we don't support this ... or should we?
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def webserver():
     webserver = vaex.server.tornado_server.WebServer(datasets=[], port=test_port, cache_byte_size=0)
     webserver.serve_threaded()
@@ -141,6 +141,13 @@ def df_concat(ds_trimmed):
     df3 = df[3:7]  # length 4
     df4 = df[7:10]  # length 3
     return vaex.concat([df1, df2, df3, df4])
+
+
+# for when only the type of executor matters
+@pytest.fixture(params=['df_trimmed', 'df_remote'])
+def df_executor(request, df_trimmed, df_remote):
+    named = dict(df_trimmed=df_trimmed, df_remote=df_remote)
+    return named[request.param]
 
 
 @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote', 'df_concat'])
