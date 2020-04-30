@@ -133,6 +133,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
             futures.append(future)
 
     done = False
+    progress(0)
     while not done:
         done = True
         for future in futures:
