@@ -3,6 +3,7 @@
 # $ doit
 import pkg_resources
 import vaex.meta._version
+import re
 
 
 def task_mybinder():
@@ -10,10 +11,12 @@ def task_mybinder():
 
     def action(targets):
         filename = targets[0]
+        with open(filename) as f:
+            content = f.read()
+        version = vaex.meta._version.__version__
+        content = re.sub('vaex==(.*)', f'vaex=={version}', content)
         with open(filename, "w") as f:
-            version = vaex.meta._version.__version__
-            version_normalized = pkg_resources.safe_version(version)
-            f.write(f"vaex=={version_normalized}")
+            f.write(content)
         print(f"{filename} updated")
 
     return {
