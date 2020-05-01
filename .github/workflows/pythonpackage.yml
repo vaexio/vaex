@@ -110,6 +110,21 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         python -m pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
+    - name: Test notebooks
+      shell: bash
+      run: |
+        cd docs/source
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial.ipynb
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial_ml.ipynb
+        # we cannot run the arrow example, maybe with a remote dataframe?
+        # python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_arrow.ipynb
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_dask.ipynb
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_graphql.ipynb
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_io.ipynb
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_dask.ipynb
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_ml_iris.ipynb
+        # this fails to run currently
+        # python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_ml_titanic.ipynb
     # - name: Make env smaller for caching
     #   shell: bash
     #   run: |
