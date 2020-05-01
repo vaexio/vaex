@@ -63,9 +63,8 @@ def test_concat():
     ds2 = vaex.from_arrays(names=['hello', 'this', 'is', 'long'])
     ds = ds1.concat(ds2)
     assert len(ds) == len(ds1) + len(ds2)
-    assert ds.dtype('names') == vaex.column.str_type
-    assert ds.dtype('names') != np.object
-
+    assert ds.data_type('names') == vaex.column.str_type
+    assert ds.data_type('names') != np.object
 
 def test_string_count_stat():
     ds = vaex.from_arrays(names=['hello', 'this', 'is', 'long'])
@@ -101,12 +100,11 @@ def test_concat_mixed():
     # and the other string
     ds1 = vaex.from_arrays(names=['not', 'missing'])
     ds2 = vaex.from_arrays(names=[np.nan, np.nan])
-    assert ds1.dtype(ds1.names) == str
-    assert ds2.dtype(ds2.names) == np.float64
+    assert ds1.data_type(ds1.names) == str
+    assert ds2.data_type(ds2.names) == np.float64
     ds = ds1.concat(ds2)
     assert len(ds) == len(ds1) + len(ds2)
-    assert ds.dtype(ds.names) == ds1.names.dtype
-
+    assert ds.data_type(ds.names) == ds1.names.dtype
 
 def test_strip():
     ds = vaex.from_arrays(names=['this ', ' has', ' space'])

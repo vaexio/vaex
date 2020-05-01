@@ -97,7 +97,7 @@ class VariablesTableModel(QtCore.QAbstractTableModel):
                 return variable_name
             elif property == "Type":
                 if column_name in self.dataset.get_column_names():
-                    return str(self.dataset.dtype(column_name))
+                    return str(self.dataset.data_type(column_name))
                 else:
                     return "virtual column"
             elif property == "Units":

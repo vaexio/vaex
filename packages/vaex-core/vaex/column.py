@@ -72,7 +72,7 @@ class ColumnIndexed(Column):
         self.df = df
         self.indices = indices
         self.name = name
-        self.dtype = self.df.dtype(name)
+        self.dtype = self.df.data_type(name)
         self.shape = (len(indices),)
         self.masked = masked
         # this check is too expensive

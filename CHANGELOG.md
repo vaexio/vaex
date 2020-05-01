@@ -7,6 +7,7 @@
      * Default limits (e.g. for plots) is minmax, so we don't miss outliers
      * `df.get_column_names()` returns the aliased names (invalid identifiers), pass `alias=False` to get the internal column name
      * Default value of `virtual` is True in method `df.export`, `df.to_dict`, `df.to_items`, `df.to_arrays`.
+     * df.dtype is a property, to get data types for expressions, use df.data_type(), df.expr.dtype is still behaving the same
 
 # vaex-core 2.0.0-dev
    * Performance

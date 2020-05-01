@@ -2,7 +2,7 @@ from __future__ import absolute_import
 import traitlets
 
 def nice_type(df, name):
-    dtype = df.dtype(name)
+    dtype = df.data_type(name)
     type_map = {'i': 'integer', 'u': 'integer', 'f': 'float', 'b': 'boolean',
                'M': 'date/time'}
     if dtype == str:

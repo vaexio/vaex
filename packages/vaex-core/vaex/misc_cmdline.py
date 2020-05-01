@@ -76,5 +76,5 @@ def stat_main(argv):
         unit = dataset.unit(name)
         if unit:
             print("   \tunit: %s" % unit)
-        dtype = dataset.dtype(name)
+        dtype = dataset.data_type(name)
         print("   \ttype: %s" % dtype.name)
