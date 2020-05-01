@@ -28,5 +28,5 @@ setup(name=name + '-jupyter',
       zip_safe=False,
       entry_points={'vaex.dataframe.accessor': ['widget = vaex.jupyter:DataFrameAccessorWidget']},
       include_package_data=True,  # include files listed in manifest.in
-      package_data={'vaex.jupyter': ['*.vue']},
+      package_data={'vaex.jupyter.vue': ['*.vue']},
 )
