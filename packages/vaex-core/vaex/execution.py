@@ -45,10 +45,12 @@ class Executor:
 
     def schedule(self, task):
         with self.lock:
-            assert task not in self.tasks
-            self.tasks.append(task)
-            logger.info("task added, queue: %r", self.tasks)
-            return task
+            # _compute_agg can add a task that another thread already added
+            # if we refactor task 'merging' we can avoid this
+            if task not in self.tasks:
+                self.tasks.append(task)
+                logger.info("task added, queue: %r", self.tasks)
+                return task
 
     def _pop_tasks(self):
         # returns a list of tasks that can be executed in 1 pass over the data
