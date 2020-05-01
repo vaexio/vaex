@@ -86,18 +86,18 @@ def test_nested_task(df):
     assert total_promise.get() == df.sum(df.x) + df.sum(df.y)
 
 
-def test_add_and_cancel_tasks(df_executor):
-    df = df_executor
+# def test_add_and_cancel_tasks(df_executor):
+#     df = df_executor
 
-    def add_task_and_cancel(fraction):
-        df.sum(df.x, delay=True)
-        return False
+#     def add_task_and_cancel(fraction):
+#         df.sum(df.x, delay=True)
+#         return False
 
-    future = df.count(progress=add_task_and_cancel, delay=True)
-    df.execute()
-    with pytest.raises(vaex.execution.UserAbort):
-        future.get()
-    assert df.executor.tasks
+#     future = df.count(progress=add_task_and_cancel, delay=True)
+#     df.execute()
+#     with pytest.raises(vaex.execution.UserAbort):
+#         future.get()
+#     assert df.executor.tasks
 
 # import vaex
 # import vaex.dask
