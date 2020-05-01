@@ -91,14 +91,15 @@ class ProgressBar(ProgressBarBase):
         self.output.flush()
 
     def finish(self):
-        self.value = self.max_value
-        print(repr(self), file=self.output, end=' ')
+        if self.value != self.max_value:
+            self.value = self.max_value
+            print(repr(self), file=self.output, end=' ')
         self.output.flush()
 
 
     def __repr__(self):
         output = ''
-        count = int(self.fraction * self.width + 0.5)
+        count = int(round(self.fraction * self.width))
         space = self.width - count
         bar = "[" + (self.barchar * count) + (self.emptychar * space) + "]"
         output = "\r" + bar + super(ProgressBar, self).__repr__()
