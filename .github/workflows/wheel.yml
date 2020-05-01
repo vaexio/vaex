@@ -39,8 +39,9 @@ jobs:
       run: |
         choco install vcpython27 -f -y
 
-    - name: copy build script
+    - name: chores
       run: |
+        mkdir dist
         mkdir packages/vaex-core/bin
         cp bin/install_pcre.sh packages/vaex-core/bin/
 
