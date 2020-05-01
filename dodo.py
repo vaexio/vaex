@@ -22,4 +22,5 @@ def task_mybinder():
     return {
         'actions': [action],
         'targets': ["binder/requirements.txt"],
+        'file_dep': ['packages/vaex-meta/vaex/meta/_version.py']
         }
