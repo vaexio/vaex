@@ -114,7 +114,7 @@ jobs:
       if: matrix.os != 'windows-latest'
       shell: bash
       run: |
-        conda install -c conda-forge -y healpy
+        python -m pip install healpy
         cd docs/source
         python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial.ipynb
         python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial_ml.ipynb
