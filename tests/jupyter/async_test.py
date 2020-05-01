@@ -182,12 +182,13 @@ def test_debounced_await(df_trimmed, as_coroutine, as_method, flush_guard,):
     async def run():
         nonlocal calls
         assert calls == 0
+        if as_method:
+            calls -= 1  # we're gonna call it twice, so we correct
         future1 = foo()
         future2 = foo()
         if as_method:
             bla1 = other_foo.foo()
             bla2 = other_foo.foo()
-            calls -= 1
         result1 = await future1
         result2 = await future2
         assert calls == 1
