@@ -1,6 +1,10 @@
 name: Build
 
-on: [push]
+on:
+  push:
+    tags:
+      - viz-*
+      - core-*
 
 jobs:
   build_wheels:
@@ -35,21 +39,28 @@ jobs:
         mkdir packages/vaex-core/bin
         cp bin/install_pcre.sh packages/vaex-core/bin/
 
-    - name: Build wheel
+    - name: Build vaex-core
       env:
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
-        CIBW_BUILD: cp${{ matrix.python-version }}*64	
+        CIBW_BUILD: cp${{ matrix.python-version }}*64
+      if: startsWith(github.ref, 'refs/tags/core')
       run: |
-        python -m cibuildwheel --output-dir wheelhouse packages/vaex-core
+        # python -m cibuildwheel --output-dir dist packages/vaex-core
+        (cd packages/vaex-core && python sdist); cp packages/vaex-core/dist/* dist/
+
+    - name: Build vaex-viz
+      if: startsWith(github.ref, 'refs/tags/viz')
+      run: |
+        (cd packages/vaex-core && python sdist); cp packages/vaex-viz/dist/* dist
 
     - uses: actions/upload-artifact@v1
       with:
-        name: wheels
-        path: ./wheelhouse
+        name: distributions
+        path: ./dist
 
-    - name: Publish a Python distribution to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.test_pypi_password }}
-      run: |
-        twine upload --repository testpypi wheelhouse/*
+    # - name: Publish a Python distribution to PyPI
+    #   env:
+    #     TWINE_USERNAME: __token__
+    #     TWINE_PASSWORD: ${{ secrets.test_pypi_password }}
+    #   run: |
+    #     twine upload --repository testpypi wheelhouse/*
