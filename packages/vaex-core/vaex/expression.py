@@ -251,7 +251,11 @@ class Expression(with_metaclass(Meta)):
 
     @property
     def dtype(self):
-        return self.ds.dtype(self.expression)
+        return self.ds.data_type(self.expression)
+
+    def data_type(self):
+        """Alias to df.data_type(self.expression)"""
+        return self.ds.data_type(self.expression)
 
     @property
     def shape(self):
@@ -705,7 +709,7 @@ class Expression(with_metaclass(Meta)):
             all_vars = self.ds.get_column_names(virtual=True, strings=True, hidden=True) + list(self.ds.variables.keys())
             vaex.expresso.validate_expression(expression, all_vars, funcs, names)
             names = list(set(names))
-            types = ", ".join(str(self.ds.dtype(name)) + "[]" for name in names)
+            types = ", ".join(str(self.ds.data_type(name)) + "[]" for name in names)
             argstring = ", ".join(names)
             code = '''
 from numpy import *
@@ -1029,7 +1033,7 @@ class FunctionSerializableJit(FunctionSerializable):
         # TODO: can we do the above using the Expressio API?s
 
         arguments = list(set(names))
-        argument_dtypes = [df.dtype(argument) for argument in arguments]
+        argument_dtypes = [df.data_type(argument) for argument in arguments]
         return_dtype = df[expression].dtype
         return cls(str(expression), arguments, argument_dtypes, return_dtype, verbose, compile=compile)
 

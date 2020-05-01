@@ -762,9 +762,9 @@ class TestDataset(unittest.TestCase):
 		assert self.dataset.unit("x+y") == None
 
 	def test_dtype(self):
-		self.assertEqual(self.dataset.dtype("x"), np.dtype(">f8"))
-		self.assertEqual(self.dataset.dtype("f"), np.float64)
-		self.assertEqual(self.dataset.dtype("x*f"), np.float64)
+		self.assertEqual(self.dataset.data_type("x"), np.dtype(">f8"))
+		self.assertEqual(self.dataset.data_type("f"), np.float64)
+		self.assertEqual(self.dataset.data_type("x*f"), np.float64)
 
 	def test_byte_size(self):
 		arrow_size = self.dataset.columns['name_arrow'].nbytes

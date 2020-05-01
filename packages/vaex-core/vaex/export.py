@@ -63,7 +63,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
     order_array_inverse = None
 
     # for strings we also need the inverse order_array, keep track of that
-    has_strings = any([dataset_input.dtype(k) == str_type for k in column_names])
+    has_strings = any([dataset_input.data_type(k) == str_type for k in column_names])
 
     if partial_shuffle:
         # if we only export a portion, we need to create the full length random_index array, and
@@ -162,7 +162,7 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
         if 1:
             block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
             to_array = dataset_output.columns[column_name]
-            dtype = dataset_input.dtype(column_name)
+            dtype = dataset_input.data_type(column_name)
             if shuffle or sort:  # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
                 to_array_disk = to_array
                 if np.ma.isMaskedArray(to_array):
@@ -265,7 +265,7 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
             column = dataset.columns[column_name]
             shape = (N,) + column.shape[1:]
             dtype = column.dtype
-            if dataset.dtype(column_name) == str_type:
+            if dataset.data_type(column_name) == str_type:
                 max_length = dataset[column_name].apply(lambda x: len(x)).max(selection=selection)
                 dtype = np.dtype('S'+str(int(max_length)))
         else:
@@ -286,7 +286,7 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
         random_index_name = None
 
     # TODO: all expressions can have missing values.. how to support that?
-    null_values = {key: dataset.columns[key].fill_value for key in dataset.get_column_names() if dataset.is_masked(key) and dataset.dtype(key).kind != "f"}
+    null_values = {key: dataset.columns[key].fill_value for key in dataset.get_column_names() if dataset.is_masked(key) and dataset.data_type(key).kind != "f"}
     vaex.file.colfits.empty(path, N, column_names, data_types, data_shapes, ucds, units, null_values=null_values)
     if shuffle:
         del column_names[-1]
