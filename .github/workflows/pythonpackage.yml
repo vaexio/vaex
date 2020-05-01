@@ -41,7 +41,7 @@ jobs:
     - name: Create env
       # if: steps.cache-conda-env.outputs.cache-hit != 'true'
       run: |
-        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook scikit-learn lightgbm py-xgboost healpy
+        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy pyqt matplotlib pyopengl h5py numexpr astropy tornado cython runipy pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook scikit-learn lightgbm py-xgboost
     # - name: Restoring cached env
     #   if: steps.cache-conda-env.outputs.cache-hit == 'true'
     #   run: |
@@ -111,8 +111,10 @@ jobs:
       run: |
         python -m pytest tests packages/vaex-core/vaex/test/dataset.py::TestDataset
     - name: Test notebooks
+      if: matrix.os != 'windows-latest'
       shell: bash
       run: |
+        conda install -c conda-forge -y healpy
         cd docs/source
         python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial.ipynb
         python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial_ml.ipynb
