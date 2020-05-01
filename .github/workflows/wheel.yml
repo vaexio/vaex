@@ -8,15 +8,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-latest]
-        python-version: [36, 37]
+        os: [ubuntu-18.04]
+        python-version: [36]
 
     steps:
     - uses: actions/checkout@v1
       with:
         submodules: true
 
-    - uses: actions/setup-python@v1
+    - uses: actions/setup-python@v2
       name: Install Python
       with:
         python-version: '3.7'
