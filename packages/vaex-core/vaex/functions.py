@@ -455,7 +455,7 @@ def dt_quarter(x):
       1  2016-02-11 10:17:34
       2  2015-11-12 11:34:22
 
-    >>> df.date.dt.month_name
+    >>> df.date.dt.quarter
     Expression = dt_quarter(date)
     Length: 3 dtype: int64 (expression)
     -----------------------------------
