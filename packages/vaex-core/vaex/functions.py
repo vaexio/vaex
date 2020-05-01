@@ -438,6 +438,35 @@ def dt_month_name(x):
     return pd.Series(_pandas_dt_fix(x)).dt.month_name().values.astype(str)
 
 @register_function(scope='dt', as_property=True)
+def dt_quarter(x):
+    """Extracts the quarter from a datetime sample.
+
+    :returns: an expression containing the number of the quarter extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.quarter
+    Expression = dt_quarter(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0  4
+    1  1
+    2  4
+    """
+    import pandas as pd
+    return pd.Series(_pandas_dt_fix(x)).dt.quarter.values
+
+@register_function(scope='dt', as_property=True)
 def dt_day(x):
     """Extracts the day from a datetime sample.
 
@@ -610,6 +639,35 @@ def dt_second(x):
     """
     import pandas as pd
     return pd.Series(_pandas_dt_fix(x)).dt.second.values
+
+@register_function(scope='dt')
+def dt_strftime(x, date_format):
+    """Returns a formatted string from a datetime sample.
+
+    :returns: an expression containing a formatted string extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.strftime("%Y-%m")
+    Expression = dt_strftime(date, '%Y-%m')
+    Length: 3 dtype: object (expression)
+    ------------------------------------
+    0  2009-10
+    1  2016-02
+    2  2015-11
+    """
+    import pandas as pd
+    return pd.Series(_pandas_dt_fix(x)).dt.strftime(date_format)
 
 ########## timedelta operations ##########
 
