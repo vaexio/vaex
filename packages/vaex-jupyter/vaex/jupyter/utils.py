@@ -145,10 +145,6 @@ class _debounced_callable:
         @functools.wraps(self.f)
         def debounced_execute(counter=self.counter):
             async def run_async():
-                if not self.skip_gather:
-                    _debounced_futures.remove(future)
-                else:
-                    _debounced_futures_skip.remove(future)
                 if counter != self.counter:
                     # TODO: maybe we should set cancel instead?
                     future.set_result(None)
@@ -194,6 +190,10 @@ class _debounced_callable:
                         logger.exception("error in error handler")
                 finally:
                     _debounced_execute_queue.remove(debounced_execute)
+                    if not self.skip_gather:
+                        _debounced_futures.remove(future)
+                    else:
+                        _debounced_futures_skip.remove(future)
             ioloop.create_task(run_async())
 
         if debounce_enabled:
