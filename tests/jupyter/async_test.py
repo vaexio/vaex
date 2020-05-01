@@ -76,7 +76,7 @@ def test_debounced_reentrant(reentrant):
         if reentrant:
             assert a is b
             assert a == {1}
-            assert c == {1}
+            assert c.issubset({1, 2}) # c can actually be called at the same time
             assert a is not c
         else:
             assert a is b
@@ -134,9 +134,8 @@ def test_debounced_long_lasting():
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("as_coroutine", [False])
-# @pytest.mark.parametrize("as_method", [False, True])
-@pytest.mark.parametrize("as_method", [True])
+@pytest.mark.parametrize("as_coroutine", [False, True])
+@pytest.mark.parametrize("as_method", [False, True])
 def test_debounced_await(df_trimmed, as_coroutine, as_method, flush_guard,):
     calls = 0
 
