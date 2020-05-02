@@ -918,7 +918,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(ds.count(), 4)
 
 		task = self.dataset.count("x", selection=True, delay=True)
-		self.dataset.executor.execute()
+		self.dataset.execute()
 		np.testing.assert_array_almost_equal(task.get(), 4)
 
 
@@ -975,7 +975,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.cov("x", "y", selection=True), cov(x[:5], y[:5]))
 
 		task = self.dataset.cov("x", "y", selection=True, delay=True)
-		self.dataset.executor.execute()
+		self.dataset.execute()
 		np.testing.assert_array_almost_equal(task.get(), cov(x[:5], y[:5]))
 
 
@@ -1039,7 +1039,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.covar("x", "y", selection=True), covar(x[:5], y[:5]))
 
 		task = self.dataset.covar("x", "y", selection=True, delay=True)
-		self.dataset.executor.execute()
+		self.dataset.execute()
 		np.testing.assert_array_almost_equal(task.get(), covar(x[:5], y[:5]))
 
 
@@ -1116,7 +1116,7 @@ class TestDataset(unittest.TestCase):
 		np.testing.assert_array_almost_equal(self.dataset.sum("x", selection=True), np.nansum(x[:5]))
 
 		task = self.dataset.sum("x", selection=True, delay=True)
-		self.dataset.executor.execute()
+		self.dataset.execute()
 		np.testing.assert_array_almost_equal(task.get(), np.nansum(x[:5]))
 
 

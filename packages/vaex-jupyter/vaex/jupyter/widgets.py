@@ -2,31 +2,53 @@ from __future__ import absolute_import
 import ipyvuetify as v
 import ipywidgets as widgets
 import traitlets
-from traitlets import *
+from traitlets import *  # noqa
 from . import traitlets as vt
+import os
+
+import vaex.jupyter
+
 
 def load_template(filename):
     with open(os.path.join(os.path.dirname(__file__), filename)) as f:
         return f.read()
 
-class PlotTemplate(v.VuetifyTemplate):
-    show_output = Bool(False).tag(sync=True)
-    new_output = Bool(False).tag(sync=True)
-    title = Unicode('Vaex').tag(sync=True)
 
-    drawer = Bool(True).tag(sync=True)
-    clipped = Bool(False).tag(sync=True)
-    model = Any(True).tag(sync=True)
-    floating = Bool(False).tag(sync=True)
-    dark = Bool(False).tag(sync=True)
-    mini = Bool(False).tag(sync=True)
-    components = Dict(None, allow_none=True).tag(sync=True, **widgets.widget.widget_serialization)
-    items = Any([]).tag(sync=True)
-    type = Unicode('temporary').tag(sync=True)
-    items = List(['red', 'green', 'purple']).tag(sync=True)
-    button_text = Unicode('menu').tag(sync=True)
-    drawers = Any(['Default (no property)', 'Permanent', 'Temporary']).tag(sync=True)
-    template = Unicode('''
+vaex_components = {}
+
+
+def component(name):
+    def wrapper(cls):
+        vaex_components[name] = cls
+        return cls
+    return wrapper
+
+
+# mixin class
+class UsesVaexComponents(traitlets.HasTraits):
+    @traitlets.default('components')
+    def _components(self):
+        return vaex_components
+
+
+class PlotTemplate(v.VuetifyTemplate):
+    show_output = traitlets.Bool(False).tag(sync=True)
+    new_output = traitlets.Bool(False).tag(sync=True)
+    title = traitlets.Unicode('Vaex').tag(sync=True)
+
+    drawer = traitlets.Bool(True).tag(sync=True)
+    clipped = traitlets.Bool(False).tag(sync=True)
+    model = traitlets.Any(True).tag(sync=True)
+    floating = traitlets.Bool(False).tag(sync=True)
+    dark = traitlets.Bool(False).tag(sync=True)
+    mini = traitlets.Bool(False).tag(sync=True)
+    components = traitlets.Dict(None, allow_none=True).tag(sync=True, **widgets.widget.widget_serialization)
+    items = traitlets.Any([]).tag(sync=True)
+    type = traitlets.Unicode('temporary').tag(sync=True)
+    items = traitlets.List(['red', 'green', 'purple']).tag(sync=True)
+    button_text = traitlets.Unicode('menu').tag(sync=True)
+    drawers = traitlets.Any(['Default (no property)', 'Permanent', 'Temporary']).tag(sync=True)
+    template = traitlets.Unicode('''
 
 <v-app>
     <v-navigation-drawer
@@ -85,9 +107,10 @@ class PlotTemplate(v.VuetifyTemplate):
 ''').tag(sync=True)
 
 
-class AnimatedCounter(v.VuetifyTemplate):
+@component('vaex-counter')
+class Counter(v.VuetifyTemplate):
     characters = traitlets.List(traitlets.Unicode()).tag(sync=True)
-    value = traitlets.Integer()
+    value = traitlets.Integer(None, allow_none=True)
     format = traitlets.Unicode('{: 14,d}')
     prefix = traitlets.Unicode('').tag(sync=True)
     postfix = traitlets.Unicode('').tag(sync=True)
@@ -107,6 +130,18 @@ class AnimatedCounter(v.VuetifyTemplate):
           </div>
       ''').tag(sync=True)
 
+
+@component('vaex-status')
+class Status(v.VuetifyTemplate):
+    value = traitlets.Unicode().tag(sync=True)
+    template = traitlets.Unicode('''
+          <v-slide-y-transition leave-absolute>
+              <span :key="value" v-html='value'></span>
+          </v-slide-y-transition>
+      ''').tag(sync=True)
+
+
+@component('vaex-progress-circular')
 class ProgressCircularNoAnimation(v.VuetifyTemplate):
     """v-progress-circular that avoids animations"""
     parts = traitlets.List(traitlets.Unicode()).tag(sync=True)
@@ -122,9 +157,11 @@ class ProgressCircularNoAnimation(v.VuetifyTemplate):
       ''').tag(sync=True)
 
 
-class ExpressionTextArea(v.Textarea):
+@component('vaex-expression')
+class Expression(v.TextField):
     df = traitlets.Any()
     valid = traitlets.Bool(True)
+    value = vt.Expression(None, allow_none=True)
 
     @traitlets.default('v_model')
     def _v_model(self):
@@ -136,6 +173,10 @@ class ExpressionTextArea(v.Textarea):
                 return columns[0]
         columns = self.df.get_column_names()
         return columns[0]
+
+    @traitlets.default('value')
+    def _value(self):
+        self.value = None if self.v_model is None else self.df[self.v_model]
 
     @traitlets.default('label')
     def _label(self):
@@ -150,8 +191,12 @@ class ExpressionTextArea(v.Textarea):
         return 'functions'
 
     @traitlets.observe('v_model')
-    def update_custom_selection(self, change):
+    def _on_update_v_model(self, change):
         self.check_expression()
+
+    @traitlets.observe('value')
+    def _on_update_value(self, change):
+        self.v_model = None if self.value is None else str(self.value)
 
     def check_expression(self):
         try:
@@ -164,12 +209,25 @@ class ExpressionTextArea(v.Textarea):
         self.error_messages = None
         self.success_messages = "Looking good"
         self.valid = True
+        self.value = self.v_model
+        self._clear_succes()
         return True
+
+    @vaex.jupyter.debounced(delay_seconds=1.5, skip_gather=True)
+    def _clear_succes(self):
+        self.success_messages = None
+
+
+ExpressionTextArea = Expression
 
 
 class ExpressionSelectionTextArea(ExpressionTextArea):
     # selection is v_model
     selection_name = traitlets.Any('default')
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # self.update_selection()
 
     @traitlets.default('v_model')
     def _v_model(self):
@@ -195,6 +253,7 @@ class ExpressionSelectionTextArea(ExpressionTextArea):
 
     def update_selection(self):
         self.df.select(self.v_model, name=self.selection_name)
+
 
 class ColumnPicker(v.VuetifyTemplate):
     df = traitlets.Any()
@@ -251,6 +310,7 @@ class ColumnSelectionAdder(ColumnPicker):
         setattr(self.component, self.target, value + ' & ({} == 0)'.format(self.items[data]))
 
 
+@component('vaex-selection-editor')
 class SelectionEditor(v.VuetifyTemplate):
     df = traitlets.Any()
     input = traitlets.Any()
@@ -279,6 +339,20 @@ class SelectionEditor(v.VuetifyTemplate):
         </v-layout>''').tag(sync=True)
 
 
+class Selection(v.VuetifyTemplate):
+    df = traitlets.Any().tag(sync_ref=True)
+    name = traitlets.Unicode('default').tag(sync=True)
+    value = traitlets.Unicode(None, allow_none=True).tag(sync=True)
+
+    @traitlets.default('template')
+    def _template(self):
+        return load_template('vue/selection.vue')
+
+    @traitlets.default('components')
+    def _components(self):
+        return vaex_components
+
+
 class VirtualColumnEditor(v.VuetifyTemplate):
     df = traitlets.Any()
     editor = traitlets.Any()
@@ -290,9 +364,11 @@ class VirtualColumnEditor(v.VuetifyTemplate):
     @traitlets.default('components')
     def _components(self):
         return {'editor': self.editor, 'adder': self.adder}
+
     @traitlets.default('editor')
     def _editor(self):
         return ExpressionTextArea(df=self.df, rows=1)
+
     @traitlets.default('adder')
     def _adder(self):
         return ColumnExpressionAdder(df=self.df, component=self.editor)
@@ -320,9 +396,9 @@ class ColumnList(v.VuetifyTemplate, vt.ColumnsMixin):
     editor = traitlets.Any()
     editor_open = traitlets.Bool(False).tag(sync=True)
     tooltip = traitlets.Unicode('Add example expression based on column...').tag(sync=True)
-    template = traitlets.Unicode(load_template('columnlist.vue')).tag(sync=True)
+    template = traitlets.Unicode(load_template('vue/columnlist.vue')).tag(sync=True)
 
-    def __init__(self, df=None, **kwargs):
+    def __init__(self, df, **kwargs):
         super(ColumnList, self).__init__(df=df, **kwargs)
         traitlets.dlink((self.editor.editor, 'valid'), (self, 'valid_expression'))
         self.editor.editor.on_event('keypress.enter', self._on_enter)
@@ -354,3 +430,54 @@ class ColumnList(v.VuetifyTemplate, vt.ColumnsMixin):
             self.editor.editor.v_model = self.df.virtual_columns[name]
             self.editor.column_name = name
             self.dialog_open = True
+
+
+class ColumnPicker(v.VuetifyTemplate, vt.ColumnsMixin):
+    template = traitlets.Unicode(load_template('vue/column-select.vue')).tag(sync=True)
+    label = traitlets.Unicode('Column').tag(sync=True)
+    value = traitlets.Unicode(None, allow_none=True).tag(sync=True)
+
+
+tools_items_default = [
+    {'value': 'pan-zoom', 'icon': 'pan_tool', 'tooltip': "Pan & zoom"},
+    {'value': 'select-rect', 'icon': 'mdi-selection-drag', 'tooltip': "Rectangle selection"},
+    {'value': 'select-x', 'icon': 'mdi-drag-vertical', 'tooltip': "X-Range selection"},
+]
+
+transform_items_default = ['identity', 'log', 'log10', 'log1p', 'log1p']
+
+
+class ToolsSpeedDial(v.VuetifyTemplate):
+    expand = traitlets.Bool(False).tag(sync=True)
+    value = traitlets.Unicode(tools_items_default[0]['value'], allow_none=True).tag(sync=True)
+    items = traitlets.Any(tools_items_default).tag(sync=True)
+    template = traitlets.Unicode(load_template('vue/tools-speed-dial.vue')).tag(sync=True)
+    children = traitlets.List().tag(sync=True, **widgets.widget_serialization)
+
+    def vue_action(self, data):
+        self.value = data['value']
+
+
+class ToolsToolbar(v.VuetifyTemplate):
+    interact_value = traitlets.Unicode(tools_items_default[0]['value'], allow_none=True).tag(sync=True)
+    interact_items = traitlets.Any(tools_items_default).tag(sync=True)
+    transform_value = traitlets.Unicode(transform_items_default[0]).tag(sync=True)
+    transform_items = traitlets.List(traitlets.Unicode(), default_value=transform_items_default).tag(sync=True)
+    supports_transforms = traitlets.Bool(True).tag(sync=True)
+    supports_normalize = traitlets.Bool(True).tag(sync=True)
+
+    @traitlets.default('template')
+    def _template(self):
+        return load_template('vue/tools-toolbar.vue')
+
+
+class ContainerCard(v.VuetifyTemplate):
+    @traitlets.default('template')
+    def _template(self):
+        return load_template('vue/card.vue')
+    title = traitlets.Unicode(None, allow_none=True).tag(sync=True)
+    subtitle = traitlets.Unicode(None, allow_none=True).tag(sync=True)
+    main = traitlets.Any().tag(sync=True, **widgets.widget_serialization)
+    controls = traitlets.List().tag(sync=True, **widgets.widget_serialization)
+    card_props = traitlets.Dict().tag(sync=True)
+    show_controls = traitlets.Bool(False).tag(sync=True)

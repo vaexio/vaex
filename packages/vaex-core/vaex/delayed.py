@@ -67,7 +67,9 @@ def delayed(f):
             return f(*args_real, **kwargs_real)
 
         def error(exc):
-            print("error", exc)
+            print("Error from delayed", exc)
+            # import vaex
+            # vaex.utils.print_stack_trace()
             raise exc
         return allarguments.then(call, error)
     return wrapped

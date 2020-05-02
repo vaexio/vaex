@@ -76,7 +76,7 @@ def test_correlation(df_local):
     np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=True), correlation(x[:5], y[:5]))
 
     task = df.correlation("x", "y", selection=True, delay=True)
-    df.executor.execute()
+    df.execute()
     np.testing.assert_array_almost_equal(task.get(), correlation(x[:5], y[:5]))
 
     np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None, binby=["x"], limits=[0, 10], shape=1), [correlation(x, y)])
@@ -226,7 +226,7 @@ def test_minmax_basics(df):
     np.testing.assert_array_almost_equal(df.x.max(selection=True), 4)
 
     task = df.minmax("x", selection=True, delay=True)
-    df.executor.execute()
+    df.execute()
     np.testing.assert_array_almost_equal(task.get(), [0, 4])
 
     return  # TODO: below fails for remote dataframes

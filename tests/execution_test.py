@@ -52,8 +52,8 @@ def test_thread_safe(df_local):
         for i in range(N):
             futures.append(tpe.submit(do))
 
-    concurrent.futures.wait(futures)
-    for future in futures:
+    done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_EXCEPTION)
+    for future in done:
         assert count == future.result()
     assert df.executor.passes <= passes + N
 
@@ -85,6 +85,19 @@ def test_nested_task(df):
     df.execute()
     assert total_promise.get() == df.sum(df.x) + df.sum(df.y)
 
+
+# def test_add_and_cancel_tasks(df_executor):
+#     df = df_executor
+
+#     def add_task_and_cancel(fraction):
+#         df.sum(df.x, delay=True)
+#         return False
+
+#     future = df.count(progress=add_task_and_cancel, delay=True)
+#     df.execute()
+#     with pytest.raises(vaex.execution.UserAbort):
+#         future.get()
+#     assert df.executor.tasks
 
 # import vaex
 # import vaex.dask

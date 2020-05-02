@@ -16,11 +16,12 @@ class Signal(object):
 
     def connect(self, callback, prepend=False, *args, **kwargs):
         logger.debug("(%s) connected %s", self.name, callback)
+        # insert first, otherwise emit may get a keyerror in multithreaded cases
+        self.extra_args[callback] = (args, kwargs)
         if prepend:
             self.callbacks.insert(0, callback)
         else:
             self.callbacks.append(callback)
-        self.extra_args[callback] = (args, kwargs)
         return callback
 
     def emit(self, *args, **kwargs):
