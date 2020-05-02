@@ -21,6 +21,7 @@ before_install:
 #  - sudo apt-get install libhdf5-serial-dev libqt4-dev
 #  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install libc-bin=2.12.1-0ubuntu10.2 libc6=2.12.1-0ubuntu10.2; fi
   - echo $TRAVIS_TAG
+  - ulimit -S -n 1024
   - if [ "$TRAVIS_TAG" != "" ]; then echo "bla"; fi
   - if [[ $TRAVIS_OS_NAME == linux ]]; then wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh; fi
   - if [[ $TRAVIS_OS_NAME == osx ]]; then wget https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O miniconda.sh; fi
