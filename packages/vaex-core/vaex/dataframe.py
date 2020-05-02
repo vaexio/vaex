@@ -1456,7 +1456,7 @@ class DataFrame(object):
             return task.get()
 
     @docsubst
-    def limits_percentage(self, expression, percentage=99.73, square=False, delay=False):
+    def limits_percentage(self, expression, percentage=99.73, square=False, selection=False, delay=False):
         """Calculate the [min, max] range for expression, containing approximately a percentage of the data as defined
         by percentage.
 
@@ -1482,10 +1482,10 @@ class DataFrame(object):
         waslist, [expressions, ] = vaex.utils.listify(expression)
         limits = []
         for expr in expressions:
-            limits_minmax = self.minmax(expr)
+            limits_minmax = self.minmax(expr, selection=selection)
             vmin, vmax = limits_minmax
             size = 1024 * 16
-            counts = self.count(binby=expr, shape=size, limits=limits_minmax)
+            counts = self.count(binby=expr, shape=size, limits=limits_minmax, selection=selection)
             cumcounts = np.concatenate([[0], np.cumsum(counts)])
             cumcounts = cumcounts / cumcounts.max()
             # TODO: this is crude.. see the details!
@@ -1591,11 +1591,11 @@ class DataFrame(object):
                             elif type in ["ss", "sigmasquare"]:
                                 limits = self.limits_sigma(number, square=True)
                             elif type in ["%", "percent"]:
-                                limits = self.limits_percentage(expression, number, delay=False)
+                                limits = self.limits_percentage(expression, number, selection=selection, delay=False)
                             elif type in ["%s", "%square", "percentsquare"]:
-                                limits = self.limits_percentage(expression, number, square=True, delay=True)
+                                limits = self.limits_percentage(expression, number, selection=selection, square=True, delay=True)
                 elif value is None:
-                    limits = self.minmax(expression, delay=True)
+                    limits = self.minmax(expression, selection=selection, delay=True)
                 else:
                     limits = value
             limits_list.append(limits)

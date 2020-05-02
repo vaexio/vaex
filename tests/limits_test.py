@@ -27,3 +27,12 @@ def test_limits(df):
 
     assert df.limits(['x', 'y'], 'minmax', shape=10)[1] == [10, 10]
     assert df.limits(['x', 'y'], 'minmax', shape=(10, 12))[1] == [10, 12]
+
+
+def test_limits_with_selection(df):
+    limits_selection_perc = df.limits('x', value='90%', selection='x > 5')
+
+    df_sliced = df[df.x > 5]
+    limits_sliced = df_sliced.limits('x', value='90%')
+
+    assert limits_sliced.tolist() == limits_selection_perc.tolist()
