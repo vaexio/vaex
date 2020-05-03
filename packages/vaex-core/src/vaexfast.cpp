@@ -2125,7 +2125,6 @@ static struct PyModuleDef moduledef = {
 
 PyMODINIT_FUNC
 #if PY_MAJOR_VERSION >= 3
-extern "C" PyObject *
 PyInit_vaexfast(void)
 #else
 initvaexfast(void)
