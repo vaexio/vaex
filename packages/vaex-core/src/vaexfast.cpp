@@ -2123,15 +2123,11 @@ static struct PyModuleDef moduledef = {
 #endif
 
 
+PyMODINIT_FUNC
 #if PY_MAJOR_VERSION >= 3
 extern "C" PyObject *
-#  if defined(WIN32) || defined(_WIN32)
-#  else
-__attribute__ ((visibility("default")))
-#  endif
 PyInit_vaexfast(void)
 #else
-PyMODINIT_FUNC
 initvaexfast(void)
 #endif
 {
