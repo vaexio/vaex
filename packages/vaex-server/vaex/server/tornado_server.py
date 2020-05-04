@@ -169,6 +169,10 @@ class WebServer(threading.Thread):
         self.service = None
         self.webserver_thread_count = webserver_thread_count
         self.threads_per_job = threads_per_job
+        if self.port == 80:
+            self.base_url = f'{self.address}'
+        else:
+            self.base_url = f'{self.address}:{self.port}'
 
         self.service_bare = vaex.server.service.Service({})
         self.service_threaded = vaex.server.service.AsyncThreadedService(self.service_bare, self.webserver_thread_count,
@@ -270,7 +274,7 @@ threads_per_job: 4
 """
 
 
-def main(argv):
+def main(argv, WebServer=WebServer):
 
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument("filename", help="filename for dataset", nargs='*')
