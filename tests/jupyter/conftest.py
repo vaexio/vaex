@@ -26,3 +26,12 @@ def event_loop():
     # vaex.jupyter.utils.main_event_loop = loop
     yield loop
     loop.close()
+
+
+@pytest.fixture()
+def server_latency(webserver):
+    try:
+        webserver._test_latency = 0.1
+        yield
+    finally:
+        webserver._test_latency = None

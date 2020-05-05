@@ -206,11 +206,11 @@ class Axis(_HasState):
         else:
             try:
 
+                self._continue_calculation = True
+                self.calculation = self.df.minmax(self.expression, delay=True, progress=self._progress)
                 self.df.widget.execute_debounced()
                 # keep a nearly reference to this, since awaits (which trigger the execution, AND reset of this future) may change it this
                 execute_prehook_future = self.df.widget.execute_debounced.pre_hook_future
-                self._continue_calculation = True
-                self.calculation = self.df.minmax(self.expression, delay=True, progress=self._progress)
                 async with self._state_change_to(Axis.Status.STAGED_CALCULATING_LIMITS):
                     pass
                 async with self._state_change_to(Axis.Status.CALCULATING_LIMITS):
@@ -507,15 +507,16 @@ class GridCalculator(_HasState):
                     shapes.append(axis.shape or axis.shape_default)
             selections = [k for k in selections if k is None or self.df.has_selection(k)]
 
-            logger.debug('Schedule debouced execute')
-            self.df.widget.execute_debounced()
-            # keep a nearly reference to this, since awaits (which trigger the execution, AND reset of this future) may change it this
-            execute_prehook_future = self.df.widget.execute_debounced.pre_hook_future
             self._continue_calculation = True
             logger.debug('Setting up grid computation...')
             self.calculation = self.df.count(binby=binby, shape=shapes, limits=limits, selection=selections, progress=self.progress, delay=True)
 
-            logger.debug('Setting up grid computation done')
+            logger.debug('Setting up grid computation done tasks=%r', self.df.executor.tasks)
+
+            logger.debug('Schedule debounced execute')
+            self.df.widget.execute_debounced()
+            # keep a nearly reference to this, since awaits (which trigger the execution, AND reset of this future) may change it this
+            execute_prehook_future = self.df.widget.execute_debounced.pre_hook_future
 
             async with contextlib.AsyncExitStack() as stack:
                 for model in self.models:

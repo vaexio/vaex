@@ -126,7 +126,8 @@ def test_axis_minmax(df, flush_guard):
 
 
 @pytest.mark.asyncio
-async def test_model_status(df, flush_guard):
+async def test_model_status(df_executor, flush_guard, server_latency):
+    df = df_executor
     x = vaex.jupyter.model.Axis(df=df, expression='x', min=0, max=1)
     assert x.status == x.Status.READY
 
@@ -151,8 +152,9 @@ async def test_model_status(df, flush_guard):
     assert model.status_text == 'Staged limit computation for x, y'
     assert model.status == model.Status.STAGED_CALCULATING_LIMITS
 
-    # twice Axis.computation + 2x execute_debounced
-    assert len(vaex.jupyter.utils._debounced_execute_queue) == 4
+    if df.is_local():  # due to latency, this cannot be tested reliably
+        # twice Axis.computation + 2x execute_debounced
+        assert len(vaex.jupyter.utils._debounced_execute_queue) == 4
 
     await x._allow_state_change_to(x.Status.CALCULATING_LIMITS)
     await y._allow_state_change_to(x.Status.CALCULATING_LIMITS)
@@ -160,8 +162,9 @@ async def test_model_status(df, flush_guard):
     assert y.status == x.Status.CALCULATING_LIMITS
     assert model.status == model.Status.CALCULATING_LIMITS
     assert model.status_text == 'Computing limits for x, y'
-    # -2x execute_debounced
-    assert len(vaex.jupyter.utils._debounced_execute_queue) == 3
+    if df.is_local():
+        # -2x execute_debounced
+        assert len(vaex.jupyter.utils._debounced_execute_queue) == 3
 
     await x._allow_state_change_to(x.Status.CALCULATED_LIMITS)
     await y._allow_state_change_to(x.Status.CALCULATED_LIMITS)
@@ -171,15 +174,17 @@ async def test_model_status(df, flush_guard):
     assert y.status == y.Status.READY
     await x.computation._await_last_call()
     await y.computation._await_last_call()
-    # - twice Axis.computation + 2x DataArrayModel._update_grid (for min and max)
-    assert len(vaex.jupyter.utils._debounced_execute_queue) == 1 # TODO: why 1?
+    # - twice Axis.computation + 1x GridCalculator.computation (for min and max)
+    if df.is_local():
+        assert len(vaex.jupyter.utils._debounced_execute_queue) == 1 # TODO: why 1?
 
     assert model.status == model.Status.NEEDS_CALCULATING_GRID
     assert model.status_text == 'Grid needs to be calculated'
     await model._allow_state_change_to(model.Status.STAGED_CALCULATING_GRID)
     assert model.status_text == 'Staged grid computation'
 
-    assert len(vaex.jupyter.utils._debounced_execute_queue) == 2 # + DataFrameAccessorWidget.execute_debounced
+    if df.is_local():
+        assert len(vaex.jupyter.utils._debounced_execute_queue) == 2 # + DataFrameAccessorWidget.execute_debounced
 
     assert model.grid is None
     await model._allow_state_change_to(model.Status.CALCULATING_GRID)
@@ -190,7 +195,8 @@ async def test_model_status(df, flush_guard):
     assert model.status_text == 'Calculated grid'
     assert model.grid is None
 
-    assert len(vaex.jupyter.utils._debounced_execute_queue) == 1 # - DataFrameAccessorWidget.execute_debounced
+    if df.is_local():
+        assert len(vaex.jupyter.utils._debounced_execute_queue) == 1 # - DataFrameAccessorWidget.execute_debounced
     await model._allow_state_change_to(model.Status.READY)
     assert model.status == model.Status.READY
     assert model.status_text == 'Ready'

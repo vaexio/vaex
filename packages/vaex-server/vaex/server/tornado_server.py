@@ -64,6 +64,8 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
     @tornado.gen.coroutine
     def _on_message(self, websocket_msg):
+        if self.webserver._test_latency:
+            yield tornado.gen.sleep(self.webserver._test_latency)
         msg_id = 'invalid'
         encoding = Encoding()
         try:
@@ -168,6 +170,7 @@ class WebServer(threading.Thread):
                  token=None, token_trusted=None,
                  cache_selection_byte_size=500 * MB, datasets=[], compress=True, development=False, threads_per_job=4):
         threading.Thread.__init__(self)
+        self._test_latency = None  # for testing purposes
         self.setDaemon(True)
         self.address = address
         self.port = port
