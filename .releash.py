@@ -16,8 +16,11 @@ core.version_targets.append(VersionTargetReplace(core, [
 
 def add_version_replace(package):
     # for pre-releases we always bump all requirements that are exact matches
-    if any(k in version_core.semver['prerelease'] for k in "dev alpha beta rc"):
-        core.version_targets.append(VersionTargetReplace(core, [
+    if not package.version_source.semver['prerelease']:
+        return
+    if any(k in package.version_source.semver['prerelease'] for k in "dev alpha beta rc"):
+        package.version_targets.append(VersionTargetReplace(package, [
+            'packages/vaex-meta/setup.py',
             'packages/vaex-arrow/setup.py',
             'packages/vaex-graphql/setup.py',
             'packages/vaex-hdf5/setup.py',
@@ -25,7 +28,7 @@ def add_version_replace(package):
             'packages/vaex-ml/setup.py',
             'packages/vaex-server/setup.py',
             'packages/vaex-viz/setup.py',
-        ], pattern='{name}(?P<cmp>[^0-9]*)' + str(version_core), ))
+        ], pattern='{name}(?P<cmp>[^0-9]*)' + str(package.version_source), ))
 
 
 add_version_replace(core)
