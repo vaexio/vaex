@@ -64,4 +64,4 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_core }}
       run: |
-        twine upload dist/vaex-core*
+        twine upload --skip-existing dist/vaex-core*
