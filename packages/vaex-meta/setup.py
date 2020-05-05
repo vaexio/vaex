@@ -17,7 +17,7 @@ url = 'https://www.github.com/maartenbreddels/vaex'
 
 install_requires = [
       'vaex-core>=2.0.0-alpha.2
-      'vaex-viz>=0.4.0-dev,<0.5',
+      'vaex-viz>=0.4.0-alpha.1,<0.5',
       'vaex-server>=0.3.0-dev,<0.4',
       'vaex-hdf5>=0.6.0-dev,<0.7',
       'vaex-astro>=0.7.0-dev,<0.8',
