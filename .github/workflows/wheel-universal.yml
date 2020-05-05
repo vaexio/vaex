@@ -1,0 +1,43 @@
+name: Build universal wheel
+
+on:
+  push:
+    tags:
+      - viz-*
+
+jobs:
+  build_wheels:
+    name: Build wheel on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
+        python-version: [36]
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+
+    - name: Install twine/wheel
+      run: |
+        python -m pip install twine wheel
+
+    - name: Build vaex-viz
+      if: startsWith(github.ref, 'refs/tags/viz')
+      run: |
+        (cd packages/vaex-viz && python setup.py sdist bdist_wheel); cp packages/vaex-viz/dist/* dist
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: distributions
+        path: ./dist
+
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/viz')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_viz }}
+      run: |
+        twine upload dist/vaex-viz*

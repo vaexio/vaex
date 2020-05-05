@@ -1,9 +1,8 @@
-name: Build
+name: Build binary wheel
 
 on:
   push:
     tags:
-      - viz-*
       - core-*
 
 jobs:
@@ -26,7 +25,6 @@ jobs:
         python-version: '3.7'
 
     - name: Install cibuildwheel
-      if: startsWith(github.ref, 'refs/tags/core')
       run: |
         python -m pip install cibuildwheel==1.3.0
 
@@ -55,19 +53,12 @@ jobs:
         python -m cibuildwheel --output-dir dist packages/vaex-core
         (cd packages/vaex-core && python setup.py sdist); cp packages/vaex-core/dist/* dist/
 
-    - name: Build vaex-viz
-      if: startsWith(github.ref, 'refs/tags/viz')
-      run: |
-        (cd packages/vaex-viz && python setup.py sdist bdist_wheel); cp packages/vaex-viz/dist/* dist
-
     - uses: actions/upload-artifact@v1
       with:
         name: distributions
         path: ./dist
 
-
     - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/core')
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_core }}
