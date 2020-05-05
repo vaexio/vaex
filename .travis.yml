@@ -46,7 +46,6 @@ before_install:
   - source activate test-environment
   - which pip
   - pip install python-dateutil==2.8.0  # botocore caps dateutil leading to issues
-  - pip install -r requirements.txt
   - pip install -r requirements-ml.txt
 install:
   - source activate test-environment
