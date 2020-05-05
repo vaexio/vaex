@@ -10,6 +10,7 @@ jobs:
     name: Build wheel on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-18.04, macOS-latest]
         python-version: [36, 37, 38]
