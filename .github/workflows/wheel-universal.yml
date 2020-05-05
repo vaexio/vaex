@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - viz-*
+      - jupyter-*
 
 jobs:
   build_wheels:
@@ -37,16 +38,28 @@ jobs:
       run: |
         (cd packages/vaex-viz && python setup.py sdist bdist_wheel); cp packages/vaex-viz/dist/* dist
 
-    - uses: actions/upload-artifact@v1
-      with:
-        name: distributions
-        path: ./dist
-
-
     - name: Publish a Python distribution to PyPI
       if: startsWith(github.ref, 'refs/tags/viz')
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_viz }}
       run: |
-        twine upload dist/vaex-viz*
+        twine upload dist/vaex-viz* dist/vaex_viz*
+
+    - name: Build vaex-jupyter
+      if: startsWith(github.ref, 'refs/tags/jupyter')
+      run: |
+        (cd packages/vaex-jupyter && python setup.py sdist bdist_wheel); cp packages/vaex-jupyter/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/jupyter')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_jupyter }}
+      run: |
+        twine upload dist/vaex-jupyter* dist/vaex_jupyter*
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: distributions
+        path: ./dist
