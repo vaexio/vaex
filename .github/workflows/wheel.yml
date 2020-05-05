@@ -64,9 +64,17 @@ jobs:
         name: distributions
         path: ./dist
 
-    # - name: Publish a Python distribution to PyPI
+    # - name: Publish a Python distribution to test PyPI
     #   env:
     #     TWINE_USERNAME: __token__
     #     TWINE_PASSWORD: ${{ secrets.test_pypi_password }}
     #   run: |
     #     twine upload --repository testpypi wheelhouse/*
+
+
+    - name: Publish a Python distribution to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password }}
+      run: |
+        twine upload wheelhouse/*
