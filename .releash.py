@@ -9,8 +9,31 @@ gittag_core = ReleaseTargetGitTagVersion(version_source=version_core, prefix='co
 
 core.version_source = version_core
 core.version_targets.append(VersionTarget(core, '{path}/vaex/core/_version.py'))
+core.version_targets.append(VersionTargetReplace(core, [
+    'packages/vaex-meta/setup.py',
+]))
 
-core.release_targets.append(gittag_core)
+
+def add_version_replace(package):
+    # for pre-releases we always bump all requirements that are exact matches
+    if not package.version_source.semver['prerelease']:
+        return
+    if any(k in package.version_source.semver['prerelease'] for k in "dev alpha beta rc"):
+        package.version_targets.append(VersionTargetReplace(package, [
+            'packages/vaex-meta/setup.py',
+            'packages/vaex-arrow/setup.py',
+            'packages/vaex-graphql/setup.py',
+            'packages/vaex-hdf5/setup.py',
+            'packages/vaex-jupyter/setup.py',
+            'packages/vaex-ml/setup.py',
+            'packages/vaex-server/setup.py',
+            'packages/vaex-viz/setup.py',
+        ], pattern='{name}(?P<cmp>[^0-9]*)' + str(package.version_source), ))
+
+
+add_version_replace(core)
+
+core.tag_targets.append(gittag_core)
 core.release_targets.append(ReleaseTargetSourceDist(core))
 #core.release_targets.append(gitpush)
 core.release_targets.append(ReleaseTargetCondaForge(core, '../feedstocks/vaex-core-feedstock'))
@@ -34,8 +57,9 @@ for name in names:
         package.version_targets.append(VersionTarget(package, '{path}/vaex_' + name + '/_version.py'))
     else:
         package.version_targets.append(VersionTarget(package, '{path}/vaex/' + name + '/_version.py'))
+    add_version_replace(package)
     # it is ok to add this twice, it will only tag once
-    package.release_targets.append(gittag)
+    package.tag_targets.append(gittag)
     package.release_targets.append(ReleaseTargetSourceDist(package))
     # also ok to add twice, it will only execute for the last package
     package.release_targets.append(gitpush)

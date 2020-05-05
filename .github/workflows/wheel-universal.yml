@@ -1,0 +1,93 @@
+name: Build universal wheel
+
+on:
+  push:
+    tags:
+      - viz-*
+      - jupyter-*
+      - hdf5-*
+      - server-*
+
+jobs:
+  build_wheels:
+    name: Build wheel on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
+        python-version: [36]
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+
+    - uses: actions/setup-python@v2
+      name: Install Python
+      with:
+        python-version: '3.7'
+
+    - name: Install twine/wheel
+      run: |
+        python -m pip install twine wheel
+
+    - name: chores
+      run: |
+        mkdir dist
+
+    - name: Build vaex-viz
+      if: startsWith(github.ref, 'refs/tags/viz')
+      run: |
+        (cd packages/vaex-viz && python setup.py sdist bdist_wheel); cp packages/vaex-viz/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/viz')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_viz }}
+      run: |
+        twine upload dist/vaex-viz* dist/vaex_viz*
+
+    - name: Build vaex-jupyter
+      if: startsWith(github.ref, 'refs/tags/jupyter')
+      run: |
+        (cd packages/vaex-jupyter && python setup.py sdist bdist_wheel); cp packages/vaex-jupyter/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/jupyter')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_jupyter }}
+      run: |
+        twine upload dist/vaex-jupyter* dist/vaex_jupyter*
+
+    - name: Build vaex-hdf5
+      if: startsWith(github.ref, 'refs/tags/hdf5')
+      run: |
+        (cd packages/vaex-hdf5 && python setup.py sdist bdist_wheel); cp packages/vaex-hdf5/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/hdf5')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_hdf5 }}
+      run: |
+        twine upload dist/vaex-hdf5* dist/vaex_hdf5*
+
+    - name: Build vaex-server
+      if: startsWith(github.ref, 'refs/tags/server')
+      run: |
+        (cd packages/vaex-server && python setup.py sdist bdist_wheel); cp packages/vaex-server/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/server')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_server }}
+      run: |
+        twine upload dist/vaex-server* dist/vaex_server*
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: distributions
+        path: ./dist
