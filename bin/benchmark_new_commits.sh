@@ -13,6 +13,7 @@ function restore_results_from_git () {
   # copy results from vaex-asv/.asv/results/**.json to vaex/.asv/results/**.json
   (cd ../vaex-asv && git pull -f)
   (mkdir -p .asv)
+  (mkdir -p ../vaex-asv/.asv/results/)
   echo Restoring the following results from vaex-asv repo:
   find ../vaex-asv/.asv/results/
   cp -r ../vaex-asv/.asv/results/ .asv/
@@ -23,7 +24,7 @@ function store_and_push_results_in_git () {
   echo Storing the following results into vaex-asv:
   find .asv/results
   (mkdir -p ../vaex-asv/.asv/results)
-  cp -rf .asv/results ../vaex-asv/.asv/results
+  cp -rf .asv/results ../vaex-asv/.asv
   # cp -rf .asv/html ../vaex-asv/asv/ (should we also do the HTML?)
   (cd ../vaex-asv && git add .asv && git commit -m 'Commit benchmark results' && git push)
 }
