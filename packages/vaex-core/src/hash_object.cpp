@@ -60,7 +60,7 @@ public:
         PyObject** array = (PyObject**)info.ptr;
         for(int64_t i = 0; i < length; i++) {
             value_type value = array[i];
-            if(PyFloat_Check(value) && isnan(PyFloat_AsDouble(value))) {
+            if(PyFloat_Check(value) && std::isnan(PyFloat_AsDouble(value))) {
                 nan_count++;
             } else {
                 auto search = map.find(value);
@@ -87,7 +87,7 @@ public:
             value_type value = array[i];
             if(m[i]) {
                 null_count++;
-            } else if(PyFloat_Check(value) && isnan(PyFloat_AsDouble(value))) {
+            } else if(PyFloat_Check(value) && std::isnan(PyFloat_AsDouble(value))) {
                 nan_count++;
             } else {
                 auto search = map.find(value);
@@ -177,7 +177,7 @@ public:
         int64_t offset = (this->null_count > 0 ? 1 : 0) + (this->nan_count > 0 ? 1 : 0);
         for(int64_t i = 0; i < size; i++) {
             value_type value = array[i];
-            if(PyFloat_Check(value) && isnan(PyFloat_AsDouble(value))) {
+            if(PyFloat_Check(value) && std::isnan(PyFloat_AsDouble(value))) {
                 output(i) = 0;
             } else {
                 auto search = this->map.find(value);
@@ -209,7 +209,7 @@ public:
             value_type value = array[i];
             if(m[i]) {
                 output(i) = offset;
-            } else if(PyFloat_Check(value) && isnan(PyFloat_AsDouble(value))) {
+            } else if(PyFloat_Check(value) && std::isnan(PyFloat_AsDouble(value))) {
                 output(i) = 0;
             } else {
                 auto search = this->map.find(value);
