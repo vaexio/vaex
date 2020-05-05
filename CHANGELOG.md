@@ -74,6 +74,8 @@
 
 # vaex-jupyter 0.5.0-dev
    * Requirement of vaex-core >=2,<3
+   * Breaking changes
+     * vaex-jupyter is refactored [#654](https://github.com/vaexio/vaex/pull/654)
 
 
 # vaex 2.6.0 (2020-1-21)

@@ -8,3 +8,4 @@ Tutorials
 
     tutorial.ipynb
     tutorial_ml.ipynb
+    tutorial_jupyter.ipynb

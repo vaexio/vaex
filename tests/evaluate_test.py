@@ -71,3 +71,11 @@ def test_evaluate_function_filtered_df():
     df_filtered.add_function('custom_function', custom_func)
     df_filtered['y'] = df_filtered.func.custom_function(df_filtered.x)
     assert df_filtered.y.tolist() == [25, 36, 49, 64, 81]
+
+def test_bool(df_trimmed):
+    df = df_trimmed
+    expr = df.x * df.y
+    assert bool(expr == expr)
+    assert not bool(expr != expr)
+    assert bool(expr != expr + 1)
+    assert not bool(expr == None)

@@ -34,6 +34,7 @@ class DataFrameRemote(DataFrame):
         self._length_original = length_original
         self._length_unfiltered = length_original
         self._index_end = length_original
+        self._dtype_cache = {}
         self.fraction = 1
 
     def is_local(self):
@@ -77,7 +78,10 @@ class DataFrameRemote(DataFrame):
         if str(expression) in self._dtypes:
             return self._dtypes[str(expression)]
         else:
-            return super().dtype(expression)
+            if str(expression) not in self._dtype_cache:
+                self._dtype_cache[str(expression)] = super().dtype(expression)
+            # TODO: invalidate cache
+            return self._dtype_cache[str(expression)]
 
     # TODO: would be nice to get some info on the remote dataframe
     # def __repr__(self):

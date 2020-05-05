@@ -1,230 +1,230 @@
 # -*- coding: utf-8 -*-
-"""
-import traitlets
-import ipywidgets as widgets
-
-class VolumeRenderingWidget(widgets.DOMWidget):
-    _view_name = Unicode('VolumeRenderingView', sync=True)
-    level1 = CInt(0, sync=True)
-
-widgets.IntSlider
-
-from IPython.display import HTML
-"""
-
 import os
 import logging
-import uuid
-from base64 import b64encode
-import json
 import time
-import numpy as np
-from .utils import debounced, interactive_selection, interactive_cleanup
-from IPython.display import HTML, display_html, display_javascript
-import IPython
-import zmq
+from .utils import debounced, flush, gather, kernel_tick, interactive_selection, interactive_cleanup  # noqa
 import vaex
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
+import IPython.display
+
 
 base_path = os.path.dirname(__file__)
 logger = logging.getLogger("vaex.jupyter")
 
 
-def cube_png(grid, file):
-    if grid.shape != ((128,) * 3):
-        logger.error("only 128**3 cubes are supported")
-        return None
-    colormap_name = "afmhot"
-    import matplotlib.cm
-    colormap = matplotlib.cm.get_cmap(colormap_name)
-    mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
-    # pixmap = QtGui.QPixmap(32*2, 32)
-    data = np.zeros((128 * 8, 128 * 16, 4), dtype=np.uint8)
-
-    # mi, ma = 1*10**self.mod1, self.data3d.max()*10**self.mod2
-    vmin, vmax = grid.min(), grid.max()
-    grid_normalized = (grid - vmin) / (vmax - vmin)
-    # intensity_normalized = (np.log(self.data3d + 1.) - np.log(mi)) / (np.log(ma) - np.log(mi));
-    import PIL.Image
-    for y2d in range(8):
-        for x2d in range(16):
-            zindex = x2d + y2d * 16
-            I = grid_normalized[zindex]
-            rgba = mapping.to_rgba(I, bytes=True)  # .reshape(Nx, 4)
-            # print rgba.shape
-            subdata = data[y2d * 128:(y2d + 1) * 128, x2d * 128:(x2d + 1) * 128]
-            for i in range(3):
-                subdata[:, :, i] = rgba[:, :, i]
-            subdata[:, :, 3] = (grid_normalized[zindex] * 255).astype(np.uint8)  # * 0 + 255
-            if 0:
-                filename = "cube%03d.png" % zindex
-                img = PIL.Image.frombuffer("RGB", (128, 128), subdata[:, :, 0:3] * 1)
-                print(("saving to", filename))
-                img.save(filename)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        img = PIL.Image.frombuffer("RGBA", (128 * 16, 128 * 8), data, 'raw')  # , "RGBA", 0, -1)
-        img.save(file, "png")
-
-
-class volr(object):
-    def __init__(self, data=None, subspace_gridded=None, **settings):
-        self.data = data
-        self.subspace_gridded = subspace_gridded
-        self.settings = settings
-
-    def set(self, **kwargs):
-        settings = json.dumps(kwargs)
-        js_code = """var o = $('#%s').data('vr');
-        var new_settings = JSON.parse('%s');
-        console.log(new_settings);
-        console.log($.extend(o.settings, new_settings));
-        o.update_transfer_function_array()
-        o.drawScene();
-        """ % (self.id, settings)
-        display_javascript(js_code, raw=True)
-
-    def _ipython_display_(self):
-        f = StringIO()
-        # filename = os.path.join(base_path, "cube.png")
-        if self.data is not None:
-            cube_png(self.data, file=f)
-        else:
-            self.subspace_gridded.cube_png(file=f)
-        # cube64 = "'data:image/png;base64," + b64encode(file(filename).read()) + "'"
-        cube64 = "'data:image/png;base64," + b64encode(f.getvalue()).decode("ascii") + "'"
-        # display_javascript("""
-        # window.cube_src = 'data:image/png;base64,%s';
-        # """ % (cube64, colormap64), raw=True)
-
-        self.id = id = uuid.uuid1()
-        display_html("<canvas id='{id}' width=512 height=512  style='display: inline;'/>".format(**locals()), raw=True)
-        display_javascript(""" $('#%s').vr(
-                $.extend({cube:%s, colormap:window.colormap_src}, %s)
-                )
-                """ % (id, cube64, json.dumps(self.settings)), raw=True)
-
-
-class init(object):
-    def __init__(self, ):
-        pass
-
-    def _ipython_display_(self):
-        display_javascript(open(os.path.join(base_path, "glMatrix-0.9.5.min.js")).read(), raw=True)
-        display_javascript(open(os.path.join(base_path, "volumerenderer.js")).read(), raw=True)
-        # cube64 = b64encode(file(os.path.join(base_path, "cube.png")).read())
-        colormap64 = b64encode(open(os.path.join(base_path, "colormap.png"), "rb").read()).decode("ascii")
-        src = """
-        window.colormap_src = 'data:image/png;base64,%s';
-        """ % (colormap64,)
-        # print(src)
-        display_javascript(src, raw=True)
-
-        js_code = "window.shader_cache = [];\n"
-        for name in ["cube", "texture", "volr"]:
-            for type in ["fragment", "vertex"]:
-                text = open(os.path.join(base_path, "shaders", name + "-" + type + ".shader")).read()
-                text = text.replace("\n", "\\n").replace("'", "\\'")
-                js_code += "window.shader_cache['{name}_{type}'] = '{text}';\n".format(**locals())
-        display_javascript(js_code, raw=True)
-        # print js_code
-
-    def ____ipython_display_(self):
-        # base64 = file(os.path.join(base_path, "data.png")).read().encode("base64").replace("\n", "")
-        # base64_colormap  = file(os.path.join(base_path, "colormap.png")).read().encode("base64").replace("\n", "")
-        # print base64[:10]
-        # code = "base64 = '" + base64 + "'; base64_colormap = '" + base64_colormap + "';"
-        display_javascript(open(os.path.join(base_path, "all.js")).read(), raw=True)
-        display_javascript(file(os.path.join(base_path, "vaex_volumerendering.js")).read(), raw=True)
-        display_html(file(os.path.join(base_path, "snippet.js")).read(), raw=True)
-        html1 = file(os.path.join(base_path, "snippet.html")).read()
-        display_html(html1, raw=True)
-        # print "ok"
-        display_html("""<div>BLAAT</div> """, raw=True)
-
-        if 0:
-            js1 = file(os.path.join(base_path, "snippet.js")).read()
-            js2 = file(os.path.join(base_path, "vaex_volumerendering.js")).read()
-            js_lib = file(os.path.join(base_path, "all.js")).read()
-            html1 = file(os.path.join(base_path, "snippet.html")).read()
-            HTML("<script>" + js_lib + "\n" + code + "</script>" + "<script>" + js2 + "</script>" + html1 + js1)
-
-
-# def get_ioloop():
-#     ipython = IPython.get_ipython()
-#     if ipython and hasattr(ipython, 'kernel'):
-#         return zmq.eventloop.ioloop.IOLoop.instance()
-
-# def debounced(delay_seconds=0.5):
-#   """Debounce decorator for Jupyter notebook"""
-#   def wrapped(f):
-#       locals = {"counter": 0}
-#       def execute(*args, **kwargs):
-#           locals["counter"] += 1
-#           #print "counter", locals["counter"]
-#           def debounced_execute(counter=locals["counter"]):
-#               #$print "counter is", locals["counter"]
-#               if counter == locals["counter"]:
-#                   logger.info("debounced call")
-#                   f(*args, **kwargs)
-#               else:
-#                   logger.info("debounced call skipped")
-#           ioloop = get_ioloop()
-#           def thread_safe():
-#               ioloop.add_timeout(time.time() + delay_seconds, debounced_execute)
-#           ioloop.add_callback(thread_safe)
-#       return execute
-#   return wrapped
+def _add_toolbar(viz):
+    from .widgets import ToolsToolbar
+    from traitlets import link
+    toolbar = ToolsToolbar(supports_transforms=viz.supports_transforms, supports_normalize=viz.supports_normalize)
+    viz.children = [toolbar, ] + viz.children
+    link((viz, 'tool'), (toolbar, 'interact_value'))
+    link((viz, 'transform'), (toolbar, 'transform_value'))
+    return toolbar
 
 
 class DataFrameAccessorWidget(object):
     def __init__(self, df):
         self.df = df
         import vaex.jupyter.grid
-        self.grid = vaex.jupyter.grid.Grid(df, [])
+        self.grid = vaex.jupyter.model.GridCalculator(df, [])
+        self._last_grid = None
+
+    @debounced(delay_seconds=0.1, reentrant=False)
+    async def execute_debounced(self):
+        """Schedules an execution of dataframe tasks in the near future (debounced)."""
+        try:
+            logger.debug("Execute tasks... tasks=%r", self.df.executor.tasks)
+            await self.df.execute_async()
+            logger.debug("Execute tasks done")
+        except vaex.executor.UserAbort:
+            pass  # this is fine
+        except Exception as e:
+            logger.exception("Error while executing tasks")
 
     def clear(self):
-        self.grid = vaex.jupyter.grid.Grid(self.df, [])
+        self.grid = vaex.jupyter.model.GridCalculator(self.df, [])
 
-    def histogram(self, x, shared=False, **kwargs):
-        import vaex.jupyter.state
-        import vaex.jupyter.viz
-        state = vaex.jupyter.state.VizHistogramState(self.df, x_expression=str(x), **kwargs)
+    def data_array(self, axes=[], selections=[None, True], shared=False, display_function=IPython.display.display, **kwargs):
+        '''Create a :func:`vaex.jupyter.model.DataArray` model and :func:`vaex.jupyter.view.DataArray` widget and links them.
+
+        This is a convenience method to create the model and view, and hook them up.
+        '''
+        import vaex.jupyter.model
+        import vaex.jupyter.view
+        selections = selections.copy()
+        model = vaex.jupyter.model.DataArray(df=self.df, axes=axes, selections=selections, **kwargs)
         if shared:
             grid = self.grid
         else:
-            grid = vaex.jupyter.grid.Grid(self.df, [])
-        grid.state_add(state)
-        viz = vaex.jupyter.viz.VizHistogramBqplot(state=state)
-        return viz
+            grid = vaex.jupyter.model.GridCalculator(self.df, [])
+        grid.model_add(model)
+        view = vaex.jupyter.view.DataArray(model=model, display_function=display_function)
+        return view
 
-    def pie(self, x, shared=False, **kwargs):
-        import vaex.jupyter.state
-        import vaex.jupyter.viz
-        state = vaex.jupyter.state.VizHistogramState(self.df, x_expression=str(x), **kwargs)
+    def _axes(self, expressions, limits):
+        limits = self.df.limits(expressions, limits)
+        axes = [vaex.jupyter.model.Axis(df=self.df, expression=expression, min=min, max=max) for expression, (min, max) in zip(expressions, limits)]
+        return axes
+
+    def histogram(self, x, limits=None, selections=[None, True], toolbar=True, shared=False, **kwargs):
+        import vaex.jupyter.model
+        import vaex.jupyter.view
+        selections = selections.copy()
+        x, = self._axes([x], limits)
+        model = vaex.jupyter.model.Histogram(df=self.df, x=x, selections=selections, **kwargs)
         if shared:
             grid = self.grid
         else:
-            grid = vaex.jupyter.grid.Grid(self.df, [])
-        grid.state_add(state)
-        viz = vaex.jupyter.viz.VizPieChartBqplot(state=state)
+            grid = vaex.jupyter.model.GridCalculator(self.df, [])
+        grid.model_add(model)
+        viz = vaex.jupyter.view.Histogram(model=model)
+        if toolbar:
+            viz.toolbar = _add_toolbar(viz)
         return viz
 
-    def heatmap(self, x, y, shared=False, **kwargs):
-        import vaex.jupyter.state
-        import vaex.jupyter.viz
-        state = vaex.jupyter.state.VizHeatmapState(self.df, x_expression=str(x), y_expression=str(y), **kwargs)
+    def pie(self, x, limits=None, shared=False, **kwargs):
+        import vaex.jupyter.model
+        import vaex.jupyter.view
+        x, = self._axes([x], limits)
+        model = vaex.jupyter.model.Histogram(df=self.df, x=x, **kwargs)
         if shared:
             grid = self.grid
         else:
-            grid = vaex.jupyter.grid.Grid(self.df, [])
-        grid.state_add(state)
-        viz = vaex.jupyter.viz.VizHeatmapBqplot(state=state)
+            grid = vaex.jupyter.model.GridCalculator(self.df, [])
+        grid.model_add(model)
+        viz = vaex.jupyter.view.PieChart(model=model)
         return viz
 
+    def heatmap(self, x, y, limits=None, selections=[None, True], transform='log', toolbar=True, shared=False, **kwargs):
+        import vaex.jupyter.model
+        import vaex.jupyter.view
+        x, y = self._axes([x, y], limits)
+        model = vaex.jupyter.model.Heatmap(df=self.df, x=x, y=y, selections=selections, shape=256, **kwargs)
+        if shared:
+            grid = self.grid
+        else:
+            grid = vaex.jupyter.model.GridCalculator(self.df, [])
+        self._last_grid = grid
+        grid.model_add(model)
+        viz = vaex.jupyter.view.Heatmap(model=model, transform=transform)
+        if toolbar:
+            viz.toolbar = _add_toolbar(viz)
+        return viz
+
+    def expression(self, value=None, label='Custom expression'):
+        '''Create a widget to edit a vaex expression.
+
+        If value is an :py:`vaex.jupyter.model.Axis` object, its expression will be (bi-directionally) linked to the widget.
+
+        :param value: Valid expression (string or Expression object), or Axis
+        '''
+        from .widgets import ExpressionTextArea
+        import vaex.jupyter.model
+        if isinstance(value, vaex.jupyter.model.Axis):
+            expression_value = str(value.expression)
+        else:
+            expression_value = str(value) if value is not None else None
+        expression_widget = ExpressionTextArea(df=self.df, v_model=expression_value, label=label)
+        if isinstance(value, vaex.jupyter.model.Axis):
+            import traitlets
+            traitlets.link((value, 'expression'), (expression_widget, 'value'))
+        return expression_widget
+
+    def column(self, initial_value=None):
+        from .widgets import ColumnPicker
+        return ColumnPicker(df=self.df, value=str(initial_value) if initial_value is not None else None)
+
+    def selection_expression(self, initial_value=None, name='default'):
+        from .widgets import ExpressionSelectionTextArea
+        if initial_value is None:
+            if not self.df.has_selection(name):
+                raise ValueError(f'No selection with name {name!r}')
+            else:
+                initial_value = self.df.get_selection(name).boolean_expression
+        return ExpressionSelectionTextArea(df=self.df, selection_name=name, v_model=str(initial_value) if initial_value is not None else None)
+
+    def progress_circular(self, width=10, size=70, color='#82B1FF', text='', auto_hide=False):
+        from .widgets import ProgressCircularNoAnimation
+        progress_circular = ProgressCircularNoAnimation(width=width, size=size, color=color, text=text, value=0)
+
+        @self.df.executor.signal_begin.connect
+        def progress_begin():
+            if auto_hide:
+                progress_circular.hidden = False
+
+        @self.df.executor.signal_progress.connect
+        def update_progress(value):
+            progress_circular.value = value*100
+            return True
+
+        @self.df.executor.signal_end.connect
+        def progress_update():
+            if auto_hide:
+                progress_circular.hidden = True
+        return progress_circular
+
+    def counter_processed(self, postfix="rows processed", update_interval=0.2):
+        from .widgets import Counter
+        counter_processed = Counter(value=0, postfix=postfix)
+        last_time = 0
+
+        @self.df.executor.signal_begin.connect
+        def progress_begin():
+            nonlocal last_time
+            last_time = time.time()
+
+        @self.df.executor.signal_progress.connect
+        def update_progress(value):
+            nonlocal last_time
+            number = int(value * len(self.df))
+            current_time = time.time()
+            if (current_time - last_time) > update_interval or value in [0, 1]:
+                counter_processed.value = number
+                last_time = current_time
+            return True
+
+        return counter_processed
+
+    def counter_selection(self, selection, postfix="rows selected", update_interval=0.2, lazy=False):
+        from .widgets import Counter
+        selected = self.df.count(selection=selection).item() if self.df.has_selection(name=selection) else 0
+        counter_selected = Counter(value=selected, postfix=postfix)
+
+        dirty = False
+        @self.df.signal_selection_changed.connect
+        def selection_changed(df, name):
+            nonlocal dirty
+            if name == selection:
+                # we only need to run once
+                if not dirty:
+                    dirty = True
+
+                    def update_value(value):
+                        nonlocal dirty
+                        dirty = False
+                        try:
+                            value = value.item()
+                        except:  # noqa
+                            pass
+                        counter_selected.value = value
+                    # if lazy is True, this will only schedule the calculation, not yet execute it
+                    if lazy:
+                        vaex.delayed(update_value)(self.df.count(selection=selection, delay=True))
+                    else:
+                        update_value(self.df.count(selection=selection))
+
+        return counter_selected
+    #     from .widgets import Tools
+    #     from traitlets import link
+    #     viz = [] if viz is None else viz
+    #     viz = [viz] if not isinstance(viz, (tuple, list)) else viz
+    #     tools = Tools(value=initial_value, children=[k.widget for k in viz])
+    #     for v in viz:
+    #         link((tools, 'value'), (v, 'tool'))
+    #     return tools
+
+    # def card(plot, title=None, subtitle=None, **kwargs):
+    #     from .widget import Card
+    #     return Card(main=plot, title=title, subtitle,
 
 
 def add_namespace():

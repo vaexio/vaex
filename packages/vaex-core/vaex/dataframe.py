@@ -308,7 +308,13 @@ class DataFrame(object):
     def execute(self):
         '''Execute all delayed jobs.'''
         # no need to clear _task_aggs anymore, since they will be removed for the executors' task list
-        self.executor.execute()
+        from .asyncio import just_run
+        just_run(self.execute_async())
+
+    async def execute_async(self):
+        '''Async version of execute'''
+        # no need to clear _task_aggs anymore, since they will be removed for the executors' task list
+        await self.executor.execute_async()
 
     @property
     def filtered(self):
@@ -1676,43 +1682,9 @@ class DataFrame(object):
             modes[~ok] = np.nan
             return modes
 
-    def plot_widget(self, x, y, z=None, grid=None, shape=256, limits=None, what="count(*)", figsize=None,
-                    f="identity", figure_key=None, fig=None, axes=None, xlabel=None, ylabel=None, title=None,
-                    show=True, selection=[None, True], colormap="afmhot", grid_limits=None, normalize="normalize",
-                    grid_before=None,
-                    what_kwargs={}, type="default",
-                    scales=None, tool_select=False, bq_cleanup=True,
-                    backend="bqplot",
-                    **kwargs):
-        """Viz 1d, 2d or 3d in a Jupyter notebook
-
-        .. note::
-            This API is not fully settled and may change in the future
-
-        Example:
-
-        >>> df.plot_widget(df.x, df.y, backend='bqplot')
-        >>> df.plot_widget(df.pickup_longitude, df.pickup_latitude, backend='ipyleaflet')
-
-        :param backend: Widget backend to use: 'bqplot', 'ipyleaflet', 'ipyvolume', 'matplotlib'
-
-        """
-        import vaex.jupyter.plot
-        backend = vaex.jupyter.plot.create_backend(backend)
-        cls = vaex.jupyter.plot.get_type(type)
-        x = _ensure_strings_from_expressions(x)
-        y = _ensure_strings_from_expressions(y)
-        z = _ensure_strings_from_expressions(z)
-        for name in 'vx vy vz'.split():
-            if name in kwargs:
-                kwargs[name] = _ensure_strings_from_expressions(kwargs[name])
-        plot2d = cls(backend=backend, dataset=self, x=x, y=y, z=z, grid=grid, shape=shape, limits=limits, what=what,
-                     f=f, figure_key=figure_key, fig=fig,
-                     selection=selection, grid_before=grid_before,
-                     grid_limits=grid_limits, normalize=normalize, colormap=colormap, what_kwargs=what_kwargs, **kwargs)
-        if show:
-            plot2d.show()
-        return plot2d
+    @vaex.utils.deprecated('use df.widget.heatmap')
+    def plot_widget(self, x, y, limits=None, f="identity", **kwargs):
+        return self.widget.heatmap(x, y, limits=limits, transform=f, **kwargs)
 
     @vaex.utils.deprecated('use plot_widget')
     def plot_bq(self, x, y, grid=None, shape=256, limits=None, what="count(*)", figsize=None,
@@ -1731,11 +1703,6 @@ class DataFrame(object):
         if show:
             plot2d.show()
         return plot2d
-
-    # """Use bqplot to create an interactive plot, this method is subject to change, it is currently a tech demo"""
-        # subspace = self(x, y)
-        # return subspace.plot_bq(grid, size, limits, square, center, weight, figsize, aspect, f, fig, axes, xlabel, ylabel, title,
-        #                       group_by, group_limits, group_colors, group_labels, group_count, cmap, scales, tool_select, bq_cleanup, **kwargs)
 
     # @_hidden
     def healpix_count(self, expression=None, healpix_expression=None, healpix_max_level=12, healpix_level=8, binby=None, limits=None, shape=default_shape, delay=False, progress=None, selection=None):
@@ -3704,8 +3671,9 @@ class DataFrame(object):
     def __str__(self):
         return self._head_and_tail_table(format='plain')
 
-    def __repr__(self):
-        return self._head_and_tail_table(format='plain')
+    if not os.environ.get('VAEX_DEBUG', ''):
+        def __repr__(self):
+            return self._head_and_tail_table(format='plain')
 
     def __current_sequence_index(self):
         """TODO"""

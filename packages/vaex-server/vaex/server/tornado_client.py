@@ -1,17 +1,17 @@
 import builtins
 import logging
-import threading
 from urllib.parse import urlparse
 import uuid
 
 import tornado.websocket
 
 import vaex
-from vaex.utils import wrap_future_with_promise
+import vaex.asyncio
+import asyncio
 from vaex.server import client
 from .executor import Executor
 
-logger = logging.getLogger("vaex.server.tornado")
+logger = logging.getLogger("vaex.server.tornado_client")
 
 
 class Client(client.Client):
@@ -23,37 +23,13 @@ class Client(client.Client):
         self.base_path = base_path if base_path.endswith("/") else (base_path + "/")
         self.token = token
         self.token_trusted = token_trusted
-        # if delay:
-        event = threading.Event()
-        self.thread_mover = thread_mover or (lambda fn, *args, **kwargs: fn(*args, **kwargs))
-        logger.debug("thread mover: %r", self.thread_mover)
-
         # jobs maps from uid to tasks
         self.jobs = {}
-        self.msg_reply_promises = {}
+        self.msg_reply_futures = {}
 
-        def ioloop_threaded():
-            logger.debug("creating tornado io_loop")
-            self.io_loop = tornado.ioloop.IOLoop().current()
-            event.set()
-            logger.debug("started tornado io_loop...")
-
-            self.io_loop.start()
-            self.io_loop.close()
-            logger.debug("stopped tornado io_loop")
-
-        io_loop = tornado.ioloop.IOLoop.current(instance=False)
-        if True:  # io_loop:# is None:
-            logger.debug("no current io loop, starting it in thread")
-            self.thread = threading.Thread(target=ioloop_threaded)
-            self.thread.setDaemon(True)
-            self.thread.start()
-            event.wait()
-        else:
-            logger.debug("using current io loop")
-            self.io_loop = io_loop
-
-        self.io_loop.make_current()
+        self.event_loop_main = asyncio.get_event_loop()
+        if self.event_loop_main is None:
+            raise RuntimeError('The client cannot work without a running event loop')
 
         self.executor = Executor(self)
         logger.debug("connect")
@@ -67,40 +43,35 @@ class Client(client.Client):
         protocol = "ws"
         return "%s://%s:%d%swebsocket" % (protocol, self.hostname, self.port, self.base_path)
 
-    # def _connect(self):
-    #     socket_future = tornado.websocket.websocket_connect(self._url)
-    #     loop = asyncio.get_event_loop()
-    #     self.socket = loop.run_until_complete(socket_future)
-
 
 class ClientWebsocket(Client):
-    def _send(self, msg, msg_id=None, wait_for_reply=True):
+    def _send_and_forget(self, msg, msg_id=None):
+        vaex.asyncio.check_patch_tornado()
         if msg_id is None:
             msg_id = str(uuid.uuid4())
-        if wait_for_reply:
-            assert msg_id not in self.msg_reply_promises
-            self.msg_reply_promises[msg_id] = vaex.promise.Promise()
+        self.msg_reply_futures[msg_id] = asyncio.Future()
         auth = {'token': self.token, 'token-trusted': self.token_trusted}
 
         msg_encoding = vaex.encoding.Encoding()
         data = vaex.encoding.serialize({'msg_id': msg_id, 'msg': msg, 'auth': auth}, msg_encoding)
+        assert self.event_loop_main is asyncio.get_event_loop()
 
-        def do():
-            self.websocket.write_message(data, binary=True)
-        if threading.currentThread() == self.thread:
-            do()
-        else:
-            self.io_loop.add_callback(do)  # make sure it gets executed from the right thread
+        self.websocket.write_message(data, binary=True)
+        return msg_id
+
+    async def _send_async(self, msg, msg_id=None, wait_for_reply=True):
+        msg_id = self._send_and_forget(msg, msg_id=msg_id)
+
         if wait_for_reply:
-            reply_msg, reply_encoding = self.msg_reply_promises[msg_id].get()
+            reply_msg, reply_encoding = await self.msg_reply_futures[msg_id]
             return reply_msg['result'], reply_encoding
 
+    def _send(self, msg, msg_id=None, wait_for_reply=True, add_promise=None):
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(self._send_async(msg, msg_id))
+
     def close(self):
-        def _close():
-            self.websocket.close()
-            self.io_loop.stop()
-        self.io_loop.add_callback(_close)
-        self.thread.join()
+        self.websocket.close()
 
     def _progress(self, fraction, msg_id):
         cancel = False
@@ -114,7 +85,7 @@ class ClientWebsocket(Client):
                     task._server_side_cancel = False
                 if not task._server_side_cancel:
                     cancel_msg = {'command': 'cancel', 'cancel_msg_id': msg_id}
-                    self._send(cancel_msg, wait_for_reply=False)
+                    self._send_and_forget(cancel_msg)
                     task.reject(vaex.execution.UserAbort("Progress returned false"))
 
     def _on_websocket_message(self, websocket_msg):
@@ -127,10 +98,11 @@ class ClientWebsocket(Client):
             msg_id, msg = websocket_msg['msg_id'], websocket_msg['msg']
             if 'progress' in msg:
                 fraction = msg['progress']
+
                 self._progress(fraction, msg_id)
             elif 'error' in msg:
                 exception = RuntimeError("error at server: %r" % msg)
-                self.msg_reply_promises[msg_id].reject(exception)
+                self.msg_reply_futures[msg_id].set_exception(exception)
             elif 'exception' in msg:
                 class_name = msg["exception"]["class"]
                 msg = msg["exception"]["msg"]
@@ -139,44 +111,18 @@ class ClientWebsocket(Client):
                 else:
                     cls = getattr(builtins, class_name)
                 exception = cls(msg)
-                self.msg_reply_promises[msg_id].reject(exception)
+                self.msg_reply_futures[msg_id].set_exception(exception)
             else:
-                self.msg_reply_promises[msg_id].fulfill((msg, encoding))
+                self.msg_reply_futures[msg_id].set_result((msg, encoding))
         except Exception as e:
             logger.exception("Exception interpreting msg reply: %r", websocket_msg)
-            self.msg_reply_promises[msg_id].reject(e)
+            self.msg_reply_futures[msg_id].set_exception(e)
+
+    async def connect_async(self):
+        self.websocket = await tornado.websocket.websocket_connect(self._url, on_message_callback=self._on_websocket_message)
 
     def connect(self):
-        url = self._url
-
-        def connected(websocket):
-            logger.debug("connected to websocket: %s" % url)
-            self.websocket = websocket
-
-        def failed(reason):
-            logger.error("failed to connect to %s" % url)
-        self.websocket_connected = vaex.promise.Promise()
-        self.websocket_connected.then(connected, failed)
-
-        def do():
-            try:
-                logger.debug("wrapping promise")
-                logger.debug("connecting to: %s", url)
-                connected = wrap_future_with_promise(tornado.websocket.websocket_connect(url,
-                                                     on_message_callback=self._on_websocket_message))
-                logger.debug("continue")
-                self.websocket_connected.fulfill(connected)
-            except:  # noqa
-                logger.exception("error connecting")
-        logger.debug("add callback")
-        self.io_loop.add_callback(do)
-        logger.debug("added callback: ")
-
-        logger.debug("waiting for connection")
-        self.websocket_connected.get()
-        logger.debug("websocket connected")
-        if self.websocket_connected.isRejected:
-            raise self.websocket.reason
+        vaex.asyncio.just_run(self.connect_async())
 
 
 def connect(url, **kwargs):
