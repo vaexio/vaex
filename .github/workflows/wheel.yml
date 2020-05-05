@@ -48,7 +48,7 @@ jobs:
       env:
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
         CIBW_BUILD: cp${{ matrix.python-version }}*64
-        # CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wall"
+        CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
       if: startsWith(github.ref, 'refs/tags/core')
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
