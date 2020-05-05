@@ -6,6 +6,7 @@ on:
       - viz-*
       - jupyter-*
       - hdf5-*
+      - server-*
 
 jobs:
   build_wheels:
@@ -72,6 +73,19 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_hdf5 }}
       run: |
         twine upload dist/vaex-hdf5* dist/vaex_hdf5*
+
+    - name: Build vaex-server
+      if: startsWith(github.ref, 'refs/tags/server')
+      run: |
+        (cd packages/vaex-server && python setup.py sdist bdist_wheel); cp packages/vaex-server/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/server')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_server }}
+      run: |
+        twine upload dist/vaex-server* dist/vaex_server*
 
     - uses: actions/upload-artifact@v1
       with:
