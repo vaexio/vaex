@@ -9,8 +9,11 @@ gittag_core = ReleaseTargetGitTagVersion(version_source=version_core, prefix='co
 
 core.version_source = version_core
 core.version_targets.append(VersionTarget(core, '{path}/vaex/core/_version.py'))
+core.version_targets.append(VersionTargetReplace(core, [
+    'packages/vaex-meta/setup.py',
+]))
 
-core.release_targets.append(gittag_core)
+core.tag_targets.append(gittag_core)
 core.release_targets.append(ReleaseTargetSourceDist(core))
 #core.release_targets.append(gitpush)
 core.release_targets.append(ReleaseTargetCondaForge(core, '../feedstocks/vaex-core-feedstock'))
@@ -35,7 +38,7 @@ for name in names:
     else:
         package.version_targets.append(VersionTarget(package, '{path}/vaex/' + name + '/_version.py'))
     # it is ok to add this twice, it will only tag once
-    package.release_targets.append(gittag)
+    package.tag_targets.append(gittag)
     package.release_targets.append(ReleaseTargetSourceDist(package))
     # also ok to add twice, it will only execute for the last package
     package.release_targets.append(gitpush)
