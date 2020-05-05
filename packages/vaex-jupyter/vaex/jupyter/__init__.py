@@ -31,7 +31,14 @@ class DataFrameAccessorWidget(object):
     @debounced(delay_seconds=0.1, reentrant=False)
     async def execute_debounced(self):
         """Schedules an execution of dataframe tasks in the near future (debounced)."""
-        await self.df.execute_async()
+        try:
+            logger.debug("Execute tasks... tasks=%r", self.df.executor.tasks)
+            await self.df.execute_async()
+            logger.debug("Execute tasks done")
+        except vaex.executor.UserAbort:
+            pass  # this is fine
+        except Exception as e:
+            logger.exception("Error while executing tasks")
 
     def clear(self):
         self.grid = vaex.jupyter.model.GridCalculator(self.df, [])

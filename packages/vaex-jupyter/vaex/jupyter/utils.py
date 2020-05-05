@@ -144,7 +144,10 @@ class _debounced_callable:
 
         @functools.wraps(self.f)
         def debounced_execute(counter=self.counter):
+            logger.debug("Plan to execute the debounced call to %r counter=%r self.counter=%r", self.f, counter, self.counter)
+
             async def run_async():
+                logger.debug("Executing the debounced call to %r counter=%r self.counter=%r", self.f, counter, self.counter)
                 if counter != self.counter:
                     # TODO: maybe we should set cancel instead?
                     future.set_result(None)
@@ -152,9 +155,11 @@ class _debounced_callable:
                     if counter == self.counter:
                         if self.previous_result_future and not self.reentrant:
                             try:
+                                logger.debug("Awaiting previous result... f=%r counter=%r self.counter=%r", self.f, counter, self.counter)
                                 await self.previous_result_future
                             except Exception as e:  # noqa
                                 pass  # exception of previous run are already handled
+                            logger.debug("Awaited previous result f=%r ")
                         # we should capture a reference to the current result_future
                         # and 'reset' it now, if we do this later, a next execution
                         # might set and reset it (since the function might take more time)
@@ -169,11 +174,13 @@ class _debounced_callable:
                         pre_hook_future.set_result(None)
                         # this allows for pre_hook waiters to run first
                         await asyncio.sleep(1e-9)
+                        logger.debug("Calling f=%r counter=%r self.counter=%r", self.f, counter, self.counter)
                         if self.obj is not None:
                             result = self.f(self.obj, *args, **kwargs)
                         else:
                             result = self.f(*args, **kwargs)
                         if asyncio.iscoroutinefunction(self.f):
+                            logger.debug("Awaiting result f=%r counter=%r self.counter=%r", self.f, counter, self.counter)
                             result = await result
                         future.set_result(result)
                         result_future.set_result(result)
@@ -203,6 +210,7 @@ class _debounced_callable:
                 ioloop.call_later(_test_delay or self.delay_seconds, debounced_execute)
             _debounced_execute_queue.append(debounced_execute)
             if ioloop is not None:  # not in IPython
+                logger.debug("Schedule debounced call to %r, counter=%r", self.f, self.counter)
                 ioloop.call_soon_threadsafe(thread_safe)
         else:
             debounced_execute()
