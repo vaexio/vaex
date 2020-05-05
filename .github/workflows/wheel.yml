@@ -51,7 +51,7 @@ jobs:
         CIBW_BUILD: cp${{ matrix.python-version }}*64
       if: startsWith(github.ref, 'refs/tags/core')
       run: |
-        # python -m cibuildwheel --output-dir dist packages/vaex-core
+        python -m cibuildwheel --output-dir dist packages/vaex-core
         (cd packages/vaex-core && python setup.py sdist); cp packages/vaex-core/dist/* dist/
 
     - name: Build vaex-viz
@@ -64,17 +64,16 @@ jobs:
         name: distributions
         path: ./dist
 
-    # - name: Publish a Python distribution to test PyPI
-    #   env:
-    #     TWINE_USERNAME: __token__
-    #     TWINE_PASSWORD: ${{ secrets.test_pypi_password }}
-    #   run: |
-    #     twine upload --repository testpypi wheelhouse/*
-
-
-    - name: Publish a Python distribution to PyPI
+    - name: Publish a Python distribution to test PyPI
       env:
         TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password }}
+        TWINE_PASSWORD: ${{ secrets.test_pypi_password }}
       run: |
-        twine upload wheelhouse/*
+        twine upload --repository testpypi dist/*
+
+    # - name: Publish a Python distribution to PyPI
+    #   env:
+    #     TWINE_USERNAME: __token__
+    #     TWINE_PASSWORD: ${{ secrets.pypi_password }}
+    #   run: |
+    #     twine upload dist/*
