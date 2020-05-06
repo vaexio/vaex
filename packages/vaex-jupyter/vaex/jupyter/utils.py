@@ -206,12 +206,10 @@ class _debounced_callable:
         if debounce_enabled:
             ioloop = get_ioloop()
 
-            def thread_safe():
-                ioloop.call_later(_test_delay or self.delay_seconds, debounced_execute)
             _debounced_execute_queue.append(debounced_execute)
             if ioloop is not None:  # not in IPython
                 logger.debug("Schedule debounced call to %r, counter=%r", self.f, self.counter)
-                ioloop.call_soon_threadsafe(thread_safe)
+                ioloop.call_later(_test_delay or self.delay_seconds, debounced_execute)
         else:
             debounced_execute()
         return self.result_future
