@@ -2123,8 +2123,10 @@ static struct PyModuleDef moduledef = {
 #endif
 
 PyMODINIT_FUNC
- #if ((defined(__GNUC__) && (__GNUC__ >= 4)) || (defined(__clang__) && __has_attribute(visibility)))
-__attribute__ ((visibility ("default")))
+#if !defined(_WIN32)
+   #if ((defined(__GNUC__) && (__GNUC__ >= 4)) || (defined(__clang__) && __has_attribute(visibility)))
+	__attribute__ ((visibility ("default")))
+  #endif
 #endif
 PyInit_vaexfast(void)
 {
