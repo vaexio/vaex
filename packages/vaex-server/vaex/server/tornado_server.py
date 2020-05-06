@@ -26,6 +26,7 @@ import vaex.asyncio
 import vaex.server.dataframe
 import vaex.core._version
 import vaex.server._version
+import vaex.server.dataframe
 
 
 logger = logging.getLogger("vaex.webserver")
@@ -167,7 +168,7 @@ GB = MB * 1024
 
 class WebServer(threading.Thread):
     def __init__(self, address="localhost", port=9000, webserver_thread_count=2, cache_byte_size=500 * MB,
-                 token=None, token_trusted=None,
+                 token=None, token_trusted=None, base_url=None,
                  cache_selection_byte_size=500 * MB, datasets=[], compress=True, development=False, threads_per_job=4):
         threading.Thread.__init__(self)
         self._test_latency = None  # for testing purposes
@@ -178,10 +179,12 @@ class WebServer(threading.Thread):
         self.service = None
         self.webserver_thread_count = webserver_thread_count
         self.threads_per_job = threads_per_job
-        if self.port == 80:
-            self.base_url = f'{self.address}'
-        else:
-            self.base_url = f'{self.address}:{self.port}'
+        self.base_url = base_url
+        if self.base_url is None:
+            if self.port == 80:
+                self.base_url = f'{self.address}'
+            else:
+                self.base_url = f'{self.address}:{self.port}'
 
         self.service_bare = vaex.server.service.Service({})
         self.service_threaded = vaex.server.service.AsyncThreadedService(self.service_bare, self.webserver_thread_count,
@@ -288,6 +291,7 @@ def main(argv, WebServer=WebServer):
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument("filename", help="filename for dataset", nargs='*')
     parser.add_argument("--address", help="address to bind the server to (default: %(default)s)", default="0.0.0.0")
+    parser.add_argument("--base-url", help="External base url (default is <address>:port)", default=None)
     parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=9000)
     parser.add_argument('--verbose', '-v', action='count', default=2)
     parser.add_argument('--cache', help="cache size in bytes for requests, set to zero to disable (default: %(default)s)", type=int, default=500000000)
@@ -319,7 +323,7 @@ def main(argv, WebServer=WebServer):
     logger.info("datasets:")
     for dataset in datasets:
         logger.info("\thttp://%s:%d/%s or ws://%s:%d/%s", config.address, config.port, dataset.name, config.address, config.port, dataset.name)
-    server = WebServer(datasets=datasets, address=config.address, port=config.port, cache_byte_size=config.cache,
+    server = WebServer(datasets=datasets, address=config.address, base_url=config.base_url, port=config.port, cache_byte_size=config.cache,
                        token=config.token, token_trusted=config.token_trusted,
                        compress=config.compress, development=config.development,
                        threads_per_job=config.threads_per_job)
