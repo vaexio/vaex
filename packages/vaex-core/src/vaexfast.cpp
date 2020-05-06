@@ -2122,11 +2122,11 @@ static struct PyModuleDef moduledef = {
 #define INITERROR return
 #endif
 
+PyMODINIT_FUNC
  #if (defined(__GNUC__) && (__GNUC__ >= 4)) ||\
      (defined(__clang__) && __has_attribute(visibility))
 __attribute__ ((visibility ("default")))
 #endif
-PyMODINIT_FUNC
 PyInit_vaexfast(void)
 {
 	import_array();
