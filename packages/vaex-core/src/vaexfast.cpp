@@ -2124,7 +2124,7 @@ static struct PyModuleDef moduledef = {
 
 PyMODINIT_FUNC
 #if !defined(_WIN32)
-   #if ((defined(__GNUC__) && (__GNUC__ >= 4)) || (defined(__clang__) && __has_attribute(visibility)))
+   #if (defined(__GNUC__) && (__GNUC__ >= 4))
 	__attribute__ ((visibility ("default")))
   #endif
 #endif
