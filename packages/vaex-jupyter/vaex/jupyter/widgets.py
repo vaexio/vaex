@@ -470,14 +470,38 @@ class ToolsToolbar(v.VuetifyTemplate):
     def _template(self):
         return load_template('vue/tools-toolbar.vue')
 
+class VuetifyTemplate(v.VuetifyTemplate):
+    _metadata = traitlets.Dict(default_value=None, allow_none=True).tag(sync=True)
 
 class ContainerCard(v.VuetifyTemplate):
+    _metadata = Dict(default_value=None, allow_none=True).tag(sync=True)
     @traitlets.default('template')
     def _template(self):
         return load_template('vue/card.vue')
     title = traitlets.Unicode(None, allow_none=True).tag(sync=True)
     subtitle = traitlets.Unicode(None, allow_none=True).tag(sync=True)
+    text = traitlets.Unicode(None, allow_none=True).tag(sync=True)
     main = traitlets.Any().tag(sync=True, **widgets.widget_serialization)
     controls = traitlets.List().tag(sync=True, **widgets.widget_serialization)
     card_props = traitlets.Dict().tag(sync=True)
+    main_props = traitlets.Dict().tag(sync=True)
     show_controls = traitlets.Bool(False).tag(sync=True)
+
+class Html(v.Html):
+    _metadata = traitlets.Dict(default_value=None, allow_none=True).tag(sync=True)
+
+
+class LinkList(VuetifyTemplate):
+    items = traitlets.List(
+        [
+            {'title': 'Vaex (data aggregation)', 'url': "https://github.com/vaexio/vaex", 'img': 'https://vaex.io/img/logos/logo-grey.svg', },
+            {'icon': "dashboard", 'title': "Voila (dashboard)", 'url': "https://github.com/voila-dashboards/voila"},
+            {'icon': "mdi-database", 'title': "DataFrame server", 'url': "http://dataframe.vaex.io/"},
+            {'title': 'ipyvolume (3d viz)', 'url': "https://github.com/maartenbreddels/ipyvolume", 'img': 'https://raw.githubusercontent.com/maartenbreddels/ipyvolume/master/misc/icon.svg', },
+            {'title': 'GitHub Repo', 'url': 'https://github.com/vaexio/vaex', 'img': 'https://github.githubassets.com/pinned-octocat.svg'},
+            {'icon': "widgets", 'title': "jupyter widgets", 'url': "https://github.com/jupyter-widgets/ipywidgets"},
+        ],
+    ).tag(sync=True)
+    @traitlets.default('template')
+    def _template(self):
+        return load_template('vue/link-list.vue')
