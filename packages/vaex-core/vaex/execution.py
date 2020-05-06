@@ -94,9 +94,13 @@ class ExecutorLocal(Executor):
         # wo don't allow any thread from our thread pool to enter (a computation should never produce a new task)
         # and we explicitly disallow reentry (this usually means a bug in vaex, or bad usage)
         chunk_executor_thread = threading.current_thread() in self.thread_pool._threads
+        import traceback
+        trace = ''.join(traceback.format_stack())
         if chunk_executor_thread or self.local.executing:
             logger.error("nested execute call")
-            raise RuntimeError("nested execute call")
+            raise RuntimeError("nested execute call: %r %r\nlast trace:\n%s\ncurrent trace:\n%s" % (chunk_executor_thread, self.local.executing, self.local.last_trace, trace))
+        else:
+            self.local.last_trace = trace
 
         self.local.executing = True
         try:
