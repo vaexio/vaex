@@ -38,7 +38,8 @@ extensions = [
     'sphinx.ext.autosummary',
     'IPython.sphinxext.ipython_console_highlighting',
     'nbsphinx',
-    'sphinx.ext.intersphinx'
+    'sphinx.ext.intersphinx',
+    'sphinx_gallery.load_style',
 ]
 import os
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -343,3 +344,9 @@ intersphinx_mapping = {
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
     'dask': ('http://docs.dask.org/en/latest/', None),
 }
+
+nbsphinx_thumbnails = {
+    'example_jupyter_ipyvolume': 'screenshot/example_jupyter_ipyvolume.png',
+    'example_jupyter_plotly': 'screenshot/example_jupyter_plotly.png',
+}
+exclude_patterns = ['**.ipynb_checkpoints']

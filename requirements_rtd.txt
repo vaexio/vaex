@@ -18,3 +18,4 @@ pip>=10.0
 annoy
 lightgbm
 xgboost
+sphinx_gallery
