@@ -632,7 +632,7 @@ class Expression(with_metaclass(Meta)):
         nan_mask = index != index
         if np.any(nan_mask):
             index = index[~mask]
-            counts = index[~mask]
+            counts = counts[~mask]
         # nan can already be present for dtype=object, optionally remove it
         none_mask = index == None
         if np.any(none_mask):
