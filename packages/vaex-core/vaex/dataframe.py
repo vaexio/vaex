@@ -4842,7 +4842,7 @@ class DataFrameLocal(DataFrame):
             vmin, vmax = self.minmax(column)
             if labels is None:
                 N = int(vmax + 1)
-                labels = list(map(str, range(N)))
+                labels = list(range(N))
             if (vmax - vmin) >= len(labels):
                 raise ValueError('value of {} found, which is larger than number of labels {}'.format(vmax, len(labels)))
         self._categories[column] = dict(labels=labels, N=len(labels))
