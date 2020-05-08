@@ -62,8 +62,41 @@ class BinByCat1M(Aggregates):
     def setup(self, N, B):
         super().setup(N)
 
-    def time_binby_iB_1K(self, N, B):
+    def time_binby_iB_1M(self, N, B):
         self.df.count(binby=f'i{B}_1M')
+
+
+class GroupByCat10(Aggregates):
+    params = Aggregates.params + ([1, 2, 4, 8],)
+    param_names = ['N', 'B']
+
+    def setup(self, N, B):
+        super().setup(N)
+
+    def time_binby_iB_10(self, N, B):
+        self.df.groupby(f'i{B}_10', agg='count')
+
+
+class GroupByCat1K(Aggregates):
+    params = Aggregates.params + ([2, 4, 8],)
+    param_names = ['N', 'B']
+
+    def setup(self, N, B):
+        super().setup(N)
+
+    def time_binby_iB_1M(self, N, B):
+        self.df.groupby(f'i{B}_1k', agg='count')
+
+
+class GroupByCat1M(Aggregates):
+    params = Aggregates.params + ([4, 8],)
+    param_names = ['N', 'B']
+
+    def setup(self, N, B):
+        super().setup(N)
+
+    def time_binby_iB_1K(self, N, B):
+        self.df.groupby(f'i{B}_1M', agg='count')
 
 
 class BinBy1d(Aggregates):
