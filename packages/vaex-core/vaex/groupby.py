@@ -159,6 +159,7 @@ class GroupByBase(object):
 
 
         grids = {}
+        self.counts = None  # if we already do count *, we'd like to know so we don't have to do it ourselves!
 
         def add(aggregate, column_name=None, override_name=None):
             if column_name is None or override_name is not None:
@@ -166,6 +167,10 @@ class GroupByBase(object):
             aggregate.edges = True  # is this ok to override?
             values = df._agg(aggregate, self.grid, delay=_USE_DELAY)
             grids[column_name] = values
+            if isinstance(aggregate, vaex.agg.AggregatorDescriptorBasic)\
+                and aggregate.name == 'AggCount'\
+                and aggregate.expression == "*":
+                self.counts = values
 
         for item in actions:
             override_name = None
@@ -242,8 +247,10 @@ class GroupBy(GroupByBase):
         # 'multistage' hashmap
         arrays = super(GroupBy, self)._agg(actions)
         # we don't want non-existing pairs (e.g. Amsterdam in France does not exist)
-        count_agg = vaex.agg.count(edges=True)
-        counts = self.df._agg(count_agg, self.grid, delay=_USE_DELAY)
+        counts = self.counts
+        if counts is None:  # nobody wanted to know count*, but we need it
+            count_agg = vaex.agg.count(edges=True)
+            counts = self.df._agg(count_agg, self.grid, delay=_USE_DELAY)
         self.df.execute()
         if _USE_DELAY:
             arrays = {key: value.get() for key, value in arrays.items()}
