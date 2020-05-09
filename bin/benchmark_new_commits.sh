@@ -7,7 +7,14 @@ set -e
 
 VAEX_REPO_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )/../"
 cd "$VAEX_REPO_DIR"
-git pull origin master
+
+# get all remote branches
+git fetch --all
+
+# force master to point to origin
+git checkout master -f
+git reset --hard origin/master
+
 
 function restore_results_from_git () {
   # copy results from vaex-asv/.asv/results/**.json to vaex/.asv/results/**.json
