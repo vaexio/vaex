@@ -36,7 +36,7 @@ before_install:
   - conda update -q conda
   - conda info -a
   # future: kapteyn should only be needed for astro package testing
-  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION setuptools==42.0.2 certifi=2019.6.16 pip numpy scipy pyqt matplotlib pyopengl h5py astropy tornado cython pandas pytest pytest-asyncio numba pyarrow graphviz python-graphviz pcre catboost libcxx=9.0.0 notebook scikit-learn lightgbm py-xgboost # $OPTIONAL_PACKAGES
+  - conda create -q -n test-environment -c conda-forge python=$PYTHON_VERSION setuptools==42.0.2 certifi=2019.6.16 pip numpy scipy xarray pyqt matplotlib pyopengl h5py astropy tornado cython pandas pytest pytest-asyncio numba pyarrow graphviz python-graphviz pcre catboost libcxx=9.0.0 notebook scikit-learn lightgbm py-xgboost # $OPTIONAL_PACKAGES
   - which pip
   - source activate test-environment
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
