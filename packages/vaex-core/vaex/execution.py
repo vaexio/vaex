@@ -66,6 +66,10 @@ class Executor:
                 logger.info("executing tasks in run: %r", tasks)
                 for task in tasks:
                     self.tasks.remove(task)
+                    # make sure we remove it from task_aggs, otherwise we can memleak
+                    for key, value in list(task.df._task_aggs.items()):
+                        if value is task:
+                            del task.df._task_aggs[key]
                 return tasks
 
 
