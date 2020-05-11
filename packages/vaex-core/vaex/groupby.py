@@ -115,11 +115,12 @@ class GrouperCategory(BinnerBase):
 
         self.bin_values = self.df.category_labels(self.expression)
         self.N = self.df.category_count(self.expression)
+        self.min_value = self.df.category_offset(self.expression)
         # TODO: what do we do with null values for categories?
         # if self.set.has_null:
         #     self.N += 1
         #     keys += ['null']
-        self.binner = self.df._binner_ordinal(self.expression, self.N)
+        self.binner = self.df._binner_ordinal(self.expression, self.N, self.min_value)
 
 class GroupByBase(object):
     def __init__(self, df, by):

@@ -430,7 +430,7 @@ def test_format_xarray_and_list(df_local):
 
     df = df[:3]
     df['g'] = df.x
-    df.categorize(df.g, ['aap', 'noot', 'mies'])
+    df.categorize(df.g, labels=['aap', 'noot', 'mies'])
     count = df.count(binby='g', array_type='xarray')
     assert count.coords['g'].data.tolist() == ['aap', 'noot', 'mies']
 

@@ -25,7 +25,7 @@ def test_linear_model():
 @pytest.mark.skip(reason="This will fail: produces wrong answer")
 def test_logit():
     ds = vaex.ml.datasets.load_iris()
-    ds.categorize(ds.class_, '0 1 2 3'.split())
+    ds.categorize(ds.class_, labels='0 1 2 3'.split())
     m1 = vaex.ml.linear_model.LogisticRegression(features=features, binned=False)
     m1.fit(ds, 'class_')
     class1 = m1.predict(ds)

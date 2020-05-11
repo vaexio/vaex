@@ -34,7 +34,7 @@ def test_count_cat():
 
 def test_categorize():
     ds0 = vaex.from_arrays(c=[0, 1, 1, 3])
-    ds0.categorize('c', ['a', 'b', 'c', 'd'])
+    ds0.categorize('c', labels=['a', 'b', 'c', 'd'])
     assert ds0.is_category(ds0.c)
     assert ds0.category_labels(ds0.c) == ['a', 'b', 'c', 'd']
     assert ds0.category_count(ds0.c) == 4
@@ -51,3 +51,15 @@ def test_cat_missing_values():
     # the following is expected
     # ds = ds0.ordinal_encode('colors', ['red', 'green'])
     # assert ds.count(binby=ds.colors, edges=True).tolist() == [1, 0, 1, 2, 0, 1]
+
+
+def test_categorize_integers():
+    df = vaex.from_arrays(x=range(5, 15))
+    df.categorize('x', min_value=5, labels=range(5, 15))
+    assert df.count(binby='x').tolist() == [1] * 10
+    assert df.binby('x', 'count').data.tolist() == [1] * 10
+
+    df = vaex.from_arrays(x=range(5, 15))
+    df.categorize('x')  # same, but calculated from data
+    assert df.count(binby='x').tolist() == [1] * 10
+    assert df.binby('x', 'count').data.tolist() == [1] * 10
