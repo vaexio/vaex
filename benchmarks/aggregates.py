@@ -16,10 +16,20 @@ class Aggregates:
 
     def setup(self, N):
         self.df = vaex.open(generate_numerical())[:N]
-        self.df.categorize(self.df.i8_10, list(range(5, 15)), check=False)
-        self.df.categorize(self.df.i4_10, list(range(5, 15)), check=False)
-        self.df.categorize(self.df.i2_10, list(range(5, 15)), check=False)
-        self.df.categorize(self.df.i1_10, list(range(5, 15)), check=False)
+        self.df.categorize(self.df.i8_10, min_value=5, max_value=15)
+        self.df.categorize(self.df.i4_10, min_value=5, max_value=15)
+        self.df.categorize(self.df.i2_10, min_value=5, max_value=15)
+        self.df.categorize(self.df.i1_10, min_value=5, max_value=15)
+
+        self.df.categorize(self.df.i8_1K, min_value=5, max_value=1_000+5)
+        self.df.categorize(self.df.i4_1K, min_value=5, max_value=1_000+5)
+        self.df.categorize(self.df.i2_1K, min_value=5, max_value=1_000+5)
+        self.df.categorize(self.df.i1_1K, min_value=5, max_value=1_000+5)
+
+        self.df.categorize(self.df.i8_1M, min_value=5, max_value=1_000_000+5)
+        self.df.categorize(self.df.i4_1M, min_value=5, max_value=1_000_000+5)
+        self.df.categorize(self.df.i2_1M, min_value=5, max_value=1_000_000+5)
+        self.df.categorize(self.df.i1_1M, min_value=5, max_value=1_000_000+5)
 
 
 class Stats(Aggregates):
