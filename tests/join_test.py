@@ -114,6 +114,23 @@ def test_inner_a_b_filtered():
     assert df.evaluate('y_r').tolist() == [1]
 
 
+def test_left_a_b_filtered_right():
+    # similar to test_left_a_b_filtered, but now the df we join is filtered
+    # take b without the last tow
+    df_bf = df_b[df_b.b.str.contains('A|B')]
+    df = df_a.join(df_bf, how='left', on='x', rsuffix='_r')
+    # columns of the left df
+    assert df.x.tolist() == [0, 1, 2]
+    assert df.a.tolist() == ['A', 'B', 'C']
+    assert df.y.tolist() == [0, None, 2]
+    assert df.m.tolist() == [1, None, 3]
+    # columns of the right df
+    assert df.b.tolist() == [None, 'B', 'A']
+    assert df.x_r.tolist() == [None, 1, 2]
+    assert df.y_r.tolist() == [None, 1, None]
+    assert df.m_r.tolist() == [None, 1, None]
+
+
 def test_right_x_x():
     df = df_a.join(other=df_b, on='x', rsuffix='_r', how='right')
     assert df.evaluate('a').tolist() == ['C', 'B', 'A']
