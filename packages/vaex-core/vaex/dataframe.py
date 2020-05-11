@@ -305,6 +305,10 @@ class DataFrame(object):
         column = _ensure_string_from_expression(column)
         return self._categories[column]['N']
 
+    def category_offset(self, column):
+        column = _ensure_string_from_expression(column)
+        return self._categories[column]['min_value']
+
     def execute(self):
         '''Execute all delayed jobs.'''
         # no need to clear _task_aggs anymore, since they will be removed for the executors' task list
@@ -4758,7 +4762,8 @@ class DataFrame(object):
         if key not in self._binners:
             if expression in self._categories:
                 N = self._categories[expression]['N']
-                binner = self._binner_ordinal(expression, N)
+                min_value = self._categories[expression]['min_value']
+                binner = self._binner_ordinal(expression, N, min_value)
                 self._binners[key] = vaex.promise.Promise.fulfilled(binner)
             else:
                 self._binners[key] = vaex.promise.Promise()
@@ -4835,17 +4840,41 @@ class DataFrameLocal(DataFrame):
                 ar.flags['WRITEABLE'] = False
         return df
 
-    def categorize(self, column, labels=None, check=True):
-        """Mark column as categorical, with given labels, assuming zero indexing"""
+    def categorize(self, column, min_value=0, max_value=None, labels=None):
+        """Mark column as categorical.
+
+        This may help speed up calculations using integer columns between a range of [min_value, max_value].
+
+        If max_value is not given, the [min_value and max_value] are calcuated from the data.
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.from_arrays(year=[2012, 2015, 2019], weekday=[0, 4, 6])
+        >>> df.categorize('year', min_value=2020, max_value=2019)
+        >>> df.categorize('weekday', labels=['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+
+        :param column: column to assume is categorical.
+        :param labels: labels to associate to the values between min_value and max_value
+        :param min_value: minimum integer value (if max_value is not given, this is calculated)
+        :param max_value: maximum integer value (if max_value is not given, this is calculated)
+        :param labels: Labels to associate to each value, list(range(min_value, max_value+1)) by default
+        """
         column = _ensure_string_from_expression(column)
-        if check:
+        if max_value is not None:
+            labels = list(range(min_value, max_value+1))
+            N = len(labels)
+        else:
             vmin, vmax = self.minmax(column)
             if labels is None:
                 N = int(vmax + 1)
-                labels = list(range(N))
+                labels = list(range(vmin, vmax+1))
+                min_value = vmin
+            else:
+                min_value = vmin
             if (vmax - vmin) >= len(labels):
                 raise ValueError('value of {} found, which is larger than number of labels {}'.format(vmax, len(labels)))
-        self._categories[column] = dict(labels=labels, N=len(labels))
+        self._categories[column] = dict(labels=labels, N=len(labels), min_value=min_value)
 
     def ordinal_encode(self, column, values=None, inplace=False):
         """Encode column as ordinal values and mark it as categorical.
@@ -4888,9 +4917,8 @@ class DataFrameLocal(DataFrame):
                 codes = np.ma.masked_array(codes, codes==missing_value)
 
         original_column = df.rename(column, '__original_' + column, unique=True)
-        labels = [str(k) for k in values]
         df.add_column(column, codes)
-        df._categories[column] = dict(labels=labels, N=len(values), values=values)
+        df._categories[column] = dict(labels=values, N=len(values), min_value=0)
         return df
 
     # for backward compatibility
