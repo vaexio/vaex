@@ -690,7 +690,7 @@ public:
 template<class Agg, class Base, class Module>
 void add_agg(Module m, Base& base, const char* class_name) {
     py::class_<Agg>(m, class_name, py::buffer_protocol(), base)
-        .def(py::init<Grid<>*>(), py::keep_alive<1, 2>())
+        .def(py::init<Grid<>*>(), py::call_guard<py::keep_alive<1, 2>, py::gil_scoped_release>())
         .def_buffer([](Agg &agg) -> py::buffer_info {
             std::vector<ssize_t> strides(agg.grid->dimensions);
             std::vector<ssize_t> shapes(agg.grid->dimensions);
@@ -711,7 +711,7 @@ void add_agg(Module m, Base& base, const char* class_name) {
         )
         .def("set_data", &Agg::set_data)
         .def("set_data_mask", &Agg::set_data_mask)
-        .def("reduce", &Agg::reduce)
+        .def("reduce", &Agg::reduce, py::call_guard<py::gil_scoped_release>())
     ;
 }
 
@@ -719,7 +719,7 @@ void add_agg(Module m, Base& base, const char* class_name) {
 template<class Agg, class Base, class Module, class A>
 void add_agg_arg(Module m, Base& base, const char* class_name) {
     py::class_<Agg>(m, class_name, py::buffer_protocol(), base)
-        .def(py::init<Grid<>*, A>(), py::keep_alive<1, 2>())
+        .def(py::init<Grid<>*, A>(), py::call_guard<py::keep_alive<1, 2>, py::gil_scoped_release>())
         .def_buffer([](Agg &agg) -> py::buffer_info {
             std::vector<ssize_t> strides(agg.grid->dimensions);
             std::vector<ssize_t> shapes(agg.grid->dimensions);
@@ -740,7 +740,7 @@ void add_agg_arg(Module m, Base& base, const char* class_name) {
         )
         .def("set_data", &Agg::set_data)
         .def("set_data_mask", &Agg::set_data_mask)
-        .def("reduce", &Agg::reduce)
+        .def("reduce", &Agg::reduce, py::call_guard<py::gil_scoped_release>())
     ;
 }
 
