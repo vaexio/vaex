@@ -154,6 +154,7 @@ public:
         std::fill(grid_data, grid_data+grid->length1d, 0);
     }
     virtual ~AggregatorBase() {
+        pybind11::gil_scoped_release release;
         free(grid_data);
     }
     Grid<IndexType>* grid;
