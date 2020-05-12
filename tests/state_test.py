@@ -18,6 +18,14 @@ def test_state_get_set(ds_local):
     assert 'v' in ds_copy.get_column_names()
 
 
+def test_state_mem_waste(df_trimmed):
+    df = df_trimmed
+    assert df._selection_masks == {}
+    state = df.state_get()
+    df.state_set(state)
+    assert df._selection_masks == {}
+
+
 def test_state_variables(ds_local, tmpdir):
     filename = str(tmpdir.join('state.json'))
     df = ds_local

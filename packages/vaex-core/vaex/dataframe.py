@@ -5888,9 +5888,13 @@ class DataFrameLocal(DataFrame):
             return binby.agg(agg)
 
     def _selection(self, create_selection, name, executor=None, execute_fully=False):
-        if name not in self._selection_masks:
-            self._selection_masks[name] = vaex.superutils.Mask(self._length_unfiltered)
-        return super()._selection(create_selection, name, executor, execute_fully)
+        def create_wrapper(current):
+            selection = create_selection(current)
+            # only create a mask when we have a selection, so we do not waste memory
+            if selection is not None and name not in self._selection_masks:
+                self._selection_masks[name] = vaex.superutils.Mask(self._length_unfiltered)
+            return selection
+        return super()._selection(create_wrapper, name, executor, execute_fully)
 
 class DataFrameConcatenated(DataFrameLocal):
     """Represents a set of DataFrames all concatenated. See :func:`DataFrameLocal.concat` for usage.
