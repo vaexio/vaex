@@ -95,6 +95,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
                 self.dtype_out = np.dtype('int64')
             if self.short_name in ['sum', 'summoment']:
                 self.dtype_out = vaex.utils.upcast(self.dtype_in)
+        self.agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
 
     def add_operations(self, agg_task, **kwargs):
         df = agg_task.df
@@ -106,8 +107,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         return finish(value)
 
     def _create_operation(self, df, grid):
-        agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
-        agg_op = agg_op_type(grid, *self.agg_args)
+        agg_op = self.agg_op_type(grid, *self.agg_args)
         return agg_op
 
     def get_result(self, agg_operation):
