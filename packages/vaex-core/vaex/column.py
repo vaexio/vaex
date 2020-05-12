@@ -94,13 +94,15 @@ class ColumnIndexed(Column):
         """
         direct_indices_map = direct_indices_map if direct_indices_map is not None else {}
         if isinstance(column, ColumnIndexed):
-            # TODO: think about what happpens when the indices are masked.. ?
             if id(column.indices) not in direct_indices_map:
                 direct_indices = column.indices[indices]
+                if masked:
+                    # restored sentinel mask values
+                    direct_indices[indices == -1] = -1
                 direct_indices_map[id(column.indices)] = direct_indices
             else:
                 direct_indices = direct_indices_map[id(column.indices)]
-            return ColumnIndexed(column.df, direct_indices, column.name, masked=masked)
+            return ColumnIndexed(column.df, direct_indices, column.name, masked=masked or column.masked)
         else:
             return ColumnIndexed(df, indices, name, masked=masked)
 
@@ -117,17 +119,26 @@ class ColumnIndexed(Column):
         assert step in [None, 1]
         indices = self.indices[start:stop]
         ar_unfiltered = self.df.columns[self.name]
+        if self.masked:
+            mask = indices == -1
         if isinstance(ar_unfiltered, Column):
             # TODO: this is a workaround, since we do not require yet
             # that Column classes know how to deal with indices, we get
             # the minimal slice, and get those (not the most efficient)
-            i1, i2 = np.min(indices), np.max(indices)
+            if self.masked:
+                unmasked_indices = indices[~mask]
+                i1, i2 = np.min(unmasked_indices), np.max(unmasked_indices)
+            else:
+                i1, i2 = np.min(indices), np.max(indices)
             ar_unfiltered = ar_unfiltered[i1:i2+1]
-            indices = indices - i1
+            if self.masked:
+                indices = indices - i1
+                indices[mask] = -1
+            else:
+                indices = indices - i1
         ar = ar_unfiltered[indices]
         assert not np.ma.isMaskedArray(indices)
         if self.masked:
-            mask = indices == -1
             return np.ma.array(ar, mask=mask)
         else:
             return ar

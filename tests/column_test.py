@@ -91,3 +91,13 @@ def test_column_count():
 
     # We can count hidden columns if explicity specified
     assert df.column_count(hidden=True) == 3
+
+
+def test_column_indexed(df_local):
+    df = df_local
+    dff = df.take([1, 3, 5, 7, 9])
+    assert isinstance(dff.columns['x'], vaex.column.ColumnIndexed)
+    assert dff.x.tolist() == [1, 3, 5, 7, 9]
+
+    column_masked = vaex.column.ColumnIndexed.index(dff, dff.columns['x'], 'x', np.array([0, -1, 2, 3, 4]), {}, True)
+    assert column_masked[:].tolist() == [1, None, 5, 7, 9]
