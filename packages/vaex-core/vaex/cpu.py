@@ -145,6 +145,12 @@ class TaskPartMapReduce(TaskPart):
         del spec['task']
         return cls(df, **spec)
 
+    def copy(self):
+        spec = self.__dict__.copy()
+        spec['map'] = spec.pop('_map')
+        spec['reduce'] = spec.pop('_reduce')
+        spec.pop('values')
+        return type(self)(**spec)
 
 @register
 class TaskPartStatistic:
@@ -157,6 +163,7 @@ class TaskPartStatistic:
         self.expressions = expressions
         self.op = op
         self.selections = selections
+        self.weights =weights
         self.fields = op.fields(weights)
         self.shape_total = (len(self.selections), ) + self.shape + (self.fields,)
         self.grid = np.zeros(self.shape_total, dtype=self.dtype)
@@ -278,6 +285,14 @@ class TaskPartStatistic:
         spec['dtype'] = encoding.decode('dtype', spec['dtype'])
         return cls(df, **spec)
 
+    def copy(self):
+        spec = self.__dict__.copy()
+        # spec['map'] = spec.pop('_map')
+        # spec['reduce'] = spec.pop('_reduce')
+        for name in 'fields grid shape_total'.split():
+            spec.pop(name)
+        return type(self)(**spec)
+
 
 @register
 class TaskPartAggregations:
@@ -289,6 +304,7 @@ class TaskPartAggregations:
         # self.expressions_all = expressions
         self.expressions = [binner.expression for binner in grid.binners]
         # TODO: selection and edges in descriptor?
+        self.aggregator_descriptors = aggregator_descriptors
         for aggregator_descriptor in aggregator_descriptors:
             self.expressions.extend(aggregator_descriptor.expressions)
         # self.expressions = list(set(expressions))
@@ -409,3 +425,6 @@ class TaskPartAggregations:
         for agg in aggs:
             agg._prepare_types(df)
         return cls(df, grid, aggs, dtypes)
+
+    def copy(self):
+        return type(self)(self.df, self.grid, self.aggregator_descriptors.copy(), self.dtypes)

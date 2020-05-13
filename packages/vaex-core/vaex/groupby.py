@@ -214,7 +214,10 @@ class BinBy(GroupByBase):
         super(BinBy, self).__init__(df, by)
 
     def agg(self, actions, merge=False):
-        import xarray as xr
+        import sys
+        if 'xarray' not in sys.modules:
+            import xarray as xr
+        xr = sys.modules['xarray']
         arrays = super(BinBy, self)._agg(actions)
         self.df.execute()
         if _USE_DELAY:

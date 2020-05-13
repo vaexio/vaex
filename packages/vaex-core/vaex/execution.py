@@ -142,7 +142,8 @@ class ExecutorLocal(Executor):
                 encoding = Encoding()
                 for task in tasks:
                     spec = encoding.encode('task', task)
-                    task._parts = [encoding.decode('task-part-cpu', spec, df=run.df) for i in range(self.thread_pool.nthreads)]
+                    template = encoding.decode('task-part-cpu', spec, df=run.df)
+                    task._parts = [template] + [template.copy() for i in range(1, self.thread_pool.nthreads)]
 
                 length = run.df.active_length()
                 parts = vaex.utils.subdivide(length, max_length=self.buffer_size)
