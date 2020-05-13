@@ -203,7 +203,12 @@ class ExecutorLocal(Executor):
                 filter_mask = df.evaluate_selection_mask(None, i1=i1, i2=i2, cache=True)
             else:
                 filter_mask = None
-            block_scope.mask = filter_mask
+            block_scope.mask = None
+            block_scope.indices = None
+            if filter_mask is not None:
+                import numpy as np
+                # block_scope.indices = np.where(filter_mask)
+                block_scope.mask = filter_mask
             block_dict = {expression: block_scope.evaluate(expression) for expression in run.expressions}
             for task in run.tasks:
                 blocks = [block_dict[expression] for expression in task.expressions_all]

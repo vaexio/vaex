@@ -52,7 +52,7 @@ class UnitScope(ScopeBase):
 
 
 class _BlockScope(ScopeBase):
-    def __init__(self, df, i1, i2, mask=None, **variables):
+    def __init__(self, df, i1, i2, mask=None, indices=None, **variables):
         """
 
         :param DataFrameLocal DataFrame: the *local*  DataFrame
@@ -67,7 +67,8 @@ class _BlockScope(ScopeBase):
         self.variables = variables
         self.values = dict(self.variables)
         self.buffers = {}
-        self.mask = mask if mask is not None else slice(None, None, None)
+        self.mask = mask  # if mask is not None else slice(None, None, None)
+        self.indices = indices
 
     def move(self, i1, i2):
         length_new = i2 - i1
@@ -128,6 +129,8 @@ class _BlockScope(ScopeBase):
                 self.values[variable] = self.df.columns[variable][offset+self.i1:offset+self.i2]
                 if self.mask is not None:
                     self.values[variable] = self.values[variable][self.mask]
+                elif self.indices is not None:
+                    self.values[variable] = self.values[variable][self.indices]
             elif variable in list(self.df.virtual_columns.keys()):
                 expression = self.df.virtual_columns[variable]
                 if isinstance(expression, dict):
