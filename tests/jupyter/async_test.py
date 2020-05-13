@@ -208,6 +208,9 @@ def test_debounced_await(df_trimmed, as_coroutine, as_method, flush_guard,):
             bla2 = other_foo.foo()
         result1 = await future1
         result2 = await future2
+        if as_method:
+            await bla1
+            await bla2
         assert calls == 1
         assert result1 is result2
         # await asyncio.sleep(0.02)
