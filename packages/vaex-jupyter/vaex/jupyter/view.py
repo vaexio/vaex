@@ -40,13 +40,12 @@ def _translate_selection(selection):
 
 @traitlet_fixes
 class ViewBase(v.Container):
-    selection_active = traitlets.Unicode(None, allow_none=True)
+    selection_interact = traitlets.Unicode('default', allow_none=True)
     tool = traitlets.Unicode(None, allow_none=True)
 
     def __init__(self, **kwargs):
         super(ViewBase, self).__init__(**kwargs)
         self.df = self.model.df
-        self.selection_active = _translate_selection(self.model.selections[-1])
         self.progress_indicator = vw.ProgressCircularNoAnimation(size=30, width=5, height=20, color=C0, value=10.4, text='')
         self.progress_text = vw.Status(value=self.model.status_text)
         traitlets.dlink((self.model, 'status_text'), (self.progress_text, 'value'))
@@ -76,17 +75,17 @@ class ViewBase(v.Container):
 
     def select_nothing(self):
         with self.output:
-            name = _translate_selection(self.selection_active)
+            name = _translate_selection(self.selection_interact)
             self.df.select_nothing(name=name)
 
     def select_rectangle(self, x1, x2, y1, y2, mode='replace'):
         with self.output:
-            name = _translate_selection(self.selection_active)
+            name = _translate_selection(self.selection_interact)
             self.df.select_rectangle(self.model.x.expression, self.model.y.expression, limits=[[x1, x2], [y1, y2]], mode=mode, name=name)
 
     def select_x_range(self, x1, x2, mode='replace'):
         with self.output:
-            name = _translate_selection(self.selection_active)
+            name = _translate_selection(self.selection_interact)
             self.df.select_box([self.model.x.expression], [[x1, x2]], mode=mode, name=name)
 
 
@@ -178,6 +177,7 @@ class Heatmap(ViewBase):
 
     def update_heatmap(self, change=None):
         with self.output:
+            selection_was_list, [selections] = vaex.utils.listify(self.model.selection)
             grid = self.model.grid
             if self.dimension_alternative == 'slice':
                 if self.model.grid_sliced is not None:
@@ -197,7 +197,8 @@ class Heatmap(ViewBase):
                 rgb_image = rgb_image[0]
             else:
                 if self.blend == 'selections':
-                    rgb_image = vaex.image.fade(rgb_image[::-1])
+                    if selection_was_list:
+                        rgb_image = vaex.image.fade(rgb_image[::-1])
                 else:
                     raise ValueError('Unknown what to do with selection')
             assert rgb_image.ndim == 3  # including color channel
@@ -207,8 +208,8 @@ class Heatmap(ViewBase):
 
             # TODO: we should pass the xarray to plot and let that take tare
             dims = self.model.grid.dims
-            dim_x = dims[1]
-            dim_y = dims[2]
+            dim_x = dims[1 if selection_was_list else 0]
+            dim_y = dims[2 if selection_was_list else 1]
             self.plot.x_min = self.model.grid.coords[dim_x].attrs['min']
             self.plot.x_max = self.model.grid.coords[dim_x].attrs['max']
             self.plot.y_min = self.model.grid.coords[dim_y].attrs['min']
@@ -277,17 +278,25 @@ class Histogram(ViewBase):
     def update_data(self, change=None):
         ylist = []
         colors = []
+        selection_was_list, [selections] = vaex.utils.listify(self.model.selection)
         if self.dimension_groups == 'slice':
-            y0 = self.model.grid[0]
+            y0 = self.model.grid
+            if selection_was_list:
+                y0 = y0[0]
             ylist.append(y0)
             colors.append(C0)
             if self.model.grid_sliced is not None:
-                y1 = self.model.grid_sliced[0]
+                y1 = self.model.grid_sliced
+                if selection_was_list:
+                    y1 = y1[0]
                 ylist.append(y1)
                 colors.append(C1)
         elif self.dimension_groups == 'selections':
             ylist = self.model.grid
-            colors = colors_default[:len(ylist)]
+            if selection_was_list:
+                colors = colors_default[:len(ylist)]
+            else:
+                colors = [colors_default[0]]
         else:
             raise ValueError(f'Unknown action {self.dimension_groups} for dimension_groups')
 

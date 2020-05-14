@@ -225,8 +225,8 @@ class Axis(_HasState):
                     self.min, self.max = vmin, vmax
                     self._calculate_centers()
             except vaex.execution.UserAbort:
-                # expression or min/max change, we don't have to take action
-                assert self.status in [Axis.Status.NO_LIMITS, Axis.Status.READY]
+                # probably means expression or min/max changed, we don't have to take action
+                pass
             except asyncio.CancelledError:
                 pass
 
@@ -266,15 +266,14 @@ class DataArray(_HasState):
     grid = traitlets.Instance(xarray.DataArray, allow_none=True)
     grid_sliced = traitlets.Instance(xarray.DataArray, allow_none=True)
     shape = traitlets.CInt(64)
-    selections = traitlets.List(traitlets.Union(
-        [traitlets.Bool(), traitlets.Unicode(allow_none=True)]), [None])
+    selection = traitlets.Any(None)
 
     def __init__(self, **kwargs):
         super(DataArray, self).__init__(**kwargs)
         self.signal_slice = vaex.events.Signal()
         self.signal_regrid = vaex.events.Signal()
         self.signal_grid_progress = vaex.events.Signal()
-        self.observe(lambda change: self.signal_regrid.emit(), 'selections')
+        self.observe(lambda change: self.signal_regrid.emit(), 'selection')
         self._on_axis_status_change()
 
         # keep a set of axis that need new limits
@@ -430,15 +429,19 @@ class GridCalculator(_HasState):
         if self._testing_exeception_reslice:
             raise RuntimeError("test:reslice")
         coords = []
-        selections = self.models[0].selections
+        selection_was_list, [selections] = vaex.utils.listify(self.models[0].selection)
         selections = [k for k in selections if k is None or self.df.has_selection(k)]
         for model in self.models:
             subgrid = self.grid
+            if not selection_was_list:
+                subgrid = subgrid[0]
             subgrid_sliced = self.grid
-            axis_index = 1
+            if not selection_was_list:
+                subgrid_sliced = subgrid_sliced[0]
+            axis_index = 1 if selection_was_list else 0
             has_slice = False
-            dims = ["selection"]
-            coords = [selections.copy()]
+            dims = ["selection"] if selection_was_list else []
+            coords = [selections.copy()] if selection_was_list else []
             mins = []
             maxs = []
             for other_model in self.models:
@@ -461,10 +464,11 @@ class GridCalculator(_HasState):
                             subgrid_sliced = np.sum(subgrid_sliced, axis=axis_index)
                             subgrid = np.sum(subgrid, axis=axis_index)
             grid = xarray.DataArray(subgrid, dims=dims, coords=coords)
+            # +1 to skip the selection axis
+            dim_offset = 1 if selection_was_list else 0
             for i, (vmin, vmax) in enumerate(zip(mins, maxs)):
-                # +1 to skip the selection axis
-                grid.coords[dims[i+1]].attrs['min'] = vmin
-                grid.coords[dims[i+1]].attrs['max'] = vmax
+                grid.coords[dims[i+dim_offset]].attrs['min'] = vmin
+                grid.coords[dims[i+dim_offset]].attrs['max'] = vmax
             model.grid = grid
             if has_slice:
                 model.grid_sliced = xarray.DataArray(subgrid_sliced)
@@ -497,9 +501,12 @@ class GridCalculator(_HasState):
             binby = []
             shapes = []
             limits = []
-            selections = self.models[0].selections
+            selection = self.models[0].selection
+            selection_was_list, [selections] = vaex.utils.listify(self.models[0].selection)
+            selections = [k for k in selections if k is None or self.df.has_selection(k)]
+
             for model in self.models:
-                if model.selections != selections:
+                if model.selection != selection:
                     raise ValueError('Selections for all models should be the same')
                 for axis in model.axes:
                     binby.append(axis.expression)

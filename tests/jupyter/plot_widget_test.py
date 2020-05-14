@@ -65,7 +65,7 @@ def test_widget_histogram(flush_guard):
 
     df.select(df.x > 0)
     check_positive = df.count(selection=True)
-    histogram = df.widget.histogram('x', selections=[None, True], toolbar=True)
+    histogram = df.widget.histogram('x', selection=[None, True], toolbar=True)
 
     flush()
     assert histogram.model.grid[1].sum() == check_positive  # for some reason, because 'x' it float32, we don't need -1
@@ -100,10 +100,10 @@ def test_widget_heatmap(flush_guard):
 
     df.select(df.x > 0)
     check_positive = df.count(selection=True)
-    heatmap = df.widget.heatmap('x', 'y', selections=[None, True])
+    heatmap = df.widget.heatmap('x', 'y', selection=[None, True])
 
     flush()
-    assert heatmap.model.grid[1].sum() == check_positive-1
+    assert heatmap.model.grid[1].sum().item() == check_positive-1
     toolbar = heatmap.toolbar
     toolbar.interact_value = "pan-zoom"
     assert isinstance(heatmap.plot.figure.interaction, bqplot.interacts.PanZoom)
@@ -114,7 +114,7 @@ def test_widget_heatmap(flush_guard):
     heatmap.plot.figure.interaction.selected_y = [-50, 50]
     assert heatmap.model.grid.shape[0] == 2
     flush()
-    assert heatmap.model.grid[1].sum() == check_rectangle
+    assert heatmap.model.grid[1].sum().item() == check_rectangle
 
     toolbar.interact_value = "doesnotexit"
     assert heatmap.plot.figure.interaction is None
