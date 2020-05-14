@@ -239,7 +239,7 @@ async def test_model_status(df_executor, flush_guard, server_latency):
     assert x.max is None
 
     await x._allow_state_change_to(x.Status.STAGED_CALCULATING_LIMITS)
-    calculation_task = x.calculation
+    calculation_task = x._calculation
     # df.executor.thread_pool._debug_sleep = 0.05  # make it slow, so we can cancel the task
     assert hasattr(calculation_task, 'then')  # make sure we have the promise
     await x._allow_state_change_to(x.Status.CALCULATING_LIMITS)
@@ -343,7 +343,7 @@ async def test_model_status(df_executor, flush_guard, server_latency):
     model._debug = True
     x.min = -3
     await model._allow_state_change_to(model.Status.STAGED_CALCULATING_GRID)
-    calculation_task = grid.calculation
+    calculation_task = grid._calculation
     assert calculation_task.isPending
     x.min = -4
     assert model.status == model.Status.NEEDS_CALCULATING_GRID
