@@ -128,6 +128,8 @@ class DataArray(ViewBase):
 
 
 class Heatmap(ViewBase):
+    TOOLS_SUPPORTED = ['pan-zoom', 'select-rect', 'select-x']
+    tool = traitlets.Unicode('pan-zoom', allow_none=True)
     model = traitlets.Instance(model.Heatmap)
     normalize = traitlets.Bool(False)
     colormap = traitlets.Unicode('afmhot')
@@ -215,6 +217,7 @@ class Heatmap(ViewBase):
 
 
 class Histogram(ViewBase):
+    TOOLS_SUPPORTED = ['pan-zoom', 'select-x']
     model = traitlets.Instance(model.Histogram)
     normalize = traitlets.Bool(False)
     dimension_groups = traitlets.Unicode('selections')
